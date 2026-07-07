@@ -133,6 +133,9 @@ export function SalesPartnerOrderListPage() {
       partnerId: partnerId.trim() || undefined,
       status: statusFilter || undefined,
       searchKeyword: searchKeyword.trim() || undefined,
+      // 내부 관리자 목록 전용 opt-in — E2 취소선/복원 표시용 삭제행 포함(#757 R2 HIGH:
+      // BE 기본값은 활성만이며 파트너 호출은 값과 무관하게 활성 행만 반환).
+      includeDeleted: true,
     }),
     retry: 1,
   })
@@ -310,14 +313,19 @@ export function SalesPartnerOrderListPage() {
       key: 'status',
       header: '상태',
       mobilePriority: 'secondary',
-      render: (o) => (
-        <span
-          className={`${styles['statusBadge']} ${STATUS_CLASS[o.status]}`}
-          style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}
-        >
-          {PARTNER_ORDER_STATUS_LABEL[o.status]}
-        </span>
-      ),
+      render: (o) => {
+        const deleted = o.isDeleted === true
+        // 삭제행 배지는 원래 의미색(예: 완료=초록)을 유지하면 "삭제됐는데 정상 완료" 혼합
+        // 신호가 되므로 중립색으로 통일한다(#757 R2 Design F-1). 상태 텍스트는 보존.
+        return (
+          <span
+            className={`${styles['statusBadge']} ${deleted ? styles['statusDeletedNeutral'] : STATUS_CLASS[o.status]}`}
+            style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
+          >
+            {PARTNER_ORDER_STATUS_LABEL[o.status]}
+          </span>
+        )
+      },
     },
     {
       key: 'linkedSlipNo',
@@ -552,6 +560,7 @@ export function SalesPartnerOrderListPage() {
               return !o.orderNumber ? styles['partnerOrderRowDisabled'] : undefined
             }}
             onRowClick={handleRowClick}
+            rowClickable={(o) => o.isDeleted !== true && !!o.orderNumber}
             emptyMessage="등록된 주문이 없습니다"
           />
         )}

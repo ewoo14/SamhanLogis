@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -204,7 +205,7 @@ class PartnerOrderPermissionControllerIT {
                 .thenReturn(new PageImpl<>(List.of(history), PageRequest.of(0, 20), 1));
         lenient().when(queryService.list(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
-        lenient().when(queryService.list(any(), any(), any()))
+        lenient().when(queryService.list(any(), any(), any(), anyBoolean()))
                 .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1));
         lenient().when(queryService.findDetailById(anyString())).thenReturn(detail);
         lenient().when(queryService.findDetailById(anyString(), any())).thenReturn(detail);

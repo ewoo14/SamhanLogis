@@ -22,9 +22,9 @@ SELECT
     FALSE,
     FALSE,
     NOW(),
-    'v82-partner-order-list-restore',
+    'v83-partner-order-list-restore',
     NOW(),
-    'v82-partner-order-list-restore',
+    'v83-partner-order-list-restore',
     FALSE
 FROM (VALUES
     ('MASTER'),
@@ -34,7 +34,7 @@ FROM (VALUES
 ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO UPDATE
 SET can_restore = TRUE,
     modified_at = NOW(),
-    modified_by = 'v82-partner-order-list-restore';
+    modified_by = 'v83-partner-order-list-restore';
 
 INSERT INTO group_page_permissions
     (id, group_id, page_code,
@@ -52,9 +52,9 @@ SELECT
     FALSE,
     FALSE,
     NOW(),
-    'v82-partner-order-list-restore',
+    'v83-partner-order-list-restore',
     NOW(),
-    'v82-partner-order-list-restore',
+    'v83-partner-order-list-restore',
     FALSE
 FROM (VALUES
     ('00000000-0000-0000-0000-000000000100'::uuid),
@@ -64,7 +64,7 @@ FROM (VALUES
 ON CONFLICT (group_id, page_code) WHERE is_deleted = FALSE DO UPDATE
 SET can_restore = TRUE,
     modified_at = NOW(),
-    modified_by = 'v82-partner-order-list-restore';
+    modified_by = 'v83-partner-order-list-restore';
 
 INSERT INTO account_page_permissions
     (id, account_id, page_code,
@@ -82,9 +82,9 @@ SELECT
     BOOL_OR(gpp.can_download),
     BOOL_OR(gpp.can_print),
     NOW(),
-    'v82-partner-order-list-restore',
+    'v83-partner-order-list-restore',
     NOW(),
-    'v82-partner-order-list-restore',
+    'v83-partner-order-list-restore',
     FALSE
 FROM account_groups ag
 JOIN accounts a
@@ -116,4 +116,4 @@ SET can_view = EXCLUDED.can_view,
     can_download = EXCLUDED.can_download,
     can_print = EXCLUDED.can_print,
     modified_at = NOW(),
-    modified_by = 'v82-partner-order-list-restore';
+    modified_by = 'v83-partner-order-list-restore';

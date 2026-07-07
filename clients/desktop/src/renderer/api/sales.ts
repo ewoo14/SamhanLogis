@@ -627,6 +627,11 @@ export async function listPartnerOrders(
     partnerId?: string
     status?: PartnerOrderStatus
     searchKeyword?: string
+    /**
+     * 내부 관리자 목록 전용 opt-in — 삭제행(취소선/복원 표시) 포함. BE 기본값 false(활성만).
+     * 파트너(X-Is-Partner) 호출은 BE 가 값과 무관하게 활성 행만 반환한다(#757 R2 HIGH).
+     */
+    includeDeleted?: boolean
   } = {},
 ): Promise<PageResponse<PartnerOrderSummary>> {
   const params: Record<string, string | number> = { page, size }
@@ -635,6 +640,7 @@ export async function listPartnerOrders(
   if (filters.partnerId) params['partnerId'] = filters.partnerId
   if (filters.status) params['status'] = filters.status
   if (filters.searchKeyword) params['searchKeyword'] = filters.searchKeyword
+  if (filters.includeDeleted) params['includeDeleted'] = 'true'
   const res = await apiClient.get<ApiEnvelope<PageResponse<PartnerOrderSummary>>>(
     '/api/v1/partner-orders',
     { params },

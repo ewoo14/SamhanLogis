@@ -6965,6 +6965,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // status 쿼리 파라미터 추출 (URL 또는 config.params 에서)
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
+    // BE parity(#757 R2 HIGH): includeDeleted=true(내부 관리자 opt-in)일 때만 삭제행 포함.
+    const includeDeletedParam =
+      urlObj.searchParams.get('includeDeleted') ?? String(config.params?.['includeDeleted'] ?? '')
+    const includeDeleted = includeDeletedParam === 'true'
 
     // Phase 2.5 — status 별 fixture rows
     const DRAFT_ROW = {
@@ -7069,6 +7073,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           : { ...row, isDeleted: false, deletedAt: null, deletedByName: null },
       )
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
+      // BE parity: 기본(활성만) — includeDeleted 미요청 시 삭제행 제외(@SQLRestriction 경로 모사).
+      .filter((row) => includeDeleted || row.isDeleted !== true)
 
     return envelope({
       content,
@@ -12518,7 +12524,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       for (const p of mockPerms) {
         const actions: string[] = []
         if (p.view) actions.push('VIEW', 'DOWNLOAD', 'PRINT')
-        if (p.edit) actions.push('CREATE', 'UPDATE', 'DELETE')
+        // action-only page(복원 지원 페이지 포함)는 role-cell 경로(아래)와 동일하게 지정
+        // 액션 집합을 부여 — 기존 CRUD 고정 도출은 RESTORE 미부여(#757 R2 LOW)·convert
+        // 과다 grant 를 만들었다.
+        const actionOnly = MOCK_ACTION_ONLY_PAGES[p.pageCode]
+        if (p.edit) actions.push(...(actionOnly ?? ['CREATE', 'UPDATE', 'DELETE']))
         if (actions.length > 0) permissions[p.pageCode] = actions
       }
       return envelope(permissions)

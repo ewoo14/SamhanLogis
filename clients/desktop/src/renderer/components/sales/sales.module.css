@@ -457,6 +457,12 @@
   background: var(--state-neutral-bg, #f3f4f6);
   color: var(--state-neutral, #4b5563);
 }
+/* 삭제행 상태 배지 — 원래 의미색(완료=초록 등)을 드롭하고 중립 통일(#757 R2 Design F-1).
+   텍스트 취소선/색은 DELETED_ROW_TEXT_STYLE(neutral-600)이 인라인으로 적용된다. */
+.statusDeletedNeutral {
+  background: var(--color-neutral-100, #f3f4f6);
+  color: var(--color-neutral-700, #374151);
+}
 .statusOnHold {
   /* 보류(ON_HOLD) — warning 토큰 참조 (주황 계열, 주의 표시). */
   background: var(--state-warning-bg, #fef3c7);

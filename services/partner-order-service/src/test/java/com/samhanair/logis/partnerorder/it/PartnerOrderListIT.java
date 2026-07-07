@@ -167,6 +167,71 @@ class PartnerOrderListIT extends AbstractPostgresIT {
     @Test
     @WithMockUser(roles = {"SALES"})
     void list_includes_soft_deleted_rows_with_deleted_metadata() throws Exception {
+        saveDeletedOrder();
+
+        // #757 R2 HIGH fix 이후 삭제행 포함은 내부 호출의 includeDeleted=true opt-in 전용.
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("includeDeleted", "true")
+                        .param("searchKeyword", "삭제 품목"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/07-9"))
+                .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
+                .andExpect(jsonPath("$.data.content[0].deletedAt").value("2026-05-08T10:15:00"))
+                .andExpect(jsonPath("$.data.content[0].deletedByName").value("삭제담당자"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_excludes_soft_deleted_rows_without_include_deleted_param() throws Exception {
+        saveDeletedOrder();
+
+        // 기본값(includeDeleted 미지정) = 활성 행만 — 자동완성/타 소비처 삭제행 누출 방지.
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("searchKeyword", "삭제 품목"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+
+        // 전체 조회에서도 삭제행 비포함(활성 3건만).
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.content[?(@.isDeleted == true)]").isEmpty());
+    }
+
+    /**
+     * #757 R2 HIGH — 파트너({@code X-Is-Partner}) 셀프서비스 호출은 {@code includeDeleted=true}
+     * 를 실어 보내도 삭제행·내부 실명(deletedByName)이 절대 노출되지 않아야 한다(fail-closed).
+     */
+    @Test
+    @WithMockUser(roles = {"PARTNER"})
+    void partner_scope_excludes_soft_deleted_rows_even_when_include_deleted_requested() throws Exception {
+        // 같은 거래처(P-SP0841-D)의 활성 1건 + 삭제 1건 시드.
+        saveOrder("2026/05/09-1", "P-SP0841-D", "4040404040", "활성 품목", "ACT-001", "CONFIRMING");
+        saveDeletedOrder();
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "PARTNER")
+                        .header("X-Is-Partner", "true")
+                        .header("X-Partner-Code", "P-SP0841-D")
+                        .param("includeDeleted", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/09-1"))
+                .andExpect(jsonPath("$.data.content[0].isDeleted").value(false))
+                // Summary DTO 는 NON_NULL 미적용 — null 로 직렬화되므로 nullValue 매처로 단언.
+                .andExpect(jsonPath("$.data.content[0].deletedByName").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.content[?(@.isDeleted == true)]").isEmpty());
+    }
+
+    private PartnerOrder saveDeletedOrder() {
         PartnerOrder deleted = saveOrder(
                 "2026/05/07-9",
                 "P-SP0841-D",
@@ -175,18 +240,7 @@ class PartnerOrderListIT extends AbstractPostgresIT {
                 "DEL-001",
                 "CONFIRMING");
         deleted.markDeletedWithName(ACCOUNT_ID, "삭제담당자", LocalDateTime.parse("2026-05-08T10:15:00"));
-        orderRepository.saveAndFlush(deleted);
-
-        mockMvc.perform(get("/api/v1/partner-orders")
-                        .header("X-User-Id", ACCOUNT_ID)
-                        .header("X-User-Role", "SALES")
-                        .param("searchKeyword", "삭제 품목"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(1))
-                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/07-9"))
-                .andExpect(jsonPath("$.data.content[0].isDeleted").value(true))
-                .andExpect(jsonPath("$.data.content[0].deletedAt").value("2026-05-08T10:15:00"))
-                .andExpect(jsonPath("$.data.content[0].deletedByName").value("삭제담당자"));
+        return orderRepository.saveAndFlush(deleted);
     }
 
     private PartnerOrder saveOrder(String orderNo, String partnerCode, String bizCode,

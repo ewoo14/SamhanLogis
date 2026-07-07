@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -211,6 +212,113 @@ class PartnerOrderDeleteIT extends AbstractPostgresIT {
         assertThat(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(order.getId()))
                 .extracting("fieldName", "newValue")
                 .containsExactly(org.assertj.core.api.Assertions.tuple("DELETE", "soft-deleted"));
+    }
+
+    /**
+     * #757 R2 MED — 인라인 복원(POST /{id}/restore)이 같은 삭제 작업으로 cascade soft-delete 된
+     * 라인을 재활성화하고 totalAmount 를 보존하는지 HTTP 왕복으로 고정한다(기존 IT 는 revision
+     * restore 경로만 커버 — 인라인 경로 회귀 시 "빈 껍데기 주문" 복원).
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void testInlineRestoreReactivatesCascadeDeletedLinesAndPreservesTotalAmount() throws Exception {
+        // 라인 2건(2×120,000 + 1×120,000) → addLine 누적 totalAmount = 360,000.
+        PartnerOrder order = saveDraftOrder("2026/05/17-41");
+
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/restore", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDeleted").value(false))
+                .andExpect(jsonPath("$.data.totalAmount").value(360000))
+                .andExpect(jsonPath("$.data.lines.length()").value(2));
+
+        Integer activeLines = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM partner_order_lines
+                 WHERE partner_order_id = ?
+                   AND is_deleted = FALSE
+                """, Integer.class, order.getId());
+        java.math.BigDecimal totalAmount = jdbcTemplate.queryForObject("""
+                SELECT total_amount
+                  FROM partner_orders
+                 WHERE id = ?
+                   AND is_deleted = FALSE
+                """, java.math.BigDecimal.class, order.getId());
+
+        assertThat(activeLines).isEqualTo(2);
+        assertThat(totalAmount).isEqualByComparingTo("360000");
+    }
+
+    /**
+     * #757 R2 LOW disposition 고정 — 주문 라인은 수정 플로우에서도 개별 soft-delete 되므로
+     * 인라인 복원은 <b>헤더 deletedAt 동일 시각의 cascade 라인만</b> 되살려야 한다.
+     * 수정으로 제거된(다른 시각) 라인이 오복원되면 판매전표(D)식 전량복원 회귀다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void testInlineRestoreDoesNotResurrectLinesRemovedByEditFlow() throws Exception {
+        PartnerOrder order = saveDraftOrder("2026/05/17-42");
+        // 수정 플로우의 라인 제거를 모사 — 헤더 삭제와 다른 시각으로 개별 soft-delete.
+        order.getLines().stream()
+                .filter(l -> "AJ040RXH4BC1".equals(l.getModelName()))
+                .findFirst()
+                .orElseThrow()
+                .markDeleted("system-partner-order-update");
+        orderRepository.saveAndFlush(order);
+
+        mockMvc.perform(delete("/api/v1/partner-orders/{id}", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/restore", order.getId())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isDeleted").value(false))
+                .andExpect(jsonPath("$.data.lines.length()").value(1))
+                .andExpect(jsonPath("$.data.lines[0].modelCode").value("AR09B9150HZ"));
+
+        Boolean editRemovedStillDeleted = jdbcTemplate.queryForObject("""
+                SELECT is_deleted
+                  FROM partner_order_lines
+                 WHERE partner_order_id = ?
+                   AND model_name = 'AJ040RXH4BC1'
+                """, Boolean.class, order.getId());
+        Boolean cascadeLineActive = jdbcTemplate.queryForObject("""
+                SELECT is_deleted
+                  FROM partner_order_lines
+                 WHERE partner_order_id = ?
+                   AND model_name = 'AR09B9150HZ'
+                """, Boolean.class, order.getId());
+
+        assertThat(editRemovedStillDeleted).isTrue();
+        assertThat(cascadeLineActive).isFalse();
+    }
+
+    private PartnerOrder saveDraftOrder(String orderNo) {
+        // createFromConfirm = DRAFT 진입 팩토리 — create()의 CONFIRMING 은 requireRestorable()
+        // 가드(전환-중 좀비 방지 409)에 걸려 인라인 복원 시나리오를 검증할 수 없다.
+        // totalAmount 는 addLine() 이 라인 subtotal 을 누적하므로 ZERO 로 시작한다.
+        PartnerOrder order = PartnerOrder.createFromConfirm(
+                "P-SP0843",
+                "1010101010",
+                orderNo,
+                "IT-SP0843-DEL-" + orderNo,
+                BigDecimal.ZERO);
+        order.addLine(line("AJ040RXH4BC1", 2));
+        order.addLine(line("AR09B9150HZ", 1));
+        return orderRepository.saveAndFlush(order);
     }
 
     private PartnerOrder saveOrder(String orderNo, boolean deleted, boolean confirmed) {
