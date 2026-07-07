@@ -4,7 +4,37 @@
 
 ---
 
-## 🔴🔴 2026-07-07 회사PC 이어받기 — E2/E3 롤아웃 5-PR 파이프라인 (야간 자율 PM · full-canon 엄수 · 단축0)
+## ✅ 2026-07-08 집PC 야간 자율 — E2 롤아웃 5-PR 완주 → 다음 TODO 순차 (PM 자율·워크플로우 엄수)
+
+> **이 세션 = 집PC**(원문 "회사PC 이어받기"는 회사PC 강제종료 세션이 C R2 fix·#761 머지까지 push한 것을 집PC가 이어받아 완주 — PC 정정). **다음 세션 첫 읽기 = 본 절.** 개발책임자 지시(2026-07-08 새벽): **E2 완주 후 PM 자율진행·워크플로우 엄수·새벽 동안 자율.**
+
+### E2 롤아웃 완주 — 5-PR 전부 머지 (STEP4=Opus 독립 적대검증, Codex Jul11 한도 대체·개발책임자 승인)
+| PR | 도메인 | 마이그 | mergeSHA | 적대검증 STEP4 포착(단축했으면 배포될 뻔) |
+|---|---|---|---|---|
+| #760 거래처 | auth V82 | `3f1541c65` | 삭제행 누출·rowKey 오복원 |
+| #761 입금(E3 S4d) | — | `a4a1e2679` | Badge 대비·배너 중첩 |
+| #757 C 주문 | auth V83·po V10 | `36ee0e30a` | **파트너 삭제주문+내부실명 누출**→includeDeleted 내부전용 fail-closed |
+| #758 D 판매전표 | auth V84·slip V56 | `a85059df6` | **레거시 복원 무음 빈껍데기(라인 영구소실)**→개발책임자 fail-loud→409+롤백 |
+| #759 E 견적 | auth V85·slip V57 | `7f1652fb5` | **취소선 1/6열만**·**mock 3역할 복원 parity 누락** 2 HIGH |
+
+매 PR마다 R1·머지게이트감사·BE/DevOps가 놓친 실결함을 적대검증이 포착 — **3 PR 연속 "단축금지" 정당성 실증**. D는 재검 에이전트 제안 fix(`restored<deletedLineCount`)가 정상 편집후삭제 전표를 fail-loud 오발동시킴을 검증해 **기술 기각**(finding 채택·fix 기각·독단기각 금지).
+
+### 개발책임자 결정 (이 세션)
+- **CONVERTED 견적 삭제 = 허용 유지**(#759·견적은 tombstone·원장 무관). **D 레거시 복원 = fail-loud**(#758).
+
+### 정리 상태
+- worktree wtAfix/wtC/wtD/wtE **제거**(전 브랜치 머지완료). ⚠️ D real-qa 스펙 미커밋분 소멸 → 필요 시 재생성(**`-real-qa` 접미사** [[project_dispatch_on_inspect_epic]]). main orphan untracked QA(`docs/qa/e2-partner-list/`·`e3-s4d-coedit/`·`playwright/e2-partner-list-real-qa/`)=#760/#761 잔재(세션 시작부터)→gitignore/삭제 별도.
+
+### 다음 TODO 순차 (개발책임자 자율 위임 — 권장 순서)
+1. **#720 월마감 fix**(핵심흐름·착수) — 월마감 실행 100% 실패: slip `/slips/lock-by-period`가 internal prefix 밖→403→409(#719 라이브QA 적발). 게이트웨이 라우팅/컨트롤러 prefix fix.
+2. **E3 회계 잔여**(#3 journal→cashReceipt 링크·#18 accounting backlog) → 소형 백로그(#713 분개라인 BE enrich·#723 권한매트릭스·#725·#714·#715·#729) → **#12 회계 full-form**(대규모·BE update 신설+차/대변+라인 CRDT) → **#17 단가변동**(#688 OPEN) → #19 GAS이관·#20 마스코트·#21 API키회전.
+
+### PARK / 백로그
+**E2 신규**: Design 삭제행 배지텍스트 3화면 통일(C=F-1 텍스트보존 vs D/E='삭제됨')·다크모드 헤더(`.salesScope --c-bg:#fff` 6화면 공유)·`deletedRowDisplay` 4중복 SSOT·`.error-banner --color-semantic-danger` 미정의(90+파일)·D partial-match 다중라인 레거시(near-zero·라인레벨 마커=DELETE revision 에픽)·D deleteForPurchase INBOUND dormant·E EstimateClient 실HTTP read-path 가드·D real-qa `-real-qa` 리네임·마이그순서 CI가드. **기존**: 판매조회 담당자명 UUID·SSOT sweep·`searchIncludingDeleted` rename·SSE FE 조건화·mobile flake·미해결 #729/#725/#723/#715/#714·**Codex 복구(Jul11) 후 STEP4 소급 재검**(C/D/E 선택).
+
+---
+
+## 🔴🔴 (완주·이력) 2026-07-07 회사PC 이어받기 — E2/E3 롤아웃 5-PR 파이프라인 (야간 자율 PM · full-canon 엄수 · 단축0)
 
 > **회사PC 첫 작업 = 이 절만 읽고 즉시 이어받기.** 집PC 원격 한계로 인계. **프로덕션 코드 전부 커밋·push 완료**. 로컬 worktree(wtAfix/wtD/wtC/wtE)는 집PC 로컬 — 회사PC는 아래 브랜치를 `git worktree add` 또는 체크아웃으로 재생성. STEP4=**Opus 독립 적대검증**(Codex 사용량 한도 Jul11까지·개발책임자 승인 대체 [[project_ci_billing_blocker]]).
 
