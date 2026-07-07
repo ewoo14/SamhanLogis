@@ -195,7 +195,7 @@ export function CashReceiptDetailPage() {
           <Field
             label="금액"
             value={formatCashReceiptAmount(receipt.amount)}
-            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--color-danger-700)' } : undefined}
+            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--color-danger-700, #991B1B)' } : undefined}
           />
           <Field label="차변 계정" value={receipt.debitAccountCode ?? null} />
           <Field label="대변 계정" value={receipt.creditAccountCode ?? null} />
