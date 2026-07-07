@@ -5,7 +5,10 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.realtime.SlipListRealtime;
+import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class SlipRestoreService {
 
     private final SlipRepository slipRepository;
+    private final SlipLineRepository slipLineRepository;
     private final CollectionRealtimePublisher collectionRealtimePublisher;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * soft-deleted 전표를 복원한다.
@@ -49,6 +56,11 @@ public class SlipRestoreService {
         try {
             slip.markRestoredWithNameCleared();
             Slip saved = slipRepository.saveAndFlush(slip);
+            // 헤더 삭제 시 deleteForSales 가 cascade 로 soft-delete 한 라인들을 대칭 복원한다
+            // (미복원 시 복원 전표가 품목·금액 0 의 빈 껍데기가 됨 — STEP4 적대검증 HIGH).
+            // native bulk 는 영속성 컨텍스트를 우회하므로 refresh 로 되살아난 라인을 컬렉션에 반영.
+            slipLineRepository.restoreDeletedLinesBySlipId(saved.getId());
+            entityManager.refresh(saved);
             saved.getLines().size();
             publishListChanged("RESTORED");
             return saved;

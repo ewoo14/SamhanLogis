@@ -20,3 +20,14 @@ Codex 개발분이 **거래처 STEP4-이전 패턴을 미러**해, 거래처 STE
 
 - SSE 구독권한: `SlipListRealtimeController` 가 `sales.slip.list` VIEW 단일 게이트 → WAREHOUSE(구매전용) 사용자가 INBOUND 목록에서 403+재시도. FE 에서 OUTBOUND 만 SSE 구독하도록 조건화 예정(MED, 폴링 폴백으로 기능은 유지).
 - mock `GET /slips` includeDeleted parity(mock 전용). `searchIncludingDeleted` 명칭 rename(활성전용화됨). auth 크로스트랙 머지순 C(V83)→D(V84)→E(V85) 수동 게이트.
+
+## STEP4 (Opus 5-agent 적대검증 — Codex 한도 대체, 개발책임자 승인) + fix
+
+적대적 refute 관점 5-agent(BE·FE·Design·DevOps·QA라이브)가 R1-fix를 공격:
+- **🔴 누출 fix = 견고 확정(5-agent 전원)**: BE(native 쿼리 3개만 우회표면·전부 방어)·FE(취소선 Chromium 픽셀 실측·includeDeleted 이중방어)·Design(neutral-600 AAA·다크 AA)·DevOps(CI genuine·마이그·라우트)·**QA 라이브**(판매조회·Excel바이너리·INBOUND·파라미터퍼징[type=INBOUND&includeDeleted=true·system-master 전부 ABSENT] 실증, 스샷 03/04). **누출 결함 0.**
+- **🟠 HIGH(BE+DevOps 수렴) fix**: `SlipRestoreService.restore()` 가 삭제 라인 미복원 → 복원=빈 껍데기(totalQuantity=0). `SlipLineRepository.restoreDeletedLinesBySlipId`(native bulk) + `entityManager.refresh` 로 라인 대칭복원. IT 라인생존 assert(`totalQuantity=1`) 신설 → **8 tests 0 fail genuine 실증**.
+- **🟡 LOW(Design F-1) fix**: 삭제행 status 배지 aria-label 이 영문 enum(`CONFIRMED`) 노출 → `SLIP_STATUS_KO` 한국어 맵 경유(스크린리더 정합).
+
+### 백로그 (문서화·비차단)
+- **F1(선존재·#758 무관, MEDIUM)**: 판매조회 담당자명에 raw requesterId UUID 노출(`SlipResponse.salesPersonName`) — prod 재현·#758 diff 미변경. requesterId→표시명 resolve 또는 "—" 가드 후속.
+- INBOUND restore→404·`slipType=INBOUND&includeDeleted=true`→미노출 IT(코드+QA 라이브 검증됨, IT 추가 권장)·regionGroup+includeDeleted 취소선·`searchIncludingDeleted` rename·SSE FE 조건화·mock GET parity·액센트바 대비.

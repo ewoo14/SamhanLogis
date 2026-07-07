@@ -125,6 +125,21 @@ const DELIVERY_TAG_LABEL_MAP: Record<DeliveryTagCode, string> = {
 // SSE 목록 동기화용 coarse 무효화 키(안정 참조 — 렌더마다 재구독 방지).
 const SLIP_LIST_REALTIME_KEYS: QueryKey[] = [['slips', 'list']]
 
+/** 삭제행 status 컬럼 aria-label 용 한국어 라벨 (SlipStatusBadge 표기 정합 — 스크린리더에 영문 enum 미노출). */
+const SLIP_STATUS_KO: Record<string, string> = {
+  DRAFT: '작성중',
+  SAVED: '저장완료',
+  SENT: '전송',
+  RECEIVED: '수령',
+  ACCEPTED: '수락',
+  REJECTED: '반려',
+  SHIPPING: '배송중',
+  DELIVERED: '배송완료',
+  CONFIRMED: '확정',
+  CANCELED: '취소',
+  CANCELLED: '취소',
+}
+
 export function SlipListPage({ mode }: SlipListPageProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -239,7 +254,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
       mobilePriority: 'secondary',
       render: (row) =>
         row.isDeleted ? (
-          <Badge variant="neutral" aria-label={`삭제됨 (기존 상태 ${row.status})`}>삭제됨</Badge>
+          <Badge variant="neutral" aria-label={`삭제됨 (기존 상태 ${SLIP_STATUS_KO[row.status] ?? row.status})`}>삭제됨</Badge>
         ) : (
           <SlipStatusBadge status={row.status} />
         ),

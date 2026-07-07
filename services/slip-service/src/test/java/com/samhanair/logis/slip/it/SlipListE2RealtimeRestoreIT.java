@@ -279,7 +279,9 @@ class SlipListE2RealtimeRestoreIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.slipNo", is(created.slipNo())))
                 .andExpect(jsonPath("$.data.isDeleted", is(false)))
-                .andExpect(jsonPath("$.data.deletedByName").doesNotExist());
+                .andExpect(jsonPath("$.data.deletedByName").doesNotExist())
+                // 삭제 시 cascade soft-delete 된 라인이 복원되어야 빈 껍데기(totalQuantity=0)가 아님 — STEP4 HIGH 회귀가드.
+                .andExpect(jsonPath("$.data.totalQuantity", is(1)));
 
         verify(collectionPublisher).publishChange(
                 eq(SLIP_LIST_CHANNEL_ID),
