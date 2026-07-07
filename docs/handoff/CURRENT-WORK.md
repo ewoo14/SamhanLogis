@@ -25,9 +25,22 @@
 ### 정리 상태
 - worktree wtAfix/wtC/wtD/wtE **제거**(전 브랜치 머지완료). ⚠️ D real-qa 스펙 미커밋분 소멸 → 필요 시 재생성(**`-real-qa` 접미사** [[project_dispatch_on_inspect_epic]]). main orphan untracked QA(`docs/qa/e2-partner-list/`·`e3-s4d-coedit/`·`playwright/e2-partner-list-real-qa/`)=#760/#761 잔재(세션 시작부터)→gitignore/삭제 별도.
 
-### 다음 TODO 순차 (개발책임자 자율 위임 — 권장 순서)
-1. **#720 월마감 fix**(핵심흐름·착수) — 월마감 실행 100% 실패: slip `/slips/lock-by-period`가 internal prefix 밖→403→409(#719 라이브QA 적발). 게이트웨이 라우팅/컨트롤러 prefix fix.
-2. **E3 회계 잔여**(#3 journal→cashReceipt 링크·#18 accounting backlog) → 소형 백로그(#713 분개라인 BE enrich·#723 권한매트릭스·#725·#714·#715·#729) → **#12 회계 full-form**(대규모·BE update 신설+차/대변+라인 CRDT) → **#17 단가변동**(#688 OPEN) → #19 GAS이관·#20 마스코트·#21 API키회전.
+### 야간 자율 추가 완료 (2026-07-08 새벽~아침 · #725·#714·#723 — 개발책임자 "새벽 동안 자율" 지시)
+E2 완주 후 결정불요·well-scoped 슬라이스 3건 full-canon 완주(STEP4=Opus 독립 적대검증):
+| PR | 슬라이스 | 적대검증/핵심 |
+|---|---|---|
+| #763 | **#725 IllegalState→409+displayName**(slip 배차) | 상태전이 12곳 BusinessException 승격+wrapper 9제거. **STEP4 HIGH H-1=서비스층 raw enum 8곳 완성**(SlipDispatchStatus displayName 신설·FE SSOT 이식). slip 1214·po 352 tests·라이브 409 |
+| #764 | **#714 분개 상세 1024px 메모열** | 핵심 폭 fix는 #737 기존→재구현 회피. 1024px 회귀방지 real-qa 신설+**#737 유발 1440px 비례확대(×1.2977) 단언 정정**. 라이브 스샷(사용자+PR) |
+| #766 | **#723 cash-receipts 권한 매트릭스** | 7 endpoint deny-403 등재. 음성대조({}→400)로 403 genuine 도달 실증(tautology 아님). accounting 1163 tests |
+
+**stale TODO 회피(정찰 성과)**: **#720(월마감)·#714(1024px) 모두 이미 fix됨**(PR #732·#737) — 정찰이 재구현 방지([[feedback_recon_grep_false_negative]]). 핸드오프 TODO가 stale이었음.
+**신규 후속 이슈 #765**: vite.config `pwaRegisterDevStub` enforce:'pre' 누락 → desktop real-qa 전체 렌더러 부팅 잠재 차단(#714 QA 적발). 1줄 fix 별도.
+
+### 다음 TODO 순차 (개발책임자 자율 위임 — 갱신)
+1. **#715 분개 작성/편집 폼 grid**(합계 5/6-트랙 미스매치·열 순서 상세와 정렬 — #714 동계열·FE).
+2. **E3 회계 잔여**(#3 journal→cashReceipt 링크·#18 accounting backlog) → **#12 회계 full-form**(대규모·BE update 신설+차/대변+라인 CRDT) → **#17 단가변동**(#688 OPEN) → #19 GAS이관·#20 마스코트·#21 API키회전.
+3. 소형 백로그: **#725 후속 sweep**(PartnerOrder/Slip/Estimate raw enum·EstimateService 500마스킹)·#765(real-qa 부팅).
+- ⚠️ **개발책임자 정책/방향 필요**(아침 확인): #729 라우팅(라우트추가 vs 컨트롤러이동)·#713 분개라인 enrich·#17 단가 방향·E3 #3 링크(BE cashReceiptId 추가 vs 현 네비).
 
 ### PARK / 백로그
 **E2 신규**: Design 삭제행 배지텍스트 3화면 통일(C=F-1 텍스트보존 vs D/E='삭제됨')·다크모드 헤더(`.salesScope --c-bg:#fff` 6화면 공유)·`deletedRowDisplay` 4중복 SSOT·`.error-banner --color-semantic-danger` 미정의(90+파일)·D partial-match 다중라인 레거시(near-zero·라인레벨 마커=DELETE revision 에픽)·D deleteForPurchase INBOUND dormant·E EstimateClient 실HTTP read-path 가드·D real-qa `-real-qa` 리네임·마이그순서 CI가드. **기존**: 판매조회 담당자명 UUID·SSOT sweep·`searchIncludingDeleted` rename·SSE FE 조건화·mobile flake·미해결 #729/#725/#723/#715/#714·**Codex 복구(Jul11) 후 STEP4 소급 재검**(C/D/E 선택).
