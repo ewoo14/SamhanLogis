@@ -237,7 +237,8 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
                         .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
-                        .param("q", "P-2026-0018"))
+                        .param("q", "P-2026-0018")
+                        .param("includeDeleted", "true"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-2026-0018"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].isDeleted").value(true))
@@ -260,9 +261,82 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void search_default_excludes_deleted_partner_from_shared_autocomplete_contract() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DEL-HIDE", "111-22-33331"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-DEL-HIDE")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "P-DEL-HIDE")
+                        .param("size", "20"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(0));
+    }
+
+    @Test
+    void search_includeDeleted_true_exposes_deleted_partner_for_admin_list_only() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DEL-SHOW", "111-22-33332"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-DEL-SHOW")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Name", "이운영")
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "P-DEL-SHOW")
+                        .param("includeDeleted", "true")
+                        .param("size", "20"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-DEL-SHOW"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].isDeleted").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].deletedByName").value("이운영"));
+    }
+
+    @Test
+    void find_all_default_excludes_deleted_partner() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-DEL-LIST", "111-22-33333"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/partners/P-DEL-LIST")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("page", "0")
+                        .param("size", "20")
+                        .param("sort", "partnerCode,asc"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.content.length()").value(0));
+    }
+
+    @Test
     void search_status_filter_returns_only_matching_status() throws Exception {
-        // @Enumerated(STRING) enum 을 native query 에 raw 바인딩하면 Hibernate 가 ordinal(정수)로 바인딩해
-        // status 필터가 영구 0건이 되는 회귀를 실 Postgres 로 고정한다(searchAdminIncludingDeleted).
+        // status 필터가 기본(JPQL 활성전용) 경로와 native(includeDeleted=true, searchAdminIncludingDeleted) 경로
+        // 양쪽에서 정상 동작함을 실 Postgres 로 고정한다. 특히 native 경로는 @Enumerated(STRING) enum 을 raw 바인딩하면
+        // Hibernate 가 ordinal(정수)로 바인딩해 status 필터가 영구 0건이 되던 회귀 — status.name() String CAST 로 가드.
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
@@ -300,6 +374,19 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-SUS"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("SUSPENDED"));
+
+        // native 경로(includeDeleted=true = searchAdminIncludingDeleted)의 enum String CAST 회귀가드.
+        // 이 조합을 검증하지 않으면 status.name() 변환이 제거돼 ordinal 바인딩 버그가 CI 에서 조용히 재유입될 수 있다.
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("status", "ACTIVE")
+                        .param("includeDeleted", "true")
+                        .param("size", "50"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-ACT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("ACTIVE"));
     }
 
     @Test

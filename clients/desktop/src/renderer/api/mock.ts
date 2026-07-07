@@ -7360,8 +7360,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ?? (config.params?.['type'] as string | undefined)
       ?? '').trim()
     const lower = q.trim().toLowerCase()
+    const includeDeleted = config.params?.['includeDeleted'] === true || config.params?.['includeDeleted'] === 'true'
     const allItems = MOCK_ADMIN_PARTNERS.map((row) => normalizeAdminPartner(row))
     const filtered = allItems
+      .filter((item) => includeDeleted || item.isDeleted !== true)
       .filter((item) => !status || item.status === status)
       .filter((item) =>
         !lower
@@ -7514,6 +7516,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const code = decodeURIComponent(url.match(/\/admin\/partners\/([^/?]+)$/)?.[1] ?? '')
     const row = MOCK_ADMIN_PARTNERS.find((p) => p['partnerCode'] === code)
     if (!row) {
+      return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
+    }
+    if (row['isDeleted'] === true) {
       return mockError(404, 'PARTNER_NOT_FOUND', `거래처 코드 '${code}' 를 찾을 수 없습니다.`)
     }
     row['isDeleted'] = true

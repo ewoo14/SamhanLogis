@@ -1,0 +1,11 @@
+.deletedRow.deletedRow {
+  cursor: default;
+}
+
+.deletedRow.deletedRow > td {
+  background-color: var(--color-bg-subtle);
+}
+
+.deletedRow.deletedRow > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-border-strong);
+}
