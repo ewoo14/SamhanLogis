@@ -17006,7 +17006,7 @@ const emptyMockActionMatrix = (): MockActionMatrix => ({
 
 const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
   const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
-  const canRestore = ['sales.partner-order.list', 'dispatch.board', 'sales.slip.list'].includes(page)
+  const canRestore = ['sales.partner-order.list', 'dispatch.board', 'sales.slip.list', 'estimates.list'].includes(page)
     ? cell?.edit ?? false
     : false
   return {
