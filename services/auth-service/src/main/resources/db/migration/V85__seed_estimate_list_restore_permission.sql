@@ -1,7 +1,15 @@
 -- E2 estimate list strikethrough restore.
 --
 -- estimates.list 는 기존 견적 목록/작성/수정 page-code 다. 복원은 soft-delete undo 이므로
--- 동일 페이지에 can_delete / can_restore 를 additive grant 한다.
+-- 동일 페이지에 can_restore 를 additive grant 한다.
+--
+-- V10(role_page_permissions)+V39 backfill 기준 MASTER/MANAGER/SALES 는 이미
+-- view/create/update/delete 전부 TRUE 인 반면 can_restore 만 없어 삭제는 되는데 복원은
+-- MASTER 로만 병목되는 비대칭이 있었다. 목록 복원은 목록 운영 액션이라 삭제 권한을 이미
+-- 보유한 3역할(MASTER/MANAGER/SALES) 모두에 부여한다(V83 거래처주문·V84 판매전표와 정합).
+--
+-- ON CONFLICT DO UPDATE 는 can_restore 만 갱신한다 — 기존 행의 view/create/update/delete
+-- 값은 이 마이그레이션 관할 밖이라 덮어쓰지 않는다(V83/V84 와 동일한 좁힌 범위).
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -9,16 +17,29 @@ INSERT INTO role_page_permission_templates
     (id, role_code, page_code,
      can_view, can_create, can_update, can_delete, can_restore, can_download, can_print,
      created_at, created_by, modified_at, modified_by, is_deleted)
-VALUES
-    (gen_random_uuid(), 'MASTER', 'estimates.list',
-     TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE,
-     NOW(), 'v85-estimate-list-restore', NOW(), 'v85-estimate-list-restore', FALSE)
+SELECT
+    gen_random_uuid(),
+    roles.role_code,
+    'estimates.list',
+    TRUE,
+    TRUE,
+    TRUE,
+    TRUE,
+    TRUE,
+    FALSE,
+    FALSE,
+    NOW(),
+    'v85-estimate-list-restore',
+    NOW(),
+    'v85-estimate-list-restore',
+    FALSE
+FROM (VALUES
+    ('MASTER'),
+    ('MANAGER'),
+    ('SALES')
+) AS roles(role_code)
 ON CONFLICT (role_code, page_code) WHERE is_deleted = FALSE DO UPDATE
-SET can_view = TRUE,
-    can_create = TRUE,
-    can_update = TRUE,
-    can_delete = TRUE,
-    can_restore = TRUE,
+SET can_restore = TRUE,
     modified_at = NOW(),
     modified_by = 'v85-estimate-list-restore';
 
@@ -26,16 +47,29 @@ INSERT INTO group_page_permissions
     (id, group_id, page_code,
      can_view, can_create, can_update, can_delete, can_restore, can_download, can_print,
      created_at, created_by, modified_at, modified_by, is_deleted)
-VALUES
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000100'::uuid, 'estimates.list',
-     TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE,
-     NOW(), 'v85-estimate-list-restore', NOW(), 'v85-estimate-list-restore', FALSE)
+SELECT
+    gen_random_uuid(),
+    roles.group_id,
+    'estimates.list',
+    TRUE,
+    TRUE,
+    TRUE,
+    TRUE,
+    TRUE,
+    FALSE,
+    FALSE,
+    NOW(),
+    'v85-estimate-list-restore',
+    NOW(),
+    'v85-estimate-list-restore',
+    FALSE
+FROM (VALUES
+    ('00000000-0000-0000-0000-000000000100'::uuid),
+    ('00000000-0000-0000-0000-000000000101'::uuid),
+    ('00000000-0000-0000-0000-000000000102'::uuid)
+) AS roles(group_id)
 ON CONFLICT (group_id, page_code) WHERE is_deleted = FALSE DO UPDATE
-SET can_view = TRUE,
-    can_create = TRUE,
-    can_update = TRUE,
-    can_delete = TRUE,
-    can_restore = TRUE,
+SET can_restore = TRUE,
     modified_at = NOW(),
     modified_by = 'v85-estimate-list-restore';
 

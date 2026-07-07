@@ -285,7 +285,7 @@ export function EstimateListPage() {
         >
           <h3 style={{ margin: 0 }}>
             견적서 관리{' '}
-            <span style={{ fontSize: 12, color: '#6B7280', marginLeft: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginLeft: 8 }}>
               전체 {query.data?.totalElements ?? 0}건
             </span>
           </h3>
@@ -381,6 +381,7 @@ export function EstimateListPage() {
             rowKey={(r) => `${r.id}:${r.isDeleted ? 'D' : 'A'}`}
             rowTestId={(r) => `estimate-list-row-${r.id}`}
             rowClickable={(r) => r.isDeleted !== true}
+            rowClassName={(r) => (r.isDeleted ? styles['partnerOrderRowDeleted'] : undefined)}
             onRowClick={(r) => {
               if (r.isDeleted === true) return
               navigate(`/sales/estimates/${r.id}`)
@@ -390,7 +391,11 @@ export function EstimateListPage() {
         </div>
 
         {query.isError ? (
-          <div className="error-banner" role="alert" style={{ marginTop: 16 }}>
+          <div
+            className="error-banner"
+            role="alert"
+            style={{ marginTop: 16, color: 'var(--color-danger-700, #991B1B)' }}
+          >
             견적서 목록을 불러오지 못했습니다. slip-service 의 estimate endpoint
             (`/slips/estimates`) 가 가동 중인지 확인하세요.
           </div>

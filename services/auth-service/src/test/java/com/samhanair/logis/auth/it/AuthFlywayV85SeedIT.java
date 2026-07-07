@@ -11,6 +11,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * V85 estimates.list RESTORE 시드 검증 — E2 견적 목록 취소선 복원.
+ *
+ * <p>V82(partners.delete, MASTER 단일)와 달리 견적 목록 복원은 목록 운영 액션이라
+ * MASTER/MANAGER/SALES 3역할에 부여한다(V83 거래처주문·V84 판매전표와 정합).
  */
 @SpringBootTest(
         classes = AuthServiceApplication.class,
@@ -24,41 +27,44 @@ class AuthFlywayV85SeedIT extends AbstractPostgresIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("V85는 MASTER 역할/그룹의 estimates.list can_restore를 켜고 기존 권한을 보존한다")
-    void masterTemplateAndGroupHaveEstimateListRestore() {
+    @DisplayName("V85는 MASTER/MANAGER/SALES 역할 템플릿에 estimates.list can_restore를 seed한다")
+    void threeRoleTemplatesHaveRestore() {
+        // V85 ON CONFLICT DO UPDATE 는 can_restore 만 보장한다 — 선행 시드(V10/V39 계열)가
+        // 만든 기존 행의 view/create/update/delete 값은 V85 관할 밖이라 단언하지 않는다
+        // (false-RED 방지, V83과 동일 원칙).
         Integer templateCount = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                   FROM role_page_permission_templates
                  WHERE page_code = ?
-                   AND role_code = 'MASTER'
+                   AND role_code IN ('MASTER', 'MANAGER', 'SALES')
                    AND is_deleted = FALSE
-                   AND can_view = TRUE
-                   AND can_create = TRUE
-                   AND can_update = TRUE
-                   AND can_delete = TRUE
                    AND can_restore = TRUE
                 """,
                 Integer.class,
                 PAGE_CODE);
-        assertThat(templateCount).isEqualTo(1);
+        assertThat(templateCount).isEqualTo(3);
+    }
 
+    @Test
+    @DisplayName("V85는 빌트인 그룹 100/101/102에 estimates.list can_restore를 seed한다")
+    void builtinGroupsHaveRestore() {
         Integer groupCount = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                   FROM group_page_permissions
                  WHERE page_code = ?
-                   AND group_id = '00000000-0000-0000-0000-000000000100'::uuid
+                   AND group_id IN (
+                       '00000000-0000-0000-0000-000000000100'::uuid,
+                       '00000000-0000-0000-0000-000000000101'::uuid,
+                       '00000000-0000-0000-0000-000000000102'::uuid
+                   )
                    AND is_deleted = FALSE
-                   AND can_view = TRUE
-                   AND can_create = TRUE
-                   AND can_update = TRUE
-                   AND can_delete = TRUE
                    AND can_restore = TRUE
                 """,
                 Integer.class,
                 PAGE_CODE);
-        assertThat(groupCount).isEqualTo(1);
+        assertThat(groupCount).isEqualTo(3);
     }
 
     @Test

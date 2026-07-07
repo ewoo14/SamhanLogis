@@ -143,8 +143,10 @@ describe('EstimateListPage E2 list realtime and restore', () => {
     expect(badge.textContent).toContain('삭제: 이운영')
     expect(estimateNo.contains(badge)).toBe(false)
     expect(badge.parentElement).toBe(estimateNo.parentElement)
-    expect(row.getAttribute('aria-disabled')).toBe('true')
 
+    // 공유 DataTable 은 삭제행 클릭 차단을 rowClickable(false → onClick 미부착) + onRowClick
+    // isDeleted 가드로 처리하고 aria-disabled 는 설정하지 않는다(main 222ed087a dead-affordance
+    // fix 병합 반영). 클릭 차단은 아래 navigate 미호출로 실증한다(#759 병합 정합).
     fireEvent.click(row)
 
     expect(navigateMock).not.toHaveBeenCalled()
