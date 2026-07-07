@@ -36,11 +36,11 @@ E2 완주 후 결정불요·well-scoped 슬라이스 3건 full-canon 완주(STEP
 **stale TODO 회피(정찰 성과)**: **#720(월마감)·#714(1024px) 모두 이미 fix됨**(PR #732·#737) — 정찰이 재구현 방지([[feedback_recon_grep_false_negative]]). 핸드오프 TODO가 stale이었음.
 **신규 후속 이슈 #765**: vite.config `pwaRegisterDevStub` enforce:'pre' 누락 → desktop real-qa 전체 렌더러 부팅 잠재 차단(#714 QA 적발). 1줄 fix 별도.
 
-### 다음 TODO 순차 (개발책임자 자율 위임 — 갱신)
-1. **#715 분개 작성/편집 폼 grid**(합계 5/6-트랙 미스매치·열 순서 상세와 정렬 — #714 동계열·FE).
-2. **E3 회계 잔여**(#3 journal→cashReceipt 링크·#18 accounting backlog) → **#12 회계 full-form**(대규모·BE update 신설+차/대변+라인 CRDT) → **#17 단가변동**(#688 OPEN) → #19 GAS이관·#20 마스코트·#21 API키회전.
-3. 소형 백로그: **#725 후속 sweep**(PartnerOrder/Slip/Estimate raw enum·EstimateService 500마스킹)·#765(real-qa 부팅).
-- ⚠️ **개발책임자 정책/방향 필요**(아침 확인): #729 라우팅(라우트추가 vs 컨트롤러이동)·#713 분개라인 enrich·#17 단가 방향·E3 #3 링크(BE cashReceiptId 추가 vs 현 네비).
+### 다음 TODO 순차 (개발책임자 자율 위임 — 갱신 2026-07-08 아침)
+> **추가 완료(세션 종반)**: **#715**=stale 북키핑 close(PR #737이 이미 fix)·**#765**=real-qa 렌더러 부팅 blocker fix 머지(PR #768·enforce:'pre'·Opus 부팅 검증 PASS). **결정불요 filed 이슈 전부 소진** → 개발책임자 "여기서 마무리" 지시로 세션 종료(토큰 부족·Sonnet 기획+Opus 구현 임시전략).
+1. **E3 회계 잔여**(#3 journal→cashReceipt 링크·#18 accounting backlog) → **#12 회계 full-form**(대규모·BE update 신설+차/대변+라인 CRDT) → **#17 단가변동**(#688 OPEN) → #19 GAS이관·#20 마스코트·#21 API키회전.
+2. 소형 백로그: **#725 후속 raw enum sweep**(PartnerOrder markOnHold 등·Slip·Estimate raw enum·EstimateService 500마스킹 — 중형 다도메인·결정불요).
+- ⚠️ **개발책임자 정책/방향 필요**: #729 라우팅(라우트추가 vs 컨트롤러이동)·#713 분개라인 enrich·#17 단가 방향·E3 #3 링크(BE cashReceiptId 추가 vs 현 네비).
 
 ### PARK / 백로그
 **E2 신규**: Design 삭제행 배지텍스트 3화면 통일(C=F-1 텍스트보존 vs D/E='삭제됨')·다크모드 헤더(`.salesScope --c-bg:#fff` 6화면 공유)·`deletedRowDisplay` 4중복 SSOT·`.error-banner --color-semantic-danger` 미정의(90+파일)·D partial-match 다중라인 레거시(near-zero·라인레벨 마커=DELETE revision 에픽)·D deleteForPurchase INBOUND dormant·E EstimateClient 실HTTP read-path 가드·D real-qa `-real-qa` 리네임·마이그순서 CI가드. **기존**: 판매조회 담당자명 UUID·SSOT sweep·`searchIncludingDeleted` rename·SSE FE 조건화·mobile flake·미해결 #729/#725/#723/#715/#714·**Codex 복구(Jul11) 후 STEP4 소급 재검**(C/D/E 선택).
