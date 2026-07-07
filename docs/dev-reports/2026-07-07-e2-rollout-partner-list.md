@@ -23,3 +23,13 @@
 - Partner `@Version` optimistic lock(신규 마이그 필요·last-write-wins 잔존).
 - LOW/NIT 정리(mock RESTORE already-active 200 parity·PartnersPage.css → *.module.css·adminApi JSDoc·typeFilter scaffolding 제거).
 - 공용 `deletedRowDisplay.ts` 승격(Track C 머지 후 통합).
+
+## 소급 재검 fix (#760) — 2026-07-07
+
+Track B 머지(#756) 후 **full 5-agent + 실 GUI 라이브 QA 소급 재검**(축소 라운드 보완)이 잡은 결함 fix-forward:
+- **🔴 CRITICAL**: `searchAdmin`/`findAll` 이 무조건 `searchAdminIncludingDeleted`(native, @SQLRestriction 우회) 위임 → 공유 `/admin/partners/search`·`/admin/partners` 가 삭제(취소선) 거래처를 자동완성 5소비처(견적/입금/세금계산서/전표/계좌매칭)에 노출 → **`includeDeleted`(기본 false=활성전용 JPQL)** 게이팅·PartnersPage listAdminPartners 만 true. 라이브 실증: 삭제 후 `search`(includeDeleted 미전송)=`items:[] total:0`, `?includeDeleted=true`=노출.
+- HIGH: 복원버튼 `aria-disabled` 전파 제거·FE 삭제버튼 신설. Design HIGH: 실시간 인디케이터 대비.
+- R1(소급) fix: 삭제배지 단일 inline-flex 래퍼(모바일 카드뷰 배지 우측벌어짐 해소)·status 필터 IT native경로 재커버(`includeDeleted=true` enum-CAST 가드)·컨트롤러 includeDeleted Javadoc·`restoreError`→`actionError`(삭제/복원 공용 명칭).
+- 라이브 GUI 증적: `docs/qa/e2-partner-list-retro/*.png`(삭제버튼→취소선→복원·모바일 배지).
+
+⚠️ **교훈**: 미커밋 편집 중인 worktree에 git 조작(cleanup)하는 백그라운드 QA 에이전트를 동시 실행하면 편집이 revert됨 — 중복 에이전트는 즉시 정리, QA는 커밋 후 실행.

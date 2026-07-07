@@ -334,8 +334,9 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
 
     @Test
     void search_status_filter_returns_only_matching_status() throws Exception {
-        // @Enumerated(STRING) enum 을 native query 에 raw 바인딩하면 Hibernate 가 ordinal(정수)로 바인딩해
-        // status 필터가 영구 0건이 되는 회귀를 실 Postgres 로 고정한다(searchAdminIncludingDeleted).
+        // status 필터가 기본(JPQL 활성전용) 경로와 native(includeDeleted=true, searchAdminIncludingDeleted) 경로
+        // 양쪽에서 정상 동작함을 실 Postgres 로 고정한다. 특히 native 경로는 @Enumerated(STRING) enum 을 raw 바인딩하면
+        // Hibernate 가 ordinal(정수)로 바인딩해 status 필터가 영구 0건이 되던 회귀 — status.name() String CAST 로 가드.
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
                         .header("X-User-Id", MANAGER_ACCOUNT_ID)
                         .header("X-User-Role", "MANAGER")
@@ -373,6 +374,19 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-SUS"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("SUSPENDED"));
+
+        // native 경로(includeDeleted=true = searchAdminIncludingDeleted)의 enum String CAST 회귀가드.
+        // 이 조합을 검증하지 않으면 status.name() 변환이 제거돼 ordinal 바인딩 버그가 CI 에서 조용히 재유입될 수 있다.
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("status", "ACTIVE")
+                        .param("includeDeleted", "true")
+                        .param("size", "50"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value("P-STAT-ACT"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].status").value("ACTIVE"));
     }
 
     @Test

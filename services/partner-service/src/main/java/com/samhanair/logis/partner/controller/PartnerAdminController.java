@@ -125,9 +125,14 @@ public class PartnerAdminController {
      *
      * <p>{@code GET /admin/partners} (위 {@link #findAll(Pageable)}) 와 별도 — 본 endpoint 는
      * 검색 / 필터 화면용, 위 endpoint 는 Spring Data {@link Page} raw 응답.
+     *
+     * <p><b>{@code includeDeleted}</b>(기본 {@code false}): false 면 활성 거래처만(JPQL, {@code @SQLRestriction}) —
+     * 견적/입금/세금계산서/전표/계좌매칭 등 자동완성 공유 계약 기본값. true 는 <b>E2 거래처 관리자 목록 전용</b>으로
+     * soft-delete 행 + 개인정보성 {@code deletedByName} 을 함께 노출(native {@code searchAdminIncludingDeleted})하므로
+     * 관리자 화면 외에서는 전달하지 말 것.
      */
     @Operation(summary = "거래처 admin 검색 (Phase 10 P0-5)",
-            description = "SALES / MANAGER / MASTER 권한. q + status 필터. items / total / page / size 형식 응답.")
+            description = "SALES / MANAGER / MASTER 권한. q + status 필터. includeDeleted=true 는 E2 관리자 목록 전용(삭제행+deletedByName 노출). items / total / page / size 형식 응답.")
     @GetMapping("/search")
     @RequirePermission(page = "partners.search", action = PermissionAction.VIEW)
     public ApiResponse<AdminPartnerListResponse> search(

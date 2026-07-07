@@ -135,29 +135,29 @@ export function PartnersPage() {
       }),
   })
 
-  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const restoreMutation = useMutation({
     mutationFn: restorePartner,
-    onMutate: () => setRestoreError(null),
+    onMutate: () => setActionError(null),
     onSuccess: async () => {
-      setRestoreError(null)
+      setActionError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
     },
     onError: (error) =>
-      setRestoreError(
+      setActionError(
         extractApiErrorResponseMessage(error)
           ?? '복원에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
       ),
   })
   const deleteMutation = useMutation({
     mutationFn: deletePartner,
-    onMutate: () => setRestoreError(null),
+    onMutate: () => setActionError(null),
     onSuccess: async () => {
-      setRestoreError(null)
+      setActionError(null)
       await queryClient.invalidateQueries({ queryKey: ['admin', 'partners'] })
     },
     onError: (error) =>
-      setRestoreError(
+      setActionError(
         extractApiErrorResponseMessage(error)
           ?? '삭제에 실패했습니다. 거래처 상태 또는 권한(임원실 부서)을 확인하세요.',
       ),
@@ -182,7 +182,10 @@ export function PartnersPage() {
       header: '상호',
       mobilePriority: 'primary',
       render: (p) => (
-        <>
+        // 이름 span + 삭제배지를 단일 inline-flex 래퍼로 묶어 셀(td)의 자식을 1개로 유지한다.
+        // (Fragment 로 형제 2개를 두면 좁은 폭 카드뷰의 justify-content:space-between 이 배지를 우측 끝으로 밀어냄.)
+        // 취소선(text-decoration)은 이름 텍스트 span 에만 적용해 배지로 번지지 않게 한다.
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, maxWidth: '100%', minWidth: 0 }}>
           <span
             data-testid={`admin-partners-row-${p.partnerCode}`}
             style={p.isDeleted ? PARTNER_DELETED_ROW_TEXT_STYLE : undefined}
@@ -196,7 +199,6 @@ export function PartnersPage() {
               aria-label={deletedBadgeAriaLabel(p.deletedByName, p.deletedAt)}
               data-testid={`admin-partners-row-${p.partnerCode}-deleted-badge`}
               style={{
-                marginLeft: 8,
                 maxWidth: 160,
                 minWidth: 0,
                 overflow: 'hidden',
@@ -208,7 +210,7 @@ export function PartnersPage() {
               {deletedBadgeLabel(p.deletedByName)}
             </Badge>
           ) : null}
-        </>
+        </span>
       ),
     },
     { key: 'partnerCode', header: '거래처 코드', width: '140px', mobilePriority: 'secondary' },
@@ -408,14 +410,14 @@ export function PartnersPage() {
         </select>
       </div>
 
-      {restoreError ? (
+      {actionError ? (
         <div
           className="error-banner"
           role="alert"
-          data-testid="admin-partners-restore-error"
+          data-testid="admin-partners-action-error"
           style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
         >
-          {restoreError}
+          {actionError}
         </div>
       ) : null}
 
