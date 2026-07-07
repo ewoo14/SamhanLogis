@@ -159,9 +159,11 @@ export function CashReceiptDetailPage() {
                 >
                   편집 불가
                 </Button>
+                {/* 사유를 sr-only 로만 두면 disabled 버튼(포커스 제외)의 aria-describedby 가 키보드/AT 사용자에게
+                    도달하지 않는다(STEP4 적대검증 MED-HIGH). 화면에 보이는 텍스트로 승격해 전 사용자가 인지. */}
                 <span
                   id={editBlockedReasonId}
-                  style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}
+                  style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}
                 >
                   {editBlockedReason}
                 </span>
@@ -193,7 +195,7 @@ export function CashReceiptDetailPage() {
           <Field
             label="금액"
             value={formatCashReceiptAmount(receipt.amount)}
-            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--state-danger)' } : undefined}
+            valueStyle={Number(receipt.amount) < 0 ? { color: 'var(--color-danger-700)' } : undefined}
           />
           <Field label="차변 계정" value={receipt.debitAccountCode ?? null} />
           <Field label="대변 계정" value={receipt.creditAccountCode ?? null} />

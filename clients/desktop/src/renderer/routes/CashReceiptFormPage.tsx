@@ -144,7 +144,8 @@ export function CashReceiptFormPage() {
         text: '취소된 입금보고서는 수정할 수 없습니다.',
       }
     }
-    if (bankLinked && receipt.status !== 'CANCELLED') {
+    if (bankLinked) {
+      // 위 CANCELLED 분기가 이미 return 하므로 여기 도달 시 status !== 'CANCELLED' 는 항상 참(중복 조건 제거).
       return {
         className: 'warning-banner',
         role: 'status' as const,
@@ -401,7 +402,9 @@ export function CashReceiptFormPage() {
         </div>
       </Card>
 
-      {topError ? (
+      {/* editNotice 가 이미 role="alert"(CANCELLED) 인 경우 topError 를 억제해 한 화면에 alert 2개가
+          동시 노출(getByRole('alert') strict 위반·AT 중복공지)되지 않게 상호배타 렌더. */}
+      {topError && editNotice?.role !== 'alert' ? (
         <div className="error-banner" role="alert" style={{ marginTop: 12, padding: 12, color: 'var(--color-danger-700, #991B1B)' }}>
           {topError}
         </div>

@@ -128,7 +128,7 @@ describe('CashReceiptDetailPage', () => {
     renderPage(receipt({ amount: '-12000' }))
 
     const amount = await screen.findByText('-12,000')
-    expect(amount.getAttribute('style')).toContain('color: var(--state-danger)')
+    expect(amount.getAttribute('style')).toContain('color: var(--color-danger-700)')
   })
 
   it('CANCELLED 수기 입금보고서는 편집 불가 버튼과 차단 사유를 노출한다', async () => {

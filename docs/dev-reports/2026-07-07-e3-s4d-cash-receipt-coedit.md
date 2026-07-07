@@ -38,3 +38,13 @@ Track A 머지(#755) 후 **full 5-agent + 실 GUI 라이브 QA 소급 재검**�
 - 라이브 GUI 증적: `docs/qa/e3-s4d-retro/*.png`(배너 우선순위 CANCELLED/BANK_LINKED/CONFIRMED 각 단일·Badge 대비 픽셀실측 #047857/#991B1B·aria 대칭). 무권한 배너는 라우트 가드 redirect 로 도달불가(정직).
 
 이전 Badge success/danger 대비(3.1~3.7:1 AA미달)·배너 3중 중첩·real-qa 백지마운트는 Track A 소급 fix 본체(#761 커밋)로 해소.
+
+## STEP4 (Opus 독립 적대검증 — Codex 한도 대체, 개발책임자 승인) fix — 2026-07-07
+
+적대검증(refute 관점)이 R1이 놓친 실결함 포착 → Opus 직접 fix:
+- **🟠 HIGH(Design)**: 음수금액 `--state-danger`(3.76:1 AA미달)를 같은 파일이 이미 고친 토큰과 달리 누락 → `--color-danger-700`(7.56:1)+테스트 갱신.
+- **🟠 MED-HIGH(Design)**: disabled 네이티브 버튼의 aria-describedby 는 포커스 제외로 키보드/AT 미도달 → 편집차단 사유를 **화면 visible 텍스트로 승격**(neutral-600).
+- **🟡 MED(FE)**: CANCELLED 배너 role=alert 가 기존 topError(role=alert)와 충돌(2-alert strict 위반) → topError 를 `editNotice.role !== 'alert'` 상호배타 렌더.
+- **LOW**: 배너 죽은조건(`bankLinked && status!=='CANCELLED'`→`bankLinked`) 단순화·`_adhoc` QA 산출물 삭제.
+- **BE·DevOps 적대검증 = 통과(0)**: kind allow-list 9조합 fail-closed 확정·DEPOSIT_REPORT reflection IT genuine·CRITICAL(spec strict) 직전커밋 FAILURE→HEAD SUCCESS 로 562→563 실측·design-system Badge 무회귀.
+- 백로그: Badge/Button/SlipStatus danger·success 색 분절(design-system SSOT sweep)·다크모드 오버라이드·`--color-semantic-danger` 미정의(90+파일).
