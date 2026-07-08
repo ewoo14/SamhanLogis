@@ -34,7 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><b>게이트웨이</b>: 기존 {@code product-admin-v1} 라우트({@code Path=/api/v1/products/admin/**},
  * no-strip)가 이미 이 경로를 커버하므로 신규 게이트웨이 라우트를 추가하지 않는다.
  *
- * <p><b>권한</b>: {@code products.priceSchedule} page-code — GET 은 VIEW, PUT 은 UPDATE.
+ * <p><b>권한</b>: {@code products.price-schedule} page-code — GET 은 VIEW, PUT 은 UPDATE.
+ * MANAGER + ACCOUNTANT 양쪽 빌트인 그룹에 부여(dev-lead-confirmed 리뷰 fix, V86).
  */
 @RestController
 @RequestMapping("/api/v1/products/admin/price-change-schedule")
@@ -55,7 +56,7 @@ public class PriceChangeScheduleAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @GetMapping
-    @RequirePermission(page = "products.priceSchedule", action = PermissionAction.VIEW)
+    @RequirePermission(page = "products.price-schedule", action = PermissionAction.VIEW)
     @Transactional(readOnly = true)
     public ApiResponse<List<PriceChangeScheduleAdminResponse>> list() {
         Map<String, PriceChangeSchedule> byCategory = priceChangeScheduleRepository
@@ -95,7 +96,7 @@ public class PriceChangeScheduleAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
     })
     @PutMapping("/{category}")
-    @RequirePermission(page = "products.priceSchedule", action = PermissionAction.UPDATE)
+    @RequirePermission(page = "products.price-schedule", action = PermissionAction.UPDATE)
     @Transactional
     public ApiResponse<PriceChangeScheduleAdminResponse> update(
             @PathVariable String category,

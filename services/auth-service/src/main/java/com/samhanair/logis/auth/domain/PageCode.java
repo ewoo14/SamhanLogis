@@ -29,6 +29,7 @@ import lombok.RequiredArgsConstructor;
  * <p>SP-D6-6 slip-service migration 신규 PageCode 추가.
  * <p>SP-D6-7 accounting-service migration 신규 PageCode 추가.
  * <p>SP-D7 notifications.center + 잔여 authenticated endpoint migration 전용 VIEW PageCode 보강.
+ * <p>S4a(#17) products.price-schedule 단가변동 스케줄 admin PageCode 추가 — 리뷰 fix P0(seed-only 누락)로 등록.
  */
 @Getter
 @RequiredArgsConstructor
@@ -489,6 +490,9 @@ public enum PageCode {
 
     /** 상품 시트 동기화 수동 trigger/API — C5 후속 정리. */
     PRODUCTS_SYNC("products.sync", "상품 시트 동기화"),
+
+    /** 단가변동 스케줄 admin 조회/수정 화면/API — S4a, #17 단가변동 관리. */
+    PRODUCTS_PRICE_SCHEDULE("products.price-schedule", "단가변동 관리"),
 
     // ---- 아로로지스 (arologis) ----
 

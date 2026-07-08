@@ -30,12 +30,17 @@ class V39AccountPermissionMaterializeIT extends AbstractPostgresIT {
     private AccountPermissionService accountPermissionService;
 
     @Test
-    @DisplayName("V39 는 비MASTER/비PARTNER 계정 권한 행을 role template parity 로 materialize 한다")
+    @DisplayName("V39 는 비MASTER/비PARTNER 계정 권한 행을 role template 이상으로 materialize 한다")
     void nonMasterNonPartnerAccountsMaterializedFromTemplates() {
         Integer accountantRows = countAccountRows(ACCOUNTANT_ACCOUNT_ID);
         Integer accountantTemplates = countTemplateRows("ACCOUNTANT");
 
-        assertThat(accountantRows).isEqualTo(accountantTemplates).isPositive();
+        // V86(products.price-schedule, 리뷰 fix)이 ACCOUNTANT 그룹에 group_page_permissions-only
+        // 권한을 추가로 부여한다 — 레거시 role_page_permission_templates 는 갱신하지 않는다
+        // (V47/V86 결정, AuthFlywayV86SeedIT#assertNoLegacyRoleRow 로 별도 가드). 따라서 더 이상
+        // 엄격한 == parity 가 아니라 template 이 하한(baseline)임을 단언한다 — MANAGER 단언과 동일 취지
+        // (MANAGER 도 V47 이후 이미 template 초과, isPositive() 로만 검증).
+        assertThat(accountantRows).isGreaterThanOrEqualTo(accountantTemplates).isPositive();
         assertThat(countAccountRows(MANAGER_ACCOUNT_ID)).isPositive();
         assertThat(countAccountRows(MASTER_ACCOUNT_ID)).isZero();
     }

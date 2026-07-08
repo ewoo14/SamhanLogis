@@ -12,8 +12,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * V86 products.priceSchedule seed 가 V47(products.sync)과 동일한 group_page_permissions
+ * V86 products.price-schedule seed 가 V47(products.sync)과 동일한 group_page_permissions
  * 패턴으로 적재되는지 검증한다 (S4a, #17 단가변동 관리).
+ *
+ * <p>dev-lead 확정 스코프(리뷰 fix): MANAGER + ACCOUNTANT 양쪽 빌트인 그룹에 view/update —
+ * V80(accounting.cash-receipts) 다중 그룹 grant 패턴 mirror.
  */
 @SpringBootTest(
         classes = AuthServiceApplication.class,
@@ -22,15 +25,36 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class AuthFlywayV86SeedIT extends AbstractPostgresIT {
 
     private static final String MANAGER_GROUP_ID = "00000000-0000-0000-0000-000000000101";
+    private static final String ACCOUNTANT_GROUP_ID = "00000000-0000-0000-0000-000000000104";
     private static final String MASTER_GROUP_ID = "00000000-0000-0000-0000-000000000100";
-    private static final String PAGE_CODE = "products.priceSchedule";
+    private static final String PAGE_CODE = "products.price-schedule";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("V86은 products.priceSchedule을 MANAGER group_page_permissions에 view/update로만 seed한다")
+    @DisplayName("V86은 products.price-schedule을 MANAGER+ACCOUNTANT group_page_permissions에 view/update로만 seed한다")
     void productsPriceScheduleSeededAsGroupPermissionOnly() {
+        assertGroupHasViewUpdateOnly(MANAGER_GROUP_ID);
+        assertGroupHasViewUpdateOnly(ACCOUNTANT_GROUP_ID);
+        assertNoGroupRow(MASTER_GROUP_ID, PAGE_CODE);
+        assertNoLegacyRoleRow(PAGE_CODE);
+    }
+
+    @Test
+    @DisplayName("V86은 MANAGER+ACCOUNTANT 그룹 배속 계정의 account_page_permissions 까지 동기화한다 (V47 DEF-1 fix 관례 mirror)")
+    void productsPriceScheduleMaterializedIntoAccountPagePermissions() {
+        // V5 dev 계정 + V44 그룹 배속이 선행되므로, MANAGER/ACCOUNTANT 그룹 배속 활성 계정이
+        // 1개 이상이면 enforcement 캐시(account_page_permissions)에도 products.price-schedule
+        // row 가 있어야 한다.
+        assertGroupMaterializedExactSet(MANAGER_GROUP_ID);
+        assertGroupMaterializedExactSet(ACCOUNTANT_GROUP_ID);
+        assertDevManagerProductsPriceScheduleActions();
+        assertDevAccountantProductsPriceScheduleActions();
+        assertNoSystemMasterMaterializedRow();
+    }
+
+    private void assertGroupHasViewUpdateOnly(String groupId) {
         Boolean canView = jdbcTemplate.queryForObject(
                 """
                 SELECT can_view
@@ -40,7 +64,7 @@ class AuthFlywayV86SeedIT extends AbstractPostgresIT {
                    AND is_deleted = FALSE
                 """,
                 Boolean.class,
-                MANAGER_GROUP_ID, PAGE_CODE);
+                groupId, PAGE_CODE);
         Boolean canCreate = jdbcTemplate.queryForObject(
                 """
                 SELECT can_create
@@ -50,7 +74,7 @@ class AuthFlywayV86SeedIT extends AbstractPostgresIT {
                    AND is_deleted = FALSE
                 """,
                 Boolean.class,
-                MANAGER_GROUP_ID, PAGE_CODE);
+                groupId, PAGE_CODE);
         Boolean canUpdate = jdbcTemplate.queryForObject(
                 """
                 SELECT can_update
@@ -60,22 +84,16 @@ class AuthFlywayV86SeedIT extends AbstractPostgresIT {
                    AND is_deleted = FALSE
                 """,
                 Boolean.class,
-                MANAGER_GROUP_ID, PAGE_CODE);
+                groupId, PAGE_CODE);
 
-        assertThat(canView).isTrue();
-        assertThat(canCreate).isFalse();
-        assertThat(canUpdate).isTrue();
+        assertThat(canView).as("group %s can_view", groupId).isTrue();
+        assertThat(canCreate).as("group %s can_create", groupId).isFalse();
+        assertThat(canUpdate).as("group %s can_update", groupId).isTrue();
         // 잔여 4 action FALSE 단언 — seed 오타 false-green 방지 (V47 Nit-1 관례 mirror).
-        assertRemainingActionsFalse(MANAGER_GROUP_ID, PAGE_CODE);
-        assertNoGroupRow(MASTER_GROUP_ID, PAGE_CODE);
-        assertNoLegacyRoleRow(PAGE_CODE);
+        assertRemainingActionsFalse(groupId, PAGE_CODE);
     }
 
-    @Test
-    @DisplayName("V86은 MANAGER 그룹 배속 계정의 account_page_permissions 까지 동기화한다 (V47 DEF-1 fix 관례 mirror)")
-    void productsPriceScheduleMaterializedIntoAccountPagePermissions() {
-        // V5 dev 계정 + V44 그룹 배속이 선행되므로, MANAGER 그룹 배속 활성 계정이 1개 이상이면
-        // enforcement 캐시(account_page_permissions)에도 products.priceSchedule row 가 있어야 한다.
+    private void assertGroupMaterializedExactSet(String groupId) {
         List<UUID> expectedAccountIds = jdbcTemplate.queryForList(
                 """
                 SELECT ag.account_id
@@ -96,7 +114,7 @@ class AuthFlywayV86SeedIT extends AbstractPostgresIT {
                  ORDER BY ag.account_id
                 """,
                 UUID.class,
-                MANAGER_GROUP_ID);
+                groupId);
 
         List<UUID> actualAccountIds = jdbcTemplate.queryForList(
                 """
@@ -116,38 +134,49 @@ class AuthFlywayV86SeedIT extends AbstractPostgresIT {
                  ORDER BY app.account_id
                 """,
                 UUID.class,
-                MANAGER_GROUP_ID, PAGE_CODE);
+                groupId, PAGE_CODE);
 
-        // 시스템 마스터 그룹 동시 배속 계정을 제외한 MANAGER 배속 활성 계정 exact-set 을 단언한다.
-        assertThat(actualAccountIds).containsExactlyElementsOf(expectedAccountIds);
-        assertThat(expectedAccountIds).isNotEmpty();
-        assertDevManagerProductsPriceScheduleActions();
-        assertNoSystemMasterMaterializedRow();
+        // 시스템 마스터 그룹 동시 배속 계정을 제외한 그룹 배속 활성 계정 exact-set 을 단언한다.
+        assertThat(actualAccountIds)
+                .as("group %s materialized exact-set", groupId)
+                .containsExactlyElementsOf(expectedAccountIds);
+        assertThat(expectedAccountIds).as("group %s expected accounts non-empty", groupId).isNotEmpty();
     }
 
     private void assertDevManagerProductsPriceScheduleActions() {
-        assertThat(devManagerAction("can_view")).isTrue();
-        assertThat(devManagerAction("can_create")).isFalse();
-        assertThat(devManagerAction("can_update")).isTrue();
-        assertThat(devManagerAction("can_delete")).isFalse();
-        assertThat(devManagerAction("can_restore")).isFalse();
-        assertThat(devManagerAction("can_download")).isFalse();
-        assertThat(devManagerAction("can_print")).isFalse();
+        assertThat(devAccountAction("dev_manager", "can_view")).isTrue();
+        assertThat(devAccountAction("dev_manager", "can_create")).isFalse();
+        assertThat(devAccountAction("dev_manager", "can_update")).isTrue();
+        assertThat(devAccountAction("dev_manager", "can_delete")).isFalse();
+        assertThat(devAccountAction("dev_manager", "can_restore")).isFalse();
+        assertThat(devAccountAction("dev_manager", "can_download")).isFalse();
+        assertThat(devAccountAction("dev_manager", "can_print")).isFalse();
     }
 
-    private Boolean devManagerAction(String columnName) {
+    private void assertDevAccountantProductsPriceScheduleActions() {
+        assertThat(devAccountAction("dev_accountant", "can_view")).isTrue();
+        assertThat(devAccountAction("dev_accountant", "can_create")).isFalse();
+        assertThat(devAccountAction("dev_accountant", "can_update")).isTrue();
+        assertThat(devAccountAction("dev_accountant", "can_delete")).isFalse();
+        assertThat(devAccountAction("dev_accountant", "can_restore")).isFalse();
+        assertThat(devAccountAction("dev_accountant", "can_download")).isFalse();
+        assertThat(devAccountAction("dev_accountant", "can_print")).isFalse();
+    }
+
+    private Boolean devAccountAction(String loginId, String columnName) {
         return jdbcTemplate.queryForObject(
                 """
                 SELECT %s
                   FROM account_page_permissions app
                   JOIN accounts a ON a.id = app.account_id
-                 WHERE a.login_id = 'dev_manager'
+                 WHERE a.login_id = ?
                    AND a.is_deleted = FALSE
                    AND a.enabled = TRUE
                    AND app.page_code = ?
                    AND app.is_deleted = FALSE
                 """.formatted(columnName),
                 Boolean.class,
+                loginId,
                 PAGE_CODE);
     }
 

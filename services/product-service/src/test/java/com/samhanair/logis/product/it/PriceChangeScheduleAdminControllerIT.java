@@ -87,7 +87,7 @@ class PriceChangeScheduleAdminControllerIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-denied", authorities = {"ROLE_SALES"})
     void list_deny_returns403() throws Exception {
         Mockito.when(dynamicPermissionClient.check(
-                        Mockito.any(UUID.class), Mockito.eq("products.priceSchedule"), Mockito.eq(PermissionAction.VIEW)))
+                        Mockito.any(UUID.class), Mockito.eq("products.price-schedule"), Mockito.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
         mockMvc.perform(get(BASE_PATH)
@@ -167,7 +167,7 @@ class PriceChangeScheduleAdminControllerIT extends AbstractPostgresIT {
     @WithMockUser(username = "sales-denied", authorities = {"ROLE_SALES"})
     void update_deny_returns403() throws Exception {
         Mockito.when(dynamicPermissionClient.check(
-                        Mockito.any(UUID.class), Mockito.eq("products.priceSchedule"), Mockito.eq(PermissionAction.UPDATE)))
+                        Mockito.any(UUID.class), Mockito.eq("products.price-schedule"), Mockito.eq(PermissionAction.UPDATE)))
                 .thenReturn(false);
 
         mockMvc.perform(put(BASE_PATH + "/{category}", "homemulti")
