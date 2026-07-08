@@ -1165,6 +1165,12 @@ button.tut-highlight { filter: brightness(1.6); }
             <input id="due" type="date" style="width:200px;height:36px;border:1px solid var(--c-line);border-radius:8px;padding:0 10px"/>
           </div>
 
+          <!-- #17 단가변동 S3 (모델 B) 최소 고지 — per-cell 전/후 태그는 후속 슬라이스로 보류 -->
+          <div></div>
+          <div>
+            <span class="form-hint">납기희망일 기준 카테고리별 단가가 자동 적용됩니다</span>
+          </div>
+
           <div>
             입금예정일
             <span class="form-hint">필수</span>
@@ -1427,6 +1433,7 @@ const SINGLE_PARTS_INC = J(SINGLE_PARTS_INC_RAW, {});
 const PRICE_CHANGE_SCHEDULE = J(PRICE_CHANGE_SCHEDULE_RAW, {});
 const oldQty=new Map();
 
+// Model B: due<변동일→*_INC(인상전), due>=변동일→base(인상후)
 function incActive(categoryKey, due) {
   const effectiveDate = PRICE_CHANGE_SCHEDULE && PRICE_CHANGE_SCHEDULE[categoryKey];
   if (!effectiveDate || !due) return false;

@@ -9,6 +9,14 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:product_db}
     username: ${DB_USER:samhan}
     password: ${DB_PASSWORD:samhan_dev_pw}
+  jackson:
+    # FE-LOW2 (#688 S3 R1 리뷰) — partner-order-service application.yml 과 동일 가드.
+    # EstimateCatalogInternalController.priceChangeSchedule()/priceBaseline() 등이 반환하는
+    # LocalDate 필드가 기본값(write-dates-as-timestamps: true)에서는 [2026, 4, 1] 배열 형식으로
+    # 직렬화될 수 있어, partner-order-service EstimateCatalogClient 의
+    # LocalDate.parse(v.toString()) cross-service 계약이 깨질 위험을 명시적으로 차단한다.
+    serialization:
+      write-dates-as-timestamps: false
   jpa:
     hibernate:
       ddl-auto: validate

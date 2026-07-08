@@ -341,6 +341,71 @@ class BootstrapServiceTest {
         assertThat(response.payloads().get("homemulti")).isEqualTo(List.of(List.of("seed-row")));
     }
 
+    @Test
+    void fetch_priceChangeSchedule_예외발생시에도_catalog_7종_payload는_보존된다() throws Exception {
+        // given — BE-2 (#688 S3 R1 리뷰): priceChangeSchedule() 이 실패해도 이미 조회에 성공한
+        // catalog 7종(homemulti~materialPrices)은 loadProductCatalogPayloadsSafely() 의 catch-all
+        // 에 휩쓸려 Map.of() 로 폐기되지 않고, priceChangeSchedule 만 빈 Map 으로 fallback 해야 한다.
+        // (fix 전에는 이 예외가 loadProductCatalogPayloads() 밖으로 전파되어 catalog 7종까지
+        // 통째로 사라졌다 — hasProductData 오판 버그(#688)와 동형의 회귀.)
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.catalog(EstimateCategory.HOME_MULTI, UsageScope.PARTNER_ORDER))
+                .thenReturn(List.of(catalogRow(
+                        "홈 실내기", "HM-1", "EA", "123000", "456000",
+                        "실내기", "4WAY", "소형", true, null, null, false,
+                        null, null, null)));
+        when(estimateCatalogClient.priceChangeSchedule())
+                .thenThrow(new RuntimeException("product-service price-change-schedule 5xx"));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        // when
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then — homemulti catalog 는 정상 변환되어 그대로 반환되고 (Map.of() 로 폐기되지 않음),
+        // priceChangeSchedule 만 빈 Map 으로 fallback 한다.
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> home = (List<Map<String, Object>>) response.payloads().get("homemulti");
+        assertThat(home).hasSize(1);
+        assertThat(home.get(0)).containsEntry("model", "HM-1");
+        assertThat(response.payloads().get("priceChangeSchedule")).isEqualTo(Map.of());
+    }
+
+    @Test
+    void fetch_priceBaseline_가격이_0또는_null이면_incPriceMap에서_제외된다() throws Exception {
+        // given — QA-4: baseline row 자체는 존재하나 releasePrice/deliveryPrice 가 0 또는 null 인
+        // 경우 incPriceMap 의 price<=0 guard(BootstrapService.incPriceMap 내부)로 제외되어야 한다.
+        // homeInc 는 releasePrice, singleInc 는 deliveryPrice 를 priceKey 로 사용하므로 두 키 모두
+        // 0/null 조합을 검증한다.
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.catalog(EstimateCategory.HOME_MULTI, UsageScope.PARTNER_ORDER))
+                .thenReturn(List.of(
+                        catalogRow("0원 베이스라인", "HM-ZERO-BASE", "EA", "100000", "200000",
+                                "실내기", "4WAY", "소형", true, null, null, false,
+                                null, null, null),
+                        catalogRow("null 베이스라인", "HM-NULL-BASE", "EA", "100000", "200000",
+                                "실내기", "4WAY", "소형", true, null, null, false,
+                                null, null, null)));
+        when(estimateCatalogClient.catalog(EstimateCategory.SINGLE_SET, UsageScope.PARTNER_ORDER))
+                .thenReturn(List.of(catalogRow(
+                        "싱글 0원 베이스라인", "SS-ZERO-BASE", "SET", "1000000", "1200000",
+                        "4w", "premium", null, false, "D7", null, false,
+                        null, null, null)));
+        when(estimateCatalogClient.priceBaseline())
+                .thenReturn(List.of(
+                        baselineRow("HM-ZERO-BASE", "HOME_MULTI", "0", "90000"),
+                        baselineRow("HM-NULL-BASE", "HOME_MULTI", null, "90000"),
+                        baselineRow("SS-ZERO-BASE", "SINGLE_SET", "1100000", "0")));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        // when
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then — releasePrice(homeInc) / deliveryPrice(singleInc) 모두 0 또는 null 이면 제외되어
+        // 두 INC 맵 모두 빈 상태로 반환된다.
+        assertThat(response.payloads().get("homeInc")).isEqualTo(Map.of());
+        assertThat(response.payloads().get("singleInc")).isEqualTo(Map.of());
+    }
+
     private BootstrapCacheConfig makeCacheRow(String key, String json) {
         return BootstrapCacheConfig.of(key, json);
     }

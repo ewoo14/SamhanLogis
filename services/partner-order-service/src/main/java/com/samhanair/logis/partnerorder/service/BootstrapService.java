@@ -33,7 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 17종 bootstrap prefetch 서비스 (legacy index.html 1230~1244 + Code.js doGet 4~23 대체).
  *
- * <p><b>PR-D Part 1 보강</b>: 부팅 시 16 cache key 별 시트 직접 read 우선, 실패 시 V2 seed
+ * <p><b>PR-D Part 1 보강</b>: 부팅 시 17 cache key 별 시트 직접 read 우선, 실패 시 V2 seed
  * fallback. Samhan Public 자체 service 안에서 시트 read — 외부 시스템 호출 X
  * (legacy estimate-app 패턴 보존). 시트 read 결과는 in-memory 로 보관 ({@link #sheetCache});
  * {@link Cacheable} 의 spring cache 와 별도 경로 — 시트 prefetch 가 갱신될 때마다 evict.
@@ -123,7 +123,7 @@ public class BootstrapService {
     private final Map<String, Object> productCatalogCache = new ConcurrentHashMap<>();
 
     /**
-     * 부팅 시 16 cache key prefetch — 시트 read 우선, 실패 시 V2 seed fallback.
+     * 부팅 시 17 cache key prefetch — 시트 read 우선, 실패 시 V2 seed fallback.
      * Service Account JSON 부재 등으로 fail 해도 catch + log (부팅 차단 X).
      */
     @PostConstruct
@@ -274,13 +274,44 @@ public class BootstrapService {
                 EstimateCategory.SINGLE_SET, UsageScope.PARTNER_ORDER));
         List<Map<String, Object>> oldProducts = nullToEmpty(estimateCatalogClient.catalog(
                 EstimateCategory.LEGACY, UsageScope.PARTNER_ORDER));
+        // BE-1 문서화 (#688 S3 R1 리뷰 — known limitation, 코드변경 아님) — 구성품(singleParts/
+        // commercialParts)은 BundleComponent 전용 sync 경로(ProductSheetSyncService
+        // COMPONENT_TAB_MAPPINGS)로만 적재되고 upsertSheetExposure() 를 전혀 호출하지 않는다.
+        // EstimateCategory 에도 SINGLE_PART/COMMERCIAL_PART 값 자체가 없어 구성품은
+        // ProductEstimateExposure 가 절대 생성되지 않는다. 아래 priceBaseline() 은
+        // exposureRepository 기준 exposure-gated 조회이므로 구성품 modelCode 는 baselineByModel 에
+        // 절대 잡히지 않고, 그 결과 singlePartsInc(SINGLE_PARTS_INC)는 상시 빈 맵으로 귀결되어 FE
+        // partUnitPrice() 는 구성품에 대해 항상 base(인상 후) 단가만 사용한다. oldProducts 류와
+        // 동일한 known limitation — baseline/schedule 데이터를 아무리 추가해도 이 구조로는 해결
+        // 불가하며, 근본 해결은 후속 슬라이스에서 priceBaseline() 조회를 exposure-비의존(구성품
+        // 포함) 경로로 전환하는 것뿐이다.
         List<Map<String, Object>> singleParts = nullToEmpty(estimateCatalogClient.components(
                 EstimateCategory.SINGLE_SET));
         List<Map<String, Object>> commercialParts = nullToEmpty(estimateCatalogClient.components(
                 EstimateCategory.COMMERCIAL_MULTI));
         List<Map<String, Object>> materialPrices = nullToEmpty(estimateCatalogClient.materialPrices());
-        List<Map<String, Object>> priceBaseline = nullToEmpty(estimateCatalogClient.priceBaseline());
-        Map<String, LocalDate> priceChangeSchedule = estimateCatalogClient.priceChangeSchedule();
+        // BE-2 (#688 S3 R1 리뷰) — priceBaseline/priceChangeSchedule 은 각각 개별 try-catch 로
+        // 격리한다. 이 둘을 감싸지 않으면 loadProductCatalogPayloadsSafely() 의 catch-all 이 예외를
+        // 여기서 붙잡아, 이미 성공적으로 조회된 위 7개 catalog(homemulti~materialPrices) 까지
+        // 통째로 Map.of() 로 폐기된다 — hasProductData 오판 버그(#688)와 동형의 회귀. 따라서 이 두
+        // 부가 메타데이터 호출만 개별 실패를 허용하고, 실패해도 빈 fallback 만 잃을 뿐 catalog 7종은
+        // 정상 반환한다.
+        List<Map<String, Object>> priceBaseline;
+        try {
+            priceBaseline = nullToEmpty(estimateCatalogClient.priceBaseline());
+        } catch (Exception ex) {
+            log.warn("[BootstrapService] price-baseline 조회 실패 (catalog 7종은 보존, INC 맵만 영향): err={}",
+                    ex.getMessage());
+            priceBaseline = List.of();
+        }
+        Map<String, LocalDate> priceChangeSchedule;
+        try {
+            priceChangeSchedule = estimateCatalogClient.priceChangeSchedule();
+        } catch (Exception ex) {
+            log.warn("[BootstrapService] priceChangeSchedule 조회 실패 (catalog 7종은 보존, schedule만 빈 값): err={}",
+                    ex.getMessage());
+            priceChangeSchedule = Map.of();
+        }
 
         // hasProductData 는 실제 catalog 존재 여부만 판단한다. priceBaseline/priceChangeSchedule 은
         // catalog 와 독립적으로 존재할 수 있는 가격 부가 메타데이터라 이 판정에서 반드시 제외해야

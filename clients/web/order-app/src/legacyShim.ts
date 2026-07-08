@@ -128,7 +128,7 @@ function buildUrlFetchAppNoop(): { fetch: (url: string, opts?: unknown) => unkno
 /**
  * shim 설치 — main.ts 진입에서 1회 호출.
  *
- * @param bootstrap 부트스트랩 데이터 (legacy `<?!= var ?>` 16종 — main.ts 가 samhanApi.fetchBootstrap 결과를 전달)
+ * @param bootstrap 부트스트랩 데이터 (legacy `<?!= var ?>` 17종 — main.ts 가 samhanApi.fetchBootstrap 결과를 전달)
  */
 export function installLegacyShim(bootstrap: Record<string, unknown>): void {
   // 1. window.google.script.run Proxy

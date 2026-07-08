@@ -127,5 +127,26 @@ describe('order-app price change schedule', () => {
     expect(runtime.commUnitPrice('CM1')).toBe(2100);
     expect(runtime.singleUnitPrice({ model: 'SS1', name: '싱글', priceRaw: 3100 })).toBe(3100);
     expect(runtime.partUnitPrice({ model: 'SP1', name: '판넬', price: 4100 })).toBe(4100);
+    // FE-LOW4 (#688 S3 R1 리뷰) — 5함수 완전성: 위 4개 함수와 동일하게 setBasePriceRightFirst 도
+    // schedule 키 없음 분기에서 base 인상후 단가를 사용하는지 검증한다.
+    expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3100);
+  });
+
+  it('모델 B (QA-5): schedule 이 유효해도 due가 빈 문자열이면 incActive의 !due 분기로 base 인상후 단가를 사용한다', () => {
+    // due='' 는 incActive(categoryKey, due) 의 `if (!effectiveDate || !due) return false;` 중
+    // `!due` 단축분기로 곧장 false 를 반환해야 한다 — schedule 자체는 유효(homemulti 등 3개 키
+    // 모두 존재)하므로, effectiveDate 부재(테스트 3)와는 다른 경로로 동일하게 base(인상후)에
+    // 도달하는지 검증한다.
+    const runtime = loadRuntime('', {
+      homemulti: '2026-12-01',
+      commercialMulti: '2026-12-01',
+      singleSets: '2026-12-01',
+    });
+
+    expect(runtime.homeUnitPrice('HM1')).toBe(1100);
+    expect(runtime.commUnitPrice('CM1')).toBe(2100);
+    expect(runtime.singleUnitPrice({ model: 'SS1', name: '싱글', priceRaw: 3100 })).toBe(3100);
+    expect(runtime.partUnitPrice({ model: 'SP1', name: '판넬', price: 4100 })).toBe(4100);
+    expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3100);
   });
 });

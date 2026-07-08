@@ -236,7 +236,7 @@ export const samhanApi = {
   },
 
   /**
-   * 부트스트랩 prefetch — legacy 의 `<?!= var ?>` 16종 (homemulti / singleSets / ... / config)
+   * 부트스트랩 prefetch — legacy 의 `<?!= var ?>` 17종 (homemulti / singleSets / ... / config)
    * 에 해당하는 데이터를 단일 endpoint 에서 한 번에 받음.
    *
    * <p>endpoint: `GET /api/v1/partner-orders/bootstrap` (M4 PartnerOrderBootstrapController, PR #76).
