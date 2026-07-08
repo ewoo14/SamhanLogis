@@ -79,6 +79,7 @@ export interface PermissionActionMatrix {
  * SP-D6-3: notification admin / aligo address-book / dispatch save-history/batch 추가.
  * SP-D7: notifications.center + SP-D7 전용 *.view PageCode 추가.
  * SP-D6-6: slip-service @RequirePermission migration 신규 PageCode 추가.
+ * S4a: products.price-schedule 단가변동 관리 신규 추가.
  * BE {@code PageCode.java} enum 의 {@code code} 필드값과 완전 일치.
  * UUID 비공개: pageCode 만 사용자 노출.
  */
@@ -261,6 +262,7 @@ export type PageCode =
   | 'products.edit-requests.decide'
   | 'products.ecount-import'
   | 'products.sync'
+  | 'products.price-schedule'
   | 'arologis.admin'
   | 'arologis.region'
   | 'arologis.dispatch.admin'
