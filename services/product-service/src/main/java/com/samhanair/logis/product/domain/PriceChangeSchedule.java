@@ -52,8 +52,15 @@ public class PriceChangeSchedule extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** order-app PartnerOrderLine.categoryKey 와 정합되는 견적 카테고리 키. */
-    @Column(name = "category", nullable = false, length = 32)
+    /**
+     * order-app PartnerOrderLine.categoryKey 와 정합되는 견적 카테고리 키.
+     *
+     * <p>길이 30 은 {@code PartnerOrderLine.category_key VARCHAR(30)} 및 V22 마이그레이션
+     * ({@code price_change_schedule.category VARCHAR(30)}) 과의 의도된 정합이다 (#688 S3 정찰
+     * 적발 — 기존 length=32 는 물리 스키마와 불일치하는 오기, 실제 허용값은 4종 모두 15자 이하라
+     * 기능 영향은 없으나 스키마 문서 정확성을 위해 정정).
+     */
+    @Column(name = "category", nullable = false, length = 30)
     private String category;
 
     /** KST 업무일 기준 단가변동 적용 시작일. */

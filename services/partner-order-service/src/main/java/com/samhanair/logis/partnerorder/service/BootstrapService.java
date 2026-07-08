@@ -282,15 +282,20 @@ public class BootstrapService {
         List<Map<String, Object>> priceBaseline = nullToEmpty(estimateCatalogClient.priceBaseline());
         Map<String, LocalDate> priceChangeSchedule = estimateCatalogClient.priceChangeSchedule();
 
+        // hasProductData 는 실제 catalog 존재 여부만 판단한다. priceBaseline/priceChangeSchedule 은
+        // catalog 와 독립적으로 존재할 수 있는 가격 부가 메타데이터라 이 판정에서 반드시 제외해야
+        // 한다 — 포함 시 catalog 가 전부 비어 있어도 (예: schedule 만 선(先)세팅되고 상품 미등록)
+        // hasProductData 가 true 로 오판되어, 아래 productPayloads 가 "모든 catalog key = 빈 배열"
+        // 로 productCatalogCache 에 캐싱된다. fetch() 는 productPayloads.containsKey(key) 를
+        // 시트/V2 seed fallback 보다 우선하므로(정상 catalog 없음 방지 목적) 이 오판이 발생하면
+        // 유효한 시트/seed 데이터를 빈 배열로 영구 override — order-app 0행 회귀(#688 S3 정찰 적발).
         boolean hasProductData = !(homemulti.isEmpty()
                 && commercialMulti.isEmpty()
                 && singleSets.isEmpty()
                 && oldProducts.isEmpty()
                 && singleParts.isEmpty()
                 && commercialParts.isEmpty()
-                && materialPrices.isEmpty()
-                && priceBaseline.isEmpty()
-                && (priceChangeSchedule == null || priceChangeSchedule.isEmpty()));
+                && materialPrices.isEmpty());
         if (!hasProductData) {
             return Map.of();
         }

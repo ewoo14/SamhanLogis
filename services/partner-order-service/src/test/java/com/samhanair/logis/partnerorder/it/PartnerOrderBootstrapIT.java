@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
+import com.samhanair.logis.partnerorder.client.EstimateCategory;
 import com.samhanair.logis.partnerorder.client.InventoryClient;
 import com.samhanair.logis.partnerorder.client.PartnerAuthClient;
 import com.samhanair.logis.partnerorder.client.ProductClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
+import com.samhanair.logis.partnerorder.client.UsageScope;
 import com.samhanair.logis.partnerorder.service.BootstrapService;
 import com.samhanair.logis.partnerorder.web.dto.BootstrapResponse;
 import java.time.LocalDate;
@@ -58,6 +60,13 @@ class PartnerOrderBootstrapIT extends AbstractPostgresIT {
         Mockito.lenient().when(slipServiceClient.publishFromPartnerOrder(
                         Mockito.anyMap(), Mockito.anyString()))
                 .thenReturn(SlipServiceClient.PublishResult.published("STUB-SLIP"));
+        // hasProductData 는 실 catalog 존재로만 트리거되어야 한다(BootstrapService 회귀 fix —
+        // priceChangeSchedule 단독 존재는 hasProductData 판정에서 제외). 이 IT 는 product_db
+        // 변환 경로로 17번째 키(priceChangeSchedule)가 정상 통과하는지 검증하는 것이 목적이므로,
+        // 최소 1개 catalog 행을 스텁해 hasProductData=true 를 realistic 하게 성립시킨다.
+        Mockito.lenient().when(estimateCatalogClient.catalog(
+                        Mockito.any(EstimateCategory.class), Mockito.any(UsageScope.class)))
+                .thenReturn(List.of(Map.of("modelCode", "HM-TEST", "name", "부트스트랩 IT 테스트 실내기")));
         Mockito.lenient().when(estimateCatalogClient.priceBaseline())
                 .thenReturn(List.of());
         Mockito.lenient().when(estimateCatalogClient.priceChangeSchedule())

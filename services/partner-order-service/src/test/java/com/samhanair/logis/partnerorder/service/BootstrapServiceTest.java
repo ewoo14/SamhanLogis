@@ -303,6 +303,44 @@ class BootstrapServiceTest {
         assertThat(configMap).containsKey("vatRate").doesNotContainKey("homeDiscount");
     }
 
+    @Test
+    void fetch_catalog가_모두_비어있고_priceChangeSchedule만_존재해도_product_db_변환을_사용하지_않는다() throws Exception {
+        // given — 관리자가 스케줄만 선(先)세팅하고 상품 catalog 는 아직 비어있는 상태(현실적 시나리오:
+        // product-service 카탈로그 등록 전에 단가변동 스케줄부터 구성). 시트도 비활성화해 V2 seed
+        // fallback 경로만 검증한다.
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.priceChangeSchedule())
+                .thenReturn(Map.of("homemulti", LocalDate.of(2026, 4, 1)));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of(
+                makeCacheRow("homemulti", "[[\"seed-row\"]]")));
+
+        // when
+        bootstrapService.prefetch();
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then — hasProductData 가 schedule 존재만으로 true 오판되면 productCatalogCache 에
+        // homemulti=[] 가 캐싱되어 seed 값을 영구 override 했을 것이다. 회귀 fix 후에는 seed 값 유지.
+        assertThat(response.payloads().get("homemulti")).isEqualTo(List.of(List.of("seed-row")));
+    }
+
+    @Test
+    void fetch_catalog가_모두_비어있고_priceBaseline만_존재해도_product_db_변환을_사용하지_않는다() throws Exception {
+        // given — priceChangeSchedule 과 동일 결함 패턴: 구형/폐기 모델의 historical baseline 행만
+        // 남아있고 실 catalog 는 비어있는 경우도 hasProductData 를 오판시키지 않아야 한다.
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.priceBaseline())
+                .thenReturn(List.of(baselineRow("OLD-1", "LEGACY", "100000", "90000")));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of(
+                makeCacheRow("homemulti", "[[\"seed-row\"]]")));
+
+        // when
+        bootstrapService.prefetch();
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then
+        assertThat(response.payloads().get("homemulti")).isEqualTo(List.of(List.of("seed-row")));
+    }
+
     private BootstrapCacheConfig makeCacheRow(String key, String json) {
         return BootstrapCacheConfig.of(key, json);
     }
