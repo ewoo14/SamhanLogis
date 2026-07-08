@@ -155,20 +155,50 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
   })
 
   it('VIEW 만 있고 UPDATE 가 없으면 입력과 저장 버튼이 비활성화된다', async () => {
+    // QA-LOW#1(confound 제거) — 기존에는 rowDirty=false(무편집) 상태로만 save disabled 를
+    // 확인해 "canEditPriceSchedule=false" 와 "rowDirty=false" 두 OR 조건이 뒤섞여
+    // 판별력이 0 이었다(disabled 는 둘 중 하나만 참이어도 항상 true). UPDATE 가 있는
+    // 상태에서 먼저 date 를 변경해 rowDirty=true 를 실제로 만든 뒤, UPDATE 권한만
+    // 박탈하고 재렌더한다 — dirty 는 컴포넌트 로컬 state 라 rerender 로 유지되므로,
+    // 이후 save disabled 단언은 오직 canEditPriceSchedule=false 때문임이 격리된다.
     stubCanAccess({
       'sales.estimate-config': { view: true, update: true },
-      'products.price-schedule': { view: true, update: false },
+      'products.price-schedule': { view: true, update: true },
     })
     mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
 
-    renderPage()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // rerender 에는 매번 새로 평가된 JSX(새 element 참조)를 넘겨야 한다 — 동일 element
+    // 참조를 재사용하면 React 가 참조 동일성만으로 bail-out 해 컴포넌트 함수 바디를
+    // 재실행하지 않고(=usePermissions 재호출 없이) 이전 렌더를 그대로 유지해버린다.
+    const buildUi = () => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/sales/estimate-config']}>
+          <EstimatePricingConfigPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const { rerender } = render(buildUi())
+
+    const dateInput = await screen.findByLabelText('홈멀티 적용일')
+    fireEvent.change(dateInput, { target: { value: '2026-09-01' } })
+    // 편집 가능 상태에서 dirty 가 되어 save 가 활성화됨을 먼저 확인 — rowDirty=true 실증.
+    expect((screen.getByTestId('price-schedule-save-homemulti') as HTMLButtonElement).disabled).toBe(false)
+
+    stubCanAccess({
+      'sales.estimate-config': { view: true, update: true },
+      'products.price-schedule': { view: true, update: false },
+    })
+    rerender(buildUi())
 
     expect(
       await screen.findByText('현재 권한은 조회 전용입니다. MASTER, MANAGER 또는 ACCOUNTANT 권한에서 변경할 수 있습니다.'),
     ).not.toBeNull()
     expect(((await screen.findByLabelText('홈멀티 적용일')) as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('price-schedule-toggle-homemulti') as HTMLInputElement).disabled).toBe(true)
+    // rowDirty=true(위에서 실제로 설정) 인 상태에서도 disabled 이므로, canEditPriceSchedule=false
+    // 때문임이 격리되어 검증된다(더 이상 rowDirty=false 로 인한 우연한 통과가 아님).
     expect((screen.getByTestId('price-schedule-save-homemulti') as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -188,6 +218,11 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     fireEvent.click(screen.getByTestId('price-schedule-save-homemulti'))
 
     await screen.findByText('홈멀티 저장에 실패했습니다. 입력값과 권한을 확인하세요.')
+
+    // QA-MED#2 — 에러 표시 후 아무 필드(date)나 다시 편집하면 에러 문구가 즉시 사라진다
+    // (handleScheduleDateChange 가 setPriceScheduleError('') 를 선행 호출하는 M2 clear 보장).
+    fireEvent.change(dateInput, { target: { value: '2026-10-01' } })
+    expect(screen.queryByText(/저장에 실패했습니다/)).toBeNull()
   })
 
   it('oldProducts 행은 체크박스 없이 "대상 아님" 을 표시한다', async () => {
@@ -197,12 +232,32 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     })
     mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
     mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
+    mocks.updatePriceChangeSchedule.mockResolvedValue({
+      category: 'oldProducts',
+      effectiveDate: '2026-09-01',
+      defaultPreChange: false,
+    })
 
     renderPage()
 
     const oldRow = await screen.findByTestId('price-schedule-row-oldProducts')
     expect(oldRow.textContent).toContain('대상 아님')
     expect(screen.queryByTestId('price-schedule-toggle-oldProducts')).toBeNull()
+
+    // QA-MED#4 — oldProducts 는 토글이 없으므로 date 변경 저장 시 patch 에 effectiveDate 만
+    // 담기고 defaultPreChange 키가 섞이지 않아야 한다(무관 카테고리에 estimate-app 대응
+    // 체크박스 필드가 실수로 전송되면 BE 계약 위반).
+    const dateInput = await screen.findByLabelText('구형 적용일')
+    fireEvent.change(dateInput, { target: { value: '2026-09-01' } })
+    fireEvent.click(screen.getByTestId('price-schedule-save-oldProducts'))
+
+    await waitFor(() =>
+      expect(mocks.updatePriceChangeSchedule).toHaveBeenCalledWith('oldProducts', {
+        effectiveDate: '2026-09-01',
+      }),
+    )
+    const [, patchArg] = mocks.updatePriceChangeSchedule.mock.calls[0]
+    expect(patchArg).not.toHaveProperty('defaultPreChange')
   })
 
   it('저장 성공 시 refetch 완료 전에도 테이블 값이 즉시 갱신된다(스테일 flash 회귀 가드)', async () => {
@@ -232,6 +287,53 @@ describe('EstimatePricingConfigPage 카테고리별 단가변동 섹션(#17 S4b 
     await waitFor(() => expect(mocks.updatePriceChangeSchedule).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(mocks.getPriceChangeScheduleAdmin).toHaveBeenCalledTimes(2))
     expect((screen.getByTestId('price-schedule-toggle-homemulti') as HTMLInputElement).checked).toBe(true)
+
+    // QA-MED#5 — 저장 성공 후 dirty 배경(#fffbeb)이 사라지고 save 버튼이 disabled 로
+    // 복귀하는지 별도 검증(위 setQueryData 즉시반영 단언과 분리된 dirty-clear 단언).
+    expect(screen.getByTestId('price-schedule-row-homemulti').style.background).toBe('')
+    expect((screen.getByTestId('price-schedule-save-homemulti') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('한 카테고리만 저장해도 다른 dirty 카테고리는 초기화되지 않는다(다행 회귀 가드, QA-MED#3)', async () => {
+    stubCanAccess({
+      'sales.estimate-config': { view: true, update: true },
+      'products.price-schedule': { view: true, update: true },
+    })
+    mocks.getEstimateConfig.mockResolvedValue(makeEstimateConfig())
+    mocks.getPriceChangeScheduleAdmin.mockResolvedValue(makeScheduleRows())
+    mocks.updatePriceChangeSchedule.mockResolvedValue({
+      category: 'homemulti',
+      effectiveDate: '2026-08-01',
+      defaultPreChange: true,
+    })
+
+    renderPage()
+
+    const homemultiToggle = await screen.findByTestId('price-schedule-toggle-homemulti')
+    const singleSetsToggle = await screen.findByTestId('price-schedule-toggle-singleSets')
+    fireEvent.click(homemultiToggle)
+    fireEvent.click(singleSetsToggle)
+
+    // 두 행 모두 dirty(#fffbeb 배경) — jsdom 이 hex 를 rgb 로 정규화할 수 있어 둘 다 허용.
+    expect(['#fffbeb', 'rgb(255, 251, 235)']).toContain(
+      screen.getByTestId('price-schedule-row-homemulti').style.background,
+    )
+    expect(['#fffbeb', 'rgb(255, 251, 235)']).toContain(
+      screen.getByTestId('price-schedule-row-singleSets').style.background,
+    )
+
+    fireEvent.click(screen.getByTestId('price-schedule-save-homemulti'))
+
+    await waitFor(() => expect(mocks.updatePriceChangeSchedule).toHaveBeenCalledTimes(1))
+    expect(mocks.updatePriceChangeSchedule).toHaveBeenCalledWith('homemulti', { defaultPreChange: true })
+
+    // homemulti 는 dirty 클리어되지만, 저장을 요청하지 않은 singleSets 는 여전히 dirty 로
+    // 남아 save 가 활성 상태여야 한다 — dirty map 전체 초기화(회귀) 가드.
+    expect(screen.getByTestId('price-schedule-row-homemulti').style.background).toBe('')
+    expect(['#fffbeb', 'rgb(255, 251, 235)']).toContain(
+      screen.getByTestId('price-schedule-row-singleSets').style.background,
+    )
+    expect((screen.getByTestId('price-schedule-save-singleSets') as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('ACCOUNTANT 관점(sales.estimate-config 없음·products.price-schedule 있음)에서는 estimateConfig 폼 없이 단가변동 섹션만 노출한다', async () => {

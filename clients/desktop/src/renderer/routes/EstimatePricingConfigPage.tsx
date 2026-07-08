@@ -464,7 +464,7 @@ export function EstimatePricingConfigPage() {
             </h2>
 
             {!canEditPriceSchedule ? (
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--color-warning-700, #b45309)' }}>
+              <p style={{ margin: 0, fontSize: 12, color: '#b45309' }}>
                 현재 권한은 조회 전용입니다. MASTER, MANAGER 또는 ACCOUNTANT 권한에서 변경할 수 있습니다.
               </p>
             ) : null}
