@@ -15,7 +15,8 @@ describe('EstimatePricingConfigPage contract', () => {
     const mock = read('src/renderer/api/mock.ts')
 
     expect(route).toContain("path: '/sales/estimate-config'")
-    expect(route).toContain('pageCode="sales.estimate-config"')
+    // H1(#17 S4b R1 fix) — ACCOUNTANT OR 도달 허용으로 배열 pageCode 로 변경(PermissionGuard 확장).
+    expect(route).toContain("pageCode={['sales.estimate-config', 'products.price-schedule']}")
     expect(subNav).toContain("'/sales/estimate-config'")
     expect(subNav).toContain('견적 가격 설정')
     expect(layout).toContain("dynamicCanAccess('sales.estimate-config', 'view')")

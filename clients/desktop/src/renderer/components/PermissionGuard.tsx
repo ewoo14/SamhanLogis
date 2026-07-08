@@ -17,8 +17,15 @@ import { usePermissions } from '../hooks/usePermissions'
 import type { PageCode, PermissionLookupAction } from '../api/permissionsApi'
 
 export interface PermissionGuardProps {
-  /** 접근 허용 여부를 판단할 페이지 코드. */
-  pageCode: PageCode
+  /**
+   * 접근 허용 여부를 판단할 페이지 코드.
+   *
+   * 배열 전달 시 OR 판정(배열 중 하나라도 canAccess 가 true 면 통과) — 서로 다른
+   * page-code 로 동일 화면에 도달 가능한 경우(예: #17 S4b H1) 사용한다.
+   * 단일 pageCode 전달 시 동작은 기존과 100% 동일(backward-compat) — 이 컴포넌트는
+   * 다수 라우트가 공유하므로 기존 호출부는 무영향이다.
+   */
+  pageCode: PageCode | PageCode[]
   /** 확인할 액션 (기본값: 'view'). */
   action?: PermissionLookupAction
   /** 가드 통과 시 렌더링. */
@@ -48,8 +55,14 @@ export function PermissionGuard({
     )
   }
 
+  // 배열이면 OR 판정 — 단일 pageCode 분기는 기존 canAccess(pageCode, action) 호출과
+  // 100% 동일하게 유지해 다른 라우트의 기존 동작에 영향을 주지 않는다.
+  const hasAccess = Array.isArray(pageCode)
+    ? pageCode.some((code) => canAccess(code, action))
+    : canAccess(pageCode, action)
+
   // 권한 없음 → 홈 redirect (사이드바에도 없으므로 404 동일 효과)
-  if (!canAccess(pageCode, action)) {
+  if (!hasAccess) {
     return <Navigate to="/" replace />
   }
 

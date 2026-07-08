@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
 import {
+  type PriceChangeScheduleCategory,
   getPriceChangeScheduleAdmin,
   updatePriceChangeSchedule,
   updateProductFixedDiscount,
@@ -94,5 +95,25 @@ describe('productCatalogApi 단가변동 스케줄 admin 계약 (S4b #17)', () =
       '/api/v1/products/admin/price-change-schedule/singleSets',
       { defaultPreChange: true },
     )
+  })
+
+  it('PUT price-change-schedule/{category} 는 URL 에 category 세그먼트를 포함하며 실제로 encodeURIComponent 를 거친다', async () => {
+    // 실제 4개 카테고리 키(homemulti/singleSets/commercialMulti/oldProducts)는 모두
+    // URI 인코딩이 불필요한 안전 식별자라 위 테스트만으로는 encodeURIComponent 호출
+    // 여부를 판별할 수 없다(판별력 0 — QA-M3). encodeURIComponent 가 실제로 적용되는지
+    // 증명하기 위해 인코딩이 필요한 값을 타입 단언으로 주입해 URL 을 직접 검증한다.
+    const updated = { category: 'singleSets', effectiveDate: '2026-09-01', defaultPreChange: true }
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: { success: true, code: 'OK', message: '', data: updated, timestamp: '' },
+    })
+
+    await updatePriceChangeSchedule(
+      'single/Sets' as unknown as PriceChangeScheduleCategory,
+      { defaultPreChange: true },
+    )
+
+    const [url] = vi.mocked(apiClient.put).mock.calls[0]!
+    expect(url).toBe('/api/v1/products/admin/price-change-schedule/single%2FSets')
+    expect(url).not.toContain('single/Sets')
   })
 })

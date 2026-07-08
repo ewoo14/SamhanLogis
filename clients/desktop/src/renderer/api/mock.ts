@@ -16633,6 +16633,10 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   'accounting.daily-closing.run': ['CREATE'],
   // V37: accounting.daily-closing.unlock 은 잠금 해제 UPDATE endpoint 전용.
   'accounting.daily-closing.unlock': ['UPDATE'],
+  // V86(#17 S4b R1 fix) — products.price-schedule 은 VIEW+UPDATE 만(CREATE/DELETE/
+  // DOWNLOAD/PRINT 없음). 미등재 시 mock /permissions/my 가 MANAGER/ACCOUNTANT 에
+  // CREATE/DELETE/DOWNLOAD/PRINT 까지 과다부여한다.
+  'products.price-schedule': ['UPDATE'],
   'sales.partner-order.convert': ['CREATE'],
   'products.sync': ['CREATE'],
   'dispatch.external-carriers': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
