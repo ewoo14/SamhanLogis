@@ -4066,7 +4066,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // signature-slice-C: 전자서명 mock endpoint
   // ==========================================================================
 
-  // POST /public/batches/{token}/slips/{slipNo}/signature — 모바일 서명 저장
+  // POST /api/public/batches/{token}/slips/{slipNo}/signature — 모바일 서명 저장
   const publicSignatureMatch = url.match(
     /\/public\/batches\/([^/]+)\/slips\/([^/]+)\/signature$/,
   )
@@ -4088,7 +4088,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // POST /public/batches/{token}/slips/{slipNo}/driver-signature — 배송기사 모바일 서명 저장
+  // POST /api/public/batches/{token}/slips/{slipNo}/driver-signature — 배송기사 모바일 서명 저장
   const publicDriverSignatureMatch = url.match(
     /\/public\/batches\/([^/]+)\/slips\/([^/]+)\/driver-signature$/,
   )
@@ -4105,7 +4105,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  // GET /public/signatures/{shareToken} — 인수자 view
+  // GET /api/public/signatures/{shareToken} — 인수자 view
   const publicShareMatch = url.match(/\/public\/signatures\/([^/?]+)$/)
   if (method === 'GET' && publicShareMatch) {
     return envelope({

@@ -110,7 +110,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
 
     // BE mock 응답 설정
     await page.route(
-      `**/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
+      `**/api/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
       (route) => {
         if (route.request().method() !== 'POST') { route.fallback(); return; }
         route.fulfill({
@@ -133,7 +133,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
     const result = await page.evaluate(async (args: Sc1Args) => {
       const base64 = btoa(String.fromCharCode(...args.pngArr));
       const res = await fetch(
-        `${args.apiBase}/public/batches/${args.token}/slips/${args.slipNo}/signature`,
+        `${args.apiBase}/api/public/batches/${args.token}/slips/${args.slipNo}/signature`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -172,7 +172,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
      * BE SHA-256 재계산 결과와 클라이언트 제출값 불일치 시 INVALID_INPUT
      */
     await page.route(
-      `**/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
+      `**/api/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
       (route) => {
         route.fulfill({
           status: 400,
@@ -191,7 +191,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
     const result = await page.evaluate(async (args: Sc2Args) => {
       const base64 = btoa(String.fromCharCode(...args.pngArr));
       const res = await fetch(
-        `${args.apiBase}/public/batches/${args.token}/slips/${args.slipNo}/signature`,
+        `${args.apiBase}/api/public/batches/${args.token}/slips/${args.slipNo}/signature`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -217,7 +217,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
     const hash = await sha256HexViaPage(page, hugePng);
 
     await page.route(
-      `**/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
+      `**/api/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
       (route) => {
         route.fulfill({
           status: 400,
@@ -238,7 +238,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
         base64 += btoa(String.fromCharCode(...args.pngArr.slice(i, i + CHUNK)));
       }
       const res = await fetch(
-        `${args.apiBase}/public/batches/${args.token}/slips/${args.slipNo}/signature`,
+        `${args.apiBase}/api/public/batches/${args.token}/slips/${args.slipNo}/signature`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -263,7 +263,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
     const expiredToken = 'expired-batch-token-ccccccccccccccccccccccccccccccc3';
 
     await page.route(
-      `**/public/batches/${expiredToken}/slips/${MOCK_SLIP_NO}/signature`,
+      `**/api/public/batches/${expiredToken}/slips/${MOCK_SLIP_NO}/signature`,
       (route) => {
         route.fulfill({
           status: 410,
@@ -282,7 +282,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
     const result = await page.evaluate(async (args: Sc4Args) => {
       const base64 = btoa(String.fromCharCode(...args.pngArr));
       const res = await fetch(
-        `${args.apiBase}/public/batches/${args.token}/slips/${args.slipNo}/signature`,
+        `${args.apiBase}/api/public/batches/${args.token}/slips/${args.slipNo}/signature`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -306,7 +306,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
      * UUID 비공개: slip.id / signature.id 미포함 (feedback_uuid_no_user_visibility.md)
      */
     await page.route(
-      `**/public/signatures/${MOCK_SHARE_TOKEN}`,
+      `**/api/public/signatures/${MOCK_SHARE_TOKEN}`,
       (route) => {
         if (route.request().method() !== 'GET') { route.fallback(); return; }
         route.fulfill({
@@ -338,7 +338,7 @@ test.describe('BE API 계약 검증 — mock 기반', () => {
 
     type Sc5Args = { apiBase: string; shareToken: string };
     const result = await page.evaluate(async (args: Sc5Args) => {
-      const res = await fetch(`${args.apiBase}/public/signatures/${args.shareToken}`);
+      const res = await fetch(`${args.apiBase}/api/public/signatures/${args.shareToken}`);
       const json = await res.json();
       return { status: res.status, body: json };
     }, { apiBase: API_BASE, shareToken: MOCK_SHARE_TOKEN });
@@ -381,7 +381,7 @@ test.describe('PNG 크기 경계값 가드', () => {
     const MOCK_SLIP_NO = '2026-05-19-1';
 
     await page.route(
-      `**/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
+      `**/api/public/batches/${MOCK_BATCH_TOKEN}/slips/${MOCK_SLIP_NO}/signature`,
       (route) => {
         route.fulfill({
           status: 200,
@@ -406,7 +406,7 @@ test.describe('PNG 크기 경계값 가드', () => {
         base64 += btoa(String.fromCharCode(...args.pngArr.slice(i, i + CHUNK)));
       }
       const res = await fetch(
-        `${args.apiBase}/public/batches/${args.token}/slips/${args.slipNo}/signature`,
+        `${args.apiBase}/api/public/batches/${args.token}/slips/${args.slipNo}/signature`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

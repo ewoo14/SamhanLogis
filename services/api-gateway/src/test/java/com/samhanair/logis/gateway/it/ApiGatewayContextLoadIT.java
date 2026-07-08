@@ -294,6 +294,43 @@ class ApiGatewayContextLoadIT {
         assertHasJwtAuthenticationFilter(routes, "dashboard-app-releases-authenticated");
     }
 
+    /**
+     * #729 게이트웨이 매출/매입 전표 + 세금계산서 admin 라우트 계약 박제.
+     *
+     * <p>SalesAccountingSlipController({@code /admin/sales-slips}), PurchaseAccountingSlipController
+     * ({@code /admin/purchase-slips}), 세금계산서 배치/수신 컨트롤러({@code /admin/tax-invoices})는
+     * 모두 풀패스 컨트롤러라 {@code accounting-admin-noprefix} 선례와 동일하게 StripPrefix 없이
+     * JwtAuthentication 만 적용해야 한다. 라우트 누락 시 404, StripPrefix 오적용 시 컨트롤러 매핑 불일치.
+     */
+    @Test
+    @DisplayName("#729 매출/매입 전표 + 세금계산서 admin no-prefix 라우트 — Path + JwtAuthentication + no-strip")
+    void accountingSalesPurchaseSlipAndTaxInvoiceAdminRoutes_areAuthenticatedNoStrip() {
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
+                .collectList()
+                .block();
+
+        assertThat(routes)
+                .as("RouteDefinitionLocator 가 선언 라우트를 반환해야 한다")
+                .isNotNull()
+                .isNotEmpty();
+
+        // [#729] 매출/매입 전표 admin — 4개 Path 패턴 전부 보유 + no-strip + JwtAuthentication.
+        assertRoutePath(routes, "accounting-sales-purchase-slip-admin-noprefix",
+                "/admin/sales-slips",
+                "/admin/sales-slips/**",
+                "/admin/purchase-slips",
+                "/admin/purchase-slips/**");
+        assertNoStripPrefix(routes, "accounting-sales-purchase-slip-admin-noprefix");
+        assertHasJwtAuthenticationFilter(routes, "accounting-sales-purchase-slip-admin-noprefix");
+
+        // [#729] 세금계산서 admin — 2개 Path 패턴 보유 + no-strip + JwtAuthentication.
+        assertRoutePath(routes, "accounting-tax-invoice-admin-noprefix",
+                "/admin/tax-invoices",
+                "/admin/tax-invoices/**");
+        assertNoStripPrefix(routes, "accounting-tax-invoice-admin-noprefix");
+        assertHasJwtAuthenticationFilter(routes, "accounting-tax-invoice-admin-noprefix");
+    }
+
     /** #465: default-filters 에 identity strip 을 추가하지 않았는지 회귀 가드. */
     @Test
     @DisplayName("#465 default-filters 는 identity header strip 미보유")

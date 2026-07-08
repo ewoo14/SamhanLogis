@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
 import { postSalesSlip } from './salesAccountingSlipApi'
 import { postPurchaseSlip } from './purchaseAccountingSlipApi'
-import { recordDriverSignature, recordSignature } from './signature'
+import { getSignatureShare, recordDriverSignature, recordSignature } from './signature'
 import { getAccountingOrder } from './accountingAdminApi'
 import { updateCollectionPlanStatus } from './accounting'
 import {
@@ -82,6 +82,12 @@ describe('문서번호 URL path 변환', () => {
       '/api/public/batches/batch-token/slips/2026-05-20-4/driver-signature',
       expect.any(Object),
     )
+  })
+
+  it('인수자 view 조회는 게이트웨이 공개 서명 경로(/api/public/...)로 호출한다', async () => {
+    await getSignatureShare('some-token')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/api/public/signatures/some-token')
   })
 
   it('회계 admin 주문 상세는 슬래시 orderNo를 하이픈 단일 세그먼트로 보낸다', async () => {

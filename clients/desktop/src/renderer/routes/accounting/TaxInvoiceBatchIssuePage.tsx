@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Button, Card, DataTable, type DataTableColumn } from '@samhan/design-system'
+import { Button, Card, DataTable, Spinner, type DataTableColumn } from '@samhan/design-system'
 import {
   createTaxInvoiceFromSalesSlips,
   type TaxInvoiceFromSalesSlipsResponse,
@@ -134,12 +134,20 @@ export function TaxInvoiceBatchIssuePage() {
       </Card>
 
       <Card style={{ marginBottom: 16 }}>
-        <DataTable
-          columns={columns}
-          rows={rows}
-          rowKey={(row) => row.salesSlipId}
-          emptyMessage={candidatesQuery.isLoading ? '후보 조회 중입니다.' : '발행 가능한 매출전표가 없습니다.'}
-        />
+        {candidatesQuery.isLoading ? (
+          <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
+            <Spinner size="lg" label="발행 후보 조회 중" />
+          </div>
+        ) : candidatesQuery.isError ? (
+          <div className="error-banner" role="alert">발행 후보 매출전표 목록을 불러오지 못했습니다.</div>
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(row) => row.salesSlipId}
+            emptyMessage="발행 가능한 매출전표가 없습니다."
+          />
+        )}
       </Card>
 
       {result ? (

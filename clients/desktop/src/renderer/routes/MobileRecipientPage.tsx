@@ -18,6 +18,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import axios from 'axios'
 import {
   Button,
   CopyButton,
@@ -37,6 +38,29 @@ function GoneView() {
           <br />
           무효화된 서명입니다.
         </p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 일시적 장애(네트워크 단절 / 5xx / 무응답) 안내 페이지.
+ *
+ * {@link getSignatureShare} 의 410(만료)/404(토큰 무효)는 {@link GoneView} 로 분기하고,
+ * 그 외 오류는 "링크 만료"로 오인되지 않도록 본 컴포넌트로 분기해 재시도를 안내한다.
+ */
+function OutageView({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="m-mock-frame">
+      <div className="m-brand-bar">(주)삼한공조시스템</div>
+      <div className="m-page" style={{ textAlign: 'center', paddingTop: 64 }}>
+        <h2 style={{ marginBottom: 16 }}>일시적으로 불러오지 못했습니다</h2>
+        <p style={{ color: '#5C6773', fontSize: 14 }}>
+          잠시 후 다시 시도해 주세요.
+        </p>
+        <Button variant="primary" onClick={onRetry} style={{ marginTop: 16 }}>
+          다시 시도
+        </Button>
       </div>
     </div>
   )
@@ -69,7 +93,14 @@ export function MobileRecipientPage() {
       </div>
     )
   }
-  if (shareQuery.isError || !shareQuery.data) {
+  if (shareQuery.isError) {
+    const status = axios.isAxiosError(shareQuery.error) ? shareQuery.error.response?.status : undefined
+    if (status === 410 || status === 404) {
+      return <GoneView />
+    }
+    return <OutageView onRetry={() => void shareQuery.refetch()} />
+  }
+  if (!shareQuery.data) {
     return <GoneView />
   }
 

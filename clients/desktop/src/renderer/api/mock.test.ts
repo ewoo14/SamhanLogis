@@ -1218,11 +1218,32 @@ describe('mock collection plan contract', () => {
   })
 })
 
-describe('mock public driver signature contract', () => {
-  it('POST /public/batches/{token}/slips/{slipNo}/driver-signature accepts hyphen slip path id', () => {
+describe('mock public signature contract', () => {
+  it('POST /api/public/batches/{token}/slips/{slipNo}/signature accepts hyphen slip path id', () => {
     const signed = mockRequest({
       method: 'POST',
-      url: '/public/batches/mock-token/slips/2026-05-04-2/driver-signature',
+      url: '/api/public/batches/mock-token/slips/2026-05-04-2/signature',
+      data: {
+        signerName: '김인수',
+        signaturePngBase64: 'data:image/png;base64,AAAA',
+        clientHash: 'signer-hash',
+      },
+    }) as MockEnvelope<{
+      signedAt: string
+      shareToken: string
+      shareTokenExpiresAt: string
+      signatureHash: string
+    }>
+
+    expect(signed.data.signedAt).toEqual(expect.any(String))
+    expect(signed.data.shareToken).toEqual(expect.any(String))
+    expect(signed.data.signatureHash).toBe('signer-hash')
+  })
+
+  it('POST /api/public/batches/{token}/slips/{slipNo}/driver-signature accepts hyphen slip path id', () => {
+    const signed = mockRequest({
+      method: 'POST',
+      url: '/api/public/batches/mock-token/slips/2026-05-04-2/driver-signature',
       data: {
         signaturePngBase64: 'data:image/png;base64,AAAA',
         clientHash: 'driver-hash',
@@ -1231,6 +1252,21 @@ describe('mock public driver signature contract', () => {
 
     expect(signed.data.driverSignedAt).toEqual(expect.any(String))
     expect(signed.data.driverSignatureHash).toBe('driver-hash')
+  })
+
+  it('GET /api/public/signatures/{shareToken} returns share view without UUID fields', () => {
+    const shared = mockRequest({
+      method: 'GET',
+      url: '/api/public/signatures/mock-share-token',
+    }) as MockEnvelope<{
+      slip: { slipNo: string }
+      signature: { signerName: string }
+    }>
+
+    expect(shared.data.slip.slipNo).toEqual(expect.any(String))
+    expect(shared.data.signature.signerName).toEqual(expect.any(String))
+    expect(shared.data.slip).not.toHaveProperty('id')
+    expect(shared.data.signature).not.toHaveProperty('id')
   })
 })
 

@@ -4,8 +4,8 @@
  * Plan §2 의 신규 endpoint 4건과 1:1 대응:
  * - POST   `/api/public/batches/{token}/slips/{slipNo}/signature` — 인증 없이 모바일 서명 저장
  * - GET    `/api/public/signatures/{shareToken}`                  — 인증 없이 인수자 view
- * - GET    `/api/slips/{id}/signature`                        — MANAGER/MASTER 관리자 조회
- * - DELETE `/api/slips/{id}/signature?reason=...`             — MASTER 무효화 (감사 로그)
+ * - GET    `/slips/{id}/signature`                        — MANAGER/MASTER 관리자 조회
+ * - DELETE `/slips/{id}/signature?reason=...`             — MASTER 무효화 (감사 로그)
  *
  * UUID 비공개 가드 (`feedback_uuid_no_user_visibility.md`):
  * - 응답 객체 안 `slip.id` / `signature.id` 모두 미노출 (mobile-spec.md §5).
@@ -90,7 +90,7 @@ export interface SignatureAdminResponse {
  * 모바일 서명 저장 (NO AUTH).
  *
  * Slice C 본 슬라이스의 desktop 앱은 mock 라우트로 시뮬레이션 — 실제 sign.samhan-air.com
- * 분리는 Phase 5. apiClient 의 baseURL 은 동일하나 path 가 `/public/...` 으로 분기.
+ * 분리는 Phase 5. apiClient 의 baseURL 은 동일하나 path 가 `/api/public/...` 으로 분기.
  *
  * @param token   배치 토큰 (Slice B 발급)
  * @param slipNo  비즈니스 전표번호 (예: "2026/05/05-1" — 표준 슬래시 형식)

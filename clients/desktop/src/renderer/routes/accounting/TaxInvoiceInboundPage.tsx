@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Button, Card, DataTable, type DataTableColumn } from '@samhan/design-system'
+import { Button, Card, DataTable, Spinner, type DataTableColumn } from '@samhan/design-system'
 import {
   listPurchaseAccountingSlips,
   type PurchaseAccountingSlipResponse,
@@ -163,22 +163,38 @@ export function TaxInvoiceInboundPage() {
       </Card>
 
       <Card style={{ marginBottom: 16 }}>
-        <DataTable
-          columns={columns}
-          rows={purchaseSlipsQuery.data ?? []}
-          rowKey={(row) => row.slipNo}
-          emptyMessage={purchaseSlipsQuery.isLoading ? '매입전표 조회 중입니다.' : '매칭 가능한 매입전표가 없습니다.'}
-        />
+        {purchaseSlipsQuery.isLoading ? (
+          <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
+            <Spinner size="lg" label="매입전표 조회 중" />
+          </div>
+        ) : purchaseSlipsQuery.isError ? (
+          <div className="error-banner" role="alert">매입전표 목록을 불러오지 못했습니다.</div>
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={purchaseSlipsQuery.data ?? []}
+            rowKey={(row) => row.slipNo}
+            emptyMessage="매칭 가능한 매입전표가 없습니다."
+          />
+        )}
       </Card>
 
       <Card style={{ marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}>수신 세금계산서 목록</h3>
-        <DataTable
-          columns={inboundColumns}
-          rows={inboundListQuery.data ?? []}
-          rowKey={(row) => row.id ?? row.taxInvoiceNo}
-          emptyMessage={inboundListQuery.isLoading ? '수신 목록 조회 중입니다.' : '수신 세금계산서가 없습니다.'}
-        />
+        {inboundListQuery.isLoading ? (
+          <div style={{ display: 'grid', placeItems: 'center', minHeight: 160 }}>
+            <Spinner size="lg" label="수신 세금계산서 조회 중" />
+          </div>
+        ) : inboundListQuery.isError ? (
+          <div className="error-banner" role="alert">수신 세금계산서 목록을 불러오지 못했습니다.</div>
+        ) : (
+          <DataTable
+            columns={inboundColumns}
+            rows={inboundListQuery.data ?? []}
+            rowKey={(row) => row.id ?? row.taxInvoiceNo}
+            emptyMessage="수신 세금계산서가 없습니다."
+          />
+        )}
       </Card>
 
       {result ? (
