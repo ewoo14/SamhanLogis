@@ -17,7 +17,12 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
     Optional<SalesAccountingSlip> findBySlipNo(String slipNo);
     List<SalesAccountingSlip> findBySlipDateAndStatus(LocalDate slipDate, SalesSlipStatus status);
 
-    @EntityGraph(attributePaths = {"lines", "lines.allocations"})
+    // [FIX] #729-family MultipleBagFetchException — lines + lines.allocations 동시 fetch 는
+    // Hibernate 6 에서 2-bag 동시 fetch 로 100% 실패(query-plan 단계). lines 만 fetch(단일 bag,
+    // DISTINCT 가 정상 dedup)하고 allocations 는 SalesAccountingSlipLine#allocations 의
+    // @BatchSize(100) 로 같은 트랜잭션 내 배치 로드(consumer: MonthEndCloseService.getSalesSlipDailyDetail
+    // → firstSalesSourceSlipNo 가 allocations 를 읽음, @Transactional(readOnly=true) 경계 안에서 호출).
+    @EntityGraph(attributePaths = {"lines"})
     @Query("""
             SELECT DISTINCT s FROM SalesAccountingSlip s
             WHERE s.slipDate = :slipDate
@@ -32,7 +37,10 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
     List<SalesAccountingSlip> findByTaxInvoiceId(UUID taxInvoiceId);
 
     // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
-    @EntityGraph(attributePaths = {"lines", "lines.allocations"})
+    // [FIX] #729-family MultipleBagFetchException — lines 만 fetch(단일 bag), allocations 는
+    // @BatchSize(100) 배치 로드(consumer: SalesAccountingSlipService.list → SalesAccountingSlipResponse.of
+    // 가 line.getAllocations() 를 읽음, @Transactional(readOnly=true) 경계 안에서 호출).
+    @EntityGraph(attributePaths = {"lines"})
     @Query("""
             SELECT DISTINCT s FROM SalesAccountingSlip s
             WHERE s.slipDate >= :from
@@ -47,7 +55,13 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
                                             @Param("status") SalesSlipStatus status);
 
     // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
-    @EntityGraph(attributePaths = {"lines", "lines.allocations"})
+    // [FIX] #729-family MultipleBagFetchException — root 스칼라 컬럼만 조회(EntityGraph 없음).
+    // consumer(TaxInvoiceBatchFromSalesSlipsService.listCandidates → TaxInvoiceBatchCandidateResponse.of
+    // / SalesSlipCandidate.of)는 slip 의 스칼라 필드(getId/getSlipNo/getSlipDate/getTotal*Amount)만
+    // 읽고 lines/allocations 를 전혀 참조하지 않는다 — createFromSalesSlips 의 slip.getLines() 호출은
+    // findAllByIdsForBatch 를 쓰는 별도 메서드 경로라 이 쿼리와 무관. 따라서 lines 의
+    // @EntityGraph JOIN FETCH 조차 낭비이므로 제거(allocations 는 애초부터 fetch 대상이 아니었음) —
+    // consumer-가-실제로-읽는-범위만 fetch 한다는 원칙을 root-only 까지 끝까지 적용.
     @Query("""
             SELECT DISTINCT s FROM SalesAccountingSlip s
             WHERE s.status = com.samhanair.logis.accounting.domain.SalesSlipStatus.POSTED

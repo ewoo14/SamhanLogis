@@ -9,6 +9,7 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
@@ -50,6 +51,11 @@ public class SalesAccountingSlipLine extends BaseEntity {
     @Column(name = "line_total", nullable = false, precision = 15, scale = 2)
     private BigDecimal lineTotal;
 
+    // [FIX] #729-family MultipleBagFetchException — allocations 는 EntityGraph JOIN FETCH 대상에서
+    // 제외(단일 bag 원칙, lines 만 fetch)하고 대신 BatchSize 로 같은 read-only 트랜잭션 내에서
+    // IN(...) 배치 조회한다. 소비자가 allocations 를 읽지 않는 조회(findPostedUnlinkedForBatchCandidates)는
+    // 이 컬렉션이 아예 초기화되지 않아 추가 쿼리도 발생하지 않는다.
+    @BatchSize(size = 100)
     @OneToMany(mappedBy = "salesSlipLine", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalesAccountingSlipAllocation> allocations = new ArrayList<>();
 

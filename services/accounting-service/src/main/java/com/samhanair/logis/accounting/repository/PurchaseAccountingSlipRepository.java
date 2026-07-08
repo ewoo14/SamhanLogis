@@ -17,7 +17,12 @@ public interface PurchaseAccountingSlipRepository extends JpaRepository<Purchase
     Optional<PurchaseAccountingSlip> findBySlipNo(String slipNo);
     List<PurchaseAccountingSlip> findBySlipDateAndStatus(LocalDate slipDate, PurchaseSlipStatus status);
 
-    @EntityGraph(attributePaths = {"lines", "lines.allocations"})
+    // [FIX] #729-family MultipleBagFetchException — lines + lines.allocations 동시 fetch 는
+    // Hibernate 6 에서 2-bag 동시 fetch 로 100% 실패(query-plan 단계). lines 만 fetch(단일 bag,
+    // DISTINCT 가 정상 dedup)하고 allocations 는 PurchaseAccountingSlipLine#allocations 의
+    // @BatchSize(100) 로 같은 트랜잭션 내 배치 로드(consumer: MonthEndCloseService.getPurchaseSlipDailyDetail
+    // → firstPurchaseSourceSlipNo 가 allocations 를 읽음, @Transactional(readOnly=true) 경계 안에서 호출).
+    @EntityGraph(attributePaths = {"lines"})
     @Query("""
             SELECT DISTINCT s FROM PurchaseAccountingSlip s
             WHERE s.slipDate = :slipDate
@@ -32,7 +37,10 @@ public interface PurchaseAccountingSlipRepository extends JpaRepository<Purchase
     List<PurchaseAccountingSlip> findByTaxInvoiceId(UUID taxInvoiceId);
 
     // [RC4] null→bytea 방지: CAST(:partnerCode AS string)
-    @EntityGraph(attributePaths = {"lines", "lines.allocations"})
+    // [FIX] #729-family MultipleBagFetchException — lines 만 fetch(단일 bag), allocations 는
+    // @BatchSize(100) 배치 로드(consumer: PurchaseAccountingSlipService.list → PurchaseAccountingSlipResponse.of
+    // 가 line.getAllocations() 를 읽음, @Transactional(readOnly=true) 경계 안에서 호출).
+    @EntityGraph(attributePaths = {"lines"})
     @Query("""
             SELECT DISTINCT s FROM PurchaseAccountingSlip s
             WHERE s.slipDate >= :from
