@@ -43,6 +43,9 @@ public class PriceChangeSchedule extends BaseEntity {
 
     private static final Set<String> CATEGORY_KEY_SET = Set.copyOf(CATEGORY_KEYS);
 
+    /** {@link #defaultPreChange} 기본값 — 인상 후 단가를 기본으로 한다. */
+    public static final Boolean DEFAULT_PRE_CHANGE = Boolean.FALSE;
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -56,6 +59,16 @@ public class PriceChangeSchedule extends BaseEntity {
     /** KST 업무일 기준 단가변동 적용 시작일. */
     @Column(name = "effective_date", nullable = false)
     private LocalDate effectiveDate;
+
+    /**
+     * 견적 카테고리별 "인상 전 단가" 체크박스 초기값 (S4a, #17).
+     *
+     * <p>estimate-app 이 {@code GET /products/internal/price-change-default-variant} 로 조회해
+     * 견적 작성 화면의 "인상 전 단가" 체크박스 기본 상태를 초기화하는 데 사용한다.
+     * 기본값은 {@link #DEFAULT_PRE_CHANGE}(인상 후 단가 기본)다.
+     */
+    @Column(name = "default_pre_change", nullable = false)
+    private Boolean defaultPreChange = DEFAULT_PRE_CHANGE;
 
     private PriceChangeSchedule(String category, LocalDate effectiveDate) {
         validateCategory(category);
@@ -83,6 +96,29 @@ public class PriceChangeSchedule extends BaseEntity {
     public void updateEffectiveDate(LocalDate effectiveDate) {
         validateEffectiveDate(effectiveDate);
         this.effectiveDate = effectiveDate;
+    }
+
+    /**
+     * 적용일 / "인상 전 단가" 기본값을 부분 갱신한다 (S4a admin write API).
+     *
+     * <p>{@code null} 인자는 기존 값을 유지하는 null-keep partial update 관례를 따른다
+     * (dc-config-service {@code EstimateConfig#update} 와 동일 관례 — 서로 다른 Gradle 모듈이라
+     * {@code @link} 로 직접 연결하지 않는다).
+     *
+     * @param effectiveDate KST 의미의 적용 시작일. null 이면 기존 값 유지
+     * @param defaultPreChange "인상 전 단가" 체크박스 초기값. null 이면 기존 값 유지
+     */
+    public void update(LocalDate effectiveDate, Boolean defaultPreChange) {
+        this.effectiveDate = dateOrCurrent(effectiveDate, this.effectiveDate);
+        this.defaultPreChange = booleanOrCurrent(defaultPreChange, this.defaultPreChange);
+    }
+
+    private static LocalDate dateOrCurrent(LocalDate value, LocalDate current) {
+        return value == null ? current : value;
+    }
+
+    private static Boolean booleanOrCurrent(Boolean value, Boolean current) {
+        return value == null ? current : value;
     }
 
     private static void validateCategory(String category) {

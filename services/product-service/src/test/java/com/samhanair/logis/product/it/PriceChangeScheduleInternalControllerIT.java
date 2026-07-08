@@ -107,4 +107,45 @@ class PriceChangeScheduleInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.commercialMulti").value("2026-04-01"))
                 .andExpect(jsonPath("$.data.oldProducts").value("2026-04-01"));
     }
+
+    // -------------------------------------------------------------------------
+    // S4a (#17) — GET /products/internal/price-change-default-variant
+    // -------------------------------------------------------------------------
+
+    /** V23 마이그레이션 기본값(FALSE)이 4 카테고리 전부에 그대로 반영되어야 한다. */
+    @Test
+    void priceChangeDefaultVariant_returnsCategoryKeyBooleanMap() throws Exception {
+        mockMvc.perform(get("/products/internal/price-change-default-variant")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.homemulti").value(false))
+                .andExpect(jsonPath("$.data.singleSets").value(false))
+                .andExpect(jsonPath("$.data.commercialMulti").value(false))
+                .andExpect(jsonPath("$.data.oldProducts").value(false));
+    }
+
+    /** admin 이 특정 카테고리의 defaultPreChange 를 TRUE 로 바꾸면 내부 endpoint 에도 즉시 반영된다. */
+    @Test
+    void priceChangeDefaultVariant_reflectsUpdatedRowValue() throws Exception {
+        jdbcTemplate.update("""
+                UPDATE price_change_schedule
+                   SET default_pre_change = true
+                 WHERE category = ?
+                """, "singleSets");
+
+        mockMvc.perform(get("/products/internal/price-change-default-variant")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.homemulti").value(false))
+                .andExpect(jsonPath("$.data.singleSets").value(true))
+                .andExpect(jsonPath("$.data.commercialMulti").value(false))
+                .andExpect(jsonPath("$.data.oldProducts").value(false));
+    }
+
+    /** 신규 endpoint 도 기존과 동일하게 X-Internal-Token 이 없으면 401 을 반환한다. */
+    @Test
+    void priceChangeDefaultVariant_withoutInternalToken_returns401() throws Exception {
+        mockMvc.perform(get("/products/internal/price-change-default-variant"))
+                .andExpect(status().isUnauthorized());
+    }
 }
