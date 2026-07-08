@@ -49,7 +49,7 @@ node scripts/qa-capture.mjs   # → docs/qa/migration-fe-order-app-v4/*.png 6장
 ## Backend 연계 (Phase 6 머지 후 활성)
 - M2 partner-auth-service `POST /api/v1/auth/partner-login` — BizGate 인증
 - M3 dc-config-service — DC 노출 5겹 가드 + Partner master
-- M4 partner-order-service — `/api/v1/partner-orders/bootstrap` (16종) + confirm + outbox
+- M4 partner-order-service — `/api/v1/partner-orders/bootstrap` (17종) + confirm + outbox
 - M5 slip-service `/from-*` endpoint — 견적 / 주문 → 출고 전표 발행
 - M1a product-service — Google Sheets cron 동기화 + Phase 7 3차 추가된 `GET /api/products/by-code/{modelCode}` (modelCode → productId 변환)
 

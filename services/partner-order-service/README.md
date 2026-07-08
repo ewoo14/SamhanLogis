@@ -55,7 +55,7 @@ Scheduler (5분):
 | `getOrderSnapshotHistory()` | `GET /api/v1/partner-orders/drafts` | PARTNER+ |
 | `sendOrderFromUi()` | `POST /api/v1/partner-orders/{draftId}/confirm` | PARTNER+ |
 | `saveTutorialState()` | `PATCH /api/v1/auth/partner-tutorial` | PARTNER+ |
-| 신규 | `GET /api/v1/partner-orders/bootstrap` | 익명 (16종 prefetch) |
+| 신규 | `GET /api/v1/partner-orders/bootstrap` | 익명 (17종 prefetch) |
 | SP-08-4-2 | `PUT /api/v1/partner-orders/{id}` | SALES / MANAGER / MASTER |
 | SP-08-4-3 | `DELETE /api/v1/partner-orders/{id}` | SALES / MANAGER / MASTER |
 | SP-08-4-3 | `POST /api/v1/partner-orders/from-estimate/{estimateId}` | SALES / MANAGER / MASTER |
@@ -75,9 +75,9 @@ Scheduler (5분):
 - 주문 인쇄: `GET /{id}/print`가 A4 HTML(`text/html;charset=UTF-8`)을 반환한다. `PARTNER`는 `X-Partner-Code`가 주문 `partnerCode`와 일치할 때만 200, 타 거래처 주문은 403이다.
 - estimate-service 부재: 현재는 `EstimateClient` port + 기본 empty fixture이며, IT는 `@MockBean` snapshot으로 계약을 고정한다.
 
-## 16종 bootstrap
+## bootstrap (17종 응답 = 16 정적 시드 + priceChangeSchedule 동적)
 
-`BootstrapCacheConfig` 시드 16 row.
+`BootstrapCacheConfig` 시드 16 row. #17 S3(#688)에서 `priceChangeSchedule`(카테고리별 변동일 맵)이 동적 payload로 추가되어 endpoint 응답은 17종이다(정적 시드 16 + 동적 1).
 
 키: `homemulti / singleSets / singleParts / homeDefaults / singleDefaults / singleMatPrices / commercialMulti / commercialParts / oldProducts / homeInc / commInc / singleInc / singlePartsInc / specDetailMap / config / logoData`
 
