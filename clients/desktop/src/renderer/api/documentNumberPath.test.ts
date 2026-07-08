@@ -67,7 +67,7 @@ describe('문서번호 URL path 변환', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      '/public/batches/batch-token/slips/2026-05-20-3/signature',
+      '/api/public/batches/batch-token/slips/2026-05-20-3/signature',
       expect.any(Object),
     )
   })
@@ -79,7 +79,7 @@ describe('문서번호 URL path 변환', () => {
     })
 
     expect(apiClient.post).toHaveBeenCalledWith(
-      '/public/batches/batch-token/slips/2026-05-20-4/driver-signature',
+      '/api/public/batches/batch-token/slips/2026-05-20-4/driver-signature',
       expect.any(Object),
     )
   })

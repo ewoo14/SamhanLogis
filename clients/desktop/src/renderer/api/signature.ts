@@ -2,8 +2,8 @@
  * 전자서명 API 클라이언트 — signature-slice-C.
  *
  * Plan §2 의 신규 endpoint 4건과 1:1 대응:
- * - POST   `/public/batches/{token}/slips/{slipNo}/signature` — 인증 없이 모바일 서명 저장
- * - GET    `/public/signatures/{shareToken}`                  — 인증 없이 인수자 view
+ * - POST   `/api/public/batches/{token}/slips/{slipNo}/signature` — 인증 없이 모바일 서명 저장
+ * - GET    `/api/public/signatures/{shareToken}`                  — 인증 없이 인수자 view
  * - GET    `/api/slips/{id}/signature`                        — MANAGER/MASTER 관리자 조회
  * - DELETE `/api/slips/{id}/signature?reason=...`             — MASTER 무효화 (감사 로그)
  *
@@ -102,7 +102,7 @@ export async function recordSignature(
   body: RecordSignatureRequest,
 ): Promise<RecordSignatureResponse> {
   const res = await apiClient.post<ApiEnvelope<RecordSignatureResponse>>(
-    `/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toOrderPathId(slipNo))}/signature`,
+    `/api/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toOrderPathId(slipNo))}/signature`,
     body,
   )
   return res.data.data
@@ -130,7 +130,7 @@ export async function recordDriverSignature(
   body: RecordDriverSignatureRequest,
 ): Promise<RecordDriverSignatureResponse> {
   const res = await apiClient.post<ApiEnvelope<RecordDriverSignatureResponse>>(
-    `/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toOrderPathId(slipNo))}/driver-signature`,
+    `/api/public/batches/${encodeURIComponent(token)}/slips/${encodeURIComponent(toOrderPathId(slipNo))}/driver-signature`,
     body,
   )
   return res.data.data
@@ -147,7 +147,7 @@ export async function getSignatureShare(
   shareToken: string,
 ): Promise<SignatureShareView> {
   const res = await apiClient.get<ApiEnvelope<SignatureShareView>>(
-    `/public/signatures/${encodeURIComponent(shareToken)}`,
+    `/api/public/signatures/${encodeURIComponent(shareToken)}`,
   )
   return res.data.data
 }

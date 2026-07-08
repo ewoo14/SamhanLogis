@@ -633,6 +633,16 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [#729] 세금계산서 배치/수신 admin — TaxInvoiceBatchController(/admin/tax-invoices/batch-from-sales-slips
+        # [+/candidates]), TaxInvoiceInboundController(/admin/tax-invoices/inbound[/{id}/attachments]) 는
+        # 풀패스 컨트롤러 보유. accounting-sales-purchase-slip-admin-noprefix 선례와 동일한 no-strip 방식.
+        - id: accounting-tax-invoice-admin-noprefix
+          uri: lb://accounting-service
+          predicates:
+            - Path=/admin/tax-invoices,/admin/tax-invoices/**
+          filters:
+            - JwtAuthentication
+
         # [#463] slip-service 배차 보드 admin BE 컨트롤러는 /admin/dispatch-* 풀패스 보유
         #   (DispatchTaskAdminController @RequestMapping("/admin/dispatch-tasks"),
         #    DispatchBoardAdminController @RequestMapping("/admin/dispatch-board")). FE 도 /admin/dispatch-tasks
