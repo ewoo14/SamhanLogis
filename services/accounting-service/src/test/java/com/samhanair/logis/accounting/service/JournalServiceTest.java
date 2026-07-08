@@ -272,6 +272,8 @@ class JournalServiceTest {
         Journal journal = Journal.create("2026/07/03-1", TODAY, "입금보고서 확정 2026/07/03-1",
                 JournalSourceType.CASH_RECEIPT, cashReceiptId);
         setField(journal, "id", UUID.fromString("00000000-0000-4000-8000-000000000718"));
+        // postAutoJournal 이 CASH_RECEIPT 게시 시점에 linkCashReceipt 를 호출하는 것을 모사(#771).
+        journal.linkCashReceipt(cashReceiptId);
         CashReceipt receipt = CashReceipt.createManual("2026/07/03-1",
                 UUID.fromString("00000000-0000-4000-8000-000000000719"),
                 new BigDecimal("100000"), TODAY, "입금", "102", "110");
@@ -284,6 +286,55 @@ class JournalServiceTest {
 
         assertThat(resp.sourceRefId()).isEqualTo(cashReceiptId);
         assertThat(resp.cashReceiptSlipNo()).isEqualTo("2026/07/03-1");
+    }
+
+    @Test
+    @DisplayName("autoReverse — 역분개 상세는 원분개 UUID(sourceRefId)가 아닌 원천 입금보고서 "
+            + "cashReceiptId/cashReceiptSlipNo 를 노출한다 (#771 source_ref_id 과부하 해소)")
+    void autoReverseDetailExposesCashReceiptLinkNotOriginalJournalId() {
+        UUID cashReceiptId = UUID.fromString("00000000-0000-4000-8000-000000000771");
+        UUID originalId = UUID.fromString("00000000-0000-4000-8000-000000000772");
+        UUID reversalId = UUID.fromString("00000000-0000-4000-8000-000000000773");
+
+        // 원분개 — postAutoJournal 이 CASH_RECEIPT 게시 시점에 linkCashReceipt 를 호출하는 것을 모사.
+        Journal original = Journal.create("2026/07/08-1", TODAY, "입금보고서 확정 2026/07/08-1",
+                JournalSourceType.CASH_RECEIPT, cashReceiptId);
+        setField(original, "id", originalId);
+        original.linkCashReceipt(cashReceiptId);
+        original.addLine(com.samhanair.logis.accounting.domain.JournalLine.create(
+                original, 1, "102", new BigDecimal("100000"), BigDecimal.ZERO, null, "입금"));
+        original.addLine(com.samhanair.logis.accounting.domain.JournalLine.create(
+                original, 2, "110", BigDecimal.ZERO, new BigDecimal("100000"), null, "입금"));
+        original.post("user-A");
+        when(journalRepository.findById(originalId)).thenReturn(Optional.of(original));
+        when(journalNumberService.next(TODAY)).thenReturn("2026/07/08-2");
+        doAnswer(inv -> {
+            Journal saved = inv.getArgument(0);
+            setField(saved, "id", reversalId);
+            return saved;
+        }).when(journalRepository).save(any(Journal.class));
+
+        Journal reversal = journalService.autoReverse(originalId, "user-B");
+
+        // 도메인 레벨 — sourceRefId(이중 의미 = 원분개 UUID) 와 cashReceiptId(전용 링크)가 서로 다르다.
+        assertThat(reversal.getSourceRefId()).isEqualTo(originalId);
+        assertThat(reversal.getCashReceiptId()).isEqualTo(cashReceiptId);
+        assertThat(reversal.getCashReceiptId()).isNotEqualTo(reversal.getSourceRefId());
+
+        // 응답 DTO 레벨 — getOne(reversalId) 실호출로 cashReceiptId/cashReceiptSlipNo 를 검증.
+        CashReceipt receipt = CashReceipt.createManual("2026/07/08-1",
+                UUID.fromString("00000000-0000-4000-8000-000000000774"),
+                new BigDecimal("100000"), TODAY, "입금", "102", "110");
+        setField(receipt, "id", cashReceiptId);
+        when(journalRepository.findById(reversalId)).thenReturn(Optional.of(reversal));
+        when(cashReceiptRepository.findByIdAndIsDeletedFalse(cashReceiptId)).thenReturn(Optional.of(receipt));
+
+        JournalDetailResponse resp = journalService.getOne(reversalId);
+
+        assertThat(resp.cashReceiptId()).isEqualTo(cashReceiptId);
+        assertThat(resp.cashReceiptSlipNo()).isEqualTo("2026/07/08-1");
+        assertThat(resp.cashReceiptId()).isNotEqualTo(originalId);
+        assertThat(resp.sourceRefId()).isEqualTo(originalId);
     }
 
     private Journal newPersistedDraft() {

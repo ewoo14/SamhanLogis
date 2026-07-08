@@ -3,7 +3,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useParams } from 'react-router-dom'
 import type { Journal } from '../api/accounting'
 
 const mocks = vi.hoisted(() => ({
@@ -142,6 +142,18 @@ function makeJournal(overrides: Partial<Journal> = {}): Journal {
   }
 }
 
+// 실 이동 대상 :id 를 data-attribute 로 노출 — 텍스트("입금보고서 상세 라우트")는 기존 단언과
+// 호환 유지하면서, cashReceiptId(맞음) vs sourceRefId(역분개 원분개 UUID, 틀림) 로 실제로 이동했는지
+// 회귀 테스트가 구분할 수 있게 한다 (#771).
+function CashReceiptDetailProbe() {
+  const params = useParams<{ id: string }>()
+  return (
+    <div data-testid="cash-receipt-detail-probe" data-cash-receipt-id={params.id}>
+      입금보고서 상세 라우트
+    </div>
+  )
+}
+
 function renderPage(journal: Journal) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   mocks.getJournal.mockResolvedValue(journal)
@@ -151,7 +163,7 @@ function renderPage(journal: Journal) {
         <Routes>
           <Route path="/accounting/journals/:id" element={<JournalDetailPage />} />
           <Route path="/accounting/admin/cash-receipts" element={<div>현금 입금 관리 라우트</div>} />
-          <Route path="/accounting/admin/cash-receipts/:id" element={<div>입금보고서 상세 라우트</div>} />
+          <Route path="/accounting/admin/cash-receipts/:id" element={<CashReceiptDetailProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -207,6 +219,28 @@ describe('JournalDetailPage 역분개 액션 가드', () => {
     expect(cashReceiptButton.textContent).not.toContain('00000000')
     cashReceiptButton.click()
     expect(await screen.findByText('입금보고서 상세 라우트')).not.toBeNull()
+  })
+
+  it('CASH_RECEIPT 역분개(REVERSAL) 분개는 cashReceiptId(원천 CashReceipt)로 이동하고 sourceRefId(원분개 UUID)로는 이동하지 않는다 (#771)', async () => {
+    // 역분개 특유의 이중 의미 — sourceRefId 는 원분개 Journal UUID (CashReceipt UUID 아님, BE
+    // Journal.sourceRefId 주석 참고). cashReceiptId 는 원분개와 동일한 CashReceipt 를 가리켜야 한다.
+    const journal = makeJournal({
+      sourceType: 'CASH_RECEIPT',
+      status: 'POSTED',
+      description: '[역분개] 2026/07/03-1 입금보고서 확정 2026/07/03-1',
+      sourceRefId: '00000000-0000-4000-8000-000000000772',
+      cashReceiptId: '00000000-0000-4000-8000-000000000717',
+      cashReceiptSlipNo: '2026/07/03-1',
+    })
+
+    renderPage(journal)
+
+    const cashReceiptButton = await screen.findByRole('button', { name: '입금보고서 2026/07/03-1 보기' })
+    cashReceiptButton.click()
+
+    const probe = await screen.findByTestId('cash-receipt-detail-probe')
+    expect(probe.getAttribute('data-cash-receipt-id')).toBe('00000000-0000-4000-8000-000000000717')
+    expect(probe.getAttribute('data-cash-receipt-id')).not.toBe('00000000-0000-4000-8000-000000000772')
   })
 
   it('분개 수정 권한이 없어도 입금보고서 view 권한과 상세 경로가 있으면 전표번호 링크를 노출한다', async () => {

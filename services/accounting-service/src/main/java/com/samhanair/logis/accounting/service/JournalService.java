@@ -201,6 +201,10 @@ public class JournalService {
         }
         String journalNo = journalNumberService.next(journalDate);
         Journal journal = Journal.create(journalNo, journalDate, description, sourceType, sourceRefId);
+        if (sourceType == JournalSourceType.CASH_RECEIPT) {
+            // CASH_RECEIPT 는 sourceRefId 자체가 CashReceipt UUID — 전용 링크에도 동일하게 채운다.
+            journal.linkCashReceipt(sourceRefId);
+        }
         int lineNo = 1;
         for (AutoJournalLineSpec spec : lineSpecs) {
             accountService.requireLeafAccount(spec.accountCode());
@@ -228,6 +232,11 @@ public class JournalService {
         String reverseDesc = reversalDescription(original);
         Journal reversal = Journal.create(reverseNo, original.getJournalDate(), reverseDesc,
                 original.getSourceType(), original.getId());
+        // source_ref_id 는 위에서 원분개 UUID 로 채워 이중 의미를 유지하지만(클래스 주석 참고),
+        // CashReceipt 전용 링크는 원분개의 값을 그대로 승계해 원/역분개 모두 동일 CashReceipt 를
+        // 가리키게 한다. CASH_RECEIPT 이외 출처(TaxInvoice 취소 등)는 원분개 값이 이미 null 이므로
+        // 그대로 null 이 전파된다.
+        reversal.linkCashReceipt(original.getCashReceiptId());
         int lineNo = 1;
         for (JournalLine origLine : original.getLines()) {
             JournalLine swapped = JournalLine.create(reversal, lineNo++, origLine.getAccountCode(),
@@ -471,10 +480,10 @@ public class JournalService {
     }
 
     private String resolveCashReceiptSlipNo(Journal journal) {
-        if (journal.getSourceType() != JournalSourceType.CASH_RECEIPT || journal.getSourceRefId() == null) {
+        if (journal.getSourceType() != JournalSourceType.CASH_RECEIPT || journal.getCashReceiptId() == null) {
             return null;
         }
-        return cashReceiptRepository.findByIdAndIsDeletedFalse(journal.getSourceRefId())
+        return cashReceiptRepository.findByIdAndIsDeletedFalse(journal.getCashReceiptId())
                 .map(com.samhanair.logis.accounting.domain.CashReceipt::getSlipNo)
                 .orElse(null);
     }

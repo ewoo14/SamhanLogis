@@ -260,6 +260,7 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     void cancelCreatesReversalAndExposesReverseJournalNo() throws Exception {
         MvcResult created = createReceipt(createBody("63000"));
         String receiptId = data(created).get("id").asText();
+        String slipNo = data(created).get("slipNo").asText();
         mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT"))
@@ -285,6 +286,18 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(reversal.get("journal_no"))
                 .isEqualTo(data(cancelled).get("reverseJournalNo").asText());
         assertReversalLines(reverseJournalId, "102", "110", new BigDecimal("63000.00"));
+
+        // #771 회귀 — 역분개는 원분개 UUID(sourceRefId, 이중 의미)가 아닌 전용 cashReceiptId 로
+        // 원천 입금보고서를 가리켜야 한다. 실 HTTP GET(단건 조회)으로 응답 DTO 까지 검증한다
+        // (역분개 상세에서 "입금보고서 보기" 버튼이 사라지던 회귀 — 원분개 id 로 오인되지 않음도 함께 고정).
+        mockMvc.perform(get("/accounting/journals/{id}", reverseJournalId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.cashReceiptId").value(receiptId))
+                .andExpect(jsonPath("$.data.cashReceiptSlipNo").value(slipNo))
+                .andExpect(jsonPath("$.data.sourceRefId").value(originalJournalId.toString()))
+                .andExpect(jsonPath("$.data.cashReceiptId").value(org.hamcrest.Matchers.not(originalJournalId.toString())));
     }
 
     @Test

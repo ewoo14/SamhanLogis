@@ -67,9 +67,17 @@ export interface Journal {
   status: JournalStatus
   /** 분개 출처. CASH_RECEIPT는 원천 입금보고서에서만 취소/수정한다. */
   sourceType: string
-  /** 출처 참조 UUID — CASH_RECEIPT 라이브 게시분은 CashReceipt UUID. 라우팅 전용, 화면 미노출. */
+  /**
+   * 출처 참조 UUID — SLIP/CLOSING 등은 원천 문서 UUID. CASH_RECEIPT 역분개는 원분개 Journal
+   * UUID (이중 의미, BE Journal.sourceRefId 주석 참고) — CashReceipt 라우팅에는 쓰지 않는다.
+   * 라우팅 전용 아님, 화면 미노출.
+   */
   sourceRefId?: string | null
-  /** CASH_RECEIPT 원천 입금보고서 UUID. BE 별칭 호환용, 화면 미노출. */
+  /**
+   * CASH_RECEIPT 원천 입금보고서 UUID 전용 링크 — 원분개/역분개 모두 BE 가 동일 CashReceipt 를
+   * 채워 보낸다(#771). sourceRefId 로 fallback 하지 않는다(역분개는 sourceRefId≠CashReceipt id).
+   * 화면 미노출, deep-link 라우팅 전용.
+   */
   cashReceiptId?: string | null
   /** CASH_RECEIPT 원천 입금보고서 전표번호. 화면 링크 라벨에는 UUID 대신 이 값을 사용한다. */
   cashReceiptSlipNo?: string | null
@@ -127,9 +135,10 @@ function normalizeJournalLine(line: RawJournalLine): JournalLine {
 
 export function normalizeJournal(raw: RawJournal): Journal {
   const sourceRefId = raw.sourceRefId == null ? null : String(raw.sourceRefId)
-  const cashReceiptId = raw.cashReceiptId == null
-    ? sourceRefId
-    : String(raw.cashReceiptId)
+  // BE 는 CASH_RECEIPT 원분개/역분개 모두 전용 cashReceiptId 를 채워 보낸다(#771) — sourceRefId 는
+  // 역분개에서 원분개 UUID 로 덮어써지는 이중 의미이므로 더 이상 fallback 하지 않는다. fallback 하면
+  // 역분개 상세에서 sourceRefId(원분개 UUID)가 CashReceipt UUID 로 오인되어 잘못된 링크가 만들어진다.
+  const cashReceiptId = raw.cashReceiptId == null ? null : String(raw.cashReceiptId)
   return {
     id: String(raw.id ?? ''),
     journalNo: String(raw.journalNo ?? ''),

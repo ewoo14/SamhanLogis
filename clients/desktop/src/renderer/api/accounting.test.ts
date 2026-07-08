@@ -125,6 +125,42 @@ describe('accounting journal API error contract', () => {
     expect(journal.sourceRefId).toBe('00000000-0000-4000-8000-000000000717')
   })
 
+  // #771 — 역분개는 sourceRefId=원분개 Journal UUID (CashReceipt UUID 아님, 이중 의미). BE 가
+  // 이제 원분개/역분개 모두 전용 cashReceiptId 를 채워 보내므로, cashReceiptId 가 없을 때 더 이상
+  // sourceRefId 로 fallback 하면 안 된다 — fallback 하면 역분개 상세에서 원분개 UUID 가 CashReceipt
+  // UUID 로 오인되어 잘못된 "입금보고서 보기" 링크가 만들어진다(과거 latent 버그).
+  it('normalizeJournal 은 cashReceiptId 미제공 시 sourceRefId 로 폴백하지 않는다', () => {
+    const journal = normalizeJournal({
+      id: 'journal-rev-1',
+      journalNo: '2026/07/08-2',
+      journalDate: '2026-07-08',
+      status: 'POSTED',
+      sourceType: 'CASH_RECEIPT',
+      sourceRefId: '00000000-0000-4000-8000-000000000772',
+      lines: [],
+    })
+
+    expect(journal.sourceRefId).toBe('00000000-0000-4000-8000-000000000772')
+    expect(journal.cashReceiptId).toBeNull()
+  })
+
+  it('normalizeJournal 은 cashReceiptId 가 sourceRefId 와 달라도 cashReceiptId 값을 그대로 사용한다', () => {
+    const journal = normalizeJournal({
+      id: 'journal-rev-1',
+      journalNo: '2026/07/08-2',
+      journalDate: '2026-07-08',
+      status: 'POSTED',
+      sourceType: 'CASH_RECEIPT',
+      sourceRefId: '00000000-0000-4000-8000-000000000772',
+      cashReceiptId: '00000000-0000-4000-8000-000000000771',
+      cashReceiptSlipNo: '2026/07/08-1',
+      lines: [],
+    })
+
+    expect(journal.cashReceiptId).toBe('00000000-0000-4000-8000-000000000771')
+    expect(journal.cashReceiptId).not.toBe(journal.sourceRefId)
+  })
+
   it('normalizeJournal 은 sourceType 누락 시 MANUAL 로 폴백한다', () => {
     const journal = normalizeJournal({
       id: 'journal-1',

@@ -12821,7 +12821,7 @@ const MOCK_ACCOUNTS = [
 ]
 
 /**
- * 시연용 mock 분개 6건 (DRAFT 1 / POSTED 4 / REVERSED 1).
+ * 시연용 mock 분개 7건 (DRAFT 1 / POSTED 5 / REVERSED 1).
  *
  * BE 응답 형태와 1:1 (라인 포함). 라인은 차변/대변 합계가 일치 (분개 균형 검증 통과).
  */
@@ -13076,6 +13076,52 @@ const MOCK_JOURNALS = [
         credit: '850000',
         partnerName: '주식회사 윌리',
         memo: '입금보고서 자동 분개',
+      },
+    ],
+  },
+  // 7. POSTED: jv-006 입금보고서 취소 역분개 — 원분개(jv-006)와 동일 CashReceipt 를 가리킨다(#771).
+  //    sourceRefId 는 원분개 Journal id(jv-006) — CashReceipt UUID 가 아니다(이중 의미, BE
+  //    Journal.sourceRefId 주석 참고). cashReceiptId 가 sourceRefId 와 다른 값임을 mock 에서도
+  //    보여줘 FE 가 sourceRefId 로 fallback 하면 안 되는 이유를 실증한다(mock↔BE parity).
+  {
+    id: 'jv-007',
+    journalNo: '2026/05/05-1',
+    journalDate: '2026-05-04',
+    sourceType: 'CASH_RECEIPT' as const,
+    sourceRefId: 'jv-006',
+    cashReceiptId: '00000000-0000-4000-8000-000000000706',
+    cashReceiptSlipNo: '2026/05/04-6',
+    sourceTypeDisplayName: '입금보고서',
+    status: 'POSTED' as const,
+    description: '[역분개] 2026/05/04-6 입금보고서 확정 2026/05/04-6 (주식회사 윌리)',
+    totalDebit: '850000',
+    totalCredit: '850000',
+    createdByName: '오병승',
+    createdAt: '2026-05-05T09:00:00+09:00',
+    postedAt: '2026-05-05T09:00:00+09:00',
+    reversedAt: null,
+    reverseReason: null,
+    version: 1,
+    lines: [
+      {
+        id: 'jl-007-1',
+        lineNo: 1,
+        accountCode: '1110',
+        accountName: '외상매출금',
+        debit: '850000',
+        credit: '0',
+        partnerName: '주식회사 윌리',
+        memo: '입금보고서 취소 역분개',
+      },
+      {
+        id: 'jl-007-2',
+        lineNo: 2,
+        accountCode: '1020',
+        accountName: '보통예금',
+        debit: '0',
+        credit: '850000',
+        partnerName: '주식회사 윌리',
+        memo: '입금보고서 취소 역분개',
       },
     ],
   },

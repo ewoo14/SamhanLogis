@@ -24,6 +24,7 @@ public record JournalDetailResponse(
         String postedBy,
         UUID reversedJournalId,
         UUID sourceRefId,
+        UUID cashReceiptId,
         String cashReceiptSlipNo,
         List<JournalLineResponse> lines
 ) {
@@ -60,6 +61,7 @@ public record JournalDetailResponse(
                 journal.getPostedBy(),
                 journal.getReversedJournalId(),
                 journal.getSourceRefId(),
+                journal.getCashReceiptId(),
                 cashReceiptSlipNo,
                 lineResponses
         );

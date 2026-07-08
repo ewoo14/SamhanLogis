@@ -97,6 +97,15 @@ public class Journal extends BaseEntity {
     @Column(name = "source_ref", length = 100)
     private String sourceRef;
 
+    /**
+     * 원천 입금보고서(CashReceipt) UUID 전용 링크 — 원분개/역분개 모두 동일 CashReceipt 를 가리킨다.
+     * {@link #sourceRefId} 는 역분개 시 원분개 UUID 로 덮어써지는 이중 의미를 갖기 때문에
+     * (클래스 주석 참고), 원장에서 CashReceipt 로 안정적으로 deep-link 하려면 본 전용 필드를 쓴다.
+     * CASH_RECEIPT 이외 출처(SLIP/MANUAL/CLOSING 등)는 null. (#771)
+     */
+    @Column(name = "cash_receipt_id")
+    private UUID cashReceiptId;
+
     /** 분개 상태 (DRAFT/POSTED/REVERSED). */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
@@ -257,6 +266,18 @@ public class Journal extends BaseEntity {
      */
     public void linkReversal(UUID reversalJournalId) {
         this.reversedJournalId = reversalJournalId;
+    }
+
+    /**
+     * 원천 입금보고서(CashReceipt) 링크 연결 — CASH_RECEIPT 자동 분개 게시
+     * ({@code JournalService.postAutoJournal}) 및 그 역분개({@code JournalService.autoReverse})가
+     * 호출한다. 원분개/역분개 양쪽 모두 동일 CashReceipt UUID 로 연결되어야 FE 가 어느 쪽 분개를
+     * 보든 원천 입금보고서로 deep-link 할 수 있다.
+     *
+     * @param cashReceiptId 원천 입금보고서 UUID (CASH_RECEIPT 이외 출처는 호출자가 null 전달)
+     */
+    public void linkCashReceipt(UUID cashReceiptId) {
+        this.cashReceiptId = cashReceiptId;
     }
 
     /**
