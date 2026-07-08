@@ -4,6 +4,49 @@
 
 ---
 
+## ✅ 2026-07-08 (오후~) — #729·#771·#17 S4a 3-PR 캐논 완주·머지 → 다음 = S4b (Sonnet 구현 + Opus STEP4 모드)
+
+> **다음 세션(집PC) 첫 읽기 = 본 절.** 운영모드: **Sonnet 5 서브에이전트 = 구현·정찰·5-agent 리뷰·라이브 QA / Opus = PM 판단·STEP4 독립 적대검증·commit 대행·머지.** Codex Jul11 한도 → STEP4가 Codex 라운드 + 개발책임자 승인 대체. (Sonnet=중형이라 Opus 점검 필수·토큰 절약.)
+
+### 🔧 운영모드 (SONNET 대체) — 다음 세션 그대로 이어받기
+> 개발책임자 지시(이 세션): Codex Jul11 사용량 한도 + 토큰 절약 → **표준 캐논의 "Codex 구현/리뷰" 역할을 Sonnet 5 서브에이전트로 대체**. Opus는 PM+STEP4만.
+
+| 주체 | 역할 |
+|---|---|
+| **Sonnet 5 서브에이전트** (max 추론, `model:sonnet`) | **정찰 · 구현(코드 작성) · 5-agent 리뷰(FE/BE/Design/DevOps/QA 전 차원) · 라이브 QA · 검증** |
+| **Opus (=PM, 이 세션)** | 기획·판단 · **STEP4 독립 적대검증**(= Codex 라운드 + 개발책임자 승인 대체) · **Sonnet 산출물 점검**(중형이라 필수) · commit 대행 · PR/이슈 관리 · 머지 |
+
+- **구현 코드는 Sonnet만 작성**(Opus 직접구현 금지 [[feedback_pm_no_direct_implementation]]). Opus는 diff STEP4 검토 + genuine 테스트 재실행(캐시 false-green 방지)로 점검 후 commit 대행.
+- **매 라운드**: Sonnet 5-agent 리뷰/구현 → Opus 점검·전지적 disposition → genuine 건만 Sonnet fix(그 라운드 진행모델) → **Opus STEP4 0수렴**. 이번 세션 실증: 리뷰가 STEP4 놓친 실결함 3건 포착(하단 표) → 대체모드에서도 캐논 규율 유지 필수.
+- **Sonnet = Sonnet 5(claude-sonnet-5)·최대 추론**으로 디스패치. Agent 도구엔 effort 노브 없어 세션 effort(max) 상속.
+- Codex 복구(Jul11) 후엔 표준 Opus+Codex 듀얼리뷰로 복귀([[feedback_canonical_workflow]]).
+
+### 완주·머지 3건 (전부 조기 PR → 2라운드 5-agent + STEP4 0수렴 → 실 라이브 QA → CI green → PM 자율머지)
+| 슬라이스 | mergeSHA | 리뷰가 STEP4 놓친 실결함 포착 |
+|---|---|---|
+| #729/#770 게이트웨이 admin 404 + accounting 목록 500 | `7e0f01be` | accounting `MultipleBagFetchException`×5(라이브 QA 노출)·에러상태 3-state·서명 `/api/public` |
+| #771/#772 역분개 저널→입금보고서 딥링크(Journal `cash_receipt_id`) | `57eea81a` | **backfill orphan 회귀**(편집체인 저널)·3-pass backfill·#744 supersede |
+| #17 S4a/#774 단가변동 관리 BE | `11a86c4c` | **PageCode enum 미등록 P0**(CI 브레이커)·kebab casing·FE union 짝 |
+
+### 개발책임자 결정 (이 세션 · 전부 해당 PR에 기록)
+- #771 = 결정 A(전용 `cash_receipt_id` 컬럼; #744 "sourceRefId 재사용" supersede).
+- **#17 S4a 권한 = MANAGER + ACCOUNTANT 양 그룹 VIEW+UPDATE**(V80 cash-receipts 패턴; page-code `products.price-schedule` **kebab 확정**).
+- **일마감 단가변동 = 레거시 GAS식 재계산 토글 = 별도 대규모 슬라이스 #773**(현대 마감이 상류 stamp 집계라 재계산 referent·카테고리축 없음 → 근본 변경).
+
+### 🔴 다음 = S4b (FE · S4a 머지로 의존 endpoint 준비됨) — 확정 스펙 박제(스크래치패드 소멸 대비)
+> #17 단가변동 S4b. 개발책임자 Q5/Q7 확정. estimate-app + desktop, **product-service 무변경**(S4a 완료). 전환로직 무변경(Q7=기본값만 배선).
+1. **estimate-app FE 배선**: `clients/web/estimate-app/lib/db-catalog.js`에 `priceDefaultVariant()` = 신규 `GET /products/internal/price-change-default-variant`(Map<category,Boolean>) fetch(기존 `priceChangeSchedule()` 대칭·X-Internal-Token). → `views/index.ejs` 하드코딩 체크박스 `chkHomeInc(~:7768)/chkCommInc(~:6591)/chkSingleInc(~:7807)` "인상 전 단가" 초기 `checked=false`를 config 기본값으로. `getBaseListPrice`(:2260)·납품가(:4357/4369/5105) 전환로직 무변경. category 키=homemulti/singleSets/commercialMulti/oldProducts(별도 타입).
+2. **desktop 관리 UI**: `EstimatePricingConfigPage.tsx`(`/sales/estimate-config`)에 "카테고리별 단가변동" 섹션 신설(현 옵션기본값 섹션=홈멀티+싱글만 → 상업멀티/구형 4카테고리 처리 결정 필요). 카테고리행=날짜 input + 기본값 토글, oldProducts=날짜만. `productCatalogApi.ts`에 admin GET/PUT 훅(`/api/v1/products/admin/price-change-schedule`, canAccess=`products.price-schedule` **kebab**). BE는 S4a 완료(#774).
+3. 캐논: 조기 PR(연관 #17) → Sonnet 구현 → 2라운드 5-agent+STEP4 → 라이브 QA(estimate-app mock off 실 GUI 체크박스 초기상태 + desktop admin 섹션 GET/PUT 스샷) → dev-report → 머지.
+
+### 백로그
+- **#773** 일마감 단가변동 재계산 토글(별도 대규모·정찰 이슈 기록됨).
+- **#688** #17 S3 DRAFT 블로커: `BootstrapService.hasProductData`(priceChangeSchedule 빈것 포함)·`@Column(32)` vs DB `VARCHAR(30)`·~1주 stale rebase·미래일 라이브전환 미실증.
+- **교훈(반영)**: ① BE `PageCode` enum 추가 = FE `permissionsApi.ts` union + `PermissionMatrixPage` `PAGE_LABEL`(`Record<PageCode>` 소진성) 필수 짝(`permissionPageCatalog.parity.test.ts` 빌드타임 강제). ② **STEP4는 변경모듈 전체 스위트 실행**(auth 전체 368·desktop vitest 670) — 이번에 slice-IT만 돌려 P0 2건을 CI가 포착([[feedback_changed_module_full_test_before_push]]). ③ 이 환경 **background 장기 gradle=killed → foreground 600s**(집PC는 다를 수 있음).
+- Docker 스택: 게이트웨이·accounting·product·auth에 fix jar가 `docker cp`+restart로 반영(compose 워크트리 엔탱글 회피). QA orphan vite(:5199) 정리 권장.
+
+---
+
 ## ✅ 2026-07-08 집PC 야간 자율 — E2 롤아웃 5-PR 완주 → 다음 TODO 순차 (PM 자율·워크플로우 엄수)
 
 > **이 세션 = 집PC**(원문 "회사PC 이어받기"는 회사PC 강제종료 세션이 C R2 fix·#761 머지까지 push한 것을 집PC가 이어받아 완주 — PC 정정). **다음 세션 첫 읽기 = 본 절.** 개발책임자 지시(2026-07-08 새벽): **E2 완주 후 PM 자율진행·워크플로우 엄수·새벽 동안 자율.**
