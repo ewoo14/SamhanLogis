@@ -623,6 +623,16 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [#729] 매출/매입 전표 admin — SalesAccountingSlipController(/admin/sales-slips),
+        # PurchaseAccountingSlipController(/admin/purchase-slips) 는 풀패스 컨트롤러 보유.
+        # accounting-admin-noprefix 선례와 동일한 no-strip 방식(JwtAuthentication 만 적용).
+        - id: accounting-sales-purchase-slip-admin-noprefix
+          uri: lb://accounting-service
+          predicates:
+            - Path=/admin/sales-slips,/admin/sales-slips/**,/admin/purchase-slips,/admin/purchase-slips/**
+          filters:
+            - JwtAuthentication
+
         # [#463] slip-service 배차 보드 admin BE 컨트롤러는 /admin/dispatch-* 풀패스 보유
         #   (DispatchTaskAdminController @RequestMapping("/admin/dispatch-tasks"),
         #    DispatchBoardAdminController @RequestMapping("/admin/dispatch-board")). FE 도 /admin/dispatch-tasks
