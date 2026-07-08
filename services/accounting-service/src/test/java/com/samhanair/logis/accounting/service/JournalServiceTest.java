@@ -285,6 +285,8 @@ class JournalServiceTest {
         JournalDetailResponse resp = journalService.getOne(journal.getId());
 
         assertThat(resp.sourceRefId()).isEqualTo(cashReceiptId);
+        // #772 fix — 원분개도 전용 cashReceiptId 를 노출한다 (역분개 테스트와의 대칭성, line 334 참고).
+        assertThat(resp.cashReceiptId()).isEqualTo(cashReceiptId);
         assertThat(resp.cashReceiptSlipNo()).isEqualTo("2026/07/03-1");
     }
 

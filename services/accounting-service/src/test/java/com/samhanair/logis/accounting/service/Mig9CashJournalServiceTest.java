@@ -94,6 +94,9 @@ class Mig9CashJournalServiceTest {
         assertThat(journal.getValue("journalNo")).isEqualTo("JD-" + row.slipNo());
         assertThat(journal.getValue("sourceType")).isEqualTo("CASH_DISBURSEMENT");
         assertThat(journal.getValue("sourceRef")).isEqualTo(row.externalRef());
+        // #772 fix — CASH_DISBURSEMENT 는 CashReceipt 와 무관하므로 cash_receipt_id 는 NULL 이어야
+        // 한다(row.id() 가 cash_disbursements.id 라 CashReceipt UUID 로 오배선되면 안 됨).
+        assertThat(journal.getValue("cashReceiptId")).isNull();
         List<SqlParameterSource> lines = lineParams();
         assertThat(lines).extracting(p -> p.getValue("accountCode")).containsExactly("831", "102");
         assertThat(lines).extracting(p -> p.getValue("partnerId"))
@@ -160,6 +163,9 @@ class Mig9CashJournalServiceTest {
 
         assertThat(result.cashReceiptJournalsCreated()).isEqualTo(1);
         assertThat(journalParams().getValue("sourceType")).isEqualTo("CASH_RECEIPT");
+        // #772 fix — MIG-9 CashReceipt 배치 게시분도 cash_receipt_id 를 채운다(V56 backfill 의존 없이
+        // 신규 생성분부터 즉시 정합). row.id() 는 cash_receipts.id 그 자체(cashId()).
+        assertThat(journalParams().getValue("cashReceiptId")).isEqualTo(cashId());
         assertThat(lineParams()).extracting(p -> p.getValue("accountCode"))
                 .containsExactly(
                         CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE,

@@ -12821,7 +12821,7 @@ const MOCK_ACCOUNTS = [
 ]
 
 /**
- * 시연용 mock 분개 7건 (DRAFT 1 / POSTED 5 / REVERSED 1).
+ * 시연용 mock 분개 7건 (DRAFT 1 / POSTED 4 / REVERSED 2).
  *
  * BE 응답 형태와 1:1 (라인 포함). 라인은 차변/대변 합계가 일치 (분개 균형 검증 통과).
  */
@@ -13036,7 +13036,10 @@ const MOCK_JOURNALS = [
       },
     ],
   },
-  // 6. POSTED: 입금보고서 자동 분개 (원장 직접 역분개 차단)
+  // 6. REVERSED: 입금보고서 취소 원분개 — jv-007 로 역분개됨 (원장에서 직접 역분개는 여전히 차단).
+  //    실 BE 는 취소(cancel) 시 autoReverse 로 원분개를 즉시 REVERSED 마킹한다
+  //    (JournalService.autoReverse → original.markReversed()) — POSTED 로 남아있으면 mock↔BE
+  //    상태 불일치(#772 리뷰 지적).
   {
     id: 'jv-006',
     journalNo: '2026/05/04-6',
@@ -13046,16 +13049,17 @@ const MOCK_JOURNALS = [
     cashReceiptId: '00000000-0000-4000-8000-000000000706',
     cashReceiptSlipNo: '2026/05/04-6',
     sourceTypeDisplayName: '입금보고서',
-    status: 'POSTED' as const,
+    status: 'REVERSED' as const,
     description: '입금보고서 확정 2026/05/04-6 (주식회사 윌리)',
     totalDebit: '850000',
     totalCredit: '850000',
     createdByName: '오병승',
     createdAt: '2026-05-04T15:00:00+09:00',
     postedAt: '2026-05-04T15:10:00+09:00',
-    reversedAt: null,
+    reversedAt: '2026-05-05T09:00:00+09:00',
+    reversedJournalId: 'jv-007',
     reverseReason: null,
-    version: 1,
+    version: 2,
     lines: [
       {
         id: 'jl-006-1',

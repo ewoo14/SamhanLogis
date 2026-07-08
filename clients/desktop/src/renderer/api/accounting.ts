@@ -95,6 +95,11 @@ export interface Journal {
   postedAt: string | null
   /** 역분개 시각 (REVERSED 도달 시점), 정상 분개는 null. */
   reversedAt: string | null
+  /**
+   * 역분개 Journal UUID — 이 분개가 REVERSED 로 마킹되며 새로 생성된 역분개를 가리킨다
+   * (BE `Journal.reversedJournalId`, #772 FE 동기화). 화면 미노출, 원분개→역분개 조회 전용.
+   */
+  reversedJournalId?: string | null
   /** 역분개 사유. REVERSED 만 채워짐. */
   reverseReason: string | null
   /** 라인 목록 (lineNo 오름차순). */
@@ -155,6 +160,7 @@ export function normalizeJournal(raw: RawJournal): Journal {
     createdAt: String(raw.createdAt ?? ''),
     postedAt: raw.postedAt ?? null,
     reversedAt: raw.reversedAt ?? null,
+    reversedJournalId: raw.reversedJournalId == null ? null : String(raw.reversedJournalId),
     reverseReason: raw.reverseReason ?? null,
     lines: (raw.lines ?? []).map(normalizeJournalLine),
     version: Number(raw.version ?? 0),

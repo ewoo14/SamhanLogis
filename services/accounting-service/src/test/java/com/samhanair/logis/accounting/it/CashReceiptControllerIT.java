@@ -237,6 +237,9 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sourceRefId").value(defaultReceiptId))
+                // #772 fix — 원분개도 전용 cashReceiptId 를 노출한다 (아래 cancelCreatesReversalAnd
+                // ExposesReverseJournalNo 의 역분개 cashReceiptId 검증과의 대칭성).
+                .andExpect(jsonPath("$.data.cashReceiptId").value(defaultReceiptId))
                 .andExpect(jsonPath("$.data.cashReceiptSlipNo").value(defaultSlipNo));
 
         Map<String, Object> overrideBody = createBody("62000");

@@ -186,13 +186,19 @@ public class Mig9CashJournalService {
     }
 
     private UUID insertJournal(CashRow row, JournalSourceType sourceType, String actor) {
+        // cash_receipt_id — CASH_RECEIPT 배치 게시분만 채운다(#772 fix). row 는 이 브랜치에서
+        // cash_receipts 테이블 조회 결과이므로 row.id() 가 곧 CashReceipt UUID (linkCash 가
+        // cash_receipts.id = row.id() 로 링크하는 것과 동일 값) — Journal.linkCashReceipt 의 라이브
+        // 경로(JournalService.postAutoJournal)와 대칭. CASH_DISBURSEMENT 는 row.id() 가
+        // cash_disbursements.id 로 CashReceipt 와 무관하므로 반드시 NULL 로 둔다(오배선 방지 가드).
+        UUID cashReceiptId = sourceType == JournalSourceType.CASH_RECEIPT ? row.id() : null;
         List<UUID> ids = jdbcTemplate.query("""
                 INSERT INTO journals (
-                    id, journal_no, journal_date, description, source_type, source_ref,
+                    id, journal_no, journal_date, description, source_type, source_ref, cash_receipt_id,
                     status, posted_at, posted_by, version, created_at, created_by, is_deleted
                 )
                 VALUES (
-                    gen_random_uuid(), :journalNo, :journalDate, :description, :sourceType, :sourceRef,
+                    gen_random_uuid(), :journalNo, :journalDate, :description, :sourceType, :sourceRef, :cashReceiptId,
                     'POSTED', NOW(), :actor, 0, NOW(), :actor, FALSE
                 )
                 ON CONFLICT (source_type, source_ref) DO NOTHING
@@ -203,6 +209,7 @@ public class Mig9CashJournalService {
                 .addValue("description", row.memo())
                 .addValue("sourceType", sourceType.name())
                 .addValue("sourceRef", row.externalRef())
+                .addValue("cashReceiptId", cashReceiptId)
                 .addValue("actor", actor), (rs, rowNum) -> rs.getObject("id", UUID.class));
         return ids.stream().findFirst().orElse(null);
     }

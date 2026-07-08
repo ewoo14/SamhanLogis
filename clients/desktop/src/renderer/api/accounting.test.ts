@@ -111,7 +111,7 @@ describe('accounting journal API error contract', () => {
     expect(journal.sourceType).toBe('CASH_RECEIPT')
   })
 
-  it('normalizeJournal 은 sourceRefId 를 cashReceiptId 후보로 보존한다', () => {
+  it('normalizeJournal 은 sourceRefId 를 화면 미노출 원천참조로 보존한다', () => {
     const journal = normalizeJournal({
       id: 'journal-1',
       journalNo: '2026/07/03-1',
