@@ -32,4 +32,29 @@ describe('EstimatePricingConfigPage contract', () => {
     expect(api).toContain('homeNoHose: boolean')
     expect(api).toContain('singleDiscount: number')
   })
+
+  test('카테고리별 단가변동(#17 S4b) admin 섹션 API/page-code/mock 계약을 등록한다', () => {
+    const page = read('src/renderer/routes/EstimatePricingConfigPage.tsx')
+    const catalogApi = read('src/renderer/api/productCatalogApi.ts')
+    const mock = read('src/renderer/api/mock.ts')
+
+    // productCatalogApi.ts — admin GET/PUT 배선(S4a #774 계약 그대로 소비).
+    expect(catalogApi).toContain('getPriceChangeScheduleAdmin')
+    expect(catalogApi).toContain('updatePriceChangeSchedule')
+    expect(catalogApi).toContain('/api/v1/products/admin/price-change-schedule')
+
+    // EstimatePricingConfigPage.tsx — estimateConfig 폼과 분리된 자립 섹션 + kebab page-code 가드.
+    expect(page).toContain('getPriceChangeScheduleAdmin')
+    expect(page).toContain('updatePriceChangeSchedule')
+    expect(page).toContain("canAccess('products.price-schedule')")
+    expect(page).toContain("canAccess('products.price-schedule', 'update')")
+    expect(page).toContain('카테고리별 단가변동')
+    expect(page).toContain('홈멀티')
+    expect(page).toContain('싱글')
+    expect(page).toContain('상업멀티')
+    expect(page).toContain('구형')
+
+    // mock.ts — MASTER/MANAGER/ACCOUNTANT 권한 시뮬레이션 등재(누락 시 mock 모드 canAccess 전건 false).
+    expect(mock).toContain("'products.price-schedule'")
+  })
 })

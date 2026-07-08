@@ -64,6 +64,14 @@ jest.mock('axios', () => {
         oldProducts: '2026-04-01',
       });
     }
+    if (/\/price-change-default-variant$/.test(url)) {
+      return ok({
+        homemulti: true,
+        singleSets: false,
+        commercialMulti: true,
+        oldProducts: false,
+      });
+    }
     if (/\/spec-detail-map/.test(url)) {
       return ok(global.__SPEC_DETAIL_MAP_PAYLOAD__ === undefined ? {
         AJ060: {
@@ -211,6 +219,26 @@ describe('#30 db-catalog → legacy getter shape', () => {
     });
 
     const call = getMock.mock.calls.find(([url]) => /\/products\/internal\/price-change-schedule$/.test(url));
+    expect(call).toBeTruthy();
+    expect(call[1]).toEqual({
+      headers: {
+        'X-Internal-Token': expect.any(String),
+      },
+    });
+  });
+
+  test('priceDefaultVariant — "인상 전 단가" 기본값 맵 반환 + internal token 헤더 전송 (S4a #17)', async () => {
+    const getMock = axios.create.mock.results[0].value.get;
+    getMock.mockClear();
+    const variant = await db.priceDefaultVariant();
+    expect(variant).toEqual({
+      homemulti: true,
+      singleSets: false,
+      commercialMulti: true,
+      oldProducts: false,
+    });
+
+    const call = getMock.mock.calls.find(([url]) => /\/products\/internal\/price-change-default-variant$/.test(url));
     expect(call).toBeTruthy();
     expect(call[1]).toEqual({
       headers: {

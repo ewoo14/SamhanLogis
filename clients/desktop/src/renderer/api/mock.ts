@@ -16619,6 +16619,9 @@ const SP_D1_PAGES = [
   // 비-MASTER 는 seed 전건 FALSE 이므로 DEFAULT_VIEW/EDIT 등재 없음이 정확.
   'accounting.period-close.reverse',
   'dc-config.import',
+  // S4a #774/V86 — products.price-schedule (단가변동 관리, MANAGER/ACCOUNTANT view+edit).
+  // 누락 시 mock 모드에서 MASTER 조차 EstimatePricingConfigPage 신규 섹션 canAccess false.
+  'products.price-schedule',
 ] as const
 
 /**
@@ -16670,6 +16673,7 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
  *  partners.edit-request:      MASTER/MANAGER/SALES
  *  products.list:              MASTER/MANAGER/ACCOUNTANT/SALES/WAREHOUSE/INVENTORY/DEVELOPER
  *  products.admin:             MASTER/MANAGER/SALES/INVENTORY/DEVELOPER
+ *  products.price-schedule:    MASTER/MANAGER/ACCOUNTANT (S4a #774/V86)
  *  arologis.admin:             MASTER/MANAGER/DISPATCH
  *  arologis.region:            MASTER/MANAGER/DISPATCH
  */
@@ -16725,6 +16729,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.cancel', 'inventory.warehouse.admin',
     // C5 follow-up V47 — MANAGER sheet sync view.
     'products.sync',
+    // S4a #774/V86 — MANAGER 단가변동 관리 view.
+    'products.price-schedule',
     // §7 협업 — V36: MANAGER view+edit (slip.comments / slip.audit-overlay / slip.audit-revert)
     'slip.comments', 'slip.audit-overlay', 'slip.audit-revert',
     // V70: hr.slip-cutoff — MANAGER view 허용
@@ -16787,6 +16793,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'sales.slip.confirm',
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
+    // S4a #774/V86 — ACCOUNTANT 단가변동 관리 view.
+    'products.price-schedule',
   ],
   WAREHOUSE: [
     'purchases.slip.list', 'inbound.inspection',
@@ -16853,6 +16861,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
  *  partners.edit-request:      MASTER/MANAGER (SALES view 전용)
  *  products.list:              MASTER/MANAGER/SALES/INVENTORY/DEVELOPER
  *  products.admin:             MASTER/MANAGER/SALES/INVENTORY/DEVELOPER
+ *  products.price-schedule:    MASTER/MANAGER/ACCOUNTANT (S4a #774/V86)
  *  arologis.admin:             MASTER/MANAGER/DISPATCH
  *  arologis.region:            MASTER/MANAGER/DISPATCH
  */
@@ -16901,6 +16910,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'sales.slip.cancel', 'inventory.warehouse.admin',
     // C5 follow-up V47 — MANAGER sheet sync create.
     'products.sync',
+    // S4a #774/V86 — MANAGER 단가변동 관리 edit(update).
+    'products.price-schedule',
     // §7 협업 — V36: MANAGER can_edit=TRUE (slip.audit-revert 포함)
     'slip.comments', 'slip.audit-overlay', 'slip.audit-revert',
     // V70: hr.slip-cutoff — MANAGER edit 허용 (create/update/delete)
@@ -16946,6 +16957,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — ACCOUNTANT: 12개 모두 edit 없음 (V36/V29 seed 확인)
     // C5-2c: V36 seed 기반 ACCOUNTANT EDIT 추가
     'sales.slip.confirm',
+    // S4a #774/V86 — ACCOUNTANT 단가변동 관리 edit(update).
+    'products.price-schedule',
   ],
   WAREHOUSE: [
     'inbound.inspection',

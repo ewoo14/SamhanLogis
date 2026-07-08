@@ -648,3 +648,73 @@ export async function updateDisplayOrders(
 ): Promise<void> {
   await apiClient.put('/api/v1/products/display-orders', orders)
 }
+
+// ---------------------------------------------------------------------------
+// 단가변동 스케줄 admin (S4a #774 BE + S4b FE 배선, #17 단가변동 관리)
+// ---------------------------------------------------------------------------
+
+/**
+ * 단가변동 카테고리 4종 — BE `PriceChangeSchedule.CATEGORY_KEYS` 와 정확히 일치.
+ * order-app `PartnerOrderLine.categoryKey` 와 동일 문자열 키.
+ */
+export type PriceChangeScheduleCategory =
+  | 'homemulti'
+  | 'singleSets'
+  | 'commercialMulti'
+  | 'oldProducts'
+
+/**
+ * 단가변동 스케줄 admin 항목 — `GET /api/v1/products/admin/price-change-schedule` 응답 DTO.
+ * BE `PriceChangeScheduleAdminResponse` record 와 1:1 대응.
+ */
+export interface PriceChangeScheduleAdminItem {
+  category: PriceChangeScheduleCategory
+  /** KST 업무일 기준 단가변동 적용 시작일 (yyyy-MM-dd) */
+  effectiveDate: string
+  /** 견적 "인상 전 단가" 체크박스 초기값 (estimate-app 소비) */
+  defaultPreChange: boolean
+}
+
+/**
+ * `PUT /api/v1/products/admin/price-change-schedule/{category}` 요청 body.
+ *
+ * null-keep 부분 수정 — 생략(undefined)하거나 `null` 을 보낸 필드는 BE 가 기존 값을 유지한다
+ * (`PriceChangeSchedule#update`).
+ */
+export interface UpdatePriceChangeScheduleRequest {
+  effectiveDate?: string | null
+  defaultPreChange?: boolean | null
+}
+
+/**
+ * 단가변동 스케줄 admin 목록 조회 — `GET /api/v1/products/admin/price-change-schedule`.
+ *
+ * 카테고리 4종(homemulti/singleSets/commercialMulti/oldProducts)의 적용일 + "인상 전 단가"
+ * 체크박스 기본값을 조회한다. 권한: products.price-schedule VIEW.
+ */
+export async function getPriceChangeScheduleAdmin(): Promise<PriceChangeScheduleAdminItem[]> {
+  const res = await apiClient.get<ApiEnvelope<PriceChangeScheduleAdminItem[]>>(
+    '/api/v1/products/admin/price-change-schedule',
+  )
+  return res.data.data
+}
+
+/**
+ * 단가변동 스케줄 admin 부분 수정 — `PUT /api/v1/products/admin/price-change-schedule/{category}`.
+ *
+ * null-keep 부분 수정 — patch 에 담기지 않은 필드는 기존 값을 유지한다. 권한:
+ * products.price-schedule UPDATE.
+ *
+ * @param category 카테고리 키 (homemulti/singleSets/commercialMulti/oldProducts)
+ * @param patch 적용일/기본값 부분 수정 요청
+ */
+export async function updatePriceChangeSchedule(
+  category: PriceChangeScheduleCategory,
+  patch: UpdatePriceChangeScheduleRequest,
+): Promise<PriceChangeScheduleAdminItem> {
+  const res = await apiClient.put<ApiEnvelope<PriceChangeScheduleAdminItem>>(
+    `/api/v1/products/admin/price-change-schedule/${encodeURIComponent(category)}`,
+    patch,
+  )
+  return res.data.data
+}

@@ -217,6 +217,17 @@ async function priceChangeSchedule() {
   return (resp.data && resp.data.data) || {};
 }
 
+/** 카테고리별 "인상 전 단가" 체크박스 기본값 맵 (S4a #17 defaultPreChange, S4b 소비). */
+async function priceDefaultVariant() {
+  const resp = await ax.get(`${PRODUCT_BASE}/products/internal/price-change-default-variant`, {
+    headers: { 'X-Internal-Token': INTERNAL_TOKEN },
+  });
+  if (resp.status !== 200) {
+    throw new Error(`price-change-default-variant GET → HTTP ${resp.status}`);
+  }
+  return (resp.data && resp.data.data) || {};
+}
+
 /** 사양 상세 맵 → getSpecDetailMap_() 동일 shape. */
 async function specDetailMap() {
   const map = await get('/spec-detail-map');
@@ -238,6 +249,7 @@ module.exports = {
   recommendOduData,
   priceIncData,
   priceChangeSchedule,
+  priceDefaultVariant,
   specDetailMap,
   estimateConfig,
 };
