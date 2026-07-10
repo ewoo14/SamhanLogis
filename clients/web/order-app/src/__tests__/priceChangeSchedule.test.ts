@@ -168,8 +168,8 @@ describe('order-app price change schedule', () => {
       commercialMulti: '2026-12-01',
     });
 
-    expect(runtime.explodeCommPreviewParts('CM1', 1)[0].price).toBe(76000);
-    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0].price).toBe(76000);
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(76000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(76000);
   });
 
   it('상업 구성품은 due가 commercialMulti 변동일 이상이면 base 인상후 단가를 사용한다', () => {
@@ -177,8 +177,8 @@ describe('order-app price change schedule', () => {
       commercialMulti: '2026-12-01',
     });
 
-    expect(runtime.explodeCommPreviewParts('CM1', 1)[0].price).toBe(88000);
-    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0].price).toBe(88000);
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(88000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(88000);
   });
 
   it('상업 구성품은 COMM_PARTS_INC가 없으면 변동일 전에도 base 인상후 단가로 fallthrough 한다', () => {
@@ -186,8 +186,8 @@ describe('order-app price change schedule', () => {
       commercialMulti: '2026-12-01',
     });
 
-    expect(runtime.explodeCommPreviewParts('CM1', 1)[1].price).toBe(99000);
-    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[1].price).toBe(99000);
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[1]!.price).toBe(99000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[1]!.price).toBe(99000);
   });
 
   it('commPartUnitPrice 공유 헬퍼: 변동일 전=인상전 / 후=base 폴백 / INC 결측=base (렌더·재동기화 경로 단일화 보증)', () => {
