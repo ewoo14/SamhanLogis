@@ -23,7 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 /**
- * 17종 bootstrap 캐시 응답 + DC 9키 제거 가드 검증.
+ * 18종 bootstrap 캐시 응답 + DC 9키 제거 가드 검증.
  *
  * <p>5 외부 client (DcConfig/Product/Inventory/Slip/PartnerAuth) 는 {@code @MockBean} 으로
  * 격리 — 메모리 가드 ({@code feedback_it_mockbean_external_clients}) — Eureka 비활성 환경에서도
@@ -62,7 +62,7 @@ class PartnerOrderBootstrapIT extends AbstractPostgresIT {
                 .thenReturn(SlipServiceClient.PublishResult.published("STUB-SLIP"));
         // hasProductData 는 실 catalog 존재로만 트리거되어야 한다(BootstrapService 회귀 fix —
         // priceChangeSchedule 단독 존재는 hasProductData 판정에서 제외). 이 IT 는 product_db
-        // 변환 경로로 17번째 키(priceChangeSchedule)가 정상 통과하는지 검증하는 것이 목적이므로,
+        // 변환 경로로 마지막(18번째) 키(priceChangeSchedule)가 정상 통과하는지 검증하는 것이 목적이므로,
         // 최소 1개 catalog 행을 스텁해 hasProductData=true 를 realistic 하게 성립시킨다.
         Mockito.lenient().when(estimateCatalogClient.catalog(
                         Mockito.any(EstimateCategory.class), Mockito.any(UsageScope.class)))
@@ -74,11 +74,11 @@ class PartnerOrderBootstrapIT extends AbstractPostgresIT {
     }
 
     @Test
-    void bootstrap_17_keys_seeded_and_dc_secrets_stripped_from_config() {
+    void bootstrap_18_keys_seeded_and_dc_secrets_stripped_from_config() {
         BootstrapResponse response = bootstrapService.fetch();
         Map<String, Object> payloads = response.payloads();
 
-        // 17개 키 모두 존재 + 순서 보존
+        // 18개 키 모두 존재 + 순서 보존
         assertThat(payloads.keySet()).containsExactlyElementsOf(BootstrapService.CACHE_KEYS);
         assertThat(payloads.get("priceChangeSchedule"))
                 .isEqualTo(Map.of("homemulti", LocalDate.of(2026, 4, 1)));

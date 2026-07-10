@@ -19,7 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * PartnerAuth) + outbox scheduler 활성화.
  *
  * <p>{@link EnableScheduling} 은 {@code SlipPublishOutboxScheduler} 의 cron 5분 retry 트리거용.
- * {@link EnableCaching} 은 {@code BootstrapService} 의 17종 prefetch 캐시용.
+ * {@link EnableCaching} 은 {@code BootstrapService} 의 18종 prefetch 캐시용.
  */
 @SpringBootApplication
 @EnableDiscoveryClient

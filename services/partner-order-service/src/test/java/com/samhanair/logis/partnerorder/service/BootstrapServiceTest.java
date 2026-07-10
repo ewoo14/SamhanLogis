@@ -202,7 +202,10 @@ class BootstrapServiceTest {
         when(estimateCatalogClient.components(EstimateCategory.COMMERCIAL_MULTI))
                 .thenReturn(List.of(componentRow(
                         "CM-1", "COMM-PART-1", "상업 구성품", "EA",
-                        "77000", "88000", "OUTDOOR", "선택", false, "상업 구성 규격")));
+                        "77000", "88000", "OUTDOOR", "선택", false, "상업 구성 규격"),
+                        componentRow(
+                                "CM-1", "COMM-PART-2", "상업 구성품2", "EA",
+                                "80000", "90000", "OUTDOOR", "선택", false, "상업 구성 규격2")));
         when(estimateCatalogClient.materialPrices())
                 .thenReturn(List.of(
                         Map.of("name", "D7", "price", new BigDecimal("43000")),
@@ -213,7 +216,8 @@ class BootstrapServiceTest {
                         baselineRow("CM-1", "COMMERCIAL_MULTI", "320000", "222000"),
                         baselineRow("SS-1", "SINGLE_SET", "1100000", "900000"),
                         baselineRow("PANEL-1", "SINGLE_SET", "65000", "50000"),
-                        baselineRow("COMM-PART-1", null, null, "76000")));
+                        baselineRow("COMM-PART-1", null, null, "76000"),
+                        baselineRow("COMM-PART-2", null, "82000", "99999")));
         when(estimateCatalogClient.priceChangeSchedule())
                 .thenReturn(Map.of(
                         "homemulti", LocalDate.of(2026, 4, 1),
@@ -293,7 +297,11 @@ class BootstrapServiceTest {
         assertThat(payloads.get("commInc")).isEqualTo(Map.of("CM-1", new BigDecimal("320000")));
         assertThat(payloads.get("singleInc")).isEqualTo(Map.of("SS-1", new BigDecimal("900000")));
         assertThat(payloads.get("singlePartsInc")).isEqualTo(Map.of("PANEL-1", new BigDecimal("50000")));
-        assertThat(payloads.get("commPartsInc")).isEqualTo(Map.of("COMM-PART-1", new BigDecimal("76000")));
+        // commPartsInc: firstDecimal(출고가 우선·납품가 fallback). COMM-PART-1=출고가 null→납품가 76000,
+        // COMM-PART-2=출고가 82000 채택(납품가 99999 아님) — 출고가 우선순위 잠금(M-be1).
+        assertThat(payloads.get("commPartsInc")).isEqualTo(Map.of(
+                "COMM-PART-1", new BigDecimal("76000"),
+                "COMM-PART-2", new BigDecimal("82000")));
         assertThat(payloads.get("priceChangeSchedule")).isEqualTo(Map.of(
                 "homemulti", LocalDate.of(2026, 4, 1),
                 "singleSets", LocalDate.of(2026, 4, 1),

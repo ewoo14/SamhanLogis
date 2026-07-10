@@ -2646,6 +2646,16 @@ function partUnitPrice(p){
   });
 }
 
+// 상업 세트 구성품 단가 — COMM_PARTS_INC 게이트 단일화(4개 소비처 공유·partUnitPrice 패턴).
+// #777 item2: due < commercialMulti 변동일 → 인상 전(COMM_PARTS_INC), 이후/결측 → commUnitPrice→구성품 base→0.
+function commPartUnitPrice(model, basePrice){
+  const due = document.getElementById('due')?.value || '';
+  if (incActive('commercialMulti', due) && COMM_PARTS_INC[model]) {
+    return COMM_PARTS_INC[model];
+  }
+  return (commUnitPrice(model) || 0) || basePrice || 0;
+}
+
 function setBasePriceLeft(s){
   return priceFrom(s,{
     priceKeys:['priceLeft','price'],
@@ -2891,7 +2901,8 @@ function bindCommQtyEvents(){
           const pm   = ptr.getAttribute('data-m');
           const pqty = toInt(ptr.getAttribute('data-part-qty')) || 1;
           const effQ = q * pqty;
-          const u    = commUnitPrice(pm) || 0;
+          const pbase = toInt(ptr.getAttribute('data-part-price')) || 0;
+          const u    = commPartUnitPrice(pm, pbase);
           const uCell = ptr.querySelector(`[data-cunit="${CSS.escape(pm+'|'+setModel)}"]`);
           const sCell = ptr.querySelector(`[data-csub="${CSS.escape(pm+'|'+setModel)}"]`);
           const qCell = ptr.querySelector('.qty-set');
@@ -4484,12 +4495,8 @@ function explodeCommPreviewParts(setModel, setQty){
     return [];
   }
   const qtySet = parseInt(setQty, 10) || 0;
-  const due = document.getElementById('due')?.value || '';
   return parts.map(p => {
-    const incUnit = (incActive('commercialMulti', due) && COMM_PARTS_INC[p.model])
-      ? COMM_PARTS_INC[p.model]
-      : 0;
-    const unitPrice = incUnit || (typeof commUnitPrice === 'function' ? (commUnitPrice(p.model) || 0) : 0) || p.price || 0;
+    const unitPrice = commPartUnitPrice(p.model, p.price);
     const q = qtySet * (parseInt(p.qty, 10) || 1);
     return { name: p.name || p.model, model: p.model, unit: p.unit || 'EA', qty: q, price: unitPrice, sub: unitPrice * q };
   });
@@ -4509,12 +4516,8 @@ function explodeCommSets_(setRow, setQty){
   // 수량 계산
   const qtySet = parseInt(setQty, 10) || 0;
   // 단가 계산
-  const due = document.getElementById('due')?.value || '';
   return parts.map(p => {
-    const incUnit = (incActive('commercialMulti', due) && COMM_PARTS_INC[p.model])
-      ? COMM_PARTS_INC[p.model]
-      : 0;
-    const unit = incUnit || (typeof commUnitPrice === 'function' ? (commUnitPrice(p.model) || 0) : 0) || p.price || 0;
+    const unit = commPartUnitPrice(p.model, p.price);
     const qty  = qtySet * (parseInt(p.qty, 10) || 1);
     // 전송용 형태로 반환
     return { name: p.name || p.model, model: p.model, qty, price: unit };
@@ -4533,13 +4536,14 @@ function renderCommSetParts(setModel, setQty){
   const tbody = el('#commBody');
   const anchor = tbody.querySelector(`tr[data-set-model="${setModel}"]`);
   parts.forEach(p=>{
-    const unit = commUnitPrice(p.model) || 0;
+    const unit = commPartUnitPrice(p.model, p.price);
     const effQ = (parseInt(setQty,10)||0) * (parseInt(p.qty,10)||1);
     const tr = document.createElement('tr');
     tr.classList.add('set-part');
     tr.setAttribute('data-part-of', setModel);
     tr.setAttribute('data-m', p.model);
     tr.setAttribute('data-part-qty', String(parseInt(p.qty,10)||1));
+    tr.setAttribute('data-part-price', String(parseInt(p.price,10)||0));
     tr.appendChild(document.createElement('td'));
     tr.appendChild(document.createElement('td'));
     tr.appendChild(document.createElement('td'));

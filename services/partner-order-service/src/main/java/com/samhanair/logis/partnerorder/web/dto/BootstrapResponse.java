@@ -3,7 +3,7 @@ package com.samhanair.logis.partnerorder.web.dto;
 import java.util.Map;
 
 /**
- * 17종 bootstrap 응답 (legacy doGet 4~23 의 16개 템플릿 변수 + 단가변동 schedule).
+ * 18종 bootstrap 응답 (legacy doGet 4~23 의 16개 템플릿 변수 + 단가변동 schedule + 상업 구성품 INC).
  *
  * <p>키 매트릭스 (legacy 와 동일):
  * <ul>

@@ -86,6 +86,7 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     'singleUnitPrice',
     'setBasePriceRightFirst',
     'normKey',
+    'commPartUnitPrice',
     'partsForCommSet_',
     'explodeCommPreviewParts',
     'explodeCommSets_',
@@ -97,6 +98,7 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     partUnitPrice: (part: Record<string, unknown>) => number;
     singleUnitPrice: (item: Record<string, unknown>) => number;
     setBasePriceRightFirst: (item: Record<string, unknown>) => number;
+    commPartUnitPrice: (model: string, basePrice: number) => number;
     explodeCommPreviewParts: (setModel: string, setQty: number) => Array<Record<string, number | string>>;
     explodeCommSets_: (setRow: Record<string, string>, setQty: number) => Array<Record<string, number | string>>;
   };
@@ -186,5 +188,14 @@ describe('order-app price change schedule', () => {
 
     expect(runtime.explodeCommPreviewParts('CM1', 1)[1].price).toBe(99000);
     expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[1].price).toBe(99000);
+  });
+
+  it('commPartUnitPrice 공유 헬퍼: 변동일 전=인상전 / 후=base 폴백 / INC 결측=base (렌더·재동기화 경로 단일화 보증)', () => {
+    const before = loadRuntime('2026-11-30', { commercialMulti: '2026-12-01' });
+    expect(before.commPartUnitPrice('COMM-PART-1', 88000)).toBe(76000);
+    expect(before.commPartUnitPrice('COMM-PART-MISSING', 99000)).toBe(99000);
+
+    const after = loadRuntime('2026-12-01', { commercialMulti: '2026-12-01' });
+    expect(after.commPartUnitPrice('COMM-PART-1', 88000)).toBe(88000);
   });
 });

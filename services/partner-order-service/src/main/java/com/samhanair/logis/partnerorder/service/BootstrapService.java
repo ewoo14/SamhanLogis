@@ -124,7 +124,7 @@ public class BootstrapService {
     private final Map<String, Object> productCatalogCache = new ConcurrentHashMap<>();
 
     /**
-     * 부팅 시 17 cache key prefetch — 시트 read 우선, 실패 시 V2 seed fallback.
+     * 부팅 시 18 cache key prefetch — 시트 read 우선, 실패 시 V2 seed fallback.
      * Service Account JSON 부재 등으로 fail 해도 catch + log (부팅 차단 X).
      */
     @PostConstruct
@@ -169,7 +169,7 @@ public class BootstrapService {
      * 18종 bootstrap 응답 — 시트 prefetch 우선, 부재 시 V2 seed fallback.
      * config 키는 DC 9키 제거 후 응답.
      *
-     * @return BootstrapResponse — payloads Map (17개 cacheKey → 객체)
+     * @return BootstrapResponse — payloads Map (18개 cacheKey → 객체)
      */
     @Cacheable("bootstrap")
     @Transactional(readOnly = true)

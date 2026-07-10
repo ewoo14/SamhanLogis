@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
  * 구글 Sheets v4 API 클라이언트 — partner-order-service 전용 (PR-D Part 1).
  *
  * <p><b>출처</b>: PR-D Part 1 시트 흐름 보강 — partner-order-service 의 BootstrapService 가
- * 부팅 시 17 cache key prefetch 시 시트 직접 read. {@code services/product-service/.../client/GoogleSheetsClient}
+ * 부팅 시 18 cache key prefetch 시 시트 직접 read. {@code services/product-service/.../client/GoogleSheetsClient}
  * 1:1 복제 (Service Account JWT, Caffeine 5분 TTL). Samhan Public 자체 service 안에서
  * 시트 read — 외부 시스템 호출 X (legacy estimate-app 패턴 보존).
  *

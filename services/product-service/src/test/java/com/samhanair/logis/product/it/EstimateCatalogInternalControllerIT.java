@@ -141,7 +141,7 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
     @Test
     void priceBaseline_includesComponentWithoutExposureAsNullCategory() throws Exception {
         Product component = seedComponentProduct("IT_BASE_COMPONENT", "baseline 구성품",
-                ProductCategory.SINGLE_SET, EstimateCategory.SINGLE_SET);
+                ProductCategory.SINGLE_PART, EstimateCategory.SINGLE_SET);
         priceHistoryRepository.save(PriceHistory.seed(component.getId(), LocalDate.of(2000, 1, 1),
                 new BigDecimal("65000"), new BigDecimal("50000"), null));
         productRepository.flush();
