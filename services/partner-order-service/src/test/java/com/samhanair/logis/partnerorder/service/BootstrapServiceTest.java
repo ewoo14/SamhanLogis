@@ -145,6 +145,29 @@ class BootstrapServiceTest {
     }
 
     @Test
+    void fetch_productCatalog와_seed가_없어도_key별_default_shape를_보존한다() throws Exception {
+        // given — product_db catalog 가 비어 hasProductData=false 이고, V2 seed row 도 없는
+        // 신규 키 fallback 경로. map 계약 키가 [] 로 내려가면 FE 의 [model]/[key] 접근 계약이 흔들린다.
+        setField("sheetPrefetchEnabled", false);
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        // when
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then — row-list 계약 키는 [] 유지
+        assertThat(response.payloads().get("homemulti")).isEqualTo(List.of());
+        assertThat(response.payloads().get("commercialParts")).isEqualTo(List.of());
+
+        // then — map/object 계약 키는 {} 유지
+        assertThat(response.payloads().get("commPartsInc")).isEqualTo(Map.of());
+        assertThat(response.payloads().get("homeInc")).isEqualTo(Map.of());
+        assertThat(response.payloads().get("singleMatPrices")).isEqualTo(Map.of());
+        assertThat(response.payloads().get("specDetailMap")).isEqualTo(Map.of());
+        assertThat(response.payloads().get("priceChangeSchedule")).isEqualTo(Map.of());
+        assertThat(response.payloads().get("logoData")).isEqualTo("");
+    }
+
+    @Test
     void prefetch_비활성토글이면_시트read_미발생() throws Exception {
         // given
         setField("sheetPrefetchEnabled", false);

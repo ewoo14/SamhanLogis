@@ -80,6 +80,20 @@ public class BootstrapService {
             "logoData",
             "priceChangeSchedule");
 
+    /** sheet row-list 가 아닌 object/map 계약 키. V2 seed row 부재 fallback 에서 shape 를 보존한다. */
+    private static final Set<String> MAP_PAYLOAD_KEYS = Set.of(
+            "homeDefaults",
+            "singleDefaults",
+            "singleMatPrices",
+            "homeInc",
+            "commInc",
+            "singleInc",
+            "singlePartsInc",
+            "commPartsInc",
+            "specDetailMap",
+            "config",
+            "priceChangeSchedule");
+
     /**
      * config 키에서 제거되어야 할 DC 9키 (legacy CFG_RAW). client 응답 노출 금지.
      * M3 가드 일관 — DC 정보는 server-side priceVat 계산용 (M3 dc-config-service 직접 조회).
@@ -208,8 +222,11 @@ public class BootstrapService {
     }
 
     private Object defaultPayload(String key) {
-        if ("config".equals(key) || "priceChangeSchedule".equals(key)) {
+        if (MAP_PAYLOAD_KEYS.contains(key)) {
             return Map.of();
+        }
+        if ("logoData".equals(key)) {
+            return "";
         }
         return List.of();
     }
