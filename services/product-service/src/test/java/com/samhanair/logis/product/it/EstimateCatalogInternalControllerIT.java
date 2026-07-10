@@ -2,6 +2,7 @@ package com.samhanair.logis.product.it;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,13 +18,16 @@ import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductType;
+import com.samhanair.logis.product.domain.PriceHistory;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
+import com.samhanair.logis.product.repository.PriceHistoryRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -50,6 +54,9 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private ProductSpecRepository productSpecRepository;
+
+    @Autowired
+    private PriceHistoryRepository priceHistoryRepository;
 
     @Autowired
     private ProductEstimateExposureRepository exposureRepository;
@@ -128,6 +135,52 @@ class EstimateCatalogInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[?(@.componentModelCode == 'IT_SINGLE_IDU_01')].specs",
                         hasItem(hasSize(0))));
+    }
+
+    /** price-baseline 은 exposure 없는 구성품도 modelCode + null category 로 포함한다. */
+    @Test
+    void priceBaseline_includesComponentWithoutExposureAsNullCategory() throws Exception {
+        Product component = seedComponentProduct("IT_BASE_COMPONENT", "baseline 구성품",
+                ProductCategory.SINGLE_SET, EstimateCategory.SINGLE_SET);
+        priceHistoryRepository.save(PriceHistory.seed(component.getId(), LocalDate.of(2000, 1, 1),
+                new BigDecimal("65000"), new BigDecimal("50000"), null));
+        productRepository.flush();
+        priceHistoryRepository.flush();
+
+        mockMvc.perform(get("/products/internal/estimate-catalog/price-baseline")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_COMPONENT')]", hasSize(1)))
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_COMPONENT')].estimateCategory",
+                        hasItem(nullValue())))
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_COMPONENT')].releasePrice",
+                        hasItem(65000)))
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_COMPONENT')].deliveryPrice",
+                        hasItem(50000)));
+    }
+
+    /** price-baseline 은 다중노출 품목을 기존처럼 카테고리별 1행씩 유지한다. */
+    @Test
+    void priceBaseline_keepsOneRowPerExposureForMultiExposureProduct() throws Exception {
+        Product product = seedCatalogProduct("IT_BASE_MULTI", UsageScope.BOTH);
+        priceHistoryRepository.save(PriceHistory.seed(product.getId(), LocalDate.of(2000, 1, 1),
+                new BigDecimal("440000"), new BigDecimal("330000"), null));
+        exposureRepository.save(ProductEstimateExposure.create(
+                product.getId(), EstimateCategory.HOME_MULTI, 1));
+        exposureRepository.save(ProductEstimateExposure.create(
+                product.getId(), EstimateCategory.SINGLE_SET, 2));
+        productRepository.flush();
+        priceHistoryRepository.flush();
+        exposureRepository.flush();
+
+        mockMvc.perform(get("/products/internal/estimate-catalog/price-baseline")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_MULTI')]", hasSize(2)))
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_MULTI')].estimateCategory",
+                        hasItem("HOME_MULTI")))
+                .andExpect(jsonPath("$.data[?(@.modelCode == 'IT_BASE_MULTI')].estimateCategory",
+                        hasItem("SINGLE_SET")));
     }
 
     /** spec-detail-map 도 products/components 와 동일하게 X-Internal-Token 없이는 401 이다. */

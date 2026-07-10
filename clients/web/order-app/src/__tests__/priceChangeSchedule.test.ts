@@ -61,11 +61,16 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     COMM_INC: { CM1: 2000 },
     SINGLE_INC: { SS1: 3000 },
     SINGLE_PARTS_INC: { SP1: 4000 },
+    COMM_PARTS_INC: { 'COMM-PART-1': 76000 },
     homeRowByModel: new Map([
       ['HM1', { model: 'HM1', name: '홈', price: 1100, list: 1100, useK2: false }],
     ]),
     COMMULTI: [
       { model: 'CM1', name: '상업', price: 2100, list: 2100, useK2: false },
+    ],
+    COMM_PARTS: [
+      { setModel: 'CM1', model: 'COMM-PART-1', name: '상업 구성품', qty: 1, unit: 'EA', price: 88000 },
+      { setModel: 'CM1', model: 'COMM-PART-MISSING', name: '상업 구성품 결측', qty: 1, unit: 'EA', price: 99000 },
     ],
   };
   vm.createContext(context);
@@ -80,6 +85,10 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     'partUnitPrice',
     'singleUnitPrice',
     'setBasePriceRightFirst',
+    'normKey',
+    'partsForCommSet_',
+    'explodeCommPreviewParts',
+    'explodeCommSets_',
   ].map((name) => extractFunction(html, name));
   vm.runInContext(snippets.join('\n'), context);
   return context as typeof context & {
@@ -88,6 +97,8 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     partUnitPrice: (part: Record<string, unknown>) => number;
     singleUnitPrice: (item: Record<string, unknown>) => number;
     setBasePriceRightFirst: (item: Record<string, unknown>) => number;
+    explodeCommPreviewParts: (setModel: string, setQty: number) => Array<Record<string, number | string>>;
+    explodeCommSets_: (setRow: Record<string, string>, setQty: number) => Array<Record<string, number | string>>;
   };
 }
 
@@ -148,5 +159,32 @@ describe('order-app price change schedule', () => {
     expect(runtime.singleUnitPrice({ model: 'SS1', name: '싱글', priceRaw: 3100 })).toBe(3100);
     expect(runtime.partUnitPrice({ model: 'SP1', name: '판넬', price: 4100 })).toBe(4100);
     expect(runtime.setBasePriceRightFirst({ model: 'SS1', name: '싱글', price: 3100 })).toBe(3100);
+  });
+
+  it('상업 구성품은 due가 commercialMulti 변동일 전이면 COMM_PARTS_INC 인상전 단가를 사용한다', () => {
+    const runtime = loadRuntime('2026-11-30', {
+      commercialMulti: '2026-12-01',
+    });
+
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[0].price).toBe(76000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0].price).toBe(76000);
+  });
+
+  it('상업 구성품은 due가 commercialMulti 변동일 이상이면 base 인상후 단가를 사용한다', () => {
+    const runtime = loadRuntime('2026-12-01', {
+      commercialMulti: '2026-12-01',
+    });
+
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[0].price).toBe(88000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0].price).toBe(88000);
+  });
+
+  it('상업 구성품은 COMM_PARTS_INC가 없으면 변동일 전에도 base 인상후 단가로 fallthrough 한다', () => {
+    const runtime = loadRuntime('2026-11-30', {
+      commercialMulti: '2026-12-01',
+    });
+
+    expect(runtime.explodeCommPreviewParts('CM1', 1)[1].price).toBe(99000);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[1].price).toBe(99000);
   });
 });

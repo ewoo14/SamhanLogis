@@ -1359,6 +1359,7 @@ const HOME_INC_RAW = __BS.homeInc || {};
 const COMM_INC_RAW = __BS.commInc || {};
 const SINGLE_INC_RAW = __BS.singleInc || {};
 const SINGLE_PARTS_INC_RAW = __BS.singlePartsInc || {};
+const COMM_PARTS_INC_RAW = __BS.commPartsInc || {};
 const PRICE_CHANGE_SCHEDULE_RAW = __BS.priceChangeSchedule || {};
 const CFG_RAW = __BS.config || {};
 const SPEC_RAW = __BS.specDetailMap || {};
@@ -1430,6 +1431,7 @@ const HOME_INC = J(HOME_INC_RAW, {});
 const COMM_INC = J(COMM_INC_RAW, {});
 const SINGLE_INC = J(SINGLE_INC_RAW, {});
 const SINGLE_PARTS_INC = J(SINGLE_PARTS_INC_RAW, {});
+const COMM_PARTS_INC = J(COMM_PARTS_INC_RAW, {});
 const PRICE_CHANGE_SCHEDULE = J(PRICE_CHANGE_SCHEDULE_RAW, {});
 const oldQty=new Map();
 
@@ -4482,8 +4484,12 @@ function explodeCommPreviewParts(setModel, setQty){
     return [];
   }
   const qtySet = parseInt(setQty, 10) || 0;
+  const due = document.getElementById('due')?.value || '';
   return parts.map(p => {
-    const unitPrice = (typeof commUnitPrice === 'function' ? (commUnitPrice(p.model) || 0) : 0) || p.price || 0;
+    const incUnit = (incActive('commercialMulti', due) && COMM_PARTS_INC[p.model])
+      ? COMM_PARTS_INC[p.model]
+      : 0;
+    const unitPrice = incUnit || (typeof commUnitPrice === 'function' ? (commUnitPrice(p.model) || 0) : 0) || p.price || 0;
     const q = qtySet * (parseInt(p.qty, 10) || 1);
     return { name: p.name || p.model, model: p.model, unit: p.unit || 'EA', qty: q, price: unitPrice, sub: unitPrice * q };
   });
@@ -4503,8 +4509,12 @@ function explodeCommSets_(setRow, setQty){
   // 수량 계산
   const qtySet = parseInt(setQty, 10) || 0;
   // 단가 계산
+  const due = document.getElementById('due')?.value || '';
   return parts.map(p => {
-    const unit = (typeof commUnitPrice === 'function' ? (commUnitPrice(p.model) || 0) : 0) || p.price || 0;
+    const incUnit = (incActive('commercialMulti', due) && COMM_PARTS_INC[p.model])
+      ? COMM_PARTS_INC[p.model]
+      : 0;
+    const unit = incUnit || (typeof commUnitPrice === 'function' ? (commUnitPrice(p.model) || 0) : 0) || p.price || 0;
     const qty  = qtySet * (parseInt(p.qty, 10) || 1);
     // 전송용 형태로 반환
     return { name: p.name || p.model, model: p.model, qty, price: unit };

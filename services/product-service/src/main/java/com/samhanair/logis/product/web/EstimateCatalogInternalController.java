@@ -384,9 +384,13 @@ public class EstimateCatalogInternalController {
                 .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
                 .filter(p -> p.getModelCode() != null)
                 .collect(Collectors.toMap(Product::getId, p -> p, (a, b) -> a));
-        List<PriceBaselineRow> rows = exposureRepository
-                .findByProductIdInAndIsDeletedFalse(productById.keySet())
-                .stream()
+        List<ProductEstimateExposure> exposures = exposureRepository
+                .findByProductIdInAndIsDeletedFalse(productById.keySet());
+        Set<UUID> exposedProductIds = exposures.stream()
+                .map(ProductEstimateExposure::getProductId)
+                .collect(Collectors.toSet());
+        List<PriceBaselineRow> rows = new ArrayList<>();
+        rows.addAll(exposures.stream()
                 .map(e -> {
                     Product p = productById.get(e.getProductId());
                     PriceHistory ph = byProduct.get(e.getProductId());
@@ -394,7 +398,15 @@ public class EstimateCatalogInternalController {
                             e.getEstimateCategory().name(),
                             ph.getReleasePrice(), ph.getDeliveryPrice());
                 })
-                .toList();
+                .toList());
+        productById.forEach((productId, product) -> {
+            if (exposedProductIds.contains(productId)) {
+                return;
+            }
+            PriceHistory ph = byProduct.get(productId);
+            rows.add(new PriceBaselineRow(product.getModelCode(), null,
+                    ph.getReleasePrice(), ph.getDeliveryPrice()));
+        });
         return ApiResponse.ok(rows);
     }
 

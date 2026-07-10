@@ -139,8 +139,9 @@ class BootstrapServiceTest {
         Map<String, Object> configMap = (Map<String, Object>) response.payloads().get("config");
         assertThat(configMap).containsKey("vatRate").containsKey("deliveryDays");
         assertThat(configMap).doesNotContainKey("homeDiscount");
-        // 16 키 모두 존재 (없는 키는 빈 객체/배열)
+        // 모든 bootstrap 키가 존재한다 (없는 키는 빈 객체/배열).
         assertThat(response.payloads().keySet()).containsExactlyElementsOf(BootstrapService.CACHE_KEYS);
+        assertThat(BootstrapService.CACHE_KEYS).contains("commPartsInc");
     }
 
     @Test
@@ -211,7 +212,8 @@ class BootstrapServiceTest {
                         baselineRow("HM-1", "HOME_MULTI", "440000", "111000"),
                         baselineRow("CM-1", "COMMERCIAL_MULTI", "320000", "222000"),
                         baselineRow("SS-1", "SINGLE_SET", "1100000", "900000"),
-                        baselineRow("PANEL-1", "SINGLE_SET", "65000", "50000")));
+                        baselineRow("PANEL-1", "SINGLE_SET", "65000", "50000"),
+                        baselineRow("COMM-PART-1", null, null, "76000")));
         when(estimateCatalogClient.priceChangeSchedule())
                 .thenReturn(Map.of(
                         "homemulti", LocalDate.of(2026, 4, 1),
@@ -291,6 +293,7 @@ class BootstrapServiceTest {
         assertThat(payloads.get("commInc")).isEqualTo(Map.of("CM-1", new BigDecimal("320000")));
         assertThat(payloads.get("singleInc")).isEqualTo(Map.of("SS-1", new BigDecimal("900000")));
         assertThat(payloads.get("singlePartsInc")).isEqualTo(Map.of("PANEL-1", new BigDecimal("50000")));
+        assertThat(payloads.get("commPartsInc")).isEqualTo(Map.of("COMM-PART-1", new BigDecimal("76000")));
         assertThat(payloads.get("priceChangeSchedule")).isEqualTo(Map.of(
                 "homemulti", LocalDate.of(2026, 4, 1),
                 "singleSets", LocalDate.of(2026, 4, 1),
@@ -404,6 +407,24 @@ class BootstrapServiceTest {
         // 두 INC 맵 모두 빈 상태로 반환된다.
         assertThat(response.payloads().get("homeInc")).isEqualTo(Map.of());
         assertThat(response.payloads().get("singleInc")).isEqualTo(Map.of());
+    }
+
+    @Test
+    void fetch_commercialPartsInc는_baseline_결측시_빈맵으로_반환된다() throws Exception {
+        // given — 상업 구성품 catalog 는 존재하지만 price-baseline 이 비어 있으면 FE 가 base(후)로
+        // fallthrough 하도록 commPartsInc 에 값을 넣지 않아야 한다.
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.components(EstimateCategory.COMMERCIAL_MULTI))
+                .thenReturn(List.of(componentRow(
+                        "CM-1", "COMM-PART-MISSING", "상업 구성품 baseline 없음", "EA",
+                        "77000", "88000", "OUTDOOR", "선택", false, "상업 구성 규격")));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        // when
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then
+        assertThat(response.payloads().get("commPartsInc")).isEqualTo(Map.of());
     }
 
     private BootstrapCacheConfig makeCacheRow(String key, String json) {

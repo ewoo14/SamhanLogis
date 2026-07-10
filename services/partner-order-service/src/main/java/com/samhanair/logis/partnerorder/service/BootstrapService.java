@@ -31,9 +31,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 17종 bootstrap prefetch 서비스 (legacy index.html 1230~1244 + Code.js doGet 4~23 대체).
+ * 18종 bootstrap prefetch 서비스 (legacy index.html 1230~1244 + Code.js doGet 4~23 대체).
  *
- * <p><b>PR-D Part 1 보강</b>: 부팅 시 17 cache key 별 시트 직접 read 우선, 실패 시 V2 seed
+ * <p><b>PR-D Part 1 보강</b>: 부팅 시 18 cache key 별 시트 직접 read 우선, 실패 시 V2 seed
  * fallback. Samhan Public 자체 service 안에서 시트 read — 외부 시스템 호출 X
  * (legacy estimate-app 패턴 보존). 시트 read 결과는 in-memory 로 보관 ({@link #sheetCache});
  * {@link Cacheable} 의 spring cache 와 별도 경로 — 시트 prefetch 가 갱신될 때마다 evict.
@@ -41,11 +41,11 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>{@link Cacheable} 로 in-memory 캐시 — 카탈로그 변경 시 admin endpoint 가 evict.
  * config 키는 DC 9키 ({@code homeDiscount=0.45} 등) 가 제거된 client-safe 사본만 보관 (M3 가드 일관).
  *
- * <p>17 cache key:
+ * <p>18 cache key:
  * <pre>
  *   homemulti, singleSets, singleParts, homeDefaults, singleDefaults, singleMatPrices,
  *   commercialMulti, commercialParts, oldProducts,
- *   homeInc, commInc, singleInc, singlePartsInc,
+ *   homeInc, commInc, singleInc, singlePartsInc, commPartsInc,
  *   specDetailMap, config, logoData, priceChangeSchedule
  * </pre>
  *
@@ -59,7 +59,7 @@ public class BootstrapService {
 
     private static final Logger log = LoggerFactory.getLogger(BootstrapService.class);
 
-    /** 17종 cacheKey 목록 (FE 응답 키 순서 보존). */
+    /** 18종 cacheKey 목록 (FE 응답 키 순서 보존). */
     public static final List<String> CACHE_KEYS = List.of(
             "homemulti",
             "singleSets",
@@ -74,6 +74,7 @@ public class BootstrapService {
             "commInc",
             "singleInc",
             "singlePartsInc",
+            "commPartsInc",
             "specDetailMap",
             "config",
             "logoData",
@@ -165,7 +166,7 @@ public class BootstrapService {
     }
 
     /**
-     * 17종 bootstrap 응답 — 시트 prefetch 우선, 부재 시 V2 seed fallback.
+     * 18종 bootstrap 응답 — 시트 prefetch 우선, 부재 시 V2 seed fallback.
      * config 키는 DC 9키 제거 후 응답.
      *
      * @return BootstrapResponse — payloads Map (17개 cacheKey → 객체)
@@ -274,17 +275,11 @@ public class BootstrapService {
                 EstimateCategory.SINGLE_SET, UsageScope.PARTNER_ORDER));
         List<Map<String, Object>> oldProducts = nullToEmpty(estimateCatalogClient.catalog(
                 EstimateCategory.LEGACY, UsageScope.PARTNER_ORDER));
-        // BE-1 문서화 (#688 S3 R1 리뷰 — known limitation, 코드변경 아님) — 구성품(singleParts/
-        // commercialParts)은 BundleComponent 전용 sync 경로(ProductSheetSyncService
-        // COMPONENT_TAB_MAPPINGS)로만 적재되고 upsertSheetExposure() 를 전혀 호출하지 않는다.
-        // EstimateCategory 에도 SINGLE_PART/COMMERCIAL_PART 값 자체가 없어 구성품은
-        // ProductEstimateExposure 가 절대 생성되지 않는다. 아래 priceBaseline() 은
-        // exposureRepository 기준 exposure-gated 조회이므로 구성품 modelCode 는 baselineByModel 에
-        // 절대 잡히지 않고, 그 결과 singlePartsInc(SINGLE_PARTS_INC)는 상시 빈 맵으로 귀결되어 FE
-        // partUnitPrice() 는 구성품에 대해 항상 base(인상 후) 단가만 사용한다. oldProducts 류와
-        // 동일한 known limitation — baseline/schedule 데이터를 아무리 추가해도 이 구조로는 해결
-        // 불가하며, 근본 해결은 후속 슬라이스에서 priceBaseline() 조회를 exposure-비의존(구성품
-        // 포함) 경로로 전환하는 것뿐이다.
+        // BE-1 문서화 (#777 item 2) — 구성품(singleParts/commercialParts)은 ProductEstimateExposure
+        // 행이 없지만 product-service priceBaseline() 이 exposure 미커버 baseline product 를
+        // estimateCategory=null 로 추가 반환한다. 따라서 singlePartsInc/commPartsInc 는 구성품도
+        // Model B 자동전환 대상으로 채워진다. oldProducts 는 여전히 baseline 데이터 부재 케이스가
+        // 남아 있어 별도 결정/슬라이스 전까지 base(인상 후) fallthrough 를 유지한다.
         List<Map<String, Object>> singleParts = nullToEmpty(estimateCatalogClient.components(
                 EstimateCategory.SINGLE_SET));
         List<Map<String, Object>> commercialParts = nullToEmpty(estimateCatalogClient.components(
@@ -347,6 +342,8 @@ public class BootstrapService {
                 "modelCode", "deliveryPrice", "singleInc"));
         payloads.put("singlePartsInc", incPriceMap(singleParts, baselineByModel,
                 "componentModelCode", "deliveryPrice", "singlePartsInc"));
+        payloads.put("commPartsInc", incPriceMapFirstDecimal(commercialParts, baselineByModel,
+                "componentModelCode", "commPartsInc"));
         payloads.put("priceChangeSchedule", priceChangeSchedule == null ? Map.of() : priceChangeSchedule);
         return payloads;
     }
@@ -479,6 +476,34 @@ public class BootstrapService {
         return out;
     }
 
+    /** 상업 구성품 INC 맵은 componentRows(commercial=true) 와 동일하게 출고가 우선, 납품가 fallback 이다. */
+    private Map<String, Object> incPriceMapFirstDecimal(
+            List<Map<String, Object>> rows,
+            Map<String, Map<String, Object>> baselineByModel,
+            String modelKey,
+            String targetKey) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            String modelCode = str(row.get(modelKey));
+            if (modelCode == null || modelCode.isBlank()) {
+                continue;
+            }
+            Map<String, Object> baseline = baselineByModel.get(modelCode);
+            if (baseline == null) {
+                log.warn("[BootstrapService] price-baseline 누락으로 {} 제외: model={}", targetKey, modelCode);
+                continue;
+            }
+            BigDecimal price = firstDecimal(baseline.get("releasePrice"), baseline.get("deliveryPrice"));
+            if (price == null || price.compareTo(BigDecimal.ZERO) <= 0) {
+                log.warn("[BootstrapService] price-baseline 가격 결측으로 {} 제외: model={}, priceKey=releasePrice|deliveryPrice",
+                        targetKey, modelCode);
+                continue;
+            }
+            out.put(modelCode, price);
+        }
+        return out;
+    }
+
     private Map<String, Map<String, Object>> baselineByModel(List<Map<String, Object>> rows) {
         Map<String, Map<String, Object>> out = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
@@ -495,8 +520,8 @@ public class BootstrapService {
         return rows == null ? List.of() : rows;
     }
 
-    private Object firstDecimal(Object first, Object fallback) {
-        Object value = decimal(first);
+    private BigDecimal firstDecimal(Object first, Object fallback) {
+        BigDecimal value = decimal(first);
         return value == null ? decimal(fallback) : value;
     }
 
