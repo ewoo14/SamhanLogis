@@ -91,6 +91,7 @@ Scheduler (5분):
 | `DB_*` | `partner_order_db` 등 | placeholder |
 | `EUREKA_URL` | `http://localhost:8761/eureka/` | |
 | `INTERNAL_TOKEN` | `dev-internal-token-change-me` | prod default 사용 시 부팅 거부 |
+| `BOOTSTRAP_CACHE_REFRESH_MINUTES` | 10 | bootstrap 내부 캐시 evict 후 prefetch 주기(분) |
 | `samhan.draft.ttl-days` | 30 | DraftCleanupScheduler |
 | `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계 |
 

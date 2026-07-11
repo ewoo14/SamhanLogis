@@ -18,7 +18,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * GateImage/TutorialState/SlipPublishOutbox) + 5 외부 client (DcConfig/Product/Inventory/Slip/
  * PartnerAuth) + outbox scheduler 활성화.
  *
- * <p>{@link EnableScheduling} 은 {@code SlipPublishOutboxScheduler} 의 cron 5분 retry 트리거용.
+ * <p>{@link EnableScheduling} 은 {@code SlipPublishOutboxScheduler} 의 cron 5분 retry 와
+ * {@code BootstrapCacheRefreshScheduler} 의 bootstrap 내부 캐시 주기 갱신 트리거용.
  * {@link EnableCaching} 은 {@code BootstrapService} 의 18종 prefetch 캐시용.
  */
 @SpringBootApplication

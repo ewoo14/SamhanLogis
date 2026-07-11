@@ -65,6 +65,7 @@ app:
   bootstrap:
     sheet-id: ${BOOTSTRAP_SHEET_ID:1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ}
     sheet-prefetch-enabled: ${BOOTSTRAP_SHEET_PREFETCH_ENABLED:true}
+    cache-refresh-minutes: ${BOOTSTRAP_CACHE_REFRESH_MINUTES:10}
     # cacheKey → A1 range 매핑. 거래처 발송 주문서 GAS 와 동일하게 base payload 와
     # *_단가인상 helper map 을 둘 다 읽는다. UI/계산 흐름은 그대로 두고 Notion 통신만 DB/API 로 치환한다.
     # `전표생성폼` 은 API 인증키/계정값이 있는 제어 폼이고, `전표업로드목록`/`종합견적서` 는 출력 양식이다.
