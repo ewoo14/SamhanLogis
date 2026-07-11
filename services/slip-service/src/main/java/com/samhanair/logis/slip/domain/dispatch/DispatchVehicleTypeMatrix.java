@@ -26,7 +26,7 @@ public final class DispatchVehicleTypeMatrix {
         Objects.requireNonNull(bodyType, "bodyType 필수");
         List<DispatchTonnage> allowed = ALLOWED_TONNAGES.get(bodyType);
         if (allowed == null) {
-            throw new IllegalArgumentException("선택할 수 없는 차종: " + bodyType);
+            throw new IllegalArgumentException("선택할 수 없는 차종: " + bodyType.getDisplayName());
         }
         return allowed;
     }
@@ -40,23 +40,23 @@ public final class DispatchVehicleTypeMatrix {
     public static void validate(DispatchVehicleBodyType bodyType, DispatchTonnage tonnage) {
         Objects.requireNonNull(bodyType, "bodyType 필수");
         if (!bodyType.isActive()) {
-            throw new IllegalArgumentException("선택할 수 없는 차종: " + bodyType);
+            throw new IllegalArgumentException("선택할 수 없는 차종: " + bodyType.getDisplayName());
         }
         if (tonnage != null && !tonnage.isActive()) {
-            throw new IllegalArgumentException("선택할 수 없는 톤수: " + tonnage);
+            throw new IllegalArgumentException("선택할 수 없는 톤수: " + tonnage.getDisplayName());
         }
         List<DispatchTonnage> allowed = allowedTonnages(bodyType);
         if (allowed.isEmpty()) {
             if (tonnage != null) {
-                throw new IllegalArgumentException("소형 차종은 tonnage 불필요: " + bodyType);
+                throw new IllegalArgumentException("소형 차종은 톤수 선택이 불필요합니다: " + bodyType.getDisplayName());
             }
             return;
         }
         if (tonnage == null) {
-            throw new IllegalArgumentException("해당 차종은 tonnage 필수: " + bodyType);
+            throw new IllegalArgumentException("해당 차종은 톤수 선택이 필요합니다: " + bodyType.getDisplayName());
         }
         if (!allowed.contains(tonnage)) {
-            throw new IllegalArgumentException("허용되지 않은 차종/톤수 조합: " + bodyType + "/" + tonnage);
+            throw new IllegalArgumentException("허용되지 않은 차종/톤수 조합: " + bodyType.getDisplayName() + "/" + tonnage.getDisplayName());
         }
     }
 
