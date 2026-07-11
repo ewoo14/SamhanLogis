@@ -20,6 +20,7 @@ product-service `EstimateCatalogInternalController`는 `defaultQty`를 이미 �
 - **FE(PASS)**: explodeSetParts fix 정확·전 소비처(표시=제출) 일관·dist gitignore(index.html만)·typecheck+10 tests. LOW(소수 truncate 동일).
 - **QA(GREEN)**: BE 58 suites 0-fail(`--rerun-tasks` 2회)·FE 10/10 + **라이브 실증**(실 Docker+실 브라우저·실 product 카탈로그 seed QA782-SET-01[part default_qty=2/1]) → 표시 "3×2"/"3×1"·소계 528,000=88,000×6·**제출 payload `{"model":"QA782-PART-01","qty":6}`**(=3×2) 캡처·회귀 part qty=3·스샷 7장(docs/qa/e782-defaultqty/)·seed 완전 정리.
 - **Design/DevOps(PASS)**: 시각 무변경(part1)·"×N" 명확화·order-app tsc+vitest 이중 실행·partner-order test 필터없이 자동.
+- **Codex 적대(MED→fix·재수렴)**: 소수 defaultQty(2.50)가 order-app FE(상업 legacy 한글키 regex "250"·프로덕션 parseInt truncate)서 오동작 소지 — 이 PR이 defaultQty 흐름 활성화 → **BE `defaultComponentQty()` 정수 정규화**(`setScale(0, HALF_UP)`+소수 감지 log.warn). BundleExpander 도메인은 소수 별도 사용(무영향). order-app payload qty=정수 계약 명시. BootstrapServiceTest 2.50→3 추가. 재수렴 지적 0.
 
 ## 후속 (별도)
 - **#782 part2**(`.set-part` CSS 시각폴리시)·**part3**(discoverability) — 후속 PR.
