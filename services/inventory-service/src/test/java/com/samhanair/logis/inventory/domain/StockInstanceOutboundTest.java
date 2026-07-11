@@ -70,6 +70,12 @@ class StockInstanceOutboundTest {
 
         assertThatThrownBy(() -> instance.ship("P-2026-0004", "2026/06/02-5", null))
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("출고완료")
+                .hasMessageContaining("가용")
+                .hasMessageContaining("예약")
+                .hasMessageNotContaining("SHIPPED")
+                .hasMessageNotContaining("AVAILABLE")
+                .hasMessageNotContaining("RESERVED")
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
     }
@@ -93,6 +99,10 @@ class StockInstanceOutboundTest {
 
         assertThatThrownBy(() -> instance.recall("2026/06/03-2"))
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("가용")
+                .hasMessageContaining("출고완료")
+                .hasMessageNotContaining("AVAILABLE")
+                .hasMessageNotContaining("SHIPPED")
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
     }
@@ -122,6 +132,10 @@ class StockInstanceOutboundTest {
 
         assertThatThrownBy(instance::unrecall)
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("출고완료")
+                .hasMessageContaining("회수됨")
+                .hasMessageNotContaining("SHIPPED")
+                .hasMessageNotContaining("RECALLED")
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
     }
@@ -155,8 +169,21 @@ class StockInstanceOutboundTest {
 
         assertThatThrownBy(instance::resell)
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("가용")
+                .hasMessageContaining("회수됨")
+                .hasMessageNotContaining("AVAILABLE")
+                .hasMessageNotContaining("RECALLED")
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("StockInstanceStatus displayName은 사용자 노출 한국어 SSOT다")
+    void stockInstanceStatusDisplayNames() {
+        assertThat(StockInstanceStatus.AVAILABLE.getDisplayName()).isEqualTo("가용");
+        assertThat(StockInstanceStatus.RESERVED.getDisplayName()).isEqualTo("예약");
+        assertThat(StockInstanceStatus.SHIPPED.getDisplayName()).isEqualTo("출고완료");
+        assertThat(StockInstanceStatus.RECALLED.getDisplayName()).isEqualTo("회수됨");
     }
 
     private StockInstance instance() {

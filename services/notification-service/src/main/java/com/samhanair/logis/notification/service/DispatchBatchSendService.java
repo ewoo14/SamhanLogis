@@ -121,7 +121,7 @@ public class DispatchBatchSendService {
                 } else {
                     failed++;
                     details.add(new SendResultDetail(partnerCode, phone, "FAILED",
-                            "게이트웨이 응답 status=" + result.getStatus(),
+                            "게이트웨이 응답 status=" + result.getStatus().getDisplayName(),
                             null, gwResult.rawResponse()));
                 }
             } catch (Exception ex) {

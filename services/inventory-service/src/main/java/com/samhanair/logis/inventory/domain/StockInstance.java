@@ -157,7 +157,9 @@ public class StockInstance extends BaseEntity {
     public void ship(String partnerCode, String outboundSlipNo, LocalDateTime outboundAt) {
         if (this.status != StockInstanceStatus.AVAILABLE && this.status != StockInstanceStatus.RESERVED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "출고 불가 — 현재 상태 " + this.status + " (필요 AVAILABLE 또는 RESERVED)");
+                    "출고 불가 — 현재 상태 " + this.status.getDisplayName()
+                            + " (필요 " + StockInstanceStatus.AVAILABLE.getDisplayName()
+                            + " 또는 " + StockInstanceStatus.RESERVED.getDisplayName() + ")");
         }
         this.status = StockInstanceStatus.SHIPPED;
         this.outboundPartnerCode = partnerCode;
@@ -270,7 +272,8 @@ public class StockInstance extends BaseEntity {
     private void requireStatus(StockInstanceStatus expected, String action) {
         if (this.status != expected) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    action + " 불가 — 현재 상태 " + this.status + " (필요 " + expected + ")");
+                    action + " 불가 — 현재 상태 " + this.status.getDisplayName()
+                            + " (필요 " + expected.getDisplayName() + ")");
         }
     }
 }

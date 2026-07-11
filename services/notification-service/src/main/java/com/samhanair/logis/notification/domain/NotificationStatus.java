@@ -1,5 +1,8 @@
 package com.samhanair.logis.notification.domain;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * 발송 요청 라이프사이클 상태.
  *
@@ -12,10 +15,14 @@ package com.samhanair.logis.notification.domain;
  *
  * <p>SENT / FAILED 는 종료 상태 — 재시도 호출 거부 (FAILED 만 admin 명시 retry 허용).
  */
+@Getter
+@RequiredArgsConstructor
 public enum NotificationStatus {
 
-    PENDING,
-    SENT,
-    FAILED,
-    RETRYING
+    PENDING("발송대기"),
+    SENT("성공"),
+    FAILED("실패"),
+    RETRYING("재시도중");
+
+    private final String displayName;
 }

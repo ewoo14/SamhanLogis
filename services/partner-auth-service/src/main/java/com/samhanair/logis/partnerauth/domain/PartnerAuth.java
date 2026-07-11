@@ -195,7 +195,8 @@ public class PartnerAuth extends BaseEntity {
     /** 관리자 승인 (PENDING → NEED_PW_SET — 임시 비밀번호 발급 직전). */
     public void approvePending() {
         if (this.status != PartnerStatus.PENDING) {
-            throw new IllegalStateException("PENDING 상태에서만 승인 가능: " + this.status);
+            throw new IllegalStateException(PartnerStatus.PENDING.getDisplayName()
+                    + " 상태에서만 승인 가능: " + this.status.getDisplayName());
         }
         this.status = PartnerStatus.NEED_PW_SET;
     }

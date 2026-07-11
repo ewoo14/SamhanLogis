@@ -171,6 +171,8 @@ class StockTransferServiceTest {
 
         assertThatThrownBy(() -> service.approve(id, "approver"))
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("출고")
+                .hasMessageNotContaining("SHIPPED")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
     }
@@ -210,6 +212,8 @@ class StockTransferServiceTest {
 
         assertThatThrownBy(() -> service.cancel(id, "user-1"))
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("출고")
+                .hasMessageNotContaining("SHIPPED")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
     }

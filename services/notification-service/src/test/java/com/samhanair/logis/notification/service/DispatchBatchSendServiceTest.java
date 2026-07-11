@@ -169,6 +169,9 @@ class DispatchBatchSendServiceTest {
         assertThat(resp.blocked()).isEqualTo(1);
         assertThat(resp.details()).extracting(d -> d.status())
                 .containsExactly("SENT", "FAILED", "BLOCKED");
+        assertThat(resp.details().get(1).reason())
+                .contains("실패")
+                .doesNotContain("FAILED");
     }
 
     /** SENT 상태 stub NotificationRequest. */

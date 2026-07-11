@@ -154,7 +154,9 @@ public class NotificationRequest extends BaseEntity {
      */
     public void requeueForRetry() {
         if (this.status != NotificationStatus.FAILED && this.status != NotificationStatus.RETRYING) {
-            throw new IllegalStateException("FAILED / RETRYING 상태에서만 재시도 가능: " + this.status);
+            throw new IllegalStateException(NotificationStatus.FAILED.getDisplayName()
+                    + " / " + NotificationStatus.RETRYING.getDisplayName()
+                    + " 상태에서만 재시도 가능: " + this.status.getDisplayName());
         }
         this.status = NotificationStatus.RETRYING;
     }

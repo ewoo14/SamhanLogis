@@ -140,6 +140,10 @@ class InboundInspectionServiceTest {
 
             assertThatThrownBy(() -> service.getOrCreateInspection(slipId))
                     .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("작성중")
+                    .hasMessageContaining("저장완료")
+                    .hasMessageNotContaining("DRAFT")
+                    .hasMessageNotContaining("SAVED")
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(ErrorCode.CONFLICT);
         }

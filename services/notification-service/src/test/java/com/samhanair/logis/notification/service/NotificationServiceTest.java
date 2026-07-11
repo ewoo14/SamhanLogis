@@ -133,7 +133,17 @@ class NotificationServiceTest {
 
         assertThatThrownBy(() -> service.retry(id))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("FAILED / RETRYING 상태에서만");
+                .hasMessageContaining("실패 / 재시도중 상태에서만")
+                .hasMessageNotContaining("FAILED")
+                .hasMessageNotContaining("RETRYING");
+    }
+
+    @Test
+    void notificationStatus_displayNames_areKoreanSsot() {
+        assertThat(NotificationStatus.PENDING.getDisplayName()).isEqualTo("발송대기");
+        assertThat(NotificationStatus.SENT.getDisplayName()).isEqualTo("성공");
+        assertThat(NotificationStatus.FAILED.getDisplayName()).isEqualTo("실패");
+        assertThat(NotificationStatus.RETRYING.getDisplayName()).isEqualTo("재시도중");
     }
 
     @Test

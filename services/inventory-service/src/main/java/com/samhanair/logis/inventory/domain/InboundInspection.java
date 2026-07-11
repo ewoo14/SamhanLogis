@@ -187,7 +187,8 @@ public class InboundInspection extends BaseEntity {
     private void requirePending() {
         if (this.status != InspectionStatus.PENDING) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "PENDING 상태에서만 가능합니다: 현재 상태 = " + this.status);
+                    InspectionStatus.PENDING.getDisplayName()
+                            + " 상태에서만 가능합니다: 현재 상태 = " + this.status.getDisplayName());
         }
     }
 }

@@ -52,7 +52,7 @@ public class PartnerCreditService {
                     "신용한도 초과 또는 비활성 거래처: code=" + partnerCode
                             + ", balance=" + partner.getOutstandingBalance()
                             + ", limit=" + partner.getCreditLimit()
-                            + ", status=" + partner.getStatus());
+                            + ", status=" + partner.getStatus().getDisplayName());
         }
         partner.increaseBalance(amount);
         PartnerCreditHistory saved = historyRepository.save(PartnerCreditHistory.slipIssued(partner, amount, slipNo));

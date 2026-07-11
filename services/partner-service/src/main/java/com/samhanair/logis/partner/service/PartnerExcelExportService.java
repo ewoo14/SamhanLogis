@@ -78,7 +78,7 @@ public class PartnerExcelExportService {
         row.put("address",             nvl(p.getAddress()));
         row.put("partnerGroup1",       nvl(p.getPartnerGroup1()));
         row.put("partnerGroup2",       nvl(p.getPartnerGroup2()));
-        row.put("status",              p.getStatus() != null ? statusLabel(p.getStatus()) : "");
+        row.put("status",              p.getStatus() != null ? p.getStatus().getDisplayName() : "");
         row.put("creditLimit",         p.getCreditLimit());
         row.put("outstandingBalance",  p.getOutstandingBalance());
         return row;
@@ -86,13 +86,5 @@ public class PartnerExcelExportService {
 
     private static String nvl(String val) {
         return val != null ? val : "";
-    }
-
-    private static String statusLabel(PartnerStatus status) {
-        return switch (status) {
-            case ACTIVE     -> "거래중";
-            case SUSPENDED  -> "거래정지";
-            case TERMINATED -> "거래종료";
-        };
     }
 }

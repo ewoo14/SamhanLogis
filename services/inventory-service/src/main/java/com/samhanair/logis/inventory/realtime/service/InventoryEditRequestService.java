@@ -84,11 +84,11 @@ public class InventoryEditRequestService {
         AuditStatus s = audit.getStatus();
         if (s == AuditStatus.PLANNED || s == AuditStatus.IN_PROGRESS) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
+                    "현 단계 (" + s.getDisplayName() + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
         }
         if (s == AuditStatus.CANCELLED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 종결됨 — 수정/삭제 요청 의미 없음");
+                    "현 단계 (" + s.getDisplayName() + ") 는 종결됨 — 수정/삭제 요청 의미 없음");
         }
 
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(DEFAULT_EXPIRES_HOURS);

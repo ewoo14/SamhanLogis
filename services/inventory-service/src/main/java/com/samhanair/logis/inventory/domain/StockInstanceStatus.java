@@ -1,5 +1,8 @@
 package com.samhanair.logis.inventory.domain;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * 개별시리얼 인스턴스 상태 — soft delete 대신 status 전이로 이력 보존 (Phase INV-S S1).
  *
@@ -10,13 +13,17 @@ package com.samhanair.logis.inventory.domain;
  *   <li>{@link #RECALLED} — 회수됨(반품/회차 역-FIFO, S4 연동 시 구현).</li>
  * </ul>
  */
+@Getter
+@RequiredArgsConstructor
 public enum StockInstanceStatus {
     /** 입고 후 가용 상태 — FIFO 소진 대상 */
-    AVAILABLE,
+    AVAILABLE("가용"),
     /** 예약 상태 — 2.6c 통합 후속 */
-    RESERVED,
+    RESERVED("예약"),
     /** 출고 완료 — 출고처 기록 포함 */
-    SHIPPED,
+    SHIPPED("출고완료"),
     /** 회수됨 — 반품/회차 역-FIFO (S4 연동) */
-    RECALLED
+    RECALLED("회수됨");
+
+    private final String displayName;
 }

@@ -1,5 +1,8 @@
 package com.samhanair.logis.partner.domain;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * 거래처 상태.
  *
@@ -11,9 +14,13 @@ package com.samhanair.logis.partner.domain;
  *       조회만 허용. soft-delete 와는 구분 — 거래 종료 후에도 정산 / 회계 조회 목적으로 보관.</li>
  * </ul>
  */
+@Getter
+@RequiredArgsConstructor
 public enum PartnerStatus {
 
-    ACTIVE,
-    SUSPENDED,
-    TERMINATED
+    ACTIVE("거래중"),
+    SUSPENDED("거래중지"),
+    TERMINATED("거래종료");
+
+    private final String displayName;
 }

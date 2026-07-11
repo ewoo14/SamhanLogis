@@ -87,7 +87,8 @@ class InventoryEditRequestServiceTest {
         assertThatThrownBy(() -> service.request(auditId, EditRequestType.EDIT, null,
                 requesterId, "x"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("PLANNED");
+                .hasMessageContaining("계획됨")
+                .hasMessageNotContaining("PLANNED");
         verify(broker, never()).publish(any(), anyString(), any());
     }
 
@@ -99,7 +100,8 @@ class InventoryEditRequestServiceTest {
         assertThatThrownBy(() -> service.request(auditId, EditRequestType.EDIT, null,
                 requesterId, "x"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("CANCELLED");
+                .hasMessageContaining("취소")
+                .hasMessageNotContaining("CANCELLED");
     }
 
     @Test

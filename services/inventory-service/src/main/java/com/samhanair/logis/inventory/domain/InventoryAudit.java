@@ -157,7 +157,7 @@ public class InventoryAudit extends BaseEntity {
     public void cancel() {
         if (this.status != AuditStatus.PLANNED && this.status != AuditStatus.IN_PROGRESS) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "취소 가능한 상태가 아닙니다: " + this.status);
+                    "취소 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         this.status = AuditStatus.CANCELLED;
         this.cancelledAt = LocalDateTime.now();
@@ -175,7 +175,8 @@ public class InventoryAudit extends BaseEntity {
     private void requireStatus(AuditStatus expected) {
         if (this.status != expected) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
+                    "전이 가능한 상태가 아닙니다: 현재 " + this.status.getDisplayName()
+                            + ", 필요 " + expected.getDisplayName());
         }
     }
 }

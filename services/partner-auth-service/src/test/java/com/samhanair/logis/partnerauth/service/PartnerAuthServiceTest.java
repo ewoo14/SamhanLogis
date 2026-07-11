@@ -304,6 +304,33 @@ class PartnerAuthServiceTest {
     }
 
     @Test
+    @DisplayName("approvePending — raw PartnerStatus 대신 displayName을 메시지에 사용한다")
+    void approvePending_invalidStatus_usesDisplayName() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.LOCKED);
+
+        assertThatThrownBy(pa::approvePending)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("계정 잠김")
+                .hasMessageNotContaining("LOCKED");
+    }
+
+    @Test
+    @DisplayName("PartnerStatus displayName은 인증 상태 응답 문구와 동일한 SSOT다")
+    void partnerAuthStatusDisplayNames() {
+        assertThat(PartnerStatus.NOT_FOUND_SYSTEM.getDisplayName()).isEqualTo("등록되지 않은 거래처");
+        assertThat(PartnerStatus.NOT_FOUND_AUTH.getDisplayName()).isEqualTo("인증 정보 없음");
+        assertThat(PartnerStatus.PENDING.getDisplayName()).isEqualTo("가입 승인 대기중");
+        assertThat(PartnerStatus.LOCKED.getDisplayName()).isEqualTo("계정 잠김");
+        assertThat(PartnerStatus.LONG_UNUSED.getDisplayName()).isEqualTo("장기 미사용");
+        assertThat(PartnerStatus.ACCESS_DENIED.getDisplayName()).isEqualTo("접근 차단");
+        assertThat(PartnerStatus.PW_EXPIRED.getDisplayName()).isEqualTo("비밀번호 만료");
+        assertThat(PartnerStatus.NEED_PW_SET.getDisplayName()).isEqualTo("비밀번호 설정 필요");
+        assertThat(PartnerStatus.NEED_PW_INPUT.getDisplayName()).isEqualTo("비밀번호 입력 대기");
+        assertThat(PartnerStatus.OK.getDisplayName()).isEqualTo("정상");
+    }
+
+    @Test
     @DisplayName("issueTempPassword — SmsClient 큐잉 + status NEED_PW_SET")
     void tempPassword_SMS_큐잉() {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(

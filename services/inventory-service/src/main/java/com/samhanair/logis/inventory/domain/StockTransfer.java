@@ -161,7 +161,7 @@ public class StockTransfer extends BaseEntity {
     public void approve(String approverId) {
         if (this.status != TransferStatus.REQUESTED && this.status != TransferStatus.PENDING_APPROVAL) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "승인 가능한 상태가 아닙니다: " + this.status);
+                    "승인 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         this.status = TransferStatus.APPROVED;
         this.approverId = approverId;
@@ -178,7 +178,7 @@ public class StockTransfer extends BaseEntity {
     public void reject(String approverId, String reasonText) {
         if (this.status != TransferStatus.REQUESTED && this.status != TransferStatus.PENDING_APPROVAL) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "반려 가능한 상태가 아닙니다: " + this.status);
+                    "반려 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         this.status = TransferStatus.REJECTED;
         this.approverId = approverId;
@@ -220,7 +220,7 @@ public class StockTransfer extends BaseEntity {
     public void receive() {
         if (this.status != TransferStatus.SHIPPED && this.status != TransferStatus.IN_TRANSIT) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "입고 가능한 상태가 아닙니다: " + this.status);
+                    "입고 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         this.status = TransferStatus.RECEIVED;
         this.receivedAt = LocalDateTime.now();
@@ -253,7 +253,7 @@ public class StockTransfer extends BaseEntity {
                 && this.status != TransferStatus.PENDING_APPROVAL
                 && this.status != TransferStatus.APPROVED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "취소 가능한 상태가 아닙니다: " + this.status);
+                    "취소 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         this.status = TransferStatus.CANCELED;
         if (callerId != null) {
@@ -273,7 +273,8 @@ public class StockTransfer extends BaseEntity {
     private void requireStatus(TransferStatus expected) {
         if (this.status != expected) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
+                    "전이 가능한 상태가 아닙니다: 현재 " + this.status.getDisplayName()
+                            + ", 필요 " + expected.getDisplayName());
         }
     }
 }
