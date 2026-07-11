@@ -4386,14 +4386,15 @@ function renderComm(){
     tdSub.textContent = fmt(sub);
     tr.appendChild(tdSub);
 
-    if ((r.unit||'').toUpperCase()==='SET'){
+    const isSetRow = isCommSetRow(r);
+    if (isSetRow){
       tr.dataset.isSet = '1';
       tr.dataset.setModel = r.model || '';
     }
 
     body.appendChild(tr);
 
-    if ((r.unit||'').toUpperCase()==='SET' && (parseInt(q,10)||0)>0){
+    if (isSetRow && (parseInt(q,10)||0)>0){
       renderCommSetParts(r.model, q);
     }
   });
