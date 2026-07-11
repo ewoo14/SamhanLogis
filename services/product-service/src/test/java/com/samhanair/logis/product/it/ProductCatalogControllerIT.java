@@ -53,6 +53,9 @@ import org.springframework.web.context.WebApplicationContext;
 @Transactional
 class ProductCatalogControllerIT extends AbstractPostgresIT {
 
+    private static final String UUID_REGEX =
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+
     @Autowired
     private WebApplicationContext context;
 
@@ -268,6 +271,25 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                                 {"usageScope":"ESTIMATE","estimateCategories":["OTHER"]}
                                 """))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void PATCH_specs_미존재_specId_응답은_uuid를_노출하지_않는다() throws Exception {
+        UUID missingSpecId = UUID.randomUUID();
+
+        MvcResult result = mvc.perform(patch("/api/v1/products/API_HOME_01/specs/{specId}", missingSpecId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"specValue":"1.3","unit":"kW"}
+                                """))
+                .andExpect(status().isNotFound())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        org.assertj.core.api.Assertions.assertThat(body)
+                .contains("\"message\":\"ProductSpec 없음\"")
+                .doesNotContainPattern(UUID_REGEX);
     }
 
     // =========================================================================
