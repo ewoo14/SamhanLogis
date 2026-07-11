@@ -9,7 +9,7 @@
 
 ## 변경
 - `Slip.createOutbound:638`/`createInbound:667`: 창고 null → `BusinessException(INVALID_INPUT, "출고/입고 창고가 필수입니다")` (500→400·UUID/필드명 미노출). sibling(입고) 동시 sweep.
-- `MobilePartnerOrderRequest.sourceWarehouseId`: `@NotNull` + "생략 가능·사후 갱신" 계약 제거.
+- `MobilePartnerOrderRequest.sourceWarehouseId`: "생략 가능·사후 갱신" 계약 제거, 창고 필수는 **도메인 팩토리(`Slip.createOutbound`)에서 enforce**(CreateSlipRequest sibling 패턴 일관 — @NotNull 미부여). *(초기 @NotNull은 Codex 적대 라운드서 GEH validation 필드명 노출 지적 → 제거하고 도메인 체크로 위임. clean 메시지 보장.)*
 - `MobileSalesController`/`SlipService`/`EstimateToSlipConverter`: Javadoc 정합(견적 전환은 origin/main부터 placeholder 창고 UUID 사용 — 결정 A 무영향).
 - SlipDomainTest/MobilePartnerOrderRequestTest 회귀 신설.
 - **CI allowlist(ci.yml) fix**: slip-units 그룹에 `com.samhanair.logis.slip.mobile.dto.*` 등재 — 신규 MobilePartnerOrderRequestTest CI 미실행(false-green) 해소.
@@ -20,6 +20,7 @@
 - **Design(PASS)**: 메시지 "출고/입고 창고가 필수입니다"가 desktop SlipForm 라벨("출고 창고"/"입고 창고")과 글자 단위 일치·전표 용어 준수·조건부 필수를 도메인 팩토리에서 처리 타당.
 - **DevOps(HIGH→fix)**: 신규 MobilePartnerOrderRequestTest가 ci.yml allowlist 미등재로 CI 미실행 false-green 포착 → mobile.dto.* 등재로 해소.
 - **QA(GREEN)**: 모듈전체 1218 tests 0-fail(`--rerun-tasks`)·EstimateControllerIT 13/13(placeholder 무영향)·실HTTP MockMvc 400 2종·**라이브 Docker curl 전체스택 재빌드**(창고null→400/지정→201 slipNo 2026/07/15-1/입고null→400) 3레이어 실증. 핵심결함=500 상태마스킹(구 메시지 필드명은 handleUnknown이 폐기해 실노출 안 됨).
+- **Codex 적대(R1 MEDIUM→fix·R2 해소)**: @NotNull이 모바일 null 창고를 bean validation으로 돌려 GEH가 `sourceWarehouseId` 필드명 노출(QA 라이브 curl은 일반 slip 도메인경로만 봐서 놓침) → **@NotNull 제거·도메인 위임**(CreateSlipRequest 일관)·MobilePartnerOrderServiceTest 신설(필드명 미포함 실증). R2 LOW(MobileSalesController Javadoc stale) 정정. 0수렴.
 
 ## 후속 참고 (본 PR 범위 밖)
 - `clients/mobile-staff` P1-4 영업 native 앱(PartnerOrderCreateScreen/sales.ts)은 dormant + URL/DTO drift(`/api/v1/slips/mobile-order` 미존재 경로·partnerId UUID·sourceWarehouseId 필드 부재) — 향후 활성화 시 재정렬 필요. 본 PR과 무관·pre-existing.
