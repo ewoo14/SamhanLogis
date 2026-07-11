@@ -660,7 +660,7 @@ public class SlipService {
         SlipStatus s = slip.getStatus();
         if (COLLAB_LOCKED.contains(s)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "현 단계 (" + s + ") 는 물리 종결 — 협업 제안 수락으로 수정할 수 없습니다");
+                    "현 단계 (" + s.getDisplayName() + ") 는 물리 종결 — 협업 제안 수락으로 수정할 수 없습니다");
         }
     }
 
@@ -690,18 +690,18 @@ public class SlipService {
         // 완전 잠금 단계 — 어떤 채널로도 mutation 불가
         if (SlipEditRequestService.FULLY_LOCKED.contains(s)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "현 단계 (" + s + ") 는 완전 잠금 — 수정/삭제 불가 (사용자 명시 정책)");
+                    "현 단계 (" + s.getDisplayName() + ") 는 완전 잠금 — 수정/삭제 불가 (사용자 명시 정책)");
         }
         // 종결 단계 — REJECTED/CANCELED 슬립은 mutation 의미 없음
         if (s == SlipStatus.REJECTED || s == SlipStatus.CANCELED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "현 단계 (" + s + ") 는 종결됨 — 수정/삭제 불가");
+                    "현 단계 (" + s.getDisplayName() + ") 는 종결됨 — 수정/삭제 불가");
         }
         // 잠금 단계 — APPROVED 요청 1건 필요
         if (SlipEditRequestService.LOCKED_REQUIRES_APPROVAL.contains(s)) {
             return Optional.of(editRequestService.findActiveApproval(slip.getId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT,
-                            "현 단계 (" + s + ") 는 창고 인계 후 — 수정/삭제 요청 + 권한자 수락 필요")));
+                            "현 단계 (" + s.getDisplayName() + ") 는 창고 인계 후 — 수정/삭제 요청 + 권한자 수락 필요")));
         }
         // 그 외 (COMPLETED 등) — 본 PR 범위 밖, 자유 진행 (향후 정책 확장 여지)
         return Optional.empty();

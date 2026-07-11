@@ -295,15 +295,15 @@ public class SlipEditRequestService {
         SlipStatus s = slip.getStatus();
         if (s == SlipStatus.DRAFT || s == SlipStatus.SAVED || s == SlipStatus.SENT) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
+                    "현 단계 (" + s.getDisplayName() + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
         }
         if (FULLY_LOCKED.contains(s)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "현 단계 (" + s + ") 는 완전 잠금 — 수정/삭제 요청 자체 불가");
+                    "현 단계 (" + s.getDisplayName() + ") 는 완전 잠금 — 수정/삭제 요청 자체 불가");
         }
         if (s == SlipStatus.REJECTED || s == SlipStatus.CANCELED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 종결됨 — 수정/삭제 요청 의미 없음");
+                    "현 단계 (" + s.getDisplayName() + ") 는 종결됨 — 수정/삭제 요청 의미 없음");
         }
         // CONFIRMED / ACCEPTED / PROCESSING (LOCKED_REQUIRES_APPROVAL) 만 정상 진행
     }

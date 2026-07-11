@@ -92,7 +92,7 @@ public class SlipOutboundCutoff extends BaseEntity {
         }
         if (deliveryTag.getDirection() != SlipType.OUTBOUND) {
             throw new IllegalArgumentException(
-                    "출고 마감시각 마스터는 OUTBOUND 방향 태그만 허용합니다: " + deliveryTag);
+                    "출고 마감시각 마스터는 출고 방향 태그만 허용합니다: " + deliveryTag.getKoreanLabel());
         }
         return new SlipOutboundCutoff(deliveryTag, cutoffTime);
     }

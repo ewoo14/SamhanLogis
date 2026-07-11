@@ -277,15 +277,15 @@ public class PartnerOrderEditRequestService implements EditRequestService {
         PartnerOrderStatus s = order.getStatus();
         if (LOCK_POLICY.isFree(s)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
+                    "현 단계 (" + s.getDisplayName() + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
         }
         if (LOCK_POLICY.isTerminal(s)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 종결됨 — 수정/삭제 요청 의미 없음");
+                    "현 단계 (" + s.getDisplayName() + ") 는 종결됨 — 수정/삭제 요청 의미 없음");
         }
         if (LOCK_POLICY.isFullyLocked(s)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "현 단계 (" + s + ") 는 완전 잠금 — 수정/삭제 요청 자체 불가");
+                    "현 단계 (" + s.getDisplayName() + ") 는 완전 잠금 — 수정/삭제 요청 자체 불가");
         }
         // CONFIRMED (LOCKED_REQUIRES_APPROVAL) 만 정상 진행
     }
