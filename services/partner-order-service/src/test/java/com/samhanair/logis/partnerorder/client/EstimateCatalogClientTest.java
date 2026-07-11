@@ -71,7 +71,7 @@ class EstimateCatalogClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withSuccess("""
-                        {"data":[{"setModelCode":"SS-1","componentModelCode":"PANEL-1","defaultQty":2}]}
+                        {"data":[{"setModelCode":"SS-1","componentModelCode":"PANEL-1","defaultQty":2.00}]}
                         """, MediaType.APPLICATION_JSON));
         server.expect(once(), requestTo("http://product-service/products/internal/estimate-catalog/material-prices"))
                 .andExpect(method(HttpMethod.GET))
@@ -94,7 +94,7 @@ class EstimateCatalogClientTest {
 
         assertThat(client.components(EstimateCategory.SINGLE_SET).get(0))
                 .containsEntry("componentModelCode", "PANEL-1")
-                .containsEntry("defaultQty", 2);
+                .containsEntry("defaultQty", 2.0);
         assertThat(client.materialPrices().get(0))
                 .containsEntry("name", "D7");
         assertThat(client.priceBaseline().get(0))
