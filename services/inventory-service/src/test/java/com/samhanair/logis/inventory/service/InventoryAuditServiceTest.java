@@ -254,6 +254,31 @@ class InventoryAuditServiceTest {
     }
 
     @Test
+    void complete_negativeDiffBelowAvailable_throwsConflictWithOriginalMessage() {
+        InventoryAudit audit = freshAudit();
+        InventoryAuditLine line = InventoryAuditLine.snapshot(
+                audit, productId, "AC", 100, new BigDecimal("100000.00"));
+        audit.addLine(line);
+        audit.start();
+        line.recordActual(95, false); // diff -5
+        when(auditRepository.findById(audit.getId())).thenReturn(Optional.of(audit));
+
+        StockBalance balance = newBalance(productId, warehouse, 2);
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                .thenReturn(Optional.of(balance));
+
+        assertThatThrownBy(() -> service.complete(audit.getId(), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(be.getMessage()).isEqualTo("조정 결과 가용 재고가 음수입니다: -3");
+                });
+        verify(stockMovementRepository, never()).save(any());
+        verify(accountingClient, never()).createAuditAdjustmentJournal(any(), any(), any(), any());
+    }
+
+    @Test
     void complete_positiveDiff_triggersJournalIncrease() {
         InventoryAudit audit = freshAudit();
         InventoryAuditLine line = InventoryAuditLine.snapshot(

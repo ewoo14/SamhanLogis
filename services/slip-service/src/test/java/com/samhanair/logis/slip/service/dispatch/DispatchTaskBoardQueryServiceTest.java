@@ -9,6 +9,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
@@ -88,7 +90,12 @@ class DispatchTaskBoardQueryServiceTest {
         assertThatThrownBy(() -> svc.findUnDispatchedSlips(
                 LocalDate.of(2026, 5, 20), LocalDate.of(2026, 5, 10),
                 null, 0, 50))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(be.getMessage()).isEqualTo("from 이 to 보다 늦을 수 없습니다.");
+                });
     }
 
     @Test

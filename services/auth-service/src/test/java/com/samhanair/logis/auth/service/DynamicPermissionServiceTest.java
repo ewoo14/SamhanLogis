@@ -89,12 +89,17 @@ class DynamicPermissionServiceTest {
     }
 
     @Test
-    @DisplayName("canAccess 잘못된 permissionType → IllegalArgumentException")
+    @DisplayName("canAccess 잘못된 permissionType → INVALID_INPUT BusinessException")
     void canAccess_invalidPermissionType_throwsException() {
         // repository 호출 없이 switch 분기에서 즉시 예외 발생 — stub 불필요
         assertThatThrownBy(() -> service.canAccess(ROLE_ACCOUNTANT, PAGE_DISPATCH, "ADMIN"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("VIEW 또는 EDIT");
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(be.getMessage())
+                            .isEqualTo("permissionType 은 VIEW 또는 EDIT 이어야 합니다: ADMIN");
+                });
     }
 
     // -----------------------------------------------------------------------

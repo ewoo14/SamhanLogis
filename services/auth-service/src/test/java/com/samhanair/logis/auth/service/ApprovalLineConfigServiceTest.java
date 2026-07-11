@@ -21,6 +21,7 @@ import com.samhanair.logis.auth.web.dto.ApprovalLineDefaultApproverView;
 import com.samhanair.logis.auth.web.dto.ApprovalLineRoleView;
 import com.samhanair.logis.auth.web.dto.ApprovalLineStructureView;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
@@ -151,6 +152,19 @@ class ApprovalLineConfigServiceTest {
         when(repository.findById(id)).thenReturn(Optional.of(role(0, "작성자", StepType.CREATOR)));
         assertThatThrownBy(() -> service.updateRole(id, false))
                 .hasMessageContaining("작성자 역할은 변경할 수 없습니다");
+    }
+
+    @Test
+    void assignGroup_은_GROUP이_아닌_역할을_INVALID_INPUT으로_거부한다() {
+        ApprovalLineConfig creator = role(0, "작성자", StepType.CREATOR);
+
+        assertThatThrownBy(() -> creator.assignGroup(UUID.randomUUID()))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(be.getMessage()).isEqualTo("권한 그룹은 GROUP 역할에만 지정할 수 있습니다: 작성자");
+                });
     }
 
     @Test

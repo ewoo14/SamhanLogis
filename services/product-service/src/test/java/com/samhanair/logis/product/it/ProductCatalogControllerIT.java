@@ -28,6 +28,7 @@ import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
@@ -130,13 +132,36 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
                                 """))
                 .andExpect(status().isCreated());
 
-        mvc.perform(post("/api/v1/products/API_HOME_01/specs")
+        MvcResult duplicate = mvc.perform(post("/api/v1/products/API_HOME_01/specs")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"specKey":"냉방능력, kW","specValue":"6.0","unit":"kW"}
                                 """))
-                .andExpect(status().isConflict());
+                .andExpect(status().isConflict())
+                .andReturn();
+
+        String body = duplicate.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        org.assertj.core.api.Assertions.assertThat(body)
+                .contains("\"code\":\"CONFLICT\"")
+                .contains("\"message\":\"이미 존재하는 specKey: 냉방능력, kW\"");
+    }
+
+    @Test
+    void POST_specs_specValue_null은_400_검증오류() throws Exception {
+        MvcResult result = mvc.perform(post("/api/v1/products/API_HOME_01/specs")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"specKey":"전원선","specValue":null,"unit":"mm","displayOrder":1}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        org.assertj.core.api.Assertions.assertThat(body)
+                .contains("\"code\":\"INVALID_INPUT\"")
+                .contains("specValue");
     }
 
     @Test

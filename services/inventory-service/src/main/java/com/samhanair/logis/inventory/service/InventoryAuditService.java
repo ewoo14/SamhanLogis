@@ -369,7 +369,11 @@ public class InventoryAuditService {
                     audit.getAuditNo(), line.getProductId());
             return;
         }
-        balance.adjust(line.getDiffQty());
+        try {
+            balance.adjust(line.getDiffQty());
+        } catch (IllegalStateException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
+        }
         stockMovementRepository.save(StockMovement.of(
                 balance.getId(), line.getProductId(), audit.getWarehouse().getId(),
                 MovementType.ADJUST, line.getDiffQty(),

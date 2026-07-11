@@ -1,5 +1,7 @@
 package com.samhanair.logis.product.service;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.domain.ProductSpec;
@@ -57,15 +59,14 @@ public class ProductSpecService {
     }
 
     /**
-     * POST /api/v1/products/{code}/specs — 추가. specKey unique 중복 시 IllegalStateException
-     * (controller 에서 409 변환).
+     * POST /api/v1/products/{code}/specs — 추가. specKey unique 중복 시 409 CONFLICT.
      */
     @Transactional
     public ProductSpec addSpec(String modelCode, String specKey, String specValue,
                                String unit, Integer displayOrder) {
         Product p = findProductOrThrow(modelCode);
         if (specRepository.existsByProductIdAndSpecKey(p.getId(), specKey)) {
-            throw new IllegalStateException("이미 존재하는 specKey: " + specKey);
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 specKey: " + specKey);
         }
         int order = displayOrder == null ? nextDisplayOrder(p.getId()) : displayOrder;
         return specRepository.save(ProductSpec.create(p.getId(), specKey, specValue, unit, order));
@@ -78,7 +79,7 @@ public class ProductSpecService {
         ProductSpec spec = specRepository.findById(specId)
                 .orElseThrow(() -> new EntityNotFoundException("ProductSpec 없음: " + specId));
         if (!spec.getProductId().equals(p.getId())) {
-            throw new IllegalStateException("해당 product 의 spec 이 아님");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "해당 product 의 spec 이 아님");
         }
         spec.editValue(specValue, unit);
         return spec;
@@ -91,7 +92,7 @@ public class ProductSpecService {
         ProductSpec spec = specRepository.findById(specId)
                 .orElseThrow(() -> new EntityNotFoundException("ProductSpec 없음: " + specId));
         if (!spec.getProductId().equals(p.getId())) {
-            throw new IllegalStateException("해당 product 의 spec 이 아님");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "해당 product 의 spec 이 아님");
         }
         spec.markDeleted(userId == null ? "system" : userId);
     }

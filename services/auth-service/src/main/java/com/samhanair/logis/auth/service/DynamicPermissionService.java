@@ -94,14 +94,14 @@ public class DynamicPermissionService {
      * @param pageCode       페이지 코드
      * @param permissionType {@code "VIEW"} 또는 {@code "EDIT"}
      * @return 권한이 있으면 {@code true}
-     * @throws IllegalArgumentException permissionType 이 VIEW/EDIT 이 아닌 경우
+     * @throws BusinessException(INVALID_INPUT) permissionType 이 VIEW/EDIT 이 아닌 경우
      */
     @Transactional(readOnly = true)
     public boolean canAccess(String roleCode, String pageCode, String permissionType) {
-        return switch (permissionType.toUpperCase()) {
+        return switch (permissionType == null ? "" : permissionType.toUpperCase()) {
             case "VIEW" -> canView(roleCode, pageCode);
             case "EDIT" -> canEdit(roleCode, pageCode);
-            default -> throw new IllegalArgumentException(
+            default -> throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "permissionType 은 VIEW 또는 EDIT 이어야 합니다: " + permissionType);
         };
     }

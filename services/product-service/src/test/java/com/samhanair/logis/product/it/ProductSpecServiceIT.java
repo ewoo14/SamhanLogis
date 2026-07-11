@@ -18,6 +18,8 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.product.repository.SpecKeyTemplateRepository;
 import com.samhanair.logis.product.service.ProductSpecService;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
@@ -92,7 +94,54 @@ class ProductSpecServiceIT extends AbstractPostgresIT {
     void specKey_중복_409_throws() {
         specService.addSpec("SPEC001", "전원선", "220V", null, 1);
         assertThatThrownBy(() -> specService.addSpec("SPEC001", "전원선", "다시", null, 2))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(be.getMessage()).isEqualTo("이미 존재하는 specKey: 전원선");
+                });
+    }
+
+    @Test
+    void editSpec_다른_product_spec이면_INVALID_INPUT() {
+        Category otherCat = categoryRepository.save(Category.create("SPEC-OTHER", "spec other", null, 2));
+        Product other = productRepository.save(Product.seedFromSheet("Spec Other", "SPEC002", otherCat,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI));
+        exposureRepository.save(ProductEstimateExposure.create(other.getId(), EstimateCategory.HOME_MULTI, 2));
+        ProductSpec otherSpec = specRepository.save(ProductSpec.create(
+                other.getId(), "전원", "220V", null, 1));
+        productRepository.flush();
+        specRepository.flush();
+
+        assertThatThrownBy(() -> specService.editSpec("SPEC001", otherSpec.getId(), "110V", null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(be.getMessage()).isEqualTo("해당 product 의 spec 이 아님");
+                });
+    }
+
+    @Test
+    void deleteSpec_다른_product_spec이면_INVALID_INPUT() {
+        Category otherCat = categoryRepository.save(Category.create("SPEC-OTHER-DEL", "spec other del", null, 3));
+        Product other = productRepository.save(Product.seedFromSheet("Spec Other Del", "SPEC003", otherCat,
+                BigDecimal.ZERO, BigDecimal.ZERO, ProductType.SINGLE,
+                ProductCategory.HOME_MULTI, UsageScope.BOTH, EstimateCategory.HOME_MULTI));
+        exposureRepository.save(ProductEstimateExposure.create(other.getId(), EstimateCategory.HOME_MULTI, 3));
+        ProductSpec otherSpec = specRepository.save(ProductSpec.create(
+                other.getId(), "전원", "220V", null, 1));
+        productRepository.flush();
+        specRepository.flush();
+
+        assertThatThrownBy(() -> specService.deleteSpec("SPEC001", otherSpec.getId(), "test-user"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+                    assertThat(be.getMessage()).isEqualTo("해당 product 의 spec 이 아님");
+                });
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.samhanair.logis.slip.service.dispatch;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus;
@@ -52,7 +54,7 @@ public class DispatchTaskBoardQueryService {
         LocalDate effectiveFrom = (from != null) ? from : today.minusDays(1);
         LocalDate effectiveTo = (to != null) ? to : today.plusDays(1);
         if (effectiveFrom.isAfter(effectiveTo)) {
-            throw new IllegalArgumentException("from 이 to 보다 늦을 수 없습니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from 이 to 보다 늦을 수 없습니다.");
         }
 
         Set<SlipDispatchStatus> effectiveStatuses = (statuses == null || statuses.isEmpty())
