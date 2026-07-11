@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.approval.ApprovalStepStatus;
 import com.samhanair.logis.approval.StepType;
+import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ApprovalStep;
 import com.samhanair.logis.groupware.domain.ResolvedRole;
@@ -167,6 +168,21 @@ class ApprovalLineServiceTest {
         assertThatThrownBy(() -> line.approve(a1))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("이미 종료된");
+    }
+
+    @Test
+    void collab_guard_종료상태_메시지는_상태_표시명을_사용한다() {
+        UUID requester = UUID.randomUUID();
+        UUID a1 = UUID.randomUUID();
+        ApprovalLine line = open(requester, "결재", null);
+        line.appendStep(a1);
+        line.reject(a1, "사유 미흡");
+
+        assertThatThrownBy(line::guardCollabModifiable)
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("협업 수정완료가 불가능한 상태입니다")
+                .hasMessageContaining("반려")
+                .hasMessageNotContaining(ApprovalStatus.REJECTED.name());
     }
 
     @Test

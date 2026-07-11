@@ -175,7 +175,7 @@ public class ApprovalLine extends ApprovalLineBase {
     public void guardCollabModifiable() {
         if (COLLAB_LOCKED_STATUSES.contains(getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "협업 수정완료가 불가능한 상태입니다: " + getStatus());
+                    "협업 수정완료가 불가능한 상태입니다: " + getStatus().getDisplayName());
         }
     }
 

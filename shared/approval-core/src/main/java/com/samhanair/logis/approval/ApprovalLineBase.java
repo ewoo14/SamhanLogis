@@ -147,7 +147,7 @@ public abstract class ApprovalLineBase extends BaseEntity {
 
     private void ensureMutable() {
         if (isTerminal()) {
-            throw new IllegalStateException("이미 종료된 결재선입니다: " + this.status);
+            throw new IllegalStateException("이미 종료된 결재선입니다: " + this.status.getDisplayName());
         }
     }
 

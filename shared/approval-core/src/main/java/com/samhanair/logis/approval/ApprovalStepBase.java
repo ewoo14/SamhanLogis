@@ -158,7 +158,7 @@ public abstract class ApprovalStepBase extends BaseEntity {
 
     private void ensurePending() {
         if (this.status != ApprovalStepStatus.PENDING) {
-            throw new IllegalStateException("이미 처리된 결재 단계입니다: " + this.status);
+            throw new IllegalStateException("이미 처리된 결재 단계입니다: " + this.status.getDisplayName());
         }
     }
 

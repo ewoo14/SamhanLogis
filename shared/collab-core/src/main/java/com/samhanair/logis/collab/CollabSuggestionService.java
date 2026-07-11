@@ -131,7 +131,7 @@ public class CollabSuggestionService<T extends CollabSuggestionRecord> {
     private void requireProposed(T suggestion) {
         if (suggestion.getStatus() != CollabSuggestionStatus.PROPOSED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "이미 종결된 제안입니다: " + suggestion.getStatus());
+                    "이미 종결된 제안입니다: " + suggestion.getStatus().getDisplayName());
         }
     }
 

@@ -117,7 +117,9 @@ class ApprovalLineBaseTest {
         assertThat(line.getStatus()).isEqualTo(ApprovalStatus.REJECTED);
         assertThatThrownBy(() -> line.approve(a1))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("이미 종료된");
+                .hasMessageContaining("이미 종료된")
+                .hasMessageContaining("반려")
+                .hasMessageNotContaining(ApprovalStatus.REJECTED.name());
     }
 
     @Test

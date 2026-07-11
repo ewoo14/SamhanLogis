@@ -125,7 +125,7 @@ public abstract class CollabSuggestionRecord extends BaseEntity {
     private void requireProposed() {
         if (this.status != CollabSuggestionStatus.PROPOSED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "이미 종결된 제안입니다: " + this.status);
+                    "이미 종결된 제안입니다: " + this.status.getDisplayName());
         }
     }
 

@@ -1,5 +1,8 @@
 package com.samhanair.logis.approval;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+
 /**
  * 결재선 전체 상태.
  *
@@ -13,11 +16,15 @@ package com.samhanair.logis.approval;
  *
  * <p>APPROVED / REJECTED / WITHDRAWN 은 종료 상태 — 추가 승인/반려 호출 거부.
  */
+@Getter
+@RequiredArgsConstructor
 public enum ApprovalStatus {
 
-    PENDING,
-    IN_PROGRESS,
-    APPROVED,
-    REJECTED,
-    WITHDRAWN
+    PENDING("대기"),
+    IN_PROGRESS("진행중"),
+    APPROVED("승인"),
+    REJECTED("반려"),
+    WITHDRAWN("회수");
+
+    private final String displayName;
 }

@@ -102,6 +102,8 @@ class ApprovalStepBaseTest {
         step.approve(approver);
         assertThatThrownBy(() -> step.approve(approver))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("이미 처리된");
+                .hasMessageContaining("이미 처리된")
+                .hasMessageContaining("승인")
+                .hasMessageNotContaining(ApprovalStepStatus.APPROVED.name());
     }
 }
