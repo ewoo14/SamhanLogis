@@ -46,12 +46,12 @@ class DispatchVehicleGroupTest {
         assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
                 DispatchVehicleBodyType.CARGO, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("tonnage 필수");
+                .hasMessageContaining("톤수 선택이 필요");
 
         assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
                 DispatchVehicleBodyType.MOTORCYCLE, DispatchTonnage.T_1))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("tonnage 불필요");
+                .hasMessageContaining("톤수 선택이 불필요");
 
         assertThatThrownBy(() -> DispatchVehicleGroup.create(UUID.randomUUID(), 1,
                 DispatchVehicleBodyType.TRAILER, DispatchTonnage.T_11))
