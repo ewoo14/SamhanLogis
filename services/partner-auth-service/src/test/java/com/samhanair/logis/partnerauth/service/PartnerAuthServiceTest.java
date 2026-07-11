@@ -316,14 +316,14 @@ class PartnerAuthServiceTest {
     }
 
     @Test
-    @DisplayName("PartnerStatus displayName은 인증 상태 응답 문구와 동일한 SSOT다")
+    @DisplayName("PartnerStatus displayName — 예외메시지용 한국어 라벨 SSOT (statusMessage 고객문구와는 별개)")
     void partnerAuthStatusDisplayNames() {
         assertThat(PartnerStatus.NOT_FOUND_SYSTEM.getDisplayName()).isEqualTo("등록되지 않은 거래처");
         assertThat(PartnerStatus.NOT_FOUND_AUTH.getDisplayName()).isEqualTo("인증 정보 없음");
         assertThat(PartnerStatus.PENDING.getDisplayName()).isEqualTo("가입 승인 대기중");
         assertThat(PartnerStatus.LOCKED.getDisplayName()).isEqualTo("계정 잠김");
-        assertThat(PartnerStatus.LONG_UNUSED.getDisplayName()).isEqualTo("장기 미사용");
-        assertThat(PartnerStatus.ACCESS_DENIED.getDisplayName()).isEqualTo("접근 차단");
+        assertThat(PartnerStatus.LONG_UNUSED.getDisplayName()).isEqualTo("장기미발주");
+        assertThat(PartnerStatus.ACCESS_DENIED.getDisplayName()).isEqualTo("접근제한");
         assertThat(PartnerStatus.PW_EXPIRED.getDisplayName()).isEqualTo("비밀번호 만료");
         assertThat(PartnerStatus.NEED_PW_SET.getDisplayName()).isEqualTo("비밀번호 설정 필요");
         assertThat(PartnerStatus.NEED_PW_INPUT.getDisplayName()).isEqualTo("비밀번호 입력 대기");

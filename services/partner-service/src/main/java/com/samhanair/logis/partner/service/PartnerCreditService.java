@@ -34,12 +34,12 @@ public class PartnerCreditService {
     private final CollectionRealtimePublisher collectionRealtimePublisher;
 
     /**
-     * 슬립 발행으로 미수금 증가 + 이력 적재.
+     * 전표 발행으로 미수금 증가 + 이력 적재.
      *
      * <p>발행 전 {@link Partner#canIssueSlip(BigDecimal)} 가드로 한도 초과 또는 비활성 상태 거부.
      *
      * @param partnerCode 사용자 노출 식별자
-     * @param amount 슬립 금액 (양수)
+     * @param amount 전표 금액 (양수)
      * @param slipNo slip 번호 (reference_no 적재)
      * @return 적재된 history row
      * @throws BusinessException 한도 초과 또는 비활성 상태 시 CONFLICT

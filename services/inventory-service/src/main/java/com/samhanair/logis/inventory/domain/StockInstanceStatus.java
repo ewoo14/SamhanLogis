@@ -23,7 +23,7 @@ public enum StockInstanceStatus {
     /** 출고 완료 — 출고처 기록 포함 */
     SHIPPED("출고완료"),
     /** 회수됨 — 반품/회차 역-FIFO (S4 연동) */
-    RECALLED("회수됨");
+    RECALLED("회수완료");
 
     private final String displayName;
 }

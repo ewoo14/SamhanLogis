@@ -133,7 +133,7 @@ class StockInstanceOutboundTest {
         assertThatThrownBy(instance::unrecall)
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("출고완료")
-                .hasMessageContaining("회수됨")
+                .hasMessageContaining("회수완료")
                 .hasMessageNotContaining("SHIPPED")
                 .hasMessageNotContaining("RECALLED")
                 .extracting("errorCode")
@@ -170,7 +170,7 @@ class StockInstanceOutboundTest {
         assertThatThrownBy(instance::resell)
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("가용")
-                .hasMessageContaining("회수됨")
+                .hasMessageContaining("회수완료")
                 .hasMessageNotContaining("AVAILABLE")
                 .hasMessageNotContaining("RECALLED")
                 .extracting("errorCode")
@@ -183,7 +183,7 @@ class StockInstanceOutboundTest {
         assertThat(StockInstanceStatus.AVAILABLE.getDisplayName()).isEqualTo("가용");
         assertThat(StockInstanceStatus.RESERVED.getDisplayName()).isEqualTo("예약");
         assertThat(StockInstanceStatus.SHIPPED.getDisplayName()).isEqualTo("출고완료");
-        assertThat(StockInstanceStatus.RECALLED.getDisplayName()).isEqualTo("회수됨");
+        assertThat(StockInstanceStatus.RECALLED.getDisplayName()).isEqualTo("회수완료");
     }
 
     private StockInstance instance() {

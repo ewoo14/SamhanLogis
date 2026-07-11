@@ -76,6 +76,11 @@ public class InboundInspectionService {
     private static final List<String> INSPECTABLE_STATUS_ORDER =
             List.of("SAVED", "CONFIRMED", "COMPLETED", "PROCESSING", "INSPECTING");
     private static final Set<String> INSPECTABLE_STATUSES = Set.copyOf(INSPECTABLE_STATUS_ORDER);
+    /**
+     * slip-service {@code SlipStatus.displayName} 의 로컬 사본(MSA 경계상 enum 직접 공유 불가·SlipDetail 은
+     * status 를 raw 문자열로만 내려줌). ⚠️ slip-service {@code SlipStatus} 라벨 변경/추가 시 본 맵 동기화 필요.
+     * 근본 해소는 SlipDetail 에 statusDisplayName 필드 추가(계약 변경·별도 후속).
+     */
     private static final Map<String, String> SLIP_STATUS_DISPLAY_NAMES = Map.ofEntries(
             Map.entry("DRAFT", "작성중"),
             Map.entry("SAVED", "저장완료"),
