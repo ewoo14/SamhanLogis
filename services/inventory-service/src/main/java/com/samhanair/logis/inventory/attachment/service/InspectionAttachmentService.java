@@ -84,8 +84,7 @@ public class InspectionAttachmentService {
 
         InboundInspection inspection = inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "검수 레코드를 찾을 수 없습니다 (slipId=" + slipId
-                                + "). 먼저 검수 dialog 로 진입해주세요."));
+                        "검수 레코드를 찾을 수 없습니다. 먼저 검수 dialog 로 진입해주세요."));
 
         String fileName = sanitizeFileName(file.getOriginalFilename());
         String storageKey = buildStorageKey(inspection.getId(), fileName);

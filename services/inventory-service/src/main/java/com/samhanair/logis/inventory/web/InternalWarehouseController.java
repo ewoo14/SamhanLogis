@@ -97,7 +97,7 @@ public class InternalWarehouseController {
     public ApiResponse<WarehouseByCodeResponse> byId(@PathVariable UUID id) {
         Warehouse warehouse = warehouseRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "창고 '" + id + "' 를 찾을 수 없습니다"));
+                        "창고를 찾을 수 없습니다"));
         return ApiResponse.ok(new WarehouseByCodeResponse(
                 warehouse.getId(), warehouse.getCode(), warehouse.getName()));
     }

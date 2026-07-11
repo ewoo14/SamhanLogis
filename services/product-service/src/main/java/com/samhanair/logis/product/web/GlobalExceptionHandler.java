@@ -3,6 +3,7 @@ package com.samhanair.logis.product.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -29,7 +30,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
         ErrorCode code = ex.getErrorCode();
         return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.fail(code, ex.getMessage()));
+                .body(ApiResponse.fail(code, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -137,7 +138,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     /**
@@ -149,7 +150,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleEntityNotFound(EntityNotFoundException ex) {
         return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.NOT_FOUND, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.NOT_FOUND, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     @ExceptionHandler(Exception.class)

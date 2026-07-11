@@ -109,10 +109,10 @@ public class SlipResolver {
     public Map<String, Object> buildSlipDataMap(VehicleStop stop) {
         UUID slipId = resolveSlipId(stop)
                 .orElseThrow(() -> new IllegalStateException(
-                        "slipId resolve 실패 — stopId=" + (stop != null ? stop.getId() : null)));
+                        "slipId resolve 실패"));
         SlipFullDetail detail = slipClient.findFullDetail(slipId)
                 .orElseThrow(() -> new IllegalStateException(
-                        "slip 상세 lookup 실패 — slipId=" + slipId));
+                        "slip 상세 lookup 실패"));
         Map<String, Object> data = new HashMap<>();
         data.put("slipNo", detail.slipNo());
         data.put("slipDate", detail.slipDate() != null ? detail.slipDate().toString() : null);

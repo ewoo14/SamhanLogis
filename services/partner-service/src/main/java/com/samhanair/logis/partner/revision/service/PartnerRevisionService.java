@@ -689,8 +689,7 @@ public class PartnerRevisionService {
         PartnerRevision target = repository
                 .findByPartnerIdAndRevisionNo(partnerId, targetRevisionNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "복원 대상 revision 없음 (partnerId=" + partnerId
-                                + ", revisionNo=" + targetRevisionNo + ")"));
+                        "복원 대상 버전을 찾을 수 없습니다 (버전 " + targetRevisionNo + ")"));
 
         Partner partner = loadPartnerOrThrow(partnerId);
         // 거래종료(TERMINATED) 거래처는 복원 불가 — 스냅샷 역적용 전에 사전 차단

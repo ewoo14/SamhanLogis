@@ -77,7 +77,7 @@ public class StockInstanceService {
         }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productId=" + productId);
+                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용).");
         }
         return repo.save(StockInstance.inbound(
                 productId, productCode, warehouseId,
@@ -112,7 +112,7 @@ public class StockInstanceService {
         }
         if (!product.serialManaged()) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용). productId=" + productId);
+                    "개별시리얼 관리 품목이 아닙니다 (batch 품목은 stock_lots 사용).");
         }
 
         lockInboundBatchKey(inboundSlipNo, productId);
@@ -175,7 +175,7 @@ public class StockInstanceService {
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "재고 부족 — 가용 인스턴스 " + candidates.size() + " < 필요 " + deficit
-                            + " (productCode=" + productCode + ", warehouse=" + warehouseId + ")");
+                            + " (productCode=" + productCode + ")");
         }
         for (int i = 0; i < deficit; i++) {
             candidates.get(i).reserve(outboundSlipNo);

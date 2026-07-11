@@ -184,7 +184,8 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                         .header(ROLE_HEADER, "MANAGER"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("손상된 revision snapshot")));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("손상된 버전 스냅샷입니다")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("버전 2")));
     }
 
     // =========================================================================

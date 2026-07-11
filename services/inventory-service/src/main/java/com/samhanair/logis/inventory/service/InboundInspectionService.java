@@ -182,7 +182,7 @@ public class InboundInspectionService {
             InboundInspectionLine line = lineMap.get(result.lineId());
             if (line == null) {
                 throw new BusinessException(ErrorCode.NOT_FOUND,
-                        "검수 라인을 찾을 수 없습니다: lineId=" + result.lineId());
+                        "검수 라인을 찾을 수 없습니다");
             }
             line.recordResult(result.inspectedQty(), result.defectQty(), result.defectReason());
         }
@@ -340,7 +340,7 @@ public class InboundInspectionService {
     private InboundInspection loadInspectionBySlipOrThrow(UUID slipId) {
         return inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "해당 슬립의 검수 레코드가 없습니다. 먼저 GET 으로 검수를 초기화하세요: slipId=" + slipId));
+                        "해당 슬립의 검수 레코드가 없습니다. 먼저 GET 으로 검수를 초기화하세요."));
     }
 
     /**

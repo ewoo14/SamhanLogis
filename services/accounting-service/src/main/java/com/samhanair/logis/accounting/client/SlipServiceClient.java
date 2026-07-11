@@ -133,7 +133,7 @@ public class SlipServiceClient {
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        throw mappedSourceRead4xx("getSlipLines", "slipId=" + slipId, res.getStatusCode());
+                        throw mappedSourceRead4xx("getSlipLines", "slip lines", res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
@@ -171,7 +171,7 @@ public class SlipServiceClient {
                     .header(INTERNAL_TOKEN_HEADER, requireToken())
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        throw mappedSourceRead4xx("getSlipLine", "lineId=" + lineId, res.getStatusCode());
+                        throw mappedSourceRead4xx("getSlipLine", "slip line", res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,

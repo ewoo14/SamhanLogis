@@ -406,8 +406,7 @@ public class EcountJournalEntryImporter {
                 return;
             }
             throw new BusinessException(ErrorCode.MIG3_JOURNAL_LINE_DUPLICATE,
-                    "동일 (journal_id, line_no)=(" + journalId + ", " + lineNo
-                            + ") 에 다른 데이터가 이미 존재합니다");
+                    "동일 라인 번호(" + lineNo + ")에 다른 데이터가 이미 존재합니다");
         }
         // (3) 신규 INSERT.
         jdbcTemplate.update("""

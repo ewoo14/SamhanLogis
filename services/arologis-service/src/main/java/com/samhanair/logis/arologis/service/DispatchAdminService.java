@@ -138,7 +138,7 @@ public class DispatchAdminService {
         }
         Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "vehicle 미존재 — dispatchId=" + dispatchId + " seq=" + vehicleSeq));
+                        "vehicle 미존재 — seq=" + vehicleSeq));
         Driver newDriver = driverRepository.findByDriverCode(newDriverCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "driver 미존재: " + newDriverCode));

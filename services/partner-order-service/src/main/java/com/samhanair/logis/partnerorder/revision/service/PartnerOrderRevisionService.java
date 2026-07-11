@@ -201,15 +201,14 @@ public class PartnerOrderRevisionService {
         PartnerOrder order = orderRepository.findByIdIncludingDeleted(orderId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "주문을 찾을 수 없습니다. orderId=" + orderId));
+                        "주문을 찾을 수 없습니다"));
 
         // 2. 대상 revision 로드
         PartnerOrderRevision target = revisionRepository
                 .findByPartnerOrderIdAndRevisionNo(orderId, targetRevisionNo)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "복원 대상 revision 이 없습니다. orderId=" + orderId
-                                + ", revisionNo=" + targetRevisionNo));
+                        "복원 대상 버전을 찾을 수 없습니다 (버전 " + targetRevisionNo + ")"));
 
         // 3. 복원 가드 (CONFIRMING · CANCELED 만 거부 — soft-deleted 여부 무관, status 기준 검사)
         order.requireRestorable();
@@ -367,8 +366,7 @@ public class PartnerOrderRevisionService {
                 .findByPartnerOrderIdAndRevisionNo(partnerOrderId, revisionNo)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
-                        "revision 을 찾을 수 없습니다. partnerOrderId=" + partnerOrderId
-                                + ", revisionNo=" + revisionNo));
+                        "버전을 찾을 수 없습니다 (버전 " + revisionNo + ")"));
         PartnerOrderSnapshot snapshot = deserialize(revision.getSnapshot());
         return PartnerOrderRevisionDetailResponse.of(
                 revision.getRevisionNo(),

@@ -174,7 +174,7 @@ public class DispatchService {
         }
         Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "vehicle 미존재 — dispatchId=" + dispatchId + " seq=" + vehicleSeq));
+                        "vehicle 미존재 — seq=" + vehicleSeq));
         Driver driver = driverRepository.findByDriverCode(driverCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "driver 미존재: " + driverCode));
@@ -188,10 +188,10 @@ public class DispatchService {
     public void updateStopStatus(UUID dispatchId, Integer vehicleSeq, Integer stopSeq, StopStatus status) {
         Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "vehicle 미존재 — dispatchId=" + dispatchId + " seq=" + vehicleSeq));
+                        "vehicle 미존재 — seq=" + vehicleSeq));
         VehicleStop stop = stopRepository.findFirstByVehicleIdAndSequence(vehicle.getId(), stopSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "stop 미존재 — vehicleId=" + vehicle.getId() + " seq=" + stopSeq));
+                        "stop 미존재 — seq=" + stopSeq));
         StopStatus oldStatus = stop.getStatus();
         stop.updateStatus(status, LocalDateTime.now());
         // PR-H4b: status 변경 audit overlay + SSE broadcast (entity_id = dispatchId, fieldName = stops[seq].status)

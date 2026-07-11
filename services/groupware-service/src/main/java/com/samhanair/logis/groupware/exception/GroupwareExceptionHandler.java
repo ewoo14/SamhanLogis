@@ -3,6 +3,7 @@ package com.samhanair.logis.groupware.exception;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +30,7 @@ public class GroupwareExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
         ErrorCode code = ex.getErrorCode();
         return ResponseEntity.status(code.getHttpStatus())
-                .body(ApiResponse.fail(code, ex.getMessage()));
+                .body(ApiResponse.fail(code, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -45,7 +46,7 @@ public class GroupwareExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     /**
@@ -90,7 +91,7 @@ public class GroupwareExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.CONFLICT, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.CONFLICT, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     /**
@@ -114,7 +115,7 @@ public class GroupwareExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     @ExceptionHandler(Exception.class)

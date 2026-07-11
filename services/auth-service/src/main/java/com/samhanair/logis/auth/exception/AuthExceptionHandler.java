@@ -3,6 +3,7 @@ package com.samhanair.logis.auth.exception;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -42,7 +43,7 @@ public class AuthExceptionHandler {
         }
         // getHttpStatus() 는 Lombok @Getter 생성 — int 오버로드로 null-warning 우회
         return ResponseEntity.status(code.getHttpStatus().value())
-                .body(ApiResponse.fail(code, ex.getMessage()));
+                .body(ApiResponse.fail(code, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     /**
@@ -107,7 +108,7 @@ public class AuthExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus().value())
-                .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 
     /**

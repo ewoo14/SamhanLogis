@@ -186,7 +186,7 @@ public class InventoryAuditService {
                 .filter(l -> l.getProductId().equals(req.productId()))
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
-                        "snapshot 라인에 해당 제품이 없습니다 (productId=" + req.productId() + ")"));
+                        "snapshot 라인에 해당 제품이 없습니다"));
         line.recordActual(req.actualQty(), req.scannedOrFalse());
         return AuditDetailResponse.from(audit);
     }

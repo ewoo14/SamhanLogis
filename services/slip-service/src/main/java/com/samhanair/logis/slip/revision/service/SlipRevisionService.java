@@ -202,8 +202,7 @@ public class SlipRevisionService {
                 .orElseGet(() -> repository.findBySlipIdAndRevisionNo(slip.getId(), targetRevisionNo)
                         .map(SlipRevision::getSnapshot)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                                "복원 대상 revision 없음 (slipId=" + slip.getId()
-                                        + ", revisionNo=" + targetRevisionNo + ")")));
+                                "복원 대상 버전을 찾을 수 없습니다 (버전 " + targetRevisionNo + ")")));
         slip.restoreFromSnapshot(targetSnapshot);
         return capture(slip, SlipRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
@@ -307,12 +306,12 @@ public class SlipRevisionService {
             SlipSnapshot snapshot = snapshotObjectMapper.readValue(snapshotJson, SlipSnapshot.class);
             if (snapshot == null) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                        "손상된 revision snapshot: slipId=" + slipId + ", revisionNo=" + revisionNo);
+                        "손상된 버전 스냅샷입니다 (버전 " + revisionNo + ")");
             }
             return snapshot;
         } catch (JsonProcessingException ex) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "손상된 revision snapshot: slipId=" + slipId + ", revisionNo=" + revisionNo);
+                    "손상된 버전 스냅샷입니다 (버전 " + revisionNo + ")");
         }
     }
 

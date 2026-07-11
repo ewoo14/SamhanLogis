@@ -157,8 +157,7 @@ public class EstimateRevisionService {
                 .orElseGet(() -> repository.findByEstimateIdAndRevisionNo(estimate.getId(), targetRevisionNo)
                         .map(EstimateRevision::getSnapshot)
                         .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                                "복원 대상 revision 없음 (estimateId=" + estimate.getId()
-                                        + ", revisionNo=" + targetRevisionNo + ")")));
+                                "복원 대상 버전을 찾을 수 없습니다 (버전 " + targetRevisionNo + ")")));
         estimate.restoreFromSnapshot(targetSnapshot);
         return capture(estimate, EstimateRevisionType.RESTORE, targetRevisionNo,
                 actorId, actorName, actorColor);
@@ -257,12 +256,12 @@ public class EstimateRevisionService {
             EstimateSnapshot snapshot = snapshotObjectMapper.readValue(snapshotJson, EstimateSnapshot.class);
             if (snapshot == null) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                        "손상된 revision snapshot: estimateId=" + estimateId + ", revisionNo=" + revisionNo);
+                        "손상된 버전 스냅샷입니다 (버전 " + revisionNo + ")");
             }
             return snapshot;
         } catch (JsonProcessingException ex) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "손상된 revision snapshot: estimateId=" + estimateId + ", revisionNo=" + revisionNo);
+                    "손상된 버전 스냅샷입니다 (버전 " + revisionNo + ")");
         }
     }
 
