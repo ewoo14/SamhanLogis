@@ -171,9 +171,9 @@ export function NotificationHistoryPage() {
 
 function SeverityBadge({ severity }: { severity: NotificationSeverity }) {
   const colorMap: Record<NotificationSeverity, string> = {
-    INFO: 'var(--color-neutral-400)',
-    WARNING: 'var(--color-warning-500)',
-    CRITICAL: 'var(--color-danger-500)',
+    INFO: 'var(--color-neutral-600)',
+    WARNING: 'var(--color-warning-800)',
+    CRITICAL: 'var(--color-danger-700)',
   }
   const labelMap: Record<NotificationSeverity, string> = {
     INFO: '정보',

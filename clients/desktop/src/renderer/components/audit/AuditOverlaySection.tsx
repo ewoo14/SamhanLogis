@@ -137,7 +137,7 @@ export function AuditLockedBanner({
         borderRadius: 6,
         border: '1px solid var(--color-warning-300, #FCD34D)',
         background: 'var(--color-warning-50, #FFFBEB)',
-        color: 'var(--color-warning-800, #92400E)',
+        color: 'var(--color-warning-800)',
         fontSize: 13,
       }}
     >
