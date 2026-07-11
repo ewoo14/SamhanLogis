@@ -110,7 +110,7 @@ class ArologisEditRequestServiceTest {
         assertThatThrownBy(() -> service.request(dispatchId, EditRequestType.EDIT, null,
                 requesterId, "x"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("배차 전")
+                .hasMessageContaining("배송 전")
                 .hasMessageNotContaining("PLANNED");
         verify(broker, never()).publish(any(), anyString(), any());
     }

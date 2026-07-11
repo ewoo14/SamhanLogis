@@ -25,8 +25,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum DispatchDerivedStatus {
 
-    PLANNED("배차 전"),
-    DISPATCHED("배차중"),
+    PLANNED("배송 전"),
+    DISPATCHED("배송중"),
     DELIVERED("배송완료");
 
     private final String displayName;

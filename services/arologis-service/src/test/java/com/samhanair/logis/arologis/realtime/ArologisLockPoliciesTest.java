@@ -35,7 +35,7 @@ class ArologisLockPoliciesTest {
         assertThatThrownBy(() -> guard.guardCanEdit(
                 DispatchDerivedStatus.DISPATCHED, ArologisLockPolicies.DISPATCH_POLICY, false))
                 .isInstanceOf(LockedException.class)
-                .hasMessageContaining("배차중")
+                .hasMessageContaining("배송중")
                 .hasMessageNotContaining("DISPATCHED");
     }
 
