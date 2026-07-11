@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * BootstrapService 단위 테스트 — PR-D Part 1 시트 prefetch + V2 seed fallback 2 시나리오.
@@ -39,7 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *   <li>prefetch_시트실패 — sheet read 예외 → V2 seed payload 그대로 반환 (graceful fallback)</li>
  * </ul>
  */
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class BootstrapServiceTest {
 
     @Mock
@@ -462,6 +464,32 @@ class BootstrapServiceTest {
 
         // then
         assertThat(response.payloads().get("commPartsInc")).isEqualTo(Map.of());
+    }
+
+    @Test
+    void fetch_구성품_defaultQty_소수는_orderApp_payload에서_정수화하고_warn을_남긴다(
+            CapturedOutput output) throws Exception {
+        // given — order-app payload qty 는 정수 계약(FE parseInt/regex 소비)이므로 소수 defaultQty 는
+        // payload 생성 경계에서 정수화해야 한다. BundleExpander 도메인 로직은 이 변환 경로를 타지 않는다.
+        setField("sheetPrefetchEnabled", false);
+        when(estimateCatalogClient.components(EstimateCategory.COMMERCIAL_MULTI))
+                .thenReturn(List.of(componentRow(
+                        "CM-DECIMAL", "COMM-PART-DECIMAL", "상업 소수 구성품", "EA",
+                        "77000", "88000", "OUTDOOR", "선택", false, "2.50", "상업 소수 규격")));
+        when(cacheRepository.findAllByOrderByCacheKeyAsc()).thenReturn(List.of());
+
+        // when
+        BootstrapResponse response = bootstrapService.fetch();
+
+        // then
+        @SuppressWarnings("unchecked")
+        Map<String, Object> commercialPart = ((List<Map<String, Object>>) response.payloads()
+                .get("commercialParts")).get(0);
+        assertThat(commercialPart).containsEntry("qty", new BigDecimal("3"));
+        assertThat(output).contains("[BootstrapService] 구성품 defaultQty 소수 감지(order-app 정수화)")
+                .contains("setModel=CM-DECIMAL")
+                .contains("model=COMM-PART-DECIMAL")
+                .contains("defaultQty=2.50");
     }
 
     private BootstrapCacheConfig makeCacheRow(String key, String json) {
