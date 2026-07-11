@@ -24,9 +24,9 @@ public class BootstrapCacheRefreshScheduler {
     /**
      * 이전 갱신 완료 후 N분 뒤 bootstrap 캐시를 비우고 다시 적재한다.
      *
-     * <p>순서는 반드시 {@code evictAll -> prefetch} 이다. 먼저 Spring Cache + 내부 캐시를 비운 뒤
-     * product-service/Google Sheets 원천에서 내부 캐시를 다시 채워 다음 {@code fetch()} 가 fresh
-     * 내부 캐시로 응답을 재구성하게 한다.
+     * <p>순서는 반드시 {@code evictAll -> prefetch -> evictSpringBootstrapCache} 이다. 먼저 Spring
+     * Cache + 내부 캐시를 비운 뒤 product-service/Google Sheets 원천에서 내부 캐시를 다시 채우고,
+     * 마지막에 outer Spring Cache 만 다시 비워 refresh window 중 재캐시된 fallback 응답을 제거한다.
      */
     @Scheduled(fixedDelayString = "#{${app.bootstrap.cache-refresh-minutes:10} * 60000}")
     public void refreshBootstrapCache() {
@@ -34,6 +34,7 @@ public class BootstrapCacheRefreshScheduler {
             log.info("[BootstrapCacheRefreshScheduler] bootstrap cache refresh 시작");
             bootstrapService.evictAll();
             bootstrapService.prefetch();
+            bootstrapService.evictSpringBootstrapCache();
             log.info("[BootstrapCacheRefreshScheduler] bootstrap cache refresh 완료");
         } catch (Exception ex) {
             log.warn("[BootstrapCacheRefreshScheduler] bootstrap cache refresh 실패: {}", ex.getMessage(), ex);

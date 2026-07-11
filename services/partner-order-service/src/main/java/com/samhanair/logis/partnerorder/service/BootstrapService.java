@@ -258,6 +258,19 @@ public class BootstrapService {
         log.info("Bootstrap cache evicted (product catalog cache + sheet cache + spring cache)");
     }
 
+    /**
+     * outer Spring bootstrap 캐시만 비운다.
+     *
+     * <p>스케줄러가 {@link #prefetch()} 로 내부 {@code productCatalogCache}/{@code sheetCache} 를
+     * fresh 상태로 다시 채운 뒤 호출한다. refresh window 중 {@link #fetch()} 가 fallback 응답을
+     * {@code @Cacheable("bootstrap")} 에 재캐시했더라도 이 메서드가 마지막에 제거하며, 내부 캐시는
+     * 건드리지 않는다.
+     */
+    @CacheEvict(value = "bootstrap", allEntries = true)
+    public void evictSpringBootstrapCache() {
+        log.info("Bootstrap spring cache evicted (inner product catalog cache + sheet cache preserved)");
+    }
+
     /** 테스트용 — sheet prefetch 결과 직접 주입 (production 호출 X). */
     void putSheetCacheForTest(String cacheKey, Object payload) {
         sheetCache.put(cacheKey, payload);

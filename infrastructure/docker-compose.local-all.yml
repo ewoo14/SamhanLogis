@@ -314,6 +314,7 @@ services:
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
+      BOOTSTRAP_CACHE_REFRESH_MINUTES: ${BOOTSTRAP_CACHE_REFRESH_MINUTES:-10}
       # dev 시드 toggle — partner/accounting/arologis 와 일관. PartnerOrderSeeder
       # (@Profile dev + app.partner-order.seed-test-data) 30주문 표준 orderNo(2026/04/15-N).
       SAMHAN_PARTNER_ORDER_SEED_TEST_DATA: "true"

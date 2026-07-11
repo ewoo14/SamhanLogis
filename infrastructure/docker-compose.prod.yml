@@ -452,6 +452,7 @@ services:
       SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
       SAMHAN_DC_CONFIG_SERVICE_URL: http://dc-config-service:8089
       SAMHAN_PARTNER_AUTH_SERVICE_URL: http://partner-auth-service:8091
+      BOOTSTRAP_CACHE_REFRESH_MINUTES: ${BOOTSTRAP_CACHE_REFRESH_MINUTES:-10}
     ports:
       - "127.0.0.1:8088:8088"
     depends_on:
