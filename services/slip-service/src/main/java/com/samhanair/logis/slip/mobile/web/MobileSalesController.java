@@ -119,15 +119,15 @@ public class MobileSalesController {
     /**
      * 모바일 거래처 주문 발행 — OUTBOUND DRAFT 슬립 생성.
      *
-     * <p>출장 중 현장에서 즉시 주문을 등록한다. 창고({@code sourceWarehouseId}) 는 선택이며
-     * 사후에 헤더 수정({@code PATCH /slips/{id}/header}) 으로 갱신 가능.
+     * <p>출장 중 현장에서 즉시 주문을 등록한다. 출고전표는 창고({@code sourceWarehouseId}) 가
+     * 필수이며, 창고 미지정 요청은 입력 검증 단계에서 거부한다.
      *
      * @param request 주문 요청 (partnerCode + 라인 1건 이상 필수)
      * @param callerHeader 요청자 user-id
      * @return 생성된 슬립 상세 ({@link SlipDetailResponse})
      */
     @Operation(summary = "모바일 거래처 주문 발행 (P1-4)",
-            description = "현장 즉시 OUTBOUND DRAFT 슬립 발행. 창고 미지정 허용 (사후 editHeader 로 갱신). "
+            description = "현장 즉시 OUTBOUND DRAFT 슬립 발행. 출고 창고 필수. "
                     + "partner-service 자동 lookup + product-service 라인 검증.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "주문 슬립 생성 성공"),

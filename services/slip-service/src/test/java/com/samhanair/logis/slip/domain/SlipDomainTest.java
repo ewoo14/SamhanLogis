@@ -35,7 +35,11 @@ class SlipDomainTest {
     void createOutbound_nullSourceWarehouse_throws() {
         assertThatThrownBy(() -> Slip.createOutbound("X-001", LocalDate.now(), 1,
                 null, DEST_WH, PARTNER, "p", DeliveryTag.DAY, null, "u"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("출고 창고")
+                .hasMessageNotContaining("sourceWarehouseId");
     }
 
     @Test
@@ -133,7 +137,11 @@ class SlipDomainTest {
     void createInbound_nullDestWarehouse_throws() {
         assertThatThrownBy(() -> Slip.createInbound("X", LocalDate.now(), 1,
                 null, PARTNER, "p", DeliveryTag.RETURN, null, "u"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("입고 창고")
+                .hasMessageNotContaining("destinationWarehouseId");
     }
 
     @Test

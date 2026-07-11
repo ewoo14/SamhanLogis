@@ -209,7 +209,7 @@ public class SlipService {
      * @return 생성된 전표의 상세 응답 (라인 포함, status=DRAFT)
      * @throws BusinessException(INVALID_INPUT) 라인 productId 중 product-service 미존재 또는 입력 불량
      * @throws BusinessException(INTERNAL_ERROR) product-service 호출 실패
-     * @throws IllegalArgumentException 출고전표 sourceWarehouseId null 또는 입고전표 destinationWarehouseId null
+     * @throws BusinessException(INVALID_INPUT) 출고전표 sourceWarehouseId null, 입고전표 destinationWarehouseId null 또는 입력 불량
      */
     public SlipDetailResponse create(CreateSlipRequest req, String requesterId, String requesterName) {
         // 1. 라인 productId 일괄 검증 + lookup map 빌드 (snapshot 보강)

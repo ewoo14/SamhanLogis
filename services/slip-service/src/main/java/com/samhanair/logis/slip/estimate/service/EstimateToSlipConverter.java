@@ -23,7 +23,7 @@ import org.springframework.stereotype.Service;
  *   <li>견적의 estimate_lines (lineNo 순) → slip_lines 1:1 매핑</li>
  *   <li>Slip.assignPublishSource(ESTIMATE, estimateNo) — 발행 출처 추적 (Phase 6 M5 패턴 일관)</li>
  *   <li>Slip 채번 = SlipNumberService (slip 채번 시퀀스 사용)</li>
- *   <li>sourceWarehouseId 는 기본 null — 영업이 SlipForm 수정 시 채움 (현 슬라이스 정책)</li>
+ *   <li>sourceWarehouseId 는 placeholder 창고 UUID 로 생성 — 영업이 SlipForm 수정 시 정확한 창고로 교체</li>
  * </ul>
  *
  * <p>본 service 는 단순 mapping 만 담당 — Estimate.markConverted(slipId) 호출은 EstimateService.

@@ -18,8 +18,8 @@ import java.util.UUID;
  * <p>출장 중 영업 직원이 거래처 현장에서 주문을 즉시 등록하는 간소형 요청.
  * 내부적으로 OUTBOUND 타입의 슬립(Slip)을 DRAFT 상태로 생성한다.
  *
- * <p>거래처는 {@code partnerCode} 로만 식별 (UUID 비공개 가드). 창고 정보가 없는
- * 현장 주문의 경우 {@code sourceWarehouseId} 생략 가능하며 사후에 editHeader 로 갱신.
+ * <p>거래처는 {@code partnerCode} 로만 식별 (UUID 비공개 가드).
+ * 출고전표는 항상 출고 창고({@code sourceWarehouseId}) 를 지정해야 한다.
  */
 public record MobilePartnerOrderRequest(
         /** 거래처 코드 — UUID 비공개 가드, 사용자 노출 식별자. 필수. */
@@ -28,8 +28,8 @@ public record MobilePartnerOrderRequest(
         /** 슬립 날짜 (null 이면 오늘). */
         LocalDate slipDate,
 
-        /** 출고 창고 UUID (null 허용 — 현장 즉시 발행 후 사후 갱신 가능). */
-        UUID sourceWarehouseId,
+        /** 출고 창고 UUID (필수 — 출고전표는 창고 미지정 발행 불가). */
+        @NotNull UUID sourceWarehouseId,
 
         /** 배송지 주소 snapshot (선택). */
         @Size(max = 500) String shippingAddress,
