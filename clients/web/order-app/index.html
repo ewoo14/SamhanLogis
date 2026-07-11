@@ -2896,20 +2896,24 @@ function bindCommQtyEvents(){
       if (row?.dataset?.isSet==='1'){
         const setModel = row.dataset.setModel;
         const hasParts = !!document.querySelector(`#commBody tr[data-part-of="${CSS.escape(setModel)}"]`);
-        if (!hasParts) renderCommSetParts(setModel, q);
-        document.querySelectorAll(`#commBody tr[data-part-of="${CSS.escape(setModel)}"]`).forEach(ptr=>{
-          const pm   = ptr.getAttribute('data-m');
-          const pqty = toInt(ptr.getAttribute('data-part-qty')) || 1;
-          const effQ = q * pqty;
-          const pbase = toInt(ptr.getAttribute('data-part-price')) || 0;
-          const u    = commPartUnitPrice(pm, pbase);
-          const uCell = ptr.querySelector(`[data-cunit="${CSS.escape(pm+'|'+setModel)}"]`);
-          const sCell = ptr.querySelector(`[data-csub="${CSS.escape(pm+'|'+setModel)}"]`);
-          const qCell = ptr.querySelector('.qty-set');
-          if(qCell)  qCell.textContent = `${q} × ${pqty}`;
-          if(uCell)  uCell.textContent = fmt(u);
-          if(sCell)  sCell.textContent = fmt(u * effQ);
-        });
+        if (!q){
+          removeCommSetParts(setModel);
+        } else {
+          if (!hasParts) renderCommSetParts(setModel, q);
+          document.querySelectorAll(`#commBody tr[data-part-of="${CSS.escape(setModel)}"]`).forEach(ptr=>{
+            const pm   = ptr.getAttribute('data-m');
+            const pqty = toInt(ptr.getAttribute('data-part-qty')) || 1;
+            const effQ = q * pqty;
+            const pbase = toInt(ptr.getAttribute('data-part-price')) || 0;
+            const u    = commPartUnitPrice(pm, pbase);
+            const uCell = ptr.querySelector(`[data-cunit="${CSS.escape(pm+'|'+setModel)}"]`);
+            const sCell = ptr.querySelector(`[data-csub="${CSS.escape(pm+'|'+setModel)}"]`);
+            const qCell = ptr.querySelector('.qty-set');
+            if(qCell)  qCell.textContent = `${q} × ${pqty}`;
+            if(uCell)  uCell.textContent = fmt(u);
+            if(sCell)  sCell.textContent = fmt(u * effQ);
+          });
+        }
       }
 
       // 수동 잠금
@@ -4389,7 +4393,7 @@ function renderComm(){
 
     body.appendChild(tr);
 
-    if ((r.unit||'').toUpperCase()==='SET'){
+    if ((r.unit||'').toUpperCase()==='SET' && (parseInt(q,10)||0)>0){
       renderCommSetParts(r.model, q);
     }
   });
@@ -4465,7 +4469,7 @@ let COMM_SET_INDEX = null;
 function buildCommSetIndex(){
   if (COMM_SET_INDEX) return COMM_SET_INDEX;
   // 소스 선택
-  const src = (window.COMM_PARTS) || (window.COMM_MULTI_CONFIG) || (window.COMMSET) || (window.COMMCONFIG) || (window.COMMMULTI_CONFIG) || [];
+  const src = COMM_PARTS || [];
   // 인덱스 생성
   COMM_SET_INDEX = new Map();
   src.forEach(x=>{
@@ -4485,6 +4489,51 @@ function buildCommSetIndex(){
   });
   // console.log('>> 🧩 세트 인덱스 구축 완료', { size: COMM_SET_INDEX.size });
   return COMM_SET_INDEX;
+}
+
+function findCommSetAnchor_(tbody, setModel){
+  const key = String(setModel || '');
+  return Array.from(tbody.querySelectorAll('tr[data-is-set="1"]')).find(tr=>tr.dataset.setModel===key) || null;
+}
+
+function findCommSetPartRows_(tbody, setModel){
+  const key = String(setModel || '');
+  return Array.from(tbody.querySelectorAll('tr[data-part-of]')).filter(tr=>tr.dataset.partOf===key);
+}
+
+function findCoveringCommGroupCell_(anchor, className){
+  const tbody = anchor?.parentElement;
+  if (!tbody) return null;
+  const rows = Array.from(tbody.rows || []);
+  const anchorIndex = rows.indexOf(anchor);
+  if (anchorIndex < 0) return null;
+  for (let i=anchorIndex; i>=0; i--){
+    const cell = rows[i].querySelector(`td.${className}.pc-only`);
+    if (!cell) continue;
+    const span = cell.rowSpan || 1;
+    if (i + span > anchorIndex) return cell;
+  }
+  return null;
+}
+
+function adjustCommSetGroupRowSpans_(anchor, delta){
+  const seen = new Set();
+  ['colL','colM','colS'].forEach(cls=>{
+    const cell = findCoveringCommGroupCell_(anchor, cls);
+    if (!cell || seen.has(cell)) return;
+    cell.rowSpan = Math.max(1, (cell.rowSpan || 1) + delta);
+    seen.add(cell);
+  });
+}
+
+function removeCommSetParts(setModel){
+  const tbody = el('#commBody');
+  const anchor = findCommSetAnchor_(tbody, setModel);
+  const rows = findCommSetPartRows_(tbody, setModel);
+  if (!rows.length) return 0;
+  if (anchor) adjustCommSetGroupRowSpans_(anchor, -rows.length);
+  rows.forEach(tr=>tr.remove());
+  return rows.length;
 }
 
 // 세트 미리보기 분해
@@ -4526,6 +4575,11 @@ function explodeCommSets_(setRow, setQty){
 
 // 테이블 세트 구성 렌더
 function renderCommSetParts(setModel, setQty){
+  const qtySet = parseInt(setQty,10)||0;
+  if (qtySet <= 0){
+    removeCommSetParts(setModel);
+    return;
+  }
   const idx = buildCommSetIndex();
   const key = normKey(String(setModel).trim());
   const parts = idx.get(key) || [];
@@ -4534,26 +4588,28 @@ function renderCommSetParts(setModel, setQty){
     return;
   }
   const tbody = el('#commBody');
-  const anchor = tbody.querySelector(`tr[data-set-model="${setModel}"]`);
+  const anchor = findCommSetAnchor_(tbody, setModel);
+  if (!anchor) return;
+  removeCommSetParts(setModel);
+  adjustCommSetGroupRowSpans_(anchor, parts.length);
+  let insertAfter = anchor;
   parts.forEach(p=>{
     const unit = commPartUnitPrice(p.model, p.price);
-    const effQ = (parseInt(setQty,10)||0) * (parseInt(p.qty,10)||1);
+    const effQ = qtySet * (parseInt(p.qty,10)||1);
     const tr = document.createElement('tr');
     tr.classList.add('set-part');
     tr.setAttribute('data-part-of', setModel);
     tr.setAttribute('data-m', p.model);
     tr.setAttribute('data-part-qty', String(parseInt(p.qty,10)||1));
     tr.setAttribute('data-part-price', String(parseInt(p.price,10)||0));
-    tr.appendChild(document.createElement('td'));
-    tr.appendChild(document.createElement('td'));
-    tr.appendChild(document.createElement('td'));
-    const tdD = document.createElement('td'); tdD.className='colD'; tdD.textContent=p.name||p.model; tr.appendChild(tdD);
+    const tdD_PC = document.createElement('td'); tdD_PC.className='colD pc-only'; tdD_PC.textContent=p.name||p.model; tr.appendChild(tdD_PC);
+    const tdD_MO = document.createElement('td'); tdD_MO.className='colD mobile-only'; tdD_MO.textContent=p.name||p.model; tr.appendChild(tdD_MO);
     const tdModel = document.createElement('td'); tdModel.className='model'; tdModel.textContent=p.model; tr.appendChild(tdModel);
-    const tdQty = document.createElement('td'); tdQty.innerHTML = effQ ? `<span class="qty-set">${parseInt(setQty,10)} × ${parseInt(p.qty,10)||1}</span>` : ''; tr.appendChild(tdQty);
+    const tdQty = document.createElement('td'); tdQty.className='qty'; tdQty.innerHTML = `<span class="qty-set">${qtySet} × ${parseInt(p.qty,10)||1}</span>`; tr.appendChild(tdQty);
     const tdPrice = document.createElement('td'); tdPrice.className='price'; tdPrice.setAttribute('data-cunit', `${p.model}|${setModel}`); tdPrice.textContent=fmt(unit); tr.appendChild(tdPrice);
-    const tdSub = document.createElement('td'); tdSub.className='sub'; tdSub.setAttribute('data-csub', `${p.model}|${setModel}`); tdSub.textContent=fmt(unit*effQ); tr.appendChild(tdSub);
-    if (anchor && anchor.nextSibling) tbody.insertBefore(tr, anchor.nextSibling);
-    else tbody.appendChild(tr);
+    const tdSub = document.createElement('td'); tdSub.className='sub pc-only'; tdSub.setAttribute('data-csub', `${p.model}|${setModel}`); tdSub.textContent=fmt(unit*effQ); tr.appendChild(tdSub);
+    tbody.insertBefore(tr, insertAfter.nextSibling);
+    insertAfter = tr;
   });
   // console.log('>> 🧷 세트 구성 렌더', { setModel, parts: parts.length, setQty: parseInt(setQty,10)||0 });
 }
