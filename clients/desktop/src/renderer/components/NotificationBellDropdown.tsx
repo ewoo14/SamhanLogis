@@ -117,7 +117,7 @@ export function NotificationBellDropdown() {
               minWidth: 18,
               height: 18,
               borderRadius: 9,
-              background: 'var(--color-danger-500)',
+              background: 'var(--color-danger-700)',
               color: 'var(--color-neutral-0)',
               fontSize: 10,
               fontWeight: 700,
