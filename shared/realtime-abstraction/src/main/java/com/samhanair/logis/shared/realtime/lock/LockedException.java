@@ -14,7 +14,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 public class LockedException extends BusinessException {
 
     /**
-     * 잠금 위반 예외 — message 는 한국어 권장 ("현 단계 (CONFIRMED) 는 ...").
+     * 잠금 위반 예외 — message 는 한국어 권장 ("현 단계 (완료) 는 ...").
      *
      * @param message 사용자 노출 가능한 message
      */

@@ -26,6 +26,7 @@ public final class InventoryLockPolicies {
             .freeStatuses(AuditStatus.PLANNED, AuditStatus.IN_PROGRESS)
             .lockedRequiresApproval(AuditStatus.COMPLETED)
             .terminalStatuses(AuditStatus.CANCELLED)
+            .displayName(AuditStatus::getDisplayName)
             .build();
 
     private InventoryLockPolicies() {

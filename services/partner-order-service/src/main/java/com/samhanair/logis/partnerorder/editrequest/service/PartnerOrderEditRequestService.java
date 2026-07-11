@@ -74,6 +74,7 @@ public class PartnerOrderEditRequestService implements EditRequestService {
                     .freeStatuses(PartnerOrderStatus.DRAFT, PartnerOrderStatus.CONFIRMING)
                     .lockedRequiresApproval(PartnerOrderStatus.CONFIRMED)
                     .terminalStatuses(PartnerOrderStatus.CANCELED)
+                    .displayName(PartnerOrderStatus::getDisplayName)
                     .build();
 
     private final PartnerOrderEditRequestRepository requestRepository;

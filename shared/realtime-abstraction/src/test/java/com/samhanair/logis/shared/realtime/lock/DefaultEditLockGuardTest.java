@@ -3,6 +3,8 @@ package com.samhanair.logis.shared.realtime.lock;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 
 /**
@@ -76,5 +78,32 @@ class DefaultEditLockGuardTest {
         assertThatThrownBy(() -> guard.guardCanDelete(SampleStatus.DELIVERED, policy, false))
                 .isInstanceOf(LockedException.class)
                 .hasMessageContaining("삭제");
+    }
+
+    @Test
+    void guardCanEdit_fullyLocked_usesPolicyDisplayName() {
+        Map<SampleStatus, String> labels = Map.of(
+                SampleStatus.SHIPPING, "배송중"
+        );
+        EditLockPolicy<SampleStatus> displayNamePolicy = EditLockPolicy.<SampleStatus>builder()
+                .fullyLocked(SampleStatus.SHIPPING)
+                .displayName(labels::get)
+                .build();
+
+        assertThatThrownBy(() -> guard.guardCanEdit(SampleStatus.SHIPPING, displayNamePolicy, false))
+                .isInstanceOf(LockedException.class)
+                .hasMessageContaining("현 단계 (배송중)")
+                .hasMessageNotContaining("SHIPPING");
+    }
+
+    @Test
+    void guardCanEdit_fullyLocked_withoutDisplayNameFallsBackToRawStatus() {
+        EditLockPolicy<SampleStatus> rawPolicy = EditLockPolicy.<SampleStatus>builder()
+                .fullyLocked(SampleStatus.SHIPPING)
+                .build();
+
+        assertThatThrownBy(() -> guard.guardCanEdit(SampleStatus.SHIPPING, rawPolicy, false))
+                .isInstanceOf(LockedException.class)
+                .hasMessageContaining("현 단계 (SHIPPING)");
     }
 }

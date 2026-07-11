@@ -72,7 +72,8 @@ public class ArologisEditRequestService {
         DispatchDerivedStatus derived = derivedStatus(dispatch.getId());
         if (derived == DispatchDerivedStatus.PLANNED) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (PLANNED) 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
+                    "현 단계 (" + derived.getDisplayName()
+                            + ") 는 작성자가 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
         }
 
         LocalDateTime expiresAt = LocalDateTime.now().plusHours(DEFAULT_EXPIRES_HOURS);

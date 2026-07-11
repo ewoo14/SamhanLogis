@@ -36,6 +36,7 @@ public class UserEditLockPolicy {
         return EditLockPolicy.<UserStatus>builder()
                 .freeStatuses(UserStatus.ACTIVE)
                 .lockedRequiresApproval(UserStatus.DEACTIVATED)
+                .displayName(UserStatus::getDisplayName)
                 .build();
     }
 }

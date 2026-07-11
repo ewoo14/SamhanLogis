@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * 도메인 status 별 잠금 정책 — PR-H4a (Phase 12 Step 4a) 통합 abstraction.
@@ -31,19 +32,27 @@ public final class EditLockPolicy<T> {
     private final Set<T> lockedRequiresApproval;
     private final Set<T> fullyLocked;
     private final Set<T> terminalStatuses;
+    private final Function<T, String> displayNameFn;
 
     private EditLockPolicy(Set<T> freeStatuses, Set<T> lockedRequiresApproval,
-                           Set<T> fullyLocked, Set<T> terminalStatuses) {
+                           Set<T> fullyLocked, Set<T> terminalStatuses,
+                           Function<T, String> displayNameFn) {
         this.freeStatuses = Collections.unmodifiableSet(freeStatuses);
         this.lockedRequiresApproval = Collections.unmodifiableSet(lockedRequiresApproval);
         this.fullyLocked = Collections.unmodifiableSet(fullyLocked);
         this.terminalStatuses = Collections.unmodifiableSet(terminalStatuses);
+        this.displayNameFn = displayNameFn;
     }
 
     public Set<T> freeStatuses() { return freeStatuses; }
     public Set<T> lockedRequiresApproval() { return lockedRequiresApproval; }
     public Set<T> fullyLocked() { return fullyLocked; }
     public Set<T> terminalStatuses() { return terminalStatuses; }
+
+    /** 사용자 노출용 상태 라벨 — 미지정 정책은 기존 raw 문자열 fallback. */
+    public String displayName(T status) {
+        return displayNameFn != null ? displayNameFn.apply(status) : String.valueOf(status);
+    }
 
     /** 자유 단계 — 작성자 직접 mutation 허용. */
     public boolean isFree(T status) {
@@ -76,6 +85,7 @@ public final class EditLockPolicy<T> {
         private final Set<T> locked = new HashSet<>();
         private final Set<T> fully = new HashSet<>();
         private final Set<T> terminal = new HashSet<>();
+        private Function<T, String> displayNameFn;
 
         @SafeVarargs
         public final Builder<T> freeStatuses(T... statuses) {
@@ -105,8 +115,13 @@ public final class EditLockPolicy<T> {
             return this;
         }
 
+        public Builder<T> displayName(Function<T, String> fn) {
+            this.displayNameFn = fn;
+            return this;
+        }
+
         public EditLockPolicy<T> build() {
-            return new EditLockPolicy<>(free, locked, fully, terminal);
+            return new EditLockPolicy<>(free, locked, fully, terminal, displayNameFn);
         }
     }
 }

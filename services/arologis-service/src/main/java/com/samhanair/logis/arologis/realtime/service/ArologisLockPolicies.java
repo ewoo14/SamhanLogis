@@ -24,6 +24,7 @@ public final class ArologisLockPolicies {
                     .lockedRequiresApproval(
                             DispatchDerivedStatus.DISPATCHED,
                             DispatchDerivedStatus.DELIVERED)
+                    .displayName(DispatchDerivedStatus::getDisplayName)
                     .build();
 
     private ArologisLockPolicies() {

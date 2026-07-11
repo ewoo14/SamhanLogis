@@ -33,16 +33,19 @@ public class DefaultEditLockGuard implements EditLockGuard {
         }
         if (policy.isFullyLocked(status)) {
             throw new LockedException(
-                    "현 단계 (" + status + ") 는 완전 잠금 — " + actionLabel + " 불가 (사용자 명시 정책)");
+                    "현 단계 (" + policy.displayName(status) + ") 는 완전 잠금 — "
+                            + actionLabel + " 불가 (사용자 명시 정책)");
         }
         if (policy.isTerminal(status)) {
             throw new LockedException(
-                    "현 단계 (" + status + ") 는 종결됨 — " + actionLabel + " 불가");
+                    "현 단계 (" + policy.displayName(status) + ") 는 종결됨 — "
+                            + actionLabel + " 불가");
         }
         if (policy.isLockedRequiresApproval(status)) {
             if (!hasActiveApproval) {
                 throw new LockedException(
-                        "현 단계 (" + status + ") 는 권한자 수락 후 " + actionLabel + " 가능 — APPROVED 요청 부재");
+                        "현 단계 (" + policy.displayName(status) + ") 는 권한자 수락 후 "
+                                + actionLabel + " 가능 — APPROVED 요청 부재");
             }
             return;
         }

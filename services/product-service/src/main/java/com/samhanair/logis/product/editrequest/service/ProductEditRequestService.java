@@ -70,6 +70,7 @@ public class ProductEditRequestService implements EditRequestService {
             EditLockPolicy.<ProductStatus>builder()
                     .freeStatuses(ProductStatus.ACTIVE)
                     .lockedRequiresApproval(ProductStatus.DISCONTINUED)
+                    .displayName(ProductStatus::getDisplayName)
                     .build();
 
     private final ProductEditRequestRepository requestRepository;
@@ -201,11 +202,12 @@ public class ProductEditRequestService implements EditRequestService {
         ProductStatus s = product.getStatus();
         if (LOCK_POLICY.isFree(s)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "현 단계 (" + s + ") 는 admin 이 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
+                    "현 단계 (" + s.getDisplayName()
+                            + ") 는 admin 이 직접 수정/삭제 가능합니다 — 별도 요청 불필요");
         }
         if (LOCK_POLICY.isFullyLocked(s)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "현 단계 (" + s + ") 는 완전 잠금 — 수정/삭제 요청 자체 불가");
+                    "현 단계 (" + s.getDisplayName() + ") 는 완전 잠금 — 수정/삭제 요청 자체 불가");
         }
         // DISCONTINUED (LOCKED_REQUIRES_APPROVAL) 만 정상 진행
     }

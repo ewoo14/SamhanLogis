@@ -35,5 +35,6 @@ public final class PartnerLockPolicies {
             EditLockPolicy.<PartnerStatus>builder()
                     .freeStatuses(PartnerStatus.ACTIVE, PartnerStatus.SUSPENDED)
                     .terminalStatuses(PartnerStatus.TERMINATED)
+                    .displayName(PartnerStatus::getDisplayName)
                     .build();
 }

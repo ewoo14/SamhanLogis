@@ -3,6 +3,8 @@ package com.samhanair.logis.arologis.realtime.service;
 import com.samhanair.logis.arologis.domain.StopStatus;
 import com.samhanair.logis.arologis.domain.VehicleStop;
 import java.util.Collection;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Dispatch 의 derived status — PR-H4b (Phase 12 Step 4b).
@@ -19,11 +21,15 @@ import java.util.Collection;
  *
  * <p>Stop 0 건 (parsing 미완 / 직접 매뉴얼 입력 직후) → PLANNED.
  */
+@Getter
+@RequiredArgsConstructor
 public enum DispatchDerivedStatus {
 
-    PLANNED,
-    DISPATCHED,
-    DELIVERED;
+    PLANNED("배차 전"),
+    DISPATCHED("배차중"),
+    DELIVERED("배송완료");
+
+    private final String displayName;
 
     /**
      * stops 집합으로 derived status 산출.

@@ -28,6 +28,7 @@ public class DcConfigEditLockPolicy {
         return EditLockPolicy.<DcConfigStatus>builder()
                 .freeStatuses(DcConfigStatus.DRAFT)
                 .lockedRequiresApproval(DcConfigStatus.IN_USE)
+                .displayName(DcConfigStatus::getDisplayName)
                 .build();
     }
 }

@@ -38,6 +38,7 @@ public final class AccountingLockPolicies {
                     .freeStatuses(TaxInvoiceStatus.DRAFT)
                     .lockedRequiresApproval(TaxInvoiceStatus.ISSUED)
                     .terminalStatuses(TaxInvoiceStatus.CANCELLED)
+                    .displayName(TaxInvoiceStatus::getDisplayName)
                     .build();
 
     /** Journal 잠금 정책 — DRAFT 자유, POSTED 잠금 (MANAGER 수락), REVERSED 종결. */
@@ -46,6 +47,7 @@ public final class AccountingLockPolicies {
                     .freeStatuses(JournalStatus.DRAFT)
                     .lockedRequiresApproval(JournalStatus.POSTED)
                     .terminalStatuses(JournalStatus.REVERSED)
+                    .displayName(JournalStatus::getDisplayName)
                     .build();
 
     /** AccountingPeriod 잠금 정책 — OPEN 자유, CLOSED 잠금 (MANAGER 수락 = 역마감 채널). */
@@ -53,6 +55,7 @@ public final class AccountingLockPolicies {
             EditLockPolicy.<PeriodStatus>builder()
                     .freeStatuses(PeriodStatus.OPEN)
                     .lockedRequiresApproval(PeriodStatus.CLOSED)
+                    .displayName(PeriodStatus::getDisplayName)
                     .build();
 
     /** CashReceipt 잠금 정책 — DRAFT 자유, CONFIRMED 잠금, CANCELLED 종결. */
@@ -61,5 +64,6 @@ public final class AccountingLockPolicies {
                     .freeStatuses(CashReceiptStatus.DRAFT)
                     .lockedRequiresApproval(CashReceiptStatus.CONFIRMED)
                     .terminalStatuses(CashReceiptStatus.CANCELLED)
+                    .displayName(CashReceiptStatus::getDisplayName)
                     .build();
 }

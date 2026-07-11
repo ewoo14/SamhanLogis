@@ -40,7 +40,8 @@ class InventoryLockPoliciesTest {
         assertThatThrownBy(() -> guard.guardCanEdit(
                 AuditStatus.COMPLETED, InventoryLockPolicies.AUDIT_POLICY, false))
                 .isInstanceOf(LockedException.class)
-                .hasMessageContaining("COMPLETED");
+                .hasMessageContaining("완료")
+                .hasMessageNotContaining("COMPLETED");
     }
 
     @Test
@@ -53,7 +54,8 @@ class InventoryLockPoliciesTest {
         assertThatThrownBy(() -> guard.guardCanEdit(
                 AuditStatus.CANCELLED, InventoryLockPolicies.AUDIT_POLICY, true))
                 .isInstanceOf(LockedException.class)
-                .hasMessageContaining("CANCELLED");
+                .hasMessageContaining("취소")
+                .hasMessageNotContaining("CANCELLED");
     }
 
     @Test

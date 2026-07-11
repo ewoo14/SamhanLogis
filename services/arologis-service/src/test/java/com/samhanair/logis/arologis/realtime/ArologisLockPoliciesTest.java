@@ -35,7 +35,8 @@ class ArologisLockPoliciesTest {
         assertThatThrownBy(() -> guard.guardCanEdit(
                 DispatchDerivedStatus.DISPATCHED, ArologisLockPolicies.DISPATCH_POLICY, false))
                 .isInstanceOf(LockedException.class)
-                .hasMessageContaining("DISPATCHED");
+                .hasMessageContaining("배차중")
+                .hasMessageNotContaining("DISPATCHED");
     }
 
     @Test
@@ -48,7 +49,8 @@ class ArologisLockPoliciesTest {
         assertThatThrownBy(() -> guard.guardCanDelete(
                 DispatchDerivedStatus.DELIVERED, ArologisLockPolicies.DISPATCH_POLICY, false))
                 .isInstanceOf(LockedException.class)
-                .hasMessageContaining("DELIVERED");
+                .hasMessageContaining("배송완료")
+                .hasMessageNotContaining("DELIVERED");
     }
 
     @Test
