@@ -312,7 +312,7 @@ public class InboundInspectionService {
     private InboundInspection createInspectionFromSlipDetail(UUID slipId, SlipDetail slipDetail) {
         if (!"INBOUND".equals(slipDetail.slipType())) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "입고전표(INBOUND)만 검수 가능합니다: slipType=" + slipDetail.slipType());
+                    "입고전표만 검수 가능합니다 (해당 전표는 검수 대상이 아닙니다)");
         }
         if (slipDetail.status() == null || !INSPECTABLE_STATUSES.contains(slipDetail.status())) {
             throw new BusinessException(ErrorCode.CONFLICT,
