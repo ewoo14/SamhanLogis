@@ -6221,7 +6221,7 @@ function initEvents(){
   });
   el('#btnOrderCancel').addEventListener('click',()=>{
     el('#pageOrderInfo').classList.add('hidden');      // 주문정보 페이지 닫기
-    el('#dlgPreview').showModal();                     // 다시 미리보기로
+    openPreview();                                     // 다시 미리보기로 (정식 재빌드 — group-top+합계 stale 방지)
   });
   el('#btnAddrShip')?.addEventListener('click', () => {
     POSTCODE_TARGET = 'ship';
@@ -9272,30 +9272,18 @@ document.getElementById('due')?.addEventListener('change', function() {
   if (typeof refreshSelectedBadge === 'function') refreshSelectedBadge();
 
   setTimeout(() => {
+    // "취소"/납품일 변경 시 열려있는 미리보기는 정식 openPreview() 로 재빌드 (group-top + 정상 합계·stale 방지).
+    // 기존 코드는 #dlgPreview 를 평면 재작성하며 group-top 누락 + 깨진 셀렉터(#dlgPreview tfoot td:last-child,
+    // 미리보기엔 tfoot 부재)로 합계가 stale 였음 → openPreview()/setPreviewFoot 정식 경로로 대체.
+    const previewDialog = document.querySelector('#dlgPreview');
+    if (previewDialog?.open && typeof openPreview === 'function') {
+      previewDialog.close();
+      openPreview();
+    }
+
     if (typeof buildSendRows === 'function' && typeof aggregateSendRows === 'function') {
       const items = aggregateSendRows(buildSendRows());
       let totalAmt = 0;
-      
-      // 미리보기(#dlgPreview) 표 갱신
-      const pvBody = document.querySelector('#dlgPreview tbody');
-      if (pvBody) {
-        let trs = '';
-        items.forEach(it => {
-          const sub = it.qty * it.price;
-          totalAmt += sub; // 총합 계산
-          trs += `<tr>
-            <td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(it.name)}</td>
-            <td class="model">${escapeLegacyHtml(it.model)}</td>
-            <td class="unit">${escapeLegacyHtml(it.unit || 'EA')}</td>
-            <td>${it.qty.toLocaleString()}</td>
-            <td>${it.price.toLocaleString()}</td>
-            <td>${sub.toLocaleString()}</td>
-          </tr>`;
-        });
-        pvBody.innerHTML = trs;
-        const pvTotal = document.querySelector('#dlgPreview tfoot td:last-child');
-        if (pvTotal) pvTotal.innerText = totalAmt.toLocaleString();
-      }
 
       // 전송확인(#dlgFinal) 표 갱신
       const fnBody = document.querySelector('#dlgFinal tbody');
@@ -9303,6 +9291,7 @@ document.getElementById('due')?.addEventListener('change', function() {
         let trs = '';
         items.forEach(it => {
           const sub = it.qty * it.price;
+          totalAmt += sub;
           trs += `<tr>
             <td style="text-align:left;padding:6px 8px">${escapeLegacyHtml(it.name)}</td>
             <td class="model">${escapeLegacyHtml(it.model)}</td>
