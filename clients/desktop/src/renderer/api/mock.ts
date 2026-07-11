@@ -10987,7 +10987,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && partnerOrderHoldMatch) {
     const params = mockLocationParams()
     if (params.get('mockHold409')) {
-      return mockError(409, 'PARTNER_ORDER_HOLD_INVALID_STATUS', '진행중(DRAFT) 상태인 주문서만 보류할 수 있습니다.')
+      return mockError(409, 'PARTNER_ORDER_HOLD_INVALID_STATUS', '진행중 주문만 보류할 수 있습니다. 현재 상태: 완료')
     }
     const orderId = partnerOrderHoldMatch[1]!
     return envelope({
@@ -11024,7 +11024,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && partnerOrderReleaseMatch) {
     const params = mockLocationParams()
     if (params.get('mockRelease409')) {
-      return mockError(409, 'PARTNER_ORDER_RELEASE_INVALID_STATUS', '보류(ON_HOLD) 상태인 주문서만 해제할 수 있습니다.')
+      return mockError(409, 'PARTNER_ORDER_RELEASE_INVALID_STATUS', '보류 주문만 해제할 수 있습니다. 현재 상태: 진행중')
     }
     const orderId = partnerOrderReleaseMatch[1]!
     return envelope({

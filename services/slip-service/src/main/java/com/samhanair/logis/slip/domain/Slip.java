@@ -627,7 +627,8 @@ public class Slip extends BaseEntity {
      * @param memo 메모 (선택)
      * @param requesterId 요청자 user-id (필수)
      * @return DRAFT 상태의 신규 출고전표
-     * @throws IllegalArgumentException sourceWarehouseId 가 null 이거나 deliveryTag 의 direction 이 INBOUND 일 때
+     * @throws IllegalArgumentException sourceWarehouseId 가 null 일 때
+     * @throws com.samhanair.logis.common.exception.BusinessException (INVALID_INPUT) deliveryTag 의 direction 이 INBOUND 일 때
      */
     public static Slip createOutbound(String slipNo, LocalDate slipDate, int seqNo,
                                       UUID sourceWarehouseId, UUID destinationWarehouseId,
@@ -655,7 +656,8 @@ public class Slip extends BaseEntity {
      * @param memo 메모 (선택)
      * @param requesterId 요청자 user-id (필수)
      * @return DRAFT 상태의 신규 입고전표
-     * @throws IllegalArgumentException destinationWarehouseId 가 null 이거나 deliveryTag 의 direction 이 OUTBOUND 일 때
+     * @throws IllegalArgumentException destinationWarehouseId 가 null 일 때
+     * @throws com.samhanair.logis.common.exception.BusinessException (INVALID_INPUT) deliveryTag 의 direction 이 OUTBOUND 일 때
      */
     public static Slip createInbound(String slipNo, LocalDate slipDate, int seqNo,
                                      UUID destinationWarehouseId,
@@ -673,8 +675,8 @@ public class Slip extends BaseEntity {
     private static void validateTagDirection(DeliveryTag tag, SlipType slipType) {
         if (tag != null && tag.getDirection() != slipType) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "배송 태그 " + tag.getKoreanLabel() + " 는 "
-                            + slipType.getDisplayName() + " 에 사용할 수 없습니다");
+                    "'" + tag.getKoreanLabel() + "' 배송 태그는 "
+                            + slipType.getDisplayName() + "에 사용할 수 없습니다");
         }
     }
 
@@ -839,7 +841,7 @@ public class Slip extends BaseEntity {
      * @param driverName 배송 기사명 (null 이면 보존, 빈 문자열은 그대로 저장)
      * @param driverPhone 배송 기사 연락처 (null 이면 보존)
      * @throws BusinessException(CONFLICT) 현재 상태가 DRAFT/SAVED 가 아닐 때
-     * @throws IllegalArgumentException deliveryTag 의 direction 이 slipType 과 불일치
+     * @throws com.samhanair.logis.common.exception.BusinessException (CONFLICT 수정불가 상태 / INVALID_INPUT deliveryTag 의 direction 이 slipType 과 불일치)
      */
     public void editHeader(UUID partnerId, String partnerName, DeliveryTag deliveryTag, String memo,
                            String driverName, String driverPhone) {
@@ -1484,12 +1486,12 @@ public class Slip extends BaseEntity {
 
     /**
      * 발행 출처 메타데이터 일괄 설정 — SlipPublishService 가 신규 슬립 생성 후 호출.
-     * 본 메서드는 1회성 setter (재호출 시 IllegalStateException) — 출처는 발행 시점에 확정.
+     * 본 메서드는 1회성 setter (재호출 시 BusinessException(CONFLICT)) — 출처는 발행 시점에 확정.
      *
      * @param sourceType 출처 유형 (필수)
      * @param sourceId 비즈니스 식별자 (estimate/order 인 경우 필수, MANUAL 이면 null 허용)
      * @param idempotencyKey 호출자 발급 키 (선택, null 이면 idempotency 보호 없이 일반 슬립으로 저장)
-     * @throws IllegalStateException 이미 sourceType 이 설정되어 있고 MANUAL 이 아닐 때
+     * @throws com.samhanair.logis.common.exception.BusinessException (CONFLICT) 이미 sourceType 이 설정되어 있고 MANUAL 이 아닐 때
      * @throws IllegalArgumentException sourceType 이 null 일 때
      */
     public void assignPublishSource(SlipSourceType sourceType, String sourceId, String idempotencyKey) {
