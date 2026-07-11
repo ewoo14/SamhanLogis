@@ -163,7 +163,7 @@ class ApprovalLineConfigServiceTest {
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
                     assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
-                    assertThat(be.getMessage()).isEqualTo("권한 그룹은 GROUP 역할에만 지정할 수 있습니다: 작성자");
+                    assertThat(be.getMessage()).isEqualTo("권한 그룹은 그룹 결재단계에만 지정할 수 있습니다: 작성자");
                 });
     }
 

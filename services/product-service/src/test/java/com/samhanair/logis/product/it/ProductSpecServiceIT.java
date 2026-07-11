@@ -119,7 +119,7 @@ class ProductSpecServiceIT extends AbstractPostgresIT {
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
                     assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
-                    assertThat(be.getMessage()).isEqualTo("해당 product 의 spec 이 아님");
+                    assertThat(be.getMessage()).isEqualTo("해당 품목의 사양이 아닙니다");
                 });
     }
 
@@ -140,7 +140,7 @@ class ProductSpecServiceIT extends AbstractPostgresIT {
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
                     assertThat(be.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
-                    assertThat(be.getMessage()).isEqualTo("해당 product 의 spec 이 아님");
+                    assertThat(be.getMessage()).isEqualTo("해당 품목의 사양이 아닙니다");
                 });
     }
 

@@ -89,7 +89,7 @@ public class ApprovalLineConfig extends BaseEntity {
     public void assignGroup(UUID groupId) {
         if (this.stepType != StepType.GROUP) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "권한 그룹은 GROUP 역할에만 지정할 수 있습니다: " + this.label);
+                    "권한 그룹은 그룹 결재단계에만 지정할 수 있습니다: " + this.label);
         }
         this.approverGroupId = groupId;
     }

@@ -31,6 +31,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -460,7 +461,7 @@ public class ProductCatalogController {
 
     // UsageChangeRequest 는 PR-B 에서 UpdateProductUsageRequest 로 대체됨.
 
-    public record SpecCreateRequest(@NotBlank String specKey, @NotBlank String specValue,
+    public record SpecCreateRequest(@NotBlank String specKey, @NotNull String specValue,
                                     String unit, Integer displayOrder) {}
 
     public record SpecEditRequest(String specValue, String unit) {}

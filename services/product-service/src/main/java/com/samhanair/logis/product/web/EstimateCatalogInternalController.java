@@ -2,6 +2,8 @@ package com.samhanair.logis.product.web;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BranchPipeLookup;
 import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.EstimateCategory;
@@ -294,7 +296,8 @@ public class EstimateCatalogInternalController {
         ProductCategory parentCategory = switch (category) {
             case SINGLE_SET -> ProductCategory.SINGLE_SET;
             case COMMERCIAL_MULTI -> ProductCategory.COMMERCIAL_MULTI;
-            default -> throw new IllegalArgumentException("구성품 카테고리는 SINGLE_SET/COMMERCIAL_MULTI 만 지원");
+            default -> throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "구성품 카테고리는 단일 세트/상업용 멀티만 지원합니다");
         };
         List<Product> parents = productRepository
                 .findByProductCategoryAndIsDeletedFalse(parentCategory);

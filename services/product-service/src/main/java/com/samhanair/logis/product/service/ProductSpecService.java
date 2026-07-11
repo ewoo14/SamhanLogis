@@ -79,7 +79,7 @@ public class ProductSpecService {
         ProductSpec spec = specRepository.findById(specId)
                 .orElseThrow(() -> new EntityNotFoundException("ProductSpec 없음: " + specId));
         if (!spec.getProductId().equals(p.getId())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "해당 product 의 spec 이 아님");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "해당 품목의 사양이 아닙니다");
         }
         spec.editValue(specValue, unit);
         return spec;
@@ -92,7 +92,7 @@ public class ProductSpecService {
         ProductSpec spec = specRepository.findById(specId)
                 .orElseThrow(() -> new EntityNotFoundException("ProductSpec 없음: " + specId));
         if (!spec.getProductId().equals(p.getId())) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "해당 product 의 spec 이 아님");
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "해당 품목의 사양이 아닙니다");
         }
         spec.markDeleted(userId == null ? "system" : userId);
     }
