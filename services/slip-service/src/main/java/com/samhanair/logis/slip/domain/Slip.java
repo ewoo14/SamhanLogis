@@ -1889,7 +1889,7 @@ public class Slip extends BaseEntity {
     public void markDispatchPending() {
         if (this.dispatchStatus == com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "이미 DISPATCHED 인 slip 은 다시 DISPATCHING 으로 전이할 수 없습니다.");
+                    "이미 " + this.dispatchStatus.getDisplayName() + " 상태인 전표는 다시 배차 발송할 수 없습니다.");
         }
         this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHING;
     }
@@ -1907,7 +1907,7 @@ public class Slip extends BaseEntity {
     public void markDispatchReleased() {
         if (this.dispatchStatus == com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "이미 DISPATCHED 인 slip 은 UNDISPATCHED 로 복귀할 수 없습니다.");
+                    "이미 " + this.dispatchStatus.getDisplayName() + " 상태인 전표는 미배차 상태로 복귀할 수 없습니다.");
         }
         this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED;
     }
@@ -1921,7 +1921,7 @@ public class Slip extends BaseEntity {
     public void markDispatchedExternally() {
         if (this.dispatchStatus != com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.UNDISPATCHED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "UNDISPATCHED 상태의 slip 만 타배송사 발송 완료로 전이할 수 있습니다.");
+                    "미배차 상태의 전표만 타배송사 발송 완료로 전이할 수 있습니다.");
         }
         this.dispatchStatus = com.samhanair.logis.slip.domain.dispatch.SlipDispatchStatus.DISPATCHED;
     }

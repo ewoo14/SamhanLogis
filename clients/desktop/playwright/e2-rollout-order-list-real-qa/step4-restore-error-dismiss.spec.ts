@@ -31,7 +31,7 @@ fs.mkdirSync(SHOTS, { recursive: true })
 const SIMULATED_409_BODY = {
   success: false,
   code: 'CONFLICT',
-  message: '진행 중(전환)이거나 취소된 주문은 복원할 수 없습니다. 현재 상태: CONFIRMING',
+  message: '진행 중(전환)이거나 취소된 주문은 복원할 수 없습니다. 현재 상태: 확인중',
   data: null,
   timestamp: new Date().toISOString(),
 }
