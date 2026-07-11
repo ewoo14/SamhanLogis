@@ -627,7 +627,7 @@ public class Slip extends BaseEntity {
      * @param memo 메모 (선택)
      * @param requesterId 요청자 user-id (필수)
      * @return DRAFT 상태의 신규 출고전표
-     * @throws com.samhanair.logis.common.exception.BusinessException (INVALID_INPUT) sourceWarehouseId 가 null 일 때
+     * @throws IllegalArgumentException sourceWarehouseId 가 null 일 때
      * @throws com.samhanair.logis.common.exception.BusinessException (INVALID_INPUT) deliveryTag 의 direction 이 INBOUND 일 때
      */
     public static Slip createOutbound(String slipNo, LocalDate slipDate, int seqNo,
@@ -635,7 +635,7 @@ public class Slip extends BaseEntity {
                                       UUID partnerId, String partnerName,
                                       DeliveryTag deliveryTag, String memo, String requesterId) {
         if (sourceWarehouseId == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "출고전표는 sourceWarehouseId 가 필수입니다");
+            throw new IllegalArgumentException("출고전표는 sourceWarehouseId 가 필수입니다");
         }
         validateTagDirection(deliveryTag, SlipType.OUTBOUND);
         return new Slip(SlipType.OUTBOUND, slipNo, slipDate, seqNo,
@@ -656,7 +656,7 @@ public class Slip extends BaseEntity {
      * @param memo 메모 (선택)
      * @param requesterId 요청자 user-id (필수)
      * @return DRAFT 상태의 신규 입고전표
-     * @throws com.samhanair.logis.common.exception.BusinessException (INVALID_INPUT) destinationWarehouseId 가 null 일 때
+     * @throws IllegalArgumentException destinationWarehouseId 가 null 일 때
      * @throws com.samhanair.logis.common.exception.BusinessException (INVALID_INPUT) deliveryTag 의 direction 이 OUTBOUND 일 때
      */
     public static Slip createInbound(String slipNo, LocalDate slipDate, int seqNo,
@@ -664,7 +664,7 @@ public class Slip extends BaseEntity {
                                      UUID partnerId, String partnerName,
                                      DeliveryTag deliveryTag, String memo, String requesterId) {
         if (destinationWarehouseId == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "입고전표는 destinationWarehouseId 가 필수입니다");
+            throw new IllegalArgumentException("입고전표는 destinationWarehouseId 가 필수입니다");
         }
         validateTagDirection(deliveryTag, SlipType.INBOUND);
         return new Slip(SlipType.INBOUND, slipNo, slipDate, seqNo,

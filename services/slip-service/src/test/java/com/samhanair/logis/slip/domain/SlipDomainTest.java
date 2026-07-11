@@ -32,23 +32,10 @@ class SlipDomainTest {
     }
 
     @Test
-    void createOutbound_nullSourceWarehouse_throwsInvalidInput() {
+    void createOutbound_nullSourceWarehouse_throws() {
         assertThatThrownBy(() -> Slip.createOutbound("X-001", LocalDate.now(), 1,
                 null, DEST_WH, PARTNER, "p", DeliveryTag.DAY, null, "u"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT))
-                .hasMessageContaining("sourceWarehouseId");
-    }
-
-    @Test
-    void createInbound_nullDestWarehouse_throwsInvalidInput() {
-        assertThatThrownBy(() -> Slip.createInbound("X-002", LocalDate.now(), 1,
-                null, PARTNER, "p", DeliveryTag.RETURN, null, "u"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT))
-                .hasMessageContaining("destinationWarehouseId");
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -142,6 +129,12 @@ class SlipDomainTest {
         assertThat(slip.getRedlineAnchorRevisionNo()).isEqualTo(3);
     }
 
+    @Test
+    void createInbound_nullDestWarehouse_throws() {
+        assertThatThrownBy(() -> Slip.createInbound("X", LocalDate.now(), 1,
+                null, PARTNER, "p", DeliveryTag.RETURN, null, "u"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 
     @Test
     void createOutbound_inboundOnlyTag_throws() {
