@@ -9,15 +9,17 @@ public final class ExceptionMessageSanitizer {
 
     private static final String UUID_PATTERN =
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+    private static final Pattern KEYED_UUID =
+            Pattern.compile("(?U)\\s*\\b\\w+\\s*=\\s*" + UUID_PATTERN);
     private static final Pattern QUOTED_UUID = Pattern.compile("\\s*['\"]" + UUID_PATTERN + "['\"]\\s*");
     private static final Pattern UUID = Pattern.compile(UUID_PATTERN);
     private static final Pattern EMPTY_KEY_VALUE =
-            Pattern.compile("(?U)\\s*\\b\\w+\\s*=\\s*(?=[),]|$)");
+            Pattern.compile("(?U)\\s*\\b\\w+\\s*=\\s*(?=[),])");
     private static final Pattern LEADING_COMMA_IN_PARENS = Pattern.compile("\\(\\s*,\\s*");
     private static final Pattern EMPTY_PARENS = Pattern.compile("\\s*\\(\\s*\\)");
     private static final Pattern SPACES = Pattern.compile("\\s+");
     private static final Pattern SPACE_BEFORE_PUNCTUATION = Pattern.compile("\\s+([,.:;!?\\)])");
-    private static final Pattern TRAILING_RESIDUE = Pattern.compile("[\\s:=,;\\-\\(]+$");
+    private static final Pattern TRAILING_RESIDUE = Pattern.compile("[\\s:,;\\-\\(]+$");
 
     private ExceptionMessageSanitizer() {
     }
@@ -27,7 +29,8 @@ public final class ExceptionMessageSanitizer {
             return null;
         }
 
-        String sanitized = QUOTED_UUID.matcher(message).replaceAll(" ");
+        String sanitized = KEYED_UUID.matcher(message).replaceAll("");
+        sanitized = QUOTED_UUID.matcher(sanitized).replaceAll(" ");
         sanitized = UUID.matcher(sanitized).replaceAll("");
         sanitized = EMPTY_KEY_VALUE.matcher(sanitized).replaceAll("");
         sanitized = LEADING_COMMA_IN_PARENS.matcher(sanitized).replaceAll("(");

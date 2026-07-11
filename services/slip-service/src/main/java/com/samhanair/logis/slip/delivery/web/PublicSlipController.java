@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.delivery.web;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
 import com.samhanair.logis.slip.delivery.service.DeliveryBatchService;
 import com.samhanair.logis.slip.delivery.web.dto.PublicBatchResponse;
 import com.samhanair.logis.slip.delivery.web.dto.PublicSignatureRequest;
@@ -60,7 +61,8 @@ public class PublicSlipController {
             // CONFLICT 는 만료 — 410 GONE 으로 변환 (Plan §8)
             if (ex.getErrorCode() == ErrorCode.CONFLICT) {
                 return ResponseEntity.status(HttpStatus.GONE)
-                        .body(ApiResponse.fail(ErrorCode.CONFLICT, ex.getMessage()));
+                        .body(ApiResponse.fail(ErrorCode.CONFLICT,
+                                ExceptionMessageSanitizer.sanitize(ex.getMessage())));
             }
             // NOT_FOUND 는 그대로 다시 던져 GlobalExceptionHandler 가 처리
             throw ex;
@@ -105,7 +107,8 @@ public class PublicSlipController {
             if (ex.getErrorCode() == ErrorCode.CONFLICT && ex.getMessage() != null
                     && ex.getMessage().contains("토큰이 만료")) {
                 return ResponseEntity.status(HttpStatus.GONE)
-                        .body(ApiResponse.fail(ErrorCode.CONFLICT, ex.getMessage()));
+                        .body(ApiResponse.fail(ErrorCode.CONFLICT,
+                                ExceptionMessageSanitizer.sanitize(ex.getMessage())));
             }
             throw ex;
         }
@@ -133,7 +136,8 @@ public class PublicSlipController {
             if (ex.getErrorCode() == ErrorCode.CONFLICT && ex.getMessage() != null
                     && ex.getMessage().contains("토큰이 만료")) {
                 return ResponseEntity.status(HttpStatus.GONE)
-                        .body(ApiResponse.fail(ErrorCode.CONFLICT, ex.getMessage()));
+                        .body(ApiResponse.fail(ErrorCode.CONFLICT,
+                                ExceptionMessageSanitizer.sanitize(ex.getMessage())));
             }
             throw ex;
         }
@@ -163,7 +167,8 @@ public class PublicSlipController {
         } catch (BusinessException ex) {
             if (ex.getErrorCode() == ErrorCode.CONFLICT) {
                 return ResponseEntity.status(HttpStatus.GONE)
-                        .body(ApiResponse.fail(ErrorCode.CONFLICT, ex.getMessage()));
+                        .body(ApiResponse.fail(ErrorCode.CONFLICT,
+                                ExceptionMessageSanitizer.sanitize(ex.getMessage())));
             }
             throw ex;
         }

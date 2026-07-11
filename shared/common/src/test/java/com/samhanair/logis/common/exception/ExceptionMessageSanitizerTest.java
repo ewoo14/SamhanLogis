@@ -45,6 +45,18 @@ class ExceptionMessageSanitizerTest {
 
     @Test
     void uuid_정규식에_맞지_않는_uuid_유사문자열은_보존한다() {
+    }
+
+    @Test
+    void equals_sign_at_end_of_normal_message_is_preserved() {
+        assertThat(ExceptionMessageSanitizer.sanitize("\uC218\uC2DD: x="))
+                .isEqualTo("\uC218\uC2DD: x=");
+        assertThat(ExceptionMessageSanitizer.sanitize("\uC870\uAC74 status="))
+                .isEqualTo("\uC870\uAC74 status=");
+    }
+
+    @Test
+    void uuid_like_tokens_that_do_not_match_uuid_pattern_are_preserved() {
         assertThat(ExceptionMessageSanitizer.sanitize("partner-001-uuid g-uuid-1"))
                 .isEqualTo("partner-001-uuid g-uuid-1");
     }

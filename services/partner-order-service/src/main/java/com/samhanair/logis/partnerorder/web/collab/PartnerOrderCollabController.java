@@ -8,6 +8,7 @@ import com.samhanair.logis.collab.coedit.CollabCoeditService;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabComment;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabEditService;
 import com.samhanair.logis.partnerorder.collab.PartnerOrderCollabSuggestionRepository;
@@ -393,6 +394,7 @@ public class PartnerOrderCollabController {
                             "presence 사용자 정보를 확인할 수 없습니다"));
         }
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
-                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, ex.getMessage()));
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT,
+                        ExceptionMessageSanitizer.sanitize(ex.getMessage())));
     }
 }
