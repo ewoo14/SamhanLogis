@@ -309,7 +309,7 @@ const CHIP_BG: Record<TotalChipProps['tone'], string> = {
 const CHIP_FG: Record<TotalChipProps['tone'], string> = {
   brand: 'var(--color-brand-700)',
   success: 'var(--color-success-700, #047857)',
-  warning: 'var(--color-warning-700, #b45309)',
+  warning: 'var(--color-warning-800, #8C5C13)',
   neutral: 'var(--color-neutral-700)',
 }
 

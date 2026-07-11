@@ -469,7 +469,7 @@ export function ApprovalLineConfigPage() {
               </Button>
             </div>
             {groupsQuery.isError ? (
-              <div style={{ padding: '10px 12px', color: 'var(--color-warning-700)', fontSize: 13 }}>
+              <div style={{ padding: '10px 12px', color: 'var(--color-warning-800, #8C5C13)', fontSize: 13 }}>
                 권한 그룹 목록을 불러오지 못했습니다. 역할 목록은 계속 표시됩니다.
               </div>
             ) : null}

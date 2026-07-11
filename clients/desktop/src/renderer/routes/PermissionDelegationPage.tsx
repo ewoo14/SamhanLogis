@@ -206,7 +206,7 @@ export function PermissionDelegationPage() {
           })}
 
           {selectedGroup.isBuiltin ? (
-            <div style={{ color: 'var(--color-warning-700)', fontSize: 13 }}>
+            <div style={{ color: 'var(--color-warning-800, #8C5C13)', fontSize: 13 }}>
               시스템 권한그룹은 위임 설정을 변경할 수 없습니다.
             </div>
           ) : null}

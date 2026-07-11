@@ -738,7 +738,7 @@ const SUMMARY_BG: Record<SummaryChipProps['tone'], string> = {
 
 const SUMMARY_FG: Record<SummaryChipProps['tone'], string> = {
   success: 'var(--color-success-700, #047857)',
-  warning: 'var(--color-warning-700, #b45309)',
+  warning: 'var(--color-warning-800, #8C5C13)',
   danger: 'var(--color-danger-700, #b91c1c)',
 }
 

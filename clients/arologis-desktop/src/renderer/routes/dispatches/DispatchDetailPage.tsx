@@ -217,7 +217,7 @@ function NotifyStatusChip({ status, errorCode }: NotifyStatusChipProps): JSX.Ele
         alignItems:   'center',
         gap:          4,
         background:   'var(--color-warning-50)',
-        color:        'var(--color-warning-700)',
+        color:        'var(--color-warning-800, #8C5C13)',
         fontSize:     'var(--font-size-sm)',
         padding:      '2px 8px',
         borderRadius: 'var(--radius-md)',
@@ -351,7 +351,7 @@ function NotifyResultSection({ notifyResults }: NotifyResultSectionProps): JSX.E
               <span
                 style={{
                   fontSize: 'var(--font-size-xs)',
-                  color:    'var(--color-warning-700)',
+                  color:    'var(--color-warning-800, #8C5C13)',
                   marginLeft: 4,
                 }}
               >
@@ -385,7 +385,7 @@ function SandboxBanner(): JSX.Element {
         marginBottom: 16,
         borderRadius: 'var(--radius-sm)',
         fontSize:     'var(--font-size-sm)',
-        color:        'var(--color-warning-700)',
+        color:        'var(--color-warning-800, #8C5C13)',
       }}
     >
       <AlertTriangle

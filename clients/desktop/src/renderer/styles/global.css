@@ -1169,7 +1169,7 @@ button {
 
   .mobile-item-chip-remaining {
     background: var(--color-warning-50, #FFFBEB);
-    color: var(--color-warning-700, #92400E);
+    color: var(--color-warning-800, #8C5C13);
   }
 
   .mobile-item-check-wrap {

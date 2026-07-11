@@ -236,7 +236,7 @@ function SourceRow({ rank, gps, nowMs }: SourceRowProps): JSX.Element {
         style={{
           fontSize:   'var(--font-size-xs)',
           color:      isStale
-            ? 'var(--color-warning-500)'
+            ? 'var(--color-warning-800, #8C5C13)'
             : active
               ? 'var(--color-neutral-600)'
               : 'var(--color-neutral-300)',
@@ -262,7 +262,7 @@ function SourceRow({ rank, gps, nowMs }: SourceRowProps): JSX.Element {
         <span
           style={{
             fontSize: 'var(--font-size-xs)',
-            color:    'var(--color-warning-700)',
+            color:    'var(--color-warning-800, #8C5C13)',
           }}
         >
           최근 수신 {formatElapsed(elapsedMs)} (데이터 오래됨)

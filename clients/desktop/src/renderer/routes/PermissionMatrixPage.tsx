@@ -618,14 +618,14 @@ const MATRIX_ACTION_META: Record<PermissionAction, {
     groupLabel: '변경',
     headerBg: 'var(--color-warning-50)',
     headerBorder: 'var(--color-warning-300)',
-    headerColor: 'var(--color-warning-700)',
+    headerColor: 'var(--color-warning-800, #8C5C13)',
     accentColor: 'var(--color-warning-500)',
   },
   update: {
     groupLabel: '변경',
     headerBg: 'var(--color-warning-50)',
     headerBorder: 'var(--color-warning-300)',
-    headerColor: 'var(--color-warning-700)',
+    headerColor: 'var(--color-warning-800, #8C5C13)',
     accentColor: 'var(--color-warning-500)',
   },
   delete: {

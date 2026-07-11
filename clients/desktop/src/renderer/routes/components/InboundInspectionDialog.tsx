@@ -123,7 +123,7 @@ function DiffBadge({ inspected, expected }: { inspected: number; expected: numbe
         fontSize: 11,
         fontWeight: 600,
         background: positive ? 'var(--state-warning-bg)' : 'var(--state-danger-bg)',
-        color: positive ? 'var(--color-warning-700)' : 'var(--color-danger-700)',
+        color: positive ? 'var(--color-warning-800, #8C5C13)' : 'var(--color-danger-700)',
       }}
     >
       {positive ? `▲+${diff.toLocaleString()}` : `▼${diff.toLocaleString()}`}
@@ -430,7 +430,7 @@ export function InboundInspectionDialog({
                             padding: '8px 10px',
                             textAlign: 'right',
                             fontWeight: 500,
-                            color: normalQty(line) < line.expectedQty ? 'var(--color-warning-600)' : 'inherit',
+                            color: normalQty(line) < line.expectedQty ? 'var(--color-warning-800, #8C5C13)' : 'inherit',
                           }}
                         >
                           {normalQty(line).toLocaleString()}

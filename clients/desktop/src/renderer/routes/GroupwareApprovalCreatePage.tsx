@@ -212,7 +212,7 @@ function ApprovalLineInstancePreview({
         <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>{statusText}</span>
       </div>
       {error ? (
-        <p role="alert" style={{ margin: 0, color: 'var(--color-warning-700)', fontSize: 13 }}>
+        <p role="alert" style={{ margin: 0, color: 'var(--color-warning-800, #8C5C13)', fontSize: 13 }}>
           중앙 결재선 정보를 불러오지 못했습니다. 수동 결재선으로 작성할 수 있습니다.
         </p>
       ) : null}

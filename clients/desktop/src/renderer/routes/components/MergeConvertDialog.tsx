@@ -447,7 +447,7 @@ export function MergeConvertDialog({
             <div
               style={{
                 fontSize: 'var(--font-size-sm, 13px)',
-                color: 'var(--color-warning-700, #b47a1f)',
+                color: 'var(--color-warning-800, #8C5C13)',
                 marginBottom: 8,
                 fontWeight: 600,
               }}
@@ -475,7 +475,7 @@ export function MergeConvertDialog({
                       fontSize: 'var(--font-size-sm, 13px)',
                       fontWeight: 600,
                       marginBottom: 6,
-                      color: 'var(--color-warning-700, #b47a1f)',
+                      color: 'var(--color-warning-800, #8C5C13)',
                     }}
                   >
                     {SHIPPING_FIELD_LABEL[key]}

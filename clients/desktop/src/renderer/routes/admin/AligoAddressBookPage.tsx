@@ -145,7 +145,7 @@ export function AligoAddressBookPage() {
           margin: '0 0 12px',
           padding: '8px 12px',
           fontSize: 12,
-          color: 'var(--color-warning-700, #b45309)',
+          color: 'var(--color-warning-800, #8C5C13)',
           background: 'var(--color-warning-50, #fffbeb)',
           border: '1px solid var(--color-warning-200, #fde68a)',
           borderRadius: 4,
@@ -279,7 +279,7 @@ const CHIP_BG: Record<ResultChipProps['tone'], string> = {
 const CHIP_FG: Record<ResultChipProps['tone'], string> = {
   brand: 'var(--color-brand-700)',
   success: 'var(--color-success-700, #047857)',
-  warning: 'var(--color-warning-700, #b45309)',
+  warning: 'var(--color-warning-800, #8C5C13)',
   neutral: 'var(--color-neutral-700)',
   danger: 'var(--color-danger-700, #b91c1c)',
 }
