@@ -56,7 +56,11 @@ class EstimateDomainTest {
         // DRAFT 상태에서 accept 호출 → CONFLICT
         assertThatThrownBy(estimate::accept)
                 .isInstanceOf(BusinessException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CONFLICT)
+                .hasMessageContaining("발송완료")
+                .hasMessageContaining("작성중")
+                .hasMessageNotContaining("QUOTE_SENT")
+                .hasMessageNotContaining("QUOTE_DRAFT");
 
         // DRAFT 상태에서 reject 호출 → CONFLICT (SENT 만 가능)
         assertThatThrownBy(estimate::reject)

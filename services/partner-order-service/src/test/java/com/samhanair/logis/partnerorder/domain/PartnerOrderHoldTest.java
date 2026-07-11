@@ -55,7 +55,10 @@ class PartnerOrderHoldTest {
         ReflectionTestUtils.setField(o, "status", PartnerOrderStatus.CONFIRMED);
         assertThatThrownBy(o::markOnHold)
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("409");
+                .hasMessageContaining("409")
+                .hasMessageContaining("완료")
+                .hasMessageNotContaining("DRAFT")
+                .hasMessageNotContaining("CONFIRMED");
     }
 
     /**

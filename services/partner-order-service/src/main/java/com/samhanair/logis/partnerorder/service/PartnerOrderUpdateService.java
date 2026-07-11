@@ -180,7 +180,8 @@ public class PartnerOrderUpdateService {
     private void guardCollabModifiable(PartnerOrder order) {
         if (COLLAB_LOCKED.contains(order.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "해당 상태의 주문은 협업 수정완료를 적용할 수 없습니다: " + order.getStatus());
+                    "해당 상태의 주문은 협업 수정완료를 적용할 수 없습니다: "
+                            + order.getStatus().getDisplayName());
         }
     }
 

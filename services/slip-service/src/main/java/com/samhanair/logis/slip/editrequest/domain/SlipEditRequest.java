@@ -248,7 +248,7 @@ public class SlipEditRequest extends BaseEntity {
         }
         if (this.status != SlipEditRequestStatus.APPROVED) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "APPROVED 상태가 아닌 요청은 소진할 수 없습니다: " + this.status);
+                    "수락 상태가 아닌 요청은 소진할 수 없습니다: " + this.status.getDisplayName());
         }
         // soft delete 패턴 — 활성 요청 인덱스에서 제외 (재사용 방지)
         markDeleted(consumerUserId);
@@ -257,7 +257,7 @@ public class SlipEditRequest extends BaseEntity {
     private void requirePending() {
         if (this.status != SlipEditRequestStatus.PENDING) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "이미 종결된 요청입니다: " + this.status);
+                    "이미 종결된 요청입니다: " + this.status.getDisplayName());
         }
     }
 }

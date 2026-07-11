@@ -1,11 +1,15 @@
 package com.samhanair.logis.slip.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.client.InventoryClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.domain.Slip;
@@ -117,6 +121,19 @@ class SlipServiceListSpecTest {
                 org.mockito.ArgumentMatchers.anyCollection(),
                 org.mockito.ArgumentMatchers.eq(true),
                 any(Pageable.class));
+    }
+
+    @Test
+    void list_mismatchedDeliveryTag_throwsInvalidInputWithDisplayNames() {
+        assertThatThrownBy(() -> service.list(
+                        SlipType.OUTBOUND, null, null, null,
+                        null, null, null, List.of(DeliveryTag.RETURN), false, pageable))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT)
+                .hasMessageContaining("반품")
+                .hasMessageContaining("출고전표")
+                .hasMessageNotContaining("RETURN")
+                .hasMessageNotContaining("OUTBOUND");
     }
 
     // case 3 — from + to 날짜 범위

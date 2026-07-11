@@ -672,9 +672,9 @@ public class Slip extends BaseEntity {
 
     private static void validateTagDirection(DeliveryTag tag, SlipType slipType) {
         if (tag != null && tag.getDirection() != slipType) {
-            throw new IllegalArgumentException(
-                    "배송 태그 " + tag.name() + "(" + tag.getDirection() + ") 는 "
-                            + slipType + " 전표에 사용할 수 없습니다");
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "배송 태그 " + tag.getKoreanLabel() + " 는 "
+                            + slipType.getDisplayName() + " 에 사용할 수 없습니다");
         }
     }
 
@@ -845,7 +845,7 @@ public class Slip extends BaseEntity {
                            String driverName, String driverPhone) {
         if (!EDITABLE_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "수정 가능한 상태가 아닙니다: " + this.status);
+                    "수정 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         if (deliveryTag != null) {
             validateTagDirection(deliveryTag, this.slipType);
@@ -1079,7 +1079,7 @@ public class Slip extends BaseEntity {
                 && this.status != SlipStatus.ACCEPTED
                 && this.status != SlipStatus.INSPECTING) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "반려 가능한 상태가 아닙니다: " + this.status);
+                    "반려 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         requireNotLocked();
         this.status = SlipStatus.REJECTED;
@@ -1113,7 +1113,7 @@ public class Slip extends BaseEntity {
         }
         if (!CANCELABLE_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "취소 가능한 상태가 아닙니다: " + this.status);
+                    "취소 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
         requireNotLocked();
         this.status = SlipStatus.CANCELED;
@@ -1300,8 +1300,8 @@ public class Slip extends BaseEntity {
                                 SignatureSource source) {
         if (!SIGNABLE_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "서명 가능한 단계가 아닙니다 (현재: " + this.status
-                            + ", 필요: INSPECTING/COMPLETED/SHIPPING)");
+                    "서명 가능한 단계가 아닙니다 (현재: " + this.status.getDisplayName()
+                            + ", 필요: 검수중/처리완료/배송중)");
         }
         if (signerName == null || signerName.isBlank()) {
             throw new IllegalArgumentException("signerName 은 필수입니다");
@@ -1422,8 +1422,8 @@ public class Slip extends BaseEntity {
                                       SignatureSource source) {
         if (!SIGNABLE_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "기사 서명 가능한 단계가 아닙니다 (현재: " + this.status
-                            + ", 필요: INSPECTING/COMPLETED/SHIPPING)");
+                    "기사 서명 가능한 단계가 아닙니다 (현재: " + this.status.getDisplayName()
+                            + ", 필요: 검수중/처리완료/배송중)");
         }
         if (png == null || png.length == 0) {
             throw new IllegalArgumentException("driverSignaturePng 은 필수입니다");
@@ -1497,8 +1497,8 @@ public class Slip extends BaseEntity {
             throw new IllegalArgumentException("sourceType 은 필수입니다");
         }
         if (this.sourceType != null && this.sourceType != SlipSourceType.MANUAL) {
-            throw new IllegalStateException(
-                    "이미 발행 출처가 설정된 슬립입니다: " + this.sourceType);
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "이미 발행 출처가 설정된 슬립입니다: " + this.sourceType.getDisplayName());
         }
         this.sourceType = sourceType;
         this.sourceId = sourceId;
@@ -1685,14 +1685,15 @@ public class Slip extends BaseEntity {
     public void requireEditable() {
         if (!isEditable()) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "라인 수정 가능한 상태가 아닙니다: " + this.status);
+                    "라인 수정 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
     }
 
     private void requireStatus(SlipStatus expected) {
         if (this.status != expected) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
+                    "전이 가능한 상태가 아닙니다: 현재 " + this.status.getDisplayName()
+                            + ", 필요 " + expected.getDisplayName());
         }
     }
 

@@ -429,7 +429,7 @@ public class PartnerOrder extends BaseEntity {
         if (this.status != PartnerOrderStatus.DRAFT) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "진행중(DRAFT) 주문만 보류할 수 있습니다. 현재 상태: " + this.status);
+                    "진행중 주문만 보류할 수 있습니다. 현재 상태: " + this.status.getDisplayName());
         }
         this.status = PartnerOrderStatus.ON_HOLD;
     }
@@ -443,7 +443,7 @@ public class PartnerOrder extends BaseEntity {
         if (this.status != PartnerOrderStatus.ON_HOLD) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "보류(ON_HOLD) 주문만 해제할 수 있습니다. 현재 상태: " + this.status);
+                    "보류 주문만 해제할 수 있습니다. 현재 상태: " + this.status.getDisplayName());
         }
         this.status = PartnerOrderStatus.DRAFT;
     }
@@ -509,7 +509,8 @@ public class PartnerOrder extends BaseEntity {
                 || this.status == PartnerOrderStatus.CANCELED) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
-                    "진행 중(전환)이거나 취소된 주문은 복원할 수 없습니다. 현재 상태: " + this.status);
+                    "진행 중(전환)이거나 취소된 주문은 복원할 수 없습니다. 현재 상태: "
+                            + this.status.getDisplayName());
         }
     }
 
@@ -558,7 +559,8 @@ public class PartnerOrder extends BaseEntity {
                 || this.status == PartnerOrderStatus.ON_HOLD;
         if (!convertibleStatus) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "출고전표로 전환 가능한 상태가 아닙니다(진행중/보류만 가능). 현재: " + this.status);
+                    "출고전표로 전환 가능한 상태가 아닙니다(진행중/보류만 가능). 현재: "
+                            + this.status.getDisplayName());
         }
     }
 

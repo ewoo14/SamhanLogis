@@ -364,7 +364,7 @@ public class Estimate extends BaseEntity {
     public void requireEditable() {
         if (!isEditable()) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "수정 가능한 상태가 아닙니다: " + this.status);
+                    "수정 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
     }
 
@@ -378,7 +378,7 @@ public class Estimate extends BaseEntity {
     public void guardCollabModifiable() {
         if (COLLAB_LOCKED_STATUSES.contains(this.status)) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "협업 수정완료가 불가능한 상태입니다: " + this.status);
+                    "협업 수정완료가 불가능한 상태입니다: " + this.status.getDisplayName());
         }
     }
 
@@ -541,7 +541,8 @@ public class Estimate extends BaseEntity {
     private void requireStatus(EstimateStatus expected) {
         if (this.status != expected) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "전이 가능한 상태가 아닙니다: 현재 " + this.status + ", 필요 " + expected);
+                    "전이 가능한 상태가 아닙니다: 현재 " + this.status.getDisplayName()
+                            + ", 필요 " + expected.getDisplayName());
         }
     }
 

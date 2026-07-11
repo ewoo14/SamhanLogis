@@ -111,8 +111,8 @@ public class DeliveryAttachmentController {
                         "슬립을 찾을 수 없습니다: " + slipId));
         if (!DELIVERY_PHOTO_ALLOWED_STATUSES.contains(slip.getStatus())) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "배송 단계(SHIPPING/DELIVERED/COMPLETED/CONFIRMED) 가 아닌 슬립에는 배송 사진을 첨부할 수 없습니다."
-                            + " 현재 상태: " + slip.getStatus());
+                    "배송 단계(배송중/배송완료/처리완료/확정) 가 아닌 슬립에는 배송 사진을 첨부할 수 없습니다."
+                            + " 현재 상태: " + slip.getStatus().getDisplayName());
         }
 
         String uploaderId = callerOrSystem(callerHeader);

@@ -140,7 +140,39 @@ class SlipDomainTest {
     void createOutbound_inboundOnlyTag_throws() {
         assertThatThrownBy(() -> Slip.createOutbound("X", LocalDate.now(), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "p", DeliveryTag.RETURN, null, "u"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("반품")
+                .hasMessageContaining("출고")
+                .hasMessageNotContaining("RETURN")
+                .hasMessageNotContaining("OUTBOUND");
+    }
+
+    @Test
+    void assignPublishSource_alreadyAssigned_throwsConflictWithDisplayName() {
+        Slip slip = newOutbound();
+        slip.assignPublishSource(SlipSourceType.ESTIMATE, "EST-001", "idem-1");
+
+        assertThatThrownBy(() -> slip.assignPublishSource(
+                        SlipSourceType.PARTNER_ORDER, "ORDER-001", "idem-2"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT))
+                .hasMessageContaining("견적 자동 발행")
+                .hasMessageNotContaining("ESTIMATE");
+    }
+
+    @Test
+    void requireStatus_usesDisplayNameInConflictMessage() {
+        Slip slip = newOutbound();
+
+        assertThatThrownBy(slip::send)
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("저장완료")
+                .hasMessageContaining("작성중")
+                .hasMessageNotContaining("SAVED")
+                .hasMessageNotContaining("DRAFT");
     }
 
     @Test
