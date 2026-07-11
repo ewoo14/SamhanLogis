@@ -19,7 +19,8 @@ import java.util.UUID;
  * 내부적으로 OUTBOUND 타입의 슬립(Slip)을 DRAFT 상태로 생성한다.
  *
  * <p>거래처는 {@code partnerCode} 로만 식별 (UUID 비공개 가드).
- * 출고전표는 항상 출고 창고({@code sourceWarehouseId}) 를 지정해야 한다.
+ * 출고전표는 항상 출고 창고({@code sourceWarehouseId}) 를 지정해야 하며,
+ * 필수 여부는 {@code Slip.createOutbound} 도메인 팩토리에서 검증한다.
  */
 public record MobilePartnerOrderRequest(
         /** 거래처 코드 — UUID 비공개 가드, 사용자 노출 식별자. 필수. */
@@ -28,8 +29,8 @@ public record MobilePartnerOrderRequest(
         /** 슬립 날짜 (null 이면 오늘). */
         LocalDate slipDate,
 
-        /** 출고 창고 UUID (필수 — 출고전표는 창고 미지정 발행 불가). */
-        @NotNull UUID sourceWarehouseId,
+        /** 출고 창고 UUID (필수 — 도메인 팩토리에서 미지정 발행을 차단). */
+        UUID sourceWarehouseId,
 
         /** 배송지 주소 snapshot (선택). */
         @Size(max = 500) String shippingAddress,

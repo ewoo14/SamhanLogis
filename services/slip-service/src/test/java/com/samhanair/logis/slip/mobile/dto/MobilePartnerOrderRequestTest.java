@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -17,7 +16,7 @@ class MobilePartnerOrderRequestTest {
     private final Validator validator = validator();
 
     @Test
-    void nullSourceWarehouseId_isRejectedAtApiBoundary() {
+    void nullSourceWarehouseId_isAcceptedByDtoValidation() {
         MobilePartnerOrderRequest request = new MobilePartnerOrderRequest(
                 "P-001",
                 LocalDate.of(2026, 7, 11),
@@ -35,11 +34,34 @@ class MobilePartnerOrderRequestTest {
                         null)));
 
         assertThat(validator.validate(request))
-                .anySatisfy(violation -> {
-                    assertThat(violation.getPropertyPath().toString()).isEqualTo("sourceWarehouseId");
-                    assertThat(violation.getConstraintDescriptor().getAnnotation().annotationType())
-                            .isEqualTo(NotNull.class);
-                });
+                .noneSatisfy(violation ->
+                        assertThat(violation.getPropertyPath().toString()).isEqualTo("sourceWarehouseId"));
+    }
+
+    @Test
+    void lineRequiredFields_areRejectedAtDtoValidation() {
+        MobilePartnerOrderRequest request = new MobilePartnerOrderRequest(
+                "P-001",
+                LocalDate.of(2026, 7, 11),
+                UUID.randomUUID(),
+                "서울시 중구",
+                "010-0000-0000",
+                "현장 주문",
+                List.of(new MobilePartnerOrderRequest.MobileOrderLineRequest(
+                        null,
+                        "에어컨",
+                        "AC-1",
+                        "EA",
+                        0,
+                        new BigDecimal("-1.00"),
+                        null)));
+
+        assertThat(validator.validate(request))
+                .extracting(violation -> violation.getPropertyPath().toString())
+                .contains(
+                        "lines[0].productId",
+                        "lines[0].quantity",
+                        "lines[0].unitPrice");
     }
 
     private static Validator validator() {
