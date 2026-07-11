@@ -30,7 +30,7 @@ slip-service + partner-order-service의 **사용자 노출 예외 메시지 raw 
 ## 후속 분리(별도 이슈)
 1. ✅ **완료(#788)** 타 서비스 raw enum(inventory `StockTransfer/StockInstance/InventoryAudit/InboundInspection`·partner `PartnerCreditService`·partner-auth·notification) — 신규 SSOT 4개 동반.
 2. ✅ **완료(#789)** Tier2 non-enum 500마스킹(inventory `InventoryAuditService`·product `ProductCatalogController`·auth `ApprovalLineConfig`) + ApiResponse 래퍼.
-3. ✅ **인쇄라벨 완료(#790)** PartnerOrderPrintService 인쇄라벨 SSOT 통합(design intent 확인 → 개발책임자 SSOT 유지 판정). · ⏳ 잔여: UUID interpolation sweep · DefaultEditLockGuard(shared) · docs/qa 증적 재생성.
+3. ✅ **인쇄라벨 완료(#790)** PartnerOrderPrintService 인쇄라벨 SSOT 통합(design intent 확인 → 개발책임자 SSOT 유지 판정). · ✅ **EditLockGuard 완료(#791)** shared DefaultEditLockGuard 잠금메시지 raw enum → displayName SSOT(+EditRequestRecord·11정책 배선·DispatchDerivedStatus 배송 전/중/완료). · ⏳ 잔여: approval-core/collab-core 상태메시지 sweep(#792 예정) · UUID interpolation sweep · docs/qa 증적 재생성.
 
 ## 교훈
 - **초기 recon이 특정 스코프(#725 지정)만 나열하고 defect-family 전수 grep(하위패키지·다양한 변수명)을 놓침** → Codex 적대 재검증이 genuine 0수렴 견인. [[feedback_defect_family_sweep_fix]]는 "지적 1건=동일패턴 전수"이며, 정찰 단계에서 `+ <enum-var>`(필드명 아닌 로컬 포함)·하위패키지까지 전수해야 함.
