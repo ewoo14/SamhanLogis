@@ -62,16 +62,35 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     SINGLE_INC: { SS1: 3000 },
     SINGLE_PARTS_INC: { SP1: 4000 },
     COMM_PARTS_INC: { 'COMM-PART-1': 76000 },
+    SINGLE_DEFAULTS: { '자재 포함 여부': '미포함' },
     homeRowByModel: new Map([
       ['HM1', { model: 'HM1', name: '홈', price: 1100, list: 1100, useK2: false }],
     ]),
+    SINGLE_PARTS: [
+      { setModel: 'SS1', model: 'SP1', name: '싱글 구성품', qty: 2, unit: 'EA', price: 4100, kind: 'ETC' },
+    ],
     COMMULTI: [
       { model: 'CM1', name: '상업', price: 2100, list: 2100, useK2: false },
     ],
     COMM_PARTS: [
-      { setModel: 'CM1', model: 'COMM-PART-1', name: '상업 구성품', qty: 1, unit: 'EA', price: 88000 },
+      { setModel: 'CM1', model: 'COMM-PART-1', name: '상업 구성품', qty: 2, unit: 'EA', price: 88000 },
       { setModel: 'CM1', model: 'COMM-PART-MISSING', name: '상업 구성품 결측', qty: 1, unit: 'EA', price: 99000 },
     ],
+    el: () => null,
+    getBasePanelRow: () => null,
+    pickPanelRow: () => null,
+    getDefaultRemoteRows: () => [],
+    getOptionRemoteRow: () => null,
+    allowRemoteChange_: () => false,
+    isFoot: () => false,
+    isHideMat: () => false,
+    isPanel: () => false,
+    isRemote: () => false,
+    isMaterial: () => false,
+    classifySingleSetFixed: () => null,
+    isIndoorUnitPart: () => false,
+    isOutdoorUnitPart: () => false,
+    splitIndoorOutdoorToK: () => ({ indoor: 0, outdoor: 0, remain: 0 }),
   };
   vm.createContext(context);
   const snippets = [
@@ -85,6 +104,8 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     'partUnitPrice',
     'singleUnitPrice',
     'setBasePriceRightFirst',
+    'partsForSetStrict_',
+    'explodeSetParts',
     'normKey',
     'commPartUnitPrice',
     'partsForCommSet_',
@@ -98,6 +119,11 @@ function loadRuntime(due: string, schedule: Record<string, string>) {
     partUnitPrice: (part: Record<string, unknown>) => number;
     singleUnitPrice: (item: Record<string, unknown>) => number;
     setBasePriceRightFirst: (item: Record<string, unknown>) => number;
+    explodeSetParts: (
+      setRow: Record<string, string | number>,
+      setQty: number,
+      setUnitOverride: number | null,
+    ) => Array<Record<string, number | string>>;
     commPartUnitPrice: (model: string, basePrice: number) => number;
     explodeCommPreviewParts: (setModel: string, setQty: number) => Array<Record<string, number | string>>;
     explodeCommSets_: (setRow: Record<string, string>, setQty: number) => Array<Record<string, number | string>>;
@@ -170,6 +196,23 @@ describe('order-app price change schedule', () => {
 
     expect(runtime.explodeCommPreviewParts('CM1', 1)[0]!.price).toBe(76000);
     expect(runtime.explodeCommSets_({ model: 'CM1' }, 1)[0]!.price).toBe(76000);
+  });
+
+  it('상업 SET 전송 폭파 수량은 세트 수량과 구성품 기본 수량을 곱한다', () => {
+    const runtime = loadRuntime('2026-12-01', {
+      commercialMulti: '2026-12-01',
+    });
+
+    expect(runtime.explodeCommPreviewParts('CM1', 3)[0]!.qty).toBe(6);
+    expect(runtime.explodeCommSets_({ model: 'CM1' }, 3)[0]!.qty).toBe(6);
+  });
+
+  it('싱글 SET 전송 폭파 수량은 세트 수량과 구성품 기본 수량을 곱한다', () => {
+    const runtime = loadRuntime('2026-12-01', {
+      singleSets: '2026-12-01',
+    });
+
+    expect(runtime.explodeSetParts({ model: 'SS1', price: 3000 }, 3, null)[0]!.qty).toBe(6);
   });
 
   it('상업 구성품은 due가 commercialMulti 변동일 이상이면 base 인상후 단가를 사용한다', () => {

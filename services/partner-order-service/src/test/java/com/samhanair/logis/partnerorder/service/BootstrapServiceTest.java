@@ -218,14 +218,14 @@ class BootstrapServiceTest {
         when(estimateCatalogClient.components(EstimateCategory.SINGLE_SET))
                 .thenReturn(List.of(componentRow(
                         "SS-1", "PANEL-1", "싱글 판넬", "EA",
-                        "55000", "66000", "PANEL", "기본", true, "판넬 규격"),
+                        "55000", "66000", "PANEL", "기본", true, "2", "판넬 규격"),
                         componentRow(
                                 "SS-1", "PANEL-NULL", "싱글 null 판넬", "EA",
                                 null, "66000", "PANEL", "선택", false, "판넬 규격")));
         when(estimateCatalogClient.components(EstimateCategory.COMMERCIAL_MULTI))
                 .thenReturn(List.of(componentRow(
                         "CM-1", "COMM-PART-1", "상업 구성품", "EA",
-                        "77000", "88000", "OUTDOOR", "선택", false, "상업 구성 규격"),
+                        "77000", "88000", "OUTDOOR", "선택", false, "3", "상업 구성 규격"),
                         componentRow(
                                 "CM-1", "COMM-PART-2", "상업 구성품2", "EA",
                                 "80000", "90000", "OUTDOOR", "선택", false, "상업 구성 규격2")));
@@ -303,13 +303,19 @@ class BootstrapServiceTest {
                 .containsEntry("model", "PANEL-1")
                 .containsEntry("name", "싱글 판넬")
                 .containsEntry("price", new BigDecimal("55000"))
+                .containsEntry("qty", new BigDecimal("2"))
                 .containsEntry("kind", "PANEL")
                 .containsEntry("isDefault", true)
                 .containsEntry("feat", "기본")
                 .containsEntry("spec", "판넬 규격");
         @SuppressWarnings("unchecked")
-        Map<String, Object> commercialPart = ((List<Map<String, Object>>) payloads.get("commercialParts")).get(0);
-        assertThat(commercialPart).containsEntry("price", new BigDecimal("88000"));
+        List<Map<String, Object>> commercialParts = (List<Map<String, Object>>) payloads.get("commercialParts");
+        Map<String, Object> commercialPart = commercialParts.get(0);
+        assertThat(commercialPart)
+                .containsEntry("price", new BigDecimal("88000"))
+                .containsEntry("qty", new BigDecimal("3"));
+        assertThat(commercialParts.get(1))
+                .containsEntry("qty", BigDecimal.ONE);
 
         // then — 자재가격/단가인상은 배열이 아니라 legacy 객체맵이다.
         // 모델 B: base catalog 는 인상 후를 유지하고, INC 맵은 price-baseline(인상 전) 값이다.
@@ -508,6 +514,22 @@ class BootstrapServiceTest {
             String variant,
             Boolean isDefault,
             String specText) {
+        return componentRow(setModelCode, componentModelCode, name, unit, deliveryPrice, releasePrice,
+                kind, variant, isDefault, null, specText);
+    }
+
+    private static Map<String, Object> componentRow(
+            String setModelCode,
+            String componentModelCode,
+            String name,
+            String unit,
+            String deliveryPrice,
+            String releasePrice,
+            String kind,
+            String variant,
+            Boolean isDefault,
+            String defaultQty,
+            String specText) {
         Map<String, Object> row = new java.util.LinkedHashMap<>();
         row.put("setModelCode", setModelCode);
         row.put("componentModelCode", componentModelCode);
@@ -518,6 +540,7 @@ class BootstrapServiceTest {
         row.put("kind", kind);
         row.put("variant", variant);
         row.put("isDefault", isDefault);
+        row.put("defaultQty", bd(defaultQty));
         row.put("specText", specText);
         return row;
     }

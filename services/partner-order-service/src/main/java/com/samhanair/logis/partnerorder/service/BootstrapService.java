@@ -458,11 +458,17 @@ public class BootstrapService {
                     out.put("price", price);
                     out.put("kind", row.get("kind"));
                     out.put("isDefault", bool(row.get("isDefault")));
+                    out.put("qty", defaultComponentQty(row));
                     out.put("feat", row.get("variant"));
                     out.put("spec", row.get("specText"));
                     return out;
                 })
                 .toList();
+    }
+
+    private BigDecimal defaultComponentQty(Map<String, Object> row) {
+        BigDecimal qty = decimal(row.get("defaultQty"));
+        return qty == null ? BigDecimal.ONE : qty;
     }
 
     private Map<String, Object> materialPriceMap(List<Map<String, Object>> rows) {

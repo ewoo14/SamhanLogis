@@ -3225,7 +3225,7 @@ function explodeSetParts(s, qty, setUnitOverride){
     name: String(p?.name||''),
     model: p.model,
     unit: p.unit || 'EA',
-    qty: qty,
+    qty: qty * (parseInt(p.qty, 10) || 1),
     price: partUnitPrice(p),
     kind: p.kind || ''
   }));
