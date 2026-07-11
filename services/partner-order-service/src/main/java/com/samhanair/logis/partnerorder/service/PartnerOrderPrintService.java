@@ -5,7 +5,6 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
-import com.samhanair.logis.partnerorder.domain.PartnerOrderStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.util.PartnerOrderIdResolver;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
@@ -323,7 +322,7 @@ public class PartnerOrderPrintService {
                 escape((order.getConfirmedAt() == null ? order.getCreatedAt() : order.getConfirmedAt()).format(DATE_TIME)),
                 order.getDueDate() == null ? "-" : escape(order.getDueDate().toString()),
                 order.getSlipNo() == null ? "-" : escape(order.getSlipNo()),
-                escape(statusLabel(order.getStatus())),
+                escape(order.getStatus().getDisplayName()),
                 rows,
                 money(supply),
                 money(vat),
@@ -338,17 +337,6 @@ public class PartnerOrderPrintService {
             case "commercialMulti" -> "상업멀티";
             case "oldProducts" -> "구형";
             default -> "기타";
-        };
-    }
-
-    private static String statusLabel(PartnerOrderStatus status) {
-        return switch (status) {
-            case DRAFT -> "초안";
-            case ON_HOLD -> "보류";
-            case CONFIRMING -> "확인 중";
-            case CONFIRMED -> "확정";
-            case CANCELED -> "취소";
-            case CONVERTED -> "전환완료";
         };
     }
 

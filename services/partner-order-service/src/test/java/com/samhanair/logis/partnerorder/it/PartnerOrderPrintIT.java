@@ -102,7 +102,7 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
                         UUID.randomUUID(), "P-PRINT-A", "삼한테스트공조", "1010101010")));
         Mockito.lenient().when(partnerLookupClient.findByPartnerCode("P-PRINT-C"))
                 .thenReturn(Optional.of(new PartnerSummary(
-                        UUID.randomUUID(), "P-PRINT-C", "확정테스트상사", "5050505050")));
+                        UUID.randomUUID(), "P-PRINT-C", "인쇄테스트상사", "5050505050")));
     }
 
     @Test
@@ -200,9 +200,9 @@ class PartnerOrderPrintIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("2026/05/17-45")))
                 .andExpect(content().string(containsString("P-PRINT-C")))
-                .andExpect(content().string(containsString("확정테스트상사")))
+                .andExpect(content().string(containsString("인쇄테스트상사")))
                 .andExpect(content().string(containsString("실외기")))
-                .andExpect(content().string(containsString("확정")))
+                .andExpect(content().string(containsString(">완료<")))
                 .andExpect(content().string(containsString("240,000")))
                 .andExpect(content().string(containsString("합계")));
     }
