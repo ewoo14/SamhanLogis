@@ -99,8 +99,11 @@ export interface VehicleDetail {
   vendorOrderId: string | null
   /** 알림 발송 결과 목록 */
   notifyResults?: NotifyResult[]
-  /** GPS 소스 목록 */
-  gpsSources: GpsSource[]
+  /**
+   * GPS 소스 목록.
+   * BE 필드 누락 가능 — optional. notifyResults 와 동일 방어 패턴 (#785 family sweep).
+   */
+  gpsSources?: GpsSource[]
 }
 
 /** BE dispatch 상세 DTO */
@@ -459,7 +462,7 @@ function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
       {showGpsPanel && vehicle.driverCode && (
         <InsungLbsPanel
           driverCode={vehicle.driverCode}
-          gpsSources={vehicle.gpsSources}
+          gpsSources={vehicle.gpsSources ?? []}
         />
       )}
 

@@ -5,7 +5,8 @@
  *
  * 표시 조건:
  *   - VehicleMatchStatus = ASSIGNED 또는 DELIVERED 일 때만 렌더
- *   - gpsSources 비어 있으면 "위치 정보 없음" 메시지 표시 (패널 표시 유지)
+ *   - gpsSources 비어 있거나 undefined(BE 필드 누락) 이면 "위치 정보 없음" 메시지
+ *     표시 (패널 표시 유지, 크래시 없음 — #785 family sweep)
  *
  * GPS source 우선순위 (samhan.arologis.gps.priority=insung-lbs,app-gps,manual):
  *   1. EXTERNAL_INSUNG_LBS   — 인성 LBS (가장 정확, 실시간)
@@ -49,8 +50,12 @@ export interface GpsSource {
 export interface InsungLbsPanelProps {
   /** 기사 코드 (UUID 아님) */
   driverCode: string
-  /** GPS 소스 목록 (priority 순서대로 정렬 권장) */
-  gpsSources: GpsSource[]
+  /**
+   * GPS 소스 목록 (priority 순서대로 정렬 권장).
+   * BE 필드 누락 가능 — optional. 미전달/undefined 시 빈 배열로 방어 렌더
+   * (notifyResults 와 동일 결함 패턴, #785 family sweep).
+   */
+  gpsSources?: GpsSource[]
 }
 
 // ---------------------------------------------------------------------------
@@ -288,6 +293,9 @@ export function InsungLbsPanel({
   driverCode,
   gpsSources,
 }: InsungLbsPanelProps): JSX.Element {
+  // BE 필드 누락 방어 — gpsSources undefined 시 빈 배열로 처리 (#785 family sweep)
+  const sources = gpsSources ?? []
+
   // 경과 시간 실시간 갱신 (1초 interval)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -302,7 +310,7 @@ export function InsungLbsPanel({
   }, [])
 
   // priority 순서대로 정렬
-  const sorted = [...gpsSources].sort(
+  const sorted = [...sources].sort(
     (a, b) => SOURCE_PRIORITY[a.source] - SOURCE_PRIORITY[b.source],
   )
 
@@ -333,7 +341,7 @@ export function InsungLbsPanel({
       </div>
 
       {/* source 목록 */}
-      {gpsSources.length === 0 ? (
+      {sources.length === 0 ? (
         <p
           style={{
             fontSize: 'var(--font-size-xs)',
@@ -357,7 +365,7 @@ export function InsungLbsPanel({
       )}
 
       {/* 패널 footer — 활성 소스 요약 */}
-      {gpsSources.length > 0 && (
+      {sources.length > 0 && (
         <div
           style={{
             marginTop:  8,
