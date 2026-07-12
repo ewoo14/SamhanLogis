@@ -29,7 +29,7 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
                    n.target_user_id = :userId
                 OR (n.target_role IS NOT NULL
                     AND :role IS NOT NULL
-                    AND (:role IS NULL OR n.target_role @> ARRAY[CAST(:role AS text)]))
+                    AND n.target_role @> ARRAY[CAST(:role AS text)])
               )
             ORDER BY n.created_at DESC
             """, nativeQuery = true)
@@ -45,7 +45,7 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
                    n.target_user_id = :userId
                 OR (n.target_role IS NOT NULL
                     AND :role IS NOT NULL
-                    AND (:role IS NULL OR n.target_role @> ARRAY[CAST(:role AS text)]))
+                    AND n.target_role @> ARRAY[CAST(:role AS text)])
               )
             ORDER BY n.created_at DESC
             """,
@@ -56,7 +56,7 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
                    n.target_user_id = :userId
                 OR (n.target_role IS NOT NULL
                     AND :role IS NOT NULL
-                    AND (:role IS NULL OR n.target_role @> ARRAY[CAST(:role AS text)]))
+                    AND n.target_role @> ARRAY[CAST(:role AS text)])
               )
             """,
             nativeQuery = true)
