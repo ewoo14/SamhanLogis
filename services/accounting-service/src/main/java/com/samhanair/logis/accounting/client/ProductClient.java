@@ -26,12 +26,19 @@ import org.springframework.web.client.RestClient;
  * <p>일별 세금계산서 마감 detail 에서 모델/할인/세트 마스터 lookup 시 호출.
  * inventory-service 의 동일 client 를 답습 (Layer 4 외부 client).
  *
- * <p>HTTP 매핑:
+ * <p>HTTP 매핑 ({@link #lookup(List)} 전용 — 요청/응답 size 가 반드시 일치해야 하는
+ * 완전 성공 계약):
  * <ul>
  *   <li>4xx → BusinessException(INVALID_INPUT)</li>
  *   <li>5xx / connection → BusinessException(INTERNAL_ERROR)</li>
  *   <li>응답 일부 누락 (size &lt; req) → BusinessException(NOT_FOUND)</li>
  * </ul>
+ *
+ * <p>{@link #applicablePrices(List, LocalDate)}/{@link #fixedDiscountRates(List)} 등 #773 S2a
+ * referent bulk 조회는 위 lookup 과 달리 <b>부분 성공(partial success)</b> 계약이다 — product-service
+ * 가 결측/단종(soft-delete) productId 를 응답 Map 에서 생략하는 것이 정상이며, 응답 size 가 요청
+ * {@code productIds} 보다 작아도 NOT_FOUND 로 취급하지 않는다(결측 판정은 S2b 재검증 엔진 몫). 4xx/5xx/
+ * connection 오류 매핑만 {@link #lookup(List)} 과 동일하게 INVALID_INPUT/INTERNAL_ERROR 를 따른다.
  *
  * <p>본 client 는 IT 에서 {@code @MockBean} 격리 의무 (memory feedback_it_mockbean_external_clients).
  */
