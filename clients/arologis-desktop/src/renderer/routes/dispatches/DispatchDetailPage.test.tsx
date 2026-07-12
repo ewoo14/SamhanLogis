@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import {
   DispatchDetailPage,
   type DispatchDetail,
+  type VehicleDetail,
 } from './DispatchDetailPage'
 
 describe('DispatchDetailPage', () => {
@@ -35,5 +36,20 @@ describe('DispatchDetailPage', () => {
 
     expect(screen.queryByTestId('vehicle-row-1')).not.toBeNull()
     expect(screen.queryByTestId('notification-result-section')).toBeNull()
+  })
+
+  it('vehicles 가 undefined 여도 크래시 없이 "차량 0대" 렌더', () => {
+    const dispatch: DispatchDetail = {
+      id: 'dispatch-id',
+      dispatchDate: '2026-07-12',
+      dispatchTypeLabel: '일반',
+      sandboxMode: false,
+      vehicles: undefined as unknown as VehicleDetail[],
+    }
+
+    const { container } = render(<DispatchDetailPage dispatch={dispatch} />)
+
+    expect(container.textContent).toContain('차량 0대')
+    expect(screen.queryByTestId('vehicle-row-1')).toBeNull()
   })
 })

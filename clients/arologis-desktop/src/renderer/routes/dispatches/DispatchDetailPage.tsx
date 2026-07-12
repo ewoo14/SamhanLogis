@@ -538,6 +538,10 @@ export function DispatchDetailPage({ dispatch, loadError = false }: DispatchDeta
     )
   }
 
+  // BE 필드 누락 방어 — notifyResults/gpsSources 와 동일 패턴 (#785 family sweep).
+  // DispatchDetail.vehicles 는 타입상 required 이나 런타임 누락 대비 가드.
+  const vehicles = dispatch.vehicles ?? []
+
   return (
     <div
       data-testid="dispatch-detail-page"
@@ -559,13 +563,13 @@ export function DispatchDetailPage({ dispatch, loadError = false }: DispatchDeta
           }}
         >
           {dispatch.dispatchDate} · {dispatch.dispatchTypeLabel} · 차량{' '}
-          {dispatch.vehicles.length}대
+          {vehicles.length}대
         </p>
       </div>
 
       {/* 차량 목록 */}
       <div>
-        {dispatch.vehicles.map((vehicle) => (
+        {vehicles.map((vehicle) => (
           <VehicleRow key={vehicle.sequence} vehicle={vehicle} />
         ))}
       </div>
