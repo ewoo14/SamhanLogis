@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,6 +42,7 @@ public class ProductClient {
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PRODUCT_SERVICE_BASE = "http://product-service";
     private static final int LOOKUP_BATCH_MAX = 100;
+    private static final int REFERENT_BATCH_MAX = 500;
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -178,6 +182,132 @@ public class ProductClient {
         return ProductLabelMatch.matched(response.id(), response.modelCode());
     }
 
+    /**
+     * product-service S1a 시점별 적용 정가를 벌크 조회한다.
+     *
+     * <p>{@code asOf} 는 업무일 기준 시점이며, product-service 는 {@code effectiveDate <= asOf}
+     * 중 최신 price_history row 를 반환한다. 요청 productId 중 하나라도 적용 정가가 없으면
+     * product-service 가 404 를 반환하므로 본 client 는 기존 lookup 과 동일한 4xx 예외 매핑으로
+     * 전파한다. 라인별 처리 전략은 S2b 재검증 엔진에서 결정한다.
+     *
+     * @param productIds 조회 대상 productId 목록. 빈 목록은 외부 호출 없이 빈 Map 반환
+     * @param asOf 적용 정가 기준 업무일
+     * @return productId 별 적용 정가/납품가/기준일
+     * @throws BusinessException(INVALID_INPUT) asOf 누락, batch 한도 초과, product-service 4xx
+     * @throws BusinessException(INTERNAL_ERROR) product-service 5xx / 네트워크 / envelope 오류
+     */
+    @SuppressWarnings("unchecked")
+    public Map<UUID, ApplicablePrice> applicablePrices(List<UUID> productIds, LocalDate asOf) {
+        if (productIds == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 제품 ID가 null 입니다");
+        }
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        if (productIds.size() > REFERENT_BATCH_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 제품 수는 " + REFERENT_BATCH_MAX + "건입니다");
+        }
+        if (asOf == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "시점별 정가 기준일이 비어있습니다");
+        }
+        Map<String, Object> body = Map.of(
+                "productIds", productIds.stream().map(UUID::toString).toList(),
+                "asOf", asOf.toString());
+
+        Map<String, Object> envelope = postBulkReferent(
+                "/products/internal/price-history/applicable-bulk",
+                body,
+                "ProductClient applicablePrices failed");
+
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof Map<?, ?> rawMap)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 응답 포맷 오류 (data 누락)");
+        }
+        Map<UUID, ApplicablePrice> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            result.put(UUID.fromString(String.valueOf(entry.getKey())),
+                    objectMapper.convertValue(entry.getValue(), ApplicablePrice.class));
+        }
+        return result;
+    }
+
+    /**
+     * product-service S1c 고정DC율을 벌크 조회한다.
+     *
+     * <p>반환값은 percent 공간(예: {@code 45.00}) 그대로이며 재차 {@code * 100} 하지 않는다.
+     * {@code fixedDiscountRate == null} 은 고정DC 미설정이라는 정상 상태이므로 반환 Map 의 value 에
+     * null 이 보존될 수 있다.
+     *
+     * @param productIds 조회 대상 productId 목록. 빈 목록은 외부 호출 없이 빈 Map 반환
+     * @return productId 별 고정DC율(percent). value null 허용
+     * @throws BusinessException(INVALID_INPUT) batch 한도 초과 또는 product-service 4xx
+     * @throws BusinessException(INTERNAL_ERROR) product-service 5xx / 네트워크 / envelope 오류
+     */
+    @SuppressWarnings("unchecked")
+    public Map<UUID, BigDecimal> fixedDiscountRates(List<UUID> productIds) {
+        if (productIds == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 제품 ID가 null 입니다");
+        }
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        if (productIds.size() > REFERENT_BATCH_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 제품 수는 " + REFERENT_BATCH_MAX + "건입니다");
+        }
+        Map<String, Object> body = Map.of(
+                "productIds", productIds.stream().map(UUID::toString).toList());
+
+        Map<String, Object> envelope = postBulkReferent(
+                "/products/internal/fixed-discount-rate-bulk",
+                body,
+                "ProductClient fixedDiscountRates failed");
+
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof Map<?, ?> rawMap)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 응답 포맷 오류 (data 누락)");
+        }
+        Map<UUID, BigDecimal> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            FixedDiscountResponse response =
+                    objectMapper.convertValue(entry.getValue(), FixedDiscountResponse.class);
+            result.put(UUID.fromString(String.valueOf(entry.getKey())), response.fixedDiscountRate());
+        }
+        return result;
+    }
+
+    private Map<String, Object> postBulkReferent(
+            String uri,
+            Map<String, Object> body,
+            String logMessage) {
+        try {
+            return restClient.post()
+                    .uri(uri)
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "product-service 조회 요청 오류: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 호출 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("{}: {}", logMessage, ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 호출 실패", ex);
+        }
+    }
+
     private String requireToken() {
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
@@ -188,6 +318,9 @@ public class ProductClient {
     }
 
     private record ProductLabelResponse(UUID id, String modelCode) {
+    }
+
+    private record FixedDiscountResponse(BigDecimal fixedDiscountRate) {
     }
 
     private static class LabelNotResolvedException extends RuntimeException {

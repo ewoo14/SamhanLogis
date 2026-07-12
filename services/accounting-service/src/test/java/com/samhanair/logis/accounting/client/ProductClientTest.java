@@ -14,7 +14,9 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -199,6 +201,78 @@ class ProductClientTest {
         assertThat(ambiguous.status()).isEqualTo(ProductLabelMatch.Status.AMBIGUOUS);
         assertThat(ambiguous.isMatched()).isFalse();
 
+        server.verify();
+    }
+
+    @Test
+    void applicablePrices_벌크_요청과_시점정가_파싱을_검증한다() {
+        UUID first = UUID.fromString("00000000-0000-0000-0000-000000000401");
+        UUID second = UUID.fromString("00000000-0000-0000-0000-000000000402");
+        LocalDate asOf = LocalDate.of(2026, 5, 31);
+
+        server.expect(requestTo("http://product-service/products/internal/price-history/applicable-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.productIds[0]").value(first.toString()))
+                .andExpect(jsonPath("$.productIds[1]").value(second.toString()))
+                .andExpect(jsonPath("$.asOf").value("2026-05-31"))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "00000000-0000-0000-0000-000000000401":{
+                            "release":1200000.00,
+                            "delivery":900000.00,
+                            "effectiveDate":"2026-05-01"
+                          },
+                          "00000000-0000-0000-0000-000000000402":{
+                            "release":2200000.00,
+                            "delivery":1700000.00,
+                            "effectiveDate":"2026-05-15"
+                          }
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<UUID, ApplicablePrice> result = client.applicablePrices(List.of(first, second), asOf);
+
+        assertThat(result).containsOnlyKeys(first, second);
+        assertThat(result.get(first).release()).isEqualByComparingTo(new BigDecimal("1200000.00"));
+        assertThat(result.get(first).delivery()).isEqualByComparingTo(new BigDecimal("900000.00"));
+        assertThat(result.get(first).effectiveDate()).isEqualTo(LocalDate.of(2026, 5, 1));
+        assertThat(result.get(second).release()).isEqualByComparingTo(new BigDecimal("2200000.00"));
+        assertThat(result.get(second).delivery()).isEqualByComparingTo(new BigDecimal("1700000.00"));
+        assertThat(result.get(second).effectiveDate()).isEqualTo(LocalDate.of(2026, 5, 15));
+        server.verify();
+    }
+
+    @Test
+    void applicablePrices_빈_productIds는_호출하지_않고_빈_Map을_반환한다() {
+        Map<UUID, ApplicablePrice> result = client.applicablePrices(List.of(), LocalDate.of(2026, 5, 31));
+
+        assertThat(result).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void fixedDiscountRates_벌크_요청과_null_및_percent_파싱을_검증한다() {
+        UUID fixed = UUID.fromString("00000000-0000-0000-0000-000000000501");
+        UUID unset = UUID.fromString("00000000-0000-0000-0000-000000000502");
+
+        server.expect(requestTo("http://product-service/products/internal/fixed-discount-rate-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.productIds[0]").value(fixed.toString()))
+                .andExpect(jsonPath("$.productIds[1]").value(unset.toString()))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "00000000-0000-0000-0000-000000000501":{"fixedDiscountRate":45.00},
+                          "00000000-0000-0000-0000-000000000502":{"fixedDiscountRate":null}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<UUID, BigDecimal> result = client.fixedDiscountRates(List.of(fixed, unset));
+
+        assertThat(result).containsOnlyKeys(fixed, unset);
+        assertThat(result.get(fixed)).isEqualByComparingTo(new BigDecimal("45.00"));
+        assertThat(result).containsEntry(unset, null);
         server.verify();
     }
 }
