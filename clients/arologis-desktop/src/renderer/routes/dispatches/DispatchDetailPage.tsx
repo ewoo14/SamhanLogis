@@ -98,7 +98,7 @@ export interface VehicleDetail {
    */
   vendorOrderId: string | null
   /** 알림 발송 결과 목록 */
-  notifyResults: NotifyResult[]
+  notifyResults?: NotifyResult[]
   /** GPS 소스 목록 */
   gpsSources: GpsSource[]
 }
@@ -255,11 +255,13 @@ function formatSentAt(iso: string | null): string {
 // ---------------------------------------------------------------------------
 
 interface NotifyResultSectionProps {
-  notifyResults: NotifyResult[]
+  notifyResults?: NotifyResult[]
 }
 
 function NotifyResultSection({ notifyResults }: NotifyResultSectionProps): JSX.Element | null {
-  if (notifyResults.length === 0) return null
+  const rows = notifyResults ?? []
+
+  if (rows.length === 0) return null
 
   return (
     <div
@@ -279,7 +281,7 @@ function NotifyResultSection({ notifyResults }: NotifyResultSectionProps): JSX.E
       >
         알림 발송 결과
       </div>
-      {notifyResults.map((result) => {
+      {rows.map((result) => {
         const rowBg =
           result.status === 'FAILED'
             ? 'var(--color-danger-50)'

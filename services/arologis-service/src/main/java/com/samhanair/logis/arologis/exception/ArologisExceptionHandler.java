@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * arologis-service 도메인 예외 → {@link ApiResponse} 봉투 매핑.
@@ -100,6 +101,13 @@ public class ArologisExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         return ResponseEntity.status(ErrorCode.FORBIDDEN.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.FORBIDDEN, ExceptionMessageSanitizer.sanitize(ex.getMessage())));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
+        log.warn("Resource not found in arologis-service: {}", ex.getMessage());
+        return ResponseEntity.status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.fail(ErrorCode.NOT_FOUND, ErrorCode.NOT_FOUND.getDefaultMessage()));
     }
 
     @ExceptionHandler(Exception.class)

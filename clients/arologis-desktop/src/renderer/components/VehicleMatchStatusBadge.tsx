@@ -119,6 +119,10 @@ const INSUNG_BADGE_STYLE: CSSProperties = {
 // 아이콘 렌더 헬퍼
 // ---------------------------------------------------------------------------
 
+function isVehicleMatchStatus(status: unknown): status is VehicleMatchStatus {
+  return typeof status === 'string' && Object.prototype.hasOwnProperty.call(STATUS_STYLE, status)
+}
+
 function StatusIcon({ status }: { status: VehicleMatchStatus }): JSX.Element {
   const size = 16
 
@@ -175,16 +179,22 @@ export function VehicleMatchStatusBadge({
   driverCode,
   vendorOrderId,
 }: VehicleMatchStatusBadgeProps): JSX.Element {
-  const style = STATUS_STYLE[status]
-  const label = STATUS_LABEL[status]
-  const subText = STATUS_SUBTEXT[status]
+  const rawStatus: unknown = status
+  const safeStatus = isVehicleMatchStatus(rawStatus) ? rawStatus : 'PENDING'
+  const style = STATUS_STYLE[safeStatus]
+  const label = isVehicleMatchStatus(rawStatus)
+    ? STATUS_LABEL[rawStatus]
+    : String(rawStatus ?? STATUS_LABEL.PENDING)
+  const subText = isVehicleMatchStatus(rawStatus) ? STATUS_SUBTEXT[rawStatus] : ''
   const ariaLabel =
-    status === 'ASSIGNED' && driverCode
+    safeStatus === 'ASSIGNED' && driverCode
       ? `인성 기사 매칭 완료, 기사 코드 ${driverCode}`
-      : STATUS_ARIA_LABEL[status]
-  const showInsungBadge = status === 'MATCHING' || status === 'ASSIGNED'
+      : isVehicleMatchStatus(rawStatus)
+        ? STATUS_ARIA_LABEL[rawStatus]
+        : String(rawStatus ?? STATUS_LABEL.PENDING)
+  const showInsungBadge = safeStatus === 'MATCHING' || safeStatus === 'ASSIGNED'
   const showDriverCode =
-    (status === 'ASSIGNED' || status === 'DELIVERED') && Boolean(driverCode)
+    (safeStatus === 'ASSIGNED' || safeStatus === 'DELIVERED') && Boolean(driverCode)
 
   // FE-4: vendorOrderId hover tooltip — UUID 아닌 vendor 주문 ID 만 노출
   const tooltipTitle = vendorOrderId
@@ -221,7 +231,7 @@ export function VehicleMatchStatusBadge({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <StatusIcon status={status} />
+          <StatusIcon status={safeStatus} />
           <span style={{ fontWeight: style.fontWeight }}>{label}</span>
         </div>
         {showInsungBadge && (
@@ -243,13 +253,13 @@ export function VehicleMatchStatusBadge({
             fontFamily: 'var(--font-family-mono)',
             fontSize:   'var(--font-size-xs)', // 12px
             color:
-              status === 'ASSIGNED'
+              safeStatus === 'ASSIGNED'
                 ? 'var(--color-success-600)'
                 : 'var(--color-neutral-400)',
             fontWeight: 400,
           }}
         >
-          {status === 'DELIVERED'
+          {safeStatus === 'DELIVERED'
             ? `${driverCode} · 전자서명 수신`
             : driverCode}
         </span>
@@ -258,7 +268,7 @@ export function VehicleMatchStatusBadge({
           style={{
             fontSize: 'var(--font-size-xs)', // 12px
             color:
-              status === 'MATCHING'
+              safeStatus === 'MATCHING'
                 ? 'var(--color-brand-500)'
                 : 'var(--color-neutral-500)',
           }}

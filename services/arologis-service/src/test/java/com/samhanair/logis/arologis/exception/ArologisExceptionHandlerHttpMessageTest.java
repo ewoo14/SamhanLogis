@@ -15,12 +15,14 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** arologis-service JSON body 파싱 실패 응답 계약 테스트. */
 class ArologisExceptionHandlerHttpMessageTest {
@@ -76,5 +78,18 @@ class ArologisExceptionHandlerHttpMessageTest {
                 .doesNotContain("from")
                 .doesNotContain("NOT_A_DATE")
                 .doesNotContain("LocalDate");
+    }
+
+    @Test
+    void noResourceFound_returnsNotFound() {
+        ArologisExceptionHandler handler = new ArologisExceptionHandler();
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleNoResource(
+                new NoResourceFoundException(HttpMethod.GET, "/dispatches/missing"));
+
+        assertThat(response.getStatusCode()).isEqualTo(ErrorCode.NOT_FOUND.getHttpStatus());
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo("NOT_FOUND");
+        assertThat(response.getBody().getMessage()).isEqualTo(ErrorCode.NOT_FOUND.getDefaultMessage());
     }
 }
