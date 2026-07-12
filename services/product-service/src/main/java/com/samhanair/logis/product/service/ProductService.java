@@ -220,9 +220,10 @@ public class ProductService {
     /**
      * 회계 라벨({@code 품목명[규격]})에서 모델 토큰을 추출해 제품 요약을 조회한다.
      *
-     * <p>#773 S1b accounting 일마감 재검증 전용 service-to-service 경로다. 1차는
-     * 카탈로그 노출 모델코드 exact 매칭({@code model_code -> model_name fallback}),
-     * 2차는 product_aliases 의 exact alias, 3차는 기존 제품 검색 LIKE 결과의 단건성으로 판정한다.
+     * <p>#773 S1b accounting 일마감 재검증 전용 service-to-service 경로다. 4단 fallback 으로 판정한다:
+     * 1차 {@code model_code} exact, 2차 {@code model_name} exact(카탈로그 노출 모델코드 fallback,
+     * {@link com.samhanair.logis.product.repository.ProductRepository#findByCatalogExposedModelCodeAndIsDeletedFalse}),
+     * 3차 product_aliases 의 exact alias, 4차 기존 제품 검색 LIKE 결과의 단건성.
      *
      * @param label 회계 라인 품목 라벨
      * @return 매칭된 ProductSummaryResponse
@@ -786,7 +787,7 @@ public class ProductService {
                 null, null, null, PageRequest.of(0, 2));
         List<Product> rows = page.getContent();
         if (rows.size() > 1) {
-            throw new BusinessException(ErrorCode.CONFLICT, "라벨 모델코드 중복 매칭");
+            throw new BusinessException(ErrorCode.CONFLICT, "라벨 모델코드 중복 매칭: " + token);
         }
         return rows.stream().findFirst();
     }

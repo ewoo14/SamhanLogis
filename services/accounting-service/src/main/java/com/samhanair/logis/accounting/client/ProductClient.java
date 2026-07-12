@@ -6,7 +6,6 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,14 +118,19 @@ public class ProductClient {
      * 회계 라벨을 product-service internal endpoint 로 해소한다.
      *
      * <p>일마감 재검증은 미매칭/중복매칭 자체도 리포트 대상이므로 404/409 는 예외 대신
-     * {@link Optional#empty()} 로 반환한다. 그 외 4xx/5xx 및 네트워크 오류는 기존 lookup 과
-     * 동일하게 BusinessException 으로 전파한다.
+     * {@link ProductLabelMatch.Status#NOT_FOUND}/{@link ProductLabelMatch.Status#AMBIGUOUS} 로
+     * 사유를 보존해 반환한다. 그 외 4xx/5xx 및 네트워크 오류는 기존 lookup 과 동일하게
+     * BusinessException 으로 전파한다.
+     *
+     * <p>반환값은 항상 non-null 이며 매칭 여부는 {@link ProductLabelMatch#status()} 로 판정한다.
+     * {@code modelCode} 는 레거시 제품(모델코드 미부여) 매칭 시 null 일 수 있어 포맷 오류 판정
+     * 대상이 아니다 — {@code productId} 누락만 진짜 응답 포맷 오류로 취급한다.
      *
      * @param label 품목명[규격] 회계 라벨
-     * @return productId/modelCode 최소 매칭 결과. 미매칭/중복매칭은 empty
+     * @return 사유 보존 매칭 result (MATCHED/NOT_FOUND/AMBIGUOUS, 항상 non-null)
      */
     @SuppressWarnings("unchecked")
-    public Optional<ProductLabelMatch> resolveByLabel(String label) {
+    public ProductLabelMatch resolveByLabel(String label) {
         Map<String, Object> body = Map.of("label", label == null ? "" : label);
 
         Map<String, Object> envelope;
@@ -151,7 +155,7 @@ public class ProductClient {
                     .body(new ParameterizedTypeReference<>() {});
         } catch (LabelNotResolvedException ex) {
             log.info("ProductClient label lookup unmatched status={} label={}", ex.status, label);
-            return Optional.empty();
+            return ex.status == 404 ? ProductLabelMatch.notFound() : ProductLabelMatch.ambiguous();
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -166,11 +170,12 @@ public class ProductClient {
                     "product-service 응답 포맷 오류 (data 누락)");
         }
         ProductLabelResponse response = objectMapper.convertValue(rawMap, ProductLabelResponse.class);
-        if (response.id() == null || response.modelCode() == null || response.modelCode().isBlank()) {
+        if (response.id() == null) {
+            // modelCode 는 레거시 제품(모델코드 미부여) 매칭 시 null 이 정상이므로 검증 대상에서 제외한다.
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "product-service 응답 포맷 오류 (productId/modelCode 누락)");
+                    "product-service 응답 포맷 오류 (productId 누락)");
         }
-        return Optional.of(new ProductLabelMatch(response.id(), response.modelCode()));
+        return ProductLabelMatch.matched(response.id(), response.modelCode());
     }
 
     private String requireToken() {

@@ -141,9 +141,9 @@ public class ProductInternalController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "라벨/토큰 추출 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "토큰 불일치"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미매칭"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "중복 매칭")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "라벨에 해당하는 제품이 없습니다"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "라벨 모델코드 중복 매칭")
     })
     @PostMapping("/lookup-by-label")
     public ApiResponse<ProductSummaryResponse> lookupByLabel(@Valid @RequestBody LookupByLabelRequest request) {

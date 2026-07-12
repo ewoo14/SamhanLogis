@@ -9,8 +9,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductAlias;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.repository.CategoryRepository;
+import com.samhanair.logis.product.repository.ProductAliasRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -49,6 +51,9 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private ProductAliasRepository productAliasRepository;
+
     private Product exactProduct;
     private Category category;
 
@@ -85,6 +90,33 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.id", is(exactProduct.getId().toString())))
                 .andExpect(jsonPath("$.data.modelCode", is("AC023CN1DBC1")))
                 .andExpect(jsonPath("$.data.categoryKey", is("homemulti")));
+    }
+
+    @Test
+    void lookupByLabel_aliasFallback_returnsMainProductSummary() throws Exception {
+        // exact model_code/model_name 매칭이 안 되는 별도 modelCode 로 alias 대상 제품 생성 (2단 alias fallback 전용).
+        Product aliasMainProduct = productRepository.save(Product.create(
+                "별칭 매핑 실외기",
+                "ALIAS-MAIN-" + UUID.randomUUID().toString().substring(0, 8),
+                category,
+                new BigDecimal("2000000"),
+                new BigDecimal("1600000"),
+                "KRW",
+                null,
+                "라벨 조회 IT alias fallback"));
+        aliasMainProduct.changeModelCode("ALIAS-EXPOSED-CODE1");
+
+        // 라벨 토큰("AC999ALIASX1")은 exact model_code/model_name 어디에도 없고 alias_code 로만 등록.
+        productAliasRepository.save(ProductAlias.create("AC999ALIASX1", aliasMainProduct, "ECOUNT_IMPORT"));
+
+        mockMvc.perform(post("/products/internal/lookup-by-label")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("label", "AC999ALIASX1 [별칭 매핑 테스트]"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id", is(aliasMainProduct.getId().toString())))
+                .andExpect(jsonPath("$.data.modelCode", is("ALIAS-EXPOSED-CODE1")));
     }
 
     @Test

@@ -15,7 +15,6 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -153,15 +152,38 @@ class ProductClientTest {
                         }}
                         """, MediaType.APPLICATION_JSON));
 
-        Optional<ProductLabelMatch> result =
-                client.resolveByLabel("AC023CN1DBC1 [CN냉전 실내기]");
+        ProductLabelMatch result = client.resolveByLabel("AC023CN1DBC1 [CN냉전 실내기]");
 
-        assertThat(result).contains(new ProductLabelMatch(productId, "AC023CN1DBC1"));
+        assertThat(result).isEqualTo(ProductLabelMatch.matched(productId, "AC023CN1DBC1"));
+        assertThat(result.isMatched()).isTrue();
         server.verify();
     }
 
     @Test
-    void resolveByLabel_404와409는_empty() {
+    void resolveByLabel_modelCode가_null이어도_레거시제품_MATCHED로_반환한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000302");
+
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "id":"00000000-0000-0000-0000-000000000302",
+                          "modelCode":null
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        ProductLabelMatch result = client.resolveByLabel("레거시 품목 [규격]");
+
+        assertThat(result.status()).isEqualTo(ProductLabelMatch.Status.MATCHED);
+        assertThat(result.isMatched()).isTrue();
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.modelCode()).isNull();
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabel_404는_NOT_FOUND_409는_AMBIGUOUS로_사유보존한다() {
         server.expect(requestTo("http://product-service/products/internal/lookup-by-label"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
@@ -169,8 +191,13 @@ class ProductClientTest {
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.CONFLICT));
 
-        assertThat(client.resolveByLabel("미등록 라벨")).isEmpty();
-        assertThat(client.resolveByLabel("중복 라벨")).isEmpty();
+        ProductLabelMatch notFound = client.resolveByLabel("미등록 라벨");
+        ProductLabelMatch ambiguous = client.resolveByLabel("중복 라벨");
+
+        assertThat(notFound.status()).isEqualTo(ProductLabelMatch.Status.NOT_FOUND);
+        assertThat(notFound.isMatched()).isFalse();
+        assertThat(ambiguous.status()).isEqualTo(ProductLabelMatch.Status.AMBIGUOUS);
+        assertThat(ambiguous.isMatched()).isFalse();
 
         server.verify();
     }
