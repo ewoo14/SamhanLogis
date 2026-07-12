@@ -54,7 +54,7 @@ class NotificationExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(ErrorCode.INVALID_INPUT.getHttpStatus());
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage())
-                .isEqualTo("필수 요청 헤더가 누락되었습니다")
+                .isEqualTo("필수 요청 헤더가 누락되었습니다.")
                 .doesNotContain("X-User-Id");
     }
 }

@@ -3,6 +3,7 @@ package com.samhanair.logis.notification.controller;
 import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.notification.domain.DispatchSmsProgramType;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.service.DispatchSmsSaveHistoryService;
@@ -68,7 +69,7 @@ public class DispatchSmsSaveHistoryController {
     public ApiResponse<DispatchSmsSaveHistorySaveResponse> save(
             @Valid @RequestBody DispatchSmsSaveHistoryRequest request,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String roleHeader,
             Authentication authentication) {
         return ApiResponse.ok(
                 service.save(request, currentUser(callerHeader, authentication)),
@@ -102,7 +103,7 @@ public class DispatchSmsSaveHistoryController {
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String roleHeader,
             Authentication authentication) {
         int safeSize = Math.max(1, Math.min(size, 200));
         PageRequest pageable = PageRequest.of(
@@ -134,7 +135,7 @@ public class DispatchSmsSaveHistoryController {
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> detail(
             @PathVariable UUID id,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String roleHeader,
             Authentication authentication) {
         return ApiResponse.ok(
                 service.findDetail(id, currentUser(callerHeader, authentication)),
@@ -156,7 +157,7 @@ public class DispatchSmsSaveHistoryController {
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> latest(
             @RequestParam("programType") DispatchSmsProgramType programType,
             @RequestHeader(value = CALLER_HEADER, required = false) String callerHeader,
-            @RequestHeader(value = "X-User-Role", required = false) String roleHeader,
+            @RequestHeader(value = HttpHeaderConstants.CALLER_ROLE_HEADER, required = false) String roleHeader,
             Authentication authentication) {
         return ApiResponse.ok(
                 service.findLatestAutoLatest(programType, currentUser(callerHeader, authentication)),
