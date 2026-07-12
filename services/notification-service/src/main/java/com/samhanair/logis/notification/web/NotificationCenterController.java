@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 사용자 통합 알림 센터 — Issue 4 Slice 1.
  *
- * <p>X-User-Id + X-User-Role 헤더 기반 자동 필터.
+ * <p>X-User-Id + 선택적 X-User-Role 헤더 기반 자동 필터.
  */
 @RestController
 @RequestMapping("/notifications")
@@ -38,7 +38,7 @@ public class NotificationCenterController {
     @Operation(summary = "내 미확인 알림 목록")
     public ApiResponse<List<NotificationCenterResponse>> findMyUnread(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role) {
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
         return ApiResponse.ok(service.findMyUnread(userId, role));
     }
 
@@ -47,7 +47,7 @@ public class NotificationCenterController {
     @Operation(summary = "내 전체 알림 history (paged)")
     public ApiResponse<NotificationCenterPage> findMyHistory(
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role,
+            @RequestHeader(value = "X-User-Role", required = false) String role,
             @PageableDefault(size = 50) Pageable pageable) {
         return ApiResponse.ok(service.findMyHistory(userId, role, pageable));
     }
@@ -58,7 +58,7 @@ public class NotificationCenterController {
     public ApiResponse<Void> acknowledge(
             @PathVariable UUID id,
             @RequestHeader("X-User-Id") UUID userId,
-            @RequestHeader("X-User-Role") String role) {
+            @RequestHeader(value = "X-User-Role", required = false) String role) {
         service.acknowledge(id, userId, role);
         return ApiResponse.ok(null);
     }

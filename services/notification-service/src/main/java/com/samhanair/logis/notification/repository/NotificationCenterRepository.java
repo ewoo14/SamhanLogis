@@ -19,7 +19,7 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
 
     /**
      * 사용자 미확인 알림 (read_at IS NULL) 조회. 최신순.
-     * (target_role 에 role 이 포함되거나, target_user_id = userId) 조합.
+     * (target_user_id = userId 이거나, role 이 있을 때 target_role 에 role 이 포함되는) 조합.
      */
     @Query(value = """
             SELECT n.* FROM notification_center n
@@ -28,7 +28,8 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
               AND (
                    n.target_user_id = :userId
                 OR (n.target_role IS NOT NULL
-                    AND n.target_role @> ARRAY[CAST(:role AS text)])
+                    AND :role IS NOT NULL
+                    AND (:role IS NULL OR n.target_role @> ARRAY[CAST(:role AS text)]))
               )
             ORDER BY n.created_at DESC
             """, nativeQuery = true)
@@ -43,7 +44,8 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
               AND (
                    n.target_user_id = :userId
                 OR (n.target_role IS NOT NULL
-                    AND n.target_role @> ARRAY[CAST(:role AS text)])
+                    AND :role IS NOT NULL
+                    AND (:role IS NULL OR n.target_role @> ARRAY[CAST(:role AS text)]))
               )
             ORDER BY n.created_at DESC
             """,
@@ -53,7 +55,8 @@ public interface NotificationCenterRepository extends JpaRepository<Notification
               AND (
                    n.target_user_id = :userId
                 OR (n.target_role IS NOT NULL
-                    AND n.target_role @> ARRAY[CAST(:role AS text)])
+                    AND :role IS NOT NULL
+                    AND (:role IS NULL OR n.target_role @> ARRAY[CAST(:role AS text)]))
               )
             """,
             nativeQuery = true)

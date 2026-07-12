@@ -220,6 +220,27 @@ class NotificationCenterControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("GET /notifications/my — X-User-Role 없이 target_user_id 매칭 row만 조회")
+    void findMyUnread_withoutRoleHeader_includesOnlyUserIdMatch() throws Exception {
+        repository.save(NotificationCenter.publish(
+                "MESSENGER", NotificationSeverity.INFO,
+                "개인 알림", null,
+                null, masterUserId,
+                "groupware-service", "msg-user", null));
+        repository.save(NotificationCenter.publish(
+                "SAFETY_STOCK", NotificationSeverity.WARNING,
+                "MASTER 브로드캐스트", null,
+                List.of("MASTER"), null,
+                "inventory-service", "role-broadcast", null));
+
+        mockMvc.perform(get("/notifications/my")
+                        .header("X-User-Id", masterUserId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.data[0].title").value("개인 알림"));
+    }
+
+    @Test
     @DisplayName("POST /notifications/{id}/acknowledge — read_at 설정 + 두 번째 호출 idempotent")
     void acknowledge_idempotent() throws Exception {
         NotificationCenter saved = repository.save(NotificationCenter.publish(
