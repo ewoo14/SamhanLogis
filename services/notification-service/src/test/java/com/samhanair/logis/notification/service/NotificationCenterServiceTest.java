@@ -146,6 +146,34 @@ class NotificationCenterServiceTest {
     }
 
     @Test
+    @DisplayName("acknowledge: role null 이면 target_user_id 매칭만 접근 허용")
+    void acknowledge_nullRole_allowsUserIdTarget() {
+        NotificationCenter n = NotificationCenter.publish(
+                "MESSENGER", NotificationSeverity.INFO,
+                "메시지", "내용",
+                null, userId,
+                "groupware-service", "msg-user", "/messenger");
+        when(repository.findById(n.getId())).thenReturn(Optional.of(n));
+        when(repository.save(n)).thenReturn(n);
+
+        service.acknowledge(n.getId(), userId, null);
+
+        assertThat(n.getReadAt()).isNotNull();
+        verify(repository).save(n);
+    }
+
+    @Test
+    @DisplayName("acknowledge: role null 이면 role broadcast 알림 접근 거절")
+    void acknowledge_nullRole_rejectsRoleBroadcast() {
+        NotificationCenter n = stubNotification();
+        when(repository.findById(n.getId())).thenReturn(Optional.of(n));
+
+        assertThatThrownBy(() -> service.acknowledge(n.getId(), userId, null))
+                .isInstanceOf(BusinessException.class);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("acknowledge: 권한 없는 알림 → FORBIDDEN")
     void acknowledge_notMyNotification_throwsForbidden() {
         NotificationCenter n = NotificationCenter.publish(

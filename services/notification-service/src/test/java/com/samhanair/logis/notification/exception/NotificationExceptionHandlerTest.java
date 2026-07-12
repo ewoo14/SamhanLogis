@@ -7,6 +7,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -43,5 +44,17 @@ class NotificationExceptionHandlerTest {
                 .doesNotContain("from")
                 .doesNotContain("NOT_A_DATE")
                 .doesNotContain("LocalDate");
+    }
+
+    @Test
+    void missingRequestHeader_returnsNeutralKoreanMessage() {
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMissingRequestHeader(
+                new MissingRequestHeaderException("X-User-Id", null));
+
+        assertThat(response.getStatusCode()).isEqualTo(ErrorCode.INVALID_INPUT.getHttpStatus());
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("필수 요청 헤더가 누락되었습니다")
+                .doesNotContain("X-User-Id");
     }
 }
