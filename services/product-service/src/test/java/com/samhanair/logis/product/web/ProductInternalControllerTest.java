@@ -13,6 +13,7 @@ import com.samhanair.logis.product.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.security.InternalTokenFilter;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.EcountAliasResolveService;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
@@ -39,6 +40,7 @@ class ProductInternalControllerTest {
     private static final String VALID_TOKEN = "test-internal-token";
 
     private ProductService productService;
+    private ProductRepository productRepository;
     private EcountAliasResolveService ecountAliasResolveService;
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -46,6 +48,7 @@ class ProductInternalControllerTest {
     @BeforeEach
     void setUp() {
         productService = Mockito.mock(ProductService.class);
+        productRepository = Mockito.mock(ProductRepository.class);
         ecountAliasResolveService = Mockito.mock(EcountAliasResolveService.class);
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(VALID_TOKEN);
@@ -54,7 +57,7 @@ class ProductInternalControllerTest {
         props.setRole("INTERNAL");
         props.setAllowMissingToken(false);
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProductInternalController(productService,
+        mockMvc = MockMvcBuilders.standaloneSetup(new ProductInternalController(productService, productRepository,
                         Mockito.mock(com.samhanair.logis.product.service.BundleExpander.class),
                         ecountAliasResolveService))
                 .addFilters(new InternalTokenFilter(props), new HeaderAuthenticationFilter())

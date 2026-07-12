@@ -84,6 +84,8 @@ public class HvacProductSeeder implements CommandLineRunner {
     private static final BigDecimal RATE_MULTI_48 = new BigDecimal("1.12");
     private static final BigDecimal RATE_MULTI_45 = new BigDecimal("1.15");
     private static final BigDecimal RATE_ITEM_35  = new BigDecimal("1.30");
+    private static final BigDecimal FIXED_DC_MULTI = new BigDecimal("45.00");
+    private static final BigDecimal FIXED_DC_ITEM = new BigDecimal("35.00");
 
     /** V2 product_categories 시드의 결정적 UUID (V2__seed_product_categories.sql 와 1:1). */
     private static final java.util.UUID CAT_HVAC_ROOT      = java.util.UUID.fromString("00000000-0000-0000-0000-000000001001");
@@ -238,6 +240,7 @@ public class HvacProductSeeder implements CommandLineRunner {
         // (현재 categoryCode 매핑은 product_group2 기준 단순)
         // releasePrice / deliveryPrice 도 명시적으로 sync
         product.changePrices(outbound, inbound);
+        product.changeFixedDiscountRate(resolveFixedDiscountRate(row));
         product.changeRemark(row.description());
         product.changeSpecText(row.specification());
         product.changeUsage(UsageScope.BOTH);
@@ -255,6 +258,21 @@ public class HvacProductSeeder implements CommandLineRunner {
             case 0 -> a;
             case 1 -> b;
             default -> c;
+        };
+    }
+
+    /**
+     * #773 S1c dev fixture 고정DC율.
+     *
+     * <p>현대 저장값은 percent 공간(0~100)이다. 레거시 Code.js 의 {@code fixedDc=0.45} 는
+     * {@code expectRate=round(fixedDc*100)} 로 비교하므로 dev seed 도 45.00 을 저장한다.
+     * 멀티/SET 성격 HVAC 는 45.00, 부속 단품은 35.00, 명확한 단일 상품은 null 로 둔다.
+     */
+    private BigDecimal resolveFixedDiscountRate(SeedRow row) {
+        return switch (row.group2()) {
+            case "스탠드", "시스템", "천장형" -> FIXED_DC_MULTI;
+            case "부속" -> FIXED_DC_ITEM;
+            default -> null;
         };
     }
 
@@ -414,7 +432,7 @@ public class HvacProductSeeder implements CommandLineRunner {
                         + "  selling_price, purchase_price, currency, status,"
                         + "  description,"
                         // V3 확장 컬럼
-                        + "  product_type, has_variable_discount, discount_flags,"
+                        + "  product_type, has_variable_discount, fixed_discount_rate, discount_flags,"
                         + "  release_price, delivery_price, usage_scope,"
                         + "  spec_text, remark,"
                         // V5 이카운트 컬럼
@@ -435,7 +453,7 @@ public class HvacProductSeeder implements CommandLineRunner {
                         + "  ?, ?, ?, ?,"
                         + "  ?, ?, ?, ?,"
                         + "  ?,"
-                        + "  ?, ?, ?,"
+                        + "  ?, ?, ?, ?,"
                         + "  ?, ?, ?,"
                         + "  ?, ?,"
                         + "  ?, ?, ?, ?,"
@@ -461,9 +479,10 @@ public class HvacProductSeeder implements CommandLineRunner {
                 product.getStatus().name(),
                 // description
                 product.getDescription(),
-                // product_type, has_variable_discount, discount_flags
+                // product_type, has_variable_discount, fixed_discount_rate, discount_flags
                 product.getProductType().name(),
                 product.getHasVariableDiscount(),
+                product.getFixedDiscountRate(),
                 product.getDiscountFlags(),
                 // release_price, delivery_price, usage_scope
                 product.getReleasePrice(),

@@ -1,6 +1,10 @@
 package com.samhanair.logis.product.web;
 
 import com.samhanair.logis.common.dto.ApiResponse;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.EcountAliasResolveService;
 import com.samhanair.logis.product.service.ProductService;
@@ -9,18 +13,24 @@ import com.samhanair.logis.product.web.dto.EcountAliasResolveRequest;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveResponse;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
+import com.samhanair.logis.product.web.dto.FixedDiscountResponse;
+import com.samhanair.logis.product.web.dto.LookupByFixedDiscountRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
-import java.util.ArrayList;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProductInternalController {
 
     private final ProductService productService;
+    private final ProductRepository productRepository;
     private final BundleExpander bundleExpander;
     private final EcountAliasResolveService ecountAliasResolveService;
 
@@ -151,6 +162,55 @@ public class ProductInternalController {
     }
 
     /**
+     * 고정DC율 단건 조회 (internal) — #773 일마감 재검증의 productId → fixedDiscountRate 참조 경로.
+     *
+     * <p>반환값은 {@link Product#getFixedDiscountRate()} 의 percent(예: 45.00) 그대로다. 레거시
+     * Code.js 의 {@code fixedDc}(분수 0.45)에 {@code * 100} 을 적용한 현대 저장값이므로,
+     * S2 재검증이 {@code expectRate=round(fixedDc*100)} 와 비교할 때 이 값은 이미
+     * expectRate 공간이다. 재차 {@code * 100} 하면 안 된다.
+     */
+    @Operation(summary = "고정DC율 단건 조회 (internal)",
+            description = "X-Internal-Token 인증. #773 일마감 재검증 productId→fixedDiscountRate 조회 전용. "
+                    + "응답 fixedDiscountRate 는 percent(45.00) 공간이며 null 은 고정DC 미설정 정상 상태.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "productId 에 해당하는 제품 없음")
+    })
+    @GetMapping("/fixed-discount-rate")
+    @Transactional(readOnly = true)
+    public ApiResponse<FixedDiscountResponse> fixedDiscountRate(@RequestParam("productId") UUID productId) {
+        return ApiResponse.ok(findFixedDiscountRate(productId));
+    }
+
+    /**
+     * 고정DC율 벌크 조회 (internal) — #773 일마감 재검증의 productId 목록 참조 경로.
+     *
+     * <p>입력 productIds 순서를 {@link LinkedHashMap} 으로 보존한다. productId 가 존재하지 않는
+     * 경우만 404 이며, {@code fixedDiscountRate == null} 은 고정DC 미설정이라는 유효 상태로
+     * {@link FixedDiscountResponse} 에 null 을 담아 반환한다.
+     */
+    @Operation(summary = "고정DC율 벌크 조회 (internal)",
+            description = "X-Internal-Token 인증. body.productIds 기준 fixedDiscountRate 를 Map 으로 반환한다. "
+                    + "응답 fixedDiscountRate 는 percent(45.00) 공간이며 null 은 고정DC 미설정 정상 상태.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청 본문 오류"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "productId 에 해당하는 제품 없음")
+    })
+    @PostMapping("/fixed-discount-rate-bulk")
+    @Transactional(readOnly = true)
+    public ApiResponse<Map<UUID, FixedDiscountResponse>> fixedDiscountRateBulk(
+            @Valid @RequestBody LookupByFixedDiscountRequest request) {
+        Map<UUID, FixedDiscountResponse> out = new LinkedHashMap<>();
+        for (UUID productId : request.productIds()) {
+            out.put(productId, findFixedDiscountRate(productId));
+        }
+        return ApiResponse.ok(out);
+    }
+
+    /**
      * 제품명 단건 조회 (internal) — MIG-5 inventory-service 창고이동 raw 품목명 lookup 경로.
      */
     @Operation(summary = "제품명 단건 조회 (internal)",
@@ -218,5 +278,12 @@ public class ProductInternalController {
     @GetMapping("/bundle-integrity")
     public ApiResponse<BundleIntegrityResponse> bundleIntegrity() {
         return ApiResponse.ok(productService.checkBundleIntegrity());
+    }
+
+    private FixedDiscountResponse findFixedDiscountRate(UUID productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "고정DC율 조회 대상 품목을 찾을 수 없습니다"));
+        return new FixedDiscountResponse(product.getFixedDiscountRate());
     }
 }

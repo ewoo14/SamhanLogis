@@ -13,6 +13,7 @@ import com.samhanair.logis.product.config.HeaderAuthenticationFilter;
 import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.security.InternalTokenFilter;
 import com.samhanair.logis.product.domain.ProductStatus;
+import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
 import java.math.BigDecimal;
@@ -52,12 +53,14 @@ class ProductInternalLookupByModelTest {
     private static final String VALID_TOKEN = "test-internal-token";
 
     private ProductService productService;
+    private ProductRepository productRepository;
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         productService = Mockito.mock(ProductService.class);
+        productRepository = Mockito.mock(ProductRepository.class);
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(VALID_TOKEN);
         // W10-4 (PR #99) DV-3 — product-service application.yml 호환
@@ -65,7 +68,7 @@ class ProductInternalLookupByModelTest {
         props.setRole("INTERNAL");
         props.setAllowMissingToken(false);
 
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProductInternalController(productService,
+        mockMvc = MockMvcBuilders.standaloneSetup(new ProductInternalController(productService, productRepository,
                         Mockito.mock(com.samhanair.logis.product.service.BundleExpander.class),
                         Mockito.mock(com.samhanair.logis.product.service.EcountAliasResolveService.class)))
                 .setControllerAdvice(new com.samhanair.logis.product.web.GlobalExceptionHandler())
