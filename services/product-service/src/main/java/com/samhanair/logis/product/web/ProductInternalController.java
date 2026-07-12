@@ -186,18 +186,23 @@ public class ProductInternalController {
     /**
      * 고정DC율 벌크 조회 (internal) — #773 일마감 재검증의 productId 목록 참조 경로.
      *
-     * <p>입력 productIds 순서를 {@link LinkedHashMap} 으로 보존한다. productId 가 존재하지 않는
-     * 경우만 404 이며, {@code fixedDiscountRate == null} 은 고정DC 미설정이라는 유효 상태로
-     * {@link FixedDiscountResponse} 에 null 을 담아 반환한다.
+     * <p>입력 productIds 순서를 {@link LinkedHashMap} 으로 보존한다. productId 자체가 존재하지
+     * 않는 건은 응답 Map 에서 생략된다(부분 성공) — 일마감 재검증(S2b)이 하루치 배치 중 결측
+     * productId 가 섞여도 있는 건만 재검증하고 결측 건은 재검증 대상 외로 별도 리포트할 수
+     * 있도록 하기 위함이다. {@code fixedDiscountRate == null} 은 제품은 존재하되 고정DC
+     * 미설정이라는 유효 상태이므로 생략 대상이 아니라 {@link FixedDiscountResponse} 에 null 값
+     * 그대로 담아 Map 에 포함한다. 단건 조회 {@link #fixedDiscountRate} 는 명시적 단건 조회이므로
+     * productId 미존재 시 404 를 그대로 유지한다.
      */
     @Operation(summary = "고정DC율 벌크 조회 (internal)",
             description = "X-Internal-Token 인증. body.productIds 기준 fixedDiscountRate 를 Map 으로 반환한다. "
-                    + "응답 fixedDiscountRate 는 percent(45.00) 공간이며 null 은 고정DC 미설정 정상 상태.")
+                    + "응답 fixedDiscountRate 는 percent(45.00) 공간이며 null 은 고정DC 미설정 정상 상태. "
+                    + "productId 자체가 존재하지 않는 건은 응답 Map 에서 생략된다(부분 성공).")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "조회 성공(존재하지 않는 productId 는 생략된 부분 Map 일 수 있음)"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청 본문 오류"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "고정DC율 조회 대상 품목을 찾을 수 없습니다")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
     })
     @PostMapping("/fixed-discount-rate-bulk")
     @Transactional(readOnly = true)
@@ -205,7 +210,8 @@ public class ProductInternalController {
             @Valid @RequestBody FixedDiscountRateBulkRequest request) {
         Map<UUID, FixedDiscountResponse> out = new LinkedHashMap<>();
         for (UUID productId : request.productIds()) {
-            out.put(productId, findFixedDiscountRate(productId));
+            productRepository.findById(productId)
+                    .ifPresent(product -> out.put(productId, new FixedDiscountResponse(product.getFixedDiscountRate())));
         }
         return ApiResponse.ok(out);
     }

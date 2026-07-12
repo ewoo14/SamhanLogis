@@ -186,14 +186,17 @@ public class ProductClient {
      * product-service S1a 시점별 적용 정가를 벌크 조회한다.
      *
      * <p>{@code asOf} 는 업무일 기준 시점이며, product-service 는 {@code effectiveDate <= asOf}
-     * 중 최신 price_history row 를 반환한다. 요청 productId 중 하나라도 적용 정가가 없으면
-     * product-service 가 404 를 반환하므로 본 client 는 기존 lookup 과 동일한 4xx 예외 매핑으로
-     * 전파한다. 라인별 처리 전략은 S2b 재검증 엔진에서 결정한다.
+     * 중 최신 price_history row 를 반환한다. product-service 는 적용 가능한 시점별 정가가 없는
+     * productId 를 응답 Map 에서 생략하는 부분 성공(partial success) 계약이므로, 반환 Map 의
+     * size 는 요청 {@code productIds} 보다 작을 수 있다. 결측 productId 판정/리포트는 S2b
+     * 재검증 엔진에서 처리한다.
      *
-     * @param productIds 조회 대상 productId 목록. 빈 목록은 외부 호출 없이 빈 Map 반환
+     * @param productIds 조회 대상 productId 목록. 빈 목록은 외부 호출 없이 빈 Map 반환.
+     *                   원소에 null 이 있으면 안 된다
      * @param asOf 적용 정가 기준 업무일
-     * @return productId 별 적용 정가/납품가/기준일
-     * @throws BusinessException(INVALID_INPUT) asOf 누락, batch 한도 초과, product-service 4xx
+     * @return productId 별 적용 정가/납품가/기준일. 적용 정가가 없는 productId 는 생략될 수 있다
+     * @throws BusinessException(INVALID_INPUT) asOf 누락, batch 한도 초과, productId 원소 null,
+     *                                           product-service 4xx
      * @throws BusinessException(INTERNAL_ERROR) product-service 5xx / 네트워크 / envelope 오류
      */
     @SuppressWarnings("unchecked")
@@ -212,7 +215,7 @@ public class ProductClient {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "시점별 정가 기준일이 비어있습니다");
         }
         Map<String, Object> body = Map.of(
-                "productIds", productIds.stream().map(UUID::toString).toList(),
+                "productIds", productIds.stream().map(this::requireProductIdToString).toList(),
                 "asOf", asOf.toString());
 
         Map<String, Object> envelope = postBulkReferent(
@@ -238,11 +241,14 @@ public class ProductClient {
      *
      * <p>반환값은 percent 공간(예: {@code 45.00}) 그대로이며 재차 {@code * 100} 하지 않는다.
      * {@code fixedDiscountRate == null} 은 고정DC 미설정이라는 정상 상태이므로 반환 Map 의 value 에
-     * null 이 보존될 수 있다.
+     * null 이 보존될 수 있다. product-service 는 productId 자체가 존재하지 않는 건만 응답 Map 에서
+     * 생략하는 부분 성공(partial success) 계약이므로, 반환 Map 의 size 는 요청 {@code productIds}
+     * 보다 작을 수 있다. 결측 productId 판정/리포트는 S2b 재검증 엔진에서 처리한다.
      *
-     * @param productIds 조회 대상 productId 목록. 빈 목록은 외부 호출 없이 빈 Map 반환
-     * @return productId 별 고정DC율(percent). value null 허용
-     * @throws BusinessException(INVALID_INPUT) batch 한도 초과 또는 product-service 4xx
+     * @param productIds 조회 대상 productId 목록. 빈 목록은 외부 호출 없이 빈 Map 반환.
+     *                   원소에 null 이 있으면 안 된다
+     * @return productId 별 고정DC율(percent). value null 허용, 존재하지 않는 productId 는 생략될 수 있다
+     * @throws BusinessException(INVALID_INPUT) batch 한도 초과, productId 원소 null, product-service 4xx
      * @throws BusinessException(INTERNAL_ERROR) product-service 5xx / 네트워크 / envelope 오류
      */
     @SuppressWarnings("unchecked")
@@ -258,7 +264,7 @@ public class ProductClient {
                     "한 번에 조회할 수 있는 최대 제품 수는 " + REFERENT_BATCH_MAX + "건입니다");
         }
         Map<String, Object> body = Map.of(
-                "productIds", productIds.stream().map(UUID::toString).toList());
+                "productIds", productIds.stream().map(this::requireProductIdToString).toList());
 
         Map<String, Object> envelope = postBulkReferent(
                 "/products/internal/fixed-discount-rate-bulk",
@@ -306,6 +312,17 @@ public class ProductClient {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "product-service 호출 실패", ex);
         }
+    }
+
+    /**
+     * productId 원소가 null 이면 즉시 BusinessException(INVALID_INPUT) 으로 거부한다.
+     * {@code applicablePrices}/{@code fixedDiscountRates} 의 벌크 요청 직렬화 직전 방어용.
+     */
+    private String requireProductIdToString(UUID productId) {
+        if (productId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 제품 ID 목록에 null 항목이 있습니다");
+        }
+        return productId.toString();
     }
 
     private String requireToken() {

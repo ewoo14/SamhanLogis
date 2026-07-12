@@ -1,6 +1,5 @@
 package com.samhanair.logis.product.it;
 
-import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -136,9 +135,9 @@ class PriceHistoryInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data['%s'].effectiveDate".formatted(second.getId())).value("2026-04-01"));
     }
 
-    /** POST applicable-bulk 는 일부 productId 가 누락되어도 부분 응답 없이 전체 404 를 반환한다. */
+    /** POST applicable-bulk 는 결측 productId 를 응답 Map 에서 생략하고 있는 것만 200 부분 Map 으로 반환한다. */
     @Test
-    void applicableBulk_withMissingProductId_returns404WithoutPartialResponse() throws Exception {
+    void applicableBulk_withMissingProductId_returnsPartialMapOmittingMissing() throws Exception {
         Product product = seedProduct("IT_PRICE_BULK_MISSING");
         UUID missingProductId = UUID.randomUUID();
         seedPreAndPostIncreasePrices(product, "100000", "80000", "120000", "95000");
@@ -154,10 +153,38 @@ class PriceHistoryInternalControllerIT extends AbstractPostgresIT {
                                   "asOf":"2026-05-01"
                                 }
                                 """.formatted(product.getId(), missingProductId)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.data").value(nullValue()))
-                .andExpect(jsonPath("$.message").value("시점별 정가를 찾을 수 없습니다"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data['%s'].release".formatted(product.getId())).value(120000))
+                .andExpect(jsonPath("$.data['%s'].delivery".formatted(product.getId())).value(95000))
+                .andExpect(jsonPath("$.data['%s']".formatted(missingProductId)).doesNotExist());
+    }
+
+    /** POST applicable-bulk 혼합 배치(있는 것 2건 + 없는 것 1건)는 있는 것만 부분 Map 으로 반환한다. */
+    @Test
+    void applicableBulk_mixedBatch_returnsOnlyExistingEntries() throws Exception {
+        Product first = seedProduct("IT_PRICE_BULK_MIXED_1");
+        Product second = seedProduct("IT_PRICE_BULK_MIXED_2");
+        UUID missingProductId = UUID.randomUUID();
+        seedPreAndPostIncreasePrices(first, "100000", "80000", "120000", "95000");
+        seedPreAndPostIncreasePrices(second, "200000", "160000", "240000", "190000");
+        productRepository.flush();
+        priceHistoryRepository.flush();
+
+        mockMvc.perform(post("/products/internal/price-history/applicable-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productIds":["%s","%s","%s"],
+                                  "asOf":"2026-05-01"
+                                }
+                                """.formatted(first.getId(), missingProductId, second.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data['%s'].release".formatted(first.getId())).value(120000))
+                .andExpect(jsonPath("$.data['%s'].release".formatted(second.getId())).value(240000))
+                .andExpect(jsonPath("$.data['%s']".formatted(missingProductId)).doesNotExist());
     }
 
     private Product seedProduct(String modelCode) {

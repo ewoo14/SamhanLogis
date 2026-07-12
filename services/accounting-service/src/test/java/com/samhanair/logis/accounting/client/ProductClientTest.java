@@ -15,6 +15,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -251,6 +252,71 @@ class ProductClientTest {
         server.verify();
     }
 
+    /** product-service 가 결측 productId 를 생략한 부분 Map 을 반환해도 있는 것만 그대로 수용한다. */
+    @Test
+    void applicablePrices_부분_응답_결측_productId_없는_Map을_정상_수용한다() {
+        UUID present = UUID.fromString("00000000-0000-0000-0000-000000000601");
+        UUID missing = UUID.fromString("00000000-0000-0000-0000-000000000602");
+        LocalDate asOf = LocalDate.of(2026, 5, 31);
+
+        server.expect(requestTo("http://product-service/products/internal/price-history/applicable-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "00000000-0000-0000-0000-000000000601":{
+                            "release":1200000.00,
+                            "delivery":900000.00,
+                            "effectiveDate":"2026-05-01"
+                          }
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<UUID, ApplicablePrice> result = client.applicablePrices(List.of(present, missing), asOf);
+
+        assertThat(result).containsOnlyKeys(present);
+        assertThat(result).doesNotContainKey(missing);
+        server.verify();
+    }
+
+    @Test
+    void applicablePrices_4xx는_INVALID_INPUT() {
+        server.expect(requestTo("http://product-service/products/internal/price-history/applicable-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.applicablePrices(List.of(UUID.randomUUID()), LocalDate.of(2026, 5, 31)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        server.verify();
+    }
+
+    @Test
+    void applicablePrices_5xx는_INTERNAL_ERROR() {
+        server.expect(requestTo("http://product-service/products/internal/price-history/applicable-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.applicablePrices(List.of(UUID.randomUUID()), LocalDate.of(2026, 5, 31)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
+    void applicablePrices_원소가_null이면_INVALID_INPUT() {
+        List<UUID> productIds = Arrays.asList(UUID.randomUUID(), null);
+
+        assertThatThrownBy(() -> client.applicablePrices(productIds, LocalDate.of(2026, 5, 31)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
     @Test
     void fixedDiscountRates_벌크_요청과_null_및_percent_파싱을_검증한다() {
         UUID fixed = UUID.fromString("00000000-0000-0000-0000-000000000501");
@@ -274,5 +340,65 @@ class ProductClientTest {
         assertThat(result.get(fixed)).isEqualByComparingTo(new BigDecimal("45.00"));
         assertThat(result).containsEntry(unset, null);
         server.verify();
+    }
+
+    /** product-service 가 존재하지 않는 productId 를 생략한 부분 Map 을 반환해도 있는 것만 그대로 수용한다. */
+    @Test
+    void fixedDiscountRates_부분_응답_결측_productId_없는_Map을_정상_수용한다() {
+        UUID present = UUID.fromString("00000000-0000-0000-0000-000000000701");
+        UUID missing = UUID.fromString("00000000-0000-0000-0000-000000000702");
+
+        server.expect(requestTo("http://product-service/products/internal/fixed-discount-rate-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "00000000-0000-0000-0000-000000000701":{"fixedDiscountRate":45.00}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<UUID, BigDecimal> result = client.fixedDiscountRates(List.of(present, missing));
+
+        assertThat(result).containsOnlyKeys(present);
+        assertThat(result).doesNotContainKey(missing);
+        server.verify();
+    }
+
+    @Test
+    void fixedDiscountRates_4xx는_INVALID_INPUT() {
+        server.expect(requestTo("http://product-service/products/internal/fixed-discount-rate-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.fixedDiscountRates(List.of(UUID.randomUUID())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        server.verify();
+    }
+
+    @Test
+    void fixedDiscountRates_5xx는_INTERNAL_ERROR() {
+        server.expect(requestTo("http://product-service/products/internal/fixed-discount-rate-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.fixedDiscountRates(List.of(UUID.randomUUID())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
+    void fixedDiscountRates_원소가_null이면_INVALID_INPUT() {
+        List<UUID> productIds = Arrays.asList(UUID.randomUUID(), null);
+
+        assertThatThrownBy(() -> client.fixedDiscountRates(productIds))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 }

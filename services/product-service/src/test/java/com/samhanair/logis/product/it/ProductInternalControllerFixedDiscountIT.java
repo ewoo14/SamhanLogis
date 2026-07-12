@@ -111,9 +111,9 @@ class ProductInternalControllerFixedDiscountIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data['%s'].fixedDiscountRate".formatted(product.getId())).value(nullValue()));
     }
 
-    /** productId 미존재만 404 이며 부분 응답 없이 실패한다. */
+    /** productId 미존재는 응답 Map 에서 생략되고(부분 성공), 존재하는 productId 만 200 으로 반환된다. */
     @Test
-    void fixedDiscountRateBulk_withMissingProductId_returns404() throws Exception {
+    void fixedDiscountRateBulk_withMissingProductId_returnsPartialMapOmittingMissing() throws Exception {
         Product product = seedProduct("IT_FIXED_DC_MISSING", new BigDecimal("45.00"));
         UUID missingProductId = UUID.randomUUID();
         productRepository.flush();
@@ -126,10 +126,36 @@ class ProductInternalControllerFixedDiscountIT extends AbstractPostgresIT {
                                   "productIds":["%s","%s"]
                                 }
                                 """.formatted(product.getId(), missingProductId)))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.data").value(nullValue()))
-                .andExpect(jsonPath("$.message").value("고정DC율 조회 대상 품목을 찾을 수 없습니다"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data['%s'].fixedDiscountRate".formatted(product.getId())).value(45.00))
+                .andExpect(jsonPath("$.data['%s']".formatted(missingProductId)).doesNotExist());
+    }
+
+    /**
+     * 혼합 배치(고정DC 설정 + 미설정 null + 미존재 productId)에서 존재하는 제품은 null 값도
+     * Map 에 포함되고, productId 자체가 미존재인 건만 생략된다.
+     */
+    @Test
+    void fixedDiscountRateBulk_mixedBatch_includesNullRateButOmitsMissingProductId() throws Exception {
+        Product withRate = seedProduct("IT_FIXED_DC_MIXED_SET", new BigDecimal("45.00"));
+        Product withNullRate = seedProduct("IT_FIXED_DC_MIXED_NULL", null);
+        UUID missingProductId = UUID.randomUUID();
+        productRepository.flush();
+
+        mockMvc.perform(post("/products/internal/fixed-discount-rate-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productIds":["%s","%s","%s"]
+                                }
+                                """.formatted(withRate.getId(), withNullRate.getId(), missingProductId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data['%s'].fixedDiscountRate".formatted(withRate.getId())).value(45.00))
+                .andExpect(jsonPath("$.data['%s'].fixedDiscountRate".formatted(withNullRate.getId())).value(nullValue()))
+                .andExpect(jsonPath("$.data['%s']".formatted(missingProductId)).doesNotExist());
     }
 
     /** 단건 GET 조회도 productId 미존재 시 동일 메시지로 404 를 반환한다. */
