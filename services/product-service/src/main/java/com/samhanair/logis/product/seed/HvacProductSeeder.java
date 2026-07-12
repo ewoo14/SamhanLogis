@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +72,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @Profile("dev")
 @ConditionalOnProperty(value = "app.product.seed-test-data", havingValue = "true")
+@Order(100)
 public class HvacProductSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(HvacProductSeeder.class);
