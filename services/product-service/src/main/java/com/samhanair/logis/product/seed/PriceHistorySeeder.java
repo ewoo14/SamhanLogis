@@ -80,20 +80,25 @@ public class PriceHistorySeeder implements CommandLineRunner {
         int created = 0;
         int skipped = 0;
         for (Product product : products) {
-            SeedResult after = seedIfMissing(product, AFTER_INCREASE_DATE,
-                    product.getReleasePrice(), product.getDeliveryPrice());
-            created += after.created();
-            skipped += after.skipped();
+            try {
+                SeedResult after = seedIfMissing(product, AFTER_INCREASE_DATE,
+                        product.getReleasePrice(), product.getDeliveryPrice());
+                created += after.created();
+                skipped += after.skipped();
 
-            if (product.getProductCategory() == ProductCategory.OLD) {
-                continue;
+                if (product.getProductCategory() == ProductCategory.OLD) {
+                    continue;
+                }
+
+                SeedResult before = seedIfMissing(product, BEFORE_INCREASE_DATE,
+                        devBeforeIncreasePrice(product.getReleasePrice()),
+                        devBeforeIncreasePrice(product.getDeliveryPrice()));
+                created += before.created();
+                skipped += before.skipped();
+            } catch (RuntimeException ex) {
+                log.error("Failed to seed price_history for product {}: {}",
+                        product.getId(), ex.getMessage(), ex);
             }
-
-            SeedResult before = seedIfMissing(product, BEFORE_INCREASE_DATE,
-                    devBeforeIncreasePrice(product.getReleasePrice()),
-                    devBeforeIncreasePrice(product.getDeliveryPrice()));
-            created += before.created();
-            skipped += before.skipped();
         }
 
         log.info("PriceHistorySeeder created {} price_history rows (skipped {}, products {})",

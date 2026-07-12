@@ -16,6 +16,7 @@ public interface PriceHistoryRepository extends JpaRepository<PriceHistory, UUID
 
     Optional<PriceHistory> findByProductIdAndEffectiveDate(UUID productId, LocalDate effectiveDate);
 
+    /** 멱등 체크용. */
     boolean existsByProductIdAndEffectiveDate(UUID productId, LocalDate effectiveDate);
 
     /** #30 — 인상 전(2000-01-01) 단가 baseline 벌크. */
