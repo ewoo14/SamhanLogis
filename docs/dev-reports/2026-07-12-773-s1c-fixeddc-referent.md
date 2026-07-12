@@ -32,10 +32,11 @@
 ### Codex 적대 R1
 (라운드 후 반영)
 
-## QA (실 스택 라이브)
-- **⚠️ 라이브 QA 절차(QA HIGH 반영)**: 기존 product 100건 삭제/볼륨 리셋 → 재시드 `skipped 0` 확인 → fixed_discount_rate 분포(45.00×55/35.00×5/NULL×40) → endpoint 실증. (idempotency skip 오탐 방지.)
-- `/fixed-discount-rate-bulk` 실서버 200 + 스탠드 45.00/부속 35.00/null 혼합 실증 + Swagger GUI 스샷.
-- product-service **483→ tests 0-fail**(--rerun-tasks·IT 포함).
+## QA (실 스택 라이브·비파괴 절충)
+- **⚠️ QA HIGH 적중 실증**: dev product_db에 기존 105건(HvacSeeder 010xxx 100 + qa_test 5)·**fixed_discount_rate 채워진 건 0**. QA 예측대로 재시드 skip 상황(`existsByModelNameAndIsDeletedFalse` true→skip·컬럼 미갱신). QA가 이걸 안 잡았으면 라이브 오탐할 뻔.
+- **DELETE 차단·비파괴 절충**: QA HIGH 절차의 "기존 100건 삭제→재시드"는 auto-classifier가 파괴적 DELETE 차단(정당·새벽 자율 중 dev 데이터 파괴 회피). → **percent 값(45.00) 라이브 실증은 IT 8케이스로 genuine 갈음**(FixedDiscountIT `returnsAlreadyMultipliedPercent_notFraction`·Testcontainers 실 DB 45.00), 라이브는 endpoint 동작(200/null/404/400)까지.
+- **라이브 실증(신 jar 532463bab·:8084)**: 단건 GET → **200 · fixedDiscountRate:null**(null 계약) · 미존재 → **404 "고정DC율 조회 대상 품목을 찾을 수 없습니다"**(FIX1 문구) · bulk POST → **200 Map<UUID,{fixedDiscountRate}>** · bulk 빈 → **400 "productIds: productIds는 필수입니다"**(FIX3 한글·GlobalExceptionHandler field:msg 조립). Swagger GUI 3장(`docs/qa/pr-805/`).
+- product-service **486 tests 0-fail**(--rerun-tasks·IT 포함·FixedDiscountIT 8).
 
 ## 후속 (스펙 §후속)
 - **bulk 전체-404 vs 부분성공**: S2 재검증엔진 착수 시 계약 확정(하루치 배치에 단종 1건 섞이면 전체 막힘 트레이드오프). S1a 선례 재사용 중.
