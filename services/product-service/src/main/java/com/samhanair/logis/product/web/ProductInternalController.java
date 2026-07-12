@@ -10,6 +10,7 @@ import com.samhanair.logis.product.web.dto.EcountAliasResolveResponse;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
+import com.samhanair.logis.product.web.dto.LookupByLabelRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
@@ -129,6 +130,24 @@ public class ProductInternalController {
     @PostMapping("/lookup-by-code")
     public ApiResponse<ProductSummaryResponse> lookupByCode(@Valid @RequestBody LookupByCodeRequest request) {
         return ApiResponse.ok(productService.lookupSummaryByProductCode(request.productCode()));
+    }
+
+    /**
+     * 회계 품목 라벨 단건 조회 (internal) — #773 일마감 재검증 라벨→productId 매핑 경로.
+     */
+    @Operation(summary = "회계 라벨 단건 조회 (internal)",
+            description = "X-Internal-Token 인증. accounting 일마감 재검증(#773) 라벨→productId 매핑 전용. "
+                    + "품목명[규격] 라벨에서 모델코드 토큰 추출 후 4단 fallback 매칭.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "라벨/토큰 추출 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "토큰 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "미매칭"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "중복 매칭")
+    })
+    @PostMapping("/lookup-by-label")
+    public ApiResponse<ProductSummaryResponse> lookupByLabel(@Valid @RequestBody LookupByLabelRequest request) {
+        return ApiResponse.ok(productService.lookupSummaryByLabel(request.label()));
     }
 
     /**

@@ -19,6 +19,7 @@ import com.samhanair.logis.product.repository.BundleComponentRepository;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ClassificationRepository;
 import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
+import com.samhanair.logis.product.repository.ProductAliasRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
@@ -43,10 +44,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,6 +68,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductSpecRepository productSpecRepository;
     private final ProductEstimateExposureRepository exposureRepository;
+    private final ProductAliasRepository productAliasRepository;
     private final CategoryRepository categoryRepository;
     private final ClassificationRepository classificationRepository;
     private final BundleComponentRepository bundleComponentRepository;
@@ -211,6 +215,36 @@ public class ProductService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "품목코드에 해당하는 제품이 없습니다"));
         return ProductSummaryResponse.from(product);
+    }
+
+    /**
+     * 회계 라벨({@code 품목명[규격]})에서 모델 토큰을 추출해 제품 요약을 조회한다.
+     *
+     * <p>#773 S1b accounting 일마감 재검증 전용 service-to-service 경로다. 1차는
+     * 카탈로그 노출 모델코드 exact 매칭({@code model_code -> model_name fallback}),
+     * 2차는 product_aliases 의 exact alias, 3차는 기존 제품 검색 LIKE 결과의 단건성으로 판정한다.
+     *
+     * @param label 회계 라인 품목 라벨
+     * @return 매칭된 ProductSummaryResponse
+     * @throws BusinessException(INVALID_INPUT) 토큰 추출 실패
+     * @throws BusinessException(NOT_FOUND) 매칭 제품 없음
+     * @throws BusinessException(CONFLICT) LIKE 결과가 2건 이상
+     */
+    @Transactional(readOnly = true)
+    public ProductSummaryResponse lookupSummaryByLabel(String label) {
+        String token = ModelTokenExtractor.extractModelToken(label);
+        if (token.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "라벨에서 모델코드를 추출할 수 없습니다");
+        }
+
+        return productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse(token)
+                .or(() -> productAliasRepository.findByAliasCodeAndIsDeletedFalse(token)
+                        .map(alias -> alias.getMainProduct()))
+                .or(() -> findUniqueLikeMatchByLabelToken(token))
+                .map(ProductSummaryResponse::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "라벨에 해당하는 제품이 없습니다"));
     }
 
     /**
@@ -745,6 +779,16 @@ public class ProductService {
 
     private String escape(String s) {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private Optional<Product> findUniqueLikeMatchByLabelToken(String token) {
+        Page<Product> page = productRepository.search(null, null, escapeLikeWildcards(token),
+                null, null, null, PageRequest.of(0, 2));
+        List<Product> rows = page.getContent();
+        if (rows.size() > 1) {
+            throw new BusinessException(ErrorCode.CONFLICT, "라벨 모델코드 중복 매칭");
+        }
+        return rows.stream().findFirst();
     }
 
     /**

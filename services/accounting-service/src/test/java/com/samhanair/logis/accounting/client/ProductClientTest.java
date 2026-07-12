@@ -15,6 +15,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -134,6 +135,43 @@ class ProductClientTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabel_라벨_요청과_최소필드_파싱을_검증한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000301");
+
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.label").value("AC023CN1DBC1 [CN냉전 실내기]"))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "id":"00000000-0000-0000-0000-000000000301",
+                          "modelCode":"AC023CN1DBC1"
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<ProductLabelMatch> result =
+                client.resolveByLabel("AC023CN1DBC1 [CN냉전 실내기]");
+
+        assertThat(result).contains(new ProductLabelMatch(productId, "AC023CN1DBC1"));
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabel_404와409는_empty() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.CONFLICT));
+
+        assertThat(client.resolveByLabel("미등록 라벨")).isEmpty();
+        assertThat(client.resolveByLabel("중복 라벨")).isEmpty();
+
         server.verify();
     }
 }
