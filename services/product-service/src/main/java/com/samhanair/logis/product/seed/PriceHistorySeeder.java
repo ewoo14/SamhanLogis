@@ -21,7 +21,6 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * #773 S1a — dev 환경용 price_history 결정적 시더.
@@ -69,7 +68,6 @@ public class PriceHistorySeeder implements CommandLineRunner {
     }
 
     @Override
-    @Transactional
     public void run(String... args) {
         List<Product> products = productRepository.findAll();
         if (products.isEmpty()) {
