@@ -132,6 +132,54 @@ class ProductInternalControllerFixedDiscountIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.message").value("고정DC율 조회 대상 품목을 찾을 수 없습니다"));
     }
 
+    /** 단건 GET 조회도 productId 미존재 시 동일 메시지로 404 를 반환한다. */
+    @Test
+    void fixedDiscountRate_withMissingProductId_returns404() throws Exception {
+        UUID missingProductId = UUID.randomUUID();
+
+        mockMvc.perform(get("/products/internal/fixed-discount-rate")
+                        .queryParam("productId", missingProductId.toString())
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.message").value("고정DC율 조회 대상 품목을 찾을 수 없습니다"));
+    }
+
+    /** bulk 요청 productIds 가 빈 리스트면 한글 커스텀 검증 메시지와 함께 400 을 반환한다. */
+    @Test
+    void fixedDiscountRateBulk_withEmptyProductIds_returns400() throws Exception {
+        mockMvc.perform(post("/products/internal/fixed-discount-rate-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productIds":[]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("productIds는 필수입니다")));
+    }
+
+    /** bulk 요청 productIds 가 500 개를 초과하면 한글 커스텀 검증 메시지와 함께 400 을 반환한다. */
+    @Test
+    void fixedDiscountRateBulk_withTooManyProductIds_returns400() throws Exception {
+        StringBuilder ids = new StringBuilder();
+        for (int i = 0; i < 501; i++) {
+            if (i > 0) {
+                ids.append(',');
+            }
+            ids.append('"').append(UUID.randomUUID()).append('"');
+        }
+
+        mockMvc.perform(post("/products/internal/fixed-discount-rate-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productIds\":[" + ids + "]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("productIds는 최대 500개입니다")));
+    }
+
     private Product seedProduct(String modelCode, BigDecimal fixedDiscountRate) {
         Category category = categoryRepository.save(Category.create("CAT-" + modelCode,
                 "fixed discount IT", null, 70));

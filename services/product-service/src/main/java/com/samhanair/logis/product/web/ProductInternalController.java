@@ -14,7 +14,7 @@ import com.samhanair.logis.product.web.dto.EcountAliasResolveResponse;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.FixedDiscountResponse;
-import com.samhanair.logis.product.web.dto.LookupByFixedDiscountRequest;
+import com.samhanair.logis.product.web.dto.FixedDiscountRateBulkRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
@@ -175,7 +175,7 @@ public class ProductInternalController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "productId 에 해당하는 제품 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "고정DC율 조회 대상 품목을 찾을 수 없습니다")
     })
     @GetMapping("/fixed-discount-rate")
     @Transactional(readOnly = true)
@@ -197,12 +197,12 @@ public class ProductInternalController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "요청 본문 오류"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "productId 에 해당하는 제품 없음")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "고정DC율 조회 대상 품목을 찾을 수 없습니다")
     })
     @PostMapping("/fixed-discount-rate-bulk")
     @Transactional(readOnly = true)
     public ApiResponse<Map<UUID, FixedDiscountResponse>> fixedDiscountRateBulk(
-            @Valid @RequestBody LookupByFixedDiscountRequest request) {
+            @Valid @RequestBody FixedDiscountRateBulkRequest request) {
         Map<UUID, FixedDiscountResponse> out = new LinkedHashMap<>();
         for (UUID productId : request.productIds()) {
             out.put(productId, findFixedDiscountRate(productId));
