@@ -295,7 +295,7 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 
 ### 6.6.3 테스트
 - 서비스 단위(`DailyClosingDetailServiceTest`): SALES_SLIP/PURCHASE_SLIP 경로 @Mock ProductClient로 재검증 필드 population·accumulateProduct vatAmount.
-- **HTTP IT 신규**: MockMvc 3소스 재검증 필드 직렬화·@MockBean 격리·권한(accounting.reports).
+- **HTTP IT 신규**(`DailyClosingRevalidationIT`): MockMvc 3소스(TAX_INVOICE·SALES_SLIP·PURCHASE_SLIP) 재검증 6필드 직렬화·@MockBean 격리·권한(accounting.reports). PURCHASE_SLIP 케이스는 `kind=PURCHASE` 동반(§6.6.6 계약).
 - FE typecheck(`npm run typecheck`). genuine `--rerun-tasks --no-build-cache`.
 
 ### 6.6.4 캐논
@@ -308,3 +308,9 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 - **개발책임자 확인 2건(비차단·read-time)**: ① totalDiscount '총 할인' 정의(§6.6.1) ② PURCHASE 재검증 노출.
 - **[정보·수용]** IT productSummaries 인덱스 순서(byModel LinkedHashMap·소량 same-tx 삽입순·CI 통과·기존 코드베이스 패턴)·N+1 라벨(S2b 기이연 파급).
 - Codex 적대검증 R2 순차 진행.
+
+### 6.6.6 R2 Codex 적대검증 disposition (2026-07-13 · Codex 5-agent genuine `mcp__codex__codex`)
+- **blocking 0.** R1 fix 전건 반증 실패(=견고 확정): 리팩터 byte-for-byte·VAT 파리티((supply+vat)/qty)·FE `number` 타입·PURCHASE Javadoc 캐벗·부모 totals 분리 모두 정합.
+- **[fix·QA] PURCHASE_SLIP HTTP IT 부재**(Codex 유일 Low 지적) → **수용·수정**: `DailyClosingRevalidationIT`에 `purchaseSlipDailyDetailExposesRevalidationFields` + `seedPostedPurchaseSlip` 추가로 §6.6.3 "MockMvc 3소스" 정식 충족. AM160NXVHHH1 상업멀티 45% VERIFIED·6필드 직렬화 검증.
+- **[genuine 부수확·계약]** HTTP IT 추가로 `validateKindSourceMatch` 계약이 실경로에서 검증됨: **PURCHASE_SLIP 은 `kind=PURCHASE` 필수**(SALES 기본과 조합 시 400). 서비스 단위테스트(`getPurchaseSlipDailyDetail(date)` 직접호출)는 이 계약을 우회하므로 HTTP IT 가 genuine 커버리지 추가(false-green 방지). 계약 자체는 정상(버그 아님).
+- genuine `:services:accounting-service:test --rerun-tasks --no-build-cache` 재실행(신규 IT 4/4·전체 그린) → 0수렴.

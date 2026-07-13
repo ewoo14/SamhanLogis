@@ -28,6 +28,9 @@ import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlipLine;
+import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
@@ -35,6 +38,7 @@ import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceType;
+import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
@@ -61,8 +65,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 일별 마감 detail 재검증 HTTP 통합 테스트.
  *
- * <p>S2c 계약: TAX_INVOICE 와 전표(SALES_SLIP) 경로가 동일한 재검증 DTO 6필드를
- * MockMvc 직렬화 계층에서 노출해야 한다.
+ * <p>S2c 계약: TAX_INVOICE 와 전표(SALES_SLIP·PURCHASE_SLIP) 3소스가 동일한 재검증 DTO
+ * 6필드를 MockMvc 직렬화 계층에서 노출해야 한다 (spec §6.6.3).
  */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @AutoConfigureMockMvc
@@ -73,6 +77,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private TaxInvoiceRepository taxInvoiceRepository;
     @Autowired private SalesAccountingSlipRepository salesAccountingSlipRepository;
+    @Autowired private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
     @MockBean private SlipServiceClient slipServiceClient;
     @MockBean private SlipQueryClient slipQueryClient;
@@ -170,6 +175,29 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("PURCHASE_SLIP daily detail — 매입전표 경로도 재검증 6필드를 HTTP JSON으로 노출한다")
+    void purchaseSlipDailyDetailExposesRevalidationFields() throws Exception {
+        seedPostedPurchaseSlip();
+        Mockito.when(productClient.resolveByLabel("AM160NXVHHH1 [상업멀티]"))
+                .thenReturn(ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1"));
+
+        mockMvc.perform(get("/accounting/closings/daily")
+                        .param("date", DATE.toString())
+                        .param("kind", "PURCHASE")
+                        .param("sourceKind", "PURCHASE_SLIP")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productSummaries[0].productName").value("AM160NXVHHH1 [상업멀티]"))
+                .andExpect(jsonPath("$.data.productSummaries[0].releasePrice").value(100000))
+                .andExpect(jsonPath("$.data.productSummaries[0].deliveryPrice").value(70000))
+                .andExpect(jsonPath("$.data.productSummaries[0].expectedRate").value(45))
+                .andExpect(jsonPath("$.data.productSummaries[0].actualRate").value(45))
+                .andExpect(jsonPath("$.data.productSummaries[0].verified").value(true))
+                .andExpect(jsonPath("$.data.productSummaries[0].revalidationStatus").value("VERIFIED"));
+    }
+
+    @Test
     @DisplayName("daily detail — accounting.reports VIEW 미보유 role 은 403")
     void dailyDetailRequiresAccountingReportsViewPermission() throws Exception {
         denyRequirePermission("accounting.reports", PermissionAction.VIEW);
@@ -213,5 +241,23 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
         ReflectionTestUtils.setField(slip, "postedBy", "it");
         ReflectionTestUtils.setField(slip, "postedAt", java.time.LocalDateTime.now());
         salesAccountingSlipRepository.saveAndFlush(slip);
+    }
+
+    private void seedPostedPurchaseSlip() {
+        PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
+                "PAS-HTTP-RV-001", DATE, PARTNER_ID, "P-RV", "재검증거래처",
+                SalesTaxType.TAXABLE, "S2c HTTP IT");
+        PurchaseAccountingSlipLine line = PurchaseAccountingSlipLine.create(
+                slip, 1, "MIG4", "AM160NXVHHH1 [상업멀티]", BigDecimal.ONE,
+                new BigDecimal("50000"), new BigDecimal("50000"), new BigDecimal("5000"),
+                new BigDecimal("55000"));
+        slip.getLines().add(line);
+        ReflectionTestUtils.setField(slip, "status", PurchaseSlipStatus.POSTED);
+        ReflectionTestUtils.setField(slip, "totalSupplyAmount", new BigDecimal("50000"));
+        ReflectionTestUtils.setField(slip, "totalVatAmount", new BigDecimal("5000"));
+        ReflectionTestUtils.setField(slip, "totalAmount", new BigDecimal("55000"));
+        ReflectionTestUtils.setField(slip, "postedBy", "it");
+        ReflectionTestUtils.setField(slip, "postedAt", java.time.LocalDateTime.now());
+        purchaseAccountingSlipRepository.saveAndFlush(slip);
     }
 }
