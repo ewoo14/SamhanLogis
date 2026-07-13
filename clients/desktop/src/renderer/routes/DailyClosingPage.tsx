@@ -21,6 +21,8 @@ import {
 } from '../api/accounting'
 import {
   getDailyClosingDetail,
+  type DailyProductLine,
+  type DailyProductRevalidationStatus,
   type DailyTaxInvoiceRow,
 } from '../api/closingApi'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -40,6 +42,15 @@ const SOURCE_LABEL: Record<DailyClosingSourceKind, string> = {
   TAX_INVOICE: '세금계산서',
   SALES_SLIP: '매출전표',
   PURCHASE_SLIP: '매입전표',
+}
+
+const REVALIDATION_STATUS_LABEL: Record<DailyProductRevalidationStatus, string> = {
+  VERIFIED: '확인',
+  NOT_FOUND: '미등록',
+  AMBIGUOUS: '모호',
+  MISSING_REFERENT: '정가결측',
+  NOT_MEASURABLE: '측정불가',
+  OUT_OF_SCOPE: '대상외',
 }
 
 const inputStyle: CSSProperties = {
@@ -84,6 +95,19 @@ function availableSources(kind: ClosingKindFilter): DailyClosingSourceKind[] {
   return kind === 'SALES'
     ? ['TAX_INVOICE', 'SALES_SLIP']
     : ['TAX_INVOICE', 'PURCHASE_SLIP']
+}
+
+function fmtNullableKrw(value: number | null): string {
+  return value === null ? '—' : fmtKrw(String(value))
+}
+
+function fmtRate(value: number | null): string {
+  return value === null ? '—' : `${value}%`
+}
+
+function rateStyle(value: number | null): CSSProperties {
+  if (value === null || value >= 0) return {}
+  return { color: 'var(--state-danger)' }
 }
 
 export function DailyClosingPage() {
@@ -289,6 +313,91 @@ export function DailyClosingPage() {
     },
   ]
 
+  const productRows = useMemo(
+    () => (detailQuery.data?.productSummaries ?? []).map((row, index) => ({ ...row, rowIndex: index })),
+    [detailQuery.data?.productSummaries],
+  )
+
+  const productColumns: DataTableColumn<DailyProductLine>[] = [
+    {
+      key: 'productName',
+      header: '품명',
+      align: 'left',
+      render: (row) => row.productName,
+    },
+    {
+      key: 'modelName',
+      header: '모델',
+      align: 'left',
+      render: (row) => row.modelName ?? '—',
+    },
+    {
+      key: 'quantity',
+      header: '수량',
+      width: '90px',
+      align: 'right',
+      render: (row) => row.quantity.toLocaleString(),
+    },
+    {
+      key: 'supplyAmount',
+      header: '공급가',
+      width: '120px',
+      align: 'right',
+      render: (row) => fmtKrw(String(row.supplyAmount)),
+    },
+    {
+      key: 'releasePrice',
+      header: '출고가',
+      width: '120px',
+      align: 'right',
+      render: (row) => fmtNullableKrw(row.releasePrice),
+    },
+    {
+      key: 'deliveryPrice',
+      header: '납품가',
+      width: '120px',
+      align: 'right',
+      render: (row) => fmtNullableKrw(row.deliveryPrice),
+    },
+    {
+      key: 'expectedRate',
+      header: '기대율',
+      width: '90px',
+      align: 'right',
+      render: (row) => fmtRate(row.expectedRate),
+    },
+    {
+      key: 'actualRate',
+      header: '할인율',
+      width: '90px',
+      align: 'right',
+      render: (row) => (
+        <span style={rateStyle(row.actualRate)}>
+          {fmtRate(row.actualRate)}
+        </span>
+      ),
+    },
+    {
+      key: 'verified',
+      header: '확인',
+      width: '100px',
+      align: 'center',
+      render: (row) => {
+        if (row.verified === true) return <Badge variant="success">확인</Badge>
+        if (row.verified === false) return <Badge variant="danger">불일치</Badge>
+        return <Badge variant="neutral">판정불가</Badge>
+      },
+    },
+    {
+      key: 'revalidationStatus',
+      header: '사유',
+      width: '100px',
+      align: 'center',
+      render: (row) =>
+        row.revalidationStatus ? REVALIDATION_STATUS_LABEL[row.revalidationStatus] : '—',
+    },
+  ]
+
   const sourceButtons = availableSources(closingKind)
   const execSourceButtons = availableSources(execKind)
 
@@ -460,12 +569,25 @@ export function DailyClosingPage() {
         ) : detailQuery.isError ? (
           <div className="error-banner" role="alert">Daily Detail을 불러오지 못했습니다.</div>
         ) : (
-          <DataTable
-            columns={detailColumns}
-            rows={detailQuery.data?.taxInvoices ?? []}
-            rowKey={(row) => `${row.taxInvoiceNo ?? ''}-${row.salesSlipNo ?? ''}-${row.sourceSlipNo ?? ''}-${row.partnerName}`}
-            emptyMessage="상세 전표가 없습니다."
-          />
+          <>
+            <DataTable
+              columns={detailColumns}
+              rows={detailQuery.data?.taxInvoices ?? []}
+              rowKey={(row) => `${row.taxInvoiceNo ?? ''}-${row.salesSlipNo ?? ''}-${row.sourceSlipNo ?? ''}-${row.partnerName}`}
+              emptyMessage="상세 전표가 없습니다."
+            />
+            {closingKind === 'SALES' ? (
+              <div style={{ marginTop: 16 }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>모델별 재검증</h4>
+                <DataTable
+                  columns={productColumns}
+                  rows={productRows}
+                  rowKey={(row) => `${row.productName}-${row.rowIndex}`}
+                  emptyMessage="모델별 재검증 결과가 없습니다."
+                />
+              </div>
+            ) : null}
+          </>
         )}
       </Card>
 
