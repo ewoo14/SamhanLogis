@@ -182,3 +182,80 @@ D1(재계산 의미)이 스펙 전체를 좌우하므로 **§2 결정, 특히 D1
 - **범위 밖**: S1.5(세트 riUsage·거래처 약정DC)·S3(검증결과 영속). D1=ⓐ read-time이라 S2 전체 무결성 안전(마감 금액 불변경).
 
 > **PM 권고**: S2a→S2b→S2c 순차 슬라이스(각 조기PR·캐논). S2a는 순수 조회 배선(무결성무관·결정불요)으로 즉시. S2b가 실판정 로직(레거시 포팅)이나 read-time 감사라 마감 불변·개발책임자 정책 게이트 불요.
+
+---
+
+## 6.4 S2b 엔지니어링 스펙 (2026-07-13 · 회사PC 착수) — 재검증 엔진 + 결과 노출
+
+> S2a(#806) 머지로 referent 조회 3종(`resolveByLabel`·`applicablePrices`·`fixedDiscountRates`) 완비. 본 절 = S2b 착수 기획(Opus). read-time 감사(마감금액 불변·무결성 안전)라 개발책임자 정책 게이트 불요·PM 자율.
+
+### 6.4.0 스코프 확정 (PM 결정)
+- **S2b = 엔진 + `getTaxInvoiceDailyDetail` 배선 + `DailyProductLine` 필드 노출**(releasePrice/deliveryPrice/expectedRate/actualRate/verified/status). §6.3 초안이 DTO 필드를 S2c로 뒀으나, 엔진 산출이 엔드포인트에 **실제로 노출돼야 라이브 QA 가능·dead code 회피** → DTO 필드만 한 슬라이스 앞당김(단축 아님·정식 캐논).
+- **S2c 잔여**: `totalDiscount` 실계산(할인액 집계) + SALES_SLIP/PURCHASE_SLIP 경로 재검증 + 교차소스 end-to-end IT.
+- **범위 밖(불변)**: S1.5(세트 riUsage·거래처 약정DC)·S1d(구형 OLD baseline·실 시트 sync)·S3(검증결과 영속).
+- **대상 sourceKind = TAX_INVOICE 만**(`getTaxInvoiceDailyDetail`). SALES/PURCHASE 전표 경로는 S2b에서 현행 유지(재검증 미적용).
+
+### 6.4.1 엔진 계약 (`DiscountRevalidator` — 순수 컴포넌트)
+모델 그룹(byModel: itemName 키 집계) 1건당 판정. **입력**:
+| 필드 | 소스 |
+|---|---|
+| `itemName` (라벨) | TaxInvoiceLine.itemName (그룹 키) |
+| `modelToken` | itemName에서 추출(**레거시 `extractModelToken_` 동일 규칙** — 매칭된 product.modelCode 아님·파리티 핵심) |
+| `effectiveUnitPrice` | 그룹 `supplyAmount / quantity` (유효단가·qty=0 방어) |
+| `release` / `delivery` | `applicablePrices(productIds, asOf=date).get(pid)` — 결측 가능 |
+| `fixedDc` | `fixedDiscountRates(productIds).get(pid)` — percent(45.00)·null(미설정)≠생략(미존재) |
+| `matchStatus` | resolveByLabel 결과(MATCHED/NOT_FOUND/AMBIGUOUS) |
+
+**출력** `Revalidation(verified: Boolean|null, expectedRate: Integer|null, actualRate: Integer|null, status: enum, releasePrice, deliveryPrice)`:
+- `actualRate = round((1 − effectiveUnitPrice/release) × 100)` (분모=**출고가 release**, 납품가 아님). release 결측/0 → null.
+- `verified`=`확인` 플래그(true/false), 판정 불가 시 null + status 사유.
+- `status`(사유 보존): `VERIFIED`(판정됨) · `NOT_FOUND`(라벨 미매칭) · `AMBIGUOUS`(다의 409) · `MISSING_REFERENT`(매칭됐으나 정가 결측·부분성공 차집합) · `OUT_OF_SCOPE`(싱글 본체 세트/약정DC 의존 = S1.5 대기).
+
+### 6.4.2 분류 (현대 파생 — itemName 토큰 + 정규식만, OLD 시트/카탈로그 미사용)
+레거시는 priceMap OLD·카탈로그로 zone/`_isOld`/`_cls` 판정. 현대 S2b는 **itemName 파생 토큰 + itemName/token 정규식**만 사용(S1d/S1.5 미도입). 판정 우선순위(레거시 668~734 분기 순서 유지):
+1. **운임/절삭**: `itemName =~ /(운임|절삭)/` → `verified=true` (referent 무관).
+2. **구형 50%**: `modelToken =~ /^(AM|NJ|NS|AVX)/` → `verified = (actualRate === 50)`. ※ 레거시 `_isOld` 게이트는 OLD 시트 의존(S1d)이나, 이 토큰 접두 자체가 구형 식별자라 현대는 토큰 정규식으로 대체(파리티 근사·주석 명시).
+3. **액세서리**: `itemName =~ /(유연호스|발통세트|일자발|방진가대)/` OR `modelToken =~ /^AXJ/` → `verified = (effectiveUnitPrice === delivery)` (정수원 완전일치·납품가). ※ 구형 비-AM/NJ/NS/AVX "기타"(unit===delivery)는 OLD 식별 불가(S1d) → 본 액세서리 분기 또는 default로 흡수, 별도 재현 안 함.
+4. **멀티**: `modelToken` 이 홈/상업 멀티 접두(레거시 `^AM`&`[6]∈{X,N}`=COMM_MULTI·`^AJ`&`[6]∈{X,N}`=HOME_MULTI) OR `itemName =~ /(멀티|MULTI)/i`:
+   - `fixedDc != null` → `expectedRate = round(fixedDc)` (**이미 percent·재×100 금지**), `verified = (actualRate === expectedRate)`.
+   - `fixedDc == null` → **약정DC(commRate/homeRate)는 S1.5** → 레거시 폴백 `expectedRate = 45`, `verified = (actualRate === 45)`. (거래처 약정DC 미도입이라 폴백만 재현·정합.)
+5. **싱글 본체/부속(세트 매칭)**: `INDOOR/OUTDOOR/SUB_INDOOR` riUsage 완전일치 = **역-BundleExpander(S1.5)** → `status=OUT_OF_SCOPE`, `verified=null`. 단 레거시 "싱글 부속 본체無→true"·"싱글 기타→true" 무조건 true 분기는 세트 무관이나 `_cls` 분류(PANEL/REMOTE/MATERIAL) 필요 → S2b는 세트 분류 미도입이라 **OUT_OF_SCOPE 로 보존**(과잉 true 판정 회피·정직).
+6. **default(기타)**: 위 어디에도 안 걸리면 레거시 `확인=true` → `verified=true`.
+
+> **게이트**: 매칭 실패(NOT_FOUND/AMBIGUOUS) 또는 정가 결측(MISSING_REFERENT)이면 판정 이전에 사유 status로 단락(short-circuit)·`verified=null`. `isMultiApplied`(레거시 전역 토글)=S2b 기본 true(항상 재검증)·토글 노출은 S4.
+
+### 6.4.3 🚨 파리티 가드 (리뷰 필수 대조)
+1. **VAT 기준 일치(최상위 리스크)**: 레거시 `rate = 1 − 단가(VAT포함)/price`. 현대 `actualRate = 1 − (supplyAmount/qty)/release`이며 supplyAmount=**VAT제외 순액**. 비율은 분자·분모 VAT 기준이 같으면 불변이나, **release(price_history)가 순액인지 VAT포함인지 확인 필수** — 불일치 시 rate가 VAT배율만큼 틀어짐. PriceHistorySeeder/legacy 시트 대조로 순액 확정 or 정규화. (구현·리뷰 필수 검증 항목.)
+2. **fixedDc 스케일**: 레거시 `round(_fixedDc×100)`(_fixedDc=분수 0.45) / 현대 `Product.fixedDiscountRate`=percent 45.00 저장(V20 ×100·CHECK 0~100) → **재×100 금지**·`round(fixedDc)` 그대로 expectRate. [[feedback_mock_value_format_be_parity]] 계열.
+3. **null≠0 fixedDc**: null=미설정(→45 폴백)·0=유효값(expectRate 0). Map 생략(productId 미존재)과도 구분.
+4. **정수 반올림**: 레거시 `Math.round`(양수 half-up). 현대 `BigDecimal.setScale(0, HALF_UP)`. 양수 할인율은 동등·음수 .5 경계는 JS(toward +∞) vs HALF_UP(away 0) 상이(과충전=음수 rate는 희소·주석).
+5. **정수원 완전일치**: `effectiveUnitPrice === delivery` 는 `money_to_int_` 정수화 후 비교(레거시 `money_to_int_`=정수원). BigDecimal `compareTo`==0 on 정수화 값.
+6. **부분성공 결측**: applicable-bulk/fixed-discount-bulk가 결측 productId 생략(S2a 계약) → keySet 차집합=`MISSING_REFERENT`(재검증 대상외·NOT 오류). qty=0 방어(0나눗셈→actualRate null).
+
+### 6.4.4 배선 (`getTaxInvoiceDailyDetail`)
+1. `byModel` 집계 시 그룹별 `itemName`(라벨) 보존(현행 key=itemName·OK). qty·supplyAmount 합계로 effectiveUnitPrice 도출.
+2. distinct 라벨마다 `resolveByLabel(label)` → productId 수집(dedupe). NOT_FOUND/AMBIGUOUS 라벨은 사유 보존.
+3. MATCHED productId 집합으로 `applicablePrices(ids, asOf=date)` + `fixedDiscountRates(ids)` **각 1회 벌크**(N+1 회피·REFERENT_BATCH_MAX 500 준수·초과 시 청크).
+4. 그룹별 `DiscountRevalidator.revalidate(...)` → 새 `DailyProductLine` 필드 채움.
+5. 현행 `ensureProductClientReachable()` placeholder 제거(실 호출로 대체). `@Transactional(readOnly=true)` 유지.
+6. **asOf = date**(마감일). isBeforeHike 토글 미도입(S1a asOf 로딩계층이 인상전/후 흡수·판정식 토글 아님) — S4에서 asOf 파라미터화.
+
+### 6.4.5 DTO 변경
+`DailyProductLine` 확장(하위호환 — 기존 4필드 유지 + 신규 append):
+```
+record DailyProductLine(String productName, String modelName, BigDecimal quantity, BigDecimal supplyAmount,
+    BigDecimal releasePrice, BigDecimal deliveryPrice, Integer expectedRate, Integer actualRate,
+    Boolean verified, String revalidationStatus)
+```
+- `SALES_SLIP`/`PURCHASE_SLIP` 경로(`toProductLines`)는 신규 필드 null 채움(S2b 미적용·S2c 확장). `totalDiscount` = 현행 placeholder ZERO 유지(S2c).
+- controller(`AccountingReportController`) 무변경(record 전체 반환). FE 무변경(신규 필드 optional).
+
+### 6.4.6 테스트 전략 + 라이브 QA
+- **엔진 단위 테스트(핵심·파리티)**: `DiscountRevalidatorTest` — 6분기 전수 + 파리티 가드 6종 경계값(fixedDc null/0/percent·VAT·정수반올림 .5·정수원일치·결측·qty0). **실 레거시 라벨 픽스처**(S1b `계산서 발행용.xlsx` 267 라벨 재사용) 로 토큰 추출 파리티. [[feedback_no_fake_data_ever]] — 합성 아닌 실 라벨.
+- **서비스 IT**: `getTaxInvoiceDailyDetail` @MockBean ProductClient(resolveByLabel/applicablePrices/fixedDiscountRates stub) → 벌크 1회 호출·필드 population·NOT_FOUND/AMBIGUOUS/MISSING_REFERENT status 검증. `--rerun-tasks --no-build-cache` genuine. [[feedback_it_mockbean_external_clients]].
+- **라이브 QA(정직)**: Docker 실 accounting+product·mock off. dev product_db=삼성 유통품(AC 모델코드 부재·S1b blocker) → 실 AC 라벨→productId hit는 IT 픽스처 genuine·라이브는 **엔드포인트 배선 + status=NOT_FOUND 실증**(S1b/S1c 선례·명시적 유예). 단 **dev seed 제품 중 model_code+price_history 보유분(있으면)으로 세금계산서 라인 구성 → 실 verified 판정 라이브 1케이스 시도**(genuine dev 데이터·합성 금지). Swagger/curl + (가능시) GUI 스샷 매 라운드.
+
+### 6.4.7 파일 (예상)
+- 신규: `service/DiscountRevalidator.java`(엔진) · `service/ModelTokenExtractor`(accounting 포팅 or shared/common 이관·리뷰 판단) · `DiscountRevalidatorTest`.
+- 수정: `MonthEndCloseService.getTaxInvoiceDailyDetail`(배선) · `DailyClosingDetailResponse.DailyProductLine`(필드) · `DailyClosingDetailServiceTest`(기존 4필드 assert 갱신) · 신규 서비스 IT.
+- dev-report `docs/dev-reports/2026-07-13-773-s2b-revalidation-engine.md` · 본 스펙 · README/ROADMAP 동기화.
