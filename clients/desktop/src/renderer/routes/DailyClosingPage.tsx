@@ -326,12 +326,6 @@ export function DailyClosingPage() {
       render: (row) => row.productName,
     },
     {
-      key: 'modelName',
-      header: '모델',
-      align: 'left',
-      render: (row) => row.modelName ?? '—',
-    },
-    {
       key: 'quantity',
       header: '수량',
       width: '90px',
@@ -393,8 +387,12 @@ export function DailyClosingPage() {
       header: '사유',
       width: '100px',
       align: 'center',
+      // VERIFIED(확인/불일치 판정완료)는 확인 컬럼 배지가 판정을 전달하므로 사유는 '—'.
+      // 사유 컬럼은 판정불가(verified=null) 상태의 사유 구분 전용(NOT_FOUND/AMBIGUOUS 등).
       render: (row) =>
-        row.revalidationStatus ? REVALIDATION_STATUS_LABEL[row.revalidationStatus] : '—',
+        row.revalidationStatus && row.revalidationStatus !== 'VERIFIED'
+          ? REVALIDATION_STATUS_LABEL[row.revalidationStatus]
+          : '—',
     },
   ]
 
@@ -578,7 +576,10 @@ export function DailyClosingPage() {
             />
             {closingKind === 'SALES' ? (
               <div style={{ marginTop: 16 }}>
-                <h4 style={{ margin: '0 0 8px', fontSize: 14 }}>모델별 재검증</h4>
+                <h4 style={{ margin: '0 0 4px', fontSize: 14 }}>모델별 재검증</h4>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary, #6b7280)' }}>
+                  모델·일 합계 평균 기준 새니티 체크입니다. 개별 라인 단위 판정이 아닙니다.
+                </p>
                 <DataTable
                   columns={productColumns}
                   rows={productRows}
