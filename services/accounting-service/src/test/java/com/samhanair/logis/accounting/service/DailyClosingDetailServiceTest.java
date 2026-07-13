@@ -98,8 +98,9 @@ class DailyClosingDetailServiceTest {
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
-        when(productClient.resolveByLabel("에어컨")).thenReturn(ProductLabelMatch.notFound());
-        when(productClient.resolveByLabel("송풍기")).thenReturn(ProductLabelMatch.notFound());
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "에어컨", ProductLabelMatch.notFound(),
+                "송풍기", ProductLabelMatch.notFound()));
 
         DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
 
@@ -133,7 +134,7 @@ class DailyClosingDetailServiceTest {
 
         assertThat(resp.totalTaxInvoiceCount()).isZero();
         assertThat(resp.productSummaries()).isEmpty();
-        verify(productClient, never()).resolveByLabel(org.mockito.ArgumentMatchers.anyString());
+        verify(productClient, never()).resolveByLabelBulk(anyList());
         verify(productClient, never()).applicablePrices(anyList(), eq(DATE));
         verify(productClient, never()).fixedDiscountRates(anyList());
     }
@@ -146,7 +147,8 @@ class DailyClosingDetailServiceTest {
         recalcSnapshot(ti);
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
-        when(productClient.resolveByLabel("할인품목")).thenReturn(ProductLabelMatch.notFound());
+        when(productClient.resolveByLabelBulk(anyList()))
+                .thenReturn(Map.of("할인품목", ProductLabelMatch.notFound()));
 
         DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
 
@@ -171,18 +173,16 @@ class DailyClosingDetailServiceTest {
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
-        when(productClient.resolveByLabel("AJ040RXH4BC1 (RX다배관)"))
-                .thenReturn(ProductLabelMatch.matched(matched, "AJ040RXH4BC1"));
-        when(productClient.resolveByLabel("AJ050RXH5BC1 [5다배관]"))
-                .thenReturn(ProductLabelMatch.matched(missingPrice, "AJ050RXH5BC1"));
-        when(productClient.resolveByLabel("AJ060MXHNBC1 [단배관]"))
-                .thenReturn(ProductLabelMatch.matched(missingFixedRate, "AJ060MXHNBC1"));
-        when(productClient.resolveByLabel("AXJ-YA1509N [N-분기관]"))
-                .thenReturn(ProductLabelMatch.notFound());
-        when(productClient.resolveByLabel("AC023CN1DBC1 [CN냉전 실내기]"))
-                .thenReturn(ProductLabelMatch.ambiguous());
-        when(productClient.resolveByLabel("운임"))
-                .thenReturn(ProductLabelMatch.notFound());
+        // LinkedHashMap 명시 — 실 프로덕션 경로(JSON 응답 → LinkedHashMap)는 라벨 등장 순서를 보존하며,
+        // 아래 matchedProductIds 순서 단언이 그 순서에 의존한다(Map.of 는 순서를 보장하지 않아 부적합).
+        Map<String, ProductLabelMatch> labelBulkResult = new LinkedHashMap<>();
+        labelBulkResult.put("AJ040RXH4BC1 (RX다배관)", ProductLabelMatch.matched(matched, "AJ040RXH4BC1"));
+        labelBulkResult.put("AJ050RXH5BC1 [5다배관]", ProductLabelMatch.matched(missingPrice, "AJ050RXH5BC1"));
+        labelBulkResult.put("AJ060MXHNBC1 [단배관]", ProductLabelMatch.matched(missingFixedRate, "AJ060MXHNBC1"));
+        labelBulkResult.put("AXJ-YA1509N [N-분기관]", ProductLabelMatch.notFound());
+        labelBulkResult.put("AC023CN1DBC1 [CN냉전 실내기]", ProductLabelMatch.ambiguous());
+        labelBulkResult.put("운임", ProductLabelMatch.notFound());
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(labelBulkResult);
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
                 missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
@@ -232,7 +232,13 @@ class DailyClosingDetailServiceTest {
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UUID>> idsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(productClient, times(6)).resolveByLabel(org.mockito.ArgumentMatchers.anyString());
+        // #773 후속 — 라벨 수(6건)만큼 순차 호출(N+1)하던 이전 계약 대신 벌크 1회 호출로 배치화됐음을 증명한다.
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<String>> labelsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(productClient, times(1)).resolveByLabelBulk(labelsCaptor.capture());
+        assertThat(labelsCaptor.getValue()).containsExactly(
+                "AJ040RXH4BC1 (RX다배관)", "AJ050RXH5BC1 [5다배관]", "AJ060MXHNBC1 [단배관]",
+                "AXJ-YA1509N [N-분기관]", "AC023CN1DBC1 [CN냉전 실내기]", "운임");
         verify(productClient, times(1)).applicablePrices(idsCaptor.capture(), eq(DATE));
         assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
         verify(productClient, times(1)).fixedDiscountRates(idsCaptor.capture());
@@ -249,8 +255,8 @@ class DailyClosingDetailServiceTest {
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
-        when(productClient.resolveByLabel("AJ080RXH8BC1 [8다배관]"))
-                .thenReturn(ProductLabelMatch.matched(matched, "AJ080RXH8BC1"));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(
+                Map.of("AJ080RXH8BC1 [8다배관]", ProductLabelMatch.matched(matched, "AJ080RXH8BC1")));
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
         when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
@@ -274,8 +280,8 @@ class DailyClosingDetailServiceTest {
                 BigDecimal.ONE, new BigDecimal("50000"), new BigDecimal("5000"));
         when(salesAccountingSlipRepository.findBySlipDateAndStatusWithLines(DATE, SalesSlipStatus.POSTED))
                 .thenReturn(List.of(slip));
-        when(productClient.resolveByLabel("AJ040RXH4BC1 [4멀티]"))
-                .thenReturn(ProductLabelMatch.matched(matched, "AJ040RXH4BC1"));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(
+                Map.of("AJ040RXH4BC1 [4멀티]", ProductLabelMatch.matched(matched, "AJ040RXH4BC1")));
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
         when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
@@ -305,8 +311,8 @@ class DailyClosingDetailServiceTest {
                 BigDecimal.ONE, new BigDecimal("50000"), new BigDecimal("5000"));
         when(purchaseAccountingSlipRepository.findBySlipDateAndStatusWithLines(DATE, PurchaseSlipStatus.POSTED))
                 .thenReturn(List.of(slip));
-        when(productClient.resolveByLabel("AM160NXVHHH1 [AM상업멀티]"))
-                .thenReturn(ProductLabelMatch.matched(matched, "AM160NXVHHH1"));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(
+                Map.of("AM160NXVHHH1 [AM상업멀티]", ProductLabelMatch.matched(matched, "AM160NXVHHH1")));
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
         when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(

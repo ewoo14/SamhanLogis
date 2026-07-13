@@ -1,10 +1,12 @@
 package com.samhanair.logis.product.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.product.domain.Category;
@@ -15,6 +17,8 @@ import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductAliasRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +28,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -166,5 +171,95 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(
                                 Map.of("label", "[포장재 비용]"))))
                 .andExpect(status().isBadRequest());
+    }
+
+    // =========================================================================
+    // #773 후속 — lookup-by-label-bulk (N+1 HTTP 제거) 통합 테스트
+    // =========================================================================
+
+    /**
+     * 벌크 endpoint 가 exact/alias/LIKE-다의성/미매칭/blank토큰 5가지 상태를 한 응답에서
+     * 정확히 구분함을 검증한다. 위 단건 테스트들과 동일한 exact/alias/ambiguous 시나리오를
+     * 재사용해 단건↔벌크 parity 를 함께 증명한다.
+     */
+    @Test
+    void lookupByLabelBulk_다양한_상태를_한번에_반환한다() throws Exception {
+        Product aliasMainProduct = productRepository.save(Product.create(
+                "벌크 별칭 매핑 실외기",
+                "BULK-ALIAS-MAIN-" + UUID.randomUUID().toString().substring(0, 8),
+                category,
+                new BigDecimal("2000000"),
+                new BigDecimal("1600000"),
+                "KRW",
+                null,
+                "벌크 라벨 조회 IT alias fallback"));
+        aliasMainProduct.changeModelCode("BULK-ALIAS-EXPOSED-1");
+        productAliasRepository.save(ProductAlias.create("BULKALIASX1", aliasMainProduct, "ECOUNT_IMPORT"));
+
+        productRepository.save(Product.create(
+                "BULKTWOROWS 후보 A", "BX-BULKTWOROWS-1", category,
+                new BigDecimal("100000"), new BigDecimal("80000"), "KRW", null,
+                "벌크 라벨 조회 IT 다의성 A"));
+        productRepository.save(Product.create(
+                "BULKTWOROWS 후보 B", "BY-BULKTWOROWS-2", category,
+                new BigDecimal("100000"), new BigDecimal("80000"), "KRW", null,
+                "벌크 라벨 조회 IT 다의성 B"));
+
+        String requestBody = objectMapper.writeValueAsString(Map.of("labels", List.of(
+                "AC023CN1DBC1 [CN냉전 실내기]",
+                "BULKALIASX1 [별칭 매핑 테스트]",
+                "BULKTWOROWS [다의성]",
+                "AC999ZZ9ZZZ9 [미등록]",
+                "[포장재 비용]")));
+
+        MvcResult result = mockMvc.perform(post("/products/internal/lookup-by-label-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode data = objectMapper
+                .readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("data");
+
+        JsonNode exact = data.get("AC023CN1DBC1 [CN냉전 실내기]");
+        assertThat(exact.get("status").asText()).isEqualTo("MATCHED");
+        assertThat(exact.get("productId").asText()).isEqualTo(exactProduct.getId().toString());
+        assertThat(exact.get("modelCode").asText()).isEqualTo("AC023CN1DBC1");
+
+        JsonNode alias = data.get("BULKALIASX1 [별칭 매핑 테스트]");
+        assertThat(alias.get("status").asText()).isEqualTo("MATCHED");
+        assertThat(alias.get("productId").asText()).isEqualTo(aliasMainProduct.getId().toString());
+        assertThat(alias.get("modelCode").asText()).isEqualTo("BULK-ALIAS-EXPOSED-1");
+
+        JsonNode ambiguous = data.get("BULKTWOROWS [다의성]");
+        assertThat(ambiguous.get("status").asText()).isEqualTo("AMBIGUOUS");
+        assertThat(ambiguous.get("productId").isNull()).isTrue();
+
+        JsonNode notFound = data.get("AC999ZZ9ZZZ9 [미등록]");
+        assertThat(notFound.get("status").asText()).isEqualTo("NOT_FOUND");
+        assertThat(notFound.get("productId").isNull()).isTrue();
+
+        JsonNode blankToken = data.get("[포장재 비용]");
+        assertThat(blankToken.get("status").asText()).isEqualTo("NOT_FOUND");
+    }
+
+    @Test
+    void lookupByLabelBulk_빈리스트는_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/products/internal/lookup-by-label-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("labels", List.of()))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void lookupByLabelBulk_토큰없이_호출하면_401() throws Exception {
+        mockMvc.perform(post("/products/internal/lookup-by-label-bulk")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("labels", List.of("AC023CN1DBC1 [CN냉전 실내기]")))))
+                .andExpect(status().isUnauthorized());
     }
 }

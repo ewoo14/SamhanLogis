@@ -51,6 +51,11 @@ public class ProductClient {
     private static final int LOOKUP_BATCH_MAX = 100;
     /** referent bulk(applicable/fixed-discount) 1회 요청 최대 productId 수. 호출측 청킹도 이 값을 공유. */
     public static final int REFERENT_BATCH_MAX = 500;
+    /**
+     * 회계 라벨 벌크 조회(lookup-by-label-bulk) 1회 요청 최대 라벨 수 — product-service
+     * {@code ProductService.LOOKUP_MAX}(100) 와 동일. 호출측(MonthEndCloseService) 청킹도 이 값을 공유한다.
+     */
+    public static final int LABEL_BATCH_MAX = 100;
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -188,6 +193,85 @@ public class ProductClient {
                     "product-service 응답 포맷 오류 (productId 누락)");
         }
         return ProductLabelMatch.matched(response.id(), response.modelCode());
+    }
+
+    /**
+     * 회계 라벨 목록을 product-service internal 벌크 endpoint 로 한 번에 해소한다 (#773 후속 —
+     * {@link #resolveByLabel(String)} 순차 호출(N+1 HTTP)을 제거하기 위한 배치 client).
+     *
+     * <p>{@link #resolveByLabel(String)} 단건과 동일한 사유 보존(MATCHED/NOT_FOUND/AMBIGUOUS) 계약을
+     * 라벨별로 유지하되, product-service 가 한 응답에 라벨별 status 를 담아 반환하므로 라벨별 404/409
+     * 는 더 이상 개별 예외가 아니라 응답 body 의 {@code status} 문자열로 판정한다. 요청 자체의 4xx/5xx/
+     * 네트워크 오류 매핑은 {@link #applicablePrices(List, LocalDate)} 등이 사용하는
+     * {@link #postBulkReferent(String, Map, String)} 관례(INVALID_INPUT/INTERNAL_ERROR)를 그대로 따른다.
+     *
+     * <p>product-service 는 요청 labels 전부를 응답 Map 키로 포함하는 완전 응답 계약이지만, 호출측
+     * ({@link com.samhanair.logis.accounting.service.MonthEndCloseService})은 방어적으로
+     * {@code getOrDefault} 폴백을 유지한다.
+     *
+     * @param labels 조회할 라벨 목록. 빈 목록(또는 null)은 외부 호출 없이 빈 Map 반환. 1회 호출당 최대
+     *               {@link #LABEL_BATCH_MAX}건 — 초과분은 호출측이 청킹해서 여러 번 호출해야 한다
+     * @return 라벨 → 매칭 result. 항상 non-null result 값(MATCHED/NOT_FOUND/AMBIGUOUS)
+     * @throws BusinessException(INVALID_INPUT) batch 한도 초과, product-service 4xx
+     * @throws BusinessException(INTERNAL_ERROR) product-service 5xx / 네트워크 / envelope 오류 /
+     *                                            라벨별 응답 포맷 오류(알 수 없는 status, MATCHED인데 productId 누락)
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, ProductLabelMatch> resolveByLabelBulk(List<String> labels) {
+        if (labels == null || labels.isEmpty()) {
+            return Map.of();
+        }
+        if (labels.size() > LABEL_BATCH_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 라벨 수는 " + LABEL_BATCH_MAX + "건입니다");
+        }
+        Map<String, Object> body = Map.of("labels", labels);
+
+        Map<String, Object> envelope = postBulkReferent(
+                "/products/internal/lookup-by-label-bulk",
+                body,
+                "ProductClient resolveByLabelBulk failed");
+
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof Map<?, ?> rawMap)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 응답 포맷 오류 (data 누락)");
+        }
+        Map<String, ProductLabelMatch> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            LabelResolutionResponse response =
+                    objectMapper.convertValue(entry.getValue(), LabelResolutionResponse.class);
+            result.put(String.valueOf(entry.getKey()), toProductLabelMatch(response));
+        }
+        return result;
+    }
+
+    /**
+     * product-service 벌크 응답의 라벨별 status 문자열을 {@link ProductLabelMatch} 로 변환한다.
+     *
+     * <p>MSA 경계상 product-service DTO(enum) 타입을 import 하지 않고, accounting 자체
+     * {@link ProductLabelMatch.Status} enum 이름과 문자열로 정합시켜 비교한다 — product-service 의
+     * {@code LabelResolutionResult.status} 는 이 이름들과 문자열 계약으로 느슨 결합되어 있다.
+     * {@code productId}/{@code modelCode} 는 status=MATCHED 일 때만 읽는다 — {@link #resolveByLabel(String)}
+     * 와 동일하게 modelCode null 은 레거시 제품 정상 상태이므로 검증 대상에서 제외한다.
+     */
+    private static ProductLabelMatch toProductLabelMatch(LabelResolutionResponse response) {
+        String status = response.status();
+        if (ProductLabelMatch.Status.MATCHED.name().equals(status)) {
+            if (response.productId() == null) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "product-service 응답 포맷 오류 (MATCHED인데 productId 누락)");
+            }
+            return ProductLabelMatch.matched(response.productId(), response.modelCode());
+        }
+        if (ProductLabelMatch.Status.AMBIGUOUS.name().equals(status)) {
+            return ProductLabelMatch.ambiguous();
+        }
+        if (ProductLabelMatch.Status.NOT_FOUND.name().equals(status)) {
+            return ProductLabelMatch.notFound();
+        }
+        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                "product-service 응답 포맷 오류 (알 수 없는 라벨 status: " + status + ")");
     }
 
     /**
@@ -343,6 +427,13 @@ public class ProductClient {
     }
 
     private record ProductLabelResponse(UUID id, String modelCode) {
+    }
+
+    /**
+     * product-service {@code lookup-by-label-bulk} 응답 Map 의 value 파싱 대상 —
+     * product-service {@code LabelResolutionResult} 와 필드 계약(status/productId/modelCode)만 공유한다.
+     */
+    private record LabelResolutionResponse(String status, UUID productId, String modelCode) {
     }
 
     private record FixedDiscountResponse(BigDecimal fixedDiscountRate) {

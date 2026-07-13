@@ -3,6 +3,9 @@ package com.samhanair.logis.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.common.exception.BusinessException;
@@ -11,6 +14,7 @@ import com.samhanair.logis.product.domain.BundleComponent;
 import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductAlias;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductSpec;
 import com.samhanair.logis.product.domain.ProductStatus;
@@ -22,6 +26,7 @@ import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
+import com.samhanair.logis.product.web.dto.LabelResolutionResult;
 import com.samhanair.logis.product.web.dto.ProductItemKind;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.ProductSpecRequest;
@@ -41,6 +46,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -614,6 +621,222 @@ class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    // =========================================================================
+    // #773 후속 — lookupSummaryByLabel(단건)/lookupSummaryByLabelBulk(벌크) 판정 공유 + parity
+    // =========================================================================
+
+    private Product newLabelProduct(String name, String modelName, String modelCode) {
+        Product product = Product.create(name, modelName, category,
+                new BigDecimal("1000000"), new BigDecimal("800000"), "KRW", null, name + " 설명");
+        ReflectionTestUtils.setField(product, "id", UUID.randomUUID());
+        if (modelCode != null) {
+            product.changeModelCode(modelCode);
+        }
+        return product;
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_모델코드_alias_LIKE_매칭을_각각_반환한다() {
+        Product modelCodeMatch = newLabelProduct("모델코드 매칭 제품", "MC-NAME-1", "ZZ-MODELCODE-1");
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-MODELCODE-1"))
+                .thenReturn(Optional.of(modelCodeMatch));
+
+        Product aliasMain = newLabelProduct("별칭 매핑 제품", "MC-NAME-2", "ZZ-ALIAS-MAIN-1");
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-ALIAS-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-ALIAS-1"))
+                .thenReturn(Optional.of(ProductAlias.create("ZZ-ALIAS-1", aliasMain, "ECOUNT_IMPORT")));
+
+        Product likeMatch = newLabelProduct("LIKE 매칭 제품", "MC-NAME-3", "ZZ-LIKE-1");
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-LIKE-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-LIKE-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-LIKE-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of(likeMatch)));
+
+        Map<String, LabelResolutionResult> result = service.lookupSummaryByLabelBulk(List.of(
+                "ZZ-MODELCODE-1 [규격A]", "ZZ-ALIAS-1 [규격B]", "ZZ-LIKE-1 [규격C]"));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get("ZZ-MODELCODE-1 [규격A]").status()).isEqualTo(LabelResolutionResult.MATCHED);
+        assertThat(result.get("ZZ-MODELCODE-1 [규격A]").productId()).isEqualTo(modelCodeMatch.getId());
+        assertThat(result.get("ZZ-MODELCODE-1 [규격A]").modelCode()).isEqualTo("ZZ-MODELCODE-1");
+
+        assertThat(result.get("ZZ-ALIAS-1 [규격B]").status()).isEqualTo(LabelResolutionResult.MATCHED);
+        assertThat(result.get("ZZ-ALIAS-1 [규격B]").productId()).isEqualTo(aliasMain.getId());
+        assertThat(result.get("ZZ-ALIAS-1 [규격B]").modelCode()).isEqualTo("ZZ-ALIAS-MAIN-1");
+
+        assertThat(result.get("ZZ-LIKE-1 [규격C]").status()).isEqualTo(LabelResolutionResult.MATCHED);
+        assertThat(result.get("ZZ-LIKE-1 [규격C]").productId()).isEqualTo(likeMatch.getId());
+        assertThat(result.get("ZZ-LIKE-1 [규격C]").modelCode()).isEqualTo("ZZ-LIKE-1");
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_notFound와_ambiguous를_구분해서_반환한다() {
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-NOTFOUND-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-NOTFOUND-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-NOTFOUND-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        Product ambigA = newLabelProduct("다의성 후보 A", "MC-NAME-4", null);
+        Product ambigB = newLabelProduct("다의성 후보 B", "MC-NAME-5", null);
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-TWOROWS-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-TWOROWS-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-TWOROWS-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of(ambigA, ambigB)));
+
+        Map<String, LabelResolutionResult> result = service.lookupSummaryByLabelBulk(List.of(
+                "ZZ-NOTFOUND-1 [규격]", "ZZ-TWOROWS-1 [규격]"));
+
+        assertThat(result.get("ZZ-NOTFOUND-1 [규격]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+        assertThat(result.get("ZZ-NOTFOUND-1 [규격]").productId()).isNull();
+
+        assertThat(result.get("ZZ-TWOROWS-1 [규격]").status()).isEqualTo(LabelResolutionResult.AMBIGUOUS);
+        assertThat(result.get("ZZ-TWOROWS-1 [규격]").productId()).isNull();
+        assertThat(result.get("ZZ-TWOROWS-1 [규격]").modelCode()).isNull();
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_blank_토큰은_그_라벨만_NOT_FOUND로_소프트처리한다() {
+        Map<String, LabelResolutionResult> result =
+                service.lookupSummaryByLabelBulk(List.of("[포장재 비용]"));
+
+        assertThat(result.get("[포장재 비용]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+        // 토큰 추출 실패는 repository 조회 자체를 발생시키지 않는다(단건과 동일한 short-circuit).
+        verify(productRepository, never()).findByCatalogExposedModelCodeAndIsDeletedFalse(any());
+        verify(productAliasRepository, never()).findByAliasCodeAndIsDeletedFalse(any());
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_혼합배치를_한번에_해석한다() {
+        Product matched = newLabelProduct("혼합배치 매칭", "MC-NAME-6", "ZZ-MIX-MATCH-1");
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-MIX-MATCH-1"))
+                .thenReturn(Optional.of(matched));
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-MIX-NOTFOUND-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-MIX-NOTFOUND-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-MIX-NOTFOUND-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        Map<String, LabelResolutionResult> result = service.lookupSummaryByLabelBulk(List.of(
+                "ZZ-MIX-MATCH-1 [규격]", "ZZ-MIX-NOTFOUND-1 [규격]", "[포장재 비용]"));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get("ZZ-MIX-MATCH-1 [규격]").status()).isEqualTo(LabelResolutionResult.MATCHED);
+        assertThat(result.get("ZZ-MIX-NOTFOUND-1 [규격]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+        assertThat(result.get("[포장재 비용]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_null또는_빈리스트는_빈Map을_반환한다() {
+        assertThat(service.lookupSummaryByLabelBulk(null)).isEmpty();
+        assertThat(service.lookupSummaryByLabelBulk(List.of())).isEmpty();
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_size상한초과시_INVALID_INPUT() {
+        List<String> tooMany = IntStream.range(0, 101)
+                .mapToObj(i -> "ZZ-LABEL-" + i)
+                .toList();
+
+        assertThatThrownBy(() -> service.lookupSummaryByLabelBulk(tooMany))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    void lookupSummaryByLabelBulk_중복라벨은_한번만_조회한다() {
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-DUP-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-DUP-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-DUP-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        Map<String, LabelResolutionResult> result = service.lookupSummaryByLabelBulk(
+                List.of("ZZ-DUP-1 [규격]", "ZZ-DUP-1 [규격]"));
+
+        assertThat(result).hasSize(1);
+        verify(productRepository, times(1))
+                .search(null, null, "ZZ-DUP-1", null, null, null, PageRequest.of(0, 2));
+    }
+
+    /**
+     * parity 핵심 검증 — {@link ProductService#lookupSummaryByLabel} 단건(throw)과
+     * {@link ProductService#lookupSummaryByLabelBulk} 벌크(status)가 동일 라벨에 대해 항상
+     * 같은 판정에서 갈라짐을 4개 상태(MATCHED/NOT_FOUND/AMBIGUOUS/BLANK_TOKEN)로 증명한다.
+     */
+    @Test
+    void 단건과_벌크는_matched에서_동일결과를_반환한다() {
+        Product matched = newLabelProduct("parity 매칭 제품", "MC-NAME-7", "ZZ-PARITY-MATCH-1");
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-PARITY-MATCH-1"))
+                .thenReturn(Optional.of(matched));
+
+        ProductSummaryResponse single = service.lookupSummaryByLabel("ZZ-PARITY-MATCH-1 [규격]");
+        LabelResolutionResult bulk = service.lookupSummaryByLabelBulk(
+                List.of("ZZ-PARITY-MATCH-1 [규격]")).get("ZZ-PARITY-MATCH-1 [규격]");
+
+        assertThat(bulk.status()).isEqualTo(LabelResolutionResult.MATCHED);
+        assertThat(bulk.productId()).isEqualTo(single.id());
+        assertThat(bulk.modelCode()).isEqualTo(single.modelCode());
+    }
+
+    @Test
+    void 단건과_벌크는_notFound에서_동일결과를_반환한다() {
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-PARITY-NF-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-PARITY-NF-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-PARITY-NF-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertThatThrownBy(() -> service.lookupSummaryByLabel("ZZ-PARITY-NF-1 [규격]"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.NOT_FOUND));
+        LabelResolutionResult bulk = service.lookupSummaryByLabelBulk(
+                List.of("ZZ-PARITY-NF-1 [규격]")).get("ZZ-PARITY-NF-1 [규격]");
+        assertThat(bulk.status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+    }
+
+    @Test
+    void 단건과_벌크는_ambiguous에서_동일결과를_반환한다() {
+        Product ambigA = newLabelProduct("parity 다의성 A", "MC-NAME-8", null);
+        Product ambigB = newLabelProduct("parity 다의성 B", "MC-NAME-9", null);
+        when(productRepository.findByCatalogExposedModelCodeAndIsDeletedFalse("ZZ-PARITY-TWOROWS-1"))
+                .thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("ZZ-PARITY-TWOROWS-1"))
+                .thenReturn(Optional.empty());
+        when(productRepository.search(null, null, "ZZ-PARITY-TWOROWS-1", null, null, null, PageRequest.of(0, 2)))
+                .thenReturn(new PageImpl<>(List.of(ambigA, ambigB)));
+
+        assertThatThrownBy(() -> service.lookupSummaryByLabel("ZZ-PARITY-TWOROWS-1 [규격]"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+        LabelResolutionResult bulk = service.lookupSummaryByLabelBulk(
+                List.of("ZZ-PARITY-TWOROWS-1 [규격]")).get("ZZ-PARITY-TWOROWS-1 [규격]");
+        assertThat(bulk.status()).isEqualTo(LabelResolutionResult.AMBIGUOUS);
+    }
+
+    @Test
+    void 단건과_벌크는_blank토큰에서_단건은_400_벌크는_NOT_FOUND로_소프트처리한다() {
+        assertThatThrownBy(() -> service.lookupSummaryByLabel("[포장재 비용]"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        LabelResolutionResult bulk = service.lookupSummaryByLabelBulk(
+                List.of("[포장재 비용]")).get("[포장재 비용]");
+        assertThat(bulk.status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
     }
 
     // =========================================================================

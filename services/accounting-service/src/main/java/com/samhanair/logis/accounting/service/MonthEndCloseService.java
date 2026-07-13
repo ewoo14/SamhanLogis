@@ -400,12 +400,38 @@ public class MonthEndCloseService {
         return products;
     }
 
+    /**
+     * 회계 라벨 목록을 product-service 벌크 endpoint 로 해소한다 (#773 후속 — N+1 HTTP 제거).
+     *
+     * <p>라벨 수만큼 {@code resolveByLabel} 을 순차 호출하던 이전 구현을 {@link ProductClient#resolveByLabelBulk(List)}
+     * 1회 호출로 대체한다. 하루치 배치가 {@link ProductClient#LABEL_BATCH_MAX} 를 넘는 드문 경우에도
+     * (일마감 라벨은 통상 그 이하) 무제한 라벨 수를 계속 지원하도록 {@link #labelChunks(List)} 로 청킹해
+     * 여러 번 호출한다 — {@link #loadApplicablePrices}/{@link #loadFixedDiscountRates} 의 기존 청킹
+     * 관례와 동일한 패턴이다. 반환 Map 은 소비측({@link #revalidateProductLines})이 {@code getOrDefault}
+     * 로 결측 라벨을 방어하므로 판정/동작은 이전과 동일하다(순수 배치화, 결과 무변경).
+     *
+     * @param labels 해소할 라벨 목록(중복 없음 — {@code byModel.keySet()} 유래)
+     * @return 라벨 → 매칭 result Map
+     */
     private Map<String, ProductLabelMatch> resolveProductLabels(List<String> labels) {
+        if (labels.isEmpty()) {
+            return Map.of();
+        }
         Map<String, ProductLabelMatch> matches = new LinkedHashMap<>();
-        for (String label : labels) {
-            matches.put(label, productClient.resolveByLabel(label));
+        for (List<String> chunk : labelChunks(labels)) {
+            matches.putAll(productClient.resolveByLabelBulk(chunk));
         }
         return matches;
+    }
+
+    /** {@link ProductClient#LABEL_BATCH_MAX} 단위로 라벨 목록을 청크로 분할한다. */
+    private static List<List<String>> labelChunks(List<String> labels) {
+        List<List<String>> chunks = new ArrayList<>();
+        for (int start = 0; start < labels.size(); start += ProductClient.LABEL_BATCH_MAX) {
+            int end = Math.min(start + ProductClient.LABEL_BATCH_MAX, labels.size());
+            chunks.add(labels.subList(start, end));
+        }
+        return chunks;
     }
 
     private Map<UUID, ApplicablePrice> loadApplicablePrices(List<UUID> productIds, LocalDate asOf) {

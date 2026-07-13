@@ -105,8 +105,8 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
         lenient().when(partnerLookupClient.findByPartnerIdsBatch(anyList()))
                 .thenReturn(Map.of(PARTNER_ID, new PartnerSummary(
                         PARTNER_ID, "P-RV", "재검증거래처", "111-22-33333", "서울")));
-        lenient().when(productClient.resolveByLabel(anyString()))
-                .thenReturn(ProductLabelMatch.notFound());
+        lenient().when(productClient.resolveByLabelBulk(anyList()))
+                .thenReturn(Map.of());
         lenient().when(productClient.applicablePrices(anyList(), any(LocalDate.class)))
                 .thenReturn(Map.of(
                         AM_PRODUCT_ID, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
@@ -123,10 +123,9 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     @DisplayName("TAX_INVOICE daily detail — 재검증 6필드를 HTTP JSON으로 노출한다")
     void taxInvoiceDailyDetailExposesRevalidationFields() throws Exception {
         seedIssuedTaxInvoice();
-        Mockito.when(productClient.resolveByLabel("AM160NXVHHH1 [AM상업멀티]"))
-                .thenReturn(ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1"));
-        Mockito.when(productClient.resolveByLabel("미등록서비스품목"))
-                .thenReturn(ProductLabelMatch.notFound());
+        Mockito.when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "AM160NXVHHH1 [AM상업멀티]", ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1"),
+                "미등록서비스품목", ProductLabelMatch.notFound()));
 
         mockMvc.perform(get("/accounting/closings/daily")
                         .param("date", DATE.toString())
@@ -156,8 +155,8 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     @DisplayName("SALES_SLIP daily detail — 전표 경로도 재검증 6필드를 HTTP JSON으로 노출한다")
     void salesSlipDailyDetailExposesRevalidationFields() throws Exception {
         seedPostedSalesSlip();
-        Mockito.when(productClient.resolveByLabel("AJ040RXH4BC1 [AJ홈멀티]"))
-                .thenReturn(ProductLabelMatch.matched(AJ_PRODUCT_ID, "AJ040RXH4BC1"));
+        Mockito.when(productClient.resolveByLabelBulk(anyList())).thenReturn(
+                Map.of("AJ040RXH4BC1 [AJ홈멀티]", ProductLabelMatch.matched(AJ_PRODUCT_ID, "AJ040RXH4BC1")));
 
         mockMvc.perform(get("/accounting/closings/daily")
                         .param("date", DATE.toString())
@@ -178,8 +177,8 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     @DisplayName("PURCHASE_SLIP daily detail — 매입전표 경로도 재검증 6필드를 HTTP JSON으로 노출한다")
     void purchaseSlipDailyDetailExposesRevalidationFields() throws Exception {
         seedPostedPurchaseSlip();
-        Mockito.when(productClient.resolveByLabel("AM160NXVHHH1 [상업멀티]"))
-                .thenReturn(ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1"));
+        Mockito.when(productClient.resolveByLabelBulk(anyList())).thenReturn(
+                Map.of("AM160NXVHHH1 [상업멀티]", ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1")));
 
         mockMvc.perform(get("/accounting/closings/daily")
                         .param("date", DATE.toString())

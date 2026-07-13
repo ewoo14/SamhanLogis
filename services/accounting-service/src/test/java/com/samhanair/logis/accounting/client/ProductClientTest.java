@@ -206,6 +206,119 @@ class ProductClientTest {
     }
 
     @Test
+    void resolveByLabelBulk_라벨별_MATCHED_NOT_FOUND_AMBIGUOUS를_한번에_파싱한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000311");
+
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.labels[0]").value("AC023CN1DBC1 [CN냉전 실내기]"))
+                .andExpect(jsonPath("$.labels[1]").value("미등록 라벨"))
+                .andExpect(jsonPath("$.labels[2]").value("중복 라벨"))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "AC023CN1DBC1 [CN냉전 실내기]":{"status":"MATCHED","productId":"00000000-0000-0000-0000-000000000311","modelCode":"AC023CN1DBC1"},
+                          "미등록 라벨":{"status":"NOT_FOUND","productId":null,"modelCode":null},
+                          "중복 라벨":{"status":"AMBIGUOUS","productId":null,"modelCode":null}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<String, ProductLabelMatch> result = client.resolveByLabelBulk(
+                List.of("AC023CN1DBC1 [CN냉전 실내기]", "미등록 라벨", "중복 라벨"));
+
+        assertThat(result).containsOnlyKeys("AC023CN1DBC1 [CN냉전 실내기]", "미등록 라벨", "중복 라벨");
+        assertThat(result.get("AC023CN1DBC1 [CN냉전 실내기]"))
+                .isEqualTo(ProductLabelMatch.matched(productId, "AC023CN1DBC1"));
+        assertThat(result.get("미등록 라벨").status()).isEqualTo(ProductLabelMatch.Status.NOT_FOUND);
+        assertThat(result.get("중복 라벨").status()).isEqualTo(ProductLabelMatch.Status.AMBIGUOUS);
+        server.verify();
+    }
+
+    /** 단건 {@code resolveByLabel} 과 동일하게 modelCode null 은 레거시 제품 MATCHED 정상 상태다. */
+    @Test
+    void resolveByLabelBulk_modelCode가_null이어도_레거시제품_MATCHED로_반환한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000312");
+
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "레거시 품목 [규격]":{"status":"MATCHED","productId":"00000000-0000-0000-0000-000000000312","modelCode":null}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        Map<String, ProductLabelMatch> result = client.resolveByLabelBulk(List.of("레거시 품목 [규격]"));
+
+        ProductLabelMatch match = result.get("레거시 품목 [규격]");
+        assertThat(match.status()).isEqualTo(ProductLabelMatch.Status.MATCHED);
+        assertThat(match.productId()).isEqualTo(productId);
+        assertThat(match.modelCode()).isNull();
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabelBulk_빈_labels는_호출하지_않고_빈_Map을_반환한다() {
+        assertThat(client.resolveByLabelBulk(List.of())).isEmpty();
+        assertThat(client.resolveByLabelBulk(null)).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabelBulk_상한초과시_INVALID_INPUT() {
+        List<String> tooMany = java.util.stream.IntStream.range(0, 101)
+                .mapToObj(i -> "라벨" + i)
+                .toList();
+
+        assertThatThrownBy(() -> client.resolveByLabelBulk(tooMany))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    void resolveByLabelBulk_4xx는_INVALID_INPUT() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.resolveByLabelBulk(List.of("아무 라벨")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabelBulk_5xx는_INTERNAL_ERROR() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.resolveByLabelBulk(List.of("아무 라벨")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
+    void resolveByLabelBulk_알수없는_status는_INTERNAL_ERROR() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "이상한 라벨":{"status":"WEIRD","productId":null,"modelCode":null}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.resolveByLabelBulk(List.of("이상한 라벨")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
+
+    @Test
     void applicablePrices_벌크_요청과_시점정가_파싱을_검증한다() {
         UUID first = UUID.fromString("00000000-0000-0000-0000-000000000401");
         UUID second = UUID.fromString("00000000-0000-0000-0000-000000000402");

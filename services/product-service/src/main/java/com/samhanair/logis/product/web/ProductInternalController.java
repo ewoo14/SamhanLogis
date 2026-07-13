@@ -15,8 +15,10 @@ import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.FixedDiscountResponse;
 import com.samhanair.logis.product.web.dto.FixedDiscountRateBulkRequest;
+import com.samhanair.logis.product.web.dto.LabelResolutionResult;
 import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelRequest;
+import com.samhanair.logis.product.web.dto.LookupByLabelBulkRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
@@ -159,6 +161,31 @@ public class ProductInternalController {
     @PostMapping("/lookup-by-label")
     public ApiResponse<ProductSummaryResponse> lookupByLabel(@Valid @RequestBody LookupByLabelRequest request) {
         return ApiResponse.ok(productService.lookupSummaryByLabel(request.label()));
+    }
+
+    /**
+     * 회계 품목 라벨 벌크 조회 (internal) — #773 후속 슬라이스. accounting 일마감 재검증이 라벨 수만큼
+     * 순차 호출(N+1)하던 것을 1회 호출로 대체하기 위한 배치 endpoint다.
+     *
+     * <p>단건 {@link #lookupByLabel} 과 완전히 동일한 3단 fallback 판정을 라벨마다 적용하되, 미매칭/
+     * 다의성/토큰추출실패를 404/409 예외 대신 {@link LabelResolutionResult#status()} 로 보존한
+     * 부분 성공(partial success) 응답을 200 으로 반환한다 — 기존 {@code applicable-bulk}/
+     * {@code fixed-discount-rate-bulk} 와 동일 계약 스타일이다.
+     */
+    @Operation(summary = "회계 라벨 벌크 조회 (internal)",
+            description = "X-Internal-Token 인증. accounting 일마감 재검증(#773 후속) 라벨→productId N+1 제거 전용. "
+                    + "요청 labels 전부가 응답 Map 키로 포함되며, 라벨별 상태는 MATCHED/NOT_FOUND/AMBIGUOUS 로 보존된다 "
+                    + "(단건과 달리 부분 성공 — 미매칭/다의성이어도 200).")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "조회 완료(라벨별 상태는 응답 body 의 status 로 판정)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "labels 누락/상한 초과"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
+    })
+    @PostMapping("/lookup-by-label-bulk")
+    public ApiResponse<Map<String, LabelResolutionResult>> lookupByLabelBulk(
+            @Valid @RequestBody LookupByLabelBulkRequest request) {
+        return ApiResponse.ok(productService.lookupSummaryByLabelBulk(request.labels()));
     }
 
     /**
