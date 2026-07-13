@@ -251,23 +251,16 @@ public class MonthEndCloseService {
             ProductLabelMatch labelMatch = labelMatches.getOrDefault(e.getKey(), ProductLabelMatch.notFound());
             UUID productId = labelMatch.productId();
             ApplicablePrice price = labelMatch.isMatched() ? pricesByProductId.get(productId) : null;
-            // 출고가(release) key 누락만 결측 판정. fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리
-            // — 매칭된 productId 는 S2a 부분성공 계약상 fixedDc Map 에 null value 로라도 존재하며,
-            //   fixedDc 는 멀티 분기에서만 소비되어 운임/구형/액세서리/default 판정을 막을 이유가 없다.
-            boolean missingReferentKey = labelMatch.isMatched()
-                    && !pricesByProductId.containsKey(productId);
-            DiscountRevalidator.Revalidation revalidation = missingReferentKey
-                    ? discountRevalidator.missingReferent(
-                            price == null ? null : price.release(),
-                            price == null ? null : price.delivery())
-                    : discountRevalidator.revalidate(
-                            e.getKey(),
-                            ModelTokenExtractor.extractModelToken(e.getKey()),
-                            e.getValue().effectiveUnitPrice(),
-                            price == null ? null : price.release(),
-                            price == null ? null : price.delivery(),
-                            labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
-                            labelMatch.status());
+            // fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리한다. price key 누락도 엔진에 넘겨
+            // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
+            DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
+                    e.getKey(),
+                    ModelTokenExtractor.extractModelToken(e.getKey()),
+                    e.getValue().effectiveUnitPrice(),
+                    price == null ? null : price.release(),
+                    price == null ? null : price.delivery(),
+                    labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
+                    labelMatch.status());
             products.add(new DailyProductLine(
                     e.getKey(),
                     null,

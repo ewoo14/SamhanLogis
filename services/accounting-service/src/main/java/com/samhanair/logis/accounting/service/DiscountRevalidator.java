@@ -72,70 +72,61 @@ public class DiscountRevalidator {
                                    BigDecimal deliveryPrice,
                                    BigDecimal fixedDc,
                                    ProductLabelMatch.Status matchStatus) {
+        String safeItemName = itemName == null ? "" : itemName;
+        String safeModelToken = modelToken == null ? "" : modelToken;
+        BigDecimal effectiveDeliveryPrice = effectiveDeliveryPrice(releasePrice, deliveryPrice);
+        Integer actualRate = actualRate(effectiveUnitPrice, releasePrice);
+
+        // 운임/절삭: 레거시(Code.js:668-670) 최상단 분기와 동일하게 referent/라벨매칭 무관 true.
+        // release 가 없으면 actualRate 는 null 로 남기되 판정 자체는 막지 않는다.
+        if (FREIGHT_OR_CUTTING.matcher(safeItemName).find()) {
+            return verified(true, null, actualRate, releasePrice, effectiveDeliveryPrice);
+        }
+
         if (matchStatus == ProductLabelMatch.Status.NOT_FOUND) {
-            return unresolved(Status.NOT_FOUND, releasePrice, deliveryPrice);
+            return unresolved(Status.NOT_FOUND, releasePrice, effectiveDeliveryPrice);
         }
         if (matchStatus == ProductLabelMatch.Status.AMBIGUOUS) {
-            return unresolved(Status.AMBIGUOUS, releasePrice, deliveryPrice);
+            return unresolved(Status.AMBIGUOUS, releasePrice, effectiveDeliveryPrice);
         }
         if (releasePrice == null || releasePrice.compareTo(BigDecimal.ZERO) == 0) {
             return new Revalidation(null, null, null, Status.MISSING_REFERENT,
-                    releasePrice, deliveryPrice);
+                    releasePrice, effectiveDeliveryPrice);
         }
 
-        String safeItemName = itemName == null ? "" : itemName;
-        String safeModelToken = modelToken == null ? "" : modelToken;
-        Integer actualRate = actualRate(effectiveUnitPrice, releasePrice);
-
-        // 운임/절삭: referent 무관 무조건 true. actualRate 는 참고값(판정 근거 아님).
-        if (FREIGHT_OR_CUTTING.matcher(safeItemName).find()) {
-            return verified(true, null, actualRate, releasePrice, deliveryPrice);
-        }
         // 구형 50%: 진짜 구형 접두(NJ/NS/AVX) + 비-멀티 AM 만. 상업/홈멀티(AM/AJ+zone marker)는
         // 아래 멀티 분기가 처리하도록 제외(레거시 _isOld 는 OLD 시트 의존=S1d, 현대는 토큰 근사).
         if (OLD_FIFTY_PREFIX.matcher(safeModelToken).matches()
                 && !isLegacyMultiPrefix(safeModelToken)) {
             if (actualRate == null) {
-                return notMeasurable(50, releasePrice, deliveryPrice);
+                return notMeasurable(50, releasePrice, effectiveDeliveryPrice);
             }
-            return verified(integerEquals(actualRate, 50), 50, actualRate, releasePrice, deliveryPrice);
+            return verified(integerEquals(actualRate, 50), 50, actualRate, releasePrice, effectiveDeliveryPrice);
         }
         // 액세서리: 유효단가 === 납품가(정수원 완전일치). actualRate 는 참고값.
         if (ACCESSORY_LABEL.matcher(safeItemName).find() || safeModelToken.startsWith("AXJ")) {
             if (effectiveUnitPrice == null) {
-                return notMeasurable(null, releasePrice, deliveryPrice);
+                return notMeasurable(null, releasePrice, effectiveDeliveryPrice);
             }
-            return verified(integerWonEquals(effectiveUnitPrice, deliveryPrice), null, actualRate,
-                    releasePrice, deliveryPrice);
+            return verified(integerWonEquals(effectiveUnitPrice, effectiveDeliveryPrice), null, actualRate,
+                    releasePrice, effectiveDeliveryPrice);
         }
         // 멀티(상업 AM / 홈 AJ zone marker 또는 라벨 "멀티/MULTI"): 고정dc(percent) 또는 45 폴백.
         if (isMulti(safeItemName, safeModelToken)) {
             Integer expectedRate = fixedDc == null ? 45 : roundPercent(fixedDc);
             if (actualRate == null) {
-                return notMeasurable(expectedRate, releasePrice, deliveryPrice);
+                return notMeasurable(expectedRate, releasePrice, effectiveDeliveryPrice);
             }
             return verified(integerEquals(actualRate, expectedRate), expectedRate, actualRate,
-                    releasePrice, deliveryPrice);
+                    releasePrice, effectiveDeliveryPrice);
         }
         // 싱글 본체/부속(세트 riUsage·약정DC 의존): S1.5 대기 → OUT_OF_SCOPE.
         if (isSingleSetDependent(safeModelToken)) {
             return new Revalidation(null, null, actualRate, Status.OUT_OF_SCOPE,
-                    releasePrice, deliveryPrice);
+                    releasePrice, effectiveDeliveryPrice);
         }
         // 기타 default: 레거시와 동일 무조건 true. actualRate 는 참고값.
-        return verified(true, null, actualRate, releasePrice, deliveryPrice);
-    }
-
-    /**
-     * referent bulk 부분성공에서 productId 의 출고가/납품가 key 자체가 누락된 경우의 공통 결과를 만든다.
-     *
-     * <p>{@code fixedDc == null} 은 고정DC 미설정이라는 유효 상태(멀티 분기 45 폴백)이므로 결측 판정
-     * 대상이 아니다. 결측 판정은 출고가(release) 유무만으로 한다(service 배선 계층에서 price key
-     * 누락 시 이 메서드로 단락).
-     */
-    public Revalidation missingReferent(BigDecimal releasePrice, BigDecimal deliveryPrice) {
-        return new Revalidation(null, null, null, Status.MISSING_REFERENT,
-                releasePrice, deliveryPrice);
+        return verified(true, null, actualRate, releasePrice, effectiveDeliveryPrice);
     }
 
     private static Revalidation unresolved(Status status,
@@ -171,6 +162,13 @@ public class DiscountRevalidator {
                 .multiply(ONE_HUNDRED)
                 .setScale(0, RoundingMode.HALF_UP)
                 .intValue();
+    }
+
+    private static BigDecimal effectiveDeliveryPrice(BigDecimal releasePrice, BigDecimal deliveryPrice) {
+        if (deliveryPrice == null || deliveryPrice.compareTo(BigDecimal.ZERO) == 0) {
+            return releasePrice;
+        }
+        return deliveryPrice;
     }
 
     private static Integer roundPercent(BigDecimal percent) {

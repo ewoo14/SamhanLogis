@@ -159,6 +159,7 @@ class DailyClosingDetailServiceTest {
         addLine(ti, "AJ060MXHNBC1 [단배관]", BigDecimal.ONE, new BigDecimal("50000"));
         addLine(ti, "AXJ-YA1509N [N-분기관]", BigDecimal.ONE, new BigDecimal("70000"));
         addLine(ti, "AC023CN1DBC1 [CN냉전 실내기]", BigDecimal.ONE, new BigDecimal("80000"));
+        addLine(ti, "운임", BigDecimal.ONE, new BigDecimal("10000"));
         recalcSnapshot(ti);
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
@@ -173,6 +174,8 @@ class DailyClosingDetailServiceTest {
                 .thenReturn(ProductLabelMatch.notFound());
         when(productClient.resolveByLabel("AC023CN1DBC1 [CN냉전 실내기]"))
                 .thenReturn(ProductLabelMatch.ambiguous());
+        when(productClient.resolveByLabel("운임"))
+                .thenReturn(ProductLabelMatch.notFound());
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
                 missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
@@ -214,13 +217,46 @@ class DailyClosingDetailServiceTest {
         assertThat(ambiguous.revalidationStatus()).isEqualTo("AMBIGUOUS");
         assertThat(ambiguous.verified()).isNull();
 
+        DailyClosingDetailResponse.DailyProductLine freight = findProductLine(resp, "운임");
+        assertThat(freight.revalidationStatus()).isEqualTo("VERIFIED");
+        assertThat(freight.verified()).isTrue();
+        assertThat(freight.releasePrice()).isNull();
+        assertThat(freight.actualRate()).isNull();
+
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<UUID>> idsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(productClient, times(5)).resolveByLabel(org.mockito.ArgumentMatchers.anyString());
+        verify(productClient, times(6)).resolveByLabel(org.mockito.ArgumentMatchers.anyString());
         verify(productClient, times(1)).applicablePrices(idsCaptor.capture(), eq(DATE));
         assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
         verify(productClient, times(1)).fixedDiscountRates(idsCaptor.capture());
         assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
+    }
+
+    @Test
+    @DisplayName("세금계산서 detail — 수량 0 그룹은 서비스 통합 경로에서도 NOT_MEASURABLE로 노출한다")
+    void taxInvoiceDetailZeroQuantityIsNotMeasurable() {
+        UUID matched = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-ZERO", "재검증거래처", DATE);
+        addLine(ti, "AJ080RXH8BC1 [8다배관]", BigDecimal.ZERO, new BigDecimal("50000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabel("AJ080RXH8BC1 [8다배관]"))
+                .thenReturn(ProductLabelMatch.matched(matched, "AJ080RXH8BC1"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                matched, new BigDecimal("45.00")));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        DailyClosingDetailResponse.DailyProductLine line = findProductLine(resp, "AJ080RXH8BC1 [8다배관]");
+        assertThat(line.revalidationStatus()).isEqualTo("NOT_MEASURABLE");
+        assertThat(line.expectedRate()).isEqualTo(45);
+        assertThat(line.actualRate()).isNull();
+        assertThat(line.verified()).isNull();
+        assertThat(line.releasePrice()).isEqualByComparingTo("100000");
     }
 
     @Test

@@ -70,20 +70,22 @@ class DiscountRevalidatorTest {
     }
 
     @Test
-    @DisplayName("운임과 절삭은 referent가 있으면 확인 true로 판정한다")
+    @DisplayName("운임과 절삭은 라벨 매칭과 referent 없이도 확인 true로 판정한다")
     void freightAndCuttingAreVerified() {
         DiscountRevalidator.Revalidation freight = revalidate(
                 "운임", new BigDecimal("10000"),
-                new BigDecimal("10000"), new BigDecimal("10000"), null,
-                ProductLabelMatch.Status.MATCHED);
+                null, null, null,
+                ProductLabelMatch.Status.NOT_FOUND);
         DiscountRevalidator.Revalidation cutting = revalidate(
                 "절삭", new BigDecimal("10000"),
-                new BigDecimal("10000"), new BigDecimal("10000"), null,
+                null, null, null,
                 ProductLabelMatch.Status.MATCHED);
 
         assertThat(freight.verified()).isTrue();
         assertThat(freight.status()).isEqualTo(DiscountRevalidator.Status.VERIFIED);
+        assertThat(freight.actualRate()).isNull();
         assertThat(cutting.verified()).isTrue();
+        assertThat(cutting.status()).isEqualTo(DiscountRevalidator.Status.VERIFIED);
     }
 
     @Test
@@ -139,10 +141,16 @@ class DiscountRevalidatorTest {
                 "AXJ-YA1509N [N-분기관] [Y분기관]", new BigDecimal("70001"),
                 new BigDecimal("100000"), new BigDecimal("70000"), null,
                 ProductLabelMatch.Status.MATCHED);
+        DiscountRevalidator.Revalidation zeroDeliveryFallsBackToRelease = revalidate(
+                "AXJ-YA1509N [N-분기관] [Y분기관]", new BigDecimal("100000"),
+                new BigDecimal("100000"), BigDecimal.ZERO, null,
+                ProductLabelMatch.Status.MATCHED);
 
         assertThat(flexibleHose.verified()).isTrue();
         assertThat(flexibleHose.expectedRate()).isNull();
         assertThat(branchPipe.verified()).isFalse();
+        assertThat(zeroDeliveryFallsBackToRelease.verified()).isTrue();
+        assertThat(zeroDeliveryFallsBackToRelease.deliveryPrice()).isEqualByComparingTo("100000");
     }
 
     @Test
