@@ -314,3 +314,34 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 - **[fix·QA] PURCHASE_SLIP HTTP IT 부재**(Codex 유일 Low 지적) → **수용·수정**: `DailyClosingRevalidationIT`에 `purchaseSlipDailyDetailExposesRevalidationFields` + `seedPostedPurchaseSlip` 추가로 §6.6.3 "MockMvc 3소스" 정식 충족. AM160NXVHHH1 상업멀티 45% VERIFIED·6필드 직렬화 검증.
 - **[genuine 부수확·계약]** HTTP IT 가 실 HTTP 스택(컨트롤러 enum 바인딩·`@RequirePermission` 게이트·JSON 직렬화·실 DB 왕복)을 관통 검증. 특히 컨트롤러의 **`kind` 기본값 바인딩** 계약 고정: 클라이언트가 `sourceKind=PURCHASE_SLIP` 만 보내고 `kind` 를 생략하면 기본 `kind=SALES` 로 resolve → `validateKindSourceMatch(SALES, PURCHASE_SLIP)` → **400**. 그래서 IT 는 `.param("kind","PURCHASE")` 동반. 서비스 단위테스트는 3-arg `getDailyDetail(DATE, PURCHASE, PURCHASE_SLIP)` 에 정합쌍을 명시 전달하므로 `validateKindSourceMatch` 는 통과(우회 아님)하나 컨트롤러 바인딩·직렬화·권한 계층은 미검증 → HTTP IT 가 그 계층을 genuine 커버(false-green 방지). 계약 자체는 정상(버그 아님). FE 소비처(`DailyClosingPage.tsx` compatibleSource remap)는 PURCHASE_SLIP 조회 시 항상 kind=PURCHASE 동반 → 실앱 400 회귀 없음(R3 확증).
 - genuine `:services:accounting-service:test --rerun-tasks --no-build-cache` 재실행(신규 IT 4/4·전체 그린) → 0수렴.
+
+## 6.7 S4 엔지니어링 스펙 (2026-07-13 · 회사PC 순차) — FE 렌더 (GAS 파리티·매출만)
+
+### 6.7.0 스코프 (📌 개발책임자 결정 2026-07-13)
+- **① totalDiscount = "GAS대로"**: 레거시 일마감 워크시트는 총 할인 총액 컬럼/집계 **부재**(라인별 할인율만·`Code.js:11-14`/`Index.html:1076-1191` 정찰 확증). → **totalDiscount 총액 미도입**(부모 DTO 필드 placeholder ZERO 유지·미렌더). 할인=라인별 할인율(actualRate %)로만 노출.
+- **② PURCHASE 노출 = 매출만 S4 렌더**: TAX_INVOICE+SALES_SLIP(매출)만 재검증 테이블 렌더. 매입(PURCHASE_SLIP)은 S4 제외(referent=판매기준 참고용·노출 방식 후속 확정·§6.6.5).
+- **핵심 갭**: BE(S2b/S2c)가 `DailyProductLine` 6필드+mock parity 완료했으나 `DailyClosingPage`는 taxInvoices만 렌더·`productSummaries` **0 렌더**(S4 유일 잔여). S4=순수 FE 렌더(BE 무변경 원칙·modelName 채움은 선택).
+
+### 6.7.1 GAS 파리티 레이아웃 (레거시 정찰)
+- 레거시 재검증 컬럼: **출고가**(정가)·**할인율**(정수%·dc-45~49 히트맵)·**확인**(TRUE/FALSE·색없음)·총계(단가×수량).
+- 우리 렌더(모델별 재검증 테이블): 품명·수량·공급가·**출고가**(releasePrice)·**할인율**(actualRate %)·**확인**(verified)·**사유**(revalidationStatus). 보조: 납품가·기대율(DTO 보유·판정 근거·감사 투명성).
+- **3-상태 확인**: 레거시 TRUE/FALSE 2상태 → 현대는 `verified=null`(판정불가) 추가. Badge success(true)/danger(false)/neutral(null) + `revalidationStatus` 6값 한국어 라벨로 사유 구분(GAS 없던 필수 확장).
+- **집계단위 차이 주의**: 레거시=라인단위, 현대=모델·일 합계 평균 1회 판정 → 새니티체크 성격(툴팁/문구).
+
+### 6.7.2 통합지점 (DailyClosingPage.tsx)
+- Daily Detail Card(:450-470) taxInvoices DataTable **아래 2nd DataTable**(rows=`productSummaries`). 기존 `detailColumns`(:250-290) const 패턴 복제. import `DailyProductLine`·`DailyProductRevalidationStatus` 확장.
+- **게이팅**: `closingKind === 'SALES'` 일 때만 재검증 테이블 렌더(매입 제외·결정②). PURCHASE=기존 taxInvoices만.
+- **🚨 불변식**: `compatibleSource`가 PURCHASE_SLIP 조회 시 kind=PURCHASE 동반(§6.6.6 400 회귀 방지) — S4 신규 렌더가 깨지 말 것.
+
+### 6.7.3 표시 규약 (feedback_accounting_report_display_conventions)
+- 금액: 원화 콤마·우측정렬. `DailyProductLine` 금액=**number** → `fmtKrw`(string 요구)는 `String()` 변환. 비음수라 △ 미출현.
+- **할인율**: 정수 `${rate}%`. **rate 0='0%'(유효 무할인)·null='—'(비교불가)** 구분. **음수(과충전)=`-X%` 빨강**(△ 금지).
+- 확인=Badge(success/danger/neutral)·사유=한국어 라벨. code prefix 금지(productName 원문·modelName 별도 컬럼 null→'—').
+- 할인율 히트맵(dc-45~49)=GAS 시그니처·선택(리뷰 판단).
+
+### 6.7.4 테스트 + 라이브 QA
+- FE `npm run typecheck`(desktop) 필수·vitest 컴포넌트(렌더·게이팅·포맷·null/0 구분). mock fixture 2케이스(VERIFIED·NOT_FOUND) 즉시 QA.
+- **라이브 QA**: Docker 실서버(mock OFF·:8080·dev_accountant)·real-qa Playwright → 재검증 테이블 실 GUI 스샷(AM160 VERIFIED·출고가·할인율·확인 배지). 매 리뷰 라운드.
+
+### 6.7.5 파일 (예상)
+- `clients/desktop/src/renderer/routes/DailyClosingPage.tsx` · (선택)컴포넌트 test · (선택 BE)modelName 채움 · `docs/dev-reports/2026-07-13-773-s4-daily-closing-render.md`
