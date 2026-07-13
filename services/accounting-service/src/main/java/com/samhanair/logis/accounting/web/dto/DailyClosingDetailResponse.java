@@ -8,7 +8,8 @@ import java.util.List;
 /**
  * 일별 세금계산서 마감 detail (PR-E2 BE-A12).
  *
- * <p>legacy GAS 12번 "일마감 프로그램" — 일별 매출/세금계산서/할인 detail.
+ * <p>legacy GAS 12번 "일마감 프로그램" — 일별 매출/세금계산서/할인 detail. sourceKind
+ * (TAX_INVOICE/SALES_SLIP/PURCHASE_SLIP) 별 조회이며, S2c 로 전표 경로도 재검증 필드를 노출한다.
  *
  * <p>{@link MonthEndCloseService} 의 OPEN/CLOSED 기간 헤더와 별개로 endpoint 단독 조회 — 마감
  * 전후 모두 호출 가능 (read-only).
@@ -44,7 +45,14 @@ public record DailyClosingDetailResponse(
             BigDecimal totalAmount) {
     }
 
-    /** 모델별 매출 detail (product-service 마스터 lookup + S2b 단가변동 재검증 결과). */
+    /**
+     * 모델별 detail (product-service 마스터 lookup + 단가변동 재검증 결과).
+     *
+     * <p><b>PURCHASE(매입) 경로 유의</b>: release/delivery/fixedDc referent 는 삼한의 <b>판매(출고)</b>
+     * 기준 정가·할인정책이다. PURCHASE_SLIP/매입 세금계산서에도 동일 재검증 엔진이 적용되나, 매입단가를
+     * 자사 판매기준과 대조하는 것이라 {@code verified}/{@code expectedRate}는 <b>참고용</b>이며 정식
+     * 매입단가 감사가 아니다(#773 spec §6.6.1). S4(FE 렌더) 착수 전 매입 재검증 노출 방식은 개발책임자 확정 대상.
+     */
     public record DailyProductLine(
             String productName,
             String modelName,

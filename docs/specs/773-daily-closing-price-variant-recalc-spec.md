@@ -300,3 +300,11 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 
 ### 6.6.4 캐논
 조기 PR(연관 #773) → Codex 구현 → Opus 5-agent+STEP/Codex 적대 순차 0수렴 → 라이브 QA(TAX_INVOICE 재검증 회귀·Swagger) → dev-report → 머지.
+
+### 6.6.5 R1 리뷰 disposition (2026-07-13 · Opus 5-agent[FE/BE/Design/DevOps]+BE심층)
+- **0 blocker.** 리팩터 byte-for-byte 무변경(BE 확인)·SALES/PURCHASE 배선/vatAmount 정합·신규 IT genuine(CI 아티팩트 실증)·@MockBean 완전·마이그 무변경.
+- **[fix] FE 타입 실직렬화 정합**: `DailyProductLine`의 releasePrice/deliveryPrice/quantity/supplyAmount는 BigDecimal→**JSON number**(라이브 실 응답 실측 확증·Jackson 기본)라 `string`→`number`, modelName→`string|null`. mock을 엔진 정합(AM 상업멀티 45%)·합계 정합·숫자화. (부모 DailyClosingDetail totals=렌더되어 스코프 밖·유지.)
+- **[flag] PURCHASE(매입) 재검증 의미론**: release/delivery/fixedDc referent 는 삼한 **판매(출고)** 기준이라, 매입전표/매입 세금계산서 재검증의 verified/expectedRate 는 **참고용**(정식 매입단가 감사 아님). pre-existing(S2b TAX_INVOICE PURCHASE)·3경로 일관. DTO Javadoc 캐벗 추가·**S4 렌더 전 개발책임자 확정 대상**(매입 노출 방식·별도 매입 referent 여부).
+- **개발책임자 확인 2건(비차단·read-time)**: ① totalDiscount '총 할인' 정의(§6.6.1) ② PURCHASE 재검증 노출.
+- **[정보·수용]** IT productSummaries 인덱스 순서(byModel LinkedHashMap·소량 same-tx 삽입순·CI 통과·기존 코드베이스 패턴)·N+1 라벨(S2b 기이연 파급).
+- Codex 적대검증 R2 순차 진행.

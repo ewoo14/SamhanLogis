@@ -169,16 +169,16 @@ export interface DailyTaxInvoiceRow {
 export interface DailyProductLine {
   /** 품명 — product-service 마스터 lookup. */
   productName: string
-  /** 모델명. */
-  modelName: string
-  /** 수량 (BigDecimal — string). */
-  quantity: string
-  /** 공급가액 합. */
-  supplyAmount: string
-  /** 적용 출고가. */
-  releasePrice: string | null
-  /** 적용 납품가. */
-  deliveryPrice: string | null
+  /** 모델명 — BE 는 현재 항상 null 반환(S4 보강 예정). */
+  modelName: string | null
+  /** 수량 (BigDecimal → Jackson 기본 JSON number). */
+  quantity: number
+  /** 공급가액 합 (BigDecimal → JSON number). */
+  supplyAmount: number
+  /** 적용 출고가 (BigDecimal → JSON number). 미매칭/정가결측 시 null. */
+  releasePrice: number | null
+  /** 적용 납품가 (BigDecimal → JSON number). 미매칭/정가결측 시 null. */
+  deliveryPrice: number | null
   /** 기대 할인율(정수 %). */
   expectedRate: number | null
   /** 실제 할인율(정수 %). */
