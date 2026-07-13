@@ -87,14 +87,16 @@ class DiscountRevalidatorTest {
     }
 
     @Test
-    @DisplayName("구형 AM/NJ/NS/AVX 토큰은 actualRate 50과 완전 일치해야 한다")
+    @DisplayName("구형 전용 접두(NJ/NS/AVX)는 actualRate 50과 완전 일치해야 한다")
     void oldTokensRequireFiftyPercent() {
+        // NJ/NS/AVX 는 레거시 구형 전용 접두(Code.js:676)로 현행 dev 카탈로그엔 부재 — 분류 규칙 검증용.
+        // AM 은 상업멀티 접두이므로 commercialMultiAmRoutesToMultiNotFifty 로 별도 검증한다.
         DiscountRevalidator.Revalidation ok = revalidate(
-                "AM023TNVDBH1 [멀티벽걸이]", new BigDecimal("50000"),
+                "NS080MWXVGW", new BigDecimal("50000"),
                 new BigDecimal("100000"), new BigDecimal("70000"), null,
                 ProductLabelMatch.Status.MATCHED);
         DiscountRevalidator.Revalidation fail = revalidate(
-                "AM023TNVDBH1 [멀티벽걸이]", new BigDecimal("51000"),
+                "NS080MWXVGW", new BigDecimal("51000"),
                 new BigDecimal("100000"), new BigDecimal("70000"), null,
                 ProductLabelMatch.Status.MATCHED);
 
@@ -103,6 +105,27 @@ class DiscountRevalidatorTest {
         assertThat(ok.verified()).isTrue();
         assertThat(fail.actualRate()).isEqualTo(49);
         assertThat(fail.verified()).isFalse();
+    }
+
+    @Test
+    @DisplayName("상업멀티 AM(zone marker X/N)은 구형50%가 아니라 멀티 분기(고정dc/45)로 판정한다")
+    void commercialMultiAmRoutesToMultiNotFifty() {
+        // 실 라벨 AM023TNVDBH1 (char[6]='N' = 상업멀티). BE 리뷰 R1 회귀 방지:
+        // OLD_FIFTY_PREFIX(^AM)가 멀티보다 먼저 발동해 상업멀티를 50%로 오분류하던 결함 fix 검증.
+        DiscountRevalidator.Revalidation fixed = revalidate(
+                "AM023TNVDBH1 [멀티벽걸이]", new BigDecimal("55000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), new BigDecimal("45.00"),
+                ProductLabelMatch.Status.MATCHED);
+        DiscountRevalidator.Revalidation fallback = revalidate(
+                "AM023TNVDBH1 [멀티벽걸이]", new BigDecimal("55000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), null,
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(fixed.expectedRate()).isEqualTo(45); // 50 이 아님
+        assertThat(fixed.actualRate()).isEqualTo(45);
+        assertThat(fixed.verified()).isTrue();
+        assertThat(fallback.expectedRate()).isEqualTo(45); // fixedDc null → 45 폴백
+        assertThat(fallback.verified()).isTrue();
     }
 
     @Test
@@ -191,17 +214,17 @@ class DiscountRevalidatorTest {
     }
 
     @Test
-    @DisplayName("effectiveUnitPrice null(qty=0 방어)은 actualRate null로 유지하고 비교 분기는 false가 된다")
-    void nullEffectiveUnitPriceFromZeroQuantity() {
+    @DisplayName("effectiveUnitPrice null(qty=0)은 판정 실패가 아니라 NOT_MEASURABLE로 단락한다")
+    void nullEffectiveUnitPriceIsNotMeasurable() {
         DiscountRevalidator.Revalidation result = revalidate(
                 "AJ040RXH4BC1 (RX다배관)", null,
                 new BigDecimal("100000"), new BigDecimal("70000"), new BigDecimal("45.00"),
                 ProductLabelMatch.Status.MATCHED);
 
-        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.VERIFIED);
+        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.NOT_MEASURABLE);
         assertThat(result.actualRate()).isNull();
-        assertThat(result.expectedRate()).isEqualTo(45);
-        assertThat(result.verified()).isFalse();
+        assertThat(result.expectedRate()).isEqualTo(45); // 기대율은 보존
+        assertThat(result.verified()).isNull(); // 실패(false)가 아닌 판정 불가(null)
     }
 
     private DiscountRevalidator.Revalidation revalidate(

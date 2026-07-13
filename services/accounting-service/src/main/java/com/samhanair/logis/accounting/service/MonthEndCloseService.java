@@ -86,7 +86,6 @@ public class MonthEndCloseService {
     private final PartnerLookupClient partnerLookupClient;
     private final SalesAccountingSlipRepository salesAccountingSlipRepository;
     private final PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
-    private static final int REFERENT_BATCH_MAX = 500;
 
     /**
      * 마감 실행 — 일별 또는 월별. 동일 (type, period_date) row 가 OPEN 이면 재사용
@@ -232,6 +231,7 @@ public class MonthEndCloseService {
                 ModelAccumulator acc = byModel.computeIfAbsent(key, k -> new ModelAccumulator());
                 acc.quantity = acc.quantity.add(line.getQuantity());
                 acc.supplyAmount = acc.supplyAmount.add(line.getSupplyAmount());
+                acc.vatAmount = acc.vatAmount.add(line.getVatAmount());
             }
         }
 
@@ -251,9 +251,11 @@ public class MonthEndCloseService {
             ProductLabelMatch labelMatch = labelMatches.getOrDefault(e.getKey(), ProductLabelMatch.notFound());
             UUID productId = labelMatch.productId();
             ApplicablePrice price = labelMatch.isMatched() ? pricesByProductId.get(productId) : null;
+            // 출고가(release) key 누락만 결측 판정. fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리
+            // — 매칭된 productId 는 S2a 부분성공 계약상 fixedDc Map 에 null value 로라도 존재하며,
+            //   fixedDc 는 멀티 분기에서만 소비되어 운임/구형/액세서리/default 판정을 막을 이유가 없다.
             boolean missingReferentKey = labelMatch.isMatched()
-                    && (!pricesByProductId.containsKey(productId)
-                    || !fixedRatesByProductId.containsKey(productId));
+                    && !pricesByProductId.containsKey(productId);
             DiscountRevalidator.Revalidation revalidation = missingReferentKey
                     ? discountRevalidator.missingReferent(
                             price == null ? null : price.release(),
@@ -442,8 +444,8 @@ public class MonthEndCloseService {
 
     private static List<List<UUID>> chunks(List<UUID> productIds) {
         List<List<UUID>> chunks = new ArrayList<>();
-        for (int start = 0; start < productIds.size(); start += REFERENT_BATCH_MAX) {
-            int end = Math.min(start + REFERENT_BATCH_MAX, productIds.size());
+        for (int start = 0; start < productIds.size(); start += ProductClient.REFERENT_BATCH_MAX) {
+            int end = Math.min(start + ProductClient.REFERENT_BATCH_MAX, productIds.size());
             chunks.add(productIds.subList(start, end));
         }
         return chunks;
@@ -486,12 +488,18 @@ public class MonthEndCloseService {
     private static final class ModelAccumulator {
         BigDecimal quantity = BigDecimal.ZERO;
         BigDecimal supplyAmount = BigDecimal.ZERO;
+        BigDecimal vatAmount = BigDecimal.ZERO;
 
+        /**
+         * VAT 포함 유효단가 = (공급가액 + 세액) / 수량. 레거시 확인 산식의 단가(VAT포함)와 동일 기준
+         * (재검증 엔진의 출고가 대비 할인율이 레거시와 파리티를 유지하도록 VAT 포함으로 산출).
+         * 수량 0 이면 null(판정 불가).
+         */
         BigDecimal effectiveUnitPrice() {
             if (quantity == null || quantity.compareTo(BigDecimal.ZERO) == 0) {
                 return null;
             }
-            return supplyAmount.divide(quantity, 10, RoundingMode.HALF_UP);
+            return supplyAmount.add(vatAmount).divide(quantity, 10, RoundingMode.HALF_UP);
         }
     }
 

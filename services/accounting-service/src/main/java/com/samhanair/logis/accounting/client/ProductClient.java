@@ -49,7 +49,8 @@ public class ProductClient {
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PRODUCT_SERVICE_BASE = "http://product-service";
     private static final int LOOKUP_BATCH_MAX = 100;
-    private static final int REFERENT_BATCH_MAX = 500;
+    /** referent bulk(applicable/fixed-discount) 1회 요청 최대 productId 수. 호출측 청킹도 이 값을 공유. */
+    public static final int REFERENT_BATCH_MAX = 500;
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;

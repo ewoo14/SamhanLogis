@@ -259,3 +259,11 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 - 신규: `service/DiscountRevalidator.java`(엔진) · `service/ModelTokenExtractor`(accounting 포팅 or shared/common 이관·리뷰 판단) · `DiscountRevalidatorTest`.
 - 수정: `MonthEndCloseService.getTaxInvoiceDailyDetail`(배선) · `DailyClosingDetailResponse.DailyProductLine`(필드) · `DailyClosingDetailServiceTest`(기존 4필드 assert 갱신) · 신규 서비스 IT.
 - dev-report `docs/dev-reports/2026-07-13-773-s2b-revalidation-engine.md` · 본 스펙 · README/ROADMAP 동기화.
+
+### 6.5 R1 리뷰 disposition (2026-07-13 · Opus 5-agent + Codex 적대) — 파리티 정정
+> Opus 4차원(FE/BE/Design/DevOps) + BE 심층 리뷰가 **HIGH 파리티 blocker 2건 포착·수정**. §6.4 초안의 두 지점을 정정한다.
+- **VAT 기준(정정)**: §6.4.1/§6.4.3-1 의 actualRate 분자는 `supplyAmount/quantity`(순액)가 아니라 **`(공급가액+세액)/수량`(VAT 포함)** 이어야 레거시 `단가(VAT포함)/출고가` 산식과 파리티가 성립(출고가 VAT 기준 무관·면세 자연수렴). ModelAccumulator vatAmount 누적으로 fix.
+- **구형50% 게이트(정정)**: §6.4.2-2 "구형 50% = ^(AM|NJ|NS|AVX)" 는 **AM 상업멀티를 오분류**(실 fixture AM 18.8% 전부 zone marker 만족). OLD_FIFTY 를 `&& !isLegacyMultiPrefix` 로 가드 → AM/AJ+[X/N] 은 멀티 분기·50% 는 진짜 구형 접두(NJ/NS/AVX, 현행 dev 부재)에만. fix.
+- **판정불가 status 신설**: qty=0 유효단가 산출 불가 → `NOT_MEASURABLE`(verified=null·판정실패 false 와 구분). MISSING_REFERENT 게이트는 출고가 결측만(fixedDc 결측=45 폴백). @Schema 6필드·enum 노출.
+- **이연(리뷰어 non-blocking)**: HTTP 레이어 IT=S2c(controller passthrough 동반)·라벨 resolveByLabel N+1 bulk endpoint=후속·FE 타입/mock parity=S2c/S4(FE 미렌더). 서비스 레벨 @Spy 엔진+전 status IT로 로직 커버.
+- **Codex 적대검증 R2**: 하단 진행(순차·0수렴까지).

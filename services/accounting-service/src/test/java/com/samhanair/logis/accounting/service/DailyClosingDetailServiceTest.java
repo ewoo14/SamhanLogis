@@ -153,9 +153,10 @@ class DailyClosingDetailServiceTest {
         UUID missingPrice = UUID.randomUUID();
         UUID missingFixedRate = UUID.randomUUID();
         TaxInvoice ti = newIssued("TI-RV", "재검증거래처", DATE);
-        addLine(ti, "AJ040RXH4BC1 (RX다배관)", BigDecimal.ONE, new BigDecimal("55000"));
-        addLine(ti, "AJ050RXH5BC1 [5다배관]", BigDecimal.ONE, new BigDecimal("55000"));
-        addLine(ti, "AJ060MXHNBC1 [단배관]", BigDecimal.ONE, new BigDecimal("55000"));
+        // 단가 50000(순액) → 공급가 50000 + 세액 5000 = VAT포함 유효단가 55000 → 출고가 100000 대비 45%.
+        addLine(ti, "AJ040RXH4BC1 (RX다배관)", BigDecimal.ONE, new BigDecimal("50000"));
+        addLine(ti, "AJ050RXH5BC1 [5다배관]", BigDecimal.ONE, new BigDecimal("50000"));
+        addLine(ti, "AJ060MXHNBC1 [단배관]", BigDecimal.ONE, new BigDecimal("50000"));
         addLine(ti, "AXJ-YA1509N [N-분기관]", BigDecimal.ONE, new BigDecimal("70000"));
         addLine(ti, "AC023CN1DBC1 [CN냉전 실내기]", BigDecimal.ONE, new BigDecimal("80000"));
         recalcSnapshot(ti);
@@ -195,11 +196,15 @@ class DailyClosingDetailServiceTest {
         assertThat(missing.verified()).isNull();
         assertThat(missing.releasePrice()).isNull();
 
-        DailyClosingDetailResponse.DailyProductLine missingFixed =
+        // Finding6 fix: 출고가는 있고 fixedDc key만 없는 매칭 제품은 MISSING_REFERENT가 아니라
+        // 멀티 45 폴백으로 판정된다(fixedDc는 멀티 분기에서만 소비).
+        DailyClosingDetailResponse.DailyProductLine fixedDcFallback =
                 findProductLine(resp, "AJ060MXHNBC1 [단배관]");
-        assertThat(missingFixed.revalidationStatus()).isEqualTo("MISSING_REFERENT");
-        assertThat(missingFixed.releasePrice()).isEqualByComparingTo("100000");
-        assertThat(missingFixed.verified()).isNull();
+        assertThat(fixedDcFallback.revalidationStatus()).isEqualTo("VERIFIED");
+        assertThat(fixedDcFallback.releasePrice()).isEqualByComparingTo("100000");
+        assertThat(fixedDcFallback.expectedRate()).isEqualTo(45);
+        assertThat(fixedDcFallback.actualRate()).isEqualTo(45);
+        assertThat(fixedDcFallback.verified()).isTrue();
 
         DailyClosingDetailResponse.DailyProductLine notFound = findProductLine(resp, "AXJ-YA1509N [N-분기관]");
         assertThat(notFound.revalidationStatus()).isEqualTo("NOT_FOUND");
