@@ -326,6 +326,12 @@ export function DailyClosingPage() {
       render: (row) => row.productName,
     },
     {
+      key: 'modelName',
+      header: '모델',
+      align: 'left',
+      render: (row) => row.modelName ?? '—',
+    },
+    {
       key: 'quantity',
       header: '수량',
       width: '90px',
@@ -377,9 +383,23 @@ export function DailyClosingPage() {
       width: '100px',
       align: 'center',
       render: (row) => {
-        if (row.verified === true) return <Badge variant="success">확인</Badge>
-        if (row.verified === false) return <Badge variant="danger">불일치</Badge>
-        return <Badge variant="neutral">판정불가</Badge>
+        const badge =
+          row.verified === true ? (
+            <Badge variant="success">확인</Badge>
+          ) : row.verified === false ? (
+            <Badge variant="danger">불일치</Badge>
+          ) : (
+            <Badge variant="neutral">판정불가</Badge>
+          )
+
+        return (
+          <>
+            {badge}
+            {closingKind === 'PURCHASE' ? (
+              <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--text-secondary, #6b7280)' }}>참고</span>
+            ) : null}
+          </>
+        )
       },
     },
     {
@@ -398,6 +418,7 @@ export function DailyClosingPage() {
 
   const sourceButtons = availableSources(closingKind)
   const execSourceButtons = availableSources(execKind)
+  const showProductRevalidation = closingKind !== 'ALL'
 
   return (
     <div data-testid="daily-closing-page">
@@ -574,12 +595,29 @@ export function DailyClosingPage() {
               rowKey={(row) => `${row.taxInvoiceNo ?? ''}-${row.salesSlipNo ?? ''}-${row.sourceSlipNo ?? ''}-${row.partnerName}`}
               emptyMessage="상세 전표가 없습니다."
             />
-            {closingKind === 'SALES' ? (
+            {showProductRevalidation ? (
               <div style={{ marginTop: 16 }}>
                 <h4 style={{ margin: '0 0 4px', fontSize: 14 }}>모델별 재검증</h4>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary, #6b7280)' }}>
-                  모델·일 합계 평균 기준 새니티 체크입니다. 개별 라인 단위 판정이 아닙니다.
-                </p>
+                {closingKind === 'PURCHASE' ? (
+                  <div
+                    role="note"
+                    style={{
+                      margin: '0 0 8px',
+                      padding: '8px 12px',
+                      fontSize: 12,
+                      background: 'var(--surface-warning, #fff7ed)',
+                      color: 'var(--text-warning, #9a3412)',
+                      border: '1px solid var(--border-warning, #fed7aa)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    매입 재검증은 <b>판매(출고) 기준 참고용</b>입니다. 정식 매입단가 감사가 아닙니다.
+                  </div>
+                ) : (
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary, #6b7280)' }}>
+                    모델·일 합계 평균 기준 새니티 체크입니다. 개별 라인 단위 판정이 아닙니다.
+                  </p>
+                )}
                 <DataTable
                   columns={productColumns}
                   rows={productRows}

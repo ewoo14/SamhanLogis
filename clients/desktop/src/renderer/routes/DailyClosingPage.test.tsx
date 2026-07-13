@@ -58,7 +58,7 @@ const detailFixture = {
     // VERIFIED · verified=true → 확인 배지, 사유 '—'
     {
       productName: 'AM160NXVHHH1 [상업멀티]',
-      modelName: null,
+      modelName: 'AM160NXVHHH1',
       quantity: 1,
       supplyAmount: 500000,
       releasePrice: 1000000,
@@ -71,7 +71,7 @@ const detailFixture = {
     // VERIFIED · verified=false(과충전·불일치) → 불일치 배지, 사유 '—', 음수율 빨강
     {
       productName: '과충전 모델',
-      modelName: null,
+      modelName: 'OVERCHARGE',
       quantity: 1,
       supplyAmount: 1050000,
       releasePrice: 1000000,
@@ -84,7 +84,7 @@ const detailFixture = {
     // NOT_FOUND · verified=null → 판정불가, 사유 '미등록'
     {
       productName: '미등록서비스품목',
-      modelName: null,
+      modelName: 'UNREGISTERED',
       quantity: 1,
       supplyAmount: 100000,
       releasePrice: null,
@@ -97,7 +97,7 @@ const detailFixture = {
     // AMBIGUOUS · verified=null(referent 는 전달되나 rate/verified 전부 null) → 판정불가, 사유 '모호'
     {
       productName: '중복매칭품목',
-      modelName: null,
+      modelName: 'AMBIGUOUS',
       quantity: 1,
       supplyAmount: 200000,
       releasePrice: 900000,
@@ -110,7 +110,7 @@ const detailFixture = {
     // MISSING_REFERENT · verified=null → 판정불가, 사유 '정가결측'
     {
       productName: '정가결측품목',
-      modelName: null,
+      modelName: 'MISSING',
       quantity: 1,
       supplyAmount: 150000,
       releasePrice: null,
@@ -123,7 +123,7 @@ const detailFixture = {
     // NOT_MEASURABLE · verified=null(수량 0 등 판정불가) → 판정불가, 사유 '측정불가'
     {
       productName: '측정불가품목',
-      modelName: null,
+      modelName: 'NOT-MEASURABLE',
       quantity: 0,
       supplyAmount: 0,
       releasePrice: 800000,
@@ -136,7 +136,7 @@ const detailFixture = {
     // OUT_OF_SCOPE · verified=null(세트의존 등) → 판정불가, 사유 '대상외'
     {
       productName: 'AC 세트품목',
-      modelName: null,
+      modelName: 'AC-SET',
       quantity: 1,
       supplyAmount: 300000,
       releasePrice: 700000,
@@ -147,6 +147,11 @@ const detailFixture = {
       revalidationStatus: 'OUT_OF_SCOPE',
     },
   ],
+}
+
+const purchaseDetailFixture = {
+  ...detailFixture,
+  productSummaries: [detailFixture.productSummaries[0]],
 }
 
 function renderPage() {
@@ -192,10 +197,13 @@ describe('DailyClosingPage 모델별 재검증', () => {
 
     // 새니티체크 캡션(집계단위 오해 방지)
     expect(screen.getByText(/모델·일 합계 평균 기준 새니티 체크/)).toBeTruthy()
+    expect(screen.queryByRole('note')).toBeNull()
 
     // 확인 배지(verified=true) — VERIFIED 행 스코프. 사유 컬럼이 '—' 라 행 내 '확인' 텍스트는
     // 배지 1개뿐(사유='확인' 자기모순 회귀 시 2개가 되어 실패 = genuine 고정).
     const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
+    expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
+    expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy()
     expect(within(verifiedRow).getAllByText('확인').length).toBe(1)
     // 기대율·할인율 둘 다 45%(2셀)·모두 비음수라 빨강 아님(회귀 가드)
     const rates45 = within(verifiedRow).getAllByText('45%')
@@ -225,13 +233,14 @@ describe('DailyClosingPage 모델별 재검증', () => {
     const notFoundRow = rowOf('미등록서비스품목')
     expect(within(notFoundRow).getAllByText('—').length).toBeGreaterThanOrEqual(4) // release/delivery/expected/actual
 
-    // 모델 컬럼 제거 확인(BE 상시 null·dead column)
-    expect(screen.queryByRole('columnheader', { name: '모델' })).toBeNull()
+    expect(within(mismatchRow).getByText('OVERCHARGE')).toBeTruthy()
   })
 
-  it('매입 조회에서는 재검증 테이블을 렌더하지 않고 기존 상세 전표는 유지한다', async () => {
+  it('매입 조회에서는 재검증 테이블과 참고 배너·참고 마커·모델 실값을 렌더하고 기존 상세 전표는 유지한다', async () => {
     listDailyClosingsMock.mockResolvedValue(emptyPage)
-    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    getDailyClosingDetailMock.mockImplementation((_date, kind) =>
+      Promise.resolve(kind === 'PURCHASE' ? purchaseDetailFixture : detailFixture),
+    )
 
     renderPage()
 
@@ -248,8 +257,16 @@ describe('DailyClosingPage 모델별 재검증', () => {
 
     // 기존 taxInvoices 상세는 유지(표준 문서번호)
     expect(await screen.findByText('2026/07/13-1')).toBeTruthy()
-    // 매입에서는 재검증 테이블 미렌더(매출만 게이팅)
-    expect(screen.queryByText('모델별 재검증')).toBeNull()
+    expect(await screen.findByText('모델별 재검증')).toBeTruthy()
+    expect(screen.getByRole('note').textContent).toContain('매입 재검증은')
+    expect(screen.getByRole('note').textContent).toContain('정식 매입단가 감사가 아닙니다')
+    expect(screen.queryByText(/모델·일 합계 평균 기준 새니티 체크/)).toBeNull()
+
+    const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
+    expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
+    expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy()
+    expect(within(verifiedRow).getByText('확인')).toBeTruthy()
+    expect(within(verifiedRow).getByText('참고')).toBeTruthy()
   })
 
   it('통합(ALL) 조회에서는 상세 안내문만 표시하고 재검증 테이블은 렌더하지 않는다', async () => {
