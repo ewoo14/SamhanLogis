@@ -31,9 +31,10 @@ vi.mock('../api/closingApi', async (importOriginal) => {
 
 import { DailyClosingPage } from './DailyClosingPage'
 
-// BE 계약 충실 픽스처 — DiscountRevalidator.Status 계약:
-//   verified ∈ {true,false} ⟺ status=VERIFIED (판정 완료)
+// BE 계약 충실 픽스처 — DiscountRevalidator.Status + ModelTokenExtractor.extractModelTokenOrNull:
+//   verified ∈ {true,false} ⟺ status=VERIFIED (판정 완료·실 모델품목만 도달)
 //   verified = null          ⟺ status ∈ {NOT_FOUND, AMBIGUOUS, MISSING_REFERENT, NOT_MEASURABLE, OUT_OF_SCOPE}
+//   modelName = 실 모델코드(정규식 매치)만·운임/서비스 등 미매치는 null → FE '—'
 // 문서번호 리터럴은 표준 yyyy/MM/dd-N (mock.test.ts 형식 계약).
 const detailFixture = {
   date: '2026-07-13',
@@ -55,7 +56,7 @@ const detailFixture = {
     },
   ],
   productSummaries: [
-    // VERIFIED · verified=true → 확인 배지, 사유 '—'
+    // VERIFIED · verified=true · 모델품목 → 확인 배지, 사유 '—', 모델 실토큰
     {
       productName: 'AM160NXVHHH1 [상업멀티]',
       modelName: 'AM160NXVHHH1',
@@ -68,10 +69,10 @@ const detailFixture = {
       verified: true,
       revalidationStatus: 'VERIFIED',
     },
-    // VERIFIED · verified=false(과충전·불일치) → 불일치 배지, 사유 '—', 음수율 빨강
+    // VERIFIED · verified=false(과충전·불일치) · 모델품목 → 불일치 배지, 사유 '—', 음수율 빨강
     {
-      productName: '과충전 모델',
-      modelName: 'OVERCHARGE',
+      productName: 'AM320NXVHHH1 [상업멀티]',
+      modelName: 'AM320NXVHHH1',
       quantity: 1,
       supplyAmount: 1050000,
       releasePrice: 1000000,
@@ -81,10 +82,10 @@ const detailFixture = {
       verified: false,
       revalidationStatus: 'VERIFIED',
     },
-    // NOT_FOUND · verified=null → 판정불가, 사유 '미등록'
+    // NOT_FOUND · verified=null · 서비스품목(모델 미매치) → 판정불가, 사유 '미등록', 모델 '—'
     {
       productName: '미등록서비스품목',
-      modelName: 'UNREGISTERED',
+      modelName: null,
       quantity: 1,
       supplyAmount: 100000,
       releasePrice: null,
@@ -97,7 +98,7 @@ const detailFixture = {
     // AMBIGUOUS · verified=null(referent 는 전달되나 rate/verified 전부 null) → 판정불가, 사유 '모호'
     {
       productName: '중복매칭품목',
-      modelName: 'AMBIGUOUS',
+      modelName: null,
       quantity: 1,
       supplyAmount: 200000,
       releasePrice: 900000,
@@ -110,7 +111,7 @@ const detailFixture = {
     // MISSING_REFERENT · verified=null → 판정불가, 사유 '정가결측'
     {
       productName: '정가결측품목',
-      modelName: 'MISSING',
+      modelName: null,
       quantity: 1,
       supplyAmount: 150000,
       releasePrice: null,
@@ -123,7 +124,7 @@ const detailFixture = {
     // NOT_MEASURABLE · verified=null(수량 0 등 판정불가) → 판정불가, 사유 '측정불가'
     {
       productName: '측정불가품목',
-      modelName: 'NOT-MEASURABLE',
+      modelName: null,
       quantity: 0,
       supplyAmount: 0,
       releasePrice: 800000,
@@ -136,7 +137,7 @@ const detailFixture = {
     // OUT_OF_SCOPE · verified=null(세트의존 등) → 판정불가, 사유 '대상외'
     {
       productName: 'AC 세트품목',
-      modelName: 'AC-SET',
+      modelName: null,
       quantity: 1,
       supplyAmount: 300000,
       releasePrice: 700000,
@@ -149,9 +150,10 @@ const detailFixture = {
   ],
 }
 
+// 매입 픽스처 — verified 행 + null-verdict 행(참고 마커가 verified 무관 전 행 노출 검증).
 const purchaseDetailFixture = {
   ...detailFixture,
-  productSummaries: [detailFixture.productSummaries[0]],
+  productSummaries: [detailFixture.productSummaries[0], detailFixture.productSummaries[2]],
 }
 
 function renderPage() {
@@ -187,7 +189,7 @@ const emptyPage = {
 }
 
 describe('DailyClosingPage 모델별 재검증', () => {
-  it('매출 조회에서 확인/불일치/판정불가 배지·6종 사유·0/null/음수 할인율을 BE 계약대로 렌더한다', async () => {
+  it('매출 조회에서 확인/불일치/판정불가 배지·6종 사유·0/null/음수 할인율·모델 실값을 BE 계약대로 렌더한다', async () => {
     listDailyClosingsMock.mockResolvedValue(emptyPage)
     getDailyClosingDetailMock.mockResolvedValue(detailFixture)
 
@@ -195,7 +197,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
 
     await screen.findByText('모델별 재검증')
 
-    // 새니티체크 캡션(집계단위 오해 방지)
+    // 새니티체크 캡션(집계단위 오해 방지)·매출엔 참고 배너 없음
     expect(screen.getByText(/모델·일 합계 평균 기준 새니티 체크/)).toBeTruthy()
     expect(screen.queryByRole('note')).toBeNull()
 
@@ -203,8 +205,10 @@ describe('DailyClosingPage 모델별 재검증', () => {
     // 배지 1개뿐(사유='확인' 자기모순 회귀 시 2개가 되어 실패 = genuine 고정).
     const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
     expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
-    expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy()
+    expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy() // 모델 실토큰
     expect(within(verifiedRow).getAllByText('확인').length).toBe(1)
+    // 매출은 '참고' 마커 없음(매입 전용)
+    expect(within(verifiedRow).queryByText('참고')).toBeNull()
     // 기대율·할인율 둘 다 45%(2셀)·모두 비음수라 빨강 아님(회귀 가드)
     const rates45 = within(verifiedRow).getAllByText('45%')
     expect(rates45.length).toBe(2)
@@ -212,8 +216,9 @@ describe('DailyClosingPage 모델별 재검증', () => {
     // VERIFIED 행 사유 = '—'(배지가 판정 전달·자기모순 방지)
     expect(within(verifiedRow).getByText('—')).toBeTruthy()
 
-    // 불일치 배지(verified=false) — 과충전 행, 사유 '—', 음수율 빨강
-    const mismatchRow = rowOf('과충전 모델')
+    // 불일치 배지(verified=false) — 모델품목, 사유 '—', 음수율 빨강
+    const mismatchRow = rowOf('AM320NXVHHH1 [상업멀티]')
+    expect(within(mismatchRow).getByText('AM320NXVHHH1')).toBeTruthy() // 모델 실토큰
     expect(within(mismatchRow).getByText('불일치')).toBeTruthy()
     const negativeRate = within(mismatchRow).getByText('-5%')
     expect(negativeRate.getAttribute('style')).toContain('color: var(--state-danger)')
@@ -229,11 +234,10 @@ describe('DailyClosingPage 모델별 재검증', () => {
     expect(within(rowOf('측정불가품목')).getByText('측정불가')).toBeTruthy()
     expect(within(rowOf('AC 세트품목')).getByText('대상외')).toBeTruthy()
 
-    // null referent → '—' (NOT_FOUND 행 출고가/납품가 셀)
+    // 서비스품목(모델 미매치) → 모델 셀 '—'(null 폴백) + null referent '—'
     const notFoundRow = rowOf('미등록서비스품목')
-    expect(within(notFoundRow).getAllByText('—').length).toBeGreaterThanOrEqual(4) // release/delivery/expected/actual
-
-    expect(within(mismatchRow).getByText('OVERCHARGE')).toBeTruthy()
+    // modelName null + release/delivery/expected/actual null = 5개 '—'
+    expect(within(notFoundRow).getAllByText('—').length).toBeGreaterThanOrEqual(5)
   })
 
   it('매입 조회에서는 재검증 테이블과 참고 배너·참고 마커·모델 실값을 렌더하고 기존 상세 전표는 유지한다', async () => {
@@ -258,15 +262,25 @@ describe('DailyClosingPage 모델별 재검증', () => {
     // 기존 taxInvoices 상세는 유지(표준 문서번호)
     expect(await screen.findByText('2026/07/13-1')).toBeTruthy()
     expect(await screen.findByText('모델별 재검증')).toBeTruthy()
-    expect(screen.getByRole('note').textContent).toContain('매입 재검증은')
-    expect(screen.getByRole('note').textContent).toContain('정식 매입단가 감사가 아닙니다')
-    expect(screen.queryByText(/모델·일 합계 평균 기준 새니티 체크/)).toBeNull()
+    // 참고 배너 = 판매기준 참고용 + 집계단위 캐비엇 병기
+    const banner = screen.getByRole('note')
+    expect(banner.textContent).toContain('매입 재검증은')
+    expect(banner.textContent).toContain('정식 매입단가 감사가 아닙니다')
+    expect(banner.textContent).toContain('개별 라인 단위 판정이 아닙니다')
+    // 매입은 SALES 새니티 캡션(별도 <p>) 미표시(배너로 대체)
+    expect(screen.queryByText(/^모델·일 합계 평균 기준 새니티 체크입니다\./)).toBeNull()
 
+    // 모델 실값 + 확인 배지 + 참고 마커(verified 행)
     const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
     expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
     expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy()
     expect(within(verifiedRow).getByText('확인')).toBeTruthy()
     expect(within(verifiedRow).getByText('참고')).toBeTruthy()
+
+    // 참고 마커는 verified 무관 — null-verdict 행에도 노출
+    const nullVerdictRow = rowOf('미등록서비스품목')
+    expect(within(nullVerdictRow).getByText('판정불가')).toBeTruthy()
+    expect(within(nullVerdictRow).getByText('참고')).toBeTruthy()
   })
 
   it('통합(ALL) 조회에서는 상세 안내문만 표시하고 재검증 테이블은 렌더하지 않는다', async () => {
@@ -282,7 +296,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
     })
     expect(screen.queryByText('모델별 재검증')).toBeNull()
     // ALL 은 detailQuery `enabled: closingKind !== 'ALL'` → 상세 조회 억제.
-    // 어떤 호출도 ALL 시그니처(kind/source=undefined)로 발생하지 않는다(Codex R2 지적).
+    // 어떤 호출도 ALL 시그니처(kind/source=undefined)로 발생하지 않는다.
     expect(getDailyClosingDetailMock).not.toHaveBeenCalledWith(
       expect.any(String),
       undefined,

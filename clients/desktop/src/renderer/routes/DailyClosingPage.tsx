@@ -396,7 +396,7 @@ export function DailyClosingPage() {
           <>
             {badge}
             {closingKind === 'PURCHASE' ? (
-              <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--text-secondary, #6b7280)' }}>참고</span>
+              <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--ink-secondary, #5C6773)' }}>참고</span>
             ) : null}
           </>
         )
@@ -605,16 +605,17 @@ export function DailyClosingPage() {
                       margin: '0 0 8px',
                       padding: '8px 12px',
                       fontSize: 12,
-                      background: 'var(--surface-warning, #fff7ed)',
-                      color: 'var(--text-warning, #9a3412)',
-                      border: '1px solid var(--border-warning, #fed7aa)',
+                      background: 'var(--color-warning-50, #FEF6E7)',
+                      color: 'var(--color-warning-800, #8C5C13)',
+                      border: '1px solid var(--color-warning-300, #F1C268)',
                       borderRadius: 6,
                     }}
                   >
                     매입 재검증은 <b>판매(출고) 기준 참고용</b>입니다. 정식 매입단가 감사가 아닙니다.
+                    모델·일 합계 평균 기준 새니티 체크이며 개별 라인 단위 판정이 아닙니다.
                   </div>
                 ) : (
-                  <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary, #6b7280)' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--ink-secondary, #5C6773)' }}>
                     모델·일 합계 평균 기준 새니티 체크입니다. 개별 라인 단위 판정이 아닙니다.
                   </p>
                 )}

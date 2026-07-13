@@ -372,6 +372,7 @@ public class MonthEndCloseService {
             ProductLabelMatch labelMatch = labelMatches.getOrDefault(e.getKey(), ProductLabelMatch.notFound());
             UUID productId = labelMatch.productId();
             ApplicablePrice price = labelMatch.isMatched() ? pricesByProductId.get(productId) : null;
+            // 재검증 분기용 토큰(미매치 시 정규화 품명 fallback 포함).
             String modelToken = ModelTokenExtractor.extractModelToken(e.getKey());
             // fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리한다. price key 누락도 엔진에 넘겨
             // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
@@ -385,7 +386,8 @@ public class MonthEndCloseService {
                     labelMatch.status());
             products.add(new DailyProductLine(
                     e.getKey(),
-                    modelToken,
+                    // 표시 전용: 실 모델코드만(운임·서비스 등 미매치는 null→FE '—', 품명 중복 방지).
+                    ModelTokenExtractor.extractModelTokenOrNull(e.getKey()),
                     e.getValue().quantity,
                     e.getValue().supplyAmount,
                     revalidation.releasePrice(),

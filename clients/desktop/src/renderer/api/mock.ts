@@ -8490,7 +8490,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       productSummaries: [
         {
           productName: 'AM160NXVHHH1 [상업멀티]',
-          modelName: null,
+          modelName: 'AM160NXVHHH1',
           quantity: 1,
           supplyAmount: 500000,
           releasePrice: 1000000,

@@ -169,7 +169,7 @@ export interface DailyTaxInvoiceRow {
 export interface DailyProductLine {
   /** 품명 — product-service 마스터 lookup. */
   productName: string
-  /** 모델명 — BE 는 현재 항상 null 반환(S4 보강 예정). */
+  /** 모델명 — BE 가 extractModelTokenOrNull 로 채움(실 모델코드만·운임/서비스 등 미매치는 null→'—'). */
   modelName: string | null
   /** 수량 (BigDecimal → Jackson 기본 JSON number). */
   quantity: number

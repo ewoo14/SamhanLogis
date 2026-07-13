@@ -55,4 +55,29 @@ public final class ModelTokenExtractor {
         }
         return normalized;
     }
+
+    /**
+     * <b>표시 전용</b> 모델 토큰 — 실제 모델 패턴(정규식/AR(R)- 접두)에 매치할 때만 토큰을 반환하고,
+     * 미매치(운임·서비스 등 정규화 품명 fallback) 또는 null/blank 는 {@code null} 을 반환한다.
+     *
+     * <p>{@link #extractModelToken} 은 재검증 분기 로직용이라 미매치 시 정규화 품명을 fallback 하지만,
+     * "모델" 컬럼 표시에는 그 fallback 이 품명과 중복되어 부적절하다. 본 메서드는 실 모델코드만 노출한다.
+     *
+     * @param name 원본 품목 라벨
+     * @return 실 모델 토큰, 미매치/blank 는 null
+     */
+    public static String extractModelTokenOrNull(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        String normalized = clean(name).toUpperCase(Locale.ROOT);
+        var matcher = MODEL_TOKEN.matcher(normalized);
+        if (matcher.find()) {
+            return matcher.group();
+        }
+        if (normalized.startsWith("AR-") || normalized.startsWith("ARR-")) {
+            return normalized.split(" ")[0];
+        }
+        return null;
+    }
 }
