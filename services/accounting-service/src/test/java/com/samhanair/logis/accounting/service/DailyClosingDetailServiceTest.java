@@ -35,6 +35,7 @@ import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.DailyClosingDetailResponse;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -286,6 +287,33 @@ class DailyClosingDetailServiceTest {
                 findProductLine(resp, labels.get(100));
         assertThat(secondChunkLine.releasePrice()).isEqualByComparingTo("2000");
         assertThat(secondChunkLine.deliveryPrice()).isEqualByComparingTo("1100");
+
+        // 첫 청크(100건) 병합 유실 회귀 가드(QA mutation B): 첫 청크 라벨이 매칭 상태로 병합돼야 한다.
+        // putAll 대신 재대입으로 첫 청크가 유실되면 getOrDefault(NOT_FOUND) 로 떨어져 아래 단언이 실패한다.
+        DailyClosingDetailResponse.DailyProductLine firstChunkLine =
+                findProductLine(resp, labels.get(0));
+        assertThat(firstChunkLine.revalidationStatus()).isNotEqualTo("NOT_FOUND");
+    }
+
+    @Test
+    @DisplayName("일마감 detail — 라벨 벌크 해소가 INVALID_INPUT 이면 부분성공 없이 전체 배치가 실패한다")
+    void taxInvoiceDetailPropagatesBulkInvalidInput() {
+        TaxInvoice ti = newIssued("TI-BLANK", "블랭크거래처", DATE);
+        addLine(ti, "[규격만]", BigDecimal.ONE, new BigDecimal("1000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        // product-service 가 blank 토큰에서 batch-level INVALID_INPUT(400) 을 던지는 상황 모사.
+        // 회계 소비 경로(resolveProductLabels→getDailyDetail)에 try/catch 가 없어 전체 실패로 전파돼야 한다 —
+        // blank 라벨만 소프트 NOT_FOUND 로 삼키는 회귀(부분성공 완화)를 차단하는 blast-radius 가드.
+        when(productClient.resolveByLabelBulk(anyList()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT,
+                        "라벨에서 모델코드를 추출할 수 없습니다: [규격만]"));
+
+        assertThatThrownBy(() -> service.getDailyDetail(DATE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("라벨에서 모델코드를 추출할 수 없습니다");
     }
 
     @Test
