@@ -18,6 +18,13 @@ import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.PeriodStatus;
 import com.samhanair.logis.accounting.domain.PeriodType;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
+import com.samhanair.logis.accounting.domain.PurchaseAccountingSlipLine;
+import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
+import com.samhanair.logis.accounting.domain.SalesSlipStatus;
+import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
@@ -260,6 +267,68 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("매출전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
+    void salesSlipDetailRevalidatesWithLineVatAmount() {
+        UUID matched = UUID.randomUUID();
+        SalesAccountingSlip slip = newPostedSalesSlip("SAS-RV-001", DATE, "AJ040RXH4BC1 [4멀티]",
+                BigDecimal.ONE, new BigDecimal("50000"), new BigDecimal("5000"));
+        when(salesAccountingSlipRepository.findBySlipDateAndStatusWithLines(DATE, SalesSlipStatus.POSTED))
+                .thenReturn(List.of(slip));
+        when(productClient.resolveByLabel("AJ040RXH4BC1 [4멀티]"))
+                .thenReturn(ProductLabelMatch.matched(matched, "AJ040RXH4BC1"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                matched, new BigDecimal("45.00")));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(
+                DATE, com.samhanair.logis.accounting.domain.DailyClosingKind.SALES,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.SALES_SLIP);
+
+        DailyClosingDetailResponse.DailyProductLine line = findProductLine(resp, "AJ040RXH4BC1 [4멀티]");
+        assertThat(line.quantity()).isEqualByComparingTo("1");
+        assertThat(line.supplyAmount()).isEqualByComparingTo("50000");
+        assertThat(line.releasePrice()).isEqualByComparingTo("100000");
+        assertThat(line.deliveryPrice()).isEqualByComparingTo("70000");
+        assertThat(line.expectedRate()).isEqualTo(45);
+        assertThat(line.actualRate()).isEqualTo(45);
+        assertThat(line.verified()).isTrue();
+        assertThat(line.revalidationStatus()).isEqualTo("VERIFIED");
+        assertThat(resp.totalDiscount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("매입전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
+    void purchaseSlipDetailRevalidatesWithLineVatAmount() {
+        UUID matched = UUID.randomUUID();
+        PurchaseAccountingSlip slip = newPostedPurchaseSlip("PAS-RV-001", DATE, "AM160NXVHHH1 [AM상업멀티]",
+                BigDecimal.ONE, new BigDecimal("50000"), new BigDecimal("5000"));
+        when(purchaseAccountingSlipRepository.findBySlipDateAndStatusWithLines(DATE, PurchaseSlipStatus.POSTED))
+                .thenReturn(List.of(slip));
+        when(productClient.resolveByLabel("AM160NXVHHH1 [AM상업멀티]"))
+                .thenReturn(ProductLabelMatch.matched(matched, "AM160NXVHHH1"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                matched, new BigDecimal("45.00")));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(
+                DATE, com.samhanair.logis.accounting.domain.DailyClosingKind.PURCHASE,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.PURCHASE_SLIP);
+
+        DailyClosingDetailResponse.DailyProductLine line = findProductLine(resp, "AM160NXVHHH1 [AM상업멀티]");
+        assertThat(line.quantity()).isEqualByComparingTo("1");
+        assertThat(line.supplyAmount()).isEqualByComparingTo("50000");
+        assertThat(line.releasePrice()).isEqualByComparingTo("100000");
+        assertThat(line.deliveryPrice()).isEqualByComparingTo("70000");
+        assertThat(line.expectedRate()).isEqualTo(45);
+        assertThat(line.actualRate()).isEqualTo(45);
+        assertThat(line.verified()).isTrue();
+        assertThat(line.revalidationStatus()).isEqualTo("VERIFIED");
+        assertThat(resp.totalDiscount()).isEqualByComparingTo("0");
+    }
+
+    @Test
     @DisplayName("마감 lock 가드 — requireDateNotClosed 호출 시 CONFLICT (CLOSED 일자)")
     void closedLockGuard() {
         AccountingPeriod closed = AccountingPeriod.create(PeriodType.DAILY, DATE, "마감됨");
@@ -352,5 +421,53 @@ class DailyClosingDetailServiceTest {
                 .filter(line -> productName.equals(line.productName()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static SalesAccountingSlip newPostedSalesSlip(String slipNo, LocalDate slipDate,
+                                                           String productName,
+                                                           BigDecimal qty,
+                                                           BigDecimal supplyAmount,
+                                                           BigDecimal vatAmount) {
+        SalesAccountingSlip slip = SalesAccountingSlip.createDraft(
+                slipNo, slipDate, UUID.randomUUID(), "P-SALES", "매출거래처",
+                SalesTaxType.TAXABLE, "재검증 테스트");
+        SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
+                slip, 1, "MIG4", productName, qty, supplyAmount, supplyAmount, vatAmount,
+                supplyAmount.add(vatAmount));
+        setField(slip, "lines", new ArrayList<>(List.of(line)));
+        setField(slip, "status", SalesSlipStatus.POSTED);
+        setField(slip, "totalSupplyAmount", supplyAmount);
+        setField(slip, "totalVatAmount", vatAmount);
+        setField(slip, "totalAmount", supplyAmount.add(vatAmount));
+        return slip;
+    }
+
+    private static PurchaseAccountingSlip newPostedPurchaseSlip(String slipNo, LocalDate slipDate,
+                                                                 String productName,
+                                                                 BigDecimal qty,
+                                                                 BigDecimal supplyAmount,
+                                                                 BigDecimal vatAmount) {
+        PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
+                slipNo, slipDate, UUID.randomUUID(), "P-PURCHASE", "매입거래처",
+                SalesTaxType.TAXABLE, "재검증 테스트");
+        PurchaseAccountingSlipLine line = PurchaseAccountingSlipLine.create(
+                slip, 1, "MIG4", productName, qty, supplyAmount, supplyAmount, vatAmount,
+                supplyAmount.add(vatAmount));
+        setField(slip, "lines", new ArrayList<>(List.of(line)));
+        setField(slip, "status", PurchaseSlipStatus.POSTED);
+        setField(slip, "totalSupplyAmount", supplyAmount);
+        setField(slip, "totalVatAmount", vatAmount);
+        setField(slip, "totalAmount", supplyAmount.add(vatAmount));
+        return slip;
+    }
+
+    private static void setField(Object target, String fieldName, Object value) {
+        try {
+            Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

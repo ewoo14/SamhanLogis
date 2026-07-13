@@ -29,6 +29,13 @@ export type PeriodType = 'DAILY' | 'MONTHLY'
 export type PeriodStatus = 'OPEN' | 'CLOSED'
 export type DailyClosingKind = 'SALES' | 'PURCHASE'
 export type DailyClosingSourceKind = 'TAX_INVOICE' | 'SALES_SLIP' | 'PURCHASE_SLIP'
+export type DailyProductRevalidationStatus =
+  | 'VERIFIED'
+  | 'NOT_FOUND'
+  | 'AMBIGUOUS'
+  | 'MISSING_REFERENT'
+  | 'NOT_MEASURABLE'
+  | 'OUT_OF_SCOPE'
 
 /**
  * 마감 단건 응답 — BE `AccountingPeriodResponse` record.
@@ -168,6 +175,18 @@ export interface DailyProductLine {
   quantity: string
   /** 공급가액 합. */
   supplyAmount: string
+  /** 적용 출고가. */
+  releasePrice: string | null
+  /** 적용 납품가. */
+  deliveryPrice: string | null
+  /** 기대 할인율(정수 %). */
+  expectedRate: number | null
+  /** 실제 할인율(정수 %). */
+  actualRate: number | null
+  /** 재검증 확인 판정. */
+  verified: boolean | null
+  /** 재검증 사유. */
+  revalidationStatus: DailyProductRevalidationStatus | null
 }
 
 /**

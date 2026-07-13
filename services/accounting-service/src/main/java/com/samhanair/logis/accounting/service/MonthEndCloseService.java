@@ -235,44 +235,7 @@ public class MonthEndCloseService {
             }
         }
 
-        Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(byModel.keySet().stream().toList());
-        List<UUID> matchedProductIds = labelMatches.values().stream()
-                .filter(ProductLabelMatch::isMatched)
-                .map(ProductLabelMatch::productId)
-                .filter(java.util.Objects::nonNull)
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))
-                .stream()
-                .toList();
-        Map<UUID, ApplicablePrice> pricesByProductId = loadApplicablePrices(matchedProductIds, date);
-        Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
-
-        List<DailyProductLine> products = new ArrayList<>(byModel.size());
-        for (Map.Entry<String, ModelAccumulator> e : byModel.entrySet()) {
-            ProductLabelMatch labelMatch = labelMatches.getOrDefault(e.getKey(), ProductLabelMatch.notFound());
-            UUID productId = labelMatch.productId();
-            ApplicablePrice price = labelMatch.isMatched() ? pricesByProductId.get(productId) : null;
-            // fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리한다. price key 누락도 엔진에 넘겨
-            // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
-            DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
-                    e.getKey(),
-                    ModelTokenExtractor.extractModelToken(e.getKey()),
-                    e.getValue().effectiveUnitPrice(),
-                    price == null ? null : price.release(),
-                    price == null ? null : price.delivery(),
-                    labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
-                    labelMatch.status());
-            products.add(new DailyProductLine(
-                    e.getKey(),
-                    null,
-                    e.getValue().quantity,
-                    e.getValue().supplyAmount,
-                    revalidation.releasePrice(),
-                    revalidation.deliveryPrice(),
-                    revalidation.expectedRate(),
-                    revalidation.actualRate(),
-                    revalidation.verified(),
-                    revalidation.status().name()));
-        }
+        List<DailyProductLine> products = revalidateProductLines(byModel, date);
 
         return new DailyClosingDetailResponse(
                 date,
@@ -311,11 +274,12 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (SalesAccountingSlipLine line : slip.getLines()) {
-                accumulateProduct(byModel, line.getProductName(), line.getQty(), line.getSupplyAmount());
+                accumulateProduct(byModel, line.getProductName(), line.getQty(),
+                        line.getSupplyAmount(), line.getVatAmount());
             }
         }
         return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
-                BigDecimal.ZERO, rows, toProductLines(byModel));
+                BigDecimal.ZERO, rows, revalidateProductLines(byModel, date));
     }
 
     private DailyClosingDetailResponse getPurchaseSlipDailyDetail(LocalDate date) {
@@ -344,11 +308,12 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (PurchaseAccountingSlipLine line : slip.getLines()) {
-                accumulateProduct(byModel, line.getProductName(), line.getQty(), line.getSupplyAmount());
+                accumulateProduct(byModel, line.getProductName(), line.getQty(),
+                        line.getSupplyAmount(), line.getVatAmount());
             }
         }
         return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
-                BigDecimal.ZERO, rows, toProductLines(byModel));
+                BigDecimal.ZERO, rows, revalidateProductLines(byModel, date));
     }
 
     private static boolean matchesInvoiceType(TaxInvoice invoice, DailyClosingKind closingKind) {
@@ -380,27 +345,54 @@ public class MonthEndCloseService {
     private static void accumulateProduct(Map<String, ModelAccumulator> byModel,
                                           String productName,
                                           BigDecimal quantity,
-                                          BigDecimal supplyAmount) {
+                                          BigDecimal supplyAmount,
+                                          BigDecimal vatAmount) {
         String key = productName == null || productName.isBlank() ? "-" : productName;
         ModelAccumulator acc = byModel.computeIfAbsent(key, k -> new ModelAccumulator());
         acc.quantity = acc.quantity.add(nullToZero(quantity));
         acc.supplyAmount = acc.supplyAmount.add(nullToZero(supplyAmount));
+        acc.vatAmount = acc.vatAmount.add(nullToZero(vatAmount));
     }
 
-    private static List<DailyProductLine> toProductLines(Map<String, ModelAccumulator> byModel) {
+    private List<DailyProductLine> revalidateProductLines(Map<String, ModelAccumulator> byModel,
+                                                          LocalDate asOf) {
+        Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(byModel.keySet().stream().toList());
+        List<UUID> matchedProductIds = labelMatches.values().stream()
+                .filter(ProductLabelMatch::isMatched)
+                .map(ProductLabelMatch::productId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))
+                .stream()
+                .toList();
+        Map<UUID, ApplicablePrice> pricesByProductId = loadApplicablePrices(matchedProductIds, asOf);
+        Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
+
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
         for (Map.Entry<String, ModelAccumulator> e : byModel.entrySet()) {
+            ProductLabelMatch labelMatch = labelMatches.getOrDefault(e.getKey(), ProductLabelMatch.notFound());
+            UUID productId = labelMatch.productId();
+            ApplicablePrice price = labelMatch.isMatched() ? pricesByProductId.get(productId) : null;
+            // fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리한다. price key 누락도 엔진에 넘겨
+            // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
+            DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
+                    e.getKey(),
+                    ModelTokenExtractor.extractModelToken(e.getKey()),
+                    e.getValue().effectiveUnitPrice(),
+                    price == null ? null : price.release(),
+                    price == null ? null : price.delivery(),
+                    labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
+                    labelMatch.status());
             products.add(new DailyProductLine(
                     e.getKey(),
                     null,
                     e.getValue().quantity,
                     e.getValue().supplyAmount,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null));
+                    revalidation.releasePrice(),
+                    revalidation.deliveryPrice(),
+                    revalidation.expectedRate(),
+                    revalidation.actualRate(),
+                    revalidation.verified(),
+                    revalidation.status().name()));
         }
         return products;
     }
