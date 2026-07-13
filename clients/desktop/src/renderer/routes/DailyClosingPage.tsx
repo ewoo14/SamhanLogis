@@ -380,7 +380,7 @@ export function DailyClosingPage() {
     {
       key: 'verified',
       header: '확인',
-      width: '100px',
+      width: '116px',
       align: 'center',
       render: (row) => {
         const badge =
@@ -393,12 +393,17 @@ export function DailyClosingPage() {
           )
 
         return (
-          <>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
             {badge}
             {closingKind === 'PURCHASE' ? (
-              <span style={{ marginLeft: 4, fontSize: 11, color: 'var(--ink-secondary, #5C6773)' }}>참고</span>
+              <span
+                aria-label="판매(출고) 기준 참고값"
+                style={{ fontSize: 11, color: 'var(--ink-secondary, #5C6773)' }}
+              >
+                참고
+              </span>
             ) : null}
-          </>
+          </span>
         )
       },
     },

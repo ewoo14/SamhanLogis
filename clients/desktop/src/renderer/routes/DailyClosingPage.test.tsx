@@ -153,7 +153,11 @@ const detailFixture = {
 // 매입 픽스처 — verified 행 + null-verdict 행(참고 마커가 verified 무관 전 행 노출 검증).
 const purchaseDetailFixture = {
   ...detailFixture,
-  productSummaries: [detailFixture.productSummaries[0], detailFixture.productSummaries[2]],
+  productSummaries: [
+    detailFixture.productSummaries[0], // verified=true
+    detailFixture.productSummaries[1], // verified=false (불일치)
+    detailFixture.productSummaries[2], // verified=null (NOT_FOUND)
+  ],
 }
 
 function renderPage() {
@@ -281,6 +285,11 @@ describe('DailyClosingPage 모델별 재검증', () => {
     const nullVerdictRow = rowOf('미등록서비스품목')
     expect(within(nullVerdictRow).getByText('판정불가')).toBeTruthy()
     expect(within(nullVerdictRow).getByText('참고')).toBeTruthy()
+
+    // 참고 마커는 verified 무관 — false(불일치) 행에도 노출
+    const mismatchRow = rowOf('AM320NXVHHH1 [상업멀티]')
+    expect(within(mismatchRow).getByText('불일치')).toBeTruthy()
+    expect(within(mismatchRow).getByText('참고')).toBeTruthy()
   })
 
   it('통합(ALL) 조회에서는 상세 안내문만 표시하고 재검증 테이블은 렌더하지 않는다', async () => {
