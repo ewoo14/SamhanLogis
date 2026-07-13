@@ -345,3 +345,27 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 
 ### 6.7.5 파일 (예상)
 - `clients/desktop/src/renderer/routes/DailyClosingPage.tsx` · (선택)컴포넌트 test · (선택 BE)modelName 채움 · `docs/dev-reports/2026-07-13-773-s4-daily-closing-render.md`
+
+## 6.8 S5 엔지니어링 스펙 (2026-07-13 · 회사PC 순차) — 매입(PURCHASE) 노출 + modelName 채움
+
+### 6.8.0 스코프 (📌 개발책임자 결정 2026-07-13)
+- **① 매입 노출 = "표 + 참고용 배너/배지"**: PURCHASE 도 매출과 동일한 재검증 표를 렌더하되, **상단 참고용 배너**("매입 재검증은 판매(출고) 기준 참고용입니다. 정식 매입단가 감사가 아닙니다") + **확인 컬럼에 '참고' 표시**(verified 의미 약화). referent=판매기준(§6.6.5)이라 매입 verified/expectedRate 는 참고값.
+- **② modelName BE 채움**: `MonthEndCloseService.revalidateProductLines` 가 modelName 을 상시 null 하드코딩(:385) → `ModelTokenExtractor.extractModelToken(e.getKey())`(이미 revalidate 인자로 계산됨) 로 채움 → 모델 컬럼 재도입(S4 에서 dead 라 제거). 3소스 공유(TAX/SALES/PURCHASE 모두 채워짐).
+
+### 6.8.1 BE (소폭)
+- `revalidateProductLines`: `String modelToken = ModelTokenExtractor.extractModelToken(e.getKey())` 지역변수화 → `revalidate(...)` 2인자 + `new DailyProductLine(e.getKey(), modelToken, ...)` 양쪽 사용. 회귀 0(토큰 산식 동일·기존 revalidate 인자와 일치).
+- 계약 무변경(DailyProductLine.modelName 이미 `String` 필드·FE 타입 `string|null` ⊇ 채움값).
+
+### 6.8.2 FE (DailyClosingPage.tsx)
+- **게이팅 확장**: 재검증 테이블 렌더 조건 `closingKind === 'SALES'` → `closingKind !== 'ALL'`(SALES+PURCHASE). ALL 은 기존 안내문 유지.
+- **참고용 배너**: `closingKind === 'PURCHASE'` 일 때 표 상단 배너(경고톤·회계 규약). 매출(SALES)엔 미표시.
+- **확인 컬럼 참고 표시**: PURCHASE 시 확인 배지에 '참고' 표기(예: 배지 + "(참고)" 또는 neutral 톤). verified 판정을 참고값으로 명확화.
+- **모델 컬럼 재도입**: 품명 다음 모델 컬럼(modelName·null→'—'·이제 실값). 확인=BE 채움으로 dead 아님.
+- **불변식 유지**: compatibleSource(PURCHASE_SLIP↔kind=PURCHASE·400 방지)·기존 쿼리·kind=PURCHASE 계약 훼손 금지.
+
+### 6.8.3 테스트 + 라이브 QA
+- vitest: 매입 게이팅(PURCHASE 렌더+참고배너)·모델 컬럼 실값·확인 참고 표시·매출엔 배너 없음. mock fixture 매입 케이스.
+- FE `npm run typecheck`. **라이브 QA**: Docker 실서버(mock OFF)·매입 PURCHASE_SLIP 실데이터(dev 매입전표 or QA시드) → 참고 배너+모델 컬럼+참고 배지 실 GUI 스샷.
+
+### 6.8.4 파일 (예상)
+- `services/accounting-service/.../service/MonthEndCloseService.java`(modelName) · `clients/desktop/.../routes/DailyClosingPage.tsx`(게이팅·배너·모델컬럼·참고) · `DailyClosingPage.test.tsx` · real-qa 스펙 · `docs/dev-reports/2026-07-13-773-s5-purchase-render-modelname.md`
