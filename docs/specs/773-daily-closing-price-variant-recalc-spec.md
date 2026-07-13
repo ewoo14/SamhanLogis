@@ -350,10 +350,10 @@ record DailyProductLine(String productName, String modelName, BigDecimal quantit
 
 ### 6.8.0 스코프 (📌 개발책임자 결정 2026-07-13)
 - **① 매입 노출 = "표 + 참고용 배너/배지"**: PURCHASE 도 매출과 동일한 재검증 표를 렌더하되, **상단 참고용 배너**("매입 재검증은 판매(출고) 기준 참고용입니다. 정식 매입단가 감사가 아닙니다") + **확인 컬럼에 '참고' 표시**(verified 의미 약화). referent=판매기준(§6.6.5)이라 매입 verified/expectedRate 는 참고값.
-- **② modelName BE 채움**: `MonthEndCloseService.revalidateProductLines` 가 modelName 을 상시 null 하드코딩(:385) → `ModelTokenExtractor.extractModelToken(e.getKey())`(이미 revalidate 인자로 계산됨) 로 채움 → 모델 컬럼 재도입(S4 에서 dead 라 제거). 3소스 공유(TAX/SALES/PURCHASE 모두 채워짐).
+- **② modelName BE 채움**: `MonthEndCloseService.revalidateProductLines` 가 modelName 을 상시 null 하드코딩(:385) → 표시 전용 `ModelTokenExtractor.extractModelTokenOrNull(e.getKey())`(R1 결정: 실 모델코드만·미매치 null→FE '—'·품명 컬럼 중복 방지. 재검증 분기 토큰 `extractModelToken` 과 동일 clean() 기반이라 표시↔판정 정합) 로 채움 → 모델 컬럼 재도입(S4 에서 dead 라 제거). 3소스 공유(TAX/SALES/PURCHASE 모두 채워짐).
 
 ### 6.8.1 BE (소폭)
-- `revalidateProductLines`: `String modelToken = ModelTokenExtractor.extractModelToken(e.getKey())` 지역변수화 → `revalidate(...)` 2인자 + `new DailyProductLine(e.getKey(), modelToken, ...)` 양쪽 사용. 회귀 0(토큰 산식 동일·기존 revalidate 인자와 일치).
+- `revalidateProductLines`: `String modelToken = ModelTokenExtractor.extractModelToken(e.getKey())` 지역변수화(재검증 분기 인자·산식 무변경) → `new DailyProductLine(e.getKey(), ModelTokenExtractor.extractModelTokenOrNull(e.getKey()), ...)`(표시 전용은 R1 에서 OrNull 분리·품명 중복 방지). 회귀 0(분기 토큰 산식 동일). ※ ModelTokenExtractorTest(R2) 8케이스로 두 메서드 계약 고정.
 - 계약 무변경(DailyProductLine.modelName 이미 `String` 필드·FE 타입 `string|null` ⊇ 채움값).
 
 ### 6.8.2 FE (DailyClosingPage.tsx)

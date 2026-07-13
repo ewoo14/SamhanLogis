@@ -398,6 +398,7 @@ export function DailyClosingPage() {
             {closingKind === 'PURCHASE' ? (
               <span
                 aria-label="판매(출고) 기준 참고값"
+                title="판매(출고) 기준 참고값"
                 style={{ fontSize: 11, color: 'var(--ink-secondary, #5C6773)' }}
               >
                 참고

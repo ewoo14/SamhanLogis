@@ -3,7 +3,6 @@ package com.samhanair.logis.accounting.it;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,7 +44,6 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -137,6 +135,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.productSummaries[0].productName").value("AM160NXVHHH1 [AM상업멀티]"))
+                .andExpect(jsonPath("$.data.productSummaries[0].modelName").value("AM160NXVHHH1"))
                 .andExpect(jsonPath("$.data.productSummaries[0].releasePrice").value(100000))
                 .andExpect(jsonPath("$.data.productSummaries[0].deliveryPrice").value(70000))
                 .andExpect(jsonPath("$.data.productSummaries[0].expectedRate").value(45))
@@ -144,6 +143,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.productSummaries[0].verified").value(true))
                 .andExpect(jsonPath("$.data.productSummaries[0].revalidationStatus").value("VERIFIED"))
                 .andExpect(jsonPath("$.data.productSummaries[1].productName").value("미등록서비스품목"))
+                .andExpect(jsonPath("$.data.productSummaries[1].modelName").doesNotExist())
                 .andExpect(jsonPath("$.data.productSummaries[1].releasePrice").doesNotExist())
                 .andExpect(jsonPath("$.data.productSummaries[1].deliveryPrice").doesNotExist())
                 .andExpect(jsonPath("$.data.productSummaries[1].expectedRate").doesNotExist())

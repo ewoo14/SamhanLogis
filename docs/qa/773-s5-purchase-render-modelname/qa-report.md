@@ -12,7 +12,7 @@
 | 02 | `02-sales-detail-model-column.png` | 매출 2026-05-03 세금계산서 상세 — 모델별 재검증 테이블(모델 컬럼) |
 | 03 | `03-model-column-closeup.png` | 모델 컬럼 클로즈업 — 실 모델 토큰 vs 서비스행 '—' |
 | 04 | `04-purchase-reference-banner.png` | 매입 전환 — 참고용 배너("판매(출고) 기준 참고용") |
-| 05 | `05-purchase-detail-card.png` | 매입 상세 카드(배너 + 표) |
+| 05 | `05-purchase-detail-card.png` | 매입 상세 카드(배너 + 표) — dev 매입 0행 empty-state라 04 와 동일 뷰(스크롤 델타 없음·SHA 동일) |
 
 ## 검증 결과 (S5 기능 실증)
 - **② modelName 채움 (BE)**: 매출 05-03 상세에서 모델 컬럼이 **실 모델 토큰**(`AR09TXEAAWKNEU-04`)을 노출, 서비스 품목(관세납부 대행료·통관 수수료)은 `—`. `extractModelTokenOrNull` 이 실 모델 패턴만 노출·미매치 null→'—' 동작 라이브 확증.

@@ -55,7 +55,10 @@ public record DailyClosingDetailResponse(
      * 재검증 노출 방식은 개발책임자 확정 대상.
      */
     public record DailyProductLine(
+            @Schema(description = "품명 — 재검증 집계 그룹 키(원본 라벨). product-service 마스터 lookup 대상")
             String productName,
+            @Schema(description = "모델 토큰 — 실 모델코드만(extractModelTokenOrNull). 운임/서비스 등 미매치는 "
+                    + "null → FE '—'. 재검증 분기 토큰과 동일 clean() 기반이라 표시↔판정 정합")
             String modelName,
             BigDecimal quantity,
             BigDecimal supplyAmount,
