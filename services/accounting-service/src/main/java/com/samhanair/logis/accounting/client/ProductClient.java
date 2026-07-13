@@ -7,6 +7,7 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -134,6 +135,9 @@ public class ProductClient {
     /**
      * 회계 라벨을 product-service internal endpoint 로 해소한다.
      *
+     * <p>#773 후속 벌크 전환 이후 프로덕션 미호출 경로이며, 단건/벌크 parity 앵커,
+     * 운영 디버깅, 향후 단건 internal 소비 대비용으로 유지한다.
+     *
      * <p>일마감 재검증은 미매칭/중복매칭 자체도 리포트 대상이므로 404/409 는 예외 대신
      * {@link ProductLabelMatch.Status#NOT_FOUND}/{@link ProductLabelMatch.Status#AMBIGUOUS} 로
      * 사유를 보존해 반환한다. 그 외 4xx/5xx 및 네트워크 오류는 기존 lookup 과 동일하게
@@ -205,18 +209,17 @@ public class ProductClient {
      * 네트워크 오류 매핑은 {@link #applicablePrices(List, LocalDate)} 등이 사용하는
      * {@link #postBulkReferent(String, Map, String)} 관례(INVALID_INPUT/INTERNAL_ERROR)를 그대로 따른다.
      *
-     * <p>product-service 는 요청 labels 전부를 응답 Map 키로 포함하는 완전 응답 계약이지만, 호출측
-     * ({@link com.samhanair.logis.accounting.service.MonthEndCloseService})은 방어적으로
-     * {@code getOrDefault} 폴백을 유지한다.
+     * <p>product-service 는 요청 labels 전부를 응답 Map 키로 포함하는 완전 응답 계약이다. 누락 키가
+     * 있으면 client 단계에서 {@link ErrorCode#INTERNAL_ERROR} 로 차단한다.
      *
      * @param labels 조회할 라벨 목록. 빈 목록(또는 null)은 외부 호출 없이 빈 Map 반환. 1회 호출당 최대
      *               {@link #LABEL_BATCH_MAX}건 — 초과분은 호출측이 청킹해서 여러 번 호출해야 한다
      * @return 라벨 → 매칭 result. 항상 non-null result 값(MATCHED/NOT_FOUND/AMBIGUOUS)
      * @throws BusinessException(INVALID_INPUT) batch 한도 초과, product-service 4xx
      * @throws BusinessException(INTERNAL_ERROR) product-service 5xx / 네트워크 / envelope 오류 /
-     *                                            라벨별 응답 포맷 오류(알 수 없는 status, MATCHED인데 productId 누락)
+     *                                            라벨별 응답 포맷 오류(알 수 없는 status, MATCHED인데 productId 누락),
+     *                                            요청 라벨 응답 키 누락
      */
-    @SuppressWarnings("unchecked")
     public Map<String, ProductLabelMatch> resolveByLabelBulk(List<String> labels) {
         if (labels == null || labels.isEmpty()) {
             return Map.of();
@@ -242,6 +245,12 @@ public class ProductClient {
             LabelResolutionResponse response =
                     objectMapper.convertValue(entry.getValue(), LabelResolutionResponse.class);
             result.put(String.valueOf(entry.getKey()), toProductLabelMatch(response));
+        }
+        for (String label : new LinkedHashSet<>(labels)) {
+            if (!result.containsKey(label)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "product-service 벌크 응답 라벨 누락: " + label);
+            }
         }
         return result;
     }

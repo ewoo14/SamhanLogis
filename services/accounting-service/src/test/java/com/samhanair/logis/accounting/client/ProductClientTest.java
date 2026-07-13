@@ -514,4 +514,24 @@ class ProductClientTest {
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
     }
+
+    @Test
+    void resolveByLabelBulk_응답에서_요청라벨이_누락되면_INTERNAL_ERROR() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-label-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.labels[0]").value("PRESENT-LABEL"))
+                .andExpect(jsonPath("$.labels[1]").value("MISSING-LABEL"))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "PRESENT-LABEL":{"status":"NOT_FOUND","productId":null,"modelCode":null}
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.resolveByLabelBulk(List.of("PRESENT-LABEL", "MISSING-LABEL")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
+        server.verify();
+    }
 }

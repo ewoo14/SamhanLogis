@@ -704,11 +704,11 @@ class ProductServiceTest {
     }
 
     @Test
-    void lookupSummaryByLabelBulk_blank_토큰은_그_라벨만_NOT_FOUND로_소프트처리한다() {
-        Map<String, LabelResolutionResult> result =
-                service.lookupSummaryByLabelBulk(List.of("[포장재 비용]"));
-
-        assertThat(result.get("[포장재 비용]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+    void lookupSummaryByLabelBulk_blank_토큰은_INVALID_INPUT으로_실패한다() {
+        assertThatThrownBy(() -> service.lookupSummaryByLabelBulk(List.of("[포장재 비용]")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
         // 토큰 추출 실패는 repository 조회 자체를 발생시키지 않는다(단건과 동일한 short-circuit).
         verify(productRepository, never()).findByCatalogExposedModelCodeAndIsDeletedFalse(any());
         verify(productAliasRepository, never()).findByAliasCodeAndIsDeletedFalse(any());
@@ -726,13 +726,11 @@ class ProductServiceTest {
         when(productRepository.search(null, null, "ZZ-MIX-NOTFOUND-1", null, null, null, PageRequest.of(0, 2)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        Map<String, LabelResolutionResult> result = service.lookupSummaryByLabelBulk(List.of(
-                "ZZ-MIX-MATCH-1 [규격]", "ZZ-MIX-NOTFOUND-1 [규격]", "[포장재 비용]"));
-
-        assertThat(result).hasSize(3);
-        assertThat(result.get("ZZ-MIX-MATCH-1 [규격]").status()).isEqualTo(LabelResolutionResult.MATCHED);
-        assertThat(result.get("ZZ-MIX-NOTFOUND-1 [규격]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
-        assertThat(result.get("[포장재 비용]").status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+        assertThatThrownBy(() -> service.lookupSummaryByLabelBulk(List.of(
+                "ZZ-MIX-MATCH-1 [규격]", "ZZ-MIX-NOTFOUND-1 [규격]", "[포장재 비용]")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 
     @Test
@@ -829,14 +827,15 @@ class ProductServiceTest {
     }
 
     @Test
-    void 단건과_벌크는_blank토큰에서_단건은_400_벌크는_NOT_FOUND로_소프트처리한다() {
+    void 단건과_벌크는_blank토큰에서_모두_INVALID_INPUT으로_실패한다() {
         assertThatThrownBy(() -> service.lookupSummaryByLabel("[포장재 비용]"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
-        LabelResolutionResult bulk = service.lookupSummaryByLabelBulk(
-                List.of("[포장재 비용]")).get("[포장재 비용]");
-        assertThat(bulk.status()).isEqualTo(LabelResolutionResult.NOT_FOUND);
+        assertThatThrownBy(() -> service.lookupSummaryByLabelBulk(List.of("[포장재 비용]")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
     }
 
     // =========================================================================

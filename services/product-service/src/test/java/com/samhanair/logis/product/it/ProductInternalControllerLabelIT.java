@@ -178,9 +178,9 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
     // =========================================================================
 
     /**
-     * 벌크 endpoint 가 exact/alias/LIKE-다의성/미매칭/blank토큰 5가지 상태를 한 응답에서
-     * 정확히 구분함을 검증한다. 위 단건 테스트들과 동일한 exact/alias/ambiguous 시나리오를
-     * 재사용해 단건↔벌크 parity 를 함께 증명한다.
+     * 벌크 endpoint 가 exact/alias/LIKE-다의성/미매칭 4가지 상태를 한 응답에서 정확히 구분함을
+     * 검증한다. 위 단건 테스트들과 동일한 exact/alias/ambiguous 시나리오를 재사용해 단건↔벌크
+     * parity 를 함께 증명한다.
      */
     @Test
     void lookupByLabelBulk_다양한_상태를_한번에_반환한다() throws Exception {
@@ -209,8 +209,7 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
                 "AC023CN1DBC1 [CN냉전 실내기]",
                 "BULKALIASX1 [별칭 매핑 테스트]",
                 "BULKTWOROWS [다의성]",
-                "AC999ZZ9ZZZ9 [미등록]",
-                "[포장재 비용]")));
+                "AC999ZZ9ZZZ9 [미등록]")));
 
         MvcResult result = mockMvc.perform(post("/products/internal/lookup-by-label-bulk")
                         .header("X-Internal-Token", INTERNAL_TOKEN)
@@ -240,9 +239,17 @@ class ProductInternalControllerLabelIT extends AbstractPostgresIT {
         JsonNode notFound = data.get("AC999ZZ9ZZZ9 [미등록]");
         assertThat(notFound.get("status").asText()).isEqualTo("NOT_FOUND");
         assertThat(notFound.get("productId").isNull()).isTrue();
+    }
 
-        JsonNode blankToken = data.get("[포장재 비용]");
-        assertThat(blankToken.get("status").asText()).isEqualTo("NOT_FOUND");
+    @Test
+    void lookupByLabelBulk_blank토큰이면_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/products/internal/lookup-by-label-bulk")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                Map.of("labels", List.of("[포장재 비용]")))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 
     @Test

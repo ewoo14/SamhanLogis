@@ -64,7 +64,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ProductService {
 
-    private static final int LOOKUP_MAX = 100;
+    public static final int LOOKUP_MAX = 100;
 
     private final ProductRepository productRepository;
     private final ProductSpecRepository productSpecRepository;
@@ -221,7 +221,9 @@ public class ProductService {
     /**
      * 회계 라벨({@code 품목명[규격]})에서 모델 토큰을 추출해 제품 요약을 조회한다.
      *
-     * <p>#773 S1b accounting 일마감 재검증 전용 service-to-service 경로다. {@link #resolveLabel(String)}
+     * <p>#773 S1b accounting 일마감 재검증 전용 service-to-service 경로였으나, #773 후속 벌크 전환 이후
+     * 프로덕션 미호출 경로다. 단건/벌크 parity 앵커, 운영 디버깅, 향후 단건 internal 소비 대비용으로
+     * 유지한다. {@link #resolveLabel(String)}
      * 3단 fallback(model_code/model_name exact→alias exact→LIKE 단건성) 판정을
      * {@link #lookupSummaryByLabelBulk(List)} 벌크와 공유하며, 단건은 그 판정을 예외로 변환한다
      * (#773 후속 슬라이스 — N+1 HTTP 제거를 위한 리팩터. 판정 로직 자체는 변경 없음).
@@ -250,11 +252,11 @@ public class ProductService {
      * 회계 라벨 목록을 일괄 해석한다 (#773 후속 — accounting N+1 HTTP 제거).
      *
      * <p>{@link #lookupSummaryByLabel(String)} 단건과 완전히 동일한 {@link #resolveLabel(String)}
-     * 판정 로직을 라벨마다 재사용하되, 미매칭/다의성/토큰추출실패를 예외로 던지는 대신
+     * 판정 로직을 라벨마다 재사용하되, 미매칭/다의성을 예외로 던지는 대신
      * {@link LabelResolutionResult#status()} 로 보존해 부분 성공(partial success) 계약을 따른다 —
      * 기존 {@code applicable-bulk}/{@code fixed-discount-rate-bulk} 와 동일 철학이다. blank
-     * 토큰(추출 실패)은 배치 전체 실패 대신 해당 라벨만 {@code NOT_FOUND} 로 반환한다(일마감 라벨에는
-     * 실제로 발생하지 않으나 방어적으로 부분 성공을 유지한다).
+     * 토큰(추출 실패)은 단건과 동일하게 배치 전체 {@code INVALID_INPUT} 으로 실패한다
+     * (순수 배치화 parity).
      *
      * <p>단건과 판정 로직을 100% 공유하므로 동일 라벨에 대해 단건/벌크 결과가 항상 일치한다(parity).
      *
@@ -275,7 +277,14 @@ public class ProductService {
         Map<String, LabelResolutionResult> results = new LinkedHashMap<>();
         for (String label : labels) {
             String key = label == null ? "" : label;
-            results.computeIfAbsent(key, k -> toLabelResolutionResult(resolveLabel(k)));
+            results.computeIfAbsent(key, k -> {
+                LabelResolution resolution = resolveLabel(k);
+                if (resolution.status() == LabelMatchStatus.BLANK_TOKEN) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "라벨에서 모델코드를 추출할 수 없습니다: " + k);
+                }
+                return toLabelResolutionResult(resolution);
+            });
         }
         return results;
     }
@@ -320,7 +329,8 @@ public class ProductService {
             case MATCHED -> new LabelResolutionResult(LabelResolutionResult.MATCHED,
                     resolution.product().getId(), resolution.product().getModelCode());
             case AMBIGUOUS -> new LabelResolutionResult(LabelResolutionResult.AMBIGUOUS, null, null);
-            case NOT_FOUND, BLANK_TOKEN -> new LabelResolutionResult(LabelResolutionResult.NOT_FOUND, null, null);
+            case NOT_FOUND -> new LabelResolutionResult(LabelResolutionResult.NOT_FOUND, null, null);
+            case BLANK_TOKEN -> throw new IllegalStateException("BLANK_TOKEN is handled before bulk conversion");
         };
     }
 

@@ -246,6 +246,49 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("일마감 detail 라벨 101건은 100/1 청크로 조회하고 두 번째 청크 결과를 병합한다")
+    void taxInvoiceDetailChunks101LabelsAndMergesSecondChunk() {
+        TaxInvoice ti = newIssued("TI-CHUNK", "청킹거래처", DATE);
+        List<String> labels = java.util.stream.IntStream.range(0, 101)
+                .mapToObj(i -> String.format("CHUNK-%03d [규격]", i))
+                .toList();
+        labels.forEach(label -> addLine(ti, label, BigDecimal.ONE, new BigDecimal("1000")));
+        recalcSnapshot(ti);
+
+        Map<String, UUID> productIdsByLabel = new LinkedHashMap<>();
+        labels.forEach(label -> productIdsByLabel.put(label, UUID.randomUUID()));
+        UUID secondChunkProductId = productIdsByLabel.get(labels.get(100));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenAnswer(invocation -> {
+            List<String> chunk = invocation.getArgument(0);
+            Map<String, ProductLabelMatch> matches = new LinkedHashMap<>();
+            for (String label : chunk) {
+                matches.put(label, ProductLabelMatch.matched(productIdsByLabel.get(label), label));
+            }
+            return matches;
+        });
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                secondChunkProductId,
+                new ApplicablePrice(new BigDecimal("2000"), new BigDecimal("1100"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                secondChunkProductId, new BigDecimal("45.00")));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<String>> labelsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(productClient, times(2)).resolveByLabelBulk(labelsCaptor.capture());
+        assertThat(labelsCaptor.getAllValues()).extracting(List::size).containsExactly(100, 1);
+
+        DailyClosingDetailResponse.DailyProductLine secondChunkLine =
+                findProductLine(resp, labels.get(100));
+        assertThat(secondChunkLine.releasePrice()).isEqualByComparingTo("2000");
+        assertThat(secondChunkLine.deliveryPrice()).isEqualByComparingTo("1100");
+    }
+
+    @Test
     @DisplayName("세금계산서 detail — 수량 0 그룹은 서비스 통합 경로에서도 NOT_MEASURABLE로 노출한다")
     void taxInvoiceDetailZeroQuantityIsNotMeasurable() {
         UUID matched = UUID.randomUUID();
