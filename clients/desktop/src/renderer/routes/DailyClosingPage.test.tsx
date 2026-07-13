@@ -264,5 +264,12 @@ describe('DailyClosingPage 모델별 재검증', () => {
       expect(screen.getByText(/통합 조회에서는 이력만 표시합니다/)).toBeTruthy()
     })
     expect(screen.queryByText('모델별 재검증')).toBeNull()
+    // ALL 은 detailQuery `enabled: closingKind !== 'ALL'` → 상세 조회 억제.
+    // 어떤 호출도 ALL 시그니처(kind/source=undefined)로 발생하지 않는다(Codex R2 지적).
+    expect(getDailyClosingDetailMock).not.toHaveBeenCalledWith(
+      expect.any(String),
+      undefined,
+      undefined,
+    )
   })
 })
