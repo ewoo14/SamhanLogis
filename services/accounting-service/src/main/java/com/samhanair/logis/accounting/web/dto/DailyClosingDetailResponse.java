@@ -48,6 +48,12 @@ public record DailyClosingDetailResponse(
             String productName,
             String modelName,
             BigDecimal quantity,
-            BigDecimal supplyAmount) {
+            BigDecimal supplyAmount,
+            BigDecimal releasePrice,
+            BigDecimal deliveryPrice,
+            Integer expectedRate,
+            Integer actualRate,
+            Boolean verified,
+            String revalidationStatus) {
     }
 }

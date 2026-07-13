@@ -2,10 +2,17 @@ package com.samhanair.logis.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
+import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
@@ -25,13 +32,18 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -53,6 +65,7 @@ class DailyClosingDetailServiceTest {
     @Mock private SlipServiceClient slipServiceClient;
     @Mock private TaxInvoiceRepository taxInvoiceRepository;
     @Mock private ProductClient productClient;
+    @Spy private DiscountRevalidator discountRevalidator = new DiscountRevalidator();
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private SalesAccountingSlipRepository salesAccountingSlipRepository;
     @Mock private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
@@ -60,6 +73,12 @@ class DailyClosingDetailServiceTest {
     @InjectMocks private MonthEndCloseService service;
 
     private static final LocalDate DATE = LocalDate.of(2026, 5, 10);
+
+    @BeforeEach
+    void setUpProductClientDefaults() {
+        lenient().when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of());
+        lenient().when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of());
+    }
 
     @Test
     @DisplayName("일별 detail — 세금계산서 합계 + 모델별 합계")
@@ -72,6 +91,8 @@ class DailyClosingDetailServiceTest {
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
+        when(productClient.resolveByLabel("에어컨")).thenReturn(ProductLabelMatch.notFound());
+        when(productClient.resolveByLabel("송풍기")).thenReturn(ProductLabelMatch.notFound());
 
         DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
 
@@ -85,6 +106,14 @@ class DailyClosingDetailServiceTest {
                 .filter(p -> "에어컨".equals(p.productName())).findFirst().orElseThrow();
         assertThat(에어컨Line.quantity()).isEqualByComparingTo("2");
         assertThat(에어컨Line.supplyAmount()).isEqualByComparingTo("1000000");
+        assertThat(에어컨Line.releasePrice()).isNull();
+        assertThat(에어컨Line.deliveryPrice()).isNull();
+        assertThat(에어컨Line.expectedRate()).isNull();
+        assertThat(에어컨Line.actualRate()).isNull();
+        assertThat(에어컨Line.verified()).isNull();
+        assertThat(에어컨Line.revalidationStatus()).isEqualTo("NOT_FOUND");
+        verify(productClient, never()).applicablePrices(anyList(), eq(DATE));
+        verify(productClient, never()).fixedDiscountRates(anyList());
     }
 
     @Test
@@ -97,6 +126,9 @@ class DailyClosingDetailServiceTest {
 
         assertThat(resp.totalTaxInvoiceCount()).isZero();
         assertThat(resp.productSummaries()).isEmpty();
+        verify(productClient, never()).resolveByLabel(org.mockito.ArgumentMatchers.anyString());
+        verify(productClient, never()).applicablePrices(anyList(), eq(DATE));
+        verify(productClient, never()).fixedDiscountRates(anyList());
     }
 
     @Test
@@ -107,10 +139,83 @@ class DailyClosingDetailServiceTest {
         recalcSnapshot(ti);
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
+        when(productClient.resolveByLabel("할인품목")).thenReturn(ProductLabelMatch.notFound());
 
         DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
 
         assertThat(resp.totalDiscount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("세금계산서 detail — 라벨 해소 후 referent bulk 1회 조회와 재검증 필드를 노출한다")
+    void taxInvoiceDetailRevalidatesWithBulkReferents() {
+        UUID matched = UUID.randomUUID();
+        UUID missingPrice = UUID.randomUUID();
+        UUID missingFixedRate = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-RV", "재검증거래처", DATE);
+        addLine(ti, "AJ040RXH4BC1 (RX다배관)", BigDecimal.ONE, new BigDecimal("55000"));
+        addLine(ti, "AJ050RXH5BC1 [5다배관]", BigDecimal.ONE, new BigDecimal("55000"));
+        addLine(ti, "AJ060MXHNBC1 [단배관]", BigDecimal.ONE, new BigDecimal("55000"));
+        addLine(ti, "AXJ-YA1509N [N-분기관]", BigDecimal.ONE, new BigDecimal("70000"));
+        addLine(ti, "AC023CN1DBC1 [CN냉전 실내기]", BigDecimal.ONE, new BigDecimal("80000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabel("AJ040RXH4BC1 (RX다배관)"))
+                .thenReturn(ProductLabelMatch.matched(matched, "AJ040RXH4BC1"));
+        when(productClient.resolveByLabel("AJ050RXH5BC1 [5다배관]"))
+                .thenReturn(ProductLabelMatch.matched(missingPrice, "AJ050RXH5BC1"));
+        when(productClient.resolveByLabel("AJ060MXHNBC1 [단배관]"))
+                .thenReturn(ProductLabelMatch.matched(missingFixedRate, "AJ060MXHNBC1"));
+        when(productClient.resolveByLabel("AXJ-YA1509N [N-분기관]"))
+                .thenReturn(ProductLabelMatch.notFound());
+        when(productClient.resolveByLabel("AC023CN1DBC1 [CN냉전 실내기]"))
+                .thenReturn(ProductLabelMatch.ambiguous());
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
+                missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+        Map<UUID, BigDecimal> fixedRates = new LinkedHashMap<>();
+        fixedRates.put(matched, new BigDecimal("45.00"));
+        fixedRates.put(missingPrice, null);
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(fixedRates);
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        DailyClosingDetailResponse.DailyProductLine verified = findProductLine(resp, "AJ040RXH4BC1 (RX다배관)");
+        assertThat(verified.releasePrice()).isEqualByComparingTo("100000");
+        assertThat(verified.deliveryPrice()).isEqualByComparingTo("70000");
+        assertThat(verified.expectedRate()).isEqualTo(45);
+        assertThat(verified.actualRate()).isEqualTo(45);
+        assertThat(verified.verified()).isTrue();
+        assertThat(verified.revalidationStatus()).isEqualTo("VERIFIED");
+
+        DailyClosingDetailResponse.DailyProductLine missing = findProductLine(resp, "AJ050RXH5BC1 [5다배관]");
+        assertThat(missing.revalidationStatus()).isEqualTo("MISSING_REFERENT");
+        assertThat(missing.verified()).isNull();
+        assertThat(missing.releasePrice()).isNull();
+
+        DailyClosingDetailResponse.DailyProductLine missingFixed =
+                findProductLine(resp, "AJ060MXHNBC1 [단배관]");
+        assertThat(missingFixed.revalidationStatus()).isEqualTo("MISSING_REFERENT");
+        assertThat(missingFixed.releasePrice()).isEqualByComparingTo("100000");
+        assertThat(missingFixed.verified()).isNull();
+
+        DailyClosingDetailResponse.DailyProductLine notFound = findProductLine(resp, "AXJ-YA1509N [N-분기관]");
+        assertThat(notFound.revalidationStatus()).isEqualTo("NOT_FOUND");
+        assertThat(notFound.verified()).isNull();
+
+        DailyClosingDetailResponse.DailyProductLine ambiguous = findProductLine(resp, "AC023CN1DBC1 [CN냉전 실내기]");
+        assertThat(ambiguous.revalidationStatus()).isEqualTo("AMBIGUOUS");
+        assertThat(ambiguous.verified()).isNull();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UUID>> idsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(productClient, times(5)).resolveByLabel(org.mockito.ArgumentMatchers.anyString());
+        verify(productClient, times(1)).applicablePrices(idsCaptor.capture(), eq(DATE));
+        assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
+        verify(productClient, times(1)).fixedDiscountRates(idsCaptor.capture());
+        assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
     }
 
     @Test
@@ -197,5 +302,14 @@ class DailyClosingDetailServiceTest {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    private static DailyClosingDetailResponse.DailyProductLine findProductLine(
+            DailyClosingDetailResponse response,
+            String productName) {
+        return response.productSummaries().stream()
+                .filter(line -> productName.equals(line.productName()))
+                .findFirst()
+                .orElseThrow();
     }
 }
