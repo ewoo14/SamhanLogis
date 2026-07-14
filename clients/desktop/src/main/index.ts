@@ -55,16 +55,18 @@ function createMainWindow(): void {
     autoHideMenuBar: true,
     title: 'Samhan Public',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      // ESM(.mjs) preload 로드 위해 sandbox 비활성 — 샌드박스 preload 는 CommonJS 만
-      // 허용하여 packaged(file://) 에서 "Cannot use import statement outside a module" 로
-      // preload 미로드 → white screen 이 됐음. contextIsolation/nodeIntegration 보안은 유지.
-      sandbox: false,
-      // [Phase 6 v4] webview tag 활성 — legacy estimate index.html 을 격리된
-      // 컨텍스트에서 로드하고 별도 preload (legacyShim.mjs) 가 google.script.run
-      // shim 을 주입한다. webview 자체는 contextIsolation 활성 + sandbox 분리.
+      // preload 를 CommonJS(.cjs) 로 빌드하여 sandbox 를 유지한다(#804/#817). 샌드박스
+      // preload 는 CommonJS 만 허용하므로 ESM(.mjs) preload 는 packaged(file://) 에서
+      // "Cannot use import statement outside a module" 로 미로드→white screen 이 됐다.
+      // 본 preload 는 contextBridge/ipcRenderer 만 사용해 샌드박스에서 정상 동작하며,
+      // sandbox:true 로 OS 렌더러 샌드박스(방어심층)도 유지한다.
+      sandbox: true,
+      // [Phase 6 v4] legacy estimate webview 는 폐기(EstimateLegacyWebviewPage 제거)됐고
+      // webviewTag·legacyShim(.cjs) 는 死 config 로 잔존. 재도입 시 부모 sandbox 와
+      // webview webPreferences 정합을 재검토해야 한다.
       webviewTag: true,
     },
   })

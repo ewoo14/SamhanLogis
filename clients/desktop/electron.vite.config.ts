@@ -42,8 +42,10 @@ export default defineConfig({
           legacyShim: resolve(__dirname, 'src/preload/legacyShim.ts'),
         },
         output: {
-          entryFileNames: '[name].mjs',
-          format: 'es',
+          // CommonJS(.cjs) 로 빌드 — 샌드박스 preload(sandbox:true) 는 ESM 을
+          // 로드하지 못하므로(#804/#817 white screen) CJS 로 출력해 sandbox 를 유지한다.
+          entryFileNames: '[name].cjs',
+          format: 'cjs',
         },
       },
     },
