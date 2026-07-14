@@ -26,6 +26,17 @@
 - 대시보드 일부 위젯 카드 "준비중" + 콘솔 500/403/503 — 백엔드 위젯 API warmup/권한(로컬 스택 서비스 준비상태). 코어 셸/라우팅/인증은 정상. 흰 화면과 무관.
 - 폰트 `ERR_FILE_NOT_FOUND`(Pretendard woff2) — 빌드 시 `/fonts/*.woff2` 미해석 경고(런타임 fallback). 선행 패키징 nuance, 흰 화면과 무관.
 
+## arologis-desktop 스윕 검증 (Codex 적대 라운드 HIGH)
+
+Codex 적대 리뷰가 `clients/arologis-desktop`도 동일 패턴(preload `.mjs`+sandbox:true·design-system prod dep)을 보유함을 적발 → 동형 CJS preload 전환 적용. 패키지 `win-unpacked` exe(`Arologis Desktop.exe`) 실 기동 검증:
+
+- **브릿지**: `typeof window.arologisAuth` = **object** (CJS preload 로드) · 예외 0
+- **렌더**: `location.hash`=**#/login** · heading "**아로로지스**" · "관리자 로그인" 폼(아이디/비밀번호/로그인) 정상 렌더 — white screen 아님
+- **산출물**: `out/preload/index.cjs`=`require("electron")` · `out/main/index.js`=`preload/index.cjs`+`sandbox:true`
+- 스샷: `03-arologis-packaged-login.png`
+
+**Sweep 완결**: Electron 클라이언트=desktop+arologis 2개뿐 · `.mjs`/`format:'es'` preload 잔존 0 · design-system prod dep 잔존 0.
+
 ## 회귀 가드
 
 `clients/desktop/src/main/packaging-invariants.test.ts` (vitest) — CI 가 `build:win` 을 실행하지 않는 사각을 소스 레벨에서 방어: `sandbox:true` 유지 · preload `.cjs` 경로 · `format:'cjs'` · `@samhan/design-system` devDependencies. (4 tests PASS)
