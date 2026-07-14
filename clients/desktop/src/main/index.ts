@@ -58,7 +58,10 @@ function createMainWindow(): void {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // ESM(.mjs) preload 로드 위해 sandbox 비활성 — 샌드박스 preload 는 CommonJS 만
+      // 허용하여 packaged(file://) 에서 "Cannot use import statement outside a module" 로
+      // preload 미로드 → white screen 이 됐음. contextIsolation/nodeIntegration 보안은 유지.
+      sandbox: false,
       // [Phase 6 v4] webview tag 활성 — legacy estimate index.html 을 격리된
       // 컨텍스트에서 로드하고 별도 preload (legacyShim.mjs) 가 google.script.run
       // shim 을 주입한다. webview 자체는 contextIsolation 활성 + sandbox 분리.
