@@ -99,6 +99,7 @@ function mapVehicleDetail(raw: RawVehicleDetail): VehicleDetail {
     routeLabel: deriveRouteLabel(stops),
     stopCount: stops.length,
     matchStatus: raw.status as VehicleMatchStatus,
+    matchSource: raw.matchSource,
     driverCode: raw.assignedDriverCode,
     vendorOrderId: raw.vendorOrderId,
     notifyResults: undefined,

@@ -31,7 +31,7 @@ describe('arologisDispatchDetail', () => {
           tonnage: 'TONNAGE_1',
           label: '상일+초월',
           assignedDriverCode: 'INSUNG-001',
-          matchSource: 'INSUNG_QUICK',
+          matchSource: 'EXTERNAL_INSUNG_QUICK',
           externalRefId: 'EXT-804',
           vendorOrderId: 'INSUNG-ORDER-804',
           status: 'ASSIGNED',
@@ -75,6 +75,7 @@ describe('arologisDispatchDetail', () => {
           routeLabel: '상일공조 → 초월공조',
           stopCount: 2,
           matchStatus: 'ASSIGNED',
+          matchSource: 'EXTERNAL_INSUNG_QUICK',
           driverCode: 'INSUNG-001',
           vendorOrderId: 'INSUNG-ORDER-804',
           notifyResults: undefined,
@@ -135,6 +136,7 @@ describe('arologisDispatchDetail', () => {
       routeLabel: '',
       stopCount: 0,
       matchStatus: 'NEW_STATUS',
+      matchSource: null,
       notifyResults: undefined,
       gpsSources: undefined,
     })
@@ -222,5 +224,49 @@ describe('arologisDispatchDetail', () => {
     // deprecated 톤수도 '기타' 아닌 실 라벨
     expect(mapped.vehicles[0]).toMatchObject({ tonnageLabel: '1.4톤', routeLabel: '', stopCount: 2 })
     expect(mapped.vehicles[1]).toMatchObject({ tonnageLabel: '대형', routeLabel: '가나공조', stopCount: 2 })
+  })
+
+  it('preserves non-Insung matchSource values so the UI can avoid false INSUNG badges', () => {
+    const raw: RawDispatchDetailResponse = {
+      dispatchId: 'dispatch-source',
+      dispatchDate: '2026-07-14',
+      dispatchType: 'DAY',
+      sandboxMode: false,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnage: 'TONNAGE_1',
+          label: null,
+          assignedDriverCode: 'DRV-KAKAO',
+          matchSource: 'EXTERNAL_KAKAO',
+          externalRefId: 'KAKAO-1',
+          vendorOrderId: null,
+          status: 'ASSIGNED',
+          stops: [],
+        },
+        {
+          sequence: 2,
+          tonnage: 'TONNAGE_1',
+          label: null,
+          assignedDriverCode: 'DRV-MANUAL',
+          matchSource: 'MANUAL',
+          externalRefId: null,
+          vendorOrderId: null,
+          status: 'ASSIGNED',
+          stops: [],
+        },
+      ],
+    }
+
+    const mapped = mapDispatchDetail(raw)
+
+    expect(mapped.vehicles[0]).toMatchObject({
+      matchStatus: 'ASSIGNED',
+      matchSource: 'EXTERNAL_KAKAO',
+    })
+    expect(mapped.vehicles[1]).toMatchObject({
+      matchStatus: 'ASSIGNED',
+      matchSource: 'MANUAL',
+    })
   })
 })

@@ -85,6 +85,8 @@ export interface VehicleDetail {
   stopCount: number
   /** 매칭 상태 */
   matchStatus: VehicleMatchStatus
+  /** 매칭 소스 — EXTERNAL_INSUNG_QUICK 일 때만 인성 vendor UI 를 표시한다. */
+  matchSource: string | null
   /**
    * 기사 코드 — INSUNG-{vendorDriverId} 형식.
    * UUID driverId 는 노출 금지.
@@ -455,6 +457,7 @@ function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
         {/* FE-1 + FE-4: VehicleMatchStatusBadge with vendorOrderId tooltip */}
         <VehicleMatchStatusBadge
           status={vehicle.matchStatus}
+          matchSource={vehicle.matchSource ?? undefined}
           driverCode={vehicle.driverCode ?? undefined}
           vendorOrderId={vehicle.vendorOrderId ?? undefined}
         />

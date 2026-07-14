@@ -33,6 +33,44 @@ describe('VehicleMatchStatusBadge', () => {
     expect(screen.getByText('매칭 완료')).not.toBeNull()
   })
 
+  it('EXTERNAL_INSUNG_QUICK ASSIGNED 만 INSUNG vendor pill 을 표시한다', () => {
+    render(
+      <VehicleMatchStatusBadge
+        status="ASSIGNED"
+        driverCode="INSUNG-001"
+        matchSource="EXTERNAL_INSUNG_QUICK"
+      />,
+    )
+
+    expect(screen.getByTestId('insung-vendor-badge')).not.toBeNull()
+  })
+
+  it('EXTERNAL_KAKAO ASSIGNED 는 INSUNG vendor pill 을 표시하지 않는다', () => {
+    render(
+      <VehicleMatchStatusBadge
+        status="ASSIGNED"
+        driverCode="KAKAO-001"
+        matchSource="EXTERNAL_KAKAO"
+      />,
+    )
+
+    expect(screen.queryByTestId('insung-vendor-badge')).toBeNull()
+    expect(screen.getByText('매칭 완료')).not.toBeNull()
+  })
+
+  it('MANUAL ASSIGNED 는 INSUNG vendor pill 을 표시하지 않는다', () => {
+    render(
+      <VehicleMatchStatusBadge
+        status="ASSIGNED"
+        driverCode="DRV-MANUAL"
+        matchSource="MANUAL"
+      />,
+    )
+
+    expect(screen.queryByTestId('insung-vendor-badge')).toBeNull()
+    expect(screen.getByText('매칭 완료')).not.toBeNull()
+  })
+
   it('DELIVERED 상태 — "배송 완료" 한국어 라벨 렌더', () => {
     render(
       <VehicleMatchStatusBadge status="DELIVERED" driverCode="INSUNG-001" />,
