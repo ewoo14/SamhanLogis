@@ -16,7 +16,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@samhan/design-system": "file:../web/design-system",
     "@tanstack/react-query": "^5.59.20",
     "axios": "^1.7.7",
     "electron-store": "^10.0.0",
@@ -27,6 +26,7 @@
     "zustand": "^5.0.1"
   },
   "devDependencies": {
+    "@samhan/design-system": "file:../web/design-system",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.13.0",

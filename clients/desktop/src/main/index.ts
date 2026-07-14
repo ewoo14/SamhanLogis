@@ -64,10 +64,10 @@ function createMainWindow(): void {
       // 본 preload 는 contextBridge/ipcRenderer 만 사용해 샌드박스에서 정상 동작하며,
       // sandbox:true 로 OS 렌더러 샌드박스(방어심층)도 유지한다.
       sandbox: true,
-      // [Phase 6 v4] legacy estimate webview 는 폐기(EstimateLegacyWebviewPage 제거)됐고
-      // webviewTag·legacyShim(.cjs) 는 死 config 로 잔존. 재도입 시 부모 sandbox 와
-      // webview webPreferences 정합을 재검토해야 한다.
-      webviewTag: true,
+      // [Phase 6 v4] legacy estimate webview 는 폐기(EstimateLegacyWebviewPage 제거)되어
+      // webviewTag 는 비활성화한다. 재도입 시 will-attach-webview 가드와 부모 sandbox /
+      // webview webPreferences 정합을 먼저 검증해야 한다.
+      webviewTag: false,
     },
   })
 

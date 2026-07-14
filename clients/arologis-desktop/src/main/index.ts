@@ -8,7 +8,8 @@
  * - 인증 토큰 IPC 채널 (`auth:*`) 등록 — preload 가 contextBridge 로 노출
  *
  * 보안 정책 (Samhan Public desktop 패턴 일치):
- * - contextIsolation: true / nodeIntegration: false / sandbox: true (preload 만 IPC 게이트웨이)
+ * - contextIsolation: true / nodeIntegration: false / sandbox: true
+ * - preload 는 sandbox:true 에서 로드 가능한 CommonJS(.cjs)만 사용
  *
  * Samhan Public desktop 과 차이:
  * - legacy estimate webview / 종합견적서 link 제거 (배차 도메인 전용).
@@ -66,7 +67,7 @@ function createMainWindow(): void {
     autoHideMenuBar: true,
     title: '아로로지스',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

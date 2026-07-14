@@ -4,6 +4,10 @@
  * 세 entry (main / preload / renderer) 분리. Samhan Public 의 desktop 패턴 복제이되
  * legacy webview / 종합견적서 IPC 는 제거 (배차 도메인 전용).
  *
+ * - main: Electron 메인 프로세스 ESM
+ * - preload: sandbox:true 에서 로드 가능한 CommonJS(.cjs)
+ * - renderer: React + Vite, ESM
+ *
  * `VITE_AROLOGIS_API_BASE` 환경변수가 axios baseURL 로 주입된다.
  * 예: production = `https://api.arologis.samhan-air.com`
  */
@@ -30,8 +34,10 @@ export default defineConfig({
           index: resolve(__dirname, 'src/preload/index.ts'),
         },
         output: {
-          entryFileNames: '[name].mjs',
-          format: 'es',
+          // 샌드박스 preload(sandbox:true)는 ESM(.mjs)을 로드하지 못하므로
+          // CommonJS(.cjs)로 출력해 packaged(file://) white-screen 회귀를 막는다.
+          entryFileNames: '[name].cjs',
+          format: 'cjs',
         },
       },
     },
