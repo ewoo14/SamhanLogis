@@ -8,12 +8,18 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -107,6 +113,37 @@ class NotificationClientTest {
         assertThat(outcome.status()).isEqualTo(ArologisNotifyStatus.FAILED);
         assertThat(outcome.errorCode()).isEqualTo("HTTP_500");
         server.verify();
+    }
+
+    @Test
+    @DisplayName("HTTP 오류 로그는 downstream 응답 body 안의 전화번호도 마스킹한다")
+    void sendDispatchSms_masks_phone_like_values_in_http_error_body_log() {
+        Logger logger = (Logger) LoggerFactory.getLogger(NotificationClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            server.expect(once(), requestTo(ENDPOINT))
+                    .andRespond(withStatus(HttpStatus.BAD_REQUEST)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body("""
+                                    {"recipientAddress":"010-1111-2222","message":"bad phone 01011112222"}
+                                    """));
+
+            NotificationSendOutcome outcome = client.sendDispatchSms("010-1111-2222", "제목", "본문");
+
+            assertThat(outcome.errorCode()).isEqualTo("HTTP_400");
+            assertThat(appender.list)
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .allSatisfy(message -> {
+                        assertThat(message).doesNotContain("010-1111-2222");
+                        assertThat(message).doesNotContain("01011112222");
+                    })
+                    .anySatisfy(message -> assertThat(message).contains("010-****-2222"));
+            server.verify();
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 
     private static String envelope(String status) {

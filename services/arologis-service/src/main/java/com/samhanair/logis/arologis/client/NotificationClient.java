@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -24,6 +26,8 @@ public class NotificationClient {
 
     private static final String SEND_PATH = "/internal/notifications/send";
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final Pattern PHONE_LIKE_PATTERN =
+            Pattern.compile("(?<!\\d)01[016789][- .]?\\d{3,4}[- .]?\\d{4}(?!\\d)");
 
     private final RestClient.Builder builder;
     private final String baseUrl;
@@ -75,7 +79,7 @@ public class NotificationClient {
         } catch (RestClientResponseException ex) {
             String code = "HTTP_" + ex.getStatusCode().value();
             log.warn("배차 매칭 SMS notification-service 응답 실패 - status={} body={}",
-                    ex.getStatusCode(), ex.getResponseBodyAsString());
+                    ex.getStatusCode(), maskPhoneLikeValues(ex.getResponseBodyAsString()));
             return new NotificationSendOutcome(true, ArologisNotifyStatus.FAILED, code);
         } catch (Exception ex) {
             log.warn("배차 매칭 SMS notification-service 호출 실패 (fail-soft) - msg={}", ex.getMessage());
@@ -125,6 +129,25 @@ public class NotificationClient {
             return phone;
         }
         return phone.substring(0, 3) + "-****-" + phone.substring(phone.length() - 4);
+    }
+
+    /**
+     * notification-service 오류 응답 body 안에 전화번호가 포함되어도 로그에는 마스킹해서 남긴다.
+     *
+     * @param body downstream 오류 응답 본문
+     * @return 전화번호 유사 값이 치환된 로그용 문자열
+     */
+    private static String maskPhoneLikeValues(String body) {
+        if (body == null || body.isBlank()) {
+            return body;
+        }
+        Matcher matcher = PHONE_LIKE_PATTERN.matcher(body);
+        StringBuilder masked = new StringBuilder();
+        while (matcher.find()) {
+            matcher.appendReplacement(masked, Matcher.quoteReplacement(maskPhone(matcher.group())));
+        }
+        matcher.appendTail(masked);
+        return masked.toString();
     }
 
     /** notification-service {@code ApiResponse<T>} 봉투의 부분 디코딩 (data 만 사용). */
