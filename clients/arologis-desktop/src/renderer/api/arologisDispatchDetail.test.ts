@@ -170,4 +170,57 @@ describe('arologisDispatchDetail', () => {
     })
     expect(mockedGet).toHaveBeenCalledWith('/admin/arologis/dispatches/dispatch%2F804')
   })
+
+  it('avoids orphan separator/arrow for empty or partial route endpoints and maps deprecated tonnages', () => {
+    const emptyStop = (sequence: number) => ({
+      sequence,
+      rawText: `-${sequence}`,
+      parsedAddress: null,
+      parsedPartnerName: null,
+      parsedKakaoSeq: null,
+      parsedPartnerCode: null,
+      notes: null,
+      status: 'PENDING',
+    })
+    const raw: RawDispatchDetailResponse = {
+      dispatchId: 'dispatch-edge',
+      dispatchDate: '2026-07-14',
+      dispatchType: 'NIGHT',
+      sandboxMode: false,
+      vehicles: [
+        {
+          // 양끝 stop 모두 미파싱 → routeLabel 빈 문자열(" → " 맨 화살표 없음)
+          sequence: 1,
+          tonnage: 'TONNAGE_1_4',
+          label: null,
+          assignedDriverCode: null,
+          matchSource: null,
+          externalRefId: null,
+          vendorOrderId: null,
+          status: 'PENDING',
+          stops: [emptyStop(1), emptyStop(2)],
+        },
+        {
+          // 첫 stop 만 파싱 → 유효 끝점만(맨 화살표 없음)
+          sequence: 2,
+          tonnage: 'TONNAGE_BIG',
+          label: null,
+          assignedDriverCode: null,
+          matchSource: null,
+          externalRefId: null,
+          vendorOrderId: null,
+          status: 'PENDING',
+          stops: [
+            { ...emptyStop(1), parsedPartnerName: '가나공조' },
+            emptyStop(2),
+          ],
+        },
+      ],
+    }
+
+    const mapped = mapDispatchDetail(raw)
+    // deprecated 톤수도 '기타' 아닌 실 라벨
+    expect(mapped.vehicles[0]).toMatchObject({ tonnageLabel: '1.4톤', routeLabel: '', stopCount: 2 })
+    expect(mapped.vehicles[1]).toMatchObject({ tonnageLabel: '대형', routeLabel: '가나공조', stopCount: 2 })
+  })
 })

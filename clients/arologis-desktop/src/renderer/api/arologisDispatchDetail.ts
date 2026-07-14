@@ -69,6 +69,10 @@ export const TONNAGE_LABEL: Record<string, string> = {
   TONNAGE_5: '5톤',
   TONNAGE_10: '10톤',
   TONNAGE_20: '20톤',
+  // deprecated(카톡 파싱 backward compat) — 실 저장 데이터가 보유할 수 있어 라벨 매핑 유지.
+  // ('기타' fallback 은 진짜 미지의 미래 확장값에만 적용되도록.)
+  TONNAGE_1_4: '1.4톤',
+  TONNAGE_BIG: '대형',
 }
 
 export const DISPATCH_TYPE_LABEL: Record<string, string> = {
@@ -111,8 +115,14 @@ function deriveRouteLabel(stops: RawStopDetail[]): string {
   const first = stops[0]
   const last = stops[stops.length - 1]
   if (!first || !last) return ''
-  if (stops.length === 1) return stopLabel(first)
-  return `${stopLabel(first)} → ${stopLabel(last)}`
+  const firstLabel = stopLabel(first)
+  const lastLabel = stopLabel(last)
+  if (stops.length === 1) return firstLabel
+  // 양끝 모두 파싱되면 "A → B", 한쪽만 파싱되면 유효 끝점만, 둘 다 비면 빈 문자열.
+  // (미파싱 정차는 카톡 skeleton 산출로 현실적 — 빈 routeLabel 은 헤더에서
+  //  " · " 구분자/맨 화살표 고아 렌더를 피하도록 조건부 생략된다.)
+  if (firstLabel && lastLabel) return `${firstLabel} → ${lastLabel}`
+  return firstLabel || lastLabel
 }
 
 function stopLabel(stop: RawStopDetail): string {

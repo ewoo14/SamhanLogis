@@ -34,12 +34,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 /**
- * Admin endpoint 시나리오 (9 case) — Phase 10 W10-1.
+ * Admin endpoint 시나리오 (13 case) — Phase 10 W10-1 + 후속 확장.
  *
  * <ol>
  *   <li>parse-kakao 정상 (사용자 카톡 예시 입력 → 13 차량 응답)</li>
@@ -51,10 +52,16 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  *   <li>assign-driver 미존재 driver → 404</li>
  *   <li>stop status 갱신 미존재 → 404</li>
  *   <li>drivers list 정상 → 200</li>
+ *   <li>dispatches/{id} GET → sandboxMode·vendorOrderId 직렬화 (계약 정합 #804)</li>
+ *   <li>… PR-E1/후속 시나리오 (총 13 tests, 대표 목록)</li>
  * </ol>
+ *
+ * <p>sandbox-mode 는 {@code @TestPropertySource} 로 true 고정 — 향후 전역 test 프로파일이
+ * false 로 바꿔도 본 IT 의 sandboxMode 기대값이 깨지지 않도록 명시 고정한다.
  */
 @SpringBootTest(classes = ArologisServiceApplication.class)
 @AutoConfigureMockMvc
+@TestPropertySource(properties = "samhan.arologis.matcher.insung-quick.sandbox-mode=true")
 class ArologisAdminControllerIT extends AbstractPostgresIT {
 
     private static final String ADMIN_ACCOUNT_ID = "10000000-0000-0000-0000-000000000401";

@@ -123,7 +123,7 @@ public record DispatchDetailResponse(
      * @param rawText 카톡 원본 라인
      * @param parsedAddress 파싱된 주소
      * @param parsedPartnerName 파싱된 사업자명
-     * @param parsedKakaoSeq 카톡 슬립번호 (Long, "(에스엠하나공조-214)" 의 214)
+     * @param parsedKakaoSeq 카톡 전표번호 (Long, "(에스엠하나공조-214)" 의 214)
      * @param parsedPartnerCode partner-service partner_code (String, 예: "P-2026-0001"). PR-E1 lookup 결과.
      * @param notes 특이사항
      * @param status 정차 상태
@@ -138,7 +138,7 @@ public record DispatchDetailResponse(
             String parsedAddress,
             @Schema(description = "파싱된 사업자명")
             String parsedPartnerName,
-            @Schema(description = "카톡 슬립번호")
+            @Schema(description = "카톡 전표번호")
             Long parsedKakaoSeq,
             @Schema(description = "partner-service partner_code")
             String parsedPartnerCode,

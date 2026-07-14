@@ -76,7 +76,8 @@ arologis-desktop `DispatchDetailPage`(SP-10-2 FE-1~4 완성)는 rich 뷰모델(`
 
 본 PR은 계약 정합만. 아래는 백엔드 데이터 자체가 미구현이라 별건(신규 이슈 발행):
 - **FE-3 알림 발송이력 백엔드**: 배차 알림 발송 시 dispatchId/vehicleId 상관저장 + notification-service 조회 client/endpoint + 채널(insung-talk/aligo)·상태(SUCCESS/FAILED/DELAYED) enum 매핑 계약 + DTO `notifyResults` 노출.
-- **FE-2 GPS 멀티소스 백엔드**: `driver_locations` 조회 repo 메서드 + vehicle(assignedDriverId↔driverId) 조인 + `DispatchDetailResponse` `gpsSources` 노출 + (Insung LBS는) EXTERNAL_INSUNG_LBS 위치피드 수집기(현재 Signature로만 유입·미cutover).
+- **FE-2 GPS 멀티소스 백엔드**: `driver_locations` 조회 repo 메서드 + vehicle(assignedDriverId↔driverId) 조인 + `DispatchDetailResponse` `gpsSources` 노출 + (Insung LBS는) EXTERNAL_INSUNG_LBS 위치피드 수집기(현재 Signature로만 유입·미cutover). **GPS 게이트 원복 필요**: 본 PR 은 `gpsSources` 데이터 유무로 패널을 게이팅(빈 shell 미노출)하나, FE-2 착수 시 게이트를 status(ASSIGNED/DELIVERED) 기준으로 되돌리고 empty 응답은 `InsungLbsPanel` 내 "위치 정보 없음" 으로 처리한다(현재 그 empty-state 경로가 dead path).
+- **FE 정차 상세 행 렌더 + routeLabel 정밀화**: 본 PR 은 정차를 `routeLabel`(첫→끝 stop)+`stopCount` 로 **요약만** 하고 wireframe §4 의 정차별 거래처/주소 행은 렌더하지 않는다(계약 정합 이전과 동일·회귀 아님). `routeLabel` 은 거래처명(`parsedPartnerName`) 기반이며 디자인 mock 의 지역명("서울→광주") 은 RegionClassifier 필요. 정차 상세 행 렌더·지역 토큰화·긴 거래처명 truncation(max-width/ellipsis) 은 후속 UX 슬라이스로 이연.
 
 ## 6. 테스트
 
@@ -85,10 +86,12 @@ arologis-desktop `DispatchDetailPage`(SP-10-2 FE-1~4 완성)는 rich 뷰모델(`
 
 ## 7. 라이브 QA
 
-Docker 실서버(mock OFF·:8080·arologis-desktop standalone 하네스 [[feedback_arologis_desktop_standalone_qa_harness]]). arologis-service jar 재배포 후 실 배차(dev 시드) 상세 진입 → **실 GUI 단계별 스샷**: 매칭배지 실 status 표시(placeholder "대기 중" 고정 해소)·톤수/경로/정차수 실값·주문번호 hover 툴팁·sandbox 배너(sandboxMode=true). GPS/알림 섹션 비표시 확증. dev 데이터 부족 시 투명 QA 시드+즉시 원복([[feedback_no_fake_data_ever]]).
+Docker 실서버(mock OFF)·arologis-desktop standalone 하네스([[feedback_arologis_desktop_standalone_qa_harness]]·`vite.renderer.dev.config.ts` 로 렌더러 단독 구동·apiClient 상대경로화 후 vite proxy 가 **arologis-service :8097 직노출**[게이트웨이 우회]로 통과). arologis-service jar 재배포 후 실 배차(dev 시드) 상세(`#/dispatches/detail/{dispatchCode}`) 진입 → **실 GUI 단계별 스샷**: 매칭배지 실 status 표시(placeholder "대기 중" 고정 해소)·톤수/경로/정차수 실값·주문번호 hover 툴팁·sandbox 배너(sandboxMode=true). GPS/알림 섹션 비표시 확증. dev 데이터 부족 시 투명 QA 시드+즉시 원복([[feedback_no_fake_data_ever]]).
+> ⚠️ **QA 하네스 프록시**: FE 상세 호출 경로를 `/admin/arologis/**`(sibling 정합)로 바꾸며 하네스 vite proxy 에 `^/admin/arologis/.*` passthrough 규칙을 추가함(기존 `^/api/arologis` rewrite 만으로는 신규 경로 미매칭 → false-RED). 프로덕션/Electron 은 무영향(arologis-service 직노출).
 
 ## 8. 범위 밖 (불변)
 - notifyResults/gpsSources **데이터 생성/노출**(§5 이연).
 - Insung LBS 실연동 cutover(sandbox HMAC 우회 단계).
 - externalRefId DTO 제거(별건 판단·본 PR은 additive 유지).
-- SP-10-2 라우팅/사이드바 링크(기존 vite rewrite·무변경).
+- SP-10-2 사이드바 링크·라우트 정의(무변경). ※ FE 상세 호출 경로만 `/api/arologis`→`/admin/arologis`(sibling 정합 FIX)로 변경되어 QA 하네스 vite proxy 에 `/admin/arologis` passthrough 규칙 추가(§7). 프로덕션 리버스프록시/게이트웨이 라우팅은 무변경.
+- 정차 상세 행 렌더·routeLabel 지역 토큰화·긴 이름 truncation(§5 이연).

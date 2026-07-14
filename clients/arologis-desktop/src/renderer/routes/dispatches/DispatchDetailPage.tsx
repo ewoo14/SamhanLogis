@@ -446,7 +446,9 @@ function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
               color:      'var(--color-neutral-500)',
             }}
           >
-            {vehicle.tonnageLabel} · {vehicle.routeLabel} (정차 {vehicle.stopCount})
+            {vehicle.routeLabel
+              ? `${vehicle.tonnageLabel} · ${vehicle.routeLabel} (정차 ${vehicle.stopCount})`
+              : `${vehicle.tonnageLabel} (정차 ${vehicle.stopCount})`}
           </span>
         </div>
 

@@ -57,4 +57,17 @@ class DispatchDetailResponseTest {
         assertThat(vehicleDetail.vendorOrderId()).isEqualTo("INSUNG-ORDER-804");
         assertThat(vehicleDetail.stops()).hasSize(1);
     }
+
+    @Test
+    void from_passes_sandboxMode_false_through() {
+        // sandboxMode 가 하드코딩(항상 true) 이 아니라 인자로 전달됨을 증명 —
+        // false 를 넣으면 응답도 false 여야 한다(컨트롤러는 config 값을 전달).
+        Dispatch dispatch = Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.DAY, "raw");
+        ReflectionTestUtils.setField(dispatch, "id", UUID.fromString("10000000-0000-0000-0000-000000008044"));
+
+        DispatchDetailResponse response = DispatchDetailResponse.from(
+                dispatch, List.of(), List.of(), Map.of(), false);
+
+        assertThat(response.sandboxMode()).isFalse();
+    }
 }

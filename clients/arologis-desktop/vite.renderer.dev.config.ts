@@ -33,6 +33,10 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/arologis/, '/admin/arologis'),
       },
+      // 렌더러 apiClient 가 `/admin/arologis/**` 를 직접 호출하는 경우(배차 상세 #804·
+      // 대다수 sibling 클라이언트) → arologis-service 실 엔드포인트로 rewrite 없이 통과.
+      // (src/renderer/api/*.ts 소스 모듈은 슬래시 없는 경로라 이 정규식에 안 걸린다.)
+      '^/admin/arologis/.*': { target: AROLOGIS_API, changeOrigin: true },
       // 인증 직접 경로 (bootstrap /auth/me·/auth/refresh 대비, rewrite 없이 통과)
       '^/auth/.*': { target: AROLOGIS_API, changeOrigin: true },
     },
