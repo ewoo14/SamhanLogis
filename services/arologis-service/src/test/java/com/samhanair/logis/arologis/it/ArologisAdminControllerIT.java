@@ -295,7 +295,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                         .contentType("application/json")
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.dispatchId").value(dispatch.getId().toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.dispatchId").doesNotExist())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.sequence").value("1"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.source").value("MANUAL"));
 

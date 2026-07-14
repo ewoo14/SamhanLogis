@@ -259,7 +259,6 @@ public class ArologisAdminController {
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
         dispatchService.recordManualLocation(id, seq, req.latitude(), req.longitude());
         return ApiResponse.ok(Map.of(
-                "dispatchId", id.toString(),
                 "sequence", seq.toString(),
                 "source", "MANUAL"));
     }

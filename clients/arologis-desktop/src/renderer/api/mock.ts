@@ -122,7 +122,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const manualLocationMatch = url.match(/^\/admin\/arologis\/dispatches\/([^/]+)\/vehicles\/(\d+)\/manual-location$/)
   if (method === 'post' && manualLocationMatch) {
     return envelope({
-      dispatchId: decodeURIComponent(manualLocationMatch[1] ?? ''),
       sequence: manualLocationMatch[2] ?? '',
       source: 'MANUAL',
     })

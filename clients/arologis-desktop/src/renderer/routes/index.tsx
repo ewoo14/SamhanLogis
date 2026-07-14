@@ -63,9 +63,10 @@ import {
  * - `isRefresh=true`(ManualLocationForm 저장 등 `onDataChanged` 트리거): 기존 데이터를
  *   유지한 채 백그라운드로만 재조회한다 — 매 수동 위치 저장마다 전체 화면이
  *   "불러오는 중..." 으로 깜빡이는 회귀를 방지한다.
- * - `activeCodeRef` 로 요청 시점의 dispatchCode 를 기록해두고, await 이후 현재
- *   활성 코드와 다르면 응답을 무시한다 — 네비게이션 도중 도착한 이전 dispatch 의
- *   in-flight 응답이 이후 dispatch 화면을 덮어쓰는 경합을 방지한다.
+ * - `activeCodeRef` + `requestSeqRef` 로 요청 시점의 dispatchCode 와 순번을 기록해두고,
+ *   await 이후 현재 활성 코드/최신 요청 순번과 다르면 응답을 무시한다 — 네비게이션 도중
+ *   도착한 이전 dispatch 응답과 같은 dispatchCode 의 이전 refresh 응답이 최신 화면을
+ *   덮어쓰는 경합을 방지한다.
  */
 function DispatchDetailRouteWrapper(): JSX.Element {
   // dispatchCode 는 라우팅 용도 전용 — 사용자 화면 노출 X (UUID 비공개 원칙 적용)
@@ -73,17 +74,21 @@ function DispatchDetailRouteWrapper(): JSX.Element {
   const [dispatch, setDispatch] = useState<DispatchDetail | null>(null)
   const [loadError, setLoadError] = useState<boolean>(false)
   const activeCodeRef = useRef<string | undefined>(undefined)
+  const requestSeqRef = useRef(0)
 
   const loadDetail = useCallback(async (isRefresh: boolean) => {
     if (!dispatchCode) {
       activeCodeRef.current = undefined
+      requestSeqRef.current += 1
       setDispatch(null)
       setLoadError(false)
       return
     }
 
     const requestCode = dispatchCode
+    const requestSeq = requestSeqRef.current + 1
     activeCodeRef.current = requestCode
+    requestSeqRef.current = requestSeq
 
     if (!isRefresh) {
       // 최초 진입/dispatchCode 변경 — 로딩 화면 표시.
@@ -94,11 +99,11 @@ function DispatchDetailRouteWrapper(): JSX.Element {
 
     try {
       const nextDispatch = await getDispatchDetail(requestCode)
-      if (activeCodeRef.current !== requestCode) return // stale 응답 — 이후 네비게이션으로 폐기
+      if (activeCodeRef.current !== requestCode || requestSeqRef.current !== requestSeq) return
       setDispatch(nextDispatch)
       setLoadError(false)
     } catch (err) {
-      if (activeCodeRef.current !== requestCode) return // stale 응답 — 이후 네비게이션으로 폐기
+      if (activeCodeRef.current !== requestCode || requestSeqRef.current !== requestSeq) return
       if (!isRefresh) {
         console.error('[DispatchDetailRouteWrapper] 배차 상세 조회 실패', err)
         setDispatch(null)
