@@ -9,7 +9,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * <ul>
  *   <li>{@code provider}: {@code mock} 또는 {@code insung-quick}</li>
  *   <li>{@code insungQuick.*}: 인성 퀵 vendor credential, sandbox, timeout</li>
- *   <li>{@code notify.*}: 알림 채널 분리. 배차 매칭은 aligo, 인성 알림톡은 향후 예약 채널</li>
+ *   <li>{@code notify.*}: <b>RESERVED(현재 미사용)</b> — 알림 vendor-채널 분리 설계 예약 필드.
+ *       실제 배차 매칭 알림은 {@code DispatchService} 가 aligo 채널로 하드코딩 발송한다.
+ *       상세는 {@link Notify} 참고 (PR #816 ③-B 리뷰 FIX 3)</li>
  *   <li>{@code gps.*}: GPS source 우선순위와 stale 기준</li>
  * </ul>
  */
@@ -23,7 +25,7 @@ public class ArologisMatcherProperties {
     /** 인성 퀵 vendor 설정. */
     private InsungQuick insungQuick = new InsungQuick();
 
-    /** 알림 채널 설정. */
+    /** 알림 채널 설정 — RESERVED(현재 미사용). {@link Notify} 참고. */
     private Notify notify = new Notify();
 
     /** GPS source 우선순위 설정. */
@@ -46,12 +48,21 @@ public class ArologisMatcherProperties {
         private int requestTimeoutMs = 5000;
     }
 
-    /** 알림 채널 분리 설정. */
+    /**
+     * 알림 채널 분리 설정 — <b>RESERVED(현재 미사용)</b>.
+     *
+     * <p>{@code dispatchChannel}/{@code inviteChannel} 은 {@code @ConfigurationProperties} 로
+     * 바인딩되고 환경변수로 override 가능하지만, 정작 이 값을 읽는 코드는 아직 없다.
+     * {@code DispatchService.sendAndRecordDispatchNotification} 이 배차 매칭 알림을 현재
+     * 알리고(ALIGO) 채널로 하드코딩 발송하기 때문이다. 인성데이타 알림톡 등 vendor 별 채널
+     * 실제 라우팅이 구현되는 시점(W10-2)까지, 설계 문서(samhan-dispatch-board)가 참조하는
+     * 예약 필드로 유지한다 — 삭제 금지 (PR #816 ③-B 리뷰 FIX 3).
+     */
     @Data
     public static class Notify {
-        /** 배차 완료/매칭 알림 채널 (aligo). */
+        /** 배차 완료/매칭 알림 채널 — RESERVED. 실제 발송은 DispatchService가 aligo로 하드코딩. */
         private String dispatchChannel = "aligo";
-        /** 기사 어플 설치 invite 알림 채널 (aligo). */
+        /** 기사 어플 설치 invite 알림 채널 — RESERVED. 아직 어떤 코드도 읽지 않는다. */
         private String inviteChannel = "aligo";
     }
 

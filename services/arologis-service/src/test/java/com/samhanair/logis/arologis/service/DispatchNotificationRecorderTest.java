@@ -1,6 +1,6 @@
 package com.samhanair.logis.arologis.service;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -20,7 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * DispatchNotificationRecorder 단위 테스트.
  *
- * <p>배차 매칭 본 트랜잭션을 오염시키지 않도록 독립 트랜잭션 선언과 fail-soft 저장 계약을 검증한다.
+ * <p>배차 매칭 본 트랜잭션을 오염시키지 않도록 독립 트랜잭션(REQUIRES_NEW) 선언을 검증하고,
+ * 저장 실패는 이 recorder 가 삼키지 않고 호출자에게 그대로 전파함을 검증한다
+ * (fail-soft 처리는 호출자 책임 — {@code DispatchService} 참고).
  */
 class DispatchNotificationRecorderTest {
 
@@ -56,11 +58,11 @@ class DispatchNotificationRecorderTest {
     }
 
     @Test
-    @DisplayName("알림 이력 저장 실패는 fail-soft로 삼킨다")
-    void record_swallows_repository_failure() {
+    @DisplayName("알림 이력 저장 실패는 삼키지 않고 호출자에게 전파한다")
+    void record_propagates_repository_failure_to_caller() {
         when(repository.save(any(DispatchNotification.class))).thenThrow(new IllegalStateException("db down"));
 
-        assertThatCode(() -> recorder.record(
+        assertThatThrownBy(() -> recorder.record(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 ArologisNotifyChannel.ALIGO,
@@ -68,6 +70,7 @@ class DispatchNotificationRecorderTest {
                 LocalDateTime.of(2026, 7, 14, 12, 0),
                 "010-1111-2222",
                 "HTTP_500"))
-                .doesNotThrowAnyException();
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("db down");
     }
 }

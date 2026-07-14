@@ -97,7 +97,6 @@ abstract class AbstractSignAndSendCopyIT extends AbstractPostgresIT {
         // 2. 무관 client mock (lenient — 테스트마다 사용 여부 다름)
         lenient().when(partnerClient.findByCodes(any())).thenReturn(List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
-        lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);

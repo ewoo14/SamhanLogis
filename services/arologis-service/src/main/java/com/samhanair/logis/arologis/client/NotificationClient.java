@@ -1,9 +1,9 @@
 package com.samhanair.logis.arologis.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -41,39 +41,6 @@ public class NotificationClient {
     }
 
     /**
-     * 기존 USER 대상 알림 발송 호환 메서드.
-     *
-     * @param recipientUserId 수신 user UUID
-     * @param channel notification-service 채널(PUSH/SMS/EMAIL)
-     * @param subject 제목
-     * @param body 본문
-     * @return notification-service 2xx 응답 여부. skeleton-mode 에서는 기존 호환을 위해 true.
-     */
-    public boolean send(UUID recipientUserId, String channel, String subject, String body) {
-        if (skeletonMode) {
-            log.debug("NotificationClient.send skeleton-mode - USER 알림 호출 생략 userId={} channel={}",
-                    recipientUserId, channel);
-            return true;
-        }
-        if (recipientUserId == null) {
-            log.warn("NotificationClient.send USER 수신자 누락 - 발송 생략");
-            return false;
-        }
-        try {
-            post(Map.of(
-                    "recipientType", "USER",
-                    "recipientId", recipientUserId.toString(),
-                    "channel", channel,
-                    "subject", safeTruncate(subject, 200),
-                    "body", safeTruncate(body, 2000)), String.class);
-            return true;
-        } catch (Exception ex) {
-            log.warn("NotificationClient.send 실패 - userId={}, msg={}", recipientUserId, ex.getMessage());
-            return false;
-        }
-    }
-
-    /**
      * 배차 매칭 기사 SMS를 알리고 채널로 발송한다.
      *
      * @param recipientPhone 기사 휴대폰 번호
@@ -83,7 +50,7 @@ public class NotificationClient {
      */
     public NotificationSendOutcome sendDispatchSms(String recipientPhone, String subject, String body) {
         if (skeletonMode) {
-            log.info("배차 매칭 SMS skeleton-mode - 실제 발송 미시도 phone={}", recipientPhone);
+            log.info("배차 매칭 SMS skeleton-mode - 실제 발송 미시도 phone={}", maskPhone(recipientPhone));
             return new NotificationSendOutcome(false, null, null);
         }
         if (recipientPhone == null || recipientPhone.isBlank()) {
@@ -147,7 +114,24 @@ public class NotificationClient {
         return value.length() > max ? value.substring(0, max) : value;
     }
 
+    /**
+     * 전화번호를 로그 노출용으로 마스킹한다 (D-DF-09 마스킹 규칙과 동일).
+     *
+     * @param phone 원본 전화번호
+     * @return 가운데 4자리를 {@code ****} 로 치환한 마스킹 번호. 형식이 짧으면 원본 그대로 반환
+     */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.length() < 8) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "-****-" + phone.substring(phone.length() - 4);
+    }
+
+    /** notification-service {@code ApiResponse<T>} 봉투의 부분 디코딩 (data 만 사용). */
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record NotificationSendEnvelope(NotificationSendData data) {}
 
+    /** notification-service 발송 응답 중 상태 필드만 미러링. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
     private record NotificationSendData(String status) {}
 }

@@ -66,7 +66,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  * <ul>
  *   <li>{@link PartnerClient} — skeleton-mode, lenient empty</li>
  *   <li>{@link SlipClient} — signature 등록 false (lenient)</li>
- *   <li>{@link NotificationClient} — send true (lenient)</li>
+ *   <li>{@link NotificationClient} — 본 IT는 수동 배정만 사용해 미호출 (stub 불필요, context 와이어링용)</li>
  *   <li>{@link SlipServiceClient} — 개별 테스트에서 stub 조정</li>
  * </ul>
  *
@@ -140,7 +140,6 @@ class P15ValidationIT extends AbstractPostgresIT {
         lenient().when(partnerClient.findByCodes(any())).thenReturn(List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
-        lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);

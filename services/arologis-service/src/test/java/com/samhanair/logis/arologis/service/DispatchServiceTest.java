@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -193,7 +194,7 @@ class DispatchServiceTest {
         verify(notificationClient).sendDispatchSms(
                 eq("010-1111-2222"),
                 eq("신규 배차 매칭"),
-                eq("차량 #1 (TONNAGE_1) 배정"));
+                eq("차량 #1 (1톤) 배정"));
         verify(dispatchNotificationRecorder).record(
                 eq(dispatchId),
                 eq(vehicle.getId()),
@@ -202,6 +203,32 @@ class DispatchServiceTest {
                 eq(LocalDateTime.now(FIXED_CLOCK)),
                 eq("010-1111-2222"),
                 isNull());
+    }
+
+    @Test
+    @DisplayName("알림 이력 기록이 예외를 던져도 fail-soft로 흡수되어 자동 매칭 결과와 배정은 유지된다")
+    void autoMatch_survives_when_notification_recorder_throws() throws Exception {
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        Driver driver = Driver.of("MOCK-005", "010-5555-6666", "1톤",
+                DriverSource.INTERNAL, true, null);
+        UUID driverId = UUID.randomUUID();
+        setId(driver, "id", driverId);
+        Vehicle vehicle = prepareAutoMatch(dispatchId, vehicleId, driver);
+        when(driverMatcher.match(any(), any()))
+                .thenReturn(DriverMatchResult.of(driver, MatchSource.INTERNAL_APP, "MOCK-eeee"));
+        when(notificationClient.sendDispatchSms(any(), any(), any()))
+                .thenReturn(new NotificationSendOutcome(true, ArologisNotifyStatus.SUCCESS, null));
+        doThrow(new IllegalStateException("db down"))
+                .when(dispatchNotificationRecorder)
+                .record(any(), any(), any(), any(), any(), any(), any());
+
+        DispatchService.AutoMatchResult result = service.autoMatch(dispatchId);
+
+        assertThat(result.totalVehicles()).isEqualTo(1);
+        assertThat(result.matched()).isEqualTo(1);
+        assertThat(vehicle.getStatus()).isEqualTo(VehicleStatus.ASSIGNED);
+        assertThat(vehicle.getAssignedDriverId()).isEqualTo(driverId);
     }
 
     @Test
@@ -242,7 +269,6 @@ class DispatchServiceTest {
 
         service.autoMatch(dispatchId);
 
-        verify(notificationClient, never()).send(any(), any(), any(), any());
         verify(dispatchNotificationRecorder, never()).record(any(), any(), any(), any(), any(), any(), any());
     }
 

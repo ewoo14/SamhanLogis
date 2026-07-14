@@ -43,6 +43,32 @@ public enum VehicleTonnage {
     TONNAGE_BIG;
 
     /**
+     * 톤수의 한국어 표시 라벨을 반환한다.
+     *
+     * <p>기사 대상 SMS 본문 등 외부 노출 텍스트에 raw enum 이름이 그대로 새어 나가지 않도록
+     * (PR #816 ③-B 리뷰 FIX 2) 사람이 읽을 수 있는 한국어 라벨로 변환한다. FE
+     * {@code TONNAGE_LABEL} (clients/arologis-desktop/src/renderer/api/arologisDispatchDetail.ts)
+     * 과 1:1 매칭되도록 유지한다. deprecated legacy 값({@link #TONNAGE_1_4}, {@link #TONNAGE_BIG})은
+     * UI 비노출 정책과 동일하게 "기타"로 fallback한다.
+     *
+     * @return 한국어 톤수 표시 라벨
+     */
+    public String getDisplayLabel() {
+        return switch (this) {
+            case MOTORCYCLE -> "오토바이";
+            case DAMAS -> "다마스";
+            case TONNAGE_1 -> "1톤";
+            case TONNAGE_1_5 -> "1.5톤";
+            case TONNAGE_2_5 -> "2.5톤";
+            case TONNAGE_3 -> "3톤";
+            case TONNAGE_5 -> "5톤";
+            case TONNAGE_10 -> "10톤";
+            case TONNAGE_20 -> "20톤";
+            case TONNAGE_1_4, TONNAGE_BIG -> "기타";
+        };
+    }
+
+    /**
      * "1" / "1.4" / "1.5" / "2.5" / "3" / "5" / "10" / "20" / "11" / "25" / "오토바이" / "다마스"
      * raw 톤수 문자열 → active enum.
      * 미해석 시 {@link #TONNAGE_1} 으로 fallback (skeleton 단계 — 수동 보정 의무).

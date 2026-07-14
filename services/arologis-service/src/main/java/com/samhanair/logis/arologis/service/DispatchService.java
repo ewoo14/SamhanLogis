@@ -125,7 +125,8 @@ public class DispatchService {
      * 모든 PENDING 차량을 matcher로 자동 매칭한다.
      *
      * <p>성공적으로 매칭된 차량은 기사 휴대폰 번호로 알리고 SMS를 발송한다. skeleton-mode처럼 실제
-     * 발송이 시도되지 않은 outcome은 이력을 남기지 않는다.
+     * 발송이 시도되지 않은 outcome은 이력을 남기지 않는다. 알림 이력 기록 실패는 fail-soft로 흡수되어
+     * 이미 완료된 매칭/배정을 포함한 이 batch 전체를 막지 않는다 (상세: {@link #sendAndRecordDispatchNotification}).
      */
     @Transactional
     public AutoMatchResult autoMatch(UUID dispatchId) {
@@ -160,6 +161,14 @@ public class DispatchService {
         return new AutoMatchResult(total, matched);
     }
 
+    /**
+     * 기사 SMS 발송을 시도하고, 실제 시도된 outcome만 알림 이력으로 기록한다.
+     *
+     * <p>{@code dispatchNotificationRecorder.record(...)} 는 REQUIRES_NEW 독립 트랜잭션이므로
+     * 저장 실패 시 그 트랜잭션만 롤백되고 예외가 이 메서드 호출자(자신)에게 전파된다. 이 메서드가
+     * 자동 매칭 batch({@link #autoMatch}) 안에서 호출되므로, 이력 기록 실패가 이미 완료된 배차
+     * 매칭/배정까지 되돌리지 않도록 이 지점에서 fail-soft 로 흡수한다.
+     */
     private void sendAndRecordDispatchNotification(UUID dispatchId, Vehicle vehicle, Driver driver) {
         String phoneNumber = driver.getPhoneNumber();
         if (phoneNumber == null || phoneNumber.isBlank()) {
@@ -171,21 +180,26 @@ public class DispatchService {
         NotificationSendOutcome outcome = notificationClient.sendDispatchSms(
                 phoneNumber,
                 "신규 배차 매칭",
-                "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage() + ") 배정");
+                "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage().getDisplayLabel() + ") 배정");
         if (outcome == null || !outcome.attempted()) {
             return;
         }
 
-        dispatchNotificationRecorder.record(
-                dispatchId,
-                vehicle.getId(),
-                ArologisNotifyChannel.ALIGO,
-                outcome.status(),
-                LocalDateTime.now(clock),
-                phoneNumber,
-                outcome.errorCode());
-        log.info("배차 매칭 알림 이력 기록 요청 - dispatchId={} vehicleSeq={} channel={} status={}",
-                dispatchId, vehicle.getSequence(), ArologisNotifyChannel.ALIGO, outcome.status());
+        try {
+            dispatchNotificationRecorder.record(
+                    dispatchId,
+                    vehicle.getId(),
+                    ArologisNotifyChannel.ALIGO,
+                    outcome.status(),
+                    LocalDateTime.now(clock),
+                    phoneNumber,
+                    outcome.errorCode());
+            log.info("배차 매칭 알림 이력 기록 완료 - dispatchId={} vehicleSeq={} channel={} status={}",
+                    dispatchId, vehicle.getSequence(), ArologisNotifyChannel.ALIGO, outcome.status());
+        } catch (Exception ex) {
+            log.warn("배차 매칭 알림 이력 기록 실패 (fail-soft) - dispatchId={} vehicleSeq={} msg={}",
+                    dispatchId, vehicle.getSequence(), ex.getMessage());
+        }
     }
 
     /** 수동으로 driverCode를 조회해 차량에 기사를 배정한다. */

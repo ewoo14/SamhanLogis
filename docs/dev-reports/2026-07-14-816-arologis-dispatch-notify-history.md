@@ -28,10 +28,15 @@
 ### FE (arologis-desktop)
 - `arologisDispatchDetail.ts` notifyResults 매핑·mock `channel:'aligo'`. `DispatchDetailPage` NotifyResultSection errorCode overflow 가드(ellipsis+title). maskPhone 주석 정정. (섹션 UI는 #804).
 
+## ⚠️ 설계 한계·QA 정직성 (③-B 재리뷰 확증 — feedback_no_fake_data_ever)
+
+- **DELAYED 현재 도달불가(예약)**: notification-service W3는 1회 시도(`NotificationGatewayResult.failure` retryable=false 하드코딩)·자동재시도 스케줄러/FE 폴링 부재. SMS(Aligo) 채널은 **SENT/FAILED 2상태만** 응답 → arologis `mapOutcome`의 RETRYING/PENDING→DELAYED는 방어적 dead-path. FE "응답 대기 중" 문구에서 "최대 30초 자동 재시도"류 구체 약속 제거. DELAYED 실배선은 W10-2 후속.
+- **dev 'SUCCESS'는 실 SMS 전달 증거 아님(stub)**: 로컬 스택은 arologis `skeleton-mode=false`(compose 기설정)이나 notification-service Aligo creds가 blank(SP-09 시크릿 정책·repo 미포함) → `AligoSmsAdapter.isPlaceholder()`가 **미발송 stub SUCCESS** 반환. 따라서 라이브 QA의 "발송 성공"은 **end-to-end 기록·렌더 경로 실증**이지 실 문자 전달 증거가 아님. 실 전달 검증은 실 Aligo creds 주입 시(별도). 이력 레코드 자체는 실 autoMatch 경로로 생성된 실데이터(조작 아님).
+
 ## 검증
 
-- **BE**: `--rerun-tasks --no-build-cache` BUILD SUCCESSFUL. **FE**: typecheck clean·50 tests. (권위 재검증·R1 재리뷰 진행)
-- _(라이브 QA — skeleton OFF 실 SMS 시도·NotifyResultSection GUI·리뷰 라운드에서)_
+- **BE**: `--rerun-tasks --no-build-cache` 575 tests·0 fail. **FE**: typecheck clean·50 tests. (③-B 재리뷰 fix 후 재검증)
+- **라이브 QA(예정)**: autoMatch 실행(또는 투명 시드) → notifyResults `[4]aligo` 렌더 GUI 스샷. **상태=stub SUCCESS 정직 표기**(위 한계).
 
 ## 리뷰 이력
 

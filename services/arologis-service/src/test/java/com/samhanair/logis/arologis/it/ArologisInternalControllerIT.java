@@ -54,7 +54,6 @@ class ArologisInternalControllerIT extends AbstractPostgresIT {
         lenient().when(partnerClient.findByCodes(any())).thenReturn(java.util.List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
-        lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
     }
 

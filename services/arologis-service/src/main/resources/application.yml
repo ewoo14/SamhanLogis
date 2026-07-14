@@ -85,9 +85,12 @@ samhan:
         # API 호출 타임아웃 (ms). 기본 5000ms.
         request-timeout-ms: ${SAMHAN_INSUNG_QUICK_TIMEOUT_MS:5000}
       notify:
-        # 배차 완료 알림 채널 (insung-talk | aligo). 기본 insung-talk.
-        dispatch-channel: ${SAMHAN_AROLOGIS_NOTIFY_DISPATCH_CHANNEL:insung-talk}
-        # 기사 어플 invite 채널 (aligo). 기본 aligo.
+        # RESERVED(현재 미사용) — vendor-채널 라우팅 설계 예약 필드. DispatchService 는 현재
+        # dispatch-channel/invite-channel 값을 읽지 않고 배차 매칭 알림을 aligo 로 하드코딩
+        # 발송한다. 인성데이타 알림톡 등 실제 vendor-채널 라우팅 구현(W10-2) 전까지 삭제 금지
+        # (PR #816 ③-B 리뷰 FIX 3). 하드코딩 현황과 일치시키기 위해 기본값도 aligo 로 통일.
+        dispatch-channel: ${SAMHAN_AROLOGIS_NOTIFY_DISPATCH_CHANNEL:aligo}
+        # 기사 어플 invite 채널 — 위와 동일하게 RESERVED. 기본 aligo.
         invite-channel: ${SAMHAN_AROLOGIS_NOTIFY_INVITE_CHANNEL:aligo}
       gps:
         priority: ${SAMHAN_AROLOGIS_GPS_PRIORITY:insung-lbs,app-gps,manual}

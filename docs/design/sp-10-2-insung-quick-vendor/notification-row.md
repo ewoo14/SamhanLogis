@@ -98,9 +98,9 @@ DispatchDetailPage — vehicle row + 알림톡 row 레이아웃
 | `insung-talk` | **인성 알림톡** | `--color-insung-*` (SP-10-2 신규) |
 | `aligo` | **Aligo SMS** | `--color-aligo-*` (SP-09-2 기존) |
 
-- `samhan.arologis.notify.dispatch-channel=insung-talk` → "인성 알림톡" row 표시
-- `samhan.arologis.notify.invite-channel=aligo` → "Aligo SMS" row 표시
-- 두 channel 모두 표시 가능 (배차 단계 + 기사 invite 분리 — §7 도메인 매트릭스 일관)
+- `samhan.arologis.notify.dispatch-channel` / `invite-channel` — **예약(현재 미배선)**. `ArologisMatcherProperties.Notify`에 존재하나 코드에서 읽지 않는다.
+- **#816 ③-B(2026-07-15) 현행**: 배차 매칭 알림은 **`ALIGO`(실 aligo SMS·기사 전화번호)로 하드코딩 발송**(notification-service `EXTERNAL_PHONE`/`SMS` 기존 엔드포인트). "인성 알림톡"(`insung-talk`) row는 실 인성 알림톡 벤더 통합(W10-2) 시점까지 **예약**. 위 §3 표의 `insung-talk`는 예약 라벨.
+- 두 channel row 분리(배차 단계 + 기사 invite)는 W10-2 실 벤더 발송 배선 후 활성.
 
 ---
 

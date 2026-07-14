@@ -145,6 +145,36 @@ const CHANNEL_BADGE_STYLE: Record<NotifyChannel, React.CSSProperties> = {
 }
 
 // ---------------------------------------------------------------------------
+// 알림 발송 실패 사유 한국어화 (#816 BE NotificationClient 실 에러코드)
+// ---------------------------------------------------------------------------
+
+/**
+ * 고정 실패 사유 코드 → 한국어 메시지.
+ * HTTP_{status} 코드는 접두사 매칭으로 동적 처리 (toKoreanErrorMessage 참고).
+ */
+const NOTIFY_ERROR_CODE_KO: Record<string, string> = {
+  TOKEN_MISSING:    '설정 오류 — 관리자 문의',
+  PHONE_MISSING:    '수신 번호 없음',
+  CLIENT_EXCEPTION: '발송 서버 연결 오류',
+  SEND_FAILED:      '발송 실패 — 잠시 후 재시도',
+  INVALID_RESPONSE: '발송 응답 오류',
+}
+
+/**
+ * 알림 발송 실패 errorCode → 한국어 사용자 메시지 변환.
+ * 원본 코드는 화면에 그대로 노출하지 않는다 (title tooltip 전용 — ops 디버깅 목적).
+ */
+function toKoreanErrorMessage(errorCode: string): string {
+  if (errorCode.includes('NOT_CONFIGURED') || errorCode.includes('API_KEY')) {
+    return '설정 오류 — 관리자 문의'
+  }
+  if (errorCode.startsWith('HTTP_')) {
+    return `발송 서버 오류 (${errorCode})`
+  }
+  return NOTIFY_ERROR_CODE_KO[errorCode] ?? '알 수 없는 오류'
+}
+
+// ---------------------------------------------------------------------------
 // 알림 발송 상태 chip
 // ---------------------------------------------------------------------------
 
@@ -175,11 +205,9 @@ function NotifyStatusChip({ status, errorCode }: NotifyStatusChipProps): JSX.Ele
     )
   }
   if (status === 'FAILED') {
-    // INSUNG_QUICK_NOT_CONFIGURED 등 설정 오류 코드 → "설정 오류" 로 치환
-    const safeErrorCode =
-      errorCode?.includes('NOT_CONFIGURED') || errorCode?.includes('API_KEY')
-        ? '설정 오류 — 관리자 문의'
-        : errorCode ?? '알 수 없는 오류'
+    // BE 실 에러코드(TOKEN_MISSING/PHONE_MISSING/HTTP_*/CLIENT_EXCEPTION/SEND_FAILED/
+    // INVALID_RESPONSE 등) → 한국어 사용자 메시지로 치환. 원본 코드는 title tooltip 전용.
+    const safeErrorCode = errorCode ? toKoreanErrorMessage(errorCode) : '알 수 없는 오류'
 
     return (
       <span
@@ -200,10 +228,10 @@ function NotifyStatusChip({ status, errorCode }: NotifyStatusChipProps): JSX.Ele
         {errorCode && (
           <span
             data-testid="notification-fail-reason"
-            title={safeErrorCode}
+            title={errorCode}
             style={{
               fontSize:     'var(--font-size-xs)',
-              color:        'var(--color-danger-600)',
+              color:        'var(--color-danger-700)',
               marginLeft:   4,
               maxWidth:     180,
               overflow:     'hidden',
@@ -366,7 +394,7 @@ function NotifyResultSection({ notifyResults }: NotifyResultSectionProps): JSX.E
                   marginLeft: 4,
                 }}
               >
-                응답 대기 중 (최대 30초 후 자동 재시도)
+                응답 대기 중
               </span>
             )}
           </div>

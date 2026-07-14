@@ -105,7 +105,6 @@ class DispatchAdminV1ControllerIT extends AbstractPostgresIT {
         lenient().when(partnerClient.findByCodes(any())).thenReturn(java.util.List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
-        lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
         // SP-D3 lenient stub — canView=true, canEdit=true 기본값 (기존 IT 회귀 0건 보장)
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);

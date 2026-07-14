@@ -95,7 +95,6 @@ class SignatureIntegrationIT extends AbstractPostgresIT {
         // 외부 client mock — IT 외부 client @MockBean 격리 의무 가드 (PR #17 회고)
         lenient().when(partnerClient.findByCodes(any())).thenReturn(List.of());
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
-        lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of());
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);

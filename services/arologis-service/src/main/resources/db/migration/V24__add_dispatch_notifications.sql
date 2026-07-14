@@ -3,8 +3,8 @@
 -- 배차 상세 화면에 필요한 channel/status/수신자 스냅샷만 arologis 가 보관한다.
 CREATE TABLE dispatch_notifications (
     id               UUID         PRIMARY KEY,
-    dispatch_id      UUID         NOT NULL,
-    vehicle_id       UUID         NOT NULL,
+    dispatch_id      UUID         NOT NULL REFERENCES dispatches(id),
+    vehicle_id       UUID         NOT NULL REFERENCES vehicles(id),
     channel          VARCHAR(30)  NOT NULL,
     status           VARCHAR(20)  NOT NULL,
     sent_at          TIMESTAMP    NOT NULL,

@@ -160,7 +160,7 @@ describe('DispatchDetailPage', () => {
               status: 'FAILED',
               sentAt: '2026-07-12T10:30:00',
               recipientPhone: '010-1111-2222',
-              errorCode: 'ALIGO_VENDOR_ERROR_WITH_LONG_DETAIL',
+              errorCode: 'HTTP_500',
             },
           ],
         },
@@ -173,7 +173,58 @@ describe('DispatchDetailPage', () => {
     expect(screen.queryByTestId('channel-badge-aligo')).not.toBeNull()
     expect(screen.queryByTestId('notification-status-chip-failed')).not.toBeNull()
     expect(screen.queryByTestId('notification-masked-phone')?.textContent).toBe('010-XXXX-2222')
-    expect(screen.queryByTestId('notification-fail-reason')?.getAttribute('title'))
-      .toBe('ALIGO_VENDOR_ERROR_WITH_LONG_DETAIL')
+    // FIX2 (#819 ③-B re-review): 원본 errorCode 는 노출하지 않고 한국어 메시지로 치환,
+    // 원본 코드는 title tooltip 에만 보존 (ops 디버깅용).
+    const failReason = screen.queryByTestId('notification-fail-reason')
+    expect(failReason?.textContent).toBe('(발송 서버 오류 (HTTP_500))')
+    expect(failReason?.getAttribute('title')).toBe('HTTP_500')
+  })
+
+  it('errorCode 가 TOKEN_MISSING/PHONE_MISSING 등 BE 실 코드일 때 한국어 메시지로 치환한다', () => {
+    const buildDispatch = (errorCode: string): DispatchDetail => ({
+      id: 'dispatch-id',
+      dispatchDate: '2026-07-12',
+      dispatchTypeLabel: '일반',
+      sandboxMode: false,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnageLabel: '1톤',
+          routeLabel: '서울 -> 인천',
+          stopCount: 2,
+          matchStatus: 'ASSIGNED',
+          matchSource: 'INTERNAL_APP',
+          driverCode: 'DRV-001',
+          vendorOrderId: null,
+          gpsSources: [],
+          notifyResults: [
+            {
+              channel: 'aligo',
+              status: 'FAILED',
+              sentAt: '2026-07-12T10:30:00',
+              recipientPhone: '010-1111-2222',
+              errorCode,
+            },
+          ],
+        },
+      ],
+    })
+
+    const cases: Array<[string, string]> = [
+      ['TOKEN_MISSING', '(설정 오류 — 관리자 문의)'],
+      ['PHONE_MISSING', '(수신 번호 없음)'],
+      ['CLIENT_EXCEPTION', '(발송 서버 연결 오류)'],
+      ['SEND_FAILED', '(발송 실패 — 잠시 후 재시도)'],
+      ['INVALID_RESPONSE', '(발송 응답 오류)'],
+      ['UNKNOWN_WEIRD_CODE', '(알 수 없는 오류)'],
+    ]
+
+    for (const [errorCode, expectedText] of cases) {
+      const { unmount } = render(<DispatchDetailPage dispatch={buildDispatch(errorCode)} />)
+      const failReason = screen.queryByTestId('notification-fail-reason')
+      expect(failReason?.textContent).toBe(expectedText)
+      expect(failReason?.getAttribute('title')).toBe(errorCode)
+      unmount()
+    }
   })
 })

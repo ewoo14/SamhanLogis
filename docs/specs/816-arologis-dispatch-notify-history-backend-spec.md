@@ -64,7 +64,7 @@ Opus 기획(본 spec·완료) → **개발책임자 결정①②③ 확정** →
 - **실 발송**: `autoMatch` 매칭 성공 시 **기사 전화번호로 aligo SMS**(배차 매칭 알림) 발송 — notification-service 기존 `POST /internal/notifications/send`(recipientType=`EXTERNAL_PHONE`·channel=`SMS`·recipientAddress=phone·AligoSmsAdapter). **appUserId 게이트 제거**(phone 기반이라 전 기사 도달). notification-service **무변경**(기존 엔드포인트 정상 사용).
 - **wire body 정정**: 기존 `{recipientUserId,...}`(recipientType 누락→400)를 `{recipientType:EXTERNAL_PHONE, recipientAddress:phone, channel:SMS, subject, body}`로 정정.
 - **채널 = ALIGO**(정확·SMS). INSUNG_TALK는 실 인성 알림톡 벤더(W10-2) 시점 예약.
-- **정직 상태**: notification-service 응답 상태 매핑(SENT→SUCCESS·FAILED→FAILED·RETRYING/PENDING→DELAYED). **skeleton-mode 시 실 미발송 → 미기록(또는 비-SUCCESS)**·조작 SUCCESS 금지. 라이브 QA=skeleton OFF(실 발송 시도·dev Aligo placeholder creds라 상태 정직 반영).
+- **상태 매핑**: notification-service 응답 SENT→SUCCESS·FAILED→FAILED. **skeleton-mode 시 실 미발송 → 미기록**(attempted=false·arologis 조작 SUCCESS 금지). ⚠️ **재리뷰 정정**: (1) **DELAYED 현 도달불가**(notification-service W3=1회 시도·retryable=false·SMS 채널은 SENT/FAILED만·DELAYED는 W10-2 예약). (2) **dev 'SUCCESS'=stub**: 로컬은 arologis skeleton=false이나 notification-service Aligo creds blank → `AligoSmsAdapter`가 미발송 stub SUCCESS 반환. 라이브 QA "성공"은 **end-to-end 기록·렌더 경로 실증**이며 실 문자 전달 증거 아님(실 creds 주입 시 별도). 레코드는 실 autoMatch 경로 실데이터.
 - **R1 fix 동반**: tx 격리(REQUIRES_NEW recorder)·raw phone BE 마스킹·errorCode overflow 가드·populated-case 테스트·미사용 복합 인덱스 제거.
 
 ## (참고) 초기 옵션 제시 — 개발책임자 확정 요청
