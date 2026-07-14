@@ -31,5 +31,15 @@
 | GPS/알림 비표시 | 패널 0·행 0 |
 | QA 하네스 proxy(/admin/arologis) | GET 200(false-RED 해소 실증) |
 
+## R2 (Codex 적대검증 fix) — matchSource INSUNG pill 오표시 해소
+Codex 적대검증이 발굴한 HIGH: 어댑터가 `matchSource` 를 버려 `VehicleMatchStatusBadge` 가 source 무관하게 MATCHING/ASSIGNED 면 "INSUNG" pill 표시 → 비-인성 배정 오표시. fix 후 라이브 재캡처(500dc0d7):
+- 차량1 **EXTERNAL_INSUNG_QUICK** → INSUNG pill **유지**(정상)
+- 차량2 **EXTERNAL_KAKAO** → INSUNG pill **제거**(수정)
+- DOM: insung-vendor-badge **2→1**(before 01 = 둘 다 pill / after 03 = 1개)
+
+![matchSource fix](03-matchsource-insung-pill-fix.png)
+
+**before(01)**: 차량2(EXTERNAL_KAKAO)도 INSUNG pill 오표시 / **after(03)**: 차량1(인성)만 pill. 실 match_source(EXTERNAL_INSUNG_QUICK 14·INTERNAL_APP 14·EXTERNAL_KAKAO 13·null 15)로 확증.
+
 ## 투명 QA 시드 (실데이터 규율)
 - dev 배차엔 vendor_order_id 전무(Insung 매칭 sandbox) → FE-4 툴팁 실증 위해 1차량에 `QA-INSUNG-804` 일시 UPDATE → 캡처 → **즉시 NULL 롤백**(잔재 0 확인). 합성/fixture 아님(실 서버·실 DB·실 렌더).
