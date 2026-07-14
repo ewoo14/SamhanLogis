@@ -13,6 +13,7 @@ import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient.OutboundSlipSummary;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
+import com.samhanair.logis.arologis.domain.MatchSource;
 import com.samhanair.logis.arologis.domain.StopStatus;
 import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.domain.VehicleStop;
@@ -184,6 +185,8 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                 Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "804 detail"));
         Vehicle vehicle = vehicleRepository.save(
                 Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일+초월"));
+        // matchSource=EXTERNAL_INSUNG_QUICK 배정 — FE INSUNG pill 게이팅 계약을 e2e 자동 고정(F1-QA).
+        vehicle.assignDriver(UUID.randomUUID(), MatchSource.EXTERNAL_INSUNG_QUICK, "EXT-REF-804");
         vehicle.updateVendorOrderId("INSUNG-ORDER-804");
         vehicleRepository.save(vehicle);
         stopRepository.save(VehicleStop.of(
@@ -202,7 +205,9 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.sandboxMode").value(true))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].vendorOrderId")
-                        .value("INSUNG-ORDER-804"));
+                        .value("INSUNG-ORDER-804"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].matchSource")
+                        .value("EXTERNAL_INSUNG_QUICK"));
     }
 
     @Test

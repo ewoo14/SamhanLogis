@@ -173,7 +173,7 @@ describe('arologisDispatchDetail', () => {
     expect(mockedGet).toHaveBeenCalledWith('/admin/arologis/dispatches/dispatch%2F804')
   })
 
-  it('avoids orphan separator/arrow for empty or partial route endpoints and maps deprecated tonnages', () => {
+  it('avoids orphan separator/arrow for empty or partial route endpoints and falls back deprecated tonnages to 기타', () => {
     const emptyStop = (sequence: number) => ({
       sequence,
       rawText: `-${sequence}`,
@@ -221,9 +221,10 @@ describe('arologisDispatchDetail', () => {
     }
 
     const mapped = mapDispatchDetail(raw)
-    // deprecated 톤수도 '기타' 아닌 실 라벨
-    expect(mapped.vehicles[0]).toMatchObject({ tonnageLabel: '1.4톤', routeLabel: '', stopCount: 2 })
-    expect(mapped.vehicles[1]).toMatchObject({ tonnageLabel: '대형', routeLabel: '가나공조', stopCount: 2 })
+    // deprecated 톤수(TONNAGE_1_4/BIG)는 BE VehicleTonnage "UI 노출 금지" 사전결정에 따라 '기타' fallback.
+    // routeLabel: 양끝 미파싱→''(고아 화살표 없음)·한쪽만 파싱→유효 끝점만.
+    expect(mapped.vehicles[0]).toMatchObject({ tonnageLabel: '기타', routeLabel: '', stopCount: 2 })
+    expect(mapped.vehicles[1]).toMatchObject({ tonnageLabel: '기타', routeLabel: '가나공조', stopCount: 2 })
   })
 
   it('preserves non-Insung matchSource values so the UI can avoid false INSUNG badges', () => {

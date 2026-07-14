@@ -69,10 +69,9 @@ export const TONNAGE_LABEL: Record<string, string> = {
   TONNAGE_5: '5톤',
   TONNAGE_10: '10톤',
   TONNAGE_20: '20톤',
-  // deprecated(카톡 파싱 backward compat) — 실 저장 데이터가 보유할 수 있어 라벨 매핑 유지.
-  // ('기타' fallback 은 진짜 미지의 미래 확장값에만 적용되도록.)
-  TONNAGE_1_4: '1.4톤',
-  TONNAGE_BIG: '대형',
+  // deprecated(TONNAGE_1_4/TONNAGE_BIG)은 BE VehicleTonnage Javadoc "UI 노출 금지" 사전결정에
+  // 따라 라벨 매핑하지 않는다 → labelOf '기타' fallback(레거시 저장분 한정·신규 파싱은 미생성).
+  // 레거시 톤수 표시 정책(정규화 vs 실라벨)은 개발책임자 확인 후 조정 여지.
 }
 
 export const DISPATCH_TYPE_LABEL: Record<string, string> = {

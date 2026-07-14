@@ -53,6 +53,9 @@ class DispatchDetailResponseTest {
         assertThat(response.vehicles()).hasSize(1);
         DispatchDetailResponse.VehicleDetail vehicleDetail = response.vehicles().get(0);
         assertThat(vehicleDetail.assignedDriverCode()).isEqualTo("INSUNG-001");
+        // matchSource 계약 auto-guard — FE 가 'EXTERNAL_INSUNG_QUICK' 문자열로 INSUNG pill 게이팅하므로
+        // enum 값이 유지됨을 고정(rename/직렬화 변경 시 무성 회귀 방지·R2/R3 리뷰 F1-QA).
+        assertThat(vehicleDetail.matchSource()).isEqualTo(MatchSource.EXTERNAL_INSUNG_QUICK);
         assertThat(vehicleDetail.externalRefId()).isEqualTo("EXT-804");
         assertThat(vehicleDetail.vendorOrderId()).isEqualTo("INSUNG-ORDER-804");
         assertThat(vehicleDetail.stops()).hasSize(1);

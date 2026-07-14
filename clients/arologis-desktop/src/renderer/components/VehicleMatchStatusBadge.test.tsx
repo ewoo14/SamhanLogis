@@ -119,4 +119,65 @@ describe('VehicleMatchStatusBadge', () => {
 
     expect(screen.queryByTestId('vehicle-match-status-badge')).not.toBeNull()
   })
+
+  // matchSource gating (R2 HIGH + R3 F-new-1) — pill / 서브텍스트 / 툴팁 / aria 4개 표식 대칭 검증
+  it('MATCHING + EXTERNAL_INSUNG_QUICK 는 INSUNG pill 과 인성 서브텍스트를 표시한다', () => {
+    render(
+      <VehicleMatchStatusBadge status="MATCHING" matchSource="EXTERNAL_INSUNG_QUICK" />,
+    )
+
+    expect(screen.getByTestId('insung-vendor-badge')).not.toBeNull()
+    expect(screen.getByText('인성 퀵프로그램 기사 배정 중')).not.toBeNull()
+  })
+
+  it('MATCHING + 비-인성(EXTERNAL_KAKAO)은 INSUNG pill 없이 중립 서브텍스트(인성 문구 누출 방지)', () => {
+    render(
+      <VehicleMatchStatusBadge status="MATCHING" matchSource="EXTERNAL_KAKAO" />,
+    )
+
+    expect(screen.queryByTestId('insung-vendor-badge')).toBeNull()
+    expect(screen.getByText('기사 배정 중')).not.toBeNull()
+    expect(screen.queryByText('인성 퀵프로그램 기사 배정 중')).toBeNull()
+  })
+
+  it('vendorOrderId 툴팁은 EXTERNAL_INSUNG_QUICK 에만 노출한다', () => {
+    render(
+      <VehicleMatchStatusBadge
+        status="ASSIGNED"
+        driverCode="INSUNG-001"
+        matchSource="EXTERNAL_INSUNG_QUICK"
+        vendorOrderId="VO-804"
+      />,
+    )
+
+    const title = screen.getByTestId('vehicle-match-status-badge').getAttribute('title')
+    expect(title).toContain('인성 주문 ID')
+  })
+
+  it('비-인성(EXTERNAL_KAKAO)은 vendorOrderId 가 있어도 인성 주문 툴팁을 노출하지 않는다', () => {
+    render(
+      <VehicleMatchStatusBadge
+        status="ASSIGNED"
+        driverCode="KAKAO-001"
+        matchSource="EXTERNAL_KAKAO"
+        vendorOrderId="VO-804"
+      />,
+    )
+
+    expect(screen.getByTestId('vehicle-match-status-badge').getAttribute('title')).toBeNull()
+  })
+
+  it('비-인성 ASSIGNED 의 aria-label 은 인성 문구 없이 "기사 매칭 완료" 이다', () => {
+    render(
+      <VehicleMatchStatusBadge
+        status="ASSIGNED"
+        driverCode="KAKAO-001"
+        matchSource="EXTERNAL_KAKAO"
+      />,
+    )
+
+    const aria = screen.getByTestId('vehicle-match-status-badge').getAttribute('aria-label') ?? ''
+    expect(aria).toContain('기사 매칭 완료')
+    expect(aria).not.toContain('인성')
+  })
 })

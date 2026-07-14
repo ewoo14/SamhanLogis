@@ -253,7 +253,7 @@ export function VehicleMatchStatusBadge({
   const label = isVehicleMatchStatus(rawStatus)
     ? STATUS_LABEL[rawStatus]
     : UNKNOWN_STATUS_FALLBACK_LABEL
-  const subText = isVehicleMatchStatus(rawStatus) ? STATUS_SUBTEXT[rawStatus] : ''
+  const subText = resolveSubText(rawStatus, safeStatus, isInsungMatch)
   const ariaLabel = resolveAriaLabel(rawStatus, safeStatus, driverCode, isInsungMatch)
   const showInsungBadge =
     (safeStatus === 'MATCHING' || safeStatus === 'ASSIGNED') && isInsungMatch
@@ -319,7 +319,7 @@ export function VehicleMatchStatusBadge({
             color:
               safeStatus === 'ASSIGNED'
                 ? 'var(--color-success-600)'
-                : 'var(--color-neutral-400)',
+                : 'var(--color-neutral-600)',
             fontWeight: 400,
           }}
         >
@@ -365,6 +365,21 @@ function resolveAriaLabel(
     return '기사 매칭 진행 중'
   }
   return STATUS_ARIA_LABEL[rawStatus]
+}
+
+/**
+ * 두 번째 줄 서브텍스트 — 인성 전용 문구(STATUS_SUBTEXT['MATCHING']='인성 퀵프로그램 …')가
+ * 비-인성 배정에 새지 않도록 matchSource 로 gate. MATCHING + 비-인성/소스미정 은 중립 문구로
+ * 대체(pill/aria/tooltip 과 대칭 — R2 가 놓친 동일 디펙트-패밀리 완주).
+ */
+function resolveSubText(
+  rawStatus: unknown,
+  safeStatus: VehicleMatchStatus,
+  isInsungMatch: boolean,
+): string {
+  if (!isVehicleMatchStatus(rawStatus)) return ''
+  if (safeStatus === 'MATCHING' && !isInsungMatch) return '기사 배정 중'
+  return STATUS_SUBTEXT[rawStatus]
 }
 
 export default VehicleMatchStatusBadge

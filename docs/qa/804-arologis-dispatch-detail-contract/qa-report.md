@@ -41,5 +41,15 @@ Codex 적대검증이 발굴한 HIGH: 어댑터가 `matchSource` 를 버려 `Veh
 
 **before(01)**: 차량2(EXTERNAL_KAKAO)도 INSUNG pill 오표시 / **after(03)**: 차량1(인성)만 pill. 실 match_source(EXTERNAL_INSUNG_QUICK 14·INTERNAL_APP 14·EXTERNAL_KAKAO 13·null 15)로 확증.
 
+## R3 (Opus 재수렴) — MATCHING 서브텍스트 인성문구 gate (디펙트-패밀리 완주)
+R3 Design/QA가 R2 fix 미완주 발굴: `STATUS_SUBTEXT['MATCHING']='인성 퀵프로그램 기사 배정 중'`가 matchSource 무관 하드코딩(pill/aria/tooltip 은 R2가 gate했으나 눈에 보이는 서브텍스트 미gate) → 비-인성 MATCHING 오표시. fix(`resolveSubText` gate) 후 라이브(500dc0d7 두 차량 MATCHING 투명시드):
+- 차량1 **EXTERNAL_INSUNG_QUICK** → "매칭 중..." + INSUNG pill + **"인성 퀵프로그램 기사 배정 중"**(정상)
+- 차량2 **EXTERNAL_KAKAO** → "매칭 중..." + pill 없음 + **"기사 배정 중"**(중립·인성 누출 없음)
+- DOM: insung-sub·neutral-sub 동시 present·insung-vendor-badge 1(차량1만)
+
+![R3 matching subtext gate](04-matching-subtext-gate.png)
+
+기타 R3 fix: F1-QA(matchSource 계약 e2e 단언·DTO+IT)·F2(deprecated 톤수 '기타' 정렬·BE "UI 노출 금지" 사전결정 존중)·F-new-2(DELIVERED 기사코드 AA neutral-400→600). 이연(제품/정책): 전자서명 matchSource-독립·sandbox 배너 문구.
+
 ## 투명 QA 시드 (실데이터 규율)
 - dev 배차엔 vendor_order_id 전무(Insung 매칭 sandbox) → FE-4 툴팁 실증 위해 1차량에 `QA-INSUNG-804` 일시 UPDATE → 캡처 → **즉시 NULL 롤백**(잔재 0 확인). 합성/fixture 아님(실 서버·실 DB·실 렌더).

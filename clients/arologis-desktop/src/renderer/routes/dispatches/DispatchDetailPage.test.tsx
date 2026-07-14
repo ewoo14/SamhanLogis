@@ -79,4 +79,33 @@ describe('DispatchDetailPage', () => {
     expect(container.textContent).toContain('차량 0대')
     expect(screen.queryByTestId('vehicle-row-1')).toBeNull()
   })
+
+  it('routeLabel 이 빈 문자열이면 헤더에 " · " 구분자/화살표 없이 톤수·정차수만 렌더한다 (F1 고아 방지)', () => {
+    const dispatch: DispatchDetail = {
+      id: 'dispatch-id',
+      dispatchDate: '2026-07-12',
+      dispatchTypeLabel: '일반',
+      sandboxMode: false,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnageLabel: '1톤',
+          routeLabel: '',
+          stopCount: 0,
+          matchStatus: 'PENDING',
+          matchSource: null,
+          driverCode: null,
+          vendorOrderId: null,
+          gpsSources: [],
+        },
+      ],
+    }
+
+    render(<DispatchDetailPage dispatch={dispatch} />)
+
+    const row = screen.getByTestId('vehicle-row-1')
+    expect(row.textContent).toContain('1톤 (정차 0)')
+    expect(row.textContent).not.toContain(' · ')
+    expect(row.textContent).not.toContain('→')
+  })
 })
