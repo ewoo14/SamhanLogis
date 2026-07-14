@@ -60,4 +60,9 @@
   - 🔴 **FE: mock.ts regex 형제 endpoint 잠식**(pre-classify/unassigned/regional/history) → reserved 제외.
   - 🟡 **BE: isStale 미래 타임스탬프 영구 fresh** → `deltaMs<0` stale · Clock 주입 · recordManualLocation 단위/IT 커버.
   - → fix(Opus 서브에이전트)+게시. 양측 green 재검증.
-- _(Codex 5-agent 적대검증 — 진행 예정)_
+- **R2 Codex 적대검증**(mcp__codex__codex): genuine 2 → fix — manual-location 응답 dispatchId UUID 제거(sequence/source만·mock parity·IT 미노출 검증) · route wrapper `requestSeqRef`(같은 dispatchCode 연속 refresh 겹침 가드).
+- **R3 Opus 재수렴**(BE/FE 독립 재검·Design/DevOps/QA no-delta disposition): BE 0 · FE **genuine 1**(refetch **stale-closure 하이재킹** — save 후 네비 중 POST 늦은 resolve 시 옛 dispatchCode 로 가드 하이재킹) → fix `latestDispatchCodeRef`(렌더마다 갱신·현재 dispatchCode 참조).
+- **R4 Codex terminal**: 전 5차원 clean·R3 fix sound·무변경 → **0 blocking**.
+- **R5 Opus terminal**(FE): R3 fix 6케이스 전수 추적·typecheck/eslint/49 tests green → **0 blocking**.
+- **→ 양측 0수렴** (R1 Opus6 → R2 Codex2 → R3 Opus1 → R4 Codex0 → R5 Opus0). PM 종합 9-게이트·CI 10/10 green.
+- *비차단 P3(후속)*: `routes/index.tsx` 전용 async 레이스 회귀 테스트 부재(정적 추적+49 green 안전 확인·fake-timer 테스트 후속 권장).
