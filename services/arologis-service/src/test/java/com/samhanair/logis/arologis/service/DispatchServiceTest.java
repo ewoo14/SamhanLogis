@@ -5,11 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.arologis.client.NotificationClient;
+import com.samhanair.logis.arologis.domain.ArologisNotifyChannel;
+import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import com.samhanair.logis.arologis.domain.Dispatch;
+import com.samhanair.logis.arologis.domain.DispatchNotification;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverLocation;
@@ -24,6 +28,7 @@ import com.samhanair.logis.arologis.domain.VehicleTonnage;
 import com.samhanair.logis.arologis.matcher.DriverMatchResult;
 import com.samhanair.logis.arologis.matcher.DriverMatcher;
 import com.samhanair.logis.arologis.parser.ParsedDispatch;
+import com.samhanair.logis.arologis.repository.DispatchNotificationRepository;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
@@ -64,6 +69,8 @@ class DispatchServiceTest {
     private final DriverLocationRepository locationRepository = mock(DriverLocationRepository.class);
     private final DriverMatcher driverMatcher = mock(DriverMatcher.class);
     private final NotificationClient notificationClient = mock(NotificationClient.class);
+    private final DispatchNotificationRepository dispatchNotificationRepository =
+            mock(DispatchNotificationRepository.class);
     // 2026-05-14 분리 — UserClient mock 제거 (자체 user 도메인 도입).
     // PR-H4b — DispatchService 가 stop status 변경 시 audit 기록 — 본 unit test 는 broker mock 만 검증
     private final com.samhanair.logis.arologis.realtime.service.ArologisAuditLogRecorder auditLogRecorder =
@@ -72,12 +79,26 @@ class DispatchServiceTest {
     private final DispatchService service = new DispatchService(
             dispatchRepository, vehicleRepository, stopRepository,
             driverRepository, locationRepository, driverMatcher, notificationClient, auditLogRecorder,
-            FIXED_CLOCK);
+            FIXED_CLOCK, dispatchNotificationRepository);
 
     private static void setId(Object entity, String fieldName, UUID id) throws Exception {
         Field f = entity.getClass().getDeclaredField(fieldName);
         f.setAccessible(true);
         f.set(entity, id);
+    }
+
+    private Vehicle prepareAutoMatch(UUID dispatchId, UUID vehicleId, Driver driver) throws Exception {
+        Dispatch dispatch = Dispatch.of(LocalDate.of(2026, 5, 8), DispatchType.NIGHT, "raw");
+        setId(dispatch, "id", dispatchId);
+        when(dispatchRepository.findById(dispatchId)).thenReturn(Optional.of(dispatch));
+
+        Vehicle vehicle = Vehicle.of(dispatchId, 1, VehicleTonnage.TONNAGE_1, null);
+        setId(vehicle, "id", vehicleId);
+        setId(driver, "id", UUID.randomUUID());
+        when(vehicleRepository.findAllByDispatchIdOrderBySequenceAsc(dispatchId))
+                .thenReturn(List.of(vehicle));
+        when(stopRepository.findAllByVehicleIdOrderBySequenceAsc(vehicleId)).thenReturn(List.of());
+        return vehicle;
     }
 
     @Test
@@ -159,6 +180,67 @@ class DispatchServiceTest {
         assertThat(result.matched()).isEqualTo(1);
         assertThat(v1.getStatus()).isEqualTo(VehicleStatus.ASSIGNED);
         assertThat(v1.getAssignedDriverId()).isEqualTo(driverId);
+    }
+
+    @Test
+    @DisplayName("자동 매칭 — 알림 발송 성공 시 SUCCESS 이력을 기록")
+    void autoMatch_records_success_notification_when_send_returns_true() throws Exception {
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        Driver driver = Driver.of("MOCK-001", "010-1111-2222", "1톤",
+                DriverSource.INTERNAL, true, UUID.randomUUID());
+        Vehicle vehicle = prepareAutoMatch(dispatchId, vehicleId, driver);
+        when(driverMatcher.match(any(), any()))
+                .thenReturn(DriverMatchResult.of(driver, MatchSource.INTERNAL_APP, "MOCK-aaaa"));
+        when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
+
+        service.autoMatch(dispatchId);
+
+        ArgumentCaptor<DispatchNotification> captor = ArgumentCaptor.forClass(DispatchNotification.class);
+        verify(dispatchNotificationRepository).save(captor.capture());
+        DispatchNotification saved = captor.getValue();
+        assertThat(saved.getDispatchId()).isEqualTo(dispatchId);
+        assertThat(saved.getVehicleId()).isEqualTo(vehicle.getId());
+        assertThat(saved.getChannel()).isEqualTo(ArologisNotifyChannel.INSUNG_TALK);
+        assertThat(saved.getStatus()).isEqualTo(ArologisNotifyStatus.SUCCESS);
+        assertThat(saved.getSentAt()).isEqualTo(LocalDateTime.now(FIXED_CLOCK));
+        assertThat(saved.getRecipientPhone()).isEqualTo("010-1111-2222");
+        assertThat(saved.getErrorCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("자동 매칭 — 알림 발송 실패 시 FAILED 이력을 기록")
+    void autoMatch_records_failed_notification_when_send_returns_false() throws Exception {
+        UUID dispatchId = UUID.randomUUID();
+        Driver driver = Driver.of("MOCK-002", "010-2222-3333", "1톤",
+                DriverSource.INTERNAL, true, UUID.randomUUID());
+        prepareAutoMatch(dispatchId, UUID.randomUUID(), driver);
+        when(driverMatcher.match(any(), any()))
+                .thenReturn(DriverMatchResult.of(driver, MatchSource.INTERNAL_APP, "MOCK-bbbb"));
+        when(notificationClient.send(any(), any(), any(), any())).thenReturn(false);
+
+        service.autoMatch(dispatchId);
+
+        ArgumentCaptor<DispatchNotification> captor = ArgumentCaptor.forClass(DispatchNotification.class);
+        verify(dispatchNotificationRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo(ArologisNotifyStatus.FAILED);
+        assertThat(captor.getValue().getErrorCode()).isEqualTo("SEND_FAILED");
+    }
+
+    @Test
+    @DisplayName("자동 매칭 — appUserId 없으면 알림 이력을 기록하지 않음")
+    void autoMatch_does_not_record_notification_when_app_user_id_is_null() throws Exception {
+        UUID dispatchId = UUID.randomUUID();
+        Driver driver = Driver.of("MOCK-003", "010-3333-4444", "1톤",
+                DriverSource.INTERNAL, true, null);
+        prepareAutoMatch(dispatchId, UUID.randomUUID(), driver);
+        when(driverMatcher.match(any(), any()))
+                .thenReturn(DriverMatchResult.of(driver, MatchSource.INTERNAL_APP, "MOCK-cccc"));
+
+        service.autoMatch(dispatchId);
+
+        verify(notificationClient, never()).send(any(), any(), any(), any());
+        verify(dispatchNotificationRepository, never()).save(any());
     }
 
     @Test

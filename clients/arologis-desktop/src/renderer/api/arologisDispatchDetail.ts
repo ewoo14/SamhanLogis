@@ -10,6 +10,9 @@
 import { apiClient, type ApiEnvelope } from './client'
 import type {
   DispatchDetail,
+  NotifyChannel,
+  NotifyResult,
+  NotifyStatus,
   VehicleDetail,
 } from '../routes/dispatches/DispatchDetailPage'
 import type { VehicleMatchStatus } from '../components/VehicleMatchStatusBadge'
@@ -50,6 +53,7 @@ export interface RawVehicleDetail {
   vendorOrderId: string | null
   status: string
   gpsSources?: RawGpsSource[]
+  notifyResults?: RawNotifyResult[]
   stops: RawStopDetail[]
 }
 
@@ -59,6 +63,14 @@ export interface RawGpsSource {
   longitude: number | null
   lastReceivedAt: string | null
   active: boolean
+}
+
+export interface RawNotifyResult {
+  channel: string
+  status: string
+  sentAt: string | null
+  recipientPhone: string | null
+  errorCode: string | null
 }
 
 export interface RawStopDetail {
@@ -114,7 +126,13 @@ function mapVehicleDetail(raw: RawVehicleDetail): VehicleDetail {
     matchSource: raw.matchSource,
     driverCode: raw.assignedDriverCode,
     vendorOrderId: raw.vendorOrderId,
-    notifyResults: undefined,
+    notifyResults: (raw.notifyResults ?? []).map((n): NotifyResult => ({
+      channel: n.channel as NotifyChannel,
+      status: n.status as NotifyStatus,
+      sentAt: n.sentAt,
+      recipientPhone: n.recipientPhone,
+      errorCode: n.errorCode,
+    })),
     gpsSources: (raw.gpsSources ?? []).map((g): GpsSource => ({
       source: g.source as GpsSourceKey,
       latitude: g.latitude,

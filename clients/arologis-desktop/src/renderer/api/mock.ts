@@ -86,6 +86,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           externalRefId: 'EXT-MOCK-001',
           vendorOrderId: 'INSUNG-ORDER-MOCK-001',
           status: 'ASSIGNED',
+          notifyResults: [
+            {
+              channel: 'insung-talk',
+              status: 'SUCCESS',
+              sentAt: '2026-07-14T10:30:00',
+              recipientPhone: '010-1111-2222',
+              errorCode: null,
+            },
+          ],
           gpsSources: [
             {
               source: 'EXTERNAL_INSUNG_LBS',

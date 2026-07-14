@@ -44,10 +44,13 @@ public record DispatchDetailResponse(
                                               List<VehicleStop> stops,
                                               Map<String, String> driverIdToCode,
                                               Map<UUID, List<GpsSource>> gpsByVehicleId,
+                                              Map<UUID, List<NotifyResult>> notifyByVehicleId,
                                               boolean sandboxMode) {
         List<VehicleDetail> vehicleDetails = vehicles.stream()
                 .map(v -> VehicleDetail.from(v, stops, driverIdToCode,
-                        gpsByVehicleId == null ? List.of() : gpsByVehicleId.getOrDefault(v.getId(), List.of())))
+                        gpsByVehicleId == null ? List.of() : gpsByVehicleId.getOrDefault(v.getId(), List.of()),
+                        notifyByVehicleId == null ? List.of()
+                                : notifyByVehicleId.getOrDefault(v.getId(), List.of())))
                 .toList();
         return new DispatchDetailResponse(
                 dispatch.getId() == null ? null : dispatch.getId().toString(),
@@ -71,6 +74,7 @@ public record DispatchDetailResponse(
      * @param vendorOrderId 인성 퀵프로그램 주문번호. {@code externalRefId} 와 별도 컬럼이다.
      * @param status 차량 매칭/배송 상태
      * @param gpsSources GPS source 목록. 우선순위 순서이며 없으면 빈 목록이다.
+     * @param notifyResults 알림 발송 결과 목록. 채널별 최신 결과이며 없으면 빈 목록이다.
      * @param stops 차량 정차 목록
      */
     @Schema(description = "차량 1대 상세 응답")
@@ -93,11 +97,13 @@ public record DispatchDetailResponse(
             VehicleStatus status,
             @Schema(description = "차량 GPS source 목록. 우선순위 순서이며 없으면 빈 목록.")
             List<GpsSource> gpsSources,
+            @Schema(description = "차량 알림 발송 결과 목록. 채널별 최신 결과이며 없으면 빈 목록.")
+            List<NotifyResult> notifyResults,
             @Schema(description = "차량 정차 목록")
             List<StopDetail> stops
     ) {
         static VehicleDetail from(Vehicle v, List<VehicleStop> allStops, Map<String, String> driverIdToCode,
-                                  List<GpsSource> gpsSources) {
+                                  List<GpsSource> gpsSources, List<NotifyResult> notifyResults) {
             List<StopDetail> stopDetails = allStops.stream()
                     .filter(s -> s.getVehicleId().equals(v.getId()))
                     .map(StopDetail::from)
@@ -116,6 +122,7 @@ public record DispatchDetailResponse(
                     v.getVendorOrderId(),
                     v.getStatus(),
                     gpsSources == null ? List.of() : gpsSources,
+                    notifyResults == null ? List.of() : notifyResults,
                     stopDetails);
         }
     }

@@ -11,7 +11,10 @@ import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient.OutboundSlipSummary;
+import com.samhanair.logis.arologis.domain.ArologisNotifyChannel;
+import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import com.samhanair.logis.arologis.domain.Dispatch;
+import com.samhanair.logis.arologis.domain.DispatchNotification;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverLocation;
@@ -24,6 +27,7 @@ import com.samhanair.logis.arologis.domain.StopStatus;
 import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.domain.VehicleStop;
 import com.samhanair.logis.arologis.domain.VehicleTonnage;
+import com.samhanair.logis.arologis.repository.DispatchNotificationRepository;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
@@ -84,6 +88,8 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
     @Autowired
     private DispatchRepository dispatchRepository;
     @Autowired
+    private DispatchNotificationRepository dispatchNotificationRepository;
+    @Autowired
     private VehicleRepository vehicleRepository;
     @Autowired
     private VehicleStopRepository stopRepository;
@@ -127,6 +133,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         lenient().when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(java.util.List.of());
 
         // signatures → vehicle_stops → vehicles → dispatches FK 순서로 cleanup
+        dispatchNotificationRepository.deleteAll();
         signatureRepository.deleteAll();
         locationRepository.deleteAll();
         stopRepository.deleteAll();
@@ -218,6 +225,33 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                         .value("INSUNG-ORDER-804"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].matchSource")
                         .value("EXTERNAL_INSUNG_QUICK"));
+    }
+
+    @Test
+    void find_dispatch_returns_notifyResults() throws Exception {
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "notify detail"));
+        Vehicle vehicle = vehicleRepository.save(
+                Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일+초월"));
+        dispatchNotificationRepository.save(DispatchNotification.of(
+                dispatch.getId(),
+                vehicle.getId(),
+                ArologisNotifyChannel.INSUNG_TALK,
+                ArologisNotifyStatus.SUCCESS,
+                LocalDateTime.of(2026, 7, 14, 10, 30),
+                "010-1111-2222",
+                null));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/" + dispatch.getId())
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].notifyResults[0].channel")
+                        .value("insung-talk"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].notifyResults[0].status")
+                        .value("SUCCESS"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].notifyResults[0].recipientPhone")
+                        .value("010-1111-2222"));
     }
 
     @Test

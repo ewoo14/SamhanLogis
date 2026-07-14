@@ -2,6 +2,7 @@ package com.samhanair.logis.arologis.dto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.MatchSource;
@@ -10,6 +11,7 @@ import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.domain.VehicleStop;
 import com.samhanair.logis.arologis.domain.VehicleTonnage;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -47,6 +49,12 @@ class DispatchDetailResponseTest {
                 List.of(stop),
                 Map.of(driverId.toString(), "INSUNG-001"),
                 Map.of(),
+                Map.of(vehicleId, List.of(new NotifyResult(
+                        "insung-talk",
+                        ArologisNotifyStatus.SUCCESS,
+                        LocalDateTime.of(2026, 7, 14, 10, 30),
+                        "010-1111-2222",
+                        null))),
                 true);
 
         assertThat(response.dispatchId()).isEqualTo(dispatchId.toString());
@@ -60,7 +68,27 @@ class DispatchDetailResponseTest {
         assertThat(vehicleDetail.externalRefId()).isEqualTo("EXT-804");
         assertThat(vehicleDetail.vendorOrderId()).isEqualTo("INSUNG-ORDER-804");
         assertThat(vehicleDetail.gpsSources()).isEmpty();
+        assertThat(vehicleDetail.notifyResults()).singleElement().satisfies(notify -> {
+            assertThat(notify.channel()).isEqualTo("insung-talk");
+            assertThat(notify.status()).isEqualTo(ArologisNotifyStatus.SUCCESS);
+            assertThat(notify.recipientPhone()).isEqualTo("010-1111-2222");
+        });
         assertThat(vehicleDetail.stops()).hasSize(1);
+    }
+
+    @Test
+    void from_uses_empty_notifyResults_when_map_has_no_entry() {
+        Dispatch dispatch = Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.DAY, "raw");
+        ReflectionTestUtils.setField(dispatch, "id", UUID.fromString("10000000-0000-0000-0000-000000008045"));
+        UUID vehicleId = UUID.fromString("10000000-0000-0000-0000-000000008046");
+        Vehicle vehicle = Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일");
+        ReflectionTestUtils.setField(vehicle, "id", vehicleId);
+
+        DispatchDetailResponse response = DispatchDetailResponse.from(
+                dispatch, List.of(vehicle), List.of(), Map.of(), Map.of(), Map.of(), false);
+
+        assertThat(response.vehicles()).singleElement()
+                .satisfies(detail -> assertThat(detail.notifyResults()).isEmpty());
     }
 
     @Test
@@ -71,7 +99,7 @@ class DispatchDetailResponseTest {
         ReflectionTestUtils.setField(dispatch, "id", UUID.fromString("10000000-0000-0000-0000-000000008044"));
 
         DispatchDetailResponse response = DispatchDetailResponse.from(
-                dispatch, List.of(), List.of(), Map.of(), Map.of(), false);
+                dispatch, List.of(), List.of(), Map.of(), Map.of(), Map.of(), false);
 
         assertThat(response.sandboxMode()).isFalse();
     }

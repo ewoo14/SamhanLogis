@@ -1,7 +1,10 @@
 package com.samhanair.logis.arologis.service;
 
 import com.samhanair.logis.arologis.client.NotificationClient;
+import com.samhanair.logis.arologis.domain.ArologisNotifyChannel;
+import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import com.samhanair.logis.arologis.domain.Dispatch;
+import com.samhanair.logis.arologis.domain.DispatchNotification;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverLocation;
@@ -16,6 +19,7 @@ import com.samhanair.logis.arologis.matcher.DriverMatcher;
 import com.samhanair.logis.arologis.parser.ParsedDispatch;
 import com.samhanair.logis.arologis.realtime.service.ArologisAuditLogRecorder;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
+import com.samhanair.logis.arologis.repository.DispatchNotificationRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
@@ -70,6 +74,7 @@ public class DispatchService {
      * 결정성(Clock.fixed 대체)을 확보한다.
      */
     private final Clock clock;
+    private final DispatchNotificationRepository dispatchNotificationRepository;
 
     /**
      * Parsed dispatch → 영속화. dispatch + vehicles + stops 일괄 저장.
@@ -159,9 +164,21 @@ public class DispatchService {
                     matched++;
                     UUID appUserId = driver.getAppUserId();
                     if (appUserId != null) {
-                        notificationClient.send(appUserId, "PUSH",
+                        boolean sent = notificationClient.send(appUserId, "PUSH",
                                 "신규 배차 매칭",
                                 "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage() + ") 배정");
+                        DispatchNotification savedNotification = dispatchNotificationRepository.save(
+                                DispatchNotification.of(
+                                        dispatchId,
+                                        vehicle.getId(),
+                                        ArologisNotifyChannel.INSUNG_TALK,
+                                        sent ? ArologisNotifyStatus.SUCCESS : ArologisNotifyStatus.FAILED,
+                                        LocalDateTime.now(clock),
+                                        driver.getPhoneNumber(),
+                                        sent ? null : "SEND_FAILED"));
+                        log.info("배차 매칭 알림 이력 기록 — dispatchId={} vehicleSeq={} channel={} status={}",
+                                dispatchId, vehicle.getSequence(),
+                                savedNotification.getChannel(), savedNotification.getStatus());
                     }
                 } else {
                     log.info("자동 매칭 실패 — vehicleSeq={}, source={}",

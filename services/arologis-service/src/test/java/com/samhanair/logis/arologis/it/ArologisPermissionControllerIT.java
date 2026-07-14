@@ -52,6 +52,7 @@ import com.samhanair.logis.arologis.service.ArologisDepartmentService;
 import com.samhanair.logis.arologis.service.ArologisEmployeeService;
 import com.samhanair.logis.arologis.service.DispatchAdminService;
 import com.samhanair.logis.arologis.service.DispatchManualService;
+import com.samhanair.logis.arologis.service.DispatchNotificationAssembler;
 import com.samhanair.logis.arologis.service.DispatchReconcileService;
 import com.samhanair.logis.arologis.service.DispatchSaveHistoryService;
 import com.samhanair.logis.arologis.service.DispatchService;
@@ -140,6 +141,7 @@ class ArologisPermissionControllerIT {
     @MockBean private DispatchManualService manualService;
     @MockBean private DriverService driverService;
     @MockBean private GpsSourceAssembler gpsSourceAssembler;
+    @MockBean private DispatchNotificationAssembler dispatchNotificationAssembler;
     @MockBean private DriverRepository driverRepository;
     @MockBean private PreClassifyService preClassifyService;
     @MockBean private UnassignedService unassignedService;

@@ -13,6 +13,7 @@ import com.samhanair.logis.arologis.dto.GpsSource;
 import com.samhanair.logis.arologis.dto.ManualLocationRequest;
 import com.samhanair.logis.arologis.dto.ManualDispatchPreviewResponse;
 import com.samhanair.logis.arologis.dto.ManualDispatchRequest;
+import com.samhanair.logis.arologis.dto.NotifyResult;
 import com.samhanair.logis.arologis.dto.ParsedDispatchResponse;
 import com.samhanair.logis.arologis.dto.PreClassifyResponse;
 import com.samhanair.logis.arologis.dto.RegionalDispatchResponse;
@@ -26,6 +27,7 @@ import com.samhanair.logis.arologis.realtime.web.dto.ArologisEditRequestResponse
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.security.ArologisPageCodes;
 import com.samhanair.logis.arologis.service.DispatchManualService;
+import com.samhanair.logis.arologis.service.DispatchNotificationAssembler;
 import com.samhanair.logis.arologis.service.DispatchService;
 import com.samhanair.logis.arologis.service.DriverService;
 import com.samhanair.logis.arologis.service.GpsSourceAssembler;
@@ -85,6 +87,7 @@ public class ArologisAdminController {
     private final DriverService driverService;
     private final DriverRepository driverRepository;
     private final GpsSourceAssembler gpsSourceAssembler;
+    private final DispatchNotificationAssembler dispatchNotificationAssembler;
     // PR-E1 BE-3 — 출고전표 자동 조회 기반 가배차/미배차/지방가배차 3 서비스
     private final PreClassifyService preClassifyService;
     private final UnassignedService unassignedService;
@@ -203,12 +206,15 @@ public class ArologisAdminController {
                 : driverRepository.findAllById(driverIds).stream()
                         .collect(Collectors.toMap(d -> d.getId().toString(), Driver::getDriverCode));
         Map<UUID, List<GpsSource>> gpsByVehicleId = gpsSourceAssembler.assemble(agg.vehicles(), agg.stops());
+        Map<UUID, List<NotifyResult>> notifyByVehicleId =
+                dispatchNotificationAssembler.assemble(agg.dispatch().getId(), agg.vehicles());
         return ApiResponse.ok(DispatchDetailResponse.from(
                 agg.dispatch(),
                 agg.vehicles(),
                 agg.stops(),
                 driverIdToCode,
                 gpsByVehicleId,
+                notifyByVehicleId,
                 matcherProperties.getInsungQuick().isSandboxMode()));
     }
 

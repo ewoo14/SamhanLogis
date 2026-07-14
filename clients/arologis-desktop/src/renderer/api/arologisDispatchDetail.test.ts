@@ -39,6 +39,15 @@ describe('arologisDispatchDetail', () => {
           externalRefId: 'EXT-804',
           vendorOrderId: 'INSUNG-ORDER-804',
           status: 'ASSIGNED',
+          notifyResults: [
+            {
+              channel: 'insung-talk',
+              status: 'SUCCESS',
+              sentAt: '2026-07-14T10:30:00',
+              recipientPhone: '010-1111-2222',
+              errorCode: null,
+            },
+          ],
           gpsSources: [
             {
               source: 'APP_GPS_ACTIVE',
@@ -91,7 +100,15 @@ describe('arologisDispatchDetail', () => {
           matchSource: 'EXTERNAL_INSUNG_QUICK',
           driverCode: 'INSUNG-001',
           vendorOrderId: 'INSUNG-ORDER-804',
-          notifyResults: undefined,
+          notifyResults: [
+            {
+              channel: 'insung-talk',
+              status: 'SUCCESS',
+              sentAt: '2026-07-14T10:30:00',
+              recipientPhone: '010-1111-2222',
+              errorCode: null,
+            },
+          ],
           gpsSources: [
             {
               source: 'APP_GPS_ACTIVE',
@@ -158,7 +175,7 @@ describe('arologisDispatchDetail', () => {
       stopCount: 0,
       matchStatus: 'NEW_STATUS',
       matchSource: null,
-      notifyResults: undefined,
+      notifyResults: [],
       gpsSources: [],
     })
     expect(mapped.vehicles[1]).toMatchObject({
