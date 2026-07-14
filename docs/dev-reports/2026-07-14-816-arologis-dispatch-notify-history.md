@@ -36,7 +36,8 @@
 ## 검증
 
 - **BE**: `--rerun-tasks --no-build-cache` 575 tests·0 fail. **FE**: typecheck clean·50 tests. (③-B 재리뷰 fix 후 재검증)
-- **라이브 QA(예정)**: autoMatch 실행(또는 투명 시드) → notifyResults `[4]aligo` 렌더 GUI 스샷. **상태=stub SUCCESS 정직 표기**(위 한계).
+- **라이브 QA(실서버 :8097 재배포·V24 적용·실 autoMatch 경로)**: 배차 `146760e8`(PENDING 2) autoMatch 트리거 → MockDriverMatcher가 MOCK-001(phone 010-0000-0000) 매칭 → `sendDispatchSms` → notification-service(AligoSmsAdapter **stub**) → **DispatchNotification 2건 실기록**(channel=ALIGO·status=SUCCESS). GET 배차상세 → notifyResults 노출(channel=`aligo`·SUCCESS·phone·sentAt). **실 GUI 스샷**(`docs/qa/816-arologis-dispatch-notify-history/`): NotifyResultSection **`Aligo SMS`(뱃지)·✓발송 성공(chip)·01:41·010-XXXX-0000(마스킹)** 렌더. ③-A dead-path 해소 실증(실 매칭기사 레코드 생성). ⚠️ **status SUCCESS는 stub**(dev Aligo creds blank·`AligoSmsAdapter.isPlaceholder`)이지 실 문자 전달 증거 아님(레코드 자체는 실 autoMatch 경로 실데이터). QA 트리거 레코드 캡처 후 정리.
+- **Review 라운드**: R1' Opus 5-agent(다수 fix)→Codex 적대(phone-log echo 1 fix)→Opus terminal(0)→Codex terminal(0)·**양측 0수렴**.
 
 ## 리뷰 이력
 
