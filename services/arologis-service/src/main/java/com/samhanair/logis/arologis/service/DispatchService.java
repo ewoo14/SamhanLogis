@@ -23,6 +23,7 @@ import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -62,6 +63,13 @@ public class DispatchService {
      * dispatch 잠금 정책 가드는 별도 service (ArologisEditRequestService.guardCanEdit) 가 담당.
      */
     private final ArologisAuditLogRecorder auditLogRecorder;
+
+    /**
+     * FIX 3 (PR #818 리뷰) — recordManualLocation 의 캡처 시각 결정에 사용. {@link GpsSourceAssembler}
+     * 와 동일하게 {@code ShedLockConfig.clock()} 전역 Bean 을 주입받아 시각 소스 일관성 + 테스트
+     * 결정성(Clock.fixed 대체)을 확보한다.
+     */
+    private final Clock clock;
 
     /**
      * Parsed dispatch → 영속화. dispatch + vehicles + stops 일괄 저장.
@@ -212,7 +220,7 @@ public class DispatchService {
                 vehicle.getAssignedDriverId(),
                 latitude,
                 longitude,
-                LocalDateTime.now(),
+                LocalDateTime.now(clock),
                 DriverLocationSource.MANUAL));
         log.info("수동 위치 기록 완료 — dispatchId={} vehicleSeq={} driverId={} source={}",
                 dispatchId, vehicleSeq, saved.getDriverId(), saved.getSource());

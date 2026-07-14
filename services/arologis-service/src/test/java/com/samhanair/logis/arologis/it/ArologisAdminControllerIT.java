@@ -49,7 +49,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 /**
- * Admin endpoint 시나리오 (13 case) — Phase 10 W10-1 + 후속 확장.
+ * Admin endpoint 시나리오 (20 case) — Phase 10 W10-1 + 후속 확장.
  *
  * <ol>
  *   <li>parse-kakao 정상 (사용자 카톡 예시 입력 → 13 차량 응답)</li>
@@ -62,7 +62,9 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
  *   <li>stop status 갱신 미존재 → 404</li>
  *   <li>drivers list 정상 → 200</li>
  *   <li>dispatches/{id} GET → sandboxMode·vendorOrderId 직렬화 (계약 정합 #804)</li>
- *   <li>… PR-E1/후속 시나리오 (총 13 tests, 대표 목록)</li>
+ *   <li>manual-location 미존재 vehicle sequence → 404 (PR #818 리뷰 FIX 4)</li>
+ *   <li>manual-location 위도 범위 초과(200) → 400 Bean Validation (PR #818 리뷰 FIX 4)</li>
+ *   <li>… PR-E1/후속 시나리오 (총 20 tests, 대표 목록)</li>
  * </ol>
  *
  * <p>sandbox-mode 는 {@code @TestPropertySource} 로 true 고정 — 향후 전역 test 프로파일이
@@ -314,6 +316,49 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         vehicleRepository.save(Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일"));
         String body = objectMapper.writeValueAsString(Map.of(
                 "latitude", new BigDecimal("37.3333333"),
+                "longitude", new BigDecimal("127.3333333")));
+
+        mockMvc.perform(MockMvcRequestBuilders.post(
+                        "/admin/arologis/dispatches/" + dispatch.getId() + "/vehicles/1/manual-location")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest());
+    }
+
+    @Test
+    void manual_location_post_to_missing_vehicle_sequence_returns_404() throws Exception {
+        // FIX 4 (PR #818 리뷰) — dispatch 는 존재하지만 vehicle sequence 1 이 저장된 적 없는 경우
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "manual gps missing vehicle"));
+        String body = objectMapper.writeValueAsString(Map.of(
+                "latitude", new BigDecimal("37.3333333"),
+                "longitude", new BigDecimal("127.3333333")));
+
+        mockMvc.perform(MockMvcRequestBuilders.post(
+                        "/admin/arologis/dispatches/" + dispatch.getId() + "/vehicles/1/manual-location")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isNotFound());
+    }
+
+    @Test
+    void manual_location_post_with_out_of_range_latitude_returns_400() throws Exception {
+        // FIX 4 (PR #818 리뷰) — ManualLocationRequest.latitude 는 @DecimalMax("90") Bean Validation
+        Driver driver = driverRepository.save(Driver.of(
+                "DRV-MANUAL-002", "010-1111-4444", "1톤", DriverSource.MANUAL, false, null));
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "manual gps invalid lat"));
+        Vehicle vehicle = vehicleRepository.save(
+                Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일"));
+        vehicle.assignDriver(driver.getId(), MatchSource.MANUAL, null);
+        vehicleRepository.save(vehicle);
+
+        String body = objectMapper.writeValueAsString(Map.of(
+                "latitude", new BigDecimal("200"),
                 "longitude", new BigDecimal("127.3333333")));
 
         mockMvc.perform(MockMvcRequestBuilders.post(

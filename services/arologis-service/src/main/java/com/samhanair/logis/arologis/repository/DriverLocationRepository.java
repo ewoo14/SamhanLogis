@@ -1,7 +1,6 @@
 package com.samhanair.logis.arologis.repository;
 
 import com.samhanair.logis.arologis.domain.DriverLocation;
-import com.samhanair.logis.arologis.domain.DriverLocationSource;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -42,6 +41,27 @@ public interface DriverLocationRepository extends JpaRepository<DriverLocation, 
 
     long countByDriverId(UUID driverId);
 
-    List<DriverLocation> findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(
-            Collection<UUID> driverIds, Collection<DriverLocationSource> sources);
+    /**
+     * driverId + source 조합별 최신 GPS 위치 1건씩 조회 — Postgres {@code DISTINCT ON} 활용.
+     *
+     * <p>driver_locations 는 기사 앱이 약 30초 주기로 좌표를 보고하는 대량 적재 테이블이다.
+     * 기존 방식(전체 이력 fetch 후 애플리케이션에서 최신 1건만 골라내기)은 driverIds 의 30일치
+     * GPS 이력을 통째로 읽어와 대부분 버리는 과다 조회였다. 본 메서드는 Postgres
+     * {@code DISTINCT ON (driver_id, source)} 로 DB 단에서 최신 1건만 반환하도록 하여, 결과
+     * 행 수를 최대 {@code driverIds.size() * sources.size()} 로 bound 시킨다
+     * (V23 인덱스 {@code ix_driver_locations_driver_source_captured} 가 이 조회 패턴을 커버).
+     *
+     * <p>{@code source} 컬럼은 {@code VARCHAR(30)} 매핑이므로, native query 파라미터는
+     * enum 객체가 아닌 {@code Enum#name()} 문자열 컬렉션으로 전달해야 안정적으로 바인딩된다
+     * ({@link com.samhanair.logis.arologis.service.GpsSourceAssembler} 호출부 참조).
+     *
+     * @param driverIds 조회 대상 기사 UUID 목록
+     * @param sources 조회 대상 source 이름 (enum name 문자열) 목록
+     * @return driverId, source 조합별 captured_at 최신 1건씩 (조합당 최대 1행)
+     */
+    @Query(value = "SELECT DISTINCT ON (driver_id, source) * FROM driver_locations "
+            + "WHERE driver_id IN (:driverIds) AND source IN (:sources) "
+            + "ORDER BY driver_id, source, captured_at DESC", nativeQuery = true)
+    List<DriverLocation> findLatestPerDriverAndSource(@Param("driverIds") Collection<UUID> driverIds,
+                                                      @Param("sources") Collection<String> sources);
 }

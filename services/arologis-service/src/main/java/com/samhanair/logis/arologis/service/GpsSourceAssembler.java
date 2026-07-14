@@ -46,6 +46,15 @@ public class GpsSourceAssembler {
             DriverLocationSource.APP_GPS_ACTIVE,
             DriverLocationSource.APP_GPS_BACKGROUND,
             DriverLocationSource.MANUAL);
+    /**
+     * {@link #LOCATION_SOURCES} 의 native query 바인딩용 문자열 표현.
+     *
+     * <p>{@code driver_locations.source} 컬럼은 VARCHAR(30) 매핑이므로,
+     * {@link DriverLocationRepository#findLatestPerDriverAndSource} native query 파라미터는
+     * enum 객체가 아닌 {@code Enum#name()} 문자열로 전달해야 안정적으로 바인딩된다.
+     */
+    private static final List<String> LOCATION_SOURCE_NAMES =
+            LOCATION_SOURCES.stream().map(Enum::name).toList();
     private static final String DEFAULT_PRIORITY = "insung-lbs,app-gps,manual";
 
     private final DriverLocationRepository locationRepository;
@@ -123,8 +132,11 @@ public class GpsSourceAssembler {
         }
 
         Map<UUID, Map<DriverLocationSource, DriverLocation>> result = new HashMap<>();
+        // FIX 1 (PR #818 리뷰) — driverIds 의 전체 GPS 이력 fetch 후 애플리케이션에서 최신만
+        // 골라내던 방식(over-fetch) 대신, DB 단 DISTINCT ON 조회로 driverId×source 당 최신 1건만
+        // 반환받는다. putIfAbsent 리듀스는 그대로 유지 — 이제는 조합당 1행이므로 실질 no-op 가드.
         List<DriverLocation> locations = locationRepository
-                .findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(driverIds, LOCATION_SOURCES);
+                .findLatestPerDriverAndSource(driverIds, LOCATION_SOURCE_NAMES);
         for (DriverLocation location : locations) {
             result.computeIfAbsent(location.getDriverId(), ignored -> new EnumMap<>(DriverLocationSource.class))
                     .putIfAbsent(location.getSource(), location);
@@ -176,11 +188,20 @@ public class GpsSourceAssembler {
         return result;
     }
 
+    /**
+     * source 최신 수신 시각이 stale threshold 를 넘었는지 판정한다.
+     *
+     * <p>FIX 2 (PR #818 리뷰) — {@code lastReceivedAt} 이 미래 시각인 경우 (기사 앱 clock skew)
+     * {@code Duration.between} 결과가 음수가 되어 항상 threshold 이하로 평가되는 버그가 있었다.
+     * 이 경우 해당 source 가 영구적으로 "활성"으로 남는 문제를 방지하기 위해, 미래 시각도 stale
+     * 로 간주한다.
+     */
     private boolean isStale(LocalDateTime lastReceivedAt, LocalDateTime now, long staleThresholdMs) {
         if (lastReceivedAt == null) {
             return true;
         }
-        return Duration.between(lastReceivedAt, now).toMillis() > staleThresholdMs;
+        long deltaMs = Duration.between(lastReceivedAt, now).toMillis();
+        return deltaMs < 0 || deltaMs > staleThresholdMs;
     }
 
     private List<DriverLocationSource> expandPriority() {

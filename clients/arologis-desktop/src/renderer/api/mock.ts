@@ -63,8 +63,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(clonePermissionMap(permissionFixtures[role] ?? {}))
   }
 
+  // 배차 상세(GET /admin/arologis/dispatches/{id}) 와 동일한 depth 의 형제 라우트.
+  // detailMatch 정규식은 단일 세그먼트만 구분하므로, 아래 예약어는 상세 mock 에서
+  // 제외해 실제 형제 endpoint 응답(각각 별도 mock 또는 실 API 위임)을 가리지 않는다.
+  const RESERVED_DISPATCH_SEGMENTS = new Set(['pre-classify', 'unassigned', 'regional', 'history'])
+
   const detailMatch = url.match(/^\/admin\/arologis\/dispatches\/([^/]+)$/)
-  if (method === 'get' && detailMatch) {
+  if (method === 'get' && detailMatch && !RESERVED_DISPATCH_SEGMENTS.has(detailMatch[1] ?? '')) {
     const dispatchId = decodeURIComponent(detailMatch[1] ?? 'mock-dispatch')
     return envelope({
       dispatchId,

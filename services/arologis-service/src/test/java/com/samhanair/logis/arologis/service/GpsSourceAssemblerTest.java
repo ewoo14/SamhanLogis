@@ -61,7 +61,7 @@ class GpsSourceAssemblerTest {
         VehicleStop stop = stop(vehicleId, stopId);
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of(location(driverId, DriverLocationSource.APP_GPS_ACTIVE, now.minusSeconds(10))));
         when(signatureRepository.findAllByStopIdInAndSourceOrderByCapturedAtDesc(
                 anyCollection(), org.mockito.ArgumentMatchers.eq(SignatureSource.EXTERNAL_INSUNG_LBS)))
@@ -85,8 +85,30 @@ class GpsSourceAssemblerTest {
         Vehicle vehicle = assignedVehicle(dispatchId, vehicleId, driverId);
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of(location(driverId, DriverLocationSource.APP_GPS_ACTIVE, now.minusMinutes(2))));
+        when(signatureRepository.findAllByStopIdInAndSourceOrderByCapturedAtDesc(
+                anyCollection(), org.mockito.ArgumentMatchers.eq(SignatureSource.EXTERNAL_INSUNG_LBS)))
+                .thenReturn(List.of());
+
+        Map<UUID, List<GpsSource>> result = assembler.assemble(List.of(vehicle), List.of());
+
+        assertThat(result.get(vehicleId)).allMatch(source -> !source.active());
+    }
+
+    @Test
+    void future_last_received_at_is_treated_as_stale_not_active() {
+        // FIX 2 (PR #818 리뷰) — 기사 앱 clock skew 로 lastReceivedAt 이 fixed clock 의 now 보다
+        // 미래인 경우, Duration.between 이 음수가 되어 예전에는 "항상 fresh" 로 오판되었다.
+        // 이번 케이스는 미래 시각도 stale 로 취급되어 활성 source 가 없어야 함을 검증한다.
+        UUID dispatchId = UUID.randomUUID();
+        UUID vehicleId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        Vehicle vehicle = assignedVehicle(dispatchId, vehicleId, driverId);
+        LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
+
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
+                .thenReturn(List.of(location(driverId, DriverLocationSource.APP_GPS_ACTIVE, now.plusMinutes(10))));
         when(signatureRepository.findAllByStopIdInAndSourceOrderByCapturedAtDesc(
                 anyCollection(), org.mockito.ArgumentMatchers.eq(SignatureSource.EXTERNAL_INSUNG_LBS)))
                 .thenReturn(List.of());
@@ -104,7 +126,7 @@ class GpsSourceAssemblerTest {
         Vehicle vehicle = assignedVehicle(dispatchId, vehicleId, driverId);
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of(location(driverId, DriverLocationSource.MANUAL, now.minusSeconds(5))));
         when(signatureRepository.findAllByStopIdInAndSourceOrderByCapturedAtDesc(
                 anyCollection(), org.mockito.ArgumentMatchers.eq(SignatureSource.EXTERNAL_INSUNG_LBS)))
@@ -128,7 +150,7 @@ class GpsSourceAssemblerTest {
         VehicleStop stop = stop(vehicleId, stopId);
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of());
         when(signatureRepository.findAllByStopIdInAndSourceOrderByCapturedAtDesc(
                 anyCollection(), org.mockito.ArgumentMatchers.eq(SignatureSource.EXTERNAL_INSUNG_LBS)))
@@ -150,7 +172,7 @@ class GpsSourceAssemblerTest {
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
         matcherProperties.getGps().setPriority("manual,app-gps,insung-lbs");
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of(
                         location(driverId, DriverLocationSource.APP_GPS_BACKGROUND, now.minusSeconds(10)),
                         location(driverId, DriverLocationSource.APP_GPS_ACTIVE, now.minusSeconds(10)),
@@ -182,7 +204,7 @@ class GpsSourceAssemblerTest {
                 location(driverId, DriverLocationSource.MANUAL, now.minusSeconds(1));
         ReflectionTestUtils.setField(nullTimestampManual, "capturedAt", null);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of(
                         nullTimestampManual,
                         location(driverId, DriverLocationSource.APP_GPS_ACTIVE, now.minusSeconds(60))));
@@ -207,7 +229,7 @@ class GpsSourceAssemblerTest {
         Vehicle vehicle = assignedVehicle(dispatchId, vehicleId, driverId);
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of(
                         location(driverId, DriverLocationSource.APP_GPS_ACTIVE, now.minusSeconds(1),
                                 "37.5555555", "127.5555555"),
@@ -238,7 +260,7 @@ class GpsSourceAssemblerTest {
         VehicleStop stop2 = stop(vehicleId, stopId2);
         LocalDateTime now = LocalDateTime.now(FIXED_CLOCK);
 
-        when(locationRepository.findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(anyCollection(), anyCollection()))
+        when(locationRepository.findLatestPerDriverAndSource(anyCollection(), anyCollection()))
                 .thenReturn(List.of());
         when(signatureRepository.findAllByStopIdInAndSourceOrderByCapturedAtDesc(
                 anyCollection(), org.mockito.ArgumentMatchers.eq(SignatureSource.EXTERNAL_INSUNG_LBS)))

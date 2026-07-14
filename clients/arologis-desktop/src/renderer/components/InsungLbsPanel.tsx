@@ -8,8 +8,11 @@
  *   - gpsSources 비어 있거나 undefined(BE 필드 누락) 이면 "위치 정보 없음" 메시지
  *     표시 (패널 표시 유지, 크래시 없음 — #785 family sweep)
  *
- * GPS source 우선순위는 BE 가 samhan.arologis.matcher.gps.priority 설정과 stale 기준으로
- * 계산한 순서를 그대로 렌더한다.
+ * GPS source 우선순위 (samhan.arologis.gps.priority=insung-lbs,app-gps,manual):
+ *   1. EXTERNAL_INSUNG_LBS   — 인성 LBS (가장 정확, 실시간)
+ *   2. APP_GPS_ACTIVE        — 앱 GPS (활성, 포그라운드)
+ *   3. APP_GPS_BACKGROUND    — 앱 GPS (백그라운드, 배터리 절약)
+ *   4. MANUAL                — 수동 입력
  *
  * stale threshold: 60초 초과 미수신 시 timestamp 경고 색상 + AlertCircle 아이콘.
  *
@@ -74,6 +77,13 @@ const SOURCE_LABEL: Record<GpsSourceKey, string> = {
   APP_GPS_ACTIVE:       '앱 GPS (활성)',
   APP_GPS_BACKGROUND:   '앱 GPS (백그라운드)',
   MANUAL:               '수동 입력',
+}
+
+const SOURCE_PRIORITY: Record<GpsSourceKey, number> = {
+  EXTERNAL_INSUNG_LBS:  1,
+  APP_GPS_ACTIVE:       2,
+  APP_GPS_BACKGROUND:   3,
+  MANUAL:               4,
 }
 
 // ---------------------------------------------------------------------------
@@ -299,10 +309,12 @@ export function InsungLbsPanel({
     }
   }, [])
 
-  // BE 가 config priority 와 stale 기준으로 정렬/active 산정을 끝낸 순서를 그대로 렌더한다.
-  const ordered = sources
+  // priority 순서대로 정렬
+  const sorted = [...sources].sort(
+    (a, b) => SOURCE_PRIORITY[a.source] - SOURCE_PRIORITY[b.source],
+  )
 
-  const activeSource = ordered.find((s) => s.active)
+  const activeSource = sorted.find((s) => s.active)
 
   return (
     <div
@@ -341,10 +353,10 @@ export function InsungLbsPanel({
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {ordered.map((gps, index) => (
+          {sorted.map((gps) => (
             <SourceRow
               key={gps.source}
-              rank={index + 1}
+              rank={SOURCE_PRIORITY[gps.source]}
               gps={gps}
               nowMs={nowMs}
             />

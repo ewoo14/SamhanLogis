@@ -37,11 +37,27 @@
 - **`components/InsungLbsPanel.tsx`**: 하드코딩 priority 재정렬 제거 → **BE config priority 순서 그대로 렌더**(rank=index+1). BE=우선순위 단일 진실원.
 - **`api/mock.ts`**: mock 상세에 gpsSources + manual-location POST mock.
 
+## DDL 변경 (착수 시 spec 대비 추가)
+
+- **V23 마이그레이션 신규**: `ix_driver_locations_driver_source_captured (driver_id, source, captured_at DESC)`. spec 초안은 "DDL 변경 없음"이었으나, R1 DevOps 리뷰가 `DISTINCT ON (driver_id, source)` 조회 패턴을 기존 `(driver_id, captured_at)` 인덱스가 커버 못함을 포착 → 복합 인덱스 추가. `CREATE INDEX IF NOT EXISTS` 멱등.
+
 ## 검증
 
-_(테스트·라이브 QA — 리뷰 라운드에서 채움)_
+- **BE**: `./gradlew :services:arologis-service:test --rerun-tasks --no-build-cache` → **561 tests·0 fail·0 skip** (Testcontainers Postgres IT 11 컨텍스트 로드·V23 마이그레이션 적용 실행). 신규 `GpsSourceAssemblerTest`(60s 경계·null·future-skew·all-stale·priority 확장·MANUAL·latest-per-source·Insung multi-stop dedup)·`DispatchServiceTest`(recordManualLocation 404/400/success captor)·`ArologisAdminControllerIT`(gpsSources jsonPath·manual-location write-then-read·404·400)·`DispatchDetailResponseTest`·`ArologisPermissionControllerIT`(manual-location UPDATE 권한).
+- **FE**: `npm run typecheck` clean · `npx vitest run` **9 파일 49 tests·0 fail** (packaging-invariants 6·InsungLbsPanel 3·ManualLocationForm 4·DispatchDetailPage 5·arologisDispatchDetail 6 등).
+- **라이브 QA** (Docker 실서버 :8097 재배포·V23 적용·mock OFF·admin AROLOGIS_MASTER·투명 QA 시드→캡처→즉시 정리):
+  - **BE API 실증**: GET 배차 상세 → gpsSources = 인성LBS(active=false·30분 stale)·APP_GPS_ACTIVE(**active=true**·10초 fresh)·APP_GPS_BACKGROUND(false·5분 stale) — 개발책임자 결정(Insung 스냅샷 stale→실시간 APP_GPS active) 실증. POST manual-location 200→재조회 MANUAL 등장·범위초과 400·없는차량 404.
+  - **실 GUI 스샷** (`docs/qa/815-arologis-gps-multisource/`): `[1]인성LBS ⚠오래됨·[2]앱GPS(활성)●active·[3]앱GPS(백그라운드)⚠오래됨` 고정 순위번호 + 활성 소스 요약 + DS Input/Button 수동입력 폼 → 저장 → **`[4]수동입력` 등장 + "저장됨" + 페이지 blank 없이 in-place 갱신**(stale-while-revalidate).
 
-## 리뷰 이력
+## 리뷰 이력 (표준 캐논 듀얼)
 
-- **Codex 개발**: `codex exec`(effort high) 구현 → **MCP Codex 인수·독립검증**(genuine 1건 fix: InsungLbsPanel 하드코딩 priority가 BE config 순서 무시 → 서버 순서 보존 + active/stale 60s 경계·null·latest-per-source·Insung 회귀 테스트 + MANUAL 권한 UPDATE WebMvc 가드 IT 보강). BE `--rerun-tasks --no-build-cache` BUILD SUCCESSFUL·FE typecheck+터치 4파일 17 tests pass.
-- _(Opus 5-agent ↔ Codex 5-agent 적대 — 진행 예정)_
+- **Codex 개발**: `codex exec`(effort high) 구현 → **MCP Codex 인수·독립검증**(개발책임자 지시로 MCP 전환).
+- **R1 Opus 5-agent**(FE/BE/Design/DevOps/QA·실행=게시 1:1): genuine 다수 포착 →
+  - 🔴 **Design: InsungLbsPanel rank 회귀** — MCP Codex 가 하드코딩 priority 제거·`index+1` 도입한 것이 디자인 spec 고정 순위번호(인성=1~수동=4) 위배 → **origin/main 원복**(MCP Codex 과잉수정 되돌림). *(FE 에이전트는 "OK"로 판정했으나 Design 이 spec 대조로 포착 — 다중 렌즈 가치.)*
+  - 🔴 **Design: ManualLocationForm 하드롤** → `@samhan/design-system` Input/Button refactor(focus-visible·aria-invalid·per-field error·loading·"저장됨"·용어 "수동 입력").
+  - 🔴 **Design+FE: 저장 시 전체 페이지 blank** + **stale-response 취소가드 상실** → route wrapper `loadDetail(isRefresh)` stale-while-revalidate + `activeCodeRef` 가드.
+  - 🔴 **DevOps: driver_locations 무한정 조회** → `DISTINCT ON` 네이티브 쿼리 + V23 인덱스.
+  - 🔴 **FE: mock.ts regex 형제 endpoint 잠식**(pre-classify/unassigned/regional/history) → reserved 제외.
+  - 🟡 **BE: isStale 미래 타임스탬프 영구 fresh** → `deltaMs<0` stale · Clock 주입 · recordManualLocation 단위/IT 커버.
+  - → fix(Opus 서브에이전트)+게시. 양측 green 재검증.
+- _(Codex 5-agent 적대검증 — 진행 예정)_

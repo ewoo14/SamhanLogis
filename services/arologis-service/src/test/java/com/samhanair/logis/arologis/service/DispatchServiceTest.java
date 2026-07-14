@@ -5,12 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
+import com.samhanair.logis.arologis.domain.DriverLocation;
+import com.samhanair.logis.arologis.domain.DriverLocationSource;
 import com.samhanair.logis.arologis.domain.DriverSource;
 import com.samhanair.logis.arologis.domain.MatchSource;
 import com.samhanair.logis.arologis.domain.StopStatus;
@@ -27,20 +30,32 @@ import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * DispatchService 단위 테스트 — Phase 10 W10-1.
  *
- * <p>5 case — 생성 / 단건 조회 / 자동 매칭 (Mock matcher) / 수동 배정 / 미존재 NOT_FOUND.
+ * <p>8 case — 생성 / 단건 조회 / 자동 매칭 (Mock matcher) / 수동 배정 / 미존재 NOT_FOUND /
+ * 수동 위치 입력 3 case (vehicle 미존재 NOT_FOUND / 배정 기사 없음 INVALID_INPUT / 성공 저장).
  */
 class DispatchServiceTest {
+
+    /** FIX 3 (PR #818 리뷰) — recordManualLocation Clock 결정성 테스트용 고정 시각. */
+    private static final Clock FIXED_CLOCK =
+            Clock.fixed(Instant.parse("2026-07-14T03:00:00Z"), ZoneId.of("Asia/Seoul"));
 
     private final DispatchRepository dispatchRepository = mock(DispatchRepository.class);
     private final VehicleRepository vehicleRepository = mock(VehicleRepository.class);
@@ -56,7 +71,8 @@ class DispatchServiceTest {
 
     private final DispatchService service = new DispatchService(
             dispatchRepository, vehicleRepository, stopRepository,
-            driverRepository, locationRepository, driverMatcher, notificationClient, auditLogRecorder);
+            driverRepository, locationRepository, driverMatcher, notificationClient, auditLogRecorder,
+            FIXED_CLOCK);
 
     private static void setId(Object entity, String fieldName, UUID id) throws Exception {
         Field f = entity.getClass().getDeclaredField(fieldName);
@@ -171,5 +187,61 @@ class DispatchServiceTest {
         assertThatThrownBy(() -> service.findById(id))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("dispatch 미존재");
+    }
+
+    // ---- FIX 3 (PR #818 리뷰) — recordManualLocation Clock 주입 + 단위 테스트 3 case ----
+
+    @Test
+    @DisplayName("수동 위치 입력 — vehicle 미존재 → BusinessException NOT_FOUND")
+    void recordManualLocation_vehicle_not_found_throws_NOT_FOUND() {
+        UUID dispatchId = UUID.randomUUID();
+        when(vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, 1))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.recordManualLocation(dispatchId, 1,
+                new BigDecimal("37.1234567"), new BigDecimal("127.1234567")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("수동 위치 입력 — 배정 기사 없음 → BusinessException INVALID_INPUT")
+    void recordManualLocation_without_assigned_driver_throws_INVALID_INPUT() {
+        UUID dispatchId = UUID.randomUUID();
+        Vehicle vehicle = Vehicle.of(dispatchId, 1, VehicleTonnage.TONNAGE_1, "상일");
+        when(vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, 1))
+                .thenReturn(Optional.of(vehicle));
+
+        assertThatThrownBy(() -> service.recordManualLocation(dispatchId, 1,
+                new BigDecimal("37.1234567"), new BigDecimal("127.1234567")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("수동 위치 입력 — 성공 시 source=MANUAL + fixed clock now 로 저장")
+    void recordManualLocation_success_saves_manual_location_with_fixed_clock_now() {
+        UUID dispatchId = UUID.randomUUID();
+        UUID driverId = UUID.randomUUID();
+        Vehicle vehicle = Vehicle.of(dispatchId, 1, VehicleTonnage.TONNAGE_1, "상일");
+        vehicle.assignDriver(driverId, MatchSource.MANUAL, null);
+        when(vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, 1))
+                .thenReturn(Optional.of(vehicle));
+        when(locationRepository.save(any(DriverLocation.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        BigDecimal latitude = new BigDecimal("37.1234567");
+        BigDecimal longitude = new BigDecimal("127.7654321");
+        service.recordManualLocation(dispatchId, 1, latitude, longitude);
+
+        ArgumentCaptor<DriverLocation> captor = ArgumentCaptor.forClass(DriverLocation.class);
+        verify(locationRepository).save(captor.capture());
+        DriverLocation saved = captor.getValue();
+        assertThat(saved.getSource()).isEqualTo(DriverLocationSource.MANUAL);
+        assertThat(saved.getDriverId()).isEqualTo(driverId);
+        assertThat(saved.getCapturedAt()).isEqualTo(LocalDateTime.now(FIXED_CLOCK));
+        assertThat(saved.getLatitude()).isEqualByComparingTo(latitude);
+        assertThat(saved.getLongitude()).isEqualByComparingTo(longitude);
     }
 }
