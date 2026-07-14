@@ -1,5 +1,6 @@
 package com.samhanair.logis.arologis.controller;
 
+import com.samhanair.logis.arologis.config.ArologisMatcherProperties;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
@@ -88,6 +89,7 @@ public class ArologisAdminController {
     private final ArologisAuditLogRecorder auditLogRecorder;
     private final ArologisEditRequestService editRequestService;
     private final RealtimeBroker realtimeBroker;
+    private final ArologisMatcherProperties matcherProperties;
     private static final String ROLE_HEADER = "X-User-Role";
 
     /**
@@ -197,7 +199,11 @@ public class ArologisAdminController {
                 : driverRepository.findAllById(driverIds).stream()
                         .collect(Collectors.toMap(d -> d.getId().toString(), Driver::getDriverCode));
         return ApiResponse.ok(DispatchDetailResponse.from(
-                agg.dispatch(), agg.vehicles(), agg.stops(), driverIdToCode));
+                agg.dispatch(),
+                agg.vehicles(),
+                agg.stops(),
+                driverIdToCode,
+                matcherProperties.getInsungQuick().isSandboxMode()));
     }
 
     /** 자동 매칭 — 모든 vehicle 에 대해 활성 DriverMatcher 호출. */

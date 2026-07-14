@@ -73,10 +73,8 @@ export interface NotifyResult {
   errorCode: string | null
 }
 
-/** BE vehicle DTO (SP-10-2 Flyway V13 vendor_order_id 컬럼 추가) */
+/** 배차 상세 화면 vehicle 뷰모델 (BE vehicleId UUID 비공개) */
 export interface VehicleDetail {
-  /** 내부 UUID — 사용자 노출 X */
-  id: string
   /** 차량 순번 (사용자 노출) */
   sequence: number
   /** 톤수 라벨 */
@@ -413,7 +411,9 @@ interface VehicleRowProps {
 
 function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
   const showGpsPanel =
-    vehicle.matchStatus === 'ASSIGNED' || vehicle.matchStatus === 'DELIVERED'
+    (vehicle.matchStatus === 'ASSIGNED' || vehicle.matchStatus === 'DELIVERED') &&
+    Boolean(vehicle.driverCode) &&
+    (vehicle.gpsSources?.length ?? 0) > 0
 
   return (
     <div
@@ -462,7 +462,7 @@ function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
       {showGpsPanel && vehicle.driverCode && (
         <InsungLbsPanel
           driverCode={vehicle.driverCode}
-          gpsSources={vehicle.gpsSources ?? []}
+          gpsSources={vehicle.gpsSources}
         />
       )}
 

@@ -19,7 +19,6 @@ describe('DispatchDetailPage', () => {
       sandboxMode: false,
       vehicles: [
         {
-          id: 'vehicle-id',
           sequence: 1,
           tonnageLabel: '1톤',
           routeLabel: '서울 -> 인천',
@@ -36,6 +35,32 @@ describe('DispatchDetailPage', () => {
 
     expect(screen.queryByTestId('vehicle-row-1')).not.toBeNull()
     expect(screen.queryByTestId('notification-result-section')).toBeNull()
+  })
+
+  it('gpsSources 가 비어 있으면 매칭 완료 차량도 GPS 빈 패널을 렌더하지 않는다', () => {
+    const dispatch: DispatchDetail = {
+      id: 'dispatch-id',
+      dispatchDate: '2026-07-12',
+      dispatchTypeLabel: '일반',
+      sandboxMode: false,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnageLabel: '1톤',
+          routeLabel: '서울 -> 인천',
+          stopCount: 2,
+          matchStatus: 'ASSIGNED',
+          driverCode: 'INSUNG-001',
+          vendorOrderId: null,
+          gpsSources: [],
+        },
+      ],
+    }
+
+    render(<DispatchDetailPage dispatch={dispatch} />)
+
+    expect(screen.queryByTestId('vehicle-row-1')).not.toBeNull()
+    expect(screen.queryByTestId('insung-lbs-panel')).toBeNull()
   })
 
   it('vehicles 가 undefined 여도 크래시 없이 "차량 0대" 렌더', () => {

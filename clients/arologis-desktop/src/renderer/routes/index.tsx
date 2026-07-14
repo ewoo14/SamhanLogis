@@ -26,7 +26,7 @@ import {
   RouterProvider,
   useParams,
 } from 'react-router-dom'
-import { apiClient, type ApiEnvelope } from '../api/client'
+import { getDispatchDetail } from '../api/arologisDispatchDetail'
 import { AppLayout } from '../components/AppLayout'
 import { PermissionGuard } from '../components/PermissionGuard'
 import { ProtectedRoute } from '../components/ProtectedRoute'
@@ -72,16 +72,8 @@ function DispatchDetailRouteWrapper(): JSX.Element {
     setDispatch(null)
     setLoadError(false)
 
-    apiClient
-      .get<DispatchDetail | ApiEnvelope<DispatchDetail>>(
-        `/api/arologis/dispatches/${encodeURIComponent(dispatchCode)}`,
-      )
-      .then((res) => {
-        const body = res.data
-        const nextDispatch =
-          body && typeof body === 'object' && 'data' in body
-            ? (body as ApiEnvelope<DispatchDetail>).data
-            : (body as DispatchDetail)
+    getDispatchDetail(dispatchCode)
+      .then((nextDispatch) => {
         if (!cancelled) {
           setDispatch(nextDispatch)
           setLoadError(false)

@@ -6,18 +6,25 @@ import static org.mockito.Mockito.lenient;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
-import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient.OutboundSlipSummary;
+import com.samhanair.logis.arologis.domain.Dispatch;
+import com.samhanair.logis.arologis.domain.DispatchType;
+import com.samhanair.logis.arologis.domain.StopStatus;
+import com.samhanair.logis.arologis.domain.Vehicle;
+import com.samhanair.logis.arologis.domain.VehicleStop;
+import com.samhanair.logis.arologis.domain.VehicleTonnage;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -162,6 +169,33 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", ADMIN_ACCOUNT_ID)
                         .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isNotFound());
+    }
+
+    @Test
+    void find_dispatch_returns_sandboxMode_and_vendorOrderId() throws Exception {
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "804 detail"));
+        Vehicle vehicle = vehicleRepository.save(
+                Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일+초월"));
+        vehicle.updateVendorOrderId("INSUNG-ORDER-804");
+        vehicleRepository.save(vehicle);
+        stopRepository.save(VehicleStop.of(
+                vehicle.getId(),
+                1,
+                "-인천 남동구 구월동(에스엠하나공조-214)",
+                "인천 남동구 구월동",
+                "에스엠하나공조",
+                214L,
+                null,
+                StopStatus.PENDING));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/" + dispatch.getId())
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.sandboxMode").value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].vendorOrderId")
+                        .value("INSUNG-ORDER-804"));
     }
 
     @Test
