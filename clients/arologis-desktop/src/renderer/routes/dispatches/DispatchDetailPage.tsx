@@ -23,8 +23,8 @@ import type React from 'react'
  *
  * <h2>알림 채널 정책</h2>
  * <ul>
- *   <li>배차 단계: "인성 알림톡" (notify.dispatch-channel=insung-talk)</li>
- *   <li>기사 초대: "Aligo SMS"   (notify.invite-channel=aligo)</li>
+ *   <li>배차 단계: "Aligo SMS" (notify.dispatch-channel=aligo)</li>
+ *   <li>인성 알림톡: 향후 인성 알림톡 vendor 연동 예약 채널</li>
  * </ul>
  *
  * <h2>data-testid</h2>
@@ -200,10 +200,15 @@ function NotifyStatusChip({ status, errorCode }: NotifyStatusChipProps): JSX.Ele
         {errorCode && (
           <span
             data-testid="notification-fail-reason"
+            title={safeErrorCode}
             style={{
-              fontSize: 'var(--font-size-xs)',
-              color:    'var(--color-danger-600)',
-              marginLeft: 4,
+              fontSize:     'var(--font-size-xs)',
+              color:        'var(--color-danger-600)',
+              marginLeft:   4,
+              maxWidth:     180,
+              overflow:     'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace:   'nowrap',
             }}
           >
             ({safeErrorCode})

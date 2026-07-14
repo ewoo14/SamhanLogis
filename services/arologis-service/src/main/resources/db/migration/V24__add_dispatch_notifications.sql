@@ -37,7 +37,3 @@ COMMENT ON COLUMN dispatch_notifications.error_code IS '실패 코드. 성공 �
 CREATE INDEX ix_dispatch_notifications_dispatch
     ON dispatch_notifications (dispatch_id)
     WHERE is_deleted = FALSE;
-
-CREATE INDEX ix_dispatch_notifications_dispatch_vehicle_sent
-    ON dispatch_notifications (dispatch_id, vehicle_id, sent_at DESC)
-    WHERE is_deleted = FALSE;

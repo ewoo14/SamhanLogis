@@ -56,7 +56,18 @@
 
 Opus 기획(본 spec·완료) → **개발책임자 결정①②③ 확정** → 조기 PR → Codex 개발 → Opus 5-agent+fix+라이브QA ↔ Codex 5-agent 적대 → 0수렴 → PM 종합 → CI → 머지.
 
-## 개발책임자 확정 요청
+## ✅ 결정 확정 (2026-07-15 개발책임자) — ③-B 실 발송까지 확장
+
+> R1 5-agent 리뷰가 ③-A(이력 기록만)의 **구조적 비기능성** 포착: 실 드라이버 `appUserId` 항상 null(Mock/Insung matcher·updateAppInstalled 호출자 0)이라 recording 미발동 → notifyResults 영구 `[]`·조작 시드로만 표시. 실 insung-talk/aligo 벤더 발송 부재로 **기록할 실 알림 자체가 없음**. → 개발책임자 **③-B(실 발송 확장)** 결정.
+
+### ③-B 설계 (실 aligo SMS 배차 알림 발송 + 기록 + 노출)
+- **실 발송**: `autoMatch` 매칭 성공 시 **기사 전화번호로 aligo SMS**(배차 매칭 알림) 발송 — notification-service 기존 `POST /internal/notifications/send`(recipientType=`EXTERNAL_PHONE`·channel=`SMS`·recipientAddress=phone·AligoSmsAdapter). **appUserId 게이트 제거**(phone 기반이라 전 기사 도달). notification-service **무변경**(기존 엔드포인트 정상 사용).
+- **wire body 정정**: 기존 `{recipientUserId,...}`(recipientType 누락→400)를 `{recipientType:EXTERNAL_PHONE, recipientAddress:phone, channel:SMS, subject, body}`로 정정.
+- **채널 = ALIGO**(정확·SMS). INSUNG_TALK는 실 인성 알림톡 벤더(W10-2) 시점 예약.
+- **정직 상태**: notification-service 응답 상태 매핑(SENT→SUCCESS·FAILED→FAILED·RETRYING/PENDING→DELAYED). **skeleton-mode 시 실 미발송 → 미기록(또는 비-SUCCESS)**·조작 SUCCESS 금지. 라이브 QA=skeleton OFF(실 발송 시도·dev Aligo placeholder creds라 상태 정직 반영).
+- **R1 fix 동반**: tx 격리(REQUIRES_NEW recorder)·raw phone BE 마스킹·errorCode overflow 가드·populated-case 테스트·미사용 복합 인덱스 제거.
+
+## (참고) 초기 옵션 제시 — 개발책임자 확정 요청
 
 - **결정① 상관저장**: A(arologis 로컬·PM 권고) vs B(notification-service SSOT) vs C(payload).
 - **결정③ 범위**: A(이력 기록·노출만·벤더 발송 이연·PM 권고) vs B(실 발송까지).

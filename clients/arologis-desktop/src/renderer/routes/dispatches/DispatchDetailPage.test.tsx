@@ -136,4 +136,44 @@ describe('DispatchDetailPage', () => {
     expect(row.textContent).not.toContain(' · ')
     expect(row.textContent).not.toContain('→')
   })
+
+  it('renders populated ALIGO notifyResults with status and masked phone', () => {
+    const dispatch: DispatchDetail = {
+      id: 'dispatch-id',
+      dispatchDate: '2026-07-12',
+      dispatchTypeLabel: '일반',
+      sandboxMode: false,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnageLabel: '1톤',
+          routeLabel: '서울 -> 인천',
+          stopCount: 2,
+          matchStatus: 'ASSIGNED',
+          matchSource: 'INTERNAL_APP',
+          driverCode: 'DRV-001',
+          vendorOrderId: null,
+          gpsSources: [],
+          notifyResults: [
+            {
+              channel: 'aligo',
+              status: 'FAILED',
+              sentAt: '2026-07-12T10:30:00',
+              recipientPhone: '010-1111-2222',
+              errorCode: 'ALIGO_VENDOR_ERROR_WITH_LONG_DETAIL',
+            },
+          ],
+        },
+      ],
+    }
+
+    render(<DispatchDetailPage dispatch={dispatch} />)
+
+    expect(screen.queryByTestId('notify-row-aligo')).not.toBeNull()
+    expect(screen.queryByTestId('channel-badge-aligo')).not.toBeNull()
+    expect(screen.queryByTestId('notification-status-chip-failed')).not.toBeNull()
+    expect(screen.queryByTestId('notification-masked-phone')?.textContent).toBe('010-XXXX-2222')
+    expect(screen.queryByTestId('notification-fail-reason')?.getAttribute('title'))
+      .toBe('ALIGO_VENDOR_ERROR_WITH_LONG_DETAIL')
+  })
 })

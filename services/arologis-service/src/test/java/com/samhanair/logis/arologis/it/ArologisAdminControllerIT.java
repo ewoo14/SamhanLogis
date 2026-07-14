@@ -7,6 +7,7 @@ import static org.mockito.Mockito.lenient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.arologis.ArologisServiceApplication;
 import com.samhanair.logis.arologis.client.NotificationClient;
+import com.samhanair.logis.arologis.client.NotificationSendOutcome;
 import com.samhanair.logis.arologis.client.PartnerClient;
 import com.samhanair.logis.arologis.client.SlipClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient;
@@ -127,6 +128,8 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         lenient().when(partnerClient.findByCode(any())).thenReturn(Optional.empty());
         lenient().when(slipClient.registerSignature(any(), any())).thenReturn(false);
         lenient().when(notificationClient.send(any(), any(), any(), any())).thenReturn(true);
+        lenient().when(notificationClient.sendDispatchSms(anyString(), anyString(), anyString()))
+                .thenReturn(new NotificationSendOutcome(true, ArologisNotifyStatus.SUCCESS, null));
         lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         // PR-E1 BE-3 — 기본 빈 리스트 (graceful empty). 개별 테스트가 override 가능.
@@ -236,7 +239,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
         dispatchNotificationRepository.save(DispatchNotification.of(
                 dispatch.getId(),
                 vehicle.getId(),
-                ArologisNotifyChannel.INSUNG_TALK,
+                ArologisNotifyChannel.ALIGO,
                 ArologisNotifyStatus.SUCCESS,
                 LocalDateTime.of(2026, 7, 14, 10, 30),
                 "010-1111-2222",
@@ -247,7 +250,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "AROLOGIS_MANAGER"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].notifyResults[0].channel")
-                        .value("insung-talk"))
+                        .value("aligo"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].notifyResults[0].status")
                         .value("SUCCESS"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].notifyResults[0].recipientPhone")

@@ -1,10 +1,9 @@
 package com.samhanair.logis.arologis.service;
 
 import com.samhanair.logis.arologis.client.NotificationClient;
+import com.samhanair.logis.arologis.client.NotificationSendOutcome;
 import com.samhanair.logis.arologis.domain.ArologisNotifyChannel;
-import com.samhanair.logis.arologis.domain.ArologisNotifyStatus;
 import com.samhanair.logis.arologis.domain.Dispatch;
-import com.samhanair.logis.arologis.domain.DispatchNotification;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
 import com.samhanair.logis.arologis.domain.DriverLocation;
@@ -19,7 +18,6 @@ import com.samhanair.logis.arologis.matcher.DriverMatcher;
 import com.samhanair.logis.arologis.parser.ParsedDispatch;
 import com.samhanair.logis.arologis.realtime.service.ArologisAuditLogRecorder;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
-import com.samhanair.logis.arologis.repository.DispatchNotificationRepository;
 import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
@@ -39,12 +37,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Dispatch service — Phase 10 W10-1.
+ * 아로로지스 배차 도메인 서비스.
  *
- * <p>저장 / 조회 / 자동 매칭 / 수동 배정 / 정차 상태 갱신 / Soft Delete.
- *
- * <p>본 service 의 자동 매칭 메서드는 활성 {@link DriverMatcher} (Mock or Insung) 호출 + 매칭
- * 결과 반영 + (옵션) NotificationClient.send 호출.
+ * <p>카카오 배차 생성, 단건 조회, 자동 매칭, 수동 배정, 수동 위치 기록, 정차 상태 변경,
+ * soft delete를 담당한다. 자동 매칭 성공 시 기사 휴대폰 번호 기반 알리고 SMS 발송을 시도하고
+ * 실제 시도된 outcome만 알림 이력으로 기록한다.
  */
 @Slf4j
 @Service
@@ -58,30 +55,16 @@ public class DispatchService {
     private final DriverLocationRepository locationRepository;
     private final DriverMatcher driverMatcher;
     private final NotificationClient notificationClient;
-    // 2026-05-14 분리 — UserClient 제거 (자체 user 도메인 도입). 기존 BE-3 의 UserVerifier 5번째
-    // 소비자 가드는 더 이상 적용되지 않음. 본 service 의 sender userId 는 driver.getAppUserId
-    // (Deprecated, NULL 허용) 또는 향후 driver.getId (자체 user 도메인) 로 전환 가능.
-
-    /**
-     * PR-H4b (Phase 12 Step 4b) — VehicleStop status 변경 시 audit overlay + SSE broadcast.
-     * dispatch 잠금 정책 가드는 별도 service (ArologisEditRequestService.guardCanEdit) 가 담당.
-     */
     private final ArologisAuditLogRecorder auditLogRecorder;
-
-    /**
-     * FIX 3 (PR #818 리뷰) — recordManualLocation 의 캡처 시각 결정에 사용. {@link GpsSourceAssembler}
-     * 와 동일하게 {@code ShedLockConfig.clock()} 전역 Bean 을 주입받아 시각 소스 일관성 + 테스트
-     * 결정성(Clock.fixed 대체)을 확보한다.
-     */
     private final Clock clock;
-    private final DispatchNotificationRepository dispatchNotificationRepository;
+    private final DispatchNotificationRecorder dispatchNotificationRecorder;
 
     /**
-     * Parsed dispatch → 영속화. dispatch + vehicles + stops 일괄 저장.
+     * 파싱된 배차를 dispatch + vehicles + stops aggregate로 저장한다.
      *
-     * @param parsed 카톡 파싱 결과
-     * @param rawKakaoText 원본 메시지 (audit)
-     * @return 저장된 dispatchId
+     * @param parsed 카카오 배차 파싱 결과
+     * @param rawKakaoText 원본 카카오 메시지
+     * @return 저장된 dispatch UUID
      */
     @Transactional
     public UUID create(ParsedDispatch parsed, String rawKakaoText) {
@@ -96,7 +79,6 @@ public class DispatchService {
                     Vehicle.of(dispatch.getId(), pv.sequence(), pv.tonnage(), pv.label()));
             for (ParsedDispatch.ParsedStop ps : pv.stops()) {
                 StopStatus initial = ps.unparsed() ? StopStatus.UNPARSED : StopStatus.PENDING;
-                // PR-D 2-1 — RegionClassifier 매칭 결과 (regionGroup) 함께 저장
                 stopRepository.save(VehicleStop.of(
                         vehicle.getId(),
                         ps.sequence(),
@@ -109,25 +91,25 @@ public class DispatchService {
                         ps.regionGroup()));
             }
         }
-        log.info("Dispatch 저장 완료 — dispatchId={}, date={}, type={}, vehicles={}",
+        log.info("Dispatch 저장 완료 - dispatchId={}, date={}, type={}, vehicles={}",
                 dispatch.getId(), parsed.dispatchDate(), parsed.dispatchType(), parsed.vehicles().size());
         return dispatch.getId();
     }
 
-    /** 단건 조회 (vehicles + stops 포함). */
+    /** 배차 단건을 vehicles + stops aggregate로 조회한다. */
     @Transactional(readOnly = true)
     public DispatchAggregate findById(UUID dispatchId) {
         Dispatch dispatch = dispatchRepository.findById(dispatchId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "dispatch 미존재: " + dispatchId));
         List<Vehicle> vehicles = vehicleRepository.findAllByDispatchIdOrderBySequenceAsc(dispatch.getId());
         List<VehicleStop> stops = new ArrayList<>();
-        for (Vehicle v : vehicles) {
-            stops.addAll(stopRepository.findAllByVehicleIdOrderBySequenceAsc(v.getId()));
+        for (Vehicle vehicle : vehicles) {
+            stops.addAll(stopRepository.findAllByVehicleIdOrderBySequenceAsc(vehicle.getId()));
         }
         return new DispatchAggregate(dispatch, vehicles, stops);
     }
 
-    /** 날짜 + 유형 필터 조회. */
+    /** 날짜와 유형으로 배차 목록을 조회한다. */
     @Transactional(readOnly = true)
     public List<Dispatch> findByDateAndType(LocalDate date, DispatchType type) {
         if (date == null) {
@@ -140,21 +122,23 @@ public class DispatchService {
     }
 
     /**
-     * 모든 vehicle 자동 매칭 — 활성 DriverMatcher 호출 + 매칭 결과 반영 + 알림.
+     * 모든 PENDING 차량을 matcher로 자동 매칭한다.
+     *
+     * <p>성공적으로 매칭된 차량은 기사 휴대폰 번호로 알리고 SMS를 발송한다. skeleton-mode처럼 실제
+     * 발송이 시도되지 않은 outcome은 이력을 남기지 않는다.
      */
     @Transactional
-    @SuppressWarnings("deprecation") // Driver.getAppUserId 는 2026-05-14 분리로 deprecated 지만, Phase 11 cutover 전까지 기존 row 의 user-service userId 매핑이 살아있는 동안 push 알림에 사용 — phoneNumber 기반 push 도입 슬라이스 전 임시 유지.
     public AutoMatchResult autoMatch(UUID dispatchId) {
-        DispatchAggregate agg = findById(dispatchId);
-        int total = agg.vehicles().size();
+        DispatchAggregate aggregate = findById(dispatchId);
+        int total = aggregate.vehicles().size();
         int matched = 0;
-        for (Vehicle vehicle : agg.vehicles()) {
+        for (Vehicle vehicle : aggregate.vehicles()) {
             if (vehicle.getStatus() != VehicleStatus.PENDING) {
                 continue;
             }
             vehicle.markMatching();
-            List<VehicleStop> vehicleStops = agg.stops().stream()
-                    .filter(s -> s.getVehicleId().equals(vehicle.getId()))
+            List<VehicleStop> vehicleStops = aggregate.stops().stream()
+                    .filter(stop -> stop.getVehicleId().equals(vehicle.getId()))
                     .toList();
             try {
                 DriverMatchResult result = driverMatcher.match(vehicle, vehicleStops);
@@ -162,41 +146,49 @@ public class DispatchService {
                     Driver driver = result.driver().get();
                     vehicle.assignDriver(driver.getId(), result.source(), result.externalRefId());
                     matched++;
-                    UUID appUserId = driver.getAppUserId();
-                    if (appUserId != null) {
-                        boolean sent = notificationClient.send(appUserId, "PUSH",
-                                "신규 배차 매칭",
-                                "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage() + ") 배정");
-                        DispatchNotification savedNotification = dispatchNotificationRepository.save(
-                                DispatchNotification.of(
-                                        dispatchId,
-                                        vehicle.getId(),
-                                        ArologisNotifyChannel.INSUNG_TALK,
-                                        sent ? ArologisNotifyStatus.SUCCESS : ArologisNotifyStatus.FAILED,
-                                        LocalDateTime.now(clock),
-                                        driver.getPhoneNumber(),
-                                        sent ? null : "SEND_FAILED"));
-                        log.info("배차 매칭 알림 이력 기록 — dispatchId={} vehicleSeq={} channel={} status={}",
-                                dispatchId, vehicle.getSequence(),
-                                savedNotification.getChannel(), savedNotification.getStatus());
-                    }
+                    sendAndRecordDispatchNotification(dispatchId, vehicle, driver);
                 } else {
-                    log.info("자동 매칭 실패 — vehicleSeq={}, source={}",
-                            vehicle.getSequence(), result.source());
+                    log.info("자동 매칭 실패 - vehicleSeq={}, source={}", vehicle.getSequence(), result.source());
                 }
             } catch (UnsupportedOperationException ex) {
-                log.warn("Matcher placeholder — vehicleSeq={}, msg={}", vehicle.getSequence(), ex.getMessage());
+                log.warn("Matcher placeholder - vehicleSeq={}, msg={}", vehicle.getSequence(), ex.getMessage());
             } catch (Exception ex) {
-                log.warn("Matcher 호출 실패 (fail-soft) — vehicleSeq={}, msg={}",
+                log.warn("Matcher 호출 실패 (fail-soft) - vehicleSeq={}, msg={}",
                         vehicle.getSequence(), ex.getMessage());
             }
         }
         return new AutoMatchResult(total, matched);
     }
 
-    /**
-     * 수동 기사 배정 — driverCode 로 lookup → vehicle.assignDriver.
-     */
+    private void sendAndRecordDispatchNotification(UUID dispatchId, Vehicle vehicle, Driver driver) {
+        String phoneNumber = driver.getPhoneNumber();
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            log.info("배차 매칭 알림 생략 - 기사 휴대폰 번호 없음 dispatchId={} vehicleSeq={}",
+                    dispatchId, vehicle.getSequence());
+            return;
+        }
+
+        NotificationSendOutcome outcome = notificationClient.sendDispatchSms(
+                phoneNumber,
+                "신규 배차 매칭",
+                "차량 #" + vehicle.getSequence() + " (" + vehicle.getTonnage() + ") 배정");
+        if (outcome == null || !outcome.attempted()) {
+            return;
+        }
+
+        dispatchNotificationRecorder.record(
+                dispatchId,
+                vehicle.getId(),
+                ArologisNotifyChannel.ALIGO,
+                outcome.status(),
+                LocalDateTime.now(clock),
+                phoneNumber,
+                outcome.errorCode());
+        log.info("배차 매칭 알림 이력 기록 요청 - dispatchId={} vehicleSeq={} channel={} status={}",
+                dispatchId, vehicle.getSequence(), ArologisNotifyChannel.ALIGO, outcome.status());
+    }
+
+    /** 수동으로 driverCode를 조회해 차량에 기사를 배정한다. */
     @Transactional
     public void assignDriverManual(UUID dispatchId, Integer vehicleSeq, String driverCode) {
         if (driverCode == null || driverCode.isBlank()) {
@@ -204,20 +196,17 @@ public class DispatchService {
         }
         Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "vehicle 미존재 — seq=" + vehicleSeq));
+                        "vehicle 미존재: seq=" + vehicleSeq));
         Driver driver = driverRepository.findByDriverCode(driverCode)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "driver 미존재: " + driverCode));
         vehicle.assignDriver(driver.getId(), MatchSource.MANUAL, null);
-        log.info("수동 배정 완료 — dispatchId={} vehicleSeq={} driverCode={}",
+        log.info("수동 배정 완료 - dispatchId={} vehicleSeq={} driverCode={}",
                 dispatchId, vehicleSeq, driverCode);
     }
 
     /**
-     * 관리자 수동 위치 입력.
-     *
-     * <p>vehicle UUID 는 FE 에 노출하지 않으므로 dispatchId + vehicle sequence 로 차량을 resolve 한다.
-     * 실제 저장 대상은 배정 기사 기준 GPS stream 이며 source=MANUAL 로 적재한다.
+     * 관리자가 차량 sequence 기준으로 수동 위치를 기록한다.
      *
      * @param dispatchId 배차 UUID
      * @param vehicleSeq 차량 sequence
@@ -229,7 +218,7 @@ public class DispatchService {
                                      BigDecimal latitude, BigDecimal longitude) {
         Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "vehicle 미존재 — seq=" + vehicleSeq));
+                        "vehicle 미존재: seq=" + vehicleSeq));
         if (vehicle.getAssignedDriverId() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "배정된 기사가 없어 수동 위치를 기록할 수 없습니다");
         }
@@ -239,34 +228,33 @@ public class DispatchService {
                 longitude,
                 LocalDateTime.now(clock),
                 DriverLocationSource.MANUAL));
-        log.info("수동 위치 기록 완료 — dispatchId={} vehicleSeq={} driverId={} source={}",
+        log.info("수동 위치 기록 완료 - dispatchId={} vehicleSeq={} driverId={} source={}",
                 dispatchId, vehicleSeq, saved.getDriverId(), saved.getSource());
     }
 
-    /** 정차 상태 갱신. */
+    /** 정차 상태를 갱신하고 audit overlay를 기록한다. */
     @Transactional
     public void updateStopStatus(UUID dispatchId, Integer vehicleSeq, Integer stopSeq, StopStatus status) {
         Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "vehicle 미존재 — seq=" + vehicleSeq));
+                        "vehicle 미존재: seq=" + vehicleSeq));
         VehicleStop stop = stopRepository.findFirstByVehicleIdAndSequence(vehicle.getId(), stopSeq)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "stop 미존재 — seq=" + stopSeq));
+                        "stop 미존재: seq=" + stopSeq));
         StopStatus oldStatus = stop.getStatus();
         stop.updateStatus(status, LocalDateTime.now());
-        // PR-H4b: status 변경 audit overlay + SSE broadcast (entity_id = dispatchId, fieldName = stops[seq].status)
         try {
             auditLogRecorder.recordOverlayPatch(dispatchId, new UUID(0L, 0L), "system", null,
                     "stops[" + stopSeq + "].status",
                     oldStatus == null ? null : oldStatus.name(),
                     status == null ? null : status.name());
         } catch (RuntimeException ex) {
-            log.warn("[PR-H4b] stop status audit 실패 — dispatchId={} stopSeq={} cause={}",
+            log.warn("[PR-H4b] stop status audit 실패 - dispatchId={} stopSeq={} cause={}",
                     dispatchId, stopSeq, ex.getMessage());
         }
     }
 
-    /** Soft Delete (BaseEntity.markDeleted). */
+    /** 배차를 soft delete 처리한다. */
     @Transactional
     public void softDelete(UUID dispatchId, String userId) {
         Dispatch dispatch = dispatchRepository.findById(dispatchId)
@@ -275,9 +263,9 @@ public class DispatchService {
         dispatch.markDeleted(userId);
     }
 
-    /** 단건 조회 응답 — dispatch + vehicles + stops aggregate. */
+    /** 배차 단건 조회 aggregate. */
     public record DispatchAggregate(Dispatch dispatch, List<Vehicle> vehicles, List<VehicleStop> stops) {}
 
-    /** 자동 매칭 결과 — 시도 차량 수 + 성공 차량 수. */
+    /** 자동 매칭 결과. */
     public record AutoMatchResult(int totalVehicles, int matched) {}
 }

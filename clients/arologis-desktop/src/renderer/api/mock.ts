@@ -88,7 +88,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           status: 'ASSIGNED',
           notifyResults: [
             {
-              channel: 'insung-talk',
+              channel: 'aligo',
               status: 'SUCCESS',
               sentAt: '2026-07-14T10:30:00',
               recipientPhone: '010-1111-2222',

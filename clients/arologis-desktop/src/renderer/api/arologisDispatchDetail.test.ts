@@ -41,7 +41,7 @@ describe('arologisDispatchDetail', () => {
           status: 'ASSIGNED',
           notifyResults: [
             {
-              channel: 'insung-talk',
+              channel: 'aligo',
               status: 'SUCCESS',
               sentAt: '2026-07-14T10:30:00',
               recipientPhone: '010-1111-2222',
@@ -102,7 +102,7 @@ describe('arologisDispatchDetail', () => {
           vendorOrderId: 'INSUNG-ORDER-804',
           notifyResults: [
             {
-              channel: 'insung-talk',
+              channel: 'aligo',
               status: 'SUCCESS',
               sentAt: '2026-07-14T10:30:00',
               recipientPhone: '010-1111-2222',

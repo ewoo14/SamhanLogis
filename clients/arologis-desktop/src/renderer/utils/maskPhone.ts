@@ -1,30 +1,19 @@
 /**
- * 휴대번호 마스킹 유틸리티.
+ * 휴대전화 번호 마스킹 유틸리티.
  *
- * SP-10-2 FE-3 알림톡 발송 결과 row 수신자 번호 마스킹 처리.
- * Designer spec (docs/design/sp-10-2-insung-quick-vendor/notification-row.md §4) 준수.
- *
- * 형식: 010-XXXX-{마지막 4자리}
- *
- * 예시:
- *   "01012345678"   → "010-XXXX-5678"
- *   "010-1234-5678" → "010-XXXX-5678"
- *   "0311234567"    → "***-XXXX-4567"  (비표준 번호 fallback)
- *
- * UUID 비공개 원칙 연장 (feedback_uuid_no_user_visibility.md):
- *   개인정보 동일 원칙 — 원본 번호는 BE 로그에만 보존. FE 는 마스킹 형식만 표시.
+ * <p>admin 내부 API는 원본 전화번호를 wire로 전달하고, 화면 표시는 이 함수로 마스킹한다.
+ * UUID 비공개 원칙과 별개로 개인정보 화면 노출을 최소화하기 위한 FE 표시 규칙이다.
  */
 
 /**
- * 휴대번호 문자열을 마스킹 형식으로 변환한다.
+ * 휴대전화 번호 문자열을 마스킹 형식으로 변환한다.
  *
- * @param phone 원본 번호 (하이픈 있음/없음 모두 허용)
- * @returns 마스킹된 번호 문자열. 빈 값이면 "번호 없음" 반환.
+ * @param phone 원본 번호. 하이픈 유무를 모두 허용한다.
+ * @returns 마스킹된 번호 문자열. 빈 값이면 "번호 없음"을 반환한다.
  */
 export function maskPhone(phone: string | null | undefined): string {
   if (!phone) return '번호 없음'
 
-  // 하이픈 제거 후 숫자만 추출
   const digits = phone.replace(/[^0-9]/g, '')
 
   if (digits.length < 4) {
@@ -37,6 +26,5 @@ export function maskPhone(phone: string | null | undefined): string {
     return `010-XXXX-${last4}`
   }
 
-  // 비표준 번호 fallback
   return `***-XXXX-${last4}`
 }
