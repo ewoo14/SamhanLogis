@@ -67,6 +67,11 @@ import {
  *   await 이후 현재 활성 코드/최신 요청 순번과 다르면 응답을 무시한다 — 네비게이션 도중
  *   도착한 이전 dispatch 응답과 같은 dispatchCode 의 이전 refresh 응답이 최신 화면을
  *   덮어쓰는 경합을 방지한다.
+ * - `loadDetail` 은 클로저-캡처된 dispatchCode 대신 `latestDispatchCodeRef`(렌더마다 갱신)
+ *   에서 "현재" 화면의 dispatchCode 를 읽는다 — 자식(ManualLocationForm)이 캡처한
+ *   `onSaved` 클로저가 dispatch 간 네비게이션 후 뒤늦게 실행돼도 옛 dispatchCode 로
+ *   activeCodeRef 가드를 하이재킹(엉뚱한 dispatch 로 화면 교체 / 로딩 영구 고착)하지 못하게
+ *   한다(R3 리뷰 fix — R2 requestSeqRef 미커버 경로).
  */
 function DispatchDetailRouteWrapper(): JSX.Element {
   // dispatchCode 는 라우팅 용도 전용 — 사용자 화면 노출 X (UUID 비공개 원칙 적용)
@@ -75,9 +80,13 @@ function DispatchDetailRouteWrapper(): JSX.Element {
   const [loadError, setLoadError] = useState<boolean>(false)
   const activeCodeRef = useRef<string | undefined>(undefined)
   const requestSeqRef = useRef(0)
+  // 렌더마다 동기 갱신 — loadDetail 이 stale 클로저가 아닌 "현재" dispatchCode 를 참조하게 한다.
+  const latestDispatchCodeRef = useRef(dispatchCode)
+  latestDispatchCodeRef.current = dispatchCode
 
   const loadDetail = useCallback(async (isRefresh: boolean) => {
-    if (!dispatchCode) {
+    const requestCode = latestDispatchCodeRef.current
+    if (!requestCode) {
       activeCodeRef.current = undefined
       requestSeqRef.current += 1
       setDispatch(null)
@@ -85,7 +94,6 @@ function DispatchDetailRouteWrapper(): JSX.Element {
       return
     }
 
-    const requestCode = dispatchCode
     const requestSeq = requestSeqRef.current + 1
     activeCodeRef.current = requestCode
     requestSeqRef.current = requestSeq
@@ -113,11 +121,11 @@ function DispatchDetailRouteWrapper(): JSX.Element {
         console.error('[DispatchDetailRouteWrapper] 배차 상세 재조회 실패 — 기존 데이터 유지', err)
       }
     }
-  }, [dispatchCode])
+  }, [])
 
   useEffect(() => {
     void loadDetail(false)
-  }, [loadDetail])
+  }, [dispatchCode, loadDetail])
 
   return (
     <DispatchDetailPage
