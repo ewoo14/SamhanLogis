@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Dispatch 상세 응답 — vehicles + stops 포함.
@@ -42,9 +43,11 @@ public record DispatchDetailResponse(
     public static DispatchDetailResponse from(Dispatch dispatch, List<Vehicle> vehicles,
                                               List<VehicleStop> stops,
                                               Map<String, String> driverIdToCode,
+                                              Map<UUID, List<GpsSource>> gpsByVehicleId,
                                               boolean sandboxMode) {
         List<VehicleDetail> vehicleDetails = vehicles.stream()
-                .map(v -> VehicleDetail.from(v, stops, driverIdToCode))
+                .map(v -> VehicleDetail.from(v, stops, driverIdToCode,
+                        gpsByVehicleId == null ? List.of() : gpsByVehicleId.getOrDefault(v.getId(), List.of())))
                 .toList();
         return new DispatchDetailResponse(
                 dispatch.getId() == null ? null : dispatch.getId().toString(),
@@ -67,6 +70,7 @@ public record DispatchDetailResponse(
      * @param externalRefId 외부 vendor 범용 참조값. 기존 계약 보존용으로 유지한다.
      * @param vendorOrderId 인성 퀵프로그램 주문번호. {@code externalRefId} 와 별도 컬럼이다.
      * @param status 차량 매칭/배송 상태
+     * @param gpsSources GPS source 목록. 우선순위 순서이며 없으면 빈 목록이다.
      * @param stops 차량 정차 목록
      */
     @Schema(description = "차량 1대 상세 응답")
@@ -87,10 +91,13 @@ public record DispatchDetailResponse(
             String vendorOrderId,
             @Schema(description = "차량 매칭/배송 상태")
             VehicleStatus status,
+            @Schema(description = "차량 GPS source 목록. 우선순위 순서이며 없으면 빈 목록.")
+            List<GpsSource> gpsSources,
             @Schema(description = "차량 정차 목록")
             List<StopDetail> stops
     ) {
-        static VehicleDetail from(Vehicle v, List<VehicleStop> allStops, Map<String, String> driverIdToCode) {
+        static VehicleDetail from(Vehicle v, List<VehicleStop> allStops, Map<String, String> driverIdToCode,
+                                  List<GpsSource> gpsSources) {
             List<StopDetail> stopDetails = allStops.stream()
                     .filter(s -> s.getVehicleId().equals(v.getId()))
                     .map(StopDetail::from)
@@ -108,6 +115,7 @@ public record DispatchDetailResponse(
                     v.getExternalRefId(),
                     v.getVendorOrderId(),
                     v.getStatus(),
+                    gpsSources == null ? List.of() : gpsSources,
                     stopDetails);
         }
     }

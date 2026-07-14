@@ -9,6 +9,8 @@ import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.dto.DispatchDetailResponse;
 import com.samhanair.logis.arologis.dto.DispatchResponse;
 import com.samhanair.logis.arologis.dto.DriverResponse;
+import com.samhanair.logis.arologis.dto.GpsSource;
+import com.samhanair.logis.arologis.dto.ManualLocationRequest;
 import com.samhanair.logis.arologis.dto.ManualDispatchPreviewResponse;
 import com.samhanair.logis.arologis.dto.ManualDispatchRequest;
 import com.samhanair.logis.arologis.dto.ParsedDispatchResponse;
@@ -26,6 +28,7 @@ import com.samhanair.logis.arologis.security.ArologisPageCodes;
 import com.samhanair.logis.arologis.service.DispatchManualService;
 import com.samhanair.logis.arologis.service.DispatchService;
 import com.samhanair.logis.arologis.service.DriverService;
+import com.samhanair.logis.arologis.service.GpsSourceAssembler;
 import com.samhanair.logis.arologis.service.PreClassifyService;
 import com.samhanair.logis.arologis.service.RegionalService;
 import com.samhanair.logis.arologis.service.UnassignedService;
@@ -81,6 +84,7 @@ public class ArologisAdminController {
     private final DispatchManualService manualService;
     private final DriverService driverService;
     private final DriverRepository driverRepository;
+    private final GpsSourceAssembler gpsSourceAssembler;
     // PR-E1 BE-3 — 출고전표 자동 조회 기반 가배차/미배차/지방가배차 3 서비스
     private final PreClassifyService preClassifyService;
     private final UnassignedService unassignedService;
@@ -198,11 +202,13 @@ public class ArologisAdminController {
                 ? new HashMap<>()
                 : driverRepository.findAllById(driverIds).stream()
                         .collect(Collectors.toMap(d -> d.getId().toString(), Driver::getDriverCode));
+        Map<UUID, List<GpsSource>> gpsByVehicleId = gpsSourceAssembler.assemble(agg.vehicles(), agg.stops());
         return ApiResponse.ok(DispatchDetailResponse.from(
                 agg.dispatch(),
                 agg.vehicles(),
                 agg.stops(),
                 driverIdToCode,
+                gpsByVehicleId,
                 matcherProperties.getInsungQuick().isSandboxMode()));
     }
 
@@ -241,6 +247,21 @@ public class ArologisAdminController {
         String driverCode = body == null ? null : body.get("driverCode");
         dispatchService.assignDriverManual(id, seq, driverCode);
         return ApiResponse.ok(Map.of("dispatchId", id.toString(), "driverCode", driverCode));
+    }
+
+    /** 관리자 수동 위치 입력. */
+    @Operation(summary = "관리자 수동 위치 입력 (Admin)")
+    @PostMapping("/dispatches/{id}/vehicles/{seq}/manual-location")
+    @RequirePermission(page = ArologisPageCodes.DISPATCH_ADMIN, action = com.samhanair.logis.security.permission.PermissionAction.UPDATE)
+    public ApiResponse<Map<String, String>> recordManualLocation(
+            @PathVariable UUID id, @PathVariable Integer seq,
+            @Valid @RequestBody ManualLocationRequest req,
+            @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
+        dispatchService.recordManualLocation(id, seq, req.latitude(), req.longitude());
+        return ApiResponse.ok(Map.of(
+                "dispatchId", id.toString(),
+                "sequence", seq.toString(),
+                "source", "MANUAL"));
     }
 
     /** 정차 상태 갱신. */

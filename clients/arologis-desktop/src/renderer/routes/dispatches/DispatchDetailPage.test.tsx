@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import {
   DispatchDetailPage,
@@ -38,7 +38,7 @@ describe('DispatchDetailPage', () => {
     expect(screen.queryByTestId('notification-result-section')).toBeNull()
   })
 
-  it('gpsSources 가 비어 있으면 매칭 완료 차량도 GPS 빈 패널을 렌더하지 않는다', () => {
+  it('gpsSources 가 비어 있어도 매칭 완료 차량은 GPS 빈 패널을 렌더한다', () => {
     const dispatch: DispatchDetail = {
       id: 'dispatch-id',
       dispatchDate: '2026-07-12',
@@ -62,7 +62,35 @@ describe('DispatchDetailPage', () => {
     render(<DispatchDetailPage dispatch={dispatch} />)
 
     expect(screen.queryByTestId('vehicle-row-1')).not.toBeNull()
-    expect(screen.queryByTestId('insung-lbs-panel')).toBeNull()
+    expect(screen.queryByTestId('insung-lbs-panel')).not.toBeNull()
+    expect(screen.getByText('위치 정보 없음')).not.toBeNull()
+  })
+
+  it('ASSIGNED 차량과 기사 코드가 있으면 수동 위치 입력 폼을 렌더한다', () => {
+    const onDataChanged = vi.fn()
+    const dispatch: DispatchDetail = {
+      id: 'dispatch-id',
+      dispatchDate: '2026-07-12',
+      dispatchTypeLabel: '일반',
+      sandboxMode: false,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnageLabel: '1톤',
+          routeLabel: '서울 -> 인천',
+          stopCount: 2,
+          matchStatus: 'ASSIGNED',
+          matchSource: 'EXTERNAL_INSUNG_QUICK',
+          driverCode: 'INSUNG-001',
+          vendorOrderId: null,
+          gpsSources: [],
+        },
+      ],
+    }
+
+    render(<DispatchDetailPage dispatch={dispatch} onDataChanged={onDataChanged} />)
+
+    expect(screen.queryByTestId('manual-location-form')).not.toBeNull()
   })
 
   it('vehicles 가 undefined 여도 크래시 없이 "차량 0대" 렌더', () => {

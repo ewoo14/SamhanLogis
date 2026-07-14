@@ -2,6 +2,7 @@ package com.samhanair.logis.arologis.repository;
 
 import com.samhanair.logis.arologis.domain.Signature;
 import com.samhanair.logis.arologis.domain.SignatureSource;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,4 +18,7 @@ public interface SignatureRepository extends JpaRepository<Signature, UUID> {
     List<Signature> findAllByStopIdOrderByCapturedAtDesc(UUID stopId);
 
     Optional<Signature> findByStopIdAndSource(UUID stopId, SignatureSource source);
+
+    List<Signature> findAllByStopIdInAndSourceOrderByCapturedAtDesc(
+            Collection<UUID> stopIds, SignatureSource source);
 }

@@ -13,6 +13,10 @@ import type {
   VehicleDetail,
 } from '../routes/dispatches/DispatchDetailPage'
 import type { VehicleMatchStatus } from '../components/VehicleMatchStatusBadge'
+import type {
+  GpsSource,
+  GpsSourceKey,
+} from '../components/InsungLbsPanel'
 
 export type RawDispatchType = 'DAY' | 'NIGHT' | 'EXPRESS' | string
 
@@ -45,7 +49,16 @@ export interface RawVehicleDetail {
   externalRefId: string | null
   vendorOrderId: string | null
   status: string
+  gpsSources?: RawGpsSource[]
   stops: RawStopDetail[]
+}
+
+export interface RawGpsSource {
+  source: string
+  latitude: number | null
+  longitude: number | null
+  lastReceivedAt: string | null
+  active: boolean
 }
 
 export interface RawStopDetail {
@@ -102,7 +115,13 @@ function mapVehicleDetail(raw: RawVehicleDetail): VehicleDetail {
     driverCode: raw.assignedDriverCode,
     vendorOrderId: raw.vendorOrderId,
     notifyResults: undefined,
-    gpsSources: undefined,
+    gpsSources: (raw.gpsSources ?? []).map((g): GpsSource => ({
+      source: g.source as GpsSourceKey,
+      latitude: g.latitude,
+      longitude: g.longitude,
+      lastReceivedAt: g.lastReceivedAt,
+      active: g.active,
+    })),
   }
 }
 
@@ -148,4 +167,24 @@ export async function getDispatchDetail(dispatchCode: string): Promise<DispatchD
     `/admin/arologis/dispatches/${encodeURIComponent(dispatchCode)}`,
   )
   return mapDispatchDetail(unwrapDispatchDetail(res.data))
+}
+
+/**
+ * 관리자 수동 위치 입력.
+ *
+ * @param dispatchCode 라우팅용 dispatch UUID. 사용자 화면에는 직접 표시하지 않는다.
+ * @param sequence 차량 순번
+ * @param latitude 위도
+ * @param longitude 경도
+ */
+export async function recordManualLocation(
+  dispatchCode: string,
+  sequence: number,
+  latitude: number,
+  longitude: number,
+): Promise<void> {
+  await apiClient.post(
+    `/admin/arologis/dispatches/${encodeURIComponent(dispatchCode)}/vehicles/${sequence}/manual-location`,
+    { latitude, longitude },
+  )
 }

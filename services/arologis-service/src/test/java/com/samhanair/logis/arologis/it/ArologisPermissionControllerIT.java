@@ -56,6 +56,7 @@ import com.samhanair.logis.arologis.service.DispatchReconcileService;
 import com.samhanair.logis.arologis.service.DispatchSaveHistoryService;
 import com.samhanair.logis.arologis.service.DispatchService;
 import com.samhanair.logis.arologis.service.DriverService;
+import com.samhanair.logis.arologis.service.GpsSourceAssembler;
 import com.samhanair.logis.arologis.service.PreClassifyService;
 import com.samhanair.logis.arologis.service.RegionImportService;
 import com.samhanair.logis.arologis.service.RegionService;
@@ -138,6 +139,7 @@ class ArologisPermissionControllerIT {
     @MockBean private DispatchService dispatchService;
     @MockBean private DispatchManualService manualService;
     @MockBean private DriverService driverService;
+    @MockBean private GpsSourceAssembler gpsSourceAssembler;
     @MockBean private DriverRepository driverRepository;
     @MockBean private PreClassifyService preClassifyService;
     @MockBean private UnassignedService unassignedService;
@@ -327,6 +329,10 @@ class ArologisPermissionControllerIT {
                 endpoint("assign driver", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> post("/admin/arologis/dispatches/{id}/vehicles/1/assign-driver", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"driverCode\":\"DRV-001\"}")),
+                endpoint("manual location", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
+                        () -> post("/admin/arologis/dispatches/{id}/vehicles/1/manual-location", ID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"latitude\":37.1234567,\"longitude\":127.1234567}")),
                 endpoint("update stop status", "arologis.dispatch.admin", PermissionAction.UPDATE, "AROLOGIS_MANAGER",
                         () -> put("/admin/arologis/dispatches/{id}/vehicles/1/stops/1/status", ID)
                                 .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ARRIVED\"}")),

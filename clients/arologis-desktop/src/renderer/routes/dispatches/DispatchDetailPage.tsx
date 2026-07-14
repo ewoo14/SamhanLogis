@@ -49,6 +49,7 @@ import {
   InsungLbsPanel,
   type GpsSource,
 } from '../../components/InsungLbsPanel'
+import { ManualLocationForm } from '../../components/ManualLocationForm'
 import { maskPhone } from '../../utils/maskPhone'
 import { usePageTitle } from '../../hooks/usePageTitle'
 
@@ -409,13 +410,14 @@ function SandboxBanner(): JSX.Element {
 
 interface VehicleRowProps {
   vehicle: VehicleDetail
+  dispatchCode: string
+  onSaved: () => void
 }
 
-function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
+function VehicleRow({ vehicle, dispatchCode, onSaved }: VehicleRowProps): JSX.Element {
   const showGpsPanel =
     (vehicle.matchStatus === 'ASSIGNED' || vehicle.matchStatus === 'DELIVERED') &&
-    Boolean(vehicle.driverCode) &&
-    (vehicle.gpsSources?.length ?? 0) > 0
+    Boolean(vehicle.driverCode)
 
   return (
     <div
@@ -465,10 +467,18 @@ function VehicleRow({ vehicle }: VehicleRowProps): JSX.Element {
 
       {/* FE-2: InsungLbsPanel (ASSIGNED/DELIVERED 상태에서만 표시) */}
       {showGpsPanel && vehicle.driverCode && (
-        <InsungLbsPanel
-          driverCode={vehicle.driverCode}
-          gpsSources={vehicle.gpsSources}
-        />
+        <>
+          <InsungLbsPanel
+            driverCode={vehicle.driverCode}
+            gpsSources={vehicle.gpsSources}
+          />
+          <ManualLocationForm
+            dispatchCode={dispatchCode}
+            sequence={vehicle.sequence}
+            driverCode={vehicle.driverCode}
+            onSaved={onSaved}
+          />
+        </>
       )}
 
       {/* FE-3: 알림톡 발송 결과 row */}
@@ -489,6 +499,8 @@ interface DispatchDetailPageProps {
    * true 시 에러 UI (재시도 가이드 + 사용자 메시지) 렌더, false/undefined 시 로딩 표시.
    */
   loadError?: boolean
+  /** 상세 데이터가 변경된 뒤 상위 라우트가 재조회할 callback. */
+  onDataChanged?: () => void
 }
 
 /**
@@ -498,7 +510,11 @@ interface DispatchDetailPageProps {
  * SP-10-2 cycle 3 FE-C2-1 fix: loadError 분기 → 영구 로딩 갇힘 회귀 방지.
  * 실제 데이터 로딩은 상위 라우트에서 React Query 로 처리, props 로 전달.
  */
-export function DispatchDetailPage({ dispatch, loadError = false }: DispatchDetailPageProps): JSX.Element {
+export function DispatchDetailPage({
+  dispatch,
+  loadError = false,
+  onDataChanged,
+}: DispatchDetailPageProps): JSX.Element {
   usePageTitle(dispatch ? `배차 상세 — ${dispatch.dispatchDate}` : '배차 상세')
 
   if (!dispatch && loadError) {
@@ -575,7 +591,12 @@ export function DispatchDetailPage({ dispatch, loadError = false }: DispatchDeta
       {/* 차량 목록 */}
       <div>
         {vehicles.map((vehicle) => (
-          <VehicleRow key={vehicle.sequence} vehicle={vehicle} />
+          <VehicleRow
+            key={vehicle.sequence}
+            vehicle={vehicle}
+            dispatchCode={dispatch.id}
+            onSaved={onDataChanged ?? (() => undefined)}
+          />
         ))}
       </div>
     </div>

@@ -22,6 +22,7 @@ import com.samhanair.logis.arologis.matcher.DriverMatchResult;
 import com.samhanair.logis.arologis.matcher.DriverMatcher;
 import com.samhanair.logis.arologis.parser.ParsedDispatch;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
+import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
@@ -45,6 +46,7 @@ class DispatchServiceTest {
     private final VehicleRepository vehicleRepository = mock(VehicleRepository.class);
     private final VehicleStopRepository stopRepository = mock(VehicleStopRepository.class);
     private final DriverRepository driverRepository = mock(DriverRepository.class);
+    private final DriverLocationRepository locationRepository = mock(DriverLocationRepository.class);
     private final DriverMatcher driverMatcher = mock(DriverMatcher.class);
     private final NotificationClient notificationClient = mock(NotificationClient.class);
     // 2026-05-14 분리 — UserClient mock 제거 (자체 user 도메인 도입).
@@ -54,7 +56,7 @@ class DispatchServiceTest {
 
     private final DispatchService service = new DispatchService(
             dispatchRepository, vehicleRepository, stopRepository,
-            driverRepository, driverMatcher, notificationClient, auditLogRecorder);
+            driverRepository, locationRepository, driverMatcher, notificationClient, auditLogRecorder);
 
     private static void setId(Object entity, String fieldName, UUID id) throws Exception {
         Field f = entity.getClass().getDeclaredField(fieldName);

@@ -4,6 +4,8 @@ import com.samhanair.logis.arologis.client.NotificationClient;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
 import com.samhanair.logis.arologis.domain.Driver;
+import com.samhanair.logis.arologis.domain.DriverLocation;
+import com.samhanair.logis.arologis.domain.DriverLocationSource;
 import com.samhanair.logis.arologis.domain.MatchSource;
 import com.samhanair.logis.arologis.domain.StopStatus;
 import com.samhanair.logis.arologis.domain.Vehicle;
@@ -14,11 +16,13 @@ import com.samhanair.logis.arologis.matcher.DriverMatcher;
 import com.samhanair.logis.arologis.parser.ParsedDispatch;
 import com.samhanair.logis.arologis.realtime.service.ArologisAuditLogRecorder;
 import com.samhanair.logis.arologis.repository.DispatchRepository;
+import com.samhanair.logis.arologis.repository.DriverLocationRepository;
 import com.samhanair.logis.arologis.repository.DriverRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -46,6 +50,7 @@ public class DispatchService {
     private final VehicleRepository vehicleRepository;
     private final VehicleStopRepository stopRepository;
     private final DriverRepository driverRepository;
+    private final DriverLocationRepository locationRepository;
     private final DriverMatcher driverMatcher;
     private final NotificationClient notificationClient;
     // 2026-05-14 분리 — UserClient 제거 (자체 user 도메인 도입). 기존 BE-3 의 UserVerifier 5번째
@@ -181,6 +186,36 @@ public class DispatchService {
         vehicle.assignDriver(driver.getId(), MatchSource.MANUAL, null);
         log.info("수동 배정 완료 — dispatchId={} vehicleSeq={} driverCode={}",
                 dispatchId, vehicleSeq, driverCode);
+    }
+
+    /**
+     * 관리자 수동 위치 입력.
+     *
+     * <p>vehicle UUID 는 FE 에 노출하지 않으므로 dispatchId + vehicle sequence 로 차량을 resolve 한다.
+     * 실제 저장 대상은 배정 기사 기준 GPS stream 이며 source=MANUAL 로 적재한다.
+     *
+     * @param dispatchId 배차 UUID
+     * @param vehicleSeq 차량 sequence
+     * @param latitude 위도
+     * @param longitude 경도
+     */
+    @Transactional
+    public void recordManualLocation(UUID dispatchId, Integer vehicleSeq,
+                                     BigDecimal latitude, BigDecimal longitude) {
+        Vehicle vehicle = vehicleRepository.findFirstByDispatchIdAndSequence(dispatchId, vehicleSeq)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "vehicle 미존재 — seq=" + vehicleSeq));
+        if (vehicle.getAssignedDriverId() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "배정된 기사가 없어 수동 위치를 기록할 수 없습니다");
+        }
+        DriverLocation saved = locationRepository.save(DriverLocation.of(
+                vehicle.getAssignedDriverId(),
+                latitude,
+                longitude,
+                LocalDateTime.now(),
+                DriverLocationSource.MANUAL));
+        log.info("수동 위치 기록 완료 — dispatchId={} vehicleSeq={} driverId={} source={}",
+                dispatchId, vehicleSeq, saved.getDriverId(), saved.getSource());
     }
 
     /** 정차 상태 갱신. */

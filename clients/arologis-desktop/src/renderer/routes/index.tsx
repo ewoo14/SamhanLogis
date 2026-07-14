@@ -17,6 +17,7 @@
  * `ProtectedRoute` 가 토큰 부재 시 `/login` 으로 강제 리다이렉트한다.
  */
 import {
+  useCallback,
   useEffect,
   useState,
 } from 'react'
@@ -61,38 +62,32 @@ function DispatchDetailRouteWrapper(): JSX.Element {
   const [dispatch, setDispatch] = useState<DispatchDetail | null>(null)
   const [loadError, setLoadError] = useState<boolean>(false)
 
-  useEffect(() => {
+  const loadDetail = useCallback(async () => {
     if (!dispatchCode) {
       setDispatch(null)
       setLoadError(false)
       return
     }
 
-    let cancelled = false
     setDispatch(null)
     setLoadError(false)
 
-    getDispatchDetail(dispatchCode)
-      .then((nextDispatch) => {
-        if (!cancelled) {
-          setDispatch(nextDispatch)
-          setLoadError(false)
-        }
-      })
-      .catch((err) => {
-        console.error('[DispatchDetailRouteWrapper] 배차 상세 조회 실패', err)
-        if (!cancelled) {
-          setDispatch(null)
-          setLoadError(true)
-        }
-      })
-
-    return () => {
-      cancelled = true
+    try {
+      const nextDispatch = await getDispatchDetail(dispatchCode)
+      setDispatch(nextDispatch)
+      setLoadError(false)
+    } catch (err) {
+      console.error('[DispatchDetailRouteWrapper] 배차 상세 조회 실패', err)
+      setDispatch(null)
+      setLoadError(true)
     }
   }, [dispatchCode])
 
-  return <DispatchDetailPage dispatch={dispatch} loadError={loadError} />
+  useEffect(() => {
+    void loadDetail()
+  }, [loadDetail])
+
+  return <DispatchDetailPage dispatch={dispatch} loadError={loadError} onDataChanged={loadDetail} />
 }
 
 const router = createHashRouter([

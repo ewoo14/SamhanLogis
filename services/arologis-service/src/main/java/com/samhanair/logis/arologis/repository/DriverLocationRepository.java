@@ -1,7 +1,10 @@
 package com.samhanair.logis.arologis.repository;
 
 import com.samhanair.logis.arologis.domain.DriverLocation;
+import com.samhanair.logis.arologis.domain.DriverLocationSource;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -38,4 +41,7 @@ public interface DriverLocationRepository extends JpaRepository<DriverLocation, 
     int deleteOlderThan(@Param("threshold") LocalDate threshold);
 
     long countByDriverId(UUID driverId);
+
+    List<DriverLocation> findAllByDriverIdInAndSourceInOrderByCapturedAtDesc(
+            Collection<UUID> driverIds, Collection<DriverLocationSource> sources);
 }

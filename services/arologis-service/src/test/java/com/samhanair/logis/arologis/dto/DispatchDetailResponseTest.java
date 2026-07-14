@@ -46,6 +46,7 @@ class DispatchDetailResponseTest {
                 List.of(vehicle),
                 List.of(stop),
                 Map.of(driverId.toString(), "INSUNG-001"),
+                Map.of(),
                 true);
 
         assertThat(response.dispatchId()).isEqualTo(dispatchId.toString());
@@ -58,6 +59,7 @@ class DispatchDetailResponseTest {
         assertThat(vehicleDetail.matchSource()).isEqualTo(MatchSource.EXTERNAL_INSUNG_QUICK);
         assertThat(vehicleDetail.externalRefId()).isEqualTo("EXT-804");
         assertThat(vehicleDetail.vendorOrderId()).isEqualTo("INSUNG-ORDER-804");
+        assertThat(vehicleDetail.gpsSources()).isEmpty();
         assertThat(vehicleDetail.stops()).hasSize(1);
     }
 
@@ -69,7 +71,7 @@ class DispatchDetailResponseTest {
         ReflectionTestUtils.setField(dispatch, "id", UUID.fromString("10000000-0000-0000-0000-000000008044"));
 
         DispatchDetailResponse response = DispatchDetailResponse.from(
-                dispatch, List.of(), List.of(), Map.of(), false);
+                dispatch, List.of(), List.of(), Map.of(), Map.of(), false);
 
         assertThat(response.sandboxMode()).isFalse();
     }

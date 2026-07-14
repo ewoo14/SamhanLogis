@@ -59,4 +59,41 @@ describe('InsungLbsPanel', () => {
     expect(screen.getByTestId('gps-source-row-manual')).not.toBeNull()
     expect(screen.getByTestId('gps-active-source-label').textContent).toBe('인성 LBS')
   })
+
+  it('BE 가 계산한 config priority 순서를 보존해 렌더한다', () => {
+    const sources: GpsSource[] = [
+      {
+        source: 'MANUAL',
+        latitude: 37.1,
+        longitude: 127.1,
+        lastReceivedAt: '2026-07-14T10:00:00',
+        active: true,
+      },
+      {
+        source: 'APP_GPS_ACTIVE',
+        latitude: 37.2,
+        longitude: 127.2,
+        lastReceivedAt: '2026-07-14T10:00:00',
+        active: false,
+      },
+      {
+        source: 'EXTERNAL_INSUNG_LBS',
+        latitude: 37.3,
+        longitude: 127.3,
+        lastReceivedAt: '2026-07-14T10:00:00',
+        active: false,
+      },
+    ]
+
+    render(<InsungLbsPanel driverCode="INSUNG-003" gpsSources={sources} />)
+
+    const rows = screen.getAllByText(/\[(1|2|3)\]/).map((row) =>
+      row.parentElement?.getAttribute('data-testid'),
+    )
+    expect(rows).toEqual([
+      'gps-source-row-manual',
+      'gps-source-row-app-gps-active',
+      'gps-source-row-insung-lbs',
+    ])
+  })
 })

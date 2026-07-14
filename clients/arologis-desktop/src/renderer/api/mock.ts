@@ -63,6 +63,66 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(clonePermissionMap(permissionFixtures[role] ?? {}))
   }
 
+  const detailMatch = url.match(/^\/admin\/arologis\/dispatches\/([^/]+)$/)
+  if (method === 'get' && detailMatch) {
+    const dispatchId = decodeURIComponent(detailMatch[1] ?? 'mock-dispatch')
+    return envelope({
+      dispatchId,
+      dispatchDate: '2026-07-14',
+      dispatchType: 'EXPRESS',
+      sandboxMode: true,
+      vehicles: [
+        {
+          sequence: 1,
+          tonnage: 'TONNAGE_1',
+          label: '상일+초월',
+          assignedDriverCode: 'INSUNG-001',
+          matchSource: 'EXTERNAL_INSUNG_QUICK',
+          externalRefId: 'EXT-MOCK-001',
+          vendorOrderId: 'INSUNG-ORDER-MOCK-001',
+          status: 'ASSIGNED',
+          gpsSources: [
+            {
+              source: 'EXTERNAL_INSUNG_LBS',
+              latitude: 37.1000000,
+              longitude: 127.1000000,
+              lastReceivedAt: '2026-07-14T09:00:00',
+              active: false,
+            },
+            {
+              source: 'APP_GPS_ACTIVE',
+              latitude: 37.2000000,
+              longitude: 127.2000000,
+              lastReceivedAt: new Date().toISOString(),
+              active: true,
+            },
+          ],
+          stops: [
+            {
+              sequence: 1,
+              rawText: '-인천 남동구 구월동(에스엠하나공조-214)',
+              parsedAddress: '인천 남동구 구월동',
+              parsedPartnerName: '에스엠하나공조',
+              parsedKakaoSeq: 214,
+              parsedPartnerCode: 'P-2026-0001',
+              notes: null,
+              status: 'PENDING',
+            },
+          ],
+        },
+      ],
+    })
+  }
+
+  const manualLocationMatch = url.match(/^\/admin\/arologis\/dispatches\/([^/]+)\/vehicles\/(\d+)\/manual-location$/)
+  if (method === 'post' && manualLocationMatch) {
+    return envelope({
+      dispatchId: decodeURIComponent(manualLocationMatch[1] ?? ''),
+      sequence: manualLocationMatch[2] ?? '',
+      source: 'MANUAL',
+    })
+  }
+
   return null
 }
 

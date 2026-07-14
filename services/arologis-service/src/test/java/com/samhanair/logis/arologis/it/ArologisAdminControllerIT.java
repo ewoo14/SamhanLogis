@@ -13,7 +13,13 @@ import com.samhanair.logis.arologis.client.SlipServiceClient;
 import com.samhanair.logis.arologis.client.SlipServiceClient.OutboundSlipSummary;
 import com.samhanair.logis.arologis.domain.Dispatch;
 import com.samhanair.logis.arologis.domain.DispatchType;
+import com.samhanair.logis.arologis.domain.Driver;
+import com.samhanair.logis.arologis.domain.DriverLocation;
+import com.samhanair.logis.arologis.domain.DriverLocationSource;
+import com.samhanair.logis.arologis.domain.DriverSource;
 import com.samhanair.logis.arologis.domain.MatchSource;
+import com.samhanair.logis.arologis.domain.Signature;
+import com.samhanair.logis.arologis.domain.SignatureSource;
 import com.samhanair.logis.arologis.domain.StopStatus;
 import com.samhanair.logis.arologis.domain.Vehicle;
 import com.samhanair.logis.arologis.domain.VehicleStop;
@@ -25,7 +31,9 @@ import com.samhanair.logis.arologis.repository.SignatureRepository;
 import com.samhanair.logis.arologis.repository.VehicleRepository;
 import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -208,6 +216,113 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                         .value("INSUNG-ORDER-804"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].matchSource")
                         .value("EXTERNAL_INSUNG_QUICK"));
+    }
+
+    @Test
+    void find_dispatch_returns_gpsSources_from_app_gps_and_insung_signature() throws Exception {
+        Driver driver = driverRepository.save(Driver.of(
+                "DRV-GPS-001", "010-1111-2222", "1톤", DriverSource.INTERNAL, true, null));
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "gps detail"));
+        Vehicle vehicle = vehicleRepository.save(
+                Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일+초월"));
+        vehicle.assignDriver(driver.getId(), MatchSource.MANUAL, null);
+        vehicleRepository.save(vehicle);
+        VehicleStop stop = stopRepository.save(VehicleStop.of(
+                vehicle.getId(),
+                1,
+                "-인천 남동구 구월동(에스엠하나공조-214)",
+                "인천 남동구 구월동",
+                "에스엠하나공조",
+                214L,
+                null,
+                StopStatus.PENDING));
+        LocalDateTime now = LocalDateTime.now();
+        locationRepository.save(DriverLocation.of(
+                driver.getId(),
+                new BigDecimal("37.2000000"),
+                new BigDecimal("127.2000000"),
+                now.minusSeconds(10),
+                DriverLocationSource.APP_GPS_ACTIVE));
+        signatureRepository.save(Signature.of(
+                stop.getId(),
+                SignatureSource.EXTERNAL_INSUNG_LBS,
+                "image-ref",
+                now.minusMinutes(5),
+                new BigDecimal("37.1000000"),
+                new BigDecimal("127.1000000")));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/" + dispatch.getId())
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[0].source")
+                        .value("EXTERNAL_INSUNG_LBS"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[0].active")
+                        .value(false))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[0].latitude")
+                        .value(37.1000000))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[1].source")
+                        .value("APP_GPS_ACTIVE"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[1].active")
+                        .value(true))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[1].longitude")
+                        .value(127.2000000));
+    }
+
+    @Test
+    void manual_location_post_records_manual_source_and_detail_returns_it() throws Exception {
+        Driver driver = driverRepository.save(Driver.of(
+                "DRV-MANUAL-001", "010-1111-3333", "1톤", DriverSource.MANUAL, false, null));
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "manual gps"));
+        Vehicle vehicle = vehicleRepository.save(
+                Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일"));
+        vehicle.assignDriver(driver.getId(), MatchSource.MANUAL, null);
+        vehicleRepository.save(vehicle);
+        stopRepository.save(VehicleStop.of(
+                vehicle.getId(), 1, "-상일", "서울 강동구", "상일공조", 214L, null, StopStatus.PENDING));
+
+        String body = objectMapper.writeValueAsString(Map.of(
+                "latitude", new BigDecimal("37.3333333"),
+                "longitude", new BigDecimal("127.3333333")));
+        mockMvc.perform(MockMvcRequestBuilders.post(
+                        "/admin/arologis/dispatches/" + dispatch.getId() + "/vehicles/1/manual-location")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.dispatchId").value(dispatch.getId().toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.sequence").value("1"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.source").value("MANUAL"));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/" + dispatch.getId())
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[0].source")
+                        .value("MANUAL"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.vehicles[0].gpsSources[0].latitude")
+                        .value(37.3333333));
+    }
+
+    @Test
+    void manual_location_post_without_assigned_driver_returns_400() throws Exception {
+        Dispatch dispatch = dispatchRepository.save(
+                Dispatch.of(LocalDate.of(2026, 7, 14), DispatchType.EXPRESS, "manual gps no driver"));
+        vehicleRepository.save(Vehicle.of(dispatch.getId(), 1, VehicleTonnage.TONNAGE_1, "상일"));
+        String body = objectMapper.writeValueAsString(Map.of(
+                "latitude", new BigDecimal("37.3333333"),
+                "longitude", new BigDecimal("127.3333333")));
+
+        mockMvc.perform(MockMvcRequestBuilders.post(
+                        "/admin/arologis/dispatches/" + dispatch.getId() + "/vehicles/1/manual-location")
+                        .header("X-User-Id", ADMIN_ACCOUNT_ID)
+                        .header("X-User-Role", "AROLOGIS_MANAGER")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest());
     }
 
     @Test

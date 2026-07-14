@@ -3,20 +3,24 @@ import { apiClient } from './client'
 import {
   mapDispatchDetail,
   getDispatchDetail,
+  recordManualLocation,
   type RawDispatchDetailResponse,
 } from './arologisDispatchDetail'
 
 vi.mock('./client', () => ({
   apiClient: {
     get: vi.fn(),
+    post: vi.fn(),
   },
 }))
 
 const mockedGet = vi.mocked(apiClient.get)
+const mockedPost = vi.mocked(apiClient.post)
 
 describe('arologisDispatchDetail', () => {
   beforeEach(() => {
     mockedGet.mockReset()
+    mockedPost.mockReset()
   })
 
   it('maps raw BE dispatch detail into DispatchDetail view model', () => {
@@ -35,6 +39,15 @@ describe('arologisDispatchDetail', () => {
           externalRefId: 'EXT-804',
           vendorOrderId: 'INSUNG-ORDER-804',
           status: 'ASSIGNED',
+          gpsSources: [
+            {
+              source: 'APP_GPS_ACTIVE',
+              latitude: 37.5665,
+              longitude: 126.978,
+              lastReceivedAt: '2026-07-14T10:00:00',
+              active: true,
+            },
+          ],
           stops: [
             {
               sequence: 1,
@@ -79,7 +92,15 @@ describe('arologisDispatchDetail', () => {
           driverCode: 'INSUNG-001',
           vendorOrderId: 'INSUNG-ORDER-804',
           notifyResults: undefined,
-          gpsSources: undefined,
+          gpsSources: [
+            {
+              source: 'APP_GPS_ACTIVE',
+              latitude: 37.5665,
+              longitude: 126.978,
+              lastReceivedAt: '2026-07-14T10:00:00',
+              active: true,
+            },
+          ],
         },
       ],
     })
@@ -138,7 +159,7 @@ describe('arologisDispatchDetail', () => {
       matchStatus: 'NEW_STATUS',
       matchSource: null,
       notifyResults: undefined,
-      gpsSources: undefined,
+      gpsSources: [],
     })
     expect(mapped.vehicles[1]).toMatchObject({
       tonnageLabel: '다마스',
@@ -171,6 +192,17 @@ describe('arologisDispatchDetail', () => {
       vehicles: [],
     })
     expect(mockedGet).toHaveBeenCalledWith('/admin/arologis/dispatches/dispatch%2F804')
+  })
+
+  it('posts manual location to the dispatch sequence endpoint without exposing vehicle UUID', async () => {
+    mockedPost.mockResolvedValueOnce({ data: { success: true } })
+
+    await recordManualLocation('dispatch/804', 3, 37.1234567, 127.1234567)
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      '/admin/arologis/dispatches/dispatch%2F804/vehicles/3/manual-location',
+      { latitude: 37.1234567, longitude: 127.1234567 },
+    )
   })
 
   it('avoids orphan separator/arrow for empty or partial route endpoints and falls back deprecated tonnages to 기타', () => {
