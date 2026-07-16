@@ -38,3 +38,44 @@
 3. **자동배정 근거 확인 가능** — 어느 매핑이 적용됐는지 사용자가 화면에서 볼 수 있어야(예: '자동매핑' 배지/툴팁 + 적용 매핑 식별).
 
 신규 page-code `accounting.deposit-mapping`(⑥)는 **권한 seed 동반**([[feedback_pgc_c2_widening_option_a]] Option A = seed 진실원). BaseEntity 7 audit + Soft Delete([[project_build_conventions]]).
+
+## 🔧 기획검수 반영 (CODEX SOL 5.6 · 2026-07-17 · [PR #829 검수](https://github.com/ewoo14/Samhan-Public/pull/829#issuecomment-4996939507))
+기획검수 2 BLOCKING·5 HIGH·4 MEDIUM 을 구현 기준 설계로 확정한다.
+
+### A. 경로별 계약 분리 (BLOCKING) — 3파이프라인은 상이하다
+- **CSV import**: 저장만 → import 시 **입금 행에 한해** 활성 매핑 조회→`matched_partner_id`+provenance 세팅(매핑 없으면 미매칭).
+- **CODEF import**(`CodefImportService`): 은행 **입금** 행만 매핑 우선 적용(카드/대출/출금 제외). 기존 `resolvePartnerForCounterparty` 는 카드와 공유 → **deposit 전용 resolver 분리**(source/txnType 인자).
+- **KFTC**(`DepositMatchService`): `BankTransaction` 미생성 → 매핑 거래처를 **분개 후보로만** 사용(저장 약속 없음). 결과 DTO 에 `matchSource`/`mappingEvidence` 만 additive 추가.
+- **우선순위(⑤)**: `활성 학습 매핑 → (없을 때만) 기존 partnerCode 정확일치 → 미매칭`.
+
+### B. Provenance + 감사 (BLOCKING) — 자동적용 리스크 3요건의 구체화
+- `bank_transaction` 신규 컬럼: `partner_match_source`(`MANUAL`/`DEPOSITOR_MAPPING`/`PARTNER_CODE_EXACT`), `matched_mapping_id`(내부 UUID·nullable), `partner_matched_at`/`partner_matched_by`. **CHECK**: `matched_partner_id IS NULL → source·mapping_id NULL` · `source='DEPOSITOR_MAPPING' → matched_mapping_id NOT NULL`.
+- **매칭/재매칭/해제마다 append-only 감사**(old/new partner·source·mapping key). 기존 KFTC 실행 2행 감사와 별개로 **행 단위 근거**.
+- DTO(`BankTransactionResponse`): UUID 대신 `partnerMatchSource`·적용 raw/normalized 이름 additive 노출 → FE `BankTransactionPage` **'자동매핑' 배지/툴팁** 계약 고정. **기존 행 일괄 재배정 금지·신규 import 전향 적용만**.
+
+### C. 입금 전용 범위 (HIGH)
+학습·자동적용은 `txn_type=DEPOSIT`+입금성 source 로 **한정**. 출금·`CODEF_CARD` 는 depositor mapping 학습/적용에서 제외(기존 수동/코드일치는 유지 가능).
+
+### D. latest-wins 이력 (HIGH)
+BaseEntity(현재상태)만으로 불충분 → **매핑 변경마다 append-only 감사행/version**: old/new partnerCode·raw명·normalized 키·사유(`MANUAL_MATCH`/`ADMIN_CREATE|UPDATE|DELETE`). 구현안의 별도 `updatedBy` **제거**(BaseEntity `modifiedBy` 사용). 관리화면 이력 조회는 UUID 없이 business-key.
+
+### E. 유니크·원자 upsert (HIGH)
+`UNIQUE(normalized_name) WHERE is_deleted=FALSE`(튜플 아님·raw 유니크 아님). 원자 `INSERT … ON CONFLICT(normalized_name) WHERE is_deleted=FALSE DO UPDATE`(race 방지). CRUD 키 rename 충돌 시 **조용한 병합 금지·409**. soft-delete 후 재생성=새 행(이력 보존).
+
+### F. 외부 거래처 정합 (HIGH)
+CRUD 입력은 `partnerId` 아닌 **`partnerCode`** → `PartnerLookupClient` 검증 후 내부 ID 저장. 자동적용 시 ID hydration/활성 검증. **매핑 target stale 시 코드정확일치로 다른 거래처 조용히 선택 금지 → 미매칭+관리 경고**.
+
+### G. 정규화 (MEDIUM)
+단일 BE normalizer: `trim` + 내부 공백(정확한 Unicode 공백범위) 1칸 축약 + `toUpperCase(Locale.ROOT)`. **NFKC·괄호·특수문자 제거 안 함**(테스트 고정). raw = 최신 수동지정. 과병합(동명이인)/미병합(괄호·전각)은 의도된 수동 별칭으로 문서화.
+
+### H. CRUD·응답 계약 (MEDIUM)
+UUID 비공개 business-key 계약. GET(목록·이력)·POST(생성)·PUT(수정)·DELETE(soft). 응답=raw/normalizedName·partnerCode/name·modifiedAt/actor·상태. 404/409·soft-delete·stale partner 응답 정의. **제목 "자동제안"→"자동적용" 정정**(확정 ②).
+
+### I. 마이그레이션 (MEDIUM)
+현 HEAD accounting **V57**·auth **V87** 예약(구현 직전 rebase 재확인). mapping 테이블 BaseEntity 7 + raw/normalized/partnerId NOT NULL + nonblank/길이 CHECK + active partial unique. `bank_transaction` provenance enum+CHECK 를 **같은 accounting migration**에. DELETE=`markDeleted(actor)`만.
+
+### 🔵 개발책임자 확인 요청 (정책 nuance 3건 · 회계 도메인 · morning 판단) — [[feedback_integrity_domain_policy_preconfirm]]
+아래는 codex 권고 기본값으로 **자율 진행하되**, 회계 권한/감사 정책이라 확인 권장. 개발책임자 판단 시 조정(머지 전 가능):
+1. **권한 이중경로** — 권고: 단건 배정=`bank-matching:UPDATE`, **기억 upsert=`deposit-mapping:UPDATE` 보유시만**(미보유=단건 배정만).
+2. **자동매핑 행 해제 UX** — 권고: "이 거래만 해제" vs "매핑도 삭제" **분리**.
+3. **stale 매핑 폴백** — 권고: target stale 시 코드일치 대체 금지·미매칭+경고(§F).
