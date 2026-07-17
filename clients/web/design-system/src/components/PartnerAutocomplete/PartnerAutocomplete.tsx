@@ -7,6 +7,7 @@
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
+import { splitHighlightMatches } from './highlight'
 
 /**
  * 거래처 선택 옵션 — design-system 공개 타입.
@@ -56,6 +57,40 @@ export interface PartnerAutocompleteProps {
   inputTestId?: string
 }
 
+function HighlightedPartnerField({
+  value,
+  query,
+  label,
+  className,
+}: {
+  value: string
+  query: string
+  label: string
+  className: string | undefined
+}) {
+  const parts = splitHighlightMatches(value, query)
+  const isMatched = parts.some((part) => part.matched)
+
+  return (
+    <span className={className}>
+      {parts.map((part, index) =>
+        part.matched ? (
+          <mark className={styles['matchMark']} key={`match-${index}`}>
+            {part.text}
+          </mark>
+        ) : (
+          <span key={`text-${index}`}>{part.text}</span>
+        ),
+      )}
+      {isMatched ? (
+        <span className={styles['matchBadge']} aria-label={`매치 필드 ${label}`}>
+          {label}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 export const PartnerAutocomplete = forwardRef<
   HTMLInputElement,
   PartnerAutocompleteProps
@@ -75,15 +110,30 @@ export const PartnerAutocomplete = forwardRef<
       getKey={(partner) => partner.partnerCode}
       getInputLabel={(partner) => partner.name}
       listboxLabel="거래처 목록"
-      renderOption={(partner) => (
+      renderOption={(partner, context) => (
         <>
-          <span className={styles['optionPrimary']}>{partner.name}</span>
+          <HighlightedPartnerField
+            value={partner.name}
+            query={context?.query ?? ''}
+            label="상호"
+            className={styles['optionPrimary']}
+          />
           <span className={styles['optionSep']}>·</span>
-          <span className={styles['optionSecondary']}>{partner.partnerCode}</span>
+          <HighlightedPartnerField
+            value={partner.partnerCode}
+            query={context?.query ?? ''}
+            label="코드"
+            className={styles['optionSecondary']}
+          />
           {partner.bizNo ? (
             <>
               <span className={styles['optionSep']}>·</span>
-              <span className={styles['optionTertiary']}>{partner.bizNo}</span>
+              <HighlightedPartnerField
+                value={partner.bizNo}
+                query={context?.query ?? ''}
+                label="사업자번호"
+                className={styles['optionTertiary']}
+              />
             </>
           ) : null}
         </>

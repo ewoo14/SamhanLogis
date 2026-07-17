@@ -34,8 +34,11 @@ export interface AsyncAutocompleteProps<T> {
   getKey: (item: T) => string
   /** 입력란 표시값 + blur exact-match 기준. */
   getInputLabel: (item: T) => string
-  /** dropdown <li> 내부 내용. */
-  renderOption: (item: T) => ReactNode
+  /**
+   * dropdown <li> 내부 내용.
+   * @param context 후보를 만든 응답 검색어. 기존 1-인자 renderer는 그대로 동작한다.
+   */
+  renderOption: (item: T, context?: AsyncAutocompleteRenderContext) => ReactNode
   /** listbox aria-label. */
   listboxLabel: string
   /** blur 정확 일치 판정. 기본은 getInputLabel 대소문자 무시 비교. */
@@ -60,6 +63,12 @@ export interface AsyncAutocompleteProps<T> {
   debounceMs?: number
   /** dropdown 을 body floating layer 로 렌더한다. overflow 컨테이너 안에서는 기본 true 를 유지한다. */
   portal?: boolean
+}
+
+/** 후보 표시 renderer에 전달하는 응답 시점 검색 context. */
+export interface AsyncAutocompleteRenderContext {
+  /** 현재 표시 후보를 만든 검색어. draft가 아닌 resolved query다. */
+  query: string
 }
 
 /** 컴포넌트 내부 비동기 상태. */
@@ -95,7 +104,11 @@ function AsyncAutocompleteInner<T>(
   const [draft, setDraft] = useState<string>('')
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState<number>(-1)
-  const [candidates, setCandidates] = useState<T[]>([])
+  /** 후보와 후보를 만든 검색어를 한 응답 시점에 함께 교체한다. */
+  const [searchState, setSearchState] = useState<{
+    candidates: T[]
+    resolvedQuery: string
+  }>({ candidates: [], resolvedQuery: '' })
   const [status, setStatus] = useState<SearchStatus>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [floatingStyle, setFloatingStyle] = useState<CSSProperties | undefined>(undefined)
@@ -112,6 +125,8 @@ function AsyncAutocompleteInner<T>(
   const instanceSeq = useRef<number>(0)
   const latestSeq = useRef<number>(0)
 
+  const { candidates, resolvedQuery } = searchState
+
   /** 선택 항목의 입력란 표시 레이블. */
   const selectedLabel = value ? getInputLabel(value) : ''
 
@@ -124,7 +139,8 @@ function AsyncAutocompleteInner<T>(
     }
     setDraft('')
     setActiveIndex(-1)
-    setCandidates([])
+    latestSeq.current = ++instanceSeq.current
+    setSearchState({ candidates: [], resolvedQuery: '' })
     setStatus('idle')
     setOpen(true)
   }
@@ -143,7 +159,8 @@ function AsyncAutocompleteInner<T>(
       setDraft(getInputLabel(item))
       setActiveIndex(-1)
       setOpen(false)
-      setCandidates([])
+      latestSeq.current = ++instanceSeq.current
+      setSearchState({ candidates: [], resolvedQuery: '' })
       setStatus('idle')
     },
     [getInputLabel, onChange],
@@ -184,6 +201,8 @@ function AsyncAutocompleteInner<T>(
       const seq = ++instanceSeq.current
       latestSeq.current = seq
 
+      // 새 검색이 시작되면 이전 후보와 이전 검색어를 함께 폐기한다.
+      setSearchState({ candidates: [], resolvedQuery: '' })
       setStatus('loading')
       setErrorMsg(null)
 
@@ -191,11 +210,12 @@ function AsyncAutocompleteInner<T>(
         const results = await search(q)
         // stale 응답 — 더 최신 요청이 발행됐으면 버림
         if (latestSeq.current !== seq) return
-        setCandidates(results)
+        // 후보와 그 후보를 만든 검색어를 원자적으로 갱신한다.
+        setSearchState({ candidates: results, resolvedQuery: q })
         setStatus('done')
       } catch {
         if (latestSeq.current !== seq) return
-        setCandidates([])
+        setSearchState({ candidates: [], resolvedQuery: '' })
         setStatus('error')
         setErrorMsg('검색 중 오류가 발생했습니다.')
       }
@@ -210,12 +230,15 @@ function AsyncAutocompleteInner<T>(
     setActiveIndex(-1)
     if (!open) setOpen(true)
 
+    // debounce 대기 중에도 이전 후보가 새 draft에 강조되지 않도록 무효화한다.
+    latestSeq.current = ++instanceSeq.current
+    setSearchState({ candidates: [], resolvedQuery: '' })
+
     // debounce 리셋
     if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
 
     const trimmed = nextDraft.trim()
     if (trimmed.length < minChars) {
-      setCandidates([])
       setStatus('idle')
       return
     }
@@ -461,7 +484,7 @@ function AsyncAutocompleteInner<T>(
                     pick(item)
                   }}
                 >
-                  {renderOption(item)}
+                  {renderOption(item, { query: resolvedQuery })}
                 </li>
               )
             })}
