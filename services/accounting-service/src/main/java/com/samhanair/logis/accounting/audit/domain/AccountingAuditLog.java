@@ -59,9 +59,25 @@ public class AccountingAuditLog extends AuditLogEntry {
     public static AccountingAuditLog record(UUID entityId, int revisionNo, UUID actorId,
                                             String actorName, String actorColor, String fieldName,
                                             String oldValue, String newValue) {
+        return record(entityId, revisionNo, actorId, actorName, actorColor, fieldName,
+                oldValue, newValue, LocalDateTime.now());
+    }
+
+    /**
+     * 변경 시각을 호출자가 주입하는 정적 factory — #810 R3-CODEX (S4-M2).
+     *
+     * <p>한 작업(batch)의 여러 필드 행이 각기 {@code LocalDateTime.now()} 를 호출하면 같은
+     * 작업인데도 행마다 시각이 갈라져 회차 그룹핑/정렬이 부정확해진다. batch 는 작업당
+     * 단일 timestamp 를 계산해 전 행에 동일 주입한다.
+     *
+     * @param changedAt 작업 단위 변경 시각 (null 이면 {@link AuditLogEntry#init} 이 now 로 대체)
+     */
+    public static AccountingAuditLog record(UUID entityId, int revisionNo, UUID actorId,
+                                            String actorName, String actorColor, String fieldName,
+                                            String oldValue, String newValue, LocalDateTime changedAt) {
         AccountingAuditLog log = new AccountingAuditLog();
         log.init(entityId, revisionNo, actorId, actorName, actorColor, fieldName,
-                oldValue, newValue, LocalDateTime.now());
+                oldValue, newValue, changedAt);
         return log;
     }
 }

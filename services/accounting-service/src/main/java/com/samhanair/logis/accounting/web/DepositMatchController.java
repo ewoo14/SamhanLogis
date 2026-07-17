@@ -81,6 +81,17 @@ public class DepositMatchController {
         long matchedCount = results.stream()
                 .filter(r -> r.status() == DepositMatchStatus.MATCHED)
                 .count();
+        // #810 R3-CODEX (S1-M1): 조회 일시 장애 보류 행을 "정상 미존재" UNMATCHED 와 구분 집계(계약 pin).
+        long unavailableSkippedCount = results.stream()
+                .filter(DepositMatchResult::lookupUnavailable)
+                .count();
+        List<String> unavailableDepositorNames = results.stream()
+                .filter(DepositMatchResult::lookupUnavailable)
+                .map(DepositMatchResult::depositorName)
+                .filter(name -> name != null && !name.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
 
         List<DepositMatchResultDto> dtos = results.stream()
                 .map(r -> new DepositMatchResultDto(
@@ -102,6 +113,8 @@ public class DepositMatchController {
                 results.size(),
                 (int) matchedCount,
                 (int) (results.size() - matchedCount),
+                (int) unavailableSkippedCount,
+                unavailableDepositorNames,
                 dtos
         );
 

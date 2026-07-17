@@ -73,6 +73,10 @@ public class AccountingAuditLogService implements AuditLogRecorder {
     /**
      * 다중 필드 변경 일괄 audit 기록 — 같은 mutation 의 다중 필드는 같은 revision_no 공유.
      *
+     * <p>#810 R3-CODEX (S4-M2) — 같은 작업의 행들이 행마다 {@code LocalDateTime.now()} 를 다시
+     * 호출하면 changed_at 이 갈라져 회차 그룹핑/정렬이 부정확해진다. 작업당 <b>단일 timestamp</b>
+     * 를 계산해 전 행에 동일 주입한다 (revision_no 공유와 대칭).
+     *
      * @param entityId 대상 entity (TaxInvoice / Journal / AccountingPeriod) UUID
      * @param actorId 수정자 UUID
      * @param actorName 수정자 표시명
@@ -88,11 +92,12 @@ public class AccountingAuditLogService implements AuditLogRecorder {
             throw new IllegalArgumentException("changes 가 비어있습니다 — audit 기록할 변경이 없습니다");
         }
         int revisionNo = nextRevisionNo(entityId);
+        java.time.LocalDateTime operationChangedAt = java.time.LocalDateTime.now();
         List<AccountingAuditLog> saved = new ArrayList<>(changes.size());
         for (ChangeEntry change : changes) {
             saved.add(auditLogRepository.save(AccountingAuditLog.record(
                     entityId, revisionNo, actorId, actorName, actorColor,
-                    change.fieldName(), change.oldValue(), change.newValue())));
+                    change.fieldName(), change.oldValue(), change.newValue(), operationChangedAt)));
         }
         broker.publish(entityId, EVENT_ACCOUNTING_EDIT,
                 AuditEventPayloadBuilder.build(revisionNo, actorId, actorName, actorColor, changes));

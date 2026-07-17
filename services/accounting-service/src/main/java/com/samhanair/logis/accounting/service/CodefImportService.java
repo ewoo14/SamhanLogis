@@ -3,7 +3,6 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.client.CodefClient;
 import com.samhanair.logis.accounting.client.CodefTxn;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
-import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.BankTxnSource;
 import com.samhanair.logis.accounting.domain.PartnerMatchSource;
@@ -21,7 +20,6 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -145,6 +143,11 @@ public class CodefImportService {
             boolean matchedPartner = false;
             boolean staleHold = false;
             String staleNormalizedName = null;
+            // #810 R3-CODEX (S1-H1): 조회 일시 장애라도 거래 자체는 항상 저장하고 "매칭만" 보류한다.
+            // 저장-전 continue 는 은행거래를 영구 유실시켰다(응답은 '보류'라지만 실제 거래 부재).
+            // hold 플래그로 표시만 하고 하단 save 공통 경로로 미매칭 영속화 — 배치는 계속(행격리 유지).
+            boolean unavailableHold = false;
+            String unavailableHoldName = null;
             if (sourceTxn.source() == BankTxnSource.CODEF_BANK
                     && txn.txnType() == com.samhanair.logis.accounting.domain.BankTxnType.DEPOSIT) {
                 DepositorMappingService.MappingResolution resolution = depositorMappingService.resolveDeposit(
@@ -153,35 +156,29 @@ public class CodefImportService {
                     // #810 적대검증 R1 (L4-M1): stale 보류를 응답 집계로 표면화(코드정확일치 폴백 회피 유지).
                     staleHold = true;
                     staleNormalizedName = resolution.mapping().getNormalizedName();
-                }
-                if (resolution.isUnavailable()) {
-                    // #810 적대검증 R3 (L2-M1): 조회 일시 장애 행은 배치를 중단하지 않고 해당 행만
-                    // 저장 없이 skip 한다(행격리 — 특정 거래처 지속 장애의 poison-pill 해소).
-                    // 저장하지 않아야 다음 import 재시도에서 중복으로 오인되지 않는다(R2 의도 유지).
-                    unavailableSkipped++;
-                    unavailableNames.add(resolution.mapping().getNormalizedName());
-                    log.warn("[BC1] CODEF import 거래처 조회 일시 장애 — 행 skip(미저장·재시도 대상) "
+                } else if (resolution.isUnavailable()) {
+                    // 매핑 target 조회 장애 — stale 과 동일하게 정확일치 폴백을 하지 않아 오배정을 막고,
+                    // 거래는 미매칭으로 저장한다(S1-H1). 복구 후 수동 매칭(matchPartner)으로 해소.
+                    unavailableHold = true;
+                    unavailableHoldName = resolution.mapping().getNormalizedName();
+                    log.warn("[BC1] CODEF import 거래처 조회 일시 장애 — 매칭 보류(거래는 미매칭으로 저장) "
                             + "normalizedName={} externalRef={}",
                             resolution.mapping().getNormalizedName(), txn.externalRef());
-                    continue;
-                }
-                if (resolution.isMatched()) {
+                } else if (resolution.isMatched()) {
                     var mapping = resolution.mapping();
                     transaction.applyPartnerMatch(
                             resolution.partner().partnerId(), PartnerMatchSource.DEPOSITOR_MAPPING,
                             mapping.getId(), LocalDateTime.now(), "SYSTEM",
                             mapping.getRawName(), mapping.getNormalizedName());
                     matchedPartner = true;
-                } else if (!resolution.isStale()) {
+                } else {
                     PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(txn.counterpartyName());
                     if (lookup.isUnavailable()) {
-                        unavailableSkipped++;
-                        addUnavailableName(unavailableNames, txn.counterpartyName());
-                        log.warn("[BC1] CODEF import 거래처 코드 조회 일시 장애 — 행 skip(미저장·재시도 대상) "
+                        unavailableHold = true;
+                        unavailableHoldName = txn.counterpartyName();
+                        log.warn("[BC1] CODEF import 거래처 코드 조회 일시 장애 — 매칭 보류(거래는 미매칭으로 저장) "
                                 + "counterparty={} externalRef={}", txn.counterpartyName(), txn.externalRef());
-                        continue;
-                    }
-                    if (lookup.isFound() && lookup.partner().partnerId() != null
+                    } else if (lookup.isFound() && lookup.partner().partnerId() != null
                             && lookup.partner().isActiveStatus()) {
                         transaction.applyPartnerMatch(
                                 lookup.partner().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
@@ -195,14 +192,12 @@ public class CodefImportService {
                 if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
                     PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(txn.counterpartyName());
                     if (lookup.isUnavailable()) {
-                        // R3 (L2-M1): 카드·출금 정확일치 경로도 동일하게 행격리 — 배치는 계속.
-                        unavailableSkipped++;
-                        addUnavailableName(unavailableNames, txn.counterpartyName());
-                        log.warn("[BC1] CODEF import 거래처 코드 조회 일시 장애 — 행 skip(미저장·재시도 대상) "
+                        // S1-H1: 카드·출금 정확일치 경로도 동일 — 매칭만 보류하고 거래는 저장한다.
+                        unavailableHold = true;
+                        unavailableHoldName = txn.counterpartyName();
+                        log.warn("[BC1] CODEF import 거래처 코드 조회 일시 장애 — 매칭 보류(거래는 미매칭으로 저장) "
                                 + "counterparty={} externalRef={}", txn.counterpartyName(), txn.externalRef());
-                        continue;
-                    }
-                    if (lookup.isFound() && lookup.partner().partnerId() != null
+                    } else if (lookup.isFound() && lookup.partner().partnerId() != null
                             && lookup.partner().isActiveStatus()) {
                         transaction.applyPartnerMatch(
                                 lookup.partner().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
@@ -223,6 +218,11 @@ public class CodefImportService {
                     if (staleNormalizedName != null) {
                         staleNormalizedNames.add(staleNormalizedName);
                     }
+                }
+                if (unavailableHold) {
+                    // 저장이 성공한 행만 집계한다 — 중복 unique 거부 행은 duplicateSkipped 로만 계수.
+                    unavailableSkipped++;
+                    addUnavailableName(unavailableNames, unavailableHoldName);
                 }
             } catch (DataIntegrityViolationException ex) {
                 if (!isTransactionUniqueViolation(ex)) {

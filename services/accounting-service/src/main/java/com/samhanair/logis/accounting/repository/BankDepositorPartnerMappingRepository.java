@@ -61,9 +61,45 @@ public interface BankDepositorPartnerMappingRepository
                      @Param("partnerCode") String partnerCode,
                      @Param("actor") String actor);
 
-    /** 동일 정규화 키의 현재 상태 조회·갱신·감사를 하나의 직렬화 경계로 묶는다. */
-    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(CAST(:normalizedName AS text)))", nativeQuery = true)
-    void acquireNormalizedNameAdvisoryLock(@Param("normalizedName") String normalizedName);
+    /**
+     * 동일 정규화 키의 현재 상태 조회·갱신·감사를 하나의 직렬화 경계로 묶는다.
+     *
+     * <p>#810 R3-CODEX (S3-L1): 단일 키 획득도 {@link #acquireNormalizedNameAdvisoryLocks} 공용
+     * SQL(64bit {@code hashtextextended} + lock_id 정렬 획득)로 위임해 create/update/delete/learn
+     * 전 경로의 lock ID 계산·획득 순서를 하나로 통일한다.
+     */
+    default void acquireNormalizedNameAdvisoryLock(String normalizedName) {
+        acquireNormalizedNameAdvisoryLocks(normalizedName, normalizedName);
+    }
+
+    /**
+     * 두 정규화 키의 advisory lock 을 <b>실제 lock 자원(lock_id) 오름차순</b>으로 획득한다
+     * — #810 R3-CODEX (S3-L1).
+     *
+     * <p>구 구현은 32bit {@code hashtext} + Java 문자열 정렬이었는데, 해시 충돌로
+     * "문자열 정렬 순서 ≠ 실제 lock 자원의 수치 순서"가 되면 2-key rename 끼리 서로 반대
+     * 순서로 대기해 데드락이 발생한다(psql 실재현). 64bit {@code hashtextextended}(seed 0)로
+     * 충돌 확률을 낮추고, {@code DISTINCT lock_id ORDER BY lock_id} 로 어떤 키 조합이든
+     * 전역 일관된 수치 순서로 획득해 순서 역전 자체를 제거한다. 같은 키를 두 번 넘기면
+     * DISTINCT 가 1개 lock 으로 축약한다(단일 키 경로 공용).
+     *
+     * <p>{@code count(*)} 래핑으로 결과를 항상 단일 행으로 만든다 — void 반환 native query 는
+     * single-result 로 실행되어 2-lock(2행) 시 IncorrectResultSizeDataAccessException 이
+     * 발생한다(IT 실측). {@code pg_advisory_xact_lock} 은 volatile 이라 count 하위 subquery
+     * 에서도 행별·정렬순으로 실제 평가된다(fresh PostgreSQL 16 psql 프로브로 lock 2건
+     * 보유·동일 키 dedup 1건 확인).
+     *
+     * @return 획득한 advisory lock 수 (1 또는 2) — 호출부는 무시한다
+     */
+    @Query(value = """
+            SELECT count(*)
+              FROM (SELECT pg_advisory_xact_lock(lock_id)
+                      FROM (SELECT DISTINCT hashtextextended(k, 0) AS lock_id
+                              FROM (VALUES (CAST(:firstKey AS text)), (CAST(:secondKey AS text))) AS keys(k)
+                             ORDER BY lock_id) AS ordered_locks) AS acquired
+            """, nativeQuery = true)
+    long acquireNormalizedNameAdvisoryLocks(@Param("firstKey") String firstKey,
+                                            @Param("secondKey") String secondKey);
 
     /**
      * 매핑 id 의 현재 normalized key 를 entity 로드 없이 조회한다 — #810 적대검증 R3 (L3-L1).

@@ -124,6 +124,34 @@ class PartnerLookupClientTest {
     }
 
     @Test
+    void 이백응답에_partnerId가_누락되면_FOUND가_아니라_UNAVAILABLE로_격리한다() {
+        // #810 R3-CODEX (S1-M2): 부분배포/응답손상으로 partnerId 없이 partnerCode 만 오면
+        // FOUND(partnerId=null) 가 매칭 경로로 흘러 오매칭을 유발한다 — 구조 결손은 UNAVAILABLE.
+        server.expect(requestTo("http://partner-service/internal/partners/P-NOID"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"success":true,"code":"OK","data":{"partnerCode":"P-NOID","name":"부분배포거래처"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findByPartnerCodeResult("P-NOID").status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void 이백응답의_partnerId_형식오류도_UNAVAILABLE로_격리한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/P-BADID"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"success":true,"code":"OK","data":{"partnerId":"not-a-uuid","partnerCode":"P-BADID"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findByPartnerCodeResult("P-BADID").status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
     void findByPartnerCode는_partner_service_internal_response를_wire_parse한다() {
         server.expect(requestTo("http://partner-service/internal/partners/P-2026-0001"))
                 .andExpect(method(HttpMethod.GET))

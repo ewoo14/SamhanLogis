@@ -153,15 +153,16 @@ public class BankTransactionService {
                 staleSkipped++;
                 staleNormalizedNames.add(resolution.mapping().getNormalizedName());
             } else if (resolution.isUnavailable()) {
-                // #810 적대검증 R3 (L2-M1): 조회 일시 장애 행은 배치를 중단하지 않고 해당 행만
-                // 저장 없이 skip 한다(행격리 — 특정 거래처 지속 장애의 poison-pill 해소).
-                // 저장하지 않아야 다음 import 재시도에서 중복으로 오인되지 않고 매핑을 재시도한다
-                // (R2 stale write 방지 의도 유지).
+                // #810 R3-CODEX (S1-H1): 조회 일시 장애라도 거래 자체는 항상 저장하고 "매칭만" 보류한다.
+                // R3 의 저장-전 continue 는 은행거래를 영구 유실시켰다(일시장애 후 재import 하지 않으면
+                // 소실 — 응답은 '보류'라지만 실제 거래가 부재). R2 stale-write 방지 의도는 "잘못된 매칭
+                // write 금지"이지 "거래 미저장"이 아니다. 여기서는 applyPartnerMatch 를 하지 않아
+                // partnerMatchSource=null(미매칭)로 영속화하고, 이후 장애 복구 시 수동 매칭
+                // (matchPartner)으로 해소한다. 배치는 계속(poison-pill 행격리 유지).
                 unavailableSkipped++;
                 unavailableNames.add(resolution.mapping().getNormalizedName());
-                log.warn("CSV import 거래처 조회 일시 장애 — 행 skip(미저장·재시도 대상) normalizedName={} externalRef={}",
+                log.warn("CSV import 거래처 조회 일시 장애 — 매칭 보류(거래는 미매칭으로 저장) normalizedName={} externalRef={}",
                         resolution.mapping().getNormalizedName(), transaction.getExternalRef());
-                continue;
             }
             BankTransaction saved = repository.save(transaction);
             if (saved.getPartnerMatchSource() == PartnerMatchSource.DEPOSITOR_MAPPING) {

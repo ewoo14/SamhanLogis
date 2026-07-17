@@ -42,12 +42,18 @@ public interface AccountingAuditLogRepository extends JpaRepository<AccountingAu
      * <p>normalizedName 행만 필터하던 구 쿼리는 partnerCode/rawName/사유 행을 절대 노출하지 못했고
      * rename 시 이전 이력이 절단됐다. entityId 기준 전 필드 행으로 전환해 rename 후에도
      * 같은 매핑의 이력이 연속된다. {@code mapping.%} prefix 가드는 UUID 충돌 방어 겸 의도 문서화.
+     *
+     * <p>#810 R3-CODEX (S4-M3) — 구 정렬(changedAt/revisionNo/fieldName)은 total order 가
+     * 아니어서(같은 작업의 행들이 timestamp·revision 을 공유, soft-delete 후 재생성 entity 간
+     * 동률 가능) 호출 간 순서가 흔들릴 수 있었다. entityId·id tie-breaker 로 안정(total) 정렬을
+     * 보장한다 — FE 목록 렌더 순서·React key 안정성의 전제.
      */
     @Query("""
             select log from AccountingAuditLog log
              where log.entityId in :entityIds
                and log.fieldName like 'mapping.%'
-             order by log.changedAt desc, log.revisionNo desc, log.fieldName asc
+             order by log.changedAt desc, log.revisionNo desc,
+                      log.entityId asc, log.fieldName asc, log.id asc
             """)
     List<AccountingAuditLog> findMappingHistoryByEntityIds(
             @Param("entityIds") java.util.Collection<UUID> entityIds);

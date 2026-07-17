@@ -589,39 +589,44 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("#810 R3: 거래처 조회 일시 장애 행은 저장 없이 격리되고 배치는 계속되며 재시도에서 재처리된다")
-    void importCsv_isolatesUnavailableRowAndRetriesOnNextImport() throws Exception {
+    @DisplayName("#810 R3-CODEX: 거래처 조회 일시 장애 행도 거래는 저장되고 매칭만 보류되며 수동 매칭으로 해소된다")
+    void importCsv_persistsUnavailableRowUnmatchedAndResolvesByManualMatch() throws Exception {
         seedActiveMapping("삼한테스트상사", PARTNER_ID);
         when(partnerLookupClient.findByPartnerIdResult(PARTNER_ID))
                 .thenReturn(PartnerLookupClient.LookupResult.unavailable());
 
-        // 1행(삼한테스트상사 입금)만 조회 장애로 격리 — 2행(출금)은 정상 적재, 배치는 중단되지 않는다.
+        // 1행(삼한테스트상사 입금)은 조회 장애로 "매칭만" 보류 — 거래 자체는 저장되고 배치는 계속된다.
         importCsv(ms949Csv())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalRows").value(2))
-                .andExpect(jsonPath("$.data.importedCount").value(1))
+                .andExpect(jsonPath("$.data.importedCount").value(2))
                 .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0))
                 .andExpect(jsonPath("$.data.staleSkippedCount").value(0))
                 .andExpect(jsonPath("$.data.unavailableSkippedCount").value(1))
                 .andExpect(jsonPath("$.data.unavailableNames[0]").value("삼한테스트상사"));
 
-        // 격리 행은 저장되지 않는다(중복 오인 방지 — 재시도에서 재처리 가능해야 함).
-        assertThat(repository.findByExternalRefAndIsDeletedFalse("BANK-001")).isEmpty();
+        // S1-H1 회귀: 구 동작(저장 전 skip)은 거래를 영구 유실시켰다 — 이제 미매칭으로 영속화된다.
+        BankTransaction held = repository.findByExternalRefAndIsDeletedFalse("BANK-001").orElseThrow();
+        assertThat(held.getMatchedPartnerId()).isNull();
+        assertThat(held.getPartnerMatchSource()).isNull();
         assertThat(repository.findByExternalRefAndIsDeletedFalse("BANK-002")).isPresent();
 
-        // 장애 복구 후 재업로드: 격리됐던 행이 자동 매핑과 함께 적재되고, 기존 행만 중복 skip 된다.
-        when(partnerLookupClient.findByPartnerIdResult(PARTNER_ID))
-                .thenReturn(PartnerLookupClient.LookupResult.found(PARTNER));
-
+        // 재업로드해도 이중 적재되지 않는다(중복 skip) — 유실도 중복도 없다.
         importCsv(ms949Csv())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.importedCount").value(1))
-                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(1))
+                .andExpect(jsonPath("$.data.importedCount").value(0))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(2))
                 .andExpect(jsonPath("$.data.unavailableSkippedCount").value(0));
 
-        BankTransaction retried = repository.findByExternalRefAndIsDeletedFalse("BANK-001").orElseThrow();
-        assertThat(retried.getMatchedPartnerId()).isEqualTo(PARTNER_ID);
-        assertThat(retried.getPartnerMatchSource()).isEqualTo(PartnerMatchSource.DEPOSITOR_MAPPING);
+        // 장애 복구 후 수동 매칭으로 해소(왕복) — 저장돼 있던 보류 거래가 매칭된다.
+        when(partnerLookupClient.findByPartnerCode("P-2026-0001")).thenReturn(Optional.of(PARTNER));
+        matchPartner("BANK-001", "P-2026-0001")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.matchedPartnerCode").value("P-2026-0001"));
+
+        BankTransaction resolved = repository.findByExternalRefAndIsDeletedFalse("BANK-001").orElseThrow();
+        assertThat(resolved.getMatchedPartnerId()).isEqualTo(PARTNER_ID);
+        assertThat(resolved.getPartnerMatchSource()).isEqualTo(PartnerMatchSource.MANUAL);
     }
 
     @Test

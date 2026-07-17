@@ -93,6 +93,11 @@ class AccountingAuditLogServiceTest {
 
         assertThat(saved).hasSize(2);
         assertThat(saved.get(0).getRevisionNo()).isEqualTo(saved.get(1).getRevisionNo());
+        // #810 R3-CODEX (S4-M2): 한 작업(batch)의 행들은 changed_at 도 단일 timestamp 를
+        // 공유한다 — 행마다 now() 재호출로 시각이 갈라지면 회차 그룹핑/정렬이 부정확해진다.
+        assertThat(saved.get(0).getChangedAt())
+                .isNotNull()
+                .isEqualTo(saved.get(1).getChangedAt());
         verify(broker, times(1))
                 .publish(eq(entityId), eq(AccountingAuditLogService.EVENT_ACCOUNTING_EDIT), any());
     }

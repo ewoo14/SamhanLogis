@@ -108,13 +108,10 @@ public class DepositorMappingService {
         validateRequest(request);
         String oldKey = normalizeRequired(oldNormalizedName);
         String newNormalized = normalizeRequired(request.rawName());
-        // rename은 양쪽 business key를 정렬된 순서로 잠가 P1→P2/P3 감사 누락과 deadlock을 함께 막는다.
-        String firstLock = oldKey.compareTo(newNormalized) <= 0 ? oldKey : newNormalized;
-        String secondLock = oldKey.compareTo(newNormalized) <= 0 ? newNormalized : oldKey;
-        mappingRepository.acquireNormalizedNameAdvisoryLock(firstLock);
-        if (!firstLock.equals(secondLock)) {
-            mappingRepository.acquireNormalizedNameAdvisoryLock(secondLock);
-        }
+        // rename은 양쪽 business key를 잠가 P1→P2/P3 감사 누락과 deadlock을 함께 막는다.
+        // #810 R3-CODEX (S3-L1): Java 문자열 정렬은 해시 충돌 시 실제 lock 자원 순서와 어긋나
+        // 데드락을 유발했다 — 공용 SQL 이 lock_id(64bit hashtextextended) 오름차순으로 획득한다.
+        mappingRepository.acquireNormalizedNameAdvisoryLocks(oldKey, newNormalized);
         // lock 획득 뒤 현재 상태를 다시 읽어 TOCTOU와 감사 누락을 막는다.
         BankDepositorPartnerMapping mapping = findActive(oldKey);
         if (!newNormalized.equals(mapping.getNormalizedName())
@@ -163,8 +160,13 @@ public class DepositorMappingService {
      * 거래의 matchedMappingId로 매핑을 soft delete한다. UUID는 endpoint에 노출하지 않는다.
      *
      * <p>#810 적대검증 R3 (L3-L1): update/learn 과 동일한 normalized key advisory lock 으로
-     * 직렬화한다. 엔티티 로드 <b>이전에</b> 현재 키를 native scalar 로 읽어 잠근 뒤 로드하므로,
-     * 동시 rename 커밋 이후의 신선한 상태를 읽어 stale 상태 덮어쓰기(lost-update)를 막는다.
+     * 직렬화한다. 엔티티 로드 <b>이전에</b> 현재 키를 native scalar 로 읽어 잠근 뒤 로드한다.
+     *
+     * <p>#810 R3-CODEX (S3-M1): 첫 scalar 읽기와 lock 획득 사이에 동시 rename 이 커밋되면
+     * "옛 키"를 잠근 채 새 키의 entity 를 덮어쓸 수 있다 — lock 직후 scalar 를 <b>재조회</b>해
+     * 키가 달라졌으면 409(CONFLICT)로 전체 트랜잭션을 rollback 시킨다(호출자 재시도).
+     * 옛 키 lock 을 보유한 채 새 키 lock 을 추가 획득하면 rename(정렬 획득) 경로와
+     * lock 순서가 역전되어 데드락이 되므로 재획득은 하지 않는다.
      */
     public void deleteById(UUID mappingId, UUID actorId, String actorName, String reason) {
         if (mappingId == null) {
@@ -173,6 +175,11 @@ public class DepositorMappingService {
         String currentKey = mappingRepository.findNormalizedNameById(mappingId);
         if (currentKey != null) {
             mappingRepository.acquireNormalizedNameAdvisoryLock(currentKey);
+            String recheckKey = mappingRepository.findNormalizedNameById(mappingId);
+            if (!currentKey.equals(recheckKey)) {
+                throw new BusinessException(ErrorCode.CONFLICT,
+                        "입금자명 매핑 키가 동시에 변경되었습니다. 다시 시도해 주세요.");
+            }
         }
         mappingRepository.findById(mappingId).ifPresent(mapping -> {
             String oldPartnerCode = mapping.getPartnerCodeSnapshot();
@@ -405,8 +412,37 @@ public class DepositorMappingService {
         String actor = log.getActorName() != null && log.getActorName().matches("[0-9a-fA-F-]{36}")
                 ? "사용자" : log.getActorName();
         return new BankDepositorPartnerMappingHistoryResponse(
-                log.getFieldName(), log.getOldValue(), log.getNewValue(), actor, log.getChangedAt(),
-                log.getRevisionNo());
+                historyEntryKey(log), log.getFieldName(), log.getOldValue(), log.getNewValue(),
+                actor, log.getChangedAt(), log.getRevisionNo());
+    }
+
+    /**
+     * 이력 행의 opaque entryKey 생성 — #810 R3-CODEX (S4-M3, 계약 pin).
+     *
+     * <p>entityId·revisionNo·fieldName 에 audit 행 id 를 더한 조합의 SHA-256 hex 32자 절단.
+     * 행 id 가 유일성을(같은 revision·field 동률에도 충돌 없음), 해시가 opaque 성을 보장한다
+     * — UUID 원문은 노출되지 않고 역산도 불가(feedback_uuid_no_user_visibility 준수).
+     * 입력이 모두 불변(영속 후 변경 없음)이라 같은 행은 재조회에도 항상 같은 key 를 갖는다
+     * (FE React key 안정성).
+     */
+    private static String historyEntryKey(AccountingAuditLog log) {
+        String material = String.join("|",
+                String.valueOf(log.getEntityId()),
+                String.valueOf(log.getRevisionNo()),
+                String.valueOf(log.getFieldName()),
+                String.valueOf(log.getId()));
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(material.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(32);
+            for (int i = 0; i < 16; i++) {
+                sb.append(String.format(java.util.Locale.ROOT, "%02x", bytes[i]));
+            }
+            return sb.toString();
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            // JDK 필수 알고리즘 — 발생 불가 경로.
+            throw new IllegalStateException("SHA-256 misconfigured", ex);
+        }
     }
 
     private void recordMappingAudit(BankDepositorPartnerMapping mapping,

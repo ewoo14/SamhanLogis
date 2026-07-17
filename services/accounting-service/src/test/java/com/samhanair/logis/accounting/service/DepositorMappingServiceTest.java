@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -129,6 +130,45 @@ class DepositorMappingServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.CONFLICT));
+        // #810 R3-CODEX (S3-L1): rename 2-key lock 은 Java 문자열 정렬이 아니라
+        // 공용 정렬 획득 쿼리(lock_id 오름차순) 1회 호출로 잠근다.
+        verify(mappingRepository, times(1)).acquireNormalizedNameAdvisoryLocks("ACME", "OTHER");
+    }
+
+    @Test
+    @DisplayName("#810 R3-CODEX: deleteById는 lock 직후 키 재확인으로 동시 rename을 409로 거부한다")
+    void deleteByIdRejectsConcurrentRenameWithConflict() {
+        UUID mappingId = UUID.randomUUID();
+        // 첫 조회는 ACME, lock 획득 직후 재조회는 RENAMED — lock 대기 중 rename 커밋 시나리오.
+        when(mappingRepository.findNormalizedNameById(mappingId)).thenReturn("ACME", "RENAMED");
+
+        assertThatThrownBy(() -> service.deleteById(mappingId, UUID.randomUUID(), "사용자", "ADMIN_DELETE"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.CONFLICT));
+
+        // 잘못된(rename 이전 키 기준) entity 를 로드해 덮어쓰지 않는다 — 전체 tx rollback 대상.
+        verify(mappingRepository, never()).findById(any());
+        verify(mappingRepository, never()).saveAndFlush(any());
+        // 옛 키 lock 보유 상태에서 새 키 lock 을 추가 획득(rename 경로와 순서 역전 데드락)하지 않는다.
+        verify(mappingRepository, times(1)).acquireNormalizedNameAdvisoryLock("ACME");
+        verify(mappingRepository, never()).acquireNormalizedNameAdvisoryLock("RENAMED");
+    }
+
+    @Test
+    @DisplayName("#810 R3-CODEX: deleteById는 lock 후 키가 그대로면 정상 soft delete를 진행한다")
+    void deleteByIdProceedsWhenKeyStableAfterLock() {
+        UUID mappingId = UUID.randomUUID();
+        BankDepositorPartnerMapping mapping = BankDepositorPartnerMapping.create(
+                "Acme", UUID.randomUUID(), "P-001");
+        when(mappingRepository.findNormalizedNameById(mappingId)).thenReturn("ACME", "ACME");
+        when(mappingRepository.findById(mappingId)).thenReturn(Optional.of(mapping));
+        when(mappingRepository.saveAndFlush(mapping)).thenReturn(mapping);
+
+        service.deleteById(mappingId, UUID.randomUUID(), "사용자", "ADMIN_DELETE");
+
+        assertThat(mapping.getIsDeleted()).isTrue();
+        verify(mappingRepository).saveAndFlush(mapping);
     }
 
     @Test
@@ -214,6 +254,14 @@ class DepositorMappingServiceTest {
         assertThat(history.get(0).newValue()).isEqualTo("P-002");
         assertThat(history.get(0).revisionNo()).isEqualTo(2);
         assertThat(history.get(1).fieldName()).isEqualTo("mapping.reason");
+        // #810 R3-CODEX (S4-M3, 계약 pin): 행마다 유일·안정한 opaque entryKey — 같은
+        // revisionNo(2) 를 공유하는 두 행도 서로 다른 key 를 가져 FE React key 충돌이 없다.
+        // 32자 hex(SHA-256 절단) — UUID 형식이 아니며 원문 UUID 를 노출하지 않는다.
+        assertThat(history)
+                .extracting(BankDepositorPartnerMappingHistoryResponse::entryKey)
+                .doesNotContainNull()
+                .allMatch(key -> key.matches("[0-9a-f]{32}"))
+                .doesNotHaveDuplicates();
         verify(auditLogRepository).findMappingHistoryByEntityIds(
                 org.mockito.ArgumentMatchers.argThat(ids ->
                         ids.contains(entityId) && ids.contains(renamedEntityId)));

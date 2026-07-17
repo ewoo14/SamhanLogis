@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
@@ -96,7 +97,7 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
 
         // #810 적대검증 R1 (L4-H2): 이력은 entityId 기준 전 필드 행 — 생성 4행 + 수정 4행,
         // rename 후에도 이전 키(ACME) 시절 생성 이력이 절단되지 않는다.
-        mockMvc.perform(get(URL + "/history")
+        String historyJson = mockMvc.perform(get(URL + "/history")
                         .param("normalizedName", "ACMEUPDATED")
                         .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
@@ -110,7 +111,17 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
                         .exists())
                 .andExpect(jsonPath("$.data[?(@.fieldName=='mapping.rawName' && @.newValue=='AcmeUpdated')]")
                         .exists())
-                .andExpect(jsonPath("$.data[0].revisionNo").value(2));
+                .andExpect(jsonPath("$.data[0].revisionNo").value(2))
+                .andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        // #810 R3-CODEX (S4-M3, 계약 pin): 같은 revisionNo 를 공유하는 행들 사이에서도
+        // entryKey 는 행마다 유일·안정한 opaque 문자열(32자 hex — UUID 형식 아님)이어야 한다.
+        java.util.List<String> entryKeys =
+                com.jayway.jsonpath.JsonPath.read(historyJson, "$.data[*].entryKey");
+        assertThat(entryKeys)
+                .hasSize(8)
+                .doesNotHaveDuplicates()
+                .allMatch(key -> key != null && key.matches("[0-9a-f]{32}"));
 
         mockMvc.perform(delete(URL)
                         .param("normalizedName", "ACMEUPDATED")

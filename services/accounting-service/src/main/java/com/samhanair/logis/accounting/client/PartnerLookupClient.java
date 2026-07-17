@@ -319,7 +319,14 @@ public class PartnerLookupClient {
             String address = textOrNull(data, "address");
             BigDecimal creditLimit = decimalOrNull(data, "creditLimit");
             String status = textOrNull(data, "status");
-            if (partnerCode == null || partnerCode.isBlank()) {
+            // #810 R3-CODEX (S1-M2): partnerId·partnerCode 는 둘 다 구조적 필수다.
+            // 200 응답에 partnerId 가 누락/형식오류인데 partnerCode 만으로 FOUND 를 반환하면
+            // 부분배포/응답손상 시 partnerId=null 요약이 매칭 경로로 흘러 오매칭을 유발한다.
+            // 하나라도 결손이면 FOUND 가 아니라 UNAVAILABLE(재시도 대상)로 격리한다.
+            if (partnerId == null || partnerCode == null || partnerCode.isBlank()) {
+                log.warn("PartnerLookupClient response 구조 결손 — partnerId={} partnerCode={} (UNAVAILABLE 격리)",
+                        partnerId == null ? "누락/형식오류" : "ok",
+                        partnerCode == null || partnerCode.isBlank() ? "누락" : "ok");
                 return LookupResult.unavailable();
             }
             return LookupResult.found(new PartnerSummary(partnerId, partnerCode, name, businessNo, address,

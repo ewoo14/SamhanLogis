@@ -198,6 +198,10 @@ public class DepositMatchService {
                         com.samhanair.logis.accounting.domain.BankTxnSource.KFTC);
         Optional<PartnerSummary> partnerOpt;
         PartnerMatchSource matchSource = null;
+        // #810 R3-CODEX (S1-M1): 조회 일시 장애(UNAVAILABLE)는 "정상 미존재"와 구분해 단건 결과에
+        // 보존한다 — 응답의 unavailableSkippedCount 집계 근거. KFTC 경로는 기존 bank_transaction
+        // 매칭이라 거래 생성이 없으므로(유실 대상 없음) 매칭만 보류되고 재실행 시 재시도된다.
+        boolean lookupUnavailable = false;
         String mappingRawName = mappingResolution.mapping() == null
                 ? null : mappingResolution.mapping().getRawName();
         String mappingNormalizedName = mappingResolution.mapping() == null
@@ -214,8 +218,11 @@ public class DepositMatchService {
             log.warn("[SP-09-4] 거래처 조회 일시 장애 — depositorName={} 행 UNMATCHED 격리(재시도 대상)",
                     deposit.depositorName());
             partnerOpt = Optional.empty();
+            lookupUnavailable = true;
         } else {
-            partnerOpt = resolveExactPartnerForCounterparty(deposit.depositorName());
+            ExactPartnerLookup exact = resolveExactPartnerForCounterparty(deposit.depositorName());
+            partnerOpt = exact.partner();
+            lookupUnavailable = exact.unavailable();
             if (partnerOpt.isPresent()) {
                 matchSource = PartnerMatchSource.PARTNER_CODE_EXACT;
             }
@@ -226,7 +233,7 @@ public class DepositMatchService {
             return new DepositMatchResult(
                     deposit.depositorName(), deposit.amount(), deposit.transactionDate(),
                     null, null, null, DepositMatchStatus.UNMATCHED,
-                    null, mappingRawName, mappingNormalizedName);
+                    null, mappingRawName, mappingNormalizedName, lookupUnavailable);
         }
 
         PartnerSummary partner = partnerOpt.get();
@@ -297,23 +304,30 @@ public class DepositMatchService {
      *
      * <p>#810 적대검증 R3 (L2-M1): 조회 일시 장애(UNAVAILABLE)는 throw 하지 않고 empty 로
      * 반환해 해당 행만 UNMATCHED 격리한다 — 배치는 계속되고 재실행 시 재시도된다.
+     *
+     * <p>#810 R3-CODEX (S1-M1): 격리 시 disposition 을 함께 반환해 호출부가 "정상 미존재"와
+     * "조회 장애"를 구분·집계할 수 있게 한다.
      */
-    private Optional<PartnerSummary> resolveExactPartnerForCounterparty(String counterpartyName) {
+    private ExactPartnerLookup resolveExactPartnerForCounterparty(String counterpartyName) {
         if (counterpartyName == null || counterpartyName.isBlank()) {
-            return Optional.empty();
+            return new ExactPartnerLookup(Optional.empty(), false);
         }
         PartnerLookupClient.LookupResult result = partnerLookupClient.findByPartnerCodeResult(counterpartyName.trim());
         if (result == null) {
-            return partnerLookupClient.findByPartnerCode(counterpartyName.trim())
-                    .filter(PartnerSummary::isActiveStatus);
+            return new ExactPartnerLookup(partnerLookupClient.findByPartnerCode(counterpartyName.trim())
+                    .filter(PartnerSummary::isActiveStatus), false);
         }
         if (result.isUnavailable()) {
             log.warn("[SP-09-4] 거래처 코드 조회 일시 장애 — counterparty={} 행 UNMATCHED 격리(재시도 대상)",
                     counterpartyName.trim());
-            return Optional.empty();
+            return new ExactPartnerLookup(Optional.empty(), true);
         }
-        return result.isFound() && result.partner().isActiveStatus()
-                ? Optional.of(result.partner()) : Optional.empty();
+        return new ExactPartnerLookup(result.isFound() && result.partner().isActiveStatus()
+                ? Optional.of(result.partner()) : Optional.empty(), false);
+    }
+
+    /** 정확일치 폴백 결과와 조회 장애 disposition 을 함께 전달하는 내부 모델 — #810 R3-CODEX (S1-M1). */
+    private record ExactPartnerLookup(Optional<PartnerSummary> partner, boolean unavailable) {
     }
 
     /**
