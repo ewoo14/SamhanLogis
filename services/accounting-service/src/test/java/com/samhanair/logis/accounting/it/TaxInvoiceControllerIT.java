@@ -286,6 +286,52 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    @DisplayName("update — 거래처 교체 시 partnerId 도 반영 (#825 CH1: PUT 응답 + DB partner_id = P2, partnerName 정합)")
+    void updateReflectsNewPartnerId() throws Exception {
+        Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
+
+        // P1 거래처로 DRAFT 생성
+        UUID partner1 = UUID.randomUUID();
+        Map<String, Object> createBody = sampleBody();
+        createBody.put("partnerId", partner1.toString());
+        MvcResult created = mockMvc.perform(post("/accounting/tax-invoices")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createBody)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerId").value(partner1.toString()))
+                .andReturn();
+        String id = data(created).get("id").asText();
+
+        // P2 거래처로 교체 update — FE 는 새 거래처의 partnerId + 상호/사업자번호 snapshot 을 함께 전송
+        UUID partner2 = UUID.randomUUID();
+        Map<String, Object> updateBody = sampleBody();
+        updateBody.put("partnerId", partner2.toString());
+        updateBody.put("partnerName", "교체거래처");
+        updateBody.put("partnerBusinessNo", "987-65-43210");
+        mockMvc.perform(put("/accounting/tax-invoices/" + id)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partnerId").value(partner2.toString()))
+                .andExpect(jsonPath("$.data.partnerName").value("교체거래처"))
+                .andExpect(jsonPath("$.data.partnerBusinessNo").value("987-65-43210"));
+
+        // DB 정합 — 같은 테스트 트랜잭션의 pending UPDATE 를 raw JDBC 조회가 보도록 명시 flush
+        // (본 IT 의 cancelBlocked... 테스트와 동일 사유).
+        entityManager.flush();
+        UUID dbPartnerId = jdbcTemplate.queryForObject(
+                "SELECT partner_id FROM tax_invoices WHERE id = ?::uuid", UUID.class, id);
+        String dbPartnerName = jdbcTemplate.queryForObject(
+                "SELECT partner_name FROM tax_invoices WHERE id = ?::uuid", String.class, id);
+        org.assertj.core.api.Assertions.assertThat(dbPartnerId).isEqualTo(partner2);
+        org.assertj.core.api.Assertions.assertThat(dbPartnerName).isEqualTo("교체거래처");
+    }
+
     private String createDraft() throws Exception {
         Map<String, Object> body = sampleBody();
         MvcResult res = mockMvc.perform(post("/accounting/tax-invoices")

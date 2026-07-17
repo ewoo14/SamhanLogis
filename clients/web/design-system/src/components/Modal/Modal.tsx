@@ -6,6 +6,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { createPortal } from 'react-dom'
 import styles from './Modal.module.css'
@@ -30,6 +31,16 @@ export interface ModalProps {
   footer?: ReactNode
   /** Hide the close (X) button in the header. */
   hideCloseButton?: boolean
+  /**
+   * open 시 초기 포커스를 받을 요소 ref (예: 다이얼로그의 첫 입력란).
+   *
+   * 미지정 시 기존 동작(첫 focusable — 보통 닫기 버튼) 유지. 소비처 로컬 rAF 로
+   * Modal 내부 포커스 rAF 와 경합하던 패턴([#825 CM3])을 대체하는 결정적 계약이다.
+   * 대상이 다이얼로그 밖이거나 아직 없으면 기본 동작으로 폴백한다 (focus trap 무결성).
+   * ⚠️ `useRef` 로 생성한 안정 ref 를 전달할 것 — 렌더마다 새 객체를 만들면
+   * effect 가 재실행되어 포커스가 튄다.
+   */
+  initialFocusRef?: RefObject<HTMLElement>
   /** Body content. */
   children?: ReactNode
 }
@@ -61,6 +72,7 @@ export function Modal({
   closeOnHeaderX = true,
   footer,
   hideCloseButton = false,
+  initialFocusRef,
   children,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
@@ -77,9 +89,18 @@ export function Modal({
     const node = dialogRef.current
     if (node) {
       const focusables = getFocusable(node)
-      const target = focusables[0] ?? node
+      const fallback = focusables[0] ?? node
       // Defer to ensure portal mounted children are measurable.
-      window.requestAnimationFrame(() => target.focus())
+      window.requestAnimationFrame(() => {
+        // [#825 CM3] initialFocusRef 우선 — 다이얼로그 내부 요소일 때만 존중해
+        // aria-modal focus trap 을 벗어나지 않는다. 아니면 기존 기본 동작.
+        const preferred = initialFocusRef?.current
+        if (preferred && node.contains(preferred) && typeof preferred.focus === 'function') {
+          preferred.focus()
+        } else {
+          fallback.focus()
+        }
+      })
     }
 
     return () => {
@@ -88,7 +109,7 @@ export function Modal({
         prev.focus()
       }
     }
-  }, [open])
+  }, [open, initialFocusRef])
 
   // Lock body scroll while open.
   useEffect(() => {

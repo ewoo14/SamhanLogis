@@ -67,11 +67,15 @@
 /*
  * 검색어 매치 하이라이트 — design-system AsyncAutocomplete .matchMark 토큰 미러
  * ([#825 R1 L4] 브라우저 기본 <mark> 노랑 대신 PartnerAutocomplete 시각 통일).
+ * [#825 CM1] color: inherit → AA 명시 색쌍 — dark theme 본문색(#F7F8FA) 상속 시
+ * fallback 배경 #FEF3C7 위 대비 1.05:1 로 AA 실패. --color-warning-800(#8C5C13,
+ * dark 미오버라이드) 명시로 양 테마 5.16:1. 미러 드리프트는
+ * DocumentReferencePicker.contrast.test.ts 가 design-system 원본과 쌍 일치를 가드.
  */
 .matchMark {
   padding: 0;
   background-color: var(--color-warning-100, #fef3c7);
-  color: inherit;
+  color: var(--color-warning-800, #8c5c13);
   font-weight: var(--font-weight-bold, 700);
 }
 

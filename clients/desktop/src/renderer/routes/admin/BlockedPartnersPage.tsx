@@ -379,18 +379,13 @@ function AddBlockedPartnerDialog({
   const [blockReason, setBlockReason] = useState('')
   const partnerInputRef = useRef<HTMLInputElement | null>(null)
 
-  // open 토글 시 입력 reset + 거래처 입력 자동 포커스 복원
+  // open 토글 시 입력 reset. 거래처 입력 자동 포커스는 Modal `initialFocusRef` 계약이
+  // 담당한다 — [#825 CM3] 구 로컬 rAF 는 Modal 내부 "첫 focusable 포커스" rAF 와
+  // 경합(승자가 React effect 순서 + rAF FIFO 구현 세부 의존)이라 결정적 계약으로 대체.
   useEffect(() => {
     if (!open) return
     setPartner(null)
     setBlockReason('')
-    // [#825 R1 L3] 구 <input autoFocus> 의 자동 포커스 복원 — Modal 이 rAF 로 첫 focusable
-    // (닫기 버튼)에 포커스를 주므로, 그보다 늦게 큐잉되는 rAF 로 거래처 입력을 포커스한다.
-    // (PartnerAutocomplete 는 HTMLInputElement ref 를 forward 한다.)
-    const raf = window.requestAnimationFrame(() => {
-      partnerInputRef.current?.focus()
-    })
-    return () => window.cancelAnimationFrame(raf)
   }, [open])
 
   const canSubmit = Boolean(partner) && !submitting
@@ -411,6 +406,8 @@ function AddBlockedPartnerDialog({
       title="발송금지 거래처 단건 등록"
       description="차단할 거래처를 검색해 선택하세요."
       size="sm"
+      // [#825 CM3] open 시 초기 포커스 = 거래처 입력 (PartnerAutocomplete ref forward).
+      initialFocusRef={partnerInputRef}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={submitting}>

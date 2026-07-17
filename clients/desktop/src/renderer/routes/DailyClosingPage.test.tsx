@@ -384,4 +384,54 @@ describe('DailyClosingPage 일마감 실행 거래처 payload (#825 R1)', () => 
       }),
     )
   })
+
+  /**
+   * [#825 CM6] AsyncAutocomplete 는 빈 입력 blur 에서 onChange(null) 을 발화하지 않는다
+   * (blur 게이트 원칙) — 입력만 지우고 실행하면 이전 execPartner.partnerCode 로 오범위
+   * 마감된다. 명시 '해제' 버튼(BankTransactionPage 선례)이 선택을 실제로 비우고,
+   * 이후 실행 payload 에 partnerCode 가 실리지 않아야 한다 (전체 마감).
+   */
+  it("선택 후 '해제' 버튼으로 거래처를 비우면 실행 payload 에 partnerCode 가 없다", async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    createDailyClosingMock.mockResolvedValue({
+      closingDate: '2026-07-18',
+      partnerCode: null,
+      closingKind: 'SALES',
+      sourceKind: 'TAX_INVOICE',
+      isLocked: true,
+      lockedAt: '2026-07-18T10:00:00+09:00',
+      lockedBy: 'user-001',
+      description: null,
+      totalSupply: '0',
+      totalVat: '0',
+      totalAmount: '0',
+    })
+    searchPartnersMock.mockResolvedValue([
+      { partnerCode: '1234567890', name: '엘에이시스템에어', bizNo: '123-45-67890' },
+    ])
+
+    renderPage()
+
+    // 선택 전에는 해제 버튼이 없다 (조건부 affordance)
+    const partnerInput = await screen.findByTestId('daily-closing-exec-partner')
+    expect(screen.queryByTestId('daily-closing-exec-partner-clear')).toBeNull()
+
+    fireEvent.focus(partnerInput)
+    fireEvent.change(partnerInput, { target: { value: '엘에이' } })
+    const option = await screen.findByRole('option', { name: /엘에이/ })
+    fireEvent.mouseDown(option)
+    expect((partnerInput as HTMLInputElement).value).toBe('엘에이시스템에어')
+
+    // 해제 → 선택 표시가 비워지고 버튼도 사라진다
+    fireEvent.click(screen.getByTestId('daily-closing-exec-partner-clear'))
+    expect((partnerInput as HTMLInputElement).value).toBe('')
+    expect(screen.queryByTestId('daily-closing-exec-partner-clear')).toBeNull()
+
+    // 해제 후 실행 → payload 에 partnerCode 부재 (undefined — 전체 마감)
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
+    const payload = createDailyClosingMock.mock.calls[0]![0] as { partnerCode?: string }
+    expect(payload.partnerCode).toBeUndefined()
+  })
 })

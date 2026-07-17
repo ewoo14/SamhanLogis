@@ -179,7 +179,14 @@
 .matchMark {
   padding: 0;
   background-color: var(--color-warning-100, #fef3c7);
-  color: inherit;
+  /*
+   * [#825 CM1] AA 보장 명시 글자색쌍 — `color: inherit` 는 dark theme 본문색
+   * (--color-neutral-900 → #F7F8FA)을 상속해 #FEF3C7 배경 위 대비 1.05:1 로 AA 실패.
+   * --color-warning-100 은 tokens.css 미정의(양 테마 fallback #FEF3C7 렌더),
+   * --color-warning-800 은 #8C5C13 정의 + dark 미오버라이드 → 양 테마 동일 쌍
+   * 5.16:1 (AA 4.5:1 충족). 쌍 회귀는 AsyncAutocomplete.contrast.test.tsx 가 가드.
+   */
+  color: var(--color-warning-800, #8c5c13);
   font-weight: var(--font-weight-bold, 700);
 }
 

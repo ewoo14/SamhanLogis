@@ -111,8 +111,15 @@ public class TaxInvoiceService {
     /**
      * 수정 — DRAFT 상태에서 헤더 + 라인 일괄 교체.
      *
+     * <p>#825 CH1 — 편집에서 거래처를 교체하면 FE 가 새 거래처의 {@code partnerId} 와
+     * 상호/사업자번호 snapshot 을 함께 전송한다. {@code request.partnerId()} 를 도메인에
+     * 반영해 "원 거래처 UUID + 새 거래처 상호" 불일치(무결성 훼손)를 차단한다 (create 와
+     * 동일 계약 — partnerId {@code @NotNull}).
+     *
      * <p>PR-H4b — shared audit recorder 가 등록되어 있으면 헤더 변경 (partnerName/partnerAddress/
-     * supplyDate/description) 별로 audit_log 1행 + SSE broadcast.
+     * supplyDate/description) 별로 audit_log 1행 + SSE broadcast. partnerId(UUID) 는 기존
+     * 관례(인간가독 snapshot 필드만 기록)에 따라 audit diff 에 포함하지 않는다 — UUID 사용자
+     * 비공개 가드. 거래처 교체는 partnerName diff 로 인간가독 포착된다.
      */
     public TaxInvoiceDetailResponse update(UUID id, CreateTaxInvoiceRequest request) {
         TaxInvoice ti = findOrThrow(id);
@@ -122,7 +129,7 @@ public class TaxInvoiceService {
         String oldSupplyDate = ti.getSupplyDate() == null ? null : ti.getSupplyDate().toString();
         String oldDescription = ti.getDescription();
 
-        ti.updateBasic(request.partnerBusinessNo(), request.partnerName(),
+        ti.updateBasic(request.partnerId(), request.partnerBusinessNo(), request.partnerName(),
                 request.partnerAddress(), request.supplyDate(), request.description());
         /*
          * 라인 교체는 기존 라인 제거를 먼저 DB에 반영한 뒤 신규 라인을 추가한다.

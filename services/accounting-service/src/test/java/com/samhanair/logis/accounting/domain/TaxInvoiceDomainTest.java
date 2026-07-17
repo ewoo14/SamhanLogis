@@ -139,6 +139,26 @@ class TaxInvoiceDomainTest {
     }
 
     @Test
+    @DisplayName("updateBasic — DRAFT 에서 partnerId 교체 반영 (#825 CH1), null partnerId 거부")
+    void updateBasicReflectsPartnerId() {
+        TaxInvoice ti = newDraft();
+        UUID newPartnerId = UUID.randomUUID();
+
+        ti.updateBasic(newPartnerId, "987-65-43210", "교체거래처", "부산시 해운대구",
+                TODAY.plusDays(1), "거래처 교체");
+
+        assertThat(ti.getPartnerId()).isEqualTo(newPartnerId);
+        assertThat(ti.getPartnerName()).isEqualTo("교체거래처");
+        assertThat(ti.getPartnerBusinessNo()).isEqualTo("987-65-43210");
+        assertThat(ti.getStatus()).isEqualTo(TaxInvoiceStatus.DRAFT);
+
+        assertThatThrownBy(() -> ti.updateBasic(null, "987-65-43210", "교체거래처",
+                null, TODAY, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("partnerId");
+    }
+
+    @Test
     @DisplayName("VAT 자동 — 라인 supply 50000 → vat 5000 (HALF_UP)")
     void vatAutoCalc() {
         TaxInvoiceLine line = TaxInvoiceLine.create(

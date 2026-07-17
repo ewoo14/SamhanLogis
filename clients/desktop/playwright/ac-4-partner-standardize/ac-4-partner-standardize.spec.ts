@@ -27,7 +27,10 @@
  *       (수금계획·받을어음)</li>
  *   <li><b>activeOnly(status=ACTIVE) 파라미터</b> — request 가로채기 불가 대신 mock 이
  *       status 파라미터로 실제 필터하는 것을 이용해 차등 단언: SUSPENDED '미래시스템' 이
- *       등록측(activeOnly)에서는 "검색 결과 없음", 필터측(전체)에서는 후보 표시.</li>
+ *       등록측(activeOnly)에서는 "검색 결과 없음", 필터측(전체)에서는 후보 표시.
+ *       [#825 CM2] 차등 매트릭스 전수: 등록측 3(CP-2·NR-2·DC-1)=미노출,
+ *       전체측 4(CP-2 필터·NR-2 필터·JS-1 필터·BP-2)=노출 — BP-2 는 SUSPENDED 선택
+ *       후 POST payload 까지 단언해 "BP 에 activeOnly 추가" 회귀도 RED 가 된다.</li>
  *   <li><b>일마감 실행 POST</b> — in-process 핸들(정적 목록 echo 미반영)이라 payload 는
  *       Playwright 에서 관측 불가. 실행 성공 왕복(onSuccess 메모 초기화)만 단언하고,
  *       partnerCode payload 는 vitest `DailyClosingPage.test.tsx` 하네스가 단언한다.</li>
@@ -261,6 +264,26 @@ test.describe('AC-4 받을어음 (notes-receivable)', () => {
     await expect(page.getByText('NR-2026-0001')).toHaveCount(0)
     await expect(page.getByText('NR-2026-0002')).toHaveCount(0)
   })
+
+  test('NR-2 [#825 CM2] 등록=거래중(activeOnly)만·필터=전체 — SUSPENDED 거래처 차등 노출', async ({ page }) => {
+    await installAuthMock(page)
+    await blockLiveGatewayLeaks(page)
+    await gotoPage(page, '/accounting/reports/notes-receivable', 'notes-receivable-partner')
+
+    // 등록측: activeOnly → status=ACTIVE 전송 → SUSPENDED '미래시스템' 미노출
+    // (등록에서 activeOnly 를 제거하는 회귀 시 후보가 노출되어 RED)
+    await expectActiveOnlyEmpty(page, 'notes-receivable-partner')
+
+    // 필터측: status 미전송 → '미래시스템' 후보 표시
+    const filterInput = page.getByTestId('notes-receivable-partner-filter')
+    await filterInput.click()
+    await filterInput.fill('미래')
+    const listbox = partnerListbox(page)
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    await expect(
+      listbox.locator('li[role="option"]').filter({ hasText: '미래시스템' }),
+    ).toBeVisible()
+  })
 })
 
 // ============================================================
@@ -308,10 +331,22 @@ test.describe('AC-4 전표현황 (journal-status)', () => {
 // ============================================================
 
 test.describe('AC-4 일마감 (daily-closings)', () => {
-  test('DC-1 실행 거래처 activeOnly + 선택 반영 + 마감 실행 성공(메모 초기화)', async ({ page }) => {
+  test('DC-1 실행 거래처 activeOnly + 인라인 행 정렬 + 선택/해제 + 마감 실행 성공(메모 초기화)', async ({ page }) => {
     await installAuthMock(page)
     await blockLiveGatewayLeaks(page)
     await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
+
+    // [#825 CM4] 실행 조건 인라인 행 정렬 — 거래처 입력이 폭 제약(220px) 래퍼로
+    // 날짜 입력과 같은 행에 남아야 한다 (공용 wrapper width:100% 단독 행 감김 회귀 시
+    // y 좌표가 어긋나 RED).
+    const dateBox = await page.getByTestId('daily-closing-exec-date').boundingBox()
+    const partnerBox = await page.getByTestId('daily-closing-exec-partner').boundingBox()
+    expect(dateBox).not.toBeNull()
+    expect(partnerBox).not.toBeNull()
+    const dateCenterY = dateBox!.y + dateBox!.height / 2
+    expect(dateCenterY).toBeGreaterThan(partnerBox!.y)
+    expect(dateCenterY).toBeLessThan(partnerBox!.y + partnerBox!.height)
+    expect(partnerBox!.width).toBeLessThanOrEqual(240)
 
     // activeOnly — SUSPENDED '미래시스템' 미노출
     await expectActiveOnlyEmpty(page, 'daily-closing-exec-partner')
@@ -321,9 +356,20 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
       page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
     )
 
-    // 마감 실행 — in-process POST 성공 → onSuccess 가 메모를 초기화한다.
+    // [#825 CM6] 명시 해제 affordance — AsyncAutocomplete 는 onChange(null) 을 발화하지
+    // 않으므로(빈 입력 blur 게이트) '해제' 버튼이 선택을 실제로 비워야 한다.
+    const clearButton = page.getByTestId('daily-closing-exec-partner-clear')
+    await expect(clearButton).toBeVisible()
+    await clearButton.click()
+    await expect(page.getByTestId('daily-closing-exec-partner')).toHaveValue('')
+    await expect(clearButton).not.toBeVisible()
+
+    // 재선택 후 마감 실행 — in-process POST 성공 → onSuccess 가 메모를 초기화한다.
     // (payload partnerCode 자체는 in-process mock 정적 목록이라 화면 미반영 —
-    //  vitest DailyClosingPage.test.tsx 의 createDailyClosing payload 단언이 담당)
+    //  vitest DailyClosingPage.test.tsx 가 선택/해제 각각의 payload 를 단언한다)
+    await searchAndPick(
+      page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
+    )
     const memo = page.getByTestId('daily-closing-exec-description')
     await memo.fill('AC-4 E2E 마감 검증')
     await page.getByTestId('daily-closing-exec-button').click()
@@ -372,7 +418,8 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
 
-    // [#825 R1 L3] 구 input autoFocus 복원 — 다이얼로그 열림 직후 거래처 입력 포커스
+    // [#825 CM3] Modal initialFocusRef 계약 — 다이얼로그 열림 직후 거래처 입력 포커스.
+    // (구 R1 L3 로컬 rAF 는 Modal 내부 포커스 rAF 와 경합이라 결정적 계약으로 대체됨)
     const partnerInput = page.getByTestId('admin-blocked-add-partner-code-input')
     await expect(partnerInput).toBeFocused({ timeout: 3_000 })
 
@@ -398,6 +445,61 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
     expect(capturedBody!.blockReason).toBe('825 회귀 검증 차단')
 
     // 등록 성공 → 다이얼로그 닫힘
+    await expect(dialog).not.toBeVisible({ timeout: 5_000 })
+  })
+
+  test('BP-2 [#825 CM2] 발송금지 검색=전체 — SUSPENDED 거래처 노출·선택·POST payload 단언', async ({ page }) => {
+    await installAuthMock(page)
+    await blockLiveGatewayLeaks(page)
+
+    // BP-1 과 동일한 POST 캡처 — SUSPENDED 거래처 payload 왕복 증명용.
+    let capturedBody: { partnerCode?: string; blockReason?: string } | null = null
+    await page.route('**/api/v1/partners/admin/blocks', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      capturedBody = route.request().postDataJSON() as {
+        partnerCode?: string
+        blockReason?: string
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(envelope({
+          id: 'block-e2e-002',
+          partnerCode: capturedBody?.partnerCode ?? '',
+          businessNameSnapshot: '미래시스템',
+          blockReason: capturedBody?.blockReason ?? null,
+          blockedAt: '2026-07-18T10:00:00+09:00',
+          source: 'MANUAL',
+        })),
+      })
+    })
+
+    await gotoPage(page, '/admin/blocked-partners', 'admin-blocked-add-button')
+    await page.getByTestId('admin-blocked-add-button').click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+
+    // 발송금지 검색은 activeOnly 미적용(전체) — SUSPENDED '미래시스템' 도 차단 등록
+    // 대상이다. 등록 검색에 activeOnly 를 추가하는 회귀 시 후보 미노출로 RED.
+    const partnerInput = page.getByTestId('admin-blocked-add-partner-code-input')
+    await partnerInput.fill('미래')
+    const listbox = partnerListbox(page)
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    const suspendedOption = listbox
+      .locator('li[role="option"]')
+      .filter({ hasText: '미래시스템' })
+    await expect(suspendedOption.first()).toBeVisible()
+    await suspendedOption.first().click()
+    await expect(partnerInput).toHaveValue('미래시스템')
+
+    // 차단 등록 → SUSPENDED 거래처 partnerCode 가 payload 로 왕복된다
+    await page.getByRole('button', { name: '차단 등록' }).click()
+    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
+    expect(capturedBody!.partnerCode).toBe('4567890123')
+
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
 })

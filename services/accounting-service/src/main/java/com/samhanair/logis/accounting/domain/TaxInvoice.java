@@ -347,19 +347,35 @@ public class TaxInvoice extends BaseEntity {
     }
 
     /**
-     * 헤더 기본 정보 갱신 (DRAFT 만). partner snapshot / supplyDate / description 변경.
+     * 헤더 기본 정보 갱신 (DRAFT 만). 거래처 참조(partnerId) + partner snapshot / supplyDate /
+     * description 변경.
      *
+     * <p>#825 CH1 — 편집에서 거래처를 교체하면 호출자(FE)가 새 거래처의 partnerId 와
+     * 상호/사업자번호 snapshot 을 함께 전송한다. partnerId 를 반영하지 않으면 "원 거래처
+     * UUID + 새 거래처 상호" 불일치(무결성 훼손)가 생기므로 도메인에서 함께 갱신한다.
+     *
+     * @param partnerId         거래처 UUID (필수) — 거래처 교체 시 새 거래처 UUID
+     * @param partnerBusinessNo 사업자등록번호 snapshot (선택)
+     * @param partnerName       상호 snapshot (필수, 1~200자)
+     * @param partnerAddress    주소 snapshot (선택)
+     * @param supplyDate        공급일자 (필수)
+     * @param description       적요 (선택)
      * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
+     * @throws IllegalArgumentException partnerId/partnerName/supplyDate 필수값 위반 시
      */
-    public void updateBasic(String partnerBusinessNo, String partnerName, String partnerAddress,
-                            LocalDate supplyDate, String description) {
+    public void updateBasic(UUID partnerId, String partnerBusinessNo, String partnerName,
+                            String partnerAddress, LocalDate supplyDate, String description) {
         requireDraft("헤더 수정은 ");
+        if (partnerId == null) {
+            throw new IllegalArgumentException("partnerId 는 필수입니다");
+        }
         if (partnerName == null || partnerName.isBlank() || partnerName.length() > 200) {
             throw new IllegalArgumentException("partnerName 은 1~200자 필수입니다");
         }
         if (supplyDate == null) {
             throw new IllegalArgumentException("supplyDate 는 필수입니다");
         }
+        this.partnerId = partnerId;
         this.partnerBusinessNo = partnerBusinessNo;
         this.partnerName = partnerName;
         this.partnerAddress = partnerAddress;

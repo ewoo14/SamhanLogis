@@ -527,17 +527,38 @@ export function DailyClosingPage() {
               </option>
             ))}
           </select>
-          <PartnerAutocomplete
-            value={execPartner}
-            onChange={setExecPartner}
-            searchPartners={(query) => searchPartners(query, { activeOnly: true })}
-            // [#825 R1 L1] 인라인 실행 행은 라벨-less 컨트롤 정렬 — visible label 대신
-            // ariaLabel (BankTransactionPage 인라인 매칭 행 선례).
-            label=""
-            ariaLabel="거래처"
-            placeholder="거래처명 또는 코드 선택"
-            inputTestId="daily-closing-exec-partner"
-          />
+          {/* [#825 CM4] 공용 wrapper 가 width:100% 라 인라인 flex 행에서 단독 행으로
+              감겨 실행 조건 행 정렬이 붕괴 — 폭 제약 래퍼(flex:0 0 220px)로 인라인 복원.
+              [#825 CM6] AsyncAutocomplete 는 onChange(null) 을 발화하지 않아(blur 게이트)
+              입력을 지워도 execPartner 가 남는다 — BankTransactionPage 선례대로 명시
+              '해제' 버튼으로만 선택을 해제한다 (미해제 시 이전 거래처로 오범위 마감). */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ width: 220, flex: '0 0 220px' }}>
+              <PartnerAutocomplete
+                value={execPartner}
+                onChange={setExecPartner}
+                searchPartners={(query) => searchPartners(query, { activeOnly: true })}
+                // [#825 R1 L1] 인라인 실행 행은 라벨-less 컨트롤 정렬 — visible label 대신
+                // ariaLabel (BankTransactionPage 인라인 매칭 행 선례).
+                label=""
+                ariaLabel="거래처"
+                placeholder="거래처명 또는 코드 선택"
+                inputTestId="daily-closing-exec-partner"
+              />
+            </div>
+            {execPartner ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label="거래처 선택 해제"
+                data-testid="daily-closing-exec-partner-clear"
+                onClick={() => setExecPartner(null)}
+              >
+                해제
+              </Button>
+            ) : null}
+          </div>
           <input
             type="text"
             value={execDescription}
