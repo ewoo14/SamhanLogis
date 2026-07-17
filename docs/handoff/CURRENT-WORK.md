@@ -4,6 +4,27 @@
 
 ---
 
+## 🟢 2026-07-18 — #825 슬2 **거래처 입력 표준화 + ACCOUNTANT lookup · main 머지 완료** ✅
+
+> **다음 세션 첫 읽기.** #825 슬2 완결(PR #835) — #825 에픽 슬3~7 계속.
+
+### 완료
+- **6요소**: ①BE V88 ACCOUNTANT `partners.search` VIEW 복구(override-aware materialize·행동 IT·ci hard gate) ②(ii)통일 3화면/5인스턴스(→PartnerAutocomplete·partnerApi 통일) ③(iii)전환 DailyClosing·BlockedPartners(draft 가드) ④DocRef 하이라이트만(resolvedQuery·AA) ⑤TaxInvoice partnerId+partnerCode 무결성(FE/BE·검색소스 partnerApi 교체·partnerCode 100) ⑥(i)무변경 3 QA.
+- **워크플로우**: OPUS 기획→CODEX SOL 기획검수(6 BLOCKING)→CODEX LUNA 구현→OPUS 5-agent 적대검증+라이브QA→CODEX SOL 5-agent→**3회 머지 전 재수렴**→0수렴(fix 신규 HIGH/MED 0·양 모델 일치)→PM 종합→CI green→머지.
+- **검증**: BE V88 IT 4/0·TaxInvoice 91·accounting 1284 0fail·fresh probe. FE vitest 836·**ac-2/3/4 24/24**(ac-4 통일 5화면 회귀 게이트 신설). 라이브 QA **ACCOUNTANT partners.search 403→200 실증**+하이라이트 8스샷. CI exact SHA green.
+
+### 🔑 핵심 교훈
+- **머지 전 재수렴 의무**([[feedback_reconvergence_before_merge]])·**2-model 재수렴 가치**(OPUS "수렴"을 CODEX가 반복 반증: partnerCode 길이·CM-b 빈draft·동명 우회 포착)·**design-system 변경=Playwright mock 스위트**(ac-4 신설).
+- **PM effort 조절**([[feedback_pm_regulate_slice_effort]]) — 6라운드 재수렴에서 fix가 낳은 신규/pre-existing residual을 narrow 엣지로 판별해 **후속 이슈 바운드**(개발책임자 autonomy 위임).
+
+### 🔵 후속 바운드 이슈 (슬2 스코프 외)
+#834(DS debounce/a11y LOW)·#836(PartnersPage V88 위드닝 UX)·#837(DocRef 상태머신)·#838(동일명 audit)·#839(partner_code 50→100 defect-family)·#840(autocomplete selection-confirmed 계약).
+
+### 🔵 #825 에픽 잔여 (슬3~7)
+슬3 품목 자동완성·슬4 칩 복수선택·**슬5 ① null-semantics(회계 무결성·착수 전 개발책임자 재확인)**·슬6 쪽지 수신자 칩(⑤)·슬7 주문 병합 UX(③).
+
+---
+
 ## 🟢 2026-07-17 — #825 슬1 **거래처 자동완성 ④ 매치 하이라이트 · main 머지 완료** ✅
 
 > **다음 세션 첫 읽기.** #825 슬1 완결(main `766d9f622`) — #825 에픽 슬2~7 계속.
