@@ -6536,11 +6536,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // BE findMappingHistoryByEntityIds 대칭(#810 적대검증 R3 L4-M1) — 키로 도달 가능한 전 entity 의
     // 행을 changedAt desc, revisionNo desc, fieldName asc 로 반환한다. revisionNo 는 entity 단위
     // 채번이라 삭제+재생성 키에서는 전역 비단조 — FE 는 이 시간순 순서를 재정렬 없이 신뢰한다.
+    // entryKey 는 최종 tiebreaker(#810 R3 S4-M3) — 서로 다른 entity 가 세 키 모두 같아도
+    // BE(PK 정렬)처럼 응답 순서가 total-order 로 결정적이 되게 한다. 키 자체 순서는 계약 아님.
     const rows = (MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? [])
       .flat()
       .sort((a, b) => b.changedAt.localeCompare(a.changedAt)
         || b.revisionNo - a.revisionNo
-        || (a.fieldName < b.fieldName ? -1 : a.fieldName > b.fieldName ? 1 : 0))
+        || (a.fieldName < b.fieldName ? -1 : a.fieldName > b.fieldName ? 1 : 0)
+        || a.entryKey.localeCompare(b.entryKey))
     return envelope(rows)
   }
 
@@ -16506,6 +16509,8 @@ type MockDepositorMappingRow = {
 }
 
 type MockDepositorMappingHistoryRow = {
+  /** BE 채번 opaque 행 키 대칭(#810 R3 S4-M3) — 전 행 유일·안정·UUID 아님. FE rowKey 전용. */
+  entryKey: string
   fieldName: string
   oldValue: string | null
   newValue: string | null
@@ -16789,6 +16794,18 @@ type MockDepositorHistoryChange = {
  */
 let MOCK_DEPOSITOR_HISTORY_CLOCK = 0
 
+/** 이력 entryKey 채번 시퀀스 — 시드 키(`dep-hist-seed-*`)와 네임스페이스가 달라 충돌하지 않는다. */
+let MOCK_DEPOSITOR_HISTORY_ENTRY_SEQ = 0
+
+/**
+ * BE 이력 행 opaque entryKey 채번 대칭(#810 R3 S4-M3) — 전 행 유일하고 생성 시 1회 채번되어
+ * 조회마다 같은 값(안정)이며 UUID 형태가 아니다. FE 는 의미를 파싱하지 않는다.
+ */
+function mockDepositorHistoryEntryKey(): string {
+  MOCK_DEPOSITOR_HISTORY_ENTRY_SEQ += 1
+  return `dep-hist-${MOCK_DEPOSITOR_HISTORY_ENTRY_SEQ}`
+}
+
 function mockDepositorHistoryNow(): string {
   const now = Math.max(Date.now(), MOCK_DEPOSITOR_HISTORY_CLOCK + 1)
   MOCK_DEPOSITOR_HISTORY_CLOCK = now
@@ -16809,7 +16826,14 @@ function mockRecordDepositorHistoryBatch(
   const revisionNo = entity.reduce((max, row) => Math.max(max, row.revisionNo), 0) + 1
   const changedAt = mockDepositorHistoryNow()
   const actor = mockDepositorActor()
-  entity.push(...changes.map((change) => ({ ...change, actor, changedAt, revisionNo })))
+  entity.push(...changes.map((change) => ({
+    ...change,
+    actor,
+    changedAt,
+    revisionNo,
+    // 배치 내에서도 행마다 유일 — revisionNo·changedAt 공유와 무관하게 행 식별(#810 R3 S4-M3).
+    entryKey: mockDepositorHistoryEntryKey(),
+  })))
 }
 
 /**
@@ -16873,10 +16897,10 @@ let MOCK_DEPOSITOR_MAPPINGS: MockDepositorMappingRow[] = [
 
 /** 시드 매핑(삼한상사)의 entity 이력 — BE ADMIN_CREATE 배치(rev 1 공유·mapping.* 4행) 대칭. */
 const MOCK_DEPOSITOR_SEED_HISTORY: MockDepositorHistoryEntity = [
-  { fieldName: 'mapping.rawName', oldValue: null, newValue: '삼한상사', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
-  { fieldName: 'mapping.normalizedName', oldValue: null, newValue: '삼한상사', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
-  { fieldName: 'mapping.partnerCode', oldValue: null, newValue: 'P-2026-0001', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
-  { fieldName: 'mapping.reason', oldValue: null, newValue: 'ADMIN_CREATE', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { entryKey: 'dep-hist-seed-1', fieldName: 'mapping.rawName', oldValue: null, newValue: '삼한상사', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { entryKey: 'dep-hist-seed-2', fieldName: 'mapping.normalizedName', oldValue: null, newValue: '삼한상사', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { entryKey: 'dep-hist-seed-3', fieldName: 'mapping.partnerCode', oldValue: null, newValue: 'P-2026-0001', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { entryKey: 'dep-hist-seed-4', fieldName: 'mapping.reason', oldValue: null, newValue: 'ADMIN_CREATE', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
 ]
 
 /**

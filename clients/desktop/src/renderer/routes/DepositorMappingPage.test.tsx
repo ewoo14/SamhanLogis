@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { HistoryTable, partnerCodeCell, partnerNameCell } from './DepositorMappingPage'
 import type { DepositorMappingHistoryResponse, DepositorMappingResponse } from '../api/accounting'
@@ -18,8 +18,13 @@ const baseRow: DepositorMappingResponse = {
   active: true,
 }
 
+/** BE 채번 opaque entryKey 대칭(#810 R3 S4-M3) — 행마다 유일한 기본값을 만든다. */
+let historyEntrySeq = 0
+
 function historyRow(overrides: Partial<DepositorMappingHistoryResponse>): DepositorMappingHistoryResponse {
+  historyEntrySeq += 1
   return {
+    entryKey: `test-entry-${historyEntrySeq}`,
     fieldName: 'mapping.partnerCode',
     oldValue: null,
     newValue: 'P-2026-0001',
@@ -76,6 +81,27 @@ describe('DepositorMappingPage 이력 표시 (#810 적대검증 R3 L4-M1)', () =
     render(<HistoryTable rows={rows} loading={false} />)
     const revisionCells = screen.getAllByText(/^#\d+$/)
     expect(revisionCells.map((cell) => cell.textContent)).toEqual(['#1', '#2', '#1'])
+  })
+
+  it('rowKey 는 opaque entryKey — 다른 entity 가 같은 회차·시각·필드라도 React key 가 충돌하지 않는다 (#810 R3 S4-M3)', () => {
+    // 같은 키의 삭제+재생성(또는 두 entity 의 변경)이 같은 초에 기록되면 revisionNo·changedAt·
+    // fieldName 세 값이 모두 동일한 서로 다른 행이 생긴다 — 구 조합 키
+    // (`revisionNo-changedAt-fieldName`)는 여기서 React duplicate key 경고를 낸다. 결함 재현 가드.
+    const errorSpy = vi.spyOn(console, 'error')
+    render(
+      <HistoryTable
+        rows={[
+          historyRow({ entryKey: 'entry-recreate', newValue: 'P-2026-0002', revisionNo: 1, changedAt: '2026-07-17T10:00:00' }),
+          historyRow({ entryKey: 'entry-origin', newValue: 'P-2026-0001', revisionNo: 1, changedAt: '2026-07-17T10:00:00' }),
+        ]}
+        loading={false}
+      />,
+    )
+    expect(screen.getByText('P-2026-0002')).toBeTruthy()
+    expect(screen.getByText('P-2026-0001')).toBeTruthy()
+    const duplicateKeyWarnings = errorSpy.mock.calls.filter((call) => String(call[0]).includes('same key'))
+    expect(duplicateKeyWarnings).toEqual([])
+    errorSpy.mockRestore()
   })
 
   it('mapping.* fieldName 을 한국어 라벨로 표시한다', () => {

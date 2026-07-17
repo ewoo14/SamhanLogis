@@ -2342,6 +2342,13 @@ export interface DepositorMappingResponse {
 }
 
 export interface DepositorMappingHistoryResponse {
+  /**
+   * 이력 행 식별용 opaque 키(#810 R3 S4-M3 계약 pin) — BE 가 채번하는 안정(같은 행=같은 값)
+   * 문자열이며 UUID 가 아니다. FE 는 의미를 파싱하지 않고 React rowKey 로만 쓴다.
+   * revisionNo+changedAt+fieldName 조합은 서로 다른 entity(같은 키 삭제+재생성)가
+   * 같은 회차·시각·필드를 가질 수 있어 행 키로 쓰지 않는다.
+   */
+  entryKey: string
   fieldName: string
   oldValue: string | null
   newValue: string | null

@@ -402,10 +402,14 @@ export function DepositorMappingPage() {
 /**
  * 매핑 변경 이력 테이블 — BE 반환 순서를 재정렬 없이 그대로 신뢰한다(#810 적대검증 R3 L4-M1).
  *
- * BE 가 changedAt desc(동시각 내 revisionNo desc·fieldName asc)로 정렬해 반환하며,
- * revisionNo 는 entity 단위 채번이라 같은 키의 삭제+재생성/rename 시 전역 유일·단조가 아니다.
- * FE 가 revisionNo 를 1차 정렬 키로 재정렬하면 구 entity 의 높은 회차가 신 entity 위로 올라와
- * 시간순이 뒤섞인다 — 회차(revisionNo)는 표시 전용이고 정렬 키가 아니다.
+ * BE 가 changedAt total-order(동시각 내 revisionNo desc·fieldName asc·entryKey tiebreak)로
+ * 정렬해 반환하며, revisionNo 는 entity 단위 채번이라 같은 키의 삭제+재생성/rename 시 전역
+ * 유일·단조가 아니다. FE 가 revisionNo 를 1차 정렬 키로 재정렬하면 구 entity 의 높은 회차가
+ * 신 entity 위로 올라와 시간순이 뒤섞인다 — 회차(revisionNo)는 표시 전용이고 정렬 키가 아니다.
+ *
+ * rowKey 는 BE opaque entryKey(#810 R3 S4-M3) — revisionNo+changedAt+fieldName 조합은
+ * 서로 다른 entity 가 같은 회차·시각·필드를 가질 수 있어(같은 초 삭제+재생성) React key 가
+ * 충돌한다. entryKey 는 화면에 노출하지 않는다.
  */
 export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse[]; loading: boolean }) {
   const fieldLabels: Record<string, string> = {
@@ -428,7 +432,7 @@ export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryR
       rows={rows}
       loading={loading}
       emptyMessage="변경 이력이 없습니다."
-      rowKey={(row) => `${row.revisionNo}-${row.changedAt}-${row.fieldName}`}
+      rowKey={(row) => row.entryKey}
       tableLayout="fixed"
     />
   )

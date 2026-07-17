@@ -1881,7 +1881,7 @@ describe('mock depositor mapping contract', () => {
       params: { normalizedName: `ACME UPDATED ${suffix}` },
     }) as MockEnvelope<Array<Record<string, unknown>>>
     expect(history.data.length).toBeGreaterThan(0)
-    expect(history.data[0]).toEqual(expect.objectContaining({ actor: expect.any(String) }))
+    expect(history.data[0]).toEqual(expect.objectContaining({ actor: expect.any(String), entryKey: expect.any(String) }))
     // #810 R3 (L4-M2): BE recordBatch 대칭 — 한 작업(update)의 전 필드행이 revisionNo 1개와
     // changedAt 1개를 공유한다(필드별 회차 분리 금지). fieldName 은 BE mapping.* 필드셋(L4-L1).
     const updateRows = history.data.filter((row) => row.revisionNo === 2)
@@ -1967,6 +1967,23 @@ describe('mock depositor mapping contract', () => {
     expect(recreateIndex).toBeLessThan(deleteIndex)
     expect(history.data[recreateIndex]).toMatchObject({ revisionNo: 1 })
     expect(history.data[deleteIndex]).toMatchObject({ revisionNo: 2 })
+
+    // #810 R3 (S4-M3): entryKey 계약 — 삭제+재생성으로 entity 가 2개여도(구 조합 키
+    // revisionNo+changedAt+fieldName 이 충돌 가능한 시나리오) 전 행 유일·비어있지 않은
+    // opaque 문자열이며, UUID 형태가 아니다(사용자 비노출 가드).
+    const entryKeys = history.data.map((row) => String(row.entryKey))
+    expect(entryKeys.every((key) => key.length > 0 && key !== 'undefined')).toBe(true)
+    expect(new Set(entryKeys).size).toBe(history.data.length)
+    const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    expect(entryKeys.some((key) => UUID_PATTERN.test(key))).toBe(false)
+
+    // entryKey 안정성 — 같은 조회를 반복해도 행별 키가 변하지 않는다(생성 시 1회 채번).
+    const historyAgain = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: key },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(historyAgain.data.map((row) => String(row.entryKey))).toEqual(entryKeys)
   })
 
   it('통장거래 provenance를 반환하고 두 해제 endpoint의 의미를 분리한다', () => {
