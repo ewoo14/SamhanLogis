@@ -38,10 +38,16 @@ function formatDateTime(value: string): string {
   return value.replace('T', ' ').slice(0, 16)
 }
 
-function partnerOptionOf(row: DepositorMappingResponse): PartnerOption {
+/**
+ * 매핑 행의 거래처를 자동완성 옵션으로 변환한다.
+ * 거래처가 삭제/유실된 stale 매핑(partnerCode null)은 옵션을 만들 수 없어 null 을 반환한다
+ * — 수정 모달은 빈 거래처로 열려 재선택을 유도한다.
+ */
+function partnerOptionOf(row: DepositorMappingResponse): PartnerOption | null {
+  if (!row.partnerCode) return null
   return {
     partnerCode: row.partnerCode,
-    name: row.partnerName,
+    name: row.partnerName ?? '',
   }
 }
 
@@ -140,8 +146,19 @@ export function DepositorMappingPage() {
     const base: DataTableColumn<DepositorMappingResponse>[] = [
       { key: 'rawName', header: '원본 입금자명', width: '180px' },
       { key: 'normalizedName', header: '정규화 입금자명', width: '180px' },
-      { key: 'partnerCode', header: '거래처 코드', width: '150px' },
-      { key: 'partnerName', header: '거래처명', width: '180px' },
+      {
+        key: 'partnerCode',
+        header: '거래처 코드',
+        width: '150px',
+        // stale 매핑(거래처 삭제/유실 — BE 가 partnerCode null 반환)은 공백 대신 경고 배지로 알린다.
+        render: (row) => row.partnerCode ?? <Badge variant="warning">거래처 삭제됨</Badge>,
+      },
+      {
+        key: 'partnerName',
+        header: '거래처명',
+        width: '180px',
+        render: (row) => row.partnerName ?? '—',
+      },
       { key: 'modifiedAt', header: '수정일시', width: '150px', render: (row) => formatDateTime(row.modifiedAt) },
       { key: 'actor', header: '수정자', width: '100px' },
       {
@@ -186,13 +203,14 @@ export function DepositorMappingPage() {
 
   const submitForm = () => {
     const rawName = form.rawName.trim()
-    const partnerCode = selectedPartner?.partnerCode.trim() ?? ''
+    // 옵셔널 체이닝 이중 적용 — stale 매핑 등으로 partnerCode 가 비어 있는 옵션이 들어와도 크래시하지 않는다.
+    const partnerCode = selectedPartner?.partnerCode?.trim() ?? ''
     if (!rawName) {
       setToast({ type: 'error', message: '입금자명을 입력하세요.' })
       return
     }
     if (!partnerCode) {
-      setToast({ type: 'error', message: '거래처를 선택하세요.' })
+      setToast({ type: 'error', message: '거래처를 선택하세요. 삭제된 거래처 매핑은 거래처를 다시 지정해야 저장할 수 있습니다.' })
       return
     }
     const request: DepositorMappingRequest = {

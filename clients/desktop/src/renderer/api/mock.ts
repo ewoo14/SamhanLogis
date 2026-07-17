@@ -6576,11 +6576,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(mockDepositorMappingResponse(row))
   }
 
-  if (method === 'PUT' && /\/accounting\/deposit-mappings\/[^/]+$/.test(new URL(url, 'http://mock.local').pathname)) {
+  // BE 계약(#810): update/delete 는 경로변수 대신 `?normalizedName=` 쿼리파라미터를 쓴다(경로 %2F 함정 제거).
+  if (method === 'PUT' && new URL(url, 'http://mock.local').pathname.endsWith('/accounting/deposit-mappings')) {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'update')
     if (denied) return denied
-    const path = new URL(url, 'http://mock.local').pathname
-    const oldNormalizedName = decodeURIComponent(path.slice(path.lastIndexOf('/') + 1))
+    const urlObj = new URL(url, 'http://mock.local')
+    const oldNormalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
+    if (!oldNormalizedName) return mockError(400, 'INVALID_INPUT', 'normalizedName 쿼리파라미터는 필수입니다.')
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === oldNormalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
     const body = parseMockBody(config)
@@ -6614,11 +6616,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(mockDepositorMappingResponse(next))
   }
 
-  if (method === 'DELETE' && /\/accounting\/deposit-mappings\/[^/]+$/.test(new URL(url, 'http://mock.local').pathname)) {
+  if (method === 'DELETE' && new URL(url, 'http://mock.local').pathname.endsWith('/accounting/deposit-mappings')) {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'delete')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const normalizedName = decodeURIComponent(urlObj.pathname.slice(urlObj.pathname.lastIndexOf('/') + 1))
+    const normalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
+    if (!normalizedName) return mockError(400, 'INVALID_INPUT', 'normalizedName 쿼리파라미터는 필수입니다.')
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
     const reason = String(config.params?.['reason'] ?? urlObj.searchParams.get('reason') ?? '').trim()
@@ -6708,6 +6711,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'PATCH' && url.includes('/accounting/bank-transactions/match-partner/clear-and-delete-mapping')) {
     const denied = mockRequirePermission('accounting.bank-matching', 'update')
     if (denied) return denied
+    // BE 계약(#810): 매칭 해제(bank-matching:UPDATE)에 더해 매핑 삭제 권한(deposit-mapping:DELETE)도 강제한다.
+    const mappingDenied = mockRequirePermission('accounting.deposit-mapping', 'delete')
+    if (mappingDenied) return mappingDenied
     const body = parseMockBody(config)
     const bankAccountLabel = String(body.bankAccountLabel ?? '').trim()
     const transactedAt = String(body.transactedAt ?? '').trim()
@@ -16656,8 +16662,19 @@ function appendMockBankTransactions(rows: MockBankTransactionRow[]): { importedC
   return { importedCount, duplicateSkippedCount }
 }
 
+/**
+ * BE DepositorNameNormalizer parity — 앞뒤 공백 제거 + 내부 Unicode 공백 연속 1칸 축약 + 대문자화.
+ *
+ * Java 는 Character.isWhitespace ∪ isSpaceChar 를 공백으로 판정해 U+001C~U+001F(정보 구분자
+ * 제어문자)도 포함하므로 JS `\s` 에 더해 명시적으로 처리한다(치환 후 trim 순서 — 앞뒤의
+ * U+001C 계열도 제거되도록).
+ *
+ * ⚠️ BOM(U+FEFF) 처리 차이: JS `\s`/`trim()` 은 U+FEFF 를 공백으로 취급하지만 Java 정규화기는
+ * 아니어서 BOM 포함 입력의 결과가 BE 와 다를 수 있다. 정렬 방향은 개발책임자 확인 사항(#810)이라
+ * 여기서 강제 변경하지 않는다.
+ */
 function mockDepositorNameNormalize(raw: string): string {
-  return raw.trim().replace(/\s+/gu, ' ').toUpperCase()
+  return raw.replace(/[\s\u001C-\u001F]+/gu, ' ').trim().toUpperCase()
 }
 
 function mockDepositorActor(): string {

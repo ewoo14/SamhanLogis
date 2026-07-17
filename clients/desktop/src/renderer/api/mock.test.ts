@@ -1831,9 +1831,10 @@ describe('mock depositor mapping contract', () => {
     expect(duplicate.__mockStatus).toBe(409)
     expect(duplicate.body.code).toBe('CONFLICT')
 
+    // BE 계약(#810): update/delete 는 경로변수가 아닌 `?normalizedName=` 쿼리파라미터.
     const updated = mockRequest({
       method: 'PUT',
-      url: `/accounting/deposit-mappings/${encodeURIComponent(normalizedName)}`,
+      url: `/accounting/deposit-mappings?normalizedName=${encodeURIComponent(normalizedName)}`,
       data: { rawName: `Acme Updated ${suffix}`, partnerCode: '2345678901', reason: '거래처 변경' },
     }) as MockEnvelope<Record<string, unknown>>
     expect(updated.data).toMatchObject({
@@ -1852,7 +1853,7 @@ describe('mock depositor mapping contract', () => {
 
     const deleted = mockRequest({
       method: 'DELETE',
-      url: `/accounting/deposit-mappings/${encodeURIComponent(`ACME UPDATED ${suffix}`)}`,
+      url: `/accounting/deposit-mappings?normalizedName=${encodeURIComponent(`ACME UPDATED ${suffix}`)}`,
       params: { reason: '더 이상 사용하지 않음' },
     }) as MockEnvelope<null>
     expect(deleted.data).toBeNull()
@@ -1917,6 +1918,95 @@ describe('mock depositor mapping contract', () => {
       url: '/accounting/deposit-mappings',
     }) as MockEnvelope<Array<Record<string, unknown>>>
     expect(mappingAfterDelete.data.some((row) => row.normalizedName === '삼한상사')).toBe(false)
+  })
+
+  // 정규화 공유 계약 — BE DepositorNameNormalizerTest(services/accounting-service
+  // .../util/DepositorNameNormalizerTest.java)와 동일 입력셋을 mock 공개 API 로 검증한다.
+  // 특수문자는 escape 변형 사고를 막기 위해 String.fromCharCode 로 명시 구성한다.
+  // BOM(U+FEFF)은 JS/Java 공백 판정이 달라 공통 케이스에서 제외한다 — 정렬 방향은 개발책임자 확인 사항(#810).
+  it('mock 정규화는 BE DepositorNameNormalizer와 동일 입력셋에서 같은 key를 만든다 (BOM 제외 공통 케이스)', () => {
+    const suffix = String(Date.now())
+    const TAB = String.fromCharCode(0x09)
+    const LF = String.fromCharCode(0x0a)
+    const FILE_SEPARATOR = String.fromCharCode(0x1c) // Java isWhitespace 전용(정보 구분자)
+    const NBSP = String.fromCharCode(0xa0)
+    const EM_SPACE = String.fromCharCode(0x2003)
+    const FIGURE_SPACE = String.fromCharCode(0x2007)
+    const NARROW_NBSP = String.fromCharCode(0x202f)
+    const IDEOGRAPHIC_SPACE = String.fromCharCode(0x3000)
+
+    // BE 케이스 1: NBSP/tab/em space/개행/전각 공백 축약 + 대문자화 → 'HAN RIVER CO'
+    const spaced = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: {
+        rawName: NBSP + '  Han' + TAB + EM_SPACE + ' River' + LF + IDEOGRAPHIC_SPACE + ' Co' + suffix + '  ',
+        partnerCode: '1234567890',
+      },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(spaced.data.normalizedName).toBe('HAN RIVER CO' + suffix)
+
+    // BE 케이스 2: 괄호·특수문자·전각 문자는 제거하지 않는다 → '(주) ＡＢＣ·CO.,LTD'
+    const preserved = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: '  (주) ＡＢＣ·Co.,Ltd' + suffix + '  ', partnerCode: '1234567890' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(preserved.data.normalizedName).toBe('(주) ＡＢＣ·CO.,LTD' + suffix)
+
+    // Java Character.isWhitespace 는 정보 구분자(U+001C~U+001F)도 공백으로 본다 — mock parity.
+    const separator = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: 'Han' + FILE_SEPARATOR + 'Separator' + suffix, partnerCode: '1234567890' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(separator.data.normalizedName).toBe('HAN SEPARATOR' + suffix)
+
+    // BE 케이스 3: 공백 전용 입력은 빈 key — 생성 API 는 400 으로 거부한다.
+    const blankOnly = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: FIGURE_SPACE + NARROW_NBSP, partnerCode: '1234567890' },
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(blankOnly.__mockStatus).toBe(400)
+  })
+
+  // 계약 pin(#810 L2-M1/L3-M1): clear-and-delete-mapping 은 bank-matching:update 에 더해
+  // deposit-mapping:delete 를 요구한다. mockPerms 주입으로 bank-matching edit=true +
+  // deposit-mapping edit=false 사용자를 만들어 두 게이트를 분리 검증한다.
+  it('clear-and-delete-mapping은 deposit-mapping:delete 없는 사용자에게 403이다 (bank-matching:update만으로 불충분)', () => {
+    const perms = [
+      { pageCode: 'accounting.bank-matching', view: true, edit: true },
+      { pageCode: 'accounting.deposit-mapping', view: true, edit: false },
+    ]
+    const encoded = Buffer.from(JSON.stringify(perms), 'utf8').toString('base64')
+    vi.stubGlobal('window', { location: { search: `?mockPerms=${encodeURIComponent(encoded)}`, hash: '' } })
+    try {
+      const naturalKey = {
+        bankAccountLabel: '국민 123-456',
+        transactedAt: '2026-06-23T09:10:00',
+        amount: '1500000',
+        externalRef: 'mock-bank-20260623-001',
+      }
+      const denied = mockRequest({
+        method: 'PATCH',
+        url: '/accounting/bank-transactions/match-partner/clear-and-delete-mapping',
+        data: naturalKey,
+      }) as { __mockStatus: number; body: { code: string } }
+      expect(denied.__mockStatus).toBe(403)
+      expect(denied.body.code).toBe('FORBIDDEN')
+
+      // 대조군: 같은 권한으로 일반 해제(clear)는 bank-matching:update 만 요구하므로 통과한다
+      // — 위 403 이 deposit-mapping:delete 게이트에서 났음을 증명.
+      const cleared = mockRequest({
+        method: 'PATCH',
+        url: '/accounting/bank-transactions/match-partner/clear',
+        data: naturalKey,
+      }) as MockEnvelope<Record<string, unknown>>
+      expect(cleared.data).toMatchObject({ matchedPartnerCode: null })
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
 

@@ -2308,8 +2308,10 @@ export interface ClearBankTransactionMatchRequest {
 export interface DepositorMappingResponse {
   rawName: string
   normalizedName: string
-  partnerCode: string
-  partnerName: string
+  /** 거래처 코드 — 매핑된 거래처가 삭제/유실된 stale 매핑이면 BE 가 null 을 반환한다. */
+  partnerCode: string | null
+  /** 거래처명 — partnerCode 와 함께 null 가능(stale 매핑). */
+  partnerName: string | null
   modifiedAt: string
   actor: string
   active: boolean
@@ -2419,16 +2421,24 @@ export async function clearBankTransactionMatch(
   return res.data.data
 }
 
-/** 거래처만 해제하고 입금자명 매핑은 유지한다. */
+/** 거래를 해제하고 학습된 입금자명 매핑도 함께 삭제한다. */
 export async function clearBankTransactionMatchAndDeleteMapping(
   request: ClearBankTransactionMatchRequest,
 ): Promise<BankTransactionRow> {
-  const res = await apiClient.patch<ApiEnvelope<BankTransactionRow>>(
-    '/accounting/bank-transactions/match-partner/clear-and-delete-mapping',
-    request,
-    { headers: await collabHeaders() },
-  )
-  return res.data.data
+  try {
+    const res = await apiClient.patch<ApiEnvelope<BankTransactionRow>>(
+      '/accounting/bank-transactions/match-partner/clear-and-delete-mapping',
+      request,
+      { headers: await collabHeaders() },
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) {
+      throw new Error(message)
+    }
+    throw err
+  }
 }
 
 export async function listDepositorMappings(): Promise<DepositorMappingResponse[]> {
@@ -2452,34 +2462,66 @@ export async function listDepositorMappingHistory(
 export async function createDepositorMapping(
   request: DepositorMappingRequest,
 ): Promise<DepositorMappingResponse> {
-  const res = await apiClient.post<ApiEnvelope<DepositorMappingResponse>>(
-    '/accounting/deposit-mappings',
-    request,
-    { headers: await collabHeaders() },
-  )
-  return res.data.data
+  try {
+    const res = await apiClient.post<ApiEnvelope<DepositorMappingResponse>>(
+      '/accounting/deposit-mappings',
+      request,
+      { headers: await collabHeaders() },
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) {
+      throw new Error(message)
+    }
+    throw err
+  }
 }
 
+/**
+ * 매핑 수정 — BE 계약(#810)에 따라 정규화 key 는 경로변수가 아닌
+ * `?normalizedName=` 쿼리파라미터로 전달한다(경로 %2F 인코딩 함정 제거).
+ */
 export async function updateDepositorMapping(
   normalizedName: string,
   request: DepositorMappingRequest,
 ): Promise<DepositorMappingResponse> {
-  const res = await apiClient.put<ApiEnvelope<DepositorMappingResponse>>(
-    `/accounting/deposit-mappings/${encodeURIComponent(normalizedName)}`,
-    request,
-    { headers: await collabHeaders() },
-  )
-  return res.data.data
+  try {
+    const res = await apiClient.put<ApiEnvelope<DepositorMappingResponse>>(
+      `/accounting/deposit-mappings?normalizedName=${encodeURIComponent(normalizedName)}`,
+      request,
+      { headers: await collabHeaders() },
+    )
+    return res.data.data
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) {
+      throw new Error(message)
+    }
+    throw err
+  }
 }
 
+/**
+ * 매핑 삭제(soft delete) — BE 계약(#810)에 따라 정규화 key 는
+ * `?normalizedName=` 쿼리파라미터로 전달한다.
+ */
 export async function deleteDepositorMapping(
   normalizedName: string,
   reason?: string,
 ): Promise<void> {
-  await apiClient.delete<ApiEnvelope<null>>(
-    `/accounting/deposit-mappings/${encodeURIComponent(normalizedName)}`,
-    { params: reason ? { reason } : undefined, headers: await collabHeaders() },
-  )
+  try {
+    await apiClient.delete<ApiEnvelope<null>>(
+      `/accounting/deposit-mappings?normalizedName=${encodeURIComponent(normalizedName)}`,
+      { params: reason ? { reason } : undefined, headers: await collabHeaders() },
+    )
+  } catch (err) {
+    const message = extractApiErrorResponseMessage(err)
+    if (message) {
+      throw new Error(message)
+    }
+    throw err
+  }
 }
 
 // --------------------------------------------------------------------------

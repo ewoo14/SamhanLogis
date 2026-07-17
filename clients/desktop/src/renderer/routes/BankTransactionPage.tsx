@@ -170,7 +170,9 @@ export function BankTransactionPage() {
   const { canAccess } = usePermissions()
   const canCreate = canAccess('accounting.bank-matching', 'create')
   const canUpdate = canAccess('accounting.bank-matching', 'update')
-  const canDeleteAppliedMapping = canAccess('accounting.deposit-mapping', 'update')
+  // BE 계약(#810): clear-and-delete-mapping 은 bank-matching:UPDATE + deposit-mapping:DELETE 를 모두 강제한다.
+  // 버튼 가시성은 deposit-mapping:DELETE, 활성화는 bank-matching:UPDATE(canUpdate) 로 게이트한다.
+  const canDeleteAppliedMapping = canAccess('accounting.deposit-mapping', 'delete')
   const canCreateBankDepositReceipt = canAccess('accounting.cash-receipts', 'update')
   const [activeTab, setActiveTab] = useState<StatusTab>('ALL')
   const [activeSourceTab, setActiveSourceTab] = useState<SourceTab>('ALL')
@@ -283,6 +285,8 @@ export function BankTransactionPage() {
     mutationFn: matchBankTransactionPartner,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
+      // 수동 매칭은 입금자명 매핑 학습(upsert)을 동반하므로 매핑 목록 캐시도 무효화한다.
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'deposit-mappings'] })
     },
     onError: () => setToast({ type: 'error', message: '거래처 매칭 중 오류가 발생했습니다.' }),
   })
@@ -581,7 +585,7 @@ export function BankTransactionPage() {
                     type="button"
                     size="sm"
                     variant="danger"
-                    disabled={pending}
+                    disabled={!canUpdate || pending}
                     onClick={() => {
                       setMappingDeleteRow(row)
                     }}
@@ -960,6 +964,8 @@ export function BankTransactionPage() {
             <Button
               type="button"
               variant="danger"
+              // 진입 버튼과 동일 가드(BE 계약 #810) — 모달이 열린 채 권한이 바뀌어도 fail-closed.
+              disabled={!canUpdate || !canDeleteAppliedMapping}
               loading={clearAndDeleteMappingMutation.isPending}
               onClick={() => {
                 if (!mappingDeleteRow) return
