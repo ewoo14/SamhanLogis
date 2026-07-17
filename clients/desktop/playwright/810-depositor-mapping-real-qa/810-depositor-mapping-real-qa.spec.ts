@@ -24,7 +24,7 @@ const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const SHOTS = path.resolve(_dirname, '../../../../docs/qa/810-depositor-mapping')
 fs.mkdirSync(SHOTS, { recursive: true })
 
-const RAW = 'QA-R1-매핑검증'
+const RAW = 'QA-R2-매핑검증-' + Date.now()
 
 let shotNo = 0
 async function capture(page: Page, name: string): Promise<void> {
@@ -135,6 +135,7 @@ test('#810 R1 fix 라이브 QA — 매핑 관리화면·이력(거래처변경)�
   if (B !== A) {
     await expect(page.getByText(B, { exact: false }).first(), `이력 모달에 거래처코드 ${B} 미노출`).toBeVisible({ timeout: 10_000 })
   }
+  await page.waitForTimeout(600)
   await capture(page, 'depositor-mapping-history')
   // 모달 닫기(Escape)
   await page.keyboard.press('Escape')
