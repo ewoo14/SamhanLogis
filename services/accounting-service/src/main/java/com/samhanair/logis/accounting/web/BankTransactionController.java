@@ -145,10 +145,18 @@ public class BankTransactionController {
         return ApiResponse.ok(service.clearPartner(request, parseOptionalUserId(userId)), "거래처 매칭이 해제되었습니다.");
     }
 
-    /** 거래를 해제하고 자동 적용 매핑도 별도로 삭제한다. */
+    /**
+     * 거래를 해제하고 자동 적용 매핑도 별도로 삭제한다.
+     *
+     * <p>#810 적대검증 R1 (L2-H1): 본 엔드포인트는 {@code bank-matching:UPDATE}(본 애노테이션)와
+     * 서비스 레이어의 {@code deposit-mapping:DELETE}
+     * ({@link com.samhanair.logis.accounting.service.DepositorMappingService#deleteByIdIfPermitted})
+     * <b>양쪽</b> 권한이 필요하다. 둘 중 하나라도 없으면 403이며 거래 해제도 함께 롤백된다.
+     */
     @PatchMapping("/match-partner/clear-and-delete-mapping")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
-    @Operation(summary = "거래와 매핑 동시 해제", description = "현재 거래 해제와 매핑 soft delete를 하나의 명시적 UX로 분리")
+    @Operation(summary = "거래와 매핑 동시 해제",
+            description = "거래 해제 + 매핑 soft delete. bank-matching:UPDATE와 deposit-mapping:DELETE 양쪽 권한 필요")
     public ApiResponse<BankTransactionResponse> clearPartnerAndDeleteMapping(
             @RequestBody BankTransactionMatchPartnerClearRequest request,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {

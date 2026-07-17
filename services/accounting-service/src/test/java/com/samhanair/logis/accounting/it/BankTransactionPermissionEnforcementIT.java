@@ -97,6 +97,7 @@ class BankTransactionPermissionEnforcementIT {
     void setUp() {
         restClientMockServerHolder.server.reset();
         jdbcTemplate.update("DELETE FROM bank_transaction");
+        jdbcTemplate.update("DELETE FROM bank_depositor_partner_mapping");
     }
 
     @Test
@@ -171,6 +172,69 @@ class BankTransactionPermissionEnforcementIT {
         restClientMockServerHolder.server.verify();
     }
 
+    /**
+     * #810 적대검증 R1 (L2-H1) — clear-and-delete-mapping 이중 게이트 실 DPC enforcement.
+     *
+     * <p>{@code bank-matching:UPDATE} 만 있고 {@code deposit-mapping:DELETE} 가 없으면 403 이고
+     * 거래 해제/매핑 삭제 모두 롤백, 양쪽 보유 시에만 200 이다.
+     */
+    @Test
+    @DisplayName("clear-and-delete-mapping: bank-matching UPDATE + deposit-mapping DELETE 양쪽 필요")
+    void clearAndDeleteMappingRequiresBothPermissions() throws Exception {
+        UUID mappingId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO bank_depositor_partner_mapping
+                    (id, raw_name, normalized_name, partner_id, created_by, is_deleted)
+                VALUES (?, '권한테스트상사', '권한테스트상사', ?, 'it', FALSE)
+                """, mappingId, PARTNER_ID);
+        jdbcTemplate.update("""
+                INSERT INTO bank_transaction (
+                    id, transacted_at, txn_type, amount, description, bank_account_label,
+                    source, external_ref, match_status, matched_partner_id, partner_match_source,
+                    matched_mapping_id, partner_matched_at, partner_matched_by,
+                    matched_mapping_raw_name, matched_mapping_normalized_name,
+                    created_at, created_by, is_deleted
+                ) VALUES (
+                    ?, TIMESTAMP '2026-06-23 09:10:00', 'DEPOSIT', 150000.00, '이중게이트 입금',
+                    '국민 권한테스트', 'CSV_IMPORT', 'PERM-DUAL-001', 'UNREFLECTED', ?, 'DEPOSITOR_MAPPING',
+                    ?, NOW(), 'SYSTEM', '권한테스트상사', '권한테스트상사',
+                    NOW(), 'it', FALSE
+                )
+                """, UUID.randomUUID(), PARTNER_ID, mappingId);
+
+        // MockRestServiceServer는 첫 실요청 이후 expectation 추가를 금지하므로 4건을 선선언한다(순서 일치).
+        expectPermission(ACCOUNTANT_ACCOUNT, PermissionAction.UPDATE, true);
+        expectPermission(ACCOUNTANT_ACCOUNT, "accounting.deposit-mapping", PermissionAction.DELETE, false);
+        expectPermission(ACCOUNTANT_ACCOUNT, PermissionAction.UPDATE, true);
+        expectPermission(ACCOUNTANT_ACCOUNT, "accounting.deposit-mapping", PermissionAction.DELETE, true);
+
+        // 1차: UPDATE 허용 + deposit-mapping DELETE 거부 → 403, 거래·매핑 모두 원상 유지(롤백).
+        clearAndDeleteMapping(ACCOUNTANT_ACCOUNT, "PERM-DUAL-001")
+                .andExpect(status().isForbidden());
+        Integer stillMatched = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bank_transaction WHERE external_ref = 'PERM-DUAL-001' AND matched_partner_id IS NOT NULL",
+                Integer.class);
+        Integer stillActiveMapping = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bank_depositor_partner_mapping WHERE id = ? AND is_deleted = FALSE",
+                Integer.class, mappingId);
+        org.assertj.core.api.Assertions.assertThat(stillMatched).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(stillActiveMapping).isEqualTo(1);
+
+        // 2차: 양쪽 허용 → 200, 거래 해제 + 매핑 soft delete.
+        clearAndDeleteMapping(ACCOUNTANT_ACCOUNT, "PERM-DUAL-001")
+                .andExpect(status().isOk());
+        Integer cleared = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bank_transaction WHERE external_ref = 'PERM-DUAL-001' AND matched_partner_id IS NULL",
+                Integer.class);
+        Integer deletedMapping = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bank_depositor_partner_mapping WHERE id = ? AND is_deleted = TRUE",
+                Integer.class, mappingId);
+        org.assertj.core.api.Assertions.assertThat(cleared).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(deletedMapping).isEqualTo(1);
+
+        restClientMockServerHolder.server.verify();
+    }
+
     private org.springframework.test.web.servlet.ResultActions clearPartner(UUID accountId, String externalRef)
             throws Exception {
         return mockMvc.perform(patch(BASE_URL + "/match-partner/clear")
@@ -186,10 +250,30 @@ class BankTransactionPermissionEnforcementIT {
                 .header("X-User-Id", accountId.toString()));
     }
 
+    private org.springframework.test.web.servlet.ResultActions clearAndDeleteMapping(UUID accountId,
+                                                                                     String externalRef)
+            throws Exception {
+        return mockMvc.perform(patch(BASE_URL + "/match-partner/clear-and-delete-mapping")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "bankAccountLabel": "국민 권한테스트",
+                          "transactedAt": "2026-06-23T09:10:00",
+                          "amount": 150000.00,
+                          "externalRef": "%s"
+                        }
+                        """.formatted(externalRef))
+                .header("X-User-Id", accountId.toString()));
+    }
+
     private void expectPermission(UUID accountId, PermissionAction action, boolean allowed) {
+        expectPermission(accountId, PAGE_CODE, action, allowed);
+    }
+
+    private void expectPermission(UUID accountId, String pageCode, PermissionAction action, boolean allowed) {
         restClientMockServerHolder.server.expect(once(), requestTo("http://auth-service/auth/internal/permissions/check"
                         + "?accountId=" + accountId
-                        + "&pageCode=" + PAGE_CODE
+                        + "&pageCode=" + pageCode
                         + "&action=" + action.name()))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", INTERNAL_TOKEN))

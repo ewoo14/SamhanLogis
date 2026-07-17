@@ -22,13 +22,33 @@ public interface AccountingAuditLogRepository extends JpaRepository<AccountingAu
     /** 특정 entity + revision 의 audit row (다중 필드 변경 시 N row). */
     List<AccountingAuditLog> findByEntityIdAndRevisionNo(UUID entityId, int revisionNo);
 
-    /** 입금자명 정규화 business key가 포함된 매핑 이력 조회. */
+    /**
+     * 정규화 키가 old/new 로 등장한 매핑 entityId 수집 — #810 적대검증 R1 (L4-H2/L6-H1).
+     *
+     * <p>rename 으로 현재 키가 바뀐 매핑도 과거 키 조회에서 추적할 수 있도록
+     * {@code mapping.normalizedName} 감사행에서 entityId 를 역추적한다.
+     */
+    @Query("""
+            select distinct log.entityId from AccountingAuditLog log
+             where log.fieldName = 'mapping.normalizedName'
+               and (log.oldValue = :normalizedName or log.newValue = :normalizedName)
+            """)
+    List<UUID> findMappingEntityIdsByNormalizedName(
+            @Param("normalizedName") String normalizedName);
+
+    /**
+     * 매핑 entityId 기준 전 필드 audit 행 조회 — #810 적대검증 R1 (L4-H2/L6-H1).
+     *
+     * <p>normalizedName 행만 필터하던 구 쿼리는 partnerCode/rawName/사유 행을 절대 노출하지 못했고
+     * rename 시 이전 이력이 절단됐다. entityId 기준 전 필드 행으로 전환해 rename 후에도
+     * 같은 매핑의 이력이 연속된다. {@code mapping.%} prefix 가드는 UUID 충돌 방어 겸 의도 문서화.
+     */
     @Query("""
             select log from AccountingAuditLog log
-             where (log.fieldName = 'mapping.normalizedName')
-               and (log.oldValue = :normalizedName or log.newValue = :normalizedName)
-             order by log.changedAt desc, log.revisionNo desc
+             where log.entityId in :entityIds
+               and log.fieldName like 'mapping.%'
+             order by log.revisionNo desc, log.changedAt desc, log.fieldName asc
             """)
-    List<AccountingAuditLog> findMappingHistoryByNormalizedName(
-            @Param("normalizedName") String normalizedName);
+    List<AccountingAuditLog> findMappingHistoryByEntityIds(
+            @Param("entityIds") java.util.Collection<UUID> entityIds);
 }

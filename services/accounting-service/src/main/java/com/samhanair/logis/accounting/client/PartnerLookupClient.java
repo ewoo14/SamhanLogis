@@ -305,10 +305,12 @@ public class PartnerLookupClient {
             String businessNo = textOrNull(data, "bizNo", "businessNo", "businessRegistrationNumber");
             String address = textOrNull(data, "address");
             BigDecimal creditLimit = decimalOrNull(data, "creditLimit");
+            String status = textOrNull(data, "status");
             if (partnerCode == null || partnerCode.isBlank()) {
                 return Optional.empty();
             }
-            return Optional.of(new PartnerSummary(partnerId, partnerCode, name, businessNo, address, creditLimit));
+            return Optional.of(new PartnerSummary(partnerId, partnerCode, name, businessNo, address,
+                    creditLimit, status));
         } catch (Exception ex) {
             log.warn("PartnerLookupClient response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
@@ -336,8 +338,10 @@ public class PartnerLookupClient {
                 String businessNo = textOrNull(partner, "bizNo", "businessNo", "businessRegistrationNumber");
                 String address = textOrNull(partner, "address");
                 BigDecimal creditLimit = decimalOrNull(partner, "creditLimit");
+                String status = textOrNull(partner, "status");
                 if (id != null && (partnerCode != null || name != null)) {
-                    result.put(id, new PartnerSummary(id, partnerCode, name, businessNo, address, creditLimit));
+                    result.put(id, new PartnerSummary(id, partnerCode, name, businessNo, address,
+                            creditLimit, status));
                 }
             }
             return result;
@@ -367,8 +371,10 @@ public class PartnerLookupClient {
                 String businessNo = textOrNull(partner, "bizNo", "businessNo", "businessRegistrationNumber");
                 String address = textOrNull(partner, "address");
                 BigDecimal creditLimit = decimalOrNull(partner, "creditLimit");
+                String status = textOrNull(partner, "status");
                 if (id != null && partnerCode != null && !partnerCode.isBlank()) {
-                    result.add(new PartnerSummary(id, partnerCode, name, businessNo, address, creditLimit));
+                    result.add(new PartnerSummary(id, partnerCode, name, businessNo, address,
+                            creditLimit, status));
                 }
             }
             return result;

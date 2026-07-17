@@ -281,29 +281,9 @@ public class DepositMatchService {
                 .findFirst();
     }
 
-    /**
-     * 거래처 표시명/코드를 기준으로 PartnerSummary 를 해석한다.
-     *
-     * <p>KFTC 입금 매칭과 CODEF 은행·카드 import 가 같은 거래처 lookup 규칙을 사용하도록 공개한 재사용 지점이다.
-     * 현 BC1 에서는 기존 정책대로 counterparty 값을 partnerCode 로 간주한다.
-     *
-     * @param counterpartyName 입금자명 또는 카드 가맹점명
-     * @return 거래처 요약. 미매칭 또는 blank 입력이면 empty
-     */
-    public Optional<PartnerSummary> resolvePartnerForCounterparty(String counterpartyName) {
-        DepositorMappingService.MappingResolution resolution = depositorMappingService == null
-                ? DepositorMappingService.MappingResolution.none()
-                : depositorMappingService.resolveDeposit(
-                        counterpartyName, com.samhanair.logis.accounting.domain.BankTxnType.DEPOSIT,
-                        com.samhanair.logis.accounting.domain.BankTxnSource.KFTC);
-        if (resolution.isMatched()) {
-            return Optional.of(resolution.partner());
-        }
-        if (resolution.isStale()) {
-            return Optional.empty();
-        }
-        return resolveExactPartnerForCounterparty(counterpartyName);
-    }
+    // #810 적대검증 R1 (L4-L1): 호출자 0건 + DEPOSIT/KFTC 하드코딩으로 카드 경로 재사용 함정이던
+    // resolvePartnerForCounterparty(public)는 제거했다. 경로별 resolver는 각 서비스가
+    // DepositorMappingService.resolveDeposit(txnType/source 인자)을 직접 사용한다.
 
     /** KFTC 입금자명의 legacy partnerCode 정확일치 폴백. */
     private Optional<PartnerSummary> resolveExactPartnerForCounterparty(String counterpartyName) {

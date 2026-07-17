@@ -85,7 +85,8 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(1));
 
-        mockMvc.perform(put(URL + "/ACME")
+        mockMvc.perform(put(URL)
+                        .param("normalizedName", "ACME")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rawName\":\"AcmeUpdated\",\"partnerCode\":\"P-002\",\"reason\":\"ADMIN_UPDATE\"}")
                         .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
@@ -93,17 +94,55 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.normalizedName").value("ACMEUPDATED"))
                 .andExpect(jsonPath("$.data.partnerCode").value("P-002"));
 
+        // #810 적대검증 R1 (L4-H2): 이력은 entityId 기준 전 필드 행 — 생성 4행 + 수정 4행,
+        // rename 후에도 이전 키(ACME) 시절 생성 이력이 절단되지 않는다.
         mockMvc.perform(get(URL + "/history")
                         .param("normalizedName", "ACMEUPDATED")
                         .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1));
+                .andExpect(jsonPath("$.data.length()").value(8))
+                .andExpect(jsonPath(
+                        "$.data[?(@.fieldName=='mapping.partnerCode' && @.oldValue=='P-001' && @.newValue=='P-002')]")
+                        .exists())
+                .andExpect(jsonPath("$.data[?(@.fieldName=='mapping.reason' && @.newValue=='ADMIN_UPDATE')]")
+                        .exists())
+                .andExpect(jsonPath("$.data[?(@.fieldName=='mapping.normalizedName' && @.newValue=='ACME')]")
+                        .exists())
+                .andExpect(jsonPath("$.data[?(@.fieldName=='mapping.rawName' && @.newValue=='AcmeUpdated')]")
+                        .exists())
+                .andExpect(jsonPath("$.data[0].revisionNo").value(2));
 
-        mockMvc.perform(delete(URL + "/ACMEUPDATED")
+        mockMvc.perform(delete(URL)
+                        .param("normalizedName", "ACMEUPDATED")
                         .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk());
 
         create("AcmeUpdated", "P-001").andExpect(status().isCreated());
+    }
+
+    @Test
+    @DisplayName("슬래시 포함 key(A/S센터)도 쿼리파라미터 계약으로 수정·삭제할 수 있다")
+    void slashKeyIsUpdatableAndDeletableViaQueryParam() throws Exception {
+        create("A/S 센터", "P-001")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.normalizedName").value("A/S 센터"));
+
+        mockMvc.perform(put(URL)
+                        .param("normalizedName", "A/S 센터")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"rawName\":\"A/S 센터\",\"partnerCode\":\"P-002\"}")
+                        .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partnerCode").value("P-002"));
+
+        mockMvc.perform(delete(URL)
+                        .param("normalizedName", "A/S 센터")
+                        .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(URL).header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     @Test
@@ -120,7 +159,8 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
         create("Acme", "P-001").andExpect(status().isCreated());
         create("Other", "P-002").andExpect(status().isCreated());
 
-        mockMvc.perform(put(URL + "/ACME")
+        mockMvc.perform(put(URL)
+                        .param("normalizedName", "ACME")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"rawName\":\"Other\",\"partnerCode\":\"P-001\"}")
                         .header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))

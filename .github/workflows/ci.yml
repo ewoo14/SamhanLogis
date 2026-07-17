@@ -272,7 +272,7 @@ jobs:
             exit 1
           fi
 
-      - name: #810 BankDepositorPartnerMappingControllerIT skipped=0 hard gate
+      - name: "#810 BankDepositorPartnerMappingControllerIT skipped=0 hard gate"
         if: matrix.group.name == 'accounting-deposit-mapping-it'
         run: |
           report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.BankDepositorPartnerMappingControllerIT.xml'
@@ -286,7 +286,7 @@ jobs:
             exit 1
           fi
 
-      - name: #810 BankDepositorPartnerMappingPermissionEnforcementIT skipped=0 hard gate
+      - name: "#810 BankDepositorPartnerMappingPermissionEnforcementIT skipped=0 hard gate"
         if: matrix.group.name == 'accounting-deposit-mapping-it'
         run: |
           report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.BankDepositorPartnerMappingPermissionEnforcementIT.xml'

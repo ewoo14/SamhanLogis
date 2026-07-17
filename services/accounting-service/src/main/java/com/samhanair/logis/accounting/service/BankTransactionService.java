@@ -37,6 +37,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -124,6 +125,8 @@ public class BankTransactionService {
 
         int imported = 0;
         int duplicateSkipped = 0;
+        int staleSkipped = 0;
+        LinkedHashSet<String> staleNormalizedNames = new LinkedHashSet<>();
         for (String[] row : dataRows) {
             if (isAllBlank(row)) {
                 continue;
@@ -133,6 +136,19 @@ public class BankTransactionService {
                 duplicateSkipped++;
                 continue;
             }
+            DepositorMappingService.MappingResolution resolution = depositorMappingService.resolveDeposit(
+                    transaction.getCounterpartyName(), transaction.getTxnType(), BankTxnSource.CSV_IMPORT);
+            if (resolution.isMatched()) {
+                var mappingEntity = resolution.mapping();
+                transaction.applyPartnerMatch(
+                        resolution.partner().partnerId(), PartnerMatchSource.DEPOSITOR_MAPPING,
+                        mappingEntity.getId(), LocalDateTime.now(), "SYSTEM",
+                        mappingEntity.getRawName(), mappingEntity.getNormalizedName());
+            } else if (resolution.isStale()) {
+                // #810 적대검증 R1 (L4-M1): stale 매핑 보류를 서버 로그에만 두지 않고 응답 집계로 표면화.
+                staleSkipped++;
+                staleNormalizedNames.add(resolution.mapping().getNormalizedName());
+            }
             BankTransaction saved = repository.save(transaction);
             if (saved.getPartnerMatchSource() == PartnerMatchSource.DEPOSITOR_MAPPING) {
                 partnerMatchAuditRecorder.record(saved, null, null, null, null, null,
@@ -140,7 +156,8 @@ public class BankTransactionService {
             }
             imported++;
         }
-        return new BankTransactionImportResult(dataRows.size(), imported, duplicateSkipped);
+        return new BankTransactionImportResult(dataRows.size(), imported, duplicateSkipped,
+                staleSkipped, List.copyOf(staleNormalizedNames));
     }
 
     /**
@@ -243,11 +260,29 @@ public class BankTransactionService {
         String oldNormalizedName = transaction.getMatchedMappingNormalizedName();
         transaction.applyPartnerMatch(partner.partnerId(), PartnerMatchSource.MANUAL, null,
                 LocalDateTime.now(), actorStorage(actorId), null, null);
-        depositorMappingService.learnMappingIfPermitted(
-                transaction.getCounterpartyName(), partner, actorId, actorName(actorId));
+        learnDepositMappingIfEligible(transaction, partner, actorId);
         partnerMatchAuditRecorder.record(transaction, oldPartnerId, oldSource, oldMappingId,
                 oldRawName, oldNormalizedName, actorId, actorName(actorId), "MANUAL_MATCH");
         return BankTransactionResponse.of(transaction, displayOf(partner), null);
+    }
+
+    /**
+     * 수동 매칭의 입금자명 매핑 학습 게이트 — #810 적대검증 R1 (L1-M1/L5-L4/L6-M4).
+     *
+     * <p>spec §C에 따라 {@code txnType=DEPOSIT} + 입금성 source(CSV/CODEF_BANK/KFTC)에서만 학습한다.
+     * 출금·카드(CODEF_CARD) 수동 매칭이 오염 매핑을 학습해 후속 입금이 오귀속되는 것을 차단한다.
+     * 학습 자체의 best-effort 격리(정규화 검증 실패 시 학습만 생략)는
+     * {@link DepositorMappingService#learnMappingIfPermitted} 내부에서 수행한다 — 별도 빈의
+     * {@code @Transactional} 경계 밖에서 catch 하면 참여 트랜잭션이 이미 rollback-only 로 마킹되어
+     * 수동 매칭 커밋까지 실패(UnexpectedRollbackException)하기 때문이다.
+     */
+    private void learnDepositMappingIfEligible(BankTransaction transaction, PartnerSummary partner, UUID actorId) {
+        if (transaction.getTxnType() != BankTxnType.DEPOSIT
+                || !depositorMappingService.isDepositSource(transaction.getSource())) {
+            return;
+        }
+        depositorMappingService.learnMappingIfPermitted(
+                transaction.getCounterpartyName(), partner, actorId, actorName(actorId));
     }
 
     /**
@@ -277,16 +312,20 @@ public class BankTransactionService {
         return BankTransactionResponse.of(transaction, null, null);
     }
 
-    /** 거래를 해제한 뒤 자동 적용에 사용된 매핑까지 별도로 soft delete한다. */
+    /**
+     * 거래를 해제한 뒤 자동 적용에 사용된 매핑까지 별도로 soft delete한다.
+     *
+     * <p>#810 적대검증 R1 (L2-H1/L2-M1): 컨트롤러의 {@code bank-matching:UPDATE}에 더해
+     * {@link DepositorMappingService#deleteByIdIfPermitted}가 {@code deposit-mapping:DELETE}
+     * 계정 권한을 검증한다. 권한 미보유 시 403이며 같은 트랜잭션의 거래 해제도 롤백된다.
+     */
     public BankTransactionResponse clearPartnerAndDeleteMapping(
             BankTransactionMatchPartnerClearRequest request, UUID actorId) {
         BankTransaction transaction = findUniqueByNaturalKey(request.bankAccountLabel(),
                 request.transactedAt(), request.amount(), request.externalRef());
         UUID mappingId = transaction.getMatchedMappingId();
         BankTransactionResponse response = clearPartner(request, actorId);
-        if (mappingId != null) {
-            depositorMappingService.deleteById(mappingId, actorId, actorName(actorId), "ADMIN_DELETE");
-        }
+        depositorMappingService.deleteByIdIfPermitted(mappingId, actorId, actorName(actorId), "ADMIN_DELETE");
         return response;
     }
 
@@ -411,7 +450,8 @@ public class BankTransactionService {
                 : generatedExternalRef(bankAccountLabel, transactedAt, type, amount, balanceAfter, description,
                         counterpartyName, counterpartyAccount);
 
-        BankTransaction transaction = BankTransaction.importRow(
+        // 매핑 자동 적용은 중복 skip 판정 이후 importCsv 루프에서 수행한다(stale 집계 정확성).
+        return BankTransaction.importRow(
                 transactedAt,
                 type,
                 amount,
@@ -422,16 +462,6 @@ public class BankTransactionService {
                 bankAccountLabel,
                 BankTxnSource.CSV_IMPORT,
                 externalRef);
-        DepositorMappingService.MappingResolution resolution = depositorMappingService.resolveDeposit(
-                counterpartyName, type, BankTxnSource.CSV_IMPORT);
-        if (resolution.isMatched()) {
-            var mappingEntity = resolution.mapping();
-            transaction.applyPartnerMatch(
-                    resolution.partner().partnerId(), PartnerMatchSource.DEPOSITOR_MAPPING,
-                    mappingEntity.getId(), LocalDateTime.now(), "SYSTEM",
-                    mappingEntity.getRawName(), mappingEntity.getNormalizedName());
-        }
-        return transaction;
     }
 
     private static String actorStorage(UUID actorId) {

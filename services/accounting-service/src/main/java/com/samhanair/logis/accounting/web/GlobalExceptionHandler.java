@@ -43,6 +43,11 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, ErrorCode.CONFLICT.getDefaultMessage()));
     }
 
+    // DataIntegrityViolationException 은 전역 409 매핑을 두지 않는다 (BC3a #642 계약 —
+    // dataIntegrityViolation_isNotMappedToGlobalConflict). 동시성 duplicate 는 각 서비스가
+    // 의미(재시도/skip/409)를 알고 call-site 에서 처리한다. #810 rename 경합도
+    // DepositorMappingService.create/update 의 catch→409 로 처리.
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())

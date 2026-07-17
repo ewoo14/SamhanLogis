@@ -17,6 +17,19 @@ public interface BankDepositorPartnerMappingRepository
     /** 활성 정규화 키 매핑을 조회한다. */
     Optional<BankDepositorPartnerMapping> findByNormalizedNameAndIsDeletedFalse(String normalizedName);
 
+    /**
+     * soft-deleted 행을 포함해 정규화 키의 매핑 id 목록을 조회한다 — #810 적대검증 R1 (L4-H2).
+     *
+     * <p>entity 의 {@code @SQLRestriction(is_deleted = false)} 를 우회해야 삭제된 매핑의
+     * 감사 이력도 entityId 로 연속 조회할 수 있으므로 native query 를 사용한다.
+     * 같은 키의 soft-delete 후 재생성으로 다건이 존재할 수 있다.
+     */
+    @Query(value = """
+            SELECT id FROM bank_depositor_partner_mapping
+             WHERE normalized_name = :normalizedName
+            """, nativeQuery = true)
+    List<UUID> findIdsByNormalizedNameIncludingDeleted(@Param("normalizedName") String normalizedName);
+
     /** 관리 화면의 활성 매핑 목록을 정렬 조회한다. */
     List<BankDepositorPartnerMapping> findAllByIsDeletedFalse(Sort sort);
 

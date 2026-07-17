@@ -19,6 +19,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -130,6 +131,8 @@ public class CodefImportService {
         int imported = 0;
         int duplicateSkipped = 0;
         int matched = 0;
+        int staleSkipped = 0;
+        LinkedHashSet<String> staleNormalizedNames = new LinkedHashSet<>();
         for (SourceTxn sourceTxn : fetched) {
             CodefTxn txn = sourceTxn.txn();
             BankTransaction transaction = toBankTransaction(txn, sourceTxn.source());
@@ -139,10 +142,17 @@ public class CodefImportService {
             }
 
             boolean matchedPartner = false;
+            boolean staleHold = false;
+            String staleNormalizedName = null;
             if (sourceTxn.source() == BankTxnSource.CODEF_BANK
                     && txn.txnType() == com.samhanair.logis.accounting.domain.BankTxnType.DEPOSIT) {
                 DepositorMappingService.MappingResolution resolution = depositorMappingService.resolveDeposit(
                         txn.counterpartyName(), txn.txnType(), sourceTxn.source());
+                if (resolution.isStale()) {
+                    // #810 적대검증 R1 (L4-M1): stale 보류를 응답 집계로 표면화(코드정확일치 폴백 회피 유지).
+                    staleHold = true;
+                    staleNormalizedName = resolution.mapping().getNormalizedName();
+                }
                 if (resolution.isMatched()) {
                     var mapping = resolution.mapping();
                     transaction.applyPartnerMatch(
@@ -185,6 +195,12 @@ public class CodefImportService {
                 if (matchedPartner) {
                     matched++;
                 }
+                if (staleHold) {
+                    staleSkipped++;
+                    if (staleNormalizedName != null) {
+                        staleNormalizedNames.add(staleNormalizedName);
+                    }
+                }
             } catch (DataIntegrityViolationException ex) {
                 duplicateSkipped++;
                 log.debug("[BC1] CODEF import duplicate skipped by DB unique index — source={} externalRef={}",
@@ -192,9 +208,10 @@ public class CodefImportService {
             }
         }
 
-        log.info("[BC1] CODEF import 완료 — fetched={} imported={} duplicateSkipped={} matched={}",
-                fetched.size(), imported, duplicateSkipped, matched);
-        return new CodefImportResponse(fetched.size(), imported, duplicateSkipped, matched);
+        log.info("[BC1] CODEF import 완료 — fetched={} imported={} duplicateSkipped={} matched={} staleSkipped={}",
+                fetched.size(), imported, duplicateSkipped, matched, staleSkipped);
+        return new CodefImportResponse(fetched.size(), imported, duplicateSkipped, matched,
+                staleSkipped, List.copyOf(staleNormalizedNames));
     }
 
     private BankTransaction toBankTransaction(CodefTxn txn, BankTxnSource source) {

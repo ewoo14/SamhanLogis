@@ -18,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -66,12 +65,18 @@ public class BankDepositorPartnerMappingController {
         return ApiResponse.ok(service.create(request, actorId, actorName(actorId)), "입금자명 매핑이 등록되었습니다.");
     }
 
-    /** 기존 정규화 key를 새 rawName/partnerCode로 수정한다. */
-    @PutMapping("/{normalizedName}")
+    /**
+     * 기존 정규화 key를 새 rawName/partnerCode로 수정한다.
+     *
+     * <p>#810 적대검증 R1 (L6-M2): 입금자명에 슬래시(예: A/S센터)가 포함되면 경로변수의
+     * {@code %2F}를 Tomcat이 거부하므로, GET /history와 일관되게 쿼리파라미터로 받는다.
+     */
+    @PutMapping
     @RequirePermission(page = DepositorMappingService.PAGE_CODE, action = PermissionAction.UPDATE)
-    @Operation(summary = "입금자명 매핑 수정", description = "key rename 충돌은 409로 거부")
+    @Operation(summary = "입금자명 매핑 수정",
+            description = "?normalizedName= 쿼리파라미터 key 지정(슬래시 포함 key 호환). key rename 충돌은 409로 거부")
     public ApiResponse<BankDepositorPartnerMappingResponse> update(
-            @PathVariable String normalizedName,
+            @RequestParam String normalizedName,
             @Valid @RequestBody BankDepositorPartnerMappingRequest request,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         UUID actorId = parseActorId(userId);
@@ -79,12 +84,17 @@ public class BankDepositorPartnerMappingController {
                 "입금자명 매핑이 수정되었습니다.");
     }
 
-    /** 기존 정규화 key 매핑을 soft delete한다. */
-    @DeleteMapping("/{normalizedName}")
+    /**
+     * 기존 정규화 key 매핑을 soft delete한다.
+     *
+     * <p>#810 적대검증 R1 (L6-M2): PUT과 같은 이유로 key를 쿼리파라미터로 받는다.
+     */
+    @DeleteMapping
     @RequirePermission(page = DepositorMappingService.PAGE_CODE, action = PermissionAction.DELETE)
-    @Operation(summary = "입금자명 매핑 삭제", description = "hard delete 없이 markDeleted(actor) 수행")
+    @Operation(summary = "입금자명 매핑 삭제",
+            description = "?normalizedName= 쿼리파라미터 key 지정. hard delete 없이 markDeleted(actor) 수행")
     public ApiResponse<Void> delete(
-            @PathVariable String normalizedName,
+            @RequestParam String normalizedName,
             @RequestParam(required = false) String reason,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         UUID actorId = parseActorId(userId);
