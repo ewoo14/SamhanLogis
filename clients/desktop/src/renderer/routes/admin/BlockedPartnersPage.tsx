@@ -44,7 +44,9 @@ import {
   CsvUploadDialog,
   DataTable,
   Modal,
+  PartnerAutocomplete,
   type DataTableColumn,
+  type PartnerOption,
 } from '@samhan/design-system'
 import {
   addBlockedPartner,
@@ -55,6 +57,7 @@ import {
   type BlockedPartner,
   type BlockedPartnerSource,
 } from '../../api/blockedPartnerApi'
+import { searchPartners } from '../../api/partnerApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
 
@@ -372,23 +375,23 @@ function AddBlockedPartnerDialog({
   onClose,
   onSubmit,
 }: AddBlockedPartnerDialogProps) {
-  const [partnerCode, setPartnerCode] = useState('')
+  const [partner, setPartner] = useState<PartnerOption | null>(null)
   const [blockReason, setBlockReason] = useState('')
 
   // open 토글 시 입력 reset
   useEffect(() => {
     if (open) {
-      setPartnerCode('')
+      setPartner(null)
       setBlockReason('')
     }
   }, [open])
 
-  const canSubmit = partnerCode.trim().length > 0 && !submitting
+  const canSubmit = Boolean(partner) && !submitting
 
   const handleSubmit = () => {
     if (!canSubmit) return
     const req: { partnerCode: string; blockReason?: string } = {
-      partnerCode: partnerCode.trim(),
+      partnerCode: partner!.partnerCode,
     }
     if (blockReason.trim()) req.blockReason = blockReason.trim()
     onSubmit(req)
@@ -399,7 +402,7 @@ function AddBlockedPartnerDialog({
       open={open}
       onClose={onClose}
       title="발송금지 거래처 단건 등록"
-      description="partnerCode 직접 입력. partnerCode 를 모를 경우 거래처 관리 화면에서 검색 후 코드를 복사하세요."
+      description="차단할 거래처를 검색해 선택하세요."
       size="sm"
       footer={
         <>
@@ -417,18 +420,15 @@ function AddBlockedPartnerDialog({
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <label style={fieldLabelStyle}>
-          거래처 코드 (필수)
-          <input
-            type="text"
-            value={partnerCode}
-            onChange={(e) => setPartnerCode(e.target.value)}
-            placeholder="예: P001234"
-            autoFocus
-            data-testid="admin-blocked-add-partner-code-input"
-            style={fieldInputStyle}
-          />
-        </label>
+        <PartnerAutocomplete
+          value={partner}
+          onChange={setPartner}
+          searchPartners={searchPartners}
+          label="거래처 (필수)"
+          placeholder="거래처명 또는 코드 검색"
+          required
+          inputTestId="admin-blocked-add-partner-code-input"
+        />
         <label style={fieldLabelStyle}>
           차단 사유 (선택, 최대 500자)
           <textarea

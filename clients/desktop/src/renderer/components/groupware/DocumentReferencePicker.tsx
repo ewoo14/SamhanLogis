@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
-import { Input, Select, Spinner } from '@samhan/design-system'
+import { Input, Select, Spinner, splitHighlightMatches } from '@samhan/design-system'
 import {
   APPROVAL_REFERENCE_DOC_TYPE_LABEL,
   normalizeDocumentReferenceOption,
@@ -67,6 +67,16 @@ function optionAriaLabel(option: DocumentReferenceOption): string {
     return `${typeLabel} ${option.partnerName ?? '-'} ${option.partnerCode ?? ''}`
   }
   return `${typeLabel} ${option.refDocNo ?? '-'} ${option.summary ?? ''} ${formatAmount(option.amount)}원`
+}
+
+function HighlightedReferenceValue({ value, query }: { value: string; query: string }) {
+  return (
+    <>
+      {splitHighlightMatches(value, query).map((part, index) =>
+        part.matched ? <mark key={`match-${index}`}>{part.text}</mark> : <span key={`text-${index}`}>{part.text}</span>,
+      )}
+    </>
+  )
 }
 
 export function DocumentReferencePicker({
@@ -279,9 +289,11 @@ export function DocumentReferencePicker({
                 {option.type === 'PARTNER_LEDGER' ? (
                   <>
                     <span className={styles['strongEllipsis']}>
-                      {option.partnerName ?? '-'}
+                      <HighlightedReferenceValue value={option.partnerName ?? '-'} query={query} />
                     </span>
-                    <span className={styles['numeric']}>{option.partnerCode ?? '-'}</span>
+                    <span className={styles['numeric']}>
+                      <HighlightedReferenceValue value={option.partnerCode ?? '-'} query={query} />
+                    </span>
                     <span>{APPROVAL_REFERENCE_DOC_TYPE_LABEL[option.type]}</span>
                   </>
                 ) : (

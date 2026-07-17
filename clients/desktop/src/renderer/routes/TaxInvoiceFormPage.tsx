@@ -33,6 +33,25 @@ import { searchPartners, type PartnerSummary } from '../api/sales'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 
+export function toTaxInvoicePartnerOption(row: PartnerSummary): PartnerOption {
+  return {
+    id: row.partnerId ?? undefined,
+    partnerCode: row.businessRegistrationNumber,
+    name: row.companyName,
+    bizNo: row.businessRegistrationNumber,
+    phone: row.contactPhone ?? undefined,
+  }
+}
+
+export function resolveTaxInvoicePartnerId(
+  selectedPartnerId: string | undefined,
+  partnerIdSnapshot: string,
+  hasNewSelection: boolean,
+): string | null {
+  if (hasNewSelection) return selectedPartnerId ?? null
+  return partnerIdSnapshot || null
+}
+
 /** 클라이언트 라인 임시 ID — React key 안정성. */
 let __lineUidCounter = 0
 const nextLineUid = (): string => `tax-line-${++__lineUidCounter}`
@@ -272,18 +291,11 @@ export function TaxInvoiceFormPage() {
     setPartnerName(p.companyName)
     setPartnerBusinessNo(p.businessRegistrationNumber)
     setPartnerAddress(p.address ?? '')
-    // edit 모드 partnerIdSnapshot 도 맞춰줌 (단, search PartnerSummary 에 partnerId 가 없으면 빈 채로
-    // BE 검증 단계에서 reject — 실제 운영은 search 가 partnerId 도 함께 반환해야 함).
   }
 
   const searchPartnerOptions = async (q: string): Promise<PartnerOption[]> => {
-    const rows = await searchPartners(q, 8)
-    return rows.map((row) => ({
-      partnerCode: row.businessRegistrationNumber,
-      name: row.companyName,
-      bizNo: row.businessRegistrationNumber,
-      phone: row.contactPhone ?? undefined,
-    }))
+    const rows = await searchPartners(q, 8, { activeOnly: true })
+    return rows.map(toTaxInvoicePartnerOption)
   }
 
   const handlePartnerOptionChange = (option: PartnerOption | null) => {
@@ -291,7 +303,9 @@ export function TaxInvoiceFormPage() {
       setPartner(null)
       return
     }
+    setPartnerIdSnapshot('')
     handleSelectPartner({
+      partnerId: option.id ?? null,
       businessRegistrationNumber: option.bizNo ?? option.partnerCode,
       companyName: option.name,
       representativeName: null,
@@ -361,9 +375,14 @@ export function TaxInvoiceFormPage() {
 
   const buildBody = (): CreateTaxInvoiceRequest | null => {
     setTopError('')
-    if (!partnerIdSnapshot && !partner) {
+    const partnerId = resolveTaxInvoicePartnerId(
+      partner?.partnerId ?? undefined,
+      partnerIdSnapshot,
+      Boolean(partner),
+    )
+    if (!partnerId) {
       setTopError(
-        '거래처를 선택하세요. (목록에서 검색 후 클릭하면 사업자번호/주소가 자동 입력됩니다)',
+        '선택한 거래처의 식별자를 확인할 수 없습니다. 거래처를 다시 검색해 선택하세요.',
       )
       return null
     }
@@ -391,10 +410,7 @@ export function TaxInvoiceFormPage() {
       memo: l.memo.trim() || undefined,
     }))
     return {
-      // search PartnerSummary 에는 partnerId 필드가 없어 — 운영 환경에선 search BE 보강 필요.
-      // 본 mock 환경에서는 partnerIdSnapshot (edit) 우선, 신규 시 partner.businessRegistrationNumber
-      // 를 placeholder 로 보내지 않고 빈 채로 두면 BE 가 422 → topError 노출.
-      partnerId: partnerIdSnapshot || partner?.businessRegistrationNumber || '',
+      partnerId,
       partnerBusinessNo: partnerBusinessNo.trim() || undefined,
       partnerName: partnerName.trim(),
       partnerAddress: partnerAddress.trim() || undefined,
@@ -503,6 +519,7 @@ export function TaxInvoiceFormPage() {
             placeholder="거래처명 또는 사업자번호"
             value={partner
               ? {
+                  id: partner.partnerId ?? undefined,
                   partnerCode: partner.businessRegistrationNumber,
                   name: partner.companyName,
                   bizNo: partner.businessRegistrationNumber,

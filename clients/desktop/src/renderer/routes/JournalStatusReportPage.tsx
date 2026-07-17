@@ -9,20 +9,20 @@ import { useMemo, useState } from 'react'
 import type React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  AsyncAutocomplete,
   Button,
   Card,
   DataTable,
   Spinner,
   type DataTableColumn,
+  PartnerAutocomplete,
+  type PartnerOption,
 } from '@samhan/design-system'
 import {
   getJournalStatusReport,
-  searchJournalStatusPartners,
   type JournalStatusGroupBy,
-  type JournalStatusPartnerOption,
   type JournalStatusSourceType,
 } from '../api/accounting'
+import { searchPartners } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   JOURNAL_STATUS_GROUP_OPTIONS,
@@ -99,7 +99,7 @@ export function JournalStatusReportPage() {
   const [from, setFrom] = useState<string>(isoMonthStart())
   const [to, setTo] = useState<string>(isoToday())
   const [sourceTypes, setSourceTypes] = useState<JournalStatusSourceType[]>([])
-  const [selectedPartner, setSelectedPartner] = useState<JournalStatusPartnerOption | null>(null)
+  const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
   const [groupBy, setGroupBy] = useState<JournalStatusGroupBy>('DATE')
   const [queryFilters, setQueryFilters] = useState(() => ({
     from: isoMonthStart(),
@@ -260,20 +260,10 @@ export function JournalStatusReportPage() {
             />
           </label>
           <div style={{ minWidth: 220 }}>
-            <AsyncAutocomplete<JournalStatusPartnerOption>
+            <PartnerAutocomplete
               value={selectedPartner}
               onChange={setSelectedPartner}
-              search={searchJournalStatusPartners}
-              getKey={(partner) => partner.partnerCode}
-              getInputLabel={(partner) => partner.name}
-              listboxLabel="거래처 목록"
-              renderOption={(partner) => (
-                <>
-                  <span>{partner.name}</span>
-                  <span style={{ color: 'var(--color-neutral-400)' }}> · </span>
-                  <span style={{ color: 'var(--color-neutral-500)' }}>{partner.bizNo ?? '사업자번호 없음'}</span>
-                </>
-              )}
+              searchPartners={searchPartners}
               label="거래처"
               placeholder="거래처명 또는 코드 입력"
               inputTestId="journal-status-partner-filter"

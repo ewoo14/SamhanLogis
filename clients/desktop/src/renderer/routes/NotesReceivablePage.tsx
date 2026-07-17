@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  AsyncAutocomplete,
   Button,
   Card,
   DataTable,
@@ -10,20 +9,21 @@ import {
   Select,
   Spinner,
   type DataTableColumn,
+  PartnerAutocomplete,
+  type PartnerOption,
 } from '@samhan/design-system'
 import {
   NOTE_STATUS_LABEL,
   NOTE_TYPE_LABEL,
   listNotesReceivable,
   registerNotesReceivable,
-  searchJournalStatusPartners,
   updateNotesReceivableStatus,
   type CreateNotesReceivablePayload,
-  type JournalStatusPartnerOption,
   type NoteStatus,
   type NoteType,
   type NotesReceivableRow,
 } from '../api/accounting'
+import { searchPartners } from '../api/partnerApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -94,8 +94,8 @@ export function NotesReceivablePage() {
   const { canAccess } = usePermissions()
   const canCreateReceivable = canAccess('accounting.receivables', 'create')
   const canUpdateReceivable = canAccess('accounting.receivables', 'update')
-  const [formPartner, setFormPartner] = useState<JournalStatusPartnerOption | null>(null)
-  const [filterPartner, setFilterPartner] = useState<JournalStatusPartnerOption | null>(null)
+  const [formPartner, setFormPartner] = useState<PartnerOption | null>(null)
+  const [filterPartner, setFilterPartner] = useState<PartnerOption | null>(null)
   const [statusFilter, setStatusFilter] = useState<NoteStatus | ''>('')
   const [toast, setToast] = useState<{ type: 'error'; message: string } | null>(null)
   const [queryFilters, setQueryFilters] = useState<{
@@ -282,20 +282,10 @@ export function NotesReceivablePage() {
           </div>
         ) : null}
         <form className="mobile-filter-grid" onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(5, minmax(120px, 1fr)) auto', gap: 10, alignItems: 'end' }}>
-          <AsyncAutocomplete<JournalStatusPartnerOption>
+          <PartnerAutocomplete
             value={formPartner}
             onChange={setFormPartner}
-            search={searchJournalStatusPartners}
-            getKey={(partner) => partner.partnerCode}
-            getInputLabel={(partner) => partner.name}
-            listboxLabel="거래처 목록"
-            renderOption={(partner) => (
-              <>
-                <span>{partner.name}</span>
-                <span style={{ color: 'var(--color-neutral-400)' }}> · </span>
-                <span style={{ color: 'var(--color-neutral-500)' }}>{partner.bizNo ?? '사업자번호 없음'}</span>
-              </>
-            )}
+            searchPartners={(query) => searchPartners(query, { activeOnly: true })}
             label="거래처"
             placeholder="거래처명 또는 코드"
             inputTestId="notes-receivable-partner"
@@ -345,20 +335,10 @@ export function NotesReceivablePage() {
       <Card style={{ padding: 16 }}>
         <div className="mobile-filter-stack" style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap', marginBottom: 14 }}>
           <div className="mobile-filter-field" style={{ minWidth: 220 }}>
-            <AsyncAutocomplete<JournalStatusPartnerOption>
+            <PartnerAutocomplete
               value={filterPartner}
               onChange={setFilterPartner}
-              search={searchJournalStatusPartners}
-              getKey={(partner) => partner.partnerCode}
-              getInputLabel={(partner) => partner.name}
-              listboxLabel="거래처 목록"
-              renderOption={(partner) => (
-                <>
-                  <span>{partner.name}</span>
-                  <span style={{ color: 'var(--color-neutral-400)' }}> · </span>
-                  <span style={{ color: 'var(--color-neutral-500)' }}>{partner.bizNo ?? '사업자번호 없음'}</span>
-                </>
-              )}
+              searchPartners={searchPartners}
               label="거래처"
               placeholder="전체"
               inputTestId="notes-receivable-partner-filter"

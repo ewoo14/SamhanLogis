@@ -848,11 +848,19 @@ interface AdminPartnerListPayload {
 export async function searchPartners(
   keyword: string,
   size = 10,
+  options: { activeOnly?: boolean } = {},
 ): Promise<PartnerSummary[]> {
   if (!keyword || keyword.trim().length < 1) return []
   const res = await apiClient.get<ApiEnvelope<AdminPartnerListPayload>>(
     '/admin/partners/search',
-    { params: { q: keyword.trim(), page: 0, size } },
+    {
+      params: {
+        q: keyword.trim(),
+        page: 0,
+        size,
+        ...(options.activeOnly ? { status: 'ACTIVE' } : {}),
+      },
+    },
   )
   return res.data.data.items.map((row) => ({
     partnerId: row.partnerId ?? null,

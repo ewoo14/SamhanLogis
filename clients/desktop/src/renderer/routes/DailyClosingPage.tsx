@@ -6,8 +6,10 @@ import {
   Card,
   DataTable,
   Modal,
+  PartnerAutocomplete,
   Spinner,
   type DataTableColumn,
+  type PartnerOption,
 } from '@samhan/design-system'
 import {
   createDailyClosing,
@@ -19,6 +21,7 @@ import {
   type DailyClosingKind,
   type DailyClosingSourceKind,
 } from '../api/accounting'
+import { searchPartners } from '../api/partnerApi'
 import {
   getDailyClosingDetail,
   type DailyProductLine,
@@ -125,7 +128,7 @@ export function DailyClosingPage() {
   const [closingKind, setClosingKind] = useState<ClosingKindFilter>('SALES')
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [execDate, setExecDate] = useState(today())
-  const [execPartner, setExecPartner] = useState('')
+  const [execPartner, setExecPartner] = useState<PartnerOption | null>(null)
   const [execDescription, setExecDescription] = useState('')
   const [execKind, setExecKind] = useState<DailyClosingKind>('SALES')
   const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
@@ -161,7 +164,7 @@ export function DailyClosingPage() {
     mutationFn: () =>
       createDailyClosing({
         closingDate: execDate,
-        partnerCode: execPartner.trim() || undefined,
+        partnerCode: execPartner?.partnerCode || undefined,
         description: execDescription.trim() || undefined,
         closingKind: execKind,
         sourceKind: compatibleSource(execKind, execSourceKind),
@@ -524,13 +527,13 @@ export function DailyClosingPage() {
               </option>
             ))}
           </select>
-          <input
-            type="text"
+          <PartnerAutocomplete
             value={execPartner}
-            onChange={(e) => setExecPartner(e.target.value)}
-            placeholder="거래처 코드 선택"
-            data-testid="daily-closing-exec-partner"
-            style={{ ...inputStyle, width: 160 }}
+            onChange={setExecPartner}
+            searchPartners={(query) => searchPartners(query, { activeOnly: true })}
+            label="거래처"
+            placeholder="거래처명 또는 코드 선택"
+            inputTestId="daily-closing-exec-partner"
           />
           <input
             type="text"
