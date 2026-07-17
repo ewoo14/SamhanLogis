@@ -6523,6 +6523,113 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
+  if (method === 'GET' && url.includes('/accounting/deposit-mappings/history')) {
+    const denied = mockRequirePermission('accounting.deposit-mapping', 'view')
+    if (denied) return denied
+    const urlObj = new URL(url, 'http://mock.local')
+    const normalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
+    return envelope(MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? [])
+  }
+
+  if (method === 'GET' && url.endsWith('/accounting/deposit-mappings')) {
+    const denied = mockRequirePermission('accounting.deposit-mapping', 'view')
+    if (denied) return denied
+    return envelope(
+      MOCK_DEPOSITOR_MAPPINGS
+        .filter((row) => row.active)
+        .sort((a, b) => a.normalizedName.localeCompare(b.normalizedName, 'ko-KR'))
+        .map(mockDepositorMappingResponse),
+    )
+  }
+
+  if (method === 'POST' && url.endsWith('/accounting/deposit-mappings')) {
+    const denied = mockRequirePermission('accounting.deposit-mapping', 'create')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const rawName = String(body.rawName ?? '').trim()
+    const partnerCode = String(body.partnerCode ?? '').trim()
+    const reason = String(body.reason ?? '').trim()
+    if (!rawName || rawName.length > 120 || reason.length > 500 || !partnerCode) {
+      return mockError(400, 'INVALID_INPUT', 'rawName, partnerCode는 필수이며 입력 길이를 확인하세요.')
+    }
+    const normalizedName = mockDepositorNameNormalize(rawName)
+    if (!normalizedName || normalizedName.length > 120) {
+      return mockError(400, 'INVALID_INPUT', '입금자명은 공백만 사용할 수 없고 120자 이하여야 합니다.')
+    }
+    if (MOCK_DEPOSITOR_MAPPINGS.some((row) => row.active && row.normalizedName === normalizedName)) {
+      return mockError(409, 'CONFLICT', `이미 등록된 입금자명 매핑입니다: ${normalizedName}`)
+    }
+    const partner = mockPartnerByCode(partnerCode)
+    if (!partner) return mockError(404, 'NOT_FOUND', `등록된 거래처를 찾을 수 없습니다: ${partnerCode}`)
+    const row: MockDepositorMappingRow = {
+      rawName,
+      normalizedName,
+      partnerCode: partner.partnerCode,
+      partnerName: partner.name,
+      modifiedAt: new Date().toISOString(),
+      actor: mockDepositorActor(),
+      active: true,
+    }
+    MOCK_DEPOSITOR_MAPPINGS = [row, ...MOCK_DEPOSITOR_MAPPINGS]
+    mockRecordDepositorHistory(normalizedName, 'partnerCode', '', partner.partnerCode)
+    if (reason) mockRecordDepositorHistory(normalizedName, 'reason', '', reason)
+    return envelope(mockDepositorMappingResponse(row))
+  }
+
+  if (method === 'PUT' && /\/accounting\/deposit-mappings\/[^/]+$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.deposit-mapping', 'update')
+    if (denied) return denied
+    const path = new URL(url, 'http://mock.local').pathname
+    const oldNormalizedName = decodeURIComponent(path.slice(path.lastIndexOf('/') + 1))
+    const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === oldNormalizedName)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
+    const body = parseMockBody(config)
+    const rawName = String(body.rawName ?? '').trim()
+    const partnerCode = String(body.partnerCode ?? '').trim()
+    const reason = String(body.reason ?? '').trim()
+    const normalizedName = mockDepositorNameNormalize(rawName)
+    if (!rawName || rawName.length > 120 || reason.length > 500 || !partnerCode || !normalizedName || normalizedName.length > 120) {
+      return mockError(400, 'INVALID_INPUT', '매핑 수정 입력을 확인하세요.')
+    }
+    if (MOCK_DEPOSITOR_MAPPINGS.some((row, rowIndex) => rowIndex !== index && row.active && row.normalizedName === normalizedName)) {
+      return mockError(409, 'CONFLICT', `이미 등록된 입금자명 매핑입니다: ${normalizedName}`)
+    }
+    const partner = mockPartnerByCode(partnerCode)
+    if (!partner) return mockError(404, 'NOT_FOUND', `등록된 거래처를 찾을 수 없습니다: ${partnerCode}`)
+    const current = MOCK_DEPOSITOR_MAPPINGS[index]!
+    const next: MockDepositorMappingRow = {
+      ...current,
+      rawName,
+      normalizedName,
+      partnerCode: partner.partnerCode,
+      partnerName: partner.name,
+      modifiedAt: new Date().toISOString(),
+      actor: mockDepositorActor(),
+    }
+    MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === index ? next : row)
+    mockRecordDepositorHistory(normalizedName, 'rawName', current.rawName, next.rawName)
+    mockRecordDepositorHistory(normalizedName, 'normalizedName', current.normalizedName, next.normalizedName)
+    mockRecordDepositorHistory(normalizedName, 'partnerCode', current.partnerCode, next.partnerCode)
+    if (reason) mockRecordDepositorHistory(normalizedName, 'reason', '', reason)
+    return envelope(mockDepositorMappingResponse(next))
+  }
+
+  if (method === 'DELETE' && /\/accounting\/deposit-mappings\/[^/]+$/.test(new URL(url, 'http://mock.local').pathname)) {
+    const denied = mockRequirePermission('accounting.deposit-mapping', 'delete')
+    if (denied) return denied
+    const urlObj = new URL(url, 'http://mock.local')
+    const normalizedName = decodeURIComponent(urlObj.pathname.slice(urlObj.pathname.lastIndexOf('/') + 1))
+    const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
+    const reason = String(config.params?.['reason'] ?? urlObj.searchParams.get('reason') ?? '').trim()
+    MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === index
+      ? { ...row, active: false, modifiedAt: new Date().toISOString(), actor: mockDepositorActor() }
+      : row)
+    mockRecordDepositorHistory(normalizedName, 'active', 'true', 'false')
+    if (reason) mockRecordDepositorHistory(normalizedName, 'reason', '', reason)
+    return envelope(null)
+  }
+
 
   if (method === 'GET' && url.includes('/accounting/bank-transactions')) {
     const statusFilter = String(config.params?.['matchStatus'] ?? '')
@@ -6548,11 +6655,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         return true
       })
       .sort((a, b) => b.transactedAt.localeCompare(a.transactedAt))
-    return envelope(rows)
+    return envelope(rows.map(mockBankTransactionResponse))
   }
 
   if (method === 'PATCH' && url.includes('/accounting/bank-transactions/match-partner')
     && !url.includes('/match-partner/clear')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'update')
+    if (denied) return denied
     const body = parseMockBody(config)
     const bankAccountLabel = String(body.bankAccountLabel ?? '').trim()
     const transactedAt = String(body.transactedAt ?? '').trim()
@@ -6579,18 +6688,71 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!partner) {
       return mockError(404, 'NOT_FOUND', `등록된 거래처를 찾을 수 없습니다: ${partnerCode}`)
     }
-    const next = {
+    const next: MockBankTransactionRow = {
       ...current,
       matchedPartnerCode: partner.partnerCode,
       matchedBizNo: partner.bizNo.replace(/\D/g, ''),
       matchedPartnerName: partner.name,
+      partnerMatchSource: 'MANUAL',
+      appliedMappingRawName: null,
+      appliedMappingNormalizedName: null,
     }
     MOCK_BANK_TRANSACTIONS = MOCK_BANK_TRANSACTIONS.map((row, rowIndex) =>
       rowIndex === index ? next : row)
-    return envelope(next)
+    if (current.txnType === 'DEPOSIT' && mockCanAccess('accounting.deposit-mapping', 'update')) {
+      mockLearnDepositorMapping(current.counterpartyName, partner)
+    }
+    return envelope(mockBankTransactionResponse(next))
+  }
+
+  if (method === 'PATCH' && url.includes('/accounting/bank-transactions/match-partner/clear-and-delete-mapping')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'update')
+    if (denied) return denied
+    const body = parseMockBody(config)
+    const bankAccountLabel = String(body.bankAccountLabel ?? '').trim()
+    const transactedAt = String(body.transactedAt ?? '').trim()
+    const amount = String(body.amount ?? '').trim()
+    const externalRef = String(body.externalRef ?? '').trim()
+    if (!bankAccountLabel || !transactedAt || !amount || !externalRef) {
+      return mockError(400, 'INVALID_INPUT', 'bankAccountLabel, transactedAt, amount, externalRef 는 필수입니다.')
+    }
+    const index = MOCK_BANK_TRANSACTIONS.findIndex((row) =>
+      row.bankAccountLabel === bankAccountLabel
+      && row.transactedAt === transactedAt
+      && String(row.amount) === amount
+      && row.externalRef === externalRef)
+    if (index < 0) return mockError(404, 'NOT_FOUND', '통장 거래를 찾을 수 없습니다.')
+    const current = MOCK_BANK_TRANSACTIONS[index]!
+    if (current.matchStatus !== 'UNREFLECTED') {
+      return mockError(409, 'CONFLICT', '미반영 거래만 거래처 매칭을 해제할 수 있습니다.')
+    }
+    if (current.partnerMatchSource !== 'DEPOSITOR_MAPPING' || !current.appliedMappingNormalizedName) {
+      return mockError(409, 'CONFLICT', '입금자명 자동 매칭 거래만 매핑을 함께 삭제할 수 있습니다.')
+    }
+    const mappingIndex = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) =>
+      row.active && row.normalizedName === current.appliedMappingNormalizedName)
+    if (mappingIndex >= 0) {
+      MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === mappingIndex
+        ? { ...row, active: false, modifiedAt: new Date().toISOString(), actor: mockDepositorActor() }
+        : row)
+      mockRecordDepositorHistory(current.appliedMappingNormalizedName, 'active', 'true', 'false')
+    }
+    const next: MockBankTransactionRow = {
+      ...current,
+      matchedPartnerCode: null,
+      matchedBizNo: null,
+      matchedPartnerName: null,
+      partnerMatchSource: null,
+      appliedMappingRawName: null,
+      appliedMappingNormalizedName: null,
+    }
+    MOCK_BANK_TRANSACTIONS = MOCK_BANK_TRANSACTIONS.map((row, rowIndex) => rowIndex === index ? next : row)
+    return envelope(mockBankTransactionResponse(next))
   }
 
   if (method === 'PATCH' && url.includes('/accounting/bank-transactions/match-partner/clear')) {
+    const denied = mockRequirePermission('accounting.bank-matching', 'update')
+    if (denied) return denied
     const body = parseMockBody(config)
     const bankAccountLabel = String(body.bankAccountLabel ?? '').trim()
     const transactedAt = String(body.transactedAt ?? '').trim()
@@ -6611,15 +6773,18 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (current.matchStatus !== 'UNREFLECTED') {
       return mockError(409, 'CONFLICT', '미반영 거래만 거래처 매칭을 해제할 수 있습니다.')
     }
-    const next = {
+    const next: MockBankTransactionRow = {
       ...current,
       matchedPartnerCode: null,
       matchedBizNo: null,
       matchedPartnerName: null,
+      partnerMatchSource: null,
+      appliedMappingRawName: null,
+      appliedMappingNormalizedName: null,
     }
     MOCK_BANK_TRANSACTIONS = MOCK_BANK_TRANSACTIONS.map((row, rowIndex) =>
       rowIndex === index ? next : row)
-    return envelope(next)
+    return envelope(mockBankTransactionResponse(next))
   }
 
   if (method === 'POST' && url.includes('/accounting/bank-transactions/import')) {
@@ -6678,7 +6843,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ]
     let importedCount = 0
     let duplicateSkippedCount = 0
-    for (const row of importedRows) {
+    for (const row of importedRows.map(mockApplyDepositorMapping)) {
       // BE V43 unique 4-key(bankAccountLabel+transactedAt+amount+externalRef) 와 동일 dedup.
       if (MOCK_BANK_TRANSACTIONS.some((existing) =>
         existing.bankAccountLabel === row.bankAccountLabel
@@ -12797,7 +12962,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const role =
         url.includes('mock-account-sales') ? 'SALES'
           : url.includes('mock-account-dispatch') ? 'DISPATCH'
-            : 'MANAGER'
+            : url.includes('mock-account-accountant') ? 'ACCOUNTANT'
+              : 'MANAGER'
       const accountMatrix: Record<string, {
         view: boolean
         create: boolean
@@ -16238,7 +16404,28 @@ type MockBankTransactionRow = {
   matchedPartnerCode: string | null
   matchedBizNo: string | null
   matchedPartnerName: string | null
+  partnerMatchSource?: 'MANUAL' | 'DEPOSITOR_MAPPING' | 'PARTNER_CODE_EXACT' | null
+  appliedMappingRawName?: string | null
+  appliedMappingNormalizedName?: string | null
   cashReceiptSlipNo?: string | null
+}
+
+type MockDepositorMappingRow = {
+  rawName: string
+  normalizedName: string
+  partnerCode: string
+  partnerName: string
+  modifiedAt: string
+  actor: string
+  active: boolean
+}
+
+type MockDepositorMappingHistoryRow = {
+  fieldName: string
+  oldValue: string
+  newValue: string
+  actor: string
+  changedAt: string
 }
 
 const MOCK_CODEF_BANK_ACCOUNTS = [
@@ -16453,7 +16640,7 @@ function mockCodefLoanRows(loanRef: string, to: string, index: number): MockBank
 function appendMockBankTransactions(rows: MockBankTransactionRow[]): { importedCount: number; duplicateSkippedCount: number } {
   let importedCount = 0
   let duplicateSkippedCount = 0
-  for (const row of rows) {
+  for (const row of rows.map(mockApplyDepositorMapping)) {
     const exists = MOCK_BANK_TRANSACTIONS.some((existing) =>
       existing.bankAccountLabel === row.bankAccountLabel
       && existing.transactedAt === row.transactedAt
@@ -16467,6 +16654,121 @@ function appendMockBankTransactions(rows: MockBankTransactionRow[]): { importedC
     }
   }
   return { importedCount, duplicateSkippedCount }
+}
+
+function mockDepositorNameNormalize(raw: string): string {
+  return raw.trim().replace(/\s+/gu, ' ').toUpperCase()
+}
+
+function mockDepositorActor(): string {
+  return '사용자'
+}
+
+function mockDepositorMappingResponse(row: MockDepositorMappingRow): MockDepositorMappingRow {
+  return { ...row }
+}
+
+function mockPartnerByCode(partnerCode: string): { partnerCode: string; name: string; bizNo: string } | null {
+  const partner = MOCK_ADMIN_PARTNERS
+    .map((row) => normalizeAccountingPartner(row))
+    .find((row) => row.partnerCode === partnerCode)
+  return partner
+    ? { partnerCode: partner.partnerCode, name: partner.name, bizNo: partner.bizNo }
+    : null
+}
+
+function mockRecordDepositorHistory(
+  normalizedName: string,
+  fieldName: string,
+  oldValue: string,
+  newValue: string,
+): void {
+  const entries = MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? []
+  entries.unshift({
+    fieldName,
+    oldValue,
+    newValue,
+    actor: mockDepositorActor(),
+    changedAt: new Date().toISOString(),
+  })
+  MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] = entries
+}
+
+let MOCK_DEPOSITOR_MAPPINGS: MockDepositorMappingRow[] = [
+  {
+    rawName: '삼한상사',
+    normalizedName: '삼한상사',
+    partnerCode: 'P-2026-0001',
+    partnerName: '삼한상사',
+    modifiedAt: '2026-06-23T08:00:00',
+    actor: '사용자',
+    active: true,
+  },
+]
+let MOCK_DEPOSITOR_MAPPING_HISTORY: Record<string, MockDepositorMappingHistoryRow[]> = {
+  삼한상사: [
+    {
+      fieldName: 'partnerCode',
+      oldValue: '',
+      newValue: 'P-2026-0001',
+      actor: '사용자',
+      changedAt: '2026-06-23T08:00:00',
+    },
+  ],
+}
+
+function mockApplyDepositorMapping(row: MockBankTransactionRow): MockBankTransactionRow {
+  if (row.txnType !== 'DEPOSIT' || row.matchStatus !== 'UNREFLECTED') return row
+  const normalizedName = mockDepositorNameNormalize(row.counterpartyName ?? '')
+  const mapping = MOCK_DEPOSITOR_MAPPINGS.find((candidate) =>
+    candidate.active && candidate.normalizedName === normalizedName)
+  if (!mapping) return row
+  const partner = mockPartnerByCode(mapping.partnerCode)
+  if (!partner) return row
+  return {
+    ...row,
+    matchedPartnerCode: partner.partnerCode,
+    matchedBizNo: partner.bizNo.replace(/\D/g, ''),
+    matchedPartnerName: partner.name,
+    partnerMatchSource: 'DEPOSITOR_MAPPING',
+    appliedMappingRawName: mapping.rawName,
+    appliedMappingNormalizedName: mapping.normalizedName,
+  }
+}
+
+function mockLearnDepositorMapping(rawName: string | null, partner: { partnerCode: string; name: string }): void {
+  if (!rawName?.trim()) return
+  const normalizedName = mockDepositorNameNormalize(rawName)
+  const now = new Date().toISOString()
+  const existingIndex = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
+  const next: MockDepositorMappingRow = {
+    rawName: rawName.trim(),
+    normalizedName,
+    partnerCode: partner.partnerCode,
+    partnerName: partner.name,
+    modifiedAt: now,
+    actor: mockDepositorActor(),
+    active: true,
+  }
+  if (existingIndex < 0) {
+    MOCK_DEPOSITOR_MAPPINGS = [next, ...MOCK_DEPOSITOR_MAPPINGS]
+    mockRecordDepositorHistory(normalizedName, 'partnerCode', '', partner.partnerCode)
+    return
+  }
+  const existing = MOCK_DEPOSITOR_MAPPINGS[existingIndex]!
+  MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === existingIndex ? next : row)
+  if (existing.partnerCode !== next.partnerCode) {
+    mockRecordDepositorHistory(normalizedName, 'partnerCode', existing.partnerCode, next.partnerCode)
+  }
+}
+
+function mockBankTransactionResponse(row: MockBankTransactionRow): MockBankTransactionRow {
+  return {
+    ...row,
+    partnerMatchSource: row.partnerMatchSource ?? (row.matchedPartnerCode ? 'MANUAL' : null),
+    appliedMappingRawName: row.appliedMappingRawName ?? null,
+    appliedMappingNormalizedName: row.appliedMappingNormalizedName ?? null,
+  }
 }
 
 let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
@@ -16485,6 +16787,9 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     matchedPartnerCode: 'P-2026-0001',
     matchedBizNo: '1112233333',
     matchedPartnerName: '삼한상사',
+    partnerMatchSource: 'DEPOSITOR_MAPPING',
+    appliedMappingRawName: '삼한상사',
+    appliedMappingNormalizedName: '삼한상사',
     cashReceiptSlipNo: null,
   },
   {
@@ -16502,6 +16807,9 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     matchedPartnerCode: 'P-2026-0001',
     matchedBizNo: '1112233333',
     matchedPartnerName: '삼한상사',
+    partnerMatchSource: 'DEPOSITOR_MAPPING',
+    appliedMappingRawName: '삼한상사',
+    appliedMappingNormalizedName: '삼한상사',
     cashReceiptSlipNo: null,
   },
   {
@@ -16745,6 +17053,7 @@ const SP_D1_PAGES = [
   'accounting.receivables',
   'accounting.bank-card-admin',
   'accounting.bank-matching',
+  'accounting.deposit-mapping',
   'accounting.deposit-match',
   'accounting.cash-receipts',
   'accounting.period-close',
@@ -16851,6 +17160,8 @@ const SP_D1_PAGES = [
  * seed 정합(예: V41 convert = create-only). 비-MASTER `/permissions/my` mock 도출에 적용.
  */
 const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
+  // V87: 입금자명 매핑은 VIEW + CREATE/UPDATE/DELETE만 허용한다.
+  'accounting.deposit-mapping': ['CREATE', 'UPDATE', 'DELETE'],
   // V37: accounting.daily-closing.run 은 실행 CREATE endpoint 전용.
   'accounting.daily-closing.run': ['CREATE'],
   // V37: accounting.daily-closing.unlock 은 잠금 해제 UPDATE endpoint 전용.
@@ -16915,7 +17226,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inbound.inspection', 'dispatch.board', 'dispatch.external-carriers',
     // SP-D2 회계 7개 — MANAGER: view 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
-    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
@@ -17001,7 +17312,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'purchases.slip.list', 'sales.slip.list',
     // SP-D2 회계 7개 — ACCOUNTANT: view + edit 허용
     'accounting.accounts', 'accounting.journals', 'accounting.balances',
-    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
+    'accounting.reports', 'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close', 'accounting.statement-batch',
     'accounting.partner-ledger',
     // V37 supplier-profiles — ACCOUNTANT: view only
     'accounting.supplier-profiles',
@@ -17097,7 +17408,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.tax-invoice.batch-issue', 'accounting.tax-invoice.inbound',
     'accounting.sales-slip.list', 'accounting.purchase-slip.list',
     'accounting.daily-closing.run',
-    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.cash-receipts',
+    'accounting.receivables', 'accounting.bank-card-admin', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.cash-receipts',
     // V37 supplier-profiles — MANAGER: view/edit 허용
     'accounting.supplier-profiles',
     // SP-D1 — MANAGER: edit 미허용 (view 전용)
@@ -17176,7 +17487,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'accounting.sales-slip.list', 'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
     // SP-D2 회계 7개 — ACCOUNTANT: edit 허용 (accounts/journals/period-close/statement-batch)
-    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
+    'accounting.accounts', 'accounting.journals', 'accounting.receivables', 'accounting.bank-matching', 'accounting.deposit-mapping', 'accounting.deposit-match', 'accounting.cash-receipts', 'accounting.period-close',
     'accounting.statement-batch',
     // SP-D4 — ACCOUNTANT: edit 없음 (모두 view 전용)
     'inventory.edit-requests', 'inventory.edit-requests.decide',
@@ -17295,6 +17606,19 @@ const emptyMockActionMatrix = (): MockActionMatrix => ({
 
 const mockActionMatrixFromRole = (role: string, page: string): MockActionMatrix => {
   const cell = _mockPermissionCells.find((c) => c.roleCode === role && c.pageCode === page)
+  const actionOnly = MOCK_ACTION_ONLY_PAGES[page]
+  if (actionOnly) {
+    const editable = cell?.edit ?? false
+    return {
+      view: cell?.view ?? false,
+      create: editable && actionOnly.includes('CREATE'),
+      update: editable && actionOnly.includes('UPDATE'),
+      delete: editable && actionOnly.includes('DELETE'),
+      restore: editable && actionOnly.includes('RESTORE'),
+      download: editable && actionOnly.includes('DOWNLOAD'),
+      print: editable && actionOnly.includes('PRINT'),
+    }
+  }
   const canRestore = ['sales.partner-order.list', 'dispatch.board', 'sales.slip.list', 'estimates.list'].includes(page)
     ? cell?.edit ?? false
     : false

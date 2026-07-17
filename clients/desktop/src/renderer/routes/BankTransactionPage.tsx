@@ -20,6 +20,7 @@ import {
   BANK_TXN_SOURCE_LABEL,
   BANK_TXN_TYPE_LABEL,
   clearBankTransactionMatch,
+  clearBankTransactionMatchAndDeleteMapping,
   listBankTransactionFilterLabels,
   listBankTransactions,
   loadBankTransactionFilterPreferences,
@@ -132,6 +133,36 @@ function partnerValueOf(row: BankTransactionRow): PartnerOption | null {
   }
 }
 
+const PARTNER_MATCH_SOURCE_META = {
+  MANUAL: { label: '수동', variant: 'neutral' as const },
+  DEPOSITOR_MAPPING: { label: '자동·입금자명', variant: 'brand' as const },
+  PARTNER_CODE_EXACT: { label: '자동·코드일치', variant: 'nts' as const },
+} as const
+
+export function partnerMatchEvidence(row: BankTransactionRow) {
+  const source = row.partnerMatchSource
+  if (!source) return null
+  const meta = PARTNER_MATCH_SOURCE_META[source]
+  if (!meta) return null
+  const title = row.appliedMappingRawName
+    ? `입금자명 '${row.appliedMappingRawName}' 규칙 적용`
+    : undefined
+  return (
+    <span title={title} style={{ display: 'inline-flex', marginLeft: 6 }}>
+      <Badge variant={meta.variant}>{meta.label}</Badge>
+    </span>
+  )
+}
+
+function matchedPartnerDisplay(row: BankTransactionRow) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
+      <span>{bankTransactionPartnerDisplay(row)}</span>
+      {partnerMatchEvidence(row)}
+    </span>
+  )
+}
+
 export function BankTransactionPage() {
   usePageTitle('입출금 내역', '거래내역 가져오기')
 
@@ -139,6 +170,7 @@ export function BankTransactionPage() {
   const { canAccess } = usePermissions()
   const canCreate = canAccess('accounting.bank-matching', 'create')
   const canUpdate = canAccess('accounting.bank-matching', 'update')
+  const canDeleteAppliedMapping = canAccess('accounting.deposit-mapping', 'update')
   const canCreateBankDepositReceipt = canAccess('accounting.cash-receipts', 'update')
   const [activeTab, setActiveTab] = useState<StatusTab>('ALL')
   const [activeSourceTab, setActiveSourceTab] = useState<SourceTab>('ALL')
@@ -155,6 +187,7 @@ export function BankTransactionPage() {
   const [toast, setToast] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set())
   const [receiptModalOpen, setReceiptModalOpen] = useState(false)
+  const [mappingDeleteRow, setMappingDeleteRow] = useState<BankTransactionRow | null>(null)
   const selectAllCheckboxRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -260,6 +293,17 @@ export function BankTransactionPage() {
       await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
     },
     onError: () => setToast({ type: 'error', message: '거래처 매칭 해제 중 오류가 발생했습니다.' }),
+  })
+
+  const clearAndDeleteMappingMutation = useMutation({
+    mutationFn: clearBankTransactionMatchAndDeleteMapping,
+    onSuccess: async () => {
+      setMappingDeleteRow(null)
+      setToast({ type: 'success', message: '거래를 해제하고 입금자명 매핑을 삭제했습니다.' })
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'bank-transactions'] })
+      await queryClient.invalidateQueries({ queryKey: ['accounting', 'deposit-mappings'] })
+    },
+    onError: (err: Error) => setToast({ type: 'error', message: `매핑 삭제 실패: ${err.message}` }),
   })
 
   const createBankDepositReceiptMutation = useMutation({
@@ -485,10 +529,10 @@ export function BankTransactionPage() {
           )
         }
         if (row.matchStatus !== 'UNREFLECTED') {
-          return <span>{bankTransactionPartnerDisplay(row)}</span>
+          return matchedPartnerDisplay(row)
         }
         const matched = partnerValueOf(row)
-        const pending = matchPartnerMutation.isPending || clearPartnerMutation.isPending
+        const pending = matchPartnerMutation.isPending || clearPartnerMutation.isPending || clearAndDeleteMappingMutation.isPending
         return (
           <div className="bank-transaction-partner-match" style={{ display: 'grid', gridTemplateColumns: matched ? '1fr auto' : '1fr', gap: 8, alignItems: 'end' }}>
             <div data-testid={`bank-transaction-partner-search-${row.source}-${row.externalRef}`}>
@@ -514,22 +558,39 @@ export function BankTransactionPage() {
                 minChars={1}
                 debounceMs={200}
               />
+              {matched ? partnerMatchEvidence(row) : null}
             </div>
             {matched ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={!canUpdate || pending}
-                onClick={() => clearPartnerMutation.mutate({
-                  bankAccountLabel: row.bankAccountLabel,
-                  transactedAt: row.transactedAt,
-                  amount: row.amount,
-                  externalRef: row.externalRef,
-                })}
-              >
-                해제
-              </Button>
+              <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={!canUpdate || pending}
+                  onClick={() => clearPartnerMutation.mutate({
+                    bankAccountLabel: row.bankAccountLabel,
+                    transactedAt: row.transactedAt,
+                    amount: row.amount,
+                    externalRef: row.externalRef,
+                  })}
+                >
+                  이 거래만 해제
+                </Button>
+                {row.partnerMatchSource === 'DEPOSITOR_MAPPING' && canDeleteAppliedMapping ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    disabled={pending}
+                    onClick={() => {
+                      setMappingDeleteRow(row)
+                    }}
+                    data-testid={`bank-transaction-delete-mapping-${row.externalRef}`}
+                  >
+                    매핑도 삭제
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </div>
         )
@@ -602,7 +663,7 @@ export function BankTransactionPage() {
 
     const visibleBaseColumns = canCreateBankDepositReceipt ? baseColumns : baseColumns.slice(1)
     return [...visibleBaseColumns, ...sourceSpecificColumns, ...trailingColumns]
-  }, [activeSourceTab, canCreateBankDepositReceipt, canUpdate, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
+  }, [activeSourceTab, canCreateBankDepositReceipt, canDeleteAppliedMapping, canUpdate, clearAndDeleteMappingMutation, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -877,6 +938,56 @@ export function BankTransactionPage() {
         onClose={() => setReceiptModalOpen(false)}
         onCreate={(request) => createBankDepositReceiptMutation.mutate(request)}
       />
+
+      <Modal
+        open={mappingDeleteRow !== null}
+        onClose={() => {
+          if (clearAndDeleteMappingMutation.isPending) return
+          setMappingDeleteRow(null)
+        }}
+        title="입금자명 매핑 삭제"
+        size="sm"
+        footer={(
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setMappingDeleteRow(null)}
+              disabled={clearAndDeleteMappingMutation.isPending}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={clearAndDeleteMappingMutation.isPending}
+              onClick={() => {
+                if (!mappingDeleteRow) return
+                clearAndDeleteMappingMutation.mutate({
+                  bankAccountLabel: mappingDeleteRow.bankAccountLabel,
+                  transactedAt: mappingDeleteRow.transactedAt,
+                  amount: mappingDeleteRow.amount,
+                  externalRef: mappingDeleteRow.externalRef,
+                })
+              }}
+              data-testid="bank-transaction-delete-mapping-confirm"
+            >
+              매핑도 삭제
+            </Button>
+          </>
+        )}
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div className="warning-banner" role="alert">
+            이 거래를 해제하고 입금자명 매핑도 삭제합니다. 이후 동일 입금자명은 자동매칭되지 않습니다.
+          </div>
+          {mappingDeleteRow?.appliedMappingRawName ? (
+            <div style={{ fontSize: 13 }}>
+              삭제할 규칙: <strong>{mappingDeleteRow.appliedMappingRawName}</strong>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
     </div>
   )
 }

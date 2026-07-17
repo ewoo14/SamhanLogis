@@ -1803,7 +1803,160 @@ describe('mock bank transaction matching contract', () => {
   })
 })
 
+describe('mock depositor mapping contract', () => {
+  it('매핑 CRUD는 정규화 key 충돌과 soft delete 이력을 실제 상태로 처리한다', () => {
+    const suffix = String(Date.now())
+    const rawName = `  ac\tme ${suffix}  `
+    const normalizedName = `AC ME ${suffix}`
+    const created = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName, partnerCode: '1234567890', reason: '초기 자동 매핑' },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    expect(created.data).toMatchObject({
+      rawName: rawName.trim(),
+      normalizedName,
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      active: true,
+    })
+    expect(created.data).not.toHaveProperty('id')
+
+    const duplicate = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: `AC  ME ${suffix}`, partnerCode: '2345678901' },
+    }) as { __mockStatus: number; body: { code: string } }
+    expect(duplicate.__mockStatus).toBe(409)
+    expect(duplicate.body.code).toBe('CONFLICT')
+
+    const updated = mockRequest({
+      method: 'PUT',
+      url: `/accounting/deposit-mappings/${encodeURIComponent(normalizedName)}`,
+      data: { rawName: `Acme Updated ${suffix}`, partnerCode: '2345678901', reason: '거래처 변경' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(updated.data).toMatchObject({
+      normalizedName: `ACME UPDATED ${suffix}`,
+      partnerCode: '2345678901',
+      partnerName: '강남에어솔루션',
+    })
+
+    const history = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: `ACME UPDATED ${suffix}` },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(history.data.length).toBeGreaterThan(0)
+    expect(history.data[0]).toEqual(expect.objectContaining({ actor: expect.any(String) }))
+
+    const deleted = mockRequest({
+      method: 'DELETE',
+      url: `/accounting/deposit-mappings/${encodeURIComponent(`ACME UPDATED ${suffix}`)}`,
+      params: { reason: '더 이상 사용하지 않음' },
+    }) as MockEnvelope<null>
+    expect(deleted.data).toBeNull()
+
+    const listed = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(listed.data.some((row) => row.normalizedName === `ACME UPDATED ${suffix}`)).toBe(false)
+  })
+
+  it('통장거래 provenance를 반환하고 두 해제 endpoint의 의미를 분리한다', () => {
+    const autoRow = mockRequest({
+      method: 'GET',
+      url: '/accounting/bank-transactions',
+      params: { bankAccountLabel: '국민 123-456' },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(autoRow.data.find((row) => row.externalRef === 'mock-bank-20260623-001')).toMatchObject({
+      partnerMatchSource: 'DEPOSITOR_MAPPING',
+      appliedMappingRawName: '삼한상사',
+      appliedMappingNormalizedName: '삼한상사',
+    })
+
+    const naturalKey = {
+      bankAccountLabel: '국민 123-456',
+      transactedAt: '2026-06-23T09:10:00',
+      amount: '1500000',
+      externalRef: 'mock-bank-20260623-001',
+    }
+    const clearedOnly = mockRequest({
+      method: 'PATCH',
+      url: '/accounting/bank-transactions/match-partner/clear',
+      data: naturalKey,
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(clearedOnly.data).toMatchObject({
+      matchedPartnerCode: null,
+      partnerMatchSource: null,
+    })
+
+    const mappingStillExists = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(mappingStillExists.data.some((row) => row.normalizedName === '삼한상사')).toBe(true)
+
+    const deletedMapping = mockRequest({
+      method: 'PATCH',
+      url: '/accounting/bank-transactions/match-partner/clear-and-delete-mapping',
+      data: {
+        bankAccountLabel: '국민 123-456',
+        transactedAt: '2026-06-24T10:05:00',
+        amount: '2500000',
+        externalRef: 'mock-bank-20260624-004',
+      },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(deletedMapping.data).toMatchObject({
+      matchedPartnerCode: null,
+      partnerMatchSource: null,
+    })
+    const mappingAfterDelete = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(mappingAfterDelete.data.some((row) => row.normalizedName === '삼한상사')).toBe(false)
+  })
+})
+
 describe('mock permission matrix contract', () => {
+  it('입금자명 매핑은 V87처럼 MASTER/MANAGER/ACCOUNTANT CRUD만 허용한다', () => {
+    const manager = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-manager',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+    const sales = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-sales',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+    const accountant = mockRequest({
+      method: 'GET',
+      url: '/auth/admin/permissions/account/mock-account-accountant',
+    }) as MockEnvelope<Record<string, Record<string, boolean>>>
+
+    const expected = {
+      view: true,
+      create: true,
+      update: true,
+      delete: true,
+      restore: false,
+      download: false,
+      print: false,
+    }
+    expect(manager.data['accounting.deposit-mapping']).toEqual(expected)
+    expect(accountant.data['accounting.deposit-mapping']).toEqual(expected)
+    expect(sales.data['accounting.deposit-mapping']).toEqual({
+      view: false,
+      create: false,
+      update: false,
+      delete: false,
+      restore: false,
+      download: false,
+      print: false,
+    })
+  })
+
   it('입금 매칭 기본 권한은 auth seed role_page_permissions 와 일치한다', () => {
     const manager = mockRequest({
       method: 'GET',

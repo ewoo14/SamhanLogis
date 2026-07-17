@@ -482,6 +482,7 @@ export function AppLayout() {
   const showAccountingDailyClose  = dynamicCanAccess('accounting.daily-closing',   'view')
   const showAccountingLedger      = dynamicCanAccess('accounting.general-ledger',  'view')
   const showAccountingBankMatching = dynamicCanAccess('accounting.bank-matching',  'view')
+  const showAccountingDepositMapping = dynamicCanAccess('accounting.deposit-mapping', 'view')
   const showAccountingCashReceipts = dynamicCanAccess('accounting.cash-receipts', 'view')
   const showAccountingBankCardAdmin = dynamicCanAccess('accounting.bank-card-admin',  'view')
   const showAccountingAdminOrder = dynamicCanAccess('ecount.mig14.order-list', 'view')
@@ -498,7 +499,7 @@ export function AppLayout() {
     || showAccountingPartnerLedger || showAccountingTaxInvoice
     || showAccountingTaxInvoiceBatch || showAccountingTaxInvoiceInbound
     || showAccountingDailyClose
-    || showAccountingLedger || showAccountingBankMatching || showAccountingCashReceipts || showAccountingBankCardAdmin
+    || showAccountingLedger || showAccountingBankMatching || showAccountingDepositMapping || showAccountingCashReceipts || showAccountingBankCardAdmin
     || showAccountingAdminLedger
     || showAccountingAdminMigOps || showAccountingEditRequests
   const showDeliveryBatch = dynamicCanAccess('slip.delivery-batch', 'view')
@@ -888,6 +889,7 @@ export function AppLayout() {
               '/accounting/supplier-profiles',
               '/accounting/bank-card-admin',
               '/accounting/bank-transactions',
+              '/accounting/deposit-mappings',
               '/accounting/admin/cash-receipts',
               '/accounting/daily-closing',
               '/accounting/ledgers',
@@ -1167,6 +1169,13 @@ export function AppLayout() {
                 data-testid="sidebar-accounting-bank-transactions"
               >
                 입출금 내역
+              </SidebarLink>
+              <SidebarLink
+                to="/accounting/deposit-mappings"
+                show={showAccountingDepositMapping}
+                data-testid="sidebar-accounting-deposit-mapping"
+              >
+                입금자명 매핑
               </SidebarLink>
               <SidebarLink
                 to="/accounting/admin/cash-receipts"

@@ -235,6 +235,7 @@ import { ReceivablesPayablesPage } from './ReceivablesPayablesPage'
 import { NotesReceivablePage } from './NotesReceivablePage'
 import { CollectionPlanPage } from './CollectionPlanPage'
 import { BankTransactionPage } from './BankTransactionPage'
+import { DepositorMappingPage } from './DepositorMappingPage'
 import { BankCardAdminPage } from './BankCardAdminPage'
 import { CashReceiptListPage } from './CashReceiptListPage'
 import { CashReceiptFormPage } from './CashReceiptFormPage'
@@ -767,6 +768,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.bank-card-admin" action="view">
             <BankCardAdminPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/accounting/deposit-mappings',
+        element: (
+          <PermissionGuard pageCode="accounting.deposit-mapping" action="view">
+            <DepositorMappingPage />
           </PermissionGuard>
         ),
       },

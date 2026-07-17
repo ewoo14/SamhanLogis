@@ -23,6 +23,7 @@ import {
 import type { Account, JournalStatus } from '@samhan/design-system'
 import { extractApiErrorResponseMessage } from './apiError'
 import { toOrderPathId } from '../utils/orderNo'
+import { collabHeaders } from '../auth/collabHeaders'
 
 export type { Account } from '@samhan/design-system'
 export type Page<T> = PageResponse<T>
@@ -2202,6 +2203,7 @@ export async function deleteCashReceipt(id: string): Promise<void> {
 export type BankTxnType = 'DEPOSIT' | 'WITHDRAWAL'
 export type BankTxnSource = 'CSV_IMPORT' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN'
 export type BankMatchStatus = 'UNREFLECTED' | 'REFLECTED' | 'FORCED'
+export type BankPartnerMatchSource = 'MANUAL' | 'DEPOSITOR_MAPPING' | 'PARTNER_CODE_EXACT'
 
 export const BANK_TXN_TYPE_LABEL: Record<BankTxnType, string> = {
   DEPOSIT: '입금',
@@ -2240,6 +2242,12 @@ export interface BankTransactionRow {
   matchedPartnerCode?: string | null
   matchedBizNo?: string | null
   matchedPartnerName?: string | null
+  /** 거래처 자동/수동 매칭 근거. 미매칭이면 null. */
+  partnerMatchSource?: BankPartnerMatchSource | null
+  /** 자동 입금자명 매칭에 사용된 원본명. 화면 부가설명 전용. */
+  appliedMappingRawName?: string | null
+  /** 자동 입금자명 매칭에 사용된 정규화 business key. 화면에는 필요 시에만 표시한다. */
+  appliedMappingNormalizedName?: string | null
   cashReceiptSlipNo?: string | null
 }
 
@@ -2295,6 +2303,30 @@ export interface ClearBankTransactionMatchRequest {
   transactedAt: string
   amount: string | number
   externalRef: string
+}
+
+export interface DepositorMappingResponse {
+  rawName: string
+  normalizedName: string
+  partnerCode: string
+  partnerName: string
+  modifiedAt: string
+  actor: string
+  active: boolean
+}
+
+export interface DepositorMappingHistoryResponse {
+  fieldName: string
+  oldValue: string
+  newValue: string
+  actor: string
+  changedAt: string
+}
+
+export interface DepositorMappingRequest {
+  rawName: string
+  partnerCode: string
+  reason?: string
 }
 
 export async function listBankTransactions(
@@ -2382,8 +2414,72 @@ export async function clearBankTransactionMatch(
   const res = await apiClient.patch<ApiEnvelope<BankTransactionRow>>(
     '/accounting/bank-transactions/match-partner/clear',
     request,
+    { headers: await collabHeaders() },
   )
   return res.data.data
+}
+
+/** 거래처만 해제하고 입금자명 매핑은 유지한다. */
+export async function clearBankTransactionMatchAndDeleteMapping(
+  request: ClearBankTransactionMatchRequest,
+): Promise<BankTransactionRow> {
+  const res = await apiClient.patch<ApiEnvelope<BankTransactionRow>>(
+    '/accounting/bank-transactions/match-partner/clear-and-delete-mapping',
+    request,
+    { headers: await collabHeaders() },
+  )
+  return res.data.data
+}
+
+export async function listDepositorMappings(): Promise<DepositorMappingResponse[]> {
+  const res = await apiClient.get<ApiEnvelope<DepositorMappingResponse[]>>(
+    '/accounting/deposit-mappings',
+    { headers: await collabHeaders() },
+  )
+  return res.data.data ?? []
+}
+
+export async function listDepositorMappingHistory(
+  normalizedName: string,
+): Promise<DepositorMappingHistoryResponse[]> {
+  const res = await apiClient.get<ApiEnvelope<DepositorMappingHistoryResponse[]>>(
+    '/accounting/deposit-mappings/history',
+    { params: { normalizedName }, headers: await collabHeaders() },
+  )
+  return res.data.data ?? []
+}
+
+export async function createDepositorMapping(
+  request: DepositorMappingRequest,
+): Promise<DepositorMappingResponse> {
+  const res = await apiClient.post<ApiEnvelope<DepositorMappingResponse>>(
+    '/accounting/deposit-mappings',
+    request,
+    { headers: await collabHeaders() },
+  )
+  return res.data.data
+}
+
+export async function updateDepositorMapping(
+  normalizedName: string,
+  request: DepositorMappingRequest,
+): Promise<DepositorMappingResponse> {
+  const res = await apiClient.put<ApiEnvelope<DepositorMappingResponse>>(
+    `/accounting/deposit-mappings/${encodeURIComponent(normalizedName)}`,
+    request,
+    { headers: await collabHeaders() },
+  )
+  return res.data.data
+}
+
+export async function deleteDepositorMapping(
+  normalizedName: string,
+  reason?: string,
+): Promise<void> {
+  await apiClient.delete<ApiEnvelope<null>>(
+    `/accounting/deposit-mappings/${encodeURIComponent(normalizedName)}`,
+    { params: reason ? { reason } : undefined, headers: await collabHeaders() },
+  )
 }
 
 // --------------------------------------------------------------------------
