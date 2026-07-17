@@ -127,12 +127,20 @@ function AsyncAutocompleteInner<T>(
 
   const { candidates, resolvedQuery } = searchState
 
+  const cancelDebouncedSearch = useCallback(() => {
+    if (debounceTimer.current !== undefined) {
+      window.clearTimeout(debounceTimer.current)
+      debounceTimer.current = undefined
+    }
+  }, [])
+
   /** 선택 항목의 입력란 표시 레이블. */
   const selectedLabel = value ? getInputLabel(value) : ''
 
   /** 열릴 때 draft 초기화 → 전체 검색 마찰 없이 즉시 후보 표시 가능. */
   const handleFocus = () => {
     if (disabled) return
+    cancelDebouncedSearch()
     if (blurTimer.current) {
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
@@ -142,6 +150,7 @@ function AsyncAutocompleteInner<T>(
     latestSeq.current = ++instanceSeq.current
     setSearchState({ candidates: [], resolvedQuery: '' })
     setStatus('idle')
+    setErrorMsg(null)
     setOpen(true)
   }
 
@@ -155,6 +164,7 @@ function AsyncAutocompleteInner<T>(
 
   const pick = useCallback(
     (item: T) => {
+      cancelDebouncedSearch()
       onChange(item)
       setDraft(getInputLabel(item))
       setActiveIndex(-1)
@@ -162,23 +172,32 @@ function AsyncAutocompleteInner<T>(
       latestSeq.current = ++instanceSeq.current
       setSearchState({ candidates: [], resolvedQuery: '' })
       setStatus('idle')
+      setErrorMsg(null)
     },
-    [getInputLabel, onChange],
+    [cancelDebouncedSearch, getInputLabel, onChange],
   )
 
   const handleBlur = (_e: FocusEvent<HTMLInputElement>) => {
     blurTimer.current = window.setTimeout(() => {
+      cancelDebouncedSearch()
+      latestSeq.current = ++instanceSeq.current
       setOpen(false)
       setActiveIndex(-1)
       const trimmed = draft.trim()
 
       if (!trimmed) {
         // 빈 입력 blur — 더미 onChange 금지 (blur 게이트 원칙).
+        setSearchState({ candidates: [], resolvedQuery: '' })
+        setStatus('idle')
+        setErrorMsg(null)
         return
       }
 
       // 입력한 값이 현재 선택과 정확히 일치하면 별도 처리 불필요.
       if (value && trimmed === getInputLabel(value)) {
+        setSearchState({ candidates: [], resolvedQuery: '' })
+        setStatus('idle')
+        setErrorMsg(null)
         return
       }
 
@@ -191,6 +210,9 @@ function AsyncAutocompleteInner<T>(
 
       // 일치 없음 — 기존 선택값 유지 (free-text 차단). onChange 미호출.
       // draft 를 selectedLabel 로 복원은 displayValue 가 자동 처리.
+      setSearchState({ candidates: [], resolvedQuery: '' })
+      setStatus('idle')
+      setErrorMsg(null)
     }, 120)
   }
 
@@ -235,7 +257,7 @@ function AsyncAutocompleteInner<T>(
     setSearchState({ candidates: [], resolvedQuery: '' })
 
     // debounce 리셋
-    if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
+    cancelDebouncedSearch()
 
     const trimmed = nextDraft.trim()
     if (trimmed.length < minChars) {
@@ -250,6 +272,7 @@ function AsyncAutocompleteInner<T>(
     setErrorMsg(null)
 
     debounceTimer.current = window.setTimeout(() => {
+      debounceTimer.current = undefined
       void performSearch(trimmed)
     }, debounceMs)
   }
@@ -258,9 +281,9 @@ function AsyncAutocompleteInner<T>(
   useEffect(() => {
     return () => {
       if (blurTimer.current) window.clearTimeout(blurTimer.current)
-      if (debounceTimer.current) window.clearTimeout(debounceTimer.current)
+      cancelDebouncedSearch()
     }
-  }, [])
+  }, [cancelDebouncedSearch])
 
   /**
    * disabled 전환 시 열림 상태를 강제로 닫는다 (R8-QA-9).
@@ -275,13 +298,18 @@ function AsyncAutocompleteInner<T>(
    */
   useEffect(() => {
     if (!disabled) return
+    cancelDebouncedSearch()
     if (blurTimer.current) {
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
+    latestSeq.current = ++instanceSeq.current
     setOpen(false)
     setActiveIndex(-1)
-  }, [disabled])
+    setSearchState({ candidates: [], resolvedQuery: '' })
+    setStatus('idle')
+    setErrorMsg(null)
+  }, [cancelDebouncedSearch, disabled])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!open) return
@@ -308,8 +336,17 @@ function AsyncAutocompleteInner<T>(
             : null
       if (target) pick(target)
     } else if (e.key === 'Escape') {
+      if (blurTimer.current !== undefined) {
+        window.clearTimeout(blurTimer.current)
+        blurTimer.current = undefined
+      }
+      cancelDebouncedSearch()
+      latestSeq.current = ++instanceSeq.current
       setOpen(false)
       setActiveIndex(-1)
+      setSearchState({ candidates: [], resolvedQuery: '' })
+      setStatus('idle')
+      setErrorMsg(null)
     }
   }
 
@@ -418,7 +455,7 @@ function AsyncAutocompleteInner<T>(
           role="combobox"
           data-testid={inputTestId}
         />
-        {status === 'loading' ? (
+        {open && status === 'loading' ? (
           <span className={styles['loadingSpinner']} aria-hidden="true">
             <span className={styles['spinnerDot']} />
           </span>

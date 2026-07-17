@@ -13,13 +13,13 @@
 | (b) 정당 free-text 유지 | 신규 거래처 생성·거래처 마스터 편집·부분검색 다건 필터·외부/수기 스냅샷·파일/외부 텍스트 | 유지 |
 | (c) 필수화 슬라이스 이관 | 전표/분개 등 문서 작성 경계에서 선택을 강제하거나 필수화 정책과 결합되는 입력 | 표준화·필수화 정책을 별도 슬라이스로 이관 |
 
-## 전수 감사표
+## 감사표
 
-행 수 기준 집계: **(a) 8행 / (b) 21행 / (c) 9행 = 38행**.
+행 수 기준 집계: **(a) 9행 / (b) 23행 / (c) 9행 = 41행**.
 
-> 초판은 36행이었으나 OPUS 적대검증 R1에서 `JournalStatusReportPage`(a)·`SalesPartnerOrderDetailPage`(c) 누락 2행이 확인되어 보완했다. 아래 표가 실측 전수다.
+> 초판은 36행이었으나 OPUS 적대검증 R1에서 `JournalStatusReportPage`(a)·`SalesPartnerOrderDetailPage`(c) 누락 2행이 확인되어 보완했다. **best-effort — desktop route 표본스윕 기준, 슬2 표준화 시 각 화면 재감사가 진실원**이다.
 
-### (a) 즉시 표준화 후보 — 8행
+### (a) 즉시 표준화 후보 — 9행
 
 | 화면·라인 | 현재 입력 | 분류 | 근거 |
 |---|---|---|---|
@@ -31,8 +31,9 @@
 | `JournalStatusReportPage.tsx:263-281` | 분개 현황 보고서 거래처 필터 `AsyncAutocomplete` | (a) | `JournalStatusPartnerOption` exact 선택으로 CollectionPlan/NotesReceivable 필터와 동형이다. `partnerCode`를 key로 쓰는 단일 거래처 선택이며 free-text 다건 필터가 아니다. (적대검증 R1 누락 보완) |
 | `DailyClosingPage.tsx:531-538` | 마감 실행 대상 `execPartner` 코드 입력 | (a) | 임의 텍스트가 아니라 특정 거래처 코드 실행 대상이다. exact entity picker로 바꿀 때 실행 경계를 함께 검토한다. |
 | `admin/BlockedPartnersPage.tsx:422-429` | 차단 등록 거래처 코드 입력 | (a) | 차단 대상 단일 거래처 코드 필수 입력이다. 사유는 별도 정당 free-text다. |
+| `DocumentReferencePicker.tsx:217` | 거래처원장 유형 거래처명/코드 검색 | (a) | 거래처원장 유형에서 거래처명/코드로 단일 exact entity를 검색·선택하고 `refPartnerCode`/`refPartnerName`을 저장한다. `GroupwareApprovalCreatePage.tsx:604`·`GroupwareApprovalDetailPage.tsx:668`에서 소비한다. |
 
-### (b) 정당 free-text 유지 — 21행
+### (b) 정당 free-text 유지 — 23행
 
 | 화면·라인 | 현재 입력 | 분류 | 근거 |
 |---|---|---|---|
@@ -57,19 +58,21 @@
 | `admin/PartnerDetailDialog.tsx:378-384` | 기존 거래처 상호 편집·사업자번호 read-only | (b) | 거래처 마스터 편집 폼이다. 선택 위젯으로 대체할 대상이 아니다. |
 | `accounting/SupplierProfilePage.tsx:636-665` | 공급자 프로필 사업자번호·상호 | (b) | 공급자 프로필 신규/편집 입력이며 마스터 entity 생성·수정 경계다. |
 | `ArologisManualDispatchPage.tsx:718-744` | 수동 배차 정차의 거래처명·전표번호/코드 | (b) | 외부/수기 배차 데이터와 미배차 prefill을 보존하는 텍스트다. partnerId 없는 아로로지스 manual-stop 계약이다. |
+| `HometaxExportPage.tsx:830` | 제외 거래처 코드·명 free-text | (b) | 제외 목록에 코드·명을 snapshot으로 저장하는 검증 없는 수기 마스터 입력이다. 기존 거래처 exact entity 선택 경계가 아니다. |
+| `DailyClosingPage.tsx:445` | 실행 입력 외 별도 거래처 코드 조회 필터 | (b) | `listDailyClosings` 조회 범위를 좁히는 코드 필터이며 실행 대상 `execPartner` 입력과 별개인 다건 조회 조건이다. |
 
 ### (c) 필수화 슬라이스 이관 — 9행
 
 | 화면·라인 | 현재 입력 | 분류 | 근거 |
 |---|---|---|---|
 | `JournalFormPage.tsx:106-129` | 분개 라인 거래처 `AsyncAutocomplete` + legacy name fallback | (c) | 분개 저장 payload의 `partnerId/partnerName` 경계다. 선택을 필수화할지와 legacy 복원을 함께 결정해야 한다. |
-| `CashReceiptFormPage.tsx:283-289` | 현금영수증 헤더 `PartnerAutocomplete` | (c) | 현금영수증 작성·확정과 거래처 필수 여부가 결합된 문서 경계다. |
+| `CashReceiptFormPage.tsx:283-289` | 현금영수증 헤더 `PartnerAutocomplete` | (c) | 현금영수증 작성·확정과 거래처 필수 여부가 결합된 문서 경계다. 아래 `CollaborativeSlipInput` 3개(거래처명·사업자번호·코드 편집, `:283-324`)도 snapshot 편집 경계로 함께 재감사한다. |
 | `accounting/SalesAccountingSlipFormPage.tsx:103-107` | 매출전표 거래처 코드·거래처명 plain input | (c) | 전표 작성 화면의 선택 강제/필수화 정책을 침범하므로 슬2 표준화와 별도 필수화 슬라이스로 이관한다. |
 | `accounting/PurchaseAccountingSlipFormPage.tsx:103-107` | 매입전표 거래처 코드·거래처명 plain input | (c) | 매출전표와 같은 전표 작성 경계다. |
 | `SlipFormPage.tsx:989-1010` | 전표 헤더 `PartnerAutocomplete` 및 snapshot 입력 | (c) | 전표 거래처 단일 경로는 이미 있으나 저장 필수화/legacy snapshot 규칙은 별도 정책이다. |
 | `SlipDetailPage.tsx:1886-1902` | 매출전표 수정 거래처 선택·코드/사업자번호 snapshot | (c) | 공동편집 전표 수정의 필수화·권위 필드·snapshot 동기화 경계다. |
 | `SlipDetailPage.tsx:2153-2169` | 매입전표 수정 거래처 선택·코드/사업자번호 snapshot | (c) | 매출전표 수정과 같은 별도 전표 필수화/공동편집 정책 대상이다. |
-| `TaxInvoiceFormPage.tsx:501-530` | 거래처 검색 + 거래처명 snapshot plain input | (c) | 세금계산서 작성의 필수 헤더다. 자동완성 선택과 snapshot을 하나의 payload 계약으로 재-bound해야 한다. |
+| `TaxInvoiceFormPage.tsx:501-530` | 거래처 검색 + 거래처명·사업자번호 snapshot plain input | (c) | 세금계산서 작성의 필수 헤더다. 편집 가능한 사업자번호 snapshot(`:501-541`)을 포함해 자동완성 선택과 snapshot을 하나의 payload 계약으로 재-bound해야 한다. |
 | `SalesPartnerOrderDetailPage.tsx:1396-1404` | 주문 수정 모달 `header.partnerCode` `CollaborativeSlipInput` 편집 가능 free-text | (c) | 편집한 `partnerCode`가 `updatePartnerOrder` payload(:1343)로 저장되고 `convertPartnerOrderToSlip` 출고전표 전환 경계까지 흐르는 문서 작성 경계다. 공동편집 fieldPath 계약·선택 강제/필수화 정책을 함께 재-bound해야 한다. (적대검증 R1 누락 보완) |
 
 ## 확인된 기존 결함·권한 단절

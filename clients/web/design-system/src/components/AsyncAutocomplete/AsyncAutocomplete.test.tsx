@@ -115,6 +115,49 @@ describe('AsyncAutocomplete', () => {
     }
   })
 
+  it('Escape 후 닫힌 자동완성은 spinner를 숨기고 재포커스 시 이전 debounce 검색을 부활시키지 않는다', async () => {
+    vi.useFakeTimers()
+    try {
+      const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
+        { id: 'old', label: '이전 후보' },
+      ])
+
+      render(
+        <AsyncAutocomplete<Option>
+          value={null}
+          onChange={vi.fn()}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="검색 목록"
+          ariaLabel="검색"
+          debounceMs={250}
+        />,
+      )
+
+      const input = screen.getByRole('combobox', { name: '검색' })
+      fireEvent.focus(input)
+      fireEvent.change(input, { target: { value: 'old' } })
+      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeTruthy()
+
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input.getAttribute('aria-expanded')).toBe('false')
+      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeNull()
+
+      fireEvent.focus(input)
+      expect((input as HTMLInputElement).value).toBe('')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+
+      expect(search).not.toHaveBeenCalled()
+      expect(screen.queryByText('이전 후보')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('dropdown listbox 를 body portal 로 렌더해 overflow 컨테이너 클리핑을 피한다', async () => {
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
       { id: 'p-1', label: '삼한테스트상사' },
