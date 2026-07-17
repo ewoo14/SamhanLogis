@@ -252,25 +252,27 @@ function AsyncAutocompleteInner<T>(
     setActiveIndex(-1)
     if (!open) setOpen(true)
 
-    // debounce 대기 중에도 이전 후보가 새 draft에 강조되지 않도록 무효화한다.
+    // stale 가드 — 이미 발행된(in-flight) 검색 응답이 새 입력 이후 도착하면 폐기된다.
     latestSeq.current = ++instanceSeq.current
-    setSearchState({ candidates: [], resolvedQuery: '' })
 
     // debounce 리셋
     cancelDebouncedSearch()
 
     const trimmed = nextDraft.trim()
     if (trimmed.length < minChars) {
+      // 검색이 예약되지 않는 입력 — 직전 후보를 비워 stale 후보 노출을 막는다.
+      setSearchState({ candidates: [], resolvedQuery: '' })
       setStatus('idle')
       return
     }
 
-    // debounce 대기 중 직전 status('done'/'error')가 남으면 방금 비운 후보와 결합해
-    // "검색 결과 없음"/stale 에러가 오표시된다(false-empty flash). 즉시 loading 으로
-    // 전환해 대기 중에는 "검색 중…" 만 표시한다 (#825 적대검증 R1).
-    setStatus('loading')
-    setErrorMsg(null)
-
+    // debounce 대기 중에는 직전 searchState(후보 + resolvedQuery)·status 를 그대로 유지한다.
+    // — "listbox 표시 ⟹ 후보 존재" 불변식 복원: 대기 창에 빈 후보 + "검색 중…" listbox 가
+    //   뜨지 않아 키보드 선택(↓/Enter)이 항상 실제 후보를 대상으로 동작한다 (#825 CI 회귀 fix).
+    // — false-empty flash 근본 해소: 후보가 있던 화면이 대기 중 "검색 결과 없음"(done+빈 후보)
+    //   으로 바뀌는 상태 자체가 생기지 않는다 (R1 의 즉시 loading 우회를 대체).
+    // — 오강조 불가: 하이라이트는 draft 가 아닌 resolvedQuery(유지된 후보를 만든 검색어) 기준.
+    // 실제 loading 전환·이전 후보 폐기·결과 반영은 performSearch 가 실행 시점에 원자적으로 수행한다.
     debounceTimer.current = window.setTimeout(() => {
       debounceTimer.current = undefined
       void performSearch(trimmed)

@@ -59,12 +59,19 @@ describe('AsyncAutocomplete', () => {
     expect(renderQueries).toContain('new:new')
   })
 
-  it('debounce 대기 중 직전 done/error 상태로 "검색 결과 없음"/stale 에러를 오표시하지 않고 "검색 중…"을 표시한다', async () => {
-    // 기존 debounceMs=0 테스트는 대기 창이 없어 이 flash 를 못 잡는다 — 명시 debounce 로 검증.
+  it('debounce 대기 중 직전 후보를 유지하고 "검색 결과 없음" false-empty 를 오표시하지 않는다', async () => {
+    // #825 CI 회귀 fix — "listbox 표시 ⟹ 후보 존재" 불변식:
+    // debounce 대기 창에는 직전 후보가 그대로 유지되고(빈 후보 + "검색 중…" listbox 금지),
+    // loading 전환·후보 교체는 performSearch 실행 시점에 원자적으로 일어난다.
     vi.useFakeTimers()
     try {
+      const resultsByQuery: Record<string, Option[]> = {
+        first: [{ id: 'first', label: '첫 후보' }],
+        second: [{ id: 'second', label: '둘째 후보' }],
+        none: [],
+      }
       const search = vi.fn<(q: string) => Promise<Option[]>>((q) =>
-        q === 'err' ? Promise.reject(new Error('검색 실패')) : Promise.resolve([]),
+        Promise.resolve(resultsByQuery[q] ?? []),
       )
 
       render(
@@ -84,32 +91,42 @@ describe('AsyncAutocomplete', () => {
       const input = screen.getByRole('combobox', { name: '검색' })
       fireEvent.focus(input)
 
-      // 1) 빈 결과 검색 완료 → status='done' + "검색 결과 없음" 도달
-      fireEvent.change(input, { target: { value: 'none' } })
+      // 1) 첫 검색 완료 → 후보 표시 (status='done')
+      fireEvent.change(input, { target: { value: 'first' } })
       await act(async () => {
         await vi.advanceTimersByTimeAsync(250)
       })
-      expect(screen.getByText('검색 결과 없음')).toBeTruthy()
+      expect(screen.getByText('첫 후보')).toBeTruthy()
+      expect(search).toHaveBeenCalledTimes(1)
 
-      // 2) 새 키입력 — debounce 250ms 대기 중 직전 'done' 이 남아
-      //    "검색 결과 없음" 이 flash 되면 안 되고 "검색 중…" 이 떠야 한다.
-      fireEvent.change(input, { target: { value: 'err' } })
+      // 2) 새 키입력 — debounce 250ms 대기 중 직전 후보가 유지되고
+      //    "검색 결과 없음"(false-empty)도 "검색 중…"(빈 loading listbox)도 뜨지 않는다.
+      fireEvent.change(input, { target: { value: 'second' } })
+      expect(screen.getByText('첫 후보')).toBeTruthy()
       expect(screen.queryByText('검색 결과 없음')).toBeNull()
-      expect(screen.getByText('검색 중…')).toBeTruthy()
+      expect(screen.queryByText('검색 중…')).toBeNull()
+      // debounce 만료 전이므로 서버 재호출도 아직 없다 — 순수 대기 창 상태 검증.
+      expect(search).toHaveBeenCalledTimes(1)
 
-      // 3) 검색 실패 → status='error' + 에러행 도달
+      // 3) debounce 만료 → 새 검색 실행 → 후보 원자 교체
       await act(async () => {
         await vi.advanceTimersByTimeAsync(250)
       })
-      expect(screen.getByText('검색 중 오류가 발생했습니다.')).toBeTruthy()
-
-      // 4) 새 키입력 — debounce 대기 중 stale 에러행이 남으면 안 된다.
-      fireEvent.change(input, { target: { value: 'next' } })
-      expect(screen.queryByText('검색 중 오류가 발생했습니다.')).toBeNull()
-      expect(screen.getByText('검색 중…')).toBeTruthy()
-
-      // debounce 만료 전이므로 서버 재호출은 아직 없다 — 순수 대기 창 상태 검증.
+      expect(screen.getByText('둘째 후보')).toBeTruthy()
+      expect(screen.queryByText('첫 후보')).toBeNull()
       expect(search).toHaveBeenCalledTimes(2)
+
+      // 4) 빈 결과 쿼리 입력 — 대기 중엔 직전 후보 유지, "검색 결과 없음"은
+      //    검색이 실제로 완료된 뒤에만 나타난다 (genuine empty ≠ false-empty).
+      fireEvent.change(input, { target: { value: 'none' } })
+      expect(screen.getByText('둘째 후보')).toBeTruthy()
+      expect(screen.queryByText('검색 결과 없음')).toBeNull()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(screen.queryByText('둘째 후보')).toBeNull()
+      expect(screen.getByText('검색 결과 없음')).toBeTruthy()
+      expect(search).toHaveBeenCalledTimes(3)
     } finally {
       vi.useRealTimers()
     }
@@ -118,9 +135,13 @@ describe('AsyncAutocomplete', () => {
   it('Escape 후 닫힌 자동완성은 spinner를 숨기고 재포커스 시 이전 debounce 검색을 부활시키지 않는다', async () => {
     vi.useFakeTimers()
     try {
-      const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
-        { id: 'old', label: '이전 후보' },
-      ])
+      let resolveSearch: ((value: Option[]) => void) | undefined
+      const search = vi.fn<(q: string) => Promise<Option[]>>(
+        () =>
+          new Promise((resolve) => {
+            resolveSearch = resolve
+          }),
+      )
 
       render(
         <AsyncAutocomplete<Option>
@@ -137,13 +158,15 @@ describe('AsyncAutocomplete', () => {
       )
 
       const input = screen.getByRole('combobox', { name: '검색' })
+
+      // ── phase 1: debounce 대기 중 Escape → 예약된 검색이 재포커스로 부활하지 않는다
       fireEvent.focus(input)
       fireEvent.change(input, { target: { value: 'old' } })
-      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeTruthy()
+      // #825 fix: debounce 대기 창은 loading 이 아니므로 spinner 미표시.
+      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeNull()
 
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(input.getAttribute('aria-expanded')).toBe('false')
-      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeNull()
 
       fireEvent.focus(input)
       expect((input as HTMLInputElement).value).toBe('')
@@ -153,6 +176,26 @@ describe('AsyncAutocomplete', () => {
 
       expect(search).not.toHaveBeenCalled()
       expect(screen.queryByText('이전 후보')).toBeNull()
+
+      // ── phase 2: 실제 검색 in-flight 중에는 spinner 표시 → Escape 로 숨기고
+      //             뒤늦게 도착한 stale 응답은 폐기된다
+      fireEvent.change(input, { target: { value: 'old' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(search).toHaveBeenCalledTimes(1)
+      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeTruthy()
+      expect(screen.getByText('검색 중…')).toBeTruthy()
+
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input.getAttribute('aria-expanded')).toBe('false')
+      expect(input.parentElement?.querySelector('[aria-hidden="true"]')).toBeNull()
+
+      await act(async () => {
+        resolveSearch?.([{ id: 'old', label: '이전 후보' }])
+      })
+      expect(screen.queryByText('이전 후보')).toBeNull()
+      expect(input.getAttribute('aria-expanded')).toBe('false')
     } finally {
       vi.useRealTimers()
     }
