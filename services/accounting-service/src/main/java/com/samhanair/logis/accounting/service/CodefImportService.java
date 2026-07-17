@@ -21,7 +21,6 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -153,6 +152,10 @@ public class CodefImportService {
                     staleHold = true;
                     staleNormalizedName = resolution.mapping().getNormalizedName();
                 }
+                if (resolution.isUnavailable()) {
+                    throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                            "CODEF 거래처 조회가 일시적으로 unavailable 상태입니다. import를 저장하지 않고 재시도해야 합니다.");
+                }
                 if (resolution.isMatched()) {
                     var mapping = resolution.mapping();
                     transaction.applyPartnerMatch(
@@ -161,11 +164,15 @@ public class CodefImportService {
                             mapping.getRawName(), mapping.getNormalizedName());
                     matchedPartner = true;
                 } else if (!resolution.isStale()) {
-                    Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerCode(
-                            txn.counterpartyName() == null ? null : txn.counterpartyName().trim());
-                    if (partner.isPresent() && partner.get().partnerId() != null) {
+                    PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(txn.counterpartyName());
+                    if (lookup.isUnavailable()) {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "CODEF 거래처 코드 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+                    }
+                    if (lookup.isFound() && lookup.partner().partnerId() != null
+                            && lookup.partner().isActiveStatus()) {
                         transaction.applyPartnerMatch(
-                                partner.get().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
+                                lookup.partner().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
                                 null, LocalDateTime.now(), "SYSTEM", null, null);
                         matchedPartner = true;
                     }
@@ -174,11 +181,15 @@ public class CodefImportService {
                 // 카드·대출·CODEF 출금에는 depositor mapping을 학습하거나 적용하지 않는다.
                 // 기존 계약인 카드·은행 출금의 partnerCode 정확일치는 유지한다.
                 if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
-                    Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerCode(
-                            txn.counterpartyName() == null ? null : txn.counterpartyName().trim());
-                    if (partner.isPresent() && partner.get().partnerId() != null) {
+                    PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(txn.counterpartyName());
+                    if (lookup.isUnavailable()) {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "CODEF 거래처 코드 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+                    }
+                    if (lookup.isFound() && lookup.partner().partnerId() != null
+                            && lookup.partner().isActiveStatus()) {
                         transaction.applyPartnerMatch(
-                                partner.get().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
+                                lookup.partner().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
                                 null, LocalDateTime.now(), "SYSTEM", null, null);
                         matchedPartner = true;
                     }
@@ -186,11 +197,7 @@ public class CodefImportService {
             }
 
             try {
-                saveInNewTransaction(transaction);
-                if (matchedPartner) {
-                    partnerMatchAuditRecorder.record(transaction, null, null, null, null, null,
-                            null, "SYSTEM", transaction.getPartnerMatchSource().name());
-                }
+                saveInNewTransaction(transaction, matchedPartner);
                 imported++;
                 if (matchedPartner) {
                     matched++;
@@ -202,6 +209,9 @@ public class CodefImportService {
                     }
                 }
             } catch (DataIntegrityViolationException ex) {
+                if (!isTransactionUniqueViolation(ex)) {
+                    throw ex;
+                }
                 duplicateSkipped++;
                 log.debug("[BC1] CODEF import duplicate skipped by DB unique index — source={} externalRef={}",
                         sourceTxn.source(), txn.externalRef());
@@ -243,10 +253,36 @@ public class CodefImportService {
                 transaction.getExternalRef());
     }
 
-    private void saveInNewTransaction(BankTransaction transaction) {
+    private void saveInNewTransaction(BankTransaction transaction, boolean matchedPartner) {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        template.executeWithoutResult(status -> bankTransactionRepository.saveAndFlush(transaction));
+        template.executeWithoutResult(status -> {
+            bankTransactionRepository.saveAndFlush(transaction);
+            if (matchedPartner) {
+                partnerMatchAuditRecorder.record(transaction, null, null, null, null, null,
+                        null, "SYSTEM", transaction.getPartnerMatchSource().name());
+            }
+        });
+    }
+
+    private PartnerLookupClient.LookupResult lookupByPartnerCode(String rawCode) {
+        String code = rawCode == null ? null : rawCode.trim();
+        PartnerLookupClient.LookupResult result = partnerLookupClient.findByPartnerCodeResult(code);
+        if (result != null) return result;
+        return partnerLookupClient.findByPartnerCode(code)
+                .map(PartnerLookupClient.LookupResult::found)
+                .orElseGet(PartnerLookupClient.LookupResult::notFound);
+    }
+
+    private boolean isTransactionUniqueViolation(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof org.hibernate.exception.ConstraintViolationException violation) {
+                return "uq_bank_transaction_external_active".equals(violation.getConstraintName());
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private LocalTime parseTime(String transactionTime) {

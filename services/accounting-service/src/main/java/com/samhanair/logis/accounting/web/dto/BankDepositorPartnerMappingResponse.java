@@ -10,6 +10,8 @@ public record BankDepositorPartnerMappingResponse(
         String normalizedName,
         String partnerCode,
         String partnerName,
+        String targetStatus,
+        boolean staleTarget,
         LocalDateTime modifiedAt,
         String actor,
         boolean active
@@ -22,8 +24,10 @@ public record BankDepositorPartnerMappingResponse(
                 ? "사용자" : modifiedBy;
         return new BankDepositorPartnerMappingResponse(
                 mapping.getRawName(), mapping.getNormalizedName(),
-                partner == null ? null : partner.partnerCode(),
+                partner == null ? mapping.getPartnerCodeSnapshot() : partner.partnerCode(),
                 partner == null ? null : partner.name(),
+                partner == null ? null : partner.status(),
+                partner == null || !partner.isActiveStatus(),
                 mapping.getModifiedAt(), actor, !Boolean.TRUE.equals(mapping.getIsDeleted()));
     }
 }

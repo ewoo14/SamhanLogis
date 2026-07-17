@@ -60,9 +60,11 @@ public class BankDepositorPartnerMappingController {
     @Operation(summary = "입금자명 매핑 생성", description = "partnerCode를 검증한 뒤 내부 partnerId로 저장")
     public ApiResponse<BankDepositorPartnerMappingResponse> create(
             @Valid @RequestBody BankDepositorPartnerMappingRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String systemMaster) {
         UUID actorId = parseActorId(userId);
-        return ApiResponse.ok(service.create(request, actorId, actorName(actorId)), "입금자명 매핑이 등록되었습니다.");
+        return ApiResponse.ok(service.create(request, actorId, actorName(actorId), isSystemMaster(systemMaster)),
+                "입금자명 매핑이 등록되었습니다.");
     }
 
     /**
@@ -78,9 +80,11 @@ public class BankDepositorPartnerMappingController {
     public ApiResponse<BankDepositorPartnerMappingResponse> update(
             @RequestParam String normalizedName,
             @Valid @RequestBody BankDepositorPartnerMappingRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String systemMaster) {
         UUID actorId = parseActorId(userId);
-        return ApiResponse.ok(service.update(normalizedName, request, actorId, actorName(actorId)),
+        return ApiResponse.ok(service.update(normalizedName, request, actorId, actorName(actorId),
+                        isSystemMaster(systemMaster)),
                 "입금자명 매핑이 수정되었습니다.");
     }
 
@@ -96,9 +100,10 @@ public class BankDepositorPartnerMappingController {
     public ApiResponse<Void> delete(
             @RequestParam String normalizedName,
             @RequestParam(required = false) String reason,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String systemMaster) {
         UUID actorId = parseActorId(userId);
-        service.delete(normalizedName, actorId, actorName(actorId), reason);
+        service.delete(normalizedName, actorId, actorName(actorId), reason, isSystemMaster(systemMaster));
         return ApiResponse.ok(null, "입금자명 매핑이 삭제되었습니다.");
     }
 
@@ -115,5 +120,9 @@ public class BankDepositorPartnerMappingController {
 
     private static String actorName(UUID actorId) {
         return actorId == null ? "SYSTEM" : "사용자";
+    }
+
+    private static boolean isSystemMaster(String value) {
+        return "true".equalsIgnoreCase(value);
     }
 }

@@ -97,6 +97,33 @@ class PartnerLookupClientTest {
     }
 
     @Test
+    void findByPartnerCodeResult는_404와_5xx를_NOT_FOUND_UNAVAILABLE로_구분한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/P-404"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+        server.expect(requestTo("http://partner-service/internal/partners/P-503"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThat(client.findByPartnerCodeResult("P-404").status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.NOT_FOUND);
+        assertThat(client.findByPartnerCodeResult("P-503").status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerCodeResult는_파싱실패를_UNAVAILABLE로_반환한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/P-BAD"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{not-json", MediaType.APPLICATION_JSON));
+
+        assertThat(client.findByPartnerCodeResult("P-BAD").status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
     void findByPartnerCode는_partner_service_internal_response를_wire_parse한다() {
         server.expect(requestTo("http://partner-service/internal/partners/P-2026-0001"))
                 .andExpect(method(HttpMethod.GET))

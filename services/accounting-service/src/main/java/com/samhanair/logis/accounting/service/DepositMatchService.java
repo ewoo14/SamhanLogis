@@ -207,6 +207,9 @@ public class DepositMatchService {
             matchSource = PartnerMatchSource.DEPOSITOR_MAPPING;
         } else if (mappingResolution.isStale()) {
             partnerOpt = Optional.empty();
+        } else if (mappingResolution.isUnavailable()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "KFTC 거래처 조회가 일시적으로 unavailable 상태입니다. 저장하지 않고 재시도해 주세요.");
         } else {
             partnerOpt = resolveExactPartnerForCounterparty(deposit.depositorName());
             if (partnerOpt.isPresent()) {
@@ -290,7 +293,17 @@ public class DepositMatchService {
         if (counterpartyName == null || counterpartyName.isBlank()) {
             return Optional.empty();
         }
-        return partnerLookupClient.findByPartnerCode(counterpartyName.trim());
+        PartnerLookupClient.LookupResult result = partnerLookupClient.findByPartnerCodeResult(counterpartyName.trim());
+        if (result == null) {
+            return partnerLookupClient.findByPartnerCode(counterpartyName.trim())
+                    .filter(PartnerSummary::isActiveStatus);
+        }
+        if (result.isUnavailable()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "KFTC 거래처 코드 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+        }
+        return result.isFound() && result.partner().isActiveStatus()
+                ? Optional.of(result.partner()) : Optional.empty();
     }
 
     /**

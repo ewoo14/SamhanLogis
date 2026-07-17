@@ -46,17 +46,31 @@ public class BankDepositorPartnerMapping extends BaseEntity {
     @Column(name = "partner_id", nullable = false)
     private UUID partnerId;
 
-    private BankDepositorPartnerMapping(String rawName, UUID partnerId) {
-        updateMapping(rawName, partnerId);
+    /** 외부 조회 장애·삭제 감사에서도 보존해야 하는 거래처 코드 snapshot. */
+    @Column(name = "partner_code", length = 50)
+    private String partnerCodeSnapshot;
+
+    private BankDepositorPartnerMapping(String rawName, UUID partnerId, String partnerCode) {
+        updateMapping(rawName, partnerId, partnerCode);
     }
 
     /** 새 매핑을 생성한다. */
     public static BankDepositorPartnerMapping create(String rawName, UUID partnerId) {
-        return new BankDepositorPartnerMapping(rawName, partnerId);
+        return create(rawName, partnerId, null);
+    }
+
+    /** 거래처 코드 snapshot과 함께 새 매핑을 생성한다. */
+    public static BankDepositorPartnerMapping create(String rawName, UUID partnerId, String partnerCode) {
+        return new BankDepositorPartnerMapping(rawName, partnerId, partnerCode);
     }
 
     /** 원본명 변경 또는 거래처 재지정을 도메인 메서드로 수행한다. */
     public BankDepositorPartnerMapping updateMapping(String rawName, UUID partnerId) {
+        return updateMapping(rawName, partnerId, null);
+    }
+
+    /** 원본명·거래처·감사 보존용 거래처 코드 snapshot을 갱신한다. */
+    public BankDepositorPartnerMapping updateMapping(String rawName, UUID partnerId, String partnerCode) {
         if (rawName == null || rawName.isBlank()) {
             throw new IllegalArgumentException("rawName 은 필수입니다");
         }
@@ -73,6 +87,7 @@ public class BankDepositorPartnerMapping extends BaseEntity {
         this.rawName = rawName.trim();
         this.normalizedName = normalized;
         this.partnerId = partnerId;
+        this.partnerCodeSnapshot = partnerCode == null || partnerCode.isBlank() ? null : partnerCode.trim();
         return this;
     }
 

@@ -63,7 +63,7 @@ class DepositorMappingServiceTest {
         assertThat(resolved.partner().partnerCode()).isEqualTo("P-001");
         assertThat(card.kind()).isEqualTo(DepositorMappingService.ResolutionKind.NONE);
         verify(partnerLookupClient).findByPartnerId(partnerId);
-        verify(mappingRepository, never()).upsertActive(any(), any(), any(), any());
+        verify(mappingRepository, never()).upsertActive(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -121,8 +121,6 @@ class DepositorMappingServiceTest {
                 .thenReturn(Optional.empty());
         when(partnerLookupClient.findByPartnerCode("P-002")).thenReturn(Optional.of(
                 new PartnerSummary(partnerId, "P-002", "Other", null, null)));
-        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.of(
-                new PartnerSummary(partnerId, "P-001", "Acme", null, null)));
         when(mappingRepository.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("uq_bank_depositor_mapping_normalized_active"));
 
@@ -162,9 +160,6 @@ class DepositorMappingServiceTest {
         when(dynamicPermissionClient.check(actorId, DepositorMappingService.PAGE_CODE,
                 com.samhanair.logis.security.permission.PermissionAction.DELETE)).thenReturn(true);
         when(mappingRepository.findById(mappingId)).thenReturn(Optional.of(mapping));
-        when(mappingRepository.findByNormalizedNameAndIsDeletedFalse("ACME"))
-                .thenReturn(Optional.of(mapping));
-        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
         when(mappingRepository.saveAndFlush(any())).thenReturn(mapping);
 
         service.deleteByIdIfPermitted(mappingId, actorId, "사용자", "ADMIN_DELETE");
@@ -174,6 +169,22 @@ class DepositorMappingServiceTest {
 
         // mappingId 가 null 이면 삭제 대상이 없어 권한 검증 없이 조용히 반환한다.
         service.deleteByIdIfPermitted(null, actorId, "사용자", "ADMIN_DELETE");
+    }
+
+    @Test
+    @DisplayName("SYSTEM MASTER는 내부 deposit-mapping DELETE 권한 조회 없이 exact entity를 삭제한다")
+    void systemMasterDeletesWithoutDynamicPermission() {
+        UUID mappingId = UUID.randomUUID();
+        UUID partnerId = UUID.randomUUID();
+        BankDepositorPartnerMapping mapping = BankDepositorPartnerMapping.create("Acme", partnerId, "P-001");
+        when(mappingRepository.findById(mappingId)).thenReturn(Optional.of(mapping));
+        when(mappingRepository.saveAndFlush(mapping)).thenReturn(mapping);
+
+        service.deleteByIdIfPermitted(mappingId, UUID.randomUUID(), "MASTER", "ADMIN_DELETE", true);
+
+        verify(dynamicPermissionClient, never()).check(any(), any(), any());
+        verify(mappingRepository).saveAndFlush(mapping);
+        assertThat(mapping.getIsDeleted()).isTrue();
     }
 
     @Test
@@ -218,7 +229,57 @@ class DepositorMappingServiceTest {
 
         service.learnMappingIfPermitted("Acme", partner, actorId, "사용자");
 
-        verify(mappingRepository, never()).upsertActive(any(), any(), any(), any());
+        verify(mappingRepository, never()).upsertActive(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("SYSTEM MASTER 수동 매칭 학습은 내부 UPDATE 권한 조회 없이 upsert한다")
+    void systemMasterLearnsWithoutDynamicPermission() {
+        UUID actorId = UUID.randomUUID();
+        PartnerSummary partner = new PartnerSummary(UUID.randomUUID(), "P-001", "Acme", null, null);
+        BankDepositorPartnerMapping saved = BankDepositorPartnerMapping.create("Acme", partner.partnerId(), "P-001");
+        when(mappingRepository.findByNormalizedNameAndIsDeletedFalse("ACME"))
+                .thenReturn(Optional.empty(), Optional.of(saved));
+
+        service.learnMappingIfPermitted("Acme", partner, actorId, "MASTER", true);
+
+        verify(dynamicPermissionClient, never()).check(any(), any(), any());
+        verify(mappingRepository).upsertActive("Acme", "ACME", partner.partnerId(), "P-001", actorId.toString());
+    }
+
+    @Test
+    @DisplayName("partner lookup UNAVAILABLE은 stale가 아니라 재시도 대상 결과로 반환한다")
+    void returnsUnavailableWhenPartnerLookupUnavailable() {
+        UUID partnerId = UUID.randomUUID();
+        BankDepositorPartnerMapping mapping = BankDepositorPartnerMapping.create("Acme", partnerId, "P-001");
+        when(mappingRepository.findByNormalizedNameAndIsDeletedFalse("ACME"))
+                .thenReturn(Optional.of(mapping));
+        when(partnerLookupClient.findByPartnerIdResult(partnerId))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        DepositorMappingService.MappingResolution resolution = service.resolveDeposit(
+                "Acme", BankTxnType.DEPOSIT, BankTxnSource.CODEF_BANK);
+
+        assertThat(resolution.isUnavailable()).isTrue();
+        assertThat(resolution.isStale()).isFalse();
+    }
+
+    @Test
+    @DisplayName("stale mapping 삭제 audit은 저장된 partnerCode snapshot을 보존한다")
+    void deleteAuditPreservesPartnerCodeSnapshot() {
+        UUID mappingId = UUID.randomUUID();
+        BankDepositorPartnerMapping mapping = BankDepositorPartnerMapping.create(
+                "Acme", UUID.randomUUID(), "P-001");
+        when(mappingRepository.findById(mappingId)).thenReturn(Optional.of(mapping));
+        when(mappingRepository.saveAndFlush(mapping)).thenReturn(mapping);
+
+        service.deleteById(mappingId, UUID.randomUUID(), "사용자", "ADMIN_DELETE");
+
+        verify(auditLogService).recordBatch(any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.argThat(changes -> changes.stream()
+                        .anyMatch(change -> change.fieldName().equals("mapping.partnerCode")
+                                && "P-001".equals(change.oldValue())
+                                && change.newValue() == null)));
     }
 
     @Test
@@ -232,7 +293,7 @@ class DepositorMappingServiceTest {
         // 'ß'는 Locale.ROOT 대문자화에서 'SS'로 팽창 — raw 100자 → 정규화 200자 > 120.
         service.learnMappingIfPermitted("ß".repeat(100), partner, actorId, "사용자");
 
-        verify(mappingRepository, never()).upsertActive(any(), any(), any(), any());
+        verify(mappingRepository, never()).upsertActive(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -248,6 +309,6 @@ class DepositorMappingServiceTest {
 
         service.learnMappingIfPermitted(" Acme ", partner, actorId, "사용자");
 
-        verify(mappingRepository).upsertActive("Acme", "ACME", partner.partnerId(), actorId.toString());
+        verify(mappingRepository).upsertActive("Acme", "ACME", partner.partnerId(), "P-001", actorId.toString());
     }
 }

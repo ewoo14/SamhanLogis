@@ -65,6 +65,13 @@ public class DepositorMappingService {
     /** 매핑을 생성하고 거래처 코드의 외부 master 존재를 검증한다. */
     public BankDepositorPartnerMappingResponse create(BankDepositorPartnerMappingRequest request,
                                                       UUID actorId, String actorName) {
+        return create(request, actorId, actorName, false);
+    }
+
+    /** 관리 endpoint에서도 MASTER 헤더의 호출 주체를 감사 경계까지 전달한다. */
+    public BankDepositorPartnerMappingResponse create(BankDepositorPartnerMappingRequest request,
+                                                      UUID actorId, String actorName, boolean isSystemMaster) {
+        actorName = effectiveActorName(actorName, isSystemMaster);
         validateRequest(request);
         String normalized = normalizeRequired(request.rawName());
         if (mappingRepository.findByNormalizedNameAndIsDeletedFalse(normalized).isPresent()) {
@@ -72,7 +79,7 @@ public class DepositorMappingService {
         }
         PartnerSummary partner = resolvePartner(request.partnerCode());
         BankDepositorPartnerMapping mapping = BankDepositorPartnerMapping.create(
-                request.rawName(), partner.partnerId());
+                request.rawName(), partner.partnerId(), partner.partnerCode());
         try {
             BankDepositorPartnerMapping saved = mappingRepository.saveAndFlush(mapping);
             recordMappingAudit(saved, null, null, null, saved.getRawName(), saved.getNormalizedName(),
@@ -87,20 +94,35 @@ public class DepositorMappingService {
     public BankDepositorPartnerMappingResponse update(String oldNormalizedName,
                                                       BankDepositorPartnerMappingRequest request,
                                                       UUID actorId, String actorName) {
+        return update(oldNormalizedName, request, actorId, actorName, false);
+    }
+
+    /** 관리 endpoint에서도 MASTER 헤더의 호출 주체를 감사 경계까지 전달한다. */
+    public BankDepositorPartnerMappingResponse update(String oldNormalizedName,
+                                                      BankDepositorPartnerMappingRequest request,
+                                                      UUID actorId, String actorName, boolean isSystemMaster) {
+        actorName = effectiveActorName(actorName, isSystemMaster);
         validateRequest(request);
-        BankDepositorPartnerMapping mapping = findActive(oldNormalizedName);
+        String oldKey = normalizeRequired(oldNormalizedName);
         String newNormalized = normalizeRequired(request.rawName());
+        // rename은 양쪽 business key를 정렬된 순서로 잠가 P1→P2/P3 감사 누락과 deadlock을 함께 막는다.
+        String firstLock = oldKey.compareTo(newNormalized) <= 0 ? oldKey : newNormalized;
+        String secondLock = oldKey.compareTo(newNormalized) <= 0 ? newNormalized : oldKey;
+        mappingRepository.acquireNormalizedNameAdvisoryLock(firstLock);
+        if (!firstLock.equals(secondLock)) {
+            mappingRepository.acquireNormalizedNameAdvisoryLock(secondLock);
+        }
+        // lock 획득 뒤 현재 상태를 다시 읽어 TOCTOU와 감사 누락을 막는다.
+        BankDepositorPartnerMapping mapping = findActive(oldKey);
         if (!newNormalized.equals(mapping.getNormalizedName())
                 && mappingRepository.findByNormalizedNameAndIsDeletedFalse(newNormalized).isPresent()) {
             throw new BusinessException(ErrorCode.CONFLICT, "변경할 입금자명 매핑 키가 이미 존재합니다: " + newNormalized);
         }
         PartnerSummary partner = resolvePartner(request.partnerCode());
         String oldRaw = mapping.getRawName();
-        String oldKey = mapping.getNormalizedName();
-        UUID oldPartnerId = mapping.getPartnerId();
-        String oldPartnerCode = partnerLookupClient.findByPartnerId(oldPartnerId)
-                .map(PartnerSummary::partnerCode).orElse(null);
-        mapping.updateMapping(request.rawName(), partner.partnerId());
+        oldKey = mapping.getNormalizedName();
+        String oldPartnerCode = mapping.getPartnerCodeSnapshot();
+        mapping.updateMapping(request.rawName(), partner.partnerId(), partner.partnerCode());
         BankDepositorPartnerMapping saved;
         try {
             saved = mappingRepository.saveAndFlush(mapping);
@@ -115,9 +137,15 @@ public class DepositorMappingService {
 
     /** business key로 매핑을 soft delete한다. */
     public void delete(String normalizedName, UUID actorId, String actorName, String reason) {
+        delete(normalizedName, actorId, actorName, reason, false);
+    }
+
+    /** 관리 endpoint에서도 MASTER 헤더의 호출 주체를 감사 경계까지 전달한다. */
+    public void delete(String normalizedName, UUID actorId, String actorName, String reason,
+                       boolean isSystemMaster) {
+        actorName = effectiveActorName(actorName, isSystemMaster);
         BankDepositorPartnerMapping mapping = findActive(normalizedName);
-        String oldPartnerCode = partnerLookupClient.findByPartnerId(mapping.getPartnerId())
-                .map(PartnerSummary::partnerCode).orElse(null);
+        String oldPartnerCode = mapping.getPartnerCodeSnapshot();
         mapping.delete(storageActor(actorId, actorName));
         mappingRepository.saveAndFlush(mapping);
         recordMappingAudit(mapping, mapping.getRawName(), mapping.getNormalizedName(), oldPartnerCode,
@@ -129,8 +157,13 @@ public class DepositorMappingService {
         if (mappingId == null) {
             return;
         }
-        mappingRepository.findById(mappingId).ifPresent(mapping ->
-                delete(mapping.getNormalizedName(), actorId, actorName, reason));
+        mappingRepository.findById(mappingId).ifPresent(mapping -> {
+            String oldPartnerCode = mapping.getPartnerCodeSnapshot();
+            mapping.delete(storageActor(actorId, actorName));
+            mappingRepository.saveAndFlush(mapping);
+            recordMappingAudit(mapping, mapping.getRawName(), mapping.getNormalizedName(), oldPartnerCode,
+                    null, mapping.getNormalizedName(), null, actorId, actorName, reason(reason, "ADMIN_DELETE"));
+        });
     }
 
     /**
@@ -148,10 +181,17 @@ public class DepositorMappingService {
      * @throws BusinessException FORBIDDEN — deposit-mapping:DELETE 권한 미보유 시
      */
     public void deleteByIdIfPermitted(UUID mappingId, UUID actorId, String actorName, String reason) {
+        deleteByIdIfPermitted(mappingId, actorId, actorName, reason, false);
+    }
+
+    /** MASTER 헤더가 검증된 내부 호출은 동적 permission 행 없이도 허용한다. */
+    public void deleteByIdIfPermitted(UUID mappingId, UUID actorId, String actorName, String reason,
+                                      boolean isSystemMaster) {
         if (mappingId == null) {
             return;
         }
-        if (actorId == null || !dynamicPermissionClient.check(actorId, PAGE_CODE, PermissionAction.DELETE)) {
+        if (!isSystemMaster && (actorId == null
+                || !dynamicPermissionClient.check(actorId, PAGE_CODE, PermissionAction.DELETE))) {
             throw new BusinessException(ErrorCode.FORBIDDEN,
                     "입금자명 매핑 삭제 권한(deposit-mapping:DELETE)이 없습니다.");
         }
@@ -192,8 +232,15 @@ public class DepositorMappingService {
      */
     public void learnMappingIfPermitted(String rawName, PartnerSummary partner,
                                         UUID actorId, String actorName) {
+        learnMappingIfPermitted(rawName, partner, actorId, actorName, false);
+    }
+
+    /** 수동 매칭 학습의 내부 게이트. SYSTEM MASTER는 전역 권한으로 우회한다. */
+    public void learnMappingIfPermitted(String rawName, PartnerSummary partner,
+                                        UUID actorId, String actorName, boolean isSystemMaster) {
         if (rawName == null || rawName.isBlank() || partner == null || partner.partnerId() == null
-                || actorId == null || !dynamicPermissionClient.check(actorId, PAGE_CODE, PermissionAction.UPDATE)) {
+                || (!isSystemMaster && (actorId == null
+                || !dynamicPermissionClient.check(actorId, PAGE_CODE, PermissionAction.UPDATE)))) {
             return;
         }
         String normalized;
@@ -203,14 +250,14 @@ public class DepositorMappingService {
             log.warn("입금자명 매핑 학습 생략(정규화 검증 실패; 수동 매칭은 유지) — msg={}", ex.getMessage());
             return;
         }
+        mappingRepository.acquireNormalizedNameAdvisoryLock(normalized);
         BankDepositorPartnerMapping old = mappingRepository
                 .findByNormalizedNameAndIsDeletedFalse(normalized).orElse(null);
         String oldRaw = old == null ? null : old.getRawName();
         String oldKey = old == null ? null : old.getNormalizedName();
-        String oldPartnerCode = old == null ? null : partnerLookupClient.findByPartnerId(old.getPartnerId())
-                .map(PartnerSummary::partnerCode).orElse(null);
+        String oldPartnerCode = old == null ? null : old.getPartnerCodeSnapshot();
         String storageActor = storageActor(actorId, actorName);
-        mappingRepository.upsertActive(rawName.trim(), normalized, partner.partnerId(), storageActor);
+        mappingRepository.upsertActive(rawName.trim(), normalized, partner.partnerId(), partner.partnerCode(), storageActor);
         BankDepositorPartnerMapping saved = mappingRepository
                 .findByNormalizedNameAndIsDeletedFalse(normalized)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "입금자명 매핑 학습에 실패했습니다."));
@@ -230,7 +277,11 @@ public class DepositorMappingService {
         if (mapping == null) {
             return MappingResolution.none();
         }
-        PartnerSummary partner = partnerLookupClient.findByPartnerId(mapping.getPartnerId()).orElse(null);
+        PartnerLookupClient.LookupResult lookup = lookupByPartnerId(mapping.getPartnerId());
+        if (lookup.isUnavailable()) {
+            return MappingResolution.unavailable(mapping);
+        }
+        PartnerSummary partner = lookup.isFound() ? lookup.partner() : null;
         if (partner == null || partner.partnerId() == null || !mapping.getPartnerId().equals(partner.partnerId())) {
             log.warn("입금자명 매핑 target stale — normalizedName={} partnerId={}",
                     mapping.getNormalizedName(), mapping.getPartnerId());
@@ -268,10 +319,32 @@ public class DepositorMappingService {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "partnerCode 는 필수입니다.");
         }
-        return partnerLookupClient.findByPartnerCode(partnerCode.trim())
-                .filter(partner -> partner.partnerId() != null)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "등록된 거래처를 찾을 수 없습니다: " + partnerCode.trim()));
+        PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(partnerCode.trim());
+        if (lookup.isUnavailable()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "거래처 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+        }
+        return lookup.isFound() && lookup.partner().partnerId() != null ? lookup.partner()
+                : throwNotFound(partnerCode);
+    }
+
+    private PartnerSummary throwNotFound(String partnerCode) {
+        throw new BusinessException(ErrorCode.NOT_FOUND, "등록된 거래처를 찾을 수 없습니다: " + partnerCode.trim());
+    }
+
+    private PartnerLookupClient.LookupResult lookupByPartnerId(UUID partnerId) {
+        PartnerLookupClient.LookupResult result = partnerLookupClient.findByPartnerIdResult(partnerId);
+        if (result != null) return result;
+        return partnerLookupClient.findByPartnerId(partnerId)
+                .map(PartnerLookupClient.LookupResult::found)
+                .orElseGet(PartnerLookupClient.LookupResult::notFound);
+    }
+
+    private PartnerLookupClient.LookupResult lookupByPartnerCode(String partnerCode) {
+        PartnerLookupClient.LookupResult result = partnerLookupClient.findByPartnerCodeResult(partnerCode);
+        if (result != null) return result;
+        return partnerLookupClient.findByPartnerCode(partnerCode)
+                .map(PartnerLookupClient.LookupResult::found)
+                .orElseGet(PartnerLookupClient.LookupResult::notFound);
     }
 
     private void validateRequest(BankDepositorPartnerMappingRequest request) {
@@ -323,7 +396,8 @@ public class DepositorMappingService {
                         new ChangeEntry("mapping.normalizedName", oldNormalized, newNormalized),
                         new ChangeEntry("mapping.partnerCode", oldPartnerCode, newPartnerCode),
                         new ChangeEntry("mapping.reason", null, reason))
-                .filter(change -> change.oldValue() != null || change.newValue() != null)
+                .filter(change -> "mapping.reason".equals(change.fieldName())
+                        || !java.util.Objects.equals(change.oldValue(), change.newValue()))
                 .toList();
         auditLogService.recordBatch(mapping.getId(), safeActor, safeActorName, null, changes);
     }
@@ -334,6 +408,10 @@ public class DepositorMappingService {
 
     private static String storageActor(UUID actorId, String actorName) {
         return actorId == null ? (actorName == null || actorName.isBlank() ? "SYSTEM" : actorName) : actorId.toString();
+    }
+
+    private static String effectiveActorName(String actorName, boolean isSystemMaster) {
+        return isSystemMaster ? "SYSTEM MASTER" : actorName;
     }
 
     /** resolver 결과와 stale 여부를 구분해 partnerCode 폴백 오배정을 막는다. */
@@ -348,6 +426,10 @@ public class DepositorMappingService {
             return new MappingResolution(ResolutionKind.STALE, mapping, null);
         }
 
+        public static MappingResolution unavailable(BankDepositorPartnerMapping mapping) {
+            return new MappingResolution(ResolutionKind.UNAVAILABLE, mapping, null);
+        }
+
         public static MappingResolution matched(BankDepositorPartnerMapping mapping, PartnerSummary partner) {
             return new MappingResolution(ResolutionKind.MATCHED, mapping, partner);
         }
@@ -359,6 +441,10 @@ public class DepositorMappingService {
         public boolean isStale() {
             return kind == ResolutionKind.STALE;
         }
+
+        public boolean isUnavailable() {
+            return kind == ResolutionKind.UNAVAILABLE;
+        }
     }
 
     /** 입금 매핑 resolver 결과 종류. */
@@ -367,6 +453,8 @@ public class DepositorMappingService {
         NONE,
         /** 매핑은 있으나 거래처 master가 stale이다. */
         STALE,
+        /** 외부 master를 조회할 수 없어 재시도가 필요한 상태. */
+        UNAVAILABLE,
         /** 활성 거래처까지 hydration된 매칭이다. */
         MATCHED
     }

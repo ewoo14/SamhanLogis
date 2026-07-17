@@ -127,8 +127,10 @@ public class BankTransactionController {
     @Operation(summary = "통장 거래 거래처 수동지정", description = "4-key 자연키로 거래를 찾아 partnerCode 로 매칭")
     public ApiResponse<BankTransactionResponse> matchPartner(
             @RequestBody BankTransactionMatchPartnerRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return ApiResponse.ok(service.matchPartner(request, parseOptionalUserId(userId)), "거래처 매칭이 완료되었습니다.");
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String systemMaster) {
+        return ApiResponse.ok(service.matchPartner(request, parseOptionalUserId(userId), isSystemMaster(systemMaster)),
+                "거래처 매칭이 완료되었습니다.");
     }
 
     /**
@@ -159,8 +161,10 @@ public class BankTransactionController {
             description = "거래 해제 + 매핑 soft delete. bank-matching:UPDATE와 deposit-mapping:DELETE 양쪽 권한 필요")
     public ApiResponse<BankTransactionResponse> clearPartnerAndDeleteMapping(
             @RequestBody BankTransactionMatchPartnerClearRequest request,
-            @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return ApiResponse.ok(service.clearPartnerAndDeleteMapping(request, parseOptionalUserId(userId)),
+            @RequestHeader(value = "X-User-Id", required = false) String userId,
+            @RequestHeader(value = "X-Is-System-Master", required = false) String systemMaster) {
+        return ApiResponse.ok(service.clearPartnerAndDeleteMapping(request, parseOptionalUserId(userId),
+                        isSystemMaster(systemMaster)),
                 "거래 매칭과 입금자명 매핑이 해제되었습니다.");
     }
 
@@ -177,5 +181,9 @@ public class BankTransactionController {
             return null;
         }
         return parseUserId(value);
+    }
+
+    private static boolean isSystemMaster(String value) {
+        return "true".equalsIgnoreCase(value);
     }
 }

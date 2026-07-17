@@ -13,7 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
-/** fresh PostgreSQL/Testcontainers에서 V57/V58 partial unique·CHECK와 provenance schema를 확인한다. */
+/** fresh PostgreSQL/Testcontainers에서 V57~V59 partial unique·CHECK와 provenance schema를 확인한다. */
 @SpringBootTest
 class BankDepositorPartnerMappingMigrationIT extends AbstractPostgresIT {
 
@@ -129,6 +129,45 @@ class BankDepositorPartnerMappingMigrationIT extends AbstractPostgresIT {
                 """, Integer.class);
 
         assertThat(version).isEqualTo(58);
+        assertThat(constraintCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Flyway V59 양방향 snapshot CHECK는 매핑 출처의 NULL snapshot과 비매핑 snapshot을 모두 거부한다")
+    void v59SnapshotCheckRejectsBothDirections() {
+        assertThatThrownBy(() -> insertProvenanceRow("probe-bad-v59-mapping-null",
+                UUID.randomUUID(), "DEPOSITOR_MAPPING", UUID.randomUUID(), null, null))
+                .hasStackTraceContaining("ck_bank_transaction_mapping_snapshot");
+        assertThatThrownBy(() -> insertProvenanceRow("probe-bad-v59-source-snapshot",
+                UUID.randomUUID(), "MANUAL", null, "Acme", "ACME"))
+                .hasStackTraceContaining("ck_bank_transaction_mapping_snapshot");
+    }
+
+    @Test
+    @DisplayName("V59 양방향 snapshot CHECK는 정상 매핑 snapshot과 비매핑 NULL snapshot을 수용한다")
+    void v59SnapshotCheckAcceptsBothDirections() {
+        insertProvenanceRow("probe-ok-v59-mapping", UUID.randomUUID(), "DEPOSITOR_MAPPING",
+                UUID.randomUUID(), "Acme", "ACME");
+        insertProvenanceRow("probe-ok-v59-manual", UUID.randomUUID(), "MANUAL",
+                null, null, null);
+
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bank_transaction WHERE external_ref LIKE 'probe-ok-v59-%'", Integer.class);
+        assertThat(count).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("Flyway V59가 적용되고 snapshot CHECK가 하나만 존재한다")
+    void v59SnapshotCheckExists() {
+        Integer version = jdbcTemplate.queryForObject(
+                "SELECT version::int FROM flyway_schema_history WHERE version = '59'", Integer.class);
+        Integer constraintCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM pg_constraint
+                 WHERE conname = 'ck_bank_transaction_mapping_snapshot'
+                   AND conrelid = 'bank_transaction'::regclass
+                """, Integer.class);
+
+        assertThat(version).isEqualTo(59);
         assertThat(constraintCount).isEqualTo(1);
     }
 

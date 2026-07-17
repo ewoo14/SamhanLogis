@@ -47,7 +47,7 @@ public interface AccountingAuditLogRepository extends JpaRepository<AccountingAu
             select log from AccountingAuditLog log
              where log.entityId in :entityIds
                and log.fieldName like 'mapping.%'
-             order by log.revisionNo desc, log.changedAt desc, log.fieldName asc
+             order by log.changedAt desc, log.revisionNo desc, log.fieldName asc
             """)
     List<AccountingAuditLog> findMappingHistoryByEntityIds(
             @Param("entityIds") java.util.Collection<UUID> entityIds);

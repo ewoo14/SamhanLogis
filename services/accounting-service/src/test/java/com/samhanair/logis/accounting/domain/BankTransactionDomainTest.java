@@ -94,4 +94,13 @@ class BankTransactionDomainTest {
         assertThat(transaction.getMatchedMappingId()).isNull();
         assertThat(transaction.getMatchedMappingRawName()).isNull();
     }
+
+    @Test
+    @DisplayName("DEPOSITOR_MAPPING은 두 snapshot 모두 있어야 한다")
+    void depositorMappingRequiresBothSnapshots() {
+        assertThatThrownBy(() -> deposit().applyPartnerMatch(
+                UUID.randomUUID(), PartnerMatchSource.DEPOSITOR_MAPPING, UUID.randomUUID(),
+                null, "SYSTEM", "원본", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

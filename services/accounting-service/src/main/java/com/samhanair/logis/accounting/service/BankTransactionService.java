@@ -148,6 +148,9 @@ public class BankTransactionService {
                 // #810 적대검증 R1 (L4-M1): stale 매핑 보류를 서버 로그에만 두지 않고 응답 집계로 표면화.
                 staleSkipped++;
                 staleNormalizedNames.add(resolution.mapping().getNormalizedName());
+            } else if (resolution.isUnavailable()) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "CSV 거래처 조회가 일시적으로 unavailable 상태입니다. 저장하지 않고 재시도해 주세요.");
             }
             BankTransaction saved = repository.save(transaction);
             if (saved.getPartnerMatchSource() == PartnerMatchSource.DEPOSITOR_MAPPING) {
@@ -231,11 +234,17 @@ public class BankTransactionService {
      * {@code bankAccountLabel + transactedAt + amount + externalRef} 자연키와 {@code partnerCode} 만 사용한다.
      */
     public BankTransactionResponse matchPartner(BankTransactionMatchPartnerRequest request) {
-        return matchPartner(request, null);
+        return matchPartner(request, null, false);
     }
 
     /** 거래처를 수동 지정하고 권한이 있으면 입금자명 매핑을 학습한다. */
     public BankTransactionResponse matchPartner(BankTransactionMatchPartnerRequest request, UUID actorId) {
+        return matchPartner(request, actorId, false);
+    }
+
+    /** X-Is-System-Master가 인증된 내부 요청은 학습 권한 게이트를 전역 권한으로 통과한다. */
+    public BankTransactionResponse matchPartner(BankTransactionMatchPartnerRequest request, UUID actorId,
+                                                boolean isSystemMaster) {
         if (request == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "요청 본문은 필수입니다.");
         }
@@ -260,7 +269,7 @@ public class BankTransactionService {
         String oldNormalizedName = transaction.getMatchedMappingNormalizedName();
         transaction.applyPartnerMatch(partner.partnerId(), PartnerMatchSource.MANUAL, null,
                 LocalDateTime.now(), actorStorage(actorId), null, null);
-        learnDepositMappingIfEligible(transaction, partner, actorId);
+        learnDepositMappingIfEligible(transaction, partner, actorId, isSystemMaster);
         partnerMatchAuditRecorder.record(transaction, oldPartnerId, oldSource, oldMappingId,
                 oldRawName, oldNormalizedName, actorId, actorName(actorId), "MANUAL_MATCH");
         return BankTransactionResponse.of(transaction, displayOf(partner), null);
@@ -276,13 +285,14 @@ public class BankTransactionService {
      * {@code @Transactional} 경계 밖에서 catch 하면 참여 트랜잭션이 이미 rollback-only 로 마킹되어
      * 수동 매칭 커밋까지 실패(UnexpectedRollbackException)하기 때문이다.
      */
-    private void learnDepositMappingIfEligible(BankTransaction transaction, PartnerSummary partner, UUID actorId) {
+    private void learnDepositMappingIfEligible(BankTransaction transaction, PartnerSummary partner, UUID actorId,
+                                               boolean isSystemMaster) {
         if (transaction.getTxnType() != BankTxnType.DEPOSIT
                 || !depositorMappingService.isDepositSource(transaction.getSource())) {
             return;
         }
         depositorMappingService.learnMappingIfPermitted(
-                transaction.getCounterpartyName(), partner, actorId, actorName(actorId));
+                transaction.getCounterpartyName(), partner, actorId, actorName(actorId), isSystemMaster);
     }
 
     /**
@@ -321,11 +331,18 @@ public class BankTransactionService {
      */
     public BankTransactionResponse clearPartnerAndDeleteMapping(
             BankTransactionMatchPartnerClearRequest request, UUID actorId) {
+        return clearPartnerAndDeleteMapping(request, actorId, false);
+    }
+
+    /** 거래 해제와 매핑 삭제를 MASTER 플래그와 함께 수행한다. */
+    public BankTransactionResponse clearPartnerAndDeleteMapping(
+            BankTransactionMatchPartnerClearRequest request, UUID actorId, boolean isSystemMaster) {
         BankTransaction transaction = findUniqueByNaturalKey(request.bankAccountLabel(),
                 request.transactedAt(), request.amount(), request.externalRef());
         UUID mappingId = transaction.getMatchedMappingId();
         BankTransactionResponse response = clearPartner(request, actorId);
-        depositorMappingService.deleteByIdIfPermitted(mappingId, actorId, actorName(actorId), "ADMIN_DELETE");
+        depositorMappingService.deleteByIdIfPermitted(mappingId, actorId, actorName(actorId), "ADMIN_DELETE",
+                isSystemMaster);
         return response;
     }
 

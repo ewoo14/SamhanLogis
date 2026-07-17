@@ -42,20 +42,26 @@ public interface BankDepositorPartnerMappingRepository
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             INSERT INTO bank_depositor_partner_mapping
-                (id, raw_name, normalized_name, partner_id,
+                (id, raw_name, normalized_name, partner_id, partner_code,
                  created_at, created_by, modified_at, modified_by, is_deleted)
             VALUES
-                (gen_random_uuid(), :rawName, :normalizedName, :partnerId,
+                (gen_random_uuid(), :rawName, :normalizedName, :partnerId, :partnerCode,
                  NOW(), :actor, NOW(), :actor, FALSE)
             ON CONFLICT (normalized_name) WHERE is_deleted = FALSE
             DO UPDATE SET
                 raw_name = EXCLUDED.raw_name,
                 partner_id = EXCLUDED.partner_id,
+                partner_code = EXCLUDED.partner_code,
                 modified_at = NOW(),
                 modified_by = EXCLUDED.modified_by
             """, nativeQuery = true)
     int upsertActive(@Param("rawName") String rawName,
                      @Param("normalizedName") String normalizedName,
                      @Param("partnerId") UUID partnerId,
+                     @Param("partnerCode") String partnerCode,
                      @Param("actor") String actor);
+
+    /** 동일 정규화 키의 현재 상태 조회·갱신·감사를 하나의 직렬화 경계로 묶는다. */
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtext(CAST(:normalizedName AS text)))", nativeQuery = true)
+    void acquireNormalizedNameAdvisoryLock(@Param("normalizedName") String normalizedName);
 }

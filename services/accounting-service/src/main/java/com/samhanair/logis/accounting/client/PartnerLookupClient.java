@@ -34,6 +34,28 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class PartnerLookupClient {
 
+    /** 외부 거래처 조회 결과를 미존재와 일시 장애로 구분한다. */
+    public enum LookupStatus { FOUND, NOT_FOUND, UNAVAILABLE }
+
+    /** 조회 상태와 성공 시 거래처 요약을 함께 전달한다. */
+    public record LookupResult(LookupStatus status, PartnerSummary partner) {
+        public static LookupResult found(PartnerSummary partner) {
+            return new LookupResult(LookupStatus.FOUND, partner);
+        }
+
+        public static LookupResult notFound() {
+            return new LookupResult(LookupStatus.NOT_FOUND, null);
+        }
+
+        public static LookupResult unavailable() {
+            return new LookupResult(LookupStatus.UNAVAILABLE, null);
+        }
+
+        public boolean isFound() { return status == LookupStatus.FOUND && partner != null; }
+        public boolean isNotFound() { return status == LookupStatus.NOT_FOUND; }
+        public boolean isUnavailable() { return status == LookupStatus.UNAVAILABLE; }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(PartnerLookupClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PARTNER_SERVICE_BASE = "http://partner-service";
@@ -57,35 +79,28 @@ public class PartnerLookupClient {
      * @return PartnerSummary (성공) 또는 empty (실패)
      */
     public Optional<PartnerSummary> findByPartnerCode(String partnerCode) {
-        if (partnerCode == null || partnerCode.isBlank()) {
-            return Optional.empty();
-        }
+        LookupResult result = findByPartnerCodeResult(partnerCode);
+        return result == null || !result.isFound() ? Optional.empty() : Optional.of(result.partner());
+    }
+
+    /** 거래처 코드 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
+    public LookupResult findByPartnerCodeResult(String partnerCode) {
+        if (partnerCode == null || partnerCode.isBlank()) return LookupResult.notFound();
         String token = internalAuthProperties.getToken();
-        if (token == null || token.isBlank()) {
-            throw internalAuthMiss("partnerCode", partnerCode, 0);
-        }
+        if (token == null || token.isBlank()) throw internalAuthMiss("partnerCode", partnerCode, 0);
         try {
-            String body = restClient.get()
-                    .uri("/internal/partners/{partnerCode}", partnerCode.trim())
-                    .header(INTERNAL_TOKEN_HEADER, token)
-                    .retrieve()
-                    .body(String.class);
-            return parseSummary(body);
+            String body = restClient.get().uri("/internal/partners/{partnerCode}", partnerCode.trim())
+                    .header(INTERNAL_TOKEN_HEADER, token).retrieve().body(String.class);
+            return parseSummaryResult(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
-            if (status == 404) {
-                log.debug("PartnerLookupClient — partnerCode={} 404 (정상 미존재)", partnerCode);
-                return Optional.empty();
-            }
-            if (status == 401 || status == 403) {
-                throw internalAuthMiss("partnerCode", partnerCode, status);
-            }
-            log.warn("PartnerLookupClient — partnerCode={} status={} (예외)", partnerCode, status);
-            return Optional.empty();
+            if (status == 404 || status == 409) return LookupResult.notFound();
+            if (status == 401 || status == 403) throw internalAuthMiss("partnerCode", partnerCode, status);
+            log.warn("PartnerLookupClient — partnerCode={} status={} (일시 장애)", partnerCode, status);
+            return LookupResult.unavailable();
         } catch (Exception ex) {
-            log.warn("PartnerLookupClient 호출 실패 — partnerCode={}, msg={}",
-                    partnerCode, ex.getMessage());
-            return Optional.empty();
+            log.warn("PartnerLookupClient 호출 실패 — partnerCode={}, msg={}", partnerCode, ex.getMessage());
+            return LookupResult.unavailable();
         }
     }
 
@@ -102,35 +117,28 @@ public class PartnerLookupClient {
      * @return PartnerSummary (성공) 또는 empty (실패)
      */
     public Optional<PartnerSummary> findByPartnerId(UUID partnerId) {
-        if (partnerId == null) {
-            return Optional.empty();
-        }
+        LookupResult result = findByPartnerIdResult(partnerId);
+        return result == null || !result.isFound() ? Optional.empty() : Optional.of(result.partner());
+    }
+
+    /** 거래처 UUID 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
+    public LookupResult findByPartnerIdResult(UUID partnerId) {
+        if (partnerId == null) return LookupResult.notFound();
         String token = internalAuthProperties.getToken();
-        if (token == null || token.isBlank()) {
-            throw internalAuthMiss("partnerId", partnerId, 0);
-        }
+        if (token == null || token.isBlank()) throw internalAuthMiss("partnerId", partnerId, 0);
         try {
-            String body = restClient.get()
-                    .uri("/internal/partners/{partnerId}/summary", partnerId)
-                    .header(INTERNAL_TOKEN_HEADER, token)
-                    .retrieve()
-                    .body(String.class);
-            return parseSummary(body);
+            String body = restClient.get().uri("/internal/partners/{partnerId}/summary", partnerId)
+                    .header(INTERNAL_TOKEN_HEADER, token).retrieve().body(String.class);
+            return parseSummaryResult(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
-            if (status == 404) {
-                log.debug("PartnerLookupClient — partnerId={} 404 (정상 미존재)", partnerId);
-                return Optional.empty();
-            }
-            if (status == 401 || status == 403) {
-                throw internalAuthMiss("partnerId", partnerId, status);
-            }
-            log.warn("PartnerLookupClient — partnerId={} status={} (예외)", partnerId, status);
-            return Optional.empty();
+            if (status == 404 || status == 409) return LookupResult.notFound();
+            if (status == 401 || status == 403) throw internalAuthMiss("partnerId", partnerId, status);
+            log.warn("PartnerLookupClient — partnerId={} status={} (일시 장애)", partnerId, status);
+            return LookupResult.unavailable();
         } catch (Exception ex) {
-            log.warn("PartnerLookupClient partnerId 호출 실패 — partnerId={}, msg={}",
-                    partnerId, ex.getMessage());
-            return Optional.empty();
+            log.warn("PartnerLookupClient partnerId 호출 실패 — partnerId={}, msg={}", partnerId, ex.getMessage());
+            return LookupResult.unavailable();
         }
     }
 
@@ -290,14 +298,19 @@ public class PartnerLookupClient {
 
     /** ApiResponse wrapper 의 data 필드 → PartnerSummary 변환. */
     private Optional<PartnerSummary> parseSummary(String body) {
+        LookupResult result = parseSummaryResult(body);
+        return result == null || !result.isFound() ? Optional.empty() : Optional.of(result.partner());
+    }
+
+    private LookupResult parseSummaryResult(String body) {
         if (body == null || body.isBlank()) {
-            return Optional.empty();
+            return LookupResult.unavailable();
         }
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || data.isNull() || !data.isObject()) {
-                return Optional.empty();
+                return LookupResult.unavailable();
             }
             UUID partnerId = parseUuid(data, "partnerId", "id");
             String partnerCode = textOrNull(data, "partnerCode");
@@ -307,14 +320,14 @@ public class PartnerLookupClient {
             BigDecimal creditLimit = decimalOrNull(data, "creditLimit");
             String status = textOrNull(data, "status");
             if (partnerCode == null || partnerCode.isBlank()) {
-                return Optional.empty();
+                return LookupResult.unavailable();
             }
-            return Optional.of(new PartnerSummary(partnerId, partnerCode, name, businessNo, address,
+            return LookupResult.found(new PartnerSummary(partnerId, partnerCode, name, businessNo, address,
                     creditLimit, status));
         } catch (Exception ex) {
             log.warn("PartnerLookupClient response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
-            return Optional.empty();
+            return LookupResult.unavailable();
         }
     }
 

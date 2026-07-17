@@ -510,6 +510,40 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("MASTER 실 HTTP: X-Is-System-Master=true이면 clear-and-delete가 200이고 매핑도 삭제된다")
+    void systemMaster_clearAndDeleteBypassesInternalMappingPermission() throws Exception {
+        seedActiveMapping("삼한테스트상사", PARTNER_ID);
+        when(partnerLookupClient.findByPartnerId(PARTNER_ID)).thenReturn(Optional.of(PARTNER));
+        importCsv(ms949Csv()).andExpect(status().isOk());
+
+        clearAndDeleteMappingWithSystemMaster("BANK-001")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.matchedPartnerId").doesNotExist());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM bank_depositor_partner_mapping WHERE is_deleted = FALSE", Integer.class))
+                .isZero();
+        assertThat(repository.findByExternalRefAndIsDeletedFalse("BANK-001").orElseThrow()
+                .getMatchedPartnerId()).isNull();
+    }
+
+    @Test
+    @DisplayName("MASTER 실 HTTP: 수동 입금 매칭은 deposit mapping upsert를 학습한다")
+    void systemMaster_manualDepositMatchLearnsMapping() throws Exception {
+        insertNativeWithCounterparty("DEPOSIT", "CSV_IMPORT", "7000.00", "learn-master-001", "마스터학습상사");
+        when(partnerLookupClient.findByPartnerCode("P-2026-0001")).thenReturn(Optional.of(PARTNER));
+
+        matchPartnerWithSystemMaster("learn-master-001", "P-2026-0001")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.matchedPartnerCode").value("P-2026-0001"));
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_depositor_partner_mapping
+                 WHERE normalized_name = '마스터학습상사' AND is_deleted = FALSE
+                """, Integer.class)).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("#810 R1: 수동지정 학습은 입금+입금성 source에 한정한다 (출금·CODEF_CARD 학습 금지)")
     void matchPartner_learnsOnlyForDepositAndDepositSources() throws Exception {
         insertNativeWithCounterparty("WITHDRAWAL", "CSV_IMPORT", "3000.00", "learn-wd-001", "출금상대처");
@@ -611,6 +645,24 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
                 .header("X-User-Role", "ACCOUNTANT"));
     }
 
+    private org.springframework.test.web.servlet.ResultActions clearAndDeleteMappingWithSystemMaster(String externalRef)
+            throws Exception {
+        BankTransaction txn = repository.findByExternalRefAndIsDeletedFalse(externalRef).orElseThrow();
+        return mockMvc.perform(patch(BASE_URL + "/match-partner/clear-and-delete-mapping")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "bankAccountLabel": "%s",
+                          "transactedAt": "%s",
+                          "amount": %s,
+                          "externalRef": "%s"
+                        }
+                        """.formatted(BANK_ACCOUNT_LABEL, txn.getTransactedAt(),
+                        txn.getAmount().toPlainString(), externalRef))
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-Is-System-Master", "true"));
+    }
+
     private org.springframework.test.web.servlet.ResultActions importCsv(MockMultipartFile file) throws Exception {
         return mockMvc.perform(multipart(BASE_URL + "/import")
                 .file(file)
@@ -644,6 +696,25 @@ class BankTransactionControllerIT extends AbstractPostgresIT {
                         txn.getAmount().toPlainString(), externalRef, partnerCode))
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "ACCOUNTANT"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions matchPartnerWithSystemMaster(
+            String externalRef, String partnerCode) throws Exception {
+        BankTransaction txn = repository.findByExternalRefAndIsDeletedFalse(externalRef).orElseThrow();
+        return mockMvc.perform(patch(BASE_URL + "/match-partner")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "bankAccountLabel": "%s",
+                          "transactedAt": "%s",
+                          "amount": %s,
+                          "externalRef": "%s",
+                          "partnerCode": "%s"
+                        }
+                        """.formatted(BANK_ACCOUNT_LABEL, txn.getTransactedAt(),
+                        txn.getAmount().toPlainString(), externalRef, partnerCode))
+                .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-Is-System-Master", "true"));
     }
 
     private org.springframework.test.web.servlet.ResultActions clearPartner(String externalRef)

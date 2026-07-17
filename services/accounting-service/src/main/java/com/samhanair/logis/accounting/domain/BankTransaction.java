@@ -210,8 +210,17 @@ public class BankTransaction extends BaseEntity {
         if (source == PartnerMatchSource.DEPOSITOR_MAPPING && mappingId == null) {
             throw new IllegalArgumentException("DEPOSITOR_MAPPING 은 mappingId 가 필수입니다");
         }
+        if (source == PartnerMatchSource.DEPOSITOR_MAPPING
+                && (mappingRawName == null || mappingRawName.isBlank()
+                || mappingNormalizedName == null || mappingNormalizedName.isBlank())) {
+            throw new IllegalArgumentException("DEPOSITOR_MAPPING 은 mapping snapshot이 필수입니다");
+        }
         if (source != PartnerMatchSource.DEPOSITOR_MAPPING && mappingId != null) {
             throw new IllegalArgumentException("매핑 출처가 아니면 mappingId 를 지정할 수 없습니다");
+        }
+        if (source != PartnerMatchSource.DEPOSITOR_MAPPING
+                && (mappingRawName != null || mappingNormalizedName != null)) {
+            throw new IllegalArgumentException("DEPOSITOR_MAPPING 외 출처는 mapping snapshot을 가질 수 없습니다");
         }
         requireUnreflected("매칭");
         this.matchedPartnerId = partnerId;
