@@ -74,6 +74,9 @@ public class DepositorMappingService {
         actorName = effectiveActorName(actorName, isSystemMaster);
         validateRequest(request);
         String normalized = normalizeRequired(request.rawName());
+        // #810 적대검증 R3 (L3-L1): learn/update 와 동일한 normalized key advisory lock 으로
+        // create/update/delete 간 동시 변경(lost-update)을 직렬화한다. 존재 검사도 lock 이후 수행.
+        mappingRepository.acquireNormalizedNameAdvisoryLock(normalized);
         if (mappingRepository.findByNormalizedNameAndIsDeletedFalse(normalized).isPresent()) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 등록된 입금자명 매핑입니다: " + normalized);
         }
@@ -144,7 +147,11 @@ public class DepositorMappingService {
     public void delete(String normalizedName, UUID actorId, String actorName, String reason,
                        boolean isSystemMaster) {
         actorName = effectiveActorName(actorName, isSystemMaster);
-        BankDepositorPartnerMapping mapping = findActive(normalizedName);
+        // #810 적대검증 R3 (L3-L1): update/learn 과 동일 key lock — 동시 update+delete lost-update 방지.
+        // lock 획득 이후 현재 상태를 읽는다(TOCTOU 방지).
+        String key = normalizeRequired(normalizedName);
+        mappingRepository.acquireNormalizedNameAdvisoryLock(key);
+        BankDepositorPartnerMapping mapping = findActive(key);
         String oldPartnerCode = mapping.getPartnerCodeSnapshot();
         mapping.delete(storageActor(actorId, actorName));
         mappingRepository.saveAndFlush(mapping);
@@ -152,10 +159,20 @@ public class DepositorMappingService {
                 null, mapping.getNormalizedName(), null, actorId, actorName, reason(reason, "ADMIN_DELETE"));
     }
 
-    /** 거래의 matchedMappingId로 매핑을 soft delete한다. UUID는 endpoint에 노출하지 않는다. */
+    /**
+     * 거래의 matchedMappingId로 매핑을 soft delete한다. UUID는 endpoint에 노출하지 않는다.
+     *
+     * <p>#810 적대검증 R3 (L3-L1): update/learn 과 동일한 normalized key advisory lock 으로
+     * 직렬화한다. 엔티티 로드 <b>이전에</b> 현재 키를 native scalar 로 읽어 잠근 뒤 로드하므로,
+     * 동시 rename 커밋 이후의 신선한 상태를 읽어 stale 상태 덮어쓰기(lost-update)를 막는다.
+     */
     public void deleteById(UUID mappingId, UUID actorId, String actorName, String reason) {
         if (mappingId == null) {
             return;
+        }
+        String currentKey = mappingRepository.findNormalizedNameById(mappingId);
+        if (currentKey != null) {
+            mappingRepository.acquireNormalizedNameAdvisoryLock(currentKey);
         }
         mappingRepository.findById(mappingId).ifPresent(mapping -> {
             String oldPartnerCode = mapping.getPartnerCodeSnapshot();
@@ -364,9 +381,19 @@ public class DepositorMappingService {
         return normalized;
     }
 
+    /**
+     * 관리 목록/단건 응답 변환 — #810 적대검증 R3 (L5-L1).
+     *
+     * <p>거래처 조회가 일시 장애(UNAVAILABLE)면 stale(삭제/비활성)로 붕괴시키지 않고
+     * {@code targetStatus="UNAVAILABLE"}·{@code staleTarget=false} 로 구분 표기한다(계약 pin).
+     * NOT_FOUND/비활성은 기존대로 {@code staleTarget=true} 를 유지한다.
+     */
     private BankDepositorPartnerMappingResponse toResponse(BankDepositorPartnerMapping mapping) {
-        PartnerSummary partner = partnerLookupClient.findByPartnerId(mapping.getPartnerId()).orElse(null);
-        return toResponse(mapping, partner);
+        PartnerLookupClient.LookupResult lookup = lookupByPartnerId(mapping.getPartnerId());
+        if (lookup.isUnavailable()) {
+            return BankDepositorPartnerMappingResponse.unavailable(mapping);
+        }
+        return toResponse(mapping, lookup.isFound() ? lookup.partner() : null);
     }
 
     private BankDepositorPartnerMappingResponse toResponse(BankDepositorPartnerMapping mapping,

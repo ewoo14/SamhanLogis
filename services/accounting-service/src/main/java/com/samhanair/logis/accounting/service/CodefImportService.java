@@ -131,7 +131,9 @@ public class CodefImportService {
         int duplicateSkipped = 0;
         int matched = 0;
         int staleSkipped = 0;
+        int unavailableSkipped = 0;
         LinkedHashSet<String> staleNormalizedNames = new LinkedHashSet<>();
+        LinkedHashSet<String> unavailableNames = new LinkedHashSet<>();
         for (SourceTxn sourceTxn : fetched) {
             CodefTxn txn = sourceTxn.txn();
             BankTransaction transaction = toBankTransaction(txn, sourceTxn.source());
@@ -153,8 +155,15 @@ public class CodefImportService {
                     staleNormalizedName = resolution.mapping().getNormalizedName();
                 }
                 if (resolution.isUnavailable()) {
-                    throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                            "CODEF 거래처 조회가 일시적으로 unavailable 상태입니다. import를 저장하지 않고 재시도해야 합니다.");
+                    // #810 적대검증 R3 (L2-M1): 조회 일시 장애 행은 배치를 중단하지 않고 해당 행만
+                    // 저장 없이 skip 한다(행격리 — 특정 거래처 지속 장애의 poison-pill 해소).
+                    // 저장하지 않아야 다음 import 재시도에서 중복으로 오인되지 않는다(R2 의도 유지).
+                    unavailableSkipped++;
+                    unavailableNames.add(resolution.mapping().getNormalizedName());
+                    log.warn("[BC1] CODEF import 거래처 조회 일시 장애 — 행 skip(미저장·재시도 대상) "
+                            + "normalizedName={} externalRef={}",
+                            resolution.mapping().getNormalizedName(), txn.externalRef());
+                    continue;
                 }
                 if (resolution.isMatched()) {
                     var mapping = resolution.mapping();
@@ -166,8 +175,11 @@ public class CodefImportService {
                 } else if (!resolution.isStale()) {
                     PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(txn.counterpartyName());
                     if (lookup.isUnavailable()) {
-                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                                "CODEF 거래처 코드 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+                        unavailableSkipped++;
+                        addUnavailableName(unavailableNames, txn.counterpartyName());
+                        log.warn("[BC1] CODEF import 거래처 코드 조회 일시 장애 — 행 skip(미저장·재시도 대상) "
+                                + "counterparty={} externalRef={}", txn.counterpartyName(), txn.externalRef());
+                        continue;
                     }
                     if (lookup.isFound() && lookup.partner().partnerId() != null
                             && lookup.partner().isActiveStatus()) {
@@ -183,8 +195,12 @@ public class CodefImportService {
                 if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
                     PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(txn.counterpartyName());
                     if (lookup.isUnavailable()) {
-                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                                "CODEF 거래처 코드 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+                        // R3 (L2-M1): 카드·출금 정확일치 경로도 동일하게 행격리 — 배치는 계속.
+                        unavailableSkipped++;
+                        addUnavailableName(unavailableNames, txn.counterpartyName());
+                        log.warn("[BC1] CODEF import 거래처 코드 조회 일시 장애 — 행 skip(미저장·재시도 대상) "
+                                + "counterparty={} externalRef={}", txn.counterpartyName(), txn.externalRef());
+                        continue;
                     }
                     if (lookup.isFound() && lookup.partner().partnerId() != null
                             && lookup.partner().isActiveStatus()) {
@@ -218,10 +234,19 @@ public class CodefImportService {
             }
         }
 
-        log.info("[BC1] CODEF import 완료 — fetched={} imported={} duplicateSkipped={} matched={} staleSkipped={}",
-                fetched.size(), imported, duplicateSkipped, matched, staleSkipped);
+        log.info("[BC1] CODEF import 완료 — fetched={} imported={} duplicateSkipped={} matched={} "
+                + "staleSkipped={} unavailableSkipped={}",
+                fetched.size(), imported, duplicateSkipped, matched, staleSkipped, unavailableSkipped);
         return new CodefImportResponse(fetched.size(), imported, duplicateSkipped, matched,
-                staleSkipped, List.copyOf(staleNormalizedNames));
+                staleSkipped, List.copyOf(staleNormalizedNames),
+                unavailableSkipped, List.copyOf(unavailableNames));
+    }
+
+    /** unavailable skip 근거 이름 수집 — blank 상대처명은 근거 목록에서 제외한다(건수는 별도 집계). */
+    private static void addUnavailableName(LinkedHashSet<String> names, String counterpartyName) {
+        if (hasText(counterpartyName)) {
+            names.add(counterpartyName.trim());
+        }
     }
 
     private BankTransaction toBankTransaction(CodefTxn txn, BankTxnSource source) {

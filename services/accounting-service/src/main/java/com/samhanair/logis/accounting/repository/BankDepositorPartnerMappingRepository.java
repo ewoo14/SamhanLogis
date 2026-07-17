@@ -64,4 +64,16 @@ public interface BankDepositorPartnerMappingRepository
     /** 동일 정규화 키의 현재 상태 조회·갱신·감사를 하나의 직렬화 경계로 묶는다. */
     @Query(value = "SELECT pg_advisory_xact_lock(hashtext(CAST(:normalizedName AS text)))", nativeQuery = true)
     void acquireNormalizedNameAdvisoryLock(@Param("normalizedName") String normalizedName);
+
+    /**
+     * 매핑 id 의 현재 normalized key 를 entity 로드 없이 조회한다 — #810 적대검증 R3 (L3-L1).
+     *
+     * <p>deleteById 가 advisory lock 을 <b>엔티티 로드 전에</b> 획득할 수 있도록 native scalar
+     * 로 제공한다(soft-deleted 행 포함 — {@code @SQLRestriction} 우회).
+     */
+    @Query(value = """
+            SELECT normalized_name FROM bank_depositor_partner_mapping
+             WHERE id = :mappingId
+            """, nativeQuery = true)
+    String findNormalizedNameById(@Param("mappingId") UUID mappingId);
 }

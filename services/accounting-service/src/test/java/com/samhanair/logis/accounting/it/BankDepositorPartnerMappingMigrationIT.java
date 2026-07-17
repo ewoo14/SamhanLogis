@@ -13,7 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
-/** fresh PostgreSQL/Testcontainers에서 V57~V59 partial unique·CHECK와 provenance schema를 확인한다. */
+/** fresh PostgreSQL/Testcontainers에서 V57~V60 partial unique·CHECK와 provenance schema를 확인한다. */
 @SpringBootTest
 class BankDepositorPartnerMappingMigrationIT extends AbstractPostgresIT {
 
@@ -169,6 +169,51 @@ class BankDepositorPartnerMappingMigrationIT extends AbstractPostgresIT {
 
         assertThat(version).isEqualTo(59);
         assertThat(constraintCount).isEqualTo(1);
+    }
+
+    /**
+     * #810 적대검증 R3 (L3-M1) — V59 OR식 CHECK는 source NULL + snapshot NOT NULL 고아 행이
+     * NULL(UNKNOWN) 평가로 통과했다(psql 실측). V60 CASE식이 이를 거부하는지 probe 한다.
+     * 기존 IT는 non-null source 조합만 검증해 false-confidence 상태였다.
+     */
+    @Test
+    @DisplayName("V60 CASE CHECK는 무출처(source NULL) snapshot 고아 행을 거부한다")
+    void v60RejectsNullSourceSnapshotOrphanRows() {
+        // 양측 snapshot 보유 고아 행 — V59에서는 INSERT 성공(구멍), V60에서 거부.
+        assertThatThrownBy(() -> insertProvenanceRow("probe-bad-v60-null-source",
+                null, null, null, "Acme", "ACME"))
+                .hasStackTraceContaining("ck_bank_transaction_mapping_snapshot");
+
+        // 편측(raw만) snapshot 고아 행도 동일 거부.
+        assertThatThrownBy(() -> insertProvenanceRow("probe-bad-v60-null-source-raw-only",
+                null, null, null, "Acme", null))
+                .hasStackTraceContaining("ck_bank_transaction_mapping_snapshot");
+
+        // 편측(normalized만) snapshot 고아 행도 동일 거부.
+        assertThatThrownBy(() -> insertProvenanceRow("probe-bad-v60-null-source-normalized-only",
+                null, null, null, null, "ACME"))
+                .hasStackTraceContaining("ck_bank_transaction_mapping_snapshot");
+    }
+
+    @Test
+    @DisplayName("Flyway V60이 적용되고 snapshot CHECK가 CASE식 하나로 존재한다")
+    void v60SnapshotCheckExists() {
+        Integer version = jdbcTemplate.queryForObject(
+                "SELECT version::int FROM flyway_schema_history WHERE version = '60'", Integer.class);
+        Integer constraintCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM pg_constraint
+                 WHERE conname = 'ck_bank_transaction_mapping_snapshot'
+                   AND conrelid = 'bank_transaction'::regclass
+                """, Integer.class);
+        String definition = jdbcTemplate.queryForObject("""
+                SELECT pg_get_constraintdef(oid) FROM pg_constraint
+                 WHERE conname = 'ck_bank_transaction_mapping_snapshot'
+                   AND conrelid = 'bank_transaction'::regclass
+                """, String.class);
+
+        assertThat(version).isEqualTo(60);
+        assertThat(constraintCount).isEqualTo(1);
+        assertThat(definition).containsIgnoringCase("CASE");
     }
 
     private void insertProvenanceRow(String externalRef, UUID matchedPartnerId, String source,

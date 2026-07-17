@@ -154,6 +154,29 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("#810 R3: 거래처 조회 일시 장애는 stale이 아니라 targetStatus=UNAVAILABLE로 구분 표기한다")
+    void listMarksLookupOutageAsUnavailableNotStale() throws Exception {
+        create("Acme", "P-001").andExpect(status().isCreated());
+
+        // 일시 장애(UNAVAILABLE): staleTarget=false + targetStatus=UNAVAILABLE + snapshot 코드 유지.
+        when(partnerLookupClient.findByPartnerIdResult(PARTNER_ID))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+        mockMvc.perform(get(URL).header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].targetStatus").value("UNAVAILABLE"))
+                .andExpect(jsonPath("$.data[0].staleTarget").value(false))
+                .andExpect(jsonPath("$.data[0].partnerCode").value("P-001"));
+
+        // 진짜 미존재(NOT_FOUND): 기존 계약대로 staleTarget=true 유지.
+        when(partnerLookupClient.findByPartnerIdResult(PARTNER_ID))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        mockMvc.perform(get(URL).header("X-User-Id", ACTOR.toString()).header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].staleTarget").value(true))
+                .andExpect(jsonPath("$.data[0].targetStatus").doesNotExist());
+    }
+
+    @Test
     @DisplayName("key rename이 기존 활성 key와 충돌하면 409이고 조용히 병합하지 않는다")
     void renameConflictReturns409() throws Exception {
         create("Acme", "P-001").andExpect(status().isCreated());

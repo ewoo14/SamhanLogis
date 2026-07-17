@@ -46,6 +46,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.input.BOMInputStream;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -54,6 +55,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 /** 통장 입출금 거래 import/조회 서비스. */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -126,7 +128,9 @@ public class BankTransactionService {
         int imported = 0;
         int duplicateSkipped = 0;
         int staleSkipped = 0;
+        int unavailableSkipped = 0;
         LinkedHashSet<String> staleNormalizedNames = new LinkedHashSet<>();
+        LinkedHashSet<String> unavailableNames = new LinkedHashSet<>();
         for (String[] row : dataRows) {
             if (isAllBlank(row)) {
                 continue;
@@ -149,8 +153,15 @@ public class BankTransactionService {
                 staleSkipped++;
                 staleNormalizedNames.add(resolution.mapping().getNormalizedName());
             } else if (resolution.isUnavailable()) {
-                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                        "CSV 거래처 조회가 일시적으로 unavailable 상태입니다. 저장하지 않고 재시도해 주세요.");
+                // #810 적대검증 R3 (L2-M1): 조회 일시 장애 행은 배치를 중단하지 않고 해당 행만
+                // 저장 없이 skip 한다(행격리 — 특정 거래처 지속 장애의 poison-pill 해소).
+                // 저장하지 않아야 다음 import 재시도에서 중복으로 오인되지 않고 매핑을 재시도한다
+                // (R2 stale write 방지 의도 유지).
+                unavailableSkipped++;
+                unavailableNames.add(resolution.mapping().getNormalizedName());
+                log.warn("CSV import 거래처 조회 일시 장애 — 행 skip(미저장·재시도 대상) normalizedName={} externalRef={}",
+                        resolution.mapping().getNormalizedName(), transaction.getExternalRef());
+                continue;
             }
             BankTransaction saved = repository.save(transaction);
             if (saved.getPartnerMatchSource() == PartnerMatchSource.DEPOSITOR_MAPPING) {
@@ -160,7 +171,8 @@ public class BankTransactionService {
             imported++;
         }
         return new BankTransactionImportResult(dataRows.size(), imported, duplicateSkipped,
-                staleSkipped, List.copyOf(staleNormalizedNames));
+                staleSkipped, List.copyOf(staleNormalizedNames),
+                unavailableSkipped, List.copyOf(unavailableNames));
     }
 
     /**
@@ -254,9 +266,21 @@ public class BankTransactionService {
 
         BankTransaction transaction = findUniqueByNaturalKey(request.bankAccountLabel(),
                 request.transactedAt(), request.amount(), request.externalRef());
-        PartnerSummary partner = partnerLookupClient.findByPartnerCode(request.partnerCode().trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "등록된 거래처를 찾을 수 없습니다: " + request.partnerCode().trim()));
+        // #810 적대검증 R3 (L2-M2): FOUND/NOT_FOUND/UNAVAILABLE 3분류 — 일시 장애를 404 로
+        // 붕괴시키면 실존 거래처가 "없음"으로 오진되어 중복 등록을 유발한다. UNAVAILABLE 은
+        // 명확한 재시도 오류로 구분한다. (isActiveStatus 는 수동 매칭에서 검사하지 않는다 —
+        // 과거 정산을 위해 SUSPENDED 거래처 수동 지정을 허용.)
+        PartnerLookupClient.LookupResult lookup = lookupByPartnerCode(request.partnerCode().trim());
+        if (lookup.isUnavailable()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "거래처 조회가 일시적으로 unavailable 상태입니다. 잠시 후 다시 시도해 주세요: "
+                            + request.partnerCode().trim());
+        }
+        if (!lookup.isFound()) {
+            throw new BusinessException(ErrorCode.NOT_FOUND,
+                    "등록된 거래처를 찾을 수 없습니다: " + request.partnerCode().trim());
+        }
+        PartnerSummary partner = lookup.partner();
         if (partner.partnerId() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "거래처 내부 식별자를 해석할 수 없습니다: " + request.partnerCode().trim());
@@ -344,6 +368,23 @@ public class BankTransactionService {
         depositorMappingService.deleteByIdIfPermitted(mappingId, actorId, actorName(actorId), "ADMIN_DELETE",
                 isSystemMaster);
         return response;
+    }
+
+    /**
+     * 거래처 코드 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존하는 조회 헬퍼.
+     *
+     * <p>Result 메서드가 null 을 반환하는 환경(기존 Optional 변형만 stub 한 테스트 mock)에서는
+     * Optional 변형으로 폴백한다 — {@link DepositorMappingService}·{@link CodefImportService}
+     * 와 동일한 규약.
+     */
+    private PartnerLookupClient.LookupResult lookupByPartnerCode(String partnerCode) {
+        PartnerLookupClient.LookupResult result = partnerLookupClient.findByPartnerCodeResult(partnerCode);
+        if (result != null) {
+            return result;
+        }
+        return partnerLookupClient.findByPartnerCode(partnerCode)
+                .map(PartnerLookupClient.LookupResult::found)
+                .orElseGet(PartnerLookupClient.LookupResult::notFound);
     }
 
     private PartnerDisplay displayOfPartner(BankTransaction row, Map<UUID, PartnerSummary> partners) {

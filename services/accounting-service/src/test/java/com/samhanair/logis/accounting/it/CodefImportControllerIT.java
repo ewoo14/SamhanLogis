@@ -317,6 +317,53 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("#810 R3: 특정 거래처 조회 일시 장애 행만 격리되고 나머지 배치는 완주하며 재시도에서 재처리된다")
+    void importCodef_isolatesUnavailableRowAndRetriesOnNextImport() throws Exception {
+        // 전 거래처 NOT_FOUND, (주)삼성상사 행만 UNAVAILABLE — poison-pill 시나리오.
+        lenient().when(partnerLookupClient.findByPartnerCodeResult(anyString()))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        lenient().when(partnerLookupClient.findByPartnerCodeResult("(주)삼성상사"))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        importCodef()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetchedCount").value(10))
+                .andExpect(jsonPath("$.data.importedCount").value(9))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(0))
+                .andExpect(jsonPath("$.data.matchedCount").value(0))
+                .andExpect(jsonPath("$.data.unavailableSkippedCount").value(1))
+                .andExpect(jsonPath("$.data.unavailableNames[0]").value("(주)삼성상사"));
+
+        // 격리 행은 저장되지 않는다 — 재시도에서 중복으로 오인되지 않아야 한다.
+        Integer isolatedCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE counterparty_name = '(주)삼성상사' AND is_deleted = FALSE
+                """, Integer.class);
+        assertThat(isolatedCount).isZero();
+
+        // 장애 복구 후 재실행: 격리됐던 행이 정확일치 매칭과 함께 적재되고 나머지는 중복 skip.
+        lenient().when(partnerLookupClient.findByPartnerCodeResult("(주)삼성상사"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(new PartnerSummary(
+                        PARTNER_ID, "SS-001", "(주)삼성상사", "123-45-67890", "서울")));
+
+        importCodef()
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.importedCount").value(1))
+                .andExpect(jsonPath("$.data.duplicateSkippedCount").value(9))
+                .andExpect(jsonPath("$.data.matchedCount").value(1))
+                .andExpect(jsonPath("$.data.unavailableSkippedCount").value(0));
+
+        Integer retriedMatched = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM bank_transaction
+                 WHERE counterparty_name = '(주)삼성상사'
+                   AND matched_partner_id = ?
+                   AND partner_match_source = 'PARTNER_CODE_EXACT'
+                   AND is_deleted = FALSE
+                """, Integer.class, PARTNER_ID);
+        assertThat(retriedMatched).isEqualTo(1);
+    }
+
     private org.springframework.test.web.servlet.ResultActions importCodef() throws Exception {
         return mockMvc.perform(post(BASE_URL)
                 .contentType(MediaType.APPLICATION_JSON)

@@ -265,6 +265,34 @@ class DepositorMappingServiceTest {
     }
 
     @Test
+    @DisplayName("#810 R3: 관리 조회의 lookup UNAVAILABLE은 stale로 붕괴하지 않고 UNAVAILABLE로 구분 표기한다")
+    void getMarksUnavailableTargetDistinctFromStale() {
+        UUID partnerId = UUID.randomUUID();
+        BankDepositorPartnerMapping mapping = BankDepositorPartnerMapping.create("Acme", partnerId, "P-001");
+        when(mappingRepository.findByNormalizedNameAndIsDeletedFalse("ACME"))
+                .thenReturn(Optional.of(mapping));
+        when(partnerLookupClient.findByPartnerIdResult(partnerId))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        var unavailable = service.get("acme");
+
+        assertThat(unavailable.targetStatus()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.staleTarget()).isFalse();
+        assertThat(unavailable.partnerCode()).isEqualTo("P-001");
+        assertThat(unavailable.partnerName()).isNull();
+
+        // 대조: 진짜 미존재(NOT_FOUND)는 기존 계약대로 stale 로 표기한다.
+        when(partnerLookupClient.findByPartnerIdResult(partnerId))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+
+        var stale = service.get("acme");
+
+        assertThat(stale.staleTarget()).isTrue();
+        assertThat(stale.targetStatus()).isNull();
+        assertThat(stale.partnerCode()).isEqualTo("P-001");
+    }
+
+    @Test
     @DisplayName("stale mapping 삭제 audit은 저장된 partnerCode snapshot을 보존한다")
     void deleteAuditPreservesPartnerCodeSnapshot() {
         UUID mappingId = UUID.randomUUID();

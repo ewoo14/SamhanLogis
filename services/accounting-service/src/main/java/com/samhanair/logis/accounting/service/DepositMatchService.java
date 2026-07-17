@@ -208,8 +208,12 @@ public class DepositMatchService {
         } else if (mappingResolution.isStale()) {
             partnerOpt = Optional.empty();
         } else if (mappingResolution.isUnavailable()) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "KFTC 거래처 조회가 일시적으로 unavailable 상태입니다. 저장하지 않고 재시도해 주세요.");
+            // #810 적대검증 R3 (L2-M1): 조회 일시 장애 행은 배치를 중단하지 않고 UNMATCHED 로
+            // 격리한다(행격리 — poison-pill 해소). 정확일치 폴백도 하지 않아 오배정을 막고,
+            // UNMATCHED 는 아무것도 저장하지 않으므로 fetch-and-match 재실행 시 재시도된다.
+            log.warn("[SP-09-4] 거래처 조회 일시 장애 — depositorName={} 행 UNMATCHED 격리(재시도 대상)",
+                    deposit.depositorName());
+            partnerOpt = Optional.empty();
         } else {
             partnerOpt = resolveExactPartnerForCounterparty(deposit.depositorName());
             if (partnerOpt.isPresent()) {
@@ -288,7 +292,12 @@ public class DepositMatchService {
     // resolvePartnerForCounterparty(public)는 제거했다. 경로별 resolver는 각 서비스가
     // DepositorMappingService.resolveDeposit(txnType/source 인자)을 직접 사용한다.
 
-    /** KFTC 입금자명의 legacy partnerCode 정확일치 폴백. */
+    /**
+     * KFTC 입금자명의 legacy partnerCode 정확일치 폴백.
+     *
+     * <p>#810 적대검증 R3 (L2-M1): 조회 일시 장애(UNAVAILABLE)는 throw 하지 않고 empty 로
+     * 반환해 해당 행만 UNMATCHED 격리한다 — 배치는 계속되고 재실행 시 재시도된다.
+     */
     private Optional<PartnerSummary> resolveExactPartnerForCounterparty(String counterpartyName) {
         if (counterpartyName == null || counterpartyName.isBlank()) {
             return Optional.empty();
@@ -299,8 +308,9 @@ public class DepositMatchService {
                     .filter(PartnerSummary::isActiveStatus);
         }
         if (result.isUnavailable()) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "KFTC 거래처 코드 조회가 일시적으로 unavailable 상태입니다. 재시도해 주세요.");
+            log.warn("[SP-09-4] 거래처 코드 조회 일시 장애 — counterparty={} 행 UNMATCHED 격리(재시도 대상)",
+                    counterpartyName.trim());
+            return Optional.empty();
         }
         return result.isFound() && result.partner().isActiveStatus()
                 ? Optional.of(result.partner()) : Optional.empty();
