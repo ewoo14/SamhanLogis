@@ -345,6 +345,42 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(dbPartnerName).isEqualTo("교체거래처");
     }
 
+    @Test
+    @DisplayName("POST — partnerCode 100자(이카운트 실측 max=86 상회) 201 + DB 왕복, 101자 400 (#825 재수렴 #1: V61 VARCHAR(100))")
+    void createAcceptsPartnerCodeUpTo100Chars() throws Exception {
+        Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
+
+        // 100자 코드 — partners.partner_code VARCHAR(100) 과 동일 상한. V11 잔존 VARCHAR(50)
+        // 이었다면 아래 flush 시점에 value too long 으로 실패 → V61 확장의 genuine 검증.
+        String code100 = "C".repeat(100);
+        Map<String, Object> body = sampleBody();
+        body.put("partnerCode", code100);
+        MvcResult created = mockMvc.perform(post("/accounting/tax-invoices")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.partnerCode").value(code100))
+                .andReturn();
+        String id = data(created).get("id").asText();
+
+        // 같은 테스트 트랜잭션의 pending INSERT 를 raw JDBC 조회가 보도록 명시 flush
+        // (본 IT 의 updateReflectsNewPartnerId 와 동일 사유).
+        entityManager.flush();
+        org.assertj.core.api.Assertions.assertThat(taxInvoicePartnerCode(id)).isEqualTo(code100);
+
+        // 101자 — DTO @Size(max=100) bean validation → 400 (INVALID_INPUT)
+        Map<String, Object> tooLong = sampleBody();
+        tooLong.put("partnerCode", "X".repeat(101));
+        mockMvc.perform(post("/accounting/tax-invoices")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(tooLong)))
+                .andExpect(status().isBadRequest());
+    }
+
     private String createDraft() throws Exception {
         Map<String, Object> body = sampleBody();
         MvcResult res = mockMvc.perform(post("/accounting/tax-invoices")

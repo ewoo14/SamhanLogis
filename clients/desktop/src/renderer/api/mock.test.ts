@@ -1620,6 +1620,85 @@ describe('mock tax invoice e-Tax contract', () => {
   })
 })
 
+/**
+ * [#825 재수렴 #6] tax-invoice create/update mock 의 partnerId/partnerCode payload 반영.
+ *
+ * <p>BE TaxInvoiceService.create/update 는 request.partnerId()/partnerCode() 를 저장 후
+ * 응답(TaxInvoiceDetailResponse)에 왕복한다 (#825 CH1·CM-a — update 는 전체 교체 계약,
+ * partnerCode 미전송이면 null 로 갱신). mock 이 이를 미반영하면 "FE 가 partnerCode 를
+ * 전송하지 않게 되는 회귀" 가 mock 화면에서 기존값으로 위장돼 false-green 이 된다
+ * (in-process mock 3원칙 — BE parity).
+ */
+describe('mock tax invoice create/update partner payload contract (#825 재수렴 #6)', () => {
+  it('POST /accounting/tax-invoices 응답이 payload partnerId/partnerCode 를 그대로 왕복한다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/accounting/tax-invoices',
+      data: {
+        partnerId: 'partner-uuid-0009',
+        partnerCode: 'P-NEW-009',
+        partnerName: '신규거래처',
+        supplyDate: '2026-07-18',
+        lines: [],
+      },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    expect(created.data['partnerId']).toBe('partner-uuid-0009')
+    expect(created.data['partnerCode']).toBe('P-NEW-009')
+    expect(created.data['partnerName']).toBe('신규거래처')
+  })
+
+  it('POST partnerCode 미전송이면 BE 저장 계약과 동일하게 null 로 응답한다 (기존값 위장 금지)', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/accounting/tax-invoices',
+      data: {
+        partnerId: 'partner-uuid-0010',
+        partnerName: '코드미전송거래처',
+        supplyDate: '2026-07-18',
+        lines: [],
+      },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    expect(created.data['partnerCode']).toBeNull()
+  })
+
+  it('PUT /accounting/tax-invoices/{id} 가 거래처 교체 payload 의 partnerId/partnerCode 를 응답에 반영한다', () => {
+    const updated = mockRequest({
+      method: 'PUT',
+      url: '/accounting/tax-invoices/ti-002',
+      data: {
+        partnerId: 'partner-uuid-0001',
+        partnerCode: 'P-LASYS-001',
+        partnerBusinessNo: '123-45-67890',
+        partnerName: '엘에이시스템에어',
+        supplyDate: '2026-05-09',
+        lines: [],
+      },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    // ti-002 fixture 원값(partner-uuid-0002 / P-GANGNAM-002)이 아닌 교체 거래처로 왕복
+    expect(updated.data['partnerId']).toBe('partner-uuid-0001')
+    expect(updated.data['partnerCode']).toBe('P-LASYS-001')
+    expect(updated.data['partnerName']).toBe('엘에이시스템에어')
+  })
+
+  it('PUT partnerCode 미전송이면 BE 전체 교체 계약과 동일하게 null 로 갱신한다', () => {
+    const updated = mockRequest({
+      method: 'PUT',
+      url: '/accounting/tax-invoices/ti-002',
+      data: {
+        partnerId: 'partner-uuid-0002',
+        partnerName: '강남에어솔루션',
+        supplyDate: '2026-05-09',
+        lines: [],
+      },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    expect(updated.data['partnerCode']).toBeNull()
+  })
+})
+
 describe('mock bank transaction matching contract', () => {
   it('stores filter preferences per user and applies source-aware account filter selectively', () => {
     const userId = `mock-user-${Date.now()}`

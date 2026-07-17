@@ -113,6 +113,30 @@ function rateStyle(value: number | null): CSSProperties {
   return { color: 'var(--state-danger)' }
 }
 
+/**
+ * [#825 재수렴 #4] 실행 시점 draft-확정선택 불일치 안내문 (3 변형).
+ *
+ * <p>'입력을 비운 뒤 실행' 안내 금지 — AsyncAutocomplete 는 입력을 비워도(재포커스 시
+ * draft 자동 초기화 포함) 확정 선택이 해제되지 않으므로(blur 게이트), 그 안내는
+ * "빈 입력 = 전체 마감" 오인을 유도해 이전 선택(P1) 범위로 오마감시킨다. 선택 해제
+ * 경로는 명시 '해제' 버튼뿐이다.
+ *
+ * <ul>
+ *   <li>빈 draft + 확정 선택 잔존 — 잔존 선택을 드러내고 '해제' 버튼을 안내한다.</li>
+ *   <li>draft 타이핑 + 확정 선택 없음 — '해제' 버튼 미노출 상태라 목록 선택만 안내한다.</li>
+ *   <li>draft 타이핑 + 이전 확정 선택 잔존 — 목록 선택(교체) 또는 '해제'(전체 마감) 안내.</li>
+ * </ul>
+ */
+function execPartnerDraftGuardMessage(typedDraft: string, confirmedLabel: string): string {
+  if (typedDraft === '') {
+    return `입력을 비워도 선택한 거래처(${confirmedLabel})가 해제되지 않습니다. 전체 마감하려면 '해제' 버튼으로 거래처 선택을 지운 뒤 다시 실행하세요.`
+  }
+  if (confirmedLabel === '') {
+    return '입력한 거래처가 아직 선택되지 않았습니다. 거래처를 목록에서 선택한 뒤 다시 실행하세요.'
+  }
+  return "입력한 거래처가 아직 선택되지 않았습니다. 거래처를 목록에서 선택하거나 '해제' 버튼으로 거래처 선택을 지운 뒤 다시 실행하세요."
+}
+
 export function DailyClosingPage() {
   // [C5 후속 사이클2 D2-FE-001] role 문자열 직접 판정 제거 — BE @RequirePermission 과 1:1 page-code 판정.
   // 실행 = accounting.daily-closing.run CREATE / 잠금 해제(역마감) = accounting.daily-closing.unlock UPDATE.
@@ -130,12 +154,14 @@ export function DailyClosingPage() {
   const [execDate, setExecDate] = useState(today())
   const [execPartner, setExecPartner] = useState<PartnerOption | null>(null)
   /**
-   * [#825 재수렴 CM-b] 실행 거래처 입력의 미확정 draft 가드.
+   * [#825 재수렴 CM-b·#4] 실행 거래처 입력의 미확정 draft 가드.
    *
    * <p>AsyncAutocomplete 는 목록 선택(pick) 전까지 onChange 를 발화하지 않아, 거래처명을
    * 타이핑만 한 채 '마감 실행'을 누르면 draft 가 무시되고 execPartner(null 또는 이전 선택)
    * 범위로 마감된다 — 화면(타이핑 중 텍스트)과 상태(실제 마감 범위)가 어긋나는 오범위.
-   * 실행 시점에 입력 표시값(ref)을 확정 선택과 대조해 불일치면 차단하고 안내한다.
+   * [#4] 역방향도 동일 — 선택(P1) 후 재포커스로 표시가 비워져도(draft='') 선택은 잔존해,
+   * 빈 입력을 보고 실행하면 전체 마감 의도가 P1 마감으로 뒤집힌다. 실행 시점에 입력
+   * 표시값(ref)을 확정 선택과 대조해 (빈 draft 포함) 불일치면 차단하고 안내한다.
    */
   const execPartnerInputRef = useRef<HTMLInputElement | null>(null)
   const [execPartnerDraftError, setExecPartnerDraftError] = useState('')
@@ -187,21 +213,24 @@ export function DailyClosingPage() {
   })
 
   /**
-   * 마감 실행 — [#825 재수렴 CM-b] 미확정 draft 사전 차단.
+   * 마감 실행 — [#825 재수렴 CM-b·#4] 미확정 draft 사전 차단.
    *
-   * <p>실행 클릭 시점의 입력 표시값이 비어있지 않은데 확정 선택(execPartner.name)과
-   * 다르면, 사용자는 타이핑한 거래처로 마감된다고 오인한 상태다 — 실제로는 draft 가
-   * 무시되고 전체(null) 또는 이전 선택 범위로 마감되므로 실행을 차단하고 재선택을
-   * 유도한다. blur 후에는 컴포넌트가 draft 를 표시에서 폐기(선택 라벨 복원)하므로
-   * 화면=상태 정합이 회복되어 가드에 걸리지 않는다.
+   * <p>실행 클릭 시점의 입력 표시값이 확정 선택(execPartner.name)과 다르면 화면과
+   * 상태(실제 마감 범위)가 어긋난 상태다 — draft 는 무시되고 전체(null) 또는 이전 선택
+   * 범위로 마감되므로 실행을 차단하고 재선택/'해제'를 유도한다.
+   *
+   * <p>[#4] 빈 draft 도 차단 대상 — 재포커스 시 AsyncAutocomplete 가 draft 를 ''로
+   * 초기화해 표시가 비워지지만 확정 선택(P1)은 잔존한다. 이때 사용자는 빈 입력을 보고
+   * 전체 마감을 의도하므로, 빈 draft 통과(구 가드 {@code typedDraft !== ''} 선행 조건)는
+   * P1 오범위 마감이 된다. 확정 선택 없음 + 빈 draft(둘 다 '')만 전체 마감으로 통과한다.
+   * blur 후에는 컴포넌트가 draft 를 표시에서 폐기(선택 라벨 복원)하므로 화면=상태
+   * 정합이 회복되어 가드에 걸리지 않는다.
    */
   const handleExecuteClosing = () => {
     const typedDraft = (execPartnerInputRef.current?.value ?? '').trim()
     const confirmedLabel = (execPartner?.name ?? '').trim()
-    if (typedDraft !== '' && typedDraft !== confirmedLabel) {
-      setExecPartnerDraftError(
-        '입력한 거래처가 아직 선택되지 않았습니다. 거래처를 목록에서 선택하거나 입력을 비운 뒤 다시 실행하세요.',
-      )
+    if (typedDraft !== confirmedLabel) {
+      setExecPartnerDraftError(execPartnerDraftGuardMessage(typedDraft, confirmedLabel))
       return
     }
     setExecPartnerDraftError('')

@@ -176,9 +176,9 @@ class TaxInvoiceServiceTest {
     // ── 시나리오 4 ───────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("4. createFromRequest — partnerCode 50자 이하 정상, partnerName 필수")
+    @DisplayName("4. createFromRequest — partnerCode 100자 이하 정상, 101자 도메인 가드 거부 (#825 재수렴 #1)")
     void scenario4_createFromRequest_partnerCodeValidation() {
-        String longCode = "A".repeat(50); // 정확히 50자 — 정상
+        String longCode = "A".repeat(100); // 정확히 100자 — 정상 (partners VARCHAR(100) · 실측 max=86 정렬)
         TaxInvoiceCreateRequest req = new TaxInvoiceCreateRequest(
                 "SALES",
                 PARTNER_ID,
@@ -192,6 +192,22 @@ class TaxInvoiceServiceTest {
 
         TaxInvoiceDetailResponse res = taxInvoiceService.createFromRequest(req);
         assertThat(res.partnerCode()).isEqualTo(longCode);
+
+        // 101자 — DTO @Size(max=100) 는 controller 레벨, Service 는 도메인 가드가 이중 방어
+        TaxInvoiceCreateRequest tooLong = new TaxInvoiceCreateRequest(
+                "SALES",
+                PARTNER_ID,
+                "X".repeat(101),
+                "거래처",
+                null,
+                ISSUE_DATE, null,
+                List.of(new TaxInvoiceLineRequest("품목", null,
+                        BigDecimal.ONE, null, new BigDecimal("1000"), null, null))
+        );
+        assertThatThrownBy(() -> taxInvoiceService.createFromRequest(tooLong))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("partnerCode")
+                .hasMessageContaining("100");
     }
 
     // ── 시나리오 5 ───────────────────────────────────────────────────────────

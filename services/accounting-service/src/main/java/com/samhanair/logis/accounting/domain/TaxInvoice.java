@@ -90,8 +90,11 @@ public class TaxInvoice extends BaseEntity {
     /**
      * 거래처 코드 (snapshot at create) — 비즈니스 식별자, UUID 비공개 원칙 대응.
      * P0-4 V11 신규 컬럼. legacy 레코드 = NULL.
+     *
+     * <p>#825 재수렴 #1 — V61 에서 VARCHAR(100) 확장 (partners.partner_code VARCHAR(100),
+     * 이카운트 실측 max=86자 · 매출/매입 전표 100 과 통일).
      */
-    @Column(name = "partner_code", length = 50)
+    @Column(name = "partner_code", length = 100)
     private String partnerCode;
 
     /** 거래처 사업자등록번호 (snapshot at create). */
@@ -212,7 +215,7 @@ public class TaxInvoice extends BaseEntity {
      * <p>invoiceType 미지정 시 SALES 기본값 적용 (한국 물류업체 특성).
      *
      * @param partnerId         거래처 UUID (필수)
-     * @param partnerCode       거래처 코드 — 비즈니스 식별자 (선택, ≤50자)
+     * @param partnerCode       거래처 코드 — 비즈니스 식별자 (선택, ≤100자)
      * @param partnerBusinessNo 사업자등록번호 (선택, ≤20자)
      * @param partnerName       상호 (필수, ≤200자) — snapshot
      * @param partnerAddress    주소 (선택, ≤500자) — snapshot
@@ -232,8 +235,8 @@ public class TaxInvoice extends BaseEntity {
         if (supplyDate == null) {
             throw new IllegalArgumentException("supplyDate 는 필수입니다");
         }
-        if (partnerCode != null && partnerCode.length() > 50) {
-            throw new IllegalArgumentException("partnerCode 는 최대 50자입니다");
+        if (partnerCode != null && partnerCode.length() > 100) {
+            throw new IllegalArgumentException("partnerCode 는 최대 100자입니다");
         }
         if (partnerBusinessNo != null && partnerBusinessNo.length() > 20) {
             throw new IllegalArgumentException("partnerBusinessNo 는 최대 20자입니다");
@@ -360,7 +363,7 @@ public class TaxInvoice extends BaseEntity {
      * null 이면 null 로 갱신, DTO 계약과 동일한 nullable 의미).
      *
      * @param partnerId         거래처 UUID (필수) — 거래처 교체 시 새 거래처 UUID
-     * @param partnerCode       거래처 코드 (선택, ≤50자) — 거래처 교체 시 새 거래처 코드
+     * @param partnerCode       거래처 코드 (선택, ≤100자) — 거래처 교체 시 새 거래처 코드
      * @param partnerBusinessNo 사업자등록번호 snapshot (선택)
      * @param partnerName       상호 snapshot (필수, 1~200자)
      * @param partnerAddress    주소 snapshot (선택)
@@ -368,7 +371,7 @@ public class TaxInvoice extends BaseEntity {
      * @param description       적요 (선택)
      * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
      * @throws IllegalArgumentException partnerId/partnerName/supplyDate 필수값 위반 또는
-     *     partnerCode 50자 초과 시
+     *     partnerCode 100자 초과 시
      */
     public void updateBasic(UUID partnerId, String partnerCode, String partnerBusinessNo,
                             String partnerName, String partnerAddress, LocalDate supplyDate,
@@ -377,8 +380,8 @@ public class TaxInvoice extends BaseEntity {
         if (partnerId == null) {
             throw new IllegalArgumentException("partnerId 는 필수입니다");
         }
-        if (partnerCode != null && partnerCode.length() > 50) {
-            throw new IllegalArgumentException("partnerCode 는 최대 50자입니다");
+        if (partnerCode != null && partnerCode.length() > 100) {
+            throw new IllegalArgumentException("partnerCode 는 최대 100자입니다");
         }
         if (partnerName == null || partnerName.isBlank() || partnerName.length() > 200) {
             throw new IllegalArgumentException("partnerName 은 1~200자 필수입니다");

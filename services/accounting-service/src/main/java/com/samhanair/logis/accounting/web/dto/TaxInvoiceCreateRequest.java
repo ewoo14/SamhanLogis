@@ -31,8 +31,11 @@ public record TaxInvoiceCreateRequest(
         @NotNull(message = "partnerId 는 필수입니다")
         UUID partnerId,
 
-        /** 거래처 코드 (사용자 식별용 — UUID 비공개 원칙). */
-        @Size(max = 50, message = "partnerCode 는 최대 50자입니다")
+        /**
+         * 거래처 코드 (사용자 식별용 — UUID 비공개 원칙).
+         * #825 재수렴 #1 — 상한 50→100자 (partners.partner_code VARCHAR(100) 정렬, V61 동기).
+         */
+        @Size(max = 100, message = "partnerCode 는 최대 100자입니다")
         String partnerCode,
 
         /** 거래처 상호 (스냅샷 — 발행 시점 보존). */

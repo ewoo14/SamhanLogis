@@ -377,6 +377,17 @@ function AddBlockedPartnerDialog({
 }: AddBlockedPartnerDialogProps) {
   const [partner, setPartner] = useState<PartnerOption | null>(null)
   const [blockReason, setBlockReason] = useState('')
+  /**
+   * [#825 재수렴 #5] 등록 시점 미확정 draft 가드 안내 (DailyClosingPage #4 와 동일 root).
+   *
+   * <p>AsyncAutocomplete 는 목록 선택(pick) 전까지 onChange 를 발화하지 않아, P1 선택 후
+   * 다른 거래처명을 타이핑만 한 채(또는 재포커스로 입력이 비워진 채) '차단 등록'을 누르면
+   * draft 가 무시되고 확정 선택(P1) payload 로 차단된다 — 화면과 실제 차단 대상이 어긋나는
+   * 오대상. 등록 시점에 입력 표시값(ref)을 확정 선택(partner.name)과 대조해 불일치면
+   * 차단하고 목록 재선택을 안내한다. 안내는 PartnerAutocomplete `error` prop(FormField
+   * role=alert + aria-invalid 계약)으로 렌더한다.
+   */
+  const [partnerDraftError, setPartnerDraftError] = useState('')
   const partnerInputRef = useRef<HTMLInputElement | null>(null)
 
   // open 토글 시 입력 reset. 거래처 입력 자동 포커스는 Modal `initialFocusRef` 계약이
@@ -386,12 +397,26 @@ function AddBlockedPartnerDialog({
     if (!open) return
     setPartner(null)
     setBlockReason('')
+    setPartnerDraftError('')
   }, [open])
 
   const canSubmit = Boolean(partner) && !submitting
 
   const handleSubmit = () => {
     if (!canSubmit) return
+    // [#825 재수렴 #5] 입력 표시값(draft)과 확정 선택 불일치 시 등록 차단 —
+    // 빈 draft(재포커스로 표시만 비워짐 + 선택 잔존)도 오대상 차단 대상이다.
+    const typedDraft = (partnerInputRef.current?.value ?? '').trim()
+    const confirmedLabel = (partner?.name ?? '').trim()
+    if (typedDraft !== confirmedLabel) {
+      setPartnerDraftError(
+        typedDraft === ''
+          ? `입력을 비워도 선택한 거래처(${confirmedLabel})가 해제되지 않습니다. 차단할 거래처를 목록에서 다시 선택한 뒤 등록하세요.`
+          : '입력한 거래처가 아직 선택되지 않았습니다. 차단할 거래처를 목록에서 선택한 뒤 등록하세요.',
+      )
+      return
+    }
+    setPartnerDraftError('')
     const req: { partnerCode: string; blockReason?: string } = {
       partnerCode: partner!.partnerCode,
     }
@@ -427,13 +452,18 @@ function AddBlockedPartnerDialog({
         <PartnerAutocomplete
           ref={partnerInputRef}
           value={partner}
-          onChange={setPartner}
+          onChange={(option) => {
+            setPartner(option)
+            // [#825 재수렴 #5] 목록 선택 확정 즉시 draft 안내 소거 — 화면=상태 정합 회복.
+            setPartnerDraftError('')
+          }}
           searchPartners={searchPartners}
           // [#825 R1 L2] required prop 이 FormField 필수 마커를 렌더하므로 라벨 텍스트의
           // "(필수)" 중복 표기(SR 이중 낭독)를 제거한다.
           label="거래처"
           placeholder="거래처명 또는 코드 검색"
           required
+          error={partnerDraftError || undefined}
           inputTestId="admin-blocked-add-partner-code-input"
         />
         <label style={fieldLabelStyle}>

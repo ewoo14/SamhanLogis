@@ -158,11 +158,31 @@ class TaxInvoiceDomainTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("partnerId");
 
-        // #825 CM-a — partnerCode 50자 초과 도메인 가드 (DTO @Size 와 이중 방어)
-        assertThatThrownBy(() -> ti.updateBasic(newPartnerId, "X".repeat(51), "987-65-43210",
+        // #825 재수렴 #1 — 100자 코드 허용 (partners.partner_code VARCHAR(100) · 실측 max=86 정렬)
+        ti.updateBasic(newPartnerId, "C".repeat(100), "987-65-43210", "교체거래처", null,
+                TODAY, null);
+        assertThat(ti.getPartnerCode()).hasSize(100);
+
+        // #825 CM-a — partnerCode 100자 초과 도메인 가드 (DTO @Size(max=100) 와 이중 방어)
+        assertThatThrownBy(() -> ti.updateBasic(newPartnerId, "X".repeat(101), "987-65-43210",
                 "교체거래처", null, TODAY, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("partnerCode");
+                .hasMessageContaining("partnerCode")
+                .hasMessageContaining("100");
+    }
+
+    @Test
+    @DisplayName("create — partnerCode 100자 허용, 101자 거부 (#825 재수렴 #1: partners VARCHAR(100) 정렬)")
+    void createPartnerCodeLengthBoundary() {
+        TaxInvoice ok = TaxInvoice.create(UUID.randomUUID(), "C".repeat(100), "123-45-67890",
+                "테스트거래처", null, TODAY, null, null);
+        assertThat(ok.getPartnerCode()).hasSize(100);
+
+        assertThatThrownBy(() -> TaxInvoice.create(UUID.randomUUID(), "X".repeat(101),
+                "123-45-67890", "테스트거래처", null, TODAY, null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("partnerCode")
+                .hasMessageContaining("100");
     }
 
     @Test

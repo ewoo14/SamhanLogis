@@ -35,10 +35,13 @@
  *       Playwright 에서 관측 불가. 실행 성공 왕복(onSuccess 메모 초기화)만 단언하고,
  *       partnerCode payload 는 vitest `DailyClosingPage.test.tsx` 하네스가 단언한다.
  *       [#825 재수렴 CM-b] DC-2 는 미확정 draft(타이핑만·미선택) 실행 차단 — 안내 표시
- *       + 메모 유지(마감 미실행)를 실행 성공 케이스와 차등 단언한다.</li>
+ *       + 메모 유지(마감 미실행)를 실행 성공 케이스와 차등 단언한다.
+ *       [#825 재수렴 #4] DC-2 후반부는 빈 draft + 확정 선택 잔존(재포커스로 표시만
+ *       비워짐) 실행 차단 — '해제' 안내 + '해제' 후 전체 마감 통과를 단언한다.</li>
  *   <li><b>발송금지 단건 POST</b> — `/api/v1/partners/admin/blocks` POST 는 in-process
  *       미핸들 → 실 HTTP fallthrough → `page.route` 가 유효. postDataJSON 으로
- *       partnerCode payload 를 직접 단언한다.</li>
+ *       partnerCode payload 를 직접 단언한다. [#825 재수렴 #5] BP-3 은 확정 선택(P1)과
+ *       draft(P2 검색어) 불일치 등록 차단 — POST 미발생을 route 캡처 부재로 단언한다.</li>
  * </ul>
  *
  * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
@@ -378,7 +381,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await expect(memo).toHaveValue('', { timeout: 5_000 })
   })
 
-  test('DC-2 [#825 재수렴 CM-b] 미확정 draft 실행 차단 — 안내 표시·마감 미실행(메모 유지) 후 선택 확정 시 실행 성공', async ({ page }) => {
+  test('DC-2 [#825 재수렴 CM-b·#4] 미확정 draft 실행 차단(타이핑·빈 draft 양방향) — 안내 표시·마감 미실행(메모 유지) 후 정합 회복 시 실행 성공', async ({ page }) => {
     await installAuthMock(page)
     await blockLiveGatewayLeaks(page)
     await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
@@ -396,13 +399,38 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await page.getByTestId('daily-closing-exec-button').click()
 
     await expect(draftError).toBeVisible({ timeout: 5_000 })
-    await expect(draftError).toContainText('목록에서 선택하거나 입력을 비운 뒤')
+    // [#825 재수렴 #4] 확정 선택 없음 변형은 목록 선택만 안내 — "입력을 비운 뒤 실행"
+    // 유도 문구(빈 입력=전체 마감 오인 → 이전 선택 오범위 마감 유발)는 금지 카피다.
+    await expect(draftError).toContainText('목록에서 선택한 뒤 다시 실행하세요')
+    await expect(draftError).not.toContainText('입력을 비운 뒤')
     await expect(memo).toHaveValue('CM-b draft 가드 검증')
 
     // 목록에서 선택해 확정 → 안내 즉시 소거 → 실행 성공(onSuccess 메모 초기화)
     await searchAndPick(
       page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
     )
+    await expect(draftError).not.toBeVisible()
+    await page.getByTestId('daily-closing-exec-button').click()
+    await expect(memo).toHaveValue('', { timeout: 5_000 })
+
+    // [#825 재수렴 #4] 빈 draft + 확정 선택 잔존 — 선택(P1) 후 재포커스 시
+    // AsyncAutocomplete 가 draft 를 '' 로 초기화해 표시가 비워지지만 선택은 잔존한다.
+    // 이때 실행하면(사용자는 빈 입력을 보고 전체 마감 의도) P1 오범위 마감이므로 차단하고
+    // 잔존 선택 노출 + '해제' 버튼을 안내한다. '해제' 후 실행은 전체 마감으로 통과.
+    await searchAndPick(
+      page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
+    )
+    await memo.fill('#4 빈 draft 가드 검증')
+    await partnerInput.click()
+    await expect(partnerInput).toHaveValue('')
+    await page.getByTestId('daily-closing-exec-button').click()
+
+    await expect(draftError).toBeVisible({ timeout: 5_000 })
+    await expect(draftError).toContainText('엘에이시스템에어')
+    await expect(draftError).toContainText("'해제' 버튼")
+    await expect(memo).toHaveValue('#4 빈 draft 가드 검증')
+
+    await page.getByTestId('daily-closing-exec-partner-clear').click()
     await expect(draftError).not.toBeVisible()
     await page.getByTestId('daily-closing-exec-button').click()
     await expect(memo).toHaveValue('', { timeout: 5_000 })
@@ -532,6 +560,82 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
     await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
     expect(capturedBody!.partnerCode).toBe('4567890123')
 
+    await expect(dialog).not.toBeVisible({ timeout: 5_000 })
+  })
+
+  test('BP-3 [#825 재수렴 #5] 확정 선택-draft 불일치 등록 차단 — P1 선택 후 P2 검색어 타이핑 중 등록은 POST 미발생, P2 선택 확정 후 P2 payload 통과', async ({ page }) => {
+    await installAuthMock(page)
+    await blockLiveGatewayLeaks(page)
+
+    // BP-1/BP-2 와 동일한 POST 캡처 — 차단 시나리오에서는 캡처가 "발생하지 않아야" 한다.
+    let capturedBody: { partnerCode?: string; blockReason?: string } | null = null
+    await page.route('**/api/v1/partners/admin/blocks', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      capturedBody = route.request().postDataJSON() as {
+        partnerCode?: string
+        blockReason?: string
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(envelope({
+          id: 'block-e2e-003',
+          partnerCode: capturedBody?.partnerCode ?? '',
+          businessNameSnapshot: '미래시스템',
+          blockReason: capturedBody?.blockReason ?? null,
+          blockedAt: '2026-07-18T11:00:00+09:00',
+          source: 'MANUAL',
+        })),
+      })
+    })
+
+    await gotoPage(page, '/admin/blocked-partners', 'admin-blocked-add-button')
+    await page.getByTestId('admin-blocked-add-button').click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+
+    const partnerInput = page.getByTestId('admin-blocked-add-partner-code-input')
+    await expect(partnerInput).toBeFocused({ timeout: 3_000 })
+
+    // P1(엘에이시스템에어) 선택 확정
+    await partnerInput.fill('엘에이')
+    const listbox = partnerListbox(page)
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    await listbox.locator('li[role="option"]').filter({ hasText: '엘에이시스템에어' }).first().click()
+    await expect(partnerInput).toHaveValue('엘에이시스템에어')
+
+    // P2(미래시스템) 검색어를 타이핑만 — 후보 표시·미선택 draft (AsyncAutocomplete 는
+    // 선택 전까지 onChange 미발화라 확정 선택은 여전히 P1 이다)
+    await partnerInput.click()
+    await partnerInput.fill('미래')
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    await expect(
+      listbox.locator('li[role="option"]').filter({ hasText: '미래시스템' }).first(),
+    ).toBeVisible()
+
+    // 등록 → 차단: 화면(미래) ≠ 확정 선택(P1) — P1 오대상 POST 가 발생하지 않아야 한다.
+    // 안내는 FormField role=alert(목록 선택 유도) 계약으로 렌더된다.
+    await page.getByRole('button', { name: '차단 등록' }).click()
+    await expect(dialog.getByRole('alert')).toContainText('목록에서 선택한 뒤 등록하세요')
+    expect(capturedBody).toBeNull()
+    await expect(dialog).toBeVisible()
+
+    // 다시 검색해 P2 를 목록에서 선택 확정(등록 차단 클릭의 blur 로 후보가 닫혔으므로 재검색)
+    // → 안내 소거 → 등록 → P2 partnerCode payload 왕복 + 다이얼로그 닫힘 (P1 아님 증명)
+    await partnerInput.click()
+    await partnerInput.fill('미래')
+    const mireOption = listbox.locator('li[role="option"]').filter({ hasText: '미래시스템' })
+    await expect(mireOption.first()).toBeVisible({ timeout: 5_000 })
+    await mireOption.first().click()
+    await expect(partnerInput).toHaveValue('미래시스템')
+    await expect(dialog.getByRole('alert')).not.toBeVisible()
+
+    await page.getByRole('button', { name: '차단 등록' }).click()
+    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
+    expect(capturedBody!.partnerCode).toBe('4567890123')
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
 })

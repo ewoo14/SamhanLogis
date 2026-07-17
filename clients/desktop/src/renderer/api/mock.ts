@@ -8805,6 +8805,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // PUT /accounting/tax-invoices/{id} — DRAFT 수정 (헤더 + 라인 일괄 교체)
+  // [#825 재수렴 #6] partnerId/partnerCode 도 payload 그대로 반영 — BE TaxInvoiceService.update
+  // 는 ti.updateBasic(request.partnerId(), request.partnerCode(), …) 전체 교체 계약이라
+  // (#825 CH1·CM-a) 거래처 교체 시 새 partnerId/partnerCode 가 응답에 왕복돼야 한다.
+  // partnerCode 는 BE 와 동일하게 미전송(null) 이면 null 로 갱신한다 — 기존값 유지로
+  // 위장하면 "FE 가 partnerCode 전송을 중단하는 회귀" 를 mock 이 가려 false-green 이 된다.
   const taxInvoiceUpdateMatch = url.match(/\/accounting\/tax-invoices\/([^/?]+)$/)
   if (method === 'PUT' && taxInvoiceUpdateMatch) {
     const id = taxInvoiceUpdateMatch[1]!
@@ -8812,6 +8817,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const req = parseMockBody(config) as Record<string, unknown>
     return envelope({
       ...found,
+      partnerId: typeof req['partnerId'] === 'string' ? req['partnerId'] : found.partnerId,
+      partnerCode: typeof req['partnerCode'] === 'string' ? req['partnerCode'] : null,
       partnerName: typeof req['partnerName'] === 'string' ? req['partnerName'] : found.partnerName,
       partnerBusinessNo: typeof req['partnerBusinessNo'] === 'string' ? req['partnerBusinessNo'] : found.partnerBusinessNo,
       supplyDate: typeof req['supplyDate'] === 'string' ? req['supplyDate'] : found.supplyDate,
@@ -8835,6 +8842,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // POST /accounting/tax-invoices — 신규 DRAFT 생성
+  // [#825 재수렴 #6] partnerCode 를 응답에 포함 — BE TaxInvoiceService.create 가
+  // request.partnerCode() 를 저장·응답(TaxInvoiceDetailResponse.partnerCode)하는 계약
+  // (#825 CM-a) 과 일치. 누락 시 mock 만 partnerCode 없는 상세를 돌려줘 회귀가 위장된다.
   if (method === 'POST' && url.endsWith('/accounting/tax-invoices')) {
     const req = parseMockBody(config) as Record<string, unknown>
     const now = Date.now()
@@ -8842,6 +8852,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       id: 'ti-new-' + now,
       taxInvoiceNo: null,
       partnerId: typeof req['partnerId'] === 'string' ? req['partnerId'] : 'partner-uuid-new',
+      partnerCode: typeof req['partnerCode'] === 'string' ? req['partnerCode'] : null,
       partnerBusinessNo: typeof req['partnerBusinessNo'] === 'string' ? req['partnerBusinessNo'] : null,
       partnerName: typeof req['partnerName'] === 'string' ? req['partnerName'] : '거래처명',
       partnerAddress: typeof req['partnerAddress'] === 'string' ? req['partnerAddress'] : null,
