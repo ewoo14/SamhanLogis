@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AsyncAutocomplete } from './AsyncAutocomplete'
 
@@ -57,6 +57,62 @@ describe('AsyncAutocomplete', () => {
     resolveNew?.([newCandidate])
     await screen.findByText('새 후보')
     expect(renderQueries).toContain('new:new')
+  })
+
+  it('debounce 대기 중 직전 done/error 상태로 "검색 결과 없음"/stale 에러를 오표시하지 않고 "검색 중…"을 표시한다', async () => {
+    // 기존 debounceMs=0 테스트는 대기 창이 없어 이 flash 를 못 잡는다 — 명시 debounce 로 검증.
+    vi.useFakeTimers()
+    try {
+      const search = vi.fn<(q: string) => Promise<Option[]>>((q) =>
+        q === 'err' ? Promise.reject(new Error('검색 실패')) : Promise.resolve([]),
+      )
+
+      render(
+        <AsyncAutocomplete<Option>
+          value={null}
+          onChange={vi.fn()}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="검색 목록"
+          ariaLabel="검색"
+          debounceMs={250}
+        />,
+      )
+
+      const input = screen.getByRole('combobox', { name: '검색' })
+      fireEvent.focus(input)
+
+      // 1) 빈 결과 검색 완료 → status='done' + "검색 결과 없음" 도달
+      fireEvent.change(input, { target: { value: 'none' } })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(screen.getByText('검색 결과 없음')).toBeTruthy()
+
+      // 2) 새 키입력 — debounce 250ms 대기 중 직전 'done' 이 남아
+      //    "검색 결과 없음" 이 flash 되면 안 되고 "검색 중…" 이 떠야 한다.
+      fireEvent.change(input, { target: { value: 'err' } })
+      expect(screen.queryByText('검색 결과 없음')).toBeNull()
+      expect(screen.getByText('검색 중…')).toBeTruthy()
+
+      // 3) 검색 실패 → status='error' + 에러행 도달
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(screen.getByText('검색 중 오류가 발생했습니다.')).toBeTruthy()
+
+      // 4) 새 키입력 — debounce 대기 중 stale 에러행이 남으면 안 된다.
+      fireEvent.change(input, { target: { value: 'next' } })
+      expect(screen.queryByText('검색 중 오류가 발생했습니다.')).toBeNull()
+      expect(screen.getByText('검색 중…')).toBeTruthy()
+
+      // debounce 만료 전이므로 서버 재호출은 아직 없다 — 순수 대기 창 상태 검증.
+      expect(search).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('dropdown listbox 를 body portal 로 렌더해 overflow 컨테이너 클리핑을 피한다', async () => {

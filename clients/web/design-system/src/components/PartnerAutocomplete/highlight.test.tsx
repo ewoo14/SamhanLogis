@@ -22,6 +22,18 @@ describe('splitHighlightMatches', () => {
       { text: '거래처', matched: false },
     ])
   })
+
+  it('toLowerCase 가 코드유닛 길이를 바꾸는 문자(U+0130 İ)는 강조를 생략하고 원문을 그대로 반환한다', () => {
+    // 'İ'.toLowerCase() === 'i̇' (2 code units) — 인덱스 기반 slice 가 원문과 어긋나는 오정렬 가드.
+    expect(splitHighlightMatches('İstanbul', 'i')).toEqual([
+      { text: 'İstanbul', matched: false },
+    ])
+    // 길이 불변 원문은 기존 강조 동작을 유지한다.
+    expect(splitHighlightMatches('Istanbul', 'i')).toEqual([
+      { text: 'I', matched: true },
+      { text: 'stanbul', matched: false },
+    ])
+  })
 })
 
 describe('PartnerAutocomplete highlight', () => {

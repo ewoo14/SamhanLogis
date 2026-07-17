@@ -243,6 +243,12 @@ function AsyncAutocompleteInner<T>(
       return
     }
 
+    // debounce 대기 중 직전 status('done'/'error')가 남으면 방금 비운 후보와 결합해
+    // "검색 결과 없음"/stale 에러가 오표시된다(false-empty flash). 즉시 loading 으로
+    // 전환해 대기 중에는 "검색 중…" 만 표시한다 (#825 적대검증 R1).
+    setStatus('loading')
+    setErrorMsg(null)
+
     debounceTimer.current = window.setTimeout(() => {
       void performSearch(trimmed)
     }, debounceMs)

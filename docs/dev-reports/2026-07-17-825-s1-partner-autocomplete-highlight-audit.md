@@ -15,9 +15,11 @@
 
 ## 전수 감사표
 
-행 수 기준 집계: **(a) 7행 / (b) 21행 / (c) 8행 = 36행**.
+행 수 기준 집계: **(a) 8행 / (b) 21행 / (c) 9행 = 38행**.
 
-### (a) 즉시 표준화 후보 — 7행
+> 초판은 36행이었으나 OPUS 적대검증 R1에서 `JournalStatusReportPage`(a)·`SalesPartnerOrderDetailPage`(c) 누락 2행이 확인되어 보완했다. 아래 표가 실측 전수다.
+
+### (a) 즉시 표준화 후보 — 8행
 
 | 화면·라인 | 현재 입력 | 분류 | 근거 |
 |---|---|---|---|
@@ -26,6 +28,7 @@
 | `EstimateFormPage.tsx:1446-1458` | 견적 헤더 `PartnerAutocomplete` | (a) | 견적의 단일 거래처 선택이며 partner snapshot과 payload가 함께 갱신된다. |
 | `CollectionPlanPage.tsx:319-340`, `:432-446` | 수금계획 등록/필터 거래처 `AsyncAutocomplete` | (a) | 등록 대상과 필터 모두 `JournalStatusPartnerOption` exact 선택이며 다건 free-text가 아니다. |
 | `NotesReceivablePage.tsx:285-300`, `:348-362` | 어음 등록/필터 거래처 `AsyncAutocomplete` | (a) | 어음 귀속 거래처와 조회 거래처를 별도 선택한다. 사업자번호·코드 표시만 있고 UUID는 비공개다. |
+| `JournalStatusReportPage.tsx:263-281` | 분개 현황 보고서 거래처 필터 `AsyncAutocomplete` | (a) | `JournalStatusPartnerOption` exact 선택으로 CollectionPlan/NotesReceivable 필터와 동형이다. `partnerCode`를 key로 쓰는 단일 거래처 선택이며 free-text 다건 필터가 아니다. (적대검증 R1 누락 보완) |
 | `DailyClosingPage.tsx:531-538` | 마감 실행 대상 `execPartner` 코드 입력 | (a) | 임의 텍스트가 아니라 특정 거래처 코드 실행 대상이다. exact entity picker로 바꿀 때 실행 경계를 함께 검토한다. |
 | `admin/BlockedPartnersPage.tsx:422-429` | 차단 등록 거래처 코드 입력 | (a) | 차단 대상 단일 거래처 코드 필수 입력이다. 사유는 별도 정당 free-text다. |
 
@@ -55,7 +58,7 @@
 | `accounting/SupplierProfilePage.tsx:636-665` | 공급자 프로필 사업자번호·상호 | (b) | 공급자 프로필 신규/편집 입력이며 마스터 entity 생성·수정 경계다. |
 | `ArologisManualDispatchPage.tsx:718-744` | 수동 배차 정차의 거래처명·전표번호/코드 | (b) | 외부/수기 배차 데이터와 미배차 prefill을 보존하는 텍스트다. partnerId 없는 아로로지스 manual-stop 계약이다. |
 
-### (c) 필수화 슬라이스 이관 — 8행
+### (c) 필수화 슬라이스 이관 — 9행
 
 | 화면·라인 | 현재 입력 | 분류 | 근거 |
 |---|---|---|---|
@@ -67,6 +70,7 @@
 | `SlipDetailPage.tsx:1886-1902` | 매출전표 수정 거래처 선택·코드/사업자번호 snapshot | (c) | 공동편집 전표 수정의 필수화·권위 필드·snapshot 동기화 경계다. |
 | `SlipDetailPage.tsx:2153-2169` | 매입전표 수정 거래처 선택·코드/사업자번호 snapshot | (c) | 매출전표 수정과 같은 별도 전표 필수화/공동편집 정책 대상이다. |
 | `TaxInvoiceFormPage.tsx:501-530` | 거래처 검색 + 거래처명 snapshot plain input | (c) | 세금계산서 작성의 필수 헤더다. 자동완성 선택과 snapshot을 하나의 payload 계약으로 재-bound해야 한다. |
+| `SalesPartnerOrderDetailPage.tsx:1396-1404` | 주문 수정 모달 `header.partnerCode` `CollaborativeSlipInput` 편집 가능 free-text | (c) | 편집한 `partnerCode`가 `updatePartnerOrder` payload(:1343)로 저장되고 `convertPartnerOrderToSlip` 출고전표 전환 경계까지 흐르는 문서 작성 경계다. 공동편집 fieldPath 계약·선택 강제/필수화 정책을 함께 재-bound해야 한다. (적대검증 R1 누락 보완) |
 
 ## 확인된 기존 결함·권한 단절
 
@@ -86,5 +90,6 @@
 ## 제외 확인
 
 - `ArologisUnassignedPage`, `ArologisPreClassifyPage`, print/detail 화면의 `partnerName/partnerCode`는 read-only 표시 또는 URL prefill이며 free-text 거래처 입력으로 세지 않았다.
+  - **정정(적대검증 R1)**: "detail 화면 partnerCode=read-only" 제외절을 `SalesPartnerOrderDetailPage`에 일괄 적용한 것은 사실과 달랐다. 상세 조회부(:985)는 read-only `Input`이 맞으나 주문 수정 모달(:1396-1404)의 `header.partnerCode`는 **편집 가능** free-text이므로 위 (c) 표로 편입했다 — 주문 상세는 제외절의 예외다.
 - `GroupwareApprovalCreatePage`·`ApprovalLineConfigPage`의 autocomplete는 결재자/사용자 선택으로 거래처 입력이 아니다.
 - `PartnerAutocomplete`의 하이라이트는 기존 소비 화면 전체에 자동 전개되지만, 위 감사 분류를 이유로 desktop 파일럿 표준화 코드는 추가하지 않았다.
