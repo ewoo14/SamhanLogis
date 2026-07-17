@@ -353,6 +353,8 @@ export function CodefImportScopeForm({
           `중복 ${data.duplicateSkippedCount.toLocaleString('ko-KR')}건`,
           `자동매칭 ${data.matchedCount.toLocaleString('ko-KR')}건`,
           ...(data.staleSkippedCount > 0 ? [`stale 보류 ${data.staleSkippedCount.toLocaleString('ko-KR')}건`] : []),
+          // #810 R3: 일시장애 skip 은 stale 과 별개로 집계·표기(재시도 대상 — 미저장이라 재가져오기 시 재적재).
+          ...(data.unavailableSkippedCount > 0 ? [`일시장애 보류 ${data.unavailableSkippedCount.toLocaleString('ko-KR')}건`] : []),
         ].join(' · ')}`,
       })
       await onImported()
@@ -532,19 +534,37 @@ export function CodefImportScopeForm({
         )}
       </div>
 
-      {result ? (
-        <>
-          <div data-testid="codef-import-result" role="status" className="codef-import-result">
-            조회 {result.fetchedCount.toLocaleString('ko-KR')}건 · 적재 {result.importedCount.toLocaleString('ko-KR')}건 · 중복 {result.duplicateSkippedCount.toLocaleString('ko-KR')}건 · 자동매칭 {result.matchedCount.toLocaleString('ko-KR')}건
-          </div>
-          {result.staleSkippedCount > 0 ? (
-            <div role="alert" className="warning-banner" data-testid="codef-stale-warning">
-              거래처 조회가 확인되지 않아 {result.staleSkippedCount.toLocaleString('ko-KR')}건을 보류했습니다.
-              {result.staleNormalizedNames.length > 0 ? ` 대상: ${result.staleNormalizedNames.join(', ')}` : ''}
-            </div>
-          ) : null}
-        </>
-      ) : null}
+      {result ? <CodefImportResultSummary result={result} /> : null}
     </div>
+  )
+}
+
+/**
+ * 가져오기 결과 요약 + 보류 경고 — 두 보류 상태를 구분해 표시한다(#810 적대검증 R3 계약 pin).
+ *
+ * <p>stale(거래처 삭제/비활성 — 영구, 매핑 재선택 필요)은 role="alert" 경고,
+ * unavailable(거래처 조회 일시 장애 — 저장 없이 skip, 재시도 대상)은 role="status" 안내로
+ * 문구·시맨틱을 분리한다. unavailable 행은 미저장이라 잠시 후 다시 가져오면 재적재·재매칭된다.
+ */
+export function CodefImportResultSummary({ result }: { result: CodefImportResponse }) {
+  return (
+    <>
+      <div data-testid="codef-import-result" role="status" className="codef-import-result">
+        조회 {result.fetchedCount.toLocaleString('ko-KR')}건 · 적재 {result.importedCount.toLocaleString('ko-KR')}건 · 중복 {result.duplicateSkippedCount.toLocaleString('ko-KR')}건 · 자동매칭 {result.matchedCount.toLocaleString('ko-KR')}건
+      </div>
+      {result.staleSkippedCount > 0 ? (
+        <div role="alert" className="warning-banner" data-testid="codef-stale-warning">
+          거래처 조회가 확인되지 않아 {result.staleSkippedCount.toLocaleString('ko-KR')}건을 보류했습니다.
+          {result.staleNormalizedNames.length > 0 ? ` 대상: ${result.staleNormalizedNames.join(', ')}` : ''}
+        </div>
+      ) : null}
+      {result.unavailableSkippedCount > 0 ? (
+        <div role="status" className="warning-banner" data-testid="codef-unavailable-warning">
+          거래처 조회 일시 장애로 {result.unavailableSkippedCount.toLocaleString('ko-KR')}건 매칭 보류 — 잠시 후 다시
+          가져오기 하세요.
+          {result.unavailableNames.length > 0 ? ` 대상: ${result.unavailableNames.join(', ')}` : ''}
+        </div>
+      ) : null}
+    </>
   )
 }

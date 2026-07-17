@@ -75,7 +75,17 @@ describe('codef API BC3 계약', () => {
       cardRefs: ['card-1', 'card-2'],
       loanRefs: [],
     }
-    const result = { fetchedCount: 4, importedCount: 3, duplicateSkippedCount: 1, matchedCount: 0 }
+    // #810 R3 (L2-M1): BE CodefImportResponse 전체 필드 형태 — stale(영구)·unavailable(일시장애) additive.
+    const result = {
+      fetchedCount: 4,
+      importedCount: 3,
+      duplicateSkippedCount: 1,
+      matchedCount: 0,
+      staleSkippedCount: 0,
+      staleNormalizedNames: [],
+      unavailableSkippedCount: 0,
+      unavailableNames: [],
+    }
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { data: result } })
 
     await expect(importScopedCodef(request)).resolves.toEqual(result)

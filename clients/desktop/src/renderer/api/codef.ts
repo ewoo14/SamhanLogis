@@ -49,6 +49,13 @@ export interface CodefImportResponse {
   matchedCount: number
   staleSkippedCount: number
   staleNormalizedNames: string[]
+  /**
+   * 거래처 조회 일시 장애(UNAVAILABLE)로 저장 없이 skip 한 건수(#810 R3 L2-M1) —
+   * stale(영구·재선택 필요)과 별개인 재시도 대상. 미저장이라 다음 가져오기에서 재적재·재매칭된다.
+   */
+  unavailableSkippedCount: number
+  /** unavailable skip 근거 이름 — 매핑 정규화 키 또는 상대처명(중복 제거). */
+  unavailableNames: string[]
 }
 
 export async function listCodefBankAccounts(

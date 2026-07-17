@@ -1143,11 +1143,43 @@ describe('mock CODEF account selection BC3 contract', () => {
         cardRefs: saved.data.cardRefs,
         loanRefs: saved.data.loanRefs,
       },
-    }) as MockEnvelope<{ fetchedCount: number; importedCount: number; duplicateSkippedCount: number; matchedCount: number }>
+    }) as MockEnvelope<{
+      fetchedCount: number
+      importedCount: number
+      duplicateSkippedCount: number
+      matchedCount: number
+      staleSkippedCount: number
+      staleNormalizedNames: string[]
+      unavailableSkippedCount: number
+      unavailableNames: string[]
+    }>
 
     expect(saved.data).toEqual(scopePayload)
     expect(loaded.data).toEqual(scopePayload)
     expect(imported.data.fetchedCount).toBe(4)
+    // #810 R3 (L2-M1) additive 계약 — stale(영구)과 unavailable(일시장애 재시도 대상) 필드가
+    // 항상 존재한다. mock 은 일시장애 경로가 없어 0/빈 배열 기본값이다.
+    expect(imported.data.staleSkippedCount).toBe(0)
+    expect(imported.data.staleNormalizedNames).toEqual([])
+    expect(imported.data.unavailableSkippedCount).toBe(0)
+    expect(imported.data.unavailableNames).toEqual([])
+  })
+
+  it('CSV import 응답도 stale·unavailable additive 계약 필드를 포함한다 (#810 R3 L2-M1)', () => {
+    const bankAccountLabel = `국민 계약필드 ${Date.now()}`
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    expect(imported.data).toMatchObject({
+      staleSkippedCount: 0,
+      staleNormalizedNames: [],
+      unavailableSkippedCount: 0,
+      unavailableNames: [],
+    })
+    expect(Number(imported.data.totalRows)).toBeGreaterThan(0)
   })
 
   it('scope 미저장 조회는 200 envelope + empty scope 를 반환한다', () => {
@@ -1850,6 +1882,21 @@ describe('mock depositor mapping contract', () => {
     }) as MockEnvelope<Array<Record<string, unknown>>>
     expect(history.data.length).toBeGreaterThan(0)
     expect(history.data[0]).toEqual(expect.objectContaining({ actor: expect.any(String) }))
+    // #810 R3 (L4-M2): BE recordBatch 대칭 — 한 작업(update)의 전 필드행이 revisionNo 1개와
+    // changedAt 1개를 공유한다(필드별 회차 분리 금지). fieldName 은 BE mapping.* 필드셋(L4-L1).
+    const updateRows = history.data.filter((row) => row.revisionNo === 2)
+    expect(new Set(updateRows.map((row) => row.fieldName))).toEqual(new Set([
+      'mapping.rawName', 'mapping.normalizedName', 'mapping.partnerCode', 'mapping.reason',
+    ]))
+    expect(new Set(updateRows.map((row) => row.changedAt)).size).toBe(1)
+    expect(updateRows.find((row) => row.fieldName === 'mapping.reason')).toMatchObject({ newValue: '거래처 변경' })
+    // rename 후에도 entity 이력이 절단되지 않는다 — 생성 배치(rev 1, reason 기본 포함 4행)가
+    // 새 키 조회에 포함된다(BE entityId 역추적 대칭).
+    const createRows = history.data.filter((row) => row.revisionNo === 1)
+    expect(createRows.map((row) => String(row.fieldName)).sort()).toEqual([
+      'mapping.normalizedName', 'mapping.partnerCode', 'mapping.rawName', 'mapping.reason',
+    ])
+    expect(createRows.find((row) => row.fieldName === 'mapping.reason')).toMatchObject({ newValue: '초기 자동 매핑' })
 
     const deleted = mockRequest({
       method: 'DELETE',
@@ -1858,11 +1905,68 @@ describe('mock depositor mapping contract', () => {
     }) as MockEnvelope<null>
     expect(deleted.data).toBeNull()
 
+    // #810 R3 (L4-L1): 삭제 이력은 mock 전용 'active' 행이 아니라 BE 표현 —
+    // rawName·partnerCode(old→null) + reason 한 배치. normalizedName 은 불변이라 행이 없다.
+    const afterDelete = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: `ACME UPDATED ${suffix}` },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    const deleteRows = afterDelete.data.filter((row) => row.revisionNo === 3)
+    expect(deleteRows.map((row) => String(row.fieldName)).sort()).toEqual([
+      'mapping.partnerCode', 'mapping.rawName', 'mapping.reason',
+    ])
+    expect(deleteRows.find((row) => row.fieldName === 'mapping.rawName')).toMatchObject({ newValue: null })
+    expect(deleteRows.find((row) => row.fieldName === 'mapping.reason')).toMatchObject({ newValue: '더 이상 사용하지 않음' })
+    expect(afterDelete.data.some((row) => row.fieldName === 'active')).toBe(false)
+
     const listed = mockRequest({
       method: 'GET',
       url: '/accounting/deposit-mappings',
     }) as MockEnvelope<Array<Record<string, unknown>>>
     expect(listed.data.some((row) => row.normalizedName === `ACME UPDATED ${suffix}`)).toBe(false)
+  })
+
+  // #810 R3 (L4-M1): 같은 키의 삭제+재생성 시 revisionNo 는 entity 단위 채번이라 전역 비단조 —
+  // BE(와 mock)는 changedAt desc 로 반환하고 FE 는 이 순서를 재정렬 없이 신뢰해야 한다.
+  it('삭제+재생성 이력은 changedAt desc 순서이고 신 entity rev 1이 구 entity rev 2보다 앞이다', () => {
+    const suffix = String(Date.now())
+    const key = `REBIRTH ${suffix}`
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: `Rebirth ${suffix}`, partnerCode: '1234567890' },
+    })
+    mockRequest({
+      method: 'DELETE',
+      url: `/accounting/deposit-mappings?normalizedName=${encodeURIComponent(key)}`,
+    })
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: `Rebirth ${suffix}`, partnerCode: '2345678901' },
+    })
+
+    const history = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: key },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+
+    // 응답이 changedAt desc(최신 작업 먼저)로 정렬되어 있다.
+    const times = history.data.map((row) => String(row.changedAt))
+    expect([...times].sort().reverse()).toEqual(times)
+
+    const recreateIndex = history.data.findIndex((row) =>
+      row.fieldName === 'mapping.partnerCode' && row.newValue === '2345678901')
+    const deleteIndex = history.data.findIndex((row) =>
+      row.fieldName === 'mapping.partnerCode' && row.newValue === null && row.oldValue === '1234567890')
+    expect(recreateIndex).toBeGreaterThanOrEqual(0)
+    expect(deleteIndex).toBeGreaterThanOrEqual(0)
+    // 최신 작업(재생성)이 구 entity 삭제 행보다 앞 — 회차 크기(1 < 2)와 무관하게 시간순.
+    expect(recreateIndex).toBeLessThan(deleteIndex)
+    expect(history.data[recreateIndex]).toMatchObject({ revisionNo: 1 })
+    expect(history.data[deleteIndex]).toMatchObject({ revisionNo: 2 })
   })
 
   it('통장거래 provenance를 반환하고 두 해제 endpoint의 의미를 분리한다', () => {

@@ -2290,6 +2290,13 @@ export interface BankTransactionImportResult {
   duplicateSkippedCount: number
   staleSkippedCount: number
   staleNormalizedNames: string[]
+  /**
+   * 거래처 조회 일시 장애(UNAVAILABLE)로 저장 없이 skip 한 건수(#810 R3 L2-M1) —
+   * stale(영구·재선택 필요)과 별개인 재시도 대상. 미저장이라 다음 import 재시도에서 재적재·재매칭된다.
+   */
+  unavailableSkippedCount: number
+  /** unavailable skip 근거 이름 — 매핑 정규화 키(중복 제거). */
+  unavailableNames: string[]
 }
 
 export interface MatchBankTransactionPartnerRequest {
@@ -2310,13 +2317,24 @@ export interface ClearBankTransactionMatchRequest {
 export interface DepositorMappingResponse {
   rawName: string
   normalizedName: string
-  /** 거래처 코드 — 매핑된 거래처가 삭제/유실된 stale 매핑이면 BE 가 null 을 반환한다. */
+  /**
+   * 거래처 코드 — 거래처 master 미조회(삭제/유실/일시장애) 시에도 BE 가 매핑에 저장된
+   * partnerCodeSnapshot 을 반환할 수 있어 stale 매핑에서도 non-null 일 수 있다.
+   * stale 여부는 partnerCode null 검사가 아니라 staleTarget 으로 판정한다(#810 R3 L4-L2 주석 정정).
+   */
   partnerCode: string | null
-  /** 거래처명 — partnerCode 와 함께 null 가능(stale 매핑). */
+  /** 거래처명 — 거래처 master 미조회(삭제/유실/일시장애) 시 null. */
   partnerName: string | null
-  /** 거래처 master 상태(ACTIVE/SUSPENDED/TERMINATED). */
+  /**
+   * 거래처 master 상태(ACTIVE/SUSPENDED/TERMINATED). 거래처 미존재 시 null.
+   * 거래처 서비스 일시장애로 조회 자체가 실패하면 'UNAVAILABLE'(이때 staleTarget=false —
+   * #810 R3 계약 pin: FE 는 "거래처 조회 불가(일시)"로 표시하고 재선택을 강요하지 않는다).
+   */
   targetStatus: string | null
-  /** 거래처가 없거나 ACTIVE가 아니어서 재선택이 필요한 stale target 여부. */
+  /**
+   * 거래처가 없거나 ACTIVE 가 아니어서 재선택이 필요한 stale target 여부.
+   * 일시 조회 불가(targetStatus='UNAVAILABLE')는 stale 이 아니므로 false 다.
+   */
   staleTarget: boolean
   modifiedAt: string
   actor: string

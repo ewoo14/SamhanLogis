@@ -6281,6 +6281,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       matchedCount: 0,
       staleSkippedCount: 0,
       staleNormalizedNames: [],
+      // #810 R3 (L2-M1) additive 계약 — mock 은 거래처 서비스 일시장애 경로가 없어 항상 0/빈 배열.
+      unavailableSkippedCount: 0,
+      unavailableNames: [],
     })
   }
 
@@ -6530,7 +6533,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
     const normalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
-    return envelope(MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? [])
+    // BE findMappingHistoryByEntityIds 대칭(#810 적대검증 R3 L4-M1) — 키로 도달 가능한 전 entity 의
+    // 행을 changedAt desc, revisionNo desc, fieldName asc 로 반환한다. revisionNo 는 entity 단위
+    // 채번이라 삭제+재생성 키에서는 전역 비단조 — FE 는 이 시간순 순서를 재정렬 없이 신뢰한다.
+    const rows = (MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? [])
+      .flat()
+      .sort((a, b) => b.changedAt.localeCompare(a.changedAt)
+        || b.revisionNo - a.revisionNo
+        || (a.fieldName < b.fieldName ? -1 : a.fieldName > b.fieldName ? 1 : 0))
+    return envelope(rows)
   }
 
   if (method === 'GET' && url.endsWith('/accounting/deposit-mappings')) {
@@ -6574,8 +6585,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       active: true,
     }
     MOCK_DEPOSITOR_MAPPINGS = [row, ...MOCK_DEPOSITOR_MAPPINGS]
-    mockRecordDepositorHistory(normalizedName, 'partnerCode', '', partner.partnerCode)
-    if (reason) mockRecordDepositorHistory(normalizedName, 'reason', '', reason)
+    // BE create 감사 대칭(#810 R3 L4-M2/L4-L1) — 새 entity 의 rev 1 배치로 mapping.* 4행을 기록.
+    mockRecordDepositorMappingAudit(mockCreateDepositorHistoryEntity(normalizedName), {
+      oldRaw: null,
+      oldNormalized: null,
+      oldPartnerCode: null,
+      newRaw: row.rawName,
+      newNormalized: row.normalizedName,
+      newPartnerCode: row.partnerCode,
+      reason: reason || 'ADMIN_CREATE',
+    })
     return envelope(mockDepositorMappingResponse(row))
   }
 
@@ -6613,10 +6632,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       actor: mockDepositorActor(),
     }
     MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === index ? next : row)
-    mockRecordDepositorHistory(normalizedName, 'rawName', current.rawName, next.rawName)
-    mockRecordDepositorHistory(normalizedName, 'normalizedName', current.normalizedName, next.normalizedName)
-    mockRecordDepositorHistory(normalizedName, 'partnerCode', current.partnerCode, next.partnerCode)
-    if (reason) mockRecordDepositorHistory(normalizedName, 'reason', '', reason)
+    // BE update 감사 대칭(#810 R3 L4-M2) — 같은 entity 이력에 한 배치(rev +1)로 기록한다.
+    // rename 시 활성 포인터를 새 키로 옮기되 옛 키로도 계속 조회된다(BE entityId 역추적 대칭).
+    const historyEntity = mockActiveDepositorHistoryEntity(oldNormalizedName)
+    if (normalizedName !== oldNormalizedName) {
+      delete MOCK_DEPOSITOR_ACTIVE_HISTORY[oldNormalizedName]
+      MOCK_DEPOSITOR_ACTIVE_HISTORY[normalizedName] = historyEntity
+      mockRegisterDepositorHistoryKey(normalizedName, historyEntity)
+    }
+    mockRecordDepositorMappingAudit(historyEntity, {
+      oldRaw: current.rawName,
+      oldNormalized: current.normalizedName,
+      oldPartnerCode: current.partnerCode,
+      newRaw: next.rawName,
+      newNormalized: next.normalizedName,
+      newPartnerCode: next.partnerCode,
+      reason: reason || 'ADMIN_UPDATE',
+    })
     return envelope(mockDepositorMappingResponse(next))
   }
 
@@ -6629,11 +6661,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
     const reason = String(config.params?.['reason'] ?? urlObj.searchParams.get('reason') ?? '').trim()
+    const current = MOCK_DEPOSITOR_MAPPINGS[index]!
     MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === index
       ? { ...row, active: false, modifiedAt: new Date().toISOString(), actor: mockDepositorActor() }
       : row)
-    mockRecordDepositorHistory(normalizedName, 'active', 'true', 'false')
-    if (reason) mockRecordDepositorHistory(normalizedName, 'reason', '', reason)
+    // BE delete 감사 대칭(#810 R3 L4-L1) — mock 전용 'active' 행 대신 BE 삭제 표현
+    // (rawName·partnerCode old→null + reason 기본 ADMIN_DELETE, normalizedName 은 불변이라 제외) 한 배치.
+    mockRecordDepositorMappingAudit(mockActiveDepositorHistoryEntity(normalizedName), {
+      oldRaw: current.rawName,
+      oldNormalized: current.normalizedName,
+      oldPartnerCode: current.partnerCode,
+      newRaw: null,
+      newNormalized: current.normalizedName,
+      newPartnerCode: null,
+      reason: reason || 'ADMIN_DELETE',
+    })
+    delete MOCK_DEPOSITOR_ACTIVE_HISTORY[normalizedName]
     return envelope(null)
   }
 
@@ -6756,10 +6799,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const mappingIndex = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) =>
       row.active && row.normalizedName === current.appliedMappingNormalizedName)
     if (mappingIndex >= 0) {
+      const mappingRow = MOCK_DEPOSITOR_MAPPINGS[mappingIndex]!
       MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === mappingIndex
         ? { ...row, active: false, modifiedAt: new Date().toISOString(), actor: mockDepositorActor() }
         : row)
-      mockRecordDepositorHistory(current.appliedMappingNormalizedName, 'active', 'true', 'false')
+      // BE deleteById 감사 대칭(#810 R3 L4-L1) — 관리 삭제와 동일한 삭제 배치(reason=ADMIN_DELETE).
+      mockRecordDepositorMappingAudit(mockActiveDepositorHistoryEntity(mappingRow.normalizedName), {
+        oldRaw: mappingRow.rawName,
+        oldNormalized: mappingRow.normalizedName,
+        oldPartnerCode: mappingRow.partnerCode,
+        newRaw: null,
+        newNormalized: mappingRow.normalizedName,
+        newPartnerCode: null,
+        reason: 'ADMIN_DELETE',
+      })
+      delete MOCK_DEPOSITOR_ACTIVE_HISTORY[mappingRow.normalizedName]
     }
     const next: MockBankTransactionRow = {
       ...current,
@@ -6886,6 +6940,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       duplicateSkippedCount,
       staleSkippedCount: 0,
       staleNormalizedNames: [],
+      // #810 R3 (L2-M1) additive 계약 — mock 은 거래처 서비스 일시장애 경로가 없어 항상 0/빈 배열.
+      unavailableSkippedCount: 0,
+      unavailableNames: [],
     })
   }
 
@@ -16717,22 +16774,89 @@ function mockPartnerByCode(partnerCode: string): { partnerCode: string; name: st
     : null
 }
 
-function mockRecordDepositorHistory(
-  normalizedName: string,
-  fieldName: string,
-  oldValue: string,
-  newValue: string,
+/** BE AccountingAuditLog 의 entity(UUID) 1개 분량 이력 — 배열 1개 = 매핑 entity 1개의 전 audit 행. */
+type MockDepositorHistoryEntity = MockDepositorMappingHistoryRow[]
+
+type MockDepositorHistoryChange = {
+  fieldName: string
+  oldValue: string | null
+  newValue: string | null
+}
+
+/**
+ * 이력 changedAt 단조 증가 보장 — 같은 ms 안에 연속 실행되는 vitest 작업도
+ * BE(작업마다 서로 다른 DB 시각)처럼 시간순이 유지되도록 배치마다 최소 1ms 전진시킨다.
+ */
+let MOCK_DEPOSITOR_HISTORY_CLOCK = 0
+
+function mockDepositorHistoryNow(): string {
+  const now = Math.max(Date.now(), MOCK_DEPOSITOR_HISTORY_CLOCK + 1)
+  MOCK_DEPOSITOR_HISTORY_CLOCK = now
+  return new Date(now).toISOString()
+}
+
+/**
+ * BE AccountingAuditLogService.recordBatch 대칭(#810 적대검증 R3 L4-M2) — 한 작업(배치)의
+ * 전 필드행이 revisionNo 1개(작업당 1회 채번)와 같은 changedAt 을 공유한다.
+ * revisionNo 는 entity 단위 채번이라 같은 키의 삭제+재생성에서는 전역 유일·단조가 아니다
+ * — FE 는 changedAt desc 조회 순서를 신뢰한다(L4-M1).
+ */
+function mockRecordDepositorHistoryBatch(
+  entity: MockDepositorHistoryEntity,
+  changes: MockDepositorHistoryChange[],
 ): void {
-  const entries = MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? []
-  entries.unshift({
-    fieldName,
-    oldValue,
-    newValue,
-    actor: mockDepositorActor(),
-    changedAt: new Date().toISOString(),
-    revisionNo: entries.length + 1,
-  })
-  MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] = entries
+  if (changes.length === 0) return
+  const revisionNo = entity.reduce((max, row) => Math.max(max, row.revisionNo), 0) + 1
+  const changedAt = mockDepositorHistoryNow()
+  const actor = mockDepositorActor()
+  entity.push(...changes.map((change) => ({ ...change, actor, changedAt, revisionNo })))
+}
+
+/**
+ * BE DepositorMappingService.recordMappingAudit 대칭(#810 적대검증 R3 L4-L1) —
+ * `mapping.*` 배치 필드셋을 구성하고, reason 외 필드는 실제 변경(old !== new)만 남긴다.
+ * reason 행은 기본 사유(ADMIN_CREATE/ADMIN_UPDATE/ADMIN_DELETE/MANUAL_MATCH) 포함 항상 기록.
+ * 삭제는 mock 전용 active 행 대신 BE 표현(rawName·partnerCode old→null + reason)을 쓴다.
+ */
+function mockRecordDepositorMappingAudit(
+  entity: MockDepositorHistoryEntity,
+  audit: {
+    oldRaw: string | null
+    oldNormalized: string | null
+    oldPartnerCode: string | null
+    newRaw: string | null
+    newNormalized: string | null
+    newPartnerCode: string | null
+    reason: string
+  },
+): void {
+  const changes: MockDepositorHistoryChange[] = [
+    { fieldName: 'mapping.rawName', oldValue: audit.oldRaw, newValue: audit.newRaw },
+    { fieldName: 'mapping.normalizedName', oldValue: audit.oldNormalized, newValue: audit.newNormalized },
+    { fieldName: 'mapping.partnerCode', oldValue: audit.oldPartnerCode, newValue: audit.newPartnerCode },
+    { fieldName: 'mapping.reason', oldValue: null, newValue: audit.reason },
+  ].filter((change) => change.fieldName === 'mapping.reason' || change.oldValue !== change.newValue)
+  mockRecordDepositorHistoryBatch(entity, changes)
+}
+
+/** 키로 entity 이력을 조회 가능하게 등록한다(중복 등록 방지). rename 시 옛/새 키 모두 유지된다. */
+function mockRegisterDepositorHistoryKey(normalizedName: string, entity: MockDepositorHistoryEntity): void {
+  const entities = MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? []
+  if (!entities.includes(entity)) entities.push(entity)
+  MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] = entities
+}
+
+/** 새 매핑 entity 이력을 만들고 활성 포인터·키 인덱스에 등록한다(BE 신규 entityId 대칭 — rev 1부터). */
+function mockCreateDepositorHistoryEntity(normalizedName: string): MockDepositorHistoryEntity {
+  const entity: MockDepositorHistoryEntity = []
+  MOCK_DEPOSITOR_ACTIVE_HISTORY[normalizedName] = entity
+  mockRegisterDepositorHistoryKey(normalizedName, entity)
+  return entity
+}
+
+/** 활성 매핑의 현재 entity 이력(BE mapping.getId() 대칭). 이력 없이 시드된 매핑은 지연 생성한다. */
+function mockActiveDepositorHistoryEntity(normalizedName: string): MockDepositorHistoryEntity {
+  return MOCK_DEPOSITOR_ACTIVE_HISTORY[normalizedName] ?? mockCreateDepositorHistoryEntity(normalizedName)
 }
 
 let MOCK_DEPOSITOR_MAPPINGS: MockDepositorMappingRow[] = [
@@ -16746,17 +16870,28 @@ let MOCK_DEPOSITOR_MAPPINGS: MockDepositorMappingRow[] = [
     active: true,
   },
 ]
-let MOCK_DEPOSITOR_MAPPING_HISTORY: Record<string, MockDepositorMappingHistoryRow[]> = {
-  삼한상사: [
-    {
-      fieldName: 'partnerCode',
-      oldValue: '',
-      newValue: 'P-2026-0001',
-    actor: '사용자',
-    changedAt: '2026-06-23T08:00:00',
-      revisionNo: 1,
-    },
-  ],
+
+/** 시드 매핑(삼한상사)의 entity 이력 — BE ADMIN_CREATE 배치(rev 1 공유·mapping.* 4행) 대칭. */
+const MOCK_DEPOSITOR_SEED_HISTORY: MockDepositorHistoryEntity = [
+  { fieldName: 'mapping.rawName', oldValue: null, newValue: '삼한상사', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { fieldName: 'mapping.normalizedName', oldValue: null, newValue: '삼한상사', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { fieldName: 'mapping.partnerCode', oldValue: null, newValue: 'P-2026-0001', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+  { fieldName: 'mapping.reason', oldValue: null, newValue: 'ADMIN_CREATE', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
+]
+
+/**
+ * 정규화 키 → 그 키로 조회 가능한 entity 이력 목록.
+ * BE history()가 "매핑 row(soft-deleted 포함)의 키 + mapping.normalizedName old/new 등장"으로
+ * entityId 들을 수집하는 것의 mock 대칭 — rename 시 옛/새 키 양쪽에 같은 entity 가 등록되고,
+ * 같은 키의 삭제+재생성 시 한 키에 entity 2개가 쌓인다.
+ */
+let MOCK_DEPOSITOR_MAPPING_HISTORY: Record<string, MockDepositorHistoryEntity[]> = {
+  삼한상사: [MOCK_DEPOSITOR_SEED_HISTORY],
+}
+
+/** 활성 매핑 키 → 현재 entity 이력. 삭제 시 포인터만 제거되고 이력은 키 인덱스에 남는다. */
+let MOCK_DEPOSITOR_ACTIVE_HISTORY: Record<string, MockDepositorHistoryEntity> = {
+  삼한상사: MOCK_DEPOSITOR_SEED_HISTORY,
 }
 
 function mockApplyDepositorMapping(row: MockBankTransactionRow): MockBankTransactionRow {
@@ -16796,14 +16931,30 @@ function mockLearnDepositorMapping(rawName: string | null, partner: { partnerCod
   }
   if (existingIndex < 0) {
     MOCK_DEPOSITOR_MAPPINGS = [next, ...MOCK_DEPOSITOR_MAPPINGS]
-    mockRecordDepositorHistory(normalizedName, 'partnerCode', '', partner.partnerCode)
+    // BE learnMappingIfPermitted 신규 학습 감사 대칭(#810 R3 L4-M2/L4-L1) — MANUAL_MATCH 배치.
+    mockRecordDepositorMappingAudit(mockCreateDepositorHistoryEntity(normalizedName), {
+      oldRaw: null,
+      oldNormalized: null,
+      oldPartnerCode: null,
+      newRaw: next.rawName,
+      newNormalized: next.normalizedName,
+      newPartnerCode: next.partnerCode,
+      reason: 'MANUAL_MATCH',
+    })
     return
   }
   const existing = MOCK_DEPOSITOR_MAPPINGS[existingIndex]!
   MOCK_DEPOSITOR_MAPPINGS = MOCK_DEPOSITOR_MAPPINGS.map((row, rowIndex) => rowIndex === existingIndex ? next : row)
-  if (existing.partnerCode !== next.partnerCode) {
-    mockRecordDepositorHistory(normalizedName, 'partnerCode', existing.partnerCode, next.partnerCode)
-  }
+  // BE 기존 매핑 재학습 감사 대칭 — 변경 필드만 + reason(MANUAL_MATCH) 행은 항상 한 배치로 기록.
+  mockRecordDepositorMappingAudit(mockActiveDepositorHistoryEntity(normalizedName), {
+    oldRaw: existing.rawName,
+    oldNormalized: existing.normalizedName,
+    oldPartnerCode: existing.partnerCode,
+    newRaw: next.rawName,
+    newNormalized: next.normalizedName,
+    newPartnerCode: next.partnerCode,
+    reason: 'MANUAL_MATCH',
+  })
 }
 
 function mockBankTransactionResponse(row: MockBankTransactionRow): MockBankTransactionRow {

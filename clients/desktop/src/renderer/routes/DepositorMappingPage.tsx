@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -40,8 +40,10 @@ function formatDateTime(value: string): string {
 
 /**
  * 매핑 행의 거래처를 자동완성 옵션으로 변환한다.
- * 거래처가 삭제/유실된 stale 매핑(partnerCode null)은 옵션을 만들 수 없어 null 을 반환한다
- * — 수정 모달은 빈 거래처로 열려 재선택을 유도한다.
+ * 거래처를 ACTIVE 로 확인한 경우에만 옵션을 만들고, 그 외 — stale(삭제/비활성,
+ * staleTarget=true)이거나 일시 조회 불가(targetStatus='UNAVAILABLE') — 는 null 을 반환해
+ * 수정 모달이 빈 거래처로 열리게 한다. partnerCode 는 stale 매핑이어도 BE 가
+ * partnerCodeSnapshot 을 반환할 수 있어 null 검사만으로 stale 을 판정하지 않는다.
  */
 function partnerOptionOf(row: DepositorMappingResponse): PartnerOption | null {
   if (!row.partnerCode || row.staleTarget || row.targetStatus !== 'ACTIVE') return null
@@ -49,6 +51,38 @@ function partnerOptionOf(row: DepositorMappingResponse): PartnerOption | null {
     partnerCode: row.partnerCode,
     name: row.partnerName ?? '',
   }
+}
+
+/** UNAVAILABLE 판정 — 거래처 서비스 일시장애로 조회만 실패한 상태(#810 R3 계약: staleTarget=false). */
+function isPartnerLookupUnavailable(row: DepositorMappingResponse): boolean {
+  return !row.staleTarget && row.targetStatus === 'UNAVAILABLE'
+}
+
+/**
+ * 거래처 코드 셀 — 세 가지 비정상 상태를 구분해 표시한다(#810 적대검증 R3 계약 pin).
+ * ① staleTarget=true(거래처 삭제/비활성) → "거래처 재선택 필요" ② targetStatus='UNAVAILABLE'
+ * (일시장애 중 조회 실패·staleTarget=false) → "거래처 조회 불가(일시)" — 재선택 강요가 아닌
+ * 일시 상태 안내 ③ 코드 자체 부재 → "거래처 삭제됨". UUID 는 노출하지 않는다.
+ */
+export function partnerCodeCell(row: DepositorMappingResponse): ReactNode {
+  if (row.staleTarget) {
+    return <Badge variant="warning">거래처 재선택 필요{row.targetStatus ? ` (${row.targetStatus})` : ''}</Badge>
+  }
+  if (isPartnerLookupUnavailable(row)) {
+    return <Badge variant="warning">거래처 조회 불가(일시)</Badge>
+  }
+  return row.partnerCode ?? <Badge variant="warning">거래처 삭제됨</Badge>
+}
+
+/** 거래처명 셀 — stale(재선택 필요)과 일시 조회 불가를 구분해 표시한다(#810 R3 계약 pin). */
+export function partnerNameCell(row: DepositorMappingResponse): ReactNode {
+  if (row.staleTarget) {
+    return <span role="alert">비활성 거래처 — 재선택 필요</span>
+  }
+  if (isPartnerLookupUnavailable(row)) {
+    return <span role="status">거래처 일시 조회 불가</span>
+  }
+  return row.partnerName ?? '—'
 }
 
 function historyValue(value: string | null | undefined): string {
@@ -150,18 +184,14 @@ export function DepositorMappingPage() {
         key: 'partnerCode',
         header: '거래처 코드',
         width: '150px',
-        // stale 매핑은 snapshot 코드가 있어도 재선택이 필요한 상태로 표시한다.
-        render: (row) => row.staleTarget
-          ? <Badge variant="warning">거래처 재선택 필요{row.targetStatus ? ` (${row.targetStatus})` : ''}</Badge>
-          : row.partnerCode ?? <Badge variant="warning">거래처 삭제됨</Badge>,
+        // stale 매핑은 snapshot 코드가 있어도 재선택 필요, UNAVAILABLE 은 일시 조회 불가로 구분 표시.
+        render: partnerCodeCell,
       },
       {
         key: 'partnerName',
         header: '거래처명',
         width: '180px',
-        render: (row) => row.staleTarget
-          ? <span role="alert">비활성 거래처 — 재선택 필요</span>
-          : row.partnerName ?? '—',
+        render: partnerNameCell,
       },
       { key: 'modifiedAt', header: '수정일시', width: '150px', render: (row) => formatDateTime(row.modifiedAt) },
       { key: 'actor', header: '수정자', width: '100px' },
@@ -285,6 +315,13 @@ export function DepositorMappingPage() {
         )}
       >
         <div style={{ display: 'grid', gap: 14 }}>
+          {editingMapping && isPartnerLookupUnavailable(editingMapping) ? (
+            // #810 R3 계약 pin: 일시장애(UNAVAILABLE)는 "거래처 삭제됨"(stale)과 구분해 안내한다.
+            <div className="warning-banner" role="status">
+              거래처 조회 불가(일시) — 거래처 정보를 일시적으로 확인할 수 없어 거래처 칸을 비워 두었습니다.
+              잠시 후 다시 시도해 주세요.
+            </div>
+          ) : null}
           <Input
             label="원본 입금자명"
             value={form.rawName}
@@ -362,17 +399,21 @@ export function DepositorMappingPage() {
   )
 }
 
-function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse[]; loading: boolean }) {
+/**
+ * 매핑 변경 이력 테이블 — BE 반환 순서를 재정렬 없이 그대로 신뢰한다(#810 적대검증 R3 L4-M1).
+ *
+ * BE 가 changedAt desc(동시각 내 revisionNo desc·fieldName asc)로 정렬해 반환하며,
+ * revisionNo 는 entity 단위 채번이라 같은 키의 삭제+재생성/rename 시 전역 유일·단조가 아니다.
+ * FE 가 revisionNo 를 1차 정렬 키로 재정렬하면 구 entity 의 높은 회차가 신 entity 위로 올라와
+ * 시간순이 뒤섞인다 — 회차(revisionNo)는 표시 전용이고 정렬 키가 아니다.
+ */
+export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse[]; loading: boolean }) {
   const fieldLabels: Record<string, string> = {
     'mapping.rawName': '원본 입금자명',
     'mapping.normalizedName': '정규화 입금자명',
     'mapping.partnerCode': '거래처 코드',
     'mapping.reason': '변경 사유',
   }
-  const orderedRows = [...rows].sort((left, right) =>
-    right.revisionNo - left.revisionNo
-    || right.changedAt.localeCompare(left.changedAt),
-  )
   const columns: DataTableColumn<DepositorMappingHistoryResponse>[] = [
     { key: 'revisionNo', header: '회차', width: '70px', render: (row) => `#${row.revisionNo}` },
     { key: 'fieldName', header: '변경 항목', width: '150px', render: (row) => fieldLabels[row.fieldName] ?? row.fieldName },
@@ -384,7 +425,7 @@ function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse
   return (
     <DataTable
       columns={columns}
-      rows={orderedRows}
+      rows={rows}
       loading={loading}
       emptyMessage="변경 이력이 없습니다."
       rowKey={(row) => `${row.revisionNo}-${row.changedAt}-${row.fieldName}`}
