@@ -93,11 +93,14 @@ public class TaxInvoiceService {
 
     /**
      * 신규 세금계산서 생성 (DRAFT). 라인 1개 이상 필수, 금액 자동 계산.
+     *
+     * <p>#825 CM-a — partnerCode 도 함께 저장한다 (기존 표준 create 경로가 partnerCode 를
+     * 전달하지 않아 null 로 저장되던 누락 보정 — invoiceType 은 기존과 동일하게 SALES 기본).
      */
     public TaxInvoiceDetailResponse create(CreateTaxInvoiceRequest request) {
-        TaxInvoice ti = TaxInvoice.create(request.partnerId(), request.partnerBusinessNo(),
-                request.partnerName(), request.partnerAddress(), request.supplyDate(),
-                request.description());
+        TaxInvoice ti = TaxInvoice.create(request.partnerId(), request.partnerCode(),
+                request.partnerBusinessNo(), request.partnerName(), request.partnerAddress(),
+                request.supplyDate(), request.description(), TaxInvoiceType.SALES);
         int lineNo = 1;
         for (CreateTaxInvoiceLineRequest lineReq : request.lines()) {
             TaxInvoiceLine line = TaxInvoiceLine.create(ti, lineNo++, lineReq.itemName(),
@@ -116,6 +119,10 @@ public class TaxInvoiceService {
      * 반영해 "원 거래처 UUID + 새 거래처 상호" 불일치(무결성 훼손)를 차단한다 (create 와
      * 동일 계약 — partnerId {@code @NotNull}).
      *
+     * <p>#825 CM-a — {@code request.partnerCode()} 도 함께 반영한다. 미반영 시 /issue-request
+     * 생성분(partnerCode 채워짐)을 편집으로 거래처 교체하면 P1 코드가 잔존해 partnerId/name/
+     * bizNo(P2)와 불일치가 생긴다 (선택 필드 — null 이면 null 로 갱신, create 와 동일 계약).
+     *
      * <p>PR-H4b — shared audit recorder 가 등록되어 있으면 헤더 변경 (partnerName/partnerAddress/
      * supplyDate/description) 별로 audit_log 1행 + SSE broadcast. partnerId(UUID) 는 기존
      * 관례(인간가독 snapshot 필드만 기록)에 따라 audit diff 에 포함하지 않는다 — UUID 사용자
@@ -129,8 +136,9 @@ public class TaxInvoiceService {
         String oldSupplyDate = ti.getSupplyDate() == null ? null : ti.getSupplyDate().toString();
         String oldDescription = ti.getDescription();
 
-        ti.updateBasic(request.partnerId(), request.partnerBusinessNo(), request.partnerName(),
-                request.partnerAddress(), request.supplyDate(), request.description());
+        ti.updateBasic(request.partnerId(), request.partnerCode(), request.partnerBusinessNo(),
+                request.partnerName(), request.partnerAddress(), request.supplyDate(),
+                request.description());
         /*
          * 라인 교체는 기존 라인 제거를 먼저 DB에 반영한 뒤 신규 라인을 추가한다.
          * Hibernate action queue 는 같은 flush 에서 INSERT 를 DELETE 보다 먼저 실행할 수 있어

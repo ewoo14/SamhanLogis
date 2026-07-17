@@ -83,6 +83,8 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                // #825 CM-a — 표준 create 경로도 partnerCode 저장 (기존 null 누락 보정)
+                .andExpect(jsonPath("$.data.partnerCode").value("1234567890"))
                 .andExpect(jsonPath("$.data.supplyAmount").value(100000.00))
                 .andExpect(jsonPath("$.data.vatAmount").value(10000.00))
                 .andExpect(jsonPath("$.data.totalAmount").value(110000.00));
@@ -287,14 +289,15 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("update — 거래처 교체 시 partnerId 도 반영 (#825 CH1: PUT 응답 + DB partner_id = P2, partnerName 정합)")
+    @DisplayName("update — 거래처 교체 시 partnerId+partnerCode 도 반영 (#825 CH1/CM-a: PUT 응답 + DB partner_id/partner_code = P2 정합)")
     void updateReflectsNewPartnerId() throws Exception {
         Mockito.lenient().when(slipServiceClient.lockByPeriod(Mockito.any(), Mockito.any())).thenReturn(0);
 
-        // P1 거래처로 DRAFT 생성
+        // P1 거래처로 DRAFT 생성 — partnerCode(P1) 포함 (#825 CM-a)
         UUID partner1 = UUID.randomUUID();
         Map<String, Object> createBody = sampleBody();
         createBody.put("partnerId", partner1.toString());
+        createBody.put("partnerCode", "1234567890");
         MvcResult created = mockMvc.perform(post("/accounting/tax-invoices")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT")
@@ -302,13 +305,21 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(createBody)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.partnerId").value(partner1.toString()))
+                .andExpect(jsonPath("$.data.partnerCode").value("1234567890"))
                 .andReturn();
         String id = data(created).get("id").asText();
 
-        // P2 거래처로 교체 update — FE 는 새 거래처의 partnerId + 상호/사업자번호 snapshot 을 함께 전송
+        // create 저장 확인 — DB partner_code = P1 코드 (#825 CM-a: 표준 create 경로 보정 검증).
+        // 같은 테스트 트랜잭션의 pending INSERT 를 raw JDBC 조회가 보도록 명시 flush.
+        entityManager.flush();
+        org.assertj.core.api.Assertions.assertThat(taxInvoicePartnerCode(id)).isEqualTo("1234567890");
+
+        // P2 거래처로 교체 update — FE 는 새 거래처의 partnerId + partnerCode + 상호/사업자번호
+        // snapshot 을 함께 전송 (#825 CM-a FE 계약)
         UUID partner2 = UUID.randomUUID();
         Map<String, Object> updateBody = sampleBody();
         updateBody.put("partnerId", partner2.toString());
+        updateBody.put("partnerCode", "9876543210");
         updateBody.put("partnerName", "교체거래처");
         updateBody.put("partnerBusinessNo", "987-65-43210");
         mockMvc.perform(put("/accounting/tax-invoices/" + id)
@@ -318,17 +329,19 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(updateBody)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.partnerId").value(partner2.toString()))
+                .andExpect(jsonPath("$.data.partnerCode").value("9876543210"))
                 .andExpect(jsonPath("$.data.partnerName").value("교체거래처"))
                 .andExpect(jsonPath("$.data.partnerBusinessNo").value("987-65-43210"));
 
         // DB 정합 — 같은 테스트 트랜잭션의 pending UPDATE 를 raw JDBC 조회가 보도록 명시 flush
-        // (본 IT 의 cancelBlocked... 테스트와 동일 사유).
+        // (본 IT 의 cancelBlocked... 테스트와 동일 사유). partner_code 는 P1 잔존 없이 P2 로 교체.
         entityManager.flush();
         UUID dbPartnerId = jdbcTemplate.queryForObject(
                 "SELECT partner_id FROM tax_invoices WHERE id = ?::uuid", UUID.class, id);
         String dbPartnerName = jdbcTemplate.queryForObject(
                 "SELECT partner_name FROM tax_invoices WHERE id = ?::uuid", String.class, id);
         org.assertj.core.api.Assertions.assertThat(dbPartnerId).isEqualTo(partner2);
+        org.assertj.core.api.Assertions.assertThat(taxInvoicePartnerCode(id)).isEqualTo("9876543210");
         org.assertj.core.api.Assertions.assertThat(dbPartnerName).isEqualTo("교체거래처");
     }
 
@@ -363,6 +376,12 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
     private UUID taxInvoiceReverseJournalId(String id) {
         return jdbcTemplate.queryForObject(
                 "SELECT reverse_journal_id FROM tax_invoices WHERE id = ?::uuid", UUID.class, id);
+    }
+
+    /** #825 CM-a — DB partner_code 정합 검증 헬퍼 (create 저장 / update 교체 공용). */
+    private String taxInvoicePartnerCode(String id) {
+        return jdbcTemplate.queryForObject(
+                "SELECT partner_code FROM tax_invoices WHERE id = ?::uuid", String.class, id);
     }
 
     private String journalStatus(UUID journalId) {
@@ -416,6 +435,8 @@ class TaxInvoiceControllerIT extends AbstractPostgresIT {
 
         Map<String, Object> body = new HashMap<>();
         body.put("partnerId", UUID.randomUUID().toString());
+        // #825 CM-a — partnerCode(비즈니스 식별자) 계약: bizno digits (P0-B 결정)
+        body.put("partnerCode", "1234567890");
         body.put("partnerBusinessNo", "123-45-67890");
         body.put("partnerName", "테스트거래처");
         body.put("partnerAddress", "서울시 강남구");

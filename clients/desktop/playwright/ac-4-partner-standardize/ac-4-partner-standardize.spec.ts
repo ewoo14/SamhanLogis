@@ -33,7 +33,9 @@
  *       후 POST payload 까지 단언해 "BP 에 activeOnly 추가" 회귀도 RED 가 된다.</li>
  *   <li><b>일마감 실행 POST</b> — in-process 핸들(정적 목록 echo 미반영)이라 payload 는
  *       Playwright 에서 관측 불가. 실행 성공 왕복(onSuccess 메모 초기화)만 단언하고,
- *       partnerCode payload 는 vitest `DailyClosingPage.test.tsx` 하네스가 단언한다.</li>
+ *       partnerCode payload 는 vitest `DailyClosingPage.test.tsx` 하네스가 단언한다.
+ *       [#825 재수렴 CM-b] DC-2 는 미확정 draft(타이핑만·미선택) 실행 차단 — 안내 표시
+ *       + 메모 유지(마감 미실행)를 실행 성공 케이스와 차등 단언한다.</li>
  *   <li><b>발송금지 단건 POST</b> — `/api/v1/partners/admin/blocks` POST 는 in-process
  *       미핸들 → 실 HTTP fallthrough → `page.route` 가 유효. postDataJSON 으로
  *       partnerCode payload 를 직접 단언한다.</li>
@@ -372,6 +374,36 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     )
     const memo = page.getByTestId('daily-closing-exec-description')
     await memo.fill('AC-4 E2E 마감 검증')
+    await page.getByTestId('daily-closing-exec-button').click()
+    await expect(memo).toHaveValue('', { timeout: 5_000 })
+  })
+
+  test('DC-2 [#825 재수렴 CM-b] 미확정 draft 실행 차단 — 안내 표시·마감 미실행(메모 유지) 후 선택 확정 시 실행 성공', async ({ page }) => {
+    await installAuthMock(page)
+    await blockLiveGatewayLeaks(page)
+    await gotoPage(page, '/accounting/daily-closings', 'daily-closing-exec-partner')
+
+    const partnerInput = page.getByTestId('daily-closing-exec-partner')
+    const memo = page.getByTestId('daily-closing-exec-description')
+    const draftError = page.getByTestId('daily-closing-exec-partner-draft-error')
+    await memo.fill('CM-b draft 가드 검증')
+
+    // 거래처명을 타이핑만(후보 표시)하고 목록 선택 없이 실행 — draft 무시 전체 마감(오범위)을
+    // 차단해야 한다: 안내 표시 + closeMutation 미발화(onSuccess 메모 초기화 없음 = 메모 유지).
+    await partnerInput.click()
+    await partnerInput.fill('엘에이')
+    await expect(partnerListbox(page)).toBeVisible({ timeout: 5_000 })
+    await page.getByTestId('daily-closing-exec-button').click()
+
+    await expect(draftError).toBeVisible({ timeout: 5_000 })
+    await expect(draftError).toContainText('목록에서 선택하거나 입력을 비운 뒤')
+    await expect(memo).toHaveValue('CM-b draft 가드 검증')
+
+    // 목록에서 선택해 확정 → 안내 즉시 소거 → 실행 성공(onSuccess 메모 초기화)
+    await searchAndPick(
+      page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
+    )
+    await expect(draftError).not.toBeVisible()
     await page.getByTestId('daily-closing-exec-button').click()
     await expect(memo).toHaveValue('', { timeout: 5_000 })
   })

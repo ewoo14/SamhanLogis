@@ -435,3 +435,90 @@ describe('DailyClosingPage 일마감 실행 거래처 payload (#825 R1)', () => 
     expect(payload.partnerCode).toBeUndefined()
   })
 })
+
+/**
+ * [#825 재수렴 CM-b] 일마감 실행 거래처 미확정 draft 가드.
+ *
+ * <p>AsyncAutocomplete 는 목록 선택 전까지 onChange 미발화 — 거래처명을 타이핑만 한 채
+ * '마감 실행'을 누르면 draft 가 무시되고 전체(null)/이전 선택 범위로 마감된다(오범위).
+ * 실행 시점 입력 표시값과 확정 선택의 불일치를 차단 + 안내하고, 목록 선택으로 확정하면
+ * 안내가 소거되며 실행이 통과됨을 고정한다.
+ */
+describe('DailyClosingPage 일마감 실행 미확정 draft 가드 (#825 재수렴 CM-b)', () => {
+  const execSuccessFixture = {
+    closingDate: '2026-07-18',
+    partnerCode: '1234567890',
+    closingKind: 'SALES',
+    sourceKind: 'TAX_INVOICE',
+    isLocked: true,
+    lockedAt: '2026-07-18T10:00:00+09:00',
+    lockedBy: 'user-001',
+    description: null,
+    totalSupply: '0',
+    totalVat: '0',
+    totalAmount: '0',
+  }
+
+  it('미선택 draft 타이핑 상태로 실행하면 차단 + 안내를 표시하고 마감 API 를 호출하지 않는다 — 목록 선택 확정 후 재실행은 통과', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    createDailyClosingMock.mockResolvedValue(execSuccessFixture)
+    searchPartnersMock.mockResolvedValue([
+      { partnerCode: '1234567890', name: '엘에이시스템에어', bizNo: '123-45-67890' },
+    ])
+
+    renderPage()
+
+    // 타이핑만 — 후보가 뜨지만 선택하지 않는다 (draft 상태)
+    const partnerInput = await screen.findByTestId('daily-closing-exec-partner')
+    fireEvent.focus(partnerInput)
+    fireEvent.change(partnerInput, { target: { value: '엘에이' } })
+    await screen.findByRole('option', { name: /엘에이/ })
+
+    // 실행 → 차단: createDailyClosing 미호출 + role=alert 안내 표시
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    const draftError = await screen.findByTestId('daily-closing-exec-partner-draft-error')
+    expect(draftError.getAttribute('role')).toBe('alert')
+    expect(draftError.textContent).toContain('목록에서 선택하거나 입력을 비운 뒤')
+    expect(createDailyClosingMock).not.toHaveBeenCalled()
+
+    // 목록에서 선택해 확정 → 안내 즉시 소거(onChange 소거 경로)
+    fireEvent.mouseDown(screen.getByRole('option', { name: /엘에이/ }))
+    expect((partnerInput as HTMLInputElement).value).toBe('엘에이시스템에어')
+    expect(screen.queryByTestId('daily-closing-exec-partner-draft-error')).toBeNull()
+
+    // 재실행 → 통과 + 확정 선택의 partnerCode 로 마감
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
+    expect(createDailyClosingMock).toHaveBeenCalledWith(
+      expect.objectContaining({ partnerCode: '1234567890' }),
+    )
+  })
+
+  it('선택(P1) 후 다른 거래처명을 타이핑 중(미확정) 실행하면 이전 선택(P1) 오범위 마감을 차단한다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    createDailyClosingMock.mockResolvedValue(execSuccessFixture)
+    searchPartnersMock.mockResolvedValue([
+      { partnerCode: '1234567890', name: '엘에이시스템에어', bizNo: '123-45-67890' },
+    ])
+
+    renderPage()
+
+    // P1 선택 확정
+    const partnerInput = await screen.findByTestId('daily-closing-exec-partner')
+    fireEvent.focus(partnerInput)
+    fireEvent.change(partnerInput, { target: { value: '엘에이' } })
+    fireEvent.mouseDown(await screen.findByRole('option', { name: /엘에이/ }))
+    expect((partnerInput as HTMLInputElement).value).toBe('엘에이시스템에어')
+
+    // 재포커스 후 다른 거래처명 draft 타이핑 (선택 미확정)
+    fireEvent.focus(partnerInput)
+    fireEvent.change(partnerInput, { target: { value: '강남에어' } })
+
+    // 실행 → 차단: P1('1234567890') 범위로 조용히 마감되지 않는다
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    expect(await screen.findByTestId('daily-closing-exec-partner-draft-error')).toBeTruthy()
+    expect(createDailyClosingMock).not.toHaveBeenCalled()
+  })
+})

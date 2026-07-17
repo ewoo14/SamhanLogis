@@ -354,20 +354,31 @@ public class TaxInvoice extends BaseEntity {
      * 상호/사업자번호 snapshot 을 함께 전송한다. partnerId 를 반영하지 않으면 "원 거래처
      * UUID + 새 거래처 상호" 불일치(무결성 훼손)가 생기므로 도메인에서 함께 갱신한다.
      *
+     * <p>#825 CM-a — partnerCode(거래처 코드, 비즈니스 식별자) 도 함께 갱신한다. create 는
+     * partnerCode 를 채우는데 updateBasic 이 미갱신하면 거래처 교체 후 "P2 거래처 + P1 코드"
+     * 잔존 불일치가 생기므로 partnerId 와 동일하게 도메인에서 함께 반영한다 (선택 필드 —
+     * null 이면 null 로 갱신, DTO 계약과 동일한 nullable 의미).
+     *
      * @param partnerId         거래처 UUID (필수) — 거래처 교체 시 새 거래처 UUID
+     * @param partnerCode       거래처 코드 (선택, ≤50자) — 거래처 교체 시 새 거래처 코드
      * @param partnerBusinessNo 사업자등록번호 snapshot (선택)
      * @param partnerName       상호 snapshot (필수, 1~200자)
      * @param partnerAddress    주소 snapshot (선택)
      * @param supplyDate        공급일자 (필수)
      * @param description       적요 (선택)
      * @throws BusinessException(CONFLICT) DRAFT 가 아닐 때
-     * @throws IllegalArgumentException partnerId/partnerName/supplyDate 필수값 위반 시
+     * @throws IllegalArgumentException partnerId/partnerName/supplyDate 필수값 위반 또는
+     *     partnerCode 50자 초과 시
      */
-    public void updateBasic(UUID partnerId, String partnerBusinessNo, String partnerName,
-                            String partnerAddress, LocalDate supplyDate, String description) {
+    public void updateBasic(UUID partnerId, String partnerCode, String partnerBusinessNo,
+                            String partnerName, String partnerAddress, LocalDate supplyDate,
+                            String description) {
         requireDraft("헤더 수정은 ");
         if (partnerId == null) {
             throw new IllegalArgumentException("partnerId 는 필수입니다");
+        }
+        if (partnerCode != null && partnerCode.length() > 50) {
+            throw new IllegalArgumentException("partnerCode 는 최대 50자입니다");
         }
         if (partnerName == null || partnerName.isBlank() || partnerName.length() > 200) {
             throw new IllegalArgumentException("partnerName 은 1~200자 필수입니다");
@@ -376,6 +387,7 @@ public class TaxInvoice extends BaseEntity {
             throw new IllegalArgumentException("supplyDate 는 필수입니다");
         }
         this.partnerId = partnerId;
+        this.partnerCode = partnerCode;
         this.partnerBusinessNo = partnerBusinessNo;
         this.partnerName = partnerName;
         this.partnerAddress = partnerAddress;

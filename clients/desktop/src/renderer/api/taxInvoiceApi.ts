@@ -144,6 +144,15 @@ export interface CreateTaxInvoiceLineRequest {
 /** 세금계산서 신규/수정 요청 — POST/PUT 공용. */
 export interface CreateTaxInvoiceRequest {
   partnerId: string
+  /**
+   * 거래처 코드 — 비즈니스 식별자 (#825 재수렴 CM-a, BE nullable String 병렬 추가).
+   *
+   * <p>정준 거래처 검색({@code partnerApi.searchPartners})의 실 {@code partnerCode} 를
+   * 전송한다. 사업자번호({@code partnerBusinessNo})와 별개 필드 — bizNo 를 코드로
+   * 보내지 않는다 (L6 오라벨 해소). BE 가 필드를 아직 수신하지 않아도 Spring 기본
+   * unknown-property 무시로 안전 (FE 선반영).
+   */
+  partnerCode?: string
   partnerBusinessNo?: string
   partnerName: string
   partnerAddress?: string

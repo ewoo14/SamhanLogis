@@ -139,23 +139,30 @@ class TaxInvoiceDomainTest {
     }
 
     @Test
-    @DisplayName("updateBasic — DRAFT 에서 partnerId 교체 반영 (#825 CH1), null partnerId 거부")
+    @DisplayName("updateBasic — DRAFT 에서 partnerId+partnerCode 교체 반영 (#825 CH1/CM-a), null partnerId 거부")
     void updateBasicReflectsPartnerId() {
         TaxInvoice ti = newDraft();
         UUID newPartnerId = UUID.randomUUID();
 
-        ti.updateBasic(newPartnerId, "987-65-43210", "교체거래처", "부산시 해운대구",
+        ti.updateBasic(newPartnerId, "9876543210", "987-65-43210", "교체거래처", "부산시 해운대구",
                 TODAY.plusDays(1), "거래처 교체");
 
         assertThat(ti.getPartnerId()).isEqualTo(newPartnerId);
+        assertThat(ti.getPartnerCode()).isEqualTo("9876543210");
         assertThat(ti.getPartnerName()).isEqualTo("교체거래처");
         assertThat(ti.getPartnerBusinessNo()).isEqualTo("987-65-43210");
         assertThat(ti.getStatus()).isEqualTo(TaxInvoiceStatus.DRAFT);
 
-        assertThatThrownBy(() -> ti.updateBasic(null, "987-65-43210", "교체거래처",
+        assertThatThrownBy(() -> ti.updateBasic(null, "9876543210", "987-65-43210", "교체거래처",
                 null, TODAY, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("partnerId");
+
+        // #825 CM-a — partnerCode 50자 초과 도메인 가드 (DTO @Size 와 이중 방어)
+        assertThatThrownBy(() -> ti.updateBasic(newPartnerId, "X".repeat(51), "987-65-43210",
+                "교체거래처", null, TODAY, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("partnerCode");
     }
 
     @Test
