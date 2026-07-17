@@ -2998,3 +2998,15 @@ R4(FABLE5 1차 적대검증) 확인요청 4건 확정 — 근거 전문: [PR #82
 | D-R4-2 | 가격기억 최신성 권위는 `remembered_at`(원 전표/견적 트랜잭션의 애플리케이션 캡처 시각)을 유지한다. 커밋순서 권위(`clock_timestamp()`/시퀀스) 재설계는 하지 않는다. 실제 커밋 순서와의 ms~수백ms 역전 창은 dev-report 에 정직 기록한다 — 역전돼도 두 값 모두 사용자 실입력 단가이며, flush 실행 순서 역전은 IT 로 방어돼 있다. |
 | D-R4-3 | 전표 생성(VAT포함 basis)→직접 PUT(공급단가 basis) 교차 경로의 서브-원 드리프트(예: 100,000 → 기억값 99,999.90 · 1회 수렴 · 비복리 · 11의 배수 단가 미발생)는 두 저장 basis 병존의 내재적 반올림 한계로 수용하고 문서화한다. PUT 경로의 `unitPriceWithVat` 우선 계약 확장은 하지 않는다. |
 | D-R4-4 | 거래처 선택 해제 시 라인 단가값은 유지하고 REMEMBERED 마커(저장일 표기 포함)만 해제한다. 단가를 판매가로 되돌리지 않는다 — 사용자가 이미 확인한 입력값을 임의로 변경하지 않는다. 라인 상태(priceSource)는 유지해 거래처 재선택 시 재조회 자격을 보존한다. |
+
+## #810 입금자명↔거래처 자동 매핑 (2026-07-17, PR #829)
+
+입금 통장거래의 입금자명을 거래처에 한 번 지정하면 기억하여 자동 매칭. 3라운드 다모델 적대검증(R1 OPUS·R2 CODEX·R3 OPUS+CODEX) — R2·R3에서 fix가 회귀를 낳는 사이클로 비수렴, 개발책임자 결정 A로 bound. dev-report `docs/dev-reports/2026-07-17-810-bank-depositor-partner-mapping.md`.
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-810-01 | **학습 = 인간기원만**. 매핑 upsert는 수동 매칭(match-partner)·관리 CRUD(`deposit-mapping:UPDATE` 보유 시)에서만, 입금(DEPOSIT)+입금성 source 한정. import/CODEF/KFTC resolver는 read-only — 자동매칭 결과가 다시 매핑으로 학습되는 자기강화 오염 루프를 차단한다. |
+| D-810-02 | **권한 이중경로**. 단건 거래처 배정=`accounting.bank-matching:UPDATE`. 매핑 학습/삭제=`accounting.deposit-mapping:UPDATE/DELETE` 보유 시(미보유자는 단건 배정만·"매핑도 삭제" 미노출). 해제 UX 분리: "이 거래만 해제"(clear) vs "매핑도 삭제"(clear-and-delete-mapping). SYSTEM MASTER는 내부 게이트 bypass — 게이트웨이가 JWT claim 기반으로 `X-Is-System-Master` 를 remove-then-set 하는 단일권위라 위조 불가(공격표면 확장 0). |
+| D-810-03 | **stale·일시장애 무폴백**. 매핑 target 이 stale(삭제/비활성 거래처)이면 partnerCode 정확일치 폴백 없이 미매칭+관리 경고. 정확일치 폴백도 `PartnerStatus=ACTIVE` 검증. partner lookup 은 FOUND/NOT_FOUND/**UNAVAILABLE**(5xx/네트워크/파싱) 3분류 — UNAVAILABLE 은 stale 로 오분류하지 않고(정상 매핑 미매칭 오염 방지) 매칭만 보류·재시도 대상. **import 시 거래는 항상 UNMATCHED 로 영속화하고 매칭만 보류**(거래 유실 금지). |
+| D-810-04 | **provenance·감사**. `bank_transaction` 에 매칭근거(source·mapping_id·snapshot) 보존, snapshot 불변식은 도메인+DB(V60 NULL-safe CASE CHECK) 이중 강제. 매핑 이력은 entityId 기준 append-only(변경분만·작업당 단일 timestamp·rename 연속성·opaque entryKey). UUID 비공개(business key normalizedName). |
+| D-810-A | **개발책임자 결정 A (수렴 bound)**. R3 도 비수렴(R3-OPUS fix 가 거래유실 HIGH 회귀 유발)이자, 거래유실+#810 핵심 genuine 만 현 PR 에 fix 하고 엣지는 후속 분리한 뒤 포커스 재검증→머지. 후속: **#830**(멀티인스턴스 revision 채번) · **#831**(pre-#810 회계 도메인의 lookup UNAVAILABLE→NOT_FOUND 붕괴 계열·tax invoice HIGH 포함) · **#832**(mock parity·감사 표시 정밀도·BOM 정규화). resilience/엣지가 깊은 슬라이스는 무한 iterate 대신 PM 이 비수렴을 조기 보고하고 개발책임자가 스코프를 bound 한다. |

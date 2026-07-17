@@ -134,3 +134,20 @@ MIG-14는 MIG-7~11 결과를 desktop admin UI에서 조회하기 위한 read end
 | 발행 일원화 | `TaxInvoiceService` 인쇄 공급자 블록 = primary `SupplierProfile` 우선, 부재 시 `CompanyProperties`(app.company.*) fallback |
 
 ⚠️ 계좌 실데이터·실인감·실로고는 public repo 비커밋 — 운영 환경에서 공급자 설정 화면으로 직접 입력한다.
+
+## 입금자명↔거래처 자동 매핑 (PR #829, #810)
+
+통장거래(입금)의 입금자명을 거래처에 한 번 지정하면 기억하여 이후 동일 입금자명을 자동 매칭한다. dev-report [`docs/dev-reports/2026-07-17-810-bank-depositor-partner-mapping.md`](../../docs/dev-reports/2026-07-17-810-bank-depositor-partner-mapping.md).
+
+| 항목 | 내용 |
+|---|---|
+| V57~V60 | mapping 테이블 + `bank_transaction` provenance(`partner_match_source`·`matched_mapping_id`·snapshot·`partner_matched_at/by`) + snapshot CHECK(V60 NULL-safe CASE 완결) + `partner_code` snapshot |
+| 엔티티 | `BankDepositorPartnerMapping` (`UNIQUE(normalized_name) WHERE NOT is_deleted` + INSERT ON CONFLICT 원자 upsert), `DepositorNameNormalizer`(trim+공백축약+Locale.ROOT 대문자) |
+| 관리 CRUD | `/accounting/deposit-mappings` (GET·POST·PUT·DELETE `?normalizedName=`·GET `/history`) — `accounting.deposit-mapping` VIEW/CREATE/UPDATE/DELETE, business key(UUID 비공개), append-only 이력(entityId 전 필드·단일 timestamp·opaque entryKey) |
+| 학습 | 인간기원만(match-partner·CRUD, `deposit-mapping:UPDATE` 보유 시)·입금(DEPOSIT)+입금성 source 한정. import/CODEF/KFTC resolver read-only(자기강화 차단) |
+| 자동적용 | 활성 매핑 > partnerCode 정확일치(활성 검증) > 미매칭. stale(비활성 거래처)·lookup UNAVAILABLE(일시장애)은 폴백 없이 미매칭 보류(거래는 UNMATCHED로 영속화, 매칭만 보류) |
+| 권한 | 단건 배정=`accounting.bank-matching:UPDATE` · 매핑 삭제="이 거래만 해제"(clear) vs "매핑도 삭제"(clear-and-delete-mapping, `deposit-mapping:DELETE`). SYSTEM MASTER 내부 게이트 bypass(게이트웨이 `X-Is-System-Master` 단일권위) |
+| lookup | `PartnerLookupClient` FOUND/NOT_FOUND/UNAVAILABLE 3분류 — UNAVAILABLE(5xx/네트워크/파싱)은 stale 오염 없이 매칭 보류·재시도 |
+| 동시성 | normalized key `pg_advisory_xact_lock`(64bit hashtextextended·정렬획득) create/update/delete/learn 대칭 |
+
+후속 이슈: #830(멀티인스턴스 revision) · #831(pre-#810 lookup 붕괴 계열·tax invoice HIGH) · #832(mock parity·감사 정밀도·BOM).
