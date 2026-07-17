@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import com.samhanair.logis.accounting.domain.PartnerMatchSource;
 
 /**
  * 입금 거래 단건 매칭 결과 — 서비스 레이어 내부 모델 (SP-09-4).
@@ -26,6 +27,17 @@ public record DepositMatchResult(
         String matchedPartnerCode,
         String matchedTaxInvoiceNo,
         UUID journalDraftId,
-        DepositMatchStatus status
+        DepositMatchStatus status,
+        PartnerMatchSource matchSource,
+        String mappingRawName,
+        String mappingNormalizedName
 ) {
+
+    /** 기존 7개 필드 내부 호출 호환용 생성자. */
+    public DepositMatchResult(String depositorName, BigDecimal amount, LocalDate transactionDate,
+                              String matchedPartnerCode, String matchedTaxInvoiceNo,
+                              UUID journalDraftId, DepositMatchStatus status) {
+        this(depositorName, amount, transactionDate, matchedPartnerCode, matchedTaxInvoiceNo,
+                journalDraftId, status, null, null, null);
+    }
 }

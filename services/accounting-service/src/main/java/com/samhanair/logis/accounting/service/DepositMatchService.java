@@ -11,6 +11,7 @@ import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.PartnerMatchSource;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -21,8 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -61,7 +62,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DepositMatchService {
 
     /** SP-D2 — 입금 매칭 페이지 코드. */
@@ -69,11 +69,40 @@ public class DepositMatchService {
 
     private final KftcClient kftcClient;
     private final PartnerLookupClient partnerLookupClient;
+    private final DepositorMappingService depositorMappingService;
     private final TaxInvoiceRepository taxInvoiceRepository;
     private final JournalRepository journalRepository;
     private final JournalNumberService journalNumberService;
     private final DepositMatchAuditRecorder auditRecorder;
     private final DynamicPermissionClient dynamicPermissionClient;
+
+    /** production Spring context가 사용하는 전체 의존성 생성자. */
+    @Autowired
+    public DepositMatchService(KftcClient kftcClient, PartnerLookupClient partnerLookupClient,
+                               DepositorMappingService depositorMappingService,
+                               TaxInvoiceRepository taxInvoiceRepository, JournalRepository journalRepository,
+                               JournalNumberService journalNumberService,
+                               DepositMatchAuditRecorder auditRecorder,
+                               DynamicPermissionClient dynamicPermissionClient) {
+        this.kftcClient = kftcClient;
+        this.partnerLookupClient = partnerLookupClient;
+        this.depositorMappingService = depositorMappingService;
+        this.taxInvoiceRepository = taxInvoiceRepository;
+        this.journalRepository = journalRepository;
+        this.journalNumberService = journalNumberService;
+        this.auditRecorder = auditRecorder;
+        this.dynamicPermissionClient = dynamicPermissionClient;
+    }
+
+    /** 기존 단위 테스트·수동 생성 호출 호환용 생성자. production은 resolver bean을 주입한다. */
+    public DepositMatchService(KftcClient kftcClient, PartnerLookupClient partnerLookupClient,
+                               TaxInvoiceRepository taxInvoiceRepository, JournalRepository journalRepository,
+                               JournalNumberService journalNumberService,
+                               DepositMatchAuditRecorder auditRecorder,
+                               DynamicPermissionClient dynamicPermissionClient) {
+        this(kftcClient, partnerLookupClient, null, taxInvoiceRepository, journalRepository,
+                journalNumberService, auditRecorder, dynamicPermissionClient);
+    }
 
     /**
      * 입금 거래 조회 + 자동 매칭 + 분개 draft 생성.
@@ -162,13 +191,35 @@ public class DepositMatchService {
      */
     private DepositMatchResult matchAndCreateJournal(KftcDepositRecord deposit, UUID actorId) {
         // 거래처 매칭 시도 (입금자명 → partnerCode)
-        Optional<PartnerSummary> partnerOpt = resolvePartnerForCounterparty(deposit.depositorName());
+        DepositorMappingService.MappingResolution mappingResolution = depositorMappingService == null
+                ? DepositorMappingService.MappingResolution.none()
+                : depositorMappingService.resolveDeposit(
+                        deposit.depositorName(), com.samhanair.logis.accounting.domain.BankTxnType.DEPOSIT,
+                        com.samhanair.logis.accounting.domain.BankTxnSource.KFTC);
+        Optional<PartnerSummary> partnerOpt;
+        PartnerMatchSource matchSource = null;
+        String mappingRawName = mappingResolution.mapping() == null
+                ? null : mappingResolution.mapping().getRawName();
+        String mappingNormalizedName = mappingResolution.mapping() == null
+                ? null : mappingResolution.mapping().getNormalizedName();
+        if (mappingResolution.isMatched()) {
+            partnerOpt = Optional.of(mappingResolution.partner());
+            matchSource = PartnerMatchSource.DEPOSITOR_MAPPING;
+        } else if (mappingResolution.isStale()) {
+            partnerOpt = Optional.empty();
+        } else {
+            partnerOpt = resolveExactPartnerForCounterparty(deposit.depositorName());
+            if (partnerOpt.isPresent()) {
+                matchSource = PartnerMatchSource.PARTNER_CODE_EXACT;
+            }
+        }
 
         if (partnerOpt.isEmpty()) {
             log.debug("[SP-09-4] 거래처 미매칭 — depositorName={}", deposit.depositorName());
             return new DepositMatchResult(
                     deposit.depositorName(), deposit.amount(), deposit.transactionDate(),
-                    null, null, null, DepositMatchStatus.UNMATCHED);
+                    null, null, null, DepositMatchStatus.UNMATCHED,
+                    null, mappingRawName, mappingNormalizedName);
         }
 
         PartnerSummary partner = partnerOpt.get();
@@ -181,7 +232,8 @@ public class DepositMatchService {
                     partner.partnerCode(), deposit.amount());
             return new DepositMatchResult(
                     deposit.depositorName(), deposit.amount(), deposit.transactionDate(),
-                    partner.partnerCode(), null, null, DepositMatchStatus.UNMATCHED);
+                    partner.partnerCode(), null, null, DepositMatchStatus.UNMATCHED,
+                    matchSource, mappingRawName, mappingNormalizedName);
         }
 
         TaxInvoice invoice = invoiceOpt.get();
@@ -199,7 +251,8 @@ public class DepositMatchService {
                 partner.partnerCode(),
                 invoice.getTaxInvoiceNo(),
                 journalDraftId,
-                DepositMatchStatus.MATCHED
+                DepositMatchStatus.MATCHED,
+                matchSource, mappingRawName, mappingNormalizedName
         );
     }
 
@@ -238,6 +291,22 @@ public class DepositMatchService {
      * @return 거래처 요약. 미매칭 또는 blank 입력이면 empty
      */
     public Optional<PartnerSummary> resolvePartnerForCounterparty(String counterpartyName) {
+        DepositorMappingService.MappingResolution resolution = depositorMappingService == null
+                ? DepositorMappingService.MappingResolution.none()
+                : depositorMappingService.resolveDeposit(
+                        counterpartyName, com.samhanair.logis.accounting.domain.BankTxnType.DEPOSIT,
+                        com.samhanair.logis.accounting.domain.BankTxnSource.KFTC);
+        if (resolution.isMatched()) {
+            return Optional.of(resolution.partner());
+        }
+        if (resolution.isStale()) {
+            return Optional.empty();
+        }
+        return resolveExactPartnerForCounterparty(counterpartyName);
+    }
+
+    /** KFTC 입금자명의 legacy partnerCode 정확일치 폴백. */
+    private Optional<PartnerSummary> resolveExactPartnerForCounterparty(String counterpartyName) {
         if (counterpartyName == null || counterpartyName.isBlank()) {
             return Optional.empty();
         }

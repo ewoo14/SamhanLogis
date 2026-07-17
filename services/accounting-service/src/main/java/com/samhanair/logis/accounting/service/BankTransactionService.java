@@ -8,6 +8,7 @@ import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.BankTxnSource;
 import com.samhanair.logis.accounting.domain.BankTxnType;
 import com.samhanair.logis.accounting.domain.MatchStatus;
+import com.samhanair.logis.accounting.domain.PartnerMatchSource;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.web.dto.BankTransactionImportMapping;
 import com.samhanair.logis.accounting.web.dto.BankTransactionImportResult;
@@ -86,6 +87,8 @@ public class BankTransactionService {
 
     private final BankTransactionRepository repository;
     private final PartnerLookupClient partnerLookupClient;
+    private final DepositorMappingService depositorMappingService;
+    private final PartnerMatchAuditRecorder partnerMatchAuditRecorder;
 
     /**
      * 범용 CSV 컬럼 매핑으로 통장 거래를 import 한다.
@@ -130,7 +133,11 @@ public class BankTransactionService {
                 duplicateSkipped++;
                 continue;
             }
-            repository.save(transaction);
+            BankTransaction saved = repository.save(transaction);
+            if (saved.getPartnerMatchSource() == PartnerMatchSource.DEPOSITOR_MAPPING) {
+                partnerMatchAuditRecorder.record(saved, null, null, null, null, null,
+                        null, "SYSTEM", "DEPOSITOR_MAPPING");
+            }
             imported++;
         }
         return new BankTransactionImportResult(dataRows.size(), imported, duplicateSkipped);
@@ -207,6 +214,11 @@ public class BankTransactionService {
      * {@code bankAccountLabel + transactedAt + amount + externalRef} 자연키와 {@code partnerCode} 만 사용한다.
      */
     public BankTransactionResponse matchPartner(BankTransactionMatchPartnerRequest request) {
+        return matchPartner(request, null);
+    }
+
+    /** 거래처를 수동 지정하고 권한이 있으면 입금자명 매핑을 학습한다. */
+    public BankTransactionResponse matchPartner(BankTransactionMatchPartnerRequest request, UUID actorId) {
         if (request == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "요청 본문은 필수입니다.");
         }
@@ -224,7 +236,17 @@ public class BankTransactionService {
                     "거래처 내부 식별자를 해석할 수 없습니다: " + request.partnerCode().trim());
         }
 
-        transaction.matchPartner(partner.partnerId());
+        UUID oldPartnerId = transaction.getMatchedPartnerId();
+        PartnerMatchSource oldSource = transaction.getPartnerMatchSource();
+        UUID oldMappingId = transaction.getMatchedMappingId();
+        String oldRawName = transaction.getMatchedMappingRawName();
+        String oldNormalizedName = transaction.getMatchedMappingNormalizedName();
+        transaction.applyPartnerMatch(partner.partnerId(), PartnerMatchSource.MANUAL, null,
+                LocalDateTime.now(), actorStorage(actorId), null, null);
+        depositorMappingService.learnMappingIfPermitted(
+                transaction.getCounterpartyName(), partner, actorId, actorName(actorId));
+        partnerMatchAuditRecorder.record(transaction, oldPartnerId, oldSource, oldMappingId,
+                oldRawName, oldNormalizedName, actorId, actorName(actorId), "MANUAL_MATCH");
         return BankTransactionResponse.of(transaction, displayOf(partner), null);
     }
 
@@ -234,13 +256,38 @@ public class BankTransactionService {
      * <p>회계반영/강제 상태는 도메인 가드에서 거부하고 409 로 변환한다.
      */
     public BankTransactionResponse clearPartner(BankTransactionMatchPartnerClearRequest request) {
+        return clearPartner(request, null);
+    }
+
+    /** 거래의 거래처와 provenance만 해제한다. 매핑 row는 유지한다. */
+    public BankTransactionResponse clearPartner(BankTransactionMatchPartnerClearRequest request, UUID actorId) {
         if (request == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "요청 본문은 필수입니다.");
         }
         BankTransaction transaction = findUniqueByNaturalKey(request.bankAccountLabel(),
                 request.transactedAt(), request.amount(), request.externalRef());
+        UUID oldPartnerId = transaction.getMatchedPartnerId();
+        PartnerMatchSource oldSource = transaction.getPartnerMatchSource();
+        UUID oldMappingId = transaction.getMatchedMappingId();
+        String oldRawName = transaction.getMatchedMappingRawName();
+        String oldNormalizedName = transaction.getMatchedMappingNormalizedName();
         transaction.clearPartner();
+        partnerMatchAuditRecorder.record(transaction, oldPartnerId, oldSource, oldMappingId,
+                oldRawName, oldNormalizedName, actorId, actorName(actorId), "MANUAL_CLEAR");
         return BankTransactionResponse.of(transaction, null, null);
+    }
+
+    /** 거래를 해제한 뒤 자동 적용에 사용된 매핑까지 별도로 soft delete한다. */
+    public BankTransactionResponse clearPartnerAndDeleteMapping(
+            BankTransactionMatchPartnerClearRequest request, UUID actorId) {
+        BankTransaction transaction = findUniqueByNaturalKey(request.bankAccountLabel(),
+                request.transactedAt(), request.amount(), request.externalRef());
+        UUID mappingId = transaction.getMatchedMappingId();
+        BankTransactionResponse response = clearPartner(request, actorId);
+        if (mappingId != null) {
+            depositorMappingService.deleteById(mappingId, actorId, actorName(actorId), "ADMIN_DELETE");
+        }
+        return response;
     }
 
     private PartnerDisplay displayOfPartner(BankTransaction row, Map<UUID, PartnerSummary> partners) {
@@ -364,7 +411,7 @@ public class BankTransactionService {
                 : generatedExternalRef(bankAccountLabel, transactedAt, type, amount, balanceAfter, description,
                         counterpartyName, counterpartyAccount);
 
-        return BankTransaction.importRow(
+        BankTransaction transaction = BankTransaction.importRow(
                 transactedAt,
                 type,
                 amount,
@@ -375,6 +422,24 @@ public class BankTransactionService {
                 bankAccountLabel,
                 BankTxnSource.CSV_IMPORT,
                 externalRef);
+        DepositorMappingService.MappingResolution resolution = depositorMappingService.resolveDeposit(
+                counterpartyName, type, BankTxnSource.CSV_IMPORT);
+        if (resolution.isMatched()) {
+            var mappingEntity = resolution.mapping();
+            transaction.applyPartnerMatch(
+                    resolution.partner().partnerId(), PartnerMatchSource.DEPOSITOR_MAPPING,
+                    mappingEntity.getId(), LocalDateTime.now(), "SYSTEM",
+                    mappingEntity.getRawName(), mappingEntity.getNormalizedName());
+        }
+        return transaction;
+    }
+
+    private static String actorStorage(UUID actorId) {
+        return actorId == null ? "SYSTEM" : actorId.toString();
+    }
+
+    private static String actorName(UUID actorId) {
+        return actorId == null ? "SYSTEM" : "사용자";
     }
 
     private boolean isDuplicate(BankTransaction transaction) {

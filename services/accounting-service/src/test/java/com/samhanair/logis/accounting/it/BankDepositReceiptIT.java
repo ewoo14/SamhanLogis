@@ -415,6 +415,12 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
                     try (PreparedStatement ps = connection.prepareStatement("""
                             UPDATE bank_transaction
                                SET matched_partner_id = NULL,
+                                   partner_match_source = NULL,
+                                   matched_mapping_id = NULL,
+                                   partner_matched_at = NULL,
+                                   partner_matched_by = NULL,
+                                   matched_mapping_raw_name = NULL,
+                                   matched_mapping_normalized_name = NULL,
                                    modified_at = NOW(),
                                    modified_by = 'race-clear-partner'
                              WHERE external_ref = 'S3-BANK-CLEARRACE-2'
@@ -610,19 +616,21 @@ class BankDepositReceiptIT extends AbstractPostgresIT {
 
     private void insertBankTransaction(String externalRef, String transactedAt, String txnType, String amount,
                                        String source, String matchStatus, UUID partnerId, boolean deleted) {
+        String partnerMatchSource = partnerId == null ? "NULL" : "'MANUAL'";
         jdbcTemplate.update("""
                 INSERT INTO bank_transaction (
                     id, transacted_at, txn_type, amount, balance_after, description, counterparty_name,
-                    bank_account_label, source, external_ref, match_status, matched_partner_id, matched_journal_id,
+                    bank_account_label, source, external_ref, match_status, matched_partner_id,
+                    partner_match_source, matched_journal_id,
                     created_at, created_by, deleted_at, deleted_by, is_deleted
                 ) VALUES (
-                    gen_random_uuid(), ?, ?, ?::numeric, NULL, ?, '테스트상대',
-                    ?, ?, ?, ?, ?, ?, NOW(), 'S3-BANK-IT',
+                    gen_random_uuid(), ?, ?, CAST(? AS numeric), NULL, ?, '테스트상대',
+                    ?, ?, ?, ?, ?, %s, ?, NOW(), 'S3-BANK-IT',
                     CASE WHEN ? THEN NOW() ELSE NULL END,
                     CASE WHEN ? THEN 'S3-BANK-IT' ELSE NULL END,
                     ?
                 )
-                """,
+                """.formatted(partnerMatchSource),
                 LocalDateTime.parse(transactedAt),
                 txnType,
                 amount,

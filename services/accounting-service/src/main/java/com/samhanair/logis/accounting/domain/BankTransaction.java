@@ -89,6 +89,31 @@ public class BankTransaction extends BaseEntity {
     @Column(name = "matched_partner_id")
     private UUID matchedPartnerId;
 
+    /** 거래처 매칭 provenance. 자동 오배정 사후 추적용이며 API에는 enum 이름만 노출한다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "partner_match_source", length = 30)
+    private PartnerMatchSource partnerMatchSource;
+
+    /** 자동 적용에 사용된 매핑 내부 UUID. API에는 노출하지 않는다. */
+    @Column(name = "matched_mapping_id")
+    private UUID matchedMappingId;
+
+    /** 마지막 거래처 매칭 시각. */
+    @Column(name = "partner_matched_at")
+    private LocalDateTime partnerMatchedAt;
+
+    /** 마지막 거래처 매칭 실행자 내부 식별자. */
+    @Column(name = "partner_matched_by", length = 50)
+    private String partnerMatchedBy;
+
+    /** 적용 당시 매핑 원본명 snapshot. 매핑 rename/delete 뒤에도 근거를 보존한다. */
+    @Column(name = "matched_mapping_raw_name", length = 120)
+    private String matchedMappingRawName;
+
+    /** 적용 당시 매핑 정규화명 snapshot. */
+    @Column(name = "matched_mapping_normalized_name", length = 120)
+    private String matchedMappingNormalizedName;
+
     /** 매칭 분개 내부 UUID. API/화면에는 노출하지 않는다. */
     @Column(name = "matched_journal_id")
     private UUID matchedJournalId;
@@ -157,11 +182,45 @@ public class BankTransaction extends BaseEntity {
      * 회계반영(REFLECTED)/강제(FORCED) 거래의 재지정은 거부(409).
      */
     public BankTransaction matchPartner(UUID partnerId) {
+        return applyPartnerMatch(partnerId, PartnerMatchSource.MANUAL, null,
+                LocalDateTime.now(), "SYSTEM", null, null);
+    }
+
+    /**
+     * provenance를 포함해 거래처를 지정한다.
+     *
+     * @param partnerId 거래처 내부 UUID
+     * @param source 매칭 출처
+     * @param mappingId 자동 매핑 내부 UUID, 수동/코드일치는 null
+     * @param matchedAt 매칭 시각
+     * @param matchedBy 실행자 내부 식별자
+     * @param mappingRawName 적용 매핑 원본명 snapshot
+     * @param mappingNormalizedName 적용 매핑 정규화명 snapshot
+     * @return 변경된 거래
+     */
+    public BankTransaction applyPartnerMatch(UUID partnerId, PartnerMatchSource source, UUID mappingId,
+                                             LocalDateTime matchedAt, String matchedBy,
+                                             String mappingRawName, String mappingNormalizedName) {
         if (partnerId == null) {
             throw new IllegalArgumentException("partnerId 는 필수입니다");
         }
+        if (source == null) {
+            throw new IllegalArgumentException("partnerMatchSource 는 필수입니다");
+        }
+        if (source == PartnerMatchSource.DEPOSITOR_MAPPING && mappingId == null) {
+            throw new IllegalArgumentException("DEPOSITOR_MAPPING 은 mappingId 가 필수입니다");
+        }
+        if (source != PartnerMatchSource.DEPOSITOR_MAPPING && mappingId != null) {
+            throw new IllegalArgumentException("매핑 출처가 아니면 mappingId 를 지정할 수 없습니다");
+        }
         requireUnreflected("매칭");
         this.matchedPartnerId = partnerId;
+        this.partnerMatchSource = source;
+        this.matchedMappingId = mappingId;
+        this.partnerMatchedAt = matchedAt == null ? LocalDateTime.now() : matchedAt;
+        this.partnerMatchedBy = matchedBy == null || matchedBy.isBlank() ? "SYSTEM" : matchedBy;
+        this.matchedMappingRawName = mappingRawName;
+        this.matchedMappingNormalizedName = mappingNormalizedName;
         return this;
     }
 
@@ -169,6 +228,12 @@ public class BankTransaction extends BaseEntity {
     public BankTransaction clearPartner() {
         requireUnreflected("해제");
         this.matchedPartnerId = null;
+        this.partnerMatchSource = null;
+        this.matchedMappingId = null;
+        this.partnerMatchedAt = null;
+        this.partnerMatchedBy = null;
+        this.matchedMappingRawName = null;
+        this.matchedMappingNormalizedName = null;
         return this;
     }
 

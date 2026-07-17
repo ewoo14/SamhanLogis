@@ -2,9 +2,11 @@ package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.client.CodefClient;
 import com.samhanair.logis.accounting.client.CodefTxn;
+import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.BankTxnSource;
+import com.samhanair.logis.accounting.domain.PartnerMatchSource;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.util.CodefRefNormalizer;
 import com.samhanair.logis.accounting.web.dto.CodefImportResponse;
@@ -36,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *     <li>{@link CodefClient} DRY_RUN/CODEF 조회</li>
  *     <li>V43 unique index 와 동일한 4-key 기준 active row 중복 skip</li>
  *     <li>{@link BankTransaction} source CODEF_BANK/CODEF_CARD/CODEF_LOAN 로 적재</li>
- *     <li>{@link DepositMatchService} 의 거래처 해석 경로를 재사용해 미반영 거래에 거래처를 자동 지정</li>
+ *     <li>은행 입금만 {@link DepositorMappingService} 매핑 우선 resolver로 자동 지정</li>
  * </ol>
  */
 @Slf4j
@@ -49,7 +51,9 @@ public class CodefImportService {
 
     private final CodefClient codefClient;
     private final BankTransactionRepository bankTransactionRepository;
-    private final DepositMatchService depositMatchService;
+    private final PartnerLookupClient partnerLookupClient;
+    private final DepositorMappingService depositorMappingService;
+    private final PartnerMatchAuditRecorder partnerMatchAuditRecorder;
     private final PlatformTransactionManager transactionManager;
 
     /**
@@ -135,19 +139,48 @@ public class CodefImportService {
             }
 
             boolean matchedPartner = false;
-            if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
-                Optional<PartnerSummary> partner = depositMatchService.resolvePartnerForCounterparty(
-                        txn.counterpartyName());
-                if (partner.isPresent() && partner.get().partnerId() != null) {
-                    transaction.matchPartner(partner.get().partnerId());
+            if (sourceTxn.source() == BankTxnSource.CODEF_BANK
+                    && txn.txnType() == com.samhanair.logis.accounting.domain.BankTxnType.DEPOSIT) {
+                DepositorMappingService.MappingResolution resolution = depositorMappingService.resolveDeposit(
+                        txn.counterpartyName(), txn.txnType(), sourceTxn.source());
+                if (resolution.isMatched()) {
+                    var mapping = resolution.mapping();
+                    transaction.applyPartnerMatch(
+                            resolution.partner().partnerId(), PartnerMatchSource.DEPOSITOR_MAPPING,
+                            mapping.getId(), LocalDateTime.now(), "SYSTEM",
+                            mapping.getRawName(), mapping.getNormalizedName());
                     matchedPartner = true;
+                } else if (!resolution.isStale()) {
+                    Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerCode(
+                            txn.counterpartyName() == null ? null : txn.counterpartyName().trim());
+                    if (partner.isPresent() && partner.get().partnerId() != null) {
+                        transaction.applyPartnerMatch(
+                                partner.get().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
+                                null, LocalDateTime.now(), "SYSTEM", null, null);
+                        matchedPartner = true;
+                    }
                 }
             } else {
-                // CODEF_LOAN counterparty 는 대출 채권자인 은행명이며 거래처 master 매칭 대상이 아니다.
+                // 카드·대출·CODEF 출금에는 depositor mapping을 학습하거나 적용하지 않는다.
+                // 기존 계약인 카드·은행 출금의 partnerCode 정확일치는 유지한다.
+                if (sourceTxn.source() != BankTxnSource.CODEF_LOAN) {
+                    Optional<PartnerSummary> partner = partnerLookupClient.findByPartnerCode(
+                            txn.counterpartyName() == null ? null : txn.counterpartyName().trim());
+                    if (partner.isPresent() && partner.get().partnerId() != null) {
+                        transaction.applyPartnerMatch(
+                                partner.get().partnerId(), PartnerMatchSource.PARTNER_CODE_EXACT,
+                                null, LocalDateTime.now(), "SYSTEM", null, null);
+                        matchedPartner = true;
+                    }
+                }
             }
 
             try {
                 saveInNewTransaction(transaction);
+                if (matchedPartner) {
+                    partnerMatchAuditRecorder.record(transaction, null, null, null, null, null,
+                            null, "SYSTEM", transaction.getPartnerMatchSource().name());
+                }
                 imported++;
                 if (matchedPartner) {
                     matched++;

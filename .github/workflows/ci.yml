@@ -90,6 +90,11 @@ jobs:
             # E3 S1~S3 입금보고서 도메인 기반 + #712 MIG-9 linkCash 링크 IT: 신규 IT 명시 등재로 Gradle --tests false-green 방지.
             timeout: 30
             test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.CashReceiptControllerIT" --tests "com.samhanair.logis.accounting.it.BankDepositReceiptIT" --tests "com.samhanair.logis.accounting.editrequest.lock.AccountingLockPoliciesTest" --tests "com.samhanair.logis.accounting.service.Mig9CashJournalServiceTest" --tests "com.samhanair.logis.accounting.it.Mig9CashJournalLinkIT" :services:auth-service:test --tests "com.samhanair.logis.auth.it.AuthFlywayV80SeedIT"'
+          - name: accounting-deposit-mapping-it
+            # #810 CODEX LUNA: 신규 매핑 package/CRUD/provenance 테스트를 명시 allowlist하여
+            # accounting 전체 테스트에 우연히 포함된 것으로 끝나는 filter false-green을 차단한다.
+            timeout: 30
+            test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.BankDepositorPartnerMappingControllerIT" --tests "com.samhanair.logis.accounting.it.BankDepositorPartnerMappingMigrationIT" --tests "com.samhanair.logis.accounting.it.BankDepositorPartnerMappingPermissionEnforcementIT" --tests "com.samhanair.logis.accounting.domain.BankDepositorPartnerMappingTest" --tests "com.samhanair.logis.accounting.service.DepositorMappingServiceTest" --tests "com.samhanair.logis.accounting.util.DepositorNameNormalizerTest" --tests "com.samhanair.logis.accounting.domain.BankTransactionDomainTest" :services:auth-service:test --tests "com.samhanair.logis.auth.domain.PageCodeTest" --tests "com.samhanair.logis.auth.it.PageCodeSeedConsistencyIT" --tests "com.samhanair.logis.auth.it.AuthFlywayV87SeedIT"'
           # 아로로지스 분리 (spec 2026-05-14, plan DO2):
           #   `:services:arologis-service:test` 는 별도 워크플로 `arologis-ci.yml` 의 backend job
           #   으로 이관. 본 그룹에서는 제외. Samhan Public 14 service 만 커버.
@@ -267,6 +272,34 @@ jobs:
             exit 1
           fi
 
+      - name: #810 BankDepositorPartnerMappingControllerIT skipped=0 hard gate
+        if: matrix.group.name == 'accounting-deposit-mapping-it'
+        run: |
+          report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.BankDepositorPartnerMappingControllerIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#810 CRUD IT report not found; deposit-mapping allowlist may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#810 CRUD IT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
+      - name: #810 BankDepositorPartnerMappingPermissionEnforcementIT skipped=0 hard gate
+        if: matrix.group.name == 'accounting-deposit-mapping-it'
+        run: |
+          report='services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.BankDepositorPartnerMappingPermissionEnforcementIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#810 permission enforcement IT report not found; real HTTP permission test may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#810 permission enforcement IT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: 테스트 리포트 아티팩트 업로드 (실패 포함)
         if: always()
         uses: actions/upload-artifact@v4
@@ -285,7 +318,7 @@ jobs:
           report_paths: '**/build/test-results/test/TEST-*.xml'
           # accounting-codef-it / accounting-cash-receipt-it 는 좁은 IT hard gate 이므로
           # 필터/skip false-green 을 막기 위해 JUnit 결과가 0건이면 실패시킨다.
-          require_tests: ${{ matrix.group.name == 'accounting-codef-it' || matrix.group.name == 'accounting-cash-receipt-it' }}
+          require_tests: ${{ matrix.group.name == 'accounting-codef-it' || matrix.group.name == 'accounting-cash-receipt-it' || matrix.group.name == 'accounting-deposit-mapping-it' }}
           check_name: JUnit 테스트 결과 (${{ matrix.group.name }})
 
   notion-zero-guard:

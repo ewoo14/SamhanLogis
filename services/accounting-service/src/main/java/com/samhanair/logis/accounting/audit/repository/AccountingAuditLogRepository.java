@@ -4,6 +4,8 @@ import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * 회계 도메인 audit overlay log — entityId 기반 조회 — PR-H4b (Phase 12 Step 4b).
@@ -19,4 +21,14 @@ public interface AccountingAuditLogRepository extends JpaRepository<AccountingAu
 
     /** 특정 entity + revision 의 audit row (다중 필드 변경 시 N row). */
     List<AccountingAuditLog> findByEntityIdAndRevisionNo(UUID entityId, int revisionNo);
+
+    /** 입금자명 정규화 business key가 포함된 매핑 이력 조회. */
+    @Query("""
+            select log from AccountingAuditLog log
+             where (log.fieldName = 'mapping.normalizedName')
+               and (log.oldValue = :normalizedName or log.newValue = :normalizedName)
+             order by log.changedAt desc, log.revisionNo desc
+            """)
+    List<AccountingAuditLog> findMappingHistoryByNormalizedName(
+            @Param("normalizedName") String normalizedName);
 }

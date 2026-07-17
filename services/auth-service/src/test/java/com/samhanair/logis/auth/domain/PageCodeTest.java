@@ -3,6 +3,7 @@ package com.samhanair.logis.auth.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 
 class PageCodeTest {
 
@@ -306,5 +307,15 @@ class PageCodeTest {
         assertThat(PageCode.isValid("accounting.receivables")).isTrue();
         assertThat(PageCode.isValid("accounting.bank-matching")).isTrue();
         assertThat(PageCode.isValid("accounting.supplier-profiles")).isTrue();
+    }
+
+    @Test
+    @DisplayName("#810 accounting.deposit-mapping page-code가 V87 seed와 동기화된다")
+    void bankDepositorMapping_pageCode_V87_seed와_동기화() {
+        assertThat(PageCode.ACCOUNTING_DEPOSIT_MAPPING.getCode())
+                .isEqualTo("accounting.deposit-mapping");
+        assertThat(PageCode.ACCOUNTING_DEPOSIT_MAPPING.getDisplayName())
+                .isEqualTo("입금자명 매핑");
+        assertThat(PageCode.isValid("accounting.deposit-mapping")).isTrue();
     }
 }

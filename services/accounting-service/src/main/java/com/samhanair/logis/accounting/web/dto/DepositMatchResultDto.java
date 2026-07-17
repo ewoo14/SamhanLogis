@@ -24,6 +24,12 @@ public record DepositMatchResultDto(
         LocalDate transactionDate,
         String matchedPartnerCode,
         String matchedTaxInvoiceNo,
-        String status
+        String status,
+        String matchSource,
+        MappingEvidenceDto mappingEvidence
 ) {
+
+    /** KFTC 후보가 입금자명 매핑에서 왔을 때 표시할 raw/normalized 근거. */
+    public record MappingEvidenceDto(String rawName, String normalizedName) {
+    }
 }

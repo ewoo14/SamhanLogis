@@ -70,6 +70,9 @@ public enum PageCode {
     /** 통장 CSV import 및 입출금 내역 관리. */
     ACCOUNTING_BANK_MATCHING("accounting.bank-matching", "입출금 내역"),
 
+    /** 입금자명↔거래처 자동 적용 매핑 관리. */
+    ACCOUNTING_DEPOSIT_MAPPING("accounting.deposit-mapping", "입금자명 매핑"),
+
     /** CODEF 계좌/카드 등록기관 관리. */
     ACCOUNTING_BANK_CARD_ADMIN("accounting.bank-card-admin", "계좌/카드 관리"),
 

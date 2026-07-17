@@ -89,7 +89,12 @@ public class DepositMatchController {
                         r.transactionDate(),
                         r.matchedPartnerCode(),
                         r.matchedTaxInvoiceNo(),
-                        r.status().name()
+                        r.status().name(),
+                        r.matchSource() == null ? null : r.matchSource().name(),
+                        r.mappingRawName() == null && r.mappingNormalizedName() == null
+                                ? null
+                                : new DepositMatchResultDto.MappingEvidenceDto(
+                                        r.mappingRawName(), r.mappingNormalizedName())
                 ))
                 .toList();
 

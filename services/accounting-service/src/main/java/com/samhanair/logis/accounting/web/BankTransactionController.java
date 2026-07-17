@@ -126,8 +126,9 @@ public class BankTransactionController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     @Operation(summary = "통장 거래 거래처 수동지정", description = "4-key 자연키로 거래를 찾아 partnerCode 로 매칭")
     public ApiResponse<BankTransactionResponse> matchPartner(
-            @RequestBody BankTransactionMatchPartnerRequest request) {
-        return ApiResponse.ok(service.matchPartner(request), "거래처 매칭이 완료되었습니다.");
+            @RequestBody BankTransactionMatchPartnerRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(service.matchPartner(request, parseOptionalUserId(userId)), "거래처 매칭이 완료되었습니다.");
     }
 
     /**
@@ -139,8 +140,20 @@ public class BankTransactionController {
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     @Operation(summary = "통장 거래 거래처 수동지정 해제", description = "4-key 자연키로 거래를 찾아 매칭 거래처를 해제")
     public ApiResponse<BankTransactionResponse> clearPartner(
-            @RequestBody BankTransactionMatchPartnerClearRequest request) {
-        return ApiResponse.ok(service.clearPartner(request), "거래처 매칭이 해제되었습니다.");
+            @RequestBody BankTransactionMatchPartnerClearRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(service.clearPartner(request, parseOptionalUserId(userId)), "거래처 매칭이 해제되었습니다.");
+    }
+
+    /** 거래를 해제하고 자동 적용 매핑도 별도로 삭제한다. */
+    @PatchMapping("/match-partner/clear-and-delete-mapping")
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
+    @Operation(summary = "거래와 매핑 동시 해제", description = "현재 거래 해제와 매핑 soft delete를 하나의 명시적 UX로 분리")
+    public ApiResponse<BankTransactionResponse> clearPartnerAndDeleteMapping(
+            @RequestBody BankTransactionMatchPartnerClearRequest request,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(service.clearPartnerAndDeleteMapping(request, parseOptionalUserId(userId)),
+                "거래 매칭과 입금자명 매핑이 해제되었습니다.");
     }
 
     private static UUID parseUserId(String value) {
@@ -149,5 +162,12 @@ public class BankTransactionController {
         } catch (RuntimeException ex) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "유효한 사용자 식별자가 필요합니다.", ex);
         }
+    }
+
+    private static UUID parseOptionalUserId(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return parseUserId(value);
     }
 }

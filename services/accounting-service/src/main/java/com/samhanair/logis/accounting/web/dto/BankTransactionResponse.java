@@ -4,10 +4,11 @@ import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.BankTxnSource;
 import com.samhanair.logis.accounting.domain.BankTxnType;
 import com.samhanair.logis.accounting.domain.MatchStatus;
+import com.samhanair.logis.accounting.domain.PartnerMatchSource;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** 통장 거래 응답. UUID 는 노출하지 않고 externalRef/거래처 표시 식별자만 반환한다. */
+/** 통장 거래 응답. UUID는 노출하지 않고 거래처 표시 식별자와 매칭 근거만 반환한다. */
 public record BankTransactionResponse(
         LocalDateTime transactedAt,
         BankTxnType txnType,
@@ -26,7 +27,10 @@ public record BankTransactionResponse(
         String matchedPartnerCode,
         String matchedBizNo,
         String matchedPartnerName,
-        String cashReceiptSlipNo
+        String cashReceiptSlipNo,
+        PartnerMatchSource partnerMatchSource,
+        String appliedMappingRawName,
+        String appliedMappingNormalizedName
 ) {
     public static BankTransactionResponse of(BankTransaction transaction, PartnerDisplay partner,
                                              String cashReceiptSlipNo) {
@@ -48,7 +52,10 @@ public record BankTransactionResponse(
                 partner == null ? null : partner.partnerCode(),
                 partner == null ? null : partner.bizNo(),
                 partner == null ? null : partner.partnerName(),
-                cashReceiptSlipNo
+                cashReceiptSlipNo,
+                transaction.getPartnerMatchSource(),
+                transaction.getMatchedMappingRawName(),
+                transaction.getMatchedMappingNormalizedName()
         );
     }
 
