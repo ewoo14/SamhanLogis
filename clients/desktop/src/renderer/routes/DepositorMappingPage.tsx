@@ -44,7 +44,7 @@ function formatDateTime(value: string): string {
  * — 수정 모달은 빈 거래처로 열려 재선택을 유도한다.
  */
 function partnerOptionOf(row: DepositorMappingResponse): PartnerOption | null {
-  if (!row.partnerCode) return null
+  if (!row.partnerCode || row.staleTarget || row.targetStatus !== 'ACTIVE') return null
   return {
     partnerCode: row.partnerCode,
     name: row.partnerName ?? '',
@@ -150,14 +150,18 @@ export function DepositorMappingPage() {
         key: 'partnerCode',
         header: '거래처 코드',
         width: '150px',
-        // stale 매핑(거래처 삭제/유실 — BE 가 partnerCode null 반환)은 공백 대신 경고 배지로 알린다.
-        render: (row) => row.partnerCode ?? <Badge variant="warning">거래처 삭제됨</Badge>,
+        // stale 매핑은 snapshot 코드가 있어도 재선택이 필요한 상태로 표시한다.
+        render: (row) => row.staleTarget
+          ? <Badge variant="warning">거래처 재선택 필요{row.targetStatus ? ` (${row.targetStatus})` : ''}</Badge>
+          : row.partnerCode ?? <Badge variant="warning">거래처 삭제됨</Badge>,
       },
       {
         key: 'partnerName',
         header: '거래처명',
         width: '180px',
-        render: (row) => row.partnerName ?? '—',
+        render: (row) => row.staleTarget
+          ? <span role="alert">비활성 거래처 — 재선택 필요</span>
+          : row.partnerName ?? '—',
       },
       { key: 'modifiedAt', header: '수정일시', width: '150px', render: (row) => formatDateTime(row.modifiedAt) },
       { key: 'actor', header: '수정자', width: '100px' },
@@ -254,7 +258,7 @@ export function DepositorMappingPage() {
       <Card style={{ padding: 16 }}>
         <DataTable
           columns={columns}
-          rows={rows}
+        rows={rows}
           loading={mappingsQuery.isLoading}
           emptyMessage={mappingsQuery.isError ? '매핑 목록을 불러오지 못했습니다.' : '등록된 입금자명 매핑이 없습니다.'}
           rowKey={(row) => row.normalizedName}
@@ -295,7 +299,7 @@ export function DepositorMappingPage() {
             placeholder="거래처명/코드"
             value={selectedPartner}
             onChange={setSelectedPartner}
-            searchPartners={searchPartners}
+            searchPartners={(query) => searchPartners(query, { activeOnly: true })}
             required
             minChars={1}
             debounceMs={200}
@@ -359,8 +363,19 @@ export function DepositorMappingPage() {
 }
 
 function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse[]; loading: boolean }) {
+  const fieldLabels: Record<string, string> = {
+    'mapping.rawName': '원본 입금자명',
+    'mapping.normalizedName': '정규화 입금자명',
+    'mapping.partnerCode': '거래처 코드',
+    'mapping.reason': '변경 사유',
+  }
+  const orderedRows = [...rows].sort((left, right) =>
+    right.revisionNo - left.revisionNo
+    || right.changedAt.localeCompare(left.changedAt),
+  )
   const columns: DataTableColumn<DepositorMappingHistoryResponse>[] = [
-    { key: 'fieldName', header: '변경 항목', width: '150px' },
+    { key: 'revisionNo', header: '회차', width: '70px', render: (row) => `#${row.revisionNo}` },
+    { key: 'fieldName', header: '변경 항목', width: '150px', render: (row) => fieldLabels[row.fieldName] ?? row.fieldName },
     { key: 'oldValue', header: '이전 값', render: (row) => historyValue(row.oldValue) },
     { key: 'newValue', header: '변경 값', render: (row) => historyValue(row.newValue) },
     { key: 'actor', header: '수정자', width: '100px' },
@@ -369,10 +384,10 @@ function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse
   return (
     <DataTable
       columns={columns}
-      rows={rows}
+      rows={orderedRows}
       loading={loading}
       emptyMessage="변경 이력이 없습니다."
-      rowKey={(row) => `${row.changedAt}-${row.fieldName}-${row.newValue}`}
+      rowKey={(row) => `${row.revisionNo}-${row.changedAt}-${row.fieldName}`}
       tableLayout="fixed"
     />
   )

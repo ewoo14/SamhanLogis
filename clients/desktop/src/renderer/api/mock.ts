@@ -6279,6 +6279,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       importedCount: result.importedCount,
       duplicateSkippedCount: result.duplicateSkippedCount,
       matchedCount: 0,
+      staleSkippedCount: 0,
+      staleNormalizedNames: [],
     })
   }
 
@@ -6546,10 +6548,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'create')
     if (denied) return denied
     const body = parseMockBody(config)
-    const rawName = String(body.rawName ?? '').trim()
+    const rawNameInput = String(body.rawName ?? '')
+    const rawName = rawNameInput.trim()
     const partnerCode = String(body.partnerCode ?? '').trim()
     const reason = String(body.reason ?? '').trim()
-    if (!rawName || rawName.length > 120 || reason.length > 500 || !partnerCode) {
+    if (!rawName || rawNameInput.length > 120 || reason.length > 500 || !partnerCode) {
       return mockError(400, 'INVALID_INPUT', 'rawName, partnerCode는 필수이며 입력 길이를 확인하세요.')
     }
     const normalizedName = mockDepositorNameNormalize(rawName)
@@ -6586,11 +6589,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === oldNormalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
     const body = parseMockBody(config)
-    const rawName = String(body.rawName ?? '').trim()
+    const rawNameInput = String(body.rawName ?? '')
+    const rawName = rawNameInput.trim()
     const partnerCode = String(body.partnerCode ?? '').trim()
     const reason = String(body.reason ?? '').trim()
     const normalizedName = mockDepositorNameNormalize(rawName)
-    if (!rawName || rawName.length > 120 || reason.length > 500 || !partnerCode || !normalizedName || normalizedName.length > 120) {
+    if (!rawName || rawNameInput.length > 120 || reason.length > 500 || !partnerCode || !normalizedName || normalizedName.length > 120) {
       return mockError(400, 'INVALID_INPUT', '매핑 수정 입력을 확인하세요.')
     }
     if (MOCK_DEPOSITOR_MAPPINGS.some((row, rowIndex) => rowIndex !== index && row.active && row.normalizedName === normalizedName)) {
@@ -6702,7 +6706,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     MOCK_BANK_TRANSACTIONS = MOCK_BANK_TRANSACTIONS.map((row, rowIndex) =>
       rowIndex === index ? next : row)
-    if (current.txnType === 'DEPOSIT' && mockCanAccess('accounting.deposit-mapping', 'update')) {
+    if (current.txnType === 'DEPOSIT'
+      && ['CSV_IMPORT', 'CODEF_BANK', 'KFTC'].includes(current.source)
+      && mockCanAccess('accounting.deposit-mapping', 'update')) {
       mockLearnDepositorMapping(current.counterpartyName, partner)
     }
     return envelope(mockBankTransactionResponse(next))
@@ -6711,9 +6717,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'PATCH' && url.includes('/accounting/bank-transactions/match-partner/clear-and-delete-mapping')) {
     const denied = mockRequirePermission('accounting.bank-matching', 'update')
     if (denied) return denied
-    // BE 계약(#810): 매칭 해제(bank-matching:UPDATE)에 더해 매핑 삭제 권한(deposit-mapping:DELETE)도 강제한다.
-    const mappingDenied = mockRequirePermission('accounting.deposit-mapping', 'delete')
-    if (mappingDenied) return mappingDenied
     const body = parseMockBody(config)
     const bankAccountLabel = String(body.bankAccountLabel ?? '').trim()
     const transactedAt = String(body.transactedAt ?? '').trim()
@@ -6733,8 +6736,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       return mockError(409, 'CONFLICT', '미반영 거래만 거래처 매칭을 해제할 수 있습니다.')
     }
     if (current.partnerMatchSource !== 'DEPOSITOR_MAPPING' || !current.appliedMappingNormalizedName) {
-      return mockError(409, 'CONFLICT', '입금자명 자동 매칭 거래만 매핑을 함께 삭제할 수 있습니다.')
+      // BE deleteByIdIfPermitted(mappingId=null)는 권한 검사 전 조용히 반환한다.
+      // 따라서 일반 수동 매칭은 거래만 해제하고 200을 반환한다.
+      const next = {
+        ...current,
+        matchedPartnerCode: null,
+        matchedBizNo: null,
+        matchedPartnerName: null,
+        partnerMatchSource: null,
+        appliedMappingRawName: null,
+        appliedMappingNormalizedName: null,
+      }
+      MOCK_BANK_TRANSACTIONS = MOCK_BANK_TRANSACTIONS.map((row, rowIndex) => rowIndex === index ? next : row)
+      return envelope(mockBankTransactionResponse(next))
     }
+    // BE와 동일하게 실제 매핑 대상임을 확인한 뒤 내부 삭제 권한을 검사한다.
+    const mappingDenied = mockRequirePermission('accounting.deposit-mapping', 'delete')
+    if (mappingDenied) return mappingDenied
     const mappingIndex = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) =>
       row.active && row.normalizedName === current.appliedMappingNormalizedName)
     if (mappingIndex >= 0) {
@@ -6866,6 +6884,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalRows: importedRows.length,
       importedCount,
       duplicateSkippedCount,
+      staleSkippedCount: 0,
+      staleNormalizedNames: [],
     })
   }
 
@@ -16401,7 +16421,7 @@ type MockBankTransactionRow = {
   counterpartyName: string | null
   counterpartyAccount: string | null
   bankAccountLabel: string
-  source: 'CSV_IMPORT' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN'
+  source: 'CSV_IMPORT' | 'CODEF_BANK' | 'CODEF_CARD' | 'CODEF_LOAN' | 'KFTC'
   externalRef: string
   cardName?: string | null
   approvalId?: string | null
@@ -16424,14 +16444,17 @@ type MockDepositorMappingRow = {
   modifiedAt: string
   actor: string
   active: boolean
+  targetStatus?: string | null
+  staleTarget?: boolean
 }
 
 type MockDepositorMappingHistoryRow = {
   fieldName: string
-  oldValue: string
-  newValue: string
+  oldValue: string | null
+  newValue: string | null
   actor: string
   changedAt: string
+  revisionNo: number
 }
 
 const MOCK_CODEF_BANK_ACCOUNTS = [
@@ -16682,7 +16705,7 @@ function mockDepositorActor(): string {
 }
 
 function mockDepositorMappingResponse(row: MockDepositorMappingRow): MockDepositorMappingRow {
-  return { ...row }
+  return { targetStatus: 'ACTIVE', staleTarget: false, ...row }
 }
 
 function mockPartnerByCode(partnerCode: string): { partnerCode: string; name: string; bizNo: string } | null {
@@ -16707,6 +16730,7 @@ function mockRecordDepositorHistory(
     newValue,
     actor: mockDepositorActor(),
     changedAt: new Date().toISOString(),
+    revisionNo: entries.length + 1,
   })
   MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] = entries
 }
@@ -16728,8 +16752,9 @@ let MOCK_DEPOSITOR_MAPPING_HISTORY: Record<string, MockDepositorMappingHistoryRo
       fieldName: 'partnerCode',
       oldValue: '',
       newValue: 'P-2026-0001',
-      actor: '사용자',
-      changedAt: '2026-06-23T08:00:00',
+    actor: '사용자',
+    changedAt: '2026-06-23T08:00:00',
+      revisionNo: 1,
     },
   ],
 }
@@ -16754,8 +16779,10 @@ function mockApplyDepositorMapping(row: MockBankTransactionRow): MockBankTransac
 }
 
 function mockLearnDepositorMapping(rawName: string | null, partner: { partnerCode: string; name: string }): void {
-  if (!rawName?.trim()) return
+  // BE parity: 원문 길이를 trim 전에 검사하고, 저장/정규화 시에만 trim한다.
+  if (!rawName || rawName.length > 120 || !rawName.trim()) return
   const normalizedName = mockDepositorNameNormalize(rawName)
+  if (!normalizedName || normalizedName.length > 120) return
   const now = new Date().toISOString()
   const existingIndex = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
   const next: MockDepositorMappingRow = {

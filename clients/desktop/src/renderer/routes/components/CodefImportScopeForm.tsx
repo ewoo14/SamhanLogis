@@ -352,6 +352,7 @@ export function CodefImportScopeForm({
           `적재 ${data.importedCount.toLocaleString('ko-KR')}건`,
           `중복 ${data.duplicateSkippedCount.toLocaleString('ko-KR')}건`,
           `자동매칭 ${data.matchedCount.toLocaleString('ko-KR')}건`,
+          ...(data.staleSkippedCount > 0 ? [`stale 보류 ${data.staleSkippedCount.toLocaleString('ko-KR')}건`] : []),
         ].join(' · ')}`,
       })
       await onImported()
@@ -532,9 +533,17 @@ export function CodefImportScopeForm({
       </div>
 
       {result ? (
-        <div data-testid="codef-import-result" role="status" className="codef-import-result">
-          조회 {result.fetchedCount.toLocaleString('ko-KR')}건 · 적재 {result.importedCount.toLocaleString('ko-KR')}건 · 중복 {result.duplicateSkippedCount.toLocaleString('ko-KR')}건 · 자동매칭 {result.matchedCount.toLocaleString('ko-KR')}건
-        </div>
+        <>
+          <div data-testid="codef-import-result" role="status" className="codef-import-result">
+            조회 {result.fetchedCount.toLocaleString('ko-KR')}건 · 적재 {result.importedCount.toLocaleString('ko-KR')}건 · 중복 {result.duplicateSkippedCount.toLocaleString('ko-KR')}건 · 자동매칭 {result.matchedCount.toLocaleString('ko-KR')}건
+          </div>
+          {result.staleSkippedCount > 0 ? (
+            <div role="alert" className="warning-banner" data-testid="codef-stale-warning">
+              거래처 조회가 확인되지 않아 {result.staleSkippedCount.toLocaleString('ko-KR')}건을 보류했습니다.
+              {result.staleNormalizedNames.length > 0 ? ` 대상: ${result.staleNormalizedNames.join(', ')}` : ''}
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   )

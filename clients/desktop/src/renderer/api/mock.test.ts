@@ -1971,10 +1971,9 @@ describe('mock depositor mapping contract', () => {
     expect(blankOnly.__mockStatus).toBe(400)
   })
 
-  // 계약 pin(#810 L2-M1/L3-M1): clear-and-delete-mapping 은 bank-matching:update 에 더해
-  // deposit-mapping:delete 를 요구한다. mockPerms 주입으로 bank-matching edit=true +
-  // deposit-mapping edit=false 사용자를 만들어 두 게이트를 분리 검증한다.
-  it('clear-and-delete-mapping은 deposit-mapping:delete 없는 사용자에게 403이다 (bank-matching:update만으로 불충분)', () => {
+  // 계약 pin(#810 L2-M1/L3-M1): 실제 자동매핑 대상일 때 두 권한을 요구하고,
+  // 무매핑 대상은 BE deleteByIdIfPermitted(null)과 같이 거래만 해제한다.
+  it('clear-and-delete-mapping은 무매핑 대상을 권한검사 없이 200으로 해제한다', () => {
     const perms = [
       { pageCode: 'accounting.bank-matching', view: true, edit: true },
       { pageCode: 'accounting.deposit-mapping', view: true, edit: false },
@@ -1992,9 +1991,8 @@ describe('mock depositor mapping contract', () => {
         method: 'PATCH',
         url: '/accounting/bank-transactions/match-partner/clear-and-delete-mapping',
         data: naturalKey,
-      }) as { __mockStatus: number; body: { code: string } }
-      expect(denied.__mockStatus).toBe(403)
-      expect(denied.body.code).toBe('FORBIDDEN')
+      }) as MockEnvelope<Record<string, unknown>>
+      expect(denied.data).toMatchObject({ matchedPartnerCode: null })
 
       // 대조군: 같은 권한으로 일반 해제(clear)는 bank-matching:update 만 요구하므로 통과한다
       // — 위 403 이 deposit-mapping:delete 게이트에서 났음을 증명.

@@ -529,12 +529,12 @@ interface AdminPartnerListResponse {
  * @param q 검색어 (거래처명·코드·사업자번호·전화 부분 입력)
  * @returns `PartnerOption[]` — 실패 시 빈 배열 (graceful degradation)
  */
-export async function searchPartners(q: string): Promise<PartnerOption[]> {
+export async function searchPartners(q: string, options?: { activeOnly?: boolean }): Promise<PartnerOption[]> {
   try {
     const res = await apiClient.get<ApiEnvelope<AdminPartnerListResponse>>(
       '/admin/partners/search',
       {
-        params: { q, size: 20 },
+        params: { q, size: 20, ...(options?.activeOnly ? { status: 'ACTIVE' } : {}) },
       },
     )
     const data = res.data.data

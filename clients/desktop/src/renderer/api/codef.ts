@@ -47,6 +47,8 @@ export interface CodefImportResponse {
   importedCount: number
   duplicateSkippedCount: number
   matchedCount: number
+  staleSkippedCount: number
+  staleNormalizedNames: string[]
 }
 
 export async function listCodefBankAccounts(

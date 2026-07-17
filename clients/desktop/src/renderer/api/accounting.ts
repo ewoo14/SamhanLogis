@@ -2288,6 +2288,8 @@ export interface BankTransactionImportResult {
   totalRows: number
   importedCount: number
   duplicateSkippedCount: number
+  staleSkippedCount: number
+  staleNormalizedNames: string[]
 }
 
 export interface MatchBankTransactionPartnerRequest {
@@ -2312,6 +2314,10 @@ export interface DepositorMappingResponse {
   partnerCode: string | null
   /** 거래처명 — partnerCode 와 함께 null 가능(stale 매핑). */
   partnerName: string | null
+  /** 거래처 master 상태(ACTIVE/SUSPENDED/TERMINATED). */
+  targetStatus: string | null
+  /** 거래처가 없거나 ACTIVE가 아니어서 재선택이 필요한 stale target 여부. */
+  staleTarget: boolean
   modifiedAt: string
   actor: string
   active: boolean
@@ -2319,10 +2325,11 @@ export interface DepositorMappingResponse {
 
 export interface DepositorMappingHistoryResponse {
   fieldName: string
-  oldValue: string
-  newValue: string
+  oldValue: string | null
+  newValue: string | null
   actor: string
   changedAt: string
+  revisionNo: number
 }
 
 export interface DepositorMappingRequest {
