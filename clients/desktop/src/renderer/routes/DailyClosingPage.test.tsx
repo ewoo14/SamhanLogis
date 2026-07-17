@@ -10,13 +10,24 @@ vi.mock('../hooks/usePermissions', () => ({
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: () => {} }))
 
 const listDailyClosingsMock = vi.fn()
+const createDailyClosingMock = vi.fn()
 vi.mock('../api/accounting', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/accounting')>()
   return {
     ...actual,
     listDailyClosings: (...args: unknown[]) => listDailyClosingsMock(...args),
-    createDailyClosing: vi.fn(),
+    createDailyClosing: (...args: unknown[]) => createDailyClosingMock(...args),
     reverseDailyClosing: vi.fn(),
+  }
+})
+
+// [#825 R1] 실행 거래처 PartnerAutocomplete 검색 — activeOnly 파라미터·payload 단언용.
+const searchPartnersMock = vi.fn()
+vi.mock('../api/partnerApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../api/partnerApi')>()
+  return {
+    ...actual,
+    searchPartners: (...args: unknown[]) => searchPartnersMock(...args),
   }
 })
 
@@ -180,6 +191,8 @@ afterEach(() => {
   cleanup()
   listDailyClosingsMock.mockReset()
   getDailyClosingDetailMock.mockReset()
+  createDailyClosingMock.mockReset()
+  searchPartnersMock.mockReset()
 })
 
 const emptyPage = {
@@ -310,6 +323,65 @@ describe('DailyClosingPage 모델별 재검증', () => {
       expect.any(String),
       undefined,
       undefined,
+    )
+  })
+})
+
+/**
+ * [#825 R1] 일마감 실행 거래처 payload 계약.
+ *
+ * <p>in-process Playwright mock 은 POST /accounting/daily-closings 응답을 정적 목록에
+ * 반영하지 않아 E2E 에서 payload partnerCode 를 관측할 수 없다 (ac-4 spec 주석 참조).
+ * 여기서 자동완성 선택 → 마감 실행 → createDailyClosing 호출 payload 를 직접 단언한다.
+ */
+describe('DailyClosingPage 일마감 실행 거래처 payload (#825 R1)', () => {
+  it('자동완성 선택 거래처의 partnerCode 가 실행 payload 로 전송되고, 검색은 activeOnly 로 호출된다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    createDailyClosingMock.mockResolvedValue({
+      closingDate: '2026-07-17',
+      partnerCode: '1234567890',
+      closingKind: 'SALES',
+      sourceKind: 'TAX_INVOICE',
+      isLocked: true,
+      lockedAt: '2026-07-17T10:00:00+09:00',
+      lockedBy: 'user-001',
+      description: null,
+      totalSupply: '0',
+      totalVat: '0',
+      totalAmount: '0',
+    })
+    searchPartnersMock.mockResolvedValue([
+      { partnerCode: '1234567890', name: '엘에이시스템에어', bizNo: '123-45-67890' },
+    ])
+
+    renderPage()
+
+    // 실행 거래처 자동완성 — 검색 → 후보 → 마우스다운 선택
+    const partnerInput = await screen.findByTestId('daily-closing-exec-partner')
+    fireEvent.focus(partnerInput)
+    fireEvent.change(partnerInput, { target: { value: '엘에이' } })
+
+    // 접근성 이름은 하이라이트 chunk(<mark>엘에이</mark><span>시스템에어</span>) 경계에
+    // jsdom(dom-accessibility-api)이 공백을 삽입할 수 있어 연속 문자열 매칭이 깨진다 —
+    // 단일 chunk(matched '엘에이')로 매칭한다 (네이티브 select 의 매출/매입 option 과 비충돌).
+    const option = await screen.findByRole('option', { name: /엘에이/ })
+    fireEvent.mouseDown(option)
+    expect((partnerInput as HTMLInputElement).value).toBe('엘에이시스템에어')
+
+    // 검색 호출은 activeOnly(status=ACTIVE 파라미터 경로)로 이뤄져야 한다
+    expect(searchPartnersMock).toHaveBeenCalledWith('엘에이', { activeOnly: true })
+
+    // 마감 실행 → payload 에 선택 거래처 partnerCode 반영
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
+    expect(createDailyClosingMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        partnerCode: '1234567890',
+        closingKind: 'SALES',
+        sourceKind: 'TAX_INVOICE',
+        closingDate: expect.any(String),
+      }),
     )
   })
 })

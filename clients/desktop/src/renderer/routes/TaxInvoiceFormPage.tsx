@@ -255,6 +255,13 @@ export function TaxInvoiceFormPage() {
     if (!isEdit) return
     const t = detailQuery.data
     if (!t) return
+    // [#825 R1 M1] hydrate 재실행(SSE coedit·revert invalidate·refetch) 시 미저장 새 선택
+    // partner 도 함께 리셋해 소스 정합을 강제한다. 리셋 없이는 partnerIdSnapshot/partnerName 만
+    // 원본으로 복원되고 partner(새 선택 P2)가 잔존 → buildBody 가 P2 UUID + 원본 partnerName 을
+    // 전송하는 조용한 오염(partnerId≠partnerName)이 발생한다. 외부 refetch 는 이미 이름/주소/
+    // 라인 등 미저장 수기 입력을 폐기하므로(기존 hydrate 시맨틱), partner 선택도 동일하게
+    // 폐기하고 재선택을 유도하는 것이 세금계산서 무결성 우선의 안전 선택이다.
+    setPartner(null)
     setPartnerIdSnapshot(t.partnerId)
     setPartnerName(t.partnerName)
     setPartnerBusinessNo(t.partnerBusinessNo ?? '')

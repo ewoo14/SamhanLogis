@@ -531,7 +531,10 @@ export function DailyClosingPage() {
             value={execPartner}
             onChange={setExecPartner}
             searchPartners={(query) => searchPartners(query, { activeOnly: true })}
-            label="거래처"
+            // [#825 R1 L1] 인라인 실행 행은 라벨-less 컨트롤 정렬 — visible label 대신
+            // ariaLabel (BankTransactionPage 인라인 매칭 행 선례).
+            label=""
+            ariaLabel="거래처"
             placeholder="거래처명 또는 코드 선택"
             inputTestId="daily-closing-exec-partner"
           />

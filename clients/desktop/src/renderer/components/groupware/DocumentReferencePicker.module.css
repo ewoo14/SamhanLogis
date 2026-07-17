@@ -64,6 +64,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * 검색어 매치 하이라이트 — design-system AsyncAutocomplete .matchMark 토큰 미러
+ * ([#825 R1 L4] 브라우저 기본 <mark> 노랑 대신 PartnerAutocomplete 시각 통일).
+ */
+.matchMark {
+  padding: 0;
+  background-color: var(--color-warning-100, #fef3c7);
+  color: inherit;
+  font-weight: var(--font-weight-bold, 700);
+}
+
 .amount {
   text-align: right;
 }

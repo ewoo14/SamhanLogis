@@ -36,7 +36,7 @@
  * <p>UUID 비공개 — 화면 표시는 partnerCode + businessName + reason. id 는 액션
  * data-testid 와 unblock path variable 전용 (사용자 시각 노출 X).
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -377,13 +377,20 @@ function AddBlockedPartnerDialog({
 }: AddBlockedPartnerDialogProps) {
   const [partner, setPartner] = useState<PartnerOption | null>(null)
   const [blockReason, setBlockReason] = useState('')
+  const partnerInputRef = useRef<HTMLInputElement | null>(null)
 
-  // open 토글 시 입력 reset
+  // open 토글 시 입력 reset + 거래처 입력 자동 포커스 복원
   useEffect(() => {
-    if (open) {
-      setPartner(null)
-      setBlockReason('')
-    }
+    if (!open) return
+    setPartner(null)
+    setBlockReason('')
+    // [#825 R1 L3] 구 <input autoFocus> 의 자동 포커스 복원 — Modal 이 rAF 로 첫 focusable
+    // (닫기 버튼)에 포커스를 주므로, 그보다 늦게 큐잉되는 rAF 로 거래처 입력을 포커스한다.
+    // (PartnerAutocomplete 는 HTMLInputElement ref 를 forward 한다.)
+    const raf = window.requestAnimationFrame(() => {
+      partnerInputRef.current?.focus()
+    })
+    return () => window.cancelAnimationFrame(raf)
   }, [open])
 
   const canSubmit = Boolean(partner) && !submitting
@@ -421,10 +428,13 @@ function AddBlockedPartnerDialog({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <PartnerAutocomplete
+          ref={partnerInputRef}
           value={partner}
           onChange={setPartner}
           searchPartners={searchPartners}
-          label="거래처 (필수)"
+          // [#825 R1 L2] required prop 이 FormField 필수 마커를 렌더하므로 라벨 텍스트의
+          // "(필수)" 중복 표기(SR 이중 낭독)를 제거한다.
+          label="거래처"
           placeholder="거래처명 또는 코드 검색"
           required
           inputTestId="admin-blocked-add-partner-code-input"
