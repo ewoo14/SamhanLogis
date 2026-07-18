@@ -139,6 +139,24 @@ describe('ApprovalDocView renderer transition', () => {
     expect(props?.template.docType).toBe('GROUPWARE_DEFAULT')
   })
 
+  it('template not-found(null resolve)도 빈 필드로 GROUPWARE_DEFAULT를 유지한다', async () => {
+    // 오류(reject)와 구분되는 경로 — active 템플릿에서 미발견 시 findActiveApprovalTemplate 은 null 을 resolve 한다.
+    const client = queryClient()
+    const resolvedApproval = approval({ fieldValues: {} })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    client.setQueryData(['groupware-approval-print', 'approval-id'], resolvedApproval)
+    client.setQueryData(['groupware-approval-print-attachments', 'approval-id'], attachment())
+    findActiveApprovalTemplate.mockResolvedValue(null)
+
+    renderView(client)
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    const props = vi.mocked(DocumentRenderer).mock.calls[0]?.[0]
+    expect(props?.model.body.fieldRows).toEqual([])
+    expect(props?.template.docType).toBe('GROUPWARE_DEFAULT')
+  })
+
   it('approval 또는 attachment query 오류는 중단하고 error banner를 보여준다', async () => {
     getGroupwareApproval.mockRejectedValue(new Error('approval unavailable'))
     listApprovalAttachments.mockResolvedValue(attachment())

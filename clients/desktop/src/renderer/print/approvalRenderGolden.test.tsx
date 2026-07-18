@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import React from 'react'
@@ -23,6 +23,24 @@ function render(element: JSX.Element): string {
 }
 
 describe('DS-1 frozen golden DOM gate', () => {
+  it('fixture/golden 개수·대응 가드 — truth-table 축소 시 조용한 커버리지 소실 방지', () => {
+    // truth-table fixture 총수 앵커 — 배열이 줄면 golden 커버리지가 조용히 사라지므로 명시 고정.
+    expect(approvalRenderFixtures.length).toBe(17)
+
+    // id 중복은 두 fixture 가 한 golden 을 공유해 커버리지가 소실되므로 고유해야 한다.
+    const uniqueIds = new Set(approvalRenderFixtures.map((fixture) => fixture.id))
+    expect(uniqueIds.size).toBe(approvalRenderFixtures.length)
+
+    // golden 디렉토리의 .html 파일수 === fixture수, 그리고 각 fixture 는 대응 golden 을 가진다.
+    const goldenFiles = new Set(
+      readdirSync(goldenDirectory).filter((name) => name.endsWith('.html')),
+    )
+    expect(goldenFiles.size).toBe(approvalRenderFixtures.length)
+    for (const fixture of approvalRenderFixtures) {
+      expect(goldenFiles.has(`${fixture.id}.html`), `${fixture.id}: golden 누락`).toBe(true)
+    }
+  })
+
   it.each(approvalRenderFixtures)('$id는 frozen과 새 renderer golden이 바이트 동일하다', (fixture) => {
     const model = buildApprovalRenderModel(fixture.input)
     const template = fixture.templateInput === undefined

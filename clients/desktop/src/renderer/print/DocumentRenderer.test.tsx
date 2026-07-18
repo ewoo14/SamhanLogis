@@ -106,9 +106,13 @@ describe('buildApprovalRenderModel', () => {
     expect(model.body.attachments).toEqual([
       { typeLabel: '파일', title: '첨부', detail: '' },
     ])
-    expect(serialized).not.toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
-    expect(serialized).not.toContain('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
-    expect(serialized).not.toContain('dddddddd-dddd-4ddd-8ddd-dddddddddddd')
+    // 모든 내부 id 는 투영 모델에 복사되지 않는다 — approvalId/requesterId/templateId/attachmentId/approverId.
+    expect(serialized).not.toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') // approvalId
+    expect(serialized).not.toContain('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') // requesterId
+    expect(serialized).not.toContain('cccccccc-cccc-4ccc-8ccc-cccccccccccc') // templateId
+    expect(serialized).not.toContain('dddddddd-dddd-4ddd-8ddd-dddddddddddd') // attachmentId
+    expect(serialized).not.toContain('approver-1') // approverId(step 1)
+    expect(serialized).not.toContain('approver-2') // approverId(step 2)
   })
 
   it('NUMBER만 krw로 포맷하고 numeric TEXT는 원문을 보존한다', () => {
