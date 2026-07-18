@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { useState } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { createRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { FreeTextChipInput } from './FreeTextChipInput'
+import { FreeTextChipInput, type FreeTextChipInputHandle } from './FreeTextChipInput'
 
 function Harness({ initial = [] as string[], maxLength }: { initial?: string[]; maxLength?: number }) {
   const [value, setValue] = useState(initial)
@@ -102,5 +102,96 @@ describe('FreeTextChipInput', () => {
     fireEvent.keyDown(input, { key: 'Enter', isComposing: false })
     expect(screen.queryByText('새값')).toBeNull()
     expect(screen.queryByRole('button', { name: '기존값 제거' })).toBeNull()
+  })
+
+  it('타이핑 후 Enter 없이 blur 하면 draft 를 칩으로 확정한다 (H1 data-loss 방지)', () => {
+    render(<Harness />)
+    const input = screen.getByTestId('free-text-input')
+
+    fireEvent.change(input, { target: { value: '재택근무' } })
+    // 아직 확정 전 — draft 상태.
+    expect(screen.queryByRole('button', { name: '재택근무 제거' })).toBeNull()
+
+    fireEvent.blur(input)
+    expect(screen.getByText('재택근무')).toBeTruthy()
+    expect((input as HTMLInputElement).value).toBe('')
+  })
+
+  it('빈/공백 draft blur 는 onChange 를 호출하지 않는다 (H1 no-op)', () => {
+    const onChange = vi.fn()
+    render(
+      <FreeTextChipInput value={[]} onChange={onChange} ariaLabel="선택 옵션" inputTestId="free-text-input" />,
+    )
+    const input = screen.getByTestId('free-text-input')
+
+    fireEvent.blur(input)
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.blur(input)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('flush() 는 미확정 draft 를 즉시 확정한다 (H1 명령형 핸들)', () => {
+    const ref = createRef<FreeTextChipInputHandle>()
+    const onChange = vi.fn()
+    render(
+      <FreeTextChipInput
+        ref={ref}
+        value={[]}
+        onChange={onChange}
+        ariaLabel="선택 옵션"
+        inputTestId="free-text-input"
+      />,
+    )
+    const input = screen.getByTestId('free-text-input')
+
+    fireEvent.change(input, { target: { value: '연차' } })
+    expect(onChange).not.toHaveBeenCalled()
+
+    act(() => ref.current?.flush())
+    expect(onChange).toHaveBeenCalledWith(['연차'])
+  })
+
+  it('칩 제거 후 입력으로 포커스를 되돌린다 (M2, WCAG 2.4.3)', () => {
+    render(<Harness initial={['연차', '반차']} />)
+    const input = screen.getByTestId('free-text-input')
+
+    fireEvent.click(screen.getByRole('button', { name: '연차 제거' }))
+    expect(screen.queryByText('연차')).toBeNull()
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('추가 시 current 의 대소문자 변종을 재정규화·삭제하지 않는다 (M4)', () => {
+    render(<Harness initial={['Apple', 'apple']} />)
+    const input = screen.getByTestId('free-text-input')
+
+    fireEvent.change(input, { target: { value: 'Banana' } })
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false })
+
+    expect(screen.getByText('Apple')).toBeTruthy()
+    expect(screen.getByText('apple')).toBeTruthy()
+    expect(screen.getByText('Banana')).toBeTruthy()
+  })
+
+  it('current 에 이미 있는 값(대소문자 무시)은 추가하지 않는다 (M4)', () => {
+    const onChange = vi.fn()
+    render(
+      <FreeTextChipInput value={['A']} onChange={onChange} ariaLabel="선택 옵션" inputTestId="free-text-input" />,
+    )
+    const input = screen.getByTestId('free-text-input')
+
+    fireEvent.change(input, { target: { value: 'a' } })
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('선택 개수를 단일 aria-live region 으로 고지한다 (C1)', () => {
+    render(<Harness initial={['연차', '반차']} />)
+    const region = screen.getByTestId('free-text-chip-count')
+
+    expect(region.getAttribute('aria-live')).toBe('polite')
+    expect(region.textContent).toContain('2개 선택됨')
+
+    fireEvent.click(screen.getByRole('button', { name: '연차 제거' }))
+    expect(region.textContent).toContain('1개 선택됨')
   })
 })

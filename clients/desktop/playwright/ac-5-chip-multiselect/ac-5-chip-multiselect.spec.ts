@@ -48,7 +48,8 @@ async function gotoPage(page: Page, route: string, pageCodes: string[]): Promise
   await page.goto(`${BASE}/?mockRole=MASTER&mockPerms=${permissions}#${route}`, {
     waitUntil: 'domcontentloaded',
   })
-  await page.waitForTimeout(1_500)
+  // 고정 sleep 대신 앱 셸(AppLayout main) 렌더 신호로 안정화한다(flaky 완화).
+  await expect(page.locator('main.app-main')).toBeVisible({ timeout: 15_000 })
 }
 
 async function capture(page: Page, name: string): Promise<void> {
@@ -68,7 +69,8 @@ test.describe('AC-5 칩 복수선택 foundation·결재작성', () => {
     await gotoPage(page, '/groupware/approvals/new', ['groupware.approvals'])
     await expect(page.getByTestId('groupware-approval-create-template')).toBeVisible({ timeout: 10_000 })
     await page.getByTestId('groupware-approval-create-template').selectOption({ label: '지출결의서' })
-    await page.waitForTimeout(1_500)
+    // 고정 sleep 대신 결재자 검색 입력이 상호작용 가능해질 때까지 대기한다(flaky 완화).
+    await expect(page.getByTestId('approver-search-input')).toBeVisible({ timeout: 10_000 })
 
     await chooseApprover(page, '김기철')
     await chooseApprover(page, '김은지')
@@ -117,7 +119,8 @@ test.describe('AC-5 칩 복수선택 foundation·결재작성', () => {
   test('결재작성 payload 순서는 approverIds와 칩 순서를 유지한다', async ({ page }) => {
     await gotoPage(page, '/groupware/approvals/new', ['groupware.approvals'])
     await page.getByTestId('groupware-approval-create-template').selectOption({ label: '지출결의서' })
-    await page.waitForTimeout(1_500)
+    // 고정 sleep 대신 결재자 검색 입력이 상호작용 가능해질 때까지 대기한다(flaky 완화).
+    await expect(page.getByTestId('approver-search-input')).toBeVisible({ timeout: 10_000 })
     await chooseApprover(page, '김은지')
     await chooseApprover(page, '김기철')
     await expect(page.getByTestId('approver-chip').first()).toContainText('1')

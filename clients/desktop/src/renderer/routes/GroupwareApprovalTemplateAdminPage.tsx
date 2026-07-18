@@ -3,7 +3,7 @@
  *
  * 템플릿 UUID 는 DataTable key/API path 전용이다. 화면에는 code/name/field label 만 노출한다.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -17,6 +17,7 @@ import {
   Select,
   Spinner,
   type DataTableColumn,
+  type FreeTextChipInputHandle,
 } from '@samhan/design-system'
 import {
   APPROVAL_FIELD_TYPE_LABEL,
@@ -128,6 +129,18 @@ export function GroupwareApprovalTemplateAdminPage() {
   const [draft, setDraft] = useState<TemplateDraft>(() => emptyDraft())
   const [notice, setNotice] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // SELECT 필드의 FreeTextChipInput 명령형 핸들 — 저장 직전 미확정 draft 확정용(H1 data-loss 방지).
+  const chipHandlesRef = useRef(new Map<number, FreeTextChipInputHandle>())
+  const setChipHandle = useCallback((index: number, handle: FreeTextChipInputHandle | null) => {
+    if (handle) chipHandlesRef.current.set(index, handle)
+    else chipHandlesRef.current.delete(index)
+  }, [])
+  // 저장 버튼 mousedown(= click 직전 별도 discrete 이벤트)에서 flush 한다. onChange 로 인한
+  // draft state 갱신이 이후 click→mutate 렌더에 반영되어 stale options 저장을 막는다.
+  const flushChipDrafts = useCallback(() => {
+    chipHandlesRef.current.forEach((handle) => handle.flush())
+  }, [])
 
   usePageTitle('결재 양식')
 
@@ -427,6 +440,7 @@ export function GroupwareApprovalTemplateAdminPage() {
                 </label>
                 {field.fieldType === 'SELECT' ? (
                   <FreeTextChipInput
+                    ref={(handle) => setChipHandle(index, handle)}
                     value={field.options}
                     onChange={(options) => updateField(index, { options })}
                     ariaLabel="선택 옵션"
@@ -470,6 +484,7 @@ export function GroupwareApprovalTemplateAdminPage() {
               type="button"
               variant="primary"
               size="sm"
+              onMouseDown={flushChipDrafts}
               onClick={() => saveMutation.mutate()}
               disabled={!canWrite || invalid || saveMutation.isPending}
               loading={saveMutation.isPending}

@@ -65,6 +65,7 @@ export const TagInput = forwardRef<HTMLDivElement, TagInputProps>(function TagIn
               key={k}
               label={k}
               value={v}
+              removeLabel={k}
               onRemove={disabled ? undefined : () => handleRemove(k)}
             />
           ))}

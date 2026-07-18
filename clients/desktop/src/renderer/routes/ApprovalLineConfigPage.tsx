@@ -514,7 +514,7 @@ export function ApprovalLineConfigPage() {
                           onRemoveApprover={(approverId) => {
                             // 낙관 add 진행 중(pending-* id)인 칩 제거 시 비-UUID 로 DELETE → 400 회피.
                             // 서버 응답 도착(onSuccess)으로 실 id 치환된 뒤에만 삭제 허용.
-                            if (approverId.startsWith('pending-')) return
+                            if (!canDeleteApprover(approverId)) return
                             removeApproverMutation.mutate({ roleId: role.id, approverId })
                           }}
                           onRename={(label) =>
@@ -1029,6 +1029,20 @@ export function optimisticallyRemoveApprovalLineApprover(
   return current?.map((role) => role.id === roleId
     ? { ...role, approvers: role.approvers.filter((approver) => approver.id !== approverId) }
     : role)
+}
+
+/**
+ * 결재자 칩 제거 가능 여부.
+ *
+ * <p>낙관적 add 로 붙인 임시 결재자는 서버가 아직 실 id 를 발급하지 않아 `pending-*` id 를
+ * 갖는다. 이 상태에서 제거하면 비-UUID 를 DELETE 로 보내 400 이 발생하므로, 서버 응답으로
+ * 실 id 가 치환된 뒤에만(= pending-* 가 아닐 때만) 삭제를 허용한다.
+ *
+ * @param approverId 결재자 칩 id
+ * @returns pending-* 이면 false, 그 외 true
+ */
+export function canDeleteApprover(approverId: string): boolean {
+  return !approverId.startsWith('pending-')
 }
 
 export function optimisticallyAddApprovalLineStep(

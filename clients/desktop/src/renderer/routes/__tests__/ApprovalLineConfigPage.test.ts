@@ -8,6 +8,7 @@ import {
   ApprovalLinePreviewPanel,
   approvalLineRolesQueryKey,
   areApprovalRoleOrdersEqual,
+  canDeleteApprover,
   computeApprovalRoleReorder,
   getOrderedApprovalRoleIds,
   notifyApprovalRoleApproverSelected,
@@ -316,5 +317,56 @@ describe('computeApprovalRoleReorder (Task 4)', () => {
   test('작성자 위 드롭 결과가 현재 순서와 같으면 변경 없음으로 판정한다', () => {
     const result = computeApprovalRoleReorder(roles, 'r1', 'r0')
     expect(areApprovalRoleOrdersEqual(result, getOrderedApprovalRoleIds(roles))).toBe(true)
+  })
+})
+
+describe('canDeleteApprover (M7 — pending-* 제거 차단 가드)', () => {
+  test('pending-* id 는 삭제 불가(비-UUID DELETE 400 방지)', () => {
+    expect(canDeleteApprover('pending-USER-u1')).toBe(false)
+    expect(canDeleteApprover('pending-GROUP-g1')).toBe(false)
+    expect(canDeleteApprover('pending-step-SLIP_OUTBOUND-1700000000000')).toBe(false)
+  })
+
+  test('서버 발급 실 id 는 삭제 허용', () => {
+    expect(canDeleteApprover('a0')).toBe(true)
+    expect(canDeleteApprover('11111111-2222-3333-4444-555555555555')).toBe(true)
+  })
+
+  test('빈 문자열은 pending 접두어가 아니므로 삭제 허용(가드는 pending-* 만 차단)', () => {
+    expect(canDeleteApprover('')).toBe(true)
+  })
+
+  test('낙관 add→서버치환 수명주기: pending 제거 차단, 실 id 치환 후 optimistic 제거 성공', () => {
+    const current: ApprovalLineRole[] = [{
+      id: 'r1',
+      sequence: 1,
+      label: '출고자',
+      stepType: 'GROUP',
+      approvers: [],
+      required: true,
+      enforced: true,
+      seedManaged: true,
+    }]
+
+    const added = optimisticallyAddApprovalLineApprover(current, 'r1', {
+      type: 'USER',
+      refId: 'u1',
+      displayName: '홍길동',
+    })
+    const pendingId = added?.[0]?.approvers[0]?.id ?? ''
+    expect(pendingId).toContain('pending-')
+    // 낙관 add 진행 중(pending id)에는 제거를 차단해 400 을 피한다.
+    expect(canDeleteApprover(pendingId)).toBe(false)
+
+    // 서버 응답으로 실 id 가 치환되면 제거가 허용되고 optimistic 제거가 approvers 를 비운다.
+    const realId = 'a-real-uuid-0001'
+    const settled = added?.map((role) => ({
+      ...role,
+      approvers: role.approvers.map((approver) =>
+        approver.id === pendingId ? { ...approver, id: realId } : approver),
+    }))
+    expect(canDeleteApprover(realId)).toBe(true)
+    const removed = optimisticallyRemoveApprovalLineApprover(settled, 'r1', realId)
+    expect(removed?.[0]?.approvers).toHaveLength(0)
   })
 })

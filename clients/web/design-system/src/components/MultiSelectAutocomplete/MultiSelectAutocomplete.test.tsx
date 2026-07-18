@@ -72,6 +72,8 @@ describe('MultiSelectAutocomplete', () => {
 
     render(<Harness />)
     const input = screen.getByRole('combobox', { name: '사원 검색' })
+    // 실제 포커스를 입력에 둔 상태에서 add 가 일어난다(M3 가드: 내부 포커스 시에만 refocus).
+    input.focus()
 
     for (const option of options) {
       fireEvent.focus(input)
@@ -148,5 +150,76 @@ describe('MultiSelectAutocomplete', () => {
     const input = screen.getByRole('combobox', { name: '사원 검색' })
     expect((input as HTMLInputElement).disabled).toBe(true)
     expect(screen.queryByRole('button', { name: '김민수 제거' })).toBeNull()
+  })
+
+  it('blur 자동선택 add 가 컴포넌트 밖 포커스 상태서 일어나면 입력 포커스를 훔치지 않는다 (M3)', async () => {
+    const options: Option[] = [{ id: 'u-1', name: '김민수' }]
+
+    function Harness() {
+      const [selected, setSelected] = useState<Option[]>([])
+      return (
+        <div>
+          <MultiSelectAutocomplete<Option, Option>
+            selected={selected}
+            onAdd={(option) => setSelected((current) => [...current, option])}
+            onRemove={(item) => setSelected((current) => current.filter((value) => value.id !== item.id))}
+            search={async () => options}
+            getOptionKey={(option) => option.id}
+            getSelectedKey={(item) => item.id}
+            getInputLabel={(option) => option.name}
+            renderOption={(option) => <span>{option.name}</span>}
+            listboxLabel="사원 검색 결과"
+            ariaLabel="사원 검색"
+            debounceMs={0}
+            getChipProps={(item) => ({ label: '사원', value: item.name })}
+          />
+          <input data-testid="other-field" aria-label="다른 필드" />
+        </div>
+      )
+    }
+
+    render(<Harness />)
+    const input = screen.getByRole('combobox', { name: '사원 검색' })
+    const other = screen.getByTestId('other-field')
+
+    input.focus()
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '김민수' } })
+    await screen.findByRole('option', { name: '김민수' })
+
+    // 사용자가 정확명을 남긴 채 다른 필드로 이동 → AsyncAutocomplete blur 자동선택(120ms) 발동.
+    other.focus()
+    fireEvent.blur(input)
+
+    // blur 자동선택이 add 를 태우지만, 포커스가 밖(other)이라 refocus 를 건너뛰어야 한다.
+    await waitFor(() => expect(screen.getByText('김민수')).toBeTruthy())
+    expect(document.activeElement).toBe(other)
+  })
+
+  it('선택 개수를 단일 aria-live region 으로 고지한다 (C1)', () => {
+    const selected: Option[] = [
+      { id: 'u-1', name: '김민수' },
+      { id: 'u-2', name: '이서윤' },
+    ]
+
+    render(
+      <MultiSelectAutocomplete<Option, Option>
+        selected={selected}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+        search={async () => []}
+        getOptionKey={(option) => option.id}
+        getSelectedKey={(item) => item.id}
+        getInputLabel={(option) => option.name}
+        renderOption={(option) => <span>{option.name}</span>}
+        listboxLabel="사원 검색 결과"
+        ariaLabel="사원 검색"
+        getChipProps={(item) => ({ label: '사원', value: item.name })}
+      />,
+    )
+
+    const region = screen.getByTestId('multiselect-chip-count')
+    expect(region.getAttribute('aria-live')).toBe('polite')
+    expect(region.textContent).toContain('2개 선택됨')
   })
 })

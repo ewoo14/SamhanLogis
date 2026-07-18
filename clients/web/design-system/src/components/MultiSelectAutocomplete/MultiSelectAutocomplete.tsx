@@ -95,6 +95,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
   ref: ForwardedRef<HTMLInputElement>,
 ) {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
   const selectedKeys = useMemo(
     () => new Set(selected.map((item) => getSelectedKey(item))),
     [getSelectedKey, selected],
@@ -119,7 +120,13 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
       if (!option || disabled || maxReached) return
       if (selectedKeys.has(getOptionKey(option))) return
       onAdd(option)
-      focusInput()
+      // focus steal 방지(M3): 현재 포커스가 이 컴포넌트 내부에 있을 때만 입력으로 되돌린다.
+      // click-pick(mousedown preventDefault 로 포커스 유지)·Enter-pick 은 내부이므로 refocus 하지만,
+      // AsyncAutocomplete blur 자동선택(120ms)은 사용자가 이미 타 필드를 눌러 포커스가 밖으로 나간
+      // 상태라 refocus 를 건너뛰어 포커스를 훔치지 않는다.
+      if (wrapperRef.current?.contains(document.activeElement)) {
+        focusInput()
+      }
     },
     [disabled, focusInput, getOptionKey, maxReached, onAdd, selectedKeys],
   )
@@ -143,9 +150,17 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
   )
 
   return (
-    <div className={styles['wrapper']}>
+    <div className={styles['wrapper']} ref={wrapperRef}>
+      <span
+        className={styles['srOnly']}
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="multiselect-chip-count"
+      >
+        {selected.length > 0 ? `${selected.length}개 선택됨` : ''}
+      </span>
       {selected.length > 0 ? (
-        <div className={styles['chips']}>
+        <div className={styles['chips']} role="group" aria-label="선택한 항목">
           {selected.map((item, index) => {
             const key = `${getSelectedKey(item)}-${index}`
             const handleRemove = () => remove(item)
