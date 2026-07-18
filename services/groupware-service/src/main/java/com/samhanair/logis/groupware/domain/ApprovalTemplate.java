@@ -28,6 +28,15 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class ApprovalTemplate extends BaseEntity {
 
+    /**
+     * 렌더러 기본 레이아웃 sentinel docType.
+     *
+     * <p>결재선의 {@code document_type} 은 {@code GROUPWARE_${code}} 로 파생되며, 렌더러는
+     * {@code GROUPWARE_DEFAULT} 를 "저장된 레이아웃 없음(=기본 출력)" 을 뜻하는 예약값으로 사용한다.
+     * 따라서 {@code code = "DEFAULT"} 로 파생 docType 이 이 예약값과 충돌하는 것을 금지한다.
+     */
+    private static final String RESERVED_RENDERER_DOC_TYPE = "GROUPWARE_DEFAULT";
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -114,6 +123,10 @@ public class ApprovalTemplate extends BaseEntity {
         if (!code.matches("[A-Z0-9_]{2,60}")) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "결재유형 code 는 영문 대문자/숫자/밑줄 2~60자여야 합니다");
+        }
+        if (RESERVED_RENDERER_DOC_TYPE.equals("GROUPWARE_" + code)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "예약된 결재유형 code 는 사용할 수 없습니다: " + code);
         }
     }
 

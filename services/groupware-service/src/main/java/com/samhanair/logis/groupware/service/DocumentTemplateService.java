@@ -56,9 +56,14 @@ public class DocumentTemplateService {
                 .orElse(null);
     }
 
-    /** DRAFT 문서 양식을 생성한다. */
+    /**
+     * DRAFT 문서 양식을 생성한다.
+     *
+     * <p>{@code created_by}/{@code modified_by} 감사 필드는 JPA {@code AuditorAware}(SecurityContext)
+     * 가 채우므로 별도 actor 인자를 받지 않는다.
+     */
     @Transactional
-    public DocumentTemplateResponse create(DocumentTemplateCreateRequest request, String actor) {
+    public DocumentTemplateResponse create(DocumentTemplateCreateRequest request) {
         String docType = normalizedDocType(request.docType());
         rejectReserved(docType);
         ensureUniqueName(docType, request.name(), null);
@@ -71,9 +76,15 @@ public class DocumentTemplateService {
         }
     }
 
-    /** DRAFT 문서 양식의 이름과 document를 교체한다. */
+    /**
+     * DRAFT 문서 양식의 이름과 document를 교체한다.
+     *
+     * <p>감사 필드는 {@code AuditorAware} 가 채우므로 actor 인자를 받지 않는다. mutate 전에 DRAFT 여부를
+     * 검사하도록 {@code updateDocument}(DRAFT 가드) 를 {@code rename}(가드 없음) 보다 먼저 호출한다.
+     * ACTIVE 양식이면 어떤 필드도 변경하기 전에 422 로 거부된다.
+     */
     @Transactional
-    public DocumentTemplateResponse update(UUID id, DocumentTemplateUpdateRequest request, String actor) {
+    public DocumentTemplateResponse update(UUID id, DocumentTemplateUpdateRequest request) {
         DocumentTemplate template = load(id);
         String docType = normalizedDocType(request.docType());
         rejectReserved(docType);
@@ -82,7 +93,7 @@ public class DocumentTemplateService {
         }
         ensureUniqueName(docType, request.name(), id);
         DocumentPayload document = validator.validate(request.schemaVersion(), request.document());
-        template.rename(request.name()).updateDocument(document);
+        template.updateDocument(document).rename(request.name());
         try {
             return DocumentTemplateResponse.from(repository.saveAndFlush(template));
         } catch (DataIntegrityViolationException ex) {
@@ -100,11 +111,13 @@ public class DocumentTemplateService {
         }
         String safeActor = actor == null || actor.isBlank() ? "system" : actor;
         repository.demoteOtherActive(template.getDocType(), id, LocalDateTime.now(), safeActor);
-        repository.flush();
-        template.activate();
+        // demoteOtherActive 는 clearAutomatically 로 1차 캐시를 비운다. 대상을 다시 managed 상태로 로드해야
+        // activate() 변경이 flush 로 반영된다.
+        DocumentTemplate target = load(id);
+        target.activate();
         try {
             repository.flush();
-            return DocumentTemplateResponse.from(template);
+            return DocumentTemplateResponse.from(target);
         } catch (DataIntegrityViolationException | ObjectOptimisticLockingFailureException ex) {
             throw conflict("문서 양식 활성화 경합이 발생했습니다. 최신 목록을 확인해 주세요");
         }

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "docType": "GROUPWARE_UNKNOWN_FIELD",
+  "name": "unknown 필드 드롭 양식",
+  "note": "document/band/element 레벨의 unknown 필드는 BE 가 드롭한다(FE parseElement clean 재구성과 정합)",
+  "document": {
+    "paper": "A4_PORTRAIT",
+    "note": "unknown at document level",
+    "bands": [
+      {"key":"header","kind":"HEADER","hint":"unknown at band level","elements":[{"key":"title","type":"TITLE","label":"제목(드롭됨)","style":{"bold":true}},{"key":"approval","type":"APPROVAL_GRID"}]},
+      {"key":"body","kind":"BODY","elements":[{"key":"content","type":"CONTENT_PARAGRAPHS"}]},
+      {"key":"footer","kind":"FOOTER","elements":[{"key":"closing","type":"CLOSING"}]}
+    ]
+  }
+}

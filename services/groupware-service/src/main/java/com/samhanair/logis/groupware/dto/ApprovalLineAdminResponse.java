@@ -73,10 +73,6 @@ public record ApprovalLineAdminResponse(
             String reason
     ) {
 
-        static StepView from(ApprovalStep s) {
-            return from(s, null);
-        }
-
         static StepView from(ApprovalStep s, Map<UUID, String> nameMap) {
             boolean isGroup = s.getStepType() == StepType.GROUP;
             UUID approverId = isGroup ? null : s.getApproverUserId();

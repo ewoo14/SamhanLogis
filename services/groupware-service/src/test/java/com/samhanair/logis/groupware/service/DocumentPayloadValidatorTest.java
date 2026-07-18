@@ -6,11 +6,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.groupware.domain.DocumentPayload;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 
 /** FE parser와 공용 fixture corpus가 공유하는 BE 구조 validator 단위 테스트. */
 class DocumentPayloadValidatorTest {
@@ -20,17 +22,31 @@ class DocumentPayloadValidatorTest {
 
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
+        // prod 는 Spring 자동구성 ObjectMapper(FAIL_ON_UNKNOWN_PROPERTIES=false) 를 주입하므로,
+        // parity 를 위해 동일한 Jackson2ObjectMapperBuilder 결과로 검증한다. new ObjectMapper() 는
+        // unknown 필드에서 예외를 던져 prod 의 drop-unknown 동작과 어긋난다.
+        objectMapper = new Jackson2ObjectMapperBuilder().build();
         validator = new DocumentPayloadValidator(objectMapper);
     }
 
     @Test
     void validCorpus_isAccepted() throws Exception {
-        for (String name : List.of("valid-default.json", "valid-reordered-sparse.json")) {
+        for (String name : List.of("valid-default.json", "valid-reordered-sparse.json",
+                "valid-unknown-field.json")) {
             JsonNode root = fixture(name);
             assertThat(validator.validate(root.get("schemaVersion").shortValue(), root.get("document")))
                     .isNotNull();
         }
+    }
+
+    @Test
+    void unknownElementField_isDroppedNotRejected() throws Exception {
+        // FE parseElement 는 element 를 key/type 만으로 재구성(clean)하고, BE 도 동일하게 unknown 필드를
+        // 드롭해 저장한다. 이 parity 가 깨지면(FAIL_ON_UNKNOWN=true) 이 케이스가 거부되어 실패한다.
+        JsonNode root = fixture("valid-unknown-field.json");
+        DocumentPayload payload = validator.validate(root.get("schemaVersion").shortValue(), root.get("document"));
+        assertThat(payload).isNotNull();
+        assertThat(payload.bands().get(0).elements().get(0).type()).isEqualTo("TITLE");
     }
 
     @Test

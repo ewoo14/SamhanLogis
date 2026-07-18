@@ -1,8 +1,10 @@
 {
-  "schemaVersion": 1,
+  "id": "00000000-0000-0000-0000-000000000845",
+  "status": "ACTIVE",
   "revision": 1,
   "docType": "GROUPWARE_ROUNDTRIP",
   "name": "왕복 양식",
+  "schemaVersion": 1,
   "document": {
     "paper": "A4_PORTRAIT",
     "bands": [

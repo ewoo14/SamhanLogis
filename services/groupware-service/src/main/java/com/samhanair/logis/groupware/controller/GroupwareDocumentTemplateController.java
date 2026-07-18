@@ -21,14 +21,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 그룹웨어 문서 레이아웃 템플릿 관리자/렌더러 endpoint. */
 @RestController
 @RequiredArgsConstructor
-@RequestMapping
 public class GroupwareDocumentTemplateController {
 
     private static final String PAGE_CODE = "groupware.approval-templates";
@@ -55,9 +53,9 @@ public class GroupwareDocumentTemplateController {
     @PostMapping("/admin/groupware/document-templates")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ResponseEntity<ApiResponse<DocumentTemplateResponse>> create(
-            @Valid @RequestBody DocumentTemplateCreateRequest request, Principal principal) {
+            @Valid @RequestBody DocumentTemplateCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok(service.create(request, actor(principal))));
+                .body(ApiResponse.ok(service.create(request)));
     }
 
     /** DRAFT 문서 양식 수정. */
@@ -65,9 +63,8 @@ public class GroupwareDocumentTemplateController {
     @PutMapping("/admin/groupware/document-templates/{id}")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<DocumentTemplateResponse> update(@PathVariable UUID id,
-                                                        @Valid @RequestBody DocumentTemplateUpdateRequest request,
-                                                        Principal principal) {
-        return ApiResponse.ok(service.update(id, request, actor(principal)));
+                                                        @Valid @RequestBody DocumentTemplateUpdateRequest request) {
+        return ApiResponse.ok(service.update(id, request));
     }
 
     /** 문서 양식 soft-delete. */

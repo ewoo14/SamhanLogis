@@ -66,10 +66,15 @@ export function ApprovalDocView() {
   const layoutReady = !docType || (!documentTemplateQuery.isLoading && !documentTemplateQuery.isPending)
   useEffect(() => {
     if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
-      setLayoutDecision(resolveDocumentTemplate(documentTemplateQuery.data?.document ?? null))
+      // findActiveDocumentTemplate 은 이미 parseDocumentTemplate 로 정규화된 full
+      // TemplateEnvelope(또는 null)를 반환한다. 여기서 .document(payload)만 꺼내면
+      // resolveDocumentTemplate 의 재파싱이 최상위 schemaVersion/docType/name/revision
+      // 부재로 실패해 활성 레이아웃이 있어도 항상 DEFAULT 로 수렴하므로, envelope 전체를
+      // 전달한다. null/오류/malformed 는 data 가 null/undefined → DEFAULT 로 안전 수렴.
+      setLayoutDecision(resolveDocumentTemplate(documentTemplateQuery.data ?? null))
       setLayoutDecided(true)
     }
-  }, [approvalReady, inputTemplateReady, layoutReady, layoutDecided, documentTemplateQuery.data?.document])
+  }, [approvalReady, inputTemplateReady, layoutReady, layoutDecided, documentTemplateQuery.data])
 
   usePageTitle('결재문서', approvalQuery.data?.title)
 

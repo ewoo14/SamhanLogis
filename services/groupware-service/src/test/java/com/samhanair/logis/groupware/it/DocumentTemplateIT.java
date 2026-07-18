@@ -12,24 +12,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
 import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.domain.DocumentTemplateStatus;
 import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
-import com.samhanair.logis.groupware.dto.DocumentTemplateResponse;
-import com.samhanair.logis.groupware.dto.DocumentTemplateUpdateRequest;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
 import com.samhanair.logis.groupware.service.DocumentTemplateService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
-import java.util.ArrayList;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +54,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class DocumentTemplateIT extends AbstractPostgresIT {
 
     private static final String ACTOR = "document-template-it";
+    private static final String CANONICAL_ARTIFACT = "/document-template-fixtures/canonical-active-response.json";
+    /** 정규 아티팩트용 고정 placeholder id (실제 응답 id 는 서버 생성 UUID, 대조 시 이 값으로 정규화). */
+    private static final String CANONICAL_ID = "00000000-0000-0000-0000-000000000845";
 
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper objectMapper;
@@ -85,7 +93,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.revision").value(1))
                 .andExpect(jsonPath("$.data.lock_version").doesNotExist())
-                .andReturn().getResponse().getContentAsString();
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
 
         mvc.perform(post("/admin/groupware/document-templates/{id}/activate", id)
@@ -96,10 +104,24 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                         .param("docType", "GROUPWARE_ROUNDTRIP"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.document.paper").value("A4_PORTRAIT"))
-                .andReturn().getResponse().getContentAsString();
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         JsonNode expected = objectMapper.valueToTree(request.document());
         JsonNode actual = objectMapper.readTree(active).path("data").path("document");
         assertThat(actual).isEqualTo(expected);
+
+        // 라운드트립 stage-1(BE 소유): active GET 응답 data 를 실제로 캡처해 committed canonical artifact
+        // 와 대조한다. 휘발성 id 만 정규화하고 나머지(id 존재/status/revision/docType/name/schemaVersion/
+        // document)는 전부 faithful 하게 일치해야 한다. FE(stage-2)는 이 artifact 를 parse→렌더한다.
+        JsonNode liveData = objectMapper.readTree(active).path("data");
+        assertThat(liveData.path("id").asText()).as("응답 id").isNotBlank();
+        UUID.fromString(liveData.path("id").asText());
+        assertThat(liveData.path("status").asText()).isEqualTo("ACTIVE");
+        ObjectNode normalized = (ObjectNode) liveData.deepCopy();
+        normalized.put("id", CANONICAL_ID);
+        writeCanonicalActual(normalized);
+        assertThat((JsonNode) normalized)
+                .as("active GET data 는 committed canonical artifact 와 정확히 일치(휘발성 id 정규화)")
+                .isEqualTo(readCanonicalArtifact());
 
         mvc.perform(put("/admin/groupware/document-templates/{id}", id)
                         .header("X-User-Id", "40000000-0000-0000-0000-000000000845")
@@ -114,8 +136,8 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     @Test
     void onlyOneActiveAndActivationIsIdempotent() {
-        UUID first = service.create(request("GROUPWARE_SINGLETON", "첫 양식"), ACTOR).id();
-        UUID second = service.create(request("GROUPWARE_SINGLETON", "둘째 양식"), ACTOR).id();
+        UUID first = service.create(request("GROUPWARE_SINGLETON", "첫 양식")).id();
+        UUID second = service.create(request("GROUPWARE_SINGLETON", "둘째 양식")).id();
 
         service.activate(first, ACTOR);
         service.activate(first, ACTOR);
@@ -130,8 +152,8 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     @Test
     void bulkDemotion_incrementsLockAndAudit_andStaleEntityReturnsConflict() {
-        UUID first = service.create(request("GROUPWARE_LOCK", "첫 양식"), ACTOR).id();
-        UUID second = service.create(request("GROUPWARE_LOCK", "둘째 양식"), ACTOR).id();
+        UUID first = service.create(request("GROUPWARE_LOCK", "첫 양식")).id();
+        UUID second = service.create(request("GROUPWARE_LOCK", "둘째 양식")).id();
         service.activate(first, "actor-a");
         DocumentTemplate stale = repository.findById(first).orElseThrow();
 
@@ -150,9 +172,9 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     @Test
     void threeConcurrentActivations_leaveAtMostOneActive() throws Exception {
         List<UUID> ids = List.of(
-                service.create(request("GROUPWARE_CONCURRENT", "A"), ACTOR).id(),
-                service.create(request("GROUPWARE_CONCURRENT", "B"), ACTOR).id(),
-                service.create(request("GROUPWARE_CONCURRENT", "C"), ACTOR).id());
+                service.create(request("GROUPWARE_CONCURRENT", "A")).id(),
+                service.create(request("GROUPWARE_CONCURRENT", "B")).id(),
+                service.create(request("GROUPWARE_CONCURRENT", "C")).id());
         ExecutorService executor = Executors.newFixedThreadPool(3);
         try {
             List<Callable<Boolean>> calls = ids.stream()
@@ -177,7 +199,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     @Test
     void reservedDocType_isRejected() {
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                        () -> service.create(request("GROUPWARE_DEFAULT", "예약"), ACTOR))
+                        () -> service.create(request("GROUPWARE_DEFAULT", "예약")))
                 .hasMessageContaining("예약된 docType");
     }
 
@@ -199,29 +221,54 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 .isInstanceOf(RuntimeException.class);
     }
 
+    /**
+     * 실제 V10 마이그레이션(파일 자체)이 backfill 을 수행함을 격리된 fresh schema 에서 검증한다.
+     *
+     * <p>SpringBootTest 컨텍스트의 Flyway 는 이미 빈 approval_lines 위에서 V10 을 실행해 backfill 이
+     * 0행이므로, pre-V10(=V9) 상태의 legacy 행을 심고 실제 V10 을 적용해야 backfill 로직이 genuine 하게
+     * 검증된다([[feedback_migration_fresh_postgres_probe]]). code 30자→파생 docType 40자(경계 통과)→backfill,
+     * code 31자→파생 41자(VARCHAR(40) 초과)→NULL 보존.
+     */
     @Test
-    void migrationBackfill_keepsThirtyAndSkipsThirtyOneCharacterDerivedType() {
+    void v10Migration_backfillsExactly40CharDerivedType_andPreservesOverflowNull() {
+        String schema = "ds2_backfill_probe";
+        String url = POSTGRES.getJdbcUrl();
+        String user = POSTGRES.getUsername();
+        String password = POSTGRES.getPassword();
+
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        jdbcTemplate.execute("CREATE SCHEMA " + schema);
+        Flyway.configure().dataSource(url, user, password).schemas(schema)
+                .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("9")).load().migrate();
+
+        String code30 = "A".repeat(30);
+        String code31 = "B".repeat(31);
         UUID shortTemplate = UUID.randomUUID();
         UUID longTemplate = UUID.randomUUID();
         UUID shortLine = UUID.randomUUID();
         UUID longLine = UUID.randomUUID();
-        String code30 = "A".repeat(30);
-        String code31 = "B".repeat(31);
-        jdbcTemplate.update("INSERT INTO approval_templates (id,code,name,active,display_order,created_at,created_by,is_deleted) "
+        jdbcTemplate.update("INSERT INTO " + schema + ".approval_templates "
+                        + "(id,code,name,active,display_order,created_at,created_by,is_deleted) "
                         + "VALUES (?,?,?,true,0,NOW(),?,false),(?,?,?,true,0,NOW(),?,false)",
                 shortTemplate, code30, "30자 legacy", ACTOR,
                 longTemplate, code31, "31자 legacy", ACTOR);
-        insertRawApprovalLine(shortLine, shortTemplate, "2099/01/01-301");
-        insertRawApprovalLine(longLine, longTemplate, "2099/01/01-302");
+        insertLegacyLine(schema, shortLine, shortTemplate, "2099/01/01-401");
+        insertLegacyLine(schema, longLine, longTemplate, "2099/01/01-402");
 
-        jdbcTemplate.update("UPDATE approval_lines SET document_type='GROUPWARE_'||t.code "
-                + "FROM approval_templates t WHERE approval_lines.template_id=t.id "
-                + "AND approval_lines.document_type IS NULL AND length('GROUPWARE_'||t.code)<=40");
+        Flyway.configure().dataSource(url, user, password).schemas(schema)
+                .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("10")).load().migrate();
 
-        assertThat(jdbcTemplate.queryForObject("SELECT document_type FROM approval_lines WHERE id=?",
-                String.class, shortLine)).isEqualTo("GROUPWARE_" + code30);
-        assertThat(jdbcTemplate.queryForObject("SELECT document_type FROM approval_lines WHERE id=?",
-                String.class, longLine)).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, shortLine))
+                .isEqualTo("GROUPWARE_" + code30)
+                .hasSize(40);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, longLine))
+                .isNull();
+
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
     }
 
     private void insertRawTemplate(UUID id, String docType, String name, String status, String document) {
@@ -230,11 +277,31 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 status, (short) 1, 0L, document, java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()), ACTOR);
     }
 
-    private void insertRawApprovalLine(UUID id, UUID templateId, String approvalNo) {
-        jdbcTemplate.update("INSERT INTO approval_lines (id,requester_id,title,content,status,approval_no,template_id,"
-                        + "created_at,created_by,is_deleted,document_type) VALUES (?,?,?,?,?,?,?,?,?,false,NULL)",
+    private void insertLegacyLine(String schema, UUID id, UUID templateId, String approvalNo) {
+        jdbcTemplate.update("INSERT INTO " + schema + ".approval_lines "
+                        + "(id,requester_id,title,content,status,approval_no,template_id,created_at,created_by,is_deleted,document_type) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,false,NULL)",
                 id, UUID.randomUUID(), "legacy", "legacy", "PENDING", approvalNo, templateId,
                 java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()), ACTOR);
+    }
+
+    private JsonNode readCanonicalArtifact() throws IOException {
+        try (InputStream input = getClass().getResourceAsStream(CANONICAL_ARTIFACT)) {
+            assertThat(input).as("canonical artifact 리소스").isNotNull();
+            return objectMapper.readTree(input);
+        }
+    }
+
+    private void writeCanonicalActual(JsonNode normalized) {
+        try {
+            Path out = Path.of("build", "tmp", "ds2-canonical-active-response.actual.json");
+            Files.createDirectories(out.getParent());
+            Files.writeString(out,
+                    objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(normalized),
+                    StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            // 진단용 write 실패는 대조(assert) 결과에 영향을 주지 않는다.
+        }
     }
 
     private DocumentTemplateCreateRequest request(String docType, String name) {

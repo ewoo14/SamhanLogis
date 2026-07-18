@@ -3,6 +3,7 @@ import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
 import { getMockResponse, MOCK_AUTH } from './mock'
+import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
 import {
@@ -2435,5 +2436,55 @@ describe('mock permission matrix contract', () => {
       'DELETE',
       'RESTORE',
     ])
+  })
+})
+
+describe('mock 활성 문서양식(document-templates/active) 핸들러', () => {
+  it('시드된 docType 은 파싱 가능한 활성 envelope 를 반환한다(실 네트워크 fallthrough 방지)', () => {
+    const res = mockRequest({
+      method: 'GET',
+      url: '/groupware/document-templates/active',
+      params: { docType: 'GROUPWARE_EXPENSE_REPORT' },
+    }) as MockEnvelope<unknown>
+
+    expect(res.data).not.toBeNull()
+    const parsed = parseDocumentTemplate(res.data)
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(parsed.value.docType).toBe('GROUPWARE_EXPENSE_REPORT')
+      expect(parsed.value.status).toBe('ACTIVE')
+    }
+  })
+
+  it('url 쿼리스트링으로 전달된 docType 도 동일하게 처리한다', () => {
+    const res = mockRequest({
+      method: 'GET',
+      url: '/groupware/document-templates/active?docType=GROUPWARE_EXPENSE_REPORT',
+    }) as MockEnvelope<unknown>
+
+    expect(res.data).not.toBeNull()
+    expect(parseDocumentTemplate(res.data).ok).toBe(true)
+  })
+
+  it('시드에 없는 docType 은 data:null(활성 0) → 렌더러 DEFAULT fallback', () => {
+    const res = mockRequest({
+      method: 'GET',
+      url: '/groupware/document-templates/active',
+      params: { docType: 'GROUPWARE_UNSEEDED_TYPE' },
+    }) as MockEnvelope<unknown>
+
+    expect(res.data).toBeNull()
+  })
+
+  it('docType 누락 시에도 fallthrough(null) 없이 data:null 을 반환한다', () => {
+    const res = mockRequest({
+      method: 'GET',
+      url: '/groupware/document-templates/active',
+    }) as MockEnvelope<unknown>
+
+    // getMockResponse 가 null 을 반환하면 client.ts 가 실 HTTP 로 fallthrough 하므로,
+    // 핸들러는 반드시 envelope(null) (data:null) 을 반환해야 한다.
+    expect(res).not.toBeNull()
+    expect(res.data).toBeNull()
   })
 })
