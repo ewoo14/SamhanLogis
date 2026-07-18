@@ -115,6 +115,7 @@ public class DocumentTemplate extends BaseEntity {
 
     /** 문서 양식 표시명을 변경한다. */
     public DocumentTemplate rename(String name) {
+        ensureDraft("DRAFT 문서만 이름을 변경할 수 있습니다.");
         this.name = validateName(name);
         return this;
     }

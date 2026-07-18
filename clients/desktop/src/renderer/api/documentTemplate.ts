@@ -8,8 +8,8 @@ import {
 } from '../print/templateSchema'
 
 interface DocumentTemplateDto {
-  id?: string
-  status?: TemplateStatus
+  id: string
+  status: TemplateStatus
   revision: number
   docType: string
   name: string
@@ -24,8 +24,19 @@ export interface DocumentTemplateInput {
   document: DocumentPayload
 }
 
-function normalize(dto: DocumentTemplateDto | null | undefined): TemplateEnvelope | null {
+function normalize(
+  dto: DocumentTemplateDto | null | undefined,
+  expectedDocType?: string,
+  requireActive = false,
+): TemplateEnvelope | null {
   if (!dto) return null
+  if (
+    typeof dto.id !== 'string'
+    || dto.id.trim().length === 0
+    || (dto.status !== 'DRAFT' && dto.status !== 'ACTIVE')
+    || (expectedDocType !== undefined && dto.docType !== expectedDocType)
+    || (requireActive && dto.status !== 'ACTIVE')
+  ) return null
   const parsed = parseDocumentTemplate(dto)
   return parsed.ok ? parsed.value : null
 }
@@ -36,12 +47,14 @@ export async function findActiveDocumentTemplate(docType: string): Promise<Templ
     '/groupware/document-templates/active',
     { params: { docType } },
   )
-  return normalize(res.data.data)
+  return normalize(res.data.data, docType, true)
 }
 
 export async function listDocumentTemplates(): Promise<TemplateEnvelope[]> {
   const res = await apiClient.get<ApiEnvelope<DocumentTemplateDto[]>>('/admin/groupware/document-templates')
-  return (res.data.data ?? []).map(normalize).filter((item): item is TemplateEnvelope => item !== null)
+  return (res.data.data ?? [])
+    .map((item) => normalize(item))
+    .filter((item): item is TemplateEnvelope => item !== null)
 }
 
 export async function getDocumentTemplate(id: string): Promise<TemplateEnvelope> {

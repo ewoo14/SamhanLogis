@@ -137,8 +137,31 @@ public class DocumentPayloadValidator {
     }
 
     private static boolean validString(JsonNode node) {
-        return node != null && node.isTextual() && !node.asText().isBlank()
+        return node != null && node.isTextual() && !isFeTrimEmpty(node.asText())
                 && node.asText().length() <= MAX_KEY_LENGTH;
+    }
+
+    /** FE JavaScript trim()과 동일하게 Unicode 공백만 있는 key를 거부한다. */
+    private static boolean isFeTrimEmpty(String value) {
+        int start = 0;
+        int end = value.length();
+        while (start < end) {
+            int codePoint = value.codePointAt(start);
+            if (!isFeWhitespace(codePoint)) break;
+            start += Character.charCount(codePoint);
+        }
+        while (end > start) {
+            int codePoint = value.codePointBefore(end);
+            if (!isFeWhitespace(codePoint)) break;
+            end -= Character.charCount(codePoint);
+        }
+        return start == end;
+    }
+
+    private static boolean isFeWhitespace(int codePoint) {
+        return Character.isWhitespace(codePoint)
+                || Character.isSpaceChar(codePoint)
+                || codePoint == 0xFEFF;
     }
 
     private static void addKey(Set<String> keys, String key) {

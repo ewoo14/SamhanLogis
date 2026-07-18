@@ -93,6 +93,16 @@ describe('parseDocumentTemplate', () => {
     expect(parseDocumentTemplate(unknownVersion).ok).toBe(false)
     expect(parseDocumentTemplate(unknownElement).ok).toBe(false)
   })
+
+  it('순환 참조와 bigint JSON은 throw하지 않고 INVALID_ENVELOPE로 수렴한다', () => {
+    const cyclic = structuredClone(validTemplate) as Record<string, any>
+    cyclic.document.self = cyclic.document
+    expect(parseDocumentTemplate(cyclic)).toMatchObject({ ok: false, error: { code: 'INVALID_ENVELOPE' } })
+
+    const bigint = structuredClone(validTemplate) as Record<string, any>
+    bigint.document.value = BigInt(1)
+    expect(parseDocumentTemplate(bigint)).toMatchObject({ ok: false, error: { code: 'INVALID_ENVELOPE' } })
+  })
 })
 
 describe('document template compatibility', () => {

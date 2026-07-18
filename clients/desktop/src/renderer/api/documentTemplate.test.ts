@@ -56,6 +56,18 @@ describe('document template API', () => {
 
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, document: { paper: 'BROKEN' } }))
     await expect(findActiveDocumentTemplate('GROUPWARE_EXPENSE')).resolves.toBeNull()
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, status: 'DRAFT' }))
+    await expect(findActiveDocumentTemplate('GROUPWARE_EXPENSE')).resolves.toBeNull()
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, docType: 'GROUPWARE_OTHER' }))
+    await expect(findActiveDocumentTemplate('GROUPWARE_EXPENSE')).resolves.toBeNull()
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, id: undefined }))
+    await expect(findActiveDocumentTemplate('GROUPWARE_EXPENSE')).resolves.toBeNull()
+
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, status: undefined }))
+    await expect(findActiveDocumentTemplate('GROUPWARE_EXPENSE')).resolves.toBeNull()
   })
 
   it('keeps admin request free of server-owned lifecycle fields', async () => {

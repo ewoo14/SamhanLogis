@@ -1,0 +1,13 @@
+{
+  "docType": "GROUPWARE_COERCION",
+  "name": "coercion schema float",
+  "schemaVersion": 1.9,
+  "document": {
+    "paper": "A4_PORTRAIT",
+    "bands": [
+      {"key":"header","kind":"HEADER","elements":[{"key":"title","type":"TITLE"},{"key":"approval","type":"APPROVAL_GRID"}]},
+      {"key":"body","kind":"BODY","elements":[{"key":"content","type":"CONTENT_PARAGRAPHS"}]},
+      {"key":"footer","kind":"FOOTER","elements":[{"key":"closing","type":"CLOSING"}]}
+    ]
+  }
+}

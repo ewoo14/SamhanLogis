@@ -47,4 +47,14 @@ class DocumentTemplateTest {
         assertThat(template.getStatus()).isEqualTo(DocumentTemplateStatus.DRAFT);
         assertThat(template.getIsDeleted()).isTrue();
     }
+
+    @Test
+    void activeRename_isRejectedByTheAggregateGuard() {
+        DocumentTemplate template = DocumentTemplate.create("GROUPWARE_EXPENSE", "지출 양식", (short) 1, PAYLOAD)
+                .activate();
+
+        assertThatThrownBy(() -> template.rename("활성 양식 변경"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("DRAFT");
+    }
 }

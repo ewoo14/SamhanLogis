@@ -50,6 +50,13 @@ describe('shared document template fixture corpus', () => {
     expect(parseDocumentTemplate(fixture('valid-default.json')).ok).toBe(true)
     expect(parseDocumentTemplate(fixture('valid-reordered-sparse.json')).ok).toBe(true)
     expect(parseDocumentTemplate(fixture('canonical-active-response.json')).ok).toBe(true)
+    const parsed = parseDocumentTemplate(fixture('valid-unknown-field.json'))
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(parsed.value).not.toHaveProperty('unknownEnvelopeField')
+      expect(parsed.value.document.bands[0]).not.toHaveProperty('unknownBandField')
+      expect(parsed.value.document.bands[0].elements[0]).not.toHaveProperty('unknownElementField')
+    }
   })
 
   it.each([

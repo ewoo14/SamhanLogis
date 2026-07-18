@@ -56,6 +56,8 @@ export function ApprovalDocView() {
     queryFn: () => findActiveDocumentTemplate(docType!),
     enabled: Boolean(docType),
     retry: false,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnReconnect: false,
   })
   const [layoutDecision, setLayoutDecision] = useState<TemplateEnvelope | null>(null)
@@ -63,7 +65,16 @@ export function ApprovalDocView() {
 
   const approvalReady = !approvalQuery.isLoading && !attachmentsQuery.isLoading
   const inputTemplateReady = !templateId || !templateQuery.isLoading
-  const layoutReady = !docType || (!documentTemplateQuery.isLoading && !documentTemplateQuery.isPending)
+  const layoutReady = !docType || (
+    !documentTemplateQuery.isFetching
+    && (documentTemplateQuery.isSuccess || documentTemplateQuery.isError)
+  )
+
+  useEffect(() => {
+    setLayoutDecided(false)
+    setLayoutDecision(null)
+  }, [id, docType])
+
   useEffect(() => {
     if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
       // findActiveDocumentTemplate 은 이미 parseDocumentTemplate 로 정규화된 full
@@ -71,10 +82,21 @@ export function ApprovalDocView() {
       // resolveDocumentTemplate 의 재파싱이 최상위 schemaVersion/docType/name/revision
       // 부재로 실패해 활성 레이아웃이 있어도 항상 DEFAULT 로 수렴하므로, envelope 전체를
       // 전달한다. null/오류/malformed 는 data 가 null/undefined → DEFAULT 로 안전 수렴.
-      setLayoutDecision(resolveDocumentTemplate(documentTemplateQuery.data ?? null))
+      const activeResponse = documentTemplateQuery.isError || documentTemplateQuery.isRefetchError
+        ? null
+        : documentTemplateQuery.data ?? null
+      setLayoutDecision(resolveDocumentTemplate(activeResponse))
       setLayoutDecided(true)
     }
-  }, [approvalReady, inputTemplateReady, layoutReady, layoutDecided, documentTemplateQuery.data])
+  }, [
+    approvalReady,
+    inputTemplateReady,
+    layoutReady,
+    layoutDecided,
+    documentTemplateQuery.data,
+    documentTemplateQuery.isError,
+    documentTemplateQuery.isRefetchError,
+  ])
 
   usePageTitle('결재문서', approvalQuery.data?.title)
 

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
+import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -62,19 +63,71 @@ class DocumentPayloadValidatorTest {
     @Test
     void boundaryLimits_areEnforced() throws Exception {
         JsonNode root = fixture("valid-default.json");
-        JsonNode document = root.get("document").deepCopy();
-        ((com.fasterxml.jackson.databind.node.ObjectNode) document.at("/bands/0/elements/0"))
+        JsonNode tooLongKey = root.get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) tooLongKey.at("/bands/0/elements/0"))
                 .put("key", "k".repeat(101));
-        assertThatThrownBy(() -> validator.validate((short) 1, document))
+        assertThatThrownBy(() -> validator.validate((short) 1, tooLongKey))
                 .isInstanceOf(BusinessException.class);
 
-        var tooManyBands = (com.fasterxml.jackson.databind.node.ArrayNode) document.withArray("bands");
-        for (int i = 0; i < 30; i++) {
-            tooManyBands.add(objectMapper.createObjectNode().put("key", "extra-" + i)
+        JsonNode atBandLimit = root.get("document").deepCopy();
+        var bandsAtLimit = (com.fasterxml.jackson.databind.node.ArrayNode) atBandLimit.withArray("bands");
+        for (int i = 0; i < 29; i++) {
+            bandsAtLimit.add(objectMapper.createObjectNode().put("key", "extra-" + i)
                     .put("kind", "BODY").set("elements", objectMapper.createArrayNode()));
         }
+        assertThat(validator.validate((short) 1, atBandLimit)).isNotNull();
+
+        JsonNode tooManyBands = root.get("document").deepCopy();
+        var bandsOverLimit = (com.fasterxml.jackson.databind.node.ArrayNode) tooManyBands.withArray("bands");
+        for (int i = 0; i < 30; i++) {
+            bandsOverLimit.add(objectMapper.createObjectNode().put("key", "extra-over-" + i)
+                    .put("kind", "BODY").set("elements", objectMapper.createArrayNode()));
+        }
+        assertThatThrownBy(() -> validator.validate((short) 1, tooManyBands))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("32개");
+
+        JsonNode atElementLimit = root.get("document").deepCopy();
+        var elementsAtLimit = (com.fasterxml.jackson.databind.node.ArrayNode) atElementLimit.at("/bands/1/elements");
+        for (int i = 0; i < 61; i++) {
+            elementsAtLimit.add(objectMapper.createObjectNode()
+                    .put("key", "content-extra-" + i).put("type", "CONTENT_PARAGRAPHS"));
+        }
+        assertThatThrownBy(() -> validator.validate((short) 1, atElementLimit))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("최대 하나");
+
+        JsonNode overElementLimit = root.get("document").deepCopy();
+        var elementsOverLimit = (com.fasterxml.jackson.databind.node.ArrayNode) overElementLimit.at("/bands/1/elements");
+        for (int i = 0; i < 62; i++) {
+            elementsOverLimit.add(objectMapper.createObjectNode()
+                    .put("key", "content-over-" + i).put("type", "CONTENT_PARAGRAPHS"));
+        }
+        assertThatThrownBy(() -> validator.validate((short) 1, overElementLimit))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("64개");
+    }
+
+    @Test
+    void unicodeWhitespaceOnlyKey_matchesFeTrimAndIsRejected() throws Exception {
+        JsonNode document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) document.at("/bands/0/elements/0"))
+                .put("key", "\u00a0\u2003");
+
         assertThatThrownBy(() -> validator.validate((short) 1, document))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void requestScalars_areNotJacksonCoerced() throws Exception {
+        for (String name : List.of(
+                "invalid-coercion-schema-string.json",
+                "invalid-coercion-schema-float.json",
+                "invalid-coercion-doc-type-number.json")) {
+            String json = readFixtureText(name);
+            assertThatThrownBy(() -> objectMapper.readValue(json, DocumentTemplateCreateRequest.class))
+                    .isInstanceOf(Exception.class);
+        }
     }
 
     @Test
@@ -106,6 +159,13 @@ class DocumentPayloadValidatorTest {
         try (InputStream input = getClass().getResourceAsStream("/document-template-fixtures/" + name)) {
             if (input == null) throw new IllegalStateException(name);
             return objectMapper.readTree(input);
+        }
+    }
+
+    private String readFixtureText(String name) throws IOException {
+        try (InputStream input = getClass().getResourceAsStream("/document-template-fixtures/" + name)) {
+            if (input == null) throw new IllegalStateException(name);
+            return new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         }
     }
 }

@@ -2,7 +2,10 @@ package com.samhanair.logis.groupware.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -13,6 +16,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
@@ -33,6 +38,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.AfterEach;
@@ -44,6 +50,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -131,7 +138,10 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         mvc.perform(delete("/admin/groupware/document-templates/{id}", id)
                         .header("X-User-Id", "40000000-0000-0000-0000-000000000845"))
                 .andExpect(status().isOk());
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_deleted FROM document_templates WHERE id=?", Boolean.class, id)).isTrue();
         assertThat(repository.findAll()).isEmpty();
+        assertThat(service.create(request("GROUPWARE_ROUNDTRIP", "왕복 양식")).id()).isNotEqualTo(id);
     }
 
     @Test
@@ -165,34 +175,91 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         assertThat(demoted.getModifiedAt()).isNotNull();
 
         assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> repository.saveAndFlush(
-                        stale.rename("stale write"))))
-                .isInstanceOf(RuntimeException.class);
+                        stale.deactivate())))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
     @Test
-    void threeConcurrentActivations_leaveAtMostOneActive() throws Exception {
+    void concurrentActivation_sameId_allowsSuccessOrTypedConflict() throws Exception {
+        UUID id = service.create(request("GROUPWARE_SAME_ID", "동일 대상")).id();
+        List<ActivationOutcome> outcomes = runConcurrentActivations(List.of(id, id));
+
+        assertThat(outcomes).anyMatch(ActivationOutcome::success);
+        assertTypedConflictsOnly(outcomes);
+    }
+
+    @Test
+    void concurrentActivation_differentIds_hasOneWinnerAndTypedConflicts() throws Exception {
         List<UUID> ids = List.of(
                 service.create(request("GROUPWARE_CONCURRENT", "A")).id(),
                 service.create(request("GROUPWARE_CONCURRENT", "B")).id(),
                 service.create(request("GROUPWARE_CONCURRENT", "C")).id());
-        ExecutorService executor = Executors.newFixedThreadPool(3);
-        try {
-            List<Callable<Boolean>> calls = ids.stream()
-                    .map(id -> (Callable<Boolean>) () -> {
-                        try {
-                            service.activate(id, ACTOR);
-                            return true;
-                        } catch (RuntimeException conflict) {
-                            return false;
-                        }
-                    }).toList();
-            List<Future<Boolean>> futures = executor.invokeAll(calls);
-            assertThat(futures.stream().filter(DocumentTemplateIT::futureResult).count()).isGreaterThanOrEqualTo(1);
-            assertThat(repository.findByDocTypeAndIsDeletedFalse("GROUPWARE_CONCURRENT"))
-                    .filteredOn(template -> template.getStatus() == DocumentTemplateStatus.ACTIVE)
-                    .hasSize(1);
-        } finally {
-            executor.shutdownNow();
+        List<ActivationOutcome> outcomes = runConcurrentActivations(ids);
+
+        assertThat(outcomes.stream().filter(ActivationOutcome::success).count()).isGreaterThanOrEqualTo(1);
+        assertTypedConflictsOnly(outcomes);
+        assertThat(repository.findByDocTypeAndIsDeletedFalse("GROUPWARE_CONCURRENT"))
+                .filteredOn(template -> template.getStatus() == DocumentTemplateStatus.ACTIVE)
+                .hasSize(1);
+    }
+
+    @Test
+    void adminPermission_deniesNonMasterAndMasterBypassesClient() throws Exception {
+        UUID accountId = UUID.fromString("40000000-0000-0000-0000-000000000846");
+        lenient().when(dynamicPermissionClient.check(eq(accountId), eq("groupware.approval-templates"), eq(
+                com.samhanair.logis.security.permission.PermissionAction.VIEW))).thenReturn(false);
+
+        mvc.perform(get("/admin/groupware/document-templates")
+                        .header("X-User-Id", accountId.toString()))
+                .andExpect(status().isForbidden());
+
+        clearInvocations(dynamicPermissionClient);
+        mvc.perform(get("/admin/groupware/document-templates")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-Is-System-Master", "true"))
+                .andExpect(status().isOk());
+        verify(dynamicPermissionClient, org.mockito.Mockito.never()).check(
+                any(UUID.class), eq("groupware.approval-templates"), eq(
+                        com.samhanair.logis.security.permission.PermissionAction.VIEW));
+    }
+
+    @Test
+    void adminPermission_mapsViewAndUpdateToExactActions() throws Exception {
+        UUID accountId = UUID.fromString("40000000-0000-0000-0000-000000000847");
+        lenient().when(dynamicPermissionClient.check(eq(accountId), eq("groupware.approval-templates"), any()))
+                .thenReturn(true);
+
+        mvc.perform(get("/admin/groupware/document-templates")
+                        .header("X-User-Id", accountId.toString()))
+                .andExpect(status().isOk());
+        verify(dynamicPermissionClient).check(accountId, "groupware.approval-templates",
+                com.samhanair.logis.security.permission.PermissionAction.VIEW);
+
+        clearInvocations(dynamicPermissionClient);
+        mvc.perform(post("/admin/groupware/document-templates")
+                        .header("X-User-Id", accountId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("GROUPWARE_PERMISSION", "권한 양식"))))
+                .andExpect(status().isCreated());
+        verify(dynamicPermissionClient).check(accountId, "groupware.approval-templates",
+                com.samhanair.logis.security.permission.PermissionAction.UPDATE);
+    }
+
+    @Test
+    void httpRejectsJacksonScalarCoercionCorpus() throws Exception {
+        UUID accountId = UUID.fromString("40000000-0000-0000-0000-000000000848");
+        lenient().when(dynamicPermissionClient.check(eq(accountId), eq("groupware.approval-templates"), any()))
+                .thenReturn(true);
+
+        ObjectNode schemaString = validRequestJson("GROUPWARE_COERCION_STRING", "1");
+        ObjectNode schemaFloat = validRequestJson("GROUPWARE_COERCION_FLOAT", 1.9);
+        ObjectNode docTypeNumber = validRequestJson(123, 1);
+        for (ObjectNode body : List.of(schemaString, schemaFloat, docTypeNumber)) {
+            mvc.perform(post("/admin/groupware/document-templates")
+                            .header("X-User-Id", accountId.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest());
         }
     }
 
@@ -246,8 +313,13 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         String code31 = "B".repeat(31);
         UUID shortTemplate = UUID.randomUUID();
         UUID longTemplate = UUID.randomUUID();
+        UUID defaultTemplate = UUID.randomUUID();
+        UUID deletedTemplate = UUID.randomUUID();
         UUID shortLine = UUID.randomUUID();
         UUID longLine = UUID.randomUUID();
+        UUID defaultLine = UUID.randomUUID();
+        UUID deletedLine = UUID.randomUUID();
+        UUID nullTemplateLine = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO " + schema + ".approval_templates "
                         + "(id,code,name,active,display_order,created_at,created_by,is_deleted) "
                         + "VALUES (?,?,?,true,0,NOW(),?,false),(?,?,?,true,0,NOW(),?,false)",
@@ -255,6 +327,11 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 longTemplate, code31, "31자 legacy", ACTOR);
         insertLegacyLine(schema, shortLine, shortTemplate, "2099/01/01-401");
         insertLegacyLine(schema, longLine, longTemplate, "2099/01/01-402");
+        insertLegacyApprovalTemplate(schema, defaultTemplate, "DEFAULT", "기본 legacy", false);
+        insertLegacyApprovalTemplate(schema, deletedTemplate, "SOFT_DELETED", "삭제 legacy", true);
+        insertLegacyLine(schema, defaultLine, defaultTemplate, "2099/01/01-403");
+        insertLegacyLine(schema, deletedLine, deletedTemplate, "2099/01/01-404");
+        insertLegacyLine(schema, nullTemplateLine, null, "2099/01/01-405");
 
         Flyway.configure().dataSource(url, user, password).schemas(schema)
                 .locations("classpath:db/migration")
@@ -266,6 +343,15 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 .hasSize(40);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, longLine))
+                .isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, defaultLine))
+                .isEqualTo("GROUPWARE_DEFAULT");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, deletedLine))
+                .isEqualTo("GROUPWARE_SOFT_DELETED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, nullTemplateLine))
                 .isNull();
 
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
@@ -283,6 +369,72 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                         + "VALUES (?,?,?,?,?,?,?,?,?,false,NULL)",
                 id, UUID.randomUUID(), "legacy", "legacy", "PENDING", approvalNo, templateId,
                 java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()), ACTOR);
+    }
+
+    private void insertLegacyApprovalTemplate(String schema, UUID id, String code, String name, boolean deleted) {
+        jdbcTemplate.update("INSERT INTO " + schema + ".approval_templates "
+                        + "(id,code,name,active,display_order,created_at,created_by,is_deleted) "
+                        + "VALUES (?,?,?,true,0,NOW(),?,?)",
+                id, code, name, ACTOR, deleted);
+    }
+
+    private List<ActivationOutcome> runConcurrentActivations(List<UUID> ids) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(ids.size());
+        try {
+            List<Callable<ActivationOutcome>> calls = ids.stream()
+                    .map(id -> (Callable<ActivationOutcome>) () -> {
+                        try {
+                            service.activate(id, ACTOR);
+                            return ActivationOutcome.ok();
+                        } catch (Throwable failure) {
+                            return ActivationOutcome.error(failure);
+                        }
+                    }).toList();
+            List<Future<ActivationOutcome>> futures = executor.invokeAll(calls);
+            return futures.stream().map(DocumentTemplateIT::outcome).toList();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static ActivationOutcome outcome(Future<ActivationOutcome> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return ActivationOutcome.error(ex);
+        } catch (ExecutionException ex) {
+            return ActivationOutcome.error(ex.getCause());
+        }
+    }
+
+    private static void assertTypedConflictsOnly(List<ActivationOutcome> outcomes) {
+        assertThat(outcomes.stream().filter(outcome -> !outcome.success()).map(ActivationOutcome::failure))
+                .allSatisfy(failure -> {
+                    assertThat(failure).isInstanceOf(BusinessException.class);
+                    assertThat(((BusinessException) failure).getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                });
+    }
+
+    private ObjectNode validRequestJson(Object docType, Object schemaVersion) {
+        ObjectNode body = objectMapper.createObjectNode();
+        if (docType instanceof String text) body.put("docType", text);
+        else body.put("docType", ((Number) docType).intValue());
+        if (schemaVersion instanceof String text) body.put("schemaVersion", text);
+        else body.put("schemaVersion", ((Number) schemaVersion).doubleValue());
+        body.put("name", "coercion");
+        body.set("document", payload());
+        return body;
+    }
+
+    private record ActivationOutcome(boolean success, Throwable failure) {
+        static ActivationOutcome ok() {
+            return new ActivationOutcome(true, null);
+        }
+
+        static ActivationOutcome error(Throwable failure) {
+            return new ActivationOutcome(false, failure);
+        }
     }
 
     private JsonNode readCanonicalArtifact() throws IOException {
@@ -319,11 +471,4 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                         new DocumentPayload.Element("closing", "CLOSING"))))));
     }
 
-    private static boolean futureResult(Future<Boolean> future) {
-        try {
-            return future.get();
-        } catch (Exception ex) {
-            return false;
-        }
-    }
 }

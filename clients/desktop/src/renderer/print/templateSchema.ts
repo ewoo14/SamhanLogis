@@ -153,7 +153,12 @@ export function parseDocumentTemplate(value: unknown): DocumentTemplateParseResu
     return failure('INVALID_ENVELOPE', '문서 양식 envelope 필드가 유효하지 않습니다.')
   }
 
-  const serialized = JSON.stringify(value.document)
+  let serialized: string
+  try {
+    serialized = JSON.stringify(value.document)
+  } catch {
+    return failure('INVALID_ENVELOPE', '문서 양식 JSON을 직렬화할 수 없습니다.')
+  }
   const bytes = serialized === undefined ? 0 : new TextEncoder().encode(serialized).byteLength
   if (bytes > MAX_REQUEST_BYTES || depthOf(value.document) > MAX_DEPTH) {
     return failure('INVALID_ENVELOPE', '문서 양식 JSON 상한을 초과했습니다.')
