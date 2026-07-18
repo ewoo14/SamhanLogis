@@ -15121,7 +15121,7 @@ function mockParseOptionsJson(value: unknown): string[] {
   try {
     const parsed = JSON.parse(value) as unknown
     if (!Array.isArray(parsed)) return []
-    // 실 BE parseOptions와 동일하게 기존 대소문자 변종을 합치지 않고 trim·빈값 필터만 적용한다.
+    // BE parity는 대소문자 변종 dedup 미적용뿐이다. trim·빈값 제거는 FE 입력단 뒤의 mock 로컬 방어다.
     return parsed
       .map((item) => String(item).trim())
       .filter((item) => item.length > 0)

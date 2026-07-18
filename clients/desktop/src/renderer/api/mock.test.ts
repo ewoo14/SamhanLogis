@@ -77,8 +77,8 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-describe('mock 결재양식 optionsJson BE parity', () => {
-  it('대소문자 변종을 합치지 않고 trim·빈값 필터·입력 순서를 보존한다', () => {
+describe('mock 결재양식 optionsJson 정규화', () => {
+  it('실 BE와 동일하게 대소문자 변종을 dedup하지 않고 모두 보존한다', () => {
     const response = mockRequest({
       method: 'POST',
       url: '/admin/groupware/approval-templates',
@@ -93,7 +93,7 @@ describe('mock 결재양식 optionsJson BE parity', () => {
           fieldType: 'SELECT',
           required: true,
           displayOrder: 1,
-          optionsJson: '[" Apple ", "apple", "", " BANANA ", "banana"]',
+          optionsJson: '["Apple", "apple", "BANANA", "banana"]',
           placeholder: null,
         }],
       },
@@ -109,6 +109,34 @@ describe('mock 결재양식 optionsJson BE parity', () => {
       'BANANA',
       'banana',
     ])
+  })
+
+  it('FE 입력단에서 도달하지 않는 공백은 mock 경계의 로컬 방어로 trim·빈값 제거한다', () => {
+    const response = mockRequest({
+      method: 'POST',
+      url: '/admin/groupware/approval-templates',
+      data: {
+        code: 'S4_MOCK_DEFENSIVE_OPTIONS',
+        name: 'mock 방어 정규화 검증',
+        active: true,
+        displayOrder: 1000,
+        fields: [{
+          fieldKey: 'choice',
+          label: '선택',
+          fieldType: 'SELECT',
+          required: true,
+          displayOrder: 1,
+          optionsJson: '[" Apple ", "", " BANANA "]',
+          placeholder: null,
+        }],
+      },
+    }) as {
+      __mockStatus: number
+      body: MockEnvelope<{ fields: Array<{ optionsJson: string }> }>
+    }
+
+    expect(response.__mockStatus).toBe(201)
+    expect(JSON.parse(response.body.data.fields[0]!.optionsJson)).toEqual(['Apple', 'BANANA'])
   })
 })
 

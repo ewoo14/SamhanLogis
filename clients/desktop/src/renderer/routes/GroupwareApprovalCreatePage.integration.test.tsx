@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ApprovalLineStructure } from '../api/approvalLineConfigApi'
+import type { ApprovalLineDefaultApprover, ApprovalLineStructure } from '../api/approvalLineConfigApi'
 import type { ApprovalTemplate } from '../api/groupwareApprovalTemplate'
 
 const mocks = vi.hoisted(() => ({
@@ -250,6 +250,58 @@ describe('GroupwareApprovalCreatePage 결재자 prefill 경합', () => {
     await selectTemplate('template-leave')
     await waitFor(() => expect(screen.getByTestId('approver-chip').textContent).toContain('휴가기본결재자'))
     expect(screen.getByTestId('approver-chip').textContent).not.toContain('지출기본결재자')
+    client.clear()
+  })
+
+  it('사용자 결재자를 추가한 뒤 템플릿을 전환하면 기존 결재자를 즉시 초기화하고 새 기본 결재자를 적용한다', async () => {
+    const leaveDefaults = deferred<ApprovalLineDefaultApprover[]>()
+    mocks.fetchApprovalLineStructure.mockResolvedValue([])
+    mocks.fetchDefaultApprovers.mockImplementation((documentType: string) => (
+      documentType === 'GROUPWARE_EXPENSE_REPORT'
+        ? Promise.resolve([])
+        : leaveDefaults.promise
+    ))
+    const { client } = renderPage()
+
+    await selectTemplate('template-expense')
+    await waitFor(() => expect(mocks.fetchDefaultApprovers).toHaveBeenCalledWith('GROUPWARE_EXPENSE_REPORT'))
+    await addApprover('김은지')
+    expect(screen.getByTestId('approver-chip').textContent).toContain('김은지')
+
+    await selectTemplate('template-leave')
+    await waitFor(() => expect(mocks.fetchDefaultApprovers).toHaveBeenCalledWith('GROUPWARE_LEAVE_REQUEST'))
+    expect(screen.queryByTestId('approver-chip')).toBeNull()
+
+    await act(async () => {
+      leaveDefaults.resolve([
+        { sequence: 1, label: '기본 결재자', userId: 'user-leave', displayName: '휴가기본결재자' },
+      ])
+      await leaveDefaults.promise
+    })
+
+    await waitFor(() => expect(screen.getByTestId('approver-chip').textContent).toContain('휴가기본결재자'))
+    expect(screen.getByTestId('approver-chip').textContent).not.toContain('김은지')
+    client.clear()
+  })
+
+  it('A에서 사용자 편집으로 증가한 버전을 B 전환 시 재베이스해 B 기본 결재자를 막지 않는다', async () => {
+    mocks.fetchApprovalLineStructure.mockResolvedValue([])
+    mocks.fetchDefaultApprovers.mockImplementation(async (documentType: string) => (
+      documentType === 'GROUPWARE_EXPENSE_REPORT'
+        ? []
+        : [{ sequence: 1, label: '기본 결재자', userId: 'user-leave', displayName: '휴가기본결재자' }]
+    ))
+    const { client } = renderPage()
+
+    await selectTemplate('template-expense')
+    await waitFor(() => expect(mocks.fetchDefaultApprovers).toHaveBeenCalledWith('GROUPWARE_EXPENSE_REPORT'))
+    await addApprover('김은지')
+    expect(screen.getByTestId('approver-chip').textContent).toContain('김은지')
+
+    await selectTemplate('template-leave')
+
+    await waitFor(() => expect(screen.getByTestId('approver-chip').textContent).toContain('휴가기본결재자'))
+    expect(screen.getByTestId('approver-chip').textContent).not.toContain('김은지')
     client.clear()
   })
 })
