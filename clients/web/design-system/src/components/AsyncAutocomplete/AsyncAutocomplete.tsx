@@ -517,19 +517,23 @@ function AsyncAutocompleteInner<T>(
           >
             {candidates.map((item, idx) => {
               const key = getKey(item)
+              // 선택 여부는 getKey 비교 "단일 계산"을 시각 class(optionSelected)와
+              // aria-selected 가 공유한다 — 두 분기가 각자 비교하면 한쪽만
+              // 참조비교(value === item)로 회귀하는 드리프트가 가능하다 (#825 CODEX LOW).
+              const isSelected = value ? getKey(value) === key : false
               return (
                 <li
                   key={key}
                   id={optionDomId(idx)}
                   className={[
                     styles['option'],
-                    value && getKey(value) === key ? styles['optionSelected'] : null,
+                    isSelected ? styles['optionSelected'] : null,
                     idx === activeIndex ? styles['optionActive'] : null,
                   ]
                     .filter(Boolean)
                     .join(' ')}
                   role="option"
-                  aria-selected={value ? getKey(value) === key : false}
+                  aria-selected={isSelected}
                   onMouseDown={(e) => {
                     e.preventDefault()
                     pick(item)

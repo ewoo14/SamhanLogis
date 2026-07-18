@@ -76,25 +76,38 @@ test('#825 슬3 — 품목 자동완성 하이라이트 + DOM UUID 미노출 실
   const combo = page.getByRole('combobox').first()
   await expect(combo, 'ProductAutocomplete combobox 미표시').toBeVisible({ timeout: 20_000 })
 
-  // 1) productName 검색("삼성") → 하이라이트 + DOM UUID 미노출
+  // mark 계수는 listbox option 스코프로 한정 — 페이지 전역 mark(무관 요소·표 강조 등)로
+  // GREEN 되거나, 한 검색만 강조돼도 합산(mark1+mark2)으로 통과하는 느슨함 제거 (CODEX LOW).
+  const optionMarks = page.locator('li[role="option"] mark')
+
+  // 1) productName 검색("삼성") → 품목명 하이라이트 + "품목명" 매치 배지 + DOM UUID 미노출
   await combo.click()
   await combo.fill('삼성')
   await expect(page.locator('li[role="option"]').first(), '품목 후보 미표시').toBeVisible({ timeout: 15_000 })
+  // "품목명" 배지 가시화 = "삼성" 결과 렌더 완료 신호 (stale 이전 결과 오계수 방지)
+  await expect(
+    page.locator('li[role="option"] [aria-label="매치 필드 품목명"]').first(),
+    '"삼성" 검색 품목명 매치 배지 미렌더',
+  ).toBeVisible({ timeout: 15_000 })
   await page.waitForTimeout(500)
-  const mark1 = await page.locator('mark').count()
+  const mark1 = await optionMarks.count()
+  expect(mark1, '"삼성" 검색 option 내 <mark> 미렌더').toBeGreaterThan(0)
   await capture(page, 'product-name-highlight')
   await assertNoUuidInDom(page)
-  console.log('[삼성 mark]', mark1)
+  console.log('[삼성 mark(option 스코프)]', mark1)
 
-  // 2) modelName 검색("AR") → 모델명 하이라이트
+  // 2) modelName 검색("AR") → 모델명 하이라이트 + "모델명" 매치 배지
   await combo.fill('')
   await combo.fill('AR')
   await expect(page.locator('li[role="option"]').first()).toBeVisible({ timeout: 15_000 })
+  await expect(
+    page.locator('li[role="option"] [aria-label="매치 필드 모델명"]').first(),
+    '"AR" 검색 모델명 매치 배지 미렌더',
+  ).toBeVisible({ timeout: 15_000 })
   await page.waitForTimeout(500)
-  const mark2 = await page.locator('mark').count()
+  const mark2 = await optionMarks.count()
+  expect(mark2, '"AR" 검색 option 내 <mark> 미렌더').toBeGreaterThan(0)
   await capture(page, 'model-name-highlight')
   await assertNoUuidInDom(page)
-  console.log('[AR mark]', mark2)
-
-  expect(mark1 + mark2, '매치 강조 <mark> 미렌더').toBeGreaterThan(0)
+  console.log('[AR mark(option 스코프)]', mark2)
 })

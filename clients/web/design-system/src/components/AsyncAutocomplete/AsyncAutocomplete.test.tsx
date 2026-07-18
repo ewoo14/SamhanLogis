@@ -352,15 +352,15 @@ describe('AsyncAutocomplete', () => {
     expect(onChange).toHaveBeenCalledWith(second)
   })
 
-  it('getKey는 React key와 선택 동일성에 쓰이는 유일 키라는 소비자 계약을 따른다', async () => {
+  it('getKey는 React key와 선택 동일성(aria-selected + optionSelected class)에 쓰이는 유일 키라는 소비자 계약을 따른다', async () => {
     const first: Option = { id: 'unique-1', label: '첫 상품' }
     const second: Option = { id: 'unique-2', label: '둘째 상품' }
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([first, second])
 
     // value 는 첫 후보와 "별개 객체 리터럴 + 동일 getKey" 로 준다 — 서버 재조회로 매번 새
     // 객체가 오는 실사용 형태. 참조동일성(value === item) 구현은 이 쌍에서 false 가 되므로
-    // aria-selected 는 getKey 비교로만 true 가 될 수 있다 (tautology 해소 — 동일 레퍼런스를
-    // 넘기면 참조비교 회귀도 GREEN 으로 통과해 버린다).
+    // 선택 표시(aria-selected·optionSelected class)는 getKey 비교로만 true 가 될 수 있다
+    // (tautology 해소 — 동일 레퍼런스를 넘기면 참조비교 회귀도 GREEN 으로 통과해 버린다).
     const selectedTwin: Option = { id: 'unique-1', label: '첫 상품' }
     expect(selectedTwin).not.toBe(first)
 
@@ -384,7 +384,12 @@ describe('AsyncAutocomplete', () => {
 
     const options = await screen.findAllByRole('option', { name: /상품/ })
     expect(new Set([first.id, second.id]).size).toBe(2)
+    // 두 채널 모두 단언 — 스크린리더(aria-selected)와 시각 강조(optionSelected class).
+    // 한 채널만 검증하면 나머지 채널 분기가 참조비교로 회귀해도 GREEN 이 된다
+    // (#825 CODEX LOW: class 분기만 value === item 으로 변이 시 기존 테스트 미포착).
     expect(options[0]!.getAttribute('aria-selected')).toBe('true')
     expect(options[1]!.getAttribute('aria-selected')).toBe('false')
+    expect(options[0]!.className).toContain('optionSelected')
+    expect(options[1]!.className).not.toContain('optionSelected')
   })
 })
