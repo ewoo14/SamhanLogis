@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.repository;
 
 import com.samhanair.logis.slip.domain.SlipLine;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -10,6 +11,10 @@ import org.springframework.data.repository.query.Param;
 
 /** Slip 라인 — 라인 단건 mutation 보조 (조회는 보통 헤더 cascade 로 처리). */
 public interface SlipLineRepository extends JpaRepository<SlipLine, UUID> {
+
+    /** Internal 스냅샷 조회용 — 라인과 소속 전표를 같은 persistence context 에서 함께 읽는다. */
+    @Query("SELECT l FROM SlipLine l JOIN FETCH l.slip WHERE l.id = :id")
+    Optional<SlipLine> findByIdWithSlip(@Param("id") UUID id);
 
     /**
      * 소프트삭제된 라인 중 <b>헤더와 동일 시각에 삭제된 라인만</b> slip 단위로 일괄 복원한다

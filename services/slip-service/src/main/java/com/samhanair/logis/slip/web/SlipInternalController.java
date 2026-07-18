@@ -320,7 +320,7 @@ public class SlipInternalController {
     @GetMapping("/{slipId}/lines")
     @PreAuthorize("hasRole('MASTER')")
     public List<SlipLineSnapshot> getSlipLines(@PathVariable UUID slipId) {
-        Slip slip = signatureService.findById(slipId)
+        Slip slip = slipRepository.findByIdWithLines(slipId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "slip not found: " + slipId));
         return slip.getLines().stream()
@@ -331,7 +331,8 @@ public class SlipInternalController {
     /**
      * Internal 전표 라인 단건 조회 — accounting-service 라인 단건 검증용.
      *
-     * <p>slip-service {@link SlipLineRepository#findById(Object)} 로 lineId 단건 조회 후
+     * <p>slip-service {@link SlipLineRepository#findByIdWithSlip(UUID)} 로 lineId 단건 조회 시
+     * 소속 Slip 을 fetch-join 한 뒤
      * SlipLineSnapshot 으로 변환하여 반환.
      *
      * @param lineId 라인 UUID
@@ -343,7 +344,7 @@ public class SlipInternalController {
     @GetMapping("/lines/{lineId}")
     @PreAuthorize("hasRole('MASTER')")
     public SlipLineSnapshot getSlipLine(@PathVariable UUID lineId) {
-        SlipLine line = slipLineRepository.findById(lineId)
+        SlipLine line = slipLineRepository.findByIdWithSlip(lineId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "slip line not found: " + lineId));
         return toSnapshot(line.getSlip(), line);

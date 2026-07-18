@@ -38,6 +38,10 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     @Query(value = "SELECT * FROM slips WHERE id = :id", nativeQuery = true)
     Optional<Slip> findByIdIncludingDeleted(@Param("id") UUID id);
 
+    /** Internal 스냅샷 조회용 — 전표와 라인 컬렉션을 같은 persistence context 에서 함께 읽는다. */
+    @Query("SELECT DISTINCT s FROM Slip s LEFT JOIN FETCH s.lines WHERE s.id = :id")
+    Optional<Slip> findByIdWithLines(@Param("id") UUID id);
+
     /** 상태별 페이지 조회. soft-delete 제외. */
     Page<Slip> findAllByStatusAndIsDeletedFalse(SlipStatus status, Pageable pageable);
 
