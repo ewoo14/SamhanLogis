@@ -4,6 +4,26 @@
 
 ---
 
+## 🟡 2026-07-18 — #825 슬4 **칩 복수선택 표준 컴포넌트 · 착수-가(구현 대기)** ◀ 다음 세션 여기부터
+
+> **다음 세션 첫 읽기 + 시작점.** 슬4 = **기획·기획검수 완료·구현 미착수**. 개발책임자 "착수-가에서 휴지" 결정(2026-07-18). **CODEX LUNA 5.6 구현부터 이어받기.**
+
+### 상태
+- **PR #844**(OPEN)·브랜치 `feat/825-s4-chip-multiselect`(spec+memory만·구현 코드 0·clean). **spec = 계약**: `docs/specs/825-s4-chip-multiselect-spec.md`.
+- **워크플로우 진행**: OPUS 기획 → CODEX SOL 기획검수(**7 BLOCKING 전량 반영**) → ⏸ **CODEX LUNA 구현 대기** → OPUS/CODEX 적대검증 → 재수렴 → 머지.
+
+### 이어받기 지침 (fresh 재디스패치)
+1. `git pull` + `sync-claude-memory.ps1` 먼저(칩 memory supersede 반영 확인).
+2. `feat/825-s4-chip-multiselect` 체크아웃 → **CODEX LUNA 구현** 디스패치(spec 100%·아래 7 BLOCKING 준수).
+3. **7 BLOCKING(spec §1·§5 계약)**: ①신규 컴포넌트=칩 memory supersede(조합 패키지·D-S4-02) ②Async props passthrough+getChipProps ③멀티 ARIA=선택 key 검색결과서 **필터**(base 무변경) ④ApprovalLineConfig=**서버 delta**(onAdd POST/onRemove 저장id DELETE·pending 차단) ⑤결재작성 **prefill 경합·배열순서=approverIds payload** 보존 ⑥free-text=**FreeTextChipInput**(optionsJson JSON배열·IME·dedup 분리) ⑦**행동 무회귀 매트릭스**(§5).
+4. 스코프: MultiSelectAutocomplete + FreeTextChipInput 신규 + 결재작성·결재선설정 리팩터 + 결재양식 신규. **CODEF=슬5 이관·세금계산서 묶음발행=(c) 후속**.
+5. **최대 리스크=리팩터 무회귀**(결재작성 prefill·순서·결재선설정 delta/pending·co-edit) → 공유 base(AsyncAutocomplete/TagChip) 전 소비처 회귀 게이트 + 라이브 QA + 2-model 재수렴.
+
+### 개발책임자 결정 (PR #844 §0)
+D-S4-01 인라인·D-S4-02 리팩터+신규(칩 memory supersede)·D-S4-03 FreeTextChipInput·D-S4-04 세금계산서(c) 후속·D-S4-05 CODEF 슬5 이관.
+
+---
+
 ## 🟢 2026-07-18 — #825 슬3 **품목 자동완성 표준화 foundation · main 머지 완료** ✅
 
 > **다음 세션 첫 읽기.** #825 슬3 완결(main `8287c85b3`·PR #841) — #825 에픽 슬4~7 계속.
