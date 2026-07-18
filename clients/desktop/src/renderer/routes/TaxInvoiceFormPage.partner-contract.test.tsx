@@ -203,7 +203,7 @@ describe('TaxInvoice 거래처 검색 정준 소스 매핑 (L6 해소)', () => {
     // name 필터 — 로딩 행("검색 중…")도 role=option 이므로 실제 후보만 집계한다.
     const options = await screen.findAllByRole('option', { name: /물류/ })
     expect(options.length).toBe(2)
-    // 실 partnerCode getKey — 두 후보의 DOM id(aria-activedescendant 타깃)가 서로 다르다
+    // 실 partnerCode getKey는 React key/선택 동일성 전용이며, DOM id는 opaque index 기반이다.
     expect(options[0]!.id).not.toBe(options[1]!.id)
 
     fireEvent.mouseDown(options[1]!)

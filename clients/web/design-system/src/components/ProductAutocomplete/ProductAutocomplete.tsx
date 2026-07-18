@@ -6,6 +6,7 @@
  */
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
+import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
 
 /**
@@ -55,6 +56,40 @@ export interface ProductAutocompleteProps {
   debounceMs?: number
 }
 
+function HighlightedProductField({
+  value,
+  query,
+  label,
+  className,
+}: {
+  value: string
+  query: string
+  label: string
+  className: string | undefined
+}) {
+  const parts = splitHighlightMatches(value, query)
+  const isMatched = parts.some((part) => part.matched)
+
+  return (
+    <span className={className}>
+      {parts.map((part, index) =>
+        part.matched ? (
+          <mark className={styles['matchMark']} key={`match-${index}`}>
+            {part.text}
+          </mark>
+        ) : (
+          <span key={`text-${index}`}>{part.text}</span>
+        ),
+      )}
+      {isMatched ? (
+        <span className={styles['matchBadge']} aria-label={`매치 필드 ${label}`}>
+          {label}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 export const ProductAutocomplete = forwardRef<
   HTMLInputElement,
   ProductAutocompleteProps
@@ -74,11 +109,21 @@ export const ProductAutocomplete = forwardRef<
       getKey={(product) => product.id}
       getInputLabel={(product) => product.modelName}
       listboxLabel="품목 목록"
-      renderOption={(product) => (
+      renderOption={(product, context) => (
         <>
-          <span className={styles['optionPrimary']}>{product.modelName}</span>
+          <HighlightedProductField
+            value={product.modelName}
+            query={context?.query ?? ''}
+            label="모델명"
+            className={styles['optionPrimary']}
+          />
           <span className={styles['optionSep']}>·</span>
-          <span className={styles['optionSecondary']}>{product.productName}</span>
+          <HighlightedProductField
+            value={product.productName}
+            query={context?.query ?? ''}
+            label="품목명"
+            className={styles['optionSecondary']}
+          />
         </>
       )}
       label={label}

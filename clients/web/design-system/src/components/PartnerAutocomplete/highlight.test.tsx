@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { PartnerAutocomplete, type PartnerOption } from './PartnerAutocomplete'
-import { splitHighlightMatches } from './highlight'
+import { splitHighlightMatches } from './index'
 
 describe('splitHighlightMatches', () => {
   it('정규식 특수문자를 literal substring으로 대소문자 무시 매칭한다', () => {

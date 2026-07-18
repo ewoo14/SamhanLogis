@@ -6,8 +6,8 @@
  */
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
+import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
-import { splitHighlightMatches } from './highlight'
 
 /**
  * 거래처 선택 옵션 — design-system 공개 타입.

@@ -281,4 +281,103 @@ describe('AsyncAutocomplete', () => {
     expect(input.value).toBe('한일냉동기술')
     expect(input.getAttribute('aria-expanded')).toBe('false')
   })
+
+  it('활성 옵션을 index 기반 opaque id로 가리키고 UUID나 업무키를 DOM id에 넣지 않는다', async () => {
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
+      { id: '550e8400-e29b-41d4-a716-446655440000', label: '상품 A' },
+      { id: 'PRODUCT-CODE-002', label: '상품 B' },
+    ])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={vi.fn()}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="상품 목록"
+        ariaLabel="상품"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '상품' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '상품' } })
+
+    const options = await screen.findAllByRole('option', { name: /상품/ })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    const activeId = input.getAttribute('aria-activedescendant')
+    expect(activeId).toBe(options[0]!.id)
+    expect(document.getElementById(activeId!)?.getAttribute('role')).toBe('option')
+    expect(activeId).toMatch(/^ds-aac-list-.*-opt-0$/)
+    expect(activeId).not.toContain('550e8400-e29b-41d4-a716-446655440000')
+    expect(activeId).not.toContain('PRODUCT-CODE-002')
+    expect(options[0]!.id).toMatch(/^ds-aac-list-.*-opt-0$/)
+    expect(options[1]!.id).toMatch(/^ds-aac-list-.*-opt-1$/)
+  })
+
+  it('ArrowDown으로 활성화한 정확한 객체를 Enter로 선택한다', async () => {
+    const first: Option = { id: 'first', label: '첫 상품' }
+    const second: Option = { id: 'second', label: '둘째 상품' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([first, second])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="상품 목록"
+        ariaLabel="상품"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '상품' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '상품' } })
+    await screen.findByText('둘째 상품')
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith(second)
+  })
+
+  it('getKey는 React key와 선택 동일성에 쓰이는 유일 키라는 소비자 계약을 따른다', async () => {
+    const first: Option = { id: 'unique-1', label: '첫 상품' }
+    const second: Option = { id: 'unique-2', label: '둘째 상품' }
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([first, second])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={first}
+        onChange={vi.fn()}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="상품 목록"
+        ariaLabel="상품"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '상품' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '상품' } })
+
+    const options = await screen.findAllByRole('option', { name: /상품/ })
+    expect(new Set([first.id, second.id]).size).toBe(2)
+    expect(options[0]!.getAttribute('aria-selected')).toBe('true')
+    expect(options[1]!.getAttribute('aria-selected')).toBe('false')
+  })
 })

@@ -13,8 +13,8 @@ export function splitHighlightMatches(value: string, query: string): HighlightPa
   if (!normalizedQuery) return [{ text: value, matched: false }]
 
   const normalizedValue = value.toLowerCase()
-  // toLowerCase 가 코드유닛 길이를 바꾸는 문자(예: U+0130 İ → i̇)는 normalizedValue
-  // 인덱스가 원본 value 인덱스와 어긋나 강조 경계가 오정렬된다 — 이 경우 강조를
+  // toLowerCase가 코드유닛 길이를 바꾸는 문자(예: U+0130 İ → i̇)는 normalizedValue
+  // 인덱스가 원본 value 인덱스와 어긋나 강조 경계가 오정렬된다. 이 경우 강조를
   // 생략하고 원문을 그대로 반환한다(텍스트/보안 무영향, 시각 강조만 생략).
   if (normalizedValue.length !== value.length) {
     return [{ text: value, matched: false }]
