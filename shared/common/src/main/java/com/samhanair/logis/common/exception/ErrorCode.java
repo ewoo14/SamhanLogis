@@ -139,6 +139,12 @@ public enum ErrorCode {
      */
     SAS_SOURCE_SLIP_TYPE_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
             "원천 전표 유형이 잘못되었습니다 (매출=출고, 매입=입고만 허용)."),
+    /** 원천 전표의 거래처가 대상 회계전표 거래처와 다름 (SAS #823). */
+    SAS_SOURCE_PARTNER_MISMATCH(HttpStatus.UNPROCESSABLE_ENTITY,
+            "원천 전표 거래처가 대상 전표 거래처와 일치하지 않습니다."),
+    /** 원천 전표에 거래처가 없음 (SAS #823). */
+    SAS_SOURCE_PARTNER_MISSING(HttpStatus.UNPROCESSABLE_ENTITY,
+            "원천 전표에 거래처가 없습니다."),
     /**
      * 할당 합계가 출고/입고전표 line 잔여를 초과 (SAS 슬라이스).
      */

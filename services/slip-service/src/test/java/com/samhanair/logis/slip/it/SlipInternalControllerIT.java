@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.delivery.sms.SmsResult;
 import com.samhanair.logis.slip.domain.SignatureAuditAction;
 import com.samhanair.logis.slip.domain.SignatureSource;
 import com.samhanair.logis.slip.repository.SlipSignatureAuditRepository;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -70,6 +71,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private SlipSignatureAuditRepository auditRepository;
+    @Autowired private SlipRepository slipRepository;
 
     @MockBean private InventoryClient inventoryClient;
     @MockBean private ProductClient productClient;
@@ -251,6 +253,35 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/internal/slips/by-partner/" + unknownPartnerId + "/recent")
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getSlipLineSnapshots_exposes_partnerId_for_single_and_list_shapes() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        String slipId = createInspectingSlipForPartner(partnerId);
+        UUID lineId = slipRepository.findById(UUID.fromString(slipId))
+                .orElseThrow()
+                .getLines()
+                .get(0)
+                .getId();
+
+        mockMvc.perform(get("/internal/slips/" + slipId + "/lines")
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$[0].slipId").value(slipId))
+                .andExpect(jsonPath("$[0].lineId").value(lineId.toString()))
+                .andExpect(jsonPath("$[0].partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$[0].slipNo").exists());
+
+        mockMvc.perform(get("/internal/slips/lines/" + lineId)
+                        .header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").doesNotExist())
+                .andExpect(jsonPath("$.slipId").value(slipId))
+                .andExpect(jsonPath("$.lineId").value(lineId.toString()))
+                .andExpect(jsonPath("$.partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$.slipNo").exists());
     }
 
     // ---------- GET /internal/slips/by-partner-code/{code}/recent (W10-4 종합 TM BE-1 채택) ----------

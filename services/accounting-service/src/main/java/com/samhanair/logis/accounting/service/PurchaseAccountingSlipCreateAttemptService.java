@@ -35,6 +35,10 @@ public class PurchaseAccountingSlipCreateAttemptService {
     public PurchaseAccountingSlipResponse createDraftAttempt(
             CreatePurchaseAccountingSlipRequest req,
             String actorUserId) {
+        if (req.partnerId() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "매입전표 대상 거래처는 필수입니다");
+        }
         String slipNo = numberGenerator.next(req.slipDate());
         PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
                 slipNo, req.slipDate(), req.partnerId(), req.partnerCode(),
@@ -55,9 +59,9 @@ public class PurchaseAccountingSlipCreateAttemptService {
             slip.getLines().add(line);
 
             for (AllocationRequest ar : lr.allocations()) {
-                verifySourceAndAllocation(ar);
+                SlipLineSnapshot src = verifySourceAndAllocation(ar, req.partnerId());
                 line.getAllocations().add(PurchaseAccountingSlipAllocation.create(line,
-                        ar.sourceSlipId(), ar.sourceSlipNo(),
+                        src.slipId(), src.slipNo(),
                         ar.sourceLineId(), ar.sourceLineNo(),
                         ar.allocatedQty(), ar.allocatedAmount()));
             }
@@ -68,7 +72,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
         return PurchaseAccountingSlipResponse.of(slip);
     }
 
-    private void verifySourceAndAllocation(AllocationRequest ar) {
+    private SlipLineSnapshot verifySourceAndAllocation(AllocationRequest ar, UUID headerPartnerId) {
         acquireSourceLineLock(ar.sourceLineId());
         SlipLineSnapshot src = slipServiceClient.getSlipLine(ar.sourceLineId());
         if (!"INBOUND".equals(src.slipType())) {
@@ -81,6 +85,15 @@ public class PurchaseAccountingSlipCreateAttemptService {
                     "원천 전표가 확정 상태가 아닙니다 (전표="
                             + src.slipNo() + ", 상태=" + slipStatusDisplayName(src.slipStatus()) + ")");
         }
+        if (src.partnerId() == null) {
+            throw new BusinessException(ErrorCode.SAS_SOURCE_PARTNER_MISSING,
+                    "원천 전표에 거래처가 없습니다 (전표=" + src.slipNo() + ")");
+        }
+        if (!src.partnerId().equals(headerPartnerId)) {
+            throw new BusinessException(ErrorCode.SAS_SOURCE_PARTNER_MISMATCH,
+                    "원천 전표 거래처가 대상 전표 거래처와 일치하지 않습니다 (전표="
+                            + src.slipNo() + ")");
+        }
         BigDecimal already = allocationRepository.sumAllocatedAmountBySourceLineId(ar.sourceLineId());
         BigDecimal next = already.add(ar.allocatedAmount());
         if (next.compareTo(src.lineTotal()) > 0) {
@@ -89,6 +102,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
                             + ", 요청=" + ar.allocatedAmount()
                             + ", 잔여=" + src.lineTotal().subtract(already) + ")");
         }
+        return src;
     }
 
     private void acquireSourceLineLock(UUID sourceLineId) {

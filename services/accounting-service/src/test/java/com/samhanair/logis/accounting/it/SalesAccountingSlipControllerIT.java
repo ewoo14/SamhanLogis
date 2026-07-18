@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.ETaxClient;
@@ -38,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
+    private static final UUID PARTNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000823");
+
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper om;
     @Autowired SalesAccountingSlipRepository salesSlipRepository;
@@ -54,11 +57,11 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-1");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관 30A",
+                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관 30A",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-2026-0001", "(주)한국공조",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
                 SalesTaxType.TAXABLE, "IT Docker 실서버 검증",
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         "RX다배관", "RX다배관 30A", new BigDecimal("10"), new BigDecimal("150000"),
@@ -153,7 +156,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     void POST_admin_sales_slips_empty_allocations_거부() throws Exception {
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-6");
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-2026-0001", "(주)한국공조",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
                 SalesTaxType.TAXABLE, "empty allocations",
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         "RX다배관", "RX다배관 30A", new BigDecimal("10"), new BigDecimal("150000"),
@@ -169,12 +172,106 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_admin_sales_slips_source_partner_불일치_422() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-PM");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-PARTNER-MISMATCH", sourceLineId, UUID.randomUUID(), "P",
+                1, new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+
+        mvc.perform(post("/admin/sales-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(request(sourceSlipId, sourceLineId,
+                                SalesTaxType.TAXABLE, BigDecimal.ONE, new BigDecimal("100000"),
+                                new BigDecimal("100000")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_SOURCE_PARTNER_MISMATCH"));
+    }
+
+    @Test
+    void POST_admin_sales_slips_source_partner_null_422() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-PN");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-PARTNER-NULL", sourceLineId, null, "P",
+                1, new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+
+        mvc.perform(post("/admin/sales-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(request(sourceSlipId, sourceLineId,
+                                SalesTaxType.TAXABLE, BigDecimal.ONE, new BigDecimal("100000"),
+                                new BigDecimal("100000")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_SOURCE_PARTNER_MISSING"));
+    }
+
+    @Test
+    void POST_admin_sales_slips_header_partner_null은_원천조회_전에_400() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        ObjectNode body = (ObjectNode) om.readTree(om.writeValueAsString(request(sourceSlipId, sourceLineId,
+                SalesTaxType.TAXABLE, BigDecimal.ONE, new BigDecimal("100000"),
+                new BigDecimal("100000"))));
+        body.putNull("partnerId");
+
+        mvc.perform(post("/admin/sales-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    void POST_admin_sales_slips_multi_source_두번째_partner_불일치면_전표_row_rollback() throws Exception {
+        UUID firstSlipId = UUID.randomUUID();
+        UUID firstLineId = UUID.randomUUID();
+        UUID secondSlipId = UUID.randomUUID();
+        UUID secondLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-MIX");
+        when(slipServiceClient.getSlipLine(firstLineId)).thenReturn(new SlipLineSnapshot(
+                firstSlipId, "OUT-MIX-A", firstLineId, PARTNER_ID, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+        when(slipServiceClient.getSlipLine(secondLineId)).thenReturn(new SlipLineSnapshot(
+                secondSlipId, "OUT-MIX-B", secondLineId, UUID.randomUUID(), "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
+                SalesTaxType.TAXABLE, "mixed source",
+                List.of(new CreateSalesAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("2"), new BigDecimal("100000"), List.of(
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                firstSlipId, "PAYLOAD-A", firstLineId, 1,
+                                BigDecimal.ONE, new BigDecimal("100000")),
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                secondSlipId, "PAYLOAD-B", secondLineId, 1,
+                                BigDecimal.ONE, new BigDecimal("100000"))))));
+
+        mvc.perform(post("/admin/sales-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_SOURCE_PARTNER_MISMATCH"));
+
+        assertThat(salesSlipRepository.findBySlipNo("2026/05/19-MIX")).isEmpty();
+    }
+
+    @Test
     void POST_admin_sales_slips_INBOUND_source_거부() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-7");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "IN-2026-05-0042", sourceLineId, "RX다배관 30A",
+                sourceSlipId, "IN-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관 30A",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -220,7 +317,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
     private void stubConfirmedSourceLine(UUID sourceSlipId, UUID sourceLineId, BigDecimal lineTotal) {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관 30A",
+                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관 30A",
                 10, new BigDecimal("150000"), lineTotal, "CONFIRMED", "OUTBOUND"));
     }
 
@@ -233,7 +330,7 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
             SalesTaxType taxType, BigDecimal qty, BigDecimal unitPrice, BigDecimal allocatedAmount,
             String partnerCode) {
         return new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), partnerCode, "(주)한국공조",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, partnerCode, "(주)한국공조",
                 taxType, "IT Docker 실서버 검증",
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         "RX다배관", "RX다배관 30A", qty, unitPrice,

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.SlipLineSnapshot;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -44,6 +46,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
 class SalesAccountingSlipServiceTest {
+
+    private static final UUID PARTNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000823");
 
     @Mock SalesAccountingSlipRepository slipRepository;
     @Mock SalesAccountingSlipAllocationRepository allocationRepository;
@@ -95,14 +99,14 @@ class SalesAccountingSlipServiceTest {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-1");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-2026-05-0042", sourceLineId, "RX다배관",
+                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
                 .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-2026-0001", "(주)한국공조",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
                 SalesTaxType.TAXABLE, "테스트",
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         "RX다배관", "RX다배관 30A", new BigDecimal("10"), new BigDecimal("150000"),
@@ -124,13 +128,13 @@ class SalesAccountingSlipServiceTest {
     void overAllocation_차단_SAS_OVER_ALLOCATION() {
         UUID sourceLineId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                UUID.randomUUID(), "OUT-...", sourceLineId, "P", 10,
+                UUID.randomUUID(), "OUT-...", sourceLineId, PARTNER_ID, "P", 10,
                 new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
                 .thenReturn(new BigDecimal("800000"));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X",
                 SalesTaxType.TAXABLE, null,
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         null, null, new BigDecimal("5"), new BigDecimal("160000"),
@@ -154,7 +158,7 @@ class SalesAccountingSlipServiceTest {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-2");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-B", sourceLineId, "P", 10,
+                sourceSlipId, "OUT-B", sourceLineId, PARTNER_ID, "P", 10,
                 new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
                 .thenReturn(new BigDecimal("800000"));
@@ -173,7 +177,7 @@ class SalesAccountingSlipServiceTest {
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-3");
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X",
                 SalesTaxType.TAXABLE, null,
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         "P", "P", new BigDecimal("1"), new BigDecimal("100000"), List.of())));
@@ -191,7 +195,7 @@ class SalesAccountingSlipServiceTest {
         LocalDate slipDate = LocalDate.of(2026, 5, 19);
         when(numberGenerator.next(slipDate)).thenReturn("SAS-DUP", "SAS-RETRY");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-R", sourceLineId, "P", 1,
+                sourceSlipId, "OUT-R", sourceLineId, PARTNER_ID, "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         doThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint \"sales_accounting_slips_slip_no_key\""))
@@ -225,7 +229,7 @@ class SalesAccountingSlipServiceTest {
         long expectedLockKey = sourceLineId.getMostSignificantBits() ^ sourceLineId.getLeastSignificantBits();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-4");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-L", sourceLineId, "P", 1,
+                sourceSlipId, "OUT-L", sourceLineId, PARTNER_ID, "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
         when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
         lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
@@ -279,11 +283,11 @@ class SalesAccountingSlipServiceTest {
     void source_slip_not_confirmed_SAS_SOURCE_SLIP_NOT_CONFIRMED() {
         UUID sourceLineId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                UUID.randomUUID(), "OUT-...", sourceLineId, "P", 10,
+                UUID.randomUUID(), "OUT-...", sourceLineId, PARTNER_ID, "P", 10,
                 new BigDecimal("100000"), new BigDecimal("1000000"), "DRAFT", "OUTBOUND"));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X",
                 SalesTaxType.TAXABLE, null,
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         null, null, new BigDecimal("1"), new BigDecimal("100000"),
@@ -304,11 +308,11 @@ class SalesAccountingSlipServiceTest {
     void createDraft_INBOUND_source_거부_SAS_SOURCE_SLIP_TYPE_MISMATCH() {
         UUID sourceLineId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                UUID.randomUUID(), "IN-...", sourceLineId, "P", 10,
+                UUID.randomUUID(), "IN-...", sourceLineId, PARTNER_ID, "P", 10,
                 new BigDecimal("100000"), new BigDecimal("1000000"), "CONFIRMED", "INBOUND"));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X",
                 SalesTaxType.TAXABLE, null,
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         null, null, new BigDecimal("1"), new BigDecimal("100000"),
@@ -328,6 +332,113 @@ class SalesAccountingSlipServiceTest {
     }
 
     @Test
+    void source_partner_불일치_SAS_SOURCE_PARTNER_MISMATCH() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        UUID sourcePartnerId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-PARTNER-MISMATCH");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-PARTNER-A", sourceLineId, sourcePartnerId, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+
+        assertThatThrownBy(() -> service.createDraft(
+                requestWithSingleAllocation(sourceSlipId, sourceLineId, BigDecimal.ONE,
+                        new BigDecimal("100000"), new BigDecimal("100000")), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("OUT-PARTNER-A")
+                .hasMessageNotContaining(sourceSlipId.toString())
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_SOURCE_PARTNER_MISMATCH));
+    }
+
+    @Test
+    void source_partner_null_SAS_SOURCE_PARTNER_MISSING() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-PARTNER-MISSING");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-PARTNER-NULL", sourceLineId, null, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+
+        assertThatThrownBy(() -> service.createDraft(
+                requestWithSingleAllocation(sourceSlipId, sourceLineId, BigDecimal.ONE,
+                        new BigDecimal("100000"), new BigDecimal("100000")), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("OUT-PARTNER-NULL")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_SOURCE_PARTNER_MISSING));
+    }
+
+    @Test
+    void header_partner_null은_원천조회와_채번보다_먼저_INVALID_INPUT() {
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), null, "P-X", "X", SalesTaxType.TAXABLE, null, List.of());
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        verifyNoInteractions(numberGenerator, slipServiceClient);
+    }
+
+    @Test
+    void source_identity는_payload가_달라도_snapshot의_slipId와_slipNo를_저장한다() {
+        UUID snapshotSlipId = UUID.randomUUID();
+        UUID payloadSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-SNAPSHOT-IDENTITY");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                snapshotSlipId, "OUT-SNAPSHOT-A", sourceLineId, PARTNER_ID, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        service.createDraft(requestWithSingleAllocation(payloadSlipId, sourceLineId, BigDecimal.ONE,
+                new BigDecimal("100000"), new BigDecimal("100000")), "actor-1");
+
+        ArgumentCaptor<SalesAccountingSlip> captor = ArgumentCaptor.forClass(SalesAccountingSlip.class);
+        verify(slipRepository).saveAndFlush(captor.capture());
+        SalesAccountingSlipAllocation allocation = captor.getValue().getLines().get(0).getAllocations().get(0);
+        assertThat(allocation.getSourceSlipId()).isEqualTo(snapshotSlipId);
+        assertThat(allocation.getSourceSlipNo()).isEqualTo("OUT-SNAPSHOT-A");
+    }
+
+    @Test
+    void multipleSources_전원_거래처일치면_통과한다() {
+        UUID firstSlipId = UUID.randomUUID();
+        UUID firstLineId = UUID.randomUUID();
+        UUID secondSlipId = UUID.randomUUID();
+        UUID secondLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-MULTI-MATCH");
+        when(slipServiceClient.getSlipLine(firstLineId)).thenReturn(new SlipLineSnapshot(
+                firstSlipId, "OUT-MULTI-A", firstLineId, PARTNER_ID, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+        when(slipServiceClient.getSlipLine(secondLineId)).thenReturn(new SlipLineSnapshot(
+                secondSlipId, "OUT-MULTI-B", secondLineId, PARTNER_ID, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(firstLineId)).thenReturn(BigDecimal.ZERO);
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(secondLineId)).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreateSalesAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("2"), new BigDecimal("100000"), List.of(
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                firstSlipId, "OUT-PAYLOAD-A", firstLineId, 1,
+                                BigDecimal.ONE, new BigDecimal("100000")),
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                secondSlipId, "OUT-PAYLOAD-B", secondLineId, 1,
+                                BigDecimal.ONE, new BigDecimal("100000"))))));
+
+        assertThatCode(() -> service.createDraft(req, "actor-1")).doesNotThrowAnyException();
+        verify(slipServiceClient).getSlipLine(firstLineId);
+        verify(slipServiceClient).getSlipLine(secondLineId);
+    }
+
+    @Test
     void post_DRAFT_to_POSTED_정상() {
         SalesAccountingSlip slip = SalesAccountingSlip.createDraft("SAS-X", LocalDate.now(),
                 UUID.randomUUID(), "P-1", "X", SalesTaxType.TAXABLE, null);
@@ -343,7 +454,7 @@ class SalesAccountingSlipServiceTest {
             UUID sourceSlipId, UUID sourceLineId, BigDecimal qty, BigDecimal unitPrice,
             BigDecimal allocatedAmount) {
         return new CreateSalesAccountingSlipRequest(
-                LocalDate.of(2026, 5, 19), UUID.randomUUID(), "P-X", "X",
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X",
                 SalesTaxType.TAXABLE, null,
                 List.of(new CreateSalesAccountingSlipRequest.LineRequest(
                         "P", "P", qty, unitPrice,

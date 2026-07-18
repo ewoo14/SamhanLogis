@@ -381,6 +381,7 @@ public class SlipInternalController {
                 slip.getId(),
                 slip.getSlipNo(),
                 line.getId(),
+                slip.getPartnerId(),
                 line.getProductName(),
                 line.getQuantity(),
                 unitPriceWithVat,

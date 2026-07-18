@@ -138,12 +138,39 @@ class SlipServiceClientTest {
     }
 
     @Test
-    void getSlipLine_200은_slipType까지_역직렬화() {
+    void getSlipLine_200은_partnerId까지_역직렬화() {
         UUID slipId = UUID.randomUUID();
         UUID lineId = UUID.randomUUID();
+        UUID partnerId = UUID.randomUUID();
         server.expect(requestTo("http://slip-service/internal/slips/lines/" + lineId))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {
+                          "slipId": "%s",
+                          "slipNo": "OUT-2026-05-0042",
+                          "lineId": "%s",
+                          "partnerId": "%s",
+                          "productName": "P",
+                          "quantity": 10,
+                          "unitPrice": 150000,
+                          "lineTotal": 1500000,
+                          "slipStatus": "CONFIRMED",
+                          "slipType": "OUTBOUND"
+                        }
+                        """.formatted(slipId, lineId, partnerId), MediaType.APPLICATION_JSON));
+
+        SlipLineSnapshot snapshot = client.getSlipLine(lineId);
+
+        assertThat(snapshot.partnerId()).isEqualTo(partnerId);
+        assertThat(snapshot.slipType()).isEqualTo("OUTBOUND");
+        server.verify();
+    }
+
+    @Test
+    void getSlipLine_legacy응답의_partnerId_누락은_null로_파싱한다() {
+        UUID lineId = UUID.randomUUID();
+        server.expect(requestTo("http://slip-service/internal/slips/lines/" + lineId))
                 .andRespond(withSuccess("""
                         {
                           "slipId": "%s",
@@ -156,11 +183,66 @@ class SlipServiceClientTest {
                           "slipStatus": "CONFIRMED",
                           "slipType": "OUTBOUND"
                         }
-                        """.formatted(slipId, lineId), MediaType.APPLICATION_JSON));
+                        """.formatted(UUID.randomUUID(), lineId), MediaType.APPLICATION_JSON));
 
-        SlipLineSnapshot snapshot = client.getSlipLine(lineId);
+        assertThat(client.getSlipLine(lineId).partnerId()).isNull();
+        server.verify();
+    }
 
-        assertThat(snapshot.slipType()).isEqualTo("OUTBOUND");
+    @Test
+    void getSlipLine_producer추가필드는_무시하고_파싱한다() {
+        UUID lineId = UUID.randomUUID();
+        UUID partnerId = UUID.randomUUID();
+        server.expect(requestTo("http://slip-service/internal/slips/lines/" + lineId))
+                .andRespond(withSuccess("""
+                        {
+                          "slipId": "%s",
+                          "slipNo": "OUT-2026-05-0042",
+                          "lineId": "%s",
+                          "partnerId": "%s",
+                          "productName": "P",
+                          "quantity": 10,
+                          "unitPrice": 150000,
+                          "lineTotal": 1500000,
+                          "slipStatus": "CONFIRMED",
+                          "slipType": "OUTBOUND",
+                          "producerOnlyField": "rolling-safe"
+                        }
+                        """.formatted(UUID.randomUUID(), lineId, partnerId), MediaType.APPLICATION_JSON));
+
+        assertThat(client.getSlipLine(lineId).partnerId()).isEqualTo(partnerId);
+        server.verify();
+    }
+
+    @Test
+    void getSlipLines_목록의_partnerId를_파싱한다() {
+        UUID slipId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        UUID partnerId = UUID.randomUUID();
+        server.expect(requestTo("http://slip-service/internal/slips/" + slipId + "/lines"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        [
+                          {
+                            "slipId": "%s",
+                            "slipNo": "OUT-2026-05-0042",
+                            "lineId": "%s",
+                            "partnerId": "%s",
+                            "productName": "P",
+                            "quantity": 10,
+                            "unitPrice": 150000,
+                            "lineTotal": 1500000,
+                            "slipStatus": "CONFIRMED",
+                            "slipType": "OUTBOUND"
+                          }
+                        ]
+                        """.formatted(slipId, lineId, partnerId), MediaType.APPLICATION_JSON));
+
+        assertThat(client.getSlipLines(slipId))
+                .singleElement()
+                .extracting(SlipLineSnapshot::partnerId)
+                .isEqualTo(partnerId);
         server.verify();
     }
 }

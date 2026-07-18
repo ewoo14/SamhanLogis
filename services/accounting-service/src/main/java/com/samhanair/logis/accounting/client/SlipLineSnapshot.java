@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -14,13 +15,16 @@ import java.util.UUID;
  *   <li>{@code quantity} — SlipLine.quantity (int)</li>
  *   <li>{@code unitPrice} — SlipLine.unitPriceWithVat (VAT 포함 단가)</li>
  *   <li>{@code lineTotal} — quantity × unitPriceWithVat (VAT 포함 합)</li>
+ *   <li>{@code partnerId} — 원천 전표 헤더 거래처 UUID (구 producer 응답에서는 null 가능)</li>
  *   <li>{@code slipType} — Slip.slipType.name() — 매출=OUTBOUND, 매입=INBOUND 만 source 가능</li>
  * </ul>
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record SlipLineSnapshot(
         UUID slipId,
         String slipNo,
         UUID lineId,
+        UUID partnerId,
         String productName,
         int quantity,
         BigDecimal unitPrice,
