@@ -13,11 +13,11 @@ export interface ApprovalRenderFixture {
 function step(sequence: number, input: Partial<ApprovalStepView> = {}): ApprovalStepView {
   return {
     sequence,
-    stepType: 'USER',
-    approverGroupId: null,
-    // approverId 는 렌더 모델에서 투영 제외되므로 override 를 허용해도 golden 은 불변이다.
-    // (F12 UUID 누출 가드가 approverId 에 실 UUID 를 주입하기 위해 사용)
-    approverId: input.approverId ?? `fixture-approver-${sequence}`,
+    stepType: input.stepType ?? 'USER',
+    approverGroupId: input.approverGroupId ?? null,
+    // 결재자/결재그룹 id 는 렌더 모델에서 투영 제외되므로 override 해도 golden 은 불변이다.
+    // (F12 UUID 누출 가드가 두 내부 id 에 실 UUID 를 주입하기 위해 사용)
+    approverId: 'approverId' in input ? input.approverId ?? null : `fixture-approver-${sequence}`,
     approverName: 'approverName' in input ? input.approverName ?? null : `결재자${sequence}`,
     status: input.status ?? 'APPROVED',
     decidedAt: 'decidedAt' in input
@@ -45,6 +45,7 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
 
 function field(input: Partial<ApprovalTemplateField> & Pick<ApprovalTemplateField, 'fieldKey'>): ApprovalTemplateField {
   return {
+    ...(input.id === undefined ? {} : { id: input.id }),
     fieldKey: input.fieldKey,
     label: input.label ?? input.fieldKey,
     fieldType: input.fieldType ?? 'TEXT',
@@ -161,8 +162,9 @@ export const approvalRenderFixtures: ApprovalRenderFixture[] = [
   { id: 'F10-all-sections-empty', input: input({ content: null, fieldValues: {} }, [], []) },
   { id: 'F11-empty-issue-date', input: input({ steps: [step(1, { status: 'PENDING', decidedAt: null })] }) },
   {
-    // UUID 누출 가드 — id 성 필드(approvalId·requesterId·templateId·approverId·fieldKey·attachmentId)를
-    // 전부 distinctive UUID 로 채워도 렌더 모델이 모두 투영에서 제거해 golden DOM 에 UUID 가 없어야 한다.
+    // UUID 누출 가드 — id 성 필드(approvalId·requesterId·templateId·approverId·approverGroupId·
+    // templateFieldId·fieldKey·attachmentId)를 전부 distinctive UUID 로 채워도 렌더 모델이
+    // 모두 투영에서 제거해 golden DOM 에 UUID 가 없어야 한다.
     id: 'F12-uuid-free-model',
     input: input(
       {
@@ -170,12 +172,40 @@ export const approvalRenderFixtures: ApprovalRenderFixture[] = [
         requesterId: '987e6543-e21b-32d3-a456-426614174999',
         templateId: 'a1a1a1a1-b2b2-4c3c-8d4d-e5e5e5e5e5e5',
         fieldValues: { 'f6f6f6f6-a7a7-4b8b-8c9c-d0d0d0d0d0d0': 'UUID 키 필드 값' },
-        steps: [step(1, { approverId: 'c2c2c2c2-d3d3-4e4e-8f5f-a6a6a6a6a6a6' })],
+        steps: [
+          step(1, { approverId: 'c2c2c2c2-d3d3-4e4e-8f5f-a6a6a6a6a6a6' }),
+          step(2, {
+            stepType: 'GROUP',
+            approverGroupId: 'd4d4d4d4-e5e5-4f6f-8a7a-b8b8b8b8b8b8',
+            approverId: null,
+          }),
+        ],
       },
-      [field({ fieldKey: 'f6f6f6f6-a7a7-4b8b-8c9c-d0d0d0d0d0d0', label: 'UUID 키 라벨' })],
+      [field({
+        id: 'e5e5e5e5-f6f6-4a7a-8b8b-c9c9c9c9c9c9',
+        fieldKey: 'f6f6f6f6-a7a7-4b8b-8c9c-d0d0d0d0d0d0',
+        label: 'UUID 키 라벨',
+      })],
       [attachment({ id: 'b3b3b3b3-c4c4-4d5d-8e6e-f7f7f7f7f7f7', attachmentType: 'FILE', fileName: 'uuid-free.txt', displayOrder: 1 })],
     ),
   },
   { id: 'F13-long-content', input: input({ content: longContent }) },
   { id: 'F14-whitespace-crlf', input: input({ content: '  첫 줄  \r\n\r\n  \r\n 둘째 줄 \r\n' }) },
+  {
+    id: 'F15-field-display-order-whitespace',
+    input: input(
+      {
+        fieldValues: {
+          thirdWhitespace: '   ',
+          second: '두 번째 값',
+          first: '첫 번째 값',
+        },
+      },
+      [
+        field({ fieldKey: 'thirdWhitespace', label: '제외할 공백 필드', displayOrder: 3 }),
+        field({ fieldKey: 'second', label: '두 번째 필드', displayOrder: 2 }),
+        field({ fieldKey: 'first', label: '첫 번째 필드', displayOrder: 1 }),
+      ],
+    ),
+  },
 ]

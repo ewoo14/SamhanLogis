@@ -25,7 +25,7 @@ function render(element: JSX.Element): string {
 describe('DS-1 frozen golden DOM gate', () => {
   it('fixture/golden 개수·대응 가드 — truth-table 축소 시 조용한 커버리지 소실 방지', () => {
     // truth-table fixture 총수 앵커 — 배열이 줄면 golden 커버리지가 조용히 사라지므로 명시 고정.
-    expect(approvalRenderFixtures.length).toBe(17)
+    expect(approvalRenderFixtures.length).toBe(18)
 
     // id 중복은 두 fixture 가 한 golden 을 공유해 커버리지가 소실되므로 고유해야 한다.
     const uniqueIds = new Set(approvalRenderFixtures.map((fixture) => fixture.id))

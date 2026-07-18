@@ -17,9 +17,9 @@ function render(element: JSX.Element): string {
 function step(sequence: number, input: Partial<ApprovalStepView> = {}): ApprovalStepView {
   return {
     sequence,
-    stepType: 'USER',
-    approverGroupId: null,
-    approverId: `approver-${sequence}`,
+    stepType: input.stepType ?? 'USER',
+    approverGroupId: input.approverGroupId ?? null,
+    approverId: 'approverId' in input ? input.approverId ?? null : `approver-${sequence}`,
     approverName: input.approverName ?? `결재자${sequence}`,
     status: input.status ?? 'APPROVED',
     decidedAt: input.decidedAt ?? `2026-07-${String(sequence).padStart(2, '0')}T10:00:00`,
@@ -45,6 +45,7 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
 
 function templateField(input: Partial<ApprovalTemplateField> & Pick<ApprovalTemplateField, 'fieldKey'>): ApprovalTemplateField {
   return {
+    ...(input.id === undefined ? {} : { id: input.id }),
     fieldKey: input.fieldKey,
     label: input.label ?? input.fieldKey,
     fieldType: input.fieldType ?? 'TEXT',
@@ -91,7 +92,27 @@ function input(overrides: Partial<FrozenApprovalDocInput> = {}): FrozenApprovalD
 
 describe('buildApprovalRenderModel', () => {
   it('UUID와 내부 id 없이 projection slot을 만든다', () => {
-    const model = buildApprovalRenderModel(input())
+    const templateFieldId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+    const approverGroupId = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+    const approverId = 'abababab-abab-4bab-8bab-abababababab'
+    const model = buildApprovalRenderModel(input({
+      approval: approval({
+        steps: [
+          step(1, { approverId }),
+          step(2, { stepType: 'GROUP', approverGroupId, approverId: null }),
+        ],
+      }),
+      templateFields: [
+        templateField({
+          id: templateFieldId,
+          fieldKey: 'amount',
+          label: '금액',
+          fieldType: 'NUMBER',
+          displayOrder: 1,
+        }),
+        templateField({ fieldKey: 'memo', label: '메모', displayOrder: 2 }),
+      ],
+    }))
     const serialized = JSON.stringify(model)
 
     expect(model.header).toEqual({
@@ -106,13 +127,14 @@ describe('buildApprovalRenderModel', () => {
     expect(model.body.attachments).toEqual([
       { typeLabel: '파일', title: '첨부', detail: '' },
     ])
-    // 모든 내부 id 는 투영 모델에 복사되지 않는다 — approvalId/requesterId/templateId/attachmentId/approverId.
+    // 모든 내부 id 는 투영 모델에 복사되지 않는다.
     expect(serialized).not.toContain('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa') // approvalId
     expect(serialized).not.toContain('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb') // requesterId
     expect(serialized).not.toContain('cccccccc-cccc-4ccc-8ccc-cccccccccccc') // templateId
     expect(serialized).not.toContain('dddddddd-dddd-4ddd-8ddd-dddddddddddd') // attachmentId
-    expect(serialized).not.toContain('approver-1') // approverId(step 1)
-    expect(serialized).not.toContain('approver-2') // approverId(step 2)
+    expect(serialized).not.toContain(approverId) // ApprovalStepView.approverId
+    expect(serialized).not.toContain(templateFieldId) // ApprovalTemplateField.id
+    expect(serialized).not.toContain(approverGroupId) // ApprovalStepView.approverGroupId
   })
 
   it('NUMBER만 krw로 포맷하고 numeric TEXT는 원문을 보존한다', () => {
@@ -156,12 +178,8 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(html).not.toContain('>결재</div>')
   })
 
-  it('body element 순서를 template 순서대로 조립하고 빈 section은 생략한다', () => {
-    const model = buildApprovalRenderModel(input({
-      approval: approval({ content: null, fieldValues: {} }),
-      templateFields: [],
-      attachments: [],
-    }))
+  it('비어 있지 않은 body element를 template 순서대로 조립한다', () => {
+    const model = buildApprovalRenderModel(input())
     const template = {
       ...GROUPWARE_DEFAULT,
       document: {
@@ -172,10 +190,12 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
       },
     }
     const html = render(<DocumentRenderer template={template} model={model} />)
+    const attachmentIndex = html.indexOf('aria-label="결재문서 첨부"')
+    const fieldIndex = html.indexOf('aria-label="결재문서 세부 필드"')
+    const contentIndex = html.indexOf('aria-label="결재문서 내용"')
 
-    expect(html).not.toContain('결재문서 내용')
-    expect(html).not.toContain('결재문서 세부 필드')
-    expect(html).not.toContain('결재문서 첨부')
-    expect(html).toContain('print-approval-body')
+    expect(attachmentIndex).toBeGreaterThan(-1)
+    expect(fieldIndex).toBeGreaterThan(attachmentIndex)
+    expect(contentIndex).toBeGreaterThan(fieldIndex)
   })
 })
