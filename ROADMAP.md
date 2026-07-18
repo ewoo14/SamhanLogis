@@ -29,8 +29,9 @@
 
 ---
 
-### 최신 진행 메모 (2026-07-18)
+### 최신 진행 메모 (2026-07-19)
 
+- **#823 매출·매입전표 배분 원천 거래처 검증**: 배분 시 원천 출고/입고전표 거래처=대상 헤더 거래처 검증·불일치(SAS_SOURCE_PARTNER_MISMATCH)/결손(SAS_SOURCE_PARTNER_MISSING) 422 차단. SlipLineSnapshot += partnerId(양 record·롤링 @JsonIgnoreProperties)·원천 identity 스냅샷 저장 권위·매출+매입 대칭·DB 마이그 0. 라이브QA가 pre-existing `getSlipLine`/`getSlipLines` LazyInit(OSIV off·IT @Transactional 마스킹) 포착→fetch-join fix. 배포=producer(slip)→consumer(accounting) 순서.
 - **#845 DS-2 문서 레이아웃 템플릿**: groupware V10 `document_templates` JSONB aggregate(DRAFT/ACTIVE·docType별 active 1개)와 기존 `groupware.approval-templates` 권한 재사용 endpoint를 추가했다. desktop 결재 인쇄는 `ApprovalLine.documentType` 활성 레이아웃을 한 번 결정하고 오류/미존재/late 결과는 `GROUPWARE_DEFAULT`로 수렴한다. Testcontainers HTTP JSONB round-trip·backfill 경계·동시 활성화·desktop real `DocumentRenderer` 회귀를 포함한다.
 
 - 협업 코-에디팅 S2b: slip 전표 저장 PUT 이후 기존 `slip_revisions` 버전 스냅샷을 기준으로 헤더 필드와 품목 셀의 이전값→새값 diff 를 계산해 `SlipRevisionResponse.fieldChanges`로 제공한다. 신규 테이블/Flyway 없이 기존 revision 흐름에 편입했고, 입고·출고 direct PUT 수정 경로가 실제 변경 시 EDIT revision 을 남긴다. desktop 버전 이력 패널은 displayName + `presenceColor` 단일색상으로 필드 변경 목록을 표시하며 UUID/connectedId 는 노출하지 않는다. 수정 카운트와 레드라인은 S2c/S2d 후속.
