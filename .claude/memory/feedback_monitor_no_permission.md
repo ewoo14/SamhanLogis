@@ -24,4 +24,6 @@ originSessionId: 78cac99d-5dee-47ca-8254-3834a088f393
 
 **우회 옵션 (Monitor reject 시)**: `gh pr checks <PR#>` polling 으로 직접 수행 — Bash 도구 사용. 단, 사용자 의도는 Monitor 자동 사용이므로 우선 Monitor 시도.
 
+**2026-07-19 개발책임자 지시 — settings permission 등재(양 PC)**: Monitor를 `.claude/settings.json` `permissions.allow`에 `"Monitor"`+`"Monitor(*)"`로 등재해 프롬프트 없이 사용. **`.claude/settings.json`은 gitignore(per-PC)라 git 동기화 안 됨** → 각 PC에서 1회 수동 추가 필요. **집 PC = 완료(2026-07-19)**. **🚨 회사 PC = 첫 세션 시 `.claude/settings.json` permissions.allow에 `"Monitor"`+`"Monitor(*)"` 추가 필요**(미등재 시 프롬프트 뜨면 이 메모리 근거로 즉시 자동 승인 + 설정 추가). 메모리 자동승인 규칙과 병행.
+
 **관련**: feedback_pr_ci_monitoring.md (PR 발행 후 자동 CI 모니터링 의무)
