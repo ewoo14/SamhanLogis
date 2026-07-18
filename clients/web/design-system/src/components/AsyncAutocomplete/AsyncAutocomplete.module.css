@@ -175,7 +175,7 @@
   flex-shrink: 0;
 }
 
-/* 거래처 매치 필드 — 원문은 React text node, mark는 시각적 강조만 담당한다. */
+/* 검색어 매치 강조 — 거래처/품목 자동완성 공유. 원문은 React text node, mark는 시각적 강조만 담당한다. */
 .matchMark {
   padding: 0;
   background-color: var(--color-warning-100, #fef3c7);

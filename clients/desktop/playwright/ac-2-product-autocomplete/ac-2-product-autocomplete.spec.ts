@@ -19,6 +19,8 @@
  *
  * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
  * - 화면 텍스트에 UUID(8-4-4-4-12 hex) 패턴 미포함 단언.
+ * - DOM 속성 재유출 가드: 후보 option id 는 index 기반 opaque(`${listId}-opt-${idx}`)
+ *   형식이어야 하고, id·input aria-activedescendant 에 hex-UUID 접두 미포함 단언.
  *
  * <h2>no-fake-data 원칙 ([[feedback_no_fake_data_ever]])</h2>
  * - 본 spec 은 VITE_MOCK_MODE=1 Playwright 컴포넌트 회귀 전용.
@@ -40,6 +42,13 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** UUID 정규식 — 화면 노출 가드. */
 const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
+
+/**
+ * hex-UUID 접두 정규식 — DOM 속성(id/aria-activedescendant) 재유출 가드.
+ * 속성값은 `${listId}-opt-${idx}` 합성이라 full UUID 의 word-boundary 매치가 어긋날 수
+ * 있어 접두(8-4-) 패턴으로 잡는다.
+ */
+const HEX_UUID_PREFIX = /[0-9a-f]{8}-[0-9a-f]{4}-/i
 
 /**
  * window.samhanAuth stub — AuthGuard 통과 (MANAGER role).
@@ -218,10 +227,32 @@ test.describe('AC-2 품목 자동완성 ProductAutocomplete', () => {
 
     const listbox = page.getByRole('listbox', { name: '품목 목록' })
     await expect(listbox).toBeVisible({ timeout: 5_000 })
+    // 실 후보 렌더 완료까지 결정적 대기 — "검색 중…" 로딩행도 role=option(id 없음)이라
+    // 후보 도착 전에 id 를 수확하면 빈 id 로 false RED 가 난다.
+    await expect(listbox).toContainText('AJ040RXH4BC1')
 
     // listbox 텍스트에 UUID 미포함
     const listboxText = await listbox.textContent()
     expect(listboxText).not.toMatch(UUID_PATTERN)
+
+    // [OPUS 라운드 LOW] 속성 재유출 가드 — textContent 만으론 id/aria-activedescendant
+    // 속성에 실리는 UUID 재유출을 못 잡는다. 후보 DOM id 는 도메인 키와 분리된 index 기반
+    // opaque id(`${listId}-opt-${idx}`)여야 한다.
+    const optionIds = await listbox
+      .getByRole('option')
+      .evaluateAll((els) => els.map((el) => el.id))
+    expect(optionIds.length).toBeGreaterThan(0)
+    for (const id of optionIds) {
+      expect(id).toMatch(/-opt-\d+$/)
+      expect(id).not.toMatch(HEX_UUID_PREFIX)
+    }
+
+    // 활성 후보 지정 시 input 의 aria-activedescendant 도 opaque id 만 담아야 한다.
+    await input.press('ArrowDown')
+    const activeDescendant = await input.getAttribute('aria-activedescendant')
+    expect(activeDescendant, 'ArrowDown 후 aria-activedescendant 미설정').not.toBeNull()
+    expect(activeDescendant).toMatch(/-opt-\d+$/)
+    expect(activeDescendant).not.toMatch(HEX_UUID_PREFIX)
 
     // 선택 후 전체 페이지 텍스트 UUID 미포함
     await listbox.getByRole('option').first().click()

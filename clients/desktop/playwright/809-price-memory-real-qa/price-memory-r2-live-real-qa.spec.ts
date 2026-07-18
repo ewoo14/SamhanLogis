@@ -300,7 +300,8 @@ async function openSlipForm(page: Page): Promise<void> {
  *
  * ⚠️ AsyncAutocomplete 의 "검색 중…" 로딩행도 `role="option"` 이라(`statusRow`, id 없음)
  * `getByRole('option').first()` 로 기다리면 로딩행에 걸려 결과 도착 전에 키를 눌러
- * 선택이 무효화된다(드롭다운 열린 채 잔류). 실 후보는 `id="${listId}-${key}"` 를 가지므로
+ * 선택이 무효화된다(드롭다운 열린 채 잔류). 실 후보는 `id="${listId}-opt-${idx}"`
+ * (index 기반 opaque id — #825 슬3에서 도메인 키 노출 제거) 를 가지므로
  * id 접두사로 좁혀 "결과 도착" 을 실제로 기다린다.
  */
 const realOptions = (page: Page, listboxLabel: string, idPrefix = 'ds-aac-list-') =>

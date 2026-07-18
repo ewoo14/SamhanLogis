@@ -357,9 +357,16 @@ describe('AsyncAutocomplete', () => {
     const second: Option = { id: 'unique-2', label: '둘째 상품' }
     const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([first, second])
 
+    // value 는 첫 후보와 "별개 객체 리터럴 + 동일 getKey" 로 준다 — 서버 재조회로 매번 새
+    // 객체가 오는 실사용 형태. 참조동일성(value === item) 구현은 이 쌍에서 false 가 되므로
+    // aria-selected 는 getKey 비교로만 true 가 될 수 있다 (tautology 해소 — 동일 레퍼런스를
+    // 넘기면 참조비교 회귀도 GREEN 으로 통과해 버린다).
+    const selectedTwin: Option = { id: 'unique-1', label: '첫 상품' }
+    expect(selectedTwin).not.toBe(first)
+
     render(
       <AsyncAutocomplete<Option>
-        value={first}
+        value={selectedTwin}
         onChange={vi.fn()}
         search={search}
         getKey={(item) => item.id}
