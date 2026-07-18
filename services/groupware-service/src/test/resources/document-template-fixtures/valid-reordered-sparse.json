@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "revision": 2,
+  "docType": "GROUPWARE_REORDERED_FIXTURE",
+  "name": "재정렬 양식 fixture",
+  "document": {
+    "paper": "A4_PORTRAIT",
+    "bands": [
+      {"key":"footer","kind":"FOOTER","elements":[{"key":"closing","type":"CLOSING"}]},
+      {"key":"body","kind":"BODY","elements":[{"key":"attachments","type":"ATTACHMENT_TABLE"},{"key":"content","type":"CONTENT_PARAGRAPHS"}]},
+      {"key":"header","kind":"HEADER","elements":[{"key":"approval","type":"APPROVAL_GRID"},{"key":"title","type":"TITLE"}]}
+    ]
+  }
+}

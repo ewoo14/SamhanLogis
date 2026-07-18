@@ -37,6 +37,7 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
     content: 'content' in input ? input.content ?? null : '첫 문단\n둘째 문단',
     templateId: input.templateId ?? 'fixture-template-id',
     templateName: null,
+    documentType: null,
     fieldValues: input.fieldValues ?? {},
     status: input.status ?? 'APPROVED',
     steps: input.steps ?? [step(1)],

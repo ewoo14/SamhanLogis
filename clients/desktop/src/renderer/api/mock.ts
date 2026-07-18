@@ -10752,6 +10752,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         content: typeof body.content === 'string' && body.content.trim() ? body.content : null,
         templateId: template?.id ?? null,
         templateName: template?.name ?? null,
+        documentType: template?.code ? `GROUPWARE_${template.code}` : null,
         fieldValues: { ...fieldValues },
         status: 'PENDING',
         steps,
@@ -14850,6 +14851,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     content: '아로로지스 외주 배차 정산 내역 승인 요청입니다.',
     templateId: '77777777-dddd-4ddd-8ddd-000000000001',
     templateName: '지출결의서',
+    documentType: 'GROUPWARE_EXPENSE_REPORT',
     fieldValues: {
       expenseItem: '아로로지스 외주 배차',
       amount: '1840000',
@@ -14890,6 +14892,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     content: '분류 라벨과 포장재 구매 건입니다.',
     templateId: '77777777-dddd-4ddd-8ddd-000000000001',
     templateName: '지출결의서',
+    documentType: 'GROUPWARE_EXPENSE_REPORT',
     fieldValues: {
       expenseItem: '창고 소모품',
       amount: '320000',
@@ -14930,6 +14933,7 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     content: '거래처 요청에 따른 운송비 예외 승인 건입니다.',
     templateId: null,
     templateName: null,
+    documentType: null,
     fieldValues: {},
     status: 'APPROVED',
     steps: [

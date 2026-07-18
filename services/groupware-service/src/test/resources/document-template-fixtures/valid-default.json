@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "docType": "GROUPWARE_DEFAULT_FIXTURE",
+  "name": "기본 양식 fixture",
+  "document": {
+    "paper": "A4_PORTRAIT",
+    "bands": [
+      {"key":"header","kind":"HEADER","elements":[{"key":"title","type":"TITLE"},{"key":"meta","type":"META_ROWS"},{"key":"approval","type":"APPROVAL_GRID"}]},
+      {"key":"body","kind":"BODY","elements":[{"key":"content","type":"CONTENT_PARAGRAPHS"},{"key":"fields","type":"FIELD_TABLE"},{"key":"attachments","type":"ATTACHMENT_TABLE"}]},
+      {"key":"footer","kind":"FOOTER","elements":[{"key":"closing","type":"CLOSING"}]}
+    ]
+  }
+}

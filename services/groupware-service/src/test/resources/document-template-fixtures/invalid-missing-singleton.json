@@ -1,0 +1,1 @@
+{"schemaVersion":1,"revision":1,"docType":"GROUPWARE_INVALID","name":"필수 누락","document":{"paper":"A4_PORTRAIT","bands":[{"key":"header","kind":"HEADER","elements":[{"key":"title","type":"TITLE"}]},{"key":"footer","kind":"FOOTER","elements":[{"key":"closing","type":"CLOSING"}]}]}}

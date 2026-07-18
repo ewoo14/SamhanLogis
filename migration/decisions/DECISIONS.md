@@ -3010,3 +3010,10 @@ R4(FABLE5 1차 적대검증) 확인요청 4건 확정 — 근거 전문: [PR #82
 | D-810-03 | **stale·일시장애 무폴백**. 매핑 target 이 stale(삭제/비활성 거래처)이면 partnerCode 정확일치 폴백 없이 미매칭+관리 경고. 정확일치 폴백도 `PartnerStatus=ACTIVE` 검증. partner lookup 은 FOUND/NOT_FOUND/**UNAVAILABLE**(5xx/네트워크/파싱) 3분류 — UNAVAILABLE 은 stale 로 오분류하지 않고(정상 매핑 미매칭 오염 방지) 매칭만 보류·재시도 대상. **import 시 거래는 항상 UNMATCHED 로 영속화하고 매칭만 보류**(거래 유실 금지). |
 | D-810-04 | **provenance·감사**. `bank_transaction` 에 매칭근거(source·mapping_id·snapshot) 보존, snapshot 불변식은 도메인+DB(V60 NULL-safe CASE CHECK) 이중 강제. 매핑 이력은 entityId 기준 append-only(변경분만·작업당 단일 timestamp·rename 연속성·opaque entryKey). UUID 비공개(business key normalizedName). |
 | D-810-A | **개발책임자 결정 A (수렴 bound)**. R3 도 비수렴(R3-OPUS fix 가 거래유실 HIGH 회귀 유발)이자, 거래유실+#810 핵심 genuine 만 현 PR 에 fix 하고 엣지는 후속 분리한 뒤 포커스 재검증→머지. 후속: **#830**(멀티인스턴스 revision 채번) · **#831**(pre-#810 회계 도메인의 lookup UNAVAILABLE→NOT_FOUND 붕괴 계열·tax invoice HIGH 포함) · **#832**(mock parity·감사 표시 정밀도·BOM 정규화). resilience/엣지가 깊은 슬라이스는 무한 iterate 대신 PM 이 비수렴을 조기 보고하고 개발책임자가 스코프를 bound 한다. |
+
+## #845 DS-2 문서 레이아웃 템플릿 (2026-07-18)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-DS2-11 | 문서 레이아웃은 groupware `document_templates`의 typed JSONB(`paper+bands`)를 권위로 삼고 V10에만 추가한다. docType별 ACTIVE는 bulk 강등 시 `lock_version`/modified audit를 명시 증가시킨 뒤 대상만 승격하며, 경합은 409로 반환한다. |
+| D-DS2-12 | desktop renderer는 `ApprovalLine.documentType` active 조회를 로딩 종료 후 1회 결정한다. active 없음·오류·malformed·네트워크/재연결/late 결과는 기존 `GROUPWARE_DEFAULT` 출력으로 수렴하며, 기본 양식은 recursive freeze하고 반환 시 deep-clone한다. |

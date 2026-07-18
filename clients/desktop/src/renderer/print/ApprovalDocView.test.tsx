@@ -15,12 +15,14 @@ const mocks = vi.hoisted(() => ({
   getGroupwareApproval: vi.fn(),
   listApprovalAttachments: vi.fn(),
   findActiveApprovalTemplate: vi.fn(),
+  findActiveDocumentTemplate: vi.fn(),
 }))
-const { getGroupwareApproval, listApprovalAttachments, findActiveApprovalTemplate } = mocks
+const { getGroupwareApproval, listApprovalAttachments, findActiveApprovalTemplate, findActiveDocumentTemplate } = mocks
 
 vi.mock('../api/groupwareApproval', () => ({ getGroupwareApproval: mocks.getGroupwareApproval }))
 vi.mock('../api/groupwareApprovalAttachment', () => ({ listApprovalAttachments: mocks.listApprovalAttachments }))
 vi.mock('../api/groupwareApprovalTemplate', () => ({ findActiveApprovalTemplate: mocks.findActiveApprovalTemplate }))
+vi.mock('../api/documentTemplate', () => ({ findActiveDocumentTemplate: mocks.findActiveDocumentTemplate }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 vi.mock('./DocumentRenderer', () => ({
   DocumentRenderer: vi.fn(({ backTo }: { backTo?: string }) => (
@@ -38,6 +40,7 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
     content: input.content ?? '본문',
     templateId: input.templateId ?? 'template-id',
     templateName: null,
+    documentType: input.documentType ?? null,
     fieldValues: input.fieldValues ?? { memo: '값' },
     status: input.status ?? 'APPROVED',
     steps: input.steps ?? [],
@@ -86,6 +89,7 @@ function renderView(client = queryClient()) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  findActiveDocumentTemplate.mockResolvedValue(null)
 })
 
 afterEach(() => {
@@ -119,7 +123,7 @@ describe('ApprovalDocView renderer transition', () => {
     expect(screen.getByTestId('document-renderer').dataset.backTo).toBe('/groupware/approvals/approval-id')
     const props = vi.mocked(DocumentRenderer).mock.calls[0]?.[0]
     expect(JSON.stringify(props?.model)).not.toContain('approval-id')
-    expect(props?.template.docType).toBe('GROUPWARE_EXPENSE')
+    expect(props?.template.docType).toBe('GROUPWARE_DEFAULT')
   })
 
   it('template query 오류는 빈 필드 의미로 계속 렌더한다', async () => {

@@ -70,6 +70,13 @@ const ELEMENT_TYPES = [
   'CLOSING',
 ] as const
 
+const MAX_REQUEST_BYTES = 64 * 1024
+const MAX_DEPTH = 16
+const MAX_BANDS = 32
+const MAX_ELEMENTS_PER_BAND = 64
+const MAX_KEY_LENGTH = 100
+const MAX_DOC_TYPE_LENGTH = 40
+
 type ElementType = (typeof ELEMENT_TYPES)[number]
 
 const ALLOWED_BANDS: Record<ElementType, BandKind> = {
@@ -86,8 +93,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0
+function isNonEmptyString(value: unknown, maxLength = MAX_KEY_LENGTH): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= maxLength
+}
+
+function depthOf(value: unknown, depth = 0): number {
+  if (!isRecord(value) && !Array.isArray(value)) return depth
+  const children = Array.isArray(value) ? value : Object.values(value)
+  return children.reduce((max, child) => Math.max(max, depthOf(child, depth + 1)), depth)
 }
 
 function failure(
@@ -133,11 +146,17 @@ export function parseDocumentTemplate(value: unknown): DocumentTemplateParseResu
     || ('status' in value && value.status !== undefined && value.status !== 'DRAFT' && value.status !== 'ACTIVE')
     || !Number.isInteger(value.revision)
     || (value.revision as number) < 0
-    || !isNonEmptyString(value.docType)
-    || !isNonEmptyString(value.name)
+    || !isNonEmptyString(value.docType, MAX_DOC_TYPE_LENGTH)
+    || !isNonEmptyString(value.name, MAX_KEY_LENGTH)
     || !isRecord(value.document)
   ) {
     return failure('INVALID_ENVELOPE', '문서 양식 envelope 필드가 유효하지 않습니다.')
+  }
+
+  const serialized = JSON.stringify(value.document)
+  const bytes = serialized === undefined ? 0 : new TextEncoder().encode(serialized).byteLength
+  if (bytes > MAX_REQUEST_BYTES || depthOf(value.document) > MAX_DEPTH) {
+    return failure('INVALID_ENVELOPE', '문서 양식 JSON 상한을 초과했습니다.')
   }
 
   if (value.document.paper !== 'A4_PORTRAIT') {
@@ -145,6 +164,9 @@ export function parseDocumentTemplate(value: unknown): DocumentTemplateParseResu
   }
   if (!Array.isArray(value.document.bands)) {
     return failure('INVALID_BAND', '문서 양식 bands가 배열이 아닙니다.')
+  }
+  if (value.document.bands.length > MAX_BANDS) {
+    return failure('INVALID_BAND', '문서 양식 bands는 32개 이하여야 합니다.')
   }
 
   const keys = new Set<string>()
@@ -158,6 +180,9 @@ export function parseDocumentTemplate(value: unknown): DocumentTemplateParseResu
       || !Array.isArray(bandValue.elements)
     ) {
       return failure('INVALID_BAND', '문서 양식 band가 유효하지 않습니다.')
+    }
+    if (bandValue.elements.length > MAX_ELEMENTS_PER_BAND) {
+      return failure('INVALID_ELEMENT', '문서 양식 band의 elements는 64개 이하여야 합니다.')
     }
     if (keys.has(bandValue.key)) {
       return failure('DUPLICATE_KEY', `중복된 문서 양식 key입니다: ${bandValue.key}`)

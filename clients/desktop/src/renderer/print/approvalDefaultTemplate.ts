@@ -11,7 +11,25 @@ import {
   type TemplateEnvelope,
 } from './templateSchema'
 
-export const GROUPWARE_DEFAULT: TemplateEnvelope = {
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.values(value as Record<string, unknown>).forEach((child) => deepFreeze(child))
+    Object.freeze(value)
+  }
+  return value
+}
+
+function deepClone<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => deepClone(item)) as T
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, child]) => [key, deepClone(child)]),
+    ) as T
+  }
+  return value
+}
+
+export const GROUPWARE_DEFAULT: TemplateEnvelope = deepFreeze({
   schemaVersion: 1,
   revision: 1,
   docType: 'GROUPWARE_DEFAULT',
@@ -44,7 +62,7 @@ export const GROUPWARE_DEFAULT: TemplateEnvelope = {
       },
     ],
   },
-}
+})
 
 /** 기본 양식의 별칭 — 호출부에서 문서 유형 기본 템플릿임을 드러낼 때 사용한다. */
 export const approvalDefaultTemplate = GROUPWARE_DEFAULT
@@ -54,7 +72,7 @@ export const approvalDefaultTemplate = GROUPWARE_DEFAULT
  */
 export function resolveDocumentTemplate(value: unknown): TemplateEnvelope {
   const parsed = parseDocumentTemplate(value)
-  return parsed.ok ? parsed.value : GROUPWARE_DEFAULT
+  return deepClone(parsed.ok ? parsed.value : GROUPWARE_DEFAULT)
 }
 
 /**
@@ -65,11 +83,11 @@ export function resolveApprovalDocumentTemplate(
   template: ApprovalTemplate | null | undefined,
 ): TemplateEnvelope {
   const code = template?.code.trim()
-  if (!code) return GROUPWARE_DEFAULT
+  if (!code) return resolveDocumentTemplate(null)
   const name = template?.name.trim()
-  return {
+  return resolveDocumentTemplate({
     ...GROUPWARE_DEFAULT,
     docType: `GROUPWARE_${code}`,
     name: name || GROUPWARE_DEFAULT.name,
-  }
+  })
 }

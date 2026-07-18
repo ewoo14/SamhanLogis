@@ -15,10 +15,13 @@ import {
   listApprovalAttachments,
 } from '../api/groupwareApprovalAttachment'
 import { findActiveApprovalTemplate } from '../api/groupwareApprovalTemplate'
+import { findActiveDocumentTemplate } from '../api/documentTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { resolveApprovalDocumentTemplate } from './approvalDefaultTemplate'
+import { resolveDocumentTemplate } from './approvalDefaultTemplate'
 import { buildApprovalRenderModel } from './approvalRenderModel'
 import { DocumentRenderer } from './DocumentRenderer'
+import type { TemplateEnvelope } from './templateSchema'
+import { useEffect, useState } from 'react'
 
 /**
  * 그룹웨어 결재문서 인쇄 미리보기 컴포넌트.
@@ -46,11 +49,33 @@ export function ApprovalDocView() {
     enabled: Boolean(templateId),
   })
 
+  const docType = approvalQuery.data?.documentType
+    ?? (templateQuery.data?.code ? `GROUPWARE_${templateQuery.data.code}` : null)
+  const documentTemplateQuery = useQuery({
+    queryKey: ['approval.documentType', docType],
+    queryFn: () => findActiveDocumentTemplate(docType!),
+    enabled: Boolean(docType),
+    retry: false,
+    refetchOnReconnect: false,
+  })
+  const [layoutDecision, setLayoutDecision] = useState<TemplateEnvelope | null>(null)
+  const [layoutDecided, setLayoutDecided] = useState(false)
+
+  const approvalReady = !approvalQuery.isLoading && !attachmentsQuery.isLoading
+  const inputTemplateReady = !templateId || !templateQuery.isLoading
+  const layoutReady = !docType || (!documentTemplateQuery.isLoading && !documentTemplateQuery.isPending)
+  useEffect(() => {
+    if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
+      setLayoutDecision(resolveDocumentTemplate(documentTemplateQuery.data?.document ?? null))
+      setLayoutDecided(true)
+    }
+  }, [approvalReady, inputTemplateReady, layoutReady, layoutDecided, documentTemplateQuery.data?.document])
+
   usePageTitle('결재문서', approvalQuery.data?.title)
 
   if (!id) return null
   const isTemplateLoading = Boolean(templateId) && templateQuery.isLoading
-  if (approvalQuery.isLoading || attachmentsQuery.isLoading || isTemplateLoading) {
+  if (approvalQuery.isLoading || attachmentsQuery.isLoading || isTemplateLoading || !layoutDecided) {
     return <p>불러오는 중...</p>
   }
   if (
@@ -79,7 +104,7 @@ export function ApprovalDocView() {
 
   return (
     <DocumentRenderer
-      template={resolveApprovalDocumentTemplate(templateQuery.data)}
+      template={layoutDecision!}
       model={model}
       backTo={renderInput.backTo}
     />
