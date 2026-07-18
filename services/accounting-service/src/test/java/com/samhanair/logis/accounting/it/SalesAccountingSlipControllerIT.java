@@ -57,7 +57,8 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-1");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관 30A",
+                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "RX다배관 30A",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "OUTBOUND"));
 
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
@@ -76,6 +77,8 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
                         .content(om.writeValueAsString(req)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.partnerCode").value("P-SOURCE-823"))
+                .andExpect(jsonPath("$.partnerName").value("원천 거래처"))
                 .andExpect(jsonPath("$.totalSupplyAmount").value(1363636))
                 .andExpect(jsonPath("$.totalVatAmount").value(136364))
                 .andExpect(jsonPath("$.totalAmount").value(1500000));
@@ -177,7 +180,8 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-PM");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-PARTNER-MISMATCH", sourceLineId, UUID.randomUUID(), "P",
+                sourceSlipId, "OUT-PARTNER-MISMATCH", sourceLineId, UUID.randomUUID(),
+                "P-MISMATCH", "상이 원천 거래처", "P",
                 1, new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -197,7 +201,8 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-PN");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-PARTNER-NULL", sourceLineId, null, "P",
+                sourceSlipId, "OUT-PARTNER-NULL", sourceLineId, null,
+                "P-MISSING", "거래처 미상", "P",
                 1, new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -230,17 +235,19 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    void POST_admin_sales_slips_multi_source_두번째_partner_불일치면_전표_row_rollback() throws Exception {
+    void POST_admin_sales_slips_multi_source_두번째_partner_불일치_preflight_실패_시_전표_미저장() throws Exception {
         UUID firstSlipId = UUID.randomUUID();
         UUID firstLineId = UUID.randomUUID();
         UUID secondSlipId = UUID.randomUUID();
         UUID secondLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-MIX");
         when(slipServiceClient.getSlipLine(firstLineId)).thenReturn(new SlipLineSnapshot(
-                firstSlipId, "OUT-MIX-A", firstLineId, PARTNER_ID, "P", 1,
+                firstSlipId, "OUT-MIX-A", firstLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
         when(slipServiceClient.getSlipLine(secondLineId)).thenReturn(new SlipLineSnapshot(
-                secondSlipId, "OUT-MIX-B", secondLineId, UUID.randomUUID(), "P", 1,
+                secondSlipId, "OUT-MIX-B", secondLineId, UUID.randomUUID(),
+                "P-MISMATCH", "상이 원천 거래처", "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
         CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
                 LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
@@ -271,7 +278,8 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
         UUID sourceLineId = UUID.randomUUID();
         when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-7");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "IN-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관 30A",
+                sourceSlipId, "IN-2026-05-0042", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "RX다배관 30A",
                 10, new BigDecimal("150000"), new BigDecimal("1500000"), "CONFIRMED", "INBOUND"));
 
         mvc.perform(post("/admin/sales-slips")
@@ -317,7 +325,8 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
 
     private void stubConfirmedSourceLine(UUID sourceSlipId, UUID sourceLineId, BigDecimal lineTotal) {
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
-                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID, "RX다배관 30A",
+                sourceSlipId, "OUT-2026-05-0042", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "RX다배관 30A",
                 10, new BigDecimal("150000"), lineTotal, "CONFIRMED", "OUTBOUND"));
     }
 

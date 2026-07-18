@@ -39,17 +39,29 @@ public class PurchaseAccountingSlipCreateAttemptService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "매입전표 대상 거래처는 필수입니다");
         }
-        String slipNo = numberGenerator.next(req.slipDate());
-        PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
-                slipNo, req.slipDate(), req.partnerId(), req.partnerCode(),
-                req.partnerName(), req.taxType(), req.memo());
-
-        int lineNo = 0;
+        AllocationRequest firstAllocation = null;
         for (LineRequest lr : req.lines()) {
             if (lr.allocations() == null || lr.allocations().isEmpty()) {
                 throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
                         "매입전표 라인 배분이 비어 있습니다");
             }
+            if (firstAllocation == null) {
+                firstAllocation = lr.allocations().get(0);
+            }
+        }
+        if (firstAllocation == null) {
+            throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
+                    "매입전표 라인 배분이 비어 있습니다");
+        }
+        SlipLineSnapshot firstSource = verifySourceAndAllocation(firstAllocation, req.partnerId());
+        String slipNo = numberGenerator.next(req.slipDate());
+        PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
+                slipNo, req.slipDate(), firstSource.partnerId(), firstSource.partnerCode(),
+                firstSource.partnerName(), req.taxType(), req.memo());
+
+        int lineNo = 0;
+        boolean firstSourceConsumed = false;
+        for (LineRequest lr : req.lines()) {
             lineNo++;
             VatCalculator.Result vat = VatCalculator.split(lr.qty(), lr.unitPrice(), req.taxType());
             PurchaseAccountingSlipLine line = PurchaseAccountingSlipLine.create(
@@ -59,7 +71,10 @@ public class PurchaseAccountingSlipCreateAttemptService {
             slip.getLines().add(line);
 
             for (AllocationRequest ar : lr.allocations()) {
-                SlipLineSnapshot src = verifySourceAndAllocation(ar, req.partnerId());
+                SlipLineSnapshot src = !firstSourceConsumed && ar == firstAllocation
+                        ? firstSource
+                        : verifySourceAndAllocation(ar, req.partnerId());
+                firstSourceConsumed = true;
                 line.getAllocations().add(PurchaseAccountingSlipAllocation.create(line,
                         src.slipId(), src.slipNo(),
                         ar.sourceLineId(), ar.sourceLineNo(),
@@ -85,7 +100,8 @@ public class PurchaseAccountingSlipCreateAttemptService {
                     "원천 전표가 확정 상태가 아닙니다 (전표="
                             + src.slipNo() + ", 상태=" + slipStatusDisplayName(src.slipStatus()) + ")");
         }
-        if (src.partnerId() == null) {
+        if (src.partnerId() == null || src.partnerCode() == null || src.partnerCode().isBlank()
+                || src.partnerName() == null || src.partnerName().isBlank()) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_PARTNER_MISSING,
                     "원천 전표에 거래처가 없습니다 (전표=" + src.slipNo() + ")");
         }

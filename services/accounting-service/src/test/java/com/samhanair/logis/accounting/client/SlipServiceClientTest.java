@@ -13,6 +13,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -151,6 +152,8 @@ class SlipServiceClientTest {
                           "slipNo": "OUT-2026-05-0042",
                           "lineId": "%s",
                           "partnerId": "%s",
+                          "partnerCode": "P-SNAPSHOT-001",
+                          "partnerName": "스냅샷 거래처",
                           "productName": "P",
                           "quantity": 10,
                           "unitPrice": 150000,
@@ -163,6 +166,8 @@ class SlipServiceClientTest {
         SlipLineSnapshot snapshot = client.getSlipLine(lineId);
 
         assertThat(snapshot.partnerId()).isEqualTo(partnerId);
+        assertThat(snapshot.partnerCode()).isEqualTo("P-SNAPSHOT-001");
+        assertThat(snapshot.partnerName()).isEqualTo("스냅샷 거래처");
         assertThat(snapshot.slipType()).isEqualTo("OUTBOUND");
         server.verify();
     }
@@ -200,6 +205,8 @@ class SlipServiceClientTest {
                           "slipNo": "OUT-2026-05-0042",
                           "lineId": "%s",
                           "partnerId": "%s",
+                          "partnerCode": "P-UNKNOWN-FIELD",
+                          "partnerName": "알 수 없는 필드 거래처",
                           "productName": "P",
                           "quantity": 10,
                           "unitPrice": 150000,
@@ -227,9 +234,11 @@ class SlipServiceClientTest {
                           {
                             "slipId": "%s",
                             "slipNo": "OUT-2026-05-0042",
-                            "lineId": "%s",
-                            "partnerId": "%s",
-                            "productName": "P",
+                          "lineId": "%s",
+                          "partnerId": "%s",
+                          "partnerCode": "P-SNAPSHOT-LIST",
+                          "partnerName": "목록 거래처",
+                          "productName": "P",
                             "quantity": 10,
                             "unitPrice": 150000,
                             "lineTotal": 1500000,
@@ -239,10 +248,15 @@ class SlipServiceClientTest {
                         ]
                         """.formatted(slipId, lineId, partnerId), MediaType.APPLICATION_JSON));
 
-        assertThat(client.getSlipLines(slipId))
+        List<SlipLineSnapshot> snapshots = client.getSlipLines(slipId);
+        assertThat(snapshots)
                 .singleElement()
                 .extracting(SlipLineSnapshot::partnerId)
                 .isEqualTo(partnerId);
+        assertThat(snapshots)
+                .singleElement()
+                .extracting(SlipLineSnapshot::partnerCode, SlipLineSnapshot::partnerName)
+                .containsExactly("P-SNAPSHOT-LIST", "목록 거래처");
         server.verify();
     }
 }

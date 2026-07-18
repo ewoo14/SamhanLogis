@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query'
 import { Button, Card } from '@samhan/design-system'
 import {
   getDefaultAllocationRows,
+  resolveAllocationPartner,
   SlipLineAllocationEditor,
   type AllocationEditorRow,
 } from '../../components/SlipLineAllocationEditor'
@@ -24,11 +25,6 @@ const inputStyle: CSSProperties = {
   background: 'var(--surface-card)',
 }
 
-function fallbackUuid(seed: string): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
-  return `${seed}-1111-4111-8111-111111111111`
-}
-
 export function SalesAccountingSlipFormPage() {
   usePageTitle('매출전표 작성')
   const navigate = useNavigate()
@@ -45,6 +41,7 @@ export function SalesAccountingSlipFormPage() {
     () => allocations.filter((row) => row.allocatedAmount > 0),
     [allocations],
   )
+  const sourcePartner = useMemo(() => resolveAllocationPartner(selectedRows), [selectedRows])
   const totalSupply = selectedRows.reduce((sum, row) => sum + row.allocatedAmount, 0)
   const totalVat = taxType === 'TAXABLE' ? Math.round(totalSupply * 0.1) : 0
 
@@ -54,14 +51,15 @@ export function SalesAccountingSlipFormPage() {
   })
 
   const handleSubmit = () => {
+    if (sourcePartner.status !== 'valid') return
     const first = selectedRows[0] ?? allocations[0]
     if (!first) return
     const qty = selectedRows.reduce((sum, row) => sum + row.allocatedQty, 0)
     const request: CreateSalesAccountingSlipRequest = {
       slipDate,
-      partnerId: fallbackUuid('sales-partner'),
-      partnerCode,
-      partnerName,
+      partnerId: sourcePartner.partner.partnerId,
+      partnerCode: sourcePartner.partner.partnerCode,
+      partnerName: sourcePartner.partner.partnerName,
       taxType,
       memo: memo.trim() || undefined,
       lines: [
@@ -100,11 +98,21 @@ export function SalesAccountingSlipFormPage() {
           </label>
           <label>
             <div style={{ fontSize: 12, color: 'var(--ink-secondary)' }}>거래처 코드</div>
-            <input value={partnerCode} onChange={(e) => setPartnerCode(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+            <input
+              value={sourcePartner.status === 'valid' ? sourcePartner.partner.partnerCode : partnerCode}
+              readOnly={sourcePartner.status === 'valid'}
+              onChange={(e) => setPartnerCode(e.target.value)}
+              style={{ ...inputStyle, width: '100%' }}
+            />
           </label>
           <label>
             <div style={{ fontSize: 12, color: 'var(--ink-secondary)' }}>거래처명</div>
-            <input value={partnerName} onChange={(e) => setPartnerName(e.target.value)} style={{ ...inputStyle, width: '100%' }} />
+            <input
+              value={sourcePartner.status === 'valid' ? sourcePartner.partner.partnerName : partnerName}
+              readOnly={sourcePartner.status === 'valid'}
+              onChange={(e) => setPartnerName(e.target.value)}
+              style={{ ...inputStyle, width: '100%' }}
+            />
           </label>
           <label>
             <div style={{ fontSize: 12, color: 'var(--ink-secondary)' }}>과세유형</div>
@@ -140,7 +148,7 @@ export function SalesAccountingSlipFormPage() {
           </div>
           <Button
             variant="primary"
-            disabled={mutation.isPending || selectedRows.length === 0}
+            disabled={mutation.isPending || sourcePartner.status !== 'valid'}
             onClick={handleSubmit}
           >
             {mutation.isPending ? '저장 중' : '임시저장'}
@@ -149,6 +157,11 @@ export function SalesAccountingSlipFormPage() {
         {mutation.isError ? (
           <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
             매출전표 저장에 실패했습니다.
+          </div>
+        ) : null}
+        {sourcePartner.status !== 'valid' ? (
+          <div className="error-banner" role="alert" style={{ marginTop: 8 }}>
+            {sourcePartner.message}
           </div>
         ) : null}
       </Card>

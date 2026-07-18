@@ -70,7 +70,7 @@ function mockSource(
     slipType: type,
     status: 'CONFIRMED',
     slipDate,
-    partnerId: null,
+    partnerId: mockUuid(`partner:${partnerCode}`),
     partnerCode,
     partnerName,
     lines: [
@@ -87,12 +87,48 @@ function mockSource(
   }
 }
 
-const MOCK_SOURCE_SLIPS: SlipAllocationSourceSummary[] = [
+export const MOCK_SOURCE_SLIPS: SlipAllocationSourceSummary[] = [
   mockSource('OUTBOUND', '2026/05/20-14', '2026-05-20', 'P-10021', '삼한물류 안산센터', '표준 팔레트 A', 6, '750000'),
   mockSource('OUTBOUND', '2026/05/20-18', '2026-05-20', 'P-10021', '삼한물류 안산센터', '표준 팔레트 A', 4, '500000'),
   mockSource('INBOUND', '2026/05/20-6', '2026-05-20', 'V-30011', '한빛포장', '완충 포장재 B', 12, '516000'),
   mockSource('INBOUND', '2026/05/20-11', '2026-05-20', 'V-30011', '한빛포장', '완충 포장재 B', 8, '344000'),
 ]
+
+export function assertMockAllocationPartner(
+  headerPartnerId: string | null | undefined,
+  allocations: Array<{ sourceLineId: string }>,
+): void {
+  if (allocations.length === 0) return
+  if (!headerPartnerId) {
+    throwMockContractError('INVALID_INPUT', '배분 전표 거래처는 필수입니다.', 400)
+  }
+
+  const sourcePartners = allocations.map((allocation) => {
+    const source = MOCK_SOURCE_SLIPS
+      .flatMap((summary) => summary.lines.map((line) => ({ summary, line })))
+      .find(({ line }) => line.lineId === allocation.sourceLineId)
+      ?.summary
+    return source?.partnerId && source.partnerCode && source.partnerName
+      ? source.partnerId
+      : null
+  })
+
+  if (sourcePartners.some((partnerId) => partnerId === null)) {
+    throwMockContractError('SAS_SOURCE_PARTNER_MISSING', '원천 전표에 거래처가 없습니다.', 422)
+  }
+  if (sourcePartners.some((partnerId) => partnerId !== headerPartnerId)) {
+    throwMockContractError('SAS_SOURCE_PARTNER_MISMATCH', '원천 전표 거래처가 대상 전표 거래처와 일치하지 않습니다.', 422)
+  }
+}
+
+function throwMockContractError(code: string, message: string, status: number): never {
+  const error = Object.assign(new Error(message), {
+    __mockStatus: status,
+    code,
+    response: { status, data: { code, message } },
+  })
+  throw error
+}
 
 export async function listSlipAllocationSources(
   options: ListSlipAllocationSourcesOptions,

@@ -16,7 +16,7 @@ import {
   MOCK_PURCHASE_ACCOUNTING_SLIPS,
   type PurchaseAccountingSlipResponse,
 } from './purchaseAccountingSlipApi'
-import { listSlipAllocationSources } from './slipAllocationSourceApi'
+import { listSlipAllocationSources, MOCK_SOURCE_SLIPS } from './slipAllocationSourceApi'
 import {
   createTaxInvoiceFromSalesSlips,
   registerInboundTaxInvoice,
@@ -798,6 +798,53 @@ describe('mock business document number contract', () => {
     expect(purchaseAllocationNos.filter((value) => !DOCUMENT_NO_FMT.test(value))).toEqual([])
     expect(new Set(salesAllocationNos)).toEqual(new Set(outboundSources.map((row) => row.slipNo)))
     expect(new Set(purchaseAllocationNos)).toEqual(new Set(inboundSources.map((row) => row.slipNo)))
+  })
+
+  it('배분 원천 mock 거래처가 비어 있지 않고 source summary와 같은 partnerId를 가진다', async () => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+
+    const source = MOCK_SOURCE_SLIPS[0]!
+    expect(source.partnerId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(source.partnerCode).toBe('P-10021')
+    expect(source.partnerName).toBeTruthy()
+    expect(source.lines[0]!.lineId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it.each([
+    ['sales', createSalesSlipDraft, 'OUTBOUND'],
+    ['purchase', createPurchaseSlipDraft, 'INBOUND'],
+  ] as const)('%s mock draft는 partner mismatch/missing을 BE 422 code로 거부한다', async (_kind, createDraft, sourceType) => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    const source = MOCK_SOURCE_SLIPS.find((row) => row.slipType === sourceType)!
+    const allocation = {
+      sourceSlipId: source.slipId,
+      sourceSlipNo: source.slipNo,
+      sourceLineId: source.lines[0]!.lineId,
+      sourceLineNo: 1,
+      allocatedQty: '1',
+      allocatedAmount: '100',
+    }
+    const base = {
+      slipDate: '2026-05-20',
+      partnerCode: source.partnerCode!,
+      partnerName: source.partnerName!,
+      taxType: 'TAXABLE' as const,
+      lines: [{
+        productCode: 'SKU-A',
+        productName: '품목 A',
+        qty: '1',
+        unitPrice: '100',
+        allocations: [allocation],
+      }],
+    }
+
+    await expect(createDraft({ ...base, partnerId: '99999999-9999-4999-8999-999999999999' } as never))
+      .rejects.toMatchObject({ __mockStatus: 422, code: 'SAS_SOURCE_PARTNER_MISMATCH' })
+    await expect(createDraft({
+      ...base,
+      partnerId: source.partnerId!,
+      lines: [{ ...base.lines[0], allocations: [{ ...allocation, sourceLineId: 'missing-source-line' }] }],
+    } as never)).rejects.toMatchObject({ __mockStatus: 422, code: 'SAS_SOURCE_PARTNER_MISSING' })
   })
 
   it('ledger and statement mock endpoints use BE document number format', () => {

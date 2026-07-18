@@ -106,6 +106,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
         // PartnerInternalClient 기본 mock — empty (개별 case 가 override)
         Mockito.lenient().when(partnerInternalClient.resolvePartnerId(ArgumentMatchers.anyString()))
                 .thenReturn(java.util.Optional.empty());
+        Mockito.lenient().when(partnerInternalClient.resolvePartnerCode(ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("P-TEST-SNAPSHOT"));
     }
 
     // ---------- POST /internal/slips/{slipId}/signatures ----------
@@ -273,6 +275,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$[0].slipId").value(slipId))
                 .andExpect(jsonPath("$[0].lineId").value(lineId.toString()))
                 .andExpect(jsonPath("$[0].partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$[0].partnerCode").value("P-TEST-SNAPSHOT"))
+                .andExpect(jsonPath("$[0].partnerName").value("거래처"))
                 .andExpect(jsonPath("$[0].slipNo").exists());
 
         mockMvc.perform(get("/internal/slips/lines/" + lineId)
@@ -282,6 +286,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.slipId").value(slipId))
                 .andExpect(jsonPath("$.lineId").value(lineId.toString()))
                 .andExpect(jsonPath("$.partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$.partnerCode").value("P-TEST-SNAPSHOT"))
+                .andExpect(jsonPath("$.partnerName").value("거래처"))
                 .andExpect(jsonPath("$.slipNo").exists());
     }
 
@@ -299,6 +305,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$[0].partnerCode").value("P-TEST-SNAPSHOT"))
+                .andExpect(jsonPath("$[0].partnerName").value("거래처"))
                 .andExpect(jsonPath("$[0].slipId").value(slipId))
                 .andExpect(jsonPath("$[0].lineId").exists())
                 .andReturn();
@@ -310,6 +318,8 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.partnerId").value(partnerId.toString()))
+                .andExpect(jsonPath("$.partnerCode").value("P-TEST-SNAPSHOT"))
+                .andExpect(jsonPath("$.partnerName").value("거래처"))
                 .andExpect(jsonPath("$.slipId").value(slipId))
                 .andExpect(jsonPath("$.lineId").value(lineId));
     }
@@ -426,6 +436,7 @@ class SlipInternalControllerIT extends AbstractPostgresIT {
         body.put("sourceWarehouseId", UUID.randomUUID().toString());
         body.put("destinationWarehouseId", UUID.randomUUID().toString());
         body.put("partnerId", partnerId.toString());
+        body.put("partnerCode", "P-TEST-SNAPSHOT");
         body.put("partnerName", "거래처");
         body.put("deliveryTag", "DAY");
         body.put("driverName", "기사");

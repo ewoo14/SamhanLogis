@@ -1,5 +1,6 @@
 import { apiClient, type ApiEnvelope } from './client'
 import { isMockMode } from './mock'
+import { assertMockAllocationPartner } from './slipAllocationSourceApi'
 import { toOrderPathId } from '../utils/orderNo'
 import type {
   SalesTaxType,
@@ -123,6 +124,7 @@ export const MOCK_PURCHASE_ACCOUNTING_SLIPS: PurchaseAccountingSlipResponse[] = 
 ]
 
 function buildMockDraft(req: CreatePurchaseAccountingSlipRequest): PurchaseAccountingSlipResponse {
+  assertMockAllocationPartner(req.partnerId, req.lines.flatMap((line) => line.allocations))
   const supply = req.lines.reduce((sum, line) => {
     return sum + Number(line.qty || 0) * Number(line.unitPrice || 0)
   }, 0)
