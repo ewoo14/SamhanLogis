@@ -8,28 +8,40 @@
  *   인쇄 전용 queryKey를 사용한다.
  * - UUID는 path/API 연동 전용으로만 쓰고, 화면에는 문서번호/제목/이름/라벨/전표번호만 표시한다.
  */
-import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { getGroupwareApproval } from '../api/groupwareApproval'
-import {
-  listApprovalAttachments,
-} from '../api/groupwareApprovalAttachment'
+import type { ApprovalLineAdminResponse } from '../api/groupwareApproval'
+import { listApprovalAttachments } from '../api/groupwareApprovalAttachment'
+import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
 import { findActiveApprovalTemplate } from '../api/groupwareApprovalTemplate'
+import type { ApprovalTemplate } from '../api/groupwareApprovalTemplate'
 import { findActiveDocumentTemplate } from '../api/documentTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { resolveDocumentTemplate } from './approvalDefaultTemplate'
 import { buildApprovalRenderModel } from './approvalRenderModel'
 import { DocumentRenderer } from './DocumentRenderer'
 import type { TemplateEnvelope } from './templateSchema'
-import { useEffect, useState } from 'react'
 
 /**
- * 그룹웨어 결재문서 인쇄 미리보기 컴포넌트.
+ * route id를 React epoch에 귀속한다. 같은 QueryClient에서 A→B로 이동해도
+ * 이전 layout decision이 B의 model과 결합되는 렌더 epoch를 허용하지 않는다.
  */
 export function ApprovalDocView() {
   const params = useParams<{ id: string }>()
   const id = params.id ?? ''
 
+  if (!id) return null
+  return <ApprovalDocViewInner key={id} id={id} />
+}
+
+type ApprovalDocViewInnerProps = {
+  id: string
+}
+
+/** 인쇄 route의 approval/입력 양식 query를 소유하는 컴포넌트. */
+function ApprovalDocViewInner({ id }: ApprovalDocViewInnerProps) {
   const approvalQuery = useQuery({
     queryKey: ['groupware-approval-print', id],
     queryFn: () => getGroupwareApproval(id),
@@ -51,6 +63,53 @@ export function ApprovalDocView() {
 
   const docType = approvalQuery.data?.documentType
     ?? (templateQuery.data?.code ? `GROUPWARE_${templateQuery.data.code}` : null)
+  const approvalReady = !approvalQuery.isLoading && !attachmentsQuery.isLoading
+  const inputTemplateReady = !templateId || !templateQuery.isLoading
+
+  usePageTitle('결재문서', approvalQuery.data?.title)
+
+  // docType가 서버 응답으로 바뀌는 경우에도 layout query/decision을 새 epoch로
+  // 시작해 이전 양식과 현재 approval model의 혼합 렌더를 차단한다.
+  return (
+    <ApprovalDocViewLayout
+      key={docType ?? 'no-document-type'}
+      id={id}
+      docType={docType}
+      approvalReady={approvalReady}
+      inputTemplateReady={inputTemplateReady}
+      approval={approvalQuery.data}
+      attachments={attachmentsQuery.data ?? []}
+      templateFields={templateQuery.data?.fields ?? []}
+      approvalError={approvalQuery.isError}
+      attachmentsError={attachmentsQuery.isError}
+    />
+  )
+}
+
+type ApprovalDocViewLayoutProps = {
+  id: string
+  docType: string | null
+  approvalReady: boolean
+  inputTemplateReady: boolean
+  approval: ApprovalLineAdminResponse | undefined
+  attachments: ApprovalAttachment[]
+  templateFields: ApprovalTemplate['fields']
+  approvalError: boolean
+  attachmentsError: boolean
+}
+
+/** active layout query와 결정 latch를 docType epoch에 귀속하는 컴포넌트. */
+function ApprovalDocViewLayout({
+  id,
+  docType,
+  approvalReady,
+  inputTemplateReady,
+  approval,
+  attachments,
+  templateFields,
+  approvalError,
+  attachmentsError,
+}: ApprovalDocViewLayoutProps) {
   const documentTemplateQuery = useQuery({
     queryKey: ['approval.documentType', docType],
     queryFn: () => findActiveDocumentTemplate(docType!),
@@ -63,25 +122,15 @@ export function ApprovalDocView() {
   const [layoutDecision, setLayoutDecision] = useState<TemplateEnvelope | null>(null)
   const [layoutDecided, setLayoutDecided] = useState(false)
 
-  const approvalReady = !approvalQuery.isLoading && !attachmentsQuery.isLoading
-  const inputTemplateReady = !templateId || !templateQuery.isLoading
   const layoutReady = !docType || (
     !documentTemplateQuery.isFetching
     && (documentTemplateQuery.isSuccess || documentTemplateQuery.isError)
   )
 
   useEffect(() => {
-    setLayoutDecided(false)
-    setLayoutDecision(null)
-  }, [id, docType])
-
-  useEffect(() => {
     if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
       // findActiveDocumentTemplate 은 이미 parseDocumentTemplate 로 정규화된 full
-      // TemplateEnvelope(또는 null)를 반환한다. 여기서 .document(payload)만 꺼내면
-      // resolveDocumentTemplate 의 재파싱이 최상위 schemaVersion/docType/name/revision
-      // 부재로 실패해 활성 레이아웃이 있어도 항상 DEFAULT 로 수렴하므로, envelope 전체를
-      // 전달한다. null/오류/malformed 는 data 가 null/undefined → DEFAULT 로 안전 수렴.
+      // TemplateEnvelope(또는 null)를 반환한다. 오류/malformed 는 DEFAULT 로 수렴한다.
       const activeResponse = documentTemplateQuery.isError || documentTemplateQuery.isRefetchError
         ? null
         : documentTemplateQuery.data ?? null
@@ -98,18 +147,10 @@ export function ApprovalDocView() {
     documentTemplateQuery.isRefetchError,
   ])
 
-  usePageTitle('결재문서', approvalQuery.data?.title)
-
-  if (!id) return null
-  const isTemplateLoading = Boolean(templateId) && templateQuery.isLoading
-  if (approvalQuery.isLoading || attachmentsQuery.isLoading || isTemplateLoading || !layoutDecided) {
+  if (!approvalReady || !inputTemplateReady || !layoutDecided) {
     return <p>불러오는 중...</p>
   }
-  if (
-    approvalQuery.isError
-    || attachmentsQuery.isError
-    || !approvalQuery.data
-  ) {
+  if (approvalError || attachmentsError || !approval) {
     return (
       <div className="error-banner" role="alert">
         결재문서를 불러오지 못했습니다.
@@ -117,14 +158,10 @@ export function ApprovalDocView() {
     )
   }
 
-  const approval = approvalQuery.data
-  const attachments = (attachmentsQuery.data ?? [])
-    .slice()
-    .sort((a, b) => a.displayOrder - b.displayOrder)
   const renderInput = {
     approval,
-    templateFields: templateQuery.data?.fields ?? [],
-    attachments,
+    templateFields,
+    attachments: attachments.slice().sort((a, b) => a.displayOrder - b.displayOrder),
     backTo: `/groupware/approvals/${id}`,
   }
   const model = buildApprovalRenderModel(renderInput)

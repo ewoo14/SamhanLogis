@@ -50,6 +50,8 @@ describe('shared document template fixture corpus', () => {
     expect(parseDocumentTemplate(fixture('valid-default.json')).ok).toBe(true)
     expect(parseDocumentTemplate(fixture('valid-reordered-sparse.json')).ok).toBe(true)
     expect(parseDocumentTemplate(fixture('canonical-active-response.json')).ok).toBe(true)
+    expect(parseDocumentTemplate(fixture('valid-schema-float-integral.json')).ok).toBe(true)
+    expect(parseDocumentTemplate(fixture('valid-ecmascript-control-whitespace.json')).ok).toBe(true)
     const parsed = parseDocumentTemplate(fixture('valid-unknown-field.json'))
     expect(parsed.ok).toBe(true)
     if (parsed.ok) {

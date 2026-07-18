@@ -244,6 +244,113 @@ describe('ApprovalDocView renderer transition', () => {
     await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.docType).toBe('GROUPWARE_B'))
   })
 
+  it('같은 docType의 A→B 전환은 동일 QueryClient에서도 새 revision을 렌더한다', async () => {
+    const client = queryClient(5 * 60 * 1000)
+    getGroupwareApproval.mockImplementation((approvalId: string) => Promise.resolve(
+      approval({
+        approvalId,
+        documentType: 'GROUPWARE_SHARED',
+        title: approvalId === 'A' ? 'A 문서' : 'B 문서',
+      }),
+    ))
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findActiveDocumentTemplate
+      .mockResolvedValueOnce(activeLayout('GROUPWARE_SHARED', 1))
+      .mockResolvedValueOnce(activeLayout('GROUPWARE_SHARED', 2))
+
+    const rendered = renderNavigatingView(client, '/groupware/approvals/A/print')
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.revision).toBe(1))
+
+    vi.mocked(DocumentRenderer).mockClear()
+    rendered.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/groupware/approvals/A/print']}>
+          <Routes>
+            <Route path="/groupware/approvals/:id/print" element={<NavigatingApprovalView target="/groupware/approvals/B/print" />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(getGroupwareApproval).toHaveBeenCalledWith('B'))
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.revision).toBe(2))
+    expect(findActiveDocumentTemplate).toHaveBeenCalledTimes(2)
+  })
+
+  it('approval A/B 캐시가 준비된 같은 docType 전환도 layout query epoch를 새로 시작한다', async () => {
+    const client = queryClient(5 * 60 * 1000)
+    const approvalA = approval({ approvalId: 'A', documentType: 'GROUPWARE_CACHED_SHARED', title: 'A 문서' })
+    const approvalB = approval({ approvalId: 'B', documentType: 'GROUPWARE_CACHED_SHARED', title: 'B 문서' })
+    client.setQueryData(['groupware-approval-print', 'A'], approvalA)
+    client.setQueryData(['groupware-approval-print', 'B'], approvalB)
+    client.setQueryData(['groupware-approval-print-attachments', 'A'], attachment())
+    client.setQueryData(['groupware-approval-print-attachments', 'B'], attachment())
+    client.setQueryData(
+      ['approval.documentType', 'GROUPWARE_CACHED_SHARED'],
+      activeLayout('GROUPWARE_CACHED_SHARED', 1),
+    )
+    findActiveDocumentTemplate
+      .mockResolvedValueOnce(activeLayout('GROUPWARE_CACHED_SHARED', 1))
+      .mockResolvedValueOnce(activeLayout('GROUPWARE_CACHED_SHARED', 2))
+
+    const rendered = renderNavigatingView(client, '/groupware/approvals/A/print')
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.revision).toBe(1))
+
+    vi.mocked(DocumentRenderer).mockClear()
+    rendered.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/groupware/approvals/A/print']}>
+          <Routes>
+            <Route path="/groupware/approvals/:id/print" element={<NavigatingApprovalView target="/groupware/approvals/B/print" />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.revision).toBe(2))
+    expect(findActiveDocumentTemplate).toHaveBeenCalledTimes(2)
+  })
+
+  it('상이 docType 전환 중에는 이전 layout을 새 approval model과 함께 한 프레임도 렌더하지 않는다', async () => {
+    const client = queryClient(5 * 60 * 1000)
+    getGroupwareApproval.mockImplementation((approvalId: string) => Promise.resolve(
+      approval({
+        approvalId,
+        documentType: approvalId === 'A' ? 'GROUPWARE_A' : 'GROUPWARE_B',
+        title: approvalId === 'A' ? 'A 문서' : 'B 문서',
+      }),
+    ))
+    listApprovalAttachments.mockResolvedValue(attachment())
+    let resolveBLayout!: (value: TemplateEnvelope | null) => void
+    findActiveDocumentTemplate.mockImplementation((docType: string) => {
+      if (docType === 'GROUPWARE_A') return Promise.resolve(activeLayout(docType, 1))
+      return new Promise<TemplateEnvelope | null>((resolve) => { resolveBLayout = resolve })
+    })
+
+    const rendered = renderNavigatingView(client, '/groupware/approvals/A/print')
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.docType).toBe('GROUPWARE_A'))
+
+    vi.mocked(DocumentRenderer).mockClear()
+    rendered.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/groupware/approvals/A/print']}>
+          <Routes>
+            <Route path="/groupware/approvals/:id/print" element={<NavigatingApprovalView target="/groupware/approvals/B/print" />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(getGroupwareApproval).toHaveBeenCalledWith('B'))
+    await waitFor(() => expect(findActiveDocumentTemplate).toHaveBeenCalledWith('GROUPWARE_B'))
+    expect(vi.mocked(DocumentRenderer).mock.calls.some(([props]) => (
+      props?.backTo === '/groupware/approvals/B' && props.template.docType === 'GROUPWARE_A'
+    ))).toBe(false)
+
+    resolveBLayout(activeLayout('GROUPWARE_B', 2))
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.docType).toBe('GROUPWARE_B'))
+  })
+
   it('approval/attachment promise가 끝나지 않으면 loading을 유지한다', () => {
     getGroupwareApproval.mockReturnValue(new Promise(() => {}))
     listApprovalAttachments.mockReturnValue(new Promise(() => {}))

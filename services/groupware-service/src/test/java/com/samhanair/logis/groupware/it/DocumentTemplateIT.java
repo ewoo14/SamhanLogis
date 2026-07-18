@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -35,10 +36,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.AfterEach;
@@ -48,6 +51,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -73,6 +77,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     @MockBean private UserClient userClient;
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
+    @SpyBean private DocumentTemplateService serviceSpy;
 
     @BeforeEach
     void setUp() {
@@ -197,6 +202,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         List<ActivationOutcome> outcomes = runConcurrentActivations(ids);
 
         assertThat(outcomes.stream().filter(ActivationOutcome::success).count()).isGreaterThanOrEqualTo(1);
+        assertThat(outcomes.stream().filter(outcome -> !outcome.success()).count()).isGreaterThanOrEqualTo(1);
         assertTypedConflictsOnly(outcomes);
         assertThat(repository.findByDocTypeAndIsDeletedFalse("GROUPWARE_CONCURRENT"))
                 .filteredOn(template -> template.getStatus() == DocumentTemplateStatus.ACTIVE)
@@ -254,6 +260,12 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         ObjectNode schemaString = validRequestJson("GROUPWARE_COERCION_STRING", "1");
         ObjectNode schemaFloat = validRequestJson("GROUPWARE_COERCION_FLOAT", 1.9);
         ObjectNode docTypeNumber = validRequestJson(123, 1);
+        mvc.perform(post("/admin/groupware/document-templates")
+                        .header("X-User-Id", accountId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                validRequestJson("GROUPWARE_COERCION_INTEGRAL_FLOAT", 1.0))))
+                .andExpect(status().isCreated());
         for (ObjectNode body : List.of(schemaString, schemaFloat, docTypeNumber)) {
             mvc.perform(post("/admin/groupware/document-templates")
                             .header("X-User-Id", accountId.toString())
@@ -261,6 +273,21 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                             .content(objectMapper.writeValueAsString(body)))
                     .andExpect(status().isBadRequest());
         }
+    }
+
+    @Test
+    void httpActivationBusinessConflict_is409() throws Exception {
+        UUID accountId = UUID.fromString("40000000-0000-0000-0000-000000000849");
+        UUID id = service.create(request("GROUPWARE_HTTP_CONFLICT", "HTTP 경합" )).id();
+        lenient().when(dynamicPermissionClient.check(eq(accountId), eq("groupware.approval-templates"), any()))
+                .thenReturn(true);
+        doThrow(new BusinessException(ErrorCode.CONFLICT, "활성화 경합"))
+                .when(serviceSpy).activate(eq(id), any(String.class));
+
+        mvc.perform(post("/admin/groupware/document-templates/{id}/activate", id)
+                        .header("X-User-Id", accountId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CONFLICT"));
     }
 
     @Test
@@ -380,9 +407,15 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     private List<ActivationOutcome> runConcurrentActivations(List<UUID> ids) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(ids.size());
+        CountDownLatch ready = new CountDownLatch(ids.size());
+        CountDownLatch start = new CountDownLatch(1);
         try {
             List<Callable<ActivationOutcome>> calls = ids.stream()
                     .map(id -> (Callable<ActivationOutcome>) () -> {
+                        ready.countDown();
+                        if (!start.await(10, TimeUnit.SECONDS)) {
+                            return ActivationOutcome.error(new AssertionError("activate 경합 barrier timeout"));
+                        }
                         try {
                             service.activate(id, ACTOR);
                             return ActivationOutcome.ok();
@@ -390,7 +423,9 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                             return ActivationOutcome.error(failure);
                         }
                     }).toList();
-            List<Future<ActivationOutcome>> futures = executor.invokeAll(calls);
+            List<Future<ActivationOutcome>> futures = calls.stream().map(executor::submit).toList();
+            assertThat(ready.await(10, TimeUnit.SECONDS)).as("모든 activate worker가 barrier에 도착").isTrue();
+            start.countDown();
             return futures.stream().map(DocumentTemplateIT::outcome).toList();
         } finally {
             executor.shutdownNow();

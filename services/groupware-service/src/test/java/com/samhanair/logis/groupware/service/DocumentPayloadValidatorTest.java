@@ -33,7 +33,8 @@ class DocumentPayloadValidatorTest {
     @Test
     void validCorpus_isAccepted() throws Exception {
         for (String name : List.of("valid-default.json", "valid-reordered-sparse.json",
-                "valid-unknown-field.json")) {
+                "valid-unknown-field.json", "valid-schema-float-integral.json",
+                "valid-ecmascript-control-whitespace.json")) {
             JsonNode root = fixture(name);
             assertThat(validator.validate(root.get("schemaVersion").shortValue(), root.get("document")))
                     .isNotNull();
@@ -120,6 +121,10 @@ class DocumentPayloadValidatorTest {
 
     @Test
     void requestScalars_areNotJacksonCoerced() throws Exception {
+        DocumentTemplateCreateRequest integralFloat = objectMapper.readValue(
+                readFixtureText("valid-schema-float-integral.json"), DocumentTemplateCreateRequest.class);
+        assertThat(integralFloat.schemaVersion()).isEqualTo((short) 1);
+
         for (String name : List.of(
                 "invalid-coercion-schema-string.json",
                 "invalid-coercion-schema-float.json",

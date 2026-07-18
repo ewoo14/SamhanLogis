@@ -159,8 +159,23 @@ public class DocumentPayloadValidator {
     }
 
     private static boolean isFeWhitespace(int codePoint) {
-        return Character.isWhitespace(codePoint)
-                || Character.isSpaceChar(codePoint)
+        // String.prototype.trim()의 ECMAScript WhiteSpace + LineTerminator 목록을
+        // 명시한다. Character.isWhitespace는 U+001C~U+001F까지 공백으로 분류해
+        // FE와 다르게 blank key로 판정하므로 사용하지 않는다.
+        return codePoint == 0x0009
+                || codePoint == 0x000A
+                || codePoint == 0x000B
+                || codePoint == 0x000C
+                || codePoint == 0x000D
+                || codePoint == 0x0020
+                || codePoint == 0x00A0
+                || codePoint == 0x1680
+                || (codePoint >= 0x2000 && codePoint <= 0x200A)
+                || codePoint == 0x2028
+                || codePoint == 0x2029
+                || codePoint == 0x202F
+                || codePoint == 0x205F
+                || codePoint == 0x3000
                 || codePoint == 0xFEFF;
     }
 

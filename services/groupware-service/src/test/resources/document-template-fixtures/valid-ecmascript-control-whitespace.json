@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "docType": "GROUPWARE_ECMASCRIPT_TRIM",
+  "name": "ECMAScript trim parity",
+  "document": {
+    "paper": "A4_PORTRAIT",
+    "bands": [
+      {"key":"header","kind":"HEADER","elements":[{"key":"\u001c","type":"TITLE"},{"key":"approval","type":"APPROVAL_GRID"}]},
+      {"key":"body","kind":"BODY","elements":[{"key":"content","type":"CONTENT_PARAGRAPHS"}]},
+      {"key":"footer","kind":"FOOTER","elements":[{"key":"closing","type":"CLOSING"}]}
+    ]
+  }
+}
