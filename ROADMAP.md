@@ -29,7 +29,7 @@
 
 ---
 
-### 최신 진행 메모 (2026-06-30)
+### 최신 진행 메모 (2026-07-18)
 
 - **#845 DS-2 문서 레이아웃 템플릿**: groupware V10 `document_templates` JSONB aggregate(DRAFT/ACTIVE·docType별 active 1개)와 기존 `groupware.approval-templates` 권한 재사용 endpoint를 추가했다. desktop 결재 인쇄는 `ApprovalLine.documentType` 활성 레이아웃을 한 번 결정하고 오류/미존재/late 결과는 `GROUPWARE_DEFAULT`로 수렴한다. Testcontainers HTTP JSONB round-trip·backfill 경계·동시 활성화·desktop real `DocumentRenderer` 회귀를 포함한다.
 
