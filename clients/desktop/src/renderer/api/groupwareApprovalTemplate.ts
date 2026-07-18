@@ -107,7 +107,7 @@ export function parseApprovalTemplateOptions(optionsJson: string | null | undefi
   }
 }
 
-function serializeApprovalTemplateOptions(field: ApprovalTemplateFieldInput): string | null {
+export function serializeApprovalTemplateOptions(field: ApprovalTemplateFieldInput): string | null {
   if (field.fieldType !== 'SELECT') return null
   const options = field.options
     .map((option) => option.trim())

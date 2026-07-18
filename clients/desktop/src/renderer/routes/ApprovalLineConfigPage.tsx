@@ -16,7 +16,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AsyncAutocomplete, Button, Card, DragHandle, Input, Modal, Select, Spinner, TagChip } from '@samhan/design-system'
+import { Button, Card, DragHandle, Input, Modal, MultiSelectAutocomplete, Select, Spinner, TagChip } from '@samhan/design-system'
 import {
   DOC_TYPES,
   STEP_TYPE_LABEL,
@@ -781,11 +781,13 @@ function ApprovalRoleApproverChips({
 }) {
   return (
     <div style={{ display: 'grid', gap: 8, minWidth: 280 }}>
-      <AsyncAutocomplete<ApprovalLineApproverOption>
-        value={null}
-        onChange={(option) => notifyApprovalRoleApproverSelected(role, option, onAddApprover)}
+      <MultiSelectAutocomplete<ApprovalLineApproverOption, ApprovalLineApprover>
+        selected={role.approvers}
+        onAdd={(option) => notifyApprovalRoleApproverSelected(role, option, onAddApprover)}
+        onRemove={(approver) => onRemoveApprover(approver.id)}
         search={searchApproverOptions}
-        getKey={(option) => `${option.type}:${option.refId}`}
+        getOptionKey={(option) => `${option.type}:${option.refId}`}
+        getSelectedKey={(approver) => `${approver.type}:${approver.refId}`}
         getInputLabel={(option) => option.displayName}
         renderOption={(option) => (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -799,23 +801,19 @@ function ApprovalRoleApproverChips({
         placeholder="그룹 또는 사원 검색"
         minChars={1}
         disabled={saving}
+        renderChip={(approver, _index, onRemove) => (
+          <TagChip
+            label={approver.type === 'GROUP' ? '그룹' : '사원'}
+            value={approver.displayName}
+            removeLabel={approver.displayName}
+            onRemove={onRemove}
+            data-testid="approval-role-approver-chip"
+          />
+        )}
       />
-      {role.approvers.length > 0 ? (
-        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-          {role.approvers.map((approver) => (
-            <TagChip
-              key={approver.id}
-              label={approver.type === 'GROUP' ? '그룹' : '사원'}
-              value={approver.displayName}
-              removeLabel={approver.displayName}
-              onRemove={() => onRemoveApprover(approver.id)}
-              data-testid="approval-role-approver-chip"
-            />
-          ))}
-        </div>
-      ) : (
+      {role.approvers.length === 0 ? (
         <span style={{ color: 'var(--color-neutral-400)', fontSize: 12 }}>미지정</span>
-      )}
+      ) : null}
     </div>
   )
 }

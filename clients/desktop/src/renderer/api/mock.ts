@@ -15116,7 +15116,17 @@ function mockParseOptionsJson(value: unknown): string[] {
   try {
     const parsed = JSON.parse(value) as unknown
     if (!Array.isArray(parsed)) return []
-    return parsed.map((item) => String(item).trim()).filter((item) => item.length > 0)
+    // FreeTextChipInput의 순서 보존·대소문자 무시 dedup 계약을 mock 경계에도 적용한다.
+    const seen = new Set<string>()
+    return parsed
+      .map((item) => String(item).trim())
+      .filter((item) => {
+        if (!item) return false
+        const key = item.toLocaleLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
   } catch {
     return []
   }

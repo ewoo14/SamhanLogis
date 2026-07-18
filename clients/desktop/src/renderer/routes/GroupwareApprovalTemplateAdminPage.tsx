@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   DataTable,
+  FreeTextChipInput,
   FormField,
   Input,
   Select,
@@ -36,7 +37,7 @@ interface TemplateFieldDraft {
   fieldType: ApprovalFieldType
   required: boolean
   displayOrder: number
-  optionsText: string
+  options: string[]
   placeholder: string
 }
 
@@ -58,7 +59,7 @@ function emptyFieldDraft(index: number): TemplateFieldDraft {
     fieldType: 'TEXT',
     required: false,
     displayOrder: index + 1,
-    optionsText: '',
+    options: [],
     placeholder: '',
   }
 }
@@ -87,7 +88,7 @@ function draftFromTemplate(template: ApprovalTemplate): TemplateDraft {
       fieldType: field.fieldType,
       required: field.required,
       displayOrder: field.displayOrder,
-      optionsText: field.options.join(', '),
+      options: [...field.options],
       placeholder: field.placeholder ?? '',
     })),
   }
@@ -106,10 +107,7 @@ function draftToInput(draft: TemplateDraft): ApprovalTemplateInput {
       fieldType: field.fieldType,
       required: field.required,
       displayOrder: Number.isFinite(field.displayOrder) ? field.displayOrder : index + 1,
-      options: field.optionsText
-        .split(',')
-        .map((option) => option.trim())
-        .filter((option) => option.length > 0),
+      options: field.options,
       placeholder: field.placeholder,
     })),
   }
@@ -261,7 +259,7 @@ export function GroupwareApprovalTemplateAdminPage() {
     || draft.fields.some((field) =>
       !field.fieldKey.trim()
       || !field.label.trim()
-      || (field.fieldType === 'SELECT' && field.optionsText.split(',').filter((option) => option.trim()).length === 0),
+      || (field.fieldType === 'SELECT' && field.options.length === 0),
     )
 
   if (templatesQuery.isLoading) {
@@ -428,12 +426,11 @@ export function GroupwareApprovalTemplateAdminPage() {
                   필수
                 </label>
                 {field.fieldType === 'SELECT' ? (
-                  <Input
-                    label="옵션"
-                    value={field.optionsText}
-                    onChange={(event) => updateField(index, { optionsText: event.target.value })}
-                    placeholder="연차, 반차"
-                    inputSize="sm"
+                  <FreeTextChipInput
+                    value={field.options}
+                    onChange={(options) => updateField(index, { options })}
+                    ariaLabel="선택 옵션"
+                    placeholder="옵션 입력 후 Enter 또는 쉼표"
                   />
                 ) : (
                   <Input

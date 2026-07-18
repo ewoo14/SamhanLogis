@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { AsyncAutocomplete, Button, Card, FormField, Input, Select, Spinner, TagChip } from '@samhan/design-system'
+import { Button, Card, FormField, Input, MultiSelectAutocomplete, Select, Spinner, TagChip } from '@samhan/design-system'
 import { createGroupwareApproval } from '../api/groupwareApproval'
 import {
   searchApprovers,
@@ -420,9 +420,12 @@ export function GroupwareApprovalCreatePage() {
     setApprovers((current) => addApproverOption(current, item))
   }
 
-  const removeApprover = (index: number) => {
+  const removeApprover = (approver: ApproverOption) => {
     approverEditVersionRef.current += 1
-    setApprovers((current) => removeApproverAt(current, index))
+    setApprovers((current) => {
+      const index = current.findIndex((item) => item.userId === approver.userId)
+      return index < 0 ? current : removeApproverAt(current, index)
+    })
   }
 
   if (templatesQuery.isLoading) {
@@ -503,11 +506,13 @@ export function GroupwareApprovalCreatePage() {
             />
 
             <div data-testid="groupware-approval-create-approvers" style={{ display: 'grid', gap: 8 }}>
-              <AsyncAutocomplete<ApproverOption>
-                value={null}
-                onChange={addApprover}
+              <MultiSelectAutocomplete<ApproverOption, ApproverOption>
+                selected={approvers}
+                onAdd={addApprover}
+                onRemove={removeApprover}
                 search={searchApprovers}
-                getKey={(option) => option.userId}
+                getOptionKey={(option) => option.userId}
+                getSelectedKey={(option) => option.userId}
                 getInputLabel={(option) => option.name}
                 renderOption={(option) => (
                   <span>
@@ -526,26 +531,21 @@ export function GroupwareApprovalCreatePage() {
                 placeholder="결재자 이름 검색"
                 minChars={2}
                 required={requireManualApprover}
+                renderChip={(approver, index, onRemove) => (
+                  <TagChip
+                    label={String(index + 1)}
+                    value={approverLabel(approver)}
+                    removeLabel={approverLabel(approver)}
+                    onRemove={onRemove}
+                    data-testid="approver-chip"
+                  />
+                )}
               />
               <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
                 {requireManualApprover
                   ? '설정된 결재선이 없는 유형입니다. 사원 이름을 검색해 결재 순서대로 추가합니다.'
                   : '중앙 결재선 뒤에 추가할 결재자가 있을 때만 사원 이름을 검색해 추가합니다.'}
               </p>
-              {approvers.length > 0 ? (
-                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                  {approvers.map((approver, index) => (
-                    <TagChip
-                      key={`${approver.userId}-${index}`}
-                      label={String(index + 1)}
-                      value={approverLabel(approver)}
-                      removeLabel={approverLabel(approver)}
-                      onRemove={() => removeApprover(index)}
-                      data-testid="approver-chip"
-                    />
-                  ))}
-                </div>
-              ) : null}
             </div>
           </section>
 
