@@ -276,6 +276,8 @@ export function GroupwareApprovalCreatePage() {
   const [files, setFiles] = useState<FileDraft[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const approverEditVersionRef = useRef(0)
+  const approverTemplateCodeRef = useRef('')
+  const defaultApproverEditVersionRef = useRef(0)
 
   usePageTitle('결재 작성')
 
@@ -326,8 +328,14 @@ export function GroupwareApprovalCreatePage() {
 
   useEffect(() => {
     let cancelled = false
-    const capturedEditVersion = approverEditVersionRef.current
-    setApprovers([])
+    if (approverTemplateCodeRef.current !== selectedTemplateCode) {
+      approverTemplateCodeRef.current = selectedTemplateCode
+      // 템플릿 전환만 기존 결재선을 초기화한다. 조회 상태 전환은 로딩 중 사용자 편집을 보존한다.
+      defaultApproverEditVersionRef.current = approverEditVersionRef.current
+      setApprovers([])
+    }
+    // 템플릿 전환 시점 이후 편집이 있으면 늦게 도착한 기본 결재자로 덮어쓰지 않는다.
+    const capturedEditVersion = defaultApproverEditVersionRef.current
     if (configRoles.length > 0 || approvalLineStructureQuery.isLoading || approvalLineStructureQuery.isError) {
       return () => {
         cancelled = true

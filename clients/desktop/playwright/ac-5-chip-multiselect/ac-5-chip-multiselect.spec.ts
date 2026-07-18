@@ -126,6 +126,23 @@ test.describe('AC-5 칩 복수선택 foundation·결재작성', () => {
     await expect(page.getByTestId('approver-chip').first()).toContainText('1')
     await expect(page.getByTestId('approver-chip').first()).toContainText('김은지')
     await expect(page.getByTestId('approver-chip').nth(1)).toContainText('김기철')
+
+    await page.getByTestId('groupware-approval-create-title').fill('결재자 payload 순서 검증')
+    await page.getByTestId('dynamic-approval-field-expenseItem').fill('QA 지출항목')
+    await page.getByTestId('dynamic-approval-field-amount').fill('1000')
+    await page.getByTestId('dynamic-approval-field-accountCode').selectOption('복리후생비')
+    await page.getByTestId('dynamic-approval-field-expenseDate').fill('2026-07-18')
+    await page.getByTestId('groupware-approval-create-submit').click()
+
+    // mock adapter가 실제 생성 POST handler에서 캡처한 요청 배열을 칩 순서와 직접 대조한다.
+    await expect.poll(() => page.evaluate(() => (
+      (window as unknown as {
+        __SAMHAN_MOCK_LAST_GROUPWARE_APPROVAL_CREATE_BODY__?: { approverIds: string[] }
+      }).__SAMHAN_MOCK_LAST_GROUPWARE_APPROVAL_CREATE_BODY__?.approverIds
+    ))).toEqual([
+      '00000000-0000-0000-0000-000000010003',
+      '00000000-0000-0000-0000-000000010002',
+    ])
     await capture(page, '02-create-order')
   })
 })

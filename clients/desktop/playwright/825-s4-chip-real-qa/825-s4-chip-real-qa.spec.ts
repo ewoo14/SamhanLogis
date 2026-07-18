@@ -217,7 +217,6 @@ test.describe('#825 슬4 칩 복수선택 — 실서버 라이브 QA', () => {
     // 영향을 주므로 라이브 QA 에서 실 템플릿 쓰기는 회피한다. H1(미확정 draft 저장 소실 방지)의
     // flush-commit 동작은 design-system vitest 로 검증한다.
     expect(hasItemPrefix, '옵션 칩이 "항목:" 접두로 렌더(spec §1② value-only 위반)').toBeFalsy()
-    await shot(page, 'D3-value-only-readonly')
     console.log('[D] value-only 확인(읽기전용) · 실 템플릿 저장 미수행(공유 실데이터 보호)')
   })
 })

@@ -47,6 +47,7 @@ declare global {
   interface Window {
     __SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__?: AddVehicleGroupPayload
     __SAMHAN_MOCK_LAST_DISPATCH_BODY__?: { groupIds?: string[] }
+    __SAMHAN_MOCK_LAST_GROUPWARE_APPROVAL_CREATE_BODY__?: { approverIds: string[] }
     __SAMHAN_MOCK_SLIP_COEDIT?: Record<string, string[]>
     __SAMHAN_MOCK_SLIP_COEDIT_SEED?: Record<string, string[]>
   }
@@ -10690,6 +10691,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const title = String(body.title ?? '').trim()
       const requesterId = String(body.requesterId ?? '').trim()
       const approverIds = Array.isArray(body.approverIds) ? body.approverIds : []
+      // Axios mock adapter는 네트워크 요청을 만들지 않으므로 QA가 실제 handler 수신 순서를 관찰할 수 있게 보존한다.
+      ;(globalThis as unknown as Window).__SAMHAN_MOCK_LAST_GROUPWARE_APPROVAL_CREATE_BODY__ = {
+        approverIds: [...approverIds],
+      }
       if (!requesterId || !title) {
         return mockError(400, 'INVALID_INPUT', '요청자와 제목은 필수입니다.')
       }
@@ -15116,17 +15121,10 @@ function mockParseOptionsJson(value: unknown): string[] {
   try {
     const parsed = JSON.parse(value) as unknown
     if (!Array.isArray(parsed)) return []
-    // FreeTextChipInput의 순서 보존·대소문자 무시 dedup 계약을 mock 경계에도 적용한다.
-    const seen = new Set<string>()
+    // 실 BE parseOptions와 동일하게 기존 대소문자 변종을 합치지 않고 trim·빈값 필터만 적용한다.
     return parsed
       .map((item) => String(item).trim())
-      .filter((item) => {
-        if (!item) return false
-        const key = item.toLocaleLowerCase()
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
+      .filter((item) => item.length > 0)
   } catch {
     return []
   }

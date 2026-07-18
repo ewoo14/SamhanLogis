@@ -1,6 +1,6 @@
 # #825 슬4 칩 복수선택 표준 컴포넌트 감사 보고서
 
-기준일: 2026-07-18  
+기준일: 2026-07-18
 범위: `MultiSelectAutocomplete<TOption, TSelected>`, `FreeTextChipInput`, 그룹웨어 결재 3화면
 
 ## 구현 감사표
