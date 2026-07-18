@@ -1,7 +1,7 @@
-# #845 DS-1 — 문서 양식 렌더러 Foundation (기획 spec **v3** · CODEX SOL 기획검수 2라운드 전량 반영)
+# #845 DS-1 — 문서 양식 렌더러 Foundation (기획 spec **v4** · CODEX SOL 기획검수 4라운드 GO)
 
 - 에픽: #845 문서 양식 디자이너 · 파일럿=결재 문서 · 브랜치 `feat/845-ds1-form-renderer-foundation`
-- 기준일: 2026-07-18 · 진실원: 결재문서 렌더 정찰 + CODEX SOL 기획검수 R1(BLOCKING4·HIGH5·MED2)·R2(잔여 3 blocker + 신규) 반영
+- 기준일: 2026-07-18 · 진실원: 결재문서 렌더 정찰 + CODEX SOL 기획검수 R1(BLOCKING4·HIGH5·MED2)→R2(잔여3 blocker)→R3(BLOCKING1·HIGH2)→**R4 GO**(잔여 LOW만) 반영
 - [[feedback_reconvergence_before_merge]] · [[feedback_design_system_playwright_mock_suite]] · [[feedback_print_design_iteration]]
 
 ## 0. 목표·비목표
@@ -14,7 +14,7 @@
 |---|---|
 | D-DS1-01 | **FE 전용**(BE/DB/마이그 없음·DS-2 분리) |
 | D-DS1-02 | 스키마 = 밴드+빌트인요소. `schemaVersion`↔`revision` 분리·안정 band/element key. **영속 경계 = `TemplateEnvelope{schemaVersion,id?,status?,revision,docType,name, document:DocumentPayload}` + `parseDocumentTemplate(unknown)` + `upcastDocumentTemplate(unknown,fromVersion)`** 계약을 DS-1에 정의(DS-2가 재정의 안 하도록). composite 빌트인=DS-1 plugin·DS-3 generic 이관 upcaster 경로 |
-| D-DS1-08 | **approval plugin 불변식(parser 검증·위반 시 `GROUPWARE_DEFAULT` fallback)**: 요소별 **허용 밴드 고정**(TITLE·META_ROWS·APPROVAL_GRID=HEADER / CONTENT_PARAGRAPHS·FIELD_TABLE·ATTACHMENT_TABLE=BODY / CLOSING=FOOTER) · **필수·개수**(TITLE **정확히 1**·APPROVAL_GRID 정확히 1·CLOSING 정확히 1·BODY 요소 각 최대 1) · 중복 key 거부 · 미지원 type/kind/version 거부. → compiled slot totality 보장(`closingNote:string` 등 항상 충족). band 의미 무시(TITLE을 FOOTER에 둬도 header slot 이동) 방지 |
+| D-DS1-08 | **approval plugin 불변식(parser 검증·위반 시 `GROUPWARE_DEFAULT` fallback)**: 요소별 **허용 밴드 고정**(TITLE·META_ROWS·APPROVAL_GRID=HEADER / CONTENT_PARAGRAPHS·FIELD_TABLE·ATTACHMENT_TABLE=BODY / CLOSING=FOOTER) · **필수·개수**(TITLE **정확히 1**·APPROVAL_GRID 정확히 1·CLOSING 정확히 1·META_ROWS 최대 1·BODY 요소 각 최대 1) · 중복 key 거부 · 미지원 type/kind/version 거부. → compiled slot totality 보장(`closingNote:string` 등 항상 충족). band 의미 무시(TITLE을 FOOTER에 둬도 header slot 이동) 방지 |
 | D-DS1-03 | **렌더러 = 2단계 compiler**: `compileApprovalDocument(template, model) → CompiledApprovalDocument`(=**실제 `PrintLayoutProps`와 정확히 동형**: **`paper:PaperSize`**, `docHeader:PrintDocHeader`, `approvalSteps:PrintApprovalStep[]`, `closingNote:string`, `body:ReactNode`). **`noticeText` slot 없음**(현 PrintLayout이 결재란 존재로 내부 결정·불변). `body`=`LegacyApprovalDocBody({orderedSections})`가 **외곽 `<div>`를 정확히 1회** 출력하고 내부 Content/Field/Attachment 섹션만 요소 순서대로 조립(3중 복제·wrapper 0). **`DocumentRenderer`는 shell 전용 `backTo?:string`을 별도 prop으로 받아 `PrintLayout`에 전달**(현 "상세로 돌아가기" 버튼 DOM 보존·sanitized model엔 approval ID 없음). JSX 명시: `<PrintLayout approvalDoc paper={compiled.paper} backTo={backTo} docHeader={compiled.docHeader} approvalSteps={compiled.approvalSteps} closingNote={compiled.closingNote}>{compiled.body}</PrintLayout>` |
 | D-DS1-04 | 기본 템플릿 = FE 상수. docType resolver = `GROUPWARE_${resolvedTemplate.code}` → **template null/not-found/error 시 canonical `GROUPWARE_DEFAULT` 공통 레이아웃** fallback(결정적). 작성 `ApprovalTemplate`↔렌더 `DocumentTemplate` 명칭·ID·역할 분리 |
 | D-DS1-05 | **회귀 = 독립 frozen 오라클**: (a) 리팩터 **전** 현 렌더 경로를 **verbatim 복사한 test-only `FrozenApprovalDocLegacy`**(raw DTO→기존 helper→기존 JSX·**불변·프로덕션 추출 컴포넌트/신규 model 미공유**) 유지. (b) 각 fixture로 `renderToStaticMarkup(FrozenLegacy(rawDto))`를 **committed HTML 골든 artifact**로 1회 생성. (c) 테스트: `renderToStaticMarkup(DocumentRenderer(defaultTemplate, buildModel(rawDto))) === 골든`. **골든 재생성=명시적 가드 스크립트만**(`vitest -u` 금지). new와 legacy가 **같은 컴포넌트/model을 공유하지 않아** 오라클 독립 |
@@ -85,7 +85,7 @@ F1 단일 step(min2 grid·[작성,결재]) · F2 **raw 0/4/5/6 step**(slice(0,5)
 회사정보 배제 유지 · UUID 비노출(sanitized model+discriminated binding으로 스키마 강제) · slice(0,5) 명시 · PrintPreview 미접촉.
 
 ## 6. 리스크
-출력 드리프트 → 독립 frozen 오라클 + new===골든 + Playwright/PDF 3중. 과설계 경계=flow·빌트인·FE상수만(geometry/DB/편집기 후속). schemaVersion·key·envelope·parser만 미리 심어 DS-2/3 재정의 방지.
+출력 드리프트 → 독립 frozen 오라클 + new===골든(DOM) + Playwright screen/print sanity(§0 논거: CSS/PrintLayout 무변경). 과설계 경계=flow·빌트인·FE상수만(geometry/DB/편집기 후속). schemaVersion·key·envelope·parser만 미리 심어 DS-2/3 재정의 방지.
 
 ## 7. 팀 배치 (구현=CODEX LUNA)
 desktop print: approvalRenderModel + FrozenApprovalDocInput 번들 + FrozenApprovalDocLegacy(verbatim·불변) + templateSchema(+parse[불변식 검증]/upcast/paperMap) + approvalDefaultTemplate(+GROUPWARE_DEFAULT) + LegacyApprovalDocBody(추출) + compileApprovalDocument(paper 포함) + DocumentRenderer(backTo prop) + ApprovalDocView 전환 + new===골든 vitest + fetch-state 테스트 + Playwright screen+print sanity 스위트.
