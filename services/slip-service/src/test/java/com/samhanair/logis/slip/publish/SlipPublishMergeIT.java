@@ -75,6 +75,8 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
 
     private static final UUID ORDER_A_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static final UUID ORDER_B_ID = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static final UUID RESOLVED_PARTNER_ID =
+            UUID.fromString("bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb");
     private static final String WAREHOUSE_CODE = "MERGE-WH";
 
     @Autowired
@@ -121,7 +123,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         Mockito.lenient().when(productClient.lookup(ArgumentMatchers.anyList()))
                 .thenReturn(List.of());
         Mockito.lenient().when(partnerInternalClient.verifyPartnerCode(ArgumentMatchers.anyString()))
-                .thenReturn(PartnerVerifyResult.found(Optional.empty()));
+                .thenReturn(PartnerVerifyResult.found(Optional.of(RESOLVED_PARTNER_ID)));
     }
 
     // ---- 케이스 1: 2주문 병합 발행 → slipNo + slip_source_orders 2행 ----
@@ -399,6 +401,32 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         UUID slipId = readSlipId(result);
         Slip slip = slipRepository.findById(slipId).orElseThrow();
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
+        assertThat(slip.getPartnerId()).isEqualTo(RESOLVED_PARTNER_ID);
+    }
+
+    @Test
+    void mergePublish_partnerResolutionServerError_doesNotCreateCommittedSlip() throws Exception {
+        Mockito.when(partnerInternalClient.verifyPartnerCode("P-MISSING"))
+                .thenReturn(PartnerVerifyResult.serverError());
+        String primaryOrderId = UUID.randomUUID().toString();
+        String idemKey = "merge-partner-required-server-error";
+        Map<String, Object> body = mergeBody(
+                primaryOrderId, "2026/05/31-fail-A",
+                UUID.randomUUID().toString(), "2026/05/31-fail-B",
+                "P-MISSING", "거래처 없음", WAREHOUSE_CODE,
+                "서울", idemKey);
+
+        mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+
+        assertThat(slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
+                com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER, primaryOrderId))
+                .isEmpty();
     }
 
     // ---- helpers ----

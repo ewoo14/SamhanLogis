@@ -10,6 +10,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
+import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,6 +78,28 @@ class SlipDomainIT extends AbstractPostgresIT {
         );
     }
 
+    private Slip newDraftOutboundWithoutPartner() {
+        return Slip.createOutbound(
+                "2026/05/04-3", LocalDate.of(2026, 5, 4), 3,
+                UUID.randomUUID(), UUID.randomUUID(),
+                null, null, DeliveryTag.DAY, "거래처 없는 초안",
+                "user-sales-001"
+        );
+    }
+
+    private SlipSnapshot partnerlessSnapshot(Slip slip) {
+        SlipSnapshot source = slip.toSnapshot();
+        return new SlipSnapshot(
+                source.slipNo(), source.slipDate(), null, source.partnerName(), source.partnerCode(),
+                source.businessNumber(), source.memo(), source.deliveryTag(), source.deliveryAddress(),
+                source.supervisionAddress(), source.projectName(), source.recipientPhone(),
+                source.paymentDueDate(), source.destinationWarehouseId(), source.destinationWarehouseName(),
+                source.shippingAddress(), source.inspectionAddress(), source.receiverPhone(),
+                source.customerTel(), source.customerAddress(), source.customerRepresentative(),
+                source.paymentDueLabel(), source.discountInfo(), source.collectTerm(), source.agreeTerm(),
+                source.lines());
+    }
+
     @Test
     void outbound_happyPath_DraftToConfirmed() {
         Slip slip = newDraftOutbound();
@@ -125,6 +148,63 @@ class SlipDomainIT extends AbstractPostgresIT {
         slip.confirm();
 
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.CONFIRMED);
+    }
+
+    @Test
+    void savedSlip_withoutPartner_cannotBeSent() {
+        Slip slip = newDraftOutboundWithoutPartner();
+        slip.save();
+
+        assertThatThrownBy(slip::send)
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT)
+                .hasMessage("전표 전송 전 거래처를 지정해야 합니다");
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SAVED);
+    }
+
+    @Test
+    void draftWithoutPartner_canBeSaved() {
+        Slip slip = newDraftOutboundWithoutPartner();
+
+        slip.save();
+
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SAVED);
+    }
+
+    @Test
+    void committedSlip_cannotRestorePartnerlessSnapshot() {
+        Slip slip = newDraftOutbound();
+        slip.save();
+        slip.send();
+
+        assertThatThrownBy(() -> slip.restoreFromSnapshot(partnerlessSnapshot(slip)))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT)
+                .hasMessage("거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다");
+        assertThat(slip.getPartnerId()).isNotNull();
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
+    }
+
+    @Test
+    void draftSlip_canRestorePartnerlessSnapshot() {
+        Slip slip = newDraftOutboundWithoutPartner();
+
+        slip.restoreFromSnapshot(partnerlessSnapshot(slip));
+
+        assertThat(slip.getPartnerId()).isNull();
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.DRAFT);
+    }
+
+    @Test
+    void committedSlip_canRestoreSnapshotWithPartner() {
+        Slip slip = newDraftOutbound();
+        slip.save();
+        slip.send();
+
+        slip.restoreFromSnapshot(slip.toSnapshot());
+
+        assertThat(slip.getPartnerId()).isNotNull();
+        assertThat(slip.getStatus()).isEqualTo(SlipStatus.SENT);
     }
 
     @Test

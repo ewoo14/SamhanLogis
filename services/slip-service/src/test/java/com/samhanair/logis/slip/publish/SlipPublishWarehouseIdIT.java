@@ -64,6 +64,8 @@ class SlipPublishWarehouseIdIT extends AbstractPostgresIT {
     private static final String MASTER_ID = "99999999-0000-0000-0000-000000000001";
     private static final String MODEL_CODE = "MODEL-SLICE-C";
     private static final UUID PRODUCT_ID = UUID.randomUUID();
+    private static final UUID PARTNER_ID =
+            UUID.fromString("dddddddd-1111-4111-8111-dddddddddddd");
     /** convert 경로가 전달하는 inventory 해석 UUID — yml 값(…1111) 과 다름. */
     private static final String INVENTORY_WAREHOUSE_ID = "11111111-1111-1111-1111-000000000001";
 
@@ -73,7 +75,7 @@ class SlipPublishWarehouseIdIT extends AbstractPostgresIT {
                 .thenReturn(new ProductSummary(PRODUCT_ID, "테스트 상품", MODEL_CODE,
                         null, BigDecimal.valueOf(10000), "ACTIVE"));
         Mockito.lenient().when(partnerInternalClient.verifyPartnerCode(Mockito.anyString()))
-                .thenReturn(PartnerVerifyResult.found(Optional.empty()));
+                .thenReturn(PartnerVerifyResult.found(Optional.of(PARTNER_ID)));
     }
 
     @Test

@@ -271,6 +271,26 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    void restoreCommittedSlipWithPartnerlessRevision_returnsBadRequest() throws Exception {
+        UUID slipId = createOutboundSlipAsSales(1);
+        Slip slip = slipRepository.findById(slipId).orElseThrow();
+        slip.save();
+        slip.send();
+        slipRepository.saveAndFlush(slip);
+        jdbcTemplate.update(
+                "UPDATE slip_revisions SET snapshot = jsonb_set(snapshot, '{partnerId}', 'null'::jsonb) "
+                        + "WHERE slip_id = ? AND revision_no = 1",
+                slipId);
+
+        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_NAME_HEADER, "복원 사용자")
+                        .header(ROLE_HEADER, "MANAGER"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
     // =========================================================================
     // 시나리오 5 — RESTORE 권한 (deny → 403, MASTER bypass → 200)
     // =========================================================================

@@ -26,6 +26,9 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +72,9 @@ import org.springframework.test.web.servlet.MvcResult;
 })
 class SlipPublishControllerIT extends AbstractPostgresIT {
 
+    private static final UUID RESOLVED_PARTNER_ID =
+            UUID.fromString("aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa");
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -111,7 +117,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .thenReturn(List.of());
         // PR-G1 backlog #1 — strict ON 기본값에서도 happy-path 통과하도록 FOUND 반환.
         Mockito.lenient().when(partnerInternalClient.verifyPartnerCode(ArgumentMatchers.anyString()))
-                .thenReturn(PartnerVerifyResult.found(java.util.Optional.empty()));
+                .thenReturn(PartnerVerifyResult.found(java.util.Optional.of(RESOLVED_PARTNER_ID)));
     }
 
     // ---------------- happy path: from-estimate ----------------
@@ -141,7 +147,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     void publishFromPartnerOrder_returns201() throws Exception {
         Map<String, Object> body = partnerOrderBody("2026/04/15-1");
 
-        mockMvc.perform(post("/api/v1/slips/from-partner-order")
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "MANAGER")
                         .header("Idempotency-Key", "idem-po-001")
@@ -149,7 +155,46 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.sourceType").value("PARTNER_ORDER"))
-                .andExpect(jsonPath("$.data.sourceId").value("2026/04/15-1"));
+                .andExpect(jsonPath("$.data.sourceId").value("2026/04/15-1"))
+                .andReturn();
+
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getPartnerId())
+                .isEqualTo(RESOLVED_PARTNER_ID);
+    }
+
+    @ParameterizedTest(name = "partner resolution {0} is fail-closed")
+    @MethodSource("partnerResolutionFailures")
+    void publishFromPartnerOrder_partnerResolutionFailure_doesNotCreateCommittedSlip(
+            String resultName, PartnerVerifyResult result) throws Exception {
+        String partnerOrderId = "PO-PARTNER-REQUIRED-" + resultName;
+        Mockito.when(partnerInternalClient.verifyPartnerCode("CUST-0002"))
+                .thenReturn(result);
+        Map<String, Object> body = partnerOrderBody(partnerOrderId);
+
+        mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-partner-required-" + resultName)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+
+        org.assertj.core.api.Assertions.assertThat(
+                        slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
+                                com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER,
+                                partnerOrderId))
+                .isEmpty();
+    }
+
+    private static java.util.stream.Stream<Arguments> partnerResolutionFailures() {
+        return java.util.stream.Stream.of(
+                Arguments.of("not-found", PartnerVerifyResult.notFound()),
+                Arguments.of("server-error", PartnerVerifyResult.serverError()),
+                Arguments.of("skipped", PartnerVerifyResult.skipped(java.util.Optional.empty())),
+                Arguments.of("found-empty", PartnerVerifyResult.found(java.util.Optional.empty())));
     }
 
     // ---------------- idempotency: same key + same body → 200 replay ----------------

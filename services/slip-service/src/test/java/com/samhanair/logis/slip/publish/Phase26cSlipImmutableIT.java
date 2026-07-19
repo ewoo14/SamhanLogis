@@ -77,6 +77,8 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
     private static final String MASTER_ID = "99999999-0000-0000-0000-000000000001";
     private static final String MODEL_CODE = "MODEL-26C-IMMUTABLE";
     private static final UUID PRODUCT_ID = UUID.randomUUID();
+    private static final UUID PARTNER_ID =
+            UUID.fromString("cccccccc-1111-4111-8111-cccccccccccc");
 
     @BeforeEach
     void setUp() {
@@ -84,7 +86,7 @@ class Phase26cSlipImmutableIT extends AbstractPostgresIT {
                 .thenReturn(new ProductSummary(PRODUCT_ID, "테스트 상품", MODEL_CODE,
                         null, BigDecimal.valueOf(10000), "ACTIVE"));
         Mockito.lenient().when(partnerInternalClient.verifyPartnerCode(Mockito.anyString()))
-                .thenReturn(PartnerVerifyResult.found(java.util.Optional.empty()));
+                .thenReturn(PartnerVerifyResult.found(java.util.Optional.of(PARTNER_ID)));
     }
 
     // ════════════════════════════════════════════════════

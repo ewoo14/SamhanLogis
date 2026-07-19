@@ -204,7 +204,7 @@ public class SlipPublishService {
         }
 
         // PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy)
-        verifyPartnerOrThrow(req.partnerCode());
+        UUID partnerId = resolveCommittedPartnerId(req.partnerCode());
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
@@ -218,7 +218,7 @@ public class SlipPublishService {
         int seqNo = slipNumberService.extractSeqNo(slipNo);
         Slip slip = Slip.createOutbound(slipNo, slipDate, seqNo,
                 warehouseId, null,
-                null, req.partnerName(),
+                partnerId, req.partnerName(),
                 null, memo, requester);
         // [게이트⑤] 주문 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
@@ -300,7 +300,7 @@ public class SlipPublishService {
             return assertReplayOrConflict(existing.get(), fingerprint);
         }
 
-        verifyPartnerOrThrow(req.partnerCode());
+        UUID partnerId = resolveCommittedPartnerId(req.partnerCode());
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
@@ -312,7 +312,7 @@ public class SlipPublishService {
         String slipNo = slipNumberService.next(slipDate, SlipType.OUTBOUND);
         int seqNo = slipNumberService.extractSeqNo(slipNo);
         Slip slip = Slip.createOutbound(slipNo, slipDate, seqNo,
-                warehouseId, null, null, req.partnerName(), null, memo, requester);
+                warehouseId, null, partnerId, req.partnerName(), null, memo, requester);
         // [게이트⑥] 주문 병합 발행 출고전표 마감 게이트 — createOutbound 직후.
         // deliveryTag null(발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.
         cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
@@ -440,6 +440,33 @@ public class SlipPublishService {
             }
         }
         return warehouseCodeMapper.resolve(warehouseCode);
+    }
+
+    /**
+     * 주문에서 즉시 커밋되는 출고전표의 거래처 UUID를 엄격하게 해소한다.
+     *
+     * <p>주문 단일·병합 발행은 {@code FOUND}이면서 실제 {@code partnerId}가 있는 경우에만
+     * 거래처가 확인된 것으로 간주한다. strict 설정, 5xx fail-open, token 미설정 우회는
+     * 이 경로의 회계 무결성을 위해 적용하지 않는다.
+     *
+     * @param partnerCode 발행 요청의 거래처 코드
+     * @return partner-service가 확인한 거래처 UUID
+     * @throws BusinessException(INVALID_INPUT) 거래처를 유일하게 해소할 수 없는 경우
+     */
+    private UUID resolveCommittedPartnerId(String partnerCode) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "커밋 전표 발행 전 거래처 코드를 지정해야 합니다");
+        }
+        String normalizedPartnerCode = partnerCode.trim();
+        PartnerVerifyResult result = partnerInternalClient.verifyPartnerCode(normalizedPartnerCode);
+        if (result == null || !result.isFound()
+                || result.partnerId() == null || result.partnerId().isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "거래처 코드 '" + normalizedPartnerCode
+                            + "'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다");
+        }
+        return result.partnerId().get();
     }
 
     /**

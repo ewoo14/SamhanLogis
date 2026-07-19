@@ -62,6 +62,17 @@ public class Slip extends BaseEntity {
 
     private static final Set<SlipStatus> EDITABLE_STATUSES =
             EnumSet.of(SlipStatus.DRAFT, SlipStatus.SAVED);
+    /** 커밋 상태 전이 및 이력 복원 시 거래처가 반드시 존재해야 하는 상태 집합. */
+    private static final Set<SlipStatus> REQUIRED_PARTNER_STATUSES = EnumSet.of(
+            SlipStatus.SENT,
+            SlipStatus.ACCEPTED,
+            SlipStatus.PROCESSING,
+            SlipStatus.INSPECTING,
+            SlipStatus.COMPLETED,
+            SlipStatus.SHIPPING,
+            SlipStatus.DELIVERED,
+            SlipStatus.CONFIRMED,
+            SlipStatus.REJECTED);
     private static final Set<SlipStatus> CANCELABLE_STATUSES =
             EnumSet.of(SlipStatus.DRAFT, SlipStatus.SAVED, SlipStatus.SENT);
 
@@ -966,6 +977,10 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(CONFLICT) 현재 상태가 SAVED 가 아닐 때
      */
     public void send() {
+        if (this.partnerId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "전표 전송 전 거래처를 지정해야 합니다");
+        }
         requireStatus(SlipStatus.SAVED);
         this.status = SlipStatus.SENT;
         if (this.slipType != SlipType.OUTBOUND) {
@@ -2042,6 +2057,10 @@ public class Slip extends BaseEntity {
         requireNotLocked();
         if (snapshot == null) {
             throw new IllegalArgumentException("복원 스냅샷은 null 일 수 없습니다");
+        }
+        if (REQUIRED_PARTNER_STATUSES.contains(this.status) && snapshot.partnerId() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다");
         }
         // 헤더 필드 역적용 — toSnapshot() 이 캡처한 동일 필드 집합 (스냅샷 값 그대로 덮어씀)
         this.slipNo = snapshot.slipNo();

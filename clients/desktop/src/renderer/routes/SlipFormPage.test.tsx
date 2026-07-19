@@ -719,4 +719,16 @@ describe('SlipFormPage price memory autofill', () => {
       })],
     }))
   })
+
+  it('allows DRAFT save without a partner', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+
+    fireEvent.click(screen.getByRole('button', { name: /저장/ }))
+
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({ partnerId: undefined }))
+  })
 })

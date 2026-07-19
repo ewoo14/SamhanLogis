@@ -177,6 +177,37 @@ class SlipRevisionServiceTest {
         verify(repository, times(2)).saveAndFlush(any(SlipRevision.class));
     }
 
+    private SlipSnapshot partnerlessSnapshot(SlipSnapshot source) {
+        return new SlipSnapshot(
+                source.slipNo(), source.slipDate(), null, source.partnerName(), source.partnerCode(),
+                source.businessNumber(), source.memo(), source.deliveryTag(), source.deliveryAddress(),
+                source.supervisionAddress(), source.projectName(), source.recipientPhone(),
+                source.paymentDueDate(), source.destinationWarehouseId(), source.destinationWarehouseName(),
+                source.shippingAddress(), source.inspectionAddress(), source.receiverPhone(),
+                source.customerTel(), source.customerAddress(), source.customerRepresentative(),
+                source.paymentDueLabel(), source.discountInfo(), source.collectTerm(), source.agreeTerm(),
+                source.lines());
+    }
+
+    @Test
+    void restoreRejectsPartnerlessSnapshotForCommittedSlip() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        Slip slip = sampleSlip(slipId);
+        slip.save();
+        slip.send();
+        SlipRevision revision = SlipRevision.of(
+                slipId, 1, SlipRevisionType.EDIT, null,
+                slip.getSlipNo(), slip.getSlipDate(), partnerlessSnapshot(slip.toSnapshot()),
+                UUID.randomUUID(), "관리자", null);
+        when(repository.findBySlipIdAndRevisionNo(slipId, 1)).thenReturn(Optional.of(revision));
+
+        assertThatThrownBy(() -> service.restore(slip, 1, UUID.randomUUID(), "관리자", null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다");
+        org.mockito.Mockito.verify(repository, org.mockito.Mockito.never())
+                .saveAndFlush(any(SlipRevision.class));
+    }
+
     /**
      * 메모를 변경하고 라인을 1건 추가한다 (rev2 의 변형 상태 시뮬레이션).
      */

@@ -312,6 +312,34 @@ class SlipDocumentCollaborationPortTest {
                 .doesNotContain(editorId.toString());
     }
 
+    @Test
+    void restoreSnapshotCommittedSlipWithPartnerlessHistoryIsRejectedBeforePersistence() throws Exception {
+        SlipRepository slipRepository = org.mockito.Mockito.mock(SlipRepository.class);
+        SlipService slipService = org.mockito.Mockito.mock(SlipService.class);
+        SlipRevisionService revisionService = org.mockito.Mockito.mock(SlipRevisionService.class);
+        UUID slipId = UUID.randomUUID();
+        Slip slip = Slip.createOutbound(
+                "2026/06/13-3", LocalDate.of(2026, 6, 13), 3,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "거래처",
+                null, "메모", "user-1");
+        slip.save();
+        slip.send();
+        SlipSnapshot partnerlessSnapshot = snapshot("2026/06/13-3", "거래처 없는 이력");
+        org.mockito.Mockito.when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+        SlipDocumentCollaborationPort port = new SlipDocumentCollaborationPort(
+                slipRepository, slipService, revisionService, objectMapper);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> port.restoreSnapshot(
+                                slipId, objectMapper.writeValueAsString(partnerlessSnapshot)))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessage("거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다");
+        org.mockito.Mockito.verify(slipRepository, org.mockito.Mockito.never()).save(slip);
+        org.mockito.Mockito.verifyNoInteractions(revisionService);
+    }
+
     private static SlipSnapshot snapshot(String slipNo, String memo) {
         return new SlipSnapshot(
                 slipNo,

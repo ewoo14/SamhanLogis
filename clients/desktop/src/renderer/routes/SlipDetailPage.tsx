@@ -116,6 +116,27 @@ import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
+/** SAVED 전표를 거래처 없이 SENT로 전송할 때 표시할 사용자 안내. */
+export const PARTNER_REQUIRED_SEND_MESSAGE =
+  '거래처를 먼저 지정해야 전송할 수 있습니다 — 전표 수정에서 거래처를 지정하세요'
+
+/**
+ * 전표 거래처 필수화 전이 가드의 FE preflight.
+ *
+ * <p>모바일 액션 시트와 데스크톱 다음 단계 버튼이 같은 predicate를 사용한다.
+ * DRAFT 저장과 BE의 최종 가드는 이 함수의 대상이 아니다.
+ *
+ * @param slip 전표 상태와 거래처 UUID
+ * @param action 실행할 전이 액션
+ * @return SAVED→SENT이며 거래처 UUID가 없으면 true
+ */
+export function shouldBlockPartnerlessSend(
+  slip: Pick<SlipDetail, 'status' | 'partnerId'>,
+  action: SlipTransitionAction,
+): boolean {
+  return action === 'send' && slip.status === 'SAVED' && !slip.partnerId
+}
+
 /**
  * 특이사항 메모에서 배송태그 자동 접두("[지방] …" 등 레거시 autoMemo)를 제거한다.
  * DispatchDocument 와 동일 로직 — 신규 전표는 no-op, 레거시 호환용.
@@ -1364,6 +1385,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   const handleTransition = (action: SlipTransitionAction) => {
     if (transitionMutation.isPending) return
+    if (shouldBlockPartnerlessSend(slip, action)) {
+      alert(PARTNER_REQUIRED_SEND_MESSAGE)
+      return
+    }
     if (!canAccess(slipActionPageCode(action).pageCode, 'update')) {
       alert('해당 전표 상태를 변경할 권한이 없습니다.')
       return
@@ -1464,6 +1489,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   /** 하단 "완료" — 다음 정상 단계 transition 실행. */
   const handleAdvanceStage = () => {
     if (!nextPrimaryAction) return
+    if (shouldBlockPartnerlessSend(slip, nextPrimaryAction)) {
+      alert(PARTNER_REQUIRED_SEND_MESSAGE)
+      return
+    }
     transitionMutation.mutate({ action: nextPrimaryAction })
   }
 
