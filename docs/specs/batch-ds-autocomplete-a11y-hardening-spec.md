@@ -1,44 +1,51 @@
-# 배치 B1 — DS 자동완성·a11y 하드닝 (기획 spec)
+# 배치 B1-A — DS 자동완성 상태/선택확정 계약 하드닝 (기획 spec v2)
 
-> OPUS 기획 · **백로그 번다운 배치**(2026-07-19 개발책임자 지시: 슬라이스 파생 chore 순증 → 배치 close 로 순감 전환). #825 슬1~3 재수렴 + #820 R8 에서 발굴된 **design-system 자동완성/접근성 pre-existing 하드닝 6건**을 한 슬라이스로 정식 검증·close.
+> OPUS 기획 · 백로그 번다운. **CODEX SOL 기획검수 R1(BLOCKING 3·분할 권고) 반영**: 6이슈 배치를 **B1-A 상태/계약(#834·#837·#840)** + **B1-B 독립 a11y(#828·#842·#843·후속 PR)** 로 분할. B1-A 먼저(#840·#843 둘 다 `PartnerAutocomplete.tsx` → 병렬 충돌 회피).
 >
-> 대상 이슈: **#834**(AsyncAutocomplete debounce/a11y) · **#837**(DocumentReferencePicker 상태머신) · **#840**(selection-confirmed 계약) · **#842**(WarehouseAutocomplete DOM/ARIA) · **#843**(matchBadge 모바일 ellipsis) · **#828**(LineRow role=row orphan).
+> 대상: **#834**(AsyncAutocomplete debounce/a11y 상태머신) · **#837**(DocumentReferencePicker 요청 세대) · **#840**(selection-confirmed 계약·동명 우회).
 
-## 1. 배경·범위
-전부 **frontend**(design-system + desktop)·기능안전(크래시/데이터손상 없음)이나 UX/a11y 하드닝 가치. 공통 테마 = 자동완성 DOM/ARIA 식별자·요청 세대 가드·선택확정 계약·배지 레이아웃·행 a11y. **공용 컴포넌트 변경**이므로 [[feedback_design_system_playwright_mock_suite]] 대로 Playwright mock 회귀 스위트가 권위.
+## 1. 파급면 (SOL 실측)
+`AsyncAutocomplete` base 변경은 **16 운영 화면·22 mount** 회귀면(PartnerAutocomplete 12화면/15mount·ProductAutocomplete 2/4·MultiSelectAutocomplete 2/2·AA 직접 JournalForm 1). name-equality 업무 가드는 **정확히 2곳**: `DailyClosingPage.tsx:230`·`admin/BlockedPartnersPage.tsx:409`. → **전 22 mount 회귀 스위트 필수**.
 
-## 2. 결정 (issue별)
+## 2. 결정
 
-### D-B1-01 (#828·axe serious) LineRow role=row orphan 해소
-`LineRow.tsx:252` `role="row"`가 부모 `role="table"/"rowgroup"/"grid"` 없이 orphan(axe `aria-required-parent` serious). **최소 침습**: LineRow 컨테이너(소비처 `SlipFormPage`·`EstimateCatalog` 등)에 `role="table"`+행 그룹 `role="rowgroup"` 부여, 또는 LineRow 의 `role="row"` 제거가 시맨틱에 맞으면 제거. 전 소비처 무회귀 + axe 재검(serious 0).
+### D-B1A-01 (#840·BLOCKING) committed-selection = **출력 계약**
+`aria-expanded`/listbox-open 은 팝업 a11y 상태이지 업무 확정 아님(빈 입력=전체마감 유효인데 focus만으로 open=true→오차단). `isSelectionConfirmed` **입력 prop 아님** — child→parent **출력 계약**:
+```ts
+onInputCommitChange?: (committed: boolean) => void   // committed = 표시중 입력이 마지막 확정 선택(업무키)과 일치·미편집
+```
+**상태표(고정·spec 불변식)**:
+| 상태 | committed |
+|---|---|
+| `value=null`·입력 빈 | **true** |
+| 명시적 후보 선택 완료 | **true**(확정키=선택 getKey) |
+| 선택 P1 보유·focus 로 표시 빈 | **false** |
+| 사용자 1글자라도 편집 | **false**(결과 문자열이 P1.name 같아도 false) |
+| P2 후보 명시 선택 | **true**(확정키=P2 `partnerCode`) |
+| Escape/blur 로 편집 취소·P1 복원 | **true** |
+| 외부 controlled value 초기화/교체 | **true**(닫힘) |
+| 선택 해제 후 빈 입력 | **true** |
 
-### D-B1-02 (#842·D-S3-04) WarehouseAutocomplete DOM/ARIA 도메인식별자 분리
-`WarehouseAutocomplete.tsx`의 `Warehouse.id`(:25)가 `aria-activedescendant`(:280)·옵션 `id`(:295-299)에 유입(UUID DOM 노출). 슬3 AsyncAutocomplete `optionDomId(index)`(opaque·index 기반) 패턴 이식 → getKey(업무키) DOM 유출 차단. React key/선택/키보드 보존·ARIA 단위테스트.
+업무키 = `getKey`(Partner=`partnerCode`)·**이름은 확정 판정 절대 미사용**. `AsyncAutocomplete.tsx:202` blur exact-match `candidates.find()` 첫항목 자동선택 = **exact 후보 복수면 자동확정 금지**(또는 blur 자동선택을 committed 미인정). 소비처 2곳 가드를 name-equality → **확정키(committed+getKey)** 판정으로 교체.
 
-### D-B1-03 (#834) AsyncAutocomplete debounce/a11y LOW 하드닝
-슬1 재수렴 발굴 5건(전부 pre-existing·기능안전): stale-key·false-empty·activeIndex·aria-controls·terminal-error 계열. 각 항목을 실 코드 재확인 후 최소 하드닝(원자 clear 창·aria-controls/activedescendant 정합·terminal error 표시). ac-* mock 스위트 회귀 게이트.
+### D-B1A-02 (#834·BLOCKING) AsyncAutocomplete 항목별 처분 (A~E)
+- **A stale 선택**: 입력 변경 후 이전 후보 유지 시 Enter 단일후보 fallback·Arrow·**마우스 `onMouseDown` 모두** 이전 후보 선택 가능 → keydown만 막으면 부분해소. **후보 유지 정책 유지 시 `draft.trim() === resolvedQuery` 일 때만 키보드+포인터 선택 허용·stale 옵션 `aria-disabled=true`**.
+- **B/E false-empty·error**: 새 유효 입력 즉시 terminal 상태 `idle` 중화 + `errorMsg` 제거(empty→hit·error→retry 방향 주석 정정).
+- **C activeIndex**: `AsyncAutocomplete.tsx:258` 이미 `-1` 리셋 → **구현 대상 아님·회귀 테스트 pin/완료 처분**.
+- **D ARIA**: `aria-controls` + **`aria-expanded` 를 실제 listbox 존재와 일치**(`:456` 내부 `open` 그대로 노출 → 후보 0/error/empty 시 정합). live IDREF.
 
-### D-B1-04 (#837·MED×2) DocumentReferencePicker 요청 세대 가드
-`DocumentReferencePicker.tsx`: [MED] 요청 세대 가드 부재(:127)—clear/선택/유형변경 후 이전 in-flight 응답이 후보·open 되살림 → **세대 토큰(requestId) 가드**로 stale 응답 폐기. [MED] 디바운스 창 stale 선택(:145)—이전 후보+activeIndex=0 유지 → 입력 변경 시 후보/activeIndex 원자 리셋. [LOW] `suppressNextSearchRef` 미소비(:135) 정리. → [[feedback_react_query_freshness_route_param_reset]] 정신(세대 latch).
+### D-B1A-03 (#837·BLOCKING·HIGH) DocumentReferencePicker 요청 세대 무효화
+수동 Axios(`documentReferenceSearch.ts:83`·React Query 아님). **세대 토큰(requestId) 동기 증가 트리거 전수**: query 변경·유형 변경·후보 선택·clear/empty·Escape·blur 닫힘·disabled 전환·외부 value 변경·unmount. `then/catch/**finally**` 전부 동일 세대 확인(stale `finally` 가 새 요청 spinner 미소등). `suppressNextSearchRef: boolean` → React 동일 query skip 시 미소비·다음 검색 삼킴 → **"건너뛸 정확 query" 저장 or 제거**. blur(`:250`) timer ref 없이 예약 → **focus 시 취소 + blur 세대 무효화**. [[feedback_react_query_freshness_route_param_reset]] 세대 latch 정신.
 
-### D-B1-05 (#840·MED) selection-confirmed 계약 — 동명 거래처 우회 차단
-`DailyClosingPage`·`admin/BlockedPartnersPage` 가드가 `typedDraft === partner.name`으로 확정 판정하나 **상호는 unique 아님** → 동명 거래처(P1/P2 상호 동일·코드 상이) 우회. **근본 = design-system 계약**: AsyncAutocomplete/PartnerAutocomplete 에 **`isSelectionConfirmed`(마지막 확정 선택의 업무키 보유·입력이 그 후 미변경) 또는 listbox-open 상태 노출** → 소비처 가드가 name-equality 아닌 **확정 선택 id**로 판정. 동명 IT/mock 회귀.
+## 3. 검증 (SOL·실 게이트만)
+- **#840**: 모바일 라이브 QA 아님 → **deterministic mock**(두 화면 각 P1/P2 **동명·상이 code** fixture·미선택 실행 0회·P2 명시선택 후 **P2 `partnerCode` payload** 단언). `clients/desktop/playwright/ac-*` desktop mock gate.
+- **#837**: **deferred-Promise unit**(A/B 응답 역순 resolve·query/type/select/clear/disabled/blur/Escape/unmount 후 stale 응답이 options·open·loading 미변경)·loading owner 단언.
+- **#834**: stale keyboard/단일 Enter/**mouse 모두 차단**·terminal 상태 전환(empty→hit·error→retry)·live IDREF·activeIndex 회귀 pin.
+- **전 22 mount 회귀**: DS vitest + desktop vitest + `ac-*` desktop Playwright mock gate(skipped=0)·**npm run typecheck**(vitest≠tsc).
 
-### D-B1-06 (#843·LOW) matchBadge 모바일 ellipsis 클립
-`AsyncAutocomplete.module.css` matchBadge(:193)가 ellipsis 필드(:143) 마지막 자식 → 좁은 모바일 폭에서 배지 클립. **텍스트 전용 ellipsis wrapper + `flex-shrink:0` 배지를 형제로 분리**(배지 항상 렌더). Partner/Product 배지 공통·모바일 라이브 QA 시각 확인.
+## 4. 워크플로우
+OPUS 기획(본 spec v2·PR #857) → CODEX SOL 기획검수(R1 BLOCKING 3→v2·재검수 GO) → CODEX LUNA 구현 → OPUS R1+라이브QA(동명 우회 실증) → CODEX SOL R2(fix=LUNA) → 0수렴 → 재수렴 → PM 종합 → CI green → 머지·**#834/#837/#840 close**.
 
-## 3. 상호의존·순서
-- D-B1-05(selection-confirmed 계약)는 AsyncAutocomplete 계약 추가 → D-B1-03(#834 a11y)·D-B1-02(#842)와 같은 컴포넌트 계열 → **함께 설계**(계약 1회 추가·소비처 배선). D-B1-01(#828)·D-B1-06(#843)은 독립.
-- 공용 base(AsyncAutocomplete) 변경 → **전 소비처 회귀 스위트 필수**(ac-*·5+ 소비처).
-
-## 4. 검증
-- **design-system Playwright mock 스위트**(`playwright/ac-*` mock :5173) 권위 — 변경 컴포넌트별 회귀 + 신규(selection-confirmed·warehouse ARIA·docref 세대) 케이스.
-- **vitest**(DS + desktop) · **npm run typecheck**(vitest≠tsc) · **axe**(#828 serious 0).
-- **모바일 라이브 QA**(#843 배지 시각·#840 동명 우회 차단) — 실 화면 스샷.
-
-## 5. 워크플로우 (캐논·chore도 비예외)
-OPUS 기획(본 spec·조기 PR·Closes #834/#837/#840/#842/#843/#828) → CODEX SOL 기획검수 → CODEX LUNA 구현 → OPUS R1 5-agent+라이브QA → CODEX SOL R2(fix=LUNA) → 0수렴 → 재수렴 → PM 종합 → CI green(mock hard gate 포함) → 머지·6이슈 close.
-
-## 6. 스코프 경계
-- 6개 하드닝 한정. 자동완성 신기능·재설계 = 밖.
-- SOL 기획검수가 배치 과대(한 PR 부적합) 판정 시 2 PR 분할 가능(계약 계열 / 독립 계열).
+## 5. 스코프·후속
+- **B1-B(#828 LineRow role=row 제거·#842 Warehouse DOM/ARIA·#843 matchBadge sibling 분리)** = B1-A 머지 후 후속 PR(SOL 권고 순서). #828은 `EstimateLineRow`·`LineTableHeader` orphan sweep + fake test wrapper 제거 포함 예정.
+- B1-A는 AA 상태머신·계약 한정. 자동완성 재설계 = 밖.
