@@ -26,7 +26,7 @@ Partner/Product 별도 복제 `HighlightedPartnerField`/`HighlightedProductField
 - 기존 primary/secondary flex 배분 유지 · **Partner tertiary(사업자번호)도 `min-width:0`·shrink 가능**(긴 사업자번호가 option 밀지 않게)
 
 ## 2. 검증 ([SOL BLOCKING-4] CI hard gate 명시)
-- **#828**: `@axe-core/playwright` **desktop devDependency 도입**(DS 아님). **CI 포함 일반 desktop Playwright spec**(real-qa 경로 아님·CI 제외됨)에서 실제 SlipForm `.sfp-line-table` include→`aria-required-parent` violation **0** 단언. DS 단위테스트: LineRow/Header/EstimateLineRow 외곽 role/aria-selected 없음·**단가 input IDREF 4케이스**(가격출처만/변경만/둘다 복수 IDREF/없음·각 실존요소 지시)·checkbox accessible name·checked·`.selected` 유지.
+- **#828**: `@axe-core/playwright` **desktop devDependency 도입**(DS 아님). **CI 포함 일반 desktop Playwright spec**(real-qa 경로 아님·CI 제외됨)에서 실제 SlipForm `.sfp-line-table` include→`aria-required-parent` violation **0** 단언. DS 단위테스트: LineRow/Header/EstimateLineRow 외곽 role/aria-selected 없음·**`EstimateLineRow` 내부 `[role="cell"]` 0건 단언**(외곽+자식 cell 전수 제거·SOL R2)·**단가 input IDREF 4케이스**(가격출처만/변경만/둘다 복수 IDREF/없음·각 실존요소 지시)·checkbox accessible name·checked·`.selected` 유지.
 - **#842**: DS vitest 단위테스트 hard gate — option id 정확히 opaque `-opt-N`·UUID/code가 **id/IDREF 속성**에 없음(보이는 텍스트는 허용)·ArrowDown active id 실존 option·Enter+mouse `onChange(id,object)`·React key `w.id`·후보 0건 expanded=false·controls/active 없음·listbox 없음·status 존재.
 - **#843**: 같은 CI 일반 spec에서 **실제 `/sales/new` Partner/Product render**(또는 fixture wrapper 폭 명시)·**360/390px**·5종 텍스트(Partner 상호/코드/사업자번호·Product 모델명/품목명) 각 badge visible + bbox 좌우상하 option bbox 내부(~0.5-1px tolerance)·1440px 텍스트/separator 순서·필드 노출 유지. 기존 `splitHighlightMatches`·`matchBadge` 대비 테스트 hard gate 유지.
 - **공통**: 신규 테스트 `test.skip`/조건부 return 금지·**skipped=0**. 전체 DS/desktop vitest·typecheck 유지.
