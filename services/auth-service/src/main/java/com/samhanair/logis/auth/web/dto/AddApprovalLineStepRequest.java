@@ -5,5 +5,5 @@ import jakarta.validation.constraints.Size;
 
 /** 결재라인 표시·서명용 단계 추가 요청. */
 public record AddApprovalLineStepRequest(
-        @NotBlank String documentType,
+        @NotBlank @Size(max = 70) String documentType,
         @NotBlank @Size(max = 50) String label) {}

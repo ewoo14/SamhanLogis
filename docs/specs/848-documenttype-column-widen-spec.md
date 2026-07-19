@@ -51,7 +51,7 @@
 - **라이브QA**: 실서버 — code 31–60자 결재유형 생성 → 결재 발의 성공(스샷)·해당 문서 레이아웃 템플릿 저장 성공·auth 결재선 설정 GROUPWARE_${code} 조회 정상.
 
 ## 4. 리스크
-- **ALTER COLUMN TYPE VARCHAR(40)→70 = Postgres no-rewrite**(PG 16.14·확장은 binary-coercible) → **테이블 재작성·인덱스 재빌드 없음**, `ACCESS EXCLUSIVE` catalog 락만. 실측 소규모(document_templates 5행/8KB·approval_lines 69행/136KB·approval_line_config 13행/40KB·doc_type 인덱스 2개 각 16KB·현 관련 락/열린 tx 0).
+- **ALTER COLUMN TYPE VARCHAR(40)→70 = Postgres no-rewrite**(PG 16.14·확장은 binary-coercible) → **테이블 재작성 없음**(relfilenode 불변 실측). ⚠️ **단 대상 컬럼을 키에 포함한 유니크 인덱스 3개는 ALTER 락 내에서 재빌드됨**(R1-D1 relfilenode 추적 실측: `ux_document_templates_active_doc_type`·`ux_document_templates_name_active`·auth `uq_approval_line_config_doctype_seq_active` — PG 공식 "indexes on the affected columns must still be rebuilt"). 재빌드는 ALTER 가 이미 잡은 `ACCESS EXCLUSIVE` 락 내에서 수행되어 **추가 락·추가 차단창 없음**·소규모(document_templates 5행·approval_line_config 13행 → sub-ms). `approval_lines`(document_type 인덱스 無)는 catalog 변경만. 현 관련 락/열린 tx 0.
 - ⚠️ **락 대기(SOL-M3·M4)**: 라이브 `lock_timeout=0` → "brief ACCESS EXCLUSIVE" 는 **락 획득 후에만** 참·선행 장기 tx 있으면 무기한 대기 가능. **배포 runbook: ⒜ 사전 blocker query**(`pg_locks`/`pg_stat_activity` 장기 tx 확인) **⒝ `SET LOCAL lock_timeout='5s'` 를 V11/V89 마이그 트랜잭션 첫 문장으로 삽입**(Flyway 는 마이그를 tx 로 감쌈 → SET LOCAL 이 ALTER 락 획득에 적용·5s 초과 시 fail-fast 후 저활동창 재시도). ⚠️ **별도 psql 명령의 `SET LOCAL` 은 `can only be used in transaction blocks` 로 무효**(SOL-M4 라이브 실측). 저활동창 선택 시 blocker query 필수 선행.
 - **적용 마이그 불변**(groupware V1~V10·auth V1~V88 무수정·V11/V89 신규만)[[feedback_applied_migration_immutable]].
 - 배포: groupware+auth 2 서비스 마이그(독립 DB·독립 컬럼 → 순서 무관). 엔티티(70)↔컬럼(70) 동시 배포(부팅 validate).

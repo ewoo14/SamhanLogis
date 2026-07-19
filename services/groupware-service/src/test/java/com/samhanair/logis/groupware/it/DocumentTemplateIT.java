@@ -112,6 +112,42 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     }
 
     @Test
+    void httpDocType_41to70_passesValidationGate_and71Rejected() throws Exception {
+        // 위 accepts41And70 테스트는 service.create() 직접 호출이라 @Valid(DTO @Size) 를 우회한다.
+        // 실 HTTP 경로를 태워야 41–70자 GROUPWARE_${code} 레이아웃 저장이 실제 가능한지 검증된다
+        // (#848 store ②·DTO @Size(40) 게이트 회귀 차단·[[feedback_live_qa_penetrates_it_masking]]).
+        String hdr = "40000000-0000-0000-0000-000000000845";
+        mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("N".repeat(41), "HTTP 41자"))))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("O".repeat(70), "HTTP 70자"))))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("P".repeat(71), "HTTP 71자"))))
+                .andExpect(status().isBadRequest());
+
+        // update(PUT) DTO 게이트도 동일. DRAFT 는 docType 변경 불가(422)라 동일 65자 docType 으로 rename → 200.
+        String created = mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("Q".repeat(65), "PUT 시드"))))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
+        mvc.perform(put("/admin/groupware/document-templates/{id}", id).header("X-User-Id", hdr)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("Q".repeat(65), "PUT 65자 rename"))))
+                .andExpect(status().isOk());
+        mvc.perform(put("/admin/groupware/document-templates/{id}", id).header("X-User-Id", hdr)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request("Z".repeat(71), "PUT 71자"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void httpCrudActivationAndJsonbRoundTrip() throws Exception {
         DocumentTemplateCreateRequest request = request("GROUPWARE_ROUNDTRIP", "왕복 양식");
         String created = mvc.perform(post("/admin/groupware/document-templates")
