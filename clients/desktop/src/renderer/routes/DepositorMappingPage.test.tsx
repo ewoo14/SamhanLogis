@@ -31,8 +31,10 @@ function historyRow(overrides: Partial<DepositorMappingHistoryResponse>): Deposi
     actor: '사용자',
     changedAt: '2026-07-17T09:00:00',
     revisionNo: 1,
+    operationOrdinal: 1,
+    generation: 1,
     ...overrides,
-  }
+  } as DepositorMappingHistoryResponse
 }
 
 afterEach(() => {
@@ -69,18 +71,30 @@ describe('DepositorMappingPage 거래처 상태 셀 (#810 R3 계약 pin)', () =>
 })
 
 describe('DepositorMappingPage 이력 표시 (#810 적대검증 R3 L4-M1)', () => {
+  it('revisionNo 대신 작업 ordinal과 세대를 표시한다', () => {
+    render(
+      <HistoryTable
+        rows={[historyRow({ revisionNo: 99, operationOrdinal: 3, generation: 2 })]}
+        loading={false}
+      />,
+    )
+    expect(screen.getByText('작업 3')).toBeTruthy()
+    expect(screen.getByText('2세대')).toBeTruthy()
+    expect(screen.queryByText('#99')).toBeNull()
+  })
+
   it('BE 반환 순서(changedAt desc)를 재정렬하지 않는다 — 신 entity rev 1이 구 entity rev 2보다 위', () => {
     // 같은 키 삭제+재생성 시나리오: BE 는 시간순(desc)으로 신 entity 생성(rev 1)을
     // 구 entity 삭제(rev 2)보다 먼저 반환한다. FE 가 revisionNo 를 1차 정렬 키로 재정렬하면
     // 이 순서가 #2-#1-#1 로 뒤집혀 시간순이 뒤섞인다 — 결함 재현 가드.
     const rows = [
-      historyRow({ fieldName: 'mapping.partnerCode', newValue: 'P-2026-0002', revisionNo: 1, changedAt: '2026-07-17T10:00:00' }),
-      historyRow({ fieldName: 'mapping.rawName', oldValue: '삼한상사', newValue: null, revisionNo: 2, changedAt: '2026-07-17T09:00:00' }),
-      historyRow({ fieldName: 'mapping.partnerCode', newValue: 'P-2026-0001', revisionNo: 1, changedAt: '2026-07-17T08:00:00' }),
+      historyRow({ fieldName: 'mapping.partnerCode', newValue: 'P-2026-0002', revisionNo: 1, operationOrdinal: 1, generation: 2, changedAt: '2026-07-17T10:00:00' }),
+      historyRow({ fieldName: 'mapping.rawName', oldValue: '삼한상사', newValue: null, revisionNo: 2, operationOrdinal: 2, generation: 1, changedAt: '2026-07-17T09:00:00' }),
+      historyRow({ fieldName: 'mapping.partnerCode', newValue: 'P-2026-0001', revisionNo: 1, operationOrdinal: 1, generation: 1, changedAt: '2026-07-17T08:00:00' }),
     ]
     render(<HistoryTable rows={rows} loading={false} />)
-    const revisionCells = screen.getAllByText(/^#\d+$/)
-    expect(revisionCells.map((cell) => cell.textContent)).toEqual(['#1', '#2', '#1'])
+    const operationCells = screen.getAllByText(/^작업 \d+$/)
+    expect(operationCells.map((cell) => cell.textContent)).toEqual(['작업 1', '작업 2', '작업 1'])
   })
 
   it('rowKey 는 opaque entryKey — 다른 entity 가 같은 회차·시각·필드라도 React key 가 충돌하지 않는다 (#810 R3 S4-M3)', () => {

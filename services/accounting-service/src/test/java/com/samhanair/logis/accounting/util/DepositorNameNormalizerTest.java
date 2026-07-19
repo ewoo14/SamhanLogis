@@ -30,4 +30,13 @@ class DepositorNameNormalizerTest {
         assertThat(DepositorNameNormalizer.normalize(null)).isNull();
         assertThat(DepositorNameNormalizer.normalize("\u2007\u202F")).isEmpty();
     }
+
+    @Test
+    @DisplayName("BOM은 Java Unicode 공백이 아니므로 보존한 채 대문자화한다")
+    void preservesBomPrefix() {
+        String normalized = DepositorNameNormalizer.normalize("\uFEFFacme");
+
+        assertThat(normalized).isEqualTo("\uFEFFACME");
+        assertThat(normalized).isNotEqualTo("ACME");
+    }
 }

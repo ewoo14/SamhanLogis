@@ -7,7 +7,9 @@ import java.time.LocalDateTime;
  *
  * <p>#810 적대검증 R1 (L4-H2) — 매핑 entityId 기준 <b>전 필드</b>(rawName/normalizedName/
  * partnerCode/사유) 행을 반환하며, 같은 mutation 의 행들이 {@code revisionNo} 를 공유해
- * FE 가 회차 단위로 묶어 표시할 수 있다.
+ * FE 가 작업 단위로 묶어 표시할 수 있다. {@code operationOrdinal}은 entity-local
+ * revisionNo를 전체 조회 범위의 oldest-first 작업 순번으로 파생한 표시용 값이고,
+ * {@code generation}은 entityId 최초 등장 순서로 파생한 세대 라벨이다.
  *
  * <p>#810 R3-CODEX (S4-M3, 계약 pin) — {@code entryKey} 는 행마다 유일·안정(같은 행은 항상
  * 같은 값)한 <b>opaque 문자열</b>이다(SHA-256 hex 절단 — UUID 아님·역산 불가). FE 는 이를
@@ -21,6 +23,8 @@ public record BankDepositorPartnerMappingHistoryResponse(
         String newValue,
         String actor,
         LocalDateTime changedAt,
-        int revisionNo
+        int revisionNo,
+        int operationOrdinal,
+        int generation
 ) {
 }

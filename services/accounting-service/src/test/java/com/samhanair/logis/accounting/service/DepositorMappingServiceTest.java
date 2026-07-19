@@ -25,6 +25,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -253,6 +254,7 @@ class DepositorMappingServiceTest {
         assertThat(history.get(0).oldValue()).isEqualTo("P-001");
         assertThat(history.get(0).newValue()).isEqualTo("P-002");
         assertThat(history.get(0).revisionNo()).isEqualTo(2);
+        assertThat(history.toString()).contains("operationOrdinal=2", "generation=1");
         assertThat(history.get(1).fieldName()).isEqualTo("mapping.reason");
         // #810 R3-CODEX (S4-M3, 계약 pin): 행마다 유일·안정한 opaque entryKey — 같은
         // revisionNo(2) 를 공유하는 두 행도 서로 다른 key 를 가져 FE React key 충돌이 없다.
@@ -265,6 +267,54 @@ class DepositorMappingServiceTest {
         verify(auditLogRepository).findMappingHistoryByEntityIds(
                 org.mockito.ArgumentMatchers.argThat(ids ->
                         ids.contains(entityId) && ids.contains(renamedEntityId)));
+    }
+
+    @Test
+    @DisplayName("history는 레거시 분산 시각 행도 entityId·revisionNo 작업 하나로 묶는다")
+    void historyGroupsLegacyRowsByEntityAndRevision() {
+        UUID entityId = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        UUID actorId = UUID.randomUUID();
+        LocalDateTime base = LocalDateTime.of(2026, 7, 20, 9, 0);
+        when(mappingRepository.findIdsByNormalizedNameIncludingDeleted("ACME")).thenReturn(List.of(entityId));
+        when(auditLogRepository.findMappingEntityIdsByNormalizedName("ACME")).thenReturn(List.of());
+        when(auditLogRepository.findMappingHistoryByEntityIds(any())).thenReturn(List.of(
+                AccountingAuditLog.record(entityId, 2, actorId, "사용자", null,
+                        "mapping.reason", null, "UPDATE", base.plusMinutes(2)),
+                AccountingAuditLog.record(entityId, 2, actorId, "사용자", null,
+                        "mapping.partnerCode", "P-001", "P-002", base.plusMinutes(1)),
+                AccountingAuditLog.record(entityId, 1, actorId, "사용자", null,
+                        "mapping.rawName", null, "Acme", base)));
+
+        List<BankDepositorPartnerMappingHistoryResponse> history = service.history("ACME");
+
+        assertThat(history).hasSize(3);
+        assertThat(history.toString()).contains("operationOrdinal=2");
+        assertThat(history.toString()).doesNotContain("operationOrdinal=3");
+    }
+
+    @Test
+    @DisplayName("동시각 세대는 entityId asc로 결정하고 반복 조회에도 파생 순서가 안정적이다")
+    void historyUsesStableGenerationTieBreak() {
+        UUID firstEntity = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        UUID secondEntity = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        UUID actorId = UUID.randomUUID();
+        LocalDateTime changedAt = LocalDateTime.of(2026, 7, 20, 10, 0);
+        when(mappingRepository.findIdsByNormalizedNameIncludingDeleted("ACME"))
+                .thenReturn(List.of(secondEntity, firstEntity));
+        when(auditLogRepository.findMappingEntityIdsByNormalizedName("ACME"))
+                .thenReturn(List.of());
+        when(auditLogRepository.findMappingHistoryByEntityIds(any())).thenReturn(List.of(
+                AccountingAuditLog.record(secondEntity, 1, actorId, "사용자", null,
+                        "mapping.partnerCode", null, "SECOND", changedAt),
+                AccountingAuditLog.record(firstEntity, 1, actorId, "사용자", null,
+                        "mapping.partnerCode", null, "FIRST", changedAt)));
+
+        List<BankDepositorPartnerMappingHistoryResponse> first = service.history("ACME");
+        List<BankDepositorPartnerMappingHistoryResponse> second = service.history("ACME");
+
+        assertThat(first.toString()).contains("newValue=FIRST", "operationOrdinal=1", "generation=1");
+        assertThat(first.toString()).contains("newValue=SECOND", "operationOrdinal=2", "generation=2");
+        assertThat(second.toString()).isEqualTo(first.toString());
     }
 
     @Test

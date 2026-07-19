@@ -2604,6 +2604,185 @@ describe('mock permission matrix contract', () => {
   })
 })
 
+describe('#832 mock parity contracts', () => {
+  const staleCases = [
+    ['SUSPENDED', '4567890123'],
+    ['TERMINATED', '6789012345'],
+  ] as const
+
+  function importCodef(accountRef: string, date: string) {
+    return mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId: `#832-${accountRef}-${date}`,
+        from: date,
+        to: date,
+        type: 'BANK',
+        accountRefs: [accountRef],
+        cardRefs: [],
+        loanRefs: [],
+      },
+    }) as MockEnvelope<{
+      fetchedCount: number
+      importedCount: number
+      duplicateSkippedCount: number
+      matchedCount: number
+      staleSkippedCount: number
+      staleNormalizedNames: string[]
+    }>
+  }
+
+  it.each(staleCases)('거래처 status=%s는 목록/CODEF/CSV 전 경로에서 genuine stale로 집계된다', (status, partnerCode) => {
+    const date = new Date().toISOString().slice(0, 10)
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    const mapping = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: '삼한테스트상사', partnerCode, reason: `#832 ${status}` },
+    }) as MockEnvelope<Record<string, unknown>>
+
+    const listed = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings',
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(listed.data.find((row) => row.normalizedName === '삼한테스트상사')).toMatchObject({
+      targetStatus: status,
+      staleTarget: true,
+    })
+
+    const codef = importCodef(`국민 #832 ${status}`, date)
+    expect(codef.data.importedCount).toBeGreaterThan(0)
+    expect(codef.data.staleSkippedCount).toBe(1)
+    expect(codef.data.staleNormalizedNames).toEqual(['삼한테스트상사'])
+
+    const csv = mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel: `#832 CSV ${status}` },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(csv.data.importedCount).toBeGreaterThan(0)
+    expect(csv.data.staleSkippedCount).toBe(1)
+    expect(csv.data.staleNormalizedNames).toEqual(['삼한테스트상사'])
+
+    expect(mapping.data).toMatchObject({ normalizedName: '삼한테스트상사' })
+    mockRequest({
+      method: 'DELETE',
+      url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC',
+    })
+  })
+
+  it('삭제된 거래처는 목록/CODEF/CSV 모두 NOT_FOUND stale 계약으로 처리한다', () => {
+    const suffix = String(Date.now())
+    const partnerCode = 'P-DELETED-004'
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    mockRequest({ method: 'POST', url: `/accounting/deposit-mappings`, data: { rawName: '삼한테스트상사', partnerCode } })
+
+    const listed = mockRequest({ method: 'GET', url: '/accounting/deposit-mappings' }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(listed.data.find((row) => row.normalizedName === '삼한테스트상사')).toMatchObject({
+      targetStatus: null,
+      staleTarget: true,
+      partnerCode,
+      partnerName: null,
+    })
+    expect(importCodef(`국민 #832 deleted ${suffix}`, new Date().toISOString().slice(0, 10)).data.staleSkippedCount).toBe(1)
+    const csv = mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel: `#832 CSV deleted ${suffix}` },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(csv.data.staleSkippedCount).toBe(1)
+
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+  })
+
+  it('CODEF matchedCount는 신규 적재된 입금자명 매핑/코드정확일치만 세고 재import는 0/0이다', () => {
+    const date = new Date().toISOString().slice(0, 10)
+    const accountRef = `#832 matched ${Date.now()}`
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: '삼한테스트상사', partnerCode: '1234567890', reason: '#832 matched' },
+    })
+    const first = importCodef(accountRef, date)
+    expect(first.data.importedCount).toBe(2)
+    expect(first.data.matchedCount).toBe(2)
+    const importedRows = mockRequest({
+      method: 'GET',
+      url: '/accounting/bank-transactions',
+      params: { bankAccountLabel: accountRef },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(importedRows.data.find((row) => row.externalRef.endsWith('-001'))).toMatchObject({
+      partnerMatchSource: 'DEPOSITOR_MAPPING',
+    })
+    expect(importedRows.data.find((row) => row.externalRef.endsWith('-002'))).toMatchObject({
+      partnerMatchSource: 'PARTNER_CODE_EXACT',
+    })
+
+    const second = importCodef(accountRef, date)
+    expect(second.data.importedCount).toBe(0)
+    expect(second.data.matchedCount).toBe(0)
+
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+  })
+
+  it('create/update/history/delete/learn 전 경로는 BOM을 Java 정규화처럼 보존한다', () => {
+    const bom = '\uFEFF'
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    const created = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: `${bom}acme`, partnerCode: '1234567890', reason: '#832 BOM' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(created.data.normalizedName).toBe(`${bom}ACME`)
+    expect(created.data.normalizedName).not.toBe('ACME')
+    expect(created.data.rawName).toBe(`${bom}acme`)
+
+    const history = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: `${bom}ACME` },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(history.data.length).toBeGreaterThan(0)
+
+    const updated = mockRequest({
+      method: 'PUT',
+      url: '/accounting/deposit-mappings',
+      params: { normalizedName: `${bom}ACME` },
+      data: { rawName: `${bom}acme-updated`, partnerCode: '2345678901', reason: '#832 BOM update' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(updated.data.normalizedName).toBe(`${bom}ACME-UPDATED`)
+
+    const learnLabel = `#832 BOM learn ${Date.now()}`
+    const matched = mockRequest({
+      method: 'POST',
+      url: '/accounting/bank-transactions/import',
+      data: { bankAccountLabel: learnLabel, counterpartyName: `${bom}acme-learn` },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(matched.data.importedCount).toBeGreaterThan(0)
+
+    const learned = mockRequest({ method: 'PATCH', url: '/accounting/bank-transactions/match-partner', data: {
+      bankAccountLabel: learnLabel,
+      transactedAt: '2026-06-23T09:10:00',
+      amount: '150000',
+      externalRef: `mock-csv-${learnLabel}-1`,
+      partnerCode: '1234567890',
+    } })
+    expect(learned).toBeTruthy()
+    const learnedMapping = mockRequest({ method: 'GET', url: '/accounting/deposit-mappings' }) as MockEnvelope<Array<Record<string, unknown>>>
+    expect(learnedMapping.data.find((row) => row.normalizedName === `${bom}ACME-LEARN`)).toMatchObject({ rawName: `${bom}acme-learn` })
+
+    const deleted = mockRequest({
+      method: 'DELETE',
+      url: '/accounting/deposit-mappings',
+      params: { normalizedName: `${bom}ACME-UPDATED` },
+    }) as MockEnvelope<null>
+    expect(deleted.data).toBeNull()
+  })
+})
+
 describe('mock 활성 문서양식(document-templates/active) 핸들러', () => {
   it('시드된 docType 은 파싱 가능한 활성 envelope 를 반환한다(실 네트워크 fallthrough 방지)', () => {
     const res = mockRequest({

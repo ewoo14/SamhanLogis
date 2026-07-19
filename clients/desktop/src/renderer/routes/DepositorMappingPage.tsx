@@ -419,7 +419,8 @@ export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryR
     'mapping.reason': '변경 사유',
   }
   const columns: DataTableColumn<DepositorMappingHistoryResponse>[] = [
-    { key: 'revisionNo', header: '회차', width: '70px', render: (row) => `#${row.revisionNo}` },
+    { key: 'operationOrdinal', header: '작업', width: '90px', render: (row) => `작업 ${row.operationOrdinal}` },
+    { key: 'generation', header: '세대', width: '70px', render: (row) => `${row.generation}세대` },
     { key: 'fieldName', header: '변경 항목', width: '150px', render: (row) => fieldLabels[row.fieldName] ?? row.fieldName },
     { key: 'oldValue', header: '이전 값', render: (row) => historyValue(row.oldValue) },
     { key: 'newValue', header: '변경 값', render: (row) => historyValue(row.newValue) },

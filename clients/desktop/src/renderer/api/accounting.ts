@@ -2311,6 +2311,8 @@ export interface DepositorMappingHistoryResponse {
   actor: string
   changedAt: string
   revisionNo: number
+  operationOrdinal: number
+  generation: number
 }
 
 export interface DepositorMappingRequest {

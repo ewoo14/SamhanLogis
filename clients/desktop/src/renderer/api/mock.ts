@@ -6279,9 +6279,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       fetchedCount: importedRows.length,
       importedCount: result.importedCount,
       duplicateSkippedCount: result.duplicateSkippedCount,
-      matchedCount: 0,
-      staleSkippedCount: 0,
-      staleNormalizedNames: [],
+      matchedCount: result.matchedCount,
+      staleSkippedCount: result.staleSkippedCount,
+      staleNormalizedNames: result.staleNormalizedNames,
       // #810 R3 (L2-M1) additive 계약 — mock 은 거래처 서비스 일시장애 경로가 없어 항상 0/빈 배열.
       unavailableSkippedCount: 0,
       unavailableNames: [],
@@ -6533,14 +6533,56 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'view')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const normalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
+    const normalizedName = mockJavaTrim(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
     // BE findMappingHistoryByEntityIds 대칭(#810 적대검증 R3 L4-M1) — 키로 도달 가능한 전 entity 의
     // 행을 changedAt desc, revisionNo desc, fieldName asc 로 반환한다. revisionNo 는 entity 단위
     // 채번이라 삭제+재생성 키에서는 전역 비단조 — FE 는 이 시간순 순서를 재정렬 없이 신뢰한다.
     // entryKey 는 최종 tiebreaker(#810 R3 S4-M3) — 서로 다른 entity 가 세 키 모두 같아도
     // BE(PK 정렬)처럼 응답 순서가 total-order 로 결정적이 되게 한다. 키 자체 순서는 계약 아님.
-    const rows = (MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? [])
-      .flat()
+    const entities = MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? []
+    const entityRows = entities.flatMap((entity, entityIndex) =>
+      entity.map((row) => ({ entity, entityIndex, row })))
+    const firstSeenByEntity = new Map<MockDepositorHistoryEntity, string>()
+    for (const { entity, row } of entityRows) {
+      const firstSeen = firstSeenByEntity.get(entity)
+      if (!firstSeen || row.changedAt < firstSeen) firstSeenByEntity.set(entity, row.changedAt)
+    }
+    const generationByEntity = new Map<MockDepositorHistoryEntity, number>(
+      [...firstSeenByEntity.entries()]
+        .sort(([leftEntity, leftAt], [rightEntity, rightAt]) =>
+          leftAt.localeCompare(rightAt)
+          || entities.indexOf(leftEntity) - entities.indexOf(rightEntity))
+        .map(([entity], index) => [entity, index + 1]),
+    )
+    const operationTime = new Map<string, string>()
+    for (const { entityIndex, row } of entityRows) {
+      const key = `${entityIndex}:${row.revisionNo}`
+      const current = operationTime.get(key)
+      if (!current || row.changedAt < current) operationTime.set(key, row.changedAt)
+    }
+    const operationOrdinal = new Map<string, number>(
+      [...operationTime.entries()]
+        .sort(([leftKey, leftAt], [rightKey, rightAt]) => {
+          const leftSeparator = leftKey.indexOf(':')
+          const rightSeparator = rightKey.indexOf(':')
+          const leftEntityIndex = Number(leftKey.slice(0, leftSeparator))
+          const leftRevision = Number(leftKey.slice(leftSeparator + 1))
+          const rightEntityIndex = Number(rightKey.slice(0, rightSeparator))
+          const rightRevision = Number(rightKey.slice(rightSeparator + 1))
+          const leftEntity = entities[leftEntityIndex]!
+          const rightEntity = entities[rightEntityIndex]!
+          return leftAt.localeCompare(rightAt)
+            || (generationByEntity.get(leftEntity)! - generationByEntity.get(rightEntity)!)
+            || (leftRevision - rightRevision)
+        })
+        .map(([key], index) => [key, index + 1]),
+    )
+    const rows = entityRows
+      .map(({ entityIndex, entity, row }) => ({
+        ...row,
+        operationOrdinal: operationOrdinal.get(`${entityIndex}:${row.revisionNo}`),
+        generation: generationByEntity.get(entity),
+      }))
       .sort((a, b) => b.changedAt.localeCompare(a.changedAt)
         || b.revisionNo - a.revisionNo
         || (a.fieldName < b.fieldName ? -1 : a.fieldName > b.fieldName ? 1 : 0)
@@ -6564,7 +6606,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (denied) return denied
     const body = parseMockBody(config)
     const rawNameInput = String(body.rawName ?? '')
-    const rawName = rawNameInput.trim()
+    const rawName = mockJavaTrim(rawNameInput)
     const partnerCode = String(body.partnerCode ?? '').trim()
     const reason = String(body.reason ?? '').trim()
     if (!rawName || rawNameInput.length > 120 || reason.length > 500 || !partnerCode) {
@@ -6607,13 +6649,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'update')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const oldNormalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
+    const oldNormalizedName = mockJavaTrim(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
     if (!oldNormalizedName) return mockError(400, 'INVALID_INPUT', 'normalizedName 쿼리파라미터는 필수입니다.')
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === oldNormalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
     const body = parseMockBody(config)
     const rawNameInput = String(body.rawName ?? '')
-    const rawName = rawNameInput.trim()
+    const rawName = mockJavaTrim(rawNameInput)
     const partnerCode = String(body.partnerCode ?? '').trim()
     const reason = String(body.reason ?? '').trim()
     const normalizedName = mockDepositorNameNormalize(rawName)
@@ -6660,7 +6702,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'delete')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const normalizedName = String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? '').trim()
+    const normalizedName = mockJavaTrim(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
     if (!normalizedName) return mockError(400, 'INVALID_INPUT', 'normalizedName 쿼리파라미터는 필수입니다.')
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
@@ -6872,6 +6914,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'POST' && url.includes('/accounting/bank-transactions/import')) {
     const bankAccountLabel =
       readMockFormValue(config.data, 'bankAccountLabel').trim() || '국민 123-456'
+    const firstDepositCounterparty =
+      readMockFormValue(config.data, 'counterpartyName') || '삼한테스트상사'
     const now = Date.now()
     const importedRows = [
       {
@@ -6880,7 +6924,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         amount: '150000',
         balanceAfter: '1150000',
         description: '삼한테스트상사 입금',
-        counterpartyName: '삼한테스트상사',
+        counterpartyName: firstDepositCounterparty,
         counterpartyAccount: null,
         bankAccountLabel,
         source: 'CSV_IMPORT' as const,
@@ -6923,27 +6967,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         matchedPartnerName: null,
       },
     ]
-    let importedCount = 0
-    let duplicateSkippedCount = 0
-    for (const row of importedRows.map(mockApplyDepositorMapping)) {
-      // BE V43 unique 4-key(bankAccountLabel+transactedAt+amount+externalRef) 와 동일 dedup.
-      if (MOCK_BANK_TRANSACTIONS.some((existing) =>
-        existing.bankAccountLabel === row.bankAccountLabel
-        && existing.transactedAt === row.transactedAt
-        && existing.amount === row.amount
-        && existing.externalRef === row.externalRef)) {
-        duplicateSkippedCount += 1
-      } else {
-        MOCK_BANK_TRANSACTIONS = [row, ...MOCK_BANK_TRANSACTIONS]
-        importedCount += 1
-      }
-    }
+    const result = appendMockBankTransactions(importedRows)
     return envelope({
       totalRows: importedRows.length,
-      importedCount,
-      duplicateSkippedCount,
-      staleSkippedCount: 0,
-      staleNormalizedNames: [],
+      importedCount: result.importedCount,
+      duplicateSkippedCount: result.duplicateSkippedCount,
+      staleSkippedCount: result.staleSkippedCount,
+      staleNormalizedNames: result.staleNormalizedNames,
       // #810 R3 (L2-M1) additive 계약 — mock 은 거래처 서비스 일시장애 경로가 없어 항상 0/빈 배열.
       unavailableSkippedCount: 0,
       unavailableNames: [],
@@ -16625,7 +16655,7 @@ type MockDepositorMappingRow = {
   rawName: string
   normalizedName: string
   partnerCode: string
-  partnerName: string
+  partnerName: string | null
   modifiedAt: string
   actor: string
   active: boolean
@@ -16642,6 +16672,8 @@ type MockDepositorMappingHistoryRow = {
   actor: string
   changedAt: string
   revisionNo: number
+  operationOrdinal?: number
+  generation?: number
 }
 
 const MOCK_CODEF_BANK_ACCOUNTS = [
@@ -16748,7 +16780,7 @@ function mockCodefBankRows(accountRef: string, to: string, index: number): MockB
       amount: '420000',
       balanceAfter: '14855000',
       description: '운임 정산',
-      counterpartyName: '아로물류 B',
+      counterpartyName: '1234567890',
       counterpartyAccount: null,
       bankAccountLabel: accountRef,
       source: 'CODEF_BANK',
@@ -16853,10 +16885,23 @@ function mockCodefLoanRows(loanRef: string, to: string, index: number): MockBank
   ]
 }
 
-function appendMockBankTransactions(rows: MockBankTransactionRow[]): { importedCount: number; duplicateSkippedCount: number } {
+type MockBankTransactionAppendResult = {
+  importedCount: number
+  duplicateSkippedCount: number
+  matchedCount: number
+  staleSkippedCount: number
+  staleNormalizedNames: string[]
+}
+
+function appendMockBankTransactions(rows: MockBankTransactionRow[]): MockBankTransactionAppendResult {
   let importedCount = 0
   let duplicateSkippedCount = 0
-  for (const row of rows.map(mockApplyDepositorMapping)) {
+  let matchedCount = 0
+  let staleSkippedCount = 0
+  const staleNames = new Set<string>()
+  for (const sourceRow of rows) {
+    const resolved = mockResolveBankTransaction(sourceRow)
+    const row = resolved.row
     const exists = MOCK_BANK_TRANSACTIONS.some((existing) =>
       existing.bankAccountLabel === row.bankAccountLabel
       && existing.transactedAt === row.transactedAt
@@ -16867,40 +16912,83 @@ function appendMockBankTransactions(rows: MockBankTransactionRow[]): { importedC
     } else {
       MOCK_BANK_TRANSACTIONS = [row, ...MOCK_BANK_TRANSACTIONS]
       importedCount += 1
+      if (row.partnerMatchSource === 'DEPOSITOR_MAPPING' || row.partnerMatchSource === 'PARTNER_CODE_EXACT') {
+        matchedCount += 1
+      }
+      if (resolved.staleNormalizedName) {
+        staleSkippedCount += 1
+        staleNames.add(resolved.staleNormalizedName)
+      }
     }
   }
-  return { importedCount, duplicateSkippedCount }
+  return {
+    importedCount,
+    duplicateSkippedCount,
+    matchedCount,
+    staleSkippedCount,
+    staleNormalizedNames: [...staleNames],
+  }
 }
 
 /**
  * BE DepositorNameNormalizer parity — 앞뒤 공백 제거 + 내부 Unicode 공백 연속 1칸 축약 + 대문자화.
  *
  * Java 는 Character.isWhitespace ∪ isSpaceChar 를 공백으로 판정해 U+001C~U+001F(정보 구분자
- * 제어문자)도 포함하므로 JS `\s` 에 더해 명시적으로 처리한다(치환 후 trim 순서 — 앞뒤의
- * U+001C 계열도 제거되도록).
- *
- * ⚠️ BOM(U+FEFF) 처리 차이: JS `\s`/`trim()` 은 U+FEFF 를 공백으로 취급하지만 Java 정규화기는
- * 아니어서 BOM 포함 입력의 결과가 BE 와 다를 수 있다. 정렬 방향은 개발책임자 확인 사항(#810)이라
- * 여기서 강제 변경하지 않는다.
+ * 제어문자)도 포함한다. U+FEFF 는 Java `Character.isWhitespace`/`isSpaceChar` 양쪽에
+ * 포함되지 않으므로 의도적으로 공백 문자 집합에서 제외한다.
  */
+const MOCK_JAVA_UNICODE_SPACE = /[\u0009-\u000D\u001C-\u001F\u0020\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+/gu
+const MOCK_JAVA_TRIM = /^[\u0000-\u0020]+|[\u0000-\u0020]+$/gu
+
+function mockJavaTrim(raw: string): string {
+  return raw.replace(MOCK_JAVA_TRIM, '')
+}
+
 function mockDepositorNameNormalize(raw: string): string {
-  return raw.replace(/[\s\u001C-\u001F]+/gu, ' ').trim().toUpperCase()
+  return mockJavaTrim(raw.replace(MOCK_JAVA_UNICODE_SPACE, ' ')).toUpperCase()
 }
 
 function mockDepositorActor(): string {
   return '사용자'
 }
 
-function mockDepositorMappingResponse(row: MockDepositorMappingRow): MockDepositorMappingRow {
-  return { targetStatus: 'ACTIVE', staleTarget: false, ...row }
+type MockPartnerLookup = {
+  partnerCode: string
+  name: string
+  bizNo: string
+  status: unknown
+  isDeleted: boolean
 }
 
-function mockPartnerByCode(partnerCode: string): { partnerCode: string; name: string; bizNo: string } | null {
+function mockPartnerIsActive(partner: MockPartnerLookup): boolean {
+  const status = typeof partner.status === 'string' ? partner.status.trim() : partner.status
+  return !partner.isDeleted && (status == null || status === '' || status === 'ACTIVE')
+}
+
+function mockDepositorMappingResponse(row: MockDepositorMappingRow): MockDepositorMappingRow {
+  const partner = mockPartnerByCode(row.partnerCode)
+  const deletedOrMissing = !partner || partner.isDeleted
+  const staleTarget = deletedOrMissing || !mockPartnerIsActive(partner)
+  return {
+    ...row,
+    targetStatus: deletedOrMissing ? null : (partner.status as string | null | undefined) ?? null,
+    staleTarget,
+    partnerName: deletedOrMissing ? null : partner.name,
+  }
+}
+
+function mockPartnerByCode(partnerCode: string): MockPartnerLookup | null {
   const partner = MOCK_ADMIN_PARTNERS
-    .map((row) => normalizeAccountingPartner(row))
+    .map((row) => ({ ...normalizeAccountingPartner(row), status: row['status'] ?? null }))
     .find((row) => row.partnerCode === partnerCode)
   return partner
-    ? { partnerCode: partner.partnerCode, name: partner.name, bizNo: partner.bizNo }
+    ? {
+        partnerCode: partner.partnerCode,
+        name: partner.name,
+        bizNo: partner.bizNo,
+        status: partner.status,
+        isDeleted: partner.isDeleted,
+      }
     : null
 }
 
@@ -17043,34 +17131,70 @@ let MOCK_DEPOSITOR_ACTIVE_HISTORY: Record<string, MockDepositorHistoryEntity> = 
   삼한상사: MOCK_DEPOSITOR_SEED_HISTORY,
 }
 
-function mockApplyDepositorMapping(row: MockBankTransactionRow): MockBankTransactionRow {
-  if (row.txnType !== 'DEPOSIT' || row.matchStatus !== 'UNREFLECTED') return row
-  const normalizedName = mockDepositorNameNormalize(row.counterpartyName ?? '')
-  const mapping = MOCK_DEPOSITOR_MAPPINGS.find((candidate) =>
-    candidate.active && candidate.normalizedName === normalizedName)
-  if (!mapping) return row
-  const partner = mockPartnerByCode(mapping.partnerCode)
-  if (!partner) return row
-  return {
-    ...row,
-    matchedPartnerCode: partner.partnerCode,
-    matchedBizNo: partner.bizNo.replace(/\D/g, ''),
-    matchedPartnerName: partner.name,
-    partnerMatchSource: 'DEPOSITOR_MAPPING',
-    appliedMappingRawName: mapping.rawName,
-    appliedMappingNormalizedName: mapping.normalizedName,
+type MockBankTransactionResolution = {
+  row: MockBankTransactionRow
+  staleNormalizedName: string | null
+}
+
+function mockResolveBankTransaction(sourceRow: MockBankTransactionRow): MockBankTransactionResolution {
+  if (sourceRow.matchStatus !== 'UNREFLECTED' || sourceRow.source === 'CODEF_LOAN') {
+    return { row: sourceRow, staleNormalizedName: null }
   }
+
+  const isDepositSource = sourceRow.source === 'CSV_IMPORT'
+    || sourceRow.source === 'CODEF_BANK'
+    || sourceRow.source === 'KFTC'
+  if (sourceRow.txnType === 'DEPOSIT' && isDepositSource) {
+    const normalizedName = mockDepositorNameNormalize(sourceRow.counterpartyName ?? '')
+    const mapping = MOCK_DEPOSITOR_MAPPINGS.find((candidate) =>
+      candidate.active && candidate.normalizedName === normalizedName)
+    if (mapping) {
+      const partner = mockPartnerByCode(mapping.partnerCode)
+      if (!partner || !mockPartnerIsActive(partner)) {
+        return { row: sourceRow, staleNormalizedName: mapping.normalizedName }
+      }
+      return {
+        row: {
+          ...sourceRow,
+          matchedPartnerCode: partner.partnerCode,
+          matchedBizNo: partner.bizNo.replace(/\D/g, ''),
+          matchedPartnerName: partner.name,
+          partnerMatchSource: 'DEPOSITOR_MAPPING',
+          appliedMappingRawName: mapping.rawName,
+          appliedMappingNormalizedName: mapping.normalizedName,
+        },
+        staleNormalizedName: null,
+      }
+    }
+  }
+
+  const exactPartner = mockPartnerByCode(sourceRow.counterpartyName ?? '')
+  if (exactPartner && mockPartnerIsActive(exactPartner)) {
+    return {
+      row: {
+        ...sourceRow,
+        matchedPartnerCode: exactPartner.partnerCode,
+        matchedBizNo: exactPartner.bizNo.replace(/\D/g, ''),
+        matchedPartnerName: exactPartner.name,
+        partnerMatchSource: 'PARTNER_CODE_EXACT',
+        appliedMappingRawName: null,
+        appliedMappingNormalizedName: null,
+      },
+      staleNormalizedName: null,
+    }
+  }
+  return { row: sourceRow, staleNormalizedName: null }
 }
 
 function mockLearnDepositorMapping(rawName: string | null, partner: { partnerCode: string; name: string }): void {
   // BE parity: 원문 길이를 trim 전에 검사하고, 저장/정규화 시에만 trim한다.
-  if (!rawName || rawName.length > 120 || !rawName.trim()) return
+  if (!rawName || rawName.length > 120 || !mockJavaTrim(rawName)) return
   const normalizedName = mockDepositorNameNormalize(rawName)
   if (!normalizedName || normalizedName.length > 120) return
   const now = new Date().toISOString()
   const existingIndex = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
   const next: MockDepositorMappingRow = {
-    rawName: rawName.trim(),
+    rawName: mockJavaTrim(rawName),
     normalizedName,
     partnerCode: partner.partnerCode,
     partnerName: partner.name,

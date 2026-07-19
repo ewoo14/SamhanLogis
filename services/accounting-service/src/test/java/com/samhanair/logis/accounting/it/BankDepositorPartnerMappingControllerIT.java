@@ -112,6 +112,8 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[?(@.fieldName=='mapping.rawName' && @.newValue=='AcmeUpdated')]")
                         .exists())
                 .andExpect(jsonPath("$.data[0].revisionNo").value(2))
+                .andExpect(jsonPath("$.data[0].operationOrdinal").value(2))
+                .andExpect(jsonPath("$.data[0].generation").value(1))
                 .andReturn().getResponse()
                 .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         // #810 R3-CODEX (S4-M3, 계약 pin): 같은 revisionNo 를 공유하는 행들 사이에서도

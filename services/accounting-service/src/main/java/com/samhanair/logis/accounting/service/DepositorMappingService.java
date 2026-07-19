@@ -18,7 +18,10 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -239,8 +242,12 @@ public class DepositorMappingService {
         if (entityIds.isEmpty()) {
             return List.of();
         }
-        return auditLogRepository.findMappingHistoryByEntityIds(entityIds).stream()
-                .map(this::toHistory)
+        List<AccountingAuditLog> logs = auditLogRepository.findMappingHistoryByEntityIds(entityIds);
+        HistoryDerivation derivation = deriveHistoryMetadata(logs);
+        return logs.stream()
+                .map(log -> toHistory(log,
+                        derivation.operationOrdinalByKey().get(new HistoryOperationKey(log.getEntityId(), log.getRevisionNo())),
+                        derivation.generationByEntity().get(log.getEntityId())))
                 .toList();
     }
 
@@ -408,12 +415,63 @@ public class DepositorMappingService {
         return BankDepositorPartnerMappingResponse.of(mapping, partner);
     }
 
-    private BankDepositorPartnerMappingHistoryResponse toHistory(AccountingAuditLog log) {
+    private BankDepositorPartnerMappingHistoryResponse toHistory(AccountingAuditLog log,
+                                                                 int operationOrdinal,
+                                                                 int generation) {
         String actor = log.getActorName() != null && log.getActorName().matches("[0-9a-fA-F-]{36}")
                 ? "사용자" : log.getActorName();
         return new BankDepositorPartnerMappingHistoryResponse(
                 historyEntryKey(log), log.getFieldName(), log.getOldValue(), log.getNewValue(),
-                actor, log.getChangedAt(), log.getRevisionNo());
+                actor, log.getChangedAt(), log.getRevisionNo(), operationOrdinal, generation);
+    }
+
+    /**
+     * 이력 조회 범위의 표시용 작업 순번과 세대를 파생한다.
+     *
+     * <p>작업 식별자는 entityId·revisionNo 이며, 레거시 데이터에서 같은 revision의 필드별
+     * changedAt 이 분산되어도 그룹의 최소 시각 하나로 처리한다. ordinal은 oldest-first로
+     * 채번하지만 호출자에게는 repository가 준 newest-first 행 순서를 그대로 반환한다.
+     */
+    private static HistoryDerivation deriveHistoryMetadata(List<AccountingAuditLog> logs) {
+        Map<UUID, java.time.LocalDateTime> firstSeenByEntity = new LinkedHashMap<>();
+        Map<HistoryOperationKey, java.time.LocalDateTime> operationTimeByKey = new LinkedHashMap<>();
+        for (AccountingAuditLog log : logs) {
+            firstSeenByEntity.merge(log.getEntityId(), log.getChangedAt(),
+                    (left, right) -> left.compareTo(right) <= 0 ? left : right);
+            HistoryOperationKey key = new HistoryOperationKey(log.getEntityId(), log.getRevisionNo());
+            operationTimeByKey.merge(key, log.getChangedAt(),
+                    (left, right) -> left.compareTo(right) <= 0 ? left : right);
+        }
+
+        List<UUID> generationOrder = firstSeenByEntity.entrySet().stream()
+                .sorted(Map.Entry.<UUID, java.time.LocalDateTime>comparingByValue()
+                        .thenComparing(Map.Entry::getKey, Comparator.comparing(UUID::toString)))
+                .map(Map.Entry::getKey)
+                .toList();
+        Map<UUID, Integer> generationByEntity = new LinkedHashMap<>();
+        for (int index = 0; index < generationOrder.size(); index++) {
+            generationByEntity.put(generationOrder.get(index), index + 1);
+        }
+
+        List<HistoryOperationKey> operationOrder = operationTimeByKey.keySet().stream()
+                .sorted(Comparator
+                        .comparing((HistoryOperationKey key) -> operationTimeByKey.get(key))
+                        .thenComparing(key -> generationByEntity.get(key.entityId()))
+                        .thenComparingInt(HistoryOperationKey::revisionNo)
+                        .thenComparing(key -> key.entityId().toString()))
+                .toList();
+        Map<HistoryOperationKey, Integer> operationOrdinalByKey = new LinkedHashMap<>();
+        for (int index = 0; index < operationOrder.size(); index++) {
+            operationOrdinalByKey.put(operationOrder.get(index), index + 1);
+        }
+        return new HistoryDerivation(operationOrdinalByKey, generationByEntity);
+    }
+
+    private record HistoryOperationKey(UUID entityId, int revisionNo) {
+    }
+
+    private record HistoryDerivation(Map<HistoryOperationKey, Integer> operationOrdinalByKey,
+                                     Map<UUID, Integer> generationByEntity) {
     }
 
     /**
