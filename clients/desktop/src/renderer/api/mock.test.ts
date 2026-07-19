@@ -847,6 +847,38 @@ describe('mock business document number contract', () => {
     } as never)).rejects.toMatchObject({ __mockStatus: 422, code: 'SAS_SOURCE_PARTNER_MISSING' })
   })
 
+  it.each([
+    ['sales', createSalesSlipDraft, 'OUTBOUND'],
+    ['purchase', createPurchaseSlipDraft, 'INBOUND'],
+  ] as const)('%s mock draft는 client code/name이 아닌 원천 snapshot을 응답한다', async (_kind, createDraft, sourceType) => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    const source = MOCK_SOURCE_SLIPS.find((row) => row.slipType === sourceType)!
+    const response = await createDraft({
+      slipDate: '2026-05-20',
+      partnerId: source.partnerId!,
+      partnerCode: 'CLIENT-FORGED-CODE',
+      partnerName: '클라이언트 위조명',
+      taxType: 'TAXABLE',
+      lines: [{
+        productCode: 'SKU-A',
+        productName: '품목 A',
+        qty: '1',
+        unitPrice: '100',
+        allocations: [{
+          sourceSlipId: source.slipId,
+          sourceSlipNo: source.slipNo,
+          sourceLineId: source.lines[0]!.lineId,
+          sourceLineNo: 1,
+          allocatedQty: '1',
+          allocatedAmount: '100',
+        }],
+      }],
+    } as never)
+
+    expect(response.partnerCode).toBe(source.partnerCode)
+    expect(response.partnerName).toBe(source.partnerName)
+  })
+
   it('ledger and statement mock endpoints use BE document number format', () => {
     const ledgers = mockRequest({
       method: 'GET',

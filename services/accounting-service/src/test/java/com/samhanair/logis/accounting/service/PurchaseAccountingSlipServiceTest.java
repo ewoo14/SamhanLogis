@@ -343,7 +343,7 @@ class PurchaseAccountingSlipServiceTest {
         UUID sourcePartnerId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "IN-PARTNER-A", sourceLineId, sourcePartnerId,
-                "P-MISMATCH", "상이 원천 거래처", "P", 1,
+                null, null, "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "INBOUND"));
 
         assertThatThrownBy(() -> service.createDraft(
@@ -372,6 +372,29 @@ class PurchaseAccountingSlipServiceTest {
                 .hasMessageContaining("IN-PARTNER-NULL")
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.SAS_SOURCE_PARTNER_MISSING));
+    }
+
+    @Test
+    void source_partnerId_exists_code_name_null_배분은_통과하고_헤더에도_null을_저장한다() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-NULL-DISPLAY");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-NULL-DISPLAY", sourceLineId, PARTNER_ID,
+                null, null, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "INBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        service.createDraft(requestWithSingleAllocation(sourceSlipId, sourceLineId, BigDecimal.ONE,
+                new BigDecimal("100000"), new BigDecimal("100000")), "actor-1");
+
+        ArgumentCaptor<PurchaseAccountingSlip> captor = ArgumentCaptor.forClass(PurchaseAccountingSlip.class);
+        verify(slipRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getPartnerId()).isEqualTo(PARTNER_ID);
+        assertThat(captor.getValue().getPartnerCode()).isNull();
+        assertThat(captor.getValue().getPartnerName()).isNull();
     }
 
     @Test

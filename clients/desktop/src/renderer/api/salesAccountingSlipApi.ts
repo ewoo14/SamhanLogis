@@ -1,6 +1,6 @@
 import { apiClient, type ApiEnvelope } from './client'
 import { isMockMode } from './mock'
-import { assertMockAllocationPartner } from './slipAllocationSourceApi'
+import { assertMockAllocationPartner, MOCK_SOURCE_SLIPS } from './slipAllocationSourceApi'
 import { toOrderPathId } from '../utils/orderNo'
 
 export type SalesAccountingSlipStatus = 'DRAFT' | 'POSTED'
@@ -137,6 +137,10 @@ export const MOCK_SALES_ACCOUNTING_SLIPS: SalesAccountingSlipResponse[] = [
 
 function buildMockDraft(req: CreateSalesAccountingSlipRequest): SalesAccountingSlipResponse {
   assertMockAllocationPartner(req.partnerId, req.lines.flatMap((line) => line.allocations))
+  const firstAllocation = req.lines.flatMap((line) => line.allocations)[0]
+  const source = firstAllocation == null
+    ? undefined
+    : MOCK_SOURCE_SLIPS.find((summary) => summary.lines.some((line) => line.lineId === firstAllocation.sourceLineId))
   const supply = req.lines.reduce((sum, line) => {
     return sum + Number(line.qty || 0) * Number(line.unitPrice || 0)
   }, 0)
@@ -146,8 +150,8 @@ function buildMockDraft(req: CreateSalesAccountingSlipRequest): SalesAccountingS
     // 실 BE SalesAccountingSlipNumberGenerator = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
     slipNo: `${req.slipDate.replace(/-/g, '/')}-${Number(String(Date.now()).slice(-3)) || 1}`,
     slipDate: req.slipDate,
-    partnerCode: req.partnerCode,
-    partnerName: req.partnerName,
+    partnerCode: source?.partnerCode ?? '',
+    partnerName: source?.partnerName ?? '',
     taxType: req.taxType,
     status: 'DRAFT',
     totalSupplyAmount: String(supply),

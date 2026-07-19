@@ -173,14 +173,16 @@ class SlipServiceClientTest {
     }
 
     @Test
-    void getSlipLine_legacy응답의_partnerId_누락은_null로_파싱한다() {
+    void getSlipLine_legacy응답의_partnerCode_partnerName_누락은_null로_파싱한다() {
         UUID lineId = UUID.randomUUID();
+        UUID partnerId = UUID.randomUUID();
         server.expect(requestTo("http://slip-service/internal/slips/lines/" + lineId))
                 .andRespond(withSuccess("""
                         {
                           "slipId": "%s",
                           "slipNo": "OUT-2026-05-0042",
                           "lineId": "%s",
+                          "partnerId": "%s",
                           "productName": "P",
                           "quantity": 10,
                           "unitPrice": 150000,
@@ -188,9 +190,13 @@ class SlipServiceClientTest {
                           "slipStatus": "CONFIRMED",
                           "slipType": "OUTBOUND"
                         }
-                        """.formatted(UUID.randomUUID(), lineId), MediaType.APPLICATION_JSON));
+                        """.formatted(UUID.randomUUID(), lineId, partnerId), MediaType.APPLICATION_JSON));
 
-        assertThat(client.getSlipLine(lineId).partnerId()).isNull();
+        SlipLineSnapshot snapshot = client.getSlipLine(lineId);
+
+        assertThat(snapshot.partnerId()).isEqualTo(partnerId);
+        assertThat(snapshot.partnerCode()).isNull();
+        assertThat(snapshot.partnerName()).isNull();
         server.verify();
     }
 
