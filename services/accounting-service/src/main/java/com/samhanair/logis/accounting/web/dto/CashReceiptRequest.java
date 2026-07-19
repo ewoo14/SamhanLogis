@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 /** 입금보고서 수기 생성/수정 요청. */
 public record CashReceiptRequest(
-        @Size(max = 50, message = "partnerCode 는 최대 50자입니다")
+        @Size(max = 100, message = "partnerCode 는 최대 100자입니다")
         String partnerCode,
 
         @Size(max = 30, message = "bizNo 는 최대 30자입니다")

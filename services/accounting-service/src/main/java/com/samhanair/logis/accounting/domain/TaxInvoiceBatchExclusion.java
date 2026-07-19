@@ -40,7 +40,7 @@ public class TaxInvoiceBatchExclusion extends BaseEntity {
      * 거래처 코드 — 사용자 노출 식별자 (UUID 비공개 원칙 준수).
      * active row 기준 unique (partial index).
      */
-    @Column(name = "partner_code", nullable = false, length = 50)
+    @Column(name = "partner_code", nullable = false, length = 100)
     private String partnerCode;
 
     /** 거래처 명칭 스냅샷 (등록 시점). */

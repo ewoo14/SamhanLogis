@@ -11,7 +11,7 @@ import java.time.LocalDate;
 
 /** 받을어음 등록 요청. partnerId UUID 는 받지 않는다. */
 public record CreateNotesReceivableRequest(
-        @Size(max = 50) String partnerCode,
+        @Size(max = 100) String partnerCode,
         @Size(max = 20) String bizNo,
         @Size(max = 100) String partnerName,
         @NotBlank @Size(max = 50) String noteNo,

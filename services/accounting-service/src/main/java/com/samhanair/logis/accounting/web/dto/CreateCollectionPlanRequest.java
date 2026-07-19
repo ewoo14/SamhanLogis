@@ -9,7 +9,7 @@ import java.time.LocalDate;
 
 /** 수금계획 등록 요청. partnerId UUID 는 받지 않는다. */
 public record CreateCollectionPlanRequest(
-        @Size(max = 50) String partnerCode,
+        @Size(max = 100) String partnerCode,
         @Size(max = 20) String bizNo,
         @Size(max = 100) String partnerName,
         @NotNull LocalDate plannedDate,

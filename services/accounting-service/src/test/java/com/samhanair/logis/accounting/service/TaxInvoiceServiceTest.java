@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,6 +25,7 @@ import com.samhanair.logis.accounting.web.dto.TaxInvoicePrintResponse;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceSummaryResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -71,6 +73,7 @@ class TaxInvoiceServiceTest {
     @Mock private JournalService journalService;
     @Mock private CompanyProperties companyProperties;
     @Mock private SupplierProfileRepository supplierProfileRepository;
+    @Mock private AuditLogRecorder auditRecorder;
 
     @InjectMocks private TaxInvoiceService taxInvoiceService;
 
@@ -79,6 +82,7 @@ class TaxInvoiceServiceTest {
 
     @BeforeEach
     void setUp() {
+        taxInvoiceService.setAuditRecorder(auditRecorder);
         // 회사 정보 stub (CompanyProperties fallback)
         lenient().when(companyProperties.getName()).thenReturn("(주)삼한공조시스템");
         lenient().when(companyProperties.getBusinessNumber()).thenReturn("123-45-67890");
@@ -391,6 +395,43 @@ class TaxInvoiceServiceTest {
     }
 
     // ── 헬퍼 메서드 ──────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("update — 동일 partnerId + description 변경은 partner audit을 만들지 않는다")
+    void updateSamePartnerIdDoesNotRecordPartnerAudit() throws Exception {
+        TaxInvoice invoice = buildDraftInvoice();
+        UUID invoiceId = UUID.randomUUID();
+        setId(invoice, invoiceId);
+        when(taxInvoiceRepository.findById(invoiceId)).thenReturn(Optional.of(invoice));
+
+        taxInvoiceService.update(invoiceId, updateRequest(PARTNER_ID, "설명 변경"));
+
+        verify(auditRecorder, never()).recordOverlayPatch(
+                any(), any(), any(), any(), org.mockito.ArgumentMatchers.eq("taxInvoice.partner"), any(), any());
+    }
+
+    @Test
+    @DisplayName("update — 다른 partnerId + 동일 code/name은 표시값이 같아도 partner audit을 만든다")
+    void updateDifferentPartnerIdRecordsPartnerAuditDespiteSameDisplayValue() throws Exception {
+        TaxInvoice invoice = buildDraftInvoice();
+        UUID invoiceId = UUID.randomUUID();
+        setId(invoice, invoiceId);
+        when(taxInvoiceRepository.findById(invoiceId)).thenReturn(Optional.of(invoice));
+
+        taxInvoiceService.update(invoiceId, updateRequest(UUID.randomUUID(), "설명 변경"));
+
+        verify(auditRecorder).recordOverlayPatch(
+                invoiceId, new UUID(0L, 0L), "system", null, "taxInvoice.partner",
+                "테스트거래처 (P-001)", "테스트거래처 (P-001)");
+    }
+
+    private static com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceRequest updateRequest(
+            UUID partnerId, String description) {
+        return new com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceRequest(
+                partnerId, "P-001", "123-45-67890", "테스트거래처", "서울", ISSUE_DATE, description,
+                List.of(new com.samhanair.logis.accounting.web.dto.CreateTaxInvoiceLineRequest(
+                        "운임 기본료", "kg", BigDecimal.ONE, new BigDecimal("1000"), null)));
+    }
 
     /** DRAFT 상태 TaxInvoice — 라인 없음. */
     private TaxInvoice buildDraftInvoice() {

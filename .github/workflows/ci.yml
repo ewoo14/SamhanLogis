@@ -102,6 +102,10 @@ jobs:
           - name: phase9-10 (groupware+notification+dashboard)
             timeout: 30
             test-tasks: ':services:groupware-service:test :services:notification-service:test :services:dashboard-service:test'
+          - name: accounting-partner-integrity-it
+            # B2 D-B2-01/02: V63 폭·MIG-11 86자·세금계산서 partner 교체 audit hard gate.
+            timeout: 30
+            test-tasks: ':services:accounting-service:test --tests "com.samhanair.logis.accounting.it.PartnerCodeWidthMigrationIT" --tests "com.samhanair.logis.accounting.it.PartnerCodeWidthUpgradeIT" --tests "com.samhanair.logis.accounting.it.Mig11LedgerPartnerCodeWidthImportIT" --tests "com.samhanair.logis.accounting.it.TaxInvoicePartnerChangeAuditIT" --tests "com.samhanair.logis.accounting.service.TaxInvoiceServiceTest"'
 
     steps:
       - name: 저장소 체크아웃
@@ -426,6 +430,30 @@ jobs:
             exit 1
           fi
 
+      - name: "B2 partner integrity IT tests>0 failures=0 errors=0 skipped=0 hard gate"
+        if: matrix.group.name == 'accounting-partner-integrity-it'
+        run: |
+          reports=(
+            'services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.PartnerCodeWidthMigrationIT.xml'
+            'services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.PartnerCodeWidthUpgradeIT.xml'
+            'services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.Mig11LedgerPartnerCodeWidthImportIT.xml'
+            'services/accounting-service/build/test-results/test/TEST-com.samhanair.logis.accounting.it.TaxInvoicePartnerChangeAuditIT.xml'
+          )
+          for report in "${reports[@]}"; do
+            if [ ! -f "$report" ]; then
+              echo "::error::B2 JUnit report not found: $report"
+              exit 1
+            fi
+            tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            if [ "${tests:-0}" -le 0 ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ] || [ "${skipped:-missing}" != "0" ]; then
+              echo "::error::B2 JUnit hard gate failed: $report tests=${tests:-missing} failures=${failures:-missing} errors=${errors:-missing} skipped=${skipped:-missing}"
+              exit 1
+            fi
+          done
+
       - name: 테스트 리포트 아티팩트 업로드 (실패 포함)
         if: always()
         uses: actions/upload-artifact@v4
@@ -444,7 +472,7 @@ jobs:
           report_paths: '**/build/test-results/test/TEST-*.xml'
           # accounting-codef-it / accounting-cash-receipt-it 는 좁은 IT hard gate 이므로
           # 필터/skip false-green 을 막기 위해 JUnit 결과가 0건이면 실패시킨다.
-          require_tests: ${{ matrix.group.name == 'accounting-codef-it' || matrix.group.name == 'accounting-cash-receipt-it' || matrix.group.name == 'accounting-deposit-mapping-it' }}
+          require_tests: ${{ matrix.group.name == 'accounting-codef-it' || matrix.group.name == 'accounting-cash-receipt-it' || matrix.group.name == 'accounting-deposit-mapping-it' || matrix.group.name == 'accounting-partner-integrity-it' }}
           check_name: JUnit 테스트 결과 (${{ matrix.group.name }})
 
   notion-zero-guard:

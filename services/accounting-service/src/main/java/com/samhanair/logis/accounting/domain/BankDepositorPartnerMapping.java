@@ -47,7 +47,7 @@ public class BankDepositorPartnerMapping extends BaseEntity {
     private UUID partnerId;
 
     /** 외부 조회 장애·삭제 감사에서도 보존해야 하는 거래처 코드 snapshot. */
-    @Column(name = "partner_code", length = 50)
+    @Column(name = "partner_code", length = 100)
     private String partnerCodeSnapshot;
 
     private BankDepositorPartnerMapping(String rawName, UUID partnerId, String partnerCode) {

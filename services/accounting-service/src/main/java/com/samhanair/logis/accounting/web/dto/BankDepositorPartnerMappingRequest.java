@@ -9,6 +9,7 @@ public record BankDepositorPartnerMappingRequest(
         @Size(max = 120, message = "rawName 은 120자 이하여야 합니다")
         String rawName,
         @NotBlank(message = "partnerCode 는 필수입니다")
+        @Size(max = 100, message = "partnerCode 는 최대 100자입니다")
         String partnerCode,
         @Size(max = 500, message = "reason 은 500자 이하여야 합니다")
         String reason
