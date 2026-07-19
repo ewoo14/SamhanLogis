@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | ① | `groupware_db.approval_lines.document_type` (nullable) | V8 | `ApprovalLineBase.java:44` | `GROUPWARE_${code}` (실측 `GROUPWARE_EXPENSE_REPORT`) | 발의 시 41–70자 → **DB 500/truncation** |
 | ② | `groupware_db.document_templates.doc_type` (NOT NULL) | V10 | `DocumentTemplate.java:36` | `GROUPWARE_${code}` 레이아웃 key (실측 EXPENSE_REPORT·QA_TEST) | **app `validateDocType(40)` 이 41–70 유효 템플릿 저장을 오거부** (DB 도달 전) |
-| ③ | `auth_db.approval_line_config.document_type` (NOT NULL) | V61 | `ApprovalLineConfig.java:41` | `GROUPWARE_${code}` (실측 `GROUPWARE_EXPENSE_REPORT` 24자) + 전표종류(SLIP_*·ACCOUNTING_JOURNAL) 혼재 | free-form `@RequestParam addStep` (length guard 無) → 41–70자 입력 시 **DB 500** |
+| ③ | `auth_db.approval_line_config.document_type` (NOT NULL) | V61 | `ApprovalLineConfig.java:41` | `GROUPWARE_${code}` (실측 `GROUPWARE_EXPENSE_REPORT` 24자) + 전표종류(SLIP_*·ACCOUNTING_JOURNAL) 혼재 | free-form `addStep`(`@RequestBody`·length guard 無) → 41–70자 입력 시 **DB 500** |
 
 - **스코프 밖(명시)**: 협업 `document_type`(`approval_collab_comments` V4:75·`approval_collab_suggestions` V4:118 등)은 **고정 `CollabDocumentType` enum**(코드에서만 발급·`GROUPWARE_${code}` 유입 경로 없음). **groupware V4 CHECK 목록의 최장은 18자**(`ACCOUNTING_VOUCHER`)이나, 전체 `CollabDocumentType` enum 에는 `ACCOUNTING_CASH_RECEIPT`(23자·`CollabDocumentType.java:9`)도 존재 — 그럼에도 **협업 컬럼엔 `GROUPWARE_` 유입 0**(SOL 15-DB 값분포 확증)이라 확장 불요. (동일 컬럼명이나 의미·소스 상이.)
 
@@ -21,7 +21,7 @@
 |---|---|---|
 | D-848-01 | **`ApprovalLineBase.document_type` `@Column(length=40)`→`70`**(shared/approval-core·nullable 유지). 콘크리트 엔티티는 groupware `ApprovalLine` 1개(`extends ApprovalLineBase` grep 확증) | 정찰 |
 | D-848-02 | **`DocumentTemplate.DOC_TYPE_MAX_LENGTH 40→70`**(line 36) — `@Column(length)`(line 46) + `validateDocType`(line 136) 자동 반영. **41–70 유효 GROUPWARE_${code} 레이아웃 저장 오거부 해소**(현 실버그) | 정찰·SOL-B1 |
-| D-848-03 | **`ApprovalLineConfig.document_type length 40→70`**(line 41) + **`addStep`/`createDisplayStep` 에 length guard(≤70, 초과 시 `INVALID_INPUT`) 추가**(free-form `@RequestParam` 오버플로 차단·기존 무가드 확증 `ApprovalLineConfig.java:70`·`ApprovalLineConfigService.java:104`). auth 도 `GROUPWARE_${code}` 실경로(라이브 확증) | SOL-B1·라이브 DB |
+| D-848-03 | **`ApprovalLineConfig.document_type length 40→70`**(line 41) + **`addStep`/`createDisplayStep` 에 length guard(≤70, 초과 시 `INVALID_INPUT`) 추가**(free-form `addStep` 오버플로 차단·기존 무가드 확증 `ApprovalLineConfig.java:70`·`ApprovalLineConfigService.java:104`). auth 도 `GROUPWARE_${code}` 실경로(라이브 확증) | SOL-B1·라이브 DB |
 | D-848-04 | **groupware `V11__widen_document_type_columns.sql`**(첫 문장 `SET LOCAL lock_timeout='5s';`·SOL-M4): `ALTER approval_lines.document_type TYPE VARCHAR(70)` + `ALTER document_templates.doc_type TYPE VARCHAR(70)` + **legacy NULL backfill**(V10 이 `length<=40` 로 스킵했을 41–70 subset·V10 조인 재사용 `FROM approval_templates t WHERE template_id=t.id AND document_type IS NULL AND length('GROUPWARE_'||t.code) BETWEEN 41 AND 70`). ⚠️**현 라이브 대상 = 0행**(활성 NULL 64행은 전부 `template_id IS NULL` 독립형 결재·backfill 무영향·정당 — 직접 실측 확인). backfill 은 **타 환경(prod)의 V10-skipped 41–70 행 복구 목적**·`IS NULL` 조건으로 멱등 | SOL-H1(실측 정정)·M4 |
 | D-848-05 | **auth `V89__widen_approval_line_config_document_type.sql`**(첫 문장 `SET LOCAL lock_timeout='5s';`): `ALTER approval_line_config.document_type TYPE VARCHAR(70)`(auth 최신 V88·파일+라이브 Flyway 이력 확증). 기존 V1~V88 불변 | SOL-B1·M4 |
 | D-848-06 | **FE `templateSchema.ts MAX_DOC_TYPE_LENGTH 40→70`**(DS-2 신설·`templateSchema.ts:78`·`:149` 유일 가드·blast 누락 없음) | 정찰·SOL-M2 |
@@ -56,7 +56,7 @@
 - **적용 마이그 불변**(groupware V1~V10·auth V1~V88 무수정·V11/V89 신규만)[[feedback_applied_migration_immutable]].
 - 배포: groupware+auth 2 서비스 마이그. 데이터 정합상 **순서 무관**(독립 DB·독립 컬럼·상호 FK 없음)이나, **안전 배포 순서 권장 = auth V89 → groupware V11 → desktop**(각 단계 검증 후 진행·동시 재시작 시 양쪽 blocker 있으면 5s 후 둘 다 Flyway fail→동시 기동불가 회피). 엔티티(70)↔컬럼(70) 동시 배포(부팅 validate).
 
-## 6. 배포 runbook (실행 절차)
+## 5. 배포 runbook (실행 절차)
 1. **사전 blocker 확인**(각 DB): `SELECT pid, state, now()-xact_start AS dur, query FROM pg_stat_activity WHERE datname IN ('auth_db','groupware_db') AND state<>'idle' AND now()-xact_start > interval '3 s' ORDER BY dur DESC;` → 장기 tx 있으면 해소/대기 후 진행(없어야 GO).
 2. **auth V89 적용**: 서비스 배포(Flyway 자동). `SELECT character_maximum_length FROM information_schema.columns WHERE table_name='approval_line_config' AND column_name='document_type';` = **70** 확인 + `SELECT success FROM flyway_schema_history WHERE version='89';` = t.
 3. **groupware V11 적용**: 배포. `approval_lines.document_type`·`document_templates.doc_type` = **70** 확인 + V11 success=t. code 31–60 결재유형 발의 smoke(발의 201·approval_lines 41–70 저장).
@@ -64,7 +64,7 @@
 5. **락 타임아웃**: V11/V89 첫 문장 `SET LOCAL lock_timeout='5s'` → blocker 시 fail-fast. 실패 시 1번 재확인 후 저활동창 재배포(마이그 멱등·재적용 안전).
 - 선재 오버플로(code 31자+ 기존 발의)는 본 확장으로 해소(별건 아님). 71자는 기존 VARCHAR(40)에서도 유효 입력 아니었고 파생 최대 70 → **기존 유효 입력 회귀 0**.
 
-## 5. 팀 배치 (구현=CODEX LUNA)
+## 6. 팀 배치 (구현=CODEX LUNA)
 - **BE(shared)**: ApprovalLineBase @Column length 70.
 - **BE(groupware)**: DocumentTemplate DOC_TYPE_MAX_LENGTH 70 + 오류문구 상수화 + V11(2 ALTER + backfill) + IT(발의 code60→70 + code61 거부 + approval_lines 71 JDBC 경계 + document_templates 41/70/71+메시지 + information_schema 2컬럼 + **genuine 마이그 IT V10재현→V11 backfill 4단언**).
 - **BE(auth)**: ApprovalLineConfig length 70 + 주석갱신 + addStep/createDisplayStep length guard + V89 + IT(addStep 41/70/71 + information_schema 1컬럼).

@@ -12,7 +12,7 @@
 | ② | `groupware_db.document_templates.doc_type` (NOT NULL) | V11 | `groupware DocumentTemplate` |
 | ③ | `auth_db.approval_line_config.document_type` (NOT NULL) | V89 | `auth ApprovalLineConfig` |
 
-협업 `document_type`(`approval_collab_comments`·`approval_collab_suggestions` 등 13컬럼)은 고정 `CollabDocumentType` enum(최장 `ACCOUNTING_CASH_RECEIPT` 23자·`GROUPWARE_` 유입 0)이라 스코프 밖. `approval_attachments.ref_doc_type`(별 enum)도 무관.
+협업 `document_type`(`approval_collab_comments`·`approval_collab_suggestions` 등 다수 컬럼)은 고정 `CollabDocumentType` enum(최장 `ACCOUNTING_CASH_RECEIPT` 23자·`GROUPWARE_` 유입 0)이라 스코프 밖. `approval_attachments.ref_doc_type`(별 enum)도 무관.
 
 변경: 3 엔티티 length 70 + `DocumentTemplate.DOC_TYPE_MAX_LENGTH`(오류문구 상수 보간) + auth `createDisplayStep`/`addStep` length guard(≤70) + groupware V11(2 ALTER + backfill)·auth V89(1 ALTER, 둘 다 첫 문장 `SET LOCAL lock_timeout='5s'`) + FE `templateSchema.MAX_DOC_TYPE_LENGTH` 70 + DTO `@Size(70)`(아래 R1).
 
