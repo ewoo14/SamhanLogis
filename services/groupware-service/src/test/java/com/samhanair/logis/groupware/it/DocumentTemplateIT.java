@@ -117,30 +117,37 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         // 실 HTTP 경로를 태워야 41–70자 GROUPWARE_${code} 레이아웃 저장이 실제 가능한지 검증된다
         // (#848 store ②·DTO @Size(40) 게이트 회귀 차단·[[feedback_live_qa_penetrates_it_masking]]).
         String hdr = "40000000-0000-0000-0000-000000000845";
+        String docType41 = "N".repeat(41);
         mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request("N".repeat(41), "HTTP 41자"))))
-                .andExpect(status().isCreated());
+                        .content(objectMapper.writeValueAsString(request(docType41, "HTTP 41자"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.docType").value(docType41));
+        String docType70 = "O".repeat(70);
         mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request("O".repeat(70), "HTTP 70자"))))
-                .andExpect(status().isCreated());
+                        .content(objectMapper.writeValueAsString(request(docType70, "HTTP 70자"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.docType").value(docType70));
         mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request("P".repeat(71), "HTTP 71자"))))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("docType: 문서 유형(docType)은 70자 이하여야 합니다"));
 
         // update(PUT) DTO 게이트도 동일. DRAFT 는 docType 변경 불가(422)라 동일 65자 docType 으로 rename → 200.
+        String docType65 = "Q".repeat(65);
         String created = mvc.perform(post("/admin/groupware/document-templates").header("X-User-Id", hdr)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request("Q".repeat(65), "PUT 시드"))))
+                        .content(objectMapper.writeValueAsString(request(docType65, "PUT 시드"))))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
         mvc.perform(put("/admin/groupware/document-templates/{id}", id).header("X-User-Id", hdr)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request("Q".repeat(65), "PUT 65자 rename"))))
-                .andExpect(status().isOk());
+                        .content(objectMapper.writeValueAsString(request(docType65, "PUT 65자 rename"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.docType").value(docType65));
         mvc.perform(put("/admin/groupware/document-templates/{id}", id).header("X-User-Id", hdr)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request("Z".repeat(71), "PUT 71자"))))

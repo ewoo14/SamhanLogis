@@ -115,7 +115,7 @@
 - [메뉴 5대분류+품목 노출구분](project_item_exposure_and_menu_5cat.md) — 판매/구매/회계/그룹웨어/인사+배차·창고, usageScope+displayOrder
 
 # 도메인 결정/에픽 상태
-- [🚨 2026-07-19 잔여/이슈 일괄 결정 배치 + PM 자율 위임](project_pending_decisions_2026_07_19.md) — 개발책임자가 남은 전 잔여(20이슈+2에픽) 결정 일괄 확정·이후 전부 PM 자율. #845 DS-3 재인쇄=승인당시 pin·편집기MVP=밴드+FIELD/TEXT/GRID(detail/이미지=DS-4)·#823 매출배분=차단reject·전표거래처필수화=단계적·#825슬5=신규만·#848=컬럼40→70(V11)·#838=audit승인·#830=현행유지(→Phase11)·#832=BOM BE보존. 실행순서=회계체인(#823→전표필수화→슬5)→#825슬6/7→#845DS3/4→#824/#848→chore배치→AC후속→(Google자격후)#827/#773. #827/#773만 clasp 블로커. 각 항목 캐논 워크플로우 엄수·무결성 재확인 불요(본 배치로 선확인)
+- [🚨 2026-07-19 잔여/이슈 일괄 결정 배치 + PM 자율 위임](project_pending_decisions_2026_07_19.md) — 개발책임자가 남은 전 잔여(20이슈+2에픽) 결정 일괄 확정·이후 전부 PM 자율. #845 DS-3 재인쇄=승인당시 pin·편집기MVP=밴드+FIELD/TEXT/GRID(detail/이미지=DS-4)·#823 매출배분=차단reject·전표거래처필수화=전이가드·#825슬5=신규만·#848=3저장소40→70(groupwareV11+authV89)·#838=audit승인·#830=현행유지(→Phase11)·#832=BOM BE보존. 실행순서=회계체인(#823→전표필수화→슬5)→#825슬6/7→#845DS3/4→#824/#848→chore배치→AC후속→(Google자격후)#827/#773. #827/#773만 clasp 블로커. 각 항목 캐논 워크플로우 엄수·무결성 재확인 불요(본 배치로 선확인)
 - [주문 상태 모델](project_partner_order_status_model.md) — 진행중DRAFT/완료CONFIRMED/보류ON_HOLD(#324)
 - [주문→출고전표 전환](project_order_slip_conversion.md) · [전표/주문번호=슬래시 YYYY/MM/DD-N](feedback_slip_order_number_format.md)
 - [주문서 UI: 웹만 GAS·데스크탑+모바일 표준통일](project_order_form_ui_web_gas_desktop_standard.md) — GAS 방식 프론트=웹 주문서 전용, 데스크탑·모바일 주문서는 타 메뉴와 동일 design-system UI (2026-07-05)

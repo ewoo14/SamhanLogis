@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.auth.AuthServiceApplication;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -53,6 +54,9 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
     private MockMvc mockMvc;
 
     @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -92,6 +96,16 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
                                     .formatted(documentType)))
                     .andReturn();
             assertThat(result.getResponse().getStatus()).isEqualTo(200);
+            UUID roleId = UUID.fromString(objectMapper.readTree(
+                    result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                    .path("data").path("id").asText());
+            assertThat(jdbcTemplate.queryForObject("""
+                    SELECT document_type
+                      FROM approval_line_config
+                     WHERE id = ?
+                    """, String.class, roleId))
+                    .as("저장된 document_type(%d자)", documentType.length())
+                    .isEqualTo(documentType);
         }
 
         MvcResult overLimit = mockMvc.perform(post("/auth/admin/approval-line-configs")
@@ -103,7 +117,8 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
                                 .formatted(over70)))
                 .andReturn();
         assertThat(overLimit.getResponse().getStatus()).isBetween(400, 499);
-        assertThat(overLimit.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("70");
+        assertThat(overLimit.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("documentType: 전표 종류(documentType)는 70자 이하여야 합니다");
         assertThat(columnLength("approval_line_config", "document_type")).isEqualTo(70);
     }
 

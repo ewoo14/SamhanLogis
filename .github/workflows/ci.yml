@@ -133,6 +133,48 @@ jobs:
       - name: test (${{ matrix.group.name }})
         run: ./gradlew ${{ matrix.group.test-tasks }}
 
+      - name: "#848 DocumentTemplateIT skipped=0 hard gate"
+        if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'
+        run: |
+          report='services/groupware-service/build/test-results/test/TEST-com.samhanair.logis.groupware.it.DocumentTemplateIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#848 DocumentTemplateIT JUnit report not found; document template boundary IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#848 DocumentTemplateIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
+      - name: "#848 ApprovalLineConfigInstantiationIT skipped=0 hard gate"
+        if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'
+        run: |
+          report='services/groupware-service/build/test-results/test/TEST-com.samhanair.logis.groupware.it.ApprovalLineConfigInstantiationIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#848 ApprovalLineConfigInstantiationIT JUnit report not found; approval-line instantiation IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#848 ApprovalLineConfigInstantiationIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
+      - name: "#848 ApprovalLineConfigControllerIT skipped=0 hard gate"
+        if: matrix.group.name == 'shared+auth+gateway'
+        run: |
+          report='services/auth-service/build/test-results/test/TEST-com.samhanair.logis.auth.it.ApprovalLineConfigControllerIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#848 ApprovalLineConfigControllerIT JUnit report not found; auth approval-line boundary IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#848 ApprovalLineConfigControllerIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: E2 CollectionRealtimePublisherTest skipped=0 hard gate
         if: matrix.group.name == 'shared+auth+gateway'
         run: |

@@ -48,13 +48,20 @@
 - **FE 경계 vitest**(SOL-M2): `templateSchema` docType 70자 parse 성공·71자 실패 단언.
 - **fresh Postgres probe**: groupware V1→V11·auth V1→V89 DROP/CREATE + `psql ON_ERROR_STOP`([[feedback_migration_fresh_postgres_probe]]).
 - **genuine**: `--rerun-tasks --no-build-cache`·변경 모듈 전체(groupware·auth·shared/approval-core 의존)([[feedback_changed_module_full_test_before_push]]). JUnit report·skipped=0.
-- **라이브QA**: 실서버 — code 31–60자 결재유형 생성 → 결재 발의 성공(스샷)·해당 문서 레이아웃 템플릿 저장 성공·auth 결재선 설정 GROUPWARE_${code} 조회 정상.
+- **라이브QA**(실서버 :8080·V11/V89 적용·실측 완료): code 55자 결재유형 생성 → ⒜ **결재 발의 → `approval_lines.document_type=GROUPWARE_${code}`(65자) 저장 201**(원버그 documentTypeFor 경로·확장 전 40이면 500) ⒝ **문서양식 POST(65자 doc_type) 201 + activate + active GET 65자 반환**(읽기 경로·DEFAULT fallback 아님) ⒞ **auth addStep `documentType=GROUPWARE_${code}`(65자) 201 + DB 65자 영속**. 경계 72자 → 400 "size must be between 0 and 70". 증거=`docs/qa/848/`. (R1 fix 전 문서양식 POST 는 DTO `@Size(40)` 로 400 "0 and 40" → fix 후 201.)
 
 ## 4. 리스크
 - **ALTER COLUMN TYPE VARCHAR(40)→70 = Postgres no-rewrite**(PG 16.14·확장은 binary-coercible) → **테이블 재작성 없음**(relfilenode 불변 실측). ⚠️ **단 대상 컬럼을 키에 포함한 유니크 인덱스 3개는 ALTER 락 내에서 재빌드됨**(R1-D1 relfilenode 추적 실측: `ux_document_templates_active_doc_type`·`ux_document_templates_name_active`·auth `uq_approval_line_config_doctype_seq_active` — PG 공식 "indexes on the affected columns must still be rebuilt"). 재빌드는 ALTER 가 이미 잡은 `ACCESS EXCLUSIVE` 락 내에서 수행되어 **추가 락·추가 차단창 없음**·소규모(document_templates 5행·approval_line_config 13행 → sub-ms). `approval_lines`(document_type 인덱스 無)는 catalog 변경만. 현 관련 락/열린 tx 0.
 - ⚠️ **락 대기(SOL-M3·M4)**: 라이브 `lock_timeout=0` → "brief ACCESS EXCLUSIVE" 는 **락 획득 후에만** 참·선행 장기 tx 있으면 무기한 대기 가능. **배포 runbook: ⒜ 사전 blocker query**(`pg_locks`/`pg_stat_activity` 장기 tx 확인) **⒝ `SET LOCAL lock_timeout='5s'` 를 V11/V89 마이그 트랜잭션 첫 문장으로 삽입**(Flyway 는 마이그를 tx 로 감쌈 → SET LOCAL 이 ALTER 락 획득에 적용·5s 초과 시 fail-fast 후 저활동창 재시도). ⚠️ **별도 psql 명령의 `SET LOCAL` 은 `can only be used in transaction blocks` 로 무효**(SOL-M4 라이브 실측). 저활동창 선택 시 blocker query 필수 선행.
 - **적용 마이그 불변**(groupware V1~V10·auth V1~V88 무수정·V11/V89 신규만)[[feedback_applied_migration_immutable]].
-- 배포: groupware+auth 2 서비스 마이그(독립 DB·독립 컬럼 → 순서 무관). 엔티티(70)↔컬럼(70) 동시 배포(부팅 validate).
+- 배포: groupware+auth 2 서비스 마이그. 데이터 정합상 **순서 무관**(독립 DB·독립 컬럼·상호 FK 없음)이나, **안전 배포 순서 권장 = auth V89 → groupware V11 → desktop**(각 단계 검증 후 진행·동시 재시작 시 양쪽 blocker 있으면 5s 후 둘 다 Flyway fail→동시 기동불가 회피). 엔티티(70)↔컬럼(70) 동시 배포(부팅 validate).
+
+## 6. 배포 runbook (실행 절차)
+1. **사전 blocker 확인**(각 DB): `SELECT pid, state, now()-xact_start AS dur, query FROM pg_stat_activity WHERE datname IN ('auth_db','groupware_db') AND state<>'idle' AND now()-xact_start > interval '3 s' ORDER BY dur DESC;` → 장기 tx 있으면 해소/대기 후 진행(없어야 GO).
+2. **auth V89 적용**: 서비스 배포(Flyway 자동). `SELECT character_maximum_length FROM information_schema.columns WHERE table_name='approval_line_config' AND column_name='document_type';` = **70** 확인 + `SELECT success FROM flyway_schema_history WHERE version='89';` = t.
+3. **groupware V11 적용**: 배포. `approval_lines.document_type`·`document_templates.doc_type` = **70** 확인 + V11 success=t. code 31–60 결재유형 발의 smoke(발의 201·approval_lines 41–70 저장).
+4. **desktop 배포**: 문서양식 편집기에서 41–70 docType 저장·active 렌더 확인.
+5. **락 타임아웃**: V11/V89 첫 문장 `SET LOCAL lock_timeout='5s'` → blocker 시 fail-fast. 실패 시 1번 재확인 후 저활동창 재배포(마이그 멱등·재적용 안전).
 - 선재 오버플로(code 31자+ 기존 발의)는 본 확장으로 해소(별건 아님). 71자는 기존 VARCHAR(40)에서도 유효 입력 아니었고 파생 최대 70 → **기존 유효 입력 회귀 0**.
 
 ## 5. 팀 배치 (구현=CODEX LUNA)

@@ -1127,6 +1127,18 @@ describe('mock approval-line-config contract', () => {
     expect(deleted.data).toBeNull()
   })
 
+  it('결재라인 단계 추가는 documentType 71자를 400 INVALID_INPUT으로 거부한다', () => {
+    const result = mockRequest({
+      method: 'POST',
+      url: '/auth/admin/approval-line-configs',
+      data: { documentType: 'X'.repeat(71), label: '검토자' },
+    }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
+
+    expect(result.__mockStatus).toBe(400)
+    expect(result.body.code).toBe('INVALID_INPUT')
+    expect(result.body.message).toContain('70')
+  })
+
   it('전표 CREATOR 단계 삭제는 계속 거부한다', () => {
     const deleted = mockRequest({
       method: 'DELETE',

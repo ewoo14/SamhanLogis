@@ -116,7 +116,27 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
                 VALUES (?, ?, ?, ?, 'PENDING', ?, NOW(), ?, FALSE, ?)
                 """, UUID.randomUUID(), UUID.randomUUID(), "71자 직접 입력", "본문",
                 "2099/01/01-848-71", "approval-line-config-it", "T".repeat(71)))
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(RuntimeException.class)
+                .satisfies(ex -> {
+                    boolean lengthViolation = false;
+                    for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+                        if (cause instanceof java.sql.SQLException sqlException
+                                && "22001".equals(sqlException.getSQLState())) {
+                            lengthViolation = true;
+                            break;
+                        }
+                        String message = cause.getMessage();
+                        if (message != null
+                                && (message.contains("value too long")
+                                || message.contains("right truncation"))) {
+                            lengthViolation = true;
+                            break;
+                        }
+                    }
+                    assertThat(lengthViolation)
+                            .as("71자 document_type insert는 SQLSTATE 22001 또는 길이 초과 원인이어야 한다")
+                            .isTrue();
+                });
     }
 
     /**

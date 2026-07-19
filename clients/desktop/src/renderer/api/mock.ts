@@ -12681,6 +12681,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const documentType = String(body['documentType'] ?? '').trim()
     const label = String(body['label'] ?? '').trim()
     if (!documentType) return mockError(400, 'INVALID_INPUT', '전표 종류(documentType)를 입력해야 합니다.')
+    if (documentType.length > 70) {
+      return mockError(400, 'INVALID_INPUT', '전표 종류(documentType)는 70자 이하여야 합니다')
+    }
     if (!label) return mockError(400, 'INVALID_INPUT', '라벨은 빈 값일 수 없습니다.')
     const active = _mockApprovalLineConfigRoles.filter((role) => role.documentType === documentType && !role.isDeleted)
     const role: MockApprovalLineRole = {

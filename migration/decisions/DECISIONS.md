@@ -3017,3 +3017,16 @@ R4(FABLE5 1차 적대검증) 확인요청 4건 확정 — 근거 전문: [PR #82
 |---|---|
 | D-DS2-11 | 문서 레이아웃은 groupware `document_templates`의 typed JSONB(`paper+bands`)를 권위로 삼고 V10에만 추가한다. docType별 ACTIVE는 bulk 강등 시 `lock_version`/modified audit를 명시 증가시킨 뒤 대상만 승격하며, 경합은 409로 반환한다. |
 | D-DS2-12 | desktop renderer는 `ApprovalLine.documentType` active 조회를 로딩 종료 후 1회 결정한다. active 없음·오류·malformed·네트워크/재연결/late 결과는 기존 `GROUPWARE_DEFAULT` 출력으로 수렴하며, 기본 양식은 recursive freeze하고 반환 시 deep-clone한다. |
+
+## #848 documentType 컬럼 40→70 확장 (2026-07-19, PR #852)
+
+`documentTypeFor()`가 생성하는 `GROUPWARE_${code}`(최대 70자=`GROUPWARE_`(10)+`ApprovalTemplate.code`(≤60))가 저장 컬럼 VARCHAR(40)을 초과(code 31자+ 시 500/truncation). `GROUPWARE_${code}`를 저장하는 컬럼 전 3곳을 40→70 확장. 워크플로우: SOL 기획검수 v1→v4 GO·LUNA 구현·OPUS R1 5-agent(DTO @Size(40) 게이트 HIGH·라이브 400 확증→fix)·CODEX SOL R2 5-agent. dev-report `docs/dev-reports/2026-07-19-848-documenttype-column-widen.md`.
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-848-01 | **blast radius = `GROUPWARE_${code}` 저장 3컬럼**(라이브 DB 17-DB 전수 실측·grep false-negative 회피): ①groupware `approval_lines.document_type`(V8·nullable·`ApprovalLineBase`) ②groupware `document_templates.doc_type`(V10·`DocumentTemplate`) ③auth `approval_line_config.document_type`(V61·`ApprovalLineConfig`). 협업 `document_type`(고정 `CollabDocumentType` enum·최장 23자·`GROUPWARE_` 유입 0)은 스코프 밖. `approval_attachments.ref_doc_type`(별 enum)도 무관. |
+| D-848-02 | **엔티티·마이그 모두 70**: `ApprovalLineBase.document_type` length 70 / `DocumentTemplate.DOC_TYPE_MAX_LENGTH` 70(오류문구 상수 보간) / `ApprovalLineConfig.document_type` length 70 + `createDisplayStep`/`addStep` length guard(≤70·free-form). groupware `V11`(2 ALTER+backfill)·auth `V89`(1 ALTER), 둘 다 첫 문장 `SET LOCAL lock_timeout='5s'`. |
+| D-848-03 | **ddl-validate 는 VARCHAR length 미검사** → 부팅 green≠폭확장. `information_schema.character_maximum_length=70` 단언 IT(3컬럼) + 실 flush IT(41/70 성공·71 거부·정확값 round-trip 단언)로 genuine 검증. V11 backfill 멱등은 `JdbcTemplate.update()` count=0(2번째 `flyway.migrate()` migrationsExecuted false-green 금지). |
+| D-848-04 | **V11 backfill 대상 현 라이브 0행**: 활성 NULL 64행은 전부 `template_id IS NULL` 독립형 결재(정당·backfill 무영향). backfill(`BETWEEN 41 AND 70`)은 타 환경의 V10-skipped 41–70 행 복구 목적·멱등. |
+| D-848-05 | **DTO 계약 게이트도 70**(R1 OPUS 적대검증 HIGH): `DocumentTemplateCreate/UpdateRequest.docType`·`AddApprovalLineStepRequest.documentType` `@Size(max=40→70, 한국어 message)`. `@Valid` 가 도메인 validateDocType 보다 먼저 발동하므로 DTO 미확장 시 41–70 저장이 실 HTTP 400 차단(서비스 직접호출 IT 가 @Valid 우회로 마스킹→MockMvc HTTP 경계 IT 로 방어). FE `templateSchema.MAX_DOC_TYPE_LENGTH` 70·mock parity(71 거부). |
+| D-848-06 | **배포 순서 권장 = auth V89 → groupware V11 → desktop**(데이터 정합상 순서 무관이나 동시 재시작+양쪽 blocker 시 동시 기동불가 회피). 사전 blocker query(장기 tx)·단계별 information_schema=70 검증·`SET LOCAL lock_timeout='5s'` fail-fast+저활동창 재시도. ALTER VARCHAR 확장=no-rewrite이나 doc_type 키 유니크 인덱스 3개는 ALTER 락 내 재빌드(소규모 무시). |
