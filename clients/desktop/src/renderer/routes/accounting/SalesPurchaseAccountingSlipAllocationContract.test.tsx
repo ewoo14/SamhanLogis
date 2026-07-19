@@ -162,4 +162,23 @@ describe.each([
     expect((submitButton(testId) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByRole('alert').textContent).toContain('원천')
   })
+
+  it.each([
+    ['partnerCode', null],
+    ['partnerName', null],
+    ['partnerCode', '   '],
+    ['partnerName', '   '],
+  ] as const)('blocks submit when source %s=%j independently', async (field, value) => {
+    const incompletePartner = { ...PARTNER_A, [field]: value } as typeof PARTNER_A
+    mocks.listSources.mockResolvedValue([
+      sourceRow(sourceType, incompletePartner, `${mutationKind}-${field}-${value == null ? 'null' : 'blank'}`),
+    ])
+
+    renderPage(kind)
+    await waitFor(() => expect(mocks.listSources).toHaveBeenCalled())
+
+    expect((submitButton(testId) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('alert').textContent).toContain('거래처')
+    expect(mutationKind === 'sales' ? mocks.createSales : mocks.createPurchase).not.toHaveBeenCalled()
+  })
 })

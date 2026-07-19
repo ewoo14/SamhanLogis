@@ -33,6 +33,20 @@
 - **FE exact**: `cd clients/desktop && npm run typecheck` exit 0, `npm run test` exit 0. resolver 계약 2건과 mock 계약(매출·매입 code/name null 차단)을 포함한 전체 Vitest가 통과했다.
 - **DB 불변**: `SalesAccountingSlip`·`PurchaseAccountingSlip`의 `partner_code`/`partner_name nullable=false`와 Flyway `V18`/`V19` `NOT NULL`을 유지했으며 신규/수정 migration은 없다.
 
+## R2 최종 수렴 소fix — MED 2건 (2026-07-19)
+
+- **whitespace-only 정합**: FE `resolveAllocationPartner`와 `slipAllocationSourceApi` mock의 code/name 유효 판정을 `value != null && value.trim().length > 0`로 통일했다. BE 양 서비스의 기존 `isBlank()`와 정합하며 `"   "` 원천은 FE 저장 차단/mock `SAS_SOURCE_PARTNER_MISSING`(422)으로 처리한다.
+- **실 DB IT 4-way 독립**: 매출·매입 `SalesAccountingSlipControllerIT`/`PurchaseAccountingSlipControllerIT`에 각각 `code=null/name-valid`, `code-valid/name=null`, `code="   "`, `name="   "`의 독립 테스트를 추가했다. 각 케이스는 Testcontainers 실 Postgres 경로에서 `422 SAS_SOURCE_PARTNER_MISSING`과 repository 저장 건수 불변을 단언한다. 완전한 code/name 원천의 기존 DRAFT 저장 성공 케이스도 유지한다.
+- **FE 계약 4-way 독립**: 매출·매입 form 계약테스트가 동일한 4개 입력을 각각 submit disabled·거래처 안내·mutation 미호출로 단언하고, resolver 순수 계약과 mock 저장 계약도 whitespace를 포함한다.
+- **preflight SQL**: `partner_code=''`/`partner_name=''` 조건을 `BTRIM(partner_code)=''`/`BTRIM(partner_name)=''`로 강화해 공백-only를 런타임 `isBlank()`와 동일하게 검출한다.
+
+최종 genuine 검증:
+
+| 검증 | 결과 |
+|---|---|
+| `./gradlew :services:accounting-service:test :services:slip-service:test --rerun-tasks --no-build-cache` | **BUILD SUCCESSFUL** (accounting 1,319 tests / skipped 10 / failures 0 / errors 0, slip 1,363 / skipped 0 / failures 0 / errors 0) |
+| `cd clients/desktop && npm run typecheck && npm run test` | **PASS** (Vitest 131 files / 965 tests) |
+
 ## 🚀 배포 런북 (D-823-02 — 필수 순서)
 1. **preflight**: 배포 대상 환경에서 아래 결과가 **0**인지 확인한다.
    ```sql
@@ -41,10 +55,10 @@
    WHERE status = 'CONFIRMED'
      AND is_deleted = false
      AND (partner_id IS NULL
-          OR partner_code IS NULL OR partner_code = ''
-          OR partner_name IS NULL OR partner_name = '');
+          OR partner_code IS NULL OR BTRIM(partner_code) = ''
+          OR partner_name IS NULL OR BTRIM(partner_name) = '');
    ```
-   >0이면 원천 거래처의 partnerId/code/name을 보정한 뒤 배포한다(미보정 시 해당 원천 배분은 `SAS_SOURCE_PARTNER_MISSING`으로 거부).
+   `BTRIM`으로 공백만 있는 code/name도 런타임 `isBlank()`와 동일하게 검출한다. >0이면 원천 거래처의 partnerId/code/name을 보정한 뒤 배포한다(미보정 시 해당 원천 배분은 `SAS_SOURCE_PARTNER_MISSING`으로 거부).
 2. **순서 = producer(slip-service) 먼저 → consumer(accounting-service) 나중**. consumer-first 배포 시 구 producer 응답에 partnerId 부재→null→**전 배분이 MISSING(422)로 전면 거부**. accounting record `@JsonIgnoreProperties`는 미지 필드 무시일 뿐 순서 안전 아님.
 3. **readiness = contract readiness**: 단순 health 아님. slip-service `/internal/slips/lines/{lineId}` 응답에 **partnerId + nonblank partnerCode + nonblank partnerName**이 모두 존재하고 Eureka LB 풀에서 **구 slip 인스턴스 부재**를 확인한 후 accounting을 배포한다. (롤링 중 stale 인스턴스 잔존 시 일시 다량 422 MISSING 가능·fail-CLOSED·가역.)
 

@@ -49,6 +49,10 @@ const inputStyle: CSSProperties = {
   width: '100%',
 }
 
+function isNonBlank(value: string | null | undefined): value is string {
+  return value != null && value.trim().length > 0
+}
+
 export function getDefaultAllocationRows(sourceKind: AllocationSourceKind): AllocationEditorRow[] {
   void sourceKind
   return []
@@ -64,7 +68,7 @@ export function resolveAllocationPartner(rows: AllocationEditorRow[]): Allocatio
     return { status: 'missing', message: '원천 거래처를 확인할 수 없습니다.' }
   }
 
-  if (rows.some((row) => !row.partnerId || !row.partnerCode || !row.partnerName)) {
+  if (rows.some((row) => !row.partnerId || !isNonBlank(row.partnerCode) || !isNonBlank(row.partnerName))) {
     return { status: 'missing', message: '원천 전표의 거래처 정보가 없어 저장할 수 없습니다.' }
   }
 
@@ -73,7 +77,7 @@ export function resolveAllocationPartner(rows: AllocationEditorRow[]): Allocatio
     return { status: 'multiple', message: '서로 다른 거래처의 원천은 한 전표에 함께 배분할 수 없습니다.' }
   }
 
-  if (!first.partnerId || !first.partnerCode || !first.partnerName || partnerIds.size === 0) {
+  if (!first.partnerId || !isNonBlank(first.partnerCode) || !isNonBlank(first.partnerName) || partnerIds.size === 0) {
     return { status: 'missing', message: '원천 전표의 거래처 정보가 없어 저장할 수 없습니다.' }
   }
 

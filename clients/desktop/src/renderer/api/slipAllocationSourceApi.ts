@@ -32,6 +32,10 @@ export interface ListSlipAllocationSourcesOptions {
   partnerId?: string
 }
 
+function isNonBlank(value: string | null | undefined): value is string {
+  return value != null && value.trim().length > 0
+}
+
 function unwrap<T>(payload: T | ApiEnvelope<T>): T {
   if (
     typeof payload === 'object'
@@ -108,7 +112,7 @@ export function assertMockAllocationPartner(
       .flatMap((summary) => summary.lines.map((line) => ({ summary, line })))
       .find(({ line }) => line.lineId === allocation.sourceLineId)
       ?.summary
-    return source?.partnerId && source.partnerCode && source.partnerName
+    return source?.partnerId && isNonBlank(source.partnerCode) && isNonBlank(source.partnerName)
       ? source.partnerId
       : null
   })

@@ -240,6 +240,30 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_admin_purchase_slips_source_partner_code_null_name_valid은_독립적으로_422_MISSING() throws Exception {
+        assertSourcePartnerMissing(UUID.randomUUID(), UUID.randomUUID(), "IN-PARTNER-CODE-NULL",
+                null, "원천 거래처");
+    }
+
+    @Test
+    void POST_admin_purchase_slips_source_partner_code_valid_name_null은_독립적으로_422_MISSING() throws Exception {
+        assertSourcePartnerMissing(UUID.randomUUID(), UUID.randomUUID(), "IN-PARTNER-NAME-NULL",
+                "P-SOURCE-823", null);
+    }
+
+    @Test
+    void POST_admin_purchase_slips_source_partner_code_whitespace_only은_독립적으로_422_MISSING() throws Exception {
+        assertSourcePartnerMissing(UUID.randomUUID(), UUID.randomUUID(), "IN-PARTNER-CODE-BLANK",
+                "   ", "원천 거래처");
+    }
+
+    @Test
+    void POST_admin_purchase_slips_source_partner_name_whitespace_only은_독립적으로_422_MISSING() throws Exception {
+        assertSourcePartnerMissing(UUID.randomUUID(), UUID.randomUUID(), "IN-PARTNER-NAME-BLANK",
+                "P-SOURCE-823", "   ");
+    }
+
+    @Test
     void POST_admin_purchase_slips_header_partner_null은_원천조회_전에_400() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
@@ -351,6 +375,27 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
                 sourceSlipId, "IN-2026-05-0042", sourceLineId, PARTNER_ID,
                 "P-SOURCE-823", "원천 거래처", "RX다배관 30A",
                 10, new BigDecimal("150000"), lineTotal, "CONFIRMED", "INBOUND"));
+    }
+
+    private void assertSourcePartnerMissing(UUID sourceSlipId, UUID sourceLineId, String sourceSlipNo,
+            String partnerCode, String partnerName) throws Exception {
+        long before = purchaseSlipRepository.count();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, sourceSlipNo, sourceLineId, PARTNER_ID,
+                partnerCode, partnerName, "RX다배관 30A", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "INBOUND"));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(request(sourceSlipId, sourceLineId,
+                                SalesTaxType.TAXABLE, BigDecimal.ONE, new BigDecimal("100000"),
+                                new BigDecimal("100000")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_SOURCE_PARTNER_MISSING"));
+
+        assertThat(purchaseSlipRepository.count()).isEqualTo(before);
     }
 
     private static CreatePurchaseAccountingSlipRequest request(UUID sourceSlipId, UUID sourceLineId,
