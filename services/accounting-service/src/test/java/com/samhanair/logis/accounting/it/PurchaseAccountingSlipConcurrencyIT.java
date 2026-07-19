@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -20,6 +21,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,8 +33,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,6 +68,7 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     @Autowired PurchaseAccountingSlipRepository slipRepository;
     @Autowired PurchaseAccountingSlipAllocationRepository allocationRepository;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired DataSource dataSource;
 
     @MockBean SlipServiceClient slipServiceClient;
     @MockBean ETaxClient eTaxClient;
@@ -113,6 +119,36 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
     }
 
     /**
+     * 외부 독립 connection 이 같은 advisory key 를 선점하면 서비스 attempt 가 실제로 block 되고,
+     * 외부 transaction 을 해제한 뒤에만 완료되어야 한다. 락 호출을 제거하면 이 테스트가 즉시 RED 된다.
+     */
+    @Test
+    void 외부_트랜잭션이_원천_advisory락을_선점하면_createDraft가_block되고_해제후_완료된다() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-LOCK", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 10,
+                new BigDecimal("10"), new BigDecimal("100"), "CONFIRMED", "INBOUND"));
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (Connection blocker = dataSource.getConnection()) {
+            holdAdvisoryLock(blocker, lockKey(sourceLineId));
+            Future<?> blocked = executor.submit(() -> service.createDraft(
+                    sixtyRequest(sourceSlipId, sourceLineId), "actor-lock"));
+
+            assertThatThrownBy(() -> blocked.get(2, TimeUnit.SECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            assertThat(blocked).isNotDone();
+
+            blocker.rollback();
+            assertThat(blocked.get(10, TimeUnit.SECONDS)).isNotNull();
+        } finally {
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    /**
      * 다중 원천 역순 배분 동시 2요청 — 잔여가 넉넉한 원천 A·B 를 요청1 은 {@code A→B}, 요청2 는 {@code B→A}
      * 로 배분한다. payload 순서 선잠금이라면 교착이 가능하나, lockKey numeric 정렬 선잠금이라 15초 내 둘 다
      * 정상 완료한다. A 를 XOR 충돌쌍(같은 lockKey)으로 구성해 dedup·정렬 경로까지 실경합에서 관통한다.
@@ -141,8 +177,8 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
                 () -> attempt(() -> service.createDraft(
                         twoAllocRequest(other, "IN-OTHER", collisionB, "IN-CB"), "actor-2")));
 
-        // 15s 타임아웃 내 완료 = deadlock 부재 실증
-        List<Outcome> outcomes = runTasks(tasks);
+        // 두 서비스 transaction 이 실제 첫 advisory lock 에서 대기한 뒤 낮은 key를 먼저 해제한다.
+        List<Outcome> outcomes = runTasksAtAdvisoryLockBoundary(tasks, lockKey(other), lockKey(collisionA));
 
         assertThat(outcomes).allMatch(Outcome::success);
         assertThat(slipRepository.count()).isEqualTo(2);
@@ -197,6 +233,99 @@ class PurchaseAccountingSlipConcurrencyIT extends AbstractPostgresIT {
 
     private static long lockKey(UUID id) {
         return id.getMostSignificantBits() ^ id.getLeastSignificantBits();
+    }
+
+    private void holdAdvisoryLock(Connection connection, long key) throws Exception {
+        connection.setAutoCommit(false);
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT pg_advisory_xact_lock(?)")) {
+            statement.setLong(1, key);
+            statement.execute();
+        }
+    }
+
+    /** 외부 blocker 두 개와 pg_locks 관측으로 두 worker를 첫 lock 경계까지 결정적으로 이동한다. */
+    private List<Outcome> runTasksAtAdvisoryLockBoundary(
+            List<Callable<Outcome>> tasks, long lowKey, long highKey) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(tasks.size());
+        try (Connection lowBlocker = dataSource.getConnection();
+                Connection highBlocker = dataSource.getConnection()) {
+            int lowBlockerPid = backendPidAndHold(lowBlocker, lowKey);
+            int highBlockerPid = backendPidAndHold(highBlocker, highKey);
+            List<Future<Outcome>> futures = tasks.stream().map(executor::submit).toList();
+
+            awaitWaitingAdvisoryLocks(lowBlockerPid, highBlockerPid, tasks.size());
+            lowBlocker.rollback();
+            awaitGrantedAdvisoryLock(lowKey, lowBlockerPid, highBlockerPid);
+            highBlocker.rollback();
+
+            return futures.stream().map(future -> getOutcome(future, 15)).toList();
+        } finally {
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    private int backendPidAndHold(Connection connection, long key) throws Exception {
+        connection.setAutoCommit(false);
+        int pid;
+        try (PreparedStatement statement = connection.prepareStatement("SELECT pg_backend_pid()")) {
+            try (var result = statement.executeQuery()) {
+                result.next();
+                pid = result.getInt(1);
+            }
+        }
+        holdAdvisoryLock(connection, key);
+        return pid;
+    }
+
+    private void awaitWaitingAdvisoryLocks(int firstExcludedPid, int secondExcludedPid, int expected)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        int observed = 0;
+        while (System.nanoTime() < deadline) {
+            observed = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM pg_locks "
+                            + "WHERE locktype = 'advisory' AND NOT granted "
+                            + "AND pid NOT IN (?, ?)",
+                    Integer.class, firstExcludedPid, secondExcludedPid);
+            if (observed >= expected) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        fail("두 worker가 advisory 첫 lock에서 대기하지 않음: observed=" + observed);
+    }
+
+    private void awaitGrantedAdvisoryLock(long key, int firstExcludedPid, int secondExcludedPid)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (System.nanoTime() < deadline) {
+            boolean granted = jdbcTemplate.queryForList(
+                    "SELECT pid, classid, objid FROM pg_locks "
+                            + "WHERE locktype = 'advisory' AND granted")
+                    .stream()
+                    .anyMatch(row -> {
+                        int pid = ((Number) row.get("pid")).intValue();
+                        long classId = ((Number) row.get("classid")).longValue();
+                        long objectId = ((Number) row.get("objid")).longValue();
+                        long observedKey = (classId << 32) | (objectId & 0xffffffffL);
+                        return pid != firstExcludedPid && pid != secondExcludedPid
+                                && observedKey == key;
+                    });
+            if (granted) {
+                return;
+            }
+            Thread.sleep(25);
+        }
+        fail("낮은 advisory key를 worker가 선점하지 않음: key=" + key);
+    }
+
+    private static Outcome getOutcome(Future<Outcome> future, int timeoutSeconds) {
+        try {
+            return future.get(timeoutSeconds, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new AssertionError("동시 배분 worker 완료 실패", ex);
+        }
     }
 
     private static Outcome attempt(Supplier<Object> action) {

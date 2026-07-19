@@ -224,6 +224,38 @@ class PurchaseAccountingSlipServiceTest {
     }
 
     @Test
+    void createDraft_retry_각_attempt가_원천_snapshot과_DB_합계를_재조회하고_변경된_baseline을_반영한다() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        LocalDate slipDate = LocalDate.of(2026, 5, 19);
+        when(numberGenerator.next(slipDate)).thenReturn("PAS-CACHE-1", "PAS-CACHE-2");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-CACHE", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 10,
+                new BigDecimal("10"), new BigDecimal("100"), "CONFIRMED", "INBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO, new BigDecimal("50"));
+        when(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO, new BigDecimal("5"));
+        doThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"purchase_accounting_slips_slip_no_key\""))
+                .when(slipRepository).saveAndFlush(any(PurchaseAccountingSlip.class));
+
+        assertThatThrownBy(() -> service.createDraft(
+                requestWithSingleAllocation(sourceSlipId, sourceLineId, new BigDecimal("6"),
+                        new BigDecimal("10"), new BigDecimal("60")), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여금액=50.00")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+
+        verify(slipServiceClient, times(2)).getSlipLine(sourceLineId);
+        verify(allocationRepository, times(2)).sumAllocatedAmountBySourceLineId(sourceLineId);
+        verify(allocationRepository, times(2)).sumAllocatedQtyBySourceLineId(sourceLineId);
+        verify(slipRepository, times(1)).saveAndFlush(any(PurchaseAccountingSlip.class));
+    }
+
+    @Test
     void createDraftAttempt_REQUIRES_NEW_트랜잭션_검증() throws NoSuchMethodException {
         Method method = PurchaseAccountingSlipCreateAttemptService.class.getMethod(
                 "createDraftAttempt", CreatePurchaseAccountingSlipRequest.class, String.class);
@@ -285,6 +317,51 @@ class PurchaseAccountingSlipServiceTest {
         verify(slipServiceClient, times(1)).getSlipLine(sourceLineId);
         verify(allocationRepository, times(1)).sumAllocatedAmountBySourceLineId(sourceLineId);
         verify(allocationRepository, times(1)).sumAllocatedQtyBySourceLineId(sourceLineId);
+    }
+
+    @Test
+    void DB_기존금액50과_요청내25_25는_합계100_경계라_통과한다() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("PAS-DB-BND");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-DB-BND", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 10,
+                new BigDecimal("10"), new BigDecimal("100"), "CONFIRMED", "INBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(new BigDecimal("50"));
+        when(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId))
+                .thenReturn(new BigDecimal("5"));
+        lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        assertThatCode(() -> service.createDraft(
+                requestWithTwoAllocations(sourceSlipId, sourceLineId,
+                        new BigDecimal("25"), new BigDecimal("2.5")), "actor-1"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void DB_기존금액50과_요청내30_30은_합계110이라_거부한다() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-DB-OVER", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 10,
+                new BigDecimal("10"), new BigDecimal("100"), "CONFIRMED", "INBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(new BigDecimal("50"));
+        when(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId))
+                .thenReturn(new BigDecimal("5"));
+
+        assertThatThrownBy(() -> service.createDraft(
+                requestWithTwoAllocations(sourceSlipId, sourceLineId,
+                        new BigDecimal("30"), new BigDecimal("3")), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여금액=20.00")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+        verify(slipRepository, times(0)).saveAndFlush(any(PurchaseAccountingSlip.class));
     }
 
     @Test
@@ -611,6 +688,22 @@ class PurchaseAccountingSlipServiceTest {
                         List.of(new CreatePurchaseAccountingSlipRequest.AllocationRequest(
                                 sourceSlipId, "IN-X", sourceLineId, 1,
                                 qty, allocatedAmount))
+                )));
+    }
+
+    private static CreatePurchaseAccountingSlipRequest requestWithTwoAllocations(
+            UUID sourceSlipId, UUID sourceLineId, BigDecimal eachAmount, BigDecimal eachQty) {
+        BigDecimal totalAmount = eachAmount.multiply(new BigDecimal("2"));
+        BigDecimal totalQty = eachQty.multiply(new BigDecimal("2"));
+        return new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "P", "P", totalQty, totalAmount.divide(totalQty, 2, java.math.RoundingMode.HALF_UP),
+                        List.of(
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        sourceSlipId, "IN-X", sourceLineId, 1, eachQty, eachAmount),
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        sourceSlipId, "IN-X", sourceLineId, 1, eachQty, eachAmount))
                 )));
     }
 
