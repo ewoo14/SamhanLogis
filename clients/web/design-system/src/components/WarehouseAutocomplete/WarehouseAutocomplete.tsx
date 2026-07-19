@@ -215,7 +215,16 @@ export const WarehouseAutocomplete = forwardRef<
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!open || candidates.length === 0) return
+    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
+    if (!open) return
+
+    if (e.key === 'Escape') {
+      setOpen(false)
+      setActiveIndex(-1)
+      setDraft(selectedLabel)
+      return
+    }
+    if (candidates.length === 0) return
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -227,10 +236,6 @@ export const WarehouseAutocomplete = forwardRef<
       e.preventDefault()
       const target = activeIndex >= 0 ? candidates[activeIndex] : candidates[0]
       if (target) pick(target)
-    } else if (e.key === 'Escape') {
-      setOpen(false)
-      setActiveIndex(-1)
-      setDraft(selectedLabel)
     }
   }
 

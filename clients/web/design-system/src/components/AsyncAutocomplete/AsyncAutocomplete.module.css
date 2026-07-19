@@ -154,6 +154,7 @@
 
 /* 2차 표시 — 코드/이름 등 보조 식별자. */
 .optionSecondary {
+  flex: 1 1 auto;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
@@ -201,7 +202,7 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  margin-left: var(--space-1);
+  margin-inline-start: var(--space-1);
   padding: 1px var(--space-1);
   border-radius: var(--radius-sm);
   background-color: var(--color-brand-50);

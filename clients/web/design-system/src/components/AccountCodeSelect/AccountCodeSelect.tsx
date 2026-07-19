@@ -218,6 +218,7 @@ export const AccountCodeSelect = forwardRef<
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
     if (e.key === 'Enter' && candidates.length > 0) {
       e.preventDefault()
       const first = candidates[0]!

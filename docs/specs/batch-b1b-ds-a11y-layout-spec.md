@@ -1,4 +1,4 @@
-# 배치 B1-B — DS 독립 a11y/layout 하드닝 (기획 spec v2)
+# 배치 B1-B — DS 독립 a11y/layout 하드닝 (기획 spec v3)
 
 > OPUS 기획 · 백로그 번다운(B1-A 후속). **CODEX SOL 기획검수 R1(BLOCKING 4·1 PR 적정) 반영 v2.** 대상 **#828**(LineRow role=row orphan)·**#842**(Warehouse DOM/ARIA)·**#843**(matchBadge 클립). 설계 방향 SOL 확인·아래 계약 고정.
 

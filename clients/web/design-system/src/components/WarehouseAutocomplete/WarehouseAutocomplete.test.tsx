@@ -63,6 +63,25 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(activeId).toMatch(/-opt-0$/)
   })
 
+  it('IME 조합 중 Arrow/Enter는 후보 상태와 선택을 바꾸지 않고 조합 종료 후 Enter는 선택한다', () => {
+    const onChange = vi.fn()
+    const { input } = renderWarehouse(onChange)
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    const activeBeforeComposition = input.getAttribute('aria-activedescendant')
+
+    fireEvent.keyDown(input, { key: 'ArrowUp', isComposing: true })
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+
+    expect(input.getAttribute('aria-activedescendant')).toBe(activeBeforeComposition)
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith(warehouses[1]!.id, warehouses[1])
+  })
+
   it('Enter와 mouse 선택은 domain id와 object를 그대로 onChange에 전달한다', () => {
     const onChange = vi.fn()
     const { input } = renderWarehouse(onChange)
@@ -86,5 +105,15 @@ describe('WarehouseAutocomplete opaque option DOM contract', () => {
     expect(input.getAttribute('aria-activedescendant')).toBeNull()
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(screen.getByRole('status').textContent).toContain('일치하는 창고가 없습니다.')
+  })
+
+  it('후보 0건에서도 Escape는 검색 상태를 닫고 선택값 표시를 복원한다', () => {
+    const { input } = renderWarehouse()
+    fireEvent.change(input, { target: { value: '없는 창고' } })
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('status')).toBeNull()
   })
 })

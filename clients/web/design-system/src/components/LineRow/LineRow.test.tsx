@@ -24,13 +24,14 @@ function renderRow(
   priceSource: LineDraft['priceSource'],
   priceRefreshChanged = false,
   partnerSelected?: boolean,
+  selected = false,
 ) {
   return render(
     <div role="table">
       <LineRow
         lineNumber={1}
         line={{ ...line(priceSource), priceRefreshChanged }}
-        selected={false}
+        selected={selected}
         onSelect={vi.fn()}
         onModelNameChange={vi.fn()}
         onModelNameBlur={vi.fn()}
@@ -85,12 +86,13 @@ describe('LineRow price source marker', () => {
     expect(container.querySelector('[data-line-number]')?.hasAttribute('aria-describedby')).toBe(false)
   })
 
-  it('checkbox accessible name, checked 상태와 selected class를 유지한다', () => {
-    const { container } = renderRow('USER')
+  it.each([true, false])('selected=%s이면 checkbox checked와 selected class가 함께 반영된다', (selected) => {
+    const { container } = renderRow('USER', false, undefined, selected)
     const checkbox = screen.getByRole('checkbox', { name: '라인 1 선택' }) as HTMLInputElement
+    const row = checkbox.closest('[data-line-number]')
 
-    expect(checkbox.checked).toBe(false)
-    expect(checkbox.closest('[data-line-number]')?.className).not.toContain('selected')
+    expect(checkbox.checked).toBe(selected)
+    expect(row?.className.includes('selected')).toBe(selected)
     expect(container.querySelector('[role="row"]')).toBeNull()
   })
 
