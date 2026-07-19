@@ -143,10 +143,6 @@
 .optionPrimary {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
   /* 1차 식별자(모델명/거래처명)는 숫자 혼합 — 등폭 정렬 유지(구 optionModel 동등) */
   font-variant-numeric: tabular-nums;
 }
@@ -160,11 +156,6 @@
 .optionSecondary {
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 /* 3차 표시 — 사업자번호 등 낮은 우선순위 보조 정보. */
@@ -172,7 +163,23 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-subtle);
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* 하이라이트 필드와 매치 배지는 sibling으로 분리해 텍스트만 줄임표 처리한다. */
+.highlightedField {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.highlightedText {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 검색어 매치 강조 — 거래처/품목 자동완성 공유. 원문은 React text node, mark는 시각적 강조만 담당한다. */
@@ -192,6 +199,7 @@
 
 .matchBadge {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   margin-left: var(--space-1);
   padding: 1px var(--space-1);

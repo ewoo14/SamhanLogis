@@ -93,7 +93,7 @@
  *    유일성(이중 live region 부재) 단언. [R6-M5] 재조회 시 stale 고지 클리어 — 05/08 말미에
  *    "강조 해제(USER 입력) 후 배너가 빈 텍스트" 프로브 추가(전표=R6-M5 fix 검증, 견적=회귀 가드).
  *  - [G7/R5-M5] '단가 변경' 인디케이터 + aria-describedby 체인 무단언 → 05(전표 LineRow)/08(견적
- *    데스크톱 row) 에 강조행 1행 한정 표시 + row aria-describedby → 실존 id → 텍스트 '단가 변경'
+ *    데스크톱 라인) 에 강조행 1행 한정 표시 + 단가 input aria-describedby → 실존 id → 텍스트 '단가 변경'
  *    + 페이지 내 유일성 단언.
  *  - [G8/R5-H2] 11 의 PUT body 단가 단언이 Number() 강제변환 → 문자열 canonical 형식(typeof
  *    string + /^\d+(\.\d+)?$/ + exact string) 단언 추가. 무수정 PUT = hydrate canonical
@@ -1194,18 +1194,20 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     // D-R3-2: 배너 + 변경행 강조 — 값이 실제 바뀐 라인1만 강조돼야 한다
     const banner = page.getByRole('status').filter({ hasText: '거래처 변경으로 최근단가 재적용' })
     await expect(banner, '거래처 변경 배너 미표시(D-R3-2 회귀)').toBeVisible({ timeout: 10000 })
-    const highlighted = page.locator('[role="row"][class*="priceRefreshed"]')
+    const highlighted = page.locator('[data-line-number="1"][class*="priceRefreshed"]')
     await expect(highlighted, '변경행 강조가 정확히 1행(값 변경 라인)이 아님').toHaveCount(1)
     await expect(highlighted, '강조 행이 라인1이 아님').toHaveAttribute('data-line-number', '1')
     // [G7/R5-M5] '단가 변경' 인디케이터 + aria-describedby 체인 — 값이 실제 바뀐 라인1에만.
     const priceChangeIndicators = page.getByText('단가 변경', { exact: true })
     await expect(priceChangeIndicators, "'단가 변경' 인디케이터는 변경행 1곳에만 떠야 함(R5-M5 회귀)").toHaveCount(1)
-    const slipDescribedBy = await highlighted.getAttribute('aria-describedby')
-    expect(slipDescribedBy, '변경행 row 에 aria-describedby 미배선(R5-M5 회귀)').toBeTruthy()
-    await expect(
-      page.locator(`[id="${slipDescribedBy}"]`),
-      'aria-describedby 대상 인디케이터 id 실체 부재(체인 단절)',
-    ).toHaveText('단가 변경')
+    const slipPriceInput = highlighted.getByLabel('라인 1 단가')
+    const slipDescribedBy = await slipPriceInput.getAttribute('aria-describedby')
+    const slipDescriptionIds = slipDescribedBy?.split(/\s+/) ?? []
+    expect(slipDescriptionIds, '단가 input aria-describedby 복수 IDREF 미배선(R5-M5 회귀)').toHaveLength(2)
+    for (const id of slipDescriptionIds) {
+      await expect(page.locator(`[id="${id}"]`), `aria-describedby 대상 id 실체 부재: ${id}`).toHaveCount(1)
+    }
+    await expect(page.locator(`[id="${slipDescriptionIds[1]}"]`), '변경상태 IDREF가 단가 변경을 가리키지 않음').toHaveText('단가 변경')
     // 마커 정합: 라인1=거래처 최근단가 · 라인3=판매가(D-R4-1) · 라인2(USER)=마커 없음
     await expect(recentMarkers(page), '최근가 마커는 라인1 1개여야 함').toHaveCount(1)
     await expect(catalogMarkers(page), '판매가 마커는 라인3 1개여야 함').toHaveCount(1)
@@ -1426,14 +1428,19 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     const highlighted = estimateHighlightedRows(page)
     await expect(highlighted, '견적 변경행 강조가 정확히 1행이 아님').toHaveCount(1)
     await expect(highlighted, '견적 강조 행이 라인1이 아님').toHaveAttribute('data-testid', 'estimate-form-line-0')
-    // [G7/R5-M5] 견적 데스크톱도 '단가 변경' 인디케이터 + row aria-describedby 체인 — 변경행 1곳만.
+    // [G7/R5-M5] 견적 데스크톱도 실제 단가 input의 가격출처 + 변경상태 IDREF 체인 — 변경행 1곳만.
     const estChangeIndicators = page.getByText('단가 변경', { exact: true })
     await expect(estChangeIndicators, "견적 '단가 변경' 인디케이터는 변경행 1곳에만(R5-M5 회귀)").toHaveCount(1)
-    const estDescribedBy = await highlighted.getAttribute('aria-describedby')
-    expect(estDescribedBy, '견적 변경행 row 에 aria-describedby 미배선(R5-M5 회귀)').toBeTruthy()
+    const estPriceInput = highlighted.getByLabel('라인 1 단가')
+    const estDescribedBy = await estPriceInput.getAttribute('aria-describedby')
+    const estDescriptionIds = estDescribedBy?.split(/\s+/).filter(Boolean) ?? []
+    expect(estDescriptionIds, '견적 단가 input IDREF 체인 누락(R5-M5 회귀)').toHaveLength(2)
+    for (const id of estDescriptionIds) {
+      await expect(page.locator(`[id="${id}"]`), `견적 IDREF 대상 실체 부재: ${id}`).toHaveCount(1)
+    }
     await expect(
-      page.locator(`[id="${estDescribedBy}"]`),
-      '견적 aria-describedby 대상 인디케이터 id 실체 부재(체인 단절)',
+      page.locator(`[id="${estDescriptionIds[1]}"]`),
+      '견적 변경상태 IDREF 대상 인디케이터 실체 부재(체인 단절)',
     ).toHaveText('단가 변경')
     // 마커 정합: 라인1=거래처 최근단가 · 라인3=판매가 · 라인2(USER)=마커 없음
     await expect(recentMarkers(page), '견적 최근가 마커는 라인1 1개여야 함').toHaveCount(1)

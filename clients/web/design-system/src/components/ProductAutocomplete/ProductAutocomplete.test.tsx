@@ -62,6 +62,10 @@ describe('ProductAutocomplete', () => {
     expect(option.querySelector('mark')?.textContent).toBe('AJ040')
     expect(option.textContent).toContain('모델명')
     expect(option.textContent).not.toContain('MODEL-CODE-ONLY')
+    const badge = option.querySelector('[class*="matchBadge"]')
+    expect(badge?.parentElement?.className).toContain('highlightedField')
+    expect(badge?.previousElementSibling?.className).toContain('highlightedText')
+    expect(badge?.parentElement?.children).toHaveLength(2)
   })
 
   it('검색어가 품목명에 매치되면 품목명만 강조하고 모델코드는 강조하지 않는다', async () => {

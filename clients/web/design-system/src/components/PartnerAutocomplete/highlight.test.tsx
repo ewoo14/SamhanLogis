@@ -70,6 +70,10 @@ describe('PartnerAutocomplete highlight', () => {
 
     expect(document.querySelectorAll('mark')).toHaveLength(2)
     expect(screen.getByText('상호')).toBeTruthy()
+    const partnerBadge = screen.getByText('상호')
+    expect(partnerBadge.parentElement?.className).toContain('highlightedField')
+    expect(partnerBadge.previousElementSibling?.className).toContain('highlightedText')
+    expect(partnerBadge.parentElement?.children).toHaveLength(2)
 
     fireEvent.change(input, { target: { value: 'P-' } })
     await waitFor(() => expect(screen.getByText('코드')).toBeTruthy())

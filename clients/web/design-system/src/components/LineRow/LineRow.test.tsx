@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { LineRow, type LineDraft } from './LineRow'
+import { LineTableHeader } from './LineTableHeader'
 
 function line(priceSource: LineDraft['priceSource']): LineDraft {
   return {
@@ -46,20 +47,60 @@ function renderRow(
 
 describe('LineRow price source marker', () => {
   it('REMEMBERED renders the real marker, saved-at meaning, and input description link', () => {
-    renderRow('REMEMBERED', true)
+    const { container } = renderRow('REMEMBERED', true)
 
     const note = screen.getByRole('note', {
       name: '이 거래처에 마지막으로 저장된 단가 · 2026-07-10 저장',
     })
     expect(note.textContent).toBe('거래처 최근단가')
     expect(note.getAttribute('title')).toContain('2026-07-10 저장')
-    expect(screen.getByLabelText('라인 1 단가').getAttribute('aria-describedby')).toBe(note.id)
-    const row = screen.getByRole('row')
+    expect(screen.getByLabelText('라인 1 단가').getAttribute('aria-describedby')).toBe(
+      `${note.id} ${screen.getByText('단가 변경').id}`,
+    )
+    const row = container.querySelector('[data-line-number]') as HTMLElement
     expect(row.className).toContain('priceRefreshed')
     const changedStatus = screen.getByText('단가 변경')
     expect(changedStatus.querySelector('svg')).not.toBeNull()
     expect(changedStatus.hasAttribute('aria-live')).toBe(false)
-    expect(row.getAttribute('aria-describedby')).toBe(changedStatus.id)
+    expect(row.hasAttribute('role')).toBe(false)
+    expect(row.hasAttribute('aria-selected')).toBe(false)
+    expect(row.hasAttribute('aria-describedby')).toBe(false)
+    expect(screen.getByLabelText('라인 1 단가').getAttribute('aria-describedby')).toBe(
+      `${note.id} ${changedStatus.id}`,
+    )
+  })
+
+  it.each([
+    ['가격출처만', 'CATALOG' as const, false, 1],
+    ['변경상태만', 'USER' as const, true, 1],
+    ['둘 다', 'REMEMBERED' as const, true, 2],
+    ['없음', 'USER' as const, false, 0],
+  ])('단가 input IDREF %s는 실존 대상만 가리킨다', (_name, source, changed, expectedCount) => {
+    const { container } = renderRow(source, changed)
+    const input = screen.getByLabelText('라인 1 단가')
+    const ids = input.getAttribute('aria-describedby')?.split(' ') ?? []
+
+    expect(ids).toHaveLength(expectedCount)
+    expect(ids.every((id) => document.getElementById(id))).toBe(true)
+    expect(container.querySelector('[data-line-number]')?.hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  it('checkbox accessible name, checked 상태와 selected class를 유지한다', () => {
+    const { container } = renderRow('USER')
+    const checkbox = screen.getByRole('checkbox', { name: '라인 1 선택' }) as HTMLInputElement
+
+    expect(checkbox.checked).toBe(false)
+    expect(checkbox.closest('[data-line-number]')?.className).not.toContain('selected')
+    expect(container.querySelector('[role="row"]')).toBeNull()
+  })
+
+  it('LineTableHeader는 시각적 grid header로만 렌더한다', () => {
+    const { container } = render(
+      <LineTableHeader allSelected={false} onToggleAll={vi.fn()} />,
+    )
+
+    expect(container.querySelector('[role="row"]')).toBeNull()
+    expect(screen.getByRole('checkbox', { name: '모든 라인 선택' })).toBeTruthy()
   })
 
   // D-R4-1: 자동채움 실체 = 제품 등록 화면 '판매가'(sellingPrice) — '정가' 라벨 금지(출고가 별칭 오도).

@@ -74,16 +74,18 @@ function HighlightedPartnerField({
   const isMatched = parts.some((part) => part.matched)
 
   return (
-    <span className={className}>
-      {parts.map((part, index) =>
-        part.matched ? (
-          <mark className={styles['matchMark']} key={`match-${index}`}>
-            {part.text}
-          </mark>
-        ) : (
-          <span key={`text-${index}`}>{part.text}</span>
-        ),
-      )}
+    <span className={[styles['highlightedField'], className].filter(Boolean).join(' ')}>
+      <span className={styles['highlightedText']}>
+        {parts.map((part, index) =>
+          part.matched ? (
+            <mark className={styles['matchMark']} key={`match-${index}`}>
+              {part.text}
+            </mark>
+          ) : (
+            <span key={`text-${index}`}>{part.text}</span>
+          ),
+        )}
+      </span>
       {isMatched ? (
         <span className={styles['matchBadge']} aria-label={`매치 필드 ${label}`}>
           {label}

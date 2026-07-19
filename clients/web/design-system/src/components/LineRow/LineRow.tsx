@@ -18,7 +18,7 @@
  * 호출자 (`SlipFormPage`) 가 `useSortable()` 결과를 풀어서 `dragHandleProps` 로 전달.
  *
  * 접근성:
- * - role="row" + aria-selected={selected}
+ * - 시각적 grid 행은 일반 컨테이너로 유지하고, 선택 상태는 체크박스와 `.selected` class로 표현
  * - 체크박스 / drag handle / 삭제 버튼 모두 aria-label
  * - Space: 체크박스 토글 (focus 시)
  * - Enter (모델명): blur trigger (lookup)
@@ -246,6 +246,12 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
           ? '이 거래처에 저장된 최근단가가 없어 판매가를 적용했습니다'
           : '판매가를 적용했습니다')
       : null
+  const priceDescribedBy = [
+    priceStatusDescription ? priceStatusId : null,
+    line.priceRefreshChanged ? priceChangedStatusId : null,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(' ') || undefined
 
   const rowClass = [
     styles['lineRow'],
@@ -261,9 +267,6 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     <>
       <div
         ref={ref}
-        role="row"
-        aria-selected={selected}
-        aria-describedby={line.priceRefreshChanged ? priceChangedStatusId : undefined}
         className={rowClass}
         style={style}
         data-line-number={lineNumber}
@@ -390,7 +393,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
                 onUnitPriceChange(numeric)
               }}
               aria-label={`라인 ${lineNumber} 단가`}
-              aria-describedby={priceStatusDescription ? priceStatusId : undefined}
+              aria-describedby={priceDescribedBy}
             />
             {/* R4-D2: 라인별 aria-live 금지 — 라인 N개 flip 시 N회 낭독 폭주. 비동기 재적용의
                 전역 고지는 페이지 배너(role="status") 1곳이 담당하고, 포커스 시 전달은

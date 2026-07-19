@@ -5,7 +5,7 @@ import styles from './EstimateLineRow.module.css'
  * 견적서/주문서의 단일 라인 행을 표시하는 grid row 컴포넌트.
  *
  * Legacy migration 사전 작업 (DS 6 신규 컴포넌트 중 1번).
- * 12-column grid: # | 모델명 | 품목명 | 규격 | 수량 | 출고가 | 인도가 | 할인율 | 소계 | 액션 (스펙 / 삭제).
+ * 10-column grid: # | 모델명 | 품목명 | 규격 | 수량 | 출고가 | 인도가 | 할인율 | 소계 | 액션 (스펙 / 삭제).
  *
  * 기존 `<LineRow>` 와의 차이:
  * - LineRow: 단일 가격 (slip-service 전표용 — 단가 1열)
@@ -16,10 +16,7 @@ import styles from './EstimateLineRow.module.css'
  * UUID 비공개 가드 (`feedback_uuid_no_user_visibility.md`):
  * - 라인의 internal id 는 prop 으로 받지 않음. 사용자 노출 식별자 (`model`) 만 표시.
  *
- * 사용처:
- * - `clients/desktop` EstimateFormPage 견적서 라인 grid
- * - `clients/web/order-app` OrderFormPage 주문서 라인 grid
- * - `clients/mobile` 은 RN 별도 구현 (본 컴포넌트 import 안함, 디자인 spec 만 공유)
+ * 사용처: design-system 단위 테스트와 story에서 시각적 라인 레이아웃을 검증한다.
  *
  * 출처: `migration/analysis/06-frontend-design.md` §3.2
  */
@@ -120,19 +117,19 @@ export function EstimateLineRow({
     .join(' ')
 
   return (
-    <div role="row" className={rowClasses} data-line-number={lineNumber}>
+    <div className={rowClasses} data-line-number={lineNumber}>
       {/* 1. 라인 번호 */}
-      <div className={`${styles['cell']} ${styles['cellLineNo']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellLineNo']}`}>
         {lineNumber}
       </div>
 
       {/* 2. 모델명 */}
-      <div className={`${styles['cell']} ${styles['cellModel']}`} role="cell" title={model}>
+      <div className={`${styles['cell']} ${styles['cellModel']}`} title={model}>
         {model}
       </div>
 
       {/* 3. 품목명 */}
-      <div className={`${styles['cell']} ${styles['cellProduct']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellProduct']}`}>
         {productName ? (
           <span title={productName}>{productName}</span>
         ) : (
@@ -141,12 +138,12 @@ export function EstimateLineRow({
       </div>
 
       {/* 4. 규격 (외부 ReactNode) */}
-      <div className={`${styles['cell']} ${styles['cellSpec']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellSpec']}`}>
         {spec ?? <span className={styles['placeholder']}>-</span>}
       </div>
 
       {/* 5. 수량 */}
-      <div className={`${styles['cell']} ${styles['cellQty']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellQty']}`}>
         {readOnly || !onQtyChange ? (
           <span className={styles['numDisplay']}>{qty}</span>
         ) : (
@@ -164,27 +161,27 @@ export function EstimateLineRow({
       </div>
 
       {/* 6. 출고가 */}
-      <div className={`${styles['cell']} ${styles['cellPrice']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellPrice']}`}>
         {formatKrw(releasePrice)}
       </div>
 
       {/* 7. 인도가 */}
-      <div className={`${styles['cell']} ${styles['cellPrice']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellPrice']}`}>
         {formatKrw(deliveryPrice)}
       </div>
 
       {/* 8. 할인율 */}
-      <div className={`${styles['cell']} ${styles['cellDiscount']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellDiscount']}`}>
         {typeof discountRate === 'number' && discountRate > 0 ? `${discountRate}%` : '-'}
       </div>
 
       {/* 9. 소계 */}
-      <div className={`${styles['cell']} ${styles['cellAmount']}`} role="cell" aria-label={`라인 ${lineNumber} 소계`}>
+      <div className={`${styles['cell']} ${styles['cellAmount']}`} aria-label={`라인 ${lineNumber} 소계`}>
         {formatKrw(lineAmount)}
       </div>
 
       {/* 10. 액션 — 스펙 / 삭제 */}
-      <div className={`${styles['cell']} ${styles['cellActions']}`} role="cell">
+      <div className={`${styles['cell']} ${styles['cellActions']}`}>
         {onSpecClick ? (
           <button
             type="button"

@@ -133,6 +133,8 @@ export const WarehouseAutocomplete = forwardRef<
 ) {
   const reactId = useId()
   const listId = `ds-wh-list-${reactId}`
+  /** 도메인 id/코드와 분리한 후보 index 기반 opaque DOM/ARIA id. */
+  const optionDomId = (index: number) => `${listId}-opt-${index}`
 
   /** `hideVirtual` 적용 후 표시될 후보 목록. */
   const visibleWarehouses = useMemo(
@@ -162,6 +164,7 @@ export const WarehouseAutocomplete = forwardRef<
     () => searchWarehouses(visibleWarehouses, draft),
     [visibleWarehouses, draft],
   )
+  const hasListbox = open && candidates.length > 0
 
   const handleFocus = () => {
     if (disabled) return
@@ -275,17 +278,17 @@ export const WarehouseAutocomplete = forwardRef<
               aria-describedby={ariaDescribedBy}
               aria-required={req || undefined}
               aria-autocomplete="list"
-              aria-expanded={open}
-              aria-controls={open ? listId : undefined}
+              aria-expanded={hasListbox}
+              aria-controls={hasListbox ? listId : undefined}
               aria-activedescendant={
-                open && activeIndex >= 0 && candidates[activeIndex]
-                  ? `${listId}-${candidates[activeIndex]!.id}`
+                hasListbox && activeIndex >= 0 && candidates[activeIndex]
+                  ? optionDomId(activeIndex)
                   : undefined
               }
               role="combobox"
             />
           </div>
-          {open && candidates.length > 0 ? (
+          {hasListbox ? (
             <ul
               id={listId}
               className={styles['dropdown']}
@@ -295,7 +298,7 @@ export const WarehouseAutocomplete = forwardRef<
               {candidates.map((w, idx) => (
                 <li
                   key={w.id}
-                  id={`${listId}-${w.id}`}
+                  id={optionDomId(idx)}
                   className={[
                     styles['option'],
                     w.id === value ? styles['optionSelected'] : null,

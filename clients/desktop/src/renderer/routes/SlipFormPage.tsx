@@ -4,7 +4,7 @@
  * Designer (5-team) spec (`docs/design/sales-form-polish-slice/`) 충실 반영.
  *
  * v3 변경사항 (sales-form-polish 슬라이스 — 본 PR):
- * - 라인 입력 → `<LineRow>` 디자인 시스템 컴포넌트 (9-column dense table)
+ * - 라인 입력 → `<LineRow>` 디자인 시스템 컴포넌트 (10-column dense table)
  * - drag-and-drop 라인 순서 변경 — `@dnd-kit/sortable`
  *   (DndContext + SortableContext + useSortable + 마우스 + 키보드 sensor)
  * - 행 체크박스 + 헤더 체크박스 (전체 선택 / indeterminate)
@@ -191,11 +191,16 @@ function SlipMobileLineCard(props: {
           ? '이 거래처에 저장된 최근단가가 없어 판매가를 적용했습니다'
           : '판매가를 적용했습니다')
       : null
+  const priceDescribedBy = [
+    priceStatusDescription ? priceStatusId : null,
+    props.line.priceRefreshChanged ? priceChangedStatusId : null,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(' ') || undefined
 
   return (
     <div
       className={`mobile-line-card${props.line.priceRefreshChanged ? ' price-memory-refreshed-row' : ''}`}
-      aria-describedby={props.line.priceRefreshChanged ? priceChangedStatusId : undefined}
       data-line-index={props.lineNumber}
     >
       <div className="mobile-line-card-header">
@@ -272,7 +277,7 @@ function SlipMobileLineCard(props: {
             props.onUnitPriceChange(numeric)
           }}
           aria-label={`라인 ${props.lineNumber} 단가`}
-          aria-describedby={priceStatusDescription ? priceStatusId : undefined}
+          aria-describedby={priceDescribedBy}
         />
         {/* R4-D2: 라인별 aria-live 제거 — 전역 고지는 배너(role="status") 1곳, 포커스 시 전달은
             aria-describedby 체인이 담당. */}

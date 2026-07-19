@@ -70,7 +70,7 @@ describe('EstimateLineRow', () => {
   })
 
   it('할인율 0/undefined 시 "-" 표시', () => {
-    render(
+    const { container } = render(
       <EstimateLineRow
         lineNumber={1}
         model="X"
@@ -81,12 +81,14 @@ describe('EstimateLineRow', () => {
       />,
     )
 
-    const row = screen.getByRole('row')
+    const row = container.querySelector('[data-line-number]') as HTMLElement
     const cells = row.querySelectorAll('[role="cell"]')
-    const discountCell = cells[7]
+    const discountCell = row.querySelector('[class*="cellDiscount"]')
     const amountCell = screen.getByLabelText('라인 1 소계')
 
     expect(discountCell?.textContent).toBe('-')
     expect(discountCell).not.toBe(amountCell)
+    expect(container.querySelector('[role="row"]')).toBeNull()
+    expect(cells).toHaveLength(0)
   })
 })

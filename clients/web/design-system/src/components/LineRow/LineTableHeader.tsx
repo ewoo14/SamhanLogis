@@ -1,5 +1,5 @@
 /**
- * `<LineTableHeader>` — `<LineRow>` 와 같은 10-column grid 의 thead 행.
+ * `<LineTableHeader>` — `<LineRow>` 와 같은 10-column grid 의 시각적 grid header.
  *
  * Designer wireframes.md § 1.1 의 thead h-44px 사양 + Slice A § 3.6 (규격 컬럼) 반영.
  * 헤더 체크박스로 전체 라인 선택/해제. drag/번호 컬럼은 빈 셀.
@@ -23,7 +23,7 @@ export function LineTableHeader({
   onToggleAll,
 }: LineTableHeaderProps) {
   return (
-    <div role="row" className={styles['lineHeader']}>
+    <div className={styles['lineHeader']}>
       <div className={`${styles['cell']} ${styles['cellCheckbox']}`}>
         <input
           type="checkbox"
