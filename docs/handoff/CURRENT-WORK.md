@@ -11,13 +11,15 @@
 ### 확정 결정 (9건)
 - **#845 DS-3 재인쇄=승인 당시 pin**(templateId+schema_version 각인)·편집기 MVP=밴드캔버스+FIELD/TEXT/APPROVAL_GRID(반복 detail·이미지·인쇄 fidelity=DS-4)
 - **#823 매출배분 거래처 불일치=차단 reject**(slip /internal 스냅샷 partnerId 추가+일치검증)
-- **전표 거래처 필수화=단계적**(FE 즉시+기존 1942 null 조사·보정 후 BE NOT NULL)
-- **#825 슬5=신규 입력만**(기존 null 유지·prod cutover 별도 마이그) · **#848=document_type 40→70 확장(groupware V11)** · **#838=거래처 교체 audit diff 승인** · **#830=revision 채번 현행 유지(→Phase11)** · **#832=BOM(U+FEFF) BE 보존·mock 일치**
+- **전표 거래처 필수화=전이 가드**(2026-07-19 재확정·AskUserQuestion·구 "단계적→BE NOT NULL" 정찰 반증 폐기): FE 필수화 + BE 생명주기 전이 가드(DRAFT→SENT/CONFIRMED 시 partner 필수·DRAFT 는 partner 없이 유지). SENT null 13(OUTBOUND) 별도 보정. 회계체인 #823 다음 슬라이스.
+- **#825 슬5=신규 입력만**(기존 null 유지·prod cutover 별도 마이그) · **#848=document_type 40→70 확장 = 3 저장소**(groupware approval_lines·groupware document_templates.doc_type·auth approval_line_config·2026-07-19 재확정·라이브 DB 실측) · **#838=거래처 교체 audit diff 승인** · **#830=revision 채번 현행 유지(→Phase11)** · **#832=BOM(U+FEFF) BE 보존·mock 일치**
 
 ### 실행 순서 (PM 자율)
-1. 회계체인: **#823 ✅ 머지 완료**(main `3fee4b699`·PR #849·2026-07-19)→**전표 거래처 필수화 🔴 개발책임자 재확인 대상**(아래)→**#825 슬5**
+1. 회계체인: **#823 ✅ 머지 완료**(main `3fee4b699`·PR #849)→**전표 거래처 필수화(전이 가드·결정완료)**→**#825 슬5**  2. #825 슬6(쪽지칩)·슬7(주문병합)  3. **#845 DS-3**→DS-4  4. #824(품목 VAT)·**#848 ◀ 현재 진행 중**  5. chore 배치(#831·#832·#838·#839·#828)  6. AC 후속(#834·836·837·840·842·843)  7. 🔴 **Google 자격 후** #827·#773  8. Phase11 #830 · cutover-defer #826
 
-> **🔴 전표 거래처 필수화 — 정찰이 배치 결정("BE NOT NULL") 반증(2026-07-19·개발책임자 재확인 필요)**: 실측 null_partner 1940건이 **거의 전부 DRAFT(1926)+SENT(13)+REJECTED(1)**. **커밋 상태(SAVED~CONFIRMED·배분-eligible) 전부 partner 有(null 0)**. → **`partner_id NOT NULL`은 DRAFT(미완성·정당하게 partner 없음) 저장 차단이라 부적합**. 실제 갭 = **SENT 13건(OUTBOUND)이 partner 없이 DRAFT→SENT 전이**(전이 가드 부재). **정답 설계 = FE 필수화 + BE 라이프사이클 전이 가드(DRAFT→SENT/CONFIRMED partner 필수)**·컬럼 NOT NULL 아님. **결정 필요**: ⒜전이 가드(권고) vs 컬럼 NOT NULL(DRAFT 예외 partial) · SENT 13 null 처리(보정/leave). 무결성이라 [[feedback_integrity_domain_policy_preconfirm]] 재확인. **PM은 이 슬라이스 보류·명확한 #848부터 자율 진행 중.**  2. #825 슬6(쪽지칩)·슬7(주문병합)  3. **#845 DS-3**→DS-4  4. #824(품목 VAT)·#848  5. chore 배치(#831·#832·#838·#839·#828)  6. AC 후속(#834·836·837·840·842·843)  7. 🔴 **Google 자격 후** #827·#773  8. Phase11 #830 · cutover-defer #826
+> **🔵 #848 documentType 3-저장소 확장 — 현재 진행 슬라이스**(PR #852·브랜치 feat/848-documenttype-column-widen·HEAD `984e63557`): **기획 spec v2 커밋 완료**(3 저장소=groupware approval_lines V11·groupware document_templates.doc_type V11·auth approval_line_config V89·모두 40→70). **CODEX SOL 5.6 기획검수 v2 진행 중**(rollout `12-12-42`·GO/NO-GO 회수 대기). SOL GO → CODEX LUNA 구현 → OPUS R1/SOL R2 적대검증 → 수렴 → 머지. **v1(단일컬럼) NO-GO 교훈**: auth approval_line_config 도 GROUPWARE_${code} 실경로(라이브 DB 실측·grep false-negative)·ddl-validate 는 VARCHAR length 미검사(→information_schema 단언)·V10 legacy NULL 64행 backfill.
+>
+> **✅ 전표 거래처 필수화 결정 완료(전이 가드)** — 회계체인 #823 다음 슬라이스로 #848 완료 후 착수. 구 🔴 "개발책임자 재확인" 해소(AskUserQuestion 확정).
 
 > **#823 완주 요약**(2026-07-19): 라이브QA가 pre-existing `getSlipLine`/`getSlipLines` LazyInit(OSIV off·IT @Transactional 마스킹) 포착→fetch-join fix. R2 2-모델이 실 FE 배분 전면차단(헤더=fallbackUuid placeholder) 포착→FE 원천 partner 도출(#823 올바른 완성=정확 귀속). code/name 정책 5-fix 진동→DB-정합 code/name-required 수렴(실 DB IT). 별건 #850(과할당)·#851(qa-e2e BE trigger 갭). 교훈=[[feedback_live_qa_penetrates_it_masking]].
 
