@@ -14,6 +14,8 @@ const harness = vi.hoisted(() => ({
   searchProducts: vi.fn(),
   searchPartners: vi.fn(),
   usePageTitle: vi.fn(),
+  // MED-1(모바일 분기): useIsMobile 반환값을 테스트별로 토글하기 위한 플래그(기본 데스크톱=false).
+  isMobile: false,
   partnerA: {
     id: '11111111-1111-1111-1111-111111111111',
     partnerCode: 'P-A',
@@ -49,6 +51,16 @@ const harness = vi.hoisted(() => ({
     productType: 'SINGLE',
     sellingPrice: '3000',
     modelCode: 'C',
+  },
+  // MED-1(변경만 케이스): 판매가(sellingPrice) 미보유 품목 — 거래처 변경 재조회 시 카탈로그
+  // 폴백 미확보(UNAVAILABLE)로 priceSource=null + priceRefreshChanged=true 상태를 재현한다.
+  productD: {
+    id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+    modelName: 'MODEL-D',
+    productName: 'Product D',
+    productType: 'SINGLE',
+    sellingPrice: null,
+    modelCode: 'D',
   },
 }))
 
@@ -129,6 +141,9 @@ vi.mock('@samhan/design-system', () => ({
         <button type="button" data-testid={`select-product-c-${lineNo}`} onClick={() => onChange(harness.productC)}>
           product-c
         </button>
+        <button type="button" data-testid={`select-product-d-${lineNo}`} onClick={() => onChange(harness.productD)}>
+          product-d
+        </button>
       </div>
     )
   },
@@ -194,7 +209,7 @@ vi.mock('../api/partnerApi', () => ({
   searchPartners: harness.searchPartners,
 }))
 
-vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => false }))
+vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => harness.isMobile }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: harness.usePageTitle }))
 vi.mock('./components/InventoryLookupModal', () => ({ InventoryLookupModal: () => null }))
 vi.mock('./components/BundleOptionRow', () => ({ BundleOptionRow: () => null }))
@@ -242,6 +257,7 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  harness.isMobile = false
   harness.listWarehouses.mockResolvedValue([])
   harness.lookupPartnerForAutoFill.mockResolvedValue({})
   harness.createSlip.mockResolvedValue({})
@@ -730,5 +746,142 @@ describe('SlipFormPage price memory autofill', () => {
 
     await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({ partnerId: undefined }))
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// MED-1 (B1-B #828 OPUS R1 dim5 — 모바일 분기 테스트 갭)
+//
+// 모바일 카드(SlipMobileLineCard)의 단가 input 은 가격출처(priceStatusId)와 변경상태
+// (priceChangedStatusId)를 **복수 IDREF 로 병합**하고, card-level generic div
+// (.mobile-line-card)에는 row-level aria-describedby 를 두지 않는다. 데스크톱 LineRow
+// (LineRow.test.tsx '단가 input IDREF …' 4-케이스)와 대응한다.
+//
+// SlipMobileLineCard 는 export 되지 않으므로 useIsMobile=true 로 전체 페이지를 모바일
+// 뷰로 렌더해 실제 카드 DOM 을 검증한다(뷰 분기 = useIsMobile 미디어쿼리 훅).
+//
+// 회귀 가드: 구 코드(모바일 단가 input 에 가격출처 IDREF 만·card div 에 aria-describedby)
+// 로 되돌리면 '둘 다'/'변경만' 케이스와 card div 단언이 RED 가 된다.
+// ────────────────────────────────────────────────────────────────────────────
+
+function renderMobilePage() {
+  harness.isMobile = true
+  return renderPage()
+}
+
+/** 모바일 카드의 단가 input(aria-label "라인 N 단가") — 데스크톱 mock LineRow 와 구분됨. */
+function mobileUnitPrice(lineNo = 1) {
+  return screen.getByLabelText(`라인 ${lineNo} 단가`) as HTMLInputElement
+}
+
+/** 단가 input 을 감싸는 card-level generic div(.mobile-line-card). */
+function mobileCard(lineNo = 1): HTMLElement {
+  const card = mobileUnitPrice(lineNo).closest('.mobile-line-card')
+  if (!card) throw new Error('mobile-line-card 를 찾지 못했습니다')
+  return card as HTMLElement
+}
+
+/** aria-describedby 를 IDREF 배열로 분해(공백 구분·빈 토큰 제거). */
+function describedByIds(input: HTMLElement): string[] {
+  return input.getAttribute('aria-describedby')?.split(' ').filter(Boolean) ?? []
+}
+
+describe('SlipFormPage 모바일 라인 카드 aria-describedby (MED-1)', () => {
+  it('모바일 뷰에서 데스크톱 LineRow 테이블이 아니라 라인 카드를 렌더한다', () => {
+    renderMobilePage()
+    // 모바일 분기 진입 확인 — 데스크톱 분기 전용 mock LineTableHeader 는 렌더되지 않는다.
+    expect(mobileCard()).not.toBeNull()
+    expect(screen.queryByTestId('line-table-header')).toBeNull()
+  })
+
+  // 데스크톱 케이스 '없음'(USER/null·변경 X → IDREF 0)과 대응.
+  it('없음: 신규 라인 단가 input 은 aria-describedby 를 갖지 않는다', () => {
+    renderMobilePage()
+    expect(mobileUnitPrice().hasAttribute('aria-describedby')).toBe(false)
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.queryByText('단가 변경')).toBeNull()
+    expect(mobileCard().hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  // 데스크톱 케이스 '가격출처만'(CATALOG·변경 X → IDREF 1)과 대응.
+  it('가격출처만: 단가 input IDREF 는 판매가 note 단독을 가리킨다', async () => {
+    renderMobilePage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(mobileUnitPrice().value).toBe(harness.productA.sellingPrice))
+
+    const note = screen.getByRole('note')
+    expect(note.textContent).toBe('판매가')
+    expect(screen.queryByText('단가 변경')).toBeNull()
+
+    const ids = describedByIds(mobileUnitPrice())
+    expect(ids).toEqual([note.id])
+    expect(ids.every((id) => document.getElementById(id) !== null)).toBe(true)
+    // card-level generic div 은 row-level aria-describedby 를 갖지 않는다.
+    expect(mobileCard().hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  // 데스크톱 케이스 '둘 다'(REMEMBERED + 변경 → IDREF 2)와 대응 — 복수 IDREF 병합의 핵심 회귀 가드.
+  it('둘 다: 단가 input IDREF 는 "priceStatusId priceChangedStatusId" 복수를 순서대로 가리킨다', async () => {
+    harness.getPriceMemory.mockResolvedValueOnce({
+      unitPrice: 100000,
+      source: 'LINE_SAVE',
+      updatedAt: '2026-07-10T09:00:00',
+    })
+    harness.getPriceMemories.mockResolvedValueOnce({ hits: [{
+      productId: harness.productA.id,
+      unitPrice: 200000,
+      source: 'LINE_SAVE',
+      updatedAt: '2026-07-11T09:00:00',
+    }], failedProductIds: [] })
+    renderMobilePage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(mobileUnitPrice().value).toBe('100000'))
+
+    await selectPartnerB()
+    await waitFor(() => expect(mobileUnitPrice().value).toBe('200000'))
+    await waitFor(() => expect(screen.getByText('단가 변경')).toBeTruthy())
+
+    const note = screen.getByRole('note')        // 거래처 최근단가 (priceStatusId)
+    const changed = screen.getByText('단가 변경') // PriceChangeIndicator (priceChangedStatusId)
+    expect(note.textContent).toBe('거래처 최근단가')
+    expect(changed.querySelector('svg')).not.toBeNull()
+
+    const ids = describedByIds(mobileUnitPrice())
+    // production join 순서 = [가격출처, 변경상태]. 구 코드(가격출처 IDREF 단독)면 length 1 → RED.
+    expect(ids).toEqual([note.id, changed.id])
+    expect(ids).toHaveLength(2)
+    expect(document.getElementById(note.id)).toBe(note)
+    expect(document.getElementById(changed.id)).toBe(changed)
+    // card-level generic div 은 row-level aria-describedby 를 갖지 않는다(구 코드면 RED).
+    expect(mobileCard().hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  // 데스크톱 케이스 '변경상태만'(변경 O·note X → IDREF 1)과 대응.
+  // 페이지 흐름상 note 없는 변경 상태 = 판매가 미확보(UNAVAILABLE)로 priceSource=null 인 재적용 행.
+  it('변경만: 판매가 미확보 재적용 시 단가 input IDREF 는 변경 표지 단독을 가리킨다', async () => {
+    renderMobilePage()
+    await selectPartnerA()
+    // sellingPrice 없는 품목(productD) → catalogFallback null → 거래처 변경 시 UNAVAILABLE.
+    fireEvent.click(screen.getByTestId('select-product-d-1'))
+    await waitFor(() =>
+      expect(harness.getPriceMemory).toHaveBeenCalledWith(harness.partnerA.id, harness.productD.id),
+    )
+    await waitFor(() => expect(screen.getByRole('note').textContent).toBe('판매가'))
+
+    await selectPartnerB()
+    await waitFor(() =>
+      expect(harness.getPriceMemories).toHaveBeenCalledWith(harness.partnerB.id, [harness.productD.id]),
+    )
+    await waitFor(() => expect(screen.getByText('단가 변경')).toBeTruthy())
+
+    // priceSource=null → 가격출처 note 없음, 변경 표지만 남는다.
+    expect(screen.queryByRole('note')).toBeNull()
+    const changed = screen.getByText('단가 변경')
+    const ids = describedByIds(mobileUnitPrice())
+    expect(ids).toEqual([changed.id])
+    expect(document.getElementById(changed.id)).toBe(changed)
+    expect(mobileCard().hasAttribute('aria-describedby')).toBe(false)
   })
 })
