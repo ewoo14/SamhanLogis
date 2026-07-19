@@ -29,4 +29,9 @@ OUTBOUND/INBOUND 전표가 committed 단계(SENT 이후)로 전이할 때 거래
 - **불변식은 상태 집합 완결성 테스트로 고정**: 수동 EnumSet 은 enum 추가 시 fail-open → REQUIRED == 전체−DRAFT/SAVED/CANCELED 단언.
 - **fail-closed 전환이 pre-existing 버그 노출**: 주문발행 fail-closed 가 outbox self-invocation @Transactional 우회(#854) 를 material 화.
 
+## 재수렴 disposition (OPUS·SOL 2-모델 적대 후)
+두 모델 모두 **신규 HIGH/MED 0**(수렴). 잔여 LOW 은 슬라이스 도입분만 이 라운드에서 fix, by-design/멱등안전만 근거 justify(fix-in-round 교훈 적용):
+- **fix** — [SOL] docs sync: 루트 `README.md`(최신 진행 메모 2026-07-19)+`services/slip-service/README.md`(#853 불변식·backfill 엔드포인트) 누락 해소. [SOL] `git diff --check` CRLF(내 추가 라인만 CR 제거·파일 전역 CRLF 는 pre-existing 별건). [OPUS L2] `reject()` 가드 순서 — `requireNotLocked()` 를 `requirePartnerForCommitted()` 앞으로 복원(baseline 순서·잠긴 전표는 lock-error 우선). [SOL] FE wiring 테스트 강화(단순 호출 존재→early-return 차단 구조 regex, 결과 무시 리팩터 false-green 차단).
+- **justify(비차단)** — [OPUS L1] estimate 발행 전표 partnerId null→DRAFT 종료 = spec D-3/D-4 의도된 설계(전송 전 편집서 거래처 지정·회귀 아님). [OPUS L3] backfill 동시성 명시 가드 부재 = MASTER 전용·멱등 재조회(재실행 해소행 자동 제외)·단일 운영자 cutover 전제라 최악=중복 RPC(오염 없음).
+
 관련: PR #853 · 별건 #854(outbox)

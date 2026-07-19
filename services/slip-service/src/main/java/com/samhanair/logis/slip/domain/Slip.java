@@ -1159,8 +1159,8 @@ public class Slip extends BaseEntity {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "반려 가능한 상태가 아닙니다: " + this.status.getDisplayName());
         }
-        requirePartnerForCommitted();
         requireNotLocked();
+        requirePartnerForCommitted();
         this.status = SlipStatus.REJECTED;
         if (reasonText != null && !reasonText.isBlank()) {
             String prefix = "[반려: " + reasonText + "] ";

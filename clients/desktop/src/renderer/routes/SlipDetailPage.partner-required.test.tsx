@@ -34,13 +34,20 @@ describe('SlipDetailPage 거래처 필수 전송 preflight', () => {
     expect(shouldBlockPartnerlessSend({ status: 'SAVED', partnerId: null }, 'cancel')).toBe(false)
   })
 
-  it('실제 mobile/desktop 전이 핸들러가 preflight를 호출하고 차단 시 전이하지 않는다', () => {
+  it('실제 mobile/desktop 전이 핸들러가 preflight를 조기 차단(early-return)으로 배선한다', () => {
     const source = readFileSync(
       fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
       'utf8',
     )
-    expect(source).toMatch(/const handleTransition[\s\S]*?shouldBlockPartnerlessSend\(slip, action\)/)
-    expect(source).toMatch(/const handleAdvanceStage[\s\S]*?shouldBlockPartnerlessSend\(slip, nextPrimaryAction\)/)
+    // 단순 "호출 존재" 가 아니라, 가드가 if 조건이고 alert 후 즉시 return 하는지까지 고정한다
+    // — predicate 를 호출만 하고 결과를 무시하는 리팩터(false-green)를 차단.
+    expect(source).toMatch(
+      /const handleTransition[\s\S]*?if \(shouldBlockPartnerlessSend\(slip, action\)\) \{\s*alert\(PARTNER_REQUIRED_SEND_MESSAGE\)\s*return/,
+    )
+    // handleAdvanceStage 는 차단 return 이 transitionMutation.mutate 보다 먼저여야 전이가 막힌다.
+    expect(source).toMatch(
+      /const handleAdvanceStage[\s\S]*?if \(shouldBlockPartnerlessSend\(slip, nextPrimaryAction\)\) \{\s*alert\(PARTNER_REQUIRED_SEND_MESSAGE\)\s*return[\s\S]*?transitionMutation\.mutate/,
+    )
 
     const slip = { status: 'SAVED', partnerId: null }
     const transition = vi.fn()

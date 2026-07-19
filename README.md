@@ -374,6 +374,11 @@ flowchart LR
 
 ---
 
+### 최신 진행 메모 (2026-07-19)
+
+- **전표 거래처 필수화 — 생명주기 전이 가드** (PR #853): OUTBOUND/INBOUND 전표가 committed 단계(SENT 이후)로 전이할 때 거래처(`partner_id`) 필수 불변식을 강제해, 거래처 없는 committed 전표(#823 배분 원천 오귀속·세금계산서·분개 오귀속의 뿌리)를 원천 차단했다. `Slip.send()`(SAVED→SENT)·`restoreFromSnapshot()`(revision 복원·표준+협업 공통)·forward 전이(accept~confirm/reject 8종 `requirePartnerForCommitted()`) **3중 도메인 가드** + 주문→전표 발행 `SlipPublishService.resolveCommittedPartnerId` fail-closed(FOUND+partnerId 만 성공·NOT_FOUND/5xx/SKIPPED/FOUND-empty 전부 차단)를 두되, DRAFT/SAVED(편집 단계)는 거래처 null 허용해 컬럼 NOT NULL 은 비채택(불변식 = `status ∈ REQUIRED_PARTNER_STATUSES ⟹ partner_id != null`, 전 상태−{DRAFT,SAVED,CANCELED}). 기존 위반 전표는 동일 릴리스 cutover 보정(slip-service 내부 엔드포인트 `POST /internal/slips/backfill-committed-partners`·partner_code→partner_id 멱등 해소·dry-run·미해소 리포트·audit)으로 정정한다. 라이브QA로 음성(무거래처 전송 400 차단)·양성(거래처 지정 후 SENT)·보정(§8 위반 → 0)을 실증. 상세 `services/slip-service/README.md` · `docs/dev-reports/2026-07-19-slip-partner-required-transition-guard.md`.
+- **documentType 컬럼 40→70 확장** (PR #852, #848): 그룹웨어 결재/문서 `document_type` 컬럼을 40→70 로 확장(groupware V11 + auth V89, `SET LOCAL lock_timeout` 선행·backfill). 엔티티 length 70 · DTO `@Size` 70 정합.
+
 ### 최신 진행 메모 (2026-06-30)
 
 - **협업 코-에디팅 S2b — slip 문서전역 수정/버전 로그**: S2a 전체 폼 Yjs 바인딩 위에서 저장 PUT 흐름은 유지하고, `slip_revisions` 기존 스냅샷 이력에 헤더 필드/품목 셀 단위 변경 목록을 산출해 붙였다. 기록 단위는 `fieldPath`/라벨/이전값/새값/수정자 표시명/수정자 단일색상/시각이며, direct PUT 입고·출고 수정 경로가 실제 변경 시 EDIT revision 을 남긴다. desktop `SlipVersionHistoryPanel`은 버전별 필드 변경을 표시하고 UUID/connectedId 대신 displayName + `presenceColor` 계열 단일색상만 노출한다. 수정 카운트와 레드라인은 S2c/S2d 후속 범위로 유지한다.
