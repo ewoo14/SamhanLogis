@@ -382,6 +382,7 @@ function AsyncAutocompleteInner<T>(
   }, [cancelDebouncedSearch, disabled, selectedLabel, setCommitted])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return
     if (!open) return
     const candidatesAreFresh = draft.trim() === resolvedQuery
 

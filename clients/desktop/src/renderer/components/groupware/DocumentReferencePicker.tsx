@@ -286,6 +286,7 @@ export function DocumentReferencePicker({
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.nativeEvent.isComposing && ['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       if (!open && options.length > 0) setOpen(true)

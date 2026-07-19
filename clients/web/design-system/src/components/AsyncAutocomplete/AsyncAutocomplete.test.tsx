@@ -353,6 +353,47 @@ describe('AsyncAutocomplete', () => {
     expect(onChange).toHaveBeenCalledWith(second)
   })
 
+  it('IME 조합 중 Arrow/Enter는 활성 후보와 선택을 건드리지 않고 조합 종료 후 정상 동작한다', async () => {
+    const first: Option = { id: 'first', label: '첫 상품' }
+    const second: Option = { id: 'second', label: '둘째 상품' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([first, second])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="상품 목록"
+        ariaLabel="상품"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '상품' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '상품' } })
+    await screen.findByText('둘째 상품')
+
+    fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: false })
+    const activeId = input.getAttribute('aria-activedescendant')
+    expect(activeId).not.toBeNull()
+
+    fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: true })
+    fireEvent.keyDown(input, { key: 'ArrowUp', isComposing: true })
+    expect(input.getAttribute('aria-activedescendant')).toBe(activeId)
+
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith(first)
+  })
+
   it('getKey는 React key와 선택 동일성(aria-selected + optionSelected class)에 쓰이는 유일 키라는 소비자 계약을 따른다', async () => {
     const first: Option = { id: 'unique-1', label: '첫 상품' }
     const second: Option = { id: 'unique-2', label: '둘째 상품' }

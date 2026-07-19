@@ -31,6 +31,16 @@ function journal(no: string) {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 function renderPicker(value: DocumentReferenceValue = emptyValue) {
   return render(<DocumentReferencePicker value={value} onChange={vi.fn()} />)
 }
@@ -101,24 +111,130 @@ describe('DocumentReferencePicker 요청 세대 (#837)', () => {
     expect(screen.getByText('J-LATEST')).toBeTruthy()
   })
 
-  it('Escape와 disabled 전환은 in-flight 응답을 무효화하고 unmount 후 상태를 갱신하지 않는다', async () => {
+  it('disabled 전환은 독립 in-flight 응답의 options/open/loading 갱신을 무효화한다', async () => {
     vi.useFakeTimers()
-    let resolveSearch!: (value: unknown[]) => void
-    searchByTypeMock.mockImplementation(() => new Promise((resolve) => { resolveSearch = resolve }))
+    const stale = deferred<unknown[]>()
+    searchByTypeMock.mockReturnValue(stale.promise)
     const view = renderPicker()
     const input = screen.getByTestId('doc-ref-search-input')
     fireEvent.change(input, { target: { value: '문서' } })
     await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-    fireEvent.keyDown(input, { key: 'Escape' })
-    await act(async () => { resolveSearch([journal('J-ESCAPE')]) })
-    expect(screen.queryByText('J-ESCAPE')).toBeNull()
+    expect(screen.getByRole('status', { name: '문서 검색 중' })).toBeTruthy()
 
     view.rerender(<DocumentReferencePicker value={emptyValue} onChange={vi.fn()} disabled />)
-    await act(async () => { resolveSearch([journal('J-DISABLED')]) })
+    await act(async () => { stale.resolve([journal('J-DISABLED')]) })
     expect(screen.queryByText('J-DISABLED')).toBeNull()
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('status', { name: '문서 검색 중' })).toBeNull()
+  })
+
+  it('unmount 후 독립 in-flight 응답은 options/open/loading을 갱신하지 않는다', async () => {
+    vi.useFakeTimers()
+    const stale = deferred<unknown[]>()
+    searchByTypeMock.mockReturnValue(stale.promise)
+    const view = renderPicker()
+    const input = screen.getByTestId('doc-ref-search-input')
+    fireEvent.change(input, { target: { value: '문서' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('status', { name: '문서 검색 중' })).toBeTruthy()
 
     view.unmount()
-    await act(async () => { resolveSearch([journal('J-UNMOUNT')]) })
+    await act(async () => { stale.resolve([journal('J-UNMOUNT')]) })
+  })
+
+  it('외부 value 교체는 독립 in-flight 응답의 options/open/loading 갱신을 무효화한다', async () => {
+    vi.useFakeTimers()
+    const stale = deferred<unknown[]>()
+    searchByTypeMock.mockReturnValue(stale.promise)
+    const onChange = vi.fn()
+    const view = render(<DocumentReferencePicker value={emptyValue} onChange={onChange} />)
+    const input = screen.getByTestId('doc-ref-search-input')
+    fireEvent.change(input, { target: { value: '문서' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('status', { name: '문서 검색 중' })).toBeTruthy()
+
+    const externalValue: DocumentReferenceValue = {
+      ...emptyValue,
+      refDocNo: 'J-EXTERNAL',
+      refDocLabel: '외부 교체값',
+    }
+    view.rerender(<DocumentReferencePicker value={externalValue} onChange={onChange} />)
+    await act(async () => { stale.resolve([journal('J-VALUE-STALE')]) })
+    expect((input as HTMLInputElement).value).toBe('J-EXTERNAL')
+    expect(screen.queryByText('J-VALUE-STALE')).toBeNull()
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('status', { name: '문서 검색 중' })).toBeNull()
+  })
+
+  it('Escape는 독립 in-flight 응답의 options/open/loading 갱신을 무효화한다', async () => {
+    vi.useFakeTimers()
+    const stale = deferred<unknown[]>()
+    searchByTypeMock.mockReturnValue(stale.promise)
+    renderPicker()
+    const input = screen.getByTestId('doc-ref-search-input')
+    fireEvent.change(input, { target: { value: '문서' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByRole('status', { name: '문서 검색 중' })).toBeTruthy()
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    await act(async () => { stale.resolve([journal('J-ESCAPE')]) })
+    expect(screen.queryByText('J-ESCAPE')).toBeNull()
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.queryByRole('status', { name: '문서 검색 중' })).toBeNull()
+  })
+
+  it('stale reject는 최신 요청의 loading owner를 끄지 않는다', async () => {
+    vi.useFakeTimers()
+    const stale = deferred<unknown[]>()
+    const latest = deferred<unknown[]>()
+    searchByTypeMock
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(latest.promise)
+
+    renderPicker()
+    const input = screen.getByTestId('doc-ref-search-input')
+    fireEvent.change(input, { target: { value: '문서A' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    fireEvent.change(input, { target: { value: '문서B' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(searchByTypeMock).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('status', { name: '문서 검색 중' })).toBeTruthy()
+
+    await act(async () => {
+      stale.reject(new Error('stale failure'))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('status', { name: '문서 검색 중' })).toBeTruthy()
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    await act(async () => { latest.resolve([journal('J-LATEST-AFTER-REJECT')]) })
+    expect(screen.getByText('J-LATEST-AFTER-REJECT')).toBeTruthy()
+    expect(screen.queryByRole('status', { name: '문서 검색 중' })).toBeNull()
+  })
+
+  it('IME 조합 중 Arrow/Enter는 활성 후보와 선택을 건드리지 않고 조합 종료 후 정상 동작한다', async () => {
+    vi.useFakeTimers()
+    const onChange = vi.fn()
+    searchByTypeMock.mockResolvedValue([journal('J-IME')])
+    render(<DocumentReferencePicker value={emptyValue} onChange={onChange} />)
+
+    const input = screen.getByTestId('doc-ref-search-input')
+    fireEvent.change(input, { target: { value: '문서' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(screen.getByText('J-IME')).toBeTruthy()
+
+    const activeId = input.getAttribute('aria-activedescendant')
+    expect(activeId).not.toBeNull()
+    fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: true })
+    fireEvent.keyDown(input, { key: 'ArrowUp', isComposing: true })
+    expect(input.getAttribute('aria-activedescendant')).toBe(activeId)
+
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false })
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ refDocNo: 'J-IME' }))
   })
 
   it('유형 변경은 세대를 올려 이전 유형의 in-flight stale 응답이 옵션·open·loading 을 바꾸지 못한다', async () => {
