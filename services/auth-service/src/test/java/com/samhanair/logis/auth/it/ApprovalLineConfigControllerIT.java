@@ -76,6 +76,38 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("documentType 41·70자는 단계 추가 성공, 71자는 INVALID_INPUT, 컬럼 폭은 70")
+    void documentTypeBoundary_andColumnWidth_areEnforced() throws Exception {
+        String at41 = "A".repeat(41);
+        String at70 = "B".repeat(70);
+        String over70 = "C".repeat(71);
+
+        for (String documentType : new String[] {at41, at70}) {
+            MvcResult result = mockMvc.perform(post("/auth/admin/approval-line-configs")
+                            .header("X-User-Id", MANAGER_ACCOUNT_ID.toString())
+                            .header("X-User-Role", "MANAGER")
+                            .header("X-Is-System-Master", "false")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"documentType\":\"%s\",\"label\":\"경계역할\"}"
+                                    .formatted(documentType)))
+                    .andReturn();
+            assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        }
+
+        MvcResult overLimit = mockMvc.perform(post("/auth/admin/approval-line-configs")
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID.toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("X-Is-System-Master", "false")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"documentType\":\"%s\",\"label\":\"초과역할\"}"
+                                .formatted(over70)))
+                .andReturn();
+        assertThat(overLimit.getResponse().getStatus()).isBetween(400, 499);
+        assertThat(overLimit.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("70");
+        assertThat(columnLength("approval_line_config", "document_type")).isEqualTo(70);
+    }
+
+    @Test
     @DisplayName("GET 역할목록 — V61 seed MANAGER 그룹 권한으로 200 + 출고 3역할")
     void listRoles_managerWithSeedGrant_returns200AndThreeRoles() throws Exception {
         MvcResult result = mockMvc.perform(get("/auth/admin/approval-line-configs")
@@ -698,6 +730,16 @@ class ApprovalLineConfigControllerIT extends AbstractPostgresIT {
                 ORDER BY sequence
                 LIMIT 1
                 """, UUID.class, GROUPWARE_DOCUMENT_TYPE, label);
+    }
+
+    private int columnLength(String tableName, String columnName) {
+        return jdbcTemplate.queryForObject("""
+                SELECT character_maximum_length
+                  FROM information_schema.columns
+                 WHERE table_schema = current_schema()
+                   AND table_name = ?
+                   AND column_name = ?
+                """, Integer.class, tableName, columnName);
     }
 
     private UUID insertDisplayOnlyRole(String label, int sequence) {

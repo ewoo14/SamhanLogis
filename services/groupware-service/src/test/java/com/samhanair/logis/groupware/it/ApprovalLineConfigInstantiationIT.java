@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -54,6 +55,7 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
     @Autowired private ApprovalTemplateRepository templateRepository;
     @Autowired private ApprovalTemplateFieldRepository fieldRepository;
     @Autowired private ApprovalNumberSequenceRepository numberSequenceRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @PersistenceContext
     private EntityManager em;
@@ -84,6 +86,37 @@ class ApprovalLineConfigInstantiationIT extends AbstractPostgresIT {
             return result;
         });
         lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(Map.of());
+    }
+
+    @Test
+    void approvalLine_with60CharCode_persists70CharDocumentType_andDatabaseRejects71() {
+        String code = "C".repeat(60);
+        ApprovalTemplate longTemplate = templateRepository.saveAndFlush(
+                ApprovalTemplate.create(code, "60자 결재유형", "IT", true, 2));
+        when(configClient.fetchRoles("GROUPWARE_" + code))
+                .thenReturn(GroupwareApprovalLineConfigClient.ConfigLine.unconfigured());
+
+        ApprovalLine line = approvalLineService.create(new ApprovalLineCreateRequest(
+                requester, "70자 documentType 결재", "본문", List.of(UUID.randomUUID()),
+                longTemplate.getId(), Map.of()));
+        em.flush();
+        em.clear();
+
+        ApprovalLine reloaded = approvalLineRepository.findById(line.getId()).orElseThrow();
+        assertThat(reloaded.getDocumentType()).isEqualTo("GROUPWARE_" + code).hasSize(70);
+        assertThatThrownBy(() -> ApprovalTemplate.create("C".repeat(61), "61자 결재유형", "IT", true, 3))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO approval_lines
+                    (id, requester_id, title, content, status, approval_no,
+                     created_at, created_by, is_deleted, document_type)
+                VALUES (?, ?, ?, ?, 'PENDING', ?, NOW(), ?, FALSE, ?)
+                """, UUID.randomUUID(), UUID.randomUUID(), "71자 직접 입력", "본문",
+                "2099/01/01-848-71", "approval-line-config-it", "T".repeat(71)))
+                .isInstanceOf(RuntimeException.class);
     }
 
     /**

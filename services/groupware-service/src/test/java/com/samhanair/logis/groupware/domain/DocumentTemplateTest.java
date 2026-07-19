@@ -18,6 +18,17 @@ class DocumentTemplateTest {
                     new DocumentPayload.Element("closing", "CLOSING")))));
 
     @Test
+    void create_accepts_70자_docType_and_rejects_71자_withUpdatedMessage() {
+        String atLimit = "D".repeat(70);
+        DocumentTemplate template = DocumentTemplate.create(atLimit, "70자 양식", (short) 1, PAYLOAD);
+
+        assertThat(template.getDocType()).hasSize(70);
+        assertThatThrownBy(() -> DocumentTemplate.create("D".repeat(71), "71자 양식", (short) 1, PAYLOAD))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("70");
+    }
+
+    @Test
     void create_startsAsDraftRevisionOne() {
         DocumentTemplate template = DocumentTemplate.create("GROUPWARE_EXPENSE", "지출 양식", (short) 1, PAYLOAD);
 

@@ -41,7 +41,7 @@ public abstract class ApprovalLineBase extends BaseEntity {
     private String title;
 
     /** 연계 전표 종류(loose ref, A2+). 독립형 결재는 null. */
-    @Column(name = "document_type", length = 40)
+    @Column(name = "document_type", length = 70)
     private String documentType;
 
     /** 연계 전표 UUID(loose ref, A2+). 독립형 결재는 null. */

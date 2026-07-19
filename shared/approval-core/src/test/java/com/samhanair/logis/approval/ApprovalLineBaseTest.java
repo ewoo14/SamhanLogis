@@ -3,6 +3,7 @@ package com.samhanair.logis.approval;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import jakarta.persistence.Column;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -46,6 +47,14 @@ class ApprovalLineBaseTest {
         protected List<? extends ApprovalStepBase> stepsView() {
             return steps;
         }
+    }
+
+    @Test
+    void documentType_컬럼은_70자까지_저장하도록_매핑한다() throws NoSuchFieldException {
+        Column column = ApprovalLineBase.class.getDeclaredField("documentType").getAnnotation(Column.class);
+
+        assertThat(column.length()).isEqualTo(70);
+        assertThat(column.nullable()).isTrue();
     }
 
     @Test

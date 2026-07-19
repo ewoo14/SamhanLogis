@@ -48,6 +48,29 @@ class ApprovalLineConfigServiceTest {
                 .thenReturn(List.of());
     }
 
+    @Test
+    void addStep_은_70자까지_허용하고_71자는_INVALID_INPUT으로_거부한다() {
+        when(repository.save(any(ApprovalLineConfig.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.addStep("D".repeat(70), "70자 역할").label()).isEqualTo("70자 역할");
+        assertThatThrownBy(() -> service.addStep("D".repeat(71), "71자 역할"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT))
+                .hasMessageContaining("70");
+    }
+
+    @Test
+    void createDisplayStep_도_70자까지_허용하고_71자를_거부한다() {
+        assertThat(ApprovalLineConfig.createDisplayStep("D".repeat(70), 0, "표시 역할")
+                .getDocumentType()).hasSize(70);
+
+        assertThatThrownBy(() -> ApprovalLineConfig.createDisplayStep("D".repeat(71), 0, "초과 역할"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("70");
+    }
+
     /** 리플렉션으로 테스트 픽스처 엔티티 생성(생성자 protected). */
     static ApprovalLineConfig role(int seq, String label, StepType type) {
         try {

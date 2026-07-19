@@ -21,6 +21,14 @@ const base = {
 } as const
 
 describe('document template limits', () => {
+  it('accepts docType length 70 and rejects length 71', () => {
+    const atLimit = { ...base, docType: 'D'.repeat(70) }
+    expect(parseDocumentTemplate(atLimit).ok).toBe(true)
+
+    const overLimit = { ...base, docType: 'D'.repeat(71) }
+    expect(parseDocumentTemplate(overLimit).ok).toBe(false)
+  })
+
   it('accepts key length 100 and rejects key length 101', () => {
     const atLimit = structuredClone(base) as Record<string, any>
     atLimit.document.bands[0].elements[0].key = 'k'.repeat(100)

@@ -31,14 +31,16 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class ApprovalLineConfig extends BaseEntity {
 
+    private static final int DOCUMENT_TYPE_MAX_LENGTH = 70;
+
     @Id
     @GeneratedValue
     @UuidGenerator
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** 전표 종류 — CollabDocumentType name (SLIP_OUTBOUND 등). */
-    @Column(name = "document_type", nullable = false, updatable = false, length = 40)
+    /** 전표 종류 — 고정 전표 종류명 또는 동적 그룹웨어 {@code GROUPWARE_${code}} 값. */
+    @Column(name = "document_type", nullable = false, updatable = false, length = DOCUMENT_TYPE_MAX_LENGTH)
     private String documentType;
 
     /** 역할 순서(0-base). reorder 도메인 메서드로만 변경. */
@@ -71,11 +73,16 @@ public class ApprovalLineConfig extends BaseEntity {
         if (documentType == null || documentType.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "전표 종류(documentType)를 입력해야 합니다");
         }
+        String normalizedDocumentType = documentType.trim();
+        if (normalizedDocumentType.length() > DOCUMENT_TYPE_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "전표 종류(documentType)는 " + DOCUMENT_TYPE_MAX_LENGTH + "자 이하여야 합니다");
+        }
         if (label == null || label.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "라벨은 비어 있을 수 없습니다");
         }
         ApprovalLineConfig role = new ApprovalLineConfig();
-        role.documentType = documentType.trim();
+        role.documentType = normalizedDocumentType;
         role.sequence = sequence;
         role.label = label.trim();
         role.stepType = StepType.GROUP;

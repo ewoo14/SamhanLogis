@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ApprovalLineConfigService {
 
+    private static final int DOCUMENT_TYPE_MAX_LENGTH = 70;
     private static final String ACTOR = "approval-line-config";
     private static final Set<String> SEED_ACTORS = Set.of("v61-seed", "v63-seed", "v64-seed", "v75-seed");
 
@@ -107,6 +108,10 @@ public class ApprovalLineConfigService {
                     "전표 종류(documentType)를 입력해야 합니다");
         }
         String normalizedDocumentType = documentType.trim();
+        if (normalizedDocumentType.length() > DOCUMENT_TYPE_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "전표 종류(documentType)는 " + DOCUMENT_TYPE_MAX_LENGTH + "자 이하여야 합니다");
+        }
         int nextSequence = repository.findFirstByDocumentTypeOrderBySequenceDesc(normalizedDocumentType)
                 .map(role -> role.getSequence() + 1)
                 .orElse(0);

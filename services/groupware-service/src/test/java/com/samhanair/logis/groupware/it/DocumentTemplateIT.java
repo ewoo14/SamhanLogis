@@ -1,6 +1,7 @@
 package com.samhanair.logis.groupware.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
@@ -92,6 +93,22 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     void tearDown() {
         repository.deleteAll();
         repository.flush();
+    }
+
+    @Test
+    void documentTypeColumns_areExactly70Characters() {
+        assertThat(columnLength("approval_lines", "document_type")).isEqualTo(70);
+        assertThat(columnLength("document_templates", "doc_type")).isEqualTo(70);
+    }
+
+    @Test
+    void documentTemplate_docType_accepts41And70_andRejects71With70Message() {
+        assertThat(service.create(request("D".repeat(41), "41자 양식")).docType()).hasSize(41);
+        assertThat(service.create(request("E".repeat(70), "70자 양식")).docType()).hasSize(70);
+
+        assertThatThrownBy(() -> service.create(request("F".repeat(71), "71자 양식")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("70");
     }
 
     @Test
@@ -320,11 +337,11 @@ class DocumentTemplateIT extends AbstractPostgresIT {
      *
      * <p>SpringBootTest 컨텍스트의 Flyway 는 이미 빈 approval_lines 위에서 V10 을 실행해 backfill 이
      * 0행이므로, pre-V10(=V9) 상태의 legacy 행을 심고 실제 V10 을 적용해야 backfill 로직이 genuine 하게
-     * 검증된다([[feedback_migration_fresh_postgres_probe]]). code 30자→파생 docType 40자(경계 통과)→backfill,
-     * code 31자→파생 41자(VARCHAR(40) 초과)→NULL 보존.
+     * 검증된다([[feedback_migration_fresh_postgres_probe]]). V10 상태에서 code 31자·60자 파생값은
+     * NULL이고, V11 적용 후 각각 41자·70자로 backfill 된다.
      */
     @Test
-    void v10Migration_backfillsExactly40CharDerivedType_andPreservesOverflowNull() {
+    void v11Migration_backfills41To70CharDerivedTypes_andIsIdempotent() {
         String schema = "ds2_backfill_probe";
         String url = POSTGRES.getJdbcUrl();
         String user = POSTGRES.getUsername();
@@ -336,50 +353,69 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 .locations("classpath:db/migration")
                 .target(MigrationVersion.fromVersion("9")).load().migrate();
 
-        String code30 = "A".repeat(30);
         String code31 = "B".repeat(31);
-        UUID shortTemplate = UUID.randomUUID();
-        UUID longTemplate = UUID.randomUUID();
-        UUID defaultTemplate = UUID.randomUUID();
-        UUID deletedTemplate = UUID.randomUUID();
-        UUID shortLine = UUID.randomUUID();
-        UUID longLine = UUID.randomUUID();
-        UUID defaultLine = UUID.randomUUID();
-        UUID deletedLine = UUID.randomUUID();
+        String code60 = "C".repeat(60);
+        UUID code31Template = UUID.randomUUID();
+        UUID code60Template = UUID.randomUUID();
+        UUID code31Line = UUID.randomUUID();
+        UUID code60Line = UUID.randomUUID();
+        UUID nonNullLine = UUID.randomUUID();
         UUID nullTemplateLine = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO " + schema + ".approval_templates "
                         + "(id,code,name,active,display_order,created_at,created_by,is_deleted) "
                         + "VALUES (?,?,?,true,0,NOW(),?,false),(?,?,?,true,0,NOW(),?,false)",
-                shortTemplate, code30, "30자 legacy", ACTOR,
-                longTemplate, code31, "31자 legacy", ACTOR);
-        insertLegacyLine(schema, shortLine, shortTemplate, "2099/01/01-401");
-        insertLegacyLine(schema, longLine, longTemplate, "2099/01/01-402");
-        insertLegacyApprovalTemplate(schema, defaultTemplate, "DEFAULT", "기본 legacy", false);
-        insertLegacyApprovalTemplate(schema, deletedTemplate, "SOFT_DELETED", "삭제 legacy", true);
-        insertLegacyLine(schema, defaultLine, defaultTemplate, "2099/01/01-403");
-        insertLegacyLine(schema, deletedLine, deletedTemplate, "2099/01/01-404");
-        insertLegacyLine(schema, nullTemplateLine, null, "2099/01/01-405");
+                code31Template, code31, "31자 legacy", ACTOR,
+                code60Template, code60, "60자 legacy", ACTOR);
+        insertLegacyLine(schema, code31Line, code31Template, "2099/01/01-401");
+        insertLegacyLine(schema, code60Line, code60Template, "2099/01/01-402");
+        insertLegacyLine(schema, nonNullLine, code60Template, "2099/01/01-403", "MANUAL_LEGACY");
+        insertLegacyLine(schema, nullTemplateLine, null, "2099/01/01-404", "INDEPENDENT_LEGACY");
 
         Flyway.configure().dataSource(url, user, password).schemas(schema)
                 .locations("classpath:db/migration")
                 .target(MigrationVersion.fromVersion("10")).load().migrate();
 
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, shortLine))
-                .isEqualTo("GROUPWARE_" + code30)
-                .hasSize(40);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, longLine))
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, code31Line))
                 .isNull();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, defaultLine))
-                .isEqualTo("GROUPWARE_DEFAULT");
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, code60Line))
+                .isNull();
         assertThat(jdbcTemplate.queryForObject(
-                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, deletedLine))
-                .isEqualTo("GROUPWARE_SOFT_DELETED");
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, nonNullLine))
+                .isEqualTo("MANUAL_LEGACY");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, nullTemplateLine))
-                .isNull();
+                .isEqualTo("INDEPENDENT_LEGACY");
+
+        Flyway.configure().dataSource(url, user, password).schemas(schema)
+                .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("11")).load().migrate();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, code31Line))
+                .isEqualTo("GROUPWARE_" + code31)
+                .hasSize(41);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, code60Line))
+                .isEqualTo("GROUPWARE_" + code60)
+                .hasSize(70);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, nonNullLine))
+                .isEqualTo("MANUAL_LEGACY");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_type FROM " + schema + ".approval_lines WHERE id=?", String.class, nullTemplateLine))
+                .isEqualTo("INDEPENDENT_LEGACY");
+
+        int rerunCount = jdbcTemplate.update("""
+                UPDATE %s.approval_lines
+                   SET document_type = 'GROUPWARE_' || t.code
+                  FROM %s.approval_templates t
+                 WHERE %s.approval_lines.template_id = t.id
+                   AND %s.approval_lines.document_type IS NULL
+                   AND length('GROUPWARE_' || t.code) BETWEEN 41 AND 70
+                """.formatted(schema, schema, schema, schema));
+        assertThat(rerunCount).isZero();
 
         jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
     }
@@ -390,12 +426,27 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 status, (short) 1, 0L, document, java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()), ACTOR);
     }
 
+    private int columnLength(String tableName, String columnName) {
+        return jdbcTemplate.queryForObject("""
+                SELECT character_maximum_length
+                  FROM information_schema.columns
+                 WHERE table_schema = current_schema()
+                   AND table_name = ?
+                   AND column_name = ?
+                """, Integer.class, tableName, columnName);
+    }
+
     private void insertLegacyLine(String schema, UUID id, UUID templateId, String approvalNo) {
+        insertLegacyLine(schema, id, templateId, approvalNo, null);
+    }
+
+    private void insertLegacyLine(String schema, UUID id, UUID templateId, String approvalNo,
+                                  String documentType) {
         jdbcTemplate.update("INSERT INTO " + schema + ".approval_lines "
                         + "(id,requester_id,title,content,status,approval_no,template_id,created_at,created_by,is_deleted,document_type) "
-                        + "VALUES (?,?,?,?,?,?,?,?,?,false,NULL)",
+                        + "VALUES (?,?,?,?,?,?,?,?,?,false,?)",
                 id, UUID.randomUUID(), "legacy", "legacy", "PENDING", approvalNo, templateId,
-                java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()), ACTOR);
+                java.sql.Timestamp.valueOf(java.time.LocalDateTime.now()), ACTOR, documentType);
     }
 
     private void insertLegacyApprovalTemplate(String schema, UUID id, String code, String name, boolean deleted) {

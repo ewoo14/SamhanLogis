@@ -33,7 +33,7 @@ import org.hibernate.type.SqlTypes;
 @SQLRestriction("is_deleted = false")
 public class DocumentTemplate extends BaseEntity {
 
-    private static final int DOC_TYPE_MAX_LENGTH = 40;
+    private static final int DOC_TYPE_MAX_LENGTH = 70;
     private static final int NAME_MAX_LENGTH = 100;
     public static final short SUPPORTED_SCHEMA_VERSION = 1;
 
@@ -134,7 +134,8 @@ public class DocumentTemplate extends BaseEntity {
 
     private static String validateDocType(String value) {
         if (value == null || value.isBlank() || value.trim().length() > DOC_TYPE_MAX_LENGTH) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "문서 양식 docType은 1~40자여야 합니다");
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "문서 양식 docType은 1~" + DOC_TYPE_MAX_LENGTH + "자여야 합니다");
         }
         return value.trim();
     }

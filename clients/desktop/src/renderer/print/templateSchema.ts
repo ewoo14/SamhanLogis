@@ -75,7 +75,7 @@ const MAX_DEPTH = 16
 const MAX_BANDS = 32
 const MAX_ELEMENTS_PER_BAND = 64
 const MAX_KEY_LENGTH = 100
-const MAX_DOC_TYPE_LENGTH = 40
+const MAX_DOC_TYPE_LENGTH = 70
 
 type ElementType = (typeof ELEMENT_TYPES)[number]
 

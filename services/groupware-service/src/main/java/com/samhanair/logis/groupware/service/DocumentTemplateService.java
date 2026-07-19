@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class DocumentTemplateService {
 
+    private static final int DOC_TYPE_MAX_LENGTH = 70;
     private static final String RESERVED_DEFAULT = "DEFAULT";
     private static final String RESERVED_GROUPWARE_DEFAULT = "GROUPWARE_DEFAULT";
 
@@ -155,8 +156,9 @@ public class DocumentTemplateService {
     }
 
     private static String normalizedDocType(String value) {
-        if (value == null || value.isBlank() || value.trim().length() > 40) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT, "docType은 1~40자여야 합니다");
+        if (value == null || value.isBlank() || value.trim().length() > DOC_TYPE_MAX_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "docType은 1~" + DOC_TYPE_MAX_LENGTH + "자여야 합니다");
         }
         return value.trim();
     }
