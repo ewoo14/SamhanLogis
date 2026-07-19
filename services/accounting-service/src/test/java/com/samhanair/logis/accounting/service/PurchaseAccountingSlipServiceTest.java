@@ -31,12 +31,17 @@ import jakarta.persistence.Query;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -624,5 +629,255 @@ class PurchaseAccountingSlipServiceTest {
         slip.recalcTotals();
         slip.post("actor-1");
         return slip;
+    }
+
+    // ===== #850 R1 적대검증 보강 — 프로덕션 코드 무변경, 테스트만 추가 (매입 대칭) =====
+
+    /**
+     * HIGH-2 입력 계약 — Bean Validation 을 우회하는 서비스 직접호출에서도 애플리케이션 선검증(D-850-01)이
+     * primary 임을 증명한다. 음수·0·null·scale 초과·{@code @Digits} overflow·라인/배분 원소 null 모두
+     * 락·외부조회(SlipService)·채번·Repository 접촉 前에 {@link ErrorCode#INVALID_INPUT} 로 거부되어야 한다.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidInputRequests")
+    void 서비스_직접호출_입력계약위반은_락_외부조회_채번_前에_INVALID_INPUT(
+            String label, CreatePurchaseAccountingSlipRequest req) {
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        verifyNoInteractions(entityManager, slipServiceClient, allocationRepository,
+                slipRepository, numberGenerator);
+    }
+
+    static Stream<Arguments> invalidInputRequests() {
+        return Stream.of(
+                Arguments.of("금액_음수", reqWithAllocation(BigDecimal.ONE, new BigDecimal("-100"))),
+                Arguments.of("금액_0", reqWithAllocation(BigDecimal.ONE, BigDecimal.ZERO)),
+                Arguments.of("금액_null", reqWithAllocation(BigDecimal.ONE, null)),
+                Arguments.of("수량_음수", reqWithAllocation(new BigDecimal("-1"), new BigDecimal("100"))),
+                Arguments.of("수량_0", reqWithAllocation(BigDecimal.ZERO, new BigDecimal("100"))),
+                Arguments.of("수량_null", reqWithAllocation(null, new BigDecimal("100"))),
+                Arguments.of("금액_소수3자리_scale초과", reqWithAllocation(BigDecimal.ONE, new BigDecimal("1.001"))),
+                Arguments.of("수량_소수4자리_scale초과", reqWithAllocation(new BigDecimal("1.0001"), new BigDecimal("100"))),
+                Arguments.of("금액_정수14자리_Digits초과",
+                        reqWithAllocation(BigDecimal.ONE, new BigDecimal("10000000000000"))),
+                Arguments.of("수량_정수10자리_Digits초과",
+                        reqWithAllocation(new BigDecimal("1000000000"), new BigDecimal("100"))),
+                Arguments.of("lines_원소_null", new CreatePurchaseAccountingSlipRequest(
+                        LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                        Arrays.asList((CreatePurchaseAccountingSlipRequest.LineRequest) null))),
+                Arguments.of("allocations_원소_null", new CreatePurchaseAccountingSlipRequest(
+                        LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                        List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                                "P", "P", new BigDecimal("1"), new BigDecimal("100"),
+                                Arrays.asList((CreatePurchaseAccountingSlipRequest.AllocationRequest) null))))));
+    }
+
+    private static CreatePurchaseAccountingSlipRequest reqWithAllocation(BigDecimal allocQty, BigDecimal allocAmount) {
+        return new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("1"), new BigDecimal("100"),
+                        List.of(new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-X", UUID.randomUUID(), 1, allocQty, allocAmount)))));
+    }
+
+    /**
+     * MED-1 경계 — 동일 원천 한 요청 내 {@code 50+50=100}(=잔여)·{@code 5+5=10}(=수량 잔여)는
+     * off-by-one 없이 정확 경계라 통과해야 한다({@code >} 비교, {@code >=} 회귀 방지).
+     */
+    @Test
+    void 요청내_동일원천_금액50_50_수량5_5는_잔여_정확경계라_통과한다() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-BND");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(sourceSnapshot(
+                sourceLineId, "IN-BND", new BigDecimal("10"), new BigDecimal("100")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("10"), new BigDecimal("10"), List.of(
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-BND", sourceLineId, 1,
+                                new BigDecimal("5"), new BigDecimal("50")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-BND", sourceLineId, 1,
+                                new BigDecimal("5"), new BigDecimal("50"))))));
+
+        assertThatCode(() -> service.createDraft(req, "actor-1")).doesNotThrowAnyException();
+        verify(slipRepository, times(1)).saveAndFlush(any(PurchaseAccountingSlip.class));
+    }
+
+    /**
+     * MED-2 라인 간 누적 — 서로 다른 LineRequest 가 같은 원천 A 에 배분하면 요청 내 누적이 라인을 가로질러
+     * 합산되어야 한다({@code 60+60>100}). 원천은 1회만 캐시 조회된다(D-850-06).
+     */
+    @Test
+    void 라인간_동일원천_A_A_누적초과는_reject하고_원천은_1회만_조회한다() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(sourceSnapshot(
+                sourceLineId, "IN-LL", new BigDecimal("10"), new BigDecimal("100")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(
+                        new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                                new BigDecimal("6"), new BigDecimal("10"), List.of(
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        UUID.randomUUID(), "IN-LL", sourceLineId, 1,
+                                        new BigDecimal("6"), new BigDecimal("60")))),
+                        new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                                new BigDecimal("6"), new BigDecimal("10"), List.of(
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        UUID.randomUUID(), "IN-LL", sourceLineId, 1,
+                                        new BigDecimal("6"), new BigDecimal("60"))))));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여금액=40.00")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+        verify(slipRepository, times(0)).saveAndFlush(any(PurchaseAccountingSlip.class));
+        verify(slipServiceClient, times(1)).getSlipLine(sourceLineId);
+        verify(allocationRepository, times(1)).sumAllocatedAmountBySourceLineId(sourceLineId);
+    }
+
+    /**
+     * MED-2 교차 {@code A+B+A} — firstAllocation(A)의 금액·수량 시딩(D-850-03)이 크로스라인으로 반영되어
+     * 세 번째 라인의 두 번째 A 에서 누적 초과로 거부되어야 한다. 시딩이 없으면 두 번째 A 가 잔여를 100 으로
+     * 오인해 통과하는 회귀를 잡는다.
+     */
+    @Test
+    void 교차_A_B_A_는_firstAllocation_시딩을_크로스라인_반영해_두번째_A에서_reject한다() {
+        UUID srcA = UUID.randomUUID();
+        UUID srcB = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(srcA)).thenReturn(sourceSnapshot(
+                srcA, "IN-A", new BigDecimal("10"), new BigDecimal("100")));
+        when(slipServiceClient.getSlipLine(srcB)).thenReturn(sourceSnapshot(
+                srcB, "IN-B", new BigDecimal("10"), new BigDecimal("100")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(any())).thenReturn(BigDecimal.ZERO);
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(
+                        new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                                new BigDecimal("6"), new BigDecimal("10"), List.of(
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        UUID.randomUUID(), "IN-A", srcA, 1,
+                                        new BigDecimal("6"), new BigDecimal("60")))),
+                        new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                                new BigDecimal("6"), new BigDecimal("10"), List.of(
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        UUID.randomUUID(), "IN-B", srcB, 1,
+                                        new BigDecimal("6"), new BigDecimal("60")))),
+                        new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                                new BigDecimal("6"), new BigDecimal("10"), List.of(
+                                new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                        UUID.randomUUID(), "IN-A", srcA, 1,
+                                        new BigDecimal("6"), new BigDecimal("60"))))));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여금액=40.00")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+        verify(slipRepository, times(0)).saveAndFlush(any(PurchaseAccountingSlip.class));
+    }
+
+    /** MED-2 동일 원천 3회 이상 배분 — 단계적 누적(40→80→초과)으로 세 번째에서 거부. */
+    @Test
+    void 요청내_동일원천_3회_배분_단계누적_초과는_reject한다() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(sourceSnapshot(
+                sourceLineId, "IN-3X", new BigDecimal("10"), new BigDecimal("100")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                        new BigDecimal("12"), new BigDecimal("10"), List.of(
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-3X", sourceLineId, 1,
+                                new BigDecimal("4"), new BigDecimal("40")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-3X", sourceLineId, 1,
+                                new BigDecimal("4"), new BigDecimal("40")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-3X", sourceLineId, 1,
+                                new BigDecimal("4"), new BigDecimal("40"))))));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여금액=20.00")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+        verify(slipRepository, times(0)).saveAndFlush(any(PurchaseAccountingSlip.class));
+    }
+
+    /**
+     * HIGH-1 lockKey dedup+정렬 — 서로 다른 UUID 이지만 {@code msb^lsb} 가 동일한 XOR 충돌쌍은 하나의
+     * lockKey 로 1회만 선잠금하고(dedup), 제3 key 와 함께 lockKey 숫자순으로 정렬 선잠금한다(D-850-06).
+     * dedup 에도 세 원천은 sourceLineId 별로 모두 로드된다. (실 경합은 PurchaseAccountingSlipConcurrencyIT)
+     */
+    @Test
+    void XOR충돌_sourceLineId_2개는_lockKey_1회만_선잠금하고_세_원천을_모두_로드한다() {
+        UUID collisionA = new UUID(0x1111111111111111L, 0x2222222222222222L);
+        long k = 0x0100000000000001L;
+        UUID collisionB = new UUID(collisionA.getMostSignificantBits() ^ k,
+                collisionA.getLeastSignificantBits() ^ k);
+        UUID other = new UUID(0L, 1L);
+        long collisionKey = collisionA.getMostSignificantBits() ^ collisionA.getLeastSignificantBits();
+        long otherKey = other.getMostSignificantBits() ^ other.getLeastSignificantBits();
+        // 사전조건: 충돌쌍 lockKey 동일·UUID 상이, 제3 key 상이
+        assertThat(collisionB.getMostSignificantBits() ^ collisionB.getLeastSignificantBits())
+                .isEqualTo(collisionKey);
+        assertThat(collisionA).isNotEqualTo(collisionB);
+        assertThat(otherKey).isNotEqualTo(collisionKey);
+        assertThat(otherKey).isLessThan(collisionKey);
+
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-XOR");
+        when(slipServiceClient.getSlipLine(collisionA)).thenReturn(sourceSnapshot(
+                collisionA, "IN-XA", new BigDecimal("10"), new BigDecimal("10")));
+        when(slipServiceClient.getSlipLine(collisionB)).thenReturn(sourceSnapshot(
+                collisionB, "IN-XB", new BigDecimal("10"), new BigDecimal("10")));
+        when(slipServiceClient.getSlipLine(other)).thenReturn(sourceSnapshot(
+                other, "IN-XC", new BigDecimal("10"), new BigDecimal("10")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(any())).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(PurchaseAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        // payload 순서 = [collisionA, other, collisionB] (lockKey 정렬 순서와 다름)
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest("P", "P",
+                        new BigDecimal("3"), new BigDecimal("10"), List.of(
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-XA", collisionA, 1,
+                                BigDecimal.ONE, new BigDecimal("10")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-XC", other, 1,
+                                BigDecimal.ONE, new BigDecimal("10")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-XB", collisionB, 1,
+                                BigDecimal.ONE, new BigDecimal("10"))))));
+
+        service.createDraft(req, "actor-1");
+
+        // 충돌쌍은 하나의 lockKey 로 1회만 선잠금(dedup), 제3 key 도 1회
+        verify(advisoryQuery, times(1)).setParameter("k", collisionKey);
+        verify(advisoryQuery, times(1)).setParameter("k", otherKey);
+        // 정렬: otherKey(작음) 먼저, collisionKey 다음
+        InOrder order = inOrder(advisoryQuery);
+        order.verify(advisoryQuery).setParameter("k", otherKey);
+        order.verify(advisoryQuery).setParameter("k", collisionKey);
+        // dedup 에도 세 원천 모두 로드
+        verify(slipServiceClient).getSlipLine(collisionA);
+        verify(slipServiceClient).getSlipLine(collisionB);
+        verify(slipServiceClient).getSlipLine(other);
     }
 }

@@ -21,9 +21,14 @@ import com.samhanair.logis.accounting.service.PurchaseAccountingSlipNumberGenera
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -446,5 +451,125 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
                         List.of(new CreatePurchaseAccountingSlipRequest.AllocationRequest(
                                 sourceSlipId, "IN-2026-05-0042", sourceLineId, 1,
                                 qty, allocatedAmount)))));
+    }
+
+    // ===== #850 R1 적대검증 보강 — HTTP 입력 계약(HIGH-2)·in-request 경계/누적(MED-1/3) 매입 대칭 =====
+
+    /**
+     * HIGH-2 입력 계약(HTTP) — Controller {@code @Valid @RequestBody} 가 금액/수량 음수·0·null·scale
+     * 초과·{@code @Digits} overflow·라인 원소 null 을 모두 400 {@code INVALID_INPUT} 으로 거부한다.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidHttpRequests")
+    void POST_admin_purchase_slips_입력계약위반은_400_INVALID_INPUT(
+            String label, CreatePurchaseAccountingSlipRequest req) throws Exception {
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    static Stream<Arguments> invalidHttpRequests() {
+        return Stream.of(
+                Arguments.of("금액_음수", invalidHttpRequest(BigDecimal.ONE, new BigDecimal("-100"))),
+                Arguments.of("금액_0", invalidHttpRequest(BigDecimal.ONE, BigDecimal.ZERO)),
+                Arguments.of("금액_null", invalidHttpRequest(BigDecimal.ONE, null)),
+                Arguments.of("수량_음수", invalidHttpRequest(new BigDecimal("-1"), new BigDecimal("100"))),
+                Arguments.of("수량_0", invalidHttpRequest(BigDecimal.ZERO, new BigDecimal("100"))),
+                Arguments.of("수량_null", invalidHttpRequest(null, new BigDecimal("100"))),
+                Arguments.of("금액_소수3자리_scale초과", invalidHttpRequest(BigDecimal.ONE, new BigDecimal("1.001"))),
+                Arguments.of("수량_소수4자리_scale초과", invalidHttpRequest(new BigDecimal("1.0001"), new BigDecimal("100"))),
+                Arguments.of("금액_정수14자리_Digits초과",
+                        invalidHttpRequest(BigDecimal.ONE, new BigDecimal("10000000000000"))),
+                Arguments.of("수량_정수10자리_Digits초과",
+                        invalidHttpRequest(new BigDecimal("1000000000"), new BigDecimal("100"))),
+                Arguments.of("lines_원소_null", new CreatePurchaseAccountingSlipRequest(
+                        LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
+                        SalesTaxType.TAXABLE, "input contract",
+                        Arrays.asList((CreatePurchaseAccountingSlipRequest.LineRequest) null))));
+    }
+
+    private static CreatePurchaseAccountingSlipRequest invalidHttpRequest(BigDecimal allocQty, BigDecimal allocAmount) {
+        return new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
+                SalesTaxType.TAXABLE, "input contract",
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "RX다배관", "RX다배관 30A", new BigDecimal("10"), new BigDecimal("150000"),
+                        List.of(new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "IN-2026-05-0042", UUID.randomUUID(), 1,
+                                allocQty, allocAmount)))));
+    }
+
+    /**
+     * MED-1 in-request 경계(HTTP) — 동일 원천 한 라인 내 {@code 750000+750000=1,500,000}(=원천 잔여)·
+     * 수량 {@code 5+5=10}(=잔여) 는 정확 경계라 통과하여 실 DB 에 영속된다.
+     */
+    @Test
+    void POST_admin_purchase_slips_in_request_동일원천_두배분_합계_잔여경계_통과() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-INBND");
+        stubConfirmedSourceLine(sourceSlipId, sourceLineId, new BigDecimal("1500000"));
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
+                SalesTaxType.TAXABLE, "in-request boundary",
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "RX다배관", "RX다배관 30A", new BigDecimal("10"), new BigDecimal("150000"), List.of(
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                sourceSlipId, "IN-2026-05-0042", sourceLineId, 1,
+                                new BigDecimal("5"), new BigDecimal("750000")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                sourceSlipId, "IN-2026-05-0042", sourceLineId, 1,
+                                new BigDecimal("5"), new BigDecimal("750000"))))));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+
+        assertThat(purchaseSlipRepository.findBySlipNo("2026/05/19-INBND")).isPresent();
+    }
+
+    /**
+     * MED-3 in-request 누적 초과(HTTP·실 DB) — 한 요청 내 {@code 750000+900000>1,500,000} 은 422
+     * {@code SAS_OVER_ALLOCATION} 이고, 거부 후 전표가 실 DB 에 0행 영속(mock times(0) 아닌 실 조회)이어야 한다.
+     */
+    @Test
+    void POST_admin_purchase_slips_in_request_누적초과는_422_이고_전표_미저장() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-INOVER");
+        stubConfirmedSourceLine(sourceSlipId, sourceLineId, new BigDecimal("1500000"));
+        long before = purchaseSlipRepository.count();
+
+        CreatePurchaseAccountingSlipRequest req = new CreatePurchaseAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-2026-0001", "(주)한국공조",
+                SalesTaxType.TAXABLE, "in-request over",
+                List.of(new CreatePurchaseAccountingSlipRequest.LineRequest(
+                        "RX다배관", "RX다배관 30A", new BigDecimal("11"), new BigDecimal("150000"), List.of(
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                sourceSlipId, "IN-2026-05-0042", sourceLineId, 1,
+                                new BigDecimal("5"), new BigDecimal("750000")),
+                        new CreatePurchaseAccountingSlipRequest.AllocationRequest(
+                                sourceSlipId, "IN-2026-05-0042", sourceLineId, 1,
+                                new BigDecimal("6"), new BigDecimal("900000"))))));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(req)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_OVER_ALLOCATION"));
+
+        assertThat(purchaseSlipRepository.findBySlipNo("2026/05/19-INOVER")).isEmpty();
+        assertThat(purchaseSlipRepository.count()).isEqualTo(before);
     }
 }
