@@ -38,7 +38,7 @@
 - **whitespace-only 정합**: FE `resolveAllocationPartner`와 `slipAllocationSourceApi` mock의 code/name 유효 판정을 `value != null && value.trim().length > 0`로 통일했다. BE 양 서비스의 기존 `isBlank()`와 정합하며 `"   "` 원천은 FE 저장 차단/mock `SAS_SOURCE_PARTNER_MISSING`(422)으로 처리한다.
 - **실 DB IT 4-way 독립**: 매출·매입 `SalesAccountingSlipControllerIT`/`PurchaseAccountingSlipControllerIT`에 각각 `code=null/name-valid`, `code-valid/name=null`, `code="   "`, `name="   "`의 독립 테스트를 추가했다. 각 케이스는 Testcontainers 실 Postgres 경로에서 `422 SAS_SOURCE_PARTNER_MISSING`과 repository 저장 건수 불변을 단언한다. 완전한 code/name 원천의 기존 DRAFT 저장 성공 케이스도 유지한다.
 - **FE 계약 4-way 독립**: 매출·매입 form 계약테스트가 동일한 4개 입력을 각각 submit disabled·거래처 안내·mutation 미호출로 단언하고, resolver 순수 계약과 mock 저장 계약도 whitespace를 포함한다.
-- **preflight SQL**: `partner_code=''`/`partner_name=''` 조건을 `BTRIM(partner_code)=''`/`BTRIM(partner_name)=''`로 강화해 공백-only를 런타임 `isBlank()`와 동일하게 검출한다.
+- **preflight SQL**: `partner_code=''`/`partner_name=''` 조건을 **`~ '^[[:space:]]*$'` 정규식**으로 강화해 빈 문자열+공백/탭/개행 등 whitespace-only를 검출한다(§배포 런북 참조). 런타임 권위는 Java `isBlank()`(모든 whitespace-only→422 fail-safe)·preflight는 best-effort 예측(이색 Unicode 공백은 실 업무코드 무관 바운딩).
 
 최종 genuine 검증:
 
