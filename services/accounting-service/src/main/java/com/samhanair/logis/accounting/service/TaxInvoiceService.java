@@ -190,7 +190,12 @@ public class TaxInvoiceService {
                     partnerDisplayValue(oldPartnerName, oldPartnerCode),
                     partnerDisplayValue(newPartnerName, newPartnerCode));
         } catch (RuntimeException ex) {
-            // graceful — audit 실패가 비즈니스 mutation 차단하지 않음
+            // 원자 처리(개발책임자 결정 A·2026-07-20) — audit 기록은 같은 트랜잭션(REQUIRED)이라
+            // recordOverlayPatch 실패 시 tx 가 오염돼 커밋 시점에 거래처 교체까지 동반 롤백된다
+            // (무감사 거래처 교체 차단·회계 무결성 우선). 즉 best-effort(감사만 누락·mutation 성공)가
+            // 아니라 audit+mutation 동반 성공/실패다. 이 catch 는 즉시 예외 대신 커밋 시점
+            // UnexpectedRollbackException 으로 위임할 뿐 결과(원자)는 동일하며, 기존 recordIfChanged 와
+            // 같은 계열이다. (진짜 best-effort 격리는 shared audit 계층 REQUIRES_NEW 후속 검토 대상.)
         }
     }
 
