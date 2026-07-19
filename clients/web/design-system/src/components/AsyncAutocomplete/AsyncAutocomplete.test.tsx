@@ -589,4 +589,86 @@ describe('AsyncAutocomplete', () => {
       vi.useRealTimers()
     }
   })
+
+  it('검색 오류(reject) 후 새 유효 입력은 즉시 idle 로 중화하고 errorMsg 를 제거한다 (error→retry)', async () => {
+    // #834 D-B1A-02 B/E — terminal 'error' 는 새 입력에서 즉시 중화되어야 한다.
+    // 첫 검색은 reject → error 표시, 둘째 검색은 성공 후보.
+    const hit: Option = { id: 'hit', label: '검색 성공 후보' }
+    const search = vi
+      .fn<(q: string) => Promise<Option[]>>()
+      .mockRejectedValueOnce(new Error('서버 오류'))
+      .mockResolvedValueOnce([hit])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={vi.fn()}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '검색' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '오류' } })
+
+    // reject → error 상태·errorMsg. 에러 안내는 실제 listbox 가 아니므로 aria-expanded 는 false.
+    await screen.findByText('검색 중 오류가 발생했습니다.')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(input.getAttribute('aria-controls')).toBeNull()
+
+    // 새 유효 입력 — handleChange 가 동기적으로 status='idle' 로 중화해 errorMsg 안내가 즉시 사라진다.
+    // (performSearch 는 debounce 매크로태스크라 이 시점엔 미실행 → 순수 동기 중화만 관측한다.
+    //  중화가 없으면 errorMsg 가 잔존해 error→retry 대신 stale error 가 새 검색을 오염시킨다.)
+    fireEvent.change(input, { target: { value: '성공' } })
+    expect(screen.queryByText('검색 중 오류가 발생했습니다.')).toBeNull()
+
+    // 재검색 hit → 후보 listbox 로 전이(error→retry 완료), aria-expanded 는 실제 listbox 존재와 정합.
+    await screen.findByText('검색 성공 후보')
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('빈 결과(done·후보 0) 후 새 유효 입력은 즉시 idle 로 중화하고 새 후보로 전이한다 (empty→hit)', async () => {
+    // #834 D-B1A-02 B/E — terminal 'done+빈 후보'(검색 결과 없음)도 새 입력에서 즉시 중화된다.
+    const hit: Option = { id: 'hit', label: '결과 있음 후보' }
+    const search = vi
+      .fn<(q: string) => Promise<Option[]>>()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([hit])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={vi.fn()}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '검색' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '없음' } })
+
+    // 빈 결과 → '검색 결과 없음'(role=status). 실제 listbox 가 아니므로 aria-expanded false.
+    await screen.findByText('검색 결과 없음')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+
+    // 새 유효 입력 — status='idle' 동기 중화로 '검색 결과 없음'(showEmpty=done+빈 후보)이 즉시 사라진다.
+    fireEvent.change(input, { target: { value: '있음' } })
+    expect(screen.queryByText('검색 결과 없음')).toBeNull()
+
+    // 재검색 hit → 후보 전이.
+    await screen.findByText('결과 있음 후보')
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+  })
 })

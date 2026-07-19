@@ -623,4 +623,80 @@ describe('DailyClosingPage committed partnerCode 계약 (#840)', () => {
       expect.objectContaining({ partnerCode: p2.partnerCode }),
     )
   })
+
+  /**
+   * [#840 R1 dim5 MED-1] 동명 divergence 실증 — 확정 판정이 이름이 아니라 getKey(partnerCode).
+   *
+   * <p>P1(코드A·상호X) 확정 선택 후 동일 상호 X 를 재입력(미선택 편집)하면 표시 입력값이 확정
+   * 선택 라벨과 문자열이 '같다'. 구 name-equality 가드({@code typedDraft === confirmedLabel})라면
+   * 이 상태가 확정으로 오판돼 P1 범위 마감이 통과했다. committed(getKey) 출력 계약은 편집
+   * 순간부터 false 이므로 이름이 같아도 실행을 차단한다. 이 케이스는 가드를 name-equality 로
+   * 되돌리면 RED 가 된다.
+   */
+  it('P1 확정 후 동일 상호 재입력(미선택)은 이름이 같아도 committed=false 로 실행을 차단한다 (동명 divergence)', async () => {
+    // 동명(상호 동일·partnerCode 상이) fixture.
+    const p1 = { partnerCode: 'P1-DAILY-DUP', name: '동일상호주식회사', bizNo: '111-11-11111' }
+    const p2 = { partnerCode: 'P2-DAILY-DUP', name: '동일상호주식회사', bizNo: '222-22-22222' }
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    createDailyClosingMock.mockResolvedValue({
+      closingDate: '2026-07-19',
+      partnerCode: p2.partnerCode,
+      closingKind: 'SALES',
+      sourceKind: 'TAX_INVOICE',
+      isLocked: true,
+      lockedAt: '2026-07-19T10:00:00+09:00',
+      lockedBy: 'user-001',
+      description: null,
+      totalSupply: '0',
+      totalVat: '0',
+      totalAmount: '0',
+    })
+    // 코드('P1'/'P2') 검색은 각 1건, 상호명 재입력은 동명 2건(코드 상이) 후보를 노출한다.
+    searchPartnersMock.mockImplementation((query: string) => {
+      if (query.includes('P2')) return Promise.resolve([p2])
+      if (query.includes('P1')) return Promise.resolve([p1])
+      return Promise.resolve([p1, p2])
+    })
+
+    renderPage()
+    const input = (await screen.findByTestId('daily-closing-exec-partner')) as HTMLInputElement
+    const liOptions = () => screen.getAllByRole('option').filter((o) => o.tagName === 'LI')
+    const firstLi = () => liOptions()[0]!
+
+    // 1) P1 확정 선택 (코드로 검색 → 단건 선택)
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'P1' } })
+    await waitFor(() => expect(firstLi().textContent).toContain(p1.partnerCode))
+    fireEvent.mouseDown(firstLi())
+    await waitFor(() => expect(input.value).toBe(p1.name))
+
+    // 2) 동일 상호 재입력(미선택 편집) — 동명 P2(코드 상이) 후보가 함께 노출된다.
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: p1.name } })
+    await waitFor(() => {
+      const codes = liOptions().map((o) => o.textContent ?? '').join(' ')
+      expect(codes).toContain(p1.partnerCode)
+      expect(codes).toContain(p2.partnerCode)
+    })
+    // 핵심: 표시 입력값이 확정 선택 라벨과 문자열이 같다 — name-equality 였다면 통과했을 상태.
+    expect(input.value).toBe(p1.name)
+
+    // 3) 실행 → committed=false 로 차단(마감 API 미호출 + role=alert 안내).
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    const draftError = await screen.findByTestId('daily-closing-exec-partner-draft-error')
+    expect(draftError.getAttribute('role')).toBe('alert')
+    expect(createDailyClosingMock).not.toHaveBeenCalled()
+
+    // 4) P2 명시 선택(같은 상호여도) → committed=true·payload 는 P2 partnerCode.
+    fireEvent.change(input, { target: { value: 'P2' } })
+    await waitFor(() => expect(firstLi().textContent).toContain(p2.partnerCode))
+    fireEvent.mouseDown(firstLi())
+    await waitFor(() => expect(input.value).toBe(p2.name))
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
+    expect(createDailyClosingMock).toHaveBeenCalledWith(
+      expect.objectContaining({ partnerCode: p2.partnerCode }),
+    )
+  })
 })

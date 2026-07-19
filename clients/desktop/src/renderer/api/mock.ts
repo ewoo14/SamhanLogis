@@ -14035,6 +14035,36 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     currentBalance: '500000',
     createdAt: '2024-03-10T09:00:00+09:00',
   },
+  // [#840 R1 dim5 MED-4] 동명(상호 동일·partnerCode 상이) 거래처 2건 — committed-selection
+  // 계약의 동명 divergence E2E 게이트(ac-4 BP-4)용 시드. 확정 판정이 이름이 아니라
+  // getKey(partnerCode)임을 실 in-process 검색으로 실증한다. 둘 다 ACTIVE(발송금지 검색은
+  // activeOnly 미적용이지만 상태 무관 노출을 보장). partnerCode = 사업자번호 digits(BE parity).
+  {
+    id: 'd8400000-0000-0000-0000-000000840001',
+    partnerCode: '9900010001',
+    partnerName: '동명테스트상사',
+    representative: '동명일',
+    businessNumber: '990-00-10001',
+    address: '서울특별시 마포구 월드컵북로 400',
+    phone: '02-9900-0001',
+    status: 'ACTIVE' as const,
+    creditLimit: '10000000',
+    currentBalance: '0',
+    createdAt: '2024-06-01T09:00:00+09:00',
+  },
+  {
+    id: 'd8400000-0000-0000-0000-000000840002',
+    partnerCode: '9900010002',
+    partnerName: '동명테스트상사',
+    representative: '동명이',
+    businessNumber: '990-00-10002',
+    address: '경기도 고양시 일산동구 중앙로 1200',
+    phone: '031-9900-0002',
+    status: 'ACTIVE' as const,
+    creditLimit: '10000000',
+    currentBalance: '0',
+    createdAt: '2024-06-02T09:00:00+09:00',
+  },
   {
     id: '44444444-4444-4444-4444-444444444444',
     partnerCode: 'P-DELETED-004',

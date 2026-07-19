@@ -41,7 +41,11 @@
  *   <li><b>발송금지 단건 POST</b> — `/api/v1/partners/admin/blocks` POST 는 in-process
  *       미핸들 → 실 HTTP fallthrough → `page.route` 가 유효. postDataJSON 으로
  *       partnerCode payload 를 직접 단언한다. [#825 재수렴 #5] BP-3 은 확정 선택(P1)과
- *       draft(P2 검색어) 불일치 등록 차단 — POST 미발생을 route 캡처 부재로 단언한다.</li>
+ *       draft(P2 검색어) 불일치 등록 차단 — POST 미발생을 route 캡처 부재로 단언한다.
+ *       [#840 R1 dim5 MED-4] BP-4 는 동명(상호 동일·code 상이) 계약 게이트 — 확정 선택(P1)과
+ *       동일 상호를 재입력해도(name-equality 였다면 통과) committed=false 라 POST 미발생,
+ *       P2 명시 선택만 P2 partnerCode payload 왕복(같은 상호여도 getKey 기준 확정). BP-3
+ *       (비동명 draft 가드)와 별개의 동명 divergence 게이트다.</li>
  * </ul>
  *
  * <h2>UUID 비공개 가드 ([[feedback_uuid_no_user_visibility]])</h2>
@@ -636,6 +640,88 @@ test.describe('AC-4 발송금지 거래처 (blocked-partners)', () => {
     await page.getByRole('button', { name: '차단 등록' }).click()
     await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
     expect(capturedBody!.partnerCode).toBe('4567890123')
+    await expect(dialog).not.toBeVisible({ timeout: 5_000 })
+  })
+
+  test('BP-4 [#840 R1 dim5 MED-4] 동명(상호 동일·code 상이) committed 게이트 — P1 확정 후 동명 재입력 미선택 등록은 POST 미발생(이름 같아도 차단), P2 명시 선택만 P2 partnerCode payload', async ({ page }) => {
+    await installAuthMock(page)
+    await blockLiveGatewayLeaks(page)
+
+    // BP-1/2/3 과 동일한 POST 캡처 — 차단 단계에서는 캡처가 "발생하지 않아야" 한다.
+    let capturedBody: { partnerCode?: string; blockReason?: string } | null = null
+    await page.route('**/api/v1/partners/admin/blocks', async (route) => {
+      if (route.request().method() !== 'POST') {
+        await route.continue()
+        return
+      }
+      capturedBody = route.request().postDataJSON() as {
+        partnerCode?: string
+        blockReason?: string
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(envelope({
+          id: 'block-e2e-840',
+          partnerCode: capturedBody?.partnerCode ?? '',
+          businessNameSnapshot: '동명테스트상사',
+          blockReason: capturedBody?.blockReason ?? null,
+          blockedAt: '2026-07-19T12:00:00+09:00',
+          source: 'MANUAL',
+        })),
+      })
+    })
+
+    await gotoPage(page, '/admin/blocked-partners', 'admin-blocked-add-button')
+    await page.getByTestId('admin-blocked-add-button').click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+
+    const partnerInput = page.getByTestId('admin-blocked-add-partner-code-input')
+    await expect(partnerInput).toBeFocused({ timeout: 3_000 })
+    const listbox = partnerListbox(page)
+
+    // P1(코드 9900010001) 확정 선택 — 코드로 검색해 동명 중 P1 특정 선택.
+    await partnerInput.fill('9900010001')
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    await listbox.locator('li[role="option"]').filter({ hasText: '9900010001' }).first().click()
+    await expect(partnerInput).toHaveValue('동명테스트상사')
+
+    // UUID 비공개 가드 — payload-only id 는 화면 어디에도 노출되지 않는다.
+    const bodyText = await page.locator('body').textContent()
+    expect(bodyText).not.toMatch(UUID_PATTERN)
+
+    // 동일 상호(P1 라벨과 문자열 동일) 재입력 — 동명 2건(코드 상이) 후보 노출·미선택 draft.
+    // 선택 직후 입력은 P1 라벨을 이미 보유(포커스 유지)하므로, 같은 값 fill 은 onChange 미발화 →
+    // 먼저 비운 뒤 같은 상호를 재입력해 실제 편집(committed=false)을 만든다.
+    await partnerInput.click()
+    await partnerInput.fill('')
+    await partnerInput.fill('동명테스트상사')
+    await expect(listbox).toBeVisible({ timeout: 5_000 })
+    await expect(
+      listbox.locator('li[role="option"]').filter({ hasText: '동명테스트상사' }),
+    ).toHaveCount(2)
+
+    // 등록 → 차단: 표시 입력값이 확정 선택(P1) 라벨과 문자열이 같아도(구 name-equality 였다면
+    // 통과) committed=false 라 P1 오대상 POST 가 발생하지 않아야 한다.
+    await page.getByRole('button', { name: '차단 등록' }).click()
+    await expect(dialog.getByRole('alert')).toContainText('목록에서 선택한 뒤 등록하세요')
+    expect(capturedBody).toBeNull()
+    await expect(dialog).toBeVisible()
+
+    // P2(코드 9900010002) 를 목록에서 명시 선택 — 같은 상호여도 확정키는 P2 partnerCode.
+    await partnerInput.click()
+    await partnerInput.fill('9900010002')
+    const p2Option = listbox.locator('li[role="option"]').filter({ hasText: '9900010002' })
+    await expect(p2Option.first()).toBeVisible({ timeout: 5_000 })
+    await p2Option.first().click()
+    await expect(partnerInput).toHaveValue('동명테스트상사')
+    await expect(dialog.getByRole('alert')).not.toBeVisible()
+
+    // 등록 → P2 partnerCode payload 왕복(같은 상호여도 P1 아님 증명) + 다이얼로그 닫힘.
+    await page.getByRole('button', { name: '차단 등록' }).click()
+    await expect.poll(() => capturedBody, { timeout: 5_000 }).not.toBeNull()
+    expect(capturedBody!.partnerCode).toBe('9900010002')
     await expect(dialog).not.toBeVisible({ timeout: 5_000 })
   })
 })

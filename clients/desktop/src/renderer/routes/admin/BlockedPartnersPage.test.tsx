@@ -211,4 +211,68 @@ describe('BlockedPartnersPage committed partnerCode 계약 (#840)', () => {
     await waitFor(() => expect(addBlockedPartnerMock).toHaveBeenCalledTimes(1))
     expect(addBlockedPartnerMock.mock.calls[0]![0]).toEqual({ partnerCode: p2.partnerCode })
   })
+
+  /**
+   * [#840 R1 dim5 MED-1] 동명 divergence 실증 — 확정 판정이 이름이 아니라 getKey(partnerCode).
+   *
+   * <p>P1(코드A·상호X) 확정 선택 후 동일 상호 X 를 재입력(미선택 편집)하면 표시 입력값이 확정
+   * 선택 라벨과 문자열이 '같다'. 구 name-equality 가드였다면 확정으로 오판돼 P1 오대상 차단이
+   * 통과했다. committed(getKey) 출력 계약은 편집 순간부터 false 라 이름이 같아도 등록을 차단한다.
+   * 가드를 name-equality 로 되돌리면 RED 가 된다.
+   */
+  it('P1 확정 후 동일 상호 재입력(미선택)은 이름이 같아도 committed=false 로 등록을 차단한다 (동명 divergence)', async () => {
+    const p1 = { partnerCode: 'P1-BLK-DUP', name: '동일상호주식회사', bizNo: '111-11-11111' }
+    const p2 = { partnerCode: 'P2-BLK-DUP', name: '동일상호주식회사', bizNo: '222-22-22222' }
+    listBlockedPartnersMock.mockResolvedValue(emptyPage)
+    addBlockedPartnerMock.mockResolvedValue({
+      id: 'block-vitest-840-dup',
+      partnerCode: p2.partnerCode,
+      businessNameSnapshot: p2.name,
+      blockReason: null,
+      blockedAt: '2026-07-19T10:00:00',
+      source: 'MANUAL',
+    })
+    searchPartnersMock.mockImplementation((query: string) => {
+      if (query.includes('P2')) return Promise.resolve([p2])
+      if (query.includes('P1')) return Promise.resolve([p1])
+      return Promise.resolve([p1, p2])
+    })
+
+    renderPage()
+    const input = await openAddDialog()
+    const liOptions = () => screen.getAllByRole('option').filter((o) => o.tagName === 'LI')
+    const firstLi = () => liOptions()[0]!
+
+    // 1) P1 확정 선택 (코드로 검색 → 단건 선택)
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'P1' } })
+    await waitFor(() => expect(firstLi().textContent).toContain(p1.partnerCode))
+    fireEvent.mouseDown(firstLi())
+    expect(input.value).toBe(p1.name)
+
+    // 2) 동일 상호 재입력(미선택 편집) — 동명 P2(코드 상이) 후보가 함께 노출된다.
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: p1.name } })
+    await waitFor(() => {
+      const codes = liOptions().map((o) => o.textContent ?? '').join(' ')
+      expect(codes).toContain(p1.partnerCode)
+      expect(codes).toContain(p2.partnerCode)
+    })
+    // 핵심: 표시 입력값이 확정 선택 라벨과 문자열이 같다 — name-equality 였다면 통과했을 상태.
+    expect(input.value).toBe(p1.name)
+
+    // 3) 등록 → committed=false 로 차단(POST 미발생 + role=alert 안내).
+    fireEvent.click(screen.getByRole('button', { name: '차단 등록' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(addBlockedPartnerMock).not.toHaveBeenCalled()
+
+    // 4) P2 명시 선택(같은 상호여도) → committed=true·payload 는 P2 partnerCode.
+    fireEvent.change(input, { target: { value: 'P2' } })
+    await waitFor(() => expect(firstLi().textContent).toContain(p2.partnerCode))
+    fireEvent.mouseDown(firstLi())
+    await waitFor(() => expect(input.value).toBe(p2.name))
+    fireEvent.click(screen.getByRole('button', { name: '차단 등록' }))
+    await waitFor(() => expect(addBlockedPartnerMock).toHaveBeenCalledTimes(1))
+    expect(addBlockedPartnerMock.mock.calls[0]![0]).toEqual({ partnerCode: p2.partnerCode })
+  })
 })
