@@ -1,5 +1,7 @@
 package com.samhanair.logis.slip.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -19,7 +21,9 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import com.samhanair.logis.slip.revision.service.SlipRevisionService;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +32,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +44,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -80,6 +87,7 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private SlipRepository slipRepository;
+    @Autowired private SlipRevisionService slipRevisionService;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private InventoryClient inventoryClient;
@@ -271,24 +279,47 @@ class SlipRevisionRestoreIT extends AbstractPostgresIT {
                 .andExpect(status().isConflict());
     }
 
-    @Test
-    void restoreCommittedSlipWithPartnerlessRevision_returnsBadRequest() throws Exception {
+    @ParameterizedTest(name = "{0} 상태의 거래처 없는 revision 복원은 fail-closed")
+    @EnumSource(value = SlipStatus.class, names = {
+            "SENT", "ACCEPTED", "PROCESSING", "INSPECTING", "COMPLETED", "SHIPPING",
+            "DELIVERED", "CONFIRMED", "REJECTED"
+    })
+    void restoreCommittedSlipWithPartnerlessRevision_returnsBadRequest(SlipStatus status) throws Exception {
         UUID slipId = createOutboundSlipAsSales(1);
         Slip slip = slipRepository.findById(slipId).orElseThrow();
         slip.save();
         slip.send();
+        ReflectionTestUtils.setField(slip, "status", status);
         slipRepository.saveAndFlush(slip);
         jdbcTemplate.update(
                 "UPDATE slip_revisions SET snapshot = jsonb_set(snapshot, '{partnerId}', 'null'::jsonb) "
                         + "WHERE slip_id = ? AND revision_no = 1",
                 slipId);
 
-        mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
-                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
-                        .header(USER_NAME_HEADER, "복원 사용자")
-                        .header(ROLE_HEADER, "MANAGER"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+        long revisionCountBefore = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slip_revisions WHERE slip_id = ?", Long.class, slipId);
+
+        if (status == SlipStatus.SENT) {
+            mockMvc.perform(post("/slips/{id}/revisions/{rev}/restore", slipId, 1)
+                            .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                            .header(USER_NAME_HEADER, "복원 사용자")
+                            .header(ROLE_HEADER, "MANAGER"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                    .andExpect(jsonPath("$.message")
+                            .value("거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다"));
+        } else {
+            assertThatThrownBy(() -> slipRevisionService.restore(
+                            slip, 1, UUID.randomUUID(), "복원 사용자", null))
+                    .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                    .hasMessage("거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다");
+        }
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slip_revisions WHERE slip_id = ?", Long.class, slipId))
+                .isEqualTo(revisionCountBefore);
+        assertThat(slipRepository.findById(slipId).orElseThrow().getPartnerId()).isNotNull();
+        assertThat(slipRepository.findById(slipId).orElseThrow().getStatus()).isEqualTo(status);
     }
 
     // =========================================================================

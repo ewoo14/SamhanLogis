@@ -7,6 +7,7 @@ import com.samhanair.logis.slip.domain.SlipType;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -65,6 +66,12 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
 
     /** slipType + status 동시 필터 페이지. soft-delete 제외. */
     Page<Slip> findAllBySlipTypeAndStatusAndIsDeletedFalse(SlipType slipType, SlipStatus status, Pageable pageable);
+
+    /** 커밋 상태이면서 거래처가 비어 있는 활성 legacy 전표를 cutover 보정 대상으로 조회한다. */
+    List<Slip> findAllByStatusInAndPartnerIdIsNullAndIsDeletedFalse(Collection<SlipStatus> statuses);
+
+    /** 거래처 보정 후 남은 커밋 상태의 partner_id null 위반 건수를 계산한다. */
+    long countByStatusInAndPartnerIdIsNullAndIsDeletedFalse(Collection<SlipStatus> statuses);
 
     /**
      * 판매/구매조회 목록용 soft-delete 포함 검색.

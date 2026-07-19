@@ -3030,3 +3030,15 @@ R4(FABLE5 1차 적대검증) 확인요청 4건 확정 — 근거 전문: [PR #82
 | D-848-04 | **V11 backfill 대상 현 라이브 0행**: 활성 NULL 64행은 전부 `template_id IS NULL` 독립형 결재(정당·backfill 무영향). backfill(`BETWEEN 41 AND 70`)은 타 환경의 V10-skipped 41–70 행 복구 목적·멱등. |
 | D-848-05 | **DTO 계약 게이트도 70**(R1 OPUS 적대검증 HIGH): `DocumentTemplateCreate/UpdateRequest.docType`·`AddApprovalLineStepRequest.documentType` `@Size(max=40→70, 한국어 message)`. `@Valid` 가 도메인 validateDocType 보다 먼저 발동하므로 DTO 미확장 시 41–70 저장이 실 HTTP 400 차단(서비스 직접호출 IT 가 @Valid 우회로 마스킹→MockMvc HTTP 경계 IT 로 방어). FE `templateSchema.MAX_DOC_TYPE_LENGTH` 70·mock parity(71 거부). |
 | D-848-06 | **배포 순서 권장 = auth V89 → groupware V11 → desktop**(데이터 정합상 순서 무관이나 동시 재시작+양쪽 blocker 시 동시 기동불가 회피). 사전 blocker query(장기 tx)·단계별 information_schema=70 검증·`SET LOCAL lock_timeout='5s'` fail-fast+저활동창 재시도. ALTER VARCHAR 확장=no-rewrite이나 doc_type 키 유니크 인덱스 3개는 ALTER 락 내 재빌드(소규모 무시). |
+
+## 전표 거래처 필수화 — 생명주기 전이 가드 (2026-07-19, PR #853)
+
+OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`) 필수 불변식. 거래처 없는 committed 전표(#823 오귀속 뿌리·실측 14건) 원천 차단. **컬럼 NOT NULL 비채택**(DRAFT null 1926 정당). dev-report `docs/dev-reports/2026-07-19-slip-partner-required-transition-guard.md`. 별건 #854(outbox self-invocation).
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-SLIP-PR-01 | **불변식 = `status ∈ REQUIRED_PARTNER_STATUSES ⟹ partner_id != null`**. `REQUIRED_PARTNER_STATUSES` = 전 SlipStatus − {DRAFT, SAVED, CANCELED} = {SENT,ACCEPTED,PROCESSING,INSPECTING,COMPLETED,SHIPPING,DELIVERED,CONFIRMED,REJECTED}. CANCELED 제외(DRAFT/SAVED 취소 partner null 정당)·REJECTED 포함(SENT 이후 도달). |
+| D-SLIP-PR-02 | **도메인 3중 가드**: `send()`(SAVED→SENT·requireStatus 먼저) + `restoreFromSnapshot()`(committed+snapshot.partnerId null 복원 거부·표준+협업 revision 공통) + **forward 전이(accept~confirm/reject) `requirePartnerForCommitted()`**(R2·legacy null progress 코드 차단). 불변식을 데이터+cutover 의존 아닌 **코드 강제**. |
+| D-SLIP-PR-03 | **DRAFT/SAVED partner null 허용 유지**(편집 단계). FE `SlipDetailPage` 전송 preflight(mobile+desktop 공통)·`SlipFormPage` DRAFT lenient. 컬럼 nullable 유지. |
+| D-SLIP-PR-04 | **주문→전표 발행 fail-closed**: `SlipPublishService.resolveCommittedPartnerId`(단일·병합)가 `PartnerInternalClient` `FOUND+partnerId` 만 성공·`NOT_FOUND/5xx/SKIPPED/FOUND-empty` 전부 차단(strict-off·5xx fail-open 우회·회계무결성>가용성·spec 인가). estimate/mobile 발행=DRAFT 종료라 미적용. |
+| D-SLIP-PR-05 | **위반 보정 = 동일 릴리스 cutover + 코드 아티팩트**(SOL 3모델 지적·runbook 산문만은 prod 재현·감사 불가): slip-service internal 보정 엔드포인트(9상태 위반 재조회→partner_code→partner_id FOUND 해소·멱등·dry-run·audit·미해소 리포트). code 無(대구HVAC솔루션)=운영 승인 단건 매핑. cutover 순서 = 배포+구버전 drain → 보정 → 검증 0. dev 실측 14→0. |

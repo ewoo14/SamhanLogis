@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.it;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,6 +17,8 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.domain.SlipStatus;
+import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +68,9 @@ class SlipControllerIT extends AbstractPostgresIT {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private SlipRepository slipRepository;
+
     @MockBean
     private InventoryClient inventoryClient;
 
@@ -103,6 +109,23 @@ class SlipControllerIT extends AbstractPostgresIT {
     /** SALES 권한으로 출고전표 1건 생성. 라이프사이클 테스트의 공통 셋업. */
     private String createOutboundSlipAsSales() throws Exception {
         Map<String, Object> body = createOutboundSlipBody();
+
+        MvcResult result = mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        return objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("id").asText();
+    }
+
+    private String createOutboundSlipWithoutPartnerAsSales() throws Exception {
+        Map<String, Object> body = createOutboundSlipBody();
+        body.remove("partnerId");
+        body.remove("partnerName");
 
         MvcResult result = mockMvc.perform(post("/slips")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -157,6 +180,45 @@ class SlipControllerIT extends AbstractPostgresIT {
         body.put("memo", "M4 매입 전표 권한 테스트");
         body.put("lines", List.of(line));
         return body;
+    }
+
+    @Test
+    void savedSlip_withoutPartner_cannotBeSent_overHttpAndDatabase() throws Exception {
+        String slipId = createOutboundSlipWithoutPartnerAsSales();
+
+        mockMvc.perform(post("/slips/" + slipId + "/save")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/slips/" + slipId + "/send")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value("전표 전송 전 거래처를 지정해야 합니다"));
+
+        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getStatus())
+                .isEqualTo(SlipStatus.SAVED);
+    }
+
+    @Test
+    void savedSlip_withPartner_canBeSent_overHttp() throws Exception {
+        String slipId = createOutboundSlipAsSales();
+
+        mockMvc.perform(post("/slips/" + slipId + "/save")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/slips/" + slipId + "/send")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SENT"));
+
+        assertThat(slipRepository.findById(UUID.fromString(slipId)).orElseThrow().getStatus())
+                .isEqualTo(SlipStatus.SENT);
     }
 
     @Test

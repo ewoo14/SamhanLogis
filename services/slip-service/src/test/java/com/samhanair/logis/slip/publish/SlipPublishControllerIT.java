@@ -36,6 +36,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -83,6 +84,9 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
 
     @Autowired
     private SlipRepository slipRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockBean
     private ProductClient productClient;
@@ -170,6 +174,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     void publishFromPartnerOrder_partnerResolutionFailure_doesNotCreateCommittedSlip(
             String resultName, PartnerVerifyResult result) throws Exception {
         String partnerOrderId = "PO-PARTNER-REQUIRED-" + resultName;
+        String idempotencyKey = "idem-partner-required-" + resultName;
         Mockito.when(partnerInternalClient.verifyPartnerCode("CUST-0002"))
                 .thenReturn(result);
         Map<String, Object> body = partnerOrderBody(partnerOrderId);
@@ -177,16 +182,26 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         mockMvc.perform(post("/api/v1/slips/from-partner-order")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "MANAGER")
-                        .header("Idempotency-Key", "idem-partner-required-" + resultName)
+                        .header("Idempotency-Key", idempotencyKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(
+                        "거래처 코드 'CUST-0002'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다"));
 
         org.assertj.core.api.Assertions.assertThat(
                         slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
                                 com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER,
                                 partnerOrderId))
                 .isEmpty();
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slips WHERE idempotency_key = ?", Integer.class, idempotencyKey))
+                .isZero();
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slip_publish_audit WHERE source_id = ?",
+                Integer.class, partnerOrderId))
+                .isZero();
     }
 
     private static java.util.stream.Stream<Arguments> partnerResolutionFailures() {

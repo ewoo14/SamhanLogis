@@ -12,6 +12,7 @@ import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
+import com.samhanair.logis.slip.service.SlipPartnerBackfillService;
 import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.web.SlipInternalController;
 import java.math.BigDecimal;
@@ -36,6 +37,8 @@ class SlipInternalAttachmentControllerTest {
     private com.samhanair.logis.slip.repository.SlipRepository slipRepository;
     @Mock
     private SlipService slipService;
+    @Mock
+    private SlipPartnerBackfillService slipPartnerBackfillService;
 
     @Test
     void upload_allowsDeliveryAndInspectionOnlyAndForwardsToService() {
@@ -64,7 +67,8 @@ class SlipInternalAttachmentControllerTest {
                 "DR-001")).thenReturn(saved);
 
         SlipInternalController controller = new SlipInternalController(
-                signatureService, attachmentService, slipLineRepository, slipRepository, slipService);
+                signatureService, attachmentService, slipLineRepository, slipRepository, slipService,
+                slipPartnerBackfillService);
 
         var response = controller.uploadAttachment(
                 slipId,
@@ -93,7 +97,8 @@ class SlipInternalAttachmentControllerTest {
     void upload_rejectsEstimateTypeForInternalDriverPhotoBridge() {
         SlipAttachmentService service = attachmentService;
         SlipInternalController controller = new SlipInternalController(
-                signatureService, service, slipLineRepository, slipRepository, slipService);
+                signatureService, service, slipLineRepository, slipRepository, slipService,
+                slipPartnerBackfillService);
 
         assertThatThrownBy(() -> controller.uploadAttachment(
                 UUID.randomUUID(),

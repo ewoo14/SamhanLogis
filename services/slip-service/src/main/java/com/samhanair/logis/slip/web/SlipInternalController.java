@@ -12,6 +12,7 @@ import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
+import com.samhanair.logis.slip.service.SlipPartnerBackfillService;
 import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.web.dto.InternalSignatureRegistrationRequest;
 import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
@@ -20,6 +21,7 @@ import com.samhanair.logis.slip.web.dto.LockByPeriodResponse;
 import com.samhanair.logis.slip.web.dto.OutboundSlipLineResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
+import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -72,6 +74,26 @@ public class SlipInternalController {
     private final SlipLineRepository slipLineRepository;
     private final SlipRepository slipRepository;
     private final SlipService slipService;
+    private final SlipPartnerBackfillService slipPartnerBackfillService;
+
+    /**
+     * 커밋 전표 거래처 동적 보정 — cutover 시점에 partner-service 경유로 실행한다.
+     *
+     * <p>{@code /internal/**} + {@code ROLE_MASTER} 이중 가드가 적용된다. 활성 필수 9상태의
+     * partner_id null 행만 매번 재조회하므로 이미 보정된 행은 멱등하게 건너뛴다. dry-run은
+     * partner-service 조회·미해소 리포트·잔여 count만 만들고 DB를 변경하지 않는다.
+     *
+     * @param dryRun true면 조회만 수행
+     * @return 처리/미해소/잔여 count와 미해소 상세
+     */
+    @Operation(summary = "Internal 커밋 전표 거래처 보정",
+            description = "X-Internal-Token 인증. FOUND + partnerId 응답만 보정하고 나머지는 리포트한다.")
+    @PostMapping("/backfill-committed-partners")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<SlipPartnerBackfillResponse> backfillCommittedPartners(
+            @RequestParam(defaultValue = "false") boolean dryRun) {
+        return ApiResponse.ok(slipPartnerBackfillService.backfill(dryRun));
+    }
 
     /**
      * Internal 전자서명 등록 — arologis-service 가 driver-app 캡처 서명을 slip-service 로 전파.

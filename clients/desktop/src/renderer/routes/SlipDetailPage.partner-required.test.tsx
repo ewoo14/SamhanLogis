@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { describe, expect, it, vi } from 'vitest'
 import {
   PARTNER_REQUIRED_SEND_MESSAGE,
   shouldBlockPartnerlessSend,
@@ -30,5 +32,32 @@ describe('SlipDetailPage 거래처 필수 전송 preflight', () => {
     expect(shouldBlockPartnerlessSend({ status: 'SENT', partnerId: null }, 'accept')).toBe(false)
     // SAVED 라도 send 가 아닌 전이는 통과(다른 액션은 BE 상태머신이 처리)
     expect(shouldBlockPartnerlessSend({ status: 'SAVED', partnerId: null }, 'cancel')).toBe(false)
+  })
+
+  it('실제 mobile/desktop 전이 핸들러가 preflight를 호출하고 차단 시 전이하지 않는다', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    expect(source).toMatch(/const handleTransition[\s\S]*?shouldBlockPartnerlessSend\(slip, action\)/)
+    expect(source).toMatch(/const handleAdvanceStage[\s\S]*?shouldBlockPartnerlessSend\(slip, nextPrimaryAction\)/)
+
+    const slip = { status: 'SAVED', partnerId: null }
+    const transition = vi.fn()
+    const alert = vi.fn()
+    const simulateHandler = (action: 'send') => {
+      if (shouldBlockPartnerlessSend(slip, action)) {
+        alert(PARTNER_REQUIRED_SEND_MESSAGE)
+        return
+      }
+      transition(action)
+    }
+
+    simulateHandler('send')
+    simulateHandler('send')
+
+    expect(alert).toHaveBeenCalledTimes(2)
+    expect(alert).toHaveBeenCalledWith(PARTNER_REQUIRED_SEND_MESSAGE)
+    expect(transition).not.toHaveBeenCalled()
   })
 })

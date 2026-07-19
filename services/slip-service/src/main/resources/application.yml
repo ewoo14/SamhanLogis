@@ -119,6 +119,10 @@ app:
     # default true → 발행 시 partner-service 미등록 (404) 거래처 reject (BusinessException NOT_FOUND).
     # false → lookup skip + warning log (data-migration / disaster-recovery 시점만 사용 권장).
     # 5xx / 연결 실패는 strict 모드에서도 fail-open (회계 critical path 보호).
+    # ⚠️ 위 정책은 estimate 발행(DRAFT 생성) 경로에만 적용된다. 주문→전표 committed 발행
+    #    (SlipPublishService.resolveCommittedPartnerId)은 전표 거래처 필수화 불변식상
+    #    이 toggle 과 무관하게 항상 fail-closed (FOUND+partnerId 만 성공·NOT_FOUND/5xx/SKIPPED/
+    #    FOUND-empty 는 발행 차단). 거래처 없는 committed 전표(#823 오귀속) 원천 차단 우선.
     partner-strict-validation: ${SAMHAN_SLIP_PARTNER_STRICT:true}
     # P1-8 (Stage 4) — 슬립 첨부 MinIO bucket. default false → NoopSlipAttachmentStorage fallback.
     # DevOps 가 별도 dispatch 로 bucket `slip-attachments` 생성. 활성 시 MinioSlipAttachmentStorage 주입.

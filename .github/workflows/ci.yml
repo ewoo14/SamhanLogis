@@ -217,6 +217,47 @@ jobs:
             exit 1
           fi
 
+      - name: R2 전표 거래처 필수화 핵심 IT skipped=0 hard gate
+        if: matrix.group.name == 'slip-it-core'
+        run: |
+          reports=(
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.SlipDomainIT.xml'
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.SlipControllerIT.xml'
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.SlipPartnerBackfillIT.xml'
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.SlipRevisionRestoreIT.xml'
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.it.collab.SlipCollabIT.xml'
+          )
+          for report in "${reports[@]}"; do
+            if [ ! -f "$report" ]; then
+              echo "::error::R2 slip core IT JUnit report not found: $report"
+              exit 1
+            fi
+            skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            if [ "${skipped:-missing}" != "0" ]; then
+              echo "::error::R2 slip core IT skipped count must be 0: $report (got ${skipped:-missing})."
+              exit 1
+            fi
+          done
+
+      - name: R2 전표 발행 fail-closed IT skipped=0 hard gate
+        if: matrix.group.name == 'slip-it-public'
+        run: |
+          reports=(
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.publish.SlipPublishControllerIT.xml'
+            'services/slip-service/build/test-results/test/TEST-com.samhanair.logis.slip.publish.SlipPublishMergeIT.xml'
+          )
+          for report in "${reports[@]}"; do
+            if [ ! -f "$report" ]; then
+              echo "::error::R2 slip publish IT JUnit report not found: $report"
+              exit 1
+            fi
+            skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            if [ "${skipped:-missing}" != "0" ]; then
+              echo "::error::R2 slip publish IT skipped count must be 0: $report (got ${skipped:-missing})."
+              exit 1
+            fi
+          done
+
       - name: S3-3 JournalCollabIT skipped=0 hard gate
         if: matrix.group.name == 'accounting+partner'
         run: |

@@ -1,0 +1,145 @@
+package com.samhanair.logis.slip.it;
+
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.samhanair.logis.slip.SlipServiceApplication;
+import com.samhanair.logis.slip.client.PartnerInternalClient;
+import com.samhanair.logis.slip.client.UserInternalClient;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.domain.DeliveryTag;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipStatus;
+import com.samhanair.logis.slip.repository.SlipRepository;
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * 커밋 전표 거래처 동적 보정 endpoint 의 실제 DB/HTTP 경계 검증.
+ *
+ * <p>실운영 partner-service 는 {@link PartnerInternalClient} 경계를 통해 호출되며, IT 에서는
+ * 그 cross-service client 만 대체해 FOUND/미해소 응답과 멱등·dry-run 계약을 검증한다.
+ */
+@SpringBootTest(classes = SlipServiceApplication.class)
+@AutoConfigureMockMvc
+class SlipPartnerBackfillIT extends AbstractPostgresIT {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private SlipRepository slipRepository;
+
+    @MockBean
+    private PartnerInternalClient partnerInternalClient;
+
+    @MockBean
+    private UserInternalClient userInternalClient;
+
+    @MockBean
+    private WarehouseInternalClient warehouseInternalClient;
+
+    @BeforeEach
+    void isolateLegacyCandidates() {
+        var legacyCandidates = slipRepository.findAll().stream()
+                .filter(slip -> Slip.requiredPartnerStatuses().contains(slip.getStatus()))
+                .filter(slip -> slip.getPartnerId() == null)
+                .toList();
+        legacyCandidates.forEach(slip -> slip.markDeleted("backfill-it-cleanup"));
+        if (!legacyCandidates.isEmpty()) {
+            slipRepository.saveAllAndFlush(legacyCandidates);
+        }
+    }
+
+    /**
+     * 시딩한 커밋 전표(BF prefix)를 테스트 후 소프트삭제한다. persistCommittedPartnerless 는
+     * 비-@Transactional 로 SENT(partner null) 전표를 영속하므로, 정리하지 않으면 공유 Testcontainers
+     * DB 에 잔류해 타 IT(예: SlipQueryRedesignIT 전역 조회 content[0])를 오염시킨다(테스트 격리).
+     */
+    @AfterEach
+    void cleanupSeededSlips() {
+        var seeded = slipRepository.findAll().stream()
+                .filter(slip -> slip.getSlipNo() != null && slip.getSlipNo().startsWith("2026/07/19-BF-"))
+                .toList();
+        seeded.forEach(slip -> slip.markDeleted("backfill-it-cleanup"));
+        if (!seeded.isEmpty()) {
+            slipRepository.saveAllAndFlush(seeded);
+        }
+    }
+
+    @Test
+    void backfill_resolvesPartnerCode_updatesDatabase_andSecondRunIsIdempotent() throws Exception {
+        UUID partnerId = UUID.randomUUID();
+        Slip violation = persistCommittedPartnerless("P-BACKFILL-FOUND");
+        when(partnerInternalClient.verifyPartnerCode("P-BACKFILL-FOUND"))
+                .thenReturn(PartnerInternalClient.PartnerVerifyResult.found(Optional.of(partnerId)));
+
+        mockMvc.perform(post("/internal/slips/backfill-committed-partners")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.processedCount").value(1))
+                .andExpect(jsonPath("$.data.unresolvedCount").value(0))
+                .andExpect(jsonPath("$.data.remainingCount").value(0))
+                .andExpect(jsonPath("$.data.dryRun").value(false));
+
+        Slip updated = slipRepository.findById(violation.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(updated.getPartnerId()).isEqualTo(partnerId);
+        org.assertj.core.api.Assertions.assertThat(updated.getModifiedBy()).isEqualTo("system-internal");
+
+        mockMvc.perform(post("/internal/slips/backfill-committed-partners")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.processedCount").value(0))
+                .andExpect(jsonPath("$.data.unresolvedCount").value(0))
+                .andExpect(jsonPath("$.data.remainingCount").value(0));
+
+        verify(partnerInternalClient, times(1)).verifyPartnerCode(eq("P-BACKFILL-FOUND"));
+    }
+
+    @Test
+    void backfill_dryRun_doesNotModify_and_reportsPartnerlessCodeMissingRow() throws Exception {
+        Slip violation = persistCommittedPartnerless(null);
+
+        mockMvc.perform(post("/internal/slips/backfill-committed-partners")
+                        .param("dryRun", "true")
+                        .header("X-Internal-Token", "test-internal-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.processedCount").value(0))
+                .andExpect(jsonPath("$.data.unresolvedCount").value(1))
+                .andExpect(jsonPath("$.data.remainingCount").value(1))
+                .andExpect(jsonPath("$.data.dryRun").value(true))
+                .andExpect(jsonPath("$.data.unresolved[0].reason").value("partnerCode 없음"));
+
+        Slip unchanged = slipRepository.findById(violation.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(unchanged.getPartnerId()).isNull();
+        verify(partnerInternalClient, times(0)).verifyPartnerCode(eq(""));
+    }
+
+    private Slip persistCommittedPartnerless(String partnerCode) {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        Slip slip = Slip.createOutbound(
+                "2026/07/19-BF-" + suffix,
+                LocalDate.of(2026, 7, 19),
+                Math.abs(suffix.hashCode()),
+                UUID.randomUUID(), UUID.randomUUID(),
+                null, null, DeliveryTag.DAY, "backfill test", "backfill-test");
+        slip.setPartnerCode(partnerCode);
+        ReflectionTestUtils.setField(slip, "status", SlipStatus.SENT);
+        return slipRepository.saveAndFlush(slip);
+    }
+}

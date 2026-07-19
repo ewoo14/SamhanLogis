@@ -30,9 +30,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -404,16 +408,19 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         assertThat(slip.getPartnerId()).isEqualTo(RESOLVED_PARTNER_ID);
     }
 
-    @Test
-    void mergePublish_partnerResolutionServerError_doesNotCreateCommittedSlip() throws Exception {
-        Mockito.when(partnerInternalClient.verifyPartnerCode("P-MISSING"))
-                .thenReturn(PartnerVerifyResult.serverError());
+    @ParameterizedTest(name = "병합 거래처 해소 {0}은 커밋 전표를 만들지 않는다")
+    @MethodSource("unresolvablePartnerResponses")
+    void mergePublish_partnerResolution_doesNotCreateAnything(
+            String resultName, PartnerVerifyResult partnerResult) throws Exception {
+        String partnerCode = "P-MISSING-" + resultName;
+        Mockito.when(partnerInternalClient.verifyPartnerCode(partnerCode))
+                .thenReturn(partnerResult);
         String primaryOrderId = UUID.randomUUID().toString();
-        String idemKey = "merge-partner-required-server-error";
+        String idemKey = "merge-partner-required-" + resultName;
         Map<String, Object> body = mergeBody(
                 primaryOrderId, "2026/05/31-fail-A",
                 UUID.randomUUID().toString(), "2026/05/31-fail-B",
-                "P-MISSING", "거래처 없음", WAREHOUSE_CODE,
+                partnerCode, "거래처 없음", WAREHOUSE_CODE,
                 "서울", idemKey);
 
         mockMvc.perform(post("/api/v1/slips/from-orders-merge")
@@ -422,11 +429,33 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .header("Idempotency-Key", idemKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(
+                        "거래처 코드 '" + partnerCode + "'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다"));
 
         assertThat(slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
                 com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER, primaryOrderId))
                 .isEmpty();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slips WHERE idempotency_key = ?", Integer.class, idemKey))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slip_source_orders WHERE partner_order_id = ?",
+                Integer.class, UUID.fromString(primaryOrderId)))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM slip_publish_audit WHERE source_id = ?",
+                Integer.class, primaryOrderId))
+                .isZero();
+    }
+
+    static Stream<Arguments> unresolvablePartnerResponses() {
+        return Stream.of(
+                Arguments.of("NOT_FOUND", PartnerVerifyResult.notFound()),
+                Arguments.of("SERVER_ERROR", PartnerVerifyResult.serverError()),
+                Arguments.of("SKIPPED", PartnerVerifyResult.skipped(Optional.empty())),
+                Arguments.of("FOUND_EMPTY", PartnerVerifyResult.found(Optional.empty())));
     }
 
     // ---- helpers ----
