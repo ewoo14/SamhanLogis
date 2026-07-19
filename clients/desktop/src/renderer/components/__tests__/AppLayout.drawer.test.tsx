@@ -5,11 +5,20 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { AppLayout } from '../AppLayout'
 
+const mocks = vi.hoisted(() => ({
+  logout: vi.fn(async () => undefined),
+  removeQueries: vi.fn(),
+}))
+
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ removeQueries: mocks.removeQueries }),
+}))
+
 vi.mock('../../stores/session', () => ({
   useSessionStore: (selector: (state: { auth: { fullName: string; role: string }; logout: () => Promise<void> }) => unknown) =>
     selector({
       auth: { fullName: '오병승', role: 'MASTER' },
-      logout: vi.fn(async () => undefined),
+      logout: mocks.logout,
     }),
 }))
 
@@ -131,5 +140,16 @@ describe('AppLayout mobile drawer', () => {
     fireEvent.click(toggle)
     fireEvent.click(backdrop)
     expect(getDrawer().classList.contains('is-open')).toBe(false)
+  })
+
+  test('로그아웃 후 권한 캐시를 제거한다', async () => {
+    renderApp()
+
+    fireEvent.click(screen.getByTestId('header-user-name'))
+    fireEvent.click(screen.getByRole('menuitem', { name: '로그아웃' }))
+
+    await waitFor(() => {
+      expect(mocks.removeQueries).toHaveBeenCalledWith({ queryKey: ['permissions', 'my'] })
+    })
   })
 })

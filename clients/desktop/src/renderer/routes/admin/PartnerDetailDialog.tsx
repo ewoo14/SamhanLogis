@@ -85,6 +85,8 @@ export function PartnerDetailDialog({
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canEdit = canAccess('partners.4tab.edit', 'update')
+  const canViewVersionHistory = canAccess('partners.4tab.edit', 'view')
+  const visibleTabs = canViewVersionHistory ? TABS : TABS.slice(0, -1)
   const [activeTab, setActiveTab] = useState(0)
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState<PartnerFullRequest | null>(
@@ -254,8 +256,8 @@ export function PartnerDetailDialog({
             </div>
           ) : null}
           <Tabs
-            tabs={TABS}
-            activeIndex={activeTab}
+            tabs={visibleTabs}
+            activeIndex={Math.min(activeTab, visibleTabs.length - 1)}
             onTabChange={setActiveTab}
             ariaLabel="거래처 상세 탭"
           >
@@ -318,11 +320,13 @@ export function PartnerDetailDialog({
               }
             />
 
-            {/* 탭 5: 버전 이력 + 복원 (Phase 2.3 Task 6) — status 는 조회 데이터에서 파생 */}
-            <PartnerVersionHistoryPanel
-              partnerCode={query.data.basic.partnerCode}
-              status={query.data.basic.status}
-            />
+            {/* 탭 5: 버전 이력 + 복원 (Phase 2.3 Task 6) — 조회 권한 보유 시에만 mount */}
+            {canViewVersionHistory ? (
+              <PartnerVersionHistoryPanel
+                partnerCode={query.data.basic.partnerCode}
+                status={query.data.basic.status}
+              />
+            ) : null}
           </Tabs>
         </>
       ) : null}

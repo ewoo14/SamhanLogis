@@ -23,7 +23,7 @@
  * - password-change-submit
  */
 import { useEffect, useState, type FormEvent } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Button, Card, FormField } from '@samhan/design-system'
 import axios from 'axios'
@@ -33,6 +33,7 @@ import { usePageTitleStore } from '../stores/pageTitle'
 
 export function PasswordChangePage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const logout = useSessionStore((s) => s.logout)
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
 
@@ -72,6 +73,7 @@ export function PasswordChangePage() {
   /** 변경 성공 후 로그아웃 + login 화면 강제 이동. */
   const handleProceedToLogin = async () => {
     await logout()
+    queryClient.removeQueries({ queryKey: ['permissions', 'my'] })
     navigate('/login', { replace: true })
   }
 

@@ -27,6 +27,7 @@ import {
   type PartnerRevisionType,
 } from '../../api/partnerRevision'
 import { type PartnerStatus } from '../../api/adminApi'
+import { usePermissions } from '../../hooks/usePermissions'
 
 export interface PartnerVersionHistoryPanelProps {
   /** 거래처 코드 — react-query 키 + API path 전용 (UUID 아님, 화면 표시 식별자). */
@@ -99,6 +100,7 @@ export function PartnerVersionHistoryPanel({
   status,
 }: PartnerVersionHistoryPanelProps) {
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
   /** 복원 confirm modal 대상 revision (null = 미오픈). */
   const [restoreTarget, setRestoreTarget] = useState<PartnerRevision | null>(null)
   /** 복원 성공/실패 toast. */
@@ -106,6 +108,7 @@ export function PartnerVersionHistoryPanel({
 
   /** 거래종료 상태면 복원 버튼 비활성 (BE 가 409 거절). */
   const restorable = isRestorableStatus(status)
+  const canRestore = canAccess('partners.4tab.edit', 'restore')
 
   const revisionsQuery = useQuery({
     queryKey: ['partnerRevisions', partnerCode],
@@ -275,7 +278,7 @@ export function PartnerVersionHistoryPanel({
                     {formatChangeSummary(rev)}
                   </span>
                 </div>
-                {!isLatest ? (
+                {!isLatest && canRestore ? (
                   <Button
                     variant="secondary"
                     size="sm"

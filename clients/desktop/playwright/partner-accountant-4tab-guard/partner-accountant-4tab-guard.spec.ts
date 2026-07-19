@@ -53,4 +53,30 @@ test.describe('#836 거래처 4탭 ACCOUNTANT/SALES mock parity', () => {
     await page.goto(SALES_NEW_URL, { waitUntil: 'domcontentloaded' })
     await expect(page.getByTestId('partner-create-form')).toBeVisible()
   })
+
+  test('SALES — partners.4tab.edit 미보유 시 버전 이력 탭과 패널이 노출되지 않는다', async ({ page }) => {
+    await openPartnersPage(page, 'SALES')
+
+    await page.getByTestId('admin-partners-row-1234567890').click()
+    await expect(page.getByRole('dialog', { name: /거래처 상세/ })).toBeVisible()
+    await expect(page.getByRole('tab', { name: '버전 이력' })).toHaveCount(0)
+    await expect(page.getByTestId('partner-version-history-panel')).toHaveCount(0)
+  })
+
+  for (const role of ['MASTER', 'MANAGER'] as const) {
+    test(`${role} — partners.4tab.edit VIEW 보유 시 버전 이력 탭이 노출된다`, async ({ page }) => {
+      await page.goto(`${PARTNERS_PATH}?mockRole=${role}`, { waitUntil: 'domcontentloaded' })
+      await expect(page.getByTestId('admin-partners-table')).toBeVisible()
+
+      await page.getByTestId('admin-partners-row-1234567890').click()
+      await expect(page.getByRole('dialog', { name: /거래처 상세/ })).toBeVisible()
+      await expect(page.getByRole('tab', { name: '버전 이력' })).toBeVisible()
+
+      if (role === 'MANAGER') {
+        await page.getByRole('tab', { name: '버전 이력' }).click()
+        await expect(page.getByTestId('partner-version-history-panel')).toBeVisible()
+        await expect(page.getByTestId('partner-version-history-restore-button-1')).toHaveCount(0)
+      }
+    })
+  }
 })

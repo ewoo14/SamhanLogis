@@ -34,6 +34,7 @@
  * - 외부 클릭 / Esc 키 dropdown 자동 닫기
  */
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '../stores/session'
 import { usePageTitleStore } from '../stores/pageTitle'
@@ -319,6 +320,7 @@ export function AppLayout() {
   const meta = usePageTitleStore((s) => s.meta)
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -450,6 +452,7 @@ export function AppLayout() {
   const handleLogout = async () => {
     setUserMenuOpen(false)
     await logout()
+    queryClient.removeQueries({ queryKey: ['permissions', 'my'] })
     navigate('/login', { replace: true })
   }
 
