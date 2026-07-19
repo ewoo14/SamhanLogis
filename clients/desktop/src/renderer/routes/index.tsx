@@ -1329,7 +1329,7 @@ const routes = [
       {
         path: '/admin/partners/new',
         element: (
-          <PermissionGuard pageCode="partners.detail" action="view">
+          <PermissionGuard pageCode="partners.4tab" action="create">
             <AdminPartnerCreatePage />
           </PermissionGuard>
         ),

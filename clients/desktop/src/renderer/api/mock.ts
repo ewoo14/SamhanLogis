@@ -17432,6 +17432,7 @@ const SP_D1_PAGES = [
   'admin.users',
   'partners.list',
   'partners.detail',
+  'partners.4tab',
   'partners.edit',
   'partners.delete',
   'partners.4tab.edit',
@@ -17514,6 +17515,8 @@ const MOCK_ACTION_ONLY_PAGES: Record<string, string[]> = {
   // DOWNLOAD/PRINT 없음). 미등재 시 mock /permissions/my 가 MANAGER/ACCOUNTANT 에
   // CREATE/DELETE/DOWNLOAD/PRINT 까지 과다부여한다.
   'products.price-schedule': ['UPDATE'],
+  // #836: 4탭 신규 등록/수정/삭제 action만 허용하고 DOWNLOAD/PRINT는 부여하지 않는다.
+  'partners.4tab': ['CREATE', 'UPDATE', 'DELETE'],
   'sales.partner-order.convert': ['CREATE'],
   'products.sync': ['CREATE'],
   'dispatch.external-carriers': ['CREATE', 'UPDATE', 'DELETE', 'RESTORE'],
@@ -17583,7 +17586,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
     'admin.employees', 'admin.app-release',
-    'partners.list', 'partners.detail', 'partners.edit', 'partners.4tab.edit',
+    'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
@@ -17634,7 +17637,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
     'inventory.stock', 'inventory.list', 'inventory.transfer',
-    'partners.list', 'partners.detail', 'partners.edit-request',
+    'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit-request',
     'products.list', 'products.admin',
     // C2b PermissionGuard 전환 — SALES: view 허용 (V36 seed)
     'sales.slip.create', 'slip.print.next-day', 'sales.partner-dc-config',
@@ -17764,7 +17767,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
     'admin.employees', 'admin.app-release',
-    'partners.list', 'partners.detail', 'partners.edit', 'partners.4tab.edit',
+    'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
@@ -17811,7 +17814,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.print',
     'inventory.list',
-    'partners.list', 'partners.detail',
+    'partners.list', 'partners.detail', 'partners.4tab',
     'products.admin',
     // C2b PermissionGuard 전환 — SALES: edit 허용 (V36 seed)
     'sales.slip.create', 'slip.print.next-day', 'slip.cleanup', 'slip.edit-requests',

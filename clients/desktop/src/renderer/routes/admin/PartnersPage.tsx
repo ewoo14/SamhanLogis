@@ -96,6 +96,8 @@ export function PartnersPage() {
   const canExport = canAccess('partners.edit', 'download')
   const canDelete = canAccess('partners.delete', 'delete')
   const canRestore = canAccess('partners.delete', 'restore')
+  const canCreateFourTab = canAccess('partners.4tab', 'create')
+  const canViewFourTab = canAccess('partners.4tab', 'view')
 
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerStatus | ''>('')
@@ -369,14 +371,16 @@ export function PartnersPage() {
               Excel 다운로드
             </Button>
           ) : null}
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => navigate('/admin/partners/new')}
-            data-testid="admin-partners-create-btn"
-          >
-            신규 등록
-          </Button>
+          {canCreateFourTab ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate('/admin/partners/new')}
+              data-testid="admin-partners-create-btn"
+            >
+              신규 등록
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -452,10 +456,10 @@ export function PartnersPage() {
           rows={query.data?.items ?? []}
           loading={query.isLoading}
           rowKey={(p) => `${p.partnerCode}:${p.isDeleted ? `D:${p.deletedAt ?? 'unknown'}` : 'A'}`}
-          rowClickable={(p) => p.isDeleted !== true}
+          rowClickable={(p) => canViewFourTab && p.isDeleted !== true}
           rowClassName={(p) => (p.isDeleted ? styles.deletedRow : undefined)}
           emptyMessage="조건에 맞는 거래처가 없습니다."
-          onRowClick={openDetail}
+          onRowClick={canViewFourTab ? openDetail : undefined}
         />
       </div>
 
