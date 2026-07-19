@@ -74,7 +74,7 @@ class SlipServiceLockGuardTest {
         slipId = UUID.randomUUID();
         callerId = UUID.randomUUID();
         slip = Slip.createOutbound("2026/05/10-001", LocalDate.now(), 1,
-                UUID.randomUUID(), null, null, "거래처A",
+                UUID.randomUUID(), null, UUID.randomUUID(), "거래처A",
                 null, "원본", "user-1");
         ReflectionTestUtils.setField(slip, "id", slipId);
         // auditLogService stub — applyOverlayPatch 후 호출

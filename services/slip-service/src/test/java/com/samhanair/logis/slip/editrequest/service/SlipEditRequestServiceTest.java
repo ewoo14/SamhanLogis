@@ -75,7 +75,7 @@ class SlipEditRequestServiceTest {
         slipId = UUID.randomUUID();
         requesterId = UUID.randomUUID();
         slip = Slip.createOutbound("2026/05/10-001", LocalDate.now(), 1,
-                UUID.randomUUID(), null, null, "거래처A",
+                UUID.randomUUID(), null, UUID.randomUUID(), "거래처A",
                 null, "원본 메모", "user-1");
         // 초기 status = DRAFT, 본 PR 시나리오 별로 transitionTo 호출
     }

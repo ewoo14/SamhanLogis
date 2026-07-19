@@ -977,11 +977,11 @@ public class Slip extends BaseEntity {
      * @throws BusinessException(CONFLICT) 현재 상태가 SAVED 가 아닐 때
      */
     public void send() {
+        requireStatus(SlipStatus.SAVED);
         if (this.partnerId == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "전표 전송 전 거래처를 지정해야 합니다");
         }
-        requireStatus(SlipStatus.SAVED);
         this.status = SlipStatus.SENT;
         if (this.slipType != SlipType.OUTBOUND) {
             captureRevisionBaselineIfAbsent();
