@@ -15914,7 +15914,8 @@ function mockEstimateSummary(row: (typeof MOCK_ESTIMATES)[number]) {
   const status = legacyStatus.startsWith('QUOTE_')
     ? legacyStatus as EstimateStatusMock
     : (`QUOTE_${legacyStatus}` as EstimateStatusMock)
-  const seqNo = Number.parseInt(String(row.estimateNumber).split('-').at(-1) ?? '1', 10)
+  const estimateParts = String(row.estimateNumber).split('-')
+  const seqNo = Number.parseInt(estimateParts[estimateParts.length - 1] ?? '1', 10)
   return {
     id: row.id,
     estimateNo: row.estimateNumber,

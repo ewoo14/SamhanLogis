@@ -260,7 +260,8 @@ describe('AsyncAutocomplete', () => {
     // 포커스 → open + draft='' → 표시값이 빈칸(전표 수정 진입 순간 재현)
     fireEvent.focus(input)
     expect(input.value).toBe('')
-    expect(input.getAttribute('aria-expanded')).toBe('true')
+    // 포커스만으로 listbox가 생성되지는 않으므로 실제 listbox 존재와 정합해야 한다.
+    expect(input.getAttribute('aria-expanded')).toBe('false')
 
     // disabled 로 플립(coedit provider 로딩) — React 는 disabled 요소에 onBlur 미발화
     view.rerender(
@@ -391,5 +392,201 @@ describe('AsyncAutocomplete', () => {
     expect(options[1]!.getAttribute('aria-selected')).toBe('false')
     expect(options[0]!.className).toContain('optionSelected')
     expect(options[1]!.className).not.toContain('optionSelected')
+  })
+
+  it('committed 출력은 이름이 아니라 getKey 기반 선택 상태와 편집 상태를 반영한다', async () => {
+    const first: Option = { id: 'p-1', label: '같은 이름' }
+    const second: Option = { id: 'p-2', label: '같은 이름' }
+    const onChange = vi.fn()
+    const onCommitChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([second])
+
+    const view = render(
+      <AsyncAutocomplete<Option>
+        value={first}
+        onChange={onChange}
+        onInputCommitChange={onCommitChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '검색' })
+    fireEvent.focus(input)
+    expect(onCommitChange).toHaveBeenLastCalledWith(false)
+
+    // P1 이름과 같은 문자열이어도 실제 후보 선택이 아니면 미확정이다.
+    fireEvent.change(input, { target: { value: first.label } })
+    expect(onCommitChange).toHaveBeenLastCalledWith(false)
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onCommitChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '같은' } })
+    fireEvent.mouseDown(await screen.findByRole('option', { name: '같은 이름' }))
+    expect(onChange).toHaveBeenCalledWith(second)
+    expect(onCommitChange).toHaveBeenLastCalledWith(true)
+
+    view.rerender(
+      <AsyncAutocomplete<Option>
+        value={second}
+        onChange={onChange}
+        onInputCommitChange={onCommitChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+    expect((input as HTMLInputElement).value).toBe(second.label)
+  })
+
+  it('외부 controlled value 교체는 편집을 닫고 새 표시값과 committed 상태를 동기화한다', () => {
+    const first: Option = { id: 'p-1', label: '첫 거래처' }
+    const second: Option = { id: 'p-2', label: '둘째 거래처' }
+    const onCommitChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+
+    const view = render(
+      <AsyncAutocomplete<Option>
+        value={first}
+        onChange={vi.fn()}
+        onInputCommitChange={onCommitChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '검색' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '편집 중' } })
+
+    view.rerender(
+      <AsyncAutocomplete<Option>
+        value={second}
+        onChange={vi.fn()}
+        onInputCommitChange={onCommitChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+      />,
+    )
+
+    expect(input.value).toBe(second.label)
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(onCommitChange).toHaveBeenLastCalledWith(true)
+  })
+
+  it('stale 후보는 키보드와 마우스 선택을 모두 차단하고 aria-disabled를 표시한다', async () => {
+    const old: Option = { id: 'old', label: '이전 후보' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([old])
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={onChange}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '검색' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'old' } })
+    await screen.findByText('이전 후보')
+
+    fireEvent.change(input, { target: { value: 'new' } })
+    const option = screen.getByRole('option', { name: '이전 후보' })
+    expect(option.getAttribute('aria-disabled')).toBe('true')
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(input.getAttribute('aria-activedescendant')).toBeNull()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.mouseDown(option)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('빈 결과와 오류 상태는 실제 listbox가 없으면 aria-expanded를 false로 유지한다', async () => {
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([])
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={vi.fn()}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+    const input = screen.getByRole('combobox', { name: '검색' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '없음' } })
+    await screen.findByText('검색 결과 없음')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(input.getAttribute('aria-controls')).toBeNull()
+  })
+
+  it('blur exact 후보가 복수면 onChange 없이 미선택 상태를 유지한다', async () => {
+    const duplicateA: Option = { id: 'p-1', label: '동명 거래처' }
+    const duplicateB: Option = { id: 'p-2', label: '동명 거래처' }
+    const onChange = vi.fn()
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([duplicateA, duplicateB])
+
+    vi.useFakeTimers()
+    try {
+      render(
+        <AsyncAutocomplete<Option>
+          value={null}
+          onChange={onChange}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.id} {item.label}</span>}
+          listboxLabel="검색 목록"
+          ariaLabel="검색"
+          debounceMs={0}
+        />,
+      )
+      const input = screen.getByRole('combobox', { name: '검색' }) as HTMLInputElement
+      fireEvent.focus(input)
+      fireEvent.change(input, { target: { value: '동명' } })
+      await act(async () => {
+        await vi.runAllTimersAsync()
+      })
+      expect(screen.getAllByText(/동명 거래처/).length).toBe(2)
+      fireEvent.change(input, { target: { value: '동명 거래처' } })
+      fireEvent.blur(input)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(130)
+      })
+
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input.value).toBe('')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

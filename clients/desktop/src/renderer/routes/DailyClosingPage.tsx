@@ -153,6 +153,7 @@ export function DailyClosingPage() {
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [execDate, setExecDate] = useState(today())
   const [execPartner, setExecPartner] = useState<PartnerOption | null>(null)
+  const [execPartnerCommitted, setExecPartnerCommitted] = useState(true)
   /**
    * [#825 재수렴 CM-b·#4] 실행 거래처 입력의 미확정 draft 가드.
    *
@@ -215,9 +216,9 @@ export function DailyClosingPage() {
   /**
    * 마감 실행 — [#825 재수렴 CM-b·#4] 미확정 draft 사전 차단.
    *
-   * <p>실행 클릭 시점의 입력 표시값이 확정 선택(execPartner.name)과 다르면 화면과
-   * 상태(실제 마감 범위)가 어긋난 상태다 — draft 는 무시되고 전체(null) 또는 이전 선택
-   * 범위로 마감되므로 실행을 차단하고 재선택/'해제'를 유도한다.
+   * <p>실행 클릭 시점의 입력이 거래처 업무키(partnerCode) 기준으로 확정되지 않았으면
+   * 화면과 상태(실제 마감 범위)가 어긋난 상태다 — draft 는 무시되고 전체(null) 또는
+   * 이전 선택 범위로 마감되므로 실행을 차단하고 재선택/'해제'를 유도한다.
    *
    * <p>[#4] 빈 draft 도 차단 대상 — 재포커스 시 AsyncAutocomplete 가 draft 를 ''로
    * 초기화해 표시가 비워지지만 확정 선택(P1)은 잔존한다. 이때 사용자는 빈 입력을 보고
@@ -229,7 +230,8 @@ export function DailyClosingPage() {
   const handleExecuteClosing = () => {
     const typedDraft = (execPartnerInputRef.current?.value ?? '').trim()
     const confirmedLabel = (execPartner?.name ?? '').trim()
-    if (typedDraft !== confirmedLabel) {
+    // 이름 문자열은 동명이 가능하므로 업무키를 기준으로 계산된 출력 계약만 신뢰한다.
+    if (!execPartnerCommitted || (execPartner && !execPartner.partnerCode)) {
       setExecPartnerDraftError(execPartnerDraftGuardMessage(typedDraft, confirmedLabel))
       return
     }
@@ -600,9 +602,11 @@ export function DailyClosingPage() {
                 value={execPartner}
                 onChange={(option) => {
                   setExecPartner(option)
+                  setExecPartnerCommitted(true)
                   // [#825 재수렴 CM-b] 선택 확정/해제 즉시 draft 안내 소거 — 화면=상태 정합 회복.
                   setExecPartnerDraftError('')
                 }}
+                onInputCommitChange={setExecPartnerCommitted}
                 searchPartners={(query) => searchPartners(query, { activeOnly: true })}
                 // [#825 R1 L1] 인라인 실행 행은 라벨-less 컨트롤 정렬 — visible label 대신
                 // ariaLabel (BankTransactionPage 인라인 매칭 행 선례).
@@ -621,6 +625,7 @@ export function DailyClosingPage() {
                 data-testid="daily-closing-exec-partner-clear"
                 onClick={() => {
                   setExecPartner(null)
+                  setExecPartnerCommitted(true)
                   setExecPartnerDraftError('')
                 }}
               >

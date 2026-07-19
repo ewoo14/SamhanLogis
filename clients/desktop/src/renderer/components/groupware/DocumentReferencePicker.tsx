@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { Input, Select, Spinner, splitHighlightMatches } from '@samhan/design-system'
 import {
   APPROVAL_REFERENCE_DOC_TYPE_LABEL,
@@ -93,7 +93,10 @@ export function DocumentReferencePicker({
 }: DocumentReferencePickerProps) {
   const listboxId = useId()
   const debounceRef = useRef<number | undefined>(undefined)
-  const suppressNextSearchRef = useRef(false)
+  const blurTimerRef = useRef<number | undefined>(undefined)
+  const suppressNextSearchRef = useRef<string | null>(null)
+  const requestIdRef = useRef(0)
+  const refocusSearchRef = useRef(false)
   const [selectedType, setSelectedType] = useState<ApprovalReferenceDocType>(value.refDocType)
   const [query, setQuery] = useState(value.refDocType === 'PARTNER_LEDGER'
     ? value.refPartnerName ?? value.refPartnerCode ?? ''
@@ -113,52 +116,101 @@ export function DocumentReferencePicker({
 
   const { options, resolvedQuery } = searchState
 
-  useEffect(() => {
-    setSelectedType(value.refDocType)
-  }, [value.refDocType])
-
-  useEffect(() => {
-    setQuery(value.refDocType === 'PARTNER_LEDGER'
-      ? value.refPartnerName ?? value.refPartnerCode ?? ''
-      : value.refDocNo ?? '')
-  }, [value.refDocNo, value.refDocType, value.refPartnerCode, value.refPartnerName])
-
-  useEffect(() => {
-    window.clearTimeout(debounceRef.current)
-    const keyword = query.trim()
-    if (!keyword || disabled) {
-      setSearchState({ options: [], resolvedQuery: '' })
-      setOpen(false)
-      setLoading(false)
-      return
+  const cancelDebounce = useCallback(() => {
+    if (debounceRef.current !== undefined) {
+      window.clearTimeout(debounceRef.current)
+      debounceRef.current = undefined
     }
-    if (suppressNextSearchRef.current) {
-      suppressNextSearchRef.current = false
-      return
-    }
+  }, [])
+
+  const scheduleSearch = useCallback((keyword: string, type: ApprovalReferenceDocType, requestId: number) => {
     debounceRef.current = window.setTimeout(() => {
+      debounceRef.current = undefined
+      if (requestIdRef.current !== requestId) return
       setLoading(true)
-      searchByType(selectedType, keyword, 10)
+      searchByType(type, keyword, 10)
         .then((result) => {
-          const nextOptions = result.map((row) => normalizeDocumentReferenceOption(selectedType, row))
+          if (requestIdRef.current !== requestId) return
+          const nextOptions = result.map((row) => normalizeDocumentReferenceOption(type, row))
           // [#825 R1 L5] 후보와 그 후보를 만든 keyword 를 함께 교체 — 하이라이트 오강조 방지.
           setSearchState({ options: nextOptions, resolvedQuery: keyword })
           setOpen(nextOptions.length > 0)
           setActiveIndex(nextOptions.length > 0 ? 0 : -1)
         })
         .catch(() => {
+          if (requestIdRef.current !== requestId) return
           setSearchState({ options: [], resolvedQuery: '' })
           setOpen(false)
           setActiveIndex(-1)
         })
-        .finally(() => setLoading(false))
+        .finally(() => {
+          // stale finally가 새 요청의 spinner를 끄지 않도록 loading owner도 세대 소유로 둔다.
+          if (requestIdRef.current === requestId) setLoading(false)
+        })
     }, 300)
-    return () => window.clearTimeout(debounceRef.current)
-  }, [disabled, query, selectedType])
+  }, [])
+
+  useEffect(() => {
+    const nextQuery = value.refDocType === 'PARTNER_LEDGER'
+      ? value.refPartnerName ?? value.refPartnerCode ?? ''
+      : value.refDocNo ?? ''
+    setSelectedType(value.refDocType)
+    setQuery(nextQuery)
+    suppressNextSearchRef.current = nextQuery.trim() || null
+    cancelDebounce()
+    requestIdRef.current += 1
+    setSearchState({ options: [], resolvedQuery: '' })
+    setOpen(false)
+    setLoading(false)
+    setActiveIndex(-1)
+  }, [cancelDebounce, value.refDocNo, value.refDocType, value.refPartnerCode, value.refPartnerName])
+
+  useEffect(() => {
+    cancelDebounce()
+    const requestId = ++requestIdRef.current
+    const keyword = query.trim()
+    if (!keyword || disabled) {
+      setSearchState({ options: [], resolvedQuery: '' })
+      setOpen(false)
+      setLoading(false)
+      return () => {
+        cancelDebounce()
+        requestIdRef.current += 1
+      }
+    }
+    if (suppressNextSearchRef.current === keyword) {
+      suppressNextSearchRef.current = null
+      setSearchState({ options: [], resolvedQuery: '' })
+      setOpen(false)
+      setLoading(false)
+      setActiveIndex(-1)
+      return () => {
+        cancelDebounce()
+        requestIdRef.current += 1
+      }
+    }
+    suppressNextSearchRef.current = null
+    scheduleSearch(keyword, selectedType, requestId)
+    return () => {
+      cancelDebounce()
+      requestIdRef.current += 1
+    }
+  }, [cancelDebounce, disabled, query, scheduleSearch, selectedType])
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current !== undefined) window.clearTimeout(blurTimerRef.current)
+      cancelDebounce()
+      requestIdRef.current += 1
+    }
+  }, [cancelDebounce])
 
   const selectOption = (option: DocumentReferenceOption) => {
-    suppressNextSearchRef.current = true
-    setQuery(option.type === 'PARTNER_LEDGER' ? option.partnerName ?? option.partnerCode ?? '' : option.refDocNo ?? '')
+    const nextQuery = option.type === 'PARTNER_LEDGER' ? option.partnerName ?? option.partnerCode ?? '' : option.refDocNo ?? ''
+    suppressNextSearchRef.current = nextQuery.trim() || null
+    cancelDebounce()
+    requestIdRef.current += 1
+    setQuery(nextQuery)
     setSearchState({ options: [], resolvedQuery: '' })
     setOpen(false)
     setActiveIndex(-1)
@@ -173,6 +225,9 @@ export function DocumentReferencePicker({
   }
 
   const handleTypeChange = (type: ApprovalReferenceDocType) => {
+    cancelDebounce()
+    requestIdRef.current += 1
+    suppressNextSearchRef.current = null
     setSelectedType(type)
     setQuery('')
     setSearchState({ options: [], resolvedQuery: '' })
@@ -182,7 +237,52 @@ export function DocumentReferencePicker({
   }
 
   const handleQueryChange = (next: string) => {
+    cancelDebounce()
+    requestIdRef.current += 1
+    suppressNextSearchRef.current = null
+    setSearchState({ options: [], resolvedQuery: '' })
+    setOpen(false)
+    setLoading(false)
+    setActiveIndex(-1)
     setQuery(next)
+  }
+
+  const handleFocus = () => {
+    if (disabled) return
+    if (blurTimerRef.current !== undefined) {
+      window.clearTimeout(blurTimerRef.current)
+      blurTimerRef.current = undefined
+    }
+    if (!refocusSearchRef.current) {
+      if (options.length > 0) setOpen(true)
+      return
+    }
+    refocusSearchRef.current = false
+    const keyword = query.trim()
+    if (!keyword) return
+    suppressNextSearchRef.current = null
+    cancelDebounce()
+    const requestId = ++requestIdRef.current
+    setSearchState({ options: [], resolvedQuery: '' })
+    setOpen(false)
+    setActiveIndex(-1)
+    setLoading(false)
+    scheduleSearch(keyword, selectedType, requestId)
+  }
+
+  const handleBlur = () => {
+    refocusSearchRef.current = true
+    cancelDebounce()
+    requestIdRef.current += 1
+    if (blurTimerRef.current !== undefined) window.clearTimeout(blurTimerRef.current)
+    blurTimerRef.current = window.setTimeout(() => {
+      blurTimerRef.current = undefined
+      requestIdRef.current += 1
+      setOpen(false)
+      setSearchState({ options: [], resolvedQuery: '' })
+      setLoading(false)
+      setActiveIndex(-1)
+    }, 120)
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -203,7 +303,16 @@ export function DocumentReferencePicker({
       return
     }
     if (event.key === 'Escape') {
+      cancelDebounce()
+      requestIdRef.current += 1
+      refocusSearchRef.current = false
+      if (blurTimerRef.current !== undefined) {
+        window.clearTimeout(blurTimerRef.current)
+        blurTimerRef.current = undefined
+      }
       setOpen(false)
+      setSearchState({ options: [], resolvedQuery: '' })
+      setLoading(false)
       setActiveIndex(-1)
     }
   }
@@ -244,10 +353,8 @@ export function DocumentReferencePicker({
         label={selectedType === 'PARTNER_LEDGER' ? '거래처명/코드' : '번호/키워드'}
         value={query}
         onChange={(event) => handleQueryChange(event.target.value)}
-        onFocus={() => {
-          if (options.length > 0) setOpen(true)
-        }}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         inputSize={inputSize}
         disabled={disabled}

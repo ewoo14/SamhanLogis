@@ -176,3 +176,39 @@ describe('BlockedPartnersPage 단건 차단 미확정 draft 가드 (#825 재수�
     expect(addBlockedPartnerMock.mock.calls[0]![0]).toEqual({ partnerCode: '1234567890' })
   })
 })
+
+describe('BlockedPartnersPage committed partnerCode 계약 (#840)', () => {
+  it('동명 P1/P2에서 미선택 등록은 0회이고 P2 명시 선택만 P2 partnerCode payload를 보낸다', async () => {
+    const p1 = { partnerCode: 'P1-BLOCKED', name: '동일상호', bizNo: '111-11-11111' }
+    const p2 = { partnerCode: 'P2-BLOCKED', name: '동일상호', bizNo: '222-22-22222' }
+    listBlockedPartnersMock.mockResolvedValue(emptyPage)
+    addBlockedPartnerMock.mockResolvedValue({
+      id: 'block-vitest-840',
+      partnerCode: p2.partnerCode,
+      businessNameSnapshot: p2.name,
+      blockReason: null,
+      blockedAt: '2026-07-19T10:00:00',
+      source: 'MANUAL',
+    })
+    searchPartnersMock.mockImplementation((query: string) =>
+      Promise.resolve(query.includes('P2') ? [p2] : [p1]),
+    )
+
+    renderPage()
+    const input = await openAddDialog()
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'P1' } })
+    await screen.findByRole('option', { name: /동일상호/ })
+
+    fireEvent.click(screen.getByRole('button', { name: '차단 등록' }))
+    expect(addBlockedPartnerMock).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'P2' } })
+    await waitFor(() => expect(screen.getByRole('option').textContent).toContain(p2.partnerCode))
+    fireEvent.mouseDown(screen.getByRole('option', { name: /동일상호/ }))
+    await waitFor(() => expect(input.value).toBe(p2.name))
+    fireEvent.click(screen.getByRole('button', { name: '차단 등록' }))
+    await waitFor(() => expect(addBlockedPartnerMock).toHaveBeenCalledTimes(1))
+    expect(addBlockedPartnerMock.mock.calls[0]![0]).toEqual({ partnerCode: p2.partnerCode })
+  })
+})

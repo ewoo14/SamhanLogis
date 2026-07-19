@@ -28,6 +28,8 @@ export interface AsyncAutocompleteProps<T> {
   value: T | null
   /** 선택 변경 콜백. null 은 선택 해제를 의미한다. */
   onChange: (item: T | null) => void
+  /** 표시 중 입력이 마지막 확정 선택(getKey)과 일치하는지 알린다. */
+  onInputCommitChange?: (committed: boolean) => void
   /** 비동기 검색 함수 (호출자 주입). */
   search: (q: string) => Promise<T[]>
   /**
@@ -82,6 +84,7 @@ function AsyncAutocompleteInner<T>(
   {
     value,
     onChange,
+    onInputCommitChange,
     search,
     getKey,
     getInputLabel,
@@ -118,6 +121,7 @@ function AsyncAutocompleteInner<T>(
   const [status, setStatus] = useState<SearchStatus>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [floatingStyle, setFloatingStyle] = useState<CSSProperties | undefined>(undefined)
+  const [, setCommittedState] = useState(true)
 
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   // blur timer — 항목 click 이벤트보다 먼저 닫히는 것 방지
@@ -130,6 +134,9 @@ function AsyncAutocompleteInner<T>(
    */
   const instanceSeq = useRef<number>(0)
   const latestSeq = useRef<number>(0)
+  const committedRef = useRef(true)
+  const commitCallbackRef = useRef(onInputCommitChange)
+  const previousValueKeyRef = useRef<string | null>(value ? getKey(value) : null)
 
   const { candidates, resolvedQuery } = searchState
 
@@ -143,16 +150,33 @@ function AsyncAutocompleteInner<T>(
   /** 선택 항목의 입력란 표시 레이블. */
   const selectedLabel = value ? getInputLabel(value) : ''
 
+  const setCommitted = useCallback((next: boolean) => {
+    if (committedRef.current === next) return
+    committedRef.current = next
+    setCommittedState(next)
+    commitCallbackRef.current?.(next)
+  }, [])
+
+  useEffect(() => {
+    commitCallbackRef.current = onInputCommitChange
+  }, [onInputCommitChange])
+
+  useEffect(() => {
+    // 초기 상태도 부모가 출력 계약을 즉시 알 수 있게 한다.
+    commitCallbackRef.current?.(committedRef.current)
+  }, [])
+
   /** 열릴 때 draft 초기화 → 전체 검색 마찰 없이 즉시 후보 표시 가능. */
   const handleFocus = () => {
     if (disabled) return
     cancelDebouncedSearch()
-    if (blurTimer.current) {
+    if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
     setDraft('')
     setActiveIndex(-1)
+    setCommitted(value === null)
     latestSeq.current = ++instanceSeq.current
     setSearchState({ candidates: [], resolvedQuery: '' })
     setStatus('idle')
@@ -171,6 +195,7 @@ function AsyncAutocompleteInner<T>(
   const pick = useCallback(
     (item: T) => {
       cancelDebouncedSearch()
+      setCommitted(true)
       onChange(item)
       setDraft(getInputLabel(item))
       setActiveIndex(-1)
@@ -180,11 +205,15 @@ function AsyncAutocompleteInner<T>(
       setStatus('idle')
       setErrorMsg(null)
     },
-    [cancelDebouncedSearch, getInputLabel, onChange],
+    [cancelDebouncedSearch, getInputLabel, onChange, setCommitted],
   )
 
   const handleBlur = (_e: FocusEvent<HTMLInputElement>) => {
+    if (blurTimer.current !== undefined) {
+      window.clearTimeout(blurTimer.current)
+    }
     blurTimer.current = window.setTimeout(() => {
+      blurTimer.current = undefined
       cancelDebouncedSearch()
       latestSeq.current = ++instanceSeq.current
       setOpen(false)
@@ -196,21 +225,25 @@ function AsyncAutocompleteInner<T>(
         setSearchState({ candidates: [], resolvedQuery: '' })
         setStatus('idle')
         setErrorMsg(null)
+        setDraft(selectedLabel)
+        setCommitted(true)
         return
       }
 
       // 입력한 값이 현재 선택과 정확히 일치하면 별도 처리 불필요.
-      if (value && trimmed === getInputLabel(value)) {
+      if (value && matchesExact(value, trimmed)) {
         setSearchState({ candidates: [], resolvedQuery: '' })
         setStatus('idle')
         setErrorMsg(null)
+        setDraft(selectedLabel)
+        setCommitted(true)
         return
       }
 
-      // 일치하는 후보가 있으면 자동 선택.
-      const exact = candidates.find((item) => matchesExact(item, trimmed))
-      if (exact) {
-        pick(exact)
+      // exact 후보가 하나일 때만 자동 선택한다. 동명이 복수면 임의 선택 금지.
+      const exact = candidates.filter((item) => matchesExact(item, trimmed))
+      if (exact.length === 1) {
+        pick(exact[0]!)
         return
       }
 
@@ -219,6 +252,8 @@ function AsyncAutocompleteInner<T>(
       setSearchState({ candidates: [], resolvedQuery: '' })
       setStatus('idle')
       setErrorMsg(null)
+      setDraft(selectedLabel)
+      setCommitted(true)
     }, 120)
   }
 
@@ -255,6 +290,8 @@ function AsyncAutocompleteInner<T>(
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
     setDraft(nextDraft)
+    // value=null인 빈 입력만 확정 상태로 남기고, 한 글자라도 편집하면 미확정이다.
+    setCommitted(value === null && nextDraft.trim() === '')
     setActiveIndex(-1)
     if (!open) setOpen(true)
 
@@ -265,6 +302,8 @@ function AsyncAutocompleteInner<T>(
     cancelDebouncedSearch()
 
     const trimmed = nextDraft.trim()
+    setStatus('idle')
+    setErrorMsg(null)
     if (trimmed.length < minChars) {
       // 검색이 예약되지 않는 입력 — 직전 후보를 비워 stale 후보 노출을 막는다.
       setSearchState({ candidates: [], resolvedQuery: '' })
@@ -288,10 +327,31 @@ function AsyncAutocompleteInner<T>(
   /** 클린업: unmount 시 타이머 정리 */
   useEffect(() => {
     return () => {
-      if (blurTimer.current) window.clearTimeout(blurTimer.current)
+      if (blurTimer.current !== undefined) window.clearTimeout(blurTimer.current)
       cancelDebouncedSearch()
+      latestSeq.current = ++instanceSeq.current
     }
   }, [cancelDebouncedSearch])
+
+  /** controlled value 교체는 현재 편집을 닫고 표시/계약을 새 값에 맞춘다. */
+  useEffect(() => {
+    const nextKey = value ? getKey(value) : null
+    if (previousValueKeyRef.current === nextKey) return
+    previousValueKeyRef.current = nextKey
+    cancelDebouncedSearch()
+    if (blurTimer.current !== undefined) {
+      window.clearTimeout(blurTimer.current)
+      blurTimer.current = undefined
+    }
+    latestSeq.current = ++instanceSeq.current
+    setOpen(false)
+    setActiveIndex(-1)
+    setSearchState({ candidates: [], resolvedQuery: '' })
+    setStatus('idle')
+    setErrorMsg(null)
+    setDraft(selectedLabel)
+    setCommitted(true)
+  }, [cancelDebouncedSearch, getKey, selectedLabel, setCommitted, value])
 
   /**
    * disabled 전환 시 열림 상태를 강제로 닫는다 (R8-QA-9).
@@ -307,7 +367,7 @@ function AsyncAutocompleteInner<T>(
   useEffect(() => {
     if (!disabled) return
     cancelDebouncedSearch()
-    if (blurTimer.current) {
+    if (blurTimer.current !== undefined) {
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
@@ -317,13 +377,17 @@ function AsyncAutocompleteInner<T>(
     setSearchState({ candidates: [], resolvedQuery: '' })
     setStatus('idle')
     setErrorMsg(null)
-  }, [cancelDebouncedSearch, disabled])
+    setDraft(selectedLabel)
+    setCommitted(true)
+  }, [cancelDebouncedSearch, disabled, selectedLabel, setCommitted])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (!open) return
+    const candidatesAreFresh = draft.trim() === resolvedQuery
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
+      if (!candidatesAreFresh) return
       setActiveIndex((prev) =>
         candidates.length > 0
           ? prev < candidates.length - 1
@@ -333,9 +397,11 @@ function AsyncAutocompleteInner<T>(
       )
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
+      if (!candidatesAreFresh) return
       setActiveIndex((prev) => (prev > 0 ? prev - 1 : 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
+      if (!candidatesAreFresh) return
       const target =
         activeIndex >= 0
           ? candidates[activeIndex]
@@ -355,6 +421,8 @@ function AsyncAutocompleteInner<T>(
       setSearchState({ candidates: [], resolvedQuery: '' })
       setStatus('idle')
       setErrorMsg(null)
+      setDraft(selectedLabel)
+      setCommitted(true)
     }
   }
 
@@ -374,6 +442,7 @@ function AsyncAutocompleteInner<T>(
     open && draft.trim().length > 0 && draft.trim().length < minChars
 
   const hasFloatingLayer = showMinCharsHint || showLoadingRow || showDropdown || showEmpty
+  const hasListbox = showLoadingRow || (open && candidates.length > 0)
 
   const updateFloatingPosition = useCallback(() => {
     const wrapper = wrapperRef.current
@@ -453,10 +522,10 @@ function AsyncAutocompleteInner<T>(
           aria-describedby={ariaDescribedBy}
           aria-required={req || undefined}
           aria-autocomplete="list"
-          aria-expanded={open}
-          aria-controls={open ? listId : undefined}
+          aria-expanded={hasListbox}
+          aria-controls={hasListbox ? listId : undefined}
           aria-activedescendant={
-            open && activeIndex >= 0 && candidates[activeIndex]
+            hasListbox && activeIndex >= 0 && candidates[activeIndex]
               ? optionDomId(activeIndex)
               : undefined
           }
@@ -521,6 +590,7 @@ function AsyncAutocompleteInner<T>(
               // aria-selected 가 공유한다 — 두 분기가 각자 비교하면 한쪽만
               // 참조비교(value === item)로 회귀하는 드리프트가 가능하다 (#825 CODEX LOW).
               const isSelected = value ? getKey(value) === key : false
+              const candidatesAreFresh = draft.trim() === resolvedQuery
               return (
                 <li
                   key={key}
@@ -534,9 +604,10 @@ function AsyncAutocompleteInner<T>(
                     .join(' ')}
                   role="option"
                   aria-selected={isSelected}
+                  aria-disabled={!candidatesAreFresh || undefined}
                   onMouseDown={(e) => {
                     e.preventDefault()
-                    pick(item)
+                    if (candidatesAreFresh) pick(item)
                   }}
                 >
                   {renderOption(item, { query: resolvedQuery })}

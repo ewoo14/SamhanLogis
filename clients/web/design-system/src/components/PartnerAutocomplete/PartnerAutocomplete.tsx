@@ -32,6 +32,8 @@ export interface PartnerAutocompleteProps {
   value: PartnerOption | null
   /** 선택 변경 콜백. null 은 선택 해제를 의미한다. */
   onChange: (partner: PartnerOption | null) => void
+  /** 입력이 partnerCode(getKey) 기준 마지막 확정 선택인지 알리는 출력 계약. */
+  onInputCommitChange?: (committed: boolean) => void
   /**
    * 비동기 거래처 검색 함수 (호출자 주입).
    * `q` 를 받아 `PartnerOption[]` 을 resolve. 실패 시 reject.

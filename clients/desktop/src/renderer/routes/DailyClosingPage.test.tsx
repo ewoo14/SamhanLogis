@@ -578,3 +578,49 @@ describe('DailyClosingPage 일마감 실행 미확정 draft 가드 (#825 재수�
     expect(payload.partnerCode).toBeUndefined()
   })
 })
+
+describe('DailyClosingPage committed partnerCode 계약 (#840)', () => {
+  it('동명 P1/P2에서 미선택 실행은 0회이고 P2 명시 선택만 P2 partnerCode를 payload로 보낸다', async () => {
+    const p1 = { partnerCode: 'P1-DAILY', name: '동일상호', bizNo: '111-11-11111' }
+    const p2 = { partnerCode: 'P2-DAILY', name: '동일상호', bizNo: '222-22-22222' }
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+    createDailyClosingMock.mockResolvedValue({
+      closingDate: '2026-07-19',
+      partnerCode: p2.partnerCode,
+      closingKind: 'SALES',
+      sourceKind: 'TAX_INVOICE',
+      isLocked: true,
+      lockedAt: '2026-07-19T10:00:00+09:00',
+      lockedBy: 'user-001',
+      description: null,
+      totalSupply: '0',
+      totalVat: '0',
+      totalAmount: '0',
+    })
+    searchPartnersMock.mockImplementation((query: string) =>
+      Promise.resolve(query.includes('P2') ? [p2] : [p1]),
+    )
+
+    renderPage()
+    const input = await screen.findByTestId('daily-closing-exec-partner')
+    const partnerOption = () => screen.getAllByRole('option').find((candidate) => candidate.tagName === 'LI')!
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'P1' } })
+    await waitFor(() => expect(partnerOption().textContent).toContain(p1.partnerCode))
+
+    // 후보를 보기만 한 상태는 이름이 같아도 확정이 아니므로 실행하지 않는다.
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    expect(createDailyClosingMock).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: 'P2' } })
+    await waitFor(() => expect(partnerOption().textContent).toContain(p2.partnerCode))
+    fireEvent.mouseDown(partnerOption())
+    await waitFor(() => expect(input.value).toBe(p2.name))
+    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
+    await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
+    expect(createDailyClosingMock).toHaveBeenCalledWith(
+      expect.objectContaining({ partnerCode: p2.partnerCode }),
+    )
+  })
+})
