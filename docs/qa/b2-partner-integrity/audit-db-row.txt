@@ -1,0 +1,8 @@
+=== #838 세금계산서 거래처 교체 audit — 실 accounting_db (V63 재배포 서버·실 FE→BE→DB) ===
+-- entity_id=445d3176-2b3a-4905-8fa1-feaf042e31d7 (라이브 QA DRAFT 세금계산서, dev_master 실 게이트웨이 경유 PUT 거래처 교체)
+       field_name       |          old_value           |            new_value             | revision_no | actor_name 
+------------------------+------------------------------+----------------------------------+-------------+------------
+ taxInvoice.partner     | (주)서울에어컨 (P-2026-0001) | 한국공조시스템(주) (P-2026-0002) |           1 | system
+ taxInvoice.partnerName | (주)서울에어컨               | 한국공조시스템(주)               |           2 | system
+(2 rows)
+

@@ -10,6 +10,8 @@ import com.samhanair.logis.accounting.domain.BankDepositorPartnerMapping;
 import com.samhanair.logis.accounting.domain.TaxInvoiceBatchExclusion;
 import com.samhanair.logis.accounting.repository.BankDepositorPartnerMappingRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceBatchExclusionRepository;
+import com.samhanair.logis.accounting.web.dto.BankDepositorPartnerMappingRequest;
+import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionRequest;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
@@ -39,6 +41,7 @@ class PartnerCodeWidthMigrationIT extends AbstractPostgresIT {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private MockMvc mockMvc;
+    @Autowired private jakarta.validation.Validator validator;
     @Autowired private TaxInvoiceBatchExclusionRepository exclusionRepository;
     @Autowired private BankDepositorPartnerMappingRepository mappingRepository;
 
@@ -110,5 +113,35 @@ class PartnerCodeWidthMigrationIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * 본 슬라이스가 실제로 @Size(100)을 추가·변경한 in-scope DTO 2종의 partnerCode 경계 가드.
+     *
+     * <p>대표 endpoint(tax-invoices)는 pre-existing DTO(V61/#825)라 본 PR 위젠 대상이 아니다
+     * (R1 dim3/dim5 L1). {@code BankDepositorPartnerMappingRequest}·
+     * {@code TaxInvoiceBatchExclusionRequest}의 {@code @Size(max = 100)}을 Bean Validator 로
+     * 직접 단언 — @Size 를 지우면 101자에서 위반이 사라져 RED. DB VARCHAR(100) backstop 앞단
+     * 400 게이트를 명시 고정한다(오설정 시 DB 500 회귀 차단).
+     */
+    @Test
+    @DisplayName("in-scope 위젠 DTO는 partnerCode 101자를 @Size(100)로 거부하고 100자는 통과시킨다")
+    void inScopeWidenedDtosGuardPartnerCodeAt100() {
+        String code101 = "X".repeat(101);
+        String code100 = "X".repeat(100);
+
+        assertThat(validator.validate(new BankDepositorPartnerMappingRequest("입금자", code101, "사유")))
+                .as("depositor mapping 101자 partnerCode 위반")
+                .anyMatch(v -> v.getPropertyPath().toString().equals("partnerCode"));
+        assertThat(validator.validate(new BankDepositorPartnerMappingRequest("입금자", code100, "사유")))
+                .as("depositor mapping 100자 partnerCode 통과")
+                .noneMatch(v -> v.getPropertyPath().toString().equals("partnerCode"));
+
+        assertThat(validator.validate(new TaxInvoiceBatchExclusionRequest(code101, "매출처", "제외사유")))
+                .as("batch exclusion 101자 partnerCode 위반")
+                .anyMatch(v -> v.getPropertyPath().toString().equals("partnerCode"));
+        assertThat(validator.validate(new TaxInvoiceBatchExclusionRequest(code100, "매출처", "제외사유")))
+                .as("batch exclusion 100자 partnerCode 통과")
+                .noneMatch(v -> v.getPropertyPath().toString().equals("partnerCode"));
     }
 }
