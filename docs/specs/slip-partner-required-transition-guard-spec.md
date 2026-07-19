@@ -1,8 +1,8 @@
-# 전표 거래처 필수화 — 생명주기 전이 가드 (기획 spec v2 · OPUS 4.8)
+# 전표 거래처 필수화 — 생명주기 전이 가드 (기획 spec v3 · OPUS 4.8)
 
 - 브랜치 `feat/slip-partner-required-transition-guard` · PR #853 · 결정=**전이 가드**(개발책임자 2026-07-19 배치·AskUserQuestion·[[project_pending_decisions_2026_07_19]] 결정 3)
 - 기준일: 2026-07-19 · 규모=**L**(slip BE 다지점 + 주문발행 + FE + cutover 보정) · 회계체인(#823 다음)
-- **v1 → SOL 기획검수 NO-GO(BLOCK 3·HIGH 2·MED·LOW) → v2 전면 반영**
+- **v1 → SOL NO-GO(BLOCK 3·HIGH 2·MED·LOW) → v2 → SOL NO-GO(BLOCK 0·전 해소·잔여 HIGH=D-6 cutover 세부) → v3=D-6 확정(결정 고정·cutover 순서·실행 SQL·SENT 정정)**
 - [[feedback_integrity_domain_policy_preconfirm]](본 배치로 선확인) · [[feedback_uuid_no_user_visibility]] · [[feedback_jeonpyo_not_slip]] · [[project_order_slip_conversion]]
 
 ## 0. 목표·비목표
@@ -24,7 +24,7 @@
   - ② **`Slip.restoreFromSnapshot()`(`:2041`)** — revision 복원이 snapshot 의 partnerId 를 그대로 복원(상태 유지). 표준(`SlipRevisionService:196`)+**협업(`SlipDocumentCollaborationPort:234`)** 양 경로. SENT 자유·ACCEPTED/PROCESSING/CONFIRMED 승인후·COMPLETED 미차단 → **커밋 상태가 null-partner snapshot 으로 복원되면 불변식 위반**(현 DB 0건이나 코드상 허용).
   - ③ **주문→전표 발행** — `SlipPublishService.createOutbound(...,partnerId=null,...)`(`:219`) 후 `send()`(`:258`)·병합(`:314/:355`). 요청 DTO 는 `partnerCode`만·`partnerId` 없음(`PublishFromPartnerOrderRequest:27`·`PublishFromOrdersMergeRequest:37`). **가드만 넣으면 주문 발행 전면 중단**(이미 완료된 부분전환·병합 경로 회귀).
   - ※ Seeder 는 `send()` 우회 아님 — `save()`→`send()`(`:389`) 정상 경유(v1 오독 정정). production 전수 검색상 `send()` 우회 SENT 직행 경로 **없음**.
-- **실측 위반 = 활성 partner null · 필수 상태 = 14건**(전부 OUTBOUND): SENT 13 + REJECTED 1. 13은 `partner_code` 有(`partner_db` 활성 거래처로 해소 가능)·1(REJECTED)은 code 없고 name `대구HVAC솔루션`(현 1건 매칭이나 name 자동매칭 일반규칙 위험).
+- **실측 위반 = 활성 partner null · 필수 상태 = 14건**(전부 OUTBOUND): **SENT 13 + REJECTED 1**. 이 중 **13건은 `partner_code` 有**(`partner_db` 활성 거래처로 해소 가능)·**1건(SENT·code 無)은 name `대구HVAC솔루션` → 활성 거래처 `P-2026-0005` 단일 매칭**(SOL 재실측: code 無 전표는 REJECTED 아닌 **SENT**·v2 오분류 정정). ⚠️ 14건은 고정 입력 아님 — **보정 실행 시점에 전체 위반 행 재조회**(그 사이 신규 위반 반영).
 - **cross-service**: `slip_db` 에 거래처 마스터 없음 → slip 단독 SQL/Flyway 보정 불가·partner-service 조회 필요. `PartnerInternalClient`(`:233`)는 이미 검증 시 `partnerId` 반환 가능(현재 폐기).
 - FE: **전송(SAVED→SENT) 액션은 `SlipDetailPage.tsx:244`**(mobile `handleTransition:1365` · desktop `handleAdvanceStage:1464`). `SlipFormPage`(`:810`)는 DRAFT 생성·저장만·전송 액션 없음(v1 오타깃 정정).
 
@@ -33,10 +33,10 @@
 |---|---|---|
 | D-1 | **`Slip.send()` partner 가드**: `partner_id == null` 시 `BusinessException(INVALID_INPUT,"전표 전송 전 거래처를 지정해야 합니다")`. SAVED→SENT 에서만·DRAFT/SAVED 저장 무영향 | 정찰·전이 가드 |
 | D-2 | **`Slip.restoreFromSnapshot()` 공통 가드**(SOL-BLOCK2): 복원 결과 `status ∈ REQUIRED_PARTNER_STATUSES` 이고 `snapshot.partnerId == null` 이면 거부(`BusinessException`,"거래처 없는 이력으로 커밋 전표를 복원할 수 없습니다"). **도메인 공통점에 배치**(표준+협업 revision 양 경로 커버·서비스 단일 가드는 협업 우회) | SOL-BLOCK2 |
-| D-3 | **주문→전표 발행 partnerId 해소**(SOL-BLOCK1): `SlipPublishService` 단일·병합 발행이 거래처 검증(`PartnerInternalClient`) 결과의 `partnerId` 를 `createOutbound` 에 전달(현재 폐기값 활용). **partner-service 장애·미해소 시 fail-closed**(커밋 전표를 거래처 없이 발행 금지·명확한 오류). 멱등 재시도·outbox 회귀 포함 | SOL-BLOCK1 |
+| D-3 | **주문→전표 발행 partnerId 해소**(SOL-BLOCK1): `SlipPublishService` 단일·병합 발행이 거래처 검증(`PartnerInternalClient:233`) 결과의 `partnerId` 를 `createOutbound` 에 전달(현재 폐기값 활용). **`FOUND + partnerId 존재`만 성공** — `NOT_FOUND/SERVER_ERROR/SKIPPED/FOUND-empty` 전부 **fail-closed**(커밋 전표를 거래처 없이 발행 금지·명확한 한국어 오류). 공유 helper 의 strict-off·**5xx fail-open 은 주문 발행 경로에서 우회/폐기**(SOL). 멱등 재시도·outbox 회귀 포함 | SOL-BLOCK1 |
 | D-4 | **컬럼 `partner_id` nullable 유지**(NOT NULL 비채택·DRAFT 1926 정당) | 실측 |
 | D-5 | **FE `SlipDetailPage` 전송 preflight partner 필수**(SOL-BLOCK3): mobile `handleTransition`+desktop `handleAdvanceStage` **공통 진입점**에 SAVED→SENT 전 partner null 차단 + 한국어 안내("거래처를 먼저 지정하세요 — 수정에서 지정"). **`SlipFormPage` DRAFT 저장은 거래처 없이 허용 유지**. BE 가드(D-1)가 권위 backstop | SOL-BLOCK3 |
-| D-6 | **14건 보정 = 동일 릴리스 cutover gate**(SOL-HIGH1·"별도 후속 보정 NO-GO"): D-1/D-2 활성화 **선행 조건**. 13(code 有)=partner-service 해소 backfill·1(code 無 REJECTED `대구HVAC솔루션`)=**운영 승인 단건 name→id 매핑**(또는 격리·취소·단건 결정). slip 단독 마이그 불가 → 보정 runbook(partner-service 경유). **배포 후 검증 `SELECT count(*) FROM slips WHERE partner_id IS NULL AND status IN (필수집합) AND is_deleted=false = 0`** 수용조건 | SOL-HIGH1 |
+| D-6 | **위반 보정 = 동일 릴리스 cutover**(SOL-HIGH1·"별도 후속 보정 NO-GO"·§8 runbook). **결정 고정**(개방 옵션 폐기): code 有 = partner-service `partner_code→partner_id` 해소 자동·**code 無 1건(SENT `대구HVAC솔루션`) = `P-2026-0005` 단건 운영 승인 매핑**(격리/취소 비채택). slip 단독 마이그 불가 → 보정은 partner-service 경유 스크립트/보정 엔드포인트. **cutover 순서 = ①D-1~D-3 전 인스턴스 배포 + 구버전 drain(신규 위반 차단) → ②동적 보정(실행시점 위반 재조회) → ③검증 쿼리 0**(§8). 검증 0 이 별도 수용조건 | SOL-HIGH1 |
 
 ## 4. 스코프
 - **BE(slip 도메인)**: `send()` 가드(D-1) + `restoreFromSnapshot()` 가드(D-2·`REQUIRED_PARTNER_STATUSES` 상수). 전 forward 전이(accept/process/…)는 partner 불변(편집 committed 불가·send/restore 만 mutation) → 추가 가드 불요.
@@ -58,4 +58,17 @@
 - 데이터: 14건 보정 runbook(13 code·1 name-map) + 검증 쿼리 + dev 실행.
 
 ## 7. 개발책임자 flag
-- **1건(REJECTED·`대구HVAC솔루션`·code 無) 보정 방식**: 단건 name→id 매핑(현 1매칭) vs 격리 vs 취소 — 회계 무결성 데이터라 착수 시 확정(SOL: name 자동매칭 일반규칙 위험·단건은 운영 승인 매핑 허용). 나머지 13은 code 해소 자동.
+- **해소 완료**: code 無 1건(SENT `대구HVAC솔루션`) = `P-2026-0005` 단건 매핑 확정(격리/취소 폐기). 나머지 13 = code 해소 자동. name 자동매칭은 이 단건 운영 승인에 한정(일반 규칙 아님).
+
+## 8. Cutover runbook (실행 절차·D-6)
+1. **배포**: D-1~D-3(send/restore 가드·주문발행 partnerId 해소) 전 인스턴스 배포 + **구버전 drain**(무중단 시 신규 위반 생성 차단).
+2. **동적 보정**(실행 시점 위반 재조회·고정 14 아님): partner-service 경유로 `partner_code→partner_id` 해소(13 자동)·`대구HVAC솔루션`→`P-2026-0005`(단건 승인). 미해소 잔여는 격리 후 개발책임자 보고.
+3. **검증**(반환 `0` = 수용조건):
+```sql
+SELECT count(*) AS violations
+FROM slips
+WHERE partner_id IS NULL
+  AND status IN ('SENT','ACCEPTED','PROCESSING','INSPECTING',
+                 'COMPLETED','SHIPPING','DELIVERED','CONFIRMED','REJECTED')
+  AND is_deleted = false;
+```
