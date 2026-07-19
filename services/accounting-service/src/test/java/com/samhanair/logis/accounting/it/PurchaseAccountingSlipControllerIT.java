@@ -217,6 +217,29 @@ class PurchaseAccountingSlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_admin_purchase_slips_source_partner_code_name_null은_실DB제약전에_422_MISSING() throws Exception {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-PNC");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "IN-PARTNER-CODE-NAME-NULL", sourceLineId, PARTNER_ID,
+                null, null, "P", 1,
+                new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "INBOUND"));
+
+        mvc.perform(post("/admin/purchase-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(request(sourceSlipId, sourceLineId,
+                                SalesTaxType.TAXABLE, BigDecimal.ONE, new BigDecimal("100000"),
+                                new BigDecimal("100000")))))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("SAS_SOURCE_PARTNER_MISSING"));
+
+        assertThat(purchaseSlipRepository.findBySlipNo("2026/05/19-PNC")).isEmpty();
+    }
+
+    @Test
     void POST_admin_purchase_slips_header_partner_null은_원천조회_전에_400() throws Exception {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();

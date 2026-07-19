@@ -6,6 +6,12 @@
 - `verifySourceAndAllocation(ar, headerPartnerId)`: null 원천→`SAS_SOURCE_PARTNER_MISSING`·불일치→`SAS_SOURCE_PARTNER_MISMATCH`(둘 다 422). 헤더 partner 필수 선검증(`INVALID_INPUT` 400·채번/원천조회 前). **원천 identity 권위=스냅샷 slipId/slipNo 저장**(client 값 무신뢰·분열 배분 차단).
 - **매출+매입 대칭**(defect-family sweep). **DB 마이그 0건**(양측 partner_id 컬럼 존재).
 
+## 2026-07-19 R2 재수렴 — code/name-required
+
+- **BE MISSING 판정 복원**: 매출·매입 모두 `partnerId == null || partnerCode == null/blank || partnerName == null/blank`이면 저장·채번 전에 `SAS_SOURCE_PARTNER_MISSING`(422)으로 거부한다. 통과한 원천의 code/name은 스냅샷 권위로 회계전표 헤더에 저장하며 DB `NOT NULL` 계약과 정합한다.
+- **실 DB IT 추가**: `SalesAccountingSlipControllerIT`·`PurchaseAccountingSlipControllerIT`에 각각 code/name null 원천 케이스를 추가했다. 두 IT 모두 Testcontainers 실 Postgres와 실제 repository 경로를 사용하고 `saveAndFlush`를 mock하지 않는다. 따라서 partnerId만 있는 원천을 잘못 통과시키면 `partner_code`/`partner_name NOT NULL` 위반이 DB 예외(500 계열)로 드러나며, 올바른 구현은 DB 저장 전에 clean `422 SAS_SOURCE_PARTNER_MISSING`을 반환한다. code/name이 완전한 원천의 실제 저장 성공 케이스도 각 IT에 유지한다.
+- **FE/mock 계약**: resolver와 mock은 이미 `partnerId+partnerCode+partnerName` 전체가 있어야 valid로 해석한다. code/name null 원천을 매출·매입 mock 저장에서 `SAS_SOURCE_PARTNER_MISSING`으로 차단하는 vitest와 resolver 계약 vitest를 명시했다.
+
 ## 라이브QA 발견 결함 fix (pre-existing·IT 마스킹)
 - **`SlipInternalController.getSlipLine`/`getSlipLines` LazyInitializationException 500** — slip-service OSIV off(`open-in-view: false`)에서 `line.getSlip()`/`slip.getLines()` lazy 접근이 세션 밖 → 500. **accounting 배분이 `getSlipLine`을 사용** → 프로드 배분 전면 500(dev에 CONFIRMED 원천 부재로 잠복). `SlipInternalControllerIT`의 클래스 `@Transactional`이 세션 유지로 **이 프로드 버그를 마스킹**(그래서 그간 green).
 - fix: 명시적 **fetch-join**(`findByIdWithSlip = JOIN FETCH l.slip`·`findByIdWithLines = LEFT JOIN FETCH s.lines`)로 컨트롤러 tx/OSIV 비의존 초기화 + IT에 **`Propagation.NOT_SUPPORTED` 테스트**(fix 전 LazyInit RED 재현·후 partnerId/slipId/lineId 검증) — 마스킹 해소.
@@ -20,10 +26,27 @@
   - ③ null 원천 → **422 `SAS_SOURCE_PARTNER_MISSING`** "원천 전표에 거래처가 없습니다".
   - throwaway 데이터 완전 정리(실 데이터 오염 0).
 
+## R2 재수렴 검증 결과 (2026-07-19)
+
+- **BE exact combined**: `./gradlew :services:accounting-service:test :services:slip-service:test --rerun-tasks --no-build-cache`(Windows 실행은 `.\gradlew`) → **BUILD SUCCESSFUL in 5m 40s**, accounting **1,311 tests / skipped 10 / failures 0 / errors 0**, slip **1,363 tests / skipped 0 / failures 0 / errors 0**. 합계 **2,674 tests, failures/errors 0**.
+- **실 DB IT**: 매출 controller IT 12/12·매입 controller IT 12/12, Testcontainers Postgres 사용·skip 0. code/name 완전 원천 저장 성공과 code/name null 원천의 clean `422 SAS_SOURCE_PARTNER_MISSING`을 모두 실제 경로로 확인했다.
+- **FE exact**: `cd clients/desktop && npm run typecheck` exit 0, `npm run test` exit 0. resolver 계약 2건과 mock 계약(매출·매입 code/name null 차단)을 포함한 전체 Vitest가 통과했다.
+- **DB 불변**: `SalesAccountingSlip`·`PurchaseAccountingSlip`의 `partner_code`/`partner_name nullable=false`와 Flyway `V18`/`V19` `NOT NULL`을 유지했으며 신규/수정 migration은 없다.
+
 ## 🚀 배포 런북 (D-823-02 — 필수 순서)
-1. **preflight**: 배포 대상 환경 `SELECT count(*) FROM slips WHERE status='CONFIRMED' AND partner_id IS NULL AND is_deleted=false` = 0 확인. >0이면 원천 거래처 보정 후 배포(미보정 시 해당 원천 배분이 SAS_SOURCE_PARTNER_MISSING로 거부).
+1. **preflight**: 배포 대상 환경에서 아래 결과가 **0**인지 확인한다.
+   ```sql
+   SELECT count(*)
+   FROM slips
+   WHERE status = 'CONFIRMED'
+     AND is_deleted = false
+     AND (partner_id IS NULL
+          OR partner_code IS NULL OR partner_code = ''
+          OR partner_name IS NULL OR partner_name = '');
+   ```
+   >0이면 원천 거래처의 partnerId/code/name을 보정한 뒤 배포한다(미보정 시 해당 원천 배분은 `SAS_SOURCE_PARTNER_MISSING`으로 거부).
 2. **순서 = producer(slip-service) 먼저 → consumer(accounting-service) 나중**. consumer-first 배포 시 구 producer 응답에 partnerId 부재→null→**전 배분이 MISSING(422)로 전면 거부**. accounting record `@JsonIgnoreProperties`는 미지 필드 무시일 뿐 순서 안전 아님.
-3. **readiness = contract readiness**: 단순 health 아님. slip-service `/internal/slips/lines/{lineId}` 응답에 non-null partnerId 존재 + Eureka LB 풀에서 **구 slip 인스턴스 부재** 확인 후 accounting 배포. (롤링 중 stale 인스턴스 잔존 시 일시 다량 422 MISSING 가능·fail-CLOSED·가역.)
+3. **readiness = contract readiness**: 단순 health 아님. slip-service `/internal/slips/lines/{lineId}` 응답에 **partnerId + nonblank partnerCode + nonblank partnerName**이 모두 존재하고 Eureka LB 풀에서 **구 slip 인스턴스 부재**를 확인한 후 accounting을 배포한다. (롤링 중 stale 인스턴스 잔존 시 일시 다량 422 MISSING 가능·fail-CLOSED·가역.)
 
 ## 처분 (pre-existing/별건)
 - **[별건 #850]** 동일 요청 내 같은 원천 라인 중복 배분 과할당(요청 내 누적 미반영) — over-allocation 계열·#823 범위 밖.

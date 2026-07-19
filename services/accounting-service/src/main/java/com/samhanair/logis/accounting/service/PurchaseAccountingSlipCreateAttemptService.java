@@ -100,7 +100,9 @@ public class PurchaseAccountingSlipCreateAttemptService {
                     "원천 전표가 확정 상태가 아닙니다 (전표="
                             + src.slipNo() + ", 상태=" + slipStatusDisplayName(src.slipStatus()) + ")");
         }
-        if (src.partnerId() == null) {
+        if (src.partnerId() == null
+                || src.partnerCode() == null || src.partnerCode().isBlank()
+                || src.partnerName() == null || src.partnerName().isBlank()) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_PARTNER_MISSING,
                     "원천 전표에 거래처가 없습니다 (전표=" + src.slipNo() + ")");
         }

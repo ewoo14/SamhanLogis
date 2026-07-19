@@ -343,7 +343,7 @@ class SalesAccountingSlipServiceTest {
         UUID sourcePartnerId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-PARTNER-A", sourceLineId, sourcePartnerId,
-                null, null, "P", 1,
+                "P-PARTNER-A", "거래처 A", "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
 
         assertThatThrownBy(() -> service.createDraft(
@@ -375,26 +375,20 @@ class SalesAccountingSlipServiceTest {
     }
 
     @Test
-    void source_partnerId_exists_code_name_null_배분은_통과하고_헤더에도_null을_저장한다() {
+    void source_partnerId_exists_code_name_null은_SAS_SOURCE_PARTNER_MISSING() {
         UUID sourceSlipId = UUID.randomUUID();
         UUID sourceLineId = UUID.randomUUID();
-        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("SAS-NULL-DISPLAY");
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
                 sourceSlipId, "OUT-NULL-DISPLAY", sourceLineId, PARTNER_ID,
                 null, null, "P", 1,
                 new BigDecimal("100000"), new BigDecimal("100000"), "CONFIRMED", "OUTBOUND"));
-        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId)).thenReturn(BigDecimal.ZERO);
-        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
-                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
 
-        service.createDraft(requestWithSingleAllocation(sourceSlipId, sourceLineId, BigDecimal.ONE,
-                new BigDecimal("100000"), new BigDecimal("100000")), "actor-1");
-
-        ArgumentCaptor<SalesAccountingSlip> captor = ArgumentCaptor.forClass(SalesAccountingSlip.class);
-        verify(slipRepository).saveAndFlush(captor.capture());
-        assertThat(captor.getValue().getPartnerId()).isEqualTo(PARTNER_ID);
-        assertThat(captor.getValue().getPartnerCode()).isNull();
-        assertThat(captor.getValue().getPartnerName()).isNull();
+        assertThatThrownBy(() -> service.createDraft(requestWithSingleAllocation(sourceSlipId, sourceLineId,
+                BigDecimal.ONE, new BigDecimal("100000"), new BigDecimal("100000")), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_SOURCE_PARTNER_MISSING));
+        verifyNoInteractions(slipRepository);
     }
 
     @Test

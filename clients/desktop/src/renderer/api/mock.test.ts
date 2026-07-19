@@ -16,7 +16,7 @@ import {
   MOCK_PURCHASE_ACCOUNTING_SLIPS,
   type PurchaseAccountingSlipResponse,
 } from './purchaseAccountingSlipApi'
-import { listSlipAllocationSources, MOCK_SOURCE_SLIPS } from './slipAllocationSourceApi'
+import { assertMockAllocationPartner, listSlipAllocationSources, MOCK_SOURCE_SLIPS } from './slipAllocationSourceApi'
 import {
   createTaxInvoiceFromSalesSlips,
   registerInboundTaxInvoice,
@@ -845,6 +845,43 @@ describe('mock business document number contract', () => {
       partnerId: source.partnerId!,
       lines: [{ ...base.lines[0], allocations: [{ ...allocation, sourceLineId: 'missing-source-line' }] }],
     } as never)).rejects.toMatchObject({ __mockStatus: 422, code: 'SAS_SOURCE_PARTNER_MISSING' })
+  })
+
+  it.each([
+    ['partnerCode', createSalesSlipDraft, 'OUTBOUND'],
+    ['partnerName', createSalesSlipDraft, 'OUTBOUND'],
+    ['partnerCode', createPurchaseSlipDraft, 'INBOUND'],
+    ['partnerName', createPurchaseSlipDraft, 'INBOUND'],
+  ] as const)('원천 %s null은 mock 저장을 SAS_SOURCE_PARTNER_MISSING으로 차단한다', async (field, createDraft, sourceType) => {
+    vi.stubEnv('VITE_MOCK_MODE', '1')
+    const source = MOCK_SOURCE_SLIPS.find((row) => row.slipType === sourceType)!
+    const original = source[field]
+    source[field] = null
+    try {
+      const allocation = {
+        sourceSlipId: source.slipId,
+        sourceSlipNo: source.slipNo,
+        sourceLineId: source.lines[0]!.lineId,
+        sourceLineNo: 1,
+        allocatedQty: '1',
+        allocatedAmount: '100',
+      }
+      const request = {
+        slipDate: '2026-05-20',
+        partnerId: source.partnerId!,
+        partnerCode: source.partnerCode ?? 'CLIENT-CODE',
+        partnerName: source.partnerName ?? 'CLIENT-NAME',
+        taxType: 'TAXABLE' as const,
+        lines: [{ productCode: 'SKU-A', productName: '품목 A', qty: '1', unitPrice: '100', allocations: [allocation] }],
+      }
+
+      await expect(createDraft(request as never))
+        .rejects.toMatchObject({ __mockStatus: 422, code: 'SAS_SOURCE_PARTNER_MISSING' })
+      expect(() => assertMockAllocationPartner(source.partnerId, [{ sourceLineId: source.lines[0]!.lineId }]))
+        .toThrow(expect.objectContaining({ code: 'SAS_SOURCE_PARTNER_MISSING' }))
+    } finally {
+      source[field] = original
+    }
   })
 
   it.each([
