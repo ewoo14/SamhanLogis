@@ -15,6 +15,10 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +39,7 @@ public class PurchaseAccountingSlipCreateAttemptService {
     public PurchaseAccountingSlipResponse createDraftAttempt(
             CreatePurchaseAccountingSlipRequest req,
             String actorUserId) {
+        validateRequest(req);
         if (req.partnerId() == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "매입전표 대상 거래처는 필수입니다");
@@ -53,11 +58,29 @@ public class PurchaseAccountingSlipCreateAttemptService {
             throw new BusinessException(ErrorCode.SAS_LINE_AMOUNT_MISMATCH,
                     "매입전표 라인 배분이 비어 있습니다");
         }
-        SlipLineSnapshot firstSource = verifySourceAndAllocation(firstAllocation, req.partnerId());
+        Map<UUID, AllocationTotals> allocationTotals = new HashMap<>();
+        List<UUID> sourceLineIds = req.lines().stream()
+                .flatMap(line -> line.allocations().stream())
+                .map(AllocationRequest::sourceLineId)
+                .distinct()
+                .toList();
+        sourceLineIds.stream()
+                .map(PurchaseAccountingSlipCreateAttemptService::lockKey)
+                .distinct()
+                .sorted()
+                .forEach(this::acquireSourceLineLock);
+
+        Map<UUID, SourceState> sourceCache = new HashMap<>();
+        for (UUID sourceLineId : sourceLineIds) {
+            sourceCache.put(sourceLineId, loadSourceState(sourceLineId, req.partnerId()));
+        }
+
+        SourceState firstState = sourceCache.get(firstAllocation.sourceLineId());
+        verifyAndAccumulate(firstAllocation, firstState, allocationTotals);
         String slipNo = numberGenerator.next(req.slipDate());
         PurchaseAccountingSlip slip = PurchaseAccountingSlip.createDraft(
-                slipNo, req.slipDate(), firstSource.partnerId(), firstSource.partnerCode(),
-                firstSource.partnerName(), req.taxType(), req.memo());
+                slipNo, req.slipDate(), firstState.snapshot().partnerId(), firstState.snapshot().partnerCode(),
+                firstState.snapshot().partnerName(), req.taxType(), req.memo());
 
         int lineNo = 0;
         boolean firstSourceConsumed = false;
@@ -72,8 +95,8 @@ public class PurchaseAccountingSlipCreateAttemptService {
 
             for (AllocationRequest ar : lr.allocations()) {
                 SlipLineSnapshot src = !firstSourceConsumed && ar == firstAllocation
-                        ? firstSource
-                        : verifySourceAndAllocation(ar, req.partnerId());
+                        ? firstState.snapshot()
+                        : verifyAndAccumulate(ar, sourceCache.get(ar.sourceLineId()), allocationTotals);
                 firstSourceConsumed = true;
                 line.getAllocations().add(PurchaseAccountingSlipAllocation.create(line,
                         src.slipId(), src.slipNo(),
@@ -87,9 +110,12 @@ public class PurchaseAccountingSlipCreateAttemptService {
         return PurchaseAccountingSlipResponse.of(slip);
     }
 
-    private SlipLineSnapshot verifySourceAndAllocation(AllocationRequest ar, UUID headerPartnerId) {
-        acquireSourceLineLock(ar.sourceLineId());
-        SlipLineSnapshot src = slipServiceClient.getSlipLine(ar.sourceLineId());
+    private SourceState loadSourceState(UUID sourceLineId, UUID headerPartnerId) {
+        SlipLineSnapshot src = slipServiceClient.getSlipLine(sourceLineId);
+        if (!sourceLineId.equals(src.lineId())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "원천 라인 식별자가 요청과 일치하지 않습니다 (요청=" + sourceLineId + ")");
+        }
         if (!"INBOUND".equals(src.slipType())) {
             throw new BusinessException(ErrorCode.SAS_SOURCE_SLIP_TYPE_MISMATCH,
                     "매입전표는 입고전표만 원천으로 사용할 수 있습니다 (전표="
@@ -111,23 +137,101 @@ public class PurchaseAccountingSlipCreateAttemptService {
                     "원천 전표 거래처가 대상 전표 거래처와 일치하지 않습니다 (전표="
                             + src.slipNo() + ")");
         }
-        BigDecimal already = allocationRepository.sumAllocatedAmountBySourceLineId(ar.sourceLineId());
-        BigDecimal next = already.add(ar.allocatedAmount());
-        if (next.compareTo(src.lineTotal()) > 0) {
-            throw new BusinessException(ErrorCode.SAS_OVER_ALLOCATION,
-                    "할당 금액이 원천 전표 잔여를 초과합니다 (전표=" + src.slipNo()
-                            + ", 요청=" + ar.allocatedAmount()
-                            + ", 잔여=" + src.lineTotal().subtract(already) + ")");
-        }
-        return src;
+        BigDecimal dbAmount = nonNull(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId));
+        BigDecimal dbQty = nonNull(allocationRepository.sumAllocatedQtyBySourceLineId(sourceLineId));
+        return new SourceState(src, dbAmount, dbQty);
     }
 
-    private void acquireSourceLineLock(UUID sourceLineId) {
-        long lockKey = sourceLineId.getMostSignificantBits() ^ sourceLineId.getLeastSignificantBits();
+    private SlipLineSnapshot verifyAndAccumulate(AllocationRequest ar, SourceState state,
+            Map<UUID, AllocationTotals> allocationTotals) {
+        AllocationTotals current = allocationTotals.getOrDefault(ar.sourceLineId(),
+                new AllocationTotals(BigDecimal.ZERO, BigDecimal.ZERO));
+        BigDecimal availableAmount = state.snapshot().lineTotal()
+                .subtract(state.dbAmount())
+                .subtract(current.amount());
+        if (ar.allocatedAmount().compareTo(availableAmount.max(BigDecimal.ZERO)) > 0) {
+            throw new BusinessException(ErrorCode.SAS_OVER_ALLOCATION,
+                    "할당 금액이 원천 전표 잔여를 초과합니다 (전표=" + state.snapshot().slipNo()
+                            + ", 요청=" + formatAmount(ar.allocatedAmount())
+                            + ", 잔여금액=" + formatAmount(availableAmount) + ")");
+        }
+        BigDecimal availableQty = BigDecimal.valueOf(state.snapshot().quantity())
+                .subtract(state.dbQty())
+                .subtract(current.qty());
+        if (ar.allocatedQty().compareTo(availableQty.max(BigDecimal.ZERO)) > 0) {
+            throw new BusinessException(ErrorCode.SAS_OVER_ALLOCATION,
+                    "할당 수량이 원천 전표 잔여를 초과합니다 (전표=" + state.snapshot().slipNo()
+                            + ", 요청=" + formatQuantity(ar.allocatedQty())
+                            + ", 잔여수량=" + formatQuantity(availableQty) + ")");
+        }
+        allocationTotals.put(ar.sourceLineId(), new AllocationTotals(
+                current.amount().add(ar.allocatedAmount()), current.qty().add(ar.allocatedQty())));
+        return state.snapshot();
+    }
+
+    private void acquireSourceLineLock(long lockKey) {
         entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:k)")
                 .setParameter("k", lockKey)
                 .getSingleResult();
     }
+
+    private static long lockKey(UUID sourceLineId) {
+        return sourceLineId.getMostSignificantBits() ^ sourceLineId.getLeastSignificantBits();
+    }
+
+    private static void validateRequest(CreatePurchaseAccountingSlipRequest req) {
+        if (req == null || req.lines() == null) {
+            invalidInput("lines 는 필수입니다");
+        }
+        for (LineRequest line : req.lines()) {
+            if (line == null) {
+                invalidInput("lines 원소는 null일 수 없습니다");
+            }
+            if (line.allocations() == null) {
+                invalidInput("allocations 는 필수입니다");
+            }
+            for (AllocationRequest allocation : line.allocations()) {
+                if (allocation == null) {
+                    invalidInput("allocations 원소는 null일 수 없습니다");
+                }
+                if (allocation.sourceLineId() == null) {
+                    invalidInput("sourceLineId 는 필수입니다");
+                }
+                validatePositiveDigits("allocatedQty", allocation.allocatedQty(), 9, 3);
+                validatePositiveDigits("allocatedAmount", allocation.allocatedAmount(), 13, 2);
+            }
+        }
+    }
+
+    private static void validatePositiveDigits(String field, BigDecimal value,
+            int integerDigits, int fractionDigits) {
+        if (value == null || value.signum() <= 0
+                || value.scale() > fractionDigits
+                || value.precision() - value.scale() > integerDigits) {
+            invalidInput(field + " 는 양수이고 정수 " + integerDigits
+                    + "자리, 소수 " + fractionDigits + "자리 이하여야 합니다");
+        }
+    }
+
+    private static void invalidInput(String message) {
+        throw new BusinessException(ErrorCode.INVALID_INPUT, message);
+    }
+
+    private static BigDecimal nonNull(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private static String formatAmount(BigDecimal value) {
+        return value.max(BigDecimal.ZERO).setScale(2, RoundingMode.UNNECESSARY).toPlainString();
+    }
+
+    private static String formatQuantity(BigDecimal value) {
+        return value.max(BigDecimal.ZERO).setScale(3, RoundingMode.UNNECESSARY).toPlainString();
+    }
+
+    private record SourceState(SlipLineSnapshot snapshot, BigDecimal dbAmount, BigDecimal dbQty) {}
+
+    private record AllocationTotals(BigDecimal amount, BigDecimal qty) {}
 
     private static String slipTypeDisplayName(String slipType) {
         if (slipType == null) {

@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.util.DocumentNumberPathResolver;
 import com.samhanair.logis.accounting.web.dto.CreateSalesAccountingSlipRequest;
 import com.samhanair.logis.accounting.web.dto.SalesAccountingSlipResponse;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ public class SalesAccountingSlipController {
     @PostMapping
     @RequirePermission(page = "accounting.sales-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<SalesAccountingSlipResponse> createDraft(
-            @RequestBody CreateSalesAccountingSlipRequest req,
+            @Valid @RequestBody CreateSalesAccountingSlipRequest req,
             @RequestHeader("X-User-Id") String userId) {
         return ResponseEntity.ok(service.createDraft(req, userId));
     }

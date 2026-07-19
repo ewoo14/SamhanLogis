@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.service.PurchaseAccountingSlipService;
 import com.samhanair.logis.accounting.util.DocumentNumberPathResolver;
 import com.samhanair.logis.accounting.web.dto.CreatePurchaseAccountingSlipRequest;
 import com.samhanair.logis.accounting.web.dto.PurchaseAccountingSlipResponse;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ public class PurchaseAccountingSlipController {
     @PostMapping
     @RequirePermission(page = "accounting.purchase-slip.accounting", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
     public ResponseEntity<PurchaseAccountingSlipResponse> createDraft(
-            @RequestBody CreatePurchaseAccountingSlipRequest req,
+            @Valid @RequestBody CreatePurchaseAccountingSlipRequest req,
             @RequestHeader("X-User-Id") String userId) {
         return ResponseEntity.ok(service.createDraft(req, userId));
     }

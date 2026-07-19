@@ -282,6 +282,38 @@ class SalesAccountingSlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_admin_sales_slips_sourceLineId_null은_400_INVALID_INPUT() throws Exception {
+        ObjectNode body = (ObjectNode) om.readTree(om.writeValueAsString(request(
+                UUID.randomUUID(), null, SalesTaxType.TAXABLE, BigDecimal.ONE,
+                new BigDecimal("100000"), new BigDecimal("100000"))));
+
+        mvc.perform(post("/admin/sales-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    void POST_admin_sales_slips_null_allocation_element은_400_INVALID_INPUT() throws Exception {
+        ObjectNode body = (ObjectNode) om.readTree(om.writeValueAsString(request(
+                UUID.randomUUID(), UUID.randomUUID(), SalesTaxType.TAXABLE, BigDecimal.ONE,
+                new BigDecimal("100000"), new BigDecimal("100000"))));
+        ObjectNode line = (ObjectNode) body.withArray("lines").get(0);
+        line.putArray("allocations").addNull();
+
+        mvc.perform(post("/admin/sales-slips")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000114")
+                        .header("X-User-Role", "MASTER")
+                        .content(om.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
     void POST_admin_sales_slips_multi_source_두번째_partner_불일치_preflight_실패_시_전표_미저장() throws Exception {
         UUID firstSlipId = UUID.randomUUID();
         UUID firstLineId = UUID.randomUUID();

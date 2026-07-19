@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -63,6 +65,8 @@ class SalesAccountingSlipServiceTest {
         lenient().when(entityManager.createNativeQuery(anyString())).thenReturn(advisoryQuery);
         lenient().when(advisoryQuery.setParameter(anyString(), any())).thenReturn(advisoryQuery);
         lenient().when(advisoryQuery.getSingleResult()).thenReturn(1);
+        lenient().when(allocationRepository.sumAllocatedQtyBySourceLineId(any()))
+                .thenReturn(BigDecimal.ZERO);
         createAttemptService = new SalesAccountingSlipCreateAttemptService(
                 slipRepository,
                 allocationRepository,
@@ -244,6 +248,122 @@ class SalesAccountingSlipServiceTest {
         verify(entityManager).createNativeQuery("SELECT pg_advisory_xact_lock(:k)");
         verify(advisoryQuery).setParameter("k", expectedLockKey);
         verify(advisoryQuery).getSingleResult();
+    }
+
+    @Test
+    void 요청_내부_A_A_금액누적_과할당은_SAS_OVER_ALLOCATION_잔여금액을_반환한다() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                UUID.randomUUID(), "OUT-A-A", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 10,
+                new BigDecimal("10"), new BigDecimal("100"), "CONFIRMED", "OUTBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO);
+
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreateSalesAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("10"), new BigDecimal("10"), List.of(
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-A-A", sourceLineId, 1,
+                                new BigDecimal("6"), new BigDecimal("60")),
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-A-A", sourceLineId, 1,
+                                new BigDecimal("6"), new BigDecimal("60"))))));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여금액=40.00")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+        verify(slipRepository, times(0)).saveAndFlush(any(SalesAccountingSlip.class));
+        verify(slipServiceClient, times(1)).getSlipLine(sourceLineId);
+        verify(allocationRepository, times(1)).sumAllocatedAmountBySourceLineId(sourceLineId);
+        verify(allocationRepository, times(1)).sumAllocatedQtyBySourceLineId(sourceLineId);
+    }
+
+    @Test
+    void firstAllocation_시딩_후_수량누적_과할당도_금액통과_후_차단한다() {
+        UUID sourceLineId = UUID.randomUUID();
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(sourceSnapshot(
+                sourceLineId, "OUT-QTY", new BigDecimal("2"), new BigDecimal("20")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO);
+
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreateSalesAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("10"), new BigDecimal("2"), List.of(
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-QTY", sourceLineId, 1,
+                                new BigDecimal("6"), new BigDecimal("10")),
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-QTY", sourceLineId, 1,
+                                new BigDecimal("6"), new BigDecimal("10"))))));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잔여수량=4.000")
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.SAS_OVER_ALLOCATION));
+    }
+
+    @Test
+    void 서비스_직접호출_sourceLineId_null은_외부조회_전에_INVALID_INPUT() {
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreateSalesAccountingSlipRequest.LineRequest(
+                        "P", "P", BigDecimal.ONE, new BigDecimal("100"), List.of(
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-X", null, 1,
+                                BigDecimal.ONE, new BigDecimal("100"))))));
+
+        assertThatThrownBy(() -> service.createDraft(req, "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_INPUT));
+        verifyNoInteractions(entityManager, slipServiceClient, allocationRepository,
+                slipRepository, numberGenerator);
+    }
+
+    @Test
+    void advisory_lock은_payload_순서가_아닌_lockKey_숫자순으로_선잠금한다() {
+        UUID highKeyLineId = new UUID(0L, 2L);
+        UUID lowKeyLineId = new UUID(0L, 1L);
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-LOCK");
+        when(slipServiceClient.getSlipLine(highKeyLineId)).thenReturn(sourceSnapshot(
+                highKeyLineId, "OUT-HIGH", new BigDecimal("10"), new BigDecimal("10")));
+        when(slipServiceClient.getSlipLine(lowKeyLineId)).thenReturn(sourceSnapshot(
+                lowKeyLineId, "OUT-LOW", new BigDecimal("10"), new BigDecimal("10")));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(any())).thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        CreateSalesAccountingSlipRequest req = new CreateSalesAccountingSlipRequest(
+                LocalDate.of(2026, 5, 19), PARTNER_ID, "P-X", "X", SalesTaxType.TAXABLE, null,
+                List.of(new CreateSalesAccountingSlipRequest.LineRequest(
+                        "P", "P", new BigDecimal("2"), new BigDecimal("10"), List.of(
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-HIGH", highKeyLineId, 1,
+                                BigDecimal.ONE, new BigDecimal("10")),
+                        new CreateSalesAccountingSlipRequest.AllocationRequest(
+                                UUID.randomUUID(), "OUT-LOW", lowKeyLineId, 1,
+                                BigDecimal.ONE, new BigDecimal("10"))))));
+
+        service.createDraft(req, "actor-1");
+
+        InOrder order = inOrder(advisoryQuery);
+        order.verify(advisoryQuery).setParameter("k", 1L);
+        order.verify(advisoryQuery).getSingleResult();
+        order.verify(advisoryQuery).setParameter("k", 2L);
+        order.verify(advisoryQuery).getSingleResult();
+    }
+
+    private SlipLineSnapshot sourceSnapshot(UUID lineId, String slipNo,
+            BigDecimal unitPrice, BigDecimal lineTotal) {
+        return new SlipLineSnapshot(UUID.randomUUID(), slipNo, lineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "P", 10,
+                unitPrice, lineTotal, "CONFIRMED", "OUTBOUND");
     }
 
     @Test
