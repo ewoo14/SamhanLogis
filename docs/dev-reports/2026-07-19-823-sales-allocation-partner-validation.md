@@ -55,10 +55,10 @@
    WHERE status = 'CONFIRMED'
      AND is_deleted = false
      AND (partner_id IS NULL
-          OR partner_code IS NULL OR BTRIM(partner_code) = ''
-          OR partner_name IS NULL OR BTRIM(partner_name) = '');
+          OR partner_code IS NULL OR partner_code ~ '^[[:space:]]*$'
+          OR partner_name IS NULL OR partner_name ~ '^[[:space:]]*$');
    ```
-   `BTRIM`으로 공백만 있는 code/name도 런타임 `isBlank()`와 동일하게 검출한다. >0이면 원천 거래처의 partnerId/code/name을 보정한 뒤 배포한다(미보정 시 해당 원천 배분은 `SAS_SOURCE_PARTNER_MISSING`으로 거부).
+   `^[[:space:]]*$` 정규식으로 빈 문자열 + 공백/탭/개행 등 whitespace-only code/name을 검출한다(`BTRIM`은 ASCII space만 제거해 tab/newline을 놓침). **런타임 권위는 Java `isBlank()`**(모든 whitespace-only → `SAS_SOURCE_PARTNER_MISSING` 422·fail-safe)이며 preflight는 배포 전 예측용 best-effort — 이색 Unicode 공백(em-space 등)이 실 partner_code(영숫자 업무코드)에 올 가능성은 없으므로 [[:space:]] 범위로 충분. >0이면 원천 거래처의 partnerId/code/name을 보정한 뒤 배포한다.
 2. **순서 = producer(slip-service) 먼저 → consumer(accounting-service) 나중**. consumer-first 배포 시 구 producer 응답에 partnerId 부재→null→**전 배분이 MISSING(422)로 전면 거부**. accounting record `@JsonIgnoreProperties`는 미지 필드 무시일 뿐 순서 안전 아님.
 3. **readiness = contract readiness**: 단순 health 아님. slip-service `/internal/slips/lines/{lineId}` 응답에 **partnerId + nonblank partnerCode + nonblank partnerName**이 모두 존재하고 Eureka LB 풀에서 **구 slip 인스턴스 부재**를 확인한 후 accounting을 배포한다. (롤링 중 stale 인스턴스 잔존 시 일시 다량 422 MISSING 가능·fail-CLOSED·가역.)
 
