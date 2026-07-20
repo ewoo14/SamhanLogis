@@ -13,6 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +53,10 @@ class SlipServiceClientTest {
 
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new SlipServiceClient(builder, props);
+        // #854: SlipServiceClient 가 builder.clone().requestFactory(rf)(timeout 하드닝) 로 mock 팩토리를
+        // 덮어쓰지 않도록, clone/requestFactory 를 no-op 화하는 프록시 빌더로 감싸 mock 바인딩을 보존한다
+        // (DcConfigClientTest 와 동일 패턴).
+        client = new SlipServiceClient(mockBoundBuilder(builder), props);
     }
 
     @Test
@@ -304,5 +308,29 @@ class SlipServiceClientTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(errorCode));
+    }
+
+    /**
+     * MockRestServiceServer 바인딩을 보존하는 프록시 빌더.
+     *
+     * <p>SlipServiceClient 는 timeout 하드닝(#854)으로 {@code builder.clone().requestFactory(rf)} 를
+     * 호출하는데, 이는 {@link MockRestServiceServer#bindTo}가 심어둔 mock 요청 팩토리를 실
+     * {@code SimpleClientHttpRequestFactory}로 덮어써 mock 을 우회시킨다. clone/requestFactory 를
+     * no-op(프록시 자신 반환)로 가로채 mock 팩토리를 유지한다(DcConfigClientTest 동일 패턴).
+     */
+    private RestClient.Builder mockBoundBuilder(RestClient.Builder delegate) {
+        return (RestClient.Builder) Proxy.newProxyInstance(
+                RestClient.Builder.class.getClassLoader(),
+                new Class<?>[]{RestClient.Builder.class},
+                (proxy, method, args) -> {
+                    if ("clone".equals(method.getName()) && method.getParameterCount() == 0) {
+                        return proxy;
+                    }
+                    if ("requestFactory".equals(method.getName()) && method.getParameterCount() == 1) {
+                        return proxy;
+                    }
+                    Object result = method.invoke(delegate, args);
+                    return result == delegate ? proxy : result;
+                });
     }
 }

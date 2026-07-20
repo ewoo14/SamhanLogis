@@ -179,6 +179,20 @@ jobs:
             exit 1
           fi
 
+      - name: "#854 SlipPublishOutboxProcessorIT skipped=0 hard gate"
+        if: matrix.group.name == 'accounting+partner'
+        run: |
+          report='services/partner-order-service/build/test-results/test/TEST-com.samhanair.logis.partnerorder.it.SlipPublishOutboxProcessorIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#854 SlipPublishOutboxProcessorIT JUnit report not found; outbox tx/동시성 IT 가 필터/스킵되었을 수 있음."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#854 SlipPublishOutboxProcessorIT skipped count must be 0, got ${skipped:-missing}."
+            exit 1
+          fi
+
       - name: "#848 ApprovalLineConfigInstantiationIT skipped=0 hard gate"
         if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'
         run: |

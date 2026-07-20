@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.client;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.Duration;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -55,7 +57,18 @@ public class SlipServiceClient {
 
     public SlipServiceClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                              InternalAuthProperties internalAuthProperties) {
-        this.restClient = builder.baseUrl(SLIP_SERVICE_BASE).build();
+        // #854 하드닝: connect 2s / read 5s timeout 을 명시하여 slip-service hang 시
+        // outbox processor 의 비관 락 + DB 커넥션이 무한 HTTP 대기로 점유되는 것을 막는다.
+        // read 5s 는 resilience4j timelimiter.slipServiceClient(5s) 와 정렬한 상한이다.
+        // DcConfigClient 와 동일하게 builder.clone() 으로 전용 사본을 만들어 싱글턴
+        // loadBalancedRestClientBuilder 변이(ProductClient/InventoryClient 등으로 timeout 전파)를 차단한다.
+        SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
+        rf.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
+        rf.setReadTimeout((int) Duration.ofSeconds(5).toMillis());
+        this.restClient = builder.clone()
+                .baseUrl(SLIP_SERVICE_BASE)
+                .requestFactory(rf)
+                .build();
         this.internalAuthProperties = internalAuthProperties;
     }
 
