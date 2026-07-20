@@ -4,7 +4,25 @@
 
 ---
 
-## 🔥 2026-07-20 (회사PC 저녁) — **#832 ✅ 머지 + 워크플로우 변경(기획검수 폐지)** ◀ 다음 세션 첫 읽기
+## 🔥 2026-07-20 (회사PC 밤) — **#854 진행 중: R3 완료·R4 재수렴 대기** ◀ 다음 세션(집PC) 첫 읽기·재개점
+
+> **#854 outbox self-invocation @Transactional 우회 실버그** (PR **#862**·브랜치 `fix/854-outbox-selfinvocation-tx`·최신 **`b72804689`**). B3 실버그(#853 전표 거래처 필수화 fail-closed가 노출·pre-existing). **신 캐논(기획검수 폐지 후 첫 슬라이스)**.
+>
+> **⚠️ 재개 먼저**: `git pull` + `.\scripts\sync-claude-memory.ps1`. R1/R2/R3 fix는 **전부 커밋·push·검증 완료**(각 라운드 partner-order-service 전체 test green·라이브QA 스샷)—**미검증 WIP 아님**·feature 브랜치가 진실원(stash 금지). [[feedback_incomplete_work_wip_branch_cross_pc]].
+>
+> **완료 라운드**(각 게시·라이브QA 스샷·genuine test):
+> - **OPUS 기획**(조기 PR·spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` D-854-01~07) → **CODEX LUNA 구현**.
+> - **OPUS R1** 5-agent: tx-경계 genuine 가드(명시save 마스킹 해소·tx-active 캡처)·parsePayload storm(try 안)·F2·비관락 F1·SlipServiceClient 타임아웃(builder.clone). 370 tests. SlipServiceClientTest 회귀 11 자가포착·fix.
+> - **CODEX SOL R2**(fix=LUNA): **비관락→FOR UPDATE SKIP LOCKED claim/lease 정석 전환**(HTTP를 DB 락 밖·ResultWriter 결과tx·stale lease reclaim)·4xx fail-fast(400/409 즉시 FAILED_PERMANENT)·SLIP_FAILED_PERMANENT enum(마이그 불요). 375 tests.
+> - **OPUS R3 재수렴** 5-agent(claim/lease 재아키텍처 독립검증): **아키텍처 PASS·BLOCKING0**. 개발책임자 전건 fix → **[HIGH] 원자 소유권 가드**(processingRow `findWithLockById` FOR UPDATE 재읽기·동시성 clobber 근본차단·30회 실 Postgres IT)·[MED] lease/batch 불변식(batch-size=10·lease120·@PostConstruct)·dead code 3제거(markProcessing 포함→구 #725 KEEP 대체)·doc-sync·LOW(markRequeue·@Profile("!local")·null 필터). **377 tests·IT 15**. 라이브QA=batch cap(claim 10→2행).
+>
+> **▶ 다음 재개점 = OPUS R4 재수렴**: R3 HIGH 원자가드(findWithLockById) 독립 검증 + R3 변경(batch/lease·markRequeue·@Profile·dead code 제거)이 **신규 HIGH/MED 0**인지 확인 → **0수렴** → PM 종합(게시) → CI green(`gh pr checks 862`) → **PM 머지·#854 close**. (R3까지 3라운드·claim/lease가 HIGH 낳음 → R4서 수렴 확인이 핵심. R4도 신규 HIGH면 [[feedback_pm_regulate_slice_effort]] 바운드 재제시.)
+>
+> **핵심 컨텍스트**: outbox **producer 부재=dormant**(confirm 자동발행 D-CF-02 폐지·convert 미enqueue) → 라이브QA=**수동 시드**(정직 표기·합성 producer 위장 안 함). **에스컬레이션 대기(개발책임자·비차단)**: outbox at-least-once 발행 의도 유효성/enqueuer 복원·poison-row 무한재claim(반복 JVM사망·LOW)·401/403 재시도(accept). claim/lease는 개발책임자 선택(SKIP LOCKED 멀티인스턴스). **실행 스택**: partner-order-service만 R3코드+fastcron override로 재배포(wtC 워크트리 스택·타 서비스 무접촉). QA 시드 정리 완료(주문 복원·outbox 0).
+
+---
+
+## 🔥 2026-07-20 (회사PC 저녁) — **#832 ✅ 머지 + 워크플로우 변경(기획검수 폐지)**
 
 > **#832 mock parity·감사이력 정밀도 완결** (main `17024ed07`·PR #861 squash·#832 close). 집PC WIP(R1 미완)→회사PC 재개→완주.
 > - mock parity(D-01 status hydration·D-02 matchedCount·D-04 BOM 5경로)+감사이력 정밀도(D-03 operationOrdinal/generation·이력표 "작업 N/세대" UX). **OPUS R1↔CODEX SOL R2 적대검증 0수렴·재수렴 CONVERGED**. R1 fix(시드 미실재거래처 P-2026-0001/0002/P-SEJIN-003 실재 ACTIVE 편입·CSV 역파리티 H1 게이팅·W1/W2 record 바인딩+실PG IT·dim4·이력표 xl/그룹핑/범례)·R2 fix(이력 응답 operationOrdinal DESC 정렬 production·bizNo 자사충돌 911-22-33344·정규화 raw parity·테스트강화)·CI Playwright mock 게이트 회귀 2건(공유 CODEF/시드 픽스처 정합). 검증: **vitest 1010·Playwright mock 게이트 590·BE IT8/ServiceTest21/Norm4 skip0**·라이브QA R1·R2 각 3장.
