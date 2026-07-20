@@ -44,3 +44,43 @@ partner-order-service outbox 스케줄러 tx 경계+영속 한정. slip-service�
 - [[feedback_it_mockbean_external_clients]] — IT 에서 SlipServiceClient @MockBean(누락 시 Eureka 500).
 - #725 markProcessing IllegalState = KEEP(도달불가 sentinel·컨트롤러 없음).
 - outbox 설계 at-least-once + idempotency-key(중복 발행 안전) — 무변경.
+
+---
+
+# R2 fix 스펙 (CODEX SOL R2 발견 → 개발책임자 3건 "지금 fix" · OPUS 기획)
+
+> CODEX SOL R2(MED6·LOW2·머지 보류) 후속. 성격: R1 하드닝 위 2차 정확성/정석화. fix=CODEX LUNA 5.6.
+
+## D-854-05 비관락 → FOR UPDATE SKIP LOCKED claim/lease 정석 전환 (핵심·재아키텍처)
+**문제(R2 동시성 MED2)**: ①멀티인스턴스가 동일 정렬 첫 batch를 함께 pick→blocking convoy(후발 pod 처리량 0) ②락+DB커넥션을 slip HTTP 전구간 보유(@Transactional(timeout=20)은 동기 HTTP 미중단).
+
+**전환** — HTTP를 DB 락 밖에서 수행하는 claim/lease 패턴:
+1. **원자 claim (스케줄러·짧은 tx)**: 네이티브 `UPDATE slip_publish_outbox SET status='PROCESSING', last_attempted_at=now() WHERE id IN (SELECT id FROM slip_publish_outbox WHERE is_deleted=false AND ((status='PENDING' AND next_attempt_at<=now()) OR (status='PROCESSING' AND last_attempted_at < now() - :leaseInterval)) ORDER BY next_attempt_at FOR UPDATE SKIP LOCKED LIMIT :batch) RETURNING *`. SKIP LOCKED로 worker별 **disjoint 행 claim**(convoy 해소)·stale PROCESSING(lease 만료) **동시 reclaim**(크래시 복구). `last_attempted_at`을 lease 마커로 재사용(신규 컬럼 불요).
+2. **처리 (락 없음·per-row)**: claim된 각 row에 slip HTTP 호출(DB 락/커넥션 미보유 → lock-across-IO 해소). connect2s/read5s가 실제 시간 bound.
+3. **결과 (per-row 짧은 tx)**: `findById` 재조회 → **status가 여전히 PROCESSING일 때만** markCommitted/handleRetry(아니면 다른 worker/reaper가 인수 → skip) + 명시 save + order/history. per-row 독립 tx 유지(row 실패가 batch 미차단).
+4. **lease**: `samhan.outbox.lease-seconds`(기본 60s·> connect2s+read5s+마진). reaper=별도 컴포넌트 불필요(claim WHERE의 stale PROCESSING OR절이 겸함).
+5. **markProcessing #725 가드 조정**: PENDING→PROCESSING(신규 claim) **및 PROCESSING→PROCESSING(stale reclaim)** 허용하도록 완화(claim이 네이티브 UPDATE라 엔티티 markProcessing 우회 가능 — 가드는 결과 tx의 상태 재검으로 대체). #725 sentinel 무의미화 주석.
+6. **idempotency**: HTTP 후 결과 tx 전 크래시 → reaper 재claim → 재발행 → slip idempotency-key replay(at-least-once 유지).
+
+## D-854-06 4xx/5xx 재시도 분류 (fail-fast)
+**문제(R2 BE MED·PRE)**: 모든 BusinessException이 handleRetry→24h 재시도. 복구불가 400/409도 24h 반복.
+**분류**: handleRetry(또는 호출부)가 ErrorCode 판정 —
+- **즉시 FAILED_PERMANENT**(terminal): `INVALID_INPUT`(400)·`CONFLICT`(409·동일키 다른본문). order.markSlipFailedPermanent + history.
+- **재시도**(transient): `INTERNAL_ERROR`(5xx)·`UNAUTHORIZED`(401)·`FORBIDDEN`(403)·408/429/network. (401/403=배포중 토큰/전파 지연 가능성 → 재시도, 24h 후 FAILED_PERMANENT 수렴). SlipServiceClient가 이미 상태→ErrorCode 매핑(:103 근방).
+
+## D-854-07 history enum 오표기 정정 (마이그 불요)
+**문제(R2 Design MED·PRE)**: FAILED_PERMANENT를 `SLIP_RETRY_QUEUED`로 기록.
+**정정**: `HistoryEventType`에 `SLIP_FAILED_PERMANENT` 추가 + handleRetry의 FAILED 분기에서 사용. **마이그 불필요**(partner_order_history.event_type=VARCHAR(30) NO CHECK 제약 확인·"SLIP_FAILED_PERMANENT"=21자<30 → D-854-04 무마이그 스코프 보존). IT ③ 기대값 SLIP_FAILED_PERMANENT로 변경.
+
+## R2 in-scope 테스트/CI 보강 (논의 불요)
+- **F2 롤백 IT**: 발행 성공 후 order/history save 예외 주입 → outbox PENDING(COMMITTED 아님)·order 미변경·동일키 replay 단언(fresh DB). (F2가 catch 안으로 되돌아가면 RED)
+- **timeout/clone constructor 테스트**: SlipServiceClient가 builder.clone 호출·원본 비변이·requestFactory connect2000/read5000ms 캡처 단언(mockBoundBuilder no-op가 가리던 계약). 기존 HTTP 계약 테스트와 별도.
+- **ci.yml 게이트**: SlipPublishOutboxProcessorIT `tests>=N`(또는 필수 testcase 이름) 추가(테스트 삭제 시 통과 방지).
+- **barrier(LOW)**: pg_locks 전역 대신 worker2 PID + `pg_blocking_pids()` 결속(가능 시).
+
+## D-854-05 검증 (claim/lease IT)
+- **claim disjoint**: 2 worker 동시 claim → 서로 다른 행(중복 processing 0)·SKIP LOCKED.
+- **reaper reclaim**: PROCESSING·last_attempted_at 과거(lease 만료) row → 다음 claim이 재점유 → 처리 종결.
+- **HTTP-outside-lock**: 발행 중 다른 worker가 동일 창구 아닌 타 행 진행(블로킹 없음) — 관측 가능하면.
+- **결과 tx 상태재검**: PROCESSING 아닌 row 결과 적용 skip.
+- 기존 성공/재시도/FAILED/tx-active/parse-storm/경계 IT 유지 or claim 경로에 맞게 갱신. skipped=0·--rerun-tasks.
