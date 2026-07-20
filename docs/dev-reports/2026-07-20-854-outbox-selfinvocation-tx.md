@@ -79,4 +79,27 @@ R2 동시성 MED2(멀티인스턴스 convoy·@Transactional(timeout=20)이 동�
 - `claimReadyBatchMutationForJpaContract`(dead @Query·claim SQL을 Impl과 중복=drift 위험)·`existsByPartnerOrderId`(dead) — main/test 미사용 → 제거.
 - `concurrentClaim` IT는 disjoint 정확성 검증이나 SKIP LOCKED non-blocking 자체는 미가드(성능 속성).
 
-관련: PR #854 · spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` · 별건 노출원 #853.
+---
+
+# R3 (OPUS 재수렴 5-agent → 개발책임자 전건 fix) — 원자 소유권 가드·lease 안전화·cleanup
+
+claim/lease 재아키텍처(R2)가 상당 변경이라 OPUS R3 재수렴 적대라운드(BE·동시성/tx·QA·DevOps·Design). **아키텍처 자체 PASS(5-agent 공통 genuine)·BLOCKING 0**. 개발책임자 "전건 fix" 결정.
+
+## [HIGH] 소유권 가드 원자화 (동시성 clobber 근본차단)
+R3 동시성 에이전트가 **실 Postgres 재현**: `SlipPublishOutboxResultWriter.processingRow`가 `findById`(무락 SELECT)+Java `status==PROCESSING` 체크 후 `@Version` 없는 outbox에 PK-무조건 UPDATE → lease-overlap서 (A=commitSuccess→COMMITTED, B=stale handleRetry→PENDING) 동시 실행 시 둘 다 PROCESSING 관측→B가 A의 COMMITTED를 덮음(clobber). 멱등키+PartnerOrder `@Version`으로 데이터부패는 차단(BLOCKING 아님)이나 중복 SLIP_PUBLISHED history·재발행·churn.
+- **fix**: `SlipPublishOutboxRepository.findWithLockById`(@Lock PESSIMISTIC_WRITE) 재추가·`processingRow`가 이를 사용 → 결과 tx가 row를 FOR UPDATE 락하여 per-row 직렬화(먼저 종결한 전이 확정 후 다른 tx는 최신 상태 읽고 skip). **락은 결과 tx 한정(HTTP는 processor 무tx라 락 밖 유지)**·단일 row라 데드락 없음.
+
+## [MED] lease/batch 불변식 안전화
+lease(60s) < 순차 batch 최악 dwell(BATCH_SIZE×(connect2s+read5s)) → 멀티인스턴스 overlap 상시화.
+- **fix**: `BATCH_SIZE`를 `OutboxProperties.batchSize`(기본 **10**)로 이동·`leaseSeconds` 60→**120**(10×7=70<120 여유). `@PostConstruct`가 `lease ≥ batch×7` 위반 시 warn. (HIGH 가드가 부패 차단하므로 잉여 재발행 축소용.)
+
+## cleanup + LOW
+- **dead code 제거**: `claimReadyBatchMutationForJpaContract`(CLAIM_SQL 중복 drift)·`existsByPartnerOrderId`·**`SlipPublishOutbox.markProcessing()`**(호출자 0·main/test — R2 이후 native claim이 대체). ⟹ **spec/과거 "markProcessing #725 IllegalState KEEP" 결정은 본 R3로 대체(메서드 제거)**.
+- **doc-sync**: HistoryEventType "7종"→8종·OutboxStatus("advisory lock" 제거·PROCESSING 영속/lease 재점유/4xx 즉시 FAILED)·OutboxProperties(FAILED_PERMANENT→OutboxStatus=FAILED 정정)·SlipServiceClient(HTTP는 락 밖·timeout=dwell 상한).
+- **LOW**: `SlipPublishOutbox.markRequeue`(발행 성공 후 결과tx 실패 requeue는 attemptCount 미증가)·`SlipPublishOutboxScheduler @Profile("!local")`(native SQL H2 local 파손 차단)·`claimReadyBatch` em.find null 필터.
+
+## R3 검증
+- **partner-order-service 전체 377 tests·failures0·errors0·skipped0**(`--rerun-tasks --no-build-cache`). SlipPublishOutboxProcessorIT **15**(신규 2: **원자 소유권 가드 clobber-없음 ×30 동시 반복**·requeue attemptCount 불변). ci.yml 게이트 tests>=15.
+- 신규 동시성 IT: commitSuccess/handleRetry 동시 ×30 → 최종 status 결정적(COMMITTED/PENDING)·불변식 `!(published && PENDING)`. `findWithLockById`→무락 `findById` 회귀 시 clobber RED.
+
+관련: PR #854 · spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` · 별건 노출원 #853. **다음: OPUS R4 재수렴(HIGH fix 독립 검증·0수렴)**.

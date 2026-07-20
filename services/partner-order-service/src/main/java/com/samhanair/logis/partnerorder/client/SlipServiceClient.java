@@ -57,8 +57,10 @@ public class SlipServiceClient {
 
     public SlipServiceClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                              InternalAuthProperties internalAuthProperties) {
-        // #854 하드닝: connect 2s / read 5s timeout 을 명시하여 slip-service hang 시
-        // outbox processor 의 비관 락 + DB 커넥션이 무한 HTTP 대기로 점유되는 것을 막는다.
+        // #854 하드닝: connect 2s / read 5s timeout 을 명시하여 slip-service hang 시 outbox
+        // processor 의 row 처리 dwell 이 lease(samhan.outbox.lease-seconds)를 넘겨 멀티 인스턴스
+        // overlap 재발행을 유발하거나 HTTP 커넥션이 무한 점유되는 것을 막는다. HTTP 발행은 claim/결과
+        // tx 및 비관 락 밖에서 수행하므로 락을 물지는 않으며, 이 timeout 은 per-row dwell 상한을 보장한다.
         // read 5s 는 resilience4j timelimiter.slipServiceClient(5s) 와 정렬한 상한이다.
         // DcConfigClient 와 동일하게 builder.clone() 으로 전용 사본을 만들어 싱글턴
         // loadBalancedRestClientBuilder 변이(ProductClient/InventoryClient 등으로 timeout 전파)를 차단한다.

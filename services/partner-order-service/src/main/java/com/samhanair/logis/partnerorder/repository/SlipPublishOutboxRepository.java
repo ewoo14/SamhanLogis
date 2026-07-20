@@ -1,60 +1,41 @@
 package com.samhanair.logis.partnerorder.repository;
 
 import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Outbox row 조회 + 짧은 원자 claim.
+ *
+ * <p>정상 claim(PENDING/stale PROCESSING → PROCESSING)은 {@link SlipPublishOutboxRepositoryCustom}
+ * 의 네이티브 {@code UPDATE ... RETURNING}(FOR UPDATE SKIP LOCKED)이 담당한다. 본 인터페이스는
+ * 결과 tx 의 소유권 재검증용 비관 락 조회만 추가로 노출한다.
  */
 @Repository
 public interface SlipPublishOutboxRepository extends JpaRepository<SlipPublishOutbox, UUID>,
         SlipPublishOutboxRepositoryCustom {
 
     /**
-     * 처리 가능한 row 를 worker별로 겹치지 않게 PROCESSING 으로 claim한다.
+     * 결과 tx 소유권 가드용 비관적 쓰기 락 조회.
      *
-     * <p>UPDATE 자체만 짧은 트랜잭션으로 끝나며, 반환된 row 를 이용한 HTTP 발행은 이 락과
-     * 트랜잭션 밖에서 수행한다. {@code PROCESSING} stale row 도 lease 만료 후 재점유할 수 있다.
-     * PostgreSQL {@code RETURNING *} claim SQL 선언은 Spring Data JPA mutation 계약과 함께 보존한다.
-     * 실제 row 반환은 동일 repository custom fragment가 수행한다(반환형 List와 @Modifying의
-     * Spring Data JPA 제한 때문).
+     * <p>결과 writer(commitSuccess/handleRetry/requeueAfterResultFailure)가 row 를
+     * {@code SELECT ... FOR UPDATE} 로 잠근 뒤 현재 상태가 PROCESSING 인지 재검한다. lease 만료로
+     * 동일 row 를 두 worker 가 겹쳐 처리(A=성공→COMMITTED, B=stale 실패→PENDING)하더라도 per-row
+     * 직렬화로 먼저 락을 획득한 전이만 적용되고, 뒤늦은 전이는 non-PROCESSING 을 보고 skip 되어
+     * COMMITTED 가 PENDING 으로 덮이는 clobber 를 원천 차단한다. 단일 row(PK) 락이라 데드락은 없다.
      *
-     * @param batch 한 worker가 claim할 최대 row 수
-     * @param leaseSeconds PROCESSING lease 만료 기준(초)
-     * @return mutation 실행 시 영향 행 수(정상 scheduler 경로에서는 custom fragment 사용)
+     * <p>락은 호출 tx 종료까지만 유지되며, HTTP 발행은 tx 밖(processor)에서 수행하므로 락을 물지 않는다.
+     *
+     * @param id outbox row PK
+     * @return PROCESSING 여부 재검 대상 row (없으면 empty)
      */
-    @Transactional
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(value = """
-            UPDATE slip_publish_outbox
-               SET status = 'PROCESSING',
-                   last_attempted_at = now()
-             WHERE id IN (
-                 SELECT id
-                   FROM slip_publish_outbox
-                  WHERE is_deleted = false
-                    AND (
-                        (status = 'PENDING' AND next_attempt_at <= now())
-                        OR (
-                            status = 'PROCESSING'
-                            AND last_attempted_at < now() - make_interval(secs => :leaseSeconds)
-                        )
-                    )
-                  ORDER BY next_attempt_at
-                  FOR UPDATE SKIP LOCKED
-                  LIMIT :batch
-             )
-             RETURNING *
-            """, nativeQuery = true)
-    int claimReadyBatchMutationForJpaContract(@Param("batch") int batch,
-                                               @Param("leaseSeconds") int leaseSeconds);
-
-    /** 동일 PartnerOrder 의 outbox row (재발행 시 conflict 방지). */
-    boolean existsByPartnerOrderId(UUID partnerOrderId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from SlipPublishOutbox o where o.id = :id")
+    Optional<SlipPublishOutbox> findWithLockById(@Param("id") UUID id);
 }

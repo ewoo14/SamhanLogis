@@ -1,7 +1,7 @@
 package com.samhanair.logis.partnerorder.domain;
 
 /**
- * PartnerOrderHistory 의 event_type (설계서 §3.4 — 7종).
+ * PartnerOrderHistory 의 event_type (설계서 §3.4 — 8종).
  */
 public enum HistoryEventType {
     /** 임시저장 생성. */

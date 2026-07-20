@@ -26,8 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Outbox HTTP 결과를 짧은 독립 트랜잭션으로 영속화한다.
  *
- * <p>각 메서드는 현재 row를 다시 읽고 PROCESSING일 때만 상태를 변경한다. claim 이후 lease가
- * 만료되어 다른 worker가 인수한 row의 결과는 적용하지 않는다.
+ * <p>각 메서드는 현재 row를 비관적 쓰기 락({@code SELECT ... FOR UPDATE})으로 잠근 뒤 PROCESSING일
+ * 때만 상태를 변경한다. lease 만료로 동일 row 를 두 worker 가 겹쳐 처리해도 per-row 직렬화로 먼저
+ * 락을 획득한 전이만 적용되고, 뒤늦은 전이는 non-PROCESSING 을 보고 skip 되어 COMMITTED 가 PENDING
+ * 으로 덮이는 clobber 가 발생하지 않는다. 락은 결과 tx 종료까지만 유지되고 HTTP 발행은 tx 밖
+ * (processor)에서 수행하므로 락을 물지 않는다.
  */
 @Component
 @RequiredArgsConstructor
@@ -96,6 +99,10 @@ public class SlipPublishOutboxResultWriter {
      * HTTP 성공 후 결과 tx가 실패한 경우, 실패한 result tx와 분리하여 PROCESSING을 PENDING으로
      * 되돌린다. 주문/이력 변경은 실패 tx가 롤백하므로 미변경이며 다음 claim은 동일
      * idempotency-key로 at-least-once replay를 수행한다.
+     *
+     * <p>발행 자체는 성공했으므로 {@code markRetry}(attemptCount++)가 아닌 {@code markRequeue}로
+     * 재큐잉한다. 결과 저장 실패는 재시도 횟수를 부풀려선 안 되며(max-retry-hours 판정 왜곡 방지),
+     * 순수 결과 영속화 재시도로만 취급한다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void requeueAfterResultFailure(UUID outboxId, String error) {
@@ -104,15 +111,21 @@ public class SlipPublishOutboxResultWriter {
             return;
         }
         LocalDateTime nextAttemptAt = LocalDateTime.now().plusMinutes(5);
-        row.markRetry(error, nextAttemptAt);
+        row.markRequeue(error, nextAttemptAt);
         outboxRepository.save(row);
         log.error("Outbox result persistence rolled back; requeued: outboxId={}, error={}",
                 outboxId, error);
     }
 
-    /** 결과 writer의 소유권 가드 — 다른 worker/reaper가 인수한 row는 건너뛴다. */
+    /**
+     * 결과 writer의 원자 소유권 가드 — row 를 비관적 쓰기 락으로 잠근 뒤 PROCESSING 인지 재검한다.
+     *
+     * <p>{@code findWithLockById}(FOR UPDATE)는 호출 tx 안에서 row 를 직렬화한다. 겹친 다른 worker/reaper
+     * 의 결과 tx 는 이 락을 기다렸다가 최신 상태를 읽으므로, 먼저 종결한 전이(COMMITTED/PENDING)를 보고
+     * skip 한다(무락 findById 로는 stale PROCESSING 을 읽어 무조건 덮어써 clobber 가 발생).
+     */
     private SlipPublishOutbox processingRow(UUID outboxId) {
-        SlipPublishOutbox row = outboxRepository.findById(outboxId).orElse(null);
+        SlipPublishOutbox row = outboxRepository.findWithLockById(outboxId).orElse(null);
         return row != null && row.getStatus() == OutboxStatus.PROCESSING ? row : null;
     }
 

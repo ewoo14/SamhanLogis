@@ -62,6 +62,9 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
 
     private static final String STUB_SLIP_NO = "2026/07/20-854";
 
+    /** 동시성 원자 가드 반복 횟수 — 무락 findById 회귀 시 clobber 조합을 재현할 만큼 충분히 크게. */
+    private static final int GUARD_ITERATIONS = 30;
+
     @Autowired
     private SlipPublishOutboxProcessor processor;
 
@@ -361,6 +364,86 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.PENDING);
     }
 
+    @Test
+    @DisplayName("원자 소유권 가드: 동일 PROCESSING row 에 commitSuccess/handleRetry 동시 실행 시 clobber 없이 결정적 종결")
+    void concurrentCommitAndRetry_atomicOwnershipGuard_noClobber() throws Exception {
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenReturn(PublishResult.published(STUB_SLIP_NO));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            for (int i = 0; i < GUARD_ITERATIONS; i++) {
+                TestFixture fixture = seedProcessingOutbox();
+                UUID outboxId = fixture.outboxId();
+                UUID orderId = fixture.orderId();
+                // 실 slip 번호는 주문마다 고유(ux_partner_orders_slip_no_active) → 반복별 고유 slipNo 사용.
+                String iterationSlipNo = STUB_SLIP_NO + "-" + i;
+
+                // 두 결과 tx 를 최대한 동시에 시작시켜 lease overlap(A=성공, B=stale 실패)을 재현한다.
+                CountDownLatch start = new CountDownLatch(1);
+                Future<?> commit = executor.submit(() -> {
+                    start.await(10, TimeUnit.SECONDS);
+                    resultWriter.commitSuccess(outboxId, PublishResult.published(iterationSlipNo));
+                    return null;
+                });
+                Future<?> retry = executor.submit(() -> {
+                    start.await(10, TimeUnit.SECONDS);
+                    resultWriter.handleRetry(outboxId, ErrorCode.INTERNAL_ERROR, "동시성 retry");
+                    return null;
+                });
+                start.countDown();
+                commit.get(10, TimeUnit.SECONDS);
+                retry.get(10, TimeUnit.SECONDS);
+
+                SlipPublishOutbox outbox = reloadOutbox(outboxId);
+                PartnerOrder order = reloadOrder(orderId);
+                boolean publishedHistory = reloadHistory(orderId).stream()
+                        .anyMatch(item -> item.getEventType() == HistoryEventType.SLIP_PUBLISHED);
+
+                // 먼저 비관 락을 획득한 한쪽 전이만 적용 → 최종 status 는 COMMITTED 또는 PENDING 으로 결정적.
+                assertThat(outbox.getStatus())
+                        .as("iteration %s 최종 status", i)
+                        .isIn(OutboxStatus.COMMITTED, OutboxStatus.PENDING);
+
+                if (outbox.getStatus() == OutboxStatus.COMMITTED) {
+                    // commitSuccess 승리 → handleRetry 는 COMMITTED 를 보고 skip (발행 부작용 유지·attempt 불변).
+                    assertThat(order.getSlipPublishStatus()).isEqualTo(SlipPublishStatus.PUBLISHED);
+                    assertThat(publishedHistory).isTrue();
+                    assertThat(outbox.getAttemptCount()).isEqualTo(1);
+                } else {
+                    // handleRetry 승리 → commitSuccess 는 PENDING 을 보고 skip (발행 부작용 미기록·attempt++).
+                    assertThat(order.getSlipPublishStatus()).isNotEqualTo(SlipPublishStatus.PUBLISHED);
+                    assertThat(publishedHistory).isFalse();
+                    assertThat(outbox.getAttemptCount()).isEqualTo(2);
+                }
+
+                // 핵심 clobber 불변식: 발행 성공 부작용이 남아있는데 outbox 가 PENDING(재발행 예약)이면 안 된다.
+                // findWithLockById 를 무락 findById 로 되돌리면 두 tx 가 stale PROCESSING 을 읽어
+                // (order PUBLISHED + outbox PENDING) 조합이 발생 → 이 단언이 RED.
+                assertThat(publishedHistory && outbox.getStatus() == OutboxStatus.PENDING)
+                        .as("iteration %s: COMMITTED 결과가 PENDING 으로 뒤집히는 clobber 여부", i)
+                        .isFalse();
+            }
+        } finally {
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    @Test
+    @DisplayName("requeue attemptCount 불변: 발행 성공 후 결과 tx 실패 requeue 는 attemptCount 를 증가시키지 않는다")
+    void requeueAfterResultFailure_doesNotInflateAttemptCount() {
+        TestFixture fixture = seedProcessingOutbox();   // PROCESSING, attemptCount=1
+
+        resultWriter.requeueAfterResultFailure(fixture.outboxId(), "history save injected failure");
+
+        SlipPublishOutbox reloaded = reloadOutbox(fixture.outboxId());
+        assertThat(reloaded.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        // markRequeue → attemptCount 불변(=1). markRetry 를 쓰면 2 로 증가하여 RED.
+        assertThat(reloaded.getAttemptCount()).isEqualTo(1);
+        assertThat(reloaded.getNextAttemptAt()).isAfter(LocalDateTime.now());
+        assertThat(reloaded.getLastError()).contains("history save injected failure");
+    }
+
     private TestFixture seedReadyOutbox() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         PartnerOrder order = orderRepository.save(PartnerOrder.create(
@@ -377,6 +460,14 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         jdbcTemplate.update("UPDATE slip_publish_outbox SET next_attempt_at = ? WHERE id = ?",
                 LocalDateTime.now().minusSeconds(1), outbox.getId());
         return new TestFixture(order.getId(), outbox.getId(), outbox);
+    }
+
+    /** PROCESSING 상태로 seed — 결과 writer 소유권/동시성 가드 테스트용 (attemptCount=1 유지). */
+    private TestFixture seedProcessingOutbox() {
+        TestFixture fixture = seedReadyOutbox();
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET status = 'PROCESSING' WHERE id = ?",
+                fixture.outboxId());
+        return fixture;
     }
 
     private SlipPublishOutbox reloadOutbox(UUID id) {

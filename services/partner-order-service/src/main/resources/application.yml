@@ -93,7 +93,9 @@ samhan:
   outbox:
     cron: "0 */5 * * * *"
     max-retry-hours: 24
-    lease-seconds: 60
+    # lease/batch 불변식: lease-seconds >= batch-size * 7(perRow connect2s+read5s). 10*7=70 < 120.
+    lease-seconds: 120
+    batch-size: 10
   partner-order:
     vendor:
       # PR-F2 + SP-04 재검증 — 종합견적서/주문서 Google Sheet 원본 tab modelCode → 단가 lookup.

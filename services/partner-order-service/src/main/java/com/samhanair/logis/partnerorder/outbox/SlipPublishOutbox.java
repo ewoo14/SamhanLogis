@@ -17,8 +17,14 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * Outbox row — slip-service 발행 5xx 시 INSERT (PENDING). scheduler 가 5분 마다 picks 후
- * 재시도. 성공 시 COMMITTED, max-retry-hours (기본 24h) 초과 시 FAILED.
+ * Outbox row — slip-service 발행 5xx 시 INSERT (PENDING). scheduler 가 5분 마다 claim 후
+ * 재시도. 성공 시 COMMITTED, 복구 불가 4xx(INVALID_INPUT/CONFLICT) 또는 max-retry-hours (기본 24h)
+ * 초과 시 FAILED.
+ *
+ * <p>claim 은 네이티브 {@code UPDATE ... RETURNING}(FOR UPDATE SKIP LOCKED)으로 PENDING 또는 lease
+ * ({@code samhan.outbox.lease-seconds}) 만료 PROCESSING 을 PROCESSING 으로 원자 전이하며, PROCESSING 은
+ * DB 에 영속된다. HTTP 발행은 claim/결과 tx 밖에서 수행하고, 결과 tx 는 row 를 비관 락으로 재검해
+ * 소유권을 확정한다(lease overlap clobber 차단).
  *
  * <p>설계서 §6 — at-least-once 보장 + Idempotency-Key 로 slip-service 가 중복 발행 차단 (동일 키+본문 재시도 시 200 replay).
  *
@@ -105,22 +111,6 @@ public class SlipPublishOutbox extends BaseEntity {
         return new SlipPublishOutbox(partnerOrderId, idempotencyKey, requestPayload);
     }
 
-    /**
-     * 레거시/도메인 테스트용 PROCESSING 전이.
-     *
-     * <p>R2부터 정상 claim은 네이티브 {@code UPDATE ... RETURNING}이 담당하므로 이 메서드는
-     * 정상 scheduler 경로에서 호출되지 않는다. stale PROCESSING reclaim도 같은 native claim이
-     * 직접 수행한다. 따라서 #725의 PENDING sentinel은 정상 경로의 가드가 아니며, 결과 트랜잭션은
-     * 재조회한 현재 상태가 PROCESSING인지로 소유권을 재검증한다. 메서드는 호환성과 도메인 단위
-     * 테스트를 위해 보존한다.
-     */
-    public void markProcessing() {
-        if (this.status != OutboxStatus.PENDING && this.status != OutboxStatus.PROCESSING) {
-            throw new IllegalStateException("PENDING 또는 PROCESSING 상태에서만 claim 전이 가능: 현재=" + this.status);
-        }
-        this.status = OutboxStatus.PROCESSING;
-    }
-
     /** slip-service 200 replay/201 신규 → COMMITTED 종결. */
     public void markCommitted() {
         this.status = OutboxStatus.COMMITTED;
@@ -131,6 +121,20 @@ public class SlipPublishOutbox extends BaseEntity {
     public void markRetry(String error, LocalDateTime nextAttemptAt) {
         this.status = OutboxStatus.PENDING;
         this.attemptCount += 1;
+        this.lastAttemptedAt = LocalDateTime.now();
+        this.nextAttemptAt = nextAttemptAt;
+        this.lastError = error;
+    }
+
+    /**
+     * 발행 성공 후 결과 tx 실패로 인한 재큐잉 — PENDING 복귀하되 attemptCount 는 증가시키지 않는다.
+     *
+     * <p>발행(HTTP) 자체는 성공했으므로 결과 영속화 재시도를 발행 재시도로 오분류하면 안 된다.
+     * {@code markRetry}(attemptCount++)를 쓰면 결과 저장이 반복 실패할 때 attemptCount 가 부풀려져
+     * max-retry-hours 판정이 왜곡되므로, 재시도 카운트를 보존한 채 next-attempt 만 갱신한다.
+     */
+    public void markRequeue(String error, LocalDateTime nextAttemptAt) {
+        this.status = OutboxStatus.PENDING;
         this.lastAttemptedAt = LocalDateTime.now();
         this.nextAttemptAt = nextAttemptAt;
         this.lastError = error;
