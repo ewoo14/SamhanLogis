@@ -54,6 +54,7 @@ describe('codef API BC3 계약', () => {
       cardRefs: ['card-1'],
       loanRefs: [],
       defaultImportType: 'ALL',
+      scopeMode: 'SELECTED',
     }
     vi.mocked(apiClient.put).mockResolvedValueOnce({ data: { data: scope } })
     vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: scope } })

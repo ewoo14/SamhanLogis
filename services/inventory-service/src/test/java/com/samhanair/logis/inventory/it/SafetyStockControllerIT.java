@@ -109,6 +109,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
         body.put("warehouseId", hqWarehouseId.toString());
         body.put("threshold", 50);
         body.put("note", "HQ 안전재고 50개");
+        body.put("scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -123,10 +124,44 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("안전재고 — scopeMode 누락은 400으로 차단")
+    void setSafetyStock_withoutScopeMode_returns400() throws Exception {
+        mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"warehouseId\":\"" + hqWarehouseId + "\",\"threshold\":50}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("안전재고 — SELECTED 창고 미선택은 400으로 차단")
+    void setSafetyStock_selectedWithoutWarehouse_returns400() throws Exception {
+        mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scopeMode\":\"SELECTED\",\"threshold\":50}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("안전재고 — ALL 창고에 warehouseId를 함께 보내면 400으로 차단")
+    void setSafetyStock_allWithWarehouse_returns400() throws Exception {
+        mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scopeMode\":\"ALL\",\"warehouseId\":\"" + hqWarehouseId + "\",\"threshold\":50}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("임계값 설정: SALES 권한으로 설정 시도 → 403")
     void setSafetyStock_salesRole_returns403() throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("threshold", 50);
+        body.put("scopeMode", "ALL");
 
         Mockito.when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class),
@@ -147,6 +182,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
     void setSafetyStock_negativeThreshold_returns400() throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("threshold", -1);
+        body.put("scopeMode", "ALL");
 
         mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -161,6 +197,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
     void setSafetyStock_nullThreshold_returns400() throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("warehouseId", hqWarehouseId.toString());
+        body.put("scopeMode", "SELECTED");
         // threshold 누락
 
         mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
@@ -177,6 +214,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("threshold", 200);
         body.put("note", "전체 창고 합산 기준");
+        body.put("scopeMode", "ALL");
         // warehouseId 누락 = null
 
         mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
@@ -222,6 +260,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("warehouseId", hqWarehouseId.toString());
         body.put("threshold", 50);
+        body.put("scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -257,6 +296,7 @@ class SafetyStockControllerIT extends AbstractPostgresIT {
         Map<String, Object> configBody = new HashMap<>();
         configBody.put("warehouseId", hqWarehouseId.toString());
         configBody.put("threshold", 10);
+        configBody.put("scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/{productId}/safety-stock", productId)
                         .header("X-User-Id", UUID.randomUUID().toString())

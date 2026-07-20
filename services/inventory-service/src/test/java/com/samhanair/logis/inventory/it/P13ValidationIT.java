@@ -228,7 +228,7 @@ class P13ValidationIT extends AbstractPostgresIT {
     @Test
     void setSafetyStock_salesRole_returns403() throws Exception {
         Map<String, Object> req = Map.of("warehouseId", WH_HQ_001.toString(),
-                "threshold", 50);
+                "threshold", 50, "scopeMode", "SELECTED");
 
         Mockito.when(dynamicPermissionClient.check(
                         Mockito.any(UUID.class),
@@ -256,6 +256,7 @@ class P13ValidationIT extends AbstractPostgresIT {
         req.put("warehouseId", WH_HQ_001.toString());
         req.put("threshold", 20);
         req.put("note", "P13 IT 신규 설정 검증");
+        req.put("scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/" + newProductId + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -279,7 +280,8 @@ class P13ValidationIT extends AbstractPostgresIT {
         Map<String, Object> req = Map.of(
                 "warehouseId", WH_HQ_001.toString(),
                 "threshold", 30,
-                "note", "갱신 검증");
+                "note", "갱신 검증",
+                "scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/" + PROD_002 + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -298,7 +300,8 @@ class P13ValidationIT extends AbstractPostgresIT {
     void setSafetyStock_negativeThreshold_returns400() throws Exception {
         Map<String, Object> req = Map.of(
                 "warehouseId", WH_HQ_001.toString(),
-                "threshold", -1);
+                "threshold", -1,
+                "scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/" + PROD_001 + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -316,7 +319,8 @@ class P13ValidationIT extends AbstractPostgresIT {
         UUID newProductId = UUID.randomUUID();
         Map<String, Object> req = Map.of(
                 "warehouseId", WH_VH_001.toString(),
-                "threshold", 0);
+                "threshold", 0,
+                "scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/" + newProductId + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -349,7 +353,8 @@ class P13ValidationIT extends AbstractPostgresIT {
         Map<String, Object> req = Map.of(
                 "warehouseId", WH_HQ_001.toString(),
                 "threshold", 5,
-                "note", "P13 알림 반영 검증");
+                "note", "P13 알림 반영 검증",
+                "scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/" + newProductId + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -390,7 +395,8 @@ class P13ValidationIT extends AbstractPostgresIT {
         // 2) CFG-003 (HQ-001+PROD-003, availableQty=27) threshold → 20 (정상으로 전환)
         Map<String, Object> req = Map.of(
                 "warehouseId", WH_HQ_001.toString(),
-                "threshold", 20);
+                "threshold", 20,
+                "scopeMode", "SELECTED");
 
         mockMvc.perform(post("/inventory/products/" + PROD_003 + "/safety-stock")
                         .header("X-User-Id", UUID.randomUUID().toString())

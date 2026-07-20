@@ -8,6 +8,7 @@ import {
   Modal,
   PartnerAutocomplete,
   Spinner,
+  TagChip,
   type DataTableColumn,
   type PartnerOption,
 } from '@samhan/design-system'
@@ -20,6 +21,7 @@ import {
   type DailyClosing,
   type DailyClosingKind,
   type DailyClosingSourceKind,
+  type DailyClosingScopeMode,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
 import {
@@ -153,6 +155,7 @@ export function DailyClosingPage() {
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [execDate, setExecDate] = useState(today())
   const [execPartner, setExecPartner] = useState<PartnerOption | null>(null)
+  const [execScopeMode, setExecScopeMode] = useState<DailyClosingScopeMode | null>(null)
   const [execPartnerCommitted, setExecPartnerCommitted] = useState(true)
   /**
    * [#825 재수렴 CM-b·#4] 실행 거래처 입력의 미확정 draft 가드.
@@ -202,6 +205,7 @@ export function DailyClosingPage() {
       createDailyClosing({
         closingDate: execDate,
         partnerCode: execPartner?.partnerCode || undefined,
+        scopeMode: execScopeMode ?? 'ALL',
         description: execDescription.trim() || undefined,
         closingKind: execKind,
         sourceKind: compatibleSource(execKind, execSourceKind),
@@ -228,6 +232,10 @@ export function DailyClosingPage() {
    * 정합이 회복되어 가드에 걸리지 않는다.
    */
   const handleExecuteClosing = () => {
+    if (execScopeMode === null) {
+      setExecPartnerDraftError("전체 마감하려면 '전체' 칩을 선택하거나 거래처를 선택하세요.")
+      return
+    }
     const typedDraft = (execPartnerInputRef.current?.value ?? '').trim()
     const confirmedLabel = (execPartner?.name ?? '').trim()
     // 이름 문자열은 동명이 가능하므로 업무키를 기준으로 계산된 출력 계약만 신뢰한다.
@@ -602,6 +610,7 @@ export function DailyClosingPage() {
                 value={execPartner}
                 onChange={(option) => {
                   setExecPartner(option)
+                  setExecScopeMode(option ? 'SELECTED' : null)
                   setExecPartnerCommitted(true)
                   // [#825 재수렴 CM-b] 선택 확정/해제 즉시 draft 안내 소거 — 화면=상태 정합 회복.
                   setExecPartnerDraftError('')
@@ -614,7 +623,44 @@ export function DailyClosingPage() {
                 ariaLabel="거래처"
                 placeholder="거래처명 또는 코드 선택"
                 inputTestId="daily-closing-exec-partner"
+                disabled={execScopeMode === 'ALL'}
               />
+            </div>
+            <div
+              role="group"
+              aria-label="일마감 거래처 범위"
+              data-testid="daily-closing-scope-chips"
+              style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}
+            >
+              <TagChip
+                label="범위"
+                value="전체"
+                removeLabel="전체 범위"
+                onClick={() => {
+                  setExecScopeMode('ALL')
+                  setExecPartner(null)
+                  setExecPartnerCommitted(true)
+                  setExecPartnerDraftError('')
+                }}
+                onRemove={execScopeMode === 'ALL' ? () => setExecScopeMode(null) : undefined}
+                data-testid="daily-closing-all-chip"
+                role="button"
+                tabIndex={0}
+              />
+              {execScopeMode === 'SELECTED' && execPartner ? (
+                <TagChip
+                  label="거래처"
+                  value={execPartner.name}
+                  removeLabel={execPartner.name}
+                  onRemove={() => {
+                    setExecPartner(null)
+                    setExecScopeMode(null)
+                    setExecPartnerCommitted(true)
+                    setExecPartnerDraftError('')
+                  }}
+                  data-testid="daily-closing-selected-chip"
+                />
+              ) : null}
             </div>
             {execPartner ? (
               <Button
@@ -625,6 +671,7 @@ export function DailyClosingPage() {
                 data-testid="daily-closing-exec-partner-clear"
                 onClick={() => {
                   setExecPartner(null)
+                  setExecScopeMode(null)
                   setExecPartnerCommitted(true)
                   setExecPartnerDraftError('')
                 }}
@@ -645,11 +692,20 @@ export function DailyClosingPage() {
             variant="primary"
             data-testid="daily-closing-exec-button"
             onClick={handleExecuteClosing}
-            disabled={!canExecute || closeMutation.isPending || !execDate}
+            disabled={!canExecute || closeMutation.isPending || !execDate || execScopeMode === null}
           >
             {closeMutation.isPending ? '처리 중' : '마감 실행'}
           </Button>
         </div>
+        {execScopeMode === null ? (
+          <p
+            role="alert"
+            data-testid="daily-closing-scope-hint"
+            style={{ margin: '8px 0 0', color: 'var(--state-warning)', fontSize: 12 }}
+          >
+            전체로 처리하려면 '전체' 칩을 선택하세요.
+          </p>
+        ) : null}
         {execPartnerDraftError ? (
           <p
             role="alert"

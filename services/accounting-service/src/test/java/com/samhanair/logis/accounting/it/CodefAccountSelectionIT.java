@@ -135,6 +135,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": [],
@@ -149,6 +150,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s", "%s"],
                   "cardRefs": [],
                   "loanRefs": ["%s"],
@@ -185,6 +187,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             Future<Integer> first = executor.submit(() -> putScopeAfterStart(start, """
                     {
                       "connectedId": "%s",
+                      "scopeMode": "SELECTED",
                       "accountRefs": ["%s"],
                       "cardRefs": [],
                       "loanRefs": [],
@@ -194,6 +197,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             Future<Integer> second = executor.submit(() -> putScopeAfterStart(start, """
                     {
                       "connectedId": "%s",
+                      "scopeMode": "SELECTED",
                       "accountRefs": ["%s"],
                       "cardRefs": ["%s"],
                       "loanRefs": [],
@@ -245,6 +249,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             return saveScope("""
                         {
                           "connectedId": "%s",
+                          "scopeMode": "SELECTED",
                           "accountRefs": ["%s"],
                           "cardRefs": ["%s"],
                           "loanRefs": ["%s"],
@@ -378,6 +383,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": ["%s"],
@@ -409,6 +415,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "ALL",
                   "accountRefs": [],
                   "cardRefs": [],
                   "loanRefs": [],
@@ -462,6 +469,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "ALL",
                   "accountRefs": [],
                   "cardRefs": [],
                   "loanRefs": []

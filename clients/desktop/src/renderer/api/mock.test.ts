@@ -1371,6 +1371,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: ['삼한 정비카드'],
       loanRefs: [],
       defaultImportType: 'ALL',
+      scopeMode: 'SELECTED',
     }
 
     const saved = mockRequest({
@@ -1446,6 +1447,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: string[]
       loanRefs: string[]
       defaultImportType: 'ALL'
+      scopeMode: 'ALL'
     }>
 
     expect(missing.success).toBe(true)
@@ -1455,6 +1457,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: [],
       loanRefs: [],
       defaultImportType: 'ALL',
+      scopeMode: 'ALL',
     })
   })
 
@@ -1469,6 +1472,7 @@ describe('mock CODEF account selection BC3 contract', () => {
         cardRefs: [],
         loanRefs: [],
         defaultImportType: 'ALL',
+        scopeMode: 'ALL',
       },
     })
 

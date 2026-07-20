@@ -74,6 +74,7 @@ public class SafetyStockService {
      */
     @Transactional
     public SafetyStockConfigResponse setSafetyStock(UUID productId, SafetyStockSetRequest request) {
+        validateScope(request.scopeMode(), request.warehouseId());
         productClient.requireExists(productId);
 
         SafetyStockConfig config = safetyStockConfigRepository
@@ -97,6 +98,21 @@ public class SafetyStockService {
         config.updateNote(request.note());
 
         return SafetyStockConfigResponse.from(config);
+    }
+
+    /** 새 안전재고 요청의 명시적 창고 범위와 실제 선택값을 이중 검증한다. */
+    private static void validateScope(String scopeMode, UUID warehouseId) {
+        if (!"ALL".equals(scopeMode) && !"SELECTED".equals(scopeMode)) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "scopeMode 는 ALL 또는 SELECTED 이어야 합니다");
+        }
+        if (("ALL".equals(scopeMode) && warehouseId != null)
+                || ("SELECTED".equals(scopeMode) && warehouseId == null)) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "scopeMode 와 창고 선택값이 일치하지 않습니다");
+        }
     }
 
     /**

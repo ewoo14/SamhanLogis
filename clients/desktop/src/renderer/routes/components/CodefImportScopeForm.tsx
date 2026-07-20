@@ -19,6 +19,7 @@ import {
   type CodefCardItem,
   type CodefImportResponse,
   type CodefImportScope,
+  type CodefScopeMode,
   type CodefImportType,
   type CodefLoanItem,
   type CodefScopedImportRequest,
@@ -149,6 +150,7 @@ export function CodefImportScopeForm({
   const [to, setTo] = useState(initialTo)
   const [type, setType] = useState<CodefImportType>('ALL')
   const [selection, setSelection] = useState<SelectionState>(EMPTY_SELECTION)
+  const [scopeMode, setScopeMode] = useState<CodefScopeMode | null>(null)
   const [restoredScope, setRestoredScope] = useState<CodefImportScope | null>(null)
   const [restoredApplied, setRestoredApplied] = useState(false)
   const [selectionDirty, setSelectionDirty] = useState(false)
@@ -189,11 +191,13 @@ export function CodefImportScopeForm({
     if (isEmptySelection(loadedScopeSelection)) {
       setRestoredScope(null)
       setSelection(EMPTY_SELECTION)
+      setScopeMode(null)
       setSelectionDirty(false)
       setRestoredApplied(true)
       return
     }
     setRestoredScope(scopeQuery.data)
+    setScopeMode('SELECTED')
     setType(scopeQuery.data.defaultImportType)
     setSelection(loadedScopeSelection)
     setSelectionDirty(false)
@@ -248,10 +252,25 @@ export function CodefImportScopeForm({
   }, [accounts, cards, loans])
 
   function setCategoryRefs(category: CodefScopeCategory, refs: string[]) {
-    setSelection((prev) => ({
-      ...prev,
+    const nextSelection = {
+      ...selection,
       [refsKey(category)]: normalizeRefs(refs),
-    }))
+    }
+    setSelection(nextSelection)
+    const hasSelection = selectedCount(nextSelection) > 0
+    setScopeMode(hasSelection ? 'SELECTED' : null)
+    setSelectionDirty(true)
+  }
+
+  function selectAllScope() {
+    setSelection(EMPTY_SELECTION)
+    setScopeMode('ALL')
+    setSelectionDirty(true)
+  }
+
+  function clearScope() {
+    setSelection(EMPTY_SELECTION)
+    setScopeMode(null)
     setSelectionDirty(true)
   }
 
@@ -285,10 +304,12 @@ export function CodefImportScopeForm({
   }
 
   function buildScopePayload(): CodefImportScope {
+    const refs = scopeMode === 'SELECTED' ? effectiveSelection(false) : EMPTY_SELECTION
     return {
       connectedId: DEFAULT_CONNECTED_ID,
-      ...effectiveSelection(true),
+      ...refs,
       defaultImportType: type,
+      scopeMode: scopeMode ?? 'ALL',
     }
   }
 
@@ -332,6 +353,7 @@ export function CodefImportScopeForm({
         cardRefs: normalizeRefs(saved.cardRefs),
         loanRefs: normalizeRefs(saved.loanRefs),
       })
+      setScopeMode(scopeMode)
       setType(saved.defaultImportType)
       setSelectionDirty(false)
       onToast({ type: 'success', message: '가져오기 선택을 저장했습니다.' })
@@ -366,8 +388,8 @@ export function CodefImportScopeForm({
 
   const datesValid = Boolean(from) && Boolean(to) && from <= to
   const listsLoading = visibleCategories.some((category) => category.isLoading)
-  const canSave = canUpdate && !listsLoading && !saveMutation.isPending
-  const canImport = canCreate && datesValid && !importMutation.isPending
+  const canSave = canUpdate && scopeMode !== null && !listsLoading && !saveMutation.isPending
+  const canImport = canCreate && scopeMode !== null && datesValid && !importMutation.isPending
   const scopeMissing = Boolean(scopeQuery.data && isEmptyScope(scopeQuery.data))
     || (
       scopeQuery.isError
@@ -474,7 +496,7 @@ export function CodefImportScopeForm({
                 <input
                   type="checkbox"
                   checked={allChecked}
-                  disabled={category.items.length === 0}
+                  disabled={scopeMode === 'ALL' || category.items.length === 0}
                   onChange={(event) => setCategoryRefs(category.key, event.target.checked ? allRefs : [])}
                   data-testid={`${category.testId}-select-all`}
                 />
@@ -494,6 +516,7 @@ export function CodefImportScopeForm({
                     <input
                       type="checkbox"
                       checked={selectedRefs.includes(item.ref)}
+                      disabled={scopeMode === 'ALL'}
                       onChange={(event) => toggleRef(category.key, item.ref, event.target.checked)}
                       data-testid={`${category.testId}-${index}`}
                     />
@@ -507,9 +530,21 @@ export function CodefImportScopeForm({
       </div>
 
       <div className="codef-selected-chips" aria-label="선택 항목">
-        {selectedCount(effectiveSelection(false)) === 0 ? (
-          <span className="codef-import-hint">선택 항목이 없으면 현재 범위 전체를 가져옵니다.</span>
-        ) : (
+        <TagChip
+          label="범위"
+          value="전체"
+          removeLabel="전체 범위"
+          onClick={selectAllScope}
+          onRemove={scopeMode === 'ALL' ? clearScope : undefined}
+          data-testid="codef-all-scope-chip"
+          role="button"
+          tabIndex={0}
+        />
+        {scopeMode === null ? (
+          <span className="codef-import-hint" data-testid="codef-scope-hint">
+            전체로 처리하려면 '전체' 칩을 선택하세요.
+          </span>
+        ) : scopeMode === 'SELECTED' ? (
           ([
             ...selection.accountRefs.map((ref) => ({ ref, category: 'BANK' as const })),
             ...selection.cardRefs.map((ref) => ({ ref, category: 'CARD' as const })),
@@ -531,7 +566,7 @@ export function CodefImportScopeForm({
                 />
               )
             })
-        )}
+        ) : null}
       </div>
 
       {result ? <CodefImportResultSummary result={result} /> : null}

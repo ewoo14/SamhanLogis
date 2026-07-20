@@ -28,15 +28,18 @@
  * - header-safety-stock-count-chip 헤더 count chip (AppLayout 에 위치)
  */
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
   Button,
   UrgencyBadge,
   calcUrgencyLevel,
+  Input,
+  TagChip,
 } from '@samhan/design-system'
 import {
   listSafetyStockAlerts,
+  setSafetyStock,
   type SafetyStockAlert,
 } from '../api/safetyStockApi'
 import { listWarehouses, type Warehouse } from '../api/inventory'
@@ -57,6 +60,11 @@ export function SafetyStockAlertsPage() {
   // 클라이언트 필터 — 창고 + 긴급도
   const [warehouseId, setWarehouseId] = useState('')
   const [urgencyFilter, setUrgencyFilter] = useState('')
+  const [configProductId, setConfigProductId] = useState('')
+  const [configScopeMode, setConfigScopeMode] = useState<'ALL' | 'SELECTED' | null>(null)
+  const [configWarehouseId, setConfigWarehouseId] = useState('')
+  const [configThreshold, setConfigThreshold] = useState('')
+  const queryClient = useQueryClient()
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -82,6 +90,38 @@ export function SafetyStockAlertsPage() {
     }
     return all
   }, [alertsQuery.data, warehouseId, urgencyFilter])
+
+  const products = useMemo(() => {
+    const seen = new Set<string>()
+    return (Array.isArray(alertsQuery.data) ? alertsQuery.data : []).filter((alert) => {
+      if (seen.has(alert.productId)) return false
+      seen.add(alert.productId)
+      return true
+    })
+  }, [alertsQuery.data])
+
+  const configMutation = useMutation({
+    mutationFn: () => setSafetyStock(configProductId, {
+      warehouseId: configScopeMode === 'SELECTED' ? configWarehouseId : null,
+      threshold: Number(configThreshold),
+      scopeMode: configScopeMode ?? 'ALL',
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['inventory', 'safety-stock-alerts'] })
+    },
+  })
+
+  const configReady = Boolean(configProductId)
+    && configScopeMode !== null
+    && (configScopeMode === 'ALL' || Boolean(configWarehouseId))
+    && configThreshold.trim() !== ''
+    && Number.isInteger(Number(configThreshold))
+    && Number(configThreshold) >= 0
+
+  const selectAllConfigScope = () => {
+    setConfigScopeMode('ALL')
+    setConfigWarehouseId('')
+  }
 
   return (
     <div data-testid="safety-stock-alerts-page">
@@ -169,6 +209,96 @@ export function SafetyStockAlertsPage() {
           </Button>
         </div>
       </div>
+
+      <section
+        aria-labelledby="safety-stock-config-title"
+        data-testid="safety-stock-config"
+        style={{
+          marginBottom: 16,
+          padding: 16,
+          border: '1px solid var(--color-neutral-200)',
+          borderRadius: 8,
+          background: 'var(--color-neutral-0)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <h2 id="safety-stock-config-title" style={{ margin: 0, fontSize: 16 }}>안전재고 설정</h2>
+          <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>
+            제품과 범위를 명시한 뒤 저장하세요.
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label>
+            제품
+            <select
+              value={configProductId}
+              onChange={(event) => setConfigProductId(event.target.value)}
+              data-testid="safety-stock-config-product"
+              style={{ marginLeft: 6, padding: '6px 8px' }}
+            >
+              <option value="">제품 선택</option>
+              {products.map((product) => (
+                <option key={product.productId} value={product.productId}>
+                  {product.productCode ?? '제품 코드 미확인'} · {product.productName ?? '제품명 미확인'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <TagChip
+            label="범위"
+            value="전체"
+            removeLabel="전체 창고 범위"
+            onClick={selectAllConfigScope}
+            onRemove={configScopeMode === 'ALL' ? () => setConfigScopeMode(null) : undefined}
+            data-testid="safety-stock-all-chip"
+            role="button"
+            tabIndex={0}
+          />
+          <select
+            value={configWarehouseId}
+            disabled={configScopeMode === 'ALL'}
+            onChange={(event) => {
+              setConfigWarehouseId(event.target.value)
+              setConfigScopeMode(event.target.value ? 'SELECTED' : null)
+            }}
+            data-testid="safety-stock-config-warehouse"
+            aria-label="안전재고 대상 창고"
+            style={{ padding: '6px 8px' }}
+          >
+            <option value="">창고 선택</option>
+            {(Array.isArray(warehousesQuery.data) ? warehousesQuery.data : []).map((warehouse: Warehouse) => (
+              <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+            ))}
+          </select>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={configThreshold}
+            onChange={(event) => setConfigThreshold(event.target.value)}
+            placeholder="임계값"
+            aria-label="안전재고 임계값"
+            data-testid="safety-stock-config-threshold"
+          />
+          <Button
+            variant="primary"
+            disabled={!configReady || configMutation.isPending}
+            onClick={() => configMutation.mutate()}
+            data-testid="safety-stock-config-save"
+          >
+            {configMutation.isPending ? '저장 중' : '저장'}
+          </Button>
+        </div>
+        {configScopeMode === null ? (
+          <p
+            role="alert"
+            data-testid="safety-stock-scope-hint"
+            style={{ margin: '8px 0 0', color: 'var(--color-neutral-500)', fontSize: 12 }}
+          >
+            전체로 처리하려면 '전체' 칩을 선택하세요.
+          </p>
+        ) : null}
+      </section>
 
       {/* 알림 요약 배너 */}
       {(Array.isArray(alertsQuery.data) ? alertsQuery.data : []).length > 0 ? (

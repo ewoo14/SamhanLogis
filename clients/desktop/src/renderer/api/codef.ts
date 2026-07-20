@@ -2,6 +2,7 @@ import { apiClient, type ApiEnvelope } from './client'
 
 export type CodefImportType = 'BANK' | 'CARD' | 'LOAN' | 'ALL'
 export type CodefSubmitMethod = 'DRY_RUN' | 'CODEF'
+export type CodefScopeMode = 'ALL' | 'SELECTED'
 
 export interface CodefBankAccountItem {
   ref: string
@@ -30,6 +31,7 @@ export interface CodefImportScope {
   cardRefs: string[]
   loanRefs: string[]
   defaultImportType: CodefImportType
+  scopeMode: CodefScopeMode
 }
 
 export interface CodefScopedImportRequest {

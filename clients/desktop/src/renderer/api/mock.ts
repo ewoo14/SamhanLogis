@@ -6176,10 +6176,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       cardRefs?: string[]
       loanRefs?: string[]
       defaultImportType?: 'BANK' | 'CARD' | 'LOAN' | 'ALL'
+      scopeMode?: 'ALL' | 'SELECTED'
     }
     const connectedId = String(body.connectedId ?? '').trim()
     if (!connectedId) {
       return mockError(400, 'INVALID_INPUT', '연결 식별자는 필수입니다.')
+    }
+    const hasSelection = [body.accountRefs, body.cardRefs, body.loanRefs]
+      .some((refs) => Array.isArray(refs) && refs.length > 0)
+    if (body.scopeMode !== 'ALL' && body.scopeMode !== 'SELECTED') {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 는 ALL 또는 SELECTED 이어야 합니다')
+    }
+    if ((body.scopeMode === 'ALL' && hasSelection) || (body.scopeMode === 'SELECTED' && !hasSelection)) {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 와 선택 목록이 일치하지 않습니다')
     }
     const saved = {
       connectedId,
@@ -6187,6 +6196,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       cardRefs: normalizeMockRefs(body.cardRefs),
       loanRefs: normalizeMockRefs(body.loanRefs),
       defaultImportType: body.defaultImportType ?? 'ALL',
+      scopeMode: body.scopeMode,
     }
     MOCK_CODEF_IMPORT_SCOPES[connectedId] = saved
     return envelope(saved)
@@ -6202,6 +6212,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         cardRefs: [],
         loanRefs: [],
         defaultImportType: 'ALL' as const,
+        scopeMode: 'ALL' as const,
       })
     }
     return envelope(saved)
@@ -8944,6 +8955,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
   if (method === 'POST' && url.endsWith('/accounting/daily-closings')) {
     const req = parseMockBody(config) as Record<string, unknown>
+    const hasPartner = typeof req['partnerCode'] === 'string' && String(req['partnerCode']).trim() !== ''
+    if (req['scopeMode'] !== 'ALL' && req['scopeMode'] !== 'SELECTED') {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 는 ALL 또는 SELECTED 이어야 합니다')
+    }
+    if ((req['scopeMode'] === 'ALL' && hasPartner) || (req['scopeMode'] === 'SELECTED' && !hasPartner)) {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 와 거래처 선택값이 일치하지 않습니다')
+    }
     return envelope({
       ...mockDailyClosingRow,
       closingKind: req['closingKind'] === 'PURCHASE' ? 'PURCHASE' : mockDailyClosingRow.closingKind,
@@ -12448,6 +12466,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       warehouseId?: string | null
       threshold?: number
       note?: string | null
+      scopeMode?: 'ALL' | 'SELECTED'
+    }
+    const hasWarehouse = typeof body.warehouseId === 'string' && body.warehouseId.trim() !== ''
+    if (body.scopeMode !== 'ALL' && body.scopeMode !== 'SELECTED') {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 는 ALL 또는 SELECTED 이어야 합니다')
+    }
+    if ((body.scopeMode === 'ALL' && hasWarehouse) || (body.scopeMode === 'SELECTED' && !hasWarehouse)) {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 와 창고 선택값이 일치하지 않습니다')
     }
     const segments = url.split('/')
     // 마지막에서 두 번째 segment 가 productId
@@ -16711,6 +16737,7 @@ type MockCodefScope = {
   cardRefs: string[]
   loanRefs: string[]
   defaultImportType: MockCodefImportType
+  scopeMode: 'ALL' | 'SELECTED'
 }
 
 type MockCodefRegisteredInstitution = {

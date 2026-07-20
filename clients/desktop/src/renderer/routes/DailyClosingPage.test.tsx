@@ -428,7 +428,8 @@ describe('DailyClosingPage 일마감 실행 거래처 payload (#825 R1)', () => 
     expect((partnerInput as HTMLInputElement).value).toBe('')
     expect(screen.queryByTestId('daily-closing-exec-partner-clear')).toBeNull()
 
-    // 해제 후 실행 → payload 에 partnerCode 부재 (undefined — 전체 마감)
+    // 해제 후에는 전체 칩을 명시적으로 선택해야 실행할 수 있다.
+    fireEvent.click(screen.getByTestId('daily-closing-all-chip'))
     fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
     await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
     const payload = createDailyClosingMock.mock.calls[0]![0] as { partnerCode?: string }
@@ -481,11 +482,9 @@ describe('DailyClosingPage 일마감 실행 미확정 draft 가드 (#825 재수�
     // 실행 → 차단: createDailyClosing 미호출 + role=alert 안내 표시.
     // [#4] 확정 선택이 없는 변형은 '해제' 버튼 미노출 상태라 목록 선택만 안내하고,
     // "입력을 비운 뒤 실행" 유도 문구(빈 입력=전체 마감 오인 → P1 오범위 유발)는 금지.
-    fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
-    const draftError = await screen.findByTestId('daily-closing-exec-partner-draft-error')
-    expect(draftError.getAttribute('role')).toBe('alert')
-    expect(draftError.textContent).toContain('목록에서 선택한 뒤 다시 실행하세요')
-    expect(draftError.textContent).not.toContain('입력을 비운 뒤')
+    expect(screen.getByTestId('daily-closing-exec-button').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByTestId('daily-closing-scope-hint').textContent)
+      .toContain("'전체' 칩을 선택하세요")
     expect(createDailyClosingMock).not.toHaveBeenCalled()
 
     // 목록에서 선택해 확정 → 안내 즉시 소거(onChange 소거 경로)
@@ -569,9 +568,10 @@ describe('DailyClosingPage 일마감 실행 미확정 draft 가드 (#825 재수�
     expect(draftError.textContent).not.toContain('입력을 비운 뒤')
     expect(createDailyClosingMock).not.toHaveBeenCalled()
 
-    // '해제' 로 선택을 실제로 지우면 안내 소거 → 재실행은 전체 마감(partnerCode 부재) 통과
+    // '해제' 로 선택을 실제로 지우면 전체 칩을 명시적으로 선택해야 재실행할 수 있다.
     fireEvent.click(screen.getByTestId('daily-closing-exec-partner-clear'))
     expect(screen.queryByTestId('daily-closing-exec-partner-draft-error')).toBeNull()
+    fireEvent.click(screen.getByTestId('daily-closing-all-chip'))
     fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
     await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
     const payload = createDailyClosingMock.mock.calls[0]![0] as { partnerCode?: string }

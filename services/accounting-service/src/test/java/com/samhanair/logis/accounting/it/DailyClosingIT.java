@@ -138,6 +138,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     void testCreateDailyClosingForDate() throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-10");
+        body.put("scopeMode", "ALL");
 
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -150,6 +151,39 @@ class DailyClosingIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.lockedBy").value(ACCOUNTANT_ID));
     }
 
+    @Test
+    @DisplayName("일마감 — scopeMode 누락은 400으로 차단")
+    void testCreateDailyClosingWithoutScopeModeReturns400() throws Exception {
+        mockMvc.perform(post("/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"closingDate\":\"2026-05-09\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("일마감 — SELECTED 거래처 미선택은 400으로 차단")
+    void testCreateDailyClosingSelectedWithoutPartnerReturns400() throws Exception {
+        mockMvc.perform(post("/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"closingDate\":\"2026-05-08\",\"scopeMode\":\"SELECTED\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("일마감 — ALL 거래처에 partnerCode를 함께 보내면 400으로 차단")
+    void testCreateDailyClosingAllWithPartnerReturns400() throws Exception {
+        mockMvc.perform(post("/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"closingDate\":\"2026-05-07\",\"scopeMode\":\"ALL\",\"partnerCode\":\"PC001\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
     // ── 2. 동일 날짜 재마감 → 409 ────────────────────────────────────────────
 
     @Test
@@ -157,6 +191,7 @@ class DailyClosingIT extends AbstractPostgresIT {
     void testCreateDailyClosingDuplicate() throws Exception {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-11");
+        body.put("scopeMode", "ALL");
 
         // 첫 번째 마감
         mockMvc.perform(post("/accounting/daily-closings")
@@ -186,6 +221,7 @@ class DailyClosingIT extends AbstractPostgresIT {
 
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-12");
+        body.put("scopeMode", "ALL");
 
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", SALES_ID)
@@ -203,6 +239,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // 마감 1건 생성
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-13");
+        body.put("scopeMode", "ALL");
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
@@ -229,6 +266,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-14");
         body.put("partnerCode", PARTNER_CODE);
+        body.put("scopeMode", "SELECTED");
 
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -249,6 +287,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-15");
         body.put("partnerCode", "NOTEXIST");
+        body.put("scopeMode", "SELECTED");
 
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
@@ -298,6 +337,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // (a) 마감 생성
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", "2026-05-20");
+        body.put("scopeMode", "ALL");
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", ACCOUNTANT_ID)
                         .header("X-User-Role", "ACCOUNTANT")
@@ -330,6 +370,7 @@ class DailyClosingIT extends AbstractPostgresIT {
         // (a) 마감 생성 (잠금됨)
         Map<String, Object> closeBody = new HashMap<>();
         closeBody.put("closingDate", "2026-05-21");
+        closeBody.put("scopeMode", "ALL");
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", MASTER_ID)
                         .header("X-User-Role", "MASTER")

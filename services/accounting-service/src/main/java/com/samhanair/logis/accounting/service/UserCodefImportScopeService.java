@@ -32,11 +32,31 @@ public class UserCodefImportScopeService {
      * @return 저장된 scope 응답
      */
     public CodefImportScopeResponse upsert(UUID userId, CodefImportScopeRequest request) {
+        validateScope(request.scopeMode(), request.accountRefs(), request.cardRefs(), request.loanRefs());
         try {
             return upsertInNewTransaction(userId, request);
         } catch (DataIntegrityViolationException | ConstraintViolationException ex) {
             return upsertInNewTransaction(userId, request);
         }
+    }
+
+    /** 새 CODEF scope 요청의 명시적 범위와 선택 목록을 이중 검증한다. */
+    private static void validateScope(String scopeMode, java.util.List<String> accountRefs,
+                                      java.util.List<String> cardRefs, java.util.List<String> loanRefs) {
+        if (!"ALL".equals(scopeMode) && !"SELECTED".equals(scopeMode)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "scopeMode 는 ALL 또는 SELECTED 이어야 합니다");
+        }
+        boolean hasSelection = hasValues(accountRefs) || hasValues(cardRefs) || hasValues(loanRefs);
+        if (("ALL".equals(scopeMode) && hasSelection)
+                || ("SELECTED".equals(scopeMode) && !hasSelection)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "scopeMode 와 선택 목록이 일치하지 않습니다");
+        }
+    }
+
+    private static boolean hasValues(java.util.List<String> refs) {
+        return refs != null && !refs.isEmpty();
     }
 
     private CodefImportScopeResponse upsertInNewTransaction(UUID userId, CodefImportScopeRequest request) {

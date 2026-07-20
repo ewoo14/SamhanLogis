@@ -60,6 +60,7 @@ import org.springframework.test.web.servlet.MvcResult;
 class CodefImportControllerIT extends AbstractPostgresIT {
 
     private static final String BASE_URL = "/accounting/codef/import";
+    private static final String SCOPE_URL = "/accounting/codef/scopes";
     private static final UUID PARTNER_ID = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     @Autowired private MockMvc mockMvc;
@@ -135,6 +136,104 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                     assertThat(txn.getMatchedPartnerId()).isEqualTo(PARTNER_ID);
                     assertThat(txn.getExternalRef()).doesNotContain("CODEF-");
                 });
+    }
+
+    @Test
+    @DisplayName("CODEF scope — scopeMode 누락은 400으로 차단")
+    void upsertScope_withoutScopeMode_returns400() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "connected-main",
+                                  "accountRefs": [],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "ALL"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("CODEF scope — SELECTED 빈 목록은 400으로 차단")
+    void upsertScope_selectedWithoutRefs_returns400() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "connected-main",
+                                  "scopeMode": "SELECTED",
+                                  "accountRefs": [],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "ALL"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("CODEF scope — ALL에 선택값을 함께 보내면 400으로 차단")
+    void upsertScope_allWithRefs_returns400() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "connected-main",
+                                  "scopeMode": "ALL",
+                                  "accountRefs": ["국민 123-456"],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "ALL"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("CODEF scope — ALL 빈 목록과 SELECTED 목록은 각각 저장 성공")
+    void upsertScope_explicitModes_storeSuccessfully() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "connected-all",
+                                  "scopeMode": "ALL",
+                                  "accountRefs": [],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "ALL"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountRefs").isEmpty());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "connected-selected",
+                                  "scopeMode": "SELECTED",
+                                  "accountRefs": ["국민 123-456"],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "BANK"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountRefs[0]").value("국민 123-456"));
     }
 
     @Test
