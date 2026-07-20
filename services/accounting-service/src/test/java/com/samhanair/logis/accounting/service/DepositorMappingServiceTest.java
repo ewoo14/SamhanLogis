@@ -234,6 +234,10 @@ class DepositorMappingServiceTest {
         UUID entityId = UUID.randomUUID();
         UUID renamedEntityId = UUID.randomUUID();
         UUID actorId = UUID.randomUUID();
+        // #832 W1 fix: 명시적 changedAt(생성 rev1=base, 수정 rev2=base+5분)으로 실제 시간축
+        // (생성이 oldest)을 결정적으로 모델링한다 — now() 3연속 호출의 시계 해상도에 파생 ordinal 이
+        // 흔들리는 nondeterminism 을 제거해 아래 행-값 바인딩 단언이 항상 같은 결과를 갖게 한다.
+        LocalDateTime base = LocalDateTime.of(2026, 7, 20, 9, 0);
         when(mappingRepository.findIdsByNormalizedNameIncludingDeleted("ACME"))
                 .thenReturn(List.of(entityId));
         when(auditLogRepository.findMappingEntityIdsByNormalizedName("ACME"))
@@ -241,11 +245,11 @@ class DepositorMappingServiceTest {
         when(auditLogRepository.findMappingHistoryByEntityIds(any()))
                 .thenReturn(List.of(
                         AccountingAuditLog.record(entityId, 2, actorId, "사용자", null,
-                                "mapping.partnerCode", "P-001", "P-002"),
+                                "mapping.partnerCode", "P-001", "P-002", base.plusMinutes(5)),
                         AccountingAuditLog.record(entityId, 2, actorId, "사용자", null,
-                                "mapping.reason", null, "ADMIN_UPDATE"),
+                                "mapping.reason", null, "ADMIN_UPDATE", base.plusMinutes(5)),
                         AccountingAuditLog.record(entityId, 1, actorId, "사용자", null,
-                                "mapping.normalizedName", null, "ACME")));
+                                "mapping.normalizedName", null, "ACME", base)));
 
         List<BankDepositorPartnerMappingHistoryResponse> history = service.history("acme");
 
@@ -254,7 +258,19 @@ class DepositorMappingServiceTest {
         assertThat(history.get(0).oldValue()).isEqualTo("P-001");
         assertThat(history.get(0).newValue()).isEqualTo("P-002");
         assertThat(history.get(0).revisionNo()).isEqualTo(2);
-        assertThat(history.toString()).contains("operationOrdinal=2", "generation=1");
+        // #832 W1 fix: list.toString().contains(varargs)는 각 substring 을 독립 매칭해 방향이
+        // 뒤집혀도 GREEN — 레코드 accessor 로 행-값을 바인딩한다. get(0)=최신(rev2) partnerCode 행,
+        // 수정 작업이므로 operationOrdinal 2, 단일 세대라 generation 1.
+        assertThat(history.get(0).operationOrdinal()).isEqualTo(2);
+        assertThat(history.get(0).generation()).isEqualTo(1);
+        // rev1(normalizedName 생성)은 oldest 작업 → operationOrdinal 1·generation 1.
+        assertThat(history)
+                .filteredOn(h -> h.revisionNo() == 1)
+                .hasSize(1)
+                .allSatisfy(h -> {
+                    assertThat(h.operationOrdinal()).isEqualTo(1);
+                    assertThat(h.generation()).isEqualTo(1);
+                });
         assertThat(history.get(1).fieldName()).isEqualTo("mapping.reason");
         // #810 R3-CODEX (S4-M3, 계약 pin): 행마다 유일·안정한 opaque entryKey — 같은
         // revisionNo(2) 를 공유하는 두 행도 서로 다른 key 를 가져 FE React key 충돌이 없다.
@@ -288,8 +304,21 @@ class DepositorMappingServiceTest {
         List<BankDepositorPartnerMappingHistoryResponse> history = service.history("ACME");
 
         assertThat(history).hasSize(3);
-        assertThat(history.toString()).contains("operationOrdinal=2");
-        assertThat(history.toString()).doesNotContain("operationOrdinal=3");
+        // #832 W1 fix: substring contains("operationOrdinal=2")는 =20/=25 도 매치하고 오분할을
+        // 놓친다 — 정확 정수 단언으로 교체. 같은 (entityId, revisionNo=2)의 두 필드행
+        // (reason@+2, partnerCode@+1)은 changedAt 이 분산돼도 하나의 작업으로 묶여 동일
+        // operationOrdinal(2)을 공유한다. 오분할되면 한 행이 ordinal 3 을 받아 containsOnly(2)가 깨진다.
+        assertThat(history)
+                .filteredOn(h -> h.revisionNo() == 2)
+                .hasSize(2)
+                .extracting(BankDepositorPartnerMappingHistoryResponse::operationOrdinal)
+                .containsOnly(2);
+        // rev1(rawName@base)은 oldest 작업 → operationOrdinal 1.
+        assertThat(history)
+                .filteredOn(h -> h.revisionNo() == 1)
+                .hasSize(1)
+                .extracting(BankDepositorPartnerMappingHistoryResponse::operationOrdinal)
+                .containsOnly(1);
     }
 
     @Test
@@ -312,8 +341,26 @@ class DepositorMappingServiceTest {
         List<BankDepositorPartnerMappingHistoryResponse> first = service.history("ACME");
         List<BankDepositorPartnerMappingHistoryResponse> second = service.history("ACME");
 
-        assertThat(first.toString()).contains("newValue=FIRST", "operationOrdinal=1", "generation=1");
-        assertThat(first.toString()).contains("newValue=SECOND", "operationOrdinal=2", "generation=2");
+        // #832 W1 fix: toString().contains(varargs)는 substring 을 독립 매칭해 tiebreak 방향
+        // (FIRST↔SECOND 의 ordinal/generation)을 뒤집어도 GREEN — 레코드 accessor 로 행-값을
+        // 바인딩해 방향을 실제로 고정한다. 동시각이므로 세대는 entityId(UUID.toString) asc 로 결정되어
+        // firstEntity(aaaa…)=1세대, secondEntity(bbbb…)=2세대이고, ordinal 도 동시각 tie 를
+        // generation asc 로 깨 1·2 로 채번한다. 방향을 뒤집으면 아래 단언이 RED 가 된다.
+        assertThat(first)
+                .filteredOn(h -> "FIRST".equals(h.newValue()))
+                .hasSize(1)
+                .allSatisfy(h -> {
+                    assertThat(h.operationOrdinal()).isEqualTo(1);
+                    assertThat(h.generation()).isEqualTo(1);
+                });
+        assertThat(first)
+                .filteredOn(h -> "SECOND".equals(h.newValue()))
+                .hasSize(1)
+                .allSatisfy(h -> {
+                    assertThat(h.operationOrdinal()).isEqualTo(2);
+                    assertThat(h.generation()).isEqualTo(2);
+                });
+        // 반복 조회에도 파생 순서·값이 동일(결정적)하다.
         assertThat(second.toString()).isEqualTo(first.toString());
     }
 

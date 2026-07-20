@@ -5752,3 +5752,38 @@ button {
     box-shadow: 0 0 0 3px rgba(45, 119, 168, 0.18);
   }
 }
+
+/* ==========================================================================
+   DepositorMappingPage — 매핑 변경 이력 모달 (#832 R1 fix)
+   작업/세대 병합 셀 · 작업 경계 그룹핑 · 용어 범례
+   ========================================================================== */
+
+/* UX3: 작업/세대 용어 범례 — 표 상단 1줄 안내 */
+.depositor-history-legend {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+/* UX1: 작업 순번(위) + 세대(아래) 병합 셀 — 좁은 폭에서도 줄바꿈 없이 두 줄 표기 */
+.depositor-history-op-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.depositor-history-op-ordinal {
+  font-weight: var(--font-weight-semibold);
+}
+
+.depositor-history-op-generation {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* UX2: 작업 그룹 첫 행 상단에 강조 구분선 — 연속 필드행(공란)과 작업 경계를 구분 */
+.depositor-history-group-start td {
+  border-top: 2px solid var(--color-border);
+}

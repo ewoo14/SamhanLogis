@@ -6547,6 +6547,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const firstSeen = firstSeenByEntity.get(entity)
       if (!firstSeen || row.changedAt < firstSeen) firstSeenByEntity.set(entity, row.changedAt)
     }
+    // 세대(generation) = entity 최초등장(min changedAt) 시간순 1..N. 동시각 tiebreak 은 BE 가
+    // entityId.toString() 이지만 mock 은 UUID 미보유라 entities 배열 삽입순을 결정적 프록시로 쓴다
+    // (삭제+재생성 시각이 mockDepositorHistoryNow +1ms 단조라 실 동시각은 미발생·operationOrdinal
+    // 은 generation 이 entity 를 1:1 분리하므로 이 말단 tiebreak 에 의존하지 않는다). (#832 FE-LOW)
     const generationByEntity = new Map<MockDepositorHistoryEntity, number>(
       [...firstSeenByEntity.entries()]
         .sort(([leftEntity, leftAt], [rightEntity, rightAt]) =>
@@ -14111,6 +14115,49 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     deletedAt: '2026-07-02T10:20:00',
     deletedByName: '이운영',
   },
+  // [#832 S1 시드 정합] 입금자명 매핑·시드 통장거래가 참조하는 거래처(P-2026-0001/0002/P-SEJIN-003)를
+  // 실 거래처 마스터로 편입 — D-01 hydration(mockPartnerByCode)이 실재 ACTIVE 로 해석하도록.
+  // 정체성은 외상원장/채권 픽스처(mock.ts:7100·16434)와 통일(삼한공조 A/아로물류 B). 개발책임자
+  // "집PC 시드값 임의·부정확" 지시 반영 — 이전엔 미실재 코드라 stale 로 회귀했다.
+  {
+    id: '20260001-2026-4001-8001-000000260001',
+    partnerCode: 'P-2026-0001',
+    partnerName: '삼한공조 A',
+    representative: '삼한조',
+    businessNumber: '111-22-33333',
+    address: '서울특별시 영등포구 여의대로 108',
+    phone: '02-2600-0001',
+    status: 'ACTIVE' as const,
+    creditLimit: '10000000',
+    currentBalance: '6500000',
+    createdAt: '2024-02-01T09:00:00+09:00',
+  },
+  {
+    id: '20260002-2026-4002-8002-000000260002',
+    partnerCode: 'P-2026-0002',
+    partnerName: '아로물류 B',
+    representative: '아로물',
+    businessNumber: '222-33-44444',
+    address: '경기도 김포시 통진읍 물류로 22',
+    phone: '031-2600-0002',
+    status: 'ACTIVE' as const,
+    creditLimit: '5000000',
+    currentBalance: '1800000',
+    createdAt: '2024-03-01T09:00:00+09:00',
+  },
+  {
+    id: '5e01e003-5e01-4003-8003-0000005e0003',
+    partnerCode: 'P-SEJIN-003',
+    partnerName: '세진산업',
+    representative: '세진',
+    businessNumber: '556-67-78899',
+    address: '인천광역시 서구 정서진로 90',
+    phone: '032-2600-0003',
+    status: 'ACTIVE' as const,
+    creditLimit: '3000000',
+    currentBalance: '510000',
+    createdAt: '2024-04-01T09:00:00+09:00',
+  },
 ]
 
 /**
@@ -16780,6 +16827,9 @@ function mockCodefBankRows(accountRef: string, to: string, index: number): MockB
       amount: '420000',
       balanceAfter: '14855000',
       description: '운임 정산',
+      // [#832] counterpartyName 을 실 거래처코드(1234567890=엘에이시스템에어)로 둔 의도적 픽스처 —
+      // BE CodefImportService 의 CODEF_BANK PARTNER_CODE_EXACT 폴백(#832 D-02) 실증용. 데모 현실성보다
+      // 파리티 게이트 우선(mock.test.ts '#832 matchedCount ... -002=PARTNER_CODE_EXACT'가 이 행에 의존).
       counterpartyName: '1234567890',
       counterpartyAccount: null,
       bankAccountLabel: accountRef,
@@ -16945,7 +16995,14 @@ function mockJavaTrim(raw: string): string {
 }
 
 function mockDepositorNameNormalize(raw: string): string {
-  return mockJavaTrim(raw.replace(MOCK_JAVA_UNICODE_SPACE, ' ')).toUpperCase()
+  // BE DepositorNameNormalizer.normalize: 공백류(isWhitespace∪isSpaceChar) 연속을 1칸 축약 후
+  // 앞뒤 '공백류'만 제거·대문자화. mockJavaTrim(≤U+0020, Java String.trim 대칭)은 raw 저장 경로 전용이며,
+  // normalize 앞뒤 제거는 공백류(=축약 후 U+0020)로만 한정해야 BE 와 동형이다(C0 제어문자 U+0000-0008
+  // 등은 BE 처럼 일반문자로 보존·BOM U+FEFF 도 공백류 아님이라 보존). (#832 FE-LOW C0 divergence 해소)
+  return raw
+    .replace(MOCK_JAVA_UNICODE_SPACE, ' ')
+    .replace(/^ +| +$/gu, '')
+    .toUpperCase()
 }
 
 function mockDepositorActor(): string {
@@ -16961,7 +17018,8 @@ type MockPartnerLookup = {
 }
 
 function mockPartnerIsActive(partner: MockPartnerLookup): boolean {
-  const status = typeof partner.status === 'string' ? partner.status.trim() : partner.status
+  // BE PartnerSummary.isActiveStatus() = equalsIgnoreCase("ACTIVE") — 대소문자 무시. (#832 FE-LOW)
+  const status = typeof partner.status === 'string' ? partner.status.trim().toUpperCase() : partner.status
   return !partner.isDeleted && (status == null || status === '' || status === 'ACTIVE')
 }
 
@@ -17101,7 +17159,9 @@ let MOCK_DEPOSITOR_MAPPINGS: MockDepositorMappingRow[] = [
     rawName: '삼한상사',
     normalizedName: '삼한상사',
     partnerCode: 'P-2026-0001',
-    partnerName: '삼한상사',
+    // [#832 S1] 표시 partnerName 은 hydration(mockDepositorMappingResponse)이 실 거래처명으로
+    // 덮지만, 시드 자체도 실재 거래처(삼한공조 A)와 정합하게 둔다. 입금자명(삼한상사)≠거래처명.
+    partnerName: '삼한공조 A',
     modifiedAt: '2026-06-23T08:00:00',
     actor: '사용자',
     active: true,
@@ -17168,19 +17228,26 @@ function mockResolveBankTransaction(sourceRow: MockBankTransactionRow): MockBank
     }
   }
 
-  const exactPartner = mockPartnerByCode(sourceRow.counterpartyName ?? '')
-  if (exactPartner && mockPartnerIsActive(exactPartner)) {
-    return {
-      row: {
-        ...sourceRow,
-        matchedPartnerCode: exactPartner.partnerCode,
-        matchedBizNo: exactPartner.bizNo.replace(/\D/g, ''),
-        matchedPartnerName: exactPartner.name,
-        partnerMatchSource: 'PARTNER_CODE_EXACT',
-        appliedMappingRawName: null,
-        appliedMappingNormalizedName: null,
-      },
-      staleNormalizedName: null,
+  // [#832 H1 파리티] PARTNER_CODE_EXACT 폴백은 실 BE 에서 CodefImportService(CODEF_BANK 입금폴백·
+  // 비-LOAN 출금·CODEF_CARD)에만 존재한다. BankTransactionService.importCsv(CSV_IMPORT)·KFTC 경로엔
+  // EXACT 폴백이 없어 미매칭(null)로 남는다(BE 소스 직접 대조). mock 도 동일 소스 게이팅으로
+  // 역방향 파리티 갭(CSV 과매칭)을 제거한다.
+  const isExactMatchSource = sourceRow.source === 'CODEF_BANK' || sourceRow.source === 'CODEF_CARD'
+  if (isExactMatchSource) {
+    const exactPartner = mockPartnerByCode(sourceRow.counterpartyName ?? '')
+    if (exactPartner && mockPartnerIsActive(exactPartner)) {
+      return {
+        row: {
+          ...sourceRow,
+          matchedPartnerCode: exactPartner.partnerCode,
+          matchedBizNo: exactPartner.bizNo.replace(/\D/g, ''),
+          matchedPartnerName: exactPartner.name,
+          partnerMatchSource: 'PARTNER_CODE_EXACT',
+          appliedMappingRawName: null,
+          appliedMappingNormalizedName: null,
+        },
+        staleNormalizedName: null,
+      }
     }
   }
   return { row: sourceRow, staleNormalizedName: null }
@@ -17254,7 +17321,7 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     matchStatus: 'UNREFLECTED',
     matchedPartnerCode: 'P-2026-0001',
     matchedBizNo: '1112233333',
-    matchedPartnerName: '삼한상사',
+    matchedPartnerName: '삼한공조 A',
     partnerMatchSource: 'DEPOSITOR_MAPPING',
     appliedMappingRawName: '삼한상사',
     appliedMappingNormalizedName: '삼한상사',
@@ -17274,7 +17341,7 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     matchStatus: 'UNREFLECTED',
     matchedPartnerCode: 'P-2026-0001',
     matchedBizNo: '1112233333',
-    matchedPartnerName: '삼한상사',
+    matchedPartnerName: '삼한공조 A',
     partnerMatchSource: 'DEPOSITOR_MAPPING',
     appliedMappingRawName: '삼한상사',
     appliedMappingNormalizedName: '삼한상사',
@@ -17310,7 +17377,7 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     externalRef: 'mock-bank-20260624-006',
     matchStatus: 'UNREFLECTED',
     matchedPartnerCode: 'P-SEJIN-003',
-    matchedBizNo: '3456789012',
+    matchedBizNo: '5566778899',
     matchedPartnerName: '세진산업',
     cashReceiptSlipNo: null,
   },

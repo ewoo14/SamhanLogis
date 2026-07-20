@@ -391,7 +391,9 @@ export function DepositorMappingPage() {
         open={historyTarget !== null}
         onClose={() => setHistoryTarget(null)}
         title="입금자명 매핑 이력"
-        size="lg"
+        // #832 R1 UX1: 작업/세대 컬럼 추가로 lg(720px)에서 값 컬럼이 ~59px 로 눌려 CJK 가
+        // 글자단위로 래핑됐다. xl(≈980~1080px)로 넓혀 이전/변경 값 컬럼 가독성을 회복한다.
+        size="xl"
       >
         <HistoryTable rows={historyQuery.data ?? []} loading={historyQuery.isLoading} />
       </Modal>
@@ -410,6 +412,12 @@ export function DepositorMappingPage() {
  * rowKey 는 BE opaque entryKey(#810 R3 S4-M3) — revisionNo+changedAt+fieldName 조합은
  * 서로 다른 entity 가 같은 회차·시각·필드를 가질 수 있어(같은 초 삭제+재생성) React key 가
  * 충돌한다. entryKey 는 화면에 노출하지 않는다.
+ *
+ * 표시(#832 R1 fix): '작업'(operationOrdinal)과 '세대'(generation)는 한 셀로 병합해
+ * 값 컬럼 폭을 확보하고(UX1), 같은 작업의 연속 필드행에는 첫 행에만 표기하고 나머지는
+ * 공란+상단 구분선으로 작업 경계를 유지한다(UX2). 상단 범례로 두 용어의 뜻을 안내한다(UX3).
+ * 그룹 경계 판정은 BE 순서(newest-first)를 재정렬 없이 순회하며 "직전 행과 동일 작업"
+ * (operationOrdinal+generation 동일)인지로만 결정한다 — 정렬 키가 아니다.
  */
 export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryResponse[]; loading: boolean }) {
   const fieldLabels: Record<string, string> = {
@@ -418,9 +426,49 @@ export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryR
     'mapping.partnerCode': '거래처 코드',
     'mapping.reason': '변경 사유',
   }
+  // 작업 그룹 경계 계산 — BE 순서(newest-first)를 재정렬 없이 순회하며 "직전 행과 동일 작업"
+  // (operationOrdinal+generation 동일)이면 연속 필드행으로 본다.
+  //  - groupFirstKeys: 각 작업 그룹의 첫 행 = '작업 N / N세대' 표기 대상(나머지는 공란)
+  //  - groupBorderKeys: 그룹 첫 행 중 표 최상단(index 0) 제외 = 상단 구분선 대상
+  // operationOrdinal 이 없거나 0 이하인 비정상 행은 그룹핑하지 않고 각자 단독 표기('—').
+  const { groupFirstKeys, groupBorderKeys } = useMemo(() => {
+    const first = new Set<string>()
+    const border = new Set<string>()
+    let prevOpKey: string | null = null
+    rows.forEach((row, index) => {
+      const opKey =
+        row.operationOrdinal != null && row.operationOrdinal > 0
+          ? `${row.operationOrdinal}/${row.generation}`
+          : `__row_${row.entryKey}`
+      if (opKey !== prevOpKey) {
+        first.add(row.entryKey)
+        if (index > 0) border.add(row.entryKey)
+        prevOpKey = opKey
+      }
+    })
+    return { groupFirstKeys: first, groupBorderKeys: border }
+  }, [rows])
+
   const columns: DataTableColumn<DepositorMappingHistoryResponse>[] = [
-    { key: 'operationOrdinal', header: '작업', width: '90px', render: (row) => `작업 ${row.operationOrdinal}` },
-    { key: 'generation', header: '세대', width: '70px', render: (row) => `${row.generation}세대` },
+    {
+      key: 'operation',
+      header: '작업 / 세대',
+      width: '110px',
+      // UX2: 같은 작업의 연속 필드행은 공란 처리(첫 행만 표기)해 작업 경계를 유지한다.
+      render: (row) => {
+        if (!groupFirstKeys.has(row.entryKey)) return null
+        // UX4 null/0 가드 — "작업 undefined"/"작업 0"/"0세대" 를 방지한다.
+        const opValid = row.operationOrdinal != null && row.operationOrdinal > 0
+        const genValid = row.generation != null && row.generation > 0
+        if (!opValid) return '—'
+        return (
+          <div className="depositor-history-op-cell">
+            <span className="depositor-history-op-ordinal">작업 {row.operationOrdinal}</span>
+            {genValid ? <span className="depositor-history-op-generation">{row.generation}세대</span> : null}
+          </div>
+        )
+      },
+    },
     { key: 'fieldName', header: '변경 항목', width: '150px', render: (row) => fieldLabels[row.fieldName] ?? row.fieldName },
     { key: 'oldValue', header: '이전 값', render: (row) => historyValue(row.oldValue) },
     { key: 'newValue', header: '변경 값', render: (row) => historyValue(row.newValue) },
@@ -428,13 +476,21 @@ export function HistoryTable({ rows, loading }: { rows: DepositorMappingHistoryR
     { key: 'changedAt', header: '변경일시', width: '150px', render: (row) => formatDateTime(row.changedAt) },
   ]
   return (
-    <DataTable
-      columns={columns}
-      rows={rows}
-      loading={loading}
-      emptyMessage="변경 이력이 없습니다."
-      rowKey={(row) => row.entryKey}
-      tableLayout="fixed"
-    />
+    <div>
+      {/* UX3: '작업'(내부 순번)·'세대'(비표준어) 의도를 상단 범례로 안내한다. */}
+      <p className="depositor-history-legend">
+        <strong>작업</strong> = 한 번의 변경 단위(같은 작업의 여러 항목은 첫 행에만 표기) · <strong>세대</strong> = 삭제 후 재생성으로 새로 만든 매핑 구분
+      </p>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        emptyMessage="변경 이력이 없습니다."
+        rowKey={(row) => row.entryKey}
+        // UX2: 작업 그룹 첫 행(최상단 제외) 상단에 구분선을 그어 경계를 강조한다.
+        rowClassName={(row) => (groupBorderKeys.has(row.entryKey) ? 'depositor-history-group-start' : undefined)}
+        tableLayout="fixed"
+      />
+    </div>
   )
 }
