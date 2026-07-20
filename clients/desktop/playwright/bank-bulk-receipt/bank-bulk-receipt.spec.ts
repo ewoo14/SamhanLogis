@@ -74,7 +74,8 @@ test.describe('E3 S4c bank bulk receipt', () => {
 
     await expect(page.getByTestId('bank-transaction-bulk-bar')).toContainText('선택 2건')
     await expect(page.getByTestId('bank-transaction-bulk-bar')).toContainText('합산 4,000,000원')
-    await expect(page.getByTestId('bank-transaction-bulk-bar')).toContainText('삼한상사')
+    // #832: 시드 통장거래(입금자명 삼한상사)의 매칭 거래처를 실재 master P-2026-0001(삼한공조 A)로 정합화.
+    await expect(page.getByTestId('bank-transaction-bulk-bar')).toContainText('삼한공조 A')
 
     await page.getByTestId('bank-transaction-create-receipt').click()
     await expect(page.getByRole('dialog', { name: '입금보고서 생성' })).toBeVisible()

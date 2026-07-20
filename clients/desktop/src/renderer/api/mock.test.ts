@@ -2663,7 +2663,8 @@ describe('#832 mock parity contracts', () => {
 
       const codef = importCodef(accountRef, date)
       expect(codef.data.importedCount).toBe(2)
-      expect(codef.data.matchedCount).toBe(2)
+      // 운임 입금(삼한테스트상사)만 DEPOSITOR_MAPPING 매칭·운임 정산(아로물류 B)은 미매칭.
+      expect(codef.data.matchedCount).toBe(1)
       expect(codef.data.staleSkippedCount).toBe(0)
       const codefRows = mockRequest({
         method: 'GET',
@@ -2761,33 +2762,36 @@ describe('#832 mock parity contracts', () => {
     mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
   })
 
-  it('CODEF matchedCount는 같은 import의 매칭 1건만 세고 재import는 0/0이다(#832 R2 D-03)', () => {
+  it('CODEF matchedCount는 매핑 매칭 1건만 세고 재import는 0/0이다(#832 R2 D-02)', () => {
     const date = new Date().toISOString().slice(0, 10)
     const accountRef = `#832 matched ${Date.now()}`
-    // [#832 R2 D-03] 첫 입금은 미매칭, 둘째 출금만 CODEF_BANK exact 매칭인 genuine 1/2 fixture.
-    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
-    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    const del = () => mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    del()
+    // 매핑 매칭(운임 입금 삼한테스트상사) 1건 + 미매칭(운임 정산 아로물류 B) 1건 = genuine 1/2.
+    // "신규행 전건 카운트" 오구현이면 matchedCount=2 로 RED. (PARTNER_CODE_EXACT-via-CODEF e2e 는
+    // 공유 CODEF 픽스처를 긴 partnerCode 로 변형해야 해 모바일 레이아웃 게이트와 상충 → 바운드.
+    // exact 게이팅 자체는 mock 로직 + H1 CSV-음성 테스트가 커버.)
+    mockRequest({ method: 'POST', url: '/accounting/deposit-mappings', data: { rawName: '삼한테스트상사', partnerCode: '1234567890', reason: '#832 matched' } })
     const first = importCodef(accountRef, date)
     expect(first.data.importedCount).toBe(2)
     expect(first.data.matchedCount).toBe(1)
     const importedRows = mockRequest({
       method: 'GET',
       url: '/accounting/bank-transactions',
-      params: { bankAccountLabel: accountRef },
+      params: { accountLabels: [accountRef] },
     }) as MockEnvelope<Array<Record<string, unknown>>>
-    expect(importedRows.data.find((row) => row.externalRef.endsWith('-001'))).toMatchObject({
+    expect(importedRows.data.find((row) => String(row.externalRef).endsWith('-001'))).toMatchObject({
+      partnerMatchSource: 'DEPOSITOR_MAPPING',
+    })
+    expect(importedRows.data.find((row) => String(row.externalRef).endsWith('-002'))).toMatchObject({
       partnerMatchSource: null,
       matchedPartnerCode: null,
-    })
-    expect(importedRows.data.find((row) => row.externalRef.endsWith('-002'))).toMatchObject({
-      partnerMatchSource: 'PARTNER_CODE_EXACT',
     })
 
     const second = importCodef(accountRef, date)
     expect(second.data.importedCount).toBe(0)
     expect(second.data.matchedCount).toBe(0)
-
-    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    del()
   })
 
   it('create/update/history/delete/learn 전 경로는 BOM을 Java 정규화처럼 보존한다', () => {

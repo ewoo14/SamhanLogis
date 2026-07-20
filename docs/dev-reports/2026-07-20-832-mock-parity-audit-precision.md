@@ -60,3 +60,9 @@ BE production 파생 로직 **7항목 전부 통과·0 결함** 확증. 결함�
 
 ### R2 검증
 desktop typecheck 클린·vitest **1010/0**·BE accounting IT/ServiceTest/NormalizerTest skipped=0. 라이브QA(작업 정렬·다세대) 재실증.
+
+## 8. CI Desktop Playwright mock 게이트 회귀 fix (로컬 미실행 갭)
+로컬서 vitest·typecheck·BE만 돌리고 **Playwright mock 회귀 하드게이트를 미실행**해 CI가 2건 회귀 포착([[feedback_verify_playwright_gate_before_adversarial]]·[[feedback_design_system_playwright_mock_suite]] — mock.ts **데이터** 변경도 공유 픽스처 의존 Playwright 스펙을 회귀시킴):
+- **bank-bulk-receipt**: 벌크바가 시드 통장거래 매칭 거래처를 표시하는데 S1 정합fix로 `삼한상사→삼한공조 A`(P-2026-0001 실명) → 테스트 기대 갱신(정합 반영).
+- **codef-fe-bc3**: #832가 공유 CODEF 행 `운임 정산` counterpartyName을 긴 거래처코드(`1234567890`)로 변형 → 모바일(390px) 상대 컬럼이 넓어져 거래처 autocomplete 드롭다운이 160px 셀에 클리핑(width 167<260). → **행을 `아로물류 B`로 원복**(공유 픽스처 불변 원칙·R2Q9)하고, 이에 의존하던 D-01/D-02 matchedCount를 **DEPOSITOR_MAPPING 매칭 1건**으로 정합(전건 카운트 오구현이면 RED 유지). **PARTNER_CODE_EXACT-via-CODEF e2e는 바운드**(공유 CODEF 픽스처를 긴 코드로 변형해야 해 모바일 게이트와 상충 — exact 게이팅은 mock 로직+H1 CSV-음성 테스트가 커버).
+- **교훈**: mock.ts 데이터/픽스처 변경은 **전체 Playwright mock 게이트를 로컬 실행**해야 함(vitest만으론 공유 픽스처 회귀 미포착). 회사PC `@axe-core/playwright` dev-dep 미설치로 게이트 collection 중단 → 설치 후 실행.

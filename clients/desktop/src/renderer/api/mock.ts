@@ -16877,10 +16877,7 @@ function mockCodefBankRows(accountRef: string, to: string, index: number): MockB
       amount: '420000',
       balanceAfter: '14855000',
       description: '운임 정산',
-      // [#832] counterpartyName 을 실 거래처코드(1234567890=엘에이시스템에어)로 둔 의도적 픽스처 —
-      // BE CodefImportService 의 CODEF_BANK PARTNER_CODE_EXACT 폴백(#832 D-02) 실증용. 데모 현실성보다
-      // 파리티 게이트 우선(mock.test.ts '#832 matchedCount ... -002=PARTNER_CODE_EXACT'가 이 행에 의존).
-      counterpartyName: '1234567890',
+      counterpartyName: '아로물류 B',
       counterpartyAccount: null,
       bankAccountLabel: accountRef,
       source: 'CODEF_BANK',
