@@ -12,6 +12,8 @@ import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -37,12 +39,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class SlipPublishOutboxResultWriter {
 
     private static final Logger log = LoggerFactory.getLogger(SlipPublishOutboxResultWriter.class);
+    private static final String TERMINAL_METRIC_NAME = "partner_order_slip_publish_terminal";
 
     private final SlipPublishOutboxRepository outboxRepository;
     private final PartnerOrderRepository orderRepository;
     private final PartnerOrderHistoryRepository historyRepository;
     private final OutboxProperties outboxProperties;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     /**
      * 결과 tx 상한(초) — 소유권 가드의 {@code SELECT ... FOR UPDATE} 무한 대기를 차단한다 (#854 R4 MED).
@@ -81,6 +85,7 @@ public class SlipPublishOutboxResultWriter {
         }, () -> log.error("Outbox COMMITTED but order missing — 주문 미갱신: outboxId={}, orderId={},"
                         + " slipNo={} (수동 정합 확인 필요)",
                 row.getId(), row.getPartnerOrderId(), result.slipNo()));
+        recordTerminal("committed");
     }
 
     /**
@@ -206,6 +211,30 @@ public class SlipPublishOutboxResultWriter {
         log.error("Outbox FAILED_PERMANENT: orderId={}, attempts={}, errorCode={}, error={}",
                 row.getPartnerOrderId(), row.getAttemptCount(),
                 errorCode == null ? "MAX_RETRY_EXHAUSTED" : errorCode.name(), error);
+        recordTerminal(terminalFailureReason(errorCode));
+    }
+
+    /** 고정된 사유 집합으로 terminal 전이를 관측한다. 계측 장애는 결과 transaction을 깨뜨리지 않는다. */
+    private void recordTerminal(String reason) {
+        try {
+            Counter.builder(TERMINAL_METRIC_NAME)
+                    .description("partner-order 전표 발행 outbox terminal 전이 수")
+                    .tag("reason", reason)
+                    .register(meterRegistry)
+                    .increment();
+        } catch (RuntimeException ex) {
+            log.warn("Outbox terminal metric 기록 실패: reason={}", reason, ex);
+        }
+    }
+
+    private String terminalFailureReason(ErrorCode errorCode) {
+        if (errorCode == ErrorCode.INVALID_INPUT) {
+            return "invalid_input";
+        }
+        if (errorCode == ErrorCode.CONFLICT) {
+            return "conflict";
+        }
+        return "max_retry_exhausted";
     }
 
     private String writeDetailJson(Map<String, Object> detail) {

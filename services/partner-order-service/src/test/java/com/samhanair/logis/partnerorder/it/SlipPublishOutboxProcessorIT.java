@@ -40,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,6 +95,9 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
     /** 외부 slip-service 는 반드시 mock 하여 Eureka 5xx 를 차단한다. */
     @MockBean
     private SlipServiceClient slipServiceClient;
@@ -112,6 +116,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     @DisplayName("성공: scheduler 외부 processor 호출 후 outbox·order·history가 DB에 영속된다")
     void success_persistsCommittedOrderAndHistory() {
         TestFixture fixture = seedReadyOutbox();
+        double committedBefore = terminalMetricCount("committed");
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
                 .thenReturn(PublishResult.published(STUB_SLIP_NO));
 
@@ -126,6 +131,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         assertThat(reloadedOrder.getSlipNo()).isEqualTo(STUB_SLIP_NO);
         assertThat(history).anySatisfy(item ->
                 assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_PUBLISHED));
+        assertThat(terminalMetricCount("committed")).isEqualTo(committedBefore + 1);
     }
 
     @Test
@@ -148,6 +154,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     @DisplayName("FAILED_PERMANENT: max retry 시간 초과 후 outbox·order·history가 DB에 영속된다")
     void expiredRetry_persistsFailedPermanentStateAndHistory() {
         TestFixture fixture = seedReadyOutbox();
+        double exhaustedBefore = terminalMetricCount("max_retry_exhausted");
         LocalDateTime expiredAt = LocalDateTime.now()
                 .minusHours(outboxProperties.getMaxRetryHours())
                 .minusMinutes(1);
@@ -168,6 +175,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
             assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT);
             assertThat(item.getDetailJson()).contains("\"event\":\"FAILED_PERMANENT\"");
         });
+        assertThat(terminalMetricCount("max_retry_exhausted")).isEqualTo(exhaustedBefore + 1);
     }
 
     @Test
@@ -193,6 +201,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     @DisplayName("INVALID_INPUT 최소 시도 도달: 400은 max-retry를 기다리지 않고 FAILED_PERMANENT로 종결된다")
     void invalidInput_afterMinAttempts_failsPermanently() {
         TestFixture fixture = seedAtPermanentErrorThreshold();
+        double invalidInputBefore = terminalMetricCount("invalid_input");
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
                 .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT, "필수 거래처 누락"));
 
@@ -203,6 +212,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
                 .isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
         assertThat(reloadHistory(fixture.orderId())).anySatisfy(item ->
                 assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT));
+        assertThat(terminalMetricCount("invalid_input")).isEqualTo(invalidInputBefore + 1);
     }
 
     @Test
@@ -700,6 +710,11 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         jdbcTemplate.update("UPDATE slip_publish_outbox SET next_attempt_at = ? WHERE id = ?",
                 LocalDateTime.now().minusSeconds(1), outbox.getId());
         return new TestFixture(order.getId(), outbox.getId(), outbox);
+    }
+
+    private double terminalMetricCount(String reason) {
+        return meterRegistry.counter(
+                "partner_order_slip_publish_terminal", "reason", reason).count();
     }
 
     /** PROCESSING 상태로 seed — 결과 writer 소유권/동시성 가드 테스트용 (attemptCount=1 유지). */

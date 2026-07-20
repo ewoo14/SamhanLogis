@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
+import { Badge, Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
 import { listWarehouses, type StockBalanceLookupLine } from '../api/inventory'
 import {
@@ -57,6 +57,11 @@ const statusBadgeStyle = (status: string) => {
 
 const emptyLabel = (value: string | number | null | undefined) =>
   value === null || value === undefined || value === '' ? '-' : String(value)
+
+const SLIP_PUBLISH_STATUS_DISPLAY = {
+  PENDING_RETRY: { label: '전표 발행 대기', variant: 'warning' as const },
+  FAILED_PERMANENT: { label: '전표 발행 실패', variant: 'danger' as const },
+} as const
 
 const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
   if (mode === 'EXPAND') return '구성품 펼침'
@@ -612,6 +617,11 @@ export function SalesPartnerOrderDetailPage() {
     canConvert &&
     query.data.linkedSlipNo == null &&
     CONVERTIBLE_STATUS.has(query.data.status)
+  const slipPublishStatusMeta = query.data
+    ? SLIP_PUBLISH_STATUS_DISPLAY[
+        query.data.slipPublishStatus as keyof typeof SLIP_PUBLISH_STATUS_DISPLAY
+      ]
+    : undefined
 
   const canHoldOrder = !!query.data && canEdit && query.data.status === 'DRAFT'
   const canReleaseOrder = !!query.data && canEdit && query.data.status === 'ON_HOLD'
@@ -793,6 +803,14 @@ export function SalesPartnerOrderDetailPage() {
                 >
                   {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
                 </span>
+                {slipPublishStatusMeta ? (
+                  <Badge
+                    variant={slipPublishStatusMeta.variant}
+                    data-testid="partner-order-slip-publish-status"
+                  >
+                    {slipPublishStatusMeta.label}
+                  </Badge>
+                ) : null}
               </div>
               <div className="mobile-summary-partner">
                 {query.data.partnerName ?? query.data.partnerCode}
@@ -974,6 +992,14 @@ export function SalesPartnerOrderDetailPage() {
                   <span className={styles['badge']}>
                     {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
                   </span>
+                  {slipPublishStatusMeta ? (
+                    <Badge
+                      variant={slipPublishStatusMeta.variant}
+                      data-testid="partner-order-slip-publish-status"
+                    >
+                      {slipPublishStatusMeta.label}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className={styles['cardActions']}>
                   <span className={styles['ratio']}>합계 {krw(query.data.totalAmount)}원</span>

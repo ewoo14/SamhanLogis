@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@samhan/design-system', () => ({
+  Badge: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, variant: _variant, size: _size, ...props }: any) => (
     <button {...props}>{children}</button>
   ),
@@ -135,6 +136,7 @@ function makeOrder(overrides: Partial<PartnerOrderDetail> = {}): PartnerOrderDet
     status: 'DRAFT',
     totalAmount: 20000,
     linkedSlipNo: null,
+    slipPublishStatus: 'NOT_REQUIRED',
     bizCode: 'BIZ-1',
     updatedAt: '2099-07-01T00:00:00',
     deliveryAddress: null,
@@ -221,6 +223,17 @@ afterEach(() => {
 })
 
 describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배선', () => {
+  it.each([
+    ['PENDING_RETRY', '전표 발행 대기'],
+    ['FAILED_PERMANENT', '전표 발행 실패'],
+  ])('전표 발행 상태 %s 를 한국어 배지로 표시한다', async (slipPublishStatus, label) => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({ slipPublishStatus } as Partial<PartnerOrderDetail>))
+
+    renderPage()
+
+    expect((await screen.findByTestId('partner-order-slip-publish-status')).textContent).toContain(label)
+  })
+
   it('provider 생성 옵션과 헤더/라인 CollaborativeSlipInput fieldPath 를 slip 패턴으로 배선한다', async () => {
     const provider = makeProvider()
     mocks.getPartnerOrder.mockResolvedValue(makeOrder())

@@ -1,0 +1,12 @@
+groups:
+  - name: partner-order-outbox
+    rules:
+      - alert: PartnerOrderSlipPublishTerminalFailure
+        expr: sum(increase(partner_order_slip_publish_terminal_total{job="partner-order-service",reason=~"invalid_input|conflict|max_retry_exhausted"}[5m])) > 0
+        labels:
+          severity: warning
+          service: partner-order-service
+        annotations:
+          summary: "partner-order-service 전표 발행 outbox 영구실패"
+          description: "최근 5분 동안 주문 전표 발행 outbox가 복구 불가 사유 또는 최대 재시도 시간 초과로 종결되었습니다. reason 라벨과 주문/전표 정합을 확인하십시오."
+          runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"

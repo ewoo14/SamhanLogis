@@ -451,7 +451,8 @@ public class SlipPublishService {
      *
      * @param partnerCode 발행 요청의 거래처 코드
      * @return partner-service가 확인한 거래처 UUID
-     * @throws BusinessException(INVALID_INPUT) 거래처를 유일하게 해소할 수 없는 경우
+     * @throws BusinessException(INVALID_INPUT) 등록되지 않은 거래처 코드(NOT_FOUND)
+     * @throws BusinessException(INTERNAL_ERROR) 거래처 검증을 수행할 수 없거나 FOUND 결과에 UUID가 없는 경우
      */
     private UUID resolveCommittedPartnerId(String partnerCode) {
         if (partnerCode == null || partnerCode.isBlank()) {
@@ -460,13 +461,23 @@ public class SlipPublishService {
         }
         String normalizedPartnerCode = partnerCode.trim();
         PartnerVerifyResult result = partnerInternalClient.verifyPartnerCode(normalizedPartnerCode);
-        if (result == null || !result.isFound()
-                || result.partnerId() == null || result.partnerId().isEmpty()) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT,
+        if (result == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "거래처 코드 '" + normalizedPartnerCode
+                            + "'를 검증할 수 없어 커밋 전표를 발행할 수 없습니다");
+        }
+        return switch (result.status()) {
+            case FOUND -> result.partnerId()
+                    .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR,
+                            "거래처 코드 '" + normalizedPartnerCode
+                                    + "'의 검증 결과에 거래처 식별자가 없어 커밋 전표를 발행할 수 없습니다"));
+            case NOT_FOUND -> throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "거래처 코드 '" + normalizedPartnerCode
                             + "'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다");
-        }
-        return result.partnerId().get();
+            case SERVER_ERROR, SKIPPED -> throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "거래처 코드 '" + normalizedPartnerCode
+                            + "'를 검증할 수 없어 커밋 전표를 발행할 수 없습니다");
+        };
     }
 
     /**

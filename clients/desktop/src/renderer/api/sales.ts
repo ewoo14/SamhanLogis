@@ -402,6 +402,9 @@ export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
   CONVERTED: '전환완료',
 }
 
+/** 주문 전표 발행 상태 — 사용자 화면에는 대기/영구실패만 별도 표시한다. */
+export type SlipPublishStatus = 'NOT_REQUIRED' | 'PUBLISHED' | 'PENDING_RETRY' | 'FAILED_PERMANENT'
+
 /** 주문 목록 row. */
 export interface PartnerOrderSummary {
   orderNumber: string
@@ -410,6 +413,7 @@ export interface PartnerOrderSummary {
   partnerName: string | null
   submittedAt: string | null
   status: PartnerOrderStatus
+  slipPublishStatus: SlipPublishStatus
   totalAmount: number
   /** 자동 생성된 출고전표 번호 (CONVERTED 시만). */
   linkedSlipNo: string | null
@@ -582,6 +586,7 @@ export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): Partner
     partnerName: raw.partnerName ?? null,
     submittedAt: raw.submittedAt ?? null,
     status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
+    slipPublishStatus: (raw.slipPublishStatus ?? 'NOT_REQUIRED') as SlipPublishStatus,
     totalAmount: numberValue(raw.totalAmount),
     linkedSlipNo: raw.linkedSlipNo ?? null,
     isDeleted: raw.isDeleted === true,

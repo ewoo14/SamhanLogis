@@ -411,7 +411,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
     @ParameterizedTest(name = "병합 거래처 해소 {0}은 커밋 전표를 만들지 않는다")
     @MethodSource("unresolvablePartnerResponses")
     void mergePublish_partnerResolution_doesNotCreateAnything(
-            String resultName, PartnerVerifyResult partnerResult) throws Exception {
+            String resultName, PartnerVerifyResult partnerResult, int expectedStatus, String expectedCode) throws Exception {
         String partnerCode = "P-MISSING-" + resultName;
         Mockito.when(partnerInternalClient.verifyPartnerCode(partnerCode))
                 .thenReturn(partnerResult);
@@ -429,10 +429,10 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .header("Idempotency-Key", idemKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(status().is(expectedStatus))
+                .andExpect(jsonPath("$.code").value(expectedCode))
                 .andExpect(jsonPath("$.message").value(
-                        "거래처 코드 '" + partnerCode + "'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다"));
+                        org.hamcrest.Matchers.containsString("커밋 전표를 발행할 수 없습니다")));
 
         assertThat(slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
                 com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER, primaryOrderId))
@@ -452,10 +452,10 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
 
     static Stream<Arguments> unresolvablePartnerResponses() {
         return Stream.of(
-                Arguments.of("NOT_FOUND", PartnerVerifyResult.notFound()),
-                Arguments.of("SERVER_ERROR", PartnerVerifyResult.serverError()),
-                Arguments.of("SKIPPED", PartnerVerifyResult.skipped(Optional.empty())),
-                Arguments.of("FOUND_EMPTY", PartnerVerifyResult.found(Optional.empty())));
+                Arguments.of("NOT_FOUND", PartnerVerifyResult.notFound(), 400, "INVALID_INPUT"),
+                Arguments.of("SERVER_ERROR", PartnerVerifyResult.serverError(), 500, "INTERNAL_ERROR"),
+                Arguments.of("SKIPPED", PartnerVerifyResult.skipped(Optional.empty()), 500, "INTERNAL_ERROR"),
+                Arguments.of("FOUND_EMPTY", PartnerVerifyResult.found(Optional.empty()), 500, "INTERNAL_ERROR"));
     }
 
     // ---- helpers ----

@@ -116,6 +116,42 @@ resource "aws_cloudwatch_metric_alarm" "slip_price_memory_queue_rejected" {
   }
 }
 
+# ─── partner-order 전표 발행 outbox 영구실패 알람 ─────────────────────────────
+
+resource "aws_cloudwatch_log_metric_filter" "partner_order_outbox_failed_permanent" {
+  name           = "partner-order-outbox-failed-permanent"
+  log_group_name = aws_cloudwatch_log_group.docker.name
+  pattern        = "\"Outbox FAILED_PERMANENT\""
+
+  metric_transformation {
+    name          = "PartnerOrderOutboxFailedPermanent"
+    namespace     = "SamhanLogis/PartnerOrder"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "partner_order_outbox_failed_permanent" {
+  alarm_name        = "${local.name_prefix}-partner-order-outbox-failed-permanent"
+  alarm_description = "partner-order-service 전표 발행 outbox 영구실패 감지"
+  namespace         = "SamhanLogis/PartnerOrder"
+  metric_name       = "PartnerOrderOutboxFailedPermanent"
+
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  tags = {
+    Name = "${local.name_prefix}-partner-order-outbox-failed-permanent"
+  }
+}
+
 # ─── ALB 5xx 알람 ──────────────────────────────────────────────────────────────
 
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
