@@ -236,6 +236,33 @@ class BankDepositorPartnerMappingControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("#832 R2: 작업 간 changedAt 교차 시에도 실 응답은 operationOrdinal DESC 연속이다")
+    void historyKeepsCrossedOperationsContiguousOverRealPostgres() throws Exception {
+        UUID entityId = UUID.fromString("0000cccc-0000-0000-0000-000000000003");
+        LocalDateTime base = LocalDateTime.of(2026, 7, 20, 10, 0, 0);
+        // repository total-order는 A(10:03) → B(10:02) → A(10:01)로 작업을 교차시킨다.
+        insertMappingAudit(entityId, 1, "mapping.normalizedName", null, "R2-CROSS-TIME", base.plusMinutes(3));
+        insertMappingAudit(entityId, 2, "mapping.reason", null, "B", base.plusMinutes(2));
+        insertMappingAudit(entityId, 1, "mapping.partnerCode", null, "A-EARLY", base.plusMinutes(1));
+
+        List<Map<String, Object>> rows =
+                com.jayway.jsonpath.JsonPath.read(historyJson("R2-CROSS-TIME"), "$.data");
+
+        // #832 R2: min(changedAt) 계약으로 A=1/B=2를 바인딩하고, 응답 작업은 [2,1,1] 연속이어야 한다.
+        assertThat(rows).hasSize(3);
+        assertThat(rows).extracting(r -> intAt(r, "operationOrdinal"))
+                .containsExactly(2, 1, 1);
+        assertThat(rows).extracting(r -> r.get("newValue"))
+                .containsExactly("B", "R2-CROSS-TIME", "A-EARLY");
+        assertThat(rows).filteredOn(r -> intAt(r, "revisionNo") == 1)
+                .hasSize(2)
+                .allSatisfy(r -> assertThat(intAt(r, "operationOrdinal")).isEqualTo(1));
+        assertThat(rows).filteredOn(r -> intAt(r, "revisionNo") == 2)
+                .hasSize(1)
+                .allSatisfy(r -> assertThat(intAt(r, "operationOrdinal")).isEqualTo(2));
+    }
+
+    @Test
     @DisplayName("#832: 실 Postgres 이력에서 2세대 동시각 tiebreak·비퇴화 ordinal 이 결정적으로 파생된다")
     void historyDerivesStableGenerationsAndNonDegenerateOrdinalsOverRealPostgres() throws Exception {
         // spec §2 D-03 ③2세대 동시각 tiebreak ④반복안정 + 비퇴화 ordinal(전역 ordinal≠entity-local

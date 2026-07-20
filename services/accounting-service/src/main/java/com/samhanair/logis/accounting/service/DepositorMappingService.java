@@ -248,6 +248,10 @@ public class DepositorMappingService {
                 .map(log -> toHistory(log,
                         derivation.operationOrdinalByKey().get(new HistoryOperationKey(log.getEntityId(), log.getRevisionNo())),
                         derivation.generationByEntity().get(log.getEntityId())))
+                // #832 R2: 작업 단위가 항상 연속되도록 ordinal DESC 정렬. Stream sorted는 ordered
+                // source에서 stable하므로 같은 작업 내부의 repository total-order는 보존된다.
+                .sorted(Comparator.comparingInt(BankDepositorPartnerMappingHistoryResponse::operationOrdinal)
+                        .reversed())
                 .toList();
     }
 
@@ -430,7 +434,8 @@ public class DepositorMappingService {
      *
      * <p>작업 식별자는 entityId·revisionNo 이며, 레거시 데이터에서 같은 revision의 필드별
      * changedAt 이 분산되어도 그룹의 최소 시각 하나로 처리한다. ordinal은 oldest-first로
-     * 채번하지만 호출자에게는 repository가 준 newest-first 행 순서를 그대로 반환한다.
+     * 채번하고, #832 R2 에서는 FE 작업 그룹이 시간 교차로 분리되지 않도록 응답을
+     * operationOrdinal DESC 로 stable 정렬한다. 같은 작업 내부는 repository total-order를 유지한다.
      */
     private static HistoryDerivation deriveHistoryMetadata(List<AccountingAuditLog> logs) {
         Map<UUID, java.time.LocalDateTime> firstSeenByEntity = new LinkedHashMap<>();

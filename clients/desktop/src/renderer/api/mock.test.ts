@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
-import { getMockResponse, MOCK_AUTH } from './mock'
+import { getMockResponse, MOCK_AUTH, mockPartnerByCode } from './mock'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
@@ -2258,9 +2258,9 @@ describe('mock depositor mapping contract', () => {
     expect(listed.data.some((row) => row.normalizedName === `ACME UPDATED ${suffix}`)).toBe(false)
   })
 
-  // #810 R3 (L4-M1): 같은 키의 삭제+재생성 시 revisionNo 는 entity 단위 채번이라 전역 비단조 —
-  // BE(와 mock)는 changedAt desc 로 반환하고 FE 는 이 순서를 재정렬 없이 신뢰해야 한다.
-  it('삭제+재생성 이력은 changedAt desc 순서이고 신 entity rev 1이 구 entity rev 2보다 앞이다', () => {
+  // #810 R3 (L4-M1) + #832 R2: 같은 키의 삭제+재생성 시 revisionNo 는 entity 단위 채번이라
+  // 전역 비단조 — BE와 mock은 operationOrdinal desc로 작업을 우선하고 FE는 이 순서를 신뢰한다.
+  it('삭제+재생성 이력은 operationOrdinal desc이고 신 entity rev 1이 구 entity rev 2보다 앞이다', () => {
     const suffix = String(Date.now())
     const key = `REBIRTH ${suffix}`
     mockRequest({
@@ -2284,7 +2284,7 @@ describe('mock depositor mapping contract', () => {
       params: { normalizedName: key },
     }) as MockEnvelope<Array<Record<string, unknown>>>
 
-    // 응답이 changedAt desc(최신 작업 먼저)로 정렬되어 있다.
+    // 응답이 operationOrdinal desc(최신 작업 먼저)이며 정상 batch에서는 changedAt desc도 유지한다.
     const times = history.data.map((row) => String(row.changedAt))
     expect([...times].sort().reverse()).toEqual(times)
 
@@ -2633,6 +2633,71 @@ describe('#832 mock parity contracts', () => {
     }>
   }
 
+  const activeStatusCases = [
+    ['null', 'P-832-STATUS-NULL', null, '9110083201'],
+    ['blank', 'P-832-STATUS-BLANK', '', '9110083202'],
+    ['lowercase active', 'P-832-STATUS-LOWER', 'active', '9110083203'],
+  ] as const
+
+  it.each(activeStatusCases)('status=%s fixture는 목록/CODEF/CSV 전 경로에서 정상 매칭된다(#832 R2 D-01)',
+    (statusLabel, partnerCode, expectedStatus, expectedBizNo) => {
+      const date = new Date().toISOString().slice(0, 10)
+      const accountRef = `#832 R2 active ${statusLabel} ${Date.now()}`
+      mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+      const mapping = mockRequest({
+        method: 'POST',
+        url: '/accounting/deposit-mappings',
+        data: { rawName: '삼한테스트상사', partnerCode, reason: `#832 R2 ${statusLabel}` },
+      }) as MockEnvelope<Record<string, unknown>>
+
+      const listed = mockRequest({
+        method: 'GET',
+        url: '/accounting/deposit-mappings',
+      }) as MockEnvelope<Array<Record<string, unknown>>>
+      expect(listed.data.find((row) => row.normalizedName === '삼한테스트상사')).toMatchObject({
+        partnerCode,
+        targetStatus: expectedStatus,
+        staleTarget: false,
+      })
+      expect(mapping.data).toMatchObject({ partnerCode, staleTarget: false, targetStatus: expectedStatus })
+
+      const codef = importCodef(accountRef, date)
+      expect(codef.data.importedCount).toBe(2)
+      expect(codef.data.matchedCount).toBe(2)
+      expect(codef.data.staleSkippedCount).toBe(0)
+      const codefRows = mockRequest({
+        method: 'GET',
+        url: '/accounting/bank-transactions',
+        params: { accountLabels: [accountRef] },
+      }) as MockEnvelope<Array<Record<string, unknown>>>
+      expect(codefRows.data.find((row) => String(row.externalRef).endsWith('-01-001'))).toMatchObject({
+        matchedPartnerCode: partnerCode,
+        matchedBizNo: expectedBizNo,
+        partnerMatchSource: 'DEPOSITOR_MAPPING',
+      })
+
+      const csvLabel = `#832 R2 active CSV ${statusLabel} ${Date.now()}`
+      const csv = mockRequest({
+        method: 'POST',
+        url: '/accounting/bank-transactions/import',
+        data: { bankAccountLabel: csvLabel, counterpartyName: '삼한테스트상사' },
+      }) as MockEnvelope<Record<string, unknown>>
+      expect(csv.data.importedCount).toBe(3)
+      expect(csv.data.staleSkippedCount).toBe(0)
+      const csvRows = mockRequest({
+        method: 'GET',
+        url: '/accounting/bank-transactions',
+        params: { accountLabels: [csvLabel] },
+      }) as MockEnvelope<Array<Record<string, unknown>>>
+      expect(csvRows.data.find((row) => row.externalRef === `mock-csv-${csvLabel}-1`)).toMatchObject({
+        matchedPartnerCode: partnerCode,
+        matchedBizNo: expectedBizNo,
+        partnerMatchSource: 'DEPOSITOR_MAPPING',
+      })
+
+      mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    })
+
   it.each(staleCases)('거래처 status=%s는 목록/CODEF/CSV 전 경로에서 genuine stale로 집계된다', (status, partnerCode) => {
     const date = new Date().toISOString().slice(0, 10)
     mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
@@ -2696,26 +2761,23 @@ describe('#832 mock parity contracts', () => {
     mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
   })
 
-  it('CODEF matchedCount는 신규 적재된 입금자명 매핑/코드정확일치만 세고 재import는 0/0이다', () => {
+  it('CODEF matchedCount는 같은 import의 매칭 1건만 세고 재import는 0/0이다(#832 R2 D-03)', () => {
     const date = new Date().toISOString().slice(0, 10)
     const accountRef = `#832 matched ${Date.now()}`
+    // [#832 R2 D-03] 첫 입금은 미매칭, 둘째 출금만 CODEF_BANK exact 매칭인 genuine 1/2 fixture.
     mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
     mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
-    mockRequest({
-      method: 'POST',
-      url: '/accounting/deposit-mappings',
-      data: { rawName: '삼한테스트상사', partnerCode: '1234567890', reason: '#832 matched' },
-    })
     const first = importCodef(accountRef, date)
     expect(first.data.importedCount).toBe(2)
-    expect(first.data.matchedCount).toBe(2)
+    expect(first.data.matchedCount).toBe(1)
     const importedRows = mockRequest({
       method: 'GET',
       url: '/accounting/bank-transactions',
       params: { bankAccountLabel: accountRef },
     }) as MockEnvelope<Array<Record<string, unknown>>>
     expect(importedRows.data.find((row) => row.externalRef.endsWith('-001'))).toMatchObject({
-      partnerMatchSource: 'DEPOSITOR_MAPPING',
+      partnerMatchSource: null,
+      matchedPartnerCode: null,
     })
     expect(importedRows.data.find((row) => row.externalRef.endsWith('-002'))).toMatchObject({
       partnerMatchSource: 'PARTNER_CODE_EXACT',
@@ -2730,7 +2792,18 @@ describe('#832 mock parity contracts', () => {
 
   it('create/update/history/delete/learn 전 경로는 BOM을 Java 정규화처럼 보존한다', () => {
     const bom = '\uFEFF'
+    const c0 = String.fromCharCode(0)
     mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings?normalizedName=%EC%82%BC%ED%95%9C%ED%85%8C%EC%8A%A4%ED%8A%B8%EC%83%81%EC%82%AC' })
+    const c0Created = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: `${c0}acme`, partnerCode: '1234567890', reason: '#832 R2 C0' },
+    }) as MockEnvelope<Record<string, unknown>>
+    // #832 R2 C1: rawName 저장은 Java trim으로 C0를 제거하지만 정규화 key에는 보존한다.
+    expect(c0Created.data.normalizedName).toBe(`${c0}ACME`)
+    expect(c0Created.data.rawName).toBe('acme')
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings', params: { normalizedName: `${c0}ACME` } })
+
     const created = mockRequest({
       method: 'POST',
       url: '/accounting/deposit-mappings',
@@ -2784,6 +2857,44 @@ describe('#832 mock parity contracts', () => {
     expect(deleted.data).toBeNull()
   })
 
+  it('비정규화된 NBSP/대소문자 조회 키도 history/update/delete에서 canonical key를 찾는다(#832 R2 C2)', () => {
+    const nbsp = String.fromCharCode(0xA0)
+    const storedRaw = `acme${nbsp}co`
+    const lookupKey = `  acme${nbsp}co  `
+    const canonical = 'ACME CO'
+    mockRequest({ method: 'DELETE', url: '/accounting/deposit-mappings', params: { normalizedName: canonical } })
+
+    const created = mockRequest({
+      method: 'POST',
+      url: '/accounting/deposit-mappings',
+      data: { rawName: storedRaw, partnerCode: '1234567890', reason: '#832 R2 canonical' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(created.data.normalizedName).toBe(canonical)
+
+    const history = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: lookupKey },
+    }) as MockEnvelope<Array<Record<string, unknown>>>
+    // #832 R2 C2: mockJavaTrim-only lookup로 되돌리면 canonical history가 비어 RED.
+    expect(history.data.length).toBeGreaterThan(0)
+
+    const updated = mockRequest({
+      method: 'PUT',
+      url: '/accounting/deposit-mappings',
+      params: { normalizedName: lookupKey },
+      data: { rawName: `acme${nbsp}co updated`, partnerCode: '2345678901', reason: '#832 R2 canonical update' },
+    }) as MockEnvelope<Record<string, unknown>>
+    expect(updated.data.normalizedName).toBe('ACME CO UPDATED')
+
+    const deleted = mockRequest({
+      method: 'DELETE',
+      url: '/accounting/deposit-mappings',
+      params: { normalizedName: `  acme${nbsp}co updated  ` },
+    }) as MockEnvelope<null>
+    expect(deleted.data).toBeNull()
+  })
+
   it('시드 참조 거래처(P-2026-0001/0002/P-SEJIN-003)는 실 마스터에 실재해 활성 매핑으로 해석된다(#832 S1)', () => {
     // 이전엔 P-2026-0001 등이 MOCK_ADMIN_PARTNERS 부재라 POST 404 + D-01 hydration 이 stale 로 회귀.
     // 이제 실재 ACTIVE 거래처라 staleTarget:false·targetStatus:'ACTIVE'·실명 partnerName 으로 해석.
@@ -2806,41 +2917,62 @@ describe('#832 mock parity contracts', () => {
     }
   })
 
-  it('history operationOrdinal은 작업 단위 1..N 유일·연속이고 재생성 시 generation이 2 이상 나타난다(#832 dim4)', () => {
-    const raw = 'zz832gen'
-    const nn = 'ZZ832GEN'
+  it('시드 참조 거래처 3종이 master ACTIVE·고유 bizNo이고 자사와 비충돌이다(#832 R2 D-06)', () => {
+    // S1/bizNo fix로 편입한 3 거래처가 실재·ACTIVE이고, 각 bizNo(digits)가 R2 fix 값과 정합하며
+    // 자사((주)삼한로지스 111-22-33333)와 충돌하지 않음을 전역상태 비의존으로 고정한다. bizNo fix 되돌리면 RED.
+    const expected = [
+      { code: 'P-2026-0001', bizNo: '9112233344' },
+      { code: 'P-2026-0002', bizNo: '2223344444' },
+      { code: 'P-SEJIN-003', bizNo: '5566778899' },
+    ]
+    for (const { code, bizNo } of expected) {
+      const partner = mockPartnerByCode(code)
+      expect(partner, `missing mock partner: ${code}`).not.toBeNull()
+      if (!partner) throw new Error(`missing mock partner: ${code}`)
+      expect(partner).toMatchObject({ partnerCode: code, status: 'ACTIVE', isDeleted: false })
+      expect(partner.bizNo.replace(/\D/g, '')).toBe(bizNo)
+      expect(partner.bizNo.replace(/\D/g, '')).not.toBe('1112233333')
+    }
+  })
+
+  it('history operationOrdinal은 정확히 4개 작업의 revision과 [1,2,3,4]로 대응한다(#832 R2 D-04)', () => {
+    const raw = 'zz832dim4'
+    const nn = 'ZZ832DIM4'
     const del = () => mockRequest({ method: 'DELETE', url: `/accounting/deposit-mappings?normalizedName=${nn}` })
     del()
-    // gen1: create → update(rev+1) → delete(rev+1)
+    // [#832 R2 D-04] 한 entity에서 create → update → update → delete의 정확히 4개 작업을 만든다.
     mockRequest({ method: 'POST', url: '/accounting/deposit-mappings', data: { rawName: raw, partnerCode: '1234567890', reason: 'g1 create' } })
     mockRequest({ method: 'PUT', url: '/accounting/deposit-mappings', params: { normalizedName: nn }, data: { rawName: raw, partnerCode: '2345678901', reason: 'g1 update' } })
+    mockRequest({ method: 'PUT', url: '/accounting/deposit-mappings', params: { normalizedName: nn }, data: { rawName: raw, partnerCode: '3456789012', reason: 'g1 second update' } })
     del()
-    // gen2: 같은 키에 재생성(2번째 entity)
-    mockRequest({ method: 'POST', url: '/accounting/deposit-mappings', data: { rawName: raw, partnerCode: '3456789012', reason: 'g2 create' } })
 
-    const history = mockRequest({ method: 'GET', url: '/accounting/deposit-mappings/history', params: { normalizedName: nn } }) as MockEnvelope<Array<{ operationOrdinal: number; generation: number }>>
+    const history = mockRequest({ method: 'GET', url: '/accounting/deposit-mappings/history', params: { normalizedName: nn } }) as MockEnvelope<Array<{ revisionNo: number; operationOrdinal: number; generation: number }>>
     const rows = history.data
     expect(rows.length).toBeGreaterThan(0)
-    const ordinals = rows.map((r) => r.operationOrdinal)
-    const generations = rows.map((r) => r.generation)
-    // 파생 블록 회귀(undefined) 시 아래 단언 실패
-    expect(ordinals.every((o) => typeof o === 'number' && o >= 1)).toBe(true)
-    const maxOrd = Math.max(...ordinals)
-    // 작업 단위 1..N 유일·연속(전역 회차 채번)
-    expect([...new Set(ordinals)].sort((a, b) => a - b)).toEqual(Array.from({ length: maxOrd }, (_, i) => i + 1))
-    // 삭제+재생성 → 최소 2세대
-    expect(Math.max(...generations)).toBeGreaterThanOrEqual(2)
-    // 같은 작업(operationOrdinal)의 전 필드행은 같은 generation 공유
-    const genByOrd = new Map<number, number>()
-    for (const r of rows) {
-      if (genByOrd.has(r.operationOrdinal)) expect(genByOrd.get(r.operationOrdinal)).toBe(r.generation)
-      else genByOrd.set(r.operationOrdinal, r.generation)
-    }
-    // 한 작업이 여러 필드행(create=mapping.* 다행)을 가지면 동일 ordinal 공유(행단위 유일 금지)
-    const rowsPerOrdinal = new Map<number, number>()
-    for (const r of rows) rowsPerOrdinal.set(r.operationOrdinal, (rowsPerOrdinal.get(r.operationOrdinal) ?? 0) + 1)
-    expect(Math.max(...rowsPerOrdinal.values())).toBeGreaterThan(1)
+    const revisionOrdinals = [...new Set(rows.map((r) => `${r.revisionNo}:${r.operationOrdinal}`))]
+      .map((pair) => pair.split(':').map(Number))
+      .sort(([left], [right]) => left - right)
+    // 세대별 단일 ordinal 축약·방향 역전·revisionNo 하드코딩을 모두 RED로 만든다.
+    expect(revisionOrdinals).toEqual([[1, 1], [2, 2], [3, 3], [4, 4]])
+    expect(new Set(rows.map((r) => r.operationOrdinal)).size).toBe(4)
+    expect(rows.every((r) => r.generation === 1)).toBe(true)
     del()
+  })
+
+  it('mock legacy 이력도 작업 간 시각 교차를 operationOrdinal DESC로 연속 반환한다(#832 R2 A)', () => {
+    const nbsp = String.fromCharCode(0xA0)
+    const history = mockRequest({
+      method: 'GET',
+      url: '/accounting/deposit-mappings/history',
+      params: { normalizedName: `  r2${nbsp}cross${nbsp}time  ` },
+    }) as MockEnvelope<Array<{ newValue: string | null; revisionNo: number; operationOrdinal: number }>>
+
+    // #832 R2 A: static fixture A(10:03/10:01), B(10:02)의 min(changedAt) ordinal은 A=1/B=2.
+    expect(history.data).toHaveLength(3)
+    expect(history.data.map((row) => row.operationOrdinal)).toEqual([2, 1, 1])
+    expect(history.data.map((row) => row.newValue)).toEqual(['B', 'A-LATE', 'A-EARLY'])
+    expect(history.data.filter((row) => row.revisionNo === 1).every((row) => row.operationOrdinal === 1)).toBe(true)
+    expect(history.data.filter((row) => row.revisionNo === 2).every((row) => row.operationOrdinal === 2)).toBe(true)
   })
 
   it('CSV import은 거래처코드와 정확일치해도 PARTNER_CODE_EXACT를 적용하지 않는다(#832 H1 파리티)', () => {
@@ -2867,6 +2999,7 @@ describe('#832 mock parity contracts', () => {
     expect(injected?.['partnerMatchSource'] ?? null).toBeNull()
     expect(injected?.['matchedPartnerCode'] ?? null).toBeNull()
   })
+
 })
 
 describe('mock 활성 문서양식(document-templates/active) 핸들러', () => {

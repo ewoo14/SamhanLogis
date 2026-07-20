@@ -322,6 +322,39 @@ class DepositorMappingServiceTest {
     }
 
     @Test
+    @DisplayName("#832 R2: 작업 간 changedAt 교차에도 operationOrdinal DESC로 필드행이 연속된다")
+    void historySortsScatteredOperationsByOrdinalDesc() {
+        UUID entityId = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        UUID actorId = UUID.randomUUID();
+        LocalDateTime base = LocalDateTime.of(2026, 7, 20, 10, 0);
+        when(mappingRepository.findIdsByNormalizedNameIncludingDeleted("ACME")).thenReturn(List.of(entityId));
+        when(auditLogRepository.findMappingEntityIdsByNormalizedName("ACME")).thenReturn(List.of());
+        // repository total-order: 작업 A 10:03, 작업 B 10:02, 작업 A 10:01.
+        when(auditLogRepository.findMappingHistoryByEntityIds(any())).thenReturn(List.of(
+                AccountingAuditLog.record(entityId, 1, actorId, "사용자", null,
+                        "mapping.rawName", null, "A-LATE", base.plusMinutes(3)),
+                AccountingAuditLog.record(entityId, 2, actorId, "사용자", null,
+                        "mapping.reason", null, "B", base.plusMinutes(2)),
+                AccountingAuditLog.record(entityId, 1, actorId, "사용자", null,
+                        "mapping.partnerCode", null, "A-EARLY", base.plusMinutes(1))));
+
+        List<BankDepositorPartnerMappingHistoryResponse> history = service.history("ACME");
+
+        // #832 R2: A의 min(changedAt)=10:01이 B=10:02보다 오래된 작업이므로 A=1, B=2.
+        // 응답은 작업 DESC여야 하며, stable sort로 A 내부 repository 순서도 유지한다.
+        assertThat(history)
+                .extracting(BankDepositorPartnerMappingHistoryResponse::operationOrdinal)
+                .containsExactly(2, 1, 1);
+        assertThat(history)
+                .extracting(BankDepositorPartnerMappingHistoryResponse::newValue)
+                .containsExactly("B", "A-LATE", "A-EARLY");
+        assertThat(history).filteredOn(h -> h.revisionNo() == 1).allSatisfy(h ->
+                assertThat(h.operationOrdinal()).isEqualTo(1));
+        assertThat(history).filteredOn(h -> h.revisionNo() == 2).allSatisfy(h ->
+                assertThat(h.operationOrdinal()).isEqualTo(2));
+    }
+
+    @Test
     @DisplayName("동시각 세대는 entityId asc로 결정하고 반복 조회에도 파생 순서가 안정적이다")
     void historyUsesStableGenerationTieBreak() {
         UUID firstEntity = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -362,6 +395,38 @@ class DepositorMappingServiceTest {
                 });
         // 반복 조회에도 파생 순서·값이 동일(결정적)하다.
         assertThat(second.toString()).isEqualTo(first.toString());
+    }
+
+    @Test
+    @DisplayName("#832 R2: 세대는 repository 등장순이 아니라 최초 changedAt 시간순으로 결정된다")
+    void historyPrioritizesGenerationTimeOverRepositoryAppearance() {
+        UUID firstEntity = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        UUID secondEntity = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        UUID actorId = UUID.randomUUID();
+        LocalDateTime firstAt = LocalDateTime.of(2026, 7, 20, 10, 0);
+        LocalDateTime secondAt = firstAt.plusMinutes(5);
+        when(mappingRepository.findIdsByNormalizedNameIncludingDeleted("ACME"))
+                .thenReturn(List.of(secondEntity, firstEntity));
+        when(auditLogRepository.findMappingEntityIdsByNormalizedName("ACME"))
+                .thenReturn(List.of());
+        // UUID 사전순으로 큰 secondEntity가 repository 결과에는 먼저 등장하지만, 시간상 2세대다.
+        when(auditLogRepository.findMappingHistoryByEntityIds(any())).thenReturn(List.of(
+                AccountingAuditLog.record(secondEntity, 1, actorId, "사용자", null,
+                        "mapping.partnerCode", null, "SECOND", secondAt),
+                AccountingAuditLog.record(firstEntity, 1, actorId, "사용자", null,
+                        "mapping.partnerCode", null, "FIRST", firstAt)));
+
+        List<BankDepositorPartnerMappingHistoryResponse> history = service.history("ACME");
+
+        // #832 R2 D-03: firstSeen map의 insertion order를 세대 순서로 되돌리면 FIRST/SECOND가 뒤집혀 RED.
+        assertThat(history).filteredOn(h -> "FIRST".equals(h.newValue())).hasSize(1).allSatisfy(h -> {
+            assertThat(h.generation()).isEqualTo(1);
+            assertThat(h.operationOrdinal()).isEqualTo(1);
+        });
+        assertThat(history).filteredOn(h -> "SECOND".equals(h.newValue())).hasSize(1).allSatisfy(h -> {
+            assertThat(h.generation()).isEqualTo(2);
+            assertThat(h.operationOrdinal()).isEqualTo(2);
+        });
     }
 
     @Test

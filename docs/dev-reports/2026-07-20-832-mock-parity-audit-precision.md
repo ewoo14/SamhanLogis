@@ -42,3 +42,21 @@ BE production 파생 로직 **7항목 전부 통과·0 결함** 확증. 결함�
 - **개발책임자 "시드 임의" 경고 실증**: mock parity 슬라이스에서 D-01 hydration이 미실재 거래처(`P-2026-000X`/`P-SEJIN-003`) 시드 비정합을 표면화. 시드 정합성은 mock 충실도의 1급 축.
 - **FE 단독 포착 H1**: BE `importCsv` vs `CodefImportService` 실소스 대조로만 역방향 파리티 갭 발견 — 파리티 슬라이스는 양방향 대조 필수.
 - **3모델 수렴(W1/W2)**: `toString().contains(varargs)` 독립매칭은 tiebreak 방향·행-값 바인딩을 놓쳐 false-green — record accessor 단언으로 교체([[feedback_reconvergence_before_merge]]).
+
+## 7. CODEX SOL 5.6 R2 적대검증 (교차검증·fix=CODEX LUNA)
+3차원(QA/테스트무결성·BE/DevOps·FE/Design) 적대 리뷰. **BLOCKING/HIGH 0**(production 로직 양 모델 건전 재확인). 신규 발견 disposition:
+
+### FIX (in-scope·CODEX LUNA)
+- **R2 이력 응답 정렬(production·BE+FE 2차원 수렴)**: `DepositorMappingService.history()`가 operationOrdinal은 작업 min(changedAt) 채번하면서 응답은 repository `changedAt desc` 순서 반환 → 레거시 필드행 changedAt이 작업 간 교차 시 ordinal `[1,2,1]`로 비연속→FE 그룹핑 중복. **fix**: BE·mock 응답을 **operationOrdinal DESC stable sort**(작업 내부 total-order 유지)로 작업 항상 연속. 교차 시각 회귀 테스트(BE·mock).
+- **R2 시드 bizNo 자사 충돌(R1 S1 fix가 도입)**: P-2026-0001 `111-22-33333`이 자사 (주)삼한로지스 번호와 충돌 → **`911-22-33344` 고유값 교체**+시드 통장거래 matchedBizNo 동기. P-2026-0002/P-SEJIN-003는 비충돌 유지. self-consistency 테스트(전역상태 비의존).
+- **R2 mock 정규화 파리티 완성**: create/update가 정규화를 **raw 원문에서**(선 trim 제거)·history/update/delete lookup 키를 **완전 canonical화**(BE parity). C0/NBSP 회귀 테스트.
+- **R2 테스트 강화**: D-01 null/blank/ACTIVE 3경로·D-02 matchedCount 1매칭+1미매칭·dim4 정확 4작업 [1,2,3,4] 바인딩·min(changedAt)·generation 시간우선(BE).
+
+### 바운드/노트 (PM disposition·effort 조절 [[feedback_pm_regulate_slice_effort]])
+- **R2Q2 orphan NOT_FOUND 테스트 = 도달불가로 제거**: mock 생성 endpoint가 미실재 partnerCode를 404 거부하고 거래처 부재는 soft-delete로만 표현 → orphan 매핑 생성 불가. NOT_FOUND stale은 기존 `P-DELETED-004`(isDeleted) 경로가 커버.
+- **R2 source×txnType 전 매트릭스 테스트 = 바운드**: 런타임 partner 생성 endpoint·특정 externalRef 형식 의존으로 fragile → 제거. H1 게이팅 핵심은 R1 H1 테스트(CSV 음성)+D-02(CODEF 양성)가 커버.
+- **R2 self-consistency = robust 3-코드 축약**: 전역상태 의존 5행 GET 대신 3 거래처 ACTIVE·bizNo·자사 비충돌만 결정적 단언.
+- **PRE·스코프 밖(노트)**: ①편집 모달이 null/blank/소문자 active를 비활성 취급(재선택 강제) — D-01(목록/mock)과 별개 FE 입력 이슈. ②FE `.trim()`이 제출 전 BOM 제거 → D-04 BOM 보존을 실사용자 경로서 무효화(D-04 스코프=mock parity·달성). ③교차표면 bizNo 불일치(P-2026-0001 채권 1234567890·P-SEJIN-003 입금보고서 3456789012·P-2026-0003 admin 404) — 비-depositor 픽스처(외상원장/채권/입금보고서)의 PRE 임의시드. ④전역 MOCK_* beforeEach reset 부재(순서의존). → 모두 **#832 스코프(depositor mock parity+D-03) 밖·후속 분리**(개발책임자 처분).
+
+### R2 검증
+desktop typecheck 클린·vitest **1010/0**·BE accounting IT/ServiceTest/NormalizerTest skipped=0. 라이브QA(작업 정렬·다세대) 재실증.

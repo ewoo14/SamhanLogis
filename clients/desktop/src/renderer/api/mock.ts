@@ -6533,10 +6533,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'view')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const normalizedName = mockJavaTrim(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
+    // #832 R2: history lookup도 BE와 같은 완전 정규화 key를 사용한다.
+    const normalizedName = mockDepositorNameNormalize(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
     // BE findMappingHistoryByEntityIds 대칭(#810 적대검증 R3 L4-M1) — 키로 도달 가능한 전 entity 의
-    // 행을 changedAt desc, revisionNo desc, fieldName asc 로 반환한다. revisionNo 는 entity 단위
-    // 채번이라 삭제+재생성 키에서는 전역 비단조 — FE 는 이 시간순 순서를 재정렬 없이 신뢰한다.
+    // 행을 operationOrdinal desc 우선, 그 뒤 changedAt desc, revisionNo desc, fieldName asc 로
+    // 반환한다. revisionNo 는 entity 단위 채번이라 삭제+재생성 키에서는 전역 비단조다.
     // entryKey 는 최종 tiebreaker(#810 R3 S4-M3) — 서로 다른 entity 가 세 키 모두 같아도
     // BE(PK 정렬)처럼 응답 순서가 total-order 로 결정적이 되게 한다. 키 자체 순서는 계약 아님.
     const entities = MOCK_DEPOSITOR_MAPPING_HISTORY[normalizedName] ?? []
@@ -6587,7 +6588,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         operationOrdinal: operationOrdinal.get(`${entityIndex}:${row.revisionNo}`),
         generation: generationByEntity.get(entity),
       }))
-      .sort((a, b) => b.changedAt.localeCompare(a.changedAt)
+      // #832 R2: 작업 단위가 시간 교차로 [1,2,1]로 흩어지지 않게 ordinal DESC 우선 정렬.
+      // 이후 비교식은 기존 repository total-order tiebreaker이며 Array.sort stable을 유지한다.
+      .sort((a, b) => (b.operationOrdinal ?? 0) - (a.operationOrdinal ?? 0)
+        || b.changedAt.localeCompare(a.changedAt)
         || b.revisionNo - a.revisionNo
         || (a.fieldName < b.fieldName ? -1 : a.fieldName > b.fieldName ? 1 : 0)
         || a.entryKey.localeCompare(b.entryKey))
@@ -6616,7 +6620,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!rawName || rawNameInput.length > 120 || reason.length > 500 || !partnerCode) {
       return mockError(400, 'INVALID_INPUT', 'rawName, partnerCode는 필수이며 입력 길이를 확인하세요.')
     }
-    const normalizedName = mockDepositorNameNormalize(rawName)
+    // #832 R2: BE는 raw 원문에서 정규화하므로 저장용 trim 결과가 키에서 C0를 제거하지 않게 한다.
+    const normalizedName = mockDepositorNameNormalize(rawNameInput)
     if (!normalizedName || normalizedName.length > 120) {
       return mockError(400, 'INVALID_INPUT', '입금자명은 공백만 사용할 수 없고 120자 이하여야 합니다.')
     }
@@ -6653,7 +6658,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'update')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const oldNormalizedName = mockJavaTrim(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
+    // #832 R2: update의 기존 key lookup도 대문자·Unicode 공백까지 완전 정규화한다.
+    const oldNormalizedName = mockDepositorNameNormalize(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
     if (!oldNormalizedName) return mockError(400, 'INVALID_INPUT', 'normalizedName 쿼리파라미터는 필수입니다.')
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === oldNormalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
@@ -6662,7 +6668,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const rawName = mockJavaTrim(rawNameInput)
     const partnerCode = String(body.partnerCode ?? '').trim()
     const reason = String(body.reason ?? '').trim()
-    const normalizedName = mockDepositorNameNormalize(rawName)
+    // #832 R2: update 저장 rawName은 Java trim, 정규화 key는 raw 원문 기준이다.
+    const normalizedName = mockDepositorNameNormalize(rawNameInput)
     if (!rawName || rawNameInput.length > 120 || reason.length > 500 || !partnerCode || !normalizedName || normalizedName.length > 120) {
       return mockError(400, 'INVALID_INPUT', '매핑 수정 입력을 확인하세요.')
     }
@@ -6706,7 +6713,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const denied = mockRequirePermission('accounting.deposit-mapping', 'delete')
     if (denied) return denied
     const urlObj = new URL(url, 'http://mock.local')
-    const normalizedName = mockJavaTrim(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
+    // #832 R2: delete lookup도 BE와 같은 canonical key를 사용한다.
+    const normalizedName = mockDepositorNameNormalize(String(config.params?.['normalizedName'] ?? urlObj.searchParams.get('normalizedName') ?? ''))
     if (!normalizedName) return mockError(400, 'INVALID_INPUT', 'normalizedName 쿼리파라미터는 필수입니다.')
     const index = MOCK_DEPOSITOR_MAPPINGS.findIndex((row) => row.active && row.normalizedName === normalizedName)
     if (index < 0) return mockError(404, 'NOT_FOUND', '입금자명 매핑을 찾을 수 없습니다.')
@@ -14124,7 +14132,8 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     partnerCode: 'P-2026-0001',
     partnerName: '삼한공조 A',
     representative: '삼한조',
-    businessNumber: '111-22-33333',
+    // [#832 R2 B] 자사 (주)삼한로지스(111-22-33333)와 충돌하지 않는 고유 사업자번호.
+    businessNumber: '911-22-33344',
     address: '서울특별시 영등포구 여의대로 108',
     phone: '02-2600-0001',
     status: 'ACTIVE' as const,
@@ -14157,6 +14166,47 @@ const MOCK_ADMIN_PARTNERS: Array<Record<string, unknown>> = [
     creditLimit: '3000000',
     currentBalance: '510000',
     createdAt: '2024-04-01T09:00:00+09:00',
+  },
+  // [#832 R2 D-01] BE PartnerSummary.isActiveStatus()의 null/blank/대소문자 무시 계약 fixture.
+  // 목록·CODEF·CSV가 모두 ACTIVE로 해석해야 하며, 사업자번호는 기존 master와 겹치지 않는다.
+  {
+    id: '83200001-0000-4000-8000-000000000001',
+    partnerCode: 'P-832-STATUS-NULL',
+    partnerName: 'R2 상태 null 거래처',
+    representative: 'R2 NULL',
+    businessNumber: '911-00-83201',
+    address: '서울특별시 중구 세종대로 1',
+    phone: '02-8320-0001',
+    status: null,
+    creditLimit: '1000000',
+    currentBalance: '0',
+    createdAt: '2026-07-20T09:00:00+09:00',
+  },
+  {
+    id: '83200002-0000-4000-8000-000000000002',
+    partnerCode: 'P-832-STATUS-BLANK',
+    partnerName: 'R2 상태 blank 거래처',
+    representative: 'R2 BLANK',
+    businessNumber: '911-00-83202',
+    address: '서울특별시 종로구 종로 1',
+    phone: '02-8320-0002',
+    status: '',
+    creditLimit: '1000000',
+    currentBalance: '0',
+    createdAt: '2026-07-20T09:00:00+09:00',
+  },
+  {
+    id: '83200003-0000-4000-8000-000000000003',
+    partnerCode: 'P-832-STATUS-LOWER',
+    partnerName: 'R2 상태 lower 거래처',
+    representative: 'R2 LOWER',
+    businessNumber: '911-00-83203',
+    address: '서울특별시 용산구 한강대로 1',
+    phone: '02-8320-0003',
+    status: 'active',
+    creditLimit: '1000000',
+    currentBalance: '0',
+    createdAt: '2026-07-20T09:00:00+09:00',
   },
 ]
 
@@ -17035,7 +17085,7 @@ function mockDepositorMappingResponse(row: MockDepositorMappingRow): MockDeposit
   }
 }
 
-function mockPartnerByCode(partnerCode: string): MockPartnerLookup | null {
+export function mockPartnerByCode(partnerCode: string): MockPartnerLookup | null {
   const partner = MOCK_ADMIN_PARTNERS
     .map((row) => ({ ...normalizeAccountingPartner(row), status: row['status'] ?? null }))
     .find((row) => row.partnerCode === partnerCode)
@@ -17086,8 +17136,8 @@ function mockDepositorHistoryNow(): string {
 /**
  * BE AccountingAuditLogService.recordBatch 대칭(#810 적대검증 R3 L4-M2) — 한 작업(배치)의
  * 전 필드행이 revisionNo 1개(작업당 1회 채번)와 같은 changedAt 을 공유한다.
- * revisionNo 는 entity 단위 채번이라 같은 키의 삭제+재생성에서는 전역 유일·단조가 아니다
- * — FE 는 changedAt desc 조회 순서를 신뢰한다(L4-M1).
+ * revisionNo 는 entity 단위 채번이라 같은 키의 삭제+재생성에서는 전역 유일·단조가 아니다.
+ * #832 R2 이후 FE는 operationOrdinal desc 작업 순서를 신뢰하고, 같은 작업 안에서만 changedAt desc를 본다.
  */
 function mockRecordDepositorHistoryBatch(
   entity: MockDepositorHistoryEntity,
@@ -17176,6 +17226,14 @@ const MOCK_DEPOSITOR_SEED_HISTORY: MockDepositorHistoryEntity = [
   { entryKey: 'dep-hist-seed-4', fieldName: 'mapping.reason', oldValue: null, newValue: 'ADMIN_CREATE', actor: '사용자', changedAt: '2026-06-23T08:00:00', revisionNo: 1 },
 ]
 
+// [#832 R2 A] legacy repository order가 작업 간 시각 교차를 만들 수 있는 mock 이력 fixture.
+// 작업 A(rev1)는 10:03·10:01, 작업 B(rev2)는 그 사이 10:02다.
+const MOCK_DEPOSITOR_CROSS_TIME_HISTORY: MockDepositorHistoryEntity = [
+  { entryKey: 'dep-hist-r2-cross-1', fieldName: 'mapping.rawName', oldValue: null, newValue: 'A-LATE', actor: '사용자', changedAt: '2026-07-20T10:03:00', revisionNo: 1 },
+  { entryKey: 'dep-hist-r2-cross-2', fieldName: 'mapping.partnerCode', oldValue: null, newValue: 'A-EARLY', actor: '사용자', changedAt: '2026-07-20T10:01:00', revisionNo: 1 },
+  { entryKey: 'dep-hist-r2-cross-3', fieldName: 'mapping.reason', oldValue: null, newValue: 'B', actor: '사용자', changedAt: '2026-07-20T10:02:00', revisionNo: 2 },
+]
+
 /**
  * 정규화 키 → 그 키로 조회 가능한 entity 이력 목록.
  * BE history()가 "매핑 row(soft-deleted 포함)의 키 + mapping.normalizedName old/new 등장"으로
@@ -17184,6 +17242,7 @@ const MOCK_DEPOSITOR_SEED_HISTORY: MockDepositorHistoryEntity = [
  */
 let MOCK_DEPOSITOR_MAPPING_HISTORY: Record<string, MockDepositorHistoryEntity[]> = {
   삼한상사: [MOCK_DEPOSITOR_SEED_HISTORY],
+  'R2 CROSS TIME': [MOCK_DEPOSITOR_CROSS_TIME_HISTORY],
 }
 
 /** 활성 매핑 키 → 현재 entity 이력. 삭제 시 포인터만 제거되고 이력은 키 인덱스에 남는다. */
@@ -17320,7 +17379,8 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     externalRef: 'mock-bank-20260623-001',
     matchStatus: 'UNREFLECTED',
     matchedPartnerCode: 'P-2026-0001',
-    matchedBizNo: '1112233333',
+    // [#832 R2 B] P-2026-0001 master businessNumber digits와 동기화.
+    matchedBizNo: '9112233344',
     matchedPartnerName: '삼한공조 A',
     partnerMatchSource: 'DEPOSITOR_MAPPING',
     appliedMappingRawName: '삼한상사',
@@ -17340,7 +17400,8 @@ let MOCK_BANK_TRANSACTIONS: MockBankTransactionRow[] = [
     externalRef: 'mock-bank-20260624-004',
     matchStatus: 'UNREFLECTED',
     matchedPartnerCode: 'P-2026-0001',
-    matchedBizNo: '1112233333',
+    // [#832 R2 B] P-2026-0001 master businessNumber digits와 동기화.
+    matchedBizNo: '9112233344',
     matchedPartnerName: '삼한공조 A',
     partnerMatchSource: 'DEPOSITOR_MAPPING',
     appliedMappingRawName: '삼한상사',
