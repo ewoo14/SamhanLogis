@@ -3,7 +3,10 @@ package com.samhanair.logis.partnerorder.it;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,12 +28,9 @@ import com.samhanair.logis.partnerorder.repository.PartnerOrderHistoryRepository
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.scheduler.SlipPublishOutboxProcessor;
+import com.samhanair.logis.partnerorder.scheduler.SlipPublishOutboxResultWriter;
 import com.samhanair.logis.partnerorder.scheduler.SlipPublishOutboxScheduler;
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -40,21 +40,21 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * #854 outbox processor 실 Postgres 통합 테스트.
  *
- * <p>성공/재시도/영구실패는 scheduler 진입점으로 실행하여 scheduler → processor 외부 bean 호출이
- * 실제로 transaction proxy 를 통과하는지 함께 검증한다. 검증용 조회는 processor transaction 종료 후
+ * <p>성공/재시도/영구실패는 scheduler 진입점으로 실행하여 claim → HTTP → 결과 writer 경계를
+ * 함께 검증한다. 검증용 조회는 결과 transaction 종료 후
  * repository 로 다시 읽어 managed entity 재사용에 의존하지 않는다.
  */
 @SpringBootTest(classes = PartnerOrderServiceApplication.class)
@@ -66,12 +66,15 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     private SlipPublishOutboxProcessor processor;
 
     @Autowired
+    private SlipPublishOutboxResultWriter resultWriter;
+
+    @Autowired
     private SlipPublishOutboxScheduler scheduler;
 
     @Autowired
     private PartnerOrderRepository orderRepository;
 
-    @Autowired
+    @SpyBean
     private PartnerOrderHistoryRepository historyRepository;
 
     @Autowired
@@ -90,6 +93,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     @BeforeEach
     void cleanDatabaseAndMock() {
         reset(slipServiceClient);
+        reset(historyRepository);
         historyRepository.deleteAll();
         outboxRepository.deleteAll();
         jdbcTemplate.update("DELETE FROM partner_order_lines");
@@ -153,9 +157,41 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         assertThat(reloadedOutbox.getStatus()).isEqualTo(OutboxStatus.FAILED);
         assertThat(reloadedOrder.getSlipPublishStatus()).isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
         assertThat(history).anySatisfy(item -> {
-            assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_RETRY_QUEUED);
+            assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT);
             assertThat(item.getDetailJson()).contains("\"event\":\"FAILED_PERMANENT\"");
         });
+    }
+
+    @Test
+    @DisplayName("INVALID_INPUT: 400은 max-retry를 기다리지 않고 즉시 FAILED_PERMANENT로 종결된다")
+    void invalidInput_failsImmediatelyWithPermanentHistory() {
+        TestFixture fixture = seedReadyOutbox();
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT, "필수 거래처 누락"));
+
+        scheduler.retryPending();
+
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
+        assertThat(reloadHistory(fixture.orderId())).anySatisfy(item ->
+                assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT));
+    }
+
+    @Test
+    @DisplayName("CONFLICT: 409는 max-retry를 기다리지 않고 즉시 FAILED_PERMANENT로 종결된다")
+    void conflict_failsImmediatelyWithPermanentHistory() {
+        TestFixture fixture = seedReadyOutbox();
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.CONFLICT, "동일 키 다른 본문"));
+
+        scheduler.retryPending();
+
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
+        assertThat(reloadHistory(fixture.orderId())).anySatisfy(item ->
+                assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT));
     }
 
     @Test
@@ -166,17 +202,17 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
                 .thenReturn(PublishResult.published(STUB_SLIP_NO));
 
         scheduler.retryPending();
-        processor.processOne(fixture.outbox());
+        scheduler.retryPending();
 
         verify(slipServiceClient, times(1)).publishFromPartnerOrder(anyMap(), anyString());
         assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.COMMITTED);
     }
 
     @Test
-    @DisplayName("tx 경계: 발행 시점에 실제 트랜잭션이 활성이어야 한다 (processOne @Transactional 제거 시 RED)")
-    void publish_runsInsideActiveTransaction() {
+    @DisplayName("tx 경계: HTTP 발행 시점에는 DB 트랜잭션이 없어야 한다 (lock-across-IO 방지)")
+    void publish_runsOutsideDatabaseTransaction() {
         TestFixture fixture = seedReadyOutbox();
-        AtomicBoolean txActiveAtPublish = new AtomicBoolean(false);
+        AtomicBoolean txActiveAtPublish = new AtomicBoolean(true);
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
                 .thenAnswer(invocation -> {
                     txActiveAtPublish.set(
@@ -186,11 +222,10 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
 
         scheduler.retryPending();
 
-        // 명시 save 는 tx 없이도 각자 영속하므로 상태 단언만으로는 processOne @Transactional 삭제를
-        // 잡지 못한다(QA HIGH-1). 발행 시점의 실제 tx 활성 여부를 직접 캡처해 genuine 가드로 삼는다.
+        // claim/result tx와 HTTP가 분리되어야 한다. HTTP를 DB tx 안으로 되돌리면 이 단언이 RED다.
         assertThat(txActiveAtPublish)
-                .as("processOne @Transactional 이 발행을 감싸야 한다 — 제거 시 false")
-                .isTrue();
+                .as("HTTP 발행은 DB 락/트랜잭션 밖이어야 한다")
+                .isFalse();
         assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.COMMITTED);
     }
 
@@ -241,95 +276,89 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("F1 재검: nextAttemptAt 미래인 PENDING row는 락 재검에서 스킵된다 (double-fire 차단)")
-    void futureNextAttempt_isSkippedByLockRecheck() {
+    @DisplayName("결과 tx 상태 재검: PROCESSING이 아닌 row의 성공 결과는 적용하지 않는다")
+    void resultTransaction_skipsRowNotOwnedAsProcessing() {
         TestFixture fixture = seedReadyOutbox();
-        // 다른 worker 가 markRetry 로 미래 nextAttemptAt 을 부여해 PENDING 복귀시킨 상황을 모사.
-        jdbcTemplate.update("UPDATE slip_publish_outbox SET next_attempt_at = ? WHERE id = ?",
-                LocalDateTime.now().plusMinutes(30), fixture.outboxId());
-        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
-                .thenReturn(PublishResult.published(STUB_SLIP_NO));
+        resultWriter.commitSuccess(fixture.outboxId(), PublishResult.published(STUB_SLIP_NO));
 
-        // 이미 pick 된 후보를 락 획득 후 재검하는 경로(processor 직접 호출).
-        processor.processOne(fixture.outbox());
-
-        // 재검이 nextAttemptAt.isAfter(now) 로 스킵 → 발행/전이 없음. 가드 제거 시 발행되어 RED.
-        verify(slipServiceClient, times(0)).publishFromPartnerOrder(anyMap(), anyString());
         SlipPublishOutbox reloaded = reloadOutbox(fixture.outboxId());
         assertThat(reloaded.getStatus()).isEqualTo(OutboxStatus.PENDING);
         assertThat(reloaded.getAttemptCount()).isEqualTo(1);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.PENDING_RETRY);
+        assertThat(reloadHistory(fixture.orderId())).isEmpty();
     }
 
     @Test
-    @DisplayName("동시성 barrier: worker2가 비관 락 대기에 진입한 것을 pg_locks로 확정한 뒤 1회만 발행한다")
-    void concurrentProcessing_barrierOnLockWaitPublishesExactlyOnce() throws Exception {
-        TestFixture fixture = seedReadyOutbox();
-        CountDownLatch firstPublishEntered = new CountDownLatch(1);
-        CountDownLatch releaseFirstPublish = new CountDownLatch(1);
-        AtomicInteger publishCalls = new AtomicInteger();
-        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
-                .thenAnswer(invocation -> {
-                    if (publishCalls.incrementAndGet() == 1) {
-                        firstPublishEntered.countDown();
-                        if (!releaseFirstPublish.await(10, TimeUnit.SECONDS)) {
-                            throw new IllegalStateException("첫 발행 mock release timeout");
-                        }
-                    }
-                    return PublishResult.published(STUB_SLIP_NO);
-                });
-
+    @DisplayName("claim disjoint: 두 worker의 동시 claim은 서로 다른 row를 점유한다")
+    void concurrentClaim_returnsDisjointRows() throws Exception {
+        seedReadyOutbox();
+        seedReadyOutbox();
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            // worker1 이 발행 진입(비관 락 보유 + mock park) 할 때까지 대기.
-            Future<?> first = executor.submit(() -> processor.processOne(fixture.outbox()));
-            assertThat(firstPublishEntered.await(10, TimeUnit.SECONDS)).isTrue();
+            CountDownLatch start = new CountDownLatch(1);
+            Future<List<SlipPublishOutbox>> first = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return outboxRepository.claimReadyBatch(1, outboxProperties.getLeaseSeconds());
+            });
+            Future<List<SlipPublishOutbox>> second = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return outboxRepository.claimReadyBatch(1, outboxProperties.getLeaseSeconds());
+            });
+            start.countDown();
+            List<SlipPublishOutbox> firstClaim = first.get(10, TimeUnit.SECONDS);
+            List<SlipPublishOutbox> secondClaim = second.get(10, TimeUnit.SECONDS);
 
-            // worker2 를 투입하고, worker2 가 같은 row 의 FOR UPDATE 락 대기(granted=false)에
-            // 결정적으로 진입할 때까지 폴링한다. 락이 제거되면 worker2 는 대기 없이 PENDING 을 읽어
-            // 이중발행하므로 이 barrier + 아래 단언이 함께 결정적 RED 가 된다.
-            Future<?> second = executor.submit(() -> processor.processOne(fixture.outbox()));
-            boolean worker2Blocked = awaitLockWait(10_000L);
-
-            releaseFirstPublish.countDown();
-            first.get(10, TimeUnit.SECONDS);
-            second.get(10, TimeUnit.SECONDS);
-
-            assertThat(worker2Blocked)
-                    .as("worker2 는 비관 락으로 대기해야 한다 — 락 제거 시 PENDING 을 읽어 이중발행")
-                    .isTrue();
-            assertThat(publishCalls).hasValue(1);
-            verify(slipServiceClient, times(1)).publishFromPartnerOrder(anyMap(), anyString());
-            assertThat(reloadOutbox(fixture.outboxId()).getStatus())
-                    .isEqualTo(OutboxStatus.COMMITTED);
+            assertThat(firstClaim).hasSize(1);
+            assertThat(secondClaim).hasSize(1);
+            assertThat(firstClaim.get(0).getId()).isNotEqualTo(secondClaim.get(0).getId());
         } finally {
             shutdownAndAwaitTermination(executor);
         }
     }
 
-    /**
-     * 어떤 백엔드가 lock 대기(granted=false)에 진입할 때까지 폴링한다. Testcontainers 컨테이너에
-     * 직결한 별도 JDBC 커넥션을 쓴다 — HikariCP maximum-pool-size=3(worker1·worker2 가 2개 점유)
-     * 환경에서 풀의 마지막 커넥션을 빌려 경합/고갈을 일으키지 않기 위함이다.
-     *
-     * @param timeoutMillis 최대 대기(ms)
-     * @return 대기 락을 관찰하면 true, 타임아웃이면 false
-     */
-    private boolean awaitLockWait(long timeoutMillis) throws Exception {
-        long deadline = System.currentTimeMillis() + timeoutMillis;
-        try (Connection conn = DriverManager.getConnection(
-                POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
-            while (System.currentTimeMillis() < deadline) {
-                try (Statement st = conn.createStatement();
-                     ResultSet rs = st.executeQuery(
-                             "SELECT count(*) FROM pg_locks WHERE NOT granted")) {
-                    if (rs.next() && rs.getInt(1) >= 1) {
-                        return true;
-                    }
-                }
-                Thread.sleep(100L);
-            }
-        }
-        return false;
+    @Test
+    @DisplayName("reaper reclaim: lease가 만료된 PROCESSING row를 재점유해 종결한다")
+    void staleProcessing_isReclaimedAndCommitted() {
+        TestFixture fixture = seedReadyOutbox();
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET status = 'PROCESSING', last_attempted_at = ? WHERE id = ?",
+                LocalDateTime.now().minusSeconds(outboxProperties.getLeaseSeconds() + 1), fixture.outboxId());
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenReturn(PublishResult.published(STUB_SLIP_NO));
+
+        List<SlipPublishOutbox> claimed = outboxRepository.claimReadyBatch(
+                1, outboxProperties.getLeaseSeconds());
+        assertThat(claimed).extracting(SlipPublishOutbox::getId).containsExactly(fixture.outboxId());
+
+        processor.processOne(claimed.get(0));
+
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.COMMITTED);
+    }
+
+    @Test
+    @DisplayName("F2 롤백: 결과 저장 실패는 PENDING으로 복구되고 다음 동일 키 replay를 허용한다")
+    void resultPersistenceFailure_requeuesAndReplaysSameIdempotencyKey() {
+        TestFixture fixture = seedReadyOutbox();
+        doThrow(new IllegalStateException("history save injected failure"))
+                .when(historyRepository).save(any(PartnerOrderHistory.class));
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenReturn(PublishResult.published(STUB_SLIP_NO));
+
+        scheduler.retryPending();
+
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.PENDING_RETRY);
+        assertThat(reloadHistory(fixture.orderId())).isEmpty();
+        verify(slipServiceClient).publishFromPartnerOrder(anyMap(), eq(fixture.outbox().getIdempotencyKey()));
+
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET next_attempt_at = ? WHERE id = ?",
+                LocalDateTime.now().minusSeconds(1), fixture.outboxId());
+        scheduler.retryPending();
+
+        verify(slipServiceClient, times(2))
+                .publishFromPartnerOrder(anyMap(), eq(fixture.outbox().getIdempotencyKey()));
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.PENDING);
     }
 
     private TestFixture seedReadyOutbox() {

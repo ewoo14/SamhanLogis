@@ -106,19 +106,17 @@ public class SlipPublishOutbox extends BaseEntity {
     }
 
     /**
-     * scheduler 가 pick 직후 PROCESSING 으로 전이.
+     * 레거시/도메인 테스트용 PROCESSING 전이.
      *
-     * <p>#725 판정: 본 가드는 IllegalState 유지(KEEP) 대상이다. 유일한 호출자는
-     * {@code SlipPublishOutboxProcessor.processOne()} 이며, 그 호출부가 이미
-     * {@code locked.getStatus() != OutboxStatus.PENDING} 이면 즉시 반환하도록 pre-check 하는 내부
-     * {@code @Scheduled} 배치이고, 사용자/외부 API 로 이 outbox row 를 직접 조작하는 controller 경로는
-     * 존재하지 않는다(컨트롤러 없음). 즉 이 예외는 사용자 액션으로 도달 가능한 "상태전이" 가 아니라
-     * 배치 스케줄러 내부의 재시도 방어(도달 불가 sentinel) 이므로 BusinessException 승격 대상에서
-     * 제외한다 (500 마스킹 우려 없음 — 애초에 HTTP 응답 경로로 노출되지 않는다).
+     * <p>R2부터 정상 claim은 네이티브 {@code UPDATE ... RETURNING}이 담당하므로 이 메서드는
+     * 정상 scheduler 경로에서 호출되지 않는다. stale PROCESSING reclaim도 같은 native claim이
+     * 직접 수행한다. 따라서 #725의 PENDING sentinel은 정상 경로의 가드가 아니며, 결과 트랜잭션은
+     * 재조회한 현재 상태가 PROCESSING인지로 소유권을 재검증한다. 메서드는 호환성과 도메인 단위
+     * 테스트를 위해 보존한다.
      */
     public void markProcessing() {
-        if (this.status != OutboxStatus.PENDING) {
-            throw new IllegalStateException("PENDING 상태에서만 PROCESSING 전이 가능: 현재=" + this.status);
+        if (this.status != OutboxStatus.PENDING && this.status != OutboxStatus.PROCESSING) {
+            throw new IllegalStateException("PENDING 또는 PROCESSING 상태에서만 claim 전이 가능: 현재=" + this.status);
         }
         this.status = OutboxStatus.PROCESSING;
     }

@@ -93,6 +93,7 @@ samhan:
   outbox:
     cron: "0 */5 * * * *"
     max-retry-hours: 24
+    lease-seconds: 60
   partner-order:
     vendor:
       # PR-F2 + SP-04 재검증 — 종합견적서/주문서 Google Sheet 원본 tab modelCode → 단가 lookup.

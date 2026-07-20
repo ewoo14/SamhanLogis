@@ -53,4 +53,30 @@
 - **동시성 IT 는 락 대기 진입을 관측해 결정화**: latch 만으로는 worker2 가 FOR UPDATE 에 도달했는지 알 수 없다 → `pg_locks` 폴링으로 barrier 를 세우면 락 제거가 결정적 RED. 공유 풀(size=3) 경합을 피하려 폴링은 컨테이너 직결 커넥션 사용.
 - **발행 성공과 상태 영속의 원자성**: 발행 후 DB 오류를 handleRetry 로 흡수하면 실발행된 건이 PENDING 으로 회귀·attemptCount 인플레 → 롤백 후 idempotency-key replay 에 맡기는 것이 at-least-once 계약과 정합.
 
-관련: PR #854 · spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` · 별건 노출원 #853 · enum 오표기(SLIP_RETRY_QUEUED 재사용) 정정 = 후속.
+---
+
+# R2 (CODEX SOL 적대검증 → 개발책임자 3건 fix → LUNA 구현) — claim/lease 정석 전환
+
+CODEX SOL R2(BLOCKING0·HIGH0·MED6·LOW2·머지 보류) 발견 중 설계·스코프 3건을 개발책임자가 "지금 fix" 결정 → CODEX LUNA 구현.
+
+## D-854-05 비관락 → FOR UPDATE SKIP LOCKED claim/lease 정석 전환
+R2 동시성 MED2(멀티인스턴스 convoy·@Transactional(timeout=20)이 동기 HTTP 미중단 lock-across-IO) 해소.
+- **원자 claim**(`SlipPublishOutboxRepositoryImpl`): 네이티브 `UPDATE ... SET status='PROCESSING', last_attempted_at=now() WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED LIMIT :batch) RETURNING *`. worker별 disjoint claim + `PROCESSING`·`last_attempted_at < now()-lease` stale reclaim(별도 reaper 불필요). `last_attempted_at`을 lease 마커 재사용(신규 컬럼 무).
+- **HTTP는 DB 락/tx 밖**(`SlipPublishOutboxProcessor` 무tx) → `SlipPublishOutboxResultWriter`가 결과별 짧은 @Transactional. `commitSuccess`/`handleRetry`가 `findById` 재조회 후 **status가 PROCESSING일 때만** 적용(소유권 가드). 발행 성공 후 결과 tx 실패 → `requeueAfterResultFailure`(REQUIRES_NEW)로 PENDING 복귀(주문/이력은 롤백돼 미변경·동일 idempotency-key replay).
+- lease=`samhan.outbox.lease-seconds`(60·connect2s+read5s 초과). markProcessing 가드 PENDING/PROCESSING 허용(정상 claim은 native가 담당).
+
+## D-854-06 4xx/5xx 재시도 분류(fail-fast)
+`INVALID_INPUT`(400)·`CONFLICT`(409)=즉시 FAILED_PERMANENT, `INTERNAL_ERROR`(5xx)·`UNAUTHORIZED`·`FORBIDDEN`·기타=재시도. 복구불가 4xx의 24h 반복 제거.
+
+## D-854-07 history enum 정정
+`HistoryEventType.SLIP_FAILED_PERMANENT` 추가·FAILED 분기서 사용. **마이그 불요**(event_type=VARCHAR30 NO CHECK 확인).
+
+## R2 검증
+- **partner-order-service 전체 375 tests·failures0·errors0·skipped0**(`--rerun-tasks --no-build-cache`). SlipPublishOutboxProcessorIT 13(claim disjoint·stale reclaim·결과tx PROCESSING 재검·HTTP-outside-tx·400/409 fail-fast·F2 롤백+replay·기존 회귀). ci.yml 게이트 tests>=13.
+- **라이브 QA(실 Docker·수동 시드)** — `docs/qa/854-r2-liveqa-claim-lease.png`. 로그 `Outbox claim: 3 rows`(SKIP LOCKED 원자 claim). ①A 4xx fail-fast: `{"foo":"bar"}`→slip 400→INVALID_INPUT→**att1 즉시 FAILED_PERMANENT**·주문 FAILED_PERMANENT. ②B 대조: 파싱=transient→PENDING att2 백오프10분·주문 미변경. ③C stale reclaim: PROCESSING(last_at now−70s)→claim 재점유→처리. history `SLIP_FAILED_PERMANENT`×2. QA 시드 정리·주문 2건 복원 완료.
+
+## R2 잔여(재수렴 R3 대상)
+- `claimReadyBatchMutationForJpaContract`(dead @Query·claim SQL을 Impl과 중복=drift 위험)·`existsByPartnerOrderId`(dead) — main/test 미사용 → 제거.
+- `concurrentClaim` IT는 disjoint 정확성 검증이나 SKIP LOCKED non-blocking 자체는 미가드(성능 속성).
+
+관련: PR #854 · spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` · 별건 노출원 #853.

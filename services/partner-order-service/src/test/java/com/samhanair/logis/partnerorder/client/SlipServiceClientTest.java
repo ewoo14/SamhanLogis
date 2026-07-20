@@ -14,8 +14,11 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.lang.reflect.Proxy;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -23,6 +26,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.match.MockRestRequestMatchers;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -45,6 +49,8 @@ class SlipServiceClientTest {
 
     private MockRestServiceServer server;
     private SlipServiceClient client;
+    private AtomicBoolean cloneCalled;
+    private AtomicReference<SimpleClientHttpRequestFactory> capturedRequestFactory;
 
     @BeforeEach
     void setUp() {
@@ -53,10 +59,21 @@ class SlipServiceClientTest {
 
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        // #854: SlipServiceClient 가 builder.clone().requestFactory(rf)(timeout 하드닝) 로 mock 팩토리를
-        // 덮어쓰지 않도록, clone/requestFactory 를 no-op 화하는 프록시 빌더로 감싸 mock 바인딩을 보존한다
-        // (DcConfigClientTest 와 동일 패턴).
+        cloneCalled = new AtomicBoolean();
+        capturedRequestFactory = new AtomicReference<>();
+        // MockRestServiceServer 바인딩은 보존하되 clone/requestFactory 호출 자체와 timeout 계약은
+        // 별도 단언한다. no-op stub만 두면 builder.clone 계약이 사라져도 테스트가 녹색이 된다.
         client = new SlipServiceClient(mockBoundBuilder(builder), props);
+    }
+
+    @Test
+    void constructor는_clone과_2초_connect_5초_read_timeout을_원본_builder_변이없이_적용한다()
+            throws ReflectiveOperationException {
+        assertThat(cloneCalled).isTrue();
+        SimpleClientHttpRequestFactory requestFactory = capturedRequestFactory.get();
+        assertThat(requestFactory).isNotNull();
+        assertThat(readTimeout(requestFactory, "connectTimeout")).isEqualTo(2_000);
+        assertThat(readTimeout(requestFactory, "readTimeout")).isEqualTo(5_000);
     }
 
     @Test
@@ -324,13 +341,22 @@ class SlipServiceClientTest {
                 new Class<?>[]{RestClient.Builder.class},
                 (proxy, method, args) -> {
                     if ("clone".equals(method.getName()) && method.getParameterCount() == 0) {
+                        cloneCalled.set(true);
                         return proxy;
                     }
                     if ("requestFactory".equals(method.getName()) && method.getParameterCount() == 1) {
+                        capturedRequestFactory.set((SimpleClientHttpRequestFactory) args[0]);
                         return proxy;
                     }
                     Object result = method.invoke(delegate, args);
                     return result == delegate ? proxy : result;
                 });
+    }
+
+    private static int readTimeout(SimpleClientHttpRequestFactory requestFactory, String fieldName)
+            throws ReflectiveOperationException {
+        Field field = SimpleClientHttpRequestFactory.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getInt(requestFactory);
     }
 }

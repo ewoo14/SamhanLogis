@@ -94,6 +94,7 @@ Scheduler (5분):
 | `BOOTSTRAP_CACHE_REFRESH_MINUTES` | 10 | bootstrap 내부 캐시 evict 후 prefetch 주기(분) |
 | `samhan.draft.ttl-days` | 30 | DraftCleanupScheduler |
 | `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계 |
+| `samhan.outbox.lease-seconds` | 60 | PROCESSING stale claim lease |
 
 ## Local run
 
