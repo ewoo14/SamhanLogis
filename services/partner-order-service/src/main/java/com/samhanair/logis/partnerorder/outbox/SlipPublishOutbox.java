@@ -109,7 +109,7 @@ public class SlipPublishOutbox extends BaseEntity {
      * scheduler 가 pick 직후 PROCESSING 으로 전이.
      *
      * <p>#725 판정: 본 가드는 IllegalState 유지(KEEP) 대상이다. 유일한 호출자는
-     * {@code SlipPublishOutboxScheduler.processOne()} 이며, 그 호출부가 이미
+     * {@code SlipPublishOutboxProcessor.processOne()} 이며, 그 호출부가 이미
      * {@code locked.getStatus() != OutboxStatus.PENDING} 이면 즉시 반환하도록 pre-check 하는 내부
      * {@code @Scheduled} 배치이고, 사용자/외부 API 로 이 outbox row 를 직접 조작하는 controller 경로는
      * 존재하지 않는다(컨트롤러 없음). 즉 이 예외는 사용자 액션으로 도달 가능한 "상태전이" 가 아니라
