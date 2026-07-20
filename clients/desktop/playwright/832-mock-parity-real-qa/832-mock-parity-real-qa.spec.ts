@@ -19,7 +19,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5219'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/832-audit-precision')
+const SHOTS = path.resolve(_dirname, '../../../../docs/qa/832-audit-precision', process.env['SHOTS_SUB'] ?? '')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const NORMALIZED = 'QA-R1-매핑검증'
