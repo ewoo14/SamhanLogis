@@ -4,7 +4,30 @@
 
 ---
 
-## 🔥 2026-07-20 (회사PC 밤) — **#854 진행 중: R3 완료·R4 재수렴 대기** ◀ 다음 세션(집PC) 첫 읽기·재개점
+## 🔥 2026-07-21 (집PC 새벽) — **2트랙 병렬 가동 중** ◀ 다음 세션 첫 읽기·재개점
+
+> **🚨 워크플로우 2건 변경(2026-07-20)** — ①**기획검수 폐지**(적대리뷰와 중복) ②**1차 적대검증 리뷰=FABLE5 · 그 라운드 fix=SONNET5**(OPUS 4.8 = 기획 + PM 오케스트레이션 전담, 리뷰·라운드 fix 직접 수행 금지). 정본 = [[feedback_canonical_workflow]]. CLAUDE.md·MEMORY.md 동기화 완료.
+>
+> **🚨 처리량 3레버 결정(2026-07-20)** — #854 가 8h21m·69파일·5라운드 쓰고도 미머지, 잔여 11~12 슬라이스 → **위험 등급제는 미채택(캐논 풀 강도 유지)**, 대신 ①**슬라이스 병렬화**(캐논 명시 허용·간섭 없는 조합만) ②**슬라이스 중 범위 동결**(자체 코드 결함=현 PR fix / 새 기능·표면 추가=이슈+다음 슬라이스·현 PR 편입 시 PM 이 라운드 비용 선제시 의무) ③잔여 chore 배치화. 정본 = [[feedback_throughput_parallel_scope_freeze_batch]].
+>
+> ### 트랙 1 — #854 outbox (PR #862, 브랜치 `fix/854-outbox-selfinvocation-tx`, 본 트리)
+> 진행: 기획 → LUNA 구현 → OPUS R1 → SOL R2 → OPUS R3 → **OPUS R4**(HIGH-A 소유권 가드 무가드 뮤테이션 실증·HIGH-B 4xx 오분류·HIGH-C 종결 조건 부재) → **Track 2**(관측/알림 배선·FE 전표발행 상태 표시·slip-service 상태코드) → **FABLE5 R5**(HIGH 5·MED 14·LOW 23) → **SOL R6**(BLOCKING 3·HIGH 6) → **LUNA R6 fix 진행 중**.
+> **🔴 현재 CI RED** — `Desktop Playwright (mock 회귀 hard gate)` 589/1 fail. 원인 = R5 가 추가한 mock CONFIRMED 행 2건이 기존 스펙이 부재를 단언하는 거래처명(`엘에이시스템에어`)을 사용. LUNA 가 수정 중.
+> 다음: LUNA fix 완료 → PM 검증(**Playwright 590 로컬 전량 필수**) → R7 재수렴 → 0수렴 → PM 종합 → 머지·#854 close.
+> 이월 이슈 **#863** 등록(outbox depth/heartbeat·startup scrape race·awslogs 버퍼 유실·목록 발행상태 UX·pre-existing 2건).
+>
+> ### 트랙 A — #825 슬5 null-semantics (PR #864, 브랜치 `feat/825-s5-codef-null-semantics`, **워크트리 `.claude/worktrees/s5-codef`**)
+> OPUS 기획 완료(spec `docs/specs/825-s5-null-semantics-spec.md` + 기획 리뷰 게시) → **LUNA 구현 진행 중**.
+> 핵심: 세 도메인(일마감 `partner_id` NULL·안전재고 `warehouseId` null·CODEF 선택 `[]`)에서 빈 값이 '전체'와 '미선택'을 겸함 → **저장 스키마 무변경**으로 `scopeMode(ALL|SELECTED)` 필수화(누락=400·무음 폴백 금지). 마이그 0건·기존 행 무영향.
+> 다음: LUNA 구현 → FABLE5 적대검증(fix=SONNET5) → SOL(fix=LUNA) → 0수렴 → 머지.
+>
+> ### 트랙 확장 계획 (3트랙)
+> #854 머지 후 → **#845 DS-3**(groupware) + **B4 chore 배치(#831·#830·#851)** 추가. ⚠️ **#831 은 #854 와 같은 결함 계열/파일**(`PartnerInternalClient` 4xx 세탁)이라 **#854 머지 전 착수 금지**.
+> 🔴 블로커 유지: #827·#773(Google clasp 대화형 OAuth).
+
+---
+
+## 🔥 2026-07-20 (회사PC 밤) — **#854: R3 완료·R4 재수렴 대기**(당시 기록)
 
 > **#854 outbox self-invocation @Transactional 우회 실버그** (PR **#862**·브랜치 `fix/854-outbox-selfinvocation-tx`·최신 **`b72804689`**). B3 실버그(#853 전표 거래처 필수화 fail-closed가 노출·pre-existing). **신 캐논(기획검수 폐지 후 첫 슬라이스)**.
 >
