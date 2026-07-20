@@ -32,6 +32,12 @@ public interface SlipPublishOutboxRepository extends JpaRepository<SlipPublishOu
      *
      * <p>락은 호출 tx 종료까지만 유지되며, HTTP 발행은 tx 밖(processor)에서 수행하므로 락을 물지 않는다.
      *
+     * <p>⚠️ <b>대기 상한은 {@code @QueryHints}/{@code jakarta.persistence.lock.timeout} 으로 걸리지 않는다</b>
+     * (#854 R4 MED). Hibernate {@code PostgreSQLDialect.supportsWait()} 이 false 라 양수 timeout 은 무시되고
+     * ({@code for update} 문자열 그대로), PostgreSQL 기본 {@code lock_timeout} 도 0(무한)이다. 따라서 상한은
+     * 호출 측 {@code @Transactional(timeout = ...)}(→ JDBC statement timeout → pgjdbc cancel)으로만 실효화되며,
+     * {@link com.samhanair.logis.partnerorder.scheduler.SlipPublishOutboxResultWriter} 가 이를 부여한다.
+     *
      * @param id outbox row PK
      * @return PROCESSING 여부 재검 대상 row (없으면 empty)
      */

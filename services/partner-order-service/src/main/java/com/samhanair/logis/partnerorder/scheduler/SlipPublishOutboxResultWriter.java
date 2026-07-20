@@ -44,8 +44,18 @@ public class SlipPublishOutboxResultWriter {
     private final OutboxProperties outboxProperties;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 결과 tx 상한(초) — 소유권 가드의 {@code SELECT ... FOR UPDATE} 무한 대기를 차단한다 (#854 R4 MED).
+     *
+     * <p>⚠️ {@code jakarta.persistence.lock.timeout} 은 <b>PostgreSQL 에서 무음 no-op</b> 이다
+     * (Hibernate {@code PostgreSQLDialect.supportsWait() == false} — 양수 timeout 은 {@code for update}
+     * 문자열을 변경 없이 반환). 라이브 실측 {@code SHOW lock_timeout} 도 {@code 0}(무한). 따라서 락 대기
+     * 상한은 Spring tx timeout(→ JDBC statement timeout → pgjdbc cancel request)으로만 실효화된다.
+     */
+    private static final int RESULT_TX_TIMEOUT_SECONDS = 10;
+
     /** 성공 결과를 PROCESSING row에만 반영한다. */
-    @Transactional
+    @Transactional(timeout = RESULT_TX_TIMEOUT_SECONDS)
     public void commitSuccess(UUID outboxId, PublishResult result) {
         SlipPublishOutbox row = processingRow(outboxId);
         if (row == null) {
@@ -54,7 +64,7 @@ public class SlipPublishOutboxResultWriter {
         row.markCommitted();
         outboxRepository.save(row);
 
-        orderRepository.findById(row.getPartnerOrderId()).ifPresent(order -> {
+        orderRepository.findById(row.getPartnerOrderId()).ifPresentOrElse(order -> {
             order.markSlipPublished(result.slipNo());
             orderRepository.save(order);
             historyRepository.save(PartnerOrderHistory.ofOrder(
@@ -64,23 +74,33 @@ public class SlipPublishOutboxResultWriter {
                             "slipNo", result.slipNo(),
                             "viaOutbox", true,
                             "attempts", row.getAttemptCount()))));
-        });
-        log.info("Outbox COMMITTED: orderId={}, slipNo={}, attempts={}",
-                row.getPartnerOrderId(), result.slipNo(), row.getAttemptCount());
+            log.info("Outbox COMMITTED: orderId={}, slipNo={}, attempts={}",
+                    row.getPartnerOrderId(), result.slipNo(), row.getAttemptCount());
+        // 주문 부재(soft-delete/정합 사고) 시 outbox 만 COMMITTED 되고 주문·이력은 미갱신 — 무음 발산
+        // 방지를 위해 성공 로그 대신 error 로 남긴다 (#854 R4 MED). 전표는 이미 발행된 상태다.
+        }, () -> log.error("Outbox COMMITTED but order missing — 주문 미갱신: outboxId={}, orderId={},"
+                        + " slipNo={} (수동 정합 확인 필요)",
+                row.getId(), row.getPartnerOrderId(), result.slipNo()));
     }
 
     /**
      * 외부 발행/파싱 실패를 현재 PROCESSING row에만 반영한다.
-     * INVALID_INPUT·CONFLICT는 max-retry와 무관하게 즉시 terminal 처리한다.
+     *
+     * <p>복구 불가 오류(INVALID_INPUT·CONFLICT)는 max-retry-hours 를 기다리지 않고 종결하되,
+     * {@code permanent-error-min-attempts}(기본 2) 미만이면 한 번은 재시도한다 (#854 R4 HIGH-B).
+     * 다운스트림 검증 불가가 4xx 로 새어 들어오는 경우 1회 시도 만에 영구 실패로 확정되어 <em>일시적</em>
+     * 인프라 장애가 수동 복구 대상이 되는 것을 막는다.
      */
-    @Transactional
+    @Transactional(timeout = RESULT_TX_TIMEOUT_SECONDS)
     public void handleRetry(UUID outboxId, ErrorCode errorCode, String error) {
         SlipPublishOutbox row = processingRow(outboxId);
         if (row == null) {
             return;
         }
-        boolean permanentError = errorCode == ErrorCode.INVALID_INPUT
+        boolean unrecoverableError = errorCode == ErrorCode.INVALID_INPUT
                 || errorCode == ErrorCode.CONFLICT;
+        boolean permanentError = unrecoverableError
+                && row.getAttemptCount() >= outboxProperties.getPermanentErrorMinAttempts();
         Duration elapsed = Duration.between(row.getFirstAttemptedAt(), LocalDateTime.now());
         if (permanentError || elapsed.toHours() >= outboxProperties.getMaxRetryHours()) {
             markFailedPermanent(row, errorCode, error);
@@ -104,7 +124,7 @@ public class SlipPublishOutboxResultWriter {
      * 재큐잉한다. 결과 저장 실패는 재시도 횟수를 부풀려선 안 되며(max-retry-hours 판정 왜곡 방지),
      * 순수 결과 영속화 재시도로만 취급한다.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = RESULT_TX_TIMEOUT_SECONDS)
     public void requeueAfterResultFailure(UUID outboxId, String error) {
         SlipPublishOutbox row = processingRow(outboxId);
         if (row == null) {
@@ -115,6 +135,44 @@ public class SlipPublishOutboxResultWriter {
         outboxRepository.save(row);
         log.error("Outbox result persistence rolled back; requeued: outboxId={}, error={}",
                 outboxId, error);
+    }
+
+    /**
+     * claim 시점 종결 가드 — {@code handleRetry} 도달 여부와 <b>무관하게</b> max-retry-hours 를 보장한다
+     * (#854 R4 HIGH-C).
+     *
+     * <p>종전에는 종결 판정(max-retry-hours → FAILED_PERMANENT)이 오직 {@code handleRetry} 안에만 있어,
+     * 결과 writer 에 도달하지 못하는 실패 양상이 <b>영원히 종결되지 않았다</b>:
+     * <ol>
+     *   <li><b>결과 tx 실패 루프</b> — HTTP 성공 후 {@code commitSuccess} 가 결정적으로 실패하면
+     *       {@code requeueAfterResultFailure} → {@code markRequeue}(attemptCount 불변) → 재claim →
+     *       동일 실패가 5분 주기로 무한 반복. {@code handleRetry} 는 한 번도 호출되지 않는다.</li>
+     *   <li><b>lease 재점유 루프</b> — claim 직후 프로세스가 죽으면 lease 만료 → 재claim 이 반복되는데,
+     *       claim 은 attemptCount 를 증가시키지 않으므로 24h 가 지나도 FAILED 로 전이하지 않고 주문은
+     *       PENDING_RETRY 에 고착된다.</li>
+     * </ol>
+     *
+     * <p>두 경로 모두 <b>claim 을 거친다</b>는 공통점을 이용해, 스케줄러가 claim 직후 이 가드를 먼저
+     * 호출하여 소진된 row 를 HTTP 재발행 없이 종결시킨다. 벽시계({@code firstAttemptedAt}) 기준이라
+     * attemptCount 증가 여부와 무관하게 상한이 보장된다.
+     *
+     * @param outboxId claim 된 outbox row PK
+     * @return 종결시켰으면 true (호출자는 이 row 의 발행을 건너뛴다)
+     */
+    @Transactional(timeout = RESULT_TX_TIMEOUT_SECONDS)
+    public boolean expireIfExhausted(UUID outboxId) {
+        SlipPublishOutbox row = processingRow(outboxId);
+        if (row == null) {
+            return false;
+        }
+        Duration elapsed = Duration.between(row.getFirstAttemptedAt(), LocalDateTime.now());
+        if (elapsed.toHours() < outboxProperties.getMaxRetryHours()) {
+            return false;
+        }
+        markFailedPermanent(row, null,
+                "max-retry-hours(" + outboxProperties.getMaxRetryHours()
+                        + "h) 초과 — claim 시점 종결 가드");
+        return true;
     }
 
     /**
@@ -132,7 +190,7 @@ public class SlipPublishOutboxResultWriter {
     private void markFailedPermanent(SlipPublishOutbox row, ErrorCode errorCode, String error) {
         row.markFailed(error);
         outboxRepository.save(row);
-        orderRepository.findById(row.getPartnerOrderId()).ifPresent(order -> {
+        orderRepository.findById(row.getPartnerOrderId()).ifPresentOrElse(order -> {
             order.markSlipFailedPermanent();
             orderRepository.save(order);
             historyRepository.save(PartnerOrderHistory.ofOrder(
@@ -143,9 +201,11 @@ public class SlipPublishOutboxResultWriter {
                             "errorCode", errorCode == null ? "" : errorCode.name(),
                             "attempts", row.getAttemptCount(),
                             "error", error == null ? "" : error))));
-        });
-        log.error("Outbox FAILED_PERMANENT: orderId={}, attempts={}, error={}",
-                row.getPartnerOrderId(), row.getAttemptCount(), error);
+        }, () -> log.error("Outbox FAILED_PERMANENT but order missing — 주문 미갱신: outboxId={},"
+                + " orderId={} (수동 정합 확인 필요)", row.getId(), row.getPartnerOrderId()));
+        log.error("Outbox FAILED_PERMANENT: orderId={}, attempts={}, errorCode={}, error={}",
+                row.getPartnerOrderId(), row.getAttemptCount(),
+                errorCode == null ? "MAX_RETRY_EXHAUSTED" : errorCode.name(), error);
     }
 
     private String writeDetailJson(Map<String, Object> detail) {

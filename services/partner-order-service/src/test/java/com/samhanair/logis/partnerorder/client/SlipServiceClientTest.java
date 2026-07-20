@@ -203,6 +203,46 @@ class SlipServiceClientTest {
     }
 
     @Test
+    void publishFromPartnerOrder_408은_재시도_대상인_INTERNAL_ERROR() {
+        // #854 R4 HIGH-B: spec D-854-06 은 408 을 transient(재시도)로 명시. 종전 매핑은 일괄 4xx 분기로
+        // 흘려 INVALID_INPUT(outbox 에서 영구실패 분류)을 만들었다.
+        server.expect(requestTo(FROM_PARTNER_ORDER))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.REQUEST_TIMEOUT));
+
+        assertBusinessError(
+                () -> client.publishFromPartnerOrder(payload(), "PO-CONF-P1-1"),
+                ErrorCode.INTERNAL_ERROR);
+        server.verify();
+    }
+
+    @Test
+    void publishFromPartnerOrder_429는_재시도_대상인_INTERNAL_ERROR() {
+        // #854 R4 HIGH-B: 레이트리밋/서킷은 복구 가능하므로 영구실패로 분류하면 안 된다.
+        server.expect(requestTo(FROM_PARTNER_ORDER))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertBusinessError(
+                () -> client.publishFromPartnerOrder(payload(), "PO-CONF-P1-1"),
+                ErrorCode.INTERNAL_ERROR);
+        server.verify();
+    }
+
+    @Test
+    void publishFromOrdersMerge_429도_동일하게_INTERNAL_ERROR로_분류된다() {
+        // 동일 매핑이 두 메서드에 중복 존재 — 결함 계열 전수 sweep([[feedback_defect_family_sweep_fix]]).
+        server.expect(requestTo(FROM_ORDERS_MERGE))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertBusinessError(
+                () -> client.publishFromOrdersMerge(mergePayload(), "PO-MRG-20260623-1"),
+                ErrorCode.INTERNAL_ERROR);
+        server.verify();
+    }
+
+    @Test
     void publishFromPartnerOrder_성공인데_slipNo가_없으면_INTERNAL_ERROR() {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))

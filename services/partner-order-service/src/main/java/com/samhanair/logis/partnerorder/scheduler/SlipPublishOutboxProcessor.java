@@ -7,12 +7,9 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient;
 import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
-import com.samhanair.logis.partnerorder.config.OutboxProperties;
 import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,10 +24,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SlipPublishOutboxProcessor {
 
-    private static final Logger log = LoggerFactory.getLogger(SlipPublishOutboxProcessor.class);
-
     private final SlipServiceClient slipServiceClient;
-    private final OutboxProperties outboxProperties;
     private final ObjectMapper objectMapper;
     private final SlipPublishOutboxResultWriter resultWriter;
 
@@ -58,11 +52,6 @@ public class SlipPublishOutboxProcessor {
             }
             throw persistenceFailure;
         }
-    }
-
-    /** scheduler가 사용할 claim lease 설정값. */
-    public int getLeaseSeconds() {
-        return outboxProperties.getLeaseSeconds();
     }
 
     private ErrorCode errorCodeOf(RuntimeException ex) {

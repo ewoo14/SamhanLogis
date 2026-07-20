@@ -48,7 +48,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * #854 outbox processor 실 Postgres 통합 테스트.
@@ -88,6 +90,9 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     /** 외부 slip-service 는 반드시 mock 하여 Eureka 5xx 를 차단한다. */
     @MockBean
@@ -166,9 +171,28 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("INVALID_INPUT: 400은 max-retry를 기다리지 않고 즉시 FAILED_PERMANENT로 종결된다")
-    void invalidInput_failsImmediatelyWithPermanentHistory() {
-        TestFixture fixture = seedReadyOutbox();
+    @DisplayName("INVALID_INPUT 첫 시도(#854 R4 HIGH-B): 400이어도 최소 시도 미만이면 종결하지 않고 재시도한다")
+    void invalidInput_firstAttempt_retriesInsteadOfPermanentFailure() {
+        TestFixture fixture = seedReadyOutbox();   // attemptCount = 1 < permanent-error-min-attempts(2)
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT, "거래처 확인 불가"));
+
+        scheduler.retryPending();
+
+        // 다운스트림 검증 불가가 4xx 로 새어 들어와도 1회 시도 만에 영구 실패로 확정되면 안 된다.
+        // 최소 시도 가드를 제거하면 FAILED/FAILED_PERMANENT 가 되어 RED.
+        SlipPublishOutbox reloaded = reloadOutbox(fixture.outboxId());
+        assertThat(reloaded.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(reloaded.getAttemptCount()).isEqualTo(2);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.PENDING_RETRY);
+        assertThat(reloadHistory(fixture.orderId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("INVALID_INPUT 최소 시도 도달: 400은 max-retry를 기다리지 않고 FAILED_PERMANENT로 종결된다")
+    void invalidInput_afterMinAttempts_failsPermanently() {
+        TestFixture fixture = seedAtPermanentErrorThreshold();
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
                 .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT, "필수 거래처 누락"));
 
@@ -182,9 +206,24 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("CONFLICT: 409는 max-retry를 기다리지 않고 즉시 FAILED_PERMANENT로 종결된다")
-    void conflict_failsImmediatelyWithPermanentHistory() {
+    @DisplayName("CONFLICT 첫 시도(#854 R4 HIGH-B): 409도 최소 시도 미만이면 종결하지 않고 재시도한다")
+    void conflict_firstAttempt_retriesInsteadOfPermanentFailure() {
         TestFixture fixture = seedReadyOutbox();
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.CONFLICT, "동일 키 다른 본문"));
+
+        scheduler.retryPending();
+
+        SlipPublishOutbox reloaded = reloadOutbox(fixture.outboxId());
+        assertThat(reloaded.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(reloaded.getAttemptCount()).isEqualTo(2);
+        assertThat(reloadHistory(fixture.orderId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CONFLICT 최소 시도 도달: 409는 max-retry를 기다리지 않고 FAILED_PERMANENT로 종결된다")
+    void conflict_afterMinAttempts_failsPermanently() {
+        TestFixture fixture = seedAtPermanentErrorThreshold();
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "동일 키 다른 본문"));
 
@@ -442,6 +481,207 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         assertThat(reloaded.getAttemptCount()).isEqualTo(1);
         assertThat(reloaded.getNextAttemptAt()).isAfter(LocalDateTime.now());
         assertThat(reloaded.getLastError()).contains("history save injected failure");
+    }
+
+    @Test
+    @DisplayName("원자 소유권 가드(결정적): 선행 tx 가 COMMITTED 로 종결하면 뒤늦은 handleRetry 는 clobber 하지 못한다")
+    void resultWriter_doesNotClobberTransitionCommittedByLockHolder() throws Exception {
+        // #854 R4 HIGH-A. 종전 가드(commitSuccess/handleRetry 동시 실행 ×30 clobber 단언)는 무락 findById
+        // 로 되돌려도 90/90 GREEN 이었다 — "commitSuccess 가 나중에 커밋" 인터리빙이 락 있을 때의 정상
+        // 결과와 관측적으로 동일해 판별 불가이고, commitSuccess 가 write 를 더 많이 해 그쪽으로 편향된다.
+        //
+        // 여기서는 선후 관계를 테스트가 통제한다. holder 가 락을 쥔 채 COMMITTED 로 바꾸고 커밋을 보류하는
+        // 동안 handleRetry 를 투입하면,
+        //   - FOR UPDATE(현행): handleRetry 의 SELECT 가 락을 기다렸다가 COMMITTED 를 읽고 skip → COMMITTED 유지
+        //   - 무락 findById(회귀): SELECT 가 기다리지 않고 stale PROCESSING 을 읽어 진행 → UPDATE 가 뒤늦게
+        //     적용되어 COMMITTED 를 PENDING 으로 덮음 → RED
+        // 대기 진입은 pg_locks 로 관측해 배리어를 세우므로 스케줄 운에 의존하지 않는다.
+        TestFixture fixture = seedProcessingOutbox();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch holderReady = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            Future<?> holder = executor.submit(() ->
+                    new TransactionTemplate(transactionManager).execute(status -> {
+                        SlipPublishOutbox row = outboxRepository.findWithLockById(fixture.outboxId())
+                                .orElseThrow();
+                        row.markCommitted();
+                        outboxRepository.saveAndFlush(row);   // UPDATE 즉시 발행 → 행 락 확실 보유
+                        holderReady.countDown();
+                        try {
+                            release.await(10, TimeUnit.SECONDS);
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                        }
+                        return null;
+                    }));
+            assertThat(holderReady.await(10, TimeUnit.SECONDS))
+                    .as("holder tx 가 행 락을 쥔 채 COMMITTED 로 전이해야 한다").isTrue();
+
+            Future<?> late = executor.submit(() -> {
+                resultWriter.handleRetry(fixture.outboxId(), ErrorCode.INTERNAL_ERROR, "뒤늦은 실패 전이");
+                return null;
+            });
+
+            // 뒤늦은 전이가 (SELECT 또는 UPDATE 에서) 행 락 대기에 진입할 때까지 관측 배리어.
+            awaitRowLockWait();
+            release.countDown();
+            late.get(10, TimeUnit.SECONDS);
+            holder.get(10, TimeUnit.SECONDS);
+
+            SlipPublishOutbox reloaded = reloadOutbox(fixture.outboxId());
+            assertThat(reloaded.getStatus())
+                    .as("먼저 종결한 COMMITTED 가 뒤늦은 재시도 전이로 덮이면 안 된다")
+                    .isEqualTo(OutboxStatus.COMMITTED);
+            assertThat(reloaded.getAttemptCount())
+                    .as("skip 된 전이는 attemptCount 도 건드리지 않아야 한다")
+                    .isEqualTo(1);
+        } finally {
+            release.countDown();
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    /** 다른 세션이 행 락 대기에 진입할 때까지의 관측 배리어 — 고정 sleep 추정이 아닌 실제 상태 폴링. */
+    private void awaitRowLockWait() throws InterruptedException {
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadlineNanos) {
+            Integer waiting = jdbcTemplate.queryForObject(
+                    "SELECT count(*) FROM pg_locks WHERE NOT granted", Integer.class);
+            if (waiting != null && waiting > 0) {
+                return;
+            }
+            TimeUnit.MILLISECONDS.sleep(20);
+        }
+        fail("다른 세션이 행 락 대기 상태로 진입하지 않았다 — 배리어 전제 실패");
+    }
+
+    @Test
+    @DisplayName("SKIP LOCKED(결정적): 잠긴 row 는 대기 없이 건너뛰고 다음 후보를 claim 한다")
+    void claimReadyBatch_skipsLockedRowWithoutBlocking() throws Exception {
+        // #854 R4 MED. 종전 concurrentClaim_returnsDisjointRows 는 1회 실행이라 두 claim 이 시간적으로
+        // 겹치지 않으면 SKIP LOCKED 유무와 무관하게 GREEN — 사실상 미가드였다.
+        TestFixture lockedRow = seedReadyOutbox();
+        TestFixture freeRow = seedReadyOutbox();
+        // ORDER BY next_attempt_at 상 잠긴 row 가 먼저 오도록 고정 → SKIP LOCKED 제거 시 결정적으로 블록.
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET next_attempt_at = ? WHERE id = ?",
+                LocalDateTime.now().minusSeconds(30), lockedRow.outboxId());
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            executor.submit(() -> new TransactionTemplate(transactionManager).execute(status -> {
+                outboxRepository.findWithLockById(lockedRow.outboxId());
+                locked.countDown();
+                try {
+                    release.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                return null;
+            }));
+            assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+
+            Future<List<SlipPublishOutbox>> claim = executor.submit(() ->
+                    outboxRepository.claimReadyBatch(1, outboxProperties.getLeaseSeconds()));
+
+            // SKIP LOCKED 를 제거하면 잠긴 선행 row 를 기다려 2초 내 반환하지 못하고 RED.
+            List<SlipPublishOutbox> claimed = claim.get(2, TimeUnit.SECONDS);
+            assertThat(claimed).extracting(SlipPublishOutbox::getId)
+                    .as("잠긴 row 를 건너뛰고 다음 후보를 점유해야 한다")
+                    .containsExactly(freeRow.outboxId());
+        } finally {
+            release.countDown();
+            shutdownAndAwaitTermination(executor);
+        }
+    }
+
+    @Test
+    @DisplayName("FAILED_PERMANENT 원자성: history 저장 실패 시 outbox·주문 전이가 함께 롤백된다")
+    void failedPermanent_isAtomicAcrossOutboxOrderAndHistory() {
+        // #854 R4 MED. R1 은 commitSuccess 에만 실패주입 롤백 테스트를 만들었고 영구실패 경로는 세 write 가
+        // 모두 성공한 상태만 단언해 tx 경계가 미가드였다(명시 save 는 tx 없이도 각자 영속되므로).
+        TestFixture fixture = seedAtPermanentErrorThreshold();
+        doThrow(new IllegalStateException("history save injected failure"))
+                .when(historyRepository).save(any(PartnerOrderHistory.class));
+        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT, "복구 불가 입력"));
+
+        scheduler.retryPending();
+
+        // @Transactional 을 제거하면 outbox=FAILED / order=FAILED_PERMANENT 가 각각 커밋되어 RED.
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.PROCESSING);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.PENDING_RETRY);
+        assertThat(reloadHistory(fixture.orderId())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("REQUIRES_NEW: 결과 복구 재큐잉은 바깥 tx 롤백과 무관하게 독립 커밋된다")
+    void requeueAfterResultFailure_commitsIndependentlyOfOuterTransaction() {
+        // #854 R4 MED. 종전 테스트는 모두 외부 tx 없이 호출해 REQUIRED 로 바꿔도 동작이 동일했다.
+        TestFixture fixture = seedProcessingOutbox();
+
+        new TransactionTemplate(transactionManager).execute(status -> {
+            resultWriter.requeueAfterResultFailure(fixture.outboxId(), "outer rollback 검증");
+            status.setRollbackOnly();
+            return null;
+        });
+
+        // REQUIRED 로 되돌리면 바깥 롤백에 함께 말려 PROCESSING 이 잔류하고 RED.
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("종결 가드 C-1: requeue 로 attemptCount 가 늘지 않아도 max-retry 초과 row 는 재발행 없이 종결된다")
+    void exhaustedRequeuedRow_isTerminatedAtClaimWithoutRepublish() {
+        // #854 R4 HIGH-C. 종전에는 종결 판정이 handleRetry 안에만 있어, 결과 tx 가 결정적으로 실패하는 row 는
+        // markRequeue(attemptCount 불변)로 5분마다 무한 재발행되고 24h 상한이 영원히 평가되지 않았다.
+        TestFixture fixture = seedReadyOutbox();
+        jdbcTemplate.update(
+                "UPDATE slip_publish_outbox SET first_attempted_at = ?, attempt_count = 1 WHERE id = ?",
+                expiredFirstAttemptedAt(), fixture.outboxId());
+
+        scheduler.retryPending();
+
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
+        // 종결 가드는 HTTP 앞에서 걸러야 한다 — 가드를 제거하면 재발행이 일어나 RED.
+        verify(slipServiceClient, times(0)).publishFromPartnerOrder(anyMap(), anyString());
+    }
+
+    @Test
+    @DisplayName("종결 가드 C-2: lease 재점유로만 순환하던 PROCESSING row 도 max-retry 초과 시 종결된다")
+    void exhaustedStaleProcessingRow_isTerminatedOnReclaim() {
+        // #854 R4 HIGH-C. claim 은 attemptCount 를 증가시키지 않으므로, 결과 writer 에 도달하지 못하고
+        // lease 재점유만 반복하는 row 는 24h 가 지나도 FAILED 로 전이하지 않고 주문이 PENDING_RETRY 에 고착됐다.
+        TestFixture fixture = seedReadyOutbox();
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET status = 'PROCESSING',"
+                        + " last_attempted_at = ?, first_attempted_at = ?, attempt_count = 1 WHERE id = ?",
+                LocalDateTime.now().minusSeconds(outboxProperties.getLeaseSeconds() + 1L),
+                expiredFirstAttemptedAt(), fixture.outboxId());
+
+        scheduler.retryPending();
+
+        assertThat(reloadOutbox(fixture.outboxId()).getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
+                .isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
+        verify(slipServiceClient, times(0)).publishFromPartnerOrder(anyMap(), anyString());
+    }
+
+    /** max-retry-hours 를 넘긴 최초 시도 시각. */
+    private LocalDateTime expiredFirstAttemptedAt() {
+        return LocalDateTime.now().minusHours(outboxProperties.getMaxRetryHours()).minusMinutes(1);
+    }
+
+    /** 복구 불가 오류가 terminal 로 확정되는 최소 시도 횟수에 도달한 ready row. */
+    private TestFixture seedAtPermanentErrorThreshold() {
+        TestFixture fixture = seedReadyOutbox();
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET attempt_count = ? WHERE id = ?",
+                outboxProperties.getPermanentErrorMinAttempts(), fixture.outboxId());
+        return fixture;
     }
 
     private TestFixture seedReadyOutbox() {

@@ -23,7 +23,9 @@ public class SlipPublishOutboxRepositoryImpl implements SlipPublishOutboxReposit
     private static final String CLAIM_SQL = """
             UPDATE slip_publish_outbox
                SET status = 'PROCESSING',
-                   last_attempted_at = now()
+                   last_attempted_at = now(),
+                   modified_at = now(),
+                   modified_by = 'system'
              WHERE id IN (
                  SELECT id
                    FROM slip_publish_outbox

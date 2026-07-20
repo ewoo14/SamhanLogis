@@ -45,6 +45,7 @@ public class SlipPublishOutboxScheduler {
 
     private final SlipPublishOutboxRepository outboxRepository;
     private final SlipPublishOutboxProcessor processor;
+    private final SlipPublishOutboxResultWriter resultWriter;
     private final OutboxProperties outboxProperties;
 
     /**
@@ -57,7 +58,7 @@ public class SlipPublishOutboxScheduler {
     @PostConstruct
     void validateLeaseBatchInvariant() {
         int batchSize = outboxProperties.getBatchSize();
-        int leaseSeconds = processor.getLeaseSeconds();
+        int leaseSeconds = outboxProperties.getLeaseSeconds();
         int worstDwell = batchSize * PER_ROW_MAX_SECONDS;
         if (leaseSeconds < worstDwell) {
             log.warn("Outbox lease/batch 불변식 위반: lease-seconds={} < batch-size({})×perRow({}s)={}"
@@ -72,7 +73,7 @@ public class SlipPublishOutboxScheduler {
     @Scheduled(cron = "${samhan.outbox.cron:0 */5 * * * *}")
     public void retryPending() {
         List<SlipPublishOutbox> candidates = outboxRepository.claimReadyBatch(
-                outboxProperties.getBatchSize(), processor.getLeaseSeconds());
+                outboxProperties.getBatchSize(), outboxProperties.getLeaseSeconds());
         if (candidates.isEmpty()) {
             return;
         }
@@ -80,6 +81,12 @@ public class SlipPublishOutboxScheduler {
 
         for (SlipPublishOutbox row : candidates) {
             try {
+                // #854 R4 HIGH-C: 종결 판정이 handleRetry 안에만 있으면 결과 tx 실패 루프·lease 재점유
+                // 루프가 영원히 terminal 에 도달하지 못한다. 두 경로 모두 claim 을 거치므로 claim 직후
+                // 벽시계 상한을 먼저 검사해 소진된 row 를 재발행 없이 종결시킨다.
+                if (resultWriter.expireIfExhausted(row.getId())) {
+                    continue;
+                }
                 // processor에는 DB tx가 없고, 결과 writer만 row별 짧은 tx를 연다.
                 processor.processOne(row);
             } catch (RuntimeException ex) {

@@ -33,7 +33,11 @@ DRAFT → POST /confirm → CONFIRMING (idempotency_key=PO-CONF-{draftSeq})
   ├ SlipServiceClient.publishFromPartnerOrder(payload, "PO-CONF-{draftSeq}")
   │   ├ 200/201 → markSlipPublished(slipNo) + history SLIP_PUBLISHED
   │   ├ 409 → BusinessException(CONFLICT) 전파 (동일 키 다른 본문/race, slipNo 없음)
-  │   └ 5xx → SlipPublishOutbox.queue + history SLIP_RETRY_QUEUED
+  │   └ 5xx → (구) SlipPublishOutbox.queue + history SLIP_RETRY_QUEUED
+  │      ⚠️ 현재 **producer 미배선(dormant)** — 슬라이스 D1 에서 confirm 자동발행이 폐지되며
+  │      enqueue 호출부가 제거되어 프로덕션에서 outbox row 가 생성되지 않는다. 스케줄러/결과 writer
+  │      경로는 #854 로 correctness 하드닝만 완료된 상태이며, **재배선 복원은 별도 슬라이스**
+  │      (2026-07-20 개발책임자 결정).
   └ 응답: ConfirmResponse{orderNo, slipNo, status, slipPublishStatus}
 
 Scheduler (5분):
@@ -93,14 +97,21 @@ Scheduler (5분):
 | `INTERNAL_TOKEN` | `dev-internal-token-change-me` | prod default 사용 시 부팅 거부 |
 | `BOOTSTRAP_CACHE_REFRESH_MINUTES` | 10 | bootstrap 내부 캐시 evict 후 prefetch 주기(분) |
 | `samhan.draft.ttl-days` | 30 | DraftCleanupScheduler |
-| `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계 |
-| `samhan.outbox.lease-seconds` | 60 | PROCESSING stale claim lease |
+| `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계. claim 시점 종결 가드가 `handleRetry` 도달 여부와 무관하게 이 상한을 보장 |
+| `samhan.outbox.lease-seconds` | 120 | PROCESSING stale claim lease. 불변식 `lease-seconds >= batch-size x 7` (perRow = connect 2s + read 5s) |
+| `samhan.outbox.batch-size` | 10 | 한 claim 사이클이 점유할 최대 row 수. 상향 시 lease-seconds 동반 상향 필요 |
+| `samhan.outbox.permanent-error-min-attempts` | 2 | 복구 불가 4xx(INVALID_INPUT·CONFLICT)를 영구 실패로 확정하기 전 최소 시도 횟수. 1 = 즉시 fail-fast |
 
 ## Local run
 
 ```bash
 ./gradlew :services:partner-order-service:bootRun --args='--spring.profiles.active=local'
 ```
+
+> ⚠️ `local` 프로파일에서는 **outbox 재시도 스케줄러가 비활성**이다(`@Profile("!local")`). claim SQL 이
+> PostgreSQL 전용 문법(`FOR UPDATE SKIP LOCKED`·`make_interval`·`RETURNING`)을 쓰므로 H2 에서 파손되기
+> 때문이며, 배포 경로(dev/production)에서는 정상 활성이다. outbox 동작을 로컬에서 보려면 Docker
+> PostgreSQL 스택으로 기동할 것.
 
 ## Tests
 

@@ -114,10 +114,20 @@ public class SlipServiceClient {
                         throw new BusinessException(ErrorCode.CONFLICT,
                                 "slip-service 409 충돌(동일 키 다른 본문/race): " + res.getStatusCode());
                     })
+                    // #854 R4 HIGH-B: spec D-854-06 은 408·429 를 transient(재시도)로 명시했으나 종전
+                    // 매핑은 이들을 아래 일괄 4xx 분기로 흘려 INVALID_INPUT 으로 만들었다. outbox 경로에서는
+                    // INVALID_INPUT 이 영구실패 분류라 요청 타임아웃/레이트리밋이 즉시 종결되고, 동기 경로에서는
+                    // 사용자에게 "잘못된 입력" 으로 오표시된다. 두 호출 모두 5xx 와 동일한 재시도 대상으로 분류한다.
+                    .onStatus(s -> s.value() == 408 || s.value() == 429, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service 일시 오류(재시도 대상): " + res.getStatusCode());
+                    })
                     .onStatus(s -> s.is4xxClientError()
                             && s.value() != 401
                             && s.value() != 403
-                            && s.value() != 409, (req, res) -> {
+                            && s.value() != 408
+                            && s.value() != 409
+                            && s.value() != 429, (req, res) -> {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "slip-service 4xx: " + res.getStatusCode());
                     })
@@ -184,10 +194,20 @@ public class SlipServiceClient {
                         throw new BusinessException(ErrorCode.CONFLICT,
                                 "slip-service 409 충돌(동일 키 다른 본문/race): " + res.getStatusCode());
                     })
+                    // #854 R4 HIGH-B: spec D-854-06 은 408·429 를 transient(재시도)로 명시했으나 종전
+                    // 매핑은 이들을 아래 일괄 4xx 분기로 흘려 INVALID_INPUT 으로 만들었다. outbox 경로에서는
+                    // INVALID_INPUT 이 영구실패 분류라 요청 타임아웃/레이트리밋이 즉시 종결되고, 동기 경로에서는
+                    // 사용자에게 "잘못된 입력" 으로 오표시된다. 두 호출 모두 5xx 와 동일한 재시도 대상으로 분류한다.
+                    .onStatus(s -> s.value() == 408 || s.value() == 429, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service 일시 오류(재시도 대상): " + res.getStatusCode());
+                    })
                     .onStatus(s -> s.is4xxClientError()
                             && s.value() != 401
                             && s.value() != 403
-                            && s.value() != 409, (req, res) -> {
+                            && s.value() != 408
+                            && s.value() != 409
+                            && s.value() != 429, (req, res) -> {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "slip-service 4xx: " + res.getStatusCode());
                     })
