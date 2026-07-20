@@ -151,8 +151,12 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("FAILED_PERMANENT: max retry 시간 초과 후 outbox·order·history가 DB에 영속된다")
+    @DisplayName("FAILED_PERMANENT(claim 가드 C-1 경로): 만료 row 는 claim 직후 HTTP 이전에 종결되어 slip-service 를 호출하지 않는다")
     void expiredRetry_persistsFailedPermanentStateAndHistory() {
+        // #854 R5 HIGH-2: R4 의 claim 시점 가드(expireIfExhausted)가 만료 row 를 HTTP 이전에 종결시키므로
+        // 이 테스트는 handleRetry 내부의 만료 분기가 아니라 claim 가드 경로(exhaustedRequeuedRow_...
+        // 와 동일 경로)만 통과한다. 과거에 남아있던 slipServiceClient thenThrow 스텁은 이 경로에서
+        // 절대 호출되지 않는 죽은 스텁이었다 — 제거하고 times(0) 로 명시한다.
         TestFixture fixture = seedReadyOutbox();
         double exhaustedBefore = terminalMetricCount("max_retry_exhausted");
         LocalDateTime expiredAt = LocalDateTime.now()
@@ -160,8 +164,6 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
                 .minusMinutes(1);
         jdbcTemplate.update("UPDATE slip_publish_outbox SET first_attempted_at = ? WHERE id = ?",
                 expiredAt, fixture.outboxId());
-        when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
-                .thenThrow(new RuntimeException("slip-service 5xx runtime"));
 
         scheduler.retryPending();
 
@@ -176,6 +178,36 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
             assertThat(item.getDetailJson()).contains("\"event\":\"FAILED_PERMANENT\"");
         });
         assertThat(terminalMetricCount("max_retry_exhausted")).isEqualTo(exhaustedBefore + 1);
+        verify(slipServiceClient, times(0)).publishFromPartnerOrder(anyMap(), anyString());
+    }
+
+    @Test
+    @DisplayName("HIGH-2: handleRetry 자체의 만료 분기 — claim 가드를 우회해 직접 호출해도 max-retry 초과 시 FAILED_PERMANENT 로 종결한다")
+    void handleRetry_terminatesWhenElapsedExceedsMaxRetryHoursEvenWithoutPermanentErrorCode() {
+        // #854 R5 HIGH-2: R4 가 claim 직후 expireIfExhausted 를 추가하면서 handleRetry 내부의
+        // `|| elapsed.toHours() >= outboxProperties.getMaxRetryHours()` 분기는 scheduler 경유 시
+        // 더 이상 도달하지 못하게 됐다(claim 가드가 항상 먼저 가로챈다). 이 조건을 지워도 위
+        // expiredRetry_persistsFailedPermanentStateAndHistory·exhaustedRequeuedRow_... 는 모두
+        // claim 가드만으로 GREEN 을 유지해 회귀를 잡지 못한다 — resultWriter.handleRetry 를 claim
+        // 가드 없이 직접 호출해 이 조건 자체를 가드한다. errorCode 는 의도적으로 INTERNAL_ERROR
+        // (재시도 대상)를 사용해 permanentError(최소시도) 분기가 아닌 elapsed 분기만 단독으로 검증한다.
+        TestFixture fixture = seedProcessingOutbox();
+        jdbcTemplate.update("UPDATE slip_publish_outbox SET first_attempted_at = ? WHERE id = ?",
+                expiredFirstAttemptedAt(), fixture.outboxId());
+
+        resultWriter.handleRetry(fixture.outboxId(), ErrorCode.INTERNAL_ERROR,
+                "일시적 5xx (만료 전이라면 재시도 대상인 오류코드)");
+
+        SlipPublishOutbox reloadedOutbox = reloadOutbox(fixture.outboxId());
+        PartnerOrder reloadedOrder = reloadOrder(fixture.orderId());
+        List<PartnerOrderHistory> history = reloadHistory(fixture.orderId());
+
+        assertThat(reloadedOutbox.getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(reloadedOrder.getSlipPublishStatus()).isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
+        assertThat(history).anySatisfy(item -> {
+            assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT);
+            assertThat(item.getDetailJson()).contains("\"event\":\"FAILED_PERMANENT\"");
+        });
     }
 
     @Test
@@ -234,6 +266,9 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
     @DisplayName("CONFLICT 최소 시도 도달: 409는 max-retry를 기다리지 않고 FAILED_PERMANENT로 종결된다")
     void conflict_afterMinAttempts_failsPermanently() {
         TestFixture fixture = seedAtPermanentErrorThreshold();
+        // #854 R5 LOW: CONFLICT→"conflict" 태그 분기가 무가드였다(계열 sweep — invalid_input/
+        // max_retry_exhausted 는 이미 delta 단언이 있었다).
+        double conflictBefore = terminalMetricCount("conflict");
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
                 .thenThrow(new BusinessException(ErrorCode.CONFLICT, "동일 키 다른 본문"));
 
@@ -244,6 +279,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
                 .isEqualTo(SlipPublishStatus.FAILED_PERMANENT);
         assertThat(reloadHistory(fixture.orderId())).anySatisfy(item ->
                 assertThat(item.getEventType()).isEqualTo(HistoryEventType.SLIP_FAILED_PERMANENT));
+        assertThat(terminalMetricCount("conflict")).isEqualTo(conflictBefore + 1);
     }
 
     @Test
@@ -367,6 +403,36 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         } finally {
             shutdownAndAwaitTermination(executor);
         }
+    }
+
+    @Test
+    @DisplayName("CLAIM_SQL 7-audit: native UPDATE claim 후 modified_at/modified_by 가 채워진다")
+    void claimReadyBatch_stampsModifiedAuditColumns() {
+        // #854 R5 LOW — CLAIM_SQL 은 JPA @PreUpdate auditing listener 를 우회하는 네이티브
+        // UPDATE 라 modified_at/modified_by 를 SQL 문 안에서 직접 SET 한다(BaseEntity 7-audit).
+        // 두 컬럼 모두 지금까지 무가드였다 — SET 절을 지워도 컴파일/기존 테스트는 전부 GREEN 이었다.
+        //
+        // seed 시점 modified_at 은 JPA @LastModifiedDate auditing 이 "테스트 JVM" 벽시계로 찍고,
+        // CLAIM_SQL 의 modified_at 은 네이티브 SQL 의 "Postgres 서버" now() 로 찍힌다 — 이 둘을 직접
+        // 비교하면 컨테이너/호스트 clock skew(실측 수십 ms)로 간헐적 false-RED 가 난다(1차 시도에서
+        // 실제로 걸림: 22:23:56.854642 actual vs 22:23:56.881258 seed 시각, container 가 27ms 늦음).
+        // seed 직후 modified_at 을 Postgres 자신의 interval 산술로 1시간 전 과거로 강제해 두 비교값을
+        // 전부 Postgres 클록 하나로 통일하고, 실 clock skew(ms~수백ms) 를 압도하는 여유(1시간)를 둔다.
+        TestFixture fixture = seedReadyOutbox();
+        jdbcTemplate.update(
+                "UPDATE slip_publish_outbox SET modified_at = now() - interval '1 hour' WHERE id = ?",
+                fixture.outboxId());
+        LocalDateTime staleModifiedAt = reloadOutbox(fixture.outboxId()).getModifiedAt();
+
+        List<SlipPublishOutbox> claimed = outboxRepository.claimReadyBatch(
+                1, outboxProperties.getLeaseSeconds());
+
+        assertThat(claimed).extracting(SlipPublishOutbox::getId).containsExactly(fixture.outboxId());
+        SlipPublishOutbox reloaded = reloadOutbox(fixture.outboxId());
+        assertThat(reloaded.getModifiedAt())
+                .as("claim 이 modified_at 을 갱신해야 한다(1시간 전 과거 값 그대로면 SET 절 누락)")
+                .isAfter(staleModifiedAt);
+        assertThat(reloaded.getModifiedBy()).as("claim 이 modified_by 를 채워야 한다").isEqualTo("system");
     }
 
     @Test
@@ -552,12 +618,24 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         }
     }
 
-    /** 다른 세션이 행 락 대기에 진입할 때까지의 관측 배리어 — 고정 sleep 추정이 아닌 실제 상태 폴링. */
+    /**
+     * 다른 세션이 행 락 대기에 진입할 때까지의 관측 배리어 — 고정 sleep 추정이 아닌 실제 상태 폴링.
+     *
+     * <p>#854 R5 LOW — 전역 {@code WHERE NOT granted} 는 이 IT 클래스가 공유하는 단일 Postgres
+     * 컨테이너에서 <em>다른</em> 테스트/세션이 우연히 만든 무관한 대기까지 배리어를 조기 통과시킬 수
+     * 있었다({@code feedback_parallel_agent_gradle_shared_tree_contention}). {@code locktype} 을
+     * 행 락 대기 부류로 좁힌다 — {@code relation} 컬럼으로 {@code slip_publish_outbox} 테이블에
+     * 직접 스코프하지 <b>않는</b> 이유: PostgreSQL 의 {@code SELECT ... FOR UPDATE} 행 락 경합은
+     * 대개 {@code locktype='transactionid'}(잠근 tx 의 XID 해제 대기)로 관측되며 이 locktype 은
+     * {@code relation} 이 NULL 이라 relation 스코프가 오히려 실 대기를 걸러내 배리어를 영구히
+     * 통과시키지 못하는 false-negative 를 유발한다.
+     */
     private void awaitRowLockWait() throws InterruptedException {
         long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadlineNanos) {
             Integer waiting = jdbcTemplate.queryForObject(
-                    "SELECT count(*) FROM pg_locks WHERE NOT granted", Integer.class);
+                    "SELECT count(*) FROM pg_locks WHERE NOT granted"
+                            + " AND locktype IN ('tuple', 'transactionid')", Integer.class);
             if (waiting != null && waiting > 0) {
                 return;
             }

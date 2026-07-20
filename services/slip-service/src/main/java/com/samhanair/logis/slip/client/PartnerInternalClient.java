@@ -236,11 +236,24 @@ public class PartnerInternalClient {
             }
             return PartnerVerifyResult.found(Optional.of(UUID.fromString(partnerIdNode.asText())));
         } catch (RestClientResponseException ex) {
-            // 404 = 미등록 partnerCode (strict 모드 reject 대상).
+            // 404 = 미등록 partnerCode (strict 모드 reject 대상) — 진짜 "존재하지 않음" 만 여기로.
             // 5xx = partner-service 장애 (strict 모드 fail-open).
+            // 401/403 = internal token 오구성/전파 지연(InternalTokenFilter 직접 401 / Spring
+            // Security AccessDeniedException 403) — partner-service 가 거래처 존재 여부조차 판정하지
+            // 못했다는 뜻이므로 "미존재" 로 접으면 안 된다. 이 PR spec D-854-06 이 401/403 을 outbox
+            // 재시도 대상(transient)으로 확정했는데, notFound() 로 접으면 resolveCommittedPartnerId 가
+            // NOT_FOUND→INVALID_INPUT(400)으로 던져 outbox 가 영구 실패로 오분류한다(#854 R5 MED).
+            // serverError() 로 응답해 호출자의 5xx/재시도 분기를 그대로 타게 한다.
+            int status = ex.getStatusCode().value();
             if (ex.getStatusCode().is5xxServerError()) {
                 log.warn("PartnerInternalClient.verifyPartnerCode 5xx — partnerCode={}, status={}",
                         partnerCode, ex.getStatusCode());
+                return PartnerVerifyResult.serverError();
+            }
+            if (status == 401 || status == 403) {
+                log.warn("PartnerInternalClient.verifyPartnerCode {} — internal token 오구성/전파 지연"
+                                + " 의심, 검증 불가(검증 대상 재시도)로 처리 — partnerCode={}",
+                        status, partnerCode);
                 return PartnerVerifyResult.serverError();
             }
             log.debug("PartnerInternalClient.verifyPartnerCode 4xx (미존재 등) — partnerCode={}, status={}",

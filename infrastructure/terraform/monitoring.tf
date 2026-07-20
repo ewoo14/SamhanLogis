@@ -116,7 +116,21 @@ resource "aws_cloudwatch_metric_alarm" "slip_price_memory_queue_rejected" {
   }
 }
 
-# ─── partner-order 전표 발행 outbox 영구실패 알람 ─────────────────────────────
+# ─── partner-order 전표 발행 outbox 영구실패 알람 (#854, CUTOVER M-20) ────────
+# slip-service 가격기억 알람(위 R6-H5)과 동일한 로그 원천 문제를 동일한 방식으로 해소한다.
+#
+# 로그 원천: partner-order-service 로그는 docker-compose.prod.yml 의 awslogs driver 가
+# 위 docker log group 의 stream "partner-order-service" 로 직접 전달한다 (#854 R5-HIGH —
+# 최초 구현 시 이 driver 가 누락되어 CloudWatch Agent 의 best-effort wildcard tail 에만
+# 의존했었다. 그 tail 은 AWS 문서상 "최신 수정 파일만 push" 라 다수 컨테이너 동시 기록에서
+# 라인 유실이 가능해 alarm 원천으로 쓰지 않는다).
+#
+# 잔여 한계 (정직 기록, slip 과 동일): treat_missing_data=notBreaching 이므로 전달 경로 자체가
+# 끊기면 datapoint 부재로 alarm 이 계속 OK 로 남는다. 보상 통제 = CUTOVER.md M-20 의
+# 양성 도달 검사(인위 감시 문자열 → filter-log-events 도달 + alarm 발화 확인). 실 EC2 부재로
+# 라이브 실측은 cutover 시 M-20 에서 최초 수행된다.
+#
+# 대응 절차: docs/runbooks/partner-order-outbox-terminal-failure.md.
 
 resource "aws_cloudwatch_log_metric_filter" "partner_order_outbox_failed_permanent" {
   name           = "partner-order-outbox-failed-permanent"

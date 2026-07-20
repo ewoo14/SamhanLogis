@@ -8,8 +8,10 @@
  * 캡처 목적:
  *  - 종결 가드가 적용된 주문(A: requeue 형상 / B: lease 재점유 형상)이 실제 화면에 어떻게 보이는지
  *  - 4xx 재분류로 재시도 후 종결된 주문(C)의 화면 표시
- *  - ⚠️ R4 차원5 발견의 라이브 확증: 화면에 slipPublishStatus(FAILED_PERMANENT) 노출 면이 없어
- *    발행 영구실패 주문이 상태 "완료" + 연결 전표 "-" 로만 보인다(발행 대기중과 구별 불가).
+ *  - R4 차원5 발견(화면에 slipPublishStatus 노출 면이 없어 발행 영구실패 주문이 상태 "완료" +
+ *    연결 전표 "-" 로만 보임)은 #854 R5 후속에서 해소됐다 — 상세 화면에 design-system Badge
+ *    (data-testid="partner-order-slip-publish-status")로 "전표 발행 실패"를 노출한다.
+ *    본 스펙은 그 표시 면이 실서버에서 실제로 렌더되는지를 포지티브로 확증한다(#854 R5 MED-3).
  *
  * 단계별 캡처: docs/qa/854-r4-terminal-guard/
  */
@@ -105,11 +107,14 @@ test('#854 R4 종결 가드 주문의 실 화면 표시 — 실서버', async ({
   await page.waitForTimeout(2500)
   await capture(page, 'order-C-4xx-reclassified-detail')
 
-  // 4) R4 차원5 발견 라이브 확증 — 화면 어디에도 발행 실패 표시 면이 없다.
-  const bodyText = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
-  expect(
-    bodyText.includes('FAILED_PERMANENT') || bodyText.includes('발행 실패'),
-    'slipPublishStatus 노출 면이 생겼다면 차원5 발견이 해소된 것이므로 본 단언을 갱신할 것',
-  ).toBe(false)
-  await capture(page, 'order-C-no-publish-failure-surface')
+  // 4) R4 차원5 발견 해소 라이브 확증(#854 R5) — FAILED_PERMANENT 주문(C) 상세에 배지가
+  //    실제로 렌더된다. 배지가 사라지면(예: variant/조건 뮤테이션) 차원5 발견이 재발한 것이므로
+  //    본 단언이 실패해야 한다 — 포지티브 단언으로 반전(과거: 표시 면 "없음"을 단언하던 시한폭탄).
+  const publishStatusBadge = page.getByTestId('partner-order-slip-publish-status')
+  await expect(
+    publishStatusBadge,
+    'slipPublishStatus 노출 면(Badge)이 보이지 않으면 R4 차원5 발견이 재발한 것.',
+  ).toBeVisible()
+  await expect(publishStatusBadge).toContainText('전표 발행 실패')
+  await capture(page, 'order-C-publish-failure-surface')
 })

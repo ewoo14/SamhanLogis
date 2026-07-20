@@ -16,14 +16,17 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Outbox HTTP 결과를 짧은 독립 트랜잭션으로 영속화한다.
@@ -33,20 +36,47 @@ import org.springframework.transaction.annotation.Transactional;
  * 락을 획득한 전이만 적용되고, 뒤늦은 전이는 non-PROCESSING 을 보고 skip 되어 COMMITTED 가 PENDING
  * 으로 덮이는 clobber 가 발생하지 않는다. 락은 결과 tx 종료까지만 유지되고 HTTP 발행은 tx 밖
  * (processor)에서 수행하므로 락을 물지 않는다.
+ *
+ * <p><b>terminal 계측 설계 (#854 R5 HIGH-1a/MED)</b>:
+ * <ul>
+ *   <li>4개 reason({@code committed}/{@code invalid_input}/{@code conflict}/
+ *       {@code max_retry_exhausted}) counter 를 생성자에서 값 0으로 <b>사전 등록</b>한다.
+ *       {@code recordTerminal} 호출 시점에 처음 {@code register()} 하면 시계열이 첫 이벤트에서
+ *       값 1로 탄생해 Prometheus {@code increase()} 가 0→1 탄생 점프를 계상하지 못하고 첫/단발
+ *       실패를 영원히 놓친다(slip-service {@code CompensationMetrics} 와
+ *       {@code PartnerProductPriceMemoryService} 의 eager 등록 전례를 따른다).</li>
+ *   <li>counter 증가와 {@link #markFailedPermanent} 의 CloudWatch 경보 원천 로그는 결과 tx 의
+ *       <b>commit 확정 후</b>(afterCommit)에만 실행한다. {@code save()} 는 flush 지연이 있어 호출
+ *       시점에는 아직 실제 commit 여부가 확정되지 않는다 — 이후 flush 가 실패(유니크/낙관락 충돌 등)
+ *       하면 row 는 PROCESSING 에 잔류하는데 즉시 실행하면 일어나지 않은 전이를 계측/경보하게 된다.
+ *       활성 트랜잭션 동기화가 없는 호출(직접 단위 테스트 등)은 기존처럼 즉시 실행한다.</li>
+ * </ul>
  */
 @Component
-@RequiredArgsConstructor
 public class SlipPublishOutboxResultWriter {
 
     private static final Logger log = LoggerFactory.getLogger(SlipPublishOutboxResultWriter.class);
     private static final String TERMINAL_METRIC_NAME = "partner_order_slip_publish_terminal";
+
+    /** commit 성공 종결 reason. */
+    private static final String REASON_COMMITTED = "committed";
+    /** 복구 불가 입력값(400)으로 종결 reason. */
+    private static final String REASON_INVALID_INPUT = "invalid_input";
+    /** 동일 idempotency-key 다른 본문 충돌(409)로 종결 reason. */
+    private static final String REASON_CONFLICT = "conflict";
+    /** max-retry-hours 소진으로 종결 reason. */
+    private static final String REASON_MAX_RETRY_EXHAUSTED = "max_retry_exhausted";
+
+    /** {@code recordTerminal} 이 사용하는 고정 reason 전체 집합 — 생성자 eager 등록의 단일 진실원. */
+    private static final List<String> TERMINAL_REASONS = List.of(
+            REASON_COMMITTED, REASON_INVALID_INPUT, REASON_CONFLICT, REASON_MAX_RETRY_EXHAUSTED);
 
     private final SlipPublishOutboxRepository outboxRepository;
     private final PartnerOrderRepository orderRepository;
     private final PartnerOrderHistoryRepository historyRepository;
     private final OutboxProperties outboxProperties;
     private final ObjectMapper objectMapper;
-    private final MeterRegistry meterRegistry;
+    private final Map<String, Counter> terminalCounters;
 
     /**
      * 결과 tx 상한(초) — 소유권 가드의 {@code SELECT ... FOR UPDATE} 무한 대기를 차단한다 (#854 R4 MED).
@@ -57,6 +87,39 @@ public class SlipPublishOutboxResultWriter {
      * 상한은 Spring tx timeout(→ JDBC statement timeout → pgjdbc cancel request)으로만 실효화된다.
      */
     private static final int RESULT_TX_TIMEOUT_SECONDS = 10;
+
+    /**
+     * @param outboxRepository outbox row 조회/저장
+     * @param orderRepository 주문 조회/저장
+     * @param historyRepository 주문 이력 저장
+     * @param outboxProperties max-retry-hours 등 outbox 튜닝값
+     * @param objectMapper history detailJson 직렬화
+     * @param meterRegistry terminal 전이 counter 등록 대상 — 생성자에서 4개 reason 을 값 0으로
+     *                      전부 사전 등록한다(HIGH-1a). 등록 실패는 부팅 실패로 이어지는 것이
+     *                      의도된 동작이다(설정 오류를 조기에 드러냄) — 런타임 계측 실패만
+     *                      {@link #recordTerminal} 이 방어한다.
+     */
+    public SlipPublishOutboxResultWriter(
+            SlipPublishOutboxRepository outboxRepository,
+            PartnerOrderRepository orderRepository,
+            PartnerOrderHistoryRepository historyRepository,
+            OutboxProperties outboxProperties,
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry) {
+        this.outboxRepository = outboxRepository;
+        this.orderRepository = orderRepository;
+        this.historyRepository = historyRepository;
+        this.outboxProperties = outboxProperties;
+        this.objectMapper = objectMapper;
+        Map<String, Counter> counters = new LinkedHashMap<>();
+        for (String reason : TERMINAL_REASONS) {
+            counters.put(reason, Counter.builder(TERMINAL_METRIC_NAME)
+                    .description("partner-order 전표 발행 outbox terminal 전이 수")
+                    .tag("reason", reason)
+                    .register(meterRegistry));
+        }
+        this.terminalCounters = Map.copyOf(counters);
+    }
 
     /** 성공 결과를 PROCESSING row에만 반영한다. */
     @Transactional(timeout = RESULT_TX_TIMEOUT_SECONDS)
@@ -85,7 +148,7 @@ public class SlipPublishOutboxResultWriter {
         }, () -> log.error("Outbox COMMITTED but order missing — 주문 미갱신: outboxId={}, orderId={},"
                         + " slipNo={} (수동 정합 확인 필요)",
                 row.getId(), row.getPartnerOrderId(), result.slipNo()));
-        recordTerminal("committed");
+        recordTerminal(REASON_COMMITTED);
     }
 
     /**
@@ -208,33 +271,66 @@ public class SlipPublishOutboxResultWriter {
                             "error", error == null ? "" : error))));
         }, () -> log.error("Outbox FAILED_PERMANENT but order missing — 주문 미갱신: outboxId={},"
                 + " orderId={} (수동 정합 확인 필요)", row.getId(), row.getPartnerOrderId()));
-        log.error("Outbox FAILED_PERMANENT: orderId={}, attempts={}, errorCode={}, error={}",
-                row.getPartnerOrderId(), row.getAttemptCount(),
-                errorCode == null ? "MAX_RETRY_EXHAUSTED" : errorCode.name(), error);
+        // CloudWatch 경보 원천 로그 — commit 확정 전 발화하면 counter 와 동일한 문제(뒤이은 flush 실패로
+        // row 는 PROCESSING 잔류인데 "일어나지 않은" 영구실패를 경보)가 생기므로 afterCommit 으로 미룬다
+        // (#854 R5 MED). 주문 부재(위 else 분기) 로그는 데이터 정합 사고 자체를 즉시 드러내야 하므로
+        // 이 지연 대상에서 제외한다.
+        UUID orderId = row.getPartnerOrderId();
+        int attempts = row.getAttemptCount();
+        String errorCodeLabel = errorCode == null ? "MAX_RETRY_EXHAUSTED" : errorCode.name();
+        runAfterCommit(() -> log.error(
+                "Outbox FAILED_PERMANENT: orderId={}, attempts={}, errorCode={}, error={}",
+                orderId, attempts, errorCodeLabel, error));
         recordTerminal(terminalFailureReason(errorCode));
     }
 
-    /** 고정된 사유 집합으로 terminal 전이를 관측한다. 계측 장애는 결과 transaction을 깨뜨리지 않는다. */
+    /**
+     * 고정된 사유 집합으로 terminal 전이를 관측한다.
+     *
+     * <p>increment 자체는 {@link #runAfterCommit} 으로 commit 확정 후에만 실행되며, 계측 장애(예:
+     * 예외를 던지는 {@link MeterRegistry} 구현)는 결과 transaction 을 깨뜨리지 않는다.
+     */
     private void recordTerminal(String reason) {
-        try {
-            Counter.builder(TERMINAL_METRIC_NAME)
-                    .description("partner-order 전표 발행 outbox terminal 전이 수")
-                    .tag("reason", reason)
-                    .register(meterRegistry)
-                    .increment();
-        } catch (RuntimeException ex) {
-            log.warn("Outbox terminal metric 기록 실패: reason={}", reason, ex);
+        runAfterCommit(() -> {
+            try {
+                Counter counter = terminalCounters.get(reason);
+                if (counter != null) {
+                    counter.increment();
+                }
+            } catch (RuntimeException ex) {
+                log.warn("Outbox terminal metric 기록 실패: reason={}", reason, ex);
+            }
+        });
+    }
+
+    /**
+     * 결과 tx 의 commit 이 실제로 확정된 뒤에만 {@code action} 을 실행한다 (#854 R5 MED).
+     *
+     * <p>활성 트랜잭션 동기화가 있으면 {@code afterCommit} 으로 등록해 미루고, 없으면(직접 단위 테스트,
+     * 트랜잭션 밖 호출 등) 기존과 동일하게 즉시 실행한다 — {@code PartnerProductPriceMemoryService
+     * .rememberBatchAfterCommit} 과 동일한 fallback 계약이다.
+     */
+    private void runAfterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+            return;
         }
+        action.run();
     }
 
     private String terminalFailureReason(ErrorCode errorCode) {
         if (errorCode == ErrorCode.INVALID_INPUT) {
-            return "invalid_input";
+            return REASON_INVALID_INPUT;
         }
         if (errorCode == ErrorCode.CONFLICT) {
-            return "conflict";
+            return REASON_CONFLICT;
         }
-        return "max_retry_exhausted";
+        return REASON_MAX_RETRY_EXHAUSTED;
     }
 
     private String writeDetailJson(Map<String, Object> detail) {

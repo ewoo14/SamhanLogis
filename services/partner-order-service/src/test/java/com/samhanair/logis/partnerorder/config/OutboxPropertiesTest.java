@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * #854 R4 MED — outbox 튜닝 기본값 가드.
@@ -49,5 +53,34 @@ class OutboxPropertiesTest {
     @DisplayName("최소 시도 가드: 1 미만이면 복구 불가 오류가 시도 0회에 종결될 수 있으므로 1 이상이어야 한다")
     void permanentErrorMinAttempts_isAtLeastOne() {
         assertThat(new OutboxProperties().getPermanentErrorMinAttempts()).isGreaterThanOrEqualTo(1);
+    }
+
+    /**
+     * yml 바인딩 회귀 가드 (#854 R5 LOW) — {@code new OutboxProperties()} 로만 단언하면 자바 필드
+     * 기본값만 고정될 뿐, {@code application.yml} 의 {@code samhan.outbox.*} 키가 오탈자·삭제·prefix
+     * 불일치로 표류해도 GREEN 이다. 실 {@code application.yml} 을 로드해 {@code @ConfigurationProperties}
+     * 로 바인딩된 빈 값을 단언한다 — yml 키를 지우거나 오타를 내면 이 값이 자바 기본값과 달라지거나
+     * (다른 프로퍼티가 우연히 같은 값이 아닌 한) 바인딩 자체가 깨진다.
+     */
+    @Test
+    @DisplayName("application.yml 바인딩: samhan.outbox.* 실 배포 값이 OutboxProperties 로 바인딩된다")
+    void applicationYml_bindsSamhanOutboxPropertiesToDeployedValues() {
+        new ApplicationContextRunner()
+                .withInitializer(new ConfigDataApplicationContextInitializer())
+                .withUserConfiguration(OutboxPropertiesTestConfig.class)
+                .run(context -> {
+                    OutboxProperties properties = context.getBean(OutboxProperties.class);
+                    assertThat(properties.getCron()).isEqualTo("0 */5 * * * *");
+                    assertThat(properties.getMaxRetryHours()).isEqualTo(24);
+                    assertThat(properties.getLeaseSeconds()).isEqualTo(120);
+                    assertThat(properties.getBatchSize()).isEqualTo(10);
+                    assertThat(properties.getPermanentErrorMinAttempts()).isEqualTo(2);
+                });
+    }
+
+    /** {@code PartnerOrderServiceApplication} 의 {@code @EnableConfigurationProperties} 등록을 좁게 재현. */
+    @Configuration
+    @EnableConfigurationProperties(OutboxProperties.class)
+    static class OutboxPropertiesTestConfig {
     }
 }

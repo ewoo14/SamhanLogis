@@ -7,7 +7,9 @@
 > - **D-854-01/03/04 의 `markProcessing()`·`IllegalState` 가드·"#725 KEEP"** → **R2 native claim(FOR UPDATE SKIP LOCKED)이 대체**하고 **R3 에서 메서드 자체를 제거**했다. 본 spec 의 해당 서술은 폐기된 결정으로 읽는다.
 > - **§3 "self-invocation 원복 시 RED"** → **R1 에서 거짓으로 판명**(명시 save 가 tx 없이도 각자 영속). tx-경계 genuine 가드로 대체.
 > - **D-854-06 4xx 분류** → **R4 에서 구현이 spec 을 위반하고 있었음이 확인**(408/429 미분기)되어 코드를 spec 에 맞춰 정정하고, `permanent-error-min-attempts`(기본 2)를 추가했다.
-> - **처리 상한** → **R4 에서 `expireIfExhausted`(claim 시점 종결 가드)** 가 추가되어, `handleRetry` 도달 여부와 무관하게 max-retry-hours 가 보장된다.
+> - **처리 상한** → **R4 에서 `expireIfExhausted`(claim 시점 종결 가드)** 가 추가되어, `handleRetry` 도달 여부와 무관하게 max-retry-hours 가 보장된다. 단 이 가드는 **정책도 함께 바꿨다** — 24h 초과 row 는 HTTP 재시도 0회로 종결된다(다운스트림이 claim 직전 복구됐어도 예외 없음). 상세는 dev-report "[정책 명시]" 절.
+> - **§3 라이브 QA "주문 화면 슬립발행 상태 GUI 캡처"** → 최초 라운드들은 "GUI 없는 백엔드 스케줄러라 grep 0매치"로 이 항목을 dormant 관찰로 대체했으나, **R4 Track 2 에서 FE 표시 면(design-system Badge "전표 발행 대기"/"전표 발행 실패")이 실제로 구현**되어 원 spec 의 이 항목이 뒤늦게 충족됐다.
+> - **관측/알림 배선 + 재발행 runbook** → 최초 라운드는 스코프 밖(§4)이었으나 **R4 Track 2 가 Micrometer counter + Prometheus rule + CloudWatch metric filter/alarm + runbook 을 신설**했고, **R5 6차원 적대검증이 그 로그 원천(prod awslogs driver 누락)과 runbook 재발행 절차의 순환 참조를 지적**해 같은 PR 에서 재정정했다. 상세는 dev-report 의 "R4 Track 2"·"R5" 절.
 
 ## 0. 결함 (SOL R2 적대검증 dim2 발견)
 `SlipPublishOutboxScheduler`:

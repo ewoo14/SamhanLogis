@@ -84,6 +84,50 @@ class PartnerInternalClientTest {
     }
 
     @Test
+    void verifyPartnerCode_401은_SERVER_ERROR로_분류된다() {
+        // #854 R5 MED — internal token 오구성/전파 지연이 "미존재 거래처" 로 접히면 outbox 가
+        // NOT_FOUND→INVALID_INPUT(400)으로 영구 실패 처리한다(spec D-854-06: 401/403=transient).
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-401"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-401");
+
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.SERVER_ERROR);
+        assertThat(result.partnerId()).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void verifyPartnerCode_403도_SERVER_ERROR로_분류된다() {
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-403"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-403");
+
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.SERVER_ERROR);
+        assertThat(result.partnerId()).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void verifyPartnerCode_401_403이_아닌_기타_4xx는_여전히_NOT_FOUND다() {
+        // 401/403 신설 분기가 다른 4xx(예: 400)까지 잠식하지 않았는지 확인하는 경계 가드.
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-400"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-400");
+
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.NOT_FOUND);
+        server.verify();
+    }
+
+    @Test
     void resolveBusinessNumber_200은_business_number_endpoint에서_사업자번호를_파싱한다() {
         server.expect(requestTo(BASE_URL + "/internal/partners/" + PARTNER_ID + "/business-number"))
                 .andExpect(method(HttpMethod.GET))

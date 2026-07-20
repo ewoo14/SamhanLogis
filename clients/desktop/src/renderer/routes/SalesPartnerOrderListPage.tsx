@@ -10,9 +10,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
+import { Badge, Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
+  SLIP_PUBLISH_STATUS_DISPLAY,
   listPartnerOrders,
   restorePartnerOrder,
   type PartnerOrderStatus,
@@ -338,11 +339,27 @@ export function SalesPartnerOrderListPage() {
       key: 'linkedSlipNo',
       header: '연결 전표',
       mobilePriority: 'hidden',
-      render: (o) => (
-        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
-          {o.linkedSlipNo ?? '-'}
-        </span>
-      ),
+      render: (o) => {
+        // #854 R5 MED — 상세 화면과 동일한 배지를 목록에도 배선한다. 발행 영구실패 주문이
+        // 목록에서 "완료 + 연결 전표 -" 로만 보여 발행 대기중과 구별 불가했던 원결함의
+        // 절반(목록 미배선)을 해소한다. 기존 컬럼 구조 보존을 위해 '연결 전표' 셀에 부가.
+        const publishMeta = SLIP_PUBLISH_STATUS_DISPLAY[o.slipPublishStatus]
+        return (
+          <span className={styles['partnerOrderNumberCell']}>
+            <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+              {o.linkedSlipNo ?? '-'}
+            </span>
+            {publishMeta ? (
+              <Badge
+                variant={publishMeta.variant}
+                data-testid={`partner-order-row-slip-publish-status-${o.orderNumber ?? 'na'}`}
+              >
+                {publishMeta.label}
+              </Badge>
+            ) : null}
+          </span>
+        )
+      },
     },
     ...(canRestoreDeletedOrder
       ? ([

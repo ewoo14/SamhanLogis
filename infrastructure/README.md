@@ -137,6 +137,7 @@ infrastructure/
     prometheus.yml
     rules/                       # alert rules (see "Alerting rules" above)
       slip-price-memory.yml
+      partner-order-outbox.yml
   grafana/
     provisioning/
       datasources/prometheus.yml

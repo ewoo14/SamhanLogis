@@ -449,9 +449,19 @@ public class SlipPublishService {
      * 거래처가 확인된 것으로 간주한다. strict 설정, 5xx fail-open, token 미설정 우회는
      * 이 경로의 회계 무결성을 위해 적용하지 않는다.
      *
+     * <p>{@code SKIPPED}(internal token 미설정)은 {@code SERVER_ERROR}와 같은 "검증 불가" 범주이지만
+     * {@link ErrorCode#MIG12_INTERNAL_AUTH_MISS}(503) 로 별도 구분한다 — {@code resolveCommittedPartnerId}
+     * 호출 시점에는 {@code partnerCode} 가 이미 non-blank 로 검증되어 있어({@code verifyPartnerCode} 의
+     * {@code SKIPPED} 두 원인 중 이 호출 경로에서는 오직 <b>이 서비스 자신의 internal token 미설정</b>만
+     * 가능하다. MIG-12 마이그레이션 도구가 동일 원인에 이미 사용 중인 전례를 재사용해 원인을 더
+     * 정확히 드러낸다(운영자에게 "설정 확인 필요" 로 즉시 안내). partner-order-service 의
+     * {@code SlipServiceClient} 는 5xx 를 일괄 재시도 대상으로 취급하므로 500→503 전환은 outbox
+     * 재시도/종결 분류에 영향을 주지 않는다.
+     *
      * @param partnerCode 발행 요청의 거래처 코드
      * @return partner-service가 확인한 거래처 UUID
      * @throws BusinessException(INVALID_INPUT) 등록되지 않은 거래처 코드(NOT_FOUND)
+     * @throws BusinessException(MIG12_INTERNAL_AUTH_MISS) 이 서비스의 internal token 미설정(SKIPPED)
      * @throws BusinessException(INTERNAL_ERROR) 거래처 검증을 수행할 수 없거나 FOUND 결과에 UUID가 없는 경우
      */
     private UUID resolveCommittedPartnerId(String partnerCode) {
@@ -467,17 +477,39 @@ public class SlipPublishService {
                             + "'를 검증할 수 없어 커밋 전표를 발행할 수 없습니다");
         }
         return switch (result.status()) {
-            case FOUND -> result.partnerId()
-                    .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR,
-                            "거래처 코드 '" + normalizedPartnerCode
-                                    + "'의 검증 결과에 거래처 식별자가 없어 커밋 전표를 발행할 수 없습니다"));
+            case FOUND -> requireVerifiedPartnerId(result.partnerId(), normalizedPartnerCode);
             case NOT_FOUND -> throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "거래처 코드 '" + normalizedPartnerCode
                             + "'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다");
-            case SERVER_ERROR, SKIPPED -> throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+            case SKIPPED -> throw new BusinessException(ErrorCode.MIG12_INTERNAL_AUTH_MISS,
+                    "내부 인증 토큰이 설정되지 않아 거래처 코드 '" + normalizedPartnerCode
+                            + "'를 검증할 수 없어 커밋 전표를 발행할 수 없습니다");
+            case SERVER_ERROR -> throw new BusinessException(ErrorCode.INTERNAL_ERROR,
                     "거래처 코드 '" + normalizedPartnerCode
                             + "'를 검증할 수 없어 커밋 전표를 발행할 수 없습니다");
         };
+    }
+
+    /**
+     * FOUND 검증 결과에서 partnerId 를 추출한다.
+     *
+     * <p>{@link PartnerVerifyResult#partnerId()} 는 {@code found()} 팩토리 경유 시 항상 non-null
+     * {@code Optional} 이지만, record accessor 를 직접 신뢰해 {@code .orElseThrow()} 를 곧바로 호출하면
+     * 그 전제가 깨졌을 때(레코드 필드 자체가 null) {@code NullPointerException} 이 이 메서드의 계약
+     * (BusinessException 만 던짐)을 깨고 새어나간다 — null 과 빈 Optional 을 동일하게 방어한다.
+     *
+     * @param partnerId FOUND 결과의 partnerId Optional (이론상 null 불가하나 방어적으로 재확인)
+     * @param normalizedPartnerCode 예외 메시지용 정규화된 거래처 코드
+     * @return 검증된 partnerId
+     * @throws BusinessException(INTERNAL_ERROR) partnerId 가 null 이거나 빈 Optional 인 경우
+     */
+    private UUID requireVerifiedPartnerId(Optional<UUID> partnerId, String normalizedPartnerCode) {
+        if (partnerId == null || partnerId.isEmpty()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "거래처 코드 '" + normalizedPartnerCode
+                            + "'의 검증 결과에 거래처 식별자가 없어 커밋 전표를 발행할 수 없습니다");
+        }
+        return partnerId.get();
     }
 
     /**

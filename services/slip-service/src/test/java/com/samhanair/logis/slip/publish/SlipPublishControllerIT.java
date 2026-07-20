@@ -208,7 +208,10 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         return java.util.stream.Stream.of(
                 Arguments.of("not-found", PartnerVerifyResult.notFound(), 400, "INVALID_INPUT"),
                 Arguments.of("server-error", PartnerVerifyResult.serverError(), 500, "INTERNAL_ERROR"),
-                Arguments.of("skipped", PartnerVerifyResult.skipped(java.util.Optional.empty()), 500, "INTERNAL_ERROR"),
+                // #854 R5 — SKIPPED(internal token 미설정)는 SERVER_ERROR 와 구분해 MIG12_INTERNAL_AUTH_MISS
+                // (503)로 던진다. partner-order-service SlipServiceClient 는 5xx 를 일괄 재시도 대상으로
+                // 취급하므로 outbox 재시도/종결 분류에는 영향이 없다(관측 정밀도만 개선).
+                Arguments.of("skipped", PartnerVerifyResult.skipped(java.util.Optional.empty()), 503, "MIG12_INTERNAL_AUTH_MISS"),
                 Arguments.of("found-empty", PartnerVerifyResult.found(java.util.Optional.empty()), 500, "INTERNAL_ERROR"));
     }
 

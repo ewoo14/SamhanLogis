@@ -1,10 +1,17 @@
 groups:
   - name: partner-order-outbox
     rules:
+      # severity=critical (#854 R5-LOW): slip-price-memory.yml 의 warning 은 fail-soft(원 전표/견적
+      # 저장은 성공, 가격기억 보조 기능만 저하)라 warning 이 맞다. 본 알람은 성격이 다르다 —
+      # FAILED_PERMANENT 는 전표 발행 자체가 영구 종결된 상태이고, runbook(재발행 절차) 상 안전한
+      # 셀프서비스 복구 수단이 없는 경우가 존재해 최소 개발팀 확인이 요구될 수 있다(단순 warning 이
+      # 암시하는 "당장 대응 불필요"보다 사건 등급이 위). Alertmanager 라우팅이 아직 없어(prometheus.yml
+      # 에 alerting: 섹션 없음) 현재는 라벨 값이 실효 차이를 만들지 않지만, 향후 배선 시 critical 을
+      # 별도 채널(예: 즉시 호출)로 분리하는 근거가 된다.
       - alert: PartnerOrderSlipPublishTerminalFailure
         expr: sum(increase(partner_order_slip_publish_terminal_total{job="partner-order-service",reason=~"invalid_input|conflict|max_retry_exhausted"}[5m])) > 0
         labels:
-          severity: warning
+          severity: critical
           service: partner-order-service
         annotations:
           summary: "partner-order-service 전표 발행 outbox 영구실패"

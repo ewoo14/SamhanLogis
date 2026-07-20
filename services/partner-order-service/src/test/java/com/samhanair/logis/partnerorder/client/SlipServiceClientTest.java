@@ -243,6 +243,20 @@ class SlipServiceClientTest {
     }
 
     @Test
+    void publishFromOrdersMerge_408도_동일하게_INTERNAL_ERROR로_분류된다() {
+        // #854 R5 LOW — 계열 sweep 이 429 만 커버하고 408 은 병합 경로에서 누락돼 있었다
+        // (publishFromPartnerOrder_408은_재시도_대상인_INTERNAL_ERROR 와 동일 매핑을 병합 경로에서도 확인).
+        server.expect(requestTo(FROM_ORDERS_MERGE))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.REQUEST_TIMEOUT));
+
+        assertBusinessError(
+                () -> client.publishFromOrdersMerge(mergePayload(), "PO-MRG-20260623-1"),
+                ErrorCode.INTERNAL_ERROR);
+        server.verify();
+    }
+
+    @Test
     void publishFromPartnerOrder_성공인데_slipNo가_없으면_INTERNAL_ERROR() {
         server.expect(requestTo(FROM_PARTNER_ORDER))
                 .andExpect(method(HttpMethod.POST))

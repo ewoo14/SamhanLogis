@@ -116,6 +116,57 @@ class ProductClientLookupByModelTest {
     }
 
     @Test
+    void lookupByModel_401은_INTERNAL_ERROR로_분류된다() {
+        // #854 R5 MED 계열 sweep — internal token 오구성/전파 지연을 "존재하지 않는 모델" 로 접으면
+        // outbox 발행 경로(resolveLines)가 이를 INVALID_INPUT(영구실패)로 오분류한다.
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assert be.getErrorCode() == ErrorCode.INTERNAL_ERROR
+                            : "Expected INTERNAL_ERROR, got " + be.getErrorCode();
+                });
+        server.verify();
+    }
+
+    @Test
+    void lookupByModel_403도_INTERNAL_ERROR로_분류된다() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assert be.getErrorCode() == ErrorCode.INTERNAL_ERROR
+                            : "Expected INTERNAL_ERROR, got " + be.getErrorCode();
+                });
+        server.verify();
+    }
+
+    @Test
+    void lookupByModel_401_403이_아닌_기타_4xx는_여전히_INVALID_INPUT이다() {
+        // 401/403 신설 분기가 다른 4xx 까지 잠식하지 않았는지 확인하는 경계 가드.
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+
+        assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assert be.getErrorCode() == ErrorCode.INVALID_INPUT
+                            : "Expected INVALID_INPUT, got " + be.getErrorCode();
+                });
+        server.verify();
+    }
+
+    @Test
     void lookupByModel_serviceUnavailable_throwsInternalError() {
         server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
                 .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));

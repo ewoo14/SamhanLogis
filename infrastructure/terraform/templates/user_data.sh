@@ -55,10 +55,17 @@ dnf install -y amazon-cloudwatch-agent
 #     CloudWatch Logs based on file modification time" — 17개 컨테이너 json 로그가
 #     entry 1개에 매치되면 가장 최근 수정 파일만 push 되어 특정 컨테이너 라인이
 #     유실될 수 있다. 아래 Docker 와일드카드 entry 는 best-effort 수집 전용이다.
-#   - alarm 원천(가격기억 metric filter 2건)인 slip-service 로그는 이 entry 가 아니라
+#   - alarm 원천(로그 metric filter 대상)인 서비스 로그는 이 entry 가 아니라
 #     docker-compose.prod.yml 의 awslogs logging driver 가 같은 log group 의
-#     stream "slip-service" 로 직접 전달한다 (CUTOVER.md M-19 참조).
-#     awslogs driver 전환 후 slip-service 는 json 파일을 만들지 않아 이중 수집 없음.
+#     서비스 전용 stream 으로 직접 전달한다. 현재 2개 서비스가 해당한다:
+#       · slip-service(가격기억 metric filter 2건) → stream "slip-service"
+#         (CUTOVER.md M-19 참조)
+#       · partner-order-service(outbox FAILED_PERMANENT metric filter 1건)
+#         → stream "partner-order-service" (#854 R5-HIGH — CUTOVER.md M-20 참조)
+#     awslogs driver 전환 후 두 서비스는 json 파일을 만들지 않아 이중 수집 없음.
+#     신규 alarm 원천 서비스 추가 시 이 목록과 docker-compose.prod.yml 의 logging:
+#     블록을 함께 갱신할 것 — 누락하면 이 wildcard tail 의 best-effort 한계에 조용히
+#     노출된다(#854 R5-HIGH 가 바로 이 누락 사례).
 #   - log_stream_name 지원 변수는 {instance_id}/{hostname}/{local_hostname}/{ip_address}
 #     뿐이다. {container_id} 는 지원 변수가 아니라 리터럴로 렌더되므로 사용 금지.
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'CW_CONFIG'

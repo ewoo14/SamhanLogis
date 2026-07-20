@@ -514,6 +514,109 @@ describe('mock 주문 목록 soft-delete parity (#757 STEP4 FE)', () => {
   })
 })
 
+describe('#854 R5 HIGH — 주문 slipPublishStatus mock parity', () => {
+  // 목록/GET상세/hold/release/restore/PUT 전 핸들러가 slipPublishStatus 를 BE enum
+  // 대문자 문자열 그대로 반환하는지 고정한다. 필드가 통째로 빠지면 정규화 폴백
+  // ('NOT_REQUIRED')이 조용히 마스킹해 배지가 영영 렌더되지 않으므로(R5 HIGH 근본원인),
+  // 값까지 단언해 회귀를 잡는다 — mock.ts 리팩터가 이 계약을 조용히 깨는 것을 방지.
+  type OrderRow = { orderNumber: string; slipPublishStatus?: string; linkedSlipNo: string | null }
+  type OrderDetail = {
+    orderNumber: string
+    slipPublishStatus?: string
+    linkedSlipNo: string | null
+    status: string
+  }
+
+  const listOrders = (params: Record<string, unknown>): OrderRow[] => {
+    const res = mockRequest({
+      method: 'GET',
+      url: '/api/v1/partner-orders',
+      params,
+    }) as MockEnvelope<{ content: OrderRow[] }>
+    return res.data.content
+  }
+
+  const getOrderDetail = (poId: string): OrderDetail => {
+    const res = mockRequest({
+      method: 'GET',
+      url: `/api/v1/partner-orders/${poId}`,
+    }) as MockEnvelope<OrderDetail>
+    return res.data
+  }
+
+  it('목록 CONFIRMED 필터의 발행 대기/실패 전용 fixture 가 관측 가능하다(전용 주문번호)', () => {
+    const rows = listOrders({ status: 'CONFIRMED' })
+    const pending = rows.find((r) => r.orderNumber === '2026/05/31-6')
+    const failed = rows.find((r) => r.orderNumber === '2026/05/31-7')
+    expect(pending?.slipPublishStatus).toBe('PENDING_RETRY')
+    expect(pending?.linkedSlipNo).toBeNull()
+    expect(failed?.slipPublishStatus).toBe('FAILED_PERMANENT')
+    expect(failed?.linkedSlipNo).toBeNull()
+  })
+
+  it('목록 fixture 는 어느 필터에서도 slipPublishStatus 를 빠뜨리지 않는다(전 핸들러 sweep)', () => {
+    const rows = listOrders({})
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((r) => typeof r.slipPublishStatus === 'string')).toBe(true)
+  })
+
+  it('GET 상세 — ord-slip-pending-retry/ord-slip-failed 전용 id 로 직접 진입 가능하다', () => {
+    const pending = getOrderDetail('ord-slip-pending-retry')
+    expect(pending.slipPublishStatus).toBe('PENDING_RETRY')
+    expect(pending.orderNumber).toBe('2026/05/31-6')
+    expect(pending.linkedSlipNo).toBeNull()
+
+    const failed = getOrderDetail('ord-slip-failed')
+    expect(failed.slipPublishStatus).toBe('FAILED_PERMANENT')
+    expect(failed.orderNumber).toBe('2026/05/31-7')
+    expect(failed.linkedSlipNo).toBeNull()
+  })
+
+  it('목록 클릭 경로(하이픈 주문번호)로도 동일 상세가 재현된다(목록→상세 정합)', () => {
+    const pending = getOrderDetail('2026-05-31-6')
+    expect(pending.slipPublishStatus).toBe('PENDING_RETRY')
+    expect(pending.orderNumber).toBe('2026/05/31-6')
+
+    const failed = getOrderDetail('2026-05-31-7')
+    expect(failed.slipPublishStatus).toBe('FAILED_PERMANENT')
+    expect(failed.orderNumber).toBe('2026/05/31-7')
+  })
+
+  it('hold/release/restore/PUT 응답도 slipPublishStatus 를 포함한다(전 핸들러 sweep)', () => {
+    const held = mockRequest({
+      method: 'POST',
+      url: '/api/v1/partner-orders/ord-draft/hold',
+    }) as MockEnvelope<OrderDetail>
+    expect(held.data.slipPublishStatus).toBe('NOT_REQUIRED')
+
+    const released = mockRequest({
+      method: 'POST',
+      url: '/api/v1/partner-orders/ord-hold/release',
+    }) as MockEnvelope<OrderDetail>
+    expect(released.data.slipPublishStatus).toBe('NOT_REQUIRED')
+
+    const restored = mockRequest({
+      method: 'POST',
+      url: '/api/v1/partner-orders/ord-test-restore/restore',
+    }) as MockEnvelope<OrderDetail>
+    expect(restored.data.slipPublishStatus).toBe('NOT_REQUIRED')
+
+    const updated = mockRequest({
+      method: 'PUT',
+      url: '/api/v1/partner-orders/ord-draft',
+      data: JSON.stringify({
+        updatedAt: '2026-01-01T00:00:00',
+        partnerCode: '1234567890',
+        bizCode: '1234567890',
+        dueDate: null,
+        memo: null,
+        lines: [],
+      }),
+    }) as MockEnvelope<OrderDetail>
+    expect(updated.data.slipPublishStatus).toBe('PUBLISHED')
+  })
+})
+
 describe('mock manual journal contract', () => {
   it('GET /admin/partners/search exposes partnerId as payload-only UUID', () => {
     const adminSearch = mockRequest({

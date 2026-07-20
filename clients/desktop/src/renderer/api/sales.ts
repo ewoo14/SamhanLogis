@@ -405,6 +405,24 @@ export const PARTNER_ORDER_STATUS_LABEL: Record<PartnerOrderStatus, string> = {
 /** 주문 전표 발행 상태 — 사용자 화면에는 대기/영구실패만 별도 표시한다. */
 export type SlipPublishStatus = 'NOT_REQUIRED' | 'PUBLISHED' | 'PENDING_RETRY' | 'FAILED_PERMANENT'
 
+/**
+ * SlipPublishStatus → 화면 표시 메타(라벨 + design-system Badge variant).
+ *
+ * <p>{@code NOT_REQUIRED}/{@code PUBLISHED} 는 정상 흐름이므로 배지를 표시하지 않는다
+ * (키 자체를 생략 — `Partial` 이라 조회 시 `undefined`). 목록/상세 화면이 동일 맵을 공유해
+ * 라벨·색상 표기가 갈리지 않게 한다(#854 R5 MED — 목록 화면 배선 배지 재사용).
+ *
+ * <p>{@code PENDING_RETRY} 라벨은 "전표 발행 재시도 중"이다 — 이 상태는 정의상 이미 최소
+ * 1회 발행 실패 후 최대 24시간 자동 재시도 중인 상태이므로, "대기"(아직 시도 전이라는
+ * 인상)보다 "재시도 중"이 진행 상황을 정확히 전달한다(#854 R5 LOW-4).
+ */
+export const SLIP_PUBLISH_STATUS_DISPLAY: Partial<
+  Record<SlipPublishStatus, { label: string; variant: 'warning' | 'danger' }>
+> = {
+  PENDING_RETRY: { label: '전표 발행 재시도 중', variant: 'warning' },
+  FAILED_PERMANENT: { label: '전표 발행 실패', variant: 'danger' },
+}
+
 /** 주문 목록 row. */
 export interface PartnerOrderSummary {
   orderNumber: string
@@ -543,6 +561,24 @@ type RawPartnerOrderDetail = Partial<Omit<PartnerOrderDetail, 'totalAmount' | 'l
     lines?: RawPartnerOrderLine[] | null
   }
 
+/**
+ * slipPublishStatus 결측(BE 응답에 필드 자체가 없음) 1회 경고 — 폴백('NOT_REQUIRED')
+ * 자체는 유지하되 침묵 마스킹을 막는다(#854 R5 MED). `raw.slipPublishStatus ?? 'NOT_REQUIRED'`
+ * 는 BE 가 {@code @JsonInclude(NON_NULL)} 로 필드를 아예 생략하는 경우와 값이 정말
+ * 'NOT_REQUIRED' 인 경우를 구별하지 못한다 — 배포 스큐 창구(구버전 BE가 신규 필드 미포함)
+ * 에서 R4 가 고친 결함이 재현돼도 감지 수단이 없었다. 세션당 1회만 경고해 렌더/폴링
+ * 스팸을 피한다.
+ */
+let slipPublishStatusMissingWarned = false
+function warnSlipPublishStatusMissing(source: string): void {
+  if (slipPublishStatusMissingWarned) return
+  slipPublishStatusMissingWarned = true
+  console.warn(
+    `[sales] slipPublishStatus 필드가 BE 응답(${source})에 없습니다. 배포 스큐 또는 계약 회귀 ` +
+      `가능성이 있습니다 — 화면은 'NOT_REQUIRED' 로 폴백 표시합니다.`,
+  )
+}
+
 function numberValue(value: number | string | null | undefined): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value === 'string') {
@@ -580,13 +616,17 @@ function normalizePartnerOrderLine(line: RawPartnerOrderLine, index: number): Pa
 export function normalizePartnerOrderDetail(raw: PartnerOrderDetail): PartnerOrderDetail
 export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): PartnerOrderDetail
 export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): PartnerOrderDetail {
+  if (raw.slipPublishStatus == null) warnSlipPublishStatusMissing('partner-order-detail')
   return {
     orderNumber: raw.orderNumber ?? '',
     partnerCode: raw.partnerCode ?? '',
     partnerName: raw.partnerName ?? null,
     submittedAt: raw.submittedAt ?? null,
     status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
-    slipPublishStatus: (raw.slipPublishStatus ?? 'NOT_REQUIRED') as SlipPublishStatus,
+    // raw.slipPublishStatus: SlipPublishStatus | undefined — '??' 결과가 이미 SlipPublishStatus
+    // 로 좁혀지므로(폴백값 'NOT_REQUIRED' 가 union 의 기존 멤버) 캐스트가 불필요하다(#854 R5
+    // LOW-1 — as SlipPublishStatus 캐스트 검토 결과 제거).
+    slipPublishStatus: raw.slipPublishStatus ?? 'NOT_REQUIRED',
     totalAmount: numberValue(raw.totalAmount),
     linkedSlipNo: raw.linkedSlipNo ?? null,
     isDeleted: raw.isDeleted === true,
@@ -600,6 +640,35 @@ export function normalizePartnerOrderDetail(raw: RawPartnerOrderDetail): Partner
     dueDate: raw.dueDate ?? null,
     memo: raw.memo ?? null,
     lines: (raw.lines ?? []).map(normalizePartnerOrderLine),
+  }
+}
+
+type RawPartnerOrderSummary = Partial<Omit<PartnerOrderSummary, 'totalAmount'>> & {
+  totalAmount?: number | string | null
+}
+
+/**
+ * PartnerOrderSummary 정규화 — 목록(list) 응답 전용.
+ *
+ * <p>{@link normalizePartnerOrderDetail} 과 동일한 폴백 정책(문자열/숫자 혼재 totalAmount,
+ * 누락 필드 기본값)을 목록 row 에도 적용한다. 종전 {@link listPartnerOrders} 는 정규화 없이
+ * raw cast 로 반환해 mock 모드에서 신규 필수 필드(slipPublishStatus)가 런타임 `undefined`
+ * 였다(#854 R5 MED — 타입-런타임 정합 회복).
+ */
+function normalizePartnerOrderSummary(raw: RawPartnerOrderSummary): PartnerOrderSummary {
+  if (raw.slipPublishStatus == null) warnSlipPublishStatusMissing('partner-order-summary')
+  return {
+    orderNumber: raw.orderNumber ?? '',
+    partnerCode: raw.partnerCode ?? '',
+    partnerName: raw.partnerName ?? null,
+    submittedAt: raw.submittedAt ?? null,
+    status: (raw.status ?? 'DRAFT') as PartnerOrderStatus,
+    slipPublishStatus: raw.slipPublishStatus ?? 'NOT_REQUIRED',
+    totalAmount: numberValue(raw.totalAmount),
+    linkedSlipNo: raw.linkedSlipNo ?? null,
+    isDeleted: raw.isDeleted === true,
+    deletedAt: raw.deletedAt ?? null,
+    deletedByName: raw.deletedByName ?? null,
   }
 }
 
@@ -646,11 +715,12 @@ export async function listPartnerOrders(
   if (filters.status) params['status'] = filters.status
   if (filters.searchKeyword) params['searchKeyword'] = filters.searchKeyword
   if (filters.includeDeleted) params['includeDeleted'] = 'true'
-  const res = await apiClient.get<ApiEnvelope<PageResponse<PartnerOrderSummary>>>(
+  const res = await apiClient.get<ApiEnvelope<PageResponse<RawPartnerOrderSummary>>>(
     '/api/v1/partner-orders',
     { params },
   )
-  return res.data.data
+  const pageResult = res.data.data
+  return { ...pageResult, content: (pageResult.content ?? []).map(normalizePartnerOrderSummary) }
 }
 
 /** 주문 단건 조회. */

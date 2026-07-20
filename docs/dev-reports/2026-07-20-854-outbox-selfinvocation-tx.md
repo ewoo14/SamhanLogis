@@ -153,6 +153,26 @@ attemptCount 미증가 → 24h 경과해도 FAILED 미전이·주문 PENDING_RET
 - **fix**: `SlipPublishOutboxResultWriter.expireIfExhausted` 신설 + 스케줄러가 **claim 직후** 호출.
   두 경로 모두 claim 을 거친다는 공통점을 이용해 벽시계 상한을 보장하고, 소진 row 는 재발행 없이 종결.
 
+## [정책 명시 — R5 지적에 따른 추가 기록] `expireIfExhausted` 의 동작 변화
+위 HIGH-C fix 는 종결 미도달 버그 2종을 막는 동시에 **정책을 바꾼다**: max-retry-hours(기본 24h)
+를 초과한 row 는 claim 되는 즉시 **HTTP 재시도 0회로** `FAILED`/주문 `FAILED_PERMANENT` 종결된다.
+R5 적대검증(아래 R5 절 "`handleRetry` 만료 분기 무가드")이 이 변화가 문서화되지 않았음을 지적했다.
+
+- **종전(R1~R3)**: 종결 판정이 `handleRetry` 안에만 있어, claim 이 반복되며 24h 를 넘겨도 그
+  사이 claim→HTTP 시도가 실제로 발생해 성공하면(다운스트림이 마침 복구돼 있었다면) `COMMITTED`
+  로 끝날 수 있었다 — 즉 "다운스트림 복구 직후의 마지막 기회"가 존재했다. 다만 이 여지는 HIGH-C
+  가 지적한 두 미도달 경로(결과 tx 실패 루프·lease 재점유 루프)에서는 애초에 `handleRetry` 가
+  호출되지 않아 **영영 종결도 안 되던** 상태와 짝을 이루고 있었다 — "마지막 기회"와 "영구 미종결"
+  이 같은 원인(종결 판정이 handleRetry 1곳에만 존재)의 양면이었다.
+- **현재(HIGH-C 이후)**: claim 직후 벽시계 검사가 먼저 실행되므로, 이미 24h 를 넘긴 row 는
+  **단 한 번의 HTTP 시도도 없이** 종결된다. 다운스트림이 claim 시각 직전에 막 복구되었더라도 이
+  row 는 그 회복의 수혜를 받지 못한다.
+- **판단**: 무결성 관점에서는 방어 가능한 보수적 선택이다 — "24h 넘게 미해결"이라는 사실 자체가
+  이미 사람의 판단이 필요하다는 신호이며, 자동 종결을 지연하는 것은 운영자가 실제(터미널) 상태를
+  인지하는 시점만 늦출 뿐이다. 그러나 **동작이 바뀌었다는 사실은 명시 기록이 필요**하다(재시도/
+  종결 정책은 무결성 도메인에 인접) — 스케줄러 다운타임 등으로 claim 이 24h 언저리까지 지연된
+  인스턴스가 있다면, 복구 직후 첫 claim 에서 재시도 없이 바로 종결될 수 있다는 뜻이다.
+
 ## [MED] 잔여
 - 결과 writer 3메서드 `@Transactional(timeout=10)` — `jakarta.persistence.lock.timeout` 은 PostgreSQL
   에서 **무음 no-op**(`PostgreSQLDialect.supportsWait()==false`·라이브 `SHOW lock_timeout`=0)이라 락
@@ -179,11 +199,135 @@ attemptCount 미증가 → 24h 경과해도 FAILED 미전이·주문 PENDING_RET
   주장의 라이브 확인). ※ producer dormant 라 throwaway 시드 사용·cron 10초 단축(오버레이 미커밋)·QA 후 시드 정리 완료.
 
 ## R4 처분 유보 → 후속 (개발책임자 "전건 fix" 결정에 따라 본 PR 계속)
-- **[HIGH-D] 관측/알림 배선 0** — `log.error` 가 alert 를 표방하나 Micrometer/Prometheus/CloudWatch 배선이
-  전무(저장소에 이미 3중 전례 존재). 신규 즉시-종결 경로가 무성음으로 소각될 수 있다.
-- **[차원5 MED] FE 표시 면 부재** — `slipPublishStatus`/`PENDING_RETRY`/`FAILED_PERMANENT` 가 전 클라이언트
+- ~~**[HIGH-D] 관측/알림 배선 0** — `log.error` 가 alert 를 표방하나 Micrometer/Prometheus/CloudWatch 배선이
+  전무(저장소에 이미 3중 전례 존재). 신규 즉시-종결 경로가 무성음으로 소각될 수 있다.~~
+  ⚠️ **R4 Track 2 에서 해소됨(아래 "R4 Track 2" 절 참조)**.
+- ~~**[차원5 MED] FE 표시 면 부재** — `slipPublishStatus`/`PENDING_RETRY`/`FAILED_PERMANENT` 가 전 클라이언트
   grep 0매치. **라이브 GUI 캡처로 확증**: 발행 영구실패 주문이 상태 "완료" + 연결 전표 "-" 로만 보여 발행
-  대기중과 구별 불가.
-- **[HIGH-B 근본] slip-service 상태코드 정정** — `resolveCommittedPartnerId` 의 SERVER_ERROR/SKIPPED(검증
-  불가)를 400 이 아닌 5xx 로 반환해 "복구 불가 입력"과 "검증 불가"를 계약 수준에서 분리.
+  대기중과 구별 불가.~~
+  ⚠️ **R4 Track 2 에서 해소됨(아래 "R4 Track 2" 절 참조)** — BE 응답에 `slipPublishStatus` 노출 +
+  FE Badge 표시("전표 발행 대기"/"전표 발행 실패")로 grep 0매치가 해소됐다. **본 절의 서술은
+  당시(R4 처분 유보 시점) 상태의 기록이며 HEAD 기준 현재형이 아니다.**
+- ~~**[HIGH-B 근본] slip-service 상태코드 정정** — `resolveCommittedPartnerId` 의 SERVER_ERROR/SKIPPED(검증
+  불가)를 400 이 아닌 5xx 로 반환해 "복구 불가 입력"과 "검증 불가"를 계약 수준에서 분리.~~
+  ⚠️ **R4 Track 2 에서 해소됨(아래 "R4 Track 2" 절 참조)**.
+
+---
+
+# R4 Track 2 (CODEX LUNA 구현 — 개발책임자 "전건 fix" 결정 이행) — 관측/알림 배선 · FE 표시 면 · slip-service 상태코드 정정
+
+R4 처분 유보 3건(HIGH-D 관측/알림 배선 0 · 차원5 MED FE 표시 면 부재 · HIGH-B 근본 slip-service
+상태코드)을 순서대로 구현(commit `35ec40fba`).
+
+## [R4 HIGH-D] 관측/알림 배선
+`log.error` 가 alert 를 표방했으나 실제 배선이 전무했다(저장소에 이미 3중 전례 — slip 가격기억).
+- `SlipPublishOutboxResultWriter`: terminal 전이마다 Micrometer counter
+  `partner_order_slip_publish_terminal{reason}` 증가. `reason` 은 고정 태그 4종(`committed`/
+  `invalid_input`/`conflict`/`max_retry_exhausted`) — 자유 문자열 없음(카디널리티 유계). 계측
+  실패는 try/catch 로 격리해 결과 트랜잭션을 깨뜨리지 않는다.
+- `infrastructure/prometheus/rules/partner-order-outbox.yml` 신규 — 기존 `slip-price-memory.yml`
+  룰과 동형(경보명 `PartnerOrderSlipPublishTerminalFailure`).
+- `infrastructure/terraform/monitoring.tf` — log metric filter(`"Outbox FAILED_PERMANENT"`) +
+  alarm 신규(기존 slip 가격기억 알람과 **형상은** 동형). ⚠️ **형상만 동형이고 로그 원천(awslogs
+  driver)은 최초 구현 시 누락돼 있었다 — R5 가 발견했고, 본 PR 의 infrastructure 담당 배치가
+  해소했다(아래 R5 절 참조).**
+- `docs/runbooks/partner-order-outbox-terminal-failure.md` 신규(한국어). ⚠️ 최초 버전은 재발행
+  절차가 순환 참조였다 — 이 또한 R5 가 발견해 같은 배치로 재작성했다(아래 R5 절 참조).
+
+## [R4 차원5] 전표발행 상태 FE 표시 면
+`slipPublishStatus` 가 전 클라이언트 grep 0매치라, 발행이 영구 실패한 주문이 상태 "완료" + 연결
+전표 "-" 로만 보여 발행 대기중과 구별 불가였다(R4 라이브 GUI 캡처로 확증된 결함).
+- BE: `PartnerOrderDetailResponse`·`PartnerOrderSummaryResponse` 에 `slipPublishStatus` 노출
+  (내부 outbox 식별자는 미노출 — UUID 비공개 원칙 유지).
+- FE: `SalesPartnerOrderDetailPage` 가 design-system Badge 로 "전표 발행 대기"(warning)·
+  "전표 발행 실패"(danger) 표시. 모바일 요약·데스크톱 카드 양쪽 반영. 색상 단독으로 의미를
+  전달하지 않는다(텍스트 라벨 동반).
+- 신규 `PartnerOrderResponseTest`: 실 도메인 전이 4상태(NOT_REQUIRED/PUBLISHED/PENDING_RETRY/
+  FAILED_PERMANENT) 전수로 detail/summary 응답 보존을 검증.
+
+## [R4 HIGH-B 근본] slip-service 상태코드 정정
+`resolveCommittedPartnerId` 가 "복구 불가 입력"과 "검증 불가"를 구분하지 않아, partner-service
+다운(SERVER_ERROR)이 400 으로 변환되고 outbox 가 이를 복구 불가(즉시 FAILED_PERMANENT)로
+오분류했다.
+- `NOT_FOUND` → `INVALID_INPUT`(400) **유지**(진짜 미등록 거래처는 여전히 즉시-종결 대상).
+- `SERVER_ERROR`·`SKIPPED`(검증 스킵)·`FOUND`+빈 `partnerId`(비정상 조합) → `INTERNAL_ERROR`
+  (5xx, 재시도 대상)로 정정.
+- enum 전수 `switch` 로 재작성 — 신규 상태 추가 시 분기 누락이 컴파일 단계에서 포착된다.
+- 🚨 **#853 fail-closed 불변식 유지** — 모든 실패 경로에서 커밋 전표 발행은 여전히 차단된다.
+  바뀐 것은 차단 여부가 아니라 오류 분류(상태코드)뿐이다.
+- `SlipPublishControllerIT`·`SlipPublishMergeIT` 파라미터화 테스트를 케이스별 기대 상태/코드로
+  분기(종전 4케이스 모두 400 단언 → 강화, "전표 미생성" fail-closed 단언은 유지).
+
+## Track 2 검증
+PM 독립 검증(genuine · `--rerun-tasks --no-build-cache`):
+- `:services:partner-order-service:test` — **392 tests · failures 0 · errors 0 · skipped 0**.
+- `:services:slip-service:test` — **1417 tests · failures 0 · errors 0 · skipped 0**.
+- `SlipPublishOutboxProcessorIT` **23**(ci.yml `#854` hard gate `tests>=23` 그대로 충족).
+- `clients/desktop`: `npm run typecheck` 통과 · vitest **133 files / 1012 tests passed**.
+- `promtool check rules` → `SUCCESS: 1 rules found`(실 prometheus 컨테이너, 구현 시점 확인).
+- prometheus job 이름·rules 마운트·`rule_files` 글롭 정합 확인.
+
+---
+
+# R5 (FABLE5 6차원 적대검증) — BLOCKING 0 · HIGH 5 · MED 14 · LOW 23
+
+Track 2(관측/알림 배선·FE 표시 면·slip-service 상태코드 정정) 위 재수렴 적대검증. **BLOCKING 0**.
+
+## 핵심 발견
+- **카운터 lazy 등록으로 첫/단발 실패 미탐** — Micrometer `Counter.builder(...).register(meterRegistry)`
+  는 최초 `increment()` 호출 시점에야 레지스트리에 실제로 나타난다(lazy registration). 특정
+  `reason` 이 처음 발생하는 이벤트 자체가 관측 시점 이전에 걸리면 그 첫 이벤트를 놓칠 수 있다.
+- **dev Prometheus 룰이 런타임에 로드되지 않음** — `infrastructure/README.md` 가 이미 문서화한
+  #809 R8-DEVOPS-1 트랩(룰 마운트는 컨테이너 *생성* 시점 bind 이며 기존 컨테이너에 사후 반영되지
+  않는다. `rule_files` 글롭이 0매치여도 Prometheus 는 에러를 내지 않는다)과 동일 계열. 신규
+  `partner-order-outbox.yml` 이 promtool 통과 + 마운트 확인만으로 "로드됨"으로 간주됐으나, 런타임
+  `/api/v1/rules` 확인이 R4 Track 2 검증 시점에는 누락돼 있었다.
+- **prod awslogs 로그 원천 부재** — 본 문서 상단 [HIGH] 항목과 동일 사안. partner-order-service
+  컨테이너에 awslogs driver 가 없어 monitoring.tf 의 신규 alarm 이 CloudWatch Agent 의
+  best-effort wildcard tail 에만 의존하고 있었다(저장소 스스로 "alarm 원천으로 쓰지 않는다"고
+  못박은 바로 그 경로).
+- **`handleRetry` 만료 분기 무가드** — R4 HIGH-C 가 도입한 claim 시점 종결(`expireIfExhausted`)이
+  정책을 바꿨음(24h 초과 row 는 HTTP 재시도 0회로 종결)에도 이 변화가 문서에 명시 기록되지
+  않았다(위 "[정책 명시]" 절로 해소).
+- **mock 파리티 이탈** — FE mock 고정치가 BE 가 실제로 반환하는 `slipPublishStatus` 관련 값의
+  형식/구성과 어긋나는 지점이 있어, mock 온 개발 환경과 실 서버 간 관측 결과가 달라질 수 있다.
+
+## 처분
+인프라·문서 범위로 분류된 발견(prod awslogs 부재 · runbook 순환 참조 · 정책 미기록 · severity
+재평가)은 본 fix 배치(infrastructure/docs 담당)로 해소했다 — 상단 [HIGH]/[MED]/[LOW] 항목과
+위 "[정책 명시]" 절 참조. 카운터 lazy 등록·mock 파리티 등 `services/`·`clients/` 범위 발견은
+동시 진행 중인 별도 배치가 처리한다(본 문서는 그 결과를 앞질러 단언하지 않는다 — 해당 커밋 이력
+참조).
+
+## 교훈
+- **promtool 통과 + 마운트 확인 ≠ 룰 로드됨** — `infrastructure/README.md` 가 #809 R8-DEVOPS-1 로
+  이미 의무화한 사항("Always verify the rule is actually loaded — never assume", 런타임
+  `/api/v1/rules` 확인 + `scripts/verify-prometheus-rules.ps1`)인데도 R4 Track 2 PM 검증이 이를
+  놓쳤다. 런타임 확인이 유일한 증거다 — 정적 통과(promtool)와 마운트 확인은 필요조건일 뿐
+  충분조건이 아니다. 본 배치는 `scripts/verify-prometheus-rules.ps1` 을 재실행해 두 rule
+  파일(`partner-order-outbox.yml`·`slip-price-memory.yml`) 모두 `health=ok`로 런타임에 로드돼
+  있음을 재확인했다(아래 "검증" 참조).
+- **메트릭 counter 는 eager register 하지 않으면 `increase()` 가 첫 이벤트를 못 잡는다** —
+  Micrometer 의 `Counter.builder(...).register(registry)` 는 최초 `increment()` 시점에야 실제
+  등록되는 lazy 패턴이다. 알람이 "반복" 이벤트가 아니라 "최초 1건" 도 놓치지 않아야 하는 성격
+  (본 건의 `FAILED_PERMANENT` 처럼 1건도 사건인 경우)이라면, 애플리케이션 시작 시점에
+  `MeterRegistry` 에 0-값으로 미리 등록해두는 eager 패턴을 검토해야 한다(services/ 범위 — 본
+  배치의 fix 대상 아님, 위 "처분" 참조).
+
+## 검증 (본 배치 — infrastructure/docs, 읽기 전용)
+`services/`·`clients/` 는 별도 담당 소유라 미접촉 — 아래는 인프라 파일 검증만.
+- `docker compose -f infrastructure/docker-compose.prod.yml config` — **exit 0**(env 미주입 경고만,
+  구문 오류 없음). partner-order-service 렌더 결과의 `logging:` 블록이 slip-service 와 `driver`/
+  `awslogs-region`/`awslogs-group`/`mode`/`max-buffer-size` 전부 동일, `awslogs-stream` 만
+  `partner-order-service`로 정확히 분기됨을 확인.
+- `terraform fmt -check -diff -recursive infrastructure/terraform` — **exit 0**(diff 없음).
+- `docker exec samhan-prometheus promtool check rules partner-order-outbox.yml
+  slip-price-memory.yml` — **SUCCESS: 1 rules found**(양쪽 모두, severity 변경 후).
+- `infrastructure/scripts/verify-prometheus-rules.ps1` — **PASS**: git rule 파일 2건 == 런타임 로드
+  파일 2건, 두 rule 모두 `health=ok, state=inactive`. 단, 실행 중인 `samhan-prometheus` 컨테이너는
+  파일 편집만으로는 reload 되지 않으므로 `severity` 라벨 자체는 컨테이너 재생성/reload 전까지
+  메모리상 `warning` 으로 남아 있음을 `curl /api/v1/rules` 로 직접 확인·기록한다(파일 정정은 완료,
+  라이브 반영은 다음 recreate/reload 시점 — 본 배치는 docker apply 금지 범위라 recreate 는
+  수행하지 않았다).
+- `bash -n infrastructure/terraform/templates/user_data.sh` — 구문 오류 없음.
 

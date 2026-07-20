@@ -414,6 +414,7 @@ aws rds restore-db-instance-to-point-in-time \
 | M-17 | terraform.tfvars `route53_zone_id` 에 사전 위임된 Hosted Zone ID 입력 | 단계 1 전 |
 | M-18 | AWS S3 access/secret key 실값 수동 주입 (`samhan/production/s3-access-key`, `samhan/production/s3-secret-key`) | 단계 0-D |
 | M-19 | slip-service 가격기억 fail-soft prod 감지 확인 (#809 — slip-service awslogs driver 직접 전달(선행 조건) + Terraform metric filter 2건/alarm 2건 + **양성 도달 검사**, 아래 "M-19 상세" 참조) | 단계 3 후 |
+| M-20 | partner-order-service 전표 발행 outbox 영구실패 prod 알람 감지 확인 (#854 — partner-order-service awslogs driver 직접 전달(선행 조건) + Terraform metric filter 1건/alarm 1건 + **양성 도달 검사**, 아래 "M-20 상세" 참조) | 단계 3 후 |
 
 ### M-19 상세 — 가격기억 upsert 실패 prod 알람 이식 (#809)
 
@@ -517,6 +518,89 @@ aws cloudwatch describe-alarm-history \
 없으면 `aws logs tail` 이 비어 있는 것이 정상이며, ④ 통과 후에는 인위 출력을
 반복 생성하지 않는다.
 
+### M-20 상세 — partner-order 전표 발행 outbox 영구실패 prod 알람 이식 (#854)
+
+dev 로컬 스택은 Prometheus rule `PartnerOrderSlipPublishTerminalFailure`
+(`infrastructure/prometheus/rules/partner-order-outbox.yml`) 가 outbox terminal 전이를
+감지하지만, **prod 에는 Prometheus 컨테이너가 없다**(M-19 와 동일한 구조적 이유 — 모니터링 =
+CloudWatch 일원화). 대상 상태(`FAILED_PERMANENT`)는 전표 발행이 영구 실패해 수동 개입이
+필요한 사건이며, 발생 즉시 `partner_order_slip_publish_terminal_total{reason=...}` 카운터가
+증가하고 로그에 `"Outbox FAILED_PERMANENT"` 문자열이 남는다(R4 Track 2 관측 배선).
+
+**로그 전달 경로 (#854 R5-HIGH)**: partner-order-service 컨테이너 로그는
+`docker-compose.prod.yml` 의 `awslogs` logging driver 가 log group
+`/samhanlogis/production/docker` 의 stream `partner-order-service` 로 **직접 전달**한다.
+최초 구현 시 이 driver 가 누락되어 있었고(monitoring.tf 의 filter/alarm 만 존재), M-19 가
+이미 명문화한 "CloudWatch Agent Docker json 와일드카드 tail = best-effort 전용, alarm 원천
+아님" 원칙을 partner-order-service 는 지키지 못하고 있었다 — slip-service 와 **형상(filter/
+alarm)은 동형이었으나 수송 경로는 비동형**이었던 것을 이 배치에서 slip-service 와 동형화했다.
+`monitoring.tf` 가 문자열 `"Outbox FAILED_PERMANENT"` 의 metric filter 와 alarm 을 각각
+선언한다. 대응 절차: `docs/runbooks/partner-order-outbox-terminal-failure.md`.
+
+> ⚠️ **정직 한계 (M-19 와 동일)**: 실 EC2 가 아직 없어 본 절차는 설계 검증까지만 완료했다.
+> 라이브 end-to-end 실측은 cutover 시 본 M-20 이 최초이며, 아래 ⓪~④ 를 통과하기 전까지
+> alarm 의 실효는 **미확증** 상태로 취급한다.
+
+```bash
+# ⓪ 선행 조건 — S3 업로드본 docker-compose.prod.yml 에 partner-order-service awslogs
+#    driver 선언이 포함돼 있는지 확인 (없으면 단계 3-A 의 S3 업로드부터 다시 수행).
+aws s3 cp s3://samhan-attachments/deploy/docker-compose.prod.yml - \
+  --region ap-northeast-2 | grep -n -B 2 -A 7 'awslogs-stream: partner-order-service'
+docker inspect --format '{{.HostConfig.LogConfig.Type}}' samhan-partner-order-service
+# 기대값: awslogs (json-file 이면 stale compose — 재다운로드 + up -d 재기동)
+
+# ① CloudWatch Agent 상태 — M-19 ①과 공유(같은 EC2 · 같은 Agent 프로세스). 별도 확인 불필요.
+
+# ② partner-order-service 전용 log stream 존재 + 로그 도달 확인.
+aws logs describe-log-streams \
+  --log-group-name /samhanlogis/production/docker \
+  --log-stream-name-prefix partner-order-service \
+  --region ap-northeast-2
+aws logs tail /samhanlogis/production/docker --since 30m \
+  --log-stream-names partner-order-service \
+  --region ap-northeast-2 | head -20
+
+# ③ Terraform 2개 리소스 적용 전후 확인 (filter 1 + alarm 1).
+terraform plan \
+  -target=aws_cloudwatch_log_metric_filter.partner_order_outbox_failed_permanent \
+  -target=aws_cloudwatch_metric_alarm.partner_order_outbox_failed_permanent
+
+aws logs describe-metric-filters \
+  --log-group-name /samhanlogis/production/docker \
+  --filter-name-prefix partner-order-outbox- --region ap-northeast-2
+aws cloudwatch describe-alarms \
+  --alarm-name-prefix samhanlogis-production-partner-order-outbox- \
+  --region ap-northeast-2
+
+# ④ 양성 도달 검사 (end-to-end) — 감시 문자열을 인위 echo 로 1회 출력.
+#    실제 outbox 영구실패를 유발하지 않는 echo 이며, alarm 1회 발화(OK→ALARM→OK)는
+#    로그→metric filter→alarm→SNS 전 체인이 살아 있다는 "의도된 검증 신호"다
+#    (SNS/Slack 수신 확인 겸용 — 수신자에게 사전 공지).
+docker exec samhan-partner-order-service sh -c \
+  'echo "M-20 synthetic probe: Outbox FAILED_PERMANENT (인위 출력 — 실제 실패 아님)" >> /proc/1/fd/1'
+
+# 도달 확인 — 수 초 ~ 1분 내 events 배열에 1건 이상 조회돼야 한다.
+START_MS=$(( ($(date +%s) - 900) * 1000 ))
+aws logs filter-log-events \
+  --log-group-name /samhanlogis/production/docker \
+  --log-stream-names partner-order-service \
+  --filter-pattern '"Outbox FAILED_PERMANENT"' \
+  --start-time "$START_MS" --region ap-northeast-2
+
+# alarm 발화 확인 — metric period 300s 이므로 5~10분 대기 후 조회.
+aws cloudwatch describe-alarm-history \
+  --alarm-name samhanlogis-production-partner-order-outbox-failed-permanent \
+  --history-item-type StateUpdate --max-records 5 --region ap-northeast-2
+```
+
+완료 조건: ⓪ partner-order-service `LogConfig.Type` = `awslogs` · ① Agent `active`
+(M-19 와 공유) · ② stream `partner-order-service` 존재 · ③ metric filter 1건 + alarm 1건
+존재 · ④ **양성 도달 검사** — synthetic 이벤트가 `filter-log-events` 로 조회되고, alarm 이
+`OK→ALARM→OK` 상태 전이 이력을 남겨야 한다. **존재 검사(①~③)만으로는 통과 불가** — M-19 와
+동일한 이유로 ④ 없이는 "매치 0 → alarm 영원히 OK" 구조적 false-negative 를 걸러낼 수 없다.
+운영 중 FAILED_PERMANENT 가 없으면 `aws logs tail` 이 비어 있는 것이 정상이며, ④ 통과 후에는
+인위 출력을 반복 생성하지 않는다.
+
 ---
 
 ## 참고 파일 경로
@@ -531,7 +615,7 @@ aws cloudwatch describe-alarm-history \
 | `infrastructure/terraform/route53.tf` | samhan-air.com 8 subdomain |
 | `infrastructure/terraform/arologis.tf` | 아로로지스 3 subdomain |
 | `infrastructure/terraform/lambda.tf` | Health Check Lambda (Tier 3) |
-| `infrastructure/terraform/monitoring.tf` | CloudWatch 알람 8종 + Dashboard |
+| `infrastructure/terraform/monitoring.tf` | CloudWatch 알람 11종(기반 8 + slip 가격기억 2 + partner-order outbox 1) + Dashboard |
 | `infrastructure/terraform/s3.tf` | samhan-attachments / samhan-logs |
 | `infrastructure/terraform/iam.tf` | EC2 Role + Lambda Role |
 | `infrastructure/terraform/variables.tf` | 입력 변수 정의 |
