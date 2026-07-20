@@ -2,6 +2,12 @@
 
 > OPUS 기획 · **워크플로우 변경(2026-07-20 기획검수 폐지) 후 첫 슬라이스** — 신 파이프라인: OPUS 기획(본 spec·조기 PR) → CODEX LUNA 구현 → OPUS R1 5-agent 적대검증+fix+라이브QA → CODEX SOL R2 5-agent+LUNA fix → 0수렴 → PM 종합 머지.
 > 성격: **pre-existing 실버그(회계 미영속)**. #853 전표 거래처 필수화 fail-closed가 노출. partner-order-service 범위.
+>
+> ⚠️ **후속 라운드가 대체한 기획 결정 (본 spec 본문보다 우선)** — 상세는 `docs/dev-reports/2026-07-20-854-outbox-selfinvocation-tx.md`.
+> - **D-854-01/03/04 의 `markProcessing()`·`IllegalState` 가드·"#725 KEEP"** → **R2 native claim(FOR UPDATE SKIP LOCKED)이 대체**하고 **R3 에서 메서드 자체를 제거**했다. 본 spec 의 해당 서술은 폐기된 결정으로 읽는다.
+> - **§3 "self-invocation 원복 시 RED"** → **R1 에서 거짓으로 판명**(명시 save 가 tx 없이도 각자 영속). tx-경계 genuine 가드로 대체.
+> - **D-854-06 4xx 분류** → **R4 에서 구현이 spec 을 위반하고 있었음이 확인**(408/429 미분기)되어 코드를 spec 에 맞춰 정정하고, `permanent-error-min-attempts`(기본 2)를 추가했다.
+> - **처리 상한** → **R4 에서 `expireIfExhausted`(claim 시점 종결 가드)** 가 추가되어, `handleRetry` 도달 여부와 무관하게 max-retry-hours 가 보장된다.
 
 ## 0. 결함 (SOL R2 적대검증 dim2 발견)
 `SlipPublishOutboxScheduler`:

@@ -100,6 +100,90 @@ lease(60s) < 순차 batch 최악 dwell(BATCH_SIZE×(connect2s+read5s)) → 멀�
 
 ## R3 검증
 - **partner-order-service 전체 377 tests·failures0·errors0·skipped0**(`--rerun-tasks --no-build-cache`). SlipPublishOutboxProcessorIT **15**(신규 2: **원자 소유권 가드 clobber-없음 ×30 동시 반복**·requeue attemptCount 불변). ci.yml 게이트 tests>=15.
-- 신규 동시성 IT: commitSuccess/handleRetry 동시 ×30 → 최종 status 결정적(COMMITTED/PENDING)·불변식 `!(published && PENDING)`. `findWithLockById`→무락 `findById` 회귀 시 clobber RED.
+- 신규 동시성 IT: commitSuccess/handleRetry 동시 ×30 → 최종 status 결정적(COMMITTED/PENDING)·불변식 `!(published && PENDING)`. ~~`findWithLockById`→무락 `findById` 회귀 시 clobber RED.~~ ⚠️ **이 주장은 R4 에서 실측으로 반증됨(아래 R4 HIGH-A 참조) — 무락 회귀에도 90/90 GREEN 이었다.**
 
-관련: PR #854 · spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` · 별건 노출원 #853. **다음: OPUS R4 재수렴(HIGH fix 독립 검증·0수렴)**.
+관련: PR #854 · spec `docs/specs/854-outbox-selfinvocation-tx-spec.md` · 별건 노출원 #853.
+
+---
+
+# R4 재수렴 (OPUS 6-agent 적대검증 + fix + 라이브QA)
+
+R3 fix 독립 재검증. 5차원 필수 + **스키마/마이그 증원 = 6차원**. BLOCKING 0 · 신규 HIGH 4.
+
+## [HIGH-A] R3 HIGH fix 가 무가드였음 — PM 뮤테이션 실측으로 확정
+차원3(QA)과 차원2(동시성)가 정반대 결론을 내 **PM 이 뮤테이션으로 결판**. `processingRow` 의
+`findWithLockById` → 무락 `findById` 한 줄만 되돌리고 IT 3회 실행 → **전부 BUILD SUCCESSFUL
+(tests=15·skipped0·failures0, 30회 반복 ×3 = 90/90 GREEN)**. 즉 R3 의 HIGH fix 는 어떤 테스트로도
+가드되지 않았고, ci.yml `tests>=15` 게이트도 이 속성에 대해 아무 것도 보장하지 않았다.
+
+**원인**: 무락 회귀 시 가능한 최종 상태는 ①handleRetry 가 나중 커밋 → `order PUBLISHED + outbox
+PENDING`(유일한 검출 경로) ②commitSuccess 가 나중 커밋 → **락이 있을 때의 정상 결과와 관측적으로
+완전 동일**(구조적 판별 불가) 두 가지인데, `commitSuccess` 가 `orderRepository.findById` 시점
+auto-flush 로 UPDATE 를 먼저 잡은 뒤 order UPDATE + history INSERT + 직렬화를 더 수행하므로 ②로
+편향된다. `GUARD_ITERATIONS=30` 은 이 확률성을 자인하는 장치였다.
+
+**자기 교훈의 회귀**이기도 하다 — R1 에는 `pg_locks WHERE NOT granted` 폴링(`awaitLockWait`)으로
+락 대기 진입을 **관측**해 결정화한 테스트가 있었으나 R2 재아키텍처에서 삭제됐고, R3 가 비관 락을
+재도입하면서 가드는 순수 `CountDownLatch` 로 되돌아갔다. `#850` 의 확립된 교훈(동시성 IT 는
+latch 만으론 스케줄 의존 false-green)과도 배치된다.
+
+**fix**: `resultWriter_doesNotClobberTransitionCommittedByLockHolder` — holder tx 가 행 락을 쥔 채
+COMMITTED 로 전이·커밋을 보류하고, 뒤늦은 `handleRetry` 를 투입한 뒤 `pg_locks` 폴링으로 대기 진입을
+관측(배리어)하고 해제한다. 락이 있으면 뒤늦은 전이가 COMMITTED 를 읽고 skip(→COMMITTED 유지),
+무락이면 stale PROCESSING 을 읽어 진행해 PENDING 으로 덮는다. **뮤테이션 재실행 결과
+`expected: COMMITTED but was: PENDING` 으로 결정적 RED 확인.**
+※ 1차 설계(“락 보유 시 대기하는가”)는 무락에도 GREEN 이었다 — `save()` 의 UPDATE 가 어차피 행 락에
+걸려 동일하게 타임아웃하므로 SELECT 락을 분리 판별하지 못했다. 상태 판별식으로 재설계해 해소.
+
+## [HIGH-B] 4xx fail-fast 오분류 — 자기 spec 위반 + 다운스트림 일시장애가 attempt 1 영구실패
+spec D-854-06 은 재시도 대상에 **408/429** 를 명시했으나 `SlipServiceClient` 는 401/403/409 를 제외한
+모든 4xx 를 `INVALID_INPUT`(= 영구실패 분류)으로 흘렸다. 또한 partner-service 장애 →
+`PartnerVerifyResult.serverError()` → `!isFound()` → slip-service `INVALID_INPUT`(400) → 즉시
+FAILED_PERMANENT 로 이어지는 경로를 두 서비스에 걸쳐 확증했다(#853 fail-closed 자체는 의도된 설계이며,
+**#854 의 4xx 즉시 종결과 결합된 것이 [NEW]**).
+- **fix**: 408·429 → `INTERNAL_ERROR`(재시도) 분리 매핑. **동일 매핑이 `publishFromPartnerOrder`·
+  `publishFromOrdersMerge` 두 곳에 중복 존재해 계열 전수 sweep 적용.**
+- **fix**: `permanent-error-min-attempts`(기본 2) 도입 — 복구 불가 4xx 도 최소 시도 미만이면 재시도.
+  1 로 설정하면 종전 즉시 fail-fast 와 동일.
+
+## [HIGH-C] terminal 조건 부재 — max-retry-hours 가 도달 불가한 경로 2종 (3차원 독립 수렴)
+종결 판정이 `handleRetry` 안에만 있어 ①**결과 tx 실패 루프**(`markRequeue` 는 attemptCount 불변·고정
+5분 → `handleRetry` 미호출 → 24h 상한이 영원히 평가되지 않음) ②**lease 재점유 루프**(claim 은
+attemptCount 미증가 → 24h 경과해도 FAILED 미전이·주문 PENDING_RETRY 고착)가 종결되지 않았다.
+- **fix**: `SlipPublishOutboxResultWriter.expireIfExhausted` 신설 + 스케줄러가 **claim 직후** 호출.
+  두 경로 모두 claim 을 거친다는 공통점을 이용해 벽시계 상한을 보장하고, 소진 row 는 재발행 없이 종결.
+
+## [MED] 잔여
+- 결과 writer 3메서드 `@Transactional(timeout=10)` — `jakarta.persistence.lock.timeout` 은 PostgreSQL
+  에서 **무음 no-op**(`PostgreSQLDialect.supportsWait()==false`·라이브 `SHOW lock_timeout`=0)이라 락
+  대기가 무한이었다. Javadoc 에 사실을 박제.
+- `CLAIM_SQL` 에 `modified_at`/`modified_by` 추가 — native claim 이 BaseEntity 7-audit 을 우회해
+  PROCESSING 전이만 감사 흔적이 없던 문제 해소.
+- 주문 부재 시 `ifPresentOrElse` 로 error 로그 — outbox 만 COMMITTED 되고 주문 미갱신인데 성공 INFO 가
+  찍히던 무음 발산 해소.
+- 테스트 갭 4종 보강: FAILED_PERMANENT 3-write 원자성 · SKIP LOCKED 결정적 가드 · `REQUIRES_NEW` 판별 ·
+  `OutboxProperties` 기본값/불변식 고정(`OutboxPropertiesTest` 신규).
+- 문서: README `lease-seconds` 60→**120** 정정 + `batch-size`·`permanent-error-min-attempts` 행 추가 +
+  불변식 명시 · `local` 프로파일 스케줄러 비활성 주석 · producer dormant 및 "재배선=별도 슬라이스" 반영 ·
+  `PartnerOrderHistory` Javadoc 7→8종 · dead code(미사용 Logger·`getLeaseSeconds` 우회) 제거.
+
+## R4 검증
+- **partner-order-service 전체 391 tests·failures0·errors0·skipped0**(`--rerun-tasks --no-build-cache`).
+  outbox IT 15→**23** · `SlipServiceClientTest` 14→**17** · `OutboxPropertiesTest` **3**(신규).
+  ci.yml #854 hard gate `tests>=15` → **>=23** 상향.
+- **anti-false-green**: HIGH-A 가드는 뮤테이션 재실행으로 RED 확인(위 참조).
+- **라이브 QA(실 Docker + 실 데스크톱 GUI)**: `docs/qa/854-r4-liveqa-raw.txt`(원문 캡처·합성 없음) ·
+  `docs/qa/854-r4-terminal-guard/*.png`(실 GUI). A(requeue 형상)·B(lease 재점유 형상) → 재발행 로그 없이
+  `MAX_RETRY_EXHAUSTED` 종결 · C → 실 slip-service **400** 에 1차 재시도(attempt 2) 후 2차에 종결 ·
+  claim row `modified_by=system` · 신규 `SLIP_FAILED_PERMANENT` history 가 실 DB 에 정상 INSERT(마이그 불요
+  주장의 라이브 확인). ※ producer dormant 라 throwaway 시드 사용·cron 10초 단축(오버레이 미커밋)·QA 후 시드 정리 완료.
+
+## R4 처분 유보 → 후속 (개발책임자 "전건 fix" 결정에 따라 본 PR 계속)
+- **[HIGH-D] 관측/알림 배선 0** — `log.error` 가 alert 를 표방하나 Micrometer/Prometheus/CloudWatch 배선이
+  전무(저장소에 이미 3중 전례 존재). 신규 즉시-종결 경로가 무성음으로 소각될 수 있다.
+- **[차원5 MED] FE 표시 면 부재** — `slipPublishStatus`/`PENDING_RETRY`/`FAILED_PERMANENT` 가 전 클라이언트
+  grep 0매치. **라이브 GUI 캡처로 확증**: 발행 영구실패 주문이 상태 "완료" + 연결 전표 "-" 로만 보여 발행
+  대기중과 구별 불가.
+- **[HIGH-B 근본] slip-service 상태코드 정정** — `resolveCommittedPartnerId` 의 SERVER_ERROR/SKIPPED(검증
+  불가)를 400 이 아닌 5xx 로 반환해 "복구 불가 입력"과 "검증 불가"를 계약 수준에서 분리.
+
