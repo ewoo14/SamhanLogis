@@ -519,12 +519,25 @@ describe('#854 R5 HIGH — 주문 slipPublishStatus mock parity', () => {
   // 대문자 문자열 그대로 반환하는지 고정한다. 필드가 통째로 빠지면 정규화 폴백
   // ('NOT_REQUIRED')이 조용히 마스킹해 배지가 영영 렌더되지 않으므로(R5 HIGH 근본원인),
   // 값까지 단언해 회귀를 잡는다 — mock.ts 리팩터가 이 계약을 조용히 깨는 것을 방지.
-  type OrderRow = { orderNumber: string; slipPublishStatus?: string; linkedSlipNo: string | null }
+  type OrderRow = {
+    orderNumber: string
+    partnerCode: string
+    partnerName: string | null
+    submittedAt: string | null
+    slipPublishStatus?: string
+    totalAmount: number
+    linkedSlipNo: string | null
+  }
   type OrderDetail = {
     orderNumber: string
+    partnerCode: string
+    partnerName: string | null
+    submittedAt: string
     slipPublishStatus?: string
+    totalAmount: number
     linkedSlipNo: string | null
     status: string
+    lines: Array<{ subtotal: number }>
   }
 
   const listOrders = (params: Record<string, unknown>): OrderRow[] => {
@@ -548,6 +561,18 @@ describe('#854 R5 HIGH — 주문 slipPublishStatus mock parity', () => {
     const rows = listOrders({ status: 'CONFIRMED' })
     const pending = rows.find((r) => r.orderNumber === '2026/05/31-6')
     const failed = rows.find((r) => r.orderNumber === '2026/05/31-7')
+    expect(pending).toMatchObject({
+      partnerCode: '8540000006',
+      partnerName: '전표 발행 대기 거래처',
+      submittedAt: '2026-05-31T11:00:00',
+      totalAmount: 640000,
+    })
+    expect(failed).toMatchObject({
+      partnerCode: '8540000007',
+      partnerName: '전표 발행 실패 거래처',
+      submittedAt: '2026-05-31T12:00:00',
+      totalAmount: 410000,
+    })
     expect(pending?.slipPublishStatus).toBe('PENDING_RETRY')
     expect(pending?.linkedSlipNo).toBeNull()
     expect(failed?.slipPublishStatus).toBe('FAILED_PERMANENT')
@@ -562,14 +587,28 @@ describe('#854 R5 HIGH — 주문 slipPublishStatus mock parity', () => {
 
   it('GET 상세 — ord-slip-pending-retry/ord-slip-failed 전용 id 로 직접 진입 가능하다', () => {
     const pending = getOrderDetail('ord-slip-pending-retry')
-    expect(pending.slipPublishStatus).toBe('PENDING_RETRY')
-    expect(pending.orderNumber).toBe('2026/05/31-6')
-    expect(pending.linkedSlipNo).toBeNull()
+    expect(pending).toMatchObject({
+      orderNumber: '2026/05/31-6',
+      partnerCode: '8540000006',
+      partnerName: '전표 발행 대기 거래처',
+      submittedAt: '2026-05-31T11:00:00',
+      totalAmount: 640000,
+      slipPublishStatus: 'PENDING_RETRY',
+      linkedSlipNo: null,
+    })
+    expect(pending.lines.reduce((sum, line) => sum + line.subtotal, 0)).toBe(pending.totalAmount)
 
     const failed = getOrderDetail('ord-slip-failed')
-    expect(failed.slipPublishStatus).toBe('FAILED_PERMANENT')
-    expect(failed.orderNumber).toBe('2026/05/31-7')
-    expect(failed.linkedSlipNo).toBeNull()
+    expect(failed).toMatchObject({
+      orderNumber: '2026/05/31-7',
+      partnerCode: '8540000007',
+      partnerName: '전표 발행 실패 거래처',
+      submittedAt: '2026-05-31T12:00:00',
+      totalAmount: 410000,
+      slipPublishStatus: 'FAILED_PERMANENT',
+      linkedSlipNo: null,
+    })
+    expect(failed.lines.reduce((sum, line) => sum + line.subtotal, 0)).toBe(failed.totalAmount)
   })
 
   it('목록 클릭 경로(하이픈 주문번호)로도 동일 상세가 재현된다(목록→상세 정합)', () => {

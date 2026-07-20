@@ -258,6 +258,17 @@ public class SlipPublishOutboxResultWriter {
     private void markFailedPermanent(SlipPublishOutbox row, ErrorCode errorCode, String error) {
         row.markFailed(error);
         outboxRepository.save(row);
+        // CloudWatch 경보 원천 로그와 counter callback은 결과 tx가 commit된 뒤에만
+        // 실행되도록 여기서 먼저 등록한다. history 저장/flush 실패로 tx가 rollback되면 이
+        // callback도 폐기되어 FAILED_PERMANENT를 관측했다고 거짓말하지 않는다.
+        UUID orderId = row.getPartnerOrderId();
+        int attempts = row.getAttemptCount();
+        String errorCodeLabel = errorCode == null ? "MAX_RETRY_EXHAUSTED" : errorCode.name();
+        runAfterCommit(() -> log.error(
+                "Outbox FAILED_PERMANENT: orderId={}, attempts={}, errorCode={}, error={}",
+                orderId, attempts, errorCodeLabel, error));
+        recordTerminal(terminalFailureReason(errorCode));
+
         orderRepository.findById(row.getPartnerOrderId()).ifPresentOrElse(order -> {
             order.markSlipFailedPermanent();
             orderRepository.save(order);
@@ -271,17 +282,6 @@ public class SlipPublishOutboxResultWriter {
                             "error", error == null ? "" : error))));
         }, () -> log.error("Outbox FAILED_PERMANENT but order missing — 주문 미갱신: outboxId={},"
                 + " orderId={} (수동 정합 확인 필요)", row.getId(), row.getPartnerOrderId()));
-        // CloudWatch 경보 원천 로그 — commit 확정 전 발화하면 counter 와 동일한 문제(뒤이은 flush 실패로
-        // row 는 PROCESSING 잔류인데 "일어나지 않은" 영구실패를 경보)가 생기므로 afterCommit 으로 미룬다
-        // (#854 R5 MED). 주문 부재(위 else 분기) 로그는 데이터 정합 사고 자체를 즉시 드러내야 하므로
-        // 이 지연 대상에서 제외한다.
-        UUID orderId = row.getPartnerOrderId();
-        int attempts = row.getAttemptCount();
-        String errorCodeLabel = errorCode == null ? "MAX_RETRY_EXHAUSTED" : errorCode.name();
-        runAfterCommit(() -> log.error(
-                "Outbox FAILED_PERMANENT: orderId={}, attempts={}, errorCode={}, error={}",
-                orderId, attempts, errorCodeLabel, error));
-        recordTerminal(terminalFailureReason(errorCode));
     }
 
     /**

@@ -7675,12 +7675,13 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // linkedSlipNo 가 비어 있는 형상 (854 R4 라이브 QA 캡처와 동일 조합).
     // GET 상세는 같은 orderNumber(하이픈 경로 변환) 를 buildPartnerOrderDetail 에서 인식해
     // 목록→클릭→상세 전 구간에서 동일한 slipPublishStatus 를 재현한다.
-    // partnerCode/partnerName 은 buildPartnerOrderDetail 기본 fixture(1234567890/엘에이시스템에어)
-    // 와 일치시켜 목록 클릭→상세 이동 시 거래처 표시가 어긋나지 않게 한다.
+    // 목록/상세 정합을 위해 발행 상태 전용 거래처 코드·이름을 사용한다. 기존 DRAFT 회귀
+    // 가드가 CONFIRMED 목록에서 '엘에이시스템에어' 미노출을 확인하므로 이 fixture 를 기존
+    // 거래처에 귀속시키면 mock 전체 Playwright 게이트가 깨진다.
     const SLIP_PENDING_RETRY_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/31-6',
-      partnerCode: '1234567890',
-      partnerName: '엘에이시스템에어',
+      partnerCode: '8540000006',
+      partnerName: '전표 발행 대기 거래처',
       submittedAt: '2026-05-31T11:00:00',
       status: 'CONFIRMED',
       slipPublishStatus: 'PENDING_RETRY',
@@ -7689,8 +7690,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     const SLIP_FAILED_PERMANENT_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/31-7',
-      partnerCode: '1234567890',
-      partnerName: '엘에이시스템에어',
+      partnerCode: '8540000007',
+      partnerName: '전표 발행 실패 거래처',
       submittedAt: '2026-05-31T12:00:00',
       status: 'CONFIRMED',
       slipPublishStatus: 'FAILED_PERMANENT',
@@ -11757,6 +11758,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         : poLinkedSlip
           ? 'PUBLISHED'
           : 'NOT_REQUIRED'
+    const slipFixture = isSlipPendingRetryId || isSlipFailedId
+      ? {
+          partnerCode: isSlipPendingRetryId ? '8540000006' : '8540000007',
+          partnerName: isSlipPendingRetryId ? '전표 발행 대기 거래처' : '전표 발행 실패 거래처',
+          submittedAt: isSlipPendingRetryId ? '2026-05-31T11:00:00' : '2026-05-31T12:00:00',
+          totalAmount: isSlipPendingRetryId ? 640000 : 410000,
+        }
+      : null
     const poLines =
       poId === 'ord-partially-converted'
         ? [
@@ -11798,10 +11807,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               modelCode: 'AJ040RXH4BC1',
               productName: '실외기',
               categoryKey: 'homemulti',
-              quantity: 2,
+              quantity: isSlipPendingRetryId ? 2 : isSlipFailedId ? 1 : 2,
               convertedQuantity: 0,
-              deliveryPrice: 120000,
-              subtotal: 240000,
+              deliveryPrice: isSlipPendingRetryId ? 320000 : isSlipFailedId ? 410000 : 120000,
+              subtotal: isSlipPendingRetryId ? 640000 : isSlipFailedId ? 410000 : 240000,
               remark: '초기 라인 비고',
               bundleMode: null,
               productType: 'SINGLE',
@@ -11818,14 +11827,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             : isSlipFailedId
               ? '2026/05/31-7'
               : '2026/05/04-1',
-      partnerCode: '1234567890',
-      bizCode: '1234567890',
-      partnerName: '엘에이시스템에어',
-      submittedAt: '2026-05-04T10:30:00',
+      partnerCode: slipFixture?.partnerCode ?? '1234567890',
+      bizCode: slipFixture?.partnerCode ?? '1234567890',
+      partnerName: slipFixture?.partnerName ?? '엘에이시스템에어',
+      submittedAt: slipFixture?.submittedAt ?? '2026-05-04T10:30:00',
       updatedAt: '2026-05-17T10:00:00',
       status: poStatus,
       slipPublishStatus: poSlipPublishStatus,
-      totalAmount: 3700000,
+      totalAmount: slipFixture?.totalAmount ?? 3700000,
       linkedSlipNo: poLinkedSlip,
       deliveryAddress: '서울시 강남구 테헤란로 1',
       siteAddress: '현장 A동',

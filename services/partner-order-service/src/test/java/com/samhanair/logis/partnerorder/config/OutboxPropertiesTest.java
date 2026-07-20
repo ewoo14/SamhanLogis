@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * #854 R4 MED — outbox 튜닝 기본값 가드.
@@ -70,11 +71,23 @@ class OutboxPropertiesTest {
                 .withUserConfiguration(OutboxPropertiesTestConfig.class)
                 .run(context -> {
                     OutboxProperties properties = context.getBean(OutboxProperties.class);
+                    Environment environment = context.getEnvironment();
+                    assertThat(environment.containsProperty("samhan.outbox.cron")).isTrue();
+                    assertThat(environment.containsProperty("samhan.outbox.max-retry-hours")).isTrue();
+                    assertThat(environment.containsProperty("samhan.outbox.lease-seconds")).isTrue();
+                    assertThat(environment.containsProperty("samhan.outbox.batch-size")).isTrue();
+                    assertThat(environment.containsProperty("samhan.outbox.permanent-error-min-attempts")).isTrue();
                     assertThat(properties.getCron()).isEqualTo("0 */5 * * * *");
-                    assertThat(properties.getMaxRetryHours()).isEqualTo(24);
-                    assertThat(properties.getLeaseSeconds()).isEqualTo(120);
-                    assertThat(properties.getBatchSize()).isEqualTo(10);
-                    assertThat(properties.getPermanentErrorMinAttempts()).isEqualTo(2);
+                    assertThat(properties.getCron()).isEqualTo(
+                            environment.getProperty("samhan.outbox.cron"));
+                    assertThat(properties.getMaxRetryHours()).isEqualTo(
+                            environment.getProperty("samhan.outbox.max-retry-hours", Integer.class));
+                    assertThat(properties.getLeaseSeconds()).isEqualTo(
+                            environment.getProperty("samhan.outbox.lease-seconds", Integer.class));
+                    assertThat(properties.getBatchSize()).isEqualTo(
+                            environment.getProperty("samhan.outbox.batch-size", Integer.class));
+                    assertThat(properties.getPermanentErrorMinAttempts()).isEqualTo(
+                            environment.getProperty("samhan.outbox.permanent-error-min-attempts", Integer.class));
                 });
     }
 

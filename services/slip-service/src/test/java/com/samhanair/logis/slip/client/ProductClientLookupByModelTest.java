@@ -14,6 +14,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -149,19 +151,19 @@ class ProductClientLookupByModelTest {
         server.verify();
     }
 
-    @Test
-    void lookupByModel_401_403이_아닌_기타_4xx는_여전히_INVALID_INPUT이다() {
-        // 401/403 신설 분기가 다른 4xx 까지 잠식하지 않았는지 확인하는 경계 가드.
+    @ParameterizedTest
+    @ValueSource(ints = {400, 408, 429})
+    void lookupByModel_404가_아닌_4xx는_INTERNAL_ERROR로_분류된다(int status) {
         server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
                 .andExpect(method(HttpMethod.POST))
-                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
 
         assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException be = (BusinessException) ex;
-                    assert be.getErrorCode() == ErrorCode.INVALID_INPUT
-                            : "Expected INVALID_INPUT, got " + be.getErrorCode();
+                    assert be.getErrorCode() == ErrorCode.INTERNAL_ERROR
+                            : "Expected INTERNAL_ERROR, got " + be.getErrorCode();
                 });
         server.verify();
     }

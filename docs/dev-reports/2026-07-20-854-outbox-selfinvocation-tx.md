@@ -292,12 +292,12 @@ Track 2(관측/알림 배선·FE 표시 면·slip-service 상태코드 정정) �
 - **mock 파리티 이탈** — FE mock 고정치가 BE 가 실제로 반환하는 `slipPublishStatus` 관련 값의
   형식/구성과 어긋나는 지점이 있어, mock 온 개발 환경과 실 서버 간 관측 결과가 달라질 수 있다.
 
-## 처분
-인프라·문서 범위로 분류된 발견(prod awslogs 부재 · runbook 순환 참조 · 정책 미기록 · severity
-재평가)은 본 fix 배치(infrastructure/docs 담당)로 해소했다 — 상단 [HIGH]/[MED]/[LOW] 항목과
-위 "[정책 명시]" 절 참조. 카운터 lazy 등록·mock 파리티 등 `services/`·`clients/` 범위 발견은
-동시 진행 중인 별도 배치가 처리한다(본 문서는 그 결과를 앞질러 단언하지 않는다 — 해당 커밋 이력
-참조).
+## R5 통합 결과(HEAD 기준 정정)
+R5의 인프라·문서 fix만 완료된 것으로 기록했던 이전 문장은 부정확하다. R5 통합 결과에는
+`services/`·`clients/` 변경도 포함되며, counter eager 등록과 slipPublishStatus mock/표시 배선이
+실제 HEAD에 반영되어 있다. 따라서 R5 산출은 인프라·문서만의 별도 배치가 아니고, outbox IT 25건과
+신규 unit 가드 7건을 포함한 통합 검증 대상이다. 아래 R6는 이 통합 결과를 다시 적대검증해 발견한
+잔여 결함의 fix와 문서 정정이다.
 
 ## 교훈
 - **promtool 통과 + 마운트 확인 ≠ 룰 로드됨** — `infrastructure/README.md` 가 #809 R8-DEVOPS-1 로
@@ -314,8 +314,10 @@ Track 2(관측/알림 배선·FE 표시 면·slip-service 상태코드 정정) �
   `MeterRegistry` 에 0-값으로 미리 등록해두는 eager 패턴을 검토해야 한다(services/ 범위 — 본
   배치의 fix 대상 아님, 위 "처분" 참조).
 
-## 검증 (본 배치 — infrastructure/docs, 읽기 전용)
-`services/`·`clients/` 는 별도 담당 소유라 미접촉 — 아래는 인프라 파일 검증만.
+## 검증 (R5 통합 결과)
+R5는 `services/`·`clients/`를 실제로 접촉한 통합 fix이며, 아래 인프라 검증과 함께 outbox IT 25건·
+신규 unit 가드 7건·Desktop mock 회귀 게이트를 검증 대상으로 삼았다. 이 절의 이전 문구
+"services/·clients 미접촉" 및 IT 23건 표기는 HEAD와 모순되어 폐기한다.
 - `docker compose -f infrastructure/docker-compose.prod.yml config` — **exit 0**(env 미주입 경고만,
   구문 오류 없음). partner-order-service 렌더 결과의 `logging:` 블록이 slip-service 와 `driver`/
   `awslogs-region`/`awslogs-group`/`mode`/`max-buffer-size` 전부 동일, `awslogs-stream` 만
@@ -331,3 +333,47 @@ Track 2(관측/알림 배선·FE 표시 면·slip-service 상태코드 정정) �
   수행하지 않았다).
 - `bash -n infrastructure/terraform/templates/user_data.sh` — 구문 오류 없음.
 
+---
+
+# R6 (CODEX SOL 5.6 적대검증 → LUNA fix) — R5 잔여 가드·픽스처·운영문서 정정
+
+## 반영한 R6 fix
+
+- Desktop mock의 `2026/05/31-6`·`2026/05/31-7`은 기존 CONFIRMED 회귀 가드와 충돌하지 않도록
+  전용 거래처 코드/이름을 사용한다. 목록과 상세의 거래처·발송시각·총액·라인 소계 합을 동일하게
+  맞추고 `mock.test.ts` 정합 계약을 추가했다.
+- `SalesPartnerOrderListPage.test.tsx`를 추가해 `PENDING_RETRY`·`FAILED_PERMANENT` 배지만 표시하고
+  `PUBLISHED`·`NOT_REQUIRED`는 침묵하는 실제 페이지 배선을 검증한다. coedit 테스트는 자체 복제한
+  표시 맵 대신 `vi.importActual`로 production 표시 맵을 사용한다.
+- rollback IT는 `invalid_input` counter가 history 저장 실패 전후 동일함을 검증하고, claim IT는
+  `pre-claim-user`를 JDBC로 시드한 뒤 `system` 감사값을 확인한다. pg_locks 배리어는 holder의
+  `pg_backend_pid()`가 해당 waiter의 `pg_blocking_pids`에 포함된 경우만 인정한다.
+- `OutboxPropertiesTest`는 다섯 yml 키의 존재와 환경값↔바인딩값 동일성을 직접 검증한다.
+  `PartnerInternalClient`와 `ProductClient.lookupByModel`은 404만 NOT_FOUND로 분류하고 408·429 및
+  나머지 4xx를 검증 불가 SERVER/INTERNAL_ERROR로 보수 분류한다.
+- 운영 재큐잉 runbook은 두 행 `FOR UPDATE` 잠금·전 조건 재검증·각 UPDATE 영향 행 수 1 검증·
+  예외 시 전체 rollback·`lock_version + 1`을 갖는 `DO $$ ... $$` 원자 절차로 재작성했다.
+
+## R6 이월(범위 동결에 따른 처분)
+
+아래 항목은 이번 fix에서 코드 변경하지 않고, 새 UI 표면 또는 인프라 재설계가 필요한 후속으로
+이월한다.
+
+- 목록 기본 필터(`DRAFT`)와 모바일 hidden 컬럼 때문에 배지가 조건부로 안 보이는 문제: 발행상태
+  전용 필터/모바일 배치 재설계가 필요하다.
+- awslogs `non-blocking` 4MiB 버퍼의 로그 유실 위험: DB 기반 backlog alarm 등 alarm 원천 재설계가
+  필요하다.
+- outbox depth·oldest PENDING·스케줄러 heartbeat 게이지 부재: 신규 관측 표면 설계가 필요하다.
+- 기동 후 첫 scrape 전 단발 실패 미탐(startup race): scrape/초기화 순서 재설계가 필요하다.
+- Prometheus 룰 런타임 severity가 아직 `warning`인 상태: 파일은 `critical`이며 재시작 시 반영되므로
+  이번 코드 변경 대상이 아니다.
+- mock generic DELETE의 404/422 분기 shadow와 목록 "완료" 배지 대비 2.24:1 AA 실패는 각각
+  pre-existing mock 라우팅/토큰 문제로 이번 PR에서 변경하지 않는다.
+
+## R6 최종 검증 기록
+
+- `./gradlew :services:partner-order-service:test :services:slip-service:test --rerun-tasks --no-build-cache` — **BUILD SUCCESSFUL**. XML 합계: partner-order-service 403 tests / failures 0 / errors 0 / skipped 0, slip-service 1,429 tests / failures 0 / errors 0 / skipped 0.
+- `cd clients/desktop && npm run typecheck` — **exit 0**.
+- `cd clients/desktop && npm run test` — 기본 병렬 실행은 assertion failure 없이 Node worker unexpected exit로 종료되었다. 동일 전체 스위트를 `npm run test -- --pool=forks --maxWorkers=1 --minWorkers=1 --reporter=dot`로 재검증해 **134 files / 1,021 tests passed**.
+- `cd clients/desktop && ./node_modules/.bin/playwright test --reporter=line` — 현재 저장소 config의 실제 수는 **595 tests**이며 **593 passed / 2 failed**. 실패 2건은 config의 `testIgnore`에 포함되지 않은 기존 `coedit-s3-1-live` 실서버 포트(5177/5174) 스펙이다. mock 스위트 범위의 변경 대상 회귀는 통과했고, 이번 범위에서 live 스펙·config는 변경하지 않았다.
+- anti-false-green: 목록 배지 조건을 `linkedSlipNo != null`로 바꾼 mutation은 새 Vitest에서 **1 failed**, afterCommit 즉시 실행 mutation은 rollback IT에서 **1 failed**, `findWithLockById`를 `findById`로 바꾼 mutation은 lock-holder IT에서 **1 failed**했다. 세 mutation은 모두 원복 후 최종 검증을 통과했다.

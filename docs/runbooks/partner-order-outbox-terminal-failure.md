@@ -116,32 +116,78 @@ SELECT request_payload
 이 UPDATE 로 지워지지 않는다 — `partner_order_history` 의 `SLIP_FAILED_PERMANENT` 이벤트에
 영구 보존되어 있다.
 
-**재큐잉 UPDATE** (위 사전 확인이 모두 일치하고, 사전 판단이 "(1)"일 때만 실행):
+**원자 재큐잉 트랜잭션** (위 사전 확인이 모두 일치하고, 사전 판단이 "(1)"일 때만 실행):
+
+아래 블록은 두 행을 같은 트랜잭션에서 `FOR UPDATE`로 잠근 뒤 조건을 다시 검증한다. 어느
+검증이든 실패하거나 UPDATE 영향 행 수가 정확히 1이 아니면 예외를 발생시켜 전체 트랜잭션을
+중단한다. `partner_orders.lock_version`은 V5 `@Version` 낙관락 컬럼이므로 직접 SQL에서도
+반드시 증가시킨다. 오류가 발생하면 `COMMIT`하지 말고 `ROLLBACK`한다.
 
 ```sql
 BEGIN;
 
-UPDATE slip_publish_outbox
-   SET status = 'PENDING',
-       attempt_count = 1,
-       first_attempted_at = now(),
-       next_attempt_at = now(),
-       last_error = 'MANUAL REQUEUE - <근본원인 요약>',
-       modified_at = now(),
-       modified_by = '<운영자 계정>'
- WHERE partner_order_id = '<ORDER_UUID>'
-   AND is_deleted = false
-   AND status = 'FAILED';
+DO $$
+DECLARE
+    locked_outbox slip_publish_outbox%ROWTYPE;
+    locked_order partner_orders%ROWTYPE;
+    outbox_updated integer;
+    order_updated integer;
+BEGIN
+    -- 항상 outbox → order 순서로 잠가 다중 운영자 재큐잉의 교차 잠금을 피한다.
+    SELECT * INTO locked_outbox
+      FROM slip_publish_outbox
+     WHERE partner_order_id = '<ORDER_UUID>'::uuid
+       AND is_deleted = false
+     FOR UPDATE;
 
-UPDATE partner_orders
-   SET slip_publish_status = 'PENDING_RETRY',
-       modified_at = now(),
-       modified_by = '<운영자 계정>'
- WHERE id = '<ORDER_UUID>'
-   AND is_deleted = false
-   AND status = 'CONFIRMED'
-   AND slip_no IS NULL
-   AND slip_publish_status = 'FAILED_PERMANENT';
+    IF NOT FOUND OR locked_outbox.status <> 'FAILED' THEN
+        RAISE EXCEPTION '재큐잉 중단: outbox가 정확히 1건의 FAILED 행이 아님';
+    END IF;
+
+    SELECT * INTO locked_order
+      FROM partner_orders
+     WHERE id = '<ORDER_UUID>'::uuid
+       AND is_deleted = false
+     FOR UPDATE;
+
+    IF NOT FOUND
+       OR locked_order.status <> 'CONFIRMED'
+       OR locked_order.slip_no IS NOT NULL
+       OR locked_order.slip_publish_status <> 'FAILED_PERMANENT' THEN
+        RAISE EXCEPTION '재큐잉 중단: 주문 상태가 CONFIRMED + slip 미연결 + FAILED_PERMANENT가 아님';
+    END IF;
+
+    UPDATE slip_publish_outbox
+       SET status = 'PENDING',
+           attempt_count = 1,
+           first_attempted_at = now(),
+           next_attempt_at = now(),
+           last_error = 'MANUAL REQUEUE - <근본원인 요약>',
+           modified_at = now(),
+           modified_by = '<운영자 계정>'
+     WHERE id = locked_outbox.id
+       AND is_deleted = false
+       AND status = 'FAILED';
+    GET DIAGNOSTICS outbox_updated = ROW_COUNT;
+    IF outbox_updated <> 1 THEN
+        RAISE EXCEPTION '재큐잉 중단: outbox UPDATE 영향 행 수가 %', outbox_updated;
+    END IF;
+
+    UPDATE partner_orders
+       SET slip_publish_status = 'PENDING_RETRY',
+           lock_version = lock_version + 1,
+           modified_at = now(),
+           modified_by = '<운영자 계정>'
+     WHERE id = locked_order.id
+       AND is_deleted = false
+       AND status = 'CONFIRMED'
+       AND slip_no IS NULL
+       AND slip_publish_status = 'FAILED_PERMANENT';
+    GET DIAGNOSTICS order_updated = ROW_COUNT;
+    IF order_updated <> 1 THEN
+        RAISE EXCEPTION '재큐잉 중단: partner_orders UPDATE 영향 행 수가 %', order_updated;
+    END IF;
+END $$;
 
 COMMIT;
 ```
@@ -156,8 +202,11 @@ COMMIT;
   있다).
 - `attempt_count = 1`은 `permanent-error-min-attempts`(기본 2) 판정을 "새 시도"로 되돌린다 —
   그대로 두면 같은 사유로 한 번만 더 실패해도 유예 없이 즉시 재종결된다.
-- WHERE 절의 상태 조건(`status = 'FAILED'` / `status = 'CONFIRMED' AND slip_no IS NULL AND
-  slip_publish_status = 'FAILED_PERMANENT'`)은 **생략하지 않는다**.
+- 두 `SELECT ... FOR UPDATE`의 상태 재검증과 두 UPDATE의 영향 행 수 검사, WHERE 절의 상태 조건은
+  **생략하지 않는다**. 하나라도 어긋나면 두 전이를 모두 롤백해야 하며, outbox만 PENDING이거나
+  주문만 PENDING_RETRY인 부분 전이를 남겨서는 안 된다.
+- `lock_version = lock_version + 1`은 이미 로드된 JPA `@Version` 엔티티가 수동 복구 결과를
+  오래된 값으로 덮어쓰지 못하게 하는 필수 조건이다.
 
 재큐잉 후 최대 5분(스케줄러 cron 주기) 이내에 다음 시도가 실행된다. 아래 "복구 확인"으로 결과를
 확인한다.

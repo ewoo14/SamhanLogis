@@ -79,27 +79,18 @@ vi.mock('../realtime/createCoeditProvider', () => ({
   createDocCoeditProvider: mocks.createDocCoeditProvider,
 }))
 
-vi.mock('../api/sales', () => ({
-  PARTNER_ORDER_STATUS_LABEL: {
-    DRAFT: '진행중',
-    ON_HOLD: '보류',
-    CONFIRMING: '확인중',
-    CONFIRMED: '완료',
-    CANCELED: '취소',
-    CONVERTED: '전환완료',
-  },
-  // 실 api/sales.ts 의 SLIP_PUBLISH_STATUS_DISPLAY 와 동일 계약(#854 R5 LOW-1/LOW-4).
-  SLIP_PUBLISH_STATUS_DISPLAY: {
-    PENDING_RETRY: { label: '전표 발행 재시도 중', variant: 'warning' },
-    FAILED_PERMANENT: { label: '전표 발행 실패', variant: 'danger' },
-  },
-  getPartnerOrder: mocks.getPartnerOrder,
-  updatePartnerOrder: mocks.updatePartnerOrder,
-  convertPartnerOrderToSlip: vi.fn(),
-  deletePartnerOrder: vi.fn(),
-  holdPartnerOrder: vi.fn(),
-  releasePartnerOrder: vi.fn(),
-}))
+vi.mock('../api/sales', async () => {
+  const actual = await vi.importActual<typeof import('../api/sales')>('../api/sales')
+  return {
+    ...actual,
+    getPartnerOrder: mocks.getPartnerOrder,
+    updatePartnerOrder: mocks.updatePartnerOrder,
+    convertPartnerOrderToSlip: vi.fn(),
+    deletePartnerOrder: vi.fn(),
+    holdPartnerOrder: vi.fn(),
+    releasePartnerOrder: vi.fn(),
+  }
+})
 
 vi.mock('../api/inventory', () => ({ listWarehouses: vi.fn(() => Promise.resolve([])) }))
 vi.mock('../api/client', () => ({ apiClient: { get: vi.fn() } }))

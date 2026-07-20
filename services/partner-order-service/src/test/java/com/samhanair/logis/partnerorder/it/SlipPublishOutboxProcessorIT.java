@@ -40,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -420,9 +421,13 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         // 전부 Postgres 클록 하나로 통일하고, 실 clock skew(ms~수백ms) 를 압도하는 여유(1시간)를 둔다.
         TestFixture fixture = seedReadyOutbox();
         jdbcTemplate.update(
-                "UPDATE slip_publish_outbox SET modified_at = now() - interval '1 hour' WHERE id = ?",
+                "UPDATE slip_publish_outbox SET modified_at = now() - interval '1 hour',"
+                        + " modified_by = 'pre-claim-user' WHERE id = ?",
                 fixture.outboxId());
         LocalDateTime staleModifiedAt = reloadOutbox(fixture.outboxId()).getModifiedAt();
+        assertThat(reloadOutbox(fixture.outboxId()).getModifiedBy())
+                .as("claim 전 JDBC seed가 auditor 기본값(system)을 덮어써야 한다")
+                .isEqualTo("pre-claim-user");
 
         List<SlipPublishOutbox> claimed = outboxRepository.claimReadyBatch(
                 1, outboxProperties.getLeaseSeconds());
@@ -576,11 +581,14 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch holderReady = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
+        AtomicInteger holderBackendPid = new AtomicInteger();
         try {
             Future<?> holder = executor.submit(() ->
                     new TransactionTemplate(transactionManager).execute(status -> {
                         SlipPublishOutbox row = outboxRepository.findWithLockById(fixture.outboxId())
                                 .orElseThrow();
+                        holderBackendPid.set(jdbcTemplate.queryForObject(
+                                "SELECT pg_backend_pid()", Integer.class));
                         row.markCommitted();
                         outboxRepository.saveAndFlush(row);   // UPDATE 즉시 발행 → 행 락 확실 보유
                         holderReady.countDown();
@@ -600,7 +608,8 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
             });
 
             // 뒤늦은 전이가 (SELECT 또는 UPDATE 에서) 행 락 대기에 진입할 때까지 관측 배리어.
-            awaitRowLockWait();
+            assertThat(holderBackendPid.get()).isPositive();
+            awaitRowLockWait(holderBackendPid.get());
             release.countDown();
             late.get(10, TimeUnit.SECONDS);
             holder.get(10, TimeUnit.SECONDS);
@@ -630,12 +639,18 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
      * {@code relation} 이 NULL 이라 relation 스코프가 오히려 실 대기를 걸러내 배리어를 영구히
      * 통과시키지 못하는 false-negative 를 유발한다.
      */
-    private void awaitRowLockWait() throws InterruptedException {
+    private void awaitRowLockWait(int holderPid) throws InterruptedException {
         long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadlineNanos) {
             Integer waiting = jdbcTemplate.queryForObject(
-                    "SELECT count(*) FROM pg_locks WHERE NOT granted"
-                            + " AND locktype IN ('tuple', 'transactionid')", Integer.class);
+                    "SELECT count(*) FROM pg_stat_activity waiter"
+                            + " WHERE ? = ANY(pg_blocking_pids(waiter.pid))"
+                            + " AND EXISTS (SELECT 1 FROM pg_locks waiting_lock"
+                            + " WHERE waiting_lock.pid = waiter.pid"
+                            + " AND waiting_lock.granted = false"
+                            + " AND waiting_lock.locktype IN ('tuple', 'transactionid'))",
+                    Integer.class,
+                    holderPid);
             if (waiting != null && waiting > 0) {
                 return;
             }
@@ -691,6 +706,7 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         // #854 R4 MED. R1 은 commitSuccess 에만 실패주입 롤백 테스트를 만들었고 영구실패 경로는 세 write 가
         // 모두 성공한 상태만 단언해 tx 경계가 미가드였다(명시 save 는 tx 없이도 각자 영속되므로).
         TestFixture fixture = seedAtPermanentErrorThreshold();
+        double invalidInputBefore = terminalMetricCount("invalid_input");
         doThrow(new IllegalStateException("history save injected failure"))
                 .when(historyRepository).save(any(PartnerOrderHistory.class));
         when(slipServiceClient.publishFromPartnerOrder(anyMap(), anyString()))
@@ -703,6 +719,9 @@ class SlipPublishOutboxProcessorIT extends AbstractPostgresIT {
         assertThat(reloadOrder(fixture.orderId()).getSlipPublishStatus())
                 .isEqualTo(SlipPublishStatus.PENDING_RETRY);
         assertThat(reloadHistory(fixture.orderId())).isEmpty();
+        assertThat(terminalMetricCount("invalid_input"))
+                .as("rollback된 FAILED_PERMANENT 전이는 afterCommit 계측도 남기면 안 된다")
+                .isEqualTo(invalidInputBefore);
     }
 
     @Test

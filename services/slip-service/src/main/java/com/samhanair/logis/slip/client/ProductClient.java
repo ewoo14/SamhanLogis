@@ -130,19 +130,14 @@ public class ProductClient {
      * <p>HTTP 상태 매핑 (#854 R5 MED — 계열 sweep):
      * <ul>
      *   <li>404 → {@link BusinessException}({@link ErrorCode#NOT_FOUND}) "모델명에 해당하는 제품이 없습니다"</li>
-     *   <li>401/403 → {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR}) — internal token
-     *       오구성/전파 지연 의심. product-service 가 제품 존재 여부조차 판정하지 못한 것이므로
-     *       "잘못된 입력(모델코드 오류)" 이 아니다. 이 경로는 partner-order-service outbox 발행
-     *       (resolveLines→lookupByModel)이 재사용하므로, INVALID_INPUT 으로 접으면 outbox 가 일시적
-     *       인증 오구성을 영구 실패로 오분류한다({@link com.samhanair.logis.slip.client.PartnerInternalClient}
-     *       의 동일 결함과 계열 sweep).</li>
-     *   <li>그 외 4xx → {@link BusinessException}({@link ErrorCode#INVALID_INPUT})</li>
+     *   <li>404 외 4xx(401/403/408/429 포함) → {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR}) —
+     *       product-service 가 제품 존재 여부를 판정하지 못한 검증 불가 응답</li>
      *   <li>5xx / 네트워크 실패 → {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR})</li>
      * </ul>
      *
      * @param modelName 정확 매칭할 제품 모델명 (null/blank 면 INVALID_INPUT)
      * @return product-service 의 ProductSummary 단건
-     * @throws BusinessException(INVALID_INPUT) modelName null/blank 또는 product-service 가 4xx (401/403/404 외)
+     * @throws BusinessException(INVALID_INPUT) modelName null/blank
      * @throws BusinessException(NOT_FOUND) product-service 가 404
      * @throws BusinessException(INTERNAL_ERROR) 401/403(검증 불가) / 5xx / 네트워크 실패 / envelope 포맷 오류
      */
@@ -167,14 +162,10 @@ public class ProductClient {
                             throw new BusinessException(ErrorCode.NOT_FOUND,
                                     "모델명에 해당하는 제품이 없습니다");
                         }
-                        if (status == 401 || status == 403) {
-                            log.warn("ProductClient.lookupByModel {} — internal token 오구성/전파 지연"
-                                    + " 의심, 검증 불가로 처리 — modelName={}", status, modelName);
-                            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                                    "product-service 모델명 조회를 검증할 수 없습니다: " + res.getStatusCode());
-                        }
-                        throw new BusinessException(ErrorCode.INVALID_INPUT,
-                                "product-service 모델명 조회 실패: " + res.getStatusCode());
+                        log.warn("ProductClient.lookupByModel {} — 검증 불가로 처리 — modelName={}",
+                                status, modelName);
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 모델명 조회를 검증할 수 없습니다: " + res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,

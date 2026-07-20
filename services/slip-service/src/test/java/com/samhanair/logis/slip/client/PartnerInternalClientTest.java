@@ -14,6 +14,8 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -113,17 +115,17 @@ class PartnerInternalClientTest {
         server.verify();
     }
 
-    @Test
-    void verifyPartnerCode_401_403이_아닌_기타_4xx는_여전히_NOT_FOUND다() {
-        // 401/403 신설 분기가 다른 4xx(예: 400)까지 잠식하지 않았는지 확인하는 경계 가드.
-        server.expect(requestTo(BASE_URL + "/internal/partners/P-400"))
+    @ParameterizedTest
+    @ValueSource(ints = {400, 408, 429})
+    void verifyPartnerCode_404가_아닌_4xx는_SERVER_ERROR로_분류된다(int status) {
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-" + status))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header("X-Internal-Token", TOKEN))
-                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
 
-        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-400");
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-" + status);
 
-        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.NOT_FOUND);
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.SERVER_ERROR);
         server.verify();
     }
 
