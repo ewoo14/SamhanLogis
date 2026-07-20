@@ -520,7 +520,8 @@ public class SlipPublishService {
      *   <li>partner-service {@code GET /internal/partners/{partnerCode}} 호출.</li>
      *   <li>{@link PartnerVerifyResult#isFound()} → 정상 진행.</li>
      *   <li>{@link PartnerVerifyResult#isNotFound()} → {@link BusinessException} (NOT_FOUND).</li>
-     *   <li>{@code SERVER_ERROR} (5xx) → fail-open + warning log (회계 critical path 보호).</li>
+     *   <li>{@code SERVER_ERROR} (5xx 또는 404 외 4xx — 401/403/408/429 등 검증 불가 포함) →
+     *       fail-open + warning log (회계 critical path 보호).</li>
      *   <li>{@code SKIPPED} (partnerCode null/blank 또는 token 미설정) → 진행 (기존 호환성).</li>
      * </ul>
      *
@@ -548,7 +549,7 @@ public class SlipPublishService {
                             + "거래처를 먼저 등록한 후 다시 발행하세요.");
         }
         if (result.status() == PartnerVerifyResult.Status.SERVER_ERROR) {
-            log.warn("[strict ON, fail-open] partner-service 5xx/연결 실패 — partnerCode={} raw 저장 진행 (회계 critical path 보호)",
+            log.warn("[strict ON, fail-open] partner-service 검증 불가(5xx/404 외 4xx/연결 실패) — partnerCode={} raw 저장 진행 (회계 critical path 보호)",
                     partnerCode);
         }
         // FOUND / SKIPPED → 정상 진행 (SKIPPED 는 internal token 미설정 시 — 운영 misconfig 지표)

@@ -45,8 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>Estimate 헤더 + 라인 생성 후 저장</li>
  * </ol>
  *
- * <p>partner-service 5xx 장애 시 NOT_FOUND 대신 INTERNAL_ERROR 로 응답 (fail-fast — 모바일 견적
- * 발행은 부정확한 거래처 정보 저장 방지가 우선).
+ * <p>partner-service 검증 불가(5xx 또는 404 외 4xx — 401/403/408/429 등) 시 NOT_FOUND 대신
+ * INTERNAL_ERROR 로 응답 (fail-fast — 모바일 견적 발행은 부정확한 거래처 정보 저장 방지가 우선).
  */
 @Service
 @Transactional
@@ -68,7 +68,7 @@ public class MobileQuotationService {
      * @param requesterId  요청자 user-id (gateway X-User-Id)
      * @return 생성된 견적 상세 응답 ({@link EstimateDetailResponse})
      * @throws BusinessException(NOT_FOUND) partnerCode 미등록
-     * @throws BusinessException(INTERNAL_ERROR) partner-service 5xx 장애
+     * @throws BusinessException(INTERNAL_ERROR) partner-service 검증 불가(5xx 또는 404 외 4xx)
      * @throws BusinessException(INVALID_INPUT) productId 미존재 또는 입력 불량
      */
     public EstimateDetailResponse createQuotation(MobileQuotationRequest req, String requesterId) {

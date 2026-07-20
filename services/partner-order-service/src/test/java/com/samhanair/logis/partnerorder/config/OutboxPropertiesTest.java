@@ -80,12 +80,19 @@ class OutboxPropertiesTest {
                     assertThat(properties.getCron()).isEqualTo("0 */5 * * * *");
                     assertThat(properties.getCron()).isEqualTo(
                             environment.getProperty("samhan.outbox.cron"));
+                    // literal 단언 (#854 R7 LOW-1) — env-equality 만으로는 yml 값이 표류해도(예: 오타로
+                    // max-retry-hours 가 2 로 바뀌어도) properties 와 environment 가 같은 값을 가리키므로
+                    // GREEN 이 유지된다. 배포 기본값 자체를 여기서 다시 고정해야 표류를 잡는다.
+                    assertThat(properties.getMaxRetryHours()).isEqualTo(24);
                     assertThat(properties.getMaxRetryHours()).isEqualTo(
                             environment.getProperty("samhan.outbox.max-retry-hours", Integer.class));
+                    assertThat(properties.getLeaseSeconds()).isEqualTo(120);
                     assertThat(properties.getLeaseSeconds()).isEqualTo(
                             environment.getProperty("samhan.outbox.lease-seconds", Integer.class));
+                    assertThat(properties.getBatchSize()).isEqualTo(10);
                     assertThat(properties.getBatchSize()).isEqualTo(
                             environment.getProperty("samhan.outbox.batch-size", Integer.class));
+                    assertThat(properties.getPermanentErrorMinAttempts()).isEqualTo(2);
                     assertThat(properties.getPermanentErrorMinAttempts()).isEqualTo(
                             environment.getProperty("samhan.outbox.permanent-error-min-attempts", Integer.class));
                 });

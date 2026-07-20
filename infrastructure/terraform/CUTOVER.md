@@ -541,33 +541,53 @@ alarm)은 동형이었으나 수송 경로는 비동형**이었던 것을 이 �
 > 라이브 end-to-end 실측은 cutover 시 본 M-20 이 최초이며, 아래 ⓪~④ 를 통과하기 전까지
 > alarm 의 실효는 **미확증** 상태로 취급한다.
 
+> ⚠️ **실행 위치 (#854 R7 MED)**: 아래 절차는 한 곳에서 그대로 수행할 수 없다 — 두 principal 에
+> 걸쳐 있다. `[운영자 PC]` = 운영자 로컬 워크스테이션에서 `cd infrastructure/terraform` 후
+> 자신의 AWS CLI 프로파일로 실행. `[EC2 SSM]` = `aws ssm start-session` 등으로 EC2 인스턴스에
+> 접속해 실행(컨테이너 런타임 · docker 데몬은 거기에만 존재). **`[운영자 PC]` 의 `aws logs
+> tail`/`filter-log-events`(`logs:FilterLogEvents`) · `describe-metric-filters`
+> (`logs:DescribeMetricFilters`) · `describe-alarms`/`describe-alarm-history`
+> (`cloudwatch:DescribeAlarms`/`DescribeAlarmHistory`) 호출은 EC2 instance role
+> (`iam.tf` `ec2_cloudwatch_policy` — Put/Describe(Log)Streams/Groups 와 PutMetricData/
+> GetMetricStatistics/ListMetrics 만 보유)에 없는 조회 권한**이므로 EC2 역할을 그대로
+> 재사용할 수 없다 — 운영자 IAM principal 에 이 조회 권한들을 별도로 부여해야 한다.
+
 ```bash
 # ⓪ 선행 조건 — S3 업로드본 docker-compose.prod.yml 에 partner-order-service awslogs
 #    driver 선언이 포함돼 있는지 확인 (없으면 단계 3-A 의 S3 업로드부터 다시 수행).
+# [운영자 PC]
 aws s3 cp s3://samhan-attachments/deploy/docker-compose.prod.yml - \
   --region ap-northeast-2 | grep -n -B 2 -A 7 'awslogs-stream: partner-order-service'
+# [EC2 SSM]
 docker inspect --format '{{.HostConfig.LogConfig.Type}}' samhan-partner-order-service
 # 기대값: awslogs (json-file 이면 stale compose — 재다운로드 + up -d 재기동)
 
-# ① CloudWatch Agent 상태 — M-19 ①과 공유(같은 EC2 · 같은 Agent 프로세스). 별도 확인 불필요.
+# ① CloudWatch Agent 상태 — M-19 ①과 공유(같은 EC2 · 같은 Agent 프로세스, [EC2 SSM] 명령).
+#    별도 확인 불필요.
 
 # ② partner-order-service 전용 log stream 존재 + 로그 도달 확인.
+# [운영자 PC]
 aws logs describe-log-streams \
   --log-group-name /samhanlogis/production/docker \
   --log-stream-name-prefix partner-order-service \
   --region ap-northeast-2
+# [운영자 PC]
 aws logs tail /samhanlogis/production/docker --since 30m \
   --log-stream-names partner-order-service \
   --region ap-northeast-2 | head -20
 
 # ③ Terraform 2개 리소스 적용 전후 확인 (filter 1 + alarm 1).
+# [운영자 PC] — repo root 기준 cd 후 실행 (state/backend/provider 설정이 이 디렉터리 기준).
+cd infrastructure/terraform
 terraform plan \
   -target=aws_cloudwatch_log_metric_filter.partner_order_outbox_failed_permanent \
   -target=aws_cloudwatch_metric_alarm.partner_order_outbox_failed_permanent
 
+# [운영자 PC]
 aws logs describe-metric-filters \
   --log-group-name /samhanlogis/production/docker \
   --filter-name-prefix partner-order-outbox- --region ap-northeast-2
+# [운영자 PC]
 aws cloudwatch describe-alarms \
   --alarm-name-prefix samhanlogis-production-partner-order-outbox- \
   --region ap-northeast-2
@@ -576,10 +596,12 @@ aws cloudwatch describe-alarms \
 #    실제 outbox 영구실패를 유발하지 않는 echo 이며, alarm 1회 발화(OK→ALARM→OK)는
 #    로그→metric filter→alarm→SNS 전 체인이 살아 있다는 "의도된 검증 신호"다
 #    (SNS/Slack 수신 확인 겸용 — 수신자에게 사전 공지).
+# [EC2 SSM]
 docker exec samhan-partner-order-service sh -c \
   'echo "M-20 synthetic probe: Outbox FAILED_PERMANENT (인위 출력 — 실제 실패 아님)" >> /proc/1/fd/1'
 
 # 도달 확인 — 수 초 ~ 1분 내 events 배열에 1건 이상 조회돼야 한다.
+# [운영자 PC] — START_MS 는 바로 다음 filter-log-events 와 같은 셸 세션에서 실행.
 START_MS=$(( ($(date +%s) - 900) * 1000 ))
 aws logs filter-log-events \
   --log-group-name /samhanlogis/production/docker \
@@ -588,6 +610,7 @@ aws logs filter-log-events \
   --start-time "$START_MS" --region ap-northeast-2
 
 # alarm 발화 확인 — metric period 300s 이므로 5~10분 대기 후 조회.
+# [운영자 PC]
 aws cloudwatch describe-alarm-history \
   --alarm-name samhanlogis-production-partner-order-outbox-failed-permanent \
   --history-item-type StateUpdate --max-records 5 --region ap-northeast-2

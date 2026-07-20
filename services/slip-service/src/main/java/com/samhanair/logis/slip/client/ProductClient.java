@@ -139,7 +139,7 @@ public class ProductClient {
      * @return product-service 의 ProductSummary 단건
      * @throws BusinessException(INVALID_INPUT) modelName null/blank
      * @throws BusinessException(NOT_FOUND) product-service 가 404
-     * @throws BusinessException(INTERNAL_ERROR) 401/403(검증 불가) / 5xx / 네트워크 실패 / envelope 포맷 오류
+     * @throws BusinessException(INTERNAL_ERROR) 404 외 4xx(401/403/408/429 포함, 검증 불가) / 5xx / 네트워크 실패 / envelope 포맷 오류
      */
     public ProductSummary lookupByModel(String modelName) {
         if (modelName == null || modelName.isBlank()) {
