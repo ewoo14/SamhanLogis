@@ -235,6 +235,28 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     })
   })
 
+  it('저장된 ALL의 유형을 바꾼 뒤 저장하지 않으면 권위값 불일치로 가져오기를 잠근다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'CARD',
+      scopeMode: 'ALL',
+    })
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.change(screen.getByTestId('codef-import-type'), { target: { value: 'BANK' } })
+
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('scopeMode=null(한 번도 저장한 적 없음)이면 미선택으로 초기화되어 잠긴다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])
@@ -314,6 +336,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(chip.getAttribute('tabindex')).toBeNull()
     expect(chip.getAttribute('aria-disabled')).toBeNull()
     expect(chip.getAttribute('aria-pressed')).toBeNull()
+    expect((screen.getByTestId('codef-import-type') as HTMLSelectElement).disabled).toBe(true)
   })
 
   it.each([

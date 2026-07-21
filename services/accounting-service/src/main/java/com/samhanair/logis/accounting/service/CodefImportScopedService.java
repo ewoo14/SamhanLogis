@@ -4,6 +4,7 @@ import com.samhanair.logis.accounting.client.CodefClient;
 import com.samhanair.logis.accounting.domain.CodefScopeMode;
 import com.samhanair.logis.accounting.util.CodefRefNormalizer;
 import com.samhanair.logis.accounting.web.dto.CodefImportResponse;
+import com.samhanair.logis.accounting.web.dto.CodefImportScopeResponse;
 import com.samhanair.logis.accounting.web.dto.CodefImportType;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
@@ -21,6 +22,7 @@ public class CodefImportScopedService {
 
     private final CodefClient codefClient;
     private final CodefImportService codefImportService;
+    private final UserCodefImportScopeService scopeService;
 
     /**
      * 실행 scopeMode와 ref 집합을 해석한 뒤 거래내역을 가져온다.
@@ -28,8 +30,11 @@ public class CodefImportScopedService {
      * <p>해석 규칙(#825 슬5 R1 정정 — spec §0 표 ③ "선택 리스트 {@code []} = 전체" 는 실측 오류였다.
      * 실행 scopeMode가 의미의 권위값이며, ref 필드의 존재 여부만으로 의미를 추론하지 않는다.
      * <ul>
-     *     <li>{@code scopeMode=ALL}이면 ref 목록을 생략하고 요청 {@code type}의 서버 목록을 열거한다.</li>
-     *     <li>{@code scopeMode=SELECTED}이면 세 ref 배열을 모두 명시하고 하나 이상 선택한다.</li>
+     *     <li>{@code scopeMode=ALL}이고 저장된 scope도 ALL이면 저장된 {@code defaultImportType}의
+     *         서버 목록을 열거한다. 저장 scope가 없으면 요청 {@code type}을 사용한다.</li>
+     *     <li>{@code scopeMode=SELECTED}이면 요청의 세 ref 배열을 모두 명시하고 하나 이상 선택한다.
+     *         이 경로의 {@code type}은 명시 ref 집합의 실행 계약이므로 저장된 기본 유형으로
+     *         덮어쓰지 않는다.</li>
      * </ul>
      *
      * <p>#825 슬5 R1 BLOCKING#1 fix — 종전에는 저장된 scope 의 scopeMode 를 보지 않고 ref 가
@@ -50,8 +55,9 @@ public class CodefImportScopedService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "인증 사용자 정보가 필요합니다.");
         }
         validateConnectedId(connectedId);
-        CodefImportType effectiveType = type != null ? type : CodefImportType.ALL;
         CodefScopeMode effectiveScopeMode = CodefScopeMode.parse(scopeMode);
+        CodefImportScopeResponse savedScope = scopeService.get(userId, connectedId.trim());
+        CodefImportType effectiveType = resolveEffectiveType(type, effectiveScopeMode, savedScope);
         ResolvedRefs refs = resolveRefs(effectiveType, effectiveScopeMode, connectedId.trim(), accountRefs,
                 cardRefs, loanRefs, submitMethod);
         return codefImportService.importTransactionsForRefs(
@@ -62,6 +68,26 @@ public class CodefImportScopedService {
                 refs.cardRefs(),
                 refs.loanRefs(),
                 submitMethod);
+    }
+
+    /**
+     * 저장된 ALL scope의 기본 유형을 실행 범위의 권위값으로 적용한다.
+     *
+     * <p>저장된 SELECTED scope는 요청에 명시된 ref 집합이 실행 계약이므로 요청 type을 유지한다.
+     * 반면 ALL scope는 ref가 없어서 type만이 열거 범위를 결정하므로, 요청 type을 그대로 신뢰하면
+     * 저장된 CARD/BANK/LOAN 범위를 전체 범위로 확대할 수 있다.
+     */
+    private static CodefImportType resolveEffectiveType(CodefImportType requestedType,
+                                                         CodefScopeMode requestedScopeMode,
+                                                         CodefImportScopeResponse savedScope) {
+        CodefImportType fallback = requestedType != null ? requestedType : CodefImportType.ALL;
+        if (requestedScopeMode == CodefScopeMode.ALL
+                && savedScope != null
+                && "ALL".equals(savedScope.scopeMode())
+                && savedScope.defaultImportType() != null) {
+            return savedScope.defaultImportType();
+        }
+        return fallback;
     }
 
     private ResolvedRefs resolveRefs(CodefImportType type, CodefScopeMode scopeMode, String connectedId,

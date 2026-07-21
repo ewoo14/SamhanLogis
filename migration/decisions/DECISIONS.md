@@ -3051,3 +3051,4 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-S5-07 | V64 `user_codef_import_scope.scope_mode`는 기존 행을 근거 없이 `ALL`로 추정하지 않고 `SELECTED`로 backfill한다. 동시에 `DEFAULT 'SELECTED'`를 둔다. V64 적용 후 구버전 앱만 롤백되어도 구 ORM INSERT가 `scope_mode` 누락으로 23502가 되지 않는 호환성 가드이며, 신규 앱의 명시 계약을 대체하지 않는다. |
 | D-S5-08 | 기존 backfill 행이 `SELECTED + 빈 refs`이면 FE는 저장 선택 복원으로 가장하지 않고 복원 실패·재선택 필요를 alert로 안내하며 저장·가져오기를 잠근다. 사용자가 항목을 다시 선택하면 정상 저장으로 회복한다. |
 | D-S5-09 | 권한 없는 사용자에게 범위 전체 칩을 focusable button으로 노출하지 않는다. `role`·`tabIndex`·press handler를 제거하고 `aria-disabled="true"`를 둔다. |
+| D-S5-10-R4 | `import-scoped` 요청이 `scopeMode=ALL`이고 저장 scope도 `ALL`이면 BE는 사용자 scope를 조회해 저장 `defaultImportType`을 실행 type의 권위값으로 강제한다. 저장 scope가 없으면 명시 요청 type을 유지하고, `SELECTED`는 요청의 explicit refs/type 계약을 유지한다. FE 유형 드롭다운은 `canUpdate=false`에서 disabled이며 desktop mock도 같은 축소 규칙을 적용한다. |

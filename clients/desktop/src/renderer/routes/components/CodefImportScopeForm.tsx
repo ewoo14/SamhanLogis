@@ -429,8 +429,13 @@ export function CodefImportScopeForm({
   const restoredSelectionInvalid = Boolean(
     scopeMode === 'SELECTED' && selectedCount(effectiveSelection(false)) === 0,
   )
+  const savedAllScopeDirty = Boolean(
+    restoredScope?.scopeMode === 'ALL' && selectionDirty,
+  )
   const scopeHint = !canUpdate
     ? '범위 변경 권한이 없어 저장 범위를 바꿀 수 없습니다. 권한 보유자에게 요청하세요.'
+    : savedAllScopeDirty
+      ? '저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'
     : scopeMode === null
       ? "전체로 처리하려면 '전체' 칩을 선택하세요."
       : null
@@ -446,6 +451,7 @@ export function CodefImportScopeForm({
     && importSelectionReady
     && !restoredSelectionInvalid
     && datesValid
+    && !savedAllScopeDirty
     && !importMutation.isPending
   // #825 슬5 R1(H-4) — refs 배열 비어있음이 아니라 scopeMode===null(한 번도 저장한 적 없음)로
   // 판정한다. ALL 로 저장된 scope 도 refs 는 설계상 비어 있으므로(D-S5-02), ref 기준 판정은
@@ -489,6 +495,7 @@ export function CodefImportScopeForm({
           범위
           <Select
             value={type}
+            disabled={!canUpdate}
             onChange={(event) => {
               setType(event.target.value as CodefImportType)
               setSelectionDirty(true)

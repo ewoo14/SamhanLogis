@@ -6246,6 +6246,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const connectedId = String(body.connectedId ?? '').trim()
     const type = body.type ?? 'ALL'
     const scopeMode = body.scopeMode
+    const savedScope = MOCK_CODEF_IMPORT_SCOPES[connectedId]
     const from = String(body.from ?? new Date().toISOString().slice(0, 10))
     const to = String(body.to ?? from)
     if (from && to && from > to) {
@@ -6265,10 +6266,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if ((scopeMode === 'ALL' && hasExplicitRefs) || (scopeMode === 'SELECTED' && !hasSelection)) {
       return mockError(400, 'INVALID_INPUT', 'scopeMode 와 실행 ref 목록이 일치하지 않습니다')
     }
-    // 저장/실행 모두 scopeMode가 의미의 권위값이다. ALL은 요청 type 범위의 CODEF 목록을
-    // 열거하고, SELECTED는 세 배열을 그대로 사용한다. 필드 부재를 전체로 추론하는 분기는
-    // scopeMode=ALL에서만 허용되므로 직렬화 옵션 변화로 의미가 뒤집히지 않는다.
-    const enumerationType = type
+    // 저장된 ALL scope의 defaultImportType은 BE와 동일하게 실행 범위의 권위값이다.
+    // 저장 scope가 없거나 SELECTED이면 명시 실행 요청의 type/refs 계약을 유지한다.
+    const enumerationType = scopeMode === 'ALL'
+      && savedScope?.scopeMode === 'ALL'
+      ? savedScope.defaultImportType
+      : type
 
     const accountRefs = resolveMockCodefRefs(
       enumerationType,

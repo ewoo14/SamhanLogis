@@ -1680,6 +1680,36 @@ describe('mock CODEF account selection BC3 contract', () => {
     expect(imported.data.fetchedCount).toBe(6)
   })
 
+  it('#825 슬5 HIGH-1 — 저장된 CARD+ALL은 요청 type=ALL이어도 mock 범위를 확대하지 않는다', () => {
+    const connectedId = `high-1-card-all-request-all-${Date.now()}`
+    mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'CARD',
+        scopeMode: 'ALL',
+      },
+    })
+
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
+        to: '2026-06-03',
+        type: 'ALL',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ fetchedCount: number }>
+
+    expect(imported.data.fetchedCount).toBe(6)
+  })
+
   it.each(['CARD', 'BANK', 'LOAN', 'ALL'] as const)(
     'R2 BLOCKING-1 mock parity — 저장된 %s+ALL type은 해당 카테고리만 resolve한다',
     (defaultImportType) => {
