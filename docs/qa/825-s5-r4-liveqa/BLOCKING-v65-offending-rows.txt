@@ -1,0 +1,7 @@
+                  id                  |         connected_id          | scope_mode | default_import_type 
+--------------------------------------+-------------------------------+------------+---------------------
+ 9c3475f0-475e-4a28-99ef-0019fa09665f | test-connected-empty-scope-99 | SELECTED   | ALL
+ c500e276-cbb1-4570-9e6c-2f7e2e402f2b | empty-scope-888               | SELECTED   | ALL
+ 933b86bf-c3e8-463c-98b7-9116d2a9ffae | empty-qa-001                  | SELECTED   | ALL
+(3 rows)
+
