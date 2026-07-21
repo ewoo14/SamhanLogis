@@ -1,0 +1,30 @@
+                  id                  |               user_id                |         connected_id          | scope_mode | default_import_type |              account_ref_selections               | card_ref_selections  | loan_ref_selections  | is_deleted 
+--------------------------------------+--------------------------------------+-------------------------------+------------+---------------------+---------------------------------------------------+----------------------+----------------------+------------
+ 606983d6-9135-4e0e-b421-a10c7949270d | a0000000-0000-0000-0000-000000000001 | concurrency-test-001          | SELECTED   | CARD                | ["b1","b2","b3"]                                  | ["c1"]               | []                   | f
+ ea8210b2-e937-4eb1-9709-5b78fbe9ad3f | a0000000-0000-0000-0000-000000000001 | connected-main                | SELECTED   | BANK                | ["국민 123456-78-901234","신한 987654-32-109876"] | []                   | []                   | f
+ 4ecab40c-488a-472d-8358-bd7eaf215a9c | a0000000-0000-0000-0000-000000000001 | dry-run-conn-001              | SELECTED   | ALL                 | ["ref-updated-001"]                               | ["card-updated-001"] | ["loan-updated-001"] | f
+ 933b86bf-c3e8-463c-98b7-9116d2a9ffae | a0000000-0000-0000-0000-000000000001 | empty-qa-001                  | SELECTED   | ALL                 | []                                                | []                   | []                   | f
+ c500e276-cbb1-4570-9e6c-2f7e2e402f2b | a0000000-0000-0000-0000-000000000001 | empty-scope-888               | SELECTED   | ALL                 | []                                                | []                   | []                   | f
+ 1855fef8-ff44-4101-a1fc-caf711e5fa2b | a0000000-0000-0000-0000-000000000001 | final-conn-001                | SELECTED   | BANK                | ["ref-A","ref-B"]                                 | ["card-A"]           | []                   | f
+ fc255970-fb5b-4ad5-8b25-6a45a0ab3a53 | a0000000-0000-0000-0000-000000000001 | parallel-test-001             | SELECTED   | ALL                 | ["acc-Y"]                                         | ["card-2"]           | []                   | f
+ e672d4c0-465e-4c45-bf10-19b8e33d9e9d | a0000000-0000-0000-0000-000000000001 | qa-conn-concurrent-001        | SELECTED   | ALL                 | ["acc-qa-003"]                                    | ["card-qa-001"]      | []                   | f
+ 3d9b4f01-5eb5-4ed8-9489-5cb90f8b7334 | a0000000-0000-0000-0000-000000000001 | qa-conn-race-001              | SELECTED   | ALL                 | ["acc-B1"]                                        | ["card-B1"]          | []                   | f
+ d64084e4-f223-4e9f-832e-81bc9d30de2c | a0000000-0000-0000-0000-000000000001 | qa-conn-test-001              | SELECTED   | BANK                | ["KR-BANK-001"]                                   | []                   | []                   | f
+ 504ffcf2-3c35-49c2-b036-c9aafd164e0b | a0000000-0000-0000-0000-000000000001 | qa-regression-test            | SELECTED   | BANK                | ["KR-BANK-001"]                                   | []                   | []                   | f
+ a69003cd-9f83-4fce-94e0-290b92a9ebfd | a0000000-0000-0000-0000-000000000001 | test-conn                     | SELECTED   | BANK                | ["test-ref-001","test-ref-002"]                   | []                   | []                   | f
+ 1f315cec-ae05-4052-9650-bdac54345c65 | a0000000-0000-0000-0000-000000000001 | test-conn-001                 | SELECTED   | BANK                | ["account-ref-001","account-ref-002"]             | ["card-ref-001"]     | []                   | f
+ 3fddcdb7-5fe2-4778-9beb-f6018a5cc205 | a0000000-0000-0000-0000-000000000001 | test-conn-123                 | SELECTED   | BANK                | ["test-acc-001"]                                  | []                   | []                   | f
+ c4acf417-61e2-4f02-a403-79ecac4678fb | a0000000-0000-0000-0000-000000000001 | test-conn-qa                  | SELECTED   | BANK                | ["acc-001"]                                       | []                   | []                   | f
+ 99adb40c-f0d5-4a13-8930-f43ea4455481 | a0000000-0000-0000-0000-000000000001 | test-conn-regression-01       | SELECTED   | ALL                 | ["ref-account-001"]                               | ["ref-card-001"]     | []                   | f
+ 9c3475f0-475e-4a28-99ef-0019fa09665f | a0000000-0000-0000-0000-000000000001 | test-connected-empty-scope-99 | SELECTED   | ALL                 | []                                                | []                   | []                   | f
+ 50f02522-f8a0-4df5-ae24-dde1e1e7995b | a0000000-0000-0000-0000-000000000001 | upsert-conn-test              | SELECTED   | BANK                | ["ACC-001"]                                       | []                   | []                   | f
+(18 rows)
+
+ version |            description             | success |        installed_on        
+---------+------------------------------------+---------+----------------------------
+ 64      | add user codef import scope mode   | t       | 2026-07-22 00:16:53.955238
+ 63      | widen accounting partner code 100  | t       | 2026-07-20 03:47:44.375346
+ 62      | add allocation positive checks     | t       | 2026-07-19 20:48:31.647444
+ 61      | widen tax invoice partner code 100 | t       | 2026-07-19 01:13:53.349742
+(4 rows)
+

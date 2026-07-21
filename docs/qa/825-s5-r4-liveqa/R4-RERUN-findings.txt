@@ -1,0 +1,125 @@
+=========================================================================
+#825 슬5 R4 라이브QA 재실행 — 결과 요약 (워크트리 SHA 438bd1c26)
+실서버 게이트웨이 :8080 · mock OFF · dev_master · SPRING_PROFILES_ACTIVE=dev
+=========================================================================
+
+[0단계 배포 증명]  → STEP0-deployment-proof-rerun.txt
+  · 착수 시 배포 이미지가 fix 이전(V65 구버전 799B, NOT VALID 없음) — stale 5연속
+  · 재빌드 후 jar 내 V65 = 1214B + "NOT VALID" 3회, 컨테이너 healthy
+  · flyway V65 success=t (01:06:09)   ← fix 1차 증거
+  · legacy 3행 보존 · 18행 전량 배포 전과 동일
+  · convalidated=f (기존 행 검증 보류) · is_not_valid=t
+
+-------------------------------------------------------------------------
+검증 9종 결과
+-------------------------------------------------------------------------
+1) HIGH-1 BE 열거 범위          ✅ 해소 확인 (실서버)
+   · FE 실행 요청 실캡처: {"type":"CARD","scopeMode":"ALL", refs 필드 없음}
+     → 저장된 defaultImportType 을 그대로 전달(CodefImportScopeForm.tsx:338)
+   · 결과 조회 15건 = 카드 ref 3 × 5. 45건(전 카테고리) 아님
+   · API 프로브 4-way 차등: BANK=20 · CARD=15 · LOAN=10 · ALL=45
+   · SELECTED+계좌1건인데 type=ALL 요청 → 조회 5 (확대 없음)
+   *** 증명: 저장 범위가 실행 시 다른 카테고리로 조용히 확대되지 않는다.
+       A1 함정(날짜 무관 45건)은 타입별 차등으로 회피 — 요약 텍스트가 아니라
+       카테고리별 고유 건수로 판정했다. ***
+
+2) C3 실행 계약(scopeMode 필수)  ✅ 해소 확인
+   · 누락      → 400 INVALID_INPUT "scopeMode 는 필수입니다"
+   · null 명시 → 400 동일
+   · 오타      → 400 "scopeMode 는 ALL 또는 SELECTED 이어야 합니다"
+
+3) V65 DB 제약                   ✅ 해소 확인 → V65-constraint-probe.txt
+   신규 INSERT  SELECTED+빈refs        → REJECT
+   신규 INSERT  ALL+계좌refs           → REJECT
+   신규 INSERT  ALL+대출refs만         → REJECT
+   신규 INSERT  ALL+빈refs             → ACCEPT
+   신규 INSERT  SELECTED+카드1건       → ACCEPT
+   UPDATE legacy 위반 유지             → REJECT   ← NOT VALID 가 UPDATE 는 계속 검사
+   UPDATE legacy → 유효 상태           → ACCEPT   ← V64 주석의 "재저장 시 갱신" 성립
+   (전부 ROLLBACK · 최종 18행 · ZZ-probe 행 0)
+   *** 증명: NOT VALID 는 legacy 행 검증만 보류할 뿐 신규 INSERT/UPDATE 에는
+       계속 적용된다. legacy 보존과 신규 불변식이 동시에 성립. ***
+
+4) scopeMode 전환 시 refs 정리    ✅ 해소 확인
+   · connected-main 이 SELECTED(계좌2건) → ALL 저장 시 refs 3배열 전부 []
+     (DB 실측). V65 의 ALL 조건을 만족하므로 전환이 제약과 정합.
+
+5) C6 FE 활성/실서버 상태코드      ✅ 해소 확인 (부분)
+   · SELECTED 인데 유효 선택 0 → 저장·가져오기 both disabled
+   · 400 을 유발할 조작이 활성으로 제시되지 않음
+   ⚠️ mock 파리티는 미측정(전체 mock 스위트 실행 금지 지침 준수)
+
+6) C8 제4의 무표시 상태            ✅ 해소 확인
+   · 마지막 항목 해제 시 scopeMode 가 SELECTED 로 남지 않고 null 로 수렴:
+     힌트 1개("전체로 처리하려면 '전체' 칩을 선택하세요.") ·
+     ALL칩 aria-pressed=false · 선택칩 0 · 체크 0 · 저장/가져오기 both disabled
+   · V65 가 DB 층에서도 SELECTED+빈refs 신규 생성을 차단
+   *** 증명: 사용자 조작으로 제4상태에 머무를 수 없고, DB 도 새로 만들지 못한다. ***
+
+7) A2 권한 격자                    ⚠️ 부분 검증 — 아래 [미검증] 참조
+   · 라이브 확인분: ALL 모드에서 항목 체크박스 disabled=true +
+     aria-describedby="codef-scope-all-lock-hint-text" (잠금 사유 노출)
+   · CREATE=true / UPDATE=false 조합은 시드 계정에 존재하지 않아 GUI 미검증
+
+8) E-P1 AsyncAutocomplete          ✅ 해소 확인 (타 화면 회귀 포함)
+   · 일마감 화면 거래처 자동완성(= CODEF 아닌 다른 화면)의 로딩 행:
+     aria-disabled="true" · 텍스트 "검색 중…"
+   🚨 최초 측정은 aria-disabled=null 이었다 — design-system dist 가 stale 이어서
+     구 번들을 측정한 것. 재빌드 후 재측정하여 확정. 아래 [환경 결함] 참조.
+
+9) E-P3 DailyClosingPage           ✅ 실캡처 확보
+   · 안내 문구 실DOM: "전체로 처리하려면 '전체' 칩을 선택하세요.
+     특정 거래처만 처리하려면 거래처를 선택하세요."
+   · 대비 수치 자체는 미측정(색상 계측 도구 미사용) — 캡처만 제출
+
+-------------------------------------------------------------------------
+📌 legacy 3행의 UI 노출 (요청 항목)
+-------------------------------------------------------------------------
+· API 실측 payload: {"scopeMode":"SELECTED","accountRefs":[],"cardRefs":[],"loanRefs":[]}
+· FE 는 이 상태를 restoredSelectionInvalid 로 판정해
+  저장·가져오기를 모두 잠그고 전용 오류 안내를 노출하도록 되어 있다
+  (CodefImportScopeForm.tsx:429-449, testid codef-restored-scope-invalid)
+· 회복 경로: '전체' 칩 클릭 또는 항목 1건 선택 → invalid 해제 → 저장 가능
+  → DB 프로브 T5 가 그 UPDATE 가 V65 를 통과함을 실증
+⚠️ 단, DEFAULT_CONNECTED_ID = 'connected-main' 하드코딩(:47)이라
+  이 DB 의 legacy 3행(다른 connectedId)은 화면에서 도달할 수 없다.
+  → legacy 행의 실제 렌더링은 GUI 미검증(아래 [미검증]).
+
+-------------------------------------------------------------------------
+🚨 환경 결함 (제품 결함 아님 · 측정 신뢰도 이슈)
+-------------------------------------------------------------------------
+E1. clients/web/design-system/dist/index.js 가 소스보다 오래된 상태로 남아 있었다.
+    · desktop 은 @samhan/design-system → package.json exports → ./dist/index.js
+      로 해석한다(심볼릭 링크지만 진입점은 빌드 산출물).
+    · 구 번들의 로딩 행에는 aria-disabled 가 없었고, 소스에는 있었다.
+    · ⟹ 재빌드 전 수행한 모든 FE 측정은 구 design-system 을 측정한 것.
+      본 라운드는 재빌드 후 D1/D3/D3b/D6 + 보충 캡처를 전부 재실행했다.
+    · 영향: design-system 을 건드리는 슬라이스에서 dist 재빌드 없이
+      라이브QA 를 돌리면 fix 를 못 본 채 "미적용" 오판이 난다.
+
+-------------------------------------------------------------------------
+[미검증 — 정직 고지]
+-------------------------------------------------------------------------
+U1. A2 권한 격자의 CREATE=true / UPDATE=false 셀
+    account_page_permissions 실측 결과 해당 조합 계정 0건
+    (8계정 전부 create=t,update=t). 권한 부여는 공유 설정 write 라
+    지침상 금지 → 전용 throwaway 스택 없이는 측정 불가. 미검증으로 남긴다.
+U2. legacy 3행 자체의 화면 렌더링 — DEFAULT_CONNECTED_ID 하드코딩으로 도달 불가.
+    V65 적용 후에는 그 상태를 새로 만들 수도 없어(T1/T4) 재현 경로가 없다.
+U3. C6 의 mock 파리티 — 전체 mock 스위트 실행 금지 지침 준수로 미측정.
+U4. D2(안전재고) 시나리오 — throwaway 품목 QA-825-S5-LIVE 부재로 실행 불가
+    ("품목 후보 미표시"). 해당 캡처 d2-s1a-chip0-locked-hint.png 는
+    design-system 재빌드 이전(01:11)에 찍힌 것이라 구 번들 기준이다.
+U5. E-P3 의 대비(contrast) 수치 계측 — 캡처만 제출, 수치 미측정.
+
+-------------------------------------------------------------------------
+[데이터 원상복구 증명]
+-------------------------------------------------------------------------
+user_codef_import_scope : 착수 전 18행 == 종료 후 18행 (전 컬럼 일치)
+  · legacy 3행 무변조 · connected-main 은 QA 중 변경 후 API 로 pre-state 복원
+  · PRESTATE-rerun-before-v65.txt  ↔  POSTSTATE-restored.txt 대조
+flyway_schema_history : V64 → V65(success=t) 전진 — 되돌리지 않음(수용된 비가역)
+bank_transaction : 271 → 316 (+45)
+  · DRY_RUN 합성 거래. HIGH-1 프로브(BANK20+CARD15+LOAN10)가 최초 1회 적재.
+  · 이후 동일 요청은 전부 중복 처리되어 추가 증가 없음(재실행 후에도 316).
+  · 업무 마스터/설정 write 0건.

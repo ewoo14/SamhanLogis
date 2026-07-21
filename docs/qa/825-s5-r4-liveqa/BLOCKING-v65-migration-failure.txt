@@ -1,0 +1,8 @@
+Caused by: org.postgresql.util.PSQLException: ERROR: check constraint "ck_user_codef_import_scope_refs_consistency" of relation "user_codef_import_scope" is violated by some row
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2733) ~[postgresql-42.7.4.jar!/:42.7.4]
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2420) ~[postgresql-42.7.4.jar!/:42.7.4]
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:372) ~[postgresql-42.7.4.jar!/:42.7.4]
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:517) ~[postgresql-42.7.4.jar!/:42.7.4]
+--
+Caused by: org.postgresql.util.PSQLException: ERROR: check constraint "ck_user_codef_import_scope_refs_consistency" of relation "user_codef_import_scope" is violated by some row
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2733) ~[postgresql-42.7.4.jar!/:42.7.4]
