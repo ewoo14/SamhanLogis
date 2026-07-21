@@ -1,0 +1,70 @@
+2026-07-21T23:33:01.349Z login dev_master role=MASTER userId=a0000000-0000-0000-0000-000000000001
+2026-07-21T23:33:01.420Z approval-template created id=66530ce6-88f2-4b61-8f77-dfb3d2db5a68 code=QA_DS3A_R4 → docType=GROUPWARE_QA_DS3A_R4
+2026-07-21T23:33:01.462Z document-template v1 id=8f987d69-02c5-4365-9440-d89c2dd4b723 ACTIVE rev=1
+2026-07-21T23:33:01.648Z approval created id=ed466a6f-8c52-49db-9337-d286e36f410d no=2026/07/22-1 status=PENDING title=[QA-R4] 결재A — 양식 수정 전 승인
+2026-07-21T23:33:01.687Z approved ed466a6f-8c52-49db-9337-d286e36f410d → status=APPROVED pin=(8f987d69-02c5-4365-9440-d89c2dd4b723, 1) defaultPinned=false
+2026-07-21T23:33:03.691Z signature ed466a6f-8c52-49db-9337-d286e36f410d → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T23:33:03.750Z capture outcome-01-approvalA-pinned-v1-before-edit.png sha256=475533076f904e0e2db37c443fd8598b3117ce8b0631d08cef979dbd6e42e67d
+2026-07-21T23:33:03.870Z document-template 8f987d69-02c5-4365-9440-d89c2dd4b723 modified → ACTIVE rev=2 (v2)
+2026-07-21T23:33:05.820Z signature ed466a6f-8c52-49db-9337-d286e36f410d → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T23:33:06.398Z capture outcome-02-approvalA-reprint-after-edit-STILL-v1.png sha256=475533076f904e0e2db37c443fd8598b3117ce8b0631d08cef979dbd6e42e67d
+2026-07-21T23:33:06.507Z approval created id=09ffaa0c-e029-489f-a301-25256925d242 no=2026/07/22-2 status=PENDING title=[QA-R4] 결재B — 양식 수정 후 승인
+2026-07-21T23:33:06.546Z approved 09ffaa0c-e029-489f-a301-25256925d242 → status=APPROVED pin=(8f987d69-02c5-4365-9440-d89c2dd4b723, 2) defaultPinned=false
+2026-07-21T23:33:08.483Z signature 09ffaa0c-e029-489f-a301-25256925d242 → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T23:33:08.549Z capture outcome-03-approvalB-pinned-v2.png sha256=6d434442f11449486b75d3fe56a66d0e9959e959ede195273e8d0ec9cf80d8e3
+2026-07-21T23:33:08.639Z deactivated 8f987d69-02c5-4365-9440-d89c2dd4b723
+2026-07-21T23:33:08.650Z ACTIVE-0 확인: HTTP 200 data=null
+2026-07-21T23:33:08.689Z approval created id=228e3e6b-45b6-4da4-8eb7-e974dd92f1f5 no=2026/07/22-3 status=PENDING title=[QA-R4] 결재C — ACTIVE 부재 상태 승인
+2026-07-21T23:33:08.718Z approved 228e3e6b-45b6-4da4-8eb7-e974dd92f1f5 → status=APPROVED pin=(null, null) defaultPinned=true
+2026-07-21T23:33:10.666Z signature 228e3e6b-45b6-4da4-8eb7-e974dd92f1f5 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":1,"pinFailedBanner":0}
+2026-07-21T23:33:10.732Z capture outcome-04-approvalC-active0-default-pinned.png sha256=38acbc3498a30cde8e7134a93828f6bb952ed9dc3c525fe1bc1343fbb354b931
+2026-07-21T23:33:10.994Z document-template v3 id=cd0d4ea6-627a-4372-937b-572ca73299de ACTIVE (ACTIVE-0 승인 이후)
+2026-07-21T23:33:12.918Z signature 228e3e6b-45b6-4da4-8eb7-e974dd92f1f5 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":1,"pinFailedBanner":0}
+2026-07-21T23:33:12.986Z capture outcome-05-approvalC-STILL-default-after-new-active.png sha256=38acbc3498a30cde8e7134a93828f6bb952ed9dc3c525fe1bc1343fbb354b931
+
+──────────────────────────────────────────────────────────────────────────────
+[R4 OUTCOME 부록 — PM 회수용 원문]  브랜치 feat/845-ds3a-reprint-pin  SHA 7abdd7a7a
+개발책임자 승인(2026-07-22): throwaway 결재선 config insert 허용 → dev_master 자가승인 경로 확보.
+
+[승인 경로 구성 — throwaway 한정]
+  auth_db.approval_line_config 에 CREATOR 단계 1행 insert(직접 SQL):
+    id=6548e590… document_type=GROUPWARE_QA_DS3A_R4 sequence=0 label='작성자'
+    step_type=CREATOR required=true created_by='qa-ds3a-r4-outcome'
+  → GroupwareApprovalLineConfigClient.fetchRoles 는 캐시 없음(직접 RPC) → 재기동 없이 즉시 반영.
+    CREATOR 단계는 요청자를 USER 단계로 동결(ApprovalLine.instantiateFromRoles) → dev_master 가
+    approverIds=[] 로 생성한 결재를 본인이 승인(APPROVED)까지 도달. (createApproval 6건 전부 201·승인 성공)
+  공유 config 14행 무접촉(R4 CREATOR 만 추가). 종료 후 hard-DELETE → 활성 14 복귀.
+
+[pin OUTCOME — SHA-256 실측 (bash sha256sum 독립 교차검증 = 인스펙 해시 일치)]
+  outcome-01 결재A 승인당시 v1        475533076f90…  (docNo1/content0/field1, 배너0)
+  outcome-02 결재A 양식 v2 수정 후 재인쇄 475533076f90…  == 01  ← 🔑 pin 불변(v1 유지)
+  outcome-03 결재B(수정 후 승인) v2     6d434442f114…  != 01  ← v1≠v2 픽셀 상이(대조군)
+  세 pin 상태 해시 상이 = presence-only 아님. 서버 각인: A=(v1,rev1)·B=(v1,rev2)·defaultPinned=false.
+
+[ACTIVE-0 배너 OUTCOME]
+  outcome-04 결재C(ACTIVE-0 승인)      38acbc3498a3…  defaultPinnedBanner=1, DEFAULT(META+CONTENT+FIELD)
+  outcome-05 결재C 신규 ACTIVE(v3) 후 재인쇄 38acbc3498a3…  == 04  ← 🚨 ACTIVE-0 불변(DEFAULT 유지)
+  서버 각인: C=(null,null) defaultPinned=true. GUI 배너 문구 "승인 당시 활성 양식이 없어
+  기본 양식(GROUPWARE_DEFAULT)으로 고정 표시됩니다." 실캡처.
+
+[V13 라이브 뮤테이션 차단 — 실서버 psql, throwaway 각인 행]
+  probe1 UPDATE approval_lines SET document_template_default_pinned=false WHERE id=결재C
+    → ERROR: approval_lines document template pin is set once at approval and cannot be modified afterwards
+      (PL/pgSQL prevent_approval_lines_document_template_pin_mutation line 15 RAISE) — 차단됨.
+  probe2 UPDATE approval_lines SET document_template_revision=99 WHERE id=결재A(rev1 각인)
+    → 동일 EXCEPTION — 차단됨.
+  ⇒ 애플리케이션 우회 직접 SQL 로도 각인 pin 위조 불가(append-once). 두 UPDATE 거부되어 행 무변경.
+  (R2 에서 이 뮤테이션이 결함을 재현했던 벡터를 V13 이 DB 레벨에서 봉쇄.)
+
+[미검증 — latch (개발책임자 생략 허용)]
+  latch(같은 mount 에서 approval 갱신 시 최신 반영)는 production 도달성이 낮아 생략.
+  단, freshness 메커니즘(staleTime:0 + refetchOnMount:'always')은 별도 스펙(00-raw.txt)에서 실증.
+
+[데이터 격리 — 착수 전 ↔ 종료 후 동일 (공유 write 0건)]
+  approval_lines 활성 APPROVED 32/PENDING 30/REJECTED 8 = 70 (동일)·소급각인 0/0 (동일)
+  document_templates: LIVEQA848 유일 ACTIVE 무접촉·EXPENSE 3/0·QA_R3 3/0·QA_TEST 2/0 (동일)
+  approval_templates 활성 3 (동일)·approval_line_config 활성 14 (동일)
+  throwaway 잔여(soft-delete replace-set 이력): 결재 3건(deleted_by='qa-ds3a-r4-cleanup')·
+    document_templates 3행(is_deleted=t)·approval_template QA_DS3A_R4(is_deleted=t).
+    CREATOR config 1행은 hard-DELETE 로 완전 제거. GROUPWARE_QA_DS3A_R4 undeleted=0·active=0.
+  ※ throwaway 결재 soft-delete 는 pin 컬럼 무변경이라 V13 트리거 미저촉(IS DISTINCT FROM false) — 통과.
