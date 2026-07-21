@@ -4,7 +4,62 @@
 
 ---
 
-## 🔥 2026-07-21 (저녁 18:00 마감) — **3트랙 병렬 · 세션 종료 시점** ◀◀ 다음 세션 첫 읽기·재개점
+## 🏠 2026-07-21 세션 종료 — **집PC 재개 지시서** ◀◀◀ 여기부터 읽으십시오
+
+> 개발책임자 지시로 **회사PC 세션을 마감하고 집PC 에서 이어갑니다.** 아래 3개를 순서대로 하면 됩니다.
+>
+> ### 재개 3단계
+> ```powershell
+> git pull
+> .\scripts\sync-claude-memory.ps1
+> .\scripts\setup-codex-mcp-timeout.ps1     # 집PC 에서 1회 필수 (~/.claude.json = git 미추적)
+> ```
+>
+> ### ① 첫 작업 = 트랙A(#864) **HIGH 5건만** SONNET5 fix
+> **개발책임자 바운드 결정(2026-07-21)**: R3 가 HIGH 5·MED 9·LOW 15 로 수렴 불가인데 이 슬라이스는 **3라운드째이고 매 라운드 fix 가 새 결함을 낳았으므로**, **HIGH 만 현 PR 에서 fix 하고 MED·LOW 는 후속 분리**합니다.
+>
+> **발견 전문은 PR #864 코멘트 4건**(OPUS 4.8 R3 본문 + 보충 1·2·3)에 있습니다. 요약:
+>
+> | # | fix 대상 |
+> |---|---|
+> | **HIGH-1** | `CodefImportScopedService.java:82-86` 이 저장 `defaultImportType` 대신 요청 `type` 사용 → 저장 범위 조용한 확대. 🚨 **BE 4조합 테스트 동반 필수**(현 3건이 전부 `ALL` 이라 뮤테이션 RED 안 남) + `mock.ts:6259` 파리티 |
+> | **HIGH-2** | 공유 `playwright.real-qa.config.ts` `testMatch` 축소 → **repo 82/83 real-QA 스펙 무력화**. 원복 + 격리는 별도 config. **MED-9 하네스 결함 3종(reset 데드락 · "검색 중…" 로딩 행 클릭 · stale 결과 읽기)을 예외적으로 함께** 처리(안 그러면 원복해도 green 불가) |
+> | **HIGH-3** | R1 이 shot 이름을 `defect-`→`fixed-` 개명 후 미실행 → 없는 파일 참조. **R3 실캡처 63장(`docs/qa/825-s5-r3-liveqa/`, 커밋 `4d678167`) 기준 문서 정정** |
+> | **HIGH-4** | 브랜치 B(저장된 SELECTED 위임 = **가장 흔한 실사용 플로우**)가 vitest **전량 무커버** |
+> | **HIGH-5** | `it.each` **비결정성**(초기 4회 중 2회 RED, 실패값이 정확히 fix 이전 값 `"ALL"`). R2 fix 의 **유일한 방어선**. 원인이 제품 결함이면 즉시 보고 |
+>
+> 🚫 **MED·LOW 는 손대지 마십시오.** 범위를 넓히는 것이 지난 3라운드 새 결함의 원인이었습니다. 후속은 **1건으로 배치 등록**([[feedback_backlog_burndown_issue_bar]]).
+> 🚨 검증 필수 원문: genuine gradle `executed` 카운트 · **HIGH-1 뮤테이션 RED** · **HIGH-2 원복 후 다른 real-qa 스펙 `--list`** · **HIGH-5 10회 연속 green** · Playwright `unexpected=0`.
+> ⚠️ `docs/qa/825-s5-r3-liveqa/` 는 커밋된 증거이니 **삭제 금지**. 스크린샷 원복은 두 경로만 좁혀서(`git checkout -- clients/desktop/playwright/` 통째 금지).
+>
+> ### ② 트랙B·C 는 **fresh 재디스패치**가 기본값 (완료 착각 금지)
+> 두 트랙 모두 fix 가 마감 시점까지 진행 중이었고 **미커밋·미검증**입니다. 원격 WIP 로만 격리돼 있습니다.
+>
+> | WIP 브랜치 | 내용 | 비고 |
+> |---|---|---|
+> | `wip/ds3a-2026-07-21-evening` | **B · #845** CODEX LUNA fix (ACTIVE-0 각인) | 기전은 제대로 나왔음 — 아래 참조 |
+> | `wip/ob863-2026-07-21-evening` | **C · #863** SONNET5 fix | 에이전트 완료 보고 있음 — 아래 참조 |
+>
+> **트랙B 진척(참조용)**: `document_template_default_pinned` boolean 신설로 **과거 미pin(`NULL`+`false`)과 ACTIVE-0 승인분(`NULL`+`true`)을 구별**. `ifPresent` → `ifPresentOrElse(..., line::pinDefaultDocumentTemplate)`. FE 도 플래그를 읽어 렌더·배너 분기. V12 감사 위조도 `V12_BACKFILL_UNVERIFIED` + `is_backfilled` 로 정직 정정. **검증은 안 됨.**
+>
+> **트랙C 진척(참조용)**: BLOCKING 2·HIGH 6·MED 전건 fix 완료 보고. genuine gradle **`15 actionable tasks: 15 executed`**, `tests=413 failures=0`, **뮤테이션 RED 4건 원문 확보**. 미완 = **Playwright 최종 `unexpected=` 미확보**(88/590 시점 실패 0) · 스크린샷 2경로 원복 승계 필요.
+> 📌 트랙C 의 "390px 배지 캡처 미회수"는 **누락이 아니라 R1 리뷰가 명시적으로 이월 결정한 것**입니다(PM 이 한때 미완으로 오기 → 정정됨).
+>
+> ### ③ 결정 대기 (개발책임자)
+> - **#881** 담당자명 = 발행 당시 **스냅샷** vs 현재 표시명 **resolve** (업무 규칙)
+> - **#883 S4 선결** — `sales.module.css:7` 의 `DS import 금지`(Phase 6 F1(a)) vs 2026-07-05 "데스크톱=표준 UI" 중 무엇이 유효한가. **정하지 않으면 주문서 고쳐도 되돌아감**
+> - **pre-existing LOW 처분 4건** — `AsyncAutocomplete` 로딩 행 `role="option"`(**전 자동완성 공통**, MED-9(b) 근본원인) · 저장 성공 후 이중 배너 · `DailyClosingPage` 대비 3.76:1 · 안전재고 mock 무커버
+>
+> ### 🚨 환경 제약 (인지 필수)
+> 라이브QA 가 **공유 로컬 `accounting_db` 를 V64 로 전진**시켰고 되돌릴 수 없습니다. **#864 머지 전까지 accounting-service 를 main 이미지(V63)로 재기동하면 Flyway 가 `applied migration not resolved locally: 64` 로 부팅 실패**합니다. 현재 컨테이너 2개는 워크트리 jar hot-swap 상태(이미지 태그는 옛 것 — 재생성 시 되돌아감).
+> 📌 관련 발견: **이 슬라이스는 로컬 스택에 배포된 적이 없었습니다**(이미지가 HEAD 이전·V64 미적용) → **R1 라이브QA 도 슬라이스 코드를 검증하지 못했습니다.** 앞으로 라이브QA 전에 **배포 시점부터 확인**할 것.
+>
+> ### 새 위임 (2026-07-21)
+> **문서 전용 PR 은 상시 자율 머지**(코드 변경 0인 `docs/**`·`.claude/memory/**`·`CLAUDE.md`·`DECISIONS.md`). 코드가 한 줄이라도 섞이면 풀 캐논. → [[feedback_pm_auto_merge_authority]]
+
+---
+
+## 🔥 2026-07-21 (저녁) — 3트랙 병렬 · 세션 종료 시점 상세
 
 > ### 🚨 0. 새 PC 도착 시 먼저 할 일
 > ```powershell
