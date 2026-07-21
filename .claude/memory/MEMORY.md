@@ -11,7 +11,7 @@
 - [🚨 PM 직접구현 금지](feedback_pm_no_direct_implementation.md) — 구현=CODEX LUNA 5.6, PM=오케스트레이션·commit대행·머지만(검증 라운드 fix는 라운드 모델). infra오류도 PM직접구현 대체 금지 (2026-07-02·2026-07-15 개편 반영)
 - [🚨 가짜 데이터·목업 영구 배제](feedback_no_fake_data_ever.md) — 실데이터·실서버·실화면·실측정만. QA스샷=실캡처만(합성/fixture 금지). 불가 시 정직 보고
 - [🚨 도구 호출은 실제 invocation](feedback_emit_real_tool_calls.md) — 도구 호출을 텍스트로 적으면 미실행. 진짜 함수 호출+결과 확인. ScheduleWakeup 단독발행 시 실수 잦음
-- [야간/장시간 ScheduleWakeup 재자각 · 🚨codex=통지 대기 금지·10분 폴링](feedback_autonomous_loop_schedulewakeup.md) — 매 단계(1~2묶음) 완료 후 다음 단계 예약·재자각·턴종료(연속 mega턴 금지). 부재/활성 무관. **🚨2026-07-21 개발책임자 지시: codex 디스패치는 완료/취소 통지를 아예 기다리지 말고 `ScheduleWakeup(600s)` 10분 주기로 직접 폴링**(rollout LastWrite+워크트리 diff+프로세스 3종). **"rollout 90s 무변동=정지"는 장시간 단일 툴콜(Playwright 전량·npm ci·gradle) 중엔 오판** — 프로세스로 교차확인 후 둘 다 죽었을 때만 정지 판정→threadId `codex-reply` 이어받기
+- [야간/장시간 ScheduleWakeup 재자각 · 🚨codex=통지 대기 금지·10분 폴링](feedback_autonomous_loop_schedulewakeup.md) — 매 단계(1~2묶음) 완료 후 다음 단계 예약·재자각·턴종료(연속 mega턴 금지). 부재/활성 무관. **🚨2026-07-21 개발책임자 지시: codex 디스패치는 통지 대기와 `ScheduleWakeup(600s)` 10분 폴링을 병행**(통지=빠른 경로·폴링=보장 경로, 택일 아님 — 통지만 믿고 폴링 없이 정지하는 것만 금지). 폴링 3종=rollout LastWrite+워크트리 diff+프로세스. **"rollout 90s 무변동=정지"는 장시간 단일 툴콜(Playwright 전량·npm ci·gradle) 중엔 오판** — 프로세스로 교차확인 후 둘 다 죽었을 때만 정지 판정→threadId `codex-reply` 이어받기
 - [PR OPEN(≠DRAFT)](feedback_pr_open_not_draft.md) — 조기PR 포함 draft 금지, --draft 쓰지말것 (2026-07-02)
 - [PM 자율 머지 위임](feedback_pm_auto_merge_authority.md) — 게이트(0수렴·CI green·mock gate·라이브QA) 충족 시 PM 자율 머지. main 직접 docs/memory push는 별개 가드
 - [PM 권한코드 전권 자율](feedback_pm_permission_autonomy.md) — 권한 코드는 PM 머지까지 자율. 워크플로우 엄격+자가지적. 신규 업무규칙/정책만 개발책임자 확인
