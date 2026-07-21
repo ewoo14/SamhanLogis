@@ -318,10 +318,21 @@ export function CodefImportScopeForm({
 
   function buildImportPayload(): CodefScopedImportRequest {
     if (restoredScope && !selectionDirty) {
-      // 저장된 선택 사용 — scopeMode 무관 explicit-empty triple 로 BE 의 '저장 선택 사용' 해석에
-      // 위임한다. BE 가 저장된 scope 의 scopeMode(ALL/SELECTED)를 보고 진짜 전체 열거 또는
-      // 저장 ref 사용으로 정확히 분기한다(#825 슬5 R1 BLOCKING#1 fix — 종전에는 ALL 저장
-      // 직후 이 payload 가 "저장 선택이 비어있다"는 400 자기모순을 냈다).
+      if (restoredScope.scopeMode === 'ALL') {
+        // 저장된 ALL은 defaultImportType이 실제 실행 범위다. type=ALL을 고정하면
+        // CARD/BANK/LOAN 저장 직후 다른 두 카테고리까지 조용히 열거한다(#825 슬5 R2
+        // BLOCKING-1). refs 필드를 생략해 BE의 진짜 전체(null) 경로로 보내되, 저장된
+        // 기본 유형을 그대로 전달해 한 카테고리 범위를 보존한다.
+        return {
+          connectedId: DEFAULT_CONNECTED_ID,
+          from,
+          to,
+          type: restoredScope.defaultImportType,
+        }
+      }
+
+      // 저장된 SELECTED는 explicit-empty triple로 BE의 '저장 선택 사용'에 위임한다.
+      // 이 경로는 저장된 ref가 여러 카테고리에 걸칠 수 있으므로 type=ALL을 유지한다.
       return {
         connectedId: DEFAULT_CONNECTED_ID,
         from,
@@ -403,8 +414,22 @@ export function CodefImportScopeForm({
 
   const datesValid = Boolean(from) && Boolean(to) && from <= to
   const listsLoading = visibleCategories.some((category) => category.isLoading)
-  const canSave = canUpdate && scopeMode !== null && !listsLoading && !saveMutation.isPending
-  const canImport = canCreate && scopeMode !== null && datesValid && !importMutation.isPending
+  const restoredSelectionInvalid = Boolean(
+    restoredScope
+      && !selectionDirty
+      && restoredScope.scopeMode === 'SELECTED'
+      && selectedCount(selection) === 0,
+  )
+  const canSave = canUpdate
+    && scopeMode !== null
+    && !restoredSelectionInvalid
+    && !listsLoading
+    && !saveMutation.isPending
+  const canImport = canCreate
+    && scopeMode !== null
+    && !restoredSelectionInvalid
+    && datesValid
+    && !importMutation.isPending
   // #825 슬5 R1(H-4) — refs 배열 비어있음이 아니라 scopeMode===null(한 번도 저장한 적 없음)로
   // 판정한다. ALL 로 저장된 scope 도 refs 는 설계상 비어 있으므로(D-S5-02), ref 기준 판정은
   // 정상 저장된 ALL 을 '미저장'으로 오판해 이 힌트를 잘못 노출시킨다.
@@ -495,9 +520,15 @@ export function CodefImportScopeForm({
         </div>
       ) : null}
       {restoredScope && !selectionDirty ? (
-        <div className="codef-import-hint">
-          저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.
-        </div>
+        restoredSelectionInvalid ? (
+          <div className="codef-import-hint codef-import-hint--error" role="alert" data-testid="codef-restored-scope-invalid">
+            기존 저장 범위에 선택 항목이 없어 복원할 수 없습니다. 계좌·카드·대출 중 하나를 다시 선택한 뒤 저장하세요.
+          </div>
+        ) : (
+          <div className="codef-import-hint">
+            저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.
+          </div>
+        )
       ) : null}
 
       <div className="codef-scope-grid" data-testid="codef-scope-list">
@@ -554,11 +585,12 @@ export function CodefImportScopeForm({
           label="범위"
           value="전체"
           removeLabel="전체 범위"
-          onClick={selectAllScope}
-          onRemove={scopeMode === 'ALL' ? clearScope : undefined}
+          onClick={canUpdate ? selectAllScope : undefined}
+          onRemove={canUpdate && scopeMode === 'ALL' ? clearScope : undefined}
           data-testid="codef-all-scope-chip"
-          role="button"
-          tabIndex={0}
+          role={canUpdate ? 'button' : undefined}
+          tabIndex={canUpdate ? 0 : undefined}
+          aria-disabled={!canUpdate ? 'true' : undefined}
           aria-pressed={scopeMode === 'ALL'}
           aria-describedby={scopeMode === null ? SCOPE_HINT_ID : undefined}
         />

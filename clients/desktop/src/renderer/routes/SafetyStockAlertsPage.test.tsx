@@ -290,6 +290,11 @@ describe('SafetyStockAlertsPage — #825 슬5 R1 결정2', () => {
     expect((screen.getByTestId('safety-stock-config-warehouse') as HTMLSelectElement).disabled).toBe(true)
     expect((screen.getByTestId('safety-stock-config-threshold') as HTMLInputElement).disabled).toBe(true)
     expect((screen.getByTestId('safety-stock-config-save') as HTMLButtonElement).disabled).toBe(true)
+    const allChip = screen.getByTestId('safety-stock-all-chip')
+    expect(allChip.querySelector('[role="button"]')).toBeNull()
+    expect(allChip.getAttribute('role')).toBeNull()
+    expect(allChip.getAttribute('tabindex')).toBeNull()
+    expect(allChip.getAttribute('aria-disabled')).toBe('true')
 
     // 값을 채워도(우회 시도) 저장 버튼은 잠긴 채 유지된다. canUpdate=false 이면 TagChip 은
     // onClick 자체가 없어(isPressable=false) 내부 pressable wrapper 가 렌더되지 않으므로

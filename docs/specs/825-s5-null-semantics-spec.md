@@ -64,7 +64,7 @@ scopeMode: ALL | SELECTED     (@NotNull)
 
 ### D-S5-05 범위
 - **포함**: accounting-service(일마감 쓰기·CODEF scope 쓰기), inventory-service(안전재고 쓰기), desktop FE 3화면.
-- **제외**: backfill 마이그레이션(단, D-S5-06 CODEF scope_mode 컬럼은 신규 컬럼 추가이지 backfill 마이그레이션이 아니다 — 기존 행 값 자체를 소급 재해석하는 backfill 은 여전히 제외) · 읽기/집계 의미 변경 · 일마감·안전재고 저장 스키마 변경 · 타 도메인의 유사 null(전표 거래처는 별도 슬라이스에서 이미 처리됨).
+- **제외**: 일마감·안전재고의 저장 backfill 마이그레이션 · 읽기/집계 의미 변경 · 일마감·안전재고 저장 스키마 변경 · 타 도메인의 유사 null(전표 거래처는 별도 슬라이스에서 이미 처리됨). CODEF의 V64는 신규 `scope_mode` 컬럼을 추가하고 기존 행을 `SELECTED`로 채우는 **backfill을 포함하는 마이그레이션**이므로 이 예외에 해당하지 않는다.
 
 ### D-S5-06 [R1 신규] CODEF `user_codef_import_scope.scope_mode` 컬럼 추가
 `accounting-service` 다음 Flyway 버전(V64, 실측 — V63 `widen_accounting_partner_code_100` 이 직전 최신)으로 `scope_mode VARCHAR(20) NOT NULL CHECK (IN ('ALL','SELECTED'))` 컬럼을 추가한다.

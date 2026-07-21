@@ -646,16 +646,17 @@ export function DailyClosingPage() {
                 label="범위"
                 value="전체"
                 removeLabel="전체 범위"
-                onClick={() => {
+                onClick={canExecute ? () => {
                   setExecScopeMode('ALL')
                   setExecPartner(null)
                   setExecPartnerCommitted(true)
                   setExecPartnerDraftError('')
-                }}
-                onRemove={execScopeMode === 'ALL' ? () => setExecScopeMode(null) : undefined}
+                } : undefined}
+                onRemove={canExecute && execScopeMode === 'ALL' ? () => setExecScopeMode(null) : undefined}
                 data-testid="daily-closing-all-chip"
-                role="button"
-                tabIndex={0}
+                role={canExecute ? 'button' : undefined}
+                tabIndex={canExecute ? 0 : undefined}
+                aria-disabled={!canExecute ? 'true' : undefined}
                 aria-pressed={execScopeMode === 'ALL'}
                 aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
               />

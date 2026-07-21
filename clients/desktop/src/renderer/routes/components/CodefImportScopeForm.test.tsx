@@ -142,6 +142,36 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(allChipPressable?.getAttribute('aria-pressed')).toBe('true')
   })
 
+  it.each(['CARD', 'BANK', 'LOAN', 'ALL'] as const)(
+    'R2 BLOCKING-1 — 저장된 %s+ALL 은 가져오기 type을 저장된 defaultImportType으로 유지하고 refs를 생략한다',
+    async (defaultImportType) => {
+      listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+      listCodefCardsMock.mockResolvedValue([CARD_A])
+      listCodefLoansMock.mockResolvedValue([])
+      loadCodefImportScopeMock.mockResolvedValue({
+        connectedId: 'connected-main',
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType,
+        scopeMode: 'ALL',
+      })
+      importScopedCodefMock.mockResolvedValue(baseResult)
+
+      renderForm()
+      await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+      fireEvent.click(screen.getByTestId('codef-import-button'))
+
+      await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
+      expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({
+        type: defaultImportType,
+      })
+      expect(importScopedCodefMock.mock.calls[0]![0]).not.toHaveProperty('accountRefs')
+      expect(importScopedCodefMock.mock.calls[0]![0]).not.toHaveProperty('cardRefs')
+      expect(importScopedCodefMock.mock.calls[0]![0]).not.toHaveProperty('loanRefs')
+    },
+  )
+
   it('scopeMode=null(한 번도 저장한 적 없음)이면 미선택으로 초기화되어 잠긴다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])
@@ -161,6 +191,65 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(hint.getAttribute('role')).toBe('status')
     expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('기존 빈-ref SELECTED 행은 복원 실패를 안내하고 저장·가져오기를 잠근다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+      scopeMode: 'SELECTED',
+    })
+
+    renderForm()
+
+    const invalidHint = await screen.findByTestId('codef-restored-scope-invalid')
+    expect(invalidHint.getAttribute('role')).toBe('alert')
+    expect(invalidHint.textContent).toContain('다시 선택한 뒤 저장하세요')
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+
+    fireEvent.click(screen.getByTestId('codef-bank-account-0'))
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('canUpdate=false이면 전체 칩이 포커스 가능한 무반응 버튼으로 남지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+      scopeMode: null,
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <CodefImportScopeForm
+          canCreate={false}
+          canUpdate={false}
+          initialFrom="2026-06-01"
+          initialTo="2026-06-03"
+          onToast={() => undefined}
+          onImported={vi.fn(async () => undefined)}
+        />
+      </QueryClientProvider>,
+    )
+
+    const chip = await screen.findByTestId('codef-all-scope-chip')
+    expect(chip.querySelector('[role="button"]')).toBeNull()
+    expect(chip.getAttribute('role')).toBeNull()
+    expect(chip.getAttribute('tabindex')).toBeNull()
+    expect(chip.getAttribute('aria-disabled')).toBe('true')
   })
 
   it('item5(type seam) — SELECTED 인데 type 전환으로 보이는 카테고리 선택이 0건이어도 refs 를 생략하지 않는다(서버 전수 열거로 새지 않음)', async () => {

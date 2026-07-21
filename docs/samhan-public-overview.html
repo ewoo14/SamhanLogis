@@ -1406,6 +1406,10 @@ body {
     <div class="callout-icon">🛠️</div>
     <div><strong>MIG-23 로컬 검증 환경:</strong> `scripts/launch-local-stack.ps1` 하나로 backend 14 service + infra를 올리고 desktop / mobile / mobile-staff / web 3종 / arologis desktop/mobile을 직접 실행한다. 사용자 5 credential seed와 MIG-1~11 reimport trigger는 `scripts/seed-local-stack.ps1`에서 처리한다.</div>
   </div>
+  <div class="callout blue" style="margin-top: 12px;">
+    <div class="callout-icon">🧭</div>
+    <div><strong>#825 슬5 null-semantics (PR #864 R2):</strong> 일마감·안전재고·CODEF 쓰기 범위는 <code>scopeMode=ALL|SELECTED</code>를 명시한다. CODEF 저장 범위는 <code>defaultImportType</code> 카테고리를 재가져오기에도 유지하고, accounting-service V64는 <code>scope_mode DEFAULT 'SELECTED'</code>와 기존 행 보수적 backfill로 구버전 앱 롤백 INSERT 및 무음 범위 확대를 막는다.</div>
+  </div>
 </section>
 
 <!-- 빠른 시작 -->

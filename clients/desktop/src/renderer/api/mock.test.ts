@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
-import { getMockResponse, MOCK_AUTH, mockPartnerByCode } from './mock'
+import { getMockResponse, MOCK_AUTH, mockPartnerByCode, resolveMockCodefRefs } from './mock'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
@@ -1508,6 +1508,27 @@ describe('mock CODEF account selection BC3 contract', () => {
     // 안정적 단언.
     expect(imported.data.fetchedCount).toBeGreaterThan(4)
   })
+
+  it.each(['CARD', 'BANK', 'LOAN', 'ALL'] as const)(
+    'R2 BLOCKING-1 mock parity — 저장된 %s+ALL type은 해당 카테고리만 resolve한다',
+    (defaultImportType) => {
+      const catalogs = {
+        BANK: ['bank-1', 'bank-2'],
+        CARD: ['card-1', 'card-2'],
+        LOAN: ['loan-1', 'loan-2'],
+      } as const
+      const resolved = (Object.keys(catalogs) as Array<keyof typeof catalogs>).map((candidateType) =>
+        resolveMockCodefRefs(defaultImportType, candidateType, undefined, [], [...catalogs[candidateType]]))
+
+      expect(resolved).toEqual(defaultImportType === 'ALL'
+        ? [catalogs.BANK, catalogs.CARD, catalogs.LOAN]
+        : [
+            defaultImportType === 'BANK' ? catalogs.BANK : [],
+            defaultImportType === 'CARD' ? catalogs.CARD : [],
+            defaultImportType === 'LOAN' ? catalogs.LOAN : [],
+          ])
+    },
+  )
 
   it('한 번도 저장한 적 없는 connectedId 로 저장기반 가져오기를 시도하면 404 NOT_FOUND', () => {
     // explicitEmptySavedScope(type=ALL + refs 전부 explicit []) 인데 saved 자체가 없는

@@ -224,3 +224,93 @@ DTO 애노테이션(`@NotNull`/`@Pattern`/`@AssertTrue`) 전체 제거 후 신�
   등록 권고.
 - (기존 pre-existing, 본 라운드 무관) scope 저장 후 쿼리 미무효화/staleTime · `findAlerts` 부분
   miss 시 제품명 전체 미확인화(#773 계열) · 일마감 unlock `partnerCode` null=전체.
+
+## 15. CODEX LUNA R2 fix (2026-07-21)
+
+### R2 발견과 수정
+
+- **BLOCKING-1**: 저장된 CODEF `scopeMode=ALL`을 복원한 뒤 `buildImportPayload()`가 `type='ALL'`
+  을 고정하던 결함을 수정했다. 이제 저장된 `defaultImportType`을 `type`으로 전달하고 refs
+  필드는 생략한다. 따라서 `CARD+ALL`, `BANK+ALL`, `LOAN+ALL`, `ALL+ALL`은 각각 해당
+  범위만 CODEF에서 전체 열거한다. 저장 `SELECTED`는 기존 explicit-empty 저장 ref 경로를 유지한다.
+  FE 4조합 테스트와 mock 4조합 테스트를 추가했다.
+- **BLOCKING-2**: real-QA `describe.serial` 각 CODEF 테스트가 시작 시 현재 복원 상태를 UI에서
+  해제해 미선택 전제를 세우도록 `resetCodefScopeToUnset()`을 추가했다. D3/D3b/D6가 이전
+  실행의 ALL 행이나 직전 테스트의 저장 상태에 의존하지 않으며, S4 주석도 실제 refs 생략
+  경로와 일치시켰다.
+- **V64 롤백 대응**: DB 기본값 `DEFAULT 'SELECTED'`를 채택했다. V64 적용 후 구버전 ORM이
+  `scope_mode` 컬럼을 INSERT 목록에서 생략해도 PostgreSQL이 보수적인 SELECTED를 채우므로
+  신규 저장이 23502/500으로 깨지지 않는다. 신규 앱의 `scopeMode` 필수 계약과 서비스 가드는
+  유지하며, 기본값은 구버전 롤백 호환성 전용이다.
+- **기존 빈-ref 행**: `SELECTED + 빈 refs` 복원은 성공으로 표시하지 않고 `role=alert`로
+  재선택 필요를 안내하며 저장·가져오기를 잠근다. 항목을 다시 선택하면 저장으로 회복된다.
+- **권한/서비스 가드**: 세 화면 전체 칩에서 권한이 없으면 role/tabIndex/handler를 제거하고
+  `aria-disabled=true`를 부여했다. CODEF 서비스 테스트에는 null/invalid mode와 `ALL+ref`
+  반대 모순을 독립 고정했다.
+
+### R2 검증 원문
+
+아래에는 이번 라운드 실행 결과를 명령 종료 후 그대로 누적한다.
+
+### R2 실제 검증 결과
+
+- 데스크톱 관련 Vitest: `npx vitest run src/renderer/routes/components/CodefImportScopeForm.test.tsx src/renderer/api/mock.test.ts src/renderer/routes/SafetyStockAlertsPage.test.tsx src/renderer/routes/DailyClosingPage.test.tsx` → **4 files passed, 144 tests passed**. 전체 `npm run test`도 exit 0으로 종료했다.
+- 데스크톱 typecheck:
+
+  ```text
+  > @samhan/desktop@0.1.0 typecheck
+  > tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit
+  ```
+
+  exit 0.
+- design-system(`clients/web/design-system`): `npm run typecheck` exit 0, `npm run test` → **23 files passed, 140 tests passed**.
+- BE:
+
+  ```text
+  ./gradlew :services:accounting-service:test :services:inventory-service:test
+  BUILD SUCCESSFUL in 5m 49s
+  26 actionable tasks: 3 executed, 1 from cache, 22 up-to-date
+  ```
+
+- fresh Postgres probe(`DROP/CREATE` 후 V1~V64를 `psql -v ON_ERROR_STOP=1`로 적용):
+
+  ```text
+  APPLY V64__add_user_codef_import_scope_mode.sql
+  ALTER TABLE
+  UPDATE 0
+  ALTER TABLE
+  ALTER TABLE
+  COMMENT
+   column_name |        column_default         | is_nullable
+  -------------+------------------------------+-------------
+   scope_mode  | 'SELECTED'::character varying | NO
+  (1 row)
+
+               conname             | pg_get_constraintdef
+  ---------------------------------+---------------------------------------------------------------
+   ck_user_codef_import_scope_mode | CHECK (((scope_mode)::text = ANY ((ARRAY['ALL'::character varying, 'SELECTED'::character varying])::text[])))
+  (1 row)
+  ```
+
+- real-QA 목록 검증:
+
+  ```text
+  npx playwright test --config=playwright.config.ts --list playwright/825-s5-null-semantics-real-qa/825-s5-null-semantics-real-qa.spec.ts
+  Listing tests:
+  Total: 0 tests in 0 files
+  DEFAULT_REAL_QA_EXIT=1
+
+  npx playwright test --config=playwright.real-qa.config.ts --list
+  Total: 5 tests in 1 file
+  REAL_QA_EXIT=0
+  ```
+
+- Playwright mock 전량 1차 시도(기존 장기 실행 상태 재사용): `437 passed (19.3m)`, `31 skipped`와 `DC-2` 실패가 발생했다. 이는 최종 fresh webServer/CI reporter 실행으로 재검증·대체했다.
+
+- 후속 분리 재현: 동일 `DC-2` 단독 실행은 새 mock webServer에서 `1 passed (11.8s)`였다. 전량 실행의 실패가 R2 소스 변경 자체인지 재확인하기 위해 fresh webServer 기준 전량을 재실행 중이다.
+- fresh webServer 전량 재실행: `Running 590 tests using 1 worker` → **`590 passed (17.3m)`**. 첫 실행의 `DC-2` 실패는 재현되지 않았다. CI JSON reporter와 `assert-playwright-ran.mjs` 원문은 이어서 수집한다.
+- 최종 CI reporter 전량: `Running 590 tests using 2 workers` → **`590 passed (9.0m)`**.
+- 공식 guard 원문: **`[guard] expected=590 unexpected=0 skipped=0 flaky=0`**, exit 0.
+- 최종 정리: 전량 실행이 덮어쓴 `docs/qa/**`와 추적된 `clients/desktop/playwright/**/screenshots/**`만 `git checkout --`로 좁혀 원복했고, 생성된 `test-results`·`playwright-report`·`playwright-json`은 제거했다. real-QA 스펙 파일은 원복하지 않았다.
+
+실행 후 덮어쓴 `docs/qa/**`는 git 기준으로 원복했다. `clients/desktop/playwright/**/screenshots/**`의 추적 변경은 없었다.

@@ -72,3 +72,8 @@ dashboard-service 는 본 inventory-service 의 stock_balances + stock_movements
 - 입고검수 첨부 list/detail은 SP-D7 전용 `inventory.stock-balance.view` VIEW 동적 권한으로 전환했다.
 - `inventory.stock-balance` 기존 VIEW endpoint widening을 피하기 위해 auth-service V38은 전용 page에만 내부 role VIEW grant를 insert한다.
 - DPS 비교, 입고검수, DPS 저장내역, 첨부 upload/delete는 공존 `@RequirePermission` seed grant가 기존 role guard보다 넓어지는 구간이라 기존 `@PreAuthorize`를 유지한다.
+
+## #825 슬5 null-semantics
+
+안전재고 설정 쓰기는 `scopeMode=ALL|SELECTED`를 필수로 받고, 빈 범위는 FE와 서비스가 함께
+차단한다. 기존 `null` 창고 의미는 읽기에서 유지하며 신규 저장에서만 명시적 전체 칩을 요구한다.

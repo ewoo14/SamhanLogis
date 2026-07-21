@@ -3042,3 +3042,12 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-SLIP-PR-03 | **DRAFT/SAVED partner null 허용 유지**(편집 단계). FE `SlipDetailPage` 전송 preflight(mobile+desktop 공통)·`SlipFormPage` DRAFT lenient. 컬럼 nullable 유지. |
 | D-SLIP-PR-04 | **주문→전표 발행 fail-closed**: `SlipPublishService.resolveCommittedPartnerId`(단일·병합)가 `PartnerInternalClient` `FOUND+partnerId` 만 성공·`NOT_FOUND/5xx/SKIPPED/FOUND-empty` 전부 차단(strict-off·5xx fail-open 우회·회계무결성>가용성·spec 인가). estimate/mobile 발행=DRAFT 종료라 미적용. |
 | D-SLIP-PR-05 | **위반 보정 = 동일 릴리스 cutover + 코드 아티팩트**(SOL 3모델 지적·runbook 산문만은 prod 재현·감사 불가): slip-service internal 보정 엔드포인트(9상태 위반 재조회→partner_code→partner_id FOUND 해소·멱등·dry-run·audit·미해소 리포트). code 無(대구HVAC솔루션)=운영 승인 단건 매핑. cutover 순서 = 배포+구버전 drain → 보정 → 검증 0. dev 실측 14→0. |
+
+## #825 슬5 null-semantics (2026-07-21, PR #864 R2)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-S5-06-R2 | CODEF 저장 scope의 `defaultImportType`은 저장 기반 가져오기 실행 범위에도 그대로 적용한다. `scopeMode=ALL`이면 `type`만 전달하고 refs 필드는 생략해 `CARD+ALL`·`BANK+ALL`·`LOAN+ALL`·`ALL+ALL`이 각 범위만 CODEF에서 열거하게 한다. `scopeMode=SELECTED`는 저장 ref 사용 경로를 유지한다. |
+| D-S5-07 | V64 `user_codef_import_scope.scope_mode`는 기존 행을 근거 없이 `ALL`로 추정하지 않고 `SELECTED`로 backfill한다. 동시에 `DEFAULT 'SELECTED'`를 둔다. V64 적용 후 구버전 앱만 롤백되어도 구 ORM INSERT가 `scope_mode` 누락으로 23502가 되지 않는 호환성 가드이며, 신규 앱의 명시 계약을 대체하지 않는다. |
+| D-S5-08 | 기존 backfill 행이 `SELECTED + 빈 refs`이면 FE는 저장 선택 복원으로 가장하지 않고 복원 실패·재선택 필요를 alert로 안내하며 저장·가져오기를 잠근다. 사용자가 항목을 다시 선택하면 정상 저장으로 회복한다. |
+| D-S5-09 | 권한 없는 사용자에게 범위 전체 칩을 focusable button으로 노출하지 않는다. `role`·`tabIndex`·press handler를 제거하고 `aria-disabled="true"`를 둔다. |

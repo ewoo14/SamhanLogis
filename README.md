@@ -29,6 +29,14 @@
 
 ## 🏗️ 프로젝트 구조
 
+## #825 슬5 null-semantics (PR #864 R2)
+
+일마감·안전재고·CODEF 쓰기 범위는 `scopeMode=ALL|SELECTED`를 명시한다. CODEF의 저장된
+`defaultImportType`은 재가져오기 실행 범위에도 그대로 적용되며, V64 `scope_mode`는 기존 행을
+보수적으로 `SELECTED` backfill한다. V64 적용 후 구버전 앱을 롤백해도 신규 scope INSERT가
+깨지지 않도록 DB 기본값 `SELECTED`를 유지한다. 상세 결정은 `migration/decisions/DECISIONS.md`와
+`docs/dev-reports/2026-07-21-825-s5-null-semantics-r1-fix.md`의 R2 기록을 따른다.
+
 ### 백엔드 (17 = 15 도메인 서비스 + 게이트웨이 + 디스커버리, MSA service-per-DB)
 
 | 서비스 | DB | 역할 |

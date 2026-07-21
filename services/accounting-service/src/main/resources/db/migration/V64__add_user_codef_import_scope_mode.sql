@@ -20,8 +20,10 @@
 --   저장 당시 의도치 않았을 수 있는 전체 열거로 동작이 바뀌는 회귀 위험이 있다)
 --   회귀가 없고, 사용자가 재저장하면 실제 scope_mode 로 갱신된다.
 
+-- DEFAULT는 V64 적용 후 구버전 앱만 롤백되는 동안 신규 INSERT가 23502로 깨지지
+-- 않게 한다. 기존 행은 아래 UPDATE가 보수적으로 SELECTED를 각인한다.
 ALTER TABLE user_codef_import_scope
-    ADD COLUMN scope_mode VARCHAR(20);
+    ADD COLUMN scope_mode VARCHAR(20) DEFAULT 'SELECTED';
 
 UPDATE user_codef_import_scope
    SET scope_mode = 'SELECTED'

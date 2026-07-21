@@ -293,8 +293,9 @@ export function SafetyStockAlertsPage() {
               configMutation.reset()
             } : undefined}
             data-testid="safety-stock-all-chip"
-            role="button"
-            tabIndex={0}
+            role={canUpdate ? 'button' : undefined}
+            tabIndex={canUpdate ? 0 : undefined}
+            aria-disabled={!canUpdate ? 'true' : undefined}
             aria-pressed={configScopeMode === 'ALL'}
             aria-describedby={configScopeMode === null ? SCOPE_HINT_ID : undefined}
           />

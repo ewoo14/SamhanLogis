@@ -82,6 +82,34 @@ async function goto(page: Page, route: string): Promise<void> {
   await page.waitForTimeout(1500)
 }
 
+/**
+ * CODEF 실 QA의 외부 scope 행은 테스트 사이에 삭제 API가 없다.
+ * 따라서 매 테스트가 화면에 복원된 범위를 직접 해제해 '미선택' 전제를 만든다.
+ * 저장된 ALL/SELECTED 어느 상태에서 시작해도 동작하므로 이전 실행 잔여 상태에도
+ * 의존하지 않는다.
+ */
+async function resetCodefScopeToUnset(page: Page): Promise<void> {
+  const hint = page.getByTestId('codef-scope-hint')
+  if (await hint.count() > 0) {
+    await expect(hint).toBeVisible({ timeout: 15000 })
+    return
+  }
+
+  // defaultImportType이 특정 카테고리여도 복원된 다른 카테고리 ref를 모두 보이게 한다.
+  await page.getByTestId('codef-import-type').selectOption('ALL')
+  const selectedChips = page.getByTestId('codef-selected-chip')
+  while (await selectedChips.count() > 0) {
+    await selectedChips.first().getByRole('button').click()
+  }
+
+  const allChip = page.getByTestId('codef-all-scope-chip')
+  const allPressable = allChip.locator('[role="button"]')
+  if (await allPressable.count() > 0 && await allPressable.getAttribute('aria-pressed') === 'true') {
+    await allChip.getByRole('button', { name: '전체 범위 제거' }).click()
+  }
+  await expect(hint).toBeVisible({ timeout: 15000 })
+}
+
 test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () => {
   test.beforeEach(async ({ page }) => {
     const login = await realLogin(page, LOGIN_ID)
@@ -282,6 +310,7 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
 
   test('D3 · CODEF — 칩0 잠금(구 오해문구 제거) → SELECTED 저장·복원·가져오기 → ALL 저장·가져오기(BLOCKING#1 fix) → 재진입 ALL 복원 확증(H-4 fix)', async ({ page }) => {
     await goto(page, '/accounting/bank-transactions')
+    await resetCodefScopeToUnset(page)
 
     // S1 — 칩 0개: 저장/가져오기 모두 잠금 + 새 안내. 구 문구("선택 항목이 없으면 현재 범위 전체를 가져옵니다") 부재 확인.
     const hint = page.getByTestId('codef-scope-hint')
@@ -363,9 +392,9 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(allChipPressableAfterReload).toHaveAttribute('aria-pressed', 'true')
     await shot(page, 'd3-s2c-reload-after-all-shows-all-restored')
 
-    // S4 — [우회 경로] 재진입 후(이미 ALL 로 복원된 상태) 가져오기: refs 미지정 payload →
-    //      서버 전수 열거(진짜 ALL). F4(저장 scope 경유 ALL)와 동일 값이어야 한다(#825 슬5 R1
-    //      — 저장 scope 경유 ALL 과 미저장 칩 ALL 은 동일한 '진짜 전체'로 수렴해야 정합).
+    // S4 — 재진입 후(이미 ALL 로 복원된 상태) 가져오기: FE는 저장된 defaultImportType=ALL을
+    //      type으로 보내고 refs 필드를 생략한다. 서버의 진짜 전체(null refs) 경로를 직접
+    //      검증한다. F4(저장 scope 경유)와 동일한 전체 범위로 수렴해야 한다.
     await page.getByTestId('codef-import-from').fill('2020-03-01')
     await page.getByTestId('codef-import-to').fill('2020-03-07')
     const importBtn3 = page.getByTestId('codef-import-button')
@@ -385,7 +414,7 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
 
   test('D3b · [R1 BLOCKING#1 fix 시각 보강] ALL 저장 직후 가져오기 성공 토스트 실캡처(3초 자동소멸 전)', async ({ page }) => {
     await goto(page, '/accounting/bank-transactions')
-    await expect(page.getByTestId('codef-scope-hint')).toBeVisible({ timeout: 15000 })
+    await resetCodefScopeToUnset(page)
     await page.getByTestId('codef-all-scope-chip').click()
     await page.getByTestId('codef-save-scope-button').click()
     await expect(page.getByTestId('bank-transaction-toast')).toBeVisible({ timeout: 10000 })
@@ -412,7 +441,7 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(page.getByTestId('safety-stock-scope-hint')).toBeVisible()
     await shot(page, 'd6-s2-mobile-safety-stock-chip0')
     await goto(page, '/accounting/bank-transactions')
-    await expect(page.getByTestId('codef-scope-hint')).toBeVisible({ timeout: 15000 })
+    await resetCodefScopeToUnset(page)
     await shot(page, 'd6-s3-mobile-codef-chip0')
     console.log('[D6] 모바일 390px 칩0 레이아웃 캡처 완료')
   })

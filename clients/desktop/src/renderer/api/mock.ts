@@ -16867,7 +16867,11 @@ function distinctMockBankTransactionLabels(sources: MockBankTransactionRow['sour
   )).sort((a, b) => a.localeCompare(b, 'ko-KR'))
 }
 
-function resolveMockCodefRefs(
+/**
+ * 저장된 ALL scope의 defaultImportType을 mock에서도 실행 범위의 권위값으로 사용한다.
+ * refs 생략(null/undefined)은 '요청한 유형 전체'이지 모든 유형 전체가 아니다.
+ */
+export function resolveMockCodefRefs(
   requestedType: MockCodefImportType,
   candidateType: Exclude<MockCodefImportType, 'ALL'>,
   explicitRefs: string[] | null | undefined,
