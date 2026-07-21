@@ -4,7 +4,58 @@
 
 ---
 
-## 🔥 2026-07-21 (오후) — **3트랙 병렬 가동 중** ◀ 다음 세션 첫 읽기·재개점
+## 🔥 2026-07-21 (저녁 18:00 마감) — **3트랙 병렬 · 세션 종료 시점** ◀◀ 다음 세션 첫 읽기·재개점
+
+> ### 🚨 0. 새 PC 도착 시 먼저 할 일
+> ```powershell
+> git pull
+> .\scripts\sync-claude-memory.ps1
+> .\scripts\setup-codex-mcp-timeout.ps1         # PC 마다 1회 필수 (~/.claude.json = git 미추적)
+> ```
+> 빠뜨리면 codex 디스패치가 계속 1800초에 abort 됩니다. **abort ≠ 미수행** — codex 는 계속 돌지만 통지가 끊깁니다.
+>
+> ### 🚨 1. 이번 세션에서 확정된 폴링 규칙 정정 (중요 — 구 규칙이 오도함)
+> - 🚫 **`Get-Process codex` 개수/PID 는 MCP 작업의 생존 신호가 아닙니다.** MCP 작업은 `codex mcp-server` 프로세스 **안에서** 돌아 별도 `codex.exe` 를 만들지 않습니다. 실측: 트랙B 가 rollout 을 **0초 간격으로 쓰는 중인데도** `codex.exe` 는 `mcp-server`+데스크톱 `app-server` **2개뿐**이었습니다. 프로세스로 세면 **살아 있는 작업을 정지로 오판**합니다.
+> - ✅ **완료의 유일한 진실원 = rollout jsonl 의 `"type":"task_complete"`.** 최종보고 전문은 `payload.last_agent_message`.
+> - 🚨 **통지 유실은 abort 통지 없이도 발생합니다.** 트랙A 는 `task_complete` 를 정상 발행했는데 **22분간 통지 0** 이었습니다 → *"abort 안 왔으니 진행 중"* 은 성립하지 않습니다.
+> - `java.exe` 도 VSCode `redhat.java` LSP 를 gradle 로 오인 금지(3개 중 2개가 LSP). 역할 구분은 `Get-CimInstance Win32_Process` 의 CommandLine 으로.
+> - 🚫 **이 환경에 `jq` 가 없습니다.** `gh pr checks --json | jq` 는 조용히 빈 값을 뱉습니다 → **`gh pr checks <pr>` 종료 코드**로 판정하십시오(exit 0 = 전건 pass). jq 를 쓴 Monitor 는 **영원히 침묵**하며, 그 침묵이 "진행 중"으로 오독됩니다.
+>
+> ### 2. 트랙 현황 — **세션 종료 시점 실제 상태**
+> | 트랙 | PR | 워크트리 | 상태 |
+> |---|---|---|---|
+> | **A · #825 슬5** | #864 | `s5-codef` | R2 fix 커밋 `43905b915` **push·CI 40/40 green** → **OPUS 4.8 R3 적대검증 4/6 차원 게시 완료** · **2차원 미회수** |
+> | **B · #845 DS-3a** | #865 | `ds3a` | SOL R2(BLOCKING 1·MED 4·LOW 2) → **CODEX LUNA fix 가 세션 종료 시점까지 진행 중 · 미커밋** |
+> | **C · #863** | #876 | `ob863` | OPUS R1 → **SONNET5 fix 가 세션 종료 시점까지 진행 중 · 미커밋** |
+>
+> ### 3. 🚨 트랙A — R3 결과 (PR #864 코멘트 2건에 전문)
+> **HIGH 3 · MED 5 · LOW 11 → 수렴 불가.** 핵심 3건:
+> 1. **HIGH-1 · R2 의 BLOCKING-1 fix 가 절반만 됐습니다.** `CodefImportScopedService.java:82-86` 이 여전히 요청 `type` 을 쓰고 저장 `defaultImportType` 을 **한 번도 읽지 않습니다**(전수 grep — 호출부는 응답 DTO 1곳뿐). R2 diff 에 이 파일이 **아예 없습니다**. BE 테스트 3건이 전부 `defaultImportType:"ALL"` 이라 **어느 쪽으로 뮤테이트해도 RED 가 안 납니다.**
+> 2. **HIGH-2 · R2 가 공유 `playwright.real-qa.config.ts` 를 이 슬라이스 전용으로 축소** → `testMatch` 가 단일 파일이 되어 **repo 82/83 real-QA 스펙이 무력화**됐습니다(리뷰어가 다른 스펙 `--list` 로 `0 tests` 실측). dev-report 의 `Total: 5 tests in 1 file` 은 **자기가 좁혀놓고 5개임을 증명한 순환논증**입니다. ⚠️ **미머지라 main 영향 없음.**
+> 3. **HIGH-3 · 라이브QA 증거가 전량 pre-fix 결함 캡처.** `docs/qa/825-s5-r1-liveqa/` PNG 32장이 **전부 `16cdfb626`(R1 fix 이전)**, `5f5d84d3a`/`43905b915` 의 PNG 는 **각 0장**. "fixed" 6장 부재. **라이브QA 2라운드 연속 미충족.**
+>
+> 🚨 **#854 R4→R5 패턴 재현**: 이번 라운드 HIGH/MED 5건 중 **4건이 R2 fix 가 도입한 신규 코드 안**입니다. 이 슬라이스는 **R1·R2·R3 3라운드째이며 매번 fix 가 새 결함을 낳고 있습니다** → 다음 세션에서 [[feedback_pm_regulate_slice_effort]] 에 따라 **개발책임자께 바운드 옵션 제시**할 것.
+>
+> ### 4. 🚨 미회수 · 완료 착각 금지 (fresh 재디스패치 대상)
+> - **트랙A R3 의 FE/상태머신 · 라이브QA 2차원 미회수.** 특히 라이브QA 는 **real-QA 실서버 실행 회수**가 1순위 임무였는데 미완입니다. ⚠️ HIGH-2 때문에 **`playwright.real-qa.config.ts` 를 먼저 원복해야 real-QA 가 돌아갑니다.**
+> - **트랙B·C 의 fix 산출물은 미커밋·미검증**입니다. 워크트리 diff 는 **참조용**이며 그대로 신뢰하지 마십시오 — **fresh 재디스패치**가 기본값입니다.
+>
+> ### 5. 이번 세션 머지·등록
+> - **머지**: #882(메모리 — codex 폴링 신호 정정 + PM 검증 규율 신설, **축약 머지 개발책임자 승인 · 이 PR 한정**)
+> - **신규 이슈**: **#880**(좁은 폭에서 조작 버튼 컬럼 DOM 제거 → 기능 도달 불가 6화면, `display:none` + `onRowClick` 부재 실측) · **#881**(판매조회 담당자명 raw UUID 노출 — 2026-07-07 백로그에 방치, `SlipResponse.java:34` 잔존) · **#883**(UI/디자인 전면 개편 EPIC — ⏸️**최후순위: 전 이슈 해소 후 AWS 이관 직전**, 기획=CODEX SOL·구현=CODEX LUNA)
+>
+> ### 6. 🚨 PM 검증 실패 5회 — 이번 세션 최대 교훈
+> `green` 이 **주장과 다른 것**을 증명하는 5형태를 한 세션에서 전부 겪었습니다. 정본 = [[feedback_pm_verify_what_measurement_proves]] (#882 로 머지됨).
+> ①**프로파일**(`local` 에서 `@Profile("!local")` 스케줄러 heartbeat 측정) ②**캐시**(`up-to-date` 를 실행 증거로) ③**커버리지**("Playwright 590 passed" 를 인용했으나 **무관 브랜치와 같은 숫자 = 순증 0**) ④**격리**(마스코트 **쇼케이스 페이지** 스샷을 렌더 정상 근거로) ⑤**층 절반**(FE fix 만 읽고 "BLOCKING fix 가 진짜" 라고 선언 — **BE 경로 미확인**).
+> ⟹ 수용 전 *"이 수치는 〈무엇〉이 〈어떤 조건에서〉 동작함을 증명한다"* 를 **한 줄로 적고 주장과 대조**할 것. 확증은 **뮤테이션 RED**.
+>
+> ### 7. UI 실태 조사 결과 (#883 에 전문)
+> **삼한이 원인 규명 완료** — 에셋·컴포넌트는 정상이고 **배선 누락 + 렌더 결함**입니다. `DataTable.tsx:99` 가 `isEmpty = rows.length===0 && !loading` 이라 로딩 중 tbody 가 비는데, 로더는 `position:absolute` 오버레이이고 `.wrapper` 는 `overflow:hidden` + **`min-height` 없음** → 높이가 헤더 행(~40px)뿐이라 **80px 마스코트가 잘립니다.** 빈 상태는 실제 `<td>` 라 스스로 높이를 만들어 항상 보입니다. `MascotLoader` **3파일** vs `Spinner` **73파일**.
+> **주문서 GAS 잔재 자백 증거** — `sales.module.css:7` 에 **`DS 컴포넌트 import 금지 (F1(a) Phase 6)`** 가 살아 있고, 2026-07-05 "데스크톱=표준 UI" 결정과 정면 충돌합니다. 결정 **2일 뒤** 커밋 `36ee0e30a` 가 45줄을 더 쌓았습니다. ⚠️ **S4 착수 전 어느 결정이 유효한지 개발책임자 확정 필요**(없이 고치면 재발).
+
+---
+
+## (지난) 2026-07-21 (오후) — 3트랙 병렬 가동 중 ※위 블록으로 대체됨
 
 > ### 🚨 0. 새 PC 도착 시 먼저 할 일 (순서대로)
 > ```powershell
