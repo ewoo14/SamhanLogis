@@ -1,0 +1,69 @@
+2026-07-21T23:14:56.712Z login dev_master role=MASTER userId=a0000000-0000-0000-0000-000000000001
+2026-07-21T23:14:56.714Z 대상 기존 APPROVED 결재 = 4d7a6c77-0b5f-4f4b-a1fe-5a01d8f732af (실데이터 제목="월말 재고 실사 일정 결재")
+2026-07-21T23:14:58.891Z capture 01-print-initial.png
+2026-07-21T23:14:58.896Z (1) 최초 인쇄 진입 후 approval GET 누계=1
+2026-07-21T23:14:59.616Z (2a) 상세로 클라이언트 이동 후 GET 누계=2
+2026-07-21T23:15:00.525Z capture 02-reprint-remount-1.png
+2026-07-21T23:15:00.526Z (2b) 재인쇄 remount#1 후 approval GET 누계=3
+2026-07-21T23:15:01.941Z capture 03-reprint-remount-2.png
+2026-07-21T23:15:01.942Z (3) 재인쇄 remount#2 후 approval GET 누계=4
+2026-07-21T23:15:01.943Z freshness 요약: 최초=1 → remount#1 후=3 → remount#2 후=4 (매 mount 증가 = 캐시 무효화 동작)
+
+──────────────────────────────────────────────────────────────────────────────
+[R4 라이브QA 부록 — PM 회수용 원문]  브랜치 feat/845-ds3a-reprint-pin  SHA 7abdd7a7a
+
+[0단계 배포 증명]
+  groupware-service 재빌드·재기동:
+    Image  = sha256:10542877abe6...  (compose build, 07:50 KST 산출 jar 포함)
+    Container.StartedAt = 2026-07-21T22:55:24Z(UTC) = 2026-07-22 07:55 KST, Health=healthy
+    SPRING_PROFILES_ACTIVE = dev, SERVER_PORT = 8092
+  Flyway V13 = success=t, installed_on 2026-07-22 07:55:27, execution_time 13ms
+    (착수 시점 stale 컨테이너는 V12 까지만 적용 — 22:19 KST 어제 빌드였고 V13 미포함.
+     jar 재빌드→이미지 재빌드→--no-deps 재기동으로 V13 전진 확인.)
+  bootJar: compileJava UP-TO-DATE (R3 는 V13 SQL + FE 만 변경, Java 무변경) →
+    산출 jar 직접 검증: BOOT-INF/classes/db/migration/V13__approval_lines_document_template_pin_immutable.sql
+    (3992 bytes) 실재 + ApprovalLine.class / ApprovalLineService.class 실재.
+  V13 트리거 실재: trg_approval_lines_document_template_pin_immutable ON approval_lines, enabled(O).
+    pg_get_functiondef 가 fix SQL 과 정확히 일치(append-once: OLD 가 pin 상태일 때 pin 3컬럼
+    변경 UPDATE 를 RAISE EXCEPTION).
+  design-system dist/index.js = 2026-07-22 07:50 KST 재빌드(src 최신 mtime Jul 21 19:26 보다 신규)
+    → desktop 렌더러가 stale dist 로 fix 를 오판하지 않음.
+
+[검증한 것 — freshness 메커니즘 (실서버·실 GUI·mock OFF)]
+  대상: 실 groupware_db 기존 APPROVED 결재 4d7a6c77…("월말 재고 실사 일정 결재", 문서번호 2026/05/16-23).
+  렌더러: ds3a vite :5411 --strictPort, mock OFF(VITE_MOCK_MODE 미설정), 게이트웨이 :8080.
+  같은 브라우저 세션에서 HashRouter 클라이언트측 네비게이션(reload 없음 → QueryClient 캐시 유지)으로
+  인쇄→상세→재인쇄를 반복하며 GET /admin/groupware/approvals/{id} 호출을 카운트:
+    최초 진입 1 → (상세 이동 2) → 재인쇄 remount#1 = 3 → 재인쇄 remount#2 = 4.
+  ⇒ 인쇄 화면이 매 mount 마다 approval 을 재조회함을 확증 = ApprovalDocView 의
+     staleTime:0 + refetchOnMount:'always' 가 배포본에서 실제 동작(HIGH-1 근본수리 = 캐시 무효화).
+     fix 가 없었다면 3·4번째 remount 는 <5분 신선캐시를 재사용해 카운트가 2 에 머물렀을 것.
+  캡처 01/02/03 은 실 데이터 인쇄 화면(dev_master · MASTER, 실 본문·결재란·전자서명 문구).
+  세 캡처는 픽셀 동일(읽기전용, 서버상태 무변경) — 증거는 GET 델타(위 raw).
+
+[미검증 — 정직 고지]
+  pin OUTCOME(신규 결재 승인→pin 각인→재인쇄 승인당시 외형) 및 ACTIVE-0 배너 OUTCOME,
+  V13 라이브 뮤테이션 차단, latch 는 이 세션 환경에서 재현 불가:
+    · throwaway docType 은 결재선 config 가 없어 dev_master 단독 승인(CREATOR 단계)을 API 로
+      만들 수 없음. CREATOR 는 마이그레이션 시드만 존재(생성 API 없음)·직접 DB insert 는
+      이 세션 auto-mode classifier 가 차단. dev_master 의 유일 그룹 = "시스템 마스터 그룹"이라
+      결재 그룹 지정 불가(서버가 명시 거부). 2차 EXECUTIVE 계정 자격 없음·users 테이블 읽기도 차단.
+    · V13 라이브 뮤테이션(UPDATE approval_lines …)도 DB write 차단으로 실행 불가.
+  ⇒ 이 OUTCOME 들은 동일 FE/SQL 코드로 R3 라이브QA(docs/qa/845-ds3a-r3-liveqa)가 이미 실증:
+     v1/v2/DEFAULT 세 외형의 픽셀 해시 상이 + ACTIVE-0 뮤테이션으로 결함 재현.
+     R4 는 그 코드의 "배포 확증(V13 success=t) + freshness 메커니즘 무회귀"를 담당.
+
+[데이터 격리 — 공유 실데이터 write 0건]
+  착수 전 → 종료 후 동일:
+    approval_lines(활성) APPROVED 32 / PENDING 30 / REJECTED 8 = 70  (동일, 신규 결재 0)
+    소급각인 document_template_id 0 / default_pinned 0                (동일)
+    document_templates: LIVEQA848 유일 ACTIVE 그대로 · EXPENSE 3/0 · QA_DS3A_R3 3/0 · QA_TEST 2/0 (무접촉)
+    approval_templates 활성 3 (동일) · approval_line_config 활성 14 (동일)
+  throwaway 잔여(전부 is_deleted=t, soft-delete replace-set 이력 — R3 와 동일 패턴):
+    GROUPWARE_QA_DS3A_R4 document_template 1행 · approval_template(QA_DS3A_R4) · config step(R4Reviewer)
+  ※ 첫 실행에서 만든 throwaway 결재유형/문서양식은 API DELETE 로 소프트삭제 완료.
+
+[잔존 제약 — 개발책임자 인지]
+  groupware_db 는 V13 로 전진했고 되돌릴 수 없다(수용된 비용). 머지 전까지 groupware-service 를
+  V12/V11 이미지로 재기동하면 Flyway 부팅 실패. 컨테이너 compose config_files/working_dir 는
+  ds3a 워크트리를 가리킨다(머지 후 메인 트리에서 재빌드·재기동 필요).
