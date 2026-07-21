@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -45,6 +46,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -135,6 +137,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": [],
@@ -149,6 +152,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s", "%s"],
                   "cardRefs": [],
                   "loanRefs": ["%s"],
@@ -177,6 +181,79 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("scopeMode 전환은 refs를 교체하고 active row 하나를 유지한다")
+    void switchingScopeModesReplacesRefsAndKeepsSingleActiveRow() throws Exception {
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "scopeMode": "SELECTED",
+                  "accountRefs": ["%s"],
+                  "cardRefs": ["%s"],
+                  "loanRefs": [],
+                  "defaultImportType": "ALL"
+                }
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_1, CARD_REF_1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("SELECTED"));
+
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "scopeMode": "ALL",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "defaultImportType": "ALL"
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
+
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
+
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "scopeMode": "SELECTED",
+                  "accountRefs": ["%s"],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "defaultImportType": "BANK"
+                }
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("SELECTED"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(1))
+                .andExpect(jsonPath("$.data.accountRefs[0]").value(ACCOUNT_REF_2))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
+
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("SELECTED"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(1))
+                .andExpect(jsonPath("$.data.accountRefs[0]").value(ACCOUNT_REF_2));
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_codef_import_scope
+                 WHERE user_id = ?::uuid
+                   AND connected_id = ?
+                   AND is_deleted = false
+                """, Integer.class, USER_ID.toString(), CONNECTED_ID);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("동시 scope 저장은 active unique 충돌 없이 둘 다 200 으로 멱등 처리된다")
     void upsertScopeConcurrentRequests_areBothOkAndKeepSingleActiveRow() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -185,6 +262,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             Future<Integer> first = executor.submit(() -> putScopeAfterStart(start, """
                     {
                       "connectedId": "%s",
+                      "scopeMode": "SELECTED",
                       "accountRefs": ["%s"],
                       "cardRefs": [],
                       "loanRefs": [],
@@ -194,6 +272,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             Future<Integer> second = executor.submit(() -> putScopeAfterStart(start, """
                     {
                       "connectedId": "%s",
+                      "scopeMode": "SELECTED",
                       "accountRefs": ["%s"],
                       "cardRefs": ["%s"],
                       "loanRefs": [],
@@ -224,11 +303,13 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
         definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         TransactionStatus blocker = transactionManager.getTransaction(definition);
+        // #825 슬5 R1(V64) — scope_mode NOT NULL 컬럼 추가로 raw INSERT 도 명시해야 한다.
+        // 기존 계좌 선택이 있는 상태이므로 SELECTED.
         jdbcTemplate.update("""
                 INSERT INTO user_codef_import_scope
                     (user_id, connected_id, account_ref_selections, card_ref_selections,
-                     loan_ref_selections, default_import_type)
-                VALUES (?::uuid, ?, '["기존 계좌"]', '[]', '[]', 'BANK')
+                     loan_ref_selections, default_import_type, scope_mode)
+                VALUES (?::uuid, ?, '["기존 계좌"]', '[]', '[]', 'BANK', 'SELECTED')
         """, USER_ID.toString(), CONNECTED_ID);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -245,6 +326,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             return saveScope("""
                         {
                           "connectedId": "%s",
+                          "scopeMode": "SELECTED",
                           "accountRefs": ["%s"],
                           "cardRefs": ["%s"],
                           "loanRefs": ["%s"],
@@ -289,6 +371,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "ALL",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s", "%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": [],
@@ -307,6 +390,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "ALL",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s", "%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": [],
@@ -328,6 +412,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "ALL",
+                  "scopeMode": "ALL",
                   "submitMethod": "DRY_RUN"
                 }
                 """.formatted(CONNECTED_ID))
@@ -345,6 +430,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "BANK",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "submitMethod": "INVALID"
                 }
@@ -363,6 +449,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "BANK",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "submitMethod": "DRY_RUN"
                 }
@@ -378,6 +465,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": ["%s"],
@@ -392,30 +480,43 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "ALL",
-                  "accountRefs": [],
-                  "cardRefs": [],
-                  "loanRefs": [],
+                  "scopeMode": "SELECTED",
+                  "accountRefs": ["%s"],
+                  "cardRefs": ["%s"],
+                  "loanRefs": ["%s"],
                   "submitMethod": "DRY_RUN"
                 }
-                """.formatted(CONNECTED_ID))
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_1, CARD_REF_1, LOAN_REF_1))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.fetchedCount").value(15))
                 .andExpect(jsonPath("$.data.importedCount").value(15));
     }
 
     @Test
-    @DisplayName("type=ALL 이고 빈 저장 선택을 로드하면 명확한 400 메시지를 반환한다")
-    void importScopedAllWithEmptyRefsAndEmptySavedScope_returnsClearMessage() throws Exception {
+    @DisplayName("#825 슬5 R1 BLOCKING#1 fix — type=ALL 이고 저장 scopeMode=ALL 이면(refs=[] 는 정상 표현) 200 으로 서버 전체를 열거한다")
+    void importScopedAllWithEmptyRefsAndAllSavedScope_materializesFullEnumeration() throws Exception {
+        // 종전(R1 이전)에는 이 시나리오가 "저장된 가져오기 선택이 비어 있습니다" 400 으로
+        // 자기모순 실패했다 — ALL 로 저장한 직후 가져오기가 거부되는 BLOCKING 결함(FABLE5 R1).
+        // scope_mode 컬럼(V64) 도입 후에는 저장 당시 scopeMode=ALL 을 신뢰해 refs=[]를
+        // '미저장'이 아닌 '전체'로 정확히 해석하고 CODEF 서버 전체 열거로 materialize한다.
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "ALL",
                   "accountRefs": [],
                   "cardRefs": [],
                   "loanRefs": [],
                   "defaultImportType": "ALL"
                 }
                 """.formatted(CONNECTED_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"));
+
+        // 재조회에서도 scopeMode=ALL 로 복원된다(H-4) — refs 비어있음만으로 '미저장'과 혼동하지 않음.
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"));
 
         importScoped("""
                 {
@@ -423,37 +524,47 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "ALL",
-                  "accountRefs": [],
-                  "cardRefs": [],
-                  "loanRefs": [],
+                  "scopeMode": "ALL",
                   "submitMethod": "DRY_RUN"
                 }
                 """.formatted(CONNECTED_ID))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
-                .andExpect(jsonPath("$.message").value(
-                        "저장된 가져오기 선택이 비어 있습니다. 먼저 계좌/카드/대출을 선택해 저장하세요."));
+                .andExpect(status().isOk())
+                // 서버 DRY_RUN 카탈로그 전체(계좌4+카드3+대출2=9 refs) 열거 — 진짜 ALL 과 동일 값.
+                .andExpect(jsonPath("$.data.fetchedCount").value(45))
+                .andExpect(jsonPath("$.data.importedCount").value(45));
     }
 
     @Test
-    @DisplayName("type=ALL 이고 저장 scope row 가 없으면 404 NOT_FOUND 로 구분한다")
-    void importScopedAllWithEmptyRefsAndMissingSavedScope_returnsNotFound() throws Exception {
+    @DisplayName("#825 슬5 R4 — scopeMode=SELECTED 인데 refs 가 비어 있는 raw row 는 DB 제약으로 차단한다")
+    void selectedScopeWithEmptyRefsCannotBeInserted() {
+        // D-S5-02 상 SELECTED+빈 목록은 저장 시점에 400 으로 거부되므로 API 로는 이 상태에
+        // 도달할 수 없다 — raw SQL 로 방어적 가드 회귀만 확인한다(BLOCKING#1 fix 가 scopeMode
+        // 분기를 ALL 에만 적용하고 SELECTED 는 종전 방어 로직을 그대로 유지하는지 검증).
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                INSERT INTO user_codef_import_scope
+                    (user_id, connected_id, account_ref_selections, card_ref_selections,
+                     loan_ref_selections, default_import_type, scope_mode)
+                VALUES (?::uuid, ?, '[]', '[]', '[]', 'ALL', 'SELECTED')
+        """, USER_ID.toString(), CONNECTED_ID))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+    }
+
+    @Test
+    @DisplayName("명시적 scopeMode=ALL 실행은 저장 scope row 없이도 서버 전체를 열거한다")
+    void importScopedAllWithMissingSavedScope_enumeratesAll() throws Exception {
         importScoped("""
                 {
                   "connectedId": "%s",
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "ALL",
-                  "accountRefs": [],
-                  "cardRefs": [],
-                  "loanRefs": [],
+                  "scopeMode": "ALL",
                   "submitMethod": "DRY_RUN"
                 }
                 """.formatted(CONNECTED_ID))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value(
-                        "저장된 가져오기 선택이 없습니다. 먼저 가져오기 선택을 저장하세요."));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fetchedCount").value(45));
     }
 
     @Test
@@ -462,6 +573,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
+                  "scopeMode": "ALL",
                   "accountRefs": [],
                   "cardRefs": [],
                   "loanRefs": []
@@ -599,7 +711,10 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-03",
                   "to": "2026-06-01",
                   "type": "BANK",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
+                  "cardRefs": [],
+                  "loanRefs": [],
                   "submitMethod": "DRY_RUN"
                 }
                 """.formatted(CONNECTED_ID, ACCOUNT_REF_1))
@@ -618,7 +733,10 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "2026-06-01",
                   "to": "2026-06-03",
                   "type": "BANK",
+                  "scopeMode": "SELECTED",
                   "accountRefs": [%s],
+                  "cardRefs": [],
+                  "loanRefs": [],
                   "submitMethod": "DRY_RUN"
                 }
                 """.formatted(CONNECTED_ID, quotedRefs("ACC-", 51)))
@@ -639,7 +757,10 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "from": "%s",
                   "to": "%s",
                   "type": "BANK",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
+                  "cardRefs": [],
+                  "loanRefs": [],
                   "submitMethod": "DRY_RUN"
                 }
                 """.formatted(CONNECTED_ID, future, future, ACCOUNT_REF_1))

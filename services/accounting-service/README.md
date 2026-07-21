@@ -151,3 +151,11 @@ MIG-14는 MIG-7~11 결과를 desktop admin UI에서 조회하기 위한 read end
 | 동시성 | normalized key `pg_advisory_xact_lock`(64bit hashtextextended·정렬획득) create/update/delete/learn 대칭 |
 
 후속 이슈: #830(멀티인스턴스 revision) · #831(pre-#810 lookup 붕괴 계열·tax invoice HIGH) · #832(mock parity·감사 정밀도·BOM).
+
+## #825 슬5 CODEF null-semantics
+
+`user_codef_import_scope.scope_mode`(V64)은 저장된 `ALL`과 `SELECTED`를 구별한다. 기존 행은
+근거 없는 `ALL` 추정 대신 `SELECTED`로 backfill하며, 컬럼 기본값도 `SELECTED`로 유지해 V64
+적용 후 구버전 앱 롤백 중 신규 INSERT가 `23502`로 실패하지 않게 한다. 저장 기반 import는
+`scopeMode=ALL`이면 요청의 `type` 카테고리만 CODEF에서 열거하고, `SELECTED`이면 저장 ref를
+사용한다. 서비스는 두 모순 방향과 null/invalid mode를 독립적으로 거부한다.

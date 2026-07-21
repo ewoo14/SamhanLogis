@@ -475,7 +475,8 @@ class InventoryPermissionControllerIT {
                         () -> get("/inventory/alerts/safety-stock")),
                 endpoint("safety set", "inventory.safety-stock", PermissionAction.UPDATE, "WAREHOUSE",
                         () -> post("/inventory/products/{id}/safety-stock", ID)
-                                .contentType(MediaType.APPLICATION_JSON).content("{\"threshold\":10,\"note\":\"note\"}")),
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"threshold\":10,\"note\":\"note\",\"scopeMode\":\"ALL\"}")),
                 endpoint("stock instance resell", "inventory.stock-balance", PermissionAction.UPDATE, "WAREHOUSE",
                         () -> post("/inventory/instances/resell-batch").contentType(MediaType.APPLICATION_JSON)
                                 .content(resellBody())),

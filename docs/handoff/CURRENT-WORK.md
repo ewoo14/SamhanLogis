@@ -4,6 +4,69 @@
 
 ---
 
+## 🏢 2026-07-22 (집PC 새벽) — **회사PC 이어가기 지시서** ◀◀◀ 여기부터 읽으십시오
+
+> 개발책임자 지시 *"3트랙 머지 후 회사PC에서 이어갈 수 있도록 세션 정리"*.
+> **트랙C(#876)는 머지 완료. 트랙A·B 는 도달성 마감 라운드가 남아 회사PC에서 마무리합니다.**
+
+### 0. 재개 절차 (회사PC)
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+.\scripts\setup-codex-mcp-timeout.ps1          # 🚨 회사PC 1회 필수 (~/.claude.json = git 미추적)
+# 워크트리 복원 (회사PC 엔 없음 · 원격 브랜치 둘 다 존재 확인됨):
+git worktree add .claude/worktrees/s5-codef feat/825-s5-codef-null-semantics
+git worktree add .claude/worktrees/ds3a     feat/845-ds3a-reprint-pin
+```
+
+### 1. 🚨🚨 캐논 현행 정본 = **도달성 축** (2026-07-22 · 반드시 이것만)
+> **머지 게이트 = ① 실 사용자 경로로 재현 가능한 결함 0(심각도 무관) · ② CI green(exact SHA) · ③ 라이브QA(실서버 실행)**
+
+⚠️ **07-21 "전 심각도 0" 은 폐기.** 검증 품질(테스트 약함·문서 과장·가드 구멍·mock 미비·직접 SQL 전용)은 **게이트 아님 → 이월**. 도달 가능한 MED/LOW 는 여전히 게이트. 상세 [[feedback_canonical_workflow]](main `498e060aa`). 마감 라운드는 **도달성 단일 질문**으로 좁힌다.
+그 밖 존속: RED-first · 라이브QA=실서버 실행 · **뮤테이션 RED 의무** · PM 중재 3단 · **"RED 불가=고치지 않는다"** · 게시 1:1 · 모델 대체 금지 · PM 은 불변식만.
+
+### 2. 3트랙 상태
+
+| 트랙 | PR | HEAD (원격) | CI (exact SHA) | 남은 일 |
+|---|---|---|---|---|
+| **C** #863 | #876 | ✅ **MERGED** `f3b900a36` | — | **완료** |
+| **A** #825 슬5 | #864 | `5c440a840` | 38 success · GitGuardian 1(FP) · 라이브QA ✅ | **도달성 마감 라운드** → 머지 |
+| **B** #845 DS-3a | #865 | `7abdd7a7a` | **35/35 green** | **도달성 마감 라운드** → 머지 |
+
+**미커밋 WIP 0 · 원격 미푸시 0** (양 워크트리) — 유실 없음. 회사PC 에서 pull + worktree add 로 그대로 복원됩니다.
+
+### 3. 마감 라운드 = **도달성 단일 질문**으로 fresh 재디스패치
+> **"이 코드에 실 사용자 경로로 재현 가능한 결함이 있는가?"** (CODEX SOL · `gpt-5.6-sol` · danger-full-access)
+
+🚨 **집PC 에서 트랙A 마감 라운드가 진행 중이었으나(threadId `019f8694-d1d2-...`), codex rollout 은 cross-PC 로 넘어오지 않습니다** → 회사PC 에서 **fresh 재디스패치**가 기본값입니다([[feedback_incomplete_work_wip_branch_cross_pc]] 정신). 이 세션이 집PC 에서 그 라운드를 회수해 머지까지 갔다면 아래 표가 갱신돼 있을 것이니 **재개 시 #864·#865 최신 코멘트를 먼저 확인**하십시오.
+
+**브리프 골자**(전문은 #876 의 완료 라운드 코멘트가 모범 — 그 형식 재사용):
+- **트랙A(#864)**: R4 fix 이후 라이브QA 재실행이 신규 제품 결함 0. 그러나 **V65 BLOCKING fix(`e31a5df71`) 자체는 적대검증 미수검**. 중점 = V65 `NOT VALID` 가 legacy invalid 행에 대해 실 사용자 경로로 오작동/손상시키는가(라이브QA 가 `DEFAULT_CONNECTED_ID` 하드코딩으로 화면 렌더 미검증 남김 — 앱 경로 도달성 재판정). 라이브QA 미검증 5건 재분류(A2 권한격자·legacy 3행 화면·C6 mock파리티·D2 안전재고·E-P3 대비).
+- **트랙B(#865)**: latch fix(`a06d786ac`)가 유일 도달 가능 결함이었고 뮤테이션 RED 로 방어선 확증됨. 나머지 6~7건은 검증 품질/직접SQL 이월. 마감 라운드는 **latch fix 가 새로 만든 도달 가능 결함이 있는지**만.
+
+### 4. 🚨 머지 순서 규율 (공유 파일 — 반드시)
+세 브랜치가 **`mock.ts`·`ci.yml` 공유**. #876 머지 후 A·B 에 **main 병합·push 완료(재-CI 통과 확인)**. 다음 PR 머지 때도 동일 — 한 PR 머지 후 나머지에 `git merge origin/main` → **재-CI green 확인 후** 다음 머지([[feedback_stacked_pr_ci_false_green]]). GitHub `MERGEABLE` 만 믿지 말 것.
+
+### 5. ⚠️ 되돌릴 수 없는 **집PC 로컬** DB (회사PC 는 별도 스택 — 무관)
+`accounting_db` **V65** · `groupware_db` **V12**(#865 의 V13 은 로컬 미적용). 회사PC 로컬 Docker 는 별개이니 라이브QA 시 **회사PC 에서도 배포 증명 0단계**(이미지 시각·flyway·jar 심볼) 필수. 🚨 **배포 stale 5연속·stale dist** 실측 — 정지 컨테이너 start 로는 fix 이전 이미지를 측정. design-system 변경 슬라이스는 **라이브QA 전 `cd clients/web/design-system && npm run build`**.
+
+### 6. 이 세션 성과 + 확정 규율
+- ✅ **첫 머지 #876** (밤새 0건 → 도달성 축 전환 후 뚫림)
+- 🚨 **머지 게이트 도달성 축 전환** — 전 심각도 0 이 종료 조건 아님을 실측(fix 하면 검증 장치가 늘어 다음 라운드 감사 대상 = fix-유발률 76~100%)
+- 🚨 **뮤테이션 RED 의무**(신설) — 테스트 추가·변경 시 그것이 지킨다는 대상을 망가뜨린 RED 원문 동반. #865 SOL 에서 "fix 가 추가한 방어선 7중 4가 가짜" 였던 문제 차단
+- 🚨 **PM 중재 3단**(착수 전 파급선언 / 커밋 전 "새로 가능·금지·지연" 질문 / 라운드 후 fix-유발률)
+- 실측 함정: 배포 stale · stale dist · 병렬 뮤테이션 오염 · Playwright 포트 5173 재사용 · 부분 스테이징 재스테이징 누락 · `.gitignore *.log` 가 docs/qa 제외(#889) · gh pr checks stale pending · executed≠테스트 수 · 빈 스키마 CI green≠마이그 정상
+
+### 7. 🔴 개발책임자 판단 대기 / 이월
+- **#888** outbox 전용 TaskScheduler 분리 + 이월된 검증 품질(#876 SOL 의 CloudWatch IT mock 미stub·공존 IT 실HTTP 미검사)
+- **#889** `.gitignore *.log` 가 docs/qa 증거 24개 제외 (설정 변경 = 브랜치+PR)
+- **#865 이월 검증품질** — CI ACTIVE-0 게이트 tests>=1 강화·V13 default-pin 뮤테이션 가드·mock 승인 pin 각인·conflict 공개경로·F-4 인쇄소거·V13 직접SQL(도달 불가). 슬라이스당 1이슈로 묶어 등록 필요
+- **#881**(담당자명 스냅샷 vs resolve) · **#883 S4 선결** 이월
+
+
+---
+
+
 ## 🛑 2026-07-22 (집PC 새벽 01:5x) — **CODEX 토큰 소진으로 정지** ◀◀◀ 여기부터 읽으십시오
 
 > 개발책임자 지시 *"CODEX 토큰 소진 시 우회하지 말고 멈추고 보고"* 에 따라 정지했습니다.
@@ -1920,3 +1983,10 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - 마이그레이션 불변(V* in-place 금지, 신규 V만). page-code FE↔BE 일치·UUID/그룹ID 비노출·게이트웨이 단일 신원 권위(X-User-Role 미주입). 적용 마이그 불변(V75→V77 신규).
 - Codex=`mcp__codex__codex`(리뷰 read-only / 수정 danger-full-access). PM 자동 머지: 0수렴+CI green 시 자율(개발책임자 '자율 계속' 승인). IaC는 terraform validate 게이트 추가.
 - **IaC 머지는 실 terraform validate/plan 필수**(terraform CLI+AWS 계정). 집 PC 미설치 → 회사 PC 과제.
+
+## ✅ 2026-07-21 Codex R4 — PR #864 / #825 슬5 null-semantics
+
+- 작업 트리 `feat/825-s5-codef-null-semantics`에서 브리프 A~F 전건을 재검토하고, RED-first로 재현 가능한 결함을 수정했다.
+- 핵심 변경: Codef `scopeMode=ALL|SELECTED` 명시 계약(FE/mock/BE), V65 선택범위 무결성 CHECK(V64 불변), 권한별 scope/import 잠금 및 안내, locked chip 접근성·포커스, `TagChip` 선택 시각상태, `AsyncAutocomplete` 로딩 option `aria-disabled`, R4 mock/real QA 경로 정정.
+- genuine 검증: Gradle `26 actionable tasks: 26 executed`; Desktop typecheck 통과; Desktop Vitest `134 files / 1039 tests passed`; design-system `23 files / 142 tests passed`; AC mock `36 passed, skipped=0, unexpected=0`; real QA inventory `213 tests in 83 files`.
+- 실제 서버 기반 Live QA는 이 세션에서 실행하지 않았으며, PM/개발책임자 최종 게이트로 남겼다. `docs/dev-reports/825-s5-null-semantics-r4.md`에 상세 대응과 검증을 기록했다.

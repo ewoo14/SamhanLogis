@@ -1,0 +1,70 @@
+=== HIGH-1 / C3 실서버 API 프로브 (게이트웨이 :8080 · mock OFF · SHA 438bd1c26) ===
+엔드포인트: POST /accounting/codef/import-scoped · submitMethod=DRY_RUN
+
+userId=a0000000-0000-0000-0000-000000000001
+
+----- C3-P1  scopeMode 누락 => 400 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK"}
+RES : {"success":false,"code":"INVALID_INPUT","message":"scopeMode 는 필수입니다","data":null,"timestamp":"2026-07-21T16:30:35.415705518Z"}
+HTTP=400
+
+----- C3-P2  scopeMode 오타(BOGUS) => 400 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"BOGUS"}
+RES : {"success":false,"code":"INVALID_INPUT","message":"scopeMode 는 ALL 또는 SELECTED 이어야 합니다","data":null,"timestamp":"2026-07-21T16:30:35.673447914Z"}
+HTTP=400
+
+----- C3-P3  scopeMode=null 명시 => 400 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":null}
+RES : {"success":false,"code":"INVALID_INPUT","message":"scopeMode 는 필수입니다","data":null,"timestamp":"2026-07-21T16:30:35.923178372Z"}
+HTTP=400
+
+----- HIGH1-P4  scopeMode=ALL type=BANK => 은행 ref 4개만 열거(조회 20) 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"ALL"}
+RES : {"success":true,"code":"OK","message":"거래내역 가져오기가 완료되었습니다.","data":{"fetchedCount":20,"importedCount":0,"duplicateSkippedCount":20,"matchedCount":0,"staleSkippedCount":0,"staleNormalizedNames":[],"unavailableSkippedCount":0,"unavailableNames":[]},"timestamp":"2026-07-21T16:30:36.202358999Z"}
+HTTP=200
+
+----- HIGH1-P5  scopeMode=ALL type=CARD => 카드 ref 3개만 열거(조회 15) 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"CARD","scopeMode":"ALL"}
+RES : {"success":true,"code":"OK","message":"거래내역 가져오기가 완료되었습니다.","data":{"fetchedCount":15,"importedCount":0,"duplicateSkippedCount":15,"matchedCount":0,"staleSkippedCount":0,"staleNormalizedNames":[],"unavailableSkippedCount":0,"unavailableNames":[]},"timestamp":"2026-07-21T16:30:36.465619315Z"}
+HTTP=200
+
+----- HIGH1-P6  scopeMode=ALL type=LOAN => 대출 ref 2개만 열거(조회 10) 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"LOAN","scopeMode":"ALL"}
+RES : {"success":true,"code":"OK","message":"거래내역 가져오기가 완료되었습니다.","data":{"fetchedCount":10,"importedCount":0,"duplicateSkippedCount":10,"matchedCount":0,"staleSkippedCount":0,"staleNormalizedNames":[],"unavailableSkippedCount":0,"unavailableNames":[]},"timestamp":"2026-07-21T16:30:36.734010788Z"}
+HTTP=200
+
+----- HIGH1-P7  scopeMode=ALL type=ALL => 전 카테고리 9 ref 열거(조회 45) 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"ALL","scopeMode":"ALL"}
+RES : {"success":true,"code":"OK","message":"거래내역 가져오기가 완료되었습니다.","data":{"fetchedCount":45,"importedCount":0,"duplicateSkippedCount":45,"matchedCount":0,"staleSkippedCount":0,"staleNormalizedNames":[],"unavailableSkippedCount":0,"unavailableNames":[]},"timestamp":"2026-07-21T16:30:37.014410681Z"}
+HTTP=200
+
+----- V65/C1-P8  scopeMode=ALL + explicit empty refs => 400 기대(ALL 에 ref 금지) -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"ALL","accountRefs":[],"cardRefs":[],"loanRefs":[]}
+RES : {"success":false,"code":"INVALID_INPUT","message":"scopeMode=ALL 실행에는 ref 목록을 보낼 수 없습니다.","data":null,"timestamp":"2026-07-21T16:30:37.276798868Z"}
+HTTP=400
+
+----- V65/C1-P9  scopeMode=ALL + 값있는 refs => 400 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"ALL","accountRefs":["국민 123456-78-901234"]}
+RES : {"success":false,"code":"INVALID_INPUT","message":"요청 본문이 비어 있거나 형식이 올바르지 않습니다.","data":null,"timestamp":"2026-07-21T16:30:37.528013498Z"}
+HTTP=400
+
+----- P10  scopeMode=SELECTED + 전부 빈 refs => 400 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"SELECTED","accountRefs":[],"cardRefs":[],"loanRefs":[]}
+RES : {"success":false,"code":"INVALID_INPUT","message":"scopeMode=SELECTED 실행에는 비어 있지 않은 ref 목록을 명시해야 합니다.","data":null,"timestamp":"2026-07-21T16:30:37.787041143Z"}
+HTTP=400
+
+----- P11  scopeMode=SELECTED + refs 필드 자체 누락 => 400 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"SELECTED"}
+RES : {"success":false,"code":"INVALID_INPUT","message":"scopeMode=SELECTED 실행에는 비어 있지 않은 ref 목록을 명시해야 합니다.","data":null,"timestamp":"2026-07-21T16:30:38.041092872Z"}
+HTTP=400
+
+----- P12  scopeMode=SELECTED + 계좌 1건 => 조회 5 기대 -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"BANK","scopeMode":"SELECTED","accountRefs":["국민 123456-78-901234"],"cardRefs":[],"loanRefs":[]}
+RES : {"success":false,"code":"INVALID_INPUT","message":"요청 본문이 비어 있거나 형식이 올바르지 않습니다.","data":null,"timestamp":"2026-07-21T16:30:38.294808172Z"}
+HTTP=400
+
+----- HIGH1-P13  scopeMode=SELECTED 계좌1건인데 type=ALL => 열거 확대 없이 조회 5 기대(선택 우선) -----
+REQ : {"from":"2026-07-01","to":"2026-07-22","connectedId":"connected-main","submitMethod":"DRY_RUN","type":"ALL","scopeMode":"SELECTED","accountRefs":["국민 123456-78-901234"],"cardRefs":[],"loanRefs":[]}
+RES : {"success":false,"code":"INVALID_INPUT","message":"요청 본문이 비어 있거나 형식이 올바르지 않습니다.","data":null,"timestamp":"2026-07-21T16:30:38.544641922Z"}
+HTTP=400
+

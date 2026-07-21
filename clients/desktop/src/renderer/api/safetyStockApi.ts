@@ -67,6 +67,8 @@ export interface SetSafetyStockRequest {
   warehouseId?: string | null
   threshold: number
   note?: string | null
+  /** 선택 범위 — 전체/선택 창고를 명시한다. */
+  scopeMode: 'ALL' | 'SELECTED'
 }
 
 /**

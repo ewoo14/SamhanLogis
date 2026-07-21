@@ -1,0 +1,49 @@
+=== V65 제약 실동작 프로브 (SHA 438bd1c26 · 실 accounting_db · 전부 ROLLBACK) ===
+목적: NOT VALID 가 legacy 는 보존하면서 신규 INSERT/UPDATE 는 계속 강제하는가
+
+### T1: NEW INSERT  SELECTED + empty refs  => expect REJECT
+BEGIN
+psql:/tmp/v65probe2.sql:4: ERROR:  new row for relation "user_codef_import_scope" violates check constraint "ck_user_codef_import_scope_refs_consistency"
+DETAIL:  Failing row contains (cb1d1d96-72cd-42af-9d7e-4359131746f8, a0000000-0000-0000-0000-000000000001, ZZ-probe-t1, [], [], [], BANK, 2026-07-22 01:09:49.391932, SYSTEM, null, null, null, null, f, SELECTED).
+ROLLBACK
+### T2: NEW INSERT  ALL + non-empty account refs  => expect REJECT
+BEGIN
+psql:/tmp/v65probe2.sql:10: ERROR:  new row for relation "user_codef_import_scope" violates check constraint "ck_user_codef_import_scope_refs_consistency"
+DETAIL:  Failing row contains (f6900979-9137-456e-8f9c-97cb58239928, a0000000-0000-0000-0000-000000000001, ZZ-probe-t2, ["x1"], [], [], BANK, 2026-07-22 01:09:49.39428, SYSTEM, null, null, null, null, f, ALL).
+ROLLBACK
+### T2b: NEW INSERT  ALL + non-empty LOAN refs only => expect REJECT
+BEGIN
+psql:/tmp/v65probe2.sql:16: ERROR:  new row for relation "user_codef_import_scope" violates check constraint "ck_user_codef_import_scope_refs_consistency"
+DETAIL:  Failing row contains (a0f8caa1-fce9-40d8-87f9-50dc770b5545, a0000000-0000-0000-0000-000000000001, ZZ-probe-t2b, [], [], ["L1"], BANK, 2026-07-22 01:09:49.395065, SYSTEM, null, null, null, null, f, ALL).
+ROLLBACK
+### T3: NEW INSERT  ALL + empty refs  => expect ACCEPT then rollback
+BEGIN
+INSERT 0 1
+ROLLBACK
+### T3b: NEW INSERT  SELECTED + one card ref  => expect ACCEPT then rollback
+BEGIN
+INSERT 0 1
+ROLLBACK
+### FINAL ROW COUNT (must still be 18, no ZZ-probe rows)
+ total | probe_rows 
+-------+------------
+    18 |          0
+(1 row)
+
+
+=== UPDATE 계열 (v65probe.sql T4/T5) ===
+### T4: UPDATE legacy violating row keeping violation => expect REJECT
+BEGIN
+psql:/tmp/v65probe.sql:21: ERROR:  new row for relation "user_codef_import_scope" violates check constraint "ck_user_codef_import_scope_refs_consistency"
+DETAIL:  Failing row contains (933b86bf-c3e8-463c-98b7-9116d2a9ffae, a0000000-0000-0000-0000-000000000001, empty-qa-001, [], [], [], BANK, 2026-06-27 13:49:08.286222, a0000000-0000-0000-0000-000000000001, 2026-06-27 13:49:08.286222, a0000000-0000-0000-0000-000000000001, null, null, f, SELECTED).
+ROLLBACK
+### T5: UPDATE legacy violating row INTO valid state => expect ACCEPT then rollback
+BEGIN
+UPDATE 1
+ROLLBACK
+### FINAL ROW COUNT (must still be 18)
+ total | selected | all_mode 
+-------+----------+----------
+    18 |       18 |        0
+(1 row)
+

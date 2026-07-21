@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.DailyClosing;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
 import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
+import com.samhanair.logis.accounting.domain.DailyClosingScopeMode;
 import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
 import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
@@ -107,6 +108,8 @@ public class DailyClosingService {
         if (actorUserId == null || actorUserId.isBlank()) {
             throw new IllegalArgumentException("actorUserId 는 필수입니다");
         }
+        DailyClosingScopeMode scopeMode = DailyClosingScopeMode.parse(request.scopeMode());
+        validateScope(scopeMode, request.partnerCode());
         LocalDate closingDate = request.closingDate();
         DailyClosingKind closingKind = resolveClosingKind(request.closingKind());
         DailyClosingSourceKind sourceKind = resolveSourceKind(request.sourceKind());
@@ -160,6 +163,16 @@ public class DailyClosingService {
         closing.lock(actorUserId);
 
         return DailyClosingResponse.of(closing, resolvedPartnerCode, resolvedBizNo);
+    }
+
+    /** 새 일마감 요청의 명시적 거래처 범위와 실제 선택값을 이중 검증한다. */
+    private static void validateScope(DailyClosingScopeMode scopeMode, String partnerCode) {
+        boolean hasPartner = partnerCode != null && !partnerCode.isBlank();
+        if ((scopeMode == DailyClosingScopeMode.ALL && hasPartner)
+                || (scopeMode == DailyClosingScopeMode.SELECTED && !hasPartner)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "scopeMode 와 거래처 선택값이 일치하지 않습니다");
+        }
     }
 
     /**

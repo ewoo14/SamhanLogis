@@ -25,6 +25,10 @@ public record CodefImportScopedRequest(
 
         CodefImportType type,
 
+        @NotNull(message = "scopeMode 는 필수입니다")
+        @Pattern(regexp = "ALL|SELECTED", message = "scopeMode 는 ALL 또는 SELECTED 이어야 합니다")
+        String scopeMode,
+
         List<@NotBlank(message = "계좌 식별값은 비어있을 수 없습니다") String> accountRefs,
 
         List<@NotBlank(message = "카드 식별값은 비어있을 수 없습니다") String> cardRefs,

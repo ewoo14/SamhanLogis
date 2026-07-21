@@ -14,6 +14,11 @@
   box-sizing: border-box;
 }
 
+.pressed {
+  border-color: var(--color-brand-500);
+  background-color: var(--color-brand-50);
+}
+
 .label {
   color: var(--color-brand-700);
   font-weight: var(--font-weight-semibold);
@@ -30,6 +35,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 240px;
+}
+
+/*
+ * 누름 가능(pressable) chip 의 내부 wrapper — role="button" 을 라벨/값 텍스트에만 부여해
+ * 제거 <button> 과의 ARIA 중첩(interactive-in-interactive)을 피하기 위한 요소(#825 슬5 R1).
+ * .chip 과 동일한 inline-flex+gap 을 복제해 감싸지 않았을 때와 동일한 시각 레이아웃을 유지한다.
+ */
+.pressable {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.pressable:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 1px;
 }
 
 .remove {

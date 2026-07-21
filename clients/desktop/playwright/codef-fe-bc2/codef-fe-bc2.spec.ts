@@ -41,6 +41,9 @@ test.describe('CODEF FE BC2 거래내역 import + source 탭 + 매칭', () => {
     await page.getByTestId('codef-import-type').selectOption('ALL')
     await page.getByTestId('codef-import-from').fill(IMPORT_FROM)
     await page.getByTestId('codef-import-to').fill(IMPORT_TO)
+    // [#825 S5] 빈 선택 목록은 전체로 폴백하지 않는다. BC2의 전체 조회 의도를
+    // 명시적인 ALL 범위로 고정해 import/source 탭 계약만 검증한다.
+    await page.getByTestId('codef-all-scope-chip').click()
     await page.getByTestId('codef-import-button').click()
 
     await expect(page.getByTestId('codef-import-result')).toContainText('조회')

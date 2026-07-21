@@ -1,0 +1,51 @@
+=== #825 슬5 R5 라이브QA PRESTATE (착수 전) 2026-07-22 08:00:39     ===
+
+[A] 무관 컨테이너 baseline (gateway/postgres/groupware — 종료 후 무변경 증명용)
+/samhan-api-gateway | id=dd569fd30b3d311a6f768aab8c7fb5aaf8169c2d54d64defd904fd580ce6a122 | StartedAt=2026-07-21T10:04:22.400780742Z | Status=running
+/samhan-postgres | id=96c5c8491c5853611f5ba2ad4a47cbd7783bf8f5ae062ffe1f287b2aefa521e0 | StartedAt=2026-07-21T10:04:22.45266533Z | Status=running
+/samhan-groupware-service | id=0f4b76cc0012f96698f75f7cef133e9e52b13ca028e24b88f9d29992b75c2995 | StartedAt=2026-07-21T22:55:24.327645231Z | Status=running
+
+[B] user_codef_import_scope 전체 덤프 (dev_master connected-main 포함)
+               user_id                |         connected_id          | scope_mode | default_import_type |              account_ref_selections               | card_ref_selections  | loan_ref_selections  | is_deleted 
+--------------------------------------+-------------------------------+------------+---------------------+---------------------------------------------------+----------------------+----------------------+------------
+ a0000000-0000-0000-0000-000000000001 | concurrency-test-001          | SELECTED   | CARD                | ["b1","b2","b3"]                                  | ["c1"]               | []                   | f
+ a0000000-0000-0000-0000-000000000001 | connected-main                | SELECTED   | BANK                | ["국민 123456-78-901234","신한 987654-32-109876"] | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | dry-run-conn-001              | SELECTED   | ALL                 | ["ref-updated-001"]                               | ["card-updated-001"] | ["loan-updated-001"] | f
+ a0000000-0000-0000-0000-000000000001 | empty-qa-001                  | SELECTED   | ALL                 | []                                                | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | empty-scope-888               | SELECTED   | ALL                 | []                                                | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | final-conn-001                | SELECTED   | BANK                | ["ref-A","ref-B"]                                 | ["card-A"]           | []                   | f
+ a0000000-0000-0000-0000-000000000001 | parallel-test-001             | SELECTED   | ALL                 | ["acc-Y"]                                         | ["card-2"]           | []                   | f
+ a0000000-0000-0000-0000-000000000001 | qa-conn-concurrent-001        | SELECTED   | ALL                 | ["acc-qa-003"]                                    | ["card-qa-001"]      | []                   | f
+ a0000000-0000-0000-0000-000000000001 | qa-conn-race-001              | SELECTED   | ALL                 | ["acc-B1"]                                        | ["card-B1"]          | []                   | f
+ a0000000-0000-0000-0000-000000000001 | qa-conn-test-001              | SELECTED   | BANK                | ["KR-BANK-001"]                                   | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | qa-regression-test            | SELECTED   | BANK                | ["KR-BANK-001"]                                   | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | test-conn                     | SELECTED   | BANK                | ["test-ref-001","test-ref-002"]                   | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | test-conn-001                 | SELECTED   | BANK                | ["account-ref-001","account-ref-002"]             | ["card-ref-001"]     | []                   | f
+ a0000000-0000-0000-0000-000000000001 | test-conn-123                 | SELECTED   | BANK                | ["test-acc-001"]                                  | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | test-conn-qa                  | SELECTED   | BANK                | ["acc-001"]                                       | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | test-conn-regression-01       | SELECTED   | ALL                 | ["ref-account-001"]                               | ["ref-card-001"]     | []                   | f
+ a0000000-0000-0000-0000-000000000001 | test-connected-empty-scope-99 | SELECTED   | ALL                 | []                                                | []                   | []                   | f
+ a0000000-0000-0000-0000-000000000001 | upsert-conn-test              | SELECTED   | BANK                | ["ACC-001"]                                       | []                   | []                   | f
+(18 rows)
+
+
+[C] bank_transaction 착수 전 집계 (source별)
+   source   | active | total 
+------------+--------+-------
+ CODEF_BANK |    200 |   200
+ CODEF_CARD |     65 |    65
+ CODEF_LOAN |     45 |    45
+ CSV_IMPORT |      6 |     6
+(4 rows)
+
+[C-2] bank_transaction 전체 활성 건수
+   316
+
+=== [D] bank_transaction id 스냅샷 테이블 생성 (합성행 정밀 삭제용) ===
+NOTICE:  table "bank_transaction_prestate_r5" does not exist, skipping
+DROP TABLE
+SELECT 316
+ prestate id 스냅샷 건수: 316
+
+[E] connected-main 원상복구 목표값 (종료 시 이 값으로 복원)
+  scope_mode=SELECTED, default_import_type=BANK, account=[국민 123456-78-901234, 신한 987654-32-109876], card=[], loan=[]

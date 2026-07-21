@@ -1,0 +1,19 @@
+=== #825 슬5 R5 — API 직접 실행 검증 (실서버 :8080, DRY_RUN) 2026-07-22 08:05:13 ===
+이 측정이 증명하는 것: BE resolveEffectiveType 가 저장 scope=ALL 의 defaultImportType 을 실행 권위값으로 강제하는지 — 결함 경로(type=ALL) 직접 재현.
+
+[로그인] userId=a0000000-0000-0000-0000-000000000001 role=MASTER tokenLen=352
+
+=== [A] 판별자 확인 — 저장 scope 無 + scopeMode=ALL (fallback=요청 type 그대로) ===
+  type=ALL  scopeMode=ALL → fetched=45 (기대 45) PASS | imported=45 dup=0 status=200
+  type=BANK scopeMode=ALL → fetched=20 (기대 20) PASS | imported=20 dup=0 status=200
+  type=CARD scopeMode=ALL → fetched=15 (기대 15) PASS | imported=15 dup=0 status=200
+  type=LOAN scopeMode=ALL → fetched=10 (기대 10) PASS | imported=10 dup=0 status=200
+
+=== [B] 확대 차단(핵심) — 저장 scope={ALL, CARD} ===
+  저장: status=200 scopeMode=ALL defaultImportType=CARD
+  재조회: scopeMode=ALL defaultImportType=CARD
+  B-1 정상경로  {type:CARD,  scopeMode:ALL} → fetched=15 (기대 15) PASS
+  B-2 확대시도  {type:ALL,   scopeMode:ALL} → fetched=15 (기대 15, 차단) PASS(차단됨)
+  B-3 대조(무scope) {type:ALL, scopeMode:ALL} → fetched=45 (기대 45) PASS
+
+★ 결론: 저장 CARD 에 확대요청(ALL) → 15 건 (무scope 동일요청 45건과 대조). HIGH-1 확대 차단 fix 실동작 확인

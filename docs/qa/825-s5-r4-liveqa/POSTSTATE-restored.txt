@@ -1,0 +1,29 @@
+         connected_id          | scope_mode | default_import_type |              account_ref_selections               | card_ref_selections  | loan_ref_selections  
+-------------------------------+------------+---------------------+---------------------------------------------------+----------------------+----------------------
+ concurrency-test-001          | SELECTED   | CARD                | ["b1","b2","b3"]                                  | ["c1"]               | []
+ connected-main                | SELECTED   | BANK                | ["국민 123456-78-901234","신한 987654-32-109876"] | []                   | []
+ dry-run-conn-001              | SELECTED   | ALL                 | ["ref-updated-001"]                               | ["card-updated-001"] | ["loan-updated-001"]
+ empty-qa-001                  | SELECTED   | ALL                 | []                                                | []                   | []
+ empty-scope-888               | SELECTED   | ALL                 | []                                                | []                   | []
+ final-conn-001                | SELECTED   | BANK                | ["ref-A","ref-B"]                                 | ["card-A"]           | []
+ parallel-test-001             | SELECTED   | ALL                 | ["acc-Y"]                                         | ["card-2"]           | []
+ qa-conn-concurrent-001        | SELECTED   | ALL                 | ["acc-qa-003"]                                    | ["card-qa-001"]      | []
+ qa-conn-race-001              | SELECTED   | ALL                 | ["acc-B1"]                                        | ["card-B1"]          | []
+ qa-conn-test-001              | SELECTED   | BANK                | ["KR-BANK-001"]                                   | []                   | []
+ qa-regression-test            | SELECTED   | BANK                | ["KR-BANK-001"]                                   | []                   | []
+ test-conn                     | SELECTED   | BANK                | ["test-ref-001","test-ref-002"]                   | []                   | []
+ test-conn-001                 | SELECTED   | BANK                | ["account-ref-001","account-ref-002"]             | ["card-ref-001"]     | []
+ test-conn-123                 | SELECTED   | BANK                | ["test-acc-001"]                                  | []                   | []
+ test-conn-qa                  | SELECTED   | BANK                | ["acc-001"]                                       | []                   | []
+ test-conn-regression-01       | SELECTED   | ALL                 | ["ref-account-001"]                               | ["ref-card-001"]     | []
+ test-connected-empty-scope-99 | SELECTED   | ALL                 | []                                                | []                   | []
+ upsert-conn-test              | SELECTED   | BANK                | ["ACC-001"]                                       | []                   | []
+(18 rows)
+
+ version |                 description                  | success |        installed_on        
+---------+----------------------------------------------+---------+----------------------------
+ 65      | add user codef import scope refs consistency | t       | 2026-07-22 01:06:09.371816
+ 64      | add user codef import scope mode             | t       | 2026-07-22 00:16:53.955238
+ 63      | widen accounting partner code 100            | t       | 2026-07-20 03:47:44.375346
+(3 rows)
+

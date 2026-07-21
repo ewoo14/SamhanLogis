@@ -96,7 +96,7 @@ class SafetyStockServiceTest {
     @Test
     @DisplayName("setSafetyStock: 신규 설정이 없으면 새로 생성하여 반환")
     void setSafetyStock_newConfig_createsAndReturns() {
-        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 50, "안전재고 메모");
+        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 50, "안전재고 메모", "SELECTED");
 
         when(safetyStockConfigRepository.findByProductIdAndWarehouseId(productId, warehouseId))
                 .thenReturn(Optional.empty());
@@ -118,7 +118,7 @@ class SafetyStockServiceTest {
     @DisplayName("setSafetyStock: 기존 설정이 있으면 임계값을 갱신한다")
     void setSafetyStock_existingConfig_updatesThreshold() {
         SafetyStockConfig existing = SafetyStockConfig.create(productId, warehouseId, 30, "기존 메모");
-        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 80, "갱신 메모");
+        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 80, "갱신 메모", "SELECTED");
 
         when(safetyStockConfigRepository.findByProductIdAndWarehouseId(productId, warehouseId))
                 .thenReturn(Optional.of(existing));
@@ -138,10 +138,32 @@ class SafetyStockServiceTest {
                 .thenThrow(new BusinessException(
                         com.samhanair.logis.common.exception.ErrorCode.NOT_FOUND, "제품 없음"));
 
-        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 50, null);
+        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 50, null, "SELECTED");
 
         assertThatThrownBy(() -> safetyStockService.setSafetyStock(productId, req))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    @DisplayName("서비스 이중 가드 — ALL 창고에 warehouseId가 있으면 제품 조회 전에 차단")
+    void setSafetyStock_allWithWarehouse_rejectedBeforeProductLookup() {
+        SafetyStockSetRequest req = new SafetyStockSetRequest(warehouseId, 50, null, "ALL");
+
+        assertThatThrownBy(() -> safetyStockService.setSafetyStock(productId, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("scopeMode");
+        verify(productClient, never()).requireExists(productId);
+    }
+
+    @Test
+    @DisplayName("서비스 이중 가드 — SELECTED 창고 미지정이면 제품 조회 전에 차단")
+    void setSafetyStock_selectedWithoutWarehouse_rejectedBeforeProductLookup() {
+        SafetyStockSetRequest req = new SafetyStockSetRequest(null, 50, null, "SELECTED");
+
+        assertThatThrownBy(() -> safetyStockService.setSafetyStock(productId, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("scopeMode");
+        verify(productClient, never()).requireExists(productId);
     }
 
     // ------------------------------------------------------------------

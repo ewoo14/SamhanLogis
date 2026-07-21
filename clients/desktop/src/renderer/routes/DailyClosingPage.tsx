@@ -8,6 +8,7 @@ import {
   Modal,
   PartnerAutocomplete,
   Spinner,
+  TagChip,
   type DataTableColumn,
   type PartnerOption,
 } from '@samhan/design-system'
@@ -20,6 +21,7 @@ import {
   type DailyClosing,
   type DailyClosingKind,
   type DailyClosingSourceKind,
+  type DailyClosingScopeMode,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
 import {
@@ -55,6 +57,9 @@ const REVALIDATION_STATUS_LABEL: Record<DailyProductRevalidationStatus, string> 
   NOT_MEASURABLE: '측정불가',
   OUT_OF_SCOPE: '대상외',
 }
+
+/** 범위 미선택 안내 문구 id — 잠긴 실행 버튼/칩에서 aria-describedby 로 사유를 연결(#825 슬5 R1 item4). */
+const SCOPE_HINT_ID = 'daily-closing-scope-hint-text'
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -153,6 +158,7 @@ export function DailyClosingPage() {
   const [sourceKind, setSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [execDate, setExecDate] = useState(today())
   const [execPartner, setExecPartner] = useState<PartnerOption | null>(null)
+  const [execScopeMode, setExecScopeMode] = useState<DailyClosingScopeMode | null>(null)
   const [execPartnerCommitted, setExecPartnerCommitted] = useState(true)
   /**
    * [#825 재수렴 CM-b·#4] 실행 거래처 입력의 미확정 draft 가드.
@@ -165,11 +171,18 @@ export function DailyClosingPage() {
    * 표시값(ref)을 확정 선택과 대조해 (빈 draft 포함) 불일치면 차단하고 안내한다.
    */
   const execPartnerInputRef = useRef<HTMLInputElement | null>(null)
+  const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const [execPartnerDraftError, setExecPartnerDraftError] = useState('')
   const [execDescription, setExecDescription] = useState('')
   const [execKind, setExecKind] = useState<DailyClosingKind>('SALES')
   const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
+
+  const focusAllScopeChip = () => {
+    setTimeout(() => {
+      allScopeChipRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus()
+    }, 0)
+  }
 
   const queryKind = closingKind === 'ALL' ? undefined : closingKind
   const querySourceKind = closingKind === 'ALL' ? undefined : sourceKind
@@ -198,14 +211,22 @@ export function DailyClosingPage() {
   })
 
   const closeMutation = useMutation({
-    mutationFn: () =>
-      createDailyClosing({
+    mutationFn: () => {
+      if (execScopeMode === null) {
+        // 방어적 가드 — 실행 버튼이 이미 execScopeMode!==null 을 강제하므로 정상 경로로는
+        // 도달하지 않는다. 도달 시에도 '전체'로 무음 폴백하지 않고 명시적으로 거부한다
+        // (#825 슬5 R1 item10 — 회계 무결성 도메인은 방어 방향이 reject 여야 한다).
+        throw new Error('범위를 선택하지 않아 마감을 실행할 수 없습니다. 전체 또는 거래처를 선택하세요.')
+      }
+      return createDailyClosing({
         closingDate: execDate,
         partnerCode: execPartner?.partnerCode || undefined,
+        scopeMode: execScopeMode,
         description: execDescription.trim() || undefined,
         closingKind: execKind,
         sourceKind: compatibleSource(execKind, execSourceKind),
-      }),
+      })
+    },
     onSuccess: () => {
       setExecDescription('')
       void queryClient.invalidateQueries({ queryKey: ['daily-closings'] })
@@ -228,6 +249,10 @@ export function DailyClosingPage() {
    * 정합이 회복되어 가드에 걸리지 않는다.
    */
   const handleExecuteClosing = () => {
+    if (execScopeMode === null) {
+      setExecPartnerDraftError("전체 마감하려면 '전체' 칩을 선택하거나 거래처를 선택하세요.")
+      return
+    }
     const typedDraft = (execPartnerInputRef.current?.value ?? '').trim()
     const confirmedLabel = (execPartner?.name ?? '').trim()
     // 이름 문자열은 동명이 가능하므로 업무키를 기준으로 계산된 출력 계약만 신뢰한다.
@@ -602,6 +627,7 @@ export function DailyClosingPage() {
                 value={execPartner}
                 onChange={(option) => {
                   setExecPartner(option)
+                  setExecScopeMode(option ? 'SELECTED' : null)
                   setExecPartnerCommitted(true)
                   // [#825 재수렴 CM-b] 선택 확정/해제 즉시 draft 안내 소거 — 화면=상태 정합 회복.
                   setExecPartnerDraftError('')
@@ -614,7 +640,49 @@ export function DailyClosingPage() {
                 ariaLabel="거래처"
                 placeholder="거래처명 또는 코드 선택"
                 inputTestId="daily-closing-exec-partner"
+                disabled={!canExecute || execScopeMode === 'ALL'}
               />
+            </div>
+            <div
+              role="group"
+              aria-label="일마감 거래처 범위"
+              data-testid="daily-closing-scope-chips"
+              style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}
+            >
+              <TagChip
+                label="범위"
+                value="전체"
+                removeLabel="전체 범위"
+                onClick={canExecute ? () => {
+                  setExecScopeMode('ALL')
+                  setExecPartner(null)
+                  setExecPartnerCommitted(true)
+                  setExecPartnerDraftError('')
+                } : undefined}
+                ref={allScopeChipRef}
+                onRemove={canExecute && execScopeMode === 'ALL' ? () => { setExecScopeMode(null); focusAllScopeChip() } : undefined}
+                data-testid="daily-closing-all-chip"
+                className={!canExecute ? 'scope-chip--disabled' : undefined}
+                role={canExecute ? 'button' : undefined}
+                tabIndex={canExecute ? 0 : undefined}
+                aria-pressed={canExecute ? execScopeMode === 'ALL' : undefined}
+                aria-describedby={canExecute && execScopeMode === null ? SCOPE_HINT_ID : undefined}
+              />
+              {execScopeMode === 'SELECTED' && execPartner ? (
+                <TagChip
+                  label="거래처"
+                  value={execPartner.name}
+                  removeLabel={execPartner.name}
+                  onRemove={canExecute ? () => {
+                    setExecPartner(null)
+                    setExecScopeMode(null)
+                    setExecPartnerCommitted(true)
+                    setExecPartnerDraftError('')
+                    focusAllScopeChip()
+                  } : undefined}
+                  data-testid="daily-closing-selected-chip"
+                />
+              ) : null}
             </div>
             {execPartner ? (
               <Button
@@ -625,6 +693,7 @@ export function DailyClosingPage() {
                 data-testid="daily-closing-exec-partner-clear"
                 onClick={() => {
                   setExecPartner(null)
+                  setExecScopeMode(null)
                   setExecPartnerCommitted(true)
                   setExecPartnerDraftError('')
                 }}
@@ -645,22 +714,40 @@ export function DailyClosingPage() {
             variant="primary"
             data-testid="daily-closing-exec-button"
             onClick={handleExecuteClosing}
-            disabled={!canExecute || closeMutation.isPending || !execDate}
+            disabled={!canExecute || closeMutation.isPending || !execDate || execScopeMode === null}
+            aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
           >
             {closeMutation.isPending ? '처리 중' : '마감 실행'}
           </Button>
         </div>
+        {execScopeMode === null ? (
+          // #825 슬5 R1 item12 — 상시 표시 안내는 role="alert"(긴급/동적 공지 전용) 대신
+          // role="status"(polite)로 통일. 색도 대비 2.15:1(AA 미달)이던 --state-warning 대신
+          // --ink-secondary(5.77:1)로 세 화면 통일.
+          // item13 — "전체" 칩만 안내하면 거래처 지정 의도 사용자를 전체 마감으로 유도하므로
+          // 양쪽 경로(전체/거래처)를 모두 안내한다.
+          <p
+            role="status"
+            id={SCOPE_HINT_ID}
+            data-testid="daily-closing-scope-hint"
+            style={{ margin: '8px 0 0', color: 'var(--ink-secondary, #5C6773)', fontSize: 12 }}
+          >
+            {canExecute
+              ? "전체로 처리하려면 '전체' 칩을 선택하세요. 특정 거래처만 처리하려면 거래처를 선택하세요."
+              : '일마감 실행 권한이 없어 범위를 선택하거나 실행할 수 없습니다. 권한 보유자에게 요청하세요.'}
+          </p>
+        ) : null}
         {execPartnerDraftError ? (
           <p
             role="alert"
             data-testid="daily-closing-exec-partner-draft-error"
-            style={{ margin: '8px 0 0', color: 'var(--state-danger)', fontSize: 12 }}
+            style={{ margin: '8px 0 0', color: 'var(--color-danger-700)', fontSize: 12 }}
           >
             {execPartnerDraftError}
           </p>
         ) : null}
         {!canExecute ? (
-          <p style={{ margin: '8px 0 0', color: 'var(--state-danger)', fontSize: 12 }}>
+          <p style={{ margin: '8px 0 0', color: 'var(--color-danger-700)', fontSize: 12 }}>
             일마감 실행 권한이 없습니다 — 일마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}

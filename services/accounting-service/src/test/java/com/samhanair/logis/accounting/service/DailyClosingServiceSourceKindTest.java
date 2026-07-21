@@ -70,7 +70,7 @@ class DailyClosingServiceSourceKindTest {
                 .thenAnswer(inv -> inv.getArgument(0));
 
         DailyClosingResponse response = service.close(
-                new CreateDailyClosingRequest(DATE, null, null, null),
+                new CreateDailyClosingRequest(DATE, null, "ALL", null, null),
                 "accountant", null);
 
         assertThat(response.closingKind()).isEqualTo(DailyClosingKind.SALES);
@@ -96,7 +96,7 @@ class DailyClosingServiceSourceKindTest {
                 .thenAnswer(inv -> inv.getArgument(0));
 
         DailyClosingResponse response = service.close(
-                new CreateDailyClosingRequest(DATE, null,
+                new CreateDailyClosingRequest(DATE, null, "ALL",
                         DailyClosingKind.SALES, DailyClosingSourceKind.SALES_SLIP),
                 "accountant", null);
 
@@ -122,7 +122,7 @@ class DailyClosingServiceSourceKindTest {
                 .thenAnswer(inv -> inv.getArgument(0));
 
         DailyClosingResponse response = service.close(
-                new CreateDailyClosingRequest(DATE, null,
+                new CreateDailyClosingRequest(DATE, null, "ALL",
                         DailyClosingKind.PURCHASE, DailyClosingSourceKind.PURCHASE_SLIP),
                 "accountant", null);
 
@@ -138,7 +138,7 @@ class DailyClosingServiceSourceKindTest {
     @DisplayName("매출 마감에 PURCHASE_SLIP sourceKind 를 섞으면 차단한다")
     void invalidKindSourceCombinationRejected() {
         assertThatThrownBy(() -> service.close(
-                new CreateDailyClosingRequest(DATE, null,
+                new CreateDailyClosingRequest(DATE, null, "ALL",
                         DailyClosingKind.SALES, DailyClosingSourceKind.PURCHASE_SLIP),
                 "accountant", null))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -150,10 +150,21 @@ class DailyClosingServiceSourceKindTest {
     }
 
     @Test
+    @DisplayName("서비스 이중 가드 — scopeMode 와 거래처 선택값이 모순되면 저장 전에 차단")
+    void invalidScopeRejectedBeforeAggregation() {
+        assertThatThrownBy(() -> service.close(
+                new CreateDailyClosingRequest(DATE, null, "SELECTED",
+                        DailyClosingKind.SALES, DailyClosingSourceKind.TAX_INVOICE),
+                "accountant", null))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("scopeMode");
+    }
+
+    @Test
     @DisplayName("매입 마감에 SALES_SLIP sourceKind 를 섞으면 차단한다 (대칭 분기)")
     void invalidKindSourceCombinationRejected_반대분기() {
         assertThatThrownBy(() -> service.close(
-                new CreateDailyClosingRequest(DATE, null,
+                new CreateDailyClosingRequest(DATE, null, "ALL",
                         DailyClosingKind.PURCHASE, DailyClosingSourceKind.SALES_SLIP),
                 "accountant", null))
                 .isInstanceOf(IllegalArgumentException.class)

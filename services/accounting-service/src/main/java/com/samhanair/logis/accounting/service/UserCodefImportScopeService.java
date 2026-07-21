@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.domain.UserCodefImportScope;
+import com.samhanair.logis.accounting.domain.CodefScopeMode;
 import com.samhanair.logis.accounting.repository.UserCodefImportScopeRepository;
 import com.samhanair.logis.accounting.web.dto.CodefImportScopeRequest;
 import com.samhanair.logis.accounting.web.dto.CodefImportScopeResponse;
@@ -32,20 +33,39 @@ public class UserCodefImportScopeService {
      * @return 저장된 scope 응답
      */
     public CodefImportScopeResponse upsert(UUID userId, CodefImportScopeRequest request) {
+        CodefScopeMode scopeMode = parseScopeMode(request.scopeMode());
+        validateScope(scopeMode, request.accountRefs(), request.cardRefs(), request.loanRefs());
         try {
-            return upsertInNewTransaction(userId, request);
+            return upsertInNewTransaction(userId, request, scopeMode);
         } catch (DataIntegrityViolationException | ConstraintViolationException ex) {
-            return upsertInNewTransaction(userId, request);
+            return upsertInNewTransaction(userId, request, scopeMode);
         }
     }
 
-    private CodefImportScopeResponse upsertInNewTransaction(UUID userId, CodefImportScopeRequest request) {
-        TransactionTemplate template = new TransactionTemplate(transactionManager);
-        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        return template.execute(status -> upsertOnce(userId, request));
+    /** 새 CODEF scope 요청의 명시적 범위와 선택 목록을 이중 검증한다. */
+    private static void validateScope(CodefScopeMode scopeMode, java.util.List<String> accountRefs,
+                                      java.util.List<String> cardRefs, java.util.List<String> loanRefs) {
+        boolean hasSelection = hasValues(accountRefs) || hasValues(cardRefs) || hasValues(loanRefs);
+        if ((scopeMode == CodefScopeMode.ALL && hasSelection)
+                || (scopeMode == CodefScopeMode.SELECTED && !hasSelection)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "scopeMode 와 선택 목록이 일치하지 않습니다");
+        }
     }
 
-    private CodefImportScopeResponse upsertOnce(UUID userId, CodefImportScopeRequest request) {
+    private static boolean hasValues(java.util.List<String> refs) {
+        return refs != null && !refs.isEmpty();
+    }
+
+    private CodefImportScopeResponse upsertInNewTransaction(UUID userId, CodefImportScopeRequest request,
+                                                             CodefScopeMode scopeMode) {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template.execute(status -> upsertOnce(userId, request, scopeMode));
+    }
+
+    private CodefImportScopeResponse upsertOnce(UUID userId, CodefImportScopeRequest request,
+                                                CodefScopeMode scopeMode) {
         UserCodefImportScope scope = repository
                 .findByUserIdAndConnectedId(userId, request.connectedId().trim())
                 .orElseGet(() -> UserCodefImportScope.create(userId, request.connectedId()));
@@ -53,7 +73,8 @@ public class UserCodefImportScopeService {
                 request.accountRefs(),
                 request.cardRefs(),
                 request.loanRefs(),
-                request.defaultImportType());
+                request.defaultImportType(),
+                scopeMode);
         return CodefImportScopeResponse.from(repository.saveAndFlush(scope));
     }
 
@@ -78,6 +99,14 @@ public class UserCodefImportScopeService {
     private static void validateConnectedId(String connectedId) {
         if (connectedId == null || connectedId.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "연결 식별자는 필수입니다.");
+        }
+    }
+
+    private static CodefScopeMode parseScopeMode(String rawScopeMode) {
+        try {
+            return CodefScopeMode.parse(rawScopeMode);
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
         }
     }
 }

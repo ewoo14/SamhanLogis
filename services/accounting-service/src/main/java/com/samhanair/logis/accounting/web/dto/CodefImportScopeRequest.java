@@ -1,7 +1,9 @@
 package com.samhanair.logis.accounting.web.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -18,6 +20,25 @@ public record CodefImportScopeRequest(
         List<@NotBlank(message = "대출 식별값은 비어있을 수 없습니다") String> loanRefs,
 
         @NotNull(message = "기본 가져오기 구분은 필수입니다")
-        CodefImportType defaultImportType
+        CodefImportType defaultImportType,
+
+        @NotNull(message = "scopeMode 는 필수입니다")
+        @Pattern(regexp = "ALL|SELECTED", message = "scopeMode 는 ALL 또는 SELECTED 이어야 합니다")
+        String scopeMode
 ) {
+
+    /** 선택 모드와 계좌·카드·대출 선택 목록의 모순 입력을 DTO 단계에서 차단한다. */
+    @AssertTrue(message = "scopeMode 와 선택 목록이 일치하지 않습니다")
+    public boolean isScopeSelectionConsistent() {
+        if (scopeMode == null) {
+            return true;
+        }
+        boolean hasSelection = hasValues(accountRefs) || hasValues(cardRefs) || hasValues(loanRefs);
+        return ("ALL".equals(scopeMode) && !hasSelection)
+                || ("SELECTED".equals(scopeMode) && hasSelection);
+    }
+
+    private static boolean hasValues(List<String> refs) {
+        return refs != null && !refs.isEmpty();
+    }
 }

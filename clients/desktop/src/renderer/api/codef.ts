@@ -2,6 +2,7 @@ import { apiClient, type ApiEnvelope } from './client'
 
 export type CodefImportType = 'BANK' | 'CARD' | 'LOAN' | 'ALL'
 export type CodefSubmitMethod = 'DRY_RUN' | 'CODEF'
+export type CodefScopeMode = 'ALL' | 'SELECTED'
 
 export interface CodefBankAccountItem {
   ref: string
@@ -30,6 +31,12 @@ export interface CodefImportScope {
   cardRefs: string[]
   loanRefs: string[]
   defaultImportType: CodefImportType
+  /**
+   * 저장된 선택 범위. 저장 요청(PUT)에서는 항상 명시(ALL/SELECTED)해야 한다.
+   * 조회 응답(GET)에서는 한 번도 저장한 적 없으면 {@code null}(미저장)로 온다 —
+   * '전체 저장'과 '미저장'을 재방문 시에도 구별하기 위한 3-상태 필드다(#825 슬5 R1 H-4).
+   */
+  scopeMode: CodefScopeMode | null
 }
 
 export interface CodefScopedImportRequest {
@@ -37,6 +44,7 @@ export interface CodefScopedImportRequest {
   from: string
   to: string
   type: CodefImportType
+  scopeMode: CodefScopeMode
   accountRefs?: string[] | null
   cardRefs?: string[] | null
   loanRefs?: string[] | null

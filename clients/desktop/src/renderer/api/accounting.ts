@@ -1169,6 +1169,7 @@ export async function getMonthlySummary(
  */
 export type DailyClosingKind = 'SALES' | 'PURCHASE'
 export type DailyClosingSourceKind = 'TAX_INVOICE' | 'SALES_SLIP' | 'PURCHASE_SLIP'
+export type DailyClosingScopeMode = 'ALL' | 'SELECTED'
 
 export interface DailyClosing {
   closingKind: DailyClosingKind
@@ -1223,6 +1224,8 @@ export interface CreateDailyClosingRequest {
   closingDate: string
   /** 거래처 코드 (선택 — 미지정 시 해당일 전체 마감). */
   partnerCode?: string
+  /** 선택 범위 — 전체/선택 거래처를 명시한다. */
+  scopeMode: DailyClosingScopeMode
   /** 메모 (선택, ≤500자). */
   description?: string
   closingKind?: DailyClosingKind

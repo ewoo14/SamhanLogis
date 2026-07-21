@@ -164,6 +164,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
 
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", LocalDate.now().toString());
+        body.put("scopeMode", "ALL");
 
         // view-only override → 403 FORBIDDEN
         mockMvc.perform(post("/accounting/daily-closings")
@@ -244,6 +245,7 @@ class AccountingDynamicPermissionIT extends AbstractPostgresIT {
 
         Map<String, Object> body = new HashMap<>();
         body.put("closingDate", LocalDate.now().minusDays(1).toString());
+        body.put("scopeMode", "ALL");
 
         mockMvc.perform(post("/accounting/daily-closings")
                         .header("X-User-Id", UUID.randomUUID().toString())

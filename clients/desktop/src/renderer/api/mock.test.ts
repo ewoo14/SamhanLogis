@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AxiosRequestConfig } from 'axios'
-import { getMockResponse, MOCK_AUTH, mockPartnerByCode } from './mock'
+import { getMockResponse, MOCK_AUTH, mockPartnerByCode, resolveMockCodefRefs } from './mock'
 import { parseDocumentTemplate } from '../print/templateSchema'
 import type { MonthlyIncomeStatementResponse } from './accounting'
 import { querySlips } from './slip'
@@ -1513,6 +1513,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: ['삼한 정비카드'],
       loanRefs: [],
       defaultImportType: 'ALL',
+      scopeMode: 'SELECTED',
     }
 
     const saved = mockRequest({
@@ -1533,6 +1534,7 @@ describe('mock CODEF account selection BC3 contract', () => {
         from: '2026-06-01',
         to: '2026-06-26',
         type: 'ALL',
+        scopeMode: 'SELECTED',
         accountRefs: saved.data.accountRefs,
         cardRefs: saved.data.cardRefs,
         loanRefs: saved.data.loanRefs,
@@ -1576,7 +1578,7 @@ describe('mock CODEF account selection BC3 contract', () => {
     expect(Number(imported.data.totalRows)).toBeGreaterThan(0)
   })
 
-  it('scope 미저장 조회는 200 envelope + empty scope 를 반환한다', () => {
+  it('scope 미저장 조회는 200 envelope + scopeMode=null(미저장) empty scope 를 반환한다 (#825 슬5 R1 H-4)', () => {
     const connectedId = `missing-connected-${Date.now()}`
     const missing = mockRequest({
       method: 'GET',
@@ -1588,6 +1590,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: string[]
       loanRefs: string[]
       defaultImportType: 'ALL'
+      scopeMode: null
     }>
 
     expect(missing.success).toBe(true)
@@ -1597,12 +1600,13 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: [],
       loanRefs: [],
       defaultImportType: 'ALL',
+      scopeMode: null,
     })
   })
 
-  it('저장된 scope 가 있지만 refs 가 모두 비어 있으면 import-scoped 는 INVALID_INPUT 을 반환한다', () => {
-    const connectedId = `empty-scope-${Date.now()}`
-    mockRequest({
+  it('#825 슬5 R1 BLOCKING#1 fix — ALL 저장 직후 저장기반 가져오기는 200(종전 400 자기모순 해소)', () => {
+    const connectedId = `all-scope-${Date.now()}`
+    const saved = mockRequest({
       method: 'PUT',
       url: '/accounting/codef/scopes',
       data: {
@@ -1611,6 +1615,83 @@ describe('mock CODEF account selection BC3 contract', () => {
         cardRefs: [],
         loanRefs: [],
         defaultImportType: 'ALL',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ scopeMode: string }>
+    expect(saved.data.scopeMode).toBe('ALL')
+
+    // 재조회에서도 scopeMode=ALL 로 복원된다(H-4) — refs 비어있음만으로 '미저장'과
+    // 혼동하지 않는다.
+    const reloaded = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/scopes',
+      params: { connectedId },
+    }) as MockEnvelope<{ scopeMode: string }>
+    expect(reloaded.data.scopeMode).toBe('ALL')
+
+    // 명시적 ALL 실행은 ref 필드를 생략한다. 저장 refs=[]와 무관하게 scopeMode가 의미를
+    // 결정하므로, 저장 직후에도 CODEF 서버 전체 열거(진짜 전체)로 materialize 되어 200이어야 한다.
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
+        to: '2026-06-26',
+        type: 'ALL',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ fetchedCount: number }>
+
+    // 단일 ref 조합(2 refs) 기준선(기존 테스트 fetchedCount=4)보다 명백히 커야 한다 —
+    // 계좌 3 + 카드 3 + 대출 2 전체를 열거하므로 정확한 카탈로그 크기에 결합하지 않는
+    // 안정적 단언.
+    expect(imported.data.fetchedCount).toBeGreaterThan(4)
+  })
+
+  it('#825 슬5 R4 B1 — 저장된 CARD+ALL은 mock import에서도 카드만 열거한다', () => {
+    const connectedId = `r4-card-all-${Date.now()}`
+    const saved = mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'CARD',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ defaultImportType: string; scopeMode: string }>
+    expect(saved.data).toMatchObject({ defaultImportType: 'CARD', scopeMode: 'ALL' })
+
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
+        to: '2026-06-03',
+        type: 'CARD',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ fetchedCount: number }>
+
+    expect(imported.data.fetchedCount).toBe(6)
+  })
+
+  it('#825 슬5 HIGH-1 — 저장된 CARD+ALL은 요청 type=ALL이어도 mock 범위를 확대하지 않는다', () => {
+    const connectedId = `high-1-card-all-request-all-${Date.now()}`
+    mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'CARD',
+        scopeMode: 'ALL',
       },
     })
 
@@ -1620,17 +1701,53 @@ describe('mock CODEF account selection BC3 contract', () => {
       data: {
         connectedId,
         from: '2026-06-01',
+        to: '2026-06-03',
+        type: 'ALL',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ fetchedCount: number }>
+
+    expect(imported.data.fetchedCount).toBe(6)
+  })
+
+  it.each(['CARD', 'BANK', 'LOAN', 'ALL'] as const)(
+    'R2 BLOCKING-1 mock parity — 저장된 %s+ALL type은 해당 카테고리만 resolve한다',
+    (defaultImportType) => {
+      const catalogs = {
+        BANK: ['bank-1', 'bank-2'],
+        CARD: ['card-1', 'card-2'],
+        LOAN: ['loan-1', 'loan-2'],
+      } as const
+      const resolved = (Object.keys(catalogs) as Array<keyof typeof catalogs>).map((candidateType) =>
+        resolveMockCodefRefs(defaultImportType, candidateType, undefined, [], [...catalogs[candidateType]]))
+
+      expect(resolved).toEqual(defaultImportType === 'ALL'
+        ? [catalogs.BANK, catalogs.CARD, catalogs.LOAN]
+        : [
+            defaultImportType === 'BANK' ? catalogs.BANK : [],
+            defaultImportType === 'CARD' ? catalogs.CARD : [],
+            defaultImportType === 'LOAN' ? catalogs.LOAN : [],
+          ])
+    },
+  )
+
+  it('실행 scopeMode 누락은 400 INVALID_INPUT 으로 차단한다', () => {
+    const connectedId = `never-saved-${Date.now()}`
+
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
         to: '2026-06-26',
         type: 'ALL',
-        accountRefs: [],
-        cardRefs: [],
-        loanRefs: [],
       },
     }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
 
     expect(imported.__mockStatus).toBe(400)
     expect(imported.body.code).toBe('INVALID_INPUT')
-    expect(imported.body.message).toContain('저장된 가져오기 선택이 비어 있습니다')
+    expect(imported.body.message).toContain('scopeMode')
   })
 })
 
@@ -2149,6 +2266,8 @@ describe('mock bank transaction matching contract', () => {
         connectedId: 'connected-main',
         from: '2026-06-01',
         to: '2026-06-26',
+        type: 'ALL',
+        scopeMode: 'SELECTED',
         accountRefs: ['국민 123456-78-901234'],
         cardRefs: ['삼한 물류카드'],
         loanRefs: [],
@@ -2761,6 +2880,7 @@ describe('#832 mock parity contracts', () => {
         from: date,
         to: date,
         type: 'BANK',
+        scopeMode: 'SELECTED',
         accountRefs: [accountRef],
         cardRefs: [],
         loanRefs: [],

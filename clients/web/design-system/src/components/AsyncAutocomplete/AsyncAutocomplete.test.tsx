@@ -8,6 +8,36 @@ interface Option {
 }
 
 describe('AsyncAutocomplete', () => {
+  it('검색 중 행은 비활성 option으로 노출되어 키보드 선택 대상이 아님을 알린다', async () => {
+    let resolveSearch: ((value: Option[]) => void) | undefined
+    const search = vi.fn<(q: string) => Promise<Option[]>>(
+      () => new Promise((resolve) => { resolveSearch = resolve }),
+    )
+
+    render(
+      <AsyncAutocomplete<Option>
+        value={null}
+        onChange={vi.fn()}
+        search={search}
+        getKey={(item) => item.id}
+        getInputLabel={(item) => item.label}
+        renderOption={(item) => <span>{item.label}</span>}
+        listboxLabel="검색 목록"
+        ariaLabel="검색"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '검색' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '검색어' } })
+    await waitFor(() => expect(search).toHaveBeenCalledWith('검색어'))
+
+    const loadingOption = await screen.findByRole('option', { name: '검색 중…' })
+    expect(loadingOption.getAttribute('aria-disabled')).toBe('true')
+    resolveSearch?.([])
+  })
+
   it('응답을 만든 검색어를 renderOption context로 전달하고 새 검색 시작 때 이전 후보를 비운다', async () => {
     const oldCandidate: Option = { id: 'old', label: '이전 후보' }
     const newCandidate: Option = { id: 'new', label: '새 후보' }

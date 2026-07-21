@@ -3056,3 +3056,13 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-DS3A-05 | **권한 이원화**: 관리자 문서 양식 CRUD는 기존 `groupware.approval-templates`(DFD-07) 재사용. **재인쇄용 pin revision 단건 조회는 인증-only**(page-code 검사 없음 — 재인쇄 주체는 `groupware.approvals` view 보유자이지 템플릿 관리자가 아니므로). auth-service 마이그레이션·권한 seed 신규 0건. (최초 spec은 이력 조회를 `groupware.approval-templates` 재사용으로 잘못 적어 구현과 상충했다 — FABLE5 R1 M-5로 구현에 맞춰 정정) |
 | D-DS3A-06 | 🚨**R3 정정(2026-07-21) — D-DS3A-03의 ACTIVE-0 철회 결정 이후 3-way로 재정의**(구 2-way "pin 있음/pin 없음" 문구가 D-DS3A-03과 상충해 DS-3b가 그대로 따르면 방금 고친 BLOCKING이 복귀하는 상태였음). **렌더 우선순위 = ① pin 있음(실 revision)→각인된 revision, ② `document_template_default_pinned=true`(승인 순간 ACTIVE-0)→내장 DEFAULT로 영구 고정(이후 새 ACTIVE가 생겨도 재조회하지 않음), ③ 셋 다 미기록(레거시/pin 없음)→현재 ACTIVE 조회, ④ pin은 있는데 revision 조회 자체가 실패/malformed→DEFAULT**(DS-2 R2 latch 유지). **④의 경우 `role="alert"` 고지 + 재시도 경로 필수 — 무고지 DEFAULT 강하 금지**(FABLE5 R1 H-2 — 최초 spec은 미pin에는 고지를 요구하면서 pin-조회-실패에는 요구하지 않은 비대칭이 있었고, 그 기획 공백이 구현 결함(retry:false와 맞물려 일시 5xx 한 번에도 무고지로 제3의 외형 인쇄)의 근본 원인이었다). **세 고지**(②=`default-pinned`, ③=`unpinned`, ④=`pin-failed`)는 `role`(② ③=`status` 정보성 / ④=`alert` 오류성)로 구분되는 서로 다른 배너이며 인쇄 출력에는 포함되지 않는다(`no-print`, DS-1 strangler 불변식 연장). ②③④는 상호 배타적이다. |
 | D-DS3A-07 | **`DocumentTemplateRevisionRepository`는 `JpaRepository`가 아닌 Spring Data 최소 `Repository` 마커만 상속**(FABLE5 R1 M-2) — `BaseEntity.markDeleted()` public 상속 + `JpaRepository`의 delete류 노출을 차단한다. 단, raw `EntityManager#persist`는 Spring 예외 변환을 우회하므로 사용하지 않고, 저장소에는 `saveAndFlush`만 선택 노출해 unique 경합을 typed `DataIntegrityViolationException`/`BusinessException(CONFLICT)`로 수렴시킨다(2026-07-21 R2 fix). |
+
+## #825 슬5 null-semantics (2026-07-21, PR #864 R2)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-S5-06-R2 | CODEF 저장 scope의 `defaultImportType`은 저장 기반 가져오기 실행 범위에도 그대로 적용한다. `scopeMode=ALL`이면 `type`만 전달하고 refs 필드는 생략해 `CARD+ALL`·`BANK+ALL`·`LOAN+ALL`·`ALL+ALL`이 각 범위만 CODEF에서 열거하게 한다. `scopeMode=SELECTED`는 저장 ref 사용 경로를 유지한다. |
+| D-S5-07 | V64 `user_codef_import_scope.scope_mode`는 기존 행을 근거 없이 `ALL`로 추정하지 않고 `SELECTED`로 backfill한다. 동시에 `DEFAULT 'SELECTED'`를 둔다. V64 적용 후 구버전 앱만 롤백되어도 구 ORM INSERT가 `scope_mode` 누락으로 23502가 되지 않는 호환성 가드이며, 신규 앱의 명시 계약을 대체하지 않는다. |
+| D-S5-08 | 기존 backfill 행이 `SELECTED + 빈 refs`이면 FE는 저장 선택 복원으로 가장하지 않고 복원 실패·재선택 필요를 alert로 안내하며 저장·가져오기를 잠근다. 사용자가 항목을 다시 선택하면 정상 저장으로 회복한다. |
+| D-S5-09 | 권한 없는 사용자에게 범위 전체 칩을 focusable button으로 노출하지 않는다. `role`·`tabIndex`·press handler를 제거하고 `aria-disabled="true"`를 둔다. |
+| D-S5-10-R4 | `import-scoped` 요청이 `scopeMode=ALL`이고 저장 scope도 `ALL`이면 BE는 사용자 scope를 조회해 저장 `defaultImportType`을 실행 type의 권위값으로 강제한다. 저장 scope가 없으면 명시 요청 type을 유지하고, `SELECTED`는 요청의 explicit refs/type 계약을 유지한다. FE 유형 드롭다운은 `canUpdate=false`에서 disabled이며 desktop mock도 같은 축소 규칙을 적용한다. |

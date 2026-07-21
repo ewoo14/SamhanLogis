@@ -1,0 +1,106 @@
+=== #825 slice5 R4 LiveQA RE-RUN - Step0 deployment proof (worktree SHA 438bd1c26) ===
+=== 재실행 사유: 직전 R4 가 V65 마이그레이션 실패(크래시 루프)로 중단 ===
+
+--------------------------------------------------------------------------
+[0] 🚨 착수 시점 발견 — 배포된 이미지가 fix 이전 버전이었다 (stale 5연속)
+--------------------------------------------------------------------------
+배포되어 있던 accounting 이미지 created = 2026-07-21T15:16:04.796828144Z
+  → 이 이미지는 직전 QA(SHA 3b515013b) 시점 산출물이며,
+    V65 fix 커밋(438bd1c26, 15:58Z 판정 코멘트 기준)보다 앞선다.
+
+배포된 이미지 jar 내부 V65 원문 말미 (docker run --entrypoint sh + unzip -p):
+    ) ;                        <-- NOT VALID 없음 (구버전 · 799 bytes)
+
+⟹ 이 컨테이너를 그대로 재기동했다면 직전과 동일한 크래시 루프가 재현될 뿐이었다.
+   "PM 이 정지시켜 둔 컨테이너를 start 만 하면 된다"는 경로는 fix 를 측정하지 못한다.
+
+*** 이 측정이 증명하는 것: 정지된 컨테이너의 이미지에는 R4 fix 가 들어있지 않았다는 것.
+    (재기동 전에 반드시 재빌드가 필요하다는 근거) ***
+
+--------------------------------------------------------------------------
+[1] 워크트리에서 jar 재빌드
+--------------------------------------------------------------------------
+cmd : ./gradlew :services:accounting-service:bootJar   (exit 0)
+out : services/accounting-service/build/libs/accounting-service.jar
+      109,354,780 bytes  ·  mtime 2026-07-22 01:05 (KST)
+
+jar 내부 V65 원문 말미 (unzip -p, 이미지 빌드 **전** 확인):
+        OR
+        (scope_mode = 'SELECTED'
+            AND (jsonb_array_length(account_ref_selections::jsonb) > 0
+                OR jsonb_array_length(card_ref_selections::jsonb) > 0
+                OR jsonb_array_length(loan_ref_selections::jsonb) > 0))
+    ) NOT VALID;              <-- fix 적용됨
+grep -c "NOT VALID" = 3
+
+*** 이 측정이 증명하는 것: 재빌드된 산출물 jar 안에 NOT VALID fix 가 실재한다는 것.
+    (소스 파일이 아니라 배포 대상 아티팩트를 직접 검사) ***
+
+--------------------------------------------------------------------------
+[2] 이미지 재빌드 + 컨테이너 재기동
+--------------------------------------------------------------------------
+cmd : docker compose -f docker-compose.yml -f docker-compose.local-all.yml build accounting-service
+      (local-all.yml 단독은 "refers to undefined network samhan-net" 로 실패 —
+       networks 는 docker-compose.yml:5-8 에 정의되어 있어 두 파일 병합 필요)
+      naming to docker.io/library/infrastructure-accounting-service:latest  DONE
+
+cmd : docker compose ... up -d --no-deps accounting-service
+      Container samhan-accounting-service Recreated / Started
+      (--no-deps 로 타 서비스 재기동 없음 — 병행 작업 중인 워크트리 보호)
+
+health polling: running|starting x4 → running|healthy  (약 30초)
+
+*** 이 측정이 증명하는 것: 크래시 루프가 해소되어 서비스가 실제로 기동·healthy 에
+    도달했다는 것. (직전 R4 는 16회 재시작 후 Exited(1)) ***
+
+--------------------------------------------------------------------------
+[3] 배포된 이미지 내부 심볼 실재 (bootJar 이 compileJava UP-TO-DATE 인 경우 대비)
+--------------------------------------------------------------------------
+     1722  07-21-2026 15:48   .../accounting/domain/CodefScopeMode.class
+     1771  07-21-2026 15:48   .../accounting/domain/DailyClosingScopeMode.class
+     8941  07-21-2026 15:48   .../accounting/service/CodefImportScopedService.class
+     2646  07-21-2026 15:48   BOOT-INF/classes/db/migration/V64__add_user_codef_import_scope_mode.sql
+     1214  07-21-2026 15:48   BOOT-INF/classes/db/migration/V65__add_user_codef_import_scope_refs_consistency.sql
+                              ^^^^ 구 이미지 799 bytes → 신 이미지 1214 bytes (NOT VALID + 주석 확장)
+
+*** 이 측정이 증명하는 것: 실행 중인 컨테이너 이미지 안에 이번 라운드 심볼이 실재하며,
+    V65 는 구버전(799B)이 아닌 fix 버전(1214B)이라는 것. 크기 차이가 버전 식별자 역할 ***
+
+--------------------------------------------------------------------------
+[4] 🔑 V65 마이그레이션 적용 결과 — fix 의 1차 증거
+--------------------------------------------------------------------------
+ installed_rank | version |                 description                  | success |        installed_on
+----------------+---------+----------------------------------------------+---------+----------------------------
+             65 | 65      | add user codef import scope refs consistency | t       | 2026-07-22 01:06:09.371816
+             64 | 64      | add user codef import scope mode             | t       | 2026-07-22 00:16:53.955238
+             63 | 63      | widen accounting partner code 100            | t       | 2026-07-20 03:47:44.375346
+
+V65 success = t   (직전 R4: 미기록 · DDL 롤백)
+
+제약 상태:
+ conname                                     | convalidated | is_not_valid
+ ck_user_codef_import_scope_refs_consistency | f            | t
+
+*** 이 측정이 증명하는 것: V65 가 legacy 위반 행 3건이 존재하는 실 DB 에서 성공적으로
+    적용되었다는 것. convalidated=f 는 기존 행 검증이 보류되었음을 뜻하며, 이것이
+    "legacy 보존"의 메커니즘. 단, 신규 행 적용 여부는 [6] 에서 별도 실증 ***
+
+--------------------------------------------------------------------------
+[5] legacy 3행 보존 확인 (삭제·변조 0)
+--------------------------------------------------------------------------
+         connected_id          | scope_mode | default_import_type | account_ref | card_ref | loan_ref
+-------------------------------+------------+---------------------+-------------+----------+----------
+ empty-qa-001                  | SELECTED   | ALL                 | []          | []       | []
+ empty-scope-888               | SELECTED   | ALL                 | []          | []       | []
+ test-connected-empty-scope-99 | SELECTED   | ALL                 | []          | []       | []
+
+전체 집계:  total=18 · SELECTED=18 · ALL=0
+착수 전 덤프(PRESTATE-rerun-before-v65.txt)와 완전 일치.
+
+*** 이 측정이 증명하는 것: V65 가 legacy 데이터를 삭제하거나 각인(ALL 로 변조)하지 않고
+    그대로 통과시켰다는 것. 행 수·모드 분포·refs 내용 전부 배포 전과 동일 ***
+
+--------------------------------------------------------------------------
+[6] active profile
+--------------------------------------------------------------------------
+SPRING_PROFILES_ACTIVE = dev

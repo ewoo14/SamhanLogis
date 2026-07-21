@@ -1,0 +1,39 @@
+=== #825 slice5 R4 LiveQA - Step0 deployment proof (SHA a54b71317) ===
+
+--- [1] BEFORE deploy: images predate this branch (accident pattern confirmed) ---
+accounting image created : 2026-07-19T23:53:11Z  (branch work = 07-21 => STALE)
+inventory  image created : 2026-06-27T21:51:35Z  (STALE)
+container started        : 2026-07-21T10:04:22Z
+
+--- [2] AFTER rebuild from THIS worktree jar ---
+accounting image created : 2026-07-21T15:16:04.796828144Z
+inventory  image created : 2026-07-21T15:16:23.442093608Z
+
+--- [3] jar symbol proof INSIDE the deployed image (bootJar showed compileJava UP-TO-DATE) ---
+     1722  07-21-2026 14:57   BOOT-INF/classes/com/samhanair/logis/accounting/domain/CodefScopeMode.class
+     1771  07-21-2026 14:57   BOOT-INF/classes/com/samhanair/logis/accounting/domain/DailyClosingScopeMode.class
+     2646  07-21-2026 14:57   BOOT-INF/classes/db/migration/V64__add_user_codef_import_scope_mode.sql
+      799  07-21-2026 14:57   BOOT-INF/classes/db/migration/V65__add_user_codef_import_scope_refs_consistency.sql
+     1758  07-21-2026 14:19   BOOT-INF/classes/com/samhanair/logis/inventory/domain/SafetyStockScopeMode.class
+
+--- [4] active profile ---
+SPRING_PROFILES_ACTIVE=dev
+
+--- [5] flyway AFTER deploy: V64 applied, V65 MISSING (failed) ---
+ installed_rank | version |            description            | success |        installed_on        
+----------------+---------+-----------------------------------+---------+----------------------------
+             64 | 64      | add user codef import scope mode  | t       | 2026-07-22 00:16:53.955238
+             63 | 63      | widen accounting partner code 100 | t       | 2026-07-20 03:47:44.375346
+             62 | 62      | add allocation positive checks    | t       | 2026-07-19 20:48:31.647444
+(3 rows)
+
+--- failed rows recorded by flyway (DDL rolled back => V65 NOT recorded, still editable) ---
+ failed_rows 
+-------------
+           0
+(1 row)
+
+
+--- [6] container state ---
+accounting: Restarting (1) 54 seconds ago
+inventory : Up 4 minutes (healthy)

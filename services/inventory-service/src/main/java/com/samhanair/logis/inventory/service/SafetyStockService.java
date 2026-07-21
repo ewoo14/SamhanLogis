@@ -4,6 +4,7 @@ import com.samhanair.logis.inventory.client.NotificationClient;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.domain.SafetyStockConfig;
+import com.samhanair.logis.inventory.domain.SafetyStockScopeMode;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.repository.SafetyStockConfigRepository;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
@@ -74,6 +75,8 @@ public class SafetyStockService {
      */
     @Transactional
     public SafetyStockConfigResponse setSafetyStock(UUID productId, SafetyStockSetRequest request) {
+        SafetyStockScopeMode scopeMode = SafetyStockScopeMode.parse(request.scopeMode());
+        validateScope(scopeMode, request.warehouseId());
         productClient.requireExists(productId);
 
         SafetyStockConfig config = safetyStockConfigRepository
@@ -97,6 +100,16 @@ public class SafetyStockService {
         config.updateNote(request.note());
 
         return SafetyStockConfigResponse.from(config);
+    }
+
+    /** 새 안전재고 요청의 명시적 창고 범위와 실제 선택값을 이중 검증한다. */
+    private static void validateScope(SafetyStockScopeMode scopeMode, UUID warehouseId) {
+        if ((scopeMode == SafetyStockScopeMode.ALL && warehouseId != null)
+                || (scopeMode == SafetyStockScopeMode.SELECTED && warehouseId == null)) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "scopeMode 와 창고 선택값이 일치하지 않습니다");
+        }
     }
 
     /**
