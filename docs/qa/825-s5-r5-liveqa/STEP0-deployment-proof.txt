@@ -1,0 +1,30 @@
+=== #825 슬5 R5 라이브QA — STEP0 배포 증명 (worktree SHA a0cf8497b) 2026-07-22 08:03:07     ===
+
+[1] 재생성된 accounting/inventory 컨테이너 이미지·생성시각
+accounting: Image=infrastructure-accounting-service ImageID=sha256:748ea805250dc0b47484f53518f5957c93fc346e574e3ee236a6683a82c4fd34 Created=2026-07-21T23:02:24.651576623Z StartedAt=2026-07-21T23:02:26.698003272Z Health=healthy
+inventory : Image=infrastructure-inventory-service ImageID=sha256:a515354a2b5b23b9ea945dd16d5eb8bbc268ef8ea1f31230c5fcecb553c6c9be Created=2026-07-21T23:02:24.650947361Z StartedAt=2026-07-21T23:02:26.701838362Z Health=healthy
+  *** 증명: 두 컨테이너가 방금(08:02~) 재생성됐다 — 직전 15:16/16:06 이미지가 아니다 ***
+
+[2] 무관 컨테이너 불변 확인 (StartedAt 이 PRESTATE 와 동일해야 함)
+/samhan-api-gateway | StartedAt=2026-07-21T10:04:22.400780742Z | Status=running
+/samhan-postgres | StartedAt=2026-07-21T10:04:22.45266533Z | Status=running
+/samhan-groupware-service | StartedAt=2026-07-21T22:55:24.327645231Z | Status=running
+  PRESTATE: gateway=2026-07-21T10:04:22.400Z postgres=2026-07-21T10:04:22.452Z groupware=2026-07-21T22:55:24.327Z
+  *** 증명: gateway/postgres/groupware StartedAt 무변동 = 재기동 안 함(병행 트랙B 보호) ***
+
+[3] 실행 중 accounting 이미지 jar 내 HIGH-1 fix 심볼 (resolveEffectiveType)
+resolveEffectiveType 매치수: 1
+     1722  07-21-2026 22:40   BOOT-INF/classes/com/samhanair/logis/accounting/domain/CodefScopeMode.class
+    10113  07-21-2026 22:40   BOOT-INF/classes/com/samhanair/logis/accounting/service/CodefImportScopedService.class
+     1214  07-21-2026 22:40   BOOT-INF/classes/db/migration/V65__add_user_codef_import_scope_refs_consistency.sql
+  *** 증명: 실행 이미지 안에 resolveEffectiveType(HIGH-1)·CodefScopeMode 실재. PRESTATE 이미지는 0매치였음 ***
+
+[4] flyway V64/V65 (유지 확인) + active profile
+ version | success |        installed_on        
+---------+---------+----------------------------
+ 64      | t       | 2026-07-22 00:16:53.955238
+ 65      | t       | 2026-07-22 01:06:09.371816
+(2 rows)
+
+accounting SPRING_PROFILES_ACTIVE=dev
+inventory SPRING_PROFILES_ACTIVE=dev

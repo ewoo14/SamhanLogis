@@ -1,0 +1,14 @@
+=== #825 슬5 R5 GUI 라이브QA 실행 2026-07-22 08:08:53 · 렌더러 :5291 · API :8080 · mock OFF ===
+
+Running 2 tests using 1 worker
+
+[1A[2K[1/2] playwright\825-s5-r5-liveqa\825-s5-r5-liveqa-real-qa.spec.ts:90:3 › #825 슬5 R5 — HIGH-1 라이브 GUI › A · 정상경로 무회귀 — 저장 {ALL,CARD} → 가져오기 조회 15(전체 45 아님) + 드롭다운 활성
+[1A[2Kplaywright\825-s5-r5-liveqa\825-s5-r5-liveqa-real-qa.spec.ts:90:3 › #825 슬5 R5 — HIGH-1 라이브 GUI › A · 정상경로 무회귀 — 저장 {ALL,CARD} → 가져오기 조회 15(전체 45 아님) + 드롭다운 활성
+[A] 저장 CARD 정상 가져오기 결과: "조회 15건 · 적재 15건 · 중복 0건 · 자동매칭 0건" → fetched=15
+
+[1A[2K[2/2] playwright\825-s5-r5-liveqa\825-s5-r5-liveqa-real-qa.spec.ts:138:3 › #825 슬5 R5 — HIGH-1 라이브 GUI › B · 대조 — 저장 {ALL,ALL} → 가져오기 조회 45 (같은 UI 에서 15 vs 45 시각 대조)
+[1A[2Kplaywright\825-s5-r5-liveqa\825-s5-r5-liveqa-real-qa.spec.ts:138:3 › #825 슬5 R5 — HIGH-1 라이브 GUI › B · 대조 — 저장 {ALL,ALL} → 가져오기 조회 45 (같은 UI 에서 15 vs 45 시각 대조)
+[B] 저장 ALL 가져오기 결과: "조회 45건 · 적재 45건 · 중복 0건 · 자동매칭 0건" → fetched=45
+
+[1A[2K  2 passed (14.2s)
+=== playwright exit: 0 ===

@@ -1,0 +1,57 @@
+=== #825 슬5 R5 라이브QA — 데이터 원상복구 증명 2026-07-22 08:10:31 ===
+
+[1] connected-main 을 PRESTATE 값으로 API 복원 (정식 도메인 경로)
+connected-main 복원: status=200 scopeMode=SELECTED type=BANK account=["국민 123456-78-901234","신한 987654-32-109876"]
+
+[2] qa-r5-cardall throwaway scope 행 삭제 (API 검증서 생성 — PRESTATE 부재)
+DELETE 1
+
+[3] 합성 bank_transaction 삭제 (PRESTATE id 스냅샷에 없는 행만 = 내 DRY_RUN 추가분)
+DELETE 225
+
+[4] POSTSTATE 검증 — PRESTATE 와 일치 확인
+--- user_codef_import_scope 행수 (PRESTATE=18) ---
+ 행수=18 | qa-r5잔여=0
+
+--- connected-main 현재 상태 (PRESTATE: SELECTED/BANK/2계좌) ---
+ scope_mode | default_import_type |              account_ref_selections               | card_ref_selections | loan_ref_selections 
+------------+---------------------+---------------------------------------------------+---------------------+---------------------
+ SELECTED   | BANK                | ["국민 123456-78-901234","신한 987654-32-109876"] | []                  | []
+(1 row)
+
+--- bank_transaction source별 (PRESTATE: BANK=200/CARD=65/LOAN=45/CSV=6, 총 316) ---
+   source   | active | total 
+------------+--------+-------
+ CODEF_BANK |    200 |   200
+ CODEF_CARD |     65 |    65
+ CODEF_LOAN |     45 |    45
+ CSV_IMPORT |      6 |     6
+(4 rows)
+
+ 총 활성=316
+
+[5] prestate 스냅샷 테이블 제거 (QA 아티팩트 정리)
+DROP TABLE
+[6] 무관 컨테이너 최종 불변 확인
+/samhan-api-gateway | StartedAt=2026-07-21T10:04:22.400780742Z | running
+/samhan-postgres | StartedAt=2026-07-21T10:04:22.45266533Z | running
+/samhan-groupware-service | StartedAt=2026-07-21T22:55:24.327645231Z | running
+
+[7] check#4 재확인 — V65 제약 상태·legacy 위반행 보존 (R4 e0dff455f 대비 무회귀)
+                   conname                   | convalidated | connoinherit 
+---------------------------------------------+--------------+--------------
+ ck_user_codef_import_scope_refs_consistency | f            | f
+(1 row)
+
+--- legacy SELECTED+빈refs 3행 보존(NOT VALID 제약이 통과시키는 대상) ---
+         connected_id          | scope_mode 
+-------------------------------+------------
+ empty-qa-001                  | SELECTED
+ empty-scope-888               | SELECTED
+ test-connected-empty-scope-99 | SELECTED
+(3 rows)
+
+--- V65 installed_on 무변동(재적용 안 함) ---
+ V65 installed_on=2026-07-22 01:06:09.371816 success=true
+
+  *** 증명: V65 NOT VALID 제약·legacy 3행 R4 상태 그대로 = check#4 무회귀 ***
