@@ -1,19 +1,37 @@
 groups:
   - name: partner-order-outbox
     rules:
-      # severity=critical (#854 R5-LOW): slip-price-memory.yml 의 warning 은 fail-soft(원 전표/견적
-      # 저장은 성공, 가격기억 보조 기능만 저하)라 warning 이 맞다. 본 알람은 성격이 다르다 —
-      # FAILED_PERMANENT 는 전표 발행 자체가 영구 종결된 상태이고, runbook(재발행 절차) 상 안전한
-      # 셀프서비스 복구 수단이 없는 경우가 존재해 최소 개발팀 확인이 요구될 수 있다(단순 warning 이
-      # 암시하는 "당장 대응 불필요"보다 사건 등급이 위). Alertmanager 라우팅이 아직 없어(prometheus.yml
-      # 에 alerting: 섹션 없음) 현재는 라벨 값이 실효 차이를 만들지 않지만, 향후 배선 시 critical 을
-      # 별도 채널(예: 즉시 호출)로 분리하는 근거가 된다.
-      - alert: PartnerOrderSlipPublishTerminalFailure
-        expr: sum(increase(partner_order_slip_publish_terminal_total{job="partner-order-service",reason=~"invalid_input|conflict|max_retry_exhausted"}[5m])) > 0
+      # 상태 기반 1차 알람. 기존 partner_order_slip_publish_terminal_total counter는
+      # 추이 분석용 보조 지표이며, 단발 이벤트/로그를 알람 원천으로 사용하지 않는다.
+      - alert: PartnerOrderOutboxPendingBacklog
+        expr: outbox_pending_depth{application="partner-order-service"} > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: partner-order-service
+        annotations:
+          summary: "partner-order-service 전표 발행 outbox backlog 지속"
+          description: "스케줄러 주기 300초의 두 배인 600초 동안 미처리 outbox가 남아 있습니다. oldest age와 heartbeat를 함께 확인하십시오."
+          runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"
+
+      - alert: PartnerOrderOutboxOldestPendingTooOld
+        expr: outbox_oldest_pending_age_seconds{application="partner-order-service"} > 86100
+        for: 5m
         labels:
           severity: critical
           service: partner-order-service
         annotations:
-          summary: "partner-order-service 전표 발행 outbox 영구실패"
-          description: "최근 5분 동안 주문 전표 발행 outbox가 복구 불가 사유 또는 최대 재시도 시간 초과로 종결되었습니다. reason 라벨과 주문/전표 정합을 확인하십시오."
+          summary: "partner-order-service outbox 재시도 상한 임박"
+          description: "가장 오래된 미처리 outbox가 86100초(24시간-5분)를 넘었습니다. 다음 scheduler tick의 24시간 종결 전에 조치하십시오."
+          runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"
+
+      - alert: PartnerOrderOutboxSchedulerStalled
+        expr: outbox_scheduler_heartbeat_seconds{application="partner-order-service"} > 600
+        for: 1m
+        labels:
+          severity: critical
+          service: partner-order-service
+        annotations:
+          summary: "partner-order-service outbox scheduler 정지"
+          description: "마지막 scheduler tick 이후 600초(5분 주기의 두 배)가 경과했습니다."
           runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"

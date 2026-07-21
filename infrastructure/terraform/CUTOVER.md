@@ -414,7 +414,7 @@ aws rds restore-db-instance-to-point-in-time \
 | M-17 | terraform.tfvars `route53_zone_id` 에 사전 위임된 Hosted Zone ID 입력 | 단계 1 전 |
 | M-18 | AWS S3 access/secret key 실값 수동 주입 (`samhan/production/s3-access-key`, `samhan/production/s3-secret-key`) | 단계 0-D |
 | M-19 | slip-service 가격기억 fail-soft prod 감지 확인 (#809 — slip-service awslogs driver 직접 전달(선행 조건) + Terraform metric filter 2건/alarm 2건 + **양성 도달 검사**, 아래 "M-19 상세" 참조) | 단계 3 후 |
-| M-20 | partner-order-service 전표 발행 outbox 영구실패 prod 알람 감지 확인 (#854 — partner-order-service awslogs driver 직접 전달(선행 조건) + Terraform metric filter 1건/alarm 1건 + **양성 도달 검사**, 아래 "M-20 상세" 참조) | 단계 3 후 |
+| M-20 | partner-order-service 전표 발행 outbox 상태 게이지 prod 알람 감지 확인 (#863 — Micrometer CloudWatch 게이지 3종 + missing-data breaching + **양성 도달 검사**, 아래 "M-20 상세" 참조) | 단계 3 후 |
 
 ### M-19 상세 — 가격기억 upsert 실패 prod 알람 이식 (#809)
 
@@ -518,7 +518,46 @@ aws cloudwatch describe-alarm-history \
 없으면 `aws logs tail` 이 비어 있는 것이 정상이며, ④ 통과 후에는 인위 출력을
 반복 생성하지 않는다.
 
-### M-20 상세 — partner-order 전표 발행 outbox 영구실패 prod 알람 이식 (#854)
+### M-20 상세 — partner-order 전표 발행 outbox 상태 게이지 prod 알람 (#863)
+
+`#863`에서 M-20의 알람 진실원을 로그에서 상태로 전환했다. production
+`partner-order-service`의 Micrometer CloudWatch registry가 다음 custom metric을
+`SamhanLogis/PartnerOrder` namespace로 60초마다 전송한다.
+
+| metric | Terraform 기준 | 양성 도달 의미 |
+|---|---:|---|
+| `outbox_pending_depth` | `> 0`, 600초 | PENDING/PROCESSING 상태가 scheduler 두 주기 동안 남음 |
+| `outbox_oldest_pending_age_seconds` | `> 86100`, 300초 | 24시간 retry 상한 직전의 미처리 행 |
+| `outbox_scheduler_heartbeat_seconds` | `> 600`, 300초 | scheduler tick이 두 주기 이상 없음 |
+
+`threshold=86100`은 `24시간 × 3600 - 5분 × 60 = 86400 - 300`으로 계산했으며,
+나머지 임계값도 scheduler 주기 300초에서 도출했다. 세 알람은
+`TreatMissingData=breaching`으로 선언되어 metric 전송 중단도 놓치지 않는다.
+
+> ⚠️ **정직 한계 (2026-07-21)**: 현재 워크트리에서는 production 배포 권한과 실제
+> EC2/CloudWatch 데이터가 없으므로 라이브 양성 도달은 미확증이다. cutover 시 아래
+> 절차로 metric 존재와 `OK→ALARM→OK` 전이를 확인하기 전에는 알람 실효를 확정하지 않는다.
+
+```bash
+# [운영자 PC] Terraform이 선언한 세 metric과 alarm을 확인한다.
+aws cloudwatch list-metrics --namespace SamhanLogis/PartnerOrder \
+  --dimensions Name=application,Value=partner-order-service
+aws cloudwatch describe-alarms --alarm-name-prefix samhan-partner-order-outbox-
+
+# [EC2 SSM] 애플리케이션 scrape 대신 production exporter의 양성 도달을 확인한다.
+# 1) pending 행을 만드는 실제 업무 흐름을 수행하고 outbox 상태를 조회한다.
+# 2) CloudWatch get-metric-data에서 pending_depth > 0 및 oldest age 상승을 확인한다.
+# 3) scheduler 프로세스를 중지한 뒤 heartbeat_seconds > 600을 확인한다.
+# 4) scheduler를 복구하고 세 metric이 정상값으로 돌아오는지 확인한다.
+# 합성 stdout echo는 알람 증거로 인정하지 않는다.
+```
+
+아래의 `#854` 로그/metric-filter 절차는 과거 보조 로그 수집 경로의 역사적 참고이며,
+`#863` M-20 알람의 통과 증거로 사용하지 않는다.
+
+<!--
+아래는 #854 당시의 로그/metric-filter 절차 원문이다. #863에서 폐기되어 역사적 보존만
+하며, 운영 cutover의 알람 증거·완료 조건으로 해석하지 않는다.
 
 dev 로컬 스택은 Prometheus rule `PartnerOrderSlipPublishTerminalFailure`
 (`infrastructure/prometheus/rules/partner-order-outbox.yml`) 가 outbox terminal 전이를
@@ -626,6 +665,8 @@ aws cloudwatch describe-alarm-history \
 
 ---
 
+-->
+
 ## 참고 파일 경로
 
 | 파일 | 용도 |
@@ -638,7 +679,7 @@ aws cloudwatch describe-alarm-history \
 | `infrastructure/terraform/route53.tf` | samhan-air.com 8 subdomain |
 | `infrastructure/terraform/arologis.tf` | 아로로지스 3 subdomain |
 | `infrastructure/terraform/lambda.tf` | Health Check Lambda (Tier 3) |
-| `infrastructure/terraform/monitoring.tf` | CloudWatch 알람 11종(기반 8 + slip 가격기억 2 + partner-order outbox 1) + Dashboard |
+| `infrastructure/terraform/monitoring.tf` | CloudWatch 알람 13종(기반 8 + slip 가격기억 2 + partner-order outbox 상태 게이지 3) + Dashboard |
 | `infrastructure/terraform/s3.tf` | samhan-attachments / samhan-logs |
 | `infrastructure/terraform/iam.tf` | EC2 Role + Lambda Role |
 | `infrastructure/terraform/variables.tf` | 입력 변수 정의 |

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -124,5 +124,23 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
       .toContain('전표 발행 실패')
     expect(screen.queryByTestId('partner-order-row-slip-publish-status-2026/05/31-8')).toBeNull()
     expect(screen.queryByTestId('partner-order-row-slip-publish-status-2026/05/31-9')).toBeNull()
+  })
+
+  it('실패 건수 배너는 0건이 아니면 표시되고 클릭 시 발행실패 필터를 적용한다', async () => {
+    renderPage()
+
+    const banner = await screen.findByTestId('partner-order-slip-publish-failure-banner')
+    expect(banner.textContent).toContain('발행 실패 4건')
+    expect((screen.getByTestId('partner-order-list-status-filter') as HTMLSelectElement).value).toBe('DRAFT')
+
+    fireEvent.click(banner)
+
+    await waitFor(() => {
+      expect((screen.getByTestId('partner-order-list-slip-publish-filter') as HTMLSelectElement).value).toBe('FAILED')
+      expect((screen.getByTestId('partner-order-list-status-filter') as HTMLSelectElement).value).toBe('')
+    })
+    expect(
+      mocks.listPartnerOrders.mock.calls.some(([, , filters]) => filters?.slipPublishStatus === 'FAILED'),
+    ).toBe(true)
   })
 })

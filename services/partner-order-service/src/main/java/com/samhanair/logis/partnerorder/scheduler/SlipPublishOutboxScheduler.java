@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.scheduler;
 
 import com.samhanair.logis.partnerorder.config.OutboxProperties;
+import com.samhanair.logis.partnerorder.observability.OutboxObservabilityMetrics;
 import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import jakarta.annotation.PostConstruct;
@@ -47,6 +48,7 @@ public class SlipPublishOutboxScheduler {
     private final SlipPublishOutboxProcessor processor;
     private final SlipPublishOutboxResultWriter resultWriter;
     private final OutboxProperties outboxProperties;
+    private final OutboxObservabilityMetrics observabilityMetrics;
 
     /**
      * lease/batch 불변식 검증 — 위반 시 순차 batch 최악 dwell 이 lease 를 넘어 멀티 인스턴스 lease
@@ -72,6 +74,8 @@ public class SlipPublishOutboxScheduler {
      */
     @Scheduled(cron = "${samhan.outbox.cron:0 */5 * * * *}")
     public void retryPending() {
+        // 후보가 없어도 tick은 정상 실행이다. heartbeat는 scheduler가 멈췄는지를 판별하는 상태 신호다.
+        observabilityMetrics.markSchedulerTick();
         List<SlipPublishOutbox> candidates = outboxRepository.claimReadyBatch(
                 outboxProperties.getBatchSize(), outboxProperties.getLeaseSeconds());
         if (candidates.isEmpty()) {

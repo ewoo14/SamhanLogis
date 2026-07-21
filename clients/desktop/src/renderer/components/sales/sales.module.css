@@ -472,7 +472,9 @@
 .statusConfirmed {
   /* 완료(CONFIRMED) — success 계열 (최종 긍정 상태). */
   background: var(--state-success-bg, #d1fae5);
-  color: var(--state-success, #065f46);
+  /* 실제 토큰 --state-success 는 #10B981 이라 #D1FAE5 위 대비가 2.24:1이다.
+     AA(4.5:1 이상)를 만족하는 --color-success-700(#047857)을 사용한다. */
+  color: var(--color-success-700, #047857);
 }
 .statusSent {
   /* 확인중(CONFIRMING) — info 계열 (진행 중 중간 상태). */

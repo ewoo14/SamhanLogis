@@ -162,6 +162,13 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  metrics.export.cloudwatch:
+    # 운영에서는 애플리케이션이 상태 게이지를 CloudWatch custom metric으로 직접 전송한다.
+    # 로컬/테스트는 AWS 호출을 하지 않고 Prometheus scrape만 사용한다.
+    enabled: ${CLOUDWATCH_METRICS_ENABLED:false}
+    namespace: SamhanLogis/PartnerOrder
+    step: 60s
+    batch-size: 20
 
 ---
 spring:

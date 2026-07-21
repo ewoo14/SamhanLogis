@@ -48,6 +48,23 @@ Scheduler (5분):
     └ elapsed ≥ 24h → FAILED + markSlipFailedPermanent + alert
 ```
 
+## Outbox 관측 및 알람 (#863)
+
+`SlipPublishOutboxScheduler`는 5분 주기로 마지막 tick 시각을 갱신한다. 다음 게이지는
+Prometheus scrape와 production Micrometer CloudWatch export에서 동일한 상태 진실원을
+사용한다. 첫 두 게이지는 scrape 시점에 PostgreSQL을 조회하며, 조회 결과를 캐시하지 않는다.
+
+| 게이지 | 의미 | 알람 기준 | 산출 근거 |
+|---|---|---|---|
+| `outbox_pending_depth` | `PENDING` + `PROCESSING` 행 수 | `> 0`가 600초 지속 | 5분 주기 두 번 동안 미처리 상태가 남아 있으면 감지한다. 업무량 기준을 임의로 가정하지 않고, 상태 존재 자체를 감시한다. |
+| `outbox_oldest_pending_age_seconds` | 미처리 행 중 `first_attempted_at` 기준 최장 경과 초 | `> 86100`가 300초 지속 | 최대 재시도 24시간(86400초) 전에 다음 5분 tick 여유(300초)를 뺀 값이다. `86400 - 300 = 86100`. |
+| `outbox_scheduler_heartbeat_seconds` | 마지막 scheduler tick 이후 경과 초 | `> 600`가 300초 지속 | 정상 주기 300초의 두 배를 초과하면 scheduler 정지를 감지한다. `2 × 300 = 600`. |
+
+`partner_order_slip_publish_terminal_total` counter는 추세·원인 분석용 보조 지표로 유지한다.
+알람 원천은 상태 게이지이며 stdout/awslogs 로그를 알람 원천으로 사용하지 않는다. 게이지
+조회에는 `V11__add_outbox_observability_index.sql`의 부분 인덱스가 사용된다. 운영 전환 전
+실제 `/actuator/prometheus` scrape와 CloudWatch 양성 도달 검사를 모두 수행해야 한다.
+
 ## REST endpoints (8 + bootstrap 1)
 
 | legacy fn | endpoint | 권한 |

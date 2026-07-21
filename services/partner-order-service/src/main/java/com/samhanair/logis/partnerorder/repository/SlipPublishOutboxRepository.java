@@ -21,6 +21,24 @@ import org.springframework.stereotype.Repository;
 public interface SlipPublishOutboxRepository extends JpaRepository<SlipPublishOutbox, UUID>,
         SlipPublishOutboxRepositoryCustom {
 
+    /** PENDING + PROCESSING 상태의 soft-delete 제외 outbox 건수. Prometheus pull 시 실행한다. */
+    @Query(value = """
+            SELECT COUNT(*)
+              FROM slip_publish_outbox
+             WHERE is_deleted = FALSE
+               AND status IN ('PENDING', 'PROCESSING')
+            """, nativeQuery = true)
+    long countPendingDepth();
+
+    /** 가장 오래된 미처리 outbox의 경과 초. 미처리 행이 없으면 0을 반환한다. */
+    @Query(value = """
+            SELECT COALESCE(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(first_attempted_at))), 0)
+              FROM slip_publish_outbox
+             WHERE is_deleted = FALSE
+               AND status IN ('PENDING', 'PROCESSING')
+            """, nativeQuery = true)
+    double oldestPendingAgeSeconds();
+
     /**
      * 결과 tx 소유권 가드용 비관적 쓰기 락 조회.
      *

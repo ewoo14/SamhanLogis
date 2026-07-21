@@ -116,54 +116,60 @@ resource "aws_cloudwatch_metric_alarm" "slip_price_memory_queue_rejected" {
   }
 }
 
-# ─── partner-order 전표 발행 outbox 영구실패 알람 (#854, CUTOVER M-20) ────────
-# slip-service 가격기억 알람(위 R6-H5)과 동일한 로그 원천 문제를 동일한 방식으로 해소한다.
-#
-# 로그 원천: partner-order-service 로그는 docker-compose.prod.yml 의 awslogs driver 가
-# 위 docker log group 의 stream "partner-order-service" 로 직접 전달한다 (#854 R5-HIGH —
-# 최초 구현 시 이 driver 가 누락되어 CloudWatch Agent 의 best-effort wildcard tail 에만
-# 의존했었다. 그 tail 은 AWS 문서상 "최신 수정 파일만 push" 라 다수 컨테이너 동시 기록에서
-# 라인 유실이 가능해 alarm 원천으로 쓰지 않는다).
-#
-# 잔여 한계 (정직 기록, slip 과 동일): treat_missing_data=notBreaching 이므로 전달 경로 자체가
-# 끊기면 datapoint 부재로 alarm 이 계속 OK 로 남는다. 보상 통제 = CUTOVER.md M-20 의
-# 양성 도달 검사(인위 감시 문자열 → filter-log-events 도달 + alarm 발화 확인). 실 EC2 부재로
-# 라이브 실측은 cutover 시 M-20 에서 최초 수행된다.
-#
-# 대응 절차: docs/runbooks/partner-order-outbox-terminal-failure.md.
+# ─── partner-order outbox 상태 게이지 알람 (#863, CUTOVER M-20) ──────────────
+# stdout/awslogs metric filter를 alarm 원천으로 사용하지 않는다. partner-order-service의
+# Micrometer CloudWatch registry가 상태 게이지를 60초마다 아래 namespace로 전송하고,
+# alarm은 매 수집값의 상태 게이지를 평가한다.
 
-resource "aws_cloudwatch_log_metric_filter" "partner_order_outbox_failed_permanent" {
-  name           = "partner-order-outbox-failed-permanent"
-  log_group_name = aws_cloudwatch_log_group.docker.name
-  pattern        = "\"Outbox FAILED_PERMANENT\""
-
-  metric_transformation {
-    name          = "PartnerOrderOutboxFailedPermanent"
-    namespace     = "SamhanLogis/PartnerOrder"
-    value         = "1"
-    default_value = "0"
-  }
+resource "aws_cloudwatch_metric_alarm" "partner_order_outbox_pending_depth" {
+  alarm_name          = "${local.name_prefix}-partner-order-outbox-pending-depth"
+  alarm_description   = "outbox 미처리 상태가 scheduler 주기 두 번(600초) 동안 지속되는지 감지"
+  namespace           = "SamhanLogis/PartnerOrder"
+  metric_name         = "outbox_pending_depth"
+  dimensions          = { application = "partner-order-service" }
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 600
+  statistic           = "Maximum"
+  threshold           = 0
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+  tags                = { Name = "${local.name_prefix}-partner-order-outbox-pending-depth" }
 }
 
-resource "aws_cloudwatch_metric_alarm" "partner_order_outbox_failed_permanent" {
-  alarm_name        = "${local.name_prefix}-partner-order-outbox-failed-permanent"
-  alarm_description = "partner-order-service 전표 발행 outbox 영구실패 감지"
-  namespace         = "SamhanLogis/PartnerOrder"
-  metric_name       = "PartnerOrderOutboxFailedPermanent"
-
+resource "aws_cloudwatch_metric_alarm" "partner_order_outbox_oldest_pending_age" {
+  alarm_name          = "${local.name_prefix}-partner-order-outbox-oldest-pending-age"
+  alarm_description   = "24시간 재시도 상한 5분 전(86100초) 도달 감지"
+  namespace           = "SamhanLogis/PartnerOrder"
+  metric_name         = "outbox_oldest_pending_age_seconds"
+  dimensions          = { application = "partner-order-service" }
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 1
   period              = 300
-  statistic           = "Sum"
-  threshold           = 0
-  treat_missing_data  = "notBreaching"
+  statistic           = "Maximum"
+  threshold           = 86100
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+  tags                = { Name = "${local.name_prefix}-partner-order-outbox-oldest-pending-age" }
+}
 
-  alarm_actions = [aws_sns_topic.alerts.arn]
-  ok_actions    = [aws_sns_topic.alerts.arn]
-
-  tags = {
-    Name = "${local.name_prefix}-partner-order-outbox-failed-permanent"
-  }
+resource "aws_cloudwatch_metric_alarm" "partner_order_outbox_scheduler_heartbeat" {
+  alarm_name          = "${local.name_prefix}-partner-order-outbox-scheduler-heartbeat"
+  alarm_description   = "5분 scheduler 주기의 두 배(600초) 동안 tick이 없는지 감지"
+  namespace           = "SamhanLogis/PartnerOrder"
+  metric_name         = "outbox_scheduler_heartbeat_seconds"
+  dimensions          = { application = "partner-order-service" }
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 600
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
+  tags                = { Name = "${local.name_prefix}-partner-order-outbox-scheduler-heartbeat" }
 }
 
 # ─── ALB 5xx 알람 ──────────────────────────────────────────────────────────────

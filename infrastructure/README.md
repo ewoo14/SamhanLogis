@@ -64,6 +64,11 @@ Extensions `uuid-ossp` and `pgcrypto` are enabled in each DB
 
 ### Alerting rules
 
+알람의 1차 원천은 애플리케이션 상태 게이지(Prometheus pull 또는 운영 Micrometer
+CloudWatch custom metric)이다. **로그(stdout/awslogs)를 alarm 원천으로 삼지 말 것.** 로그는 원인
+조사와 보조 증거에만 사용한다. 로그 버퍼 유실·startup scrape race를 상태 게이지 알람으로
+우회하지 않고, 매 scrape마다 DB 상태와 scheduler heartbeat를 다시 읽는다.
+
 Alert rules live in `prometheus/rules/*.yml` and are picked up by the
 `rule_files: [/etc/prometheus/rules/*.yml]` glob in `prometheus/prometheus.yml`.
 

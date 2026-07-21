@@ -7597,6 +7597,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // status 쿼리 파라미터 추출 (URL 또는 config.params 에서)
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
+    const slipPublishStatusParam =
+      urlObj.searchParams.get('slipPublishStatus') ?? (config.params?.['slipPublishStatus'] as string | undefined)
     // BE parity(#757 R2 HIGH): includeDeleted=true(내부 관리자 opt-in)일 때만 삭제행 포함.
     const includeDeletedParam =
       urlObj.searchParams.get('includeDeleted') ?? String(config.params?.['includeDeleted'] ?? '')
@@ -7719,6 +7721,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         SLIP_PENDING_RETRY_ROW,
         SLIP_FAILED_PERMANENT_ROW,
       ]
+    }
+
+    if (slipPublishStatusParam === 'FAILED') {
+      content = content.filter((row) => row.slipPublishStatus === 'FAILED_PERMANENT')
+    } else if (slipPublishStatusParam) {
+      content = content.filter((row) => row.slipPublishStatus === slipPublishStatusParam)
     }
 
     // 3-D: 병합/전환된 주문은 CONVERTED 로 표시. DRAFT 필터에서는 제외(BE 동작 모사).
@@ -11492,13 +11500,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     })
   }
 
-  const partnerOrderDeleteMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
-  if (method === 'DELETE' && partnerOrderDeleteMatch) {
-    const orderNo = toSlashDocumentNo(decodeURIComponent(partnerOrderDeleteMatch[1] ?? ''))
-    mockDeletedOrderNos.add(orderNo)
-    return { data: null, status: 204, statusText: 'No Content', headers: {}, config }
-  }
-
   const partnerOrderInlineRestoreMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/restore$/)
   if (method === 'POST' && partnerOrderInlineRestoreMatch) {
     const orderNo = toSlashDocumentNo(decodeURIComponent(partnerOrderInlineRestoreMatch[1] ?? ''))
@@ -11850,6 +11851,28 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       partnerOrderCollabDetailsStore[poId] = buildPartnerOrderDetail(poId)
     }
     return partnerOrderCollabDetailsStore[poId]!
+  }
+
+  // 실 BE 제약과 동일하게 DRAFT/CONFIRMING 만 삭제 허용한다. generic DELETE 를
+  // 상세 handler보다 먼저 두면 CONFIRMED/발행실패 주문도 204가 되는 shadow가 생기므로,
+  // 상태를 확인할 수 있는 partner-order 구간 안에서만 처리한다.
+  const partnerOrderDeleteMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)$/)
+  if (method === 'DELETE' && partnerOrderDeleteMatch) {
+    const params = mockLocationParams()
+    if (params.get('mockDelete404')) {
+      return mockError(404, 'PARTNER_ORDER_NOT_FOUND', '주문서를 찾을 수 없습니다.')
+    }
+    if (params.get('mockDelete422')) {
+      return mockError(422, 'PARTNER_ORDER_DELETE_FORBIDDEN_STATUS', '확정 또는 전표 발행된 주문서는 삭제할 수 없습니다.')
+    }
+    const poId = partnerOrderDeleteMatch[1]!
+    const order = getPartnerOrderMutable(poId)
+    if (!['DRAFT', 'CONFIRMING'].includes(order.status)) {
+      return mockError(422, 'PARTNER_ORDER_DELETE_FORBIDDEN_STATUS', '확정 또는 전표 발행된 주문서는 삭제할 수 없습니다.')
+    }
+    const orderNo = toSlashDocumentNo(decodeURIComponent(poId))
+    mockDeletedOrderNos.add(orderNo)
+    return { data: null, status: 204, statusText: 'No Content', headers: {}, config }
   }
 
   const partnerOrderCollabStreamMatch = url.match(/\/api\/v1\/partner-orders\/([^/?]+)\/collab\/stream(?:\?.*)?$/)
