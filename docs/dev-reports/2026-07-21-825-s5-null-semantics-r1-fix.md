@@ -314,3 +314,35 @@ DTO 애노테이션(`@NotNull`/`@Pattern`/`@AssertTrue`) 전체 제거 후 신�
 - 최종 정리: 전량 실행이 덮어쓴 `docs/qa/**`와 추적된 `clients/desktop/playwright/**/screenshots/**`만 `git checkout --`로 좁혀 원복했고, 생성된 `test-results`·`playwright-report`·`playwright-json`은 제거했다. real-QA 스펙 파일은 원복하지 않았다.
 
 실행 후 덮어쓴 `docs/qa/**`는 git 기준으로 원복했다. `clients/desktop/playwright/**/screenshots/**`의 추적 변경은 없었다.
+
+## 16. R3 OPUS 4.8 적대검증 HIGH-3 fix — 라이브QA 'fixed-' 증거 정합화 (SONNET5, 2026-07-21)
+
+**발견(R3 통합 차원)**: 위 §3(BLOCKING#1)·§15(R2 BLOCKING-1) 근본 fix 는 실제로 반영됐으나, 그
+증거로 스펙에 심어둔 `fixed-*` 스크린샷 6개(`d1-f1-fixed-all-chip-remove-works` 등, R1 이
+`defect-*`에서 개명)는 R1·R2 어느 라운드에서도 라이브 서버 재실행이 이뤄지지 않아 실제로는
+**0장도 생성되지 않았다.** `docs/qa/825-s5-r1-liveqa/`에 커밋된 32장은 전부 `16cdfb626`(R1 fix
+**이전**) 캡처이고, R1·R2 fix 커밋(`5f5d84d3a`/`43905b915`) 자체에는 PNG diff 가 0장이다
+(`git show <sha> --name-only | grep -c '\.png$'` 로 실측 가능). 위 §13/§15 의 "라이브 QA
+d1-f1/d2-f1/d3-f4 로 실증"이라는 서술은 전부 이 **결함 상태** 캡처를 결함 근거로만 인용한
+것으로 인용 자체의 왜곡·은폐는 없었으나, 캐논 "라이브QA 매 라운드 스크린샷 다수" 요구가
+R1·R2 2라운드 연속 미충족이었다는 점은 사실이다.
+
+**정정**: R3(OPUS 4.8, QA SHA `4d678167`)가 이 슬라이스 최초로 실서버 재실행을 수행해
+`docs/qa/825-s5-r3-liveqa/`에 63장을 커밋했다. 이 스펙의 `SHOTS` 상수(:41)는 여전히
+`825-s5-r1-liveqa`를 가리키므로, R3 세션은 그 경로에 직접 캡처(→ 커밋된 R1 스크린샷 23장을
+일시적으로 덮어씀) → 새 캡처를 `825-s5-r3-liveqa/official-suite/`로 복사 보존 →
+`825-s5-r1-liveqa/`만 좁혀 `git checkout --`로 R1 베이스라인에 원복(diff 0 확인)하는 절차를
+거쳤다(R3 보충3 §최종 `git status` 참조). 그 결과:
+- `official-suite/d1-f1-fixed-all-chip-remove-works.png`, `official-suite/d2-f1-fixed-all-chip-remove-works.png`
+  — 스펙 shot 이름과 **정확히 1:1 일치**하는 fix 확인 캡처.
+- CODEF(D3, BLOCKING#1/BLOCKING-1 의 무대)만 스펙 리터럴(`d3-f4-fixed-all-import-succeeds`)과
+  파일명이 다르다 — 재실행 시 `official-suite/d3-f4b-success-toast-visible.png`(D3b 시나리오·
+  3초 자동소멸 전 성공 토스트 캡처)로 대체돼 있다. 다만 D3 의 fix 증거는 이 한 장이 아니라
+  R3 루트의 `c-{bank,card,loan,all}+all-{1..4}.png` 16장(4조합 각각 저장 전/후/복원/실행결과 —
+  §HIGH-1 BE fix 라이브 확증과 동일 자료, 화면 요약과 DB 로우수 독립 2원 교차검증 포함)이
+  더 넓고 강한 증거를 이룬다 — 단일 shot 부재가 fix 미검증을 뜻하지 않는다.
+
+**결론**: R1이 예고한 "fixed-" 증거는 R1·R2 시점에는 존재하지 않았고, R3에 이르러서야(2개는
+동일 파일명으로, CODEF 1개는 더 넓은 대체 자료로) 실제로 확보됐다. 이 절만 그 정합을 사후
+기록한다 — 스펙 파일의 shot 리터럴·`SHOTS` 상수 자체는 이번 라운드 fix 범위(문서 정정)
+밖이라 손대지 않았다.

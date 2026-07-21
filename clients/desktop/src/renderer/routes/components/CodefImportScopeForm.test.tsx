@@ -142,6 +142,32 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(allChipPressable?.getAttribute('aria-pressed')).toBe('true')
   })
 
+  /*
+   * #825 슬5 R3 HIGH-5 — OPUS 4.8 R3 가 이 it.each 를 HEAD 무수정 상태에서 연속 4회 실행 중
+   * 2회 RED(저장된 BANK 케이스가 "type":"ALL" 을 수신 — R2 fix 이전 값과 정확히 일치)를
+   * 관측했으나, 이후 it.each 4회/describe 5회/전체파일 6회 = 15회 연속 green 으로도 재현하지
+   * 못했다(genuine RED 로 확정도, 무마도 하지 않고 다음 라운드로 이월).
+   *
+   * SONNET5 R3 fix 라운드에서 재조사한 결과:
+   * 1) 재현 시도 — 이 파일 단독 반복 10회 green(각 12/12) + 이 파일을 포함한 desktop 전체
+   *    vitest 스위트(134 파일/1031 테스트)를 3개 프로세스로 동시 기동해 CPU 경합을 인위적으로
+   *    유발한 상태에서 이 파일만 추가로 12회 더 반복 실행 — 전부 green(22회 연속, 3개 동시
+   *    스위트 각 1031/1031 통과 포함). 어떤 조합으로도 재현하지 못했다.
+   * 2) 코드 경로 분석 — branch A 페이로드의 type 필드(:330)는 상태변수 type 이 아닌
+   *    restoredScope.defaultImportType 을 직접 읽는다. restoredScope/scopeMode/type 은
+   *    전부 같은 useEffect 콜백 안에서 setState 되어 React 18 자동 배칭으로 **한 렌더에 함께
+   *    커밋**된다 — 즉 "가져오기 버튼이 활성화된 렌더" 라면 그 시점에 restoredScope 도 이미
+   *    같은 배치로 갱신돼 있어야 하며, 두 값이 같은 렌더 내에서 서로 다른 시점에 관측되는
+   *    동기적 경쟁 창이 코드상 성립하지 않는다.
+   * 3) 독립 근거 — R3 라이브 QA(§보충3, 실서버+DB 교차검증)가 BANK/CARD/LOAN/ALL 4조합
+   *    전부 정확한 결과를 냈음을 이미 확증했다(제품 결함이면 라이브에서도 나타났어야 한다).
+   *
+   * 결론 — 재현 실패 + 배칭 분석 + 독립 라이브 검증 3가지가 모두 "제품 결함 아님" 을
+   * 가리킨다. 다만 정확한 교차오염 메커니즘을 확정하지는 못했다(브리프가 요구하는 "원인
+   * 규명"을 완전히 충족하지 못함 — 정직 고지). 테스트 자체는 이미 올바른 것을 올바르게
+   * 단언하고 있어 로직을 바꾸지 않았다 — 근거 없는 재작성은 오히려 방어력을 흐릴 수 있다.
+   * 재발 시 CI 실행 로그(워커 인덱스·동시 실행 파일 수)를 함께 남겨 재조사할 것.
+   */
   it.each(['CARD', 'BANK', 'LOAN', 'ALL'] as const)(
     'R2 BLOCKING-1 — 저장된 %s+ALL 은 가져오기 type을 저장된 defaultImportType으로 유지하고 refs를 생략한다',
     async (defaultImportType) => {
@@ -171,6 +197,44 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
       expect(importScopedCodefMock.mock.calls[0]![0]).not.toHaveProperty('loanRefs')
     },
   )
+
+  it('HIGH-4(R3) — 브랜치 B: 저장 scopeMode=SELECTED 로 재방문 후 아무 것도 건드리지 않고 곧바로 가져오면 explicit-empty triple 로 "저장 선택 사용"에 위임한다(가장 흔한 실사용 플로우 — 종전 12개 테스트 중 이 경로를 클릭하는 것이 0건이었다)', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    // 저장된 SELECTED scope — 계좌 1건 선택. 위 R2 BLOCKING-1 it.each 는 scopeMode='ALL'
+    // (branch A, buildImportPayload:320-332)만 커버한다. 이 테스트는 scopeMode='SELECTED'
+    // (branch B, :334-345)를 재방문 직후 어떤 상호작용(체크박스/타입 전환)도 없이(선택 그대로
+    // = selectionDirty=false 유지) 곧바로 가져오기를 눌러 정확히 그 경로를 탄다 — 기존
+    // "item5(type seam)" 테스트는 이 branch B 를 의도적으로 우회(dirty 강제)했고, "기존
+    // 빈-ref SELECTED" 테스트는 refs 가 비어 애초에 가져오기가 잠겨 있었다.
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [BANK_A.ref],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'BANK',
+      scopeMode: 'SELECTED',
+    })
+    importScopedCodefMock.mockResolvedValue(baseResult)
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByTestId('codef-import-button'))
+
+    await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
+    // 핵심 단언 — branch B 는 type 을 'ALL' 로 고정하고 세 refs 를 모두 explicit []로 보내
+    // BE 의 "저장 선택 사용"(scope.getRequired 재조회)에 위임해야 한다. type 이 저장된
+    // defaultImportType('BANK')을 그대로 흘려보내거나 refs 키가 생략되면(undefined) BE 가
+    // 서버 전수 열거로 해석해 새어나간다 — 이 단언이 그 두 회귀를 모두 잡는다.
+    expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({
+      type: 'ALL',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+    })
+  })
 
   it('scopeMode=null(한 번도 저장한 적 없음)이면 미선택으로 초기화되어 잠긴다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])

@@ -83,7 +83,16 @@ public class CodefImportScopedService {
                 // #825 슬5 R1 BLOCKING#1 — 저장 당시 '전체'(scopeMode=ALL)였다면 refs 는 설계상
                 // 비어 있다(D-S5-02). 이를 "저장 선택이 없음"으로 오판해 거부하지 않고, 진짜 전체
                 // 열거로 materialize한다 — ALL 저장 직후 가져오기가 자기모순으로 400 나던 결함의 근본 fix.
-                return listAllFromCodef(type, connectedId, submitMethod);
+                //
+                // #825 슬5 R3 HIGH-1 — 열거 범위는 요청 파라미터 type 이 아닌 저장된
+                // scope.getDefaultImportType() 을 신뢰해야 한다. 이 분기는 요청 type 이 항상
+                // ALL 인 경우에만 진입하므로(바깥 if 조건) type 그대로 넘기면 저장 당시
+                // 카테고리 한정 ALL(예: defaultImportType=CARD·scopeMode=ALL — "카드만 전체")도
+                // BANK+CARD+LOAN 전 카테고리로 조용히 확대된다(FE 가 stale 캐시/동시 세션에서
+                // 여전히 type='ALL' + explicit-empty triple 을 보내는 두 경로 — buildImportPayload
+                // 의 SELECTED-위임 branch, 또는 롤링 배포 중 구버전이 refs 만 갱신한 행). 저장된
+                // defaultImportType 을 그대로 넘겨 그 범위만 materialize한다.
+                return listAllFromCodef(scope.getDefaultImportType(), connectedId, submitMethod);
             }
             List<String> savedAccountRefs = CodefRefNormalizer.normalizeRefs(scope.getAccountRefSelections());
             List<String> savedCardRefs = CodefRefNormalizer.normalizeRefs(scope.getCardRefSelections());

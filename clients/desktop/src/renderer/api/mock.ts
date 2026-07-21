@@ -6263,23 +6263,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     ) {
       return mockError(400, 'INVALID_INPUT', '저장된 가져오기 선택이 비어 있습니다. 계좌·카드·대출 중 하나 이상을 선택해 저장하세요.')
     }
+    // #825 슬5 R3 HIGH-1 파리티 — true-all 열거 시 범위는 요청 type(이 분기에서는 항상 'ALL')이
+    // 아닌 저장된 saved.defaultImportType 을 신뢰해야 한다. BE CodefImportScopedService 의
+    // R3 fix(listAllFromCodef(scope.getDefaultImportType(), ...))와 동일 분기 — 저장 당시
+    // 카테고리 한정 ALL(예: defaultImportType=CARD·scopeMode=ALL)을 BANK+CARD+LOAN 전체로
+    // 조용히 확대하던 결함을 mock 에서도 동일하게 해소한다. 일반 흐름(useTrueAllEnumeration
+    // 이 아닌 경우)은 종전과 동일하게 요청 type 을 그대로 쓴다.
+    const enumerationType = useTrueAllEnumeration ? (saved?.defaultImportType ?? 'ALL') : type
 
     const accountRefs = resolveMockCodefRefs(
-      type,
+      enumerationType,
       'BANK',
       useTrueAllEnumeration ? null : body.accountRefs,
       saved?.accountRefs,
       MOCK_CODEF_BANK_ACCOUNTS.map((item) => item.ref),
     )
     const cardRefs = resolveMockCodefRefs(
-      type,
+      enumerationType,
       'CARD',
       useTrueAllEnumeration ? null : body.cardRefs,
       saved?.cardRefs,
       MOCK_CODEF_CARDS.map((item) => item.ref),
     )
     const loanRefs = resolveMockCodefRefs(
-      type,
+      enumerationType,
       'LOAN',
       useTrueAllEnumeration ? null : body.loanRefs,
       saved?.loanRefs,

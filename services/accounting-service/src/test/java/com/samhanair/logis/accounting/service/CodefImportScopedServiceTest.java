@@ -116,4 +116,87 @@ class CodefImportScopedServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("저장된 가져오기 선택이 비어 있습니다");
     }
+
+    /*
+     * #825 슬5 R3 HIGH-1 — R2 는 이 분기(:82-86)를 "요청 type" 으로 열거해 저장 당시 카테고리
+     * 한정 ALL(예: defaultImportType=CARD·scopeMode=ALL — "카드만 전체")도 BANK+CARD+LOAN
+     * 전 카테고리로 조용히 확대했다. 기존 3건은 defaultImportType 이 전부 ALL 이라 "요청 type"과
+     * "저장된 scope.getDefaultImportType()" 이 우연히 같은 값이 되어 이 결함을 가리지 못했다
+     * (뮤테이션 무방비). 아래 4조합(BANK+ALL·CARD+ALL·LOAN+ALL·ALL+ALL — 라이브 QA R3 표와
+     * 동일 매트릭스)은 defaultImportType 값을 요청 type(ALL 고정)과 명시적으로 다르게 만들어,
+     * listAllFromCodef 가 요청 type 이 아닌 scope.getDefaultImportType() 을 실제로 읽는지
+     * 독립적으로 증명한다 — 다른 두 카테고리의 CodefClient 미호출을 verify(never()) 로 확정.
+     */
+
+    @Test
+    @DisplayName("R3 HIGH-1 fix — 저장 scopeMode=ALL + defaultImportType=BANK 은 계좌만 전체 열거한다(카드·대출 미호출)")
+    void allSavedScope_defaultImportTypeBank_enumeratesOnlyBank() {
+        UserCodefImportScope bankAllScope = UserCodefImportScope.create(USER_ID, CONNECTED_ID)
+                .updateSelections(List.of(), List.of(), List.of(), CodefImportType.BANK, "ALL");
+        when(scopeService.getRequired(USER_ID, CONNECTED_ID)).thenReturn(bankAllScope);
+        when(codefClient.listBankAccounts(CONNECTED_ID, "DRY_RUN"))
+                .thenReturn(List.of(new AccountInfo("국민 123-456", "운영계좌", "국민은행", "123-456")));
+        when(codefImportService.importTransactionsForRefs(
+                eq(FROM), eq(TO), eq(CodefImportType.ALL), anyList(), anyList(), anyList(), eq("DRY_RUN")))
+                .thenReturn(new CodefImportResponse(1, 1, 0, 0));
+
+        service.importTransactionsWithScope(
+                FROM, TO, CodefImportType.ALL, CONNECTED_ID,
+                List.of(), List.of(), List.of(), "DRY_RUN", USER_ID);
+
+        verify(codefImportService).importTransactionsForRefs(
+                FROM, TO, CodefImportType.ALL,
+                List.of("국민 123-456"), List.of(), List.of(), "DRY_RUN");
+        verify(codefClient).listBankAccounts(CONNECTED_ID, "DRY_RUN");
+        verify(codefClient, never()).listCards(any(), any());
+        verify(codefClient, never()).listLoans(any(), any());
+    }
+
+    @Test
+    @DisplayName("R3 HIGH-1 fix — 저장 scopeMode=ALL + defaultImportType=CARD 는 카드만 전체 열거한다(계좌·대출 미호출)")
+    void allSavedScope_defaultImportTypeCard_enumeratesOnlyCard() {
+        UserCodefImportScope cardAllScope = UserCodefImportScope.create(USER_ID, CONNECTED_ID)
+                .updateSelections(List.of(), List.of(), List.of(), CodefImportType.CARD, "ALL");
+        when(scopeService.getRequired(USER_ID, CONNECTED_ID)).thenReturn(cardAllScope);
+        when(codefClient.listCards(CONNECTED_ID, "DRY_RUN"))
+                .thenReturn(List.of(new CardInfo("법인카드-001", "물류카드", "신한카드", "9999")));
+        when(codefImportService.importTransactionsForRefs(
+                eq(FROM), eq(TO), eq(CodefImportType.ALL), anyList(), anyList(), anyList(), eq("DRY_RUN")))
+                .thenReturn(new CodefImportResponse(1, 1, 0, 0));
+
+        service.importTransactionsWithScope(
+                FROM, TO, CodefImportType.ALL, CONNECTED_ID,
+                List.of(), List.of(), List.of(), "DRY_RUN", USER_ID);
+
+        verify(codefImportService).importTransactionsForRefs(
+                FROM, TO, CodefImportType.ALL,
+                List.of(), List.of("법인카드-001"), List.of(), "DRY_RUN");
+        verify(codefClient).listCards(CONNECTED_ID, "DRY_RUN");
+        verify(codefClient, never()).listBankAccounts(any(), any());
+        verify(codefClient, never()).listLoans(any(), any());
+    }
+
+    @Test
+    @DisplayName("R3 HIGH-1 fix — 저장 scopeMode=ALL + defaultImportType=LOAN 은 대출만 전체 열거한다(계좌·카드 미호출)")
+    void allSavedScope_defaultImportTypeLoan_enumeratesOnlyLoan() {
+        UserCodefImportScope loanAllScope = UserCodefImportScope.create(USER_ID, CONNECTED_ID)
+                .updateSelections(List.of(), List.of(), List.of(), CodefImportType.LOAN, "ALL");
+        when(scopeService.getRequired(USER_ID, CONNECTED_ID)).thenReturn(loanAllScope);
+        when(codefClient.listLoans(CONNECTED_ID, "DRY_RUN"))
+                .thenReturn(List.of(new LoanInfo("기업운전자금대출-001", "운전자금", "하나은행", "운전자금")));
+        when(codefImportService.importTransactionsForRefs(
+                eq(FROM), eq(TO), eq(CodefImportType.ALL), anyList(), anyList(), anyList(), eq("DRY_RUN")))
+                .thenReturn(new CodefImportResponse(1, 1, 0, 0));
+
+        service.importTransactionsWithScope(
+                FROM, TO, CodefImportType.ALL, CONNECTED_ID,
+                List.of(), List.of(), List.of(), "DRY_RUN", USER_ID);
+
+        verify(codefImportService).importTransactionsForRefs(
+                FROM, TO, CodefImportType.ALL,
+                List.of(), List.of(), List.of("기업운전자금대출-001"), "DRY_RUN");
+        verify(codefClient).listLoans(CONNECTED_ID, "DRY_RUN");
+        verify(codefClient, never()).listBankAccounts(any(), any());
+        verify(codefClient, never()).listCards(any(), any());
+    }
 }

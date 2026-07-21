@@ -87,6 +87,16 @@ async function goto(page: Page, route: string): Promise<void> {
  * 따라서 매 테스트가 화면에 복원된 범위를 직접 해제해 '미선택' 전제를 만든다.
  * 저장된 ALL/SELECTED 어느 상태에서 시작해도 동작하므로 이전 실행 잔여 상태에도
  * 의존하지 않는다.
+ *
+ * 🚨 [SONNET5 R3 MED-9(a) fix] 종전에는 '선택 칩 제거 반복' → '눌린 ALL 칩 제거'
+ * 순서로만 해제를 시도해, SELECTED + refs 전부 [](V64 backfill 직후의 "제4의 무표시
+ * 상태" — scopeMode='SELECTED' 인데 화면엔 칩이 0개)에서는 해제할 선택 칩도 눌린 ALL
+ * 칩도 없어 아무 것도 클릭하지 못하고 마지막 hint 대기에서 데드락(15s 타임아웃)됐다.
+ * '전체' 칩 클릭(selectAllScope)은 현재 scopeMode 와 무관하게 canUpdate 이기만 하면
+ * 항상 가능한 유일한 무조건부 진입점이므로, 모든 시작 상태를 먼저 ALL 로 강제 수렴시킨
+ * 뒤 그 자리에서 곧바로 제거해 null(미선택)로 전이한다 — FE 상태전이표(selectAllScope→
+ * clearScope)만 사용하는 결정적 2-클릭 경로라 SELECTED-빈값/SELECTED-값있음/ALL 어느
+ * 시작 상태에서도 동일하게 동작한다.
  */
 async function resetCodefScopeToUnset(page: Page): Promise<void> {
   const hint = page.getByTestId('codef-scope-hint')
@@ -95,18 +105,10 @@ async function resetCodefScopeToUnset(page: Page): Promise<void> {
     return
   }
 
-  // defaultImportType이 특정 카테고리여도 복원된 다른 카테고리 ref를 모두 보이게 한다.
-  await page.getByTestId('codef-import-type').selectOption('ALL')
-  const selectedChips = page.getByTestId('codef-selected-chip')
-  while (await selectedChips.count() > 0) {
-    await selectedChips.first().getByRole('button').click()
-  }
-
   const allChip = page.getByTestId('codef-all-scope-chip')
-  const allPressable = allChip.locator('[role="button"]')
-  if (await allPressable.count() > 0 && await allPressable.getAttribute('aria-pressed') === 'true') {
-    await allChip.getByRole('button', { name: '전체 범위 제거' }).click()
-  }
+  await allChip.click()
+  await expect(allChip.locator('[role="button"]')).toHaveAttribute('aria-pressed', 'true', { timeout: 10000 })
+  await allChip.getByRole('button', { name: '전체 범위 제거' }).click()
   await expect(hint).toBeVisible({ timeout: 15000 })
 }
 
@@ -231,8 +233,15 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     const productCombo = page.getByRole('combobox', { name: '제품' })
     await productCombo.click()
     await productCombo.fill(QA_PRODUCT_MODEL)
-    await expect(page.locator('li[role="option"]').first(), '품목 후보 미표시').toBeVisible({ timeout: 15000 })
-    await page.locator('li[role="option"]').first().click()
+    // 🚨 [SONNET5 R3 MED-9(b) fix] AsyncAutocomplete 의 로딩 행("검색 중…")도 실 후보 행과
+    // 동일하게 li[role="option"] 이라 종전 `.first()` 는 타이밍에 따라 로딩 행을 클릭할
+    // 수 있었다(제품 미커밋 → 저장 영구 비활성, 입력창엔 초안이 남아 육안으로는 정상처럼
+    // 보임). 로딩 행 텍스트를 명시적으로 배제해 실 후보 행만 대상으로 삼는다 — 렌더
+    // 타이밍과 무관하게 구조적으로 로딩 행을 절대 클릭하지 않는다(AsyncAutocomplete 컴포넌트
+    // 자체는 이 슬라이스 범위 밖 — LOW pre-existing, 개발책임자 처분 대기).
+    const productCandidate = page.locator('li[role="option"]').filter({ hasNotText: '검색 중' })
+    await expect(productCandidate.first(), '품목 후보 미표시').toBeVisible({ timeout: 15000 })
+    await productCandidate.first().click()
     await page.getByTestId('safety-stock-config-threshold').fill('3')
     await expect(saveBtn).toBeDisabled()
     await shot(page, 'd2-s1b-product-threshold-filled-still-locked')
@@ -372,7 +381,12 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await page.getByTestId('codef-import-to').fill('2020-01-07')
     await expect(page.getByTestId('codef-import-button')).toBeEnabled()
     await page.getByTestId('codef-import-button').click()
-    await expect(page.getByTestId('codef-import-result')).toBeVisible({ timeout: 20000 })
+    // 🚨 [SONNET5 R3 MED-9(c) fix] codef-import-result 는 위 SELECTED 가져오기(:350)에서 이미
+    // 마운트되어 계속 visible 상태다 — 종전 toBeVisible() 은 이 시점에 즉시(재확인 없이) 통과해
+    // 아직 갱신되지 않은 이전(SELECTED) 결과를 그대로 읽을 위험이 있었다(제품 회귀 아님 —
+    // D3b 의 토스트 기반 단언과 4조합 DB 교차검증으로 이미 확증됨). 이전 요약(selSummary)과
+    // 달라질 때까지 폴링해 이번 ALL 가져오기의 새 결과가 실제로 반영된 뒤에 읽는다.
+    await expect(page.getByTestId('codef-import-result')).not.toHaveText(selSummary, { timeout: 20000 })
     const toastTextAfterAllImport = ((await page.getByTestId('bank-transaction-toast').innerText().catch(() => '')) ?? '').trim()
     const allSavedSummary = (await result.innerText()).replace(/\s+/g, ' ').trim()
     console.log(`[F4-D3 fix 확인] ALL 저장 후 가져오기 → 토스트: "${toastTextAfterAllImport}" · 결과영역: "${allSavedSummary}"`)
@@ -401,7 +415,8 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(importBtn3).toBeEnabled()
     await importBtn3.click()
     const result3 = page.getByTestId('codef-import-result')
-    await expect(result3).toBeVisible({ timeout: 20000 })
+    // MED-9(c) fix — 이전(F4, ALL 저장 경유) 결과와 달라질 때까지 폴링(위와 동일 사유).
+    await expect(result3).not.toHaveText(allSavedSummary, { timeout: 20000 })
     const allSummary = (await result3.innerText()).replace(/\s+/g, ' ').trim()
     console.log(`[D3] 진짜 ALL(저장 scope 경유) 가져오기 요약: ${allSummary}`)
     expect(allSummary, 'ALL/SELECTED 가져오기 요약이 동일 — 범위 미반영 의심').not.toBe(selSummary)
