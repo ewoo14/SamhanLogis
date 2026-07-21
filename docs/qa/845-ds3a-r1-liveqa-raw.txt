@@ -1,0 +1,69 @@
+2026-07-21T04:41:34.749Z signature 09d31223-2acf-46c3-8e09-254fc0cebffb → {"docNo":0,"contentMarker":0,"fieldLabel":0,"approvalGrid":0,"banner":0,"bannerText":""}
+2026-07-21T04:41:34.816Z capture 01-seed-unpinned-approved-banner-default.png
+2026-07-21T04:41:37.536Z doc-template created id=2cc17daa-89ce-4d6a-8d6d-7003691cda7e rev=1 status=DRAFT
+2026-07-21T04:41:37.695Z approvalA id=undefined no=2026/07/21-3 status=PENDING
+2026-07-21T04:41:42.458Z signature 056ec1ac-ee7c-45a0-b378-f02a80d82f72 → {"docNo":0,"contentMarker":0,"fieldLabel":0,"approvalGrid":0,"banner":0,"bannerText":""}
+2026-07-21T04:41:42.498Z capture 05-noactive-approved-banner-current-v2.png
+2026-07-21T04:41:46.613Z signature e98596be-dd56-47c2-a2bb-63e6a9bc5ce8 → {"docNo":0,"contentMarker":0,"fieldLabel":0,"approvalGrid":0,"banner":0,"bannerText":""}
+2026-07-21T04:41:46.658Z capture 06-pending-doc-no-banner.png
+2026-07-21T04:41:48.639Z signature 056ec1ac-ee7c-45a0-b378-f02a80d82f72 → {"docNo":0,"contentMarker":0,"fieldLabel":0,"approvalGrid":0,"banner":0,"bannerText":""}
+2026-07-21T04:41:48.680Z capture 07a-unpinned-screen-media.png
+2026-07-21T04:41:49.001Z print-media: bannerVisible=false noPrintToolbarVisible=false
+2026-07-21T04:41:49.039Z capture 07b-unpinned-print-media-emulated.png
+2026-07-21T04:41:49.202Z print-media verdict: 배너 인쇄 포함=false
+2026-07-21T04:47:24.711Z signature 09d31223-2acf-46c3-8e09-254fc0cebffb → {"docNo":1,"contentMarker":0,"fieldLabel":0,"approvalGrid":1,"banner":1,"bannerText":"승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다."}
+2026-07-21T04:47:24.838Z capture 01-seed-unpinned-approved-banner-default.png
+2026-07-21T04:47:25.147Z pre-clean soft-deleted leftover template 2cc17daa-89ce-4d6a-8d6d-7003691cda7e
+2026-07-21T04:47:25.202Z doc-template created id=21dd571b-d4c7-4da3-8ca9-bda07bbd66a7 rev=1 status=DRAFT
+2026-07-21T04:47:25.369Z approvalA id=bd2080ea-06b2-4ffc-aeb9-1c5417e3ec00 no=2026/07/21-4 status=PENDING
+2026-07-21T04:47:25.487Z approvalA pinned → (21dd571b-d4c7-4da3-8ca9-bda07bbd66a7, 1)
+2026-07-21T04:47:28.335Z signature bd2080ea-06b2-4ffc-aeb9-1c5417e3ec00 → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"banner":0,"bannerText":""}
+2026-07-21T04:47:28.423Z capture 02-approvalA-print-pinned-v1-before-edit.png
+2026-07-21T04:47:28.678Z admin modified template → ACTIVE rev=2
+2026-07-21T04:47:31.536Z signature bd2080ea-06b2-4ffc-aeb9-1c5417e3ec00 → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"banner":0,"bannerText":""}
+2026-07-21T04:47:31.622Z capture 03-approvalA-reprint-after-edit-STILL-v1.png
+2026-07-21T04:47:32.085Z approvalB pinned → (21dd571b-d4c7-4da3-8ca9-bda07bbd66a7, 2)
+2026-07-21T04:47:34.682Z signature 8d3ad8d7-101f-4cf4-ae24-6742cc6a7c47 → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"banner":0,"bannerText":""}
+2026-07-21T04:47:34.776Z capture 04-approvalB-print-pinned-v2-after-edit.png
+2026-07-21T04:47:37.458Z signature 056ec1ac-ee7c-45a0-b378-f02a80d82f72 → {"docNo":0,"contentMarker":0,"fieldLabel":0,"approvalGrid":1,"banner":1,"bannerText":"승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다."}
+2026-07-21T04:47:37.544Z capture 05-noactive-approved-banner-current-v2.png
+2026-07-21T04:47:40.040Z signature e98596be-dd56-47c2-a2bb-63e6a9bc5ce8 → {"docNo":1,"contentMarker":0,"fieldLabel":0,"approvalGrid":1,"banner":0,"bannerText":""}
+2026-07-21T04:47:40.143Z capture 06-pending-doc-no-banner.png
+2026-07-21T04:47:43.022Z signature 056ec1ac-ee7c-45a0-b378-f02a80d82f72 → {"docNo":0,"contentMarker":0,"fieldLabel":0,"approvalGrid":1,"banner":1,"bannerText":"승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다."}
+2026-07-21T04:47:43.120Z capture 07a-unpinned-screen-media.png
+2026-07-21T04:47:43.447Z print-media: bannerVisible=true noPrintToolbarVisible=false
+2026-07-21T04:47:43.532Z capture 07b-unpinned-print-media-emulated.png
+2026-07-21T04:47:43.689Z print-media verdict: 배너 인쇄 포함=true
+2026-07-21T04:47:47.317Z signature bd2080ea-06b2-4ffc-aeb9-1c5417e3ec00 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"banner":0,"bannerText":""}
+2026-07-21T04:47:47.405Z capture 08-pinned-revision-fetch-failed-default-no-banner.png
+2026-07-21T04:47:47.405Z L7 aborted revision requests=1
+2026-07-21T04:47:47.406Z L7 verdict: DEFAULT강하=true banner=0 (v1이면 contentMarker=0이어야 하나 실측 1)
+2026-07-21T04:47:50.046Z signature bd2080ea-06b2-4ffc-aeb9-1c5417e3ec00 → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"banner":0,"bannerText":""}
+2026-07-21T04:47:50.443Z capture 09-approvalA-print-media-emulated-v1.png
+2026-07-21T04:50:07.053Z L9 template soft-delete HTTP 200
+2026-07-21T04:50:09.176Z L9 signature after template soft-delete → {"docNo":1,"contentMarker":0,"fieldLabel":1,"banner":0}
+2026-07-21T04:50:09.259Z capture 10-approvalA-reprint-after-template-softdelete-STILL-v1.png
+2026-07-21T04:50:09.259Z L9 verdict: 템플릿 soft-delete 후에도 pinned v1 유지=true
+
+===== 환경/절차 푸터 (2026-07-21 FABLE5 차원F 라이브QA) =====
+[스택] docker compose project=infrastructure (24 컨테이너, samhan-postgres 실DB)
+[이미지 stale 확증] infrastructure-groupware-service 기존 이미지 Created=2026-07-06T07:37Z vs 슬라이스 커밋 b685596b6=2026-07-21 12:45 KST → stale
+[재빌드] ds3a 워크트리에서 ./gradlew :services:groupware-service:bootJar -x test → jar 13:23 생성
+         → 최소 컨텍스트 docker build (spring-service.Dockerfile, JAR_FILE=groupware-service.jar) → infrastructure-groupware-service Created=2026-07-21T04:30Z(=13:30 KST)
+         → docker compose up -d --no-deps --force-recreate groupware-service → healthy ~15s
+[마이그레이션] 라이브 groupware_db 는 V9 상태였음(V10 document_templates 자체가 첫 적용) → 부팅 시 V10/V11/V12 순차 success=t
+         V12 산출물 확인: document_template_revisions + trg_document_template_revisions_append_only + approval_lines.document_template_id/revision + backfill 0건(기존 템플릿 0)
+[FE] ds3a 워크트리 vite.renderer.dev.config.ts, 포트 5297 --strictPort, VITE_API_BASE_URL=http://localhost:8080, mock OFF(VITE_MOCK_MODE 미설정)
+[하네스 함정 실측] dev 렌더러=createHashRouter → 비해시 /groupware/... 직접 진입 시 대시보드 fallback(URL 유지) → run1 all-zero 시그니처.
+         스펙을 /#/ 경로 + 'print 화면 고유요소 가시성 필수 대기'로 하드닝(대시보드 위장 통과 차단). run2 = 9/9 PASS.
+[approve 신원 실측] ApprovalLineAdminResponse.id 는 JSON 직렬화 시 approvalId 필드명.
+[dev 계정 실측] approve/create 엔드포인트 @RequireDepartment(EXECUTIVE_OFFICE): dev_master(부서=대표실)만 통과. dev_manager 는 403(부서없음+MANAGER, 레거시 폴백은 MASTER 한정)
+         → GROUPWARE_EXPENSE_REPORT config 의 최종 결재자(dev_manager)는 dev 환경에서 HTTP 승인 불가(기존재 환경 결함, 본 슬라이스 무관)
+[QA 데이터 격리] 전용 docType=GROUPWARE_QA_DS3A_PIN 만 사용. 실 공유 템플릿/마스터 write 0건.
+         - auth.approval_line_config: CREATOR-only 행 직삽(created_by=qa-ds3a-liveqa) → QA 후 hard-DELETE 완료(잔존 0, admin API 로 만든 soft-deleted GROUP 행 1건은 정상 이력)
+         - groupware 결재유형 [QA] DS-3a pin 검증 유형(6c584820) → QA 후 soft-delete
+         - 문서양식 [QA] DS-3a pin v1/v2(21dd571b, 선행 실패분 2cc17daa) → soft-delete (revision 이력은 append-only 설계상 잔존=정상)
+         - QA 결재 5건(2026/07/21-1~5) → is_deleted=true (deleted_by=qa-ds3a-cleanup) 로 목록에서 제거. 각인 증거는 행에 보존:
+           21-4=bd2080ea pin=(21dd571b,1) / 21-5=8d3ad8d7 pin=(21dd571b,2) / 21-2=056ec1ac pin=NULL(무ACTIVE 승인)
+[append-only DB 실증] UPDATE/DELETE 직접 시도 → ERROR: document_template_revisions is append-only (트리거 차단)
+[정리] vite(5297) 종료·포트 해제, playwright test-results 제거. groupware 컨테이너는 신규 이미지(V12 포함)로 계속 가동 = 브랜치 배포 상태.
