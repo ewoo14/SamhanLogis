@@ -1,0 +1,101 @@
+2026-07-21T13:30:58.137Z login dev_master role=MASTER userId=a0000000-0000-0000-0000-000000000001
+2026-07-21T13:30:58.182Z pre-clean soft-deleted leftover approval-template fc9b3d4e-0a6e-48e0-9773-2db3c198c4ec
+2026-07-21T13:30:58.206Z pre-clean soft-deleted leftover document-template 5a407bd9-1103-4aec-8965-4a0f233e9e2d
+2026-07-21T13:30:58.224Z approval-template created id=8785011a-743c-47f1-bd04-a7f9715f5cd8 code=QA_DS3A_R3 → docType=GROUPWARE_QA_DS3A_R3
+2026-07-21T13:30:58.261Z document-template v1 id=5f09b6ad-3fb8-4087-a260-d365d7459a1a ACTIVE rev=1
+2026-07-21T13:30:59.131Z approval created id=2c306115-4918-4898-bf40-3c7fe01159a8 no=2026/07/21-1 status=PENDING title=[QA-R3] 결재A — 양식 수정 전 승인
+2026-07-21T13:30:59.191Z approved 2c306115-4918-4898-bf40-3c7fe01159a8 → status=APPROVED pin=(5f09b6ad-3fb8-4087-a260-d365d7459a1a, 1) defaultPinned=false
+2026-07-21T13:31:01.195Z signature 2c306115-4918-4898-bf40-3c7fe01159a8 → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:31:01.271Z capture 01-approvalA-pinned-v1-before-edit.png
+2026-07-21T13:31:01.434Z document-template 5f09b6ad-3fb8-4087-a260-d365d7459a1a modified → ACTIVE rev=2 (v2)
+2026-07-21T13:31:03.509Z signature 2c306115-4918-4898-bf40-3c7fe01159a8 → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:31:03.577Z capture 02-approvalA-reprint-after-edit-STILL-v1.png
+2026-07-21T13:31:03.686Z approval created id=82c6af56-7709-43ca-b5d2-9ce238e3112c no=2026/07/21-2 status=PENDING title=[QA-R3] 결재B — 양식 수정 후 승인
+2026-07-21T13:31:03.720Z approved 82c6af56-7709-43ca-b5d2-9ce238e3112c → status=APPROVED pin=(5f09b6ad-3fb8-4087-a260-d365d7459a1a, 2) defaultPinned=false
+2026-07-21T13:31:05.718Z signature 82c6af56-7709-43ca-b5d2-9ce238e3112c → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:31:05.776Z capture 03-approvalB-pinned-v2.png
+2026-07-21T13:31:05.863Z deactivated 5f09b6ad-3fb8-4087-a260-d365d7459a1a (GROUPWARE_QA_DS3A_R3)
+2026-07-21T13:31:05.877Z ACTIVE-0 확인: HTTP 200 data=null
+2026-07-21T13:31:05.920Z approval created id=154db38a-698b-4520-a7e0-0997b0ada5e1 no=2026/07/21-3 status=PENDING title=[QA-R3] 결재C — ACTIVE 양식 부재 상태 승인
+2026-07-21T13:31:05.948Z approved 154db38a-698b-4520-a7e0-0997b0ada5e1 → status=APPROVED pin=(null, null) defaultPinned=true
+2026-07-21T13:31:07.943Z signature 154db38a-698b-4520-a7e0-0997b0ada5e1 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":1,"pinFailedBanner":0}
+2026-07-21T13:31:08.015Z capture 04-approvalC-active0-default-pinned.png
+2026-07-21T13:31:08.116Z document-template v3 id=1cb94511-5be1-4bb2-8b50-573f3d0e6cd5 ACTIVE — ACTIVE-0 승인 이후 신규 활성화
+2026-07-21T13:31:08.129Z 현재 ACTIVE 확인 → 1cb94511-5be1-4bb2-8b50-573f3d0e6cd5 ([QA-R3] 문서양식 v3(사후 활성))
+2026-07-21T13:31:10.122Z signature 154db38a-698b-4520-a7e0-0997b0ada5e1 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":1,"pinFailedBanner":0}
+2026-07-21T13:31:10.202Z capture 05-approvalC-STILL-default-after-new-active.png
+2026-07-21T13:31:12.329Z signature 2c306115-4918-4898-bf40-3c7fe01159a8 → {"docNo":1,"contentMarker":0,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:31:12.395Z capture 06-approvalA-STILL-v1-after-v3.png
+2026-07-21T13:31:13.672Z signature 82c6af56-7709-43ca-b5d2-9ce238e3112c → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:31:13.742Z capture 07-approvalB-STILL-v2-after-v3.png
+2026-07-21T13:31:15.870Z signature 2c306115-4918-4898-bf40-3c7fe01159a8 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":0,"pinFailedBanner":1}
+2026-07-21T13:31:15.935Z capture 08-pin-fetch-failed-notice.png
+2026-07-21T13:31:15.936Z S8 aborted revision requests=1
+2026-07-21T13:31:18.048Z signature 154db38a-698b-4520-a7e0-0997b0ada5e1 → {"docNo":1,"contentMarker":1,"fieldLabel":1,"approvalGrid":1,"unpinnedBanner":0,"defaultPinnedBanner":1,"pinFailedBanner":0}
+2026-07-21T13:31:18.110Z capture 09a-approvalC-screen-media.png
+2026-07-21T13:31:18.532Z S9 print-media: bannerVisible=false backLinkVisible=false approvalGridVisible=true
+2026-07-21T13:31:18.590Z capture 09b-approvalC-print-media-emulated.png
+2026-07-21T13:32:24.273Z signature 82c6af56-7709-43ca-b5d2-9ce238e3112c → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":1,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:32:24.341Z capture 10-legacy-unpinned-notice.png
+2026-07-21T13:32:24.341Z S10 legacy 관측 82c6af56-7709-43ca-b5d2-9ce238e3112c → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":1,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:33:40.295Z signature 154db38a-698b-4520-a7e0-0997b0ada5e1 → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":1,"defaultPinnedBanner":0,"pinFailedBanner":0}
+2026-07-21T13:33:40.354Z capture 10-legacy-unpinned-notice.png
+2026-07-21T13:33:40.355Z S10 legacy 관측 154db38a-698b-4520-a7e0-0997b0ada5e1 → {"docNo":0,"contentMarker":1,"fieldLabel":0,"approvalGrid":1,"unpinnedBanner":1,"defaultPinnedBanner":0,"pinFailedBanner":0}
+
+──────────────────────────────────────────────────────────────────────────────
+[R3 라이브QA 부록 — PM 회수용 원문]
+
+[0단계 배포 증명]
+  Image.Created      = 2026-07-21T13:19:24Z (= 22:19:24 KST) — 브랜치 HEAD 0dc88b3a4 (21:18:17 KST) 이후
+  Container.StartedAt= 2026-07-21T13:19:28Z (= 22:19:28 KST), Health=healthy
+  flyway V12         = success=t, installed_on 2026-07-21 22:19:31, execution_time 43ms
+  SPRING_PROFILES_ACTIVE = dev
+  jar 실물 검증(compileJava UP-TO-DATE 였으므로 직접 확인):
+    - BOOT-INF/classes/db/migration/V12__*.sql 에 document_template_default_pinned / V12_BACKFILL_UNVERIFIED 실재
+    - ApprovalLine.class: private boolean documentTemplateDefaultPinned / pinDefaultDocumentTemplate() / isDocumentTemplateDefaultPinned()
+    - ApprovalLineService.class: ifPresentOrElse 1건 (BLOCKING fix)
+    - DocumentTemplateRevisionService.class: saveAndFlush 1건 (M-2 fix)
+
+[소급 각인 0 — DEFAULT FALSE 의도 실증]
+  V12 적용 직후 및 QA 종료 후(양식 활성/비활성 4회 이후) 모두:
+    기존 approval_lines 70행 → document_template_id 각인 0 / default_pinned 각인 0
+
+[뮤테이션 확증 — 이 측정이 실제로 fix 를 재고 있는가]
+  결재C(2026/07/21-3) 의 document_template_default_pinned 만 true→false 로 되돌리자
+  같은 서버·같은 문서의 재인쇄가 DEFAULT → 신규 ACTIVE(v3) 로 바뀌었다.
+    true  : {"docNo":1,"contentMarker":1,"fieldLabel":1,"defaultPinnedBanner":1}  → 05.png (sha 4eb633f9…)
+    false : {"docNo":0,"contentMarker":1,"fieldLabel":0,"unpinnedBanner":1}       → 11.png (sha 38851abb…)
+  = R2 BLOCKING 결함 그 자체가 재현됨. 확인 후 true 로 원복.
+
+[캡처 SHA-256 — 외형 불변의 픽셀 단위 증거]
+  792039a2… 01-approvalA-pinned-v1-before-edit.png
+  792039a2… 02-approvalA-reprint-after-edit-STILL-v1.png      ← 양식 v2 수정 후에도 동일
+  792039a2… 06-approvalA-STILL-v1-after-v3.png                ← v3 활성화 후에도 동일
+  988e6b50… 03-approvalB-pinned-v2.png
+  988e6b50… 07-approvalB-STILL-v2-after-v3.png                ← 동일
+  4eb633f9… 04-approvalC-active0-default-pinned.png
+  4eb633f9… 05-approvalC-STILL-default-after-new-active.png   ← 동일 (BLOCKING fix)
+  4eb633f9… 09a-approvalC-screen-media.png
+  a7295572… 08-pin-fetch-failed-notice.png
+  74d5138c… 10-legacy-unpinned-notice.png
+  38851abb… 11-MUTATION-active0-imprint-removed-DEFECT-REPRODUCED.png
+  세 pin 상태(v1 / v2 / DEFAULT)의 해시가 서로 달라 presence-only 통과가 아님.
+
+[데이터 격리 — 공유 실데이터 write 0건]
+  전용 docType = GROUPWARE_QA_DS3A_R3 (신규). 공유 docType 양식의 활성상태 무접촉.
+  착수 전 → 종료 후 동일 질의 결과:
+    document_templates 기존 6행 : id/doc_type/name/revision/status/is_deleted 전부 동일,
+                                  유일 ACTIVE(GROUPWARE_LIVEQA848_…) 그대로 ACTIVE·is_deleted=f
+    approval_lines(활성)        : APPROVED 32 / PENDING 30 / REJECTED 8  ← 착수 전과 동일
+                                  기존 70행 전부 is_deleted=f·deleted_by NULL (무접촉)
+                                  QA 3행만 is_deleted=t, deleted_by='qa-ds3a-r3-cleanup'
+    approval_line_config        : total 14 / active 14  ← 착수 전과 동일
+                                  (QA 전용 CREATOR 1행은 hard-DELETE 로 완전 제거)
+  QA 문서양식 3행은 soft-delete replace-set 모델에 따라 DRAFT·is_deleted=t 로 잔존(이력).
+  document_template_revisions 이력은 append-only 설계상 잔존 = 정상.
+
+[잔존 제약 — 개발책임자 인지 완료 사항]
+  groupware_db 는 V12 로 전진했고 되돌릴 수 없다. 머지 전까지 groupware-service 를
+  main 이미지(V11)로 재기동하면 Flyway 부팅에 실패한다.
+  컨테이너 compose 라벨이 ds3a 워크트리 경로를 가리키도록 바뀌었다(머지 후 메인 트리에서 재기동 필요):
+    config_files = C:\dev\Samhan-Public\.claude\worktrees\ds3a\infrastructure\docker-compose*.yml
