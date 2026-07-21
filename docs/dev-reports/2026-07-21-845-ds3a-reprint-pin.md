@@ -150,3 +150,14 @@ FABLE5 R1(PR #865 코멘트)이 BLOCKING 0 · HIGH 2 · MED 5 · LOW 7로 미수
 
 ### 검증(SONNET5 본인 실행 원문은 PR 코멘트에 게시)
 - `./gradlew :services/groupware-service:test`, `clients/desktop`(`npm run typecheck` + vitest), Playwright 전량, fresh Postgres probe 재실행 — 결과 전문은 이 fix 라운드의 PR 코멘트를 참조한다. 이 세션에서는 Gradle·Vitest·typecheck의 원문을 확보했고, Playwright는 `.last-run.json` 상태만 보존됐다.
+
+## 7. R3 라이브QA + 5차원 적대검증 + SONNET5 fix
+
+- **R3 라이브QA**(OPUS 4.8, QA SHA `c5dc70d0c`): 실서버 실캡처 12장 + 뮤테이션 RED. 캡처·원문은
+  `docs/qa/845-ds3a-r3-liveqa/`(스크린샷 12장 + `00-raw.txt`)에 보존. PR 코멘트("🟢 R3 라이브QA")에
+  전문 게시.
+- **R3 5차원 적대검증**(BE/FE/Design/DevOps/통합보안, SHA `c5dc70d0c`): BLOCKING 0 · HIGH 1 · MED 9 ·
+  LOW ~20. PR 코멘트("🟠 OPUS 4.8 R3 재수렴 적대검증")에 종합 게시.
+- **SONNET5 fix**: HIGH-1/MED-1/MED-2(캐시 freshness + latch 묶음) · mock parity + CI 게이트 ·
+  감사 무결성(V13 신규 마이그레이션) · 스펙/결정문 drift · false-green 테스트 · CI skip 가드 · LOW 다수.
+  RED→GREEN 원문 전문은 PR 코멘트에 게시.

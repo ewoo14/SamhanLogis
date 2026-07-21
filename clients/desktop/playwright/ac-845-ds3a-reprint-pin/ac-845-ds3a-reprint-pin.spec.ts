@@ -45,6 +45,9 @@ const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 // mock.ts 시드 id — 지어낸 id 금지([[feedback_mock_value_format_be_parity]] 원칙 동형 적용).
 const APPROVAL_PINNED_REV1 = '77777777-aaaa-4aaa-8aaa-000000000004'
 const APPROVAL_UNPINNED_ACTIVE_REV2 = '77777777-aaaa-4aaa-8aaa-000000000005'
+// R3 mock parity fix — Design/a11y·FE·통합보안 3차원이 독립적으로 지목한 공백(ACTIVE-0
+// 케이스 mock 회귀 0건)을 메운다.
+const APPROVAL_ACTIVE_ZERO_DEFAULT_PINNED = '77777777-aaaa-4aaa-8aaa-000000000006'
 const PINNED_CONTENT_MARKER = 'DS-3a 재인쇄 pin mock 회귀 게이트용'
 
 /** window.samhanAuth stub — AuthGuard 통과(MASTER). ac-845-ds1-form-renderer 검증 패턴 동형. */
@@ -165,6 +168,45 @@ test.describe('AC-845 DS-3a 재인쇄 pin screen/print mock 회귀', () => {
     expect(await page.getByTestId('approval-reprint-pin-failed-notice').count()).toBe(0)
 
     await page.screenshot({ path: path.join(screenshotDir, '04-pinned-print-media.png'), fullPage: true })
+    await page.emulateMedia({ media: null })
+  })
+
+  test('R3 mock parity fix: 승인시점 ACTIVE-0 결재는 기본 양식(GROUPWARE_DEFAULT)으로 영구 고정되고 전용 배너만 표시한다', async ({ page }) => {
+    await gotoApproval(page, APPROVAL_ACTIVE_ZERO_DEFAULT_PINNED)
+
+    const approvalDoc = page.locator('.print-approval-doc')
+    await expect(approvalDoc.getByRole('heading', {
+      name: '[QA] DS-3a 재인쇄 pin 검증 — 승인시점 ACTIVE-0(기본 양식 고정)',
+    })).toBeVisible()
+
+    const sig = await signature(page)
+    // GROUPWARE_DEFAULT는 META_ROWS(문서번호 행)와 CONTENT_PARAGRAPHS(본문 텍스트)를
+    // 둘 다 갖는다 — rev1(문서번호O/본문X)·rev2(문서번호X/본문O)와 구별되는 세 번째
+    // 조합이라 "기본 양식이 실제로 렌더됐다"를 presence-only가 아닌 구별출력으로 증명한다.
+    expect(sig.docNo, 'GROUPWARE_DEFAULT = META_ROWS 있음 → 문서번호 행 표시').toBeGreaterThan(0)
+    expect(sig.contentMarker, 'GROUPWARE_DEFAULT = CONTENT_PARAGRAPHS 있음 → 승인 content 텍스트 노출')
+      .toBeGreaterThan(0)
+
+    // ACTIVE-0 전용 배너만 뜨고, pin(없음) 배너·조회실패 배너는 상호배타적으로 뜨지 않는다.
+    const notice = page.getByTestId('approval-reprint-default-pinned-notice')
+    await expect(notice).toHaveText('승인 당시 활성 양식이 없어 기본 양식(GROUPWARE_DEFAULT)으로 고정 표시됩니다.')
+    await expect(notice).toHaveAttribute('role', 'status')
+    await expect(page.getByTestId('approval-reprint-unpinned-notice')).toHaveCount(0)
+    await expect(page.getByTestId('approval-reprint-pin-failed-notice')).toHaveCount(0)
+
+    await expectNoUuidInDocument(page)
+    await page.screenshot({ path: path.join(screenshotDir, '05-active-zero-default-pinned.png'), fullPage: true })
+
+    // R3 F-4 fix: jsdom(vitest)의 className.toContain('no-print')는 클래스 토큰이 속성
+    // 문자열에 있음만 증명할 뿐 @media print 를 실행하지 않아 인쇄 소거를 전혀 증명하지
+    // 않는다. 이 배너(default-pinned-notice, R2 신규)는 이 스펙에서 아직 실 브라우저
+    // print-media 소거 검증이 없었다 — 여기서 실제로 소거되는지 확인한다.
+    await page.emulateMedia({ media: 'print' })
+    await page.waitForTimeout(200)
+    const noticeVisibleInPrint = await notice.isVisible()
+    const toolbarVisibleInPrint = await page.locator('.no-print').first().isVisible().catch(() => false)
+    expect(toolbarVisibleInPrint, 'print 매체에서 no-print 토올바는 사라져야 함(프린트 CSS 적용 증명)').toBe(false)
+    expect(noticeVisibleInPrint, 'ACTIVE-0 고지 배너가 종이 출력물에 포함되면 안 됨').toBe(false)
     await page.emulateMedia({ media: null })
   })
 })

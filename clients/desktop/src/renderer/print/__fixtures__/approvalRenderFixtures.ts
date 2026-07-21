@@ -38,6 +38,7 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
     templateId: input.templateId ?? 'fixture-template-id',
     templateName: null,
     documentType: null,
+    documentTemplateDefaultPinned: input.documentTemplateDefaultPinned ?? false,
     fieldValues: input.fieldValues ?? {},
     status: input.status ?? 'APPROVED',
     steps: input.steps ?? [step(1)],

@@ -10875,6 +10875,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         templateId: template?.id ?? null,
         templateName: template?.name ?? null,
         documentType: template?.code ? `GROUPWARE_${template.code}` : null,
+        // 신규 생성 직후는 아직 승인 전이라 pin 개념 자체가 적용되지 않는다(승인 시점에만 각인).
+        documentTemplateDefaultPinned: false,
         fieldValues: { ...fieldValues },
         status: 'PENDING',
         steps,
@@ -15286,6 +15288,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     templateId: '77777777-dddd-4ddd-8ddd-000000000001',
     templateName: '지출결의서',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
+    // R3 mock parity fix — 아직 승인 전(PENDING)이라 pin 개념이 적용되지 않는다.
+    documentTemplateDefaultPinned: false,
     fieldValues: {
       expenseItem: '아로로지스 외주 배차',
       amount: '1840000',
@@ -15327,6 +15331,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     templateId: '77777777-dddd-4ddd-8ddd-000000000001',
     templateName: '지출결의서',
     documentType: 'GROUPWARE_EXPENSE_REPORT',
+    // R3 mock parity fix — 아직 승인 전(IN_PROGRESS)이라 pin 개념이 적용되지 않는다.
+    documentTemplateDefaultPinned: false,
     fieldValues: {
       expenseItem: '창고 소모품',
       amount: '320000',
@@ -15368,6 +15374,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     templateId: null,
     templateName: null,
     documentType: null,
+    // R3 mock parity fix — docType이 없는 구식/독립형 결재라 pin 개념 자체가 적용되지 않는다.
+    documentTemplateDefaultPinned: false,
     fieldValues: {},
     status: 'APPROVED',
     steps: [
@@ -15400,6 +15408,8 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     documentType: 'GROUPWARE_QA_DS3A_PIN',
     documentTemplateId: '77777777-ffff-4fff-8fff-000000000001',
     documentTemplateRevision: 1,
+    // R3 mock parity fix — 실 revision이 각인됐으므로 "기본 양식 사용" 표식은 false다.
+    documentTemplateDefaultPinned: false,
     fieldValues: {},
     status: 'APPROVED',
     steps: [
@@ -15431,6 +15441,9 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
     documentType: 'GROUPWARE_QA_DS3A_PIN',
     documentTemplateId: null,
     documentTemplateRevision: null,
+    // R3 mock parity fix — 이 대조군은 "레거시 무pin"(현재 ACTIVE로 fallback)이지
+    // "승인시점 ACTIVE-0"이 아니므로 false다. ACTIVE-0/기본양식 케이스는 아래 ...0006이 맡는다.
+    documentTemplateDefaultPinned: false,
     fieldValues: {},
     status: 'APPROVED',
     steps: [
@@ -15442,6 +15455,39 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
         approverName: '김기철',
         status: 'APPROVED',
         decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T09:30:00`,
+        reason: null,
+      },
+    ],
+  },
+  // R3 mock parity fix — 3개 차원(Design/a11y·FE·통합보안)이 독립적으로 지목한 공백:
+  // documentTemplateDefaultPinned=true(승인 순간 ACTIVE 양식이 0개였던 ACTIVE-0 케이스)
+  // 시드가 mock에 0건이라, ac-845-ds3a-reprint-pin Playwright mock 게이트가 이 분기(기본
+  // 양식 고정 배너 + GROUPWARE_DEFAULT 렌더)를 한 번도 태우지 못했다. 같은 docType
+  // 안에서 pin(...0004)·무pin-active-fallback(...0005)과 나란히 대조 가능하도록 둔다.
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000006',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-6`,
+    requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
+    title: '[QA] DS-3a 재인쇄 pin 검증 — 승인시점 ACTIVE-0(기본 양식 고정)',
+    content: 'DS-3a 재인쇄 pin mock 회귀 게이트용 ACTIVE-0 문서. 승인 순간 활성 양식이 없어 기본 양식(GROUPWARE_DEFAULT)으로 영구 고정 각인됐다.',
+    templateId: null,
+    templateName: null,
+    documentType: 'GROUPWARE_QA_DS3A_PIN',
+    documentTemplateId: null,
+    documentTemplateRevision: null,
+    documentTemplateDefaultPinned: true,
+    fieldValues: {},
+    status: 'APPROVED',
+    steps: [
+      {
+        sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
+        status: 'APPROVED',
+        decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T09:45:00`,
         reason: null,
       },
     ],

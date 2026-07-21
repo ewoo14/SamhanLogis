@@ -151,6 +151,25 @@ jobs:
             exit 1
           fi
 
+      - name: "#845 DS-3a GroupwareAdminControllerIT skipped=0 hard gate"
+        if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'
+        # R3 PM 발견 — ACTIVE-0 각인(document_template_default_pinned)을 지키는 유일한
+        # 방어선이 이 IT 1건뿐인데(뮤테이션 실측), 형제 IT(DocumentTemplateIT)와 달리 CI
+        # 등재가 0건이었다. AbstractPostgresIT 계열은 Docker 미가용 시 조용히 skip 되므로,
+        # 이 gate 없이는 핵심 방어선이 미실행인 채로도 CI green 이 될 수 있었다.
+        run: |
+          report='services/groupware-service/build/test-results/test/TEST-com.samhanair.logis.groupware.it.GroupwareAdminControllerIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#845 GroupwareAdminControllerIT JUnit report not found; admin endpoint IT may have been filtered out."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${tests:-0}" -lt 1 ] || [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#845 GroupwareAdminControllerIT hard gate failed: tests=${tests:-missing} skipped=${skipped:-missing}"
+            exit 1
+          fi
+
       - name: "#850 SalesAccountingSlipConcurrencyIT skipped=0 hard gate"
         if: matrix.group.name == 'accounting+partner'
         run: |

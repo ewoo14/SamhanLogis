@@ -91,12 +91,16 @@
 
 ### D-DS3A-06 · 렌더 우선순위 + 조회 실패 고지
 
-`pin 있음 → 각인된 revision` → `pin 없음 → 현재 ACTIVE` → `조회 실패/malformed → DEFAULT`.
-마지막 DEFAULT 수렴은 DS-2 R2 가 넣은 현행 latch(`ApprovalDocView.tsx:122-148`)를 **그대로 유지**한다.
+> 🚨 **R3 정정(2026-07-21) — 아래 우선순위를 2-way 에서 3-way 로 재정의한다.** 원문(`pin 있음 → 각인된 revision` → `pin 없음 → 현재 ACTIVE` → `조회 실패/malformed → DEFAULT`)은 D-DS3A-03 이 "승인 순간 ACTIVE-0 은 `document_template_default_pinned=true` 로 영구 DEFAULT 고정"으로 철회·재결정된 뒤에도 갱신되지 않았다. ACTIVE-0 은 "pin 없음"이 아니라 **제3의 각인 상태**(현재 ACTIVE 를 다시 조회하지 않고 내장 DEFAULT 에 영구 고정)이므로, 이 문구를 그대로 따라 구현하면 R1/R2 가 고친 BLOCKING(관리자가 이후 양식을 만들면 재인쇄가 조용히 그 양식으로 바뀜)이 DS-3b 에서 재도입된다.
+>
+> **정정된 우선순위**: `① pin 있음(실 revision) → 각인된 revision` → `② document_template_default_pinned=true(승인 순간 ACTIVE-0) → 내장 DEFAULT 로 영구 고정, 이후 새 ACTIVE 가 생겨도 재조회하지 않음` → `③ 셋 다 미기록(레거시/pin 없음) → 현재 ACTIVE 조회` → `④ pin은 있는데 revision 조회 자체가 실패/malformed → DEFAULT`.
+> 마지막 DEFAULT 수렴(④)은 DS-2 R2 가 넣은 현행 latch(`ApprovalDocView.tsx:122-148`)를 **그대로 유지**한다.
 
 > 🚨 **FABLE5 R1 H-2 정정 — 이 결정에 "고지" 축이 누락돼 있었다.** 원문은 미pin(D-DS3A-03) 에는 화면 고지를 요구하면서, **pin 은 있는데 그 revision 조회 자체가 실패/malformed 인 경우에는 고지를 정의하지 않았다.** 최초 구현이 이 spec 을 그대로 따른 결과, `retry:false` 설정과 맞물려 일시 5xx 한 번에도 **아무 고지 없이** DEFAULT(제3의 외형)로 조용히 인쇄되는 결함이 발생했다 — 감사·법정 문서가 승인 당시 양식도 현재 양식도 아닌 외형으로 무고지 출력되는 것이라 원 결함(관리자가 양식을 바꾸면 재인쇄가 조용히 바뀜)보다 오히려 퇴행 가능한 경로였다. 이건 구현 결함이 아니라 **이 spec 의 기획 공백이 근본 원인**이다.
 >
-> **정정된 결정**: pin 이 있는데 revision 조회가 실패(네트워크/5xx)하거나 malformed(파싱 실패) 인 경우에도 **반드시 화면에 실패를 드러낸다** — `role="alert"` 고지 + 재시도 경로(사용자가 다시 조회를 트리거할 수 있어야 한다). 무고지 DEFAULT 강하는 금지. 미pin 고지(`role="status"`, 정보성)와 pin-조회-실패 고지(`role="alert"`, 오류성)는 서로 다른 배너로 구분한다(전자는 `!hasPinnedLayout`, 후자는 `hasPinnedLayout && 조회실패` 로 상호 배타적).
+> **정정된 결정**: pin 이 있는데 revision 조회가 실패(네트워크/5xx)하거나 malformed(파싱 실패) 인 경우에도 **반드시 화면에 실패를 드러낸다** — `role="alert"` 고지 + 재시도 경로(사용자가 다시 조회를 트리거할 수 있어야 한다). 무고지 DEFAULT 강하는 금지.
+>
+> 🚨 **R3 정정 — "서로 다른 배너"는 2개가 아니라 3개다.** ACTIVE-0(D-DS3A-03) 이 위 ②로 확정되며 전용 배너(`approval-reprint-default-pinned-notice`, `role="status"`)를 별도로 갖는다. 최종적으로 세 배너는 상호 배타적이다: 미pin 고지(`approval-reprint-unpinned-notice`, `role="status"`, 정보성, `③`) · ACTIVE-0 고지(`approval-reprint-default-pinned-notice`, `role="status"`, 정보성, `②`) · pin-조회-실패 고지(`approval-reprint-pin-failed-notice`, `role="alert"`, 오류성, `④`).
 
 ---
 

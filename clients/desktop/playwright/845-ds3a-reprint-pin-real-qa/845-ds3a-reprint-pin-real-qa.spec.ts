@@ -1,6 +1,11 @@
 /**
  * #845 DS-3a 라이브 QA — 결재 재인쇄 "승인 당시 레이아웃 pin" 실서버 검증.
  *
+ * 🚨 R3 V-1: 이 스펙은 `*-real-qa.spec.ts` 명명 규칙상 `playwright.config.ts` testIgnore
+ * 대상이며 `.github/workflows/`에 `real-qa` 매치가 0건이라 **CI에서 영구 미실행**이다(저장소
+ * 전체 real-qa 85파일 공통, pre-existing — 이 PR 은 그 CI 편입을 시도하지 않는다). 수동
+ * 실행 결과는 `docs/qa/845-ds3a-r1-liveqa/`에 보존돼 있다.
+ *
  * 실 게이트웨이(:8080, mock OFF) → 실 groupware-service(V12 적용, 이 브랜치 jar) → 실 groupware_db.
  * 렌더러 = ds3a 워크트리 vite (:5297, --strictPort).
  *

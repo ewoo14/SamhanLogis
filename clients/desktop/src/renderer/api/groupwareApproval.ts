@@ -54,7 +54,10 @@ export interface ApprovalLineAdminResponse {
   documentType: string | null
   documentTemplateId?: string | null
   documentTemplateRevision?: number | null
-  documentTemplateDefaultPinned?: boolean
+  // R3 mock parity fix: BE documentTemplateDefaultPinned는 primitive boolean이라 항상
+  // 직렬화된다(never absent) — optional로 두면 mock 픽스처가 키 자체를 누락해도
+  // 타입체크를 통과해 DTO 스큐가 컴파일 타임에 잡히지 않는다([[feedback_mock_value_format_be_parity]]).
+  documentTemplateDefaultPinned: boolean
   fieldValues: Record<string, string>
   status: ApprovalStatus
   steps: ApprovalStepView[]

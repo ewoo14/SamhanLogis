@@ -1952,24 +1952,20 @@ button {
 }
 
 /*
- * #845 DS-3a 결재 재인쇄 pin 고지 — FABLE5 R1 H-1.
+ * #845 DS-3a 결재 재인쇄 pin 고지 — FABLE5 R1 H-1 + R2 ACTIVE-0(default-pinned) 추가.
  * 화면 전용(각 규칙 no-print 클래스 병기로 인쇄 출력 불변 유지 — DS-1 strangler 불변식).
  * 실제 토큰값 기준 AA 대비 실측(var(--token, fallback)은 토큰 정의 시 fallback이 아닌
  * 토큰값이 렌더되므로 fallback이 아닌 실값으로 계산 — [[feedback_css_var_token_not_fallback]]):
- *   - 미pin 고지: --color-warning-800(#8C5C13) on --color-warning-50(#FEF6E7) = 5.35:1
- *   - pin 조회 실패 고지: --color-danger-800(#7F1D1D) on --color-danger-50(#FFF1F1) = 9.12:1
- * 둘 다 WCAG AA 본문 텍스트 기준(4.5:1) 충족.
+ *   - 미pin 고지 / ACTIVE-0(default-pinned) 고지(정보성, role=status, 동일 토큰 공유 — 아래
+ *     선택자 병기로 중복 규칙 제거): --color-warning-800(#8C5C13) on --color-warning-50(#FEF6E7)
+ *     = 5.35:1
+ *   - pin 조회 실패 고지(오류성, role=alert): --color-danger-800(#7F1D1D) on
+ *     --color-danger-50(#FFF1F1) = 9.12:1
+ * 둘 다 WCAG AA 본문 텍스트 기준(4.5:1) 충족. R3 LOW fix: default-pinned 고지가 R2에서
+ * 추가됐을 때 이 주석이 갱신되지 않아 대비 실측 대상에서 누락된 것처럼 보였다(토큰은
+ * unpinned와 완전히 동일해 수치 자체는 처음부터 같았다) — 규칙 중복도 함께 정리한다.
  */
-.approval-reprint-unpinned-notice {
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border-radius: 6px;
-  border: 1px solid var(--color-warning-300);
-  background: var(--color-warning-50);
-  color: var(--color-warning-800);
-  font-size: var(--font-size-sm);
-}
-
+.approval-reprint-unpinned-notice,
 .approval-reprint-default-pinned-notice {
   padding: 10px 12px;
   margin-bottom: 12px;

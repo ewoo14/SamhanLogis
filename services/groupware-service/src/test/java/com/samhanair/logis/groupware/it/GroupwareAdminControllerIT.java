@@ -1,6 +1,7 @@
 package com.samhanair.logis.groupware.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
@@ -347,6 +348,105 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.revision").value(2))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.document.bands[0].key").value("new-layout"));
+    }
+
+    /**
+     * R3 B-1 fix — V12이 신설한 CHECK {@code ck_approval_lines_document_template_default_pin}에
+     * 대한 직접 테스트가 0건이었다. 형제 제약(append-only 트리거는 {@code DocumentTemplateIT},
+     * {@code document_templates}의 status CHECK+부분 인덱스는
+     * {@code directStatusConstraintAndActivePartialIndex_areEnforced})은 전부 직접 테스트하는
+     * 것이 이 레포 컨벤션인데 이 CHECK만 누락돼 있었다.
+     *
+     * <p>승인 전(미pin, 세 컬럼 모두 초기값) 행에 직접 SQL로 "default_pinned=true이면서 실
+     * revision도 동시에 갖는" 상태를 시도한다. OLD가 미pin 상태라 V13 append-once 트리거는
+     * 이 UPDATE를 통과시키므로(가드조건 불성립), 거절된다면 그 원인은 오직 이 CHECK 자체다.
+     */
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "ds3a-check-constraint-it",
+            authorities = {"ROLE_MANAGER"})
+    void directCheckConstraint_defaultPinnedAndRevisionPin_areMutuallyExclusive() throws Exception {
+        DocumentTemplateCreateRequest request = new DocumentTemplateCreateRequest(
+                "GROUPWARE_PIN_CHECK_DIRECT", "CHECK 직접 검증용", (short) 1, payloadJson("check-direct-layout"));
+        DocumentTemplate template = documentTemplateRepository.findById(
+                documentTemplateService.create(request).id()).orElseThrow();
+        documentTemplateService.activate(template.getId(), "ds3a-check-constraint-it");
+
+        ApprovalLine line = ApprovalLine.open("2099/01/01-849", UUID.randomUUID(), "CHECK 직접 검증", "미승인");
+        line.linkGroupwareDocument("GROUPWARE_PIN_CHECK_DIRECT", null).appendStep(UUID.randomUUID());
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_default_pinned = TRUE, "
+                        + "document_template_id = ?, document_template_revision = ? WHERE id = ?",
+                template.getId(), 1, approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+    }
+
+    /**
+     * R3 MED fix — 감사 무결성: 승인 시점에 각인된 pin(document_template_id/revision/
+     * default_pinned)은 애플리케이션 계층 뿐 아니라 그 계층을 우회한 직접 SQL UPDATE로도
+     * 다시 쓸 수 없어야 한다(V13 append-once 트리거).
+     *
+     * <p>R3 통합/보안 차원 격리 probe(TEST-A/TEST-A2)를 이 IT의 실 Postgres에서 재현한다 —
+     * 두 가지 위조 형태를 모두 시도한다: (a) 각인을 다른 template/revision으로 바꿔치기,
+     * (b) 각인 통째 NULL화(원 BLOCKING — 무pin 복귀). 둘 다 거절되고 행 상태는 승인 당시
+     * 값 그대로 남아야 한다. 대조군으로 pin과 무관한 컬럼(content) UPDATE는 여전히
+     * 허용됨을 함께 확인해 트리거가 과잉 차단하지 않음을 증명한다.
+     */
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "ds3a-pin-immutable-it",
+            authorities = {"ROLE_MANAGER"})
+    void httpApproval_pinnedLayout_cannotBeRewrittenByDirectSqlUpdate() throws Exception {
+        UUID approver = UUID.randomUUID();
+        DocumentTemplateCreateRequest oldRequest = new DocumentTemplateCreateRequest(
+                "GROUPWARE_PIN_IMMUTABLE_HTTP", "승인 당시 레이아웃", (short) 1, payloadJson("immutable-old-layout"));
+        DocumentTemplate oldTemplate = documentTemplateRepository.findById(
+                documentTemplateService.create(oldRequest).id()).orElseThrow();
+        documentTemplateService.activate(oldTemplate.getId(), "ds3a-pin-immutable-it");
+
+        ApprovalLine line = ApprovalLine.open("2099/01/01-848", UUID.randomUUID(), "pin 불변성 결재", "old");
+        line.linkGroupwareDocument("GROUPWARE_PIN_IMMUTABLE_HTTP", null).appendStep(approver);
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        mvcApprovalApprove(approvalId, approver)
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateId").value(oldTemplate.getId().toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateRevision").value(1));
+
+        // 위조 대상으로 쓸 서로 다른 (template_id, revision) 이력 한 건을 더 만든다.
+        DocumentTemplateCreateRequest otherRequest = new DocumentTemplateCreateRequest(
+                "GROUPWARE_PIN_IMMUTABLE_HTTP_OTHER", "위조용 다른 양식", (short) 1, payloadJson("forged-layout"));
+        DocumentTemplate otherTemplate = documentTemplateRepository.findById(
+                documentTemplateService.create(otherRequest).id()).orElseThrow();
+        documentTemplateService.activate(otherTemplate.getId(), "ds3a-pin-immutable-it");
+
+        // TEST-A: 각인을 다른 template/revision으로 바꿔치기 — CHECK는 통과하지만 V13 트리거가 거절해야 한다.
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_default_pinned = FALSE, "
+                        + "document_template_id = ?, document_template_revision = ? WHERE id = ?",
+                otherTemplate.getId(), 1, approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+
+        // TEST-A2: 각인 통째 NULL화(원 BLOCKING — 무pin 복귀) — 이 역시 거절되어야 한다.
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_id = NULL, "
+                        + "document_template_revision = NULL, document_template_default_pinned = FALSE WHERE id = ?",
+                approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+
+        // 두 위조 시도 모두 실패했으니 각인은 승인 당시 값 그대로 남아 있어야 한다.
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT document_template_id, document_template_revision, document_template_default_pinned "
+                        + "FROM approval_lines WHERE id = ?", approvalId);
+        assertThat(row.get("document_template_id")).isEqualTo(oldTemplate.getId());
+        assertThat(row.get("document_template_revision")).isEqualTo(1);
+        assertThat(row.get("document_template_default_pinned")).isEqualTo(false);
+
+        // 대조군 — pin과 무관한 컬럼(content) UPDATE는 여전히 허용된다(과잉 차단 아님).
+        jdbcTemplate.update("UPDATE approval_lines SET content = ? WHERE id = ?", "content-after-pin", approvalId);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT content FROM approval_lines WHERE id = ?", String.class, approvalId))
+                .isEqualTo("content-after-pin");
     }
 
     @Test

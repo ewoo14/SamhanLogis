@@ -255,6 +255,15 @@ public class ApprovalLineService {
         try {
             line.approve(approverId);
             pinApprovedLayout(line);
+            // R3 판단 기록 — 아래 DataIntegrityViolationException catch는 현재 호출 그래프상
+            // pinApprovedLayout()이 유발하는 유일한 DIVE(revision self-heal 경합)에는 도달하지
+            // 않는다. 그 경합은 DocumentTemplateRevisionService.ensureCurrentRevision()이 이미
+            // 내부에서 BusinessException(CONFLICT)로 변환해 던지기 때문이다(ApprovalLineApprovalConflictTest
+            // 참고). 그럼에도 이 catch를 남겨둔 이유: line.approve() 로 인한 상태변경이 이 try
+            // 블록 안의 후속 SELECT(문서양식 조회)에서 auto-flush 될 때, 이 슬라이스가 도입하지
+            // 않은 approval_lines의 다른 제약(향후 슬라이스가 추가할 CHECK 등)이 그 시점에
+            // 위반되면 여기서 진짜로 발생할 수 있는 방어선이라 판단해 제거하지 않았다 — 삭제
+            // 여부는 판단 필요 항목으로 남긴다(제거해도 현재 테스트 스위트는 깨지지 않는다).
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "승인 당시 문서 양식 각인 경합이 발생했습니다. 다시 시도해 주세요");
@@ -281,6 +290,7 @@ public class ApprovalLineService {
         try {
             line.approve(actorUserId, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
             pinApprovedLayout(line);
+            // R3 판단 기록 — 위 approve(UUID, UUID) 오버로드의 동일 catch 주석 참고.
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "승인 당시 문서 양식 각인 경합이 발생했습니다. 다시 시도해 주세요");
