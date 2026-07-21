@@ -400,12 +400,26 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
     await partnerInput.click()
     await partnerInput.fill('엘에이')
     await expect(partnerListbox(page)).toBeVisible({ timeout: 5_000 })
+
+    // [#825 S5] 범위 미지정은 전체로 폴백하지 않고 실행 자체를 잠근다.
+    // 이후 기존 draft 가드를 검증하려면 먼저 거래처 범위를 명시적으로 확정해야 한다.
+    await expect(page.getByTestId('daily-closing-exec-button')).toBeDisabled()
+    await expect(page.getByTestId('daily-closing-scope-hint')).toContainText("'전체' 칩을 선택하세요")
+
+    // 명시적 SELECTED 범위에서 목록 미확정 draft 를 다시 만들어 기존 가드의
+    // 안내·메모 유지·미실행 계약을 검증한다.
+    await searchAndPick(
+      page, 'daily-closing-exec-partner', '엘에이', /엘에이시스템에어/, '엘에이시스템에어',
+    )
+    await partnerInput.click()
+    await partnerInput.fill('엘에이')
+    await expect(partnerListbox(page)).toBeVisible({ timeout: 5_000 })
     await page.getByTestId('daily-closing-exec-button').click()
 
     await expect(draftError).toBeVisible({ timeout: 5_000 })
-    // [#825 재수렴 #4] 확정 선택 없음 변형은 목록 선택만 안내 — "입력을 비운 뒤 실행"
-    // 유도 문구(빈 입력=전체 마감 오인 → 이전 선택 오범위 마감 유발)는 금지 카피다.
-    await expect(draftError).toContainText('목록에서 선택한 뒤 다시 실행하세요')
+    // 명시적 SELECTED 범위의 미확정 draft 는 목록 재선택 또는 '해제'를 안내한다.
+    // "입력을 비운 뒤 실행" 유도 문구(빈 입력=전체 마감 오인)는 금지 카피다.
+    await expect(draftError).toContainText("목록에서 선택하거나 '해제' 버튼으로 거래처 선택을 지운 뒤 다시 실행하세요")
     await expect(draftError).not.toContainText('입력을 비운 뒤')
     await expect(memo).toHaveValue('CM-b draft 가드 검증')
 
@@ -436,6 +450,7 @@ test.describe('AC-4 일마감 (daily-closings)', () => {
 
     await page.getByTestId('daily-closing-exec-partner-clear').click()
     await expect(draftError).not.toBeVisible()
+    await page.getByTestId('daily-closing-all-chip').click()
     await page.getByTestId('daily-closing-exec-button').click()
     await expect(memo).toHaveValue('', { timeout: 5_000 })
   })
