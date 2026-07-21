@@ -30,6 +30,18 @@ metadata:
 `ScheduleWakeup` 을 "이건 `/loop` 전용이라 여기서 호출하면 에러 날 것"이라고 **혼자 단정하고 건너뛰었다.** 실제로 호출해 보니 **정상 동작**했다. 본 메모리의 규칙(매 단계 재자각)이 이미 있었는데 **도구를 안 써서** 규칙이 무력화된 것이다.
 ⟹ **미검증 단정 금지**([[feedback_emit_real_tool_calls]] 계열). 도구가 안 될 것 같으면 **실제로 한 번 호출해 보고** 판정하라. 실패해도 비용은 1콜이다.
 
+## 🚨 2026-07-21 개발책임자 지시 — codex 는 통지를 **아예 기다리지 말 것** (10분 주기 폴링)
+
+**지시 원문 취지**: "코덱스 완료 또는 취소 통지를 기다리지 말고 **주기적으로 10분마다** 작업 상황 확인할 것."
+
+⟹ codex(MCP `mcp__codex__codex` / `codex exec`) 를 디스패치한 **그 순간부터** `ScheduleWakeup(600s)` 을 표준 주기로 걸고, 매 wake 마다 아래 3종을 **직접 호출해** 확인한다. 완료 통지도 abort 통지도 대기 대상이 아니다(오지 않을 수 있고, 와도 늦다).
+
+1. rollout 로그 `LastWriteTime` / `Length` 증가 여부 (`~/.codex/sessions/rollout-*.jsonl`)
+2. 대상 워크트리 `git status --short` / `git diff --stat` — 산출물이 쌓이는가
+3. `codex` / `node` / `chrome` / `java` 프로세스 존재 — 장시간 툴콜 실행 중인가
+
+**정지 판정 정정 (2026-07-21 실측)**: 기존 "rollout 90초 무변동 = 정지" 기준은 **장시간 단일 툴콜(Playwright 전량·`npm ci`·gradle 빌드) 중에는 오판**이다. codex 가 툴 결과를 기다리는 동안에는 rollout 에 아무것도 쓰지 않는다. 실측 사례: rollout 3분 무변동인데 node/chrome 프로세스 27개 = Playwright 590 전량 실행 중 = 정상. ⟹ **무변동은 반드시 프로세스로 교차 확인**하고, *프로세스도 없고 rollout 도 멈춘* 경우에만 정지로 판정해 rollout 파일명의 threadId 로 `codex-reply` 이어받기(재디스패치보다 우선). 관련: [[feedback_codex_cli_version_model_mismatch]]
+
 **턴 종료 전 필수 자문 (체크리스트)**:
 - 내가 지금 기다리는 것이 **통지가 오는 작업인가?**(Agent/Bash `run_in_background`/Monitor = 온다 · CI 상태·외부 API·abort 된 MCP = **안 온다**)
 - 안 오는 것이 하나라도 있으면 **반드시 `ScheduleWakeup` 으로 자기 기상 예약**.
