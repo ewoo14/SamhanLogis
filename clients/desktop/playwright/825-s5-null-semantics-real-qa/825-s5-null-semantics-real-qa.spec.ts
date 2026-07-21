@@ -1,6 +1,14 @@
 /**
  * #825 슬5 null-semantics('전체' vs '미선택' 분리) — 실서버 라이브 QA (FABLE5 적대검증 차원F R1).
  *
+ * 🚨 [SONNET5 R1 fix 정정] 이 스펙은 원래 FABLE5 R1 적대검증이 실증한 결함(F1 TagChip 버블링·
+ * F2 안전재고 제품명 미확인·F3 저장 실패 무피드백·F4 CODEF BLOCKING#1 자기모순)을 그대로
+ * 기록했었다. fix 반영 후 F1/F4/H-4(S2c) 단계는 "결함 재현" 이 아닌 "fix 회귀 확인" 단언으로
+ * 갱신했고, F3 는 결정2ⓒ(ProductAutocomplete 교체)로 재현 경로 자체가 사라져 성공 피드백
+ * 확인으로 대체했다. F2(제품명 미확인)는 이 슬라이스 범위 밖 pre-existing 결함으로 남아있다.
+ * ⚠️ 본 갱신은 코드 분석 + vitest/gradle IT 실측에 기반한 것으로, 라이브 서버 재실행으로
+ * 재검증되지 않았다(SONNET5 정직 고지 — 원문은 PM/다음 라운드 라이브 QA 로 재확인 권고).
+ *
  * 실 게이트웨이 :8080 · mock OFF · 실 로그인(dev_master) · 합성/fixture 캡처 없음(전부 실 DOM).
  * 세 도메인: 일마감(/accounting/daily-closings) · 안전재고(/inventory/safety-stock-alerts) ·
  * CODEF 가져오기 범위(/accounting/bank-transactions).
@@ -12,10 +20,7 @@
  *  4) ALL vs SELECTED 고유 출력 차이(같은 화면, presence-only 금지)
  *  5) 화면 전환/복귀 후 범위 상태 stale 여부
  *  6) 모바일 폭(390px) 칩·안내 레이아웃
- *  F1) [결함 증거] '전체' 칩 X 제거 클릭이 칩 onClick 으로 버블 → 해제 불가(트랩) 실증
- *
- * ⚠️ 흐름 순서: SELECTED → 해제 → ALL. (F1 결함으로 ALL 진입 후엔 마우스로 벗어날 수 없어
- *    ALL 을 마지막에 밟는다 — 결함 회피가 아니라 결함을 별도 단계로 실증한 뒤의 우회 경로.)
+ *  F1) [R1 fix 확인] '전체' 칩 X 제거 — TagChip stopPropagation 근본 fix 후 정상 해제 확인
  *
  * 데이터 안전([[feedback_qa_live_shared_data_readonly]]):
  *  - 안전재고 = 전용 throwaway 품목(QA-825-S5-LIVE, 사전 API 생성)만 사용.
@@ -84,7 +89,7 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await installAuthStub(page, login)
   })
 
-  test('D1 · 일마감 — 칩0 잠금 → SELECTED 실행 → 해제 → ALL 실행 → 차별 출력 → F1 결함 실증 → 리셋 → 역마감', async ({ page }) => {
+  test('D1 · 일마감 — 칩0 잠금 → SELECTED 실행 → 해제 → ALL 실행 → 차별 출력 → F1 fix 확인 → 리셋 → 역마감', async ({ page }) => {
     await goto(page, '/accounting/daily-closings')
 
     // S1 — 칩 0개: 실행 버튼 잠금 + 안내 문구
@@ -142,15 +147,19 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     expect(hasPartnerRow, `거래처 마감 행(사업자번호) 미표시: ${JSON.stringify(rowTexts)}`).toBeTruthy()
     await shot(page, 'd1-s4-list-all-vs-selected-rows')
 
-    // F1 — [결함 실증] ALL 칩 X 제거 클릭: onRemove(null 셋) 후 클릭이 칩 onClick 으로 버블 →
-    //      즉시 ALL 재선택 = 해제 불가. 힌트 미복귀 + 칩 유지 + 실행 버튼 활성 유지가 그 증거.
+    // F1 — [R1 fix 회귀 확인, 정정] 종전에는 ALL 칩 X 제거 클릭이 onRemove(null 셋) 후 칩
+    //      자신의 onClick 으로 버블링되어 즉시 ALL 재선택(해제 불가)이었다. TagChip 이
+    //      제거 버튼에 stopPropagation 을 추가하고 role="button" 을 라벨/값 텍스트만
+    //      감싸는 내부 wrapper 로 옮겨(ARIA 중첩도 해소) 근본 fix 되었다 — 이제 X 클릭은
+    //      정확히 미선택으로 복귀해야 한다(힌트 재표시 + 실행 버튼 비활성).
     await page.getByTestId('daily-closing-all-chip').getByRole('button', { name: '전체 범위 제거' }).click()
     await page.waitForTimeout(800)
     const hintAfterRemove = await hint.count()
     const execEnabledAfterRemove = await execBtn.isEnabled()
-    console.log(`[F1-D1] ALL 칩 X 클릭 후 hint=${hintAfterRemove}(기대 1), 실행버튼활성=${execEnabledAfterRemove}(기대 false) — 0/true 면 해제 불가 결함`)
-    await shot(page, 'd1-f1-defect-all-chip-remove-noop')
-    expect(hintAfterRemove, 'F1 재현 실패 — 결함이 재현되지 않으면 본 단계 재검토').toBe(0)
+    console.log(`[F1-D1 fix 확인] ALL 칩 X 클릭 후 hint=${hintAfterRemove}(기대 1), 실행버튼활성=${execEnabledAfterRemove}(기대 false)`)
+    await shot(page, 'd1-f1-fixed-all-chip-remove-works')
+    expect(hintAfterRemove, 'TagChip 버블링 fix 회귀 — 제거 후 힌트가 재표시되지 않음').toBe(1)
+    expect(execEnabledAfterRemove, 'TagChip 버블링 fix 회귀 — 제거 후 실행 버튼이 비활성화되지 않음').toBe(false)
 
     // S5 — 화면 전환 후 복귀: 범위 상태가 stale ALL 로 남지 않고 미선택으로 초기화
     await goto(page, '/inventory/safety-stock-alerts')
@@ -177,7 +186,7 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     console.log('[D1] 일마감 SELECTED→ALL 실행·차별출력·F1 실증·리셋·역마감 완료')
   })
 
-  test('D2 · 안전재고 — 칩0 잠금 → SELECTED 저장 → 해제 → ALL 저장 → 차별 출력 → F1 재확인 → F3 무피드백 → 리셋', async ({ page }) => {
+  test('D2 · 안전재고 — 칩0 잠금 → SELECTED 저장 → 해제 → ALL 저장 → 차별 출력 → F1 fix 확인 → 리셋', async ({ page }) => {
     await goto(page, '/inventory/safety-stock-alerts')
 
     // S1 — 칩 0개: 저장 잠금 + 안내(제품·임계값을 채워도 잠금 유지)
@@ -188,13 +197,14 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(saveBtn).toBeDisabled()
     await shot(page, 'd2-s1a-chip0-locked-hint')
 
-    // [F2 증거] 제품 드롭다운 — 이름 해석 실패로 모든 옵션이 "제품 코드 미확인 · 제품명 미확인"
-    //  (orphan config 1건이 chunk lookup 전체를 실패시키는 pre-existing 부분실패 처리 — 로그 실측)
-    const productSelect = page.getByTestId('safety-stock-config-product')
-    const optionLabels = await productSelect.locator('option').allInnerTexts()
-    console.log(`[F2-D2] 제품 옵션 라벨: ${JSON.stringify(optionLabels)}`)
-    // 이름이 전부 미확인이라 라벨 선택 불가 → QA throwaway 품목은 value(productId)로 선택(라벨은 캡처로 증거화)
-    await productSelect.selectOption({ value: '1d9e8116-56d1-4f77-9020-c4ebdb1a52ed' })
+    // [R1 결정2ⓒ fix] 제품 드롭다운(alertsQuery 파생 <select>, F2 이름 미확인 결함의 원인)을
+    // ProductAutocomplete(product-service 실검색)로 교체 — 알림 이력이 없는 제품도 최초 설정
+    // 가능해졌다(순환 구조 해소). 선택은 이제 UUID 가 아닌 모델명 검색으로 이뤄진다.
+    const productCombo = page.getByRole('combobox', { name: '제품' })
+    await productCombo.click()
+    await productCombo.fill(QA_PRODUCT_MODEL)
+    await expect(page.locator('li[role="option"]').first(), '품목 후보 미표시').toBeVisible({ timeout: 15000 })
+    await page.locator('li[role="option"]').first().click()
     await page.getByTestId('safety-stock-config-threshold').fill('3')
     await expect(saveBtn).toBeDisabled()
     await shot(page, 'd2-s1b-product-threshold-filled-still-locked')
@@ -225,6 +235,9 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(saveBtn).toBeEnabled()
     await shot(page, 'd2-s2a-all-chip-warehouse-disabled')
     await saveBtn.click()
+    // [R1 결정2ⓑ fix 확인] 저장 성공 피드백 배너 — 종전 무피드백(F3) 대응.
+    await expect(page.getByTestId('safety-stock-config-save-success')).toBeVisible({ timeout: 5000 })
+    await shot(page, 'd2-s2b-save-success-feedback')
     await page.waitForTimeout(2500)
 
     // S4 — 같은 표에서 동일 품목의 '전체'(7) vs '1호차 차량재고'(3) vs bootstrap '본사창고'(5) 병립
@@ -237,35 +250,26 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     console.log(`[D2] 알림 전체 행 ${texts.length}건: ${JSON.stringify(texts)}`)
     await shot(page, 'd2-s4-alerts-all-vs-selected-rows')
 
-    // F1 — [결함 재확인] ALL 칩 X 제거: 버블 재선택으로 해제 불가(창고 select 비활성 유지)
+    // F1 — [R1 fix 회귀 확인, 정정] TagChip 버블링 근본 fix — X 클릭이 이제 정확히
+    //      미선택으로 복귀해야 한다(힌트 재표시 + 창고 select 재활성).
     await page.getByTestId('safety-stock-all-chip').getByRole('button', { name: '전체 창고 범위 제거' }).click()
     await page.waitForTimeout(800)
     const hintAfterRemove = await hint.count()
     const warehouseDisabled = await page.getByTestId('safety-stock-config-warehouse').isDisabled()
-    console.log(`[F1-D2] ALL 칩 X 클릭 후 hint=${hintAfterRemove}(기대 1), 창고select 비활성=${warehouseDisabled}(기대 false) — 0/true 면 해제 불가 결함`)
-    await shot(page, 'd2-f1-defect-all-chip-remove-noop')
-    expect(hintAfterRemove, 'F1 재현 실패 — 결함이 재현되지 않으면 본 단계 재검토').toBe(0)
+    console.log(`[F1-D2 fix 확인] ALL 칩 X 클릭 후 hint=${hintAfterRemove}(기대 1), 창고select 비활성=${warehouseDisabled}(기대 false)`)
+    await shot(page, 'd2-f1-fixed-all-chip-remove-works')
+    expect(hintAfterRemove, 'TagChip 버블링 fix 회귀 — 제거 후 힌트가 재표시되지 않음').toBe(1)
+    expect(warehouseDisabled, 'TagChip 버블링 fix 회귀 — 제거 후 창고 select 가 재활성화되지 않음').toBe(false)
 
-    // F3 — [결함 실증] 존재하지 않는 품목(orphan config)의 저장 실패가 무피드백(silent).
-    //  configMutation 에 onError 없음 → BE 404 인데 화면 변화 0. (스로우어웨이 write 아님 — 실패 요청)
-    const orphanValue = await productSelect.locator('option').evaluateAll((els) =>
-      (els as HTMLOptionElement[]).map((e) => e.value).find((v) => v.startsWith('a0a0a0a0')) ?? '')
-    if (orphanValue) {
-      await productSelect.selectOption({ value: orphanValue })
-      await page.getByTestId('safety-stock-config-threshold').fill('9')
-      // 직전 F1 로 scopeMode 는 여전히 ALL — 저장 활성 상태
-      await expect(saveBtn).toBeEnabled()
-      const alertsBefore = await rows.count()
-      await saveBtn.click()
-      await page.waitForTimeout(2500)
-      const alertsAfter = await rows.count()
-      const bodyAfter = (await page.locator('body').innerText()) ?? ''
-      const hasErrorText = /실패|오류|찾을 수 없/.test(bodyAfter)
-      console.log(`[F3-D2] orphan 품목 저장 시도 → 행수 ${alertsBefore}→${alertsAfter}, 에러 문구 표시=${hasErrorText}(기대 true) — false 면 무피드백 결함`)
-      await shot(page, 'd2-f3-defect-save-error-silent')
-    } else {
-      console.log('[F3-D2] orphan 옵션 미발견 — 스킵')
-    }
+    // F3 — [R1 결정2ⓑ/ⓒ fix 정정 — 성공 피드백은 S2 에서 이미 확인] 종전에는
+    // configMutation 에 onError 가 없어 저장 실패가 무피드백(silent)이었다(라이브 QA d2-f3
+    // 로 실증). 성공 피드백은 위 S2 저장 직후 배너로 이미 확증했다(ⓑ). 종전 F3 는
+    // alertsQuery 파생 <select> 에 남아있던 orphan(존재하지 않는 productId) 옵션을 통해
+    // 실패를 유도했으나, 결정2ⓒ 로 제품 선택을 ProductAutocomplete(product-service 실검색)
+    // 로 교체하면서 그 경로 자체가 사라졌다 — 존재하지 않는 제품은 애초에 검색 결과에 나타나지
+    // 않으므로 UI 로는 재현 불가(설계상 원천 차단 — ⓒ 의 부수 효과). 실패 피드백 자체는
+    // SafetyStockAlertsPage.test.tsx(vitest, mock 404 — 라이브 QA d2-f3 실측 메시지 그대로
+    // 재현)로 결정적으로 커버한다.
 
     // S5 — 화면 전환 후 복귀: 설정 폼 미선택 초기화(stale 없음)
     await goto(page, '/accounting/daily-closings')
@@ -276,7 +280,7 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     console.log('[D2] 안전재고 SELECTED→ALL 저장·차별출력·F1 재확인·리셋 완료 (전용 throwaway 품목만 사용)')
   })
 
-  test('D3 · CODEF — 칩0 잠금(구 오해문구 제거) → SELECTED 저장·복원·가져오기 → ALL 저장·가져오기 차별 → 재진입 미선택 확증', async ({ page }) => {
+  test('D3 · CODEF — 칩0 잠금(구 오해문구 제거) → SELECTED 저장·복원·가져오기 → ALL 저장·가져오기(BLOCKING#1 fix) → 재진입 ALL 복원 확증(H-4 fix)', async ({ page }) => {
     await goto(page, '/accounting/bank-transactions')
 
     // S1 — 칩 0개: 저장/가져오기 모두 잠금 + 새 안내. 구 문구("선택 항목이 없으면 현재 범위 전체를 가져옵니다") 부재 확인.
@@ -330,33 +334,38 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(page.getByTestId('bank-transaction-toast')).toBeVisible({ timeout: 10000 })
     await shot(page, 'd3-s2b-all-scope-saved-toast')
 
-    // F4 — [결함 실증] ALL 저장 직후 가져오기: FE 가 explicit-empty payload 를 보내고 서버는
-    //      '저장 선택 사용' 경로로 해석 → 저장 표현이 [](D-S5-01)이라 400
-    //      "저장된 가져오기 선택이 비어 있습니다…" 에러 토스트 + 결과 영역은 직전(SELECTED) 요약 stale 유지.
+    // F4 — [R1 BLOCKING#1 fix 회귀 확인, 정정] 종전에는 ALL 저장 직후 가져오기가 FE 의
+    //      explicit-empty payload 를 서버가 "저장된 선택이 비어 있음" 으로 오판해 400 으로
+    //      자기모순 실패했다(라이브 QA d3-f4 로 실증). scope_mode 컬럼(V64) 도입 후에는
+    //      저장 당시 scopeMode=ALL 을 신뢰해 CODEF 서버 전체 열거(진짜 전체)로 성공해야 한다
+    //      — 성공 토스트 + 결과 영역이 SELECTED 요약과 달라짐(stale 아님)이 그 증거.
     await page.getByTestId('codef-import-from').fill('2020-01-01')
     await page.getByTestId('codef-import-to').fill('2020-01-07')
     await expect(page.getByTestId('codef-import-button')).toBeEnabled()
     await page.getByTestId('codef-import-button').click()
-    await page.waitForTimeout(3000)
-    const toastText = ((await page.getByTestId('bank-transaction-toast').innerText().catch(() => '')) ?? '').trim()
-    const staleSummary = (await result.innerText()).replace(/\s+/g, ' ').trim()
-    console.log(`[F4-D3] ALL 저장 후 가져오기 → 토스트: "${toastText}" · 결과영역: "${staleSummary}" (직전 SELECTED 요약과 동일=stale)`)
-    expect(toastText, 'F4 재현 실패 — 에러 토스트가 없으면 재검토').toMatch(/저장된 가져오기 선택이 비어|오류/)
-    expect(staleSummary, 'F4 stale 증거 — 결과영역이 갱신됐다면 재검토').toBe(selSummary)
-    await shot(page, 'd3-f4-defect-all-import-400-stale-result')
+    await expect(page.getByTestId('codef-import-result')).toBeVisible({ timeout: 20000 })
+    const toastTextAfterAllImport = ((await page.getByTestId('bank-transaction-toast').innerText().catch(() => '')) ?? '').trim()
+    const allSavedSummary = (await result.innerText()).replace(/\s+/g, ' ').trim()
+    console.log(`[F4-D3 fix 확인] ALL 저장 후 가져오기 → 토스트: "${toastTextAfterAllImport}" · 결과영역: "${allSavedSummary}"`)
+    expect(toastTextAfterAllImport, 'BLOCKING#1 fix 회귀 — 에러 토스트가 떴다면 재검토').not.toMatch(/저장된 가져오기 선택이 비어|오류/)
+    expect(allSavedSummary, 'BLOCKING#1 fix 회귀 — 결과 영역이 SELECTED 요약과 동일(stale)하면 재검토').not.toBe(selSummary)
+    await shot(page, 'd3-f4-fixed-all-import-succeeds')
 
-    // S2b — ALL 저장 후 재진입: 저장 표현이 [] 유지(D-S5-01)라 복원은 '미선택'으로 나타남(의도 결과 확증 캡처)
+    // S2b — [R1 H-4 fix 회귀 확인, 정정] ALL 저장 후 재진입: scope_mode 컬럼 도입으로 복원이
+    //       '미선택' 이 아닌 'ALL' 로 정확히 나타나야 한다(refs=[] 를 미저장과 혼동하지 않음).
     await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(page.getByText('MASTER').first()).toBeVisible({ timeout: 25000 })
     await page.waitForTimeout(2500)
-    await expect(page.getByTestId('codef-scope-hint')).toBeVisible({ timeout: 15000 })
-    await expect(page.getByTestId('codef-save-scope-button')).toBeDisabled()
-    await expect(page.getByTestId('codef-import-button')).toBeDisabled()
-    await shot(page, 'd3-s2c-reload-after-all-shows-unset')
+    await expect(page.getByTestId('codef-scope-hint')).toHaveCount(0)
+    await expect(page.getByTestId('codef-save-scope-button')).toBeEnabled()
+    await expect(page.getByTestId('codef-import-button')).toBeEnabled()
+    const allChipPressableAfterReload = page.getByTestId('codef-all-scope-chip').locator('[role="button"]')
+    await expect(allChipPressableAfterReload).toHaveAttribute('aria-pressed', 'true')
+    await shot(page, 'd3-s2c-reload-after-all-shows-all-restored')
 
-    // S4 — [우회 경로] 재진입 후 '전체' 칩만 선택(저장 없이) → 가져오기: refs 미지정 payload →
-    //      서버 전수 열거(진짜 ALL). SELECTED(5건)와 다른 고유 출력(계좌 4개+카드+대출) 확증.
-    await page.getByTestId('codef-all-scope-chip').click()
+    // S4 — [우회 경로] 재진입 후(이미 ALL 로 복원된 상태) 가져오기: refs 미지정 payload →
+    //      서버 전수 열거(진짜 ALL). F4(저장 scope 경유 ALL)와 동일 값이어야 한다(#825 슬5 R1
+    //      — 저장 scope 경유 ALL 과 미저장 칩 ALL 은 동일한 '진짜 전체'로 수렴해야 정합).
     await page.getByTestId('codef-import-from').fill('2020-03-01')
     await page.getByTestId('codef-import-to').fill('2020-03-07')
     const importBtn3 = page.getByTestId('codef-import-button')
@@ -365,31 +374,33 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     const result3 = page.getByTestId('codef-import-result')
     await expect(result3).toBeVisible({ timeout: 20000 })
     const allSummary = (await result3.innerText()).replace(/\s+/g, ' ').trim()
-    console.log(`[D3] 진짜 ALL(미저장 칩) 가져오기 요약: ${allSummary}`)
+    console.log(`[D3] 진짜 ALL(저장 scope 경유) 가져오기 요약: ${allSummary}`)
     expect(allSummary, 'ALL/SELECTED 가져오기 요약이 동일 — 범위 미반영 의심').not.toBe(selSummary)
     const fetchedMatch = allSummary.match(/조회 ([\d,]+)건/)
     const fetchedAll = fetchedMatch ? Number(fetchedMatch[1].replace(/,/g, '')) : 0
     expect(fetchedAll, `ALL 조회 건수(${fetchedAll})가 SELECTED(5) 이하 — 전수 열거 미동작 의심`).toBeGreaterThan(5)
     await shot(page, 'd3-s4-true-all-import-differs')
-    console.log('[D3] CODEF 칩0 잠금·SELECTED 저장/복원/가져오기·F4 실증·진짜 ALL 차별 확증 완료')
+    console.log('[D3] CODEF 칩0 잠금·SELECTED 저장/복원/가져오기·BLOCKING#1/H-4 fix 확인·진짜 ALL 차별 확증 완료')
   })
 
-  test('D3b · [F4 시각 보강] ALL 저장 직후 가져오기 400 에러 토스트 실캡처(3초 자동소멸 전)', async ({ page }) => {
+  test('D3b · [R1 BLOCKING#1 fix 시각 보강] ALL 저장 직후 가져오기 성공 토스트 실캡처(3초 자동소멸 전)', async ({ page }) => {
     await goto(page, '/accounting/bank-transactions')
     await expect(page.getByTestId('codef-scope-hint')).toBeVisible({ timeout: 15000 })
     await page.getByTestId('codef-all-scope-chip').click()
     await page.getByTestId('codef-save-scope-button').click()
     await expect(page.getByTestId('bank-transaction-toast')).toBeVisible({ timeout: 10000 })
-    // 성공 토스트 소멸 대기 후 가져오기 → 에러 토스트를 소멸(3s) 전에 캡처
+    // 저장 성공 토스트 소멸 대기 후 가져오기 → 가져오기 성공 토스트를 소멸(3s) 전에 캡처.
+    // fix 전에는 이 토스트가 "저장된 가져오기 선택이 비어 있습니다" 에러였다(d3-f4b 구 캡처).
     await page.waitForTimeout(3500)
     await page.getByTestId('codef-import-from').fill('2020-01-01')
     await page.getByTestId('codef-import-to').fill('2020-01-07')
     await page.getByTestId('codef-import-button').click()
     const toast = page.getByTestId('bank-transaction-toast')
     await expect(toast).toBeVisible({ timeout: 8000 })
-    await expect(toast).toContainText('저장된 가져오기 선택이 비어 있습니다')
-    await shot(page, 'd3-f4b-error-toast-visible')
-    console.log(`[F4-D3b] 에러 토스트 실캡처: ${(await toast.innerText()).trim()}`)
+    await expect(toast).not.toContainText('저장된 가져오기 선택이 비어 있습니다')
+    await expect(toast).toContainText('거래내역 가져오기 완료')
+    await shot(page, 'd3-f4b-success-toast-visible')
+    console.log(`[F4-D3b fix 확인] 성공 토스트 실캡처: ${(await toast.innerText()).trim()}`)
   })
 
   test('D6 · 모바일 390px — 세 화면 칩·안내 레이아웃', async ({ page }) => {

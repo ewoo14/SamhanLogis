@@ -58,6 +58,9 @@ const REVALIDATION_STATUS_LABEL: Record<DailyProductRevalidationStatus, string> 
   OUT_OF_SCOPE: '대상외',
 }
 
+/** 범위 미선택 안내 문구 id — 잠긴 실행 버튼/칩에서 aria-describedby 로 사유를 연결(#825 슬5 R1 item4). */
+const SCOPE_HINT_ID = 'daily-closing-scope-hint-text'
+
 const inputStyle: CSSProperties = {
   height: 32,
   padding: '0 8px',
@@ -201,15 +204,22 @@ export function DailyClosingPage() {
   })
 
   const closeMutation = useMutation({
-    mutationFn: () =>
-      createDailyClosing({
+    mutationFn: () => {
+      if (execScopeMode === null) {
+        // 방어적 가드 — 실행 버튼이 이미 execScopeMode!==null 을 강제하므로 정상 경로로는
+        // 도달하지 않는다. 도달 시에도 '전체'로 무음 폴백하지 않고 명시적으로 거부한다
+        // (#825 슬5 R1 item10 — 회계 무결성 도메인은 방어 방향이 reject 여야 한다).
+        throw new Error('범위를 선택하지 않아 마감을 실행할 수 없습니다. 전체 또는 거래처를 선택하세요.')
+      }
+      return createDailyClosing({
         closingDate: execDate,
         partnerCode: execPartner?.partnerCode || undefined,
-        scopeMode: execScopeMode ?? 'ALL',
+        scopeMode: execScopeMode,
         description: execDescription.trim() || undefined,
         closingKind: execKind,
         sourceKind: compatibleSource(execKind, execSourceKind),
-      }),
+      })
+    },
     onSuccess: () => {
       setExecDescription('')
       void queryClient.invalidateQueries({ queryKey: ['daily-closings'] })
@@ -646,6 +656,8 @@ export function DailyClosingPage() {
                 data-testid="daily-closing-all-chip"
                 role="button"
                 tabIndex={0}
+                aria-pressed={execScopeMode === 'ALL'}
+                aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
               />
               {execScopeMode === 'SELECTED' && execPartner ? (
                 <TagChip
@@ -693,17 +705,24 @@ export function DailyClosingPage() {
             data-testid="daily-closing-exec-button"
             onClick={handleExecuteClosing}
             disabled={!canExecute || closeMutation.isPending || !execDate || execScopeMode === null}
+            aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
           >
             {closeMutation.isPending ? '처리 중' : '마감 실행'}
           </Button>
         </div>
         {execScopeMode === null ? (
+          // #825 슬5 R1 item12 — 상시 표시 안내는 role="alert"(긴급/동적 공지 전용) 대신
+          // role="status"(polite)로 통일. 색도 대비 2.15:1(AA 미달)이던 --state-warning 대신
+          // --ink-secondary(5.77:1)로 세 화면 통일.
+          // item13 — "전체" 칩만 안내하면 거래처 지정 의도 사용자를 전체 마감으로 유도하므로
+          // 양쪽 경로(전체/거래처)를 모두 안내한다.
           <p
-            role="alert"
+            role="status"
+            id={SCOPE_HINT_ID}
             data-testid="daily-closing-scope-hint"
-            style={{ margin: '8px 0 0', color: 'var(--state-warning)', fontSize: 12 }}
+            style={{ margin: '8px 0 0', color: 'var(--ink-secondary, #5C6773)', fontSize: 12 }}
           >
-            전체로 처리하려면 '전체' 칩을 선택하세요.
+            전체로 처리하려면 '전체' 칩을 선택하세요. 특정 거래처만 처리하려면 거래처를 선택하세요.
           </p>
         ) : null}
         {execPartnerDraftError ? (

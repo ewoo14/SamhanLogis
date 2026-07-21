@@ -6206,13 +6206,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const connectedId = String(config.params?.['connectedId'] ?? '').trim()
     const saved = MOCK_CODEF_IMPORT_SCOPES[connectedId]
     if (!saved) {
+      // #825 슬5 R1(H-4) — 한 번도 저장한 적 없음은 scopeMode=null(미저장)로 응답한다.
+      // 종전 'ALL' 고정 응답은 '미저장'과 '전체 저장'을 재방문 시 구별하지 못했다.
       return envelope({
         connectedId,
         accountRefs: [],
         cardRefs: [],
         loanRefs: [],
         defaultImportType: 'ALL' as const,
-        scopeMode: 'ALL' as const,
+        scopeMode: null,
       })
     }
     return envelope(saved)
@@ -6247,9 +6249,14 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (explicitEmptySavedScope && !saved) {
       return mockError(404, 'NOT_FOUND', '저장된 가져오기 선택이 없습니다. 먼저 저장하세요.')
     }
+    // #825 슬5 R1 BLOCKING#1 fix — 저장 scopeMode 가 ALL 이면 refs 는 설계상 비어 있다(D-S5-02).
+    // '저장 선택이 비어 있음(=미저장)'으로 오판해 거부하지 않고, CODEF 서버 전체 열거(진짜
+    // 전체)로 materialize한다 — BE CodefImportScopedService.resolveRefs 와 동일 분기(mock 파리티).
+    const useTrueAllEnumeration = explicitEmptySavedScope && saved?.scopeMode === 'ALL'
     if (
       explicitEmptySavedScope
       && saved
+      && saved.scopeMode !== 'ALL'
       && saved.accountRefs.length === 0
       && saved.cardRefs.length === 0
       && saved.loanRefs.length === 0
@@ -6260,21 +6267,21 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const accountRefs = resolveMockCodefRefs(
       type,
       'BANK',
-      body.accountRefs,
+      useTrueAllEnumeration ? null : body.accountRefs,
       saved?.accountRefs,
       MOCK_CODEF_BANK_ACCOUNTS.map((item) => item.ref),
     )
     const cardRefs = resolveMockCodefRefs(
       type,
       'CARD',
-      body.cardRefs,
+      useTrueAllEnumeration ? null : body.cardRefs,
       saved?.cardRefs,
       MOCK_CODEF_CARDS.map((item) => item.ref),
     )
     const loanRefs = resolveMockCodefRefs(
       type,
       'LOAN',
-      body.loanRefs,
+      useTrueAllEnumeration ? null : body.loanRefs,
       saved?.loanRefs,
       MOCK_CODEF_LOANS.map((item) => item.ref),
     )

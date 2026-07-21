@@ -1435,7 +1435,7 @@ describe('mock CODEF account selection BC3 contract', () => {
     expect(Number(imported.data.totalRows)).toBeGreaterThan(0)
   })
 
-  it('scope 미저장 조회는 200 envelope + empty scope 를 반환한다', () => {
+  it('scope 미저장 조회는 200 envelope + scopeMode=null(미저장) empty scope 를 반환한다 (#825 슬5 R1 H-4)', () => {
     const connectedId = `missing-connected-${Date.now()}`
     const missing = mockRequest({
       method: 'GET',
@@ -1447,7 +1447,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: string[]
       loanRefs: string[]
       defaultImportType: 'ALL'
-      scopeMode: 'ALL'
+      scopeMode: null
     }>
 
     expect(missing.success).toBe(true)
@@ -1457,13 +1457,13 @@ describe('mock CODEF account selection BC3 contract', () => {
       cardRefs: [],
       loanRefs: [],
       defaultImportType: 'ALL',
-      scopeMode: 'ALL',
+      scopeMode: null,
     })
   })
 
-  it('저장된 scope 가 있지만 refs 가 모두 비어 있으면 import-scoped 는 INVALID_INPUT 을 반환한다', () => {
-    const connectedId = `empty-scope-${Date.now()}`
-    mockRequest({
+  it('#825 슬5 R1 BLOCKING#1 fix — ALL 저장 직후 저장기반 가져오기는 200(종전 400 자기모순 해소)', () => {
+    const connectedId = `all-scope-${Date.now()}`
+    const saved = mockRequest({
       method: 'PUT',
       url: '/accounting/codef/scopes',
       data: {
@@ -1474,7 +1474,46 @@ describe('mock CODEF account selection BC3 contract', () => {
         defaultImportType: 'ALL',
         scopeMode: 'ALL',
       },
-    })
+    }) as MockEnvelope<{ scopeMode: string }>
+    expect(saved.data.scopeMode).toBe('ALL')
+
+    // 재조회에서도 scopeMode=ALL 로 복원된다(H-4) — refs 비어있음만으로 '미저장'과
+    // 혼동하지 않는다.
+    const reloaded = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/scopes',
+      params: { connectedId },
+    }) as MockEnvelope<{ scopeMode: string }>
+    expect(reloaded.data.scopeMode).toBe('ALL')
+
+    // FE 가 "저장 선택 사용" 의도로 보내는 payload 그대로(explicit-empty triple + type=ALL) —
+    // 종전에는 저장된 refs 가 비어 있다는 이유만으로 400 이 났다(BLOCKING#1). scopeMode=ALL
+    // 이면 CODEF 서버 전체 열거(진짜 전체)로 materialize 되어 200 이어야 한다.
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
+        to: '2026-06-26',
+        type: 'ALL',
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+      },
+    }) as MockEnvelope<{ fetchedCount: number }>
+
+    // 단일 ref 조합(2 refs) 기준선(기존 테스트 fetchedCount=4)보다 명백히 커야 한다 —
+    // 계좌 3 + 카드 3 + 대출 2 전체를 열거하므로 정확한 카탈로그 크기에 결합하지 않는
+    // 안정적 단언.
+    expect(imported.data.fetchedCount).toBeGreaterThan(4)
+  })
+
+  it('한 번도 저장한 적 없는 connectedId 로 저장기반 가져오기를 시도하면 404 NOT_FOUND', () => {
+    // explicitEmptySavedScope(type=ALL + refs 전부 explicit []) 인데 saved 자체가 없는
+    // 경우(scopeMode 와 무관 — 애초에 행이 없음) — BLOCKING#1 fix 와는 별개 분기로,
+    // ALL 저장 후 분기(scopeMode 확인)에 도달하기 전에 걸러진다.
+    const connectedId = `never-saved-${Date.now()}`
 
     const imported = mockRequest({
       method: 'POST',
@@ -1490,9 +1529,9 @@ describe('mock CODEF account selection BC3 contract', () => {
       },
     }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
 
-    expect(imported.__mockStatus).toBe(400)
-    expect(imported.body.code).toBe('INVALID_INPUT')
-    expect(imported.body.message).toContain('저장된 가져오기 선택이 비어 있습니다')
+    expect(imported.__mockStatus).toBe(404)
+    expect(imported.body.code).toBe('NOT_FOUND')
+    expect(imported.body.message).toContain('저장된 가져오기 선택이 없습니다')
   })
 })
 

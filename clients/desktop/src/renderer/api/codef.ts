@@ -31,7 +31,12 @@ export interface CodefImportScope {
   cardRefs: string[]
   loanRefs: string[]
   defaultImportType: CodefImportType
-  scopeMode: CodefScopeMode
+  /**
+   * 저장된 선택 범위. 저장 요청(PUT)에서는 항상 명시(ALL/SELECTED)해야 한다.
+   * 조회 응답(GET)에서는 한 번도 저장한 적 없으면 {@code null}(미저장)로 온다 —
+   * '전체 저장'과 '미저장'을 재방문 시에도 구별하기 위한 3-상태 필드다(#825 슬5 R1 H-4).
+   */
+  scopeMode: CodefScopeMode | null
 }
 
 export interface CodefScopedImportRequest {

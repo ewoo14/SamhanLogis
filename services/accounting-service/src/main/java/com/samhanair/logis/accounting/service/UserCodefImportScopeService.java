@@ -73,7 +73,8 @@ public class UserCodefImportScopeService {
                 request.accountRefs(),
                 request.cardRefs(),
                 request.loanRefs(),
-                request.defaultImportType());
+                request.defaultImportType(),
+                request.scopeMode());
         return CodefImportScopeResponse.from(repository.saveAndFlush(scope));
     }
 

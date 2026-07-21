@@ -237,6 +237,101 @@ class CodefImportControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("#825 슬5 R1 BLOCKING#1 fix — ALL 저장 직후 저장기반 가져오기는 200(종전 400 자기모순 해소)")
+    void importScoped_afterSavingAllScope_succeedsInsteadOf400() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String connectedId = "connected-blocking1-" + UUID.randomUUID();
+
+        // ALL 저장 — refs 는 설계상 비어 있다(D-S5-02).
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "%s",
+                                  "scopeMode": "ALL",
+                                  "accountRefs": [],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "ALL"
+                                }
+                                """.formatted(connectedId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"));
+
+        // FE 가 "저장 선택 사용" 의도로 보내는 payload 그대로(explicit-empty triple + type=ALL) —
+        // 종전에는 저장된 refs 가 비어 있다는 이유만으로 400 이 났다(BLOCKING#1). scope_mode=ALL 이면
+        // CODEF 서버 전체 열거(계좌4+카드3+대출2=9)로 materialize 되어 200 이어야 한다.
+        mockMvc.perform(post("/accounting/codef/import-scoped")
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "%s",
+                                  "from": "2026-06-01",
+                                  "to": "2026-06-03",
+                                  "type": "ALL",
+                                  "accountRefs": [],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "submitMethod": "DRY_RUN"
+                                }
+                                """.formatted(connectedId)))
+                .andExpect(status().isOk())
+                // DRY_RUN 카탈로그 전체(계좌4+카드3+대출2=9 refs) 열거 — CodefAccountSelectionIT
+                // #importScopedAllWithNullRefs_importsAllListedRefs 가 동일 날짜범위·동일 진짜
+                // ALL 경로에서 이미 45 를 단언하고 있어(같은 공유 DRY_RUN CodefClient bean)
+                // 정확한 값으로 강화한다.
+                .andExpect(jsonPath("$.data.fetchedCount").value(45));
+    }
+
+    @Test
+    @DisplayName("#825 슬5 R1 H-4 fix — ALL 저장 후 재조회는 scopeMode=ALL 로 복원된다(구 미저장/전체 혼동 해소)")
+    void getScope_afterSavingAllScope_restoresAllScopeMode() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String connectedId = "connected-h4-" + UUID.randomUUID();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "%s",
+                                  "scopeMode": "ALL",
+                                  "accountRefs": [],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "ALL"
+                                }
+                                """.formatted(connectedId)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(SCOPE_URL)
+                        .param("connectedId", connectedId)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"))
+                .andExpect(jsonPath("$.data.accountRefs").isEmpty());
+    }
+
+    @Test
+    @DisplayName("#825 슬5 R1 H-4 fix — 한 번도 저장한 적 없는 connectedId 조회는 scopeMode=null(미저장) 반환")
+    void getScope_neverSaved_returnsNullScopeMode() throws Exception {
+        String connectedId = "connected-never-saved-" + UUID.randomUUID();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(SCOPE_URL)
+                        .param("connectedId", connectedId)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").doesNotExist());
+    }
+
+    @Test
     @DisplayName("CODEF DRY_RUN 대출 5건 적재, 재호출 externalRef 멱등")
     void importCodefLoanDryRun_idempotent() throws Exception {
         importCodefLoan()

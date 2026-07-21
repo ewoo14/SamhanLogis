@@ -180,6 +180,23 @@ function renderPage() {
   )
 }
 
+/**
+ * '전체' TagChip 의 실제 클릭 가능 영역(role="button" 내부 wrapper)을 클릭한다.
+ *
+ * <p>TagChip 은 ARIA 중첩(role="button" 안에 실제 <button> 중첩) 회피를 위해 role="button"
+ * /onClick 을 outer testid span 이 아닌 내부 wrapper 에 둔다(#825 슬5 R1). 실 브라우저는
+ * 좌표 기반 hit-test 라 outer span 중앙 클릭이 자연히 내부 wrapper 에 도달하지만, RTL
+ * `fireEvent.click` 은 좌표 hit-test 없이 지정 노드에 직접 이벤트를 디스패치하고 이벤트는
+ * 조상으로만 버블링되므로 outer(비대화형) span 클릭은 내부(inner pressable)에 도달하지
+ * 않는다 — 반드시 내부 wrapper 를 직접 타깃해야 한다.
+ */
+function clickAllChip(testId: string): void {
+  const chip = screen.getByTestId(testId)
+  const pressable = chip.querySelector('[role="button"]')
+  if (!pressable) throw new Error(`${testId} 내부에 role=button wrapper 를 찾을 수 없음`)
+  fireEvent.click(pressable)
+}
+
 function rowOf(label: string): HTMLElement {
   const cell = screen.getByText(label)
   const tr = cell.closest('tr')
@@ -429,7 +446,7 @@ describe('DailyClosingPage 일마감 실행 거래처 payload (#825 R1)', () => 
     expect(screen.queryByTestId('daily-closing-exec-partner-clear')).toBeNull()
 
     // 해제 후에는 전체 칩을 명시적으로 선택해야 실행할 수 있다.
-    fireEvent.click(screen.getByTestId('daily-closing-all-chip'))
+    clickAllChip('daily-closing-all-chip')
     fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
     await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
     const payload = createDailyClosingMock.mock.calls[0]![0] as { partnerCode?: string }
@@ -571,7 +588,7 @@ describe('DailyClosingPage 일마감 실행 미확정 draft 가드 (#825 재수�
     // '해제' 로 선택을 실제로 지우면 전체 칩을 명시적으로 선택해야 재실행할 수 있다.
     fireEvent.click(screen.getByTestId('daily-closing-exec-partner-clear'))
     expect(screen.queryByTestId('daily-closing-exec-partner-draft-error')).toBeNull()
-    fireEvent.click(screen.getByTestId('daily-closing-all-chip'))
+    clickAllChip('daily-closing-all-chip')
     fireEvent.click(screen.getByTestId('daily-closing-exec-button'))
     await waitFor(() => expect(createDailyClosingMock).toHaveBeenCalledTimes(1))
     const payload = createDailyClosingMock.mock.calls[0]![0] as { partnerCode?: string }

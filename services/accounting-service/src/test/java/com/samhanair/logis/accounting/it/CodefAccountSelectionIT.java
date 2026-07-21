@@ -228,11 +228,13 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
         definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         TransactionStatus blocker = transactionManager.getTransaction(definition);
+        // #825 슬5 R1(V64) — scope_mode NOT NULL 컬럼 추가로 raw INSERT 도 명시해야 한다.
+        // 기존 계좌 선택이 있는 상태이므로 SELECTED.
         jdbcTemplate.update("""
                 INSERT INTO user_codef_import_scope
                     (user_id, connected_id, account_ref_selections, card_ref_selections,
-                     loan_ref_selections, default_import_type)
-                VALUES (?::uuid, ?, '["기존 계좌"]', '[]', '[]', 'BANK')
+                     loan_ref_selections, default_import_type, scope_mode)
+                VALUES (?::uuid, ?, '["기존 계좌"]', '[]', '[]', 'BANK', 'SELECTED')
         """, USER_ID.toString(), CONNECTED_ID);
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -410,8 +412,12 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("type=ALL 이고 빈 저장 선택을 로드하면 명확한 400 메시지를 반환한다")
-    void importScopedAllWithEmptyRefsAndEmptySavedScope_returnsClearMessage() throws Exception {
+    @DisplayName("#825 슬5 R1 BLOCKING#1 fix — type=ALL 이고 저장 scopeMode=ALL 이면(refs=[] 는 정상 표현) 200 으로 서버 전체를 열거한다")
+    void importScopedAllWithEmptyRefsAndAllSavedScope_materializesFullEnumeration() throws Exception {
+        // 종전(R1 이전)에는 이 시나리오가 "저장된 가져오기 선택이 비어 있습니다" 400 으로
+        // 자기모순 실패했다 — ALL 로 저장한 직후 가져오기가 거부되는 BLOCKING 결함(FABLE5 R1).
+        // scope_mode 컬럼(V64) 도입 후에는 저장 당시 scopeMode=ALL 을 신뢰해 refs=[]를
+        // '미저장'이 아닌 '전체'로 정확히 해석하고 CODEF 서버 전체 열거로 materialize한다.
         saveScope("""
                 {
                   "connectedId": "%s",
@@ -422,7 +428,45 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "defaultImportType": "ALL"
                 }
                 """.formatted(CONNECTED_ID))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"));
+
+        // 재조회에서도 scopeMode=ALL 로 복원된다(H-4) — refs 비어있음만으로 '미저장'과 혼동하지 않음.
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"));
+
+        importScoped("""
+                {
+                  "connectedId": "%s",
+                  "from": "2026-06-01",
+                  "to": "2026-06-03",
+                  "type": "ALL",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "submitMethod": "DRY_RUN"
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isOk())
+                // 서버 DRY_RUN 카탈로그 전체(계좌4+카드3+대출2=9 refs) 열거 — 진짜 ALL 과 동일 값.
+                .andExpect(jsonPath("$.data.fetchedCount").value(45))
+                .andExpect(jsonPath("$.data.importedCount").value(45));
+    }
+
+    @Test
+    @DisplayName("#825 슬5 R1 방어 가드 — 저장 scopeMode=SELECTED 인데 refs 가 비어 있으면(정상 경로로는 불가) 여전히 400")
+    void importScopedAllWithEmptyRefsAndSelectedSavedScopeCorrupted_stillReturnsClearMessage() throws Exception {
+        // D-S5-02 상 SELECTED+빈 목록은 저장 시점에 400 으로 거부되므로 API 로는 이 상태에
+        // 도달할 수 없다 — raw SQL 로 방어적 가드 회귀만 확인한다(BLOCKING#1 fix 가 scopeMode
+        // 분기를 ALL 에만 적용하고 SELECTED 는 종전 방어 로직을 그대로 유지하는지 검증).
+        jdbcTemplate.update("""
+                INSERT INTO user_codef_import_scope
+                    (user_id, connected_id, account_ref_selections, card_ref_selections,
+                     loan_ref_selections, default_import_type, scope_mode)
+                VALUES (?::uuid, ?, '[]', '[]', '[]', 'ALL', 'SELECTED')
+        """, USER_ID.toString(), CONNECTED_ID);
 
         importScoped("""
                 {

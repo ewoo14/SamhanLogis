@@ -63,6 +63,15 @@ public class UserCodefImportScope extends BaseEntity {
     private CodefImportType defaultImportType = CodefImportType.ALL;
 
     /**
+     * 저장 당시 명시적 선택 범위("ALL"/"SELECTED"). #825 슬5 R1(개발책임자 결정 1) —
+     * ref 목록만으로는 '전체 저장'(refs=[])과 '아직 미저장'을 구별할 수 없어 도입.
+     * V64 마이그레이션으로 추가. 기존(본 슬라이스 이전) 행은 backfill 정책상 "SELECTED"로
+     * 채워졌다(소급으로 ALL 단정 금지 — V64 마이그 주석 참조).
+     */
+    @Column(name = "scope_mode", nullable = false, length = 20)
+    private String scopeMode = "SELECTED";
+
+    /**
      * 신규 사용자별 선택 scope 를 생성한다.
      *
      * @param userId      인증 사용자 UUID
@@ -81,16 +90,20 @@ public class UserCodefImportScope extends BaseEntity {
     }
 
     /**
-     * 선택 ref 와 기본 가져오기 구분을 갱신한다.
+     * 선택 ref, 기본 가져오기 구분, 선택 범위 모드를 갱신한다.
      *
      * @return {@code this}
      */
     public UserCodefImportScope updateSelections(List<String> accountRefs, List<String> cardRefs,
-                                                 List<String> loanRefs, CodefImportType defaultImportType) {
+                                                 List<String> loanRefs, CodefImportType defaultImportType,
+                                                 String scopeMode) {
         this.accountRefSelections = CodefRefNormalizer.normalizeRefs(accountRefs);
         this.cardRefSelections = CodefRefNormalizer.normalizeRefs(cardRefs);
         this.loanRefSelections = CodefRefNormalizer.normalizeRefs(loanRefs);
         this.defaultImportType = defaultImportType == null ? CodefImportType.ALL : defaultImportType;
+        if (scopeMode != null) {
+            this.scopeMode = scopeMode;
+        }
         return this;
     }
 
