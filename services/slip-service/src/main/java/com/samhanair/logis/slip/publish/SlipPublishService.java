@@ -446,8 +446,8 @@ public class SlipPublishService {
      * 주문에서 즉시 커밋되는 출고전표의 거래처 UUID를 엄격하게 해소한다.
      *
      * <p>주문 단일·병합 발행은 {@code FOUND}이면서 실제 {@code partnerId}가 있는 경우에만
-     * 거래처가 확인된 것으로 간주한다. strict 설정, 5xx fail-open, token 미설정 우회는
-     * 이 경로의 회계 무결성을 위해 적용하지 않는다.
+     * 거래처가 확인된 것으로 간주한다. strict 설정, SERVER_ERROR(5xx·404 외 4xx) fail-open,
+     * token 미설정 우회는 이 경로의 회계 무결성을 위해 적용하지 않는다.
      *
      * <p>{@code SKIPPED}(internal token 미설정)은 {@code SERVER_ERROR}와 같은 "검증 불가" 범주이지만
      * {@link ErrorCode#MIG12_INTERNAL_AUTH_MISS}(503) 로 별도 구분한다 — {@code resolveCommittedPartnerId}

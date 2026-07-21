@@ -25,7 +25,9 @@ import org.springframework.web.client.RestClient;
  *   <li>409 Conflict (동일 키 다른 본문/race) → {@link BusinessException}(CONFLICT)</li>
  *   <li>401 Unauthorized → {@link BusinessException}(UNAUTHORIZED)</li>
  *   <li>403 Forbidden → {@link BusinessException}(FORBIDDEN)</li>
- *   <li>기타 4xx → {@link BusinessException}(INVALID_INPUT)</li>
+ *   <li>408 Request Timeout / 429 Too Many Requests → {@link BusinessException}(INTERNAL_ERROR) —
+ *       일시 오류로 간주해 5xx 와 동일하게 재시도 대상 처리(#854 R4 HIGH-B)</li>
+ *   <li>기타 4xx(401/403/408/409/429 제외) → {@link BusinessException}(INVALID_INPUT)</li>
  *   <li>5xx → {@link BusinessException}(INTERNAL_ERROR) — 호출자가 outbox INSERT 로 fallback</li>
  * </ul>
  *

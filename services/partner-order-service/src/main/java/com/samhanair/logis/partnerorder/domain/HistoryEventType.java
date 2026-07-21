@@ -14,7 +14,7 @@ public enum HistoryEventType {
     CONFIRMED,
     /** slip-service 발행 성공 — slipNo 채워짐. */
     SLIP_PUBLISHED,
-    /** slip-service 5xx → outbox PENDING. */
+    /** slip-service 5xx/408/429 → outbox PENDING. */
     SLIP_RETRY_QUEUED,
     /** 복구 불가능한 입력/충돌 또는 max-retry-hours 초과로 영구 실패. */
     SLIP_FAILED_PERMANENT,

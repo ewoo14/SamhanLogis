@@ -377,3 +377,176 @@ R5는 `services/`·`clients/`를 실제로 접촉한 통합 fix이며, 아래 �
 - `cd clients/desktop && npm run test` — 기본 병렬 실행은 assertion failure 없이 Node worker unexpected exit로 종료되었다. 동일 전체 스위트를 `npm run test -- --pool=forks --maxWorkers=1 --minWorkers=1 --reporter=dot`로 재검증해 **134 files / 1,021 tests passed**.
 - `cd clients/desktop && ./node_modules/.bin/playwright test --reporter=line` — 현재 저장소 config의 실제 수는 **595 tests**이며 **593 passed / 2 failed**. 실패 2건은 config의 `testIgnore`에 포함되지 않은 기존 `coedit-s3-1-live` 실서버 포트(5177/5174) 스펙이다. mock 스위트 범위의 변경 대상 회귀는 통과했고, 이번 범위에서 live 스펙·config는 변경하지 않았다.
 - anti-false-green: 목록 배지 조건을 `linkedSlipNo != null`로 바꾼 mutation은 새 Vitest에서 **1 failed**, afterCommit 즉시 실행 mutation은 rollback IT에서 **1 failed**, `findWithLockById`를 `findById`로 바꾼 mutation은 lock-holder IT에서 **1 failed**했다. 세 mutation은 모두 원복 후 최종 검증을 통과했다.
+
+---
+
+# R7 (FABLE5 재수렴) — BLOCKING 0 · HIGH 0 · MED 0 · LOW 2 (+ R6 무처분 1건, fix=SONNET5)
+
+R6(SOL) 이월 이후 재수렴 적대검증. **BLOCKING/HIGH/MED 전부 0** — 수렴 근접 신호(commit `2a2333498`).
+
+## [LOW-1] OutboxPropertiesTest yml literal 핀 상실
+R6 fix 가 `containsProperty` + env-equality 로 기존 단언을 교체하면서 `isEqualTo(24/120/10/2)`
+literal 핀 4건이 사라져, yml 값 자체가 표류해도 CI 가 감지하지 못하는 상태(코드 기본값과 yml 값이
+함께 표류하면 env-equality 는 여전히 GREEN)가 됐다. R4 MED "배포 기본값 고정" 취지의 후퇴.
+- **fix**: literal 단언 4줄을 env-equality 와 양립하도록 `OutboxPropertiesTest` 에 복원.
+- **anti-false-green**: `application.yml` 의 `max-retry-hours` 24→2 로 임시 변경 → 복원한 literal
+  단언 줄에서 결정적 RED(`AssertionFailedError`) 확인 → 원복 → GREEN 재확인.
+
+## [LOW-2] 408/429 확대 후 잔존 stale Javadoc·로그 문구 (5파일 7개소)
+R4 HIGH-B 가 408/429 를 재시도 대상으로 넓힌 뒤(`PartnerInternalClient.verifyPartnerCode`: 404 만
+`notFound()`, 나머지 4xx 는 전부 `serverError()`), 이 재분류를 반영하지 못한 "5xx" 단독 서술이
+잔존했다: `ProductClient.lookupByModel` `@throws`("401/403"→"404 외 4xx(401/403/408/429 포함)") ·
+`SlipPublishService.verifyPartnerOrThrow` Javadoc·warn 로그 · `MobileQuotationService`·
+`MobilePartnerOrderService` 각 2개소. grep 재확인 결과 해당 패턴 잔존 0건(R7 시점).
+⚠️ **`PartnerInternalClient` 자신의 record Javadoc(진실원)을 포함해 5개소가 이 sweep 에서 누락돼
+R8 에서 재발견됐다 — 아래 R8 절 참조.**
+
+## [R6 무처분] CUTOVER.md M-20 실행 위치 혼재
+M-20 상세 절차가 `[운영자 PC]`(로컬 워크스테이션, AWS CLI 프로파일)와 `[EC2 SSM]`(컨테이너 런타임
+필요) 두 principal 에 걸쳐 있는데 표기가 없었다. `iam.tf` 실측 — EC2 instance role 에
+`logs:FilterLogEvents`·`DescribeMetricFilters`·`cloudwatch:DescribeAlarms`·`DescribeAlarmHistory`
+가 없어 해당 조회 명령은 EC2 에서 AccessDenied. 명령마다 `[운영자 PC]`/`[EC2 SSM]` 표기 +
+`cd infrastructure/terraform` 추가 + 워크스테이션 측 필요 조회 권한 명시. 범위 동결에 따라 동일
+결함이 있는 M-19 절은 미변경.
+
+## R7 검증
+- `:services:partner-order-service:test` **403** · `:services:slip-service:test` **1429**
+  (각 failures 0 · errors 0 · skipped 0, `--rerun-tasks --no-build-cache`).
+- `OutboxPropertiesTest` **4/4**.
+
+---
+
+# R8 (FABLE5 재수렴) — BLOCKING 0 · HIGH 0 · MED 0 · LOW 1 (fix=SONNET5)
+
+R7 fix 이후 재수렴. **BLOCKING/HIGH/MED 전부 0** — 잔여 LOW 1건(본 PR 이 stale 로 만든 문서/주석).
+
+## [LOW-1] verifyPartnerCode 4xx 분류 stale 문서·주석 잔여분
+R7 LOW-2 가 5파일 7개소를 정정했으나 `PartnerInternalClient.verifyPartnerCode` 자신의 "진실원"
+record Javadoc을 포함해 5개소가 누락돼 있었다. R8 이 지목한 5개소를 실제 코드 분기(`verifyPartnerCode`
+catch 블록: `status==404` 만 `notFound()`, 5xx 는 `serverError()`, 그 외 4xx(401/403/408/429 등)도
+`serverError()` — `PartnerInternalClientTest` 의 `verifyPartnerCode_404가_아닌_4xx는_SERVER_ERROR로_분류된다`
+파라미터 테스트로 실측 확인됨)와 대조해 개소별로 판정했다.
+
+**stale → fix (3개소)**
+- `PartnerInternalClient.java:269` — `PartnerVerifyResult` record Javadoc 의 `SERVER_ERROR` 항목이
+  "5xx / 연결 실패"만 서술해 404 외 4xx 누락. **Status enum 의 진실원 문서**라 영향도 최대 →
+  "5xx / 404 외 4xx(401/403/408/429 등 검증 불가) / 연결 실패"로 정정.
+- `SlipPublishService.java:449` — `resolveCommittedPartnerId` Javadoc 의 "5xx fail-open" 표현이
+  같은 파일 아래쪽 `verifyPartnerOrThrow` bullet(R4 가 이미 "SERVER_ERROR (5xx 또는 404 외
+  4xx...)"로 정정)과 용어 불일치 → "SERVER_ERROR(5xx·404 외 4xx) fail-open"으로 정정.
+- `application.yml:121,124`(slip-service) — `partner-strict-validation` 설정 주석. :121 "5xx /
+  연결 실패는 ... fail-open"이 404 외 4xx 누락 → 병기. :124 "NOT_FOUND/5xx/SKIPPED/"의 "5xx"도
+  같은 누락 → 상태명 `SERVER_ERROR`로 교체(：121 재설명과 중복 없이 정합).
+
+**false positive → 무수정 (2개소, 근거를 남겨 재지적 방지)**
+- `PartnerInternalClient.java:75` — `resolvePartnerId` `@return`("미존재 / 5xx / 연결 실패 /
+  토큰 미설정 시 empty"). `resolvePartnerId` 는 `verifyPartnerCode(...).partnerId()` 를 그대로
+  반환하며 FOUND 이외 전 상태에서 `partnerId` 는 PR 전후 불변으로 항상 빈 Optional — "미존재"를
+  4xx 전반의 완곡 표현으로 읽으면 거짓 진술이 없다.
+- `PartnerInternalClient.java:36` — 클래스 Javadoc 오류 처리 bullet. "4xx (404 = 미존재) → empty
+  Optional"이 **별도 bullet**으로 이미 4xx 전반(404 한정 아님)을 포괄하고 "5xx / 연결 실패" bullet
+  과 구조적으로 분리돼 있어, SERVER_ERROR 를 5xx 로 한정하는 단일 주장이 아니다.
+
+## 추가 sweep 발견 — R8 미지목·동일 결함 계열 (2파일 5개소, fix)
+"동일 결함 계열 전수 sweep" 지시에 따라 slip-service + partner-order-service 전역을
+`5xx|SERVER_ERROR|fail-open|4xx`로 grep, `git diff origin/main...HEAD`로 본 PR 도입분만 선별해
+추가 발견(모두 본 PR 이 신규 작성한 텍스트 — main 에 대응 원문 자체가 없음):
+- `SlipServiceClient.java:28`(partner-order-service, class Javadoc 응답 분기 bullet) — R4 HIGH-B
+  가 408/429 를 "기타 4xx" 버킷에서 분리해 `INTERNAL_ERROR`(재시도)로 뺐으나(실 코드는 이미
+  분리), 클래스 요약 Javadoc "기타 4xx → INVALID_INPUT"는 408/429 제외를 반영 못해 실제 분기보다
+  넓게 서술 → 408/429 전용 bullet 추가 + "기타 4xx(401/403/408/409/429 제외)"로 정정.
+- `SlipPublishController.java:106,121,145,162`(slip-service, Swagger `@ApiResponse`/Javadoc 4개소)
+  — 전부 본 PR 이 신규 추가한 텍스트로 "partner-service 5xx"만 언급 — springdoc 으로 외부
+  노출되는 API 문서라 우선순위 높음 → "5xx/404 외 4xx"로 정정.
+
+이 외 `OutboxProperties.java`·`OutboxStatus.java`·`SlipPublishOutbox.java`·
+`application.yml`(partner-order-service)·`README.md`(양쪽 서비스)·`ProductClient.java`·
+`MobilePartnerOrderService.java`·`MobileQuotationService.java` 도 동일 키워드로 확인했으나,
+ErrorCode 이름(`INVALID_INPUT`/`CONFLICT`/`SERVER_ERROR`) 기반 서술이거나 R7 LOW-2 가 이미 정정한
+"5xx 또는 404 외 4xx" 정확 표현이라 stale 없음(false positive). `partner-order-service/README.md`
+의 "confirm 흐름"/"Scheduler(5분)" ASCII 다이어그램은 claim/lease·PROCESSING 상태·4xx
+immediate-fail 분기를 반영하지 못해 더 넓은 의미로 낡아 있으나, git diff 확인 결과 본 PR 이 아니라
+R2/R3 도입 시점부터 갱신되지 않은 **더 이전 라운드의 pre-existing 단순화**이며 다이어그램 전체
+재작성이 필요한 별도 범위라 이번 LOW-1 fix 범위 밖으로 보고만 하고 미수정.
+
+## R8 검증 (1차)
+- `./gradlew :services:slip-service:compileJava :services:partner-order-service:compileJava` —
+  **BUILD SUCCESSFUL**(genuine — 두 태스크 모두 `UP-TO-DATE` 아닌 실제 `executed`).
+- 문서/주석만 변경(코드 동작·시그니처·상수 무변경, `git diff --stat` 5파일 14+/10-) — 로직 회귀
+  위험 없음. 전체 test suite 재실행 및 PR 게시는 PM 종합 단계에서 수행.
+
+## R8 후속 — PM 독립검증 지적 반영 (SlipPublishOutbox 진실원 누락 + 2차 sweep)
+PM 독립 검증이 위 1차 결과의 나머지(408/429 매핑·`@ApiResponse` 계약 불변·`SLIP_RETRY_QUEUED`
+dormant 판정)는 실측 확증했으나, **sweep 이 `outbox/SlipPublishOutbox.java` 를 놓쳤고 이 엔티티가
+본 PR outbox 메커니즘의 진실원**이라고 지적했다.
+
+**정직한 원인 규명**: 경로를 잘못 짚어 grep 이 비었다는 추정과 달리, 1차 sweep 은 실제로 정확한
+경로(`outbox/SlipPublishOutbox.java`)를 grep 해 4개소(클래스 Javadoc·`lastError` 필드·`queue()`
+팩토리·`markRetry()`)를 **이미 발견했었다**. 그런데도 fix 대상에서 제외한 것은 grep 누락이 아니라
+**판정 오류**였다 — README 가 명시한 "(구) 동기 confirm-flow **producer** 미배선(dormant)"과, 이
+엔티티의 라이프사이클 메서드(스케줄러·processor·result-writer 가 매 tick 상시 호출) 자체가
+dormant 라는 것을 혼동해 "낮은 우선순위·범위 밖"으로 잘못 유보했다.
+
+### 2차 sweep 판정 — fix (3파일 6개소)
+각 파일을 `git diff origin/main...HEAD -- <file>` 로 확인한 결과, 아래 3파일은 본 PR 이 **같은
+파일의 같은 Javadoc/표 블록**(claim/lease 문단·markRequeue·enum count·env-var 표·confirm-흐름
+다이어그램)을 직접 편집했음에도, 인접한 "5xx" 단독 서술은 정정하지 않고 남겨 stale 상태였다:
+- `outbox/SlipPublishOutbox.java:20-22`(클래스 Javadoc) — "발행 5xx 시 INSERT" → "발행 5xx/408/429
+  시 INSERT" + "복구 불가 4xx(INVALID_INPUT/CONFLICT)"에 "— 408/429 는 제외, 5xx 와 동일하게 재시도
+  대상" 명시 추가(암묵적 ErrorCode 배제만으로는 이전 라운드에서 이미 재지적된 전례가 있어 명시화).
+- `outbox/SlipPublishOutbox.java:76`(`lastError` 필드) — "마지막 5xx 응답" → "마지막 5xx/408/429 응답".
+- `outbox/SlipPublishOutbox.java:102`(`queue()` 팩토리) — "최초 5xx 발생 시점에 INSERT" →
+  "최초 5xx/408/429 발생 시점에 INSERT".
+- `outbox/SlipPublishOutbox.java:120`(`markRetry()`) — "5xx 응답 — PENDING 으로" →
+  "5xx/408/429 응답 — PENDING 으로".
+- `domain/HistoryEventType.java:17`(`SLIP_RETRY_QUEUED`) — "slip-service 5xx → outbox PENDING" →
+  "slip-service 5xx/408/429 → outbox PENDING". 이 상수는 전 소스 참조 0(PM 확인 — 진짜 dormant)이나,
+  dormant 여부와 무관하게 텍스트 정확성을 남겨두면 다음 적대라운드가 다시 지적할 자리이므로 정정
+  (주석에 "dormant" 표기는 추가하지 않음 — PM 지시대로 사실만 기술).
+- `partner-order-service/README.md:22`(도메인 모델 표, `SlipPublishOutbox` 행) — "confirm 흐름 5xx
+  시 retry 큐" → "confirm 흐름 5xx/408/429 시 retry 큐". 같은 파일에서 본 PR 이 confirm-흐름
+  다이어그램(producer dormant 표기)·env-var 표를 직접 편집했고, 이 한 줄은 지금 막 정정한
+  `SlipPublishOutbox` 엔티티 자신의 Javadoc을 그대로 요약하는 표 행이라 함께 정정하지 않으면 같은
+  문서 안에서 즉시 재모순이 생긴다고 판단했다(PM 이 명시 지목하지 않은 확장 판단이므로 과잉이면
+  되돌려도 되는 낮은 리스크 변경으로 별도 표기).
+
+이 축(partner-order-service 가 slip-service 응답을 재시도/영구실패로 분류하는 축)은 슬립-서비스
+`PartnerVerifyResult`(SERVER_ERROR=5xx·404 외 4xx) 분류와 **다른 축**이라 용어를 섞지 않도록
+`SERVER_ERROR(...)` 표현 대신 `5xx/408/429` 나열체를 그대로 사용했다.
+
+### 2차 sweep 판정 — pre-existing, 무수정·보고만 (4파일 5개소 + 기보고 diagram)
+아래는 `git diff origin/main...HEAD -- <file>` 결과가 **완전히 공백**(본 PR 커밋이 이 파일을 단
+한 글자도 건드리지 않음)이라 "본 PR 이 stale 로 만든" 범위 밖으로 판정, **개발책임자 처분 대상**으로
+보고만 하고 미수정했다:
+- `domain/PartnerOrder.java:392` — "slip-service 5xx → outbox 큐로 전이" (주문 엔티티 Javadoc).
+- `domain/PartnerOrderStatus.java:13` — "→ CONFIRMED + slipPublishStatus=PENDING_RETRY (slip 5xx →
+  outbox)" (상태 다이어그램 주석).
+- `domain/SlipPublishStatus.java:9,18` — `PENDING_RETRY` bullet·필드 Javadoc 둘 다 "5xx → outbox".
+  ⚠️ **우선순위 표시**: 이 enum 값은 R4 Track 2 이후 `PartnerOrderDetailResponse`/
+  `PartnerOrderSummaryResponse` 를 통해 FE Badge("전표 발행 대기")로 실사용자에게 노출되는
+  값이라 dormant 가 전혀 아니다 — 다만 이 파일 자체는 본 PR 이 손대지 않았으므로 R8 LOW-1(본 PR
+  이 stale 로 만든 것)의 fix 범위는 아니고, 더 오래된 선행 PR 의 pre-existing 정밀도 문제다.
+- `config/ResilienceConfig.java:13` — "slip-service 호출 5xx/timeout 시 outbox + scheduler 흐름으로
+  fallback" (circuit breaker 클래스 Javadoc). 참고로 `SlipServiceClient` 자신의 Javadoc이 이미
+  "이 client 는 그 데코레이션을 배선하지 않는다(#854 R5 정정)"고 명시해, 이 회로차단기는 현재
+  실제로 호출 경로에 배선되지 않은 설정-only 상태다.
+- `partner-order-service/README.md:232` — Phase 2.6a/2.6b **동기** convert-then-slip-publish
+  흐름의 "slip 5xx → BusinessException → 롤백" 서술. 이 절 자체(약 200행 구간)는 본 PR 이 전혀
+  건드리지 않았고, 같은 문단이 "근본 해결은 2.6c outbox 통합"이라고 스스로 명시해 outbox 미통합
+  레거시 경로임을 자인하고 있어 본 PR 의 outbox 재시도 축과 연결이 약하다고 판단해 보고만 한다.
+- README.md "confirm 흐름"/"Scheduler(5분)" ASCII 다이어그램(:34-40,:43-49) — 1차 sweep 에서 이미
+  보고한 대로 범위 밖 유지(PM 지시로 재확인, 변경 없음).
+
+## R8 검증 (2차)
+- `./gradlew :services:partner-order-service:compileJava` — **BUILD SUCCESSFUL**(genuine,
+  `:services:partner-order-service:compileJava` 태스크가 `UP-TO-DATE` 아닌 `executed`).
+- 이번 회차도 문서/주석만 변경(코드 동작·시그니처·상수 무변경) — `git diff --stat` 는 아래 "최종
+  변경 통계" 참조. 빌드 산출물(`bin/`,`build/`) 미터치 재확인.
+
+## 최종 변경 통계 (R8 1차+2차 합산, 소스 8개 파일 + dev-report)
+- 1차(5): `PartnerInternalClient.java`·`SlipPublishService.java`·`SlipPublishController.java`
+  (이상 slip-service) · `application.yml`(slip-service) · `SlipServiceClient.java`
+  (partner-order-service).
+- 2차(3): `SlipPublishOutbox.java`·`HistoryEventType.java`·`README.md`(이상 partner-order-service).
+
+관련: PR #862(#854) · FABLE5 R8 재수렴 · PM 독립검증 2차 지적.

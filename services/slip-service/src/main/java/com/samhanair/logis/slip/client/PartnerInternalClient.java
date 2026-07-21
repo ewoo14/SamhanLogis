@@ -266,7 +266,8 @@ public class PartnerInternalClient {
      * <ul>
      *   <li>{@link Status#FOUND} — 200, 거래처 존재. partnerId 가 응답에 있으면 함께 반환.</li>
      *   <li>{@link Status#NOT_FOUND} — 404, 거래처 미등록. strict 모드 reject 대상.</li>
-     *   <li>{@link Status#SERVER_ERROR} — 5xx / 연결 실패. strict 모드 fail-open (raw 저장 + warning).</li>
+     *   <li>{@link Status#SERVER_ERROR} — 5xx / 404 외 4xx(401/403/408/429 등 검증 불가) / 연결 실패.
+     *       strict 모드 fail-open (raw 저장 + warning).</li>
      *   <li>{@link Status#SKIPPED} — partnerCode null/blank 또는 internal token 미설정. lookup 자체 skip.</li>
      * </ul>
      */

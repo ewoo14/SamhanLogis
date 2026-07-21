@@ -17,9 +17,9 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * Outbox row — slip-service 발행 5xx 시 INSERT (PENDING). scheduler 가 5분 마다 claim 후
- * 재시도. 성공 시 COMMITTED, 복구 불가 4xx(INVALID_INPUT/CONFLICT) 또는 max-retry-hours (기본 24h)
- * 초과 시 FAILED.
+ * Outbox row — slip-service 발행 5xx/408/429 시 INSERT (PENDING). scheduler 가 5분 마다 claim 후
+ * 재시도. 성공 시 COMMITTED, 복구 불가 4xx(INVALID_INPUT/CONFLICT — 408/429 는 제외, 5xx 와 동일하게
+ * 재시도 대상) 또는 max-retry-hours (기본 24h) 초과 시 FAILED.
  *
  * <p>claim 은 네이티브 {@code UPDATE ... RETURNING}(FOR UPDATE SKIP LOCKED)으로 PENDING 또는 lease
  * ({@code samhan.outbox.lease-seconds}) 만료 PROCESSING 을 PROCESSING 으로 원자 전이하며, PROCESSING 은
@@ -73,7 +73,7 @@ public class SlipPublishOutbox extends BaseEntity {
     @Column(name = "next_attempt_at", nullable = false)
     private LocalDateTime nextAttemptAt;
 
-    /** 마지막 5xx 응답 본문 또는 예외 메시지 (운영 진단용). PostgreSQL TEXT. */
+    /** 마지막 5xx/408/429 응답 본문 또는 예외 메시지 (운영 진단용). PostgreSQL TEXT. */
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 
@@ -99,7 +99,7 @@ public class SlipPublishOutbox extends BaseEntity {
     }
 
     /**
-     * 신규 outbox row — 최초 5xx 발생 시점에 INSERT.
+     * 신규 outbox row — 최초 5xx/408/429 발생 시점에 INSERT.
      *
      * @param partnerOrderId PartnerOrder UUID
      * @param idempotencyKey slip-service Idempotency-Key (재사용)
@@ -117,7 +117,7 @@ public class SlipPublishOutbox extends BaseEntity {
         this.lastError = null;
     }
 
-    /** 5xx 응답 — PENDING 으로 되돌리고 attemptCount++ + nextAttemptAt 갱신. */
+    /** 5xx/408/429 응답 — PENDING 으로 되돌리고 attemptCount++ + nextAttemptAt 갱신. */
     public void markRetry(String error, LocalDateTime nextAttemptAt) {
         this.status = OutboxStatus.PENDING;
         this.attemptCount += 1;

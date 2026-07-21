@@ -19,7 +19,7 @@ Phase 6 M4 — 거래처 주문 도메인 (legacy `partner-order/index.html` 942
 | `GateImage` | 모바일 게이트 prefetch |
 | `TutorialState` | PC / MOBILE 튜토리얼 완료 표시 |
 | `BootstrapCacheConfig` | 16종 bootstrap 시드 |
-| `SlipPublishOutbox` | confirm 흐름 5xx 시 retry 큐 |
+| `SlipPublishOutbox` | confirm 흐름 5xx/408/429 시 retry 큐 |
 
 ## confirm 흐름
 
