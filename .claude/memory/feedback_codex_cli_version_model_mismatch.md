@@ -37,8 +37,18 @@ abort 는 codex 를 멈추지 않지만 **완료 통지를 끊어** 오케스트
 
 **진짜 종료 신호 (이걸 쓸 것)**:
 1. **rollout 로그의 LastWriteTime** — `~/.codex/sessions/<yyyy>/<MM>/<dd>/rollout-<ts>-<threadId>.jsonl`. 이게 90초+ 무변동이어야 턴 종료.
-2. **codex PID 생존** — `Get-Process codex`. 디스패치 시각과 `StartTime` 이 맞는 PID 가 살아 있으면 아직 진행 중. (🚫 kill 금지 → [[feedback_codex_kill_shares_mcp_vendor]])
+2. **완료의 유일한 진실원 = rollout 안의 `"type":"task_complete"` 이벤트.** 이게 있으면 끝난 것이고, `payload.last_agent_message` 에 최종보고 전문이 들어 있다.
 3. 대기는 Bash `run_in_background` + `until [ $(( $(date +%s) - $(stat -c %Y "$f") )) -ge 90 ]` 로 **단발 통지**(Monitor 는 다건용).
+
+🚨 **정정 (2026-07-21 실증) — `Get-Process codex` 개수/PID 는 MCP 디스패치 작업의 생존 신호가 아니다**
+구판 지침("디스패치 시각과 StartTime 이 맞는 PID 가 살아 있으면 진행 중")은 **MCP 경로에서 틀렸다.** `mcp__codex__codex` 로 띄운 작업은 **`codex mcp-server` 프로세스 안에서 돌아 별도 `codex.exe` 를 만들지 않는다.** 실측: 트랙B 가 rollout 을 **0초 간격으로 쓰는 중인데도** `codex.exe` 는 딱 2개(`mcp-server`, WindowsApps `app-server`=데스크톱 앱)뿐이었다. 프로세스 개수로 세면 **살아 있는 작업을 정지로 오판**한다.
+- 프로세스 목록은 **CommandLine 으로 역할을 구분**해서만 쓸 것: `mcp-server` = 상주 서버, `app-server` = 데스크톱 앱, 둘 다 **작업이 아니다**.
+- gradle/Playwright 동시성 판정도 마찬가지 — `java.exe` 중 VSCode `redhat.java` LSP 를 gradle 로 오인하지 말 것(실측 3개 중 2개가 LSP였다). `Get-CimInstance Win32_Process` 의 CommandLine 으로 확인한다.
+
+🚨 **통지 유실은 abort 통지 없이도 발생한다 (2026-07-21 실증)**
+트랙A 는 `task_complete` 를 정상 발행했는데 **abort 메시지조차 없이** 완료 통지가 오지 않아 **22분간 완료 사실이 묻혀 있었다**. 즉 "abort 통지가 안 왔으니 아직 진행 중"은 성립하지 않는다.
+⟹ **통지는 빠른 경로일 뿐 보장 경로가 아니다.** 개발책임자 지시(통지 대기 + 10분 폴링 **병행**)의 실제 근거가 이것이며, 폴링 때 확인할 것은 프로세스가 아니라 **rollout 의 `task_complete` 유무 + LastWriteTime** 이다. → [[feedback_autonomous_loop_schedulewakeup]]
+💡 통지가 끊긴 뒤에는 **rollout 파일을 Monitor 로 감시**해 `task_complete` 출현을 통지로 되살릴 수 있다(무변동 경고도 같이 emit 해서 침묵을 진행중으로 오해하지 않게 할 것).
 
 💡 **abort 로 잃은 threadId·최종보고는 rollout 로그에서 회수된다** — 파일명에 **threadId 가 박혀 있고**(`rollout-…-<threadId>.jsonl`) assistant 메시지 전문이 들어 있다. 회수 후 **`mcp__codex__codex-reply`(threadId)** 로 같은 세션을 이어받아 정식 보고를 받으면 된다(재디스패치 불필요).
 ⚠️ 이 jsonl 은 **UTF-8** 인데 Windows PowerShell 5.1 `Get-Content` 기본 인코딩이 ANSI 라 **한글이 mojibake** 로 나온다 → `[System.IO.File]::ReadAllLines($f, [System.Text.Encoding]::UTF8)` 로 읽되 **codex 가 쓰는 중이면 파일 잠금**이라 실패하니 종료 후 읽을 것.
