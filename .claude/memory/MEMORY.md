@@ -13,7 +13,7 @@
 - [🚨 도구 호출은 실제 invocation](feedback_emit_real_tool_calls.md) — 도구 호출을 텍스트로 적으면 미실행. 진짜 함수 호출+결과 확인. ScheduleWakeup 단독발행 시 실수 잦음
 - [야간/장시간 ScheduleWakeup 재자각 · 🚨codex=통지 대기 금지·10분 폴링](feedback_autonomous_loop_schedulewakeup.md) — 매 단계(1~2묶음) 완료 후 다음 단계 예약·재자각·턴종료(연속 mega턴 금지). 부재/활성 무관. **🚨2026-07-21 개발책임자 지시: codex 디스패치는 통지 대기와 `ScheduleWakeup(600s)` 10분 폴링을 병행**(통지=빠른 경로·폴링=보장 경로, 택일 아님 — 통지만 믿고 폴링 없이 정지하는 것만 금지). 폴링 3종=rollout LastWrite+워크트리 diff+프로세스. **"rollout 90s 무변동=정지"는 장시간 단일 툴콜(Playwright 전량·npm ci·gradle) 중엔 오판** — 프로세스로 교차확인 후 둘 다 죽었을 때만 정지 판정→threadId `codex-reply` 이어받기
 - [PR OPEN(≠DRAFT)](feedback_pr_open_not_draft.md) — 조기PR 포함 draft 금지, --draft 쓰지말것 (2026-07-02)
-- [PM 자율 머지 위임](feedback_pm_auto_merge_authority.md) — 게이트(0수렴·CI green·mock gate·라이브QA) 충족 시 PM 자율 머지. main 직접 docs/memory push는 별개 가드
+- [PM 자율 머지 위임 · 🚨문서 전용 PR 상시 자율 머지](feedback_pm_auto_merge_authority.md) — 게이트(0수렴·CI green·mock gate·라이브QA) 충족 시 PM 자율 머지. main 직접 docs/memory push는 별개 가드. **🚨2026-07-21 추가 위임: "핸드오프 등의 문서는 그냥 머지" = 코드 변경 0인 PR(`docs/**`·`.claude/memory/**`·`CLAUDE.md`·`DECISIONS.md`)은 CI green 확인 후 묻지 않고 squash 머지**(핸드오프가 main 에 안 들어가면 타 PC 재개 시 컨텍스트 단절 → 지연 자체가 손실). 🚫코드·설정·CI·마이그가 한 줄이라도 섞이면 문서 PR 아님=풀 캐논·**문서에 코드 끼워 캐논 우회 금지**. 머지해도 결정 기록은 PR 에 남길 것
 - [PM 권한코드 전권 자율](feedback_pm_permission_autonomy.md) — 권한 코드는 PM 머지까지 자율. 워크플로우 엄격+자가지적. 신규 업무규칙/정책만 개발책임자 확인
 - [무결성도메인 정책 선확인](feedback_integrity_domain_policy_preconfirm.md) — 회계원장·감사·권한 편집가부 정책은 착수 전 개발책임자 확인 (2026-07-02)
 - [개발책임자 결정은 PR에 누적 기록](feedback_post_devlead_decisions_to_pr.md) — 결정·지시·정정을 그때그때 "📌 개발책임자 결정 기록" 코멘트로. 채팅에만 두지말것
