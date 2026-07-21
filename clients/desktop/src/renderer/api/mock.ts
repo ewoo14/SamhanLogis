@@ -6224,6 +6224,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const body = parseMockBody(config) as {
       connectedId?: string
       type?: 'BANK' | 'CARD' | 'LOAN' | 'ALL'
+      scopeMode?: 'ALL' | 'SELECTED'
       from?: string
       to?: string
       accountRefs?: string[] | null
@@ -6232,64 +6233,50 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     const connectedId = String(body.connectedId ?? '').trim()
     const type = body.type ?? 'ALL'
+    const scopeMode = body.scopeMode
     const from = String(body.from ?? new Date().toISOString().slice(0, 10))
     const to = String(body.to ?? from)
     if (from && to && from > to) {
       return mockError(422, 'DEPOSIT_DATE_RANGE_INVALID', '시작일은 종료일보다 이전이어야 합니다.')
     }
 
-    const saved = connectedId ? MOCK_CODEF_IMPORT_SCOPES[connectedId] : undefined
-    const explicitEmptySavedScope = type === 'ALL'
-      && Array.isArray(body.accountRefs)
+    if (scopeMode !== 'ALL' && scopeMode !== 'SELECTED') {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 는 ALL 또는 SELECTED 이어야 합니다')
+    }
+    const hasExplicitRefs = [body.accountRefs, body.cardRefs, body.loanRefs]
+      .some((refs) => Array.isArray(refs))
+    const allRefsPresent = Array.isArray(body.accountRefs)
       && Array.isArray(body.cardRefs)
       && Array.isArray(body.loanRefs)
-      && body.accountRefs.length === 0
-      && body.cardRefs.length === 0
-      && body.loanRefs.length === 0
-    if (explicitEmptySavedScope && !saved) {
-      return mockError(404, 'NOT_FOUND', '저장된 가져오기 선택이 없습니다. 먼저 저장하세요.')
+    const hasSelection = allRefsPresent
+      && [body.accountRefs, body.cardRefs, body.loanRefs].some((refs) => refs!.length > 0)
+    if ((scopeMode === 'ALL' && hasExplicitRefs) || (scopeMode === 'SELECTED' && !hasSelection)) {
+      return mockError(400, 'INVALID_INPUT', 'scopeMode 와 실행 ref 목록이 일치하지 않습니다')
     }
-    // #825 슬5 R1 BLOCKING#1 fix — 저장 scopeMode 가 ALL 이면 refs 는 설계상 비어 있다(D-S5-02).
-    // '저장 선택이 비어 있음(=미저장)'으로 오판해 거부하지 않고, CODEF 서버 전체 열거(진짜
-    // 전체)로 materialize한다 — BE CodefImportScopedService.resolveRefs 와 동일 분기(mock 파리티).
-    const useTrueAllEnumeration = explicitEmptySavedScope && saved?.scopeMode === 'ALL'
-    if (
-      explicitEmptySavedScope
-      && saved
-      && saved.scopeMode !== 'ALL'
-      && saved.accountRefs.length === 0
-      && saved.cardRefs.length === 0
-      && saved.loanRefs.length === 0
-    ) {
-      return mockError(400, 'INVALID_INPUT', '저장된 가져오기 선택이 비어 있습니다. 계좌·카드·대출 중 하나 이상을 선택해 저장하세요.')
-    }
-    // #825 슬5 R3 HIGH-1 파리티 — true-all 열거 시 범위는 요청 type(이 분기에서는 항상 'ALL')이
-    // 아닌 저장된 saved.defaultImportType 을 신뢰해야 한다. BE CodefImportScopedService 의
-    // R3 fix(listAllFromCodef(scope.getDefaultImportType(), ...))와 동일 분기 — 저장 당시
-    // 카테고리 한정 ALL(예: defaultImportType=CARD·scopeMode=ALL)을 BANK+CARD+LOAN 전체로
-    // 조용히 확대하던 결함을 mock 에서도 동일하게 해소한다. 일반 흐름(useTrueAllEnumeration
-    // 이 아닌 경우)은 종전과 동일하게 요청 type 을 그대로 쓴다.
-    const enumerationType = useTrueAllEnumeration ? (saved?.defaultImportType ?? 'ALL') : type
+    // 저장/실행 모두 scopeMode가 의미의 권위값이다. ALL은 요청 type 범위의 CODEF 목록을
+    // 열거하고, SELECTED는 세 배열을 그대로 사용한다. 필드 부재를 전체로 추론하는 분기는
+    // scopeMode=ALL에서만 허용되므로 직렬화 옵션 변화로 의미가 뒤집히지 않는다.
+    const enumerationType = type
 
     const accountRefs = resolveMockCodefRefs(
       enumerationType,
       'BANK',
-      useTrueAllEnumeration ? null : body.accountRefs,
-      saved?.accountRefs,
+      scopeMode === 'ALL' ? null : body.accountRefs,
+      undefined,
       MOCK_CODEF_BANK_ACCOUNTS.map((item) => item.ref),
     )
     const cardRefs = resolveMockCodefRefs(
       enumerationType,
       'CARD',
-      useTrueAllEnumeration ? null : body.cardRefs,
-      saved?.cardRefs,
+      scopeMode === 'ALL' ? null : body.cardRefs,
+      undefined,
       MOCK_CODEF_CARDS.map((item) => item.ref),
     )
     const loanRefs = resolveMockCodefRefs(
       enumerationType,
       'LOAN',
-      useTrueAllEnumeration ? null : body.loanRefs,
-      saved?.loanRefs,
+      scopeMode === 'ALL' ? null : body.loanRefs,
+      undefined,
       MOCK_CODEF_LOANS.map((item) => item.ref),
     )
 

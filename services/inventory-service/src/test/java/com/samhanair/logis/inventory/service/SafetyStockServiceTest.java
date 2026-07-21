@@ -155,6 +155,17 @@ class SafetyStockServiceTest {
         verify(productClient, never()).requireExists(productId);
     }
 
+    @Test
+    @DisplayName("서비스 이중 가드 — SELECTED 창고 미지정이면 제품 조회 전에 차단")
+    void setSafetyStock_selectedWithoutWarehouse_rejectedBeforeProductLookup() {
+        SafetyStockSetRequest req = new SafetyStockSetRequest(null, 50, null, "SELECTED");
+
+        assertThatThrownBy(() -> safetyStockService.setSafetyStock(productId, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("scopeMode");
+        verify(productClient, never()).requireExists(productId);
+    }
+
     // ------------------------------------------------------------------
     // findAlerts — 임계 미만 목록
     // ------------------------------------------------------------------

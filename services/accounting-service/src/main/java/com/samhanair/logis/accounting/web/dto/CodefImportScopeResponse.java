@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.web.dto;
 
 import com.samhanair.logis.accounting.domain.UserCodefImportScope;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
@@ -16,6 +17,7 @@ public record CodefImportScopeResponse(
         List<String> cardRefs,
         List<String> loanRefs,
         CodefImportType defaultImportType,
+        @JsonInclude(JsonInclude.Include.ALWAYS)
         String scopeMode
 ) {
     public static CodefImportScopeResponse from(UserCodefImportScope scope) {
@@ -25,7 +27,7 @@ public record CodefImportScopeResponse(
                 scope.getCardRefSelections(),
                 scope.getLoanRefSelections(),
                 scope.getDefaultImportType(),
-                scope.getScopeMode());
+                scope.getScopeMode() == null ? null : scope.getScopeMode().name());
     }
 
     /** 저장된 행이 없을 때(한 번도 저장한 적 없음) 응답 — scopeMode=null 로 '미저장'을 명시한다. */

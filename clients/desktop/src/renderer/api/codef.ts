@@ -44,6 +44,7 @@ export interface CodefScopedImportRequest {
   from: string
   to: string
   type: CodefImportType
+  scopeMode: CodefScopeMode
   accountRefs?: string[] | null
   cardRefs?: string[] | null
   loanRefs?: string[] | null

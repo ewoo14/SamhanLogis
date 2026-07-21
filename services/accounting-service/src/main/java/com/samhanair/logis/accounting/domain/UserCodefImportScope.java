@@ -68,8 +68,9 @@ public class UserCodefImportScope extends BaseEntity {
      * V64 마이그레이션으로 추가. 기존(본 슬라이스 이전) 행은 backfill 정책상 "SELECTED"로
      * 채워졌다(소급으로 ALL 단정 금지 — V64 마이그 주석 참조).
      */
+    @Enumerated(EnumType.STRING)
     @Column(name = "scope_mode", nullable = false, length = 20)
-    private String scopeMode = "SELECTED";
+    private CodefScopeMode scopeMode = CodefScopeMode.SELECTED;
 
     /**
      * 신규 사용자별 선택 scope 를 생성한다.
@@ -96,14 +97,15 @@ public class UserCodefImportScope extends BaseEntity {
      */
     public UserCodefImportScope updateSelections(List<String> accountRefs, List<String> cardRefs,
                                                  List<String> loanRefs, CodefImportType defaultImportType,
-                                                 String scopeMode) {
+                                                 CodefScopeMode scopeMode) {
+        if (scopeMode == null) {
+            throw new IllegalArgumentException("scopeMode 는 필수입니다");
+        }
         this.accountRefSelections = CodefRefNormalizer.normalizeRefs(accountRefs);
         this.cardRefSelections = CodefRefNormalizer.normalizeRefs(cardRefs);
         this.loanRefSelections = CodefRefNormalizer.normalizeRefs(loanRefs);
         this.defaultImportType = defaultImportType == null ? CodefImportType.ALL : defaultImportType;
-        if (scopeMode != null) {
-            this.scopeMode = scopeMode;
-        }
+        this.scopeMode = scopeMode;
         return this;
     }
 

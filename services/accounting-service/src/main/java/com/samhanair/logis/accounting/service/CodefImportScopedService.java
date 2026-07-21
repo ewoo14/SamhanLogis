@@ -1,7 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.client.CodefClient;
-import com.samhanair.logis.accounting.domain.UserCodefImportScope;
+import com.samhanair.logis.accounting.domain.CodefScopeMode;
 import com.samhanair.logis.accounting.util.CodefRefNormalizer;
 import com.samhanair.logis.accounting.web.dto.CodefImportResponse;
 import com.samhanair.logis.accounting.web.dto.CodefImportType;
@@ -14,40 +14,32 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** BC3 다중 ref/저장 선택 기반 거래내역 import 서비스. */
+/** BC3 다중 ref/명시적 실행 scope 기반 거래내역 import 서비스. */
 @Service
 @RequiredArgsConstructor
 public class CodefImportScopedService {
 
-    private static final String EMPTY_SAVED_SCOPE_MESSAGE =
-            "저장된 가져오기 선택이 비어 있습니다. 먼저 계좌/카드/대출을 선택해 저장하세요.";
-
     private final CodefClient codefClient;
     private final CodefImportService codefImportService;
-    private final UserCodefImportScopeService scopeService;
 
     /**
-     * 다중 ref, 전체 목록, 저장 선택 중 요청 의미에 맞는 ref 집합을 해석한 뒤 거래내역을 가져온다.
+     * 실행 scopeMode와 ref 집합을 해석한 뒤 거래내역을 가져온다.
      *
      * <p>해석 규칙(#825 슬5 R1 정정 — spec §0 표 ③ "선택 리스트 {@code []} = 전체" 는 실측 오류였다.
-     * 실제 전체 materialize 는 세 ref 배열이 모두 {@code null}(필드 자체 부재)일 때이며,
-     * 저장된 선택의 ref 가 {@code []} 인 것은 그 자체로 '전체'를 뜻하지 않는다 — 반드시
-     * {@link UserCodefImportScope#getScopeMode()} 로 판별해야 한다):
+     * 실행 scopeMode가 의미의 권위값이며, ref 필드의 존재 여부만으로 의미를 추론하지 않는다.
      * <ul>
-     *     <li>{@code type=ALL} 이고 세 ref 배열이 모두 explicit 빈 배열이면 저장된 선택을 사용한다.
-     *         저장된 scope 의 {@code scopeMode=ALL} 이면 (refs 는 설계상 비어 있으므로) 서버 목록
-     *         전체를 열거하고, {@code scopeMode=SELECTED} 면 저장된 ref 목록을 사용한다.</li>
-     *     <li>세 ref 배열이 모두 {@code null}(필드 부재)이면 서버 목록 전체를 열거한다(진짜 전체).</li>
-     *     <li>하나라도 배열이 지정되면 지정된 ref 만 사용한다.</li>
+     *     <li>{@code scopeMode=ALL}이면 ref 목록을 생략하고 요청 {@code type}의 서버 목록을 열거한다.</li>
+     *     <li>{@code scopeMode=SELECTED}이면 세 ref 배열을 모두 명시하고 하나 이상 선택한다.</li>
      * </ul>
      *
      * <p>#825 슬5 R1 BLOCKING#1 fix — 종전에는 저장된 scope 의 scopeMode 를 보지 않고 ref 가
-     * 비어 있으면 무조건 "저장된 선택이 비어 있습니다" 400 을 던져, ALL 로 저장한 직후 가져오기가
-     * 자기모순적으로 실패했다(저장은 성공·직후 가져오기는 400).
+     * 비어 있으면 무조건 저장된 선택으로 오판해 의미가 뒤집혔다. 실행 요청도 scopeMode를
+     * 명시해 직렬화 방식에 관계없이 ALL/SELECTED 의미를 유지한다.
      */
     @Transactional
     public CodefImportResponse importTransactionsWithScope(LocalDate from, LocalDate to,
                                                            CodefImportType type,
+                                                           String scopeMode,
                                                            String connectedId,
                                                            List<String> accountRefs,
                                                            List<String> cardRefs,
@@ -59,8 +51,9 @@ public class CodefImportScopedService {
         }
         validateConnectedId(connectedId);
         CodefImportType effectiveType = type != null ? type : CodefImportType.ALL;
-        ResolvedRefs refs = resolveRefs(effectiveType, connectedId.trim(), accountRefs, cardRefs, loanRefs,
-                submitMethod, userId);
+        CodefScopeMode effectiveScopeMode = CodefScopeMode.parse(scopeMode);
+        ResolvedRefs refs = resolveRefs(effectiveType, effectiveScopeMode, connectedId.trim(), accountRefs,
+                cardRefs, loanRefs, submitMethod);
         return codefImportService.importTransactionsForRefs(
                 from,
                 to,
@@ -71,52 +64,30 @@ public class CodefImportScopedService {
                 submitMethod);
     }
 
-    private ResolvedRefs resolveRefs(CodefImportType type, String connectedId,
+    private ResolvedRefs resolveRefs(CodefImportType type, CodefScopeMode scopeMode, String connectedId,
                                      List<String> accountRefs, List<String> cardRefs, List<String> loanRefs,
-                                     String submitMethod, UUID userId) {
-        if (type == CodefImportType.ALL
-                && isExplicitEmpty(accountRefs)
-                && isExplicitEmpty(cardRefs)
-                && isExplicitEmpty(loanRefs)) {
-            UserCodefImportScope scope = scopeService.getRequired(userId, connectedId);
-            if ("ALL".equals(scope.getScopeMode())) {
-                // #825 슬5 R1 BLOCKING#1 — 저장 당시 '전체'(scopeMode=ALL)였다면 refs 는 설계상
-                // 비어 있다(D-S5-02). 이를 "저장 선택이 없음"으로 오판해 거부하지 않고, 진짜 전체
-                // 열거로 materialize한다 — ALL 저장 직후 가져오기가 자기모순으로 400 나던 결함의 근본 fix.
-                //
-                // #825 슬5 R3 HIGH-1 — 열거 범위는 요청 파라미터 type 이 아닌 저장된
-                // scope.getDefaultImportType() 을 신뢰해야 한다. 이 분기는 요청 type 이 항상
-                // ALL 인 경우에만 진입하므로(바깥 if 조건) type 그대로 넘기면 저장 당시
-                // 카테고리 한정 ALL(예: defaultImportType=CARD·scopeMode=ALL — "카드만 전체")도
-                // BANK+CARD+LOAN 전 카테고리로 조용히 확대된다(FE 가 stale 캐시/동시 세션에서
-                // 여전히 type='ALL' + explicit-empty triple 을 보내는 두 경로 — buildImportPayload
-                // 의 SELECTED-위임 branch, 또는 롤링 배포 중 구버전이 refs 만 갱신한 행). 저장된
-                // defaultImportType 을 그대로 넘겨 그 범위만 materialize한다.
-                return listAllFromCodef(scope.getDefaultImportType(), connectedId, submitMethod);
+                                     String submitMethod) {
+        if (scopeMode == CodefScopeMode.ALL) {
+            if (accountRefs != null || cardRefs != null || loanRefs != null) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "scopeMode=ALL 실행에는 ref 목록을 보낼 수 없습니다.");
             }
-            List<String> savedAccountRefs = CodefRefNormalizer.normalizeRefs(scope.getAccountRefSelections());
-            List<String> savedCardRefs = CodefRefNormalizer.normalizeRefs(scope.getCardRefSelections());
-            List<String> savedLoanRefs = CodefRefNormalizer.normalizeRefs(scope.getLoanRefSelections());
-            if (savedAccountRefs.isEmpty() && savedCardRefs.isEmpty() && savedLoanRefs.isEmpty()) {
-                // scopeMode=SELECTED 는 저장 시점에 선택 목록이 비면 400 으로 거부되므로(D-S5-02)
-                // 정상 경로로는 도달하지 않는다 — 방어적 가드로 유지.
-                throw new BusinessException(ErrorCode.INVALID_INPUT, EMPTY_SAVED_SCOPE_MESSAGE);
-            }
-            return new ResolvedRefs(
-                    savedAccountRefs,
-                    savedCardRefs,
-                    savedLoanRefs);
-        }
-
-        boolean anyExplicit = accountRefs != null || cardRefs != null || loanRefs != null;
-        if (!anyExplicit) {
             return listAllFromCodef(type, connectedId, submitMethod);
         }
 
+        boolean allRefsPresent = accountRefs != null && cardRefs != null && loanRefs != null;
+        boolean hasSelection = allRefsPresent
+                && (accountRefs.stream().anyMatch(ref -> ref != null && !ref.isBlank())
+                || cardRefs.stream().anyMatch(ref -> ref != null && !ref.isBlank())
+                || loanRefs.stream().anyMatch(ref -> ref != null && !ref.isBlank()));
+        if (!hasSelection) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "scopeMode=SELECTED 실행에는 비어 있지 않은 ref 목록을 명시해야 합니다.");
+        }
         return new ResolvedRefs(
-                accountRefs == null ? List.of() : CodefRefNormalizer.normalizeRefs(accountRefs),
-                cardRefs == null ? List.of() : CodefRefNormalizer.normalizeRefs(cardRefs),
-                loanRefs == null ? List.of() : CodefRefNormalizer.normalizeRefs(loanRefs));
+                CodefRefNormalizer.normalizeRefs(accountRefs),
+                CodefRefNormalizer.normalizeRefs(cardRefs),
+                CodefRefNormalizer.normalizeRefs(loanRefs));
     }
 
     /** CODEF 서버 목록 전체를 열거해 진짜 '전체' 를 materialize한다(진짜 ALL — null 필드 부재 의미). */
@@ -141,10 +112,6 @@ public class CodefImportScopedService {
 
     private static boolean shouldImport(CodefImportType requestedType, CodefImportType candidateType) {
         return requestedType == CodefImportType.ALL || requestedType == candidateType;
-    }
-
-    private static boolean isExplicitEmpty(List<String> refs) {
-        return refs != null && refs.isEmpty();
     }
 
     private static void validateConnectedId(String connectedId) {

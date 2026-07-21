@@ -130,6 +130,7 @@ public class CodefImportController {
                         request.from(),
                         request.to(),
                         request.type(),
+                        request.scopeMode(),
                         request.connectedId(),
                         request.accountRefs(),
                         request.cardRefs(),

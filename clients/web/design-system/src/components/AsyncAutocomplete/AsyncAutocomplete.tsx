@@ -567,6 +567,7 @@ function AsyncAutocompleteInner<T>(
               className={styles['statusRow']}
               role="option"
               aria-selected={false}
+              aria-disabled="true"
             >
               <span className={styles['spinnerDot']} aria-hidden="true" />
               <span>검색 중…</span>

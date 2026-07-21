@@ -1392,6 +1392,7 @@ describe('mock CODEF account selection BC3 contract', () => {
         from: '2026-06-01',
         to: '2026-06-26',
         type: 'ALL',
+        scopeMode: 'SELECTED',
         accountRefs: saved.data.accountRefs,
         cardRefs: saved.data.cardRefs,
         loanRefs: saved.data.loanRefs,
@@ -1486,9 +1487,8 @@ describe('mock CODEF account selection BC3 contract', () => {
     }) as MockEnvelope<{ scopeMode: string }>
     expect(reloaded.data.scopeMode).toBe('ALL')
 
-    // FE 가 "저장 선택 사용" 의도로 보내는 payload 그대로(explicit-empty triple + type=ALL) —
-    // 종전에는 저장된 refs 가 비어 있다는 이유만으로 400 이 났다(BLOCKING#1). scopeMode=ALL
-    // 이면 CODEF 서버 전체 열거(진짜 전체)로 materialize 되어 200 이어야 한다.
+    // 명시적 ALL 실행은 ref 필드를 생략한다. 저장 refs=[]와 무관하게 scopeMode가 의미를
+    // 결정하므로, 저장 직후에도 CODEF 서버 전체 열거(진짜 전체)로 materialize 되어 200이어야 한다.
     const imported = mockRequest({
       method: 'POST',
       url: '/accounting/codef/import-scoped',
@@ -1497,9 +1497,7 @@ describe('mock CODEF account selection BC3 contract', () => {
         from: '2026-06-01',
         to: '2026-06-26',
         type: 'ALL',
-        accountRefs: [],
-        cardRefs: [],
-        loanRefs: [],
+        scopeMode: 'ALL',
       },
     }) as MockEnvelope<{ fetchedCount: number }>
 
@@ -1507,6 +1505,37 @@ describe('mock CODEF account selection BC3 contract', () => {
     // 계좌 3 + 카드 3 + 대출 2 전체를 열거하므로 정확한 카탈로그 크기에 결합하지 않는
     // 안정적 단언.
     expect(imported.data.fetchedCount).toBeGreaterThan(4)
+  })
+
+  it('#825 슬5 R4 B1 — 저장된 CARD+ALL은 mock import에서도 카드만 열거한다', () => {
+    const connectedId = `r4-card-all-${Date.now()}`
+    const saved = mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        accountRefs: [],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'CARD',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ defaultImportType: string; scopeMode: string }>
+    expect(saved.data).toMatchObject({ defaultImportType: 'CARD', scopeMode: 'ALL' })
+
+    const imported = mockRequest({
+      method: 'POST',
+      url: '/accounting/codef/import-scoped',
+      data: {
+        connectedId,
+        from: '2026-06-01',
+        to: '2026-06-03',
+        type: 'CARD',
+        scopeMode: 'ALL',
+      },
+    }) as MockEnvelope<{ fetchedCount: number }>
+
+    expect(imported.data.fetchedCount).toBe(6)
   })
 
   it.each(['CARD', 'BANK', 'LOAN', 'ALL'] as const)(
@@ -1530,10 +1559,7 @@ describe('mock CODEF account selection BC3 contract', () => {
     },
   )
 
-  it('한 번도 저장한 적 없는 connectedId 로 저장기반 가져오기를 시도하면 404 NOT_FOUND', () => {
-    // explicitEmptySavedScope(type=ALL + refs 전부 explicit []) 인데 saved 자체가 없는
-    // 경우(scopeMode 와 무관 — 애초에 행이 없음) — BLOCKING#1 fix 와는 별개 분기로,
-    // ALL 저장 후 분기(scopeMode 확인)에 도달하기 전에 걸러진다.
+  it('실행 scopeMode 누락은 400 INVALID_INPUT 으로 차단한다', () => {
     const connectedId = `never-saved-${Date.now()}`
 
     const imported = mockRequest({
@@ -1544,15 +1570,12 @@ describe('mock CODEF account selection BC3 contract', () => {
         from: '2026-06-01',
         to: '2026-06-26',
         type: 'ALL',
-        accountRefs: [],
-        cardRefs: [],
-        loanRefs: [],
       },
     }) as { __mockStatus: number; body: MockEnvelope<null> & { code: string; message: string } }
 
-    expect(imported.__mockStatus).toBe(404)
-    expect(imported.body.code).toBe('NOT_FOUND')
-    expect(imported.body.message).toContain('저장된 가져오기 선택이 없습니다')
+    expect(imported.__mockStatus).toBe(400)
+    expect(imported.body.code).toBe('INVALID_INPUT')
+    expect(imported.body.message).toContain('scopeMode')
   })
 })
 
@@ -2071,6 +2094,8 @@ describe('mock bank transaction matching contract', () => {
         connectedId: 'connected-main',
         from: '2026-06-01',
         to: '2026-06-26',
+        type: 'ALL',
+        scopeMode: 'SELECTED',
         accountRefs: ['국민 123456-78-901234'],
         cardRefs: ['삼한 물류카드'],
         loanRefs: [],
@@ -2683,6 +2708,7 @@ describe('#832 mock parity contracts', () => {
         from: date,
         to: date,
         type: 'BANK',
+        scopeMode: 'SELECTED',
         accountRefs: [accountRef],
         cardRefs: [],
         loanRefs: [],

@@ -171,11 +171,18 @@ export function DailyClosingPage() {
    * 표시값(ref)을 확정 선택과 대조해 (빈 draft 포함) 불일치면 차단하고 안내한다.
    */
   const execPartnerInputRef = useRef<HTMLInputElement | null>(null)
+  const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const [execPartnerDraftError, setExecPartnerDraftError] = useState('')
   const [execDescription, setExecDescription] = useState('')
   const [execKind, setExecKind] = useState<DailyClosingKind>('SALES')
   const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
+
+  const focusAllScopeChip = () => {
+    setTimeout(() => {
+      allScopeChipRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus()
+    }, 0)
+  }
 
   const queryKind = closingKind === 'ALL' ? undefined : closingKind
   const querySourceKind = closingKind === 'ALL' ? undefined : sourceKind
@@ -633,7 +640,7 @@ export function DailyClosingPage() {
                 ariaLabel="거래처"
                 placeholder="거래처명 또는 코드 선택"
                 inputTestId="daily-closing-exec-partner"
-                disabled={execScopeMode === 'ALL'}
+                disabled={!canExecute || execScopeMode === 'ALL'}
               />
             </div>
             <div
@@ -652,25 +659,27 @@ export function DailyClosingPage() {
                   setExecPartnerCommitted(true)
                   setExecPartnerDraftError('')
                 } : undefined}
-                onRemove={canExecute && execScopeMode === 'ALL' ? () => setExecScopeMode(null) : undefined}
+                ref={allScopeChipRef}
+                onRemove={canExecute && execScopeMode === 'ALL' ? () => { setExecScopeMode(null); focusAllScopeChip() } : undefined}
                 data-testid="daily-closing-all-chip"
+                className={!canExecute ? 'scope-chip--disabled' : undefined}
                 role={canExecute ? 'button' : undefined}
                 tabIndex={canExecute ? 0 : undefined}
-                aria-disabled={!canExecute ? 'true' : undefined}
-                aria-pressed={execScopeMode === 'ALL'}
-                aria-describedby={execScopeMode === null ? SCOPE_HINT_ID : undefined}
+                aria-pressed={canExecute ? execScopeMode === 'ALL' : undefined}
+                aria-describedby={canExecute && execScopeMode === null ? SCOPE_HINT_ID : undefined}
               />
               {execScopeMode === 'SELECTED' && execPartner ? (
                 <TagChip
                   label="거래처"
                   value={execPartner.name}
                   removeLabel={execPartner.name}
-                  onRemove={() => {
+                  onRemove={canExecute ? () => {
                     setExecPartner(null)
                     setExecScopeMode(null)
                     setExecPartnerCommitted(true)
                     setExecPartnerDraftError('')
-                  }}
+                    focusAllScopeChip()
+                  } : undefined}
                   data-testid="daily-closing-selected-chip"
                 />
               ) : null}
@@ -723,20 +732,22 @@ export function DailyClosingPage() {
             data-testid="daily-closing-scope-hint"
             style={{ margin: '8px 0 0', color: 'var(--ink-secondary, #5C6773)', fontSize: 12 }}
           >
-            전체로 처리하려면 '전체' 칩을 선택하세요. 특정 거래처만 처리하려면 거래처를 선택하세요.
+            {canExecute
+              ? "전체로 처리하려면 '전체' 칩을 선택하세요. 특정 거래처만 처리하려면 거래처를 선택하세요."
+              : '일마감 실행 권한이 없어 범위를 선택하거나 실행할 수 없습니다. 권한 보유자에게 요청하세요.'}
           </p>
         ) : null}
         {execPartnerDraftError ? (
           <p
             role="alert"
             data-testid="daily-closing-exec-partner-draft-error"
-            style={{ margin: '8px 0 0', color: 'var(--state-danger)', fontSize: 12 }}
+            style={{ margin: '8px 0 0', color: 'var(--color-danger-700)', fontSize: 12 }}
           >
             {execPartnerDraftError}
           </p>
         ) : null}
         {!canExecute ? (
-          <p style={{ margin: '8px 0 0', color: 'var(--state-danger)', fontSize: 12 }}>
+          <p style={{ margin: '8px 0 0', color: 'var(--color-danger-700)', fontSize: 12 }}>
             일마감 실행 권한이 없습니다 — 일마감 실행 권한 보유자만 가능합니다.
           </p>
         ) : null}

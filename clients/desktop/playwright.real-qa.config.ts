@@ -16,7 +16,7 @@
  *   # 전체 real-QA 스펙(83개) 실행:
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000
  *   # 이 슬라이스(#825 슬5)만 격리 실행:
- *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000 ^
+ *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000 `
  *     playwright/825-s5-null-semantics-real-qa/825-s5-null-semantics-real-qa.spec.ts
  */
 import { defineConfig, devices } from '@playwright/test'

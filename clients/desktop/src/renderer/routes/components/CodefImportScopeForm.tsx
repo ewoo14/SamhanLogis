@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
@@ -47,6 +47,7 @@ interface CodefImportScopeFormProps {
 const DEFAULT_CONNECTED_ID = 'connected-main'
 /** 범위 미선택 안내 문구 id — 잠긴 버튼/칩에서 aria-describedby 로 사유를 연결한다(#825 슬5 R1 item4). */
 const SCOPE_HINT_ID = 'codef-scope-hint-text'
+const SCOPE_ALL_LOCK_HINT_ID = 'codef-scope-all-lock-hint-text'
 
 const CATEGORY_LABEL: Record<CodefScopeCategory, string> = {
   BANK: '계좌',
@@ -147,6 +148,7 @@ export function CodefImportScopeForm({
   const [restoredApplied, setRestoredApplied] = useState(false)
   const [selectionDirty, setSelectionDirty] = useState(false)
   const [result, setResult] = useState<CodefImportResponse | null>(null)
+  const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
 
   const accountsQuery = useQuery({
     queryKey: ['accounting', 'codef', 'bank-accounts', DEFAULT_CONNECTED_ID],
@@ -271,6 +273,12 @@ export function CodefImportScopeForm({
     setSelectionDirty(true)
   }
 
+  function focusAllScopeChip() {
+    setTimeout(() => {
+      allScopeChipRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus()
+    }, 0)
+  }
+
   function toggleRef(category: CodefScopeCategory, ref: string, checked: boolean) {
     const key = refsKey(category)
     const current = selection[key]
@@ -328,19 +336,21 @@ export function CodefImportScopeForm({
           from,
           to,
           type: restoredScope.defaultImportType,
+          scopeMode: 'ALL',
         }
       }
 
-      // 저장된 SELECTED는 explicit-empty triple로 BE의 '저장 선택 사용'에 위임한다.
-      // 이 경로는 저장된 ref가 여러 카테고리에 걸칠 수 있으므로 type=ALL을 유지한다.
+      // 저장된 SELECTED는 저장된 세 배열을 실행 계약에도 명시한다. 실행 POST의 scopeMode와
+      // refs가 함께 의미를 결정하므로 필드 부재/[]를 "전체"로 해석하는 경로가 없다.
       return {
         connectedId: DEFAULT_CONNECTED_ID,
         from,
         to,
         type: 'ALL',
-        accountRefs: [],
-        cardRefs: [],
-        loanRefs: [],
+        scopeMode: 'SELECTED',
+        accountRefs: normalizeRefs(restoredScope.accountRefs),
+        cardRefs: normalizeRefs(restoredScope.cardRefs),
+        loanRefs: normalizeRefs(restoredScope.loanRefs),
       }
     }
 
@@ -356,6 +366,7 @@ export function CodefImportScopeForm({
         from,
         to,
         type,
+        scopeMode: 'SELECTED',
         ...refs,
       }
     }
@@ -367,6 +378,7 @@ export function CodefImportScopeForm({
       from,
       to,
       type,
+      scopeMode: 'ALL',
     }
   }
 
@@ -379,7 +391,7 @@ export function CodefImportScopeForm({
         cardRefs: normalizeRefs(saved.cardRefs),
         loanRefs: normalizeRefs(saved.loanRefs),
       })
-      setScopeMode(scopeMode)
+      setScopeMode(saved.scopeMode)
       setType(saved.defaultImportType)
       setSelectionDirty(false)
       onToast({ type: 'success', message: '가져오기 선택을 저장했습니다.' })
@@ -415,11 +427,15 @@ export function CodefImportScopeForm({
   const datesValid = Boolean(from) && Boolean(to) && from <= to
   const listsLoading = visibleCategories.some((category) => category.isLoading)
   const restoredSelectionInvalid = Boolean(
-    restoredScope
-      && !selectionDirty
-      && restoredScope.scopeMode === 'SELECTED'
-      && selectedCount(selection) === 0,
+    scopeMode === 'SELECTED' && selectedCount(effectiveSelection(false)) === 0,
   )
+  const scopeHint = !canUpdate
+    ? '범위 변경 권한이 없어 저장 범위를 바꿀 수 없습니다. 권한 보유자에게 요청하세요.'
+    : scopeMode === null
+      ? "전체로 처리하려면 '전체' 칩을 선택하세요."
+      : null
+  const allScopeLocksItems = scopeMode === 'ALL'
+  const importSelectionReady = scopeMode !== 'SELECTED' || selectedCount(effectiveSelection(false)) > 0
   const canSave = canUpdate
     && scopeMode !== null
     && !restoredSelectionInvalid
@@ -427,6 +443,7 @@ export function CodefImportScopeForm({
     && !saveMutation.isPending
   const canImport = canCreate
     && scopeMode !== null
+    && importSelectionReady
     && !restoredSelectionInvalid
     && datesValid
     && !importMutation.isPending
@@ -491,7 +508,7 @@ export function CodefImportScopeForm({
             disabled={!canSave}
             onClick={() => saveMutation.mutate()}
             data-testid="codef-save-scope-button"
-            aria-describedby={scopeMode === null ? SCOPE_HINT_ID : undefined}
+            aria-describedby={scopeHint ? SCOPE_HINT_ID : undefined}
           >
             {saveMutation.isPending ? '저장 중' : '저장'}
           </Button>
@@ -501,7 +518,7 @@ export function CodefImportScopeForm({
             disabled={!canImport}
             onClick={() => importMutation.mutate()}
             data-testid="codef-import-button"
-            aria-describedby={scopeMode === null ? SCOPE_HINT_ID : undefined}
+            aria-describedby={scopeHint ? SCOPE_HINT_ID : undefined}
           >
             {importMutation.isPending ? '가져오는 중' : '가져오기'}
           </Button>
@@ -522,13 +539,18 @@ export function CodefImportScopeForm({
       {restoredScope && !selectionDirty ? (
         restoredSelectionInvalid ? (
           <div className="codef-import-hint codef-import-hint--error" role="alert" data-testid="codef-restored-scope-invalid">
-            기존 저장 범위에 선택 항목이 없어 복원할 수 없습니다. 계좌·카드·대출 중 하나를 다시 선택한 뒤 저장하세요.
+            기존 저장 범위에 선택된 항목이 없습니다. 계좌·카드·대출 중 하나를 다시 선택하거나 '전체' 칩을 선택한 뒤 저장하세요.
           </div>
         ) : (
           <div className="codef-import-hint">
             저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.
           </div>
         )
+      ) : null}
+      {restoredSelectionInvalid && (!restoredScope || selectionDirty) ? (
+        <div className="codef-import-hint codef-import-hint--error" role="alert" data-testid="codef-restored-scope-invalid">
+          현재 범위에 선택된 항목이 없습니다. 해당 범위의 항목을 선택하거나 '전체' 칩을 선택한 뒤 저장하세요.
+        </div>
       ) : null}
 
       <div className="codef-scope-grid" data-testid="codef-scope-list">
@@ -547,7 +569,8 @@ export function CodefImportScopeForm({
                 <input
                   type="checkbox"
                   checked={allChecked}
-                  disabled={scopeMode === 'ALL' || category.items.length === 0}
+                  disabled={!canUpdate || scopeMode === 'ALL' || category.items.length === 0}
+                  aria-describedby={scopeMode === 'ALL' ? SCOPE_ALL_LOCK_HINT_ID : undefined}
                   onChange={(event) => setCategoryRefs(category.key, event.target.checked ? allRefs : [])}
                   data-testid={`${category.testId}-select-all`}
                 />
@@ -567,7 +590,8 @@ export function CodefImportScopeForm({
                     <input
                       type="checkbox"
                       checked={selectedRefs.includes(item.ref)}
-                      disabled={scopeMode === 'ALL'}
+                      disabled={!canUpdate || scopeMode === 'ALL'}
+                      aria-describedby={scopeMode === 'ALL' ? SCOPE_ALL_LOCK_HINT_ID : undefined}
                       onChange={(event) => toggleRef(category.key, item.ref, event.target.checked)}
                       data-testid={`${category.testId}-${index}`}
                     />
@@ -585,20 +609,21 @@ export function CodefImportScopeForm({
           label="범위"
           value="전체"
           removeLabel="전체 범위"
+          ref={allScopeChipRef}
           onClick={canUpdate ? selectAllScope : undefined}
-          onRemove={canUpdate && scopeMode === 'ALL' ? clearScope : undefined}
+          onRemove={canUpdate && scopeMode === 'ALL' ? () => { clearScope(); focusAllScopeChip() } : undefined}
           data-testid="codef-all-scope-chip"
+          className={!canUpdate ? 'codef-scope-chip--disabled' : undefined}
           role={canUpdate ? 'button' : undefined}
           tabIndex={canUpdate ? 0 : undefined}
-          aria-disabled={!canUpdate ? 'true' : undefined}
-          aria-pressed={scopeMode === 'ALL'}
-          aria-describedby={scopeMode === null ? SCOPE_HINT_ID : undefined}
+          aria-pressed={canUpdate ? scopeMode === 'ALL' : undefined}
+          aria-describedby={canUpdate && scopeMode === null ? SCOPE_HINT_ID : undefined}
         />
         {scopeMode === null ? (
           // #825 슬5 R1 item12 — 상시 표시되는 수동적 안내는 role="alert"(긴급/동적 공지 전용)가
           // 아닌 role="status"(비강제적 polite live region)가 맞다. 세 화면 동일 시맨틱로 통일.
           <span className="codef-import-hint" data-testid="codef-scope-hint" id={SCOPE_HINT_ID} role="status">
-            전체로 처리하려면 '전체' 칩을 선택하세요.
+            {scopeHint}
           </span>
         ) : scopeMode === 'SELECTED' ? (
           ([
@@ -617,13 +642,19 @@ export function CodefImportScopeForm({
                   label={CATEGORY_LABEL[item.category]}
                   value={label}
                   removeLabel={label}
-                  onRemove={() => toggleRef(item.category, item.ref, false)}
+                  onRemove={canUpdate ? () => { toggleRef(item.category, item.ref, false); focusAllScopeChip() } : undefined}
                   data-testid="codef-selected-chip"
                 />
               )
             })
         ) : null}
       </div>
+
+      {allScopeLocksItems ? (
+        <div className="codef-import-hint" id={SCOPE_ALL_LOCK_HINT_ID} role="status">
+          전체 범위가 선택되어 개별 항목 선택은 비활성화됩니다.
+        </div>
+      ) : null}
 
       {result ? <CodefImportResultSummary result={result} /> : null}
     </div>

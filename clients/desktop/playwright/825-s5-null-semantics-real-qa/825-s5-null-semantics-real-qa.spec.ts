@@ -1,5 +1,5 @@
 /**
- * #825 슬5 null-semantics('전체' vs '미선택' 분리) — 실서버 라이브 QA (FABLE5 적대검증 차원F R1).
+ * #825 슬5 null-semantics('전체' vs '미선택' 분리) — 실서버 라이브 QA (FABLE5 적대검증 차원F R4).
  *
  * 🚨 [SONNET5 R1 fix 정정] 이 스펙은 원래 FABLE5 R1 적대검증이 실증한 결함(F1 TagChip 버블링·
  * F2 안전재고 제품명 미확인·F3 저장 실패 무피드백·F4 CODEF BLOCKING#1 자기모순)을 그대로
@@ -13,7 +13,7 @@
  * 세 도메인: 일마감(/accounting/daily-closings) · 안전재고(/inventory/safety-stock-alerts) ·
  * CODEF 가져오기 범위(/accounting/bank-transactions).
  *
- * 시나리오(각 단계 실캡처 → docs/qa/825-s5-r1-liveqa/):
+ * 시나리오(각 단계 실캡처 → docs/qa/825-s5-r4-liveqa/):
  *  1) 칩 0개 = 저장/실행 잠금 + 안내 문구
  *  2) '전체'(ALL) 명시 후 정상 동작
  *  3) 개별 선택(SELECTED) 후 정상 동작(선택 범위만 반영)
@@ -38,7 +38,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5281'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s5-r1-liveqa')
+const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s5-r4-liveqa')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 /** 불활성 과거일 — 세금계산서/전표 0건 확인된 날짜(집계 0 스냅샷). */
@@ -381,12 +381,10 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await page.getByTestId('codef-import-to').fill('2020-01-07')
     await expect(page.getByTestId('codef-import-button')).toBeEnabled()
     await page.getByTestId('codef-import-button').click()
-    // 🚨 [SONNET5 R3 MED-9(c) fix] codef-import-result 는 위 SELECTED 가져오기(:350)에서 이미
-    // 마운트되어 계속 visible 상태다 — 종전 toBeVisible() 은 이 시점에 즉시(재확인 없이) 통과해
-    // 아직 갱신되지 않은 이전(SELECTED) 결과를 그대로 읽을 위험이 있었다(제품 회귀 아님 —
-    // D3b 의 토스트 기반 단언과 4조합 DB 교차검증으로 이미 확증됨). 이전 요약(selSummary)과
-    // 달라질 때까지 폴링해 이번 ALL 가져오기의 새 결과가 실제로 반영된 뒤에 읽는다.
-    await expect(page.getByTestId('codef-import-result')).not.toHaveText(selSummary, { timeout: 20000 })
+    // 결과 영역은 SELECTED 실행 결과가 이미 마운트되어 있으므로, 새 실행의 성공 토스트를
+    // 기다린 뒤 읽는다. 동일한 날짜/카탈로그이면 요약 문자열이 같을 수 있어 문자열 차이를
+    // 비동기 완료의 동기화 조건으로 사용하지 않는다.
+    await expect(page.getByTestId('bank-transaction-toast')).toContainText('거래내역 가져오기 완료', { timeout: 20000 })
     const toastTextAfterAllImport = ((await page.getByTestId('bank-transaction-toast').innerText().catch(() => '')) ?? '').trim()
     const allSavedSummary = (await result.innerText()).replace(/\s+/g, ' ').trim()
     console.log(`[F4-D3 fix 확인] ALL 저장 후 가져오기 → 토스트: "${toastTextAfterAllImport}" · 결과영역: "${allSavedSummary}"`)
@@ -415,8 +413,8 @@ test.describe.serial('#825 슬5 null-semantics — 실서버 라이브 QA', () =
     await expect(importBtn3).toBeEnabled()
     await importBtn3.click()
     const result3 = page.getByTestId('codef-import-result')
-    // MED-9(c) fix — 이전(F4, ALL 저장 경유) 결과와 달라질 때까지 폴링(위와 동일 사유).
-    await expect(result3).not.toHaveText(allSavedSummary, { timeout: 20000 })
+    // 이전 결과와 문자열이 같을 수 있으므로, 이번 요청의 성공 토스트를 완료 경계로 삼는다.
+    await expect(page.getByTestId('bank-transaction-toast')).toContainText('거래내역 가져오기 완료', { timeout: 20000 })
     const allSummary = (await result3.innerText()).replace(/\s+/g, ' ').trim()
     console.log(`[D3] 진짜 ALL(저장 scope 경유) 가져오기 요약: ${allSummary}`)
     expect(allSummary, 'ALL/SELECTED 가져오기 요약이 동일 — 범위 미반영 의심').not.toBe(selSummary)

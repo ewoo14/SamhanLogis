@@ -61,6 +61,7 @@ export const TagChip = forwardRef<HTMLSpanElement, TagChipProps>(function TagChi
   // onClick + role="button" 을 함께 전달한 경우만 '누름 가능' chip 으로 취급한다 — 그 외
   // (제거만 가능한 read-only 선택 chip 등)는 종전과 동일한 비대화형 렌더를 유지한다.
   const isPressable = typeof onClick === 'function' && role === 'button'
+  const isPressed = ariaPressedProp === true || ariaPressedProp === 'true'
 
   const handleKeyDown = (event: KeyboardEvent<HTMLSpanElement>) => {
     onKeyDown?.(event)
@@ -90,7 +91,8 @@ export const TagChip = forwardRef<HTMLSpanElement, TagChipProps>(function TagChi
   return (
     <span
       ref={ref}
-      className={classes}
+      className={[classes, isPressable && isPressed ? styles['pressed'] : null].filter(Boolean).join(' ')}
+      data-state={isPressable ? (isPressed ? 'selected' : 'unselected') : undefined}
       // 누름 가능(onClick+role="button") 계약을 만족하지 못하는 호출(role 없이 onClick 만
       // 있거나 그 반대)은 종전과 동일하게 outer span 에 그대로 통과시켜 회귀를 원천 차단한다
       // — 새 내부 wrapper 는 오직 onClick+role="button" 조합일 때만 활성화된다.

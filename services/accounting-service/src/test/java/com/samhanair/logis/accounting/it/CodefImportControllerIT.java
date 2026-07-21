@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.nullValue;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
@@ -273,9 +274,7 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                                   "from": "2026-06-01",
                                   "to": "2026-06-03",
                                   "type": "ALL",
-                                  "accountRefs": [],
-                                  "cardRefs": [],
-                                  "loanRefs": [],
+                                  "scopeMode": "ALL",
                                   "submitMethod": "DRY_RUN"
                                 }
                                 """.formatted(connectedId)))
@@ -328,7 +327,7 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.scopeMode").doesNotExist());
+                .andExpect(jsonPath("$.data.scopeMode").value(nullValue()));
     }
 
     @Test

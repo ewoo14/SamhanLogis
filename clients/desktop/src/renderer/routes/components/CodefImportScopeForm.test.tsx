@@ -191,6 +191,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
       await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
       expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({
         type: defaultImportType,
+        scopeMode: 'ALL',
       })
       expect(importScopedCodefMock.mock.calls[0]![0]).not.toHaveProperty('accountRefs')
       expect(importScopedCodefMock.mock.calls[0]![0]).not.toHaveProperty('cardRefs')
@@ -198,7 +199,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     },
   )
 
-  it('HIGH-4(R3) — 브랜치 B: 저장 scopeMode=SELECTED 로 재방문 후 아무 것도 건드리지 않고 곧바로 가져오면 explicit-empty triple 로 "저장 선택 사용"에 위임한다(가장 흔한 실사용 플로우 — 종전 12개 테스트 중 이 경로를 클릭하는 것이 0건이었다)', async () => {
+  it('HIGH-4(R3) — 브랜치 B: 저장 scopeMode=SELECTED 로 재방문 후 저장 refs를 실행 계약에 명시한다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])
     listCodefLoansMock.mockResolvedValue([])
@@ -224,13 +225,11 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     fireEvent.click(screen.getByTestId('codef-import-button'))
 
     await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
-    // 핵심 단언 — branch B 는 type 을 'ALL' 로 고정하고 세 refs 를 모두 explicit []로 보내
-    // BE 의 "저장 선택 사용"(scope.getRequired 재조회)에 위임해야 한다. type 이 저장된
-    // defaultImportType('BANK')을 그대로 흘려보내거나 refs 키가 생략되면(undefined) BE 가
-    // 서버 전수 열거로 해석해 새어나간다 — 이 단언이 그 두 회귀를 모두 잡는다.
+    // 핵심 단언 — branch B는 저장된 선택을 scopeMode=SELECTED와 세 배열로 함께 보낸다.
     expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({
       type: 'ALL',
-      accountRefs: [],
+      scopeMode: 'SELECTED',
+      accountRefs: [BANK_A.ref],
       cardRefs: [],
       loanRefs: [],
     })
@@ -274,7 +273,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     const invalidHint = await screen.findByTestId('codef-restored-scope-invalid')
     expect(invalidHint.getAttribute('role')).toBe('alert')
-    expect(invalidHint.textContent).toContain('다시 선택한 뒤 저장하세요')
+    expect(invalidHint.textContent).toContain('다시 선택하거나')
     expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
 
@@ -313,10 +312,81 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(chip.querySelector('[role="button"]')).toBeNull()
     expect(chip.getAttribute('role')).toBeNull()
     expect(chip.getAttribute('tabindex')).toBeNull()
-    expect(chip.getAttribute('aria-disabled')).toBe('true')
+    expect(chip.getAttribute('aria-disabled')).toBeNull()
+    expect(chip.getAttribute('aria-pressed')).toBeNull()
   })
 
-  it('item5(type seam) — SELECTED 인데 type 전환으로 보이는 카테고리 선택이 0건이어도 refs 를 생략하지 않는다(서버 전수 열거로 새지 않음)', async () => {
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ] as const)('권한 조합 %s/%s에서 범위 조작은 UPDATE, 가져오기는 CREATE만 따른다', async (canCreate, canUpdate) => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK', scopeMode: 'SELECTED',
+    })
+    importScopedCodefMock.mockResolvedValue(baseResult)
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <CodefImportScopeForm
+          canCreate={canCreate}
+          canUpdate={canUpdate}
+          initialFrom="2026-06-01"
+          initialTo="2026-06-03"
+          onToast={() => undefined}
+          onImported={vi.fn(async () => undefined)}
+        />
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('codef-import-button')).not.toBeNull())
+    const allChip = screen.getByTestId('codef-all-scope-chip')
+    const selectedCheckbox = await screen.findByTestId('codef-bank-account-0') as HTMLInputElement
+    const selectedChip = screen.getByTestId('codef-selected-chip')
+    expect(allChip.querySelector('[role="button"]') !== null).toBe(canUpdate)
+    expect(selectedCheckbox.disabled).toBe(!canUpdate)
+    expect(selectedChip.querySelector('button')).toBe(canUpdate ? selectedChip.querySelector('button') : null)
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(!canUpdate)
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(!canCreate)
+  })
+
+  it('SELECTED 범위를 다른 빈 카테고리로 전환하면 실서버 400 조작을 활성화하지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK', scopeMode: 'SELECTED',
+    })
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.change(screen.getByTestId('codef-import-type'), { target: { value: 'CARD' } })
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true))
+    expect(screen.getByTestId('codef-restored-scope-invalid').textContent).toContain('선택된 항목이 없습니다')
+  })
+
+  it('제4의 무표시 상태에서 범위만 바꾸어도 저장과 가져오기가 계속 잠긴다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main', accountRefs: [], cardRefs: [], loanRefs: [],
+      defaultImportType: 'ALL', scopeMode: 'SELECTED',
+    })
+    renderForm()
+    await screen.findByTestId('codef-restored-scope-invalid')
+    fireEvent.change(screen.getByTestId('codef-import-type'), { target: { value: 'CARD' } })
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('item5(type seam) — SELECTED 인데 type 전환으로 보이는 카테고리 선택이 0건이면 실행을 잠근다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])
     listCodefLoansMock.mockResolvedValue([])
@@ -340,29 +410,9 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
     await waitFor(() => expect(screen.getByTestId('codef-bank-account-select-all')).not.toBeNull())
 
-    // 저장된 선택 그대로(restoredScope && !selectionDirty)면 explicit-empty triple 로
-    // "저장 선택 사용"에 위임하므로, 이 seam 을 노출하려면 먼저 selectionDirty 를 만든다
-    // (계좌 전체선택 체크박스를 껐다 다시 켜서 원복 — refs 는 동일해도 dirty=true 확정).
-    fireEvent.click(screen.getByTestId('codef-bank-account-select-all'))
-    fireEvent.click(screen.getByTestId('codef-bank-account-select-all'))
-
     // type 을 CARD 로 전환 — 화면엔 카드 카테고리만 보이고, 저장된 선택 중 카드는 0건이다.
     fireEvent.change(screen.getByTestId('codef-import-type'), { target: { value: 'CARD' } })
-    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
-    fireEvent.click(screen.getByTestId('codef-import-button'))
-
-    await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalled())
-    const payload = importScopedCodefMock.mock.calls[0]![0] as {
-      type: string
-      accountRefs?: string[]
-      cardRefs?: string[]
-      loanRefs?: string[]
-    }
-    // 핵심 단언 — 종전에는 카드 0건이면 refs 키 자체를 생략해 BE 가 "전체 미지정(null)"으로
-    // 해석해 서버 전수 열거로 샜다. fix 후에는 cardRefs:[] 를 explicit 하게 보내 "0건"이
-    // 그대로 "0건"으로 실행되어야 한다(화면=SELECTED·0개 ⟺ 실행=0개).
-    expect(payload.type).toBe('CARD')
-    expect(payload.cardRefs).toEqual([])
-    expect(payload.accountRefs).toEqual([])
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true))
+    expect(importScopedCodefMock).not.toHaveBeenCalled()
   })
 })

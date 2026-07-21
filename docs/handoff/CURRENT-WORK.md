@@ -1561,3 +1561,10 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - 마이그레이션 불변(V* in-place 금지, 신규 V만). page-code FE↔BE 일치·UUID/그룹ID 비노출·게이트웨이 단일 신원 권위(X-User-Role 미주입). 적용 마이그 불변(V75→V77 신규).
 - Codex=`mcp__codex__codex`(리뷰 read-only / 수정 danger-full-access). PM 자동 머지: 0수렴+CI green 시 자율(개발책임자 '자율 계속' 승인). IaC는 terraform validate 게이트 추가.
 - **IaC 머지는 실 terraform validate/plan 필수**(terraform CLI+AWS 계정). 집 PC 미설치 → 회사 PC 과제.
+
+## ✅ 2026-07-21 Codex R4 — PR #864 / #825 슬5 null-semantics
+
+- 작업 트리 `feat/825-s5-codef-null-semantics`에서 브리프 A~F 전건을 재검토하고, RED-first로 재현 가능한 결함을 수정했다.
+- 핵심 변경: Codef `scopeMode=ALL|SELECTED` 명시 계약(FE/mock/BE), V65 선택범위 무결성 CHECK(V64 불변), 권한별 scope/import 잠금 및 안내, locked chip 접근성·포커스, `TagChip` 선택 시각상태, `AsyncAutocomplete` 로딩 option `aria-disabled`, R4 mock/real QA 경로 정정.
+- genuine 검증: Gradle `26 actionable tasks: 26 executed`; Desktop typecheck 통과; Desktop Vitest `134 files / 1039 tests passed`; design-system `23 files / 142 tests passed`; AC mock `36 passed, skipped=0, unexpected=0`; real QA inventory `213 tests in 83 files`.
+- 실제 서버 기반 Live QA는 이 세션에서 실행하지 않았으며, PM/개발책임자 최종 게이트로 남겼다. `docs/dev-reports/825-s5-null-semantics-r4.md`에 상세 대응과 검증을 기록했다.

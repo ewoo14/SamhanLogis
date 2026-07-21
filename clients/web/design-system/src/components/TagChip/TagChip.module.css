@@ -14,6 +14,11 @@
   box-sizing: border-box;
 }
 
+.pressed {
+  border-color: var(--color-brand-500);
+  background-color: var(--color-brand-50);
+}
+
 .label {
   color: var(--color-brand-700);
   font-weight: var(--font-weight-semibold);

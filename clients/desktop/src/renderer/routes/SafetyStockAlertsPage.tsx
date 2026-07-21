@@ -27,7 +27,7 @@
  * - safety-stock-empty           빈 상태 div
  * - header-safety-stock-count-chip 헤더 count chip (AppLayout 에 위치)
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -92,7 +92,14 @@ export function SafetyStockAlertsPage() {
   const [configScopeMode, setConfigScopeMode] = useState<'ALL' | 'SELECTED' | null>(null)
   const [configWarehouseId, setConfigWarehouseId] = useState('')
   const [configThreshold, setConfigThreshold] = useState('')
+  const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const queryClient = useQueryClient()
+
+  const focusAllScopeChip = () => {
+    setTimeout(() => {
+      allScopeChipRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus()
+    }, 0)
+  }
 
   const warehousesQuery = useQuery({
     queryKey: ['warehouses'],
@@ -140,6 +147,9 @@ export function SafetyStockAlertsPage() {
       void queryClient.invalidateQueries({ queryKey: ['inventory', 'safety-stock-alerts'] })
     },
   })
+
+  const postSaveAlertsRefreshing = configMutation.isSuccess && alertsQuery.isFetching
+  const postSaveAlertsRefreshFailed = configMutation.isSuccess && alertsQuery.isError
 
   const configReady = Boolean(configProduct)
     && configScopeMode !== null
@@ -288,16 +298,18 @@ export function SafetyStockAlertsPage() {
             value="전체"
             removeLabel="전체 창고 범위"
             onClick={canUpdate ? selectAllConfigScope : undefined}
+            ref={allScopeChipRef}
             onRemove={configScopeMode === 'ALL' && canUpdate ? () => {
               setConfigScopeMode(null)
               configMutation.reset()
+              focusAllScopeChip()
             } : undefined}
             data-testid="safety-stock-all-chip"
+            className={!canUpdate ? 'scope-chip--disabled' : undefined}
             role={canUpdate ? 'button' : undefined}
             tabIndex={canUpdate ? 0 : undefined}
-            aria-disabled={!canUpdate ? 'true' : undefined}
-            aria-pressed={configScopeMode === 'ALL'}
-            aria-describedby={configScopeMode === null ? SCOPE_HINT_ID : undefined}
+            aria-pressed={canUpdate ? configScopeMode === 'ALL' : undefined}
+            aria-describedby={canUpdate && configScopeMode === null ? SCOPE_HINT_ID : undefined}
           />
           <select
             value={configWarehouseId}
@@ -354,7 +366,9 @@ export function SafetyStockAlertsPage() {
             data-testid="safety-stock-scope-hint"
             style={{ margin: '8px 0 0', color: 'var(--ink-secondary, #5C6773)', fontSize: 12 }}
           >
-            전체로 처리하려면 '전체' 칩을 선택하세요.
+            {canUpdate
+              ? "전체로 처리하려면 '전체' 칩을 선택하세요."
+              : '안전재고 설정 권한이 없어 범위를 선택하거나 저장할 수 없습니다. 권한 보유자에게 요청하세요.'}
           </p>
         ) : null}
         {/* [#825 슬5 R1 결정2ⓑ] 저장 성공/실패 피드백 — 종전에는 onError 가 없어 실패(예: 존재하지
@@ -381,10 +395,30 @@ export function SafetyStockAlertsPage() {
             {saveErrorMessage(configMutation.error)}
           </div>
         ) : null}
+        {postSaveAlertsRefreshing ? (
+          <p
+            role="status"
+            data-testid="safety-stock-alerts-refreshing"
+            style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}
+          >
+            저장은 완료됐습니다. 안전재고 알림을 새로 고치는 중입니다.
+          </p>
+        ) : null}
+        {postSaveAlertsRefreshFailed ? (
+          <p
+            role="alert"
+            data-testid="safety-stock-alerts-refresh-error"
+            style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--color-danger-700)' }}
+          >
+            저장은 완료됐지만 안전재고 알림을 새로 고치지 못했습니다. 잠시 후 다시 시도하세요.
+          </p>
+        ) : null}
       </section>
 
       {/* 알림 요약 배너 */}
-      {(Array.isArray(alertsQuery.data) ? alertsQuery.data : []).length > 0 ? (
+      {(Array.isArray(alertsQuery.data) ? alertsQuery.data : []).length > 0
+        && !postSaveAlertsRefreshing
+        && !postSaveAlertsRefreshFailed ? (
         <div
           style={{
             display: 'flex',

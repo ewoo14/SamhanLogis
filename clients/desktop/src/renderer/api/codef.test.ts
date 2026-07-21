@@ -72,6 +72,7 @@ describe('codef API BC3 계약', () => {
       from: '2026-06-01',
       to: '2026-06-26',
       type: 'CARD',
+      scopeMode: 'SELECTED',
       accountRefs: [],
       cardRefs: ['card-1', 'card-2'],
       loanRefs: [],

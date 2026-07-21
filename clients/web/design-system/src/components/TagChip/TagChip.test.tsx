@@ -124,6 +124,13 @@ describe('TagChip', () => {
       expect(screen.getByRole('button', { name: '전체' }).getAttribute('aria-pressed')).toBe('false')
     })
 
+    it('선택 상태를 data-state와 시각 클래스에 함께 반영한다', () => {
+      render(<TagChip value="전체" onClick={() => undefined} role="button" tabIndex={0} aria-pressed />)
+      const chip = screen.getByText('전체').closest('[data-state]')
+      expect(chip?.getAttribute('data-state')).toBe('selected')
+      expect(chip?.className).toContain('pressed')
+    })
+
     it('aria-describedby 를 누름 가능 영역까지 전달한다(잠긴 사유 연결)', () => {
       render(
         <TagChip

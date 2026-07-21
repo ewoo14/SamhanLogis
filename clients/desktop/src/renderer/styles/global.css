@@ -5448,6 +5448,14 @@ button {
   min-width: 0;
 }
 
+.codef-scope-chip--disabled {
+  opacity: 0.55;
+}
+
+.scope-chip--disabled {
+  opacity: 0.55;
+}
+
 .codef-import-hint {
   /* #825 슬5 FABLE5 R1 — 세 화면(일마감/안전재고/CODEF) 범위 안내 문구 색 통일 + AA 확보.
      --color-neutral-500 on 흰 배경 12px 는 대비 4.83:1 로 아슬아슬해 --ink-secondary(5.77:1)로 상향. */

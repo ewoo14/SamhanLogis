@@ -209,6 +209,86 @@ describe('SafetyStockAlertsPage — #825 슬5 R1 결정2', () => {
     })
   })
 
+  it('저장 성공 직후 새 임계값과 모순되는 이전 부족 경고를 동시에 표시하지 않는다', async () => {
+    let resolveRefresh: ((alerts: unknown[]) => void) | undefined
+    listWarehousesMock.mockResolvedValue([])
+    listSafetyStockAlertsMock
+      .mockResolvedValueOnce([{
+        ...otherProductAlert,
+        productId: QA_PRODUCT.id,
+        productCode: QA_PRODUCT.modelName,
+        productName: QA_PRODUCT.productName,
+        threshold: 10,
+        currentQty: 2,
+        shortage: 8,
+      }])
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveRefresh = resolve
+      }))
+    setSafetyStockMock.mockResolvedValue({
+      id: 'cfg-p2',
+      productId: QA_PRODUCT.id,
+      warehouseId: null,
+      threshold: 1,
+      note: null,
+    })
+
+    renderPage()
+    await screen.findByText('재고 부족 경고')
+    fireEvent.click(screen.getByTestId('select-product-qa'))
+    clickAllChip('safety-stock-all-chip')
+    fireEvent.change(screen.getByTestId('safety-stock-config-threshold'), { target: { value: '1' } })
+
+    const saveBtn = screen.getByTestId('safety-stock-config-save') as HTMLButtonElement
+    await waitFor(() => expect(saveBtn.disabled).toBe(false))
+    fireEvent.click(saveBtn)
+
+    await waitFor(() => expect(listSafetyStockAlertsMock).toHaveBeenCalledTimes(2))
+    await screen.findByTestId('safety-stock-config-save-success')
+    expect(screen.getByTestId('safety-stock-alerts-refreshing')).not.toBeNull()
+    expect(screen.queryByText('재고 부족 경고')).toBeNull()
+
+    resolveRefresh?.([])
+    await waitFor(() => expect(screen.queryByTestId('safety-stock-alerts-refreshing')).toBeNull())
+    expect(screen.queryByText('재고 부족 경고')).toBeNull()
+  })
+
+  it('refetch 실패 시에도 저장 성공을 알리고 stale 부족 경고 대신 새로고침 실패를 안내한다', async () => {
+    listWarehousesMock.mockResolvedValue([])
+    listSafetyStockAlertsMock
+      .mockResolvedValueOnce([{
+        ...otherProductAlert,
+        productId: QA_PRODUCT.id,
+        productCode: QA_PRODUCT.modelName,
+        productName: QA_PRODUCT.productName,
+        threshold: 10,
+        currentQty: 2,
+        shortage: 8,
+      }])
+      .mockRejectedValueOnce(new Error('alerts refresh failed'))
+    setSafetyStockMock.mockResolvedValue({
+      id: 'cfg-p2-error',
+      productId: QA_PRODUCT.id,
+      warehouseId: null,
+      threshold: 1,
+      note: null,
+    })
+
+    renderPage()
+    await screen.findByText('재고 부족 경고')
+    fireEvent.click(screen.getByTestId('select-product-qa'))
+    clickAllChip('safety-stock-all-chip')
+    fireEvent.change(screen.getByTestId('safety-stock-config-threshold'), { target: { value: '1' } })
+
+    const saveBtn = screen.getByTestId('safety-stock-config-save') as HTMLButtonElement
+    await waitFor(() => expect(saveBtn.disabled).toBe(false))
+    fireEvent.click(saveBtn)
+
+    await screen.findByTestId('safety-stock-config-save-success')
+    await screen.findByTestId('safety-stock-alerts-refresh-error')
+    expect(screen.queryByText('재고 부족 경고')).toBeNull()
+  })
+
   it('결정2ⓑ — 저장 실패(404 등) 시 오류 피드백을 표시한다(종전 무피드백 — 라이브 QA d2-f3 실증)', async () => {
     listSafetyStockAlertsMock.mockResolvedValue([])
     listWarehousesMock.mockResolvedValue([HQ_WAREHOUSE])
@@ -294,7 +374,7 @@ describe('SafetyStockAlertsPage — #825 슬5 R1 결정2', () => {
     expect(allChip.querySelector('[role="button"]')).toBeNull()
     expect(allChip.getAttribute('role')).toBeNull()
     expect(allChip.getAttribute('tabindex')).toBeNull()
-    expect(allChip.getAttribute('aria-disabled')).toBe('true')
+    expect(allChip.getAttribute('aria-disabled')).toBeNull()
 
     // 값을 채워도(우회 시도) 저장 버튼은 잠긴 채 유지된다. canUpdate=false 이면 TagChip 은
     // onClick 자체가 없어(isPressable=false) 내부 pressable wrapper 가 렌더되지 않으므로
