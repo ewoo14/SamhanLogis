@@ -19,9 +19,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 class UserCodefImportScopeMigrationIT {
 
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("accounting_upgrade_db")
-            .withUsername("samhan")
-            .withPassword("samhan_dev_pw");
+            .withDatabaseName("accounting_upgrade_db");
 
     @BeforeAll
     static void startContainer() {
