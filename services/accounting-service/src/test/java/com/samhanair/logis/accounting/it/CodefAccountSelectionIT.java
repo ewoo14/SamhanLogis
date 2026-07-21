@@ -137,7 +137,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
         saveScope("""
                 {
                   "connectedId": "%s",
-                  "scopeMode": "ALL",
+                  "scopeMode": "SELECTED",
                   "accountRefs": ["%s"],
                   "cardRefs": ["%s"],
                   "loanRefs": [],
@@ -170,6 +170,79 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accountRefs.length()").value(2))
                 .andExpect(jsonPath("$.data.defaultImportType").value("BANK"));
+
+        Integer activeCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM user_codef_import_scope
+                 WHERE user_id = ?::uuid
+                   AND connected_id = ?
+                   AND is_deleted = false
+                """, Integer.class, USER_ID.toString(), CONNECTED_ID);
+        assertThat(activeCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("scopeMode 전환은 refs를 교체하고 active row 하나를 유지한다")
+    void switchingScopeModesReplacesRefsAndKeepsSingleActiveRow() throws Exception {
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "scopeMode": "SELECTED",
+                  "accountRefs": ["%s"],
+                  "cardRefs": ["%s"],
+                  "loanRefs": [],
+                  "defaultImportType": "ALL"
+                }
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_1, CARD_REF_1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("SELECTED"));
+
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "scopeMode": "ALL",
+                  "accountRefs": [],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "defaultImportType": "ALL"
+                }
+                """.formatted(CONNECTED_ID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
+
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("ALL"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
+
+        saveScope("""
+                {
+                  "connectedId": "%s",
+                  "scopeMode": "SELECTED",
+                  "accountRefs": ["%s"],
+                  "cardRefs": [],
+                  "loanRefs": [],
+                  "defaultImportType": "BANK"
+                }
+                """.formatted(CONNECTED_ID, ACCOUNT_REF_2))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("SELECTED"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(1))
+                .andExpect(jsonPath("$.data.accountRefs[0]").value(ACCOUNT_REF_2))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
+
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scopeMode").value("SELECTED"))
+                .andExpect(jsonPath("$.data.accountRefs.length()").value(1))
+                .andExpect(jsonPath("$.data.accountRefs[0]").value(ACCOUNT_REF_2));
 
         Integer activeCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM user_codef_import_scope
