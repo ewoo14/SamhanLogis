@@ -55,6 +55,7 @@ public class PartnerOrderListController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(required = false) String partnerId,
             @RequestParam(required = false) PartnerOrderStatus status,
+            @RequestParam(required = false) String slipPublishStatus,
             @RequestParam(required = false) String searchKeyword,
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestHeader(value = PARTNER_CODE_HEADER, required = false) String partnerCode) {
@@ -62,7 +63,7 @@ public class PartnerOrderListController {
         // Sort 를 실어 보내면 무시되는 죽은 파라미터가 된다(#757 R2 LOW).
         Pageable pageable = PageRequest.of(page, size);
         Page<?> result = partnerOrderQueryService.list(
-                new PartnerOrderListFilter(dateFrom, dateTo, partnerId, status, searchKeyword),
+                new PartnerOrderListFilter(dateFrom, dateTo, partnerId, status, slipPublishStatus, searchKeyword),
                 pageable,
                 partnerCode,
                 includeDeleted);

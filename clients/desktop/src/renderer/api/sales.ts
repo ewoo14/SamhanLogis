@@ -700,6 +700,8 @@ export async function listPartnerOrders(
     dateTo?: string
     partnerId?: string
     status?: PartnerOrderStatus
+    /** 발행실패(FAILED) 또는 재시도 중(PENDING_RETRY) 전용 목록 필터. */
+    slipPublishStatus?: 'FAILED' | SlipPublishStatus
     searchKeyword?: string
     /**
      * 내부 관리자 목록 전용 opt-in — 삭제행(취소선/복원 표시) 포함. BE 기본값 false(활성만).
@@ -713,6 +715,7 @@ export async function listPartnerOrders(
   if (filters.dateTo) params['dateTo'] = filters.dateTo
   if (filters.partnerId) params['partnerId'] = filters.partnerId
   if (filters.status) params['status'] = filters.status
+  if (filters.slipPublishStatus) params['slipPublishStatus'] = filters.slipPublishStatus
   if (filters.searchKeyword) params['searchKeyword'] = filters.searchKeyword
   if (filters.includeDeleted) params['includeDeleted'] = 'true'
   const res = await apiClient.get<ApiEnvelope<PageResponse<RawPartnerOrderSummary>>>(

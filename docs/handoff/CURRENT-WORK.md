@@ -1,10 +1,323 @@
 # 현재 작업 핸드오프 노트
 
-> 회사 PC 첫 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
+> 새 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
 ---
 
-## 🔥 2026-07-21 (집PC 새벽) — **2트랙 병렬 가동 중** ◀ 다음 세션 첫 읽기·재개점
+## 🛑 2026-07-22 (집PC 새벽 01:5x) — **CODEX 토큰 소진으로 정지** ◀◀◀ 여기부터 읽으십시오
+
+> 개발책임자 지시 *"CODEX 토큰 소진 시 우회하지 말고 멈추고 보고"* 에 따라 정지했습니다.
+> **리셋: 2026-07-25 14:05.** 우회·모델 대체 하지 않았습니다.
+
+### 0. 재개 절차
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+# codex MCP 2h timeout 은 집PC 적용 완료 — 재실행 불요
+```
+
+### 1. 정지 상태 — **깨끗함, 유실 0**
+| 워크트리 | 미커밋 | HEAD | 원격 |
+|---|---|---|---|
+| `s5-codef` (A·#864) | **0건** | `e0dff455f` | 동기 완료 |
+| `ds3a` (B·#865) | **0건** | `845165f35` | 동기 완료 |
+| `ob863` (C·#876) | **0건** | `b81203d92` | 동기 완료 |
+
+codex 격리 사본(`.codex-isolations/`)은 **8파일 이관 검증 후 제거** — main 트리도 깨끗합니다.
+
+### 2. 3트랙 현황
+
+| 트랙 | CI (exact SHA) | 마지막 단계 | 다음 단계 | codex 필요? |
+|---|---|---|---|---|
+| **A** #864 | 40건 중 **success 38 · failure 1 · 진행 1** | **라이브QA 통과 · 신규 제품 결함 0** | 재수렴 | 최종 수렴엔 **SOL 필요** |
+| **B** #865 | **35/35 green** | SOL 2차 적대검증 → **미수렴(MED 7·LOW 1)** | **LUNA fix** | 🔴 **막힘** |
+| **C** #876 | **35/35 green** ✅ | SOL fix 커밋 | 재수렴 | 최종 수렴엔 **SOL 필요** |
+
+> **정지 시점 CI 최종 확정** (exact SHA · `per_page=100` 총계 대조)
+> - **#876 `b81203d92`** — `total=35 · 수신 35 · success 35 · failure 0 · 진행 0` ⟹ **완전 green**
+> - **#864 `e0dff455f`** — `total=40 · 수신 40 · success 38 · failure 1 · 진행 1`
+>   - `failure 1` = **GitGuardian**(PM false positive 판정 · 머지 비차단, 아래 설명)
+>   - `진행 1` = **Desktop Playwright (mock 회귀 hard gate)**, `2026-07-21T16:37:22Z` 시작. 590 테스트 스위트라 정상 소요 범위이며 정지 시점에 미완. **재개 시 이 SHA 의 결과부터 확인**하십시오
+> - **#865 `845165f35`** — 35/35 green
+
+**#864 의 failure 1건 = GitGuardian** — PM 이 **false positive 로 판정, 머지 비차단**([PR 코멘트](https://github.com/ewoo14/Samhan-Public/pull/864#issuecomment-5036204423)). `Username Password` 복합 탐지기가 `e31a5df71` 커밋 히스토리의 Testcontainers 비밀번호를 잡은 것이고, 워크트리에서는 이미 제거됐습니다. `.gitguardian.yaml` 의 무시 규칙은 **값 기반**이라 복합 탐지기를 못 막습니다.
+
+### 3. 🚨 이 세션에서 확정된 규율 3건 (메모리 박제 완료)
+
+**① PM 중재 3단** (`feedback_pm_regulate_slice_effort`, main `c08819952`)
+개발책임자 지시 *"fix 후 자꾸 새 결함이 생기면 PM 이 중재해라"*. 사후 적발은 이미 라운드를 하나 태운 뒤입니다.
+- **1단 착수 전** — 파급 선언(새 상태/제약 도입? 기존 허용 조합 금지? 타이밍 변경?)
+- **2단 커밋 전** — *"이 fix 가 새로 **가능하게**/**금지**/**지연**시키는 것은?"* 세 동사에 걸리면 기존 사용처 전수 확인 전 커밋 금지
+- **3단 라운드 후** — fix-유발률 측정·게시. 50% 초과면 fix 방식을 바꿔야 한다는 신호
+**실적**: E-P2 새 결함 차단 · N-3 주장 정정(코드 diff 0줄) · scopeMode 전환 무커버 발견 — 셋 다 라운드를 안 태우고 해소
+
+**② 무한루프 차단기** (같은 파일, main `c10c372e6`)
+개발책임자 *"자꾸 결함이 발생해 무한루프되지 않도록 주의"*. **"RED 를 만들 수 없으면 고치지 않는다" 가 기본값**이며, **도달 불가 결함은 정의상 RED 를 만들 수 없습니다** ⟹ 전 심각도 0 을 **완화하지 않고도** fix 부피가 캡됩니다.
+**실측(#865 R3)**: LOW 20건 중 도달불가 4·이미해소 2·문서위치 3·범위밖 3, **실제 fix 4건**. 전건 fix 했다면 부피 5배.
+
+**③ 뮤테이션 RED 의무** (다음 라운드부터 적용 · #865 PR 코멘트에 고지)
+#865 SOL 라운드에서 **7건 중 4건이 "직전 fix 가 추가한 방어선 자체가 가짜"** 였습니다(`isFetching` 되돌려도 green · CI 게이트가 핵심 `@Test` 삭제를 통과 · V13 조건 제거해도 green · conflict 테스트가 공개 경로 미검증).
+⟹ **테스트를 추가·변경하면 그것이 지킨다는 대상을 망가뜨렸을 때 RED 가 나는 원문을 동반**해야 합니다. 없으면 방어선이 아니므로 수용하지 않습니다. **범위 확대가 아니라 검증 강도 상향**입니다.
+
+### 4. 🚨 이 세션 실측 함정 (전부 메모리 박제)
+- **배포 stale 5연속** — 정지된 컨테이너를 `start` 만 하면 **fix 이전 이미지**를 측정합니다. 이미지 빌드 **전에 jar 내부 심볼**을 확인하십시오
+- **stale `dist`** (main `a3d11ed9a`) — `design-system/dist/index.js` 가 소스보다 낡으면 **fix 는 멀쩡한데 측정이 `null`**. *"fix 미적용"* 오보와 *"구 dist 가 통과시켜 green"* 무마가 **대칭으로** 위험합니다. design-system 을 건드리면 **라이브QA 전에도** `npm run build`
+- **병렬 뮤테이션 오염** (`feedback_parallel_agent_gradle_shared_tree_contention`, main `43ad68a8d`) — 리뷰어가 공유 트리를 in-place 뮤테이트하면 서로의 측정이 깨집니다. **격리본(`git archive`)에서만**. 그 창에 `git add -A` 하면 **fix 가 소거된 채 커밋**됩니다
+- **Playwright 포트 5173 하드코딩 + `reuseExistingServer: !CI`** — 두 워크트리 동시 실행 시 **남의 코드를 측정**. 전용 포트 + `--strictPort`
+- **부분 스테이징 후 재스테이징 누락** — `MM`/`AM` 상태에서 그냥 커밋하면 **정정 이전 버전**이 들어갑니다. 커밋 전 `git diff --cached` 를 **문자열로** 확인
+- **`.gitignore` 의 `*.log` 가 `docs/qa` 증거를 조용히 제외**(이슈 **#889**) — `docs/qa` 의 `.log` **24개 전부 미추적**. `git add` 는 경고하지 않습니다
+- **`gh pr checks` 의 stale pending 엔트리** — 권위는 **exact SHA check-runs API + `per_page=100` + 총계 대조**
+- **`executed`(gradle task 수) ≠ 테스트 실행 수** — `tests`/`failures`/**`skipped`** XML 수치를 함께 볼 것
+- **빈 스키마 CI green ≠ 마이그레이션 정상** — #864 BLOCKING 의 원인. Testcontainers 는 legacy 행이 0건입니다
+
+### 5. 🔴 개발책임자 판단 대기
+1. **codex 크레딧** — 충전 후 재개(캐논 그대로) / 트랙A·C 만 OPUS 라운드로 진행하고 B 동결 / LUNA·SOL 자리 한시적 모델 대체(**모델 대체는 선확인 사항**)
+2. **#888** outbox 전용 `TaskScheduler` 분리 — `BootstrapCacheRefreshScheduler` 실소요 측정 선행. **#876 머지 이후**
+3. **#889** `.gitignore` 의 `*.log` 가 `docs/qa` 증거 제외 — `.gitignore` 는 설정이라 브랜치+PR 필요
+4. **#887** pre-existing 4건은 개발책임자 결정으로 **#864 에 편입 완료** (남은 배치 MED/LOW 도 회수됨)
+5. **#881**(담당자명 스냅샷 vs resolve) · **#883 S4 선결**(`sales.module.css:7` DS import 금지 vs 데스크톱=표준 UI) — 이월
+
+### 6. ⚠️ 되돌릴 수 없는 로컬 상태
+| DB | 현재 | 제약 |
+|---|---|---|
+| `accounting_db` | **V65** | 머지 전 main 이미지로 재기동 시 Flyway 부팅 실패 |
+| `groupware_db` | **V12** | 동상 (#865 의 V13 은 **미적용**) |
+| `partner_order_db` | **V11** | 동상 |
+
+`bank_transaction` 271 → **316 (+45)** — #864 라이브QA 의 DRY_RUN 합성 거래 1회 적재분(업무 마스터·설정 write 0건).
+
+---
+
+
+## 🌙 2026-07-21 (집PC 심야) — **새 세션 재개 지시서** ◀◀◀ 여기부터 읽으십시오
+
+> 개발책임자 지시로 **이 세션을 마감하고 새 세션에서 재개**합니다. codex MCP 2h 타임아웃이 **다음 세션부터 적용**되므로 타이밍이 맞습니다(이번 세션은 1800s abort 를 폴링으로 버텼습니다).
+
+### 0. 재개 절차
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+# setup-codex-mcp-timeout.ps1 은 집PC 에서 이미 적용 완료(timeout=7200000). 재실행 불요.
+```
+
+### 1. 🚨 캐논이 이 세션에서 3번 바뀌었습니다 — 정본만 읽으십시오
+정본 = [[feedback_canonical_workflow]] (main `858842f7f`). **구 문구를 현행으로 읽지 마십시오.**
+
+| # | 현행 정본 |
+|---|---|
+| **수렴 기준** | **전 심각도(BLOCKING/HIGH/MED/LOW) 0** + CI green(exact SHA) + 라이브QA. 범위 밖(타 서비스·타 슬라이스)만 분리 가능. ⚠️같은 날 앞선 *"BLOCKING/HIGH 0 게이트·MED/LOW 배치이슈"* 는 **폐기**됨 |
+| **RED-first fix** | 결함을 **재현하는 실패 테스트를 먼저 쓰고 RED 원문 제출** 후 고친다. 뮤테이션이 fix 후면 "구현자가 고른 fix"만 검증하고 결함 전체 표면은 미검증. **RED 를 못 만들면 고치지 말고 보고**(결함 미이해 신호) |
+| **라이브QA** | **실서버 실제 실행**. `--list`/typecheck 류 **정적 게이트로 대체 금지**(보조 조기경보만). 사용자 버그는 실행해야 나온다 |
+| **PM 지시** | PM 은 **불변식만** 말하고 **구현 수단 지시 금지**(수단 지시 시 그 결함까지 PM 이 떠안음 — 실측 3건 전부 PM 발) |
+| 리뷰/fix 모델 | 1차 적대검증=**OPUS 4.8**·그 라운드 fix=**SONNET5** / 2차=**CODEX SOL**·fix=**CODEX LUNA**. FABLE5 제외 |
+
+### 2. 3트랙 현황 (전부 커밋·push 완료 · 미커밋 WIP 없음)
+
+| 트랙 | PR | 워크트리 | HEAD | CI | 다음 할 일 |
+|---|---|---|---|---|---|
+| **A · #825 슬5** | #864 | `s5-codef` | `ef7a7a1b4` | **40/40 ✅** | **SOL R4 의 MED/LOW 전건 fix**(새 기준) → 라이브QA → 재수렴 |
+| **B · #845 DS-3a** | #865 | `ds3a` | `0dc88b3a4` | **35/35 ✅** | **라이브QA**(ACTIVE-0 재인쇄 실 GUI) → 재수렴 |
+| **C · #863** | #876 | `ob863` | `d059494df` | 회수 필요 | **N-1·N-2 fix + M-1 처분** → 재수렴 → SOL R2 |
+
+#### 트랙A (#864) — 심각도 게이트는 통과, 그러나 새 기준으로 MED/LOW 회수
+- OPUS R3(HIGH 5·MED 9·LOW 15) → **SONNET5 fix(HIGH 5 + MED-9)** → **CODEX SOL R4 5차원 = 신규 BLOCKING 0 · 신규 HIGH 0**.
+- 새 기준 적용으로 **#887 로 분리했던 MED 8 · LOW 15 가 현 PR 로 회수**됩니다(+ R4 신규 MED 2 · 잔존 MED 3 · LOW 3).
+- **R4 신규 MED 2건**: ①`825-s5-null-semantics-real-qa.spec.ts:409-425` 의 `not.toHaveText` 폴링이 **정상 성공을 false-RED** 로 만듦(DRY_RUN 이 날짜 무관 45건이라 두 기간 요약이 같음 — **2개 차원이 독립 포착**) ②CODEF 권한 격자 비대칭(`CREATE=true,UPDATE=false` 에서 ALL 칩만 막히고 체크박스·X 는 열림)
+- **HIGH-5**(it.each 비결정성): SOL 판정 = **제품 HIGH 아님**(React 18 동일 effect 배치로 그 창이 성립 어려움·SOL 독립 재측정 순차 12/12 + 경합 4/4 green). 단 **원인 미특정** — 검증 신뢰도 MED 로 잔존.
+- **HIGH-3 잔여**: 스펙 `SHOTS` 상수가 여전히 `825-s5-r1-liveqa` 를 가리켜 **재실행 시 과거 라운드 증거를 덮어씀**(shot literal 32 중 26 충돌·동명 23건 SHA-256 전부 상이). PM 이 *"새 표면"* 이라 규정했으나 SOL 판정은 **"기존 스펙의 잘못된 출력 계약"** — PM 근거 오류로 정정됨.
+- ⚠️ **라이브QA 필요**: R3 의 63장은 **fix 이전 SHA** 기준. HIGH-1 은 BE 열거 범위를 바꾸는 실동작 변경이라 재확증 필요.
+
+#### 트랙B (#865) — fix 완료, 라이브QA 남음
+- SOL R2(BLOCKING 1·MED 4·LOW 2) → **CODEX LUNA fix 전건** + spec `D-DS3A-03` 철회 반영.
+- ACTIVE-0 각인을 **스키마로 강제**: `document_template_default_pinned BOOLEAN NOT NULL DEFAULT FALSE` + `CHECK (NOT default_pinned OR (template_id IS NULL AND revision IS NULL))`. `DEFAULT FALSE` 라 **기존 승인분 소급 각인이 구조적으로 불가능**.
+- **MED 4건 중 3건이 PM 이 R1 에서 지시한 수단이 만든 결함**이었습니다(`COALESCE` 감사위조 등) → 캐논 "PM 은 수단 지시 금지" 신설의 근거.
+- **라이브QA 시나리오**: 전부 비활성화 → 승인 → 새 ACTIVE 활성화 → **재인쇄 외형 불변** 실 GUI 캡처. ⚠️배포하면 `groupware_db` 가 **V12 로 전진**해 되돌릴 수 없음(main 이미지 V11 로 재기동 시 Flyway 부팅 실패).
+
+#### 트랙C (#876) — 라이브QA 완료, 새 결함 2건 처분 필요
+- OPUS R1(BLOCKING 2·HIGH 6·MED 9) → **SONNET5 fix 전건** → **라이브QA 완료(실캡처 16장·원문 로그 6종·QA SHA `d059494df`)**.
+- **라이브QA 가 새로 찾은 것**:
+  - **[MED] N-1** — DB 장애 시 **fail-loud sentinel 이 Prometheus 에 도달하지 못함**. 모든 알람 `value=1e+00`(sentinel 이면 `1e+09`) ⟹ 실제로 발화시킨 것은 **H-4 의 `absent()` 가드**. 원인 = query timeout(3s)이 쿼리 실행만 제한하고 **Hikari 커넥션 획득 대기는 못 막아** `/actuator/prometheus` 자체가 타임아웃(18회 연속·`health=down`). **문서-구현 괴리** + 인스턴스 metric 전면 유실 + 컨테이너 unhealthy.
+  - **[LOW~MED] N-2** — **이 PR 이 도입한 신규 시각 회귀**: 390px 에서 '완료' 배지가 2줄 줄바꿈(통제 비교 실측 — 발행 배지 동거 행 26.13px/37px vs 단독 행 36.25px/20.5px). `.statusBadge` 에 `flex-shrink`/`white-space` 가드 부재.
+  - **[LOW·pre-existing] N-3** — `spring.task.scheduling.pool.size` 미설정(기본 1)으로 outbox 스케줄러가 형제 스케줄러와 단일 스레드 공유.
+- 🔴 **개발책임자 판단 대기 = M-1**: 이번 라운드 fix 인 **H-5(배너 대비)·H-6(배너 모집단 초기화)이 라이브로 전혀 확증되지 않았습니다.** 실 DB 에 `FAILED_PERMANENT` **0행**이라 배너 렌더 조건이 미성립. 확증하려면 **공유 실 DB 에 throwaway 행 write** 가 필요합니다.
+
+### 3. 🚨 이 세션에서 확정된 검증 함정 (반드시 인지)
+- 🚫 **Git Bash `tasklist` 는 이 환경에서 프로세스 감시 불가.** 부하 중 **살아 있는 PID 에 연속 3회 빈 값**을 반환해 3회 가드로도 false 종료가 났습니다. **생존 판정 = PowerShell `Get-Process -Id N`.**
+- **양성 신호 1순위**(리포터 최종 요약 · rollout `"type":"task_complete"` · 산출물 증가). 부재 판정은 연속 N회 + **다른 도구 교차 확인**. **터미널 신호는 행동 전 교차 확인** — 이 절차가 실제로 오판 2회차를 차단했습니다.
+- **`gh api .../check-runs` 는 기본 30건만 반환**합니다. `total_count=40` 인데 30건만 받고 "전건 green" 을 선언할 뻔했습니다 → **`per_page=100` + 총계·수신 건수 일치 확인** 필수.
+- **codex MCP 1800s abort ≠ 미수행.** 이번 세션 2회 발생했고 **둘 다 codex 는 계속 돌았습니다.** 최종 보고는 rollout jsonl 의 `payload.last_agent_message` 에서 회수합니다(스크립트: 세션 스크래치패드의 `extract_rollout.py` 방식 — jsonl 라인별 파싱).
+- **codex 는 한 디스패치에 rollout 파일을 여러 개 만듭니다**(차원 병렬). 특정 파일명을 감시하면 **나중에 생긴 파일의 완료를 놓칩니다** → 오늘 rollout **전체에서 `task_complete` 보유 파일 수가 baseline 을 넘는지**로 감시하십시오. 실제로 이 구멍 때문에 놓칠 뻔했습니다.
+- **공유 `samhan-prometheus` 는 main 트리 룰을 마운트**합니다. 브랜치가 추가한 알람 룰은 **거기 없으므로** :9090 에서 잰 green 은 false-green 입니다 → 브랜치 룰을 무수정 마운트한 **전용 Prometheus** 를 띄워 검증하십시오.
+- **라이브QA 는 배포 시점부터 증명**하십시오(`docker inspect` 이미지 시각 + `flyway_schema_history`). 트랙C 착수 시 **실제로 미배포 상태였고** 사전 적발했습니다. `bootJar` 가 `compileJava UP-TO-DATE` 면 **산출 jar 내부 클래스 실재**까지 확인하십시오.
+
+### 4. ⚠️ 되돌릴 수 없는 로컬 상태 (머지 전까지)
+| DB | 현재 | 제약 |
+|---|---|---|
+| `partner_order_db` | **V11** | 머지 전 partner-order-service 를 main 이미지(V10)로 재기동하면 **Flyway 부팅 실패** |
+| `accounting_db` | V63 | 트랙A 라이브QA 착수 시 V64 로 전진 예정(같은 제약 발생) |
+| `groupware_db` | V11 | 트랙B 라이브QA 착수 시 V12 로 전진 예정(같은 제약 발생) |
+
+### 5. 🔴 개발책임자 판단 대기
+1. **트랙C M-1** — H-5·H-6 라이브 확증을 위해 공유 실 DB 에 `FAILED_PERMANENT` throwaway 행을 만들지 여부
+2. **트랙C N-1** — 문서를 실제 동작(`absent()` 가 fail-loud 주역)에 맞게 정정할지, 게이지 콜백을 비동기/캐시로 빼 scrape 블로킹을 없앨지(후자는 범위 점증)
+3. **#887 의 pre-existing 4건** — 전 심각도 0 은 "이 슬라이스가 만든 결함" 기준이므로 선재 결함 처분은 별도 판단
+4. **#881**(담당자명 스냅샷 vs resolve) · **#883 S4 선결**(`sales.module.css:7` 의 DS import 금지 vs 2026-07-05 "데스크톱=표준 UI") — 이월
+
+---
+
+## 🏠 2026-07-21 세션 종료 — **집PC 재개 지시서** (당시 기록·완료됨)
+
+> 개발책임자 지시로 **회사PC 세션을 마감하고 집PC 에서 이어갑니다.** 아래 3개를 순서대로 하면 됩니다.
+>
+> ### 재개 3단계
+> ```powershell
+> git pull
+> .\scripts\sync-claude-memory.ps1
+> .\scripts\setup-codex-mcp-timeout.ps1     # 집PC 에서 1회 필수 (~/.claude.json = git 미추적)
+> ```
+>
+> ### ① 첫 작업 = 트랙A(#864) **HIGH 5건만** SONNET5 fix
+> **개발책임자 바운드 결정(2026-07-21)**: R3 가 HIGH 5·MED 9·LOW 15 로 수렴 불가인데 이 슬라이스는 **3라운드째이고 매 라운드 fix 가 새 결함을 낳았으므로**, **HIGH 만 현 PR 에서 fix 하고 MED·LOW 는 후속 분리**합니다.
+>
+> **발견 전문은 PR #864 코멘트 4건**(OPUS 4.8 R3 본문 + 보충 1·2·3)에 있습니다. 요약:
+>
+> | # | fix 대상 |
+> |---|---|
+> | **HIGH-1** | `CodefImportScopedService.java:82-86` 이 저장 `defaultImportType` 대신 요청 `type` 사용 → 저장 범위 조용한 확대. 🚨 **BE 4조합 테스트 동반 필수**(현 3건이 전부 `ALL` 이라 뮤테이션 RED 안 남) + `mock.ts:6259` 파리티 |
+> | **HIGH-2** | 공유 `playwright.real-qa.config.ts` `testMatch` 축소 → **repo 82/83 real-QA 스펙 무력화**. 원복 + 격리는 별도 config. **MED-9 하네스 결함 3종(reset 데드락 · "검색 중…" 로딩 행 클릭 · stale 결과 읽기)을 예외적으로 함께** 처리(안 그러면 원복해도 green 불가) |
+> | **HIGH-3** | R1 이 shot 이름을 `defect-`→`fixed-` 개명 후 미실행 → 없는 파일 참조. **R3 실캡처 63장(`docs/qa/825-s5-r3-liveqa/`, 커밋 `4d678167`) 기준 문서 정정** |
+> | **HIGH-4** | 브랜치 B(저장된 SELECTED 위임 = **가장 흔한 실사용 플로우**)가 vitest **전량 무커버** |
+> | **HIGH-5** | `it.each` **비결정성**(초기 4회 중 2회 RED, 실패값이 정확히 fix 이전 값 `"ALL"`). R2 fix 의 **유일한 방어선**. 원인이 제품 결함이면 즉시 보고 |
+>
+> 🚫 **MED·LOW 는 손대지 마십시오.** 범위를 넓히는 것이 지난 3라운드 새 결함의 원인이었습니다. 후속은 **1건으로 배치 등록**([[feedback_backlog_burndown_issue_bar]]).
+> 🚨 검증 필수 원문: genuine gradle `executed` 카운트 · **HIGH-1 뮤테이션 RED** · **HIGH-2 원복 후 다른 real-qa 스펙 `--list`** · **HIGH-5 10회 연속 green** · Playwright `unexpected=0`.
+> ⚠️ `docs/qa/825-s5-r3-liveqa/` 는 커밋된 증거이니 **삭제 금지**. 스크린샷 원복은 두 경로만 좁혀서(`git checkout -- clients/desktop/playwright/` 통째 금지).
+>
+> ### ② 트랙B·C 는 **fresh 재디스패치**가 기본값 (완료 착각 금지)
+> 두 트랙 모두 fix 가 마감 시점까지 진행 중이었고 **미커밋·미검증**입니다. 원격 WIP 로만 격리돼 있습니다.
+>
+> | WIP 브랜치 | 내용 | 비고 |
+> |---|---|---|
+> | `wip/ds3a-2026-07-21-evening` | **B · #845** CODEX LUNA fix (ACTIVE-0 각인) | 기전은 제대로 나왔음 — 아래 참조 |
+> | `wip/ob863-2026-07-21-evening` | **C · #863** SONNET5 fix | 에이전트 완료 보고 있음 — 아래 참조 |
+>
+> **트랙B 진척(참조용)**: `document_template_default_pinned` boolean 신설로 **과거 미pin(`NULL`+`false`)과 ACTIVE-0 승인분(`NULL`+`true`)을 구별**. `ifPresent` → `ifPresentOrElse(..., line::pinDefaultDocumentTemplate)`. FE 도 플래그를 읽어 렌더·배너 분기. V12 감사 위조도 `V12_BACKFILL_UNVERIFIED` + `is_backfilled` 로 정직 정정. **검증은 안 됨.**
+>
+> **트랙C 진척(참조용)**: BLOCKING 2·HIGH 6·MED 전건 fix 완료 보고. genuine gradle **`15 actionable tasks: 15 executed`**, `tests=413 failures=0`, **뮤테이션 RED 4건 원문 확보**. 미완 = **Playwright 최종 `unexpected=` 미확보**(88/590 시점 실패 0) · 스크린샷 2경로 원복 승계 필요.
+> 📌 트랙C 의 "390px 배지 캡처 미회수"는 **누락이 아니라 R1 리뷰가 명시적으로 이월 결정한 것**입니다(PM 이 한때 미완으로 오기 → 정정됨).
+>
+> ### ③ 결정 대기 (개발책임자)
+> - **#881** 담당자명 = 발행 당시 **스냅샷** vs 현재 표시명 **resolve** (업무 규칙)
+> - **#883 S4 선결** — `sales.module.css:7` 의 `DS import 금지`(Phase 6 F1(a)) vs 2026-07-05 "데스크톱=표준 UI" 중 무엇이 유효한가. **정하지 않으면 주문서 고쳐도 되돌아감**
+> - **pre-existing LOW 처분 4건** — `AsyncAutocomplete` 로딩 행 `role="option"`(**전 자동완성 공통**, MED-9(b) 근본원인) · 저장 성공 후 이중 배너 · `DailyClosingPage` 대비 3.76:1 · 안전재고 mock 무커버
+>
+> ### 🚨 환경 제약 (인지 필수)
+> 라이브QA 가 **공유 로컬 `accounting_db` 를 V64 로 전진**시켰고 되돌릴 수 없습니다. **#864 머지 전까지 accounting-service 를 main 이미지(V63)로 재기동하면 Flyway 가 `applied migration not resolved locally: 64` 로 부팅 실패**합니다. 현재 컨테이너 2개는 워크트리 jar hot-swap 상태(이미지 태그는 옛 것 — 재생성 시 되돌아감).
+> 📌 관련 발견: **이 슬라이스는 로컬 스택에 배포된 적이 없었습니다**(이미지가 HEAD 이전·V64 미적용) → **R1 라이브QA 도 슬라이스 코드를 검증하지 못했습니다.** 앞으로 라이브QA 전에 **배포 시점부터 확인**할 것.
+>
+> ### 새 위임 (2026-07-21) — **문서는 PR 없이 main 직접 커밋**
+> 개발책임자: *"메모리, 핸드오프 등의 문서는 PR을 만들어서 머지하지 말고 그냥 메인에 바로 커밋할것"*
+> 코드 변경이 **0인** 커밋(`docs/**`·`.claude/memory/**`·`CLAUDE.md`·`DECISIONS.md`)은 **main 에서 바로 commit+push**. 구 가드("main 직접 push 는 별개 승인")는 **폐지**됐습니다.
+> 🚫 코드·설정·CI·마이그가 **한 줄이라도** 섞이면 문서가 아니며 브랜치+PR+**풀 캐논**입니다. **문서에 코드를 끼워 넣어 캐논을 우회하지 마십시오.** → [[feedback_pm_auto_merge_authority]]
+>
+> ### 후속 분리분 = **#887** (MED 8 · LOW 15 배치)
+> 트랙A HIGH-only 바운드의 분리분을 1건으로 묶어 등록했습니다(백로그 순증 방지). **착수는 #864 머지 이후** — 같은 파일을 만져 충돌합니다. pre-existing 4건(`AsyncAutocomplete` `role="option"` 등)은 그 안에 **개발책임자 처분 대기**로 분리 기재돼 있습니다.
+
+---
+
+## 🔥 2026-07-21 (저녁) — 3트랙 병렬 · 세션 종료 시점 상세
+
+> ### 🚨 0. 새 PC 도착 시 먼저 할 일
+> ```powershell
+> git pull
+> .\scripts\sync-claude-memory.ps1
+> .\scripts\setup-codex-mcp-timeout.ps1         # PC 마다 1회 필수 (~/.claude.json = git 미추적)
+> ```
+> 빠뜨리면 codex 디스패치가 계속 1800초에 abort 됩니다. **abort ≠ 미수행** — codex 는 계속 돌지만 통지가 끊깁니다.
+>
+> ### 🚨 1. 이번 세션에서 확정된 폴링 규칙 정정 (중요 — 구 규칙이 오도함)
+> - 🚫 **`Get-Process codex` 개수/PID 는 MCP 작업의 생존 신호가 아닙니다.** MCP 작업은 `codex mcp-server` 프로세스 **안에서** 돌아 별도 `codex.exe` 를 만들지 않습니다. 실측: 트랙B 가 rollout 을 **0초 간격으로 쓰는 중인데도** `codex.exe` 는 `mcp-server`+데스크톱 `app-server` **2개뿐**이었습니다. 프로세스로 세면 **살아 있는 작업을 정지로 오판**합니다.
+> - ✅ **완료의 유일한 진실원 = rollout jsonl 의 `"type":"task_complete"`.** 최종보고 전문은 `payload.last_agent_message`.
+> - 🚨 **통지 유실은 abort 통지 없이도 발생합니다.** 트랙A 는 `task_complete` 를 정상 발행했는데 **22분간 통지 0** 이었습니다 → *"abort 안 왔으니 진행 중"* 은 성립하지 않습니다.
+> - `java.exe` 도 VSCode `redhat.java` LSP 를 gradle 로 오인 금지(3개 중 2개가 LSP). 역할 구분은 `Get-CimInstance Win32_Process` 의 CommandLine 으로.
+> - 🚫 **이 환경에 `jq` 가 없습니다.** `gh pr checks --json | jq` 는 조용히 빈 값을 뱉습니다 → **`gh pr checks <pr>` 종료 코드**로 판정하십시오(exit 0 = 전건 pass). jq 를 쓴 Monitor 는 **영원히 침묵**하며, 그 침묵이 "진행 중"으로 오독됩니다.
+>
+> ### 2. 트랙 현황 — **세션 종료 시점 실제 상태**
+> | 트랙 | PR | 워크트리 | 상태 |
+> |---|---|---|---|
+> | **A · #825 슬5** | #864 | `s5-codef` | R2 fix 커밋 `43905b915` **push·CI 40/40 green** → **OPUS 4.8 R3 적대검증 4/6 차원 게시 완료** · **2차원 미회수** |
+> | **B · #845 DS-3a** | #865 | `ds3a` | SOL R2(BLOCKING 1·MED 4·LOW 2) → **CODEX LUNA fix 가 세션 종료 시점까지 진행 중 · 미커밋** |
+> | **C · #863** | #876 | `ob863` | OPUS R1 → **SONNET5 fix 가 세션 종료 시점까지 진행 중 · 미커밋** |
+>
+> ### 3. 🚨 트랙A — R3 결과 (PR #864 코멘트 2건에 전문)
+> **HIGH 3 · MED 5 · LOW 11 → 수렴 불가.** 핵심 3건:
+> 1. **HIGH-1 · R2 의 BLOCKING-1 fix 가 절반만 됐습니다.** `CodefImportScopedService.java:82-86` 이 여전히 요청 `type` 을 쓰고 저장 `defaultImportType` 을 **한 번도 읽지 않습니다**(전수 grep — 호출부는 응답 DTO 1곳뿐). R2 diff 에 이 파일이 **아예 없습니다**. BE 테스트 3건이 전부 `defaultImportType:"ALL"` 이라 **어느 쪽으로 뮤테이트해도 RED 가 안 납니다.**
+> 2. **HIGH-2 · R2 가 공유 `playwright.real-qa.config.ts` 를 이 슬라이스 전용으로 축소** → `testMatch` 가 단일 파일이 되어 **repo 82/83 real-QA 스펙이 무력화**됐습니다(리뷰어가 다른 스펙 `--list` 로 `0 tests` 실측). dev-report 의 `Total: 5 tests in 1 file` 은 **자기가 좁혀놓고 5개임을 증명한 순환논증**입니다. ⚠️ **미머지라 main 영향 없음.**
+> 3. **HIGH-3 · 라이브QA 증거가 전량 pre-fix 결함 캡처.** `docs/qa/825-s5-r1-liveqa/` PNG 32장이 **전부 `16cdfb626`(R1 fix 이전)**, `5f5d84d3a`/`43905b915` 의 PNG 는 **각 0장**. "fixed" 6장 부재. **라이브QA 2라운드 연속 미충족.**
+>
+> 🚨 **#854 R4→R5 패턴 재현**: 이번 라운드 HIGH/MED 5건 중 **4건이 R2 fix 가 도입한 신규 코드 안**입니다. 이 슬라이스는 **R1·R2·R3 3라운드째이며 매번 fix 가 새 결함을 낳고 있습니다** → 다음 세션에서 [[feedback_pm_regulate_slice_effort]] 에 따라 **개발책임자께 바운드 옵션 제시**할 것.
+>
+> ### 4. 🚨 미회수 · 완료 착각 금지 (fresh 재디스패치 대상)
+> - **트랙A R3 의 FE/상태머신 · 라이브QA 2차원 미회수.** 특히 라이브QA 는 **real-QA 실서버 실행 회수**가 1순위 임무였는데 미완입니다. ⚠️ HIGH-2 때문에 **`playwright.real-qa.config.ts` 를 먼저 원복해야 real-QA 가 돌아갑니다.**
+> - **트랙B·C 의 fix 산출물은 미커밋·미검증**입니다. 워크트리 diff 는 **참조용**이며 그대로 신뢰하지 마십시오 — **fresh 재디스패치**가 기본값입니다.
+>
+> ### 5. 이번 세션 머지·등록
+> - **머지**: #882(메모리 — codex 폴링 신호 정정 + PM 검증 규율 신설, **축약 머지 개발책임자 승인 · 이 PR 한정**)
+> - **신규 이슈**: **#880**(좁은 폭에서 조작 버튼 컬럼 DOM 제거 → 기능 도달 불가 6화면, `display:none` + `onRowClick` 부재 실측) · **#881**(판매조회 담당자명 raw UUID 노출 — 2026-07-07 백로그에 방치, `SlipResponse.java:34` 잔존) · **#883**(UI/디자인 전면 개편 EPIC — ⏸️**최후순위: 전 이슈 해소 후 AWS 이관 직전**, 기획=CODEX SOL·구현=CODEX LUNA)
+>
+> ### 6. 🚨 PM 검증 실패 5회 — 이번 세션 최대 교훈
+> `green` 이 **주장과 다른 것**을 증명하는 5형태를 한 세션에서 전부 겪었습니다. 정본 = [[feedback_pm_verify_what_measurement_proves]] (#882 로 머지됨).
+> ①**프로파일**(`local` 에서 `@Profile("!local")` 스케줄러 heartbeat 측정) ②**캐시**(`up-to-date` 를 실행 증거로) ③**커버리지**("Playwright 590 passed" 를 인용했으나 **무관 브랜치와 같은 숫자 = 순증 0**) ④**격리**(마스코트 **쇼케이스 페이지** 스샷을 렌더 정상 근거로) ⑤**층 절반**(FE fix 만 읽고 "BLOCKING fix 가 진짜" 라고 선언 — **BE 경로 미확인**).
+> ⟹ 수용 전 *"이 수치는 〈무엇〉이 〈어떤 조건에서〉 동작함을 증명한다"* 를 **한 줄로 적고 주장과 대조**할 것. 확증은 **뮤테이션 RED**.
+>
+> ### 7. UI 실태 조사 결과 (#883 에 전문)
+> **삼한이 원인 규명 완료** — 에셋·컴포넌트는 정상이고 **배선 누락 + 렌더 결함**입니다. `DataTable.tsx:99` 가 `isEmpty = rows.length===0 && !loading` 이라 로딩 중 tbody 가 비는데, 로더는 `position:absolute` 오버레이이고 `.wrapper` 는 `overflow:hidden` + **`min-height` 없음** → 높이가 헤더 행(~40px)뿐이라 **80px 마스코트가 잘립니다.** 빈 상태는 실제 `<td>` 라 스스로 높이를 만들어 항상 보입니다. `MascotLoader` **3파일** vs `Spinner` **73파일**.
+> **주문서 GAS 잔재 자백 증거** — `sales.module.css:7` 에 **`DS 컴포넌트 import 금지 (F1(a) Phase 6)`** 가 살아 있고, 2026-07-05 "데스크톱=표준 UI" 결정과 정면 충돌합니다. 결정 **2일 뒤** 커밋 `36ee0e30a` 가 45줄을 더 쌓았습니다. ⚠️ **S4 착수 전 어느 결정이 유효한지 개발책임자 확정 필요**(없이 고치면 재발).
+
+---
+
+## (지난) 2026-07-21 (오후) — 3트랙 병렬 가동 중 ※위 블록으로 대체됨
+
+> ### 🚨 0. 새 PC 도착 시 먼저 할 일 (순서대로)
+> ```powershell
+> git pull
+> .\scripts\sync-claude-memory.ps1              # 메모리 repo -> 홈 (기존 절차)
+> .\scripts\setup-codex-mcp-timeout.ps1         # 🚨 NEW — PC 마다 1회 필수
+> ```
+> **`setup-codex-mcp-timeout.ps1` 을 빠뜨리면 codex 디스패치가 계속 1800초에 abort 됩니다.** abort 는 codex 를 멈추지 않지만(`abort ≠ 미수행`) **완료 통지가 끊겨** 오케스트레이션이 무너집니다 — 2026-07-21 한 세션에서 **4회 이상** 겪었습니다.
+> ⚠️ 이 설정은 `~/.claude.json` 에 있어 **git 으로 따라오지 않습니다.** 멱등이라 재실행은 안전하고, **적용은 다음 Claude Code 세션부터**입니다(MCP 설정은 연결 시점에 읽힘 — 설정 직후 그 세션은 계속 abort 되니 폴링으로 버팁니다). 상세 = 셋업 문서 `1-A-2` · [[feedback_codex_cli_version_model_mismatch]].
+>
+> ### 🚨 1. 워크플로우 현행 정본 (2026-07-21 변경)
+> **1차 적대검증 리뷰 = FABLE5 → OPUS 4.8 재전환**(FABLE5 토큰 과다 — 6차원 라운드 1회 약 1.0~1.2M 실측). **라운드 fix = SONNET5 그대로 유지.**
+> ⟹ OPUS 4.8 기획 → CODEX LUNA 5.6 구현 → (**OPUS 4.8 5+agent 적대리뷰+라이브QA** → **SONNET5 fix**) → (CODEX SOL 5.6 5+agent → LUNA fix) → 0수렴 → PM 종합 → CI green → 머지.
+> ⚠️ **07-16 과 다름**: 그땐 리뷰·fix 모두 OPUS 겸임이었으나 이번엔 **fix 만 SONNET5 유지** → 리뷰어/구현자 분리 존속. **OPUS 의 라운드 fix 직접 수행은 계속 금지.** 리뷰는 `model:"opus"` **다차원 서브에이전트**(5차원 이상)로 — PM 세션이 혼자 대신하지 않음. 정본 = [[feedback_canonical_workflow]] · 커밋 `db10353ee`.
+> (07-20 결정 2건은 유지: 기획검수 폐지 · 처리량 3레버 = 슬라이스 병렬화·범위 동결·chore 배치.)
+>
+> ### 2. 트랙 현황 (전부 진행 중)
+> | 트랙 | PR | 워크트리 | 단계 |
+> |---|---|---|---|
+> | **A · #825 슬5** null-semantics | #864 | `.claude/worktrees/s5-codef` | R1(FABLE5)→SONNET5 fix→**R2(SOL) BLOCKING 2**→**LUNA R2 fix 진행 중** |
+> | **B · #845 DS-3a** 재인쇄 pin | #865 | `.claude/worktrees/ds3a` | 구현 완료·CI green → R1(FABLE5) HIGH 2·MED 5·LOW 7 → **SONNET5 fix 진행 중** |
+> | **C · #863** outbox 관측 | #876 | `.claude/worktrees/ob863` | **LUNA 구현 완료·커밋 `f20c4963f`** → 다음 = 구현 리뷰 게시 → **1차 적대검증(OPUS 4.8)** |
+>
+> **트랙A 요주의** — R1 fix 가 새 BLOCKING 을 만들었습니다(`buildImportPayload` 가 저장 `defaultImportType` 을 무시하고 `type:'ALL'` 하드코딩 → 저장만 눌러도 실행 범위가 `CARD`→전체로 확대). R3 에서도 fix 가 새 결함을 낳으면 **개발책임자께 바운드 옵션 제시**.
+> **트랙C 미완 1건** — 390px 배지 실서버 캡처 미확보(공유 DB 에 실패 seed·응답 필드 부재). 가짜 데이터 만들지 않고 남김 → 적대검증 라이브QA 에서 회수.
+> **트랙C 는 codex 가 3회 사망** 후 `codex-reply` 재개로 완주했습니다. 재개 시 "중간 결과를 dev-report 에 계속 적어 회수 가능하게" 지시가 효과적이었습니다.
+>
+> ### 3. 미머지 브랜치 (머지 경로 필요)
+> - `chore/workflow-review-opus` — 캐논 갱신(`db10353ee`) + 본 핸드오프 + MCP timeout 스크립트/문서. **집PC 가 이 내용을 받으려면 이 브랜치가 main 에 들어가야 합니다.**
+>
+> ### 4. 이슈 정리 (2026-07-21 완료)
+> 신규 등록 #866~#870·#872~#875·#877, close #773·#871. **트랙 배치 2조합**: B1=#866+#867(#825 슬6·슬7, 같은 칩 컴포넌트) · B2=#872+#874(#773 잔여 착수가능분).
+> 단독: #831·#877(둘 다 **트랙A 머지 후** — `DailyClosingService`/`CodefImportScopeForm` 충돌) · #824(⚠️BE 는 이미 완료, FE 만 미구현) · #870(광역 FE, 다른 FE 트랙과 동시 금지) · #851(CI 게이트) · #868(**트랙B 머지 후**)→#869.
+> 블로커/defer: #873(‘총 할인’ 정의 확정 선행) · #875·#827(Google clasp) · #826·#830(Phase 11 — **close 하면 추적 끊김, OPEN 유지**).
+>
+> ### 5. 메모리 박제 대기
+> **HashRouter 함정** — dev 렌더러가 HashRouter 라 real-qa 스펙이 **비해시 URL 로 진입하면 URL 은 유지한 채 대시보드를 렌더**한다. all-zero 시그니처가 "배너 부재" 같은 **음성 단언을 위장 통과**시킬 뻔했다(`/#/` 경로 + 고유요소 가시성 필수 대기로 하드닝). 기존 DS-2 real-qa 스펙도 동일 소지.
+
+---
+
+## (지난) 2026-07-21 (집PC 새벽) — 2트랙 병렬 ※위 블록으로 대체됨
 
 > **🚨 워크플로우 2건 변경(2026-07-20)** — ①**기획검수 폐지**(적대리뷰와 중복) ②**1차 적대검증 리뷰=FABLE5 · 그 라운드 fix=SONNET5**(OPUS 4.8 = 기획 + PM 오케스트레이션 전담, 리뷰·라운드 fix 직접 수행 금지). 정본 = [[feedback_canonical_workflow]]. CLAUDE.md·MEMORY.md 동기화 완료.
 >

@@ -476,9 +476,9 @@ services:
     container_name: samhan-partner-order-service
     restart: unless-stopped
     <<: *service-memory
-    # #854 R5-HIGH: monitoring.tf 의 partner-order 전표 발행 outbox FAILED_PERMANENT
-    # metric filter/alarm 의 로그 원천 보장 — slip-service(#809 R6-H5, 아래 slip-service
-    # logging: 블록)와 동일한 이유·동일한 구성이다 (형상만이 아니라 수송 경로 자체를 동형화).
+    # #863: stdout/awslogs는 진단 로그 보조 경로다. outbox alarm은 Micrometer 상태
+    # gauge를 CloudWatch custom metric으로 평가하며 로그를 alarm 원천으로 삼지 않는다.
+    # awslogs 전용 stream은 장애 원인 조사와 CUTOVER 양성 도달 검사에만 사용한다.
     # CloudWatch Agent 의 json 와일드카드 tail(user_data.sh)은 AWS 문서상 "최신 수정 파일만
     # push" 라 다수 컨테이너 동시 기록에서 라인이 유실될 수 있어 alarm 원천으로 쓰지 않는다
     # (나머지 컨테이너는 best-effort 수집 전용, stream {hostname}/docker-others).
@@ -487,7 +487,7 @@ services:
     # - 시작 결합: awslogs 는 컨테이너 시작 시 CreateLogStream 호출 — 실패 시 기동 실패
     #   (CUTOVER.md M-20 ⓪ 선행 조건 참조). 로컬 실행 금지 파일이므로 로컬 영향 없음.
     # - mode=non-blocking: CloudWatch 지연이 앱 stdout 을 블록하지 않음(극단 burst 시
-    #   드롭 허용 — alarm 은 반복 종결 이벤트 감지 목적이라 수용).
+    #   드롭 허용 — 상태 gauge alarm의 진실원과 분리된 진단 경로라 수용).
     # - docker logs 는 Docker 20.10+ dual logging 기본값으로 계속 동작.
     logging:
       driver: awslogs
@@ -513,6 +513,7 @@ services:
       SAMHAN_SLIP_SERVICE_URL: http://slip-service:8086
       SAMHAN_DC_CONFIG_SERVICE_URL: http://dc-config-service:8089
       SAMHAN_PARTNER_AUTH_SERVICE_URL: http://partner-auth-service:8091
+      CLOUDWATCH_METRICS_ENABLED: "true"
       BOOTSTRAP_CACHE_REFRESH_MINUTES: ${BOOTSTRAP_CACHE_REFRESH_MINUTES:-10}
     ports:
       - "127.0.0.1:8088:8088"

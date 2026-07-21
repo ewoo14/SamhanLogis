@@ -1,19 +1,67 @@
 groups:
   - name: partner-order-outbox
     rules:
-      # severity=critical (#854 R5-LOW): slip-price-memory.yml 의 warning 은 fail-soft(원 전표/견적
-      # 저장은 성공, 가격기억 보조 기능만 저하)라 warning 이 맞다. 본 알람은 성격이 다르다 —
-      # FAILED_PERMANENT 는 전표 발행 자체가 영구 종결된 상태이고, runbook(재발행 절차) 상 안전한
-      # 셀프서비스 복구 수단이 없는 경우가 존재해 최소 개발팀 확인이 요구될 수 있다(단순 warning 이
-      # 암시하는 "당장 대응 불필요"보다 사건 등급이 위). Alertmanager 라우팅이 아직 없어(prometheus.yml
-      # 에 alerting: 섹션 없음) 현재는 라벨 값이 실효 차이를 만들지 않지만, 향후 배선 시 critical 을
-      # 별도 채널(예: 즉시 호출)로 분리하는 근거가 된다.
-      - alert: PartnerOrderSlipPublishTerminalFailure
-        expr: sum(increase(partner_order_slip_publish_terminal_total{job="partner-order-service",reason=~"invalid_input|conflict|max_retry_exhausted"}[5m])) > 0
+      # 상태 게이지 3종 = 1차 알람 원천(#863). 아래 PartnerOrderSlipPublishTerminalFailure(terminal
+      # counter 기반)는 FAILED 처럼 게이지 설계상 전이 즉시 집합을 이탈하는 순간 상태를 잡는 보조
+      # 알람으로 유지한다 — #863 R1 BLOCKING-2: 최초 구현이 이 보조 알람을 대체 없이 삭제해 영구실패
+      # 전이가 완전 무음이 됐던 것을 spec D-863-02("로그/카운터 기반 알람은 보조로 유지") 준수로
+      # 복원했다.
+      #
+      # #863 R1 H-4: 세 게이지 expr 모두 absent() 를 or 로 묶는다. 서비스 다운·crash-loop·actuator
+      # 장애로 시리즈 자체가 사라지면 비교식은 결과가 없어(값이 false 가 아니라 "없음") 원래는
+      # 영구 침묵했다. absent() 는 동등 matcher(application=...)를 결과 라벨로 그대로 승계하므로
+      # 알람 라벨·runbook 링크는 시리즈 소실 시에도 동일하게 유지된다.
+      - alert: PartnerOrderOutboxPendingBacklog
+        expr: outbox_pending_depth{application="partner-order-service"} > 0 or absent(outbox_pending_depth{application="partner-order-service"})
+        for: 10m
+        labels:
+          severity: warning
+          service: partner-order-service
+        annotations:
+          summary: "partner-order-service 전표 발행 outbox backlog 지속 또는 metric 소실"
+          description: "스케줄러 주기 300초의 두 배인 600초 동안 미처리 outbox가 남아 있거나, 게이지 metric 자체가 사라졌습니다(서비스 다운 가능성). oldest age와 heartbeat를 함께 확인하십시오."
+          runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"
+
+      # #863 R1 H-2: 원래 임계값 86100(=86400-300)은 for:5m 과 결합하면 firing 도달 시점이 정확히
+      # 86400초 — expireIfExhausted 가 행을 종결시켜 집합에서 이탈시키는 바로 그 순간이라, 행이
+      # firing 에 한 번도 도달하지 못하고 해소되는 경쟁이었다(annotation의 "24시간 종결 전에
+      # 조치" 가 산술적으로 달성 불가). max-retry-hours(기본 24h=86400초) 대비 4시간(14400초) 여유를
+      # 두어 72000초(20시간)로 낮춰, 실제 조치 가능한 lead time을 확보한다.
+      - alert: PartnerOrderOutboxOldestPendingTooOld
+        expr: outbox_oldest_pending_age_seconds{application="partner-order-service"} > 72000 or absent(outbox_oldest_pending_age_seconds{application="partner-order-service"})
+        for: 5m
         labels:
           severity: critical
           service: partner-order-service
         annotations:
-          summary: "partner-order-service 전표 발행 outbox 영구실패"
-          description: "최근 5분 동안 주문 전표 발행 outbox가 복구 불가 사유 또는 최대 재시도 시간 초과로 종결되었습니다. reason 라벨과 주문/전표 정합을 확인하십시오."
+          summary: "partner-order-service outbox 재시도 상한 임박 또는 metric 소실"
+          description: "가장 오래된 미처리 outbox가 72000초(20시간, 24시간 종결 4시간 전)를 넘었거나, metric 이 사라졌습니다. 다음 scheduler tick의 24시간 종결 전에 조치하십시오."
+          runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"
+
+      - alert: PartnerOrderOutboxSchedulerStalled
+        expr: outbox_scheduler_heartbeat_seconds{application="partner-order-service"} > 600 or absent(outbox_scheduler_heartbeat_seconds{application="partner-order-service"})
+        for: 1m
+        labels:
+          severity: critical
+          service: partner-order-service
+        annotations:
+          summary: "partner-order-service outbox scheduler 정지 또는 metric 소실"
+          description: "마지막 scheduler tick 이후 600초(5분 주기의 두 배)가 경과했거나, metric 이 사라졌습니다."
+          runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"
+
+      # #863 R1 BLOCKING-2 복원 원문(#854 도입, #863 최초 구현이 대체 없이 삭제) — severity=critical
+      # (#854 R5-LOW): slip-price-memory.yml 의 warning 은 fail-soft(원 전표/견적 저장은 성공, 가격기억
+      # 보조 기능만 저하)라 warning 이 맞다. 본 알람은 성격이 다르다 — FAILED_PERMANENT 는 전표 발행
+      # 자체가 영구 종결된 상태이고, runbook(재발행 절차) 상 안전한 셀프서비스 복구 수단이 없는 경우가
+      # 존재해 최소 개발팀 확인이 요구될 수 있다(단순 warning 이 암시하는 "당장 대응 불필요"보다 사건
+      # 등급이 위). terminal counter(committed/invalid_input/conflict/max_retry_exhausted 4종)는
+      # 생성자에서 값 0으로 eager 등록되므로 absent() 는 서비스 자체가 내려간 경우에만 발화한다.
+      - alert: PartnerOrderSlipPublishTerminalFailure
+        expr: sum(increase(partner_order_slip_publish_terminal_total{job="partner-order-service",reason=~"invalid_input|conflict|max_retry_exhausted"}[5m])) > 0 or absent(partner_order_slip_publish_terminal_total{job="partner-order-service"})
+        labels:
+          severity: critical
+          service: partner-order-service
+        annotations:
+          summary: "partner-order-service 전표 발행 outbox 영구실패 또는 metric 소실"
+          description: "최근 5분 동안 주문 전표 발행 outbox가 복구 불가 사유 또는 최대 재시도 시간 초과로 종결됐거나, terminal counter metric 자체가 사라졌습니다. reason 라벨과 주문/전표 정합을 확인하십시오."
           runbook: "docs/runbooks/partner-order-outbox-terminal-failure.md"

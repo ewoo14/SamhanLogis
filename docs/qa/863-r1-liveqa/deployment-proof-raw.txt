@@ -1,0 +1,160 @@
+# #863 R1 라이브QA — 배포 증명 원문 (이것이 없으면 이하 모든 green 은 무효)
+# 수행: 2026-07-21 KST, 워크트리 C:\dev\Samhan-Public\.claude\worktrees\ob863
+# 브랜치 chore/863-outbox-observability / HEAD 563dfa81ee649302af31e02c3893976aafb70ea1
+
+==========================================================================
+[0] 착수 시점 상태 — 슬라이스가 배포돼 있지 않았음 (#864 사고와 동일 구조를 사전 차단)
+==========================================================================
+$ docker inspect samhan-partner-order-service --format "..."
+/samhan-partner-order-service | Image=infrastructure-partner-order-service
+  | ImageID=sha256:ebde2a61404408d9ca45209de0ba7d888a86363bd8614c270e250abb316e834b
+  | Created=2026-07-20T13:41:13.841407114Z
+  | Started=2026-07-21T10:04:22.465568397Z
+
+$ docker exec samhan-postgres psql -U samhan -d partner_order_db \
+    -c "SELECT version, description, type, success, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 6;"
+ version |                description                | type | success |        installed_on
+---------+-------------------------------------------+------+---------+----------------------------
+ 10      | partner order deleted by name             | SQL  | t       | 2026-07-07 06:47:51.453527
+ 9       | add partner order collab tables           | SQL  | t       | 2026-06-13 10:15:49.747011
+ ...
+
+⟹ 이미지는 2026-07-20 빌드(전일), flyway 최신 = V10.
+⟹ 즉 **착수 시점에 이 브랜치는 로컬 스택에 배포된 적이 없었다.** 이 상태로 얻은 어떤 green 도
+   슬라이스를 검증하지 못한다. 그래서 아래 [1] 배포를 먼저 수행했다.
+
+==========================================================================
+[1] 이 브랜치 코드로 배포
+==========================================================================
+# 1-a) 브랜치 워크트리에서 bootJar 빌드
+$ ./gradlew.bat :services:partner-order-service:bootJar --no-daemon
+BUILD SUCCESSFUL in 13s
+15 actionable tasks: 2 executed, 13 up-to-date
+  ※ compileJava 는 UP-TO-DATE(이 워크트리에서 선행 컴파일됨). 캐시 false-green 을 배제하기 위해
+    산출 jar 안에 신규 클래스/마이그가 실제로 들어있는지 직접 확인함:
+
+$ jar tf services/partner-order-service/build/libs/partner-order-service.jar | grep ...
+BOOT-INF/classes/com/samhanair/logis/partnerorder/config/CloudWatchMetricsConfig.class
+BOOT-INF/classes/com/samhanair/logis/partnerorder/observability/OutboxObservabilityMetrics$CachedValue.class
+BOOT-INF/classes/com/samhanair/logis/partnerorder/observability/OutboxObservabilityMetrics.class
+BOOT-INF/classes/db/migration/V11__add_outbox_observability_index.sql
+
+# 1-b) 기존 이미지 백업 태그(복구 가능성 보존)
+$ docker tag infrastructure-partner-order-service:latest infrastructure-partner-order-service:pre-qa863-backup
+infrastructure-partner-order-service:latest            ebde2a614044  22 hours ago
+infrastructure-partner-order-service:pre-qa863-backup  ebde2a614044  22 hours ago
+
+# 1-c) 이미지 빌드 + 컨테이너 재생성
+#   compose 3중 오버레이(base + local-all + no-host-ports). no-host-ports 는 호스트 influxd 가
+#   8086/8088 을 점유해 기존 스택이 쓰던 구성 — 이걸 빼면 8088 bind 실패로 기동 불가(실측).
+$ docker compose -p infrastructure -f infrastructure/docker-compose.yml \
+    -f infrastructure/docker-compose.local-all.yml -f infrastructure/docker-compose.no-host-ports.yml \
+    up -d --no-deps --force-recreate partner-order-service
+ Container samhan-partner-order-service Recreated / Starting / Started
+
+==========================================================================
+[2] 배포 증명 — 지금 도는 것이 이 브랜치 코드임
+==========================================================================
+$ docker inspect samhan-partner-order-service --format "..."
+Image=infrastructure-partner-order-service
+ImageID=sha256:df0d7bf202b36a9e869753fc7d11bec88a9df31170507be8e05c7d46eaec0b38   <- 변경됨(≠ ebde2a61)
+ContainerCreated=2026-07-21T12:03:47.453208253Z
+Started=2026-07-21T12:03:47.604798804Z
+
+$ docker image inspect infrastructure-partner-order-service:latest --format "..."
+ImageCreated=2026-07-21T12:01:06.232563427Z (= 2026-07-21 21:01:06 KST)
+
+$ docker exec samhan-postgres psql -U samhan -d partner_order_db -c "SELECT version, description, success, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 3;"
+ version |           description           | success |        installed_on
+---------+---------------------------------+---------+----------------------------
+ 11      | add outbox observability index  | t       | 2026-07-21 21:03:51.277134   <- 신규 적용
+ 10      | partner order deleted by name   | t       | 2026-07-07 06:47:51.453527
+ 9       | add partner order collab tables | t       | 2026-06-13 10:15:49.747011
+
+$ docker logs samhan-partner-order-service | grep ...
+2026-07-21T21:03:51.291+09:00 INFO ... o.f.core.internal.command.DbMigrate :
+    Migrating schema "public" to version "11 - add outbox observability index"
+2026-07-21T21:03:55.780+09:00 INFO ... c.s.l.p.PartnerOrderServiceApplication :
+    Started PartnerOrderServiceApplication in 7.521 seconds (process running for 8.008)
+
+$ docker exec samhan-partner-order-service curl -s http://localhost:8088/actuator/prometheus | grep "^outbox_"
+outbox_oldest_pending_age_seconds{application="partner-order-service"} 0.0
+outbox_pending_depth{application="partner-order-service"} 0.0
+outbox_scheduler_heartbeat_seconds{application="partner-order-service"} 14.566
+
+$ docker exec samhan-partner-order-service curl -s .../actuator/prometheus | grep terminal_total
+# HELP partner_order_slip_publish_terminal_total partner-order 전표 발행 outbox terminal 전이 수
+# TYPE partner_order_slip_publish_terminal_total counter
+partner_order_slip_publish_terminal_total{application="partner-order-service",reason="committed"} 0.0
+partner_order_slip_publish_terminal_total{application="partner-order-service",reason="conflict"} 0.0
+partner_order_slip_publish_terminal_total{application="partner-order-service",reason="invalid_input"} 0.0
+partner_order_slip_publish_terminal_total{application="partner-order-service",reason="max_retry_exhausted"} 0.0
+  ⟹ terminal counter 4종이 값 0 으로 eager 등록됨(첫 이벤트 미탐 함정 회피 확인).
+
+==========================================================================
+[3] 프로파일 함정 확인 — 스케줄러 빈이 존재하는 프로파일인가
+==========================================================================
+$ docker exec samhan-partner-order-service printenv SPRING_PROFILES_ACTIVE
+dev                       <- local 아님 ⟹ @Profile("!local") SlipPublishOutboxScheduler 빈 존재
+
+$ docker exec samhan-partner-order-service printenv SAMHAN_OUTBOX_CRON
+(unset, exit=1)           <- #854 R4 라이브QA 가 남긴 10초 오버라이드는 재생성으로 사라짐.
+                             ⟹ 배포 기본값 samhan.outbox.cron = "0 */5 * * * *" (5분) 적용.
+
+==========================================================================
+[4] 알람 룰 로드 경로 — 공유 Prometheus 로는 이 슬라이스를 검증할 수 없음
+==========================================================================
+$ docker inspect samhan-prometheus --format "{{json .Mounts}}"
+  bind: C:\dev\Samhan-Public\infrastructure\prometheus\rules -> /etc/prometheus/rules (ro)
+  ⟹ 공유 prometheus 는 **main 트리** 룰을 마운트한다(이 브랜치 워크트리가 아님).
+
+$ curl http://127.0.0.1:9090/api/v1/rules   (공유 :9090)
+group=partner-order-outbox
+   alert=PartnerOrderSlipPublishTerminalFailure state=inactive
+  ⟹ 이 슬라이스가 추가한 게이지 알람 3종이 **아예 없다**. :9090 에서 잰 green 은 false-green.
+
+⟹ 그래서 공유 인스턴스를 건드리지 않고, 이 브랜치 룰 파일을 **무수정**으로 마운트한
+   전용 QA Prometheus 를 :9091 로 띄웠다(임계값·for 지속시간 일절 변경 없음).
+
+$ docker run -d --name qa863-prometheus --network samhan-net -p 127.0.0.1:9091:9090 \
+    -v <scratchpad>/qa863/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
+    -v C:\dev\Samhan-Public\.claude\worktrees\ob863\infrastructure\prometheus\rules:/etc/prometheus/rules:ro \
+    prom/prometheus:v2.55.1
+
+$ curl http://127.0.0.1:9091/api/v1/rules
+group=partner-order-outbox file=/etc/prometheus/rules/partner-order-outbox.yml
+   alert=PartnerOrderOutboxPendingBacklog      health=ok
+   alert=PartnerOrderOutboxOldestPendingTooOld health=ok
+   alert=PartnerOrderOutboxSchedulerStalled    health=ok
+   alert=PartnerOrderSlipPublishTerminalFailure health=ok      <- BLOCKING-2 복원분 포함 4종
+group=slip-price-memory file=/etc/prometheus/rules/slip-price-memory.yml
+   alert=SlipPriceMemoryUpsertFailure          health=ok
+
+$ curl http://127.0.0.1:9091/api/v1/targets
+target job=partner-order-service health=up lastScrape=2026-07-21T12:07:00.188523348Z err=
+
+$ curl http://127.0.0.1:9091/api/v1/alerts   (정상 상태 baseline)
+{"status":"success","data":{"alerts":[]}}     <- 발화 0건 = green baseline 확보
+
+==========================================================================
+[5] 신규 BE 필터 실경로 검증 (실 게이트웨이 :8080 → 실 partner_order_db)
+==========================================================================
+$ GET /api/v1/partner-orders?slipPublishStatus=PENDING_RETRY&includeDeleted=true&size=100
+totalElements=15
+   반환된 행의 slipPublishStatus 분포: PENDING_RETRY = 15건 (오염 0)
+$ GET /api/v1/partner-orders?slipPublishStatus=FAILED&includeDeleted=true
+totalElements=0
+$ GET /api/v1/partner-orders (필터 없음)
+totalElements=2020
+
+DB 실측 대조:
+$ SELECT status, slip_publish_status, count(*) FROM partner_orders WHERE is_deleted=false GROUP BY 1,2;
+ DRAFT     | NOT_REQUIRED  | 1984
+ CONFIRMED | PUBLISHED     |   15
+ CONFIRMED | PENDING_RETRY |   10
+ CONVERTED | NOT_REQUIRED  |    6
+ CONVERTED | PENDING_RETRY |    4
+ DRAFT     | PENDING_RETRY |    1
+   ⟹ PENDING_RETRY 합계 15 = API totalElements 15 로 정확히 일치.
+   ⟹ FAILED_PERMANENT 행이 0건이므로 **발행실패 배너는 렌더 조건 자체가 성립하지 않는다**
+      (배너 대비 H-5 / 배너 클릭 모집단 H-6 은 이번 라이브QA 에서 미검증 — 보고서에 명시).

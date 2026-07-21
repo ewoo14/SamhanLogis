@@ -64,6 +64,21 @@ Extensions `uuid-ossp` and `pgcrypto` are enabled in each DB
 
 ### Alerting rules
 
+알람의 1차 원천은 애플리케이션 상태 게이지(Prometheus pull 또는 운영 Micrometer
+CloudWatch custom metric)이다. **로그(stdout/awslogs)를 alarm 원천으로 삼지 말 것.** 로그는 원인
+조사와 보조 증거에만 사용한다. 로그 버퍼 유실·startup scrape race를 상태 게이지 알람으로
+우회하지 않고, 매 scrape마다 DB 상태와 scheduler heartbeat를 다시 읽는다.
+
+> **예외 — 상태 게이지가 구조적으로 못 잡는 순간 전이는 로그/카운터 기반 보조 알람을 유지한다**
+> (#863 R1 BLOCKING-2). partner-order outbox 의 FAILED(영구실패)처럼 *터미널 상태로 전이하는
+> 순간 관측 대상 집합에서 이탈하는* 사건은 상태 게이지(PENDING/PROCESSING 집계)로는 원천적으로
+> 볼 수 없다 — 다음 scrape 시점엔 이미 사라진 뒤다. 이런 경우 로그 기반 metric filter(또는
+> eager-등록 counter)를 **보조**로 유지한다(`infrastructure/terraform/monitoring.tf` 의
+> `aws_cloudwatch_log_metric_filter.partner_order_outbox_failed_permanent` +
+> `infrastructure/prometheus/rules/partner-order-outbox.yml` 의
+> `PartnerOrderSlipPublishTerminalFailure`). "로그를 alarm 원천으로 삼지 말 것"은 로그를 **1차**
+> 원천으로 쓰지 말라는 뜻이며, 게이지가 커버 못 하는 순간전이의 보조 백스톱까지 금지하지 않는다.
+
 Alert rules live in `prometheus/rules/*.yml` and are picked up by the
 `rule_files: [/etc/prometheus/rules/*.yml]` glob in `prometheus/prometheus.yml`.
 

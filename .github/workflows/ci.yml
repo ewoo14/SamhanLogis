@@ -215,6 +215,23 @@ jobs:
             exit 1
           fi
 
+      - name: "#863 N-3 TaskSchedulerPoolSizeIT tests>=1 failures=0 errors=0 skipped=0 hard gate"
+        if: matrix.group.name == 'accounting+partner'
+        run: |
+          report='services/partner-order-service/build/test-results/test/TEST-com.samhanair.logis.partnerorder.config.TaskSchedulerPoolSizeIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#863 TaskSchedulerPoolSizeIT JUnit report not found; spring.task.scheduling.pool.size 회귀 IT 가 필터/스킵되었을 수 있음."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${tests:-0}" -lt 1 ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ] || [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#863 TaskSchedulerPoolSizeIT hard gate failed: tests=${tests:-missing} failures=${failures:-missing} errors=${errors:-missing} skipped=${skipped:-missing}"
+            exit 1
+          fi
+
       - name: "#848 ApprovalLineConfigInstantiationIT skipped=0 hard gate"
         if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'
         run: |

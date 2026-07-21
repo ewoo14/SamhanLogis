@@ -414,7 +414,7 @@ aws rds restore-db-instance-to-point-in-time \
 | M-17 | terraform.tfvars `route53_zone_id` 에 사전 위임된 Hosted Zone ID 입력 | 단계 1 전 |
 | M-18 | AWS S3 access/secret key 실값 수동 주입 (`samhan/production/s3-access-key`, `samhan/production/s3-secret-key`) | 단계 0-D |
 | M-19 | slip-service 가격기억 fail-soft prod 감지 확인 (#809 — slip-service awslogs driver 직접 전달(선행 조건) + Terraform metric filter 2건/alarm 2건 + **양성 도달 검사**, 아래 "M-19 상세" 참조) | 단계 3 후 |
-| M-20 | partner-order-service 전표 발행 outbox 영구실패 prod 알람 감지 확인 (#854 — partner-order-service awslogs driver 직접 전달(선행 조건) + Terraform metric filter 1건/alarm 1건 + **양성 도달 검사**, 아래 "M-20 상세" 참조) | 단계 3 후 |
+| M-20 | partner-order-service 전표 발행 outbox 상태 게이지 prod 알람 감지 확인 (#863 — Micrometer CloudWatch 게이지 3종 + missing-data breaching + FAILED_PERMANENT 로그 기반 보조 알람 1(#863 R1 BLOCKING-2 복원) + **양성 도달 검사**, 아래 "M-20 상세" 참조) | 단계 3 후 |
 
 ### M-19 상세 — 가격기억 upsert 실패 prod 알람 이식 (#809)
 
@@ -518,7 +518,62 @@ aws cloudwatch describe-alarm-history \
 없으면 `aws logs tail` 이 비어 있는 것이 정상이며, ④ 통과 후에는 인위 출력을
 반복 생성하지 않는다.
 
-### M-20 상세 — partner-order 전표 발행 outbox 영구실패 prod 알람 이식 (#854)
+### M-20 상세 — partner-order 전표 발행 outbox 상태 게이지 prod 알람 (#863, R1 fix로 갱신)
+
+`#863`에서 M-20의 알람 1차 진실원을 로그에서 상태로 전환했다. production
+`partner-order-service`의 Micrometer CloudWatch registry(#863 R1 BLOCKING-1 —
+`config/CloudWatchMetricsConfig.java` 수동 배선. Spring Boot 3.x는 CloudWatch metrics export를
+자동설정한 적이 없어 이 클래스 없이는 `application.yml`의 `management.metrics.export.cloudwatch.*`
+가 완전한 무효 설정이었다)가 다음 custom metric을 `SamhanLogis/PartnerOrder` namespace로 60초마다
+전송한다.
+
+| metric | CloudWatch period(초) | Prometheus `for:` | 양성 도달 의미 |
+|---|---:|---:|---|
+| `outbox_pending_depth` | 600(Minimum) | 10m(600초) | PENDING/PROCESSING 상태가 scheduler 두 주기 동안 **지속**(Minimum 통계 — Maximum이면 순간 1건도 ALARM이 돼 "지속" 의미가 깨진다, #863 R1 H-3) |
+| `outbox_oldest_pending_age_seconds` | 300(Maximum) | 5m(300초) | 24시간 retry 상한 4시간 전(72000초)의 미처리 행 — 원래 86100초는 24시간 종결 순간과 겹쳐 firing에 도달하지 못했다(#863 R1 H-2) |
+| `outbox_scheduler_heartbeat_seconds` | 300(Maximum) | **1m(60초)** | scheduler tick이 두 주기 이상 없음 |
+
+> ⚠️ 위 "CloudWatch period"와 "Prometheus `for:`"는 서로 다른 메커니즘이라 값이 다를 수 있다
+> (`outbox_scheduler_heartbeat_seconds`가 CloudWatch period=300 인데 Prometheus `for:1m`인 것이
+> 그 예다). `services/partner-order-service/README.md`·dev-report에 이 heartbeat 행의 "지속
+> 시간"을 300초로 잘못 적은 곳이 있었다 — 실제 alert 룰(`infrastructure/prometheus/rules/
+> partner-order-outbox.yml`)의 `for:`는 1분이다(#863 R1 MED, 두 문서 정정).
+
+`oldest_pending_age`의 `threshold=72000`은 `max-retry-hours(24h=86400초) - 4시간(14400초)`로
+계산했으며(#863 R1 H-2 정정 — 원래 `86400-300=86100`은 5분 `for:`와 결합 시 firing 시점이
+`expireIfExhausted`가 행을 종결시키는 바로 그 순간이라 실질 lead time이 0이었다), 나머지
+임계값도 scheduler 주기 300초에서 도출했다. 세 알람은 `TreatMissingData=breaching`으로 선언되어
+metric 전송 중단도 놓치지 않는다.
+
+**FAILED_PERMANENT 보조 알람** — 위 게이지 3종은 전부 PENDING/PROCESSING만 집계해 FAILED 전이
+자체를 구조적으로 볼 수 없다(전이 즉시 집합 이탈). `${local.name_prefix}-partner-order-outbox-
+failed-permanent` 알람(아래 "M-20 부속 — FAILED_PERMANENT 로그 기반 보조 알람" 절차 참조)이 이
+공백을 보조로 메운다 — #863 최초 구현이 이 알람을 대체 없이 삭제했다가 #863 R1 BLOCKING-2로
+복원했다.
+
+> ⚠️ **정직 한계 (2026-07-21)**: 현재 워크트리에서는 production 배포 권한과 실제
+> EC2/CloudWatch 데이터가 없으므로 라이브 양성 도달은 미확증이다. cutover 시 아래
+> 절차로 metric 존재와 `OK→ALARM→OK` 전이를 확인하기 전에는 알람 실효를 확정하지 않는다.
+
+```bash
+# [운영자 PC] Terraform이 선언한 네 metric과 alarm을 확인한다(게이지 3 + FAILED_PERMANENT 보조 1).
+aws cloudwatch list-metrics --namespace SamhanLogis/PartnerOrder \
+  --dimensions Name=application,Value=partner-order-service
+aws cloudwatch describe-alarms --alarm-name-prefix samhanlogis-production-partner-order-outbox-
+
+# [EC2 SSM] 애플리케이션 scrape 대신 production exporter의 양성 도달을 확인한다.
+# 1) pending 행을 만드는 실제 업무 흐름을 수행하고 outbox 상태를 조회한다.
+# 2) CloudWatch get-metric-data에서 pending_depth > 0 및 oldest age 상승을 확인한다.
+# 3) scheduler 프로세스를 중지한 뒤 heartbeat_seconds > 600을 확인한다.
+# 4) scheduler를 복구하고 세 metric이 정상값으로 돌아오는지 확인한다.
+# 합성 stdout echo는 게이지 3종의 증거로 인정하지 않는다(FAILED_PERMANENT 보조 알람만 로그 경로 —
+# 아래 절차 참조).
+```
+
+아래 "M-20 부속" 절차는 FAILED_PERMANENT 보조 알람(위 표 아래 문단) 전용 검증이며, `#863 R1
+BLOCKING-2` 복원으로 다시 M-20의 정식 완료 조건이 됐다 — 더 이상 역사적 참고가 아니다.
+
+### M-20 부속 — FAILED_PERMANENT 로그 기반 보조 알람 (#854 도입, #863 R1 BLOCKING-2 복원)
 
 dev 로컬 스택은 Prometheus rule `PartnerOrderSlipPublishTerminalFailure`
 (`infrastructure/prometheus/rules/partner-order-outbox.yml`) 가 outbox terminal 전이를
@@ -638,7 +693,7 @@ aws cloudwatch describe-alarm-history \
 | `infrastructure/terraform/route53.tf` | samhan-air.com 8 subdomain |
 | `infrastructure/terraform/arologis.tf` | 아로로지스 3 subdomain |
 | `infrastructure/terraform/lambda.tf` | Health Check Lambda (Tier 3) |
-| `infrastructure/terraform/monitoring.tf` | CloudWatch 알람 11종(기반 8 + slip 가격기억 2 + partner-order outbox 1) + Dashboard |
+| `infrastructure/terraform/monitoring.tf` | CloudWatch 알람 14종(기반 8 + slip 가격기억 2 + partner-order outbox 상태 게이지 3 + FAILED_PERMANENT 보조 1, #863 R1 BLOCKING-2 복원) + Dashboard |
 | `infrastructure/terraform/s3.tf` | samhan-attachments / samhan-logs |
 | `infrastructure/terraform/iam.tf` | EC2 Role + Lambda Role |
 | `infrastructure/terraform/variables.tf` | 입력 변수 정의 |

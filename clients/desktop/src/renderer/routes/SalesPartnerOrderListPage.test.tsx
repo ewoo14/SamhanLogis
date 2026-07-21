@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -125,4 +125,90 @@ describe('SalesPartnerOrderListPage 전표 발행 상태 배지', () => {
     expect(screen.queryByTestId('partner-order-row-slip-publish-status-2026/05/31-8')).toBeNull()
     expect(screen.queryByTestId('partner-order-row-slip-publish-status-2026/05/31-9')).toBeNull()
   })
+
+  it('실패 건수 배너는 0건이 아니면 표시되고 클릭 시 발행실패 필터를 적용한다', async () => {
+    renderPage()
+
+    const banner = await screen.findByTestId('partner-order-slip-publish-failure-banner')
+    expect(banner.textContent).toContain('발행 실패 4건')
+    expect((screen.getByTestId('partner-order-list-status-filter') as HTMLSelectElement).value).toBe('DRAFT')
+
+    fireEvent.click(banner)
+
+    await waitFor(() => {
+      expect((screen.getByTestId('partner-order-list-slip-publish-filter') as HTMLSelectElement).value).toBe('FAILED')
+      expect((screen.getByTestId('partner-order-list-status-filter') as HTMLSelectElement).value).toBe('')
+    })
+    expect(
+      mocks.listPartnerOrders.mock.calls.some(([, , filters]) => filters?.slipPublishStatus === 'FAILED'),
+    ).toBe(true)
+  })
+
+  // #863 R1 H-6: failedCountQuery는 partnerId/searchKeyword와 무관한 전역 집계인데, 배너 클릭이
+  // 기존 거래처/검색어 필터를 초기화하지 않으면 "발행 실패 4건" 배너 바로 아래 "등록된 주문이
+  // 없습니다"가 뜨는 모집단 불일치가 발생했다. 배너 클릭이 두 필터를 함께 초기화하는지 검증한다.
+  it('H-6: 거래처 필터가 걸린 상태에서 배너를 클릭하면 거래처/검색어 필터가 함께 초기화된다', async () => {
+    renderPage()
+
+    const partnerFilter = (await screen.findByTestId(
+      'partner-order-list-partner-filter',
+    )) as HTMLInputElement
+    const keywordFilter = screen.getByTestId('partner-order-list-keyword-filter') as HTMLInputElement
+    fireEvent.change(partnerFilter, { target: { value: '9999999999' } })
+    fireEvent.change(keywordFilter, { target: { value: '무관한 검색어' } })
+    expect(partnerFilter.value).toBe('9999999999')
+    expect(keywordFilter.value).toBe('무관한 검색어')
+
+    const banner = await screen.findByTestId('partner-order-slip-publish-failure-banner')
+    fireEvent.click(banner)
+
+    await waitFor(() => {
+      expect((screen.getByTestId('partner-order-list-slip-publish-filter') as HTMLSelectElement).value).toBe('FAILED')
+    })
+    // 배너는 전역 집계를 약속하므로 클릭 시 거래처/검색어 필터를 비워 같은 모집단을 보여줘야 한다.
+    expect(partnerFilter.value).toBe('')
+    expect(keywordFilter.value).toBe('')
+    // 필터가 비워진 채로 목록 쿼리가 다시 나갔는지(마지막 호출 기준) 확인한다.
+    const lastCall = mocks.listPartnerOrders.mock.calls.at(-1)
+    expect(lastCall?.[2]?.partnerId).toBeUndefined()
+    expect(lastCall?.[2]?.searchKeyword).toBeUndefined()
+  })
+})
+
+// #863 R1 MED: failedCountQuery 실패를 무음(totalElements ?? 0 === 0)으로 삼키면 "발행 실패 0건"
+// 처럼 보여 이 슬라이스가 없애려던 false-negative(실패인데 정상으로 보임)를 재현한다.
+describe('SalesPartnerOrderListPage 발행실패 건수 조회 실패', () => {
+  beforeEach(() => {
+    mocks.listPartnerOrders.mockReset()
+    mocks.listPartnerOrders.mockImplementation(
+      (_page: number, _size: number, filters?: { slipPublishStatus?: string }) => {
+        if (filters?.slipPublishStatus === 'FAILED') {
+          return Promise.reject(new Error('네트워크 오류'))
+        }
+        return Promise.resolve({
+          content: [],
+          totalElements: 0,
+          totalPages: 0,
+          number: 0,
+          size: 50,
+          first: true,
+          last: true,
+        })
+      },
+    )
+  })
+
+  it('실패 건수 조회가 에러면 배너 대신 에러 안내를 표시하고, "발행 실패 0건"으로 보이지 않는다', async () => {
+    renderPage()
+
+    // failedCountQuery는 retry:1이라 React Query 기본 backoff(~1초)만큼 재시도 후에야 isError가
+    // true로 확정된다 — testing-library 기본 findBy 타임아웃(1000ms)보다 넉넉히 잡는다.
+    const errorBanner = await screen.findByTestId(
+      'partner-order-slip-publish-failure-count-error',
+      {},
+      { timeout: 5000 },
+    )
+    expect(errorBanner.textContent).toContain('발행 실패 건수를 확인하지 못했습니다')
+    expect(screen.queryByTestId('partner-order-slip-publish-failure-banner')).toBeNull()
+  }, 10_000)
 })
