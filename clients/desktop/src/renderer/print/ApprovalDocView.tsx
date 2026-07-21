@@ -144,7 +144,22 @@ function ApprovalDocViewLayout({
     && Number.isInteger(approval.documentTemplateRevision)
     && (approval.documentTemplateRevision ?? 0) > 0,
   )
-  const shouldShowUnpinnedNotice = approval?.status === 'APPROVED' && !hasPinnedLayout
+  // docType이 아예 없는 문서(구식/독립형 결재)는 "레이아웃 pin" 개념 자체가 적용되지 않으므로
+  // 고지 대상에서 제외한다(FABLE5 R1 LOW — docType=null 문서에 부정확한 고지 노출 금지).
+  const shouldShowUnpinnedNotice = approval?.status === 'APPROVED' && Boolean(docType) && !hasPinnedLayout
+  // pin은 있는데(승인 당시 각인은 성공) revision 조회 자체가 실패/malformed인 경우 — 무고지로
+  // DEFAULT에 강하하면 감사·법정 문서가 제3의 외형으로 조용히 인쇄된다(FABLE5 R1 H-2).
+  // isSuccess && data===null은 malformed 응답(파싱 실패)도 포함해 동일하게 고지한다.
+  const shouldShowPinFetchFailedNotice = approval?.status === 'APPROVED' && hasPinnedLayout && (
+    documentTemplateQuery.isError
+    || (documentTemplateQuery.isSuccess && documentTemplateQuery.data == null)
+  )
+
+  /** pin revision 조회 실패 후 사용자가 직접 재시도할 수 있는 경로(H-2 — 무고지 강하 금지). */
+  const handleRetryPinnedLayout = () => {
+    setLayoutDecided(false)
+    void documentTemplateQuery.refetch()
+  }
 
   useEffect(() => {
     if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
@@ -188,8 +203,23 @@ function ApprovalDocViewLayout({
   return (
     <>
       {shouldShowUnpinnedNotice && (
-        <div className="approval-reprint-unpinned-notice" role="status" data-testid="approval-reprint-unpinned-notice">
+        <div
+          className="approval-reprint-unpinned-notice no-print"
+          role="status"
+          data-testid="approval-reprint-unpinned-notice"
+        >
           승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다.
+        </div>
+      )}
+      {shouldShowPinFetchFailedNotice && (
+        <div
+          className="approval-reprint-pin-failed-notice no-print"
+          role="alert"
+          data-testid="approval-reprint-pin-failed-notice"
+        >
+          승인 당시 레이아웃 조회에 실패해 현재 양식으로 대신 표시됩니다. 실제 승인 당시
+          양식과 다를 수 있습니다.{' '}
+          <button type="button" onClick={handleRetryPinnedLayout}>다시 시도</button>
         </div>
       )}
       <DocumentRenderer

@@ -10261,14 +10261,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /groupware/document-templates/{templateId}/revisions/{revision} — 승인 재인쇄용 이력.
+  // 과거(superseded) revision은 MOCK_DOCUMENT_TEMPLATE_REVISION_HISTORY 에서, 현재 활성
+  // revision은 MOCK_DOCUMENT_TEMPLATES(active map)에서 찾는다 — 실 BE의
+  // "document_template_revisions 이력 + document_templates 현재 상태" 구조와 동형(DS-3a).
   const documentTemplateRevisionMatch = url.match(
     /\/groupware\/document-templates\/([^/?]+)\/revisions\/(\d+)(?:\?.*)?$/,
   )
   if (method === 'GET' && documentTemplateRevisionMatch) {
     const templateId = decodeURIComponent(documentTemplateRevisionMatch[1]!)
     const revision = Number(documentTemplateRevisionMatch[2])
-    const template = Object.values(MOCK_DOCUMENT_TEMPLATES)
+    const template = MOCK_DOCUMENT_TEMPLATE_REVISION_HISTORY
       .find((candidate) => candidate.id === templateId && candidate.revision === revision)
+      ?? Object.values(MOCK_DOCUMENT_TEMPLATES)
+        .find((candidate) => candidate.id === templateId && candidate.revision === revision)
     return envelope(template
       ? {
           templateId: template.id,
@@ -15189,7 +15194,86 @@ const MOCK_DOCUMENT_TEMPLATES: Record<string, MockDocumentTemplateDto> = {
       ],
     },
   },
+  // #845 DS-3a 재인쇄 pin mock 회귀(FABLE5 R1 M-1) — 이 docType은 "관리자가 양식을 수정한
+  // 뒤"의 현재 활성(rev2) 상태를 나타낸다. rev1(수정 전) 본문은
+  // MOCK_DOCUMENT_TEMPLATE_REVISION_HISTORY 에 별도로 시드해, 승인 당시 pin 이 각인된
+  // 결재문서(아래 approvalId ...0004)를 재인쇄하면 이 활성 rev2 가 아니라 그 이력에서
+  // 조회된 rev1 이 렌더돼야 한다는 것을 실제 DOM 렌더 차이로 구별할 수 있게 한다.
+  GROUPWARE_QA_DS3A_PIN: {
+    id: '77777777-ffff-4fff-8fff-000000000001',
+    status: 'ACTIVE',
+    revision: 2,
+    docType: 'GROUPWARE_QA_DS3A_PIN',
+    name: '[Mock] DS-3a pin v2(수정본)',
+    schemaVersion: 1,
+    document: {
+      paper: 'A4_PORTRAIT',
+      bands: [
+        {
+          key: 'qa-pin-v2-header',
+          kind: 'HEADER',
+          elements: [
+            { key: 'qa-pin-v2-title', type: 'TITLE' },
+            { key: 'qa-pin-v2-grid', type: 'APPROVAL_GRID' },
+          ],
+        },
+        {
+          key: 'qa-pin-v2-body',
+          kind: 'BODY',
+          elements: [{ key: 'qa-pin-v2-content', type: 'CONTENT_PARAGRAPHS' }],
+        },
+        {
+          key: 'qa-pin-v2-footer',
+          kind: 'FOOTER',
+          elements: [{ key: 'qa-pin-v2-closing', type: 'CLOSING' }],
+        },
+      ],
+    },
+  },
 }
+
+/**
+ * #845 DS-3a 재인쇄 pin mock 회귀(FABLE5 R1 M-1) — 활성 양식으로 대체되기 전(superseded)
+ * revision 이력. 실 BE의 `document_template_revisions` append-only 이력 테이블과 동형이다.
+ * 현재 활성(rev2) 은 MOCK_DOCUMENT_TEMPLATES 가 이미 반환하므로 여기엔 rev1(수정 전)만
+ * 시드한다. rev1 은 META_ROWS+FIELD_TABLE 이 있고 CONTENT_PARAGRAPHS 가 없어, rev2(반대
+ * 구성)와 렌더 DOM 이 pairwise 로 구별된다(라이브QA real-qa 하네스의 V1_PAYLOAD/V2_PAYLOAD
+ * 구별출력 설계와 동형 — presence-only 단언 금지 원칙).
+ */
+const MOCK_DOCUMENT_TEMPLATE_REVISION_HISTORY: MockDocumentTemplateDto[] = [
+  {
+    id: '77777777-ffff-4fff-8fff-000000000001',
+    status: 'ACTIVE',
+    revision: 1,
+    docType: 'GROUPWARE_QA_DS3A_PIN',
+    name: '[Mock] DS-3a pin v1(수정 전)',
+    schemaVersion: 1,
+    document: {
+      paper: 'A4_PORTRAIT',
+      bands: [
+        {
+          key: 'qa-pin-v1-header',
+          kind: 'HEADER',
+          elements: [
+            { key: 'qa-pin-v1-title', type: 'TITLE' },
+            { key: 'qa-pin-v1-meta', type: 'META_ROWS' },
+            { key: 'qa-pin-v1-grid', type: 'APPROVAL_GRID' },
+          ],
+        },
+        {
+          key: 'qa-pin-v1-body',
+          kind: 'BODY',
+          elements: [{ key: 'qa-pin-v1-fields', type: 'FIELD_TABLE' }],
+        },
+        {
+          key: 'qa-pin-v1-footer',
+          kind: 'FOOTER',
+          elements: [{ key: 'qa-pin-v1-closing', type: 'CLOSING' }],
+        },
+      ],
+    },
+  },
+]
 
 const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
   {
@@ -15295,6 +15379,69 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
         approverName: '김기철',
         status: 'APPROVED',
         decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T14:00:00`,
+        reason: null,
+      },
+    ],
+  },
+  // #845 DS-3a 재인쇄 pin mock 회귀(FABLE5 R1 M-1) — 승인 당시(rev1) 각인 문서.
+  // GROUPWARE_QA_DS3A_PIN 의 현재 활성은 rev2(위 MOCK_DOCUMENT_TEMPLATES)이므로, 이 결재를
+  // 재인쇄했을 때 활성 rev2 가 아니라 각인된 rev1(MOCK_DOCUMENT_TEMPLATE_REVISION_HISTORY)
+  // 이 렌더되면 pin 분기가 실제로 실행됐다는 증거다 — "590 passed" 가 이 분기를 한 번도
+  // 태우지 않았던 dead code 갭을 메운다.
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000004',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-4`,
+    requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
+    title: '[QA] DS-3a 재인쇄 pin 검증 — 양식 수정 전 승인',
+    content: 'DS-3a 재인쇄 pin mock 회귀 게이트용 승인 완료 문서. 문서 양식이 이후 수정되어도 재인쇄는 승인 당시(v1) 외형을 유지해야 한다.',
+    templateId: null,
+    templateName: null,
+    documentType: 'GROUPWARE_QA_DS3A_PIN',
+    documentTemplateId: '77777777-ffff-4fff-8fff-000000000001',
+    documentTemplateRevision: 1,
+    fieldValues: {},
+    status: 'APPROVED',
+    steps: [
+      {
+        sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
+        status: 'APPROVED',
+        decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T09:00:00`,
+        reason: null,
+      },
+    ],
+  },
+  // #845 DS-3a 재인쇄 pin mock 회귀(FABLE5 R1 M-1) — 같은 docType(GROUPWARE_QA_DS3A_PIN)의
+  // 무pin 대조군. documentTemplateId/Revision 이 둘 다 null이라 "현재 ACTIVE(rev2) fallback +
+  // 미pin 고지 배너" 경로(D-DS3A-03)를 실제로 태운다. 위 ...0004(pin 있음)와 대조해 pin
+  // 유무에 따라 렌더가 실제로 갈라짐을 같은 docType 안에서 증명한다.
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000005',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-5`,
+    requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
+    title: '[QA] DS-3a 재인쇄 pin 검증 — 무pin 대조군',
+    content: 'DS-3a 재인쇄 pin mock 회귀 게이트용 무pin 대조군 문서. 각인이 없으므로 현재 활성(v2) 외형과 고지 배너가 함께 표시돼야 한다.',
+    templateId: null,
+    templateName: null,
+    documentType: 'GROUPWARE_QA_DS3A_PIN',
+    documentTemplateId: null,
+    documentTemplateRevision: null,
+    fieldValues: {},
+    status: 'APPROVED',
+    steps: [
+      {
+        sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
+        status: 'APPROVED',
+        decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T09:30:00`,
         reason: null,
       },
     ],

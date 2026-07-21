@@ -126,6 +126,10 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         });
         lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of());
         approvalLineRepository.deleteAll();
+        // FABLE5 R1 PM disposition: document_template_revisions의 BEFORE UPDATE OR DELETE trigger는
+        // append-only를 강제하지만 TRUNCATE에는 발화하지 않는다 — 이 TRUNCATE는 그 append-only 보장을
+        // 우회해 IT 픽스처를 리셋한다(앱 경로에는 TRUNCATE가 없어 위협모델 밖). TRUNCATE 가드 자체는
+        // 이 IT 리셋과 충돌해 PM이 별건으로 이월했다.
         jdbcTemplate.execute("TRUNCATE TABLE document_template_revisions, document_templates RESTART IDENTITY CASCADE");
         messageRepository.deleteAll();
         scheduleRepository.deleteAll();

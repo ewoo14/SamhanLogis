@@ -85,6 +85,12 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     @BeforeEach
     void setUp() {
         // revision 이력은 운영 transaction에서 삭제하지 않는다. IT 격리 fixture만 TRUNCATE로 초기화한다.
+        // FABLE5 R1 PM disposition: BEFORE UPDATE OR DELETE trigger는 append-only를 강제하지만
+        // TRUNCATE에는 발화하지 않는다(row-level trigger의 정의상 한계) — 이 TRUNCATE는 그 append-only
+        // 보장을 우회한다. 앱 경로에는 TRUNCATE가 없어 위협모델은 관리자 권한 수준으로 한정되므로,
+        // TRUNCATE 가드(BEFORE TRUNCATE ... FOR EACH STATEMENT)는 이 IT 리셋과 충돌해 PM이 별건으로
+        // 이월했다 — "DB가 append-only를 강제한다"는 표현은 UPDATE/DELETE에 한정된 것이지 TRUNCATE까지
+        // 포함하는 게 아니다.
         jdbcTemplate.execute("TRUNCATE TABLE document_template_revisions, document_templates RESTART IDENTITY CASCADE");
         repository.deleteAll();
         repository.flush();
@@ -95,6 +101,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     @AfterEach
     void tearDown() {
+        // 이 TRUNCATE도 setUp()과 동일하게 append-only trigger(UPDATE/DELETE 전용)를 우회한다.
         jdbcTemplate.execute("TRUNCATE TABLE document_template_revisions, document_templates RESTART IDENTITY CASCADE");
         repository.deleteAll();
         repository.flush();

@@ -1951,6 +1951,48 @@ button {
   font-size: var(--font-size-sm);
 }
 
+/*
+ * #845 DS-3a 결재 재인쇄 pin 고지 — FABLE5 R1 H-1.
+ * 화면 전용(각 규칙 no-print 클래스 병기로 인쇄 출력 불변 유지 — DS-1 strangler 불변식).
+ * 실제 토큰값 기준 AA 대비 실측(var(--token, fallback)은 토큰 정의 시 fallback이 아닌
+ * 토큰값이 렌더되므로 fallback이 아닌 실값으로 계산 — [[feedback_css_var_token_not_fallback]]):
+ *   - 미pin 고지: --color-warning-800(#8C5C13) on --color-warning-50(#FEF6E7) = 5.35:1
+ *   - pin 조회 실패 고지: --color-danger-800(#7F1D1D) on --color-danger-50(#FFF1F1) = 9.12:1
+ * 둘 다 WCAG AA 본문 텍스트 기준(4.5:1) 충족.
+ */
+.approval-reprint-unpinned-notice {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-warning-300);
+  background: var(--color-warning-50);
+  color: var(--color-warning-800);
+  font-size: var(--font-size-sm);
+}
+
+.approval-reprint-pin-failed-notice {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-danger-300);
+  background: var(--color-danger-50);
+  color: var(--color-danger-800);
+  font-size: var(--font-size-sm);
+}
+
+.approval-reprint-pin-failed-notice button {
+  margin-left: 4px;
+  padding: 2px 10px;
+  border-radius: 4px;
+  /* --color-neutral-0 는 다크테마에서 반전(백↔흑)되어 danger-800 텍스트와 대비가 무너지므로
+     쓰지 않는다 — 배너와 동일한 danger-50/800 쌍(라이트/다크 불변)을 그대로 재사용한다. */
+  border: 1px solid var(--color-danger-800);
+  background: var(--color-danger-50);
+  color: var(--color-danger-800);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
 /* ==========================================================================
    Print views — 거래명세서 / 작업지시서.
    화면(스크린)에서는 A4 미리보기 박스. 인쇄 시 사이드바/헤더 숨기고 양식만 출력.

@@ -47,9 +47,17 @@
 | ⒜ 승인 문서에 `document` JSONB **전체 스냅샷** 각인 | 무결성은 확실하나, 문서 건수만큼 최대 64KB JSONB 를 복제 |
 | **⒝ 템플릿 revision 이력 테이블 + `(templateId, revision)` 참조 각인** ✅ | 채택 |
 
-**채택 근거**: 현행 `DocumentTemplate.updateDocument()` 는 **in-place 교체 + `revision++`** 이라 과거 revision 본문을 보존하지 않는다. 즉 **참조만 각인하면 pin 이 조용히 깨진다**(정찰이 실코드로 확인). 이력을 남기면 참조 각인으로 무결성이 충족되고, 문서마다 본문을 복제하지 않아도 되며, 템플릿이 soft-delete 되어도 이력 행이 살아 있어 재인쇄가 가능하다.
+**채택 근거**: 현행 `DocumentTemplate.updateDocument()` 는 **in-place 교체 + `revision++`** 이라 과거 revision 본문을 보존하지 않는다. 즉 **참조만 각인하면 pin 이 조용히 깨진다**(정찰이 실코드로 확인). ⚠️ 이 논거는 **'이력 없는 참조각인'을 배제하는 논거이지 스냅샷(⒜) 자체를 배제하는 논거가 아니다** — 스냅샷도 참조각인과 마찬가지로 이력 없이 pin이 깨지는 문제와 무관하다(FABLE5 R1 M-3 지적). 이력을 남기면 참조 각인으로 무결성이 충족되고, 문서마다 본문을 복제하지 않아도 되며, 템플릿이 soft-delete 되어도 이력 행이 살아 있어 재인쇄가 가능하다.
 
 **불변식**: 이력 행은 **append-only — 수정·삭제 금지.** 회계 원장 수정금지 정신을 그대로 적용한다([[project_accounting_ledger_edit_policy]]).
+
+> 🚨 **FABLE5 R1 재검토 — 결론(이력 테이블 채택)은 유지, 단 근거를 교체한다.**
+> 기획 리뷰 단계에서 두 대안을 저장 **비용**(⒜ 전량 스냅샷 복제 vs ⒝ revision당 1회 저장)으로 저울질했으나, 실측 결과(dev-report §2) 승인 20건 × 321 bytes = 전량 스냅샷을 택해도 총 ~6.4KB에 불과해 **이 축은 양방향 모두 무시할 만한 규모라 근거로 성립하지 않는다.** 저장비용이 아닌 아래 5가지가 진짜 근거다.
+> 1. `approval_lines` — 결재 문서 자체를 담는 **핵심 감사 테이블** — 를 JSONB 스냅샷 컬럼 없이 슬림하게 유지한다.
+> 2. **DS-3b(#868) 편집기가 이력·롤백·과거 revision 브라우징 기능을 요구**한다 — 스냅샷 각인 방식으로는 "그 템플릿이 어떻게 변해왔는가"를 결재 문서 쪽에서 역추적할 수 없다.
+> 3. 템플릿 변경 이력 자체가 결재 pin 과 무관하게 **독립적인 감사 가치**를 가진다(누가 언제 양식을 어떻게 바꿨는지).
+> 4. `(template_id, revision)` **복합 FK** 로 dangling pin(존재하지 않는 revision을 가리키는 pin)을 DB 레벨에서 원천 차단한다 — 스냅샷 방식은 무결성 검증이 불가능한 opaque blob이라 이 방어가 성립하지 않는다.
+> 5. pin 각인 시점에 `ensureCurrentRevision` 이 **self-heal**한다(이력이 없으면 그 자리에서 만든다) — 스냅샷 방식엔 이런 지연 보정 여지가 없다.
 
 ### D-DS3A-02 · pin 발효 시점 = **최종 승인 완료(APPROVED 전이) 시점**
 
@@ -62,8 +70,11 @@
 과거 승인 문서에는 pin 정보가 없다. **"그때 무엇이 ACTIVE 였는지" 를 알 수 있는 근거가 시스템에 없으므로 소급 각인은 위조다** ([[feedback_no_fake_data_ever]]).
 
 - NULL 은 정직하게 미pin 으로 두고 현재 ACTIVE 로 렌더한다.
-- 단, 재인쇄 화면에 **"승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다"** 고지를 노출한다(운영자가 외형 차이를 오해하지 않도록).
+- 단, 재인쇄 화면에 **"승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다"** 고지를 노출한다(운영자가 외형 차이를 오해하지 않도록). 이 고지는 **docType 이 있는 문서에만** 적용한다 — docType 자체가 없는 구식/독립형 결재는 "레이아웃 pin" 개념이 성립하지 않으므로 고지 대상이 아니다(FABLE5 R1 LOW 정정 — 최초 구현은 이 구분이 없어 docType=null 문서에도 부정확한 고지가 노출됐다).
 - 대상 건수는 구현 시 **실 DB 실측**해 dev-report 에 기록한다(추정 금지).
+
+> **결정 — ACTIVE-0 창구 승인 시 영구 무pin(FABLE5 R1 PM disposition, 설계 정합으로 수용)**
+> `pinApprovedLayout()` 이 최종 승인 시점에 그 docType 의 ACTIVE 문서 양식을 찾지 못하면(예: 전 양식이 비활성화된 상태에서 승인이 완료됨) pin 은 NULL 로 남는다. 이 슬라이스는 pin 을 **오직 승인 전이 시점 1회**에만 각인하고(반려→재상신 재승인 제외) 사후 배치로 소급 각인하지 않으므로, 이 문서는 **영구적으로 미pin 상태로 고정**된다 — 훗날 어떤 양식이 ACTIVE 로 복귀해도 "그 문서가 승인되던 순간 실제로 ACTIVE 였다"는 근거가 없어 사후 pin 은 위조가 된다(D-DS3A-03 의 소급 각인 금지 원칙과 동일 논리). 완화책은 이미 마련돼 있다 — 위 미pin 고지 배너가 이 경우에도 그대로 노출되어 운영자가 외형 차이를 인지할 수 있다. 별도 코드 변경 없이 **설계 정합으로 수용**한다.
 
 ### D-DS3A-04 · 스키마 버전 변경 없음 — v1 유지
 
@@ -71,14 +82,20 @@
 
 ### D-DS3A-05 · 권한 = 기존 page-code 재사용, 신규 seed 0
 
-- 템플릿 이력 조회: 기존 `groupware.approval-templates` (DFD-07 결정 준수)
-- 재인쇄 조회: 기존 `groupware.approvals` view
+- 관리자 문서 양식 CRUD(`/admin/groupware/document-templates/**`): 기존 `groupware.approval-templates` (DFD-07 결정 준수)
+- **재인쇄용 pin revision 단건 조회(`/groupware/document-templates/{templateId}/revisions/{revision}`): 인증-only, page-code 검사 없음.** 재인쇄 주체는 그 결재 문서를 볼 수 있는 사람(`groupware.approvals` view 보유자)이지 문서 양식을 관리하는 사람(`groupware.approval-templates`)이 아니므로, 별도 page-code 를 새로 만들지 않고 인증 여부만 확인한다.
+  > 🚨 **FABLE5 R1 M-5 정정**: 최초 spec 은 이 줄을 "기존 `groupware.approval-templates` 재사용"으로 잘못 적어 §3 산출물의 "이력 단건 조회 API(인증-only, 재인쇄 전용)"와 상충했다. **구현이 인증-only 를 채택했고 그것이 옳다** — 위 논거대로 spec 을 구현에 맞춰 정정한다.
+- 재인쇄 조회(결재 문서 자체): 기존 `groupware.approvals` view
 - **auth-service 마이그레이션·권한 seed 신규 0건.**
 
-### D-DS3A-06 · 렌더 우선순위
+### D-DS3A-06 · 렌더 우선순위 + 조회 실패 고지
 
 `pin 있음 → 각인된 revision` → `pin 없음 → 현재 ACTIVE` → `조회 실패/malformed → DEFAULT`.
 마지막 DEFAULT 수렴은 DS-2 R2 가 넣은 현행 latch(`ApprovalDocView.tsx:122-148`)를 **그대로 유지**한다.
+
+> 🚨 **FABLE5 R1 H-2 정정 — 이 결정에 "고지" 축이 누락돼 있었다.** 원문은 미pin(D-DS3A-03) 에는 화면 고지를 요구하면서, **pin 은 있는데 그 revision 조회 자체가 실패/malformed 인 경우에는 고지를 정의하지 않았다.** 최초 구현이 이 spec 을 그대로 따른 결과, `retry:false` 설정과 맞물려 일시 5xx 한 번에도 **아무 고지 없이** DEFAULT(제3의 외형)로 조용히 인쇄되는 결함이 발생했다 — 감사·법정 문서가 승인 당시 양식도 현재 양식도 아닌 외형으로 무고지 출력되는 것이라 원 결함(관리자가 양식을 바꾸면 재인쇄가 조용히 바뀜)보다 오히려 퇴행 가능한 경로였다. 이건 구현 결함이 아니라 **이 spec 의 기획 공백이 근본 원인**이다.
+>
+> **정정된 결정**: pin 이 있는데 revision 조회가 실패(네트워크/5xx)하거나 malformed(파싱 실패) 인 경우에도 **반드시 화면에 실패를 드러낸다** — `role="alert"` 고지 + 재시도 경로(사용자가 다시 조회를 트리거할 수 있어야 한다). 무고지 DEFAULT 강하는 금지. 미pin 고지(`role="status"`, 정보성)와 pin-조회-실패 고지(`role="alert"`, 오류성)는 서로 다른 배너로 구분한다(전자는 `!hasPinnedLayout`, 후자는 `hasPinnedLayout && 조회실패` 로 상호 배타적).
 
 ---
 
@@ -111,10 +128,14 @@
 ## 4. 불변식 / anti-false-green
 
 1. 🚨 **핵심 회귀**: *승인 완료 → 템플릿 수정 → 재인쇄* 시 **수정 전 외형**이 나와야 한다.
-   이 테스트는 **pin 로직을 제거하면 반드시 RED** 여야 한다. 이중 방어로 인해 한쪽만 지워도 green 이면 false-green 이므로, **실제로 뮤테이션해 RED 를 실측**할 것 ([[feedback_react_query_freshness_route_param_reset]] 의 "고유 구별출력 단언" 원칙 — presence-only 단언 금지).
+   이 테스트는 **pin 로직을 제거하면 반드시 RED** 여야 한다. 이중 방어로 인해 한쪽만 지워도 green 이면 false-green 이므로, **실제로 뮤테이션해 RED 를 실측**할 것 ([[feedback_react_query_freshness_route_param_reset]] 의 "고유 구별출력 단언" 원칙 — presence-only 단언 금지). 🚨 **FABLE5 R1 M-1 추가**: 이 불변식은 Playwright mock 게이트에서도 **실제로 실행**돼야 한다 — mock 결재 픽스처에 pin 참조(`documentTemplateId`/`documentTemplateRevision`)가 있는 시드가 최소 1건 있어야 하며, 없으면 이 회귀는 mock 게이트에서 dead code(무회귀 신호)가 된다.
 2. 이력 append-only — UPDATE/DELETE 시도가 실제로 차단되는지 IT.
-3. **DS-1 strangler 불변식 유지** — `PrintLayout` 무변경, 골든 17 HTML 회귀 통과.
-4. Playwright mock 게이트 **590 전량 green**(구현자 본인 전량 실행 + 스크린샷 부수효과 원복 2경로: `docs/qa/**` · `clients/desktop/playwright/**/screenshots/**`).
+3. **DS-1 strangler 불변식 유지** — `PrintLayout` 무변경, 골든 **18** HTML 회귀 통과(🚨 FABLE5 R1 정정 — 최초 spec 은 정찰 보고 "골든 17" 을 검증 없이 인용했으나 `clients/desktop/src/renderer/print/__goldens__/*.html` 실측은 18개다).
+4. Playwright mock 게이트 **전량 green**(구현자 본인 전량 실행 + 스크린샷 부수효과 원복 2경로: `docs/qa/**` · `clients/desktop/playwright/**/screenshots/**`). 최초 구현 시점 총 590개였으나, FABLE5 R1 M-1 로 pin 시나리오(`ac-845-ds3a-reprint-pin`) 4건이 추가돼 총 개수가 늘어난다 — **고정된 590 이라는 숫자 자체가 아니라 "그 라운드에 실행된 전량이 green" 이 불변식**이다.
+5. 🚨 **FABLE5 R1 H-1/H-2 추가 — 재인쇄 고지 배너 2종의 불변식**:
+   - 두 배너(미pin `role="status"` · pin 조회 실패 `role="alert"`) 는 **인쇄 출력에 포함되지 않는다**(`no-print`, print 매체 emulate 로 실측). DS-1 strangler 불변식(인쇄 외형 무변경)의 연장.
+   - 두 배너는 실제 정의된 CSS(AA 대비 4.5:1 이상, 실 토큰값 기준 계산)를 가진다 — 무스타일 원시 텍스트 금지.
+   - pin 이 있는데 revision 조회가 실패/malformed 인 경우 **무고지로 DEFAULT 에 강하하지 않는다**(D-DS3A-06).
 
 ---
 
@@ -136,6 +157,7 @@
 - 결재 문서 테이블은 **핵심 감사 테이블**이다. 컬럼 추가 마이그레이션은 fresh Postgres probe 필수.
 - pin 각인 지점이 승인 전이 로직 내부라 **tx 경계**를 잘못 잡으면 승인은 되고 pin 은 누락되는 부분 실패가 가능하다(#854 에서 동형 결함을 이미 겪었다 — self-invocation `@Transactional` 우회).
 - 이력 backfill 시 기존 `document_templates` 행 수를 실측할 것.
+- 🚨 **FABLE5 R1 LOW — 마운트 중 승인 전이 edge(수용, 후속 미분리)**: `ApprovalDocView` 의 layout 결정은 컴포넌트 mount 시 **1회 latch**된다(`layoutDecided`). 재인쇄 화면이 이미 열려 있는 상태에서 그 사이 다른 사용자가 최종 승인을 완료해(→ pin 이 새로 각인됨) `approval` 쿼리가 백그라운드로 새 데이터를 받아오더라도, 이미 결정된 layout 은 재평가되지 않는다(단, 배너 노출 여부는 `approval` 최신 데이터로 매 렌더 재계산되므로 텍스트 고지 자체는 갱신될 수 있다). 실제 저장된 pin 값은 정확하며, 화면을 새로고침/재진입하면 새 mount 가 다시 latch 해 정확히 반영된다 — **깨지는 것은 이미 열려 있던 tab 의 표시뿐, 영속 데이터가 아니다.** 발생 조건이 좁고(재인쇄 화면을 미리 열어둔 채 최종 승인이 그 사이 완료돼야 함) 완화책(재진입)이 이미 존재하므로, 이번 슬라이스에서는 **현행 latch 설계를 그대로 수용**하고 별도 fix/후속 이슈로 분리하지 않는다.
 
 ## 7. 범위 밖 (명시적 제외)
 

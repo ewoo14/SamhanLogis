@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React, { useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -184,6 +184,62 @@ describe('ApprovalDocView renderer transition', () => {
     )
     expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.revision).toBe(9)
   })
+
+  it('docType이 없는 승인 완료 문서에는 미pin 고지를 노출하지 않는다(레이아웃 개념 자체가 없는 구식/독립형 결재)', async () => {
+    const resolvedApproval = approval({ documentType: null, templateId: null, status: 'APPROVED' })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+
+    renderView(queryClient(), '/groupware/approvals/approval-id/print')
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    expect(screen.queryByTestId('approval-reprint-unpinned-notice')).toBeNull()
+  })
+
+  it('pin revision 조회가 실패하면 무고지 DEFAULT 대신 alert 고지 + 재시도 버튼을 보여준다', async () => {
+    const resolvedApproval = approval({
+      documentType: 'GROUPWARE_PIN_FETCH_FAILED',
+      documentTemplateId: 'layout-template-id',
+      documentTemplateRevision: 3,
+    })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findDocumentTemplateRevision.mockRejectedValue(new Error('revision fetch failed'))
+
+    renderView(queryClient(), '/groupware/approvals/approval-id/print')
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    // 무고지 강하 금지(H-2) — DEFAULT로 내려가되 alert 고지가 반드시 함께 떠야 한다.
+    expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.docType).toBe('GROUPWARE_DEFAULT')
+    const notice = screen.getByTestId('approval-reprint-pin-failed-notice')
+    expect(notice.getAttribute('role')).toBe('alert')
+    expect(notice.textContent).toContain('조회에 실패')
+    // 미pin 고지(pin 자체가 없는 경우)와는 상호 배타적이라 동시에 뜨지 않아야 한다.
+    expect(screen.queryByTestId('approval-reprint-unpinned-notice')).toBeNull()
+  })
+
+  it('pin revision 조회 실패 후 재시도가 성공하면 alert 고지가 사라지고 pinned revision을 렌더한다', async () => {
+    const resolvedApproval = approval({
+      documentType: 'GROUPWARE_PIN_RETRY',
+      documentTemplateId: 'layout-template-id',
+      documentTemplateRevision: 2,
+    })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findDocumentTemplateRevision
+      .mockRejectedValueOnce(new Error('revision fetch failed'))
+      .mockResolvedValueOnce(activeLayout('GROUPWARE_PIN_RETRY', 2))
+
+    renderView(queryClient(), '/groupware/approvals/approval-id/print')
+
+    await waitFor(() => expect(screen.getByTestId('approval-reprint-pin-failed-notice')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+
+    await waitFor(() => expect(vi.mocked(DocumentRenderer).mock.calls.at(-1)?.[0]?.template.revision).toBe(2))
+    expect(screen.queryByTestId('approval-reprint-pin-failed-notice')).toBeNull()
+    expect(findDocumentTemplateRevision).toHaveBeenCalledTimes(2)
+  })
+
   it('동일 QueryClient 재마운트에서 cached null을 재사용하지 않고 active layout을 다시 조회한다', async () => {
     const client = queryClient(5 * 60 * 1000)
     const resolvedApproval = approval({ documentType: 'GROUPWARE_CACHE', templateId: null })
