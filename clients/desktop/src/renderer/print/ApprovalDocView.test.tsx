@@ -17,13 +17,23 @@ const mocks = vi.hoisted(() => ({
   listApprovalAttachments: vi.fn(),
   findActiveApprovalTemplate: vi.fn(),
   findActiveDocumentTemplate: vi.fn(),
+  findDocumentTemplateRevision: vi.fn(),
 }))
-const { getGroupwareApproval, listApprovalAttachments, findActiveApprovalTemplate, findActiveDocumentTemplate } = mocks
+const {
+  getGroupwareApproval,
+  listApprovalAttachments,
+  findActiveApprovalTemplate,
+  findActiveDocumentTemplate,
+  findDocumentTemplateRevision,
+} = mocks
 
 vi.mock('../api/groupwareApproval', () => ({ getGroupwareApproval: mocks.getGroupwareApproval }))
 vi.mock('../api/groupwareApprovalAttachment', () => ({ listApprovalAttachments: mocks.listApprovalAttachments }))
 vi.mock('../api/groupwareApprovalTemplate', () => ({ findActiveApprovalTemplate: mocks.findActiveApprovalTemplate }))
-vi.mock('../api/documentTemplate', () => ({ findActiveDocumentTemplate: mocks.findActiveDocumentTemplate }))
+vi.mock('../api/documentTemplate', () => ({
+  findActiveDocumentTemplate: mocks.findActiveDocumentTemplate,
+  findDocumentTemplateRevision: mocks.findDocumentTemplateRevision,
+}))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 vi.mock('./DocumentRenderer', () => ({
   DocumentRenderer: vi.fn(({ backTo }: { backTo?: string }) => (
@@ -42,6 +52,8 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
     templateId: input.templateId ?? 'template-id',
     templateName: null,
     documentType: input.documentType ?? null,
+    documentTemplateId: input.documentTemplateId ?? null,
+    documentTemplateRevision: input.documentTemplateRevision ?? null,
     fieldValues: input.fieldValues ?? { memo: '값' },
     status: input.status ?? 'APPROVED',
     steps: input.steps ?? [],
@@ -127,6 +139,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   findActiveDocumentTemplate.mockReset()
   findActiveDocumentTemplate.mockResolvedValue(null)
+  findDocumentTemplateRevision.mockResolvedValue(null)
   findActiveApprovalTemplate.mockResolvedValue(null)
 })
 
@@ -135,6 +148,42 @@ afterEach(() => {
 })
 
 describe('ApprovalDocView renderer transition', () => {
+  it('승인 완료 문서는 활성 양식이 바뀌어도 각인된 revision을 재인쇄한다', async () => {
+    const resolvedApproval = approval({
+      approvalId: 'pinned-approval',
+      documentType: 'GROUPWARE_PINNED',
+      documentTemplateId: 'layout-template-id',
+      documentTemplateRevision: 4,
+    })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findDocumentTemplateRevision.mockResolvedValue(activeLayout('GROUPWARE_PINNED', 4))
+    findActiveDocumentTemplate.mockResolvedValue(activeLayout('GROUPWARE_PINNED', 9))
+
+    renderView(queryClient(), '/groupware/approvals/pinned-approval/print')
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    const props = vi.mocked(DocumentRenderer).mock.calls[0]?.[0]
+    expect(props?.template.revision).toBe(4)
+    expect(props?.template.docType).toBe('GROUPWARE_PINNED')
+    expect(findDocumentTemplateRevision).toHaveBeenCalledWith('layout-template-id', 4, 'GROUPWARE_PINNED')
+    expect(findActiveDocumentTemplate).not.toHaveBeenCalled()
+  })
+
+  it('pin이 없는 승인 완료 문서는 현재 양식 fallback과 운영자 고지를 함께 표시한다', async () => {
+    const resolvedApproval = approval({ documentType: 'GROUPWARE_UNPINNED', status: 'APPROVED' })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findActiveDocumentTemplate.mockResolvedValue(activeLayout('GROUPWARE_UNPINNED', 9))
+
+    renderView(queryClient(), '/groupware/approvals/approval-id/print')
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('approval-reprint-unpinned-notice').textContent).toBe(
+      '승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다.',
+    )
+    expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.revision).toBe(9)
+  })
   it('동일 QueryClient 재마운트에서 cached null을 재사용하지 않고 active layout을 다시 조회한다', async () => {
     const client = queryClient(5 * 60 * 1000)
     const resolvedApproval = approval({ documentType: 'GROUPWARE_CACHE', templateId: null })
@@ -189,7 +238,7 @@ describe('ApprovalDocView renderer transition', () => {
     getGroupwareApproval.mockResolvedValue(resolvedApproval)
     listApprovalAttachments.mockResolvedValue(attachment())
     const cached = activeLayout('GROUPWARE_PENDING', 1)
-    client.setQueryData(['approval.documentType', 'GROUPWARE_PENDING'], cached)
+    client.setQueryData(['approval.documentLayout', 'approval-id', 'GROUPWARE_PENDING', null, null], cached)
     let resolveFetch!: (value: TemplateEnvelope | null) => void
     findActiveDocumentTemplate.mockReturnValue(new Promise<TemplateEnvelope | null>((resolve) => {
       resolveFetch = resolve
@@ -208,7 +257,7 @@ describe('ApprovalDocView renderer transition', () => {
     const resolvedApproval = approval({ documentType: 'GROUPWARE_ERROR', templateId: null })
     getGroupwareApproval.mockResolvedValue(resolvedApproval)
     listApprovalAttachments.mockResolvedValue(attachment())
-    client.setQueryData(['approval.documentType', 'GROUPWARE_ERROR'], activeLayout('GROUPWARE_ERROR'))
+    client.setQueryData(['approval.documentLayout', 'approval-id', 'GROUPWARE_ERROR', null, null], activeLayout('GROUPWARE_ERROR'))
     findActiveDocumentTemplate.mockRejectedValueOnce(new Error('offline'))
 
     renderView(client)
@@ -286,7 +335,7 @@ describe('ApprovalDocView renderer transition', () => {
     client.setQueryData(['groupware-approval-print-attachments', 'A'], attachment())
     client.setQueryData(['groupware-approval-print-attachments', 'B'], attachment())
     client.setQueryData(
-      ['approval.documentType', 'GROUPWARE_CACHED_SHARED'],
+      ['approval.documentLayout', 'A', 'GROUPWARE_CACHED_SHARED', null, null],
       activeLayout('GROUPWARE_CACHED_SHARED', 1),
     )
     findActiveDocumentTemplate

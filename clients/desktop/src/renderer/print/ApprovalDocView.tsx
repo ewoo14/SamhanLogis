@@ -17,7 +17,7 @@ import { listApprovalAttachments } from '../api/groupwareApprovalAttachment'
 import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
 import { findActiveApprovalTemplate } from '../api/groupwareApprovalTemplate'
 import type { ApprovalTemplate } from '../api/groupwareApprovalTemplate'
-import { findActiveDocumentTemplate } from '../api/documentTemplate'
+import { findActiveDocumentTemplate, findDocumentTemplateRevision } from '../api/documentTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { resolveDocumentTemplate } from './approvalDefaultTemplate'
 import { buildApprovalRenderModel } from './approvalRenderModel'
@@ -111,8 +111,21 @@ function ApprovalDocViewLayout({
   attachmentsError,
 }: ApprovalDocViewLayoutProps) {
   const documentTemplateQuery = useQuery({
-    queryKey: ['approval.documentType', docType],
-    queryFn: () => findActiveDocumentTemplate(docType!),
+    queryKey: [
+      'approval.documentLayout',
+      id,
+      docType,
+      approval?.documentTemplateId ?? null,
+      approval?.documentTemplateRevision ?? null,
+    ],
+    queryFn: () => {
+      const templateId = approval?.documentTemplateId
+      const revision = approval?.documentTemplateRevision
+      if (templateId && typeof revision === 'number' && Number.isInteger(revision) && revision > 0) {
+        return findDocumentTemplateRevision(templateId, revision, docType!)
+      }
+      return findActiveDocumentTemplate(docType!)
+    },
     enabled: Boolean(docType),
     retry: false,
     staleTime: 0,
@@ -126,6 +139,12 @@ function ApprovalDocViewLayout({
     !documentTemplateQuery.isFetching
     && (documentTemplateQuery.isSuccess || documentTemplateQuery.isError)
   )
+  const hasPinnedLayout = Boolean(
+    approval?.documentTemplateId
+    && Number.isInteger(approval.documentTemplateRevision)
+    && (approval.documentTemplateRevision ?? 0) > 0,
+  )
+  const shouldShowUnpinnedNotice = approval?.status === 'APPROVED' && !hasPinnedLayout
 
   useEffect(() => {
     if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
@@ -167,10 +186,17 @@ function ApprovalDocViewLayout({
   const model = buildApprovalRenderModel(renderInput)
 
   return (
-    <DocumentRenderer
-      template={layoutDecision!}
-      model={model}
-      backTo={renderInput.backTo}
-    />
+    <>
+      {shouldShowUnpinnedNotice && (
+        <div className="approval-reprint-unpinned-notice" role="status" data-testid="approval-reprint-unpinned-notice">
+          승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다.
+        </div>
+      )}
+      <DocumentRenderer
+        template={layoutDecision!}
+        model={model}
+        backTo={renderInput.backTo}
+      />
+    </>
   )
 }

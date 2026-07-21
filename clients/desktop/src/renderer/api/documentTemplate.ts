@@ -17,6 +17,13 @@ interface DocumentTemplateDto {
   document: unknown
 }
 
+interface DocumentTemplateRevisionDto {
+  templateId: string
+  revision: number
+  schemaVersion: number
+  document: unknown
+}
+
 export interface DocumentTemplateInput {
   docType: string
   name: string
@@ -48,6 +55,33 @@ export async function findActiveDocumentTemplate(docType: string): Promise<Templ
     { params: { docType } },
   )
   return normalize(res.data.data, docType, true)
+}
+
+/** 승인 완료 시 각인된 layout revision을 조회한다. 조회 실패는 호출자가 DEFAULT로 수렴시킨다. */
+export async function findDocumentTemplateRevision(
+  templateId: string,
+  revision: number,
+  docType: string,
+): Promise<TemplateEnvelope | null> {
+  const res = await apiClient.get<ApiEnvelope<DocumentTemplateRevisionDto>>(
+    `/groupware/document-templates/${encodeURIComponent(templateId)}/revisions/${revision}`,
+  )
+  const dto = res.data.data
+  if (
+    !dto
+    || dto.templateId !== templateId
+    || dto.revision !== revision
+    || !Number.isInteger(dto.schemaVersion)
+  ) return null
+  return normalize({
+    id: templateId,
+    status: 'ACTIVE',
+    revision: dto.revision,
+    docType,
+    name: '승인 당시 문서 양식',
+    schemaVersion: dto.schemaVersion,
+    document: dto.document,
+  }, docType, true)
 }
 
 export async function listDocumentTemplates(): Promise<TemplateEnvelope[]> {

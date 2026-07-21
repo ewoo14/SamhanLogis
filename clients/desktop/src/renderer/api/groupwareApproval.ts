@@ -52,6 +52,8 @@ export interface ApprovalLineAdminResponse {
   templateId: string | null
   templateName: string | null
   documentType: string | null
+  documentTemplateId?: string | null
+  documentTemplateRevision?: number | null
   fieldValues: Record<string, string>
   status: ApprovalStatus
   steps: ApprovalStepView[]

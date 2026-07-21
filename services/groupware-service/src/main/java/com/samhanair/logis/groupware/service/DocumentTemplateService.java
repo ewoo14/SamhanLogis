@@ -29,6 +29,7 @@ public class DocumentTemplateService {
     private static final String RESERVED_GROUPWARE_DEFAULT = "GROUPWARE_DEFAULT";
 
     private final DocumentTemplateRepository repository;
+    private final DocumentTemplateRevisionService revisionService;
     private final DocumentPayloadValidator validator;
     private final ObjectMapper objectMapper;
 
@@ -71,7 +72,9 @@ public class DocumentTemplateService {
         DocumentPayload document = validator.validate(request.schemaVersion(), request.document());
         DocumentTemplate template = DocumentTemplate.create(docType, request.name(), request.schemaVersion(), document);
         try {
-            return DocumentTemplateResponse.from(repository.saveAndFlush(template));
+            DocumentTemplate saved = repository.saveAndFlush(template);
+            revisionService.ensureCurrentRevision(saved);
+            return DocumentTemplateResponse.from(saved);
         } catch (DataIntegrityViolationException ex) {
             throw conflict("docType 내 문서 양식 이름이 중복되었습니다");
         }
@@ -96,7 +99,9 @@ public class DocumentTemplateService {
         DocumentPayload document = validator.validate(request.schemaVersion(), request.document());
         template.updateDocument(document).rename(request.name());
         try {
-            return DocumentTemplateResponse.from(repository.saveAndFlush(template));
+            DocumentTemplate saved = repository.saveAndFlush(template);
+            revisionService.ensureCurrentRevision(saved);
+            return DocumentTemplateResponse.from(saved);
         } catch (DataIntegrityViolationException ex) {
             throw conflict("문서 양식 이름이 중복되었습니다");
         }
@@ -108,6 +113,7 @@ public class DocumentTemplateService {
         DocumentTemplate template = load(id);
         validator.validate(template.getSchemaVersion(), objectMapper.valueToTree(template.getDocument()));
         if (template.getStatus() == DocumentTemplateStatus.ACTIVE) {
+            revisionService.ensureCurrentRevision(template);
             return DocumentTemplateResponse.from(template);
         }
         String safeActor = actor == null || actor.isBlank() ? "system" : actor;
@@ -118,6 +124,7 @@ public class DocumentTemplateService {
         target.activate();
         try {
             repository.flush();
+            revisionService.ensureCurrentRevision(target);
             return DocumentTemplateResponse.from(target);
         } catch (DataIntegrityViolationException | ObjectOptimisticLockingFailureException ex) {
             throw conflict("문서 양식 활성화 경합이 발생했습니다. 최신 목록을 확인해 주세요");

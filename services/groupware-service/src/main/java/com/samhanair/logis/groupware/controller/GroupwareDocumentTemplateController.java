@@ -4,7 +4,9 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
 import com.samhanair.logis.groupware.dto.DocumentTemplateResponse;
 import com.samhanair.logis.groupware.dto.DocumentTemplateUpdateRequest;
+import com.samhanair.logis.groupware.dto.DocumentTemplateRevisionResponse;
 import com.samhanair.logis.groupware.service.DocumentTemplateService;
+import com.samhanair.logis.groupware.service.DocumentTemplateRevisionService;
 import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,6 +33,7 @@ public class GroupwareDocumentTemplateController {
 
     private static final String PAGE_CODE = "groupware.approval-templates";
     private final DocumentTemplateService service;
+    private final DocumentTemplateRevisionService revisionService;
 
     /** 관리자 문서 양식 목록. */
     @Operation(summary = "그룹웨어 문서 양식 목록 조회")
@@ -97,6 +100,14 @@ public class GroupwareDocumentTemplateController {
     @GetMapping("/groupware/document-templates/active")
     public ApiResponse<DocumentTemplateResponse> active(@RequestParam String docType) {
         return ApiResponse.ok(service.findActiveByDocType(docType));
+    }
+
+    /** 승인 완료 문서 재인쇄용 각인 revision. 기존 page-code 권한 검사를 재사용하지 않고 인증만 요구한다. */
+    @Operation(summary = "승인 당시 문서 양식 revision 조회")
+    @GetMapping("/groupware/document-templates/{templateId}/revisions/{revision}")
+    public ApiResponse<DocumentTemplateRevisionResponse> revision(@PathVariable UUID templateId,
+                                                                   @PathVariable int revision) {
+        return ApiResponse.ok(revisionService.findResponse(templateId, revision));
     }
 
     private static String actor(Principal principal) {

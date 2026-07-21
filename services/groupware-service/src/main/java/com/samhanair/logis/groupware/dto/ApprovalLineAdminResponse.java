@@ -25,6 +25,8 @@ import java.util.UUID;
  * @param templateId 결재유형 템플릿 UUID
  * @param templateName 결재유형 이름
  * @param documentType 문서 레이아웃 docType
+ * @param documentTemplateId 승인 당시 문서 레이아웃 template UUID(API 연동 전용, 미pin이면 null)
+ * @param documentTemplateRevision 승인 당시 문서 레이아웃 revision(미pin이면 null)
  * @param fieldValues 템플릿 동적 필드 값
  * @param status 종합 상태
  * @param steps chain 단계
@@ -39,6 +41,8 @@ public record ApprovalLineAdminResponse(
         UUID templateId,
         String templateName,
         String documentType,
+        UUID documentTemplateId,
+        Integer documentTemplateRevision,
         Map<String, String> fieldValues,
         ApprovalStatus status,
         List<StepView> steps
@@ -108,6 +112,7 @@ public record ApprovalLineAdminResponse(
         return new ApprovalLineAdminResponse(line.getId(), line.getApprovalNo(), line.getRequesterId(),
                 displayName(safeNameMap, line.getRequesterId()), line.getTitle(), line.getContent(),
                 line.getTemplateId(), templateName, line.getDocumentType(),
+                line.getDocumentTemplateId(), line.getDocumentTemplateRevision(),
                 fieldValues == null ? Map.of() : fieldValues, line.getStatus(), steps);
     }
 

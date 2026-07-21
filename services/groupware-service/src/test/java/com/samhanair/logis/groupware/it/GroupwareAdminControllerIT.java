@@ -9,12 +9,15 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.approval.ApprovalStatus;
 import com.samhanair.logis.groupware.GroupwareServiceApplication;
 import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
+import com.samhanair.logis.groupware.domain.DocumentPayload;
+import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.domain.Message;
 import com.samhanair.logis.groupware.domain.Schedule;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
@@ -22,8 +25,13 @@ import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
 import com.samhanair.logis.groupware.dto.ScheduleRequest;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
+import com.samhanair.logis.groupware.repository.DocumentTemplateRevisionRepository;
+import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.groupware.repository.ScheduleRepository;
+import com.samhanair.logis.groupware.service.DocumentTemplateService;
+import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
+import com.samhanair.logis.groupware.dto.DocumentTemplateUpdateRequest;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.time.LocalDateTime;
@@ -72,6 +80,14 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
     @Autowired
     private ApprovalLineRepository approvalLineRepository;
     @Autowired
+    private DocumentTemplateRepository documentTemplateRepository;
+    @Autowired
+    private DocumentTemplateRevisionRepository documentTemplateRevisionRepository;
+    @Autowired
+    private DocumentTemplateService documentTemplateService;
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired
     private MessageRepository messageRepository;
     @Autowired
     private ScheduleRepository scheduleRepository;
@@ -110,6 +126,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         });
         lenient().when(userClient.resolveDisplayNames(anyList())).thenReturn(java.util.Map.of());
         approvalLineRepository.deleteAll();
+        jdbcTemplate.execute("TRUNCATE TABLE document_template_revisions, document_templates RESTART IDENTITY CASCADE");
         messageRepository.deleteAll();
         scheduleRepository.deleteAll();
     }
@@ -282,6 +299,74 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         assertThat(persisted.getStatus()).isEqualTo(ApprovalStatus.REJECTED);
         assertThat(persisted.getStepsView().get(0).getApprovedByUserId()).isEqualTo(approver1);
         assertThat(persisted.getStepsView().get(0).getApprovedByUserId()).isNotEqualTo(forgedApproverId);
+    }
+
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "ds3a-reprint-it",
+            authorities = {"ROLE_MANAGER"})
+    void httpApproval_pinsApprovedRevision_andReprintKeepsOldDistinctLayout() throws Exception {
+        UUID approver = UUID.randomUUID();
+        DocumentTemplateCreateRequest oldRequest = new DocumentTemplateCreateRequest(
+                "GROUPWARE_PIN_HTTP", "승인 당시 레이아웃", (short) 1, payloadJson("old-layout"));
+        DocumentTemplate oldTemplate = documentTemplateRepository.findById(
+                documentTemplateService.create(oldRequest).id()).orElseThrow();
+        documentTemplateService.activate(oldTemplate.getId(), "ds3a-http-it");
+
+        ApprovalLine line = ApprovalLine.open("2099/01/01-845", UUID.randomUUID(), "pin HTTP 결재", "old");
+        line.linkGroupwareDocument("GROUPWARE_PIN_HTTP", null).appendStep(approver);
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        mvcApprovalApprove(approvalId, approver)
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateId").value(oldTemplate.getId().toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateRevision").value(1));
+        assertThat(documentTemplateRevisionRepository
+                .findByTemplateIdAndRevisionAndIsDeletedFalse(oldTemplate.getId(), 1))
+                .isPresent();
+
+        // 승인 후 같은 양식을 DRAFT로 돌려 revision 2로 수정하고 다시 활성화한다.
+        documentTemplateService.deactivate(oldTemplate.getId());
+        documentTemplateService.update(oldTemplate.getId(),
+                new DocumentTemplateUpdateRequest("GROUPWARE_PIN_HTTP", "수정된 현재 레이아웃", (short) 1,
+                        payloadJson("new-layout")));
+        documentTemplateService.activate(oldTemplate.getId(), "ds3a-http-it");
+
+        mockMvc.perform(MockMvcRequestBuilders.get(
+                        "/groupware/document-templates/{templateId}/revisions/{revision}",
+                        oldTemplate.getId(), 1))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.revision").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.document.bands[0].key").value("old-layout"));
+        mockMvc.perform(MockMvcRequestBuilders.get("/groupware/document-templates/active")
+                        .param("docType", "GROUPWARE_PIN_HTTP"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.revision").value(2))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.document.bands[0].key").value("new-layout"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions mvcApprovalApprove(UUID approvalId, UUID approver)
+            throws Exception {
+        return mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/approvals/{id}/approve", approvalId)
+                .header("X-User-Id", approver.toString())
+                .header("X-User-Role", "MANAGER")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ApprovalDecisionRequest(UUID.randomUUID(), null))));
+    }
+
+    private DocumentPayload payload(String bandKey) {
+        return new DocumentPayload("A4_PORTRAIT", List.of(
+                new DocumentPayload.Band(bandKey, "HEADER", List.of(
+                        new DocumentPayload.Element("title", "TITLE"),
+                        new DocumentPayload.Element("approval", "APPROVAL_GRID"))),
+                new DocumentPayload.Band("body", "BODY", List.of(
+                        new DocumentPayload.Element("content", "CONTENT_PARAGRAPHS"))),
+                new DocumentPayload.Band("footer", "FOOTER", List.of(
+                        new DocumentPayload.Element("closing", "CLOSING")))));
+    }
+
+    private JsonNode payloadJson(String bandKey) {
+        return objectMapper.valueToTree(payload(bandKey));
     }
 
     /**

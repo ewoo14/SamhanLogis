@@ -8,9 +8,11 @@ import com.samhanair.logis.groupware.client.GroupwareApprovalLineConfigClient;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.ApprovalLine;
 import com.samhanair.logis.groupware.domain.ResolvedRole;
+import com.samhanair.logis.groupware.domain.DocumentTemplateStatus;
 import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
+import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -43,6 +45,8 @@ public class ApprovalLineService {
     private final ApprovalNumberService approvalNumberService;
     private final ApprovalTemplateService approvalTemplateService;
     private final GroupwareApprovalLineConfigClient configClient;
+    private final DocumentTemplateRepository documentTemplateRepository;
+    private final DocumentTemplateRevisionService documentTemplateRevisionService;
 
     /**
      * 신규 결재선 생성 + chain 등록. 요청자 본인 차단 / 결재자 0명 차단 / 사용자 미존재 차단 가드.
@@ -249,6 +253,7 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.approve(approverId);
+            pinApprovedLayout(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -271,6 +276,7 @@ public class ApprovalLineService {
         ApprovalLine line = findById(approvalId);
         try {
             line.approve(actorUserId, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
+            pinApprovedLayout(line);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -323,5 +329,21 @@ public class ApprovalLineService {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
         return line;
+    }
+
+    /**
+     * APPROVED 전이와 같은 transaction에서 현재 ACTIVE layout revision을 각인한다.
+     * revision 저장/각인 중 하나라도 실패하면 승인 변경도 함께 rollback되어 부분 성공을 막는다.
+     */
+    private void pinApprovedLayout(ApprovalLine line) {
+        if (line.getStatus() != ApprovalStatus.APPROVED || line.getDocumentType() == null) {
+            return;
+        }
+        documentTemplateRepository.findFirstByDocTypeAndStatusAndIsDeletedFalse(
+                        line.getDocumentType(), DocumentTemplateStatus.ACTIVE)
+                .ifPresent(template -> {
+                    documentTemplateRevisionService.ensureCurrentRevision(template);
+                    line.pinDocumentTemplate(template.getId(), template.getRevision());
+                });
     }
 }

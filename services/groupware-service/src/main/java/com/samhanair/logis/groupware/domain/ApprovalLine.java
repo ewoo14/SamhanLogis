@@ -60,6 +60,14 @@ public class ApprovalLine extends ApprovalLineBase {
     @Column(name = "field_values", columnDefinition = "jsonb")
     private String fieldValuesJson;
 
+    /** 최종 승인 시점에 각인한 문서 레이아웃 template UUID(API 연동 전용). */
+    @Column(name = "document_template_id")
+    private UUID documentTemplateId;
+
+    /** 최종 승인 시점에 각인한 문서 레이아웃 revision. */
+    @Column(name = "document_template_revision")
+    private Integer documentTemplateRevision;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -209,6 +217,19 @@ public class ApprovalLine extends ApprovalLineBase {
     public ApprovalLine overlayFieldValues(String fieldValuesJson) {
         guardCollabModifiable();
         this.fieldValuesJson = fieldValuesJson;
+        return this;
+    }
+
+    /** APPROVED 전이 직후 승인 당시 레이아웃 참조를 결재 문서에 각인한다. */
+    public ApprovalLine pinDocumentTemplate(UUID templateId, int revision) {
+        if (getStatus() != ApprovalStatus.APPROVED) {
+            throw new IllegalStateException("승인 완료 문서만 레이아웃을 각인할 수 있습니다");
+        }
+        if (templateId == null || revision <= 0) {
+            throw new IllegalArgumentException("문서 양식 revision 참조가 유효하지 않습니다");
+        }
+        this.documentTemplateId = templateId;
+        this.documentTemplateRevision = revision;
         return this;
     }
 

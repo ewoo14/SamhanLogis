@@ -10260,6 +10260,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(MOCK_DOCUMENT_TEMPLATES[docType] ?? null)
   }
 
+  // GET /groupware/document-templates/{templateId}/revisions/{revision} — 승인 재인쇄용 이력.
+  const documentTemplateRevisionMatch = url.match(
+    /\/groupware\/document-templates\/([^/?]+)\/revisions\/(\d+)(?:\?.*)?$/,
+  )
+  if (method === 'GET' && documentTemplateRevisionMatch) {
+    const templateId = decodeURIComponent(documentTemplateRevisionMatch[1]!)
+    const revision = Number(documentTemplateRevisionMatch[2])
+    const template = Object.values(MOCK_DOCUMENT_TEMPLATES)
+      .find((candidate) => candidate.id === templateId && candidate.revision === revision)
+    return envelope(template
+      ? {
+          templateId: template.id,
+          revision: template.revision,
+          schemaVersion: template.schemaVersion,
+          document: template.document,
+        }
+      : null)
+  }
+
   const groupwareApprovalTemplateDetailMatch = url.match(
     /\/admin\/groupware\/approval-templates\/([^/?]+)(?:\?.*)?$/,
   )

@@ -17,11 +17,12 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 
 | Entity | 비고 |
 |---|---|
-| `ApprovalLine` | 결재선 (요청자 + 제목 + 종합 status). chain 은 `ApprovalStep` 에 sequence ASC 보관 (`@OneToMany` + `@OrderBy`) |
+| `ApprovalLine` | 결재선 (요청자 + 제목 + 종합 status). chain 은 `ApprovalStep` 에 sequence ASC 보관 (`@OneToMany` + `@OrderBy`). 최종 승인 시 문서 레이아웃 `templateId + revision`을 각인 |
 | `ApprovalStep` | chain 단일 단계 (approver / sequence / step status / decidedAt / reason). cascade ALL + orphanRemoval |
 | `Message` | 메신저 1:1 (sender / recipient / body / status / sentAt / readAt) |
 | `Schedule` | 일정 (owner / 시작-종료 / status / description). 참여자는 `ScheduleParticipant` 에 보관 |
 | `ScheduleParticipant` | 일정 참여자 (1 schedule : N participant). cascade ALL |
+| `DocumentTemplateRevision` | 문서 레이아웃 revision 이력. UPDATE/DELETE가 DB trigger로 차단되는 append-only 저장소 |
 
 | Enum | 값 |
 |---|---|
@@ -52,6 +53,7 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 | GET | `/admin/groupware/schedules?ownerId={UUID}&from&to` | 전체 ROLE | 일정 조회 (소유자 + 기간) |
 | PUT | `/admin/groupware/schedules/{id}` | 전체 ROLE | 일정 수정 |
 | DELETE | `/admin/groupware/schedules/{id}` | MASTER / MANAGER | 일정 삭제 (soft) |
+| GET | `/groupware/document-templates/{templateId}/revisions/{revision}` | 인증 사용자 | 승인 완료 문서 재인쇄용 각인 revision 조회 |
 
 응답 = `ApiResponse<T>` 봉투 (success / code / message / data / timestamp). UUID 비공개 가드 — Internal 응답만 UUID 노출 (caller = 내부 형제 service).
 
@@ -71,6 +73,12 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 
 `InternalTokenGuard` 가 부팅 시 prod 프로파일 + dev 기본값 조합을 거부.
 
+## DS-3a 재인쇄 pin
+
+- Flyway `V12__pin_document_template_revisions.sql`가 현재 `document_templates` 각 행을 revision 이력으로 backfill하고, `approval_lines.document_template_id/document_template_revision` nullable 참조를 추가한다.
+- 과거 승인 문서는 소급 pin하지 않는다. 두 컬럼이 NULL이면 데스크톱 재인쇄는 현재 ACTIVE 양식을 사용하고 운영자 고지 문구를 표시한다.
+- 최종 `APPROVED` 전이와 pin/이력 저장은 동일 transaction이다. 이력 조회는 soft-delete된 양식에서도 가능하며, 신규 권한 seed는 없다.
+
 ## 테스트
 
 ```bash
@@ -87,7 +95,8 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 | `MessageServiceTest` | 4 case — 발송 / self-send 거부 / 읽음 처리 / 비수신자 거부 |
 | `ScheduleServiceTest` | 4 case — 등록 / 시간 검증 / 참여자 idempotent / cancel |
 | `GroupwareInternalControllerIT` | 4 case — 토큰 누락 (403) / 불일치 (401) / 일치 (200) / 미존재 (404) |
-| `GroupwareAdminControllerIT` | 6 case — 결재 생성·승인·반려 / 메신저 발송 / 일정 등록·조회 |
+| `GroupwareAdminControllerIT` | 결재 생성·승인·반려 / 메신저 발송 / 일정 등록·조회 / HTTP 승인→레이아웃 수정→고유 layout key 기준 재인쇄 pin 불변 |
+| `DocumentTemplateIT` | 문서 양식 CRUD·활성화·동시성·JSONB round-trip·V10/V11 backfill·V12 append-only |
 
 IT 베이스 = `AbstractPostgresIT` (Testcontainers PostgreSQL 16 + Docker 미가용 환경 skip). UserClient 는 IT 에서 `@MockBean` 격리 (memory feedback_it_mockbean_external_clients).
 

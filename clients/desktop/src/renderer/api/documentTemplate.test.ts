@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { apiClient } from './client'
-import { createDocumentTemplate, findActiveDocumentTemplate, listDocumentTemplates } from './documentTemplate'
+import {
+  createDocumentTemplate,
+  findActiveDocumentTemplate,
+  findDocumentTemplateRevision,
+  listDocumentTemplates,
+} from './documentTemplate'
 
 vi.mock('./client', () => ({
   apiClient: {
@@ -68,6 +73,25 @@ describe('document template API', () => {
 
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, status: undefined }))
     await expect(findActiveDocumentTemplate('GROUPWARE_EXPENSE')).resolves.toBeNull()
+  })
+
+  it('loads a pinned revision without treating it as the current active template', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({
+      templateId: dto.id,
+      revision: 1,
+      schemaVersion: 1,
+      document,
+    }))
+
+    await expect(findDocumentTemplateRevision(dto.id, 1, dto.docType)).resolves.toMatchObject({
+      id: dto.id,
+      revision: 1,
+      docType: dto.docType,
+      name: '승인 당시 문서 양식',
+    })
+    expect(apiClient.get).toHaveBeenCalledWith(
+      `/groupware/document-templates/${dto.id}/revisions/1`,
+    )
   })
 
   it('keeps admin request free of server-owned lifecycle fields', async () => {

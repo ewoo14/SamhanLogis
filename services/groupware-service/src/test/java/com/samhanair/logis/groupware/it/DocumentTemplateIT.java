@@ -27,6 +27,7 @@ import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.domain.DocumentTemplateStatus;
 import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
+import com.samhanair.logis.groupware.repository.DocumentTemplateRevisionRepository;
 import com.samhanair.logis.groupware.service.DocumentTemplateService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.io.IOException;
@@ -73,6 +74,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DocumentTemplateRepository repository;
+    @Autowired private DocumentTemplateRevisionRepository revisionRepository;
     @Autowired private DocumentTemplateService service;
     @Autowired private JdbcTemplate jdbcTemplate;
 
@@ -82,6 +84,8 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUp() {
+        // revision 이력은 운영 transaction에서 삭제하지 않는다. IT 격리 fixture만 TRUNCATE로 초기화한다.
+        jdbcTemplate.execute("TRUNCATE TABLE document_template_revisions, document_templates RESTART IDENTITY CASCADE");
         repository.deleteAll();
         repository.flush();
         lenient().when(dynamicPermissionClient.check(any(UUID.class), any(String.class), any())).thenReturn(true);
@@ -91,6 +95,7 @@ class DocumentTemplateIT extends AbstractPostgresIT {
 
     @AfterEach
     void tearDown() {
+        jdbcTemplate.execute("TRUNCATE TABLE document_template_revisions, document_templates RESTART IDENTITY CASCADE");
         repository.deleteAll();
         repository.flush();
     }
@@ -109,6 +114,27 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         assertThatThrownBy(() -> service.create(request("F".repeat(71), "71자 양식")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("70");
+    }
+
+    @Test
+    void revisionHistory_isAppendedOnCreateAndDatabaseRejectsUpdateAndDelete() {
+        UUID templateId = service.create(request("GROUPWARE_APPEND_ONLY", "append-only 양식")).id();
+
+        var revision = revisionRepository.findByTemplateIdAndRevisionAndIsDeletedFalse(templateId, 1).orElseThrow();
+        assertThat(revision.getDocument().bands()).isNotEmpty();
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE document_template_revisions SET document=?::jsonb WHERE id=?",
+                "{}", revision.getId()))
+                .as("revision UPDATE는 append-only trigger에 의해 차단되어야 함")
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "DELETE FROM document_template_revisions WHERE id=?", revision.getId()))
+                .as("revision DELETE는 append-only trigger에 의해 차단되어야 함")
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(revisionRepository.findById(revision.getId())).isPresent();
+        assertThat(revisionRepository.findById(revision.getId()).orElseThrow().getRevision()).isEqualTo(1);
     }
 
     @Test
