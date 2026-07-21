@@ -451,6 +451,11 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
+  /* #863 N-2: 발행 배지(.partnerOrderNumberCell 형제 span)와 좁은 뷰포트(360~390px)에서
+     동거할 때 min-width:0 부모 안에서 이 배지가 축소돼 "완료" 2글자가 2줄로 줄바꿈되던 회귀
+     (26.13x37px 2줄 vs 단독 36.25x20.5px 1줄, 라이브QA 실측). 형제 .partnerOrderDeletedBadge 는
+     이미 이 가드를 갖고 있었다 — 배지는 항상 1줄이어야 하므로 동일하게 nowrap 을 적용한다. */
+  white-space: nowrap;
 }
 
 .statusDraft {
@@ -1155,6 +1160,13 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* #863 N-2: 자식 배지들(.statusBadge/발행상태 Badge)이 이제 각각 white-space:nowrap 이라
+     내용만큼의 min-content 폭 아래로는 줄지 않는다. 좁은 뷰포트에서 두 nowrap 배지 합이 이
+     컨테이너 폭을 넘으면 wrap 없이는 (a) 부모 td 의 overflow:hidden 에 잘리거나 (b) flex
+     shrink 로 다시 텍스트가 찌그러지는 원 회귀로 돌아간다. wrap 을 허용해 폭이 부족할 때
+     배지끼리 세로로 쌓이게 하면 각 배지 자체는 항상 1줄을 유지하면서 잘림도 가로 스크롤도
+     생기지 않는다. */
+  flex-wrap: wrap;
 }
 
 .partnerOrderDeletedBadge {

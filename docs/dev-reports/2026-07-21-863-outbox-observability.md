@@ -347,3 +347,82 @@ withNoCandidates_stillMarksSchedulerTick` 는 "claim 성공 시 tick" 만 검증
 라운드가 `SlipPublishOutboxSchedulerTest`(순수 mock, claim throw 시나리오)로 그 공백을
 메웠다. WIP 의 `CloudWatchMetricsConfigEnabledIT` 는 그대로 채택하되, 이번 라운드가 별도로
 `CloudWatchMetricsConfigDisabledIT`(반대 경로 — enabled=false 시 빈 부재)를 추가했다.
+
+## 2026-07-22 R1 라이브QA 후속 fix (N-1/N-2/N-3, SONNET5)
+
+R1 fix 게시 후 라이브QA(실서버, 스크린샷 16장 + 원문 로그 6종)를 수행해 새 결함 3건을 찾았다.
+개발책임자 처분에 따라 전건 현 PR 에서 RED-first 로 처리했다.
+
+### N-1 [MED] — fail-loud sentinel 문서 정정 + `absent()` 정식 승격
+
+**실측**(`docs/qa/863-r1-liveqa/db-failure-failloud-raw.txt`): throwaway PostgreSQL 컨테이너를
+정지시켜 DB 완전 장애를 재현했다. 알람 3종이 실제로 발화했으나(D-1) 평가값이 전부 `value=1e+00`
+(D-2 — sentinel 이었다면 `1e+09`)이었고, `/api/v1/targets` 가 `health=down`(`context deadline
+exceeded`), `/actuator/prometheus` 직접 호출이 25초 --max-time 으로 18회 연속 무응답이었다(D-4).
+컨테이너 로그에는 `fail-loud sentinel(1.0E9) 반환` WARN 이 실제로 반복 기록돼(D-3) 인프로세스
+catch 절 자체는 정상 동작함을 확인했다.
+
+**원인**(D-4): `jakarta.persistence.query.timeout`(3000ms)은 쿼리 **실행**만 제한하고 Hikari
+**커넥션 획득 대기**는 제한하지 못한다(`SlipPublishOutboxRepository` Javadoc 이 이미 명시하던
+사실). DB 완전 장애 시 게이지 콜백은 커넥션 획득에서 멈추고, Micrometer 콜백이 scrape 를 처리하는
+Tomcat worker 스레드에서 inline 실행되므로 scrape HTTP 응답 자체가 10초를 넘겨 실패한다 — sentinel
+값이 만들어지기 전에 HTTP 계층에서 요청이 죽는다. 실제로 완전 장애에서 알람을 발화시킨 것은
+`or absent(...)` 가드(H-4)였다: 메트릭 시리즈 자체가 scrape 실패로 사라지면 비교식이 "결과 없음"이
+되어 원래는 영구 침묵하지만, `absent()` 는 그 소실 자체를 감지한다.
+
+**처분(개발책임자 결정, 2026-07-22)**: 게이지 콜백 비동기화/캐시화(예: scheduler tick 이 값을
+미리 계산해 scrape 는 메모리만 읽는 설계)는 근본 해결책이지만 **범위 밖으로 명시 채택하지
+않았다** — 관측 목적(장애 시 실제 발화)은 이미 `absent()` 로 달성돼 있고, 비동기화는 새로운
+설계 변경(라운드 1회 추가 비용)이기 때문이다. 대신 **문서 정정 + `absent()` 정식 승격**:
+`OutboxObservabilityMetrics` 클래스/필드(`QUERY_FAILURE_SENTINEL`)/메서드(`cachedOrCompute`)
+Javadoc 3곳과 본 서비스 README "Outbox 관측 및 알람" 절에 "sentinel=부분 장애 1차 방어선,
+absent()=완전 장애까지 커버하는 최종 방어선" 정정을 반영했다. 코드 동작은 바뀌지 않았다 —
+RED-first 대상이 아니며, 정정한 문장과 실측 로그의 1:1 대조표를 PR 코멘트로 제출한다.
+
+### N-2 [LOW~MED] — 390px `.statusBadge` 2줄 줄바꿈(이 PR 이 도입한 신규 시각 회귀)
+
+**실측**(R1 라이브QA ①): 같은 CONFIRMED 상태("완료")·같은 390px 뷰포트에서 발행 배지와 동거하는
+행의 상태 배지가 26.13×37px(2줄)였고, 단독 행은 36.25×20.5px(1줄)였다. 차이가 "발행 배지 동거"
+하나뿐이라 원인이 `.statusBadge`(sales.module.css)에 `white-space: nowrap` 이 없어
+`.partnerOrderNumberCell`(inline-flex, min-width:0) 안에서 축소되는 것으로 특정됐다. 형제
+`.partnerOrderDeletedBadge` 는 이미 이 가드를 갖고 있어 이 결함을 겪지 않는다.
+
+**RED**: mock Playwright 신규 스펙(`clients/desktop/playwright/863-status-badge-wrap/
+863-status-badge-wrap.spec.ts`, real-qa 통제 비교를 CI mock hard gate 대상으로 재현)이 390px/360px
+양쪽에서 실패했다 — mock 환경 실측값(동거 26.13×37px, 단독 36.25×20.5px)이 라이브QA 실측값과
+정확히 일치했다.
+
+**fix**: `sales.module.css` `.statusBadge` 에 `white-space: nowrap` 추가(배지 자체는 항상 1줄).
+형제 배지들의 nowrap 폭 합이 컨테이너를 넘칠 때 잘리거나 다시 찌그러지지 않도록
+`.partnerOrderNumberCell` 에 `flex-wrap: wrap` 추가(배지끼리 세로로 쌓임 — 각 배지 내부 텍스트는
+항상 1줄 유지, 잘림·가로스크롤 없음). fix 후 동거 행 상태 배지가 20.5px(단독과 동일, 1줄)로
+복귀했고, wrapper(래퍼) 높이가 46.89px 로 늘어 두 배지가 세로로 정상 배치됨을 확인했다.
+
+### N-3 [LOW] — `spring.task.scheduling.pool.size` 미설정(기본값 1)
+
+이 PR 이 추가한 `SlipPublishOutboxScheduler`(5분)가 `BootstrapCacheRefreshScheduler`(10분)/
+`DraftCleanupScheduler`(매일 03시)/`PartnerOrderEditRequestService` 만료 스케줄러(1시간)와
+Spring Boot 기본 단일 스레드를 공유해, 형제 스케줄러가 오래 걸리면 outbox tick 이 굶어 DB 장애
+없이도 `outbox_scheduler_heartbeat_seconds` 가 600초 임계값을 넘길 수 있다(스톨 알람 오탐).
+
+**RED**: `TaskSchedulerPoolSizeIT`(Testcontainers, 실제 애플리케이션 컨텍스트의 `TaskScheduler`
+bean 사용)가 형제 작업이 1.5초 스레드를 점유하는 동안 outbox tick 흉내 작업의 실행 지연을 측정 —
+`1460ms`(임계값 750ms 미만 실패). 부수적으로 로그에서 부팅 시 `BootstrapCacheRefreshScheduler` 가
+`scheduling-1`이라는 단일 이름의 스레드에서 실행되는 것도 확인했다.
+
+**fix**: `application.yml` 최상위(default profile, 모든 profile 상속)에
+`spring.task.scheduling.pool.size: 5`(스케줄러 4개 + 여유 1) 추가. 재실행 결과 지연 `0ms`대
+(`time="0.138"`, fix 전 `time="1.62"`)로 즉시 완료 확인.
+
+### 검증 원문(N-1/N-2/N-3)
+
+```
+N-3 RED  (--rerun-tasks --no-build-cache): 1 test completed, 1 failed
+  Expecting actual: 1460L to be less than: 750L
+N-3 GREEN(--rerun-tasks --no-build-cache): BUILD SUCCESSFUL, 15 actionable tasks: 15 executed
+
+N-2 RED  (mock, 포트 5175 격리): 2 failed
+  390px: Expected <= 22.5 / Received 37   (동거 37px vs 단독 20.5px)
+  360px: Expected <= 22.5 / Received 37
+N-2 GREEN(mock, 포트 5175 격리): 2 passed (2.2s)
+```

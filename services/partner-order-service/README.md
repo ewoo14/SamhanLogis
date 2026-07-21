@@ -64,6 +64,33 @@ heartbeat 가 계속 새 값으로 보여, 이 관측 슬라이스가 없애려�
 콜백의 기본 예외 처리 — `NaN > threshold` 는 항상 `false` 라 알람이 침묵한다)이 아니라 두 임계값보다
 항상 큰 fail-loud sentinel 값을 반환한다.
 
+### R1 라이브QA 실측 정정(2026-07-22, N-1) — DB 완전 장애 시 실제 1차 방어선은 `absent()`
+
+위 "fail-loud sentinel" 서술은 쿼리 **실행** 자체가 예외를 던지는 부분 장애(SQL 오류, 제약 위반,
+순간적 락 대기 등)에서는 그대로 성립한다 — sentinel 이 scrape 응답에 실려 Prometheus 에 도달한다.
+그러나 DB 가 완전히 응답 불가한 경우(throwaway PostgreSQL 컨테이너를 정지시켜 실측), `query.timeout`
+이 막지 못하는 Hikari 커넥션 획득 대기 때문에 게이지 콜백이 완료되지 못해 `/actuator/prometheus`
+응답 자체가 Prometheus `scrape_timeout`(기본 10s)을 넘겨 실패했다(18회 연속 타임아웃 실측). sentinel
+값은 이 경로에서 Prometheus 에 도달하지 못했다 — 발화 당시 모든 알람의 평가값이 `1e+00`
+(`absent()` 가 참일 때의 값)이었고, sentinel 이었다면 `1e+09` 여야 했다. 인프로세스 sentinel 반환
+자체(컨테이너 로그 `... fail-loud sentinel(1.0E9) 반환` WARN)는 실제로 반복 기록돼 정상 동작했지만,
+그 값은 HTTP 응답이 완성되지 못해 관측 경로에서 유실됐다.
+
+그런데도 **알람은 실제로 발화했다**(`PartnerOrderOutboxSchedulerStalled`/`OldestPendingTooOld` firing).
+발화시킨 것은 세 게이지 alert 식에 걸린 `or absent(...)` 가드(H-4,
+`infrastructure/prometheus/rules/partner-order-outbox.yml`)다 — 메트릭 시리즈 자체가 scrape 실패로
+사라지면 비교식은 "거짓"이 아니라 "결과 없음"이 되어 원래는 영구 침묵하지만, `absent()` 는 그 소실
+자체를 감지해 발화한다.
+
+**결론**: sentinel 은 부분 장애(쿼리 실행 실패, 커넥션은 획득됨)용 1차 방어선이고, `absent()` 가드가
+완전 장애(서비스 다운·DB 완전 단절 포함, 메트릭 시리즈 자체의 소실)까지 커버하는 최종 방어선이다.
+이 슬라이스의 관측 목적(장애 시 알람이 green 으로 남지 않고 실제로 발화)은 이미 실측으로 달성돼
+있다 — 이 정정은 그 달성 경로에 대한 서술을 실측에 맞게 고친 것이며 코드 동작은 바뀌지 않았다.
+DB 완전 장애의 부수 영향(heartbeat 포함 인스턴스 전체 metric 유실, healthcheck 로 인한 unhealthy
+전환)도 이미 MED 로 예측돼 있던 것이 실측으로 확인됐다. 게이지 콜백의 비동기화/캐시화로 완전
+장애에서도 sentinel 이 도달하게 만드는 것은 근본적으로 다른 설계 변경이며 이 슬라이스 범위 밖이다
+(개발책임자 결정, 2026-07-22). 실측 원문: `docs/qa/863-r1-liveqa/db-failure-failloud-raw.txt`.
+
 | 게이지 | 의미 | 알람 기준(Prometheus `for:` / CloudWatch period+statistic) | 산출 근거 |
 |---|---|---|---|
 | `outbox_pending_depth` | `PENDING` + `PROCESSING` 행 수 | `> 0`가 10분(600초) 지속 — CloudWatch는 `period=600, statistic=Minimum`(Maximum이면 순간 1건도 ALARM이 돼 "지속" 의미가 깨진다, `#863 R1 H-3`) | 5분 주기 두 번 동안 미처리 상태가 남아 있으면 감지한다. 업무량 기준을 임의로 가정하지 않고, 상태 존재 자체를 감시한다. |
