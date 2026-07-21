@@ -54,6 +54,7 @@ function approval(input: Partial<ApprovalLineAdminResponse> = {}): ApprovalLineA
     documentType: input.documentType ?? null,
     documentTemplateId: input.documentTemplateId ?? null,
     documentTemplateRevision: input.documentTemplateRevision ?? null,
+    documentTemplateDefaultPinned: input.documentTemplateDefaultPinned ?? false,
     fieldValues: input.fieldValues ?? { memo: '값' },
     status: input.status ?? 'APPROVED',
     steps: input.steps ?? [],
@@ -179,10 +180,34 @@ describe('ApprovalDocView renderer transition', () => {
     renderView(queryClient(), '/groupware/approvals/approval-id/print')
 
     await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('approval-reprint-unpinned-notice').textContent).toBe(
+    const notice = screen.getByTestId('approval-reprint-unpinned-notice')
+    expect(notice.textContent).toBe(
       '승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다.',
     )
+    expect(notice.className).toContain('no-print')
     expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.revision).toBe(9)
+  })
+
+  it('승인 당시 ACTIVE-0은 기본 양식으로 고정하고 이후 ACTIVE 양식을 조회하지 않는다', async () => {
+    const resolvedApproval = approval({
+      documentType: 'GROUPWARE_ACTIVE_ZERO',
+      documentTemplateDefaultPinned: true,
+      status: 'APPROVED',
+    })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findActiveDocumentTemplate.mockResolvedValue(activeLayout('GROUPWARE_ACTIVE_ZERO', 9))
+
+    renderView(queryClient(), '/groupware/approvals/approval-id/print')
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.docType).toBe('GROUPWARE_DEFAULT')
+    const notice = screen.getByTestId('approval-reprint-default-pinned-notice')
+    expect(notice.textContent).toBe(
+      '승인 당시 활성 양식이 없어 기본 양식(GROUPWARE_DEFAULT)으로 고정 표시됩니다.',
+    )
+    expect(notice.className).toContain('no-print')
+    expect(findActiveDocumentTemplate).not.toHaveBeenCalled()
   })
 
   it('docType이 없는 승인 완료 문서에는 미pin 고지를 노출하지 않는다(레이아웃 개념 자체가 없는 구식/독립형 결재)', async () => {
@@ -213,9 +238,31 @@ describe('ApprovalDocView renderer transition', () => {
     expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.docType).toBe('GROUPWARE_DEFAULT')
     const notice = screen.getByTestId('approval-reprint-pin-failed-notice')
     expect(notice.getAttribute('role')).toBe('alert')
-    expect(notice.textContent).toContain('조회에 실패')
+    expect(notice.className).toContain('no-print')
+    expect(notice.textContent).toBe(
+      '승인 당시 레이아웃 조회에 실패해 기본 양식(GROUPWARE_DEFAULT)으로 대신 표시됩니다. 실제 승인 당시 양식과 다를 수 있습니다. 다시 시도',
+    )
     // 미pin 고지(pin 자체가 없는 경우)와는 상호 배타적이라 동시에 뜨지 않아야 한다.
     expect(screen.queryByTestId('approval-reprint-unpinned-notice')).toBeNull()
+  })
+
+  it('pin revision malformed(null) 응답도 alert 고지와 DEFAULT fallback을 유지한다', async () => {
+    const resolvedApproval = approval({
+      documentType: 'GROUPWARE_PIN_MALFORMED',
+      documentTemplateId: 'layout-template-id',
+      documentTemplateRevision: 3,
+    })
+    getGroupwareApproval.mockResolvedValue(resolvedApproval)
+    listApprovalAttachments.mockResolvedValue(attachment())
+    findDocumentTemplateRevision.mockResolvedValue(null)
+
+    renderView(queryClient(), '/groupware/approvals/approval-id/print')
+
+    await waitFor(() => expect(DocumentRenderer).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(DocumentRenderer).mock.calls[0]?.[0]?.template.docType).toBe('GROUPWARE_DEFAULT')
+    const notice = screen.getByTestId('approval-reprint-pin-failed-notice')
+    expect(notice.getAttribute('role')).toBe('alert')
+    expect(notice.className).toContain('no-print')
   })
 
   it('pin revision 조회 실패 후 재시도가 성공하면 alert 고지가 사라지고 pinned revision을 렌더한다', async () => {

@@ -68,6 +68,10 @@ public class ApprovalLine extends ApprovalLineBase {
     @Column(name = "document_template_revision")
     private Integer documentTemplateRevision;
 
+    /** 승인 순간 ACTIVE 양식이 없어 내장 DEFAULT를 사용했다는 사실의 시점 각인. */
+    @Column(name = "document_template_default_pinned", nullable = false)
+    private boolean documentTemplateDefaultPinned;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -230,6 +234,19 @@ public class ApprovalLine extends ApprovalLineBase {
         }
         this.documentTemplateId = templateId;
         this.documentTemplateRevision = revision;
+        this.documentTemplateDefaultPinned = false;
+        return this;
+    }
+
+    /** 승인 순간 ACTIVE 양식이 없어서 내장 DEFAULT를 사용했다는 사실을 각인한다. */
+    public ApprovalLine pinDefaultDocumentTemplate() {
+        if (getStatus() != ApprovalStatus.APPROVED) {
+            throw new IllegalStateException("승인 완료 문서만 기본 문서 양식을 각인할 수 있습니다");
+        }
+        if (this.documentTemplateId != null || this.documentTemplateRevision != null) {
+            throw new IllegalStateException("문서 양식 revision이 이미 각인된 문서입니다");
+        }
+        this.documentTemplateDefaultPinned = true;
         return this;
     }
 

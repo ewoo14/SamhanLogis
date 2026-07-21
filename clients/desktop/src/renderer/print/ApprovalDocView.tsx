@@ -119,6 +119,7 @@ function ApprovalDocViewLayout({
       approval?.documentTemplateRevision ?? null,
     ],
     queryFn: () => {
+      if (approval?.documentTemplateDefaultPinned) return null
       const templateId = approval?.documentTemplateId
       const revision = approval?.documentTemplateRevision
       if (templateId && typeof revision === 'number' && Number.isInteger(revision) && revision > 0) {
@@ -126,7 +127,7 @@ function ApprovalDocViewLayout({
       }
       return findActiveDocumentTemplate(docType!)
     },
-    enabled: Boolean(docType),
+    enabled: Boolean(docType) && approval?.documentTemplateDefaultPinned !== true,
     retry: false,
     staleTime: 0,
     refetchOnMount: 'always',
@@ -134,8 +135,9 @@ function ApprovalDocViewLayout({
   })
   const [layoutDecision, setLayoutDecision] = useState<TemplateEnvelope | null>(null)
   const [layoutDecided, setLayoutDecided] = useState(false)
+  const defaultPinned = approval?.documentTemplateDefaultPinned === true
 
-  const layoutReady = !docType || (
+  const layoutReady = defaultPinned || !docType || (
     !documentTemplateQuery.isFetching
     && (documentTemplateQuery.isSuccess || documentTemplateQuery.isError)
   )
@@ -147,6 +149,8 @@ function ApprovalDocViewLayout({
   // docType이 아예 없는 문서(구식/독립형 결재)는 "레이아웃 pin" 개념 자체가 적용되지 않으므로
   // 고지 대상에서 제외한다(FABLE5 R1 LOW — docType=null 문서에 부정확한 고지 노출 금지).
   const shouldShowUnpinnedNotice = approval?.status === 'APPROVED' && Boolean(docType) && !hasPinnedLayout
+    && !defaultPinned
+  const shouldShowDefaultPinnedNotice = approval?.status === 'APPROVED' && Boolean(docType) && defaultPinned
   // pin은 있는데(승인 당시 각인은 성공) revision 조회 자체가 실패/malformed인 경우 — 무고지로
   // DEFAULT에 강하하면 감사·법정 문서가 제3의 외형으로 조용히 인쇄된다(FABLE5 R1 H-2).
   // isSuccess && data===null은 malformed 응답(파싱 실패)도 포함해 동일하게 고지한다.
@@ -165,7 +169,9 @@ function ApprovalDocViewLayout({
     if (!layoutDecided && approvalReady && inputTemplateReady && layoutReady) {
       // findActiveDocumentTemplate 은 이미 parseDocumentTemplate 로 정규화된 full
       // TemplateEnvelope(또는 null)를 반환한다. 오류/malformed 는 DEFAULT 로 수렴한다.
-      const activeResponse = documentTemplateQuery.isError || documentTemplateQuery.isRefetchError
+      const activeResponse = defaultPinned
+        ? null
+        : documentTemplateQuery.isError || documentTemplateQuery.isRefetchError
         ? null
         : documentTemplateQuery.data ?? null
       setLayoutDecision(resolveDocumentTemplate(activeResponse))
@@ -179,6 +185,7 @@ function ApprovalDocViewLayout({
     documentTemplateQuery.data,
     documentTemplateQuery.isError,
     documentTemplateQuery.isRefetchError,
+    defaultPinned,
   ])
 
   if (!approvalReady || !inputTemplateReady || !layoutDecided) {
@@ -211,13 +218,22 @@ function ApprovalDocViewLayout({
           승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다.
         </div>
       )}
+      {shouldShowDefaultPinnedNotice && (
+        <div
+          className="approval-reprint-default-pinned-notice no-print"
+          role="status"
+          data-testid="approval-reprint-default-pinned-notice"
+        >
+          승인 당시 활성 양식이 없어 기본 양식(GROUPWARE_DEFAULT)으로 고정 표시됩니다.
+        </div>
+      )}
       {shouldShowPinFetchFailedNotice && (
         <div
           className="approval-reprint-pin-failed-notice no-print"
           role="alert"
           data-testid="approval-reprint-pin-failed-notice"
         >
-          승인 당시 레이아웃 조회에 실패해 현재 양식으로 대신 표시됩니다. 실제 승인 당시
+          승인 당시 레이아웃 조회에 실패해 기본 양식(GROUPWARE_DEFAULT)으로 대신 표시됩니다. 실제 승인 당시
           양식과 다를 수 있습니다.{' '}
           <button type="button" onClick={handleRetryPinnedLayout}>다시 시도</button>
         </div>

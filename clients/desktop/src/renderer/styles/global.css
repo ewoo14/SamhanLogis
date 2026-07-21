@@ -1970,6 +1970,16 @@ button {
   font-size: var(--font-size-sm);
 }
 
+.approval-reprint-default-pinned-notice {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-warning-300);
+  background: var(--color-warning-50);
+  color: var(--color-warning-800);
+  font-size: var(--font-size-sm);
+}
+
 .approval-reprint-pin-failed-notice {
   padding: 10px 12px;
   margin-bottom: 12px;

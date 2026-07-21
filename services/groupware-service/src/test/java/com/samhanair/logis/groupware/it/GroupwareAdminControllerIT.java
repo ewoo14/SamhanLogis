@@ -349,6 +349,45 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.document.bands[0].key").value("new-layout"));
     }
 
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "ds3a-active-zero-it",
+            authorities = {"ROLE_MANAGER"})
+    void httpApproval_whenNoActiveTemplate_pinsDefaultFact_andReprintStaysDefaultAfterNewActivation() throws Exception {
+        UUID approver = UUID.randomUUID();
+        String docType = "GROUPWARE_ACTIVE_ZERO_HTTP";
+        DocumentTemplateCreateRequest draftRequest = new DocumentTemplateCreateRequest(
+                docType, "승인 당시 기본 양식", (short) 1, payloadJson("default-at-approval"));
+        UUID draftId = documentTemplateService.create(draftRequest).id();
+
+        ApprovalLine line = ApprovalLine.open("2099/01/01-846", UUID.randomUUID(), "ACTIVE-0 결재", "default");
+        line.linkGroupwareDocument(docType, null).appendStep(approver);
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        mvcApprovalApprove(approvalId, approver)
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateId").doesNotExist())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateRevision").doesNotExist())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateDefaultPinned").value(true));
+
+        DocumentTemplateCreateRequest newRequest = new DocumentTemplateCreateRequest(
+                docType, "승인 이후 새 양식", (short) 1, payloadJson("new-active-after-approval"));
+        UUID newTemplateId = documentTemplateService.create(newRequest).id();
+        documentTemplateService.activate(newTemplateId, "ds3a-active-zero-it");
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/approvals/{id}", approvalId)
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000301")
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateId").doesNotExist())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateRevision").doesNotExist())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateDefaultPinned").value(true));
+
+        assertThat(documentTemplateRepository.findById(draftId)).isPresent();
+        assertThat(documentTemplateRepository.findById(newTemplateId).orElseThrow().getStatus())
+                .isEqualTo(com.samhanair.logis.groupware.domain.DocumentTemplateStatus.ACTIVE);
+    }
+
     private org.springframework.test.web.servlet.ResultActions mvcApprovalApprove(UUID approvalId, UUID approver)
             throws Exception {
         return mockMvc.perform(MockMvcRequestBuilders.put("/admin/groupware/approvals/{id}/approve", approvalId)

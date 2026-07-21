@@ -27,6 +27,7 @@ import java.util.UUID;
  * @param documentType 문서 레이아웃 docType
  * @param documentTemplateId 승인 당시 문서 레이아웃 template UUID(API 연동 전용, 미pin이면 null)
  * @param documentTemplateRevision 승인 당시 문서 레이아웃 revision(미pin이면 null)
+ * @param documentTemplateDefaultPinned 승인 순간 ACTIVE 양식이 없어 기본 양식을 사용했다는 사실 각인
  * @param fieldValues 템플릿 동적 필드 값
  * @param status 종합 상태
  * @param steps chain 단계
@@ -43,6 +44,7 @@ public record ApprovalLineAdminResponse(
         String documentType,
         UUID documentTemplateId,
         Integer documentTemplateRevision,
+        boolean documentTemplateDefaultPinned,
         Map<String, String> fieldValues,
         ApprovalStatus status,
         List<StepView> steps
@@ -113,6 +115,7 @@ public record ApprovalLineAdminResponse(
                 displayName(safeNameMap, line.getRequesterId()), line.getTitle(), line.getContent(),
                 line.getTemplateId(), templateName, line.getDocumentType(),
                 line.getDocumentTemplateId(), line.getDocumentTemplateRevision(),
+                line.isDocumentTemplateDefaultPinned(),
                 fieldValues == null ? Map.of() : fieldValues, line.getStatus(), steps);
     }
 

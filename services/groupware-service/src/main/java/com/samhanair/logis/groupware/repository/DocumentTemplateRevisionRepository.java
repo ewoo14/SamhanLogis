@@ -15,9 +15,8 @@ import org.springframework.stereotype.Repository;
  * 상속해 삭제 메서드 자체가 존재하지 않도록 컴파일 타임에 봉쇄한다.
  *
  * <p>이력 append는 {@link com.samhanair.logis.groupware.service.DocumentTemplateRevisionService}
- * 가 {@code EntityManager}를 직접 써서 수행한다({@code save}류 메서드도 이 저장소에는 두지
- * 않는다 — {@code saveAndFlush}는 파생 쿼리로 유도할 수 없는 {@code JpaRepository} 전용
- * 메서드라 최소 마커 인터페이스만으로는 제공할 수 없다).
+ * 가 {@code saveAndFlush}로 수행한다. 삭제 메서드는 노출하지 않아 append-only 의도를 유지하고,
+ * Spring Data repository proxy의 예외 변환 경계를 보존한다.
  */
 @Repository
 public interface DocumentTemplateRevisionRepository
@@ -26,4 +25,6 @@ public interface DocumentTemplateRevisionRepository
     Optional<DocumentTemplateRevision> findByTemplateIdAndRevisionAndIsDeletedFalse(UUID templateId, int revision);
 
     Optional<DocumentTemplateRevision> findById(UUID id);
+
+    DocumentTemplateRevision saveAndFlush(DocumentTemplateRevision revision);
 }

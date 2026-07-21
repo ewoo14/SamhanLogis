@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -75,12 +77,14 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     @Autowired private ObjectMapper objectMapper;
     @Autowired private DocumentTemplateRepository repository;
     @Autowired private DocumentTemplateRevisionRepository revisionRepository;
+    @Autowired private com.samhanair.logis.groupware.service.DocumentTemplateRevisionService revisionService;
     @Autowired private DocumentTemplateService service;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private UserClient userClient;
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
     @SpyBean private DocumentTemplateService serviceSpy;
+    @SpyBean private DocumentTemplateRevisionRepository revisionRepositorySpy;
 
     @BeforeEach
     void setUp() {
@@ -287,15 +291,16 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     }
 
     @Test
-    void concurrentActivation_differentIds_hasOneWinnerAndTypedConflicts() throws Exception {
+    void concurrentActivation_differentIds_keepsOneActive_andOnlyTypedConflictsIfAny() throws Exception {
         List<UUID> ids = List.of(
                 service.create(request("GROUPWARE_CONCURRENT", "A")).id(),
                 service.create(request("GROUPWARE_CONCURRENT", "B")).id(),
                 service.create(request("GROUPWARE_CONCURRENT", "C")).id());
         List<ActivationOutcome> outcomes = runConcurrentActivations(ids);
 
-        assertThat(outcomes.stream().filter(ActivationOutcome::success).count()).isGreaterThanOrEqualTo(1);
-        assertThat(outcomes.stream().filter(outcome -> !outcome.success()).count()).isGreaterThanOrEqualTo(1);
+        // PostgreSQL이 세 transaction을 순차 직렬화하는 허용 스케줄에서는 3건 모두 성공할 수 있다.
+        // 실패가 반드시 발생한다고 단언하면 합법적인 스케줄을 flaky/실패로 오판한다.
+        assertThat(outcomes.stream().filter(ActivationOutcome::success).count()).isBetween(1L, 3L);
         assertTypedConflictsOnly(outcomes);
         assertThat(repository.findByDocTypeAndIsDeletedFalse("GROUPWARE_CONCURRENT"))
                 .filteredOn(template -> template.getStatus() == DocumentTemplateStatus.ACTIVE)
@@ -406,6 +411,79 @@ class DocumentTemplateIT extends AbstractPostgresIT {
         assertThat(org.assertj.core.api.Assertions.catchThrowable(() -> insertRawTemplate(
                 UUID.randomUUID(), "GROUPWARE_INDEX", "둘째 active", "ACTIVE", document)))
                 .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void v12Backfill_marksAuditAsUnverified_insteadOfCopyingRevisionMutationAudit() {
+        String schema = "ds3a_v12_backfill_probe";
+        String url = POSTGRES.getJdbcUrl();
+        String user = POSTGRES.getUsername();
+        String password = POSTGRES.getPassword();
+        UUID templateId = UUID.randomUUID();
+
+        jdbcTemplate.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+        jdbcTemplate.execute("CREATE SCHEMA " + schema);
+        Flyway.configure().dataSource(url, user, password).schemas(schema)
+                .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("11")).load().migrate();
+
+        jdbcTemplate.update("INSERT INTO " + schema + ".document_templates "
+                        + "(id,doc_type,name,revision,status,schema_version,lock_version,document,"
+                        + "created_at,created_by,modified_at,modified_by,is_deleted) "
+                        + "VALUES (?,?,?,?,?,?,?,?::jsonb,?,?,?, ?,false)",
+                templateId, "GROUPWARE_V12_AUDIT", "현재 양식", 3, "ACTIVE", (short) 1, 0L,
+                "{\"paper\":\"A4_PORTRAIT\",\"bands\":[]}",
+                java.sql.Timestamp.valueOf("2026-07-01 10:00:00"), "작성자-A",
+                java.sql.Timestamp.valueOf("2026-07-20 10:00:00"), "활성화자-B");
+
+        Flyway.configure().dataSource(url, user, password).schemas(schema)
+                .locations("classpath:db/migration")
+                .target(MigrationVersion.fromVersion("12")).load().migrate();
+
+        Map<String, Object> backfill = jdbcTemplate.queryForMap(
+                "SELECT created_at,created_by,modified_at,modified_by,is_backfilled "
+                        + "FROM " + schema + ".document_template_revisions WHERE template_id=?", templateId);
+        assertThat(backfill.get("created_by")).isEqualTo("V12_BACKFILL_UNVERIFIED");
+        assertThat(backfill.get("is_backfilled")).isEqualTo(true);
+        assertThat(backfill.get("modified_at")).isNull();
+        assertThat(backfill.get("modified_by")).isNull();
+    }
+
+    @Test
+    void concurrentRevisionSelfHeal_uniqueConflict_isTypedConflict_notGeneric500() throws Exception {
+        UUID templateId = UUID.randomUUID();
+        insertRawTemplate(templateId, "GROUPWARE_SELF_HEAL_RACE", "동시 self-heal", "DRAFT",
+                "{\"paper\":\"A4_PORTRAIT\",\"bands\":[]}");
+        DocumentTemplate template = repository.findById(templateId).orElseThrow();
+
+        doAnswer(invocation -> java.util.Optional.empty())
+                .when(revisionRepositorySpy)
+                .findByTemplateIdAndRevisionAndIsDeletedFalse(templateId, 1);
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<Throwable>> futures = List.of(1, 2).stream().map(ignored -> executor.submit(() -> {
+                assertThat(start.await(10, TimeUnit.SECONDS)).isTrue();
+                try {
+                    revisionService.ensureCurrentRevision(template);
+                    return null;
+                } catch (Throwable failure) {
+                    return failure;
+                }
+            })).toList();
+            start.countDown();
+            List<Throwable> failures = futures.stream().map(DocumentTemplateIT::throwable).toList();
+
+            assertThat(failures).anyMatch(failure -> failure == null);
+            assertThat(failures).anyMatch(failure -> failure instanceof BusinessException business
+                    && business.getErrorCode() == ErrorCode.CONFLICT);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM document_template_revisions WHERE template_id=? AND revision=1",
+                    Integer.class, templateId)).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     /**
@@ -567,6 +645,17 @@ class DocumentTemplateIT extends AbstractPostgresIT {
             return ActivationOutcome.error(ex);
         } catch (ExecutionException ex) {
             return ActivationOutcome.error(ex.getCause());
+        }
+    }
+
+    private static Throwable throwable(Future<Throwable> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return ex;
+        } catch (ExecutionException ex) {
+            return ex.getCause();
         }
     }
 

@@ -6,9 +6,9 @@ import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.domain.DocumentTemplateRevision;
 import com.samhanair.logis.groupware.dto.DocumentTemplateRevisionResponse;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRevisionRepository;
-import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,24 +18,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class DocumentTemplateRevisionService {
 
     private final DocumentTemplateRevisionRepository repository;
-    private final EntityManager entityManager;
 
     /**
      * 현재 양식 revision이 없을 때만 append한다. 호출자는 양식 변경과 같은 transaction을 사용한다.
      *
-     * <p>FABLE5 R1 M-2: {@link DocumentTemplateRevisionRepository}는 삭제 메서드를 컴파일
-     * 타임에 봉쇄하기 위해 {@code save}류 메서드도 제공하지 않는다. 신규 이력은 여기서
-     * {@code EntityManager#persist}로 직접 insert한다(update 경로가 없으므로 merge 분기가
-     * 불필요 — persist 자체가 "항상 신규 insert"라는 append-only 의도를 코드로도 드러낸다).
+     * <p>FABLE5 R1 M-2 fix: Spring Data repository proxy의 {@code saveAndFlush}를 사용해
+     * unique(template_id, revision) 경합을 {@link DataIntegrityViolationException}으로
+     * 변환한다. raw {@code EntityManager#persist}는 이 예외 변환 경계를 우회하므로 사용하지 않는다.
      */
     @Transactional
     public DocumentTemplateRevision ensureCurrentRevision(DocumentTemplate template) {
         return repository.findByTemplateIdAndRevisionAndIsDeletedFalse(template.getId(), template.getRevision())
                 .orElseGet(() -> {
                     DocumentTemplateRevision revision = DocumentTemplateRevision.of(template);
-                    entityManager.persist(revision);
-                    entityManager.flush();
-                    return revision;
+                    try {
+                        return repository.saveAndFlush(revision);
+                    } catch (DataIntegrityViolationException ex) {
+                        throw new BusinessException(ErrorCode.CONFLICT,
+                                "문서 양식 revision 생성 경합이 발생했습니다. 다시 시도해 주세요");
+                    }
                 });
     }
 

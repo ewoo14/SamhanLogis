@@ -65,16 +65,17 @@
 - **반려 → 재상신 → 재승인 시에는 재-pin** 한다(그때가 새로운 "승인 당시").
 - DRAFT·진행중 문서는 pin 없음 → 현재 ACTIVE 로 렌더한다(아직 확정 문서가 아니므로 최신이 맞다).
 
-### D-DS3A-03 · backfill = **소급 각인 금지. NULL = 미pin = 현재 ACTIVE fallback + 화면 고지**
+### D-DS3A-03 · backfill = **소급 각인 금지. 승인 시점 ACTIVE-0은 DEFAULT 사용 사실을 각인**
 
 과거 승인 문서에는 pin 정보가 없다. **"그때 무엇이 ACTIVE 였는지" 를 알 수 있는 근거가 시스템에 없으므로 소급 각인은 위조다** ([[feedback_no_fake_data_ever]]).
 
-- NULL 은 정직하게 미pin 으로 두고 현재 ACTIVE 로 렌더한다.
+- 기존 승인 문서처럼 `document_template_default_pinned=false`인 NULL은 정직하게 미pin으로 두고 현재 ACTIVE로 렌더한다.
+- 승인 시점 ACTIVE-0으로 `document_template_default_pinned=true`인 NULL은 현재 ACTIVE를 조회하지 않고 내장 `GROUPWARE_DEFAULT`로 렌더한다.
 - 단, 재인쇄 화면에 **"승인 당시 레이아웃 정보가 없어 현재 양식으로 표시됩니다"** 고지를 노출한다(운영자가 외형 차이를 오해하지 않도록). 이 고지는 **docType 이 있는 문서에만** 적용한다 — docType 자체가 없는 구식/독립형 결재는 "레이아웃 pin" 개념이 성립하지 않으므로 고지 대상이 아니다(FABLE5 R1 LOW 정정 — 최초 구현은 이 구분이 없어 docType=null 문서에도 부정확한 고지가 노출됐다).
 - 대상 건수는 구현 시 **실 DB 실측**해 dev-report 에 기록한다(추정 금지).
 
-> **결정 — ACTIVE-0 창구 승인 시 영구 무pin(FABLE5 R1 PM disposition, 설계 정합으로 수용)**
-> `pinApprovedLayout()` 이 최종 승인 시점에 그 docType 의 ACTIVE 문서 양식을 찾지 못하면(예: 전 양식이 비활성화된 상태에서 승인이 완료됨) pin 은 NULL 로 남는다. 이 슬라이스는 pin 을 **오직 승인 전이 시점 1회**에만 각인하고(반려→재상신 재승인 제외) 사후 배치로 소급 각인하지 않으므로, 이 문서는 **영구적으로 미pin 상태로 고정**된다 — 훗날 어떤 양식이 ACTIVE 로 복귀해도 "그 문서가 승인되던 순간 실제로 ACTIVE 였다"는 근거가 없어 사후 pin 은 위조가 된다(D-DS3A-03 의 소급 각인 금지 원칙과 동일 논리). 완화책은 이미 마련돼 있다 — 위 미pin 고지 배너가 이 경우에도 그대로 노출되어 운영자가 외형 차이를 인지할 수 있다. 별도 코드 변경 없이 **설계 정합으로 수용**한다.
+> **결정 철회 — ACTIVE-0도 승인 시점에 DEFAULT 사용 사실을 영구 각인한다(개발책임자 결정, 2026-07-21)**
+> `pinApprovedLayout()` 이 최종 승인 시점에 그 docType의 ACTIVE 문서 양식을 찾지 못하면, `document_template_default_pinned=true`를 기록하고 template/revision pin은 NULL로 유지한다. 이후 새 양식이 ACTIVE가 되어도 이 표식은 내장 `GROUPWARE_DEFAULT` 렌더로 고정된다. 이는 승인 순간 ACTIVE가 없었다는 시스템 관측 사실의 기록이며 소급 추정이 아니다. 반대로 이미 승인된 과거 문서에 당시 ACTIVE 양식을 추정해 채우는 소급 각인은 계속 금지한다. 기존 R1의 ACTIVE-0 영구 무pin 수용 결정은 철회한다.
 
 ### D-DS3A-04 · 스키마 버전 변경 없음 — v1 유지
 
@@ -106,6 +107,7 @@
   - `document_template_revisions` 신설 — `template_id`, `revision`, `schema_version`, `document` JSONB, 감사 컬럼, `unique(template_id, revision)`
   - 기존 `document_templates` 각 행의 **현재 상태를 이력 1건으로 backfill**(현 revision 번호 그대로)
   - 결재 문서 테이블에 `document_template_id UUID NULL` · `document_template_revision INT NULL` 추가
+    - 승인 시점 ACTIVE-0 구분용 `document_template_default_pinned BOOLEAN NOT NULL DEFAULT FALSE` 추가
     > ⚠️ 실제 테이블명·엔티티 매핑은 구현이 `ApprovalLine` 매핑으로 **직접 확인**할 것. 본 spec 의 테이블명은 추정이며 근거로 쓰지 말 것.
 - `DocumentTemplateRevision` 엔티티 — append-only(수정·삭제 경로 미제공)
 - `DocumentTemplateService.updateDocument()`·`activate()` 가 이력을 **append** 하도록 결선

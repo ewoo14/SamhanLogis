@@ -47,6 +47,10 @@ public class DocumentTemplateRevision extends BaseEntity {
     @Column(name = "document", columnDefinition = "jsonb", nullable = false, updatable = false)
     private DocumentPayload document;
 
+    /** V12 backfill로 생성됐고 revision 생성 사실을 복원하지 못했는지 표시한다. */
+    @Column(name = "is_backfilled", nullable = false, updatable = false)
+    private boolean backfilled;
+
     private DocumentTemplateRevision(UUID templateId, int revision, short schemaVersion,
                                     DocumentPayload document) {
         if (templateId == null || revision <= 0 || document == null) {

@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -254,6 +255,9 @@ public class ApprovalLineService {
         try {
             line.approve(approverId);
             pinApprovedLayout(line);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "승인 당시 문서 양식 각인 경합이 발생했습니다. 다시 시도해 주세요");
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -277,6 +281,9 @@ public class ApprovalLineService {
         try {
             line.approve(actorUserId, actorGroupIds == null ? Set.of() : actorGroupIds, Set.of());
             pinApprovedLayout(line);
+        } catch (DataIntegrityViolationException ex) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "승인 당시 문서 양식 각인 경합이 발생했습니다. 다시 시도해 주세요");
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.CONFLICT, ex.getMessage());
         }
@@ -341,9 +348,9 @@ public class ApprovalLineService {
         }
         documentTemplateRepository.findFirstByDocTypeAndStatusAndIsDeletedFalse(
                         line.getDocumentType(), DocumentTemplateStatus.ACTIVE)
-                .ifPresent(template -> {
+                .ifPresentOrElse(template -> {
                     documentTemplateRevisionService.ensureCurrentRevision(template);
                     line.pinDocumentTemplate(template.getId(), template.getRevision());
-                });
+                }, line::pinDefaultDocumentTemplate);
     }
 }

@@ -21,6 +21,7 @@ CREATE TABLE document_template_revisions (
     deleted_at      TIMESTAMP,
     deleted_by      VARCHAR(50),
     is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
+    is_backfilled   BOOLEAN      NOT NULL DEFAULT FALSE,
 
     CONSTRAINT ck_document_template_revisions_revision CHECK (revision > 0),
     CONSTRAINT ux_document_template_revisions_template_revision UNIQUE (template_id, revision)
@@ -30,26 +31,30 @@ CREATE TABLE document_template_revisions (
 -- btree 인덱스를 이미 생성하므로, 별도 CREATE INDEX는 완전 중복이라 추가하지 않는다.
 
 -- 현재 document_templates 상태만 이력으로 남긴다. 승인 문서는 소급 pin하지 않는다.
--- FABLE5 R1 LOW: created_at/created_by를 항상 document_templates.created_at(최초 생성 시각)
--- 그대로 복제하면, 여러 차례 수정을 거쳐 현재 revision에 도달한 양식의 이력 행에 "1차
--- 생성 시각"이 찍혀 실제 해당 revision이 만들어진 시점과 어긋난다. modified_at/modified_by
--- 는 updateDocument()/activate() 저장 시마다 AuditingEntityListener가 갱신하므로, 한 번도
--- 수정되지 않은 revision 1(= modified_at NULL)만 created_at으로 자연스럽게 폴백한다.
+-- 기존 행에서 revision 생성 시각/작성자를 복원할 근거가 없고 modified_*는 활성화/비활성화
+-- 행위자에 의해 덮어써질 수 있으므로, 이를 감사 사실처럼 복제하지 않는다. backfill 행 자체의
+-- 생성 시각과 검증 불가 상태를 별도 표식으로 남긴다.
 INSERT INTO document_template_revisions (
     id, template_id, revision, schema_version, document,
-    created_at, created_by, is_deleted
+    created_at, created_by, is_deleted, is_backfilled
 )
 SELECT gen_random_uuid(), id, revision, schema_version, document,
-       COALESCE(modified_at, created_at), COALESCE(modified_by, created_by), FALSE
+       CURRENT_TIMESTAMP, 'V12_BACKFILL_UNVERIFIED', FALSE, TRUE
   FROM document_templates;
 
 ALTER TABLE approval_lines
     ADD COLUMN document_template_id       UUID,
-    ADD COLUMN document_template_revision INT;
+    ADD COLUMN document_template_revision INT,
+    ADD COLUMN document_template_default_pinned BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE approval_lines
     ADD CONSTRAINT ck_approval_lines_document_template_pin_pair
     CHECK ((document_template_id IS NULL) = (document_template_revision IS NULL));
+
+ALTER TABLE approval_lines
+    ADD CONSTRAINT ck_approval_lines_document_template_default_pin
+    CHECK (NOT document_template_default_pinned
+           OR (document_template_id IS NULL AND document_template_revision IS NULL));
 
 ALTER TABLE approval_lines
     ADD CONSTRAINT fk_approval_lines_document_template_revision
