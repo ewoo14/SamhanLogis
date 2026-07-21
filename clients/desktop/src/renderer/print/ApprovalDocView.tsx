@@ -95,11 +95,18 @@ function ApprovalDocViewInner({ id }: ApprovalDocViewInnerProps) {
 
   usePageTitle('결재문서', approvalQuery.data?.title)
 
-  // docType가 서버 응답으로 바뀌는 경우에도 layout query/decision을 새 epoch로
-  // 시작해 이전 양식과 현재 approval model의 혼합 렌더를 차단한다.
+  // docType/status/pin 중 하나라도 서버 응답으로 바뀌면 layout query/decision을 새 epoch로
+  // 시작해 이전 양식·고지와 현재 approval model의 혼합 렌더를 차단한다.
+  const layoutEpochKey = JSON.stringify([
+    docType,
+    approvalQuery.data?.status ?? null,
+    approvalQuery.data?.documentTemplateId ?? null,
+    approvalQuery.data?.documentTemplateRevision ?? null,
+    approvalQuery.data?.documentTemplateDefaultPinned === true,
+  ])
   return (
     <ApprovalDocViewLayout
-      key={docType ?? 'no-document-type'}
+      key={layoutEpochKey}
       id={id}
       docType={docType}
       approvalReady={approvalReady}
