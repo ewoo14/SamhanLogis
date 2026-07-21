@@ -18,6 +18,26 @@ cd c:\dev\SamhanLogis
 .\scripts\sync-claude-memory.ps1
 ```
 
+### 1-A-2. 🚨 codex MCP idle timeout (PC 마다 1회 — git 으로 안 따라옴)
+
+```powershell
+.\scripts\setup-codex-mcp-timeout.ps1
+```
+
+**왜 필요한가.** Claude Code 는 MCP 도구가 **약 1800초 동안 응답·진행이 없으면 abort** 합니다. 그런데 codex 는 gradle 빌드·Playwright 전량 실행·Docker 재빌드처럼 **오래 침묵하는 것이 정상**인 작업을 하므로 이 기본값에 계속 걸립니다.
+
+- abort 되어도 **codex 프로세스는 계속 돕니다**(`abort ≠ 미수행`). 다만 **완료 통지가 오지 않아** 오케스트레이션이 끊깁니다.
+- 2026-07-21 실측: 한 세션에서 이 abort 가 **4회 이상** 발생했고, 매번 폴링으로 실제 상태를 잡아 복구해야 했습니다.
+
+**🚨 이 설정은 `~/.claude.json` 에 있고 git 추적 대상이 아닙니다.** `.claude/memory/` 처럼 자동으로 따라오지 않으므로 **각 PC 에서 1회 실행**해야 합니다.
+
+- 스크립트는 **멱등**합니다(재실행 안전, 이미 같은 값이면 `ALREADY_SET`).
+- 실행 전 **타임스탬프 백업**을 남기고, 쓰기 후 **다시 읽어 검증**합니다.
+- `~/.claude.json` 은 전 프로젝트 설정을 담고 있어, PowerShell 의 `ConvertTo-Json` 이 깊은 중첩을 훼손할 수 있습니다. 그래서 스크립트는 **python 으로 UTF-8 JSON 라운드트립**을 합니다(python 없으면 수동 안내 후 종료).
+- ⚠️ **적용은 다음 Claude Code 세션부터**입니다 — MCP 설정은 연결 시점에 읽힙니다. 진행 중인 세션에는 반영되지 않습니다.
+
+> 스크립트 본문은 **ASCII 전용**입니다. PowerShell 5.1 이 BOM 없는 UTF-8 `.ps1` 을 ANSI 로 읽어 한글 문자열이 깨지면 파싱 자체가 실패하기 때문입니다([[feedback_powershell_utf8_writes]]). 한글 설명은 이 문서가 담당합니다.
+
 ### 1-B. 환경 변수 (.env)
 
 `.env` 는 `.gitignore` 처리되어 sync 되지 않습니다 (DB 패스워드 / API Key 등 secret 보호).

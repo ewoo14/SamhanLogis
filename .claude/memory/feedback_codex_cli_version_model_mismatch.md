@@ -22,6 +22,16 @@ config.toml 모델은 **최신 CLI 를 전제**하는데 PATH 쪽이 뒤처져 �
 
 **부수 교훈**: MCP tool **idle timeout 1800s** 로 대형 디스패치가 abort 돼도 **산출물은 디스크에 남고 Codex 는 계속 돈다**(#809 R1 fix 26파일 · R3 fix 28+9파일 실증). abort=미수행으로 단정 금지([[feedback_codex_detached_write_settle]] 동일 원칙).
 
+## 🚨 2026-07-21 — idle timeout 은 **끄는 게 정답**이고, 그 설정은 **PC 마다 따로** 해야 한다
+
+abort 는 codex 를 멈추지 않지만 **완료 통지를 끊어** 오케스트레이션을 망가뜨린다(2026-07-21 한 세션에서 **4회 이상** 발생, 매번 폴링으로 복구). 근본 대응은 **per-server timeout 상향**이다.
+
+- **적용 = `scripts/setup-codex-mcp-timeout.ps1`**(멱등·백업·쓰기 후 재검증. 기본 2h). 양 PC 셋업 절차는 [dev-environment-setup-multi-pc.md](../../docs/dev-environment-setup-multi-pc.md) `1-A-2`.
+- 🚨 **이 설정은 `~/.claude.json` 에 있고 git 추적 대상이 아니다** — `.claude/memory/` 처럼 자동으로 따라오지 않는다. **PC 를 옮기면 반드시 1회 실행**할 것. (2026-07-21 개발책임자 지시: "집PC 에서도 idle timeout 변경내역이 적용되도록".)
+- ⚠️ **적용은 다음 세션부터** — MCP 설정은 연결 시점에 읽힌다. 설정을 바꿔도 **진행 중인 세션은 계속 1800s 로 abort** 되니, 그 세션에서는 폴링으로 버틴다.
+- 전역 `CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT` 은 **비추천** — 모든 MCP 서버에 적용돼 진짜로 멈춘 서버까지 안 끊긴다. codex 만 per-server 로 여는 게 맞다.
+- ⚠️ 스크립트는 **ASCII 전용**으로 유지할 것. PowerShell 5.1 이 BOM 없는 UTF-8 `.ps1` 을 ANSI 로 읽어 한글 문자열이 깨지면 **파싱 자체가 실패**한다(2026-07-21 실측 — 한글 주석 버전이 `TerminatorExpectedAtEndOfString` 로 죽었다). 한글 설명은 문서로 분리([[feedback_powershell_utf8_writes]]).
+
 🚨 **정정 (2026-07-15 #809 R3 실증) — `git diff` 해시 2회 비교는 false-STABLE 을 준다**
 이전 판의 "diff 해시 2회 비교로 쓰기 종료(STABLE) 확인" 지침은 **틀렸다**. Codex 가 **검증/사고 중인 구간엔 파일을 안 쓰므로** 20초 간격 해시가 동일하게 나온다 → "종료" 오판. 실제로는 그 시점에 컴파일·IT 실행·promtool 검증이 진행 중이었고 이후에도 계속 썼다.
 

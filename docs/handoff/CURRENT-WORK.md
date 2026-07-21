@@ -4,7 +4,48 @@
 
 ---
 
-## 🔥 2026-07-21 (집PC 새벽) — **2트랙 병렬 가동 중** ◀ 다음 세션 첫 읽기·재개점
+## 🔥 2026-07-21 (오후) — **3트랙 병렬 가동 중** ◀ 다음 세션 첫 읽기·재개점
+
+> ### 🚨 0. 새 PC 도착 시 먼저 할 일 (순서대로)
+> ```powershell
+> git pull
+> .\scripts\sync-claude-memory.ps1              # 메모리 repo -> 홈 (기존 절차)
+> .\scripts\setup-codex-mcp-timeout.ps1         # 🚨 NEW — PC 마다 1회 필수
+> ```
+> **`setup-codex-mcp-timeout.ps1` 을 빠뜨리면 codex 디스패치가 계속 1800초에 abort 됩니다.** abort 는 codex 를 멈추지 않지만(`abort ≠ 미수행`) **완료 통지가 끊겨** 오케스트레이션이 무너집니다 — 2026-07-21 한 세션에서 **4회 이상** 겪었습니다.
+> ⚠️ 이 설정은 `~/.claude.json` 에 있어 **git 으로 따라오지 않습니다.** 멱등이라 재실행은 안전하고, **적용은 다음 Claude Code 세션부터**입니다(MCP 설정은 연결 시점에 읽힘 — 설정 직후 그 세션은 계속 abort 되니 폴링으로 버팁니다). 상세 = 셋업 문서 `1-A-2` · [[feedback_codex_cli_version_model_mismatch]].
+>
+> ### 🚨 1. 워크플로우 현행 정본 (2026-07-21 변경)
+> **1차 적대검증 리뷰 = FABLE5 → OPUS 4.8 재전환**(FABLE5 토큰 과다 — 6차원 라운드 1회 약 1.0~1.2M 실측). **라운드 fix = SONNET5 그대로 유지.**
+> ⟹ OPUS 4.8 기획 → CODEX LUNA 5.6 구현 → (**OPUS 4.8 5+agent 적대리뷰+라이브QA** → **SONNET5 fix**) → (CODEX SOL 5.6 5+agent → LUNA fix) → 0수렴 → PM 종합 → CI green → 머지.
+> ⚠️ **07-16 과 다름**: 그땐 리뷰·fix 모두 OPUS 겸임이었으나 이번엔 **fix 만 SONNET5 유지** → 리뷰어/구현자 분리 존속. **OPUS 의 라운드 fix 직접 수행은 계속 금지.** 리뷰는 `model:"opus"` **다차원 서브에이전트**(5차원 이상)로 — PM 세션이 혼자 대신하지 않음. 정본 = [[feedback_canonical_workflow]] · 커밋 `db10353ee`.
+> (07-20 결정 2건은 유지: 기획검수 폐지 · 처리량 3레버 = 슬라이스 병렬화·범위 동결·chore 배치.)
+>
+> ### 2. 트랙 현황 (전부 진행 중)
+> | 트랙 | PR | 워크트리 | 단계 |
+> |---|---|---|---|
+> | **A · #825 슬5** null-semantics | #864 | `.claude/worktrees/s5-codef` | R1(FABLE5)→SONNET5 fix→**R2(SOL) BLOCKING 2**→**LUNA R2 fix 진행 중** |
+> | **B · #845 DS-3a** 재인쇄 pin | #865 | `.claude/worktrees/ds3a` | 구현 완료·CI green → R1(FABLE5) HIGH 2·MED 5·LOW 7 → **SONNET5 fix 진행 중** |
+> | **C · #863** outbox 관측 | #876 | `.claude/worktrees/ob863` | **LUNA 구현 완료·커밋 `f20c4963f`** → 다음 = 구현 리뷰 게시 → **1차 적대검증(OPUS 4.8)** |
+>
+> **트랙A 요주의** — R1 fix 가 새 BLOCKING 을 만들었습니다(`buildImportPayload` 가 저장 `defaultImportType` 을 무시하고 `type:'ALL'` 하드코딩 → 저장만 눌러도 실행 범위가 `CARD`→전체로 확대). R3 에서도 fix 가 새 결함을 낳으면 **개발책임자께 바운드 옵션 제시**.
+> **트랙C 미완 1건** — 390px 배지 실서버 캡처 미확보(공유 DB 에 실패 seed·응답 필드 부재). 가짜 데이터 만들지 않고 남김 → 적대검증 라이브QA 에서 회수.
+> **트랙C 는 codex 가 3회 사망** 후 `codex-reply` 재개로 완주했습니다. 재개 시 "중간 결과를 dev-report 에 계속 적어 회수 가능하게" 지시가 효과적이었습니다.
+>
+> ### 3. 미머지 브랜치 (머지 경로 필요)
+> - `chore/workflow-review-opus` — 캐논 갱신(`db10353ee`) + 본 핸드오프 + MCP timeout 스크립트/문서. **집PC 가 이 내용을 받으려면 이 브랜치가 main 에 들어가야 합니다.**
+>
+> ### 4. 이슈 정리 (2026-07-21 완료)
+> 신규 등록 #866~#870·#872~#875·#877, close #773·#871. **트랙 배치 2조합**: B1=#866+#867(#825 슬6·슬7, 같은 칩 컴포넌트) · B2=#872+#874(#773 잔여 착수가능분).
+> 단독: #831·#877(둘 다 **트랙A 머지 후** — `DailyClosingService`/`CodefImportScopeForm` 충돌) · #824(⚠️BE 는 이미 완료, FE 만 미구현) · #870(광역 FE, 다른 FE 트랙과 동시 금지) · #851(CI 게이트) · #868(**트랙B 머지 후**)→#869.
+> 블로커/defer: #873(‘총 할인’ 정의 확정 선행) · #875·#827(Google clasp) · #826·#830(Phase 11 — **close 하면 추적 끊김, OPEN 유지**).
+>
+> ### 5. 메모리 박제 대기
+> **HashRouter 함정** — dev 렌더러가 HashRouter 라 real-qa 스펙이 **비해시 URL 로 진입하면 URL 은 유지한 채 대시보드를 렌더**한다. all-zero 시그니처가 "배너 부재" 같은 **음성 단언을 위장 통과**시킬 뻔했다(`/#/` 경로 + 고유요소 가시성 필수 대기로 하드닝). 기존 DS-2 real-qa 스펙도 동일 소지.
+
+---
+
+## (지난) 2026-07-21 (집PC 새벽) — 2트랙 병렬 ※위 블록으로 대체됨
 
 > **🚨 워크플로우 2건 변경(2026-07-20)** — ①**기획검수 폐지**(적대리뷰와 중복) ②**1차 적대검증 리뷰=FABLE5 · 그 라운드 fix=SONNET5**(OPUS 4.8 = 기획 + PM 오케스트레이션 전담, 리뷰·라운드 fix 직접 수행 금지). 정본 = [[feedback_canonical_workflow]]. CLAUDE.md·MEMORY.md 동기화 완료.
 >
