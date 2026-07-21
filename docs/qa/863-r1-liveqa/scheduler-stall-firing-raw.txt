@@ -1,0 +1,37 @@
+﻿# #863 R1 라이브QA ② — 스케줄러 정지 -> 알람 firing 도달 시계열
+# 조건: SAMHAN_OUTBOX_CRON='0 0 4 1 1 *'(이 창에서 미발화), DB 정상, profile=dev, 컨테이너 재기동 21:17:16 KST
+# 룰: outbox_scheduler_heartbeat_seconds > 600 or absent(...)  / for: 1m  (브랜치 원본, 무수정)
+# alert value 는 평가식 결과 — absent() 로 발화하면 1, heartbeat 초과로 발화하면 600 초과 실측치
+# 형식: <벽시계> hb=<heartbeat> | <alert>=<state>(value) ...
+21:17:40 hb=18.8 | PendingBacklog=pending(1e+00) OldestPendingTooOld=pending(1e+00) SchedulerStalled=pending(1e+00) 
+21:18:11 hb=49.34 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:18:41 hb=76.499 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:19:11 hb=106.999 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:19:41 hb=137.49 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:20:11 hb=167.983 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:20:42 hb=198.473 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:21:12 hb=228.947 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:21:42 hb=259.439 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:22:12 hb=289.908 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:22:42 hb=320.414 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:23:12 hb=350.889 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:23:43 hb=381.379 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:24:13 hb=408.525 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:24:43 hb=439.0 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:25:13 hb=469.493 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:25:43 hb=499.993 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:26:13 hb=530.47 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:26:44 hb=560.956 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:27:14 hb=591.434 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:27:44 hb=621.907 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=inactive 
+21:28:14 hb=652.379 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=pending(6.27856e+02) 
+21:28:44 hb=682.847 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=pending(6.61185e+02) 
+21:29:14 hb=709.996 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(6.76182e+02) 
+21:29:45 hb=740.471 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(7.27852e+02) 
+21:30:15 hb=770.94 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(7.42851e+02) 
+21:30:45 hb=801.422 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(7.76187e+02) 
+21:31:15 hb=831.891 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(8.09517e+02) 
+21:31:45 hb=862.371 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(8.42851e+02) 
+21:32:15 hb=892.854 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(8.76187e+02) 
+21:32:45 hb=923.346 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(8.94525e+02) 
+21:33:16 hb=953.827 | PendingBacklog=inactive OldestPendingTooOld=inactive SchedulerStalled=firing(9.2786e+02) 

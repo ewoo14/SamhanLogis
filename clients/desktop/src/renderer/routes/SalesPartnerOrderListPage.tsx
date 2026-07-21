@@ -10,9 +10,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
+import { Badge, Button, DataTable, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import {
   PARTNER_ORDER_STATUS_LABEL,
+  SLIP_PUBLISH_STATUS_DISPLAY,
   listPartnerOrders,
   restorePartnerOrder,
   type PartnerOrderStatus,
@@ -93,6 +94,7 @@ export function SalesPartnerOrderListPage() {
   const [dateTo, setDateTo] = useState('')
   const [partnerId, setPartnerId] = useState('')
   const [statusFilter, setStatusFilter] = useState<PartnerOrderStatus | ''>('DRAFT')
+  const [slipPublishStatusFilter, setSlipPublishStatusFilter] = useState<'' | 'FAILED' | 'PENDING_RETRY'>('')
   const [searchKeyword, setSearchKeyword] = useState('')
 
   /** Phase 2.6b D2: 다중선택 상태 — orderNumber Set. */
@@ -116,10 +118,36 @@ export function SalesPartnerOrderListPage() {
     // 기간 의미(confirmedAt vs createdAt)가 달라지므로 기존 값을 유지하면 결과가 달라질 수 있음.
     setDateFrom('')
     setDateTo('')
+    setSlipPublishStatusFilter('')
     // 필터 변경 시 선택 초기화
     setSelectedOrderNumbers(new Set())
     // 복원 실패 배너는 다른 필터로 이동하면 맥락이 사라지므로 함께 소거(#757 STEP4 FE LOW).
     setRestoreError(null)
+  }
+
+  const handleSlipPublishStatusFilterChange = (next: '' | 'FAILED' | 'PENDING_RETRY') => {
+    setSlipPublishStatusFilter(next)
+    // 발행상태 필터는 기본 DRAFT 흐름과 독립적으로 실패/재시도 주문을 보여준다.
+    if (next) setStatusFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setSelectedOrderNumbers(new Set())
+    setRestoreError(null)
+  }
+
+  /**
+   * #863 R1 H-6: 발행실패 배너 클릭 전용 핸들러. `failedCountQuery` 는 거래처/검색어 필터와
+   * 무관하게 전역 집계인데, 클릭 후 목록은 기존 partnerId/searchKeyword 를 그대로 물고 있어
+   * "발행 실패 N건" 배너 바로 아래 "등록된 주문이 없습니다"가 뜨는 모집단 불일치가 있었다.
+   * 배너는 "전체에서 실패한 N건"을 약속하므로, 클릭 시 그 약속과 같은 모집단(거래처/검색어
+   * 필터 없음)을 보여주도록 두 필터를 함께 초기화한다. 드롭다운(전표 발행상태 필터)에서
+   * 수동으로 FAILED/PENDING_RETRY 를 선택하는 경로는 사용자가 의도적으로 필터를 조합하는
+   * 것이므로 partnerId/searchKeyword 를 건드리지 않는다 — 이 핸들러는 배너 전용이다.
+   */
+  const handleFailureBannerClick = () => {
+    setPartnerId('')
+    setSearchKeyword('')
+    handleSlipPublishStatusFilterChange('FAILED')
   }
 
   const isPreConfirmStatus =
@@ -132,13 +160,27 @@ export function SalesPartnerOrderListPage() {
 
   useCollectionRealtime(PartnerOrderBoardRealtimeClient, 'board', [['partner-orders']])
 
+  const failedCountQuery = useQuery({
+    queryKey: ['partner-orders', 'slip-publish-failed-count'],
+    queryFn: () => listPartnerOrders(0, 1, {
+      slipPublishStatus: 'FAILED',
+      includeDeleted: true,
+    }),
+    staleTime: 30_000,
+    retry: 1,
+  })
+
   const query = useQuery({
-    queryKey: ['partner-orders', dateFrom, dateTo, partnerId, statusFilter, searchKeyword, 0],
+    queryKey: [
+      'partner-orders', dateFrom, dateTo, partnerId, statusFilter,
+      slipPublishStatusFilter, searchKeyword, 0,
+    ],
     queryFn: () => listPartnerOrders(0, 50, {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       partnerId: partnerId.trim() || undefined,
       status: statusFilter || undefined,
+      slipPublishStatus: slipPublishStatusFilter || undefined,
       searchKeyword: searchKeyword.trim() || undefined,
       // 내부 관리자 목록 전용 opt-in — E2 취소선/복원 표시용 삭제행 포함(#757 R2 HIGH:
       // BE 기본값은 활성만이며 파트너 호출은 값과 무관하게 활성 행만 반환).
@@ -324,12 +366,23 @@ export function SalesPartnerOrderListPage() {
         const deleted = o.isDeleted === true
         // 삭제행 배지는 원래 의미색(예: 완료=초록)을 유지하면 "삭제됐는데 정상 완료" 혼합
         // 신호가 되므로 중립색으로 통일한다(#757 R2 Design F-1). 상태 텍스트는 보존.
+        const publishMeta = SLIP_PUBLISH_STATUS_DISPLAY[o.slipPublishStatus]
         return (
-          <span
-            className={`${styles['statusBadge']} ${deleted ? styles['statusDeletedNeutral'] : STATUS_CLASS[o.status]}`}
-            style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
-          >
-            {PARTNER_ORDER_STATUS_LABEL[o.status]}
+          <span className={styles['partnerOrderNumberCell']}>
+            <span
+              className={`${styles['statusBadge']} ${deleted ? styles['statusDeletedNeutral'] : STATUS_CLASS[o.status]}`}
+              style={deleted ? DELETED_ROW_TEXT_STYLE : undefined}
+            >
+              {PARTNER_ORDER_STATUS_LABEL[o.status]}
+            </span>
+            {publishMeta ? (
+              <Badge
+                variant={publishMeta.variant}
+                data-testid={`partner-order-row-slip-publish-status-${o.orderNumber ?? 'na'}`}
+              >
+                {publishMeta.label}
+              </Badge>
+            ) : null}
           </span>
         )
       },
@@ -338,11 +391,15 @@ export function SalesPartnerOrderListPage() {
       key: 'linkedSlipNo',
       header: '연결 전표',
       mobilePriority: 'hidden',
-      render: (o) => (
-        <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
-          {o.linkedSlipNo ?? '-'}
-        </span>
-      ),
+      render: (o) => {
+        return (
+          <span className={styles['partnerOrderNumberCell']}>
+            <span style={o.isDeleted === true ? DELETED_ROW_TEXT_STYLE : undefined}>
+              {o.linkedSlipNo ?? '-'}
+            </span>
+          </span>
+        )
+      },
     },
     ...(canRestoreDeletedOrder
       ? ([
@@ -507,6 +564,17 @@ export function SalesPartnerOrderListPage() {
                 </option>
               ))}
             </Select>
+            <Select
+              value={slipPublishStatusFilter}
+              onChange={(e) => handleSlipPublishStatusFilterChange(e.target.value as '' | 'FAILED' | 'PENDING_RETRY')}
+              aria-label="전표 발행상태 필터"
+              data-testid="partner-order-list-slip-publish-filter"
+              selectSize="sm"
+            >
+              <option value="">전표 발행상태 전체</option>
+              <option value="FAILED">발행실패</option>
+              <option value="PENDING_RETRY">재시도 중</option>
+            </Select>
             <Input
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
@@ -517,6 +585,28 @@ export function SalesPartnerOrderListPage() {
             />
           </div>
         </div>
+
+        {failedCountQuery.isError ? (
+          // #863 R1 MED: failedCountQuery 실패를 무음(totalElements ?? 0 === 0)으로 삼키면
+          // "발행 실패 0건"처럼 보여 이 슬라이스가 없애려던 false-negative 를 재현한다. 조회
+          // 자체가 실패했다는 것을 정직하게 보여준다.
+          <div
+            role="alert"
+            data-testid="partner-order-slip-publish-failure-count-error"
+            className={styles['partnerOrderRestoreError']}
+          >
+            발행 실패 건수를 확인하지 못했습니다. 새로고침 후 다시 확인하세요.
+          </div>
+        ) : (failedCountQuery.data?.totalElements ?? 0) > 0 ? (
+          <button
+            type="button"
+            data-testid="partner-order-slip-publish-failure-banner"
+            className={styles['statusLongPending']}
+            onClick={handleFailureBannerClick}
+          >
+            발행 실패 {failedCountQuery.data?.totalElements}건 — 실패 주문 보기
+          </button>
+        ) : null}
 
         {/* Phase 2.6b D2: 병합 전환 액션 바 — 2건 이상 선택 시 표시 */}
         {canMergeConvert && selectedCount >= 1 ? (

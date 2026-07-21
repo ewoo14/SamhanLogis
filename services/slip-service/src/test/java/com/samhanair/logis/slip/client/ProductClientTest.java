@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -140,15 +142,16 @@ class ProductClientTest {
         server.verify();
     }
 
-    @Test
-    void lookupByModel_4xxOther_throwsInvalidInput() {
+    @ParameterizedTest
+    @ValueSource(ints = {400, 408, 429})
+    void lookupByModel_404가_아닌_4xx_throwsInternalError(int status) {
         server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
-                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
 
         assertThatThrownBy(() -> client.lookupByModel("SOMETHING"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.INVALID_INPUT));
+                        .isEqualTo(ErrorCode.INTERNAL_ERROR));
         server.verify();
     }
 

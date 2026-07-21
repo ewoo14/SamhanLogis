@@ -10,9 +10,12 @@ const mocks = vi.hoisted(() => ({
   getPartnerOrder: vi.fn(),
   updatePartnerOrder: vi.fn(),
   createDocCoeditProvider: vi.fn(),
+  // #854 R5 LOW-3 — 기본은 데스크톱(false). 모바일 branch 커버 테스트에서만 true 로 override.
+  useIsMobile: vi.fn(() => false),
 }))
 
 vi.mock('@samhan/design-system', () => ({
+  Badge: ({ children, ...props }: any) => <span {...props}>{children}</span>,
   Button: ({ children, variant: _variant, size: _size, ...props }: any) => (
     <button {...props}>{children}</button>
   ),
@@ -76,22 +79,18 @@ vi.mock('../realtime/createCoeditProvider', () => ({
   createDocCoeditProvider: mocks.createDocCoeditProvider,
 }))
 
-vi.mock('../api/sales', () => ({
-  PARTNER_ORDER_STATUS_LABEL: {
-    DRAFT: '진행중',
-    ON_HOLD: '보류',
-    CONFIRMING: '확인중',
-    CONFIRMED: '완료',
-    CANCELED: '취소',
-    CONVERTED: '전환완료',
-  },
-  getPartnerOrder: mocks.getPartnerOrder,
-  updatePartnerOrder: mocks.updatePartnerOrder,
-  convertPartnerOrderToSlip: vi.fn(),
-  deletePartnerOrder: vi.fn(),
-  holdPartnerOrder: vi.fn(),
-  releasePartnerOrder: vi.fn(),
-}))
+vi.mock('../api/sales', async () => {
+  const actual = await vi.importActual<typeof import('../api/sales')>('../api/sales')
+  return {
+    ...actual,
+    getPartnerOrder: mocks.getPartnerOrder,
+    updatePartnerOrder: mocks.updatePartnerOrder,
+    convertPartnerOrderToSlip: vi.fn(),
+    deletePartnerOrder: vi.fn(),
+    holdPartnerOrder: vi.fn(),
+    releasePartnerOrder: vi.fn(),
+  }
+})
 
 vi.mock('../api/inventory', () => ({ listWarehouses: vi.fn(() => Promise.resolve([])) }))
 vi.mock('../api/client', () => ({ apiClient: { get: vi.fn() } }))
@@ -121,7 +120,7 @@ vi.mock('../stores/pageTitle', () => ({
 vi.mock('../hooks/usePermissions', () => ({
   usePermissions: () => ({ canAccess: () => true }),
 }))
-vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: () => false }))
+vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: mocks.useIsMobile }))
 vi.mock('../components/sales/sales.module.css', () => ({ default: new Proxy({}, { get: (_target, key) => String(key) }) }))
 
 import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
@@ -135,6 +134,7 @@ function makeOrder(overrides: Partial<PartnerOrderDetail> = {}): PartnerOrderDet
     status: 'DRAFT',
     totalAmount: 20000,
     linkedSlipNo: null,
+    slipPublishStatus: 'NOT_REQUIRED',
     bizCode: 'BIZ-1',
     updatedAt: '2099-07-01T00:00:00',
     deliveryAddress: null,
@@ -218,9 +218,52 @@ function renderPage() {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  // vi.clearAllMocks() 는 mock.calls 만 비우고 mockReturnValue 로 지정한 구현은 유지한다
+  // (mockReset 이 아님) — 모바일 override 테스트가 이후 테스트로 새어나가지 않게 명시 복원.
+  mocks.useIsMobile.mockReturnValue(false)
 })
 
 describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배선', () => {
+  it.each([
+    ['PENDING_RETRY', '전표 발행 재시도 중', 'warning'],
+    ['FAILED_PERMANENT', '전표 발행 실패', 'danger'],
+  ])('전표 발행 상태 %s 를 한국어 배지(variant=%s)로 표시한다', async (slipPublishStatus, label, variant) => {
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder({ slipPublishStatus } as Partial<PartnerOrderDetail>))
+
+    renderPage()
+
+    const badge = await screen.findByTestId('partner-order-slip-publish-status')
+    expect(badge.textContent).toContain(label)
+    // #854 R5 LOW-2 — variant 단언 추가(warning↔danger 스왑 뮤테이션이 라벨만 보면 생존했다).
+    expect(badge.getAttribute('variant')).toBe(variant)
+  })
+
+  it.each(['PUBLISHED', 'NOT_REQUIRED'] as const)(
+    '전표 발행 상태 %s 는 배지를 렌더하지 않는다(정상 흐름 침묵) — #854 R5 LOW-2 음성 케이스',
+    async (slipPublishStatus) => {
+      mocks.getPartnerOrder.mockResolvedValue(makeOrder({ slipPublishStatus } as Partial<PartnerOrderDetail>))
+
+      renderPage()
+
+      // 로딩 완료 대기(주문번호는 상태와 무관하게 항상 렌더되는 안정적 신호).
+      await screen.findByText('PO/2099-1')
+      expect(screen.queryByTestId('partner-order-slip-publish-status')).toBeNull()
+    },
+  )
+
+  it('모바일(useIsMobile=true) 요약 카드에도 전표 발행 배지를 표시한다 — #854 R5 LOW-3', async () => {
+    mocks.useIsMobile.mockReturnValue(true)
+    mocks.getPartnerOrder.mockResolvedValue(
+      makeOrder({ slipPublishStatus: 'FAILED_PERMANENT' } as Partial<PartnerOrderDetail>),
+    )
+
+    renderPage()
+
+    const badge = await screen.findByTestId('partner-order-slip-publish-status')
+    expect(badge.textContent).toContain('전표 발행 실패')
+    expect(badge.getAttribute('variant')).toBe('danger')
+  })
+
   it('provider 생성 옵션과 헤더/라인 CollaborativeSlipInput fieldPath 를 slip 패턴으로 배선한다', async () => {
     const provider = makeProvider()
     mocks.getPartnerOrder.mockResolvedValue(makeOrder())

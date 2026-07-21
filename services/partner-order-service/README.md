@@ -19,7 +19,7 @@ Phase 6 M4 — 거래처 주문 도메인 (legacy `partner-order/index.html` 942
 | `GateImage` | 모바일 게이트 prefetch |
 | `TutorialState` | PC / MOBILE 튜토리얼 완료 표시 |
 | `BootstrapCacheConfig` | 16종 bootstrap 시드 |
-| `SlipPublishOutbox` | confirm 흐름 5xx 시 retry 큐 |
+| `SlipPublishOutbox` | confirm 흐름 5xx/408/429 시 retry 큐 |
 
 ## confirm 흐름
 
@@ -33,7 +33,11 @@ DRAFT → POST /confirm → CONFIRMING (idempotency_key=PO-CONF-{draftSeq})
   ├ SlipServiceClient.publishFromPartnerOrder(payload, "PO-CONF-{draftSeq}")
   │   ├ 200/201 → markSlipPublished(slipNo) + history SLIP_PUBLISHED
   │   ├ 409 → BusinessException(CONFLICT) 전파 (동일 키 다른 본문/race, slipNo 없음)
-  │   └ 5xx → SlipPublishOutbox.queue + history SLIP_RETRY_QUEUED
+  │   └ 5xx → (구) SlipPublishOutbox.queue + history SLIP_RETRY_QUEUED
+  │      ⚠️ 현재 **producer 미배선(dormant)** — 슬라이스 D1 에서 confirm 자동발행이 폐지되며
+  │      enqueue 호출부가 제거되어 프로덕션에서 outbox row 가 생성되지 않는다. 스케줄러/결과 writer
+  │      경로는 #854 로 correctness 하드닝만 완료된 상태이며, **재배선 복원은 별도 슬라이스**
+  │      (2026-07-20 개발책임자 결정).
   └ 응답: ConfirmResponse{orderNo, slipNo, status, slipPublishStatus}
 
 Scheduler (5분):
@@ -43,6 +47,72 @@ Scheduler (5분):
     ├ 5xx → markRetry (지수 백오프 5min × 2^attempt, max 60min)
     └ elapsed ≥ 24h → FAILED + markSlipFailedPermanent + alert
 ```
+
+## Outbox 관측 및 알람 (#863, R1 fix로 갱신)
+
+`SlipPublishOutboxScheduler`는 5분 주기로 native claim 쿼리가 **성공한 뒤에만** 마지막 tick
+시각을 갱신한다(`#863 R1 HIGH-1` — claim 이전에 갱신하면 DB 장애로 매 tick 이 예외를 던져도
+heartbeat 가 계속 새 값으로 보여, 이 관측 슬라이스가 없애려던 "장애인데 정상으로 보임"을
+그대로 재현한다). 다음 게이지는 Prometheus scrape와 production Micrometer CloudWatch export
+(`config/CloudWatchMetricsConfig.java` 수동 배선 — Spring Boot 3.x 는 CloudWatch metrics export
+를 자동설정하지 않는다)에서 동일한 상태 진실원을 사용한다.
+
+첫 두 게이지(`pending_depth`/`oldest_pending_age`)는 scrape 시점에 PostgreSQL을 조회하되,
+최근 성공한 값을 15초 TTL로 캐시한다(`#863 R1 MED` — 매 scrape 마다 무조건 DB 를 왕복하면 커넥션
+풀 압박 시 scrape 자체가 지연돼 heartbeat 를 포함한 인스턴스 전체 metric 이 함께 유실될 수 있다).
+쿼리가 예외를 던지면(DB 장애) 캐시하지 않고 매번 재시도하며, 그 실패는 `NaN`(Micrometer 게이지
+콜백의 기본 예외 처리 — `NaN > threshold` 는 항상 `false` 라 알람이 침묵한다)이 아니라 두 임계값보다
+항상 큰 fail-loud sentinel 값을 반환한다.
+
+위 sentinel 설명은 두 export 경로에 동일하게 일반화하면 안 된다. Prometheus scrape는 callback을
+Tomcat worker에서 inline 실행하므로 완전 DB 장애에서는 Hikari 커넥션 획득 대기로 HTTP scrape가
+timeout되고, `absent()`가 메트릭 시리즈 소실을 감지한다. 반면 CloudWatch push는 JVM이 살아 있으면
+별도 publish 스레드가 callback을 실행하므로 Hikari timeout 뒤 sentinel을 만들어 `PutMetricData`
+호출까지 시도할 수 있다. 서비스 자체가 사망한 경우에는 CloudWatch
+`treat_missing_data=breaching`이 최종 방어선이다.
+
+### R1 라이브QA 실측 정정(2026-07-22, N-1) — DB 완전 장애 시 실제 1차 방어선은 `absent()`
+
+위 "fail-loud sentinel" 서술은 쿼리 **실행** 자체가 예외를 던지는 부분 장애(SQL 오류, 제약 위반,
+순간적 락 대기 등)에서는 그대로 성립한다 — sentinel 이 scrape 응답에 실려 Prometheus 에 도달한다.
+그러나 DB 가 완전히 응답 불가한 경우(throwaway PostgreSQL 컨테이너를 정지시켜 실측), `query.timeout`
+이 막지 못하는 Hikari 커넥션 획득 대기 때문에 게이지 콜백이 완료되지 못해 `/actuator/prometheus`
+응답 자체가 Prometheus `scrape_timeout`(기본 10s)을 넘겨 실패했다(18회 연속 타임아웃 실측). sentinel
+값은 이 경로에서 Prometheus 에 도달하지 못했다 — 발화 당시 모든 알람의 평가값이 `1e+00`
+(`absent()` 가 참일 때의 값)이었고, sentinel 이었다면 `1e+09` 여야 했다. 인프로세스 sentinel 반환
+자체(컨테이너 로그 `... fail-loud sentinel(1.0E9) 반환` WARN)는 실제로 반복 기록돼 정상 동작했지만,
+그 값은 HTTP 응답이 완성되지 못해 관측 경로에서 유실됐다.
+
+그런데도 **알람은 실제로 발화했다**(`PartnerOrderOutboxSchedulerStalled`/`OldestPendingTooOld` firing).
+발화시킨 것은 세 게이지 alert 식에 걸린 `or absent(...)` 가드(H-4,
+`infrastructure/prometheus/rules/partner-order-outbox.yml`)다 — 메트릭 시리즈 자체가 scrape 실패로
+사라지면 비교식은 "거짓"이 아니라 "결과 없음"이 되어 원래는 영구 침묵하지만, `absent()` 는 그 소실
+자체를 감지해 발화한다.
+
+**결론**: sentinel 은 부분 장애(쿼리 실행 실패, 커넥션은 획득됨)용 1차 방어선이고, `absent()` 가드가
+완전 장애(서비스 다운·DB 완전 단절 포함, 메트릭 시리즈 자체의 소실)까지 커버하는 최종 방어선이다.
+이 슬라이스의 관측 목적(장애 시 알람이 green 으로 남지 않고 실제로 발화)은 이미 실측으로 달성돼
+있다 — 이 정정은 그 달성 경로에 대한 서술을 실측에 맞게 고친 것이며 코드 동작은 바뀌지 않았다.
+DB 완전 장애의 부수 영향(heartbeat 포함 인스턴스 전체 metric 유실, healthcheck 로 인한 unhealthy
+전환)도 이미 MED 로 예측돼 있던 것이 실측으로 확인됐다. 게이지 콜백의 비동기화/캐시화로 완전
+장애에서도 sentinel 이 도달하게 만드는 것은 근본적으로 다른 설계 변경이며 이 슬라이스 범위 밖이다
+(개발책임자 결정, 2026-07-22). 실측 원문: `docs/qa/863-r1-liveqa/db-failure-failloud-raw.txt`.
+
+| 게이지 | 의미 | 알람 기준(Prometheus `for:` / CloudWatch period+statistic) | 산출 근거 |
+|---|---|---|---|
+| `outbox_pending_depth` | `PENDING` + `PROCESSING` 행 수 | `> 0`가 10분(600초) 지속 — CloudWatch는 `period=600, statistic=Minimum`(Maximum이면 순간 1건도 ALARM이 돼 "지속" 의미가 깨진다, `#863 R1 H-3`) | 5분 주기 두 번 동안 미처리 상태가 남아 있으면 감지한다. 업무량 기준을 임의로 가정하지 않고, 상태 존재 자체를 감시한다. |
+| `outbox_oldest_pending_age_seconds` | 미처리 행 중 `first_attempted_at` 기준 최장 경과 초 | `> 72000`가 5분(300초) 지속 | 최대 재시도 24시간(86400초) 4시간(14400초) 전 값이다. 원래 `86400-300=86100`은 5분 `for:`와 결합하면 firing 도달 시점이 `expireIfExhausted`가 행을 종결시키는 순간과 겹쳐 실질 조치 여유가 0이었다(`#863 R1 H-2`) — 4시간 여유로 재조정했다. |
+| `outbox_scheduler_heartbeat_seconds` | 마지막 scheduler tick 이후 경과 초 | `> 600`가 **1분(60초)** 지속(`for: 1m`) | 정상 주기 300초의 두 배를 초과하면 scheduler 정지를 감지한다. `2 × 300 = 600`. ⚠️ 이 행의 "지속" 시간은 이전 판(300초)에서 오기였다(`#863 R1 MED`) — 실제 Prometheus 룰은 `for: 1m`이다. |
+
+`partner_order_slip_publish_terminal_total` counter는 추세·원인 분석용으로도 쓰이지만, FAILED
+(영구실패)는 상태 게이지가 전이 즉시 집합을 이탈시켜 구조적으로 놓치므로 **이 counter 를 원천으로
+하는 보조 alarm**(`PartnerOrderSlipPublishTerminalFailure` + CloudWatch
+`…-partner-order-outbox-failed-permanent`)이 별도로 존재한다(`#863 R1 BLOCKING-2` — 최초 구현이
+대체 없이 삭제했던 것을 복원). 알람의 **1차** 원천은 상태 게이지이며, stdout/awslogs 로그를 1차
+원천으로 사용하지 않는다는 원칙은 유지된다 — 위 보조 alarm 은 예외적으로 유지하는 보조 백스톱이다.
+게이지 조회에는 `V11__add_outbox_observability_index.sql`의 `(first_attempted_at) WHERE ...`
+부분 인덱스가 사용된다. 운영 전환 전 실제 `/actuator/prometheus` scrape와 CloudWatch 양성 도달
+검사를 모두 수행해야 한다.
 
 ## REST endpoints (8 + bootstrap 1)
 
@@ -93,13 +163,21 @@ Scheduler (5분):
 | `INTERNAL_TOKEN` | `dev-internal-token-change-me` | prod default 사용 시 부팅 거부 |
 | `BOOTSTRAP_CACHE_REFRESH_MINUTES` | 10 | bootstrap 내부 캐시 evict 후 prefetch 주기(분) |
 | `samhan.draft.ttl-days` | 30 | DraftCleanupScheduler |
-| `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계 |
+| `samhan.outbox.max-retry-hours` | 24 | confirm 흐름 retry 한계. claim 시점 종결 가드가 `handleRetry` 도달 여부와 무관하게 이 상한을 보장 |
+| `samhan.outbox.lease-seconds` | 120 | PROCESSING stale claim lease. 불변식 `lease-seconds >= batch-size x 7` (perRow = connect 2s + read 5s) |
+| `samhan.outbox.batch-size` | 10 | 한 claim 사이클이 점유할 최대 row 수. 상향 시 lease-seconds 동반 상향 필요 |
+| `samhan.outbox.permanent-error-min-attempts` | 2 | 복구 불가 4xx(INVALID_INPUT·CONFLICT)를 영구 실패로 확정하기 전 최소 시도 횟수. 1 = 즉시 fail-fast |
 
 ## Local run
 
 ```bash
 ./gradlew :services:partner-order-service:bootRun --args='--spring.profiles.active=local'
 ```
+
+> ⚠️ `local` 프로파일에서는 **outbox 재시도 스케줄러가 비활성**이다(`@Profile("!local")`). claim SQL 이
+> PostgreSQL 전용 문법(`FOR UPDATE SKIP LOCKED`·`make_interval`·`RETURNING`)을 쓰므로 H2 에서 파손되기
+> 때문이며, 배포 경로(dev/production)에서는 정상 활성이다. outbox 동작을 로컬에서 보려면 Docker
+> PostgreSQL 스택으로 기동할 것.
 
 ## Tests
 

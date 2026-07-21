@@ -1,0 +1,49 @@
+#854 R5 라이브 QA — 실 Docker 원문 캡처 (합성 없음)
+채취: 2026-07-20 22:49:55     · partner-order-service + slip-service 를 R5 코드로 재배포
+전제: outbox producer 가 dormant 하여 프로덕션 경로로 row 가 생성되지 않으므로 throwaway 시드(QA-854-R5-*) 사용.
+      cron 을 10초로 단축한 오버레이 사용(repo 미커밋). 캡처 후 시드 전량 정리.
+
+== 1) [R5 HIGH-1a] counter eager 등록 — terminal 이벤트가 한 건도 없는 상태에서 시계열이 존재하는가 ==
+   R5 이전 실측: partner_order_* 시계열 0개(=lazy 등록 → increase() 가 첫 0→1 을 미계상).
+   �� �ð迭 4��
+     reason=committed              value=0
+     reason=conflict               value=0
+     reason=invalid_input          value=0
+     reason=max_retry_exhausted    value=0
+   ※ 값이 전부 0 인 것이 정상 — 이 QA 에서 발생시킨 것은 '재시도'이지 terminal 전이가 아니다.
+
+== 2) [R5 HIGH-1b] Prometheus 룰 런타임 로드 ==
+   R5 이전 실측: 로드된 그룹이 ['slip-price-memory'] 뿐(파일은 마운트됐으나 컨테이너가 그 전에 기동).
+   partner-order-outbox     PartnerOrderSlipPublishTerminalFailure   state=inactive health=ok
+   slip-price-memory        SlipPriceMemoryUpsertFailure             state=inactive health=ok
+
+== 3) 검증 불가(다운스트림 장애) → 5xx → '재시도' 분류 라이브 관통 ==
+   R5 차원6 이 '이 경로의 라이브 증거는 IT-only' 라고 지적한 지점.
+   방법: partner-service 컨테이너를 실제로 정지시켜 거래처 검증 불가 상황을 유도.
+
+   [정직 기록] 1차 시도는 이 경로를 타지 못했다 — 시드 payload 가 최소 형태라
+   slip-service 의 bean validation(@NotBlank partnerOrderId·warehouseCode, @NotEmpty lines)에서
+   거래처 검증 이전에 400 으로 거부됐다. 유효 payload 로 교체 후 재실행한 것이 아래 결과다.
+
+-- slip-service 로그 원문(거래처 검증 불가) --
+2026-07-20T22:44:40.132+09:00  WARN 1 --- [slip-service] [nio-8086-exec-6] o.s.c.l.core.RoundRobinLoadBalancer      : No servers available for service: partner-service
+2026-07-20T22:44:40.134+09:00  WARN 1 --- [slip-service] [nio-8086-exec-6] c.s.l.slip.client.PartnerInternalClient  : PartnerInternalClient.verifyPartnerCode 호출 실패 — partnerCode=QA-854-R5-D, msg=No instances available for partner-service
+-- partner-order 스케줄러 로그 원문(5xx → 재시도) --
+2026-07-20T22:44:40.143+09:00  WARN 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxResultWriter  : Outbox retry: orderId=aaaa0005-0000-0000-0000-000000000005, attempt=2, nextAttemptAt=2026-07-20T22:54:40.143292292, error=slip-service 5xx: 500 INTERNAL_SERVER_ERROR
+-- outbox 최종 상태: PENDING·attempt 2 = 재시도 분류(영구실패 아님) --
+ idempotency_key | status  | attempt_count |                 last_error                  
+-----------------+---------+---------------+---------------------------------------------
+ PO-QA-854-R5-D  | PENDING |             2 | slip-service 5xx: 500 INTERNAL_SERVER_ERROR
+(1 row)
+
+-- 주문 상태(PENDING_RETRY 유지 — FAILED_PERMANENT 로 종결되지 않음) --
+QA-854-R5-D → PENDING_RETRY
+
+== 4) 배지 캡처 대상 주문(docs/qa/854-r5-publish-status-badge/) ==
+ partner_code |    order_no    |  status   | slip_publish_status 
+--------------+----------------+-----------+---------------------
+ QA-854-R5-D  | 2026/07/20-R5D | CONFIRMED | PENDING_RETRY
+ QA-854-R5-E  | 2026/07/20-R5E | CONFIRMED | FAILED_PERMANENT
+ QA-854-R5-F  | 2026/07/20-R5F | CONFIRMED | PENDING_RETRY
+(3 rows)
+

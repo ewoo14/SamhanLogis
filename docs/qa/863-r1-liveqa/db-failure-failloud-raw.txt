@@ -1,0 +1,91 @@
+﻿# #863 R1 라이브QA ③ — DB 장애 시 게이지 fail-loud(H-1) 실증
+# 격리: 공유 samhan-postgres 는 절대 정지하지 않음. partner-order-service 만 전용 throwaway PG
+#       (qa863-throwaway-pg) 를 바라보게 하고 그 throwaway 만 정지시킨다.
+#       컨테이너는 samhan-net 에 그대로 있어 QA Prometheus scrape 경로는 살아있다.
+# 서비스 재기동 21:33:39, throwaway 에 V1~V11 fresh 마이그 성공, 시드 30주문, cron=기본 5분
+
+## [A] DB 정상 구간 — 같은 JVM 에서 스케줄러가 실제로 tick 함(연속성 확보)
+21:34:38  hb=47.012  depth=0.0  age=0.0
+21:34:54  hb=63.989  depth=0.0  age=0.0
+21:35:09  hb=2.964  depth=0.0  age=0.0
+21:35:24  hb=19.937  depth=0.0  age=0.0
+   ^^^ tick 관측(heartbeat 리셋) — DB 정상 구간 확증
+
+## [B] DB 정지 시점 — 공유 PG 가 아니라 전용 throwaway 만 정지
+throwaway PG 정지 완료: 21:35:45
+공유 samhan-postgres 상태: Up 3 hours (healthy)
+
+## [C] 정지 직후 게이지 실측 — NaN 인가 sentinel(1.0E9) 인가 (elapsed = actuator 응답 소요)
+21:35:46  elapsed=0.14s  hb=39.661  depth=0.0  age=0.0
+21:35:51  elapsed=0.16s  hb=44.327  depth=0.0  age=0.0
+21:35:56  elapsed=25.18s  hb=(응답없음)  depth=  age=
+21:36:26  elapsed=25.16s  hb=(응답없음)  depth=  age=
+21:36:57  elapsed=25.18s  hb=(응답없음)  depth=  age=
+21:37:27  elapsed=25.19s  hb=(응답없음)  depth=  age=
+21:37:57  elapsed=25.2s  hb=(응답없음)  depth=  age=
+21:38:27  elapsed=25.17s  hb=(응답없음)  depth=  age=
+21:38:57  elapsed=25.19s  hb=(응답없음)  depth=  age=
+21:39:28  elapsed=25.18s  hb=(응답없음)  depth=  age=
+21:39:58  elapsed=25.18s  hb=(응답없음)  depth=  age=
+21:40:28  elapsed=25.18s  hb=(응답없음)  depth=  age=
+21:40:58  elapsed=25.16s  hb=(응답없음)  depth=  age=
+21:41:28  elapsed=25.18s  hb=(응답없음)  depth=  age=
+21:41:58  elapsed=25.17s  hb=(응답없음)  depth=  age=
+21:42:29  elapsed=25.17s  hb=(응답없음)  depth=  age=
+21:42:59  elapsed=25.17s  hb=(응답없음)  depth=  age=
+21:43:29  elapsed=25.18s  hb=(응답없음)  depth=  age=
+
+## [D] 판정 — 결과는 달성, 그러나 메커니즘은 설계와 다름
+
+### D-1. 결과(R1 H-1 이 요구한 것): 달성 ✅
+DB 가 죽었을 때 알람이 green 으로 남지 않고 실제로 발화한다.
+$ curl http://127.0.0.1:9091/api/v1/rules   (21:44 시점)
+PartnerOrderOutboxPendingBacklog      = pending value=1e+00   (for:10m 미경과)
+PartnerOrderOutboxOldestPendingTooOld = firing  value=1e+00
+PartnerOrderOutboxSchedulerStalled    = firing  value=1e+00
+PartnerOrderSlipPublishTerminalFailure= firing  value=1e+00
+  ⟹ R1 원지적 "DB 다운 = Prometheus 3종 전부 green" 은 재현되지 않는다. 해소됨.
+
+### D-2. 그러나 발화시킨 것은 sentinel 이 아니라 absent() 다 ⚠️
+모든 알람의 평가값이 value=1e+00 이다. 1 은 absent() 가 참일 때의 값이고,
+sentinel(1.0E9)로 발화했다면 value=1e+09 여야 한다. 즉 **fail-loud sentinel 은
+Prometheus 에 단 한 번도 도달하지 못했다.**
+
+$ curl http://127.0.0.1:9091/api/v1/targets
+health=down
+lastError=Get "http://partner-order-service:8088/actuator/prometheus": context deadline exceeded
+lastScrapeDuration=10.002879798      <- scrape_timeout(기본 10s) 초과로 매번 실패
+
+### D-3. sentinel 코드 자체는 정상 동작한다(인프로세스). 관측 경로에서 유실될 뿐이다.
+$ docker logs samhan-partner-order-service | grep sentinel
+21:36:32.318 WARN [nio-8088-exec-6] OutboxObservabilityMetrics :
+   outbox_pending_depth 조회 실패 — DB 장애 의심, fail-loud sentinel(1.0E9) 반환
+21:36:32.568 WARN [nio-8088-exec-7] ... (동일)
+21:36:45.186 / 21:36:47.568 / 21:36:59.470 ... 반복
+  ⟹ catch(RuntimeException) → sentinel 반환 경로는 실제로 탄다.
+  ⟹ 그러나 그 응답이 10초 안에 완성되지 못해 Prometheus 가 먼저 끊는다.
+
+### D-4. 원인 — 커넥션 획득 대기는 query timeout 으로 못 막는다(코드 주석이 이미 인정한 지점)
+SlipPublishOutboxRepository Javadoc:
+  "jakarta.persistence.query.timeout(ms) 로 쿼리 실행 자체의 상한을 건다 — 커넥션 획득
+   대기(Hikari connectionTimeout)는 이 hint 로 막을 수 없으므로 여전히 상한이 아니다."
+DB 가 죽으면 게이지 콜백은 쿼리 실행이 아니라 **커넥션 획득**에서 막힌다.
+Micrometer 콜백은 scrape 를 처리하는 Tomcat worker 스레드에서 인라인 실행되므로
+scrape 응답 자체가 10초를 넘겨 실패한다.
+실측: actuator/prometheus 직접 호출이 25초 --max-time 으로도 응답 없음(18회 연속).
+21:35:46  elapsed=0.14s  hb=39.661 depth=0.0 age=0.0   <- TTL 캐시(15s) 로 아직 정상값
+21:35:51  elapsed=0.16s  hb=44.327 depth=0.0 age=0.0
+21:35:56  elapsed=25.18s (응답없음)                     <- 이후 18회 전부 타임아웃
+... 21:43:29  elapsed=25.18s (응답없음)
+
+### D-5. 부수 영향 — 인스턴스 metric 전면 유실 + 컨테이너 unhealthy
+- DB 와 무관한 heartbeat 게이지까지 함께 관측 불가가 된다(엔드포인트 자체가 응답 못 함).
+  ⟹ 이 슬라이스가 MED 로 스스로 예측한 "인스턴스 전체 metric 유실"이 실제로 발생한다.
+- $ docker ps -> samhan-partner-order-service | Up 10 minutes (unhealthy)
+  healthcheck 가 /actuator/health 를 치는데 DB health indicator 가 걸려 unhealthy 전환.
+  운영 오케스트레이터 환경에서는 재기동/LB 제외 트리거가 될 수 있다.
+
+### D-6. 본 QA Prometheus 설정이 원인이 아님을 확인(설정 충실도)
+infrastructure/prometheus/prometheus.yml (실제 인프라):  scrape_interval 15s, scrape_timeout 미지정(=기본 10s)
+본 QA prometheus.yml:                                    scrape_interval 15s, scrape_timeout 미지정(=기본 10s)
+  ⟹ 동일 조건. 타임아웃 관측은 QA 설정 아티팩트가 아니다.

@@ -99,7 +99,13 @@ public class SlipPublishController {
     }
 
     /**
-     * partner-order-service M4 → 출고전표 발행. {@link #publishFromEstimate} 와 응답 코드 매트릭스 동일.
+     * partner-order-service M4 → 출고전표 발행.
+     *
+     * <p>{@link #publishFromEstimate} 와 완전히 동일하지는 <b>않다</b> — 거래처 검증이
+     * {@code resolveCommittedPartnerId} 로 strict(fail-closed) 하다. {@code verifyPartnerOrThrow}
+     * (estimate 경로)는 partner-service 5xx/404 외 4xx 를 fail-open 으로 진행시키지만, 이 경로는 검증 불가
+     * 자체를 500/503 으로 거부해 회계 무결성을 우선한다 — 그 결과 estimate 경로에는 없는 500/503
+     * 응답이 이 경로에는 존재한다.
      *
      * @param request 발행 요청 본문
      * @param idempotencyKey Idempotency-Key 헤더
@@ -111,7 +117,9 @@ public class SlipPublishController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신규 발행 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "멱등 재반환"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "같은 키 + 다른 본문 / 동시 발행 race"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "warehouseCode 매핑 누락 / lines 검증 실패")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "warehouseCode 매핑 누락 / lines 검증 실패 / 거래처 코드 미등록(NOT_FOUND)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "거래처 검증 불가(fail-closed) — partner-service 5xx/404 외 4xx/연결 실패 또는 FOUND 결과에 식별자 누락"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "거래처 검증 불가(fail-closed) — 이 서비스의 internal token 미설정")
     })
     @PostMapping("/from-partner-order")
     @RequirePermission(page = "slip.publish.from-partner-order", action = com.samhanair.logis.security.permission.PermissionAction.CREATE)
@@ -133,7 +141,9 @@ public class SlipPublishController {
      *   <li>201 Created — 신규 병합 발행</li>
      *   <li>200 OK — 멱등 재반환 (같은 키 + 같은 본문)</li>
      *   <li>409 Conflict — 같은 키 + 다른 본문 / 동시 발행 race</li>
-     *   <li>400 Bad Request — sourceOrders 비어있음 / warehouseCode 매핑 누락</li>
+     *   <li>400 Bad Request — sourceOrders 비어있음 / warehouseCode 매핑 누락 / 거래처 코드 미등록</li>
+     *   <li>500 Internal Server Error — 거래처 검증 불가(fail-closed, partner-service 5xx/404 외 4xx/연결 실패)</li>
+     *   <li>503 Service Unavailable — 거래처 검증 불가(fail-closed, 이 서비스의 internal token 미설정)</li>
      * </ul>
      *
      * @param request        병합 발행 요청 본문
@@ -148,7 +158,9 @@ public class SlipPublishController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "신규 병합 발행 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "멱등 재반환"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "같은 키 + 다른 본문 / 동시 발행 race"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "sourceOrders 비어있음 / warehouseCode 매핑 누락")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "sourceOrders 비어있음 / warehouseCode 매핑 누락 / 거래처 코드 미등록(NOT_FOUND)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "거래처 검증 불가(fail-closed) — partner-service 5xx/404 외 4xx/연결 실패 또는 FOUND 결과에 식별자 누락"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "503", description = "거래처 검증 불가(fail-closed) — 이 서비스의 internal token 미설정")
     })
     @PostMapping("/from-orders-merge")
     @RequirePermission(page = "slip.publish.from-partner-order",

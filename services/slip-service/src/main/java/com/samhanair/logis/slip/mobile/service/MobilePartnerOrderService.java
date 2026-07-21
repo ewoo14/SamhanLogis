@@ -43,7 +43,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>Slip OUTBOUND DRAFT 생성 + 라인 추가 + shippingAddress / receiverPhone 적용</li>
  * </ol>
  *
- * <p>partner-service 5xx 장애 시 INTERNAL_ERROR 응답 (fail-fast — 부정확한 거래처 저장 방지 우선).
+ * <p>partner-service 검증 불가(5xx 또는 404 외 4xx — 401/403/408/429 등) 시 INTERNAL_ERROR 응답
+ * (fail-fast — 부정확한 거래처 저장 방지 우선).
  */
 @Service
 @Transactional
@@ -69,7 +70,7 @@ public class MobilePartnerOrderService {
      * @param requesterId 요청자 user-id (gateway X-User-Id)
      * @return 생성된 슬립 상세 응답 ({@link SlipDetailResponse})
      * @throws BusinessException(NOT_FOUND)      partnerCode 미등록
-     * @throws BusinessException(INTERNAL_ERROR) partner-service 5xx 장애
+     * @throws BusinessException(INTERNAL_ERROR) partner-service 검증 불가(5xx 또는 404 외 4xx)
      * @throws BusinessException(INVALID_INPUT)  productId 미존재 또는 입력 불량
      */
     public SlipDetailResponse createOrder(MobilePartnerOrderRequest req, String requesterId) {

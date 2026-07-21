@@ -1,7 +1,7 @@
 package com.samhanair.logis.partnerorder.domain;
 
 /**
- * PartnerOrderHistory 의 event_type (설계서 §3.4 — 7종).
+ * PartnerOrderHistory 의 event_type (설계서 §3.4 — 8종).
  */
 public enum HistoryEventType {
     /** 임시저장 생성. */
@@ -14,8 +14,10 @@ public enum HistoryEventType {
     CONFIRMED,
     /** slip-service 발행 성공 — slipNo 채워짐. */
     SLIP_PUBLISHED,
-    /** slip-service 5xx → outbox PENDING. */
+    /** slip-service 5xx/408/429 → outbox PENDING. */
     SLIP_RETRY_QUEUED,
+    /** 복구 불가능한 입력/충돌 또는 max-retry-hours 초과로 영구 실패. */
+    SLIP_FAILED_PERMANENT,
     /** 거래처 취소 또는 admin 반려. */
     CANCELED
 }

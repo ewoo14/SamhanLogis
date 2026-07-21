@@ -1065,6 +1065,25 @@ button {
     line-height: 1.4;
   }
 
+  /* #854 R5 LOW-5 — 상태 배지 + 전표발행 배지를 하나의 flex child 로 묶어
+     .mobile-summary-card-header 의 justify-content:space-between 이 3-child 배치로
+     상태 배지를 중앙에 부유시키지 않도록 우측 그룹을 유지한다. */
+  .mobile-summary-badge-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  /* #854 R5 MED — 모바일은 hover 가 없어 Badge title 이 닿지 않으므로 FAILED_PERMANENT
+     한정으로 1줄 안내 캡션을 노출한다. */
+  .mobile-summary-slip-publish-alert {
+    margin: 2px 0 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #B91C1C;
+  }
+
   .mobile-action-bar {
     display: flex;
     gap: 8px;

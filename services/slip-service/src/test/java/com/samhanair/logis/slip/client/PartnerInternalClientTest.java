@@ -14,6 +14,8 @@ import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -80,6 +82,50 @@ class PartnerInternalClientTest {
 
         assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.NOT_FOUND);
         assertThat(result.partnerId()).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void verifyPartnerCode_401은_SERVER_ERROR로_분류된다() {
+        // #854 R5 MED — internal token 오구성/전파 지연이 "미존재 거래처" 로 접히면 outbox 가
+        // NOT_FOUND→INVALID_INPUT(400)으로 영구 실패 처리한다(spec D-854-06: 401/403=transient).
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-401"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-401");
+
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.SERVER_ERROR);
+        assertThat(result.partnerId()).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void verifyPartnerCode_403도_SERVER_ERROR로_분류된다() {
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-403"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-403");
+
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.SERVER_ERROR);
+        assertThat(result.partnerId()).isEmpty();
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {400, 408, 429})
+    void verifyPartnerCode_404가_아닌_4xx는_SERVER_ERROR로_분류된다(int status) {
+        server.expect(requestTo(BASE_URL + "/internal/partners/P-" + status))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
+
+        PartnerInternalClient.PartnerVerifyResult result = client.verifyPartnerCode("P-" + status);
+
+        assertThat(result.status()).isEqualTo(PartnerInternalClient.PartnerVerifyResult.Status.SERVER_ERROR);
         server.verify();
     }
 

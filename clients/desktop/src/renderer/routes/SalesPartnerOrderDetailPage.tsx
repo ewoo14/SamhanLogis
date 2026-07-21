@@ -8,11 +8,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
-import { Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
+import { Badge, Button, Input, Modal, Select, WarehouseAutocomplete } from '@samhan/design-system'
 import type { Warehouse } from '@samhan/design-system'
 import { listWarehouses, type StockBalanceLookupLine } from '../api/inventory'
 import {
   PARTNER_ORDER_STATUS_LABEL,
+  SLIP_PUBLISH_STATUS_DISPLAY,
   convertPartnerOrderToSlip,
   deletePartnerOrder,
   getPartnerOrder,
@@ -22,6 +23,7 @@ import {
   type ConvertToSlipItem,
   type PartnerOrderDetail,
   type PartnerOrderUpdateRequest,
+  type SlipPublishStatus,
 } from '../api/sales'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { LineLookupReferenceModal } from './components/LineLookupReferenceModal'
@@ -57,6 +59,17 @@ const statusBadgeStyle = (status: string) => {
 
 const emptyLabel = (value: string | number | null | undefined) =>
   value === null || value === undefined || value === '' ? '-' : String(value)
+
+/**
+ * SlipPublishStatus 배지 hover 안내(title) — design-system Badge 가 `...rest` 로 title 을
+ * span 에 그대로 전달한다. 다른 실패 표면(보류 403, 재고부족 409)이 전부 행동 안내를
+ * 동반하는 관례에 맞춰 원인/대응을 짧게 알린다(#854 R5 MED — 안내 부재 fix).
+ */
+const SLIP_PUBLISH_STATUS_TITLE: Partial<Record<SlipPublishStatus, string>> = {
+  PENDING_RETRY:
+    '전표 자동 발행이 실패해 최대 24시간 동안 자동으로 재시도됩니다. 계속 실패하면 관리자에게 문의해 주세요.',
+  FAILED_PERMANENT: '전표 자동 발행이 반복 실패했습니다. 관리자에게 문의해 주세요.',
+}
 
 const bundleModeLabel = (mode: 'EXPAND' | 'KEEP' | null) => {
   if (mode === 'EXPAND') return '구성품 펼침'
@@ -612,6 +625,12 @@ export function SalesPartnerOrderDetailPage() {
     canConvert &&
     query.data.linkedSlipNo == null &&
     CONVERTIBLE_STATUS.has(query.data.status)
+  const slipPublishStatusMeta = query.data
+    ? SLIP_PUBLISH_STATUS_DISPLAY[query.data.slipPublishStatus]
+    : undefined
+  const slipPublishStatusTitle = query.data
+    ? SLIP_PUBLISH_STATUS_TITLE[query.data.slipPublishStatus]
+    : undefined
 
   const canHoldOrder = !!query.data && canEdit && query.data.status === 'DRAFT'
   const canReleaseOrder = !!query.data && canEdit && query.data.status === 'ON_HOLD'
@@ -787,13 +806,37 @@ export function SalesPartnerOrderDetailPage() {
             <div className="mobile-summary-card" data-testid="partner-order-mobile-summary">
               <div className="mobile-summary-card-header">
                 <span className="mobile-summary-doc-no">{query.data.orderNumber}</span>
-                <span
-                  className="mobile-status-badge"
-                  style={statusBadgeStyle(query.data.status)}
-                >
-                  {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
+                {/* 배지 2개를 그룹핑 래퍼로 묶어야 space-between 3-child 배치로 상태 배지가
+                    중앙에 부유하지 않는다(#854 R5 LOW-5). */}
+                <span className="mobile-summary-badge-group">
+                  <span
+                    className="mobile-status-badge"
+                    style={statusBadgeStyle(query.data.status)}
+                  >
+                    {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
+                  </span>
+                  {slipPublishStatusMeta ? (
+                    <Badge
+                      variant={slipPublishStatusMeta.variant}
+                      title={slipPublishStatusTitle}
+                      data-testid="partner-order-slip-publish-status"
+                    >
+                      {slipPublishStatusMeta.label}
+                    </Badge>
+                  ) : null}
                 </span>
               </div>
+              {/* 모바일은 hover 가 없어 title 이 닿지 않으므로 FAILED_PERMANENT 한정으로
+                  1줄 안내 캡션을 별도 노출한다(#854 R5 MED). */}
+              {query.data.slipPublishStatus === 'FAILED_PERMANENT' ? (
+                <div
+                  className="mobile-summary-slip-publish-alert"
+                  role="alert"
+                  data-testid="partner-order-slip-publish-status-caption"
+                >
+                  {SLIP_PUBLISH_STATUS_TITLE.FAILED_PERMANENT}
+                </div>
+              ) : null}
               <div className="mobile-summary-partner">
                 {query.data.partnerName ?? query.data.partnerCode}
               </div>
@@ -974,6 +1017,15 @@ export function SalesPartnerOrderDetailPage() {
                   <span className={styles['badge']}>
                     {PARTNER_ORDER_STATUS_LABEL[query.data.status]}
                   </span>
+                  {slipPublishStatusMeta ? (
+                    <Badge
+                      variant={slipPublishStatusMeta.variant}
+                      title={slipPublishStatusTitle}
+                      data-testid="partner-order-slip-publish-status"
+                    >
+                      {slipPublishStatusMeta.label}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className={styles['cardActions']}>
                   <span className={styles['ratio']}>합계 {krw(query.data.totalAmount)}원</span>

@@ -171,7 +171,7 @@ public class PartnerOrderQueryService {
 
     private PartnerOrderListFilter normalize(PartnerOrderListFilter filter) {
         if (filter == null) {
-            return new PartnerOrderListFilter(null, null, null, null, null);
+            return new PartnerOrderListFilter(null, null, null, null, null, null);
         }
         LocalDate from = filter.dateFrom();
         LocalDate to = filter.dateTo();
@@ -181,6 +181,7 @@ public class PartnerOrderQueryService {
                     from,
                     trimToNull(filter.partnerId()),
                     filter.status(),
+                    trimToNull(filter.slipPublishStatus()),
                     trimToNull(filter.searchKeyword()));
         }
         return new PartnerOrderListFilter(
@@ -188,6 +189,7 @@ public class PartnerOrderQueryService {
                 to,
                 trimToNull(filter.partnerId()),
                 filter.status(),
+                trimToNull(filter.slipPublishStatus()),
                 trimToNull(filter.searchKeyword()));
     }
 
@@ -270,6 +272,14 @@ public class PartnerOrderQueryService {
             predicates.add("po.status = :status");
             params.put("status", filter.status().name());
         }
+        if (filter.slipPublishStatus() != null) {
+            if ("FAILED".equals(filter.slipPublishStatus())) {
+                predicates.add("po.slip_publish_status = 'FAILED_PERMANENT'");
+            } else {
+                predicates.add("po.slip_publish_status = :slipPublishStatus");
+                params.put("slipPublishStatus", filter.slipPublishStatus());
+            }
+        }
         if (filter.searchKeyword() != null) {
             predicates.add("""
                     (
@@ -342,6 +352,20 @@ public class PartnerOrderQueryService {
             }
             if (filter.status() != null) {
                 predicates.add(cb.equal(root.get("status"), filter.status()));
+            }
+            if (filter.slipPublishStatus() != null) {
+                String publishStatus = filter.slipPublishStatus();
+                if ("FAILED".equals(publishStatus)) {
+                    predicates.add(cb.equal(root.get("slipPublishStatus"),
+                            com.samhanair.logis.partnerorder.domain.SlipPublishStatus.FAILED_PERMANENT));
+                } else {
+                    try {
+                        predicates.add(cb.equal(root.get("slipPublishStatus"),
+                                com.samhanair.logis.partnerorder.domain.SlipPublishStatus.valueOf(publishStatus)));
+                    } catch (IllegalArgumentException ex) {
+                        predicates.add(cb.disjunction());
+                    }
+                }
             }
             if (filter.searchKeyword() != null) {
                 String keyword = like(filter.searchKeyword());

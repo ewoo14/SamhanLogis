@@ -38,6 +38,32 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
+  # #863 N-3 — outbox 스케줄러(SlipPublishOutboxScheduler, 5분)가 이 서비스의 다른 @Scheduled 와
+  # Spring Boot 기본 단일 스레드(spring.task.scheduling.pool.size 기본값=1)를 공유하면, 형제
+  # 스케줄러 실행이 오래 걸리는 동안 outbox tick 이 큐에서 굶는다 — DB 장애가 전혀 없어도
+  # outbox_scheduler_heartbeat_seconds 가 600초 임계값을 넘어 PartnerOrderOutboxSchedulerStalled
+  # 알람이 오탐할 수 있다(TaskSchedulerPoolSizeIT 로 재현 — pool size 1일 때 형제 1개가 1.5초
+  # 점유하면 tick 이 1472ms 지연됨).
+  #
+  # 이 서비스의 @Scheduled 는 실제로 6개다: SlipPublishOutboxScheduler(5분)·
+  # BootstrapCacheRefreshScheduler(10분)·DraftCleanupScheduler(매일 03시)·
+  # PartnerOrderEditRequestService.expirePending(1시간) 4개 외에, shared:realtime-abstraction 의
+  # RealtimeAutoConfiguration(SseEmitter 클래스패스 조건만으로 자동 활성화 — 이 서비스가 PR-H4b
+  # SSE/presence 기능에 이 모듈을 쓰기 때문에 등록됨)이 InMemoryRealtimeBroker.heartbeat(30초)·
+  # PresenceService.scheduledPruneExpired(30초) 2개를 더 추가한다.
+  #
+  # pool.size=5 는 현재 운영값으로 유지한다. 이 설정은 5개 worker를 제공할 뿐 heartbeat가
+  # 600초 임계값을 넘지 않는 것을 보장하지 않는다. heartbeat·presence-prune·draft-cleanup·
+  # edit-request 만료 4개는 외부 I/O 호출 없이 인메모리 순회 또는 이미 조회된 row 배치 처리만
+  # 하는 구조라 장시간 점유 원인이 되지 않지만, 이 설정이 보장하지 않는 것: "즉시 실행" — 형제
+  # 작업이 동시에 점유하면 pool 5개가 전부 차 있어 tick 은 대기할 수 있다. 잔여 위험: 유일하게
+  # 장시간 점유 가능성이 있는 BootstrapCacheRefreshScheduler(product-service/Google Sheets 외부
+  # 네트워크 호출)의 운영 환경 실제 소요 시간은 미측정이며, 그것이 600초에 근접하는 경우는 이
+  # 설정으로 방어되지 않는다(측정 + outbox 전용 TaskScheduler 분리 검토는 후속 이슈로 분리).
+  task:
+    scheduling:
+      pool:
+        size: 5
 
 eureka:
   client:
@@ -93,6 +119,11 @@ samhan:
   outbox:
     cron: "0 */5 * * * *"
     max-retry-hours: 24
+    # lease/batch 불변식: lease-seconds >= batch-size * 7(perRow connect2s+read5s). 10*7=70 < 120.
+    lease-seconds: 120
+    batch-size: 10
+    # 복구 불가 4xx(INVALID_INPUT·CONFLICT)를 영구 실패로 확정하기 전 최소 시도 횟수. 1=즉시 fail-fast.
+    permanent-error-min-attempts: 2
   partner-order:
     vendor:
       # PR-F2 + SP-04 재검증 — 종합견적서/주문서 Google Sheet 원본 tab modelCode → 단가 lookup.
@@ -150,6 +181,13 @@ external:
   partner-auth-service: ${SAMHAN_PARTNER_AUTH_SERVICE_URL:http://${PARTNER_AUTH_HOST:partner-auth-service}:8091}
 
 management:
+  # CloudWatch 활성화 여부와 무관하게 Prometheus scrape registry/endpoint는 항상 유지한다.
+  # Spring Boot 3.3의 exporter 조건이 management.defaults.metrics.export.enabled=false 환경에서도
+  # Prometheus를 켜도록 새 명시 property를 사용한다.
+  prometheus:
+    metrics:
+      export:
+        enabled: true
   endpoints:
     web:
       exposure:
@@ -157,6 +195,13 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  metrics.export.cloudwatch:
+    # 운영에서는 애플리케이션이 상태 게이지를 CloudWatch custom metric으로 직접 전송한다.
+    # 로컬/테스트는 AWS 호출을 하지 않고 Prometheus scrape만 사용한다.
+    enabled: ${CLOUDWATCH_METRICS_ENABLED:false}
+    namespace: SamhanLogis/PartnerOrder
+    step: 60s
+    batch-size: 20
 
 ---
 spring:

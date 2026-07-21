@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.client;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.Duration;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +12,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -23,11 +25,16 @@ import org.springframework.web.client.RestClient;
  *   <li>409 Conflict (동일 키 다른 본문/race) → {@link BusinessException}(CONFLICT)</li>
  *   <li>401 Unauthorized → {@link BusinessException}(UNAUTHORIZED)</li>
  *   <li>403 Forbidden → {@link BusinessException}(FORBIDDEN)</li>
- *   <li>기타 4xx → {@link BusinessException}(INVALID_INPUT)</li>
+ *   <li>408 Request Timeout / 429 Too Many Requests → {@link BusinessException}(INTERNAL_ERROR) —
+ *       일시 오류로 간주해 5xx 와 동일하게 재시도 대상 처리(#854 R4 HIGH-B)</li>
+ *   <li>기타 4xx(401/403/408/409/429 제외) → {@link BusinessException}(INVALID_INPUT)</li>
  *   <li>5xx → {@link BusinessException}(INTERNAL_ERROR) — 호출자가 outbox INSERT 로 fallback</li>
  * </ul>
  *
- * <p>회로 차단기 인스턴스: {@code slipServiceClient} (가장 중요 — 30s waitDurationInOpenState).
+ * <p>회로 차단기 설정: {@code ResilienceConfig} 가 {@code slipServiceClient} 인스턴스 키를 30s
+ * waitDurationInOpenState 로 등록해 두었으나(가장 중요), 이 client 자체는 그 데코레이션을
+ * {@code @CircuitBreaker}/{@code CircuitBreakerFactory} 로 배선하지 않는다 — 설정만 존재하고
+ * restClient 를 직접 호출한다(#854 R5 정정, 배선 자체는 이번 범위 밖).
  *
  * <p>설계서 §3.6 + §6 (Sync REST + outbox) 의 Idempotency-Key 정책:
  * <ul>
@@ -55,7 +62,26 @@ public class SlipServiceClient {
 
     public SlipServiceClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                              InternalAuthProperties internalAuthProperties) {
-        this.restClient = builder.baseUrl(SLIP_SERVICE_BASE).build();
+        // #854 하드닝: connect 2s / read 5s timeout 을 명시하여 slip-service hang 시 outbox
+        // processor 의 row 처리 dwell 이 lease(samhan.outbox.lease-seconds)를 넘겨 멀티 인스턴스
+        // overlap 재발행을 유발하거나 HTTP 커넥션이 무한 점유되는 것을 막는다. HTTP 발행은 claim/결과
+        // tx 및 비관 락 밖에서 수행하므로 락을 물지는 않으며, 이 timeout 은 per-row dwell 상한을 보장한다.
+        // read 5s 는 outbox row 처리 dwell 상한이다. 참고: ResilienceConfig 가 slipServiceClient
+        // circuit breaker 인스턴스를 등록해 두었으나(기본 timeLimiter 는 3s — application.yml 에
+        // per-인스턴스 timeLimiter override 없음), 이 client 는 그 데코레이션을 배선하지 않고
+        // restClient 를 직접 호출한다 — @CircuitBreaker/CircuitBreakerFactory 사용처 0건. 설정만
+        // 존재하고 미배선 상태다(#854 R5 정정 — 종전 "resilience4j timelimiter(5s)와 정렬" 서술은
+        // 배선 여부·설정값 양쪽 다 부정확했다). 향후 배선 시 두 상한을 정렬하는 것이 목적이며,
+        // 데코레이션 배선 자체는 이번 범위 밖이다.
+        // DcConfigClient 와 동일하게 builder.clone() 으로 전용 사본을 만들어 싱글턴
+        // loadBalancedRestClientBuilder 변이(ProductClient/InventoryClient 등으로 timeout 전파)를 차단한다.
+        SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
+        rf.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
+        rf.setReadTimeout((int) Duration.ofSeconds(5).toMillis());
+        this.restClient = builder.clone()
+                .baseUrl(SLIP_SERVICE_BASE)
+                .requestFactory(rf)
+                .build();
         this.internalAuthProperties = internalAuthProperties;
     }
 
@@ -99,10 +125,20 @@ public class SlipServiceClient {
                         throw new BusinessException(ErrorCode.CONFLICT,
                                 "slip-service 409 충돌(동일 키 다른 본문/race): " + res.getStatusCode());
                     })
+                    // #854 R4 HIGH-B: spec D-854-06 은 408·429 를 transient(재시도)로 명시했으나 종전
+                    // 매핑은 이들을 아래 일괄 4xx 분기로 흘려 INVALID_INPUT 으로 만들었다. outbox 경로에서는
+                    // INVALID_INPUT 이 영구실패 분류라 요청 타임아웃/레이트리밋이 즉시 종결되고, 동기 경로에서는
+                    // 사용자에게 "잘못된 입력" 으로 오표시된다. 두 호출 모두 5xx 와 동일한 재시도 대상으로 분류한다.
+                    .onStatus(s -> s.value() == 408 || s.value() == 429, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service 일시 오류(재시도 대상): " + res.getStatusCode());
+                    })
                     .onStatus(s -> s.is4xxClientError()
                             && s.value() != 401
                             && s.value() != 403
-                            && s.value() != 409, (req, res) -> {
+                            && s.value() != 408
+                            && s.value() != 409
+                            && s.value() != 429, (req, res) -> {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "slip-service 4xx: " + res.getStatusCode());
                     })
@@ -169,10 +205,20 @@ public class SlipServiceClient {
                         throw new BusinessException(ErrorCode.CONFLICT,
                                 "slip-service 409 충돌(동일 키 다른 본문/race): " + res.getStatusCode());
                     })
+                    // #854 R4 HIGH-B: spec D-854-06 은 408·429 를 transient(재시도)로 명시했으나 종전
+                    // 매핑은 이들을 아래 일괄 4xx 분기로 흘려 INVALID_INPUT 으로 만들었다. outbox 경로에서는
+                    // INVALID_INPUT 이 영구실패 분류라 요청 타임아웃/레이트리밋이 즉시 종결되고, 동기 경로에서는
+                    // 사용자에게 "잘못된 입력" 으로 오표시된다. 두 호출 모두 5xx 와 동일한 재시도 대상으로 분류한다.
+                    .onStatus(s -> s.value() == 408 || s.value() == 429, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "slip-service 일시 오류(재시도 대상): " + res.getStatusCode());
+                    })
                     .onStatus(s -> s.is4xxClientError()
                             && s.value() != 401
                             && s.value() != 403
-                            && s.value() != 409, (req, res) -> {
+                            && s.value() != 408
+                            && s.value() != 409
+                            && s.value() != 429, (req, res) -> {
                         throw new BusinessException(ErrorCode.INVALID_INPUT,
                                 "slip-service 4xx: " + res.getStatusCode());
                     })

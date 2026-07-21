@@ -70,6 +70,11 @@ public abstract class AbstractPostgresIT {
         // SP-D4 cycle 4 fix — HikariCP 풀 축소 (PR #188 / SP-D4 inventory CI 회고)
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
         registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
+        // #854 R5 MED — 실 cron("0 */5 * * * *")이 살아있으면 캐시된 다수 @SpringBootTest 컨텍스트의
+        // SlipPublishOutboxScheduler 가 벽시계 5분 정각에 동시에 slip_publish_outbox 를 claim 해
+        // hard gate 가 간헐적으로 false-RED 난다. "-" = Spring Scheduled.CRON_DISABLED — 모든 outbox
+        // 테스트는 scheduler.retryPending() 을 수동 호출하므로 cron 비활성화로 인한 의미 손실이 없다.
+        registry.add("samhan.outbox.cron", () -> "-");
     }
 
     static class DockerAvailableCondition implements

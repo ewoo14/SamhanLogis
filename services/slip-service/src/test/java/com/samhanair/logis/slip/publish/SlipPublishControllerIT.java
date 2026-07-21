@@ -172,7 +172,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     @ParameterizedTest(name = "partner resolution {0} is fail-closed")
     @MethodSource("partnerResolutionFailures")
     void publishFromPartnerOrder_partnerResolutionFailure_doesNotCreateCommittedSlip(
-            String resultName, PartnerVerifyResult result) throws Exception {
+            String resultName, PartnerVerifyResult result, int expectedStatus, String expectedCode) throws Exception {
         String partnerOrderId = "PO-PARTNER-REQUIRED-" + resultName;
         String idempotencyKey = "idem-partner-required-" + resultName;
         Mockito.when(partnerInternalClient.verifyPartnerCode("CUST-0002"))
@@ -185,10 +185,10 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .header("Idempotency-Key", idempotencyKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(status().is(expectedStatus))
+                .andExpect(jsonPath("$.code").value(expectedCode))
                 .andExpect(jsonPath("$.message").value(
-                        "거래처 코드 'CUST-0002'를 확인할 수 없어 커밋 전표를 발행할 수 없습니다"));
+                        org.hamcrest.Matchers.containsString("커밋 전표를 발행할 수 없습니다")));
 
         org.assertj.core.api.Assertions.assertThat(
                         slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
@@ -206,10 +206,13 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
 
     private static java.util.stream.Stream<Arguments> partnerResolutionFailures() {
         return java.util.stream.Stream.of(
-                Arguments.of("not-found", PartnerVerifyResult.notFound()),
-                Arguments.of("server-error", PartnerVerifyResult.serverError()),
-                Arguments.of("skipped", PartnerVerifyResult.skipped(java.util.Optional.empty())),
-                Arguments.of("found-empty", PartnerVerifyResult.found(java.util.Optional.empty())));
+                Arguments.of("not-found", PartnerVerifyResult.notFound(), 400, "INVALID_INPUT"),
+                Arguments.of("server-error", PartnerVerifyResult.serverError(), 500, "INTERNAL_ERROR"),
+                // #854 R5 — SKIPPED(internal token 미설정)는 SERVER_ERROR 와 구분해 MIG12_INTERNAL_AUTH_MISS
+                // (503)로 던진다. partner-order-service SlipServiceClient 는 5xx 를 일괄 재시도 대상으로
+                // 취급하므로 outbox 재시도/종결 분류에는 영향이 없다(관측 정밀도만 개선).
+                Arguments.of("skipped", PartnerVerifyResult.skipped(java.util.Optional.empty()), 503, "MIG12_INTERNAL_AUTH_MISS"),
+                Arguments.of("found-empty", PartnerVerifyResult.found(java.util.Optional.empty()), 500, "INTERNAL_ERROR"));
     }
 
     // ---------------- idempotency: same key + same body → 200 replay ----------------

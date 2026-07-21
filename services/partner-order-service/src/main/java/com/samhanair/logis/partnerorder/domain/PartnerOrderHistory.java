@@ -17,7 +17,11 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * 거래처 주문 변경 이력 (설계서 §3.4 — 7 event_type {@link HistoryEventType}).
+ * 거래처 주문 변경 이력 (설계서 §3.4 — 8 event_type {@link HistoryEventType}).
+ *
+ * <p>#854 R2 에서 {@code SLIP_FAILED_PERMANENT} 가 추가되어 7 → 8 종. {@code event_type} 은
+ * {@code VARCHAR(30)} 이고 CHECK 제약이 없어 마이그레이션 불요(값 21자). ※ V1 마이그레이션 주석의
+ * "7 event_type" 은 적용된 마이그레이션이라 checksum 상 수정 대상이 아니다.
  *
  * <p>{@link #partnerOrderId} 는 nullable — DRAFT_* event 의 경우 PartnerOrder row 가 아직 없으므로
  * {@link #draftId} 만 채워질 수 있다. CONFIRMED 이후 event 는 {@link #partnerOrderId} 채워짐.

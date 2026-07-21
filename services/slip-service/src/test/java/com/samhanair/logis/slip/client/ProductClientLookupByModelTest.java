@@ -14,6 +14,8 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -104,6 +106,57 @@ class ProductClientLookupByModelTest {
     void lookupByModel_5xx_throwsInternalError() {
         server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assert be.getErrorCode() == ErrorCode.INTERNAL_ERROR
+                            : "Expected INTERNAL_ERROR, got " + be.getErrorCode();
+                });
+        server.verify();
+    }
+
+    @Test
+    void lookupByModel_401은_INTERNAL_ERROR로_분류된다() {
+        // #854 R5 MED 계열 sweep — internal token 오구성/전파 지연을 "존재하지 않는 모델" 로 접으면
+        // outbox 발행 경로(resolveLines)가 이를 INVALID_INPUT(영구실패)로 오분류한다.
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
+
+        assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assert be.getErrorCode() == ErrorCode.INTERNAL_ERROR
+                            : "Expected INTERNAL_ERROR, got " + be.getErrorCode();
+                });
+        server.verify();
+    }
+
+    @Test
+    void lookupByModel_403도_INTERNAL_ERROR로_분류된다() {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN));
+
+        assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException be = (BusinessException) ex;
+                    assert be.getErrorCode() == ErrorCode.INTERNAL_ERROR
+                            : "Expected INTERNAL_ERROR, got " + be.getErrorCode();
+                });
+        server.verify();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {400, 408, 429})
+    void lookupByModel_404가_아닌_4xx는_INTERNAL_ERROR로_분류된다(int status) {
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.valueOf(status)));
 
         assertThatThrownBy(() -> client.lookupByModel("ANY-MODEL"))
                 .isInstanceOf(BusinessException.class)

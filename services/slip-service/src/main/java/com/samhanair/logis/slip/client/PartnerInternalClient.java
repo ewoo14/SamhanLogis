@@ -236,16 +236,23 @@ public class PartnerInternalClient {
             }
             return PartnerVerifyResult.found(Optional.of(UUID.fromString(partnerIdNode.asText())));
         } catch (RestClientResponseException ex) {
-            // 404 = 미등록 partnerCode (strict 모드 reject 대상).
+            // 404 = 미등록 partnerCode (strict 모드 reject 대상) — 진짜 "존재하지 않음" 만 여기로.
             // 5xx = partner-service 장애 (strict 모드 fail-open).
+            // 404만 미존재로 분류한다. 401/403은 토큰 문제이고 408/429를 포함한 나머지
+            // 4xx도 partner-service가 거래처 존재 여부를 판정한 응답으로 볼 수 없으므로
+            // 검증 불가(serverError)로 보수 분류해 outbox 영구실패 세탁을 막는다.
+            int status = ex.getStatusCode().value();
+            if (status == 404) {
+                return PartnerVerifyResult.notFound();
+            }
             if (ex.getStatusCode().is5xxServerError()) {
                 log.warn("PartnerInternalClient.verifyPartnerCode 5xx — partnerCode={}, status={}",
                         partnerCode, ex.getStatusCode());
                 return PartnerVerifyResult.serverError();
             }
-            log.debug("PartnerInternalClient.verifyPartnerCode 4xx (미존재 등) — partnerCode={}, status={}",
+            log.debug("PartnerInternalClient.verifyPartnerCode 4xx (404 외 검증 불가) — partnerCode={}, status={}",
                     partnerCode, ex.getStatusCode());
-            return PartnerVerifyResult.notFound();
+            return PartnerVerifyResult.serverError();
         } catch (Exception ex) {
             log.warn("PartnerInternalClient.verifyPartnerCode 호출 실패 — partnerCode={}, msg={}",
                     partnerCode, ex.getMessage());
@@ -259,7 +266,8 @@ public class PartnerInternalClient {
      * <ul>
      *   <li>{@link Status#FOUND} — 200, 거래처 존재. partnerId 가 응답에 있으면 함께 반환.</li>
      *   <li>{@link Status#NOT_FOUND} — 404, 거래처 미등록. strict 모드 reject 대상.</li>
-     *   <li>{@link Status#SERVER_ERROR} — 5xx / 연결 실패. strict 모드 fail-open (raw 저장 + warning).</li>
+     *   <li>{@link Status#SERVER_ERROR} — 5xx / 404 외 4xx(401/403/408/429 등 검증 불가) / 연결 실패.
+     *       strict 모드 fail-open (raw 저장 + warning).</li>
      *   <li>{@link Status#SKIPPED} — partnerCode null/blank 또는 internal token 미설정. lookup 자체 skip.</li>
      * </ul>
      */

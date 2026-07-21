@@ -1,0 +1,46 @@
+#854 R4 라이브 QA — 실 Docker 원문 캡처 (합성 없음)
+채취 시각: 2026-07-20 20:16:38    
+대상: samhan-partner-order-service (브랜치 코드 재빌드) · samhan-postgres (partner_order_db)
+전제: outbox producer 가 dormant 하여 프로덕션 경로로 row 가 생성되지 않으므로 throwaway 시드(QA-854-R4-*)를 사용했다.
+      라이브 QA 전용으로 SAMHAN_OUTBOX_CRON 을 10초로 단축(오버레이는 repo 미커밋).
+
+== 1) 컨테이너 상태 ==
+samhan-partner-order-service	Up 3 minutes (healthy)	infrastructure-partner-order-service
+
+== 2) 시드 직후 상태(전이 전) — 재현용 ==
+   A: PENDING·attempt1·firstAttempted 25h 전  (markRequeue 형상 = 결과 tx 실패 루프)
+   B: PROCESSING·lease 만료·firstAttempted 25h 전 (lease 재점유 루프)
+   C: PENDING·attempt1·미해소 partnerCode (slip-service 400 유발)
+
+== 3) 스케줄러 로그 원문 ==
+2026-07-20T20:14:40.009+09:00  INFO 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxScheduler     : Outbox claim: 3 rows
+2026-07-20T20:14:40.278+09:00  WARN 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxResultWriter  : Outbox retry: orderId=aaaa0003-0000-0000-0000-000000000003, attempt=2, nextAttemptAt=2026-07-20T20:24:40.275110617, error=slip-service 4xx: 400 BAD_REQUEST
+2026-07-20T20:14:40.325+09:00 ERROR 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxResultWriter  : Outbox FAILED_PERMANENT: orderId=aaaa0002-0000-0000-0000-000000000002, attempts=1, errorCode=MAX_RETRY_EXHAUSTED, error=max-retry-hours(24h) 초과 — claim 시점 종결 가드
+2026-07-20T20:14:40.348+09:00 ERROR 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxResultWriter  : Outbox FAILED_PERMANENT: orderId=aaaa0001-0000-0000-0000-000000000001, attempts=1, errorCode=MAX_RETRY_EXHAUSTED, error=max-retry-hours(24h) 초과 — claim 시점 종결 가드
+2026-07-20T20:15:40.005+09:00  INFO 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxScheduler     : Outbox claim: 1 rows
+2026-07-20T20:15:40.020+09:00 ERROR 1 --- [partner-order-service] [   scheduling-1] c.s.l.p.s.SlipPublishOutboxResultWriter  : Outbox FAILED_PERMANENT: orderId=aaaa0003-0000-0000-0000-000000000003, attempts=2, errorCode=INVALID_INPUT, error=slip-service 4xx: 400 BAD_REQUEST
+
+== 4) outbox 최종 상태 ==
+ idempotency_key | status | attempt_count |    elapsed     | modified_by |                    last_error                    
+-----------------+--------+---------------+----------------+-------------+--------------------------------------------------
+ PO-QA-854-R4-A  | FAILED |             1 | 1 day 01:02:04 | system      | max-retry-hours(24h) 초과 — claim 시점 종결 가드
+ PO-QA-854-R4-B  | FAILED |             1 | 1 day 01:02:04 | system      | max-retry-hours(24h) 초과 — claim 시점 종결 가드
+ PO-QA-854-R4-C  | FAILED |             2 | 00:02:04       | system      | slip-service 4xx: 400 BAD_REQUEST
+(3 rows)
+
+== 5) 주문 최종 상태 ==
+ partner_code |  status   | slip_publish_status 
+--------------+-----------+---------------------
+ QA-854-R4-A  | CONFIRMED | FAILED_PERMANENT
+ QA-854-R4-B  | CONFIRMED | FAILED_PERMANENT
+ QA-854-R4-C  | CONFIRMED | FAILED_PERMANENT
+(3 rows)
+
+== 6) 이력(history) ==
+ partner_code |      event_type       |                                      detail                                      
+--------------+-----------------------+----------------------------------------------------------------------------------
+ QA-854-R4-A  | SLIP_FAILED_PERMANENT | {"attempts":1,"errorCode":"","event":"FAILED_PERMANENT","error":"max-retry-hours
+ QA-854-R4-B  | SLIP_FAILED_PERMANENT | {"attempts":1,"errorCode":"","event":"FAILED_PERMANENT","error":"max-retry-hours
+ QA-854-R4-C  | SLIP_FAILED_PERMANENT | {"attempts":2,"errorCode":"INVALID_INPUT","event":"FAILED_PERMANENT","error":"sl
+(3 rows)
+

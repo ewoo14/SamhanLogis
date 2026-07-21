@@ -18,4 +18,36 @@ metadata:
 - 상태가 매 단계 변하므로 wake마다 prompt를 **갱신**해 재예약(동적 루프). 진행은 PR 코멘트에 라운드별 누적 게시로 추적 가능하게.
 - 멈춤 = 신규 업무규칙/정책 결정 필요 시만. 그 외(트리비얼 결정·라이브QA 실연동 불가 등)는 자율 판단/정직 기록 후 계속.
 
-관련: [[feedback_canonical_workflow]] [[feedback_post_each_review_round_distinctly]] [[feedback_rereview_converge_after_fix]] [[feedback_no_fake_data_ever]]
+## 🚨 2026-07-21 실패 박제 — "통지가 오지 않는 대기"가 6시간 23분 정지를 만들었다
+
+**사고**: 트랙1(#854) R6 fix 커밋 `00:22`, 트랙2(#825) LUNA 마지막 쓰기 `00:21` 이후 **06:45 까지 두 트랙 모두 완전 정지**. 실제 작업 ~2시간, 정지 ~6.5시간.
+
+**직접 원인 두 가지 — 둘 다 "기다리면 깨워줄 것"이라는 잘못된 전제**:
+1. **CI 확인은 백그라운드 태스크가 아니다** — "CI green 확인 후 R7 진행"이라 해놓고 턴을 끝냈는데, `gh pr checks` 는 내가 직접 호출해야 하는 것이라 **나를 깨우는 통지가 존재하지 않는다.**
+2. **MCP idle timeout 으로 `failed` 처리된 codex 태스크는 완료 통지가 오지 않는다** — 그런데 "LUNA 종료 확인 후 진행"이라며 **영원히 오지 않을 통지**를 기다렸다. (abort ≠ 미수행 은 [[feedback_codex_cli_version_model_mismatch]] 에 이미 박제돼 있었고 산출물은 실제로 계속 쌓이고 있었다.)
+
+**🚩 더 나쁜 근본 원인 — 도구 가용성을 추측으로 판단하고 시도조차 안 했다.**
+`ScheduleWakeup` 을 "이건 `/loop` 전용이라 여기서 호출하면 에러 날 것"이라고 **혼자 단정하고 건너뛰었다.** 실제로 호출해 보니 **정상 동작**했다. 본 메모리의 규칙(매 단계 재자각)이 이미 있었는데 **도구를 안 써서** 규칙이 무력화된 것이다.
+⟹ **미검증 단정 금지**([[feedback_emit_real_tool_calls]] 계열). 도구가 안 될 것 같으면 **실제로 한 번 호출해 보고** 판정하라. 실패해도 비용은 1콜이다.
+
+## 🚨 2026-07-21 개발책임자 지시 — codex 는 통지를 **아예 기다리지 말 것** (10분 주기 폴링)
+
+**지시 원문 취지**: "코덱스 완료 또는 취소 통지를 기다리지 말고 **주기적으로 10분마다** 작업 상황 확인할 것."
+
+⟹ codex(MCP `mcp__codex__codex` / `codex exec`) 를 디스패치한 **그 순간부터** `ScheduleWakeup(600s)` 을 표준 주기로 걸고, 매 wake 마다 아래 3종을 **직접 호출해** 확인한다. 확인 후에는 **반드시 다시 600s 재예약**해 사이클을 유지한다.
+
+**🚨 통지와 폴링은 택일이 아니라 병행이다** (2026-07-21 개발책임자 정정 — PM 이 "통지 대기를 끊는다"로 잘못 좁혀 박제한 것을 즉시 교정). 완료/abort 통지가 오면 그대로 받아 **즉시 활용**하고(빠른 경로), 그와 **무관하게** 10분 폴링 사이클을 **계속 돌린다**(보장 경로). 금지되는 것은 "통지가 올 것"이라 믿고 **폴링 없이 대기하다 정지**하는 것뿐이다. 통지가 먼저 오면 그 턴에 처리하고 사이클은 그대로 유지한다.
+
+1. rollout 로그 `LastWriteTime` / `Length` 증가 여부 (`~/.codex/sessions/rollout-*.jsonl`)
+2. 대상 워크트리 `git status --short` / `git diff --stat` — 산출물이 쌓이는가
+3. `codex` / `node` / `chrome` / `java` 프로세스 존재 — 장시간 툴콜 실행 중인가
+
+**정지 판정 정정 (2026-07-21 실측)**: 기존 "rollout 90초 무변동 = 정지" 기준은 **장시간 단일 툴콜(Playwright 전량·`npm ci`·gradle 빌드) 중에는 오판**이다. codex 가 툴 결과를 기다리는 동안에는 rollout 에 아무것도 쓰지 않는다. 실측 사례: rollout 3분 무변동인데 node/chrome 프로세스 27개 = Playwright 590 전량 실행 중 = 정상. ⟹ **무변동은 반드시 프로세스로 교차 확인**하고, *프로세스도 없고 rollout 도 멈춘* 경우에만 정지로 판정해 rollout 파일명의 threadId 로 `codex-reply` 이어받기(재디스패치보다 우선). 관련: [[feedback_codex_cli_version_model_mismatch]]
+
+**턴 종료 전 필수 자문 (체크리스트)**:
+- 내가 지금 기다리는 것이 **통지가 오는 작업인가?**(Agent/Bash `run_in_background`/Monitor = 온다 · CI 상태·외부 API·abort 된 MCP = **안 온다**)
+- 안 오는 것이 하나라도 있으면 **반드시 `ScheduleWakeup` 으로 자기 기상 예약**.
+- 통지 오는 작업만 있어도 **긴 fallback 기상(1200s+)** 을 함께 걸어 hang/누락에 대비.
+- wake prompt 에 **"통지가 오지 않는 항목은 직접 폴링"** 을 명시(어떤 항목인지 열거).
+
+관련: [[feedback_canonical_workflow]] [[feedback_post_each_review_round_distinctly]] [[feedback_rereview_converge_after_fix]] [[feedback_no_fake_data_ever]] [[feedback_emit_real_tool_calls]] [[feedback_codex_cli_version_model_mismatch]]

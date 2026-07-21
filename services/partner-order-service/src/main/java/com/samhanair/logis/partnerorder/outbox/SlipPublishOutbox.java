@@ -17,8 +17,14 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
- * Outbox row — slip-service 발행 5xx 시 INSERT (PENDING). scheduler 가 5분 마다 picks 후
- * 재시도. 성공 시 COMMITTED, max-retry-hours (기본 24h) 초과 시 FAILED.
+ * Outbox row — slip-service 발행 5xx/408/429 시 INSERT (PENDING). scheduler 가 5분 마다 claim 후
+ * 재시도. 성공 시 COMMITTED, 복구 불가 4xx(INVALID_INPUT/CONFLICT — 408/429 는 제외, 5xx 와 동일하게
+ * 재시도 대상) 또는 max-retry-hours (기본 24h) 초과 시 FAILED.
+ *
+ * <p>claim 은 네이티브 {@code UPDATE ... RETURNING}(FOR UPDATE SKIP LOCKED)으로 PENDING 또는 lease
+ * ({@code samhan.outbox.lease-seconds}) 만료 PROCESSING 을 PROCESSING 으로 원자 전이하며, PROCESSING 은
+ * DB 에 영속된다. HTTP 발행은 claim/결과 tx 밖에서 수행하고, 결과 tx 는 row 를 비관 락으로 재검해
+ * 소유권을 확정한다(lease overlap clobber 차단).
  *
  * <p>설계서 §6 — at-least-once 보장 + Idempotency-Key 로 slip-service 가 중복 발행 차단 (동일 키+본문 재시도 시 200 replay).
  *
@@ -67,7 +73,7 @@ public class SlipPublishOutbox extends BaseEntity {
     @Column(name = "next_attempt_at", nullable = false)
     private LocalDateTime nextAttemptAt;
 
-    /** 마지막 5xx 응답 본문 또는 예외 메시지 (운영 진단용). PostgreSQL TEXT. */
+    /** 마지막 5xx/408/429 응답 본문 또는 예외 메시지 (운영 진단용). PostgreSQL TEXT. */
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 
@@ -93,7 +99,7 @@ public class SlipPublishOutbox extends BaseEntity {
     }
 
     /**
-     * 신규 outbox row — 최초 5xx 발생 시점에 INSERT.
+     * 신규 outbox row — 최초 5xx/408/429 발생 시점에 INSERT.
      *
      * @param partnerOrderId PartnerOrder UUID
      * @param idempotencyKey slip-service Idempotency-Key (재사용)
@@ -105,34 +111,30 @@ public class SlipPublishOutbox extends BaseEntity {
         return new SlipPublishOutbox(partnerOrderId, idempotencyKey, requestPayload);
     }
 
-    /**
-     * scheduler 가 pick 직후 PROCESSING 으로 전이.
-     *
-     * <p>#725 판정: 본 가드는 IllegalState 유지(KEEP) 대상이다. 유일한 호출자는
-     * {@code SlipPublishOutboxScheduler.processOne()} 이며, 그 호출부가 이미
-     * {@code locked.getStatus() != OutboxStatus.PENDING} 이면 즉시 반환하도록 pre-check 하는 내부
-     * {@code @Scheduled} 배치이고, 사용자/외부 API 로 이 outbox row 를 직접 조작하는 controller 경로는
-     * 존재하지 않는다(컨트롤러 없음). 즉 이 예외는 사용자 액션으로 도달 가능한 "상태전이" 가 아니라
-     * 배치 스케줄러 내부의 재시도 방어(도달 불가 sentinel) 이므로 BusinessException 승격 대상에서
-     * 제외한다 (500 마스킹 우려 없음 — 애초에 HTTP 응답 경로로 노출되지 않는다).
-     */
-    public void markProcessing() {
-        if (this.status != OutboxStatus.PENDING) {
-            throw new IllegalStateException("PENDING 상태에서만 PROCESSING 전이 가능: 현재=" + this.status);
-        }
-        this.status = OutboxStatus.PROCESSING;
-    }
-
     /** slip-service 200 replay/201 신규 → COMMITTED 종결. */
     public void markCommitted() {
         this.status = OutboxStatus.COMMITTED;
         this.lastError = null;
     }
 
-    /** 5xx 응답 — PENDING 으로 되돌리고 attemptCount++ + nextAttemptAt 갱신. */
+    /** 5xx/408/429 응답 — PENDING 으로 되돌리고 attemptCount++ + nextAttemptAt 갱신. */
     public void markRetry(String error, LocalDateTime nextAttemptAt) {
         this.status = OutboxStatus.PENDING;
         this.attemptCount += 1;
+        this.lastAttemptedAt = LocalDateTime.now();
+        this.nextAttemptAt = nextAttemptAt;
+        this.lastError = error;
+    }
+
+    /**
+     * 발행 성공 후 결과 tx 실패로 인한 재큐잉 — PENDING 복귀하되 attemptCount 는 증가시키지 않는다.
+     *
+     * <p>발행(HTTP) 자체는 성공했으므로 결과 영속화 재시도를 발행 재시도로 오분류하면 안 된다.
+     * {@code markRetry}(attemptCount++)를 쓰면 결과 저장이 반복 실패할 때 attemptCount 가 부풀려져
+     * max-retry-hours 판정이 왜곡되므로, 재시도 카운트를 보존한 채 next-attempt 만 갱신한다.
+     */
+    public void markRequeue(String error, LocalDateTime nextAttemptAt) {
+        this.status = OutboxStatus.PENDING;
         this.lastAttemptedAt = LocalDateTime.now();
         this.nextAttemptAt = nextAttemptAt;
         this.lastError = error;

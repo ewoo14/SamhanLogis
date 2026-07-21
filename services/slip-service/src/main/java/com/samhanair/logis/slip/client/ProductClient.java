@@ -127,18 +127,19 @@ public class ProductClient {
      * product-service 의 {@code POST /products/internal/lookup-by-model} 을 X-Internal-Token
      * 으로 호출.
      *
-     * <p>HTTP 상태 매핑:
+     * <p>HTTP 상태 매핑 (#854 R5 MED — 계열 sweep):
      * <ul>
      *   <li>404 → {@link BusinessException}({@link ErrorCode#NOT_FOUND}) "모델명에 해당하는 제품이 없습니다"</li>
-     *   <li>그 외 4xx → {@link BusinessException}({@link ErrorCode#INVALID_INPUT})</li>
+     *   <li>404 외 4xx(401/403/408/429 포함) → {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR}) —
+     *       product-service 가 제품 존재 여부를 판정하지 못한 검증 불가 응답</li>
      *   <li>5xx / 네트워크 실패 → {@link BusinessException}({@link ErrorCode#INTERNAL_ERROR})</li>
      * </ul>
      *
      * @param modelName 정확 매칭할 제품 모델명 (null/blank 면 INVALID_INPUT)
      * @return product-service 의 ProductSummary 단건
-     * @throws BusinessException(INVALID_INPUT) modelName null/blank 또는 product-service 가 4xx (404 외)
+     * @throws BusinessException(INVALID_INPUT) modelName null/blank
      * @throws BusinessException(NOT_FOUND) product-service 가 404
-     * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패 / envelope 포맷 오류
+     * @throws BusinessException(INTERNAL_ERROR) 404 외 4xx(401/403/408/429 포함, 검증 불가) / 5xx / 네트워크 실패 / envelope 포맷 오류
      */
     public ProductSummary lookupByModel(String modelName) {
         if (modelName == null || modelName.isBlank()) {
@@ -156,12 +157,15 @@ public class ProductClient {
                     .body(body)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
-                        if (res.getStatusCode().value() == 404) {
+                        int status = res.getStatusCode().value();
+                        if (status == 404) {
                             throw new BusinessException(ErrorCode.NOT_FOUND,
                                     "모델명에 해당하는 제품이 없습니다");
                         }
-                        throw new BusinessException(ErrorCode.INVALID_INPUT,
-                                "product-service 모델명 조회 실패: " + res.getStatusCode());
+                        log.warn("ProductClient.lookupByModel {} — 검증 불가로 처리 — modelName={}",
+                                status, modelName);
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 모델명 조회를 검증할 수 없습니다: " + res.getStatusCode());
                     })
                     .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
                         throw new BusinessException(ErrorCode.INTERNAL_ERROR,
