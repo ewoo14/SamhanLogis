@@ -13,8 +13,10 @@ import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient
 import io.micrometer.cloudwatch2.CloudWatchMeterRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.actuate.metrics.export.prometheus.PrometheusScrapeEndpoint;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -31,8 +33,9 @@ import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
  * {@link CloudWatchAsyncClient} 빈이 뜨는지를 빈 조회로 확인한다.
  *
  * <p>{@code region} 을 명시해 AWS SDK 기본 리전 자동탐지(IMDS 등 네트워크 호출 가능성)를 피한다.
- * SDK 클라이언트 빌더는 지연 인증이라 빈 생성 자체는 실제 AWS 자격증명·네트워크 호출 없이
- * 완료된다 — 이 테스트는 Spring 빈 배선만 검증하며 실제 {@code PutMetricData} 호출은 하지 않는다.
+ * CloudWatch registry는 생성 후 publish scheduler를 시작하고 context 종료 시 flush하므로,
+ * 이 테스트는 {@link CloudWatchAsyncClient}를 mock으로 격리한다. 따라서 빈 배선과 registry
+ * 포함 관계만 검증하며 실제 AWS {@code PutMetricData} 호출은 하지 않는다.
  *
  * <p>{@code @MockBean} 목록은 이 service 의 기존 {@link ApplicationContextLoadIT}(전체 context
  * 부팅에 필요한 외부 client 최소 집합, Eureka 비활성 환경 5xx 회피)와 동일하다 — 이 클래스는 별도
@@ -48,6 +51,9 @@ class CloudWatchMetricsConfigEnabledIT extends AbstractPostgresIT {
 
     @Autowired
     private ApplicationContext applicationContext;
+
+    @MockBean
+    private CloudWatchAsyncClient cloudWatchAsyncClient;
 
     @MockBean
     private DcConfigClient dcConfigClient;
@@ -79,14 +85,8 @@ class CloudWatchMetricsConfigEnabledIT extends AbstractPostgresIT {
      * {@code SlipPublishOutboxResultWriter} 가 실제로 주입받는 primary {@link MeterRegistry} 가
      * CloudWatch 로도 전달되는지 실측한다.
      *
-     * <p>최초 가정("Spring Boot 가 개별 registry 빈들과 별도로 composite 빈을 하나 더 추가해
-     * 총 2개 이상")은 이 컨텍스트에서 <b>틀렸다</b> — {@code getBeansOfType(MeterRegistry.class)}
-     * 는 정확히 1개만 반환했다({@code CompositeMeterRegistryAutoConfiguration} 이 개별 registry
-     * 빈들을 그대로 둔 채 별도 primary composite 를 추가하는 대신, 이 서비스에는 실제로 registry
-     * 구현체 빈이 {@code CloudWatchMeterRegistry} 하나만 등록되는 구성이었다 — Prometheus
-     * exporter 는 actuator endpoint 를 통해 별도 경로로 scrape 되며 Micrometer registry 빈으로
-     * 노출되지 않는 구성일 수 있다). 가정이 아니라 <b>실제로 주입되는 빈의 런타임 타입</b>을
-     * 직접 확인해 CloudWatch 로 나가는지 실증한다.
+     * <p>CloudWatch registry가 실제 주입되는 {@link MeterRegistry} 자신이거나 primary composite에
+     * 포함되는지를 확인한다. Prometheus registry/endpoint 생존은 별도 테스트에서 직접 고정한다.
      */
     @Test
     @DisplayName("실측: primary MeterRegistry 빈이 CloudWatchMeterRegistry 자신이거나 그것을 포함한 composite다")
@@ -103,6 +103,17 @@ class CloudWatchMetricsConfigEnabledIT extends AbstractPostgresIT {
                         + " OutboxObservabilityMetrics 의 게이지 3종·terminal counter 가 CloudWatch 로도 나간다",
                         primary.getClass().getName())
                 .isTrue();
+    }
+
+    @Test
+    @DisplayName("enabled=true 여도 PrometheusMeterRegistry와 prometheus endpoint 경로가 유지된다")
+    void prometheusRegistry_remainsAvailableWhenCloudWatchIsEnabled() {
+        assertThat(applicationContext.getBeansOfType(PrometheusMeterRegistry.class))
+                .as("CloudWatch 활성화가 Prometheus registry를 제거하면 /actuator/prometheus도 소실된다")
+                .isNotEmpty();
+        assertThat(applicationContext.getBeansOfType(PrometheusScrapeEndpoint.class))
+                .as("Prometheus registry가 살아 있어도 scrape endpoint bean이 없으면 관측 경로가 소실된다")
+                .isNotEmpty();
     }
 
 }

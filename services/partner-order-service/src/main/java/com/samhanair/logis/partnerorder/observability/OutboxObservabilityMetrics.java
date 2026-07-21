@@ -44,11 +44,17 @@ import org.springframework.stereotype.Component;
  * {@code absent()} 는 그 소실 자체를 감지해 발화한다. 정리하면 <b>sentinel 은 부분 장애(쿼리
  * 실행 실패, 커넥션은 획득됨)용 1차 방어선이고, {@code absent()} 가드가 완전 장애(서비스 다운
  * 포함, 메트릭 시리즈 자체의 소실)까지 커버하는 최종 방어선이다</b> — CloudWatch 세 알람의
- * {@code treat_missing_data=breaching} 도 "메트릭 소실 자체"를 발화 조건으로 삼는 동일한 설계
- * 철학이다. 이 슬라이스의 관측 목적(장애 시 알람이 green 으로 남지 않고 실제로 발화)은 이미
+ * {@code treat_missing_data=breaching} 도 <b>서비스 자체가 사망해 push 자체가 멈춘 경우</b>의
+ * 최종 방어선이다. 이 슬라이스의 관측 목적(장애 시 알람이 green 으로 남지 않고 실제로 발화)은 이미
  * 실측으로 달성돼 있으며, 본 정정은 그 달성 경로에 대한 서술만 실측에 맞게 고친 것이다(동작
  * 변경 없음). 게이지 콜백의 비동기화/캐시화로 완전 장애에서도 sentinel 이 도달하게 만드는
  * 것은 근본적으로 다른 설계이며 이 슬라이스 범위 밖이다(개발책임자 결정, 2026-07-22).
+ *
+ * <p><b>관측 경로 분리</b>: Prometheus scrape는 Tomcat worker 안에서 callback을 inline 실행하므로
+ * 완전 DB 장애에서는 HTTP scrape timeout과 {@code absent()}가 주역이다. CloudWatch push는 JVM이
+ * 살아 있는 동안 별도 publish 스레드에서 같은 게이지 callback을 실행하므로, Hikari timeout 후
+ * 반환한 sentinel도 {@code PutMetricData}까지 도달할 수 있다. 서비스 자체 사망은 CloudWatch의
+ * {@code treat_missing_data=breaching}이 감지한다.
  *
  * <p><b>#863 R1 MED 정정 — TTL 캐시</b>: Micrometer 콜백은 Prometheus scrape 요청을 처리하는
  * Tomcat worker 스레드에서 그 자리(inline)에 실행된다. scrape 마다 매번 DB 를 왕복하면 (1) DB 부하가
@@ -74,9 +80,11 @@ public class OutboxObservabilityMetrics {
      * {@code outbox_oldest_pending_age_seconds > 86100} 양쪽 임계값보다 항상 크면서, CloudWatch
      * {@code PutMetricData}(허용 범위 대략 ±8.5e307)에서도 안전하게 수용되는 값을 쓴다.
      *
-     * <p>이 값이 Prometheus/CloudWatch 에 실제로 도달하는 것은 쿼리 실행 자체가 실패하는 부분
-     * 장애로 한정된다 — DB 완전 장애(커넥션 획득 자체 불가) 시의 실제 발화 경로는 클래스 Javadoc
-     * "#863 N-1 정정" 항목 참조({@code absent()} 가드가 최종 방어선).
+ * <p>Prometheus scrape에 이 값이 도달하는 것은 쿼리 실행 자체가 실패하는 부분 장애로 한정된다.
+ * CloudWatch push는 JVM이 살아 있으면 별도 publish 스레드가 callback을 실행하므로, DB 완전 장애에서
+ * 만든 sentinel도 {@code PutMetricData}까지 도달을 시도할 수 있다. Prometheus의 DB 완전 장애
+ * 발화 경로는 클래스 Javadoc의 "#863 N-1 정정" 항목({@code absent()} 가드가 최종 방어선)을
+ * 참조한다.
      */
     static final double QUERY_FAILURE_SENTINEL = 1_000_000_000d;
 
@@ -156,7 +164,7 @@ public class OutboxObservabilityMetrics {
         }
         try {
             double value = query.getAsDouble();
-            cache.set(new CachedValue(value, now));
+            cache.set(new CachedValue(value, clock.millis()));
             return value;
         } catch (RuntimeException ex) {
             log.warn("{} 조회 실패 — DB 장애 의심, fail-loud sentinel({}) 반환", gaugeName, QUERY_FAILURE_SENTINEL, ex);

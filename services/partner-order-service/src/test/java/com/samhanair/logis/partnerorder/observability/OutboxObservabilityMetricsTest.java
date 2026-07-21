@@ -125,6 +125,27 @@ class OutboxObservabilityMetricsTest {
     }
 
     @Test
+    @DisplayName("MED: 느린 성공 조회의 TTL은 조회 완료 시점부터 시작한다")
+    void pendingDepthGauge_startsTtlAfterSuccessfulQueryCompletes() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-07-21T00:00:00Z"), ZoneOffset.UTC);
+        when(outboxRepository.countPendingDepth()).thenAnswer(invocation -> {
+            clock.advance(Duration.ofSeconds(16));
+            return 3L;
+        }).thenReturn(9L);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        new OutboxObservabilityMetrics(outboxRepository, meterRegistry, clock);
+
+        double first = meterRegistry.get(OutboxObservabilityMetrics.PENDING_DEPTH).gauge().value();
+        double second = meterRegistry.get(OutboxObservabilityMetrics.PENDING_DEPTH).gauge().value();
+
+        assertThat(first).isEqualTo(3.0);
+        assertThat(second)
+                .as("조회가 완료된 시점부터 15초 이내이므로 느린 성공 조회값을 재사용해야 한다")
+                .isEqualTo(3.0);
+        verify(outboxRepository, times(1)).countPendingDepth();
+    }
+
+    @Test
     @DisplayName("MED: 조회 실패는 캐시하지 않는다 — 다음 호출에서 즉시 재시도해 복구를 빠르게 감지한다")
     void pendingDepthGauge_doesNotCacheFailures() {
         when(outboxRepository.countPendingDepth())

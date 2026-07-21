@@ -286,16 +286,15 @@ D) pendingDepth() → return 0
 
 **B-1 확증**: "CloudWatch 전송이 실제로 동작한다"는 이 워크트리에서 실제 AWS 계정 없이는
 100% 확정할 수 없다 — `CloudWatchMetricsConfigEnabledIT` 가 Spring 컨텍스트에 `enabled=true`
-로 실제 부팅해 `CloudWatchMeterRegistry`/`CloudWatchAsyncClient` 빈이 뜨는 것, 그리고 그
-빈이 `OutboxObservabilityMetrics` 가 주입받는 **바로 그** `MeterRegistry`(또는 그것을 포함한
-composite)인 것까지는 실측했다(2/2 PASS). 여기에 더해 **의도치 않은 강한 증거**가 하나 더
-나왔다 — 이 IT 컨텍스트가 종료될 때 `CloudWatchMeterRegistry` 의 `StepMeterRegistry.close()`
-가 실제로 `PutMetricData` 를 호출 시도하다 `SdkClientException`(테스트 환경에 AWS 자격증명이
-없어 당연히 실패)으로 로그에 남았다 — 즉 배선이 "존재"만 하는 게 아니라 실제로 **발화**를
-시도한다는 것까지 우연히 실증됐다. `enabled=false`(기본값)에서는 `CloudWatchMetricsConfig
-DisabledIT` 가 두 빈이 전혀 생성되지 않음을 확인했다(1/1 PASS). 실제 prod PutMetricData 성공
-여부(자격증명·네트워크·IAM)는 여전히 미확증이며, CUTOVER.md M-20 의 라이브 절차로만 닫을 수
-있다.
+로 실제 부팅해 `CloudWatchMeterRegistry`/`CloudWatchAsyncClient` 빈이 뜨고, Prometheus
+registry/endpoint도 함께 유지되며, primary `MeterRegistry`가 CloudWatch registry를 포함하는
+것까지 실측한다(3/3 PASS). SOL 라운드에서 실제 client를 사용한 구판 IT가 context 종료 시
+`StepMeterRegistry.close()` → `PutMetricData`를 호출 시도하다 자격증명 오류를 남긴 것은
+CloudWatch push 경로가 살아 있다는 증거였지만, 외부 write를 유발하는 테스트 격리 결함이었다.
+현재 IT는 `CloudWatchAsyncClient`를 mock으로 교체해 그 외부 호출을 차단하고 빈/registry 배선만
+검증한다. `enabled=false`(기본값)에서는 `CloudWatchMetricsConfigDisabledIT`가 두 빈이 전혀
+생성되지 않음을 확인한다(1/1 PASS). 실제 prod PutMetricData 성공 여부(자격증명·네트워크·IAM)는
+여전히 미확증이며, CUTOVER.md M-20의 라이브 절차로만 닫을 수 있다.
 
 **H-5 대비 재계산**: 실제 렌더 색상(토큰이 정의돼 있어 fallback 은 렌더되지 않음, [[feedback_
 css_var_token_not_fallback]])으로 WCAG 상대휘도 공식을 직접 계산했다. #F59E0B on #FEF3C7 =
@@ -411,8 +410,10 @@ bean 사용)가 형제 작업이 1.5초 스레드를 점유하는 동안 outbox 
 `scheduling-1`이라는 단일 이름의 스레드에서 실행되는 것도 확인했다.
 
 **fix**: `application.yml` 최상위(default profile, 모든 profile 상속)에
-`spring.task.scheduling.pool.size: 5`(스케줄러 4개 + 여유 1) 추가. 재실행 결과 지연 `0ms`대
-(`time="0.138"`, fix 전 `time="1.62"`)로 즉시 완료 확인.
+`spring.task.scheduling.pool.size: 5`를 유지한다. 이 값은 5개 worker를 제공하지만, 형제 작업의
+동시 점유가 없거나 heartbeat가 600초를 넘지 않는 것을 보장하지 않는다. 특히
+`BootstrapCacheRefreshScheduler`의 외부 호출 소요는 별도 측정이 필요하다. 재실행 결과 지연은
+`0ms`대(`time="0.138"`, fix 전 `time="1.62"`)였고, 테스트가 현재 설정값 5도 고정한다.
 
 ### 검증 원문(N-1/N-2/N-3)
 

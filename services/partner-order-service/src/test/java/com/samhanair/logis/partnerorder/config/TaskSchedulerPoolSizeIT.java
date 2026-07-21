@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
  * #863 N-3 — {@code spring.task.scheduling.pool.size} 스레드 굶주림(starvation) 재현.
@@ -56,6 +57,14 @@ class TaskSchedulerPoolSizeIT extends AbstractPostgresIT {
 
     @Test
     void 형제_스케줄러_1개가_스레드를_점유해도_outbox_tick은_750ms_이내_실행돼야_한다() throws InterruptedException {
+        assertThat(taskScheduler)
+                .as("실제 TaskScheduler bean이 application.yml의 pool.size를 반영해야 한다")
+                .isInstanceOf(ThreadPoolTaskScheduler.class);
+        ThreadPoolTaskScheduler threadPoolTaskScheduler = (ThreadPoolTaskScheduler) taskScheduler;
+        assertThat(threadPoolTaskScheduler.getScheduledThreadPoolExecutor().getCorePoolSize())
+                .as("#863는 pool.size=5 값을 유지해야 한다")
+                .isEqualTo(5);
+
         CountDownLatch siblingStarted = new CountDownLatch(1);
         CountDownLatch tickDone = new CountDownLatch(1);
         AtomicLong tickDelayMillis = new AtomicLong(-1);

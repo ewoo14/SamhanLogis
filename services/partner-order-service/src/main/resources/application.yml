@@ -52,12 +52,11 @@ spring:
   # SSE/presence 기능에 이 모듈을 쓰기 때문에 등록됨)이 InMemoryRealtimeBroker.heartbeat(30초)·
   # PresenceService.scheduledPruneExpired(30초) 2개를 더 추가한다.
   #
-  # pool.size=5 는 outbox 를 제외한 나머지 5개와 정확히 같은 수다 — "형제 수 + 여유 1" 산수는
-  # 성립하지 않는다. 이 설정이 보장하는 것: outbox_scheduler_heartbeat_seconds 가 600초 임계값을
-  # 넘지 않는 것 — 형제 5개 중 heartbeat·presence-prune·draft-cleanup·edit-request 만료 4개는
-  # 외부 I/O 호출 없이 인메모리 순회 또는 이미 조회된 row 배치 처리만 하는 구조라 장시간 점유
-  # 원인이 되지 않는다. 이 설정이 보장하지 않는 것: "즉시 실행" — 형제 5개가 동시에 점유하는
-  # 최악의 경우 pool 5개가 전부 차 있어 tick 은 보장된 빈 스레드 없이 대기한다. 잔여 위험: 유일하게
+  # pool.size=5 는 현재 운영값으로 유지한다. 이 설정은 5개 worker를 제공할 뿐 heartbeat가
+  # 600초 임계값을 넘지 않는 것을 보장하지 않는다. heartbeat·presence-prune·draft-cleanup·
+  # edit-request 만료 4개는 외부 I/O 호출 없이 인메모리 순회 또는 이미 조회된 row 배치 처리만
+  # 하는 구조라 장시간 점유 원인이 되지 않지만, 이 설정이 보장하지 않는 것: "즉시 실행" — 형제
+  # 작업이 동시에 점유하면 pool 5개가 전부 차 있어 tick 은 대기할 수 있다. 잔여 위험: 유일하게
   # 장시간 점유 가능성이 있는 BootstrapCacheRefreshScheduler(product-service/Google Sheets 외부
   # 네트워크 호출)의 운영 환경 실제 소요 시간은 미측정이며, 그것이 600초에 근접하는 경우는 이
   # 설정으로 방어되지 않는다(측정 + outbox 전용 TaskScheduler 분리 검토는 후속 이슈로 분리).
@@ -182,6 +181,13 @@ external:
   partner-auth-service: ${SAMHAN_PARTNER_AUTH_SERVICE_URL:http://${PARTNER_AUTH_HOST:partner-auth-service}:8091}
 
 management:
+  # CloudWatch 활성화 여부와 무관하게 Prometheus scrape registry/endpoint는 항상 유지한다.
+  # Spring Boot 3.3의 exporter 조건이 management.defaults.metrics.export.enabled=false 환경에서도
+  # Prometheus를 켜도록 새 명시 property를 사용한다.
+  prometheus:
+    metrics:
+      export:
+        enabled: true
   endpoints:
     web:
       exposure:

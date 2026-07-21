@@ -64,6 +64,13 @@ heartbeat 가 계속 새 값으로 보여, 이 관측 슬라이스가 없애려�
 콜백의 기본 예외 처리 — `NaN > threshold` 는 항상 `false` 라 알람이 침묵한다)이 아니라 두 임계값보다
 항상 큰 fail-loud sentinel 값을 반환한다.
 
+위 sentinel 설명은 두 export 경로에 동일하게 일반화하면 안 된다. Prometheus scrape는 callback을
+Tomcat worker에서 inline 실행하므로 완전 DB 장애에서는 Hikari 커넥션 획득 대기로 HTTP scrape가
+timeout되고, `absent()`가 메트릭 시리즈 소실을 감지한다. 반면 CloudWatch push는 JVM이 살아 있으면
+별도 publish 스레드가 callback을 실행하므로 Hikari timeout 뒤 sentinel을 만들어 `PutMetricData`
+호출까지 시도할 수 있다. 서비스 자체가 사망한 경우에는 CloudWatch
+`treat_missing_data=breaching`이 최종 방어선이다.
+
 ### R1 라이브QA 실측 정정(2026-07-22, N-1) — DB 완전 장애 시 실제 1차 방어선은 `absent()`
 
 위 "fail-loud sentinel" 서술은 쿼리 **실행** 자체가 예외를 던지는 부분 장애(SQL 오류, 제약 위반,
