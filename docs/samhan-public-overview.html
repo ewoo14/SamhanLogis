@@ -863,7 +863,7 @@ body {
         </div>
       </div>
       <div class="svc-card-db">partner_order_db</div>
-      <div class="svc-card-desc">거래처 주문 관리. Confirm 흐름(DRAFT→CONFIRMING→CONFIRMED) + Outbox 패턴. ON_HOLD(보류) 상태 — 진행중↔보류 양방향 전이, 완료 보류 불가(slip 정합성). <strong>Phase 2.6a 부분전환</strong> — DRAFT/ON_HOLD 주문 라인별 수량 선택 출고전표 전환. converted_quantity(V8) + CONVERTED status + idempotencyKey. 리스트 상태 필터(진행중/보류/완료). 16종 bootstrap 시드. 거래처 주문 직접 수정(PUT/DELETE 낙관적 잠금). 견적→주문 변환. Tesseract OCR(선택).</div>
+      <div class="svc-card-desc">거래처 주문 관리. Confirm 흐름(DRAFT→CONFIRMING→CONFIRMED) + Outbox 패턴. ON_HOLD(보류) 상태 — 진행중↔보류 양방향 전이, 완료 보류 불가(slip 정합성). <strong>Phase 2.6a 부분전환</strong> — DRAFT/ON_HOLD 주문 라인별 수량 선택 출고전표 전환. converted_quantity(V8) + CONVERTED status + idempotencyKey. 리스트 상태 필터(진행중/보류/완료). 16종 bootstrap 시드. 거래처 주문 직접 수정(PUT/DELETE 낙관적 잠금). 견적→주문 변환. Tesseract OCR(선택). <strong>Outbox 상태 게이지 관측(#863)</strong> — pending depth·oldest age·scheduler heartbeat 3종을 Prometheus + production Micrometer CloudWatch(수동 배선)로 노출, 목록 화면 발행실패 건수 배너.</div>
       <div class="svc-tags">
         <span class="stag green">Outbox 패턴</span>
         <span class="stag blue">낙관적 잠금</span>

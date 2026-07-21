@@ -48,22 +48,37 @@ Scheduler (5분):
     └ elapsed ≥ 24h → FAILED + markSlipFailedPermanent + alert
 ```
 
-## Outbox 관측 및 알람 (#863)
+## Outbox 관측 및 알람 (#863, R1 fix로 갱신)
 
-`SlipPublishOutboxScheduler`는 5분 주기로 마지막 tick 시각을 갱신한다. 다음 게이지는
-Prometheus scrape와 production Micrometer CloudWatch export에서 동일한 상태 진실원을
-사용한다. 첫 두 게이지는 scrape 시점에 PostgreSQL을 조회하며, 조회 결과를 캐시하지 않는다.
+`SlipPublishOutboxScheduler`는 5분 주기로 native claim 쿼리가 **성공한 뒤에만** 마지막 tick
+시각을 갱신한다(`#863 R1 HIGH-1` — claim 이전에 갱신하면 DB 장애로 매 tick 이 예외를 던져도
+heartbeat 가 계속 새 값으로 보여, 이 관측 슬라이스가 없애려던 "장애인데 정상으로 보임"을
+그대로 재현한다). 다음 게이지는 Prometheus scrape와 production Micrometer CloudWatch export
+(`config/CloudWatchMetricsConfig.java` 수동 배선 — Spring Boot 3.x 는 CloudWatch metrics export
+를 자동설정하지 않는다)에서 동일한 상태 진실원을 사용한다.
 
-| 게이지 | 의미 | 알람 기준 | 산출 근거 |
+첫 두 게이지(`pending_depth`/`oldest_pending_age`)는 scrape 시점에 PostgreSQL을 조회하되,
+최근 성공한 값을 15초 TTL로 캐시한다(`#863 R1 MED` — 매 scrape 마다 무조건 DB 를 왕복하면 커넥션
+풀 압박 시 scrape 자체가 지연돼 heartbeat 를 포함한 인스턴스 전체 metric 이 함께 유실될 수 있다).
+쿼리가 예외를 던지면(DB 장애) 캐시하지 않고 매번 재시도하며, 그 실패는 `NaN`(Micrometer 게이지
+콜백의 기본 예외 처리 — `NaN > threshold` 는 항상 `false` 라 알람이 침묵한다)이 아니라 두 임계값보다
+항상 큰 fail-loud sentinel 값을 반환한다.
+
+| 게이지 | 의미 | 알람 기준(Prometheus `for:` / CloudWatch period+statistic) | 산출 근거 |
 |---|---|---|---|
-| `outbox_pending_depth` | `PENDING` + `PROCESSING` 행 수 | `> 0`가 600초 지속 | 5분 주기 두 번 동안 미처리 상태가 남아 있으면 감지한다. 업무량 기준을 임의로 가정하지 않고, 상태 존재 자체를 감시한다. |
-| `outbox_oldest_pending_age_seconds` | 미처리 행 중 `first_attempted_at` 기준 최장 경과 초 | `> 86100`가 300초 지속 | 최대 재시도 24시간(86400초) 전에 다음 5분 tick 여유(300초)를 뺀 값이다. `86400 - 300 = 86100`. |
-| `outbox_scheduler_heartbeat_seconds` | 마지막 scheduler tick 이후 경과 초 | `> 600`가 300초 지속 | 정상 주기 300초의 두 배를 초과하면 scheduler 정지를 감지한다. `2 × 300 = 600`. |
+| `outbox_pending_depth` | `PENDING` + `PROCESSING` 행 수 | `> 0`가 10분(600초) 지속 — CloudWatch는 `period=600, statistic=Minimum`(Maximum이면 순간 1건도 ALARM이 돼 "지속" 의미가 깨진다, `#863 R1 H-3`) | 5분 주기 두 번 동안 미처리 상태가 남아 있으면 감지한다. 업무량 기준을 임의로 가정하지 않고, 상태 존재 자체를 감시한다. |
+| `outbox_oldest_pending_age_seconds` | 미처리 행 중 `first_attempted_at` 기준 최장 경과 초 | `> 72000`가 5분(300초) 지속 | 최대 재시도 24시간(86400초) 4시간(14400초) 전 값이다. 원래 `86400-300=86100`은 5분 `for:`와 결합하면 firing 도달 시점이 `expireIfExhausted`가 행을 종결시키는 순간과 겹쳐 실질 조치 여유가 0이었다(`#863 R1 H-2`) — 4시간 여유로 재조정했다. |
+| `outbox_scheduler_heartbeat_seconds` | 마지막 scheduler tick 이후 경과 초 | `> 600`가 **1분(60초)** 지속(`for: 1m`) | 정상 주기 300초의 두 배를 초과하면 scheduler 정지를 감지한다. `2 × 300 = 600`. ⚠️ 이 행의 "지속" 시간은 이전 판(300초)에서 오기였다(`#863 R1 MED`) — 실제 Prometheus 룰은 `for: 1m`이다. |
 
-`partner_order_slip_publish_terminal_total` counter는 추세·원인 분석용 보조 지표로 유지한다.
-알람 원천은 상태 게이지이며 stdout/awslogs 로그를 알람 원천으로 사용하지 않는다. 게이지
-조회에는 `V11__add_outbox_observability_index.sql`의 부분 인덱스가 사용된다. 운영 전환 전
-실제 `/actuator/prometheus` scrape와 CloudWatch 양성 도달 검사를 모두 수행해야 한다.
+`partner_order_slip_publish_terminal_total` counter는 추세·원인 분석용으로도 쓰이지만, FAILED
+(영구실패)는 상태 게이지가 전이 즉시 집합을 이탈시켜 구조적으로 놓치므로 **이 counter 를 원천으로
+하는 보조 alarm**(`PartnerOrderSlipPublishTerminalFailure` + CloudWatch
+`…-partner-order-outbox-failed-permanent`)이 별도로 존재한다(`#863 R1 BLOCKING-2` — 최초 구현이
+대체 없이 삭제했던 것을 복원). 알람의 **1차** 원천은 상태 게이지이며, stdout/awslogs 로그를 1차
+원천으로 사용하지 않는다는 원칙은 유지된다 — 위 보조 alarm 은 예외적으로 유지하는 보조 백스톱이다.
+게이지 조회에는 `V11__add_outbox_observability_index.sql`의 `(first_attempted_at) WHERE ...`
+부분 인덱스가 사용된다. 운영 전환 전 실제 `/actuator/prometheus` scrape와 CloudWatch 양성 도달
+검사를 모두 수행해야 한다.
 
 ## REST endpoints (8 + bootstrap 1)
 

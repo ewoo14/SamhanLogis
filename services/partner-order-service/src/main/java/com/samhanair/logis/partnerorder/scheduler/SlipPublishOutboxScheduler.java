@@ -74,10 +74,14 @@ public class SlipPublishOutboxScheduler {
      */
     @Scheduled(cron = "${samhan.outbox.cron:0 */5 * * * *}")
     public void retryPending() {
-        // 후보가 없어도 tick은 정상 실행이다. heartbeat는 scheduler가 멈췄는지를 판별하는 상태 신호다.
-        observabilityMetrics.markSchedulerTick();
+        // #863 R1 HIGH-1: heartbeat는 claim(DB 접근) 이 성공한 뒤에만 갱신한다. claim 이전에 갱신하면
+        // DB 가 죽어 매 tick 이 예외를 던져도 heartbeat 는 계속 새 값으로 살아있는 것처럼 보여
+        // SchedulerStalled 알람이 DB 장애를 영원히 못 잡는다 — 이 슬라이스가 없애려던 실패 양상
+        // 그 자체다. claim 이 성공(후보 0건 포함)해야만 scheduler 가 실제로 DB 와 통신 가능함을
+        // 증명한 것이므로, 그 성공 뒤에만 heartbeat 를 갱신한다.
         List<SlipPublishOutbox> candidates = outboxRepository.claimReadyBatch(
                 outboxProperties.getBatchSize(), outboxProperties.getLeaseSeconds());
+        observabilityMetrics.markSchedulerTick();
         if (candidates.isEmpty()) {
             return;
         }

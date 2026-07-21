@@ -11730,10 +11730,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // 결과인 하이픈 경로) 양쪽 모두 인식해 목록→상세 전 구간에서 동일 상태를 재현한다.
     const isSlipPendingRetryId = poId === 'ord-slip-pending-retry' || poId === '2026-05-31-6'
     const isSlipFailedId = poId === 'ord-slip-failed' || poId === '2026-05-31-7'
+    // #863 R1 MED — 목록/상세 status 부정합 근본 fix. GET /api/v1/partner-orders 목록의
+    // DRAFT_ROW/SAME_PARTNER_DRAFT_ROW/DELETED_DRAFT_ROW(status=DRAFT)와
+    // ON_HOLD_ROW/SAME_PARTNER_ON_HOLD_ROW(status=ON_HOLD)를 클릭하면 toOrderPathId 가 만드는
+    // 하이픈 경로(예: '2026/05/04-1' → '2026-05-04-1')로 상세를 조회하는데, 이 경로들이 아래
+    // named-id 분기 어디에도 걸리지 않아 최종 else 로 떨어져 poStatus가 'CONFIRMED'가 됐다.
+    // 결과적으로 목록은 DRAFT인 주문의 상세(및 그 status를 참조하는 mock DELETE 가드)가
+    // CONFIRMED로 응답해, DRAFT 주문 삭제라는 주 QA 경로가 새로 추가된 상태 가드(DRAFT/
+    // CONFIRMING만 삭제 허용)에서 엉뚱하게 422가 됐다. 목록 fixture의 실제 orderNumber →
+    // 하이픈 경로를 명시적으로 인식시켜 상세가 목록과 같은 status를 답하게 한다.
+    const isListDraftPathId =
+      poId === '2026-05-04-1' || poId === '2026-05-31-3' || poId === '2026-05-31-5'
+    const isListOnHoldPathId = poId === '2026-05-05-2' || poId === '2026-05-31-4'
     const poStatus: string =
       poId === 'ord-draft' || poId === 'ord-partially-converted' || poId === 'ord-linked-slip'
+        || isListDraftPathId
         ? 'DRAFT'
-        : poId === 'ord-hold'
+        : poId === 'ord-hold' || isListOnHoldPathId
           ? 'ON_HOLD'
           : poId === 'ord-confirming'
             ? 'CONFIRMING'
@@ -11742,7 +11755,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               : poId === 'ord-converted'
                 ? 'CONVERTED'
                 // isSlipPendingRetryId/isSlipFailedId 도 기본 CONFIRMED — R4 라이브 QA 캡처와
-                // 동일 형상(완료 상태인데 outbox 자동발행만 대기/영구실패).
+                // 동일 형상(완료 상태인데 outbox 자동발행만 대기/영구실패). CONFIRMED_ROW의
+                // 하이픈 경로('2026-05-03-1')도 이 기본값과 이미 일치한다.
                 : 'CONFIRMED'
     const poLinkedSlip =
       isSlipPendingRetryId || isSlipFailedId

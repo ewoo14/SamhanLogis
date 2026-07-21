@@ -2,9 +2,36 @@
 
 ## 증상
 
+이 runbook은 아래 네 알람이 공통으로 가리킨다(#863 R1 MED — 최초 구현이 상태 게이지 알람
+3종을 추가하면서 이 문서의 증상을 갱신하지 않아, 이 문서가 가리키던 신호 중 2개가 실제로는
+그 시점에 삭제돼 있었다. #863 R1 BLOCKING-2로 두 신호 모두 복원돼 아래 서술이 다시 유효하다).
+
+**A. 영구실패(FAILED_PERMANENT) — 이 문서의 본편**
+
 - Prometheus `PartnerOrderSlipPublishTerminalFailure` 경보가 발생한다.
 - 주문은 `FAILED_PERMANENT`로 표시되고 연결 전표가 없을 수 있다.
-- CloudWatch에서는 `PartnerOrderOutboxFailedPermanent` 지표가 증가한다.
+- CloudWatch에서는 `PartnerOrderOutboxFailedPermanent` 지표가 증가하고
+  `samhanlogis-production-partner-order-outbox-failed-permanent` 알람이 ALARM으로 전이한다.
+
+**B. 미처리 backlog 지속 / 재시도 상한 임박 / scheduler 정지 — 아직 FAILED가 아님**
+
+다음 세 알람은 FAILED 이전 단계(PENDING/PROCESSING이 비정상적으로 오래 남음)를 감지한다.
+FAILED로 이미 종결된 경우가 아니라면 아래 "원인 후보"·"조치 순서"를 그대로 적용하기 전에
+scheduler 프로세스 생존 여부와 DB 연결 상태부터 확인한다 — 아직 재시도 중이라 자연 회복될
+수 있다.
+
+- `PartnerOrderOutboxPendingBacklog`(Prometheus) / `…-partner-order-outbox-pending-depth`
+  (CloudWatch) — PENDING/PROCESSING 상태가 scheduler 두 주기(600초) 이상 지속.
+- `PartnerOrderOutboxOldestPendingTooOld`(Prometheus) / `…-partner-order-outbox-oldest-pending-age`
+  (CloudWatch) — 가장 오래된 미처리 행이 24시간 재시도 상한 4시간 전(72000초)에 도달. 방치하면
+  A(영구실패)로 전이한다.
+- `PartnerOrderOutboxSchedulerStalled`(Prometheus) / `…-partner-order-outbox-scheduler-heartbeat`
+  (CloudWatch) — scheduler tick이 두 주기(600초) 이상 없음. DB 장애로 claim 쿼리가 매 tick
+  예외를 던지는 경우도 이 알람으로 잡힌다(#863 R1 H-1 — heartbeat는 claim 성공 후에만 갱신).
+  scheduler 프로세스 자체의 생존 여부와 DB 연결을 먼저 확인한다.
+
+세 알람 모두 metric 자체가 사라진 경우(서비스 다운)에도 `absent()` 가드로 발화한다(#863 R1
+H-4) — 이 경우 개별 원인 후보보다 서비스 프로세스 생존 여부를 먼저 확인한다.
 
 ## 원인 후보
 

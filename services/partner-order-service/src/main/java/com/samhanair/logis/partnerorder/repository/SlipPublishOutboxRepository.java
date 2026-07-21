@@ -2,13 +2,16 @@ package com.samhanair.logis.partnerorder.repository;
 
 import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Outbox row 조회 + 짧은 원자 claim.
@@ -21,7 +24,17 @@ import org.springframework.stereotype.Repository;
 public interface SlipPublishOutboxRepository extends JpaRepository<SlipPublishOutbox, UUID>,
         SlipPublishOutboxRepositoryCustom {
 
-    /** PENDING + PROCESSING 상태의 soft-delete 제외 outbox 건수. Prometheus pull 시 실행한다. */
+    /**
+     * PENDING + PROCESSING 상태의 soft-delete 제외 outbox 건수. Prometheus pull 시 실행한다.
+     *
+     * <p>#863 R1 MED — Micrometer 게이지 콜백은 scrape 요청을 처리하는 Tomcat worker 스레드에서
+     * 인라인 실행되므로, DB/커넥션 풀 압박 시 이 쿼리가 scrape 자체를 지연시켜 인스턴스 전체
+     * metric 이 함께 유실될 수 있다. {@code readOnly=true} 로 불필요한 dirty-checking/flush 를
+     * 피하고, {@code jakarta.persistence.query.timeout}(ms) 로 쿼리 실행 자체의 상한을 건다 — 커넥션
+     * 획득 대기(Hikari {@code connectionTimeout})는 이 hint 로 막을 수 없으므로 여전히 상한이 아니다.
+     */
+    @Transactional(readOnly = true)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.query.timeout", value = "3000"))
     @Query(value = """
             SELECT COUNT(*)
               FROM slip_publish_outbox
@@ -30,7 +43,14 @@ public interface SlipPublishOutboxRepository extends JpaRepository<SlipPublishOu
             """, nativeQuery = true)
     long countPendingDepth();
 
-    /** 가장 오래된 미처리 outbox의 경과 초. 미처리 행이 없으면 0을 반환한다. */
+    /**
+     * 가장 오래된 미처리 outbox의 경과 초. 미처리 행이 없으면 0을 반환한다.
+     *
+     * <p>#863 R1 MED — {@link #countPendingDepth()} 와 동일한 이유로 readOnly + 쿼리 timeout(3초)을
+     * 명시한다.
+     */
+    @Transactional(readOnly = true)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.query.timeout", value = "3000"))
     @Query(value = """
             SELECT COALESCE(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - MIN(first_attempted_at))), 0)
               FROM slip_publish_outbox

@@ -193,3 +193,157 @@ Playwright 전량 재실행
   screenshots 변경 146개는 개별 path checkout으로 원복
   untracked screenshot 1개 제거; docs/qa와 playwright screenshot status 변경 없음
 ```
+
+## 2026-07-21 OPUS 4.8 R1 5-agent 적대검증 fix (SONNET5)
+
+OPUS 4.8 R1 이 BLOCKING 2·HIGH 6·MED 9(합 17건)를 지목했다. 한 줄 판정: "관측 공백을 메우려던
+슬라이스가 prod 관측 커버리지를 순감시켰다." 원인은 이 문서 §1~§4 서술 다수가 **실측이 아니라
+설계 의도를 실측처럼 적었기 때문**이다 — 특히 §4 heartbeat 실측(593→692)은 `local` 프로파일(
+`SlipPublishOutboxScheduler` 는 `@Profile("!local")`)에서 나와 스케줄러 자체가 없는 상태를 잰
+것이었고, §2026-07-21 재연결 세션의 `15 up-to-date` 는 캐시 히트를 실행으로 인용한 것이었다.
+이 두 가지를 R1 5-agent 가 PM 자기 검증 실패로 직접 적발했다. 이번 fix 라운드(SONNET5)는 이
+17건 전부와, 선행 세션의 미검증 WIP(`wip/ob863-2026-07-21-evening`, 미커밋)를 참조하되 각
+hunk 를 독립 재판단해 처리했다.
+
+### BLOCKING 2
+
+- **B-1 (prod CloudWatch 전송 경로 부재)** — `config/CloudWatchMetricsConfig.java` 신설. Spring
+  Boot 3.x 는 CloudWatch metrics export 자동설정을 제공한 적이 없어(actuator-autoconfigure
+  `metrics/export/*` 20종에 cloudwatch 없음, 직접 jar 확인), `CloudWatchMeterRegistry`/
+  `CloudWatchAsyncClient` 빈을 `@ConditionalOnProperty(...cloudwatch.enabled=true)` 로 수동
+  배선했다(신규 gradle 의존성 0건 — `micrometer-registry-cloudwatch2` 가 이미 AWS SDK v2
+  cloudwatch/regions 를 전이 의존성으로 가져옴, `./gradlew :services:partner-order-service:
+  dependencies` 실측 확인).
+- **B-2 (FAILED 알람 대체 없는 삭제)** — 삭제됐던 `aws_cloudwatch_log_metric_filter.
+  partner_order_outbox_failed_permanent` + 동명 alarm(`monitoring.tf`)과 Prometheus
+  `PartnerOrderSlipPublishTerminalFailure`(`partner-order-outbox.yml`)를 원문 그대로 복원했다.
+  로그 전달 경로(awslogs driver)와 `"Outbox FAILED_PERMANENT"` 로그 문자열은 이번 PR에서
+  변경되지 않아 그대로 유효하다. runbook·infra/README·CUTOVER.md 도 "게이지가 구조적으로
+  못 잡는 순간전이는 보조 알람으로 유지"로 갱신했다.
+
+### HIGH 6
+
+- **H-1** — `SlipPublishOutboxScheduler.retryPending()`: `markSchedulerTick()` 을
+  `claimReadyBatch()` 성공 **뒤**로 이동(이전에는 DB 장애로 claim 이 매 tick 예외를 던져도
+  heartbeat 가 갱신됐다). `OutboxObservabilityMetrics.pendingDepth()`/`oldestPendingAgeSeconds()`
+  는 예외를 직접 잡아 NaN(Micrometer 게이지의 기본 동작 — `NaN > threshold` 는 항상 false)
+  대신 fail-loud sentinel(1e9)을 반환하도록 정정했다.
+- **H-2** — `oldest_pending_age` 임계값 86100 → 72000(Prometheus rule + CloudWatch alarm 동시
+  정정). 원래 값은 `for:`/period 와 결합 시 firing 시점이 `expireIfExhausted` 종결 순간과
+  겹쳐 실질 lead time 이 0이었다. 72000(24h-4h)로 낮춰 실제 조치 가능한 여유를 확보했다.
+- **H-3** — CloudWatch `partner_order_outbox_pending_depth` alarm 의 `statistic` 을
+  `Maximum` → `Minimum` 으로 정정(Maximum 은 "지속"이 아니라 "창 내 1회라도" 라 정상 주문
+  1건에도 ALARM이 됐다).
+- **H-4** — Prometheus 4개 alert(게이지 3 + 복원된 terminal 1) 모두 `or absent(...)` 가드
+  추가. absent() 는 동등 matcher 라벨을 결과에 그대로 승계해 runbook 링크가 유지된다.
+- **H-5** — `.statusLongPending`(발행실패 배너가 재사용) + 동일 결함의 `.statusOnHold`(sweep)
+  색상을 `var(--state-warning, #92400e)`(실제 렌더값 #F59E0B, 배경 #FEF3C7 대비 1.93:1) →
+  `var(--color-warning-800, #8c5c13)`(대비 약 5.16:1)로 정정.
+- **H-6** — 배너 클릭 전용 `handleFailureBannerClick` 신설, `partnerId`/`searchKeyword` 초기화
+  후 발행실패 필터 적용. `failedCountQuery` 는 이 두 필터와 무관한 전역 집계라, 클릭 후 목록도
+  같은 모집단(무필터)을 보여줘야 "발행 실패 N건" 배너와 "등록된 주문이 없습니다"가 동시에
+  뜨는 모순이 없다.
+
+### MED 9
+
+테스트 0건 → 신규 6파일(unit 3 + IT 3, 아래 검증 참조) · V11 인덱스 `(status,
+first_attempted_at)` → `(first_attempted_at) WHERE ...`(컬럼 단독 선두라 MIN 이 인덱스 선두
+탐색 O(1)에 가까워짐, 원 인덱스는 status 선두라 이 최적화 불가 — EXPLAIN 실측 아래) · 게이지
+쿼리 `@Transactional(readOnly=true)` + `@QueryHints(jakarta.persistence.query.timeout=3000)` +
+게이지값 15초 TTL 캐시(실패는 캐시하지 않음) 추가 · runbook 증상 4종(backlog/재시도임박/
+scheduler정지/FAILED) 갱신 · CUTOVER.md `describe-alarms --alarm-name-prefix` 오타
+(`samhan-partner-order-outbox-` → `samhanlogis-production-partner-order-outbox-`) 정정 ·
+문서 게이트 4건(README·ROADMAP·overview.html·runbook) 갱신 · `failedCountQuery.isError` 시
+전용 에러 배너(무음 소멸 대신) · mock.ts `poStatus` 기본분기가 DRAFT/ON_HOLD 목록 fixture 의
+실제 path-id 를 인식 못 해 CONFIRMED 로 오답하던 근본 원인 fix(신규 DELETE 상태 가드가 이
+pre-existing 불일치를 노출시켰던 것) · heartbeat "지속시간 300초" 오기 2건(service README,
+본 문서 §2) 을 실제 룰(`for: 1m`)에 맞게 정정 + CUTOVER.md 에 CloudWatch period 와 Prometheus
+`for:` 가 다른 메커니즘임을 명시.
+
+### 검증 원문
+
+**BE genuine gradle** (`--rerun-tasks --no-build-cache`):
+```
+BUILD SUCCESSFUL in 3m 19s
+15 actionable tasks: 15 executed
+tests=427 failures=0 errors=0 skipped=0   (XML 집계, 신규 25 test 포함)
+```
+
+**뮤테이션 RED 4/4** (적용 → 대상 테스트 실행 → RED 확인 → 원복, 개별 `--rerun-tasks
+--no-build-cache`):
+```
+A) markSchedulerTick() 삭제
+   12 tests completed, 4 failed (SlipPublishOutboxSchedulerTest 3 + OutboxObservabilityMetricsIT 1)
+B) 게이지 3종 register() 삭제
+   17 tests completed, 12 failed (전부 MeterNotFoundException)
+C) IN ('PENDING','PROCESSING') → IN ('PENDING')
+   8 tests completed, 3 failed (countPendingDepth 1 + oldestPendingAgeSeconds 1 + gauge 1,
+   PROCESSING 행을 "가장 오래된" 값으로 시딩해 depth 테스트와 독립적으로 mutation 감지)
+D) pendingDepth() → return 0
+   9 tests completed, 5 failed (repository 값 반영 검증 4 + TTL 캐시 검증 1)
+원복 후 전체 재실행 = 위 BE genuine gradle 결과(427/427 green)로 복귀 확인.
+```
+
+**B-1 확증**: "CloudWatch 전송이 실제로 동작한다"는 이 워크트리에서 실제 AWS 계정 없이는
+100% 확정할 수 없다 — `CloudWatchMetricsConfigEnabledIT` 가 Spring 컨텍스트에 `enabled=true`
+로 실제 부팅해 `CloudWatchMeterRegistry`/`CloudWatchAsyncClient` 빈이 뜨는 것, 그리고 그
+빈이 `OutboxObservabilityMetrics` 가 주입받는 **바로 그** `MeterRegistry`(또는 그것을 포함한
+composite)인 것까지는 실측했다(2/2 PASS). 여기에 더해 **의도치 않은 강한 증거**가 하나 더
+나왔다 — 이 IT 컨텍스트가 종료될 때 `CloudWatchMeterRegistry` 의 `StepMeterRegistry.close()`
+가 실제로 `PutMetricData` 를 호출 시도하다 `SdkClientException`(테스트 환경에 AWS 자격증명이
+없어 당연히 실패)으로 로그에 남았다 — 즉 배선이 "존재"만 하는 게 아니라 실제로 **발화**를
+시도한다는 것까지 우연히 실증됐다. `enabled=false`(기본값)에서는 `CloudWatchMetricsConfig
+DisabledIT` 가 두 빈이 전혀 생성되지 않음을 확인했다(1/1 PASS). 실제 prod PutMetricData 성공
+여부(자격증명·네트워크·IAM)는 여전히 미확증이며, CUTOVER.md M-20 의 라이브 절차로만 닫을 수
+있다.
+
+**H-5 대비 재계산**: 실제 렌더 색상(토큰이 정의돼 있어 fallback 은 렌더되지 않음, [[feedback_
+css_var_token_not_fallback]])으로 WCAG 상대휘도 공식을 직접 계산했다. #F59E0B on #FEF3C7 =
+1.928(R1 실측 1.93 과 일치) → #8C5C13 on #FEF3C7 = 5.157(AA 4.5:1 상회, `.statusConfirmed` 의
+4.84:1 과 유사 수준).
+
+**V11 인덱스**: 격리 throwaway Postgres(공유 dev DB 미접촉)에 20만 행(현실적 분포 — 미처리
+200행만, 나머지는 COMMITTED/FAILED)을 시딩해 EXPLAIN (ANALYZE, BUFFERS) 비교.
+```
+구 인덱스 (status, first_attempted_at):
+  Aggregate → Bitmap Heap Scan (rows=200, Buffers: shared hit=2 read=1)
+신 인덱스 (first_attempted_at) WHERE ...:
+  Result → InitPlan(Limit) → Index Only Scan using ix_new (rows=1, Heap Fetches: 0)
+  COUNT(*) 비교: Index Only Scan (rows=200) — 컬럼 순서 무관, 기존과 동일 효율 유지 확인
+```
+
+**프로파일 함정 처리**: `SlipPublishOutboxScheduler` 는 `@Profile("!local")` 이라 local
+heartbeat 실측은 스케줄러 부재 상태를 재는 것이라 아무것도 증명하지 못한다(선행 세션이 이
+함정에 빠졌던 지점). 이번 라운드는 `@SpringBootTest`(default 프로파일 = 스케줄러 활성)
+`OutboxObservabilityMetricsIT`/`SlipPublishOutboxSchedulerTest` 로 스케줄러가 **실제로 도는**
+프로파일에서 claim 성공/실패 양쪽 경로를 검증했다 — local 프로파일 heartbeat 실측은 이번
+라운드에서 증거로 인용하지 않는다.
+
+**FE**:
+```
+typecheck: exit 0
+vitest 전량: 134 test files passed, 1024 tests passed
+Playwright 전량: 590 passed (11.5m), unexpected=0
+```
+스크린샷 원복: `git checkout -- docs/qa/` + `git checkout -- "clients/desktop/playwright/
+sp-d4-remaining-pages-permission-migration/screenshots/"`(이번 실행에서 실제로 diff 가 발생한
+유일한 스펙 디렉토리, 13개 수정 + untracked 1개 제거) — `clients/desktop/playwright/` 통째
+checkout 은 사용하지 않음(*.spec.ts 215개 보존 확인).
+
+**terraform/prometheus**: `terraform validate` Success, `terraform fmt -check` clean,
+`promtool check rules` SUCCESS(4 rules found), 격리 throwaway Prometheus 컨테이너(공유
+dev 스택 미접촉)에 수정된 rule 파일을 마운트해 `/api/v1/rules` 로 4개 그룹 전부 `health=ok`
+확인 — 이때 `PartnerOrderOutboxPendingBacklog`/`OldestPendingTooOld` 는 `state=pending`,
+`PartnerOrderSlipPublishTerminalFailure` 는 `state=firing` 이었다(스크레이프 대상이 없어
+metric 자체가 없으므로 H-4 의 `absent()` 가드가 실제로 발화 중임을 그 자리에서 실증).
+
+### 채택하지 않은 WIP 항목
+
+`wip/ob863-2026-07-21-evening` 의 `CloudWatchMetricsConfig.java` 설계(수동 빈 배선)는
+아키텍처적으로 타당해 채택했으나, 자체 작성·재검증했다(문서상 "PropertyValidator" 동작 등은
+독립적으로 재확인). 반면 그 WIP 의 `OutboxObservabilityMetricsIT.retryPending_
+withNoCandidates_stillMarksSchedulerTick` 는 "claim 성공 시 tick" 만 검증하고 **H-1 의 핵심
+경로(claim 이 예외를 던질 때 tick 이 갱신되지 않아야 함)를 전혀 검증하지 않았다** — 이번
+라운드가 `SlipPublishOutboxSchedulerTest`(순수 mock, claim throw 시나리오)로 그 공백을
+메웠다. WIP 의 `CloudWatchMetricsConfigEnabledIT` 는 그대로 채택하되, 이번 라운드가 별도로
+`CloudWatchMetricsConfigDisabledIT`(반대 경로 — enabled=false 시 빈 부재)를 추가했다.

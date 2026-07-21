@@ -135,6 +135,21 @@ export function SalesPartnerOrderListPage() {
     setRestoreError(null)
   }
 
+  /**
+   * #863 R1 H-6: 발행실패 배너 클릭 전용 핸들러. `failedCountQuery` 는 거래처/검색어 필터와
+   * 무관하게 전역 집계인데, 클릭 후 목록은 기존 partnerId/searchKeyword 를 그대로 물고 있어
+   * "발행 실패 N건" 배너 바로 아래 "등록된 주문이 없습니다"가 뜨는 모집단 불일치가 있었다.
+   * 배너는 "전체에서 실패한 N건"을 약속하므로, 클릭 시 그 약속과 같은 모집단(거래처/검색어
+   * 필터 없음)을 보여주도록 두 필터를 함께 초기화한다. 드롭다운(전표 발행상태 필터)에서
+   * 수동으로 FAILED/PENDING_RETRY 를 선택하는 경로는 사용자가 의도적으로 필터를 조합하는
+   * 것이므로 partnerId/searchKeyword 를 건드리지 않는다 — 이 핸들러는 배너 전용이다.
+   */
+  const handleFailureBannerClick = () => {
+    setPartnerId('')
+    setSearchKeyword('')
+    handleSlipPublishStatusFilterChange('FAILED')
+  }
+
   const isPreConfirmStatus =
     statusFilter !== '' && PRE_CONFIRM_STATUSES.has(statusFilter as PartnerOrderStatus)
 
@@ -571,12 +586,23 @@ export function SalesPartnerOrderListPage() {
           </div>
         </div>
 
-        {(failedCountQuery.data?.totalElements ?? 0) > 0 ? (
+        {failedCountQuery.isError ? (
+          // #863 R1 MED: failedCountQuery 실패를 무음(totalElements ?? 0 === 0)으로 삼키면
+          // "발행 실패 0건"처럼 보여 이 슬라이스가 없애려던 false-negative 를 재현한다. 조회
+          // 자체가 실패했다는 것을 정직하게 보여준다.
+          <div
+            role="alert"
+            data-testid="partner-order-slip-publish-failure-count-error"
+            className={styles['partnerOrderRestoreError']}
+          >
+            발행 실패 건수를 확인하지 못했습니다. 새로고침 후 다시 확인하세요.
+          </div>
+        ) : (failedCountQuery.data?.totalElements ?? 0) > 0 ? (
           <button
             type="button"
             data-testid="partner-order-slip-publish-failure-banner"
             className={styles['statusLongPending']}
-            onClick={() => handleSlipPublishStatusFilterChange('FAILED')}
+            onClick={handleFailureBannerClick}
           >
             발행 실패 {failedCountQuery.data?.totalElements}건 — 실패 주문 보기
           </button>
