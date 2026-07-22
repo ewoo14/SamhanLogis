@@ -182,6 +182,43 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(html).toContain('DOC-2026-001')
   })
 
+  it('DS-4 regression: BODY positioned 요소는 하나의 좌표 레이어를 공유한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                {
+                  key: 'body-text-left',
+                  type: 'TEXT' as const,
+                  text: '왼쪽 본문 요소',
+                  geometry: { x: 10, y: 20, w: 20, h: 5 },
+                },
+                {
+                  key: 'body-field-right',
+                  type: 'FIELD' as const,
+                  binding: 'header.docNo' as const,
+                  geometry: { x: 60, y: 20, w: 20, h: 5 },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect((html.match(/data-testid="document-template-v2-elements-body"/g) ?? []).length).toBe(1)
+    expect((html.match(/style="[^"]*position:relative;min-height:24mm/g) ?? []).length).toBe(1)
+    expect(html).toContain('data-template-element="body-text-left"')
+    expect(html).toContain('data-template-element="body-field-right"')
+  })
+
   it('기본 template을 PrintLayout props 동형 slot으로 compile한다', () => {
     const model = buildApprovalRenderModel(input())
     const compiled = compileApprovalDocument(GROUPWARE_DEFAULT, model)

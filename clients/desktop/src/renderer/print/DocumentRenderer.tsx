@@ -269,6 +269,7 @@ export function compileApprovalDocument(
   const footerPositioned = positionedElementsOf(
     template.document.bands.filter((band) => band.kind === 'FOOTER').flatMap((band) => band.elements),
   )
+  const bodyPositioned = positionedElementsOf(bodyElements)
 
   const docHeader: PrintDocHeader = {
     title: model.header.title,
@@ -291,10 +292,12 @@ export function compileApprovalDocument(
       )
     }
     if (element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE') {
-      return positionedElementLayer([element], model, `document-template-v2-element-${element.key}`, element.key)
+      return element.type === 'IMAGE'
+        ? renderImageElement(element)
+        : renderPositionedElement(element, model)
     }
     return null
-  }).filter((child): child is ReactNode => child !== null)
+  }).filter((child) => child !== null)
 
   return {
     paper: paperToPrintLayout(template.document.paper),
@@ -304,7 +307,7 @@ export function compileApprovalDocument(
     // BODY children은 band의 원래 element 순서 그대로 하나의 print-content wrapper에 넣는다.
     // DETAIL/legacy section/positioned element를 별도 레이어로 재조립하면 편집기 순서와 출력 순서가
     // 갈라지므로, 같은 배열을 preview와 print가 공유한다.
-    body: <LegacyApprovalDocBody>{bodyChildren}</LegacyApprovalDocBody>,
+    body: <LegacyApprovalDocBody positionedLayer={bodyPositioned.length > 0}>{bodyChildren}</LegacyApprovalDocBody>,
     headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
     footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
     hasRepeatingDetail: bodyDetails.length > 0,

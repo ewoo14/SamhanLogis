@@ -15,6 +15,8 @@ export type LegacyApprovalDocSection =
 export interface LegacyApprovalDocBodyProps {
   orderedSections?: LegacyApprovalDocSection[]
   children?: ReactNode
+  /** BODY positioned 요소가 공유할 단일 좌표 원점과 24mm 최소 예약을 활성화한다. */
+  positionedLayer?: boolean
 }
 
 function renderSection(section: LegacyApprovalDocSection): React.ReactNode {
@@ -113,11 +115,20 @@ export function LegacyApprovalDocSection({ section }: { section: LegacyApprovalD
 }
 
 /** 기존 본문 외곽 div를 정확히 한 번 출력한다. */
-export function LegacyApprovalDocBody({ orderedSections = [], children }: LegacyApprovalDocBodyProps) {
+export function LegacyApprovalDocBody({ orderedSections = [], children, positionedLayer = false }: LegacyApprovalDocBodyProps) {
   return (
     <div
-      className="approval-doc-print-content"
-      style={{ display: 'grid', gap: '5mm', color: '#000', fontSize: '10pt' }}
+      className={positionedLayer
+        ? 'approval-doc-print-content document-template-v2-elements'
+        : 'approval-doc-print-content'}
+      {...(positionedLayer ? { 'data-testid': 'document-template-v2-elements-body' } : {})}
+      style={{
+        display: 'grid',
+        gap: '5mm',
+        color: '#000',
+        fontSize: '10pt',
+        ...(positionedLayer ? { position: 'relative', minHeight: '24mm' } : {}),
+      }}
     >
       {children ?? orderedSections.map((section, index) => (
         <Fragment key={`${section.type}-${index}`}>
