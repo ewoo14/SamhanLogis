@@ -1,0 +1,132 @@
+.document-template-admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.document-template-admin-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.document-template-admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--color-text);
+}
+
+.document-template-admin-table th,
+.document-template-admin-table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.document-template-admin-table th {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.document-template-admin-table tbody tr:hover {
+  background: var(--color-brand-50);
+}
+
+.document-template-admin-name {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-brand-700);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-template-admin-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 699px) {
+  .document-template-admin-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .document-template-admin-table-wrap {
+    overflow-x: visible;
+  }
+
+  /* Keep an actual table + explicit table roles; only the visual layout becomes cards. */
+  .document-template-admin-table {
+    display: block;
+  }
+
+  .document-template-admin-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .document-template-admin-table tbody {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .document-template-admin-table tr {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .document-template-admin-table td {
+    display: grid;
+    grid-template-columns: minmax(72px, 0.35fr) minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: 0;
+    border: 0;
+  }
+
+  .document-template-admin-table td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .document-template-admin-table td:last-child {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .document-template-admin-table td:last-child::before {
+    display: none;
+  }
+
+  .document-template-admin-actions {
+    width: 100%;
+  }
+}
+
+@media print {
+  .document-template-admin-table-wrap {
+    overflow: visible;
+  }
+}

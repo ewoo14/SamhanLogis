@@ -39,7 +39,7 @@ export function ElementInspector({
   canEdit: boolean
 }) {
   if (!element) {
-    return <section aria-label="속성 패널"><h3 style={{ margin: 0, fontSize: 15 }}>속성</h3><p>요소를 선택하세요.</p></section>
+    return <section className="document-template-inspector" aria-label="속성 패널"><h3 style={{ margin: 0, fontSize: 15 }}>속성</h3><p>요소를 선택하세요.</p></section>
   }
 
   const geometry = element.type === 'FIELD' || element.type === 'TEXT' ? element.geometry : undefined
@@ -52,9 +52,12 @@ export function ElementInspector({
     : undefined
 
   return (
-    <section aria-label="속성 패널" style={{ display: 'grid', gap: 8 }}>
+    <section className="document-template-inspector" aria-label="속성 패널" style={{ display: 'grid', gap: 8 }}>
       <h3 style={{ margin: 0, fontSize: 15 }}>속성</h3>
-      <strong>{ELEMENT_TYPE_LABEL[element.type]}</strong>
+      <div className="document-template-inspector-selected">
+        <span className="document-template-selected-caption">현재 선택</span>
+        <strong>{ELEMENT_TYPE_LABEL[element.type]}</strong>
+      </div>
       {element.type === 'TEXT' ? (
         <label>
           문구
@@ -104,7 +107,7 @@ export function ElementInspector({
       ) : null}
       {element.type === 'FIELD' || element.type === 'TEXT' ? (
         <>
-          <fieldset style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <fieldset className="document-template-inspector-fieldset" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             <legend>위치(%)</legend>
             {(['x', 'y', 'w', 'h'] as const).map((key) => (
               <label key={key}>
@@ -121,7 +124,7 @@ export function ElementInspector({
               </label>
             ))}
           </fieldset>
-          <fieldset style={{ display: 'grid', gap: 6 }}>
+          <fieldset className="document-template-inspector-fieldset" style={{ display: 'grid', gap: 6 }}>
             <legend>스타일</legend>
             <label>글꼴 크기<input type="number" min={1} max={200} disabled={!canEdit} value={style?.fontSize ?? ''} onChange={(event) => updateStyle({ fontSize: numberValue(event, style?.fontSize ?? 10) })} /></label>
             <label><input type="checkbox" disabled={!canEdit} checked={style?.bold ?? false} onChange={(event) => updateStyle({ bold: event.target.checked })} /> 굵게</label>

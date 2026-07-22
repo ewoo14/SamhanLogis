@@ -18,7 +18,7 @@ export function BandCanvas({
   canEdit: boolean
 }) {
   return (
-    <section aria-label="밴드 캔버스" style={{ display: 'grid', gap: 12 }}>
+    <section className="document-template-band-canvas" aria-label="밴드 캔버스" style={{ display: 'grid', gap: 12 }}>
       <div>
         <h3 style={{ margin: 0, fontSize: 15 }}>밴드 캔버스</h3>
         <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-neutral-500)' }}>
@@ -26,26 +26,21 @@ export function BandCanvas({
         </p>
       </div>
       {bands.map((band) => (
-        <div key={band.key} style={{ border: '1px solid var(--color-neutral-300)', borderRadius: 6, padding: 10 }}>
-          <strong>{BAND_KIND_LABEL[band.kind]}</strong>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+        <div className="document-template-band" key={band.key}>
+          <div className="document-template-band-header">
+            <strong className="document-template-band-label">{BAND_KIND_LABEL[band.kind]}</strong>
+            <span className="document-template-band-count">요소 {band.elements.length}개</span>
+          </div>
+          <div className="document-template-band-elements">
             {band.elements.map((element, index) => (
-              <div
-                key={element.key}
-                style={{ display: 'flex', alignItems: 'center', gap: 2 }}
-              >
+              <div className={`document-template-element-row${selectedKey === element.key ? ' document-template-element-row--selected' : ''}`} key={element.key}>
                 <button
                   type="button"
+                  className="document-template-element-button"
                   data-testid={`template-element-${element.key}`}
                   data-template-key={element.key}
                   aria-pressed={selectedKey === element.key}
                   onClick={() => onSelect(element.key)}
-                  style={{
-                    padding: '8px 10px',
-                    border: selectedKey === element.key ? '2px solid var(--color-brand-600)' : '1px solid var(--color-neutral-300)',
-                    borderRadius: 4,
-                    background: selectedKey === element.key ? 'var(--color-brand-50)' : 'white',
-                  }}
                 >
                   {ELEMENT_TYPE_LABEL[element.type]}
                 </button>

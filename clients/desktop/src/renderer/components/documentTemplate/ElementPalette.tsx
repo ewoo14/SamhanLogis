@@ -20,16 +20,18 @@ export function ElementPalette({
   canEdit: boolean
 }) {
   return (
-    <section aria-label="요소 팔레트" style={{ display: 'grid', gap: 8 }}>
+    <section className="document-template-palette" aria-label="요소 팔레트" style={{ display: 'grid', gap: 8 }}>
       <h3 style={{ margin: 0, fontSize: 15 }}>요소 팔레트</h3>
       <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
         밴드에 배치할 요소를 선택하세요.
       </p>
-      {PALETTE_TYPES.map((type) => (
-        <Button key={type} type="button" variant="secondary" size="sm" disabled={!canEdit} onClick={() => onAdd(type)}>
-          {ELEMENT_TYPE_LABEL[type]} 추가
-        </Button>
-      ))}
+      <div className="document-template-palette-actions">
+        {PALETTE_TYPES.map((type) => (
+          <Button key={type} type="button" variant="secondary" size="sm" disabled={!canEdit} onClick={() => onAdd(type)}>
+            {ELEMENT_TYPE_LABEL[type]} 추가
+          </Button>
+        ))}
+      </div>
     </section>
   )
 }

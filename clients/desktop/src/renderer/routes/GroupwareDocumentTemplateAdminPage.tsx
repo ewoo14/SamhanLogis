@@ -8,6 +8,7 @@ import { listDocumentTemplates, activateDocumentTemplate, deactivateDocumentTemp
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { TEMPLATE_STATUS_LABEL } from '../print/templateSchema'
+import './GroupwareDocumentTemplateAdminPage.css'
 
 function errorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -55,8 +56,8 @@ export function GroupwareDocumentTemplateAdminPage() {
   const rows = query.data ?? []
 
   return (
-    <section aria-label="결재 문서 양식 관리" style={{ display: 'grid', gap: 16 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+    <section className="document-template-admin" aria-label="결재 문서 양식 관리" style={{ display: 'grid', gap: 16 }}>
+      <header className="document-template-admin-header">
         <div>
           <h1 style={{ margin: 0 }}>결재 문서 양식</h1>
           <p style={{ margin: '4px 0 0', color: 'var(--color-neutral-500)' }}>결재 출력 문서의 레이아웃을 관리합니다.</p>
@@ -65,22 +66,22 @@ export function GroupwareDocumentTemplateAdminPage() {
       </header>
       <p style={{ margin: 0, fontSize: 13 }}>사용 중인 양식은 비활성화한 뒤 편집할 수 있습니다. 편집 중 승인된 문서는 기본 양식으로 고정될 수 있습니다.</p>
       {error ? <p role="alert">{error}</p> : null}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={{ textAlign: 'left' }}>문서 유형</th><th style={{ textAlign: 'left' }}>양식명</th><th>상태</th><th>개정 번호</th><th /></tr></thead>
+      <div className="document-template-admin-table-wrap">
+        <table className="document-template-admin-table" role="table">
+          <thead><tr role="row"><th role="columnheader">문서 유형</th><th role="columnheader">양식명</th><th role="columnheader">상태</th><th role="columnheader">개정 번호</th><th role="columnheader" /></tr></thead>
           <tbody>
             {rows.map((row) => {
               if (!row.id) return null
               const templateId = row.id
               return (
-              <tr key={row.id}>
-                <td>{row.docType}</td>
-                <td><button type="button" onClick={() => navigate(`/groupware/document-templates/${row.id}/edit`)}>{row.name}</button></td>
-                <td>{TEMPLATE_STATUS_LABEL[row.status ?? 'DRAFT']}</td>
-                <td>{row.revision}</td>
-                <td>
+              <tr key={row.id} role="row">
+                <td role="cell" data-label="문서 유형">{row.docType}</td>
+                <td role="cell" data-label="양식명"><button className="document-template-admin-name" type="button" onClick={() => navigate(`/groupware/document-templates/${row.id}/edit`)}>{row.name}</button></td>
+                <td role="cell" data-label="상태">{TEMPLATE_STATUS_LABEL[row.status ?? 'DRAFT']}</td>
+                <td role="cell" data-label="개정 번호">{row.revision}</td>
+                <td role="cell" data-label="작업">
                   {canWrite ? (
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <div className="document-template-admin-actions">
                       <Button
                         type="button"
                         variant="secondary"
@@ -97,7 +98,7 @@ export function GroupwareDocumentTemplateAdminPage() {
               </tr>
               )
             })}
-            {rows.length === 0 ? <tr><td colSpan={5}>등록된 문서 양식이 없습니다.</td></tr> : null}
+            {rows.length === 0 ? <tr role="row"><td role="cell" data-label="상태" colSpan={5}>등록된 문서 양식이 없습니다.</td></tr> : null}
           </tbody>
         </table>
       </div>

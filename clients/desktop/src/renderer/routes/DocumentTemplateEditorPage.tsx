@@ -15,6 +15,7 @@ import {
 import { BandCanvas } from '../components/documentTemplate/BandCanvas'
 import { ElementInspector } from '../components/documentTemplate/ElementInspector'
 import { ElementPalette } from '../components/documentTemplate/ElementPalette'
+import '../components/documentTemplate/documentTemplateEditor.css'
 import { useTemplateDraft } from '../components/documentTemplate/useTemplateDraft'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
@@ -156,52 +157,53 @@ export function DocumentTemplateEditorPage() {
         </p>
       ) : null}
 
-      <div className="no-print" style={{ display: 'grid', gap: 8, maxWidth: 420 }}>
+      <div className="no-print document-template-editor-form">
         {isNew ? (
-          <Select
-            label="문서 유형"
-            required
-            disabled={!canEdit}
-            value={draft.docType}
-            onChange={(event) => updateDraft({ docType: event.target.value })}
-          >
-            <option value="">문서 유형을 선택하세요</option>
-            {groupwareDocTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
+          <div>
+            <Select
+              label="문서 유형"
+              required
+              disabled={!canEdit}
+              value={draft.docType}
+              onChange={(event) => updateDraft({ docType: event.target.value })}
+            >
+              <option value="">문서 유형을 선택하세요</option>
+              {groupwareDocTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </div>
         ) : (
           // H-D: 기존 양식은 BE 가 docType 변경을 항상 422 로 거부한다 — 수정 가능한 입력처럼 보이면
           // 저장 시 사용자가 이유를 알 수 없는 실패를 겪는다. 생성 후에는 읽기 전용으로 고정한다.
-          <label>
+          <label className="document-template-editor-form-field">
             문서 유형(생성 후 변경 불가)
             <input value={draft.docType} disabled aria-readonly="true" />
           </label>
         )}
-        <label>양식명<input value={draft.name} disabled={!canEdit} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
+        <label className="document-template-editor-form-field">양식명<input value={draft.name} disabled={!canEdit} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
       </div>
 
       {/*
-        H-B: 3-pane 은 최소 폭(160+420+220px+gap ≈ 824px) 을 요구한다. 좁은 뷰포트(≤768px)에서는
-        `.app-main{overflow-x:hidden}`(전역 모바일 셸 규칙)이 넘치는 그리드를 그냥 잘라버려 우측 속성
-        패널 자체에 도달할 방법이 없었다(스크롤도 안 됨). 이 wrapper 는 자체 `overflow-x:auto` 로
-        가로 스크롤 영역을 제공해, wrapper 자신은 부모(`.app-main`) 폭을 넘지 않으면서(그래서
-        overflow-x:hidden 에 잘리지 않으면서) 내부 3-pane 은 스크롤/스와이프로 모든 기능(요소 선택·
-        속성 편집·저장)에 도달 가능하게 한다. 전면 모바일 재설계(카드화 등)는 별도 슬라이스 스코프.
+        H-B: 3-pane 을 좁은 뷰포트에 그대로 강제하면 `.app-main{overflow-x:hidden}` 아래에서 우측
+        속성 패널이 잘려 도달할 수 없었다. 1100px 미만에서는 이 wrapper 안의 grid가 고정 min-width 없는
+        세로 카드 스택으로 전환되어 팔레트 → 밴드 캔버스 → 속성 패널 → 미리보기 순서로 흐른다. 1100px
+        이상에서만 3-pane 을 사용하며 모든 트랙에 minmax(0, ...) / min-width:0 을 적용해 M-J max-content
+        확장과 패널 겹침을 막는다.
       */}
-      <div data-testid="document-template-editor-scroll" style={{ overflowX: 'auto', maxWidth: '100%' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 0.7fr) minmax(420px, 2fr) minmax(220px, 1fr)', gap: 12, alignItems: 'start', minWidth: 824 }}>
-        <div className="no-print" style={{ display: 'grid', gap: 12, padding: 12, border: '1px solid var(--color-neutral-200)', borderRadius: 8 }}>
+      <div className="document-template-editor-scroll" data-testid="document-template-editor-scroll">
+      <div className="document-template-editor-grid">
+        <div className="no-print document-template-editor-pane document-template-editor-pane--palette">
           <ElementPalette onAdd={addElement} canEdit={canEdit} />
         </div>
         {/* gridTemplateColumns 명시(minmax(0,1fr)) — 미지정 시 이 nested grid 의 암묵적 auto 트랙은
             BandCanvas 의 flex-wrap 요소 행을 "줄바꿈 없이 한 줄로 편 max-content 폭"으로 측정해 트랙을
             그만큼 넓힌다(요소가 많아지면 실제 가용폭을 넘어 우측 속성 패널과 겹쳐 클릭을 막았다 — M-J). */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
-          <div className="no-print" style={{ minWidth: 0 }}>
+        <div className="document-template-editor-center">
+          <div className="no-print document-template-band-pane">
             <BandCanvas bands={draft.document.bands} selectedKey={selectedKey} onSelect={setSelectedKey} onMove={moveElement} canEdit={canEdit} />
           </div>
-          <div data-testid="document-template-live-preview" style={{ border: '1px solid var(--color-neutral-300)', borderRadius: 8, padding: 12 }}>
+          <div className="document-template-preview" data-testid="document-template-live-preview">
             <h2 className="no-print" style={{ fontSize: 15, marginTop: 0 }}>라이브 미리보기</h2>
             <DocumentRenderer template={draft} model={PREVIEW_MODEL} />
           </div>
@@ -209,7 +211,7 @@ export function DocumentTemplateEditorPage() {
         {/* minWidth:0 — geometry 2열 grid(`ElementInspector` 위치(%) fieldset)의 number input 들이
             내재 최소폭을 요구해 이 트랙이 minmax(220px,1fr) 를 넘어 확장, 가운데 BandCanvas 트랙과
             겹쳐 M-J 이동 버튼 클릭을 막았다. */}
-        <div className="no-print" style={{ padding: 12, border: '1px solid var(--color-neutral-200)', borderRadius: 8, minWidth: 0 }}>
+        <div className="no-print document-template-editor-pane document-template-editor-pane--inspector">
           <ElementInspector
             element={selectedElement}
             onUpdate={(patch) => selectedKey && updateElement(selectedKey, patch)}
