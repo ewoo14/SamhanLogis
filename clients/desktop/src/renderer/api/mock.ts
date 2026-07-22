@@ -7618,6 +7618,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     // status 쿼리 파라미터 추출 (URL 또는 config.params 에서)
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
+    const partnerIdParam = urlObj.searchParams.get('partnerId') ?? (config.params?.['partnerId'] as string | undefined)
     const slipPublishStatusParam =
       urlObj.searchParams.get('slipPublishStatus') ?? (config.params?.['slipPublishStatus'] as string | undefined)
     // BE parity(#757 R2 HIGH): includeDeleted=true(내부 관리자 opt-in)일 때만 삭제행 포함.
@@ -7767,6 +7768,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
             }
           : { ...row, isDeleted: false, deletedAt: null, deletedByName: null },
       )
+      // #825 슬7: partner-order-service의 partnerId(partnerCode/사업자번호) 필터를 mock도 보존한다.
+      .filter((row) => !partnerIdParam || row.partnerCode === partnerIdParam)
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
       // BE parity: 기본(활성만) — includeDeleted 미요청 시 삭제행 제외(@SQLRestriction 경로 모사).
       .filter((row) => includeDeleted || row.isDeleted !== true)

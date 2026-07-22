@@ -63,7 +63,7 @@ async function gotoListAndWait(page: Page, extra = ''): Promise<void> {
   })
 }
 
-/** d2-order-merge 패턴 동일 — WarehouseAutocomplete 선택 헬퍼. */
+/** WarehouseAutocomplete 선택 헬퍼. */
 async function selectWarehouseAutocomplete(
   warehouseDiv: Locator,
   searchText: string,
@@ -81,13 +81,25 @@ async function selectWarehouseAutocomplete(
 
 /** 같은 거래처 DRAFT 2건 병합 발행을 완료한다(성공 토스트까지). */
 async function performMerge(page: Page): Promise<void> {
-  const checkboxes = page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]')
-  await expect(checkboxes.first()).toBeVisible({ timeout: 10_000 })
-  await checkboxes.nth(0).check()
-  await checkboxes.nth(1).check()
   await expect(page.getByTestId('merge-convert-open')).toBeEnabled({ timeout: 5_000 })
   await page.getByTestId('merge-convert-open').click()
   await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible({ timeout: 10_000 })
+
+  const partnerInput = page.getByTestId('merge-convert-partner-search')
+  await partnerInput.fill('1234567890')
+  const partnerListbox = page.getByRole('listbox', { name: '거래처 목록' })
+  await expect(partnerListbox).toBeVisible({ timeout: 5_000 })
+  await partnerListbox.locator('[role="option"]').filter({ hasText: '1234567890' }).first().click()
+  await expect(page.getByTestId('merge-convert-selected-partner')).toContainText('엘에이시스템에어')
+
+  const orderInput = page.getByTestId('merge-convert-order-search')
+  for (const orderNumber of ['2026/05/04-1', '2026/05/31-3']) {
+    await orderInput.fill(orderNumber)
+    const option = page.getByTestId(`merge-convert-order-option-${orderNumber}`)
+    await expect(option).toBeVisible({ timeout: 5_000 })
+    await option.click()
+    await expect(page.getByTestId(`merge-convert-order-chip-${orderNumber}`)).toContainText(orderNumber)
+  }
   await selectWarehouseAutocomplete(page.getByTestId('merge-convert-warehouse'), 'HQ')
   const submitBtn = page.getByTestId('merge-convert-submit')
   await expect(submitBtn).toBeEnabled({ timeout: 10_000 })
@@ -108,11 +120,8 @@ test.describe('3-D 병합 후 주문 목록 배지 갱신 (invalidate 회귀)', 
       timeout: 10_000,
     })
     await expect(secondDraftRow).toBeVisible()
-    await expect(
-      page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]'),
-    ).toHaveCount(2)
-    await expect(firstDraftRow.locator('td').nth(2)).toHaveText('1234567890')
-    await expect(secondDraftRow.locator('td').nth(2)).toHaveText('1234567890')
+    await expect(firstDraftRow).toContainText('1234567890')
+    await expect(secondDraftRow).toContainText('1234567890')
 
     await performMerge(page)
 
