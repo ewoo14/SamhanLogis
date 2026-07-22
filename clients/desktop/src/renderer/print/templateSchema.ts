@@ -191,7 +191,7 @@ const LEGACY_ELEMENT_TYPES = [
 ] as const
 
 const V2_ELEMENT_TYPES = [...LEGACY_ELEMENT_TYPES, 'FIELD', 'TEXT', 'DETAIL', 'IMAGE'] as const
-const MAX_REQUEST_BYTES = 64 * 1024
+export const MAX_REQUEST_BYTES = 64 * 1024
 const MAX_DEPTH = 16
 const MAX_BANDS = 32
 const MAX_ELEMENTS_PER_BAND = 64
@@ -203,7 +203,32 @@ const MAX_FONT_SIZE = 200
  * (길이 초과)을 사용자가 알 수 없었다). */
 const MAX_TEXT_LENGTH = 4_096
 const MAX_ALT_LENGTH = 200
-const MAX_IMAGE_BYTES = 50 * 1024
+export const MAX_IMAGE_BYTES = 50 * 1024
+
+function imageDataUrlByteLength(value: string): number {
+  const base64 = value.split(',')[1] ?? ''
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0))
+}
+
+/** 문서 JSON 상한을 함께 고려한 이미지 파일 선택기의 실제 decoded 상한. */
+export function maxImageBytesForDocument(document: DocumentPayload, imageKey: string): number {
+  const imageExists = document.bands.some((band) => band.elements.some((element) => element.key === imageKey && element.type === 'IMAGE'))
+  if (!imageExists) return 0
+  const placeholder = 'data:image/png;base64,'
+  const withoutImageData: DocumentPayload = {
+    ...document,
+    bands: document.bands.map((band) => ({
+      ...band,
+      elements: band.elements.map((element) => element.key === imageKey && element.type === 'IMAGE'
+        ? { ...element, src: placeholder }
+        : element),
+    })),
+  }
+  const baseBytes = new TextEncoder().encode(JSON.stringify(withoutImageData)).byteLength
+  const remainingEncodedCharacters = Math.max(0, MAX_REQUEST_BYTES - baseBytes)
+  const decodedByEnvelope = Math.floor(remainingEncodedCharacters / 4) * 3
+  return Math.min(MAX_IMAGE_BYTES, decodedByEnvelope)
+}
 
 type LegacyElementType = (typeof LEGACY_ELEMENT_TYPES)[number]
 
@@ -337,7 +362,7 @@ function parseImageSource(value: unknown): string | DocumentTemplateParseError {
     return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 PNG/JPEG/WebP data URL 또는 기본 로고만 허용합니다.' }
   }
   const base64 = match[2] ?? ''
-  const bytes = Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0)
+  const bytes = imageDataUrlByteLength(value)
   if (bytes <= 0 || bytes > MAX_IMAGE_BYTES) {
     return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소 data URL은 50KB 이하여야 합니다.' }
   }

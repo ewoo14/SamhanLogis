@@ -35,6 +35,7 @@ const PREVIEW_MODEL: ApprovalRenderModel = {
     paragraphs: ['본문 미리보기'],
     fieldRows: [{ label: '예시 필드', value: '예시 값' }],
     attachments: [],
+    lineItemsAvailability: 'CONNECTED',
     lineItems: [
       {
         productName: '미리보기 품목 A',
@@ -111,7 +112,7 @@ export function DocumentTemplateEditorPage() {
   const template = templateQuery.data
   const draftState = useTemplateDraft(template)
   const {
-    draft, updateDraft, addElement, moveElement, updateElement, removeElement,
+    draft, updateDraft, addElement, moveElement, moveElementToBand, updateElement, removeElement,
     selectedKey, setSelectedKey, selectedElement, dirty, valid, validationError, markSaved, notice, clearNotice,
   } = draftState
 
@@ -171,6 +172,9 @@ export function DocumentTemplateEditorPage() {
   // H-E: canEdit 이 팔레트·캔버스·인스펙터에 전달되지 않으면 ACTIVE 잠금·VIEW 전용 상태에서도
   // 요소 추가/문구 입력/삭제/이동이 전부 동작한다 — 편집 조작 자체를 막는다.
   const canEdit = canWrite && !activeLocked
+  const selectedBandKind = selectedKey
+    ? draft.document.bands.find((band) => band.elements.some((element) => element.key === selectedKey))?.kind
+    : undefined
 
   return (
     <section aria-label="문서 양식 편집기" style={{ display: 'grid', gap: 16 }}>
@@ -267,6 +271,9 @@ export function DocumentTemplateEditorPage() {
             element={selectedElement}
             onUpdate={(patch) => selectedKey && updateElement(selectedKey, patch)}
             onRemove={() => selectedKey && removeElement(selectedKey)}
+            document={draft.document}
+            bandKind={selectedBandKind}
+            onMoveBand={(kind) => selectedKey && moveElementToBand(selectedKey, kind)}
             canEdit={canEdit}
           />
         </div>

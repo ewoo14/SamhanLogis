@@ -113,6 +113,22 @@ class DocumentPayloadValidatorTest {
     }
 
     @Test
+    void M4_detailElementStrayBinding_isRejectedRegardlessOfRepeatBinding() throws Exception {
+        JsonNode document = fixture("valid-default.json").get("document").deepCopy();
+        var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
+        bodyElements.addObject()
+                .put("key", "detail-stray-binding")
+                .put("type", "DETAIL")
+                .put("repeatBinding", "body.lineItems")
+                .put("binding", "body.secret")
+                .set("columns", objectMapper.createArrayNode().add("productName"));
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("binding");
+    }
+
+    @Test
     void boundaryLimits_areEnforced() throws Exception {
         JsonNode root = fixture("valid-default.json");
         JsonNode tooLongKey = root.get("document").deepCopy();

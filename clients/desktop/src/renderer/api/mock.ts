@@ -15,6 +15,7 @@
  */
 import type { AxiosRequestConfig } from 'axios'
 import { vatFromSupply } from '../utils/vatRounding'
+import { parseDocumentTemplate } from '../print/templateSchema'
 import {
   DISPATCH_TONNAGE_LABEL,
   DISPATCH_VEHICLE_BODY_TYPE_LABEL,
@@ -101,6 +102,26 @@ function mockError(status: number, code: string, message: string) {
       timestamp: new Date().toISOString(),
     },
   }
+}
+
+function validateMockDocumentTemplate(input: {
+  id: string
+  status: 'ACTIVE' | 'DRAFT'
+  revision: number
+  docType: string
+  name: string
+  schemaVersion: number
+  document: unknown
+}) {
+  const parsed = parseDocumentTemplate(input)
+  return parsed.ok ? null : mockError(400, 'INVALID_INPUT', parsed.error.message)
+}
+
+function hasAdvancedDocumentElements(document: unknown): boolean {
+  return typeof document === 'object' && document !== null && 'bands' in document
+    && Array.isArray((document as { bands?: unknown }).bands)
+    && (document as { bands: Array<{ elements?: Array<{ type?: string }> }> }).bands
+      .some((band) => band.elements?.some((element) => element.type === 'DETAIL' || element.type === 'IMAGE') ?? false)
 }
 
 /**
@@ -10319,6 +10340,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       if (!docType || !name || ![1, 2].includes(schemaVersion) || !body['document']) {
         return mockError(400, 'INVALID_INPUT', '문서 유형, 양식명, schemaVersion, document는 필수입니다.')
       }
+      const validationError = validateMockDocumentTemplate({
+        id: 'mock-pending-id', status: 'DRAFT', revision: 1, docType, name, schemaVersion, document: body['document'],
+      })
+      if (validationError) return validationError
       if (docType === 'DEFAULT' || docType === 'GROUPWARE_DEFAULT') {
         return mockError(422, 'UNPROCESSABLE_ENTITY', '예약된 docType은 문서 양식으로 등록할 수 없습니다.')
       }
@@ -10346,6 +10371,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         const denied = mockRequirePermission('groupware.approval-templates', 'update')
         if (denied) return denied
         if (action === 'activate') {
+          if (hasAdvancedDocumentElements(template.document)) {
+            return mockError(422, 'UNPROCESSABLE_ENTITY', '자동 업데이트 선행 전에는 DETAIL/IMAGE 양식을 활성화할 수 없습니다.')
+          }
           Object.values(MOCK_DOCUMENT_TEMPLATES).forEach((candidate) => {
             if (candidate.docType === template.docType) candidate.status = candidate.id === id ? 'ACTIVE' : 'DRAFT'
           })
@@ -10373,6 +10401,16 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         const body = parseMockBody(config)
         const schemaVersion = Number(body['schemaVersion'] ?? 0)
         if (![1, 2].includes(schemaVersion) || !body['document']) return mockError(400, 'INVALID_INPUT', '문서 양식 내용이 유효하지 않습니다.')
+        const validationError = validateMockDocumentTemplate({
+          id: template.id,
+          status: template.status,
+          revision: template.revision,
+          docType: template.docType,
+          name: String(body['name'] ?? template.name).trim(),
+          schemaVersion,
+          document: body['document'],
+        })
+        if (validationError) return validationError
         template.name = String(body['name'] ?? template.name).trim()
         template.schemaVersion = schemaVersion
         template.document = body['document']

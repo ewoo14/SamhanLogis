@@ -111,3 +111,28 @@ PDF 결과: **2 pages**. 1페이지 마지막 행은 `미리보기 품목 E-31`,
 - 전체 mock Playwright suite는 실행하지 않았다(다른 슬라이스 캡처 보호). 지정된 `ac-868` subset만 실행했다.
 - Poppler가 기본 설치되어 있지 않아 PDF 스킬의 보조 renderer인 PyMuPDF를 설치해 PNG를 만들었다. PDF 자체는 Playwright `page.pdf()` 원문이며, `pypdf` 페이지/텍스트 경계 확인과 PNG 시각 검토를 함께 했다.
 - 최종 H-B 기존 회귀는 `2 passed`였다. 지정 Gradle 전체 명령은 첫 실행에서 코드 결함이 아닌 daemon `stop command received`로 중단됐고, 동일 명령 재실행은 **process exit code 0**으로 종료됐다. 재실행 콘솔 마지막은 compiler deprecation/unchecked note와 JVM warning이었으며 `BUILD SUCCESSFUL` 문자열은 이 환경 캡처에 출력되지 않았다. XML을 성공 근거로 사용하지 않았고, focused BE 실행에서만 콘솔 `BUILD SUCCESSFUL`을 확인했다.
+
+## 12. 2026-07-23 적대 리뷰 보완 (CODEX LUNA 5.6)
+
+앞선 §7.1의 “실제 결재 DTO에서 품목을 연결했다”는 서술은 적대 리뷰에서 정정한다. `ApprovalLineAdminResponse`와 실제 `ApprovalDocView` 입력에는 estimate/slip 품목 원천 식별자가 없고, 첨부 ref도 품목 조회 계약이 아니다. 따라서 BLOCKING-1의 A1은 이 슬라이스에서 **불가능**하다. 이를 해결하려면 결재 생성/조회 DTO에 원천 ID를 영속화하고, 권한 검사를 포함한 품목 조회 API 및 ApprovalDocView 연동·실데이터 `/print` 통합 테스트가 새 슬라이스로 필요하다. 이번 범위에서는 A2를 지켜 원천 미연결 실제 route가 빈 표 대신 `품목 원천이 연결되지 않은 결재문서입니다.`를 출력한다.
+
+- BLOCKING-2: BE `DocumentTemplateService.activate()`에 임시 권위 게이트를 두었다. DETAIL/IMAGE만 422와 자동 업데이트 선행 사유를 반환하며 legacy 양식은 영향받지 않는다. `ADVANCED_ACTIVATION_GATE_ENABLED` 한 줄을 제거/false로 바꾸면 자동 업데이트 선행 후 쉽게 해제할 수 있고 schemaVersion은 v2 그대로다. mock CRUD도 동일 parser와 activation gate를 사용한다.
+- MAJOR-3: BODY element 배열을 compiler가 그대로 순회해 DETAIL/legacy/FIELD/TEXT의 실제 preview·print DOM 순서를 일치시켰다. DETAIL을 body 첫 요소로 옮긴 route-level DOM 단언을 추가했다.
+- MAJOR-4: 이미지 선택 상한을 문서 JSON 64KB와 합성해 계산한다. 기본 양식에서 decoded 50KB보다 작은 실제 경계만 허용하고, 선택기 오류 문구도 현재 양식 기준 KB를 표시한다.
+- MAJOR-5: IMAGE inspector에 HEADER/BODY/FOOTER 선택을 추가하고 draft 이동 함수를 통해 실제 JSON band를 이동시킨다. 설계를 좁히지 않고 B1을 구현했다.
+
+### 12.1 RED → GREEN → mutation RED 원문
+
+- BLOCKING-1/A2: RED — 실제 route 테스트에서 `데이터가 없습니다.`만 출력되고 기대한 원천 부재 안내가 없어 실패. GREEN — `ApprovalDocView.real-render.test.tsx` 포함 focused FE **5 files / 38 tests passed**. mutation — 문구를 다시 `데이터가 없습니다.`로 바꾸자 route/renderer **3 tests failed**.
+- BLOCKING-2: RED — 새 `DocumentTemplateServiceTest`가 `containsActivationBlockedElements` 부재로 test compile 실패. GREEN — focused BE 콘솔 종료 `BUILD SUCCESSFUL`, 대상 22 tests. mutation — gate constant를 false로 바꾸자 `activate_advancedTemplate_isBlockedByBackendGate` 실패.
+- MAJOR-3/quality-5: RED — 기존 body 재조립에서 실제 DOM이 CONTENT→DETAIL이었고 O1 단언 실패. GREEN — template body 배열 순서 그대로 실제 HTML DOM 단언 통과. mutation — 배열을 reverse하자 기존 순서 테스트와 O1 **2 tests failed**.
+- MAJOR-4/quality-6: RED — 50KB file candidate가 document 64KB를 넘어 parser `INVALID_ENVELOPE`/저장 불가. GREEN — 합성 경계 테스트 통과(기본 양식 실제 max는 50KB 미만). mutation — helper를 다시 무조건 50KB로 만들자 S1 실패(`expected 51200 to be less than 51200`).
+- MAJOR-5: RED — `moveElementToBand is not a function`. GREEN — HEADER→FOOTER 이동 focused test 통과. mutation — 이동을 no-op으로 만들자 B1 실패(HEADER에 IMAGE 잔류).
+- quality-3/4: RED는 수동 `lineItems` injection 및 editor-only QA가 실제 route 결함을 놓친 상태로 확보했다. GREEN — `ApprovalDocView.real-render.test.tsx`가 실제 route 입력과 renderer DOM을 통과하고, 라이브 하네스에 D5 실제 `/print` 단계와 D2 activation API 단언을 추가했다.
+
+### 12.2 최종 검증 및 미완료
+
+- `npx vitest run --reporter=dot` 종료: **143 files / 1152 tests passed**.
+- focused FE 종료: **5 files / 38 tests passed**. focused BE 종료: **BUILD SUCCESSFUL**.
+- `npm run typecheck`는 DS-4 밖의 기존 `SlipFormPage.tsx`/stale design-system 선언 오류 19건으로 실패했다. 이번 변경 파일 오류는 제거했고, 사용자 지시대로 환경/base 문제로 기록한다.
+- 실 QA 하네스는 저장·편집기 preview까지 진행했으나, 현재 8080에 떠 있는 구버전 BE가 activation을 HTTP 200으로 처리해 D2에서 정직하게 중단됐다(기대 422). 생성된 QA 양식은 ID로 즉시 삭제했다. 새 BE 배포/재기동 후 동일 좁힌 하네스를 재실행해야 실제 `/print` D5까지 green을 확정할 수 있다. 공유 DB에는 QA 잔재를 남기지 않았다.

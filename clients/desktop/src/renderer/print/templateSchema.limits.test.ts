@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { parseDocumentTemplate } from './templateSchema'
+import { GROUPWARE_DEFAULT } from './approvalDefaultTemplate'
+import { maxImageBytesForDocument, parseDocumentTemplate } from './templateSchema'
 
 const base = {
   schemaVersion: 1,
@@ -116,5 +117,30 @@ describe('document template limits', () => {
     overLimit.document.padding += 'x'
     expect(new TextEncoder().encode(JSON.stringify(overLimit.document)).byteLength).toBe(65537)
     expect(parseDocumentTemplate(overLimit)).toMatchObject({ ok: false, error: { code: 'INVALID_ENVELOPE' } })
+  })
+
+  it('S1: 파일 선택 경계는 현재 document의 64KB 합성 상한을 넘지 않는다', () => {
+    const document = structuredClone(GROUPWARE_DEFAULT.document)
+    const header = document.bands.find((band) => band.kind === 'HEADER')!
+    header.elements.push({ key: 'uploaded-image', type: 'IMAGE', src: '', alt: '업로드 이미지' })
+    const maxBytes = maxImageBytesForDocument(document, 'uploaded-image')
+
+    expect(maxBytes).toBeGreaterThan(0)
+    expect(maxBytes).toBeLessThan(50 * 1024)
+
+    const base64For = (bytes: number) => 'A'.repeat(4 * Math.ceil(bytes / 3))
+    const atLimit = structuredClone(document)
+    const atLimitElement = atLimit.bands[0]!.elements.find((element) => element.key === 'uploaded-image')!
+    atLimitElement.src = `data:image/png;base64,${base64For(maxBytes)}`
+    const atLimitEnvelope = { ...base, schemaVersion: 2, document: atLimit }
+    expect(parseDocumentTemplate(atLimitEnvelope).ok).toBe(true)
+
+    const overLimit = structuredClone(document)
+    const overLimitElement = overLimit.bands[0]!.elements.find((element) => element.key === 'uploaded-image')!
+    overLimitElement.src = `data:image/png;base64,${base64For(maxBytes + 1)}`
+    expect(parseDocumentTemplate({ ...base, schemaVersion: 2, document: overLimit })).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_ENVELOPE' },
+    })
   })
 })

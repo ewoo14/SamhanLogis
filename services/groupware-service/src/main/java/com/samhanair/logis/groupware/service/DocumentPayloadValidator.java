@@ -94,6 +94,14 @@ public class DocumentPayloadValidator {
         return validate(schemaVersion, objectMapper.valueToTree(document));
     }
 
+    /** 자동 업데이트 전까지 신규 renderer 요소가 ACTIVE 양식으로 배포되지 않도록 하는 임시 게이트 판정. */
+    public boolean containsActivationBlockedElements(DocumentPayload document) {
+        return document != null && document.bands() != null
+                && document.bands().stream()
+                .flatMap(band -> band.elements() == null ? java.util.stream.Stream.empty() : band.elements().stream())
+                .anyMatch(element -> "DETAIL".equals(element.type()) || "IMAGE".equals(element.type()));
+    }
+
     private void checkDocument(JsonNode document, short schemaVersion) {
         JsonNode paper = document.get("paper");
         if (paper == null || !"A4_PORTRAIT".equals(paper.asText())) {
@@ -128,6 +136,9 @@ public class DocumentPayloadValidator {
                 }
                 addKey(keys, element.get("key").asText());
                 String type = element.get("type").asText();
+                if ("DETAIL".equals(type) && !"BODY".equals(band.get("kind").asText())) {
+                    reject("DETAIL 요소는 BODY band에 있어야 합니다");
+                }
                 if (ELEMENT_BANDS.containsKey(type) && !ELEMENT_BANDS.get(type).equals(band.get("kind").asText())) {
                     reject(type + " 요소의 band 배치가 올바르지 않습니다");
                 }
@@ -198,7 +209,8 @@ public class DocumentPayloadValidator {
                     || (!BINDING_VALUES.contains(binding.asText()) && !FIELD_BINDING.matcher(binding.asText()).matches())) {
                 reject("FIELD 요소 binding이 허용 목록에 없습니다");
             }
-        } else if (element.has("binding")) {
+        }
+        if (element.has("binding")) {
             // M-D: binding 은 요소 타입과 무관하게 allowlist 강제를 받아야 한다. 종전에는 이 검사가
             // type=="FIELD" 일 때만 실행돼, TEXT(또는 향후 신설될) 요소가 "binding" 필드를 함께 실어
             // 보내면 어떤 값이든(임의 문자열 포함) 무검증으로 Element record 에 역직렬화·영속됐다.

@@ -69,7 +69,8 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     console.log(`■ 이미지 naturalWidth = ${natural}`)
   })
 
-  await test.step('D2 실 BE 저장 — DocumentPayloadValidator 가 신규 타입을 받는가', async () => {
+  let savedTemplateId = ''
+  await test.step('D2 실 BE 저장·활성화 게이트 — 신규 타입은 저장되지만 ACTIVE 승격은 막힌다', async () => {
     // 🚨 문서 유형을 고르지 않으면 예약 docType(GROUPWARE_DEFAULT)이 나가 422 로 거절된다.
     //    기존 L1~L6 하네스와 동일하게 실제 옵션을 골라야 저장 경로에 도달한다(PM 실측).
     const docType = page.getByLabel('문서 유형')
@@ -83,6 +84,8 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
       r.url().includes('/document-templates') && ['POST', 'PUT'].includes(r.request().method()), { timeout: 20000 })
     await page.getByRole('button', { name: '저장' }).click()
     const res = await saved
+    const savedBody = await res.json()
+    savedTemplateId = String(savedBody.data?.id ?? '')
     console.log(`■ 저장 응답 = ${res.request().method()} ${res.status()}`)
     if (res.status() >= 400) {
       console.log(`■ 422 본문 = ${(await res.text()).slice(0, 500)}`)
@@ -92,6 +95,12 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     expect(res.status(), `실 BE 저장 실패 — DocumentPayloadValidator 가 신규 요소를 거부했을 수 있다`)
       .toBeLessThan(400)
     await expect(page.getByText('저장된 상태입니다.')).toBeVisible({ timeout: 15000 })
+    expect(savedTemplateId, '저장 응답에 template id가 없다').not.toBe('')
+    const activation = await page.request.post(`${API_BASE}/admin/groupware/document-templates/${savedTemplateId}/activate`, {
+      headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
+    })
+    console.log(`■ DETAIL/IMAGE 활성화 응답 = ${activation.status()} ${(await activation.text()).slice(0, 300)}`)
+    expect(activation.status(), 'BE 권위 활성화 게이트가 우회되었다').toBe(422)
     await shot('D2-저장완료')
   })
 
@@ -122,6 +131,24 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     await expect(preview.locator('.paper')).toBeVisible()
     await expect(detailLayer, '인쇄 시 품목행이 사라진다').toBeVisible()
     await shot('D4-인쇄미디어')
+    await page.emulateMedia({ media: 'screen' })
+  })
+
+  await test.step('D5 실제 결재문서 /print — 편집기 preview가 아닌 ApprovalDocView route를 연다', async () => {
+    const approvals = await page.request.get(`${API_BASE}/admin/groupware/approvals?status=APPROVED`, {
+      headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
+    })
+    expect(approvals.ok(), `승인 결재 목록 조회 실패: HTTP ${approvals.status()}`).toBeTruthy()
+    const approvalsBody = await approvals.json()
+    const approved = (approvalsBody.data ?? []) as Array<{ approvalId?: string }>
+    expect(approved.length, '실제 /print를 열 승인 완료 결재문서가 없다').toBeGreaterThan(0)
+    const approvalId = approved[0]?.approvalId
+    expect(approvalId).toBeTruthy()
+    await page.goto(`${BASE_URL}/#/groupware/approvals/${approvalId}/print`)
+    await expect(page.locator('.print-approval-doc')).toBeVisible({ timeout: 20000 })
+    await page.emulateMedia({ media: 'print' })
+    console.log(`■ 실제 결재문서 /print DOM 확인 = approvalId=${approvalId}`)
+    await shot('D5-실제결재문서-print')
     await page.emulateMedia({ media: 'screen' })
   })
 

@@ -6,6 +6,7 @@ import {
   parseDocumentTemplate,
   upcastDocumentTemplate,
   type BindingRef,
+  type BandKind,
   type DocElement,
   type DocumentPayload,
   type ElementStyle,
@@ -81,6 +82,24 @@ function toDraft(template: TemplateEnvelope | null | undefined): TemplateDraftSt
 
 function allKeys(document: DocumentPayload): Set<string> {
   return new Set(document.bands.flatMap((band) => [band.key, ...band.elements.map((element) => element.key)]))
+}
+
+export function moveElementToBand(document: DocumentPayload, key: string, targetKind: BandKind): DocumentPayload {
+  const sourceBand = document.bands.find((band) => band.elements.some((element) => element.key === key))
+  const element = sourceBand?.elements.find((candidate) => candidate.key === key)
+  if (!sourceBand || !element || sourceBand.kind === targetKind) return document
+  return {
+    ...document,
+    bands: document.bands.map((band) => {
+      if (band.kind === sourceBand.kind) {
+        return { ...band, elements: band.elements.filter((candidate) => candidate.key !== key) }
+      }
+      if (band.kind === targetKind) {
+        return { ...band, elements: [...band.elements, element] }
+      }
+      return band
+    }),
+  }
 }
 
 function defaultElement(type: EditableElementType, key: string): DocElement {
@@ -174,6 +193,10 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     }))
   }, [])
 
+  const moveElementBand = useCallback((key: string, targetKind: BandKind) => {
+    setDraft((current) => ({ ...current, document: moveElementToBand(current.document, key, targetKind) }))
+  }, [])
+
   const updateElement = useCallback((key: string, patch: Partial<DocElement>) => {
     setDraft((current) => ({
       ...current,
@@ -221,6 +244,7 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     setDraft,
     addElement,
     moveElement,
+    moveElementToBand: moveElementBand,
     updateElement,
     removeElement,
     selectedKey,

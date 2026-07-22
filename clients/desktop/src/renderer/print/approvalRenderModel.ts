@@ -55,6 +55,8 @@ export interface ApprovalRenderAttachment {
   detail: string
 }
 
+export type ApprovalLineItemsAvailability = 'CONNECTED' | 'UNAVAILABLE'
+
 /** EstimateLineResponse에서 UUID/계보 필드를 제거한 detail 반복행 projection. */
 export interface ApprovalRenderLineItem {
   productName: string
@@ -89,6 +91,7 @@ export interface ApprovalRenderModel {
     fieldRows: ApprovalRenderFieldRow[]
     attachments: ApprovalRenderAttachment[]
     lineItems: ApprovalRenderLineItem[]
+    lineItemsAvailability: ApprovalLineItemsAvailability
   }
   closing: {
     note: string
@@ -128,6 +131,7 @@ export function buildApprovalRenderModel(input: FrozenApprovalDocInput): Approva
         detail: attachmentDetails(attachment).join(' · '),
       })),
       lineItems: projectEstimateLineItems(input.lineItems ?? []),
+      lineItemsAvailability: input.lineItems === undefined ? 'UNAVAILABLE' : 'CONNECTED',
     },
     closing: { note: CLOSING_NOTE },
   }

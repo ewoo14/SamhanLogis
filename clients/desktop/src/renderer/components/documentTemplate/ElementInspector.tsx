@@ -6,10 +6,14 @@ import {
   DETAIL_COLUMN_KEYS,
   DETAIL_COLUMN_LABEL,
   ELEMENT_TYPE_LABEL,
+  BAND_KIND_LABEL,
   isAllowedImageSource,
+  maxImageBytesForDocument,
   type BindingRef,
+  type BandKind,
   type DetailColumnKey,
   type DocElement,
+  type DocumentPayload,
   type ElementStyle,
   type Geometry,
 } from '../../print/templateSchema'
@@ -41,11 +45,17 @@ export function ElementInspector({
   element,
   onUpdate,
   onRemove,
+  document,
+  bandKind,
+  onMoveBand,
   canEdit,
 }: {
   element: DocElement | null
   onUpdate: (patch: Partial<DocElement>) => void
   onRemove: () => void
+  document?: DocumentPayload
+  bandKind?: BandKind
+  onMoveBand?: (bandKind: BandKind) => void
   /** H-E: 편집 잠금·권한 없음 상태에서는 속성 편집·삭제 자체가 불가능해야 한다(읽기 전용 표시는 허용). */
   canEdit: boolean
 }) {
@@ -63,6 +73,10 @@ export function ElementInspector({
   const bindingSelectValue = element.type === 'FIELD'
     ? (fieldRowMatch ? FIELD_ROW_OPTION : element.binding)
     : undefined
+  const imageMaxBytes = element.type === 'IMAGE' && document
+    ? maxImageBytesForDocument(document, element.key)
+    : 50 * 1024
+  const imageMaxKilobytes = Math.floor(imageMaxBytes / 1024)
 
   return (
     <section className="document-template-inspector" aria-label="속성 패널" style={{ display: 'grid', gap: 8 }}>
@@ -145,6 +159,17 @@ export function ElementInspector({
       {element.type === 'IMAGE' ? (
         <>
           <label>
+            이미지 배치 밴드
+            <select
+              aria-label="이미지 배치 밴드"
+              value={bandKind ?? 'HEADER'}
+              disabled={!canEdit}
+              onChange={(event) => onMoveBand?.(event.target.value as BandKind)}
+            >
+              {(Object.keys(BAND_KIND_LABEL) as BandKind[]).map((kind) => <option key={kind} value={kind}>{BAND_KIND_LABEL[kind]}</option>)}
+            </select>
+          </label>
+          <label>
             대체 문구
             <input aria-label="이미지 대체 문구" value={element.alt} disabled={!canEdit} onChange={(event) => onUpdate({ alt: event.target.value })} />
           </label>
@@ -167,8 +192,10 @@ export function ElementInspector({
                 const reader = new FileReader()
                 reader.onload = () => {
                   const src = String(reader.result ?? '')
-                  if (!isAllowedImageSource(src)) {
-                    setImageError('PNG/JPEG/WebP 50KB 이하 이미지만 사용할 수 있습니다.')
+                  const base64 = src.split(',')[1] ?? ''
+                  const decodedBytes = Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0))
+                  if (!isAllowedImageSource(src) || decodedBytes > imageMaxBytes) {
+                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다.`)
                     return
                   }
                   setImageError(null)

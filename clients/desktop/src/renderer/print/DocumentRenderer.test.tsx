@@ -388,7 +388,71 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
       template={template as never}
       model={{ ...baseModel, body: { ...baseModel.body, lineItems: [] } } as never}
     />)
-    expect(emptyHtml).toContain('데이터가 없습니다.')
+    expect(emptyHtml).toContain('품목 원천이 연결되지 않은 결재문서입니다.')
+    expect(emptyHtml).not.toContain('데이터가 없습니다.')
+  })
+
+  it('DS-4 A2: 실제 route 입력에 품목 원천이 없으면 빈 표 대신 원인을 출력한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [...band.elements, {
+                key: 'detail-source-missing',
+                type: 'DETAIL' as const,
+                repeatBinding: 'body.lineItems' as const,
+                columns: ['productName', 'quantity'] as const,
+              }],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('품목 원천이 연결되지 않은 결재문서입니다.')
+    expect(html).not.toContain('데이터가 없습니다.')
+  })
+
+  it('O1: DETAIL을 BODY 첫 요소로 이동하면 실제 preview DOM도 DETAIL이 먼저다', () => {
+    const model = {
+      ...buildApprovalRenderModel(input()),
+      body: {
+        ...buildApprovalRenderModel(input()).body,
+        lineItems: [{
+          productName: '출력 품목', modelName: 'MODEL-1', specification: '규격', quantity: 1,
+          supplyAmount: '1000', vatAmount: '100', lineTotal: '1100', note: '',
+        }],
+      },
+    }
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                { key: 'detail-first', type: 'DETAIL' as const, repeatBinding: 'body.lineItems' as const, columns: ['productName'] as const },
+                { key: 'content-after-detail', type: 'CONTENT_PARAGRAPHS' as const },
+                { key: 'fields-after-detail', type: 'FIELD_TABLE' as const },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model as never} />)
+
+    expect(html.indexOf('data-template-detail="detail-first"')).toBeLessThan(
+      html.indexOf('aria-label="결재문서 내용"'),
+    )
   })
 
   it('DS-4: IMAGE는 허용된 data URL을 geometry와 함께 인쇄 경로에 렌더한다', () => {

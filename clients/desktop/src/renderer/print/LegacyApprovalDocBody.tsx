@@ -4,7 +4,7 @@
  * `PrintLayout`과 함께 출력 DOM을 유지하기 위한 컴포넌트이며, 바깥 div는
  * 정확히 한 번만 렌더한다. frozen 오라클은 이 파일을 공유하지 않는다.
  */
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import type { ApprovalRenderAttachment, ApprovalRenderFieldRow } from './approvalRenderModel'
 
 export type LegacyApprovalDocSection =
@@ -13,7 +13,8 @@ export type LegacyApprovalDocSection =
   | { type: 'ATTACHMENT_TABLE'; attachments: ApprovalRenderAttachment[] }
 
 export interface LegacyApprovalDocBodyProps {
-  orderedSections: LegacyApprovalDocSection[]
+  orderedSections?: LegacyApprovalDocSection[]
+  children?: ReactNode
 }
 
 function renderSection(section: LegacyApprovalDocSection): React.ReactNode {
@@ -106,14 +107,19 @@ function renderSection(section: LegacyApprovalDocSection): React.ReactNode {
   }
 }
 
+/** legacy section 하나를 외부 body element 사이의 원래 위치에 렌더한다. */
+export function LegacyApprovalDocSection({ section }: { section: LegacyApprovalDocSection }) {
+  return renderSection(section)
+}
+
 /** 기존 본문 외곽 div를 정확히 한 번 출력한다. */
-export function LegacyApprovalDocBody({ orderedSections }: LegacyApprovalDocBodyProps) {
+export function LegacyApprovalDocBody({ orderedSections = [], children }: LegacyApprovalDocBodyProps) {
   return (
     <div
       className="approval-doc-print-content"
       style={{ display: 'grid', gap: '5mm', color: '#000', fontSize: '10pt' }}
     >
-      {orderedSections.map((section, index) => (
+      {children ?? orderedSections.map((section, index) => (
         <Fragment key={`${section.type}-${index}`}>
           {renderSection(section)}
         </Fragment>

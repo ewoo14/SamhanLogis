@@ -8,7 +8,11 @@ import type { CSSProperties, ReactNode } from 'react'
 import { PrintLayout, type PaperSize, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
 import type { ApprovalRenderModel } from './approvalRenderModel'
 import { krw } from './PrintLayout'
-import { LegacyApprovalDocBody, type LegacyApprovalDocSection } from './LegacyApprovalDocBody'
+import {
+  LegacyApprovalDocBody,
+  LegacyApprovalDocSection as LegacyApprovalDocSectionView,
+} from './LegacyApprovalDocBody'
+import type { LegacyApprovalDocSection } from './LegacyApprovalDocBody'
 import {
   paperToPrintLayout,
   type BindingRef,
@@ -175,7 +179,11 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
         <tbody>
           {rows.length === 0 ? (
             <tr data-template-detail-row="empty">
-              <td colSpan={element.columns.length}>데이터가 없습니다.</td>
+              <td colSpan={element.columns.length}>
+                {model.body.lineItemsAvailability === 'UNAVAILABLE'
+                  ? '품목 원천이 연결되지 않은 결재문서입니다.'
+                  : '데이터가 없습니다.'}
+              </td>
             </tr>
           ) : rows.map((item, index) => (
             <tr key={`${element.key}-${index}`} data-template-detail-row={`${index + 1}`}>
@@ -219,10 +227,12 @@ function positionedElementLayer(
   elements: Array<FieldElement | TextElement | ImageElement>,
   model: ApprovalRenderModel,
   testId: string,
+  key?: string,
 ): ReactNode {
   if (elements.length === 0) return null
   return (
     <div
+      key={key}
       className="document-template-v2-elements"
       data-testid={testId}
       style={{ position: 'relative', minHeight: '24mm' }}
@@ -240,10 +250,6 @@ function positionedElementsOf(elements: DocElement[]): Array<FieldElement | Text
   )
 }
 
-function detailElementsOf(elements: DocElement[]): DetailElement[] {
-  return elements.filter((element): element is DetailElement => element.type === 'DETAIL')
-}
-
 /** 템플릿 band/element 순서에 따라 PrintLayout props와 본문을 compile한다. */
 export function compileApprovalDocument(
   template: DocumentTemplate,
@@ -254,19 +260,12 @@ export function compileApprovalDocument(
     .flatMap((band) => band.elements)
   const hasMetaRows = headerElements.some((element) => element.type === 'META_ROWS')
   const hasApprovalGrid = headerElements.some((element) => element.type === 'APPROVAL_GRID')
-  const bodySections = template.document.bands
+  const bodyElements = template.document.bands
     .filter((band) => band.kind === 'BODY')
     .flatMap((band) => band.elements)
-    .map((element) => sectionForElement(element, model))
-    .filter((section): section is LegacyApprovalDocSection => section !== null)
+  const bodyDetails = bodyElements.filter((element): element is DetailElement => element.type === 'DETAIL')
 
   const headerPositioned = positionedElementsOf(headerElements)
-  const bodyPositioned = positionedElementsOf(
-    template.document.bands.filter((band) => band.kind === 'BODY').flatMap((band) => band.elements),
-  )
-  const bodyDetails = detailElementsOf(
-    template.document.bands.filter((band) => band.kind === 'BODY').flatMap((band) => band.elements),
-  )
   const footerPositioned = positionedElementsOf(
     template.document.bands.filter((band) => band.kind === 'FOOTER').flatMap((band) => band.elements),
   )
@@ -279,25 +278,33 @@ export function compileApprovalDocument(
     } : {}),
   }
 
+  const bodyChildren = bodyElements.map((element) => {
+    const section = sectionForElement(element, model)
+    if (section) {
+      return <LegacyApprovalDocSectionView key={element.key} section={section} />
+    }
+    if (element.type === 'DETAIL') {
+      return (
+        <div key={element.key} className="document-template-detail-layer" data-testid="document-template-detail-layer">
+          {renderDetailElement(element, model)}
+        </div>
+      )
+    }
+    if (element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE') {
+      return positionedElementLayer([element], model, `document-template-v2-element-${element.key}`, element.key)
+    }
+    return null
+  }).filter((child): child is ReactNode => child !== null)
+
   return {
     paper: paperToPrintLayout(template.document.paper),
     docHeader,
     approvalSteps: hasApprovalGrid ? model.approvalSteps : [],
     closingNote: model.closing.note,
-    // BODY FIELD/TEXT 는 legacy 섹션과 형제로 렌더한다 — `approval-doc-print-content` 래퍼를
-    // LegacyApprovalDocBody 가 이미 정확히 한 번 출력하므로(그 컴포넌트 자체 계약) 여기서 다시
-    // 감싸지 않는다(중복 wrapper 금지, LegacyApprovalDocBody.tsx 상단 주석 참고).
-    body: (
-      <>
-        <LegacyApprovalDocBody orderedSections={bodySections} />
-        {positionedElementLayer(bodyPositioned, model, 'document-template-v2-elements-body')}
-        {bodyDetails.length > 0 ? (
-          <div className="document-template-detail-layer" data-testid="document-template-detail-layer">
-            {bodyDetails.map((element) => renderDetailElement(element, model))}
-          </div>
-        ) : null}
-      </>
-    ),
+    // BODY children은 band의 원래 element 순서 그대로 하나의 print-content wrapper에 넣는다.
+    // DETAIL/legacy section/positioned element를 별도 레이어로 재조립하면 편집기 순서와 출력 순서가
+    // 갈라지므로, 같은 배열을 preview와 print가 공유한다.
+    body: <LegacyApprovalDocBody>{bodyChildren}</LegacyApprovalDocBody>,
     headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
     footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
     hasRepeatingDetail: bodyDetails.length > 0,
