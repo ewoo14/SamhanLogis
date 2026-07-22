@@ -215,7 +215,7 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     const html = render(<DocumentRenderer template={template as never} model={model} />)
 
     expect((html.match(/data-testid="document-template-v2-elements-body"/g) ?? []).length).toBe(1)
-    expect((html.match(/style="[^"]*position:absolute;top:0;left:0;width:100%;height:24mm/g) ?? []).length).toBe(1)
+    expect((html.match(/style="[^"]*position:relative;min-height:24mm/g) ?? []).length).toBe(1)
     expect(html).toContain('data-template-element="body-text-left"')
     expect(html).toContain('data-template-element="body-field-right"')
   })
@@ -279,16 +279,20 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     const element3 = html3.match(/data-template-element="positioned-field"[^>]*style="([^"]+)"/)
     const element30 = html30.match(/data-template-element="positioned-field"[^>]*style="([^"]+)"/)
 
-    // RED: 현재 구현은 content wrapper 자체가 layer이고, DETAIL/legacy가 그 안에 들어간다.
+    // H5: 좌표 레이어는 BODY flow에서 실제로 24mm를 예약해야 한다.
     expect(layer3, 'BODY positioned 요소 전용 layer가 없다').not.toBeNull()
     expect(layer30, 'BODY positioned 요소 전용 layer가 없다').not.toBeNull()
-    expect(layer3![1]).toContain('position:absolute')
-    expect(layer3![1]).toContain('height:24mm')
+    expect(layer3![1]).toContain('position:relative')
+    expect(layer3![1]).toContain('min-height:24mm')
+    expect(layer3![1]).not.toContain('position:absolute')
+    expect(layer3![1]).not.toMatch(/(?:^|;)height:24mm(?:;|$)/)
     expect(layer30![1]).toBe(layer3![1])
     expect(element30?.[1]).toBe(element3?.[1])
 
     const bodyLayer = new JSDOM(html3).window.document.querySelector('[data-testid="document-template-v2-elements-body"]')
     expect(bodyLayer).not.toBeNull()
+    expect(bodyLayer?.parentElement?.getAttribute('style')).toContain('position:relative')
+    expect(bodyLayer?.getAttribute('style')).toContain('min-height:24mm')
     expect(bodyLayer?.querySelector('[data-template-element="positioned-field"]')).not.toBeNull()
     expect(bodyLayer?.querySelector('[data-template-detail="variable-detail"]')).toBeNull()
     expect(bodyLayer?.querySelector('[aria-label="결재문서 내용"]')).toBeNull()
@@ -298,6 +302,7 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(bodyChildren[0]?.getAttribute('aria-label')).toBe('결재문서 내용')
     expect(bodyChildren.indexOf(bodyLayer!)).toBe(1)
     expect(bodyChildren[2]?.querySelector('[data-template-detail="variable-detail"]')).not.toBeNull()
+    expect(bodyLayer?.nextElementSibling?.querySelector('[data-template-detail="variable-detail"]')).not.toBeNull()
   })
 
   it('기본 template을 PrintLayout props 동형 slot으로 compile한다', () => {

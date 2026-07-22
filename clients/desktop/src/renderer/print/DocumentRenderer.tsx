@@ -228,7 +228,6 @@ function positionedElementLayer(
   model: ApprovalRenderModel,
   testId: string,
   key?: string,
-  fixedBodyLayer = false,
 ): ReactNode {
   if (elements.length === 0) return null
   return (
@@ -236,9 +235,7 @@ function positionedElementLayer(
       key={key}
       className="document-template-v2-elements"
       data-testid={testId}
-      style={fixedBodyLayer
-        ? { position: 'absolute', top: 0, left: 0, width: '100%', height: '24mm' }
-        : { position: 'relative', minHeight: '24mm' }}
+      style={{ position: 'relative', minHeight: '24mm' }}
     >
       {elements.map((element) => element.type === 'IMAGE'
         ? renderImageElement(element)
@@ -295,7 +292,6 @@ export function compileApprovalDocument(
         model,
         'document-template-v2-elements-body',
         'document-template-v2-elements-body',
-        true,
       )
     }
     const section = sectionForElement(element, model)
@@ -325,7 +321,7 @@ export function compileApprovalDocument(
     approvalSteps: hasApprovalGrid ? model.approvalSteps : [],
     closingNote: model.closing.note,
     // BODY flow는 band의 원래 element 순서를 유지한다. geometry 요소만 선언상 첫 위치에
-    // 하나의 고정 24mm absolute layer로 모아, legacy/DETAIL의 가변 높이가 % 좌표 원점이 되지 않게 한다.
+    // 하나의 고정 24mm flow layer로 모아, legacy/DETAIL의 가변 높이가 % 좌표 원점이 되지 않게 한다.
     body: <LegacyApprovalDocBody positionedLayer={bodyPositioned.length > 0}>{bodyChildren}</LegacyApprovalDocBody>,
     headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
     footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
