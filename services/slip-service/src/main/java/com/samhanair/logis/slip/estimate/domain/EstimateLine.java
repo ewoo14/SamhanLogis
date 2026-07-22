@@ -1,6 +1,8 @@
 package com.samhanair.logis.slip.estimate.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -186,6 +188,35 @@ public class EstimateLine extends BaseEntity {
         return line;
     }
 
+    /**
+     * 화면에서 편집한 공급가액·부가세·VAT 포함 합계를 권위값으로 보존하는 생성 팩토리.
+     *
+     * <p>견적의 {@code lineTotal} 은 기존 계약상 VAT 포함 합계이므로 {@code T} 를 저장한다.
+     * 모든 금액은 요청의 정수값을 재계산하지 않고 그대로 보존한다.
+     *
+     * @param supplyAmount 공급가액 S (원 단위 정수, 0 이상)
+     * @param vatAmount 부가세 V (원 단위 정수, 0 이상)
+     * @param lineTotalWithVat VAT 포함 합계 T (원 단위 정수, 0 이상)
+     * @throws BusinessException 금액·수량·항등식이 유효하지 않으면 INVALID_INPUT
+     */
+    public static EstimateLine createFromAuthoritativeAmounts(
+            Estimate estimate, int lineNo, UUID productId, String productName,
+            String modelName, String specification, int quantity, BigDecimal supplyAmount,
+            BigDecimal vatAmount, BigDecimal lineTotalWithVat, String note) {
+        validatePositive(quantity);
+        validateAuthoritativeAmounts(supplyAmount, vatAmount, lineTotalWithVat);
+        BigDecimal supplyUnit = supplyAmount.divide(BigDecimal.valueOf(quantity), 2,
+                RoundingMode.HALF_UP);
+        EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
+                specification, quantity, supplyUnit, note);
+        line.supplyAmount = supplyAmount;
+        line.vatAmount = vatAmount;
+        line.lineTotal = lineTotalWithVat;
+        line.unitPriceWithVat = lineTotalWithVat.divide(BigDecimal.valueOf(quantity), 2,
+                RoundingMode.HALF_UP);
+        return line;
+    }
+
     /** 세트 전개 구성품 표시 — 전개된 세트의 구성품 라인에만 부여(parentSetModel + 첫 라인 setHead). */
     public void assignBundleComponent(String parentSetModel, boolean setHead) {
         this.parentSetModel = parentSetModel;
@@ -227,6 +258,30 @@ public class EstimateLine extends BaseEntity {
     private static void validateUnitPrice(BigDecimal unitPrice) {
         if (unitPrice == null || unitPrice.signum() < 0) {
             throw new IllegalArgumentException("단가는 0 이상이어야 합니다");
+        }
+    }
+
+    private static void validateAuthoritativeAmounts(BigDecimal supplyAmount,
+                                                     BigDecimal vatAmount,
+                                                     BigDecimal lineTotalWithVat) {
+        validateAmount(supplyAmount, "공급가액");
+        validateAmount(vatAmount, "부가세");
+        validateAmount(lineTotalWithVat, "합계");
+        if (supplyAmount.add(vatAmount).compareTo(lineTotalWithVat) != 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    ("공급가액(%s)과 부가세(%s)의 합이 합계(%s)와 일치하지 않습니다. "
+                            + "화면을 새로고침한 뒤 다시 시도해 주세요.")
+                            .formatted(supplyAmount.toPlainString(), vatAmount.toPlainString(),
+                                    lineTotalWithVat.toPlainString()));
+        }
+    }
+
+    private static void validateAmount(BigDecimal amount, String label) {
+        if (amount == null || amount.signum() < 0
+                || amount.stripTrailingZeros().scale() > 0
+                || amount.stripTrailingZeros().precision() > 15) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "은 0 이상의 원 단위 정수여야 합니다");
         }
     }
 }

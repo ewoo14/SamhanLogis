@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { LineRow, type LineDraft } from './LineRow'
 import { LineTableHeader } from './LineTableHeader'
@@ -103,6 +103,55 @@ describe('LineRow price source marker', () => {
 
     expect(container.querySelector('[role="row"]')).toBeNull()
     expect(screen.getByRole('checkbox', { name: '모든 라인 선택' })).toBeTruthy()
+  })
+
+  it('VAT 포함 모드는 공급가액·부가세·합계 입력 열과 경고를 표시한다', () => {
+    const onSupplyAmountChange = vi.fn()
+    const onVatAmountChange = vi.fn()
+    const onLineTotalChange = vi.fn()
+    render(
+      <div role="table">
+        <LineTableHeader allSelected={false} onToggleAll={vi.fn()} vatInclusive />
+        <LineRow
+          lineNumber={1}
+          line={{
+            ...line('USER'),
+            supplyAmount: '100005',
+            vatAmount: '0',
+            lineTotal: '100005',
+            vatWarning: true,
+          }}
+          vatInclusive
+          vatEditable
+          selected={false}
+          onSelect={vi.fn()}
+          onModelNameChange={vi.fn()}
+          onModelNameBlur={vi.fn()}
+          onSpecificationChange={vi.fn()}
+          onQuantityChange={vi.fn()}
+          onUnitPriceChange={vi.fn()}
+          onSupplyAmountChange={onSupplyAmountChange}
+          onVatAmountChange={onVatAmountChange}
+          onLineTotalChange={onLineTotalChange}
+          onDelete={vi.fn()}
+          dragHandleProps={{}}
+        />
+      </div>,
+    )
+
+    expect(screen.getByText('공급가액')).toBeTruthy()
+    expect(screen.getByText('부가세')).toBeTruthy()
+    expect(screen.getByLabelText('라인 1 공급가액')).toBeTruthy()
+    expect(screen.getByLabelText('라인 1 부가세')).toBeTruthy()
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)')).toBeTruthy()
+    expect(screen.getByRole('note').textContent).toBe('⚠ 10%와 다름')
+
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '100006' } })
+    fireEvent.change(screen.getByLabelText('라인 1 부가세'), { target: { value: '10001' } })
+    fireEvent.change(screen.getByLabelText('라인 1 합계(VAT포함)'), { target: { value: '110007' } })
+    expect(onSupplyAmountChange).toHaveBeenCalledWith('100006')
+    expect(onVatAmountChange).toHaveBeenCalledWith('10001')
+    expect(onLineTotalChange).toHaveBeenCalledWith('110007')
   })
 
   // D-R4-1: 자동채움 실체 = 제품 등록 화면 '판매가'(sellingPrice) — '정가' 라벨 금지(출고가 별칭 오도).

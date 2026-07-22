@@ -22,6 +22,7 @@ import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryCommand;
 import com.samhanair.logis.slip.price.service.PartnerProductPriceMemoryService;
 import com.samhanair.logis.slip.realtime.EstimateListRealtime;
 import com.samhanair.logis.slip.service.BundleLineageResolver;
+import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.service.LineIdContractGate;
 import com.samhanair.logis.shared.realtime.collection.CollectionRealtimePublisher;
 import jakarta.persistence.OptimisticLockException;
@@ -82,16 +83,27 @@ public class EstimateService {
     private int addEstimateLines(Estimate estimate, int lineNo, UUID productId, ProductSummary summary,
                                  String reqName, String reqModel, String specification, int quantity,
                                  BigDecimal unitPrice, String note, BundleSetOptions setOptions,
-                                 boolean priceVatInclusive, UUID sourceLineId, String actor,
+                                 boolean priceVatInclusive, BigDecimal supplyAmount, BigDecimal vatAmount,
+                                 BigDecimal lineTotalWithVat, UUID sourceLineId, String actor,
                                  List<PartnerProductPriceMemoryCommand> priceMemoryCommands,
                                  List<PendingPlainLine> pendingPlainLines) {
+        boolean authoritative = AuthoritativeAmountValidator.isComplete(
+                supplyAmount, vatAmount, lineTotalWithVat);
         boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
                 && summary.modelCode() != null && !summary.modelCode().isBlank();
+        if (bundle && authoritative) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "세트 구성품의 공급가액·부가세는 개별 편집할 수 없습니다");
+        }
         if (!bundle) {
             String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
             String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
             // 단가 부가세포함: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
-            EstimateLine line = priceVatInclusive
+            EstimateLine line = authoritative
+                    ? EstimateLine.createFromAuthoritativeAmounts(estimate, lineNo, productId, productName,
+                            modelName, specification, quantity, supplyAmount, vatAmount,
+                            lineTotalWithVat, note)
+                    : priceVatInclusive
                     ? EstimateLine.createFromVatInclusive(estimate, lineNo, productId, productName, modelName,
                             specification, quantity, unitPrice, note)
                     : EstimateLine.create(estimate, lineNo, productId, productName, modelName,
@@ -100,7 +112,8 @@ public class EstimateService {
             // PUT 의 기존 라인은 sourceLineId 로 계보를 복원해야 하므로, 전 라인 저장 후
             // lineId 기반 복원 결과를 반영할 수 있도록 LINE_SAVE 기억 수집과 함께 지연한다
             // — {@link #resolveLineageAndCollectPlainLineMemory}.
-            pendingPlainLines.add(new PendingPlainLine(line, unitPrice, priceVatInclusive, sourceLineId));
+            pendingPlainLines.add(new PendingPlainLine(line, unitPrice, priceVatInclusive, sourceLineId,
+                    authoritative));
             return lineNo + 1;
         }
         collectPriceMemory(priceMemoryCommands, estimate.getPartnerId(), productId, unitPrice,
@@ -184,7 +197,8 @@ public class EstimateService {
                     byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
                     lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
                     lineReq.note(), lineReq.setOptions(),
-                    Boolean.TRUE.equals(lineReq.priceVatInclusive()), null, requesterId, priceMemoryCommands,
+                    Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
+                    lineReq.vatAmount(), lineReq.lineTotalWithVat(), null, requesterId, priceMemoryCommands,
                     pendingPlainLines);
         }
         // 신규 생성은 승계할 기존 계보가 없다 — 빈 resolver 로 기억 수집만 수행.
@@ -254,7 +268,8 @@ public class EstimateService {
                         byId.get(lineReq.productId()), lineReq.productName(), lineReq.modelName(),
                         lineReq.specification(), lineReq.quantity(), lineReq.unitPrice(),
                         lineReq.note(), lineReq.setOptions(),
-                        Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.lineId(), callerId,
+                        Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
+                        lineReq.vatAmount(), lineReq.lineTotalWithVat(), lineReq.lineId(), callerId,
                         priceMemoryCommands,
                         pendingPlainLines);
             }
@@ -516,10 +531,11 @@ public class EstimateService {
     private void resolveLineageAndCollectPlainLineMemory(
             BundleLineageResolver bundleLineage, List<PendingPlainLine> pendingPlainLines,
             UUID partnerId, String actor, List<PartnerProductPriceMemoryCommand> priceMemoryCommands) {
-        bundleLineage.restoreEstimateLines(pendingPlainLines.stream()
+            bundleLineage.restoreEstimateLines(pendingPlainLines.stream()
                 .map(PendingPlainLine::line)
                 .toList(),
                 pendingPlainLines.stream().map(PendingPlainLine::sourceLineId).toList());
+        rejectAuthoritativeBundleComponents(pendingPlainLines, priceMemoryCommands);
         for (PendingPlainLine pending : pendingPlainLines) {
             if (!BundleLineageResolver.isBundleComponent(pending.line())) {
                 collectPriceMemory(priceMemoryCommands, partnerId, pending.line().getProductId(),
@@ -529,12 +545,28 @@ public class EstimateService {
         }
     }
 
+    /** 세트 계보를 승계한 라인에는 권위 금액 편집을 허용하지 않는다. */
+    private void rejectAuthoritativeBundleComponents(
+            List<PendingPlainLine> pendingPlainLines,
+            List<PartnerProductPriceMemoryCommand> ignoredCommands) {
+        // 권위 금액은 라인 생성 시점에만 보존되므로, 계보 승계 후 구성품인 경우를
+        // PendingPlainLine 의 라인 상태에서 검사한다. 요청의 부분 전송은 팩토리 전에 이미
+        // AuthoritativeAmountValidator 가 거부한다.
+        for (PendingPlainLine pending : pendingPlainLines) {
+            if (BundleLineageResolver.isBundleComponent(pending.line())
+                    && pending.authoritative()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "세트 구성품의 공급가액·부가세는 개별 편집할 수 없습니다");
+            }
+        }
+    }
+
     /**
      * 계보 복원 대기 중인 일반 라인 1건 — 복원 결과에 따라 LINE_SAVE 기억 여부가 갈리므로
      * 원 요청 단가(부가세포함 여부 포함)를 함께 보존한다.
      */
     private record PendingPlainLine(EstimateLine line, BigDecimal unitPrice, boolean priceVatInclusive,
-                                    UUID sourceLineId) {
+                                    UUID sourceLineId, boolean authoritative) {
     }
 
     /**

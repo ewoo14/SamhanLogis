@@ -41,6 +41,12 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
+  changeLineQuantity,
+  editLineVat,
+  recalculateLineVat,
+  type LineVatLine,
+} from '../utils/lineVat'
+import {
   partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
   type PartnerRepriceCandidate,
@@ -73,6 +79,12 @@ interface DraftLine {
   specification: string
   quantity: string
   unitPrice: string
+  supplyAmount: string
+  vatAmount: string
+  lineTotal: string
+  authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
+  vatDirty?: boolean
+  vatWarning?: boolean
   priceSource?: 'REMEMBERED' | 'CATALOG' | 'USER' | null
   catalogUnitPrice?: string | null
   priceMemoryUpdatedAt?: string | null
@@ -110,6 +122,12 @@ const emptyLine = (): DraftLine => ({
   specification: '',
   quantity: '1',
   unitPrice: '0',
+  supplyAmount: '0',
+  vatAmount: '0',
+  lineTotal: '0',
+  authority: 'PRICE',
+  vatDirty: false,
+  vatWarning: false,
   priceSource: null,
   catalogUnitPrice: null,
   priceMemoryUpdatedAt: null,
@@ -124,6 +142,15 @@ const emptyLine = (): DraftLine => ({
   productType: null,
   setOptions: emptyBundleSetOptions(),
 })
+
+function asVatLine(line: DraftLine): DraftLine & LineVatLine {
+  return {
+    ...line,
+    supplyAmount: line.supplyAmount || '0',
+    vatAmount: line.vatAmount || '0',
+    lineTotal: line.lineTotal || '0',
+  }
+}
 
 const today = (): string => {
   const d = new Date()
@@ -140,13 +167,6 @@ const datePlusDays = (iso: string, days: number): string => {
 
 const fmt = (n: number): string => Math.trunc(n).toLocaleString('ko-KR')
 const ESTIMATE_HEADER_TEXT_FIELDS = new Set<string>(['memo'])
-
-const calcLineSupply = (qty: string, unitPrice: string): number => {
-  const q = Number.parseFloat(qty || '0')
-  const p = Number.parseFloat(unitPrice || '0')
-  if (!Number.isFinite(q) || !Number.isFinite(p)) return 0
-  return Math.trunc(q * p)
-}
 
 /**
  * 단가 출처 마커 라벨/설명 — 전표(LineRow/SlipMobileLineCard)와 동일 카피.
@@ -228,6 +248,13 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           quantity: String(line.quantity),
           // 단가 부가세포함: 폼 단가 입력은 VAT 포함값. 편집 hydrate/coedit seed 모두 같은 값으로 보존.
           unitPrice: canonicalUnitPrice,
+          supplyAmount: String(line.supplyAmount ?? '0'),
+          vatAmount: String(line.vatAmount ?? '0'),
+          lineTotal: String(line.lineTotal ?? '0'),
+          authority: 'PRICE',
+          vatDirty: false,
+          vatWarning: Number(line.vatAmount ?? 0)
+            !== Math.round(Number(line.supplyAmount ?? 0) * 0.1),
           // R9 #5: 저장본 일반 라인은 거래처 변경 시 새 거래처 기준으로 다시 확인한다.
           // 세트 구성품(parentSetModel 보유)은 배분가이므로 재가격 대상이 아니다.
           priceSource: null,
@@ -315,6 +342,12 @@ function coeditLinesToDraftLines(
       specification: provider.getItemValue(index, 'specification'),
       quantity: provider.getItemValue(index, 'quantity') || '0',
       unitPrice,
+      supplyAmount: previous?.supplyAmount ?? '0',
+      vatAmount: previous?.vatAmount ?? '0',
+      lineTotal: previous?.lineTotal ?? '0',
+      authority: previous?.authority ?? 'PRICE',
+      vatDirty: previous?.vatDirty ?? false,
+      vatWarning: previous?.vatWarning ?? false,
       priceSource: isExpectedAutoWrite
         ? expectedAutoWrite.priceSource
         : isRemoteUnitPriceChange
@@ -367,6 +400,7 @@ function EstimateMobileLineCard(props: {
   lineVat: number
   /** 거래처 선택 여부 (R4-D4) — 마커 카피 분기/해제 기준. */
   hasPartner: boolean
+  vatEditable: boolean
   onUpdate: (patch: Partial<DraftLine>) => void
   onLookup: () => void
   onRemove: () => void
@@ -452,7 +486,9 @@ function EstimateMobileLineCard(props: {
           coeditPending={props.coeditPending}
           fieldPath={`items.${props.index}.quantity`}
           value={props.line.quantity}
-          onValueChange={(value) => props.onUpdate({ quantity: value })}
+          onValueChange={(value) => props.onUpdate(
+            changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
+          )}
           inputSize="sm"
           readOnly={props.isReadOnly}
           type="text"
@@ -470,6 +506,7 @@ function EstimateMobileLineCard(props: {
           fieldPath={`items.${props.index}.unitPrice`}
           value={props.line.unitPrice}
           onValueChange={(value) => props.onUpdate({
+            ...recalculateLineVat(asVatLine({ ...props.line, unitPrice: value }), 'PRICE'),
             unitPrice: value,
             priceSource: 'USER',
             priceMemoryUpdatedAt: null,
@@ -478,6 +515,7 @@ function EstimateMobileLineCard(props: {
             lookupLoading: false,
             lookupError: null,
             legacyPriceUntouched: false,
+            vatDirty: false,
           })}
           // doc-sync 유래 값 반영은 분류(priceSource) 를 건드리지 않는다 — 자동채움 provider write
           // 가 pending REMEMBERED/CATALOG 분류를 USER 로 덮어 마커가 소멸하는 것을 차단(R4-F6).
@@ -526,10 +564,60 @@ function EstimateMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">합계(VAT포함)</label>
-        <div className="mobile-line-readonly mobile-line-readonly--strong">
-          {fmt(props.lineIncl)}
-          <span>공급 {fmt(props.lineSupply)} · VAT {fmt(props.lineVat)}</span>
-        </div>
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.lineTotal`}
+          value={props.line.lineTotal}
+          onValueChange={(value) => props.onUpdate({
+            ...editLineVat(asVatLine(props.line), 'TOTAL', value),
+            vatDirty: true,
+          })}
+          readOnly={!props.vatEditable}
+          inputMode="numeric"
+          inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+          aria-label={`라인 ${lineNumber} 합계(VAT포함)`}
+        />
+        <span className="mobile-line-readonly mobile-line-readonly--strong">
+          공급 {fmt(Number(props.line.supplyAmount))} · VAT {fmt(Number(props.line.vatAmount))}
+        </span>
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">공급가액</label>
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.supplyAmount`}
+          value={props.line.supplyAmount}
+          onValueChange={(value) => props.onUpdate({
+            ...editLineVat(asVatLine(props.line), 'SUPPLY', value),
+            vatDirty: true,
+          })}
+          readOnly={!props.vatEditable}
+          inputMode="numeric"
+          inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+          aria-label={`라인 ${lineNumber} 공급가액`}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">부가세</label>
+        <CollaborativeSlipInput
+          provider={props.provider}
+          coeditPending={props.coeditPending}
+          fieldPath={`items.${props.index}.vatAmount`}
+          value={props.line.vatAmount}
+          onValueChange={(value) => props.onUpdate({
+            ...editLineVat(asVatLine(props.line), 'VAT', value),
+            vatDirty: true,
+          })}
+          readOnly={!props.vatEditable}
+          inputMode="numeric"
+          inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+          aria-label={`라인 ${lineNumber} 부가세`}
+        />
+        {props.line.vatWarning ? <span role="note">⚠ 부가세가 10%와 다릅니다</span> : null}
       </div>
 
       {props.children}
@@ -912,6 +1000,38 @@ export function EstimateFormPage() {
       const next = prev.map((l, i) => (i === index ? { ...l, ...patch } : l))
       linesRef.current = next
       return next
+    })
+  }
+
+  const updatePrice = (index: number, unitPrice: string) => {
+    const current = linesRef.current[index]
+    if (!current) return
+    updateLine(index, {
+      ...recalculateLineVat(asVatLine({ ...current, unitPrice }), 'PRICE'),
+      unitPrice,
+      priceSource: 'USER',
+      priceMemoryUpdatedAt: null,
+      priceRefreshChanged: false,
+      partnerRefreshEligible: false,
+      lookupLoading: false,
+      lookupError: null,
+      legacyPriceUntouched: false,
+      vatDirty: false,
+    })
+  }
+
+  const updateQuantity = (index: number, quantity: string) => {
+    const current = linesRef.current[index]
+    if (!current) return
+    updateLine(index, changeLineQuantity(asVatLine({ ...current, quantity }), quantity))
+  }
+
+  const updateVat = (index: number, authority: 'SUPPLY' | 'VAT' | 'TOTAL', value: string) => {
+    const current = linesRef.current[index]
+    if (!current) return
+    updateLine(index, {
+      ...editLineVat(asVatLine(current), authority, value),
+      vatDirty: true,
     })
   }
 
@@ -1317,6 +1437,13 @@ export function EstimateFormPage() {
         // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount). legacy 미수정 라인만 예외.
         priceVatInclusive: !keepsLegacySupplyPrice,
         lineId: isEdit ? l.lineId : undefined,
+        ...(l.vatDirty && !l.isBundleComponent
+          ? {
+              supplyAmount: l.supplyAmount,
+              vatAmount: l.vatAmount,
+              lineTotalWithVat: l.lineTotal,
+            }
+          : {}),
       }
     })
     return {
@@ -1589,7 +1716,7 @@ export function EstimateFormPage() {
             style={{
               display: 'grid',
               gridTemplateColumns:
-                '32px 160px 1fr 100px 80px 130px 130px 36px',
+                '32px 160px 1fr 100px 80px 130px 108px 92px 130px 36px',
               gap: 8,
               padding: '8px 0',
               borderBottom: '2px solid var(--line-default)',
@@ -1604,6 +1731,8 @@ export function EstimateFormPage() {
             <div>규격</div>
             <div style={{ textAlign: 'right' }}>수량</div>
             <div style={{ textAlign: 'right' }}>단가(VAT포함)</div>
+            <div style={{ textAlign: 'right' }}>공급가액</div>
+            <div style={{ textAlign: 'right' }}>부가세</div>
             <div style={{ textAlign: 'right' }}>합계(VAT포함)</div>
             <div />
           </div>
@@ -1625,10 +1754,10 @@ export function EstimateFormPage() {
 
         <div className={isMobile ? 'mobile-line-card-list' : undefined}>
         {lines.map((line, i) => {
-          // 단가 부가세포함: 합계(VAT포함)=round(수량×단가), 공급가액=round(합계/1.1), 부가세=차액.
-          const lineIncl = Math.round(calcLineSupply(line.quantity, line.unitPrice))
-          const lineSupply = Math.round(lineIncl / 1.1)
-          const lineVat = lineIncl - lineSupply
+          const calculated = recalculateLineVat(asVatLine(line), line.authority ?? 'PRICE')
+          const lineIncl = Number(calculated.lineTotal)
+          const lineSupply = Number(calculated.supplyAmount)
+          const lineVat = Number(calculated.vatAmount)
           const isBundle = line.productType === 'BUNDLE'
           const priceStatus = priceSourceStatus(line, hasPartner)
           const priceStatusId = `estimate-price-status-${line.uid}`
@@ -1647,6 +1776,7 @@ export function EstimateFormPage() {
                 lineSupply={lineSupply}
                 lineVat={lineVat}
                 hasPartner={hasPartner}
+                vatEditable={!isReadOnly && !isBundle && !coeditActive}
                 onUpdate={(patch) => updateLine(i, patch)}
                 onLookup={() => handleModelLookup(i)}
                 onRemove={() => removeLine(i)}
@@ -1682,7 +1812,7 @@ export function EstimateFormPage() {
               style={{
                 display: 'grid',
                 gridTemplateColumns:
-                  '32px 160px 1fr 100px 80px 130px 130px 36px',
+                  '32px 160px 1fr 100px 80px 130px 108px 92px 130px 36px',
                 gap: 8,
                 padding: '6px 0',
                 alignItems: 'center',
@@ -1754,7 +1884,7 @@ export function EstimateFormPage() {
                 fieldPath={`items.${i}.quantity`}
                 type="text"
                 value={line.quantity}
-                onValueChange={(value) => updateLine(i, { quantity: value })}
+                  onValueChange={(value) => updateQuantity(i, value)}
                 readOnly={Boolean(isReadOnly)}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -1768,16 +1898,7 @@ export function EstimateFormPage() {
                   fieldPath={`items.${i}.unitPrice`}
                   type="text"
                   value={line.unitPrice}
-                  onValueChange={(value) => updateLine(i, {
-                    unitPrice: value,
-                    priceSource: 'USER',
-                    priceMemoryUpdatedAt: null,
-                    priceRefreshChanged: false,
-                    partnerRefreshEligible: false,
-                    lookupLoading: false,
-                    lookupError: null,
-                    legacyPriceUntouched: false,
-                  })}
+                  onValueChange={(value) => updatePrice(i, value)}
                   // doc-sync 유래 값 반영은 분류(priceSource) 를 건드리지 않는다 — 자동채움 provider
                   // write 가 pending REMEMBERED/CATALOG 분류를 USER 로 덮는 마커 소멸 차단(R4-F6).
                   // 분류 판정은 페이지 구독(coeditLinesToDraftLines + localAutoPriceWrites)이 단일 소스.
@@ -1808,6 +1929,33 @@ export function EstimateFormPage() {
                 ) : null}
                 {line.priceRefreshChanged ? <PriceChangeIndicator id={priceChangedStatusId} /> : null}
               </div>
+              <CollaborativeSlipInput
+                provider={estimateFormCoeditProvider}
+                coeditPending={estimateFormCoeditPending}
+                fieldPath={`items.${i}.supplyAmount`}
+                type="text"
+                value={line.supplyAmount}
+                onValueChange={(value) => updateVat(i, 'SUPPLY', value)}
+                readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
+                inputMode="numeric"
+                inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                aria-label={`라인 ${i + 1} 공급가액`}
+              />
+              <div>
+                <CollaborativeSlipInput
+                  provider={estimateFormCoeditProvider}
+                  coeditPending={estimateFormCoeditPending}
+                  fieldPath={`items.${i}.vatAmount`}
+                  type="text"
+                  value={line.vatAmount}
+                  onValueChange={(value) => updateVat(i, 'VAT', value)}
+                  readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
+                  inputMode="numeric"
+                  inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  aria-label={`라인 ${i + 1} 부가세`}
+                />
+                {line.vatWarning ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span> : null}
+              </div>
               <div
                 style={{
                   textAlign: 'right',
@@ -1819,7 +1967,18 @@ export function EstimateFormPage() {
                   borderRadius: 4,
                 }}
               >
-                {fmt(lineIncl)}
+                <CollaborativeSlipInput
+                  provider={estimateFormCoeditProvider}
+                  coeditPending={estimateFormCoeditPending}
+                  fieldPath={`items.${i}.lineTotal`}
+                  type="text"
+                  value={line.lineTotal}
+                  onValueChange={(value) => updateVat(i, 'TOTAL', value)}
+                  readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
+                  inputMode="numeric"
+                  inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+                  aria-label={`라인 ${i + 1} 합계(VAT포함)`}
+                />
                 <div style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)', fontWeight: 400 }}>
                   공급 {fmt(lineSupply)} · VAT {fmt(lineVat)}
                 </div>

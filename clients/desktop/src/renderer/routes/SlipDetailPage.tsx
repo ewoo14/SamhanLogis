@@ -113,6 +113,12 @@ import {
 } from '../utils/usePartnerPriceRefresh'
 import { lookupProducts } from '../api/productApi'
 import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
+import {
+  changeLineQuantity,
+  editLineVat,
+  hasVatWarning,
+  type LineVatLine,
+} from '../utils/lineVat'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
@@ -307,7 +313,12 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
 }
 
 
-type PurchaseEditLine = SlipLineInput & { key: string }
+type PurchaseEditLine = SlipLineInput & {
+  key: string
+  authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
+  vatDirty?: boolean
+  isBundleComponent?: boolean
+}
 
 function createEditLineKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -326,6 +337,14 @@ function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     specification: line.specification ?? '',
     quantity: line.quantity,
     unitPrice: String(line.unitPrice),
+    supplyAmount: String(line.supplyAmount ?? line.lineTotal),
+    vatAmount: String(line.vatAmount ?? Math.round(Number(line.lineTotal) * 0.1)),
+    lineTotalWithVat: String(
+      Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? Math.round(Number(line.lineTotal) * 0.1)),
+    ),
+    authority: 'PRICE',
+    vatDirty: false,
+    isBundleComponent: Boolean((line.parentSetModel ?? '').trim()),
     note: line.note ?? '',
   }))
 }
@@ -1793,6 +1812,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         quantity: Number(line.quantity),
         unitPrice: String(line.unitPrice || '0'),
         note: line.note?.trim() || undefined,
+        ...(line.vatDirty
+          ? {
+              supplyAmount: line.supplyAmount,
+              vatAmount: line.vatAmount,
+              lineTotalWithVat: line.lineTotalWithVat,
+            }
+          : {}),
       })),
     })
   }
@@ -1822,6 +1848,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         quantity: Number(line.quantity),
         unitPrice: String(line.unitPrice || '0'),
         note: line.note?.trim() || undefined,
+        ...(line.vatDirty
+          ? {
+              supplyAmount: line.supplyAmount,
+              vatAmount: line.vatAmount,
+              lineTotalWithVat: line.lineTotalWithVat,
+            }
+          : {}),
       })),
     })
   }
@@ -2004,7 +2037,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               <th>규격</th>
               <th>수량</th>
               <th>단가(VAT제외)</th>
-              <th>합계(VAT제외)</th>
+              <th>공급가액</th>
+              <th>부가세</th>
+              <th>합계(VAT포함)</th>
               <th aria-label="행 삭제" />
             </tr>
           </thead>
@@ -2053,7 +2088,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={1}
                     value={String(line.quantity)}
-                    onValueChange={(value) => updateSalesLine(index, { quantity: Number(value) })}
+                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
@@ -2064,7 +2099,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
-                    onValueChange={(value) => updateSalesLine(index, { unitPrice: value })}
+                    onValueChange={(value) => updateSalesLine(index, { unitPrice: value, vatDirty: false })}
                     aria-label={`단가(VAT제외) ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
@@ -2078,8 +2113,44 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   ) : null}
                   {changed ? <EditPriceChangeIndicator id={changedStatusId} /> : null}
                 </td>
+                <td>
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={`items.${index}.supplyAmount`}
+                    type="number" min={0}
+                    value={String(line.supplyAmount ?? '0')}
+                    onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'SUPPLY', value)}
+                    readOnly={Boolean(line.isBundleComponent)}
+                    aria-label={`공급가액 ${index + 1}`}
+                  />
+                </td>
+                <td>
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={`items.${index}.vatAmount`}
+                    type="number" min={0}
+                    value={String(line.vatAmount ?? '0')}
+                    onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'VAT', value)}
+                    readOnly={Boolean(line.isBundleComponent)}
+                    aria-label={`부가세 ${index + 1}`}
+                  />
+                  {line.vatAmount != null && hasVatWarning(line.supplyAmount ?? line.lineTotalWithVat ?? '0', line.vatAmount)
+                    ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span>
+                    : null}
+                </td>
+                <td>
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={`items.${index}.lineTotalWithVat`}
+                    type="number" min={0}
+                    value={String(line.lineTotalWithVat ?? '0')}
+                    onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'TOTAL', value)}
+                    readOnly={Boolean(line.isBundleComponent)}
+                    aria-label={`합계(VAT포함) ${index + 1}`}
+                  />
+                </td>
                 <td className="td-right">
-                  {(Number(line.quantity) * Number(line.unitPrice || 0)).toLocaleString('ko-KR')}원
+                  {Number(line.lineTotalWithVat ?? 0).toLocaleString('ko-KR')}원
                 </td>
                 <td>
                   <Button
@@ -2261,7 +2332,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               <th>규격</th>
               <th>수량</th>
               <th>단가(VAT제외)</th>
-              <th>합계(VAT제외)</th>
+              <th>공급가액</th>
+              <th>부가세</th>
+              <th>합계(VAT포함)</th>
               <th aria-label="행 삭제" />
             </tr>
           </thead>
@@ -2310,7 +2383,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={1}
                     value={String(line.quantity)}
-                    onValueChange={(value) => updatePurchaseLine(index, { quantity: Number(value) })}
+                    onValueChange={(value) => updateDetailQuantity(index, updatePurchaseLine, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
@@ -2321,7 +2394,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
-                    onValueChange={(value) => updatePurchaseLine(index, { unitPrice: value })}
+                    onValueChange={(value) => updatePurchaseLine(index, { unitPrice: value, vatDirty: false })}
                     aria-label={`단가(VAT제외) ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
@@ -2335,8 +2408,44 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   ) : null}
                   {changed ? <EditPriceChangeIndicator id={changedStatusId} /> : null}
                 </td>
+                <td>
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={`items.${index}.supplyAmount`}
+                    type="number" min={0}
+                    value={String(line.supplyAmount ?? '0')}
+                    onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'SUPPLY', value)}
+                    readOnly={Boolean(line.isBundleComponent)}
+                    aria-label={`공급가액 ${index + 1}`}
+                  />
+                </td>
+                <td>
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={`items.${index}.vatAmount`}
+                    type="number" min={0}
+                    value={String(line.vatAmount ?? '0')}
+                    onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'VAT', value)}
+                    readOnly={Boolean(line.isBundleComponent)}
+                    aria-label={`부가세 ${index + 1}`}
+                  />
+                  {line.vatAmount != null && hasVatWarning(line.supplyAmount ?? line.lineTotalWithVat ?? '0', line.vatAmount)
+                    ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span>
+                    : null}
+                </td>
+                <td>
+                  <CollaborativeSlipInput
+                    provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
+                    fieldPath={`items.${index}.lineTotalWithVat`}
+                    type="number" min={0}
+                    value={String(line.lineTotalWithVat ?? '0')}
+                    onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'TOTAL', value)}
+                    readOnly={Boolean(line.isBundleComponent)}
+                    aria-label={`합계(VAT포함) ${index + 1}`}
+                  />
+                </td>
                 <td className="td-right">
-                  {(Number(line.quantity) * Number(line.unitPrice || 0)).toLocaleString('ko-KR')}원
+                  {Number(line.lineTotalWithVat ?? 0).toLocaleString('ko-KR')}원
                 </td>
                 <td>
                   <Button
@@ -3959,6 +4068,56 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       </Modal>
     </>
   )
+
+  function detailVatLine(line: PurchaseEditLine): LineVatLine {
+    const total = line.lineTotalWithVat ?? '0'
+    return {
+      quantity: line.quantity,
+      unitPrice: total,
+      supplyAmount: line.supplyAmount ?? '0',
+      vatAmount: line.vatAmount ?? '0',
+      lineTotal: total,
+      authority: line.authority ?? 'PRICE',
+    }
+  }
+
+  function detailAmountState(result: LineVatLine, authority: PurchaseEditLine['authority']): Partial<PurchaseEditLine> {
+    const quantity = Math.max(1, Number(result.quantity) || 1)
+    return {
+      quantity,
+      // 전표 상세의 기존 단가 열은 VAT 제외 공급단가라는 계약을 유지한다.
+      unitPrice: String(Number(result.supplyAmount) / quantity),
+      supplyAmount: result.supplyAmount,
+      vatAmount: result.vatAmount,
+      lineTotalWithVat: result.lineTotal,
+      authority,
+      vatDirty: true,
+    }
+  }
+
+  function updateDetailQuantity(
+    index: number,
+    update: (index: number, patch: Partial<PurchaseEditLine>) => void,
+    value: string,
+  ) {
+    const line = (update === updatePurchaseLine ? purchaseEditLinesRef.current : salesEditLinesRef.current)[index]
+    if (!line) return
+    update(index, detailAmountState(
+      changeLineQuantity(detailVatLine(line), value),
+      'PRICE',
+    ))
+  }
+
+  function updateDetailVat(
+    index: number,
+    update: (index: number, patch: Partial<PurchaseEditLine>) => void,
+    authority: 'SUPPLY' | 'VAT' | 'TOTAL',
+    value: string,
+  ) {
+    const line = (update === updatePurchaseLine ? purchaseEditLinesRef.current : salesEditLinesRef.current)[index]
+    if (!line) return
+    update(index, detailAmountState(editLineVat(detailVatLine(line), authority, value), authority))
+  }
 
   function updatePurchaseLine(index: number, patch: Partial<PurchaseEditLine>) {
     // 단가를 직접 편집하면 그 행의 재조회 강조를 해제한다(사용자가 값을 확정/재확인).

@@ -83,6 +83,12 @@ import {
 import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
+  changeLineQuantity,
+  editLineVat,
+  recalculateLineVat,
+  type LineVatLine,
+} from '../utils/lineVat'
+import {
   usePartnerPriceRefresh,
   type PartnerRepriceCandidate,
 } from '../utils/usePartnerPriceRefresh'
@@ -119,6 +125,11 @@ const emptyLine = (): LineDraft => ({
   specification: '', // Slice A 신규 (피드백 #4)
   quantity: '1',
   unitPrice: '0',
+  supplyAmount: '0',
+  vatAmount: '0',
+  lineTotal: '0',
+  authority: 'PRICE',
+  vatWarning: false,
   priceSource: null,
   catalogUnitPrice: null,
   priceMemoryUpdatedAt: null,
@@ -128,6 +139,15 @@ const emptyLine = (): LineDraft => ({
   modelCode: null,
   setOptions: emptyBundleSetOptions(),
 })
+
+function asVatLine(line: LineDraft): LineDraft & LineVatLine {
+  return {
+    ...line,
+    supplyAmount: line.supplyAmount ?? '0',
+    vatAmount: line.vatAmount ?? '0',
+    lineTotal: line.lineTotal ?? '0',
+  }
+}
 
 const calcVatInclusiveLine = (
   quantity: string,
@@ -165,6 +185,10 @@ function SlipMobileLineCard(props: {
   onSpecificationChange: (value: string) => void
   onQuantityChange: (value: string) => void
   onUnitPriceChange: (value: string) => void
+  onSupplyAmountChange: (value: string) => void
+  onVatAmountChange: (value: string) => void
+  onLineTotalChange: (value: string) => void
+  vatEditable: boolean
   onDelete: () => void
   modelCell: ReactNode
   footer?: ReactNode
@@ -296,10 +320,42 @@ function SlipMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">금액(VAT포함)</label>
-        <div className="mobile-line-readonly mobile-line-readonly--strong">
-          {vatBreakdown.incl.toLocaleString()}
-          <span>공급 {vatBreakdown.supply.toLocaleString()} · VAT {vatBreakdown.vat.toLocaleString()}</span>
-        </div>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
+          onChange={(e) => props.onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
+          aria-label={`라인 ${props.lineNumber} 합계(VAT포함)`}
+          disabled={!props.vatEditable}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">공급가액</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
+          onChange={(e) => props.onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+          aria-label={`라인 ${props.lineNumber} 공급가액`}
+          disabled={!props.vatEditable}
+        />
+      </div>
+
+      <div className="mobile-line-field">
+        <label className="mobile-line-field-label">부가세</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          className="mobile-line-text-input mobile-line-number-input"
+          value={Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
+          onChange={(e) => props.onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+          aria-label={`라인 ${props.lineNumber} 부가세`}
+          disabled={!props.vatEditable}
+        />
+        {props.line.vatWarning ? <span role="note">⚠ 부가세가 10%와 다릅니다</span> : null}
       </div>
 
       {props.footer}
@@ -331,6 +387,10 @@ function SortableLineRow(props: {
   onSpecificationChange: (v: string) => void
   onQuantityChange: (v: string) => void
   onUnitPriceChange: (v: string) => void
+  onSupplyAmountChange: (v: string) => void
+  onVatAmountChange: (v: string) => void
+  onLineTotalChange: (v: string) => void
+  vatEditable: boolean
   onDelete: () => void
   /** AC-2: 모델명 셀 커스텀 렌더 slot (ProductAutocomplete 주입). */
   modelCell?: ReactNode
@@ -361,6 +421,7 @@ function SortableLineRow(props: {
       <LineRow
         isDragging={isDragging}
         vatInclusive
+        vatEditable={props.vatEditable}
         lineNumber={props.lineNumber}
         line={props.line}
         selected={props.selected}
@@ -372,6 +433,9 @@ function SortableLineRow(props: {
         onSpecificationChange={props.onSpecificationChange}
         onQuantityChange={props.onQuantityChange}
         onUnitPriceChange={props.onUnitPriceChange}
+        onSupplyAmountChange={props.onSupplyAmountChange}
+        onVatAmountChange={props.onVatAmountChange}
+        onLineTotalChange={props.onLineTotalChange}
         onDelete={props.onDelete}
         modelCell={props.modelCell}
         dragHandleProps={{
@@ -492,6 +556,33 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
+  const updatePrice = (id: string, unitPrice: string) =>
+    setLines((ls) => ls.map((line) => {
+      if (line.id !== id) return line
+      return {
+        ...recalculateLineVat(asVatLine({ ...line, unitPrice }), 'PRICE'),
+        unitPrice,
+        priceSource: 'USER',
+        priceMemoryUpdatedAt: null,
+        priceRefreshChanged: false,
+        lookupError: null,
+        lookupLoading: false,
+      }
+    }))
+
+  const updateQuantity = (id: string, quantity: string) =>
+    setLines((ls) => ls.map((line) => (
+      line.id === id ? changeLineQuantity(asVatLine(line), quantity) : line
+    )))
+
+  const updateVatAmount = (
+    id: string,
+    authority: 'SUPPLY' | 'VAT' | 'TOTAL',
+    value: string,
+  ) => setLines((ls) => ls.map((line) => (
+    line.id === id ? editLineVat(asVatLine(line), authority, value) : line
+  )))
+
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
     setPriceLookupAnnouncement('')
     const lineNumber = Math.max(1, lines.findIndex((candidate) => candidate.id === line.id) + 1)
@@ -502,7 +593,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const shouldAutoFill = shouldAutoFillPrice(line.priceSource, line.unitPrice)
     const nextUnitPrice = shouldAutoFill ? fallbackUnitPrice : line.unitPrice
     const partnerId = selectedPartner?.id
+    const pricedLine = recalculateLineVat(asVatLine({ ...line, unitPrice: nextUnitPrice }), 'PRICE')
     updateLine(line.id, {
+      ...pricedLine,
       productId,
       modelName: product?.modelName ?? '',
       productName: product?.productName ?? '',
@@ -553,7 +646,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           if (selectedPartnerIdRef.current !== partnerId) return current
           if (current.priceSource === 'USER') return current
           return {
-            ...current,
+            ...recalculateLineVat(asVatLine({ ...current, unitPrice: resolvedUnitPrice }), 'PRICE'),
             unitPrice: resolvedUnitPrice,
             priceSource: remembered == null ? 'CATALOG' : 'REMEMBERED',
             priceMemoryUpdatedAt: memory?.updatedAt ?? null,
@@ -621,7 +714,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
           return { ...candidate, lookupLoading: false, priceRefreshChanged: false }
         }
         return {
-          ...candidate,
+          ...recalculateLineVat(asVatLine({ ...candidate, unitPrice: outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice }), 'PRICE'),
           unitPrice: outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice,
           priceSource: outcome.source === 'UNAVAILABLE' ? null : outcome.source,
           priceMemoryUpdatedAt: outcome.updatedAt,
@@ -802,10 +895,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     let supply = 0
     let total = 0
     for (const l of valid) {
-      const incl = Math.round(Number(l.quantity) * Number(l.unitPrice || 0))
-      const lineSupply = Math.round(incl / 1.1)
-      supply += lineSupply
-      total += incl
+    const calculated = recalculateLineVat(asVatLine(l), l.authority ?? 'PRICE')
+      supply += Number(calculated.supplyAmount)
+      total += Number(calculated.lineTotal)
     }
     return { count: valid.length, supply, vat: total - supply, total }
   }, [lines])
@@ -853,6 +945,16 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             setOptions: toApiBundleSetOptions(l.productType, l.setOptions),
             // 단가 부가세포함 — BE 가 라인 단위로 공급가액/부가세 분리(eCount 방식)
             priceVatInclusive: true,
+            // VAT 열을 실제 편집한 라인만 권위 3값을 명시 전송한다. 미편집 라인은
+            // 종전 payload/팩토리 그대로 지나가 legacy 왕복을 보존한다.
+            ...(l.authority && l.authority !== 'PRICE'
+              && l.supplyAmount != null && l.vatAmount != null && l.lineTotal != null
+              ? {
+                  supplyAmount: l.supplyAmount,
+                  vatAmount: l.vatAmount,
+                  lineTotalWithVat: l.lineTotal,
+                }
+              : {}),
           })),
       }
       return createSlip(payload)
@@ -1304,15 +1406,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                   partnerSelected={partnerSelected}
                   onSelect={(s) => toggleSelect(line.id, s)}
                   onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
-                  onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
-                  onUnitPriceChange={(v) => updateLine(line.id, {
-                    unitPrice: v,
-                    priceSource: 'USER',
-                    priceMemoryUpdatedAt: null,
-                    priceRefreshChanged: false,
-                    lookupError: null,
-                    lookupLoading: false,
-                  })}
+                  onQuantityChange={(v) => updateQuantity(line.id, v)}
+                  onUnitPriceChange={(v) => updatePrice(line.id, v)}
+                  onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
+                  onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
+                  onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
+                  vatEditable={!isBundle}
                   onDelete={() => removeLine(line.id)}
                   modelCell={
                     <ProductAutocomplete
@@ -1347,6 +1446,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               allSelected={allSelected}
               someSelected={someSelected}
               onToggleAll={toggleAll}
+              vatInclusive
             />
             <DndContext
               sensors={sensors}
@@ -1385,15 +1485,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
                       onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
                       onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
-                      onQuantityChange={(v) => updateLine(line.id, { quantity: v })}
-                      onUnitPriceChange={(v) => updateLine(line.id, {
-                        unitPrice: v,
-                        priceSource: 'USER',
-                        priceMemoryUpdatedAt: null,
-                        priceRefreshChanged: false,
-                        lookupError: null,
-                        lookupLoading: false,
-                      })}
+                      onQuantityChange={(v) => updateQuantity(line.id, v)}
+                      onUnitPriceChange={(v) => updatePrice(line.id, v)}
+                      onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
+                      onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
+                      onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
+                      vatEditable={!isBundle}
                       onDelete={() => removeLine(line.id)}
                       modelCell={
                         <ProductAutocomplete
