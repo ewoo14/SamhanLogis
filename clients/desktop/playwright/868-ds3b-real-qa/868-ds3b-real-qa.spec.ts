@@ -93,7 +93,7 @@ test('DS-3b 실서버 v2 저장·활성·조회 왕복', async ({ page }) => {
 
     await page.goto(`${BASE_URL}/#/groupware/document-templates/${templateId}/edit`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText('결재 문서 양식 편집기')).toBeVisible()
-    await expect(page.getByText('ACTIVE 양식은 직접 수정할 수 없습니다')).toBeVisible()
+    await expect(page.getByText('사용 중인 양식은 직접 수정할 수 없습니다')).toBeVisible()
   } finally {
     if (templateId) {
       const removed = await page.request.delete(`${API_BASE}/admin/groupware/document-templates/${templateId}`, { headers: auth })

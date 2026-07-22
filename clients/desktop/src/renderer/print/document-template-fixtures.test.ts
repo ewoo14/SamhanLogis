@@ -39,10 +39,16 @@ function sampleModel(): ApprovalRenderModel {
   return buildApprovalRenderModel({ approval, templateFields: [], attachments: [] })
 }
 
-/** compiled body(ReactNode)에서 실제 배치된 본문 섹션 type 순서를 추출한다. */
+/**
+ * compiled body(ReactNode)에서 실제 배치된 본문 섹션 type 순서를 추출한다.
+ *
+ * M-F 이후 `body`는 `<LegacyApprovalDocBody/>` 단독이 아니라 `<>{LegacyApprovalDocBody}{BODY FIELD/TEXT
+ * 레이어 또는 null}</>` Fragment 다(밴드별 FIELD/TEXT 분리 렌더). 첫 자식에서 orderedSections를 꺼낸다.
+ */
 function bodySectionTypes(body: ReturnType<typeof compileApprovalDocument>['body']): string[] {
-  const element = body as ReactElement<{ orderedSections: LegacyApprovalDocSection[] }>
-  return element.props.orderedSections.map((section) => section.type)
+  const fragment = body as ReactElement<{ children: ReactElement<{ orderedSections: LegacyApprovalDocSection[] }>[] }>
+  const legacyBody = fragment.props.children[0]!
+  return legacyBody.props.orderedSections.map((section) => section.type)
 }
 
 describe('shared document template fixture corpus', () => {

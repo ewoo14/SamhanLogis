@@ -1,9 +1,21 @@
+import { Button, Modal } from '@samhan/design-system'
+import { isAxiosError } from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { listDocumentTemplates, activateDocumentTemplate, deactivateDocumentTemplate, deleteDocumentTemplate } from '../api/documentTemplate'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
+import { TEMPLATE_STATUS_LABEL } from '../print/templateSchema'
+
+function errorMessage(error: unknown): string {
+  if (isAxiosError(error)) {
+    const message = (error.response?.data as { message?: unknown } | undefined)?.message
+    if (typeof message === 'string' && message.trim()) return message.trim()
+  }
+  return '문서 양식 처리에 실패했습니다.'
+}
 
 export function GroupwareDocumentTemplateAdminPage() {
   const navigate = useNavigate()
@@ -12,15 +24,31 @@ export function GroupwareDocumentTemplateAdminPage() {
   const canWrite = canAccess('groupware.approval-templates', 'update')
   const query = useQuery({ queryKey: ['groupwareDocumentTemplates'], queryFn: listDocumentTemplates, staleTime: 0 })
   usePageTitle('결재 문서 양식')
+  // M-G: 목록 조작(활성화/비활성화/삭제) 실패가 오류 콜백 없이 조용히 무시됐다 — 사용자에게 한국어로
+  // 드러난다.
+  const [error, setError] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ['groupwareDocumentTemplates'] })
   const lifecycle = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'activate' | 'deactivate' }) => action === 'activate'
       ? activateDocumentTemplate(id)
       : deactivateDocumentTemplate(id),
-    onSuccess: refresh,
+    onSuccess: () => {
+      setError(null)
+      refresh()
+    },
+    onError: (cause) => setError(errorMessage(cause)),
   })
-  const remove = useMutation({ mutationFn: deleteDocumentTemplate, onSuccess: refresh })
+  const remove = useMutation({
+    mutationFn: deleteDocumentTemplate,
+    onSuccess: () => {
+      setError(null)
+      setPendingDeleteId(null)
+      refresh()
+    },
+    onError: (cause) => setError(errorMessage(cause)),
+  })
 
   if (query.isLoading) return <p>결재 문서 양식 불러오는 중...</p>
   if (query.isError) return <p role="alert">결재 문서 양식을 불러오지 못했습니다.</p>
@@ -33,12 +61,13 @@ export function GroupwareDocumentTemplateAdminPage() {
           <h1 style={{ margin: 0 }}>결재 문서 양식</h1>
           <p style={{ margin: '4px 0 0', color: 'var(--color-neutral-500)' }}>결재 출력 문서의 레이아웃을 관리합니다.</p>
         </div>
-        {canWrite ? <button type="button" onClick={() => navigate('/groupware/document-templates/new/edit')}>신규 문서 양식</button> : null}
+        {canWrite ? <Button type="button" onClick={() => navigate('/groupware/document-templates/new/edit')}>신규 문서 양식</Button> : null}
       </header>
-      <p style={{ margin: 0, fontSize: 13 }}>ACTIVE 양식은 비활성화한 뒤 편집할 수 있습니다. 편집 중 승인된 문서는 기본 양식으로 고정될 수 있습니다.</p>
+      <p style={{ margin: 0, fontSize: 13 }}>사용 중인 양식은 비활성화한 뒤 편집할 수 있습니다. 편집 중 승인된 문서는 기본 양식으로 고정될 수 있습니다.</p>
+      {error ? <p role="alert">{error}</p> : null}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr><th style={{ textAlign: 'left' }}>문서 유형</th><th style={{ textAlign: 'left' }}>양식명</th><th>상태</th><th>revision</th><th /></tr></thead>
+          <thead><tr><th style={{ textAlign: 'left' }}>문서 유형</th><th style={{ textAlign: 'left' }}>양식명</th><th>상태</th><th>개정 번호</th><th /></tr></thead>
           <tbody>
             {rows.map((row) => {
               if (!row.id) return null
@@ -47,15 +76,21 @@ export function GroupwareDocumentTemplateAdminPage() {
               <tr key={row.id}>
                 <td>{row.docType}</td>
                 <td><button type="button" onClick={() => navigate(`/groupware/document-templates/${row.id}/edit`)}>{row.name}</button></td>
-                <td>{row.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT'}</td>
+                <td>{TEMPLATE_STATUS_LABEL[row.status ?? 'DRAFT']}</td>
                 <td>{row.revision}</td>
                 <td>
                   {canWrite ? (
                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button type="button" onClick={() => lifecycle.mutate({ id: templateId, action: row.status === 'ACTIVE' ? 'deactivate' : 'activate' })}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={lifecycle.isPending}
+                        onClick={() => lifecycle.mutate({ id: templateId, action: row.status === 'ACTIVE' ? 'deactivate' : 'activate' })}
+                      >
                         {row.status === 'ACTIVE' ? '비활성화' : '활성화'}
-                      </button>
-                      <button type="button" onClick={() => { if (window.confirm('문서 양식을 삭제할까요?')) remove.mutate(templateId) }}>삭제</button>
+                      </Button>
+                      <Button type="button" variant="danger" size="sm" onClick={() => setPendingDeleteId(templateId)}>삭제</Button>
                     </div>
                   ) : null}
                 </td>
@@ -66,6 +101,26 @@ export function GroupwareDocumentTemplateAdminPage() {
           </tbody>
         </table>
       </div>
+      {/* M-I: raw window.confirm 대신 design-system Modal 사용(신규 화면도 인접 화면과 동일 컴포넌트). */}
+      <Modal
+        open={pendingDeleteId !== null}
+        onClose={() => setPendingDeleteId(null)}
+        title="문서 양식 삭제"
+        description="이 문서 양식을 삭제할까요? 삭제 후에는 목록에서 복구할 수 없습니다."
+        footer={(
+          <>
+            <Button type="button" variant="ghost" onClick={() => setPendingDeleteId(null)}>취소</Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={remove.isPending}
+              onClick={() => pendingDeleteId && remove.mutate(pendingDeleteId)}
+            >
+              삭제
+            </Button>
+          </>
+        )}
+      />
     </section>
   )
 }

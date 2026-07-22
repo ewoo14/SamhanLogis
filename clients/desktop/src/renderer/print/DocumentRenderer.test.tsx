@@ -206,6 +206,103 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(html).not.toContain('>결재</div>')
   })
 
+  it('M-F: geometry/style이 실제 출력 CSS에 반영된다(고유 구별 출력 — presence-only 아님)', () => {
+    // 🚨 검증 결함: 종전 R9 테스트는 텍스트 존재만 확인해 geometryStyle() 을 통째로 무력화해도
+    // 1,059 tests 전부 GREEN 이었다. 위치(left/top/width)·글꼴 크기·굵기·정렬·테두리가 각각 실제
+    // 출력에 반영되는지 값 자체로 단언한다.
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                {
+                  key: 'geometry-style-probe',
+                  type: 'TEXT' as const,
+                  text: '위치·스타일 프로브',
+                  geometry: { x: 12, y: 34, w: 56, h: 7 },
+                  style: { fontSize: 17, bold: true, align: 'right' as const, border: true },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('left:12%')
+    expect(html).toContain('top:34%')
+    expect(html).toContain('width:56%')
+    expect(html).toContain('font-size:17pt')
+    expect(html).toContain('font-weight:700')
+    expect(html).toContain('text-align:right')
+    expect(html).toContain('border:1px solid #000')
+  })
+
+  it('M-F: FIELD/TEXT는 자신이 속한 밴드(HEADER/BODY/FOOTER)에만 렌더되고 geometry는 그 밴드 기준이다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => {
+          if (band.kind === 'HEADER') {
+            return { ...band, elements: [...band.elements, { key: 'header-text', type: 'TEXT' as const, text: '헤더 프로브' }] }
+          }
+          if (band.kind === 'FOOTER') {
+            return { ...band, elements: [...band.elements, { key: 'footer-text', type: 'TEXT' as const, text: '푸터 프로브' }] }
+          }
+          return band
+        }),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    const headerLayerIndex = html.indexOf('document-template-v2-elements-header')
+    const footerLayerIndex = html.indexOf('document-template-v2-elements-footer')
+    const headerTextIndex = html.indexOf('헤더 프로브')
+    const footerTextIndex = html.indexOf('푸터 프로브')
+    const bodyDividerIndex = html.indexOf('print-approval-divider')
+    const closingIndex = html.indexOf('print-approval-closing')
+
+    // 헤더 프로브는 header 레이어 안에서, 헤더 영역(첫 divider 이전)에 나타나야 한다.
+    expect(headerLayerIndex).toBeGreaterThan(-1)
+    expect(headerTextIndex).toBeGreaterThan(headerLayerIndex)
+    expect(headerTextIndex).toBeLessThan(bodyDividerIndex)
+    // 푸터 프로브는 footer 레이어 안에서, closingNote 이후(문서 하단)에 나타나야 한다.
+    expect(footerLayerIndex).toBeGreaterThan(-1)
+    expect(footerTextIndex).toBeGreaterThan(footerLayerIndex)
+    expect(footerTextIndex).toBeGreaterThan(closingIndex)
+    // BODY 레이어는 이 케이스에 요소가 없으므로 렌더되지 않는다(빈 공간 미예약, M-F).
+    expect(html).not.toContain('document-template-v2-elements-body')
+  })
+
+  it('M-F: 인쇄 콘텐츠 래퍼(approval-doc-print-content)는 FIELD/TEXT가 있어도 정확히 한 번만 렌더된다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? { ...band, elements: [...band.elements, { key: 'body-text', type: 'TEXT' as const, text: '본문 프로브' }] }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+    const occurrences = html.split('approval-doc-print-content').length - 1
+
+    expect(occurrences).toBe(1)
+  })
+
   it('비어 있지 않은 body element를 template 순서대로 조립한다', () => {
     const model = buildApprovalRenderModel(input())
     const template = {

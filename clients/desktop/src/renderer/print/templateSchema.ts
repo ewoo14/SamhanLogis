@@ -65,6 +65,33 @@ export type TextElement = {
 export type DocElement = LegacyDocElement | FieldElement | TextElement
 export type DocElementV2 = DocElement
 
+/**
+ * M-K: 화면 문구에 enum 원문이 노출되지 않아야 한다 — 편집기·목록 화면이 각자 라벨을 만들면
+ * 표기가 갈리고 놓치는 지점이 생긴다. 단일 소스로 재사용한다.
+ */
+export const ELEMENT_TYPE_LABEL: Record<DocElement['type'], string> = {
+  TITLE: '제목',
+  META_ROWS: '문서 정보',
+  APPROVAL_GRID: '결재란',
+  CONTENT_PARAGRAPHS: '본문',
+  FIELD_TABLE: '필드 표',
+  ATTACHMENT_TABLE: '첨부 표',
+  CLOSING: '맺음말',
+  FIELD: '필드',
+  TEXT: '문구',
+}
+
+export const BAND_KIND_LABEL: Record<BandKind, string> = {
+  HEADER: '머리말',
+  BODY: '본문',
+  FOOTER: '맺음말',
+}
+
+export const TEMPLATE_STATUS_LABEL: Record<TemplateStatus, string> = {
+  DRAFT: '임시저장',
+  ACTIVE: '사용 중',
+}
+
 export interface Band {
   key: string
   kind: BandKind
@@ -126,6 +153,10 @@ const MAX_ELEMENTS_PER_BAND = 64
 const MAX_KEY_LENGTH = 100
 const MAX_DOC_TYPE_LENGTH = 70
 const MAX_FONT_SIZE = 200
+/** M-A: BE `DocumentPayloadValidator.MAX_TEXT_LENGTH` 와 동일해야 한다(과거 FE 65,536 vs BE 4,096
+ * 불일치 — FE 가 통과시킨 요청이 BE 에서 "비어 있지 않은 문자열이어야 합니다"로 거부되어 실제 원인
+ * (길이 초과)을 사용자가 알 수 없었다). */
+const MAX_TEXT_LENGTH = 4_096
 
 type LegacyElementType = (typeof LEGACY_ELEMENT_TYPES)[number]
 
@@ -165,7 +196,7 @@ function isSupportedSchemaVersion(value: unknown): value is SchemaVersion {
 }
 
 function parseGeometry(value: unknown): Geometry | DocumentTemplateParseError | undefined {
-  if (value === undefined) return undefined
+  if (value === undefined || value === null) return undefined
   if (!isRecord(value)
     || !['x', 'y', 'w', 'h'].every((key) => typeof value[key] === 'number' && Number.isFinite(value[key]))) {
     return { code: 'INVALID_GEOMETRY', message: '문서 요소 geometry는 유한한 x, y, w, h 숫자여야 합니다.' }
@@ -177,8 +208,18 @@ function parseGeometry(value: unknown): Geometry | DocumentTemplateParseError | 
   return { x, y, w, h }
 }
 
+/**
+ * BLOCKING-1 방어선: BE round-trip(JSONB 저장·activate 재검증)이 `@JsonInclude(NON_NULL)` 로 명시적
+ * null 을 제거하도록 고쳐졌지만, FE parser 도 독립적으로 "값이 없음"과 "값이 있는데 null"을 같은 것으로
+ * 취급해야 한다 — 과거 revision·다른 클라이언트·향후 회귀가 명시적 null 을 보내는 경우까지 대비하는
+ * 방어선이며, 속성 패널의 부분 지정(fontSize 만 등)이 정상 경로임을 소비측에서도 보장한다.
+ */
+function orUndefined<T>(value: T | null | undefined): T | undefined {
+  return value === null ? undefined : value
+}
+
 function parseStyle(value: unknown): ElementStyle | DocumentTemplateParseError | undefined {
-  if (value === undefined) return undefined
+  if (value === undefined || value === null) return undefined
   if (!isRecord(value)) {
     return { code: 'INVALID_STYLE', message: '문서 요소 style은 객체여야 합니다.' }
   }
@@ -186,24 +227,28 @@ function parseStyle(value: unknown): ElementStyle | DocumentTemplateParseError |
   if (Object.keys(value).some((key) => !allowed.has(key))) {
     return { code: 'INVALID_STYLE', message: '문서 요소 style에 허용되지 않은 속성이 있습니다.' }
   }
-  if (value.fontSize !== undefined
-    && (typeof value.fontSize !== 'number' || !Number.isFinite(value.fontSize) || value.fontSize <= 0 || value.fontSize > MAX_FONT_SIZE)) {
+  const fontSize = orUndefined(value.fontSize as number | null | undefined)
+  const bold = orUndefined(value.bold as boolean | null | undefined)
+  const align = orUndefined(value.align as ElementStyle['align'] | null | undefined)
+  const border = orUndefined(value.border as boolean | null | undefined)
+  if (fontSize !== undefined
+    && (typeof fontSize !== 'number' || !Number.isFinite(fontSize) || fontSize <= 0 || fontSize > MAX_FONT_SIZE)) {
     return { code: 'INVALID_STYLE', message: '문서 요소 style의 글꼴 크기가 유효하지 않습니다.' }
   }
-  if (value.bold !== undefined && typeof value.bold !== 'boolean') {
+  if (bold !== undefined && typeof bold !== 'boolean') {
     return { code: 'INVALID_STYLE', message: '문서 요소 style의 굵기 값이 유효하지 않습니다.' }
   }
-  if (value.align !== undefined && value.align !== 'left' && value.align !== 'center' && value.align !== 'right') {
+  if (align !== undefined && align !== 'left' && align !== 'center' && align !== 'right') {
     return { code: 'INVALID_STYLE', message: '문서 요소 style의 정렬 값이 유효하지 않습니다.' }
   }
-  if (value.border !== undefined && typeof value.border !== 'boolean') {
+  if (border !== undefined && typeof border !== 'boolean') {
     return { code: 'INVALID_STYLE', message: '문서 요소 style의 테두리 값이 유효하지 않습니다.' }
   }
   return {
-    ...(value.fontSize === undefined ? {} : { fontSize: value.fontSize }),
-    ...(value.bold === undefined ? {} : { bold: value.bold }),
-    ...(value.align === undefined ? {} : { align: value.align }),
-    ...(value.border === undefined ? {} : { border: value.border }),
+    ...(fontSize === undefined ? {} : { fontSize }),
+    ...(bold === undefined ? {} : { bold }),
+    ...(align === undefined ? {} : { align }),
+    ...(border === undefined ? {} : { border }),
   }
 }
 
@@ -249,8 +294,11 @@ function parseElement(value: unknown, schemaVersion: SchemaVersion): DocElement 
       ...(style === undefined ? {} : { style }),
     }
   }
-  if (!isNonEmptyString(value.text, MAX_REQUEST_BYTES)) {
+  if (typeof value.text !== 'string' || value.text.trim().length === 0) {
     return { code: 'INVALID_ELEMENT', message: 'TEXT 요소의 문구는 비어 있지 않아야 합니다.' }
+  }
+  if (value.text.length > MAX_TEXT_LENGTH) {
+    return { code: 'INVALID_ELEMENT', message: `TEXT 요소의 문구는 ${MAX_TEXT_LENGTH}자 이하여야 합니다.` }
   }
   return {
     key: value.key,

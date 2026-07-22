@@ -50,6 +50,8 @@ public class DocumentPayloadValidator {
     private static final Pattern FIELD_BINDING = Pattern.compile(
             "body\\.fieldRow\\[[A-Za-z0-9_.-]{1,100}\\]");
     private static final Set<String> STYLE_KEYS = Set.of("fontSize", "bold", "align", "border");
+    /** M-B: schema v1 요소가 가질 수 없는 v2 전용 예약 필드. */
+    private static final Set<String> RESERVED_V2_ELEMENT_FIELDS = Set.of("geometry", "style", "binding", "text");
 
     private final ObjectMapper objectMapper;
 
@@ -122,6 +124,26 @@ public class DocumentPayloadValidator {
                 if (ELEMENT_BANDS.containsKey(type) && !ELEMENT_BANDS.get(type).equals(band.get("kind").asText())) {
                     reject(type + " 요소의 band 배치가 올바르지 않습니다");
                 }
+                // 🔴 M-B: schema v1 요소는 {key,type} 만 정의된다(spec §2.1). checkV2Element(geometry/
+                // style/binding 범위·화이트리스트 검증)는 schemaVersion==2 에서만 호출되므로, v1 요청에
+                // geometry/style/binding/text 를 실어 보내면 — 이 필드들은 DocumentPayload.Element record가
+                // (버전 무관하게) 실제로 인식하는 이름이라 순수 unknown 필드처럼 드롭되지 않고 — 무검증 상태로
+                // 그대로 역직렬화·영속된다. 한 번 append-only 이력(V12/V13)에 각인되면 되돌릴 수 없어 v1
+                // 문서에 검증되지 않은 v2 속성이 영구 남는 우회 채널이었다. v1 요소는 이 예약 필드를 가질 수 없다
+                // (순수 미인식 필드는 기존과 동일하게 계속 드롭 허용 — valid-unknown-field.json 참고).
+                // M-C: FE `LegacyDocElement` 유니온은 geometry/style/binding/text 필드 자체가 없다
+                // (G3 — 레거시 요소는 어떤 schemaVersion 에서도 geometry 를 갖지 않는다). v2 문서 안의
+                // 레거시 타입 요소도 이 필드들을 가질 수 없게 막지 않으면, BE 는 저장을 허용(v2 이므로
+                // checkV2Element 가 통과)하고 FE parser 는 레거시 타입을 항상 {key,type} 로만 재조립해
+                // 조용히 스트립한다 — 재저장 시 BE 만 보존하던 값이 무음 소실된다(3층 비대칭).
+                if (schemaVersion == 1 || LEGACY_ELEMENT_TYPES.contains(type)) {
+                    for (String reserved : RESERVED_V2_ELEMENT_FIELDS) {
+                        if (element.has(reserved)) {
+                            reject((schemaVersion == 1 ? "schema v1 문서 요소는 " : "레거시 문서 요소는 ")
+                                    + reserved + " 필드를 가질 수 없습니다: " + type);
+                        }
+                    }
+                }
                 if (schemaVersion == 2) checkV2Element(element, type);
                 counts.merge(type, 1, Integer::sum);
             }
@@ -145,10 +167,25 @@ public class DocumentPayloadValidator {
                     || (!BINDING_VALUES.contains(binding.asText()) && !FIELD_BINDING.matcher(binding.asText()).matches())) {
                 reject("FIELD 요소 binding이 허용 목록에 없습니다");
             }
+        } else if (element.has("binding")) {
+            // M-D: binding 은 요소 타입과 무관하게 allowlist 강제를 받아야 한다. 종전에는 이 검사가
+            // type=="FIELD" 일 때만 실행돼, TEXT(또는 향후 신설될) 요소가 "binding" 필드를 함께 실어
+            // 보내면 어떤 값이든(임의 문자열 포함) 무검증으로 Element record 에 역직렬화·영속됐다.
+            JsonNode binding = element.get("binding");
+            if (!binding.isTextual()
+                    || (!BINDING_VALUES.contains(binding.asText()) && !FIELD_BINDING.matcher(binding.asText()).matches())) {
+                reject(type + " 요소 binding이 허용 목록에 없습니다");
+            }
         }
         if ("TEXT".equals(type)) {
-            if (!validText(element.get("text"))) {
+            JsonNode text = element.get("text");
+            if (text == null || !text.isTextual() || isFeTrimEmpty(text.asText())) {
                 reject("TEXT 요소 text는 비어 있지 않은 문자열이어야 합니다");
+            }
+            // M-A: FE/BE 길이 한계가 어긋나면(과거 FE 65,536 vs BE 4,096) FE 가 통과시킨 요청이 BE 에서
+            // "비어 있지 않은 문자열이어야 합니다"로 거부되어 사용자가 실제 원인(길이 초과)을 알 수 없었다.
+            if (text.asText().length() > MAX_TEXT_LENGTH) {
+                reject("TEXT 요소 text는 " + MAX_TEXT_LENGTH + "자 이하여야 합니다");
             }
         }
         JsonNode geometry = element.get("geometry");
@@ -186,11 +223,6 @@ public class DocumentPayloadValidator {
             reject("style align이 유효하지 않습니다");
         }
         if (style.has("border") && !style.get("border").isBoolean()) reject("style border가 유효하지 않습니다");
-    }
-
-    private static boolean validText(JsonNode text) {
-        return text != null && text.isTextual() && !isFeTrimEmpty(text.asText())
-                && text.asText().length() <= MAX_TEXT_LENGTH;
     }
 
     private static boolean hasOnlyKeys(JsonNode node, Set<String> allowed) {

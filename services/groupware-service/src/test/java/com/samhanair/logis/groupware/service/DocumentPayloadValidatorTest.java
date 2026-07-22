@@ -55,11 +55,61 @@ class DocumentPayloadValidatorTest {
     @Test
     void invalidCorpus_isRejected() throws Exception {
         for (String name : List.of("invalid-duplicate-key.json", "invalid-missing-singleton.json",
-                "invalid-placement.json", "invalid-unknown-version.json", "invalid-paper.json")) {
+                "invalid-placement.json", "invalid-unknown-version.json", "invalid-paper.json",
+                "invalid-v1-reserved-field.json")) {
             JsonNode root = fixture(name);
             assertThatThrownBy(() -> validator.validate(root.get("schemaVersion").shortValue(), root.get("document")))
                     .isInstanceOf(BusinessException.class);
         }
+    }
+
+    /**
+     * 🔴 M-B RED-first: schemaVersion=1 요청은 checkV2Element(geometry/style/binding 범위 검사)를
+     * 전혀 거치지 않는다. style/geometry 는 DocumentPayload.Element record 가 버전과 무관하게 실제로
+     * 인식하는 필드명이라 "unknown 필드 드롭"의 보호를 받지 못하고, 유효 범위를 벗어난 값(허용되지 않는
+     * align 값)이 그대로 typed record 로 역직렬화·영속될 수 있었다 — v1 요청으로 v2 검증을 완전히
+     * 우회하는 채널이다. 이 fixture 는 REJECT 되어야 한다(수정 전 GREEN 통과 = 결함 재현 RED).
+     */
+    @Test
+    void M2_v1RequestCannotSmuggleUnvalidatedV2StyleField() throws Exception {
+        JsonNode root = fixture("invalid-v1-reserved-field.json");
+        assertThatThrownBy(() -> validator.validate(root.get("schemaVersion").shortValue(), root.get("document")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("style");
+    }
+
+    /** 순수 미인식 필드(label/badgeHint 등)는 v1 에서도 여전히 드롭 허용된다 — M-B 회귀 방지. */
+    @Test
+    void M2_v1RequestStillToleratesGenuinelyUnknownFields() throws Exception {
+        JsonNode root = fixture("valid-unknown-field.json");
+        assertThat(validator.validate(root.get("schemaVersion").shortValue(), root.get("document"))).isNotNull();
+    }
+
+    /**
+     * M-C: FE `LegacyDocElement` 는 geometry/style/binding/text 필드 자체가 없다(G3) — v2 문서 안의
+     * 레거시 타입 요소가 이 필드를 가지면 BE 는 저장을 허용하는데 FE parser 는 레거시 타입을 항상
+     * {key,type} 로만 재조립해 조용히 드롭한다. 재저장 시 BE 만 보존하던 값이 무음 소실되는 3층
+     * 비대칭이므로 BE 도 v2 에서 레거시 타입의 예약 필드를 거부해야 한다.
+     */
+    @Test
+    void M3_v2LegacyElementCannotCarryGeometryStyleBindingText() throws Exception {
+        JsonNode root = fixture("invalid-v2-legacy-geometry.json");
+        assertThatThrownBy(() -> validator.validate(root.get("schemaVersion").shortValue(), root.get("document")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("레거시");
+    }
+
+    /**
+     * M-D: binding 은 요소 타입과 무관하게 allowlist 강제를 받아야 한다. 종전에는 binding 검사가
+     * type=="FIELD" 일 때만 실행돼 TEXT 요소가 임의 문자열 binding 을 함께 실어 보내도 무검증으로
+     * 영속될 수 있었다.
+     */
+    @Test
+    void M4_textElementStrayBinding_isRejectedRegardlessOfType() throws Exception {
+        JsonNode root = fixture("invalid-v2-text-stray-binding.json");
+        assertThatThrownBy(() -> validator.validate(root.get("schemaVersion").shortValue(), root.get("document")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("binding");
     }
 
     @Test
@@ -164,20 +214,80 @@ class DocumentPayloadValidatorTest {
 
         DocumentPayload payload = validator.validate((short) 2, document);
 
-        assertThat(payload.bands().get(1).elements())
-                .anySatisfy(element -> {
-                    if ("field-doc-no".equals(element.key())) {
-                        assertThat(element.binding()).isEqualTo("header.docNo");
-                        assertThat(element.geometry().x()).isEqualTo(10);
-                        assertThat(element.style().bold()).isTrue();
-                    }
-                })
-                .anySatisfy(element -> {
-                    if ("text-title".equals(element.key())) {
-                        assertThat(element.text()).isEqualTo("초안 제목");
-                        assertThat(element.geometry().w()).isEqualTo(90);
-                    }
-                });
+        // 🚨 R2 검증 결함: 종전 `anySatisfy(element -> { if (key.equals(...)) {...} })` 는 조건이 거짓인
+        // 다른 요소에서 내부 assert 가 아예 실행되지 않아 "공허 충족"되었다 — Element.geometry() 를 강제로
+        // null 반환하도록 만드는 뮤테이션에도 10/10 GREEN 이었다. 대상 요소를 key 로 명시적으로 찾아
+        // 단언한다(대상이 없으면 이 조회 자체가 NoSuchElementException 으로 실패한다).
+        DocumentPayload.Element fieldElement = elementByKey(payload, 1, "field-doc-no");
+        assertThat(fieldElement.binding()).isEqualTo("header.docNo");
+        assertThat(fieldElement.geometry()).as("field-doc-no geometry는 저장 왕복에서 소실되면 안 된다").isNotNull();
+        assertThat(fieldElement.geometry().x()).isEqualTo(10);
+        assertThat(fieldElement.geometry().y()).isEqualTo(20);
+        assertThat(fieldElement.geometry().w()).isEqualTo(60);
+        assertThat(fieldElement.geometry().h()).isEqualTo(8);
+        assertThat(fieldElement.style()).as("field-doc-no style은 저장 왕복에서 소실되면 안 된다").isNotNull();
+        assertThat(fieldElement.style().fontSize()).isEqualTo(14);
+        assertThat(fieldElement.style().bold()).isTrue();
+        assertThat(fieldElement.style().align()).isEqualTo("center");
+        assertThat(fieldElement.style().border()).isTrue();
+
+        DocumentPayload.Element textElement = elementByKey(payload, 1, "text-title");
+        assertThat(textElement.text()).isEqualTo("초안 제목");
+        assertThat(textElement.geometry()).as("text-title geometry는 저장 왕복에서 소실되면 안 된다").isNotNull();
+        assertThat(textElement.geometry().w()).isEqualTo(90);
+    }
+
+    /** key 로 대상 요소를 명시적으로 찾는다. 없으면 예외로 실패한다(공허 충족 방지). */
+    private static DocumentPayload.Element elementByKey(DocumentPayload payload, int bandIndex, String key) {
+        return payload.bands().get(bandIndex).elements().stream()
+                .filter(element -> key.equals(element.key()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("요소를 찾을 수 없습니다: " + key));
+    }
+
+    /**
+     * 🔴 BLOCKING-1 RED-first: 사용자가 속성 패널에서 style 을 부분 지정(예: 글꼴 크기만)하는 것은 UI 의
+     * 정상 경로다. {@code validate(Short, DocumentPayload)}(activate() 재검증 경로와 동일)는 이미 저장된
+     * typed 객체를 {@code objectMapper.valueToTree()} 로 재직렬화하는데, {@code Style}/{@code Geometry}
+     * record 에 {@code @JsonInclude(NON_NULL)} 이 없으면 미지정 필드가 명시적 null 로 재직렬화되고
+     * {@code checkStyle}/{@code checkGeometry} 는 "키가 있는데 null"을 유효하지 않은 값으로 거부한다 —
+     * 저장은 201 로 성공했는데 activate() 재검증이 같은 payload 를 400 으로 거부하는 모순이었다.
+     * fontSize 만/align 만/bold 만 지정한 3 변형 전부가 통과해야 한다.
+     */
+    @Test
+    void BLOCKING1_partialStyleSurvivesReValidation_fontSizeOnly() throws Exception {
+        assertReValidationSucceeds(new DocumentPayload.Style(14.0, null, null, null));
+    }
+
+    @Test
+    void BLOCKING1_partialStyleSurvivesReValidation_alignOnly() throws Exception {
+        assertReValidationSucceeds(new DocumentPayload.Style(null, null, "center", null));
+    }
+
+    @Test
+    void BLOCKING1_partialStyleSurvivesReValidation_boldOnly() throws Exception {
+        assertReValidationSucceeds(new DocumentPayload.Style(null, true, null, null));
+    }
+
+    private void assertReValidationSucceeds(DocumentPayload.Style partialStyle) throws Exception {
+        JsonNode root = fixture("valid-default.json");
+        var bodyElements = List.of(
+                new DocumentPayload.Element("field-partial-style", "FIELD",
+                        new DocumentPayload.Geometry(0.0, 0.0, 50.0, 10.0), partialStyle,
+                        "header.docNo", null));
+        var bands = List.of(
+                new DocumentPayload.Band("header", "HEADER", List.of(
+                        new DocumentPayload.Element("title", "TITLE"),
+                        new DocumentPayload.Element("approval", "APPROVAL_GRID"))),
+                new DocumentPayload.Band("body", "BODY", bodyElements),
+                new DocumentPayload.Band("footer", "FOOTER", List.of(
+                        new DocumentPayload.Element("closing", "CLOSING"))));
+        DocumentPayload storedTypedPayload = new DocumentPayload("A4_PORTRAIT", bands);
+
+        // activate()가 저장된 typed payload를 재검증할 때와 동일한 오버로드.
+        DocumentPayload reValidated = validator.validate((short) 2, storedTypedPayload);
+
+        assertThat(reValidated.bands().get(1).elements().get(0).style()).isEqualTo(partialStyle);
     }
 
     @Test

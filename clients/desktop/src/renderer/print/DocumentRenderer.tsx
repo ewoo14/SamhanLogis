@@ -25,6 +25,10 @@ export interface CompiledApprovalDocument {
   approvalSteps: PrintApprovalStep[]
   closingNote: string
   body: ReactNode
+  /** HEADER 밴드에 배치된 FIELD/TEXT 요소 — 없으면 undefined(빈 공간 미예약, G3). */
+  headerExtra?: ReactNode
+  /** FOOTER 밴드에 배치된 FIELD/TEXT 요소 — 없으면 undefined(빈 공간 미예약, G3). */
+  footerExtra?: ReactNode
 }
 
 export interface DocumentRendererProps {
@@ -103,29 +107,35 @@ function renderPositionedElement(element: FieldElement | TextElement, model: App
   )
 }
 
-function DocumentTemplateBody({
-  legacySections,
-  positionedElements,
-  model,
-}: {
-  legacySections: LegacyApprovalDocSection[]
-  positionedElements: Array<FieldElement | TextElement>
-  model: ApprovalRenderModel
-}) {
-  if (positionedElements.length === 0) {
-    return <LegacyApprovalDocBody orderedSections={legacySections} />
-  }
+/**
+ * 밴드 소속 FIELD/TEXT 요소를 하나의 relative 컨테이너에 렌더한다.
+ *
+ * M-F: 과거에는 전 밴드의 FIELD/TEXT 를 하나로 합쳐 BODY 뒤에 고정 40mm 스트립으로 그렸다 — 요소의
+ * geometry(x/y/w/h, 밴드 상대 %)가 실제로는 "합쳐진 전역 스트립" 기준으로 해석되어 spec §4.1 의
+ * "밴드 상대 박스" 좌표계와 어긋났고, HEADER/FOOTER 요소도 전부 BODY 뒤에 그려졌다. 이제 밴드별로
+ * 분리해 호출하므로 geometry 는 실제로 자신이 속한 밴드 기준으로 해석된다. 요소가 없으면 null 을
+ * 반환해 빈 공간을 예약하지 않는다.
+ */
+function positionedElementLayer(
+  elements: Array<FieldElement | TextElement>,
+  model: ApprovalRenderModel,
+  testId: string,
+): ReactNode {
+  if (elements.length === 0) return null
   return (
-    <div className="approval-doc-print-content" style={{ display: 'grid', gap: '5mm', color: '#000', fontSize: '10pt' }}>
-      <LegacyApprovalDocBody orderedSections={legacySections} />
-      <div
-        className="document-template-v2-elements"
-        data-testid="document-template-v2-elements"
-        style={{ position: 'relative', minHeight: '40mm' }}
-      >
-        {positionedElements.map((element) => renderPositionedElement(element, model))}
-      </div>
+    <div
+      className="document-template-v2-elements"
+      data-testid={testId}
+      style={{ position: 'relative', minHeight: '24mm' }}
+    >
+      {elements.map((element) => renderPositionedElement(element, model))}
     </div>
+  )
+}
+
+function positionedElementsOf(elements: DocElement[]): Array<FieldElement | TextElement> {
+  return elements.filter(
+    (element): element is FieldElement | TextElement => element.type === 'FIELD' || element.type === 'TEXT',
   )
 }
 
@@ -144,9 +154,14 @@ export function compileApprovalDocument(
     .flatMap((band) => band.elements)
     .map((element) => sectionForElement(element, model))
     .filter((section): section is LegacyApprovalDocSection => section !== null)
-  const positionedElements = template.document.bands
-    .flatMap((band) => band.elements)
-    .filter((element): element is FieldElement | TextElement => element.type === 'FIELD' || element.type === 'TEXT')
+
+  const headerPositioned = positionedElementsOf(headerElements)
+  const bodyPositioned = positionedElementsOf(
+    template.document.bands.filter((band) => band.kind === 'BODY').flatMap((band) => band.elements),
+  )
+  const footerPositioned = positionedElementsOf(
+    template.document.bands.filter((band) => band.kind === 'FOOTER').flatMap((band) => band.elements),
+  )
 
   const docHeader: PrintDocHeader = {
     title: model.header.title,
@@ -161,9 +176,17 @@ export function compileApprovalDocument(
     docHeader,
     approvalSteps: hasApprovalGrid ? model.approvalSteps : [],
     closingNote: model.closing.note,
-    body: positionedElements.length === 0
-      ? <LegacyApprovalDocBody orderedSections={bodySections} />
-      : <DocumentTemplateBody legacySections={bodySections} positionedElements={positionedElements} model={model} />,
+    // BODY FIELD/TEXT 는 legacy 섹션과 형제로 렌더한다 — `approval-doc-print-content` 래퍼를
+    // LegacyApprovalDocBody 가 이미 정확히 한 번 출력하므로(그 컴포넌트 자체 계약) 여기서 다시
+    // 감싸지 않는다(중복 wrapper 금지, LegacyApprovalDocBody.tsx 상단 주석 참고).
+    body: (
+      <>
+        <LegacyApprovalDocBody orderedSections={bodySections} />
+        {positionedElementLayer(bodyPositioned, model, 'document-template-v2-elements-body')}
+      </>
+    ),
+    headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
+    footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
   }
 }
 
@@ -178,6 +201,8 @@ export function DocumentRenderer({ template, model, backTo }: DocumentRendererPr
       docHeader={compiled.docHeader}
       approvalSteps={compiled.approvalSteps}
       closingNote={compiled.closingNote}
+      headerExtra={compiled.headerExtra}
+      footerExtra={compiled.footerExtra}
     >
       {compiled.body}
     </PrintLayout>

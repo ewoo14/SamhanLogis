@@ -5,6 +5,7 @@ import {
   createDocumentTemplate,
   findActiveDocumentTemplate,
   findDocumentTemplateRevision,
+  getDocumentTemplate,
   listDocumentTemplates,
 } from './documentTemplate'
 
@@ -104,6 +105,34 @@ describe('document template API', () => {
       schemaVersion: 1,
       document,
     })
+  })
+
+  it('BLOCKING-1: 부분 style 응답(미지정 필드가 explicit null)도 재열람 파싱에 성공한다', async () => {
+    // BE round-trip 버그가 재발하면 GET 응답에 이런 explicit null 이 실릴 수 있다 — 저장은
+    // 성공했는데 재열람이 실패하는 모순을 FE 파서 레벨에서도 방어한다(invariant #2/#3).
+    const v2Document = {
+      ...document,
+      bands: document.bands.map((band) => band.kind === 'BODY'
+        ? {
+            ...band,
+            elements: [
+              ...band.elements,
+              {
+                key: 'field-partial-style',
+                type: 'FIELD',
+                binding: 'header.docNo',
+                geometry: { x: 0, y: 0, w: 50, h: 10 },
+                style: { fontSize: 14, bold: null, align: null, border: null },
+              },
+            ],
+          }
+        : band),
+    }
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope({ ...dto, schemaVersion: 2, document: v2Document }))
+
+    const result = await getDocumentTemplate(dto.id)
+    const field = result.document.bands[1]?.elements.find((element) => element.key === 'field-partial-style')
+    expect(field && 'style' in field ? field.style : undefined).toEqual({ fontSize: 14 })
   })
 
   it('normalizes only valid entries in admin list', async () => {
