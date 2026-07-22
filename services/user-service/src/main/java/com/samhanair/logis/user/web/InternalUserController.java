@@ -129,14 +129,16 @@ public class InternalUserController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<List<InternalEmployeeSearchResponse>> search(
             @RequestParam("q") String q,
-            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+            @RequestParam(value = "limit", defaultValue = "20") int limit,
+            @RequestParam(value = "activeOnly", defaultValue = "false") boolean activeOnly) {
         String normalized = q == null ? "" : q.trim();
         if (normalized.isBlank()) {
             return ApiResponse.ok(List.of());
         }
         int normalizedLimit = Math.min(Math.max(limit, 1), 50);
-        List<InternalEmployeeSearchResponse> employees = employeeRepository
-                .searchInternalApprovers(normalized, PageRequest.of(0, normalizedLimit)).stream()
+        List<InternalEmployeeSearchResponse> employees = (activeOnly
+                ? employeeRepository.searchInternalActiveRecipients(normalized, PageRequest.of(0, normalizedLimit))
+                : employeeRepository.searchInternalApprovers(normalized, PageRequest.of(0, normalizedLimit))).stream()
                 .map(emp -> new InternalEmployeeSearchResponse(
                         emp.getId(),
                         emp.getFullName(),

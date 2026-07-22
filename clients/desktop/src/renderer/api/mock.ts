@@ -13475,6 +13475,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ ...target, resolved: true })
   }
 
+  const messengerResponse = mockMessengerResponse(config)
+  if (messengerResponse !== null) return messengerResponse
+
   return null
 }
 
@@ -18939,4 +18942,107 @@ function setMockDelegation(groupId: string, pageCode: string, grant: boolean) {
     print: false,
   }
   _mockPermissionGroupMatrices[groupId] = matrix
+}
+
+// ============================================================================
+// T2 #825 S6 — 메신저 수신자 칩 / bulk 발송 mock (BE DTO parity)
+// ============================================================================
+
+interface MockMessengerRecipient {
+  userId: string
+  name: string
+  department: string | null
+}
+
+interface MockMessengerMessage {
+  messageId: string
+  senderId: string
+  recipientId: string
+  body: string
+  status: 'UNREAD' | 'READ'
+  sentAt: string
+  readAt: string | null
+}
+
+const MOCK_MESSENGER_RECIPIENTS: MockMessengerRecipient[] = [
+  { userId: 'user-001', name: '김미선', department: '관리팀' },
+  { userId: 'user-002', name: '이정훈', department: '회계팀' },
+  { userId: 'user-003', name: '박영업', department: '영업팀' },
+  { userId: 'user-004', name: '최영업', department: '영업팀' },
+  { userId: 'user-005', name: '정창고', department: '창고팀' },
+]
+
+let mockMessengerMessages: MockMessengerMessage[] = [
+  {
+    messageId: 'message-seed-001',
+    senderId: 'user-001',
+    recipientId: MOCK_AUTH.userId,
+    body: '시드 메신저 메시지입니다.',
+    status: 'UNREAD',
+    sentAt: '2026-07-22T09:00:00',
+    readAt: null,
+  },
+]
+
+function mockMessengerResponse(config: AxiosRequestConfig): unknown | null {
+  const method = (config.method ?? 'get').toUpperCase()
+  const url = config.url ?? ''
+  if (!url.includes('/admin/groupware/messages/')) return null
+
+  if (method === 'GET' && url.includes('/recipient-search')) {
+    const q = String(config.params?.['q'] ?? '')
+    const normalized = q.trim().toLowerCase()
+    const recipients = normalized
+      ? MOCK_MESSENGER_RECIPIENTS.filter((recipient) => recipient.name.toLowerCase().includes(normalized))
+      : MOCK_MESSENGER_RECIPIENTS
+    return envelope(recipients.slice(0, 20))
+  }
+
+  if (method === 'GET' && url.endsWith('/messages/inbox')) {
+    return envelope([...mockMessengerMessages])
+  }
+
+  if (method === 'POST' && url.endsWith('/messages/bulk')) {
+    const testState = globalThis as typeof globalThis & {
+      __SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__?: number
+      __SAMHAN_MOCK_LAST_MESSENGER_BULK_BODY__?: { recipientIds: string[]; body: string }
+    }
+    testState.__SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__ =
+      (testState.__SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__ ?? 0) + 1
+    const raw = config.data as { recipientIds?: unknown; body?: unknown } | string | undefined
+    let payload: { recipientIds?: unknown; body?: unknown } = {}
+    if (typeof raw === 'string') {
+      try {
+        payload = JSON.parse(raw) as { recipientIds?: unknown; body?: unknown }
+      } catch {
+        return mockError(400, 'INVALID_INPUT', '요청 본문이 유효하지 않습니다')
+      }
+    } else if (raw) {
+      payload = raw
+    }
+    const recipientIds = Array.from(new Set(
+      Array.isArray(payload.recipientIds) ? payload.recipientIds.filter((id): id is string => typeof id === 'string') : [],
+    ))
+    const body = typeof payload.body === 'string' ? payload.body : ''
+    testState.__SAMHAN_MOCK_LAST_MESSENGER_BULK_BODY__ = { recipientIds, body }
+    if (recipientIds.length === 0) return mockError(400, 'INVALID_INPUT', '수신자를 1명 이상 선택하십시오')
+    if (recipientIds.length > 50) return mockError(400, 'INVALID_INPUT', '수신자는 최대 50명까지 선택할 수 있습니다')
+    if (!body.trim()) return mockError(400, 'INVALID_INPUT', '본문을 입력하십시오')
+
+    const batchId = `batch-messenger-${Date.now()}`
+    const sentAt = new Date().toISOString()
+    const messages = recipientIds.map((recipientId, index) => ({
+      messageId: `message-${batchId}-${index + 1}`,
+      senderId: MOCK_AUTH.userId,
+      recipientId,
+      body,
+      status: 'UNREAD' as const,
+      sentAt,
+      readAt: null,
+    }))
+    mockMessengerMessages = [...messages, ...mockMessengerMessages]
+    return mockOk(201, { batchId, sentCount: messages.length, messages })
+  }
+
+  return null
 }

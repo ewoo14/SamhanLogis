@@ -29,6 +29,16 @@
 
 ## 🏗️ 프로젝트 구조
 
+## #825 슬6 메신저 수신자 칩 복수선택 (Issue #866 / PR #892)
+
+2026-07-22 기준 쪽지 발송 화면을 데스크톱 `/messenger`로 신설했다. `MultiSelectAutocomplete`로
+재직자 수신자를 최대 50명까지 칩으로 복수선택하고, 수신함은 읽기 전용으로 제공한다. 그룹웨어는
+`POST /admin/groupware/messages/bulk` 원자적 복수 발송과 `GET /admin/groupware/messages/recipient-search`
+전용 검색을 제공하며, user-service의 `activeOnly=true` 검색은 퇴사자를 제외한다. 기존 단건
+`POST /admin/groupware/messages` 계약은 유지하고 deprecated 표기만 추가했다. 신규 스키마 변경은
+`V14__add_messages_batch_id.sql`의 nullable `messages.batch_id`와 partial index 한 건으로 제한했다.
+상세 결정·RED→GREEN 근거·검증 결과는 [`docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md`](docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md)를 따른다.
+
 ## #825 슬5 null-semantics (PR #864 R2)
 
 일마감·안전재고·CODEF 쓰기 범위는 `scopeMode=ALL|SELECTED`를 명시한다. CODEF의 저장된

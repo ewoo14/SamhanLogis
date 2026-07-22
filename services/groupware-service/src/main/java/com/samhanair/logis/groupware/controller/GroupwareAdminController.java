@@ -9,7 +9,10 @@ import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.ApproverSearchResponse;
 import com.samhanair.logis.groupware.dto.MessageResponse;
+import com.samhanair.logis.groupware.dto.MessageBulkSendRequest;
+import com.samhanair.logis.groupware.dto.MessageBulkSendResponse;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
+import com.samhanair.logis.groupware.dto.RecipientSearchResponse;
 import com.samhanair.logis.groupware.dto.ScheduleRequest;
 import com.samhanair.logis.groupware.dto.ScheduleResponse;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
@@ -188,8 +191,9 @@ public class GroupwareAdminController {
 
     // ================================ 메신저 ================================
 
-    /** 메신저 발송. */
-    @Operation(summary = "메신저 발송")
+    /** 메신저 단건 발송. 복수 수신은 /messages/bulk를 사용한다. */
+    @Operation(summary = "메신저 발송", deprecated = true,
+            description = "기존 단건 계약 호환용입니다. 복수 수신은 /messages/bulk를 사용하십시오.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "발송 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 실패")
@@ -201,6 +205,39 @@ public class GroupwareAdminController {
             @Valid @RequestBody MessageSendRequest req) {
         var msg = messageService.send(req, senderId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(MessageResponse.from(msg)));
+    }
+
+    /** 메신저 복수 수신 발송 — 수신자별 1행을 원자적으로 생성한다. */
+    @Operation(summary = "메신저 복수 수신 발송")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "발송 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "수신자 미존재")
+    })
+    @PostMapping("/messages/bulk")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
+    public ResponseEntity<ApiResponse<MessageBulkSendResponse>> sendBulkMessage(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID senderId,
+            @Valid @RequestBody MessageBulkSendRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(messageService.sendBulk(req, senderId)));
+    }
+
+    /** 메신저 수신자 검색 — 임원실 부서 제약 없이 재직자만 반환한다. */
+    @Operation(summary = "메신저 수신자 검색")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "검색 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @GetMapping("/messages/recipient-search")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
+    public ApiResponse<List<RecipientSearchResponse>> searchMessageRecipients(
+            @RequestParam("q") String q,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return ApiResponse.ok(userClient.search(q, limit, true).stream()
+                .map(item -> new RecipientSearchResponse(item.userId(), item.name(), item.department()))
+                .toList());
     }
 
     /** 수신함 — 발송 시각 역순. */

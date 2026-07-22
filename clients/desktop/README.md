@@ -62,6 +62,7 @@ npm run build:win
 | `/warehouses` | 창고 목록 + 신규 등록 모달 | DataTable, Badge, Button, Modal, FormField |
 | `/slips` | 판매전표 목록 | DataTable, Badge, Button, SlipNumberDisplay, SlipStatusBadge |
 | `/slips/new` | 새 판매전표 작성 | WarehouseSelector, DeliveryTagSelector, FormField, PriceField, Button, Card |
+| `/messenger` | 수신자 칩 복수선택 발송 + 읽기 전용 수신함 | MultiSelectAutocomplete, TagChip, FormField, Button |
 
 총 디자인 시스템 컴포넌트 11 / 16 개 첫 실사용
 (미사용: TagChip, TagInput, Input wrapper, Label, SlipNumberDisplay 외).
@@ -85,7 +86,7 @@ npm run build:win
   `GET /api/products/by-code/{modelCode}` 로 modelCode autocomplete 전환 후속.
 - 전표 상세 화면 일부 placeholder
 - 페이지네이션 size=20 고정
-- 결재선/메신저/저재고 알림 카드 placeholder
+- 메신저는 `/messenger`에서 복수 수신 발송·수신함을 제공하며, 수신자 검색은 재직자만 반환한다.
 
 ## 슬라이스 코드명 정정 (Phase 9 W4 — W3 FE backlog #5 채택)
 

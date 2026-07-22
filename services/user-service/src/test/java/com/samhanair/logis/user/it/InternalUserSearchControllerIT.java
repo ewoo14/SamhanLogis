@@ -96,6 +96,21 @@ class InternalUserSearchControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void R10_activeOnly_true이면_퇴사자를_수신자_검색에서_제외한다() throws Exception {
+        String marker = "terminated-recipient-" + shortToken();
+        Employee terminated = employeeEntity("terminated-" + shortToken(), marker, Role.SALES);
+        ReflectionTestUtils.setField(terminated, "terminationDate", LocalDate.of(2026, 3, 1));
+        employeeRepository.saveAndFlush(terminated);
+
+        mockMvc.perform(get("/internal/users/search")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("q", marker)
+                        .param("activeOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
+    @Test
     void displayNames_다건조회는_id별_fullName_map을_반환한다() throws Exception {
         UUID user1 = employee("display-" + shortToken() + "-a", "표시명A", Role.MANAGER);
         UUID user2 = employee("display-" + shortToken() + "-b", "표시명B", Role.SALES);

@@ -48,6 +48,8 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 | PUT | `/admin/groupware/approvals/{id}/approve` | MASTER / MANAGER | 결재 승인 |
 | PUT | `/admin/groupware/approvals/{id}/reject` | MASTER / MANAGER | 결재 반려 |
 | POST | `/admin/groupware/messages` | 전체 ROLE | 메신저 발송 |
+| POST | `/admin/groupware/messages/bulk` | `messenger.send` CREATE | 수신자 최대 50명 원자적 복수 발송(중복 제거·self 차단) |
+| GET | `/admin/groupware/messages/recipient-search?q={q}&limit={n}` | `messenger.send` VIEW | 부서 제약 없는 재직자 수신자 검색 |
 | GET | `/admin/groupware/messages/inbox?userId={UUID}` | 전체 ROLE | 수신함 |
 | POST | `/admin/groupware/schedules` | 전체 ROLE | 일정 등록 |
 | GET | `/admin/groupware/schedules?ownerId={UUID}&from&to` | 전체 ROLE | 일정 조회 (소유자 + 기간) |
@@ -56,6 +58,11 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 | GET | `/groupware/document-templates/{templateId}/revisions/{revision}` | 인증 사용자 | 승인 완료 문서 재인쇄용 각인 revision 조회 |
 
 응답 = `ApiResponse<T>` 봉투 (success / code / message / data / timestamp). UUID 비공개 가드 — Internal 응답만 UUID 노출 (caller = 내부 형제 service).
+
+복수 발송은 `messages` 1행을 수신자 1명으로 유지하며 같은 `batchId`를 각 행에 기록한다.
+수신자 존재 확인이 전부 성공한 뒤 한 트랜잭션으로 저장하고, 한 명이라도 없으면 404와 함께
+저장 0건으로 rollback한다. 알림은 commit 이후 수신자별 1건씩 발행한다. 기존 단건 endpoint는
+경로·요청·응답·상태 코드를 유지하며 deprecated로만 표시한다.
 
 ## 환경변수
 

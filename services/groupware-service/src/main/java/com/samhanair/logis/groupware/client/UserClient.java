@@ -109,6 +109,18 @@ public class UserClient implements UserVerifier {
 
     /** 결재자 검색. user-service 장애/토큰 미설정 시 빈 배열로 fail-soft 처리한다. */
     public List<ApproverSummary> search(String q, int limit) {
+        return search(q, limit, false);
+    }
+
+    /**
+     * 직원 검색. activeOnly=true인 경우 퇴사일이 없는 재직자만 반환하도록 user-service에 전달한다.
+     *
+     * @param q 검색어
+     * @param limit 반환 상한
+     * @param activeOnly 퇴사자 제외 여부
+     * @return 검색 결과
+     */
+    public List<ApproverSummary> search(String q, int limit, boolean activeOnly) {
         String normalized = q == null ? "" : q.trim();
         if (normalized.isBlank() || internalToken == null || internalToken.isBlank()) {
             return List.of();
@@ -116,10 +128,15 @@ public class UserClient implements UserVerifier {
         int normalizedLimit = Math.min(Math.max(limit, 1), 50);
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/internal/users/search")
-                            .queryParam("q", normalized)
-                            .queryParam("limit", normalizedLimit)
-                            .build())
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder.path("/internal/users/search")
+                                .queryParam("q", normalized)
+                                .queryParam("limit", normalizedLimit);
+                        if (activeOnly) {
+                            builder.queryParam("activeOnly", true);
+                        }
+                        return builder.build();
+                    })
                     .header("X-Internal-Token", internalToken)
                     .retrieve()
                     .body(String.class);

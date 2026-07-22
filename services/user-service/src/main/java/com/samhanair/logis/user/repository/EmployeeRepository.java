@@ -65,6 +65,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
             + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')))")
     List<Employee> searchInternalApprovers(@Param("q") String q, Pageable pageable);
 
+    /** 메신저 수신자 검색용 internal 조회 — soft-delete와 퇴사 직원을 제외한다. */
+    @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
+            + "WHERE e.isDeleted = false AND e.terminationDate IS NULL "
+            + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
+            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')))" )
+    List<Employee> searchInternalActiveRecipients(@Param("q") String q, Pageable pageable);
+
     /**
      * 종합견적서 담당자 directory 조회 — 활성 직원의 이름만 검색한다.
      *
