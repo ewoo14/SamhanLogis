@@ -38,6 +38,14 @@ async function waitForStableLayout(locator: import('@playwright/test').Locator):
   })
 }
 
+async function renderedLineCount(locator: import('@playwright/test').Locator): Promise<number> {
+  return locator.evaluate((node) => {
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    return new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size
+  })
+}
+
 async function assertApprovalTemplateTableRoleTree(page: import('@playwright/test').Page): Promise<void> {
   const table = page.getByRole('table')
   await expect(table).toHaveCount(1)
@@ -167,6 +175,30 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     await expect(page.getByTestId('document-template-live-preview')).toContainText('저장 전 draft 미리보기')
   })
 
+  test('M1/M3: 375px·320px 라이브 미리보기는 문자 단위 줄바꿈 없이 읽히고 수평으로 넘치지 않는다', async ({ page }) => {
+    for (const width of [375, 320]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto(`/#/groupware/document-templates/${ACTIVE_TEMPLATE_ID}/edit?mockRole=MASTER`, {
+        waitUntil: 'domcontentloaded',
+      })
+
+      const preview = page.getByTestId('document-template-live-preview')
+      const title = preview.locator('.print-approval-doc-meta h1')
+      const docNoLabel = preview.locator('.print-approval-doc-meta div').filter({ hasText: '문서번호' }).locator('span')
+
+      expect(await renderedLineCount(title), `${width}px 제목이 문자 단위로 쪼개지면 안 된다`)
+        .toBeLessThanOrEqual(2)
+      expect(await renderedLineCount(docNoLabel), `${width}px 문서번호 라벨이 한 줄이어야 한다`).toBe(1)
+
+      const geometry = await preview.evaluate((node) => ({
+        clientWidth: node.clientWidth,
+        scrollWidth: node.scrollWidth,
+      }))
+      expect(geometry.scrollWidth, `${width}px 미리보기 컨테이너가 수평으로 넘치면 안 된다`)
+        .toBeLessThanOrEqual(geometry.clientWidth)
+    }
+  })
+
   test('H-E: ACTIVE 잠금 상태에서는 편집 시작 전까지 요소 추가·문구 입력이 불가능하다', async ({ page }) => {
     // 🔴 결함 재현: canEdit 이 팔레트/캔버스/인스펙터에 전달되지 않아 ACTIVE 잠금 상태에서도
     // "문구 추가" 버튼이 동작했다. 편집 시작(비활성화) 전에는 버튼이 disabled 여야 한다.
@@ -262,6 +294,7 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
   })
 
   test('H-A: 편집기 화면의 UI 요소는 no-print 처리되어 인쇄 대상에서 제외된다', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 })
     await page.goto(`/#/groupware/document-templates/${ACTIVE_TEMPLATE_ID}/edit?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
     })
@@ -285,15 +318,20 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     const paperPrintState = await paper.evaluate((node) => {
       const style = getComputedStyle(node)
       const rect = node.getBoundingClientRect()
+      const header = node.querySelector<HTMLElement>('.print-approval-doc-header')
       return {
         display: style.display,
         visibility: style.visibility,
+        widthCssPx: Number.parseFloat(style.width),
         width: rect.width,
+        headerFlexDirection: header ? getComputedStyle(header).flexDirection : '',
         text: node.textContent ?? '',
       }
     })
     expect(paperPrintState.display).not.toBe('none')
     expect(paperPrintState.visibility).toBe('visible')
+    expect(Math.abs(paperPrintState.widthCssPx - (210 / 25.4 * 96)), 'M2 위반 — print paper CSS 폭이 210mm가 아님').toBeLessThan(1)
+    expect(paperPrintState.headerFlexDirection, 'M2 위반 — 모바일 화면용 헤더 적층이 print에 적용됨').toBe('row')
     expect(paperPrintState.width).toBeGreaterThan(0)
     expect(paperPrintState.text).toContain('결재 문서 미리보기')
   })

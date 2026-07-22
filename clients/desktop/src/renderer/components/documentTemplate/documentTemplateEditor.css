@@ -120,9 +120,29 @@
   }
 }
 
-@media (max-width: 639px) {
+@media screen and (max-width: 639px) {
   .document-template-editor-form {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /*
+   * 좁은 화면에서는 A4 헤더의 문서 메타와 고정폭 결재란을 한 행에 두면
+   * 좌측 flex 영역이 문자 단위까지 줄어든다. 화면에서만 세로 적층해
+   * 문서 제목/문서번호에 충분한 폭을 주고, 인쇄용 A4 헤더는 그대로 둔다.
+   */
+  .document-template-preview .paper-a4-portrait .print-approval-doc-header {
+    flex-direction: column;
+    gap: 2mm;
+  }
+
+  .document-template-preview .paper-a4-portrait .print-approval-section {
+    align-self: stretch;
+    width: 100%;
+  }
+
+  .document-template-preview .paper-a4-portrait .print-approval-grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
 
