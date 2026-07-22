@@ -24,7 +24,7 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     const modal = page.getByTestId('app-version-blocking-modal')
     await expect(modal).toBeVisible()
     await expect(modal).toContainText('9.9.0')
-    await expect(modal).toContainText('업데이트 전까지 앱 사용은 차단됩니다')
+    await expect(modal).toContainText('새 버전이 설치될 때까지 앱 사용은 차단됩니다. 다운로드가 완료되면 다시 시작해 주세요.')
 
     await page.keyboard.press('Escape')
     await expect(modal).toBeVisible()
