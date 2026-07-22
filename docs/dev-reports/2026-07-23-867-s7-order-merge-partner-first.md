@@ -214,7 +214,7 @@ expected false to be true
 
 ### 11.1 변경 및 backfill 정책
 
-개발책임자 결정에 따라 새 migration `V12__add_partner_identity_to_orders.sql`을 추가했다. `partner_orders.partner_id UUID NULL`과 active 조회 인덱스만 추가했으며, 기존 V1~V11은 수정하지 않았다.
+개발책임자 결정에 따라 새 migration `V13__add_partner_identity_to_orders.sql`을 추가했다. `partner_orders.partner_id UUID NULL`과 active 조회 인덱스만 추가했으며, 기존 V1~V12는 수정하지 않았다.
 
 - confirm 및 estimate→order 신규 경로는 partner-service의 현재 UUID를 조회해 저장한다.
 - 기존 주문은 자동 backfill하지 않는다. partner-order DB에는 과거 UUID 이력이 없고, 문자열 코드만 현재 UUID에 연결하면 코드 재사용 행을 잘못 확정할 수 있다.

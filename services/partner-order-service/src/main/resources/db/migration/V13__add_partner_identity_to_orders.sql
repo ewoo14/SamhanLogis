@@ -1,4 +1,4 @@
--- V12__add_partner_identity_to_orders.sql
+-- V13__add_partner_identity_to_orders.sql
 -- S7 도달가능 3: 표시용 partner_code와 거래처 정체성 UUID를 분리한다.
 -- 기존 주문은 partner-service DB의 과거 시점 매핑을 이 DB에서 알 수 없으므로 자동 backfill하지 않는다.
 -- NULL partner_id = legacy identity 미해결. 병합 서비스가 명시적으로 409 거부한다.
