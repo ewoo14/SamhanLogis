@@ -36,6 +36,29 @@ describe('lineVat — 품목행 권위 열 계산', () => {
     expect(line.vatWarning).toBe(true)
   })
 
+  // BLOCKING-2 (#824 R1): PRICE 경로가 HALF_UP(divideHalfUp)을 써 BE VatAmountCalculator
+  // (0 방향 절사·DOWN)와 어긋났다. 100005 계열 fixture 는 ÷11 나머지가 5.5 미만이라
+  // HALF_UP·DOWN 이 같은 값을 내는 무감도 fixture — 실제로 갈리는 단가만 RED 를 잡는다.
+  it.each([
+    // [unitPrice, quantity, 기대 supply(BE DOWN), 기대 vat]
+    ['7900', 1, '7181', '719'],
+    ['100', 1, '90', '10'],
+    ['1234500', 1, '1122272', '112228'],
+  ] as const)('PRICE 경로 단가 %s 는 BE 와 같은 절사(DOWN) 공급가액 %s 를 낸다', (unitPrice, quantity, expectedSupply, expectedVat) => {
+    const line = recalculateLineVat({
+      quantity,
+      unitPrice,
+      supplyAmount: '0',
+      vatAmount: '0',
+      lineTotal: '0',
+    }, 'PRICE')
+
+    expect(line.supplyAmount).toBe(expectedSupply)
+    expect(line.vatAmount).toBe(expectedVat)
+    // 항등식은 항상 유지되어야 한다(반올림 지점과 무관).
+    expect(BigInt(line.supplyAmount) + BigInt(line.vatAmount)).toBe(BigInt(line.lineTotal))
+  })
+
   it('단가→공급가액→부가세→합계 권위 전환을 순서대로 보존한다', () => {
     const price = recalculateLineVat({ quantity: 2, unitPrice: '1100', supplyAmount: '0', vatAmount: '0', lineTotal: '0' }, 'PRICE')
     const supply = editLineVat(price, 'SUPPLY', '100005')

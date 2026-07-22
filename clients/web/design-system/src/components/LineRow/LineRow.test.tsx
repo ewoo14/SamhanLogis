@@ -154,6 +154,34 @@ describe('LineRow price source marker', () => {
     expect(onLineTotalChange).toHaveBeenCalledWith('110007')
   })
 
+  // BLOCKING-2 계열(#824 R1): 공급/부가세를 아직 보유하지 않은(hydrate 전) 라인의 read-only
+  // fallback(computeVatBreakdown)이 BE VatAmountCalculator(0 방향 절사·DOWN)와 다른 HALF_UP
+  // 이었다. 단가 7900 은 ÷11 나머지가 5.5 미만이라 100005 류 fixture 와 달리 두 반올림 모드가
+  // 실제로 갈린다 — DOWN 이면 공급 7181/부가세 719, HALF_UP 이면 7182/718.
+  it('VAT 포함 모드 fallback(공급/부가세 미보유)은 BE 와 같은 절사(DOWN)로 합계를 분해한다', () => {
+    render(
+      <div role="table">
+        <LineTableHeader allSelected={false} onToggleAll={vi.fn()} vatInclusive />
+        <LineRow
+          lineNumber={1}
+          line={{ ...line('USER'), unitPrice: '7900', quantity: '1' }}
+          vatInclusive
+          selected={false}
+          onSelect={vi.fn()}
+          onModelNameChange={vi.fn()}
+          onModelNameBlur={vi.fn()}
+          onSpecificationChange={vi.fn()}
+          onQuantityChange={vi.fn()}
+          onUnitPriceChange={vi.fn()}
+          onDelete={vi.fn()}
+          dragHandleProps={{}}
+        />
+      </div>,
+    )
+
+    expect(screen.getByLabelText('라인 1 공급가액/부가세').textContent).toBe('공급 7,181 · VAT 719')
+  })
+
   // D-R4-1: 자동채움 실체 = 제품 등록 화면 '판매가'(sellingPrice) — '정가' 라벨 금지(출고가 별칭 오도).
   it('CATALOG exposes an explicit 판매가 miss state and description', () => {
     renderRow('CATALOG')

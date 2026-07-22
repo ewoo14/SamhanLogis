@@ -276,9 +276,16 @@ public class EstimateLine extends BaseEntity {
     }
 
     private static void validateAmount(BigDecimal amount, String label) {
-        if (amount == null || amount.signum() < 0
-                || amount.stripTrailingZeros().scale() > 0
-                || amount.stripTrailingZeros().precision() > 15) {
+        if (amount == null || amount.signum() < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "은 0 이상의 원 단위 정수여야 합니다");
+        }
+        // MED-4(#824 R1): stripTrailingZeros().precision() 단독으로는 1E+17(unscaled=1) 같은
+        // 압축표기가 precision=1 로 측정돼 NUMERIC(15,2) 초과(18자리)를 통과시킨다.
+        // precision()-scale() 은 stripTrailingZeros 전후로 불변(실제 자릿수)이므로 이 조합을 쓴다 —
+        // SlipLine.validateAmount 동일 sweep(#824 R1 MED-4).
+        BigDecimal stripped = amount.stripTrailingZeros();
+        if (stripped.scale() > 0 || stripped.precision() - stripped.scale() > 15) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     label + "은 0 이상의 원 단위 정수여야 합니다");
         }

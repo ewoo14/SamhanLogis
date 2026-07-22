@@ -881,16 +881,18 @@ export function EstimateFormPage() {
   }, [canCollabEdit, editId, isEdit])
 
   const totals = useMemo(() => {
-    // 단가 부가세포함(라인 단위 eCount, 원 단위): 라인별 합계(VAT포함)=round(수량×단가),
-    // 공급가액=round(합계/1.1), 부가세=차액 → 라인별 반올림 후 합산(BE 와 동일).
+    // HIGH-3(#824 R1): 라인별 권위 열(recalculateLineVat(line.authority))을 그대로 합산한다.
+    // 종전엔 raw unitPrice×quantity 를 이 memo 가 독자적으로 10% 재분해해, 행에서 SUPPLY/VAT/TOTAL
+    // 권위로 직접 편집한 값(예: 부가세 0 직접 입력)이 하단 합계에 반영되지 않았다 — 행은 공급
+    // 20,000·부가세 0 인데 하단은 독자 재계산으로 공급 18,182·부가세 1,818 을 보이는 식.
+    // SlipFormPage(전표) 의 totals memo 와 동일 패턴으로 정렬한다.
+    const valid = lines.filter((l) => l.productId && Number.parseInt(l.quantity || '0', 10) > 0)
     let supply = 0
     let total = 0
-    for (const l of lines) {
-      const incl = Math.round(
-        (Number.parseFloat(l.quantity || '0') || 0) * (Number.parseFloat(l.unitPrice || '0') || 0),
-      )
-      supply += Math.round(incl / 1.1)
-      total += incl
+    for (const l of valid) {
+      const calculated = recalculateLineVat(asVatLine(l), l.authority ?? 'PRICE')
+      supply += Number(calculated.supplyAmount)
+      total += Number(calculated.lineTotal)
     }
     return { supply, vat: total - supply, total }
   }, [lines])

@@ -66,6 +66,32 @@ class SlipLineAuthoritativeAmountsTest {
     }
 
     @Test
+    @DisplayName("MED-4(#824 R1): 정수 자릿수 15자리 초과(1E+17 류 압축표기)는 precision 우회를 저장 전에 거부한다")
+    void rejectsIntegerDigitOverflowViaCompactScale() {
+        // stripTrailingZeros().precision() 만으로는 1E+17(unscaled=1, scale=-17) 이 precision=1 로
+        // 측정돼 NUMERIC(15,2) 초과(18자리)를 통과시켰다 — 화면에서 "1" 뒤 0을 17개 입력하면 도달.
+        // supply=vat=0, total=supply 로 구성해 mismatch 가드보다 먼저 자릿수 가드에서 걸리는지 검증한다.
+        assertThatThrownBy(() -> SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", null, null, 1,
+                new BigDecimal("1E+17"), BigDecimal.ZERO, new BigDecimal("1E+17"),
+                null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("MED-4(#824 R1): 15자리 정수는 여전히 허용한다 — 경계값 회귀 방지")
+    void acceptsExactlyFifteenIntegerDigits() {
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", null, null, 1,
+                new BigDecimal("999999999999999"), BigDecimal.ZERO, new BigDecimal("999999999999999"),
+                null, null);
+
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("999999999999999");
+    }
+
+    @Test
     @DisplayName("소수점 표기 형식이 달라도 항등식 값이 같으면 보존한다")
     void acceptsEquivalentBigDecimalScales() {
         SlipLine line = SlipLine.createFromAuthoritativeAmounts(

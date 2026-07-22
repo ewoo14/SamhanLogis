@@ -1179,4 +1179,40 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
       })],
     }))
   })
+
+  // HIGH-3(#824 R1): 하단 합계 바가 행의 권위(VAT 직접 편집)를 무시하고 raw unitPrice×quantity 를
+  // 독자적으로 10% 재분해했다. 행 자체는 이미 recalculateLineVat(line.authority) 를 쓰는데(옳음),
+  // totals memo 만 옛 Math.round(incl/1.1) 코드였다 — 전표(SlipFormPage) 쪽은 이미 옳고 견적만 누락.
+  it('HIGH-3: 하단 합계 바가 부가세 직접 편집(VAT authority)을 그대로 합산한다 — 자체 재계산 금지', async () => {
+    mocks.getEstimate.mockResolvedValue(makeEstimate())
+    mocks.createDocCoeditProvider.mockRejectedValue(new Error('coedit unavailable'))
+    const { container } = renderPage()
+
+    await waitFor(() => expect(estimateUnitPrice().value).toBe('11000'))
+
+    // hydrate 직후: 공급 20,000 · 부가세 2,000 (수량 2 × 단가 11,000 의 10% 절사) — 행·하단 모두 일치.
+    expect(totalsRowText(container, '공급가액')).toContain('20,000')
+    expect(totalsRowText(container, '부가세')).toContain('2,000')
+
+    // 부가세를 0으로 직접 편집 — supplyAmount(20,000)는 그대로 두고 lineTotal 만 20,000 으로 닫힌다.
+    const vatField = screen.getByLabelText('라인 1 부가세') as HTMLInputElement
+    fireEvent.change(vatField, { target: { value: '0' } })
+    await waitFor(() => expect(vatField.value).toBe('0'))
+
+    // 행 자체는 이미 옳다(recalculateLineVat 이 authority='VAT' 를 그대로 반영): 공급 20,000·부가세 0.
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('20000')
+
+    // 회귀 재현: 고친 코드는 각 행의 권위값을 합산해 공급 20,000/부가세 0 이어야 한다.
+    // 옛 코드(raw unitPrice×qty 를 독자 10% 재분해)는 여전히 공급 18,182/부가세 1,818 을 보인다.
+    expect(totalsRowText(container, '공급가액')).toContain('20,000')
+    expect(totalsRowText(container, '부가세')).toContain('0')
+  })
 })
+
+/** 하단 합계 바("라벨 <strong>값</strong>" 형태) 텍스트 — label 로 시작하는 div 를 찾아 반환. */
+function totalsRowText(container: HTMLElement, label: string): string {
+  const row = Array.from(container.querySelectorAll('strong'))
+    .map((strong) => strong.parentElement)
+    .find((el): el is HTMLElement => !!el && (el.textContent ?? '').trim().startsWith(label))
+  return row?.textContent?.trim() ?? ''
+}

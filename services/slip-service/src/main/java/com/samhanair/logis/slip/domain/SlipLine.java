@@ -421,9 +421,17 @@ public class SlipLine extends BaseEntity {
     }
 
     private static void validateAmount(BigDecimal amount, String label) {
-        if (amount == null || amount.signum() < 0
-                || amount.stripTrailingZeros().scale() > 0
-                || amount.stripTrailingZeros().precision() > 15) {
+        if (amount == null || amount.signum() < 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "은 0 이상의 원 단위 정수여야 합니다");
+        }
+        // MED-4(#824 R1): stripTrailingZeros() 는 정수부 끝의 0("100.00"→"1E+2")도 지수로
+        // 접어 unscaled 자릿수를 줄인다 — 이건 "정수인지" 판정(scale<=0)에는 필요하지만, "몇
+        // 자리인지" 판정에 stripTrailingZeros().precision() 을 그대로 쓰면 1E+17(unscaled=1) 이
+        // precision=1 로 측정돼 NUMERIC(15,2) 초과(18자리)를 통과시킨다. precision()-scale() 은
+        // stripTrailingZeros 전후로 불변(값의 실제 자릿수, 소수점 위치)이므로 이 조합을 쓴다.
+        BigDecimal stripped = amount.stripTrailingZeros();
+        if (stripped.scale() > 0 || stripped.precision() - stripped.scale() > 15) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     label + "은 0 이상의 원 단위 정수여야 합니다");
         }

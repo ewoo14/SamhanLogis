@@ -1,7 +1,10 @@
 package com.samhanair.logis.slip.estimate.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -37,5 +40,19 @@ class EstimateLineAuthoritativeAmountsTest {
                 "모델", null, 1, new BigDecimal("100005"), null);
 
         assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    @DisplayName("MED-4(#824 R1): 정수 자릿수 15자리 초과(1E+17 류 압축표기)는 precision 우회를 저장 전에 거부한다")
+    void rejectsIntegerDigitOverflowViaCompactScale() {
+        Estimate estimate = Estimate.create("Q-20260722-3", LocalDate.of(2026, 7, 22), 1,
+                UUID.randomUUID(), "거래처", null, null, null, null, "test-user");
+
+        assertThatThrownBy(() -> EstimateLine.createFromAuthoritativeAmounts(
+                estimate, 1, UUID.randomUUID(), "품목", "모델", null, 1,
+                new BigDecimal("1E+17"), BigDecimal.ZERO, new BigDecimal("1E+17"), null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
     }
 }

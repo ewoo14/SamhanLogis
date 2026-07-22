@@ -56,7 +56,8 @@ function integerAmount(value: string | number): bigint {
   return divideHalfUp(decimal.coefficient, 10n ** BigInt(decimal.scale))
 }
 
-function roundProduct(left: string | number, right: string | number): bigint {
+/** 수량×단가 등 두 십진 값의 곱을 정수(scale 0)로 HALF_UP 반올림한다 — BigInt 정밀 연산. */
+export function roundProduct(left: string | number, right: string | number): bigint {
   const a = decimalParts(left)
   const b = decimalParts(right)
   if (!a || !b) return 0n
@@ -116,7 +117,10 @@ export function recalculateLineVat<T extends LineVatLine>(line: T, authority: Li
   const quantity = Math.max(1, Math.trunc(Number(line.quantity) || 1))
   if (authority === 'PRICE') {
     const total = roundProduct(quantity, line.unitPrice)
-    const supply = divideHalfUp(total * 10n, 11n)
+    // BLOCKING-2 (#824 R1): BE VatAmountCalculator/splitVatInclusive 는 0 방향 절사(DOWN)다.
+    // 이 분기만 HALF_UP(divideHalfUp)을 써 TOTAL/SUPPLY 분기·하단 합계 바와 어긋났었다 —
+    // 단일 진실원(vatRounding.ts)의 DOWN 계산으로 통일한다.
+    const supply = supplyFromVatInclusive(total)
     return fromAmounts(line, authority, supply, total - supply, total)
   }
   if (authority === 'SUPPLY') {

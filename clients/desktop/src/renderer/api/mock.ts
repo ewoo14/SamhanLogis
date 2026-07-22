@@ -16450,8 +16450,10 @@ function mockEstimateSummary(row: (typeof MOCK_ESTIMATES)[number]) {
   const mutable = row as Record<string, unknown>
   const totalAmount = String(row.totalAmount ?? '0')
   const amountNumber = Number(totalAmount)
+  // BLOCKING-2 계열(#824 R1): BE VatAmountCalculator 는 0 방향 절사(DOWN)다 — mock 시드도
+  // 동일 규칙으로 맞춘다(리뷰가 필드만 보고 값 형식을 놓치는 사고 방지, mock/BE parity 규약).
   const totalSupply = Number.isFinite(amountNumber)
-    ? String(Math.round(amountNumber / 1.1))
+    ? String(Math.trunc((amountNumber * 10) / 11))
     : totalAmount
   const totalVat = Number.isFinite(amountNumber)
     ? String(amountNumber - Number(totalSupply))

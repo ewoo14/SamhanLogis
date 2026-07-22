@@ -114,9 +114,9 @@ import {
 import { lookupProducts } from '../api/productApi'
 import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 import {
-  changeLineQuantity,
   editLineVat,
   hasVatWarning,
+  roundProduct,
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
@@ -321,6 +321,24 @@ type PurchaseEditLine = SlipLineInput & {
   isBundleComponent?: boolean
 }
 
+/**
+ * 라인 patch — 고정값 또는 "현재 라인 → patch" 함수.
+ *
+ * <p>BLOCKING-1 부수 발견(#824 R1): 수량/VAT 권위 편집({@code updateDetailQuantity}/
+ * {@code updateDetailVat})이 종전에는 {@code salesEditLinesRef.current}/
+ * {@code purchaseEditLinesRef.current}(커밋 후에만 갱신되는 ref)에서 라인을 읽어 patch 를
+ * 미리 계산했다. 그런데 같은 Y.Doc 트랜잭션이 라인당 5개 필드(quantity/unitPrice/
+ * supplyAmount/vatAmount/lineTotalWithVat) 각각의 {@code CollaborativeSlipInput} 을
+ * 동시에 구독시켜, 한 필드 편집이 doc 이벤트를 한 번 내면 나머지 필드도 자기 값을
+ * Y.Doc 원문과 비교해 재동기화를 시도한다(정상 설계 — 원격 편집 반영용). 이 재동기화들이
+ * 커밋 전(ref 미갱신) 상태에서 연쇄 발화하면 "직전 커밋 전" 스냅샷을 반복해 읽어, 방금
+ * setState 로 반영한 값(예: 수량 0)을 다른 필드의 재동기화가 "아직 갱신 안 된" ref 로 다시
+ * 읽어 덮어써 버렸다(실측: 수량 0 으로 정상 계산되고도 부가세/합계 필드의 재동기화가 같은
+ * 캐스케이드 안에서 quantity:7 로 되돌림). 함수형 patch 는 setState 업데이터 내부에서
+ * React 가 실제로 적용 중인 "직전 patch 반영 후" 값을 읽으므로 이 경합이 원천적으로 없다.
+ */
+type LinePatch = Partial<PurchaseEditLine> | ((line: PurchaseEditLine) => Partial<PurchaseEditLine>)
+
 function createEditLineKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -485,6 +503,17 @@ export function coeditLinesToEditLines(
   return provider.items.toArray().map((_, index) => {
     const previous = current[index]
     const quantityValue = provider.getItemValue(index, 'quantity')
+    // BLOCKING-1 부수 발견 2(#824 R1): supplyAmount/vatAmount/lineTotalWithVat/authority/
+    // vatDirty 는 quantity/unitPrice 와 달리 "타이핑 대상"이 아니라 파생값이라, 이 라인에서
+    // 한 번도 Y.Doc 에 쓰인 적이 없으면 원문이 항상 빈 문자열이다. `|| previous` 폴백 없이
+    // Y.Doc 직독만 쓰면 이 함수가 재호출될 때마다(같은 행의 다른 필드 편집도 트리거) 방금
+    // React state 에 반영된 권위값을 매번 undefined 로 지워버린다 — quantity/unitPrice 의
+    // B-1 폴백 제거(주석 참조)와는 반대 방향의 요구라 필드별로 분기한다.
+    const rawSupply = provider.getItemValue(index, 'supplyAmount')
+    const rawVat = provider.getItemValue(index, 'vatAmount')
+    const rawLineTotal = provider.getItemValue(index, 'lineTotalWithVat')
+    const rawAuthority = provider.getItemValue(index, 'authority')
+    const rawVatDirty = provider.getItemValue(index, 'vatDirty')
     return {
       key: previous?.key ?? createEditLineKey(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
@@ -496,8 +525,120 @@ export function coeditLinesToEditLines(
       quantity: Number(quantityValue || 0),
       unitPrice: provider.getItemValue(index, 'unitPrice'),
       note: provider.getItemValue(index, 'note'),
+      supplyAmount: rawSupply || previous?.supplyAmount,
+      vatAmount: rawVat || previous?.vatAmount,
+      lineTotalWithVat: rawLineTotal || previous?.lineTotalWithVat,
+      authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
+      vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
     }
   })
+}
+
+/**
+ * 전표 상세(수정) 라인 → {@link LineVatLine} 계산 도메인 변환.
+ *
+ * <p>이 화면의 단가 열(line.unitPrice)은 VAT 제외 공급단가 계약이라 {@code recalculateLineVat}
+ * 의 PRICE 분기(단가=VAT 포함 전제)와 도메인이 다르다. SUPPLY/VAT/TOTAL 권위 편집
+ * ({@code updateDetailVat})에서만 사용하고, 수량 변경은 {@link computeDetailQuantityChange}
+ * 가 별도로 처리한다(BLOCKING-1 — PRICE 분기로 우회하면 안 되는 이유는 그쪽 주석 참조).
+ */
+export function detailVatLine(
+  line: Pick<PurchaseEditLine, 'quantity' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
+): LineVatLine {
+  const total = line.lineTotalWithVat ?? '0'
+  return {
+    quantity: line.quantity,
+    unitPrice: total,
+    supplyAmount: line.supplyAmount ?? '0',
+    vatAmount: line.vatAmount ?? '0',
+    lineTotal: total,
+    authority: line.authority ?? 'PRICE',
+  }
+}
+
+/** {@link LineVatLine} 계산 결과 → 전표 상세 편집 라인 patch. */
+export function detailAmountState(
+  result: LineVatLine,
+  authority: PurchaseEditLine['authority'],
+): Partial<PurchaseEditLine> {
+  // BLOCKING-1 부수 발견(#824 R1): `Number(x) || 1` 은 진짜 수량 0(방금 수량 셀을 비운
+  // 직후)을 "값 없음"으로 오판해 1로 되돌린다(JS 0 은 falsy). 수량은 보존하고, 단가
+  // 역산(divisor)만 0 나눗셈 방지로 최소 1을 쓴다.
+  const parsedQuantity = Number(result.quantity)
+  const quantity = Number.isFinite(parsedQuantity) ? Math.max(0, Math.trunc(parsedQuantity)) : 0
+  const divisor = Math.max(1, quantity)
+  return {
+    quantity,
+    // 전표 상세의 기존 단가 열은 VAT 제외 공급단가라는 계약을 유지한다.
+    unitPrice: String(Number(result.supplyAmount) / divisor),
+    supplyAmount: result.supplyAmount,
+    vatAmount: result.vatAmount,
+    lineTotalWithVat: result.lineTotal,
+    authority,
+    vatDirty: true,
+  }
+}
+
+/**
+ * 전표 상세(수정) 화면 수량 변경 — BLOCKING-1(#824 R1) 근본 수정.
+ *
+ * <p>종전에는 {@code changeLineQuantity}(PRICE authority 경로)를 그대로 태워
+ * {@link detailVatLine} 이 unitPrice 자리에 lineTotalWithVat(합계)를 채워 넣었다. PRICE
+ * 분기는 "단가(VAT 포함)×수량=합계"를 전제하므로, 수량을 바꿀 때마다 실제로는
+ * "직전 합계 × 새 수량"을 다시 곱하는 꼴이 되어 금액이 기하급수로 불어났다(실측: 수량
+ * 2→3 에 220,000→660,000, 2→2 재입력에도 220,000→440,000 — vatDirty=true 로 폭증값이
+ * 그대로 권위값 전송됨). 이 화면의 단가 열은 VAT 제외 공급단가 계약이므로, PRICE 경로로
+ * 우회하지 않고 <b>공급단가(unitPrice)를 고정한 채 새 수량을 곱해 공급가액만 다시 낸다</b>
+ * (SUPPLY authority 로 닫아 부가세는 BE 와 같은 0 방향 절사).
+ *
+ * <p>불변식:
+ * <ol>
+ *   <li>단가는 수량 변경으로 바뀌지 않는다 — 반환 patch 의 unitPrice 는 입력을 그대로 승계.</li>
+ *   <li>값을 바꾸지 않은 재입력(예: 2→2)은 어떤 금액도 바꾸지 않는다 — 파싱한 수량이 현재
+ *       수량과 같으면 반올림 경로 자체를 타지 않고 조기 반환한다(드리프트 원천 차단).</li>
+ *   <li>빈 입력은 수량 0으로 반영한다 — 수량 입력칸을 비울 수 있어야 한다(RED-1, CI hard
+ *       gate). 파생 금액도 0으로 닫아 미완성 라인이 이상값을 보이지 않게 한다.</li>
+ * </ol>
+ */
+export function computeDetailQuantityChange(
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice'>,
+  quantity: string,
+): Partial<PurchaseEditLine> {
+  const parsed = Number(quantity)
+  const safeQuantity = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
+
+  // 불변식 2: no-op 재입력은 반올림 경로 자체를 타지 않는다.
+  if (safeQuantity === Number(line.quantity)) {
+    return { quantity: safeQuantity }
+  }
+
+  if (safeQuantity === 0) {
+    return {
+      quantity: 0,
+      supplyAmount: '0',
+      vatAmount: '0',
+      lineTotalWithVat: '0',
+      authority: 'PRICE',
+      vatDirty: true,
+    }
+  }
+
+  const unitPrice = line.unitPrice ?? '0'
+  const nextSupply = roundProduct(safeQuantity, unitPrice)
+  const vatLine = editLineVat(
+    { quantity: safeQuantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+    'SUPPLY',
+    String(nextSupply),
+  )
+  return {
+    quantity: safeQuantity,
+    unitPrice,
+    supplyAmount: vatLine.supplyAmount,
+    vatAmount: vatLine.vatAmount,
+    lineTotalWithVat: vatLine.lineTotal,
+    authority: 'PRICE',
+    vatDirty: true,
+  }
 }
 
 /**
@@ -4070,61 +4211,33 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     </>
   )
 
-  function detailVatLine(line: PurchaseEditLine): LineVatLine {
-    const total = line.lineTotalWithVat ?? '0'
-    return {
-      quantity: line.quantity,
-      unitPrice: total,
-      supplyAmount: line.supplyAmount ?? '0',
-      vatAmount: line.vatAmount ?? '0',
-      lineTotal: total,
-      authority: line.authority ?? 'PRICE',
-    }
-  }
-
-  function detailAmountState(result: LineVatLine, authority: PurchaseEditLine['authority']): Partial<PurchaseEditLine> {
-    const quantity = Math.max(1, Number(result.quantity) || 1)
-    return {
-      quantity,
-      // 전표 상세의 기존 단가 열은 VAT 제외 공급단가라는 계약을 유지한다.
-      unitPrice: String(Number(result.supplyAmount) / quantity),
-      supplyAmount: result.supplyAmount,
-      vatAmount: result.vatAmount,
-      lineTotalWithVat: result.lineTotal,
-      authority,
-      vatDirty: true,
-    }
-  }
-
   function updateDetailQuantity(
     index: number,
-    update: (index: number, patch: Partial<PurchaseEditLine>) => void,
+    update: (index: number, patch: LinePatch) => void,
     value: string,
   ) {
-    const line = (update === updatePurchaseLine ? purchaseEditLinesRef.current : salesEditLinesRef.current)[index]
-    if (!line) return
-    update(index, detailAmountState(
-      changeLineQuantity(detailVatLine(line), value),
-      'PRICE',
-    ))
+    // 함수형 patch — setState 업데이터 내부의 최신(직전 patch 반영 후) 라인으로 계산한다
+    // (LinePatch 주석 — ref 스냅샷 경합 차단).
+    update(index, (line) => computeDetailQuantityChange(line, value))
   }
 
   function updateDetailVat(
     index: number,
-    update: (index: number, patch: Partial<PurchaseEditLine>) => void,
+    update: (index: number, patch: LinePatch) => void,
     authority: 'SUPPLY' | 'VAT' | 'TOTAL',
     value: string,
   ) {
-    const line = (update === updatePurchaseLine ? purchaseEditLinesRef.current : salesEditLinesRef.current)[index]
-    if (!line) return
-    update(index, detailAmountState(editLineVat(detailVatLine(line), authority, value), authority))
+    update(index, (line) => detailAmountState(editLineVat(detailVatLine(line), authority, value), authority))
   }
 
-  function updatePurchaseLine(index: number, patch: Partial<PurchaseEditLine>) {
+  function updatePurchaseLine(index: number, patch: LinePatch) {
     // 단가를 직접 편집하면 그 행의 재조회 강조를 해제한다(사용자가 값을 확정/재확인).
-    if (patch.unitPrice !== undefined) clearRepriceHighlight(purchaseEditLinesRef.current[index]?.lineId)
+    // 함수형 patch(수량/VAT 권위 편집의 파생값)는 사용자의 직접 단가 편집이 아니므로 대상 밖.
+    if (typeof patch !== 'function' && patch.unitPrice !== undefined) {
+      clearRepriceHighlight(purchaseEditLinesRef.current[index]?.lineId)
+    }
     setPurchaseEditLines((prev) => prev.map((line, i) => (
-      i === index ? { ...line, ...patch } : line
+      i === index ? { ...line, ...(typeof patch === 'function' ? patch(line) : patch) } : line
     )))
   }
 
@@ -4138,11 +4251,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   // SP-08-6-2: 매출 수정 라인 헬퍼
-  function updateSalesLine(index: number, patch: Partial<PurchaseEditLine>) {
+  function updateSalesLine(index: number, patch: LinePatch) {
     // 단가를 직접 편집하면 그 행의 재조회 강조를 해제한다(사용자가 값을 확정/재확인).
-    if (patch.unitPrice !== undefined) clearRepriceHighlight(salesEditLinesRef.current[index]?.lineId)
+    if (typeof patch !== 'function' && patch.unitPrice !== undefined) {
+      clearRepriceHighlight(salesEditLinesRef.current[index]?.lineId)
+    }
     setSalesEditLines((prev) => prev.map((line, i) => (
-      i === index ? { ...line, ...patch } : line
+      i === index ? { ...line, ...(typeof patch === 'function' ? patch(line) : patch) } : line
     )))
   }
 

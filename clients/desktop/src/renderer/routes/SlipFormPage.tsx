@@ -159,7 +159,9 @@ const calcVatInclusiveLine = (
     return { incl: 0, supply: 0, vat: 0 }
   }
   const incl = Math.round(q * p)
-  const supply = Math.round(incl / 1.1)
+  // BLOCKING-2 계열(#824 R1): BE VatAmountCalculator 는 0 방향 절사(DOWN)다. incl/1.1 을 그대로
+  // 나누면 1.1 의 이진부동소수 근사 오차가 섞이므로, incl×10 을 11 로 정수 나눗셈(트렁케이션)한다.
+  const supply = Math.trunc((incl * 10) / 11)
   return { incl, supply, vat: incl - supply }
 }
 
