@@ -228,6 +228,7 @@ function positionedElementLayer(
   model: ApprovalRenderModel,
   testId: string,
   key?: string,
+  fixedBodyLayer = false,
 ): ReactNode {
   if (elements.length === 0) return null
   return (
@@ -235,7 +236,9 @@ function positionedElementLayer(
       key={key}
       className="document-template-v2-elements"
       data-testid={testId}
-      style={{ position: 'relative', minHeight: '24mm' }}
+      style={fixedBodyLayer
+        ? { position: 'absolute', top: 0, left: 0, width: '100%', height: '24mm' }
+        : { position: 'relative', minHeight: '24mm' }}
     >
       {elements.map((element) => element.type === 'IMAGE'
         ? renderImageElement(element)
@@ -248,6 +251,11 @@ function positionedElementsOf(elements: DocElement[]): Array<FieldElement | Text
   return elements.filter(
     (element): element is FieldElement | TextElement | ImageElement => element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE',
   )
+}
+
+function isGeometryPositionedElement(element: DocElement): element is FieldElement | TextElement | ImageElement {
+  return (element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE')
+    && element.geometry !== undefined
 }
 
 /** 템플릿 band/element 순서에 따라 PrintLayout props와 본문을 compile한다. */
@@ -269,7 +277,8 @@ export function compileApprovalDocument(
   const footerPositioned = positionedElementsOf(
     template.document.bands.filter((band) => band.kind === 'FOOTER').flatMap((band) => band.elements),
   )
-  const bodyPositioned = positionedElementsOf(bodyElements)
+  const bodyPositioned = positionedElementsOf(bodyElements).filter((element) => element.geometry !== undefined)
+  const firstBodyPositionedIndex = bodyElements.findIndex(isGeometryPositionedElement)
 
   const docHeader: PrintDocHeader = {
     title: model.header.title,
@@ -279,7 +288,16 @@ export function compileApprovalDocument(
     } : {}),
   }
 
-  const bodyChildren = bodyElements.map((element) => {
+  const bodyChildren = bodyElements.map((element, index) => {
+    if (index === firstBodyPositionedIndex) {
+      return positionedElementLayer(
+        bodyPositioned,
+        model,
+        'document-template-v2-elements-body',
+        'document-template-v2-elements-body',
+        true,
+      )
+    }
     const section = sectionForElement(element, model)
     if (section) {
       return <LegacyApprovalDocSectionView key={element.key} section={section} />
@@ -292,7 +310,9 @@ export function compileApprovalDocument(
       )
     }
     if (element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE') {
-      return element.type === 'IMAGE'
+      return element.geometry !== undefined
+        ? null
+        : element.type === 'IMAGE'
         ? renderImageElement(element)
         : renderPositionedElement(element, model)
     }
@@ -304,9 +324,8 @@ export function compileApprovalDocument(
     docHeader,
     approvalSteps: hasApprovalGrid ? model.approvalSteps : [],
     closingNote: model.closing.note,
-    // BODY children은 band의 원래 element 순서 그대로 하나의 print-content wrapper에 넣는다.
-    // DETAIL/legacy section/positioned element를 별도 레이어로 재조립하면 편집기 순서와 출력 순서가
-    // 갈라지므로, 같은 배열을 preview와 print가 공유한다.
+    // BODY flow는 band의 원래 element 순서를 유지한다. geometry 요소만 선언상 첫 위치에
+    // 하나의 고정 24mm absolute layer로 모아, legacy/DETAIL의 가변 높이가 % 좌표 원점이 되지 않게 한다.
     body: <LegacyApprovalDocBody positionedLayer={bodyPositioned.length > 0}>{bodyChildren}</LegacyApprovalDocBody>,
     headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
     footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
