@@ -18215,6 +18215,7 @@ const SP_D1_PAGES = [
   'admin.users',
   'partners.list',
   'partners.detail',
+  'partners.search',
   'partners.4tab',
   'partners.edit',
   'partners.delete',
@@ -18369,7 +18370,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'inventory.stock-balance', 'inventory.safety-stock', 'inventory.edit-requests',
     'inventory.edit-requests.decide', 'ecount.import.inventory',
     'admin.employees', 'admin.app-release',
-    'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
+    'partners.list', 'partners.detail', 'partners.search', 'partners.4tab', 'partners.edit', 'partners.4tab.edit',
     'partners.block', 'partners.edit-request',
     'products.list', 'products.admin', 'arologis.admin', 'arologis.region',
     // MIG-14 admin UI
@@ -18420,7 +18421,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.draft',
     'sales.partner-order.confirm', 'sales.partner-order.history', 'sales.partner-order.print',
     'inventory.stock', 'inventory.list', 'inventory.transfer',
-    'partners.list', 'partners.detail', 'partners.4tab', 'partners.edit-request',
+    'partners.list', 'partners.detail', 'partners.search', 'partners.4tab', 'partners.edit-request',
     'products.list', 'products.admin',
     // C2b PermissionGuard 전환 — SALES: view 허용 (V36 seed)
     'sales.slip.create', 'slip.print.next-day', 'sales.partner-dc-config',
@@ -18450,7 +18451,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'estimates.list', 'sales.partner-order.list', 'sales.partner-order.history',
     'inventory.stock', 'inventory.list', 'inventory.detail', 'inventory.transfer',
     'inventory.edit-requests', 'inventory.edit-requests.decide',
-    'partners.list', 'partners.detail',
+    'partners.list', 'partners.detail', 'partners.search',
     // MIG-14 admin UI — ACCOUNTANT: view 전용
     'ecount.mig14.order-list',
     'ecount.mig14.ledger',

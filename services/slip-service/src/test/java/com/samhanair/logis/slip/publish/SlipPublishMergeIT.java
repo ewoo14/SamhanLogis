@@ -30,13 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -165,6 +161,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("sourceOrders", List.of(sourceOrderA, sourceOrderB));
         body.put("ioDate", "20260531");
+        body.put("partnerId", RESOLVED_PARTNER_ID.toString());
         body.put("partnerCode", "P0001");
         body.put("partnerName", "거래처A");
         body.put("warehouseCode", WAREHOUSE_CODE);
@@ -408,20 +405,41 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         assertThat(slip.getPartnerId()).isEqualTo(RESOLVED_PARTNER_ID);
     }
 
-    @ParameterizedTest(name = "병합 거래처 해소 {0}은 커밋 전표를 만들지 않는다")
-    @MethodSource("unresolvablePartnerResponses")
-    void mergePublish_partnerResolution_doesNotCreateAnything(
-            String resultName, PartnerVerifyResult partnerResult, int expectedStatus, String expectedCode) throws Exception {
-        String partnerCode = "P-MISSING-" + resultName;
-        Mockito.when(partnerInternalClient.verifyPartnerCode(partnerCode))
-                .thenReturn(partnerResult);
+    @Test
+    void 동일_코드가_재사용되어도_병합요청의_거래처_UUID를_전표에_보존한다() throws Exception {
+        UUID historicalPartnerId = UUID.fromString("11111111-2222-4333-8444-555555555555");
+        Map<String, Object> body = mergeBody(
+                ORDER_A_ID.toString(), "2026/05/31-identity-A",
+                ORDER_B_ID.toString(), "2026/05/31-identity-B",
+                "REUSED-CODE-X", "거래처A", WAREHOUSE_CODE,
+                "서울", "case-identity-preserve");
+        body.put("partnerId", historicalPartnerId.toString());
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "case-identity-preserve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        Slip slip = slipRepository.findById(readSlipId(result)).orElseThrow();
+        assertThat(slip.getPartnerId())
+                .as("코드 재조회 결과가 아니라 병합 시 확정한 거래처 UUID를 보존해야 함")
+                .isEqualTo(historicalPartnerId);
+    }
+
+    @Test
+    void mergePublish_missingPartnerIdentity_doesNotCreateAnything() throws Exception {
         String primaryOrderId = UUID.randomUUID().toString();
-        String idemKey = "merge-partner-required-" + resultName;
+        String idemKey = "merge-partner-identity-required";
         Map<String, Object> body = mergeBody(
                 primaryOrderId, "2026/05/31-fail-A",
                 UUID.randomUUID().toString(), "2026/05/31-fail-B",
-                partnerCode, "거래처 없음", WAREHOUSE_CODE,
+                "P-MISSING", "거래처 없음", WAREHOUSE_CODE,
                 "서울", idemKey);
+        body.remove("partnerId");
 
         mockMvc.perform(post("/api/v1/slips/from-orders-merge")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -429,10 +447,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                         .header("Idempotency-Key", idemKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().is(expectedStatus))
-                .andExpect(jsonPath("$.code").value(expectedCode))
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("커밋 전표를 발행할 수 없습니다")));
+                .andExpect(status().isBadRequest());
 
         assertThat(slipRepository.findAllBySourceTypeAndSourceIdAndIsDeletedFalse(
                 com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER, primaryOrderId))
@@ -448,17 +463,6 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
                 "SELECT count(*) FROM slip_publish_audit WHERE source_id = ?",
                 Integer.class, primaryOrderId))
                 .isZero();
-    }
-
-    static Stream<Arguments> unresolvablePartnerResponses() {
-        return Stream.of(
-                Arguments.of("NOT_FOUND", PartnerVerifyResult.notFound(), 400, "INVALID_INPUT"),
-                Arguments.of("SERVER_ERROR", PartnerVerifyResult.serverError(), 500, "INTERNAL_ERROR"),
-                // #854 R5 — SKIPPED(internal token 미설정)는 SERVER_ERROR 와 구분해 MIG12_INTERNAL_AUTH_MISS
-                // (503)로 던진다. partner-order-service SlipServiceClient 는 5xx 를 일괄 재시도 대상으로
-                // 취급하므로 outbox 재시도/종결 분류에는 영향이 없다(관측 정밀도만 개선).
-                Arguments.of("SKIPPED", PartnerVerifyResult.skipped(Optional.empty()), 503, "MIG12_INTERNAL_AUTH_MISS"),
-                Arguments.of("FOUND_EMPTY", PartnerVerifyResult.found(Optional.empty()), 500, "INTERNAL_ERROR"));
     }
 
     // ---- helpers ----
@@ -509,6 +513,7 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("sourceOrders", List.of(sourceOrderA, sourceOrderB));
         body.put("ioDate", "20260531");
+        body.put("partnerId", RESOLVED_PARTNER_ID.toString());
         body.put("partnerCode", partnerCode);
         body.put("partnerName", partnerName);
         body.put("warehouseCode", warehouseCode);

@@ -23,10 +23,12 @@ import com.samhanair.logis.partnerorder.domain.SlipPublishStatus;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -97,6 +99,13 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
                 .thenReturn(true);
+        lenient().when(partnerLookupClient.findByPartnerCode(anyString()))
+                .thenAnswer(invocation -> {
+                    String partnerCode = invocation.getArgument(0);
+                    return Optional.of(new PartnerSummary(
+                            UUID.nameUUIDFromBytes(partnerCode.getBytes(StandardCharsets.UTF_8)),
+                            partnerCode, null, null));
+                });
     }
 
     @Test
@@ -127,6 +136,15 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
                    AND is_deleted = FALSE
                 """, Integer.class, estimateId, SlipPublishStatus.NOT_REQUIRED.name());
         assertThat(convertedRows).isEqualTo(1);
+
+        UUID savedPartnerId = jdbcTemplate.queryForObject("""
+                SELECT partner_id
+                  FROM partner_orders
+                 WHERE source_estimate_id = ?
+                   AND is_deleted = FALSE
+                """, UUID.class, estimateId);
+        assertThat(savedPartnerId)
+                .isEqualTo(UUID.nameUUIDFromBytes("P-EST-001".getBytes(StandardCharsets.UTF_8)));
     }
 
     @Test

@@ -2324,3 +2324,18 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
   `docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md`에 원문으로 기록했다.
   지정 Gradle 3모듈, Desktop typecheck, Vitest 137/1101은 GREEN. 실서버 재프로브와
   전체 Playwright는 작업 지시상 실행하지 않았다.
+
+## ✅ 2026-07-23 Codex LUNA — PR #907 도달가능 3 범위 추가
+
+- `partner_orders.partner_id`를 새 V12 migration으로 추가했다. 기존 행은 자동 backfill하지 않고 NULL 미해결 상태로 남겨 병합을 409로 거부한다.
+- confirm/estimate 신규 주문은 partner-service UUID를 저장하며, 병합은 UUID 동일성을 판정한다. `partnerCode`/`bizCode`는 표시 snapshot으로만 유지한다.
+- 병합 payload의 UUID를 slip-service까지 전달하고, slip-service는 partnerCode 재조회 대신 전달 UUID를 전표에 저장한다. 동일 코드 재사용으로 최종 전표가 신규 UUID에 오귀속되는 경로를 차단했다.
+- 동일 코드·상이 UUID RED/GREEN/뮤테이션 RED, legacy NULL guard, 신규 저장 경로, slip merge 계약, fresh Postgres probe 결과는 `docs/dev-reports/2026-07-23-867-s7-order-merge-partner-first.md` §11에 기록했다.
+- 전체 mock Playwright와 공유 Docker DB 쓰기는 실행하지 않았다. PM은 최종 전체 CI에서 전체 suite 권위를 확인한다.
+
+## ✅ 2026-07-23 Codex LUNA — PR #907 CI hard gate 후속
+
+- `partners.search:view`가 실제 병합 진입에 필요하지만 mock MASTER 기본 권한 fixture에 빠져 있던 불일치를 수정했다. V34 MASTER/MANAGER/SALES와 V88 ACCOUNTANT 계약을 mock 권한 집합에 반영했다.
+- M3 권한 제거 Playwright 케이스를 추가했다: convert CREATE만 있고 partners.search VIEW가 없으면 병합 버튼 disabled, title과 권한 안내가 표시된다.
+- 관련 Playwright 두 디렉터리만 5회 실행해 매회 9/9 통과했다. fixture에서 partners.search를 제거한 뮤테이션은 disabled 버튼 클릭 timeout으로 RED였고 즉시 복구했다.
+- 최종 typecheck 및 fresh Postgres V12 probe도 통과했다. 전체 mock Playwright와 공유 DB 쓰기는 실행하지 않았다.

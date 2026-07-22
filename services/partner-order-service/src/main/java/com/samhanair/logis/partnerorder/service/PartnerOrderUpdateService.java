@@ -50,7 +50,7 @@ public class PartnerOrderUpdateService {
             PartnerOrderStatus.CONVERTED,
             PartnerOrderStatus.CONFIRMING);
     private static final Set<String> CORE_HEADER_FIELDS = Set.of(
-            "orderNo", "orderNumber", "partnerCode", "bizCode", "status", "slipNo",
+            "orderNo", "orderNumber", "partnerId", "partnerCode", "bizCode", "status", "slipNo",
             "slipPublishStatus", "totalAmount", "confirmedAt", "slipPublishedAt",
             "sourceEstimateId", "idempotencyKey", "lockVersion", "revisionCount");
     private static final Set<String> CORE_LINE_FIELDS = Set.of(

@@ -31,7 +31,7 @@ import org.hibernate.annotations.UuidGenerator;
  * {@link #slipNo} 는 slip-service 발행 후 채워지며 UNIQUE 인덱스 + nullable 허용 (PENDING_RETRY 시 null).
  *
  * <p>UUID 비공개 가드 — 사용자 응답에서는 {@link #orderNo} (YYYY/MM/DD-N) / {@link #partnerCode} /
- * {@link #bizCode} 만 노출. {@link #id} 는 form 의 hidden field 또는 path variable 로만 사용.
+ * {@link #bizCode} 만 노출. {@link #id}와 {@link #partnerId}는 정체성/내부 추적용이며 화면에 노출하지 않는다.
  */
 @Entity
 @Getter
@@ -49,6 +49,10 @@ public class PartnerOrder extends BaseEntity {
     /** 거래처 코드 (M2 partner-auth-service 발급, JWT subject). UUID 비공개 가드. */
     @Column(name = "partner_code", nullable = false, length = 50)
     private String partnerCode;
+
+    /** 거래처 내부 UUID snapshot. legacy 주문은 null이며 정체성 미해결로 병합할 수 없다. */
+    @Column(name = "partner_id")
+    private UUID partnerId;
 
     /** 사업자번호 (legacy bizNo). 거래처별 history 조회 키. */
     @Column(name = "biz_code", nullable = false, length = 20)
@@ -123,7 +127,7 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "revision_count", nullable = false)
     private int revisionCount = 0;
 
-    private PartnerOrder(String partnerCode, String bizCode, String orderNo,
+    private PartnerOrder(UUID partnerId, String partnerCode, String bizCode, String orderNo,
                          String idempotencyKey, BigDecimal totalAmount) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new IllegalArgumentException("partnerCode 필수");
@@ -137,6 +141,7 @@ public class PartnerOrder extends BaseEntity {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException("idempotencyKey 필수");
         }
+        this.partnerId = partnerId;
         this.partnerCode = partnerCode;
         this.bizCode = bizCode;
         this.orderNo = orderNo;
@@ -163,7 +168,7 @@ public class PartnerOrder extends BaseEntity {
      */
     public static PartnerOrder create(String partnerCode, String bizCode, String orderNo,
                                       String idempotencyKey, BigDecimal totalAmount) {
-        return new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        return new PartnerOrder(null, partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
     }
 
     /**
@@ -182,7 +187,15 @@ public class PartnerOrder extends BaseEntity {
      */
     public static PartnerOrder createFromConfirm(String partnerCode, String bizCode, String orderNo,
                                                  String idempotencyKey, BigDecimal totalAmount) {
-        PartnerOrder order = new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        return createFromConfirm(null, partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+    }
+
+    /** partner-service에서 확인한 거래처 UUID를 함께 보존하는 신규 confirm 주문 생성. */
+    public static PartnerOrder createFromConfirm(UUID partnerId, String partnerCode, String bizCode,
+                                                 String orderNo, String idempotencyKey,
+                                                 BigDecimal totalAmount) {
+        PartnerOrder order = new PartnerOrder(partnerId, partnerCode, bizCode,
+                orderNo, idempotencyKey, totalAmount);
         order.status = PartnerOrderStatus.DRAFT;
         order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
         order.confirmedAt = null;
@@ -198,10 +211,20 @@ public class PartnerOrder extends BaseEntity {
     public static PartnerOrder createFromEstimate(String partnerCode, String bizCode, String orderNo,
                                                   String idempotencyKey, BigDecimal totalAmount,
                                                   UUID sourceEstimateId, LocalDate dueDate, String memo) {
+        return createFromEstimate(null, partnerCode, bizCode, orderNo, idempotencyKey, totalAmount,
+                sourceEstimateId, dueDate, memo);
+    }
+
+    /** partner-service에서 확인한 거래처 UUID를 함께 보존하는 신규 견적 변환 주문 생성. */
+    public static PartnerOrder createFromEstimate(UUID partnerId, String partnerCode, String bizCode,
+                                                  String orderNo, String idempotencyKey,
+                                                  BigDecimal totalAmount, UUID sourceEstimateId,
+                                                  LocalDate dueDate, String memo) {
         if (sourceEstimateId == null) {
             throw new IllegalArgumentException("sourceEstimateId 필수");
         }
-        PartnerOrder order = new PartnerOrder(partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        PartnerOrder order = new PartnerOrder(partnerId, partnerCode, bizCode,
+                orderNo, idempotencyKey, totalAmount);
         order.status = PartnerOrderStatus.DRAFT;
         order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
         order.confirmedAt = null;

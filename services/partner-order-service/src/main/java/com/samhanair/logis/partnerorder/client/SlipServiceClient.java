@@ -169,7 +169,9 @@ public class SlipServiceClient {
      * 기존 {@code publishFromPartnerOrder} 는 무변경(회귀 0). URI 만 {@code /from-orders-merge}.
      *
      * @param requestPayload 병합 발행 본문 — slip-service {@code PublishFromOrdersMergeRequest} 계약에 맞는 맵.
-     *                       필수 키: {@code sourceOrders}(List) / {@code lines}(List) / {@code warehouseCode}
+     *                       필수 키: {@code sourceOrders}(List) / {@code partnerId}(UUID) /
+     *                       {@code lines}(List) / {@code warehouseCode}. partnerId는 코드 재조회 없이
+     *                       partner-order-service가 확정한 거래처 정체성을 전달한다.
      * @param idempotencyKey {@code PO-MRG-...} 결정적 키 (reserve referenceId 와 공용)
      * @return PublishResult — published 결과
      * @throws BusinessException slip-service 4xx/5xx, 연결 실패

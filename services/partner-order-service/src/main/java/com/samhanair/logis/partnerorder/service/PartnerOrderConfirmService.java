@@ -70,6 +70,7 @@ public class PartnerOrderConfirmService {
 
     private final DcConfigClient dcConfigClient;
     private final ProductClient productClient;
+    private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
     // Phase 2.6c: inventoryClient 제거 — confirm 단계는 재고 무영향 (주문 무영향 원칙).
     // inventoryClient 는 PartnerOrderConvertService 에서만 사용 (출고전표 전환 시 reserve).
     // 슬라이스 D1: slipServiceClient / outboxRepository 제거 — confirm 은 slip 미발행.
@@ -123,6 +124,10 @@ public class PartnerOrderConfirmService {
             return ConfirmResponse.from(existing.get());
         }
 
+        // 신규 주문은 생성 시점의 활성 거래처 UUID를 snapshot한다. 코드 재사용 후에도
+        // 이 주문은 당시 거래처 정체성을 잃지 않도록 partnerCode만 저장하지 않는다.
+        UUID partnerId = partnerIdentityResolver.requirePartnerId(partnerCode, bizCode);
+
         // 2) M1a product — 카탈로그 조회 (라인 스냅샷 + 가격 산출)
         List<UUID> productIds = request.lines().stream()
                 .map(ConfirmLineRequest::productId)
@@ -156,7 +161,7 @@ public class PartnerOrderConfirmService {
         String orderNo = nextOrderNo();
 
         PartnerOrder order = PartnerOrder.createFromConfirm(
-                partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO);
+                partnerId, partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO);
 
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);

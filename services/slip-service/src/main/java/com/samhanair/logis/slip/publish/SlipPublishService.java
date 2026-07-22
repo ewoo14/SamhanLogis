@@ -300,7 +300,7 @@ public class SlipPublishService {
             return assertReplayOrConflict(existing.get(), fingerprint);
         }
 
-        UUID partnerId = resolveCommittedPartnerId(req.partnerCode());
+        UUID partnerId = requireMergePartnerId(req.partnerId());
 
         UUID warehouseId = resolveWarehouseId(req.warehouseId(), req.warehouseCode());
         LocalDate slipDate = parseIoDate(req.ioDate());
@@ -440,6 +440,25 @@ public class SlipPublishService {
             }
         }
         return warehouseCodeMapper.resolve(warehouseCode);
+    }
+
+    /**
+     * 병합 호출자가 이미 판정한 거래처 정체성을 검증한다.
+     *
+     * <p>병합 경로에서 {@code partnerCode}를 다시 조회하면 soft-delete 후 코드 재사용 시
+     * 과거 주문을 신규 거래처 UUID로 오인할 수 있다. 따라서 이 경로는 partner-order-service가
+     * 동일 UUID 여부를 판정한 값을 그대로 사용하고, 누락된 요청만 거부한다.
+     *
+     * @param partnerId partner-order-service가 확정한 내부 거래처 UUID
+     * @return 검증된 partnerId
+     * @throws BusinessException(INVALID_INPUT) UUID가 누락된 경우
+     */
+    private UUID requireMergePartnerId(UUID partnerId) {
+        if (partnerId == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "병합 전표 발행 전 거래처 정체성을 지정해야 합니다");
+        }
+        return partnerId;
     }
 
     /**
@@ -760,6 +779,7 @@ public class SlipPublishService {
         canonical.put("sourceOrders", req.sourceOrders().stream()
                 .map(SourceOrderRef::partnerOrderId).sorted().toList());
         canonical.put("ioDate", req.ioDate());
+        canonical.put("partnerId", req.partnerId());
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("partnerCode", req.partnerCode());
         canonical.put("paymentDueLabel", req.paymentDueLabel());

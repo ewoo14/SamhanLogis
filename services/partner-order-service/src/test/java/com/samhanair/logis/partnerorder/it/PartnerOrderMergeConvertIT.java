@@ -77,6 +77,8 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
     private static final String MASTER_ACCOUNT_ID = "40000000-0000-0000-0000-000000000001";
     private static final String SALES_ACCOUNT_ID  = "40000000-0000-0000-0000-000000000002";
     private static final String STUB_SLIP_NO = "2026/05/31-MRG-1";
+    private static final UUID PARTNER_ID_A = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID PARTNER_ID_B = UUID.fromString("00000000-0000-0000-0000-000000000102");
 
     // ── 의존성 ─────────────────────────────────────────────────────────────────
 
@@ -250,9 +252,9 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
         UUID lineAId = UUID.randomUUID();
         UUID lineBId = UUID.randomUUID();
 
-        insertOrderWithLine(orderAId, lineAId, "MRG-P001", "1111111111",
+        insertOrderWithPartnerIdentity(orderAId, lineAId, PARTNER_ID_A, "MRG-P001", "1111111111",
                 "2026/05/31-MRG-4", "DRAFT", 5, BigDecimal.valueOf(10000));
-        insertOrderWithLine(orderBId, lineBId, "MRG-P999", "9999999999",  // 다른 거래처
+        insertOrderWithPartnerIdentity(orderBId, lineBId, PARTNER_ID_B, "MRG-P999", "9999999999",  // 다른 거래처
                 "2026/05/31-MRG-5", "DRAFT", 5, BigDecimal.valueOf(10000));
 
         String body = """
@@ -279,6 +281,91 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 케이스 3b — 동일 코드·상이 partner UUID → 409 (I1)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * 거래처 soft-delete 후 코드가 재사용된 상황을 재현한다.
+     * 표시 코드가 같아도 저장된 거래처 UUID가 다르면 병합을 거부해야 한다.
+     */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스3b: 동일 partnerCode·상이 partnerId → 409 + reserve/publish 미호출")
+    void case3b_samePartnerCode_differentPartnerIdentity_409_noReserveNoPublish() throws Exception {
+        UUID orderAId = UUID.randomUUID();
+        UUID orderBId = UUID.randomUUID();
+        UUID lineAId = UUID.randomUUID();
+        UUID lineBId = UUID.randomUUID();
+        String reusedCode = "REUSED-CODE-X";
+
+        insertOrderWithPartnerIdentity(orderAId, lineAId, PARTNER_ID_A, reusedCode, "1111111111",
+                "2026/07/23-MRG-I1-A", "DRAFT", 1, BigDecimal.valueOf(10000));
+        insertOrderWithPartnerIdentity(orderBId, lineBId, PARTNER_ID_B, reusedCode, "2222222222",
+                "2026/07/23-MRG-I1-B", "DRAFT", 1, BigDecimal.valueOf(10000));
+
+        String body = """
+                {
+                  "orders": [
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 1}]},
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 1}]}
+                  ],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(orderAId, lineAId, orderBId, lineBId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isConflict());
+
+        verify(inventoryClient, never()).reserve(
+                any(UUID.class), any(UUID.class), anyInt(), anyString(), any(UUID.class));
+        verify(slipServiceClient, never()).publishFromOrdersMerge(any(), anyString());
+    }
+
+    /** 기존 주문의 null identity를 현재 활성 거래처로 추측하지 않고 병합을 거부한다(I2/I3). */
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("케이스3c: legacy partnerId 미해결 주문 → 409 + reserve/publish 미호출")
+    void case3c_legacyOrderWithoutPartnerIdentity_409_noReserveNoPublish() throws Exception {
+        UUID orderAId = UUID.randomUUID();
+        UUID orderBId = UUID.randomUUID();
+        UUID lineAId = UUID.randomUUID();
+        UUID lineBId = UUID.randomUUID();
+        String reusedCode = "LEGACY-REUSED-CODE";
+
+        insertOrderWithPartnerIdentity(orderAId, lineAId, null, reusedCode, "1111111111",
+                "2026/07/23-MRG-I3-A", "DRAFT", 1, BigDecimal.valueOf(10000));
+        insertOrderWithPartnerIdentity(orderBId, lineBId, PARTNER_ID_A, reusedCode, "1111111111",
+                "2026/07/23-MRG-I3-B", "DRAFT", 1, BigDecimal.valueOf(10000));
+
+        String body = """
+                {
+                  "orders": [
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 1}]},
+                    {"partnerOrderId": "%s", "items": [{"orderLineId": "%s", "quantity": 1}]}
+                  ],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(orderAId, lineAId, orderBId, lineBId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isConflict());
+
+        verify(inventoryClient, never()).reserve(
+                any(UUID.class), any(UUID.class), anyInt(), anyString(), any(UUID.class));
+        verify(slipServiceClient, never()).publishFromOrdersMerge(any(), anyString());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // 케이스 4 — 한 라인 가용 부족(reserve 409) → 전체 409 + release 보상 + converted 미변경
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -299,18 +386,18 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
         // 2라인 주문 직접 INSERT
         jdbcTemplate.update("""
                 INSERT INTO partner_orders
-                  (id, partner_code, biz_code, order_no, slip_no, status,
+                  (id, partner_id, partner_code, biz_code, order_no, slip_no, status,
                    slip_publish_status, total_amount, confirmed_at, slip_published_at,
                    due_date, memo, source_estimate_id, revision_count,
                    idempotency_key, lock_version,
                    created_at, created_by, modified_at, modified_by,
                    is_deleted, deleted_at, deleted_by)
                 VALUES
-                  (?, 'MRG-P003', '3333333333', '2026/05/31-MRG-6', NULL, 'DRAFT',
+                  (?, ?, 'MRG-P003', '3333333333', '2026/05/31-MRG-6', NULL, 'DRAFT',
                    'NOT_REQUIRED', 100000, NULL, NULL,
                    NULL, NULL, NULL, 0, ?, 0,
                    NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
-                """, orderId, "idem-merge-6");
+                """, orderId, PARTNER_ID_A, "idem-merge-6");
         jdbcTemplate.update("""
                 INSERT INTO partner_order_lines
                   (id, partner_order_id, product_id, model_name, product_name,
@@ -867,7 +954,7 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
                                       String partnerCode, String bizCode,
                                       String orderNo, String status,
                                       int quantity, BigDecimal priceVat) {
-        insertOrderWithLine(orderId, lineId, UUID.randomUUID(),
+        insertOrderWithLine(orderId, lineId, PARTNER_ID_A, UUID.randomUUID(),
                 partnerCode, bizCode, orderNo, status, quantity, priceVat);
     }
 
@@ -890,23 +977,39 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
                                       String partnerCode, String bizCode,
                                       String orderNo, String status,
                                       int quantity, BigDecimal priceVat) {
+        insertOrderWithLine(orderId, lineId, PARTNER_ID_A, productId,
+                partnerCode, bizCode, orderNo, status, quantity, priceVat);
+    }
+
+    /** partner UUID를 명시하는 identity 회귀 픽스처. */
+    private void insertOrderWithPartnerIdentity(UUID orderId, UUID lineId, UUID partnerId, String partnerCode,
+                                      String bizCode, String orderNo, String status,
+                                      int quantity, BigDecimal priceVat) {
+        insertOrderWithLine(orderId, lineId, partnerId, UUID.randomUUID(),
+                partnerCode, bizCode, orderNo, status, quantity, priceVat);
+    }
+
+    private void insertOrderWithLine(UUID orderId, UUID lineId, UUID partnerId, UUID productId,
+                                      String partnerCode, String bizCode,
+                                      String orderNo, String status,
+                                      int quantity, BigDecimal priceVat) {
         jdbcTemplate.update("""
                 INSERT INTO partner_orders
-                  (id, partner_code, biz_code, order_no, slip_no, status,
+                  (id, partner_id, partner_code, biz_code, order_no, slip_no, status,
                    slip_publish_status, total_amount, confirmed_at, slip_published_at,
                    due_date, memo, source_estimate_id, revision_count,
                    idempotency_key, lock_version,
                    created_at, created_by, modified_at, modified_by,
                    is_deleted, deleted_at, deleted_by)
                 VALUES
-                  (?, ?, ?, ?, NULL, ?,
+                  (?, ?, ?, ?, ?, NULL, ?,
                    'NOT_REQUIRED', 0, NULL, NULL,
                    NULL, NULL, NULL, 0,
                    ?, 0,
                    NOW(), 'test', NOW(), 'test',
                    FALSE, NULL, NULL)
                 """,
-                orderId, partnerCode, bizCode, orderNo, status,
+                orderId, partnerId, partnerCode, bizCode, orderNo, status,
                 "idem-mrg-" + orderNo);
 
         jdbcTemplate.update("""

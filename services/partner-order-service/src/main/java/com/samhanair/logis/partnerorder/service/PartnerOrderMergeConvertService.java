@@ -81,8 +81,9 @@ public class PartnerOrderMergeConvertService {
     /**
      * 여러 주문의 선택 라인을 단일 출고전표로 병합 발행한다 (Phase 2.6b D2).
      *
-     * <p>같은 거래처({@code partnerCode}) 주문만 병합 가능. 거래처 불일치 시 slip/reserve 호출 없이
-     * 즉시 409 CONFLICT.
+     * <p>같은 거래처 UUID({@code partnerId}) 주문만 병합 가능. UUID 미해결 또는 거래처 정체성
+     * 불일치 시 slip/reserve 호출 없이 즉시 409 CONFLICT. {@code partnerCode}/{@code bizCode}는
+     * 표시 snapshot이며 정체성 판정에 사용하지 않는다.
      *
      * <p>한 라인이라도 가용 부족(reserve 409) 또는 slip 발행 실패 시 전체 409 + 예약 성공분 release 보상.
      * 성공 시 각 주문 라인 convertedQuantity 누적 + 전량 전환 주문 CONVERTED 상태 갱신.
@@ -112,19 +113,23 @@ public class PartnerOrderMergeConvertService {
         // PartnerOrderIdResolver 를 통해 주문번호(orderNo) 또는 UUID 모두 허용
         // (UUID 비공개 원칙: FE 는 주문번호를 전송하지만 UUID fallback 도 유지)
         List<PartnerOrder> orders = new ArrayList<>();
-        String partnerCode = null;
+        UUID partnerId = null;
         for (MergeConvertToSlipRequest.OrderItems oi : req.orders()) {
             PartnerOrder order = PartnerOrderIdResolver
                     .findByIdentifier(orderRepository, oi.partnerOrderId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.PARTNER_ORDER_NOT_FOUND,
                             ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
             order.requireConvertible();
-            if (partnerCode == null) {
-                partnerCode = order.getPartnerCode();
-            } else if (!partnerCode.equals(order.getPartnerCode())) {
+            if (order.getPartnerId() == null) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "병합은 같은 거래처 주문만 가능합니다. "
-                                + "기대=" + partnerCode + ", 실제=" + order.getPartnerCode());
+                        "거래처 정체성이 확인되지 않은 기존 주문은 병합할 수 없습니다. "
+                                + "거래처 재조정 후 다시 시도해 주세요.");
+            }
+            if (partnerId == null) {
+                partnerId = order.getPartnerId();
+            } else if (!partnerId.equals(order.getPartnerId())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "병합은 동일 거래처 정체성의 주문만 가능합니다.");
             }
             orders.add(order);
         }
@@ -196,10 +201,12 @@ public class PartnerOrderMergeConvertService {
         // 7. slip-service 병합 발행
         MergeConvertToSlipRequest.ShippingInfo si = req.shippingInfo();
         Map<String, Object> payload = new LinkedHashMap<>();
+        String partnerCode = orders.isEmpty() ? null : orders.get(0).getPartnerCode();
         payload.put("sourceOrders", orders.stream()
                 .map(o -> Map.of("partnerOrderId", o.getId().toString(),
                         "orderNo", o.getOrderNo()))
                 .toList());
+        payload.put("partnerId", partnerId);
         payload.put("partnerCode", partnerCode);
         payload.put("partnerName", si != null ? si.partnerName() : null);
         payload.put("warehouseCode", req.warehouseCode());

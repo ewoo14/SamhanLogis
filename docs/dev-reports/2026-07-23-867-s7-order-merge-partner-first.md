@@ -209,3 +209,166 @@ expected false to be true
 `merge-convert-dialog`는 DS `ModalProps`가 전달하지 않는 가짜 testid였으므로 호출부와 개발 보고서 목록에서 제거했다. `role="dialog"` 기반 DS Modal 전체를 변경하지 않아 영향 범위를 넓히지 않았다. 실제 검증 가능한 `merge-convert-dialog-body`와 권한 오류 alert testid는 유지했다.
 
 개발책임자 판단 사안인 동일 코드·상이 UUID 거래처의 BE 409 우회 문제는 주문 스키마 변경 범위이므로 이번 라운드에서 손대지 않았다. 전체 Gradle 지정 실행은 셀 결과가 유실되어 성공 판정하지 않았고, 요청대로 `--no-daemon`으로 재시도했으나 244초 후 Exit 124로 종료되어 성공 판정하지 않았다. 좁은 BE 계약 테스트와 전체 Desktop Vitest는 별도로 성공했다. 전체 Playwright와 공유 Docker DB 쓰기는 실행하지 않았다.
+
+## 11. 개발책임자 결정 반영 — 도달가능 3 / I1~I4
+
+### 11.1 변경 및 backfill 정책
+
+개발책임자 결정에 따라 새 migration `V12__add_partner_identity_to_orders.sql`을 추가했다. `partner_orders.partner_id UUID NULL`과 active 조회 인덱스만 추가했으며, 기존 V1~V11은 수정하지 않았다.
+
+- confirm 및 estimate→order 신규 경로는 partner-service의 현재 UUID를 조회해 저장한다.
+- 기존 주문은 자동 backfill하지 않는다. partner-order DB에는 과거 UUID 이력이 없고, 문자열 코드만 현재 UUID에 연결하면 코드 재사용 행을 잘못 확정할 수 있다.
+- 따라서 `partner_id IS NULL`은 미해결 표식으로 남고, 병합 시 409로 거부한다. 독립 감사자료로 1:1 매핑이 승인된 행만 별도 후속 작업에서 명시적으로 채울 수 있다.
+- `partnerCode`/`bizCode`는 표시 snapshot으로 유지하고, update 경로에서 `partnerId`를 클라이언트가 바꾸지 못하도록 core header field로 차단했다.
+
+### 11.2 병합 및 전표 계약
+
+`PartnerOrderMergeConvertService`는 모든 주문의 non-null `partnerId`와 UUID 동일성을 먼저 확인하고, 실패하면 inventory reserve와 slip publish를 호출하지 않는다. 성공한 UUID는 payload의 `partnerId`로 slip-service까지 전달된다. `PublishFromOrdersMergeRequest`는 이 UUID를 필수로 받고, slip-service는 `partnerCode` 재조회 없이 전달받은 UUID를 전표에 저장한다. 이렇게 해야 partner-order 단계에서 UUID-A를 확정한 뒤 코드 X가 UUID-B로 재사용되어도 최종 전표가 B로 재귀속되지 않는다.
+
+### 11.3 RED / GREEN / 뮤테이션 RED 원문
+
+실 BE 경로를 지나는 동일 코드·상이 UUID RED (MockMvc + Testcontainers, 변경 전 문자열 비교):
+
+```text
+PartnerOrderMergeConvertIT > 케이스3b: 동일 partnerCode·상이 partnerId → 409 + reserve/publish 미호출 FAILED
+    java.lang.AssertionError at PartnerOrderMergeConvertIT.java:324
+1 test completed, 1 failed
+BUILD FAILED in 45s
+```
+
+UUID 저장 전파 RED (slip-service endpoint, 변경 전 `partnerCode` 재조회):
+
+```text
+SlipPublishMergeIT > 동일_코드가_재사용되어도_병합요청의_거래처_UUID를_전표에_보존한다() FAILED
+    org.opentest4j.AssertionFailedError at SlipPublishMergeIT.java:433
+1 test completed, 1 failed
+BUILD FAILED in 39.8s
+```
+
+partner-order UUID guard와 legacy null guard GREEN:
+
+```text
+> Task :services:partner-order-service:test
+BUILD SUCCESSFUL in 47s
+15 actionable tasks: 15 executed
+```
+
+신규 confirm/estimate 저장 경로를 포함한 좁은 실행도 다음 종료문을 확보했다:
+
+```text
+> Task :services:partner-order-service:test
+BUILD SUCCESSFUL in 40.8s
+15 actionable tasks: 2 executed, 13 up-to-date
+```
+
+slip-service 병합 전체 계약 및 UUID 누락 400:
+
+```text
+> Task :services:slip-service:test
+BUILD SUCCESSFUL in 37s
+18 actionable tasks: 2 executed, 16 up-to-date
+```
+
+전표 UUID 전파 뮤테이션 RED (slip-service 병합을 다시 `resolveCommittedPartnerId(partnerCode)`로 변경):
+
+```text
+SlipPublishMergeIT > 동일_코드가_재사용되어도_병합요청의_거래처_UUID를_전표에_보존한다() FAILED
+    org.opentest4j.AssertionFailedError at SlipPublishMergeIT.java:430
+1 test completed, 1 failed
+BUILD FAILED in 37s
+```
+
+뮤테이션은 원래 `requireMergePartnerId(req.partnerId())` 구현으로 복구했다. 기존 `partnerCode` 비교 뮤테이션의 RED 원문은 §10.1에 기록된 prefix 테스트와 별도로, 이번 라운드의 동일 코드·상이 UUID 케이스가 직접 증명한다.
+
+### 11.4 fresh Postgres probe
+
+공유 DB가 아닌 명시적 임시 컨테이너 `samhan-s7-identity-probe-0723`를 새로 생성하고,
+`DROP/CREATE` 초기화 뒤 V1~V11을 적용하고 legacy 행을 삽입한 다음 V12를
+`psql -v ON_ERROR_STOP=1`로 적용했다. 종료 전 컨테이너를 제거했다.
+
+```text
+partner_id_column|1
+legacy_null_rows|1
+identity_index|1
+FRESH_PROBE_PASS
+```
+
+이는 migration이 fresh Postgres에 적용되고, legacy 행을 임의 UUID로 backfill하지 않으며,
+조회 인덱스가 생성되는 것을 확인한 결과다.
+
+### 11.5 못 한 것
+
+- 사용자가 지정한 partner-order 전체 Gradle suite는 이전 라운드와 동일하게 장시간 timeout 이력이 있어 이번에도 전체 성공을 주장하지 않는다. 대신 동일 서비스의 merge IT/unit 및 신규 주문 경로를 좁혀 콘솔 `BUILD SUCCESSFUL`로 확인했다.
+- slip-service 전체 suite와 desktop 검증 전체를 이번 라운드에 다시 실행하지 않았다. slip-service 병합 계약 전체는 좁은 `SlipPublishMergeIT`로 확인했고, desktop은 이번 변경에서 소스 변경이 없으며 직전 라운드 전체 Vitest/typecheck 결과를 유지한다.
+- 전체 mock Playwright와 공유 Docker DB 쓰기는 실행하지 않았다. fresh probe 외 외부 DB 쓰기도 하지 않았다.
+
+## 12. CI hard gate 후속 — mock 권한 fixture / M1~M3
+
+### 12.1 원인과 수정
+
+PR 커밋 `6a263e7f4`의 hard gate는 `merge-convert-open`이 disabled라서 실패했다. 제품의
+`sales.partner-order.convert:create && partners.search:view` 게이팅은 의도된 상태였고,
+mock의 MASTER 기본 권한 집합에 `partners.search`가 빠진 fixture 불일치가 원인이었다.
+
+실 auth seed를 확인해 `partners.search`가 MASTER/MANAGER/SALES VIEW(V34)이고 ACCOUNTANT
+VIEW도 V88에서 복구된 계약임을 확인했다. mock의 SP-D1 page 집합과 MANAGER/SALES/ACCOUNTANT
+기본 VIEW 집합에 이를 추가했다. 게이팅 코드는 되돌리지 않았다.
+
+### 12.2 RED / GREEN / 뮤테이션 RED 원문
+
+CI가 제공한 수정 전 RED 원문:
+
+```text
+Expect "toBeEnabled" with timeout 5000ms
+waiting for getByTestId('merge-convert-open')
+locator resolved to <button disabled aria-disabled="true"
+title="거래처 검색 권한이 필요합니다" data-testid="merge-convert-open" …>
+84 | await expect(page.getByTestId('merge-convert-open')).toBeEnabled({ timeout: 5_000 })
+```
+
+수정 후 관련 두 디렉터리 GREEN(동일 명령 4회 반복 + 복구 후 최종 1회):
+
+```text
+Running 9 tests using 1 worker
+9 passed (19.0s)
+9 passed (18.4s)
+9 passed (18.4s)
+9 passed (18.5s)
+9 passed (18.6s)
+```
+
+M3 권한 제거 케이스는 `mockPerms`로 convert CREATE만 남기고 search VIEW를 제거해,
+버튼 disabled·title·`partners.search VIEW` 원인 안내를 단언한다. 해당 케이스는 매 GREEN
+실행에 포함됐다.
+
+mock fixture에서 MASTER 기본 `partners.search`를 다시 제거한 뮤테이션 RED:
+
+```text
+Running 1 test using 1 worker
+S7-1 ... FAILED
+Test timeout of 60000ms exceeded.
+locator resolved to <button disabled type="button" aria-disabled="true"
+title="거래처 검색 권한이 필요합니다" data-testid="merge-convert-open" ...>
+Error: locator.click: Test timeout of 60000ms exceeded.
+1 failed
+```
+
+뮤테이션은 즉시 복구했고, 복구 후 최종 관련 스펙은 다시 `9 passed`로 종료됐다.
+
+### 12.3 추가 검증
+
+```text
+> npm run typecheck
+tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit
+Process exited with code 0
+```
+
+mock permission matrix unit test:
+
+```text
+Test Files  1 passed (1)
+Tests       123 passed (123)
+```
+
+전체 mock Playwright는 실행하지 않았고, 지정된 `d2-order-merge`와
+`partner-order-list-badge-refresh` 두 디렉터리만 실행했다.

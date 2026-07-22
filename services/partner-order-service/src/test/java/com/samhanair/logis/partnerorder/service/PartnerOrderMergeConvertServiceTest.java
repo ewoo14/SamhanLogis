@@ -67,6 +67,8 @@ class PartnerOrderMergeConvertServiceTest {
 
     private static final String STUB_SLIP_NO = "2026/05/31-MRG-1";
     private static final UUID WAREHOUSE_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID DEFAULT_PARTNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
+    private static final UUID DIFFERENT_PARTNER_ID = UUID.fromString("00000000-0000-0000-0000-000000000102");
 
     @BeforeEach
     void setUp() {
@@ -97,7 +99,7 @@ class PartnerOrderMergeConvertServiceTest {
      */
     @Test
     @DisplayName("케이스1: 서로 다른 거래처 주문 병합 → 409 CONFLICT + reserve/publish 미호출")
-    void case1_differentPartnerCodes_throws409_andNoExternalCalls() {
+    void case1_differentPartnerCodes_throws409_andNoExternalCalls() throws Exception {
         UUID orderAId = UUID.randomUUID();
         UUID orderBId = UUID.randomUUID();
         UUID lineAId = UUID.randomUUID();
@@ -107,6 +109,7 @@ class PartnerOrderMergeConvertServiceTest {
                 "2026/05/31-" + orderAId.toString().substring(0, 8));
         PartnerOrder orderB = buildOrder(orderBId, "P002", lineBId, 5,
                 "2026/05/31-" + orderBId.toString().substring(0, 8));
+        setField(orderB, "partnerId", DIFFERENT_PARTNER_ID);
 
         // resolver: UUID fallback 경로 (findByOrderNo miss → findById 성공)
         when(orderRepository.findByOrderNo(anyString())).thenReturn(Optional.empty());
@@ -128,7 +131,7 @@ class PartnerOrderMergeConvertServiceTest {
                 .satisfies(e -> {
                     ResponseStatusException rse = (ResponseStatusException) e;
                     assertThat(rse.getStatusCode().value()).isEqualTo(409);
-                    assertThat(rse.getReason()).contains("같은 거래처");
+                    assertThat(rse.getReason()).contains("거래처");
                 });
 
         // reserve / publishFromOrdersMerge 미호출
@@ -306,6 +309,8 @@ class PartnerOrderMergeConvertServiceTest {
 
         java.util.Map<String, Object> payload = payloadCaptor.getValue();
 
+        assertThat(payload.get("partnerId")).isEqualTo(DEFAULT_PARTNER_ID);
+
         // sourceOrders 키 존재 + partnerOrderId/orderNo 포함
         assertThat(payload).containsKey("sourceOrders");
         List<java.util.Map<String, Object>> sourceOrders =
@@ -432,6 +437,8 @@ class PartnerOrderMergeConvertServiceTest {
 
             // orderNo 를 고정값으로 설정
             setField(order, "orderNo", orderNo);
+            // 병합 정체성은 표시 코드와 분리된 내부 UUID로 고정
+            setField(order, "partnerId", DEFAULT_PARTNER_ID);
 
             // 라인 생성 + 주입
             PartnerOrderLine line = PartnerOrderLine.create(

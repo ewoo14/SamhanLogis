@@ -18,13 +18,18 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
 import com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,6 +92,20 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
     @MockBean
     private PartnerAuthClient partnerAuthClient;
 
+    @MockBean
+    private PartnerLookupClient partnerLookupClient;
+
+    @BeforeEach
+    void setUpPartnerLookup() {
+        Mockito.lenient().when(partnerLookupClient.findByPartnerCode(Mockito.anyString()))
+                .thenAnswer(invocation -> {
+                    String partnerCode = invocation.getArgument(0);
+                    return Optional.of(new PartnerSummary(
+                            UUID.nameUUIDFromBytes(partnerCode.getBytes(StandardCharsets.UTF_8)),
+                            partnerCode, null, null));
+                });
+    }
+
     @Test
     void confirm_creates_draft_order_without_slip_publish() {
         UUID productId = UUID.randomUUID();
@@ -106,6 +125,10 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         assertThat(response.slipNo()).isNull();
         assertThat(response.status()).isEqualTo("DRAFT");
         assertThat(response.slipPublishStatus()).isEqualTo(SlipPublishStatus.NOT_REQUIRED.name());
+
+        var savedOrder = orderRepository.findByOrderNo(response.orderNo()).orElseThrow();
+        assertThat(savedOrder.getPartnerId())
+                .isEqualTo(UUID.nameUUIDFromBytes("P-DRAFT".getBytes(StandardCharsets.UTF_8)));
 
         // slip-service 미호출
         Mockito.verify(slipServiceClient, Mockito.never())

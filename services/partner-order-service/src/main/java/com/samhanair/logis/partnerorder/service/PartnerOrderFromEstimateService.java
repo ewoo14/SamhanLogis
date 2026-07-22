@@ -37,6 +37,7 @@ public class PartnerOrderFromEstimateService {
     private final EstimateClient estimateClient;
     private final PartnerOrderRevisionService revisionService;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+    private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
     private final EntityManager entityManager;
 
     /**
@@ -59,8 +60,11 @@ public class PartnerOrderFromEstimateService {
                 .orElseThrow(() -> new BusinessException(
                         ErrorCode.PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND,
                         ErrorCode.PARTNER_ORDER_FROM_ESTIMATE_NOT_FOUND.getDefaultMessage()));
+        UUID partnerId = partnerIdentityResolver.requirePartnerId(
+                snapshot.partnerCode(), snapshot.bizCode());
 
         PartnerOrder order = PartnerOrder.createFromEstimate(
+                partnerId,
                 snapshot.partnerCode(),
                 snapshot.bizCode(),
                 nextOrderNo(),

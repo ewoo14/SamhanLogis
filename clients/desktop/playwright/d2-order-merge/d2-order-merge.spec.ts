@@ -34,6 +34,10 @@ async function gotoListAndWait(page: Page, extra = ''): Promise<void> {
   await expect(page.getByTestId('header-page-title')).toContainText('주문서 관리', { timeout: 15_000 })
 }
 
+function mockPermissions(entries: Array<{ pageCode: string; view?: boolean; edit?: boolean }>): string {
+  return Buffer.from(JSON.stringify(entries), 'utf8').toString('base64')
+}
+
 async function openMergeDialog(page: Page): Promise<void> {
   await expect(page.getByTestId('merge-convert-open')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('input[type="checkbox"][data-testid^="merge-checkbox-"]')).toHaveCount(0)
@@ -142,6 +146,21 @@ test.describe('#825 슬7 주문 병합 거래처 우선 선택', () => {
     await expect(error).toBeVisible({ timeout: 10_000 })
     await expect(error).toContainText('같은 거래처')
     await expect(page.getByTestId('merge-convert-dialog-body')).toBeVisible()
+  })
+
+  test('권한 제거: partners.search VIEW가 없으면 병합 버튼을 잠그고 원인을 표시한다', async ({ page }) => {
+    await installAuthMock(page)
+    const perms = mockPermissions([
+      { pageCode: 'sales.partner-order.convert', view: false, edit: true },
+      { pageCode: 'sales.partner-order.list', view: true, edit: true },
+    ])
+    await gotoListAndWait(page, `&mockPerms=${encodeURIComponent(perms)}`)
+
+    const openButton = page.getByTestId('merge-convert-open')
+    await expect(openButton).toBeVisible({ timeout: 10_000 })
+    await expect(openButton).toBeDisabled()
+    await expect(openButton).toHaveAttribute('title', '거래처 검색 권한이 필요합니다')
+    await expect(page.getByTestId('merge-convert-permission-hint')).toContainText('partners.search VIEW')
   })
 
   test('재고 부족 409는 기존 병합 오류 UX를 유지한다', async ({ page }) => {
