@@ -92,7 +92,14 @@ public class SecurityConfig {
                 "Pragma",
                 "X-Requested-With"
         ));
-        config.setExposedHeaders(List.of("Authorization", "Content-Type", "X-User-Id", "X-User-Role"));
+        config.setExposedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-User-Id",
+                "X-User-Role",
+                "X-Copy-Sent-At",
+                "X-Copy-Recipient-Phone-Masked"
+        ));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 

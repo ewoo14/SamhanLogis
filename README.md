@@ -34,10 +34,16 @@
 | 아키텍처   | MSA (service-per-DB), Spring Cloud Gateway + Eureka + Resilience4j 회로차단        |
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
-| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 자율 연속 완료 — MIG-1~21 완료, 사용자 결정 대기** · **#845 DS-2 문서 레이아웃 영속/활성 렌더 완료** · **DS-3a 재인쇄 승인시점 레이아웃 pin — FABLE5 R1 fix 완료(CODEX SOL 검증 대기)** |
+| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 자율 연속 완료 — MIG-1~21 완료, 사용자 결정 대기** · **#845 DS-2 문서 레이아웃 영속/활성 렌더 완료** · **DS-3a 재인쇄 승인시점 레이아웃 pin 완료** · **DS-3b schema v2 3-pane 문서 양식 편집기 MVP 구현·검증 완료(CODEX LUNA)** |
 | 운영 단위 | **Samhan Public** (14 service, api.samhan-air.com) + **아로로지스** (독립 운영 단위, 같은 AWS 공유, api.arologis.samhan-air.com) — Phase 10.5 분리 후 |
 
 ---
+
+### 최신 진행 메모 (2026-07-22)
+
+- **#845 DS-3b 문서 양식 편집기 MVP**: desktop에 결재 문서 양식 목록과 3-pane 편집기(요소 팔레트·HEADER/BODY/FOOTER 캔버스·속성 패널)를 추가했다. schema v2의 `FIELD`/`TEXT` geometry/style/binding을 FE parser·BE typed JSONB record·실 PostgreSQL 왕복에 보존하고, v1 pin revision은 버전 dispatch와 메모리 upcast로 기존 renderer/golden 출력과 동일하게 유지한다. `ACTIVE` 직접 수정은 차단하고 비활성화 후 명시 저장만 허용하며, VIEW 전용·중복 key·실 `DocumentRenderer` 라이브 미리보기를 mock Playwright로 검증했다. Flyway 신규 변경은 없다. 상세 `docs/dev-reports/2026-07-22-845-ds3b-template-editor.md`.
+
+### 최신 진행 메모 (2026-07-19)
 
 ## 🏗️ 프로젝트 구조
 

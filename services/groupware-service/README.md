@@ -87,6 +87,12 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 - 과거 승인 문서는 소급 pin하지 않는다. 두 컬럼이 NULL이면 데스크톱 재인쇄는 현재 ACTIVE 양식을 사용하고 운영자 고지 문구를 표시한다.
 - 최종 `APPROVED` 전이와 pin/이력 저장은 동일 transaction이다. 이력 조회는 soft-delete된 양식에서도 가능하며, 신규 권한 seed는 없다.
 
+## DS-3b 문서 양식 schema v2
+
+- `DocumentPayload.Element`는 v1 레거시 `(key,type)`와 v2 `FIELD`/`TEXT`의 `geometry`·`style`·`binding`·`text`를 함께 보존한다.
+- `DocumentPayloadValidator`와 `DocumentTemplate`은 schema v1/v2를 모두 허용하며, 신규 편집 저장은 v2를 사용한다. DRAFT 업데이트 시 요청 schemaVersion도 함께 전환한다.
+- 실 PostgreSQL `DocumentTemplateIT`가 v2 저장→활성→active 조회에서 geometry/style/binding/text JSONB 왕복을 검증한다. Flyway 신규 마이그레이션은 없다.
+
 ## 테스트
 
 ```bash
@@ -104,7 +110,7 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 | `ScheduleServiceTest` | 4 case — 등록 / 시간 검증 / 참여자 idempotent / cancel |
 | `GroupwareInternalControllerIT` | 4 case — 토큰 누락 (403) / 불일치 (401) / 일치 (200) / 미존재 (404) |
 | `GroupwareAdminControllerIT` | 결재 생성·승인·반려 / 메신저 발송 / 일정 등록·조회 / HTTP 승인→레이아웃 수정→고유 layout key 기준 재인쇄 pin 불변 |
-| `DocumentTemplateIT` | 문서 양식 CRUD·활성화·동시성·JSONB round-trip·V10/V11 backfill·V12 append-only |
+| `DocumentTemplateIT` | 문서 양식 CRUD·활성화·동시성·v1/v2 JSONB round-trip·V10/V11 backfill·V12 append-only |
 
 IT 베이스 = `AbstractPostgresIT` (Testcontainers PostgreSQL 16 + Docker 미가용 환경 skip). UserClient 는 IT 에서 `@MockBean` 격리 (memory feedback_it_mockbean_external_clients).
 

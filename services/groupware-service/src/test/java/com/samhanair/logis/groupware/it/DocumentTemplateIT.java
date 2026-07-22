@@ -247,6 +247,99 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     }
 
     @Test
+    void httpV2JsonbRoundTrip_preservesGeometryStyleBindingAndText() throws Exception {
+        ObjectNode document = (ObjectNode) payload().deepCopy();
+        var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
+        ObjectNode field = bodyElements.addObject();
+        field.put("key", "field-doc-no");
+        field.put("type", "FIELD");
+        field.put("binding", "header.docNo");
+        field.set("geometry", objectMapper.createObjectNode()
+                .put("x", 10).put("y", 20).put("w", 60).put("h", 8));
+        field.set("style", objectMapper.createObjectNode()
+                .put("fontSize", 14).put("bold", true).put("align", "center").put("border", true));
+        ObjectNode text = bodyElements.addObject();
+        text.put("key", "text-title");
+        text.put("type", "TEXT");
+        text.put("text", "초안 제목");
+        text.set("geometry", objectMapper.createObjectNode()
+                .put("x", 5).put("y", 5).put("w", 90).put("h", 10));
+
+        DocumentTemplateCreateRequest request = new DocumentTemplateCreateRequest(
+                "GROUPWARE_V2_ROUNDTRIP", "v2 왕복 양식", (short) 2, document);
+        String created = mvc.perform(post("/admin/groupware/document-templates")
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000850")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.schemaVersion").value(2))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
+
+        mvc.perform(post("/admin/groupware/document-templates/{id}/activate", id)
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000850"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/groupware/document-templates/active")
+                        .param("docType", "GROUPWARE_V2_ROUNDTRIP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value(2))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[1].geometry.x").value(10))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[1].style.bold").value(true))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[1].binding").value("header.docNo"))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[2].text").value("초안 제목"))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[2].geometry.w").value(90));
+    }
+
+    /**
+     * 🔴 BLOCKING-1 RED-first(실 HTTP): 속성 패널에서 style 을 부분 지정(fontSize 만)하는 것은 FE UI 의
+     * 정상 경로다. 수정 전에는 create(201) 은 성공하지만 GET(재열람)·activate() 재검증이 동일 payload 를
+     * 거부해 "저장은 됐는데 다시 열 수 없고 활성화도 안 되는" 모순이 있었다. 3 단계(create→get→activate) 전부
+     * 성공하고, GET 응답에 style 의 미지정 필드가 명시적 null 로 남아있지 않아야 한다(FE parser 가
+     * {@code !== undefined} 로 null 을 유효값 부재와 구분하지 못해 재열람이 깨졌던 경로).
+     */
+    @Test
+    void blocking1_partialStyleSurvivesCreateGetAndActivate() throws Exception {
+        UUID accountId = UUID.fromString("40000000-0000-0000-0000-000000000851");
+        ObjectNode document = (ObjectNode) payload().deepCopy();
+        var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
+        ObjectNode field = bodyElements.addObject();
+        field.put("key", "field-partial-style");
+        field.put("type", "FIELD");
+        field.put("binding", "header.docNo");
+        field.set("geometry", objectMapper.createObjectNode()
+                .put("x", 0).put("y", 0).put("w", 50).put("h", 10));
+        // 부분 지정 — fontSize 만. bold/align/border 는 아예 보내지 않는다(정상 UI 경로).
+        field.set("style", objectMapper.createObjectNode().put("fontSize", 14));
+
+        DocumentTemplateCreateRequest request = new DocumentTemplateCreateRequest(
+                "GROUPWARE_PARTIAL_STYLE", "부분 style 양식", (short) 2, document);
+        String created = mvc.perform(post("/admin/groupware/document-templates")
+                        .header("X-User-Id", accountId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
+
+        String reloaded = mvc.perform(get("/admin/groupware/document-templates/{id}", id)
+                        .header("X-User-Id", accountId.toString()))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        JsonNode reloadedStyle = objectMapper.readTree(reloaded)
+                .path("data").path("document").path("bands").get(1).path("elements").get(1).path("style");
+        assertThat(reloadedStyle.path("fontSize").asDouble()).isEqualTo(14.0);
+        assertThat(reloadedStyle.has("bold")).as("미지정 style 필드가 명시적 null로 재열람 응답에 남으면 안 된다").isFalse();
+        assertThat(reloadedStyle.has("align")).as("미지정 style 필드가 명시적 null로 재열람 응답에 남으면 안 된다").isFalse();
+        assertThat(reloadedStyle.has("border")).as("미지정 style 필드가 명시적 null로 재열람 응답에 남으면 안 된다").isFalse();
+
+        mvc.perform(post("/admin/groupware/document-templates/{id}/activate", id)
+                        .header("X-User-Id", accountId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
     void onlyOneActiveAndActivationIsIdempotent() {
         UUID first = service.create(request("GROUPWARE_SINGLETON", "첫 양식")).id();
         UUID second = service.create(request("GROUPWARE_SINGLETON", "둘째 양식")).id();

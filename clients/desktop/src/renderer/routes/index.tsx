@@ -310,6 +310,8 @@ import { GroupwareApprovalListPage } from './GroupwareApprovalListPage'
 import { GroupwareApprovalDetailPage } from './GroupwareApprovalDetailPage'
 import { GroupwareApprovalCreatePage } from './GroupwareApprovalCreatePage'
 import { GroupwareApprovalTemplateAdminPage } from './GroupwareApprovalTemplateAdminPage'
+import { GroupwareDocumentTemplateAdminPage } from './GroupwareDocumentTemplateAdminPage'
+import { DocumentTemplateEditorPage } from './DocumentTemplateEditorPage'
 import { MessengerPage } from './MessengerPage'
 import { ApprovalDocView } from '../print/ApprovalDocView'
 // [PR-B] 품목 관리 — 품목별 노출 범위 수동 토글 (products.list VIEW 게이트).
@@ -383,6 +385,22 @@ const routes = [
         element: (
           <PermissionGuard pageCode="groupware.approval-templates" action="view">
             <GroupwareApprovalTemplateAdminPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/groupware/document-templates',
+        element: (
+          <PermissionGuard pageCode="groupware.approval-templates" action="view">
+            <GroupwareDocumentTemplateAdminPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/groupware/document-templates/:id/edit',
+        element: (
+          <PermissionGuard pageCode="groupware.approval-templates" action="view">
+            <DocumentTemplateEditorPage />
           </PermissionGuard>
         ),
       },

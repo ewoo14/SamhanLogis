@@ -40,6 +40,8 @@ def leafProjects = [
         ':shared:user-client-abstraction',
         ':shared:security',
         ':shared:realtime-abstraction',
+        ':shared:collab-core',
+        ':shared:approval-core',
         ':shared:ecount-io',
         ':shared:notification-publisher',
         ':services:eureka-server',
@@ -101,4 +103,17 @@ configure(leafProjects.collect { project(it) }) {
             }
         }
     }
+}
+
+def declaredLeafProjects = leafProjects as Set
+def discoveredLeafProjects = subprojects
+        .findAll { it.buildFile.isFile() }
+        .collect { it.path } as Set
+def missingLeafProjects = discoveredLeafProjects - declaredLeafProjects
+def unexpectedLeafProjects = declaredLeafProjects - discoveredLeafProjects
+if (!missingLeafProjects.isEmpty() || !unexpectedLeafProjects.isEmpty()) {
+    throw new GradleException(
+            "leafProjects 불일치: 누락=${missingLeafProjects.sort()}, " +
+                    "예상 외=${unexpectedLeafProjects.sort()}"
+    )
 }

@@ -1,0 +1,320 @@
+.document-template-editor-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  max-width: 720px;
+}
+
+.document-template-editor-form > div,
+.document-template-editor-form > label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  align-content: start;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.document-template-editor-form > label > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.document-template-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(172px, 0.78fr) minmax(0, 2fr) minmax(248px, 1fr);
+  align-items: stretch;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.document-template-editor-pane,
+.document-template-editor-center,
+.document-template-editor-scroll,
+.document-template-preview {
+  min-width: 0;
+}
+
+.document-template-editor-pane {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.document-template-editor-center {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.document-template-band-pane {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.document-template-preview {
+  overflow: hidden;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+}
+
+.document-template-preview > div {
+  min-width: 0;
+}
+
+@media screen {
+  /* R1: 이 선택자는 편집기 preview wrapper 아래에서만 적용된다. 공용 .paper는 변경하지 않는다. */
+  .document-template-preview .paper {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 1099px) {
+  .document-template-editor-scroll {
+    overflow-x: visible;
+  }
+
+  .document-template-editor-grid {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: var(--space-3);
+  }
+
+  /* display: contents는 모바일에서 center의 두 자식만 workspace flex item으로 만든다. */
+  .document-template-editor-center {
+    display: contents;
+  }
+
+  .document-template-editor-pane--palette {
+    order: 1;
+  }
+
+  .document-template-band-pane {
+    order: 2;
+  }
+
+  .document-template-editor-pane--inspector {
+    order: 3;
+  }
+
+  .document-template-preview {
+    order: 4;
+  }
+}
+
+@media screen and (max-width: 639px) {
+  .document-template-editor-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /*
+   * 좁은 화면에서는 A4 헤더의 문서 메타와 고정폭 결재란을 한 행에 두면
+   * 좌측 flex 영역이 문자 단위까지 줄어든다. 화면에서만 세로 적층해
+   * 문서 제목/문서번호에 충분한 폭을 주고, 인쇄용 A4 헤더는 그대로 둔다.
+   */
+  .document-template-preview .paper-a4-portrait .print-approval-doc-header {
+    flex-direction: column;
+    gap: 2mm;
+  }
+
+  .document-template-preview .paper-a4-portrait .print-approval-section {
+    align-self: stretch;
+    width: 100%;
+  }
+
+  .document-template-preview .paper-a4-portrait .print-approval-grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media print {
+  .document-template-editor-scroll {
+    max-width: none;
+    overflow: visible;
+  }
+
+  .document-template-editor-grid,
+  .document-template-editor-center {
+    display: block;
+  }
+
+  .document-template-preview {
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* print에서는 반응형 화면 폭을 덮어쓰고 공용 paper의 A4 세로 mm 크기를 복원한다. */
+  .document-template-preview .paper {
+    width: 210mm;
+    max-width: none;
+    margin-inline: auto;
+  }
+}
+
+.document-template-palette-actions {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.document-template-band-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.document-template-band-label {
+  color: var(--color-brand-700);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+}
+
+.document-template-band-count,
+.document-template-selected-caption {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.document-template-band {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.document-template-band + .document-template-band {
+  margin-top: var(--space-3);
+}
+
+.document-template-band-elements {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.document-template-element-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.document-template-element-row--selected {
+  border-color: var(--color-brand-200);
+  background: var(--color-brand-50);
+}
+
+.document-template-element-button {
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.document-template-element-button[aria-pressed='true'] {
+  border-color: var(--color-brand-600);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
+.document-template-inspector {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.document-template-inspector label {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.document-template-inspector input:not([type='checkbox']),
+.document-template-inspector select,
+.document-template-inspector textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.document-template-inspector-selected {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-brand-50);
+  color: var(--color-brand-800);
+}
+
+.document-template-inspector-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.document-template-inspector-fieldset legend {
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+@media (max-width: 639px) {
+  .document-template-palette-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .document-template-element-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .document-template-editor-pane,
+  .document-template-band-pane,
+  .document-template-preview {
+    padding: var(--space-3);
+  }
+}

@@ -78,6 +78,20 @@ interface PrintLayoutProps {
    * 그 아래의 "※ 전자서명으로 결재된 문서입니다." 안내 문구는 본 멘트와 별개로 항상 유지된다.
    */
   closingNote?: string
+  /**
+   * DS-3b v2 문서 양식 편집기가 HEADER 밴드에 배치한 FIELD/TEXT 요소.
+   *
+   * `approvalDoc=true` 일 때만 문서 헤더 영역(제목/문서메타 아래)에 렌더한다. 미지정(undefined) 시
+   * 아무 것도 렌더하지 않아 v1 문서(레거시 요소만)의 출력이 완전히 동일하게 유지된다(G3).
+   */
+  headerExtra?: ReactNode
+  /**
+   * DS-3b v2 문서 양식 편집기가 FOOTER 밴드에 배치한 FIELD/TEXT 요소.
+   *
+   * `approvalDoc=true` 일 때만 closingNote/전자서명 안내 아래에 렌더한다. 미지정 시 아무 것도
+   * 렌더하지 않는다(G3).
+   */
+  footerExtra?: ReactNode
 }
 
 /**
@@ -100,6 +114,8 @@ export function PrintLayout({
   docHeader,
   approvalSteps = [],
   closingNote,
+  headerExtra,
+  footerExtra,
 }: PrintLayoutProps) {
   const navigate = useNavigate()
   const normalizedApprovalSteps = approvalSteps.slice(0, 5)
@@ -153,6 +169,7 @@ export function PrintLayout({
                     </div>
                   ) : null}
                 </div>
+                {headerExtra ?? null}
               </div>
               {/* 결재 단계가 하나도 없으면 빈 grid 박스가 그려지므로 결재란 박스 자체를 렌더하지 않는다.
                   현재 호출처는 모두 3칸을 전달해 무해하나, 후속 호출처가 빈 배열을 넘길 때의 회귀 방어. */}
@@ -209,6 +226,7 @@ export function PrintLayout({
                 ) : null}
               </>
             ) : null}
+            {footerExtra ?? null}
           </div>
         ) : (
           children

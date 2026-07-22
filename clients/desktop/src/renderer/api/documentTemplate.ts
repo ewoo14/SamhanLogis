@@ -2,6 +2,7 @@
 import { apiClient, type ApiEnvelope } from './client'
 import {
   parseDocumentTemplate,
+  type SchemaVersion,
   type DocumentPayload,
   type TemplateEnvelope,
   type TemplateStatus,
@@ -27,7 +28,7 @@ interface DocumentTemplateRevisionDto {
 export interface DocumentTemplateInput {
   docType: string
   name: string
-  schemaVersion: 1
+  schemaVersion: SchemaVersion
   document: DocumentPayload
 }
 

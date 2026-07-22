@@ -34,9 +34,15 @@ desktop.ini
 # ----- Logs -----
 *.log
 logs/
+# QA 증거 로그는 보고서가 원문을 인용하므로 저장소에 보존한다. 그 밖의 위치는 위 규칙을 유지한다.
+!docs/qa/**/*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# `logs/` 및 npm/yarn 디버그 로그 규칙의 예외는 docs/qa 전체 하위 경로에 적용한다.
+!docs/qa/
+!docs/qa/**/
+!docs/qa/**/*.log
 
 # ----- Node -----
 node_modules/

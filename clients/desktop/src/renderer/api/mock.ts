@@ -10296,6 +10296,98 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     )
   }
 
+  // 관리자 문서 레이아웃 양식 CRUD. 실제 endpoint와 동일하게 VIEW/UPDATE를 분리한다.
+  const adminDocumentTemplatePath = new URL(
+    url.startsWith('http') ? url : 'http://mock' + url,
+  ).pathname
+  const adminDocumentTemplateParts = adminDocumentTemplatePath.split('/').filter(Boolean)
+  if (adminDocumentTemplateParts[0] === 'admin'
+    && adminDocumentTemplateParts[1] === 'groupware'
+    && adminDocumentTemplateParts[2] === 'document-templates') {
+    if (adminDocumentTemplateParts.length === 3 && method === 'GET') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'view')
+      if (denied) return denied
+      return envelope(Object.values(MOCK_DOCUMENT_TEMPLATES))
+    }
+    if (adminDocumentTemplateParts.length === 3 && method === 'POST') {
+      const denied = mockRequirePermission('groupware.approval-templates', 'update')
+      if (denied) return denied
+      const body = parseMockBody(config)
+      const docType = String(body['docType'] ?? '').trim()
+      const name = String(body['name'] ?? '').trim()
+      const schemaVersion = Number(body['schemaVersion'] ?? 0)
+      if (!docType || !name || ![1, 2].includes(schemaVersion) || !body['document']) {
+        return mockError(400, 'INVALID_INPUT', '문서 유형, 양식명, schemaVersion, document는 필수입니다.')
+      }
+      if (docType === 'DEFAULT' || docType === 'GROUPWARE_DEFAULT') {
+        return mockError(422, 'UNPROCESSABLE_ENTITY', '예약된 docType은 문서 양식으로 등록할 수 없습니다.')
+      }
+      const id = '77777777-eeee-4eee-8eee-' + String(mockDocumentTemplateSequence++).padStart(12, '0')
+      const created: MockDocumentTemplateDto = {
+        id,
+        status: 'DRAFT',
+        revision: 1,
+        docType,
+        name,
+        schemaVersion,
+        document: body['document'],
+      }
+      MOCK_DOCUMENT_TEMPLATES[docType + ':' + id] = created
+      return { __mockStatus: 201, body: envelope(created) }
+    }
+    if (adminDocumentTemplateParts.length === 5) {
+      const id = decodeURIComponent(adminDocumentTemplateParts[3]!)
+      const templateEntry = Object.entries(MOCK_DOCUMENT_TEMPLATES)
+        .find(([, candidate]) => candidate.id === id)
+      const template = templateEntry?.[1]
+      if (!template) return mockError(404, 'NOT_FOUND', '문서 양식을 찾을 수 없습니다.')
+      const action = adminDocumentTemplateParts[4]
+      if ((action === 'activate' || action === 'deactivate') && method === 'POST') {
+        const denied = mockRequirePermission('groupware.approval-templates', 'update')
+        if (denied) return denied
+        if (action === 'activate') {
+          Object.values(MOCK_DOCUMENT_TEMPLATES).forEach((candidate) => {
+            if (candidate.docType === template.docType) candidate.status = candidate.id === id ? 'ACTIVE' : 'DRAFT'
+          })
+        } else {
+          template.status = 'DRAFT'
+        }
+        return envelope(template)
+      }
+    }
+    if (adminDocumentTemplateParts.length === 4) {
+      const id = decodeURIComponent(adminDocumentTemplateParts[3]!)
+      const templateEntry = Object.entries(MOCK_DOCUMENT_TEMPLATES)
+        .find(([, candidate]) => candidate.id === id)
+      const template = templateEntry?.[1]
+      if (!template) return mockError(404, 'NOT_FOUND', '문서 양식을 찾을 수 없습니다.')
+      if (method === 'GET') {
+        const denied = mockRequirePermission('groupware.approval-templates', 'view')
+        if (denied) return denied
+        return envelope(template)
+      }
+      if (method === 'PUT') {
+        const denied = mockRequirePermission('groupware.approval-templates', 'update')
+        if (denied) return denied
+        if (template.status === 'ACTIVE') return mockError(422, 'UNPROCESSABLE_ENTITY', 'ACTIVE 양식은 직접 수정할 수 없습니다.')
+        const body = parseMockBody(config)
+        const schemaVersion = Number(body['schemaVersion'] ?? 0)
+        if (![1, 2].includes(schemaVersion) || !body['document']) return mockError(400, 'INVALID_INPUT', '문서 양식 내용이 유효하지 않습니다.')
+        template.name = String(body['name'] ?? template.name).trim()
+        template.schemaVersion = schemaVersion
+        template.document = body['document']
+        template.revision += 1
+        return envelope(template)
+      }
+      if (method === 'DELETE') {
+        const denied = mockRequirePermission('groupware.approval-templates', 'update')
+        if (denied) return denied
+        delete MOCK_DOCUMENT_TEMPLATES[templateEntry![0]]
+        return envelope(null)
+      }
+    }
+  }
+
   // GET /groupware/document-templates/active?docType= — 렌더러용 활성 문서양식(인증-only).
   // 활성 시드가 있으면 유효 TemplateEnvelope DTO, 없으면 data:null → 렌더러 DEFAULT fallback.
   // 핸들러가 있어야 mock 모드에서 실 네트워크로 fallthrough 하지 않는다.
@@ -10303,7 +10395,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const docType = String(config.params?.['docType'] ?? urlObj.searchParams.get('docType') ?? '').trim()
     if (!docType) return envelope(null)
-    return envelope(MOCK_DOCUMENT_TEMPLATES[docType] ?? null)
+    return envelope(Object.values(MOCK_DOCUMENT_TEMPLATES)
+      .find((candidate) => candidate.docType === docType && candidate.status === 'ACTIVE') ?? null)
   }
 
   // GET /groupware/document-templates/{templateId}/revisions/{revision} — 승인 재인쇄용 이력.
@@ -15234,10 +15327,7 @@ interface MockDocumentTemplateDto {
   docType: string
   name: string
   schemaVersion: number
-  document: {
-    paper: 'A4_PORTRAIT'
-    bands: Array<{ key: string; kind: 'HEADER' | 'BODY' | 'FOOTER'; elements: Array<{ key: string; type: string }> }>
-  }
+  document: unknown
 }
 
 /**
@@ -15658,6 +15748,7 @@ const MOCK_GROUPWARE_APPROVAL_ATTACHMENTS: Record<string, ApprovalAttachment[]> 
 let mockGroupwareApprovalCommentSequence = 2
 let mockGroupwareApprovalEditSequence = 2
 let mockGroupwareApprovalTemplateSequence = 4
+let mockDocumentTemplateSequence = 2
 let mockGroupwareApprovalAttachmentSequence = 3
 
 type GroupwareApprovalMockStores = {
