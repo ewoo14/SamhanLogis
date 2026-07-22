@@ -541,3 +541,243 @@ BUILD SUCCESSFUL in 58s
 clients/desktop npm run typecheck
 Exit code: 0
 ```
+
+## CODEX LUNA 최종 보완 — CI 파급 및 이월 5건 (2026-07-22)
+
+앞선 PM 후속에서 `CompletableFuture.runAsync`를 무주 executor로 사용한 결과, 공용
+`NotificationPublisherSupport`의 기존 afterCommit 테스트가 레이스에 걸렸다. 이번 보완에서는
+기존 afterCommit 단언을 약화하지 않고, 실행기를 명시적으로 주입했다.
+
+### CI 회귀: afterCommit 계약 보존
+
+RED 원문:
+
+```text
+SafetyStockServiceTest > checkAndNotify_belowThreshold_defersNotificationCenterPublishUntilAfterCommit() FAILED
+WantedButNotInvoked at SafetyStockServiceTest.java:515
+18 tests completed, 1 failed
+BUILD FAILED
+```
+
+원인은 수동으로 afterCommit callback을 실행하는 accounting/inventory/groupware 테스트가
+callback 반환 직후 기존처럼 `verify(publisher).publish(...)`를 수행하는데, 공용 ForkJoinPool에
+넘긴 publish가 아직 실행되지 않을 수 있었기 때문이다.
+
+`NotificationPublisherSupport`에 `Executor` 주입 overload를 추가하고, 두 인자 legacy overload는
+`Runnable::run`을 사용하도록 유지했다. 실제 groupware·accounting·inventory 서비스는 새
+`NotificationPublisherDispatchExecutor`를 주입받는다. 이 executor는 daemon thread 4개와
+bounded queue 256개를 사용하고, 포화 시 로그를 남기며 fail-soft로 거부한다. 따라서 운영 요청은
+비동기·bounded dispatch를 유지하고, 기존 단위 테스트와 수동 afterCommit 호출은 커밋 후 동기
+관측 계약을 잃지 않는다. 기존 테스트의 verify 단언은 삭제하거나 느슨하게 하지 않았다.
+
+GREEN 원문:
+
+```text
+gradlew.bat :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 4s
+4 actionable tasks: 4 executed
+
+gradlew.bat :services:groupware-service:test --tests ...MessageServiceTest --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 19s
+
+gradlew.bat :services:accounting-service:test --tests ...AccountingEditRequestServiceTest --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 19s
+```
+
+이번 경계는 앞서 확보한 connect timeout 1초, read timeout 2초, 3회 `RestClientException`
+재시도, clone 보호를 그대로 유지한다. 비동기 작업은 전용 bounded executor에서 수행되고 HTTP
+timeout 때문에 유한 시간 안에 끝난다. outbox·재처리 정책·서킷브레이커는 추가하지 않았다.
+
+### 5-1 `sourceRefId → refId` false-green 방지
+
+RED 원문은 기존 구현이 이미 정상이라 mutation으로 만들었다.
+
+```text
+NotificationCenterServiceTest > findMyUnread: sourceRefId를 응답 refId로 보존한다 FAILED
+... line 97
+12 tests completed, 1 failed
+BUILD FAILED
+```
+
+`NotificationCenterResponse.from()`의 `n.getSourceRefId()` 매핑은 유지하고, unread 응답의
+`refId`가 원본 source ref를 보존하는 서비스 테스트를 추가했다.
+
+GREEN 원문:
+
+```text
+gradlew.bat :services:notification-service:test --tests ...NotificationCenterServiceTest --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 15s
+18 actionable tasks: 18 executed
+```
+
+뮤테이션은 `n.getSourceRefId()`를 `null`로 바꾼 것이다. 위 테스트가 실제로 1건 실패하는 것을
+확인한 뒤 즉시 원복했다.
+
+### 1-3 동시 markRead 최초 열람시각
+
+최초 RED 원문은 새 repository 계약을 구현하기 전의 compile RED였다.
+
+```text
+MessageServiceTest.java:138,142: cannot find symbol
+method findByIdForUpdate(UUID)
+2 errors
+BUILD FAILED
+```
+
+`MessageRepository.findByIdForUpdate`를 `PESSIMISTIC_WRITE`로 선언하고 `MessageService.markRead`
+가 해당 경로로 행을 읽은 뒤 상태를 변경하도록 했다. DB 행 잠금으로 동시 transaction이
+`readAt`을 마지막 writer의 시각으로 덮지 않고 최초 열람 순서를 직렬화한다.
+
+GREEN 원문:
+
+```text
+gradlew.bat :services:groupware-service:test --tests ...MessageServiceTest --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 13s
+27 actionable tasks: 27 executed
+```
+
+추가한 reflection 계약 테스트도 GREEN이다.
+
+```text
+MessageRepositoryLockContractTest
+BUILD SUCCESSFUL in 12s
+27 actionable tasks: 27 executed
+```
+
+뮤테이션으로 `@Lock(LockModeType.PESSIMISTIC_WRITE)`를 제거하자:
+
+```text
+MessageRepositoryLockContractTest > findByIdForUpdate_usesPessimisticWriteLock() FAILED
+... line 19
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+확인 직후 annotation을 원복했다. 이 테스트는 실제 다중 connection 경합 자체가 아니라, 경합을
+막는 repository 잠금 계약을 고정한다.
+
+### 3-4 발송 실패 시 입력 보존
+
+추가 테스트는 send mutation을 reject하고 선택 칩과 본문이 남아 있는지 확인한다.
+
+GREEN 원문:
+
+```text
+MessengerPage.test.tsx -t "R3-4|R3-5"
+1 passed; 2 tests passed, 19 skipped
+```
+
+`onError`에서 `selectedRecipients`와 `body`를 비우는 mutation을 적용했을 때:
+
+```text
+R3-4 ... FAILED
+Unable to find [data-testid="messenger-recipient-chip"]
+1 failed, 20 skipped
+```
+
+mutation은 즉시 원복했다. 참고로 한 번의 잘못된 `npx` resolver가 Vitest 4를 내려받아 jsdom을
+찾지 못한 실행은 테스트 RED가 아니라 도구 환경 오류였으며, pinned local Vitest 2.1.9로 다시
+실행해 증거를 확보했다.
+
+### 3-5 칩 제거와 payload 연결
+
+두 수신자를 선택한 뒤 첫 칩을 제거하고, 남은 수신자 하나만 `recipientIds`에 들어가는
+테스트를 추가했다.
+
+GREEN 원문:
+
+```text
+R3-5 칩 제거 후 발송 payload에는 남은 수신자만 포함한다 PASSED
+```
+
+`onRemove={() => undefined}` mutation에서:
+
+```text
+R3-5 ... FAILED
+expected chips length 1 but got 2
+1 failed, 20 skipped
+```
+
+`onRemove={onRemove}`를 원복한 뒤 지정 Vitest 전체도 통과했다.
+
+### 4-1 V13 기존 행 → V14 upgrade
+
+새 Testcontainers IT는 별도 schema에서 Flyway V1~V13을 적용하고 기존 `messages` 행 1건을
+삽입한 뒤 V14만 적용한다. 기존 행 수 1, `batch_id IS NULL`, `ix_messages_batch_active` 생성
+세 가지를 확인한다.
+
+GREEN 원문:
+
+```text
+MessageBatchMigrationIT > v14_preservesExistingMessageRowsWithNullBatchId() PASSED
+BUILD SUCCESSFUL in 31s
+27 actionable tasks: 27 executed
+```
+
+V14의 `ADD COLUMN batch_id UUID`를 mutation으로 `UUID NOT NULL`로 바꾸자 기존 V13 행에
+기본값이 없어 migration 단계에서 실패했다.
+
+```text
+MessageBatchMigrationIT > v14_preservesExistingMessageRowsWithNullBatchId() FAILED
+org.flywaydb.core.internal.command.DbMigrate$FlywayMigrateException at MessageBatchMigrationIT.java:60
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+mutation은 nullable DDL로 원복했다. 이 IT는 사용자 shared Docker DB가 아니라 Testcontainers의
+독립 PostgreSQL과 throwaway schema만 사용했다.
+
+### 최종 검증 출력
+
+요청한 전체 Gradle 단일 invocation은 이 환경에서 120초 및 300초 실행 한도를 각각 초과했다.
+첫 번째 시도의 stale accounting worker가 파일 잠금을 남겨 두 번째 시도가 `output.bin` 삭제
+실패한 환경 문제도 있었으며, 해당 `s6-msg` 전용 PID만 종료했다. 이후 같은 옵션으로 각 task를
+분리 실행해 모두 완료시켰다. `UP-TO-DATE`나 `FROM-CACHE` 결과는 사용하지 않았다.
+
+```text
+:shared:notification-publisher:test       BUILD SUCCESSFUL in 4s
+:services:groupware-service:test          BUILD SUCCESSFUL in 1m 1s
+:services:user-service:test               BUILD SUCCESSFUL in 1m 2s
+:services:notification-service:test       BUILD SUCCESSFUL in 54s
+:services:accounting-service:test         BUILD SUCCESSFUL in 6m 13s
+:services:inventory-service:test           BUILD SUCCESSFUL in 1m 49s
+
+clients/desktop npm run typecheck
+Exit code: 0
+
+npx --no-install vitest run src/renderer/routes/MessengerPage.test.tsx src/renderer/api/messengerApi.test.ts
+Test Files 2 passed (2)
+Tests 26 passed (26)
+
+npx --no-install playwright test playwright/ac-825-s6-messenger-chip --reporter=line
+Running 6 tests using 1 worker
+6 passed (9.0s)
+```
+
+### 이번 최종 보완의 변경 파일
+
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisherSupport.java`
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisherDispatchExecutor.java`
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisherAutoConfiguration.java`
+- `shared/notification-publisher/src/test/java/com/samhanair/logis/notification/publisher/NotificationPublisherSupportTest.java`
+- `services/groupware-service/src/main/java/com/samhanair/logis/groupware/service/MessageService.java`
+- `services/groupware-service/src/main/java/com/samhanair/logis/groupware/repository/MessageRepository.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/service/MessageServiceTest.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/repository/MessageRepositoryLockContractTest.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/migration/MessageBatchMigrationIT.java`
+- `services/notification-service/src/test/java/com/samhanair/logis/notification/service/NotificationCenterServiceTest.java`
+- `services/accounting-service/src/main/java/com/samhanair/logis/accounting/editrequest/service/AccountingEditRequestService.java`
+- `services/inventory-service/src/main/java/com/samhanair/logis/inventory/service/SafetyStockService.java`
+- `clients/desktop/src/renderer/routes/MessengerPage.test.tsx`
+- `docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md`
+
+### 미해결·RED 불가·새로 발견한 결함
+
+- 이번 요청의 CI 회귀와 5개 이월 항목은 모두 RED→GREEN 및 mutation RED를 확보했다.
+- 1-2는 outbox/영속 재처리까지 확장하지 않았으므로 3회 모두 실패한 알림의 자동 영속 복구는
+  여전히 후속 과제다. 이번 범위에서는 로그 관측, 제한 재시도, 유한 timeout, bounded dispatch까지만
+  적용했다.
+- 새로 확인한 결함은 단일 전체 Gradle 실행이 5분 이상 걸려 도구 실행 한도를 넘길 수 있다는
+  환경 특성이다. 서비스별 실행에서는 실패가 없었다.
+- 전체 Playwright suite는 실행하지 않았고, 지정된 `ac-825-s6-messenger-chip` 6건만 실행했다.
+- git 명령은 실행하지 않았으며 commit/push/checkout/stash/reset도 하지 않았다.

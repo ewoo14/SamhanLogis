@@ -34,7 +34,7 @@ class NotificationPublisherSupportTest {
 
         TransactionSynchronizationManager.initSynchronization();
         try {
-            NotificationPublisherSupport.publishAfterCommit(publisher, request);
+            NotificationPublisherSupport.publishAfterCommit(publisher, request, Runnable::run);
 
             verify(publisher, never()).publish(request);
             TransactionSynchronizationManager.getSynchronizations()
@@ -60,8 +60,9 @@ class NotificationPublisherSupportTest {
 
         TransactionSynchronizationManager.initSynchronization();
         ExecutorService callbackExecutor = Executors.newSingleThreadExecutor();
+        ExecutorService dispatchExecutor = Executors.newSingleThreadExecutor();
         try {
-            NotificationPublisherSupport.publishAfterCommit(publisher, request);
+            NotificationPublisherSupport.publishAfterCommit(publisher, request, dispatchExecutor);
             TransactionSynchronization synchronization = TransactionSynchronizationManager
                     .getSynchronizations().get(0);
 
@@ -79,6 +80,7 @@ class NotificationPublisherSupportTest {
         } finally {
             releasePublisher.countDown();
             callbackExecutor.shutdownNow();
+            dispatchExecutor.shutdownNow();
             TransactionSynchronizationManager.clearSynchronization();
         }
     }

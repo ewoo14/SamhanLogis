@@ -82,6 +82,22 @@ class NotificationCenterServiceTest {
     }
 
     @Test
+    @DisplayName("findMyUnread: sourceRefId를 응답 refId로 보존한다")
+    void findMyUnread_preservesSourceRefIdAsRefId() {
+        NotificationCenter notification = NotificationCenter.publish(
+                "MESSENGER", NotificationSeverity.INFO,
+                "새 메시지", "본문", null, userId,
+                "groupware-service", "message-source-42", "/messenger");
+        when(repository.findMyUnread(userId, null)).thenReturn(List.of(notification));
+
+        List<NotificationCenterResponse> result = service.findMyUnread(userId, null);
+
+        assertThat(result).singleElement()
+                .extracting(NotificationCenterResponse::refId)
+                .isEqualTo("message-source-42");
+    }
+
+    @Test
     @DisplayName("findMyUnread: 조회 결과 0건 시 빈 list")
     void findMyUnread_emptyResult_returnsEmptyList() {
         when(repository.findMyUnread(userId, "SALES")).thenReturn(List.of());

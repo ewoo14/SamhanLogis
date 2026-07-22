@@ -6,6 +6,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationPublisherDispatchExecutor;
 import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
@@ -60,6 +61,7 @@ public class AccountingEditRequestService implements EditRequestService {
     private final AccountingEditRequestRepository requestRepository;
     private final RealtimeBroker broker;
     private final NotificationPublisher notificationPublisher;
+    private final NotificationPublisherDispatchExecutor notificationPublisherDispatchExecutor;
 
     /**
      * 신규 수정/삭제 요청 생성 + SSE broadcast.
@@ -96,7 +98,7 @@ public class AccountingEditRequestService implements EditRequestService {
                 null,
                 saved.getId().toString(),
                 "/admin/accounting-edit-requests"
-        ));
+        ), notificationPublisherDispatchExecutor);
 
         log.info("[PR-H4b] accounting 수정 요청 생성 — entityId={} type={} requester={} targetRole={}",
                 entityId, requestType, requesterName, targetRole);
@@ -122,7 +124,7 @@ public class AccountingEditRequestService implements EditRequestService {
                 null,
                 request.getId().toString(),
                 "/admin/accounting-edit-requests"
-        ));
+        ), notificationPublisherDispatchExecutor);
         log.info("[PR-H4b] accounting 요청 {} 수락 — approver={} entityId={}",
                 requestId, approverName, request.getEntityId());
         return request;
@@ -148,7 +150,7 @@ public class AccountingEditRequestService implements EditRequestService {
                 null,
                 request.getId().toString(),
                 "/admin/accounting-edit-requests"
-        ));
+        ), notificationPublisherDispatchExecutor);
         log.info("[PR-H4b] accounting 요청 {} 거절 — approver={} reason={}",
                 requestId, approverName, decisionReason);
         return request;

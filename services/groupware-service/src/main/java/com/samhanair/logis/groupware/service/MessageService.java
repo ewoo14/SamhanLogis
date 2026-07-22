@@ -12,6 +12,7 @@ import com.samhanair.logis.groupware.dto.MessageSendRequest;
 import com.samhanair.logis.groupware.repository.MessageRepository;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationPublisherDispatchExecutor;
 import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.util.List;
@@ -34,6 +35,7 @@ public class MessageService {
     private final MessageRepository repository;
     private final UserClient userClient;
     private final NotificationPublisher notificationPublisher;
+    private final NotificationPublisherDispatchExecutor notificationPublisherDispatchExecutor;
 
     /**
      * 메신저 발송. 송신자는 게이트웨이 주입 {@code X-User-Id} 로만 확정하고
@@ -62,7 +64,8 @@ public class MessageService {
                     saved.getId().toString(),
                     "/messenger"
             );
-            NotificationPublisherSupport.publishAfterCommit(notificationPublisher, notificationRequest);
+            NotificationPublisherSupport.publishAfterCommit(notificationPublisher, notificationRequest,
+                    notificationPublisherDispatchExecutor);
             return saved;
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
@@ -141,7 +144,8 @@ public class MessageService {
                     saved.getId() == null ? null : saved.getId().toString(),
                     "/messenger"
             );
-            NotificationPublisherSupport.publishAfterCommit(notificationPublisher, notificationRequest);
+            NotificationPublisherSupport.publishAfterCommit(notificationPublisher, notificationRequest,
+                    notificationPublisherDispatchExecutor);
         }
         return new MessageBulkSendResponse(batchId, savedMessages.size(),
                 savedMessages.stream().map(MessageResponse::from).toList());
@@ -175,7 +179,7 @@ public class MessageService {
     @Transactional
     public Message markRead(UUID messageId, UUID actorUserId) {
         // UUID는 사용자 노출 메시지에 포함하지 않는다(bulk 발송 오류 메시지와 동일 정책).
-        Message msg = repository.findById(messageId)
+        Message msg = repository.findByIdForUpdate(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
                         "메신저를 찾을 수 없습니다"));
         try {

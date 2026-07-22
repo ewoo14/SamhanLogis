@@ -29,6 +29,13 @@ const recipient = {
   employeeCode: null,
 }
 
+const secondRecipient = {
+  userId: 'user-004',
+  name: '박수신',
+  department: '구매팀',
+  employeeCode: null,
+}
+
 const selfOption = {
   userId: 'self-user-id',
   name: '나',
@@ -111,6 +118,53 @@ describe('MessengerPage', () => {
     fireEvent.submit(form)
     expect(messengerApi.sendBulkMessage).toHaveBeenCalledTimes(1)
     resolveSend({ batchId: 'batch', sentCount: 1, messages: [] })
+  })
+
+  it('R3-4 발송 실패 시 선택한 칩과 본문을 보존한다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([recipient])
+    vi.mocked(messengerApi.sendBulkMessage).mockRejectedValue(new Error('send failed'))
+
+    renderPage()
+    fireEvent.change(screen.getByTestId('messenger-recipient-search'), { target: { value: '김' } })
+    await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByText('김수신'))
+    fireEvent.change(screen.getByTestId('messenger-body'), { target: { value: '보존되어야 하는 본문' } })
+    await waitFor(() => expect((screen.getByRole('button', { name: '발송' }) as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.submit(screen.getByRole('button', { name: '발송' }).closest('form')!)
+
+    await waitFor(() => expect(messengerApi.sendBulkMessage).toHaveBeenCalledTimes(1))
+    expect(screen.getAllByTestId('messenger-recipient-chip')).toHaveLength(1)
+    expect((screen.getByTestId('messenger-body') as HTMLTextAreaElement).value).toBe('보존되어야 하는 본문')
+  })
+
+  it('R3-5 칩 제거 후 발송 payload에는 남은 수신자만 포함한다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([recipient, secondRecipient])
+    vi.mocked(messengerApi.sendBulkMessage).mockResolvedValue({ batchId: 'batch', sentCount: 1, messages: [] })
+
+    renderPage()
+    const input = screen.getByTestId('messenger-recipient-search')
+    fireEvent.change(input, { target: { value: '수신' } })
+    await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByText('김수신'))
+    fireEvent.change(input, { target: { value: '박수신' } })
+    await waitFor(() => expect(screen.getByText('박수신')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByText('박수신'))
+    await waitFor(() => expect(screen.getAllByTestId('messenger-recipient-chip')).toHaveLength(2))
+
+    fireEvent.click(screen.getByRole('button', { name: /김수신.*제거/ }))
+    await waitFor(() => expect(screen.getAllByTestId('messenger-recipient-chip')).toHaveLength(1))
+    fireEvent.change(screen.getByTestId('messenger-body'), { target: { value: '남은 수신자에게만 발송' } })
+    await waitFor(() => expect((screen.getByRole('button', { name: '발송' }) as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.submit(screen.getByRole('button', { name: '발송' }).closest('form')!)
+
+    await waitFor(() => expect(messengerApi.sendBulkMessage).toHaveBeenCalledTimes(1))
+    expect(messengerApi.sendBulkMessage.mock.calls[0]?.[0]).toEqual({
+      recipientIds: [secondRecipient.userId],
+      body: '남은 수신자에게만 발송',
+    })
   })
 
   it('R15 칩에는 UUID가 아니라 이름과 부서만 표시한다', async () => {

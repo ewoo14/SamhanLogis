@@ -14,6 +14,7 @@ import com.samhanair.logis.inventory.web.dto.SafetyStockConfigResponse;
 import com.samhanair.logis.inventory.web.dto.SafetyStockSetRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
+import com.samhanair.logis.notification.publisher.NotificationPublisherDispatchExecutor;
 import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
 import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.util.ArrayList;
@@ -59,6 +60,7 @@ public class SafetyStockService {
     private final ProductClient productClient;
     private final NotificationClient notificationClient;
     private final NotificationPublisher notificationPublisher;
+    private final NotificationPublisherDispatchExecutor notificationPublisherDispatchExecutor;
 
     /**
      * 제품별 안전재고 임계값을 설정하거나 기존 설정을 갱신한다.
@@ -307,7 +309,7 @@ public class SafetyStockService {
                 null,
                 config.getProductId() + (config.getWarehouseId() != null ? "+" + config.getWarehouseId() : ""),
                 "/inventory/safety-stock-alerts"
-        ));
+        ), notificationPublisherDispatchExecutor);
     }
 
     private ProductSummary lookupProductSafe(UUID productId) {

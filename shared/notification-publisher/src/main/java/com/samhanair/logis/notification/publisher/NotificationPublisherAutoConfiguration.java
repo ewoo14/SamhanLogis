@@ -28,4 +28,11 @@ public class NotificationPublisherAutoConfiguration {
         return new NotificationPublisher(loadBalancedBuilder, internalToken, applicationName,
                 connectTimeoutMs, readTimeoutMs);
     }
+
+    @Bean(destroyMethod = "shutdown")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(name = "loadBalancedRestClientBuilder")
+    public NotificationPublisherDispatchExecutor notificationPublisherDispatchExecutor() {
+        return new NotificationPublisherDispatchExecutor();
+    }
 }

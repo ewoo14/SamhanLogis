@@ -129,6 +129,21 @@ class MessageServiceTest {
     }
 
     @Test
+    void markRead_loadsMessageWithWriteLockBeforeChangingFirstReadAt() {
+        UUID sender = UUID.randomUUID();
+        UUID recipient = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        Message message = Message.send(sender, recipient, "본문");
+        ReflectionTestUtils.setField(message, "id", messageId);
+        when(repository.findByIdForUpdate(messageId)).thenReturn(Optional.of(message));
+
+        messageService.markRead(messageId, recipient);
+
+        verify(repository).findByIdForUpdate(messageId);
+        assertThat(message.getReadAt()).isNotNull();
+    }
+
+    @Test
     void markRead_by_non_recipient_is_rejected() {
         UUID sender = UUID.randomUUID();
         UUID recipient = UUID.randomUUID();
