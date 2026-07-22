@@ -112,6 +112,12 @@ class Phase26cConvertReserveIT extends AbstractPostgresIT {
 
         lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
+        lenient().when(partnerLookupClient.findByPartnerCodeForIdentity(anyString()))
+                .thenAnswer(invocation -> java.util.Optional.of(
+                        new com.samhanair.logis.partnerorder.vendor.client.PartnerSummary(
+                                UUID.nameUUIDFromBytes(invocation.getArgument(0, String.class)
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                                invocation.getArgument(0, String.class), null, null)));
 
         // InventoryClient 기본 stub
         lenient().when(inventoryClient.resolveWarehouseIdByCode(anyString()))

@@ -97,7 +97,7 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
 
     @BeforeEach
     void setUpPartnerLookup() {
-        Mockito.lenient().when(partnerLookupClient.findByPartnerCode(Mockito.anyString()))
+        Mockito.lenient().when(partnerLookupClient.findByPartnerCodeForIdentity(Mockito.anyString()))
                 .thenAnswer(invocation -> {
                     String partnerCode = invocation.getArgument(0);
                     return Optional.of(new PartnerSummary(

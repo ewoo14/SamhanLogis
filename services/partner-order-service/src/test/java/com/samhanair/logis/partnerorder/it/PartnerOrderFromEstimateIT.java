@@ -99,7 +99,7 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
         lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
         lenient().when(dynamicPermissionClient.check(any(UUID.class), anyString(), any(PermissionAction.class)))
                 .thenReturn(true);
-        lenient().when(partnerLookupClient.findByPartnerCode(anyString()))
+        lenient().when(partnerLookupClient.findByPartnerCodeForIdentity(anyString()))
                 .thenAnswer(invocation -> {
                     String partnerCode = invocation.getArgument(0);
                     return Optional.of(new PartnerSummary(

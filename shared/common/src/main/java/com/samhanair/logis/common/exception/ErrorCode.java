@@ -67,6 +67,12 @@ public enum ErrorCode {
             "변환할 견적을 찾을 수 없습니다."),
     PARTNER_ORDER_FROM_ESTIMATE_ALREADY_CONVERTED(HttpStatus.CONFLICT,
             "이미 주문으로 변환된 견적입니다."),
+    /**
+     * 거래처 정체성 확인을 위해 호출한 partner-service가 응답하지 않음.
+     * 사용자가 고칠 수 없는 다운스트림 장애를 입력 오류(400)로 오인시키지 않는다.
+     */
+    PARTNER_IDENTITY_LOOKUP_UNAVAILABLE(HttpStatus.BAD_GATEWAY,
+            "거래처 서비스에 연결할 수 없습니다. 잠시 후 다시 시도해주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
     /**
      * 도메인 specific — product-service 의 modelCode/UUID 조회 미존재.

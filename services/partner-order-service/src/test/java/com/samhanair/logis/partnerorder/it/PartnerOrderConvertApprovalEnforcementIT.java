@@ -31,6 +31,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -86,6 +87,10 @@ class PartnerOrderConvertApprovalEnforcementIT extends AbstractPostgresIT {
 
         lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
+        lenient().when(partnerLookupClient.findByPartnerCodeForIdentity("A2-4-PARTNER"))
+                .thenReturn(Optional.of(new com.samhanair.logis.partnerorder.vendor.client.PartnerSummary(
+                        UUID.fromString("00000000-0000-0000-0000-000000000101"),
+                        "A2-4-PARTNER", null, "1234567890")));
         lenient().when(inventoryClient.resolveWarehouseIdByCode(anyString()))
                 .thenReturn(UUID.fromString("00000000-0000-0000-0000-000000000001"));
         lenient().when(inventoryClient.reserve(

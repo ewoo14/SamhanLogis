@@ -159,6 +159,11 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
         // 외부 client 기본 lenient stub
         lenient().when(dcConfigClient.calculatePrices(anyString(), anyList())).thenReturn(java.util.Map.of());
         lenient().when(productClient.lookup(anyList())).thenReturn(List.of());
+        lenient().when(partnerLookupClient.findByPartnerCodeForIdentity(anyString()))
+                .thenAnswer(invocation -> Optional.of(new com.samhanair.logis.partnerorder.vendor.client.PartnerSummary(
+                        UUID.nameUUIDFromBytes(invocation.getArgument(0, String.class)
+                                .getBytes(StandardCharsets.UTF_8)),
+                        invocation.getArgument(0, String.class), null, null)));
         // InventoryClient.reserve(UUID, UUID, int) 는 concrete class — 직접 stub 하지 않음.
         // confirm 흐름 IT 에서만 필요하므로 각 케이스에서 개별 stub (본 IT 는 confirm 경로 미사용).
     }

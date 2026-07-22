@@ -62,6 +62,7 @@ class PartnerOrderMergeConvertServiceTest {
     @Mock private PartnerOrderRepository orderRepository;
     @Mock private SlipServiceClient slipServiceClient;
     @Mock private InventoryClient inventoryClient;
+    @Mock private PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
 
     @InjectMocks private PartnerOrderMergeConvertService service;
 
@@ -138,6 +139,33 @@ class PartnerOrderMergeConvertServiceTest {
         verifyNoInteractions(slipServiceClient);
         verify(inventoryClient, never()).reserve(
                 any(), any(), anyInt(), anyString(), any());
+    }
+
+    @Test
+    @DisplayName("케이스1b: 정체성을 단정할 수 있는 legacy 주문은 현재 거래처 UUID로 병합 가능")
+    void legacyOrderWithExactPartnerSnapshot_canMerge() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        String partnerCode = "P-LEGACY-EXACT";
+        String bizCode = "1234567890";
+        String orderNo = "2026/07/23-LEGACY-EXACT";
+        PartnerOrder legacyOrder = buildOrder(orderId, partnerCode, lineId, 5, orderNo);
+        setField(legacyOrder, "partnerId", null);
+
+        when(partnerIdentityResolver.requireLegacyPartnerId(partnerCode, bizCode))
+                .thenReturn(DEFAULT_PARTNER_ID);
+        when(orderRepository.findByOrderNo(orderNo)).thenReturn(Optional.of(legacyOrder));
+
+        MergeConvertToSlipRequest req = new MergeConvertToSlipRequest(
+                List.of(new MergeConvertToSlipRequest.OrderItems(orderNo,
+                        List.of(new MergeConvertToSlipRequest.Item(lineId, 2)))),
+                "WH-001", null);
+
+        MergeConvertResultResponse result = service.convertMerge(req, null, null);
+
+        assertThat(result.slipNo()).isEqualTo(STUB_SLIP_NO);
+        verify(partnerIdentityResolver).requireLegacyPartnerId(partnerCode, bizCode);
+        verify(slipServiceClient).publishFromOrdersMerge(any(), anyString());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

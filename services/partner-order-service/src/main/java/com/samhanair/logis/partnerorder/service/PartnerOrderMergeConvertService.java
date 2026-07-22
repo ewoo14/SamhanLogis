@@ -77,13 +77,14 @@ public class PartnerOrderMergeConvertService {
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+    private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
 
     /**
      * 여러 주문의 선택 라인을 단일 출고전표로 병합 발행한다 (Phase 2.6b D2).
      *
-     * <p>같은 거래처 UUID({@code partnerId}) 주문만 병합 가능. UUID 미해결 또는 거래처 정체성
-     * 불일치 시 slip/reserve 호출 없이 즉시 409 CONFLICT. {@code partnerCode}/{@code bizCode}는
-     * 표시 snapshot이며 정체성 판정에 사용하지 않는다.
+     * <p>같은 거래처 UUID({@code partnerId}) 주문만 병합 가능. 신규 주문은 저장된 UUID를
+     * 사용하고, legacy의 NULL UUID는 코드+사업자번호 exact lookup이 성공할 때만 일시 해석한다.
+     * 해석 불가 행은 slip/reserve 호출 없이 409 CONFLICT로 드러낸다.
      *
      * <p>한 라인이라도 가용 부족(reserve 409) 또는 slip 발행 실패 시 전체 409 + 예약 성공분 release 보상.
      * 성공 시 각 주문 라인 convertedQuantity 누적 + 전량 전환 주문 CONVERTED 상태 갱신.
@@ -120,14 +121,29 @@ public class PartnerOrderMergeConvertService {
                     .orElseThrow(() -> new BusinessException(ErrorCode.PARTNER_ORDER_NOT_FOUND,
                             ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
             order.requireConvertible();
-            if (order.getPartnerId() == null) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "거래처 정체성이 확인되지 않은 기존 주문은 병합할 수 없습니다. "
-                                + "거래처 재조정 후 다시 시도해 주세요.");
+            UUID orderPartnerId = order.getPartnerId();
+            if (orderPartnerId == null) {
+                try {
+                    // I7: V13은 과거 행을 자동 backfill하지 않지만, 코드+사업자번호가 현재
+                    // 거래처 snapshot과 정확히 일치하는 단정 가능한 행은 병합을 막지 않는다.
+                    // 코드 재사용으로 pair가 달라진 행은 resolver가 INVALID_INPUT을 내고
+                    // 아래 409 안전망으로 드러낸다.
+                    UUID resolvedLegacyPartnerId = partnerIdentityResolver.requireLegacyPartnerId(
+                            order.getPartnerCode(), order.getBizCode());
+                    orderPartnerId = resolvedLegacyPartnerId;
+                } catch (BusinessException ex) {
+                    if (ex.getErrorCode() == ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE) {
+                        throw ex;
+                    }
+                    throw unresolvedLegacyPartnerConflict();
+                }
+            }
+            if (orderPartnerId == null) {
+                throw unresolvedLegacyPartnerConflict();
             }
             if (partnerId == null) {
-                partnerId = order.getPartnerId();
-            } else if (!partnerId.equals(order.getPartnerId())) {
+                partnerId = orderPartnerId;
+            } else if (!partnerId.equals(orderPartnerId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "병합은 동일 거래처 정체성의 주문만 가능합니다.");
             }
@@ -258,6 +274,12 @@ public class PartnerOrderMergeConvertService {
         log.info("[D2] 병합 전환 완료 — {}개 주문 → slip {} (idemKey={})",
                 orders.size(), result.slipNo(), idempotencyKey);
         return new MergeConvertResultResponse(result.slipNo(), results);
+    }
+
+    private ResponseStatusException unresolvedLegacyPartnerConflict() {
+        return new ResponseStatusException(HttpStatus.CONFLICT,
+                "거래처 정체성이 확인되지 않은 기존 주문은 병합할 수 없습니다. "
+                        + "거래처 재조정 후 다시 시도해 주세요.");
     }
 
     private void publishListChanged() {

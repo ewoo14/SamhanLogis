@@ -372,3 +372,119 @@ Tests       123 passed (123)
 
 전체 mock Playwright는 실행하지 않았고, 지정된 `d2-order-merge`와
 `partner-order-list-badge-refresh` 두 디렉터리만 실행했다.
+
+## 13. CI #907 후속 — I5~I8 정합성과 8건 실패 해소 (CODEX LUNA, 2026-07-23)
+
+### 13.1 판단과 구현
+
+- **I5 유지**: confirm 및 estimate→order 생성 경로는 `findByPartnerCodeForIdentity`로 현재
+  거래처 UUID를 조회한 뒤 `PartnerOrder.partnerId`에 저장한다. lookup 장애 중에는 UUID 없는
+  신규 주문을 만들지 않는다.
+- **I6 결정**: 주문 생성은 거래처 정체성이 없으면 안전하게 차단한다. 이유는 I5를 포기한
+  주문을 저장하면 이후 전표 귀속을 추정해야 하므로 회계 무결성이 훼손되기 때문이다.
+  단, partner-service 5xx/네트워크/응답계약 오류는 `PARTNER_IDENTITY_LOOKUP_UNAVAILABLE`
+  (HTTP 502)로 반환하고, 404·코드/사업자번호 불일치는 `INVALID_INPUT`(HTTP 400)으로
+  반환한다. 사용자가 고칠 수 없는 장애를 입력 오류로 돌리지 않는다.
+- **I7 결정**: V13은 기존 행을 자동 backfill하지 않는다. 다만 `partner_id IS NULL`인
+  legacy 행도 코드+사업자번호가 현재 active 거래처 snapshot과 exact 일치하면 병합 직전에
+  UUID를 일시 해석해 병합을 허용한다. 코드 재사용으로 pair가 달라지거나 lookup이 안 되면
+  reserve/publish 없이 409로 막는다. lookup 자체 장애는 I6과 동일하게 502다.
+- **I8 판단**: 계약이 옳고 테스트 fixture가 stale였다. 생성/전환 테스트는 새 생성 계약의
+  성공 lookup을 명시하도록 수정했고, 병합 409는 생성 400과 별개의 legacy identity guard로
+  수정했다.
+
+### 13.2 RED 원문
+
+기존 CI 재현:
+
+```text
+PartnerOrderConvertApprovalEnforcementIT > 병합 전환: 같은 PARTNER_ORDER_CONVERT 게이트로 비결재자 403, 결재자 200 FAILED
+    java.lang.AssertionError at PartnerOrderConvertApprovalEnforcementIT.java:205
+Phase26cConvertReserveIT > R6: confirm 후 inventoryClient.reserve 미호출 FAILED
+    java.lang.AssertionError at Phase26cConvertReserveIT.java:486
+PartnerOrderRevisionRestoreIT > 케이스1: 캡처 타임라인 ? CREATE→EDIT 목록 내림차순 + changeSummary + actorName UUID 비공개 FAILED
+    java.lang.AssertionError at PartnerOrderRevisionRestoreIT.java:188
+PartnerOrderRevisionRestoreIT > 케이스6: 채번 단조증가 ? rev1→2→3 revisionNo 일관 FAILED
+    java.lang.AssertionError at PartnerOrderRevisionRestoreIT.java:590
+PartnerOrderRevisionRestoreIT > 케이스9: create→edit→restore(rev1) 비삭제 일반 복원 ? 활성 라인 rev1 일치 + soft-deleted 중복 0 (cycle2c) FAILED
+    java.lang.AssertionError at PartnerOrderRevisionRestoreIT.java:907
+PartnerOrderRevisionRestoreIT > 케이스7: DRAFT 삭제 → DELETE revision 캡처 → 삭제된 주문 복원(undelete + 내용 복구) → RESTORE revision 생성 FAILED
+    java.lang.AssertionError at PartnerOrderRevisionRestoreIT.java:663
+PartnerOrderRevisionRestoreIT > 케이스2: DRAFT 복원 ? rev1 복원 후 헤더+라인 일치 + RESTORE revision 생성 + slipResyncRequired=false FAILED
+    java.lang.AssertionError at PartnerOrderRevisionRestoreIT.java:278
+PartnerOrderRevisionRestoreIT > 케이스8: create→edit(라인 변경)→delete→restore(rev1) 라인 정합 ? 활성 라인 rev1 일치 + soft-deleted 중복 없음 FAILED
+    java.lang.AssertionError at PartnerOrderRevisionRestoreIT.java:766
+22 tests completed, 8 failed
+BUILD FAILED in 46s
+```
+
+추가한 I6/I7 결함 재현 테스트:
+
+```text
+PartnerOrderMergeConvertServiceTest > 케이스1b: 정체성을 단정할 수 있는 legacy 주문은 현재 거래처 UUID로 병합 가능 FAILED
+    org.springframework.web.server.ResponseStatusException at PartnerOrderMergeConvertServiceTest.java:164
+PartnerOrderPartnerIdentityResolverTest > partnerService5xx_isNotReportedAsInvalidUserInput() FAILED
+    org.assertj.core.error.AssertJMultipleFailuresError at PartnerOrderPartnerIdentityResolverTest.java:53
+4 tests completed, 2 failed
+BUILD FAILED in 17s
+```
+
+### 13.3 GREEN 원문
+
+```text
+BUILD SUCCESSFUL in 48s
+15 actionable tasks: 3 executed, 12 up-to-date
+```
+
+I7 실 Postgres 병합 IT 및 장애/입력 분류 테스트:
+
+```text
+BUILD SUCCESSFUL in 39s
+15 actionable tasks: 2 executed, 13 up-to-date
+```
+
+### 13.4 mutation RED 원문
+
+I6 장애 분류를 임시로 `INVALID_INPUT`으로 바꾼 mutation:
+
+```text
+PartnerOrderPartnerIdentityResolverTest > partnerService5xx_isNotReportedAsInvalidUserInput() FAILED
+    org.assertj.core.error.AssertJMultipleFailuresError at PartnerOrderPartnerIdentityResolverTest.java:53
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+I7 resolved legacy UUID 대입을 임시 제거한 mutation:
+
+```text
+PartnerOrderMergeConvertIT > I7: exact code+사업자번호 legacy 주문은 partner UUID를 해석해 병합 FAILED
+    java.lang.AssertionError at PartnerOrderMergeConvertIT.java:166
+1 test completed, 1 failed
+BUILD FAILED in 38s
+```
+
+첫 I7 mutation(조건만 무조건 진입)은 행위를 바꾸지 않아 GREEN이었다. 이를 유효 mutation
+증거로 세지 않고 즉시 resolved UUID 대입 제거 mutation으로 교체하여 RED를 확보했다.
+
+### 13.5 요청한 전체 실행 원문
+
+명령:
+
+```text
+.\gradlew.bat :services:partner-order-service:test --no-daemon --console=plain
+```
+
+최종 종료 원문:
+
+```text
+> Task :services:partner-order-service:test
+
+BUILD SUCCESSFUL in 4m 6s
+15 actionable tasks: 1 executed, 14 up-to-date
+448 tests completed, 0 failed
+```
+
+Testcontainers가 종료된 뒤 CloudWatch 관측 메트릭이 이미 종료된 임시 Postgres 포트를
+검사하면서 shutdown warning/stack trace를 남겼지만, 테스트 task는 성공 종료했고 실패 테스트는
+0건이었다. 이번 변경은 V13 migration SQL을 수정하지 않았으므로 별도 fresh Postgres probe는
+요구 대상이 아니며 실행하지 않았다.

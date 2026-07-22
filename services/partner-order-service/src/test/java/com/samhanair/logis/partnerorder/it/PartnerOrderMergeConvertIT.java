@@ -30,12 +30,14 @@ import com.samhanair.logis.partnerorder.client.SlipServiceClient.PublishResult;
 import com.samhanair.logis.partnerorder.repository.PartnerOrderRepository;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
+import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.vendor.client.ProductCatalogLookupClient;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -133,6 +135,38 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
         // SlipServiceClient 기본 stub
         lenient().when(slipServiceClient.publishFromOrdersMerge(any(), anyString()))
                 .thenReturn(PublishResult.published(STUB_SLIP_NO));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("I7: exact code+사업자번호 legacy 주문은 partner UUID를 해석해 병합")
+    void legacyOrderWithExactPartnerSnapshot_isMergeable() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        String partnerCode = "LEGACY-EXACT-OK";
+        String bizCode = "1234567890";
+        insertOrderWithPartnerIdentity(orderId, lineId, null, partnerCode, bizCode,
+                "2026/07/23-MRG-I7-OK", "DRAFT", 2, BigDecimal.valueOf(10000));
+        when(partnerLookupClient.findByPartnerCodeForIdentity(partnerCode))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        PARTNER_ID_A, partnerCode, "정확 거래처", bizCode)));
+
+        mockMvc.perform(post("/api/v1/partner-orders/convert-to-slip-merge")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "orders": [{"partnerOrderId": "%s",
+                                    "items": [{"orderLineId": "%s", "quantity": 1}]}],
+                                  "warehouseCode": "WH-MAIN"
+                                }
+                                """.formatted(orderId, lineId))
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slipNo").value(STUB_SLIP_NO));
+
+        verify(slipServiceClient).publishFromOrdersMerge(any(), anyString());
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -341,6 +375,9 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
                 "2026/07/23-MRG-I3-A", "DRAFT", 1, BigDecimal.valueOf(10000));
         insertOrderWithPartnerIdentity(orderBId, lineBId, PARTNER_ID_A, reusedCode, "1111111111",
                 "2026/07/23-MRG-I3-B", "DRAFT", 1, BigDecimal.valueOf(10000));
+        when(partnerLookupClient.findByPartnerCodeForIdentity(reusedCode))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        PARTNER_ID_A, reusedCode, "현재 거래처", "2222222222")));
 
         String body = """
                 {

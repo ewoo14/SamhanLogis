@@ -85,6 +85,62 @@ public class PartnerLookupClient {
         }
     }
 
+    /**
+     * 주문 정체성 확정용 조회.
+     *
+     * <p>404는 사용자가 입력한 코드에 대응하는 거래처가 없는 입력 오류 후보이므로 empty를
+     * 반환한다. 그 외 응답 오류·네트워크 오류·유효하지 않은 성공 본문은
+     * {@link PartnerLookupUnavailableException}으로 보존한다. 목록/표시 조회의 기존
+     * fail-soft {@link #findByPartnerCode(String)} 계약은 변경하지 않는다.
+     *
+     * @param partnerCode 거래처 코드
+     * @return 존재하지 않으면 empty, 정상 조회면 snapshot
+     * @throws PartnerLookupUnavailableException partner-service 장애 또는 계약 위반
+     */
+    public Optional<PartnerSummary> findByPartnerCodeForIdentity(String partnerCode) {
+        if (partnerCode == null || partnerCode.isBlank()) {
+            return Optional.empty();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            throw new PartnerLookupUnavailableException("X-Internal-Token 미설정");
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/partners/{partnerCode}", partnerCode.trim())
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            Optional<PartnerSummary> result = parseSummary(body);
+            if (result.isEmpty()) {
+                throw new PartnerLookupUnavailableException("partner-service 응답 본문이 유효하지 않음");
+            }
+            return result;
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                return Optional.empty();
+            }
+            throw new PartnerLookupUnavailableException(
+                    "partner-service status=" + ex.getStatusCode().value(), ex);
+        } catch (PartnerLookupUnavailableException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new PartnerLookupUnavailableException("partner-service 호출 실패", ex);
+        }
+    }
+
+    /** 정체성 확정 호출에서 다운스트림 장애를 입력 오류와 구분하기 위한 예외. */
+    public static class PartnerLookupUnavailableException extends RuntimeException {
+
+        public PartnerLookupUnavailableException(String message) {
+            super(message);
+        }
+
+        public PartnerLookupUnavailableException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     /** ApiResponse wrapper 의 data 필드 → PartnerSummary 변환. */
     private Optional<PartnerSummary> parseSummary(String body) {
         if (body == null || body.isBlank()) {
