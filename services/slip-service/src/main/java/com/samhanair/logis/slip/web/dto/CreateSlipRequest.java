@@ -107,19 +107,56 @@ public record CreateSlipRequest(
              * BE 가 라인 단위로 공급가액/부가세를 분리(eCount 방식, {@link com.samhanair.logis.slip.domain.SlipLine#createFromVatInclusive}).
              * null/false 면 기존 VAT 미포함(공급) 단가로 처리. (2026-06-09 단가 부가세포함 전환)
              */
-            Boolean priceVatInclusive) {
+            Boolean priceVatInclusive,
+            /** 권위 공급가액 S — 부가세·합계와 함께 보낼 때만 적용한다. */
+            BigDecimal supplyAmount,
+            /** 권위 부가세 V — 공급가액·합계와 함께 보낼 때만 적용한다. */
+            BigDecimal vatAmount,
+            /** 권위 VAT 포함 합계 T — 전표 lineTotal 컬럼과 의미가 다르다. */
+            BigDecimal lineTotalWithVat) {
 
         /** 호환 생성자 — priceVatInclusive 미제공(8-arg 호출자). */
         public SlipLineRequest(UUID productId, String productName, String modelName,
                                String specification, Integer quantity, BigDecimal unitPrice, String note,
                                com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions) {
-            this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions, null);
+            this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions,
+                    null, null, null, null);
         }
 
         /** 호환 생성자 — setOptions/priceVatInclusive 미제공(기존 7-arg 호출자/테스트). */
         public SlipLineRequest(UUID productId, String productName, String modelName,
                                String specification, Integer quantity, BigDecimal unitPrice, String note) {
-            this(productId, productName, modelName, specification, quantity, unitPrice, note, null, null);
+            this(productId, productName, modelName, specification, quantity, unitPrice, note, null,
+                    null, null, null, null);
+        }
+
+        /** 호환 생성자 — 기존 priceVatInclusive 호출자. 권위 금액 필드는 모두 생략한다. */
+        public SlipLineRequest(UUID productId, String productName, String modelName,
+                               String specification, Integer quantity, BigDecimal unitPrice, String note,
+                               com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                               Boolean priceVatInclusive) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, note, setOptions,
+                    priceVatInclusive, null, null, null);
+        }
+
+        /** 권위 금액을 포함한 명시적 생성자. */
+        public SlipLineRequest(UUID productId, String productName, String modelName,
+                               String specification, Integer quantity, BigDecimal unitPrice, String note,
+                               com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
+                               Boolean priceVatInclusive, BigDecimal supplyAmount, BigDecimal vatAmount,
+                               BigDecimal lineTotalWithVat) {
+            this.productId = productId;
+            this.productName = productName;
+            this.modelName = modelName;
+            this.specification = specification;
+            this.quantity = quantity;
+            this.unitPrice = unitPrice;
+            this.note = note;
+            this.setOptions = setOptions;
+            this.priceVatInclusive = priceVatInclusive;
+            this.supplyAmount = supplyAmount;
+            this.vatAmount = vatAmount;
+            this.lineTotalWithVat = lineTotalWithVat;
         }
     }
 }

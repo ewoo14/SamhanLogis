@@ -125,7 +125,10 @@ public record PartnerOrderDetailResponse(
      * @param categoryKey legacy 품목 카테고리 key.
      * @param quantity 수량.
      * @param deliveryPrice 납품 단가.
-     * @param subtotal 라인 소계.
+     * @param subtotal 라인 소계(VAT 포함 합계 T, 기존 계약 유지).
+     * @param supplyAmount 공급가액 S. legacy 주문은 null.
+     * @param vatAmount 부가세 V. legacy 주문은 null.
+     * @param lineTotal VAT 포함 라인 합계 T (=subtotal).
      * @param remark 라인 비고.
      * @param convertedQuantity 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0.
      * @param bundleMode 번들 처리 방식. 현재 저장 컬럼이 없어 {@code null}.
@@ -144,6 +147,9 @@ public record PartnerOrderDetailResponse(
             int quantity,
             BigDecimal deliveryPrice,
             BigDecimal subtotal,
+            BigDecimal supplyAmount,
+            BigDecimal vatAmount,
+            BigDecimal lineTotal,
             String remark,
             int convertedQuantity,
             String bundleMode,
@@ -174,6 +180,9 @@ public record PartnerOrderDetailResponse(
                     line.getQuantity(),
                     line.getPriceVat(),
                     line.getSubtotal(),
+                    line.getSupplyAmount(),
+                    line.getVatAmount(),
+                    line.getLineTotal(),
                     line.getRemark(),
                     line.getConvertedQuantity(),
                     null,

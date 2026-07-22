@@ -95,6 +95,7 @@ public class SalesSlipUpdateService {
         bundleLineage.restoreSlipLines(replacementLines, request.lines().stream()
                 .map(SlipUpdateRequest.LineRequest::lineId)
                 .toList());
+        rejectAuthoritativeBundleComponents(replacementLines, request.lines());
         try {
             slip.updateSalesHeader(
                     request.partnerId(),
@@ -218,6 +219,22 @@ public class SalesSlipUpdateService {
     }
 
     private SlipLine toLine(Slip slip, SlipUpdateRequest.LineRequest line) {
+        boolean authoritative = AuthoritativeAmountValidator.isComplete(
+                line.supplyAmount(), line.vatAmount(), line.lineTotalWithVat());
+        if (authoritative) {
+            return SlipLine.createFromAuthoritativeAmounts(
+                    slip,
+                    line.productId(),
+                    line.productName(),
+                    line.modelName(),
+                    line.specification(),
+                    line.quantity(),
+                    line.supplyAmount(),
+                    line.vatAmount(),
+                    line.lineTotalWithVat(),
+                    line.note(),
+                    null);
+        }
         return SlipLine.create(
                 slip,
                 line.productId(),
@@ -227,6 +244,19 @@ public class SalesSlipUpdateService {
                 line.quantity(),
                 line.unitPrice(),
                 line.note());
+    }
+
+    private void rejectAuthoritativeBundleComponents(List<SlipLine> lines,
+                                                     List<SlipUpdateRequest.LineRequest> requests) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (BundleLineageResolver.isBundleComponent(lines.get(i))
+                    && AuthoritativeAmountValidator.isComplete(
+                            requests.get(i).supplyAmount(), requests.get(i).vatAmount(),
+                            requests.get(i).lineTotalWithVat())) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "세트 구성품의 공급가액·부가세는 개별 편집할 수 없습니다");
+            }
+        }
     }
 
     /**

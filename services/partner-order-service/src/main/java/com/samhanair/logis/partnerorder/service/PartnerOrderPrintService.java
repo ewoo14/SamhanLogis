@@ -2,6 +2,7 @@ package com.samhanair.logis.partnerorder.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.common.http.HttpHeaderConstants;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.PartnerOrderLine;
@@ -11,7 +12,6 @@ import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
@@ -33,8 +33,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class PartnerOrderPrintService {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final BigDecimal VAT_DIVISOR = new BigDecimal("11");
-
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerLookupClient partnerLookupClient;
 
@@ -99,9 +97,23 @@ public class PartnerOrderPrintService {
 
     private String render(PartnerOrder order) {
         BigDecimal total = order.getTotalAmount() == null ? BigDecimal.ZERO : order.getTotalAmount();
-        // totalAmount 는 VAT 포함 합계라는 주문 도메인 계약을 기준으로 공급가/부가세를 역산한다.
-        BigDecimal vat = total.divide(VAT_DIVISOR, 0, RoundingMode.HALF_UP);
-        BigDecimal supply = total.subtract(vat);
+        // 신규 라인은 저장된 S/V 스냅샷을 사용하고, legacy 행은 기존 T(subtotal) 의미를
+        // 공통 계산기로 역산한다. 기존 저장 레코드를 소급 변경하지 않는다.
+        boolean hasCompleteLineAmounts = !order.getLines().isEmpty()
+                && order.getLines().stream().allMatch(line -> line.getSupplyAmount() != null
+                        && line.getVatAmount() != null);
+        BigDecimal supply;
+        BigDecimal vat;
+        if (hasCompleteLineAmounts) {
+            supply = order.getLines().stream().map(PartnerOrderLine::getSupplyAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            vat = order.getLines().stream().map(PartnerOrderLine::getVatAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        } else {
+            VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(total);
+            supply = split.supplyAmount();
+            vat = split.vatAmount();
+        }
         String partnerName = partnerLookupClient.findByPartnerCode(order.getPartnerCode())
                 .map(PartnerSummary::name)
                 .filter(name -> !name.isBlank())

@@ -119,13 +119,28 @@ export function CollaborativeSlipInput({
   // 로딩 중(coeditPending)에만 잠금. provider=null 자체(로드 실패/비활성)는 평문 편집 허용 — onChange 가 modal state 갱신, Yjs 는 provider 있을 때만(영구잠금 회귀 방지, 리뷰 Opus 라운드2).
   const effectiveReadOnly = readOnly || !!coeditPending
   latestValueRef.current = value
+  // BLOCKING-1 부수 발견(#824 R1): onValueChange/onDocSyncValueChange 는 호출부(SlipDetailPage 등)에서
+  // 매 렌더 새 인라인 화살표로 넘어와 참조가 매번 바뀐다. 이 값들을 아래 sync-effect 의 의존성
+  // 배열에 두면(구코드) "커밋되지 않은 값 정규화"(예: 숫자 필드 clear → 0)가 Y.Doc 원문(빈 문자열)과
+  // 영원히 같아질 수 없는 필드에서 매 렌더마다 effect 가 재구독되며 syncFromDoc() 를 즉시 재호출 →
+  // onValueChange 재호출 → setState → 재렌더 → effect 재구독 … 의 무한 루프(React
+  // "Maximum update depth exceeded")로 이어져 클리어 자체가 커밋되지 않고 이전 값으로 보였다
+  // (라이브 실증: 수량 셀 clear 시 "7" 로 복원). ref 로 "최신 콜백"만 참조해 재구독을
+  // fieldPath/provider 변경 시로만 한정한다 — 동작은 동일(항상 최신 콜백 호출)하되 리렌더마다
+  // 재구독하지 않는다.
+  const onValueChangeRef = useRef(onValueChange)
+  onValueChangeRef.current = onValueChange
+  const onDocSyncValueChangeRef = useRef(onDocSyncValueChange)
+  onDocSyncValueChangeRef.current = onDocSyncValueChange
 
   useEffect(() => {
     if (!provider) return undefined
     const syncFromDoc = () => {
       const nextValue = valueFromProvider(provider, fieldPath)
       // doc-sync 유래 반영은 실입력(onChange)과 분리 — onDocSyncValueChange 지정 시 그쪽만(R4-F6).
-      if (nextValue !== latestValueRef.current) (onDocSyncValueChange ?? onValueChange)(nextValue)
+      if (nextValue !== latestValueRef.current) {
+        (onDocSyncValueChangeRef.current ?? onValueChangeRef.current)(nextValue)
+      }
     }
     const syncAwareness = () => {
       setRemoteCursors(remoteCursorsFor(provider, fieldPath))
@@ -139,7 +154,10 @@ export function CollaborativeSlipInput({
       unsubscribeDoc()
       unsubscribeAwareness()
     }
-  }, [fieldPath, onDocSyncValueChange, onValueChange, provider])
+    // onValueChange/onDocSyncValueChange 는 ref 로 최신값을 읽으므로 의도적으로 deps 에서
+    // 제외한다(위 주석 — 무한 루프 근본 수정). react-hooks/exhaustive-deps 미설정 프로젝트라
+    // eslint-disable 주석은 불필요(추가 시 "unused directive" 경고).
+  }, [fieldPath, provider])
 
   useEffect(() => {
     const first = remoteEdits[0]

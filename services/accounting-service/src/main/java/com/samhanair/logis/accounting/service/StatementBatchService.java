@@ -12,9 +12,11 @@ import com.samhanair.logis.accounting.web.dto.StatementBatchRow.StatementLine;
 import com.samhanair.logis.accounting.web.dto.StatementBatchRow.StatementSlip;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -64,26 +66,40 @@ public class StatementBatchService {
         }
 
         List<StatementBatchRow> rows = new ArrayList<>(byPartner.size());
+        Set<String> selectionKeys = new HashSet<>();
         for (Map.Entry<UUID, List<TaxInvoice>> e : byPartner.entrySet()) {
             List<TaxInvoice> partnerInvoices = e.getValue();
-            // partner snapshot (세금계산서 자체에 partnerName 보존되어 있어 fallback)
-            TaxInvoice first = partnerInvoices.get(0);
-            String partnerName = first.getPartnerName();
-            // partner-service lookup → partnerCode (snapshot 에 없으므로 외부 호출)
-            String partnerCode = "-";
+            // repository가 보장하는 공급일자 ASC + 전표번호 ASC 순서를 대표 snapshot 선택 순서로 사용한다.
+            // 첫 invoice 하나만 보면 후속 invoice에만 남은 유효 snapshot을 놓칠 수 있다.
+            String partnerCode = firstNonBlank(partnerInvoices, TaxInvoice::getPartnerCode);
+            String bizNo = firstNonBlank(partnerInvoices, TaxInvoice::getPartnerBusinessNo);
+            String partnerName = firstNonBlank(partnerInvoices, TaxInvoice::getPartnerName);
+
+            // 선택 key는 표시 코드/사업자번호와 분리한다. partnerId 그룹 key와 1:1이므로
+            // namespace 교차 충돌·쉼표·blank snapshot 모두 선택 계약에 영향을 주지 않는다.
+            String selectionKey = e.getKey() == null ? "partner-null" : e.getKey().toString();
+            if (!selectionKeys.add(selectionKey)) {
+                throw new IllegalStateException("거래명세서 선택 key 충돌: " + selectionKey);
+            }
             if (e.getKey() != null) {
                 PartnerSummary ps = partnerLookupClient.findByPartnerId(e.getKey())
                         .orElse(null);
                 if (ps != null) {
-                    partnerCode = ps.partnerCode();
+                    if (ps.partnerCode() != null && !ps.partnerCode().isBlank()) {
+                        partnerCode = ps.partnerCode();
+                    }
+                    if (ps.bizNo() != null && !ps.bizNo().isBlank()) {
+                        bizNo = ps.bizNo();
+                    }
                     if (ps.name() != null && !ps.name().isBlank()) {
                         partnerName = ps.name();
                     }
                 }
             }
 
-            List<String> chatRooms = chatRoomMappingClient
-                    .findChatRoomNamesByPartnerCode(partnerCode);
+            List<String> chatRooms = partnerCode == null || partnerCode.isBlank()
+                    ? List.of()
+                    : chatRoomMappingClient.findChatRoomNamesByPartnerCode(partnerCode);
 
             List<StatementSlip> slips = new ArrayList<>(partnerInvoices.size());
             for (TaxInvoice ti : partnerInvoices) {
@@ -105,8 +121,19 @@ public class StatementBatchService {
                         ti.getTotalAmount(),
                         lines));
             }
-            rows.add(new StatementBatchRow(partnerCode, partnerName, chatRooms, slips));
+            rows.add(new StatementBatchRow(selectionKey, partnerCode, bizNo, partnerName, chatRooms, slips));
         }
         return rows;
+    }
+
+    private static String firstNonBlank(List<TaxInvoice> invoices,
+                                        java.util.function.Function<TaxInvoice, String> value) {
+        for (TaxInvoice invoice : invoices) {
+            String candidate = value.apply(invoice);
+            if (candidate != null && !candidate.isBlank()) {
+                return candidate;
+            }
+        }
+        return null;
     }
 }

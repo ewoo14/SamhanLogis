@@ -2,7 +2,8 @@
  * `<LineRow>` — sales-form-polish + sales-polish-2-slice (Slice A) 갱신.
  *
  * Designer `components.md` § 3 (Slice A) spec 충실 반영:
- * - 10-column CSS grid (체크박스 / drag / # / 모델명 / 품목명 / **규격(NEW)** / 수량 / 단가 / 합계 / 삭제)
+ * - 기본 10-column CSS grid (체크박스 / drag / # / 모델명 / 품목명 / 규격 / 수량 / 단가 / 합계 / 삭제)
+ * - VAT 포함 모드 12-column CSS grid (단가 뒤 공급가액 / 부가세 입력 열 추가)
  * - 행 높이 40px (dense ERP 표준)
  * - 5 states: default / hover / selected / dragging / error
  * - 자동 라인 번호 (drag 시 자동 갱신)
@@ -73,6 +74,16 @@ export interface LineDraft {
   quantity: string
   /** 단가 (string — PriceField 호환). */
   unitPrice: string
+  /** VAT 포함 모드의 라인 공급가액 — 부모 계산 상태. */
+  supplyAmount?: string
+  /** VAT 포함 모드의 라인 부가세 — 부모 계산 상태. */
+  vatAmount?: string
+  /** VAT 포함 모드의 라인 VAT 포함 합계 — 부모 계산 상태. */
+  lineTotal?: string
+  /** 마지막으로 편집한 금액 열. 화면 로컬 상태이며 서버에는 저장하지 않는다. */
+  authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
+  /** 부가세가 공급가액의 10%와 다를 때 비차단 경고. */
+  vatWarning?: boolean
   /**
    * 단가 출처 — 마커 라벨/설명 분기 기준.
    *
@@ -124,6 +135,14 @@ export interface LineRowProps {
   onQuantityChange: (value: string) => void
   /** 단가 변경. */
   onUnitPriceChange: (value: string) => void
+  /** 공급가액 변경 — VAT 포함 모드에서만 사용. */
+  onSupplyAmountChange?: (value: string) => void
+  /** 부가세 변경 — VAT 포함 모드에서만 사용. */
+  onVatAmountChange?: (value: string) => void
+  /** 합계 변경 — VAT 포함 모드에서만 사용. */
+  onLineTotalChange?: (value: string) => void
+  /** 세트 구성품 등 금액 열 편집 금지. */
+  vatEditable?: boolean
   /** 행 삭제. */
   onDelete: () => void
   /** @dnd-kit/sortable useSortable() 결과의 일부. */
@@ -186,7 +205,10 @@ function computeVatBreakdown(qty: string, price: string): { incl: number; supply
   const p = Number(price)
   if (!Number.isFinite(q) || !Number.isFinite(p)) return { incl: 0, supply: 0, vat: 0 }
   const incl = Math.round(q * p)
-  const supply = Math.round(incl / 1.1)
+  // BLOCKING-2 계열(#824 R1): BE VatAmountCalculator 는 0 방향 절사(DOWN)다. incl/1.1 을 그대로
+  // 나누면 1.1 의 이진부동소수 근사 오차가 섞이므로, incl×10 을 11 로 정수 나눗셈(트렁케이션)한다
+  // — incl 이 안전정수 범위(≤2^53)인 한 (incl*10)/11 은 항상 정확히 절사된 몫이다.
+  const supply = Math.trunc((incl * 10) / 11)
   return { incl, supply, vat: incl - supply }
 }
 
@@ -212,6 +234,10 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     modelCell,
     vatInclusive = false,
     partnerSelected = true,
+    onSupplyAmountChange,
+    onVatAmountChange,
+    onLineTotalChange,
+    vatEditable = true,
   },
   ref,
 ) {
@@ -227,6 +253,11 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
   const hasError = !!line.lookupError
   const sumDisplay = computeLineSum(line.quantity, line.unitPrice)
   const vatBreakdown = vatInclusive ? computeVatBreakdown(line.quantity, line.unitPrice) : null
+  const hasVatAmounts = vatInclusive && line.supplyAmount != null
+    && line.vatAmount != null && line.lineTotal != null
+  const rowGridClass = vatInclusive ? styles['lineRowVat'] : undefined
+  const amountDisplay = (value: string | undefined, fallback: number): string =>
+    Number(value ?? fallback).toLocaleString()
   const priceDisplay = line.unitPrice ? Number(line.unitPrice).toLocaleString() : '0'
   // D-R4-1: 자동채움 값의 실체는 제품 등록 화면의 '판매가'(sellingPrice) — '정가' 라벨은
   // 기존 용어체계에서 출고가(releasePrice) 계열 별칭이라 오도되므로 사용 금지.
@@ -267,7 +298,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     <>
       <div
         ref={ref}
-        className={rowClass}
+        className={`${rowClass}${rowGridClass ? ` ${rowGridClass}` : ''}`}
         style={style}
         data-line-number={lineNumber}
       >
@@ -412,9 +443,59 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
           </span>
         </div>
 
-        {/* 9. 합계 (read-only computed) — vatInclusive 면 합계(VAT포함)+공급/부가세 분해 */}
+        {vatInclusive ? (
+          <>
+            <div className={`${styles['cell']} ${styles['cellVatAmount']}`}>
+              {hasVatAmounts && onSupplyAmountChange ? (
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className={`${styles['input']} ${styles['numInput']}`}
+                  value={amountDisplay(line.supplyAmount, vatBreakdown?.supply ?? 0)}
+                  onChange={(e) => onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+                  aria-label={`라인 ${lineNumber} 공급가액`}
+                  disabled={!vatEditable}
+                />
+              ) : (
+                amountDisplay(line.supplyAmount, vatBreakdown?.supply ?? 0)
+              )}
+            </div>
+            <div className={`${styles['cell']} ${styles['cellVatAmount']}`}>
+              <span className={styles['vatAmountWrap']}>
+                {hasVatAmounts && onVatAmountChange ? (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    className={`${styles['input']} ${styles['numInput']}`}
+                    value={amountDisplay(line.vatAmount, vatBreakdown?.vat ?? 0)}
+                    onChange={(e) => onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+                    aria-label={`라인 ${lineNumber} 부가세`}
+                    disabled={!vatEditable}
+                  />
+                ) : (
+                  amountDisplay(line.vatAmount, vatBreakdown?.vat ?? 0)
+                )}
+                {line.vatWarning ? (
+                  <span role="note" className={styles['vatWarning']}>⚠ 10%와 다름</span>
+                ) : null}
+              </span>
+            </div>
+          </>
+        ) : null}
+
+        {/* 9. 합계 — VAT 포함 모드에서는 권위 합계 입력, 기존 모드에서는 read-only 계산 */}
         <div className={`${styles['cell']} ${styles['cellSum']}`} aria-label={`라인 ${lineNumber} 합계`}>
-          {vatBreakdown ? (
+          {hasVatAmounts && onLineTotalChange ? (
+            <input
+              type="text"
+              inputMode="numeric"
+              className={`${styles['input']} ${styles['numInput']}`}
+              value={amountDisplay(line.lineTotal, vatBreakdown?.incl ?? 0)}
+              onChange={(e) => onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
+              aria-label={`라인 ${lineNumber} 합계(VAT포함)`}
+              disabled={!vatEditable}
+            />
+          ) : vatBreakdown ? (
             <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.25 }}>
               <span aria-label={`라인 ${lineNumber} 합계(VAT포함)`}>{vatBreakdown.incl.toLocaleString()}</span>
               <span style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)' }}

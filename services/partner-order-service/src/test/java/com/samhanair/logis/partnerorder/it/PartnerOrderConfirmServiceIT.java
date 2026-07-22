@@ -366,6 +366,18 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ?",
                 BigDecimal.class, orderId);
         assertThat(priceVat).isEqualByComparingTo("800000");
+        BigDecimal supplyAmount = jdbcTemplate.queryForObject(
+                "SELECT supply_amount FROM partner_order_lines WHERE partner_order_id = ?",
+                BigDecimal.class, orderId);
+        BigDecimal vatAmount = jdbcTemplate.queryForObject(
+                "SELECT vat_amount FROM partner_order_lines WHERE partner_order_id = ?",
+                BigDecimal.class, orderId);
+        BigDecimal subtotal = jdbcTemplate.queryForObject(
+                "SELECT subtotal FROM partner_order_lines WHERE partner_order_id = ?",
+                BigDecimal.class, orderId);
+        assertThat(supplyAmount).isEqualByComparingTo("727272");
+        assertThat(vatAmount).isEqualByComparingTo("72728");
+        assertThat(supplyAmount.add(vatAmount)).isEqualByComparingTo(subtotal);
     }
 
     /**

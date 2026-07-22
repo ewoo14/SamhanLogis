@@ -14,8 +14,8 @@
  *       정규화해 각인한다. <b>라인별 세구분(과세/면세/영세) 분기는 없다</b> — {@code SlipLine}
  *       엔티티에 taxType 필드가 없고 전 라인 균일 10% 이므로, FE 미러도 균일 변환이 유일한 정합이다.</li>
  *   <li><b>BE 자체의 포함→제외 규약</b> — {@code SlipLine.createFromVatInclusive}:
- *       {@code supply = incl ÷ 1.1, setScale(0, HALF_UP)} (원 단위 정수). FE 도 동일
- *       granularity({@code Math.round(x / 1.1)} — SlipFormPage 142행 선례)로 미러한다.</li>
+ *       {@code supply = incl × 10 ÷ 11} 의 정수 나눗셈(소수부 절사, 0 방향)이다. FE도
+ *       {@code vatRounding.supplyFromVatInclusive} 와 같은 계약으로 미러한다.</li>
  *   <li><b>카탈로그 판매가(product.sellingPrice) = VAT 포함 도메인</b> — 폼이 sellingPrice 를
  *       VAT 포함 필드에 그대로 채우고 priceVatInclusive=true 로 전송하는 것으로 실증(폼 패리티).</li>
  * </ul>
@@ -64,6 +64,11 @@ function divideHalfUp(numerator: bigint, denominator: bigint): bigint {
   return sign * (remainder * 2n >= denominator ? quotient + 1n : quotient)
 }
 
+/** BE VAT 포함 금액 분해와 동일한 정수 나눗셈(소수부 절사, 0 방향)을 적용한다. */
+function divideTowardZero(numerator: bigint, denominator: bigint): bigint {
+  return numerator / denominator
+}
+
 /** scale 고정 정수를 불필요한 후행 0 없이 화면/API 문자열로 변환한다. */
 function formatScaled(value: bigint, scale: number): string {
   if (scale === 0) return String(value)
@@ -92,8 +97,7 @@ export function vatInclusiveOf(exclusive: string | number): string {
 
 /**
  * VAT 포함(기억/카탈로그) → VAT 제외(수정 화면 필드) — BE {@code SlipLine.createFromVatInclusive}
- * ({@code ÷ 1.1, setScale(0, HALF_UP)} 원 단위 정수) 미러. SlipFormPage 142행
- * {@code Math.round(incl / 1.1)} 관례와 동일.
+ * ({@code incl × 10 ÷ 11} 정수 나눗셈, 소수부 절사) 미러.
  *
  * @returns 원 단위 정수 문자열. 비수치 입력은 빈 문자열.
  */
@@ -102,7 +106,7 @@ export function vatExclusiveOf(inclusive: string | number): string {
   const decimal = decimalParts(inclusive)
   if (!decimal) return ''
   // value ÷ 1.1을 원 단위로: coefficient / 10^scale × 10/11.
-  return String(divideHalfUp(
+  return String(divideTowardZero(
     decimal.coefficient * 10n,
     11n * (10n ** BigInt(decimal.scale)),
   ))

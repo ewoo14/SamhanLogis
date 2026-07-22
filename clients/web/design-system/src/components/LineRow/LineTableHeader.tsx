@@ -15,15 +15,18 @@ export interface LineTableHeaderProps {
   someSelected?: boolean
   /** 헤더 체크박스 toggle. */
   onToggleAll: (selected: boolean) => void
+  /** VAT 포함 모드의 공급가액·부가세 열을 표시한다. */
+  vatInclusive?: boolean
 }
 
 export function LineTableHeader({
   allSelected,
   someSelected = false,
   onToggleAll,
+  vatInclusive = false,
 }: LineTableHeaderProps) {
   return (
-    <div className={styles['lineHeader']}>
+    <div className={`${styles['lineHeader']}${vatInclusive ? ` ${styles['lineHeaderVat']}` : ''}`}>
       <div className={`${styles['cell']} ${styles['cellCheckbox']}`}>
         <input
           type="checkbox"
@@ -43,6 +46,12 @@ export function LineTableHeader({
       <div className={`${styles['cell']} ${styles['cellSpec']}`}>규격</div>
       <div className={`${styles['cell']} ${styles['cellQty']}`}>수량</div>
       <div className={`${styles['cell']} ${styles['cellPrice']}`}>단가</div>
+      {vatInclusive ? (
+        <>
+          <div className={`${styles['cell']} ${styles['cellVatAmount']}`}>공급가액</div>
+          <div className={`${styles['cell']} ${styles['cellVatAmount']}`}>부가세</div>
+        </>
+      ) : null}
       <div className={`${styles['cell']} ${styles['cellSum']}`}>합계</div>
       <div className={styles['cell']} aria-hidden="true" />
     </div>

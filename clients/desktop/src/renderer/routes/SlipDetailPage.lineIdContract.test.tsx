@@ -7,10 +7,15 @@ import {
   bundleComponentLineIds,
   coeditHeaderValues,
   coeditLinesToEditLines,
+  computeDetailQuantityChange,
+  detailAmountState,
+  detailVatLine,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
+  toPurchaseEditLines,
 } from './SlipDetailPage'
 import { toServerLineIdSet } from '../realtime/coeditLineIds'
+import { editLineVat } from '../utils/lineVat'
 import type { SlipDetail } from '../api/slip'
 
 /**
@@ -117,6 +122,91 @@ describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
       SERVER_LINE_2,
       SERVER_LINE_3,
     ])
+    provider.destroy()
+  })
+
+  // BLOCKING-1 부수 발견 2(#824 R1 라이브 실증, slip-collab-panel.spec.ts) — supplyAmount/
+  // vatAmount/lineTotalWithVat/authority/vatDirty 는 Y.Doc 에 쓰인 적 없는 라인(구 코드
+  // 경로)에서 이 함수가 매번 undefined 로 지워버렸다. 같은 행의 다른 필드 편집(예: 단가)이
+  // notifyDoc 을 내면 이 함수가 재호출되어, 방금 수량 편집이 React state 에 반영한 권위값을
+  // "Y.Doc 에 없음" 으로 오판해 지운다 — previous 폴백으로 보존해야 한다(quantity/unitPrice
+  // 는 타이핑 대상이라 폴백 없이 Y.Doc 직독을 유지, 이 필드들은 파생값이라 폴백 필요).
+  it('Y.Doc 에 아직 쓰이지 않은 파생 금액(supplyAmount 등)은 이전 값을 보존한다(지우지 않는다)', async () => {
+    const provider = await makeProvider()
+    seedRows(provider, serverLines)
+    const current = editLinesFrom(serverLines).map((line, i) => (
+      i === 0
+        ? {
+            ...line,
+            supplyAmount: '5550000',
+            vatAmount: '555000',
+            lineTotalWithVat: '6105000',
+            authority: 'PRICE' as const,
+            vatDirty: true,
+          }
+        : line
+    ))
+
+    // 0행의 supplyAmount/vatAmount/lineTotalWithVat 는 Y.Doc 에 한 번도 쓰인 적 없다(다른
+    // 필드만 재시드) — 이 상태에서 재호출되어도 current[0] 의 파생값을 보존해야 한다.
+    const next = coeditLinesToEditLines(provider, current, knownServerLineIds)
+
+    expect(next[0]!.supplyAmount).toBe('5550000')
+    expect(next[0]!.vatAmount).toBe('555000')
+    expect(next[0]!.lineTotalWithVat).toBe('6105000')
+    expect(next[0]!.authority).toBe('PRICE')
+    expect(next[0]!.vatDirty).toBe(true)
+    provider.destroy()
+  })
+
+  it('hydrate 후 헤더만 저장해도 서버 권위 S/V/T를 payload 대상으로 유지한다', () => {
+    const slip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목 1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 1,
+        unitPrice: '100005',
+        supplyAmount: '100005',
+        vatAmount: '9999',
+        lineTotal: '110004',
+        note: '기존 메모',
+      }],
+    } as unknown as SlipDetail
+
+    const hydrated = toPurchaseEditLines(slip)
+    const afterHeaderEdit = { ...hydrated[0]!, note: '새 메모' }
+
+    expect(afterHeaderEdit.vatDirty).toBe(true)
+    expect(afterHeaderEdit).toMatchObject({
+      supplyAmount: '100005',
+      vatAmount: '9999',
+      lineTotalWithVat: '110004',
+    })
+  })
+
+  it('원격 선행행 삭제 뒤 잔여 행은 자기 파생 금액을 유지한다', async () => {
+    const provider = await makeProvider()
+    seedRows(provider, serverLines)
+    const current = editLinesFrom(serverLines).map((line, index) => index === 0
+      ? { ...line, supplyAmount: '100005', vatAmount: '9999', lineTotalWithVat: '110004', authority: 'VAT' as const, vatDirty: true }
+      : { ...line, supplyAmount: '200005', vatAmount: '19999', lineTotalWithVat: '220004', authority: 'VAT' as const, vatDirty: true })
+
+    provider.removeItem(SERVER_LINE_1)
+
+    const next = coeditLinesToEditLines(provider, current, knownServerLineIds)
+
+    expect(next[0]).toMatchObject({
+      lineId: SERVER_LINE_2,
+      productId: PRODUCT_2,
+      supplyAmount: '200005',
+      vatAmount: '19999',
+      lineTotalWithVat: '220004',
+      authority: 'VAT',
+      vatDirty: true,
+    })
     provider.destroy()
   })
 
@@ -244,5 +334,68 @@ describe('SlipDetailPage — 거래처 재조회 출처 마커와 배너', () =>
       { source: 'CATALOG' },
       { source: 'UNAVAILABLE' },
     ], 3)).toBe('거래처 변경 단가 확인 완료 · 최근단가 1건 · 판매가 2건 · 단가 확인 필요 1건 · 변경 3행')
+  })
+})
+
+/**
+ * BLOCKING-1(#824 R1) — 전표 상세(수정) 화면 수량 변경 시 금액 폭증 회귀.
+ *
+ * <p>이 describe 는 실제 화면 핸들러({@code updateDetailQuantity}/{@code updateDetailVat})가
+ * 호출하는 그 함수들을 그대로 쓴다(재구현 아님) — SlipDetailPage.tsx 555줄 변경분에 도달
+ * 테스트가 0건이던 공백(LOW-8)이 이 회귀를 통과시켰다.
+ */
+describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #824 R1)', () => {
+  const baseLine = {
+    quantity: 2,
+    unitPrice: '100000',
+    supplyAmount: '200000',
+    vatAmount: '20000',
+    lineTotalWithVat: '220000',
+    authority: 'PRICE' as const,
+  }
+
+  it('수량 2→3: 단가는 고정, 합계는 330,000(단가×3+VAT) — 660,000(직전 합계×3) 아니다', () => {
+    const patch = computeDetailQuantityChange(baseLine, '3')
+
+    expect(patch.unitPrice).toBe('100000')
+    expect(patch.quantity).toBe(3)
+    expect(patch.supplyAmount).toBe('300000')
+    expect(patch.vatAmount).toBe('30000')
+    expect(patch.lineTotalWithVat).toBe('330000')
+  })
+
+  it('값을 바꾸지 않은 재입력(2→2)은 어떤 금액도 바꾸지 않는다 — 220,000 유지, 440,000 아니다', () => {
+    const patch = computeDetailQuantityChange(baseLine, '2')
+
+    expect(patch).toEqual({ quantity: 2 })
+  })
+
+  it('수량 입력칸을 비울 수 있다 — 빈 입력은 0으로, 직전 값(7)을 복원하지 않는다 (RED-1)', () => {
+    const line = { ...baseLine, quantity: 7 }
+    const patch = computeDetailQuantityChange(line, '')
+
+    expect(patch.quantity).toBe(0)
+    expect(patch.supplyAmount).toBe('0')
+    expect(patch.vatAmount).toBe('0')
+    expect(patch.lineTotalWithVat).toBe('0')
+  })
+
+  it('공급가액 편집(SUPPLY authority)도 단가를 그대로 승계한다', () => {
+    const patch = detailAmountState(editLineVat(detailVatLine(baseLine), 'SUPPLY', '300000'), 'SUPPLY')
+
+    expect(patch.quantity).toBe(2)
+    expect(patch.unitPrice).toBe('150000') // 300000 / 2
+    expect(patch.supplyAmount).toBe('300000')
+  })
+
+  it('detailAmountState 는 수량 0을 "값 없음"으로 오판해 1로 되돌리지 않는다', () => {
+    // updateDetailVat 은 SUPPLY/VAT/TOTAL 필드 각각의 CollaborativeSlipInput 이 자기
+    // 값을 Y.Doc 원문과 비교해 재동기화할 때도 호출된다(수량 필드와 별개 필드). 방금
+    // 수량을 0으로 비운 직후 이 재동기화가 겹치면, quantity=0 을 Number(0)||1 로
+    // "값 없음" 취급해 1로 되돌리는 게 실측 회귀였다(clear 직후 "1"로 튐).
+    const zeroQuantityLine = { ...baseLine, quantity: 0, supplyAmount: '0', vatAmount: '0', lineTotalWithVat: '0' }
+    const patch = detailAmountState(editLineVat(detailVatLine(zeroQuantityLine), 'SUPPLY', ''), 'SUPPLY')
+
+    expect(patch.quantity).toBe(0)
   })
 })

@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.seed;
 
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
@@ -202,7 +203,7 @@ public class JournalSeeder implements CommandLineRunner {
             case SLIP_ISSUE -> {
                 // 매출 1,000,000 ~ 30,000,000 결정적 분포
                 long net = 1_000_000L + ((seq * 137) % 30) * 1_000_000L;
-                long vat = Math.round(net * 0.10);
+                long vat = VatAmountCalculator.fromSupply(BigDecimal.valueOf(net)).longValueExact();
                 long total = net + vat;
                 lines.add(new LineSpec(CODE_RECEIVABLE,
                         BigDecimal.valueOf(total), BigDecimal.ZERO, partnerId,

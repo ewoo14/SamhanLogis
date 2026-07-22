@@ -23,6 +23,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
+import { vatFromSupply } from '../utils/vatRounding'
 
 export function InvoiceView() {
   const params = useParams<{ id: string }>()
@@ -133,7 +134,7 @@ export function InvoiceView() {
           <tbody>
             {slip.lines.map((l, idx) => {
               const lineSupply = Number(l.lineTotal)
-              const lineVat = Math.floor(lineSupply * 0.1)
+              const lineVat = vatFromSupply(lineSupply)
               const productLabel = l.modelName
                 ? `${l.modelName}${l.productName ? ` (${l.productName})` : ''}`
                 : (l.productName ?? '-')

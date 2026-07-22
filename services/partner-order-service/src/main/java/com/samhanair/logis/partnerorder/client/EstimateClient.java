@@ -33,7 +33,18 @@ public interface EstimateClient {
             String categoryKey,
             int quantity,
             BigDecimal deliveryPrice,
-            String remark
+            String remark,
+            BigDecimal supplyAmount,
+            BigDecimal vatAmount,
+            BigDecimal lineTotal,
+            String authority
     ) {
+        /** 기존 견적 client fixture의 7개 인자 계약을 보존한다. */
+        public EstimateLineSnapshot(UUID productId, String modelCode, String productName,
+                                    String categoryKey, int quantity, BigDecimal deliveryPrice,
+                                    String remark) {
+            this(productId, modelCode, productName, categoryKey, quantity, deliveryPrice, remark,
+                    null, null, null, null);
+        }
     }
 }

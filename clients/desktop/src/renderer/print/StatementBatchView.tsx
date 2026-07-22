@@ -1,7 +1,7 @@
 /**
  * 거래명세서 일괄 인쇄 미리보기 — `/accounting/statements/print?from=&to=`.
  *
- * Phase 10 Step 11 PR-E2 Designer 1차 mock — Samhan Public 이식.
+ * Phase 10 Step 11 PR-E2 Designer 인쇄 화면 — Samhan Public 이식.
  *
  * <h2>이식 배경 (legacy GAS 4번)</h2>
  * <p>Legacy 구글 앱스 스크립트 (Samhan Public sheet) 의 "거래처별 일괄 거래명세서"
@@ -23,7 +23,7 @@
  * <h2>데이터 source (FE 연결 단계)</h2>
  * <p>BE-A10 활성 후 {@code GET /accounting/statements/batch-data?from=&to=}
  * endpoint 로 기간 내 거래 발생 거래처 전체 + 각 거래처별 슬립 list 응답.
- * (PR-E2 FE 단계 활성). 본 1차 mock 단계에서는 데이터 source 미연결 — {@link MOCK_DATA} 사용.
+ * (PR-E2 FE 단계 활성). 기간별 batch API 응답을 인쇄 데이터로 사용한다.
  *
  * <h2>UUID 비공개 가드</h2>
  * <p>화면 노출 식별자는 {@code businessRegNo} / {@code partnerName} / {@code slipNo} /
@@ -31,19 +31,20 @@
  * partner_id / slip_id 는 제거 대상.
  *
  * <h2>Iteration 가드 (memory feedback_print_design_iteration)</h2>
- * <p>본 1차 mock — 컬럼 / 폭 / 색감 / 사인란 모두 placeholder.
- * 사용자 Edge 캡처 검토 후 2~5차 iteration 으로 미세 조정 예정.
+ * <p>컬럼 / 폭 / 색감 / 사인란은 기존 인쇄 레이아웃을 유지한다.
  */
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
-import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
+import { PrintLayout, krw, krDate, toKoreanAmount } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
+import { getStatementBatch, type StatementBatchRow } from '../api/statementBatchApi'
 import styles from './StatementBatchView.module.css'
 
 /**
- * 명세서 라인 1행 — mock + BE-A10 응답 형식 (예상).
+ * 명세서 라인 1행 — BE-A10 응답을 인쇄 표시용으로 변환한 형식.
  *
  * <p>BE-A10 response shape 예상치 (per partner):
  * <pre>
@@ -69,14 +70,18 @@ interface StatementLine {
   unitPrice: number
   /** 라인 공급가액 (KRW 정수, BE 가 quantity * unitPrice 캐시). */
   supply: number
+  /** 저장된 라인 부가세 (KRW 정수). */
+  vat: number
 }
 
 /**
  * BE-A10 응답 형식 — 거래처 1건 + 슬립 list.
  */
 interface PartnerStatement {
-  /** 내부 partnerCode. 선택/조회 key 로만 사용하고 화면에는 표시하지 않는다. */
-  partnerCode: string
+  /** 선택/조회 전용 opaque key. 화면에는 표시하지 않는다. */
+  selectionKey: string
+  /** 실제 partnerCode. 화면에는 표시하지 않는다. */
+  partnerCode: string | null
   /** 거래처명 (snapshot). */
   partnerName: string
   /** 사업자번호 (snapshot). */
@@ -103,115 +108,6 @@ interface StatementBatchData {
   issueDate: string
   /** 거래처별 명세서 batch (partnerCode 오름차순). */
   partners: PartnerStatement[]
-}
-
-/**
- * 1차 mock 데이터 — 거래처 3건 + 거래처당 슬립 2~3건.
- *
- * <p>실제 운영 데이터는 BE-A10 endpoint 가 기간 조건으로 SAVED 슬립 lookup
- * + 거래처 그룹핑 → 응답.
- *
- * <p>본 mock 은 batch 인쇄 시나리오 (거래처 3건 = 3 페이지).
- */
-const MOCK_DATA: StatementBatchData = {
-  periodFrom: '',
-  periodTo: '',
-  issueDate: '',
-  partners: [
-    {
-      partnerCode: 'P-00123',
-      partnerName: '강남공조㈜',
-      businessRegNo: '120-81-23456',
-      address: '서울특별시 강남구 테헤란로 152',
-      ceo: '김강남',
-      contactPhone: '02-555-0101',
-      slips: [
-        {
-          slipDate: '2026-05-02',
-          slipNo: '2026/05/02-14',
-          productName: 'AJ040RXH4BC1 (시스템 에어컨)',
-          specification: '4kW / 220V',
-          quantity: 5,
-          unitPrice: 690_000,
-          supply: 3_450_000,
-        },
-        {
-          slipDate: '2026-05-09',
-          slipNo: '2026/05/09-7',
-          productName: 'AJ052NXJ4FH1 (멀티)',
-          specification: '5.2kW / 380V',
-          quantity: 2,
-          unitPrice: 935_000,
-          supply: 1_870_000,
-        },
-        {
-          slipDate: '2026-05-15',
-          slipNo: '2026/05/15-22',
-          productName: 'AVXC4H145EE (실외기)',
-          specification: '14.5kW',
-          quantity: 1,
-          unitPrice: 2_640_000,
-          supply: 2_640_000,
-        },
-      ],
-    },
-    {
-      partnerCode: 'P-00456',
-      partnerName: '역삼냉동',
-      businessRegNo: '124-81-34567',
-      address: '서울특별시 강남구 역삼동 736-12',
-      ceo: '박역삼',
-      contactPhone: '02-555-0202',
-      slips: [
-        {
-          slipDate: '2026-05-08',
-          slipNo: '2026/05/08-18',
-          productName: 'AJ052NXJ4FH1',
-          specification: '5.2kW / 380V',
-          quantity: 3,
-          unitPrice: 935_000,
-          supply: 2_805_000,
-        },
-        {
-          slipDate: '2026-05-22',
-          slipNo: '2026/05/22-29',
-          productName: 'AJ080RBJ5KH (시스템 에어컨)',
-          specification: '8kW / 220V',
-          quantity: 4,
-          unitPrice: 1_120_000,
-          supply: 4_480_000,
-        },
-      ],
-    },
-    {
-      partnerCode: 'P-01024',
-      partnerName: '수원에어시스템',
-      businessRegNo: '134-81-45678',
-      address: '경기도 수원시 영통구 광교로 145',
-      ceo: '이수원',
-      contactPhone: '031-555-0303',
-      slips: [
-        {
-          slipDate: '2026-05-12',
-          slipNo: '2026/05/12-19',
-          productName: 'AJ040RXH4BC1',
-          specification: '4kW / 220V',
-          quantity: 8,
-          unitPrice: 690_000,
-          supply: 5_520_000,
-        },
-        {
-          slipDate: '2026-05-25',
-          slipNo: '2026/05/25-27',
-          productName: 'AVXC4H145EE',
-          specification: '14.5kW',
-          quantity: 2,
-          unitPrice: 2_640_000,
-          supply: 5_280_000,
-        },
-      ],
-    },
-  ],
 }
 
 /**
@@ -246,6 +142,45 @@ function todayIso(): string {
   return `${y}-${m}-${day}`
 }
 
+/** 인쇄 query에 포함된 거래처만 남긴다. 선택값이 없으면 조회 결과 전체를 사용한다. */
+export function selectStatementBatchRows(
+  rows: StatementBatchRow[],
+  selectionKeys: string[],
+): StatementBatchRow[] {
+  if (selectionKeys.length === 0) return rows
+  const selected = new Set(selectionKeys)
+  return rows.filter((row) => selected.has(row.selectionKey))
+}
+
+/** 반복 query parameter를 보존해 선택 key를 읽는다. 값 내부의 쉼표는 데이터다. */
+export function parseStatementBatchSelectionKeys(
+  searchParams: Pick<URLSearchParams, 'getAll'>,
+): string[] {
+  return searchParams.getAll('selectionKeys').map((key) => key.trim()).filter(Boolean)
+}
+
+function toPartnerStatement(row: StatementBatchRow): PartnerStatement {
+  return {
+    selectionKey: row.selectionKey,
+    partnerCode: row.partnerCode,
+    partnerName: row.partnerName,
+    businessRegNo: row.bizNo ?? '',
+    address: '',
+    ceo: '',
+    contactPhone: '',
+    slips: row.slips.flatMap((slip) => slip.lines.map((line) => ({
+      slipDate: slip.slipDate,
+      slipNo: slip.slipNo,
+      productName: line.productName,
+      specification: line.spec ?? '',
+      quantity: Number(line.quantity),
+      unitPrice: Number(line.unitPrice),
+      supply: Number(line.supplyAmount),
+      vat: Number(line.vatAmount),
+    }))),
+  }
+}
+
 export function StatementBatchView() {
   const [searchParams] = useSearchParams()
   const periodFrom = useMemo(
@@ -257,11 +192,25 @@ export function StatementBatchView() {
     [searchParams],
   )
   const issueDate = useMemo(() => todayIso(), [])
+  const selectionKeys = useMemo(
+    () => parseStatementBatchSelectionKeys(searchParams),
+    [searchParams],
+  )
+  const batchQuery = useQuery({
+    queryKey: ['statement-batch-print', periodFrom, periodTo],
+    queryFn: () => getStatementBatch(periodFrom, periodTo),
+    enabled: Boolean(periodFrom && periodTo),
+  })
 
-  // PR-E2 FE 단계에서 useQuery 로 교체 — 본 mock 단계는 정적 데이터.
   const data: StatementBatchData = useMemo(
-    () => ({ ...MOCK_DATA, periodFrom, periodTo, issueDate }),
-    [periodFrom, periodTo, issueDate],
+    () => ({
+      periodFrom,
+      periodTo,
+      issueDate,
+      partners: selectStatementBatchRows(batchQuery.data ?? [], selectionKeys)
+        .map(toPartnerStatement),
+    }),
+    [batchQuery.data, issueDate, selectionKeys, periodFrom, periodTo],
   )
 
   const { company } = useCompanyProfile()
@@ -270,6 +219,22 @@ export function StatementBatchView() {
     '거래명세서 일괄',
     `${data.partners.length}개 거래처`,
   )
+
+  if (batchQuery.isLoading) {
+    return (
+      <PrintLayout paper="a4-portrait" backTo="/accounting">
+        <div className={styles.empty}>거래명세서 데이터를 조회 중입니다.</div>
+      </PrintLayout>
+    )
+  }
+
+  if (batchQuery.isError) {
+    return (
+      <PrintLayout paper="a4-portrait" backTo="/accounting">
+        <div className={styles.empty}>거래명세서 데이터를 조회하지 못했습니다.</div>
+      </PrintLayout>
+    )
+  }
 
   return (
     <PrintLayout paper="a4-portrait" backTo="/accounting">
@@ -280,12 +245,18 @@ export function StatementBatchView() {
           </div>
         ) : (
           data.partners.map((partner, partnerIdx) => {
-            const totalSupply = partner.slips.reduce((s, l) => s + l.supply, 0)
-            const { supply, vat, total } = calcAmounts(totalSupply)
+            const totals = partner.slips.reduce(
+              (sum, line) => ({
+                supply: sum.supply + line.supply,
+                vat: sum.vat + line.vat,
+                total: sum.total + line.supply + line.vat,
+              }),
+              { supply: 0, vat: 0, total: 0 },
+            )
             const isLast = partnerIdx === data.partners.length - 1
             return (
               <section
-                key={partner.partnerCode}
+                  key={partner.selectionKey}
                 className={`${styles.page} ${
                   isLast ? '' : styles.pageBreak
                 }`}
@@ -379,9 +350,9 @@ export function StatementBatchView() {
                 <div className={styles.amountSummary}>
                   <span className={styles.amountLabel}>합계금액</span>
                   <span className={styles.amountKorean}>
-                    {toKoreanAmount(total)}
+                    {toKoreanAmount(totals.total)}
                   </span>
-                  <span className={styles.amountNumber}>(₩ {krw(total)})</span>
+                  <span className={styles.amountNumber}>(₩ {krw(totals.total)})</span>
                 </div>
 
                 {/* 슬립 list 표 */}
@@ -407,8 +378,8 @@ export function StatementBatchView() {
                     </thead>
                     <tbody>
                       {partner.slips.map((line, idx) => {
-                        const lineVat = Math.floor(line.supply * 0.1)
-                        const lineTotal = line.supply + lineVat
+                        const lineVat = line.vat
+                        const lineTotal = line.supply + line.vat
                         return (
                           <tr key={`${line.slipNo}-${idx}`}>
                             <td className={styles.colNo}>{idx + 1}</td>
@@ -445,15 +416,15 @@ export function StatementBatchView() {
                           합계
                         </td>
                         <td className={`${styles.num} ${styles.strong}`}>
-                          {krw(supply)}
+                          {krw(totals.supply)}
                         </td>
                         <td className={`${styles.num} ${styles.strong}`}>
-                          {krw(vat)}
+                          {krw(totals.vat)}
                         </td>
                         <td
                           className={`${styles.num} ${styles.strong} ${styles.totalCell}`}
                         >
-                          {krw(total)}
+                          {krw(totals.total)}
                         </td>
                       </tr>
                     </tfoot>

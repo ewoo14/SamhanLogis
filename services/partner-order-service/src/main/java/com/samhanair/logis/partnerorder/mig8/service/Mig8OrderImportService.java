@@ -149,9 +149,9 @@ public class Mig8OrderImportService {
         jdbcTemplate.update("""
                 INSERT INTO partner_order_lines (
                     id, partner_order_id, product_id, model_name, product_name, category_key,
-                    quantity, price_vat, subtotal, remark, converted_quantity,
+                    quantity, price_vat, subtotal, supply_amount, vat_amount, remark, converted_quantity,
                     created_at, created_by, modified_at, modified_by, deleted_at, deleted_by, is_deleted
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, NULL, FALSE)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, NULL, NULL, FALSE)
                 """,
                 deterministicId("samhan-mig8:partner-order-line:" + orderNo + ":" + line.lineNo()),
                 orderId,
@@ -162,6 +162,8 @@ public class Mig8OrderImportService {
                 quantity,
                 priceVat,
                 subtotal,
+                zero(line.supplyAmount()),
+                zero(line.vatAmount()),
                 0,
                 now,
                 ACTOR);

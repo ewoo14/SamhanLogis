@@ -460,7 +460,16 @@ export interface PartnerOrderLine {
   categoryKey?: string
   quantity: number
   deliveryPrice: number
+  /** VAT 포함 라인 합계 T — 기존 BE subtotal 계약 유지. */
   subtotal: number
+  /** 공급가액 S. 기존 주문 snapshot은 null일 수 있다. */
+  supplyAmount?: number | null
+  /** 부가세 V. 기존 주문 snapshot은 null일 수 있다. */
+  vatAmount?: number | null
+  /** VAT 포함 라인 합계 T (=subtotal). */
+  lineTotal?: number | null
+  /** S/V/T 중 저장 권위를 나타내는 BE 계약값. */
+  authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL' | null
   /** 라인 비고 — 협업 overlay `line.{lineKey}.remark` 의 현재값. */
   remark: string | null
   /** 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0. */
@@ -545,11 +554,15 @@ export interface PartnerOrderDetail extends PartnerOrderSummary {
   lines: PartnerOrderLine[]
 }
 
-type RawPartnerOrderLine = Partial<Omit<PartnerOrderLine, 'deliveryPrice' | 'subtotal' | 'expandedComponents'>>
+type RawPartnerOrderLine = Partial<Omit<PartnerOrderLine, 'deliveryPrice' | 'subtotal' | 'supplyAmount' | 'vatAmount' | 'lineTotal' | 'expandedComponents'>>
   & {
     deliveryPrice?: number | string | null
     priceVat?: number | string | null
     subtotal?: number | string | null
+    supplyAmount?: number | string | null
+    vatAmount?: number | string | null
+    lineTotal?: number | string | null
+    authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL' | null
     modelName?: string | null
     modelCode?: string | null
     expandedComponents?: PartnerOrderLine['expandedComponents'] | null
@@ -599,6 +612,10 @@ function normalizePartnerOrderLine(line: RawPartnerOrderLine, index: number): Pa
     quantity: numberValue(line.quantity),
     deliveryPrice,
     subtotal: numberValue(line.subtotal) || deliveryPrice * numberValue(line.quantity),
+    supplyAmount: line.supplyAmount == null ? null : numberValue(line.supplyAmount),
+    vatAmount: line.vatAmount == null ? null : numberValue(line.vatAmount),
+    lineTotal: line.lineTotal == null ? null : numberValue(line.lineTotal),
+    authority: line.authority ?? null,
     remark: line.remark ?? null,
     convertedQuantity: numberValue(line.convertedQuantity),
     bundleMode: line.bundleMode ?? null,
@@ -686,6 +703,10 @@ export interface PartnerOrderUpdateRequest {
     quantity: number
     deliveryPrice: number
     remark: string | null
+    supplyAmount?: number | null
+    vatAmount?: number | null
+    lineTotal?: number | null
+    authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL' | null
   }>
 }
 

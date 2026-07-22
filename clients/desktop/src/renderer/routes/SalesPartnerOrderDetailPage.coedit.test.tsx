@@ -152,6 +152,10 @@ function makeOrder(overrides: Partial<PartnerOrderDetail> = {}): PartnerOrderDet
         quantity: 2,
         deliveryPrice: 10000,
         subtotal: 20000,
+        supplyAmount: 10005,
+        vatAmount: 999,
+        lineTotal: 11004,
+        authority: 'TOTAL',
         remark: '라인 비고',
         convertedQuantity: 0,
         bundleMode: null,
@@ -308,6 +312,27 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
 
     expect(screen.getByTestId('partner-order-edit-line-0-category')).not.toBeNull()
     expect(screen.queryByTestId('partner-order-coedit-items-0-categoryKey')).toBeNull()
+  })
+
+  it('주문 수정 PUT도 hydrate된 S/V/T/authority를 보존한다', async () => {
+    const provider = makeProvider()
+    mocks.getPartnerOrder.mockResolvedValue(makeOrder())
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    mocks.updatePartnerOrder.mockResolvedValue(makeOrder())
+
+    renderPage()
+    fireEvent.click(await screen.findByTestId('partner-order-edit-open'))
+    await waitFor(() => expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByTestId('partner-order-edit-submit'))
+
+    await waitFor(() => expect(mocks.updatePartnerOrder).toHaveBeenCalledTimes(1))
+    expect(mocks.updatePartnerOrder.mock.calls[0][1].lines[0]).toMatchObject({
+      supplyAmount: 10005,
+      vatAmount: 999,
+      lineTotal: 11004,
+      authority: 'TOTAL',
+    })
   })
 
   it('provider 라인 수가 서버 라인 수와 다르면 stale 스냅샷으로 보고 서버 라인을 재시드한다', async () => {

@@ -1,6 +1,9 @@
 package com.samhanair.logis.slip.estimate.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -63,8 +66,17 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class EstimateLine extends BaseEntity {
 
-    /** 한국 부가세율 10%. */
-    private static final BigDecimal VAT_RATE = new BigDecimal("0.10");
+    /**
+     * MED-4(#824 R2) — {@code unit_price}/{@code unit_price_with_vat}/{@code vat_amount} 는
+     * {@code NUMERIC(15,2)}(V13/V35 migration) — 정수부 최대 13자리.
+     */
+    private static final int NARROW_MAX_INTEGER_DIGITS = 13;
+
+    /**
+     * MED-4(#824 R2) — {@code supply_amount}/{@code line_total} 는 {@code NUMERIC(17,2)}
+     * (V13 컨벤션 주석: "라인 합계는 NUMERIC(17,2)") — 정수부 최대 15자리.
+     */
+    private static final int WIDE_MAX_INTEGER_DIGITS = 15;
 
     @Id
     @GeneratedValue
@@ -158,13 +170,17 @@ public class EstimateLine extends BaseEntity {
     public static EstimateLine create(Estimate estimate, int lineNo, UUID productId,
                                       String productName, String modelName, String specification,
                                       int quantity, BigDecimal unitPrice, String note) {
-        return new EstimateLine(estimate, lineNo, productId, productName, modelName,
+        EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
                 specification, quantity, unitPrice, note);
+        // MED-4(#824 R2) — 이 평문 경로는 R1 이전 자릿수 가드가 전혀 없었다(SlipLine 과
+        // 동일 결함군, #824 R1 MED-4 주석으로 이미 짝을 이룬 클래스).
+        line.validateStorableAmounts();
+        return line;
     }
 
     /**
-     * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(라인 단위 eCount, 원 단위 반올림).
-     * 합계(VAT포함)=수량×unitPriceWithVat, 공급가액=round(합계/1.1), 부가세=차액(모두 원 단위).
+     * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(라인 단위, 원 단위 절사).
+     * 합계(VAT포함)=수량×unitPriceWithVat, 공급가액=절사(합계/1.1), 부가세=차액(모두 원 단위).
      * unitPrice(공급단가, 비권위)=공급가액/수량. lineTotal=합계(VAT포함). {@link SlipLine#createFromVatInclusive} 와 동일 규칙.
      */
     public static EstimateLine createFromVatInclusive(Estimate estimate, int lineNo, UUID productId,
@@ -174,7 +190,8 @@ public class EstimateLine extends BaseEntity {
         validateUnitPrice(unitPriceWithVat);
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
                 .setScale(0, RoundingMode.HALF_UP);
-        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 0, RoundingMode.HALF_UP);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat);
+        BigDecimal supply = vatSplit.supplyAmount();
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
                 specification, quantity, supplyUnit, note);
@@ -183,6 +200,42 @@ public class EstimateLine extends BaseEntity {
         line.vatAmount = lineInclVat.subtract(supply).setScale(2, RoundingMode.HALF_UP);
         line.lineTotal = lineInclVat.setScale(2, RoundingMode.HALF_UP);
         line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        // MED-4(#824 R2) — R1 이전 자릿수 가드가 전혀 없던 경로. 덮어쓰기 이후 최종 필드
+        // 상태를 검증해야 실제 저장될 값을 검사하는 것이 된다.
+        line.validateStorableAmounts();
+        return line;
+    }
+
+    /**
+     * 화면에서 편집한 공급가액·부가세·VAT 포함 합계를 권위값으로 보존하는 생성 팩토리.
+     *
+     * <p>견적의 {@code lineTotal} 은 기존 계약상 VAT 포함 합계이므로 {@code T} 를 저장한다.
+     * 모든 금액은 요청의 정수값을 재계산하지 않고 그대로 보존한다.
+     *
+     * @param supplyAmount 공급가액 S (원 단위 정수, 0 이상)
+     * @param vatAmount 부가세 V (원 단위 정수, 0 이상)
+     * @param lineTotalWithVat VAT 포함 합계 T (원 단위 정수, 0 이상)
+     * @throws BusinessException 금액·수량·항등식이 유효하지 않으면 INVALID_INPUT
+     */
+    public static EstimateLine createFromAuthoritativeAmounts(
+            Estimate estimate, int lineNo, UUID productId, String productName,
+            String modelName, String specification, int quantity, BigDecimal supplyAmount,
+            BigDecimal vatAmount, BigDecimal lineTotalWithVat, String note) {
+        validatePositive(quantity);
+        validateAuthoritativeAmounts(supplyAmount, vatAmount, lineTotalWithVat);
+        BigDecimal supplyUnit = supplyAmount.divide(BigDecimal.valueOf(quantity), 2,
+                RoundingMode.HALF_UP);
+        EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
+                specification, quantity, supplyUnit, note);
+        line.supplyAmount = supplyAmount;
+        line.vatAmount = vatAmount;
+        line.lineTotal = lineTotalWithVat;
+        line.unitPriceWithVat = lineTotalWithVat.divide(BigDecimal.valueOf(quantity), 2,
+                RoundingMode.HALF_UP);
+        // MED-4(#824 R2) — R1 의 validateAuthoritativeAmounts 는 입력 3값만 단일 임계값(15)으로
+        // 검사해 quantity=1 처럼 나눗셈 마진이 없는 경우 파생 unitPriceWithVat(narrow 컬럼,
+        // 13자리 한계)이 여전히 overflow 될 수 있었다. 최종 필드 상태를 다시 검증한다.
+        line.validateStorableAmounts();
         return line;
     }
 
@@ -197,6 +250,7 @@ public class EstimateLine extends BaseEntity {
         validatePositive(newQuantity);
         this.quantity = newQuantity;
         recompute();
+        validateStorableAmounts();
     }
 
     /** 단가 변경 — supply/vat/lineTotal 재계산. */
@@ -204,6 +258,7 @@ public class EstimateLine extends BaseEntity {
         validateUnitPrice(newUnitPrice);
         this.unitPrice = newUnitPrice;
         recompute();
+        validateStorableAmounts();
     }
 
     /** 메모 변경. */
@@ -214,7 +269,7 @@ public class EstimateLine extends BaseEntity {
     private void recompute() {
         this.supplyAmount = this.unitPrice.multiply(BigDecimal.valueOf(this.quantity))
                 .setScale(2, RoundingMode.HALF_UP);
-        this.vatAmount = this.supplyAmount.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+        this.vatAmount = VatAmountCalculator.fromSupply(this.supplyAmount).setScale(2);
         this.lineTotal = this.supplyAmount.add(this.vatAmount);
     }
 
@@ -227,6 +282,67 @@ public class EstimateLine extends BaseEntity {
     private static void validateUnitPrice(BigDecimal unitPrice) {
         if (unitPrice == null || unitPrice.signum() < 0) {
             throw new IllegalArgumentException("단가는 0 이상이어야 합니다");
+        }
+    }
+
+    private static void validateAuthoritativeAmounts(BigDecimal supplyAmount,
+                                                     BigDecimal vatAmount,
+                                                     BigDecimal lineTotalWithVat) {
+        validateAmount(supplyAmount, "공급가액");
+        validateAmount(vatAmount, "부가세");
+        validateAmount(lineTotalWithVat, "합계");
+        if (supplyAmount.add(vatAmount).compareTo(lineTotalWithVat) != 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    ("공급가액(%s)과 부가세(%s)의 합이 합계(%s)와 일치하지 않습니다. "
+                            + "화면을 새로고침한 뒤 다시 시도해 주세요.")
+                            .formatted(supplyAmount.toPlainString(), vatAmount.toPlainString(),
+                                    lineTotalWithVat.toPlainString()));
+        }
+    }
+
+    /**
+     * 부호 + 소수부만 검사한다. 자릿수(저장 가능 범위) 검사는 {@link #validateStorableAmounts()}
+     * 로 분리했다 — MED-4(#824 R2), SlipLine.validateAmount 와 동일 sweep/동일 이유
+     * (입력 원본 3값이 아니라 quantity 로 나눈 파생값이 실제로 컬럼에 저장되기 때문).
+     */
+    private static void validateAmount(BigDecimal amount, String label) {
+        if (amount == null || amount.signum() < 0 || amount.stripTrailingZeros().scale() > 0) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "은 0 이상의 원 단위 정수여야 합니다");
+        }
+    }
+
+    /**
+     * MED-4(#824 R2) — 실제 DB 컬럼 precision/scale 한계로 "저장 가능성"을 검증한다.
+     * SlipLine.validateStorableAmounts 와 동일 sweep — 모든 생성 팩토리와 금액을 재계산하는
+     * mutator 의 마지막 단계에서 최종 필드 상태를 검사한다.
+     *
+     * <p>{@code unitPriceWithVat} 는 평문 {@link #create} 경로에서는 계산되지 않고 null 로
+     * 남는다(legacy nullable 컬럼) — {@link #validateColumnRange} 가 null 을 건너뛴다.
+     */
+    private void validateStorableAmounts() {
+        validateColumnRange(this.unitPrice, "단가", NARROW_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.unitPriceWithVat, "VAT 포함 단가", NARROW_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.vatAmount, "부가세", NARROW_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.supplyAmount, "공급가액", WIDE_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.lineTotal, "라인 합계(VAT포함)", WIDE_MAX_INTEGER_DIGITS);
+    }
+
+    /**
+     * MED-4(#824 R1) 자릿수 압축표기 우회 방지 — SlipLine.validateColumnRange 와 동일 규칙.
+     *
+     * @param amount 검사할 금액 (null 이면 검사하지 않음)
+     * @param label 오류 메시지에 쓸 필드명
+     * @param maxIntegerDigits 이 필드가 실제로 저장될 컬럼의 정수부 최대 자릿수
+     */
+    private static void validateColumnRange(BigDecimal amount, String label, int maxIntegerDigits) {
+        if (amount == null) {
+            return;
+        }
+        BigDecimal stripped = amount.stripTrailingZeros();
+        if (stripped.precision() - stripped.scale() > maxIntegerDigits) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "이(가) 너무 큽니다. 정수부 " + maxIntegerDigits + "자리까지 저장할 수 있습니다");
         }
     }
 }

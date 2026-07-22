@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { vatExclusiveOf, vatInclusiveOf } from './vatPrice'
+import { supplyFromVatInclusive } from './vatRounding'
 
 describe('vatPrice — 수정화면(VAT제외) ↔ 기억/카탈로그(VAT포함) 변환 (BE 미러)', () => {
   it('vatExclusiveOf: 기억 854,700(포함) → 777,000(제외) — 라이브 QA 실측 케이스 왕복 무손실', () => {
@@ -8,10 +9,10 @@ describe('vatPrice — 수정화면(VAT제외) ↔ 기억/카탈로그(VAT포함
     expect(vatInclusiveOf('777000')).toBe('854700')
   })
 
-  it('vatExclusiveOf: 기억 500,000(포함) → 454,545(원 단위 HALF_UP) — 드리프트 fix 케이스', () => {
+  it('vatExclusiveOf: 기억 500,000(포함) → 454,545(원 단위 절사) — 드리프트 fix 케이스', () => {
     // 종전 결함: 500,000 을 제외 필드에 그대로 기입 → 저장 시 ×1.1 = 550,000 (10% 팽창).
-    // fix: ÷1.1 원 단위 반올림(BE createFromVatInclusive 미러) → 454,545.
-    expect(vatExclusiveOf('500000')).toBe('454545')
+    // fix: BE vatRounding.supplyFromVatInclusive와 같은 ÷1.1 정수 절사 → 454,545.
+    expect(vatExclusiveOf('500000')).toBe(String(supplyFromVatInclusive(500000n)))
     // 첫 저장 후 기억 = 454,545 × 1.1 = 499,999.5 (원 미만 수렴, 이후 고정 — 복리 팽창 아님)
     expect(vatInclusiveOf('454545')).toBe('499999.5')
     // 수렴 확인: 499,999.5 → 다시 454,545 (고정점)
@@ -41,5 +42,10 @@ describe('vatPrice — 수정화면(VAT제외) ↔ 기억/카탈로그(VAT포함
     expect(vatExclusiveOf('')).toBe('0') // Number('') = 0 — 빈 문자열은 0 취급(Number 관례)
     expect(vatExclusiveOf('abc')).toBe('')
     expect(vatInclusiveOf('abc')).toBe('')
+  })
+
+  it('가격기억 VAT 포함 7,900원도 BE의 정수 나눗셈(절사) 계약을 사용한다', () => {
+    expect(vatExclusiveOf('7900')).toBe(String(supplyFromVatInclusive(7900n)))
+    expect(vatExclusiveOf('7900')).toBe('7181')
   })
 })
