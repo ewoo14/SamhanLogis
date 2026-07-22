@@ -488,10 +488,11 @@ public class Estimate extends BaseEntity {
      * QUOTE_CONVERTED / QUOTE_REJECTED 등 잠긴 단계의 견적은 복원도 CONFLICT 로 거부한다
      * (회계 일관성 — 확정 후 매출 정정 차단).
      *
-     * <p>라인 금액 semantics (#824): 스냅샷에 supplyAmount/vatAmount/lineTotal이 모두 있으면
-     * {@link EstimateLine#createFromAuthoritativeAmounts} 로 저장된 권위 금액을 그대로 복원한다.
-     * 이력복원에서 권위 금액을 unitPriceWithVat로 재분해하지 않아 비표준 VAT가 보존된다. 권위
-     * 필드가 없는 구 JSONB 스냅샷은 unitPriceWithVat 또는 공급단가 legacy 경로로 하위호환한다.
+     * <p>라인 금액 semantics (#824): 신규 스냅샷에서 unitPriceWithVat provenance와
+     * supplyAmount/vatAmount/lineTotal이 모두 있으면 {@link EstimateLine#createFromAuthoritativeAmounts}
+     * 로 저장된 권위 금액을 그대로 복원한다. 이력복원에서 권위 금액을 unitPriceWithVat로 재분해하지
+     * 않아 비표준 VAT가 보존된다. unitPriceWithVat가 없는 구 JSONB 스냅샷은 공급단가 legacy 경로로
+     * 하위호환한다.
      *
      * <p>합계는 스냅샷의 totalSupply/totalVat 값을 신뢰하지 않고 {@link #recalculateTotals()} 로
      * 재계산한다 (라인 기준). 권위 라인은 저장된 S/V/T를, legacy 라인은 생성 시 계산된 값을 사용한다.
@@ -530,8 +531,10 @@ public class Estimate extends BaseEntity {
         if (snapshotLines != null) {
             int lineNo = 1;
             for (EstimateSnapshot.Line snapLine : snapshotLines) {
-                // #824 — complete S/V/T가 있으면 snapshot 권위 금액을 그대로 복원한다.
-                boolean hasAuthoritativeAmounts = snapLine.supplyAmount() != null
+                // #824 — 신규 권위 금액 snapshot은 S/V/T와 VAT 포함 단가(provenance)가 함께 있다.
+                // unitPriceWithVat가 없는 구 JSONB는 S/V/T 필드가 있어도 종전 공급 semantics를 유지한다.
+                boolean hasAuthoritativeAmounts = snapLine.unitPriceWithVat() != null
+                        && snapLine.supplyAmount() != null
                         && snapLine.vatAmount() != null
                         && snapLine.lineTotal() != null;
                 EstimateLine restored = hasAuthoritativeAmounts

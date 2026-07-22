@@ -245,7 +245,7 @@ export function SalesInvoicePrintPage() {
             <span className="sales-print-totals-value num">{krw(totals.supply)}</span>
           </div>
           <div className="sales-print-totals-row">
-            <span className="sales-print-totals-label">세액 (10%)</span>
+            <span className="sales-print-totals-label">세액</span>
             <span className="sales-print-totals-value num">{krw(totals.vat)}</span>
           </div>
           <div className="sales-print-totals-row strong">
