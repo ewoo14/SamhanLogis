@@ -22,7 +22,6 @@ public class NotificationPublisher {
     private static final Logger log = LoggerFactory.getLogger(NotificationPublisher.class);
     private static final String NOTIFICATION_SERVICE_BASE = "http://notification-service";
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
-    private static final int MAX_ATTEMPTS = 3;
     static final int DEFAULT_CONNECT_TIMEOUT_MS = 1_000;
     static final int DEFAULT_READ_TIMEOUT_MS = 2_000;
 
@@ -83,30 +82,22 @@ public class NotificationPublisher {
                 callerServiceName,
                 req.sourceRefId(),
                 req.deeplink());
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            try {
-                restClient.post()
-                        .uri("/internal/notifications")
-                        .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
-                        .header("X-User-Id", "system-internal:" + callerServiceName)
-                        .header("X-User-Role", "MASTER")
-                        .body(enriched)
-                        .retrieve()
-                        .toBodilessEntity();
-                return;
-            } catch (RestClientException ex) {
-                if (attempt == MAX_ATTEMPTS) {
-                    log.warn("[NotificationPublisher] notification-service 발송 실패 (재시도 소진, fail-soft) — channel={} ref={} attempts={} error={}",
-                            req.channel(), req.sourceRefId(), attempt, ex.getMessage());
-                } else {
-                    log.warn("[NotificationPublisher] notification-service 발송 일시 실패 — 재시도 {}/{} channel={} ref={} error={}",
-                            attempt, MAX_ATTEMPTS, req.channel(), req.sourceRefId(), ex.getMessage());
-                }
-            } catch (Exception ex) {
-                log.error("[NotificationPublisher] 알림 발송 예외 (fail-soft) — channel={} ref={} error={}",
-                        req.channel(), req.sourceRefId(), ex.getMessage(), ex);
-                return;
-            }
+        try {
+            restClient.post()
+                    .uri("/internal/notifications")
+                    .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
+                    .header("X-User-Id", "system-internal:" + callerServiceName)
+                    .header("X-User-Role", "MASTER")
+                    .body(enriched)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException ex) {
+            // 응답이 끊겨도 notification-service가 이미 INSERT했을 수 있으므로 재전송하지 않는다.
+            log.warn("[NotificationPublisher] notification-service 발송 실패 (단일 시도, fail-soft) — channel={} ref={} error={}",
+                    req.channel(), req.sourceRefId(), ex.getMessage());
+        } catch (Exception ex) {
+            log.error("[NotificationPublisher] 알림 발송 예외 (fail-soft) — channel={} ref={} error={}",
+                    req.channel(), req.sourceRefId(), ex.getMessage(), ex);
         }
     }
 }

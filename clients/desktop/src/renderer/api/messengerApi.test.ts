@@ -57,6 +57,17 @@ describe('메신저 API 계약', () => {
     )
   })
 
+  it('D 수신함은 서버의 실제 다음 페이지 헤더를 보존한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      ...envelope([]),
+      headers: { 'x-has-next-page': 'true' },
+    })
+
+    const result = await fetchInbox()
+
+    expect(result.hasNextPage).toBe(true)
+  })
+
   it('쪽지 읽음 처리는 messageId 경로의 PUT endpoint를 호출한다', async () => {
     const message = {
       messageId: 'message-1',

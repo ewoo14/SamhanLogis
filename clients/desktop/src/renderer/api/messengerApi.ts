@@ -28,6 +28,9 @@ export interface MessageResponse {
   readAt: string | null
 }
 
+/** 수신함 배열에 서버가 계산한 실제 다음 페이지 존재 여부를 부착한다. */
+export type InboxMessages = MessageResponse[] & { hasNextPage?: boolean }
+
 export interface MessageBulkSendRequest {
   recipientIds: string[]
   body: string
@@ -60,12 +63,14 @@ export async function sendBulkMessage(
 }
 
 /** 호출자 본인 수신함 조회 — 50건 단위 페이지(0-base). userId 쿼리로 범위를 바꾸지 않는다. */
-export async function fetchInbox(page = 0): Promise<MessageResponse[]> {
+export async function fetchInbox(page = 0): Promise<InboxMessages> {
   const response = await apiClient.get<ApiEnvelope<MessageResponse[]>>(
     '/admin/groupware/messages/inbox',
     { params: { page } },
   )
-  return response.data.data
+  const messages = response.data.data as InboxMessages
+  messages.hasNextPage = response.headers?.['x-has-next-page'] === 'true'
+  return messages
 }
 
 /** 수신자 본인의 쪽지를 읽음 처리한다. 호출자 신원은 gateway 헤더로만 전달된다. */

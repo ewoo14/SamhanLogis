@@ -20,6 +20,7 @@ const RECIPIENT_MAX = 50
 /** 같은 쪽지의 읽음 처리 실패를 이 횟수만큼 재시도한 뒤에는 포기하고 화면에 실패를 드러낸다. */
 const MARK_READ_MAX_ATTEMPTS = 3
 const ACKNOWLEDGE_MAX_ATTEMPTS = 3
+const READ_NOTIFICATION_RECONCILIATION_MS = 5_000
 
 function inboxStatus(message: MessageResponse): string {
   return message.status === 'UNREAD' ? '읽지 않음' : '읽음'
@@ -79,6 +80,8 @@ export function MessengerPage() {
   const inboxQuery = useQuery({
     queryKey: ['messenger', 'inbox', page],
     queryFn: () => fetchInbox(page),
+    // 알림 INSERT가 markRead 이후 늦게 도착해도 READ 행의 refId로 재확인할 기회를 만든다.
+    refetchInterval: READ_NOTIFICATION_RECONCILIATION_MS,
   })
 
   /**
@@ -92,7 +95,19 @@ export function MessengerPage() {
         && !markedReadIdsRef.current.has(message.messageId)
         && !inFlightMarkReadIdsRef.current.has(message.messageId),
     )
-    if (unreadMessages.length === 0) return
+    const alreadyReadIds = (inboxQuery.data ?? [])
+      .filter((message) => message.status === 'READ')
+      .map((message) => message.messageId)
+      .filter((messageId) => !markedReadIdsRef.current.has(messageId))
+
+    if (unreadMessages.length === 0) {
+      if (alreadyReadIds.length > 0) {
+        void acknowledgeWithRetry(alreadyReadIds)
+          .catch(() => undefined)
+          .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+      }
+      return
+    }
 
     unreadMessages.forEach((message) => inFlightMarkReadIdsRef.current.add(message.messageId))
 
@@ -142,7 +157,7 @@ export function MessengerPage() {
           .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
       }
     })()
-  }, [inboxQuery.data, page, queryClient])
+  }, [inboxQuery.data, inboxQuery.dataUpdatedAt, page, queryClient])
 
   const sendMutation = useMutation({
     mutationFn: sendBulkMessage,
@@ -193,7 +208,7 @@ export function MessengerPage() {
     () => (inboxQuery.data ?? []).map((message) => markedReadMessages[message.messageId] ?? message),
     [inboxQuery.data, markedReadMessages],
   )
-  const hasNextPage = (inboxQuery.data?.length ?? 0) >= 50
+  const hasNextPage = inboxQuery.data?.hasNextPage === true
   const recipientLimitReached = selectedRecipients.length >= RECIPIENT_MAX
 
   return (

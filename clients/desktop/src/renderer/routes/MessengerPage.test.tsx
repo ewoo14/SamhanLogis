@@ -437,8 +437,30 @@ describe('MessengerPage', () => {
     expect(screen.queryByText('일부 쪽지의 읽음 처리에 실패했습니다.')).toBeNull()
   })
 
+  it('C 늦게 도착한 알림도 이미 READ인 쪽지의 refId로 다시 acknowledge한다', async () => {
+    const read = {
+      messageId: 'msg-late-notification',
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: '늦은 알림 대상',
+      status: 'READ' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: '2026-07-22T00:01:00Z',
+    }
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([read])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+
+    const { queryClient } = renderPage()
+    await waitFor(() => expect(notificationApi.acknowledgeMessengerNotifications).toHaveBeenCalledTimes(1))
+
+    await queryClient.invalidateQueries({ queryKey: ['messenger', 'inbox', 0] })
+    await waitFor(() => expect(notificationApi.acknowledgeMessengerNotifications).toHaveBeenCalledTimes(2))
+    expect(notificationApi.acknowledgeMessengerNotifications).toHaveBeenLastCalledWith(['msg-late-notification'])
+  })
+
   it('M-5 수신함이 50건이면 다음 페이지 버튼이 활성화되고 클릭 시 page=1을 요청한다', async () => {
-    const fullPage = Array.from({ length: 50 }, (_, i) => ({
+    const fullPage = Object.assign(Array.from({ length: 50 }, (_, i) => ({
       messageId: `msg-${i}`,
       senderId: 'sender-1',
       senderDisplayName: '발신자',
@@ -447,7 +469,7 @@ describe('MessengerPage', () => {
       status: 'READ' as const,
       sentAt: '2026-07-22T00:00:00Z',
       readAt: '2026-07-22T00:01:00Z',
-    }))
+    })), { hasNextPage: true })
     vi.mocked(messengerApi.fetchInbox).mockResolvedValue(fullPage)
     vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
 
@@ -458,6 +480,28 @@ describe('MessengerPage', () => {
     await waitFor(() => expect((next as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(next)
     await waitFor(() => expect(messengerApi.fetchInbox).toHaveBeenCalledWith(1))
+  })
+
+  it('D 실제 다음 페이지가 없다고 응답하면 50건이어도 다음 이동을 막는다', async () => {
+    const exactLastPage = Object.assign(Array.from({ length: 50 }, (_, i) => ({
+      messageId: `last-${i}`,
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: `마지막 ${i}`,
+      status: 'READ' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: '2026-07-22T00:01:00Z',
+    })), { hasNextPage: false })
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue(exactLastPage)
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+
+    renderPage()
+
+    await waitFor(() => expect(messengerApi.fetchInbox).toHaveBeenCalledWith(0))
+    await waitFor(() => expect(screen.getByText('마지막 0')).toBeTruthy())
+    const next = screen.getByRole('button', { name: '다음' }) as HTMLButtonElement
+    expect(next.disabled).toBe(true)
   })
 
   it('M-6 본문이 2000자를 넘으면 잘리고 무음이 아니라 화면에 안내가 뜬다', async () => {

@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -244,14 +245,17 @@ public class GroupwareAdminController {
     @Operation(summary = "메신저 수신함")
     @GetMapping("/messages/inbox")
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-    public ApiResponse<List<MessageResponse>> inbox(
+    public ResponseEntity<ApiResponse<List<MessageResponse>>> inbox(
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID recipientId,
             @RequestParam(required = false) UUID userId,
             @RequestParam(required = false, defaultValue = "0") int page) {
         // 객체수준 인가: userId 쿼리는 구버전 클라이언트 호환용으로만 받으며 조회 범위는 항상 호출자 본인이다.
         int safePage = Math.max(page, 0);
-        return ApiResponse.ok(messageService.inboxResponses(
-                recipientId, org.springframework.data.domain.PageRequest.of(safePage, 50)));
+        Page<MessageResponse> inbox = messageService.inboxPageResponses(
+                recipientId, org.springframework.data.domain.PageRequest.of(safePage, 50));
+        return ResponseEntity.ok()
+                .header("X-Has-Next-Page", Boolean.toString(inbox.hasNext()))
+                .body(ApiResponse.ok(inbox.getContent()));
     }
 
     /**

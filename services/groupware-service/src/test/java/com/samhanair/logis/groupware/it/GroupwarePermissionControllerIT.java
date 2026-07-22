@@ -124,7 +124,8 @@ class GroupwarePermissionControllerIT {
         lenient().when(approvalLineService.approve(any(UUID.class), any(UUID.class), any(java.util.Set.class))).thenReturn(approval);
         lenient().when(approvalLineService.reject(any(UUID.class), any(UUID.class), any(java.util.Set.class), any())).thenReturn(approval);
         lenient().when(messageService.send(any(), any(UUID.class))).thenReturn(message);
-        lenient().when(messageService.inboxResponses(any(), any())).thenReturn(List.of(MessageResponse.from(message)));
+        lenient().when(messageService.inboxPageResponses(any(), any())).thenReturn(
+                new org.springframework.data.domain.PageImpl<>(List.of(MessageResponse.from(message))));
         lenient().when(messageService.markRead(any(UUID.class), any(UUID.class))).thenReturn(message);
         lenient().when(messageService.sendBulk(any(), any(UUID.class))).thenReturn(
                 new MessageBulkSendResponse(UUID.randomUUID(), 1, List.of(MessageResponse.from(message))));

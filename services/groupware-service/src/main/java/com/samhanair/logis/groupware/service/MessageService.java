@@ -157,6 +157,12 @@ public class MessageService {
      */
     @Transactional(readOnly = true)
     public List<MessageResponse> inboxResponses(UUID recipientId, Pageable pageable) {
+        return inboxPageResponses(recipientId, pageable).getContent();
+    }
+
+    /** 수신함 페이지와 실제 다음 페이지 존재 여부를 함께 계산한다. */
+    @Transactional(readOnly = true)
+    public Page<MessageResponse> inboxPageResponses(UUID recipientId, Pageable pageable) {
         Page<Message> page = repository.findAllByRecipientIdOrderBySentAtDesc(recipientId, pageable);
         List<UUID> senderIds = page.getContent().stream()
                 .map(Message::getSenderId)
@@ -164,9 +170,7 @@ public class MessageService {
                 .distinct()
                 .toList();
         Map<UUID, String> displayNames = resolveSenderDisplayNames(senderIds);
-        return page.getContent().stream()
-                .map(m -> MessageResponse.from(m, displayNames.get(m.getSenderId())))
-                .toList();
+        return page.map(m -> MessageResponse.from(m, displayNames.get(m.getSenderId())));
     }
 
     /** 미열람 카운트 (Internal API + admin 화면 공용). */

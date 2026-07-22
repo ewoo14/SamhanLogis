@@ -142,12 +142,6 @@ class NotificationPublisherTest {
         server.expect(requestTo("http://notification-service/internal/notifications"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError());
-        server.expect(requestTo("http://notification-service/internal/notifications"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withServerError());
-        server.expect(requestTo("http://notification-service/internal/notifications"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withServerError());
 
         NotificationPublishRequest req = new NotificationPublishRequest(
                 "MESSENGER",
@@ -165,8 +159,8 @@ class NotificationPublisherTest {
     }
 
     @Test
-    @DisplayName("publish: 일시 장애는 제한적으로 재시도하여 알림 유실 가능성을 줄인다")
-    void publish_retriesTransientFailureBeforeGivingUp() {
+    @DisplayName("publish: 일시 장애도 재전송하지 않아 중복 알림을 만들지 않는다")
+    void publish_doesNotRetryTransientFailure() {
         RestClient.Builder builder = testBuilder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         NotificationPublisher publisher = new NotificationPublisher(builder, "test-token", "groupware-service");
@@ -174,11 +168,8 @@ class NotificationPublisherTest {
         server.expect(requestTo("http://notification-service/internal/notifications"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withServerError());
-        server.expect(requestTo("http://notification-service/internal/notifications"))
-                .andExpect(method(HttpMethod.POST))
-                .andRespond(withSuccess());
 
-        publisher.publish(new NotificationPublishRequest(
+        assertDoesNotThrow(() -> publisher.publish(new NotificationPublishRequest(
                 "MESSENGER",
                 NotificationSeverity.INFO,
                 "새 메시지",
@@ -187,7 +178,32 @@ class NotificationPublisherTest {
                 java.util.UUID.randomUUID(),
                 null,
                 "message-id",
-                "/messenger"));
+                "/messenger")));
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("publish: 응답이 끊긴 POST를 재전송하지 않아 중복 알림을 만들지 않는다")
+    void publish_doesNotRetryAfterARequestMayHaveBeenCommitted() {
+        RestClient.Builder builder = testBuilder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        NotificationPublisher publisher = new NotificationPublisher(builder, "test-token", "groupware-service");
+
+        server.expect(requestTo("http://notification-service/internal/notifications"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withServerError());
+
+        assertDoesNotThrow(() -> publisher.publish(new NotificationPublishRequest(
+                "MESSENGER",
+                NotificationSeverity.INFO,
+                "새 메시지",
+                "본문",
+                null,
+                java.util.UUID.randomUUID(),
+                null,
+                "message-id",
+                "/messenger")));
 
         server.verify();
     }

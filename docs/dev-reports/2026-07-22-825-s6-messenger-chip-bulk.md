@@ -781,3 +781,197 @@ Running 6 tests using 1 worker
   환경 특성이다. 서비스별 실행에서는 실패가 없었다.
 - 전체 Playwright suite는 실행하지 않았고, 지정된 `ac-825-s6-messenger-chip` 6건만 실행했다.
 - git 명령은 실행하지 않았으며 commit/push/checkout/stash/reset도 하지 않았다.
+
+## PM 정정 후 최종 마감 — A~D (2026-07-23)
+
+이 절은 위의 이전 라운드 검증 기록을 보완하는 최종 기록이다. PM 정정에 따라 E(CI
+회귀)는 작업·조사·변경 대상에서 제외했다. 아래 A~D는 각각 결함 재현 RED를 먼저
+확인하고 수정한 뒤 GREEN과 mutation RED를 확인했다.
+
+### A. executor 포화 시 발행 시도 유실
+
+RED 원문:
+
+```text
+NotificationPublisherDispatchExecutorTest.java:15: error:
+constructor NotificationPublisherDispatchExecutor in class ... cannot be applied to given types;
+required: no arguments
+found: int,int
+BUILD FAILED
+```
+
+테스트가 작은 executor를 만들 수 없던 상태에서 먼저 실패하도록 한 뒤, 테스트용
+package-private 생성자와 포화 시나리오를 추가했다. 구현은 `AbortPolicy`를
+`CallerRunsPolicy`로 바꿨다. worker 4개/queue 256이라는 bounded 경계는 유지하면서,
+queue가 찬 순간 제출 스레드가 작업을 직접 실행해 발행 시도를 거부·폐기하지 않고
+지연으로 흡수한다. executor가 종료된 경우의 실제 거부는 기존 fail-soft 로그 경로로
+관측된다.
+
+GREEN 원문:
+
+```text
+gradlew.bat :shared:notification-publisher:test --tests ...NotificationPublisherDispatchExecutorTest --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 3s
+4 actionable tasks: 4 executed
+```
+
+mutation RED 원문(`CallerRunsPolicy`를 다시 `AbortPolicy`로 바꾼 경우):
+
+```text
+NotificationPublisherDispatchExecutorTest > saturatedExecutor_delaysSubmissionInsteadOfDroppingIt() FAILED
+org.opentest4j.AssertionFailedError
+Caused by: java.util.concurrent.RejectedExecutionException
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+### B. 재시도로 인한 중복 알림
+
+RED 원문:
+
+```text
+NotificationPublisherTest > publish: 응답이 끊긴 POST를 재전송하지 않아 중복 알림을 만들지 않는다 FAILED
+org.opentest4j.AssertionFailedError
+Caused by: java.lang.AssertionError
+BUILD FAILED
+```
+
+notification-service가 저장한 뒤 응답만 유실되는 경우, 현재 계약에는
+`sourceRefId` 멱등 제약이 없다. 따라서 timeout 뒤 같은 POST를 재시도하면 첫 요청이
+저장됐는지 확인할 수 없어 중복을 만들 수 있다. 반대로 지연 장애에서는 즉시 재시도가
+같은 포화 상태에서 timeout을 반복할 뿐이며, 이번 범위에서 중복을 방지할 수 있는
+멱등 스키마·outbox를 추가할 수 없다. 이 비용 비교에 따라 재시도를 제거하고
+단일 POST로 결정했다. connect timeout 1초/read timeout 2초, request clone,
+fail-soft 예외 처리와 로그 관측은 유지했다. 이 선택은 자동 재처리를 제공하지 않으며,
+완전한 복구는 별도 outbox/멱등성 슬라이스로 남긴다.
+
+GREEN 원문:
+
+```text
+gradlew.bat :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 5s
+4 actionable tasks: 4 executed
+```
+
+mutation RED 원문(단일 POST를 3회 retry loop로 되돌린 경우):
+
+```text
+NotificationPublisherTest > publish: 응답이 끊긴 POST를 재전송하지 않아 중복 알림을 만들지 않는다 FAILED
+org.opentest4j.AssertionFailedError
+Caused by: java.lang.AssertionError
+BUILD FAILED
+```
+
+### C. 늦게 도착한 알림의 acknowledge
+
+RED 원문:
+
+```text
+C 늦게 도착한 알림도 이미 READ인 쪽지의 refId로 다시 acknowledge한다 FAILED
+expected acknowledgeMessengerNotifications to be called 1 times, but got 0 times
+1 failed, 21 skipped
+```
+
+메시지 목록을 5초 주기로 재조회하고, 재조회 결과에서 이미 `READ`인 메시지 중 아직
+현재 화면에서 acknowledge 성공을 기록하지 않은 메시지를 재조정 대상으로 삼는다.
+따라서 처음 열었을 때 알림 행이 아직 없었어도, 늦은 INSERT가 다음 재조회에 포함되면
+기존 acknowledge 재시도 경로가 다시 실행된다. acknowledge 실패는 기존처럼 사용자
+발송 feedback을 덮지 않고 fail-soft 처리한다.
+
+GREEN 원문:
+
+```text
+Test Files 1 passed (1), Tests 1 passed (1), 21 skipped
+```
+
+mutation RED 원문(`alreadyReadIds`를 빈 배열로 고정):
+
+```text
+C 늦게 도착한 알림도 이미 READ인 쪽지의 refId로 다시 acknowledge한다 FAILED
+expected acknowledgeMessengerNotifications to be called 1 times, but got 0 times
+1 failed, 21 skipped
+```
+
+### D. 실제 다음 페이지 존재 여부
+
+RED 원문:
+
+```text
+GroupwareAdminControllerIT > inbox_exposesWhetherAnActualNextPageExists() FAILED
+java.lang.AssertionError at GroupwareAdminControllerIT.java:611
+1 completed, 1 failed
+BUILD FAILED
+```
+
+백엔드는 `Page.hasNext()`를 유지하도록 서비스 반환값을 `Page<MessageResponse>`로
+확장하고 `X-Has-Next-Page` 응답 헤더를 추가했다. 프런트 API가 이 헤더를 읽어
+`hasNextPage`로 전달하며, 화면은 더 이상 `messages.length >= 50` 휴리스틱을 쓰지
+않고 이 실제 메타데이터가 `true`일 때만 다음 버튼을 활성화한다.
+
+GREEN 원문:
+
+```text
+gradlew.bat :services:groupware-service:test --tests ...GroupwareAdminControllerIT --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 33s
+27 actionable tasks: 27 executed
+
+Test Files 1 passed, Tests 2 passed (D and existing M-5)
+```
+
+mutation RED 원문(`hasNextPage` 판정을 다시 `length >= 50`으로 변경):
+
+```text
+D 실제 다음 페이지가 없다고 응답하면 50건이어도 다음 이동을 막는다 FAILED
+expected false to be true
+1 failed, 22 skipped
+```
+
+### 최종 검증 출력
+
+요청한 6모듈 단일 Gradle invocation은 동시 실행 없이 완료했고, `--rerun-tasks
+--no-build-cache` 조건에서 모든 task가 실행됐다.
+
+```text
+BUILD SUCCESSFUL in 6m 26s
+51 actionable tasks: 51 executed
+ELAPSED_SECONDS=387.1
+
+clients/desktop npm run typecheck
+Exit code: 0
+
+npx --no-install vitest run src/renderer/routes/MessengerPage.test.tsx src/renderer/api/messengerApi.test.ts
+Test Files 2 passed (2)
+Tests 29 passed (29)
+Duration 20.43s
+
+npx --no-install playwright test playwright/ac-825-s6-messenger-chip --reporter=line
+Running 6 tests using 1 worker
+6 passed (9.5s)
+```
+
+이번 라운드 변경 파일:
+
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisherDispatchExecutor.java`
+- `shared/notification-publisher/src/test/java/com/samhanair/logis/notification/publisher/NotificationPublisherDispatchExecutorTest.java`
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisher.java`
+- `shared/notification-publisher/src/test/java/com/samhanair/logis/notification/publisher/NotificationPublisherTest.java`
+- `services/groupware-service/src/main/java/com/samhanair/logis/groupware/service/MessageService.java`
+- `services/groupware-service/src/main/java/com/samhanair/logis/groupware/controller/GroupwareAdminController.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/it/GroupwareAdminControllerIT.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/it/GroupwarePermissionControllerIT.java`
+- `clients/desktop/src/renderer/api/messengerApi.ts`
+- `clients/desktop/src/renderer/api/messengerApi.test.ts`
+- `clients/desktop/src/renderer/routes/MessengerPage.tsx`
+- `clients/desktop/src/renderer/routes/MessengerPage.test.tsx`
+- `docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md`
+
+미해결·범위 제외:
+
+- A~D는 RED→GREEN 및 mutation RED를 모두 확인했다.
+- E(CI 회귀)는 PM 정정으로 철회되어 조사·수정하지 않았다. accounting 비동기 전환과
+  `NotificationPublisherDispatchExecutor`를 E 사유로 되돌리지 않았다.
+- B는 중복 방지를 위해 retry를 제거했으므로 notification-service가 단일 시도마저
+  실패한 뒤의 자동 복구는 제공하지 않는다. outbox, 멱등 스키마 migration,
+  서킷브레이커는 추가하지 않았다.
+- 전체 Playwright suite는 실행하지 않았고 지정된 `ac-825-s6-messenger-chip` 6건만
+  실행했다. git 명령은 실행하지 않았다.
