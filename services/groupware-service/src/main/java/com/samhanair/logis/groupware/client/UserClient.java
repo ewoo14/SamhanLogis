@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * user-service 호출 client — groupware-service local wrapper.
@@ -33,13 +35,19 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class UserClient implements UserVerifier {
 
+    private static final Logger log = LoggerFactory.getLogger(UserClient.class);
+
     private final UserVerifier delegate;
     private final ServiceDiscoveryClient discoveryClient;
     private final RestClient restClient;
     private final String internalToken;
     private final ObjectMapper objectMapper;
 
-    public record ApproverSummary(UUID userId, String name, String department) {
+    public record ApproverSummary(UUID userId, String name, String department, String employeeCode) {
+        /** 담당자코드가 없는 하위호환 생성자 (결재자 picker 등 기존 소비처). */
+        public ApproverSummary(UUID userId, String name, String department) {
+            this(userId, name, department, null);
+        }
     }
 
     public UserClient(RestClient.Builder builder,
@@ -69,6 +77,35 @@ public class UserClient implements UserVerifier {
     @Override
     public Map<UUID, Boolean> verifyBulk(List<UUID> userIds) {
         return delegate.verifyBulk(userIds);
+    }
+
+    /** 메신저 발송 직전 재직 상태를 user-service에서 캐시 없이 일괄 확인한다. */
+    public Map<UUID, Boolean> verifyActiveBulk(List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty() || internalToken == null || internalToken.isBlank()) {
+            return Map.of();
+        }
+        List<UUID> distinct = userIds.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (distinct.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            String body = restClient.post()
+                    .uri("/internal/users/verify-active-bulk")
+                    .header("X-Internal-Token", internalToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("userIds", distinct))
+                    .retrieve()
+                    .body(String.class);
+            return parseBooleanMap(body);
+        } catch (Exception ex) {
+            // 발송 자격 검증은 fail-closed: user-service 장애 중 퇴사자에게 발송하지 않는다.
+            log.error("user-service verify-active-bulk 호출 실패 — endpoint=/internal/users/verify-active-bulk, "
+                    + "userIdsCount={}, fail-closed", distinct.size(), ex);
+            return distinct.stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+        }
     }
 
     /**
@@ -109,6 +146,18 @@ public class UserClient implements UserVerifier {
 
     /** 결재자 검색. user-service 장애/토큰 미설정 시 빈 배열로 fail-soft 처리한다. */
     public List<ApproverSummary> search(String q, int limit) {
+        return search(q, limit, false);
+    }
+
+    /**
+     * 직원 검색. activeOnly=true인 경우 퇴사일이 없는 재직자만 반환하도록 user-service에 전달한다.
+     *
+     * @param q 검색어
+     * @param limit 반환 상한
+     * @param activeOnly 퇴사자 제외 여부
+     * @return 검색 결과
+     */
+    public List<ApproverSummary> search(String q, int limit, boolean activeOnly) {
         String normalized = q == null ? "" : q.trim();
         if (normalized.isBlank() || internalToken == null || internalToken.isBlank()) {
             return List.of();
@@ -116,10 +165,15 @@ public class UserClient implements UserVerifier {
         int normalizedLimit = Math.min(Math.max(limit, 1), 50);
         try {
             String body = restClient.get()
-                    .uri(uriBuilder -> uriBuilder.path("/internal/users/search")
-                            .queryParam("q", normalized)
-                            .queryParam("limit", normalizedLimit)
-                            .build())
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder.path("/internal/users/search")
+                                .queryParam("q", normalized)
+                                .queryParam("limit", normalizedLimit);
+                        if (activeOnly) {
+                            builder.queryParam("activeOnly", true);
+                        }
+                        return builder.build();
+                    })
                     .header("X-Internal-Token", internalToken)
                     .retrieve()
                     .body(String.class);
@@ -138,7 +192,8 @@ public class UserClient implements UserVerifier {
                 if (userId == null || fullName == null) {
                     continue;
                 }
-                result.add(new ApproverSummary(userId, fullName, readText(item.get("departmentName"))));
+                result.add(new ApproverSummary(userId, fullName, readText(item.get("departmentName")),
+                        readText(item.get("ecountCode"))));
             }
             return List.copyOf(result);
         } catch (RestClientResponseException ex) {
@@ -191,6 +246,31 @@ public class UserClient implements UserVerifier {
             return Map.copyOf(result);
         } catch (RestClientResponseException ex) {
             return Map.of();
+        } catch (Exception ex) {
+            return Map.of();
+        }
+    }
+
+    private Map<UUID, Boolean> parseBooleanMap(String body) {
+        if (body == null || body.isBlank()) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            JsonNode exists = data == null ? null : data.get("exists");
+            if (exists == null || !exists.isObject()) {
+                return Map.of();
+            }
+            Map<UUID, Boolean> result = new LinkedHashMap<>();
+            exists.fieldNames().forEachRemaining(idText -> {
+                try {
+                    result.put(UUID.fromString(idText), exists.get(idText).asBoolean(false));
+                } catch (IllegalArgumentException ignored) {
+                    // malformed response key: skip
+                }
+            });
+            return result;
         } catch (Exception ex) {
             return Map.of();
         }

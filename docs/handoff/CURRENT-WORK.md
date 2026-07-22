@@ -4,7 +4,184 @@
 
 ---
 
-## 🚀 2026-07-22 (회사PC · D드라이브 이동 후) — **다음 3트랙 병렬 착수** ◀◀◀ 여기부터 읽으십시오
+## 🏠 2026-07-22 (집PC 저녁, ~22:00) — **3트랙 병렬 가동 · 집PC 환경 정상화 완료** ◀◀◀ 여기부터 읽으십시오
+
+> 개발책임자 지시 *"회사PC 진행 내역 이어서 · 다만 집PC 미커밋/PROBLEMS 먼저 해결"* → 환경 정상화 완료 후 3트랙 병렬 가동.
+
+### 0. 재개 절차
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+# 워크트리 3개 (집PC 엔 이미 존재 · 없으면):
+git worktree add .claude/worktrees/ds3b     feat/845-ds3b-editor-mvp
+git worktree add .claude/worktrees/s6-msg   feat/825-s6-messenger-recipient-chips
+git worktree add .claude/worktrees/824-tax  feat/824-item-line-supply-vat
+```
+
+### 1. 3트랙 현황
+
+| 트랙 | PR | HEAD | CI (exact SHA) | 남은 일 |
+|---|---|---|---|---|
+| **T1** #868 DS-3b 편집기 | **#891** | `e67cfc878` | ✅ **35/35** | **GUI 재촬영**(레이아웃 변경분) · L7~L9 · L11 |
+| **T2** #866 슬6 쪽지 칩 | **#892** | `d93ea81d8` | ✅ **35/35** | R2 fix 커밋 → 도달성 마감 → **머지 1순위** |
+| **T3** #824 품목행 tax | **#893** | `dde574823` | 🔄 38 ✅ + 2 진행 | CI 확인 → **PM 직접 라이브QA(11항목)** → SOL R2 |
+
+⚠️ **T2 워크트리에 미커밋 산출물 존재** — LUNA R2 fix + 후속(비동기 경계). 커밋 전이니 **fresh 재디스패치 말고 diff 확인부터**.
+
+### 2. 🚨 집PC 환경 정상화 (이 세션 최대 소득)
+
+**PROBLEMS 5,404 → 에러 0.** 원인은 **Gradle Build Server(BSP) 임포터**였다. 가설 2개를 실측으로 기각한 뒤 확정:
+
+| 기각된 가설 | 반증 |
+|---|---|
+| stale 워크스페이스 캐시 | Clean 후 전면 재임포트(오류 0)해도 에러 1,256 그대로 |
+| `leafProjects` 누락 → toolchain 미적용 → JVM 불일치 | Gradle 데몬 JVM = JDK 17.0.18 · 4개 모듈 class major version 전부 **61(Java 17)** |
+
+**확정 원인**: Gradle 본체의 Eclipse 모델은 `<classpathentry kind="src" path="/collab-core">` 를 정상 생성하는데 **BSP 임포터만** 이를 누락. 설정 설명이 *"It will replace the original Buildship"* 이라 명시. → `.vscode/settings.json` 에 **`"java.gradle.buildServer.enabled": "off"`** 적용(gitignore 대상, PR 불필요). 함께 `nullAnalysis.mode: disabled`(경고 3,947건 원인) + 사본 트리 `java.import.exclusions` 추가.
+🔑 **Reload 로는 안 고쳐진다 — 반드시 `Java: Clean Java Language Server Workspace`.**
+
+**디스크 2.8GB 회수 · 유실 0**: stash 14→0 · 로컬 브랜치 66→1 · 고아 워크트리 19개(2.4GB) · 루트 임시물 416MB.
+백업 3중: `C:\dev\_samhan-backup\samhan-local-refs-2026-07-22.bundle`(287MB·92ref·verify 통과) · `backup-stash-0~13` 태그 · 고유파일 아카이브 63개.
+🚫 `backups/` 의 **C5 컷오버 직전 DB 덤프 2개는 보존**(임시물 아님).
+
+### 3. 🚨 이 세션 실측 함정 (전부 검증으로 포착)
+
+- **compose 가 삭제된 워크트리에 등록돼 있었다** — `working_dir = …/worktrees/ds3a/infrastructure`(삭제됨). **YAML 내용 grep 으로는 안 잡힌다 — 컨테이너 라벨에 있다.** PM 이 처음에 "참조 없음 ✅" 으로 오판했다
+- **design-system dist 가 이틀 stale** — 소스 07-22 08:35 vs dist 07-20 01:16. 재빌드하니 `index.js` 303,373 → **305,043 bytes** 실제 변경. 그대로 QA 했으면 낡은 공용 컴포넌트를 검증
+- **고아 playwright test-server** 가 메인 트리 config 를 물고 생존(구코드 서빙 = false-RED 원천)
+- 🚨 **PM 이 "Playwright 실행 금지" 를 지시해 CI hard gate RED 서프라이즈를 자초** — [[feedback_verify_playwright_gate_before_adversarial]] 에 **동일 패턴이 이미 기록돼 있었는데 반복**했다
+- **Playwright 전체 스위트 1회 = PNG 146장 재생성** — 다른 슬라이스 커밋 증거를 덮는다. 원복은 **의도 코드 먼저 `git add` → 경로 개별 checkout → untracked 개별 삭제** 순서(디렉토리 통째 금지)
+- **PowerShell `Out-File -Encoding utf8` 이 커밋 제목에 BOM 삽입** — 커밋 메시지는 Write 도구로 쓸 것
+
+### 4. 각 트랙 성과
+
+**T1 #891** — PM 직접 라이브QA **L1~L6 · L10 · L12 완주**(캡처 14장, PR SHA-pinned 게시). 배포 증명은 `javap` 로 jar 내부 `DocumentPayload$Geometry` 의 `JsonInclude`·`NON_NULL` 실물까지 확인. **PM 발견 1건**: 신규 요소 기본 `w=100` 이라 가로 위치 `x` 를 0보다 크게 하면 `x+w>100` 으로 저장이 막히는데(`templateSchema.ts:205`) 각 입력은 `min=0/max=100` 안이라 화면상 위반이 안 보인다 → **게이트 아님(UX) 판정, 현 PR 처리 권고**.
+이후 **개발책임자 지시로 레이아웃 정돈 + 모바일 세로 카드 스택**(1100/700/639px) 흡수. PM 이 건 회귀 위험 2건 반영 확인 — 공용 `.paper` 를 `.document-template-preview .paper` 로 스코프 한정(11화면 전수 확인) · 카드형 전환에도 `role="table"` 유지.
+**CI RED 1건은 제품 결함이 아니라 수단 고착 테스트**였다 — `overflow-x:auto` 를 단언하는데 세로 스택은 `visible`. 도달성 불변식으로 교체하며 `scrollIntoViewIfNeeded()` 를 제거하고 `mouse.wheel`+`elementFromPoint` hit-test 로 **과거 2회 false-green 원인**을 막았다.
+
+**T2 #892** — PM 직접 라이브QA 완주. 🎯 **실 DB 에서 `batch_id` 1건에 recipients=2 확인**(V14 + MessageBulkSend 핵심 계약). CODEX SOL R2 = **도달가능 5 / 검증품질 5**, 뮤테이션 4건 중 3건 진짜 RED · `refId` 만 **가짜 GREEN**.
+⚠️ **환경 제약 정직 기록**: 집PC `user_db` 는 직원 24명 **전원 `ecount_code` 미부여 · 동명이인 0건** → *"같은 이름 2건 이상일 때만 담당자코드 병기"*(불변식 4) **검증 불가**. 회사PC(91/91 + `채권추심` 2건)에서 확인 필요.
+
+**T3 #893** — SONNET5 R1 fix 완주(`dde574823`, 16파일 +461/−66). **BLOCKING-1 이 4계층**이었다: ①`detailVatLine` 이 단가 자리에 합계를 넣어 *"직전 합계×새 수량"* ②`CollaborativeSlipInput` **무한루프**로 커밋 자체가 안 됨(*"지워도 7이 남던"* 진짜 원인) ③stale-ref 경합 ④`coeditLinesToEditLines` 가 권위값을 빈 문자열로 와이핑(라이브 신규 발견).
+⚠️ **시도 후 폐기 기록**: 파생값을 Y.Doc 에 동기 반영하려다 SUPPLY/VAT/TOTAL 3필드 상호 재귀로 `Maximum call stack size exceeded` 실제 크래시 → 접근 완전 제거.
+
+### 5. 🔴 미해결 / 판단 대기
+
+- **T2 비동기 경계** — R2 fix 가 알림 fan-out 을 `CompletableFuture.runAsync`(executor 미지정 = **공용 ForkJoinPool**)로 뺐는데 그 안이 **타임아웃 없는 블로킹 HTTP**다. 동기일 때의 역압력이 사라져 행 장애 시 작업이 무한 축적될 수 있다. **publisher 는 accounting·groupware·inventory 3개 서비스 공유.** 불변식 *"알림 발행 시도는 유한 시간에 끝난다"* 로 마지막 요청 디스패치함(진행 중)
+- **T1 GUI 재촬영** — 레이아웃이 바뀌어 캡처 14장 전부 재촬영 대상. **#892 머지 → main 병합(V14 정합) → groupware-service 재배포** 순서 필요(T1·T2 가 같은 서비스·DB 공유)
+- **#904** 루트 `build.gradle` `leafProjects` 에 `shared:collab-core`·`approval-core` 누락(6주간) — PROBLEMS 원인은 아니었고 위생 이슈. 인코딩 위험은 `gradle.properties` 의 `-Dfile.encoding=UTF-8` 이 커버(실측)
+- **#894 채팅** — 개발책임자 UI 확정: **우측 하단 삼한이 마스코트 런처 → 위로 채팅 리스트 팝오버 → 채팅창은 독립 페이지/별도 창**, 모바일 동일. `MascotLoader`·`MascotEmptyState` 재사용 가능. #892 는 **현 범위 완주 후 머지**로 재확인됨
+
+---
+
+## 🌗 2026-07-22 (회사PC 오후, ~18:00 정리) — **3트랙 R1 라운드 완주 · 라이브QA 진행 중** ◀◀◀ 여기부터 읽으십시오
+
+> 개발책임자 지시 *"기존 작업 이어서 3트랙 병렬 진행"* → 기획·구현·적대검증 R1·fix 까지 완주. **머지 0건**(게이트 ③ 라이브QA 미완).
+
+### 0. 재개 절차
+```powershell
+git pull
+.\scripts\sync-claude-memory.ps1
+# 워크트리는 이미 존재(회사PC). 없으면:
+#   git worktree add .claude/worktrees/ds3b        feat/845-ds3b-editor-mvp
+#   git worktree add .claude/worktrees/s6-messenger feat/825-s6-messenger-recipient-chips
+#   git worktree add .claude/worktrees/824-tax      feat/824-item-line-supply-vat
+```
+**미커밋 0 · 원격 미푸시 0** (3 워크트리 전부) — 유실 없음.
+
+### 1. 3트랙 현황
+
+| 트랙 | PR | HEAD(원격) | ①결함0 | ②CI | ③라이브QA | 다음 |
+|---|---|---|---|---|---|---|
+| **T1** #868 DS-3b 문서양식 편집기 | **#891** | `b766020a2` | ✅ 재량항목만 잔여 | ✅ **35/35** | 🔶 **부분**(BLOCKING-1 확증 · L8/L9 GUI 미완) | **L1~L12 GUI 스샷** → SOL R2 |
+| **T2** #866 슬6 쪽지 칩 | **#892** | `7a79382e2` | ✅ R1 fix 완료 | ❓ **새 SHA 미확인** | ❌ 미실행 | CI 확인 → **PM 라이브QA** → SOL R2 |
+| **T3** #824 품목행 tax | **#893** | `2f17a2595` | ❌ **BLOCKING 다수** | ❌ **RED** | ❌ 미실행 | **R1 fix 디스패치**(미착수) |
+
+### 2. 🚨 T3 가 최대 현안 — R1 5차원 전부 도착했으나 **fix 미착수**
+CI 가 **RED**(`Desktop Playwright (mock 회귀 hard gate)`)이고 도달 가능 결함이 다수다. 5차원 종합 라운드 리뷰도 **아직 미게시**(PR 에 각 차원 개별 내용은 코멘트로 있음).
+
+**게이트 결함 요지**(중복 제거 전):
+- **CI RED-1** 전표 수정 폼에서 **수량 칸을 지울 수 없다**(`lineVat.ts:116` `Math.max(1,…)` 가 빈 입력을 삼켜 직전 값 복원). RED 스펙 이미 존재 → RED-first 그대로 만족. **baseline 대조로 본 PR 도입 확증**(동시간대 타 브랜치 4개는 success)
+- **CI RED-2** `합계(VAT제외)` 라벨 변경으로 hard gate 스펙 미갱신
+- **FE B-1** 전표 상세에서 **수량 건드리면 합계가 수량배로 폭증**(`SlipDetailPage.tsx:4073` 이 단가 자리에 라인 합계를 넣음). 폭증값이 항등식을 만족해 **BE 검증도 통과**
+- **FE B-2** 단가 편집 시 재계산 누락 → **화면 ≠ 저장값**(회귀)
+- **FE H-1~H-5** 견적 자동채움 금액 3칸 0 · 콤마 입력 시 **0원 저장** · 헤더 합계가 권위값 무시 · **소수 수량 절삭**(회귀) · **인쇄 5경로 중 4경로가 저장 부가세 무시**
+- **Design H-1** 12열 확장으로 **≤1270px 에서 삭제 버튼 도달 불가**(`.sfp-line-table{overflow:hidden}`) — 기본 1280 창도 여유 10px
+- **BE HIGH-1** 주문 도메인에 **항등식 강제 부재**(SUPPLY/VAT 경로가 요청 T 를 폐기) · MED-1~3(precision 가드 무력화 500 · 재가격 HALF_UP 잔존 · 소수 payload 500)
+- **PM 발견** PRICE 경로만 HALF_UP, TOTAL 은 절사 → **같은 T 에 공급가액 1원 차이**. design-system `computeVatBreakdown` 까지 **동일 연산 구현이 3개**
+
+**BE 차원이 확인한 안전**: 발행 완료 세금계산서 **소급 변경 경로 없음**(전 진입점 `requireDraft` 뒤) · 기존 행 회귀 없음 · V1~V11 무수정.
+
+### 3. 이 세션 확정 규율 (전부 메모리 박제 완료)
+| 규율 | 요지 |
+|---|---|
+| **머지게이트 PM 재량** (`7afe39714` 이전 `cde56ed0b`) | 게이트 = **사용자가 겪는 오류 / 보안** 뿐. 그 외(UX·디자인 일관성·표기·편의기능·검증품질)는 **PM 판단 머지 가능**. 판정 질문은 *"겪는가"* 가 아니라 *"그것 때문에 **오류**를 겪는가"*. 후속 분리 지양하되 **못 고쳐도 머지를 막지 않음**. 재량 남용 금지=근거 PR 명시 |
+| **백로그 순증 방지 강화** (`0cc03e319`) | 발견 결함은 **현 PR 내 처리가 디폴트**. 이슈 분리는 흡수 곤란·정책판단 선행 시만이고 **PM 단독판정 금지**(난이도 선택지 제시). PM 이 개발책임자보다 보수적이었음 → 애매하면 흡수 |
+| **UUID 원칙 확장** (`35256599f`) | *"UUID 숨긴다"* → **"엔티티마다 사용자 노출 코드를 정한다"**. 담당자코드(`employees.ecount_code`, 활성 unique, **실직원 91/91**) · 거래처코드(`partner_code`) · 품목코드 · 문서번호(`YYYY/MM/DD-N`). **동명이인 구분=코드**(실측 `채권추심` 2건이 `00000`/`999-99-99999` 로 구분). 평소 이름만·**충돌 시 코드 병기**·모달은 코드 열 상시. 신규 마스터 엔티티는 노출 코드 **동시 설계** |
+| **라이브QA = PM 직접** (`7afe39714`) | 🚫 서브에이전트 위임(대체) 금지. 병렬 트랙이면 트랙마다 QA 품질이 어긋나고 PM 만이 트랙 간 상호작용·공유자원 회귀를 넓게 본다. 리뷰 5차원은 종전대로 서브에이전트. 세부 과다 시 **QA 에이전트 병행 가능하나 보조**·확인분 **구분 게시** |
+| **VAT 단수처리 = 절사** (PR #893 기록) | 부가가치세법 제29조·국세청 유권해석 조사 결과 **법령이 반올림을 강제하지 않음**(단수조정=당사자 약정). 세금계산서가 이미 절사였고 **거래처에 실제 발행돼 온 금액**이므로 절사로 통일. 기존 저장분·발행분 **소급 없음**. 단일 지점 수렴이라 전환 비용 1곳 |
+
+### 4. 신규 이슈 10건 (전부 개발책임자 지시분 + 정찰 발견 3건은 흡수 회수)
+**요청분 7**: #894 내부 채팅(카톡 모델 — 첨부·읽은사람+**확인시각**·리액션 PC포함·`@`태그·안읽음에 `@` 표시 / **1:1 쪽지·알림 통합** — 알림은 발송자면 그와의 1:1, 시스템이면 **'삼한이'**) · #895 대시보드 일정관리 · #896 **수량 동기화 칩 설정화** · #897 열 과다 메뉴 계층화 · #901 **클로드 대화**(🔴보안·권한 도메인) · #902 **이카운트식 품목행**(빈행 자동증식·순서변경·미완성행 저장 시 자동삭제) · #903 **문서 저작 워드/엑셀 선택**
+**흡수 회수 3**: #898→PR #892 · #899·#900→PR #893 (백로그 순증 **0**)
+**#825 에픽 기록**: 검색 결과 **2건 이상이면 모달 나열 + 복수선택** — design-system 공유 패키지 개편이라 **전용 슬라이스**(T1·T3 동시 사용 중이라 지금 건드리면 3트랙 충돌)
+
+### 5. 🚨 이 세션 실측 함정 (전부 검증으로 포착)
+- **C→D 이동 회귀 2건**: 메모리 sync 경로(`d253337cf` 자동도출로 해소) · **codex MCP 가 옛 C: 프로젝트 키에만 등록**돼 미연결(`.claude.json` D: 키에 복제로 해소 — **git 미추적이라 PC 이동 시 재발**)
+- **배포 stale**: 이미지가 **27시간 전** — 검증 없이 QA 했으면 T1 변경분 0 상태를 "통과" 보고
+- 🚨 **파이프가 exit code 를 삼킨다**: 배포 2회 실패했는데 백그라운드 통지는 **둘 다 exit 0**(`| tail` 및 후행 `echo` 의 코드가 반환). **"백그라운드 exit 0" 은 그 명령의 성공 증거가 아니다** → `rc=$?` 명시 포착 필수
+- **`--build` 가 의존 서비스까지 빌드** → `--no-deps` 로 해소
+- **로컬 DB 가 머지 전 개발 버전 V12** 로 적용 → Flyway checksum mismatch + **컬럼 2개 누락**. `flyway repair` 만 했으면 컬럼 없는 채로 QA 할 뻔 → **Flyway 와 `ddl-auto=validate` 는 서로 다른 층을 검사**하므로 둘 다 통과해야 스키마 정합 증명
+- **PM 자가지적**: T3 구현 리뷰를 게시할 때 구현자의 `BUILD SUCCESSFUL`(gradle)을 인용했는데 **Playwright hard gate 미포함 진술**이었다. 구현 리뷰 게시 **전에** exact SHA `gh pr checks` 직접 확인 의무
+
+### 6. T1 라이브QA 진행분 (PM 직접)
+**배포 증명 완료**: 컨테이너 내 jar `99,335,061`/`Jul 22 16:45` · 이미지 `89ba7b81e552` · `javap -v` 로 `Geometry`/`Style` 의 `JsonInclude+NON_NULL` **실물 확인** · Flyway 13 validated · `ddl-auto=validate` 통과 · healthy
+**BLOCKING-1 실서버 확증**: 부분 style(`{"bold":true}`)로 CREATE **201** → GET **200**(명시적 null **0건**) → **ACTIVATE 200**(fix 이전엔 **400** `style fontSize가 유효하지 않습니다`). throwaway docType 사용 후 정리 완료, 기존 실데이터 불변(45·2 pinned·100 messages).
+**🔴 L9 픽스처 실재 확인**: pin 문서 2건이 템플릿 `21dd571b…` rev 1·2 참조, **둘 다 `schema_version=1`**, 템플릿은 **soft-delete** 상태 → 원래 L9 보다 강한 조건. **다음 세션에서 GUI 재인쇄로 배너 미출현 확인 필요.**
+**🎯 L9 실서버 확증(2차)**: 같은 docType 에 **v2 양식을 ACTIVE 로 만든 상태**에서도 v1 pin revision 1·2 가 `200 · schemaVersion:1 · 원래 요소(qa1/qa2-title)` 를 그대로 반환하고, active 조회는 `schemaVersion:2 · v2-title` 를 준다 ⟹ **pin 경로와 active 경로가 완전 분리 동작**. 기획서가 BLOCKING 으로 지목한 *"상수 bump 시 pin 붕괴"* 가 실서버에서 **발생하지 않음** 확증.
+**🎯 real-qa 하네스 실서버 통과**: `868-ds3b-real-qa` **1 passed (8.6s)** — HashRouter + mock OFF + 실 백엔드(`:8080`). v2 저장·활성·조회 왕복 + 편집기 진입 + ACTIVE 잠금 문구.
+
+🚨 **다음 세션이 반드시 알아야 할 실행 절차**(PM 이 시행착오로 확정):
+```powershell
+# 렌더러 — 반드시 vite.renderer.dev.config.ts (root=src/renderer, HashRouter)
+cd clients/desktop
+$env:VITE_API_BASE_URL="http://localhost:8080"
+.\node_modules\.bin\vite dev --config vite.renderer.dev.config.ts --port 5190 --strictPort --host 127.0.0.1
+# real-qa (mock OFF = VITE_MOCK_MODE 미설정)
+$env:AUDIT_BASE_URL="http://127.0.0.1:5190"; $env:API_BASE="http://localhost:8080"; $env:DEV_PASSWORD='dev_p05_pass!'
+.\node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=90000 playwright/868-ds3b-real-qa
+```
+- 🚫 **`vite.web.config.ts` 로 띄우면 안 된다** — `VITE_PLATFORM='web'` → **BrowserRouter** 라 스펙의 `/#/...` 가 홈으로 떨어진다(PM 이 이걸로 **없는 결함을 보고할 뻔했다**).
+- 🚫 `vite.config.ts` 는 root 가 달라 **404**.
+- real-qa config 의 `testMatch` 는 `**/*-real-qa.spec.ts` — **새 스펙 파일명에 `-real-qa` 접미사 필수**(없으면 "No tests found").
+- Playwright 스펙은 **ESM 스코프**라 `__dirname` 불가 → `process.cwd()` 기준(cwd = `clients/desktop`).
+
+**미완**: L1~L7·L10~L12 GUI **스크린샷** · **L8**(v2 승인문서 재인쇄 외형 불변) · L9 **GUI 육안**(API 층은 확증됨) · geometry/style 이 실제 인쇄물에 반영되는지 육안. PM 이 GUI 캡처 스펙을 작성했으나 목록 화면 로케이터에서 걸려 **커밋하지 않고 제거**했다(실패 스펙을 남기지 않음).
+
+### 6-b. 🚧 T3 fix 미완 산출물 격리 (세션 종료 처리)
+SONNET5 fix 를 디스패치했으나 세션 종료로 중단됐다. **미커밋 잔여를 원격 WIP 브랜치로 격리**했다([[feedback_incomplete_work_wip_branch_cross_pc]] — stash 는 원격에 안 넘어가므로 금지).
+
+| 항목 | 값 |
+|---|---|
+| WIP 브랜치 | **`wip/824-r1-fix-incomplete-2026-07-22`** (`12aba5cc5`, 원격 푸시 완료) |
+| feature 브랜치 | `feat/824-item-line-supply-vat` = `2f17a2595` **청결**(미커밋 0) |
+
+중단 시점이 *"RED confirmed. Restore the fix."* 였으나 **PM 이 diff 를 검사해 뮤테이션 잔재가 아니라 정상 fix 상태**임을 확인했다(핵심 BLOCKING-2 fix 가 적용된 채 존재).
+
+**들어있는 것(미검증)**: BLOCKING-2 fix(`lineVat.ts` PRICE 경로 `divideHalfUp` → `supplyFromVatInclusive` 절사 통일 · `vatPrice.ts`·`LineRow.tsx` 도 전환) · **감도 있는 fixture 신설**(`7,900`/`100`/`1,234,500` — ÷11 나머지 5.5 이상이라 HALF_UP≠DOWN 이 실제로 갈린다. 종전 `100005` 계열은 무감도) · **FE 화면 도달 테스트 3종 신설**(적대검증이 지적한 "555줄 FE 화면 도달 테스트 0건" 공백) · CI RED-2 라벨 스펙 동기화 · `global.css`.
+
+🚫 **확인되지 않은 것**: 전체 테스트 미실행 · BLOCKING-1(`detailVatLine` 단가/합계 혼동) 처리 여부 불명 · 주문 항등식 강제 · 인쇄 4경로 권위값 · MED 다수.
+🚫 **완료 착각 금지** — 이 브랜치를 feature 에 머지하지 말 것. **fresh 재디스패치가 기본값**이며 WIP diff 는 **참조용**으로만 본다.
+
+### 7. 🔴 다음 세션 우선순위
+1. **T3 R1 fix 재디스패치**(SONNET5) — 게이트 결함 다수 + CI RED 2건. 라운드 종합은 **5차원 완성분이 PR #893 에 게시돼 있다**(QA 차원 포함). WIP diff(`wip/824-r1-fix-incomplete-2026-07-22`)를 참조로 주되 **완료물로 취급 금지**
+2. **T2 새 SHA CI 확인** → PM 직접 라이브QA
+3. **T1 L8/L9 GUI 라이브QA** → 게이트 ③ 충족 시 **T1 이 첫 머지 후보**
+4. 세 PR 이 `mock.ts`·`routes/index.tsx`·`AppLayout.tsx`·design-system 공유 → **머지 순서 규율**(한 PR 머지 후 나머지에 `git merge origin/main` → **재-CI green 확인 후** 다음)
+
+---
+
+## 🚀 2026-07-22 (회사PC · D드라이브 이동 후) — 다음 3트랙 병렬 착수
 
 > 개발책임자 지시 *"기존 작업 이어서 3트랙 병렬 진행"* (회사PC, C→D 이동 직후). 열린 PR 0 · main `b6bd87866`.
 
@@ -2069,3 +2246,17 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - 핵심 변경: Codef `scopeMode=ALL|SELECTED` 명시 계약(FE/mock/BE), V65 선택범위 무결성 CHECK(V64 불변), 권한별 scope/import 잠금 및 안내, locked chip 접근성·포커스, `TagChip` 선택 시각상태, `AsyncAutocomplete` 로딩 option `aria-disabled`, R4 mock/real QA 경로 정정.
 - genuine 검증: Gradle `26 actionable tasks: 26 executed`; Desktop typecheck 통과; Desktop Vitest `134 files / 1039 tests passed`; design-system `23 files / 142 tests passed`; AC mock `36 passed, skipped=0, unexpected=0`; real QA inventory `213 tests in 83 files`.
 - 실제 서버 기반 Live QA는 이 세션에서 실행하지 않았으며, PM/개발책임자 최종 게이트로 남겼다. `docs/dev-reports/825-s5-null-semantics-r4.md`에 상세 대응과 검증을 기록했다.
+
+## ✅ 2026-07-23 Codex LUNA — PR #892 PM 라이브QA 후속 fix
+
+- 실서버에서 확인된 수신함 페이저 결함의 원인은 API gateway CORS `exposedHeaders`에
+  `X-Has-Next-Page`가 빠져 교차 출처 브라우저 JS가 헤더를 읽지 못한 것이었다.
+  `CorsConfig`에 노출을 추가하고 실제 Spring `DefaultCorsProcessor` 회귀 테스트를 보강했다.
+- `UserClient.verifyActiveBulk`의 fail-closed 전원 `false` 계약은 유지하면서 user-service
+  호출 실패 시 endpoint·대상 수·예외를 `ERROR` 로그로 남긴다.
+- 배포 순서 문서화: `user-service`를 먼저 배포·계약 확인한 후 `groupware-service`를
+  배포해야 하며, 역순이면 verify-active-bulk 404/500으로 일괄 발송이 전건 거부된다.
+- RED/GREEN/mutation RED 및 전수 sweep은
+  `docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md`에 원문으로 기록했다.
+  지정 Gradle 3모듈, Desktop typecheck, Vitest 137/1101은 GREEN. 실서버 재프로브와
+  전체 Playwright는 작업 지시상 실행하지 않았다.

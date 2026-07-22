@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -101,7 +102,7 @@ class MessageServiceTest {
 
         assertThat(saved.getId()).isEqualTo(messageId);
         ArgumentCaptor<NotificationPublishRequest> captor = ArgumentCaptor.forClass(NotificationPublishRequest.class);
-        verify(notificationPublisher).publish(captor.capture());
+        verify(notificationPublisher, timeout(1000)).publish(captor.capture());
         NotificationPublishRequest req = captor.getValue();
         assertThat(req.channel()).isEqualTo("MESSENGER");
         assertThat(req.severity()).isEqualTo(NotificationSeverity.INFO);
@@ -125,6 +126,21 @@ class MessageServiceTest {
 
         assertThat(m.getStatus()).isEqualTo(MessageStatus.READ);
         assertThat(m.getReadAt()).isNotNull();
+    }
+
+    @Test
+    void markRead_loadsMessageWithWriteLockBeforeChangingFirstReadAt() {
+        UUID sender = UUID.randomUUID();
+        UUID recipient = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        Message message = Message.send(sender, recipient, "본문");
+        ReflectionTestUtils.setField(message, "id", messageId);
+        when(repository.findByIdForUpdate(messageId)).thenReturn(Optional.of(message));
+
+        messageService.markRead(messageId, recipient);
+
+        verify(repository).findByIdForUpdate(messageId);
+        assertThat(message.getReadAt()).isNotNull();
     }
 
     @Test

@@ -1,5 +1,5 @@
 ﻿# 🚨 워크플로우 규율 (매 작업 최우선 — 상세는 각 토픽파일)
-- [🚨 표준 워크플로우 유일 진실원 (🚨🚨07-22 머지게이트=도달성 축)](feedback_canonical_workflow.md) — OPUS 기획→LUNA 구현→(OPUS 적대리뷰·라이브QA+SONNET5 fix→SOL 리뷰+LUNA fix) 반복→PM 종합→CI green→머지. **🚨🚨07-22 현행 정본 머지게이트 = ①실 사용자 경로 재현 가능한 결함 0(심각도 무관) ②CI green(exact SHA) ③라이브QA 실서버 실행.** ⚠️07-21 "전 심각도 0" 폐기 — 종료 조건 아님이 실측(밤새 3트랙 머지 0, MED 만 7 근처 평평하고 그 과반이 검증 품질). 🔑비종료 이유=fix 하면 검증 장치가 늘고 그게 다음 라운드 감사 대상(fix-유발률 76~100%). **검증 품질(테스트 약함·문서 과장·가드 구멍·직접SQL전용)=게이트 아님, 슬라이스당 1이슈 이월.** 🚫MED/LOW 무시 아님 — 도달 가능한 건 여전히 게이트. 리뷰어는 도달가능/검증품질 분류 의무, 마감 라운드는 도달성 단일 질문. 존속=RED-first·라이브QA·뮤테이션 RED 의무·PM 중재 3단·"RED 불가=고치지 않는다"·게시1:1·모델 대체 금지. 병렬도=마감 집중 후 재개. `gpt-5.6-sol`/`gpt-5.6-luna`
+- [🚨 표준 워크플로우 유일 진실원 (🚨🚨07-22 머지게이트=도달성 축)](feedback_canonical_workflow.md) — OPUS 기획→LUNA 구현→(OPUS 적대리뷰·라이브QA+SONNET5 fix→SOL 리뷰+LUNA fix) 반복→PM 종합→CI green→머지. **🚨🚨07-22 현행 정본 머지게이트 = ①실 사용자 경로 재현 가능한 결함 0(심각도 무관) ②CI green(exact SHA) ③라이브QA 실서버 실행.** 🚨**07-22(2차) PM 재량 명문화**: 게이트=**사용자가 겪는 오류 / 보안 이슈** 뿐. 그 외(UX·디자인 일관성·표기·편의기능·검증품질)=**PM 판단 머지 가능**. 판정 질문은 "사용자가 겪는가"가 아니라 "**그것 때문에 오류를 겪는가·보안이 뚫리는가**". 후속 분리 지양(가능하면 현 PR 처리하되 **못 고쳐도 머지를 막지 않음**). 재량 남용 금지=판정 근거 PR 명시·애매하면 오류 쪽. ⚠️07-21 "전 심각도 0" 폐기 — 종료 조건 아님이 실측(밤새 3트랙 머지 0, MED 만 7 근처 평평하고 그 과반이 검증 품질). 🔑비종료 이유=fix 하면 검증 장치가 늘고 그게 다음 라운드 감사 대상(fix-유발률 76~100%). **검증 품질(테스트 약함·문서 과장·가드 구멍·직접SQL전용)=게이트 아님, 슬라이스당 1이슈 이월.** 🚫MED/LOW 무시 아님 — 도달 가능한 건 여전히 게이트. 리뷰어는 도달가능/검증품질 분류 의무, 마감 라운드는 도달성 단일 질문. 존속=RED-first·라이브QA·뮤테이션 RED 의무·PM 중재 3단·"RED 불가=고치지 않는다"·게시1:1·모델 대체 금지. 🚨**07-22 라이브QA=PM 직접 수행**(서브에이전트 위임 금지 — 병렬 트랙이면 트랙마다 QA 품질이 어긋나고, PM 만이 트랙 간 상호작용·공유자원 회귀를 넓게 본다). 리뷰 5차원은 종전대로 서브에이전트, **라이브QA 만 PM 손으로**. 세부 과다 시 QA 에이전트 **병행 가능하나 대체 아님**·PM 확인분과 에이전트 확인분 **구분 게시**. 병렬도=마감 집중 후 재개. `gpt-5.6-sol`/`gpt-5.6-luna`
 - [🚨 Codex 5-agent=mcp 직접(codex-rescue unreliable)](feedback_codex_rescue_unreliable_use_mcp.md) — codex-rescue는 이 환경서 bg태스크화·샌드박스 차단(gradlew/gh/npm)로 findings 미전달 → CODEX SOL 5-agent 라운드=`mcp__codex__codex` 직접 호출로 genuine 확보. 미전달="substance 커버"로 무마 금지=위반 (2026-07-06 #31·#752)
 - [🚨 처리량 3레버 — 병렬화·범위 동결·chore 배치 (위험등급제 미채택)](feedback_throughput_parallel_scope_freeze_batch.md) — 2026-07-20 개발책임자 결정(#854 가 8h21m·69파일·5라운드 쓰고도 미머지·잔여 11~12슬라이스). **캐논은 전 슬라이스 동일 강도 유지**(Tier 축소 미채택). ①**슬라이스 병렬화**=캐논 명시 허용(금지는 한 슬라이스 내 단계 병렬)·간섭 없는 조합만·PR 게시가 상태 저장소 ②**범위 동결**=슬라이스 자체 코드 결함은 현 PR fix 유지 / **새 기능·새 표면 추가는 이슈+다음 슬라이스가 기본값**·현 PR 편입은 개발책임자 결정+**비용(라운드 1회≈3~4h) 선제시 의무** ③잔여 chore 배치화. 실증: #854 R4 "전건 fix"가 신규 1,400줄→**R5 HIGH 5건 거의 전부 그 신규 코드 안**(자초한 라운드)
 - [🚨 PM 슬라이스 effort 조절·엣지 바운드](feedback_pm_regulate_slice_effort.md) — 한 슬라이스 하루종일 iterate 금지. 3라운드+ "fix가 새 결함" 시 개발책임자께 바운드옵션 제시(현 견고상태 게시+엣지 후속분리/스코프 재논의). 한 코너씩 PM-QA 순차발견 지양→적대라운드(OPUS/CODEX) 종합발견+BATCH disposition+재수렴 1회. 0수렴 유지하되 "언제 멈추나"도 PM 판단 (2026-07-16 #809 R8)
@@ -20,7 +20,7 @@
 - [개발책임자 결정은 PR에 누적 기록](feedback_post_devlead_decisions_to_pr.md) — 결정·지시·정정을 그때그때 "📌 개발책임자 결정 기록" 코멘트로. 채팅에만 두지말것
 - [PM-Codex 진행 검증·10분 보고](feedback_pm_codex_progress_verification.md) — Codex 디스패치마다 산출물 즉시검증+주기 상태보고, 침묵금지
 - [🚨 리뷰 fix=현재 PR 내 처리](feedback_fix_in_current_pr_no_split.md) — 별도 PR/후속 이슈 분리 금지, 분리=타 서비스/타 슬라이스 범위만 (2026-07-04 #724). **범위 외 결함=PM 자율 이슈 등록 후 보고**(은폐방지·실측근거 필수·처분은 개발책임자·"같이 fix"면 범위점증→리뷰 재가동) (2026-07-15 #820 R4·#821)
-- [🚨 백로그 순증 방지·배치 번다운·이슈 바 상향](feedback_backlog_burndown_issue_bar.md) — 슬라이스마다 새 이슈 등록=순증. 범위 외 결함은 in-round fix/dev-report 노트 우선·marginal 이슈 등록 금지·실질 결함만. 파생 chore=성격별 배치 PR로 다수 close(순감). 워크플로우 임의 단축 금지(배치도 풀 캐논) (2026-07-20)
+- [🚨 백로그 순증 방지 · 🚨07-22 "이슈로 넘기지 말 것"](feedback_backlog_burndown_issue_bar.md) — **현 PR 내 처리가 디폴트**. 이슈 분리는 흡수 곤란(타서비스 스키마)·정책판단 선행 시만이고 그마저 PM 단독판정 금지(흡수 난이도 선택지 제시). PM이 개발책임자보다 보수적이었음 → 애매하면 흡수. 범위 점증 시 적대검증 확대. 파생 chore=배치 PR 순감. 단축 금지
 
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md) — git commit·PR·Issue+대면 보고/대화/설명 한국어(prefix·trailer만 예외)
@@ -30,7 +30,7 @@
 - [권한 표기 풀네임](feedback_role_naming_full.md) — MASTER/MANAGER 풀네임, 약어 금지
 - [전표 용어 — 슬립 금지](feedback_jeonpyo_not_slip.md) — 한글 "전표"(슬립 금지), 영문 slipId는 별개
 - [코멘트 용어 — 협업 코멘트 금지](feedback_comment_not_collab_comment.md) — 라벨 "코멘트", 영문 CollabComment 유지
-- [UUID 사용자 비공개](feedback_uuid_no_user_visibility.md) — 화면 UUID 금지, 비즈니스 식별자만
+- [UUID 사용자 비공개 · 🚨07-22 엔티티별 노출 코드 지정](feedback_uuid_no_user_visibility.md) — 화면 UUID 금지(DB PK 전용). **엔티티마다 사용자 노출 코드를 정한다**: 담당자코드(`employees.ecount_code` 활성 unique·실직원 91/91) · 거래처코드(`partner_code`, V1 주석에 이미 명문화) · 품목코드(`product_code`) · 전표/문서번호(`YYYY/MM/DD-N`). **동명이인 구분=코드**(실측 `채권추심` 2건이 `00000`/`999-99-99999`로 구분). 평소 이름만·충돌 시 코드 병기·모달은 코드 열 상시. 🚫로그인ID/이메일/UUID 를 구분자로 쓰지 말 것. 신규 마스터 엔티티는 노출 코드 동시 설계
 - [문서 동기화 의무](feedback_continuous_docs_sync.md) — 매 PR에 README+ROADMAP+DECISIONS+각 README+dev-report, 별도 docs PR 금지
 - [overview.html 동기화](feedback_samhan_public_overview_sync.md) — docs/samhan-public-overview.html 항시 동기화
 - [함수 문서화 3-layer](feedback_function_documentation.md) — 한국어 Javadoc+springdoc+dev-reports 누적

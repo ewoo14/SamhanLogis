@@ -5,6 +5,10 @@ import com.samhanair.logis.notification.domain.NotificationSeverity;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * @param refId source 식별자 (예: messageId) — 채널별 소비처가 알림을 원본 레코드와 상관시킬 때 사용.
+ *              원본은 {@code source_ref_id} 컬럼이며 UUID 자체가 아니라 opaque 문자열로 취급한다.
+ */
 public record NotificationCenterResponse(
         UUID id,
         String channel,
@@ -13,7 +17,8 @@ public record NotificationCenterResponse(
         String body,
         String deeplink,
         LocalDateTime createdAt,
-        LocalDateTime readAt
+        LocalDateTime readAt,
+        String refId
 ) {
     public static NotificationCenterResponse from(NotificationCenter n) {
         return new NotificationCenterResponse(
@@ -24,7 +29,8 @@ public record NotificationCenterResponse(
                 n.getBody(),
                 n.getDeeplink(),
                 n.getCreatedAt(),
-                n.getReadAt()
+                n.getReadAt(),
+                n.getSourceRefId()
         );
     }
 }

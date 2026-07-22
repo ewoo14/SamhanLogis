@@ -16,8 +16,9 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 /**
  * Global reactive CORS filter mounted on the gateway.
  *
- * <p>Exposes {@code Authorization}, {@code Content-Type}, {@code X-User-Id}, and
- * {@code X-User-Groups} so the SPA can read gateway identity headers. C5 후속 정리에서
+ * <p>Exposes {@code Authorization}, {@code Content-Type}, {@code X-User-Id},
+ * {@code X-User-Groups}, and the inbox pagination metadata header so the SPA can
+ * read gateway identity and response metadata. C5 후속 정리에서
  * gateway 가 더 이상 주입하지 않는 {@code X-User-Role} 은 exposed header 에서 제거했다.
  * Allowed origins follow the project_plan §4 domain matrix:
  * three production sub-domains under samhan-air.com, with local-dev Vite ports
@@ -111,7 +112,8 @@ public class CorsConfig {
         config.setExposedHeaders(List.of(
                 "Authorization", "Content-Type",
                 HttpHeaderConstants.CALLER_ID_HEADER,
-                HttpHeaderConstants.USER_GROUPS_HEADER));
+                HttpHeaderConstants.USER_GROUPS_HEADER,
+                "X-Has-Next-Page"));
         config.setAllowCredentials(true);
         config.setMaxAge(Duration.ofSeconds(3600));
         return config;

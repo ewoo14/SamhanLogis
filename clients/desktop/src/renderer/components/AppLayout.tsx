@@ -585,6 +585,7 @@ export function AppLayout() {
   const showSlipCleanup = dynamicCanAccess('slip.cleanup', 'view')
   const showNextDaySlip = dynamicCanAccess('slip.print.next-day', 'view')
   const showChatRoomAdmin = dynamicCanAccess('messenger.admin', 'view')
+  const showMessengerSend = dynamicCanAccess('messenger.send', 'view')
   const showGroupwareApprovals = dynamicCanAccess('groupware.approvals', 'view')
   const showGroupwareApprovalTemplates = dynamicCanAccess('groupware.approval-templates', 'view')
   const showGroupwareDocumentTemplates = showGroupwareApprovalTemplates
@@ -614,6 +615,7 @@ export function AppLayout() {
   const showGroupware =
     showDeliveryBatch || showAligoAddressBook || showChatRoomAdmin
     || showGroupwareApprovals || showGroupwareApprovalTemplates || showGroupwareDocumentTemplates
+    || showMessengerSend
   // [Round A P3] showRegionMgmt(arologis.region) 포함 — 배차지역 관리 단독 권한자가
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
   const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
@@ -1248,6 +1250,7 @@ export function AppLayout() {
               '/sales/link-dispatch',
               '/admin/aligo-address-book',
               '/admin/chat-rooms',
+              '/messenger',
             ]}
           >
             <SidebarLink
@@ -1294,6 +1297,13 @@ export function AppLayout() {
                 기존 가드는 MASTER 그룹(빌트인) 사용자를 그룹웨어에서 배제하고 AdminLayout(인사 셸)의
                 중복 nav 로만 노출했으나, 그 중복을 제거하고 messenger.admin 권한자(MASTER 포함) 전원을
                 그룹웨어 단일 경로로 통일한다(showChatRoomAdmin 단독 게이트). */}
+            <SidebarLink
+              to="/messenger"
+              show={showMessengerSend}
+              data-testid="sidebar-messenger"
+            >
+              메신저
+            </SidebarLink>
             <SidebarLink
               to="/admin/chat-rooms"
               show={showChatRoomAdmin}

@@ -597,6 +597,28 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void inbox_exposesWhetherAnActualNextPageExists() throws Exception {
+        UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID sender = UUID.randomUUID();
+        for (int i = 0; i < 50; i++) {
+            messageRepository.save(Message.send(sender, actor, "마지막 페이지 " + i));
+        }
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/messages/inbox")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.header().string("X-Has-Next-Page", "false"));
+
+        messageRepository.save(Message.send(sender, actor, "다음 페이지 첫 행"));
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/messages/inbox")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.header().string("X-Has-Next-Page", "true"));
+    }
+
+    @Test
     void create_schedule_returns_201() throws Exception {
         ScheduleRequest req = new ScheduleRequest(
                 UUID.randomUUID(), "주간 회의", "주간 정기",
