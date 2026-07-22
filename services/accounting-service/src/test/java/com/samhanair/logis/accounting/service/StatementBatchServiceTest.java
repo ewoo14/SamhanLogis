@@ -12,6 +12,7 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
 import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
+import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
 import com.samhanair.logis.accounting.web.dto.StatementBatchRow;
 import java.lang.reflect.Field;
@@ -107,6 +108,46 @@ class StatementBatchServiceTest {
     }
 
     @Test
+    @DisplayName("partner lookup 실패 시 세금계산서 snapshot partnerCode 를 선택 key 로 보존")
+    void snapshotPartnerCodeFallback() {
+        UUID partnerId = UUID.randomUUID();
+        TaxInvoice ti = newIssued(partnerId, "SNAP-001", "샘플상사", "20260510-0001",
+                LocalDate.of(2026, 5, 10));
+        addLine(ti, 1, "에어컨 R32", "20평형", BigDecimal.ONE, new BigDecimal("500000"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(ti));
+        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(any()))
+                .thenReturn(List.of());
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).singleElement().extracting(StatementBatchRow::partnerCode)
+                .isEqualTo("SNAP-001");
+    }
+
+    @Test
+    @DisplayName("partnerCode 없는 legacy snapshot 은 사업자번호를 선택 key 로 사용")
+    void snapshotBusinessNumberFallback() {
+        UUID partnerId = UUID.randomUUID();
+        TaxInvoice ti = newIssued(partnerId, "거래처 legacy", "20260510-0002",
+                LocalDate.of(2026, 5, 10));
+        addLine(ti, 1, "에어컨 R32", "20평형", BigDecimal.ONE, new BigDecimal("500000"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(ti));
+        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(any()))
+                .thenReturn(List.of());
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).singleElement().extracting(StatementBatchRow::partnerCode)
+                .isEqualTo("111-22-33333");
+    }
+
+    @Test
     @DisplayName("빈 결과 — ISSUED 0건")
     void emptyResult() {
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
@@ -119,8 +160,13 @@ class StatementBatchServiceTest {
 
     private static TaxInvoice newIssued(UUID partnerId, String partnerName, String taxInvoiceNo,
                                          LocalDate supplyDate) {
-        TaxInvoice ti = TaxInvoice.create(partnerId, "111-22-33333", partnerName,
-                "주소", supplyDate, "비고");
+        return newIssued(partnerId, null, partnerName, taxInvoiceNo, supplyDate);
+    }
+
+    private static TaxInvoice newIssued(UUID partnerId, String partnerCode, String partnerName,
+                                         String taxInvoiceNo, LocalDate supplyDate) {
+        TaxInvoice ti = TaxInvoice.create(partnerId, partnerCode, "111-22-33333", partnerName,
+                "주소", supplyDate, "비고", TaxInvoiceType.SALES);
         // 본 단계는 라인 추가 후 issue 호출로 ISSUED 전이 모사
         try {
             Field idField = TaxInvoice.class.getDeclaredField("id");

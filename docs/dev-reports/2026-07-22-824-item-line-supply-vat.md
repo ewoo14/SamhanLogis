@@ -86,3 +86,68 @@ new          | 100004.00     | 10001.00   | 110005.00 | t
 ## 보류
 
 법령·국세청 자료에 절사/반올림 중 하나를 의무화한 공식 문구는 확인되지 않았다. 따라서 절사 방향은 법정 강행규정이라고 단정하지 않고, 기존 세금계산서와 거래 단수조정 약정에 기반한 제품 정책으로 기록했다. 법무·세무 담당자가 별도 약정 또는 다른 공식 해석을 제시하면 공통 계산기와 관련 테스트만 후속 결정으로 변경해야 하며, 기존 발행 자료 backfill은 하지 않는다.
+
+## 2026-07-23 CODEX LUNA — PR #893 #6 재수렴
+
+### 원인
+
+전용 real-QA가 목록을 열고 선택하지 않은 채 인쇄 URL에 `partnerCodes` 없이 직접 진입했다. 따라서 정적 목업·빈 화면도 부재 단언만 통과할 수 있었다. 실제 선택 경로를 추가하자 accounting-service가 partner-service lookup 실패 시 모든 legacy snapshot을 `partnerCode = "-"`로 내려보내 선택 key가 충돌하는 제품 결함도 드러났다. 해당 데이터의 `partner_code`는 공란이고 `partner_business_no`는 거래처별 고유값이었다.
+
+### RED 원문
+
+선택 필터를 일시적으로 `return rows`로 무력화한 기존 전용 스펙:
+
+```text
+1 passed (9.7s)
+```
+
+강화 스펙을 실제 목록 선택 경로로 실행한 뒤의 결함 재현:
+
+```text
+Expected: 1
+Received: 10
+getByTestId('statement-batch-print-area').locator('section')
+```
+
+BE snapshot fallback 회귀 테스트를 먼저 추가한 뒤 수정 전 실행:
+
+```text
+StatementBatchServiceTest > partner lookup 실패 시 세금계산서 snapshot partnerCode 를 선택 key 로 보존 FAILED
+org.opentest4j.AssertionFailedError
+4 tests completed, 1 failed
+```
+
+### GREEN 원문
+
+`StatementBatchService`가 snapshot `partnerCode`, 없으면 `partnerBusinessNo`, 최후에 `-`를 사용하도록 수정했다. 최종 focused 검증:
+
+```text
+BUILD SUCCESSFUL
+StatementBatchServiceTest: 5 tests completed, 0 failed
+StatementBatchView.test.ts: 1 passed
+Desktop typecheck: exit 0
+real QA: 1 passed (2.9s)
+```
+
+real-QA 로그에서 선택 인쇄 결과는 다음과 같이 확인됐다.
+
+```text
+거래명세서 일괄 [1개 거래처]
+```
+
+### 뮤테이션 RED 원문
+
+`selectStatementBatchRows`의 선택 filter를 일시적으로 끊고 FE 순수 계약 테스트를 실행했다.
+
+```text
+expected [ 'REAL-1', 'REAL-2' ] to deeply equal [ 'REAL-2' ]
+1 failed
+```
+
+즉 query 선택값이 무시되면 선택되지 않은 거래처가 즉시 RED가 된다. mutation은 원복했다.
+
+### QA 및 정리
+
+- 실행 범위는 `playwright/824-print-real-qa/statement-batch-real-qa.spec.ts` 단일 스펙뿐이며 전체 mock Playwright suite는 실행하지 않았다.
+- 이 라운드에는 쓰기형 QA를 실행하지 않았다. 기존 `PMQA-824-PRINT throwaway`의 read-only DB 확인 결과 `throwaway_remaining = 0`이었다.
+- shared Docker DB에는 쓰기를 하지 않았다. real-QA 반영을 위해 `accounting-service` JAR만 이 워크트리에서 빌드하여 해당 컨테이너만 재기동했다.

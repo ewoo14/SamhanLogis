@@ -69,13 +69,24 @@ public class StatementBatchService {
             // partner snapshot (세금계산서 자체에 partnerName 보존되어 있어 fallback)
             TaxInvoice first = partnerInvoices.get(0);
             String partnerName = first.getPartnerName();
-            // partner-service lookup → partnerCode (snapshot 에 없으므로 외부 호출)
-            String partnerCode = "-";
+            // partner-service lookup → partnerCode. 외부 lookup 실패 시에도 발행 시점 snapshot key를 보존한다.
+            // 모든 row를 "-"로 만들면 FE의 선택 query key가 충돌하여 선택 인쇄가 전체 인쇄로 변한다.
+            String partnerCode = first.getPartnerCode();
+            if (partnerCode == null || partnerCode.isBlank()) {
+                // legacy/seed invoice는 관리코드가 비어 있을 수 있으므로 사업자번호를
+                // 사용자 노출 가능한 고유 business key로 사용한다.
+                partnerCode = first.getPartnerBusinessNo();
+            }
+            if (partnerCode == null || partnerCode.isBlank()) {
+                partnerCode = "-";
+            }
             if (e.getKey() != null) {
                 PartnerSummary ps = partnerLookupClient.findByPartnerId(e.getKey())
                         .orElse(null);
                 if (ps != null) {
-                    partnerCode = ps.partnerCode();
+                    if (ps.partnerCode() != null && !ps.partnerCode().isBlank()) {
+                        partnerCode = ps.partnerCode();
+                    }
                     if (ps.name() != null && !ps.name().isBlank()) {
                         partnerName = ps.name();
                     }
