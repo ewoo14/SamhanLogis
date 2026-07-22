@@ -70,6 +70,13 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   })
 
   await test.step('D2 실 BE 저장 — DocumentPayloadValidator 가 신규 타입을 받는가', async () => {
+    // 🚨 문서 유형을 고르지 않으면 예약 docType(GROUPWARE_DEFAULT)이 나가 422 로 거절된다.
+    //    기존 L1~L6 하네스와 동일하게 실제 옵션을 골라야 저장 경로에 도달한다(PM 실측).
+    const docType = page.getByLabel('문서 유형')
+    const values = await docType.locator('option')
+      .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter(Boolean))
+    expect(values.length, 'GROUPWARE docType 옵션이 없어 저장 경로에 도달할 수 없다').toBeGreaterThan(0)
+    await docType.selectOption(values[0]!)
     await page.getByRole('textbox', { name: '양식명' }).fill(templateName)
     // 저장 응답을 직접 관측한다 — 화면 문구만 보면 실패를 놓칠 수 있다
     const saved = page.waitForResponse((r) =>
@@ -77,6 +84,11 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     await page.getByRole('button', { name: '저장' }).click()
     const res = await saved
     console.log(`■ 저장 응답 = ${res.request().method()} ${res.status()}`)
+    if (res.status() >= 400) {
+      console.log(`■ 422 본문 = ${(await res.text()).slice(0, 500)}`)
+      const req = res.request().postData() ?? ''
+      console.log(`■ 요청 본문 일부 = ${req.slice(0, 700)}`)
+    }
     expect(res.status(), `실 BE 저장 실패 — DocumentPayloadValidator 가 신규 요소를 거부했을 수 있다`)
       .toBeLessThan(400)
     await expect(page.getByText('저장된 상태입니다.')).toBeVisible({ timeout: 15000 })
@@ -86,9 +98,10 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   await test.step('D3 재진입 — 품목행·이미지가 실 DB 에서 복원된다', async () => {
     await page.getByRole('button', { name: '목록' }).click()
     await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 15000 })
-    const row = page.getByRole('row').filter({ hasText: templateName })
-    await expect(row, '저장한 양식이 목록에 없다').toBeVisible({ timeout: 15000 })
-    await row.getByRole('link', { name: /편집|수정/ }).or(row.getByRole('button', { name: /편집|수정/ })).first().click()
+    // 기존 L1~L6 하네스와 동일 — 목록의 양식명 버튼으로 재진입한다
+    const entry = page.getByRole('button', { name: templateName })
+    await expect(entry, '저장한 양식이 목록에 없다').toBeVisible({ timeout: 15000 })
+    await entry.click()
 
     await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
     // 양성 — JSONB 왕복 후에도 두 요소가 살아있다
@@ -110,5 +123,23 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     await expect(detailLayer, '인쇄 시 품목행이 사라진다').toBeVisible()
     await shot('D4-인쇄미디어')
     await page.emulateMedia({ media: 'screen' })
+  })
+
+  // ── 정리 ─────────────────────────────────────────────────────────
+  // 🚨 공유 실 DB 에 throwaway 가 남지 않게 한다(라이브QA 공유데이터 규칙).
+  //    하네스가 자기 정리를 하지 않으면 실행할 때마다 실 양식 목록이 오염된다.
+  await test.step('QA 잔재 정리 — 생성한 양식 삭제', async () => {
+    const listRes = await page.request.get(`${API_BASE}/admin/groupware/document-templates`, {
+      headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
+    })
+    const items: Array<{ id: string; name: string }> = listRes.ok() ? ((await listRes.json()).data ?? []) : []
+    const mine = items.filter((t) => t.name?.startsWith('DS4 실서버QA'))
+    for (const t of mine) {
+      const del = await page.request.delete(`${API_BASE}/admin/groupware/document-templates/${t.id}`, {
+        headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
+      })
+      console.log(`■ 정리 ${t.name} → HTTP ${del.status()}`)
+    }
+    console.log(`■ 정리 대상 ${mine.length}건`)
   })
 })
