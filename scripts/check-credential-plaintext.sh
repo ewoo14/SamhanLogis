@@ -143,6 +143,7 @@ CODE_EXTS=(
 DOC_EXTS=(
   --include="*.md"
   --include="*.mdx"
+  --include="*.log"
 )
 
 EXCLUDE_DIRS=(

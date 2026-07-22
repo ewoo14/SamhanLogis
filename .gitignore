@@ -39,6 +39,10 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# `logs/` 및 npm/yarn 디버그 로그 규칙의 예외는 docs/qa 전체 하위 경로에 적용한다.
+!docs/qa/
+!docs/qa/**/
+!docs/qa/**/*.log
 
 # ----- Node -----
 node_modules/
