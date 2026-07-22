@@ -1,6 +1,120 @@
 import { expect, test } from '@playwright/test'
 
 const ACTIVE_TEMPLATE_ID = '77777777-eeee-4eee-8eee-000000000001'
+const BOUNDARY_VIEWPORTS = [1100, 1099, 700, 699, 640, 639, 320] as const
+
+async function waitForStableLayout(locator: import('@playwright/test').Locator): Promise<void> {
+  await locator.evaluate(async (node) => {
+    const snapshot = () => {
+      const rect = node.getBoundingClientRect()
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      const hit = document.elementFromPoint(centerX, centerY)
+      return {
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        hitTarget: hit === node || Boolean(hit && node.contains(hit)),
+      }
+    }
+
+    let previous = snapshot()
+    let stableFrames = 0
+    for (let frame = 0; frame < 90 && stableFrames < 3; frame += 1) {
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      const next = snapshot()
+      const stable = Math.abs(next.scrollX - previous.scrollX) < 0.5
+        && Math.abs(next.scrollY - previous.scrollY) < 0.5
+        && Math.abs(next.left - previous.left) < 0.5
+        && Math.abs(next.top - previous.top) < 0.5
+        && Math.abs(next.width - previous.width) < 0.5
+        && Math.abs(next.height - previous.height) < 0.5
+      stableFrames = stable ? stableFrames + 1 : 0
+      previous = next
+    }
+  })
+}
+
+async function assertApprovalTemplateTableRoleTree(page: import('@playwright/test').Page): Promise<void> {
+  const table = page.getByRole('table')
+  await expect(table).toHaveCount(1)
+  expect(await table.getByRole('rowgroup').count()).toBe(2)
+  expect(await table.getByRole('row').count()).toBeGreaterThan(0)
+  expect(await table.getByRole('columnheader').count()).toBe(5)
+  expect(await table.getByRole('cell').count()).toBeGreaterThan(0)
+}
+
+async function assertEditorGeometry(page: import('@playwright/test').Page): Promise<void> {
+  const scrollRegion = page.getByTestId('document-template-editor-scroll')
+  const geometry = await scrollRegion.evaluate((node) => {
+    const editor = node.closest<HTMLElement>('[aria-label="문서 양식 편집기"]')
+    const descendants = [node, ...Array.from(node.querySelectorAll<HTMLElement>('*'))]
+      .filter((element) => getComputedStyle(element).display !== 'none')
+      .map((element) => element.getBoundingClientRect())
+    return {
+      viewportWidth: window.innerWidth,
+      editorScrollWidth: editor?.scrollWidth ?? 0,
+      editorClientWidth: editor?.clientWidth ?? 0,
+      maxRight: Math.max(...descendants.map((rect) => rect.right)),
+      minLeft: Math.min(...descendants.map((rect) => rect.left)),
+      boundingWidth: node.getBoundingClientRect().width,
+    }
+  })
+  expect(geometry.boundingWidth, '편집기 wrapper 자신은 viewport를 넘지 않아야 한다')
+    .toBeLessThanOrEqual(geometry.viewportWidth)
+  expect(geometry.maxRight, '편집기 콘텐츠의 실제 우측 경계가 viewport를 넘지 않아야 한다')
+    .toBeLessThanOrEqual(geometry.viewportWidth)
+  expect(geometry.minLeft, '편집기 콘텐츠의 실제 좌측 경계가 viewport 밖으로 나가지 않아야 한다')
+    .toBeGreaterThanOrEqual(0)
+  expect(geometry.editorScrollWidth, '편집기 자체에 수평 클리핑/overflow가 없어야 한다')
+    .toBeLessThanOrEqual(geometry.editorClientWidth)
+}
+
+async function assertInspectorHitTarget(
+  page: import('@playwright/test').Page,
+  viewportWidth: number,
+  viewportHeight: number,
+): Promise<void> {
+  const inspector = page.getByRole('textbox', { name: '문구', exact: true })
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await waitForStableLayout(inspector)
+    const box = await inspector.boundingBox()
+    const hitTarget = box
+      ? await inspector.evaluate((node) => {
+        const rect = node.getBoundingClientRect()
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        return hit === node || Boolean(hit && node.contains(hit))
+      })
+      : false
+    if (box
+      && box.x >= 0
+      && box.x + box.width <= viewportWidth
+      && box.y >= 0
+      && box.y + box.height <= viewportHeight) {
+      if (hitTarget) return
+      break
+    }
+    // 프로그램 스크롤을 사용하지 않고 사용자의 실제 세로 wheel 제스처만 반복한다.
+    // 클릭 직후 대상이 viewport 위로 올라간 desktop 경계에서는 음의 wheel로 되돌아온다.
+    await page.mouse.wheel(0, box && box.y < 0 ? -600 : 600)
+  }
+
+  const finalBox = await inspector.boundingBox()
+  expect(finalBox, '실제 wheel 제스처 후 속성 입력란이 화면에 도달해야 한다').not.toBeNull()
+  expect(finalBox!.x).toBeGreaterThanOrEqual(0)
+  expect(finalBox!.x + finalBox!.width).toBeLessThanOrEqual(viewportWidth)
+  expect(finalBox!.y).toBeGreaterThanOrEqual(0)
+  expect(finalBox!.y + finalBox!.height).toBeLessThanOrEqual(viewportHeight)
+  const finalHitTarget = await inspector.evaluate((node) => {
+    const rect = node.getBoundingClientRect()
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    return hit === node || Boolean(hit && node.contains(hit))
+  })
+  expect(finalHitTarget, '화면 좌표의 실제 hit target이 속성 입력란이어야 한다').toBe(true)
+}
 
 function viewOnlyUrl(): string {
   const perms = encodeURIComponent(Buffer.from(JSON.stringify([
@@ -126,6 +240,9 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     let inspectorBox = await inspector.boundingBox()
     for (let attempt = 0; attempt < 6 && (!inspectorBox || inspectorBox.y < 0 || inspectorBox.y + inspectorBox.height > 800); attempt += 1) {
       await page.mouse.wheel(0, 600)
+      // 실제 사용자 wheel은 유지한다. 스크롤/레이아웃이 연속 프레임에서 안정된 뒤에만
+      // bounding-box와 elementFromPoint()를 판정해 고정 600px 직후의 간헐 RED를 막는다.
+      await waitForStableLayout(inspector)
       inspectorBox = await inspector.boundingBox()
     }
     expect(inspectorBox, '실제 휠 제스처 후 속성 입력란이 화면에 도달해야 한다').not.toBeNull()
@@ -148,10 +265,81 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     await page.goto(`/#/groupware/document-templates/${ACTIVE_TEMPLATE_ID}/edit?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
     })
-    const noPrintCount = await page.locator('.no-print').count()
-    expect(noPrintCount).toBeGreaterThan(0)
-    // 팔레트/캔버스/인스펙터/헤더/푸터가 no-print 안에 있어야 하고, 실제 문서 렌더러는 no-print 밖에 있어야 한다.
-    await expect(page.locator('.no-print').filter({ has: page.getByRole('heading', { name: '요소 팔레트' }) })).toHaveCount(1)
-    await expect(page.locator('[data-testid="document-template-live-preview"]')).not.toHaveClass(/no-print/)
+    await page.emulateMedia({ media: 'print' })
+
+    // 클래스가 존재하는지만 보지 않고 print media cascade의 실제 가시성을 검사한다.
+    for (const locator of [
+      page.locator('header.no-print h1'),
+      page.locator('.document-template-editor-form'),
+      page.locator('.document-template-editor-pane--palette'),
+      page.locator('.document-template-band-pane'),
+      page.locator('.document-template-editor-pane--inspector'),
+      page.locator('footer.no-print'),
+      page.getByRole('heading', { name: '라이브 미리보기' }),
+    ]) {
+      await expect(locator).toBeHidden()
+    }
+
+    const paper = page.getByTestId('document-template-live-preview').locator('.paper')
+    await expect(paper).toBeVisible()
+    const paperPrintState = await paper.evaluate((node) => {
+      const style = getComputedStyle(node)
+      const rect = node.getBoundingClientRect()
+      return {
+        display: style.display,
+        visibility: style.visibility,
+        width: rect.width,
+        text: node.textContent ?? '',
+      }
+    })
+    expect(paperPrintState.display).not.toBe('none')
+    expect(paperPrintState.visibility).toBe('visible')
+    expect(paperPrintState.width).toBeGreaterThan(0)
+    expect(paperPrintState.text).toContain('결재 문서 미리보기')
+  })
+
+  test('H-B boundary: 경계값 전량에서 전체 편집 경로와 모바일 table role tree가 유지된다', async ({ page }) => {
+    test.setTimeout(120_000)
+
+    for (const width of BOUNDARY_VIEWPORTS) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto(`/#/groupware/document-templates/${ACTIVE_TEMPLATE_ID}/edit?mockRole=MASTER`, {
+        waitUntil: 'domcontentloaded',
+      })
+      await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기', level: 1 })).toBeVisible()
+
+      const editStart = page.getByRole('button', { name: '편집 시작' })
+      if (await editStart.count()) await editStart.click()
+
+      await page.getByRole('button', { name: '문구 추가' }).click()
+      const addedElement = page.getByRole('button', { name: '문구', exact: true }).last()
+      await addedElement.click()
+
+      await assertEditorGeometry(page)
+      await assertInspectorHitTarget(page, width, 800)
+      const inspector = page.getByRole('textbox', { name: '문구', exact: true })
+      await inspector.fill(`경계값 ${width}px 회귀`)
+      await page.getByRole('spinbutton', { name: '가로 위치(x, %)' }).fill('12')
+      await page.getByRole('spinbutton', { name: '세로 위치(y, %)' }).fill('24')
+      await page.getByRole('checkbox', { name: '굵게' }).check()
+      await expect(page.getByRole('spinbutton', { name: '가로 위치(x, %)' })).toHaveValue('12')
+      await expect(page.getByRole('spinbutton', { name: '세로 위치(y, %)' })).toHaveValue('24')
+      await expect(page.getByRole('checkbox', { name: '굵게' })).toBeChecked()
+
+      await page.getByRole('button', { name: '요소 삭제' }).click()
+      await page.getByRole('textbox', { name: '양식명' }).fill(`DS-3b 경계값 ${width}px`)
+      await page.getByRole('button', { name: '저장' }).click()
+      await expect(page.getByText('저장된 상태입니다.')).toBeVisible()
+
+      await page.getByRole('button', { name: '목록' }).click()
+      await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible()
+      await assertApprovalTemplateTableRoleTree(page)
+
+      if (width !== BOUNDARY_VIEWPORTS[BOUNDARY_VIEWPORTS.length - 1]) {
+        const row = page.getByRole('row').filter({ hasText: `DS-3b 경계값 ${width}px` })
+        await row.getByRole('button', { name: '활성화' }).click()
+        await expect(row.getByRole('button', { name: '비활성화' })).toBeVisible()
+      }
+    }
   })
 })

@@ -145,7 +145,7 @@
     background: transparent;
   }
 
-  /* print에서만 기존 공용 paper의 mm 크기 규칙을 그대로 사용한다. */
+  /* print에서는 반응형 화면 폭을 덮어쓰고 공용 paper의 A4 세로 mm 크기를 복원한다. */
   .document-template-preview .paper {
     width: 210mm;
     max-width: none;
