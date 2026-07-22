@@ -7,14 +7,46 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MessengerPage } from './MessengerPage'
 import * as messengerApi from '../api/messengerApi'
 import * as notificationApi from '../api/notificationApi'
+import { usePermissions } from '../hooks/usePermissions'
 
 vi.mock('../api/messengerApi')
 vi.mock('../api/notificationApi')
+vi.mock('../hooks/usePermissions', () => ({ usePermissions: vi.fn() }))
+vi.mock('../auth/authProvider', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../auth/authProvider')>()
+  return {
+    ...actual,
+    getAuthProvider: () => ({
+      getSession: async () => ({ userId: 'self-user-id', role: 'SALES', fullName: '나' }),
+    }),
+  }
+})
 
 const recipient = {
   userId: 'user-003',
   name: '김수신',
   department: '영업팀',
+  employeeCode: null,
+}
+
+const selfOption = {
+  userId: 'self-user-id',
+  name: '나',
+  department: '영업팀',
+  employeeCode: null,
+}
+
+const duplicateNameA = {
+  userId: 'dup-a',
+  name: '채권추심',
+  department: '회계팀',
+  employeeCode: '00000',
+}
+const duplicateNameB = {
+  userId: 'dup-b',
+  name: '채권추심',
+  department: '영업2팀',
+  employeeCode: '999-99-99999',
 }
 
 afterEach(() => {
@@ -24,6 +56,12 @@ afterEach(() => {
 
 beforeEach(() => {
   vi.mocked(notificationApi.acknowledgeMessengerNotifications).mockResolvedValue(undefined)
+  vi.mocked(usePermissions).mockReturnValue({
+    canAccess: () => true,
+    permissions: [],
+    isLoading: false,
+    isError: false,
+  })
 })
 
 function renderPage() {
@@ -107,6 +145,7 @@ describe('MessengerPage', () => {
     const unreadMessage: messengerApi.MessageResponse = {
       messageId: 'message-1',
       senderId: 'sender-1',
+      senderDisplayName: '발신자',
       recipientId: 'recipient-1',
       body: '읽음 처리 대상',
       status: 'UNREAD',
@@ -123,5 +162,210 @@ describe('MessengerPage', () => {
     await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledWith('message-1'))
     await waitFor(() => expect(screen.getByText('읽음', { exact: true })).toBeTruthy())
     expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(1)
+  })
+
+  it('H-2 BE 오류 메시지가 axios 영문 메시지 대신 화면에 그대로 뜬다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([recipient])
+    const axiosLikeError = Object.assign(new Error('Request failed with status code 400'), {
+      isAxiosError: true,
+      response: { status: 400, data: { code: 'INVALID_INPUT', message: '본인은 수신자로 지정할 수 없습니다' } },
+    })
+    vi.mocked(messengerApi.sendBulkMessage).mockRejectedValue(axiosLikeError)
+
+    renderPage()
+    fireEvent.change(screen.getByTestId('messenger-recipient-search'), { target: { value: '김' } })
+    await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByText('김수신'))
+    fireEvent.change(screen.getByTestId('messenger-body'), { target: { value: '본문' } })
+    await waitFor(() => expect((screen.getByRole('button', { name: '발송' }) as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.submit(screen.getByRole('button', { name: '발송' }).closest('form')!)
+
+    await waitFor(() => expect(screen.getByText('본인은 수신자로 지정할 수 없습니다')).toBeTruthy())
+    expect(screen.queryByText('Request failed with status code 400')).toBeNull()
+  })
+
+  it('H-3 검색 후보에는 본인이 나타나지 않는다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([selfOption, recipient])
+
+    renderPage()
+    // 세션 조회(현재 사용자 UUID)가 커밋될 시간을 준 뒤 검색한다 — 자기자신 필터는 세션 로드 이후 적용된다.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    fireEvent.change(screen.getByTestId('messenger-recipient-search'), { target: { value: '아' } })
+    await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
+    expect(screen.queryByRole('option', { name: /^나(\s|$)/ })).toBeNull()
+  })
+
+  it('H-4 발송 권한이 없으면 발송 폼 전체가 비활성이고 POST할 수 없다', async () => {
+    vi.mocked(usePermissions).mockReturnValue({
+      canAccess: () => false,
+      permissions: [],
+      isLoading: false,
+      isError: false,
+    })
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([recipient])
+
+    renderPage()
+
+    expect((screen.getByRole('button', { name: '발송' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('messenger-recipient-search') as HTMLInputElement).disabled).toBe(true)
+    // textarea 자체엔 disabled 속성을 직접 걸지 않고 감싸는 <fieldset disabled>로 전체를 잠근다.
+    // HTMLTextAreaElement.disabled IDL은 fieldset 상속을 반영하지 않으므로 fieldset 쪽을 확인한다.
+    expect(screen.getByTestId('messenger-body').closest('fieldset')?.disabled).toBe(true)
+    expect(screen.getByRole('alert').textContent).toContain('권한이 없어')
+  })
+
+  it('M-1/M-2 미열람 N건에도 markRead는 N회, 알림 확인은 방금 읽은 messageId로만 1회 스코프한다', async () => {
+    const unread = Array.from({ length: 5 }, (_, i) => ({
+      messageId: `msg-${i}`,
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: `본문 ${i}`,
+      status: 'UNREAD' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: null,
+    }))
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue(unread)
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+    vi.mocked(messengerApi.markMessageRead).mockImplementation(async (id: string) => ({
+      ...unread.find((m) => m.messageId === id)!,
+      status: 'READ',
+      readAt: '2026-07-22T00:01:00Z',
+    }))
+
+    renderPage()
+
+    await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(5))
+    await waitFor(() => expect(notificationApi.acknowledgeMessengerNotifications).toHaveBeenCalledTimes(1))
+    const scopedIds = vi.mocked(notificationApi.acknowledgeMessengerNotifications).mock.calls[0]![0] as string[]
+    expect(new Set(scopedIds)).toEqual(new Set(unread.map((m) => m.messageId)))
+  })
+
+  it('M-3 수신함 행에 발신자 표시명이 보인다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([{
+      messageId: 'msg-name',
+      senderId: 'sender-1',
+      senderDisplayName: '김발신',
+      recipientId: 'me',
+      body: '본문',
+      status: 'READ',
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: '2026-07-22T00:01:00Z',
+    }])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+
+    renderPage()
+
+    await waitFor(() => expect(screen.getByText('김발신')).toBeTruthy())
+  })
+
+  it('M-4 읽음 처리가 계속 실패하면 상한 후 화면에 실패를 드러내고 무한 재시도하지 않는다', async () => {
+    const unread = {
+      messageId: 'msg-fail',
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: '실패 대상',
+      status: 'UNREAD' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: null,
+    }
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([unread])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+    vi.mocked(messengerApi.markMessageRead).mockRejectedValue(new Error('network'))
+
+    renderPage()
+
+    // 즉시 재시도 3회(상한) 소진 후 화면에 실패가 드러나야 한다.
+    await waitFor(() => expect(screen.getByText('읽음 처리에 실패했습니다.')).toBeTruthy())
+    await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(3))
+
+    // 추가 시간이 지나도 더 이상 재시도(무한 재시도)하지 않는다.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(3)
+  })
+
+  it('M-5 수신함이 50건이면 다음 페이지 버튼이 활성화되고 클릭 시 page=1을 요청한다', async () => {
+    const fullPage = Array.from({ length: 50 }, (_, i) => ({
+      messageId: `msg-${i}`,
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: `본문 ${i}`,
+      status: 'READ' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: '2026-07-22T00:01:00Z',
+    }))
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue(fullPage)
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+
+    renderPage()
+
+    await waitFor(() => expect(messengerApi.fetchInbox).toHaveBeenCalledWith(0))
+    const next = screen.getByRole('button', { name: '다음' })
+    await waitFor(() => expect((next as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(next)
+    await waitFor(() => expect(messengerApi.fetchInbox).toHaveBeenCalledWith(1))
+  })
+
+  it('M-6 본문이 2000자를 넘으면 잘리고 무음이 아니라 화면에 안내가 뜬다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+
+    renderPage()
+    const overLong = 'a'.repeat(2500)
+    fireEvent.change(screen.getByTestId('messenger-body'), { target: { value: overLong } })
+
+    expect((screen.getByTestId('messenger-body') as HTMLTextAreaElement).value).toHaveLength(2000)
+    expect(screen.getByText(/2000자를 초과할 수 없어/)).toBeTruthy()
+    expect(screen.getByTestId('messenger-body-counter').textContent).toContain('2000 / 2000')
+  })
+
+  it('L-2 수신자 상한에 도달하면 검색결과 없음과 구분되는 전용 안내가 뜬다', async () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({
+      userId: `cap-${i}`,
+      name: `사원${i}`,
+      department: '영업팀',
+      employeeCode: null,
+    }))
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue(many)
+
+    renderPage()
+    const input = screen.getByTestId('messenger-recipient-search')
+    for (const option of many) {
+      fireEvent.change(input, { target: { value: option.name } })
+      await waitFor(() => expect(screen.getByText(option.name)).toBeTruthy())
+      fireEvent.mouseDown(screen.getByText(option.name))
+    }
+
+    await waitFor(() => expect(screen.getByTestId('multiselect-chip-count').textContent).toContain('50'))
+    expect(screen.getByText(/최대 50명까지 선택할 수 있습니다/)).toBeTruthy()
+  }, 30_000)
+
+  it('M-7 검색 결과에 동명이인이 2건 이상이면 담당자코드를 병기하고, 아니면 병기하지 않는다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([duplicateNameA, duplicateNameB])
+
+    renderPage()
+    fireEvent.change(screen.getByTestId('messenger-recipient-search'), { target: { value: '채권' } })
+
+    await waitFor(() => expect(screen.getAllByText(/채권추심 \(00000\)/).length).toBeGreaterThan(0))
+    expect(screen.getAllByText(/채권추심 \(999-99-99999\)/).length).toBeGreaterThan(0)
+  })
+
+  it('M-7 동명이인이 없으면 평소처럼 이름·부서만 표시한다', async () => {
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([recipient])
+
+    renderPage()
+    fireEvent.change(screen.getByTestId('messenger-recipient-search'), { target: { value: '김' } })
+
+    await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
+    const listbox = screen.getByRole('listbox', { name: '메신저 수신자 검색 결과' })
+    expect(listbox.textContent).not.toContain('(')
   })
 })

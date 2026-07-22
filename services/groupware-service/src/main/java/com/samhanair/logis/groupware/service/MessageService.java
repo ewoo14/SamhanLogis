@@ -138,10 +138,22 @@ public class MessageService {
                 savedMessages.stream().map(MessageResponse::from).toList());
     }
 
-    /** 수신자 inbox — 발송 시각 역순. */
+    /**
+     * 수신자 inbox — 발송 시각 역순. 발신자 표시명은 페이지 내 고유 UUID 기준으로 1회 배치 해석한다
+     * (메시지 건마다 개별 RPC 하지 않는다). UUID는 응답에 포함하되 화면에는 표시명만 노출한다.
+     */
     @Transactional(readOnly = true)
-    public Page<Message> inbox(UUID recipientId, Pageable pageable) {
-        return repository.findAllByRecipientIdOrderBySentAtDesc(recipientId, pageable);
+    public List<MessageResponse> inboxResponses(UUID recipientId, Pageable pageable) {
+        Page<Message> page = repository.findAllByRecipientIdOrderBySentAtDesc(recipientId, pageable);
+        List<UUID> senderIds = page.getContent().stream()
+                .map(Message::getSenderId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, String> displayNames = resolveSenderDisplayNames(senderIds);
+        return page.getContent().stream()
+                .map(m -> MessageResponse.from(m, displayNames.get(m.getSenderId())))
+                .toList();
     }
 
     /** 미열람 카운트 (Internal API + admin 화면 공용). */
@@ -153,15 +165,41 @@ public class MessageService {
     /** 읽음 처리 — 수신자 본인만 호출 허용 (도메인 가드). */
     @Transactional
     public Message markRead(UUID messageId, UUID actorUserId) {
+        // UUID는 사용자 노출 메시지에 포함하지 않는다(bulk 발송 오류 메시지와 동일 정책).
         Message msg = repository.findById(messageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "메신저를 찾을 수 없습니다: " + messageId));
+                        "메신저를 찾을 수 없습니다"));
         try {
             msg.markRead(actorUserId);
         } catch (IllegalStateException ex) {
             throw new BusinessException(ErrorCode.FORBIDDEN, ex.getMessage());
         }
         return msg;
+    }
+
+    /**
+     * 여러 발신자 UUID의 표시명을 1회 배치 호출로 해석한다. 미해석 항목은
+     * "알 수 없는 발신자"로 채워 화면에 UUID가 노출되지 않게 한다.
+     */
+    private Map<UUID, String> resolveSenderDisplayNames(List<UUID> senderIds) {
+        if (senderIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> resolved;
+        try {
+            resolved = userClient.resolveDisplayNames(senderIds);
+        } catch (RuntimeException ex) {
+            resolved = Map.of();
+        }
+        if (resolved == null) {
+            resolved = Map.of();
+        }
+        Map<UUID, String> result = new java.util.HashMap<>();
+        for (UUID id : senderIds) {
+            String name = resolved.get(id);
+            result.put(id, (name == null || name.isBlank()) ? "알 수 없는 발신자" : name);
+        }
+        return result;
     }
 
     private String resolveSenderDisplayName(UUID senderId) {

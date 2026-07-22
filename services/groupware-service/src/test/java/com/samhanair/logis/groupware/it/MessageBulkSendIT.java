@@ -107,7 +107,7 @@ class MessageBulkSendIT extends AbstractPostgresIT {
                 {"recipientIds":["%s","%s","%s","%s","%s"],"body":"다건 발송"}
                 """.formatted(recipients.get(0), recipients.get(1), recipients.get(2), recipients.get(3), recipients.get(4));
 
-        mockMvc.perform(post("/admin/groupware/messages/bulk")
+        var result = mockMvc.perform(post("/admin/groupware/messages/bulk")
                         .header("X-User-Id", SENDER_ID)
                         .header("X-User-Role", "SALES")
                         .header("X-Is-System-Master", "true")
@@ -116,7 +116,23 @@ class MessageBulkSendIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.sentCount").value(5))
                 .andExpect(jsonPath("$.data.messages.length()").value(5))
-                .andExpect(jsonPath("$.data.messages[0].status").value("UNREAD"));
+                .andExpect(jsonPath("$.data.messages[0].status").value("UNREAD"))
+                .andReturn();
+
+        UUID batchId = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("batchId").asText());
+
+        // 검증 결함 fix — 응답 JSON만 보면 수신자마다 다른 batchId를 넣는 뮤테이션도 GREEN이 된다.
+        // 실 DB를 batch_id로 직접 조회해 V14 마이그레이션(batch_id 컬럼)의 존재 이유를 실증한다.
+        List<com.samhanair.logis.groupware.domain.Message> stored = messageRepository.findAllByBatchId(batchId);
+        assertThat(stored).hasSize(5);
+        assertThat(stored)
+                .extracting(com.samhanair.logis.groupware.domain.Message::getRecipientId)
+                .containsExactlyInAnyOrderElementsOf(recipients);
+        assertThat(stored)
+                .allSatisfy(m -> assertThat(m.getStatus())
+                        .isEqualTo(com.samhanair.logis.groupware.domain.MessageStatus.UNREAD));
     }
 
     @Test
@@ -163,6 +179,10 @@ class MessageBulkSendIT extends AbstractPostgresIT {
                         .param("limit", "20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("수신자"));
+
+        // 검증 결함 fix — 컨트롤러가 activeOnly=true로 배선하는지 고정한다. 이 verify가 없으면
+        // 컨트롤러가 false로 바뀌어도(퇴사자 노출) 위 stub이 q/limit만 매칭해 그대로 통과한다.
+        org.mockito.Mockito.verify(userClient).search("수신", 20, true);
     }
 
     @Test

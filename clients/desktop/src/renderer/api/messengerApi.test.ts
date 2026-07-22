@@ -35,18 +35,33 @@ describe('메신저 API 계약', () => {
     expect(apiClient.post).toHaveBeenCalledWith('/admin/groupware/messages/bulk', payload)
   })
 
-  it('수신함은 호출자 고정 inbox endpoint를 사용한다', async () => {
+  it('수신함은 호출자 고정 inbox endpoint를 page=0 기본값으로 사용한다', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce(envelope([]))
 
     await fetchInbox()
 
-    expect(apiClient.get).toHaveBeenCalledWith('/admin/groupware/messages/inbox')
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/admin/groupware/messages/inbox',
+      { params: { page: 0 } },
+    )
+  })
+
+  it('M5 수신함 페이지 번호를 쿼리로 전달한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce(envelope([]))
+
+    await fetchInbox(2)
+
+    expect(apiClient.get).toHaveBeenCalledWith(
+      '/admin/groupware/messages/inbox',
+      { params: { page: 2 } },
+    )
   })
 
   it('쪽지 읽음 처리는 messageId 경로의 PUT endpoint를 호출한다', async () => {
     const message = {
       messageId: 'message-1',
       senderId: 'sender-1',
+      senderDisplayName: '발신자',
       recipientId: 'recipient-1',
       body: '본문',
       status: 'READ' as const,

@@ -1,10 +1,16 @@
 import { apiClient, type ApiEnvelope } from './client'
 
-/** 메신저 수신자 후보. userId는 발송 payload 전용이다. */
+/**
+ * 메신저 수신자 후보. userId는 발송 payload 전용이다.
+ *
+ * @param employeeCode 담당자코드 — 동명이인 구분용. 로그인ID/이메일/UUID 대신 이 값만 화면 병기 후보로
+ *   쓴다. 미부여 계정(개발 시드 등)은 null.
+ */
 export interface RecipientOption {
   userId: string
   name: string
   department: string | null
+  employeeCode: string | null
 }
 
 export type MessageStatus = 'UNREAD' | 'READ'
@@ -13,6 +19,8 @@ export type MessageStatus = 'UNREAD' | 'READ'
 export interface MessageResponse {
   messageId: string
   senderId: string
+  /** 발신자 표시명 — 수신함 조회 응답에만 채워진다(발송 응답은 송신자=본인이라 null). */
+  senderDisplayName: string | null
   recipientId: string
   body: string
   status: MessageStatus
@@ -51,10 +59,11 @@ export async function sendBulkMessage(
   return response.data.data
 }
 
-/** 호출자 본인 수신함 조회. userId 쿼리로 범위를 바꾸지 않는다. */
-export async function fetchInbox(): Promise<MessageResponse[]> {
+/** 호출자 본인 수신함 조회 — 50건 단위 페이지(0-base). userId 쿼리로 범위를 바꾸지 않는다. */
+export async function fetchInbox(page = 0): Promise<MessageResponse[]> {
   const response = await apiClient.get<ApiEnvelope<MessageResponse[]>>(
     '/admin/groupware/messages/inbox',
+    { params: { page } },
   )
   return response.data.data
 }

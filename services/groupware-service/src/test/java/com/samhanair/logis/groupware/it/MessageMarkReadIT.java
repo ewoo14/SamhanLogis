@@ -113,6 +113,19 @@ class MessageMarkReadIT extends AbstractPostgresIT {
     }
 
     @Test
+    void L1_존재하지_않는_메시지_404_오류에는_UUID가_노출되지_않는다() throws Exception {
+        UUID missingMessageId = UUID.randomUUID();
+
+        mockMvc.perform(put("/admin/groupware/messages/{messageId}/read", missingMessageId)
+                        .header(USER_ID_HEADER, recipient)
+                        .header(ROLE_HEADER, ROLE)
+                        .header(SYSTEM_MASTER_HEADER, "true"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message", org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString(missingMessageId.toString()))));
+    }
+
+    @Test
     void R3_본인이_읽음_처리하면_수신함과_미열람_count가_같은_messages_상태를_반영한다() throws Exception {
         Message message = saveUnreadMessage();
         assertThat(messageRepository.countByRecipientIdAndStatus(recipient, MessageStatus.UNREAD)).isEqualTo(1);

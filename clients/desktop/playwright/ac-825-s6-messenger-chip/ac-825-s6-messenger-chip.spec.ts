@@ -1,9 +1,9 @@
 /**
  * #825 슬6 메신저 수신자 칩 복수선택 mock hard gate.
  *
- * 실제 /messenger 라우트와 mock.ts의 시드 수신자(user-003, user-004)를 사용해
- * 검색·칩 표시·중복 후보 제거·bulk payload 왕복을 확인한다. UUID나 지어낸 사용자 id는
- * 화면에 노출하거나 스펙 fixture로 만들지 않는다.
+ * 실제 /messenger 라우트와 mock.ts의 시드 수신자(박영업, 최영업 — UUID는 payload 전용)를 사용해
+ * 검색·칩 표시·중복 후보 제거·bulk payload 왕복을 확인한다. 화면에는 UUID를 노출하지 않는다
+ * (지어낸 id는 화면 노출 검증에만 쓰고 fixture 값으로는 시드 UUID를 그대로 쓴다).
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -81,7 +81,7 @@ test.describe('AC-825-S6 메신저 수신자 칩 mock 회귀', () => {
     const chip = page.getByTestId('messenger-recipient-chip')
     await expect(chip).toContainText('박영업')
     await expect(chip).toContainText('영업팀')
-    await expect(page.getByTestId('messenger-page')).not.toContainText('user-003')
+    await expect(page.getByTestId('messenger-page')).not.toContainText('10000000-0000-0000-0000-000000000303')
   })
 
   test('R16 선택한 시드 수신자는 재검색 후보에서 제거된다', async ({ page }) => {
@@ -110,6 +110,10 @@ test.describe('AC-825-S6 메신저 수신자 칩 mock 회귀', () => {
     await listbox.getByRole('option').filter({ hasText: '최영업' }).click()
     await page.getByTestId('messenger-body').fill('시드 bulk 발송 확인')
 
+    // 발송 전 — 칩 2개가 실제로 보이는 시점에 캡처한다(발송 클릭 후는 폼이 초기화되어 칩이 사라진다).
+    await expect(page.getByTestId('messenger-recipient-chip')).toHaveCount(2)
+    await page.screenshot({ path: path.join(screenshotDir, '01-messenger-bulk-chips.png'), fullPage: true })
+
     await page.getByRole('button', { name: '발송' }).click()
     await expect.poll(() => page.evaluate(() => (
       (globalThis as typeof globalThis & { __SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__?: number })
@@ -119,8 +123,26 @@ test.describe('AC-825-S6 메신저 수신자 칩 mock 회귀', () => {
       (globalThis as typeof globalThis & {
         __SAMHAN_MOCK_LAST_MESSENGER_BULK_BODY__?: { recipientIds: string[]; body: string }
       }).__SAMHAN_MOCK_LAST_MESSENGER_BULK_BODY__
-    ))).toEqual({ recipientIds: ['user-003', 'user-004'], body: '시드 bulk 발송 확인' })
+    ))).toEqual({
+      recipientIds: ['10000000-0000-0000-0000-000000000303', '10000000-0000-0000-0000-000000000304'],
+      body: '시드 bulk 발송 확인',
+    })
     await expect(page.getByRole('status')).toContainText('2명에게 발송했습니다.')
-    await page.screenshot({ path: path.join(screenshotDir, '01-messenger-bulk-chips.png'), fullPage: true })
+  })
+
+  test('M-7 동명이인 시드(채권추심 2건)는 담당자코드를 병기해 구분한다', async ({ page }) => {
+    await gotoMessenger(page)
+
+    const input = page.getByTestId('messenger-recipient-search')
+    await input.fill('채권추심')
+    const listbox = page.getByRole('listbox', { name: '메신저 수신자 검색 결과' })
+    await expect(listbox.getByText('채권추심 (00000)')).toBeVisible({ timeout: 10_000 })
+    await expect(listbox.getByText('채권추심 (999-99-99999)')).toBeVisible()
+
+    // 대조군 — 동명이인이 아닌 시드는 평소처럼 코드 병기가 없어야 한다(괄호 병기 없음).
+    await input.fill('박영업')
+    const soleOption = listbox.getByRole('option').filter({ hasText: '박영업' })
+    await expect(soleOption).toBeVisible({ timeout: 10_000 })
+    await expect(soleOption).not.toContainText('(')
   })
 })

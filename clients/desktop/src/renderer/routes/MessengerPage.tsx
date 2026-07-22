@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, FormField, MultiSelectAutocomplete, TagChip } from '@samhan/design-system'
 import {
@@ -10,69 +10,137 @@ import {
   type RecipientOption,
 } from '../api/messengerApi'
 import { acknowledgeMessengerNotifications } from '../api/notificationApi'
+import { extractApiErrorMessage } from '../api/apiError'
+import { getAuthProvider } from '../auth/authProvider'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { usePermissions } from '../hooks/usePermissions'
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message
-  return '메신저 발송에 실패했습니다.'
-}
+const BODY_MAX_LENGTH = 2000
+const RECIPIENT_MAX = 50
+/** 같은 쪽지의 읽음 처리 실패를 이 횟수만큼 재시도한 뒤에는 포기하고 화면에 실패를 드러낸다. */
+const MARK_READ_MAX_ATTEMPTS = 3
 
 function inboxStatus(message: MessageResponse): string {
   return message.status === 'UNREAD' ? '읽지 않음' : '읽음'
 }
 
-/** 메신저 화면 — 수신자 칩 복수선택 발송 + 읽기 전용 수신함. */
+/**
+ * 검색 결과 중 이름이 2건 이상 겹치는 항목에만 담당자코드를 병기한다.
+ * 평소에는 이름·부서만 표시하고, 동명이인이 감지될 때만 구분자를 붙인다(UUID·로그인ID·이메일 금지).
+ */
+function disambiguateByName(options: RecipientOption[]): RecipientOption[] {
+  const nameCounts = new Map<string, number>()
+  for (const option of options) {
+    nameCounts.set(option.name, (nameCounts.get(option.name) ?? 0) + 1)
+  }
+  return options.map((option) => {
+    if ((nameCounts.get(option.name) ?? 0) < 2) return option
+    const code = option.employeeCode && option.employeeCode.trim() ? option.employeeCode : '코드없음'
+    return { ...option, name: `${option.name} (${code})` }
+  })
+}
+
+/** 메신저 화면 — 수신자 칩 복수선택 발송 + 읽기 전용 수신함(페이지 단위). */
 export function MessengerPage() {
   usePageTitle('메신저')
   const queryClient = useQueryClient()
+  const { canAccess } = usePermissions()
+  const canSend = canAccess('messenger.send', 'create')
+
   const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([])
   const [body, setBody] = useState('')
+  const [bodyTruncated, setBodyTruncated] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
   const [markedReadMessages, setMarkedReadMessages] = useState<Record<string, MessageResponse>>({})
+  const [markReadFailedIds, setMarkReadFailedIds] = useState<Record<string, true>>({})
   const markedReadIdsRef = useRef(new Set<string>())
-  const inboxQuery = useQuery({
-    queryKey: ['messenger', 'inbox'],
-    queryFn: fetchInbox,
+
+  const sessionQuery = useQuery({
+    queryKey: ['auth', 'session'],
+    queryFn: () => getAuthProvider().getSession(),
+    staleTime: Infinity,
   })
 
-  /** 수신함을 연 순간 읽지 않은 행만 서버 권위 endpoint로 읽음 처리한다. */
+  const inboxQuery = useQuery({
+    queryKey: ['messenger', 'inbox', page],
+    queryFn: () => fetchInbox(page),
+  })
+
+  /**
+   * 현재 페이지를 연 순간, 아직 읽지 않은 행만 서버 권위 endpoint로 읽음 처리한다.
+   * 각 메시지는 최대 {@link MARK_READ_MAX_ATTEMPTS}회까지 즉시 재시도하고, 그래도 실패하면
+   * 무한 재시도하지 않고 포기한 뒤 화면에 실패를 드러낸다(M-4).
+   */
   useEffect(() => {
     const unreadMessages = (inboxQuery.data ?? []).filter(
       (message) => message.status === 'UNREAD' && !markedReadIdsRef.current.has(message.messageId),
     )
     if (unreadMessages.length === 0) return
 
-    for (const message of unreadMessages) {
-      markedReadIdsRef.current.add(message.messageId)
-      void markMessageRead(message.messageId)
-        .then((updatedMessage) => {
-          setMarkedReadMessages((current) => ({ ...current, [message.messageId]: updatedMessage }))
-          queryClient.setQueryData<MessageResponse[]>(['messenger', 'inbox'], (current) =>
-            current?.map((item) => item.messageId === updatedMessage.messageId ? updatedMessage : item),
-          )
-          // 쪽지 읽음은 이미 성공했으므로 알림 센터 장애가 수신함 상태를 되돌리지 않게 한다.
-          void acknowledgeMessengerNotifications()
-            .catch(() => undefined)
-            .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+    unreadMessages.forEach((message) => markedReadIdsRef.current.add(message.messageId))
+
+    void (async () => {
+      const succeededIds: string[] = []
+      const failedIds: string[] = []
+      const updates: Record<string, MessageResponse> = {}
+
+      await Promise.all(unreadMessages.map(async (message) => {
+        for (let attempt = 1; attempt <= MARK_READ_MAX_ATTEMPTS; attempt += 1) {
+          try {
+            const updated = await markMessageRead(message.messageId)
+            succeededIds.push(message.messageId)
+            updates[message.messageId] = updated
+            return
+          } catch {
+            if (attempt === MARK_READ_MAX_ATTEMPTS) {
+              failedIds.push(message.messageId)
+            }
+          }
+        }
+      }))
+
+      if (Object.keys(updates).length > 0) {
+        setMarkedReadMessages((current) => ({ ...current, ...updates }))
+        queryClient.setQueryData<MessageResponse[]>(['messenger', 'inbox', page], (current) =>
+          current?.map((item) => updates[item.messageId] ?? item),
+        )
+      }
+      if (failedIds.length > 0) {
+        setMarkReadFailedIds((current) => {
+          const next = { ...current }
+          failedIds.forEach((id) => { next[id] = true })
+          return next
         })
-        .catch(() => {
-          // 실패한 행은 다음 수신함 refetch에서 다시 시도할 수 있게 한다.
-          markedReadIdsRef.current.delete(message.messageId)
-        })
-    }
-  }, [inboxQuery.data, queryClient])
+        setFeedback('일부 쪽지의 읽음 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+      }
+      if (succeededIds.length > 0) {
+        // 쪽지 읽음은 이미 성공했으므로, 방금 실제로 읽음 처리한 messageId에 대응하는 알림만 확인 처리한다.
+        // 전체 미열람 MESSENGER 알림을 일괄 확인하면 다음 페이지의 아직 안 읽은 쪽지 알림까지
+        // 배지에서 먼저 사라지는 결함이 생긴다.
+        void acknowledgeMessengerNotifications(succeededIds)
+          .catch(() => undefined)
+          .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+      }
+    })()
+  }, [inboxQuery.data, page, queryClient])
+
   const sendMutation = useMutation({
     mutationFn: sendBulkMessage,
     onSuccess: async (result) => {
       setSelectedRecipients([])
       setBody('')
+      setBodyTruncated(false)
       setFeedback(`${result.sentCount}명에게 발송했습니다.`)
       await queryClient.invalidateQueries({ queryKey: ['messenger', 'inbox'] })
     },
-    onError: (error) => setFeedback(errorMessage(error)),
+    onError: (error) => setFeedback(extractApiErrorMessage(error)),
   })
 
-  const canSubmit = selectedRecipients.length > 0 && body.trim().length > 0 && !sendMutation.isPending
+  const canSubmit = canSend
+    && selectedRecipients.length > 0
+    && body.trim().length > 0
+    && !sendMutation.isPending
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -84,7 +152,30 @@ export function MessengerPage() {
     })
   }
 
-  const inbox = (inboxQuery.data ?? []).map((message) => markedReadMessages[message.messageId] ?? message)
+  const handleBodyChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>) => {
+    const raw = event.target.value
+    if (raw.length > BODY_MAX_LENGTH) {
+      setBody(raw.slice(0, BODY_MAX_LENGTH))
+      setBodyTruncated(true)
+    } else {
+      setBody(raw)
+      setBodyTruncated(false)
+    }
+  }, [])
+
+  const search = useCallback(async (q: string) => {
+    const results = await searchRecipients(q)
+    const selfId = sessionQuery.data?.userId
+    const withoutSelf = selfId ? results.filter((recipient) => recipient.userId !== selfId) : results
+    return disambiguateByName(withoutSelf)
+  }, [sessionQuery.data?.userId])
+
+  const inbox = useMemo(
+    () => (inboxQuery.data ?? []).map((message) => markedReadMessages[message.messageId] ?? message),
+    [inboxQuery.data, markedReadMessages],
+  )
+  const hasNextPage = (inboxQuery.data?.length ?? 0) >= 50
+  const recipientLimitReached = selectedRecipients.length >= RECIPIENT_MAX
 
   return (
     <main data-testid="messenger-page" style={{ display: 'grid', gap: 20, padding: 24 }}>
@@ -98,74 +189,99 @@ export function MessengerPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 20 }}>
         <section aria-labelledby="messenger-compose-title" style={{ display: 'grid', gap: 16 }}>
           <h4 id="messenger-compose-title" style={{ margin: 0 }}>메시지 발송</h4>
+          {!canSend ? (
+            <p role="alert" style={{ margin: 0, color: 'var(--color-danger-600, #c0392b)' }}>
+              메신저 발송 권한이 없어 발송할 수 없습니다.
+            </p>
+          ) : null}
           {/* 수신자 칩은 내부 autocomplete input이 비어 있어도 선택값이 유효하므로 native required 검증은 사용하지 않는다. */}
           <form noValidate onSubmit={submit} style={{ display: 'grid', gap: 16 }}>
-            <MultiSelectAutocomplete<RecipientOption, RecipientOption>
-              selected={selectedRecipients}
-              onAdd={(recipient) => setSelectedRecipients((current) => [...current, recipient])}
-              onRemove={(recipient) => setSelectedRecipients((current) => current.filter((item) => item.userId !== recipient.userId))}
-              search={searchRecipients}
-              getOptionKey={(recipient) => recipient.userId}
-              getSelectedKey={(recipient) => recipient.userId}
-              getInputLabel={(recipient) => recipient.name}
-              renderOption={(recipient) => (
-                <span>
-                  {recipient.name}
-                  {recipient.department ? (
-                    <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>
-                      {recipient.department}
+            <fieldset disabled={!canSend || sendMutation.isPending} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: 16 }}>
+              <MultiSelectAutocomplete<RecipientOption, RecipientOption>
+                selected={selectedRecipients}
+                onAdd={(recipient) => setSelectedRecipients((current) => [...current, recipient])}
+                onRemove={(recipient) => setSelectedRecipients((current) => current.filter((item) => item.userId !== recipient.userId))}
+                search={search}
+                getOptionKey={(recipient) => recipient.userId}
+                getSelectedKey={(recipient) => recipient.userId}
+                getInputLabel={(recipient) => recipient.name}
+                renderOption={(recipient) => (
+                  <span>
+                    {recipient.name}
+                    {recipient.department ? (
+                      <span style={{ color: 'var(--color-neutral-500)', marginLeft: 6 }}>
+                        {recipient.department}
+                      </span>
+                    ) : null}
+                  </span>
+                )}
+                listboxLabel="메신저 수신자 검색 결과"
+                label="수신자"
+                ariaLabel="메신저 수신자 이름 검색"
+                inputTestId="messenger-recipient-search"
+                placeholder="사원 이름 검색"
+                minChars={1}
+                required
+                max={RECIPIENT_MAX}
+                disabled={!canSend || sendMutation.isPending}
+                renderChip={(recipient, index, onRemove) => (
+                  <TagChip
+                    label={String(index + 1)}
+                    value={`${recipient.name}${recipient.department ? ` · ${recipient.department}` : ''}`}
+                    removeLabel={recipient.name}
+                    onRemove={onRemove}
+                    data-testid="messenger-recipient-chip"
+                  />
+                )}
+              />
+              {recipientLimitReached ? (
+                <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                  수신자는 최대 {RECIPIENT_MAX}명까지 선택할 수 있습니다. 추가하려면 먼저 칩을 제거하십시오.
+                </p>
+              ) : null}
+
+              <FormField
+                label="메시지 본문"
+                required
+                render={({ id, ariaDescribedBy }) => (
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <textarea
+                      id={id}
+                      data-testid="messenger-body"
+                      aria-describedby={ariaDescribedBy}
+                      value={body}
+                      onChange={handleBodyChange}
+                      maxLength={BODY_MAX_LENGTH}
+                      rows={8}
+                      style={{
+                        width: '100%',
+                        resize: 'vertical',
+                        padding: '10px 12px',
+                        border: '1px solid var(--color-neutral-300)',
+                        borderRadius: 6,
+                        font: 'inherit',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                    <span
+                      data-testid="messenger-body-counter"
+                      style={{ fontSize: 12, color: 'var(--color-neutral-500)', justifySelf: 'end' }}
+                    >
+                      {body.length} / {BODY_MAX_LENGTH}자
                     </span>
-                  ) : null}
-                </span>
-              )}
-              listboxLabel="메신저 수신자 검색 결과"
-              label="수신자"
-              ariaLabel="메신저 수신자 이름 검색"
-              inputTestId="messenger-recipient-search"
-              placeholder="사원 이름 검색"
-              minChars={1}
-              required
-              max={50}
-              disabled={sendMutation.isPending}
-              renderChip={(recipient, index, onRemove) => (
-                <TagChip
-                  label={String(index + 1)}
-                  value={`${recipient.name}${recipient.department ? ` · ${recipient.department}` : ''}`}
-                  removeLabel={recipient.name}
-                  onRemove={onRemove}
-                  data-testid="messenger-recipient-chip"
-                />
-              )}
-            />
+                    {bodyTruncated ? (
+                      <p role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--color-danger-600, #c0392b)' }}>
+                        본문은 {BODY_MAX_LENGTH}자를 초과할 수 없어 이후 내용이 제거되었습니다.
+                      </p>
+                    ) : null}
+                  </div>
+                )}
+              />
 
-            <FormField
-              label="메시지 본문"
-              required
-              render={({ id, ariaDescribedBy }) => (
-                <textarea
-                  id={id}
-                  data-testid="messenger-body"
-                  aria-describedby={ariaDescribedBy}
-                  value={body}
-                  onChange={(event) => setBody(event.target.value)}
-                  maxLength={2000}
-                  rows={8}
-                  style={{
-                    width: '100%',
-                    resize: 'vertical',
-                    padding: '10px 12px',
-                    border: '1px solid var(--color-neutral-300)',
-                    borderRadius: 6,
-                    font: 'inherit',
-                    boxSizing: 'border-box',
-                  }}
-                />
-              )}
-            />
-
-            <Button type="submit" disabled={!canSubmit} loading={sendMutation.isPending}>
-              발송
-            </Button>
+              <Button type="submit" disabled={!canSubmit} loading={sendMutation.isPending}>
+                발송
+              </Button>
+            </fieldset>
             {feedback ? <p role="status" style={{ margin: 0 }}>{feedback}</p> : null}
           </form>
         </section>
@@ -184,16 +300,40 @@ export function MessengerPage() {
             {inbox.map((message) => (
               <li key={message.messageId} style={{ border: '1px solid var(--color-neutral-200)', borderRadius: 8, padding: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>메시지</strong>
+                  <strong>{message.senderDisplayName ?? '알 수 없는 발신자'}</strong>
                   <span>{inboxStatus(message)}</span>
                 </div>
                 <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0 4px' }}>{message.body}</p>
                 <time dateTime={message.sentAt} style={{ color: 'var(--color-neutral-500)', fontSize: 12 }}>
                   {new Date(message.sentAt).toLocaleString('ko-KR')}
                 </time>
+                {markReadFailedIds[message.messageId] ? (
+                  <p role="alert" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--color-danger-600, #c0392b)' }}>
+                    읽음 처리에 실패했습니다.
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={page === 0}
+              onClick={() => setPage((current) => Math.max(0, current - 1))}
+            >
+              이전
+            </Button>
+            <span style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>{page + 1}페이지</span>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!hasNextPage}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              다음
+            </Button>
+          </div>
         </section>
       </div>
     </main>

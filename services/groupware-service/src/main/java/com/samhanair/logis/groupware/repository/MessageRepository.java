@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.repository;
 
 import com.samhanair.logis.groupware.domain.Message;
 import com.samhanair.logis.groupware.domain.MessageStatus;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,4 +18,7 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     /** 미열람 카운트 — 알림 배지 / Internal API 조회. */
     long countByRecipientIdAndStatus(UUID recipientId, MessageStatus status);
+
+    /** 원자성 검증용 — 같은 batchId를 공유하는 행 전체 조회 (테스트 전용 소비). */
+    List<Message> findAllByBatchId(UUID batchId);
 }

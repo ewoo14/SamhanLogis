@@ -143,7 +143,8 @@ public class InternalUserController {
                         emp.getId(),
                         emp.getFullName(),
                         emp.getDepartment() == null ? null : emp.getDepartment().getName(),
-                        emp.getRoleSnapshot().name()))
+                        emp.getRoleSnapshot().name(),
+                        emp.getEcountCode()))
                 .toList();
         return ApiResponse.ok(employees);
     }

@@ -236,20 +236,22 @@ public class GroupwareAdminController {
             @RequestParam("q") String q,
             @RequestParam(value = "limit", defaultValue = "20") int limit) {
         return ApiResponse.ok(userClient.search(q, limit, true).stream()
-                .map(item -> new RecipientSearchResponse(item.userId(), item.name(), item.department()))
+                .map(item -> new RecipientSearchResponse(item.userId(), item.name(), item.department(), item.employeeCode()))
                 .toList());
     }
 
-    /** 수신함 — 발송 시각 역순. */
+    /** 수신함 — 발송 시각 역순, 50건 단위 페이지. */
     @Operation(summary = "메신저 수신함")
     @GetMapping("/messages/inbox")
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
     public ApiResponse<List<MessageResponse>> inbox(
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID recipientId,
-            @RequestParam(required = false) UUID userId) {
+            @RequestParam(required = false) UUID userId,
+            @RequestParam(required = false, defaultValue = "0") int page) {
         // 객체수준 인가: userId 쿼리는 구버전 클라이언트 호환용으로만 받으며 조회 범위는 항상 호출자 본인이다.
-        var page = messageService.inbox(recipientId, org.springframework.data.domain.PageRequest.of(0, 50));
-        return ApiResponse.ok(page.map(MessageResponse::from).getContent());
+        int safePage = Math.max(page, 0);
+        return ApiResponse.ok(messageService.inboxResponses(
+                recipientId, org.springframework.data.domain.PageRequest.of(safePage, 50)));
     }
 
     /**

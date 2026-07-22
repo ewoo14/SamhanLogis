@@ -85,6 +85,85 @@ Desktop typecheck를 실행하기 전 file 링크인 `@samhan/design-system`의 
 환경이어서 design-system 의존성을 설치하고 `clients/web/design-system`만 build했다. design-system
 소스는 수정하지 않았다. 린트의 77 warnings는 기존 파일 경고이며 신규 파일 error는 0건이다.
 
+## R1 적대검증 라운드 fix (SONNET5, 2026-07-22)
+
+OPUS 4.8 1차 적대검증 라운드에서 나온 H-1~H-4·M-1~M-7·L-1~L-2 및 검증 결함 4건을 처리했다.
+
+### 고친 항목
+
+- **H-1(보안)** — `GroupwarePermissionControllerIT` 권한 매트릭스에 `bulk send message`(CREATE)·
+  `recipient search`(VIEW) 두 엔드포인트를 등재. 뮤테이션(annotation 전체 삭제·CREATE→VIEW 완화)
+  둘 다 RED로 확인 후 원복.
+- **H-2** — `MessengerPage`의 오류 표시를 `error.message`(axios 영문)에서 정본 헬퍼
+  `extractApiErrorMessage`(`api/apiError.ts`)로 교체. BE 한국어 오류가 화면에 그대로 도달한다.
+- **H-3** — 현재 사용자 세션(`getAuthProvider().getSession()`)을 조회해 수신자 검색 결과에서
+  본인을 사전에 제외. 발송을 눌러야 400을 아는 상태를 제거했다.
+- **H-4** — `usePermissions().canAccess('messenger.send','create')`로 발송 폼 전체를
+  `<fieldset disabled>`로 잠근다. VIEW-only 계정은 필드 자체를 조작할 수 없다.
+- **M-1/M-2** — 수신함 오픈 시 미열람 건을 각각 최대 3회까지 즉시 재시도로 markRead 처리하고,
+  성공한 messageId 집합으로만 알림을 확인 처리하도록 `acknowledgeMessengerNotifications(messageIds?)`를
+  변경(notification-service `NotificationCenterResponse.refId` 신설로 상관 가능). 진입당 GET/POST
+  폭증(N² 패턴) 제거 + 다음 페이지 미열람 쪽지 알림이 먼저 사라지는 결함 제거. 라벨/의미도
+  "읽기 전용"을 유지하되 열람 시 자동 읽음 처리는 그대로(되돌릴 수단 없음은 기획 확정 사항).
+- **M-3** — `MessageResponse.senderDisplayName` 신설(`resolveDisplayNames` 배치 1회 해석,
+  UUID 미노출) + inbox 행에 발신자 표시.
+- **M-4** — markRead 재시도 상한(3회) 초과 시 행별 "읽음 처리에 실패했습니다." 알림 + 무한 재시도 금지.
+- **M-5** — inbox 컨트롤러에 `page` 쿼리 파라미터 추가(50건 고정 페이지) + FE 이전/다음 페이저.
+- **M-6** — 본문 2000자 초과 시 클라이언트에서 명시적으로 잘라내고 카운터("N / 2000자") +
+  잘림 안내 문구를 렌더(무음 절단 제거).
+- **M-7** — 담당자코드(`employees.ecount_code`) 병기. BE: `RecipientSearchResponse.employeeCode`,
+  `UserClient.ApproverSummary.employeeCode`, user-service `InternalEmployeeSearchResponse.ecountCode`
+  신설. FE: 검색 결과 배치 내 동명이인(2건 이상)에만 `(코드)` 병기, 그 외엔 이름·부서만. mock에
+  실측 사례(채권추심 2건 · 00000/999-99-99999)를 시드해 Playwright로 실증.
+- **L-1** — `markRead` 404 오류 메시지에서 messageId UUID 노출 제거(bulk 발송 경로와 동일 정책).
+- **L-2** — 수신자 50명 상한 도달 시 "검색 결과 없음"과 구분되는 전용 안내("최대 50명까지…") 표시.
+- **검증 결함 4건** — ①위 H-1 매트릭스 등재 ②`MessageBulkSendIT.R2`에 `messageRepository.findAllByBatchId(batchId)`
+  실 DB 조회 단언 추가(응답 JSON만 보던 것에서 전환) ③`UserClientSearchActiveOnlyTest` 신설
+  (`MockRestServiceServer`로 `activeOnly=true/false` 쿼리파라미터 배선 계약 검증) + 컨트롤러 배선
+  자체도 `MessageBulkSendIT.R9`에 `verify(userClient).search(...,true)` 추가 ④mock.ts 메신저
+  섹션에 `mockRequirePermission` 배선, self/미존재 수신자 400/404 경로, UUID 형식 시드 id로 교체.
+
+### RED-first 뮤테이션 재확인 (실행 원문 — 4건 전부 RED 확인 후 원복)
+
+| 뮤테이션 | 대상 | 결과 |
+|---|---|---|
+| A. `@RequirePermission` 완전 삭제(bulk+recipient-search) | `GroupwarePermissionControllerIT`, `MessageBulkPermissionIT` | RED (3 tests failed) |
+| B. bulk action CREATE→VIEW 완화 | `GroupwarePermissionControllerIT` | RED (1 test failed) |
+| C. 수신자별 다른 batchId 부여 | `MessageBulkSendIT.R2`(DB 조회 단언) | RED (`findAllByBatchId` size 불일치) |
+| D/E. 컨트롤러 activeOnly true→false / `UserClient` 쿼리파라미터 배선 삭제 | `MessageBulkSendIT.R9`(verify) / `UserClientSearchActiveOnlyTest` | 둘 다 RED |
+
+각 뮤테이션은 적용 직후 대상 테스트 실행으로 RED를 확인한 뒤 즉시 원복했고, 원복 후
+groupware-service 177 / user-service 309(스킵 4, 무관) / notification-service 225 테스트
+전부 GREEN을 재확인했다(`--rerun-tasks --no-build-cache`).
+
+### QA 스크린샷 재촬영
+
+기존 `01-messenger-bulk-chips.png`는 발송 클릭 후(폼 초기화 상태)로 캡처돼 칩이 보이지 않았다.
+Playwright 스펙에서 스크린샷 위치를 발송 클릭 **전**으로 이동해 칩 2개·본문·수신함(발신자명·
+읽음 상태)·페이저·본문 카운터가 모두 보이는 상태로 재촬영했다.
+
+### 실행한 검증 (이번 라운드)
+
+```text
+cd clients/desktop && npm run typecheck   → 0 errors
+cd clients/desktop && npm run lint        → 0 errors, 79 warnings(기존 파일; 신규 파일 0)
+cd clients/desktop && npx vitest run      → 137 files / 1093 tests passed
+npx playwright test playwright/ac-825-s6-messenger-chip --reporter=line (mock :5179 전용 포트)
+  → 6 passed (R13/R17/R15/R16/R2/M-7 신규)
+./gradlew :services:groupware-service:test :services:user-service:test :services:notification-service:test \
+  --rerun-tasks --no-build-cache
+  → BUILD SUCCESSFUL, groupware 177 / user-service 309(skip 4) / notification-service 225 전부 green
+```
+
+### 미완/보류
+
+- markRead 재시도는 페이지 진입당(mount) 한도(3회)이며, 사용자가 페이지를 다시 열면 카운터가
+  리셋된다 — 영구 실패 메시지가 페이지 재진입마다 재시도될 수 있음(다음 재수렴 후보, 실 사용자
+  경로 도달성은 낮음: 동일 실패가 반복되려면 markRead가 지속적으로 실패해야 함).
+- 라이브 GUI QA(:8080 실서버, mock OFF)는 이번 라운드에서 재실행하지 않았다 — 이 fix 라운드는
+  mock/단위/IT 계층 결함 처리이며, 실서버 캡처는 다음 적대검증 라운드(CODEX SOL 5.6) 또는 PM
+  최종 종합 단계에서 필요.
+
 ## 보류 / 미완
 
 - 실제 gateway + 운영 user-service/groupware-service를 연결한 라이브 GUI QA는 이 워크트리에서 실행하지 않았다. mock Chromium, MockMvc/Testcontainers, 단위 테스트까지는 통과했다.

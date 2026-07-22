@@ -39,7 +39,11 @@ public class UserClient implements UserVerifier {
     private final String internalToken;
     private final ObjectMapper objectMapper;
 
-    public record ApproverSummary(UUID userId, String name, String department) {
+    public record ApproverSummary(UUID userId, String name, String department, String employeeCode) {
+        /** 담당자코드가 없는 하위호환 생성자 (결재자 picker 등 기존 소비처). */
+        public ApproverSummary(UUID userId, String name, String department) {
+            this(userId, name, department, null);
+        }
     }
 
     public UserClient(RestClient.Builder builder,
@@ -155,7 +159,8 @@ public class UserClient implements UserVerifier {
                 if (userId == null || fullName == null) {
                     continue;
                 }
-                result.add(new ApproverSummary(userId, fullName, readText(item.get("departmentName"))));
+                result.add(new ApproverSummary(userId, fullName, readText(item.get("departmentName")),
+                        readText(item.get("ecountCode"))));
             }
             return List.copyOf(result);
         } catch (RestClientResponseException ex) {

@@ -96,6 +96,20 @@ class InternalUserSearchControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void M7_search_결과에_담당자코드를_포함한다() throws Exception {
+        String marker = "코드결재자-" + shortToken();
+        UUID userId = employeeWithEcount("approver-ecount-" + shortToken(), marker, Role.MANAGER, "EMP-7007");
+
+        mockMvc.perform(get("/internal/users/search")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("q", marker)
+                        .param("limit", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].userId").value(userId.toString()))
+                .andExpect(jsonPath("$.data[0].ecountCode").value("EMP-7007"));
+    }
+
+    @Test
     void R10_activeOnly_true이면_퇴사자를_수신자_검색에서_제외한다() throws Exception {
         String marker = "terminated-recipient-" + shortToken();
         Employee terminated = employeeEntity("terminated-" + shortToken(), marker, Role.SALES);
