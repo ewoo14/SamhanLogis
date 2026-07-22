@@ -247,6 +247,51 @@ class DocumentTemplateIT extends AbstractPostgresIT {
     }
 
     @Test
+    void httpV2JsonbRoundTrip_preservesGeometryStyleBindingAndText() throws Exception {
+        ObjectNode document = (ObjectNode) payload().deepCopy();
+        var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
+        ObjectNode field = bodyElements.addObject();
+        field.put("key", "field-doc-no");
+        field.put("type", "FIELD");
+        field.put("binding", "header.docNo");
+        field.set("geometry", objectMapper.createObjectNode()
+                .put("x", 10).put("y", 20).put("w", 60).put("h", 8));
+        field.set("style", objectMapper.createObjectNode()
+                .put("fontSize", 14).put("bold", true).put("align", "center").put("border", true));
+        ObjectNode text = bodyElements.addObject();
+        text.put("key", "text-title");
+        text.put("type", "TEXT");
+        text.put("text", "초안 제목");
+        text.set("geometry", objectMapper.createObjectNode()
+                .put("x", 5).put("y", 5).put("w", 90).put("h", 10));
+
+        DocumentTemplateCreateRequest request = new DocumentTemplateCreateRequest(
+                "GROUPWARE_V2_ROUNDTRIP", "v2 왕복 양식", (short) 2, document);
+        String created = mvc.perform(post("/admin/groupware/document-templates")
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000850")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.schemaVersion").value(2))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
+
+        mvc.perform(post("/admin/groupware/document-templates/{id}/activate", id)
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000850"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/groupware/document-templates/active")
+                        .param("docType", "GROUPWARE_V2_ROUNDTRIP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.schemaVersion").value(2))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[1].geometry.x").value(10))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[1].style.bold").value(true))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[1].binding").value("header.docNo"))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[2].text").value("초안 제목"))
+                .andExpect(jsonPath("$.data.document.bands[1].elements[2].geometry.w").value(90));
+    }
+
+    @Test
     void onlyOneActiveAndActivationIsIdempotent() {
         UUID first = service.create(request("GROUPWARE_SINGLETON", "첫 양식")).id();
         UUID second = service.create(request("GROUPWARE_SINGLETON", "둘째 양식")).id();

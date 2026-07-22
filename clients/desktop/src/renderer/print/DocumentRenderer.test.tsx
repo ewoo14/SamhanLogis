@@ -155,6 +155,33 @@ describe('buildApprovalRenderModel', () => {
 })
 
 describe('compileApprovalDocument and DocumentRenderer', () => {
+  it('R9: v2 draft의 TEXT와 FIELD가 저장 전 미리보기에서 실 renderer로 표시된다', () => {
+    const model = buildApprovalRenderModel(input({
+      approval: approval({ approvalNo: 'DOC-2026-001', fieldValues: { docNo: 'DOC-2026-001' } }),
+    }))
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                { key: 'draft-text', type: 'TEXT', text: '저장 전 미리보기 문구' },
+                { key: 'draft-field', type: 'FIELD', binding: 'header.docNo' },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('저장 전 미리보기 문구')
+    expect(html).toContain('DOC-2026-001')
+  })
+
   it('기본 template을 PrintLayout props 동형 slot으로 compile한다', () => {
     const model = buildApprovalRenderModel(input())
     const compiled = compileApprovalDocument(GROUPWARE_DEFAULT, model)

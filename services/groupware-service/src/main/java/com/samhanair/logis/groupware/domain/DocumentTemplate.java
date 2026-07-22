@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.util.UUID;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,7 +36,11 @@ public class DocumentTemplate extends BaseEntity {
 
     private static final int DOC_TYPE_MAX_LENGTH = 70;
     private static final int NAME_MAX_LENGTH = 100;
-    public static final short SUPPORTED_SCHEMA_VERSION = 1;
+    public static final short CURRENT_SCHEMA_VERSION = 2;
+    public static final Set<Short> SUPPORTED_SCHEMA_VERSIONS = Set.of((short) 1, (short) 2);
+    /** 기존 호출부의 컴파일 호환용 별칭. 신규 저장 버전은 CURRENT_SCHEMA_VERSION을 사용한다. */
+    @Deprecated(forRemoval = false)
+    public static final short SUPPORTED_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
 
     @Id
     @GeneratedValue
@@ -70,7 +75,7 @@ public class DocumentTemplate extends BaseEntity {
     private DocumentTemplate(String docType, String name, short schemaVersion, DocumentPayload document) {
         this.docType = validateDocType(docType);
         this.name = validateName(name);
-        if (schemaVersion != SUPPORTED_SCHEMA_VERSION) {
+        if (!SUPPORTED_SCHEMA_VERSIONS.contains(schemaVersion)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "지원하지 않는 문서 양식 schemaVersion입니다: " + schemaVersion);
         }
@@ -90,12 +95,22 @@ public class DocumentTemplate extends BaseEntity {
         return new DocumentTemplate(docType, name, schemaVersion, document);
     }
 
-    /** DRAFT 문서 레이아웃을 교체하고 정보성 revision을 증가시킨다. */
+    /** 현재 schemaVersion을 유지한 채 DRAFT 문서 레이아웃을 교체한다. */
     public DocumentTemplate updateDocument(DocumentPayload document) {
+        return updateDocument(schemaVersion, document);
+    }
+
+    /** DRAFT 문서 레이아웃과 schemaVersion을 교체하고 정보성 revision을 증가시킨다. */
+    public DocumentTemplate updateDocument(short schemaVersion, DocumentPayload document) {
         ensureDraft("DRAFT 문서만 레이아웃을 수정할 수 있습니다.");
+        if (!SUPPORTED_SCHEMA_VERSIONS.contains(schemaVersion)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "지원하지 않는 문서 양식 schemaVersion입니다: " + schemaVersion);
+        }
         if (document == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "문서 양식 document는 필수입니다");
         }
+        this.schemaVersion = schemaVersion;
         this.document = document;
         this.revision++;
         return this;

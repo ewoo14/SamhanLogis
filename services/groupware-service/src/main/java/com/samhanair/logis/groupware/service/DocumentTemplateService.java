@@ -97,7 +97,7 @@ public class DocumentTemplateService {
         }
         ensureUniqueName(docType, request.name(), id);
         DocumentPayload document = validator.validate(request.schemaVersion(), request.document());
-        template.updateDocument(document).rename(request.name());
+        template.updateDocument(request.schemaVersion(), document).rename(request.name());
         try {
             DocumentTemplate saved = repository.saveAndFlush(template);
             revisionService.ensureCurrentRevision(saved);

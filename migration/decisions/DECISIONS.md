@@ -3057,6 +3057,15 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-DS3A-06 | 🚨**R3 정정(2026-07-21) — D-DS3A-03의 ACTIVE-0 철회 결정 이후 3-way로 재정의**(구 2-way "pin 있음/pin 없음" 문구가 D-DS3A-03과 상충해 DS-3b가 그대로 따르면 방금 고친 BLOCKING이 복귀하는 상태였음). **렌더 우선순위 = ① pin 있음(실 revision)→각인된 revision, ② `document_template_default_pinned=true`(승인 순간 ACTIVE-0)→내장 DEFAULT로 영구 고정(이후 새 ACTIVE가 생겨도 재조회하지 않음), ③ 셋 다 미기록(레거시/pin 없음)→현재 ACTIVE 조회, ④ pin은 있는데 revision 조회 자체가 실패/malformed→DEFAULT**(DS-2 R2 latch 유지). **④의 경우 `role="alert"` 고지 + 재시도 경로 필수 — 무고지 DEFAULT 강하 금지**(FABLE5 R1 H-2 — 최초 spec은 미pin에는 고지를 요구하면서 pin-조회-실패에는 요구하지 않은 비대칭이 있었고, 그 기획 공백이 구현 결함(retry:false와 맞물려 일시 5xx 한 번에도 무고지로 제3의 외형 인쇄)의 근본 원인이었다). **세 고지**(②=`default-pinned`, ③=`unpinned`, ④=`pin-failed`)는 `role`(② ③=`status` 정보성 / ④=`alert` 오류성)로 구분되는 서로 다른 배너이며 인쇄 출력에는 포함되지 않는다(`no-print`, DS-1 strangler 불변식 연장). ②③④는 상호 배타적이다. |
 | D-DS3A-07 | **`DocumentTemplateRevisionRepository`는 `JpaRepository`가 아닌 Spring Data 최소 `Repository` 마커만 상속**(FABLE5 R1 M-2) — `BaseEntity.markDeleted()` public 상속 + `JpaRepository`의 delete류 노출을 차단한다. 단, raw `EntityManager#persist`는 Spring 예외 변환을 우회하므로 사용하지 않고, 저장소에는 `saveAndFlush`만 선택 노출해 unique 경합을 typed `DataIntegrityViolationException`/`BusinessException(CONFLICT)`로 수렴시킨다(2026-07-21 R2 fix). |
 
+## #845 DS-3b 문서 양식 편집기 schema v2 (2026-07-22, Issue #868)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-DS3B-01 | **schemaVersion은 버전 dispatch로 해석한다.** `CURRENT_SCHEMA_VERSION=2`는 신규 편집 저장의 기본값일 뿐이며, 승인 당시 revision의 v1 envelope는 계속 v1 parser를 탄다. v1→v2 upcast는 렌더 직전 메모리에서만 envelope version을 올리고 레거시 element `{key,type}`와 DOM을 변형하지 않는다. |
+| D-DS3B-02 | **v2 payload는 FE parser·BE typed record·JSONB 세 층에서 동일하게 보존한다.** 신규 `FIELD`/`TEXT`는 band 상대 `%` geometry, 제한된 style, allowlist binding/text만 허용하고 자유 CSS·UUID binding은 허용하지 않는다. 실 PostgreSQL HTTP 왕복 IT를 저장 계약의 권위 검증으로 둔다. |
+| D-DS3B-03 | **편집 lifecycle은 ACTIVE 직접 수정을 금지한다.** ACTIVE 양식은 한국어 안내 후 비활성화해야 DRAFT 편집을 시작할 수 있고, 저장은 명시적인 v2 request 한 번으로만 revision을 증가시킨다. VIEW 권한만 있는 사용자는 목록/편집기를 읽기 전용으로 본다. |
+| D-DS3B-04 | **Flyway 신규 migration을 추가하지 않는다.** V10~V13의 JSONB `document`와 `schema_version` 컬럼은 v2 payload를 수용하며, schema 집합 검증은 애플리케이션 경계에서 수행한다. |
+
 ## #825 슬5 null-semantics (2026-07-21, PR #864 R2)
 
 | 결정 코드 | 내용 |

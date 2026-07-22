@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  DOCUMENT_TEMPLATE_SCHEMA_VERSION,
   parseDocumentTemplate,
   paperToPrintLayout,
   upcastDocumentTemplate,
@@ -106,9 +107,21 @@ describe('parseDocumentTemplate', () => {
 })
 
 describe('document template compatibility', () => {
+  it('R1: 현재 schema v2에서도 v1 pin envelope를 원문 파서로 보존한다', () => {
+    expect(DOCUMENT_TEMPLATE_SCHEMA_VERSION).toBe(2)
+
+    const result = parseDocumentTemplate(validTemplate)
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.schemaVersion).toBe(1)
+      expect(result.value.document).toEqual(validTemplate.document)
+    }
+  })
+
   it('schema version 1을 upcast하고 다른 version은 명시적으로 거부한다', () => {
-    expect(upcastDocumentTemplate(validTemplate, 1)).toEqual(validTemplate)
-    expect(() => upcastDocumentTemplate(validTemplate, 2)).toThrow('지원하지 않는 문서 양식 버전')
+    expect(upcastDocumentTemplate(validTemplate, 1).schemaVersion).toBe(2)
+    expect(() => upcastDocumentTemplate(validTemplate, 99)).toThrow('지원하지 않는 문서 양식 버전')
   })
 
   it('paper mapping은 A4 portrait만 지원한다', () => {

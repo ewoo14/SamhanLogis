@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,7 @@ public class DocumentPayloadValidator {
     public static final int MAX_BANDS = 32;
     public static final int MAX_ELEMENTS_PER_BAND = 64;
     public static final int MAX_KEY_LENGTH = 100;
+    private static final int MAX_TEXT_LENGTH = 4_096;
 
     private static final Map<String, String> ELEMENT_BANDS = Map.of(
             "TITLE", "HEADER",
@@ -39,12 +41,22 @@ public class DocumentPayloadValidator {
             "FIELD_TABLE", "BODY",
             "ATTACHMENT_TABLE", "BODY",
             "CLOSING", "FOOTER");
+    private static final Set<String> LEGACY_ELEMENT_TYPES = ELEMENT_BANDS.keySet();
+    private static final Set<String> V2_ELEMENT_TYPES = Set.of(
+            "TITLE", "META_ROWS", "APPROVAL_GRID", "CONTENT_PARAGRAPHS", "FIELD_TABLE",
+            "ATTACHMENT_TABLE", "CLOSING", "FIELD", "TEXT");
+    private static final Set<String> BINDING_VALUES = Set.of(
+            "header.title", "header.docNo", "header.issueDate", "closing.note");
+    private static final Pattern FIELD_BINDING = Pattern.compile(
+            "body\\.fieldRow\\[[A-Za-z0-9_.-]{1,100}\\]");
+    private static final Set<String> STYLE_KEYS = Set.of("fontSize", "bold", "align", "border");
 
     private final ObjectMapper objectMapper;
 
     /** schemaVersion과 JSONB document를 저장 가능한 typed payload로 검증한다. */
     public DocumentPayload validate(Short schemaVersion, JsonNode document) {
-        if (schemaVersion == null || schemaVersion != 1) {
+        if (schemaVersion == null || !com.samhanair.logis.groupware.domain.DocumentTemplate
+                .SUPPORTED_SCHEMA_VERSIONS.contains(schemaVersion)) {
             reject("지원하지 않는 문서 양식 schemaVersion입니다");
         }
         if (document == null || !document.isObject()) {
@@ -59,7 +71,7 @@ public class DocumentPayloadValidator {
             reject("문서 양식 JSON을 직렬화할 수 없습니다");
         }
         checkDepth(document, 0);
-        checkDocument(document);
+        checkDocument(document, schemaVersion);
         try {
             return objectMapper.treeToValue(document, DocumentPayload.class);
         } catch (Exception ex) {
@@ -73,7 +85,7 @@ public class DocumentPayloadValidator {
         return validate(schemaVersion, objectMapper.valueToTree(document));
     }
 
-    private void checkDocument(JsonNode document) {
+    private void checkDocument(JsonNode document, short schemaVersion) {
         JsonNode paper = document.get("paper");
         if (paper == null || !"A4_PORTRAIT".equals(paper.asText())) {
             reject("지원하지 않는 문서 양식 용지입니다");
@@ -101,14 +113,16 @@ public class DocumentPayloadValidator {
             }
             for (JsonNode element : elements) {
                 if (!element.isObject() || !validString(element.get("key")) || !validString(element.get("type"))
-                        || !ELEMENT_BANDS.containsKey(element.get("type").asText())) {
+                        || !V2_ELEMENT_TYPES.contains(element.get("type").asText())
+                        || (schemaVersion == 1 && !LEGACY_ELEMENT_TYPES.contains(element.get("type").asText()))) {
                     reject("문서 요소가 유효하지 않습니다");
                 }
                 addKey(keys, element.get("key").asText());
                 String type = element.get("type").asText();
-                if (!ELEMENT_BANDS.get(type).equals(band.get("kind").asText())) {
+                if (ELEMENT_BANDS.containsKey(type) && !ELEMENT_BANDS.get(type).equals(band.get("kind").asText())) {
                     reject(type + " 요소의 band 배치가 올바르지 않습니다");
                 }
+                if (schemaVersion == 2) checkV2Element(element, type);
                 counts.merge(type, 1, Integer::sum);
             }
         }
@@ -122,6 +136,69 @@ public class DocumentPayloadValidator {
                 reject(type + " 요소는 최대 하나만 허용됩니다");
             }
         }
+    }
+
+    private static void checkV2Element(JsonNode element, String type) {
+        if ("FIELD".equals(type)) {
+            JsonNode binding = element.get("binding");
+            if (binding == null || !binding.isTextual()
+                    || (!BINDING_VALUES.contains(binding.asText()) && !FIELD_BINDING.matcher(binding.asText()).matches())) {
+                reject("FIELD 요소 binding이 허용 목록에 없습니다");
+            }
+        }
+        if ("TEXT".equals(type)) {
+            if (!validText(element.get("text"))) {
+                reject("TEXT 요소 text는 비어 있지 않은 문자열이어야 합니다");
+            }
+        }
+        JsonNode geometry = element.get("geometry");
+        if (geometry != null) checkGeometry(geometry);
+        JsonNode style = element.get("style");
+        if (style != null) checkStyle(style);
+    }
+
+    private static void checkGeometry(JsonNode geometry) {
+        Set<String> geometryKeys = Set.of("x", "y", "w", "h");
+        if (!geometry.isObject() || !hasOnlyKeys(geometry, geometryKeys)
+                || !geometryKeys.stream().allMatch(key -> geometry.has(key) && geometry.get(key).isNumber())) {
+            reject("geometry는 x, y, w, h만 포함한 객체여야 합니다");
+        }
+        double x = geometry.path("x").asDouble(Double.NaN);
+        double y = geometry.path("y").asDouble(Double.NaN);
+        double w = geometry.path("w").asDouble(Double.NaN);
+        double h = geometry.path("h").asDouble(Double.NaN);
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(w) || !Double.isFinite(h)
+                || x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > 100 || y + h > 100) {
+            reject("geometry는 밴드 상대 백분율 범위여야 합니다");
+        }
+    }
+
+    private static void checkStyle(JsonNode style) {
+        if (!style.isObject() || !hasOnlyKeys(style, STYLE_KEYS)) reject("style에 허용되지 않은 속성이 있습니다");
+        if (style.has("fontSize") && (!style.get("fontSize").isNumber()
+                || !Double.isFinite(style.get("fontSize").asDouble())
+                || style.get("fontSize").asDouble() <= 0 || style.get("fontSize").asDouble() > 200)) {
+            reject("style fontSize가 유효하지 않습니다");
+        }
+        if (style.has("bold") && !style.get("bold").isBoolean()) reject("style bold가 유효하지 않습니다");
+        if (style.has("align") && (!style.get("align").isTextual()
+                || !Set.of("left", "center", "right").contains(style.get("align").asText()))) {
+            reject("style align이 유효하지 않습니다");
+        }
+        if (style.has("border") && !style.get("border").isBoolean()) reject("style border가 유효하지 않습니다");
+    }
+
+    private static boolean validText(JsonNode text) {
+        return text != null && text.isTextual() && !isFeTrimEmpty(text.asText())
+                && text.asText().length() <= MAX_TEXT_LENGTH;
+    }
+
+    private static boolean hasOnlyKeys(JsonNode node, Set<String> allowed) {
+        var names = node.fieldNames();
+        while (names.hasNext()) {
+            if (!allowed.contains(names.next())) return false;
+        }
+        return true;
     }
 
     private void checkDepth(JsonNode node, int depth) {

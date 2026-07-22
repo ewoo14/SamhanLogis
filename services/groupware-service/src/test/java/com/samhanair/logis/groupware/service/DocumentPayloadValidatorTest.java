@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
+import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
 import java.io.IOException;
 import java.io.InputStream;
@@ -138,8 +139,54 @@ class DocumentPayloadValidatorTest {
     @Test
     void unsupportedSchemaVersion_isRejectedBeforeDocumentParsing() throws Exception {
         JsonNode document = fixture("valid-default.json").get("document");
-        assertThatThrownBy(() -> validator.validate((short) 2, document))
+        assertThatThrownBy(() -> validator.validate((short) 3, document))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void R2_v2PayloadRoundTrip_keepsGeometryStyleBindingAndText() throws Exception {
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
+        var field = bodyElements.addObject();
+        field.put("key", "field-doc-no");
+        field.put("type", "FIELD");
+        field.put("binding", "header.docNo");
+        field.set("geometry", objectMapper.createObjectNode()
+                .put("x", 10).put("y", 20).put("w", 60).put("h", 8));
+        field.set("style", objectMapper.createObjectNode()
+                .put("fontSize", 14).put("bold", true).put("align", "center").put("border", true));
+        var text = bodyElements.addObject();
+        text.put("key", "text-title");
+        text.put("type", "TEXT");
+        text.put("text", "초안 제목");
+        text.set("geometry", objectMapper.createObjectNode()
+                .put("x", 5).put("y", 5).put("w", 90).put("h", 10));
+
+        DocumentPayload payload = validator.validate((short) 2, document);
+
+        assertThat(payload.bands().get(1).elements())
+                .anySatisfy(element -> {
+                    if ("field-doc-no".equals(element.key())) {
+                        assertThat(element.binding()).isEqualTo("header.docNo");
+                        assertThat(element.geometry().x()).isEqualTo(10);
+                        assertThat(element.style().bold()).isTrue();
+                    }
+                })
+                .anySatisfy(element -> {
+                    if ("text-title".equals(element.key())) {
+                        assertThat(element.text()).isEqualTo("초안 제목");
+                        assertThat(element.geometry().w()).isEqualTo(90);
+                    }
+                });
+    }
+
+    @Test
+    void R4_v1RemainsSupportedAlongsideCurrentV2Schema() throws Exception {
+        assertThat(DocumentTemplate.CURRENT_SCHEMA_VERSION).isEqualTo((short) 2);
+        assertThat(DocumentTemplate.SUPPORTED_SCHEMA_VERSIONS).contains((short) 1, (short) 2);
+
+        assertThat(validator.validate((short) 1, fixture("valid-default.json").get("document")))
+                .isNotNull();
     }
 
     @Test
