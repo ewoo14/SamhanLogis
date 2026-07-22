@@ -47,11 +47,27 @@ class MessageBulkServiceTest {
         exists.put(recipients.get(2), true);
         when(userClient.exists(sender)).thenReturn(true);
         when(userClient.verifyBulk(recipients)).thenReturn(exists);
-
         assertThatThrownBy(() -> messageService.sendBulk(
                 new MessageBulkSendRequest(recipients, "원자성"), sender))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("수신자를 찾을 수 없습니다");
+
+        verify(repository, never()).saveAll(anyList());
+        verify(notificationPublisher, never()).publish(any());
+    }
+
+    @Test
+    void R2_검색후_퇴사한_수신자는_발송시점에_거부하고_저장하지_않는다() {
+        UUID sender = UUID.randomUUID();
+        List<UUID> recipients = List.of(UUID.randomUUID());
+        when(userClient.exists(sender)).thenReturn(true);
+        when(userClient.verifyBulk(recipients)).thenReturn(Map.of(recipients.get(0), true));
+        when(userClient.verifyActiveBulk(recipients)).thenReturn(Map.of(recipients.get(0), false));
+
+        assertThatThrownBy(() -> messageService.sendBulk(
+                new MessageBulkSendRequest(recipients, "퇴사자 재검증"), sender))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("퇴사");
 
         verify(repository, never()).saveAll(anyList());
         verify(notificationPublisher, never()).publish(any());
@@ -65,6 +81,7 @@ class MessageBulkServiceTest {
         recipients.forEach(id -> exists.put(id, true));
         when(userClient.exists(sender)).thenReturn(true);
         when(userClient.verifyBulk(recipients)).thenReturn(exists);
+        when(userClient.verifyActiveBulk(recipients)).thenReturn(exists);
         when(userClient.resolveDisplayName(sender)).thenReturn(Optional.of("발신자"));
         when(repository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -86,6 +103,7 @@ class MessageBulkServiceTest {
         requested.forEach(id -> exists.put(id, true));
         when(userClient.exists(sender)).thenReturn(true);
         when(userClient.verifyBulk(anyList())).thenReturn(exists);
+        when(userClient.verifyActiveBulk(anyList())).thenReturn(exists);
         when(userClient.resolveDisplayName(sender)).thenReturn(Optional.of("발신자"));
         when(repository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 

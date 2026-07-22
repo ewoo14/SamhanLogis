@@ -46,6 +46,11 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     @EntityGraph(attributePaths = "department")
     List<Employee> findAllByIdIn(Collection<UUID> ids);
 
+    /** 메신저 발송 직전 재직 상태를 재검증한다. soft-delete와 퇴사자는 결과에서 제외한다. */
+    @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
+            + "WHERE e.id IN :ids AND e.terminationDate IS NULL")
+    List<Employee> findAllActiveByIdIn(@Param("ids") Collection<UUID> ids);
+
     @EntityGraph(attributePaths = "department")
     List<Employee> findAllByDepartment_Id(UUID departmentId);
 

@@ -125,6 +125,26 @@ class InternalUserSearchControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void verify_active_bulk는_현직만_true로_반환한다() throws Exception {
+        UUID active = employee("active-bulk-" + shortToken(), "현직벌크", Role.SALES);
+        Employee terminated = employeeEntity("terminated-bulk-" + shortToken(), "퇴사벌크", Role.SALES);
+        ReflectionTestUtils.setField(terminated, "terminationDate", LocalDate.of(2026, 3, 1));
+        UUID terminatedId = employeeRepository.saveAndFlush(terminated).getId();
+        UUID missing = UUID.randomUUID();
+
+        mockMvc.perform(post("/internal/users/verify-active-bulk")
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userIds":["%s","%s","%s"]}
+                                """.formatted(active, terminatedId, missing)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.exists['%s']".formatted(active)).value(true))
+                .andExpect(jsonPath("$.data.exists['%s']".formatted(terminatedId)).value(false))
+                .andExpect(jsonPath("$.data.exists['%s']".formatted(missing)).value(false));
+    }
+
+    @Test
     void displayNames_다건조회는_id별_fullName_map을_반환한다() throws Exception {
         UUID user1 = employee("display-" + shortToken() + "-a", "표시명A", Role.MANAGER);
         UUID user2 = employee("display-" + shortToken() + "-b", "표시명B", Role.SALES);

@@ -197,6 +197,25 @@ public class InternalUserController {
     }
 
     /**
+     * 메신저 발송 직전 재직 상태 일괄 검증. 검색 시점 이후 퇴사 처리된 직원은 false다.
+     * 존재 여부 검증과 별도 endpoint로 두어 호출자가 반드시 최신 재직 계약을 선택하게 한다.
+     */
+    @PostMapping("/verify-active-bulk")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<BulkVerifyResponse> verifyActiveBulk(@Valid @RequestBody BulkVerifyRequest req) {
+        List<UUID> ids = req.userIds() == null ? List.of() : req.userIds();
+        if (ids.isEmpty()) {
+            return ApiResponse.ok(new BulkVerifyResponse(Map.of()));
+        }
+        Set<UUID> distinct = new HashSet<>(ids);
+        Set<UUID> active = new HashSet<>();
+        employeeRepository.findAllActiveByIdIn(distinct).forEach(e -> active.add(e.getId()));
+        Map<UUID, Boolean> result = new HashMap<>();
+        distinct.forEach(id -> result.put(id, active.contains(id)));
+        return ApiResponse.ok(new BulkVerifyResponse(result));
+    }
+
+    /**
      * 사용자 표시명 다건 조회. groupware-service 결재 목록/상세가 요청자와 결재자 표시명을
      * 한 번의 RPC 로 해석할 때 사용한다.
      *

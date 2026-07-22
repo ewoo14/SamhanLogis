@@ -168,3 +168,376 @@ npx playwright test playwright/ac-825-s6-messenger-chip --reporter=line (mock :5
 
 - 실제 gateway + 운영 user-service/groupware-service를 연결한 라이브 GUI QA는 이 워크트리에서 실행하지 않았다. mock Chromium, MockMvc/Testcontainers, 단위 테스트까지는 통과했다.
 - PR commit/push/merge는 구현 범위 밖이며 개발책임자 승인 후 PM이 수행한다.
+
+## CODEX LUNA R2 — PR #892 적대검증 fix (2026-07-22)
+
+### 1-1 검색 후 퇴사 처리된 직원 발송 차단
+
+RED 원문:
+
+```text
+MessageBulkServiceTest.java:66: error: cannot find symbol
+when(userClient.verifyActiveBulk(recipients))
+symbol: method verifyActiveBulk(List<UUID>)
+1 error
+Execution failed for task ':services:groupware-service:compileTestJava'
+```
+
+수신자 검색의 `activeOnly=true`는 검색 시점 필터일 뿐이므로, 발송 직전에는 별도 user-service
+`POST /internal/users/verify-active-bulk`를 호출하도록 추가했다. user-service는
+`terminationDate IS NULL`인 행만 true로 반환하고, groupware는 false인 수신자를 저장/알림 전에
+한국어 사유(`퇴사했거나 재직 상태가 아니어서 발송할 수 없습니다`)로 거부한다. client 장애나
+응답 파싱 실패도 fail-closed로 처리해 자격 확인 없이 발송하지 않는다.
+
+GREEN 원문:
+
+```text
+BUILD SUCCESSFUL in 14s
+7 tests completed, 0 failed
+27 actionable tasks: 27 executed
+```
+
+추가 endpoint 계약·현직/퇴사/미존재 응답 IT도 포함했고, 최종 3-service 실행에서 재검증했다.
+
+### 1-2 저장 후 알림 유실 관측/복구 가능성 보강
+
+RED 원문:
+
+```text
+NotificationPublisherTest > publish: 일시 장애는 제한적으로 재시도하여 알림 유실 가능성을 줄인다 FAILED
+java.lang.AssertionError at NotificationPublisherTest.java:111
+3 tests completed, 1 failed
+```
+
+commit 이후 publisher의 단일 HTTP 시도를 최대 3회 bounded retry로 바꿨다. 마지막 실패는 기존처럼
+source transaction을 깨지 않도록 fail-soft로 남기되, 재시도 횟수와 channel/ref를 warn log에 남긴다.
+이번 라운드에서는 outbox/재처리 테이블을 전면 도입하지 않았다. outbox는 별도 슬라이스 규모이며,
+이번 범위의 최소선인 일시 장애 복구 시도와 최종 실패 관측(log)을 적용한 뒤 멈췄다. 따라서 3회 모두
+실패한 경우의 영구 복구는 여전히 운영 outbox 후속 과제다.
+
+GREEN 원문:
+
+```text
+BUILD SUCCESSFUL in 3s
+4 actionable tasks: 4 executed
+```
+
+### 3-1 acknowledge 실패 후 배지 복구
+
+RED 원문:
+
+```text
+MessengerPage > R3-1 acknowledge가 일시 실패해도 같은 화면에서 재시도하여 배지를 복구한다
+expected "acknowledgeMessengerNotifications" to be called 2 times, but got 1 times
+```
+
+markRead 성공 ID의 acknowledge를 최대 3회 즉시 재시도하고, 성공한 뒤에만 notifications query를
+invalidate하도록 유지했다.
+
+GREEN 원문:
+
+```text
+MessengerPage.test.tsx > R3-1 ... ✓
+1 passed, 18 skipped
+```
+
+### 3-2 같은 화면의 markRead 재시도
+
+RED 원문:
+
+```text
+MessengerPage > R3-2 markRead 3회 실패 후 refetch하면 같은 화면에서 해당 쪽지를 재시도한다
+expected "markMessageRead" to be called 4 times, but got 3 times
+```
+
+시도 중 ID는 별도 in-flight set으로 중복 호출만 막고, 성공한 ID만 영구 marked set에 넣는다.
+최종 실패 ID는 in-flight에서 제거하므로 같은 화면의 inbox refetch가 회복 후 다시 시도한다.
+
+GREEN 원문:
+
+```text
+MessengerPage.test.tsx > R3-2 ... ✓
+1 passed, 18 skipped
+```
+
+### 3-3 발송 오류 피드백 보존
+
+RED 원문:
+
+```text
+MessengerPage > R3-3 늦게 끝난 읽음 실패가 발송 오류 사유를 덮어쓰지 않는다
+expected "markMessageRead" to be called 3 times, but got 1 times
+```
+
+발송 피드백과 백그라운드 읽음 피드백을 별도 state로 분리하고, 화면의 우선순위를 발송 피드백에
+두었다. 읽음 실패는 행별 alert로도 계속 드러난다.
+
+GREEN 원문:
+
+```text
+MessengerPage.test.tsx > R3-3 ... ✓
+1 passed, 18 skipped
+```
+
+### R2 뮤테이션 RED
+
+```text
+active guard 조건을 false로 mutation:
+MessageBulkServiceTest > R2_검색후_퇴사한_수신자는_발송시점에_거부하고_저장하지_않는다 FAILED
+1 failed
+
+publisher MAX_ATTEMPTS=1 mutation:
+NotificationPublisherTest > 일시 장애는 제한적으로 재시도... FAILED
+NotificationPublisherTest > 장애 시 예외를 전파하지 않는다 FAILED
+2 failed
+
+FE acknowledge 상한 1 mutation:
+R3-1 expected acknowledge... to be called 2 times, but got 1 times
+
+FE markRead 실패 ID를 marked set에 추가하는 mutation:
+R3-2 expected markMessageRead to be called 4 times, but got 3 times
+
+FE feedback 우선순위 역전 mutation:
+R3-3 Unable to find an element with the text: 발송할 수 없는 사유
+```
+
+모든 mutation은 확인 직후 원복했다.
+
+### R2 최종 검증
+
+```text
+clients/desktop npm run typecheck
+Exit code: 0
+
+npx vitest run src/renderer/routes/MessengerPage.test.tsx src/renderer/api/messengerApi.test.ts
+Test Files 2 passed (2)
+Tests 24 passed (24)
+
+gradlew.bat :services:groupware-service:test :services:user-service:test :services:notification-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 1m 13s
+37 actionable tasks: 37 executed
+
+PLAYWRIGHT_SKIP_WEB_SERVER=1 AUDIT_BASE_URL=http://127.0.0.1:5179
+npx playwright test playwright/ac-825-s6-messenger-chip --reporter=line
+6 passed (7.2s)
+```
+
+처음 5173 기본 Playwright 실행은 기존 다른 개발 서버 재사용으로 `/messenger`가 404가 되어 6건
+실패했다. 해당 snapshot의 404를 확인한 뒤 이 워크트리 전용 5179 mock Vite에서 같은 스펙만
+재실행해 6/6 통과했다. 전체 Playwright suite는 실행하지 않았다.
+
+### 변경 파일
+
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisherSupport.java`
+- `shared/notification-publisher/src/test/java/com/samhanair/logis/notification/publisher/NotificationPublisherSupportTest.java`
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisherAutoConfiguration.java`
+- `services/groupware-service/src/main/java/com/samhanair/logis/groupware/client/UserClient.java`
+- `services/groupware-service/src/main/java/com/samhanair/logis/groupware/service/MessageService.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/client/UserClientSearchActiveOnlyTest.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/it/MessageBulkSendIT.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/service/MessageBulkServiceTest.java`
+- `services/user-service/src/main/java/com/samhanair/logis/user/repository/EmployeeRepository.java`
+- `services/user-service/src/main/java/com/samhanair/logis/user/web/InternalUserController.java`
+- `services/user-service/src/test/java/com/samhanair/logis/user/it/InternalUserSearchControllerIT.java`
+- `shared/notification-publisher/src/main/java/com/samhanair/logis/notification/publisher/NotificationPublisher.java`
+- `shared/notification-publisher/src/test/java/com/samhanair/logis/notification/publisher/NotificationPublisherTest.java`
+- `services/groupware-service/src/test/java/com/samhanair/logis/groupware/service/MessageServiceTest.java`
+- `clients/desktop/src/renderer/routes/MessengerPage.tsx`
+- `clients/desktop/src/renderer/routes/MessengerPage.test.tsx`
+
+### 미해결/RED 불가 및 새로 발견한 결함
+
+- 이번 R2 도달가능 5건은 모두 RED→GREEN 처리했다.
+- 1-2는 outbox를 도입하지 않았으므로 3회 retry 모두 실패한 알림의 영구 복구는 미해결이다.
+- 5173 Playwright 실패는 코드 RED가 아니라 다른 서버 재사용에 따른 환경성 404였고, 전용 5179에서
+  동일 스펙을 통과시켰다.
+- fix 과정에서 `UserClient.parseBooleanMap`의 Jackson checked exception 누락을 새로 발견해
+  fail-closed 빈 map 처리로 보완했다.
+- 요청 범위 밖 5-1, 1-3, 3-4, 3-5, 4-1은 건드리지 않았다.
+
+### PM 후속 검증 — 알림 재시도가 발송 응답을 지연시키는 문제
+
+#### 1. `loadBalancedRestClientBuilder` timeout 확인
+
+확인 결과 이 경로에는 명시적인 timeout이 없었다.
+
+```text
+services/notification-service/.../WebClientConfig.java:30
+public RestClient.Builder loadBalancedRestClientBuilder() {
+    return RestClient.builder();
+}
+
+services/groupware-service/.../WebClientConfig.java:26
+public RestClient.Builder loadBalancedRestClientBuilder() {
+    return RestClient.builder();
+}
+
+shared/notification-publisher/.../NotificationPublisherAutoConfiguration.java:23-26
+@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder loadBalancedBuilder,
+...
+return new NotificationPublisher(loadBalancedBuilder, internalToken, applicationName);
+```
+
+`NotificationPublisher`에도 `requestFactory`, `setConnectTimeout`, `setReadTimeout` 또는 timeout
+property 주입이 없다. 따라서 이 publisher 호출에 이미 충분히 짧은 상한이 있다고 근거를 제시할 수
+없다.
+
+#### 2. 즉시 재시도의 효과 판단 및 fix
+
+현재 재시도 테스트는 첫 요청이 빠른 HTTP 500이고 두 번째가 성공하는 경우를 검증한다. 이 경우에는
+즉시 재시도가 실제로 빠른 서버 오류를 복구한다. 반대로 응답 지연/읽기 timeout은 `RestClientException`
+이 발생하기 전까지 재시도할 수 없으므로, backoff 없는 재시도가 그 장애를 복구한다는 근거는 없다.
+이번 범위에서는 3회 retry와 마지막 warn log를 유지했다. 빠른 5xx 복구와 fail-soft/관측 계약을
+보존하면서, 느린 호출을 사용자 요청에서 분리하는 것이 이 결함에 직접 맞는 최소 변경이기 때문이다.
+
+RED 원문:
+
+```text
+NotificationPublisherSupportTest > publishAfterCommit_doesNotBlockAfterCommitCallbackOnPublisherHttpCall() FAILED
+org.opentest4j.AssertionFailedError at NotificationPublisherSupportTest.java:75
+3 tests completed, 1 failed
+BUILD FAILED
+```
+
+고침:
+
+`NotificationPublisherSupport.publishAfterCommit`의 `afterCommit` callback은 이제
+`CompletableFuture.runAsync`로 publisher HTTP fan-out을 넘기고 즉시 반환한다. 따라서 groupware의
+수신자별 순차 발행 및 publisher의 제한적 재시도 계약은 유지하면서, commit 후 callback이 사용자
+발송 응답을 notification-service의 네트워크 상태만큼 붙잡지 않는다. transaction synchronization이
+없는 기존 경로는 기존처럼 즉시 호출한다. outbox, 재시도 큐, 공유 executor 도입은 하지 않았다.
+
+GREEN 원문:
+
+```text
+shared:notification-publisher NotificationPublisherSupportTest
+3 tests completed, 0 failed
+BUILD SUCCESSFUL in 4s
+4 actionable tasks: 4 executed
+```
+
+뮤테이션 RED 원문:
+
+```text
+CompletableFuture.runAsync(...)를 publisher.publish(request) 동기 호출로 mutation:
+NotificationPublisherSupportTest > publishAfterCommit_doesNotBlockAfterCommitCallbackOnPublisherHttpCall() FAILED
+org.opentest4j.AssertionFailedError at NotificationPublisherSupportTest.java:74
+3 tests completed, 1 failed
+BUILD FAILED
+```
+
+뮤테이션은 확인 직후 원복했다. 비동기 변경으로 기존 `MessageServiceTest`의 동기 `verify`가
+실패했으므로 eventual verify로 바꿨고, 이 변경 후 groupware 전체 테스트도 다시 실행했다.
+
+최종 후속 검증:
+
+```text
+clients/desktop npm run typecheck
+Exit code: 0
+
+npx vitest run src/renderer/routes/MessengerPage.test.tsx src/renderer/api/messengerApi.test.ts
+Test Files 2 passed (2)
+Tests 24 passed (24)
+
+gradlew.bat :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 4s
+4 actionable tasks: 4 executed
+
+gradlew.bat :services:groupware-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 58s
+27 actionable tasks: 27 executed
+```
+
+초기 groupware 재실행에서 기존 동기 `verify` 단언 1건이 실패했으나, 이는 비동기 계약에 맞지 않는
+테스트 기대치였고 eventual verify로 수정 후 동일한 전체 groupware task가 `BUILD SUCCESSFUL`로
+통과했다(초기 실패 출력에는 179 tests completed, 1 failed가 기록됨).
+
+초기 후속 fix 시점에는 사용자 요청 응답의 경계만 확보하고 비동기 background publisher 자체의
+HTTP timeout은 남겨 두었으나, PM 최종 후속에서 아래 종료 보장을 추가했다. outbox나 공유 executor로
+확장하지 않았고, 현재 실패는 기존 publisher의 warn log로 관측된다.
+
+### PM 최종 후속 — 비동기 publisher 작업의 종료 보장
+
+비동기 전환으로 공용 `ForkJoinPool`을 사용하더라도 각 blocking HTTP 시도가 무한히 남지 않도록
+`SimpleClientHttpRequestFactory`에 connect timeout 1,000ms / read timeout 2,000ms를 명시했다.
+재시도 3회 상한과 결합되어 한 알림 발행 작업은 유한한 HTTP 시도만 수행한다. 운영 환경별 조정이
+필요하면 다음 property로 값을 바꿀 수 있으며, 0 이하 값은 startup 시 거부한다.
+
+```text
+samhan.notification-publisher.connect-timeout-ms: 1000
+samhan.notification-publisher.read-timeout-ms: 2000
+```
+
+RED 원문:
+
+```text
+NotificationPublisherTest > 생성 시 notification HTTP connect/read timeout을 유한하게 설정한다 FAILED
+org.mockito.exceptions.verification.WantedButNotInvoked at NotificationPublisherTest.java:35
+4 tests completed, 1 failed
+BUILD FAILED
+```
+
+고침:
+
+`NotificationPublisher` 생성 시 timeout이 설정된 request factory를 사용하도록 하고,
+`NotificationPublisherAutoConfiguration`에서 위 property를 주입했다. 테스트에는 실제 로컬
+HTTP server가 응답하지 않는 상황에서 publisher 호출이 2초 안에 반환되는 경계 테스트를 추가했다.
+기존 `MockRestServiceServer` 테스트는 mock request factory를 보존하는 test builder로 격리했다.
+
+GREEN 원문:
+
+```text
+응답 없는 notification-service도 timeout과 재시도 상한 안에 종료한다: PASSED
+생성 시 notification HTTP connect/read timeout을 유한하게 설정한다: PASSED
+
+gradlew.bat :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 5s
+4 actionable tasks: 4 executed
+```
+
+뮤테이션 RED 원문:
+
+```text
+readTimeout을 0으로 mutation:
+NotificationPublisherTest > 응답 없는 notification-service도 timeout과 재시도 상한 안에 종료한다 FAILED
+Caused by: org.junit.jupiter.api.AssertTimeoutPreemptively$ExecutionTimeoutException at NotificationPublisherTest.java:60
+
+NotificationPublisherTest > 생성 시 notification HTTP connect/read timeout을 유한하게 설정한다 FAILED
+5 tests completed, 2 failed
+BUILD FAILED
+```
+
+뮤테이션은 확인 직후 원복했다. 전용 bounded executor, outbox, 재처리 정책, circuit breaker는 추가하지
+않았다. 이번 결함의 최소 불변식인 “비동기 알림 발행 시도가 유한 시간 안에 끝난다”는 HTTP timeout과
+기존 3회 retry 상한으로 닫았다.
+
+최종 요청 검증 출력:
+
+```text
+clients/desktop npm run typecheck
+Exit code: 0
+
+gradlew.bat :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 5s
+4 actionable tasks: 4 executed
+
+gradlew.bat :services:groupware-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 1m
+27 actionable tasks: 27 executed
+```
+
+공유 load-balanced builder 변이 방지를 위해 publisher가 `clone()`을 사용하도록 마지막 보완한 뒤
+동일 검증을 다시 실행한 최종 출력:
+
+```text
+gradlew.bat :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 4s
+4 actionable tasks: 4 executed
+
+gradlew.bat :services:groupware-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 58s
+27 actionable tasks: 27 executed
+
+clients/desktop npm run typecheck
+Exit code: 0
+```

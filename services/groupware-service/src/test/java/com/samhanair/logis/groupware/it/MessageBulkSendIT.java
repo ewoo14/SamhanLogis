@@ -69,6 +69,12 @@ class MessageBulkSendIT extends AbstractPostgresIT {
             ids.forEach(id -> result.put(id, true));
             return result;
         });
+        lenient().when(userClient.verifyActiveBulk(anyList())).thenAnswer(invocation -> {
+            List<UUID> ids = invocation.getArgument(0);
+            Map<UUID, Boolean> result = new HashMap<>();
+            ids.forEach(id -> result.put(id, true));
+            return result;
+        });
         lenient().when(dynamicPermissionClient.check(any(), any(), any())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canView(any(), any())).thenReturn(true);
         lenient().when(dynamicPermissionClient.canEdit(any(), any())).thenReturn(true);

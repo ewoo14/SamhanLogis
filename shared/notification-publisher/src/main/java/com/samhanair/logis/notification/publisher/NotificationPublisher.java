@@ -2,6 +2,7 @@ package com.samhanair.logis.notification.publisher;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -21,6 +22,9 @@ public class NotificationPublisher {
     private static final Logger log = LoggerFactory.getLogger(NotificationPublisher.class);
     private static final String NOTIFICATION_SERVICE_BASE = "http://notification-service";
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
+    private static final int MAX_ATTEMPTS = 3;
+    static final int DEFAULT_CONNECT_TIMEOUT_MS = 1_000;
+    static final int DEFAULT_READ_TIMEOUT_MS = 2_000;
 
     private final RestClient restClient;
     private final String internalToken;
@@ -29,7 +33,35 @@ public class NotificationPublisher {
     public NotificationPublisher(RestClient.Builder loadBalancedBuilder,
                                  String internalToken,
                                  String callerServiceName) {
-        this.restClient = loadBalancedBuilder.baseUrl(NOTIFICATION_SERVICE_BASE).build();
+        this(loadBalancedBuilder, internalToken, callerServiceName,
+                DEFAULT_CONNECT_TIMEOUT_MS, DEFAULT_READ_TIMEOUT_MS);
+    }
+
+    public NotificationPublisher(RestClient.Builder loadBalancedBuilder,
+                                 String internalToken,
+                                 String callerServiceName,
+                                 int connectTimeoutMs,
+                                 int readTimeoutMs) {
+        this(loadBalancedBuilder, internalToken, callerServiceName,
+                connectTimeoutMs, readTimeoutMs, NOTIFICATION_SERVICE_BASE);
+    }
+
+    NotificationPublisher(RestClient.Builder loadBalancedBuilder,
+                          String internalToken,
+                          String callerServiceName,
+                          int connectTimeoutMs,
+                          int readTimeoutMs,
+                          String notificationServiceBase) {
+        if (connectTimeoutMs <= 0 || readTimeoutMs <= 0) {
+            throw new IllegalArgumentException("notification publisher timeout must be positive");
+        }
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeoutMs);
+        requestFactory.setReadTimeout(readTimeoutMs);
+        this.restClient = loadBalancedBuilder.clone()
+                .baseUrl(notificationServiceBase)
+                .requestFactory(requestFactory)
+                .build();
         this.internalToken = internalToken;
         this.callerServiceName = (callerServiceName == null || callerServiceName.isBlank())
                 ? "unknown" : callerServiceName;
@@ -41,32 +73,40 @@ public class NotificationPublisher {
      * @param req 발송 요청 (sourceService 는 본 publisher 가 자동 set)
      */
     public void publish(NotificationPublishRequest req) {
-        try {
-            NotificationPublishRequest enriched = new NotificationPublishRequest(
-                    req.channel(),
-                    req.severity(),
-                    req.title(),
-                    req.body(),
-                    req.targetRole(),
-                    req.targetUserId(),
-                    callerServiceName,
-                    req.sourceRefId(),
-                    req.deeplink());
-
-            restClient.post()
-                    .uri("/internal/notifications")
-                    .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
-                    .header("X-User-Id", "system-internal:" + callerServiceName)
-                    .header("X-User-Role", "MASTER")
-                    .body(enriched)
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (RestClientException ex) {
-            log.warn("[NotificationPublisher] notification-service 발송 실패 (fail-soft) — channel={} ref={} error={}",
-                    req.channel(), req.sourceRefId(), ex.getMessage());
-        } catch (Exception ex) {
-            log.error("[NotificationPublisher] 알림 발송 예외 (fail-soft) — channel={} ref={} error={}",
-                    req.channel(), req.sourceRefId(), ex.getMessage(), ex);
+        NotificationPublishRequest enriched = new NotificationPublishRequest(
+                req.channel(),
+                req.severity(),
+                req.title(),
+                req.body(),
+                req.targetRole(),
+                req.targetUserId(),
+                callerServiceName,
+                req.sourceRefId(),
+                req.deeplink());
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                restClient.post()
+                        .uri("/internal/notifications")
+                        .header(INTERNAL_TOKEN_HEADER, internalToken == null ? "" : internalToken)
+                        .header("X-User-Id", "system-internal:" + callerServiceName)
+                        .header("X-User-Role", "MASTER")
+                        .body(enriched)
+                        .retrieve()
+                        .toBodilessEntity();
+                return;
+            } catch (RestClientException ex) {
+                if (attempt == MAX_ATTEMPTS) {
+                    log.warn("[NotificationPublisher] notification-service 발송 실패 (재시도 소진, fail-soft) — channel={} ref={} attempts={} error={}",
+                            req.channel(), req.sourceRefId(), attempt, ex.getMessage());
+                } else {
+                    log.warn("[NotificationPublisher] notification-service 발송 일시 실패 — 재시도 {}/{} channel={} ref={} error={}",
+                            attempt, MAX_ATTEMPTS, req.channel(), req.sourceRefId(), ex.getMessage());
+                }
+            } catch (Exception ex) {
+                log.error("[NotificationPublisher] 알림 발송 예외 (fail-soft) — channel={} ref={} error={}",
+                        req.channel(), req.sourceRefId(), ex.getMessage(), ex);
+                return;
+            }
         }
     }
 }

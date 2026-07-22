@@ -1,5 +1,6 @@
 package com.samhanair.logis.notification.publisher;
 
+import java.util.concurrent.CompletableFuture;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -10,7 +11,9 @@ public final class NotificationPublisherSupport {
 
     /**
      * Registers publish for the current transaction's afterCommit callback.
-     * Publishes immediately when no transaction synchronization is active.
+     * The HTTP fan-out is dispatched asynchronously after commit so a slow notification
+     * service cannot extend the user request. Publishes immediately when no transaction
+     * synchronization is active.
      */
     public static void publishAfterCommit(NotificationPublisher publisher,
                                           NotificationPublishRequest request) {
@@ -18,7 +21,7 @@ public final class NotificationPublisherSupport {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    publisher.publish(request);
+                    CompletableFuture.runAsync(() -> publisher.publish(request));
                 }
             });
             return;

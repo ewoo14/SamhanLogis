@@ -6,6 +6,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -71,6 +72,26 @@ class UserClientSearchActiveOnlyTest {
         List<UserClient.ApproverSummary> result = client.search("결재", 20);
 
         assertThat(result).hasSize(1);
+        server.verify();
+    }
+
+    @Test
+    void verifyActiveBulk는_발송직전_재직검증_endpoint와_payload를_사용한다() {
+        UUID active = UUID.randomUUID();
+        UUID terminated = UUID.randomUUID();
+        server.expect(once(), requestTo("http://user-service/internal/users/verify-active-bulk"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", "test-token"))
+                .andExpect(content().json("""
+                        {"userIds":["%s","%s"]}
+                        """.formatted(active, terminated)))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"exists":{"%s":true,"%s":false}}}
+                        """.formatted(active, terminated), MediaType.APPLICATION_JSON));
+
+        assertThat(client.verifyActiveBulk(List.of(active, terminated)))
+                .containsEntry(active, true)
+                .containsEntry(terminated, false);
         server.verify();
     }
 

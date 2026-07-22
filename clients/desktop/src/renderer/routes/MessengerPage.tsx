@@ -19,9 +19,21 @@ const BODY_MAX_LENGTH = 2000
 const RECIPIENT_MAX = 50
 /** 같은 쪽지의 읽음 처리 실패를 이 횟수만큼 재시도한 뒤에는 포기하고 화면에 실패를 드러낸다. */
 const MARK_READ_MAX_ATTEMPTS = 3
+const ACKNOWLEDGE_MAX_ATTEMPTS = 3
 
 function inboxStatus(message: MessageResponse): string {
   return message.status === 'UNREAD' ? '읽지 않음' : '읽음'
+}
+
+async function acknowledgeWithRetry(messageIds: string[]): Promise<void> {
+  for (let attempt = 1; attempt <= ACKNOWLEDGE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      await acknowledgeMessengerNotifications(messageIds)
+      return
+    } catch (error) {
+      if (attempt === ACKNOWLEDGE_MAX_ATTEMPTS) throw error
+    }
+  }
 }
 
 /**
@@ -50,11 +62,13 @@ export function MessengerPage() {
   const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([])
   const [body, setBody] = useState('')
   const [bodyTruncated, setBodyTruncated] = useState(false)
-  const [feedback, setFeedback] = useState<string | null>(null)
+  const [sendFeedback, setSendFeedback] = useState<string | null>(null)
+  const [markReadFeedback, setMarkReadFeedback] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [markedReadMessages, setMarkedReadMessages] = useState<Record<string, MessageResponse>>({})
   const [markReadFailedIds, setMarkReadFailedIds] = useState<Record<string, true>>({})
   const markedReadIdsRef = useRef(new Set<string>())
+  const inFlightMarkReadIdsRef = useRef(new Set<string>())
 
   const sessionQuery = useQuery({
     queryKey: ['auth', 'session'],
@@ -74,11 +88,13 @@ export function MessengerPage() {
    */
   useEffect(() => {
     const unreadMessages = (inboxQuery.data ?? []).filter(
-      (message) => message.status === 'UNREAD' && !markedReadIdsRef.current.has(message.messageId),
+      (message) => message.status === 'UNREAD'
+        && !markedReadIdsRef.current.has(message.messageId)
+        && !inFlightMarkReadIdsRef.current.has(message.messageId),
     )
     if (unreadMessages.length === 0) return
 
-    unreadMessages.forEach((message) => markedReadIdsRef.current.add(message.messageId))
+    unreadMessages.forEach((message) => inFlightMarkReadIdsRef.current.add(message.messageId))
 
     void (async () => {
       const succeededIds: string[] = []
@@ -89,11 +105,14 @@ export function MessengerPage() {
         for (let attempt = 1; attempt <= MARK_READ_MAX_ATTEMPTS; attempt += 1) {
           try {
             const updated = await markMessageRead(message.messageId)
+            markedReadIdsRef.current.add(message.messageId)
+            inFlightMarkReadIdsRef.current.delete(message.messageId)
             succeededIds.push(message.messageId)
             updates[message.messageId] = updated
             return
           } catch {
             if (attempt === MARK_READ_MAX_ATTEMPTS) {
+              inFlightMarkReadIdsRef.current.delete(message.messageId)
               failedIds.push(message.messageId)
             }
           }
@@ -112,13 +131,13 @@ export function MessengerPage() {
           failedIds.forEach((id) => { next[id] = true })
           return next
         })
-        setFeedback('일부 쪽지의 읽음 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+        setMarkReadFeedback('일부 쪽지의 읽음 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.')
       }
       if (succeededIds.length > 0) {
         // 쪽지 읽음은 이미 성공했으므로, 방금 실제로 읽음 처리한 messageId에 대응하는 알림만 확인 처리한다.
         // 전체 미열람 MESSENGER 알림을 일괄 확인하면 다음 페이지의 아직 안 읽은 쪽지 알림까지
         // 배지에서 먼저 사라지는 결함이 생긴다.
-        void acknowledgeMessengerNotifications(succeededIds)
+        void acknowledgeWithRetry(succeededIds)
           .catch(() => undefined)
           .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
       }
@@ -131,10 +150,10 @@ export function MessengerPage() {
       setSelectedRecipients([])
       setBody('')
       setBodyTruncated(false)
-      setFeedback(`${result.sentCount}명에게 발송했습니다.`)
+      setSendFeedback(`${result.sentCount}명에게 발송했습니다.`)
       await queryClient.invalidateQueries({ queryKey: ['messenger', 'inbox'] })
     },
-    onError: (error) => setFeedback(extractApiErrorMessage(error)),
+    onError: (error) => setSendFeedback(extractApiErrorMessage(error)),
   })
 
   const canSubmit = canSend
@@ -145,7 +164,7 @@ export function MessengerPage() {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSubmit) return
-    setFeedback(null)
+    setSendFeedback(null)
     sendMutation.mutate({
       recipientIds: selectedRecipients.map((recipient) => recipient.userId),
       body: body.trim(),
@@ -282,7 +301,9 @@ export function MessengerPage() {
                 발송
               </Button>
             </fieldset>
-            {feedback ? <p role="status" style={{ margin: 0 }}>{feedback}</p> : null}
+            {sendFeedback ?? markReadFeedback ? (
+              <p role="status" style={{ margin: 0 }}>{sendFeedback ?? markReadFeedback}</p>
+            ) : null}
           </form>
         </section>
 

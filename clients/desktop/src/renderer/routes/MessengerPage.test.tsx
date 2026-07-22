@@ -66,11 +66,12 @@ beforeEach(() => {
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  return render(
+  const rendered = render(
     <QueryClientProvider client={queryClient}>
       <MessengerPage />
     </QueryClientProvider>,
   )
+  return { ...rendered, queryClient }
 }
 
 describe('MessengerPage', () => {
@@ -286,6 +287,100 @@ describe('MessengerPage', () => {
     // 추가 시간이 지나도 더 이상 재시도(무한 재시도)하지 않는다.
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(3)
+  })
+
+  it('R3-1 acknowledge가 일시 실패해도 같은 화면에서 재시도하여 배지를 복구한다', async () => {
+    const unread = {
+      messageId: 'msg-ack-retry',
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: 'ack 재시도',
+      status: 'UNREAD' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: null,
+    }
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([unread])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+    vi.mocked(messengerApi.markMessageRead).mockResolvedValue({
+      ...unread,
+      status: 'READ',
+      readAt: '2026-07-22T00:01:00Z',
+    })
+    vi.mocked(notificationApi.acknowledgeMessengerNotifications)
+      .mockRejectedValueOnce(new Error('temporary'))
+      .mockResolvedValueOnce(undefined)
+
+    renderPage()
+
+    await waitFor(() => expect(notificationApi.acknowledgeMessengerNotifications).toHaveBeenCalledTimes(2))
+  })
+
+  it('R3-2 markRead 3회 실패 후 refetch하면 같은 화면에서 해당 쪽지를 재시도한다', async () => {
+    const unread = {
+      messageId: 'msg-mark-read-retry',
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: 'markRead 재시도',
+      status: 'UNREAD' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: null,
+    }
+    let fetchCount = 0
+    vi.mocked(messengerApi.fetchInbox).mockImplementation(async () => ([{
+      ...unread,
+      body: fetchCount++ === 0 ? unread.body : 'refetched markRead 재시도',
+    }]))
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+    vi.mocked(messengerApi.markMessageRead)
+      .mockRejectedValueOnce(new Error('1'))
+      .mockRejectedValueOnce(new Error('2'))
+      .mockRejectedValueOnce(new Error('3'))
+      .mockResolvedValueOnce({ ...unread, status: 'READ', readAt: '2026-07-22T00:01:00Z' })
+
+    const { queryClient } = renderPage()
+    await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(3))
+
+    await queryClient.invalidateQueries({ queryKey: ['messenger', 'inbox', 0] })
+    await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(4))
+  })
+
+  it('R3-3 늦게 끝난 읽음 실패가 발송 오류 사유를 덮어쓰지 않는다', async () => {
+    const unread = {
+      messageId: 'msg-feedback-race',
+      senderId: 'sender-1',
+      senderDisplayName: '발신자',
+      recipientId: 'me',
+      body: 'feedback 경합',
+      status: 'UNREAD' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: null,
+    }
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([unread])
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([recipient])
+    vi.mocked(messengerApi.markMessageRead).mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      throw new Error('markRead down')
+    })
+    const sendError = Object.assign(new Error('Request failed'), {
+      isAxiosError: true,
+      response: { status: 400, data: { code: 'INVALID_INPUT', message: '발송할 수 없는 사유' } },
+    })
+    vi.mocked(messengerApi.sendBulkMessage).mockRejectedValue(sendError)
+
+    renderPage()
+    fireEvent.change(screen.getByTestId('messenger-recipient-search'), { target: { value: '김' } })
+    await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
+    fireEvent.mouseDown(screen.getByText('김수신'))
+    fireEvent.change(screen.getByTestId('messenger-body'), { target: { value: '본문' } })
+    await waitFor(() => expect((screen.getByRole('button', { name: '발송' }) as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.submit(screen.getByRole('button', { name: '발송' }).closest('form')!)
+
+    await waitFor(() => expect(screen.getByText('발송할 수 없는 사유')).toBeTruthy())
+    await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(3))
+    expect(screen.getByText('발송할 수 없는 사유')).toBeTruthy()
+    expect(screen.queryByText('일부 쪽지의 읽음 처리에 실패했습니다.')).toBeNull()
   })
 
   it('M-5 수신함이 50건이면 다음 페이지 버튼이 활성화되고 클릭 시 page=1을 요청한다', async () => {

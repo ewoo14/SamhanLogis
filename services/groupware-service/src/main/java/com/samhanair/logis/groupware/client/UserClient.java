@@ -75,6 +75,33 @@ public class UserClient implements UserVerifier {
         return delegate.verifyBulk(userIds);
     }
 
+    /** 메신저 발송 직전 재직 상태를 user-service에서 캐시 없이 일괄 확인한다. */
+    public Map<UUID, Boolean> verifyActiveBulk(List<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty() || internalToken == null || internalToken.isBlank()) {
+            return Map.of();
+        }
+        List<UUID> distinct = userIds.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (distinct.isEmpty()) {
+            return Map.of();
+        }
+        try {
+            String body = restClient.post()
+                    .uri("/internal/users/verify-active-bulk")
+                    .header("X-Internal-Token", internalToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("userIds", distinct))
+                    .retrieve()
+                    .body(String.class);
+            return parseBooleanMap(body);
+        } catch (Exception ex) {
+            // 발송 자격 검증은 fail-closed: user-service 장애 중 퇴사자에게 발송하지 않는다.
+            return distinct.stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
+        }
+    }
+
     /**
      * 발신자 표시명 조회. 알림 title 에 user UUID 가 노출되지 않도록 fullName 을 fail-soft 로 반환한다.
      *
@@ -213,6 +240,31 @@ public class UserClient implements UserVerifier {
             return Map.copyOf(result);
         } catch (RestClientResponseException ex) {
             return Map.of();
+        } catch (Exception ex) {
+            return Map.of();
+        }
+    }
+
+    private Map<UUID, Boolean> parseBooleanMap(String body) {
+        if (body == null || body.isBlank()) {
+            return Map.of();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            JsonNode exists = data == null ? null : data.get("exists");
+            if (exists == null || !exists.isObject()) {
+                return Map.of();
+            }
+            Map<UUID, Boolean> result = new LinkedHashMap<>();
+            exists.fieldNames().forEachRemaining(idText -> {
+                try {
+                    result.put(UUID.fromString(idText), exists.get(idText).asBoolean(false));
+                } catch (IllegalArgumentException ignored) {
+                    // malformed response key: skip
+                }
+            });
+            return result;
         } catch (Exception ex) {
             return Map.of();
         }

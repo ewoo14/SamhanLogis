@@ -106,6 +106,15 @@ public class MessageService {
             }
         }
 
+        Map<UUID, Boolean> activeById = userClient.verifyActiveBulk(recipientIds);
+        for (int i = 0; i < recipientIds.size(); i++) {
+            UUID recipientId = recipientIds.get(i);
+            if (!Boolean.TRUE.equals(activeById.get(recipientId))) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "수신자 " + (i + 1) + "번은 퇴사했거나 재직 상태가 아니어서 발송할 수 없습니다");
+            }
+        }
+
         String body = req == null ? null : req.body();
         if (body == null || body.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "본문을 입력하십시오");
