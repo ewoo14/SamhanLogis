@@ -8,7 +8,12 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.discovery.ServiceDiscoveryClient;
 import com.samhanair.logis.userclient.UserVerifierProperties;
@@ -20,6 +25,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.slf4j.LoggerFactory;
 
 /**
  * groupware UserClient.search(q, limit, activeOnly) 실 HTTP 계약 테스트.
@@ -93,6 +99,33 @@ class UserClientSearchActiveOnlyTest {
                 .containsEntry(active, true)
                 .containsEntry(terminated, false);
         server.verify();
+    }
+
+    @Test
+    void verifyActiveBulk_실패시_fail_closed와_운영로그를_남긴다() {
+        UUID userId = UUID.randomUUID();
+        server.expect(once(), requestTo("http://user-service/internal/users/verify-active-bulk"))
+                .andRespond(withServerError());
+
+        Logger logger = (Logger) LoggerFactory.getLogger(UserClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThat(client.verifyActiveBulk(List.of(userId)))
+                    .containsEntry(userId, false);
+            server.verify();
+            assertThat(appender.list).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                assertThat(event.getFormattedMessage())
+                        .contains("verify-active-bulk")
+                        .contains("fail-closed");
+                assertThat(event.getThrowableProxy()).isNotNull();
+            });
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
     }
 
     private ServiceDiscoveryClient noopDiscovery() {

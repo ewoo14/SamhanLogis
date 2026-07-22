@@ -975,3 +975,124 @@ Running 6 tests using 1 worker
   서킷브레이커는 추가하지 않았다.
 - 전체 Playwright suite는 실행하지 않았고 지정된 `ac-825-s6-messenger-chip` 6건만
   실행했다. git 명령은 실행하지 않았다.
+
+## PM 직접 라이브QA 후속 — CORS 노출·운영 관측·배포 순서 (2026-07-23)
+
+PM 실서버에서 확인한 원인은 백엔드가 `X-Has-Next-Page`를 정확히 반환하지만 API
+gateway CORS의 `Access-Control-Expose-Headers`에 해당 헤더가 없어 교차 출처
+브라우저 JS가 읽지 못한 것이었다. gateway에 헤더를 노출하고, Spring의 실제
+`DefaultCorsProcessor`가 `Origin` 요청에 생성하는 노출 응답을 검증하는 회귀 테스트를
+추가했다. Axios 헤더 mock만으로는 이 경계를 검증하지 않는다.
+
+같은 fail-closed 경로에서 `UserClient.verifyActiveBulk`가 예외를 삼키던 문제도
+수정했다. 재직 검증 실패 시 기존 전원 `false` 반환은 유지하고, endpoint·대상 수·예외
+stack trace를 `ERROR` 로그로 남긴다.
+
+### 배포 순서 필수
+
+이 슬라이스는 `user-service`와 `groupware-service`를 함께 배포해야 한다.
+`groupware-service`가 먼저 배포되면 새 `verify-active-bulk` 호출이 구버전
+`user-service`에서 404/500이 되어 fail-closed로 모든 일괄 발송이 거부된다. 롤아웃은
+다음 순서를 지킨다.
+
+1. `user-service`를 새 버전으로 배포하고 `/internal/users/verify-active-bulk` health/계약을 확인한다.
+2. `groupware-service`를 새 버전으로 배포한다.
+3. 두 서비스의 실제 endpoint 응답과 메신저 일괄 발송을 확인한 뒤 트래픽을 정상화한다.
+
+### 이번 후속 RED/GREEN/mutation 기록
+
+- CORS RED: `CorsConfigTest.inboxPaginationHeader_isExposedByActualCorsProcessor`가
+  실제 Spring CORS processor 실행 후 `X-Has-Next-Page`가 노출 목록에 없어 실패했다.
+- CORS GREEN: gateway exposed header 추가 후 같은 테스트와 기존 CORS 계약 테스트가 통과했다.
+- 로그 RED: `UserClientSearchActiveOnlyTest.verifyActiveBulk_실패시_fail_closed와_운영로그를_남긴다`가
+  fail-closed 결과는 반환했지만 로그 appender에 원인 로그가 없어 실패했다.
+- 로그 GREEN: `ERROR` 레벨의 endpoint·`fail-closed` 메시지와 throwable이 기록되도록 수정 후 통과했다.
+- mutation RED: CORS의 `X-Has-Next-Page` 노출 항목을 제거하거나, `verifyActiveBulk`의
+  `log.error` 호출을 제거하면 각 회귀 테스트가 다시 실패한다.
+
+### 결함 계열 sweep
+
+desktop 및 mobile client의 `response.headers`/`headers.get()`와 서버의 커스텀 응답
+헤더를 전수 대조했다. PR 범위의 결함은 수신함 `X-Has-Next-Page`였고 이번에 수정했다.
+독립 아로로지스 mobile의 `X-Copy-Sent-At` 및 `X-Copy-Recipient-Phone-Masked`는
+`arologis-service` 자체 CORS에도 노출되지 않는 별도 결함으로 확인했으나, PR #892의
+그룹웨어/user-service 범위 밖이므로 이번 변경에는 포함하지 않았다.
+
+#### 실행 원문
+
+```text
+RED — CORS
+CorsConfigTest > D: 실제 CORS processor가 수신함 다음 페이지 헤더를 브라우저 노출 목록에 넣는다 FAILED
+    org.opentest4j.AssertionFailedError at CorsConfigTest.java:47
+1 test completed, 1 failed
+FAILURE: Build failed with an exception.
+BUILD FAILED in 7s
+```
+
+```text
+GREEN — CORS
+BUILD SUCCESSFUL in 7s
+6 actionable tasks: 6 executed
+```
+
+```text
+RED — verifyActiveBulk 운영 로그
+UserClientSearchActiveOnlyTest > verifyActiveBulk_실패시_fail_closed와_운영로그를_남긴다() FAILED
+    java.lang.AssertionError at UserClientSearchActiveOnlyTest.java:118
+1 test completed, 1 failed
+FAILURE: Build failed with an exception.
+BUILD FAILED in 14s
+```
+
+```text
+GREEN — verifyActiveBulk 운영 로그
+BUILD SUCCESSFUL in 13s
+27 actionable tasks: 27 executed
+```
+
+```text
+뮤테이션 RED — CORS 노출 항목 제거
+CorsConfigTest > D: 실제 CORS processor가 수신함 다음 페이지 헤더를 브라우저 노출 목록에 넣는다 FAILED
+    java.lang.AssertionError at CorsConfigTest.java:50
+1 test completed, 1 failed
+BUILD FAILED in 6s
+```
+
+```text
+뮤테이션 RED — verifyActiveBulk log.error 제거
+UserClientSearchActiveOnlyTest > verifyActiveBulk_실패시_fail_closed와_운영로그를_남긴다() FAILED
+    java.lang.AssertionError at UserClientSearchActiveOnlyTest.java:118
+1 test completed, 1 failed
+BUILD FAILED in 13s
+```
+
+두 mutation은 확인 직후 원복했고, 원복 상태에서 대상 테스트를 재실행해 GREEN을
+확인했다. CORS 테스트는 `MockRestServiceServer`/Axios 응답 헤더 mock이 아니라
+`Origin: http://localhost:5173`을 가진 실제 `MockServerWebExchange`를
+`DefaultCorsProcessor.process()`에 통과시킨다. 즉 Spring이 생성한
+`Access-Control-Expose-Headers`를 검사하므로, 커스텀 헤더를 JS에 그대로 돌려주는
+mock 환경을 우회하지 않는다.
+
+최종 검증 원문:
+
+```text
+gradlew.bat :services:groupware-service:test :services:user-service:test :shared:notification-publisher:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 1m 6s
+34 actionable tasks: 34 executed
+
+services/groupware-service: 184 tests, failures=0, errors=0, skipped=0
+services/user-service: 310 tests, failures=0, errors=0, skipped=4
+shared/notification-publisher: 10 tests, failures=0, errors=0, skipped=0
+
+clients/desktop npm run typecheck
+> tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit
+Exit code: 0
+
+clients/desktop npx --no-install vitest run
+Test Files 137 passed (137)
+Tests 1101 passed (1101)
+```
+
+이번 후속에서는 실서버 probe/재배포를 실행하지 않았다. PM이 제공한 실측 raw가 이미
+교차 출처 브라우저에서의 RED를 확증했고, 작업 지시의 공유 Docker DB 쓰기 금지와
+라이브 probe 필요 시 PM 요청 조건을 준수했다. 전체 Playwright suite도 실행하지 않았다.

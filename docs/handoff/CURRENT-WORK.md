@@ -2069,3 +2069,17 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - 핵심 변경: Codef `scopeMode=ALL|SELECTED` 명시 계약(FE/mock/BE), V65 선택범위 무결성 CHECK(V64 불변), 권한별 scope/import 잠금 및 안내, locked chip 접근성·포커스, `TagChip` 선택 시각상태, `AsyncAutocomplete` 로딩 option `aria-disabled`, R4 mock/real QA 경로 정정.
 - genuine 검증: Gradle `26 actionable tasks: 26 executed`; Desktop typecheck 통과; Desktop Vitest `134 files / 1039 tests passed`; design-system `23 files / 142 tests passed`; AC mock `36 passed, skipped=0, unexpected=0`; real QA inventory `213 tests in 83 files`.
 - 실제 서버 기반 Live QA는 이 세션에서 실행하지 않았으며, PM/개발책임자 최종 게이트로 남겼다. `docs/dev-reports/825-s5-null-semantics-r4.md`에 상세 대응과 검증을 기록했다.
+
+## ✅ 2026-07-23 Codex LUNA — PR #892 PM 라이브QA 후속 fix
+
+- 실서버에서 확인된 수신함 페이저 결함의 원인은 API gateway CORS `exposedHeaders`에
+  `X-Has-Next-Page`가 빠져 교차 출처 브라우저 JS가 헤더를 읽지 못한 것이었다.
+  `CorsConfig`에 노출을 추가하고 실제 Spring `DefaultCorsProcessor` 회귀 테스트를 보강했다.
+- `UserClient.verifyActiveBulk`의 fail-closed 전원 `false` 계약은 유지하면서 user-service
+  호출 실패 시 endpoint·대상 수·예외를 `ERROR` 로그로 남긴다.
+- 배포 순서 문서화: `user-service`를 먼저 배포·계약 확인한 후 `groupware-service`를
+  배포해야 하며, 역순이면 verify-active-bulk 404/500으로 일괄 발송이 전건 거부된다.
+- RED/GREEN/mutation RED 및 전수 sweep은
+  `docs/dev-reports/2026-07-22-825-s6-messenger-chip-bulk.md`에 원문으로 기록했다.
+  지정 Gradle 3모듈, Desktop typecheck, Vitest 137/1101은 GREEN. 실서버 재프로브와
+  전체 Playwright는 작업 지시상 실행하지 않았다.

@@ -2,9 +2,13 @@ package com.samhanair.logis.gateway.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.reactive.DefaultCorsProcessor;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
 
 /**
  * {@link CorsConfig} 계약 테스트.
@@ -26,7 +30,24 @@ class CorsConfigTest {
 
         assertThat(config.getExposedHeaders()).containsExactlyInAnyOrder(
                 "Authorization", "Content-Type",
-                "X-User-Id", "X-User-Groups");
+                "X-User-Id", "X-User-Groups", "X-Has-Next-Page");
+    }
+
+    @Test
+    @DisplayName("D: 실제 CORS processor가 수신함 다음 페이지 헤더를 브라우저 노출 목록에 넣는다")
+    void inboxPaginationHeader_isExposedByActualCorsProcessor() {
+        var exchange = MockServerWebExchange.from(MockServerHttpRequest.get(
+                        "http://localhost:8080/admin/groupware/messages/inbox?page=0")
+                .header(HttpHeaders.ORIGIN, "http://localhost:5173")
+                .build());
+        exchange.getResponse().getHeaders().set("X-Has-Next-Page", "true");
+
+        boolean accepted = new DefaultCorsProcessor().process(
+                CorsConfig.corsConfiguration(), exchange);
+
+        assertThat(accepted).isTrue();
+        assertThat(exchange.getResponse().getHeaders().getAccessControlExposeHeaders())
+                .contains("X-Has-Next-Page");
     }
 
     @Test

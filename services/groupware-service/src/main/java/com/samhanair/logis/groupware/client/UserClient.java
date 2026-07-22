@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * user-service 호출 client — groupware-service local wrapper.
@@ -32,6 +34,8 @@ import org.springframework.web.client.RestClientResponseException;
  */
 @Component
 public class UserClient implements UserVerifier {
+
+    private static final Logger log = LoggerFactory.getLogger(UserClient.class);
 
     private final UserVerifier delegate;
     private final ServiceDiscoveryClient discoveryClient;
@@ -98,6 +102,8 @@ public class UserClient implements UserVerifier {
             return parseBooleanMap(body);
         } catch (Exception ex) {
             // 발송 자격 검증은 fail-closed: user-service 장애 중 퇴사자에게 발송하지 않는다.
+            log.error("user-service verify-active-bulk 호출 실패 — endpoint=/internal/users/verify-active-bulk, "
+                    + "userIdsCount={}, fail-closed", distinct.size(), ex);
             return distinct.stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> false));
         }
     }
