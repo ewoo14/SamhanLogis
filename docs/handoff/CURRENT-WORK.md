@@ -2303,6 +2303,14 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - genuine 검증: Gradle `26 actionable tasks: 26 executed`; Desktop typecheck 통과; Desktop Vitest `134 files / 1039 tests passed`; design-system `23 files / 142 tests passed`; AC mock `36 passed, skipped=0, unexpected=0`; real QA inventory `213 tests in 83 files`.
 - 실제 서버 기반 Live QA는 이 세션에서 실행하지 않았으며, PM/개발책임자 최종 게이트로 남겼다. `docs/dev-reports/825-s5-null-semantics-r4.md`에 상세 대응과 검증을 기록했다.
 
+## ✅ 2026-07-23 Codex LUNA — PR #907 SOL 적대리뷰 fix
+
+- 병합 후보는 기존 목록 검색용 부분일치 `partnerId`를 유지하면서 신규 `partnerCode` 정확일치 계약으로 분리했다. `P-1`/`P-10` 접두사 혼입과 `%`/`_` literal 회귀 테스트를 실 BE MockMvc+Testcontainers 경로에 추가했고, mock도 두 계약을 구분했다.
+- 병합 권한을 `sales.partner-order.convert:create` + `partners.search:view`로 정렬했다. 검색 VIEW가 없으면 버튼 disabled와 원인 안내를 노출하며, `partnerApi.searchPartners`의 기존 fail-soft는 공유 화면 호환을 위해 유지하고 병합 호출만 오류를 재throw한다.
+- DS Modal 영향 범위를 피하기 위해 전달되지 않는 `merge-convert-dialog` testid를 제거했다. UUID/코드 재사용 스키마 이슈는 개발책임자 판단 범위로 미수정.
+- 좁은 BE 테스트 `BUILD SUCCESSFUL`, Desktop typecheck 및 전체 Vitest `142 files / 1119 tests passed`. 전체 partner-order Gradle은 첫 지정 실행의 셀 결과가 유실되었고, `--no-daemon` 재시도는 244초 후 Exit 124 timeout되어 성공 판정하지 않았다. 전체 Playwright와 공유 Docker DB 쓰기는 실행하지 않았다.
+- 상세 RED/GREEN/뮤테이션 원문과 `partnerId`·`partnerApi.ts` 소비처 전수 결과: `docs/dev-reports/2026-07-23-867-s7-order-merge-partner-first.md` §10.
+
 ## ✅ 2026-07-23 Codex LUNA — PR #892 PM 라이브QA 후속 fix
 
 - 실서버에서 확인된 수신함 페이저 결함의 원인은 API gateway CORS `exposedHeaders`에

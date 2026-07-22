@@ -171,7 +171,7 @@ public class PartnerOrderQueryService {
 
     private PartnerOrderListFilter normalize(PartnerOrderListFilter filter) {
         if (filter == null) {
-            return new PartnerOrderListFilter(null, null, null, null, null, null);
+            return new PartnerOrderListFilter(null, null, null, null, null, null, null);
         }
         LocalDate from = filter.dateFrom();
         LocalDate to = filter.dateTo();
@@ -180,6 +180,7 @@ public class PartnerOrderQueryService {
                     to,
                     from,
                     trimToNull(filter.partnerId()),
+                    trimToNull(filter.partnerCode()),
                     filter.status(),
                     trimToNull(filter.slipPublishStatus()),
                     trimToNull(filter.searchKeyword()));
@@ -188,6 +189,7 @@ public class PartnerOrderQueryService {
                 from,
                 to,
                 trimToNull(filter.partnerId()),
+                trimToNull(filter.partnerCode()),
                 filter.status(),
                 trimToNull(filter.slipPublishStatus()),
                 trimToNull(filter.searchKeyword()));
@@ -267,6 +269,10 @@ public class PartnerOrderQueryService {
         if (filter.partnerId() != null) {
             predicates.add("(LOWER(po.partner_code) LIKE :partnerId OR LOWER(po.biz_code) LIKE :partnerId)");
             params.put("partnerId", like(filter.partnerId()));
+        }
+        if (filter.partnerCode() != null) {
+            predicates.add("po.partner_code = :partnerCode");
+            params.put("partnerCode", filter.partnerCode());
         }
         if (filter.status() != null) {
             predicates.add("po.status = :status");
@@ -349,6 +355,9 @@ public class PartnerOrderQueryService {
                 predicates.add(cb.or(
                         cb.like(cb.lower(root.get("partnerCode")), partner),
                         cb.like(cb.lower(root.get("bizCode")), partner)));
+            }
+            if (filter.partnerCode() != null) {
+                predicates.add(cb.equal(root.get("partnerCode"), filter.partnerCode()));
             }
             if (filter.status() != null) {
                 predicates.add(cb.equal(root.get("status"), filter.status()));

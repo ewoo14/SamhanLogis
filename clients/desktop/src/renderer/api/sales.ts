@@ -699,6 +699,8 @@ export async function listPartnerOrders(
     dateFrom?: string
     dateTo?: string
     partnerId?: string
+    /** 병합 후보 전용 거래처 코드 정확 검색. 기존 partnerId 부분검색과 구분한다. */
+    partnerCode?: string
     status?: PartnerOrderStatus
     /** 발행실패(FAILED) 또는 재시도 중(PENDING_RETRY) 전용 목록 필터. */
     slipPublishStatus?: 'FAILED' | SlipPublishStatus
@@ -714,6 +716,7 @@ export async function listPartnerOrders(
   if (filters.dateFrom) params['dateFrom'] = filters.dateFrom
   if (filters.dateTo) params['dateTo'] = filters.dateTo
   if (filters.partnerId) params['partnerId'] = filters.partnerId
+  if (filters.partnerCode) params['partnerCode'] = filters.partnerCode
   if (filters.status) params['status'] = filters.status
   if (filters.slipPublishStatus) params['slipPublishStatus'] = filters.slipPublishStatus
   if (filters.searchKeyword) params['searchKeyword'] = filters.searchKeyword

@@ -141,6 +141,24 @@ describe('mock 결재양식 optionsJson 정규화', () => {
   })
 })
 
+describe('partner-order 병합 후보 필터 계약', () => {
+  it('partnerId는 기존 부분검색이고 partnerCode는 병합용 정확검색이다', () => {
+    const partial = mockRequest({
+      method: 'GET',
+      url: '/api/v1/partner-orders',
+      params: { partnerId: 'P-1' },
+    }) as MockEnvelope<{ content: Array<{ partnerCode: string }> }>
+    expect(partial.data.content.map((row) => row.partnerCode)).toEqual(['P-1', 'P-10'])
+
+    const exact = mockRequest({
+      method: 'GET',
+      url: '/api/v1/partner-orders',
+      params: { partnerCode: 'P-1' },
+    }) as MockEnvelope<{ content: Array<{ partnerCode: string }> }>
+    expect(exact.data.content.map((row) => row.partnerCode)).toEqual(['P-1'])
+  })
+})
+
 describe('mock 그룹웨어 결재 생성 요청 관찰', () => {
   it('POST handler가 받은 approverIds 순서를 QA 캡처에 그대로 보존한다', () => {
     const approverIds = [

@@ -527,9 +527,14 @@ interface AdminPartnerListResponse {
  * UUID 비공개 가드: partnerId 는 화면 표시 없이 payload 전용으로만 사용한다.
  *
  * @param q 검색어 (거래처명·코드·사업자번호·전화 부분 입력)
- * @returns `PartnerOption[]` — 실패 시 빈 배열 (graceful degradation)
+ * @param options.throwOnError 병합 후보처럼 권한/서버 오류를 호출처가 안내해야 할 때 true.
+ * 기본값 false는 기존 자동완성 소비처의 graceful degradation 계약을 유지한다.
+ * @returns `PartnerOption[]` — 기본값에서는 실패 시 빈 배열
  */
-export async function searchPartners(q: string, options?: { activeOnly?: boolean }): Promise<PartnerOption[]> {
+export async function searchPartners(
+  q: string,
+  options?: { activeOnly?: boolean; throwOnError?: boolean },
+): Promise<PartnerOption[]> {
   try {
     const res = await apiClient.get<ApiEnvelope<AdminPartnerListResponse>>(
       '/admin/partners/search',
@@ -546,12 +551,9 @@ export async function searchPartners(q: string, options?: { activeOnly?: boolean
       bizNo: p.bizNo ?? undefined,
       phone: p.phone ?? undefined,
     }))
-  } catch {
-    // 의도적 graceful degradation — ProductAutocomplete의 searchProductsApi 와 동일 패턴.
-    // 네트워크/서버 오류 시 reject 하지 않고 빈 배열 반환하여 "검색 결과 없음" UI 표시.
-    // PartnerAutocomplete 의 status='error' 상태(재시도 유도 UX)는
-    // makeMockSearch({ failAfterMs }) Storybook 전용으로, 실 운영에서는 silent degradation 유지.
-    // (throw 로 변경 시 ProductAutocomplete 와 불일치 — AC-3 의도 유지)
+  } catch (error) {
+    if (options?.throwOnError) throw error
+    // 기존 소비처 호환: 네트워크/서버 오류를 빈 배열로 반환한다.
     return []
   }
 }

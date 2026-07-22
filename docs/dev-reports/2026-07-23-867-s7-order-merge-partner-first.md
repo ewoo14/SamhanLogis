@@ -119,3 +119,93 @@ BUILD SUCCESSFUL in 32s
 - partner-order 전체 `test`는 exit code 0이었으나 콘솔에 `BUILD SUCCESSFUL`/`BUILD FAILED` 문구가 없어 최종 성공으로 판정하지 않았다. 대신 동일 서비스의 S7-2 핵심 테스트는 위 `BUILD SUCCESSFUL`을 확인했다.
 - slip-service 전체 `test`는 컴파일 후 daemon이 `stop command received`로 중단되어 `BUILD FAILED`가 발생했고, worker 1개 재시도는 300초 timeout 되었다. slip-service 코드 변경은 없으며, XML 결과를 성공 근거로 사용하지 않았다.
 - 전체 Playwright mock 스위트 및 공유 Docker DB 쓰기는 실행하지 않았다.
+
+## 10. CODEX SOL 적대리뷰 대응 — 2026-07-23
+
+### 10.1 도달가능 1 / E1·E2·E3
+
+기존 `partnerId`는 다른 화면의 목록 검색 계약(`partner_code` 또는 `biz_code` 부분일치)으로 유지했다. 병합 후보에는 별도 `partnerCode` 쿼리 파라미터를 추가해 `partner_code = :partnerCode` 정확일치로 분기했다. 따라서 `P-1` 선택 시 `P-10`이 섞이지 않고, `P-%_`도 SQL wildcard가 아니라 등록된 코드 자체로만 매칭된다. FE 병합 다이얼로그는 선택된 `partnerCode`를 이 파라미터로 보내며, mock도 기존 `partnerId`에는 BE의 LIKE wildcard 의미를 재현하고 병합 `partnerCode`에는 정확일치를 적용한다.
+
+실 BE 경로를 지나는 RED 원문(수정 전, MockMvc + Testcontainers):
+
+```text
+PartnerOrderListIT > list_merge_candidate_exact_partner_code_excludes_prefix_match() FAILED
+    java.lang.AssertionError at PartnerOrderListIT.java:129
+
+BUILD FAILED in 35s
+1 test completed, 1 failed
+```
+
+수정 후 두 exact-contract 테스트 GREEN 원문:
+
+```text
+> Task :services:partner-order-service:test
+
+BUILD SUCCESSFUL in 47s
+15 actionable tasks: 15 executed
+```
+
+뮤테이션 RED 원문:
+
+```text
+PartnerOrderListIT > list_merge_candidate_exact_partner_code_excludes_prefix_match() FAILED
+    java.lang.AssertionError at PartnerOrderListIT.java:129
+
+BUILD FAILED in 33s
+1 test completed, 1 failed
+```
+
+위 뮤테이션은 JPA exact predicate를 prefix `LIKE`로 바꾼 경우다. wildcard literal 방어선도 exact `LIKE`로 바꾼 뮤테이션에서 다음과 같이 RED가 됐다.
+
+```text
+PartnerOrderListIT > list_merge_candidate_exact_partner_code_treats_wildcards_as_literal() FAILED
+    java.lang.AssertionError at PartnerOrderListIT.java:144
+
+BUILD FAILED in 32s
+1 test completed, 1 failed
+```
+
+FE 병합 후보 계약의 RED/GREEN/뮤테이션 RED:
+
+```text
+RED: expected <button ... data-testid="merge-convert-order-candidate-2026/07/23-B"> to be null
+     received B order button
+
+GREEN:
+Test Files 4 passed (4)
+Tests      131 passed (131)
+
+뮤테이션(후보 query의 partnerCode를 기존 partnerId로 복귀):
+expected <button ... B ...> to be null
+```
+
+mock exact-filter를 무력화한 뮤테이션도 `expected [P-1]` 대신 전체 목록을 반환해 RED가 됐다. 이 테스트는 `P-1`/`P-10` 접두사 쌍을 사용한다.
+
+### 10.2 도달가능 2 / P1·P2
+
+병합 진입 게이트를 `sales.partner-order.convert:create && partners.search:view`로 맞췄다. CREATE만 있고 검색 VIEW가 없으면 버튼은 노출하되 disabled 상태와 `거래처 검색 권한이 없습니다...` 안내를 함께 보여 준다. `partnerApi.searchPartners`의 기존 기본 동작(오류를 빈 배열로 반환)은 공유 소비처 회귀를 막기 위해 유지하고, 병합 화면만 `throwOnError: true`로 원 오류를 받아 권한 안내를 표시한다.
+
+권한 게이트 RED 원문(검색 권한을 요구하기 전):
+
+```text
+expected false to be true
+```
+
+권한 게이트 GREEN은 위 좁은 FE 회귀 묶음의 `4 files / 131 tests passed`에 포함된다. 버튼 disabled를 강제로 해제한 뮤테이션은 다음과 같이 RED가 됐다.
+
+```text
+4 passed, 1 failed
+expected false to be true
+```
+
+`searchPartners` 오류 삼킴의 런타임 소비처를 전수 확인했다. `partnerApi.ts` 검색 함수를 직접 사용하는 화면은 `BankTransactionPage`, `CashReceiptFormPage`, `BlockedPartnersPage`, `CollectionPlanPage`, `DailyClosingPage`, `DepositorMappingPage`, `JournalStatusReportPage`, `MergeConvertDialog`, `NotesReceivablePage`, `SlipFormPage`, `TaxInvoiceFormPage` 11곳이다. CRUD·`getPartnerFull` 소비처도 있으나 `searchPartners` 오류 계약에는 해당하지 않는다. `EstimateFormPage`와 `SlipDetailPage`의 검색은 별도 `api/sales.ts` 함수라 이번 catch 변경의 영향 밖이다.
+
+### 10.3 `partnerId` 소비처 전수 확인
+
+주문 목록 API의 `partnerId`를 실제 필터로 전달하는 FE 소비처는 `SalesPartnerOrderListPage`의 기존 목록 검색 1곳이며, BE `PartnerOrderListController`/`PartnerOrderQueryService`와 기존 IT가 그 부분일치 계약을 사용한다. 병합 다이얼로그는 더 이상 `partnerId`를 사용하지 않고 `partnerCode` exact 계약을 사용한다. 다른 화면의 UUID `partnerId`는 전표/회계/거래처 내부 식별자 payload이며 주문 목록 필터 계약과 무관하므로 변경하지 않았다.
+
+### 10.4 testid 및 미수정 범위
+
+`merge-convert-dialog`는 DS `ModalProps`가 전달하지 않는 가짜 testid였으므로 호출부와 개발 보고서 목록에서 제거했다. `role="dialog"` 기반 DS Modal 전체를 변경하지 않아 영향 범위를 넓히지 않았다. 실제 검증 가능한 `merge-convert-dialog-body`와 권한 오류 alert testid는 유지했다.
+
+개발책임자 판단 사안인 동일 코드·상이 UUID 거래처의 BE 409 우회 문제는 주문 스키마 변경 범위이므로 이번 라운드에서 손대지 않았다. 전체 Gradle 지정 실행은 셀 결과가 유실되어 성공 판정하지 않았고, 요청대로 `--no-daemon`으로 재시도했으나 244초 후 Exit 124로 종료되어 성공 판정하지 않았다. 좁은 BE 계약 테스트와 전체 Desktop Vitest는 별도로 성공했다. 전체 Playwright와 공유 Docker DB 쓰기는 실행하지 않았다.

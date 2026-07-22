@@ -102,6 +102,23 @@ function mockError(status: number, code: string, message: string) {
   }
 }
 
+/** 실 BE partnerId LIKE '%입력%' 계약을 mock에서도 재현한다. SQL wildcard는 의도적으로 보존한다. */
+function matchesPartnerLike(value: string, input: string): boolean {
+  const pattern = `%${input.trim().toLowerCase()}%`
+  const regexSpecialCharacters = '.^$+?()[]{}|\\'
+  let regexSource = '^'
+  for (const character of pattern) {
+    if (character === '%') {
+      regexSource += '.*'
+    } else if (character === '_') {
+      regexSource += '.'
+    } else {
+      regexSource += regexSpecialCharacters.includes(character) ? `\\${character}` : character
+    }
+  }
+  return new RegExp(`${regexSource}$`).test(value.toLowerCase())
+}
+
 /**
  * 주문 상세 mock fixture 의 헤더 필드(라인 제외) 계약 — `PartnerOrderDetail` 과 동일.
  *
@@ -7619,6 +7636,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
     const partnerIdParam = urlObj.searchParams.get('partnerId') ?? (config.params?.['partnerId'] as string | undefined)
+    const partnerCodeParam = urlObj.searchParams.get('partnerCode') ?? (config.params?.['partnerCode'] as string | undefined)
     const slipPublishStatusParam =
       urlObj.searchParams.get('slipPublishStatus') ?? (config.params?.['slipPublishStatus'] as string | undefined)
     // BE parity(#757 R2 HIGH): includeDeleted=true(내부 관리자 opt-in)일 때만 삭제행 포함.
@@ -7681,6 +7699,26 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       totalAmount: 1200000,
       linkedSlipNo: null,
     }
+    const PREFIX_PARTNER_P1_ROW: PartnerOrderSummary = {
+      orderNumber: '2026/05/31-8',
+      partnerCode: 'P-1',
+      partnerName: '정확 거래처',
+      submittedAt: '2026-05-31T13:00:00',
+      status: 'DRAFT',
+      slipPublishStatus: 'NOT_REQUIRED',
+      totalAmount: 100000,
+      linkedSlipNo: null,
+    }
+    const PREFIX_PARTNER_P10_ROW: PartnerOrderSummary = {
+      orderNumber: '2026/05/31-9',
+      partnerCode: 'P-10',
+      partnerName: '접두사 거래처',
+      submittedAt: '2026-05-31T14:00:00',
+      status: 'DRAFT',
+      slipPublishStatus: 'NOT_REQUIRED',
+      totalAmount: 100000,
+      linkedSlipNo: null,
+    }
     const DELETED_DRAFT_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/31-5',
       partnerCode: '1234567890',
@@ -7726,7 +7764,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     let content: PartnerOrderSummary[]
     if (statusParam === 'DRAFT') {
       // DRAFT 필터: 같은 거래처 DRAFT 2건 포함 (시나리오 2/4/5 직접 접근 가능)
-      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW]
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW, PREFIX_PARTNER_P1_ROW, PREFIX_PARTNER_P10_ROW]
     } else if (statusParam === 'ON_HOLD') {
       content = [ON_HOLD_ROW, SAME_PARTNER_ON_HOLD_ROW]
     } else if (statusParam === 'CONFIRMED') {
@@ -7737,6 +7775,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         DRAFT_ROW,
         SAME_PARTNER_DRAFT_ROW,
         DELETED_DRAFT_ROW,
+        PREFIX_PARTNER_P1_ROW,
+        PREFIX_PARTNER_P10_ROW,
         SAME_PARTNER_ON_HOLD_ROW,
         ON_HOLD_ROW,
         CONFIRMED_ROW,
@@ -7769,7 +7809,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
           : { ...row, isDeleted: false, deletedAt: null, deletedByName: null },
       )
       // #825 슬7: partner-order-service의 partnerId(partnerCode/사업자번호) 필터를 mock도 보존한다.
-      .filter((row) => !partnerIdParam || row.partnerCode === partnerIdParam)
+      .filter((row) => {
+        if (partnerCodeParam) return row.partnerCode === partnerCodeParam.trim()
+        if (!partnerIdParam) return true
+        return matchesPartnerLike(row.partnerCode, partnerIdParam)
+      })
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
       // BE parity: 기본(활성만) — includeDeleted 미요청 시 삭제행 제외(@SQLRestriction 경로 모사).
       .filter((row) => includeDeleted || row.isDeleted !== true)

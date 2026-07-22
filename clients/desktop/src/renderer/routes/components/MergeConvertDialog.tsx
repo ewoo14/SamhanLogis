@@ -24,7 +24,6 @@
  *
  * <h2>data-testid 목록</h2>
  * <ul>
- *   <li>{@code merge-convert-dialog}                 — Modal root</li>
  *   <li>{@code merge-convert-dialog-body}             — 본문 div</li>
  *   <li>{@code merge-convert-order-{orderNumber}}     — 주문 그룹 섹션</li>
  *   <li>{@code merge-convert-qty-{orderIndex}-{lineIndex}} — 라인별 전환수량 input</li>
@@ -209,12 +208,27 @@ export function MergeConvertDialog({
 }: MergeConvertDialogProps) {
   const [selectedPartner, setSelectedPartner] = useState<PartnerOption | null>(null)
   const [selectedOrders, setSelectedOrders] = useState<PartnerOrderSummary[]>([])
+  const [partnerSearchError, setPartnerSearchError] = useState<string | null>(null)
+
+  const searchPartnerOptions = useCallback(async (query: string) => {
+    setPartnerSearchError(null)
+    try {
+      return await searchPartners(query, { activeOnly: true, throwOnError: true })
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 403) {
+        setPartnerSearchError('거래처 검색 권한이 없습니다. 관리자에게 partners.search VIEW 권한을 요청해 주세요.')
+      } else {
+        setPartnerSearchError('거래처 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+      }
+      throw error
+    }
+  }, [])
 
   const candidateOrdersQuery = useQuery({
     queryKey: ['partner-order-merge-candidates', selectedPartner?.partnerCode ?? null],
     queryFn: () => listPartnerOrders(0, 50, {
-      // partner-order-service의 기존 partnerId 파라미터는 partnerCode/사업자번호 필터다.
-      partnerId: selectedPartner!.partnerCode,
+      // 기존 partnerId 부분검색과 구분되는 병합 후보 전용 정확일치 계약.
+      partnerCode: selectedPartner!.partnerCode,
       includeDeleted: false,
     }),
     enabled: Boolean(selectedPartner?.partnerCode),
@@ -230,6 +244,7 @@ export function MergeConvertDialog({
 
   const handlePartnerChange = (partner: PartnerOption | null) => {
     setSelectedPartner(partner)
+    setPartnerSearchError(null)
     // S7-4: 거래처가 바뀌는 동일 이벤트에서 이전 거래처의 선택을 폐기한다.
     setSelectedOrders([])
   }
@@ -475,7 +490,6 @@ export function MergeConvertDialog({
       size="xl"
       closeOnBackdropClick={!mergeMutation.isPending}
       closeOnEsc={!mergeMutation.isPending}
-      data-testid="merge-convert-dialog"
       footer={
         <>
           <Button
@@ -527,7 +541,7 @@ export function MergeConvertDialog({
           <PartnerAutocomplete
             value={selectedPartner}
             onChange={handlePartnerChange}
-            searchPartners={(query) => searchPartners(query, { activeOnly: true })}
+            searchPartners={searchPartnerOptions}
             label="거래처 선택"
             ariaLabel="병합 거래처 검색"
             inputTestId="merge-convert-partner-search"
@@ -535,6 +549,11 @@ export function MergeConvertDialog({
             required
             disabled={mergeMutation.isPending}
           />
+          {partnerSearchError ? (
+            <div role="alert" data-testid="merge-convert-partner-search-error">
+              {partnerSearchError}
+            </div>
+          ) : null}
           {selectedPartner ? (
             <p
               data-testid="merge-convert-selected-partner"

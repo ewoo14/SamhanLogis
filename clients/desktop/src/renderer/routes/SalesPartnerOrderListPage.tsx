@@ -101,7 +101,9 @@ export function SalesPartnerOrderListPage() {
   const [convertSuccessMessage, setConvertSuccessMessage] = useState<string | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
 
-  const canMergeConvert = canAccess('sales.partner-order.convert', 'create')
+  const canCreateMerge = canAccess('sales.partner-order.convert', 'create')
+  const canSearchPartners = canAccess('partners.search', 'view')
+  const canMergeConvert = canCreateMerge && canSearchPartners
   const canRestoreDeletedOrder = canAccess('sales.partner-order.list', 'restore')
 
   /**
@@ -534,7 +536,7 @@ export function SalesPartnerOrderListPage() {
         ) : null}
 
         {/* #825 슬7: 목록에서 혼합 선택을 시작하지 않고, 모달에서 거래처를 먼저 선택한다. */}
-        {canMergeConvert ? (
+        {canCreateMerge ? (
           <div
             data-testid="merge-convert-action-bar"
             role="region"
@@ -548,11 +550,20 @@ export function SalesPartnerOrderListPage() {
               type="button"
               variant="primary"
               data-testid="merge-convert-open"
-              title="거래처를 선택하고 병합할 주문을 고릅니다"
+              title={canMergeConvert
+                ? '거래처를 선택하고 병합할 주문을 고릅니다'
+                : '거래처 검색 권한이 필요합니다'}
+              disabled={!canMergeConvert}
+              aria-disabled={!canMergeConvert}
               onClick={() => setMergeDialogOpen(true)}
             >
               판매전표로 병합 전환
             </Button>
+            {!canSearchPartners ? (
+              <span role="alert" data-testid="merge-convert-permission-hint">
+                거래처 검색 권한이 필요합니다. 관리자에게 partners.search VIEW 권한을 요청해 주세요.
+              </span>
+            ) : null}
           </div>
         ) : null}
 

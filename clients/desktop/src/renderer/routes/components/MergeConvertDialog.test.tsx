@@ -122,9 +122,13 @@ afterEach(() => {
 describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
   it('거래처 A를 먼저 양성 확인하면 A 주문만 후보에 보이고 B 주문은 0건이며 거래처 변경 시 칩 선택이 초기화된다', async () => {
     mocks.searchPartners.mockResolvedValue([PARTNER_A, PARTNER_B])
-    mocks.listPartnerOrders.mockImplementation(async (_page: number, _size: number, filters: { partnerId?: string }) => {
-      if (filters.partnerId === PARTNER_A.partnerCode) return { content: [ORDER_A], totalElements: 1 }
-      if (filters.partnerId === PARTNER_B.partnerCode) return { content: [ORDER_B], totalElements: 1 }
+    mocks.listPartnerOrders.mockImplementation(async (_page: number, _size: number, filters: { partnerCode?: string }) => {
+      if (filters.partnerCode === PARTNER_A.partnerCode) {
+        return { content: [ORDER_A], totalElements: 1 }
+      }
+      if (filters.partnerCode === PARTNER_B.partnerCode) {
+        return { content: [ORDER_B], totalElements: 1 }
+      }
       return { content: [ORDER_A, ORDER_B], totalElements: 2 }
     })
     mocks.listWarehouses.mockResolvedValue([])
@@ -150,7 +154,7 @@ describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
     expect(mocks.listPartnerOrders).toHaveBeenCalledWith(
       0,
       50,
-      expect.objectContaining({ partnerId: PARTNER_A.partnerCode }),
+      expect.objectContaining({ partnerCode: PARTNER_A.partnerCode }),
     )
 
     fireEvent.click(candidateA)

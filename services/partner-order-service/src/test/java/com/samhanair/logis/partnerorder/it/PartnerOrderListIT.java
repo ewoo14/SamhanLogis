@@ -117,6 +117,36 @@ class PartnerOrderListIT extends AbstractPostgresIT {
 
     @Test
     @WithMockUser(roles = {"SALES"})
+    void list_merge_candidate_exact_partner_code_excludes_prefix_match() throws Exception {
+        saveOrder("2026/05/11-1", "P-1", "1111111111", "정확 거래처", "EXACT-001", "CONFIRMING");
+        saveOrder("2026/05/12-1", "P-10", "1010101010", "접두사 거래처", "PREFIX-001", "CONFIRMING");
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("partnerCode", "P-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].partnerCode").value("P-1"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_merge_candidate_exact_partner_code_treats_wildcards_as_literal() throws Exception {
+        saveOrder("2026/05/13-1", "P-%_", "1313131313", "와일드카드 거래처", "WILDCARD-001", "CONFIRMING");
+        saveOrder("2026/05/14-1", "P-%_other", "1414141414", "와일드카드 접두사", "WILDCARD-002", "CONFIRMING");
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("partnerCode", "P-%_"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].partnerCode").value("P-%_"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
     void list_filters_by_status() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
                         .header("X-User-Id", ACCOUNT_ID)
