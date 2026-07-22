@@ -66,6 +66,18 @@ import org.hibernate.annotations.UuidGenerator;
 @SQLRestriction("is_deleted = false")
 public class EstimateLine extends BaseEntity {
 
+    /**
+     * MED-4(#824 R2) — {@code unit_price}/{@code unit_price_with_vat}/{@code vat_amount} 는
+     * {@code NUMERIC(15,2)}(V13/V35 migration) — 정수부 최대 13자리.
+     */
+    private static final int NARROW_MAX_INTEGER_DIGITS = 13;
+
+    /**
+     * MED-4(#824 R2) — {@code supply_amount}/{@code line_total} 는 {@code NUMERIC(17,2)}
+     * (V13 컨벤션 주석: "라인 합계는 NUMERIC(17,2)") — 정수부 최대 15자리.
+     */
+    private static final int WIDE_MAX_INTEGER_DIGITS = 15;
+
     @Id
     @GeneratedValue
     @UuidGenerator
@@ -158,8 +170,12 @@ public class EstimateLine extends BaseEntity {
     public static EstimateLine create(Estimate estimate, int lineNo, UUID productId,
                                       String productName, String modelName, String specification,
                                       int quantity, BigDecimal unitPrice, String note) {
-        return new EstimateLine(estimate, lineNo, productId, productName, modelName,
+        EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
                 specification, quantity, unitPrice, note);
+        // MED-4(#824 R2) — 이 평문 경로는 R1 이전 자릿수 가드가 전혀 없었다(SlipLine 과
+        // 동일 결함군, #824 R1 MED-4 주석으로 이미 짝을 이룬 클래스).
+        line.validateStorableAmounts();
+        return line;
     }
 
     /**
@@ -184,6 +200,9 @@ public class EstimateLine extends BaseEntity {
         line.vatAmount = lineInclVat.subtract(supply).setScale(2, RoundingMode.HALF_UP);
         line.lineTotal = lineInclVat.setScale(2, RoundingMode.HALF_UP);
         line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        // MED-4(#824 R2) — R1 이전 자릿수 가드가 전혀 없던 경로. 덮어쓰기 이후 최종 필드
+        // 상태를 검증해야 실제 저장될 값을 검사하는 것이 된다.
+        line.validateStorableAmounts();
         return line;
     }
 
@@ -213,6 +232,10 @@ public class EstimateLine extends BaseEntity {
         line.lineTotal = lineTotalWithVat;
         line.unitPriceWithVat = lineTotalWithVat.divide(BigDecimal.valueOf(quantity), 2,
                 RoundingMode.HALF_UP);
+        // MED-4(#824 R2) — R1 의 validateAuthoritativeAmounts 는 입력 3값만 단일 임계값(15)으로
+        // 검사해 quantity=1 처럼 나눗셈 마진이 없는 경우 파생 unitPriceWithVat(narrow 컬럼,
+        // 13자리 한계)이 여전히 overflow 될 수 있었다. 최종 필드 상태를 다시 검증한다.
+        line.validateStorableAmounts();
         return line;
     }
 
@@ -227,6 +250,7 @@ public class EstimateLine extends BaseEntity {
         validatePositive(newQuantity);
         this.quantity = newQuantity;
         recompute();
+        validateStorableAmounts();
     }
 
     /** 단가 변경 — supply/vat/lineTotal 재계산. */
@@ -234,6 +258,7 @@ public class EstimateLine extends BaseEntity {
         validateUnitPrice(newUnitPrice);
         this.unitPrice = newUnitPrice;
         recompute();
+        validateStorableAmounts();
     }
 
     /** 메모 변경. */
@@ -275,19 +300,49 @@ public class EstimateLine extends BaseEntity {
         }
     }
 
+    /**
+     * 부호 + 소수부만 검사한다. 자릿수(저장 가능 범위) 검사는 {@link #validateStorableAmounts()}
+     * 로 분리했다 — MED-4(#824 R2), SlipLine.validateAmount 와 동일 sweep/동일 이유
+     * (입력 원본 3값이 아니라 quantity 로 나눈 파생값이 실제로 컬럼에 저장되기 때문).
+     */
     private static void validateAmount(BigDecimal amount, String label) {
-        if (amount == null || amount.signum() < 0) {
+        if (amount == null || amount.signum() < 0 || amount.stripTrailingZeros().scale() > 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     label + "은 0 이상의 원 단위 정수여야 합니다");
         }
-        // MED-4(#824 R1): stripTrailingZeros().precision() 단독으로는 1E+17(unscaled=1) 같은
-        // 압축표기가 precision=1 로 측정돼 NUMERIC(15,2) 초과(18자리)를 통과시킨다.
-        // precision()-scale() 은 stripTrailingZeros 전후로 불변(실제 자릿수)이므로 이 조합을 쓴다 —
-        // SlipLine.validateAmount 동일 sweep(#824 R1 MED-4).
+    }
+
+    /**
+     * MED-4(#824 R2) — 실제 DB 컬럼 precision/scale 한계로 "저장 가능성"을 검증한다.
+     * SlipLine.validateStorableAmounts 와 동일 sweep — 모든 생성 팩토리와 금액을 재계산하는
+     * mutator 의 마지막 단계에서 최종 필드 상태를 검사한다.
+     *
+     * <p>{@code unitPriceWithVat} 는 평문 {@link #create} 경로에서는 계산되지 않고 null 로
+     * 남는다(legacy nullable 컬럼) — {@link #validateColumnRange} 가 null 을 건너뛴다.
+     */
+    private void validateStorableAmounts() {
+        validateColumnRange(this.unitPrice, "단가", NARROW_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.unitPriceWithVat, "VAT 포함 단가", NARROW_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.vatAmount, "부가세", NARROW_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.supplyAmount, "공급가액", WIDE_MAX_INTEGER_DIGITS);
+        validateColumnRange(this.lineTotal, "라인 합계(VAT포함)", WIDE_MAX_INTEGER_DIGITS);
+    }
+
+    /**
+     * MED-4(#824 R1) 자릿수 압축표기 우회 방지 — SlipLine.validateColumnRange 와 동일 규칙.
+     *
+     * @param amount 검사할 금액 (null 이면 검사하지 않음)
+     * @param label 오류 메시지에 쓸 필드명
+     * @param maxIntegerDigits 이 필드가 실제로 저장될 컬럼의 정수부 최대 자릿수
+     */
+    private static void validateColumnRange(BigDecimal amount, String label, int maxIntegerDigits) {
+        if (amount == null) {
+            return;
+        }
         BigDecimal stripped = amount.stripTrailingZeros();
-        if (stripped.scale() > 0 || stripped.precision() - stripped.scale() > 15) {
+        if (stripped.precision() - stripped.scale() > maxIntegerDigits) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    label + "은 0 이상의 원 단위 정수여야 합니다");
+                    label + "이(가) 너무 큽니다. 정수부 " + maxIntegerDigits + "자리까지 저장할 수 있습니다");
         }
     }
 }

@@ -81,14 +81,34 @@ class SlipLineAuthoritativeAmountsTest {
     }
 
     @Test
-    @DisplayName("MED-4(#824 R1): 15자리 정수는 여전히 허용한다 — 경계값 회귀 방지")
-    void acceptsExactlyFifteenIntegerDigits() {
-        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+    @DisplayName("MED-4(#824 R2): quantity=1 에서 15자리 공급가액은 파생 단가(narrow 컬럼 "
+            + "unit_price NUMERIC(15,2), 13자리 한계)가 넘쳐 거부해야 한다 — R1(#824 R1)의 "
+            + "단일 임계값(정수부 15 고정)이 놓친 사각지대. R1 당시엔 supplyAmount(wide 컬럼, "
+            + "실제로는 17,2/15자리) 자체만 봐서 '허용'으로 오판했으나, 나눗셈 마진이 없는 "
+            + "quantity=1 에서는 파생 unitPrice 도 15자리가 되어 narrow 컬럼(13자리)을 실제로 "
+            + "overflow 한다(실 Postgres IT: SlipLineAmountOverflowControllerIT).")
+    void rejectsFifteenDigitSupplyAtQuantityOneBecauseDerivedUnitPriceOverflowsNarrowColumn() {
+        assertThatThrownBy(() -> SlipLine.createFromAuthoritativeAmounts(
                 newOutbound(), UUID.randomUUID(), "품목", null, null, 1,
                 new BigDecimal("999999999999999"), BigDecimal.ZERO, new BigDecimal("999999999999999"),
+                null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+    }
+
+    @Test
+    @DisplayName("MED-4(#824 R2): 15자리 공급가액도 수량이 커서 파생 단가가 narrow 컬럼(13자리) "
+            + "안에 들어가면 허용한다 — wide 컬럼(supply_amount/line_total) 자체 한계는 "
+            + "정수부 15자리가 맞다(수량 곱셈 마진, V1 컨벤션 주석). R1 의도(15자리 wide 컬럼 "
+            + "허용)를 올바른 경계로 보존하는 회귀 방지 테스트.")
+    void acceptsExactlyFifteenIntegerDigitsInWideColumnWhenPerUnitFitsNarrowColumn() {
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", null, null, 100,
+                new BigDecimal("999999999999900"), BigDecimal.ZERO, new BigDecimal("999999999999900"),
                 null, null);
 
-        assertThat(line.getSupplyAmount()).isEqualByComparingTo("999999999999999");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("999999999999900");
     }
 
     @Test

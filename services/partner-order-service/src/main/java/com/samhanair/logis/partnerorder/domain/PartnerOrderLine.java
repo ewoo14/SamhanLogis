@@ -1,6 +1,8 @@
 package com.samhanair.logis.partnerorder.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.financial.VatAmountCalculator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,6 +40,14 @@ import org.springframework.web.server.ResponseStatusException;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("is_deleted = false")
 public class PartnerOrderLine extends BaseEntity {
+
+    /**
+     * MED-4(#824 R2) — SlipLine/EstimateLine 과 동일 결함군의 주문 측 sweep.
+     * {@code price_vat}/{@code subtotal}/{@code supply_amount}/{@code vat_amount} 는 넷 다
+     * {@code NUMERIC(15,2)}(V1/V12 migration, "가격/금액은 NUMERIC(15,2)" 컨벤션 주석) —
+     * slip/estimate 와 달리 wide(17,2) 컬럼이 없어 quantity 곱셈 여유가 전혀 없다.
+     */
+    private static final int MAX_INTEGER_DIGITS = 13;
 
     @Id
     @GeneratedValue
@@ -208,6 +218,10 @@ public class PartnerOrderLine extends BaseEntity {
         line.subtotal = resolvedTotal;
         line.supplyAmount = resolvedSupply;
         line.vatAmount = resolvedVat;
+        // MED-4(#824 R2) — PRICE/SUPPLY/VAT/TOTAL 네 권위 경로가 전부 이 지점으로 수렴하므로
+        // 자릿수 가드는 여기 한 곳만 있으면 된다. R1 이전에는 requireNonNegative(부호만 검사)
+        // 뿐이라 자릿수 가드 자체가 전혀 없었다(SlipLine/EstimateLine 과 동일 결함군).
+        line.validateStorableAmounts();
         return line;
     }
 
@@ -301,6 +315,36 @@ public class PartnerOrderLine extends BaseEntity {
     private static void requireNonNegative(BigDecimal amount, String label) {
         if (amount == null || amount.signum() < 0) {
             throw new IllegalArgumentException(label + " 는 0 이상 필수입니다");
+        }
+    }
+
+    /**
+     * MED-4(#824 R2) — 실제 DB 컬럼 precision/scale 한계로 "저장 가능성"을 검증한다.
+     * SlipLine.validateStorableAmounts 와 동일 sweep.
+     */
+    private void validateStorableAmounts() {
+        validateColumnRange(this.priceVat, "단가");
+        validateColumnRange(this.subtotal, "합계");
+        validateColumnRange(this.supplyAmount, "공급가액");
+        validateColumnRange(this.vatAmount, "부가세");
+    }
+
+    /**
+     * MED-4(#824 R1) 자릿수 압축표기 우회 방지 — SlipLine.validateColumnRange 와 동일 규칙
+     * (stripTrailingZeros 전후로 precision()-scale() 이 불변이므로 이 조합을 쓴다).
+     *
+     * @param amount 검사할 금액 (null 이면 검사하지 않음 — supplyAmount/vatAmount 는 legacy
+     *     주문 행에서 nullable)
+     * @param label 오류 메시지에 쓸 필드명
+     */
+    private static void validateColumnRange(BigDecimal amount, String label) {
+        if (amount == null) {
+            return;
+        }
+        BigDecimal stripped = amount.stripTrailingZeros();
+        if (stripped.precision() - stripped.scale() > MAX_INTEGER_DIGITS) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    label + "이(가) 너무 큽니다. 정수부 " + MAX_INTEGER_DIGITS + "자리까지 저장할 수 있습니다");
         }
     }
 }
