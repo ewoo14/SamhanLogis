@@ -81,14 +81,13 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
   })
 
   test('H-B: 좁은 뷰포트(375px)에서도 속성 패널에 실제 사용자 제스처로 도달 가능하다', async ({ page }) => {
-    // 🔴 결함 재현: `.app-main{overflow-x:hidden}`(768px 이하 전역 모바일 셸 규칙)이 3-pane 그리드의
-    // 넘치는 폭을 그냥 잘라 우측 속성 패널 자체에 스크롤로도 도달할 방법이 없었다.
-    // 🚨 검증 결함(자가발견 — 2회): ①`.fill()`/`toBeVisible()`은 CSS visibility 만 보고 occlusion을
-    // 체크하지 않아 클리핑된 요소에도 값을 직접 주입해 false-green 이었다. ②`scrollIntoViewIfNeeded()`
-    // 도 여전히 false-green 이었다 — `overflow:hidden` 조상은 사용자 휠/터치로는 스크롤되지 않지만
-    // `Element.scrollIntoView()`(Playwright 가 내부적으로 호출)는 hidden 조상의 scrollLeft 도 그냥
-    // 프로그램적으로 옮겨버려 "실사용자는 못 가지만 자동화는 갈 수 있는" 상태를 구분 못 한다. 진짜
-    // 사용자 휠 제스처(mouse.wheel deltaX)로 실제 스크롤 가능한 지점이 어디인지 직접 확인한다.
+    // 🔴 과거 결함: `.app-main{overflow-x:hidden}`(768px 이하 전역 모바일 셸 규칙)이 3-pane 그리드의
+    // 넘치는 폭을 잘라 우측 속성 패널 자체에 스크롤로도 도달할 방법이 없었다.
+    // 이 테스트는 해결 수단(가로 스크롤/세로 스택)을 고정하지 않고, 수평 클리핑이 없다는 사실과
+    // 실제 사용자 세로 휠 제스처 뒤 입력 컨트롤이 화면에 들어오는지를 확인한다.
+    // 🚨 `.fill()`/`toBeVisible()`만 쓰면 CSS visibility만 보고 클리핑된 요소에도 값을 주입하는
+    // false-green이 된다. `scrollIntoViewIfNeeded()`도 hidden 조상의 scrollLeft를 프로그램적으로
+    // 옮길 수 있으므로 사용하지 않는다.
     await page.setViewportSize({ width: 375, height: 800 })
     await page.goto(`/#/groupware/document-templates/${ACTIVE_TEMPLATE_ID}/edit?mockRole=MASTER`, {
       waitUntil: 'domcontentloaded',
@@ -98,31 +97,48 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
 
     const scrollRegion = page.getByTestId('document-template-editor-scroll')
     const before = await scrollRegion.evaluate((node) => {
-      const style = getComputedStyle(node)
+      const editor = node.closest<HTMLElement>('[aria-label="문서 양식 편집기"]')
+      const descendants = [node, ...Array.from(node.querySelectorAll<HTMLElement>('*'))]
+        .filter((element) => getComputedStyle(element).display !== 'none')
+        .map((element) => element.getBoundingClientRect())
+      const maxRight = Math.max(...descendants.map((rect) => rect.right))
+      const minLeft = Math.min(...descendants.map((rect) => rect.left))
       return {
-        overflowX: style.overflowX,
-        scrollWidth: node.scrollWidth,
-        clientWidth: node.clientWidth,
-        scrollLeft: node.scrollLeft,
-        // 이 wrapper 자신이 뷰포트(375px) 안에 들어와야 한다 — 그래야 `.app-main` 의
-        // overflow-x:hidden 이 wrapper 자체를 클리핑하지 않는다.
+        viewportWidth: window.innerWidth,
+        editorScrollWidth: editor?.scrollWidth ?? 0,
+        editorClientWidth: editor?.clientWidth ?? 0,
+        maxRight,
+        minLeft,
         boundingWidth: node.getBoundingClientRect().width,
       }
     })
-    expect(before.overflowX, '스크롤 wrapper의 overflow-x').toBe('auto')
-    expect(before.scrollWidth, '3-pane 실제 폭 > wrapper 가시 폭(넘치는 콘텐츠가 있어야 스크롤 의미가 있다)')
-      .toBeGreaterThan(before.clientWidth)
-    expect(before.boundingWidth, 'wrapper 자신은 뷰포트를 넘지 않아야 app-main 클리핑을 안 받는다')
-      .toBeLessThanOrEqual(375)
-    expect(before.scrollLeft).toBe(0)
+    expect(before.boundingWidth, 'wrapper 자신은 뷰포트를 넘지 않아야 한다')
+      .toBeLessThanOrEqual(before.viewportWidth)
+    expect(before.maxRight, '편집기 콘텐츠의 실제 우측 경계가 viewport를 넘지 않아야 한다')
+      .toBeLessThanOrEqual(before.viewportWidth)
+    expect(before.minLeft, '편집기 콘텐츠의 실제 좌측 경계가 viewport 밖으로 나가지 않아야 한다')
+      .toBeGreaterThanOrEqual(0)
+    expect(before.editorScrollWidth, '편집기 자체에 수평 클리핑/overflow가 없어야 한다')
+      .toBeLessThanOrEqual(before.editorClientWidth)
 
-    // 위 구조 단언(overflow-x:auto·넘치는 콘텐츠·wrapper 자신이 뷰포트 안)이 실제로 스크롤 후 대상
-    // 컨트롤에 도달 가능함으로 이어지는지 최종 확인 — 속성 패널의 문구 입력란이 뷰포트 안에 들어와야 한다.
+    // 가로 수단을 가정하지 않고 실제 사용자 휠로 세로 스택을 순회한다.
     const inspector = page.getByRole('textbox', { name: '문구', exact: true })
-    await inspector.scrollIntoViewIfNeeded()
-    const inspectorBox = await inspector.boundingBox()
+    let inspectorBox = await inspector.boundingBox()
+    for (let attempt = 0; attempt < 6 && (!inspectorBox || inspectorBox.y < 0 || inspectorBox.y + inspectorBox.height > 800); attempt += 1) {
+      await page.mouse.wheel(0, 600)
+      inspectorBox = await inspector.boundingBox()
+    }
+    expect(inspectorBox, '실제 휠 제스처 후 속성 입력란이 화면에 도달해야 한다').not.toBeNull()
     expect(inspectorBox!.x).toBeGreaterThanOrEqual(0)
     expect(inspectorBox!.x + inspectorBox!.width).toBeLessThanOrEqual(375)
+    expect(inspectorBox!.y).toBeGreaterThanOrEqual(0)
+    expect(inspectorBox!.y + inspectorBox!.height).toBeLessThanOrEqual(800)
+    const hitTarget = await inspector.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      return hit === node || Boolean(hit && node.contains(hit))
+    })
+    expect(hitTarget, '화면 좌표의 실제 hit target이 속성 입력란이어야 한다').toBe(true)
     await inspector.click()
     await inspector.fill('좁은 뷰포트에서도 도달 가능')
     await expect(inspector).toHaveValue('좁은 뷰포트에서도 도달 가능')
