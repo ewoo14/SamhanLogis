@@ -8,7 +8,7 @@ import type { EditableElementType } from './useTemplateDraft'
 // 한 번 삭제하면 편집기 안에서 되돌릴 방법이 없었다 — 편집기에서 제거할 수 있는 것은 편집기에서 다시
 // 추가할 수 있어야 한다.
 const PALETTE_TYPES: EditableElementType[] = [
-  'TEXT', 'FIELD', 'APPROVAL_GRID', 'META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE',
+  'TEXT', 'FIELD', 'DETAIL', 'IMAGE', 'APPROVAL_GRID', 'META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE',
 ]
 
 export function ElementPalette({

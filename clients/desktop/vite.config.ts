@@ -11,6 +11,7 @@
  */
 import { defineConfig, type Plugin } from 'vite'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const packageJson = require('./package.json') as { version: string }
@@ -38,6 +39,9 @@ function pwaRegisterDevStub(): Plugin {
 
 export default defineConfig({
   plugins: [pwaRegisterDevStub()],
+  // Playwright mock은 root를 src/renderer로 기동하지만, 인쇄 자산은 desktop/public에
+  // 둔다. /print-logo.svg allowlist 경로가 mock과 production에서 같은 실제 자산을 보게 한다.
+  publicDir: fileURLToPath(new URL('./public', import.meta.url)),
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
   },

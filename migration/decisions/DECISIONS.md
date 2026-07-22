@@ -3066,6 +3066,15 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-DS3B-03 | **편집 lifecycle은 ACTIVE 직접 수정을 금지한다.** ACTIVE 양식은 한국어 안내 후 비활성화해야 DRAFT 편집을 시작할 수 있고, 저장은 명시적인 v2 request 한 번으로만 revision을 증가시킨다. VIEW 권한만 있는 사용자는 목록/편집기를 읽기 전용으로 본다. |
 | D-DS3B-04 | **Flyway 신규 migration을 추가하지 않는다.** V10~V13의 JSONB `document`와 `schema_version` 컬럼은 v2 payload를 수용하며, schema 집합 검증은 애플리케이션 경계에서 수행한다. |
 
+## #845 DS-4 문서 양식 고도화 (2026-07-23, PR #908)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-DS4-01 | schema v2에 `DETAIL`·`IMAGE`를 additive union으로 추가한다. 기존 `FIELD`·`TEXT`·레거시 요소와 v1 upcast/렌더 해석은 변경하지 않는다. |
+| D-DS4-02 | `DETAIL`은 `body.lineItems`만 반복 바인딩하고 `EstimateLineResponse`의 `productName`, `modelName`, `specification`, `quantity`, `supplyAmount`(부가세 제외 공급가액), `vatAmount`, `lineTotal`(부가세 포함 합계), `note`만 허용한다. |
+| D-DS4-03 | `IMAGE` source는 정확한 `/print-logo.svg` 또는 50KB 이하 PNG/JPEG/WebP base64 data URL만 허용한다. 외부 URL·토큰 query/hash·blob/file/protocol-relative/SVG data는 차단한다. |
+| D-DS4-04 | 신규 DB/Flyway/API/design-system 컴포넌트 없이 기존 JSONB와 `DocumentRenderer → PrintLayout` 경로를 사용한다. 반복 표는 flow 높이·`thead` 반복·행 `break-inside: avoid`를 사용한다. |
+
 ## #825 슬5 null-semantics (2026-07-21, PR #864 R2)
 
 | 결정 코드 | 내용 |

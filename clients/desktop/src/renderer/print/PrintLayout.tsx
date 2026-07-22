@@ -89,8 +89,10 @@ interface PrintLayoutProps {
    *
    * `approvalDoc=true` 일 때만 closingNote/전자서명 안내 아래에 렌더한다. 미지정 시 아무 것도
    * 렌더하지 않는다(G3).
-   */
+  */
   footerExtra?: ReactNode
+  /** 반복 detail이 있는 v2 문서의 인쇄 표 분할 힌트. */
+  hasRepeatingDetail?: boolean
 }
 
 /**
@@ -115,6 +117,7 @@ export function PrintLayout({
   closingNote,
   headerExtra,
   footerExtra,
+  hasRepeatingDetail = false,
 }: PrintLayoutProps) {
   const navigate = useNavigate()
   const normalizedApprovalSteps = approvalSteps.slice(0, 5)
@@ -138,7 +141,7 @@ export function PrintLayout({
 
       <div className={`paper paper-${paper}`}>
         {approvalDoc ? (
-          <div className="print-approval-doc">
+          <div className={`print-approval-doc${hasRepeatingDetail ? ' print-approval-doc--repeating-detail' : ''}`}>
             {/* 헤더 = 좌(문서제목 + 문서메타) + 우(결재란 박스).
                 회사명/사업자번호 블록은 제거(2026-06-14 개발책임자 디자인 iteration 2) →
                 좌측 최상단이 문서 제목 h1, 그 아래 문서메타(번호/발행일/기간), 우상단이 결재란.
@@ -210,7 +213,7 @@ export function PrintLayout({
               ) : null}
             </header>
             <div className="print-approval-divider" aria-hidden="true" />
-            <main className="print-approval-body">{children}</main>
+            <main className={`print-approval-body${hasRepeatingDetail ? ' print-approval-body--repeating-detail' : ''}`}>{children}</main>
             {/* 문서 하단(본문 아래) = 정중한 품의/제출 멘트(closingNote) + 전자서명 안내 문구.
                 결재란 grid 는 우측 상단으로 이동했다(2026-06-14). closingNote 또는 결재란이
                 하나라도 있으면 divider 를 그린다. 안내 문구는 결재란이 렌더될 때만(빈 배열 방어). */}

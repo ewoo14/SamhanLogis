@@ -2,7 +2,7 @@ import { Button, Select } from '@samhan/design-system'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { fetchConfigurableDocTypes } from '../api/approvalLineConfigApi'
 import {
@@ -31,8 +31,47 @@ const PREVIEW_MODEL: ApprovalRenderModel = {
     { label: '작성', name: '작성자' },
     { label: '결재', name: '결재자' },
   ],
-  body: { paragraphs: ['본문 미리보기'], fieldRows: [{ label: '예시 필드', value: '예시 값' }], attachments: [] },
+  body: {
+    paragraphs: ['본문 미리보기'],
+    fieldRows: [{ label: '예시 필드', value: '예시 값' }],
+    attachments: [],
+    lineItems: [
+      {
+        productName: '미리보기 품목 A',
+        modelName: 'DS4-A',
+        specification: '샘플 규격',
+        quantity: 2,
+        supplyAmount: '30000',
+        vatAmount: '3000',
+        lineTotal: '33000',
+        note: '샘플 행',
+      },
+      {
+        productName: '미리보기 품목 B',
+        modelName: 'DS4-B',
+        specification: '샘플 규격',
+        quantity: 1,
+        supplyAmount: '15000',
+        vatAmount: '1500',
+        lineTotal: '16500',
+        note: '두 번째 행',
+      },
+    ],
+  },
   closing: { note: '위와 같이 품의하오니 재가하여 주시기 바랍니다.' },
+}
+
+function previewLineItems(count: number): NonNullable<ApprovalRenderModel['body']['lineItems']> {
+  return Array.from({ length: count }, (_, index) => ({
+    productName: `미리보기 품목 ${String.fromCharCode(65 + (index % 26))}-${index + 1}`,
+    modelName: `DS4-${String(index + 1).padStart(2, '0')}`,
+    specification: '샘플 규격',
+    quantity: (index % 4) + 1,
+    supplyAmount: String((index + 1) * 15000),
+    vatAmount: String((index + 1) * 1500),
+    lineTotal: String((index + 1) * 16500),
+    note: `샘플 행 ${index + 1}`,
+  }))
 }
 
 function errorMessage(error: unknown): string {
@@ -45,6 +84,7 @@ function errorMessage(error: unknown): string {
 
 export function DocumentTemplateEditorPage() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
@@ -86,6 +126,17 @@ export function DocumentTemplateEditorPage() {
     schemaVersion: 2,
     document: draft.document,
   }), [draft.docType, draft.name, draft.document])
+
+  const previewModel = useMemo(() => {
+    const requestedCountValue = new URLSearchParams(location.search).get('mockDetailRows')
+    if (requestedCountValue === null) return PREVIEW_MODEL
+    const requestedCount = Number(requestedCountValue)
+    if (!Number.isInteger(requestedCount) || requestedCount < 0 || requestedCount > 200) return PREVIEW_MODEL
+    return {
+      ...PREVIEW_MODEL,
+      body: { ...PREVIEW_MODEL.body, lineItems: previewLineItems(requestedCount) },
+    }
+  }, [location.search])
 
   const save = useMutation({
     mutationFn: () => isNew ? createDocumentTemplate(input) : updateDocumentTemplate(id!, input),
@@ -205,7 +256,7 @@ export function DocumentTemplateEditorPage() {
           </div>
           <div className="document-template-preview" data-testid="document-template-live-preview">
             <h2 className="no-print" style={{ fontSize: 15, marginTop: 0 }}>라이브 미리보기</h2>
-            <DocumentRenderer template={draft} model={PREVIEW_MODEL} />
+            <DocumentRenderer template={draft} model={previewModel} />
           </div>
         </div>
         {/* minWidth:0 — geometry 2열 grid(`ElementInspector` 위치(%) fieldset)의 number input 들이

@@ -114,4 +114,114 @@ describe('schema v2 parser', () => {
       },
     }).ok).toBe(false)
   })
+
+  it('DS-4: DETAIL과 IMAGE의 실제 허용 목록 payload를 보존한다', () => {
+    const result = parseDocumentTemplate({
+      ...v2Template,
+      document: {
+        ...v2Template.document,
+        bands: v2Template.document.bands.map((band) => {
+          if (band.kind === 'HEADER') {
+            return {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'company-logo',
+                  type: 'IMAGE',
+                  src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+                  alt: '회사 로고',
+                  geometry: { x: 70, y: 0, w: 25, h: 12 },
+                },
+              ],
+            }
+          }
+          if (band.kind === 'BODY') {
+            return {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'line-items',
+                  type: 'DETAIL',
+                  repeatBinding: 'body.lineItems',
+                  columns: ['productName', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal'],
+                  geometry: { x: 0, y: 45, w: 100, h: 40 },
+                },
+              ],
+            }
+          }
+          return band
+        }),
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const headerImage = result.value.document.bands[0]?.elements.find((element) => element.type === 'IMAGE')
+      const detail = result.value.document.bands[1]?.elements.find((element) => element.type === 'DETAIL')
+      expect(headerImage).toMatchObject({ key: 'company-logo', type: 'IMAGE', alt: '회사 로고' })
+      expect(detail).toMatchObject({
+        key: 'line-items',
+        type: 'DETAIL',
+        repeatBinding: 'body.lineItems',
+        columns: ['productName', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal'],
+      })
+    }
+  })
+
+  it('DS-4: DETAIL은 BODY에만 배치되고 알 수 없는 열 키를 거부한다', () => {
+    const detail = {
+      key: 'line-items',
+      type: 'DETAIL',
+      repeatBinding: 'body.lineItems',
+      columns: ['productName', 'lineTotal'],
+    }
+    const wrongBand = parseDocumentTemplate({
+      ...v2Template,
+      document: {
+        ...v2Template.document,
+        bands: v2Template.document.bands.map((band) => band.kind === 'HEADER'
+          ? { ...band, elements: [...band.elements, detail] }
+          : band),
+      },
+    })
+    expect(wrongBand.ok).toBe(false)
+
+    const unknownColumn = parseDocumentTemplate({
+      ...v2Template,
+      document: {
+        ...v2Template.document,
+        bands: v2Template.document.bands.map((band) => band.kind === 'BODY'
+          ? { ...band, elements: [...band.elements, { ...detail, columns: ['lineTotal', 'lineTotalWithVat'] }] }
+          : band),
+      },
+    })
+    expect(unknownColumn.ok).toBe(false)
+  })
+
+  it('DS-4: 외부·토큰·SVG·blob 이미지 source를 거부한다', () => {
+    const sources = [
+      'https://example.com/logo.png',
+      '/print-logo.svg?token=secret',
+      'data:image/svg+xml;base64,PHN2Zy8+',
+      'blob:https://example.com/id',
+      '//example.com/logo.png',
+    ]
+    for (const src of sources) {
+      const result = parseDocumentTemplate({
+        ...v2Template,
+        document: {
+          ...v2Template.document,
+          bands: v2Template.document.bands.map((band) => band.kind === 'HEADER'
+            ? {
+                ...band,
+                elements: [...band.elements, { key: `image-${sources.indexOf(src)}`, type: 'IMAGE', src, alt: '로고' }],
+              }
+            : band),
+        },
+      })
+      expect(result.ok, src).toBe(false)
+    }
+  })
 })

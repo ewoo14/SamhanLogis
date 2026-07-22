@@ -11,6 +11,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.Base64;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,8 @@ public class DocumentPayloadValidator {
     public static final int MAX_ELEMENTS_PER_BAND = 64;
     public static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_TEXT_LENGTH = 4_096;
+    private static final int MAX_ALT_LENGTH = 200;
+    private static final int MAX_IMAGE_BYTES = 50 * 1024;
 
     private static final Map<String, String> ELEMENT_BANDS = Map.of(
             "TITLE", "HEADER",
@@ -44,14 +47,18 @@ public class DocumentPayloadValidator {
     private static final Set<String> LEGACY_ELEMENT_TYPES = ELEMENT_BANDS.keySet();
     private static final Set<String> V2_ELEMENT_TYPES = Set.of(
             "TITLE", "META_ROWS", "APPROVAL_GRID", "CONTENT_PARAGRAPHS", "FIELD_TABLE",
-            "ATTACHMENT_TABLE", "CLOSING", "FIELD", "TEXT");
+            "ATTACHMENT_TABLE", "CLOSING", "FIELD", "TEXT", "DETAIL", "IMAGE");
+    private static final Set<String> DETAIL_COLUMN_KEYS = Set.of(
+            "productName", "modelName", "specification", "quantity",
+            "supplyAmount", "vatAmount", "lineTotal", "note");
     private static final Set<String> BINDING_VALUES = Set.of(
             "header.title", "header.docNo", "header.issueDate", "closing.note");
     private static final Pattern FIELD_BINDING = Pattern.compile(
             "body\\.fieldRow\\[[A-Za-z0-9_.-]{1,100}\\]");
     private static final Set<String> STYLE_KEYS = Set.of("fontSize", "bold", "align", "border");
     /** M-B: schema v1 요소가 가질 수 없는 v2 전용 예약 필드. */
-    private static final Set<String> RESERVED_V2_ELEMENT_FIELDS = Set.of("geometry", "style", "binding", "text");
+    private static final Set<String> RESERVED_V2_ELEMENT_FIELDS = Set.of(
+            "geometry", "style", "binding", "text", "repeatBinding", "columns", "src", "alt");
 
     private final ObjectMapper objectMapper;
 
@@ -158,10 +165,34 @@ public class DocumentPayloadValidator {
                 reject(type + " 요소는 최대 하나만 허용됩니다");
             }
         }
+        if (counts.getOrDefault("DETAIL", 0) > 1) {
+            reject("DETAIL 요소는 최대 하나만 허용됩니다");
+        }
     }
 
     private static void checkV2Element(JsonNode element, String type) {
-        if ("FIELD".equals(type)) {
+        if ("DETAIL".equals(type)) {
+            if (!"body.lineItems".equals(element.path("repeatBinding").asText())) {
+                reject("DETAIL 요소 repeatBinding이 허용 목록에 없습니다");
+            }
+            JsonNode columns = element.get("columns");
+            if (columns == null || !columns.isArray() || columns.size() == 0 || columns.size() > DETAIL_COLUMN_KEYS.size()) {
+                reject("DETAIL 요소 columns는 1개 이상 8개 이하여야 합니다");
+            }
+            Set<String> seen = new HashSet<>();
+            for (JsonNode column : columns) {
+                if (!column.isTextual() || !DETAIL_COLUMN_KEYS.contains(column.asText()) || !seen.add(column.asText())) {
+                    reject("DETAIL 요소 columns에 허용되지 않은 열 또는 중복 열이 있습니다");
+                }
+            }
+        } else if ("IMAGE".equals(type)) {
+            if (element.has("binding") || !validImageSource(element.get("src"))) {
+                reject("IMAGE 요소 src가 허용 정책을 만족하지 않습니다");
+            }
+            if (!validString(element.get("alt"), MAX_ALT_LENGTH)) {
+                reject("IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다");
+            }
+        } else if ("FIELD".equals(type)) {
             JsonNode binding = element.get("binding");
             if (binding == null || !binding.isTextual()
                     || (!BINDING_VALUES.contains(binding.asText()) && !FIELD_BINDING.matcher(binding.asText()).matches())) {
@@ -192,6 +223,21 @@ public class DocumentPayloadValidator {
         if (geometry != null) checkGeometry(geometry);
         JsonNode style = element.get("style");
         if (style != null) checkStyle(style);
+    }
+
+    private static boolean validImageSource(JsonNode source) {
+        if (source == null || !source.isTextual()) return false;
+        String value = source.asText();
+        if ("/print-logo.svg".equals(value)) return true;
+        var matcher = Pattern.compile("^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$")
+                .matcher(value);
+        if (!matcher.matches()) return false;
+        try {
+            byte[] decoded = Base64.getDecoder().decode(matcher.group(2));
+            return decoded.length > 0 && decoded.length <= MAX_IMAGE_BYTES;
+        } catch (IllegalArgumentException ex) {
+            return false;
+        }
     }
 
     private static void checkGeometry(JsonNode geometry) {
@@ -246,8 +292,12 @@ public class DocumentPayloadValidator {
     }
 
     private static boolean validString(JsonNode node) {
+        return validString(node, MAX_KEY_LENGTH);
+    }
+
+    private static boolean validString(JsonNode node, int maxLength) {
         return node != null && node.isTextual() && !isFeTrimEmpty(node.asText())
-                && node.asText().length() <= MAX_KEY_LENGTH;
+                && node.asText().length() <= maxLength;
     }
 
     /** FE JavaScript trim()과 동일하게 Unicode 공백만 있는 key를 거부한다. */

@@ -1,7 +1,18 @@
 import { Button } from '@samhan/design-system'
 import type { ChangeEvent } from 'react'
+import { useState } from 'react'
 
-import { ELEMENT_TYPE_LABEL, type BindingRef, type DocElement, type ElementStyle, type Geometry } from '../../print/templateSchema'
+import {
+  DETAIL_COLUMN_KEYS,
+  DETAIL_COLUMN_LABEL,
+  ELEMENT_TYPE_LABEL,
+  isAllowedImageSource,
+  type BindingRef,
+  type DetailColumnKey,
+  type DocElement,
+  type ElementStyle,
+  type Geometry,
+} from '../../print/templateSchema'
 
 const FIXED_BINDINGS: Array<{ value: BindingRef; label: string }> = [
   { value: 'header.title', label: '문서 제목' },
@@ -38,12 +49,14 @@ export function ElementInspector({
   /** H-E: 편집 잠금·권한 없음 상태에서는 속성 편집·삭제 자체가 불가능해야 한다(읽기 전용 표시는 허용). */
   canEdit: boolean
 }) {
+  const [imageError, setImageError] = useState<string | null>(null)
   if (!element) {
     return <section className="document-template-inspector" aria-label="속성 패널"><h3 style={{ margin: 0, fontSize: 15 }}>속성</h3><p>요소를 선택하세요.</p></section>
   }
 
-  const geometry = element.type === 'FIELD' || element.type === 'TEXT' ? element.geometry : undefined
-  const style = element.type === 'FIELD' || element.type === 'TEXT' ? element.style : undefined
+  const hasPositionedStyle = element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'DETAIL' || element.type === 'IMAGE'
+  const geometry = hasPositionedStyle ? element.geometry : undefined
+  const style = hasPositionedStyle ? element.style : undefined
   const updateGeometry = (key: keyof Geometry, value: number) => onUpdate({ geometry: { x: 0, y: 0, w: 100, h: 10, ...geometry, [key]: value } })
   const updateStyle = (patch: Partial<ElementStyle>) => onUpdate({ style: { ...style, ...patch } })
   const fieldRowMatch = element.type === 'FIELD' ? FIELD_ROW_BINDING.exec(element.binding) : null
@@ -105,7 +118,71 @@ export function ElementInspector({
           ) : null}
         </>
       ) : null}
-      {element.type === 'FIELD' || element.type === 'TEXT' ? (
+      {element.type === 'DETAIL' ? (
+        <fieldset className="document-template-inspector-fieldset" style={{ display: 'grid', gap: 6 }}>
+          <legend>반복 열</legend>
+          {DETAIL_COLUMN_KEYS.map((column) => {
+            const checked = element.columns.includes(column)
+            return (
+              <label key={column}>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!canEdit || (checked && element.columns.length === 1)}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                      ? [...element.columns, column]
+                      : element.columns.filter((value) => value !== column)
+                    onUpdate({ columns: next as DetailColumnKey[] })
+                  }}
+                />{' '}
+                {DETAIL_COLUMN_LABEL[column]}
+              </label>
+            )
+          })}
+        </fieldset>
+      ) : null}
+      {element.type === 'IMAGE' ? (
+        <>
+          <label>
+            대체 문구
+            <input aria-label="이미지 대체 문구" value={element.alt} disabled={!canEdit} onChange={(event) => onUpdate({ alt: event.target.value })} />
+          </label>
+          <label>
+            이미지 source
+            <input aria-label="이미지 source" value={element.src} disabled={!canEdit} onChange={(event) => {
+              setImageError(null)
+              onUpdate({ src: event.target.value })
+            }} />
+          </label>
+          <label>
+            파일에서 선택
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              disabled={!canEdit}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = () => {
+                  const src = String(reader.result ?? '')
+                  if (!isAllowedImageSource(src)) {
+                    setImageError('PNG/JPEG/WebP 50KB 이하 이미지만 사용할 수 있습니다.')
+                    return
+                  }
+                  setImageError(null)
+                  onUpdate({ src })
+                }
+                reader.onerror = () => setImageError('이미지 파일을 읽지 못했습니다.')
+                reader.readAsDataURL(file)
+              }}
+            />
+          </label>
+          {imageError ? <p role="alert" style={{ margin: 0 }}>{imageError}</p> : null}
+        </>
+      ) : null}
+      {hasPositionedStyle ? (
         <>
           <fieldset className="document-template-inspector-fieldset" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
             <legend>위치(%)</legend>

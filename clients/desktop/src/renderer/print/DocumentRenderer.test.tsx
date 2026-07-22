@@ -323,4 +323,106 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(fieldIndex).toBeGreaterThan(attachmentIndex)
     expect(contentIndex).toBeGreaterThan(fieldIndex)
   })
+
+  it('DS-4: DETAIL은 0행에서 기존 빈 데이터 문구를, N행에서 각 DTO 값을 구별해 렌더한다', () => {
+    const baseModel = buildApprovalRenderModel(input())
+    const lineItems = [
+      {
+        productName: '펌프 A',
+        modelName: 'MX-100',
+        specification: '220V',
+        quantity: 2,
+        supplyAmount: '30000',
+        vatAmount: '3000',
+        lineTotal: '33000',
+        note: '첫 행',
+      },
+      {
+        productName: '밸브 B',
+        modelName: 'VX-200',
+        specification: '380V',
+        quantity: 5,
+        supplyAmount: '15000',
+        vatAmount: '1500',
+        lineTotal: '16500',
+        note: '둘째 행',
+      },
+    ]
+    const model = {
+      ...baseModel,
+      body: { ...baseModel.body, lineItems },
+    }
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'detail-items',
+                  type: 'DETAIL' as const,
+                  repeatBinding: 'body.lineItems' as const,
+                  columns: ['productName', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal'] as const,
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model as never} />)
+
+    expect(html).toContain('data-template-detail="detail-items"')
+    expect(html).toContain('펌프 A')
+    expect(html).toContain('밸브 B')
+    expect(html).toContain('30,000')
+    expect(html).toContain('3,000')
+    expect(html).toContain('33,000')
+    expect((html.match(/data-template-detail-row=/g) ?? []).length).toBe(2)
+
+    const emptyHtml = render(<DocumentRenderer
+      template={template as never}
+      model={{ ...baseModel, body: { ...baseModel.body, lineItems: [] } } as never}
+    />)
+    expect(emptyHtml).toContain('데이터가 없습니다.')
+  })
+
+  it('DS-4: IMAGE는 허용된 data URL을 geometry와 함께 인쇄 경로에 렌더한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'HEADER'
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'logo-image',
+                  type: 'IMAGE' as const,
+                  src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+                  alt: '회사 로고',
+                  geometry: { x: 70, y: 4, w: 20, h: 12 },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('data-template-image="logo-image"')
+    expect(html).toContain('alt="회사 로고"')
+    expect(html).toContain('left:70%')
+    expect(html).toContain('top:4%')
+    expect(html).toContain('width:20%')
+    expect(html).toContain('min-height:12%')
+  })
 })

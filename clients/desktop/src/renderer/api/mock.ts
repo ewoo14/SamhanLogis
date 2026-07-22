@@ -15362,6 +15362,40 @@ const MOCK_DOCUMENT_TEMPLATES: Record<string, MockDocumentTemplateDto> = {
       ],
     },
   },
+  GROUPWARE_DS4_ADVANCED: {
+    id: '77777777-eeee-4eee-8eee-000000000002',
+    status: 'DRAFT',
+    revision: 1,
+    docType: 'GROUPWARE_DS4_ADVANCED',
+    name: '[Mock] DS-4 품목행·로고 양식',
+    schemaVersion: 2,
+    document: {
+      paper: 'A4_PORTRAIT',
+      bands: [
+        {
+          key: 'ds4-header',
+          kind: 'HEADER',
+          elements: [
+            { key: 'ds4-title', type: 'TITLE' },
+            { key: 'ds4-grid', type: 'APPROVAL_GRID' },
+            { key: 'ds4-logo', type: 'IMAGE', src: '/print-logo.svg', alt: 'DS-4 로고', geometry: { x: 76, y: 0, w: 18, h: 12 } },
+          ],
+        },
+        {
+          key: 'ds4-body',
+          kind: 'BODY',
+          elements: [
+            { key: 'ds4-detail', type: 'DETAIL', repeatBinding: 'body.lineItems', columns: ['productName', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal'], geometry: { x: 0, y: 0, w: 100, h: 44 } },
+          ],
+        },
+        {
+          key: 'ds4-footer',
+          kind: 'FOOTER',
+          elements: [{ key: 'ds4-closing', type: 'CLOSING' }],
+        },
+      ],
+    },
+  },
   // #845 DS-3a 재인쇄 pin mock 회귀(FABLE5 R1 M-1) — 이 docType은 "관리자가 양식을 수정한
   // 뒤"의 현재 활성(rev2) 상태를 나타낸다. rev1(수정 전) 본문은
   // MOCK_DOCUMENT_TEMPLATE_REVISION_HISTORY 에 별도로 시드해, 승인 당시 pin 이 각인된

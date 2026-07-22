@@ -7,6 +7,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { PrintLayout, type PaperSize, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
 import type { ApprovalRenderModel } from './approvalRenderModel'
+import { krw } from './PrintLayout'
 import { LegacyApprovalDocBody, type LegacyApprovalDocSection } from './LegacyApprovalDocBody'
 import {
   paperToPrintLayout,
@@ -16,7 +17,12 @@ import {
   type FieldElement,
   type Geometry,
   type ElementStyle,
+  type DetailColumnKey,
+  type DetailElement,
+  type ImageElement,
   type TextElement,
+  DETAIL_COLUMN_LABEL,
+  isAllowedImageSource,
 } from './templateSchema'
 
 export interface CompiledApprovalDocument {
@@ -29,6 +35,8 @@ export interface CompiledApprovalDocument {
   headerExtra?: ReactNode
   /** FOOTER 밴드에 배치된 FIELD/TEXT 요소 — 없으면 undefined(빈 공간 미예약, G3). */
   footerExtra?: ReactNode
+  /** DETAIL 표가 있는 v2 문서에서 인쇄 본문을 자동 높이로 분할한다. */
+  hasRepeatingDetail: boolean
 }
 
 export interface DocumentRendererProps {
@@ -55,6 +63,8 @@ function sectionForElement(
       return null
     case 'FIELD':
     case 'TEXT':
+    case 'DETAIL':
+    case 'IMAGE':
       return null
   }
 }
@@ -94,6 +104,22 @@ function geometryStyle(geometry: Geometry | undefined, style: ElementStyle | und
   }
 }
 
+/** 반복 표는 높이가 데이터 행 수에 따라 늘어나야 하므로 absolute positioning을 쓰지 않는다. */
+function detailGeometryStyle(geometry: Geometry | undefined, style: ElementStyle | undefined): CSSProperties {
+  return {
+    ...(geometry === undefined ? {} : {
+      width: `${geometry.w}%`,
+      marginLeft: `${geometry.x}%`,
+      marginTop: `${geometry.y}%`,
+      minHeight: `${geometry.h}%`,
+    }),
+    ...(style?.fontSize === undefined ? {} : { fontSize: `${style.fontSize}pt` }),
+    ...(style?.bold === undefined ? {} : { fontWeight: style.bold ? 700 : 400 }),
+    ...(style?.align === undefined ? {} : { textAlign: style.align }),
+    ...(style?.border === undefined ? {} : { border: style.border ? '1px solid #000' : 'none' }),
+  }
+}
+
 function renderPositionedElement(element: FieldElement | TextElement, model: ApprovalRenderModel) {
   const text = element.type === 'TEXT' ? element.text : valueForBinding(element.binding, model)
   return (
@@ -107,6 +133,79 @@ function renderPositionedElement(element: FieldElement | TextElement, model: App
   )
 }
 
+function valueForDetailColumn(
+  item: ApprovalRenderModel['body']['lineItems'][number],
+  column: DetailColumnKey,
+): string {
+  switch (column) {
+    case 'quantity':
+      return item.quantity.toLocaleString('ko-KR')
+    case 'supplyAmount':
+      return krw(item.supplyAmount) || '-'
+    case 'vatAmount':
+      return krw(item.vatAmount) || '-'
+    case 'lineTotal':
+      return krw(item.lineTotal) || '-'
+    case 'productName':
+      return item.productName || '-'
+    case 'modelName':
+      return item.modelName || '-'
+    case 'specification':
+      return item.specification || '-'
+    case 'note':
+      return item.note || '-'
+  }
+}
+
+function renderDetailElement(element: DetailElement, model: ApprovalRenderModel) {
+  const rows = model.body.lineItems
+  return (
+    <div
+      key={element.key}
+      className="document-template-detail"
+      data-template-detail={element.key}
+      style={detailGeometryStyle(element.geometry, element.style)}
+    >
+      <table>
+        <thead>
+          <tr>
+            {element.columns.map((column) => <th key={column} scope="col">{DETAIL_COLUMN_LABEL[column]}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr data-template-detail-row="empty">
+              <td colSpan={element.columns.length}>데이터가 없습니다.</td>
+            </tr>
+          ) : rows.map((item, index) => (
+            <tr key={`${element.key}-${index}`} data-template-detail-row={`${index + 1}`}>
+              {element.columns.map((column) => <td key={column}>{valueForDetailColumn(item, column)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function renderImageElement(element: ImageElement) {
+  if (!isAllowedImageSource(element.src)) return null
+  return (
+    <img
+      key={element.key}
+      className="document-template-image"
+      data-template-image={element.key}
+      src={element.src}
+      alt={element.alt}
+      style={{
+        ...geometryStyle(element.geometry, element.style),
+        display: 'block',
+        objectFit: 'contain',
+      }}
+    />
+  )
+}
+
 /**
  * 밴드 소속 FIELD/TEXT 요소를 하나의 relative 컨테이너에 렌더한다.
  *
@@ -117,7 +216,7 @@ function renderPositionedElement(element: FieldElement | TextElement, model: App
  * 반환해 빈 공간을 예약하지 않는다.
  */
 function positionedElementLayer(
-  elements: Array<FieldElement | TextElement>,
+  elements: Array<FieldElement | TextElement | ImageElement>,
   model: ApprovalRenderModel,
   testId: string,
 ): ReactNode {
@@ -128,15 +227,21 @@ function positionedElementLayer(
       data-testid={testId}
       style={{ position: 'relative', minHeight: '24mm' }}
     >
-      {elements.map((element) => renderPositionedElement(element, model))}
+      {elements.map((element) => element.type === 'IMAGE'
+        ? renderImageElement(element)
+        : renderPositionedElement(element, model))}
     </div>
   )
 }
 
-function positionedElementsOf(elements: DocElement[]): Array<FieldElement | TextElement> {
+function positionedElementsOf(elements: DocElement[]): Array<FieldElement | TextElement | ImageElement> {
   return elements.filter(
-    (element): element is FieldElement | TextElement => element.type === 'FIELD' || element.type === 'TEXT',
+    (element): element is FieldElement | TextElement | ImageElement => element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE',
   )
+}
+
+function detailElementsOf(elements: DocElement[]): DetailElement[] {
+  return elements.filter((element): element is DetailElement => element.type === 'DETAIL')
 }
 
 /** 템플릿 band/element 순서에 따라 PrintLayout props와 본문을 compile한다. */
@@ -157,6 +262,9 @@ export function compileApprovalDocument(
 
   const headerPositioned = positionedElementsOf(headerElements)
   const bodyPositioned = positionedElementsOf(
+    template.document.bands.filter((band) => band.kind === 'BODY').flatMap((band) => band.elements),
+  )
+  const bodyDetails = detailElementsOf(
     template.document.bands.filter((band) => band.kind === 'BODY').flatMap((band) => band.elements),
   )
   const footerPositioned = positionedElementsOf(
@@ -183,10 +291,16 @@ export function compileApprovalDocument(
       <>
         <LegacyApprovalDocBody orderedSections={bodySections} />
         {positionedElementLayer(bodyPositioned, model, 'document-template-v2-elements-body')}
+        {bodyDetails.length > 0 ? (
+          <div className="document-template-detail-layer" data-testid="document-template-detail-layer">
+            {bodyDetails.map((element) => renderDetailElement(element, model))}
+          </div>
+        ) : null}
       </>
     ),
     headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
     footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
+    hasRepeatingDetail: bodyDetails.length > 0,
   }
 }
 
@@ -203,6 +317,7 @@ export function DocumentRenderer({ template, model, backTo }: DocumentRendererPr
       closingNote={compiled.closingNote}
       headerExtra={compiled.headerExtra}
       footerExtra={compiled.footerExtra}
+      hasRepeatingDetail={compiled.hasRepeatingDetail}
     >
       {compiled.body}
     </PrintLayout>

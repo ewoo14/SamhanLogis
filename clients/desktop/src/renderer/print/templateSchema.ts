@@ -37,6 +37,30 @@ export type BindingRef =
   | 'closing.note'
   | `body.fieldRow[${string}]`
 
+export const DETAIL_COLUMN_KEYS = [
+  'productName',
+  'modelName',
+  'specification',
+  'quantity',
+  'supplyAmount',
+  'vatAmount',
+  'lineTotal',
+  'note',
+] as const
+
+export type DetailColumnKey = (typeof DETAIL_COLUMN_KEYS)[number]
+
+export const DETAIL_COLUMN_LABEL: Record<DetailColumnKey, string> = {
+  productName: '품목',
+  modelName: '모델명',
+  specification: '규격',
+  quantity: '수량',
+  supplyAmount: '공급가액',
+  vatAmount: '부가세',
+  lineTotal: '합계',
+  note: '비고',
+}
+
 export type LegacyDocElement =
   | { key: string; type: 'TITLE' }
   | { key: string; type: 'META_ROWS' }
@@ -62,7 +86,25 @@ export type TextElement = {
   style?: ElementStyle
 }
 
-export type DocElement = LegacyDocElement | FieldElement | TextElement
+export type DetailElement = {
+  key: string
+  type: 'DETAIL'
+  repeatBinding: 'body.lineItems'
+  columns: DetailColumnKey[]
+  geometry?: Geometry
+  style?: ElementStyle
+}
+
+export type ImageElement = {
+  key: string
+  type: 'IMAGE'
+  src: string
+  alt: string
+  geometry?: Geometry
+  style?: ElementStyle
+}
+
+export type DocElement = LegacyDocElement | FieldElement | TextElement | DetailElement | ImageElement
 export type DocElementV2 = DocElement
 
 /**
@@ -79,6 +121,8 @@ export const ELEMENT_TYPE_LABEL: Record<DocElement['type'], string> = {
   CLOSING: '맺음말',
   FIELD: '필드',
   TEXT: '문구',
+  DETAIL: '품목행',
+  IMAGE: '이미지/로고',
 }
 
 export const BAND_KIND_LABEL: Record<BandKind, string> = {
@@ -125,6 +169,7 @@ export interface DocumentTemplateParseError {
   | 'INVALID_GEOMETRY'
   | 'INVALID_STYLE'
   | 'INVALID_BINDING'
+  | 'INVALID_IMAGE_SOURCE'
   | 'DUPLICATE_KEY'
   | 'INVALID_BAND_PLACEMENT'
   | 'INVALID_ELEMENT_COUNT'
@@ -145,7 +190,7 @@ const LEGACY_ELEMENT_TYPES = [
   'CLOSING',
 ] as const
 
-const V2_ELEMENT_TYPES = [...LEGACY_ELEMENT_TYPES, 'FIELD', 'TEXT'] as const
+const V2_ELEMENT_TYPES = [...LEGACY_ELEMENT_TYPES, 'FIELD', 'TEXT', 'DETAIL', 'IMAGE'] as const
 const MAX_REQUEST_BYTES = 64 * 1024
 const MAX_DEPTH = 16
 const MAX_BANDS = 32
@@ -157,6 +202,8 @@ const MAX_FONT_SIZE = 200
  * 불일치 — FE 가 통과시킨 요청이 BE 에서 "비어 있지 않은 문자열이어야 합니다"로 거부되어 실제 원인
  * (길이 초과)을 사용자가 알 수 없었다). */
 const MAX_TEXT_LENGTH = 4_096
+const MAX_ALT_LENGTH = 200
+const MAX_IMAGE_BYTES = 50 * 1024
 
 type LegacyElementType = (typeof LEGACY_ELEMENT_TYPES)[number]
 
@@ -262,6 +309,46 @@ function parseBinding(value: unknown): BindingRef | DocumentTemplateParseError {
   return { code: 'INVALID_BINDING', message: '허용되지 않은 문서 요소 binding입니다.' }
 }
 
+function isDetailColumnKey(value: unknown): value is DetailColumnKey {
+  return typeof value === 'string' && (DETAIL_COLUMN_KEYS as readonly string[]).includes(value)
+}
+
+function parseDetailColumns(value: unknown): DetailColumnKey[] | DocumentTemplateParseError {
+  if (!Array.isArray(value) || value.length === 0 || value.length > DETAIL_COLUMN_KEYS.length) {
+    return { code: 'INVALID_ELEMENT', message: 'DETAIL 요소 columns는 1개 이상 8개 이하여야 합니다.' }
+  }
+  const columns: DetailColumnKey[] = []
+  for (const column of value) {
+    if (!isDetailColumnKey(column) || columns.includes(column)) {
+      return { code: 'INVALID_ELEMENT', message: 'DETAIL 요소 columns에 허용되지 않은 열 또는 중복 열이 있습니다.' }
+    }
+    columns.push(column)
+  }
+  return columns
+}
+
+function parseImageSource(value: unknown): string | DocumentTemplateParseError {
+  if (value === '/print-logo.svg') return value
+  if (typeof value !== 'string') {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소 src가 유효하지 않습니다.' }
+  }
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value)
+  if (!match) {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 PNG/JPEG/WebP data URL 또는 기본 로고만 허용합니다.' }
+  }
+  const base64 = match[2] ?? ''
+  const bytes = Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0)
+  if (bytes <= 0 || bytes > MAX_IMAGE_BYTES) {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소 data URL은 50KB 이하여야 합니다.' }
+  }
+  return value
+}
+
+/** renderer가 parser와 같은 source allowlist를 적용하는 방어선. */
+export function isAllowedImageSource(value: unknown): value is string {
+  return !isParseError(parseImageSource(value))
+}
+
 function isParseError(value: unknown): value is DocumentTemplateParseError {
   return isRecord(value) && typeof value.code === 'string' && typeof value.message === 'string'
 }
@@ -290,6 +377,36 @@ function parseElement(value: unknown, schemaVersion: SchemaVersion): DocElement 
       key: value.key,
       type: 'FIELD',
       binding,
+      ...(geometry === undefined ? {} : { geometry }),
+      ...(style === undefined ? {} : { style }),
+    }
+  }
+  if (value.type === 'DETAIL') {
+    if (value.repeatBinding !== 'body.lineItems') {
+      return { code: 'INVALID_BINDING', message: 'DETAIL 요소 repeatBinding이 허용 목록에 없습니다.' }
+    }
+    const columns = parseDetailColumns(value.columns)
+    if (isParseError(columns)) return columns
+    return {
+      key: value.key,
+      type: 'DETAIL',
+      repeatBinding: 'body.lineItems',
+      columns,
+      ...(geometry === undefined ? {} : { geometry }),
+      ...(style === undefined ? {} : { style }),
+    }
+  }
+  if (value.type === 'IMAGE') {
+    const src = parseImageSource(value.src)
+    if (isParseError(src)) return src
+    if (!isNonEmptyString(value.alt, MAX_ALT_LENGTH)) {
+      return { code: 'INVALID_ELEMENT', message: 'IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다.' }
+    }
+    return {
+      key: value.key,
+      type: 'IMAGE',
+      src,
+      alt: value.alt,
       ...(geometry === undefined ? {} : { geometry }),
       ...(style === undefined ? {} : { style }),
     }
@@ -339,7 +456,7 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
 
   const keys = new Set<string>()
   const bands: Band[] = []
-  const counts: Partial<Record<LegacyElementType | 'FIELD' | 'TEXT', number>> = {}
+  const counts: Partial<Record<LegacyElementType | 'FIELD' | 'TEXT' | 'DETAIL' | 'IMAGE', number>> = {}
   for (const bandValue of value.document.bands) {
     if (!isRecord(bandValue)
       || !isNonEmptyString(bandValue.key)
@@ -359,6 +476,9 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
       if (parsed.type in ALLOWED_BANDS && ALLOWED_BANDS[parsed.type as LegacyElementType] !== bandValue.kind) {
         return failure('INVALID_BAND_PLACEMENT', `${parsed.type} 요소는 ${ALLOWED_BANDS[parsed.type as LegacyElementType]} band에 있어야 합니다.`)
       }
+      if (parsed.type === 'DETAIL' && bandValue.kind !== 'BODY') {
+        return failure('INVALID_BAND_PLACEMENT', 'DETAIL 요소는 BODY band에 있어야 합니다.')
+      }
       keys.add(parsed.key)
       elements.push(parsed)
       counts[parsed.type] = (counts[parsed.type] ?? 0) + 1
@@ -372,6 +492,7 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
   for (const type of ['META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE'] as const) {
     if ((counts[type] ?? 0) > 1) return failure('INVALID_ELEMENT_COUNT', `${type} 요소는 최대 하나만 허용됩니다.`)
   }
+  if ((counts.DETAIL ?? 0) > 1) return failure('INVALID_ELEMENT_COUNT', 'DETAIL 요소는 최대 하나만 허용됩니다.')
 
   return {
     ok: true,

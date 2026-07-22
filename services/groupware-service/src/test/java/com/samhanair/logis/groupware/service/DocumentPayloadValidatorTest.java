@@ -237,6 +237,54 @@ class DocumentPayloadValidatorTest {
         assertThat(textElement.geometry().w()).isEqualTo(90);
     }
 
+    @Test
+    void R2_DS4_v2PayloadRoundTrip_keepsDetailAndImageFields() throws Exception {
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        var headerElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements");
+        headerElements.addObject()
+                .put("key", "company-logo")
+                .put("type", "IMAGE")
+                .put("src", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB")
+                .put("alt", "회사 로고");
+        var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
+        bodyElements.addObject()
+                .put("key", "line-items")
+                .put("type", "DETAIL")
+                .put("repeatBinding", "body.lineItems")
+                .set("columns", objectMapper.createArrayNode()
+                        .add("productName").add("quantity").add("supplyAmount")
+                        .add("vatAmount").add("lineTotal"));
+
+        DocumentPayload payload = validator.validate((short) 2, document);
+        JsonNode roundTrip = objectMapper.valueToTree(payload);
+
+        JsonNode image = roundTrip.at("/bands/0/elements/3");
+        JsonNode detail = roundTrip.at("/bands/1/elements/3");
+        assertThat(image.path("type").asText()).isEqualTo("IMAGE");
+        assertThat(image.path("src").asText()).startsWith("data:image/png;base64,");
+        assertThat(image.path("alt").asText()).isEqualTo("회사 로고");
+        assertThat(detail.path("type").asText()).isEqualTo("DETAIL");
+        assertThat(detail.path("repeatBinding").asText()).isEqualTo("body.lineItems");
+        assertThat(detail.path("columns").toString()).contains("supplyAmount", "vatAmount", "lineTotal");
+    }
+
+    @Test
+    void DS4_imageSourcePolicy_rejectsExternalAndTokenizedSources() throws Exception {
+        for (String src : List.of(
+                "https://example.com/logo.png",
+                "/print-logo.svg?token=secret",
+                "data:image/svg+xml;base64,PHN2Zy8+",
+                "blob:https://example.com/id")) {
+            var document = fixture("valid-default.json").get("document").deepCopy();
+            ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                    .addObject().put("key", "unsafe-image").put("type", "IMAGE")
+                    .put("src", src).put("alt", "로고");
+            assertThatThrownBy(() -> validator.validate((short) 2, document))
+                    .as(src)
+                    .isInstanceOf(BusinessException.class);
+        }
+    }
+
     /** key 로 대상 요소를 명시적으로 찾는다. 없으면 예외로 실패한다(공허 충족 방지). */
     private static DocumentPayload.Element elementByKey(DocumentPayload payload, int bandIndex, String key) {
         return payload.bands().get(bandIndex).elements().stream()
