@@ -16,7 +16,7 @@
  * UUID 비공개 가드: `id` 는 path param / QueryKey 전용. 화면 노출 X.
  * 전표번호(slipNo) 만 사용자 노출.
  *
- * Iteration 가드: 본 2차 mock — 사용자 Edge 캡처 검토 후 추가 갱신 예정.
+ * 저장된 전표 라인 금액을 우선 사용하며 legacy 금액만 호환 fallback 한다.
  */
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -28,12 +28,11 @@ import { stripSlipNoZeros } from '../utils/orderNo'
 import {
   PrintLayout,
   krw,
-  calcAmounts,
 } from './PrintLayout'
 import { nowPrintedAt, fmtDatetime } from './printUtils'
 import { useCompanyProfile } from './useCompanyProfile'
 import { ApprovalRoleCells, fallbackRoles } from './approvalRoleCells'
-import { vatFromSupply } from '../utils/vatRounding'
+import { storedLineAmounts } from './printAmounts'
 
 export function PurchaseSlipPrintPage() {
   const params = useParams<{ id: string }>()
@@ -73,8 +72,14 @@ export function PurchaseSlipPrintPage() {
 
   const slip: SlipDetail = detailQuery.data
 
-  const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)
-  const { supply, vat } = calcAmounts(totalSupply)
+  const totals = slip.lines.reduce((sum, line) => {
+    const amounts = storedLineAmounts(line)
+    return {
+      supply: sum.supply + amounts.supply,
+      vat: sum.vat + amounts.vat,
+      total: sum.total + amounts.total,
+    }
+  }, { supply: 0, vat: 0, total: 0 })
 
   const destWarehouseName =
     warehousesQuery.data?.find((w) => w.id === slip.destinationWarehouseId)?.name ?? '-'
@@ -168,9 +173,8 @@ export function PurchaseSlipPrintPage() {
           </thead>
           <tbody>
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
-              const lineSupply = Number(l.lineTotal)
-              /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
-              const lineVat = vatFromSupply(lineSupply)
+              const { supply: lineSupply, vat: lineVat } = storedLineAmounts(l)
+              /** 저장된 S/V/T를 우선 사용하고 legacy 라인만 호환 fallback 한다. */
               return (
                 <tr key={l.id}>
                   <td className="col-no">{idx + 1}</td>
@@ -188,8 +192,8 @@ export function PurchaseSlipPrintPage() {
           <tfoot>
             <tr>
               <td colSpan={5} className="purchase-print-table-totals-label">합계</td>
-              <td className="col-supply num strong">{krw(supply)}</td>
-              <td className="col-vat num strong">{krw(vat)}</td>
+              <td className="col-supply num strong">{krw(totals.supply)}</td>
+              <td className="col-vat num strong">{krw(totals.vat)}</td>
               <td className="col-memo">&nbsp;</td>
             </tr>
           </tfoot>

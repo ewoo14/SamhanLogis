@@ -1014,6 +1014,34 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
 
   // R4-F4: 거래처 변경 최근단가 재조회 in-flight 동안 저장/발송 차단 + busy 단서 —
   // 이전 거래처 단가가 새 partnerId 로 저장돼 가격기억이 교차 오염되는 것을 방지.
+  it('estimate_hydratedAuthoritativeLine_headerOnlySave_preservesSupplyVatTotal', async () => {
+    const provider = makeProvider()
+    mocks.getEstimate.mockResolvedValue(makeEstimate({
+      lines: [{
+        ...makeEstimate().lines[0],
+        unitPrice: '100005' as unknown as string,
+        unitPriceWithVat: '110004',
+        supplyAmount: '100005',
+        vatAmount: '9999',
+        lineTotal: '110004',
+      }],
+    }))
+    mocks.createDocCoeditProvider.mockResolvedValue(provider)
+    renderPage()
+
+    await waitFor(() => expect(provider.subscribeDoc).toHaveBeenCalledTimes(1))
+    const memo = await screen.findByTestId('estimate-coedit-header-memo')
+    fireEvent.change(memo, { target: { value: '헤더만 변경' } })
+    fireEvent.click(screen.getByTestId('estimate-form-save-button'))
+
+    await waitFor(() => expect(mocks.updateEstimate).toHaveBeenCalledTimes(1))
+    expect(mocks.updateEstimate.mock.calls[0][1].lines[0]).toMatchObject({
+      supplyAmount: '100005',
+      vatAmount: '9999',
+      lineTotalWithVat: '110004',
+    })
+  })
+
   it('estimate_partnerSwitch_blocksSaveWhileRefreshInFlight', async () => {
     const pendingBulk = deferred<{ hits: Array<{ productId: string; unitPrice: number; source: string; updatedAt: string }>; failedProductIds: string[] }>()
     mocks.lookupProductByModelName.mockResolvedValue({

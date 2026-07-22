@@ -468,6 +468,8 @@ export interface PartnerOrderLine {
   vatAmount?: number | null
   /** VAT 포함 라인 합계 T (=subtotal). */
   lineTotal?: number | null
+  /** S/V/T 중 저장 권위를 나타내는 BE 계약값. */
+  authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL' | null
   /** 라인 비고 — 협업 overlay `line.{lineKey}.remark` 의 현재값. */
   remark: string | null
   /** 출고전표로 전환된 누적 수량 (Phase 2.6a). 기본 0. */
@@ -560,6 +562,7 @@ type RawPartnerOrderLine = Partial<Omit<PartnerOrderLine, 'deliveryPrice' | 'sub
     supplyAmount?: number | string | null
     vatAmount?: number | string | null
     lineTotal?: number | string | null
+    authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL' | null
     modelName?: string | null
     modelCode?: string | null
     expandedComponents?: PartnerOrderLine['expandedComponents'] | null
@@ -612,6 +615,7 @@ function normalizePartnerOrderLine(line: RawPartnerOrderLine, index: number): Pa
     supplyAmount: line.supplyAmount == null ? null : numberValue(line.supplyAmount),
     vatAmount: line.vatAmount == null ? null : numberValue(line.vatAmount),
     lineTotal: line.lineTotal == null ? null : numberValue(line.lineTotal),
+    authority: line.authority ?? null,
     remark: line.remark ?? null,
     convertedQuantity: numberValue(line.convertedQuantity),
     bundleMode: line.bundleMode ?? null,
@@ -699,6 +703,10 @@ export interface PartnerOrderUpdateRequest {
     quantity: number
     deliveryPrice: number
     remark: string | null
+    supplyAmount?: number | null
+    vatAmount?: number | null
+    lineTotal?: number | null
+    authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL' | null
   }>
 }
 

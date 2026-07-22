@@ -12,6 +12,7 @@ import {
   detailVatLine,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
+  toPurchaseEditLines,
 } from './SlipDetailPage'
 import { toServerLineIdSet } from '../realtime/coeditLineIds'
 import { editLineVat } from '../utils/lineVat'
@@ -155,6 +156,57 @@ describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
     expect(next[0]!.lineTotalWithVat).toBe('6105000')
     expect(next[0]!.authority).toBe('PRICE')
     expect(next[0]!.vatDirty).toBe(true)
+    provider.destroy()
+  })
+
+  it('hydrate 후 헤더만 저장해도 서버 권위 S/V/T를 payload 대상으로 유지한다', () => {
+    const slip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목 1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 1,
+        unitPrice: '100005',
+        supplyAmount: '100005',
+        vatAmount: '9999',
+        lineTotal: '110004',
+        note: '기존 메모',
+      }],
+    } as unknown as SlipDetail
+
+    const hydrated = toPurchaseEditLines(slip)
+    const afterHeaderEdit = { ...hydrated[0]!, note: '새 메모' }
+
+    expect(afterHeaderEdit.vatDirty).toBe(true)
+    expect(afterHeaderEdit).toMatchObject({
+      supplyAmount: '100005',
+      vatAmount: '9999',
+      lineTotalWithVat: '110004',
+    })
+  })
+
+  it('원격 선행행 삭제 뒤 잔여 행은 자기 파생 금액을 유지한다', async () => {
+    const provider = await makeProvider()
+    seedRows(provider, serverLines)
+    const current = editLinesFrom(serverLines).map((line, index) => index === 0
+      ? { ...line, supplyAmount: '100005', vatAmount: '9999', lineTotalWithVat: '110004', authority: 'VAT' as const, vatDirty: true }
+      : { ...line, supplyAmount: '200005', vatAmount: '19999', lineTotalWithVat: '220004', authority: 'VAT' as const, vatDirty: true })
+
+    provider.removeItem(SERVER_LINE_1)
+
+    const next = coeditLinesToEditLines(provider, current, knownServerLineIds)
+
+    expect(next[0]).toMatchObject({
+      lineId: SERVER_LINE_2,
+      productId: PRODUCT_2,
+      supplyAmount: '200005',
+      vatAmount: '19999',
+      lineTotalWithVat: '220004',
+      authority: 'VAT',
+      vatDirty: true,
+    })
     provider.destroy()
   })
 

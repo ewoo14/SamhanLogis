@@ -346,7 +346,7 @@ function createEditLineKey() {
   return Math.random().toString(36).slice(2)
 }
 
-function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
+export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
   return slip.lines.map((line) => ({
     key: createEditLineKey(),
     lineId: line.id,
@@ -362,7 +362,9 @@ function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
       Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     ),
     authority: 'PRICE',
-    vatDirty: false,
+    // Hydrated S/V/T are already authoritative server values. Keep them in
+    // every subsequent save payload, including header-only edits.
+    vatDirty: line.supplyAmount != null && line.vatAmount != null && line.lineTotal != null,
     isBundleComponent: Boolean((line.parentSetModel ?? '').trim()),
     note: line.note ?? '',
   }))
@@ -491,9 +493,9 @@ function seedSlipCoeditProvider(provider: DocCoeditProvider, slip: SlipDetail, m
  * 이웃의 lineId 를 물려받고, 서버가 그 lineId 를 무조건 신뢰해 남의 세트 계보를 각인하며
  * 사용자 단가가 가격기억에서 증발한다(라이브 2/2 결정적 재현).
  *
- * <p>{@code key}(React 키)·{@code productId} 는 종전대로 {@code previous} 폴백을 유지한다 —
- * 이 둘은 계보/가격기억 귀속에 쓰이지 않으므로 밀림의 피해 범위 밖이고, productId 는
- * 선택기반(타이핑 아님)이라 폴백이 빈 값 덮어쓰기를 막아준다.
+ * <p>파생 금액을 포함한 {@code previous} 행은 Y.Doc의 {@code lineId} 우선, 신규 행만
+ * {@code productId}로 매칭한다. 배열 인덱스는 원격 선행행 삭제 시 다른 행의 금액을
+ * 상속시키므로 식별자 매칭에 사용하지 않는다.
  */
 export function coeditLinesToEditLines(
   provider: DocCoeditProvider,
@@ -501,7 +503,12 @@ export function coeditLinesToEditLines(
   knownServerLineIds: ReadonlySet<string>,
 ): PurchaseEditLine[] {
   return provider.items.toArray().map((_, index) => {
-    const previous = current[index]
+    const providerLineId = provider.getItemValue(index, 'lineId')
+    const providerProductId = provider.getItemValue(index, 'productId')
+    const previous = current.find((candidate) => (
+      (providerLineId && candidate.lineId === providerLineId)
+      || (!providerLineId && providerProductId && candidate.productId === providerProductId)
+    ))
     const quantityValue = provider.getItemValue(index, 'quantity')
     // BLOCKING-1 부수 발견 2(#824 R1): supplyAmount/vatAmount/lineTotalWithVat/authority/
     // vatDirty 는 quantity/unitPrice 와 달리 "타이핑 대상"이 아니라 파생값이라, 이 라인에서
@@ -1768,7 +1775,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    *
    * <p><b>VAT 도메인 변환</b> (R8 잔여 2 — 드리프트): 기억·카탈로그는 VAT <b>포함</b>, 수정 필드는
    * VAT <b>제외</b> 공급단가다(utils/vatPrice.ts 에 BE 실증 기록). 후보는 포함 도메인으로 승격해
-   * 훅에 넘기고(비교 도메인 통일), 적용 시 {@code vatExclusiveOf}(BE ÷1.1 원 단위 HALF_UP 미러)로
+   * 훅에 넘기고(비교 도메인 통일), 적용 시 {@code vatExclusiveOf}(BE ÷1.1 정수 절사 미러)로
    * 필드 도메인 변환한다. 미변환 시 기억 500,000 이 필드에 그대로 실려 저장 ×1.1 = 550,000 으로
    * 거래처 변경마다 ~10% 복리 팽창했다(라이브 실증). 라인별 세구분 분기는 두지 않는다 — BE
    * SlipLine 에 세구분 필드가 없고 수정 저장 각인이 전 라인 균일 ×1.1 이므로 균일 ÷1.1 이 유일한

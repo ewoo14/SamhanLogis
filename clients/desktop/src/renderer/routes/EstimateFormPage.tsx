@@ -253,7 +253,9 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           vatAmount: String(line.vatAmount ?? '0'),
           lineTotal: String(line.lineTotal ?? '0'),
           authority: 'PRICE',
-          vatDirty: false,
+          // Existing S/V/T are server-authoritative. Preserve them on a
+          // header-only save instead of treating hydration as a clean edit.
+          vatDirty: line.supplyAmount != null && line.vatAmount != null && line.lineTotal != null,
           vatWarning: Number(line.vatAmount ?? 0)
             !== vatFromSupply(Number(line.supplyAmount ?? 0)),
           // R9 #5: 저장본 일반 라인은 거래처 변경 시 새 거래처 기준으로 다시 확인한다.

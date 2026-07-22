@@ -488,16 +488,13 @@ public class Estimate extends BaseEntity {
      * QUOTE_CONVERTED / QUOTE_REJECTED 등 잠긴 단계의 견적은 복원도 CONFLICT 로 거부한다
      * (회계 일관성 — 확정 후 매출 정정 차단).
      *
-     * <p>라인 금액 semantics (#822, 라이브 QA 16b fix): 스냅샷 라인의 {@code unitPriceWithVat} 가
-     * non-null 이면 {@link EstimateLine#createFromVatInclusive} 로 재생성해 VAT 포함 단가
-     * 권위값을 그대로 복원한다 — 같은 (수량, VAT 포함 단가) 입력의 결정적 재계산이므로 캡처 시점의
-     * supplyAmount/vatAmount/lineTotal 과 동일값이 재현된다(반올림 드리프트 없음). null(공급단가
-     * 입력 라인 또는 #822 이전 구 JSONB 스냅샷)이면 종전대로 {@link EstimateLine#create} 공급
-     * semantics 재계산을 유지한다(하위호환).
+     * <p>라인 금액 semantics (#824): 스냅샷에 supplyAmount/vatAmount/lineTotal이 모두 있으면
+     * {@link EstimateLine#createFromAuthoritativeAmounts} 로 저장된 권위 금액을 그대로 복원한다.
+     * 이력복원에서 권위 금액을 unitPriceWithVat로 재분해하지 않아 비표준 VAT가 보존된다. 권위
+     * 필드가 없는 구 JSONB 스냅샷은 unitPriceWithVat 또는 공급단가 legacy 경로로 하위호환한다.
      *
      * <p>합계는 스냅샷의 totalSupply/totalVat 값을 신뢰하지 않고 {@link #recalculateTotals()} 로
-     * 재계산한다 (라인 기준). lineTotal/supplyAmount/vatAmount 는 {@link EstimateLine} 이 생성 시
-     * recompute 한 결과를 사용한다.
+     * 재계산한다 (라인 기준). 권위 라인은 저장된 S/V/T를, legacy 라인은 생성 시 계산된 값을 사용한다.
      *
      * <p>status / version 등 라이프사이클 메타는 복원 대상이 아니며 — 복원도 신규 RESTORE revision
      * 으로 별도 기록되므로 본 메서드는 헤더/라인 상태만 되돌린다.
@@ -533,11 +530,16 @@ public class Estimate extends BaseEntity {
         if (snapshotLines != null) {
             int lineNo = 1;
             for (EstimateSnapshot.Line snapLine : snapshotLines) {
-                // #822 — VAT 포함 단가 권위값이 있으면 createFromVatInclusive 로 복원 (전표
-                // SlipSnapshot 이 이미 보유한 필드의 estimate 누락 계열 fix). 공급 단가로
-                // create 하면 unit_price_with_vat 가 NULL 화되어 R5-H6 provenance 규칙상
-                // legacy 입력으로 오전환된다 — 편집 폼이 공급단가를 VAT 포함가로 오표시(16b).
-                EstimateLine restored = snapLine.unitPriceWithVat() != null
+                // #824 — complete S/V/T가 있으면 snapshot 권위 금액을 그대로 복원한다.
+                boolean hasAuthoritativeAmounts = snapLine.supplyAmount() != null
+                        && snapLine.vatAmount() != null
+                        && snapLine.lineTotal() != null;
+                EstimateLine restored = hasAuthoritativeAmounts
+                        ? EstimateLine.createFromAuthoritativeAmounts(this, lineNo++,
+                                snapLine.productId(), snapLine.productName(), snapLine.modelName(),
+                                snapLine.specification(), snapLine.quantity(), snapLine.supplyAmount(),
+                                snapLine.vatAmount(), snapLine.lineTotal(), snapLine.note())
+                        : snapLine.unitPriceWithVat() != null
                         ? EstimateLine.createFromVatInclusive(this, lineNo++,
                                 snapLine.productId(),
                                 snapLine.productName(),

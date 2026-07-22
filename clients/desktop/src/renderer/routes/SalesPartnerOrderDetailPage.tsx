@@ -105,6 +105,10 @@ function toEditLines(order: PartnerOrderDetail): EditLine[] {
     quantity: line.quantity,
     deliveryPrice: line.deliveryPrice,
     remark: line.remark,
+    supplyAmount: line.supplyAmount ?? null,
+    vatAmount: line.vatAmount ?? null,
+    lineTotal: line.lineTotal ?? line.subtotal,
+    authority: line.authority ?? null,
   }))
 }
 
@@ -131,6 +135,10 @@ function coeditLinesToEditLines(
     const previous = current[index]
     const quantityValue = provider.getItemValue(index, 'quantity')
     const deliveryPriceValue = provider.getItemValue(index, 'deliveryPrice')
+    const supplyAmountValue = provider.getItemValue(index, 'supplyAmount')
+    const vatAmountValue = provider.getItemValue(index, 'vatAmount')
+    const lineTotalValue = provider.getItemValue(index, 'lineTotal')
+    const authorityValue = provider.getItemValue(index, 'authority')
     return {
       key: previous?.key ?? createEditLineKey(),
       productName: provider.getItemValue(index, 'productName'),
@@ -139,6 +147,18 @@ function coeditLinesToEditLines(
       quantity: Number(quantityValue || 0),
       deliveryPrice: Number(deliveryPriceValue || 0),
       remark: provider.getItemValue(index, 'remark'),
+      supplyAmount: supplyAmountValue === ''
+        ? previous?.supplyAmount ?? null
+        : Number(supplyAmountValue),
+      vatAmount: vatAmountValue === ''
+        ? previous?.vatAmount ?? null
+        : Number(vatAmountValue),
+      lineTotal: lineTotalValue === ''
+        ? previous?.lineTotal ?? null
+        : Number(lineTotalValue),
+      authority: authorityValue === ''
+        ? previous?.authority ?? null
+        : authorityValue as EditLine['authority'],
     }
   })
 }
@@ -1403,6 +1423,10 @@ export function SalesPartnerOrderDetailPage() {
                     quantity: line.quantity,
                     deliveryPrice: line.deliveryPrice,
                     remark: line.remark || null,
+                    supplyAmount: line.supplyAmount ?? null,
+                    vatAmount: line.vatAmount ?? null,
+                    lineTotal: line.lineTotal ?? null,
+                    authority: line.authority ?? null,
                   })),
                 })
               }}
