@@ -161,6 +161,7 @@ class NotificationPermissionControllerIT {
                 "본문",
                 "/notifications",
                 LocalDateTime.of(2026, 5, 27, 9, 0),
+                null,
                 null);
         lenient().when(notificationCenterService.findMyUnread(any(), anyString()))
                 .thenReturn(List.of(centerResponse));

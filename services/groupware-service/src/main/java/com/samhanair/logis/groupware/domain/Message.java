@@ -41,6 +41,10 @@ public class Message extends BaseEntity {
     @Column(name = "recipient_id", nullable = false, updatable = false)
     private UUID recipientId;
 
+    /** 복수 수신 발송 묶음 식별자. 기존 단건 발송은 null이다. */
+    @Column(name = "batch_id", updatable = false)
+    private UUID batchId;
+
     @Column(name = "body", nullable = false, length = 2000)
     private String body;
 
@@ -54,7 +58,7 @@ public class Message extends BaseEntity {
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
-    private Message(UUID senderId, UUID recipientId, String body) {
+    private Message(UUID senderId, UUID recipientId, String body, UUID batchId) {
         if (senderId == null || recipientId == null) {
             throw new IllegalArgumentException("senderId / recipientId 필수");
         }
@@ -66,6 +70,7 @@ public class Message extends BaseEntity {
         }
         this.senderId = senderId;
         this.recipientId = recipientId;
+        this.batchId = batchId;
         this.body = body;
         this.status = MessageStatus.UNREAD;
         this.sentAt = LocalDateTime.now();
@@ -75,7 +80,12 @@ public class Message extends BaseEntity {
      * 신규 메신저 발송. status=UNREAD, sentAt=now.
      */
     public static Message send(UUID senderId, UUID recipientId, String body) {
-        return new Message(senderId, recipientId, body);
+        return new Message(senderId, recipientId, body, null);
+    }
+
+    /** 복수 수신 메신저 발송. 수신자별 1행이며 같은 batchId를 공유한다. */
+    public static Message send(UUID senderId, UUID recipientId, String body, UUID batchId) {
+        return new Message(senderId, recipientId, body, batchId);
     }
 
     /** 수신자가 열람 호출. UNREAD → READ + readAt 적재. 이미 READ 상태면 idempotent (no-op). */

@@ -22,7 +22,17 @@ public class NotificationPublisherAutoConfiguration {
     public NotificationPublisher notificationPublisher(
             @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder loadBalancedBuilder,
             @Value("${app.security.internal.token:}") String internalToken,
-            @Value("${spring.application.name:unknown}") String applicationName) {
-        return new NotificationPublisher(loadBalancedBuilder, internalToken, applicationName);
+            @Value("${spring.application.name:unknown}") String applicationName,
+            @Value("${samhan.notification-publisher.connect-timeout-ms:1000}") int connectTimeoutMs,
+            @Value("${samhan.notification-publisher.read-timeout-ms:2000}") int readTimeoutMs) {
+        return new NotificationPublisher(loadBalancedBuilder, internalToken, applicationName,
+                connectTimeoutMs, readTimeoutMs);
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(name = "loadBalancedRestClientBuilder")
+    public NotificationPublisherDispatchExecutor notificationPublisherDispatchExecutor() {
+        return new NotificationPublisherDispatchExecutor();
     }
 }

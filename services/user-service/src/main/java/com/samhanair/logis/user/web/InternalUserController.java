@@ -129,19 +129,22 @@ public class InternalUserController {
     @PreAuthorize("hasRole('MASTER')")
     public ApiResponse<List<InternalEmployeeSearchResponse>> search(
             @RequestParam("q") String q,
-            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+            @RequestParam(value = "limit", defaultValue = "20") int limit,
+            @RequestParam(value = "activeOnly", defaultValue = "false") boolean activeOnly) {
         String normalized = q == null ? "" : q.trim();
         if (normalized.isBlank()) {
             return ApiResponse.ok(List.of());
         }
         int normalizedLimit = Math.min(Math.max(limit, 1), 50);
-        List<InternalEmployeeSearchResponse> employees = employeeRepository
-                .searchInternalApprovers(normalized, PageRequest.of(0, normalizedLimit)).stream()
+        List<InternalEmployeeSearchResponse> employees = (activeOnly
+                ? employeeRepository.searchInternalActiveRecipients(normalized, PageRequest.of(0, normalizedLimit))
+                : employeeRepository.searchInternalApprovers(normalized, PageRequest.of(0, normalizedLimit))).stream()
                 .map(emp -> new InternalEmployeeSearchResponse(
                         emp.getId(),
                         emp.getFullName(),
                         emp.getDepartment() == null ? null : emp.getDepartment().getName(),
-                        emp.getRoleSnapshot().name()))
+                        emp.getRoleSnapshot().name(),
+                        emp.getEcountCode()))
                 .toList();
         return ApiResponse.ok(employees);
     }
@@ -191,6 +194,25 @@ public class InternalUserController {
             exists.put(id, existing.contains(id));
         }
         return ApiResponse.ok(new BulkVerifyResponse(exists));
+    }
+
+    /**
+     * 메신저 발송 직전 재직 상태 일괄 검증. 검색 시점 이후 퇴사 처리된 직원은 false다.
+     * 존재 여부 검증과 별도 endpoint로 두어 호출자가 반드시 최신 재직 계약을 선택하게 한다.
+     */
+    @PostMapping("/verify-active-bulk")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<BulkVerifyResponse> verifyActiveBulk(@Valid @RequestBody BulkVerifyRequest req) {
+        List<UUID> ids = req.userIds() == null ? List.of() : req.userIds();
+        if (ids.isEmpty()) {
+            return ApiResponse.ok(new BulkVerifyResponse(Map.of()));
+        }
+        Set<UUID> distinct = new HashSet<>(ids);
+        Set<UUID> active = new HashSet<>();
+        employeeRepository.findAllActiveByIdIn(distinct).forEach(e -> active.add(e.getId()));
+        Map<UUID, Boolean> result = new HashMap<>();
+        distinct.forEach(id -> result.put(id, active.contains(id)));
+        return ApiResponse.ok(new BulkVerifyResponse(result));
     }
 
     /**

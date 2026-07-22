@@ -46,6 +46,11 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     @EntityGraph(attributePaths = "department")
     List<Employee> findAllByIdIn(Collection<UUID> ids);
 
+    /** 메신저 발송 직전 재직 상태를 재검증한다. soft-delete와 퇴사자는 결과에서 제외한다. */
+    @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
+            + "WHERE e.id IN :ids AND e.terminationDate IS NULL")
+    List<Employee> findAllActiveByIdIn(@Param("ids") Collection<UUID> ids);
+
     @EntityGraph(attributePaths = "department")
     List<Employee> findAllByDepartment_Id(UUID departmentId);
 
@@ -64,6 +69,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
             + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
             + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')))")
     List<Employee> searchInternalApprovers(@Param("q") String q, Pageable pageable);
+
+    /** 메신저 수신자 검색용 internal 조회 — soft-delete와 퇴사 직원을 제외한다. */
+    @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
+            + "WHERE e.isDeleted = false AND e.terminationDate IS NULL "
+            + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
+            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')))" )
+    List<Employee> searchInternalActiveRecipients(@Param("q") String q, Pageable pageable);
 
     /**
      * 종합견적서 담당자 directory 조회 — 활성 직원의 이름만 검색한다.

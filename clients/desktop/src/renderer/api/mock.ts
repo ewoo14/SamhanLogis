@@ -1892,6 +1892,7 @@ const MOCK_NOTIFICATION_CENTER: Array<{
   deeplink: string | null
   createdAt: string
   readAt: string | null
+  refId: string | null
 }> = [
   {
     id: 'n0000000-0000-0000-0000-000000000001',
@@ -1902,6 +1903,7 @@ const MOCK_NOTIFICATION_CENTER: Array<{
     deeplink: '/inventory/safety-stock-alerts',
     createdAt: '2026-05-22T10:00:00',
     readAt: null,
+    refId: null,
   },
   {
     id: 'n0000000-0000-0000-0000-000000000002',
@@ -1912,6 +1914,8 @@ const MOCK_NOTIFICATION_CENTER: Array<{
     deeplink: '/messenger',
     createdAt: '2026-05-22T10:30:00',
     readAt: null,
+    // 시드 수신함 메시지(message-seed-001)와 상관시켜 확인 처리 범위를 실증한다.
+    refId: 'message-seed-001',
   },
   {
     id: 'n0000000-0000-0000-0000-000000000004',
@@ -1922,6 +1926,7 @@ const MOCK_NOTIFICATION_CENTER: Array<{
     deeplink: '/admin/accounting-edit-requests',
     createdAt: '2026-05-26T10:00:00',
     readAt: null,
+    refId: null,
   },
   {
     id: 'n0000000-0000-0000-0000-000000000003',
@@ -1932,6 +1937,7 @@ const MOCK_NOTIFICATION_CENTER: Array<{
     deeplink: '/admin/ecount/reimport',
     createdAt: '2026-05-22T09:00:00',
     readAt: null,
+    refId: null,
   },
 ]
 
@@ -13482,6 +13488,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope({ ...target, resolved: true })
   }
 
+  const messengerResponse = mockMessengerResponse(config)
+  if (messengerResponse !== null) return messengerResponse
+
   return null
 }
 
@@ -18948,4 +18957,161 @@ function setMockDelegation(groupId: string, pageCode: string, grant: boolean) {
     print: false,
   }
   _mockPermissionGroupMatrices[groupId] = matrix
+}
+
+// ============================================================================
+// T2 #825 S6 — 메신저 수신자 칩 / bulk 발송 mock (BE DTO parity)
+// ============================================================================
+
+interface MockMessengerRecipient {
+  userId: string
+  name: string
+  department: string | null
+  employeeCode: string | null
+}
+
+interface MockMessengerMessage {
+  messageId: string
+  senderId: string
+  senderDisplayName: string | null
+  recipientId: string
+  body: string
+  status: 'UNREAD' | 'READ'
+  sentAt: string
+  readAt: string | null
+}
+
+const MOCK_MESSENGER_SELF_NAME = '오병승'
+
+// M-7 실측 근거(#866 슬6 리뷰): 실 DB 동명이인 "채권추심" 2건이 담당자코드 00000/999-99-99999로
+// 구분된다 — mock도 동일 패턴(중복 이름 1쌍)을 시드해 동명이인 화면 병기 경로를 실증한다.
+const MOCK_MESSENGER_RECIPIENTS: MockMessengerRecipient[] = [
+  { userId: '10000000-0000-0000-0000-000000000301', name: '김미선', department: '관리팀', employeeCode: '10001' },
+  { userId: '10000000-0000-0000-0000-000000000302', name: '이정훈', department: '회계팀', employeeCode: '10002' },
+  { userId: '10000000-0000-0000-0000-000000000303', name: '박영업', department: '영업팀', employeeCode: '10003' },
+  { userId: '10000000-0000-0000-0000-000000000304', name: '최영업', department: '영업팀', employeeCode: '10004' },
+  { userId: '10000000-0000-0000-0000-000000000305', name: '정창고', department: '창고팀', employeeCode: null },
+  { userId: '10000000-0000-0000-0000-000000000306', name: '채권추심', department: '회계팀', employeeCode: '00000' },
+  { userId: '10000000-0000-0000-0000-000000000307', name: '채권추심', department: '영업2팀', employeeCode: '999-99-99999' },
+]
+
+let mockMessengerMessages: MockMessengerMessage[] = [
+  {
+    messageId: 'message-seed-001',
+    senderId: '10000000-0000-0000-0000-000000000301',
+    senderDisplayName: '김미선',
+    recipientId: MOCK_AUTH.userId,
+    body: '시드 메신저 메시지입니다.',
+    status: 'UNREAD',
+    sentAt: '2026-07-22T09:00:00',
+    readAt: null,
+  },
+]
+
+function mockMessengerResponse(config: AxiosRequestConfig): unknown | null {
+  const method = (config.method ?? 'get').toUpperCase()
+  const url = config.url ?? ''
+  if (!url.includes('/admin/groupware/messages/')) return null
+
+  if (method === 'GET' && url.includes('/recipient-search')) {
+    const denied = mockRequirePermission('messenger.send', 'view')
+    if (denied) return denied
+    const q = String(config.params?.['q'] ?? '')
+    const normalized = q.trim().toLowerCase()
+    const recipients = normalized
+      ? MOCK_MESSENGER_RECIPIENTS.filter((recipient) => recipient.name.toLowerCase().includes(normalized))
+      : MOCK_MESSENGER_RECIPIENTS
+    return envelope(recipients.slice(0, 20))
+  }
+
+  if (method === 'GET' && url.endsWith('/messages/inbox')) {
+    const denied = mockRequirePermission('messenger.send', 'view')
+    if (denied) return denied
+    const rawPage = Number(config.params?.['page'] ?? 0)
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 0
+    const PAGE_SIZE = 50
+    const start = page * PAGE_SIZE
+    return envelope(mockMessengerMessages.slice(start, start + PAGE_SIZE))
+  }
+
+  const readMatch = url.match(/\/admin\/groupware\/messages\/([^/]+)\/read$/)
+  if (method === 'PUT' && readMatch) {
+    const denied = mockRequirePermission('messenger.send', 'view')
+    if (denied) return denied
+    const testState = globalThis as typeof globalThis & {
+      __SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__?: number
+      __SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_ID__?: string
+      __SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_STATUS__?: string
+    }
+    testState.__SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__ =
+      (testState.__SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__ ?? 0) + 1
+    testState.__SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_ID__ = readMatch[1]
+    const message = mockMessengerMessages.find((item) => item.messageId === readMatch[1])
+    if (!message) return mockError(404, 'NOT_FOUND', '메신저를 찾을 수 없습니다')
+    if (message.status === 'UNREAD') {
+      message.status = 'READ'
+      message.readAt = new Date().toISOString()
+    }
+    testState.__SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_STATUS__ = message.status
+    return mockOk(200, { ...message })
+  }
+
+  if (method === 'POST' && url.endsWith('/messages/bulk')) {
+    const denied = mockRequirePermission('messenger.send', 'create')
+    if (denied) return denied
+    const testState = globalThis as typeof globalThis & {
+      __SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__?: number
+      __SAMHAN_MOCK_LAST_MESSENGER_BULK_BODY__?: { recipientIds: string[]; body: string }
+    }
+    testState.__SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__ =
+      (testState.__SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__ ?? 0) + 1
+    const raw = config.data as { recipientIds?: unknown; body?: unknown } | string | undefined
+    let payload: { recipientIds?: unknown; body?: unknown } = {}
+    if (typeof raw === 'string') {
+      try {
+        payload = JSON.parse(raw) as { recipientIds?: unknown; body?: unknown }
+      } catch {
+        return mockError(400, 'INVALID_INPUT', '요청 본문이 유효하지 않습니다')
+      }
+    } else if (raw) {
+      payload = raw
+    }
+    const recipientIds = Array.from(new Set(
+      Array.isArray(payload.recipientIds) ? payload.recipientIds.filter((id): id is string => typeof id === 'string') : [],
+    ))
+    const body = typeof payload.body === 'string' ? payload.body : ''
+    testState.__SAMHAN_MOCK_LAST_MESSENGER_BULK_BODY__ = { recipientIds, body }
+    if (recipientIds.length === 0) return mockError(400, 'INVALID_INPUT', '수신자를 1명 이상 선택하십시오')
+    if (recipientIds.length > 50) return mockError(400, 'INVALID_INPUT', '수신자는 최대 50명까지 선택할 수 있습니다')
+    // BE 정책 실 재현 — 본인 포함은 조용히 제거하지 않고 400으로 거부한다.
+    if (recipientIds.includes(MOCK_AUTH.userId)) {
+      return mockError(400, 'INVALID_INPUT', '본인은 수신자로 지정할 수 없습니다')
+    }
+    const knownIds = new Set(MOCK_MESSENGER_RECIPIENTS.map((r) => r.userId))
+    for (let i = 0; i < recipientIds.length; i += 1) {
+      if (!knownIds.has(recipientIds[i]!)) {
+        // UUID는 오류 메시지에 포함하지 않는다(BE 정책과 동일).
+        return mockError(404, 'NOT_FOUND', `수신자를 찾을 수 없습니다: 수신자 ${i + 1}번`)
+      }
+    }
+    if (!body.trim()) return mockError(400, 'INVALID_INPUT', '본문을 입력하십시오')
+    if (body.length > 2000) return mockError(400, 'INVALID_INPUT', '본문은 2000자 이하로 입력하십시오')
+
+    const batchId = `batch-messenger-${Date.now()}`
+    const sentAt = new Date().toISOString()
+    const messages = recipientIds.map((recipientId, index) => ({
+      messageId: `message-${batchId}-${index + 1}`,
+      senderId: MOCK_AUTH.userId,
+      senderDisplayName: MOCK_MESSENGER_SELF_NAME,
+      recipientId,
+      body,
+      status: 'UNREAD' as const,
+      sentAt,
+      readAt: null,
+    }))
+    mockMessengerMessages = [...messages, ...mockMessengerMessages]
+    return mockOk(201, { batchId, sentCount: messages.length, messages })
+  }
+
+  return null
 }

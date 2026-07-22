@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +24,8 @@ import com.samhanair.logis.groupware.domain.Message;
 import com.samhanair.logis.groupware.domain.Schedule;
 import com.samhanair.logis.groupware.dto.ApprovalDecisionRequest;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
+import com.samhanair.logis.groupware.dto.MessageBulkSendResponse;
+import com.samhanair.logis.groupware.dto.MessageResponse;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
 import com.samhanair.logis.groupware.service.MessageService;
 import com.samhanair.logis.groupware.service.ScheduleService;
@@ -52,8 +55,6 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -123,11 +124,16 @@ class GroupwarePermissionControllerIT {
         lenient().when(approvalLineService.approve(any(UUID.class), any(UUID.class), any(java.util.Set.class))).thenReturn(approval);
         lenient().when(approvalLineService.reject(any(UUID.class), any(UUID.class), any(java.util.Set.class), any())).thenReturn(approval);
         lenient().when(messageService.send(any(), any(UUID.class))).thenReturn(message);
-        lenient().when(messageService.inbox(any(), any())).thenReturn(new PageImpl<>(List.of(message), PageRequest.of(0, 50), 1));
+        lenient().when(messageService.inboxPageResponses(any(), any())).thenReturn(
+                new org.springframework.data.domain.PageImpl<>(List.of(MessageResponse.from(message))));
+        lenient().when(messageService.markRead(any(UUID.class), any(UUID.class))).thenReturn(message);
+        lenient().when(messageService.sendBulk(any(), any(UUID.class))).thenReturn(
+                new MessageBulkSendResponse(UUID.randomUUID(), 1, List.of(MessageResponse.from(message))));
         lenient().when(scheduleService.create(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
         lenient().when(scheduleService.update(any(), any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(userClient.search(anyString(), anyInt())).thenReturn(List.of());
+        lenient().when(userClient.search(anyString(), anyInt(), anyBoolean())).thenReturn(List.of());
     }
 
     @ParameterizedTest(name = "{0} grant -> 2xx")
@@ -230,6 +236,18 @@ class GroupwarePermissionControllerIT {
                 new EndpointCase("message inbox", SEND_PAGE, PermissionAction.VIEW, "SALES",
                         () -> get("/admin/groupware/messages/inbox")
                                 .param("userId", "00000000-0000-0000-0000-000000000022")),
+                new EndpointCase("mark message read", SEND_PAGE, PermissionAction.VIEW, "SALES",
+                        () -> put("/admin/groupware/messages/{id}/read", id)),
+                new EndpointCase("bulk send message", SEND_PAGE, PermissionAction.CREATE, "SALES",
+                        () -> post("/admin/groupware/messages/bulk")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"recipientIds":["00000000-0000-0000-0000-000000000023"],"body":"복수 발송"}
+                                        """)),
+                new EndpointCase("recipient search", SEND_PAGE, PermissionAction.VIEW, "SALES",
+                        () -> get("/admin/groupware/messages/recipient-search")
+                                .param("q", "김")
+                                .param("limit", "20")),
                 new EndpointCase("create schedule", SEND_PAGE, PermissionAction.CREATE, "SALES",
                         () -> post("/admin/groupware/schedules")
                                 .contentType(MediaType.APPLICATION_JSON)

@@ -9,7 +9,10 @@ import com.samhanair.logis.groupware.dto.ApprovalLineAdminResponse;
 import com.samhanair.logis.groupware.dto.ApprovalLineCreateRequest;
 import com.samhanair.logis.groupware.dto.ApproverSearchResponse;
 import com.samhanair.logis.groupware.dto.MessageResponse;
+import com.samhanair.logis.groupware.dto.MessageBulkSendRequest;
+import com.samhanair.logis.groupware.dto.MessageBulkSendResponse;
 import com.samhanair.logis.groupware.dto.MessageSendRequest;
+import com.samhanair.logis.groupware.dto.RecipientSearchResponse;
 import com.samhanair.logis.groupware.dto.ScheduleRequest;
 import com.samhanair.logis.groupware.dto.ScheduleResponse;
 import com.samhanair.logis.groupware.service.ApprovalLineService;
@@ -34,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -188,8 +192,9 @@ public class GroupwareAdminController {
 
     // ================================ 메신저 ================================
 
-    /** 메신저 발송. */
-    @Operation(summary = "메신저 발송")
+    /** 메신저 단건 발송. 복수 수신은 /messages/bulk를 사용한다. */
+    @Operation(summary = "메신저 발송", deprecated = true,
+            description = "기존 단건 계약 호환용입니다. 복수 수신은 /messages/bulk를 사용하십시오.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "발송 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 실패")
@@ -203,16 +208,73 @@ public class GroupwareAdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(MessageResponse.from(msg)));
     }
 
-    /** 수신함 — 발송 시각 역순. */
+    /** 메신저 복수 수신 발송 — 수신자별 1행을 원자적으로 생성한다. */
+    @Operation(summary = "메신저 복수 수신 발송")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "발송 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "검증 실패"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "수신자 미존재")
+    })
+    @PostMapping("/messages/bulk")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
+    public ResponseEntity<ApiResponse<MessageBulkSendResponse>> sendBulkMessage(
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID senderId,
+            @Valid @RequestBody MessageBulkSendRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok(messageService.sendBulk(req, senderId)));
+    }
+
+    /** 메신저 수신자 검색 — 임원실 부서 제약 없이 재직자만 반환한다. */
+    @Operation(summary = "메신저 수신자 검색")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "검색 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "권한 없음")
+    })
+    @GetMapping("/messages/recipient-search")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
+    public ApiResponse<List<RecipientSearchResponse>> searchMessageRecipients(
+            @RequestParam("q") String q,
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
+        return ApiResponse.ok(userClient.search(q, limit, true).stream()
+                .map(item -> new RecipientSearchResponse(item.userId(), item.name(), item.department(), item.employeeCode()))
+                .toList());
+    }
+
+    /** 수신함 — 발송 시각 역순, 50건 단위 페이지. */
     @Operation(summary = "메신저 수신함")
     @GetMapping("/messages/inbox")
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-    public ApiResponse<List<MessageResponse>> inbox(
+    public ResponseEntity<ApiResponse<List<MessageResponse>>> inbox(
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID recipientId,
-            @RequestParam(required = false) UUID userId) {
+            @RequestParam(required = false) UUID userId,
+            @RequestParam(required = false, defaultValue = "0") int page) {
         // 객체수준 인가: userId 쿼리는 구버전 클라이언트 호환용으로만 받으며 조회 범위는 항상 호출자 본인이다.
-        var page = messageService.inbox(recipientId, org.springframework.data.domain.PageRequest.of(0, 50));
-        return ApiResponse.ok(page.map(MessageResponse::from).getContent());
+        int safePage = Math.max(page, 0);
+        Page<MessageResponse> inbox = messageService.inboxPageResponses(
+                recipientId, org.springframework.data.domain.PageRequest.of(safePage, 50));
+        return ResponseEntity.ok()
+                .header("X-Has-Next-Page", Boolean.toString(inbox.hasNext()))
+                .body(ApiResponse.ok(inbox.getContent()));
+    }
+
+    /**
+     * 메신저 읽음 처리. 호출자 신원은 게이트웨이가 주입한 {@code X-User-Id} 헤더만 사용한다.
+     * MessageService가 메시지 수신자와 호출자를 비교하므로 타인 수신 건은 403으로 거부한다.
+     * 이미 READ인 메시지는 도메인 멱등 가드가 같은 상태와 시각을 유지한다.
+     */
+    @Operation(summary = "메신저 읽음 처리")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자 본인 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "메시지 미존재")
+    })
+    @PutMapping("/messages/{messageId}/read")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
+    public ApiResponse<MessageResponse> markMessageRead(
+            @PathVariable UUID messageId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorId) {
+        return ApiResponse.ok(MessageResponse.from(messageService.markRead(messageId, actorId)));
     }
 
     // ================================ 일정 ================================

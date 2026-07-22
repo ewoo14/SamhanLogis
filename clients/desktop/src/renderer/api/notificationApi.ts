@@ -23,6 +23,8 @@ export interface NotificationCenter {
   deeplink: string | null
   createdAt: string  // ISO LocalDateTime
   readAt: string | null
+  /** source 식별자(예: messageId) — 채널 소비처가 원본 레코드와 상관시킬 때 사용. */
+  refId: string | null
 }
 
 /** BE NotificationCenterPage record 와 1:1. */
@@ -49,6 +51,25 @@ export async function fetchHistory(page = 0, size = 50): Promise<NotificationCen
 
 export async function acknowledgeNotification(id: string): Promise<void> {
   await apiClient.post(`/api/notifications/${encodeURIComponent(id)}/acknowledge`)
+}
+
+/**
+ * 메신저 수신함 열람과 통합 알림 배지를 함께 확인 처리한다.
+ *
+ * @param messageIds 방금 markRead에 성공한 messageId 집합. 지정하면 그 알림만 확인 처리한다.
+ *   생략(undefined)하면 미열람 MESSENGER 알림 전체를 확인 처리한다(레거시 호출부 호환).
+ *   지정 시, 화면에 아직 보이지 않은(예: 다음 페이지) 쪽지의 알림까지 앞서 확인 처리되어
+ *   배지가 실제보다 먼저 0이 되는 것을 막는다.
+ */
+export async function acknowledgeMessengerNotifications(messageIds?: string[]): Promise<void> {
+  const notifications = await fetchMyUnread()
+  const scope = messageIds ? new Set(messageIds) : null
+  await Promise.all(
+    notifications
+      .filter((notification) => notification.channel === 'MESSENGER')
+      .filter((notification) => !scope || (notification.refId !== null && scope.has(notification.refId)))
+      .map((notification) => acknowledgeNotification(notification.id)),
+  )
 }
 
 /** 채널별 그룹핑 헬퍼 — dropdown panel section 렌더용. */
