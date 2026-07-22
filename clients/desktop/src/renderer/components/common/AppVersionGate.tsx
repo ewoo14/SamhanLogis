@@ -8,7 +8,12 @@ import {
   resolveVersionPromptState,
   type VersionPromptState,
 } from '../../version/versionCheck'
+import {
+  resolveDesktopUpdatePresentation,
+  type DesktopUpdateStatus,
+} from '../../version/desktopUpdatePolicy'
 import { formatKstDate } from '../../utils/formatDate'
+import type { DesktopUpdateStatus as ElectronDesktopUpdateStatus } from '../../types/electron'
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION ?? '0.0.0'
 type SafeVersionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -115,8 +120,36 @@ function safeSessionStorage(fallbackStorage: Map<string, string>): SafeVersionSt
   }
 }
 
+function toUpdateStatus(value: ElectronDesktopUpdateStatus): DesktopUpdateStatus | null {
+  if (value.kind === 'checking') return { kind: 'checking' }
+  if (value.kind === 'available' && value.version) return { kind: 'available', version: value.version }
+  if (value.kind === 'downloading') return { kind: 'downloading', percent: value.percent ?? 0 }
+  if (value.kind === 'downloaded' && value.version) return { kind: 'downloaded', version: value.version }
+  if (value.kind === 'not-available') return { kind: 'not-available' }
+  if (value.kind === 'error') return { kind: 'error', message: value.message ?? '업데이트에 실패했습니다.' }
+  return null
+}
+
+function updateStatusText(status: DesktopUpdateStatus): string {
+  switch (status.kind) {
+    case 'checking':
+      return '업데이트를 확인하는 중입니다.'
+    case 'available':
+      return `새 버전 ${status.version}을 다운로드하는 중입니다.`
+    case 'downloading':
+      return `새 버전을 다운로드하는 중입니다. ${Math.round(status.percent)}%`
+    case 'downloaded':
+      return `새 버전 ${status.version}을 설치할 준비가 됐습니다.`
+    case 'error':
+      return `업데이트 실패: ${status.message}`
+    case 'not-available':
+      return '현재 설치된 버전이 최신입니다.'
+  }
+}
+
 export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
   const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
+  const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const checkedRef = useRef(false)
   const fallbackStorageRef = useRef(new Map<string, string>())
@@ -127,6 +160,21 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
       capacitor: isCapacitorPlatform,
     }),
   )
+
+  useEffect(() => {
+    if (!bootstrapped || !isElectronPlatform || !window.samhanUpdater) return
+    const unsubscribe = window.samhanUpdater.onStatus((status) => {
+      const next = toUpdateStatus(status)
+      if (next) setUpdateStatus(next)
+    })
+    void window.samhanUpdater.check().catch((err: unknown) => {
+      setUpdateStatus({
+        kind: 'error',
+        message: err instanceof Error ? err.message : '업데이트 확인에 실패했습니다.',
+      })
+    })
+    return unsubscribe
+  }, [bootstrapped])
 
   useEffect(() => {
     if (!bootstrapped || checkedRef.current) return
@@ -152,10 +200,65 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
       })
   }, [bootstrapped])
 
+  const checkForUpdate = () => {
+    if (!window.samhanUpdater) return
+    void window.samhanUpdater.check().catch((err: unknown) => {
+      setUpdateStatus({
+        kind: 'error',
+        message: err instanceof Error ? err.message : '업데이트 확인에 실패했습니다.',
+      })
+    })
+  }
+
+  const installUpdate = () => {
+    if (!window.samhanUpdater) return
+    void window.samhanUpdater.install().catch((err: unknown) => {
+      setUpdateStatus({
+        kind: 'error',
+        message: err instanceof Error ? err.message : '업데이트 설치에 실패했습니다.',
+      })
+    })
+  }
+
+  const statusNotice = updateStatus && updateStatus.kind !== 'not-available' ? (
+    <div
+      role="status"
+      data-testid="app-auto-update-status"
+      style={{
+        position: 'fixed',
+        insetInlineStart: 16,
+        insetBlockStart: 16,
+        zIndex: 10000,
+        maxWidth: 520,
+        padding: '10px 14px',
+        border: `1px solid ${updateStatus.kind === 'error' ? 'var(--color-danger-300)' : 'var(--color-brand-200)'}`,
+        borderRadius: 8,
+        background: 'var(--color-neutral-0)',
+        boxShadow: '0 8px 24px rgba(15, 23, 42, 0.16)',
+        fontSize: 13,
+      }}
+    >
+      <span>{updateStatusText(updateStatus)}</span>
+      {updateStatus.kind === 'downloaded' && (
+        <Button type="button" size="sm" variant="primary" onClick={installUpdate} style={{ marginInlineStart: 12 }}>
+          지금 다시 시작
+        </Button>
+      )}
+      {updateStatus.kind === 'error' && (
+        <Button type="button" size="sm" variant="secondary" onClick={checkForUpdate} style={{ marginInlineStart: 12 }}>
+          다시 확인
+        </Button>
+      )}
+    </div>
+  ) : null
+
   if (promptState.kind === 'blocking') {
     const { versionInfo } = promptState
+    const presentation = resolveDesktopUpdatePresentation(versionInfo.forceLevel, updateStatus ?? { kind: 'checking' })
     return (
-      <Modal
+      <>
+        {statusNotice}
+        <Modal
         open
         onClose={() => {}}
         title={forceLevelLabel(versionInfo.forceLevel)}
@@ -168,11 +271,11 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
         footer={(
           <Button
             type="button"
-            variant="secondary"
-            onClick={() => window.location.reload()}
+            variant={presentation.canInstall ? 'primary' : 'secondary'}
+            onClick={presentation.canInstall ? installUpdate : checkForUpdate}
             data-testid="app-version-blocking-reload"
           >
-            다시 확인
+            {presentation.canInstall ? '지금 설치하고 다시 시작' : '업데이트 다시 확인'}
           </Button>
         )}
       >
@@ -201,10 +304,13 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
             {releaseNotesText(versionInfo)}
           </div>
           <p style={{ margin: '14px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
-            새 버전 설치 또는 웹 재접속 후 다시 확인해 주세요. 업데이트 전까지 앱 사용은 차단됩니다.
+            {updateStatus?.kind === 'error'
+              ? '업데이트 서버에 연결되지 않았습니다. 연결을 복구한 뒤 다시 확인해 주세요. 안전을 위해 업데이트 전까지 앱 사용은 차단됩니다.'
+              : '새 버전이 설치될 때까지 앱 사용은 차단됩니다. 다운로드가 완료되면 다시 시작해 주세요.'}
           </p>
         </div>
       </Modal>
+      </>
     )
   }
 
@@ -216,7 +322,9 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
     }
 
     return (
-      <Modal
+      <>
+        {statusNotice}
+        <Modal
         open
         onClose={dismiss}
         title={forceLevelLabel(versionInfo.forceLevel)}
@@ -260,8 +368,14 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
           <p style={{ margin: '14px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
             앱은 계속 사용할 수 있지만, 이번 세션에서만 안내를 닫을 수 있습니다.
           </p>
+          {updateStatus && updateStatus.kind !== 'not-available' && (
+            <p data-testid="app-auto-update-progress" style={{ margin: '10px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
+              {updateStatusText(updateStatus)}
+            </p>
+          )}
         </div>
       </Modal>
+      </>
     )
   }
 
@@ -275,6 +389,7 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
 
     return (
       <>
+        {statusNotice}
         <div
           role="status"
           data-testid="app-version-minor-banner"
@@ -333,10 +448,15 @@ export function AppVersionGate({ bootstrapped }: { bootstrapped: boolean }) {
           <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
             {releaseNotesText(versionInfo)}
           </div>
+          {updateStatus && updateStatus.kind !== 'not-available' && (
+            <p data-testid="app-auto-update-progress" style={{ margin: '10px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
+              {updateStatusText(updateStatus)}
+            </p>
+          )}
         </Modal>
       </>
     )
   }
 
-  return null
+  return statusNotice
 }

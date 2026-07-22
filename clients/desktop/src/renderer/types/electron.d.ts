@@ -22,6 +22,13 @@ export interface AuthSnapshot {
   groups?: AuthGroupItem[]
 }
 
+export interface DesktopUpdateStatus {
+  kind: 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error'
+  version?: string
+  percent?: number
+  message?: string
+}
+
 declare global {
   /**
    * [Phase 6 v4] Electron `<webview>` tag JSX intrinsic — React 표준 HTML element 가 아님.
@@ -65,6 +72,12 @@ declare global {
     samhanLegacy: {
       getEstimateUrl: () => Promise<string>
       openExternal: (url: string) => Promise<void>
+    }
+    /** Electron packaged 앱의 자동 업데이트 IPC gateway. */
+    samhanUpdater?: {
+      check: () => Promise<void>
+      install: () => Promise<void>
+      onStatus: (listener: (status: DesktopUpdateStatus) => void) => () => void
     }
   }
 }
