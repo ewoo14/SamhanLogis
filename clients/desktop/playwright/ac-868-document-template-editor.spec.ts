@@ -390,9 +390,12 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
       await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기', level: 1 })).toBeVisible()
 
       const editStart = page.getByRole('button', { name: '편집 시작' })
-      if (await editStart.count()) await editStart.click()
+      const textButton = page.getByRole('button', { name: '문구 추가' })
+      await expect(editStart, `ACTIVE 양식 ${width}px 회차는 편집 시작 전제를 만족해야 한다`).toBeVisible()
+      await editStart.click()
+      await expect(textButton, `편집 시작 후 ${width}px 회차의 문구 추가가 활성화되어야 한다`).toBeEnabled()
 
-      await page.getByRole('button', { name: '문구 추가' }).click()
+      await textButton.click()
       const addedElement = page.getByRole('button', { name: '문구', exact: true }).last()
       await addedElement.click()
 
