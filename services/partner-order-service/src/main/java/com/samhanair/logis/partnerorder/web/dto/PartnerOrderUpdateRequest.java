@@ -28,6 +28,8 @@ public record PartnerOrderUpdateRequest(
     /**
      * 주문 수정 라인. {@code productId} 는 화면에 노출하지 않는 내부 참조라 요청 DTO 에 포함하지 않고,
      * service 가 모델명/품목명 기반 stable reference 로 보정한다.
+     * 금액 필드는 선택이다. 모두 생략하면 legacy PRICE 경로를 사용하고, authority가 있으면
+     * 전표·견적과 같은 S/V/T 항등식 경로를 사용한다.
      */
     public record LineRequest(
             @NotBlank String modelCode,
@@ -35,7 +37,17 @@ public record PartnerOrderUpdateRequest(
             @NotBlank String categoryKey,
             int quantity,
             @NotNull BigDecimal deliveryPrice,
-            String remark
+            String remark,
+            BigDecimal supplyAmount,
+            BigDecimal vatAmount,
+            BigDecimal lineTotal,
+            String authority
     ) {
+        /** 기존 direct PUT 호출부의 6개 인자 계약을 보존한다. */
+        public LineRequest(String modelCode, String productName, String categoryKey,
+                           int quantity, BigDecimal deliveryPrice, String remark) {
+            this(modelCode, productName, categoryKey, quantity, deliveryPrice, remark,
+                    null, null, null, null);
+        }
     }
 }

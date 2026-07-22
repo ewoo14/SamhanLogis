@@ -17,7 +17,7 @@
  * <h2>BE 응답 형식 (StatementBatchRow record)</h2>
  * <pre>
  * [{
- *   partnerCode, bizNo, partnerName,
+ *   selectionKey, partnerCode, bizNo, partnerName,
  *   chatRoomNames: string[],
  *   slips: [{
  *     slipNo, slipDate,
@@ -79,8 +79,10 @@ export interface StatementBatchSlip {
  * BE {@code StatementBatchRow} record 와 1:1 — 거래처 1건 + 슬립(세금계산서) list.
  */
 export interface StatementBatchRow {
-  /** 내부 partnerCode. 선택/인쇄 query key 로만 사용하고 화면에는 표시하지 않는다. */
-  partnerCode: string
+  /** partnerId 그룹과 1:1인 선택/전달 전용 key. 화면에 표시하지 않는다. */
+  selectionKey: string
+  /** 실제 거래처코드. 사업자번호 fallback 을 하지 않는다. */
+  partnerCode: string | null
   /** 사업자번호 숫자 문자열. */
   bizNo?: string | null
   /** 거래처명 (snapshot, BE 가 partner lookup 결과로 override 가능). */

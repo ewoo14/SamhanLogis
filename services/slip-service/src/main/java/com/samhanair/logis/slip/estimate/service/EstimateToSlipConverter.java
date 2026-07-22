@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.estimate.service;
 
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.service.AuthoritativeAmountValidator;
 import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.estimate.domain.Estimate;
 import com.samhanair.logis.slip.estimate.domain.EstimateLine;
@@ -78,7 +79,18 @@ public class EstimateToSlipConverter {
         for (EstimateLine line : estimate.getLines()) {
             // 단가 부가세포함 견적 라인(unitPriceWithVat != null)은 VAT 포함 단가로 전표 라인 재생성하여
             // 공급가액/부가세 라인 단위 분해를 보존. legacy(null)는 기존 공급단가 1:1 복사.
-            SlipLine slipLine = line.getUnitPriceWithVat() != null
+            // unitPriceWithVat 는 이번 슬라이스의 권위 라인과 기존 VAT 포함 라인을 식별한다.
+            // 구 견적(unitPriceWithVat == null)은 supply/vat/lineTotal 이 채워져 있어도
+            // 종전 공급단가 경로를 유지해야 소수 단가 legacy 행의 변환 회귀가 없다.
+            boolean authoritative = line.getUnitPriceWithVat() != null
+                    && AuthoritativeAmountValidator.isComplete(
+                            line.getSupplyAmount(), line.getVatAmount(), line.getLineTotal());
+            SlipLine slipLine = authoritative
+                    ? SlipLine.createFromAuthoritativeAmounts(slip,
+                            line.getProductId(), line.getProductName(), line.getModelName(),
+                            line.getSpecification(), line.getQuantity(), line.getSupplyAmount(),
+                            line.getVatAmount(), line.getLineTotal(), line.getNote(), null)
+                    : line.getUnitPriceWithVat() != null
                     ? SlipLine.createFromVatInclusive(slip,
                             line.getProductId(), line.getProductName(), line.getModelName(),
                             line.getSpecification(), line.getQuantity(), line.getUnitPriceWithVat(),

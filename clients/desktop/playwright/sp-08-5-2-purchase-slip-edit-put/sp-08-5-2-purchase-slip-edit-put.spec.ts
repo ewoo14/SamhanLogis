@@ -59,7 +59,10 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     expect(page).toContain('scrollIntoView({ behavior: \'smooth\', block: \'start\' })')
     expect(page).toContain("!((salesEditOpen && mode === 'OUTBOUND') || (purchaseEditOpen && mode === 'INBOUND'))")
     expect(page).toContain('단가(VAT제외)')
-    expect(page).toContain('합계(VAT제외)')
+    // RED-2(#824 R1): #824 가 "합계" 열을 VAT 제외 raw total 에서 라인 권위 lineTotalWithVat
+    // (VAT 포함)로 재설계하며 라벨도 "합계(VAT포함)"으로 바뀌었다 — 화면 실제와 어긋난
+    // 스펙 문자열을 동기화한다(프로덕션 코드 변경 아님).
+    expect(page).toContain('합계(VAT포함)')
     expect(page).toContain('aria-label={`단가(VAT제외) ${index + 1}`}')
     expect(page).not.toMatch(/<Modal[\s\S]*title="매입 전표 수정"/)
     expect(page).toContain('Input')

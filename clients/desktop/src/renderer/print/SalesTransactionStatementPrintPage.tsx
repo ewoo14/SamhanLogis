@@ -33,6 +33,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw } from './PrintLayout'
 import { krwHangul } from './printUtils'
+import { vatFromSupply } from '../utils/vatRounding'
 import { useFitOneA4 } from './useFitOneA4'
 import { useCompanyProfile } from './useCompanyProfile'
 
@@ -54,7 +55,7 @@ function lineDisplayName(l: SlipLineDetail): string {
 function lineAmounts(l: SlipLineDetail): { supply: number; vat: number; unitWithVat: number } {
   const supply =
     l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal) || 0
-  const vat = l.vatAmount != null ? Number(l.vatAmount) : Math.floor(supply * 0.1)
+  const vat = l.vatAmount != null ? Number(l.vatAmount) : vatFromSupply(supply)
   const unitWithVat =
     l.unitPriceWithVat != null
       ? Number(l.unitPriceWithVat)

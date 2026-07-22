@@ -11,6 +11,18 @@
 
 > 본 HTML 원본 = [`docs/samhan-public-overview.html`](docs/samhan-public-overview.html) (main `/docs` GitHub Pages source).
 
+## 2026-07-22 품목행 공급가액·부가세 정합성 (#824)
+
+- 전표·견적·세금계산서의 공급가액 기준 부가세를 `shared:common`의
+  `VatAmountCalculator`와 desktop `vatRounding.ts`로 수렴했다. 원 단위 미만은
+  기존 세금계산서 화면 정책과 거래 단수조정 계약을 보존해 0 방향 절사한다.
+- 주문 `PartnerOrderLine`의 `subtotal`은 기존부터 VAT 포함 합계(T)였음을 코드로 확인했다.
+  신규 `supply_amount`/`vat_amount`는 partner-order-service V12에서 nullable로 추가해
+  기존 주문을 backfill하지 않으며, 신규 행은 `S + V = subtotal(T)`를 검증한다.
+- 주문도 `PRICE / SUPPLY / VAT / TOTAL` 권위 경로를 지원하고, DC는 VAT 포함 단가에 먼저
+  적용한 뒤 PRICE 경로에서 공급가액·부가세를 계산한다. 근거와 검증은
+  [`docs/dev-reports/2026-07-22-824-item-line-supply-vat.md`](docs/dev-reports/2026-07-22-824-item-line-supply-vat.md)에 기록한다.
+
 ![Samhan Public 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
 
 ---

@@ -17,9 +17,9 @@
  * <h2>인쇄 진입</h2>
  * <ul>
  *   <li>[선택 거래처 일괄 인쇄] →
- *       {@code /print/statement-batch?from=&to=&partnerCodes=A,B,C}</li>
+ *       {@code /print/statement-batch?from=&to=&selectionKeys=A&selectionKeys=B}</li>
  *   <li>[전체 일괄 인쇄] → {@code /print/statement-batch?from=&to=}
- *       (partnerCodes 미지정 시 전체)</li>
+ *       (selectionKeys 미지정 시 전체)</li>
  * </ul>
  * <p>실제 인쇄 view 는 Designer commit 69fd8f0 의 {@link StatementBatchView} 가
  * 담당 (page-break-after: always per partner). 본 1차 mock 단계에서는 view 가
@@ -37,8 +37,8 @@
  * <ul>
  *   <li>{@code statement-batch-from} / {@code statement-batch-to} — 기간 입력</li>
  *   <li>{@code statement-batch-table} — 거래처 요약 표</li>
- *   <li>{@code statement-batch-row-{partnerCode}} — 거래처 row</li>
- *   <li>{@code statement-batch-checkbox-{partnerCode}} — 다중 선택 체크박스</li>
+ *   <li>{@code statement-batch-row-{index}} — 거래처 row</li>
+ *   <li>{@code statement-batch-checkbox-{index}} — 다중 선택 체크박스</li>
  *   <li>{@code statement-batch-print-selected} — 선택 거래처 일괄 인쇄 버튼</li>
  *   <li>{@code statement-batch-print-all} — 전체 일괄 인쇄 버튼</li>
  * </ul>
@@ -88,7 +88,7 @@ export function StatementBatchPage() {
   const [from, setFrom] = useState<string>(oneMonthAgoIso())
   const [to, setTo] = useState<string>(todayIso())
 
-  /** 다중 선택 거래처 코드 set. partnerCode key. */
+  /** 다중 선택 거래처 selectionKey set. 표시 코드와 분리한다. */
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   /** from <= to 검증 — false 시 BE 호출 차단. */
@@ -123,43 +123,43 @@ export function StatementBatchPage() {
 
   /** "전체 선택" 체크박스 상태. */
   const allSelected
-    = rows.length > 0 && rows.every((r) => selected.has(r.partnerCode))
+    = rows.length > 0 && rows.every((r) => selected.has(r.selectionKey))
   const partialSelected
-    = !allSelected && rows.some((r) => selected.has(r.partnerCode))
+    = !allSelected && rows.some((r) => selected.has(r.selectionKey))
 
   const toggleAll = () => {
     if (allSelected) {
       setSelected(new Set())
     } else {
-      setSelected(new Set(rows.map((r) => r.partnerCode)))
+      setSelected(new Set(rows.map((r) => r.selectionKey)))
     }
   }
 
-  const toggleOne = (partnerCode: string) => {
+  const toggleOne = (selectionKey: string) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(partnerCode)) {
-        next.delete(partnerCode)
+      if (next.has(selectionKey)) {
+        next.delete(selectionKey)
       } else {
-        next.add(partnerCode)
+        next.add(selectionKey)
       }
       return next
     })
   }
 
-  /** 선택 거래처 일괄 인쇄 — partnerCodes query 포함. */
+  /** 선택 거래처 일괄 인쇄 — selectionKeys 반복 query 포함. */
   const handlePrintSelected = () => {
     const codes = [...selected]
     if (codes.length === 0) return
     const params = new URLSearchParams({
       from,
       to,
-      partnerCodes: codes.join(','),
     })
+    for (const selectionKey of codes) params.append('selectionKeys', selectionKey)
     navigate(`/print/statement-batch?${params.toString()}`)
   }
 
-  /** 전체 일괄 인쇄 — partnerCodes 미지정 (= 전체). */
+  /** 전체 일괄 인쇄 — selectionKeys 미지정 (= 전체). */
   const handlePrintAll = () => {
     const params = new URLSearchParams({ from, to })
     navigate(`/print/statement-batch?${params.toString()}`)
@@ -386,13 +386,13 @@ export function StatementBatchPage() {
             </tr>
           </thead>
             <tbody>
-            {rows.map((row) => {
+            {rows.map((row, rowIndex) => {
               const sums = sumPartnerTotals(row)
-              const isChecked = selected.has(row.partnerCode)
+              const isChecked = selected.has(row.selectionKey)
               return (
                 <tr
-                  key={row.partnerCode}
-                  data-testid={`statement-batch-row-${row.partnerCode}`}
+                  key={row.selectionKey}
+                  data-testid={`statement-batch-row-${rowIndex}`}
                   style={{
                     borderBottom: '1px solid #F3F4F6',
                     background: isChecked ? '#EFF6FF' : 'transparent',
@@ -402,9 +402,9 @@ export function StatementBatchPage() {
                     <input
                       type="checkbox"
                       checked={isChecked}
-                      onChange={() => toggleOne(row.partnerCode)}
+                      onChange={() => toggleOne(row.selectionKey)}
                       aria-label={`${row.partnerName} 선택`}
-                      data-testid={`statement-batch-checkbox-${row.partnerCode}`}
+                      data-testid={`statement-batch-checkbox-${rowIndex}`}
                     />
                   </td>
                   <td style={{ padding: '8px 10px', fontFamily: 'monospace' }}>

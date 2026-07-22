@@ -186,7 +186,7 @@ class TaxInvoiceDomainTest {
     }
 
     @Test
-    @DisplayName("VAT 자동 — 라인 supply 50000 → vat 5000 (HALF_UP)")
+    @DisplayName("VAT 자동 — 라인 supply 50000 → vat 5000 (공통 원 단위 절사)")
     void vatAutoCalc() {
         TaxInvoiceLine line = TaxInvoiceLine.create(
                 newDraft(), 1, "x", null,
@@ -194,6 +194,17 @@ class TaxInvoiceDomainTest {
 
         assertThat(line.getSupplyAmount()).isEqualByComparingTo("50000.00");
         assertThat(line.getVatAmount()).isEqualByComparingTo("5000.00");
+    }
+
+    @Test
+    @DisplayName("공급가액 100005의 부가세는 원 단위 절사 10000이다")
+    void vatAutoCalcTruncatesFractionalWon() {
+        TaxInvoiceLine line = TaxInvoiceLine.create(
+                newDraft(), 1, "끝수 품목", null,
+                BigDecimal.ONE, new BigDecimal("100005"), null);
+
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005.00");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000.00");
     }
 
     private TaxInvoice newDraft() {

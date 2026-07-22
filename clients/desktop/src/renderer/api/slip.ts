@@ -308,6 +308,12 @@ export interface SlipLineInput {
    * 공급가액/부가세를 분리(eCount 방식). 2026-06-09 단가 부가세포함 전환.
    */
   priceVatInclusive?: boolean
+  /** 권위 공급가액 S — VAT 열을 편집한 라인에서만 3값 함께 전송. */
+  supplyAmount?: string
+  /** 권위 부가세 V — VAT 열을 편집한 라인에서만 3값 함께 전송. */
+  vatAmount?: string
+  /** 권위 VAT 포함 합계 T — 전표 lineTotal 컬럼과 구분되는 요청 합계. */
+  lineTotalWithVat?: string
 }
 
 /** 매입 전표 direct PUT 수정 요청 — BE `SlipUpdateRequest`. */
@@ -705,6 +711,10 @@ export interface AddLineRequest {
   setOptions?: BundleSetOptions
   /** 단가 부가세포함 여부 — true 면 unitPrice 가 VAT 포함 단가. */
   priceVatInclusive?: boolean
+  /** 권위 공급가액·부가세·합계 — 편집 라인에서만 3값 함께 전송. */
+  supplyAmount?: string
+  vatAmount?: string
+  lineTotalWithVat?: string
 }
 
 /**

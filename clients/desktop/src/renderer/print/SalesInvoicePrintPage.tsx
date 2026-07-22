@@ -15,8 +15,7 @@
  * UUID 비공개 가드: `id` 는 path param / QueryKey 전용. 화면 노출 X.
  * slipNo + partnerName 만 사용자 노출.
  *
- * Iteration 가드: 1차 mock — 사용자 Edge 캡처 검토 후 추가 갱신 예정
- * (memory `feedback_print_design_iteration.md`).
+ * 저장된 전표 라인 금액을 우선 사용하며 legacy 금액만 호환 fallback 한다.
  */
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -28,10 +27,10 @@ import {
   PrintLayout,
   krw,
   krDate,
-  calcAmounts,
 } from './PrintLayout'
 import { nowPrintedAt, fmtDatetime } from './printUtils'
 import { useCompanyProfile } from './useCompanyProfile'
+import { storedLineAmounts } from './printAmounts'
 
 export function SalesInvoicePrintPage() {
   const params = useParams<{ id: string }>()
@@ -65,8 +64,14 @@ export function SalesInvoicePrintPage() {
 
   const slip: SlipDetail = detailQuery.data
 
-  const totalSupply = slip.lines.reduce((sum, l) => sum + Number(l.lineTotal), 0)
-  const { supply, vat, total } = calcAmounts(totalSupply)
+  const totals = slip.lines.reduce((sum, line) => {
+    const amounts = storedLineAmounts(line)
+    return {
+      supply: sum.supply + amounts.supply,
+      vat: sum.vat + amounts.vat,
+      total: sum.total + amounts.total,
+    }
+  }, { supply: 0, vat: 0, total: 0 })
 
   /** 출고창고명 */
   const srcWarehouseName =
@@ -192,9 +197,8 @@ export function SalesInvoicePrintPage() {
           </thead>
           <tbody>
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
-              const lineSupply = Number(l.lineTotal)
-              /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
-              const lineVat = Math.floor(lineSupply * 0.1)
+              const { supply: lineSupply, vat: lineVat } = storedLineAmounts(l)
+              /** 저장된 S/V/T를 우선 사용하고 legacy 라인만 호환 fallback 한다. */
               /** MM/DD 포맷 — 전표 slipDate 기준 (라인별 날짜 없음) */
               const slipMmDd = slip.slipDate
                 ? slip.slipDate.slice(5, 7) + '/' + slip.slipDate.slice(8, 10)
@@ -228,8 +232,8 @@ export function SalesInvoicePrintPage() {
             <tr>
               <td colSpan={4} className="sales-print-table-totals-label">합계</td>
               <td className="col-qty num strong">{slip.lines.reduce((s, l) => s + l.quantity, 0).toLocaleString('ko-KR')}</td>
-              <td className="col-supply num strong">{krw(supply)}</td>
-              <td className="col-vat num strong">{krw(vat)}</td>
+               <td className="col-supply num strong">{krw(totals.supply)}</td>
+               <td className="col-vat num strong">{krw(totals.vat)}</td>
             </tr>
           </tfoot>
         </table>
@@ -238,15 +242,15 @@ export function SalesInvoicePrintPage() {
         <section className="sales-print-totals">
           <div className="sales-print-totals-row">
             <span className="sales-print-totals-label">공급가액</span>
-            <span className="sales-print-totals-value num">{krw(supply)}</span>
+            <span className="sales-print-totals-value num">{krw(totals.supply)}</span>
           </div>
           <div className="sales-print-totals-row">
-            <span className="sales-print-totals-label">세액 (10%)</span>
-            <span className="sales-print-totals-value num">{krw(vat)}</span>
+            <span className="sales-print-totals-label">세액</span>
+            <span className="sales-print-totals-value num">{krw(totals.vat)}</span>
           </div>
           <div className="sales-print-totals-row strong">
             <span className="sales-print-totals-label">합계금액</span>
-            <span className="sales-print-totals-value num">{krw(total)} 원</span>
+            <span className="sales-print-totals-value num">{krw(totals.total)} 원</span>
           </div>
         </section>
 

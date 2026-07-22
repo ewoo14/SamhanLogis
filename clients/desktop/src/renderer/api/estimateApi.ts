@@ -169,6 +169,12 @@ export interface EstimateLineRequest {
   setOptions?: BundleSetOptions
   /** 단가 부가세포함 여부 — true 면 unitPrice 가 VAT 포함 단가(BE 라인 단위 분해). 2026-06-09. */
   priceVatInclusive?: boolean
+  /** 권위 공급가액 S — VAT 열을 편집한 라인에서만 3값 함께 전송. */
+  supplyAmount?: string
+  /** 권위 부가세 V — VAT 열을 편집한 라인에서만 3값 함께 전송. */
+  vatAmount?: string
+  /** 권위 VAT 포함 합계 T — 견적 lineTotal과 동일 의미의 요청 합계. */
+  lineTotalWithVat?: string
 }
 
 /** 견적서 신규 생성 요청. */

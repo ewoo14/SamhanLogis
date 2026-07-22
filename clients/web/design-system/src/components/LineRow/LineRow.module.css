@@ -31,6 +31,23 @@
   color: var(--ink-primary);
 }
 
+/* VAT 포함 전표 행 — 단가 뒤에 공급가액·부가세 열을 추가한다. */
+.lineRowVat {
+  grid-template-columns:
+    var(--col-checkbox)
+    var(--col-drag)
+    var(--col-line-no)
+    minmax(100px, 1.5fr)
+    minmax(100px, 1.5fr)
+    86px
+    var(--col-qty)
+    var(--col-price)
+    108px
+    92px
+    var(--col-sum)
+    var(--col-delete);
+}
+
 .lineRow:hover:not(.dragging) {
   background: var(--surface-hover);
 }
@@ -124,6 +141,28 @@
   justify-content: flex-end;
   font-variant-numeric: var(--font-feature-num);
   font-feature-settings: 'tnum' 1;
+}
+
+.cellVatAmount {
+  justify-content: flex-end;
+  font-variant-numeric: var(--font-feature-num);
+  font-feature-settings: 'tnum' 1;
+  padding: 0 4px;
+}
+
+.vatAmountWrap {
+  display: inline-flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.vatWarning {
+  color: var(--state-warning, #9A6700);
+  font-size: 10px;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .cellSum {
@@ -351,6 +390,22 @@
   font-weight: 600;
   color: var(--ink-secondary);
   letter-spacing: 0.02em;
+}
+
+.lineHeaderVat {
+  grid-template-columns:
+    var(--col-checkbox)
+    var(--col-drag)
+    var(--col-line-no)
+    minmax(100px, 1.5fr)
+    minmax(100px, 1.5fr)
+    86px
+    var(--col-qty)
+    var(--col-price)
+    108px
+    92px
+    var(--col-sum)
+    var(--col-delete);
 }
 
 .lineHeader .cellQty,

@@ -184,6 +184,29 @@ class EstimateRestoreTest {
     }
 
     @Test
+    @DisplayName("restoreFromSnapshot: snapshot에 저장된 비표준 S/V/T 권위 금액을 재분해하지 않고 복원한다")
+    void restoreFromSnapshotPreservesAuthoritativeAmounts() throws Exception {
+        UUID estimateId = UUID.randomUUID();
+        Estimate estimate = rev1Estimate(estimateId);
+        EstimateSnapshot snapshot = new EstimateSnapshot(
+                "2026/07/23-1", LocalDate.of(2026, 7, 23), estimate.getPartnerId(),
+                "권위 금액 거래처", "123-45-67890", "서울 주소",
+                LocalDate.of(2026, 8, 23), "권위 금액 메모",
+                java.util.List.of(new EstimateSnapshot.Line(
+                        UUID.randomUUID(), "권위 품목", "AUTH-1", "규격", 1,
+                        new BigDecimal("100005"), new BigDecimal("100005"),
+                        new BigDecimal("9999"), new BigDecimal("110004"), "메모",
+                        new BigDecimal("110004"), null, null)));
+
+        estimate.restoreFromSnapshot(snapshot);
+
+        EstimateLine restored = estimate.getLines().get(0);
+        assertThat(restored.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(restored.getVatAmount()).isEqualByComparingTo("9999");
+        assertThat(restored.getLineTotal()).isEqualByComparingTo("110004");
+    }
+
+    @Test
     @DisplayName("[#822] restoreFromSnapshot: 구 스냅샷(unitPriceWithVat 부재=null)은 종전 공급 "
             + "semantics 재계산을 유지한다 (하위호환)")
     void restoreFromSnapshotLegacySnapshotKeepsSupplyRecalculation() throws Exception {

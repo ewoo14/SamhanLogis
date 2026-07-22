@@ -153,15 +153,27 @@ public class SlipService {
                                       String reqName, String reqModel, String specification, int quantity,
                                       java.math.BigDecimal unitPrice, String note,
                                       com.samhanair.logis.slip.estimate.web.dto.BundleSetOptions setOptions,
-                                      boolean priceVatInclusive, String actor,
+                                      boolean priceVatInclusive, java.math.BigDecimal supplyAmount,
+                                      java.math.BigDecimal vatAmount, java.math.BigDecimal lineTotalWithVat,
+                                      String actor,
                                       List<PartnerProductPriceMemoryCommand> priceMemoryCommands) {
+        boolean authoritative = AuthoritativeAmountValidator.isComplete(
+                supplyAmount, vatAmount, lineTotalWithVat);
         boolean bundle = summary != null && "BUNDLE".equals(summary.productType())
                 && summary.modelCode() != null && !summary.modelCode().isBlank();
+        if (bundle && authoritative) {
+            throw new com.samhanair.logis.common.exception.BusinessException(
+                    com.samhanair.logis.common.exception.ErrorCode.INVALID_INPUT,
+                    "세트 구성품의 공급가액·부가세는 개별 편집할 수 없습니다");
+        }
         if (!bundle) {
             String productName = reqName != null ? reqName : (summary != null ? summary.name() : null);
             String modelName = reqModel != null ? reqModel : (summary != null ? summary.modelName() : null);
             // 단가 부가세포함 전환: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
-            slip.addLine(priceVatInclusive
+            slip.addLine(authoritative
+                    ? SlipLine.createFromAuthoritativeAmounts(slip, productId, productName, modelName,
+                            specification, quantity, supplyAmount, vatAmount, lineTotalWithVat, note, null)
+                    : priceVatInclusive
                     ? SlipLine.createFromVatInclusive(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, note, null)
                     : SlipLine.create(slip, productId, productName, modelName,
@@ -264,7 +276,8 @@ public class SlipService {
             addSlipLinesExpanded(slip, lineReq.productId(), byId.get(lineReq.productId()),
                     lineReq.productName(), lineReq.modelName(), lineReq.specification(),
                     lineReq.quantity(), lineReq.unitPrice(), lineReq.note(), lineReq.setOptions(),
-                    Boolean.TRUE.equals(lineReq.priceVatInclusive()), requesterId, priceMemoryCommands);
+                    Boolean.TRUE.equals(lineReq.priceVatInclusive()), lineReq.supplyAmount(),
+                    lineReq.vatAmount(), lineReq.lineTotalWithVat(), requesterId, priceMemoryCommands);
         }
 
         // 5. 배송일정 계산 (지방/야적 태그 시 하차일 N 자동 산출 또는 override 적용)
@@ -787,7 +800,8 @@ public class SlipService {
         applyMutation(() -> addSlipLinesExpanded(slip, req.productId(), summary,
                 req.productName(), req.modelName(), req.specification(),
                 req.quantity(), req.unitPrice(), req.note(), req.setOptions(),
-                Boolean.TRUE.equals(req.priceVatInclusive()), callerId, priceMemoryCommands));
+                Boolean.TRUE.equals(req.priceVatInclusive()), req.supplyAmount(), req.vatAmount(),
+                req.lineTotalWithVat(), callerId, priceMemoryCommands));
         // 권한 재편 Phase 2.1 — 라인 추가도 헤더+라인 전체 버전이력에 잡히도록 EDIT 스냅샷 캡처
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(slip, SlipRevisionType.EDIT, null,

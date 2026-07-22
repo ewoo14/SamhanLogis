@@ -16,6 +16,7 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, SignatureViewer } from '@samhan/design-system'
+import { vatFromSupply } from '../utils/vatRounding'
 
 // 결재문서(approvalDoc) 헤더에서 회사명/사업자번호 블록 제거(2026-06-14 개발책임자
 // 디자인 iteration 2) → useCompanyProfile 훅은 본 layout 에서 더 이상 쓰지 않는다.
@@ -320,6 +321,6 @@ export function calcAmounts(supply: number): {
   total: number
 } {
   const s = Math.round(supply)
-  const vat = Math.floor(s * 0.1)
+  const vat = vatFromSupply(s)
   return { supply: s, vat, total: s + vat }
 }

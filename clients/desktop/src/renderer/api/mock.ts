@@ -14,6 +14,7 @@
  * - `GET /inventory/transfers` + `POST` + `GET /{id}` + transition mock
  */
 import type { AxiosRequestConfig } from 'axios'
+import { vatFromSupply } from '../utils/vatRounding'
 import {
   DISPATCH_TONNAGE_LABEL,
   DISPATCH_VEHICLE_BODY_TYPE_LABEL,
@@ -1790,6 +1791,9 @@ const SAMPLE_LINES = [
     quantity: 2,
     unitPrice: '85000',
     lineTotal: '170000',
+    unitPriceWithVat: '93500',
+    supplyAmount: '170000',
+    vatAmount: '17000',
     note: null,
     setHead: false,
     parentSetModel: 'SET-AJ040-4WAY',
@@ -1803,6 +1807,9 @@ const SAMPLE_LINES = [
     quantity: 1,
     unitPrice: '120000',
     lineTotal: '120000',
+    unitPriceWithVat: '132000',
+    supplyAmount: '120000',
+    vatAmount: '12000',
     note: null,
     // 평면 라인 — 세트 소속이 아니다.
     setHead: false,
@@ -9209,6 +9216,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && url.includes('/accounting/statements/batch-data')) {
     return envelope([
       {
+        selectionKey: 'mock-statement-1',
         partnerCode: '1234567890',
         partnerBusinessName: '엘에이시스템에어',
         chatRoomNames: ['서울 1톤 단톡방'],
@@ -9237,6 +9245,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         ],
       },
       {
+        selectionKey: 'mock-statement-2',
         partnerCode: '2345678901',
         partnerBusinessName: '강남에어솔루션',
         chatRoomNames: ['서울 2.5톤 단톡방'],
@@ -9255,6 +9264,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         ],
       },
       {
+        selectionKey: 'mock-statement-3',
         partnerCode: '3456789012',
         partnerBusinessName: '한빛쾌적',
         chatRoomNames: ['경기 1톤 단톡방'],
@@ -16577,8 +16587,10 @@ function mockEstimateSummary(row: (typeof MOCK_ESTIMATES)[number]) {
   const mutable = row as Record<string, unknown>
   const totalAmount = String(row.totalAmount ?? '0')
   const amountNumber = Number(totalAmount)
+  // BLOCKING-2 계열(#824 R1): BE VatAmountCalculator 는 0 방향 절사(DOWN)다 — mock 시드도
+  // 동일 규칙으로 맞춘다(리뷰가 필드만 보고 값 형식을 놓치는 사고 방지, mock/BE parity 규약).
   const totalSupply = Number.isFinite(amountNumber)
-    ? String(Math.round(amountNumber / 1.1))
+    ? String(Math.trunc((amountNumber * 10) / 11))
     : totalAmount
   const totalVat = Number.isFinite(amountNumber)
     ? String(amountNumber - Number(totalSupply))
@@ -18084,9 +18096,9 @@ function generateMockBatchRows(count: number) {
     const rowNo = i + 1
     const day = String((i % 28) + 1).padStart(2, '0')
     const supplyAmount = String(1000000 + i * 50000)
-    const vatAmount = String(Math.round((1000000 + i * 50000) * 0.1))
+    const vatAmount = String(vatFromSupply(1000000 + i * 50000))
     const totalAmount = String(
-      1000000 + i * 50000 + Math.round((1000000 + i * 50000) * 0.1),
+      1000000 + i * 50000 + vatFromSupply(1000000 + i * 50000),
     )
     return {
       rowNo,

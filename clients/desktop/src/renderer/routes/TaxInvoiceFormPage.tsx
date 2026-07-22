@@ -34,6 +34,7 @@ import { AuditRevisionBadge } from '../components/audit/AuditOverlaySection'
 import { searchPartners } from '../api/partnerApi'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { vatFromSupply } from '../utils/vatRounding'
 
 export function resolveTaxInvoicePartnerId(
   selectedPartnerId: string | undefined,
@@ -304,7 +305,7 @@ export function TaxInvoiceFormPage() {
       (sum, l) => sum + calcLineSupply(l.quantity, l.unitPrice),
       0,
     )
-    const vat = Math.trunc(supply * 0.1)
+    const vat = vatFromSupply(supply)
     return { supply, vat, total: supply + vat }
   }, [lines])
 
@@ -628,7 +629,7 @@ export function TaxInvoiceFormPage() {
         <div className={isMobile ? 'mobile-line-card-list' : undefined}>
         {lines.map((line, i) => {
           const supply = calcLineSupply(line.quantity, line.unitPrice)
-          const vat = Math.trunc(supply * 0.1)
+          const vat = vatFromSupply(supply)
           if (isMobile) {
             return (
               <TaxInvoiceMobileLineCard

@@ -6,6 +6,14 @@ Samhan Public 전표(출고/입고), 견적, 배송 첨부, 발행, 감사 이�
 - DB: PostgreSQL `slip_db`
 - 주요 의존: inventory-service, product-service, partner-order-service, partner-service, notification/SMS provider
 
+## #824 품목행 부가가치세 계산 기준
+
+전표와 견적의 공급가액 기준 부가세는 `shared:common`의
+`VatAmountCalculator`를 사용한다. 공급가액의 10%에서 원 단위 미만은 0 방향 절사하며,
+VAT 포함 단가 경로도 같은 계산기의 `splitVatInclusive`를 사용한다. 전표의 `lineTotal`은
+기존 계약대로 VAT 미포함 공급가액(S), 견적의 `lineTotal`은 VAT 포함 합계(T)다.
+권위 금액으로 저장된 기존 라인과 발행 완료 전표·세금계산서는 재계산하지 않는다.
+
 ## 주요 공개 API
 
 | Method | Path | 설명 |

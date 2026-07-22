@@ -408,6 +408,67 @@ class SlipControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void create_authoritativeAmounts_mismatch_returns400() throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "항등식 위반 테스트");
+        line.put("quantity", 1);
+        line.put("unitPrice", 110006);
+        line.put("supplyAmount", 100005);
+        line.put("vatAmount", 10000);
+        line.put("lineTotalWithVat", 110006);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", "2026-06-09");
+        body.put("sourceWarehouseId", UUID.randomUUID().toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerName", "항등식거래처");
+        body.put("deliveryTag", "DAY");
+        body.put("lines", List.of(line));
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("공급가액")));
+    }
+
+    @Test
+    void create_authoritativeAmounts_partialPayload_returns400() throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "부분 권위값 테스트");
+        line.put("quantity", 1);
+        line.put("unitPrice", 110000);
+        line.put("supplyAmount", 100000);
+        line.put("lineTotalWithVat", 110000);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("slipType", "OUTBOUND");
+        body.put("slipDate", "2026-06-09");
+        body.put("sourceWarehouseId", UUID.randomUUID().toString());
+        body.put("destinationWarehouseId", UUID.randomUUID().toString());
+        body.put("partnerName", "부분값거래처");
+        body.put("deliveryTag", "DAY");
+        body.put("lines", List.of(line));
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("함께 전송")));
+    }
+
+    @Test
     void addLine_bundle_expandedToComponents() throws Exception {
         // 에픽 후속 #2 — 기존 전표(DRAFT)에 BUNDLE(세트) 라인 추가 시 create 경로와 동일하게
         // product-service expand 로 구성품 라인 N개 전개됨을 검증 (이전엔 1라인으로 직삽입되어 미전개).

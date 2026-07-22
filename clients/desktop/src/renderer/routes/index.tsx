@@ -945,7 +945,7 @@ const routes = [
         ),
       },
       // [PR-E2 FE-8] 거래명세서 일괄 인쇄 미리보기 — Designer commit 69fd8f0 StatementBatchView 통합.
-      // `?from=&to=&partnerCodes=A,B,C` (partnerCodes 미지정 시 전체).
+      // `?from=&to=&selectionKeys=A&selectionKeys=B` (selectionKeys 미지정 시 전체).
       {
         path: '/print/statement-batch',
         element: (
