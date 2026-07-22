@@ -32,6 +32,15 @@ const VIEWPORTS = [
   { w: 320, h: 640, label: '최소폭-320' },
 ]
 
+/** 실제 렌더 glyph rect를 세어 CSS/폰트 변화가 반영된 줄 수를 반환한다. */
+async function renderedLineCount(locator: import('@playwright/test').Locator): Promise<number> {
+  return locator.evaluate((node) => {
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    return new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size
+  })
+}
+
 async function authenticate(page: Page) {
   const login = await page.request.post(`${API_BASE}/api/auth/login`, { data: { loginId: 'dev_master', password: PASSWORD } })
   expect(login.ok(), `실서버 로그인 실패: HTTP ${login.status()}`).toBeTruthy()
@@ -71,9 +80,29 @@ test.describe('DS-3b 점증분 — 레이아웃·모바일 (실서버)', () => {
       // 기존 L1~L6 하네스와 같은 경로 — 신규 양식 진입 (실 데이터 의존 없음)
       await page.getByRole('button', { name: '신규 문서 양식' }).click()
       await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
-      await expect(page.getByTestId('document-template-live-preview')).toBeVisible()
+      const preview = page.getByTestId('document-template-live-preview')
+      await expect(preview).toBeVisible()
       await page.waitForTimeout(1000)
       await page.screenshot({ path: join(SHOT_DIR, `${vp.label}-02-편집기.png`), fullPage: true })
+
+      if (vp.w <= 639) {
+        const title = preview.locator('.print-approval-doc-meta h1')
+        const docNoLabel = preview.locator('.print-approval-doc-meta div').filter({ hasText: '문서번호' }).locator('span')
+        const mobileHeader = await preview.locator('.print-approval-doc-header').evaluate((node) => ({
+          flexDirection: getComputedStyle(node).flexDirection,
+          titleLines: (() => {
+            const titleNode = node.querySelector('.print-approval-doc-meta h1')
+            if (!titleNode) return 0
+            const range = document.createRange()
+            range.selectNodeContents(titleNode)
+            return new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size
+          })(),
+        }))
+        expect(mobileHeader.flexDirection, `${vp.w}px 모바일 헤더는 세로 적층이어야 한다`).toBe('column')
+        expect(await renderedLineCount(title), `${vp.w}px 제목이 문자 단위로 쪼개지면 안 된다`).toBeLessThanOrEqual(2)
+        expect(await renderedLineCount(docNoLabel), `${vp.w}px 문서번호 라벨이 한 줄이어야 한다`).toBe(1)
+        expect(mobileHeader.titleLines, `${vp.w}px 제목 실제 glyph 줄 수가 과도하다`).toBeLessThanOrEqual(2)
+      }
 
       const editOverflow = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -112,6 +141,9 @@ test.describe('DS-3b 점증분 — 레이아웃·모바일 (실서버)', () => {
       }, { x: cx, y: cy })
       expect(hit.found, '팔레트 버튼 좌표에 hit target 이 없다').toBeTruthy()
       expect(hit.inside, `팔레트 버튼이 다른 요소에 가려져 있다 (hit=${hit.tag})`).toBeTruthy()
+      const elementsBeforeClick = await page.locator('[data-testid^="template-element-"]').count()
+      await palette.click()
+      await expect(page.locator('[data-testid^="template-element-"]')).toHaveCount(elementsBeforeClick + 1)
       await page.screenshot({ path: join(SHOT_DIR, `${vp.label}-03-편집기-조작확인.png`), fullPage: true })
     })
   }

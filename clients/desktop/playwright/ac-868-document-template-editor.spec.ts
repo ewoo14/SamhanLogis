@@ -199,6 +199,49 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     }
   })
 
+  test('M4: 모바일 결재란은 결재자 1·2·3·4·7명에서도 2열 배치를 유지한다', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 })
+    await page.goto(`/#/groupware/document-templates/${ACTIVE_TEMPLATE_ID}/edit?mockRole=MASTER`, {
+      waitUntil: 'domcontentloaded',
+    })
+
+    const preview = page.getByTestId('document-template-live-preview')
+    const grid = preview.locator('.print-approval-grid')
+    const layoutMatrix = await grid.evaluate((node) => {
+      const originalCell = node.querySelector<HTMLElement>('.print-approval-cell')
+      if (!originalCell) throw new Error('결재란 셀이 렌더되지 않았다')
+
+      return [1, 2, 3, 4, 7].map((approverCount) => {
+        // 실제 PrintLayout이 모델 길이로 쓰는 desktop inline grid 계약을 함께 재현한다.
+        node.style.gridTemplateColumns = `repeat(${Math.max(2, approverCount)}, var(--print-approval-corner-col, 19mm))`
+        node.replaceChildren(...Array.from({ length: approverCount }, (_, index) => {
+          const cell = originalCell.cloneNode(true) as HTMLElement
+          const name = cell.querySelector<HTMLElement>('.print-approval-name div')
+          if (name) name.textContent = `결재자${index + 1}`
+          return cell
+        }))
+        const style = getComputedStyle(node)
+        const rect = node.getBoundingClientRect()
+        const columns = style.gridTemplateColumns.trim().split(/\s+/).filter(Boolean)
+        return {
+          approverCount,
+          columnCount: columns.length,
+          clientWidth: node.clientWidth,
+          scrollWidth: node.scrollWidth,
+          width: rect.width,
+        }
+      })
+    })
+
+    for (const result of layoutMatrix) {
+      expect(result.columnCount, `${result.approverCount}명 결재란은 모바일 2열이어야 한다`).toBe(2)
+      expect(result.scrollWidth, `${result.approverCount}명 결재란이 모바일에서 수평으로 넘친다`)
+        .toBeLessThanOrEqual(result.clientWidth)
+      expect(result.width, `${result.approverCount}명 결재란 폭이 320px preview를 넘친다`)
+        .toBeLessThanOrEqual(194)
+    }
+  })
+
   test('H-E: ACTIVE 잠금 상태에서는 편집 시작 전까지 요소 추가·문구 입력이 불가능하다', async ({ page }) => {
     // 🔴 결함 재현: canEdit 이 팔레트/캔버스/인스펙터에 전달되지 않아 ACTIVE 잠금 상태에서도
     // "문구 추가" 버튼이 동작했다. 편집 시작(비활성화) 전에는 버튼이 disabled 여야 한다.
