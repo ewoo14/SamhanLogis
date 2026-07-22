@@ -19002,6 +19002,26 @@ function mockMessengerResponse(config: AxiosRequestConfig): unknown | null {
     return envelope([...mockMessengerMessages])
   }
 
+  const readMatch = url.match(/\/admin\/groupware\/messages\/([^/]+)\/read$/)
+  if (method === 'PUT' && readMatch) {
+    const testState = globalThis as typeof globalThis & {
+      __SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__?: number
+      __SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_ID__?: string
+      __SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_STATUS__?: string
+    }
+    testState.__SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__ =
+      (testState.__SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__ ?? 0) + 1
+    testState.__SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_ID__ = readMatch[1]
+    const message = mockMessengerMessages.find((item) => item.messageId === readMatch[1])
+    if (!message) return mockError(404, 'NOT_FOUND', '메시지를 찾을 수 없습니다')
+    if (message.status === 'UNREAD') {
+      message.status = 'READ'
+      message.readAt = new Date().toISOString()
+    }
+    testState.__SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_STATUS__ = message.status
+    return mockOk(200, { ...message })
+  }
+
   if (method === 'POST' && url.endsWith('/messages/bulk')) {
     const testState = globalThis as typeof globalThis & {
       __SAMHAN_MOCK_MESSENGER_BULK_CALL_COUNT__?: number

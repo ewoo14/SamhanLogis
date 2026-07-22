@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MessengerPage } from './MessengerPage'
 import * as messengerApi from '../api/messengerApi'
+import * as notificationApi from '../api/notificationApi'
 
 vi.mock('../api/messengerApi')
+vi.mock('../api/notificationApi')
 
 const recipient = {
   userId: 'user-003',
@@ -18,6 +20,10 @@ const recipient = {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+})
+
+beforeEach(() => {
+  vi.mocked(notificationApi.acknowledgeMessengerNotifications).mockResolvedValue(undefined)
 })
 
 function renderPage() {
@@ -95,5 +101,27 @@ describe('MessengerPage', () => {
     await waitFor(() => expect(messengerApi.searchRecipients).toHaveBeenCalled())
     expect(screen.queryByRole('option', { name: /김수신/ })).toBeNull()
     expect(screen.getAllByTestId('messenger-recipient-chip')).toHaveLength(1)
+  })
+
+  it('R17 수신함의 UNREAD 행은 열람 시 markRead endpoint를 한 번 호출하고 READ로 갱신한다', async () => {
+    const unreadMessage: messengerApi.MessageResponse = {
+      messageId: 'message-1',
+      senderId: 'sender-1',
+      recipientId: 'recipient-1',
+      body: '읽음 처리 대상',
+      status: 'UNREAD',
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: null,
+    }
+    const readMessage = { ...unreadMessage, status: 'READ' as const, readAt: '2026-07-22T00:01:00Z' }
+    vi.mocked(messengerApi.fetchInbox).mockResolvedValue([unreadMessage])
+    vi.mocked(messengerApi.markMessageRead).mockResolvedValue(readMessage)
+    vi.mocked(messengerApi.searchRecipients).mockResolvedValue([])
+
+    renderPage()
+
+    await waitFor(() => expect(messengerApi.markMessageRead).toHaveBeenCalledWith('message-1'))
+    await waitFor(() => expect(screen.getByText('읽음', { exact: true })).toBeTruthy())
+    expect(messengerApi.markMessageRead).toHaveBeenCalledTimes(1)
   })
 })

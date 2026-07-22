@@ -1,13 +1,15 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, FormField, MultiSelectAutocomplete, TagChip } from '@samhan/design-system'
 import {
   fetchInbox,
+  markMessageRead,
   searchRecipients,
   sendBulkMessage,
   type MessageResponse,
   type RecipientOption,
 } from '../api/messengerApi'
+import { acknowledgeMessengerNotifications } from '../api/notificationApi'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 function errorMessage(error: unknown): string {
@@ -26,10 +28,39 @@ export function MessengerPage() {
   const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([])
   const [body, setBody] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [markedReadMessages, setMarkedReadMessages] = useState<Record<string, MessageResponse>>({})
+  const markedReadIdsRef = useRef(new Set<string>())
   const inboxQuery = useQuery({
     queryKey: ['messenger', 'inbox'],
     queryFn: fetchInbox,
   })
+
+  /** 수신함을 연 순간 읽지 않은 행만 서버 권위 endpoint로 읽음 처리한다. */
+  useEffect(() => {
+    const unreadMessages = (inboxQuery.data ?? []).filter(
+      (message) => message.status === 'UNREAD' && !markedReadIdsRef.current.has(message.messageId),
+    )
+    if (unreadMessages.length === 0) return
+
+    for (const message of unreadMessages) {
+      markedReadIdsRef.current.add(message.messageId)
+      void markMessageRead(message.messageId)
+        .then((updatedMessage) => {
+          setMarkedReadMessages((current) => ({ ...current, [message.messageId]: updatedMessage }))
+          queryClient.setQueryData<MessageResponse[]>(['messenger', 'inbox'], (current) =>
+            current?.map((item) => item.messageId === updatedMessage.messageId ? updatedMessage : item),
+          )
+          // 쪽지 읽음은 이미 성공했으므로 알림 센터 장애가 수신함 상태를 되돌리지 않게 한다.
+          void acknowledgeMessengerNotifications()
+            .catch(() => undefined)
+            .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] }))
+        })
+        .catch(() => {
+          // 실패한 행은 다음 수신함 refetch에서 다시 시도할 수 있게 한다.
+          markedReadIdsRef.current.delete(message.messageId)
+        })
+    }
+  }, [inboxQuery.data, queryClient])
   const sendMutation = useMutation({
     mutationFn: sendBulkMessage,
     onSuccess: async (result) => {
@@ -53,7 +84,7 @@ export function MessengerPage() {
     })
   }
 
-  const inbox = inboxQuery.data ?? []
+  const inbox = (inboxQuery.data ?? []).map((message) => markedReadMessages[message.messageId] ?? message)
 
   return (
     <main data-testid="messenger-page" style={{ display: 'grid', gap: 20, padding: 24 }}>

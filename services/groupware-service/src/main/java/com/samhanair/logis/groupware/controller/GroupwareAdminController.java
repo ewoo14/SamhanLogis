@@ -252,6 +252,25 @@ public class GroupwareAdminController {
         return ApiResponse.ok(page.map(MessageResponse::from).getContent());
     }
 
+    /**
+     * 메신저 읽음 처리. 호출자 신원은 게이트웨이가 주입한 {@code X-User-Id} 헤더만 사용한다.
+     * MessageService가 메시지 수신자와 호출자를 비교하므로 타인 수신 건은 403으로 거부한다.
+     * 이미 READ인 메시지는 도메인 멱등 가드가 같은 상태와 시각을 유지한다.
+     */
+    @Operation(summary = "메신저 읽음 처리")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "읽음 처리 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자 본인 아님"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "메시지 미존재")
+    })
+    @PutMapping("/messages/{messageId}/read")
+    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
+    public ApiResponse<MessageResponse> markMessageRead(
+            @PathVariable UUID messageId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorId) {
+        return ApiResponse.ok(MessageResponse.from(messageService.markRead(messageId, actorId)));
+    }
+
     // ================================ 일정 ================================
 
     /** 일정 등록. */

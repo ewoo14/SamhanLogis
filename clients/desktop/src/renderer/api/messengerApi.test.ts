@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
-import { fetchInbox, searchRecipients, sendBulkMessage } from './messengerApi'
+import { fetchInbox, markMessageRead, searchRecipients, sendBulkMessage } from './messengerApi'
 
 vi.mock('./client', () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }))
 
@@ -40,5 +41,22 @@ describe('메신저 API 계약', () => {
     await fetchInbox()
 
     expect(apiClient.get).toHaveBeenCalledWith('/admin/groupware/messages/inbox')
+  })
+
+  it('쪽지 읽음 처리는 messageId 경로의 PUT endpoint를 호출한다', async () => {
+    const message = {
+      messageId: 'message-1',
+      senderId: 'sender-1',
+      recipientId: 'recipient-1',
+      body: '본문',
+      status: 'READ' as const,
+      sentAt: '2026-07-22T00:00:00Z',
+      readAt: '2026-07-22T00:01:00Z',
+    }
+    vi.mocked(apiClient.put).mockResolvedValueOnce(envelope(message))
+
+    await expect(markMessageRead(message.messageId)).resolves.toEqual(message)
+
+    expect(apiClient.put).toHaveBeenCalledWith('/admin/groupware/messages/message-1/read')
   })
 })

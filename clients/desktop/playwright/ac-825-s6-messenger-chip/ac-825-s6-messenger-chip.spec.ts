@@ -52,6 +52,23 @@ test.describe('AC-825-S6 메신저 수신자 칩 mock 회귀', () => {
     await expect(page.getByText('읽기 전용')).toBeVisible()
   })
 
+  test('R17 수신함을 열면 읽지 않은 시드 쪽지가 읽음 상태로 전환된다', async ({ page }) => {
+    await gotoMessenger(page)
+
+    const inbox = page.getByRole('list', { name: '메신저 수신함' })
+    await expect(inbox).toContainText('시드 메신저 메시지입니다.')
+    await expect.poll(() => page.evaluate(() => (
+      (globalThis as typeof globalThis & { __SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__?: number })
+        .__SAMHAN_MOCK_MESSENGER_MARK_READ_CALL_COUNT__
+    ))).toBe(1)
+    await expect.poll(() => page.evaluate(() => (
+      (globalThis as typeof globalThis & { __SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_STATUS__?: string })
+        .__SAMHAN_MOCK_LAST_MESSENGER_MARK_READ_STATUS__
+    ))).toBe('READ')
+    await expect(inbox.getByText('읽음', { exact: true })).toBeVisible()
+    await expect(page.getByTestId('notification-bell')).toHaveAttribute('aria-label', '알림 3건')
+  })
+
   test('R15 칩은 시드 수신자의 이름·부서만 표시하고 opaque id를 노출하지 않는다', async ({ page }) => {
     await gotoMessenger(page)
 

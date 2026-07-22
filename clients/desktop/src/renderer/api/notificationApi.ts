@@ -51,6 +51,16 @@ export async function acknowledgeNotification(id: string): Promise<void> {
   await apiClient.post(`/api/notifications/${encodeURIComponent(id)}/acknowledge`)
 }
 
+/** 메신저 수신함 열람과 통합 알림 배지를 함께 확인 처리한다. */
+export async function acknowledgeMessengerNotifications(): Promise<void> {
+  const notifications = await fetchMyUnread()
+  await Promise.all(
+    notifications
+      .filter((notification) => notification.channel === 'MESSENGER')
+      .map((notification) => acknowledgeNotification(notification.id)),
+  )
+}
+
 /** 채널별 그룹핑 헬퍼 — dropdown panel section 렌더용. */
 export function groupByChannel(
   notifications: NotificationCenter[],

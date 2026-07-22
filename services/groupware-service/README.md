@@ -51,6 +51,7 @@ Phase 9 W2 — `M-PHASE-9-readiness §3-2` 일관. 결재선 (전자결재 chain
 | POST | `/admin/groupware/messages/bulk` | `messenger.send` CREATE | 수신자 최대 50명 원자적 복수 발송(중복 제거·self 차단) |
 | GET | `/admin/groupware/messages/recipient-search?q={q}&limit={n}` | `messenger.send` VIEW | 부서 제약 없는 재직자 수신자 검색 |
 | GET | `/admin/groupware/messages/inbox?userId={UUID}` | 전체 ROLE | 수신함 |
+| PUT | `/admin/groupware/messages/{id}/read` | `messenger.send` VIEW | 호출자 본인 수신 쪽지 읽음 처리(멱등) |
 | POST | `/admin/groupware/schedules` | 전체 ROLE | 일정 등록 |
 | GET | `/admin/groupware/schedules?ownerId={UUID}&from&to` | 전체 ROLE | 일정 조회 (소유자 + 기간) |
 | PUT | `/admin/groupware/schedules/{id}` | 전체 ROLE | 일정 수정 |

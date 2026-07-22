@@ -124,6 +124,7 @@ class GroupwarePermissionControllerIT {
         lenient().when(approvalLineService.reject(any(UUID.class), any(UUID.class), any(java.util.Set.class), any())).thenReturn(approval);
         lenient().when(messageService.send(any(), any(UUID.class))).thenReturn(message);
         lenient().when(messageService.inbox(any(), any())).thenReturn(new PageImpl<>(List.of(message), PageRequest.of(0, 50), 1));
+        lenient().when(messageService.markRead(any(UUID.class), any(UUID.class))).thenReturn(message);
         lenient().when(scheduleService.create(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
         lenient().when(scheduleService.update(any(), any(), any(UUID.class))).thenReturn(schedule);
@@ -230,6 +231,8 @@ class GroupwarePermissionControllerIT {
                 new EndpointCase("message inbox", SEND_PAGE, PermissionAction.VIEW, "SALES",
                         () -> get("/admin/groupware/messages/inbox")
                                 .param("userId", "00000000-0000-0000-0000-000000000022")),
+                new EndpointCase("mark message read", SEND_PAGE, PermissionAction.VIEW, "SALES",
+                        () -> put("/admin/groupware/messages/{id}/read", id)),
                 new EndpointCase("create schedule", SEND_PAGE, PermissionAction.CREATE, "SALES",
                         () -> post("/admin/groupware/schedules")
                                 .contentType(MediaType.APPLICATION_JSON)

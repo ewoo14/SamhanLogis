@@ -58,3 +58,11 @@ export async function fetchInbox(): Promise<MessageResponse[]> {
   )
   return response.data.data
 }
+
+/** 수신자 본인의 쪽지를 읽음 처리한다. 호출자 신원은 gateway 헤더로만 전달된다. */
+export async function markMessageRead(messageId: string): Promise<MessageResponse> {
+  const response = await apiClient.put<ApiEnvelope<MessageResponse>>(
+    `/admin/groupware/messages/${encodeURIComponent(messageId)}/read`,
+  )
+  return response.data.data
+}
