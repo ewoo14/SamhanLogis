@@ -52,6 +52,9 @@ export default defineConfig({
   },
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
+    // renderer root이 src/renderer이므로 데스크톱 인쇄 자산은 명시적으로
+    // desktop/public에서 복사·서빙해야 dev와 Electron build가 같은 계약을 사용한다.
+    publicDir: resolve(__dirname, 'public'),
     plugins: [react(), VitePWA({ disable: true }) as unknown as PluginOption],
     resolve: {
       alias: {
