@@ -121,37 +121,12 @@ test('R2 #5·#6 — 인쇄물이 저장값을 쓰고 실제 선택을 출력한�
       .toContain(fmt(saved.supply + saved.vat))
   })
 
-  // ── #6 거래명세서 일괄 — 실제 조회 결과 출력 ─────────────────────
-  await test.step('#6 일괄 인쇄가 실제 조회를 출력한다', async () => {
-    const today = new Date().toISOString().slice(0, 10)
-    const from = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)
-
-    // accounting.statement-batch 권한을 가진 계정으로 전환 (addInitScript 는 다음 goto 부터 적용)
-    await applyBrowserAuth(accountant.init)
-    await page.goto(`${BASE_URL}/#/accounting/statement-batch`)
-    await page.waitForTimeout(3000)
-    await shot('P6a-거래명세서-일괄-목록')
-    // 양성 — 권한 통과해서 일괄 화면이 실제로 떴는가 (대시보드로 튕기지 않았는가)
-    const listBody = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
-    console.log(`■ 일괄 목록 화면: ${listBody.slice(0, 220)}`)
-    expect(listBody, '권한 부족으로 대시보드로 튕겼다 — 이 상태의 부재 단언은 무의미하다')
-      .not.toContain('환영합니다')
-
-    await page.goto(`${BASE_URL}/#/print/statement-batch?from=${from}&to=${today}`)
-    await page.waitForTimeout(3500)
-    await shot('P6b-일괄-인쇄미리보기')
-    const printBody = (await page.locator('body').innerText()).replace(/\s+/g, ' ')
-    console.log(`■ 일괄 인쇄 화면: ${printBody.slice(0, 400)}`)
-
-    // ① 양성 — 인쇄 화면이 실제로 렌더됐다
-    expect(printBody, '권한 부족으로 대시보드로 튕겼다').not.toContain('환영합니다')
-    await expect(page.getByText(/거래\s*명세서/)).toBeVisible({ timeout: 15000 })
-
-    // ② 부재 — 종전 정적 MOCK_DATA 흔적이 없다
-    for (const ghost of ['(주)한빛물산', '(주)대성유통', '샘플거래처', 'MOCK']) {
-      expect(printBody, `정적 목업 흔적 "${ghost}" 이 인쇄 화면에 있다`).not.toContain(ghost)
-    }
-  })
+  // ── #6 은 전용 스펙에서 검증한다 ────────────────────────────────
+  //  🚨 여기서 하지 않는 이유: addInitScript 는 누적이라 한 페이지 안에서 계정을
+  //     바꿔치기할 수 없다(먼저 심은 dev_sales 가 그대로 이겨 PermissionGuard 가
+  //     대시보드로 돌려보냈고, 그 상태의 "목업 흔적 없음" 단언은 공허하게 통과한다).
+  //     accounting.statement-batch 권한을 가진 dev_accountant 로 처음부터 로그인하는
+  //     statement-batch-real-qa.spec.ts 가 #6 을 덮는다.
 
   // ── 정리 ─────────────────────────────────────────────────────────
   await test.step('QA 잔재 정리', async () => {
