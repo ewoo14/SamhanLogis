@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.CascadeType;
@@ -56,7 +57,7 @@ import org.hibernate.annotations.UuidGenerator;
  * <p>거래처(공급받는자) 정보는 발행 시점 스냅샷 — partner-service 의 추후 거래처명/주소 변경
  * 영향 없이 발행 당시 모습 보존. 한국 일반기업회계기준 + 세법 audit 의무.
  *
- * <p>VAT 계산: {@code vatAmount = supplyAmount * 0.10} (HALF_UP).
+ * <p>VAT 계산: {@code vatAmount = supplyAmount * 0.10} (공통 원 단위 절사).
  *
  * <p>낙관적 락: {@link Version} — 동시 mutation 충돌 감지.
  */
@@ -586,7 +587,7 @@ public class TaxInvoice extends BaseEntity {
         this.eTaxExternalId = eTaxExternalId;
     }
 
-    /** 라인 합계 → 헤더 supply/vat/total 재계산. VAT_RATE * supply (HALF_UP). */
+    /** 라인 합계 → 헤더 supply/vat/total 재계산. 공통 부가세 계산기를 사용한다. */
     public void recalcTotals() {
         BigDecimal supplySum = this.lines.stream()
                 .map(TaxInvoiceLine::getSupplyAmount)
@@ -597,7 +598,7 @@ public class TaxInvoice extends BaseEntity {
         // 라인별 vat 가 supply*0.1 로 사전 계산되어 들어오지만, 헤더 vat 는 라인 합으로 산출
         // (라인별 반올림 누적 차이 흡수). 라인이 없거나 vat 0 이면 supply*0.1 fallback.
         if (vatSum.signum() == 0 && supplySum.signum() > 0) {
-            vatSum = supplySum.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+            vatSum = VatAmountCalculator.fromSupply(supplySum).setScale(2);
         }
         this.supplyAmount = supplySum.setScale(2, RoundingMode.HALF_UP);
         this.vatAmount = vatSum.setScale(2, RoundingMode.HALF_UP);

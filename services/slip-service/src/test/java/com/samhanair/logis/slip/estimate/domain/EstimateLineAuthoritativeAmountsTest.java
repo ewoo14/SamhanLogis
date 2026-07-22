@@ -26,4 +26,16 @@ class EstimateLineAuthoritativeAmountsTest {
         assertThat(line.getLineTotal()).isEqualByComparingTo("110006");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("36668.67");
     }
+
+    @Test
+    @DisplayName("공급가액 100005의 부가세는 세금계산서와 같은 원 단위 절사 10000이다")
+    void usesCommonVatRounding() {
+        Estimate estimate = Estimate.create("Q-20260722-2", LocalDate.of(2026, 7, 22), 1,
+                UUID.randomUUID(), "거래처", null, null, null, null, "test-user");
+
+        EstimateLine line = EstimateLine.create(estimate, 1, UUID.randomUUID(), "품목",
+                "모델", null, 1, new BigDecimal("100005"), null);
+
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
 }

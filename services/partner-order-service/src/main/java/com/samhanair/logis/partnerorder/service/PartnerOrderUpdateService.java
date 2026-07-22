@@ -55,7 +55,8 @@ public class PartnerOrderUpdateService {
             "sourceEstimateId", "idempotencyKey", "lockVersion", "revisionCount");
     private static final Set<String> CORE_LINE_FIELDS = Set.of(
             "productId", "modelName", "modelCode", "productName", "categoryKey", "quantity",
-            "priceVat", "deliveryPrice", "subtotal", "convertedQuantity", "lineId", "id");
+            "priceVat", "deliveryPrice", "subtotal", "supplyAmount", "vatAmount", "lineTotal",
+            "authority", "convertedQuantity", "lineId", "id");
 
     private final PartnerOrderRepository partnerOrderRepository;
     private final PartnerOrderAuditLogService auditLogService;
@@ -324,6 +325,11 @@ public class PartnerOrderUpdateService {
             if (line.deliveryPrice() == null || line.deliveryPrice().signum() < 0) {
                 throw invalidLine("납품가는 0 이상이어야 합니다.");
             }
+            if (line.authority() != null && !line.authority().isBlank()) {
+                parseAuthority(line.authority());
+            } else if (line.supplyAmount() != null || line.vatAmount() != null || line.lineTotal() != null) {
+                throw invalidLine("공급가액·부가세·합계를 사용할 때 authority는 필수입니다.");
+            }
         }
     }
 
@@ -332,14 +338,23 @@ public class PartnerOrderUpdateService {
     }
 
     private PartnerOrderLine toLine(PartnerOrderUpdateRequest.LineRequest line) {
-        return PartnerOrderLine.create(
+        PartnerOrderLine.AmountAuthority authority = line.authority() == null
+                || line.authority().isBlank()
+                ? PartnerOrderLine.AmountAuthority.PRICE
+                : parseAuthority(line.authority());
+        return PartnerOrderLine.createFromAuthoritativeAmounts(
                 stableProductId(line.modelCode(), line.productName(), line.categoryKey()),
-                line.modelCode(),
-                line.productName(),
-                line.categoryKey(),
-                line.quantity(),
-                line.deliveryPrice(),
-                line.remark());
+                line.modelCode(), line.productName(), line.categoryKey(), line.quantity(),
+                line.deliveryPrice(), line.supplyAmount(), line.vatAmount(), line.lineTotal(),
+                authority, line.remark());
+    }
+
+    private PartnerOrderLine.AmountAuthority parseAuthority(String raw) {
+        try {
+            return PartnerOrderLine.AmountAuthority.valueOf(raw.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw invalidLine("authority는 PRICE/SUPPLY/VAT/TOTAL 중 하나여야 합니다.");
+        }
     }
 
     private List<ChangeEntry> diff(PartnerOrder order, PartnerOrderUpdateRequest request) {
@@ -365,7 +380,10 @@ public class PartnerOrderUpdateService {
     private String summarizeLines(List<PartnerOrderLine> lines) {
         return lines.stream()
                 .map(line -> line.getModelName() + "/" + line.getProductName() + "/" + line.getQuantity()
-                        + "/" + normalize(line.getPriceVat()))
+                        + "/" + normalize(line.getPriceVat())
+                        + "/" + normalize(line.getSupplyAmount())
+                        + "/" + normalize(line.getVatAmount())
+                        + "/" + normalize(line.getLineTotal()))
                 .toList()
                 .toString();
     }
@@ -373,7 +391,10 @@ public class PartnerOrderUpdateService {
     private String summarizeRequestLines(List<PartnerOrderUpdateRequest.LineRequest> lines) {
         return lines.stream()
                 .map(line -> line.modelCode() + "/" + line.productName() + "/" + line.quantity()
-                        + "/" + normalize(line.deliveryPrice()))
+                        + "/" + normalize(line.deliveryPrice())
+                        + "/" + normalize(line.supplyAmount())
+                        + "/" + normalize(line.vatAmount())
+                        + "/" + normalize(line.lineTotal()))
                 .toList()
                 .toString();
     }

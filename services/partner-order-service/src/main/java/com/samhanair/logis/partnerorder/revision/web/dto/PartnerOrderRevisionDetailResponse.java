@@ -68,7 +68,10 @@ public record PartnerOrderRevisionDetailResponse(
      * @param categoryKey 카테고리 키
      * @param quantity    수량
      * @param priceVat    단가 (VAT 포함)
-     * @param subtotal    소계
+     * @param subtotal    소계(VAT 포함 합계 T)
+     * @param supplyAmount 공급가액 S (legacy는 null)
+     * @param vatAmount   부가세 V (legacy는 null)
+     * @param lineTotal   VAT 포함 라인 합계 T
      * @param remark      비고
      */
     public record LineView(
@@ -78,6 +81,9 @@ public record PartnerOrderRevisionDetailResponse(
             int quantity,
             BigDecimal priceVat,
             BigDecimal subtotal,
+            BigDecimal supplyAmount,
+            BigDecimal vatAmount,
+            BigDecimal lineTotal,
             String remark) {
     }
 
@@ -113,6 +119,9 @@ public record PartnerOrderRevisionDetailResponse(
                                 l.categoryKey(),
                                 l.quantity(),
                                 l.priceVat(),
+                                l.subtotal(),
+                                l.supplyAmount(),
+                                l.vatAmount(),
                                 l.subtotal(),
                                 l.remark()))
                         .toList();

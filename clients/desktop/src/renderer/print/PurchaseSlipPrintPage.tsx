@@ -33,6 +33,7 @@ import {
 import { nowPrintedAt, fmtDatetime } from './printUtils'
 import { useCompanyProfile } from './useCompanyProfile'
 import { ApprovalRoleCells, fallbackRoles } from './approvalRoleCells'
+import { vatFromSupply } from '../utils/vatRounding'
 
 export function PurchaseSlipPrintPage() {
   const params = useParams<{ id: string }>()
@@ -169,7 +170,7 @@ export function PurchaseSlipPrintPage() {
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
               const lineSupply = Number(l.lineTotal)
               /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
-              const lineVat = Math.floor(lineSupply * 0.1)
+              const lineVat = vatFromSupply(lineSupply)
               return (
                 <tr key={l.id}>
                   <td className="col-no">{idx + 1}</td>

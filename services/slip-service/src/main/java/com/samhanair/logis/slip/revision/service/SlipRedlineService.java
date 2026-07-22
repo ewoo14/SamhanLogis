@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.revision.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevision;
@@ -12,7 +13,6 @@ import com.samhanair.logis.slip.revision.web.dto.SlipRedlineResponse.FieldRedlin
 import com.samhanair.logis.slip.revision.web.dto.SlipRedlineResponse.Layer;
 import com.samhanair.logis.slip.revision.web.dto.SlipRevisionResponse.FieldChange;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -192,7 +192,7 @@ public class SlipRedlineService {
             return supply.add(line.vatAmount());
         }
         if (line.supplyAmount() != null) {
-            return supply.add(supply.multiply(new BigDecimal("0.1")).setScale(0, RoundingMode.HALF_UP));
+            return supply.add(VatAmountCalculator.fromSupply(supply));
         }
         return line.lineTotal();
     }

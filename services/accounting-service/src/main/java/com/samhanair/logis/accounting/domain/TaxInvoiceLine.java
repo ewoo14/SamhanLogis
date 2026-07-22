@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -27,7 +28,7 @@ import org.hibernate.annotations.UuidGenerator;
  *
  * <ul>
  *   <li>{@code supplyAmount = quantity * unitPrice} (HALF_UP scale 2)</li>
- *   <li>{@code vatAmount = supplyAmount * 0.10} (HALF_UP scale 2)</li>
+ *   <li>{@code vatAmount = supplyAmount * 0.10} (공통 원 단위 절사)</li>
  * </ul>
  */
 @Entity
@@ -78,7 +79,7 @@ public class TaxInvoiceLine extends BaseEntity {
     @Column(name = "supply_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal supplyAmount;
 
-    /** 세액 = supplyAmount * 0.10 (자동 계산). */
+    /** 세액 = supplyAmount * 0.10 (공통 원 단위 절사). */
     @Column(name = "vat_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal vatAmount;
 
@@ -218,7 +219,6 @@ public class TaxInvoiceLine extends BaseEntity {
     private void recompute() {
         this.supplyAmount = this.quantity.multiply(this.unitPrice)
                 .setScale(2, RoundingMode.HALF_UP);
-        this.vatAmount = this.supplyAmount.multiply(TaxInvoice.VAT_RATE)
-                .setScale(2, RoundingMode.HALF_UP);
+        this.vatAmount = VatAmountCalculator.fromSupply(this.supplyAmount).setScale(2);
     }
 }

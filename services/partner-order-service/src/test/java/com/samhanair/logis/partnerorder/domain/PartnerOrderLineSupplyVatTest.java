@@ -1,0 +1,60 @@
+package com.samhanair.logis.partnerorder.domain;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+@DisplayName("주문 품목행 공급가액·부가세")
+class PartnerOrderLineSupplyVatTest {
+
+    @Test
+    @DisplayName("주문 라인은 공급가액과 부가세를 보유하고 VAT 포함 subtotal 항등식을 제공한다")
+    void orderLineExposesSupplyAndVatAmounts() {
+        PartnerOrderLine line = PartnerOrderLine.create(
+                UUID.randomUUID(), "MODEL-RED", "품목", "singleSets", 1,
+                new java.math.BigDecimal("110005"), "끝수 검증");
+
+        assertThat(Arrays.stream(PartnerOrderLine.class.getDeclaredFields())
+                .map(Field::getName)
+                .toList()).contains("supplyAmount", "vatAmount");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100004");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10001");
+        assertThat(line.getSubtotal()).isEqualByComparingTo("110005");
+        assertThat(line.getSupplyAmount().add(line.getVatAmount()))
+                .isEqualByComparingTo(line.getLineTotal());
+    }
+
+    @Test
+    @DisplayName("PRICE/SUPPLY/VAT/TOTAL 네 권위 경로가 같은 항등식을 보장한다")
+    void allAuthoritiesPreserveIdentity() {
+        PartnerOrderLine price = PartnerOrderLine.createFromAuthoritativeAmounts(
+                UUID.randomUUID(), "PRICE", "품목", "singleSets", 1,
+                new java.math.BigDecimal("110005"), null, null, null,
+                PartnerOrderLine.AmountAuthority.PRICE, null);
+        PartnerOrderLine supply = PartnerOrderLine.createFromAuthoritativeAmounts(
+                UUID.randomUUID(), "SUPPLY", "품목", "singleSets", 1,
+                null, new java.math.BigDecimal("100005"), null, null,
+                PartnerOrderLine.AmountAuthority.SUPPLY, null);
+        PartnerOrderLine vat = PartnerOrderLine.createFromAuthoritativeAmounts(
+                UUID.randomUUID(), "VAT", "품목", "singleSets", 1,
+                null, new java.math.BigDecimal("100005"), new java.math.BigDecimal("9999"), null,
+                PartnerOrderLine.AmountAuthority.VAT, null);
+        PartnerOrderLine total = PartnerOrderLine.createFromAuthoritativeAmounts(
+                UUID.randomUUID(), "TOTAL", "품목", "singleSets", 1,
+                null, null, null, new java.math.BigDecimal("110005"),
+                PartnerOrderLine.AmountAuthority.TOTAL, null);
+
+        for (PartnerOrderLine line : java.util.List.of(price, supply, vat, total)) {
+            assertThat(line.getSupplyAmount().add(line.getVatAmount()))
+                    .isEqualByComparingTo(line.getLineTotal());
+        }
+        assertThat(price.getVatAmount()).isEqualByComparingTo("10001");
+        assertThat(supply.getVatAmount()).isEqualByComparingTo("10000");
+        assertThat(vat.getVatAmount()).isEqualByComparingTo("9999");
+        assertThat(total.getSupplyAmount()).isEqualByComparingTo("100004");
+    }
+}

@@ -16,6 +16,7 @@ import type { SalesTaxType } from '../../api/salesAccountingSlipApi'
 import { usePageTitle } from '../../hooks/usePageTitle'
 import { today } from '../../utils/dateUtils'
 import { fmtKrw } from '../../utils/currencyUtils'
+import { vatFromSupply } from '../../utils/vatRounding'
 
 const inputStyle: CSSProperties = {
   height: 32,
@@ -43,7 +44,7 @@ export function PurchaseAccountingSlipFormPage() {
   )
   const sourcePartner = useMemo(() => resolveAllocationPartner(selectedRows), [selectedRows])
   const totalSupply = selectedRows.reduce((sum, row) => sum + row.allocatedAmount, 0)
-  const totalVat = taxType === 'TAXABLE' ? Math.round(totalSupply * 0.1) : 0
+  const totalVat = taxType === 'TAXABLE' ? vatFromSupply(totalSupply) : 0
 
   const mutation = useMutation({
     mutationFn: createPurchaseSlipDraft,

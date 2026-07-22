@@ -70,14 +70,7 @@ public class PartnerOrderFromEstimateService {
                 parseDate(snapshot.dueDate()),
                 snapshot.memo());
         for (EstimateClient.EstimateLineSnapshot line : snapshot.lines()) {
-            order.addLine(PartnerOrderLine.create(
-                    line.productId(),
-                    line.modelCode(),
-                    line.productName(),
-                    line.categoryKey(),
-                    line.quantity(),
-                    line.deliveryPrice(),
-                    line.remark()));
+            order.addLine(toOrderLine(line));
         }
         order.recomputeTotal();
         PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
@@ -90,6 +83,28 @@ public class PartnerOrderFromEstimateService {
         publishListChanged();
 
         return PartnerOrderDetailResponse.from(saved);
+    }
+
+    private PartnerOrderLine toOrderLine(EstimateClient.EstimateLineSnapshot line) {
+        boolean hasAmountSnapshot = line.supplyAmount() != null
+                || line.vatAmount() != null
+                || line.lineTotal() != null
+                || (line.authority() != null && !line.authority().isBlank());
+        if (!hasAmountSnapshot) {
+            return PartnerOrderLine.create(line.productId(), line.modelCode(), line.productName(),
+                    line.categoryKey(), line.quantity(), line.deliveryPrice(), line.remark());
+        }
+        PartnerOrderLine.AmountAuthority authority;
+        try {
+            authority = PartnerOrderLine.AmountAuthority.valueOf(
+                    (line.authority() == null ? "PRICE" : line.authority()).trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("견적 라인 authority는 PRICE/SUPPLY/VAT/TOTAL 중 하나여야 합니다");
+        }
+        return PartnerOrderLine.createFromAuthoritativeAmounts(
+                line.productId(), line.modelCode(), line.productName(), line.categoryKey(),
+                line.quantity(), line.deliveryPrice(), line.supplyAmount(), line.vatAmount(),
+                line.lineTotal(), authority, line.remark());
     }
 
     private void publishListChanged() {

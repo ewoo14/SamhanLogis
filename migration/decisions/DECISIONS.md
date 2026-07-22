@@ -3066,3 +3066,12 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-S5-08 | 기존 backfill 행이 `SELECTED + 빈 refs`이면 FE는 저장 선택 복원으로 가장하지 않고 복원 실패·재선택 필요를 alert로 안내하며 저장·가져오기를 잠근다. 사용자가 항목을 다시 선택하면 정상 저장으로 회복한다. |
 | D-S5-09 | 권한 없는 사용자에게 범위 전체 칩을 focusable button으로 노출하지 않는다. `role`·`tabIndex`·press handler를 제거하고 `aria-disabled="true"`를 둔다. |
 | D-S5-10-R4 | `import-scoped` 요청이 `scopeMode=ALL`이고 저장 scope도 `ALL`이면 BE는 사용자 scope를 조회해 저장 `defaultImportType`을 실행 type의 권위값으로 강제한다. 저장 scope가 없으면 명시 요청 type을 유지하고, `SELECTED`는 요청의 explicit refs/type 계약을 유지한다. FE 유형 드롭다운은 `canUpdate=false`에서 disabled이며 desktop mock도 같은 축소 규칙을 적용한다. |
+
+## #824 품목행 공급가액·부가가치세 정합성 (2026-07-22)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-824-01 | **법적 기준과 애플리케이션 단수정책을 분리한다.** [부가가치세법 제29조](https://www.law.go.kr/LSW/lsInfoR.do?lsiSeq=276117&efYd=20260102&chrClsCd=010202&ancYnChk=0)는 과세표준을 공급가액으로 두고, [국세청 유권해석(2008.02.01)](https://taxlaw.nts.go.kr/qt/USEQTA002P.do?ntstDcmId=010000000000046365)은 세금계산서 세액을 공급가액의 10%로 보며 단수조정 실제청구액은 거래 당사자 약정·합의 사항으로 설명한다. 확인한 공식 자료에는 HALF_UP 또는 절사를 법정 단일 방식으로 강제하는 문구가 없었다. 따라서 현재 제품 계약인 세금계산서 절사와 동일한 0 방향 절사를 공통 정책으로 채택하며, 이를 법률이 HALF_UP/절사를 직접 명령한다고 표현하지 않는다. |
+| D-824-02 | 전표·견적·세금계산서의 공급가액 기준 VAT 계산은 `shared:common.VatAmountCalculator`와 desktop `vatRounding.ts`로 수렴한다. PRICE/TOTAL의 VAT 포함 합계 분리도 같은 원 단위 절사 정책을 사용한다. 이미 저장된 권위 금액과 발행 완료 세금계산서는 소급 재계산하지 않는다. |
+| D-824-03 | 코드 실측상 주문 `PartnerOrderLine.subtotal`은 기존부터 `quantity × priceVat`인 VAT 포함 T이며, 전표의 `lineTotal=S`와 의미가 다르다. partner-order V12는 `supply_amount`·`vat_amount`를 nullable로 추가하고 기존 행 backfill을 하지 않는다. 신규 행과 API 응답은 `S+V=subtotal(T)`를 보장한다. |
+| D-824-04 | 주문의 DC는 server-side VAT 포함 단가에 먼저 적용되고, 그 결과를 PRICE 권위로 삼아 S/V/T를 계산한다. direct update·견적 변환은 authority가 없으면 이 legacy PRICE 경로를 사용하고, 명시 authority가 있으면 PRICE/SUPPLY/VAT/TOTAL을 그대로 따른다. |

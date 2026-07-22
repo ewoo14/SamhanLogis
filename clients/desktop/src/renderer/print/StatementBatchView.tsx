@@ -40,6 +40,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate, toKoreanAmount, calcAmounts } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
+import { vatFromSupply } from '../utils/vatRounding'
 import styles from './StatementBatchView.module.css'
 
 /**
@@ -407,7 +408,7 @@ export function StatementBatchView() {
                     </thead>
                     <tbody>
                       {partner.slips.map((line, idx) => {
-                        const lineVat = Math.floor(line.supply * 0.1)
+                        const lineVat = vatFromSupply(line.supply)
                         const lineTotal = line.supply + lineVat
                         return (
                           <tr key={`${line.slipNo}-${idx}`}>

@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -183,7 +184,7 @@ public class SlipLine extends BaseEntity {
      * <p>사용자 입력 단가는 <b>부가세 포함</b>. 라인 단위로 공급가액/부가세를 분리:
      * <ul>
      *   <li>합계(VAT포함) = {@code 수량 × unitPriceWithVat}</li>
-     *   <li>공급가액(supplyAmount) = {@code round(합계 ÷ 1.1)} (HALF_UP)</li>
+     *   <li>공급가액(supplyAmount) = {@code 합계 ÷ 1.1} 원 단위 절사</li>
      *   <li>부가세(vatAmount) = {@code 합계 − 공급가액}</li>
      *   <li>unitPrice(공급 단가, 저장용 비권위) = {@code 공급가액 ÷ 수량}</li>
      *   <li>lineTotal = 공급가액(VAT 미포함 라인합, 기존 의미 유지)</li>
@@ -202,8 +203,9 @@ public class SlipLine extends BaseEntity {
         // FE(SlipFormPage/LineRow 의 Math.round)와 동일 granularity 로 일치시킨다(P2 정합).
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
                 .setScale(0, RoundingMode.HALF_UP);
-        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 0, RoundingMode.HALF_UP);
-        BigDecimal vat = lineInclVat.subtract(supply);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat);
+        BigDecimal supply = vatSplit.supplyAmount();
+        BigDecimal vat = vatSplit.vatAmount();
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.
         SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
@@ -377,10 +379,10 @@ public class SlipLine extends BaseEntity {
 
     /**
      * 부가세 계산 — Stage 2 이카운트 매핑. {@code supplyAmount * 0.1} (VAT 10%).
-     * 한국 부가세 표준 (HALF_UP rounding, scale 2).
+     * 공통 부가세 계산기의 원 단위 절사 규칙을 사용한다.
      */
     private static BigDecimal computeVat(BigDecimal supplyAmount) {
-        return supplyAmount.multiply(new BigDecimal("0.1")).setScale(2, RoundingMode.HALF_UP);
+        return VatAmountCalculator.fromSupply(supplyAmount).setScale(2);
     }
 
     /**

@@ -87,6 +87,15 @@ class SlipLineAuthoritativeAmountsTest {
         assertThat(line.getSupplyAmount()).isEqualByComparingTo("2000");
     }
 
+    @Test
+    @DisplayName("공급가액 100005의 부가세는 세금계산서와 같은 원 단위 절사 10000이다")
+    void usesCommonVatRounding() {
+        SlipLine line = SlipLine.create(newOutbound(), UUID.randomUUID(), "품목", null, null,
+                1, new BigDecimal("100005"), null);
+
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
     private Slip newOutbound() {
         return Slip.createOutbound("2026/07/22-1", LocalDate.of(2026, 7, 22), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "거래처",

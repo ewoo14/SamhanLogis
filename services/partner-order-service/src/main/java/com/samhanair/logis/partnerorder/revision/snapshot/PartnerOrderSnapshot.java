@@ -73,7 +73,9 @@ public record PartnerOrderSnapshot(
      * @param categoryKey 카테고리 키
      * @param quantity    수량
      * @param priceVat    server-side DC 적용 후 단가 (M3)
-     * @param subtotal    quantity × priceVat
+     * @param subtotal    VAT 포함 라인 합계 T (quantity × priceVat)
+     * @param supplyAmount 공급가액 S (legacy snapshot은 null)
+     * @param vatAmount   부가세 V (legacy snapshot은 null)
      * @param remark      비고
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -86,7 +88,17 @@ public record PartnerOrderSnapshot(
             int quantity,
             BigDecimal priceVat,
             BigDecimal subtotal,
-            String remark) {
+            String remark,
+            BigDecimal supplyAmount,
+            BigDecimal vatAmount) {
+
+        /** 신규 금액 컬럼이 없던 legacy snapshot의 8개 인자 계약을 보존한다. */
+        public LineSnapshot(UUID productId, String modelName, String productName,
+                            String categoryKey, int quantity, BigDecimal priceVat,
+                            BigDecimal subtotal, String remark) {
+            this(productId, modelName, productName, categoryKey, quantity, priceVat, subtotal,
+                    remark, null, null);
+        }
 
         /**
          * {@link PartnerOrderLine} 으로부터 라인 스냅샷을 조립한다.
@@ -103,7 +115,9 @@ public record PartnerOrderSnapshot(
                     line.getQuantity(),
                     line.getPriceVat(),
                     line.getSubtotal(),
-                    line.getRemark());
+                    line.getRemark(),
+                    line.getSupplyAmount(),
+                    line.getVatAmount());
         }
     }
 

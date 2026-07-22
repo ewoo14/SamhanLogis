@@ -1,3 +1,5 @@
+import { supplyFromVatInclusive, vatFromIntegerSupply } from './vatRounding'
+
 /**
  * 품목행 공급가액·부가세·VAT 포함 합계 계산.
  *
@@ -79,10 +81,10 @@ function divideToScale(value: bigint, divisor: bigint, scale: number): string {
 }
 
 function warningFor(supplyAmount: bigint, vatAmount: bigint): boolean {
-  return vatAmount !== divideHalfUp(supplyAmount, 10n)
+  return vatAmount !== vatFromIntegerSupply(supplyAmount)
 }
 
-/** 공급가액 기준 HALF_UP 10%와 입력 부가세가 다른지 정확한 정수 연산으로 판정한다. */
+/** 공급가액 기준 공통 10% 절사값과 입력 부가세가 다른지 판정한다. */
 export function hasVatWarning(supplyAmount: string | number, vatAmount: string | number): boolean {
   return warningFor(integerAmount(supplyAmount), integerAmount(vatAmount))
 }
@@ -103,7 +105,9 @@ function fromAmounts<T extends LineVatLine>(
     vatAmount: String(vatAmount),
     lineTotal: String(lineTotal),
     authority,
-    vatWarning: warningFor(supplyAmount, vatAmount),
+    // PRICE/TOTAL은 VAT 포함 T를 권위로 삼아 V=T-S로 닫으므로 10% 단일값과
+    // 소수점 경계가 달라도 경고하지 않는다. VAT 직접 입력만 약정 기준을 검증한다.
+    vatWarning: authority === 'VAT' ? warningFor(supplyAmount, vatAmount) : false,
   } as T
 }
 
@@ -117,7 +121,7 @@ export function recalculateLineVat<T extends LineVatLine>(line: T, authority: Li
   }
   if (authority === 'SUPPLY') {
     const supply = integerAmount(line.supplyAmount)
-    const vat = divideHalfUp(supply, 10n)
+    const vat = vatFromIntegerSupply(supply)
     return fromAmounts(line, authority, supply, vat, supply + vat)
   }
   if (authority === 'VAT') {
@@ -126,7 +130,7 @@ export function recalculateLineVat<T extends LineVatLine>(line: T, authority: Li
     return fromAmounts(line, authority, supply, vat, supply + vat)
   }
   const total = integerAmount(line.lineTotal)
-  const supply = divideHalfUp(total * 10n, 11n)
+  const supply = supplyFromVatInclusive(total)
   return fromAmounts(line, authority, supply, total - supply, total)
 }
 

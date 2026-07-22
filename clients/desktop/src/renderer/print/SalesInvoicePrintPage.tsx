@@ -32,6 +32,7 @@ import {
 } from './PrintLayout'
 import { nowPrintedAt, fmtDatetime } from './printUtils'
 import { useCompanyProfile } from './useCompanyProfile'
+import { vatFromSupply } from '../utils/vatRounding'
 
 export function SalesInvoicePrintPage() {
   const params = useParams<{ id: string }>()
@@ -194,7 +195,7 @@ export function SalesInvoicePrintPage() {
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
               const lineSupply = Number(l.lineTotal)
               /** 라인별 부가세 — calcAmounts 와 동일하게 Math.floor 로 절사 */
-              const lineVat = Math.floor(lineSupply * 0.1)
+              const lineVat = vatFromSupply(lineSupply)
               /** MM/DD 포맷 — 전표 slipDate 기준 (라인별 날짜 없음) */
               const slipMmDd = slip.slipDate
                 ? slip.slipDate.slice(5, 7) + '/' + slip.slipDate.slice(8, 10)

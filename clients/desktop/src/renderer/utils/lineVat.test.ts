@@ -2,9 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { editLineVat, recalculateLineVat, type LineVatAuthority } from './lineVat'
 
 describe('lineVat — 품목행 권위 열 계산', () => {
+  it('끝수가 있는 동일 공급가액에서 세금계산서 절사와 전표 계산이 어긋난다 (RED)', () => {
+    const supplyAmount = 100005
+    const taxInvoiceVat = Math.trunc(supplyAmount * 0.1)
+    const slipVat = recalculateLineVat({
+      quantity: 1,
+      unitPrice: String(supplyAmount),
+      supplyAmount: String(supplyAmount),
+      vatAmount: '0',
+      lineTotal: '0',
+    }, 'SUPPLY').vatAmount
+
+    expect(slipVat).toBe(String(taxInvoiceVat))
+  })
+
   it.each([
-    ['SUPPLY', '100005', '10001', '110006'],
-    ['SUPPLY', '5', '1', '6'],
+    ['SUPPLY', '100005', '10000', '110005'],
+    ['SUPPLY', '5', '0', '5'],
   ] as const)('%s 편집은 끝수에서도 공급+부가세=합계를 보장한다', (authority, value, vat, total) => {
     const line = editLineVat({ quantity: 1, unitPrice: '0', supplyAmount: '0', vatAmount: '0', lineTotal: '0' }, authority, value)
 

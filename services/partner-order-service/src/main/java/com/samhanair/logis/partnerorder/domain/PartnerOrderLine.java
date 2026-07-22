@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,6 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -26,6 +28,9 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * <p>{@link #priceVat} 는 server-side DC 적용 결과 (M3 dc-config-service 에서 받음). client 가
  * 보낸 가격은 무시하고 server 가 권위 (legacy 의 client-side DC 계산을 server 로 이전).
+ * {@link #subtotal} 은 VAT 포함 라인 합계(T)이며, 신규 라인은 공급가액(S)·부가세(V)와
+ * {@code S + V = T} 항등식을 함께 보존한다. 기존 행은 신규 컬럼이 null인 legacy 스냅샷으로
+ * 읽고 다시 계산하거나 backfill하지 않는다.
  */
 @Entity
 @Getter
@@ -71,6 +76,14 @@ public class PartnerOrderLine extends BaseEntity {
     @Column(name = "subtotal", precision = 15, scale = 2, nullable = false)
     private BigDecimal subtotal;
 
+    /** 공급가액(S). 기존 주문 행은 소급 계산하지 않으므로 null 허용 legacy 컬럼. */
+    @Column(name = "supply_amount", precision = 15, scale = 2)
+    private BigDecimal supplyAmount;
+
+    /** 부가세(V). 기존 주문 행은 소급 계산하지 않으므로 null 허용 legacy 컬럼. */
+    @Column(name = "vat_amount", precision = 15, scale = 2)
+    private BigDecimal vatAmount;
+
     /** 비고 (selectVal3 / specVal 등 legacy 옵션 합성 — 단순 텍스트 보관). */
     @Column(name = "remark", length = 500)
     private String remark;
@@ -81,6 +94,14 @@ public class PartnerOrderLine extends BaseEntity {
      */
     @Column(name = "converted_quantity", nullable = false)
     private int convertedQuantity;
+
+    /** 금액 권위 열. 주문도 전표·견적과 같은 네 경로를 사용한다. */
+    public enum AmountAuthority {
+        PRICE,
+        SUPPLY,
+        VAT,
+        TOTAL
+    }
 
     private PartnerOrderLine(UUID productId, String modelName, String productName,
                              String categoryKey, int quantity, BigDecimal priceVat,
@@ -121,7 +142,94 @@ public class PartnerOrderLine extends BaseEntity {
     public static PartnerOrderLine create(UUID productId, String modelName, String productName,
                                           String categoryKey, int quantity, BigDecimal priceVat,
                                           String remark) {
-        return new PartnerOrderLine(productId, modelName, productName, categoryKey, quantity, priceVat, remark);
+        return createFromAuthoritativeAmounts(productId, modelName, productName, categoryKey,
+                quantity, priceVat, null, null, null, AmountAuthority.PRICE, remark);
+    }
+
+    /**
+     * 공급가액·부가세·VAT 포함 합계를 권위 열로 생성한다.
+     *
+     * <p>주문에서 {@code subtotal}은 기존 계약상 VAT 포함 합계이므로 새 컬럼에는 S/V만
+     * 추가하고 subtotal을 T로 사용한다. authority에 따라 한 값만 입력 권위로 취급하며,
+     * 나머지는 공통 부가세 계산 규칙으로 파생한다.
+     */
+    public static PartnerOrderLine createFromAuthoritativeAmounts(
+            UUID productId, String modelName, String productName, String categoryKey,
+            int quantity, BigDecimal priceVat, BigDecimal supplyAmount, BigDecimal vatAmount,
+            BigDecimal lineTotal, AmountAuthority authority, String remark) {
+        if (authority == null) {
+            throw new IllegalArgumentException("금액 권위는 필수입니다");
+        }
+        validateQuantity(quantity);
+
+        BigDecimal effectivePrice = priceVat;
+        BigDecimal resolvedSupply;
+        BigDecimal resolvedVat;
+        BigDecimal resolvedTotal;
+        switch (authority) {
+            case PRICE -> {
+                requireNonNegative(priceVat, "priceVat");
+                resolvedTotal = priceVat.multiply(BigDecimal.valueOf(quantity));
+                VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(resolvedTotal);
+                resolvedSupply = split.supplyAmount();
+                resolvedVat = split.vatAmount();
+            }
+            case SUPPLY -> {
+                requireNonNegative(supplyAmount, "공급가액");
+                resolvedSupply = supplyAmount;
+                resolvedVat = VatAmountCalculator.fromSupply(supplyAmount);
+                resolvedTotal = resolvedSupply.add(resolvedVat);
+                effectivePrice = resolvedTotal.divide(BigDecimal.valueOf(quantity), 2,
+                        RoundingMode.HALF_UP);
+            }
+            case VAT -> {
+                requireNonNegative(supplyAmount, "공급가액");
+                requireNonNegative(vatAmount, "부가세");
+                resolvedSupply = supplyAmount;
+                resolvedVat = vatAmount;
+                resolvedTotal = resolvedSupply.add(resolvedVat);
+                effectivePrice = resolvedTotal.divide(BigDecimal.valueOf(quantity), 2,
+                        RoundingMode.HALF_UP);
+            }
+            case TOTAL -> {
+                requireNonNegative(lineTotal, "합계");
+                resolvedTotal = lineTotal;
+                VatAmountCalculator.Split split = VatAmountCalculator.splitVatInclusive(lineTotal);
+                resolvedSupply = split.supplyAmount();
+                resolvedVat = split.vatAmount();
+                effectivePrice = resolvedTotal.divide(BigDecimal.valueOf(quantity), 2,
+                        RoundingMode.HALF_UP);
+            }
+            default -> throw new IllegalStateException("지원하지 않는 금액 권위: " + authority);
+        }
+
+        PartnerOrderLine line = new PartnerOrderLine(productId, modelName, productName,
+                categoryKey, quantity, effectivePrice, remark);
+        line.subtotal = resolvedTotal;
+        line.supplyAmount = resolvedSupply;
+        line.vatAmount = resolvedVat;
+        return line;
+    }
+
+    /** 요청/견적 스냅샷의 공급가액·부가세·합계 경로 하위 호환 진입점. */
+    public static PartnerOrderLine createFromAuthoritativeAmounts(
+            UUID productId, String modelName, String productName, String categoryKey,
+            int quantity, BigDecimal supplyAmount, BigDecimal vatAmount,
+            BigDecimal lineTotal, String remark) {
+        return createFromAuthoritativeAmounts(productId, modelName, productName, categoryKey,
+                quantity, null, supplyAmount, vatAmount, lineTotal, AmountAuthority.VAT, remark);
+    }
+
+    /** 단가 권위 생성의 명시적 이름. 주문 confirm/DC 경로가 사용한다. */
+    public static PartnerOrderLine createFromPrice(
+            UUID productId, String modelName, String productName, String categoryKey,
+            int quantity, BigDecimal priceVat, String remark) {
+        return create(productId, modelName, productName, categoryKey, quantity, priceVat, remark);
+    }
+
+    /** 주문의 VAT 포함 lineTotal은 기존 subtotal의 의미를 그대로 노출한다. */
+    public BigDecimal getLineTotal() {
+        return this.subtotal;
     }
 
     /**
@@ -182,5 +290,17 @@ public class PartnerOrderLine extends BaseEntity {
     /** PartnerOrder.addLine 내부 호출 — bidirectional 관계 동기화. */
     void bind(PartnerOrder partnerOrder) {
         this.partnerOrder = partnerOrder;
+    }
+
+    private static void validateQuantity(int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("quantity 는 1 이상");
+        }
+    }
+
+    private static void requireNonNegative(BigDecimal amount, String label) {
+        if (amount == null || amount.signum() < 0) {
+            throw new IllegalArgumentException(label + " 는 0 이상 필수입니다");
+        }
     }
 }

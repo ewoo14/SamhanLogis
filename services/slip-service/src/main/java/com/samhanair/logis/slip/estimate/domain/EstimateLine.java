@@ -1,6 +1,7 @@
 package com.samhanair.logis.slip.estimate.domain;
 
 import com.samhanair.logis.common.entity.BaseEntity;
+import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
@@ -64,9 +65,6 @@ import org.hibernate.annotations.UuidGenerator;
 // 위 클래스 Javadoc "주의" 단락 참조 — is_deleted 는 orphanRemoval 물리삭제만 쓰여 dead code.
 @SQLRestriction("is_deleted = false")
 public class EstimateLine extends BaseEntity {
-
-    /** 한국 부가세율 10%. */
-    private static final BigDecimal VAT_RATE = new BigDecimal("0.10");
 
     @Id
     @GeneratedValue
@@ -165,8 +163,8 @@ public class EstimateLine extends BaseEntity {
     }
 
     /**
-     * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(라인 단위 eCount, 원 단위 반올림).
-     * 합계(VAT포함)=수량×unitPriceWithVat, 공급가액=round(합계/1.1), 부가세=차액(모두 원 단위).
+     * VAT 포함 단가 기반 생성 — 단가 부가세포함 전환(라인 단위, 원 단위 절사).
+     * 합계(VAT포함)=수량×unitPriceWithVat, 공급가액=절사(합계/1.1), 부가세=차액(모두 원 단위).
      * unitPrice(공급단가, 비권위)=공급가액/수량. lineTotal=합계(VAT포함). {@link SlipLine#createFromVatInclusive} 와 동일 규칙.
      */
     public static EstimateLine createFromVatInclusive(Estimate estimate, int lineNo, UUID productId,
@@ -176,7 +174,8 @@ public class EstimateLine extends BaseEntity {
         validateUnitPrice(unitPriceWithVat);
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
                 .setScale(0, RoundingMode.HALF_UP);
-        BigDecimal supply = lineInclVat.divide(new BigDecimal("1.1"), 0, RoundingMode.HALF_UP);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat);
+        BigDecimal supply = vatSplit.supplyAmount();
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,
                 specification, quantity, supplyUnit, note);
@@ -245,7 +244,7 @@ public class EstimateLine extends BaseEntity {
     private void recompute() {
         this.supplyAmount = this.unitPrice.multiply(BigDecimal.valueOf(this.quantity))
                 .setScale(2, RoundingMode.HALF_UP);
-        this.vatAmount = this.supplyAmount.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+        this.vatAmount = VatAmountCalculator.fromSupply(this.supplyAmount).setScale(2);
         this.lineTotal = this.supplyAmount.add(this.vatAmount);
     }
 

@@ -50,7 +50,8 @@ public class PartnerOrderDocumentCollaborationPort implements DocumentCollaborat
             "sourceEstimateId", "idempotencyKey", "lockVersion", "revisionCount");
     private static final Set<String> CORE_LINE_FIELDS = Set.of(
             "productId", "modelName", "modelCode", "productName", "categoryKey", "quantity",
-            "priceVat", "deliveryPrice", "subtotal", "convertedQuantity", "lineId", "id");
+            "priceVat", "deliveryPrice", "subtotal", "supplyAmount", "vatAmount", "lineTotal",
+            "convertedQuantity", "lineId", "id");
 
     private final PartnerOrderRepository orderRepository;
     private final PartnerOrderUpdateService updateService;
@@ -276,6 +277,9 @@ public class PartnerOrderDocumentCollaborationPort implements DocumentCollaborat
         snapshot.put("quantity", line.getQuantity());
         snapshot.put("priceVat", line.getPriceVat());
         snapshot.put("subtotal", line.getSubtotal());
+        snapshot.put("supplyAmount", line.getSupplyAmount());
+        snapshot.put("vatAmount", line.getVatAmount());
+        snapshot.put("lineTotal", line.getLineTotal());
         snapshot.put("convertedQuantity", line.getConvertedQuantity());
         snapshot.put("remark", line.getRemark());
         return snapshot;

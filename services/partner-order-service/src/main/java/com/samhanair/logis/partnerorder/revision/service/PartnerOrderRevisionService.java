@@ -275,14 +275,7 @@ public class PartnerOrderRevisionService {
         //     replaceLines() 내부 루프는 deletedAt != null 가드로 스킵하고 새 라인만 addLine().
         //   일반 복원 시: replaceLines() 가 this.lines(활성 라인)을 markDeleted 후 새 라인 addLine().
         List<PartnerOrderLine> newLines = snapshot.lines().stream()
-                .map(ls -> PartnerOrderLine.create(
-                        ls.productId(),
-                        ls.modelName(),
-                        ls.productName(),
-                        ls.categoryKey(),
-                        ls.quantity(),
-                        ls.priceVat(),
-                        ls.remark()))
+                .map(this::restoreLine)
                 .toList();
         order.replaceLines(newLines);
 
@@ -297,6 +290,18 @@ public class PartnerOrderRevisionService {
         }
 
         return new PartnerOrderRestoreResult(saved, wasConfirmed);
+    }
+
+    /** 금액 컬럼이 있는 신규 snapshot은 그대로 복원하고, legacy snapshot은 기존 PRICE 경로를 쓴다. */
+    private PartnerOrderLine restoreLine(PartnerOrderSnapshot.LineSnapshot line) {
+        if (line.supplyAmount() == null || line.vatAmount() == null) {
+            return PartnerOrderLine.create(line.productId(), line.modelName(), line.productName(),
+                    line.categoryKey(), line.quantity(), line.priceVat(), line.remark());
+        }
+        return PartnerOrderLine.createFromAuthoritativeAmounts(
+                line.productId(), line.modelName(), line.productName(), line.categoryKey(),
+                line.quantity(), line.priceVat(), line.supplyAmount(), line.vatAmount(),
+                line.subtotal(), PartnerOrderLine.AmountAuthority.VAT, line.remark());
     }
 
     // ── 조회 API 지원 ─────────────────────────────────────────────────────────
@@ -502,6 +507,10 @@ public class PartnerOrderRevisionService {
             return true;
         }
         if (!bigDecimalEquals(a.subtotal(), b.subtotal())) {
+            return true;
+        }
+        if (!bigDecimalEquals(a.supplyAmount(), b.supplyAmount())
+                || !bigDecimalEquals(a.vatAmount(), b.vatAmount())) {
             return true;
         }
         return !Objects.equals(a.modelName(), b.modelName())

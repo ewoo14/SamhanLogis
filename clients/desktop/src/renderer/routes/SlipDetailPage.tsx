@@ -119,6 +119,7 @@ import {
   hasVatWarning,
   type LineVatLine,
 } from '../utils/lineVat'
+import { vatFromSupply } from '../utils/vatRounding'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
@@ -202,7 +203,7 @@ type SlipLine = SlipDetail['lines'][number]
 
 function slipLineAmounts(line: SlipLine) {
   const supply = line.supplyAmount != null ? Number(line.supplyAmount) : Number(line.lineTotal)
-  const vat = line.vatAmount != null ? Number(line.vatAmount) : Math.round(supply * 0.1)
+  const vat = line.vatAmount != null ? Number(line.vatAmount) : vatFromSupply(supply)
   const unitWithVat = line.unitPriceWithVat != null
     ? Number(line.unitPriceWithVat)
     : Number(line.unitPrice)
@@ -338,9 +339,9 @@ function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     quantity: line.quantity,
     unitPrice: String(line.unitPrice),
     supplyAmount: String(line.supplyAmount ?? line.lineTotal),
-    vatAmount: String(line.vatAmount ?? Math.round(Number(line.lineTotal) * 0.1)),
+    vatAmount: String(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     lineTotalWithVat: String(
-      Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? Math.round(Number(line.lineTotal) * 0.1)),
+      Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     ),
     authority: 'PRICE',
     vatDirty: false,
@@ -3355,7 +3356,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   // 단가 부가세포함 전환: unitPriceWithVat 있으면 VAT포함 단가/공급가액/부가세 표시.
                   // legacy(없음) 는 unitPrice 를 공급단가로 보고 동일 방식 분해.
                   const supplyVal = l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal)
-                  const vatVal = l.vatAmount != null ? Number(l.vatAmount) : Math.round(supplyVal * 0.1)
+                  const vatVal = l.vatAmount != null ? Number(l.vatAmount) : vatFromSupply(supplyVal)
                   const unitWithVatVal = l.unitPriceWithVat != null
                     ? Number(l.unitPriceWithVat) : Number(l.unitPrice)
                   const totalInclVal = supplyVal + vatVal

@@ -2,6 +2,7 @@ import { apiClient, type ApiEnvelope } from './client'
 import { isMockMode } from './mock'
 import { assertMockAllocationPartner, MOCK_SOURCE_SLIPS } from './slipAllocationSourceApi'
 import { toOrderPathId } from '../utils/orderNo'
+import { vatFromSupply } from '../utils/vatRounding'
 
 export type SalesAccountingSlipStatus = 'DRAFT' | 'POSTED'
 export type SalesTaxType = 'TAXABLE' | 'ZERO_RATED' | 'EXEMPT'
@@ -144,7 +145,7 @@ function buildMockDraft(req: CreateSalesAccountingSlipRequest): SalesAccountingS
   const supply = req.lines.reduce((sum, line) => {
     return sum + Number(line.qty || 0) * Number(line.unitPrice || 0)
   }, 0)
-  const vat = req.taxType === 'TAXABLE' ? Math.round(supply * 0.1) : 0
+  const vat = req.taxType === 'TAXABLE' ? vatFromSupply(supply) : 0
   return {
     id: null,
     // 실 BE SalesAccountingSlipNumberGenerator = yyyy/MM/dd-N 슬래시 (feedback_slip_order_number_format)
@@ -160,7 +161,7 @@ function buildMockDraft(req: CreateSalesAccountingSlipRequest): SalesAccountingS
     memo: req.memo ?? null,
     lines: req.lines.map((line, index) => {
       const lineSupply = Number(line.qty || 0) * Number(line.unitPrice || 0)
-      const lineVat = req.taxType === 'TAXABLE' ? Math.round(lineSupply * 0.1) : 0
+      const lineVat = req.taxType === 'TAXABLE' ? vatFromSupply(lineSupply) : 0
       return {
         lineNo: index + 1,
         productCode: line.productCode,

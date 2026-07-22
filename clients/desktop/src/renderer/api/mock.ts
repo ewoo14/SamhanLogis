@@ -14,6 +14,7 @@
  * - `GET /inventory/transfers` + `POST` + `GET /{id}` + transition mock
  */
 import type { AxiosRequestConfig } from 'axios'
+import { vatFromSupply } from '../utils/vatRounding'
 import {
   DISPATCH_TONNAGE_LABEL,
   DISPATCH_VEHICLE_BODY_TYPE_LABEL,
@@ -17956,9 +17957,9 @@ function generateMockBatchRows(count: number) {
     const rowNo = i + 1
     const day = String((i % 28) + 1).padStart(2, '0')
     const supplyAmount = String(1000000 + i * 50000)
-    const vatAmount = String(Math.round((1000000 + i * 50000) * 0.1))
+    const vatAmount = String(vatFromSupply(1000000 + i * 50000))
     const totalAmount = String(
-      1000000 + i * 50000 + Math.round((1000000 + i * 50000) * 0.1),
+      1000000 + i * 50000 + vatFromSupply(1000000 + i * 50000),
     )
     return {
       rowNo,

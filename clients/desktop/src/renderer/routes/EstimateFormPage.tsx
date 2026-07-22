@@ -46,6 +46,7 @@ import {
   recalculateLineVat,
   type LineVatLine,
 } from '../utils/lineVat'
+import { vatFromSupply } from '../utils/vatRounding'
 import {
   partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
@@ -254,7 +255,7 @@ function toDraftLinesFromEstimate(estimate: EstimateDetail): DraftLine[] {
           authority: 'PRICE',
           vatDirty: false,
           vatWarning: Number(line.vatAmount ?? 0)
-            !== Math.round(Number(line.supplyAmount ?? 0) * 0.1),
+            !== vatFromSupply(Number(line.supplyAmount ?? 0)),
           // R9 #5: 저장본 일반 라인은 거래처 변경 시 새 거래처 기준으로 다시 확인한다.
           // 세트 구성품(parentSetModel 보유)은 배분가이므로 재가격 대상이 아니다.
           priceSource: null,
