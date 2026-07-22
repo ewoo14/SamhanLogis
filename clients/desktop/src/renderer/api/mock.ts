@@ -9216,6 +9216,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   if (method === 'GET' && url.includes('/accounting/statements/batch-data')) {
     return envelope([
       {
+        selectionKey: 'mock-statement-1',
         partnerCode: '1234567890',
         partnerBusinessName: '엘에이시스템에어',
         chatRoomNames: ['서울 1톤 단톡방'],
@@ -9244,6 +9245,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         ],
       },
       {
+        selectionKey: 'mock-statement-2',
         partnerCode: '2345678901',
         partnerBusinessName: '강남에어솔루션',
         chatRoomNames: ['서울 2.5톤 단톡방'],
@@ -9262,6 +9264,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         ],
       },
       {
+        selectionKey: 'mock-statement-3',
         partnerCode: '3456789012',
         partnerBusinessName: '한빛쾌적',
         chatRoomNames: ['경기 1톤 단톡방'],

@@ -78,8 +78,10 @@ interface StatementLine {
  * BE-A10 응답 형식 — 거래처 1건 + 슬립 list.
  */
 interface PartnerStatement {
-  /** 내부 partnerCode. 선택/조회 key 로만 사용하고 화면에는 표시하지 않는다. */
-  partnerCode: string
+  /** 선택/조회 전용 opaque key. 화면에는 표시하지 않는다. */
+  selectionKey: string
+  /** 실제 partnerCode. 화면에는 표시하지 않는다. */
+  partnerCode: string | null
   /** 거래처명 (snapshot). */
   partnerName: string
   /** 사업자번호 (snapshot). */
@@ -143,15 +145,23 @@ function todayIso(): string {
 /** 인쇄 query에 포함된 거래처만 남긴다. 선택값이 없으면 조회 결과 전체를 사용한다. */
 export function selectStatementBatchRows(
   rows: StatementBatchRow[],
-  partnerCodes: string[],
+  selectionKeys: string[],
 ): StatementBatchRow[] {
-  if (partnerCodes.length === 0) return rows
-  const selected = new Set(partnerCodes)
-  return rows.filter((row) => selected.has(row.partnerCode))
+  if (selectionKeys.length === 0) return rows
+  const selected = new Set(selectionKeys)
+  return rows.filter((row) => selected.has(row.selectionKey))
+}
+
+/** 반복 query parameter를 보존해 선택 key를 읽는다. 값 내부의 쉼표는 데이터다. */
+export function parseStatementBatchSelectionKeys(
+  searchParams: Pick<URLSearchParams, 'getAll'>,
+): string[] {
+  return searchParams.getAll('selectionKeys').map((key) => key.trim()).filter(Boolean)
 }
 
 function toPartnerStatement(row: StatementBatchRow): PartnerStatement {
   return {
+    selectionKey: row.selectionKey,
     partnerCode: row.partnerCode,
     partnerName: row.partnerName,
     businessRegNo: row.bizNo ?? '',
@@ -182,11 +192,8 @@ export function StatementBatchView() {
     [searchParams],
   )
   const issueDate = useMemo(() => todayIso(), [])
-  const partnerCodes = useMemo(
-    () => (searchParams.get('partnerCodes') ?? '')
-      .split(',')
-      .map((code) => code.trim())
-      .filter(Boolean),
+  const selectionKeys = useMemo(
+    () => parseStatementBatchSelectionKeys(searchParams),
     [searchParams],
   )
   const batchQuery = useQuery({
@@ -200,10 +207,10 @@ export function StatementBatchView() {
       periodFrom,
       periodTo,
       issueDate,
-      partners: selectStatementBatchRows(batchQuery.data ?? [], partnerCodes)
+      partners: selectStatementBatchRows(batchQuery.data ?? [], selectionKeys)
         .map(toPartnerStatement),
     }),
-    [batchQuery.data, issueDate, partnerCodes, periodFrom, periodTo],
+    [batchQuery.data, issueDate, selectionKeys, periodFrom, periodTo],
   )
 
   const { company } = useCompanyProfile()
@@ -249,7 +256,7 @@ export function StatementBatchView() {
             const isLast = partnerIdx === data.partners.length - 1
             return (
               <section
-                key={partner.partnerCode}
+                  key={partner.selectionKey}
                 className={`${styles.page} ${
                   isLast ? '' : styles.pageBreak
                 }`}

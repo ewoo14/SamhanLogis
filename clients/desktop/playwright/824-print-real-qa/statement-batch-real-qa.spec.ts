@@ -42,12 +42,9 @@ test('#6 거래명세서 일괄 인쇄 — 실제 선택 거래처만 출력', a
   const unselectedRow = rows.nth(1)
   const selectedName = (await selectedRow.locator('td').nth(2).innerText()).trim()
   const unselectedName = (await unselectedRow.locator('td').nth(2).innerText()).trim()
-  const selectedTestId = await selectedRow.getAttribute('data-testid')
-  const selectedCode = selectedTestId?.slice('statement-batch-row-'.length) ?? ''
   expect(selectedName, '선택 대상 거래처명이 비어 있다').not.toBe('')
   expect(unselectedName, '비선택 대상 거래처명이 비어 있다').not.toBe('')
   expect(unselectedName).not.toBe(selectedName)
-  expect(selectedCode, '선택 대상 거래처 key가 비어 있다').not.toBe('')
 
   await selectedRow.getByRole('checkbox').check()
   await expect(page.getByTestId('statement-batch-print-selected')).toContainText('1')
@@ -55,7 +52,9 @@ test('#6 거래명세서 일괄 인쇄 — 실제 선택 거래처만 출력', a
 
   const route = new URL(page.url())
   const hashQuery = new URLSearchParams(route.hash.split('?')[1] ?? '')
-  expect(hashQuery.get('partnerCodes'), '목록 선택이 인쇄 route query로 전달되지 않았다').toBe(selectedCode)
+  const selectionKeys = hashQuery.getAll('selectionKeys')
+  expect(selectionKeys, '목록 선택이 인쇄 route 반복 query로 전달되지 않았다').toHaveLength(1)
+  expect(selectionKeys[0]).not.toBe('')
 
   // Q2/Q3 — 인쇄 화면이 실제로 성공 렌더되고 선택 거래처만 출력하는지 먼저 양성으로 증명한다.
   await expect(page.getByTestId('statement-batch-print-area')).toBeVisible({ timeout: 15000 })

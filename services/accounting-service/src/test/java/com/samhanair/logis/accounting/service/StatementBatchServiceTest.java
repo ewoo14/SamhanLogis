@@ -128,7 +128,7 @@ class StatementBatchServiceTest {
     }
 
     @Test
-    @DisplayName("partnerCode 없는 legacy snapshot 은 사업자번호를 선택 key 로 사용")
+    @DisplayName("partnerCode 없는 legacy snapshot 은 사업자번호를 표시 데이터로만 보존")
     void snapshotBusinessNumberFallback() {
         UUID partnerId = UUID.randomUUID();
         TaxInvoice ti = newIssued(partnerId, "거래처 legacy", "20260510-0002",
@@ -138,13 +138,132 @@ class StatementBatchServiceTest {
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
                 .thenReturn(List.of(ti));
         when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
-        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(any()))
-                .thenReturn(List.of());
 
         List<StatementBatchRow> rows = service.batch(FROM, TO);
 
-        assertThat(rows).singleElement().extracting(StatementBatchRow::partnerCode)
-                .isEqualTo("111-22-33333");
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.partnerCode()).isNull();
+            assertThat(row.bizNo()).isEqualTo("111-22-33333");
+        });
+    }
+
+    @Test
+    @DisplayName("선택 key — 사업자번호가 다른 거래처 partnerCode 와 같아도 rows 전체가 고유")
+    void selectionKeyDoesNotReuseBusinessNumberNamespace() {
+        UUID legacyPartner = UUID.randomUUID();
+        UUID activePartner = UUID.randomUUID();
+        TaxInvoice legacy = newIssued(legacyPartner, null, "legacy-A", "ACTIVE-B",
+                "TI-A", LocalDate.of(2026, 5, 1));
+        TaxInvoice active = newIssued(activePartner, "ACTIVE-B", "active-B", "222-33-44444",
+                "TI-B", LocalDate.of(2026, 5, 2));
+        addLine(legacy, 1, "품목A", null, BigDecimal.ONE, new BigDecimal("100"));
+        addLine(active, 1, "품목B", null, BigDecimal.ONE, new BigDecimal("200"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(legacy, active));
+        when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(eq("ACTIVE-B")))
+                .thenReturn(List.of("active B 단톡방"));
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows).extracting(StatementBatchServiceTest::selectionKey)
+                .doesNotHaveDuplicates();
+        assertThat(rows.get(0).partnerCode()).isNotEqualTo("ACTIVE-B");
+        assertThat(rows.get(0).chatRoomNames()).isEmpty();
+        assertThat(rows.get(1).chatRoomNames()).containsExactly("active B 단톡방");
+    }
+
+    @Test
+    @DisplayName("선택 key — 쉼표가 포함된 사업자번호를 query 구분자로 재사용하지 않음")
+    void selectionKeyDoesNotReuseCommaBusinessNumber() {
+        UUID partnerId = UUID.randomUUID();
+        TaxInvoice invoice = newIssued(partnerId, null, "comma-legacy", "A,B",
+                "TI-COMMA", LocalDate.of(2026, 5, 3));
+        addLine(invoice, 1, "품목C", null, BigDecimal.ONE, new BigDecimal("300"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(invoice));
+        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.partnerCode()).isNull();
+            assertThat(selectionKey(row)).doesNotContain(",");
+        });
+    }
+
+    @Test
+    @DisplayName("선택 key — 코드와 사업자번호가 비어 있는 여러 row 도 각각 고유")
+    void blankSnapshotsStillHaveUniqueSelectionKeys() {
+        UUID partnerA = UUID.randomUUID();
+        UUID partnerB = UUID.randomUUID();
+        TaxInvoice invoiceA = newIssued(partnerA, null, "blank-A", null,
+                "TI-BLANK-A", LocalDate.of(2026, 5, 4));
+        TaxInvoice invoiceB = newIssued(partnerB, null, "blank-B", null,
+                "TI-BLANK-B", LocalDate.of(2026, 5, 5));
+        addLine(invoiceA, 1, "품목A", null, BigDecimal.ONE, new BigDecimal("400"));
+        addLine(invoiceB, 1, "품목B", null, BigDecimal.ONE, new BigDecimal("500"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(invoiceA, invoiceB));
+        when(partnerLookupClient.findByPartnerId(any())).thenReturn(Optional.empty());
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows).extracting(StatementBatchServiceTest::selectionKey)
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("대표 snapshot — 첫 invoice 가 비어 있어도 그룹 내 결정된 후속 snapshot 을 사용")
+    void representativeSnapshotScansGroupDeterministically() {
+        UUID partnerId = UUID.randomUUID();
+        TaxInvoice first = newIssued(partnerId, null, "거래처", null,
+                "TI-FIRST", LocalDate.of(2026, 5, 1));
+        TaxInvoice later = newIssued(partnerId, "LATER-CODE", "거래처", "111-22-33333",
+                "TI-LATER", LocalDate.of(2026, 5, 5));
+        addLine(first, 1, "품목1", null, BigDecimal.ONE, new BigDecimal("100"));
+        addLine(later, 1, "품목2", null, BigDecimal.ONE, new BigDecimal("200"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(first, later));
+        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(any())).thenReturn(List.of());
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.partnerCode()).isEqualTo("LATER-CODE");
+            assertThat(businessNo(row)).isEqualTo("111-22-33333");
+        });
+    }
+
+    @Test
+    @DisplayName("대표 snapshot — 유효값이 여러 개면 repository 조회 순서의 첫 값을 고정")
+    void representativeSnapshotUsesRepositoryOrder() {
+        UUID partnerId = UUID.randomUUID();
+        TaxInvoice earlier = newIssued(partnerId, "EARLY-CODE", "거래처", "111-22-33333",
+                "TI-EARLY", LocalDate.of(2026, 5, 1));
+        TaxInvoice later = newIssued(partnerId, "LATER-CODE", "거래처", "222-33-44444",
+                "TI-LATER", LocalDate.of(2026, 5, 5));
+        addLine(earlier, 1, "품목1", null, BigDecimal.ONE, new BigDecimal("100"));
+        addLine(later, 1, "품목2", null, BigDecimal.ONE, new BigDecimal("200"));
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, FROM, TO))
+                .thenReturn(List.of(earlier, later));
+        when(partnerLookupClient.findByPartnerId(partnerId)).thenReturn(Optional.empty());
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(any())).thenReturn(List.of());
+
+        List<StatementBatchRow> rows = service.batch(FROM, TO);
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.partnerCode()).isEqualTo("EARLY-CODE");
+            assertThat(row.bizNo()).isEqualTo("111-22-33333");
+        });
     }
 
     @Test
@@ -160,12 +279,17 @@ class StatementBatchServiceTest {
 
     private static TaxInvoice newIssued(UUID partnerId, String partnerName, String taxInvoiceNo,
                                          LocalDate supplyDate) {
-        return newIssued(partnerId, null, partnerName, taxInvoiceNo, supplyDate);
+        return newIssued(partnerId, null, partnerName, "111-22-33333", taxInvoiceNo, supplyDate);
     }
 
     private static TaxInvoice newIssued(UUID partnerId, String partnerCode, String partnerName,
                                          String taxInvoiceNo, LocalDate supplyDate) {
-        TaxInvoice ti = TaxInvoice.create(partnerId, partnerCode, "111-22-33333", partnerName,
+        return newIssued(partnerId, partnerCode, partnerName, "111-22-33333", taxInvoiceNo, supplyDate);
+    }
+
+    private static TaxInvoice newIssued(UUID partnerId, String partnerCode, String partnerName,
+                                         String businessNo, String taxInvoiceNo, LocalDate supplyDate) {
+        TaxInvoice ti = TaxInvoice.create(partnerId, partnerCode, businessNo, partnerName,
                 "주소", supplyDate, "비고", TaxInvoiceType.SALES);
         // 본 단계는 라인 추가 후 issue 호출로 ISSUED 전이 모사
         try {
@@ -182,6 +306,14 @@ class StatementBatchServiceTest {
             throw new RuntimeException(ex);
         }
         return ti;
+    }
+
+    private static String selectionKey(StatementBatchRow row) {
+        return row.selectionKey();
+    }
+
+    private static String businessNo(StatementBatchRow row) {
+        return row.bizNo();
     }
 
     private static void addLine(TaxInvoice ti, int lineNo, String itemName, String spec,
