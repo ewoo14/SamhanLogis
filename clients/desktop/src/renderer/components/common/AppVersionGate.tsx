@@ -184,6 +184,10 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   }, [startupUpdateReady, versionCheckReady, promptState.kind])
 
   useEffect(() => {
+    if (updateStatus) setNoticeDismissed(false)
+  }, [updateStatus])
+
+  useEffect(() => {
     if (!bootstrapped) return
     if (!isElectronPlatform || IS_MOCK_MODE) {
       setStartupUpdateReady(true)
@@ -305,14 +309,25 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
       role="status"
       data-testid="app-auto-update-status"
       style={{
-        position: 'fixed',
-        // 좌상단(16,16)은 사이드바 "홈" 링크·페이지 제목과 겹친다(패키징 앱엔 주소창이 없어
-        // 홈이 유일한 상시 복귀 경로 — #909 OPUS 재수렴 도달가능 1건). 우하단은 이 파일의
-        // "minor" 배너·PwaUpdatePrompt/PushPermissionDeniedToast 와 동일한 기존 관례다.
-        insetInlineEnd: 16,
-        insetBlockEnd: 16,
-        zIndex: 10000,
-        maxWidth: 'min(520px, calc(100vw - 32px))',
+        position: promptState.kind === 'blocking' ? 'fixed' : 'static',
+        ...(promptState.kind === 'blocking'
+          ? {
+              insetInlineEnd: 16,
+              insetBlockEnd: 16,
+              zIndex: 10000,
+              maxWidth: 'min(520px, calc(100vw - 32px))',
+            }
+          : {
+              width: 'calc(100% - 32px)',
+              maxWidth: 'calc(100% - 32px)',
+              boxSizing: 'border-box',
+              marginInline: 16,
+              marginBlockEnd: 12,
+            }),
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
         padding: '10px 14px',
         border: `1px solid ${updateStatus.kind === 'error' ? 'var(--color-danger-300)' : 'var(--color-brand-200)'}`,
         borderRadius: 8,
@@ -440,8 +455,8 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
 
     return (
       <>
-        {children}
         {statusNotice}
+        {children}
         <Modal
         open
         onClose={dismiss}
@@ -507,8 +522,8 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
 
     return (
       <>
-        {children}
         {statusNotice}
+        {children}
         <div
           role="status"
           data-testid="app-version-minor-banner"
@@ -579,8 +594,8 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
 
   return (
     <>
-      {children}
       {statusNotice}
+      {children}
     </>
   )
 }

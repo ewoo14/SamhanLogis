@@ -130,6 +130,43 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(screen.getByTestId('login-sentinel')).toBeTruthy()
   })
 
+  it('오류 알림을 닫은 뒤 후속 업데이트 오류는 다시 표시한다', async () => {
+    const raw = 'Cannot find channel https://intranet.example/latest.yml response-header'
+    updater.check.mockRejectedValueOnce(new Error(raw))
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    await screen.findByTestId('app-auto-update-status')
+    fireEvent.click(screen.getByTestId('app-auto-update-dismiss'))
+    expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
+
+    act(() => updater.emit({ kind: 'downloading', percent: 61 }))
+    act(() => updater.emit({ kind: 'error' }))
+
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('업데이트 실패')
+  })
+
+  it('업데이트 상태 알림은 앱 흐름에 배치되어 고정 토스트와 레이어를 공유하지 않는다', async () => {
+    const raw = 'Cannot find channel https://intranet.example/latest.yml response-header'
+    updater.check.mockRejectedValueOnce(new Error(raw))
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="permission-error-toast" style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 100 }}>
+          권한 작업 오류
+        </div>
+      </AppVersionGate>,
+    )
+
+    const status = await screen.findByTestId('app-auto-update-status')
+    expect(status.style.position).not.toBe('fixed')
+    expect(status.style.zIndex).not.toBe('10000')
+  })
+
   it('확인 상한을 넘으면 일반 수준은 로그인으로 진행한다', async () => {
     vi.useFakeTimers()
     updater.check.mockImplementationOnce(() => new Promise<void>(() => undefined))
