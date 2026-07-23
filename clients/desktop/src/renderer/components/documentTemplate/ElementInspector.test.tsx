@@ -167,3 +167,86 @@ describe('SONNET5 라운드 fix N-3 — 화면은 모르는 것을 안다고 말
     expect(screen.queryByText('현재 양식에서 선택할 수 없는 본문 필드 참조입니다. 목록에서 실제 필드를 선택하세요.')).not.toBeNull()
   })
 })
+
+describe('SONNET5 라운드2 fix(#914) — docType 미선택("모른다")은 조회완료+정말없음("없다")과 다른 사건이다', () => {
+  // 실측 재현 경로: 유형=지출결의서 → FIELD 추가 → binding=body.fieldRow[amount](금액, 정상 필드) →
+  // 유형을 다시 미선택으로 되돌림. amount 는 실서버 지출결의서의 정상 필드이지 깨진 참조가 아니다.
+  const staleAmountBinding = { key: 'field-1', type: 'FIELD' as const, binding: 'body.fieldRow[amount]' as const }
+
+  it('P-2: docType 미선택(enabled:false→빈 배열)에서는 이미 저장된 정상 바인딩을 "사용할 수 없는"이라 단정하지 않는다', () => {
+    render(
+      <ElementInspector
+        element={staleAmountBinding}
+        onUpdate={vi.fn()}
+        fieldOptions={[]}
+        fieldOptionsStatus="unselected"
+        {...commonProps}
+      />,
+    )
+
+    // select 자신이 보여주는 현재 선택 라벨이 "사용할 수 없는"을 단정해서는 안 된다 — N-3가 loading/error에
+    // 이미 세운 것과 같은 기준을 unselected에도 적용한다.
+    const binding = screen.getByLabelText('표시할 값') as HTMLSelectElement
+    const selectedOption = binding.querySelector('option[value="body.fieldRow[amount]"]')
+    expect(selectedOption?.textContent).not.toContain('사용할 수 없는')
+  })
+
+  it('P-3: docType 미선택에서는 "목록에서 실제 필드를 선택하세요"(이행 불가능한 지시)를 띄우지 않는다', () => {
+    render(
+      <ElementInspector
+        element={staleAmountBinding}
+        onUpdate={vi.fn()}
+        fieldOptions={[]}
+        fieldOptionsStatus="unselected"
+        {...commonProps}
+      />,
+    )
+
+    expect(screen.queryByText('현재 양식에서 선택할 수 없는 본문 필드 참조입니다. 목록에서 실제 필드를 선택하세요.')).toBeNull()
+  })
+
+  it('회귀 확인: ready(조회완료)에서 정말 없는 참조는 여전히 기존처럼 경고한다(F-3 계승)', () => {
+    render(
+      <ElementInspector
+        element={staleAmountBinding}
+        onUpdate={vi.fn()}
+        fieldOptions={[]}
+        fieldOptionsStatus="ready"
+        {...commonProps}
+      />,
+    )
+
+    const binding = screen.getByLabelText('표시할 값') as HTMLSelectElement
+    const selectedOption = binding.querySelector('option[value="body.fieldRow[amount]"]')
+    expect(selectedOption?.textContent).toContain('사용할 수 없는')
+    expect(screen.queryByText('현재 양식에서 선택할 수 없는 본문 필드 참조입니다. 목록에서 실제 필드를 선택하세요.')).not.toBeNull()
+  })
+
+  it('P-1: 빈 필드 목록 문구가 "문서 유형 미선택"(모른다)과 "정말 필드 0개"(안다·ready)에서 서로 다른 문장이다(Live QA ①/④)', () => {
+    const { unmount } = render(
+      <ElementInspector
+        element={{ key: 'field-2', type: 'FIELD', binding: 'header.docNo' }}
+        onUpdate={vi.fn()}
+        fieldOptions={[]}
+        fieldOptionsStatus="unselected"
+        {...commonProps}
+      />,
+    )
+    const unselectedPlaceholder = screen.getByLabelText('표시할 값').querySelector('option[value=""]')?.textContent
+    unmount()
+
+    render(
+      <ElementInspector
+        element={{ key: 'field-3', type: 'FIELD', binding: 'header.docNo' }}
+        onUpdate={vi.fn()}
+        fieldOptions={[]}
+        fieldOptionsStatus="ready"
+        {...commonProps}
+      />,
+    )
+    const readyEmptyPlaceholder = screen.getByLabelText('표시할 값').querySelector('option[value=""]')?.textContent
+
+    expect(unselectedPlaceholder).not.toBe(readyEmptyPlaceholder)
+    expect(unselectedPlaceholder).toMatch(/문서 유형/)
+  })
+})

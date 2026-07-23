@@ -27,10 +27,12 @@ const FIXED_BINDINGS: Array<{ value: BindingRef; label: string }> = [
 ]
 const FIELD_ROW_BINDING = /^body\.fieldRow\[([^\[\]]{1,100})\]$/
 
-/** N-3: fieldOptions(현재 docType의 실서버 본문 필드) 조회 상태 — "화면은 모르는 것을 안다고 말하지
- * 않는다"를 지키려면 조회 중/실패/정말 없음(=조회를 마쳤는데 빈 배열) 세 사실을 구분해야 한다. 기본값
- * 'ready'는 이 prop을 아직 넘기지 않는 기존 호출부와의 하위호환이다. */
-export type FieldOptionsStatus = 'loading' | 'error' | 'ready'
+/** N-3/R2(#914): fieldOptions(현재 docType의 실서버 본문 필드) 조회 상태 — "화면은 모르는 것을 안다고
+ * 말하지 않는다"를 지키려면 조회 중/실패/정말 없음(=조회를 마쳤는데 빈 배열)/**아직 조회를 시도하지도
+ * 않음**(docType 미선택) 네 사실을 구분해야 한다. 'unselected'는 'ready'와 다르다 — 'ready'는 "물어봤고
+ * 없었다", 'unselected'는 "아직 물어보지 않았다"이다. 기본값 'ready'는 이 prop을 아직 넘기지 않는 기존
+ * 호출부와의 하위호환이다. */
+export type FieldOptionsStatus = 'loading' | 'error' | 'ready' | 'unselected'
 
 function numberValue(event: ChangeEvent<HTMLInputElement>, fallback: number): number {
   const value = Number(event.target.value)
@@ -90,9 +92,10 @@ export function ElementInspector({
   const hasKnownFieldBinding = fieldRowKey !== undefined
     && fieldOptions.some((field) => field.fieldKey === fieldRowKey)
   const bindingSelectValue = element.type === 'FIELD' ? element.binding : undefined
-  // N-3: fieldOptions가 아직 조회 중이거나 조회에 실패했으면 "이 key가 진짜 없다"를 아직 모른다 —
-  // 그 상태에서까지 "사용할 수 없는"이라 단정하면 화면이 모르는 것을 안다고 말하는 셈이 된다(정상
-  // 필드를 사용자가 지우면 설정이 손실된다). ready에서 정말 없는 참조일 때만 기존처럼 단정한다.
+  // N-3/R2: fieldOptions가 아직 조회 중이거나 조회에 실패했거나 — R2 — docType 자체를 아직 선택하지
+  // 않아 조회를 시도조차 안 했으면 "이 key가 진짜 없다"를 아직 모른다 — 그 상태에서까지 "사용할 수
+  // 없는"이라 단정하면 화면이 모르는 것을 안다고 말하는 셈이 된다(정상 필드를 사용자가 지우면 설정이
+  // 손실된다 — P-2). ready에서 정말 없는 참조일 때만 기존처럼 단정한다.
   const unknownFieldBinding = bindingSelectValue !== undefined && fieldRowKey !== undefined && !hasKnownFieldBinding
     ? {
         value: bindingSelectValue,
@@ -100,6 +103,8 @@ export function ElementInspector({
           ? `본문 필드 · ${fieldRowKey}(확인 중)`
           : fieldOptionsStatus === 'error'
           ? `본문 필드 · ${fieldRowKey}(목록을 불러오지 못함)`
+          : fieldOptionsStatus === 'unselected'
+          ? `본문 필드 · ${fieldRowKey}(문서 유형 미선택)`
           : `사용할 수 없는 본문 필드 · ${fieldRowKey}`,
       }
     : null
@@ -149,6 +154,8 @@ export function ElementInspector({
                       ? '본문 필드 불러오는 중…'
                       : fieldOptionsStatus === 'error'
                       ? '본문 필드 목록을 불러오지 못했습니다'
+                      : fieldOptionsStatus === 'unselected'
+                      ? '본문 필드(문서 유형을 먼저 선택하세요)'
                       : '본문 필드(현재 양식 필드 없음)'}
                   </option>
                 )}
@@ -163,6 +170,13 @@ export function ElementInspector({
           ) : fieldOptionsStatus === 'loading' ? (
             <p role="status" style={{ margin: 0, color: 'var(--color-neutral-500)', fontSize: 12 }}>
               본문 필드 목록을 확인하는 중입니다…
+            </p>
+          ) : fieldOptionsStatus === 'unselected' ? (
+            // R2(#914) P-1/P-2: docType 미선택은 "모른다"이지 "없다"가 아니다 — loading/error와 같은
+            // 중립적 상태 문구를 쓰고, 정말 없는 참조에만 쓰는 경고문(목록에서 선택하라는 이행 불가능한
+            // 지시 포함)은 띄우지 않는다.
+            <p role="status" style={{ margin: 0, color: 'var(--color-neutral-500)', fontSize: 12 }}>
+              문서 유형을 선택하면 본문 필드 목록을 확인합니다.
             </p>
           ) : fieldRowMatch && !hasKnownFieldBinding ? (
             <p role="alert" style={{ margin: 0, color: 'var(--color-danger-700, #a12622)', fontSize: 12 }}>

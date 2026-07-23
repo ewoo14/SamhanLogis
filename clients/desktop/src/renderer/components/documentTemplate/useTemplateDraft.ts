@@ -255,7 +255,15 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     valid: parseResult.ok,
     // H-C: 저장이 불가능한 상태의 이유를 화면에서 알 수 있어야 한다 — 종전에는 parseResult.error.message
     // 를 버리고 ok 여부만 노출해 저장 버튼이 이유 없이 비활성화됐다.
-    validationError: parseResult.ok ? null : parseResult.error.message,
+    // R2(#914) P-4: docType이 비어 있으면 parseEnvelope의 단일 OR-조건 검사(id/status/revision/docType/
+    // name/document)가 항상 맨 먼저 걸려 매번 같은 제네릭 "envelope가 유효하지 않다" 문구만 내놓는다 —
+    // docType이 비어 있는 한 이 함수가 낼 수 있는 유일한 에러이므로, 그보다 사용자가 실제로 할 일(문서
+    // 유형 선택)을 말하는 문구로 안전하게 대체한다. 내부 파서 용어(envelope)를 화면에 내지 않는다.
+    validationError: parseResult.ok
+      ? null
+      : draft.docType.length === 0
+      ? '문서 유형을 선택해야 저장할 수 있습니다.'
+      : parseResult.error.message,
     markSaved,
     notice,
     clearNotice: useCallback(() => setNotice(null), []),

@@ -72,11 +72,13 @@ export function DocumentTemplateEditorPage() {
   })
   const approvalTemplateCode = draft.docType.replace(/^GROUPWARE_/, '')
   const approvalFieldOptions = (approvalTemplatesQuery.data ?? []).find((item) => item.code === approvalTemplateCode)?.fields ?? []
-  // N-3: isLoading/isError를 실제로 읽는다 — 조회 중/실패/정말 없음(ready인데 빈 배열)을 구분해
-  // ElementInspector에 전달한다. react-query v5의 isLoading은 "활성 fetch 중"만 true이므로
-  // enabled:false(docType 미선택) 상태는 자동으로 'ready'(빈 배열)로 떨어진다 — 그 상태는 실제로
-  // "정말 없음"이 맞다(아직 조회할 docType 자체가 없다).
-  const approvalFieldOptionsStatus = approvalTemplatesQuery.isLoading
+  // R2(#914): 위 주석의 원래 판정("enabled:false는 실제로 '정말 없음'이 맞다")은 틀렸다 — docType
+  // 미선택은 "조회했더니 없었다"가 아니라 "조회 자체를 시도하지 않았다"이다. 'ready'로 뭉뚱그리면
+  // 이미 저장된 정상 바인딩(예: 지출결의서의 금액)을 유형을 잠깐 미선택으로 되돌렸다는 이유만으로
+  // "사용할 수 없는 필드"라고 단정하게 된다(P-2 위반). loading/error와 나란한 별도 상태로 구분한다.
+  const approvalFieldOptionsStatus = draft.docType.length === 0
+    ? 'unselected' as const
+    : approvalTemplatesQuery.isLoading
     ? 'loading' as const
     : approvalTemplatesQuery.isError
     ? 'error' as const
