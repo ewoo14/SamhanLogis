@@ -70,6 +70,7 @@ function toDraft(template: TemplateEnvelope | null | undefined): TemplateDraftSt
   return {
     ...v2,
     schemaVersion: 2,
+    docType: template ? v2.docType : '',
     document: {
       paper: v2.document.paper,
       bands: v2.document.bands.map((band) => ({
