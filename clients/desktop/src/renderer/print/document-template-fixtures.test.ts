@@ -42,13 +42,13 @@ function sampleModel(): ApprovalRenderModel {
 /**
  * compiled body(ReactNode)에서 실제 배치된 본문 섹션 type 순서를 추출한다.
  *
- * M-F 이후 `body`는 `<LegacyApprovalDocBody/>` 단독이 아니라 `<>{LegacyApprovalDocBody}{BODY FIELD/TEXT
- * 레이어 또는 null}</>` Fragment 다(밴드별 FIELD/TEXT 분리 렌더). 첫 자식에서 orderedSections를 꺼낸다.
+ * M-F 이후 `body`의 children은 template BODY element 순서의 renderer node 배열이다.
+ * legacy section renderer node의 props에서 실제 section type을 읽는다.
  */
 function bodySectionTypes(body: ReturnType<typeof compileApprovalDocument>['body']): string[] {
-  const fragment = body as ReactElement<{ children: ReactElement<{ orderedSections: LegacyApprovalDocSection[] }>[] }>
-  const legacyBody = fragment.props.children[0]!
-  return legacyBody.props.orderedSections.map((section) => section.type)
+  const legacyBody = body as ReactElement<{ children?: ReactElement<{ section?: LegacyApprovalDocSection }>[] }>
+  return (legacyBody.props.children ?? [])
+    .flatMap((child) => child.props.section?.type ? [child.props.section.type] : [])
 }
 
 describe('shared document template fixture corpus', () => {

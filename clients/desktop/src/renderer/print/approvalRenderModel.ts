@@ -10,6 +10,7 @@ import {
   type ApprovalAttachment,
 } from '../api/groupwareApprovalAttachment'
 import type { ApprovalTemplateField } from '../api/groupwareApprovalTemplate'
+import type { EstimateLine } from '../api/estimateApi'
 import { krw } from './PrintLayout'
 import {
   attachmentDetails,
@@ -25,6 +26,8 @@ export interface FrozenApprovalDocInput {
   approval: ApprovalLineAdminResponse
   templateFields: ApprovalTemplateField[]
   attachments: ApprovalAttachment[]
+  /** 파일럿 detail adapter 입력 — 실제 EstimateLineResponse의 FE 정규화 타입. */
+  lineItems?: EstimateLine[]
   backTo?: string
 }
 
@@ -52,6 +55,34 @@ export interface ApprovalRenderAttachment {
   detail: string
 }
 
+export type ApprovalLineItemsAvailability = 'CONNECTED' | 'UNAVAILABLE'
+
+/** EstimateLineResponse에서 UUID/계보 필드를 제거한 detail 반복행 projection. */
+export interface ApprovalRenderLineItem {
+  productName: string
+  modelName: string
+  specification: string
+  quantity: number
+  supplyAmount: string
+  vatAmount: string
+  lineTotal: string
+  note: string
+}
+
+/** 실제 견적 응답 DTO를 인쇄 renderer가 소비하는 UUID 없는 행으로 투영한다. */
+export function projectEstimateLineItems(lines: EstimateLine[]): ApprovalRenderLineItem[] {
+  return lines.map((line) => ({
+    productName: line.productName ?? '',
+    modelName: line.modelName ?? '',
+    specification: line.specification ?? '',
+    quantity: line.quantity,
+    supplyAmount: line.supplyAmount,
+    vatAmount: line.vatAmount,
+    lineTotal: line.lineTotal,
+    note: line.note ?? '',
+  }))
+}
+
 export interface ApprovalRenderModel {
   header: ApprovalRenderHeader
   approvalSteps: ApprovalRenderStep[]
@@ -59,6 +90,8 @@ export interface ApprovalRenderModel {
     paragraphs: string[]
     fieldRows: ApprovalRenderFieldRow[]
     attachments: ApprovalRenderAttachment[]
+    lineItems: ApprovalRenderLineItem[]
+    lineItemsAvailability: ApprovalLineItemsAvailability
   }
   closing: {
     note: string
@@ -97,6 +130,8 @@ export function buildApprovalRenderModel(input: FrozenApprovalDocInput): Approva
         title: attachmentTitle(attachment),
         detail: attachmentDetails(attachment).join(' · '),
       })),
+      lineItems: projectEstimateLineItems(input.lineItems ?? []),
+      lineItemsAvailability: input.lineItems === undefined ? 'UNAVAILABLE' : 'CONNECTED',
     },
     closing: { note: CLOSING_NOTE },
   }

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const ACTIVE_TEMPLATE_ID = '77777777-eeee-4eee-8eee-000000000001'
+const DS4_TEMPLATE_ID = '77777777-eeee-4eee-8eee-000000000002'
 const BOUNDARY_VIEWPORTS = [1100, 1099, 700, 699, 640, 639, 320] as const
 
 async function waitForStableLayout(locator: import('@playwright/test').Locator): Promise<void> {
@@ -334,6 +335,99 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     await inspector.click()
     await inspector.fill('좁은 뷰포트에서도 도달 가능')
     await expect(inspector).toHaveValue('좁은 뷰포트에서도 도달 가능')
+  })
+
+  test('DS4-A/B: 7개 경계 폭에서 품목행·로고의 실제 줄/기하/hit-test와 수평 폭을 확인한다', async ({ page }) => {
+    test.setTimeout(120_000)
+
+    for (const width of BOUNDARY_VIEWPORTS) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(`/#/groupware/document-templates/${DS4_TEMPLATE_ID}/edit?mockRole=MASTER`, {
+        waitUntil: 'domcontentloaded',
+      })
+
+      const preview = page.getByTestId('document-template-live-preview')
+      const detail = preview.locator('[data-template-detail]')
+      const detailRows = detail.locator('[data-template-detail-row]')
+      const image = preview.locator('img[data-template-image]')
+      await expect(detail, `${width}px DETAIL은 실제로 렌더되어야 한다`).toBeVisible()
+      await expect(detailRows, `${width}px DETAIL의 N행은 실제 데이터 행이어야 한다`).toHaveCount(2)
+      await expect(detailRows.first()).toContainText('미리보기 품목 A')
+      await expect(detailRows.last()).toContainText('미리보기 품목 B')
+      await expect(image, `${width}px IMAGE는 실제로 보여야 한다`).toBeVisible()
+
+      let imageBox = await image.boundingBox()
+      for (let attempt = 0; attempt < 10 && (!imageBox || imageBox.y < 0 || imageBox.y + imageBox.height > 900); attempt += 1) {
+        await page.mouse.wheel(0, 700)
+        await waitForStableLayout(image)
+        imageBox = await image.boundingBox()
+      }
+      expect(imageBox, `${width}px 실제 wheel 뒤 IMAGE가 viewport에 도달해야 한다`).not.toBeNull()
+      expect(imageBox!.x).toBeGreaterThanOrEqual(0)
+      expect(imageBox!.x + imageBox!.width).toBeLessThanOrEqual(width)
+      expect(imageBox!.y).toBeGreaterThanOrEqual(0)
+      expect(imageBox!.y + imageBox!.height).toBeLessThanOrEqual(900)
+
+      const geometry = await preview.evaluate((node) => {
+        const detailNode = node.querySelector<HTMLElement>('[data-template-detail]')
+        const bodyNode = detailNode?.querySelector('tbody')
+        const imageNode = node.querySelector<HTMLImageElement>('img[data-template-image]')
+        if (!detailNode || !bodyNode || !imageNode) throw new Error('DS-4 렌더 전제가 충족되지 않았다')
+        const range = document.createRange()
+        range.selectNodeContents(bodyNode)
+        const lineCount = new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size
+        const imageRect = imageNode.getBoundingClientRect()
+        const imageHit = document.elementFromPoint(
+          imageRect.left + imageRect.width / 2,
+          imageRect.top + imageRect.height / 2,
+        )
+        return {
+          detailRects: detailNode.getClientRects().length,
+          lineCount,
+          imageWidth: imageRect.width,
+          imageHeight: imageRect.height,
+          imageNaturalWidth: imageNode.naturalWidth,
+          imageNaturalHeight: imageNode.naturalHeight,
+          imageHit: imageHit === imageNode,
+          clientWidth: node.clientWidth,
+          scrollWidth: node.scrollWidth,
+        }
+      })
+      expect(geometry.detailRects, `${width}px DETAIL의 실제 rect가 없어서는 안 된다`).toBeGreaterThan(0)
+      expect(geometry.lineCount, `${width}px DETAIL의 실제 줄 수가 없어서는 안 된다`).toBeGreaterThan(0)
+      expect(geometry.imageWidth, `${width}px IMAGE 폭이 0이면 안 된다`).toBeGreaterThan(0)
+      expect(geometry.imageHeight, `${width}px IMAGE 높이가 0이면 안 된다`).toBeGreaterThan(0)
+      expect(geometry.imageNaturalWidth, `${width}px IMAGE 원본이 로드되어야 한다`).toBeGreaterThan(0)
+      expect(geometry.imageNaturalHeight, `${width}px IMAGE 원본이 로드되어야 한다`).toBeGreaterThan(0)
+      expect(geometry.imageHit, `${width}px IMAGE 중심 hit-test가 IMAGE를 가리켜야 한다`).toBe(true)
+      expect(geometry.scrollWidth, `${width}px 미리보기가 수평으로 넘치면 안 된다`)
+        .toBeLessThanOrEqual(geometry.clientWidth)
+    }
+  })
+
+  test('DS4-C: 실제 2페이지 PDF에서 행이 분리되지 않고 둘째 페이지에 열 헤더가 반복된다', async ({ page }, testInfo) => {
+    test.setTimeout(120_000)
+    await page.setViewportSize({ width: 1100, height: 900 })
+    await page.goto(`/#/groupware/document-templates/${DS4_TEMPLATE_ID}/edit?mockRole=MASTER&mockDetailRows=44`, {
+      waitUntil: 'domcontentloaded',
+    })
+
+    const detail = page.getByTestId('document-template-live-preview').locator('[data-template-detail]')
+    const image = page.getByTestId('document-template-live-preview').locator('img[data-template-image]')
+    await expect(detail).toBeVisible()
+    await expect(detail.locator('[data-template-detail-row]')).toHaveCount(44)
+    const imageNaturalSize = await image.evaluate((node) => ({ width: node.naturalWidth, height: node.naturalHeight }))
+    expect(imageNaturalSize.width, 'page.pdf() 전 로고 원본 폭이 로드되어야 한다').toBeGreaterThan(0)
+    expect(imageNaturalSize.height, 'page.pdf() 전 로고 원본 높이가 로드되어야 한다').toBeGreaterThan(0)
+    await page.emulateMedia({ media: 'print' })
+    const pdfPath = testInfo.outputPath('ds4-detail-page-boundary.pdf')
+    const pdfBytes = await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+    })
+    expect(pdfBytes.byteLength, 'page.pdf()가 빈 출력물을 만들면 안 된다').toBeGreaterThan(10_000)
   })
 
   test('H-A: 편집기 화면의 UI 요소는 no-print 처리되어 인쇄 대상에서 제외된다', async ({ page }) => {

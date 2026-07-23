@@ -27,6 +27,8 @@ public class DocumentTemplateService {
     private static final int DOC_TYPE_MAX_LENGTH = 70;
     private static final String RESERVED_DEFAULT = "DEFAULT";
     private static final String RESERVED_GROUPWARE_DEFAULT = "GROUPWARE_DEFAULT";
+    /** 개발책임자 결정: 자동 업데이트 선행 후 제거할 BE 권위 게이트. 기존 legacy 양식은 통과한다. */
+    private static final boolean ADVANCED_ACTIVATION_GATE_ENABLED = true;
 
     private final DocumentTemplateRepository repository;
     private final DocumentTemplateRevisionService revisionService;
@@ -111,7 +113,11 @@ public class DocumentTemplateService {
     @Transactional
     public DocumentTemplateResponse activate(UUID id, String actor) {
         DocumentTemplate template = load(id);
-        validator.validate(template.getSchemaVersion(), objectMapper.valueToTree(template.getDocument()));
+        DocumentPayload document = validator.validate(template.getSchemaVersion(), objectMapper.valueToTree(template.getDocument()));
+        if (ADVANCED_ACTIVATION_GATE_ENABLED && validator.containsActivationBlockedElements(document)) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                    "자동 업데이트 선행 전에는 DETAIL/IMAGE 양식을 활성화할 수 없습니다.");
+        }
         if (template.getStatus() == DocumentTemplateStatus.ACTIVE) {
             revisionService.ensureCurrentRevision(template);
             return DocumentTemplateResponse.from(template);

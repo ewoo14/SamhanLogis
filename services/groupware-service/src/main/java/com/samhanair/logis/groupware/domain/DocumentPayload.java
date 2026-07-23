@@ -25,11 +25,20 @@ public record DocumentPayload(
             Geometry geometry,
             Style style,
             String binding,
-            String text
+            String text,
+            String repeatBinding,
+            List<String> columns,
+            String src,
+            String alt
     ) {
         /** v1 레거시 요소를 생성하는 호환 생성자. */
         public Element(String key, String type) {
-            this(key, type, null, null, null, null);
+            this(key, type, null, null, null, null, null, null, null, null);
+        }
+
+        /** 기존 v2 FIELD/TEXT 테스트와 호출부를 보존하는 호환 생성자. */
+        public Element(String key, String type, Geometry geometry, Style style, String binding, String text) {
+            this(key, type, geometry, style, binding, text, null, null, null, null);
         }
     }
 

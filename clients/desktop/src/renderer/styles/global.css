@@ -3290,6 +3290,91 @@ button {
   color: var(--ink-tertiary, #8A95A4);
 }
 
+/* --- DS-4 detail/image elements --- */
+.document-template-detail-layer {
+  position: relative;
+  min-height: 24mm;
+}
+
+.document-template-detail {
+  width: 100%;
+  min-width: 0;
+  color: #000;
+}
+
+.document-template-detail table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  /* H9(R7) fix: 이전에는 여기 고정 9pt 가 .document-template-detail(부모 div)의 inline
+     style.fontSize 상속을 항상 이겼다(직접 선택자가 상속보다 우선) — DocumentRenderer.tsx 의
+     detailGeometryStyle()가 같은 값을 --detail-font-size 로도 실어, 지정이 없을 때만 9pt 로
+     떨어지고 지정이 있으면 그 규칙 자체가 그 값을 쓰게 한다. */
+  font-size: var(--detail-font-size, 9pt);
+}
+
+.document-template-detail th,
+.document-template-detail td {
+  min-width: 0;
+  padding: 1.5mm 1.5mm;
+  border: 1px solid #000;
+  line-height: 1.35;
+  /* H9(R7) fix: 금액 열을 우측 정렬할 수단이 없던 원인 — 아래 참고. */
+  text-align: var(--detail-text-align, left);
+  vertical-align: middle;
+  white-space: pre-wrap;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.document-template-detail th {
+  background: #F4F5F7;
+  font-weight: 700;
+}
+
+.document-template-detail td {
+  font-variant-numeric: tabular-nums;
+}
+
+.document-template-detail tbody tr[data-template-detail-row] {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.document-template-image {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+@media print {
+  .document-template-detail table {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .document-template-detail thead {
+    display: table-header-group;
+  }
+
+  .document-template-detail tbody tr[data-template-detail-row] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* 긴 반복 표가 기존 approval-doc flex 본문을 초과할 때 마감 문구가 표 위로
+     끼어드는 Chromium fragmentation을 막는다. 레거시 문서는 modifier가 없어
+     DS-3b flex 계약을 그대로 유지한다. */
+  .print-approval-body--repeating-detail {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .print-approval-doc--repeating-detail {
+    display: block;
+    min-height: 0;
+  }
+}
+
 .paper-receipt-88mm .print-approval-doc {
   min-height: auto;
 }

@@ -15,6 +15,8 @@ import { resolve } from 'node:path'
 export default defineConfig({
   plugins: [react()],
   root: resolve(__dirname, 'src/renderer'),
+  // renderer root이 src/renderer이므로 실 앱/Electron과 동일한 정적 인쇄 자산을 사용한다.
+  publicDir: resolve(__dirname, 'public'),
   resolve: {
     alias: {
       '@renderer': resolve(__dirname, 'src/renderer'),

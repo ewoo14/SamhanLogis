@@ -178,6 +178,17 @@
   gap: var(--space-2);
 }
 
+.document-template-palette-action {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.document-template-palette-action > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .document-template-band-header {
   display: flex;
   align-items: baseline;

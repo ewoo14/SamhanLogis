@@ -113,6 +113,21 @@ const reorderedLayout: TemplateEnvelope = {
   },
 }
 
+const detailLayout: TemplateEnvelope = {
+  schemaVersion: 2,
+  revision: 1,
+  docType: 'GROUPWARE_REAL_DETAIL',
+  name: '실 DETAIL 양식',
+  document: {
+    paper: 'A4_PORTRAIT',
+    bands: [
+      { key: 'header', kind: 'HEADER', elements: [{ key: 'title', type: 'TITLE' }, { key: 'approval', type: 'APPROVAL_GRID' }] },
+      { key: 'body', kind: 'BODY', elements: [{ key: 'detail', type: 'DETAIL', repeatBinding: 'body.lineItems', columns: ['productName', 'quantity'] }] },
+      { key: 'footer', kind: 'FOOTER', elements: [{ key: 'closing', type: 'CLOSING' }] },
+    ],
+  },
+}
+
 /** 구조 위반(빈 bands) — API 가 정규화를 못 하고 malformed 를 넘겼을 때의 컴포넌트 자체 fallback 검증용. */
 const brokenEnvelope: TemplateEnvelope = {
   schemaVersion: 1,
@@ -221,6 +236,17 @@ describe('ApprovalDocView real DocumentRenderer route gate', () => {
     expect(
       attachmentsSection.compareDocumentPosition(contentSection) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+
+  it('실제 ApprovalDocView route의 DETAIL 원천 부재는 사용자 안내로 드러난다', async () => {
+    mocks.getGroupwareApproval.mockResolvedValue(approval('GROUPWARE_REAL_DETAIL'))
+    mocks.findActiveDocumentTemplate.mockResolvedValue(detailLayout)
+
+    renderView()
+
+    await waitFor(() => expect(screen.getByTestId('document-template-detail-layer')).toBeTruthy())
+    expect(screen.getByText('품목 원천이 연결되지 않은 결재문서입니다.')).toBeTruthy()
+    expect(screen.queryByText('데이터가 없습니다.')).toBeNull()
   })
 
   it.each([

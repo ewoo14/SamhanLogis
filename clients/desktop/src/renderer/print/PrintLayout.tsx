@@ -90,8 +90,10 @@ interface PrintLayoutProps {
    *
    * `approvalDoc=true` 일 때만 closingNote/전자서명 안내 아래에 렌더한다. 미지정 시 아무 것도
    * 렌더하지 않는다(G3).
-   */
+  */
   footerExtra?: ReactNode
+  /** 반복 detail이 있는 v2 문서의 인쇄 표 분할 힌트. */
+  hasRepeatingDetail?: boolean
 }
 
 /**
@@ -116,6 +118,7 @@ export function PrintLayout({
   closingNote,
   headerExtra,
   footerExtra,
+  hasRepeatingDetail = false,
 }: PrintLayoutProps) {
   const navigate = useNavigate()
   const normalizedApprovalSteps = approvalSteps.slice(0, 5)
@@ -139,7 +142,7 @@ export function PrintLayout({
 
       <div className={`paper paper-${paper}`}>
         {approvalDoc ? (
-          <div className="print-approval-doc">
+          <div className={`print-approval-doc${hasRepeatingDetail ? ' print-approval-doc--repeating-detail' : ''}`}>
             {/* 헤더 = 좌(문서제목 + 문서메타) + 우(결재란 박스).
                 회사명/사업자번호 블록은 제거(2026-06-14 개발책임자 디자인 iteration 2) →
                 좌측 최상단이 문서 제목 h1, 그 아래 문서메타(번호/발행일/기간), 우상단이 결재란.
@@ -169,7 +172,6 @@ export function PrintLayout({
                     </div>
                   ) : null}
                 </div>
-                {headerExtra ?? null}
               </div>
               {/* 결재 단계가 하나도 없으면 빈 grid 박스가 그려지므로 결재란 박스 자체를 렌더하지 않는다.
                   현재 호출처는 모두 3칸을 전달해 무해하나, 후속 호출처가 빈 배열을 넘길 때의 회귀 방어. */}
@@ -210,8 +212,15 @@ export function PrintLayout({
                 </section>
               ) : null}
             </header>
+            {/* H7(R4) fix: HEADER 밴드 FIELD/TEXT/IMAGE 좌표는 예전에 `.print-approval-doc-headline`
+                (좌측 컬럼, 결재란 박스 폭만큼 좁다) 안에 있어 BODY 좌표 요소(페이지 본문 폭 기준)와
+                다른 폭 기준을 가리켰다 — 같은 x=70% 입력이 밴드에 따라 다른 지점을 가리켰다(H7 위반).
+                `<header>` 바깥(그러나 divider 이전 — 여전히 "헤더 영역")으로 옮겨 `.approval-doc-print-content`
+                (BODY 좌표 요소의 containing block)와 같은 폭을 쓰게 한다. headerExtra 가 없는 v1/레거시
+                문서는 이 슬롯이 항상 null 이라 출력이 한 글자도 바뀌지 않는다(G3). */}
+            {headerExtra ?? null}
             <div className="print-approval-divider" aria-hidden="true" />
-            <main className="print-approval-body">{children}</main>
+            <main className={`print-approval-body${hasRepeatingDetail ? ' print-approval-body--repeating-detail' : ''}`}>{children}</main>
             {/* 문서 하단(본문 아래) = 정중한 품의/제출 멘트(closingNote) + 전자서명 안내 문구.
                 결재란 grid 는 우측 상단으로 이동했다(2026-06-14). closingNote 또는 결재란이
                 하나라도 있으면 divider 를 그린다. 안내 문구는 결재란이 렌더될 때만(빈 배열 방어). */}

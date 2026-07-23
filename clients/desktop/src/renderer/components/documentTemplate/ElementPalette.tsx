@@ -1,6 +1,6 @@
 import { Button } from '@samhan/design-system'
 
-import { ELEMENT_TYPE_LABEL } from '../../print/templateSchema'
+import { ACTIVATION_BLOCKED_ELEMENT_TYPES, ELEMENT_TYPE_LABEL } from '../../print/templateSchema'
 import type { EditableElementType } from './useTemplateDraft'
 
 // H-F: 레거시 4종(META_ROWS/CONTENT_PARAGRAPHS/FIELD_TABLE/ATTACHMENT_TABLE)은 인스펙터에서 삭제할
@@ -8,7 +8,7 @@ import type { EditableElementType } from './useTemplateDraft'
 // 한 번 삭제하면 편집기 안에서 되돌릴 방법이 없었다 — 편집기에서 제거할 수 있는 것은 편집기에서 다시
 // 추가할 수 있어야 한다.
 const PALETTE_TYPES: EditableElementType[] = [
-  'TEXT', 'FIELD', 'APPROVAL_GRID', 'META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE',
+  'TEXT', 'FIELD', 'DETAIL', 'IMAGE', 'APPROVAL_GRID', 'META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE',
 ]
 
 export function ElementPalette({
@@ -26,11 +26,34 @@ export function ElementPalette({
         밴드에 배치할 요소를 선택하세요.
       </p>
       <div className="document-template-palette-actions">
-        {PALETTE_TYPES.map((type) => (
-          <Button key={type} type="button" variant="secondary" size="sm" disabled={!canEdit} onClick={() => onAdd(type)}>
-            {ELEMENT_TYPE_LABEL[type]} 추가
-          </Button>
-        ))}
+        {PALETTE_TYPES.map((type) => {
+          // H10(R5): 되돌리기 어려운 상태(사용 중 양식을 내림)에 들어가기 전에, 이 요소를 추가하면
+          // 나중에 활성화가 막힌다는 것을 팔레트에서부터 알 수 있어야 한다(BE 게이트는 그대로 존치).
+          const activationBlocked = ACTIVATION_BLOCKED_ELEMENT_TYPES.has(type)
+          return (
+            <div className="document-template-palette-action" key={type}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={!canEdit}
+                onClick={() => onAdd(type)}
+                title={activationBlocked ? '자동 업데이트 선행 전에는 이 요소가 있는 양식을 활성화할 수 없습니다.' : undefined}
+                style={{ minWidth: 0, width: '100%' }}
+              >
+                {ELEMENT_TYPE_LABEL[type]} 추가
+              </Button>
+              {activationBlocked ? (
+                <span
+                  data-testid={`palette-activation-blocked-badge-${type}`}
+                  style={{ fontSize: 11, color: 'var(--color-warning-700, #92600a)' }}
+                >
+                  (활성화 제한)
+                </span>
+              ) : null}
+            </div>
+          )
+        })}
       </div>
     </section>
   )

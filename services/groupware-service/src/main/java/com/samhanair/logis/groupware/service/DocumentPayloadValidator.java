@@ -5,12 +5,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import javax.imageio.ImageIO;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.Base64;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -32,6 +36,23 @@ public class DocumentPayloadValidator {
     public static final int MAX_ELEMENTS_PER_BAND = 64;
     public static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_TEXT_LENGTH = 4_096;
+    private static final int MAX_ALT_LENGTH = 200;
+    private static final int MAX_IMAGE_BYTES = 50 * 1024;
+    /** H15(PM 2차 지적 반영): 픽셀 "개수"만으로 예산을 잡으면 색상 유형에 따라 실제 위험이 최대
+     * 8배(16bit RGBA 8B/px) 벌어진다 — 7999×7999(구 예산 바로 아래, 63,984,001px) RGBA 는 픽셀 수
+     * 기준으로는 통과하지만 실제로는 4B/px × 픽셀수 ≈ 244MiB 를 할당해(실측 컨테이너 +245MiB) 여전히
+     * 자원을 과소비했다. 그래서 예산을 "디코드 목적지 버퍼 바이트 수"로 직접 잡는다 —
+     * {@code ImageReader#getRawImageType()} 이 보고하는 실제 픽셀당 비트 수(PNG는 IHDR bitDepth×
+     * colorType 채널 수, JPEG는 SOF 컴포넌트 수 기반, 인터레이스/진행형과 무관하게 항상 헤더 전용
+     * 파싱)로 실제 목적지 크기를 미리 정확히 예측한다(실측: 7999×7999 RGBA 예측 244MB vs 실제 246MB —
+     * 오차 1% 이내). 64MiB(=67,108,864B)는 구 픽셀 예산(64,000,000px)을 "가장 저렴한 색상 유형
+     * (Gray/팔레트 1B/px)" 기준으로 그대로 계승해 그쪽은 여전히 관대하게 통과시키면서, RGBA(4B/px)는
+     * 자동으로 4배 더 엄격해져(≈16.7M px 상한) 문제의 7999×7999 RGBA(~244MB, 3.6배 초과)를 명확히
+     * 차단한다. A4 300dpi 전면(2480×3508=870만px) 8bit RGBA(~33.2MB)는 여유 있게 통과한다. */
+    private static final long MAX_DECODED_IMAGE_BYTES = 64L * 1024 * 1024;
+    /** rawType 을 판별할 수 없을 때 쓰는 보수적 배수(bytes/pixel) — 실측(H15c 회귀)상 관찰된
+     * 최악값은 16bit RGBA 의 8B/px 이므로, 판별 불가 입력도 그 이상으로 가정해 과소평가를 막는다. */
+    private static final int WORST_CASE_BYTES_PER_PIXEL_FALLBACK = 8;
 
     private static final Map<String, String> ELEMENT_BANDS = Map.of(
             "TITLE", "HEADER",
@@ -44,14 +65,18 @@ public class DocumentPayloadValidator {
     private static final Set<String> LEGACY_ELEMENT_TYPES = ELEMENT_BANDS.keySet();
     private static final Set<String> V2_ELEMENT_TYPES = Set.of(
             "TITLE", "META_ROWS", "APPROVAL_GRID", "CONTENT_PARAGRAPHS", "FIELD_TABLE",
-            "ATTACHMENT_TABLE", "CLOSING", "FIELD", "TEXT");
+            "ATTACHMENT_TABLE", "CLOSING", "FIELD", "TEXT", "DETAIL", "IMAGE");
+    private static final Set<String> DETAIL_COLUMN_KEYS = Set.of(
+            "productName", "modelName", "specification", "quantity",
+            "supplyAmount", "vatAmount", "lineTotal", "note");
     private static final Set<String> BINDING_VALUES = Set.of(
             "header.title", "header.docNo", "header.issueDate", "closing.note");
     private static final Pattern FIELD_BINDING = Pattern.compile(
             "body\\.fieldRow\\[[A-Za-z0-9_.-]{1,100}\\]");
     private static final Set<String> STYLE_KEYS = Set.of("fontSize", "bold", "align", "border");
     /** M-B: schema v1 요소가 가질 수 없는 v2 전용 예약 필드. */
-    private static final Set<String> RESERVED_V2_ELEMENT_FIELDS = Set.of("geometry", "style", "binding", "text");
+    private static final Set<String> RESERVED_V2_ELEMENT_FIELDS = Set.of(
+            "geometry", "style", "binding", "text", "repeatBinding", "columns", "src", "alt");
 
     private final ObjectMapper objectMapper;
 
@@ -85,6 +110,14 @@ public class DocumentPayloadValidator {
     /** 이미 typed 된 JSONB payload를 동일한 구조 검사로 재검증한다. */
     public DocumentPayload validate(Short schemaVersion, DocumentPayload document) {
         return validate(schemaVersion, objectMapper.valueToTree(document));
+    }
+
+    /** 자동 업데이트 전까지 신규 renderer 요소가 ACTIVE 양식으로 배포되지 않도록 하는 임시 게이트 판정. */
+    public boolean containsActivationBlockedElements(DocumentPayload document) {
+        return document != null && document.bands() != null
+                && document.bands().stream()
+                .flatMap(band -> band.elements() == null ? java.util.stream.Stream.empty() : band.elements().stream())
+                .anyMatch(element -> "DETAIL".equals(element.type()) || "IMAGE".equals(element.type()));
     }
 
     private void checkDocument(JsonNode document, short schemaVersion) {
@@ -121,6 +154,9 @@ public class DocumentPayloadValidator {
                 }
                 addKey(keys, element.get("key").asText());
                 String type = element.get("type").asText();
+                if ("DETAIL".equals(type) && !"BODY".equals(band.get("kind").asText())) {
+                    reject("DETAIL 요소는 BODY band에 있어야 합니다");
+                }
                 if (ELEMENT_BANDS.containsKey(type) && !ELEMENT_BANDS.get(type).equals(band.get("kind").asText())) {
                     reject(type + " 요소의 band 배치가 올바르지 않습니다");
                 }
@@ -158,16 +194,44 @@ public class DocumentPayloadValidator {
                 reject(type + " 요소는 최대 하나만 허용됩니다");
             }
         }
+        if (counts.getOrDefault("DETAIL", 0) > 1) {
+            reject("DETAIL 요소는 최대 하나만 허용됩니다");
+        }
     }
 
     private static void checkV2Element(JsonNode element, String type) {
-        if ("FIELD".equals(type)) {
+        if ("DETAIL".equals(type)) {
+            if (!"body.lineItems".equals(element.path("repeatBinding").asText())) {
+                reject("DETAIL 요소 repeatBinding이 허용 목록에 없습니다");
+            }
+            JsonNode columns = element.get("columns");
+            if (columns == null || !columns.isArray() || columns.size() == 0 || columns.size() > DETAIL_COLUMN_KEYS.size()) {
+                reject("DETAIL 요소 columns는 1개 이상 8개 이하여야 합니다");
+            }
+            Set<String> seen = new HashSet<>();
+            for (JsonNode column : columns) {
+                if (!column.isTextual() || !DETAIL_COLUMN_KEYS.contains(column.asText()) || !seen.add(column.asText())) {
+                    reject("DETAIL 요소 columns에 허용되지 않은 열 또는 중복 열이 있습니다");
+                }
+            }
+        } else if ("IMAGE".equals(type)) {
+            if (element.has("binding")) {
+                reject("IMAGE 요소 src가 허용 정책을 만족하지 않습니다");
+            }
+            if (!validImageSource(element.get("src"))) {
+                reject("IMAGE 요소 src는 실제로 열 수 있는 PNG/JPEG/WebP 이미지여야 합니다.");
+            }
+            if (!validString(element.get("alt"), MAX_ALT_LENGTH)) {
+                reject("IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다");
+            }
+        } else if ("FIELD".equals(type)) {
             JsonNode binding = element.get("binding");
             if (binding == null || !binding.isTextual()
                     || (!BINDING_VALUES.contains(binding.asText()) && !FIELD_BINDING.matcher(binding.asText()).matches())) {
                 reject("FIELD 요소 binding이 허용 목록에 없습니다");
             }
-        } else if (element.has("binding")) {
+        }
+        if (element.has("binding")) {
             // M-D: binding 은 요소 타입과 무관하게 allowlist 강제를 받아야 한다. 종전에는 이 검사가
             // type=="FIELD" 일 때만 실행돼, TEXT(또는 향후 신설될) 요소가 "binding" 필드를 함께 실어
             // 보내면 어떤 값이든(임의 문자열 포함) 무검증으로 Element record 에 역직렬화·영속됐다.
@@ -192,6 +256,110 @@ public class DocumentPayloadValidator {
         if (geometry != null) checkGeometry(geometry);
         JsonNode style = element.get("style");
         if (style != null) checkStyle(style);
+    }
+
+    private static boolean validImageSource(JsonNode source) {
+        if (source == null || !source.isTextual()) return false;
+        String value = source.asText();
+        if ("/print-logo.svg".equals(value)) return true;
+        var matcher = Pattern.compile("^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$")
+                .matcher(value);
+        if (!matcher.matches()) return false;
+        try {
+            byte[] decoded = Base64.getDecoder().decode(matcher.group(2));
+            if (decoded.length == 0 || decoded.length > MAX_IMAGE_BYTES
+                    || !hasImageSignature(matcher.group(1), decoded)) {
+                return false;
+            }
+            // ImageIO는 PNG/JPEG의 실제 파일 구조와 checksum/truncation을 검사한다.
+            // 표준 JDK에는 WebP reader가 없으므로 WebP는 RIFF/WEBP 컨테이너 signature까지 검사한다.
+            if ("webp".equals(matcher.group(1))) {
+                return true;
+            }
+            // H15: ImageIO.read()는 PNG/JPEG 모두 IHDR/SOF에 선언된 가로×세로 치수(+색상 정보)만으로
+            // 목적지 픽셀 버퍼를 "먼저" 할당하고, 그 다음에야 IDAT/scan 데이터를 실제로 읽는다 — IDAT이
+            // 비었거나 부족해도 할당은 이미 끝난 뒤다. 57바이트짜리 "선언 치수만 거대한" 입력이 요청
+            // 1건당 수백 MB를 할당해 컨테이너 실힙(prod 718MiB, MaxRAMPercentage=70.0 + mem_limit:1g)을
+            // 고갈시킬 수 있다. 서명 검사는 앞 8바이트만 보므로 이 공격을 걸러내지 못한다.
+            //
+            // 🔴 PM 2차 지적(경계 실측): 가로×세로 "픽셀 개수"만으로 예산을 잡으면 색상 유형에 따라
+            // 실제 위험이 최대 8배(16bit RGBA=8B/px vs 8bit Gray=1B/px) 벌어진다 — 예산 바로 아래
+            // 픽셀 수의 RGBA 이미지(7999×7999=63,984,001px)가 여전히 실제로는 ~244MiB 를 할당했다
+            // (실측: 컨테이너 메모리 376.1→621.6MiB). checkImageDecodedByteBudget()은 픽셀 개수가
+            // 아니라 실제 디코드 목적지 "바이트 수"를 예산으로 삼는다.
+            checkImageDecodedByteBudget(decoded);
+            return ImageIO.read(new ByteArrayInputStream(decoded)) != null;
+        } catch (IllegalArgumentException | IOException ex) {
+            return false;
+        }
+    }
+
+    /**
+     * 실제 픽셀 디코드(ImageIO.read, 목적지 버퍼 할당 포함) 전에, 그 할당이 실제로 몇 바이트가 될지
+     * 헤더만으로 미리 예측해 예산을 넘으면 거부한다(H15). {@code ImageReader#getRawImageType}은
+     * ImageIO 표준 계약상 헤더 메타데이터만으로 픽셀 형식(픽셀당 비트 수)을 판별하며 픽셀 버퍼를
+     * 할당하지 않는다 — PNG는 IHDR의 bitDepth×colorType 채널 수, JPEG는 SOF 컴포넌트 수 기반이라
+     * 인터레이스/진행형(progressive)/CMYK 여부와 무관하게 항상 헤더 전용이다(실측: 16bit RGBA
+     * 64bpp·8bit RGBA 32bpp·8bit Gray/팔레트 8bpp 전부 실제 디코드 버퍼 크기와 1% 이내로 일치).
+     *
+     * <p>예산을 넘으면 {@link BusinessException}을 직접 던져 "실제로 열 수 없는 이미지"라는 뭉뚱그린
+     * 문구 대신 원인(해상도 초과)을 구체적으로 안내한다(H15-b).
+     *
+     * <p>reader를 찾지 못하거나 치수를 읽을 수 없는 경우는 뒤이은 {@code ImageIO.read()}가 결국
+     * null을 반환하거나 예외를 던져 기존 "실제로 열 수 있는 이미지" 문구로 거부되므로 그대로 둔다.
+     * 다만 {@code getRawImageType()}이 픽셀 형식을 특정하지 못해 {@code null}을 반환하는 경우는
+     * "판단 보류"로 비싼 read()를 그냥 허용하지 않는다 — 폭 계산 이전에 이 판별 불가 자체가 이미
+     * 위험 신호이므로 보수적 최악값({@link #WORST_CASE_BYTES_PER_PIXEL_FALLBACK})으로 예산을
+     * 강제한다(과소평가로 인한 우회를 막는다).
+     */
+    private static void checkImageDecodedByteBudget(byte[] decoded) throws IOException {
+        try (var inputStream = ImageIO.createImageInputStream(new ByteArrayInputStream(decoded))) {
+            if (inputStream == null) return;
+            var readers = ImageIO.getImageReaders(inputStream);
+            if (!readers.hasNext()) return;
+            var reader = readers.next();
+            try {
+                // seekForwardOnly=true, ignoreMetadata=true — EXIF/ICC 등 부가 메타데이터 파싱까지
+                // 건너뛰어 헤더 피크 자체도 최소 비용으로 유지한다.
+                reader.setInput(inputStream, true, true);
+                long width = reader.getWidth(0);
+                long height = reader.getHeight(0);
+                if (width <= 0 || height <= 0) return;
+
+                int bytesPerPixel;
+                var rawType = reader.getRawImageType(0);
+                if (rawType != null) {
+                    // getPixelSize()는 비트 단위 — 바이트로 올림 변환(예: 24bpp RGB -> 3B, 1bpp -> 1B).
+                    bytesPerPixel = (rawType.getColorModel().getPixelSize() + 7) / 8;
+                } else {
+                    bytesPerPixel = WORST_CASE_BYTES_PER_PIXEL_FALLBACK;
+                }
+
+                long predictedBytes = width * height * bytesPerPixel;
+                if (predictedBytes > MAX_DECODED_IMAGE_BYTES) {
+                    reject("IMAGE 요소 이미지가 너무 커서 처리할 수 없습니다(가로×세로 픽셀 수와 색상 "
+                            + "정보 기준 상한 초과). 해상도를 줄이거나 이미지를 단순화해 다시 시도하세요.");
+                }
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private static boolean hasImageSignature(String mime, byte[] bytes) {
+        if ("png".equals(mime)) {
+            return bytes.length >= 8
+                    && (bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E
+                    && bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A
+                    && bytes[6] == 0x1A && bytes[7] == 0x0A;
+        }
+        if ("jpeg".equals(mime)) {
+            return bytes.length >= 3 && (bytes[0] & 0xFF) == 0xFF
+                    && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF;
+        }
+        return "webp".equals(mime) && bytes.length >= 12
+                && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
     }
 
     private static void checkGeometry(JsonNode geometry) {
@@ -246,8 +414,12 @@ public class DocumentPayloadValidator {
     }
 
     private static boolean validString(JsonNode node) {
+        return validString(node, MAX_KEY_LENGTH);
+    }
+
+    private static boolean validString(JsonNode node, int maxLength) {
         return node != null && node.isTextual() && !isFeTrimEmpty(node.asText())
-                && node.asText().length() <= MAX_KEY_LENGTH;
+                && node.asText().length() <= maxLength;
     }
 
     /** FE JavaScript trim()과 동일하게 Unicode 공백만 있는 key를 거부한다. */

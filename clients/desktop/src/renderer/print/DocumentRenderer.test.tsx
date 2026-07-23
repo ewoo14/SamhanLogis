@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { StaticRouter } from 'react-router-dom/server'
+import { JSDOM } from 'jsdom'
 
 import type { ApprovalLineAdminResponse, ApprovalStepView } from '../api/groupwareApproval'
 import type { ApprovalAttachment } from '../api/groupwareApprovalAttachment'
@@ -182,6 +183,128 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(html).toContain('DOC-2026-001')
   })
 
+  it('DS-4 regression: BODY positioned 요소는 하나의 좌표 레이어를 공유한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                {
+                  key: 'body-text-left',
+                  type: 'TEXT' as const,
+                  text: '왼쪽 본문 요소',
+                  geometry: { x: 10, y: 20, w: 20, h: 5 },
+                },
+                {
+                  key: 'body-field-right',
+                  type: 'FIELD' as const,
+                  binding: 'header.docNo' as const,
+                  geometry: { x: 60, y: 20, w: 20, h: 5 },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect((html.match(/data-testid="document-template-v2-elements-body"/g) ?? []).length).toBe(1)
+    expect((html.match(/style="[^"]*position:relative;min-height:24mm/g) ?? []).length).toBe(1)
+    expect(html).toContain('data-template-element="body-text-left"')
+    expect(html).toContain('data-template-element="body-field-right"')
+  })
+
+  it('DS-4 regression: % geometry layer는 legacy/DETAIL flow 높이와 독립된 고정 containing block이어야 한다', () => {
+    const baseModel = buildApprovalRenderModel(input())
+    const renderBodyVariant = (detailRowCount: number) => {
+      const model = {
+        ...baseModel,
+        body: {
+          ...baseModel.body,
+          paragraphs: Array.from({ length: detailRowCount }, (_, index) => `legacy-${index + 1}`),
+          lineItems: Array.from({ length: detailRowCount }, (_, index) => ({
+            productName: `품목-${index + 1}`,
+            modelName: `MODEL-${index + 1}`,
+            specification: '규격',
+            quantity: 1,
+            supplyAmount: '1000',
+            vatAmount: '100',
+            lineTotal: '1100',
+            note: '',
+          })),
+        },
+      }
+      const template = {
+        ...GROUPWARE_DEFAULT,
+        schemaVersion: 2 as const,
+        document: {
+          ...GROUPWARE_DEFAULT.document,
+          bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+            ? {
+                ...band,
+                elements: [
+                  { key: 'legacy-content', type: 'CONTENT_PARAGRAPHS' as const },
+                  {
+                    key: 'positioned-field',
+                    type: 'FIELD' as const,
+                    binding: 'header.docNo' as const,
+                    geometry: { x: 10, y: 50, w: 30, h: 10 },
+                  },
+                  {
+                    key: 'variable-detail',
+                    type: 'DETAIL' as const,
+                    repeatBinding: 'body.lineItems' as const,
+                    columns: ['productName'] as const,
+                    geometry: { x: 0, y: 0, w: 100, h: 40 },
+                  },
+                ],
+              }
+            : band),
+        },
+      }
+      return render(<DocumentRenderer template={template as never} model={model} />)
+    }
+
+    const html3 = renderBodyVariant(3)
+    const html30 = renderBodyVariant(30)
+    const layerOpen = /<div class="document-template-v2-elements" data-testid="document-template-v2-elements-body" style="([^"]+)">/
+    const layer3 = html3.match(layerOpen)
+    const layer30 = html30.match(layerOpen)
+    const element3 = html3.match(/data-template-element="positioned-field"[^>]*style="([^"]+)"/)
+    const element30 = html30.match(/data-template-element="positioned-field"[^>]*style="([^"]+)"/)
+
+    // H5: 좌표 레이어는 BODY flow에서 실제로 24mm를 예약해야 한다.
+    expect(layer3, 'BODY positioned 요소 전용 layer가 없다').not.toBeNull()
+    expect(layer30, 'BODY positioned 요소 전용 layer가 없다').not.toBeNull()
+    expect(layer3![1]).toContain('position:relative')
+    expect(layer3![1]).toContain('min-height:24mm')
+    expect(layer3![1]).not.toContain('position:absolute')
+    expect(layer3![1]).not.toMatch(/(?:^|;)height:24mm(?:;|$)/)
+    expect(layer30![1]).toBe(layer3![1])
+    expect(element30?.[1]).toBe(element3?.[1])
+
+    const bodyLayer = new JSDOM(html3).window.document.querySelector('[data-testid="document-template-v2-elements-body"]')
+    expect(bodyLayer).not.toBeNull()
+    expect(bodyLayer?.parentElement?.getAttribute('style')).toContain('position:relative')
+    expect(bodyLayer?.getAttribute('style')).toContain('min-height:24mm')
+    expect(bodyLayer?.querySelector('[data-template-element="positioned-field"]')).not.toBeNull()
+    expect(bodyLayer?.querySelector('[data-template-detail="variable-detail"]')).toBeNull()
+    expect(bodyLayer?.querySelector('[aria-label="결재문서 내용"]')).toBeNull()
+
+    // layer가 원래 FIELD 선언 위치(legacy와 DETAIL 사이)에 삽입되어 O1 DOM 순서도 유지한다.
+    const bodyChildren = Array.from(bodyLayer?.parentElement?.children ?? [])
+    expect(bodyChildren[0]?.getAttribute('aria-label')).toBe('결재문서 내용')
+    expect(bodyChildren.indexOf(bodyLayer!)).toBe(1)
+    expect(bodyChildren[2]?.querySelector('[data-template-detail="variable-detail"]')).not.toBeNull()
+    expect(bodyLayer?.nextElementSibling?.querySelector('[data-template-detail="variable-detail"]')).not.toBeNull()
+  })
+
   it('기본 template을 PrintLayout props 동형 slot으로 compile한다', () => {
     const model = buildApprovalRenderModel(input())
     const compiled = compileApprovalDocument(GROUPWARE_DEFAULT, model)
@@ -322,5 +445,171 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(attachmentIndex).toBeGreaterThan(-1)
     expect(fieldIndex).toBeGreaterThan(attachmentIndex)
     expect(contentIndex).toBeGreaterThan(fieldIndex)
+  })
+
+  it('DS-4: DETAIL은 0행에서 기존 빈 데이터 문구를, N행에서 각 DTO 값을 구별해 렌더한다', () => {
+    const baseModel = buildApprovalRenderModel(input())
+    const lineItems = [
+      {
+        productName: '펌프 A',
+        modelName: 'MX-100',
+        specification: '220V',
+        quantity: 2,
+        supplyAmount: '30000',
+        vatAmount: '3000',
+        lineTotal: '33000',
+        note: '첫 행',
+      },
+      {
+        productName: '밸브 B',
+        modelName: 'VX-200',
+        specification: '380V',
+        quantity: 5,
+        supplyAmount: '15000',
+        vatAmount: '1500',
+        lineTotal: '16500',
+        note: '둘째 행',
+      },
+    ]
+    const model = {
+      ...baseModel,
+      body: { ...baseModel.body, lineItems },
+    }
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'detail-items',
+                  type: 'DETAIL' as const,
+                  repeatBinding: 'body.lineItems' as const,
+                  columns: ['productName', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal'] as const,
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model as never} />)
+
+    expect(html).toContain('data-template-detail="detail-items"')
+    expect(html).toContain('펌프 A')
+    expect(html).toContain('밸브 B')
+    expect(html).toContain('30,000')
+    expect(html).toContain('3,000')
+    expect(html).toContain('33,000')
+    expect((html.match(/data-template-detail-row=/g) ?? []).length).toBe(2)
+
+    const emptyHtml = render(<DocumentRenderer
+      template={template as never}
+      model={{ ...baseModel, body: { ...baseModel.body, lineItems: [] } } as never}
+    />)
+    expect(emptyHtml).toContain('품목 원천이 연결되지 않은 결재문서입니다.')
+    expect(emptyHtml).not.toContain('데이터가 없습니다.')
+  })
+
+  it('DS-4 A2: 실제 route 입력에 품목 원천이 없으면 빈 표 대신 원인을 출력한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [...band.elements, {
+                key: 'detail-source-missing',
+                type: 'DETAIL' as const,
+                repeatBinding: 'body.lineItems' as const,
+                columns: ['productName', 'quantity'] as const,
+              }],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('품목 원천이 연결되지 않은 결재문서입니다.')
+    expect(html).not.toContain('데이터가 없습니다.')
+  })
+
+  it('O1: DETAIL을 BODY 첫 요소로 이동하면 실제 preview DOM도 DETAIL이 먼저다', () => {
+    const model = {
+      ...buildApprovalRenderModel(input()),
+      body: {
+        ...buildApprovalRenderModel(input()).body,
+        lineItems: [{
+          productName: '출력 품목', modelName: 'MODEL-1', specification: '규격', quantity: 1,
+          supplyAmount: '1000', vatAmount: '100', lineTotal: '1100', note: '',
+        }],
+      },
+    }
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'BODY'
+          ? {
+              ...band,
+              elements: [
+                { key: 'detail-first', type: 'DETAIL' as const, repeatBinding: 'body.lineItems' as const, columns: ['productName'] as const },
+                { key: 'content-after-detail', type: 'CONTENT_PARAGRAPHS' as const },
+                { key: 'fields-after-detail', type: 'FIELD_TABLE' as const },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model as never} />)
+
+    expect(html.indexOf('data-template-detail="detail-first"')).toBeLessThan(
+      html.indexOf('aria-label="결재문서 내용"'),
+    )
+  })
+
+  it('DS-4: IMAGE는 허용된 data URL을 geometry와 함께 인쇄 경로에 렌더한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'HEADER'
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'logo-image',
+                  type: 'IMAGE' as const,
+                  src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+                  alt: '회사 로고',
+                  geometry: { x: 70, y: 4, w: 20, h: 12 },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('data-template-image="logo-image"')
+    expect(html).toContain('alt="회사 로고"')
+    expect(html).toContain('left:70%')
+    expect(html).toContain('top:4%')
+    expect(html).toContain('width:20%')
+    expect(html).toContain('min-height:12%')
   })
 })

@@ -37,6 +37,30 @@ export type BindingRef =
   | 'closing.note'
   | `body.fieldRow[${string}]`
 
+export const DETAIL_COLUMN_KEYS = [
+  'productName',
+  'modelName',
+  'specification',
+  'quantity',
+  'supplyAmount',
+  'vatAmount',
+  'lineTotal',
+  'note',
+] as const
+
+export type DetailColumnKey = (typeof DETAIL_COLUMN_KEYS)[number]
+
+export const DETAIL_COLUMN_LABEL: Record<DetailColumnKey, string> = {
+  productName: '품목',
+  modelName: '모델명',
+  specification: '규격',
+  quantity: '수량',
+  supplyAmount: '공급가액',
+  vatAmount: '부가세',
+  lineTotal: '합계',
+  note: '비고',
+}
+
 export type LegacyDocElement =
   | { key: string; type: 'TITLE' }
   | { key: string; type: 'META_ROWS' }
@@ -62,7 +86,25 @@ export type TextElement = {
   style?: ElementStyle
 }
 
-export type DocElement = LegacyDocElement | FieldElement | TextElement
+export type DetailElement = {
+  key: string
+  type: 'DETAIL'
+  repeatBinding: 'body.lineItems'
+  columns: DetailColumnKey[]
+  geometry?: Geometry
+  style?: ElementStyle
+}
+
+export type ImageElement = {
+  key: string
+  type: 'IMAGE'
+  src: string
+  alt: string
+  geometry?: Geometry
+  style?: ElementStyle
+}
+
+export type DocElement = LegacyDocElement | FieldElement | TextElement | DetailElement | ImageElement
 export type DocElementV2 = DocElement
 
 /**
@@ -79,6 +121,23 @@ export const ELEMENT_TYPE_LABEL: Record<DocElement['type'], string> = {
   CLOSING: '맺음말',
   FIELD: '필드',
   TEXT: '문구',
+  DETAIL: '품목행',
+  IMAGE: '이미지/로고',
+}
+
+/**
+ * H10(R5) — BE 활성화 게이트(`DocumentTemplateService.ADVANCED_ACTIVATION_GATE_ENABLED` +
+ * `DocumentPayloadValidator.containsActivationBlockedElements`)가 막는 요소 타입.
+ *
+ * 게이트 자체는 개발책임자 결정으로 존치한다(자동 업데이트 선행 전까지 DETAIL/IMAGE 포함 양식은
+ * 활성화 불가) — 여기서는 게이트를 우회/약화하지 않고, FE 가 "이 요소를 넣으면 활성화가 막힌다"를
+ * 사용자에게 되돌리기 어려운 상태(사용 중 양식을 내림)에 들어가기 **전에** 알리는 데만 쓴다.
+ * BE 목록과 나란히 유지해야 한다 — 이 파일 밖(Java)의 authoritative 목록이 바뀌면 이 상수도 갱신할 것.
+ */
+export const ACTIVATION_BLOCKED_ELEMENT_TYPES: ReadonlySet<DocElement['type']> = new Set(['DETAIL', 'IMAGE'])
+
+export function hasActivationBlockedElements(document: Pick<DocumentPayload, 'bands'>): boolean {
+  return document.bands.some((band) => band.elements.some((element) => ACTIVATION_BLOCKED_ELEMENT_TYPES.has(element.type)))
 }
 
 export const BAND_KIND_LABEL: Record<BandKind, string> = {
@@ -125,6 +184,7 @@ export interface DocumentTemplateParseError {
   | 'INVALID_GEOMETRY'
   | 'INVALID_STYLE'
   | 'INVALID_BINDING'
+  | 'INVALID_IMAGE_SOURCE'
   | 'DUPLICATE_KEY'
   | 'INVALID_BAND_PLACEMENT'
   | 'INVALID_ELEMENT_COUNT'
@@ -145,8 +205,8 @@ const LEGACY_ELEMENT_TYPES = [
   'CLOSING',
 ] as const
 
-const V2_ELEMENT_TYPES = [...LEGACY_ELEMENT_TYPES, 'FIELD', 'TEXT'] as const
-const MAX_REQUEST_BYTES = 64 * 1024
+const V2_ELEMENT_TYPES = [...LEGACY_ELEMENT_TYPES, 'FIELD', 'TEXT', 'DETAIL', 'IMAGE'] as const
+export const MAX_REQUEST_BYTES = 64 * 1024
 const MAX_DEPTH = 16
 const MAX_BANDS = 32
 const MAX_ELEMENTS_PER_BAND = 64
@@ -157,6 +217,52 @@ const MAX_FONT_SIZE = 200
  * 불일치 — FE 가 통과시킨 요청이 BE 에서 "비어 있지 않은 문자열이어야 합니다"로 거부되어 실제 원인
  * (길이 초과)을 사용자가 알 수 없었다). */
 const MAX_TEXT_LENGTH = 4_096
+const MAX_ALT_LENGTH = 200
+export const MAX_IMAGE_BYTES = 50 * 1024
+
+function imageDataUrlByteLength(value: string): number {
+  const base64 = value.split(',')[1] ?? ''
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0))
+}
+
+function hasImageSignature(mime: string, base64: string): boolean {
+  try {
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+    if (mime === 'png') {
+      return bytes.length >= 8
+        && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
+        && bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A
+    }
+    if (mime === 'jpeg') {
+      return bytes.length >= 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF
+    }
+    return mime === 'webp' && bytes.length >= 12
+      && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+      && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  } catch {
+    return false
+  }
+}
+
+/** 문서 JSON 상한을 함께 고려한 이미지 파일 선택기의 실제 decoded 상한. */
+export function maxImageBytesForDocument(document: DocumentPayload, imageKey: string): number {
+  const imageExists = document.bands.some((band) => band.elements.some((element) => element.key === imageKey && element.type === 'IMAGE'))
+  if (!imageExists) return 0
+  const placeholder = 'data:image/png;base64,'
+  const withoutImageData: DocumentPayload = {
+    ...document,
+    bands: document.bands.map((band) => ({
+      ...band,
+      elements: band.elements.map((element) => element.key === imageKey && element.type === 'IMAGE'
+        ? { ...element, src: placeholder }
+        : element),
+    })),
+  }
+  const baseBytes = new TextEncoder().encode(JSON.stringify(withoutImageData)).byteLength
+  const remainingEncodedCharacters = Math.max(0, MAX_REQUEST_BYTES - baseBytes)
+  const decodedByEnvelope = Math.floor(remainingEncodedCharacters / 4) * 3
+  return Math.min(MAX_IMAGE_BYTES, decodedByEnvelope)
+}
 
 type LegacyElementType = (typeof LEGACY_ELEMENT_TYPES)[number]
 
@@ -262,6 +368,46 @@ function parseBinding(value: unknown): BindingRef | DocumentTemplateParseError {
   return { code: 'INVALID_BINDING', message: '허용되지 않은 문서 요소 binding입니다.' }
 }
 
+function isDetailColumnKey(value: unknown): value is DetailColumnKey {
+  return typeof value === 'string' && (DETAIL_COLUMN_KEYS as readonly string[]).includes(value)
+}
+
+function parseDetailColumns(value: unknown): DetailColumnKey[] | DocumentTemplateParseError {
+  if (!Array.isArray(value) || value.length === 0 || value.length > DETAIL_COLUMN_KEYS.length) {
+    return { code: 'INVALID_ELEMENT', message: 'DETAIL 요소 columns는 1개 이상 8개 이하여야 합니다.' }
+  }
+  const columns: DetailColumnKey[] = []
+  for (const column of value) {
+    if (!isDetailColumnKey(column) || columns.includes(column)) {
+      return { code: 'INVALID_ELEMENT', message: 'DETAIL 요소 columns에 허용되지 않은 열 또는 중복 열이 있습니다.' }
+    }
+    columns.push(column)
+  }
+  return columns
+}
+
+function parseImageSource(value: unknown): string | DocumentTemplateParseError {
+  if (value === '/print-logo.svg') return value
+  if (typeof value !== 'string') {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소 src가 유효하지 않습니다.' }
+  }
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value)
+  if (!match) {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 PNG/JPEG/WebP data URL 또는 기본 로고만 허용합니다.' }
+  }
+  const base64 = match[2] ?? ''
+  const bytes = imageDataUrlByteLength(value)
+  if (bytes <= 0 || bytes > MAX_IMAGE_BYTES || !hasImageSignature(match[1]!, base64)) {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 실제 PNG/JPEG/WebP 이미지 파일이어야 하며 50KB 이하여야 합니다.' }
+  }
+  return value
+}
+
+/** renderer가 parser와 같은 source allowlist를 적용하는 방어선. */
+export function isAllowedImageSource(value: unknown): value is string {
+  return !isParseError(parseImageSource(value))
+}
+
 function isParseError(value: unknown): value is DocumentTemplateParseError {
   return isRecord(value) && typeof value.code === 'string' && typeof value.message === 'string'
 }
@@ -290,6 +436,36 @@ function parseElement(value: unknown, schemaVersion: SchemaVersion): DocElement 
       key: value.key,
       type: 'FIELD',
       binding,
+      ...(geometry === undefined ? {} : { geometry }),
+      ...(style === undefined ? {} : { style }),
+    }
+  }
+  if (value.type === 'DETAIL') {
+    if (value.repeatBinding !== 'body.lineItems') {
+      return { code: 'INVALID_BINDING', message: 'DETAIL 요소 repeatBinding이 허용 목록에 없습니다.' }
+    }
+    const columns = parseDetailColumns(value.columns)
+    if (isParseError(columns)) return columns
+    return {
+      key: value.key,
+      type: 'DETAIL',
+      repeatBinding: 'body.lineItems',
+      columns,
+      ...(geometry === undefined ? {} : { geometry }),
+      ...(style === undefined ? {} : { style }),
+    }
+  }
+  if (value.type === 'IMAGE') {
+    const src = parseImageSource(value.src)
+    if (isParseError(src)) return src
+    if (!isNonEmptyString(value.alt, MAX_ALT_LENGTH)) {
+      return { code: 'INVALID_ELEMENT', message: 'IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다.' }
+    }
+    return {
+      key: value.key,
+      type: 'IMAGE',
+      src,
+      alt: value.alt,
       ...(geometry === undefined ? {} : { geometry }),
       ...(style === undefined ? {} : { style }),
     }
@@ -339,7 +515,7 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
 
   const keys = new Set<string>()
   const bands: Band[] = []
-  const counts: Partial<Record<LegacyElementType | 'FIELD' | 'TEXT', number>> = {}
+  const counts: Partial<Record<LegacyElementType | 'FIELD' | 'TEXT' | 'DETAIL' | 'IMAGE', number>> = {}
   for (const bandValue of value.document.bands) {
     if (!isRecord(bandValue)
       || !isNonEmptyString(bandValue.key)
@@ -359,6 +535,9 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
       if (parsed.type in ALLOWED_BANDS && ALLOWED_BANDS[parsed.type as LegacyElementType] !== bandValue.kind) {
         return failure('INVALID_BAND_PLACEMENT', `${parsed.type} 요소는 ${ALLOWED_BANDS[parsed.type as LegacyElementType]} band에 있어야 합니다.`)
       }
+      if (parsed.type === 'DETAIL' && bandValue.kind !== 'BODY') {
+        return failure('INVALID_BAND_PLACEMENT', 'DETAIL 요소는 BODY band에 있어야 합니다.')
+      }
       keys.add(parsed.key)
       elements.push(parsed)
       counts[parsed.type] = (counts[parsed.type] ?? 0) + 1
@@ -372,6 +551,7 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
   for (const type of ['META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE'] as const) {
     if ((counts[type] ?? 0) > 1) return failure('INVALID_ELEMENT_COUNT', `${type} 요소는 최대 하나만 허용됩니다.`)
   }
+  if ((counts.DETAIL ?? 0) > 1) return failure('INVALID_ELEMENT_COUNT', 'DETAIL 요소는 최대 하나만 허용됩니다.')
 
   return {
     ok: true,

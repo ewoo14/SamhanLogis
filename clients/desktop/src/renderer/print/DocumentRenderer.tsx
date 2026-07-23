@@ -4,10 +4,15 @@
  * 1단계는 template/model slot을 compiled PrintLayout props로 만들고, 2단계는
  * 기존 PrintLayout shell에 compiled body를 children으로 전달한다.
  */
-import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { PrintLayout, type PaperSize, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
 import type { ApprovalRenderModel } from './approvalRenderModel'
-import { LegacyApprovalDocBody, type LegacyApprovalDocSection } from './LegacyApprovalDocBody'
+import { krw } from './PrintLayout'
+import {
+  LegacyApprovalDocBody,
+  LegacyApprovalDocSection as LegacyApprovalDocSectionView,
+} from './LegacyApprovalDocBody'
+import type { LegacyApprovalDocSection } from './LegacyApprovalDocBody'
 import {
   paperToPrintLayout,
   type BindingRef,
@@ -16,7 +21,12 @@ import {
   type FieldElement,
   type Geometry,
   type ElementStyle,
+  type DetailColumnKey,
+  type DetailElement,
+  type ImageElement,
   type TextElement,
+  DETAIL_COLUMN_LABEL,
+  isAllowedImageSource,
 } from './templateSchema'
 
 export interface CompiledApprovalDocument {
@@ -29,6 +39,8 @@ export interface CompiledApprovalDocument {
   headerExtra?: ReactNode
   /** FOOTER 밴드에 배치된 FIELD/TEXT 요소 — 없으면 undefined(빈 공간 미예약, G3). */
   footerExtra?: ReactNode
+  /** DETAIL 표가 있는 v2 문서에서 인쇄 본문을 자동 높이로 분할한다. */
+  hasRepeatingDetail: boolean
 }
 
 export interface DocumentRendererProps {
@@ -55,6 +67,8 @@ function sectionForElement(
       return null
     case 'FIELD':
     case 'TEXT':
+    case 'DETAIL':
+    case 'IMAGE':
       return null
   }
 }
@@ -94,6 +108,49 @@ function geometryStyle(geometry: Geometry | undefined, style: ElementStyle | und
   }
 }
 
+/**
+ * 반복 표는 높이가 데이터 행 수에 따라 늘어나야 하므로 absolute positioning을 쓰지 않는다(margin 기반
+ * 오프셋 + 정상 flow — 그래서 R1(H6′)과 달리 ruler/spacer 분리 없이도 이미 "내용에 맞춰 자라고 뒤
+ * flow 가 밀린다"가 항상 성립한다: DOM 위치가 그대로 정상 flow이므로 부모(및 조상)의 auto-height 가
+ * 실제 렌더 높이를 그대로 반영한다).
+ *
+ * H7(R2) fix: `margin-top`의 %는 CSS 스펙상 containing block의 항상 "폭" 기준으로 해석된다(세로
+ * 오프셋인데도) — 그대로 두면 좌표 요소(FIELD/TEXT/IMAGE, position:absolute `top:Y%`)와 다른 축을
+ * 가리켜 같은 입력값이 요소 타입에 따라 다른 배율로 어긋난다. 밴드 세로 기준(24mm, `positionedElementLayer`
+ * 의 ruler 와 동일 상수)을 미리 곱해 고정 mm 로 계산해 넘기면 두 요소 타입이 같은 축·같은 기준 상자를
+ * 가리키게 된다.
+ *
+ * H9(R6) fix: `min-height: h%`는 부모(`.document-template-detail-layer`)의 높이가 auto(내용에 따라
+ * 결정)라 CSS 스펙상 "이 요소가 absolutely positioned 가 아니면" percentage 가 0 으로 계산돼 지금까지
+ * 완전히 무효했다(실측: h 값과 무관하게 항상 표의 natural height 그대로). 같은 24mm 기준으로 고정 mm
+ * 값을 미리 계산하면 percentage 해석 자체가 필요 없어져 항상 적용된다 — H6′ 방향대로 h 는 "최소 높이"
+ * 로 의미를 갖는다(내용이 더 크면 정상 flow 로 그만큼 더 자란다. 잘라내지 않는다).
+ */
+function detailGeometryStyle(geometry: Geometry | undefined, style: ElementStyle | undefined): CSSProperties {
+  // H9(R7) fix: fontSize/align 을 일반 속성으로만 실으면 `.document-template-detail table`/`th`/`td`
+  // 의 CSS 직접 선택자(font-size:9pt·text-align:left)가 상속보다 항상 이겨 무효화된다(실측 확인 —
+  // computed font-size 는 style.fontSize 값과 무관하게 항상 12px 였다). CSS 변수로도 함께 실어
+  // stylesheet 가 `var(--detail-*, 기본값)` 으로 참조하게 하면(global.css) 같은 우선순위 다툼이 아니라
+  // "그 규칙 자체가 이 값을 쓰게" 되어 항상 반영된다.
+  const cssVariables: Record<string, string> = {}
+  if (style?.fontSize !== undefined) cssVariables['--detail-font-size'] = `${style.fontSize}pt`
+  if (style?.align !== undefined) cssVariables['--detail-text-align'] = style.align
+
+  return {
+    ...(geometry === undefined ? {} : {
+      width: `${geometry.w}%`,
+      marginLeft: `${geometry.x}%`,
+      marginTop: `${(geometry.y / 100) * POSITIONED_BAND_HEIGHT_MM_NUMBER}mm`,
+      minHeight: `${(geometry.h / 100) * POSITIONED_BAND_HEIGHT_MM_NUMBER}mm`,
+    }),
+    ...cssVariables,
+    ...(style?.fontSize === undefined ? {} : { fontSize: `${style.fontSize}pt` }),
+    ...(style?.bold === undefined ? {} : { fontWeight: style.bold ? 700 : 400 }),
+    ...(style?.align === undefined ? {} : { textAlign: style.align }),
+    ...(style?.border === undefined ? {} : { border: style.border ? '1px solid #000' : 'none' }),
+  } as CSSProperties
+}
+
 function renderPositionedElement(element: FieldElement | TextElement, model: ApprovalRenderModel) {
   const text = element.type === 'TEXT' ? element.text : valueForBinding(element.binding, model)
   return (
@@ -103,6 +160,193 @@ function renderPositionedElement(element: FieldElement | TextElement, model: App
       style={geometryStyle(element.geometry, element.style)}
     >
       {text}
+    </div>
+  )
+}
+
+function valueForDetailColumn(
+  item: ApprovalRenderModel['body']['lineItems'][number],
+  column: DetailColumnKey,
+): string {
+  switch (column) {
+    case 'quantity':
+      return item.quantity.toLocaleString('ko-KR')
+    case 'supplyAmount':
+      return krw(item.supplyAmount) || '-'
+    case 'vatAmount':
+      return krw(item.vatAmount) || '-'
+    case 'lineTotal':
+      return krw(item.lineTotal) || '-'
+    case 'productName':
+      return item.productName || '-'
+    case 'modelName':
+      return item.modelName || '-'
+    case 'specification':
+      return item.specification || '-'
+    case 'note':
+      return item.note || '-'
+  }
+}
+
+function renderDetailElement(element: DetailElement, model: ApprovalRenderModel) {
+  const rows = model.body.lineItems
+  return (
+    <div
+      key={element.key}
+      className="document-template-detail"
+      data-template-detail={element.key}
+      style={detailGeometryStyle(element.geometry, element.style)}
+    >
+      <table>
+        <thead>
+          <tr>
+            {element.columns.map((column) => <th key={column} scope="col">{DETAIL_COLUMN_LABEL[column]}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr data-template-detail-row="empty">
+              <td colSpan={element.columns.length}>
+                {model.body.lineItemsAvailability === 'UNAVAILABLE'
+                  ? '품목 원천이 연결되지 않은 결재문서입니다.'
+                  : '데이터가 없습니다.'}
+              </td>
+            </tr>
+          ) : rows.map((item, index) => (
+            <tr key={`${element.key}-${index}`} data-template-detail-row={`${index + 1}`}>
+              {element.columns.map((column) => <td key={column}>{valueForDetailColumn(item, column)}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function renderImageElement(element: ImageElement) {
+  if (!isAllowedImageSource(element.src)) return null
+  return (
+    <img
+      key={element.key}
+      className="document-template-image"
+      data-template-image={element.key}
+      src={element.src}
+      alt={element.alt}
+      style={{
+        // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
+        // 인스펙터도 해당 컨트롤을 숨기고, 출력에는 실제 반영 가능한 테두리만 전달한다.
+        ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
+        display: 'block',
+        objectFit: 'contain',
+      }}
+    />
+  )
+}
+
+/** % geometry 좌표계의 기준(ruler) 높이(mm). H1 — 절대 변경 금지: 바뀌면 저장된 모든 geometry 값의
+ * 의미가 바뀐다. DETAIL(H7 R2/R6)도 같은 상수로 y/h 를 고정 mm 로 미리 계산해 좌표 요소와 같은
+ * 축·기준 상자를 가리키게 한다(`detailGeometryStyle`). */
+const POSITIONED_BAND_HEIGHT_MM_NUMBER = 24
+const POSITIONED_BAND_RULER_HEIGHT = `${POSITIONED_BAND_HEIGHT_MM_NUMBER}mm`
+/** ruler 실측이 실제 초과인지 sub-pixel 잡음인지 가르는 문턱값(px). */
+const OVERFLOW_NOISE_FLOOR_PX = 0.5
+/** 실제 초과가 있을 때 rounding 으로 인한 `elRect.bottom > layerRect.bottom` false-RED 를 막는 여유(px). */
+const OVERFLOW_SAFETY_MARGIN_PX = 1
+
+/**
+ * SSR(`renderToStaticMarkup`)은 `useLayoutEffect` 사용 시 "does nothing on the server" 경고를 낸다.
+ * DocumentRenderer 는 vitest 단위 테스트(environment:'node', DOM 없음)에서 대량으로 SSR 렌더되므로,
+ * window 가 없는 동안은 useEffect 로 대체한다 — 두 환경 모두 어차피 effect 자체는 실행되지 않으므로
+ * (SSR 은 commit 단계가 없다) 동작 차이는 없고 경고만 사라진다. window 존재 여부는 프로세스 수명 내내
+ * 불변이라 렌더마다 같은 훅이 선택되어 rules-of-hooks 를 어기지 않는다.
+ */
+const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+interface PositionedElementBandProps {
+  elements: Array<FieldElement | TextElement | ImageElement>
+  model: ApprovalRenderModel
+  testId: string
+}
+
+/**
+ * FIELD/TEXT/IMAGE 좌표 요소 밴드 — H6′(가변 밴드) + H2(원점 불변)를 동시에 만족시키는 핵심.
+ *
+ * 개발책임자 결정(2026-07-23): 내용이 밴드를 넘치면 "잘라내지도 덮지도 않고, 밴드가 내용에 맞게
+ * 자라며 뒤 flow 가 밀린다". 그런데 밴드를 그냥 내용에 맞춰 늘리면 % 좌표의 기준(밴드 높이)이 내용에
+ * 따라 변해 원점이 흔들린다(라운드 2 회귀) — "좌표를 재는 자"와 "자리를 차지하는 상자"를 분리해야
+ * 두 요구가 동시에 성립한다.
+ *
+ * - ruler(내부, 항상 고정 24mm): position:absolute 자식들의 containing block. 내용과 무관하게
+ *   불변이므로 저장된 % 좌표는 항상 같은 기준점을 가리킨다(H2). 자식이 넘쳐도 ruler 자신의
+ *   layout box 는 절대 자라지 않는다(fixed height — position:absolute 자식은 애초에 어느 조상의
+ *   auto height 에도 기여하지 않는다).
+ * - overflow spacer(ruler의 형제, ruler의 자식이 아님): 실측한 자식들의 최대 bottom 이 ruler 높이를
+ *   넘는 만큼만 별도로 flow 공간을 예약한다. ruler 의 자식이 아니므로 이 spacer 가 커져도 ruler 의
+ *   containing block 높이는 전혀 바뀌지 않는다 — 순환 의존이 생기지 않는다.
+ * - 바깥(testid) div: ruler + spacer 를 담는 flow 컨테이너. 실제 렌더 높이 = 24mm(+초과분) 이며,
+ *   이 값이 BODY grid/HEADER·FOOTER flex 의 자연스러운 auto-size 로 뒤 형제(legacy 섹션·구분선·
+ *   맺음말)를 밀어낸다 — 새 CSS 규칙을 만들 필요 없이 기존 flow 배치가 그대로 해결한다.
+ *
+ * 요소 수와 무관하게 밴드당 하나의 ruler/spacer만 존재한다(H4) — 여러 요소 중 가장 많이 넘친
+ * 요소 기준으로 한 번만 예약한다.
+ */
+function PositionedElementBand({ elements, model, testId }: PositionedElementBandProps) {
+  const rulerRef = useRef<HTMLDivElement | null>(null)
+  const [overflowPx, setOverflowPx] = useState(0)
+  // 좌표/스타일/실 렌더 문자열(TEXT 원문, FIELD 바인딩 결과, IMAGE src)이 바뀔 때만 재측정하면
+  // 충분하다 — 매 렌더 재측정은 낭비이고, 반대로 이 신호들을 빠뜨리면 내용이 바뀌어도 재측정을
+  // 건너뛰어 밴드가 낡은 높이로 남는다.
+  const contentSignature = JSON.stringify(elements.map((element) => ({
+    key: element.key,
+    geometry: element.geometry,
+    style: element.style,
+    content: element.type === 'TEXT'
+      ? element.text
+      : element.type === 'IMAGE'
+      ? element.src
+      : valueForBinding(element.binding, model),
+  })))
+
+  useIsomorphicLayoutEffect(() => {
+    const ruler = rulerRef.current
+    if (!ruler) return undefined
+    const recompute = () => {
+      const rulerRect = ruler.getBoundingClientRect()
+      let maxBottom = 0
+      ruler.querySelectorAll('[data-template-element], [data-template-image]').forEach((node) => {
+        const bottom = node.getBoundingClientRect().bottom - rulerRect.top
+        if (bottom > maxBottom) maxBottom = bottom
+      })
+      const rawOverflow = maxBottom - rulerRect.height
+      const nextOverflow = rawOverflow > OVERFLOW_NOISE_FLOOR_PX ? rawOverflow + OVERFLOW_SAFETY_MARGIN_PX : 0
+      setOverflowPx((prev) => (Math.abs(prev - nextOverflow) < OVERFLOW_NOISE_FLOOR_PX ? prev : nextOverflow))
+    }
+    recompute()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(recompute)
+    observer.observe(ruler)
+    ruler.querySelectorAll('[data-template-element], [data-template-image]').forEach((node) => observer.observe(node))
+    return () => observer.disconnect()
+  }, [contentSignature])
+
+  return (
+    <div
+      className="document-template-v2-elements"
+      data-testid={testId}
+      style={{ position: 'relative', minHeight: POSITIONED_BAND_RULER_HEIGHT }}
+    >
+      <div
+        ref={rulerRef}
+        className="document-template-v2-elements-ruler"
+        style={{ position: 'relative', height: POSITIONED_BAND_RULER_HEIGHT }}
+      >
+        {elements.map((element) => element.type === 'IMAGE'
+          ? renderImageElement(element)
+          : renderPositionedElement(element, model))}
+      </div>
+      {overflowPx > 0 ? (
+        <div aria-hidden="true" data-testid={`${testId}-overflow-spacer`} style={{ height: `${overflowPx}px` }} />
+      ) : null}
     </div>
   )
 }
@@ -117,26 +361,24 @@ function renderPositionedElement(element: FieldElement | TextElement, model: App
  * 반환해 빈 공간을 예약하지 않는다.
  */
 function positionedElementLayer(
-  elements: Array<FieldElement | TextElement>,
+  elements: Array<FieldElement | TextElement | ImageElement>,
   model: ApprovalRenderModel,
   testId: string,
+  key?: string,
 ): ReactNode {
   if (elements.length === 0) return null
-  return (
-    <div
-      className="document-template-v2-elements"
-      data-testid={testId}
-      style={{ position: 'relative', minHeight: '24mm' }}
-    >
-      {elements.map((element) => renderPositionedElement(element, model))}
-    </div>
+  return <PositionedElementBand key={key} elements={elements} model={model} testId={testId} />
+}
+
+function positionedElementsOf(elements: DocElement[]): Array<FieldElement | TextElement | ImageElement> {
+  return elements.filter(
+    (element): element is FieldElement | TextElement | ImageElement => element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE',
   )
 }
 
-function positionedElementsOf(elements: DocElement[]): Array<FieldElement | TextElement> {
-  return elements.filter(
-    (element): element is FieldElement | TextElement => element.type === 'FIELD' || element.type === 'TEXT',
-  )
+function isGeometryPositionedElement(element: DocElement): element is FieldElement | TextElement | ImageElement {
+  return (element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE')
+    && element.geometry !== undefined
 }
 
 /** 템플릿 band/element 순서에 따라 PrintLayout props와 본문을 compile한다. */
@@ -149,19 +391,17 @@ export function compileApprovalDocument(
     .flatMap((band) => band.elements)
   const hasMetaRows = headerElements.some((element) => element.type === 'META_ROWS')
   const hasApprovalGrid = headerElements.some((element) => element.type === 'APPROVAL_GRID')
-  const bodySections = template.document.bands
+  const bodyElements = template.document.bands
     .filter((band) => band.kind === 'BODY')
     .flatMap((band) => band.elements)
-    .map((element) => sectionForElement(element, model))
-    .filter((section): section is LegacyApprovalDocSection => section !== null)
+  const bodyDetails = bodyElements.filter((element): element is DetailElement => element.type === 'DETAIL')
 
   const headerPositioned = positionedElementsOf(headerElements)
-  const bodyPositioned = positionedElementsOf(
-    template.document.bands.filter((band) => band.kind === 'BODY').flatMap((band) => band.elements),
-  )
   const footerPositioned = positionedElementsOf(
     template.document.bands.filter((band) => band.kind === 'FOOTER').flatMap((band) => band.elements),
   )
+  const bodyPositioned = positionedElementsOf(bodyElements).filter((element) => element.geometry !== undefined)
+  const firstBodyPositionedIndex = bodyElements.findIndex(isGeometryPositionedElement)
 
   const docHeader: PrintDocHeader = {
     title: model.header.title,
@@ -171,22 +411,47 @@ export function compileApprovalDocument(
     } : {}),
   }
 
+  const bodyChildren = bodyElements.map((element, index) => {
+    if (index === firstBodyPositionedIndex) {
+      return positionedElementLayer(
+        bodyPositioned,
+        model,
+        'document-template-v2-elements-body',
+        'document-template-v2-elements-body',
+      )
+    }
+    const section = sectionForElement(element, model)
+    if (section) {
+      return <LegacyApprovalDocSectionView key={element.key} section={section} />
+    }
+    if (element.type === 'DETAIL') {
+      return (
+        <div key={element.key} className="document-template-detail-layer" data-testid="document-template-detail-layer">
+          {renderDetailElement(element, model)}
+        </div>
+      )
+    }
+    if (element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE') {
+      return element.geometry !== undefined
+        ? null
+        : element.type === 'IMAGE'
+        ? renderImageElement(element)
+        : renderPositionedElement(element, model)
+    }
+    return null
+  }).filter((child) => child !== null)
+
   return {
     paper: paperToPrintLayout(template.document.paper),
     docHeader,
     approvalSteps: hasApprovalGrid ? model.approvalSteps : [],
     closingNote: model.closing.note,
-    // BODY FIELD/TEXT 는 legacy 섹션과 형제로 렌더한다 — `approval-doc-print-content` 래퍼를
-    // LegacyApprovalDocBody 가 이미 정확히 한 번 출력하므로(그 컴포넌트 자체 계약) 여기서 다시
-    // 감싸지 않는다(중복 wrapper 금지, LegacyApprovalDocBody.tsx 상단 주석 참고).
-    body: (
-      <>
-        <LegacyApprovalDocBody orderedSections={bodySections} />
-        {positionedElementLayer(bodyPositioned, model, 'document-template-v2-elements-body')}
-      </>
-    ),
+    // BODY flow는 band의 원래 element 순서를 유지한다. geometry 요소만 선언상 첫 위치에
+    // 하나의 고정 24mm flow layer로 모아, legacy/DETAIL의 가변 높이가 % 좌표 원점이 되지 않게 한다.
+    body: <LegacyApprovalDocBody positionedLayer={bodyPositioned.length > 0}>{bodyChildren}</LegacyApprovalDocBody>,
     headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
     footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
+    hasRepeatingDetail: bodyDetails.length > 0,
   }
 }
 
@@ -203,6 +468,7 @@ export function DocumentRenderer({ template, model, backTo }: DocumentRendererPr
       closingNote={compiled.closingNote}
       headerExtra={compiled.headerExtra}
       footerExtra={compiled.footerExtra}
+      hasRepeatingDetail={compiled.hasRepeatingDetail}
     >
       {compiled.body}
     </PrintLayout>

@@ -6,6 +6,7 @@ import {
   parseDocumentTemplate,
   upcastDocumentTemplate,
   type BindingRef,
+  type BandKind,
   type DocElement,
   type DocumentPayload,
   type ElementStyle,
@@ -21,17 +22,21 @@ export type EditableElementType =
   | 'CONTENT_PARAGRAPHS'
   | 'FIELD_TABLE'
   | 'ATTACHMENT_TABLE'
+  | 'DETAIL'
+  | 'IMAGE'
 
 /** H-F: 팔레트에서 추가 가능한 요소 전부(삭제 가능한 레거시 4종 포함 — 삭제된 요소를 다시 추가할 수
  * 있어야 한다). 밴드당 최대 1개(검증기 singleton 규칙과 동일). */
 const SINGLETON_ELEMENT_TYPES = new Set<EditableElementType>([
-  'APPROVAL_GRID', 'META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE',
+  'APPROVAL_GRID', 'META_ROWS', 'CONTENT_PARAGRAPHS', 'FIELD_TABLE', 'ATTACHMENT_TABLE', 'DETAIL',
 ])
 
 function bandKindForType(type: EditableElementType): 'HEADER' | 'BODY' {
   switch (type) {
     case 'APPROVAL_GRID':
     case 'META_ROWS':
+      return 'HEADER'
+    case 'IMAGE':
       return 'HEADER'
     default:
       return 'BODY'
@@ -79,6 +84,24 @@ function allKeys(document: DocumentPayload): Set<string> {
   return new Set(document.bands.flatMap((band) => [band.key, ...band.elements.map((element) => element.key)]))
 }
 
+export function moveElementToBand(document: DocumentPayload, key: string, targetKind: BandKind): DocumentPayload {
+  const sourceBand = document.bands.find((band) => band.elements.some((element) => element.key === key))
+  const element = sourceBand?.elements.find((candidate) => candidate.key === key)
+  if (!sourceBand || !element || sourceBand.kind === targetKind) return document
+  return {
+    ...document,
+    bands: document.bands.map((band) => {
+      if (band.kind === sourceBand.kind) {
+        return { ...band, elements: band.elements.filter((candidate) => candidate.key !== key) }
+      }
+      if (band.kind === targetKind) {
+        return { ...band, elements: [...band.elements, element] }
+      }
+      return band
+    }),
+  }
+}
+
 function defaultElement(type: EditableElementType, key: string): DocElement {
   switch (type) {
     case 'TEXT':
@@ -91,6 +114,22 @@ function defaultElement(type: EditableElementType, key: string): DocElement {
     case 'FIELD_TABLE':
     case 'ATTACHMENT_TABLE':
       return { key, type }
+    case 'DETAIL':
+      return {
+        key,
+        type,
+        repeatBinding: 'body.lineItems',
+        columns: ['productName', 'quantity', 'supplyAmount', 'vatAmount', 'lineTotal'],
+        geometry: { x: 0, y: 0, w: 100, h: 40 },
+      }
+    case 'IMAGE':
+      return {
+        key,
+        type,
+        src: '/print-logo.svg',
+        alt: '회사 로고',
+        geometry: { x: 70, y: 0, w: 25, h: 15 },
+      }
   }
 }
 
@@ -154,6 +193,10 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     }))
   }, [])
 
+  const moveElementBand = useCallback((key: string, targetKind: BandKind) => {
+    setDraft((current) => ({ ...current, document: moveElementToBand(current.document, key, targetKind) }))
+  }, [])
+
   const updateElement = useCallback((key: string, patch: Partial<DocElement>) => {
     setDraft((current) => ({
       ...current,
@@ -201,6 +244,7 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     setDraft,
     addElement,
     moveElement,
+    moveElementToBand: moveElementBand,
     updateElement,
     removeElement,
     selectedKey,

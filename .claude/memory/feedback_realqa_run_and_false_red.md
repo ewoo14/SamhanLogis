@@ -37,3 +37,23 @@ real-qa config(`clients/desktop/playwright.real-qa.config.ts`)엔 **webServer �
 - **매 라운드 신규 포트 + `--strictPort`** 로 기동(점유 시 즉시 실패 → 고아 감지), 검증 종료 시 kill.
 - 세션 시작/종료 시 `Get-NetTCPConnection -LocalPort 51xx` 로 고아 node 리스너 점검·정리.
 - 증적 캡처 전 "서빙 코드 = 검증 대상 HEAD" 대조(컬럼 순서 등 마커 확인) — 에이전트가 이 불일치로 원인 오진하지 않게 프롬프트에 명시.
+
+## 🪤 회사PC(2026-07-23 실측) — 하네스가 **앱에 도달조차 못 하는** 함정 2종
+
+둘 다 "기능 결함"처럼 보이지만 **하네스 접속 문제**다. real-qa 를 새 PC 에서 처음 돌릴 때 반드시 먼저 확인할 것.
+
+1. **vite 가 `::1`(IPv6)에만 바인딩한다** — `--port 5291 --strictPort` 로 띄우면 로그에 `Local: http://localhost:5291/` 이라고 나오는데 **`http://127.0.0.1:5291` 은 `ERR_CONNECTION_REFUSED`** 다(Playwright 기본이 IPv4 로 해석). 실측:
+   ```
+   localhost:5291   OK (200)
+   127.0.0.1:5291   FAIL
+   ```
+   → 스펙의 `AUDIT_BASE_URL` 기본값이 `http://127.0.0.1:...` 인 것들이 있으니 **`http://localhost:...` 로 넘겨야 한다.**
+2. **web 하네스(`vite.web.config.ts`)는 BrowserRouter 다** — 기존 스펙들이 쓰는 `#/groupware/document-templates` 해시가 **무시되고 홈(대시보드)이 렌더**된다. 증상은 "페이지 heading 을 못 찾음"이라 기능 결함처럼 보인다. → **경로로 이동**(`/groupware/document-templates`). Playwright `error-context.md` 의 page snapshot 에 사이드바만 보이면 이 함정이다.
+
+## 🪤 BE 컨테이너가 브랜치보다 낡아 게이트가 **관측 불가**였다 (2026-07-23 #908)
+
+`DETAIL/IMAGE 활성화 422` 게이트를 라이브에서 확인하려는데 계속 **400 `"문서 요소가 유효하지 않습니다"`** 로 막혔다. 코드 결함이 아니라 **실행 중 BE 이미지가 게이트 커밋보다 먼저 빌드된 것**이었다(이미지 `2026-07-22T07:48Z` vs 게이트 커밋 `07-23 05:45 KST`). 게이트 이전 단계인 schema whitelist 에서 먼저 걸렸다.
+- 배포 증명 = `docker inspect <container> --format '{{.Image}}'` → `docker image inspect <id> --format '{{.Created}}'` 를 **커밋 시각과 대조**.
+- 🚨 **compose 는 메인 트리 경로**(`services/*/build/libs/*.jar`)를 본다 — 워크트리에서 `bootJar` 를 만들었으면 **메인 트리로 복사한 뒤** 재빌드해야 한다.
+- 🚨 `docker compose up -d --build <svc>` 는 **의존 서비스까지 빌드하려다** 다른 서비스의 jar 부재로 실패한다(`api-gateway.jar: not found`). → **`--no-deps` 필수**:
+  `docker compose -f docker-compose.yml -f docker-compose.local-all.yml up -d --build --no-deps <svc>`
