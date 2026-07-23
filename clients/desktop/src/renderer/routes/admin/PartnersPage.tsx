@@ -105,7 +105,7 @@ export function PartnersPage() {
   const [page, setPage] = useState(0)
 
   // P1-6: Excel export
-  const { downloading, download } = useExcelDownload()
+  const { downloading, download, error: downloadError } = useExcelDownload()
 
   // 4탭 상세 다이얼로그 상태
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(
@@ -446,6 +446,16 @@ export function PartnersPage() {
           style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
         >
           {actionError}
+        </div>
+      ) : null}
+      {downloadError ? (
+        <div
+          className="error-banner"
+          role="alert"
+          data-testid="admin-partners-excel-error"
+          style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
+        >
+          {downloadError}
         </div>
       ) : null}
 

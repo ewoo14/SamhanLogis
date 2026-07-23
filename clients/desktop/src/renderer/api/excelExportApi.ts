@@ -5,12 +5,12 @@
  * 모든 함수는 `responseType: 'blob'` 로 이진 스트림을 수신하며,
  * 호출 측 (ExcelDownloadButton) 이 triggerDownload 로 파일 저장을 수행한다.
  *
- * <p>endpoint 목록 (API Gateway StripPrefix=2 → 각 마이크로서비스 controller path):
+ * <p>endpoint 목록 (API Gateway no-prefix route → 각 마이크로서비스 controller path):
  * <ul>
- *   <li>GET /api/v1/partners/admin/partners/export.xlsx        → partner-service @RequestMapping("/admin/partners")</li>
- *   <li>GET /api/v1/slips/slips/export.xlsx                    → slip-service @RequestMapping("/slips")</li>
- *   <li>GET /api/v1/accounting/accounting/journals/export.xlsx → accounting-service @RequestMapping("/accounting/journals")</li>
- *   <li>GET /api/v1/inventory/inventory/stocks/export.xlsx     → inventory-service @RequestMapping("/inventory") + @GetMapping("/stocks/export.xlsx")</li>
+ *   <li>GET /admin/partners/export.xlsx        → partner-service @RequestMapping("/admin/partners")</li>
+ *   <li>GET /slips/export.xlsx                  → slip-service @RequestMapping("/slips")</li>
+ *   <li>GET /accounting/journals/export.xlsx   → accounting-service @RequestMapping("/accounting/journals")</li>
+ *   <li>GET /inventory/stocks/export.xlsx      → inventory-service @RequestMapping("/inventory") + @GetMapping("/stocks/export.xlsx")</li>
  * </ul>
  *
  * <p>TM PR #146 cross-check fix — 본 4 endpoint 의 path / query param 을 BE controller 와 1:1 정렬.
@@ -98,7 +98,7 @@ export interface StocksExportParams {
 /**
  * 거래처 목록 Excel export.
  *
- * `GET /api/v1/partners/admin/partners/export.xlsx?q&status`
+ * `GET /admin/partners/export.xlsx?q&status`
  *
  * @param params 필터 조건 (q / status). 미전달 시 전체.
  * @returns Excel Blob (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet)
@@ -110,7 +110,7 @@ export async function exportPartners(
     return csvBlob(MOCK_PARTNERS_EXPORT_CSV)
   }
   const res = await apiClient.get<Blob>(
-    '/api/v1/partners/admin/partners/export.xlsx',
+    '/admin/partners/export.xlsx',
     {
       params,
       responseType: 'blob',
@@ -122,7 +122,7 @@ export async function exportPartners(
 /**
  * 전표 목록 Excel export.
  *
- * `GET /api/v1/slips/slips/export.xlsx?slipType&status&from&to&partnerCode`
+ * `GET /slips/export.xlsx?slipType&status&from&to&partnerCode`
  *
  * @param params 필터.
  * @returns Excel Blob
@@ -132,7 +132,7 @@ export async function exportSlips(params?: SlipsExportParams): Promise<Blob> {
     return csvBlob(MOCK_SLIPS_EXPORT_CSV)
   }
   const res = await apiClient.get<Blob>(
-    '/api/v1/slips/slips/export.xlsx',
+    '/slips/export.xlsx',
     {
       params,
       responseType: 'blob',
@@ -144,7 +144,7 @@ export async function exportSlips(params?: SlipsExportParams): Promise<Blob> {
 /**
  * 분개장 Excel export.
  *
- * `GET /api/v1/accounting/accounting/journals/export.xlsx?from&to&status`
+ * `GET /accounting/journals/export.xlsx?from&to&status`
  *
  * @param params from/to (필수) + status 필터.
  * @returns Excel Blob
@@ -156,7 +156,7 @@ export async function exportJournals(
     return csvBlob(MOCK_JOURNALS_EXPORT_CSV)
   }
   const res = await apiClient.get<Blob>(
-    '/api/v1/accounting/accounting/journals/export.xlsx',
+    '/accounting/journals/export.xlsx',
     {
       params,
       responseType: 'blob',
@@ -168,7 +168,7 @@ export async function exportJournals(
 /**
  * 재고 현황 Excel export.
  *
- * `GET /api/v1/inventory/inventory/stocks/export.xlsx?warehouseId`
+ * `GET /inventory/stocks/export.xlsx?warehouseId`
  *
  * @param params warehouseId (선택, 미지정 시 전 창고).
  * @returns Excel Blob
@@ -178,7 +178,7 @@ export async function exportStocks(params?: StocksExportParams): Promise<Blob> {
     return csvBlob(MOCK_STOCKS_EXPORT_CSV)
   }
   const res = await apiClient.get<Blob>(
-    '/api/v1/inventory/inventory/stocks/export.xlsx',
+    '/inventory/stocks/export.xlsx',
     {
       params,
       responseType: 'blob',

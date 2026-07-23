@@ -49,6 +49,8 @@ function triggerDownload(blob: Blob, filename: string): void {
 export interface UseExcelDownloadReturn {
   /** 다운로드 진행 중 여부 — 버튼 loading prop 에 직접 연결. */
   downloading: boolean
+  /** 마지막 다운로드 실패 시 화면에 표시할 안내 문구. */
+  error: string | null
   /**
    * 다운로드 실행 함수.
    *
@@ -61,20 +63,22 @@ export interface UseExcelDownloadReturn {
 /**
  * Excel/CSV 파일 다운로드 상태 및 실행 함수를 제공하는 hook.
  *
- * <p>에러 발생 시 콘솔 에러 로그만 출력한다.
- * Toast 연동이 필요한 경우 onError 콜백을 추가한다.
+ * <p>에러 발생 시 화면용 안내 문구와 콘솔 로그를 함께 남긴다.
  */
 export function useExcelDownload(): UseExcelDownloadReturn {
   const [downloading, setDownloading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   function download(fetcher: () => Promise<Blob>, filename: string): void {
     if (downloading) return
+    setError(null)
     setDownloading(true)
     fetcher()
       .then((blob) => {
         triggerDownload(blob, filename)
       })
       .catch((err: unknown) => {
+        setError('Excel 다운로드에 실패했습니다. 다시 시도해 주세요.')
         console.error('[useExcelDownload] 다운로드 실패', err)
       })
       .finally(() => {
@@ -82,7 +86,7 @@ export function useExcelDownload(): UseExcelDownloadReturn {
       })
   }
 
-  return { downloading, download }
+  return { downloading, error, download }
 }
 
 // ---------------------------------------------------------------------------
