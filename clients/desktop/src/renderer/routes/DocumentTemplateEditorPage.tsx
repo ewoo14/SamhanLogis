@@ -4,7 +4,7 @@ import { isAxiosError } from 'axios'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import { fetchConfigurableDocTypes } from '../api/approvalLineConfigApi'
+import { fetchActiveGroupwareDocTypes } from '../api/approvalLineConfigApi'
 import { listApprovalTemplates } from '../api/groupwareApprovalTemplate'
 import {
   createDocumentTemplate,
@@ -51,9 +51,12 @@ export function DocumentTemplateEditorPage() {
   // H-D: docType 은 실제 결재 문서와 매칭되는 값만 의미가 있다(오타는 어떤 문서에도 매칭되지 않는
   // 죽은 양식을 만든다). 결재 유형 관리(#845)가 이미 관리하는 실제 GROUPWARE_* 코드 목록을 재사용한다
   // — 새 docType 도메인 확장은 비범위(spec §1.2)이므로 그룹웨어 결재 문서로 한정한다.
+  // R3(#914) 발견3: fetchConfigurableDocTypes()(ApprovalLineConfigPage 전용 계약)는 그룹웨어 조회
+  // 실패를 삼켜 빈 배열로 만든다 — 이 화면은 SLIP 종류를 쓰지 않으므로(아래 필터) 실패가 "정말
+  // 0개"와 구별 안 되는 빈 select 로 도착한다. 실패를 삼키지 않는 전용 함수를 쓴다.
   const docTypeOptionsQuery = useQuery({
     queryKey: ['groupwareDocumentTemplateDocTypeOptions'],
-    queryFn: fetchConfigurableDocTypes,
+    queryFn: fetchActiveGroupwareDocTypes,
     enabled: isNew,
     staleTime: 60_000,
   })
@@ -217,6 +220,19 @@ export function DocumentTemplateEditorPage() {
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </Select>
+            {/* R3(#914) 발견3 P-4: 조회 실패 시 목록이 조용히 비어 "고를 것이 없는데 고르라"고 하지
+                않는다 — N-3(ElementInspector 본문 필드)가 이미 세운 실패 고지+재시도 패턴을 그대로
+                적용한다. */}
+            {docTypeOptionsQuery.isLoading ? (
+              <p role="status" style={{ margin: '4px 0 0', color: 'var(--color-neutral-500)', fontSize: 12 }}>
+                문서 유형 목록을 확인하는 중입니다…
+              </p>
+            ) : docTypeOptionsQuery.isError ? (
+              <p role="alert" style={{ margin: '4px 0 0', color: 'var(--color-danger-700, #a12622)', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                문서 유형 목록을 불러오지 못했습니다.
+                <Button type="button" variant="ghost" size="sm" onClick={() => void docTypeOptionsQuery.refetch()}>다시 시도</Button>
+              </p>
+            ) : null}
           </div>
         ) : (
           // H-D: 기존 양식은 BE 가 docType 변경을 항상 422 로 거부한다 — 수정 가능한 입력처럼 보이면
@@ -226,7 +242,9 @@ export function DocumentTemplateEditorPage() {
             <input value={draft.docType} disabled aria-readonly="true" />
           </label>
         )}
-        <label className="document-template-editor-form-field">양식명<input value={draft.name} disabled={!canEdit} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
+        {/* R3(#914) 발견2 P-5: BE(DocumentTemplate.validateName)와 동일한 100자 한계에 닿기 전에
+            막는다 — 저장 시점에 처음 아는 일이 없도록. */}
+        <label className="document-template-editor-form-field">양식명<input value={draft.name} disabled={!canEdit} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
       </div>
 
       {/*

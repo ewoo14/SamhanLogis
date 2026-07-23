@@ -9,6 +9,7 @@ import {
   addApprovalLineStep,
   DOC_TYPES,
   deleteApprovalLineStep,
+  fetchActiveGroupwareDocTypes,
   fetchConfigurableDocTypes,
   removeApprovalLineApprover,
   renameApprovalLineRole,
@@ -69,6 +70,34 @@ describe('approvalLineConfigApi contract', () => {
       { value: 'SLIP_INBOUND', label: '입고전표', kind: 'SLIP' },
       { value: 'PARTNER_ORDER', label: '주문', kind: 'SLIP' },
     ])
+  })
+
+  // R2(#914) 발견3 RED — DocumentTemplateEditorPage는 SLIP 옵션을 쓰지 않고(kind==='GROUPWARE'만
+  // 사용) fetchConfigurableDocTypes()의 삼킴 때문에 그룹웨어 조회 실패가 "빈 목록"(고를 것이 없는데
+  // 고르라)으로 도착한다(P-4 위반). fetchConfigurableDocTypes()의 기존 계약(위 테스트, throw 안 함)은
+  // 그대로 두고, 실패를 삼키지 않는 별도 함수로 분리한다.
+  it('R3 발견3 RED: fetchActiveGroupwareDocTypes는 그룹웨어 조회 실패를 삼키지 않고 그대로 던진다', async () => {
+    vi.mocked(apiClient.get).mockRejectedValueOnce(new Error('groupware unavailable'))
+
+    await expect(fetchActiveGroupwareDocTypes()).rejects.toThrow('groupware unavailable')
+  })
+
+  it('R3 발견3: fetchActiveGroupwareDocTypes는 활성 그룹웨어 템플릿만 표시순으로 반환한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        data: [
+          { code: 'EXPENSE_REPORT', name: '지출결의서', active: true, displayOrder: 1 },
+          { code: 'LEAVE_REQUEST', name: '휴가신청서', active: true, displayOrder: 2 },
+          { code: 'INACTIVE_TEMPLATE', name: '비활성 양식', active: false, displayOrder: 3 },
+        ],
+      },
+    })
+
+    await expect(fetchActiveGroupwareDocTypes()).resolves.toEqual([
+      { value: 'GROUPWARE_EXPENSE_REPORT', label: '지출결의서', kind: 'GROUPWARE' },
+      { value: 'GROUPWARE_LEAVE_REQUEST', label: '휴가신청서', kind: 'GROUPWARE' },
+    ])
+    expect(apiClient.get).toHaveBeenCalledWith('/groupware/approval-templates/active')
   })
 
   it('GET /approval-line-configs 에 documentType query 를 전송한다', async () => {

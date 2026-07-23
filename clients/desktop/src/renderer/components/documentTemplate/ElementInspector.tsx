@@ -9,6 +9,8 @@ import {
   BAND_KIND_LABEL,
   isAllowedImageSource,
   maxImageBytesForDocument,
+  MAX_ALT_LENGTH,
+  MAX_TEXT_LENGTH,
   type BindingRef,
   type BandKind,
   type DetailColumnKey,
@@ -123,12 +125,14 @@ export function ElementInspector({
       {element.type === 'TEXT' ? (
         <label>
           문구
+          {/* R3(#914) P-5: 한계값(4096자)에 닿기 전에 막는다 — 저장 시점에 처음 아는 일이 없도록. */}
           <textarea
             aria-label="문구"
             value={element.text}
             disabled={!canEdit}
             onChange={(event) => onUpdate({ text: event.target.value })}
             rows={3}
+            maxLength={MAX_TEXT_LENGTH}
             style={{ width: '100%' }}
           />
         </label>
@@ -224,7 +228,8 @@ export function ElementInspector({
           </label>
           <label>
             대체 문구
-            <input aria-label="이미지 대체 문구" value={element.alt} disabled={!canEdit} onChange={(event) => onUpdate({ alt: event.target.value })} />
+            {/* R3(#914) P-5: 한계값(200자)에 닿기 전에 막는다. */}
+            <input aria-label="이미지 대체 문구" value={element.alt} disabled={!canEdit} maxLength={MAX_ALT_LENGTH} onChange={(event) => onUpdate({ alt: event.target.value })} />
           </label>
           <label>
             이미지 source

@@ -215,9 +215,12 @@ const MAX_DOC_TYPE_LENGTH = 70
 const MAX_FONT_SIZE = 200
 /** M-A: BE `DocumentPayloadValidator.MAX_TEXT_LENGTH` 와 동일해야 한다(과거 FE 65,536 vs BE 4,096
  * 불일치 — FE 가 통과시킨 요청이 BE 에서 "비어 있지 않은 문자열이어야 합니다"로 거부되어 실제 원인
- * (길이 초과)을 사용자가 알 수 없었다). */
-const MAX_TEXT_LENGTH = 4_096
-const MAX_ALT_LENGTH = 200
+ * (길이 초과)을 사용자가 알 수 없었다).
+ * R3(#914) P-5: 입력칸(ElementInspector TEXT textarea)의 maxLength 로도 재사용해 한계값에 닿기 전에
+ * 미리 막는다 — export 해 단일 소스를 유지한다. */
+export const MAX_TEXT_LENGTH = 4_096
+/** R3(#914) P-5: ElementInspector IMAGE 대체 문구 input의 maxLength 로 재사용한다. */
+export const MAX_ALT_LENGTH = 200
 export const MAX_IMAGE_BYTES = 50 * 1024
 
 function imageDataUrlByteLength(value: string): number {
@@ -458,8 +461,13 @@ function parseElement(value: unknown, schemaVersion: SchemaVersion): DocElement 
   if (value.type === 'IMAGE') {
     const src = parseImageSource(value.src)
     if (isParseError(src)) return src
-    if (!isNonEmptyString(value.alt, MAX_ALT_LENGTH)) {
+    // R3(#914) 발견2 계열 sweep: name과 동일한 isNonEmptyString(value, max) 패턴이 "비어 있음"과
+    // "201자(상한 초과)"를 하나의 메시지로 묶었다(P-3 위반) — 두 원인을 분리한다.
+    if (typeof value.alt !== 'string' || value.alt.trim().length === 0) {
       return { code: 'INVALID_ELEMENT', message: 'IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다.' }
+    }
+    if (value.alt.length > MAX_ALT_LENGTH) {
+      return { code: 'INVALID_ELEMENT', message: `IMAGE 요소 alt는 ${MAX_ALT_LENGTH}자 이하여야 합니다.` }
     }
     return {
       key: value.key,
@@ -498,8 +506,15 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
   if (!isNonEmptyString(value.docType, MAX_DOC_TYPE_LENGTH)) {
     return failure('INVALID_ENVELOPE', '문서 유형을 선택해야 저장할 수 있습니다.')
   }
-  if (!isNonEmptyString(value.name, MAX_KEY_LENGTH)) {
+  // R3(#914) 발견2: isNonEmptyString(value.name, 100)이 "비어 있음"과 "101자(상한 초과)"를 같은
+  // 진단으로 묶어, 100자를 채운 입력칸 앞에서도 "입력해야"라는(이미 입력했는데 틀린) 지시가 나왔다
+  // (P-3). 두 원인을 분리하고 too-long 쪽에만 한계값을 보여준다(빈 값 메시지는 기존 문구를 유지 —
+  // templateSchema.test.ts 의 envelope it.each 계약).
+  if (typeof value.name !== 'string' || value.name.trim().length === 0) {
     return failure('INVALID_ENVELOPE', '양식명을 입력해야 저장할 수 있습니다.')
+  }
+  if (value.name.length > MAX_KEY_LENGTH) {
+    return failure('INVALID_ENVELOPE', `양식명은 ${MAX_KEY_LENGTH}자 이하여야 합니다.`)
   }
   if (!isRecord(value.document)) {
     return failure('INVALID_ENVELOPE', '문서 양식 내용을 확인하세요.')
