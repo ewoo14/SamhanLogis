@@ -1,162 +1,269 @@
 /**
- * #825 슬7 — 주문 병합 거래처 우선 선택 라이브 GUI QA (PM 직접 수행)
+ * #825 슬7 — 주문 병합 거래처 우선 선택 라이브 GUI QA.
  *
- * 실 게이트웨이(:8080) + 실 렌더러 대상. `*-real-qa.spec.ts` 규칙으로 mock CI 에서 제외된다.
- *
- * 검증하는 불변식
- *   S7-1 거래처를 정하기 전에는 주문 후보 자체가 없다 (섞어 고르는 상태에 도달 불가)
- *   S7-4 거래처를 바꾸면 이전 거래처에서 고른 주문 선택이 남지 않는다
- *
- * 🚨 부재 단언 앞에 양성 단언을 둔다 — 화면이 실제로 렌더됐고 기대한 거래처의 후보가
- *    나왔음을 먼저 증명하지 않으면, 권한 부족으로 튕긴 화면에서도 "다른 거래처 0건" 이
- *    공허하게 통과한다(이 세션에서 실제로 겪은 함정).
+ * 실 게이트웨이 + 실 렌더러 대상이다. 기존 주문은 읽기만 한다.
+ * 현재 dev DB에는 V13 이전 legacy 주문만 있으므로, 활성 거래처와 실제 주문 라인을
+ * 참조해 마커가 붙은 DRAFT throwaway를 만들고 화면에서 양성/음성 양쪽을 확인한다.
  */
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '867-s7-merge-live-qa-2026-07-23')
+const MARK = 'CODEX-907-QA'
+
+type OrderSummary = {
+  orderNumber: string
+  partnerCode: string
+  status: string
+  mergeEligible?: boolean
+  mergeIneligibilityReason?: string
+}
+
+type OrderDetail = {
+  partnerCode: string
+  bizCode: string
+  lines: Array<{
+    productId: string
+    modelCode?: string
+    productName?: string
+    categoryKey: string
+    quantity: number
+    deliveryPrice?: number
+    lineTotal?: number
+  }>
+}
+
+type Fixture = { id: string; orderNo: string }
+
+/** DB fixture 정리도 네트워크 요청이 아닌 동기 호출로 수행해 timeout 때 취소되지 않게 한다. */
+function psql(sql: string, database = 'partner_order_db'): string {
+  return execFileSync(
+    'docker',
+    ['exec', 'samhan-postgres', 'psql', '-U', 'samhan', '-d', database, '-tAc', sql.replace(/\s+/g, ' ').trim()],
+    { encoding: 'utf8' },
+  ).trim()
+}
+
+function sqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
+/** 이전 실행이 중간 종료돼도 다음 실행 시작 시 동일한 마커 잔재를 회수한다. */
+function cleanupMarkerRows(): void {
+  const ids = psql(`SELECT id::text FROM partner_orders WHERE created_by=${sqlString(MARK)}`)
+    .split(/\r?\n/)
+    .map((id) => id.trim())
+    .filter(Boolean)
+  if (ids.length === 0) return
+  const idList = ids.map(sqlString).join(',')
+  psql(`DELETE FROM partner_order_history WHERE partner_order_id IN (${idList})`)
+  psql(`DELETE FROM slip_publish_outbox WHERE partner_order_id IN (${idList})`)
+  psql(`DELETE FROM partner_order_lines WHERE partner_order_id IN (${idList})`)
+  psql(`DELETE FROM partner_orders WHERE id IN (${idList})`)
+  console.log(`[cleanup] ${ids.length}개 throwaway 주문 제거`)
+}
+
+function orderPathId(orderNumber: string): string {
+  return orderNumber.replace(/\//g, '-')
+}
+
+async function createEligibleFixture(
+  page: Page,
+  auth: Record<string, string>,
+  source: OrderSummary,
+  ordinal: number,
+): Promise<Fixture> {
+  const detailResponse = await page.request.get(
+    `${API_BASE}/api/v1/partner-orders/${encodeURIComponent(orderPathId(source.orderNumber))}`,
+    { headers: auth },
+  )
+  expect(detailResponse.ok(), `참조 주문 상세 조회 실패: HTTP ${detailResponse.status()}`).toBeTruthy()
+  const detail = (await detailResponse.json()).data as OrderDetail
+  const line = detail.lines[0]
+  expect(line?.productId, `${source.orderNumber} 참조 라인의 productId 없음`).toBeTruthy()
+
+  // 이 UUID는 화면/로그에 출력하지 않고 fixture 조립에만 사용한다.
+  const partnerId = psql(
+    `SELECT id::text FROM partners WHERE partner_code=${sqlString(source.partnerCode)} AND is_deleted=false LIMIT 1`,
+    'partner_db',
+  )
+  expect(partnerId, `활성 거래처 fixture 없음: ${source.partnerCode}`).toMatch(
+    /^[0-9a-f-]{36}$/i,
+  )
+
+  const orderId = randomUUID()
+  const lineId = randomUUID()
+  const orderNo = `2026/07/23-907${ordinal}${Date.now().toString().slice(-5)}`
+  const amount = Number(line.deliveryPrice ?? line.lineTotal ?? 1)
+  expect(Number.isFinite(amount) && amount > 0, `${source.orderNumber} 참조 금액이 유효하지 않음`).toBeTruthy()
+  const modelName = line.modelCode ?? `CODEX-${ordinal}`
+  const productName = line.productName ?? `CODEX ${ordinal} 품목`
+  const categoryKey = line.categoryKey || 'homemulti'
+
+  psql(`
+    INSERT INTO partner_orders
+      (id, partner_code, biz_code, order_no, status, slip_publish_status, total_amount,
+       idempotency_key, created_at, created_by, is_deleted, revision_count, lock_version, partner_id)
+    VALUES
+      (${sqlString(orderId)}, ${sqlString(source.partnerCode)}, ${sqlString(detail.bizCode || source.partnerCode)},
+       ${sqlString(orderNo)}, 'DRAFT', 'NOT_REQUIRED', ${amount.toFixed(2)}, ${sqlString(`${MARK}-${ordinal}`)},
+       now(), ${sqlString(MARK)}, false, 0, 0, ${sqlString(partnerId)});
+    INSERT INTO partner_order_lines
+      (id, partner_order_id, product_id, model_name, product_name, category_key, quantity,
+       price_vat, subtotal, created_at, created_by, is_deleted, converted_quantity)
+    VALUES
+      (${sqlString(lineId)}, ${sqlString(orderId)}, ${sqlString(line.productId)}, ${sqlString(modelName)},
+       ${sqlString(productName)}, ${sqlString(categoryKey)}, 1, ${amount.toFixed(2)}, ${amount.toFixed(2)},
+       now(), ${sqlString(MARK)}, false, 0)
+  `)
+  console.log(`■ ${source.partnerCode} 양성 대조 throwaway 생성: ${orderNo}`)
+  return { id: orderId, orderNo }
+}
 
 test.use({ viewport: { width: 1600, height: 1000 } })
 
 test('슬7 — 거래처 우선 선택으로 다른 거래처 주문을 섞을 수 없다', async ({ page }) => {
   mkdirSync(SHOT_DIR, { recursive: true })
-  const shot = async (n: string) => { await page.screenshot({ path: join(SHOT_DIR, `${n}.png`), fullPage: true }) }
+  const shot = async (name: string) => {
+    await page.screenshot({ path: join(SHOT_DIR, `${name}.png`), fullPage: true })
+  }
 
-  const login = await page.request.post(`${API_BASE}/api/auth/login`, { data: { loginId: 'dev_sales', password: PASSWORD } })
+  const login = await page.request.post(`${API_BASE}/api/auth/login`, {
+    data: { loginId: 'dev_sales', password: PASSWORD },
+  })
   expect(login.ok(), `실서버 로그인 실패: HTTP ${login.status()}`).toBeTruthy()
-  const d = (await login.json()).data ?? {}
-  const auth = { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' }
-  await page.addInitScript((v: { token: string; userId: string; role: string; fullName: string }) => {
-    Object.defineProperty(window, 'samhanAuth', {
-      configurable: true,
-      value: { getToken: async () => ({ ...v, partnerCode: null }), setToken: async () => undefined, clearToken: async () => undefined },
-    })
-  }, { token: d.token ?? '', userId: d.userId ?? '', role: d.role ?? 'MASTER', fullName: d.displayName ?? '개발영업' })
+  const loginData = (await login.json()).data ?? {}
+  const auth = { Authorization: `Bearer ${loginData.token}` }
+  await page.addInitScript(
+    (v: { token: string; userId: string; role: string; fullName: string }) => {
+      Object.defineProperty(window, 'samhanAuth', {
+        configurable: true,
+        value: {
+          getToken: async () => ({ ...v, partnerCode: null }),
+          setToken: async () => undefined,
+          clearToken: async () => undefined,
+        },
+      })
+    },
+    {
+      token: loginData.token ?? '',
+      userId: loginData.userId ?? '',
+      role: loginData.role ?? 'SALES',
+      fullName: loginData.displayName ?? '개발영업',
+    },
+  )
 
-  // ── 준비: 실 주문에서 거래처 2곳과 각자의 주문번호를 확보 ─────────
-  const codeA = 'P-2026-0002'
-  const codeB = 'P-2026-0004'
-  /** 거래처별 병합 가능(DRAFT/ON_HOLD) 주문번호를 필터 API 로 정확히 가져온다. */
-  const ordersOf = async (code: string) => {
-    const res = await page.request.get(
-      `${API_BASE}/api/v1/partner-orders?page=0&size=50&partnerId=${encodeURIComponent(code)}&includeDeleted=false`,
+  cleanupMarkerRows()
+  const fixtures: Fixture[] = []
+  try {
+    const listResponse = await page.request.get(
+      `${API_BASE}/api/v1/partner-orders?page=0&size=100&includeDeleted=false`,
       { headers: auth },
     )
-    expect(res.ok(), `${code} 주문 조회 실패 HTTP ${res.status()}`).toBeTruthy()
-    const content: Array<{ orderNumber: string; status: string; partnerCode?: string }> =
-      (await res.json()).data?.content ?? []
-    // 거래처 필터가 실제로 걸렸는지 확인 — 안 걸렸으면 이 시험 전체가 무의미하다
-    expect(content.every((o) => o.partnerCode === code), `${code} 필터가 다른 거래처를 섞어 반환한다`).toBeTruthy()
-    return content.filter((o) => o.status === 'DRAFT' || o.status === 'ON_HOLD').map((o) => o.orderNumber)
-  }
-  const ordersA = await ordersOf(codeA)
-  const ordersB = await ordersOf(codeB)
-  expect(ordersA.length, `${codeA} 병합가능 주문이 없다`).toBeGreaterThan(0)
-  expect(ordersB.length, `${codeB} 병합가능 주문이 없다`).toBeGreaterThan(0)
-  console.log(`■ 거래처 A=${codeA} (${ordersA.length}건) · B=${codeB} (${ordersB.length}건)`)
+    expect(listResponse.ok(), `주문 목록 조회 실패: HTTP ${listResponse.status()}`).toBeTruthy()
+    const allOrders = ((await listResponse.json()).data?.content ?? []) as OrderSummary[]
+    const legacyRows = allOrders.filter(
+      (order) =>
+        (order.status === 'DRAFT' || order.status === 'ON_HOLD') &&
+        order.mergeEligible === false &&
+        Boolean(order.partnerCode),
+    )
+    expect(legacyRows.length, 'legacy 병합 제외 주문 fixture가 없다').toBeGreaterThan(0)
 
-  // ⚠️ data-testid="merge-convert-dialog" 는 design-system Modal 이 DOM 으로 forward 하지 않아
-  //    실제로 존재하지 않는다(PM 실측 count=0). role=dialog 로 잡는다.
-  const dialog = page.getByRole('dialog')
-  const summary = page.getByTestId('merge-convert-order-candidate-summary')
-  const search = page.getByTestId('merge-convert-partner-search')
+    // A는 legacy가 반드시 같은 거래처에 존재해야 Q2의 양쪽 단언이 성립한다.
+    const sourceA = legacyRows[0]
+    const sourceB = legacyRows.find((order) => order.partnerCode !== sourceA.partnerCode)
+    expect(sourceB, 'S7-4용 두 번째 거래처 legacy fixture가 없다').toBeTruthy()
+    const codeA = sourceA.partnerCode
+    const codeB = sourceB!.partnerCode
+    console.log(`■ legacy A=${sourceA.orderNumber} (${codeA}) · B=${sourceB!.orderNumber} (${codeB})`)
 
-  /** 거래처 선택 — design-system PartnerAutocomplete 는 listbox "거래처 목록" + role=option 을 쓴다. */
-  const pickPartner = async (code: string) => {
-    await expect(search).toBeVisible({ timeout: 10_000 })
-    await search.fill(code)
-    const listbox = page.getByRole('listbox', { name: '거래처 목록' })
-    await expect(listbox, `거래처 검색 결과가 뜨지 않는다: ${code}`).toBeVisible({ timeout: 10_000 })
-    const option = listbox.locator('[role="option"]').filter({ hasText: code }).first()
-    await expect(option, `검색 결과에 ${code} 가 없다`).toBeVisible({ timeout: 10_000 })
-    await option.click()
-  }
+    // Q1: 현재 DB 전제와 무관하게 실제 화면에서 볼 수 있는 eligible 주문을 만든다.
+    fixtures.push(await createEligibleFixture(page, auth, sourceA, 1))
+    fixtures.push(await createEligibleFixture(page, auth, sourceB!, 2))
+    const ordersA = [fixtures[0].orderNo]
+    const ordersB = [fixtures[1].orderNo]
 
-  // ── S7-1 전제: 거래처 확정 전에는 주문 후보 자체가 없다 ───────────
-  await test.step('S7-1 거래처 확정 전에는 주문 후보가 없다', async () => {
-    await page.goto(`${BASE_URL}/sales/partner-orders`)
-    // 양성 — 목록 화면이 실제로 렌더됐다
-    await expect(page.getByTestId('merge-convert-open'), '병합 진입 버튼이 없다 — 화면이 안 떴을 수 있다')
-      .toBeVisible({ timeout: 20000 })
-    await shot('S1-주문목록')
-
-    await page.getByTestId('merge-convert-open').click()
-    await expect(dialog).toBeVisible({ timeout: 15000 })
-    // 양성 — 거래처 선택 단계가 먼저 보인다
-    await expect(page.getByTestId('merge-convert-partner-selection')).toBeVisible()
-    await expect(page.getByTestId('merge-convert-partner-required')).toBeVisible()
-    // 부재 — 거래처 전에는 주문 선택 영역 자체가 없다
-    await expect(page.getByTestId('merge-convert-order-selection'),
-      '거래처를 정하기 전에 주문 후보가 노출된다 — 섞어 고르는 상태에 도달 가능하다').toHaveCount(0)
-    await shot('S2-거래처확정전-주문후보없음')
-  })
-
-  // ── S7-1 본체: A 선택 시 A 주문만 후보 ───────────────────────────
-  await test.step(`S7-1 거래처 A(${codeA}) 선택 → A 주문만 후보`, async () => {
-    await pickPartner(codeA)
-
-    // 양성 먼저 — 선택 거래처가 표시되고 후보가 실제로 나왔다
-    await expect(page.getByTestId('merge-convert-selected-partner')).toContainText(codeA)
-    await expect(page.getByTestId('merge-convert-order-selection')).toBeVisible()
-    // 🚨 초기 렌더는 후보 0건이다. 쿼리가 resolve 될 때까지 재시도 단언으로 기다린다
-    //    — 즉시 읽으면 0 을 보고 이후 부재 단언이 공허하게 통과한다(PM 실측).
-    await expect(summary, 'A 거래처 후보가 끝내 0건이면 이후 부재 단언이 무의미하다')
-      .toContainText(/[1-9]\d*건 후보/, { timeout: 15_000 })
-    const nA = Number((await summary.innerText()).match(/(\d+)건 후보/)?.[1] ?? -1)
-    console.log(`■ A 후보 = ${nA}건`)
-    await shot('S3-거래처A-후보노출')
-
-    // 🚨 주문 옵션은 검색창에 입력해야 DOM 에 렌더된다. 입력 없이 부재를 단언하면
-    //    옵션이 애초에 없어서 공허하게 통과한다(PM 실측).
-    const orderSearch = page.getByTestId('merge-convert-order-search')
-    await expect(orderSearch).toBeVisible({ timeout: 10_000 })
-
-    // 양성 대조 먼저 — A 주문을 입력하면 옵션이 실제로 뜬다(= 검색이 작동한다)
-    await orderSearch.fill(ordersA[0])
-    await expect(page.getByTestId(`merge-convert-order-option-${ordersA[0]}`),
-      `A 주문 ${ordersA[0]} 이 검색되지 않는다 — 이 상태의 부재 단언은 무의미하다`)
-      .toBeVisible({ timeout: 10_000 })
-
-    // 부재 — 같은 검색창에 B 주문번호를 넣어도 옵션이 뜨지 않는다
-    for (const no of ordersB.slice(0, 3)) {
-      await orderSearch.fill(no)
-      await page.waitForTimeout(600)
-      await expect(page.getByTestId(`merge-convert-order-option-${no}`),
-        `다른 거래처(${codeB}) 주문 ${no} 가 A 후보에 섞여 있다`).toHaveCount(0)
+    const dialog = page.getByRole('dialog')
+    const summary = page.getByTestId('merge-convert-order-candidate-summary')
+    const search = page.getByTestId('merge-convert-partner-search')
+    const pickPartner = async (code: string) => {
+      await expect(search).toBeVisible({ timeout: 10_000 })
+      await search.fill(code)
+      const listbox = page.getByRole('listbox', { name: '거래처 목록' })
+      await expect(listbox, `거래처 검색 결과가 뜨지 않는다: ${code}`).toBeVisible({ timeout: 10_000 })
+      const option = listbox.locator('[role="option"]').filter({ hasText: code }).first()
+      await expect(option, `검색 결과에 ${code} 가 없다`).toBeVisible({ timeout: 10_000 })
+      await option.click()
     }
-    await orderSearch.fill('')
-  })
 
-  // ── S7-4: 거래처 변경 시 이전 선택이 남지 않는다 ─────────────────
-  await test.step(`S7-4 거래처 B(${codeB}) 로 변경 → A 선택 잔존 없음`, async () => {
-    // A 주문 하나를 실제로 선택해 둔다 (검색 → 옵션 클릭)
-    const firstA = ordersA[0]
-    console.log(`■ A 에서 선택한 주문 = ${firstA}`)
-    const orderSearch2 = page.getByTestId('merge-convert-order-search')
-    await orderSearch2.fill(firstA)
-    const optA = page.getByTestId(`merge-convert-order-option-${firstA}`)
-    await expect(optA, 'A 후보 옵션이 화면에 없다').toBeVisible({ timeout: 10_000 })
-    await optA.click()
-    await expect(page.getByTestId(`merge-convert-order-chip-${firstA}`),
-      'A 주문 칩이 생기지 않아 S7-4 시험이 성립하지 않는다').toBeVisible({ timeout: 10_000 })
-    await shot('S4-거래처A-주문선택')
+    await test.step('S7-1 거래처 확정 전에는 주문 후보가 없다', async () => {
+      await page.goto(`${BASE_URL}/sales/partner-orders`)
+      await expect(page.getByTestId('merge-convert-open'), '병합 진입 버튼이 없다').toBeVisible({ timeout: 20_000 })
+      await shot('S1-주문목록')
+      await page.getByTestId('merge-convert-open').click()
+      await expect(dialog).toBeVisible({ timeout: 15_000 })
+      await expect(page.getByTestId('merge-convert-partner-selection')).toBeVisible()
+      await expect(page.getByTestId('merge-convert-partner-required')).toBeVisible()
+      await expect(page.getByTestId('merge-convert-order-selection')).toHaveCount(0)
+      await shot('S2-거래처확정전-주문후보없음')
+    })
 
-    await pickPartner(codeB)
+    await test.step(`Q1/Q2 거래처 A(${codeA}) — eligible 후보와 legacy 제외 사유`, async () => {
+      await pickPartner(codeA)
+      await expect(page.getByTestId('merge-convert-selected-partner')).toContainText(codeA)
+      await expect(page.getByTestId('merge-convert-order-selection')).toBeVisible()
 
-    // 양성 먼저 — B 로 바뀌고 B 후보가 나왔다
-    await expect(page.getByTestId('merge-convert-selected-partner')).toContainText(codeB)
-    await expect(summary, 'B 거래처 후보가 끝내 0건이면 이후 부재 단언이 무의미하다')
-      .toContainText(/[1-9]\d*건 후보/, { timeout: 15_000 })
-    const nB = Number((await summary.innerText()).match(/(\d+)건 후보/)?.[1] ?? -1)
-    console.log(`■ B 후보 = ${nB}건`)
+      // Q1 양성: 새 partner_id 보유 주문이 실제 후보로 표시된다.
+      await expect(summary, 'Q1 실패: 병합 가능한 throwaway 후보가 없다')
+        .toContainText(/[1-9]\d*건 후보/, { timeout: 15_000 })
+      await expect(summary, 'Q2 실패: eligible 후보와 legacy 제외 건수가 함께 보이지 않는다')
+        .toContainText(/건은 병합에서 제외됨/)
+      await expect(page.getByTestId('merge-convert-order-ineligible-reason'))
+        .toContainText('기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다')
+      await expect(page.getByTestId('merge-convert-order-ineligible-reason'))
+        .toContainText('단건 전표 발행은 계속할 수 있습니다')
+      await shot('S3-Q1-Q2-A-양성후보-legacy제외사유')
 
-    // 부재 — A 에서 고른 칩이 남아있지 않다
-    await expect(page.getByTestId(`merge-convert-order-chip-${firstA}`),
-      `거래처를 바꿨는데 이전 거래처(${codeA}) 주문 ${firstA} 선택이 남아 있다`).toHaveCount(0)
-    await shot('S5-거래처B전환-이전선택소거')
-  })
+      const orderSearch = page.getByTestId('merge-convert-order-search')
+      await expect(orderSearch).toBeVisible({ timeout: 10_000 })
+      await orderSearch.fill(ordersA[0])
+      await expect(page.getByTestId(`merge-convert-order-option-${ordersA[0]}`)).toBeVisible({ timeout: 10_000 })
+
+      // Q2 음성: 같은 거래처의 legacy 주문은 후보 option으로 나타나지 않는다.
+      await orderSearch.fill(sourceA.orderNumber)
+      await page.waitForTimeout(600)
+      await expect(page.getByTestId(`merge-convert-order-option-${sourceA.orderNumber}`),
+        'Q2 실패: legacy 주문이 병합 후보 option으로 노출됨').toHaveCount(0)
+      await orderSearch.fill('')
+    })
+
+    await test.step(`S7-4 거래처 B(${codeB}) 로 변경하면 A 선택이 남지 않는다`, async () => {
+      const orderSearch = page.getByTestId('merge-convert-order-search')
+      await orderSearch.fill(ordersA[0])
+      const optionA = page.getByTestId(`merge-convert-order-option-${ordersA[0]}`)
+      await expect(optionA).toBeVisible({ timeout: 10_000 })
+      await optionA.click()
+      await expect(page.getByTestId(`merge-convert-order-chip-${ordersA[0]}`)).toBeVisible({ timeout: 10_000 })
+      await shot('S4-거래처A-주문선택')
+
+      await pickPartner(codeB)
+      await expect(page.getByTestId('merge-convert-selected-partner')).toContainText(codeB)
+      await expect(summary, 'B 거래처 후보가 끝내 0건이다').toContainText(/[1-9]\d*건 후보/, { timeout: 15_000 })
+      await expect(page.getByTestId(`merge-convert-order-chip-${ordersA[0]}`)).toHaveCount(0)
+      await shot('S5-거래처B전환-이전선택소거')
+      // B도 양성 후보가 실제로 검색되는지 유지 단언한다.
+      await orderSearch.fill(ordersB[0])
+      await expect(page.getByTestId(`merge-convert-order-option-${ordersB[0]}`)).toBeVisible({ timeout: 10_000 })
+    })
+  } finally {
+    // 테스트가 실패하거나 timeout되어도 마커 주문만 동기적으로 정리한다.
+    cleanupMarkerRows()
+  }
 })
