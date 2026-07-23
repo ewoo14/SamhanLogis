@@ -38,14 +38,14 @@ describe('데스크톱 자동 업데이트 강제 수준 배선', () => {
     })
   })
 
-  it('다운로드 완료 상태만 설치 재시작 동작을 제공한다', () => {
+  it('자동 설치 계약은 사용자 설치 버튼을 제공하지 않는다', () => {
     expect(resolveDesktopUpdatePresentation('CRITICAL', {
       kind: 'downloaded',
       version: '0.2.0',
     })).toEqual({
       kind: 'critical',
       canContinue: false,
-      canInstall: true,
+      canInstall: false,
       version: '0.2.0',
     })
     expect(resolveDesktopUpdatePresentation('MAJOR', {

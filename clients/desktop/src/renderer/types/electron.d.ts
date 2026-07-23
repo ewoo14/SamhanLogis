@@ -77,6 +77,7 @@ declare global {
     samhanUpdater?: {
       check: () => Promise<void>
       install: () => Promise<void>
+      quit: () => Promise<void>
       onStatus: (listener: (status: DesktopUpdateStatus) => void) => () => void
     }
   }

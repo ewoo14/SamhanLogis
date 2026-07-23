@@ -120,6 +120,9 @@ app.whenReady().then(() => {
     }
     await shell.openExternal(url)
   })
+  ipcMain.handle('updater:quit', () => {
+    app.quit()
+  })
   createMainWindow()
 
   // dev-only — CAPTURE_MODE=1 일 때 5 화면 자동 navigate + capturePage 후 종료.

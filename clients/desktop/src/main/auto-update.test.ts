@@ -63,4 +63,20 @@ describe('Electron 자동 업데이트 IPC', () => {
     await mocks.handlers.get('updater:install')?.()
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true)
   })
+
+  it('electron-updater 오류 원문은 renderer 상태에 전달하지 않는다', () => {
+    const raw = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'
+
+    mocks.events.get('error')?.(new Error(raw))
+
+    const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+    expect(lastStatus).toEqual({
+      kind: 'error',
+      message: expect.not.stringContaining(raw),
+    })
+    expect(lastStatus).toEqual({
+      kind: 'error',
+      message: expect.stringContaining('업데이트'),
+    })
+  })
 })

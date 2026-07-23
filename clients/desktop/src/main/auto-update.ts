@@ -25,8 +25,8 @@ function broadcast(status: AutoUpdateStatus): void {
 }
 
 function messageFromError(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message.trim()
-  return '업데이트 서버에 연결할 수 없습니다.'
+  console.error('[auto-update] electron-updater 상세 오류(사용자 화면 비공개)', error)
+  return '업데이트에 실패했습니다. 인터넷 연결을 확인한 뒤 다시 실행해 주세요.'
 }
 
 function configureAutoUpdater(): void {
@@ -34,7 +34,7 @@ function configureAutoUpdater(): void {
   updaterConfigured = true
 
   // 업데이트 여부는 앱 정책(/app/version)과 함께 렌더러가 표시한다.
-  // 다운로드는 available 이벤트를 받은 뒤 자동 시작하되, 설치/재시작은 사용자가 누른다.
+  // 다운로드는 available 이벤트를 받은 뒤 자동 시작한다. 설치/재시작도 기동 렌더러가 위임한다.
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
   // 잘못된 릴리스의 semver 다운그레이드는 자동 롤백으로 허용하지 않는다.
@@ -79,6 +79,10 @@ export function registerAutoUpdateIpcHandlers(): void {
 
   ipcMain.handle(INSTALL_CHANNEL, () => {
     if (!app.isPackaged) return
-    autoUpdater.quitAndInstall(false, true)
+    try {
+      autoUpdater.quitAndInstall(false, true)
+    } catch (error: unknown) {
+      broadcast({ kind: 'error', message: messageFromError(error) })
+    }
   })
 }

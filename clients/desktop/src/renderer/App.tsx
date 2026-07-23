@@ -39,10 +39,11 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BiometricLockGate bootstrapped={bootstrapped} enabled={hasSession}>
-        <AppRouter />
-      </BiometricLockGate>
-      <AppVersionGate bootstrapped={bootstrapped} />
+      <AppVersionGate bootstrapped={bootstrapped}>
+        <BiometricLockGate bootstrapped={bootstrapped} enabled={hasSession}>
+          <AppRouter />
+        </BiometricLockGate>
+      </AppVersionGate>
       <AppNoticeGate bootstrapped={bootstrapped} authenticated={hasSession} />
     </QueryClientProvider>
   )
