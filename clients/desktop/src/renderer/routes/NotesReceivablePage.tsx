@@ -198,7 +198,7 @@ export function NotesReceivablePage() {
       key: 'actions',
       header: '상태전이',
       width: '230px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (row) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           {TRANSITION_OPTIONS.map((status) => (

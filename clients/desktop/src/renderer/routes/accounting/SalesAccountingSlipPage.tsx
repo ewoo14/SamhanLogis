@@ -88,7 +88,7 @@ export function SalesAccountingSlipPage() {
         key: 'action',
         header: '',
         width: '96px',
-        mobilePriority: 'hidden',
+        mobilePriority: 'secondary',
         render: (row) =>
           row.status === 'DRAFT' ? (
             <Button

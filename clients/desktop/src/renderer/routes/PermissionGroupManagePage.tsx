@@ -162,7 +162,7 @@ export function PermissionGroupManagePage() {
       key: 'actions',
       header: '작업',
       width: '190px',
-      mobilePriority: 'hidden',
+      mobilePriority: 'secondary',
       render: (group) => (
         <span style={{ display: 'inline-flex', gap: 6 }}>
           <Button

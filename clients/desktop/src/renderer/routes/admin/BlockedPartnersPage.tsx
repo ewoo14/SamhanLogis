@@ -183,7 +183,7 @@ export function BlockedPartnersPage() {
         key: 'action',
         header: '액션',
         width: '110px',
-        mobilePriority: 'hidden',
+        mobilePriority: 'secondary',
         render: (b) =>
           canBulkManage ? (
             <button
