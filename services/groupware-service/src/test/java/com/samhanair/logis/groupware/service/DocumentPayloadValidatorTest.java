@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,9 +10,23 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
 import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
+import java.util.zip.CRC32;
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageTypeSpecifier;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.metadata.IIOMetadata;
+import javax.imageio.metadata.IIOMetadataNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
@@ -391,6 +406,332 @@ class DocumentPayloadValidatorTest {
         }
         assertThatThrownBy(() -> validator.validate((short) 1, deep))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    /**
+     * 🔴 H15 RED-first (PM 2차 지적 재현): "가짜" 폭탄(IDAT 없음/빈)은 reader 가 목적지 버퍼
+     * 할당 "전"에 실패해 실측이 왜곡된다(PM 실서버: 22ms·메모리 무변동 = 오측정). 이 테스트는
+     * PM 이 재현·실측에 쓴 것과 동일한 "진짜" 폭탄(실 IDAT 스캔라인 2줄, 나머지는 선언만) —
+     * PM 사례 A: 7999×7999 RGBA = 63,984,001px, 구(舊) 픽셀 예산(64,000,000) 바로 아래라
+     * 픽셀-개수 기준 검사는 통과시켰지만 실제로는 4B/px × 픽셀수 ≈ 244MiB 를 할당했다(PM 실측:
+     * 컨테이너 376.1→621.6MiB, +245MiB).
+     *
+     * 하드 게이트는 예외 메시지 내용이다 — {@code checkImageDecodedByteBudget}은
+     * {@code ImageIO.read()} 호출 "이전에" reject()를 던지므로, 메시지가 나온다는 것 자체가
+     * 비싼 read() 경로에 도달하지 않았다는 코드 경로 증거다. 힙 peak/소요시간은 정보성 출력만
+     * 한다 — RED-first 검증 중 {@code MemoryPoolMXBean#getPeakUsage()} 조차 스위트 전체 실행 시
+     * 무관한 다른 테스트의 잔여 힙과 섞여(실측 147MB vs 단독실행 398MB) CI 하드 게이트로 쓰기엔
+     * 노이즈가 컸다.
+     */
+    @Test
+    void H15_pmCaseA_rgbaJustUnderOldPixelBudgetIsNowRejectedByByteBudget() throws Exception {
+        byte[] bomb = realPngBomb(7999, 7999, 6, 2);
+        long declaredPixels = 7999L * 7999L;
+        assertThat(declaredPixels).as("PM 사례 A: 구 픽셀 예산(64,000,000) 바로 아래").isEqualTo(63_984_001L);
+        String dataUri = "data:image/png;base64," + Base64.getEncoder().encodeToString(bomb);
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "bomb-image-a").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "PM 사례 A 폭탄");
+
+        var heapPools = java.lang.management.ManagementFactory.getMemoryPoolMXBeans().stream()
+                .filter(pool -> pool.getType() == java.lang.management.MemoryType.HEAP)
+                .toList();
+        for (var pool : heapPools) {
+            try {
+                pool.resetPeakUsage();
+            } catch (UnsupportedOperationException ignored) {
+                // 이 풀은 peak 추적 미지원 — 정보성 출력에서만 쓰이므로 실패해도 무해하다.
+            }
+        }
+        long startNanos = System.nanoTime();
+        Throwable thrown = catchThrowable(() -> validator.validate((short) 2, document));
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+        long peakUsedBytes = heapPools.stream()
+                .mapToLong(pool -> {
+                    var usage = pool.getPeakUsage();
+                    return usage == null ? 0L : usage.getUsed();
+                })
+                .max().orElse(0L);
+        System.out.println("H15 PM-A 실측(원문·정보성): 7999x7999 RGBA(진짜 폭탄, wire=" + bomb.length
+                + "B) -> elapsed=" + elapsedMs + "ms, 힙 풀 peak used=" + peakUsedBytes + " bytes ("
+                + (peakUsedBytes / (1024 * 1024)) + " MB), 예외=" + thrown);
+
+        assertThat(thrown).as("거부되어야 한다(PM 실측: fix 전 245MiB 할당 후에도 결국 거부는 됐었다)")
+                .isInstanceOf(BusinessException.class);
+        assertThat(thrown)
+                .as("read() 호출 이전 바이트 예산 단계에서 거부됐다는 직접 증거(코드 경로)")
+                .hasMessageContaining("이미지가 너무 커서 처리할 수 없습니다");
+    }
+
+    /** PM 사례 B 회귀: 구 픽셀 예산을 넘던 케이스는 새 바이트 예산에서도 당연히 계속 거부된다. */
+    @Test
+    void H15_pmCaseB_rgbaOverOldPixelBudgetStaysRejected() throws Exception {
+        byte[] bomb = realPngBomb(8001, 8001, 6, 2);
+        String dataUri = "data:image/png;base64," + Base64.getEncoder().encodeToString(bomb);
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "bomb-image-b").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "PM 사례 B 폭탄");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미지가 너무 커서 처리할 수 없습니다");
+    }
+
+    /** PM 사례 C 회귀: 평범한 크기(1000×1000 RGBA)는 새 바이트 예산에서도 계속 통과해야 한다
+     * (1000×1000×4B ≈ 3.8MB, 64MiB 예산의 6% 수준). */
+    @Test
+    void H15_pmCaseC_normalSmallRgbaStillPasses() throws Exception {
+        byte[] normal = realPngBomb(1000, 1000, 6, 1000); // idatRows=height -> 진짜 완전한 이미지
+        assertThat(ImageIO.read(new ByteArrayInputStream(normal)))
+                .as("사전조건: 완전히 디코드되는 정상 이미지여야 한다").isNotNull();
+        String dataUri = "data:image/png;base64," + Base64.getEncoder().encodeToString(normal);
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "normal-image-c").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "PM 사례 C 정상 이미지");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    /**
+     * H15 보강: 위 RED-first 테스트가 "손상된"(스캔라인 부족) 입력이었다면, 이 테스트는 진짜로 끝까지
+     * 디코드되는 유효한 대형 이미지로 같은 결함을 증명한다. 1비트 흑백 10000×10000 PNG는 100,000,000
+     * 픽셀이지만 비트팩킹 덕에 12,227바이트로 압축돼(실측) 기존 MAX_IMAGE_BYTES(50KB) 봉투를 여유
+     * 있게 통과한다 — fix 전에는 "실제로 열 수 있는 이미지"이므로 그대로 저장을 허용했고(H15 결함),
+     * fix 후에는 예측 디코드 크기(100,000,000B×1B/px 근사 ≈ 95.4MB)가 새 바이트 예산(64MiB)을
+     * 초과해 read() 호출 자체 없이 거부된다. accept↔reject 는 자원 측정과 달리 완전히 결정적이다.
+     */
+    @Test
+    void H15_genuinelyDecodableOversizedImageIsRejectedByByteBudget() throws Exception {
+        byte[] bigValidPng = oneBitPng(10000, 10000);
+        // DocumentPayloadValidator.MAX_IMAGE_BYTES(50*1024)는 private — 값만 그대로 인용한다.
+        assertThat(bigValidPng.length)
+                .as("100,000,000px 1비트 이미지도 비트팩킹 압축으로 50KB 봉투 안에 들어간다")
+                .isLessThan(50 * 1024);
+        // 대조군: 이 바이트 배열은 진짜로 끝까지 디코드된다(손상 이미지가 아니다) — fix 이전 코드가
+        // 이 입력을 "정상"으로 받아들였던 것과 같은 근거다.
+        assertThat(ImageIO.read(new ByteArrayInputStream(bigValidPng)))
+                .as("사전조건: 이 PNG는 실제로 디코드 가능해야 한다(손상 이미지 테스트가 아니다)")
+                .isNotNull();
+
+        String dataUri = "data:image/png;base64," + Base64.getEncoder().encodeToString(bigValidPng);
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "big-valid-image").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "초대형 유효 이미지");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("이미지가 너무 커서 처리할 수 없습니다");
+    }
+
+    /** H15가 PNG 전용이 아니라 JPEG(SOF 선언 치수)에도 동일하게 적용되는지 기능 확인. */
+    @Test
+    void H15_jpegHugeDeclaredDimensionsAreRejected() throws Exception {
+        byte[] bomb = minimalJpegWithDeclaredDimensions(15000, 15000);
+        String dataUri = "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bomb);
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "bomb-image-jpeg").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "폭탄");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    /**
+     * H15-c 회귀: 이번 fix가 정상 이미지를 막으면 안 된다. 인터레이스(Adam7) PNG, 프로그레시브 JPEG,
+     * 평범한 1x1 PNG가 fix 이후에도 계속 통과하는지 확인한다.
+     */
+    @Test
+    void H15c_interlacedPngStillPasses() throws Exception {
+        byte[] png = interlacedPng(64, 64);
+        assertThat(png[28]).as("IHDR interlace 바이트가 Adam7(1)이어야 회귀 확인 대상이 실제로 인터레이스다")
+                .isEqualTo((byte) 1);
+        String dataUri = "data:image/png;base64," + Base64.getEncoder().encodeToString(png);
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "interlaced-logo").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "인터레이스 로고");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    @Test
+    void H15c_progressiveJpegStillPasses() throws Exception {
+        byte[] jpeg = progressiveJpeg(64, 64);
+        String dataUri = "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(jpeg);
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "progressive-logo").put("type", "IMAGE")
+                .put("src", dataUri).put("alt", "프로그레시브 로고");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    @Test
+    void H15c_normal1x1PngStillPasses() throws Exception {
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "tiny-logo").put("type", "IMAGE")
+                .put("src", "data:image/png;base64,"
+                        + "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+                .put("alt", "정상 로고");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    /**
+     * 🔴 PM 2차 검증 지적: IHDR + 빈 IDAT("펼쳐지지 않은" 폭탄)은 reader 가 목적지 픽셀 버퍼를
+     * "할당하기 전"에 실패해 실제 공격이 되지 못한다(PM 실서버 실측: 22ms·메모리 무변동 = 오측정).
+     * 진짜 공격은 IHDR 이 큰 치수를 선언하면서 IDAT 에 "일부"(선언 높이보다 훨씬 적은) 실 스캔라인을
+     * 담는 것이다 — reader 는 IHDR 치수로 목적지를 먼저 할당한 "뒤" 에야 데이터 부족을 발견해
+     * 실패한다. PM 의 make-bomb-png.cjs 와 동일한 구성(zlib deflate 실압축 IDAT). colorType:
+     * 6=RGBA(4B/px) · 2=RGB(3B/px) · 0=Gray(1B/px).
+     */
+    private static byte[] realPngBomb(int width, int height, int colorType, int idatRows) throws IOException {
+        var out = new ByteArrayOutputStream();
+        out.write(new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A});
+        var ihdr = ByteBuffer.allocate(13);
+        ihdr.putInt(width);
+        ihdr.putInt(height);
+        ihdr.put((byte) 8); // bit depth
+        ihdr.put((byte) colorType);
+        ihdr.put((byte) 0); // compression
+        ihdr.put((byte) 0); // filter
+        ihdr.put((byte) 0); // interlace: none
+        writeChunk(out, "IHDR", ihdr.array());
+
+        int bytesPerPixel = colorType == 6 ? 4 : colorType == 2 ? 3 : 1;
+        byte[] row = new byte[1 + width * bytesPerPixel]; // filter byte(0) + zero 픽셀 데이터
+        var raw = new ByteArrayOutputStream();
+        for (int i = 0; i < idatRows; i++) raw.write(row);
+        byte[] idatRaw = raw.toByteArray();
+        var deflater = new java.util.zip.Deflater(java.util.zip.Deflater.BEST_COMPRESSION);
+        deflater.setInput(idatRaw);
+        deflater.finish();
+        var idatBuf = new byte[idatRaw.length + 64];
+        int n = deflater.deflate(idatBuf);
+        writeChunk(out, "IDAT", java.util.Arrays.copyOf(idatBuf, n));
+        writeChunk(out, "IEND", new byte[0]);
+        return out.toByteArray();
+    }
+
+    private static void writeChunk(ByteArrayOutputStream out, String type, byte[] data) throws IOException {
+        byte[] typeBytes = type.getBytes(StandardCharsets.US_ASCII);
+        out.write(ByteBuffer.allocate(4).putInt(data.length).array());
+        out.write(typeBytes);
+        out.write(data);
+        CRC32 crc = new CRC32();
+        crc.update(typeBytes);
+        crc.update(data);
+        out.write(ByteBuffer.allocate(4).putInt((int) crc.getValue()).array());
+    }
+
+    /** SOF0(0xFFC0)에 (width, height)를 선언한 최소 JPEG. Huffman/quant 테이블·scan 데이터는 없다 —
+     * getWidth()/getHeight() 헤더 피크는 SOF만으로 충분하다. */
+    private static byte[] minimalJpegWithDeclaredDimensions(int width, int height) throws IOException {
+        var out = new ByteArrayOutputStream();
+        out.write(new byte[]{(byte) 0xFF, (byte) 0xD8}); // SOI
+        out.write(new byte[]{(byte) 0xFF, (byte) 0xC0}); // SOF0
+        out.write(new byte[]{0x00, 0x0B}); // length=11 (자기자신 포함)
+        out.write(0x08); // precision
+        out.write((height >> 8) & 0xFF);
+        out.write(height & 0xFF);
+        out.write((width >> 8) & 0xFF);
+        out.write(width & 0xFF);
+        out.write(0x01); // numComponents
+        out.write(new byte[]{0x01, 0x11, 0x00}); // component id, sampling, qtable selector
+        out.write(new byte[]{(byte) 0xFF, (byte) 0xD9}); // EOI
+        return out.toByteArray();
+    }
+
+    /** Adam7 인터레이스 PNG를 ImageIO 표준 메타데이터 API로 생성한다(Oracle ImageIO 메타데이터
+     * 가이드의 표준 관용구 — writer 기본 메타데이터 트리의 IHDR interlaceMethod를 Adam7로 덮어쓴다). */
+    private static byte[] interlacedPng(int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, 0xFF000000 | ((x * 37 + y * 91) & 0xFFFFFF));
+            }
+        }
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+        ImageWriteParam param = writer.getDefaultWriteParam();
+        ImageTypeSpecifier typeSpecifier = ImageTypeSpecifier.createFromBufferedImageType(BufferedImage.TYPE_INT_ARGB);
+        IIOMetadata metadata = writer.getDefaultImageMetadata(typeSpecifier, param);
+        String formatName = metadata.getNativeMetadataFormatName();
+        IIOMetadataNode root = (IIOMetadataNode) metadata.getAsTree(formatName);
+        IIOMetadataNode ihdr = getOrCreateChild(root, "IHDR");
+        // javax_imageio_png_1.0 스펙의 IHDR.interlaceMethod 열거값은 소문자 "adam7"/"none"이다
+        // (probe 실측: IIOMetadataFormat#getAttributeEnumerations == [none, adam7]).
+        ihdr.setAttribute("interlaceMethod", "adam7");
+        metadata.setFromTree(formatName, root);
+
+        var out = new ByteArrayOutputStream();
+        try (var ios = ImageIO.createImageOutputStream(out)) {
+            writer.setOutput(ios);
+            writer.write(metadata, new IIOImage(image, null, metadata), param);
+        } finally {
+            writer.dispose();
+        }
+        return out.toByteArray();
+    }
+
+    /** 진짜로 끝까지 디코드되는 유효한 대형 1비트(흑백) PNG를 만든다. 픽셀당 1비트라 8000×8000~
+     * 12000×12000 규모도 비트팩킹+deflate 압축으로 수십 KB 이내로 들어간다(실측: 10000×10000
+     * =12,227바이트) — "정상적으로 열리는 이미지"가 여전히 MAX_IMAGE_BYTES(50KB) 봉투를 통과하면서도
+     * MAX_IMAGE_PIXELS를 초과할 수 있음을 보여준다. */
+    private static byte[] oneBitPng(int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_BINARY);
+        var dataBuffer = (java.awt.image.DataBufferByte) image.getRaster().getDataBuffer();
+        java.util.Arrays.fill(dataBuffer.getData(), (byte) 0x00);
+
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
+        var out = new ByteArrayOutputStream();
+        try (var ios = ImageIO.createImageOutputStream(out)) {
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(image, null, null), writer.getDefaultWriteParam());
+        } finally {
+            writer.dispose();
+        }
+        return out.toByteArray();
+    }
+
+    private static IIOMetadataNode getOrCreateChild(IIOMetadataNode root, String name) {
+        var nodes = root.getElementsByTagName(name);
+        if (nodes.getLength() > 0) {
+            return (IIOMetadataNode) nodes.item(0);
+        }
+        var child = new IIOMetadataNode(name);
+        root.appendChild(child);
+        return child;
+    }
+
+    private static byte[] progressiveJpeg(int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                image.setRGB(x, y, (x * 37 + y * 91) & 0xFFFFFF);
+            }
+        }
+        ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+        ImageWriteParam param = writer.getDefaultWriteParam();
+        param.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
+
+        var out = new ByteArrayOutputStream();
+        try (var ios = ImageIO.createImageOutputStream(out)) {
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(image, null, null), param);
+        } finally {
+            writer.dispose();
+        }
+        return out.toByteArray();
     }
 
     private JsonNode fixture(String name) throws IOException {
