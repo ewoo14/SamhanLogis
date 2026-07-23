@@ -28,6 +28,7 @@ import { usePageTitle } from '../../hooks/usePageTitle'
 import { usePermissions } from '../../hooks/usePermissions'
 import { exportSlips } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
+import { ExcelDownloadError } from '../../components/ExcelDownloadError'
 import { InboundInspectionDialog } from '../components/InboundInspectionDialog'
 
 const PAGE_SIZE = 50
@@ -144,7 +145,7 @@ export function PurchaseQueryPage() {
   const [inspectionSlipId, setInspectionSlipId] = useState<string | null>(null)
 
   // ── Excel export ──
-  const { downloading, download } = useExcelDownload()
+  const { downloading, download, error: downloadError } = useExcelDownload()
 
   // ── 창고 목록 (destinationWarehouseId resolve) ──
   const warehousesQuery = useQuery({
@@ -429,6 +430,7 @@ export function PurchaseQueryPage() {
         총 {totalElements.toLocaleString('ko-KR')}건
         {slipsQuery.isLoading ? ' · 로딩 중...' : ''}
       </div>
+      <ExcelDownloadError error={downloadError} testId="purchase-query-excel-error" />
 
       {/* ── DataGrid 보기 (Excel-like: 열헤더 필터 + 다중 셀 선택 + Ctrl+C) ── */}
       {gridMode ? (

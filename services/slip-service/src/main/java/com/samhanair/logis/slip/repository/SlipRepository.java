@@ -88,17 +88,17 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND s.slip_date BETWEEN :from AND :to
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
                AND (CAST(:searchPartnerName AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.partner_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerName AS varchar), '%')))
+                    OR LOWER(COALESCE(s.partner_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerName AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchPartnerCode AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.partner_code, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerCode AS varchar), '%')))
+                    OR LOWER(COALESCE(s.partner_code, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerCode AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchBusinessNumber AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.business_number, '')) LIKE LOWER(CONCAT('%', CAST(:searchBusinessNumber AS varchar), '%')))
+                    OR LOWER(COALESCE(s.business_number, '')) LIKE LOWER(CONCAT('%', CAST(:searchBusinessNumber AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchSlipNo AS varchar) IS NULL
-                    OR LOWER(s.slip_no) LIKE LOWER(CONCAT('%', CAST(:searchSlipNo AS varchar), '%')))
+                    OR LOWER(s.slip_no) LIKE LOWER(CONCAT('%', CAST(:searchSlipNo AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchProjectName AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')))
+                    OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchDeliveryAddress AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')))
+                    OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')) ESCAPE E'\\\\')
                AND s.is_deleted = FALSE
              ORDER BY s.slip_date DESC, s.seq_no DESC
             """,
@@ -110,17 +110,17 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
                AND s.slip_date BETWEEN :from AND :to
                AND (:deliveryTagsEmpty = TRUE OR s.delivery_tag IN (:deliveryTags))
                AND (CAST(:searchPartnerName AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.partner_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerName AS varchar), '%')))
+                    OR LOWER(COALESCE(s.partner_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerName AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchPartnerCode AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.partner_code, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerCode AS varchar), '%')))
+                    OR LOWER(COALESCE(s.partner_code, '')) LIKE LOWER(CONCAT('%', CAST(:searchPartnerCode AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchBusinessNumber AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.business_number, '')) LIKE LOWER(CONCAT('%', CAST(:searchBusinessNumber AS varchar), '%')))
+                    OR LOWER(COALESCE(s.business_number, '')) LIKE LOWER(CONCAT('%', CAST(:searchBusinessNumber AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchSlipNo AS varchar) IS NULL
-                    OR LOWER(s.slip_no) LIKE LOWER(CONCAT('%', CAST(:searchSlipNo AS varchar), '%')))
+                    OR LOWER(s.slip_no) LIKE LOWER(CONCAT('%', CAST(:searchSlipNo AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchProjectName AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')))
+                    OR LOWER(COALESCE(s.project_name, '')) LIKE LOWER(CONCAT('%', CAST(:searchProjectName AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:searchDeliveryAddress AS varchar) IS NULL
-                    OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')))
+                    OR LOWER(COALESCE(s.delivery_address, '')) LIKE LOWER(CONCAT('%', CAST(:searchDeliveryAddress AS varchar), '%')) ESCAPE E'\\\\')
                AND s.is_deleted = FALSE
             """,
             nativeQuery = true)

@@ -34,6 +34,7 @@ import {
 } from '@samhan/design-system'
 import { exportPartners } from '../../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../../hooks/useExcelDownload'
+import { ExcelDownloadError } from '../../components/ExcelDownloadError'
 import {
   deletePartner,
   listAdminPartners,
@@ -448,16 +449,7 @@ export function PartnersPage() {
           {actionError}
         </div>
       ) : null}
-      {downloadError ? (
-        <div
-          className="error-banner"
-          role="alert"
-          data-testid="admin-partners-excel-error"
-          style={{ marginBottom: 12, padding: 12, color: 'var(--color-danger-700)' }}
-        >
-          {downloadError}
-        </div>
-      ) : null}
+      <ExcelDownloadError error={downloadError} testId="admin-partners-excel-error" />
 
       {/* 테이블 */}
       <div data-testid="admin-partners-table">

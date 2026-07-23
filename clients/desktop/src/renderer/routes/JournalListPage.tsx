@@ -35,6 +35,7 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 import { exportJournals } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
+import { ExcelDownloadError } from '../components/ExcelDownloadError'
 import { usePermissions } from '../hooks/usePermissions'
 
 /** 상태 필터 옵션 (검색 셀렉트). */
@@ -61,7 +62,7 @@ export function JournalListPage() {
   const [statusFilter, setStatusFilter] = useState<JournalStatus | ''>('')
 
   // P1-6: Excel export
-  const { downloading, download } = useExcelDownload()
+  const { downloading, download, error: downloadError } = useExcelDownload()
 
   usePageTitle('분개장')
 
@@ -195,6 +196,8 @@ export function JournalListPage() {
           ) : null}
         </div>
       </div>
+
+      <ExcelDownloadError error={downloadError} testId="journal-list-excel-error" />
 
       <DataTable
         columns={columns}

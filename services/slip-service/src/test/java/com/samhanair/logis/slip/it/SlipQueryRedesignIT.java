@@ -223,6 +223,35 @@ class SlipQueryRedesignIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.totalElements", greaterThanOrEqualTo(1)));
     }
 
+    /**
+     * TC-3B: 검색어의 {@code %}·{@code _}는 SQL wildcard가 아니라 입력 문자 그대로 매칭되어야 한다.
+     *
+     * <p>각 특수문자 행과 같은 접두사의 정상문자 행을 함께 만든다. escape가 없으면
+     * {@code %}·{@code _}가 정상문자 행까지 매칭해 2건이 반환된다.
+     */
+    @Test
+    @DisplayName("TC-3B: 검색어 %·_ literal 매칭")
+    void tc3b_literalWildcardCharacters() throws Exception {
+        createOutboundSlip(TODAY, "LUNA907R4-percent%", null);
+        createOutboundSlip(TODAY, "LUNA907R4-percentX", null);
+        createOutboundSlip(TODAY, "LUNA907R4-underscore_", null);
+        createOutboundSlip(TODAY, "LUNA907R4-underscoreX", null);
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("searchPartnerName", "LUNA907R4-percent%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements", is(1)));
+
+        mockMvc.perform(get(QUERY_PATH)
+                        .header(USER_ID_HEADER, UUID.randomUUID().toString())
+                        .header(USER_ROLE_HEADER, MASTER_ROLE)
+                        .param("searchPartnerName", "LUNA907R4-underscore_"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements", is(1)));
+    }
+
     // -----------------------------------------------------------------------
     // TC-4: SlipResponse 신규 필드 응답 schema 검증
     // -----------------------------------------------------------------------

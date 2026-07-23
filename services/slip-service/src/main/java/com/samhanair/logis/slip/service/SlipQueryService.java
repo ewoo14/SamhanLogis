@@ -241,6 +241,14 @@ public class SlipQueryService {
     }
 
     private static String normalize(String s) {
-        return s == null || s.isBlank() ? null : s.trim();
+        return s == null || s.isBlank() ? null : escapeLikeLiteral(s);
+    }
+
+    /** 사용자 검색어의 %, _, backslash를 SQL LIKE literal로 보존한다. */
+    private static String escapeLikeLiteral(String value) {
+        return value.trim()
+                .replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_");
     }
 }

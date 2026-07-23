@@ -74,6 +74,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { InboundInspectionDialog } from './components/InboundInspectionDialog'
 import { exportSlips } from '../api/excelExportApi'
 import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
+import { ExcelDownloadError } from '../components/ExcelDownloadError'
 import { SlipListRealtimeClient } from '../realtime/SlipListRealtimeClient'
 import { useCollectionRealtime } from '../realtime/useCollectionRealtime'
 import './SlipListPage.css'
@@ -163,7 +164,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
   const [deliveryTagFilter, setDeliveryTagFilter] = useState<DeliveryTagCode | null>(null)
 
   // P1-6: Excel export
-  const { downloading, download } = useExcelDownload()
+  const { downloading, download, error: downloadError } = useExcelDownload()
 
   // Slice A: AppHeader 동적 화면명 (Designer wireframes.md § 1.3)
   usePageTitle(isOutbound ? '판매전표 목록' : '입고전표 목록')
@@ -447,6 +448,7 @@ export function SlipListPage({ mode }: SlipListPageProps) {
           {restoreError}
         </div>
       ) : null}
+      <ExcelDownloadError error={downloadError} testId="slip-list-excel-error" />
 
       <DataTable
         columns={columns}

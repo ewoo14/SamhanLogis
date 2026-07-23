@@ -19,7 +19,6 @@ import {
   Badge,
   Button,
   DataTable,
-  ExcelDownloadButton,
   type DataTableColumn,
 } from '@samhan/design-system'
 import {
@@ -32,7 +31,8 @@ import {
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { exportStocks } from '../api/excelExportApi'
-import { makeExportFilename } from '../hooks/useExcelDownload'
+import { useExcelDownload, makeExportFilename } from '../hooks/useExcelDownload'
+import { ExcelDownloadError } from '../components/ExcelDownloadError'
 
 const STATUS_VARIANT: Record<
   TransferStatus,
@@ -53,6 +53,7 @@ export function TransferListPage() {
   usePageTitle('재고이동 관리')
   const navigate = useNavigate()
   const { canAccess } = usePermissions()
+  const { downloading, download, error: downloadError } = useExcelDownload()
 
   const query = useQuery({
     queryKey: ['transfers', 'list'],
@@ -109,13 +110,16 @@ export function TransferListPage() {
         <h3 style={{ margin: 0 }}>재고이동 관리</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* P1-6: 전 창고 재고 현황 export */}
-          <ExcelDownloadButton
-            onFetch={() => exportStocks()}
-            filename={makeExportFilename('재고현황')}
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={downloading}
+            disabled={downloading}
+            onClick={() => download(() => exportStocks(), makeExportFilename('재고현황'))}
             data-testid="transfer-list-stocks-excel-export"
           >
             Excel 다운로드
-          </ExcelDownloadButton>
+          </Button>
           {/* [P1-A] BE StockTransferController @RequirePermission(page="inventory.transfer") — stock-transfer 코드 불일치 수정 */}
           {canAccess('inventory.transfer', 'create') ? (
             <Button
@@ -128,6 +132,8 @@ export function TransferListPage() {
           ) : null}
         </div>
       </div>
+
+      <ExcelDownloadError error={downloadError} testId="transfer-list-stocks-excel-error" />
 
       <div data-testid="transfer-list-table">
         <DataTable
