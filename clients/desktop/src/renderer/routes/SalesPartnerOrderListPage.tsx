@@ -190,7 +190,7 @@ export function SalesPartnerOrderListPage() {
       setRestoreError(null)
       await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
       if (restored.orderNumber) {
-        await queryClient.invalidateQueries({ queryKey: ['partner-order', restored.orderNumber] })
+        await queryClient.invalidateQueries({ queryKey: ['partner-order', toOrderPathId(restored.orderNumber)] })
       }
     },
     onError: (error) => {

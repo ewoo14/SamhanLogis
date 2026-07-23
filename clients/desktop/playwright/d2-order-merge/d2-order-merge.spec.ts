@@ -98,7 +98,9 @@ test.describe('#825 슬7 주문 병합 거래처 우선 선택', () => {
     await openMergeDialog(page)
     await selectPartner(page, '1234567890', '엘에이시스템에어')
 
-    await expect(page.getByTestId('merge-convert-order-candidate-summary')).toContainText('3건 후보')
+    await expect(page.getByTestId('merge-convert-order-candidate-summary')).toContainText('2건 후보')
+    await expect(page.getByTestId('merge-convert-order-candidate-summary')).toContainText('1건은 병합에서 제외됨')
+    await expect(page.getByTestId('merge-convert-order-ineligible-reason')).toContainText('단건 전표 발행')
     await selectOrder(page, '2026/05/04-1')
 
     const otherPartnerOption = page.getByTestId('merge-convert-order-option-2026/05/05-2')

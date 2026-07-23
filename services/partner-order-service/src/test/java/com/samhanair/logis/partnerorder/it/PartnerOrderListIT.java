@@ -171,6 +171,41 @@ class PartnerOrderListIT extends AbstractPostgresIT {
 
     @Test
     @WithMockUser(roles = {"SALES"})
+    void list_merge_candidate_exact_partner_id_keeps_legacy_rows_for_ineligibility_notice() throws Exception {
+        UUID selectedPartnerId = UUID.fromString("10000000-0000-0000-0000-000000000913");
+        PartnerOrder selected = saveOrder("2026/05/17-1", "P-LEGACY-MIX", "1717171717",
+                "선택 거래처 주문", "IDENTITY-SELECTED-LEGACY-MIX", "CONFIRMING");
+        PartnerOrder legacy = saveOrder("2026/05/18-1", "P-LEGACY-MIX", "1818181818",
+                "기존 거래처 주문", "IDENTITY-LEGACY-MIX", "CONFIRMING");
+        ReflectionTestUtils.setField(selected, "partnerId", selectedPartnerId);
+        ReflectionTestUtils.setField(legacy, "partnerId", null);
+        orderRepository.saveAllAndFlush(java.util.List.of(selected, legacy));
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("partnerCode", "P-LEGACY-MIX")
+                        .param("partnerIdExact", selectedPartnerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[?(@.orderNumber == '2026/05/18-1')].mergeEligible").value(false))
+                .andExpect(jsonPath("$.data.content[?(@.orderNumber == '2026/05/18-1')].mergeIneligibilityReason").value(
+                        "기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다. 단건 전표 발행은 계속할 수 있습니다."));
+
+        // includeDeleted=true는 native query 경로이므로 JPA 경로와 같은 legacy 고지 계약을 확인한다.
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("partnerCode", "P-LEGACY-MIX")
+                        .param("partnerIdExact", selectedPartnerId.toString())
+                        .param("includeDeleted", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.content[?(@.orderNumber == '2026/05/18-1')].mergeEligible").value(false));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
     void list_filters_by_status() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
                         .header("X-User-Id", ACCOUNT_ID)

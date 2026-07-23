@@ -9,6 +9,7 @@ import type { PartnerOrderSummary } from '../api/sales'
 
 const mocks = vi.hoisted(() => ({
   listPartnerOrders: vi.fn(),
+  restorePartnerOrder: vi.fn(),
   canAccess: vi.fn(() => true),
 }))
 
@@ -51,7 +52,7 @@ vi.mock('../api/sales', async () => {
   return {
     ...actual,
     listPartnerOrders: mocks.listPartnerOrders,
-    restorePartnerOrder: vi.fn(),
+    restorePartnerOrder: mocks.restorePartnerOrder,
   }
 })
 vi.mock('../hooks/usePermissions', () => ({ usePermissions: () => ({ canAccess: mocks.canAccess }) }))
@@ -282,5 +283,38 @@ describe('SalesPartnerOrderListPage 병합 성공 캐시 무효화', () => {
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['partner-order-merge-candidates'] })
       expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['partner-order', '2026-05-31-2'] })
     })
+  })
+})
+
+describe('SalesPartnerOrderListPage 복원 캐시 무효화', () => {
+  beforeEach(() => {
+    mocks.listPartnerOrders.mockReset()
+    mocks.listPartnerOrders.mockResolvedValue({
+      content: [row({ orderNumber: '2026/05/31-restore', status: 'DRAFT', isDeleted: true })],
+      totalElements: 1,
+      totalPages: 1,
+      number: 0,
+      size: 50,
+      first: true,
+      last: true,
+    })
+    mocks.restorePartnerOrder.mockReset()
+    mocks.restorePartnerOrder.mockResolvedValue(row({ orderNumber: '2026/05/31-restore', isDeleted: false }))
+    mocks.canAccess.mockReset()
+    mocks.canAccess.mockReturnValue(true)
+  })
+
+  it('복원 성공 시 하이픈 정규화된 주문 상세 캐시를 무효화한다', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidateQueries = vi.spyOn(client, 'invalidateQueries')
+
+    renderPage(client)
+    fireEvent.click(await screen.findByTestId('partner-order-restore-2026/05/31-restore:deleted'))
+
+    await waitFor(() => {
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['partner-orders'] })
+      expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ['partner-order', '2026-05-31-restore'] })
+    })
+    expect(invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ['partner-order', '2026/05/31-restore'] })
   })
 })

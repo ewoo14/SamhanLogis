@@ -217,7 +217,7 @@ public class PartnerService {
     }
 
     /** 사용자 검색어를 SQL LIKE 리터럴로 보존한다. escape 문자를 먼저 처리한다. */
-    private String escapeLikeLiteral(String value) {
+    static String escapeLikeLiteral(String value) {
         return value.trim()
                 .replace("\\", "\\\\")
                 .replace("%", "\\%")
@@ -253,8 +253,9 @@ public class PartnerService {
         if (exact.isPresent()) {
             return exact.get();
         }
+        String escapedKeyword = escapeLikeLiteral(trimmed);
         List<Partner> candidates = partnerRepository
-                .findAllByNameContaining(trimmed, PageRequest.of(0, 2))
+                .findAllByNameContaining(escapedKeyword, PageRequest.of(0, 2))
                 .getContent();
         if (candidates.isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_FOUND,
@@ -304,8 +305,9 @@ public class PartnerService {
         if (exact.isPresent()) {
             return exact;
         }
+        String escapedKeyword = escapeLikeLiteral(trimmed);
         List<Partner> candidates = partnerRepository
-                .findAllByNameContaining(trimmed, PageRequest.of(0, 2))
+                .findAllByNameContaining(escapedKeyword, PageRequest.of(0, 2))
                 .getContent();
         if (candidates.size() == 1) {
             return Optional.of(candidates.get(0));

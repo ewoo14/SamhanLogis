@@ -278,7 +278,12 @@ public class PartnerOrderQueryService {
             params.put("partnerCode", filter.partnerCode());
         }
         if (filter.partnerIdExact() != null) {
-            predicates.add("po.partner_id = :partnerIdExact");
+            // 병합 후보 조회는 선택 UUID와 일치하는 신규 주문뿐 아니라, 같은 partnerCode의
+            // legacy(NULL) 주문도 함께 내려야 FE가 fail-closed 사유와 단건 발행 대안을 고지할 수 있다.
+            // 다른 UUID가 이미 저장된 주문은 계속 제외해 동일 코드 재사용 오귀속을 막는다.
+            predicates.add(filter.partnerCode() != null
+                    ? "(po.partner_id = :partnerIdExact OR po.partner_id IS NULL)"
+                    : "po.partner_id = :partnerIdExact");
             params.put("partnerIdExact", filter.partnerIdExact());
         }
         if (filter.status() != null) {
@@ -367,7 +372,10 @@ public class PartnerOrderQueryService {
                 predicates.add(cb.equal(root.get("partnerCode"), filter.partnerCode()));
             }
             if (filter.partnerIdExact() != null) {
-                predicates.add(cb.equal(root.get("partnerId"), filter.partnerIdExact()));
+                Predicate exactPartner = cb.equal(root.get("partnerId"), filter.partnerIdExact());
+                predicates.add(filter.partnerCode() != null
+                        ? cb.or(exactPartner, cb.isNull(root.get("partnerId")))
+                        : exactPartner);
             }
             if (filter.status() != null) {
                 predicates.add(cb.equal(root.get("status"), filter.status()));

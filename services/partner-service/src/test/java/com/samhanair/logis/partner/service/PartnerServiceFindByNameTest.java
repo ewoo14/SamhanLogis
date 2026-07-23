@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +66,19 @@ class PartnerServiceFindByNameTest {
         Partner found = partnerService.findByName("삼성이엔지");
 
         assertThat(found.getPartnerCode()).isEqualTo("P-2026-0002");
+    }
+
+    @Test
+    void findByName_likeFallback_escapesWildcardLiterals() {
+        Partner p = samplePartner("P-2026-0008", "%_ 거래처");
+        when(partnerRepository.findByName("%_")).thenReturn(Optional.empty());
+        when(partnerRepository.findAllByNameContaining(eq("\\%\\_"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(p)));
+
+        Partner found = partnerService.findByName("%_");
+
+        assertThat(found.getPartnerCode()).isEqualTo("P-2026-0008");
+        verify(partnerRepository).findAllByNameContaining(eq("\\%\\_"), any(Pageable.class));
     }
 
     @Test

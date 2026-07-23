@@ -385,10 +385,11 @@ Tests       123 passed (123)
   단, partner-service 5xx/네트워크/응답계약 오류는 `PARTNER_IDENTITY_LOOKUP_UNAVAILABLE`
   (HTTP 502)로 반환하고, 404·코드/사업자번호 불일치는 `INVALID_INPUT`(HTTP 400)으로
   반환한다. 사용자가 고칠 수 없는 장애를 입력 오류로 돌리지 않는다.
-- **I7 결정**: V13은 기존 행을 자동 backfill하지 않는다. 다만 `partner_id IS NULL`인
-  legacy 행도 코드+사업자번호가 현재 active 거래처 snapshot과 exact 일치하면 병합 직전에
-  UUID를 일시 해석해 병합을 허용한다. 코드 재사용으로 pair가 달라지거나 lookup이 안 되면
-  reserve/publish 없이 409로 막는다. lookup 자체 장애는 I6과 동일하게 502다.
+- **I7′ 결정**: V13은 기존 행을 자동 backfill하지 않는다. `partner_id IS NULL`인 legacy
+  행은 병합 후보 조회에서 제외(fail-closed)한다. 단, `partnerCode + partnerIdExact` 후보
+  조회에는 legacy 행을 함께 반환해 `mergeEligible=false`와 한국어 제외 사유·단건 전표
+  대안을 고지한다. legacy를 병합 대상으로 재해석하거나 UUID를 대입하지 않으며, 단건
+  전표 발행 경로는 유지한다.
 - **I8 판단**: 계약이 옳고 테스트 fixture가 stale였다. 생성/전환 테스트는 새 생성 계약의
   성공 lookup을 명시하도록 수정했고, 병합 409는 생성 400과 별개의 legacy identity guard로
   수정했다.
@@ -488,3 +489,76 @@ Testcontainers가 종료된 뒤 CloudWatch 관측 메트릭이 이미 종료된 
 검사하면서 shutdown warning/stack trace를 남겼지만, 테스트 task는 성공 종료했고 실패 테스트는
 0건이었다. 이번 변경은 V13 migration SQL을 수정하지 않았으므로 별도 fresh Postgres probe는
 요구 대상이 아니며 실행하지 않았다.
+
+## 14. PR #907 LUNA 라운드 fix (2026-07-23)
+
+### 14.1 구현 요약
+
+- `PartnerOrderQueryService.java`: `partnerCode + partnerIdExact` 조회에서 `partner_id IS NULL`
+  legacy를 응답 집합에 남겨 `mergeEligible=false`/사유를 고지하되, 선택은 계속 fail-closed.
+- `MergeConvertDialog.tsx`: 후보 페이지 전수 수집, 수량 맵의 주문번호 기반 보존, 동일 거래처
+  재선택 no-op, 상세 query `staleTime=0`/mount refetch, 409 상세 재조회, 빈 값 포함 충돌
+  검출 및 실제 주문번호 출처 라벨을 적용했다.
+- `SalesPartnerOrderListPage.tsx`: 복원 성공 무효화를 `toOrderPathId()` 하이픈 키로 통일했다.
+- `PartnerExcelExportService.java`: 목록과 동일한 `escapeLikeLiteral`을 Excel 검색에도 적용했다.
+- `mock.ts` 및 `d2-order-merge.spec.ts`: exact 후보 계약과 legacy 고지 fixture를 반영했다.
+- `867-s7-merge-real-qa.spec.ts`: HashRouter 경로와 이번 라운드 screenshot 경로를 맞췄다.
+
+### 14.2 RED/GREEN 및 mutation
+
+```text
+A-1 RED: PartnerOrderListIT 신규 legacy 고지 테스트 실패
+  13 tests completed, 1 failed, BUILD FAILED
+A-2/B-1/C-1/E-1/E-2 RED: MergeConvertDialog 지정 스펙 신규 케이스 실패
+B-2 RED: expected '0건 선택됨' to contain '1건 선택됨'
+C-1 mutation RED: expected 2 to be greater than or equal to 4
+D-1 RED: PartnerExcelExportServiceTest 1 test completed, 1 failed, BUILD FAILED
+C/E mutation RED: 구 구현에서 MergeConvertDialog E-1·E-2 2 tests failed
+C-2 RED: restore 무효화 호출이 ['partner-order','2026/05/31-restore']로 남음
+```
+
+수정 후 지정 결과:
+
+```text
+MergeConvertDialog.test.tsx + SalesPartnerOrderListPage.test.tsx
+  2 files passed, 16 tests passed
+npm run typecheck
+  Process exited with code 0
+PartnerOrderListIT
+  BUILD SUCCESSFUL
+PartnerExcelExportServiceTest + PartnerSearchServiceTest
+  BUILD SUCCESSFUL
+```
+
+### 14.3 실서버 및 화면 QA
+
+partner-order-service/partner-service를 `bootJar -x test`로 재빌드하고 main tree jar를 복사한
+뒤, `docker compose`의 `no-host-ports` overlay로 두 이미지를 재빌드·재기동했다. gateway의
+Eureka stale endpoint를 회복하기 위해 gateway도 재시작했다.
+
+```text
+partnerCode=P-2026-0009
+  baseline totalElements=118
+partnerCode=P-2026-0009 + partnerIdExact=6483a585-…
+  totalElements=118, mergeEligible=false=50, reason 한국어 응답 확인
+거래처 검색/Excel
+  %: 목록 0행 / xlsx 데이터행 0행
+  _: 목록 0행 / xlsx 데이터행 0행
+  에어컨: 목록 7행 / xlsx 데이터행 7행
+```
+
+실 QA는 `867-s7-merge-real-qa.spec.ts` 1건을 지정 실행했다. 시작 시 기존 marker 잔재를
+회수하고, 서로 다른 거래처의 `partner_id` 보유 throwaway 주문 2건을 동기 SQL로 생성한 뒤
+양성 후보/legacy 고지/거래처 전환을 확인하고 `finally`에서 주문·라인을 삭제했다.
+종료 SQL 확증은 `partner_orders created_by='CODEX-907-QA' = 0`, 관련 line = `0`이다.
+
+스크린샷:
+
+```text
+docs/qa/907-luna-round2-2026-07-23/
+  S1-주문목록.png
+  S2-거래처확정전-주문후보없음.png
+  S3-Q1-Q2-A-양성후보-legacy제외사유.png
+  S4-거래처A-주문선택.png
+  S5-거래처B전환-이전선택소거.png
+```

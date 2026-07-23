@@ -24,6 +24,11 @@ const PARTNER_B = {
   partnerCode: 'PARTNER-B',
   name: '거래처 B',
 }
+const PARTNER_C = {
+  id: '33333333-3333-4333-8333-333333333333',
+  partnerCode: PARTNER_A.partnerCode,
+  name: '거래처 A',
+}
 
 const order = (overrides: Partial<PartnerOrderSummary>): PartnerOrderSummary => ({
   orderNumber: '2026/07/23-1',
@@ -39,6 +44,7 @@ const order = (overrides: Partial<PartnerOrderSummary>): PartnerOrderSummary => 
 
 const ORDER_A = order({ orderNumber: '2026/07/23-A', partnerCode: PARTNER_A.partnerCode, partnerName: PARTNER_A.name })
 const ORDER_B = order({ orderNumber: '2026/07/23-B', partnerCode: PARTNER_B.partnerCode, partnerName: PARTNER_B.name })
+const ORDER_C = order({ orderNumber: '2026/07/23-C', partnerCode: PARTNER_C.partnerCode, partnerName: PARTNER_C.name })
 
 vi.mock('@samhan/design-system', () => ({
   Badge: ({ children, ...props }: { children: React.ReactNode } & Record<string, unknown>) => (
@@ -52,7 +58,15 @@ vi.mock('@samhan/design-system', () => ({
     <div>{children}{footer}</div>
   ),
   Spinner: () => <span>loading</span>,
-  WarehouseAutocomplete: () => <div data-testid="merge-convert-warehouse" />,
+  WarehouseAutocomplete: ({ onChange }: { onChange: (id: string, warehouse: { id: string; code: string; name: string }) => void }) => (
+    <button
+      type="button"
+      data-testid="merge-convert-warehouse-choice"
+      onClick={() => onChange('warehouse-1', { id: 'warehouse-1', code: 'WH-1', name: '창고 1' })}
+    >
+      창고 선택
+    </button>
+  ),
   PartnerAutocomplete: ({ value, onChange }: {
     value: typeof PARTNER_A | typeof PARTNER_B | null
     onChange: (value: typeof PARTNER_A | typeof PARTNER_B | null) => void
@@ -105,8 +119,7 @@ vi.mock('../../components/sales/sales.module.css', () => ({ default: new Proxy({
 
 import { MergeConvertDialog } from './MergeConvertDialog'
 
-function renderDialog() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderDialog(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
     <QueryClientProvider client={client}>
       <MergeConvertDialog onClose={vi.fn()} onSuccess={vi.fn()} selectedOrders={[]} />
@@ -196,5 +209,193 @@ describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
     )
     expect(screen.getByTestId('merge-convert-order-ineligible-reason').textContent).toContain('단건 전표 발행')
     expect(screen.queryByTestId('merge-convert-order-option-2026/07/23-LEGACY')).toBeNull()
+  })
+
+  it('후보가 50건을 넘으면 다음 페이지까지 모두 주문 후보에 포함한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockImplementation(async (page: number) => ({
+      content: page === 0 ? [ORDER_A, ORDER_B] : [ORDER_C],
+      totalElements: 3,
+      totalPages: 2,
+      number: page,
+      size: 2,
+      first: page === 0,
+      last: page === 1,
+    }))
+    mocks.listWarehouses.mockResolvedValue([])
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+
+    expect(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-C')).toBeTruthy()
+    expect(mocks.listPartnerOrders).toHaveBeenCalledWith(
+      1,
+      50,
+      expect.objectContaining({ partnerCode: PARTNER_A.partnerCode, partnerIdExact: PARTNER_A.id }),
+    )
+  })
+
+  it('주문을 추가해도 사용자가 조정한 기존 주문 수량을 유지한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+    mocks.listWarehouses.mockResolvedValue([])
+    mocks.getPartnerOrder.mockImplementation(async (orderNumber: string) => ({
+      orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: null,
+      contactPhone: null,
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [{ lineId: `line-${orderNumber}`, productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 10, convertedQuantity: 0 }],
+    } as never))
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-A'))
+    const quantity = await screen.findByTestId('merge-convert-qty-2026-07-23-A-0') as HTMLInputElement
+    fireEvent.change(quantity, { target: { value: '3' } })
+    fireEvent.click(screen.getByTestId('merge-convert-order-candidate-2026/07/23-C'))
+
+    await waitFor(() => expect((screen.getByTestId('merge-convert-qty-2026-07-23-A-0') as HTMLInputElement).value).toBe('3'))
+  })
+
+  it('상세 주문 query는 5분 캐시를 재사용하지 않고 재마운트 시 최신 잔여수량을 조회한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A], totalElements: 1 })
+    mocks.listWarehouses.mockResolvedValue([])
+    mocks.getPartnerOrder.mockResolvedValue({
+      orderNumber: ORDER_A.orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: null,
+      contactPhone: null,
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [{ lineId: 'line-a', productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 4, convertedQuantity: 0 }],
+    } as never)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } } })
+    client.setQueryData(['partner-order', '2026-07-23-A'], {
+      orderNumber: ORDER_A.orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: null,
+      contactPhone: null,
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [{ lineId: 'line-a', productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 10, convertedQuantity: 0 }],
+    })
+
+    renderDialog(client)
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-A'))
+
+    await waitFor(() => expect(mocks.getPartnerOrder).toHaveBeenCalledWith('2026-07-23-A'))
+    expect((await screen.findByTestId('merge-convert-qty-2026/07/23-A-0') as HTMLInputElement).value).toBe('4')
+  })
+
+  it('같은 거래처를 다시 선택해도 선택 주문과 수량 입력을 초기화하지 않는다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A], totalElements: 1 })
+    mocks.listWarehouses.mockResolvedValue([])
+    mocks.getPartnerOrder.mockResolvedValue({
+      orderNumber: ORDER_A.orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: null,
+      contactPhone: null,
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [{ lineId: 'line-a', productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 10, convertedQuantity: 0 }],
+    } as never)
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-A'))
+    fireEvent.change(await screen.findByTestId('merge-convert-qty-2026/07/23-A-0'), { target: { value: '3' } })
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+
+    expect(screen.getByTestId('merge-convert-selected-order-count').textContent).toContain('1건 선택됨')
+    expect((screen.getByTestId('merge-convert-qty-2026/07/23-A-0') as HTMLInputElement).value).toBe('3')
+  })
+
+  it('409 병합 실패 시 화면의 주문 상세를 즉시 재조회한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+    mocks.listWarehouses.mockResolvedValue([])
+    mocks.getPartnerOrder.mockImplementation(async (orderNumber: string) => ({
+      orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: '부산 사상구',
+      contactPhone: '010-0000-0000',
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [{ lineId: `line-${orderNumber}`, productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 10, convertedQuantity: 0 }],
+    } as never))
+    mocks.mergeConvertToSlip.mockRejectedValue(Object.assign(new Error('잔여수량 변경'), {
+      isAxiosError: true,
+      response: { status: 409, data: { message: '전환 수량이 잔여 수량을 초과합니다.' } },
+    }))
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-A'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-C'))
+    await waitFor(() => expect(mocks.getPartnerOrder.mock.calls.length).toBeGreaterThanOrEqual(2))
+    const initialDetailCallCount = mocks.getPartnerOrder.mock.calls.length
+
+    fireEvent.click(screen.getByTestId('merge-convert-warehouse-choice'))
+    fireEvent.click(screen.getByTestId('merge-convert-submit'))
+
+    await waitFor(() => expect(mocks.getPartnerOrder.mock.calls.length).toBeGreaterThanOrEqual(initialDetailCallCount + 2))
+  })
+
+  it('배송지 값의 출처 라벨은 빈 값을 제거한 뒤에도 실제 주문번호를 유지한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C, order({ orderNumber: '2026/07/23-D' })], totalElements: 3 })
+    mocks.listWarehouses.mockResolvedValue([])
+    mocks.getPartnerOrder.mockImplementation(async (orderNumber: string) => ({
+      orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: orderNumber.endsWith('A') ? '' : orderNumber.endsWith('C') ? '부산 사상구' : '서울 강남구',
+      contactPhone: null,
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [],
+    } as never))
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+    for (const orderNo of ['2026/07/23-A', '2026/07/23-C', '2026/07/23-D']) {
+      fireEvent.click(await screen.findByTestId(`merge-convert-order-candidate-${orderNo}`))
+    }
+
+    expect(await screen.findByTestId('merge-convert-conflict-shippingAddress-radio-2026-07-23-C')).toBeTruthy()
+    expect(screen.queryByTestId('merge-convert-conflict-shippingAddress-radio-2026-07-23-A')).toBeNull()
+  })
+
+  it('한 주문에만 있는 배송지는 조용히 버리지 않고 충돌 선택으로 요청한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({ content: [ORDER_A, ORDER_C], totalElements: 2 })
+    mocks.listWarehouses.mockResolvedValue([])
+    mocks.getPartnerOrder.mockImplementation(async (orderNumber: string) => ({
+      orderNumber,
+      partnerName: PARTNER_A.name,
+      deliveryAddress: orderNumber.endsWith('A') ? '' : '부산 사상구',
+      contactPhone: null,
+      dueDate: null,
+      memo: null,
+      totalAmount: 1000,
+      lines: [{ lineId: `line-${orderNumber}`, productId: 'product-1', productName: '품목', modelCode: 'MODEL-1', quantity: 1, convertedQuantity: 0 }],
+    } as never))
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-A'))
+    fireEvent.click(await screen.findByTestId('merge-convert-order-candidate-2026/07/23-C'))
+
+    expect(await screen.findByTestId('merge-convert-conflict-shippingAddress-radio-2026-07-23-C')).toBeTruthy()
   })
 })

@@ -14,7 +14,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '867-s7-merge-live-qa-2026-07-23')
+const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '907-luna-round2-2026-07-23')
 const MARK = 'CODEX-907-QA'
 
 type OrderSummary = {
@@ -204,7 +204,7 @@ test('슬7 — 거래처 우선 선택으로 다른 거래처 주문을 섞을 �
     }
 
     await test.step('S7-1 거래처 확정 전에는 주문 후보가 없다', async () => {
-      await page.goto(`${BASE_URL}/sales/partner-orders`)
+      await page.goto(`${BASE_URL}/#/sales/partner-orders`)
       await expect(page.getByTestId('merge-convert-open'), '병합 진입 버튼이 없다').toBeVisible({ timeout: 20_000 })
       await shot('S1-주문목록')
       await page.getByTestId('merge-convert-open').click()

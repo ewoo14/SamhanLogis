@@ -58,7 +58,8 @@ public class PartnerExcelExportService {
     @Transactional(readOnly = true)
     public byte[] export(String q, PartnerStatus status) {
         Pageable pageable = PageRequest.of(0, MAX_ROWS, Sort.by(Sort.Direction.ASC, "partnerCode"));
-        Page<Partner> page = partnerRepository.searchAdmin(q, status, pageable);
+        String normalized = (q == null || q.isBlank()) ? null : PartnerService.escapeLikeLiteral(q);
+        Page<Partner> page = partnerRepository.searchAdmin(normalized, status, pageable);
 
         List<Map<String, Object>> rows = page.getContent().stream()
                 .map(PartnerExcelExportService::toRow)

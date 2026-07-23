@@ -7664,6 +7664,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const urlObj = new URL(url.startsWith('http') ? url : `http://mock${url}`)
     const statusParam = urlObj.searchParams.get('status') ?? (config.params?.['status'] as string | undefined)
     const partnerIdParam = urlObj.searchParams.get('partnerId') ?? (config.params?.['partnerId'] as string | undefined)
+    // 병합 후보 exact partnerId 계약: partnerCode와 함께 보내면 legacy(NULL partner_id)
+    // 행도 응답해 FE가 병합 제외 사유와 단건 발행 대안을 고지할 수 있어야 한다.
+    const partnerIdExactParam =
+      urlObj.searchParams.get('partnerIdExact') ?? (config.params?.['partnerIdExact'] as string | undefined)
     const partnerCodeParam = urlObj.searchParams.get('partnerCode') ?? (config.params?.['partnerCode'] as string | undefined)
     const slipPublishStatusParam =
       urlObj.searchParams.get('slipPublishStatus') ?? (config.params?.['slipPublishStatus'] as string | undefined)
@@ -7684,6 +7688,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       slipPublishStatus: 'NOT_REQUIRED',
       totalAmount: 3700000,
       linkedSlipNo: null,
+      mergeEligible: true,
+      mergeIneligibilityReason: null,
     }
     const ON_HOLD_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/05-2',
@@ -7694,6 +7700,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       slipPublishStatus: 'NOT_REQUIRED',
       totalAmount: 1850000,
       linkedSlipNo: null,
+      mergeEligible: true,
+      mergeIneligibilityReason: null,
     }
     const CONFIRMED_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/03-1',
@@ -7716,6 +7724,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       slipPublishStatus: 'NOT_REQUIRED',
       totalAmount: 2500000,
       linkedSlipNo: null,
+      mergeEligible: true,
+      mergeIneligibilityReason: null,
     }
     const SAME_PARTNER_ON_HOLD_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/31-4',
@@ -7726,6 +7736,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       slipPublishStatus: 'NOT_REQUIRED',
       totalAmount: 1200000,
       linkedSlipNo: null,
+      mergeEligible: true,
+      mergeIneligibilityReason: null,
+    }
+    // A-1 회귀 가드: exact 후보 조회에서만 legacy 행을 보여 주고, 선택은 막되
+    // BE가 내려준 한국어 사유를 UI가 렌더할 수 있게 한다. UUID는 화면에 출력하지 않는다.
+    const LEGACY_MERGE_ROW: PartnerOrderSummary = {
+      orderNumber: '2026/05/31-10',
+      partnerCode: '1234567890',
+      partnerName: '엘에이시스템에어',
+      submittedAt: '2026-05-31T15:00:00',
+      status: 'DRAFT',
+      slipPublishStatus: 'NOT_REQUIRED',
+      totalAmount: 800000,
+      linkedSlipNo: null,
+      mergeEligible: false,
+      mergeIneligibilityReason:
+        '기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다. 단건 전표 발행은 계속할 수 있습니다.',
     }
     const PREFIX_PARTNER_P1_ROW: PartnerOrderSummary = {
       orderNumber: '2026/05/31-8',
@@ -7792,7 +7819,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     let content: PartnerOrderSummary[]
     if (statusParam === 'DRAFT') {
       // DRAFT 필터: 같은 거래처 DRAFT 2건 포함 (시나리오 2/4/5 직접 접근 가능)
-      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, DELETED_DRAFT_ROW, PREFIX_PARTNER_P1_ROW, PREFIX_PARTNER_P10_ROW]
+      content = [DRAFT_ROW, SAME_PARTNER_DRAFT_ROW, LEGACY_MERGE_ROW, DELETED_DRAFT_ROW, PREFIX_PARTNER_P1_ROW, PREFIX_PARTNER_P10_ROW]
     } else if (statusParam === 'ON_HOLD') {
       content = [ON_HOLD_ROW, SAME_PARTNER_ON_HOLD_ROW]
     } else if (statusParam === 'CONFIRMED') {
@@ -7802,6 +7829,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       content = [
         DRAFT_ROW,
         SAME_PARTNER_DRAFT_ROW,
+        LEGACY_MERGE_ROW,
         DELETED_DRAFT_ROW,
         PREFIX_PARTNER_P1_ROW,
         PREFIX_PARTNER_P10_ROW,
@@ -7811,6 +7839,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         SLIP_PENDING_RETRY_ROW,
         SLIP_FAILED_PERMANENT_ROW,
       ]
+    }
+
+    // 기존 목록 소비처는 신규 exact 파라미터 없이 legacy fixture를 보지 않는다.
+    if (!partnerIdExactParam) {
+      content = content.filter((row) => row.orderNumber !== LEGACY_MERGE_ROW.orderNumber)
     }
 
     if (slipPublishStatusParam === 'FAILED') {

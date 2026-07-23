@@ -26,7 +26,7 @@
  * <ul>
  *   <li>{@code merge-convert-dialog-body}             — 본문 div</li>
  *   <li>{@code merge-convert-order-{orderNumber}}     — 주문 그룹 섹션</li>
- *   <li>{@code merge-convert-qty-{orderIndex}-{lineIndex}} — 라인별 전환수량 input</li>
+ *   <li>{@code merge-convert-qty-{orderNumber}-{lineIndex}} — 라인별 전환수량 input</li>
  *   <li>{@code merge-convert-warehouse}               — 창고 선택 wrapper</li>
  *   <li>{@code merge-convert-shipping-field-{key}}    — 충돌 헤더 필드</li>
  *   <li>{@code merge-convert-submit}                  — 발행 버튼</li>
@@ -55,6 +55,7 @@ import {
   type MergeConvertShippingInfo,
   type PartnerOrderSummary,
 } from '../../api/sales'
+import type { PageResponse } from '../../api/client'
 import { searchPartners } from '../../api/partnerApi'
 import { listWarehouses } from '../../api/inventory'
 import { toOrderPathId } from '../../utils/orderNo'
@@ -131,6 +132,26 @@ function extractShippingFieldValue(
 const krw = (n: number) => new Intl.NumberFormat('ko-KR').format(n)
 
 const MERGE_SELECTABLE_STATUS: ReadonlySet<PartnerOrderSummary['status']> = new Set(['DRAFT', 'ON_HOLD'])
+const MERGE_CANDIDATE_PAGE_SIZE = 50
+
+/** 병합 후보를 페이지 상한 없이 모두 모은다. 화면은 이후 상태/legacy를 분류한다. */
+async function listAllMergeCandidateOrders(
+  partnerCode: string,
+  partnerIdExact: string,
+): Promise<PageResponse<PartnerOrderSummary>> {
+  const filters = { partnerCode, partnerIdExact, includeDeleted: false }
+  const firstPage = await listPartnerOrders(0, MERGE_CANDIDATE_PAGE_SIZE, filters)
+  const content = [...firstPage.content]
+  let page = 0
+  let currentPage = firstPage
+  while (content.length < currentPage.totalElements && currentPage.content.length > 0) {
+    page += 1
+    currentPage = await listPartnerOrders(page, MERGE_CANDIDATE_PAGE_SIZE, filters)
+    content.push(...currentPage.content)
+    if (currentPage.content.length === 0) break
+  }
+  return { ...firstPage, content, totalElements: Math.max(firstPage.totalElements, content.length) }
+}
 
 interface MergeOrderChipSelectorProps {
   candidates: PartnerOrderSummary[]
@@ -230,12 +251,7 @@ export function MergeConvertDialog({
       selectedPartner?.partnerCode ?? null,
       selectedPartner?.id ?? null,
     ],
-    queryFn: () => listPartnerOrders(0, 50, {
-      // 기존 partnerId 부분검색과 구분되는 병합 후보 전용 정확일치 계약.
-      partnerCode: selectedPartner!.partnerCode,
-      partnerIdExact: selectedPartner!.id,
-      includeDeleted: false,
-    }),
+    queryFn: () => listAllMergeCandidateOrders(selectedPartner!.partnerCode!, selectedPartner!.id!),
     enabled: Boolean(selectedPartner?.partnerCode && selectedPartner?.id),
     retry: 1,
     staleTime: 0,
@@ -275,6 +291,8 @@ export function MergeConvertDialog({
         queryFn: () => getPartnerOrder(normalizedNo!),
         enabled: !!normalizedNo,
         retry: 1 as const,
+        staleTime: 0,
+        refetchOnMount: 'always' as const,
       }
     }),
   })
@@ -287,28 +305,36 @@ export function MergeConvertDialog({
   // 모든 상세 로드 상태
   const isLoadingDetails = orderDetailsQueries.some((q) => q.isLoading)
   const hasDetailError = orderDetailsQueries.some((q) => q.isError)
-  const orderDetails = orderDetailsQueries.map((q) => q.data).filter(Boolean)
+  const orderDetails = orderDetailsQueries
+    .map((q) => q.data)
+    .filter((detail): detail is NonNullable<typeof detail> => Boolean(detail))
 
-  // 라인별 전환수량 맵 — 키: `${orderIndex}-${lineId}`
+  // 라인별 전환수량 맵 — 키: `${orderNumber}-${lineId}`. 주문 추가/삭제 시 인덱스가
+  // 재배열되어도 사용자가 조정한 다른 주문의 입력을 재사용하지 않는다.
   const [qtyMap, setQtyMap] = useState<Record<string, number>>({})
 
   const selectedOrderKey = selectedOrders.map((order) => order.orderNumber).join('|')
+  const orderDetailsSnapshotKey = orderDetails
+    .map((detail) => `${detail.orderNumber}:${detail.lines.map((line) => `${line.lineId}-${line.quantity}-${line.convertedQuantity ?? 0}`).join(',')}`)
+    .join('|')
 
-  // FE P1-1: qtyMap 초기화 — useEffect 로 React 18 StrictMode 안전하게 처리
+  // FE P1-1: 새 주문 라인만 잔여 전량으로 추가하고 기존 입력은 보존한다.
   useEffect(() => {
     if (isLoadingDetails || orderDetails.length !== selectedOrders.length) return
-    const initMap: Record<string, number> = {}
-    orderDetails.forEach((detail, oi) => {
-      if (!detail) return
-      detail.lines.forEach((line) => {
-        const remaining = line.quantity - (line.convertedQuantity ?? 0)
-        if (remaining > 0) {
-          initMap[`${oi}-${line.lineId}`] = remaining
-        }
+    setQtyMap((previous) => {
+      const nextMap: Record<string, number> = {}
+      orderDetails.forEach((detail) => {
+        detail.lines.forEach((line) => {
+          const remaining = line.quantity - (line.convertedQuantity ?? 0)
+          if (remaining > 0) {
+            const key = `${detail.orderNumber}-${line.lineId}`
+            nextMap[key] = Math.min(previous[key] ?? remaining, remaining)
+          }
+        })
       })
+      return nextMap
     })
-    setQtyMap(initMap)
-  }, [isLoadingDetails, orderDetails.length, selectedOrderKey])
+  }, [isLoadingDetails, orderDetails.length, orderDetailsSnapshotKey, selectedOrderKey])
 
   // 출고 창고
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
@@ -338,8 +364,11 @@ export function MergeConvertDialog({
   // 에러 메시지
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  /** 거래처 전환은 이전 거래처의 병합 wizard 상태를 전부 폐기한다. */
+  /** 같은 거래처 재선택은 전환이 아니므로 진행 중인 wizard 입력을 보존한다. */
   const handlePartnerChange = (partner: PartnerOption | null) => {
+    const samePartner = partner?.id === selectedPartner?.id && partner?.partnerCode === selectedPartner?.partnerCode
+    if (samePartner) return
+
     setSelectedPartner(partner)
     setPartnerSearchError(null)
     setSelectedOrders([])
@@ -361,10 +390,7 @@ export function MergeConvertDialog({
       'memo',
     ]
     for (const key of keys) {
-      const values = orderDetails
-        .filter(Boolean)
-        .map((d) => extractShippingFieldValue(d!, key))
-        .filter((v) => v !== '')
+      const values = orderDetails.map((d) => extractShippingFieldValue(d, key))
       const uniqueValues = new Set(values)
       if (uniqueValues.size > 1) {
         conflictFields.push(key)
@@ -439,12 +465,12 @@ export function MergeConvertDialog({
           const items = detail.lines
             .filter((line) => {
               const remaining = line.quantity - (line.convertedQuantity ?? 0)
-              const qty = qtyMap[`${oi}-${line.lineId}`] ?? 0
+              const qty = qtyMap[`${detail.orderNumber}-${line.lineId}`] ?? 0
               return remaining > 0 && qty > 0
             })
             .map((line) => ({
               orderLineId: line.lineId,
-              quantity: qtyMap[`${oi}-${line.lineId}`]!,
+                quantity: qtyMap[`${detail.orderNumber}-${line.lineId}`]!,
             }))
           if (items.length === 0) return null
           return {
@@ -469,6 +495,9 @@ export function MergeConvertDialog({
         const respData = error.response?.data as Record<string, unknown> | undefined
         const beMessage = respData?.['message'] as string | undefined
         if (error.response?.status === 409) {
+          // 다른 사용자의 부분전환으로 잔여수량이 바뀐 경우, 5분 캐시를 기다리지 않고
+          // 각 주문 상세를 즉시 재조회해 입력 상한과 표를 실제 상태로 회복한다.
+          void Promise.all(orderDetailsQueries.map((query) => query.refetch()))
           if (beMessage?.includes('같은 거래처')) {
             setErrorMessage('병합은 같은 거래처 주문만 가능합니다. 선택을 다시 확인해 주세요.')
             return
@@ -701,10 +730,9 @@ export function MergeConvertDialog({
               ⚠ 아래 필드는 주문마다 값이 다릅니다. 최종 판매전표에 기록될 값을 선택하세요.
             </div>
             {conflictFields.map((key) => {
-              const orderValues = orderDetails
-                .filter(Boolean)
-                .map((d) => extractShippingFieldValue(d!, key))
-                .filter((v) => v !== '')
+              const orderValueEntries = orderDetails
+                .map((detail) => ({ orderNumber: detail.orderNumber, value: extractShippingFieldValue(detail, key) }))
+                .filter((entry) => entry.value !== '')
               const selectedVal = shippingFields[key]
               const isCustomSelected = selectedVal === '__custom__'
               return (
@@ -728,11 +756,10 @@ export function MergeConvertDialog({
                   </div>
                   {/* 주문별 값 라디오 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {orderValues.map((val, vi) => {
-                      const orderNo = orderDetails.filter(Boolean)[vi]?.orderNumber ?? `#${vi + 1}`
+                    {orderValueEntries.map(({ orderNumber: orderNo, value: val }) => {
                       return (
                         <label
-                          key={`${key}-radio-${val}`}
+                          key={`${key}-radio-${orderNo}`}
                           style={{
                             display: 'flex',
                             alignItems: 'flex-start',
@@ -874,7 +901,7 @@ export function MergeConvertDialog({
                       <tbody>
                         {detail.lines.map((line, li) => {
                           const remaining = line.quantity - (line.convertedQuantity ?? 0)
-                          const qtyKey = `${oi}-${line.lineId}`
+                          const qtyKey = `${detail.orderNumber}-${line.lineId}`
                           const currentQty = qtyMap[qtyKey] ?? 0
                           const disabled = remaining <= 0 || mergeMutation.isPending
                           return (
