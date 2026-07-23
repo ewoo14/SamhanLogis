@@ -1,0 +1,51 @@
+#907 게이트③ — 주문 병합 "성공" 경로 라이브 QA 원시 증거 로그
+================================================================
+대상 SHA: cb05d8839 (코드동일 37441579b) · 브랜치 feat/867-s7-order-merge-partner-first
+실서버: http://localhost:8080 (게이트웨이) · 계정: dev_master(MASTER) · 렌더러: vite :5300 (mock OFF)
+배포 BE 검증: partner-order-service app.jar 클래스에 mergeEligible / mergeIneligibilityReason /
+             partnerIdExact / PARTNER_ORDER_MERGE_CONVERT 존재 확인. slip-service publishFromOrdersMerge 존재.
+             cb05d8839 의 유일한 BE 델타(slip 검색 escape)는 병합 경로 무관 → running BE = 병합경로 코드동일.
+
+[FIXTURE] SQL 직접시드(마커 OPUS907MERGE-QA) — 같은 거래처 P-2026-0009(대전공조테크,
+          partner_id=6483a585-7a1a-3864-ab1d-501b785fbfbb) 적격 DRAFT 주문 2건
+  ORDER_A id=6095b16d-916d-40b7-923a-571b930ce123  order_no=2026/07/24-901  line=AM040BNNDEH-65 qty5 @1,440,000
+  ORDER_B id=94a8c927-0394-496e-a68c-594d444ccd4f  order_no=2026/07/24-902  line=AM030BNNDEH-64 qty3 @1,080,000
+
+[MERGE 응답] POST /api/v1/partner-orders/convert-to-slip-merge  (실 UI 발행)
+  HTTP 200 {"success":true,"data":{"slipNo":"2026/07/24-1","convertedOrders":[
+    {"orderNo":"2026/07/24-901","orderStatus":"CONVERTED","fullyConverted":true},
+    {"orderNo":"2026/07/24-902","orderStatus":"CONVERTED","fullyConverted":true}]}}
+  성공 토스트: "판매전표 2026/07/24-1 발행 완료 — 2개 주문 병합 전환"
+
+[병합 후 DB]
+  partner_orders : 901→CONVERTED, 902→CONVERTED
+  partner_order_lines converted_quantity : AM040BNNDEH-65=5(=주문5), AM030BNNDEH-64=3(=주문3)  → 전량 전환
+  slips : slip_no=2026/07/24-1 (OUTBOUND, SENT, source_type=PARTNER_ORDER, source_id=ORDER_A, partner_id=P-2026-0009)
+  slip_lines : 2행 (AM040BNNDEH-65 qty5 / AM030BNNDEH-64 qty3) — 두 주문 라인이 1전표로 병합(수량/라인 합산)
+  slip_source_orders : 2행 (901, 902) — N:1 병합 관계 기록
+  slip_publish_audit : 1행
+  stock_balances : X(ead3297d) avail 498→493 reserved 0→5 ver4→5 · Y(198b917b) avail 491→488 reserved 0→3 ver0→1
+  stock_movements : RESERVE 2행 ref_id=344f1aeb-1f0a-3cd6-81e1-403190942387 (X qty5, Y qty3)
+
+[FAIL-CLOSED 음성 대조] 화면·API 동시확인
+  merge-convert-order-candidate-summary : "2건 후보 · 동일 거래처 주문만 선택할 수 있습니다. 117건은 병합에서 제외됨"
+  merge-convert-order-ineligible-reason : "기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다. 단건 전표 발행은 계속할 수 있습니다."
+  legacy(partner_id NULL) 주문(예 2026/06/08-1968)은 후보 option 으로 미노출(toHaveCount 0)
+  API: partnerCode=P-2026-0009&partnerIdExact=... → 생성 후 eligible=2 / ineligible(legacy)=118
+
+[원상복구 delete/update 카운트]
+  slip_db  : slip_publish_audit -1, slip_source_orders -2, slip_lines -2, slips -1, slip_number_sequences(2026-07-24 OUTBOUND) -1
+  inventory: stock_movements -2 (ref_id 344f1aeb...), stock_balances UPDATE X, UPDATE Y → BEFORE 스냅샷 이미지로 복원
+  partner  : partner_order_lines -2, partner_orders -2 (marker)
+
+[원복 증명] restore-proof-BEFORE.txt == restore-proof-AFTER.txt (전 항목 동일)
+  po_all=2020 · pol_all=2052 · poh=5967 · audit_logs=23 · revisions=2002 · MARKER=0
+  po_hash_nomarker a869805214f1f936b055defa14a41d38 (동일) · pol_hash_nomarker 55ba1947dbf9db40abd92717de42d631 (동일)
+  stock_movements=24 · sb_wholetable_hash 6798b3a251f2b12f0fbddce26d4f8bbb (동일)
+  stock_balances X=498|0|498|4|2026-07-05 12:26:52.399678|0000..  Y=491|0|491|0|NULL|NULL  (BEFORE=AFTER)
+  slips=2288 · slip_lines=2916 · slip_source_orders=6 · slip_publish_audit=16 (동일)
+  잔재 sweep: slips 2026/07/24=0, seq 2026-07-24=0, my ref_id movement=0, OPUS907 marker(orders/lines/history)=0,
+             accounting journals 내 내 slip 참조=0 (회계 fan-out 없음)
+
+주: 시드 product_name 은 파이프 인코딩 안전을 위해 ASCII("samsung DVM-S 4HP/3HP") 사용 — 병합 식별자
+    model_name(AM040BNNDEH-65/AM030BNNDEH-64)은 실제값이며 lookupByModel 로 정상 해소됨(전표 라인 생성 성공).

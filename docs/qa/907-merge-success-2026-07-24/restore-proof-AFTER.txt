@@ -1,0 +1,25 @@
+################ SNAPSHOT: after-restore @ 2026-07-23T21:22:56Z ################
+---- partner_order_db ----
+po_active_count|2020
+po_all_count|2020
+pol_all_count|2052
+poh_count|5967
+audit_logs_count|23
+revisions_count|2002
+outbox_count|0
+MARKER_orders|0
+po_hash_nomarker|a869805214f1f936b055defa14a41d38
+pol_hash_nomarker|55ba1947dbf9db40abd92717de42d631
+---- inventory_db (X=32dc2a93-1ff8-374a-98c7-be95246797bf Y=5e73dd20-6abd-3456-bb8d-56dacf288de3) ----
+sm_all_count|24
+sm_merge_ref_count|7
+sb_wholetable_hash|6798b3a251f2b12f0fbddce26d4f8bbb
+-- affected stock_balances rows image --
+32dc2a93-1ff8-374a-98c7-be95246797bf|498|0|498|4|2026-07-05 12:26:52.399678|00000000-0000-0000-0000-000000000000
+5e73dd20-6abd-3456-bb8d-56dacf288de3|491|0|491|0|NULL|NULL
+---- slip_db ----
+slips_count|2288
+slip_lines_count|2916
+slip_source_orders_count|6
+slip_publish_audit_count|16
+################ END after-restore ################
