@@ -285,7 +285,8 @@ class PartnerOrderRevisionServiceTest {
                     UUID.randomUUID(), "MODEL-ORIG", "원본상품", "homemulti",
                     2, new BigDecimal("100000.00"), "원본비고");
             PartnerOrderSnapshot snapshot = new PartnerOrderSnapshot(
-                    order.getOrderNo(), "ORIG-PC", "ORIG-BIZ",
+                    order.getOrderNo(), UUID.fromString("00000000-0000-0000-0000-000000000902"),
+                    "ORIG-PC", "ORIG-BIZ",
                     PartnerOrderStatus.DRAFT, null, null,
                     new BigDecimal("200000.00"), null, null,
                     null, "원본메모", null, 0,
@@ -307,6 +308,8 @@ class PartnerOrderRevisionServiceTest {
             // then — 헤더 복원 확인
             assertThat(result.order().getPartnerCode()).isEqualTo("ORIG-PC");
             assertThat(result.order().getBizCode()).isEqualTo("ORIG-BIZ");
+            assertThat(result.order().getPartnerId())
+                    .isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000902"));
             assertThat(result.order().getMemo()).isEqualTo("원본메모");
             // DRAFT 복원은 slipResyncRequired=false
             assertThat(result.slipResyncRequired()).isFalse();

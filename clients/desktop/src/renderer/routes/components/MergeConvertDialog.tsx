@@ -237,9 +237,21 @@ export function MergeConvertDialog({
 
   const candidateOrders = useMemo(
     () => (candidateOrdersQuery.data?.content ?? []).filter((order) =>
-      !order.isDeleted && MERGE_SELECTABLE_STATUS.has(order.status),
+      !order.isDeleted && order.mergeEligible !== false && MERGE_SELECTABLE_STATUS.has(order.status),
     ),
     [candidateOrdersQuery.data?.content],
+  )
+
+  const ineligibleOrders = useMemo(
+    () => (candidateOrdersQuery.data?.content ?? []).filter((order) =>
+      !order.isDeleted && order.mergeEligible === false && MERGE_SELECTABLE_STATUS.has(order.status),
+    ),
+    [candidateOrdersQuery.data?.content],
+  )
+
+  const ineligibilityReasons = useMemo(
+    () => [...new Set(ineligibleOrders.map((order) => order.mergeIneligibilityReason).filter(Boolean))],
+    [ineligibleOrders],
   )
 
   const handlePartnerChange = (partner: PartnerOption | null) => {
@@ -585,9 +597,20 @@ export function MergeConvertDialog({
                 선택 거래처의 주문 후보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
               </div>
             ) : candidateOrders.length === 0 ? (
-              <div data-testid="merge-convert-order-candidates-empty">
-                선택 거래처에 병합 가능한 진행중·보류 주문이 없습니다.
-              </div>
+              <>
+                <div data-testid="merge-convert-order-candidates-empty">
+                  선택 거래처에 병합 가능한 진행중·보류 주문이 없습니다.
+                </div>
+                {ineligibilityReasons.length > 0 ? (
+                  <div
+                    role="status"
+                    data-testid="merge-convert-order-ineligible-reason"
+                    style={{ marginTop: 6, color: 'var(--color-warning-700, #8a5a00)' }}
+                  >
+                    {ineligibilityReasons.join(' ')}
+                  </div>
+                ) : null}
+              </>
             ) : (
               <>
                 <span data-testid="merge-convert-selected-order-count">
@@ -605,11 +628,21 @@ export function MergeConvertDialog({
                 />
               </>
             )}
+            {candidateOrders.length > 0 && ineligibilityReasons.length > 0 ? (
+              <div
+                role="status"
+                data-testid="merge-convert-order-ineligible-reason"
+                style={{ marginTop: 6, color: 'var(--color-warning-700, #8a5a00)' }}
+              >
+                {ineligibilityReasons.join(' ')}
+              </div>
+            ) : null}
             <p
               data-testid="merge-convert-order-candidate-summary"
               style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--color-neutral-600)' }}
             >
               {candidateOrders.length}건 후보 · 동일 거래처 주문만 선택할 수 있습니다.
+              {ineligibleOrders.length > 0 ? ` ${ineligibleOrders.length}건은 병합에서 제외됨` : ''}
             </p>
           </div>
         ) : null}

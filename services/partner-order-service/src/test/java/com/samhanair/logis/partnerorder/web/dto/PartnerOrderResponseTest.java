@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.samhanair.logis.partnerorder.domain.PartnerOrder;
 import com.samhanair.logis.partnerorder.domain.SlipPublishStatus;
 import java.math.BigDecimal;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** 주문 상세·목록 응답이 전표 발행 상태를 동일하게 보존하는지 검증한다. */
@@ -25,6 +26,20 @@ class PartnerOrderResponseTest {
 
         order.markSlipPublished("2026/07/20-854");
         assertStatus(order, SlipPublishStatus.PUBLISHED);
+    }
+
+    @Test
+    void legacySummary_isMarkedIneligibleWithoutExposingUuid() {
+        PartnerOrder legacy = PartnerOrder.createFromConfirm(
+                "P-LEGACY", "123-45-67890", "PO-LEGACY", "idem-legacy", BigDecimal.TEN);
+
+        PartnerOrderSummaryResponse summary = PartnerOrderSummaryResponse.from(legacy);
+
+        assertThat(summary.mergeEligible()).isFalse();
+        assertThat(summary.mergeIneligibilityReason())
+                .contains("병합할 수 없습니다")
+                .contains("단건 전표 발행");
+        assertThat(summary.mergeIneligibilityReason()).doesNotContain(UUID.randomUUID().toString());
     }
 
     private void assertStatus(PartnerOrder order, SlipPublishStatus expected) {

@@ -104,7 +104,7 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
                     String partnerCode = invocation.getArgument(0);
                     return Optional.of(new PartnerSummary(
                             UUID.nameUUIDFromBytes(partnerCode.getBytes(StandardCharsets.UTF_8)),
-                            partnerCode, null, null));
+                            partnerCode, null, "1010101010"));
                 });
     }
 

@@ -58,6 +58,8 @@ class PartnerOrderConvertApprovalEnforcementIT extends AbstractPostgresIT {
             UUID.fromString("50000000-0000-0000-0000-000000000001");
     private static final UUID APPROVER_USER =
             UUID.fromString("50000000-0000-0000-0000-000000000002");
+    private static final UUID FIXTURE_PARTNER_ID =
+            UUID.fromString("00000000-0000-0000-0000-000000000104");
 
     @Autowired private MockMvc mockMvc;
     @Autowired private PartnerOrderRepository orderRepository;
@@ -234,20 +236,20 @@ class PartnerOrderConvertApprovalEnforcementIT extends AbstractPostgresIT {
     private void insertOrderWithLine(UUID orderId, UUID lineId, String orderNo, int quantity) {
         jdbcTemplate.update("""
                 INSERT INTO partner_orders
-                  (id, partner_code, biz_code, order_no, slip_no, status,
+                  (id, partner_id, partner_code, biz_code, order_no, slip_no, status,
                    slip_publish_status, total_amount, confirmed_at, slip_published_at,
                    due_date, memo, source_estimate_id, revision_count,
                    idempotency_key, lock_version,
                    created_at, created_by, modified_at, modified_by,
                    is_deleted, deleted_at, deleted_by)
                 VALUES
-                  (?, 'A2-4-PARTNER', '1234567890', ?, NULL, 'DRAFT',
+                  (?, ?, 'A2-4-PARTNER', '1234567890', ?, NULL, 'DRAFT',
                    'NOT_REQUIRED', 0, NULL, NULL,
                    NULL, NULL, NULL, 0,
                    ?, 0,
                    NOW(), 'test', NOW(), 'test',
                    FALSE, NULL, NULL)
-                """, orderId, orderNo, "idem-" + orderNo);
+                """, orderId, FIXTURE_PARTNER_ID, orderNo, "idem-" + orderNo);
 
         jdbcTemplate.update("""
                 INSERT INTO partner_order_lines

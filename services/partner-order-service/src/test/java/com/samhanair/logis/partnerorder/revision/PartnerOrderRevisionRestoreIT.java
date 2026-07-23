@@ -163,9 +163,20 @@ class PartnerOrderRevisionRestoreIT extends AbstractPostgresIT {
                 .thenAnswer(invocation -> Optional.of(new com.samhanair.logis.partnerorder.vendor.client.PartnerSummary(
                         UUID.nameUUIDFromBytes(invocation.getArgument(0, String.class)
                                 .getBytes(StandardCharsets.UTF_8)),
-                        invocation.getArgument(0, String.class), null, null)));
+                        invocation.getArgument(0, String.class), null,
+                        businessNoFor(invocation.getArgument(0, String.class)) )));
         // InventoryClient.reserve(UUID, UUID, int) 는 concrete class — 직접 stub 하지 않음.
         // confirm 흐름 IT 에서만 필요하므로 각 케이스에서 개별 stub (본 IT 는 confirm 경로 미사용).
+    }
+
+    private String businessNoFor(String partnerCode) {
+        return switch (partnerCode) {
+            case "P-EDITED" -> "0987654321";
+            case "P-AFTER-EDIT", "P-EDIT-CASE8" -> "1111111111";
+            case "P-CASE9-EDITED" -> "9999999999";
+            case "P-MONO-TEST" -> "1122334455";
+            default -> "1234567890";
+        };
     }
 
     // ══════════════════════════════════════════════════════════════════════════

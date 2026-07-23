@@ -139,8 +139,8 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
 
     @Test
     @WithMockUser(roles = {"SALES"})
-    @DisplayName("I7: exact code+사업자번호 legacy 주문은 partner UUID를 해석해 병합")
-    void legacyOrderWithExactPartnerSnapshot_isMergeable() throws Exception {
+    @DisplayName("I7': exact code+사업자번호 legacy 주문은 병합 후보에서 제외")
+    void legacyOrderWithExactPartnerSnapshot_isExcludedFromMerge() throws Exception {
         UUID orderId = UUID.randomUUID();
         UUID lineId = UUID.randomUUID();
         String partnerCode = "LEGACY-EXACT-OK";
@@ -163,10 +163,12 @@ class PartnerOrderMergeConvertIT extends AbstractPostgresIT {
                         .header("X-User-Id", SALES_ACCOUNT_ID)
                         .header("X-User-Role", "SALES")
                         .header("X-User-Name", "영업담당자"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.slipNo").value(STUB_SLIP_NO));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value(
+                        "거래처 정체성이 확인되지 않은 기존 주문은 병합할 수 없습니다. "
+                                + "거래처 재조정 후 다시 시도해 주세요."));
 
-        verify(slipServiceClient).publishFromOrdersMerge(any(), anyString());
+        verify(slipServiceClient, never()).publishFromOrdersMerge(any(), anyString());
     }
 
     // ══════════════════════════════════════════════════════════════════════════

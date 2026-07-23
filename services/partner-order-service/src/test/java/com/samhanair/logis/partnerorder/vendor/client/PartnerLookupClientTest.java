@@ -11,13 +11,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.Optional;
 import java.util.UUID;
+import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient.Builder;
 import org.springframework.web.client.RestClient;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.RETURNS_SELF;
 
 /**
  * PartnerLookupClient (vendor) RestClient 계약테스트 — partner-service 실 수신 DTO
@@ -41,9 +53,9 @@ class PartnerLookupClientTest {
 
     @BeforeEach
     void setUp() {
-        RestClient.Builder builder = RestClient.builder();
-        server = MockRestServiceServer.bindTo(builder).build();
-        client = new PartnerLookupClient(builder, props(TOKEN), new ObjectMapper());
+        RestClient.Builder delegate = RestClient.builder();
+        server = MockRestServiceServer.bindTo(delegate).build();
+        client = new PartnerLookupClient(mockBoundBuilder(delegate), props(TOKEN), new ObjectMapper());
     }
 
     @Test
@@ -86,13 +98,55 @@ class PartnerLookupClientTest {
     void findByPartnerCode_blank_토큰이면_HTTP_호출없이_empty를_반환한다() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer blankServer = MockRestServiceServer.bindTo(builder).build();
-        PartnerLookupClient blankClient = new PartnerLookupClient(builder, props(" "), new ObjectMapper());
+        PartnerLookupClient blankClient = new PartnerLookupClient(mockBoundBuilder(builder), props(" "),
+                new ObjectMapper());
 
         // 등록된 expectation 없음 — 본 client 는 fail-soft 이므로 blank token 이면 예외 없이 empty 만
         // 반환해야 하고, HTTP 호출은 실제 시도되지 않아야 한다(시도 시 MockRestServiceServer 가
         // AssertionError 로 노출).
         assertThat(blankClient.findByPartnerCode(PARTNER_CODE)).isEmpty();
         blankServer.verify();
+    }
+
+    @Test
+    void identityClient_uses_bounded_connect_and_read_timeouts() throws Exception {
+        Builder builder = mock(Builder.class, RETURNS_SELF);
+        when(builder.clone()).thenReturn(builder);
+        when(builder.build()).thenReturn(RestClient.builder().build());
+
+        new PartnerLookupClient(builder, props(TOKEN), new ObjectMapper());
+
+        ArgumentCaptor<ClientHttpRequestFactory> factoryCaptor =
+                ArgumentCaptor.forClass(ClientHttpRequestFactory.class);
+        verify(builder).requestFactory(factoryCaptor.capture());
+        assertThat(factoryCaptor.getValue()).isInstanceOf(SimpleClientHttpRequestFactory.class);
+        SimpleClientHttpRequestFactory factory = (SimpleClientHttpRequestFactory) factoryCaptor.getValue();
+        assertThat(readTimeout(factory, "connectTimeout")).isEqualTo(2000);
+        assertThat(readTimeout(factory, "readTimeout")).isEqualTo(5000);
+    }
+
+    private static int readTimeout(SimpleClientHttpRequestFactory factory, String fieldName)
+            throws ReflectiveOperationException {
+        Field field = SimpleClientHttpRequestFactory.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.getInt(factory);
+    }
+
+    /** MockRestServiceServer 바인딩을 보존하면서 실제 빌더의 timeout factory는 캡처한다. */
+    private static RestClient.Builder mockBoundBuilder(RestClient.Builder delegate) {
+        return (RestClient.Builder) Proxy.newProxyInstance(
+                RestClient.Builder.class.getClassLoader(),
+                new Class<?>[]{RestClient.Builder.class},
+                (proxy, method, args) -> {
+                    if ("clone".equals(method.getName()) && method.getParameterCount() == 0) {
+                        return proxy;
+                    }
+                    if ("requestFactory".equals(method.getName()) && method.getParameterCount() == 1) {
+                        return proxy;
+                    }
+                    Object result = method.invoke(delegate, args == null ? new Object[0] : args);
+                    return result == delegate ? proxy : result;
+                });
     }
 
     private static InternalAuthProperties props(String token) {

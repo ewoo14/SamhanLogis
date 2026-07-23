@@ -142,8 +142,8 @@ class PartnerOrderMergeConvertServiceTest {
     }
 
     @Test
-    @DisplayName("케이스1b: 정체성을 단정할 수 있는 legacy 주문은 현재 거래처 UUID로 병합 가능")
-    void legacyOrderWithExactPartnerSnapshot_canMerge() throws Exception {
+    @DisplayName("케이스1b: legacy 주문은 현재 스냅샷 일치만으로 병합하지 않는다")
+    void legacyOrderWithExactPartnerSnapshot_isExcludedFromMerge() throws Exception {
         UUID orderId = UUID.randomUUID();
         UUID lineId = UUID.randomUUID();
         String partnerCode = "P-LEGACY-EXACT";
@@ -152,8 +152,6 @@ class PartnerOrderMergeConvertServiceTest {
         PartnerOrder legacyOrder = buildOrder(orderId, partnerCode, lineId, 5, orderNo);
         setField(legacyOrder, "partnerId", null);
 
-        when(partnerIdentityResolver.requireLegacyPartnerId(partnerCode, bizCode))
-                .thenReturn(DEFAULT_PARTNER_ID);
         when(orderRepository.findByOrderNo(orderNo)).thenReturn(Optional.of(legacyOrder));
 
         MergeConvertToSlipRequest req = new MergeConvertToSlipRequest(
@@ -161,11 +159,16 @@ class PartnerOrderMergeConvertServiceTest {
                         List.of(new MergeConvertToSlipRequest.Item(lineId, 2)))),
                 "WH-001", null);
 
-        MergeConvertResultResponse result = service.convertMerge(req, null, null);
-
-        assertThat(result.slipNo()).isEqualTo(STUB_SLIP_NO);
-        verify(partnerIdentityResolver).requireLegacyPartnerId(partnerCode, bizCode);
-        verify(slipServiceClient).publishFromOrdersMerge(any(), anyString());
+        assertThatThrownBy(() -> service.convertMerge(req, null, null))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(e -> {
+                    ResponseStatusException rse = (ResponseStatusException) e;
+                    assertThat(rse.getStatusCode().value()).isEqualTo(409);
+                    assertThat(rse.getReason()).contains("기존 주문");
+                });
+        verifyNoInteractions(partnerIdentityResolver);
+        verifyNoInteractions(slipServiceClient);
+        verify(inventoryClient, never()).reserve(any(), any(), anyInt(), anyString(), any());
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

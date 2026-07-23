@@ -60,6 +60,7 @@ class PartnerOrderSnapshotTest {
 
         // then — 헤더 필드 일치
         assertThat(restored.orderNo()).isEqualTo("2026/05/30-1");
+        assertThat(json).contains("\"partnerId\"");
         assertThat(restored.partnerCode()).isEqualTo("GS01");
         assertThat(restored.bizCode()).isEqualTo("1234567890");
         assertThat(restored.status()).isEqualTo(PartnerOrderStatus.DRAFT);
@@ -140,6 +141,19 @@ class PartnerOrderSnapshotTest {
         assertThat(restored.sourceEstimateId()).isEqualTo(estimateId);
     }
 
+    @Test
+    @DisplayName("거래처 코드 수정 시 이전 partnerId를 그대로 보존하지 않음")
+    void updateHeader_partnerIdentityCannotRemainStale() {
+        UUID originalPartnerId = UUID.fromString("00000000-0000-0000-0000-000000000901");
+        PartnerOrder order = PartnerOrder.createFromConfirm(
+                originalPartnerId, "P-ORIGINAL", "1234567890", "2026/05/30-4",
+                "idem-2026-05-30-4", BigDecimal.ZERO);
+
+        order.updateHeader("P-CHANGED", "9999999999", null, null);
+
+        assertThat(order.getPartnerId()).isNotEqualTo(originalPartnerId);
+    }
+
     // ── 헬퍼 ─────────────────────────────────────────────────────────────────
 
     /**
@@ -153,6 +167,8 @@ class PartnerOrderSnapshotTest {
                 UUID.randomUUID(), null, null);
         // id 세팅 (UUID)
         ReflectionTestUtils.setField(order, "id", UUID.randomUUID());
+        ReflectionTestUtils.setField(order, "partnerId",
+                UUID.fromString("00000000-0000-0000-0000-000000000901"));
         return order;
     }
 

@@ -102,8 +102,20 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                     String partnerCode = invocation.getArgument(0);
                     return Optional.of(new PartnerSummary(
                             UUID.nameUUIDFromBytes(partnerCode.getBytes(StandardCharsets.UTF_8)),
-                            partnerCode, null, null));
+                            partnerCode, null, businessNoFor(partnerCode)));
                 });
+    }
+
+    private String businessNoFor(String partnerCode) {
+        return switch (partnerCode) {
+            case "P-DRAFT", "P-DC", "P-FS" -> "1234567890";
+            case "P-NOOUTBOX" -> "9876543210";
+            case "P-IDEM2" -> "1111111111";
+            case "P-REVISION" -> "2222222222";
+            case "P-HISTORY" -> "3333333333";
+            case "P-PARTIAL" -> "5555555555";
+            default -> "1234567890";
+        };
     }
 
     @Test

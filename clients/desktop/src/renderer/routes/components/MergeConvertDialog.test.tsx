@@ -168,4 +168,30 @@ describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
     expect(screen.queryByTestId('merge-convert-order-candidate-2026/07/23-A')).toBeNull()
     expect(screen.getByTestId('merge-convert-selected-order-count').textContent).toContain('0건 선택됨')
   })
+
+  it('legacy 주문은 병합 후보에서 제외하고 단건 발행 안내 사유를 한국어로 표시한다', async () => {
+    mocks.searchPartners.mockResolvedValue([PARTNER_A])
+    mocks.listPartnerOrders.mockResolvedValue({
+      content: [order({
+        orderNumber: '2026/07/23-LEGACY',
+        mergeEligible: false,
+        mergeIneligibilityReason:
+          '기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다. 단건 전표 발행은 계속할 수 있습니다.',
+      })],
+      totalElements: 1,
+    })
+    mocks.listWarehouses.mockResolvedValue([])
+
+    renderDialog()
+    fireEvent.click(screen.getByTestId('merge-convert-partner-a'))
+
+    expect((await screen.findByTestId('merge-convert-order-candidates-empty')).textContent).toContain(
+      '병합 가능한 진행중·보류 주문이 없습니다',
+    )
+    expect(screen.getByTestId('merge-convert-order-ineligible-reason').textContent).toContain(
+      '기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다',
+    )
+    expect(screen.getByTestId('merge-convert-order-ineligible-reason').textContent).toContain('단건 전표 발행')
+    expect(screen.queryByTestId('merge-convert-order-option-2026/07/23-LEGACY')).toBeNull()
+  })
 })

@@ -441,6 +441,10 @@ export interface PartnerOrderSummary {
   deletedAt?: string | null
   /** 삭제자 표시명. UUID 는 BE 에서 정제되어 null 로 온다. */
   deletedByName?: string | null
+  /** partnerId가 없는 legacy 주문은 병합 후보에서 제외한다. */
+  mergeEligible?: boolean
+  /** 병합 제외 사유. UUID는 포함하지 않는다. */
+  mergeIneligibilityReason?: string | null
 }
 
 /** 주문 라인 — Bundle EXPAND/KEEP 결과 표시. Phase 2.6a: lineId/convertedQuantity 추가. Phase 2.6d: productId 추가. */
@@ -686,6 +690,8 @@ function normalizePartnerOrderSummary(raw: RawPartnerOrderSummary): PartnerOrder
     isDeleted: raw.isDeleted === true,
     deletedAt: raw.deletedAt ?? null,
     deletedByName: raw.deletedByName ?? null,
+    mergeEligible: raw.mergeEligible,
+    mergeIneligibilityReason: raw.mergeIneligibilityReason ?? null,
   }
 }
 

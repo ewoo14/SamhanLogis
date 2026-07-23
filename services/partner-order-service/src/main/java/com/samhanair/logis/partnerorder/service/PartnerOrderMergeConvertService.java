@@ -77,14 +77,13 @@ public class PartnerOrderMergeConvertService {
     private final InventoryClient inventoryClient;
     private final ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
-    private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
 
     /**
      * 여러 주문의 선택 라인을 단일 출고전표로 병합 발행한다 (Phase 2.6b D2).
      *
-     * <p>같은 거래처 UUID({@code partnerId}) 주문만 병합 가능. 신규 주문은 저장된 UUID를
-     * 사용하고, legacy의 NULL UUID는 코드+사업자번호 exact lookup이 성공할 때만 일시 해석한다.
-     * 해석 불가 행은 slip/reserve 호출 없이 409 CONFLICT로 드러낸다.
+     * <p>같은 거래처 UUID({@code partnerId}) 주문만 병합 가능. legacy의 NULL UUID는
+     * 과거 거래처 정체성을 확인할 수 없으므로 현재 snapshot과 일치하더라도 병합 후보에서 제외한다.
+     * 단건 전환 경로는 별도 서비스에서 계속 사용할 수 있다.
      *
      * <p>한 라인이라도 가용 부족(reserve 409) 또는 slip 발행 실패 시 전체 409 + 예약 성공분 release 보상.
      * 성공 시 각 주문 라인 convertedQuantity 누적 + 전량 전환 주문 CONVERTED 상태 갱신.
@@ -122,22 +121,6 @@ public class PartnerOrderMergeConvertService {
                             ErrorCode.PARTNER_ORDER_NOT_FOUND.getDefaultMessage()));
             order.requireConvertible();
             UUID orderPartnerId = order.getPartnerId();
-            if (orderPartnerId == null) {
-                try {
-                    // I7: V13은 과거 행을 자동 backfill하지 않지만, 코드+사업자번호가 현재
-                    // 거래처 snapshot과 정확히 일치하는 단정 가능한 행은 병합을 막지 않는다.
-                    // 코드 재사용으로 pair가 달라진 행은 resolver가 INVALID_INPUT을 내고
-                    // 아래 409 안전망으로 드러낸다.
-                    UUID resolvedLegacyPartnerId = partnerIdentityResolver.requireLegacyPartnerId(
-                            order.getPartnerCode(), order.getBizCode());
-                    orderPartnerId = resolvedLegacyPartnerId;
-                } catch (BusinessException ex) {
-                    if (ex.getErrorCode() == ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE) {
-                        throw ex;
-                    }
-                    throw unresolvedLegacyPartnerConflict();
-                }
-            }
             if (orderPartnerId == null) {
                 throw unresolvedLegacyPartnerConflict();
             }

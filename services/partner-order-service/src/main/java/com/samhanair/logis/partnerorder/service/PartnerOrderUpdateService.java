@@ -62,6 +62,7 @@ public class PartnerOrderUpdateService {
     private final PartnerOrderAuditLogService auditLogService;
     private final PartnerOrderRevisionService revisionService;
     private final PartnerOrderBoardChangePublisher boardChangePublisher;
+    private final PartnerOrderPartnerIdentityResolver partnerIdentityResolver;
 
     /**
      * 주문 헤더와 라인을 즉시 수정한다.
@@ -87,7 +88,15 @@ public class PartnerOrderUpdateService {
             return PartnerOrderDetailResponse.from(order);
         }
         try {
-            order.updateHeader(request.partnerCode(), request.bizCode(), request.dueDate(), request.memo());
+            UUID nextPartnerId = order.getPartnerId();
+            boolean partnerIdentityChanged = !Objects.equals(order.getPartnerCode(), request.partnerCode())
+                    || !Objects.equals(order.getBizCode(), request.bizCode());
+            if (partnerIdentityChanged && nextPartnerId != null) {
+                nextPartnerId = partnerIdentityResolver.requirePartnerId(
+                        request.partnerCode(), request.bizCode());
+            }
+            order.updateHeader(nextPartnerId, request.partnerCode(), request.bizCode(),
+                    request.dueDate(), request.memo());
             order.replaceLines(request.lines().stream().map(this::toLine).toList());
             PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 

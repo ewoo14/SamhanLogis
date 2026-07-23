@@ -3,12 +3,14 @@ package com.samhanair.logis.partnerorder.vendor.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
@@ -34,6 +36,8 @@ public class PartnerLookupClient {
     private static final Logger log = LoggerFactory.getLogger(PartnerLookupClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PARTNER_SERVICE_BASE = "http://partner-service";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
@@ -42,7 +46,16 @@ public class PartnerLookupClient {
     public PartnerLookupClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                InternalAuthProperties internalAuthProperties,
                                ObjectMapper objectMapper) {
-        this.restClient = builder.baseUrl(PARTNER_SERVICE_BASE).build();
+        // partner-service가 연결 후 응답을 멈춰도 주문 확정 트랜잭션을 장시간 점유하지 않도록
+        // 이 client에만 제한시간을 적용한다. 공유 LoadBalanced builder는 clone해 다른 외부
+        // client의 transport 설정을 변이시키지 않는다.
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
+        requestFactory.setReadTimeout((int) READ_TIMEOUT.toMillis());
+        this.restClient = builder.clone()
+                .baseUrl(PARTNER_SERVICE_BASE)
+                .requestFactory(requestFactory)
+                .build();
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
     }
@@ -115,6 +128,10 @@ public class PartnerLookupClient {
             if (result.isEmpty()) {
                 throw new PartnerLookupUnavailableException("partner-service 응답 본문이 유효하지 않음");
             }
+            if (result.get().businessNo() == null || result.get().businessNo().isBlank()) {
+                throw new PartnerLookupUnavailableException(
+                        "partner-service 응답에 businessNo(bizNo)가 없음");
+            }
             return result;
         } catch (RestClientResponseException ex) {
             if (ex.getStatusCode().value() == 404) {
@@ -152,12 +169,14 @@ public class PartnerLookupClient {
             if (data == null || data.isNull() || !data.isObject()) {
                 return Optional.empty();
             }
-            UUID partnerId = parseUuid(data, "partnerId", "id");
+             UUID partnerId = parseUuid(data, "partnerId", "id");
             String partnerCode = textOrNull(data, "partnerCode");
             String name = textOrNull(data, "name", "partnerName", "businessName");
             // 실 수신 필드명은 PartnerInternalResponse.bizNo 하나뿐 (존재하지 않는 별칭 나열 금지).
             String businessNo = textOrNull(data, "bizNo");
-            if (partnerCode == null || partnerCode.isBlank()) {
+             // partnerCode만 있는 응답은 거래처 정체성 계약을 충족하지 않는다. 이를 summary로
+             // 인정하면 caller가 400(입력오류) 또는 성공으로 잘못 분기할 수 있다.
+             if (partnerId == null || partnerCode == null || partnerCode.isBlank()) {
                 return Optional.empty();
             }
             return Optional.of(new PartnerSummary(partnerId, partnerCode, name, businessNo));

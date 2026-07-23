@@ -267,12 +267,22 @@ public class PartnerOrder extends BaseEntity {
      * @param memo 요청사항/메모
      */
     public void updateHeader(String partnerCode, String bizCode, LocalDate dueDate, String memo) {
+        UUID partnerId = java.util.Objects.equals(this.partnerCode, partnerCode)
+                && java.util.Objects.equals(this.bizCode, bizCode)
+                ? this.partnerId : null;
+        updateHeader(partnerId, partnerCode, bizCode, dueDate, memo);
+    }
+
+    /** 거래처 표시 snapshot과 함께 내부 거래처 UUID를 원자적으로 갱신한다. */
+    public void updateHeader(UUID partnerId, String partnerCode, String bizCode,
+                             LocalDate dueDate, String memo) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new IllegalArgumentException("partnerCode 필수");
         }
         if (bizCode == null || bizCode.isBlank()) {
             throw new IllegalArgumentException("bizCode 필수");
         }
+        this.partnerId = partnerId;
         this.partnerCode = partnerCode;
         this.bizCode = bizCode;
         this.dueDate = dueDate;
@@ -556,7 +566,13 @@ public class PartnerOrder extends BaseEntity {
      * @param memo        복원할 메모/요청사항
      */
     public void restoreHeader(String partnerCode, String bizCode, LocalDate dueDate, String memo) {
-        this.updateHeader(partnerCode, bizCode, dueDate, memo);
+        this.updateHeader(null, partnerCode, bizCode, dueDate, memo);
+    }
+
+    /** revision snapshot의 거래처 UUID까지 포함해 헤더를 복원한다. */
+    public void restoreHeader(UUID partnerId, String partnerCode, String bizCode,
+                              LocalDate dueDate, String memo) {
+        this.updateHeader(partnerId, partnerCode, bizCode, dueDate, memo);
     }
 
     /**

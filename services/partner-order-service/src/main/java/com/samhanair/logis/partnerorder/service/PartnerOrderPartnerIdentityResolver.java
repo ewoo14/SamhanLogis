@@ -34,27 +34,8 @@ public class PartnerOrderPartnerIdentityResolver {
         validateInput(partnerCode, bizCode);
         PartnerSummary summary = lookupSummary(partnerCode);
         if (summary.partnerId() == null
+                || summary.businessNo() == null || summary.businessNo().isBlank()
                 || !partnerCode.trim().equals(summary.partnerCode())
-                || (summary.businessNo() != null
-                && !sameBusinessNumber(bizCode, summary.businessNo()))) {
-            throw unresolved(partnerCode);
-        }
-        return summary.partnerId();
-    }
-
-    /**
-     * partner_id가 아직 없는 legacy 주문을 병합 직전에 보정 조회한다.
-     *
-     * <p>이 경로는 코드만 맞는 현재 거래처를 임의로 과거 주문에 각인하지 않도록 사업자번호도
-     * 반드시 현재 snapshot과 일치해야 한다. 따라서 exact pair를 확인할 수 있는 행만 통과하고,
-     * 코드 재사용으로 사업자번호가 달라진 행은 병합 안전망에서 409로 드러난다.
-     */
-    public UUID requireLegacyPartnerId(String partnerCode, String bizCode) {
-        validateInput(partnerCode, bizCode);
-        PartnerSummary summary = lookupSummary(partnerCode);
-        if (summary.partnerId() == null
-                || !partnerCode.trim().equals(summary.partnerCode())
-                || summary.businessNo() == null
                 || !sameBusinessNumber(bizCode, summary.businessNo())) {
             throw unresolved(partnerCode);
         }

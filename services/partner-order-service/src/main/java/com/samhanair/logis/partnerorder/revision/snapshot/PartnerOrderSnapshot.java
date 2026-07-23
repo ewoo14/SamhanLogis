@@ -29,6 +29,7 @@ import java.util.UUID;
  * <p>{@link com.samhanair.logis.slip.estimate.revision.domain.EstimateSnapshot} 미러.
  *
  * @param orderNo        주문번호 스냅샷 (YYYY/MM/DD-N 형식)
+ * @param partnerId      거래처 정체성 UUID (복원용, 화면 미노출)
  * @param partnerCode    거래처 코드
  * @param bizCode        사업자번호
  * @param status         주문 상태 (DRAFT/CONFIRMING/CONFIRMED/CANCELED)
@@ -45,8 +46,9 @@ import java.util.UUID;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record PartnerOrderSnapshot(
+    public record PartnerOrderSnapshot(
         String orderNo,
+        UUID partnerId,
         String partnerCode,
         String bizCode,
         PartnerOrderStatus status,
@@ -60,6 +62,17 @@ public record PartnerOrderSnapshot(
         UUID sourceEstimateId,
         int revisionCount,
         List<LineSnapshot> lines) {
+
+    /** partnerId 도입 전 legacy snapshot의 14개 인자 생성자 호환을 보존한다. */
+    public PartnerOrderSnapshot(String orderNo, String partnerCode, String bizCode,
+                                PartnerOrderStatus status, String slipNo,
+                                SlipPublishStatus slipPublishStatus, BigDecimal totalAmount,
+                                LocalDateTime confirmedAt, LocalDateTime slipPublishedAt,
+                                LocalDate dueDate, String memo, UUID sourceEstimateId,
+                                int revisionCount, List<LineSnapshot> lines) {
+        this(orderNo, null, partnerCode, bizCode, status, slipNo, slipPublishStatus, totalAmount,
+                confirmedAt, slipPublishedAt, dueDate, memo, sourceEstimateId, revisionCount, lines);
+    }
 
     /**
      * 거래처 주문 라인 1건의 스냅샷.
@@ -136,6 +149,7 @@ public record PartnerOrderSnapshot(
                 .toList();
         return new PartnerOrderSnapshot(
                 order.getOrderNo(),
+                order.getPartnerId(),
                 order.getPartnerCode(),
                 order.getBizCode(),
                 order.getStatus(),

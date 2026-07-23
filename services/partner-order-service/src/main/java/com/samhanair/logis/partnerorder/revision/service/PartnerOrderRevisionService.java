@@ -165,7 +165,7 @@ public class PartnerOrderRevisionService {
      *   <li>복원 결과를 RESTORE type revision 으로 capture</li>
      * </ol>
      *
-     * <p>헤더 역적용은 {@link PartnerOrder#restoreHeader(String, String, java.time.LocalDate, String)} 를 통해
+     * <p>헤더 역적용은 {@link PartnerOrder#restoreHeader(UUID, String, String, java.time.LocalDate, String)} 를 통해
      * 도메인 메서드를 사용하며, 직접 setter 호출은 금지한다.
      *
      * <p>라인 전량교체는 {@link PartnerOrder#replaceLines(List)} 를 재사용한다.
@@ -230,6 +230,7 @@ public class PartnerOrderRevisionService {
 
         // 헤더 도메인 메서드로 역적용 (직접 setter 금지)
         order.restoreHeader(
+                snapshot.partnerId(),
                 snapshot.partnerCode(),
                 snapshot.bizCode(),
                 snapshot.dueDate(),

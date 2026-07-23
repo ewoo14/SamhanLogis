@@ -117,7 +117,9 @@ class Phase26cConvertReserveIT extends AbstractPostgresIT {
                         new com.samhanair.logis.partnerorder.vendor.client.PartnerSummary(
                                 UUID.nameUUIDFromBytes(invocation.getArgument(0, String.class)
                                         .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                                invocation.getArgument(0, String.class), null, null)));
+                                invocation.getArgument(0, String.class), null,
+                                "TEST-PARTNER".equals(invocation.getArgument(0, String.class))
+                                        ? "9999999999" : "1234567890")));
 
         // InventoryClient 기본 stub
         lenient().when(inventoryClient.resolveWarehouseIdByCode(anyString()))

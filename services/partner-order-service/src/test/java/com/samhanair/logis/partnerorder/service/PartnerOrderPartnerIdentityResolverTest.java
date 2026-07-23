@@ -12,6 +12,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.security.InternalAuthProperties;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import java.util.UUID;
+import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -36,10 +37,28 @@ class PartnerOrderPartnerIdentityResolverTest {
 
     @BeforeEach
     void setUp() {
-        RestClient.Builder builder = RestClient.builder();
-        server = MockRestServiceServer.bindTo(builder).build();
-        PartnerLookupClient client = new PartnerLookupClient(builder, properties(), new ObjectMapper());
+        RestClient.Builder delegate = RestClient.builder();
+        server = MockRestServiceServer.bindTo(delegate).build();
+        PartnerLookupClient client = new PartnerLookupClient(mockBoundBuilder(delegate), properties(),
+                new ObjectMapper());
         resolver = new PartnerOrderPartnerIdentityResolver(client);
+    }
+
+    /** MockRestServiceServer가 설치한 request factory를 timeout 전용 clone이 덮어쓰지 않게 한다. */
+    private RestClient.Builder mockBoundBuilder(RestClient.Builder delegate) {
+        return (RestClient.Builder) Proxy.newProxyInstance(
+                RestClient.Builder.class.getClassLoader(),
+                new Class<?>[]{RestClient.Builder.class},
+                (proxy, method, args) -> {
+                    if ("clone".equals(method.getName()) && method.getParameterCount() == 0) {
+                        return proxy;
+                    }
+                    if ("requestFactory".equals(method.getName()) && method.getParameterCount() == 1) {
+                        return proxy;
+                    }
+                    Object result = method.invoke(delegate, args == null ? new Object[0] : args);
+                    return result == delegate ? proxy : result;
+                });
     }
 
     @Test
@@ -93,10 +112,39 @@ class PartnerOrderPartnerIdentityResolverTest {
                                  "partnerCode":"%s","bizNo":"9999999999"}}
                         """.formatted(PARTNER_CODE), MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> resolver.requireLegacyPartnerId(PARTNER_CODE, BIZ_CODE))
+        assertThatThrownBy(() -> resolver.requirePartnerId(PARTNER_CODE, BIZ_CODE))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(thrown -> assertThat(((BusinessException) thrown).getErrorCode().getHttpStatus())
                         .isEqualTo(HttpStatus.BAD_REQUEST));
+        server.verify();
+    }
+
+    @Test
+    void partnerServiceSuccess_withoutPartnerId_isDownstreamContractFailure() {
+        server.expect(requestTo(ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"data":{"partnerCode":"%s","bizNo":"%s"}}
+                        """.formatted(PARTNER_CODE, BIZ_CODE), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> resolver.requirePartnerId(PARTNER_CODE, BIZ_CODE))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(thrown -> assertThat(((BusinessException) thrown).getErrorCode().getHttpStatus())
+                        .isEqualTo(HttpStatus.BAD_GATEWAY));
+        server.verify();
+    }
+
+    @Test
+    void partnerServiceSuccess_withoutBusinessNumber_isDownstreamContractFailure() {
+        server.expect(requestTo(ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"data":{"partnerId":"00000000-0000-0000-0000-000000000901",
+                                 "partnerCode":"%s"}}
+                        """.formatted(PARTNER_CODE), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> resolver.requirePartnerId(PARTNER_CODE, BIZ_CODE))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(thrown -> assertThat(((BusinessException) thrown).getErrorCode().getHttpStatus())
+                        .isEqualTo(HttpStatus.BAD_GATEWAY));
         server.verify();
     }
 
