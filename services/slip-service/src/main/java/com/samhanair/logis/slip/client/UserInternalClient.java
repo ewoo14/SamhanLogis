@@ -4,11 +4,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -24,6 +31,7 @@ import org.springframework.web.client.RestClientResponseException;
  * <p>endpoint:
  * <ul>
  *   <li>{@code GET /internal/users/{userId}} → InternalUserResponse (fullName 포함)</li>
+ *   <li>{@code POST /internal/users/display-names} → UUID별 fullName 벌크 맵</li>
  * </ul>
  *
  * <p>인증 = X-Internal-Token (user-service 의 InternalTokenFilter 가 ROLE_MASTER 부여).
@@ -113,6 +121,73 @@ public class UserInternalClient {
             log.warn("UserInternalClient.resolveFullName 호출 실패 — userId={}, msg={}",
                     userId, ex.getMessage());
             return Optional.empty();
+        }
+    }
+
+    /**
+     * userId UUID 목록을 user-service 한 번의 호출로 직원 성명에 매핑한다.
+     *
+     * <p>user-service {@code POST /internal/users/display-names} 계약을 재사용하며,
+     * 미등록 UUID는 응답 맵에 포함되지 않는다. 호출 실패는 조회 화면의 fail-open 정책에
+     * 따라 빈 맵으로 처리한다.
+     *
+     * @param userIds 직원 UUID 목록
+     * @return 존재하는 활성 직원의 UUID→fullName 맵
+     */
+    public Map<UUID, String> resolveFullNames(Collection<UUID> userIds) {
+        List<UUID> distinctIds = userIds == null
+                ? List.of()
+                : userIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinctIds.isEmpty()) {
+            return Map.of();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("UserInternalClient.resolveFullNames — internal.token 미설정, skipped (count={})",
+                    distinctIds.size());
+            return Map.of();
+        }
+
+        try {
+            Map<String, Object> body = Map.of("userIds", distinctIds);
+            Map<String, Object> envelope = restClient.post()
+                    .uri("/internal/users/display-names")
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof Map<?, ?> rawMap)) {
+                return Map.of();
+            }
+
+            Map<UUID, String> result = new LinkedHashMap<>();
+            rawMap.forEach((key, value) -> {
+                if (!(key instanceof String keyText) || !(value instanceof String name)
+                        || name.isBlank()) {
+                    return;
+                }
+                try {
+                    result.put(UUID.fromString(keyText), name);
+                } catch (IllegalArgumentException ignored) {
+                    log.debug("UserInternalClient.resolveFullNames — UUID가 아닌 응답 key 무시: {}", key);
+                }
+            });
+            return result;
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().is5xxServerError()) {
+                log.warn("UserInternalClient.resolveFullNames 5xx — count={}, status={}",
+                        distinctIds.size(), ex.getStatusCode());
+            } else {
+                log.debug("UserInternalClient.resolveFullNames 4xx — count={}, status={}",
+                        distinctIds.size(), ex.getStatusCode());
+            }
+            return Map.of();
+        } catch (Exception ex) {
+            log.warn("UserInternalClient.resolveFullNames 호출 실패 — count={}, msg={}",
+                    distinctIds.size(), ex.getMessage());
+            return Map.of();
         }
     }
 }

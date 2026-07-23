@@ -146,12 +146,18 @@ public class SlipSeeder implements CommandLineRunner {
             "REMOTE-MR-DH00", "COMM-MIM-N10"
     };
 
-    /** OrgChartSeeder 16명 employee loginId 풀 — requesterId / acceptor / inspector 순환. */
-    private static final List<String> EMPLOYEE_LOGIN_IDS = List.of(
-            "kimmiseon", "janyeonggu", "obyeongseung", "hongjisu",
-            "kimgicheol", "simmigwang", "jeongminguk", "leejiyong",
-            "gyeonjinseong", "parkeunwoo", "sinhyeonmin",
-            "leeseongmi", "heoyujin", "rahaeram", "kimeunji", "parkjisu");
+    /**
+     * user-service V5가 보장하는 활성 dev 계정 UUID 풀 — requesterId / acceptor / inspector 순환.
+     * loginId를 requesterId에 저장하던 legacy seed 결함을 방지하고 gateway UUID 형식과 맞춘다.
+     */
+    private static final List<String> EMPLOYEE_UUIDS = List.of(
+            "a0000000-0000-0000-0000-000000000001",
+            "a0000000-0000-0000-0000-000000000002",
+            "a0000000-0000-0000-0000-000000000003",
+            "a0000000-0000-0000-0000-000000000004",
+            "a0000000-0000-0000-0000-000000000005",
+            "a0000000-0000-0000-0000-000000000006",
+            "a0000000-0000-0000-0000-000000000007");
 
     /** loginId → 한국어 이름 매핑 (requesterName / acceptorName 캐싱용 reference, 추후 사용 예정). */
     @SuppressWarnings("unused")
@@ -328,18 +334,18 @@ public class SlipSeeder implements CommandLineRunner {
         UUID partnerId = deterministicUuid(PARTNER_UUID_PREFIX + partnerCode);
         String partnerName = "거래처-" + partnerCode;
 
-        String requesterLoginId = EMPLOYEE_LOGIN_IDS.get(spec.idx() % EMPLOYEE_LOGIN_IDS.size());
+        String requesterId = EMPLOYEE_UUIDS.get(spec.idx() % EMPLOYEE_UUIDS.size());
         String memo = baseMemo(spec, slipNo);
 
         Slip slip;
         if (spec.type() == SlipType.OUTBOUND) {
             slip = Slip.createOutbound(slipNo, slipDate, seqNo,
                     HQ_WAREHOUSE_ID, null,
-                    partnerId, partnerName, spec.tag(), memo, requesterLoginId);
+                    partnerId, partnerName, spec.tag(), memo, requesterId);
         } else {
             slip = Slip.createInbound(slipNo, slipDate, seqNo,
                     HQ_WAREHOUSE_ID,
-                    partnerId, partnerName, spec.tag(), memo, requesterLoginId);
+                    partnerId, partnerName, spec.tag(), memo, requesterId);
         }
 
         // SHIPPING+ 단계 OUTBOUND 슬립은 driver 정보 필요 (ship() 후 도메인은 driver 검증 X 지만
@@ -394,12 +400,12 @@ public class SlipSeeder implements CommandLineRunner {
 
         if (target == SlipStatus.REJECTED) {
             // 다양화: ACCEPTED 단계까지 진전 후 reject (사용자 spec "memo 에 [반려: {사유}] prepend").
-            slip.accept(EMPLOYEE_LOGIN_IDS.get((spec.idx() + 1) % EMPLOYEE_LOGIN_IDS.size()));
+            slip.accept(EMPLOYEE_UUIDS.get((spec.idx() + 1) % EMPLOYEE_UUIDS.size()));
             slip.reject("재고 불일치 — 수량 재확인 필요");
             return;
         }
 
-        slip.accept(EMPLOYEE_LOGIN_IDS.get((spec.idx() + 1) % EMPLOYEE_LOGIN_IDS.size()));
+        slip.accept(EMPLOYEE_UUIDS.get((spec.idx() + 1) % EMPLOYEE_UUIDS.size()));
         if (target == SlipStatus.ACCEPTED) return;
 
         slip.process();
@@ -408,7 +414,7 @@ public class SlipSeeder implements CommandLineRunner {
         slip.complete();   // PROCESSING → INSPECTING (도메인 의미상 "출고완료=검수단계 진입")
         if (target == SlipStatus.INSPECTING) return;
 
-        slip.inspect(EMPLOYEE_LOGIN_IDS.get((spec.idx() + 2) % EMPLOYEE_LOGIN_IDS.size()));
+        slip.inspect(EMPLOYEE_UUIDS.get((spec.idx() + 2) % EMPLOYEE_UUIDS.size()));
         if (target == SlipStatus.COMPLETED) return;
 
         // OUTBOUND 만 SHIPPING/DELIVERED 단계 진입 가능 (INBOUND 는 COMPLETED → CONFIRMED 직행).

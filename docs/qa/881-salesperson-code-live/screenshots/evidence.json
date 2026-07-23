@@ -1,0 +1,26 @@
+{
+  "renderer": "http://127.0.0.1:5250",
+  "api": "http://localhost:8080",
+  "screenshots": "C:\\dev\\Samhan-Public\\.claude\\worktrees\\tpl-914\\docs\\qa\\881-salesperson-code-live\\screenshots",
+  "surfaces": {
+    "sales": {
+      "title": "Samhan Public 데스크톱",
+      "basicUuidCount": 0,
+      "excelUuidCount": 0,
+      "namesVisible": [
+        "[DEV-SEED] 개발매니저",
+        "[DEV-SEED] 개발영업"
+      ],
+      "loginIdFallbackVisible": true
+    },
+    "purchase": {
+      "title": "Samhan Public 데스크톱",
+      "basicUuidCount": 0,
+      "excelUuidCount": 0,
+      "namesVisible": [
+        "[DEV-SEED] 개발매니저"
+      ],
+      "loginIdFallbackVisible": true
+    }
+  }
+}

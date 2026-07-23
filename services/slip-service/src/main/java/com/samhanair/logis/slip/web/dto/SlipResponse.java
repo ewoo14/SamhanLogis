@@ -31,7 +31,7 @@ import java.util.UUID;
  *   <li>{@code memo} — 적요/비고/특이사항 공용</li>
  *   <li>{@code totalAmount} — 라인 lineTotal 합산</li>
  *   <li>{@code totalQuantity} — 라인 수량 합</li>
- *   <li>{@code salesPersonName} — 담당자명 (requesterId 임시 — 후속 user-service resolve)</li>
+ *   <li>{@code salesPersonName} — 조회 시 user-service에서 resolve한 담당자 성명</li>
  *   <li>{@code editHistoryCount} — 상태의존 수정 이력 건수 (임계 전이 이후 편집만)</li>
  * </ul>
  *
@@ -81,10 +81,7 @@ public record SlipResponse(
         BigDecimal totalAmount,
         /** 라인 수량 합. */
         int totalQuantity,
-        /**
-         * 담당자명 — requesterId 임시값. 후속 슬라이스에서 user-service resolve 로 교체.
-         * UUID 비공개 가드: requesterId(UUID) 대신 사용자 표시명으로 변환 예정.
-         */
+        /** 담당자명 — 사용자 화면에 표시하는 직원 성명. UUID/requesterId 원문은 넣지 않는다. */
         String salesPersonName,
         /**
          * 전표 수정 이력 건수 — S2c 상태의존 표시 카운트.
@@ -120,6 +117,17 @@ public record SlipResponse(
      * @return 요약 응답 record
      */
     public static SlipResponse from(Slip slip) {
+        return from(slip, slip.getRequesterId());
+    }
+
+    /**
+     * 직원 성명 resolve 결과를 주입해 요약 응답을 빌드한다.
+     *
+     * @param slip 전표 엔티티
+     * @param salesPersonName 화면 표시용 담당자명. 원문 user ID를 넣지 않는다.
+     * @return 요약 응답 record
+     */
+    public static SlipResponse from(Slip slip, String salesPersonName) {
         DeliveryTag tag = slip.getDeliveryTag();
         List<SlipLine> lines = slip.getLines();
 
@@ -164,8 +172,8 @@ public record SlipResponse(
                 slip.getMemo(),
                 totalAmount,
                 totalQuantity,
-                // 담당자명: requesterId 임시 (후속 user-service resolve 예정)
-                slip.getRequesterId(),
+                // 담당자명: 조회 서비스가 user-service에서 resolve한 표시명
+                salesPersonName,
                 // 수정 이력 건수: S2c 상태의존 표시 카운트(임계 전이 전 편집 제외)
                 slip.editHistoryCount(),
                 // V52 — 하차일 + 배송일정 파생 라벨

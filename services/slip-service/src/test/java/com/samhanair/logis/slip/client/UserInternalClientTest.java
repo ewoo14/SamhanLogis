@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -83,6 +85,40 @@ class UserInternalClientTest {
                 new UserInternalClient(RestClient.builder(), props, new ObjectMapper());
 
         assertThat(noTokenClient.resolveFullName(USER_ID)).isEmpty();
+        server.verify();
+    }
+
+    @Test
+    void resolveFullNames는_display_names_벌크_계약을_호출하고_UUID별_성명을_반환한다() {
+        UUID secondUserId = UUID.fromString("30000000-0000-0000-0000-000000000002");
+        server.expect(requestTo(BASE_URL + "/internal/users/display-names"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {
+                          "success": true,
+                          "data": {
+                            "%s": "김삼한",
+                            "%s": "이삼한"
+                          }
+                        }
+                        """.formatted(USER_ID, secondUserId), MediaType.APPLICATION_JSON));
+
+        assertThat(client.resolveFullNames(List.of(USER_ID, secondUserId)))
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        USER_ID, "김삼한",
+                        secondUserId, "이삼한"));
+        server.verify();
+    }
+
+    @Test
+    void resolveFullNames_5xx는_빈맵으로_fail_open한다() {
+        server.expect(requestTo(BASE_URL + "/internal/users/display-names"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        assertThat(client.resolveFullNames(List.of(USER_ID))).isEmpty();
         server.verify();
     }
 

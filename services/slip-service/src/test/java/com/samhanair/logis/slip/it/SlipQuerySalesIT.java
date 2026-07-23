@@ -25,6 +25,7 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -261,6 +262,59 @@ class SlipQuerySalesIT extends AbstractPostgresIT {
                         .header(USER_ID_HEADER, TEST_USER_ID.toString())
                         .header(USER_ROLE_HEADER, "SALES"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("#881: /slips/query 담당자명은 UUID가 아닌 성명이며 벌크 resolve는 페이지당 1회다")
+    void testSalesQueryResolvesSalesPersonNameWithOneBulkCall() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0881-담당자명");
+        Mockito.when(userInternalClient.resolveFullNames(ArgumentMatchers.anyCollection()))
+                .thenReturn(Map.of(TEST_USER_ID, "[DEV-SEED] 개발개발자"));
+
+        MvcResult result = mockMvc.perform(get(SLIPS_QUERY_PATH)
+                        .param("slipType", "OUTBOUND")
+                        .param("dateFrom", TODAY.toString())
+                        .param("dateTo", TODAY.toString())
+                        .param("searchPartnerName", "SP0881-담당자명")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("data").path("content");
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("salesPersonName").asText())
+                .isEqualTo("[DEV-SEED] 개발개발자")
+                .doesNotMatch("(?i).*[0-9a-f]{8}-[0-9a-f-]{27,}.*");
+        Mockito.verify(userInternalClient, Mockito.times(1))
+                .resolveFullNames(ArgumentMatchers.anyCollection());
+        Mockito.verify(userInternalClient, Mockito.never()).resolveFullName(ArgumentMatchers.any());
+    }
+
+    @Test
+    @DisplayName("#881: user-service 벌크 장애에도 /slips/query는 200 + 담당자명 — 로 fail-open한다")
+    void testSalesQueryUserServiceFailureIsFailOpen() throws Exception {
+        createSlip("OUTBOUND", TODAY, "SP0881-user-service-down");
+        Mockito.when(userInternalClient.resolveFullNames(ArgumentMatchers.anyCollection()))
+                .thenThrow(new IllegalStateException("user-service down"));
+
+        MvcResult result = mockMvc.perform(get(SLIPS_QUERY_PATH)
+                        .param("slipType", "OUTBOUND")
+                        .param("dateFrom", TODAY.toString())
+                        .param("dateTo", TODAY.toString())
+                        .param("searchPartnerName", "SP0881-user-service-down")
+                        .header(USER_ID_HEADER, TEST_USER_ID.toString())
+                        .header(USER_ROLE_HEADER, "SALES"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode content = objectMapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .path("data").path("content");
+        assertThat(content).hasSize(1);
+        assertThat(content.get(0).path("salesPersonName").asText()).isEqualTo("—");
+        Mockito.verify(userInternalClient, Mockito.times(1))
+                .resolveFullNames(ArgumentMatchers.anyCollection());
     }
 
     /**
