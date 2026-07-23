@@ -665,19 +665,33 @@ public class SlipController {
     /**
      * P1-6 — 전표 목록 Excel(.xlsx) 다운로드.
      *
-     * <p>복합 필터 (slipType / status / from / to / partnerCode) 로 조회한 전표 목록을 .xlsx 파일로 반환.
+     * <p>복합 필터 (slipType / status / from / to / partnerCode / deliveryTag / includeDeleted /
+     * search*) 로 조회한 전표 목록을 .xlsx 파일로 반환.
      * UUID 비공개 가드 — slipNo / partnerName 등 비즈니스 식별자만 출력, partnerId 등 UUID 미포함.
      * 최대 10,000 행.
      *
-     * @param slipType    전표 유형 필터 (null 이면 전체)
-     * @param status      상태 필터 (null 이면 전체)
-     * @param from        전표일자 시작 (null 이면 하한 없음)
-     * @param to          전표일자 종료 (null 이면 상한 없음)
-     * @param partnerCode 거래처코드 필터 (null 이면 전체)
+     * <p>#907 재수렴 R — search* 파라미터(판매/구매관리 검색모달)와 deliveryTag/includeDeleted
+     * (판매전표목록 배송태그·삭제행 포함)를 신규 추가. 화면이 조회에 쓰는 조건이 파일에도 그대로
+     * 반영되어야 한다(P-1) — 이전에는 이 파라미터들을 export 가 받지 않아 화면에서 검색/필터를
+     * 좁혀도 파일은 slipType/기간만으로 전체가 나왔다.
+     *
+     * @param slipType              전표 유형 필터 (null 이면 전체)
+     * @param status                상태 필터 (null 이면 전체)
+     * @param from                  전표일자 시작 (null 이면 하한 없음)
+     * @param to                    전표일자 종료 (null 이면 상한 없음)
+     * @param partnerCode           거래처코드 필터 (null 이면 전체)
+     * @param deliveryTags          배송 태그 필터 (판매전표목록 화면 셀렉트, 반복 param 허용)
+     * @param includeDeleted        soft-delete 포함 여부 (판매전표목록 OUTBOUND 화면 파리티)
+     * @param searchPartnerName     거래처명 부분 검색 (판매/구매관리 검색모달)
+     * @param searchPartnerCode     거래처코드 부분 검색
+     * @param searchBusinessNumber  사업자등록번호 부분 검색
+     * @param searchSlipNo          전표번호 부분 검색
+     * @param searchProjectName     프로젝트명 부분 검색
+     * @param searchDeliveryAddress 배송주소 부분 검색
      * @return 200 + xlsx binary
      */
     @Operation(summary = "전표 목록 Excel 다운로드 (P1-6)",
-            description = "slipType/status/from/to/partnerCode 복합 필터. 최대 10,000 행.")
+            description = "slipType/status/from/to/partnerCode/deliveryTag/includeDeleted/search* 복합 필터. 최대 10,000 행.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "xlsx binary"),
@@ -691,8 +705,19 @@ public class SlipController {
             @RequestParam(required = false) SlipStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String partnerCode) {
-        byte[] xlsx = slipExcelExportService.export(slipType, status, from, to, partnerCode);
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam(required = false, name = "deliveryTag") List<DeliveryTag> deliveryTags,
+            @RequestParam(defaultValue = "false") boolean includeDeleted,
+            @RequestParam(required = false) String searchPartnerName,
+            @RequestParam(required = false) String searchPartnerCode,
+            @RequestParam(required = false) String searchBusinessNumber,
+            @RequestParam(required = false) String searchSlipNo,
+            @RequestParam(required = false) String searchProjectName,
+            @RequestParam(required = false) String searchDeliveryAddress) {
+        byte[] xlsx = slipExcelExportService.export(slipType, status, from, to, partnerCode,
+                deliveryTags, includeDeleted,
+                searchPartnerName, searchPartnerCode, searchBusinessNumber,
+                searchSlipNo, searchProjectName, searchDeliveryAddress);
         String filename = "전표목록-" + LocalDate.now() + ".xlsx";
         ContentDisposition disposition = ContentDisposition.attachment()
                 .filename(filename, java.nio.charset.StandardCharsets.UTF_8)

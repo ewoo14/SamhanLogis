@@ -13,7 +13,8 @@
  * <h2>P1-6 보강 — Excel 다운로드</h2>
  * <ul>
  *   <li>헤더 우측 "Excel 다운로드" 버튼 — `GET /api/v1/accounting/journals/export`</li>
- *   <li>파라미터: period (당월 기본값), status 필터 연동</li>
+ *   <li>파라미터: status 필터만 연동 — 화면에 기간 필터 UI 가 없으므로 from/to 는 보내지
+ *       않는다(전체 기간, #907 재수렴 R 에서 당월 하드코딩이 P-2 위반으로 지적됨)</li>
  *   <li>data-testid: journal-list-excel-export</li>
  * </ul>
  */
@@ -161,32 +162,25 @@ export function JournalListPage() {
               ))}
             </select>
           </label>
-          {/* P1-6: 현재 상태 필터 + 당월 기준 export.
-              BE JournalController.exportXlsx(from, to, status) 가 from/to 를 필수로 받음
-              (TM PR #146 cross-check — period→from/to 변환). */}
+          {/* P1-6: 현재 상태 필터 기준 export. 분개장 화면 자체에 기간 필터 UI 가 없으므로
+              (상태 필터만 존재, 전체 기간 조회) from/to 를 보내지 않는다 — 당월로 임의로
+              좁히면 화면에 없는 조건을 파일이 만드는 것(P-2 위반, #907 재수렴 R 에서 발견:
+              화면은 전체 115건인데 당월 export 는 그 중 일부만 포함). BE 는 from/to 미지정 시
+              GET /accounting/journals 목록 조회와 동일한 개방구간 기본값("전체 조회")을 적용한다. */}
           <Button
             variant="secondary"
             size="sm"
             loading={downloading}
             disabled={downloading}
-            onClick={() => {
-              const now = new Date()
-              const yyyy = now.getFullYear()
-              const mm = String(now.getMonth() + 1).padStart(2, '0')
-              const period = `${yyyy}${mm}`
-              const lastDay = String(
-                new Date(yyyy, now.getMonth() + 1, 0).getDate(),
-              ).padStart(2, '0')
+            onClick={() =>
               download(
                 () =>
                   exportJournals({
-                    from: `${yyyy}-${mm}-01`,
-                    to: `${yyyy}-${mm}-${lastDay}`,
                     status: statusFilter || undefined,
                   }),
-                makeExportFilename(`분개장_${period}`),
+                makeExportFilename('분개장'),
               )
-            }}
+            }
             data-testid="journal-list-excel-export"
           >
             Excel 다운로드

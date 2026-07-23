@@ -359,7 +359,9 @@ export function PurchaseQueryPage() {
           </Button>
         ) : null}
 
-        {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용. */}
+        {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용.
+            화면 검색모달(appliedSearch) 을 export 에도 그대로 전달 — SalesQueryPage 와 동일
+            패턴의 결함(계열 전수 sweep, #907 재수렴 R). */}
         {canExport ? (
           <Button
             variant="secondary"
@@ -368,7 +370,15 @@ export function PurchaseQueryPage() {
             disabled={downloading}
             onClick={() =>
               download(
-                () => exportSlips({ slipType: 'INBOUND', from: dateFrom, to: dateTo }),
+                () =>
+                  exportSlips({
+                    slipType: 'INBOUND',
+                    from: dateFrom,
+                    to: dateTo,
+                    ...(appliedSearch.searchSlipNo         ? { searchSlipNo:         appliedSearch.searchSlipNo }         : {}),
+                    ...(appliedSearch.searchPartnerName    ? { searchPartnerName:    appliedSearch.searchPartnerName }    : {}),
+                    ...(appliedSearch.searchBusinessNumber ? { searchBusinessNumber: appliedSearch.searchBusinessNumber } : {}),
+                  }),
                 makeExportFilename('구매관리'),
               )
             }

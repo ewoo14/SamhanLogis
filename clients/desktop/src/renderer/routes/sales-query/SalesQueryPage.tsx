@@ -560,7 +560,10 @@ export function SalesQueryPage() {
           </>
         ) : null}
 
-        {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용. */}
+        {/* Excel 다운로드 — BE export endpoint 는 MANAGER/MASTER 전용.
+            화면 검색모달(appliedSearch) 을 export 에도 그대로 전달 — 화면에 좁힌 조건이
+            파일에도 동일하게 적용되어야 한다(P-1). 누락 시 화면에서 검색해도 파일은 전체가
+            나오는 결함(#907 재수렴 R로 발견). */}
         {canExport ? (
           <Button
             variant="secondary"
@@ -569,7 +572,17 @@ export function SalesQueryPage() {
             disabled={downloading}
             onClick={() =>
               download(
-                () => exportSlips({ slipType: 'OUTBOUND', from: dateFrom, to: dateTo }),
+                () =>
+                  exportSlips({
+                    slipType: 'OUTBOUND',
+                    from: dateFrom,
+                    to: dateTo,
+                    ...(appliedSearch.searchSlipNo         ? { searchSlipNo:         appliedSearch.searchSlipNo }         : {}),
+                    ...(appliedSearch.searchPartnerName    ? { searchPartnerName:    appliedSearch.searchPartnerName }    : {}),
+                    ...(appliedSearch.searchBusinessNumber ? { searchBusinessNumber: appliedSearch.searchBusinessNumber } : {}),
+                    ...(appliedSearch.searchDeliveryAddress? { searchDeliveryAddress:appliedSearch.searchDeliveryAddress }: {}),
+                    ...(appliedSearch.searchProjectName    ? { searchProjectName:    appliedSearch.searchProjectName }    : {}),
+                  }),
                 makeExportFilename('판매관리'),
               )
             }

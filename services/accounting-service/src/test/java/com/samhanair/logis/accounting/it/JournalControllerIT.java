@@ -19,12 +19,19 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,6 +55,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@code GET    /accounting/journals/{id}}      — ACCOUNTANT/MASTER (200)</li>
  *   <li>{@code POST   /accounting/journals/{id}/post} — ACCOUNTANT/MASTER (200), 합계 mismatch 409</li>
  *   <li>{@code POST   /accounting/journals/{id}/reverse} — ACCOUNTANT/MASTER (200), DRAFT 면 409</li>
+ *   <li>{@code GET    /accounting/journals/export.xlsx} — from/to 미지정 시 200 + 개방구간
+ *       전체 조회 (#907 재수렴 R)</li>
  * </ul>
  *
  * <p>모든 응답은 ApiResponse 래핑 → jsonPath {@code $.data.*}.
@@ -301,6 +310,59 @@ class JournalControllerIT extends AbstractPostgresIT {
                 .andReturn();
         return objectMapper.readTree(res.getResponse().getContentAsString())
                 .get("data").get("id").asText();
+    }
+
+    // ──────────────────────────── #907 재수렴 R ────────────────────────────
+
+    /**
+     * GET /accounting/journals/export.xlsx — from/to 미지정 시 개방구간(전체) 조회.
+     *
+     * <p>분개장 화면(JournalListPage)에는 기간 필터 UI 가 없어(상태 필터만 존재) 화면은 항상
+     * 전체 기간을 보여준다. 고치기 전에는 from/to 가 필수 파라미터라 이 요청 자체가 400 이었고,
+     * FE 는 이를 피하려 "당월"을 임의로 계산해 보내 화면에 없는 기간 제약을 파일이 만들었다
+     * (P-2 위반 — 화면 115건 중 당월 export 는 그 일부만 포함). from/to 없이 호출해도 200 이고,
+     * 당월 밖(2000-01-01)에 생성한 분개도 포함되어야 화면과 파일의 기본 범위가 같다.
+     */
+    @Test
+    @DisplayName("#907 재수렴 R — export.xlsx from/to 미지정 시 200 + 당월 밖 분개도 포함(개방구간)")
+    void exportXlsx_withoutFromTo_returns200AndIncludesJournalOutsideCurrentMonth() throws Exception {
+        Map<String, Object> body = new HashMap<>(balancedJournalBody("123456"));
+        body.put("journalDate", "2000-01-01");
+        String marker = "OPUS재수렴R분개장전체조회마커9";
+        body.put("description", marker);
+
+        mockMvc.perform(post("/accounting/journals")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated());
+
+        MvcResult result = mockMvc.perform(get("/accounting/journals/export.xlsx")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            assertThatSheetContainsText(sheet, marker);
+        }
+    }
+
+    private void assertThatSheetContainsText(Sheet sheet, String text) {
+        boolean found = false;
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                if (cell.getCellType() == CellType.STRING && text.equals(cell.getStringCellValue())) {
+                    found = true;
+                }
+            }
+        }
+        org.assertj.core.api.Assertions.assertThat(found)
+                .as("시트에 마커 텍스트 '%s' 포함 여부", text)
+                .isTrue();
     }
 
     private String dataMessage(MvcResult result) throws Exception {

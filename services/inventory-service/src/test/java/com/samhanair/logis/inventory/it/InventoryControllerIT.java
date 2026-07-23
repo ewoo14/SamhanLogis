@@ -12,12 +12,19 @@ import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import com.samhanair.logis.security.permission.PermissionAction;
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -41,6 +48,8 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@code POST   /inventory/warehouses}                       — MASTER/MANAGER/DEVELOPER (201)</li>
  *   <li>{@code POST   /inventory/lots/inbound}                     — MASTER/MANAGER/WAREHOUSE/INVENTORY (201)</li>
  *   <li>{@code POST   /inventory/deduct}                           — MASTER/MANAGER/DEVELOPER/SALES/WAREHOUSE/INVENTORY (200)</li>
+ *   <li>{@code GET    /inventory/stocks/export.xlsx}                — 잔량 행에 품목코드/품목명 포함,
+ *       productId UUID 미노출 (#907 재수렴 R 발견 2)</li>
  * </ul>
  *
  * <p>모든 응답은 ApiResponse 래핑이라 jsonPath 는 {@code $.data.*} 로 접근.
@@ -331,5 +340,116 @@ class InventoryControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isForbidden());
+    }
+
+    // ──────────────────────────── #907 재수렴 R — 발견 2 ────────────────────────────
+
+    /**
+     * GET /inventory/stocks/export.xlsx — 잔량 행에 품목코드/품목명이 포함된다.
+     *
+     * <p>기존 컬럼(창고코드/창고명/가용/예약/총수량)만으로는 몇백 행이 어느 품목의 재고인지
+     * 구분할 수 없었다. {@code StockBalanceResponse} 는 productId(UUID)만 갖고 있어
+     * {@link ProductClient}(product-service internal batch lookup)로 productId → productCode/명을
+     * 해석해야 한다. 여기서는 클래스 공통 stub(productCode=null)을 이 테스트 전용으로 override —
+     * 실제 productCode 가 시트에 나타나는지 검증한다.
+     */
+    @Test
+    void exportStocksXlsx_includesProductCodeAndName_forEachBalanceRow() throws Exception {
+        UUID productA = UUID.randomUUID();
+        String productCodeMarker = "PRD-OPUS-9";
+        String productNameMarker = "OPUS재수렴R재고품목9";
+        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+                .thenAnswer(inv -> {
+                    List<UUID> ids = inv.getArgument(0);
+                    return ids.stream()
+                            .map(id -> new ProductSummary(id, productNameMarker, "MOD-9",
+                                    productCodeMarker, UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"))
+                            .toList();
+                });
+
+        Map<String, Object> inboundBody = new HashMap<>();
+        inboundBody.put("productId", productA.toString());
+        inboundBody.put("warehouseId", hqWarehouseId.toString());
+        inboundBody.put("quantity", 7);
+        inboundBody.put("unitCost", 100000);
+        inboundBody.put("lotNo", "EXPORT-PRODCODE-001");
+
+        mockMvc.perform(post("/inventory/lots/inbound")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inboundBody)))
+                .andExpect(status().isCreated());
+
+        MvcResult result = mockMvc.perform(get("/inventory/stocks/export.xlsx")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            org.assertj.core.api.Assertions.assertThat(sheetContainsText(sheet, productCodeMarker))
+                    .as("시트에 품목코드 '%s' 포함", productCodeMarker)
+                    .isTrue();
+            org.assertj.core.api.Assertions.assertThat(sheetContainsText(sheet, productNameMarker))
+                    .as("시트에 품목명 '%s' 포함", productNameMarker)
+                    .isTrue();
+        }
+    }
+
+    /** UUID 를 시트에 노출하면 안 된다 — productId 문자열 자체가 셀에 나타나지 않아야 한다. */
+    @Test
+    void exportStocksXlsx_doesNotExposeProductIdUuid() throws Exception {
+        UUID productA = UUID.randomUUID();
+        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+                .thenAnswer(inv -> {
+                    List<UUID> ids = inv.getArgument(0);
+                    return ids.stream()
+                            .map(id -> new ProductSummary(id, "UUID비공개테스트품목9", "MOD-9",
+                                    "PRD-UUIDCHK-9", UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"))
+                            .toList();
+                });
+
+        Map<String, Object> inboundBody = new HashMap<>();
+        inboundBody.put("productId", productA.toString());
+        inboundBody.put("warehouseId", hqWarehouseId.toString());
+        inboundBody.put("quantity", 3);
+        inboundBody.put("unitCost", 100000);
+        inboundBody.put("lotNo", "EXPORT-UUIDCHK-001");
+
+        mockMvc.perform(post("/inventory/lots/inbound")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "WAREHOUSE")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(inboundBody)))
+                .andExpect(status().isCreated());
+
+        MvcResult result = mockMvc.perform(get("/inventory/stocks/export.xlsx")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            org.assertj.core.api.Assertions.assertThat(sheetContainsText(sheet, productA.toString()))
+                    .as("productId UUID 문자열이 시트에 노출되면 안 됨")
+                    .isFalse();
+        }
+    }
+
+    /** 시트 전체(모든 row/cell)에서 문자열 셀 값이 정확히 일치하는 셀이 있는지 확인. */
+    private boolean sheetContainsText(Sheet sheet, String text) {
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                if (cell.getCellType() == CellType.STRING && text.equals(cell.getStringCellValue())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

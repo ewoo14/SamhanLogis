@@ -207,13 +207,21 @@ public class JournalController {
      * UUID 비공개 가드 — journalNo / journalDate 등 비즈니스 식별자만 출력.
      * 최대 10,000 행.
      *
-     * @param from   분개일자 시작 (필수)
-     * @param to     분개일자 종료 (필수)
+     * <p>#907 재수렴 R — from/to 를 필수에서 선택으로 완화. 분개장 화면(JournalListPage)
+     * 자체에 기간 필터 UI 가 없어(상태 필터만 존재) 항상 전체 기간을 조회하는데, export 는
+     * from/to 가 필수라 FE 가 매번 "당월"을 임의로 계산해 보냈다 — 화면에 없는 조건을 파일이
+     * 만든 것(P-2 위반, 화면 115건 중 당월 export 는 그 일부만 포함). {@link #list} 가 이미
+     * from/to 미지정 시 적용하는 개방구간 기본값({@link #OPEN_RANGE_MIN}~{@link #OPEN_RANGE_MAX},
+     * "기간 미지정 시 전체 조회")과 동일하게 적용해 화면·파일의 기본 범위를 맞춘다.
+     *
+     * @param from   분개일자 시작 (선택 — 미지정 시 개방구간 하한)
+     * @param to     분개일자 종료 (선택 — 미지정 시 개방구간 상한)
      * @param status 상태 필터 (null 이면 전체)
      * @return 200 + xlsx binary
      */
     @Operation(summary = "분개 목록 Excel 다운로드 (P1-6)",
-            description = "from/to 기간 + status 복합 필터. ACCOUNTANT / MASTER 권한. 최대 10,000 행.")
+            description = "from/to 기간(선택, 미지정 시 전체) + status 복합 필터. "
+                    + "ACCOUNTANT / MASTER 권한. 최대 10,000 행.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
                     description = "xlsx binary"),
@@ -223,11 +231,13 @@ public class JournalController {
     @GetMapping("/export.xlsx")
     @RequirePermission(page = JOURNAL_PAGE_CODE, action = com.samhanair.logis.security.permission.PermissionAction.DOWNLOAD)
     public ResponseEntity<byte[]> exportXlsx(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) JournalStatus status) {
-        byte[] xlsx = journalExcelExportService.export(from, to, status);
-        String filename = "journals-" + from + "-" + to + ".xlsx";
+        LocalDate resolvedFrom = from != null ? from : OPEN_RANGE_MIN;
+        LocalDate resolvedTo = to != null ? to : OPEN_RANGE_MAX;
+        byte[] xlsx = journalExcelExportService.export(resolvedFrom, resolvedTo, status);
+        String filename = "journals-" + resolvedFrom + "-" + resolvedTo + ".xlsx";
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + filename + "\"")

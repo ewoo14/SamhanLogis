@@ -48,7 +48,10 @@
  * <h2>P1-6 보강 — Excel 다운로드</h2>
  * <ul>
  *   <li>헤더 우측 "Excel 다운로드" 버튼 — `GET /api/v1/slips/export`</li>
- *   <li>파라미터: slipType (mode 연동), fromDate/toDate (현재 당월 기본값)</li>
+ *   <li>파라미터: slipType (mode 연동) + deliveryTag (화면 배송태그 필터 연동) +
+ *       includeDeleted (OUTBOUND 전용, listSlips 호출과 동일). from/to 는 화면에 기간
+ *       필터 UI 가 없으므로 보내지 않는다(#907 재수렴 R 에서 당월 하드코딩이 P-2 위반으로
+ *       지적됨 — 화면 2,249건 vs 당월 export 224건)</li>
  *   <li>data-testid: slip-list-excel-export</li>
  * </ul>
  */
@@ -356,29 +359,29 @@ export function SlipListPage({ mode }: SlipListPageProps) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* P1-6: 현재 mode 의 전표 전체를 당월 기준으로 export
-              BE SlipController.exportXlsx(slipType, status, from, to, partnerCode) 시그니처 정렬
-              — TM PR #146 cross-check (fromDate/toDate → from/to). */}
+          {/* P1-6: 현재 mode 의 전표를 화면과 동일한 조건(배송태그 필터 + soft-delete 정책)으로 export.
+              화면에 기간 필터 UI 가 없으므로(전량 표시, 30초 polling) from/to 는 보내지 않는다 —
+              당월로 임의로 좁히면 화면에 없는 조건을 파일이 만드는 것(P-2 위반, #907 재수렴 R 에서
+              발견: 화면 2,249 / 당월 export 224). BE 는 from/to 미지정 시 하한/상한 없이 조회하고
+              MAX_ROWS(10,000)로 안전장치를 이미 갖는다. includeDeleted 는 화면의 listSlips 호출과
+              동일하게 OUTBOUND 목록에서만 true — 삭제행(취소선) 노출 파리티. */}
           {canExport ? (
             <Button
               variant="secondary"
               size="sm"
               loading={downloading}
               disabled={downloading}
-              onClick={() => {
-                const now = new Date()
-                const yyyy = now.getFullYear()
-                const mm = String(now.getMonth() + 1).padStart(2, '0')
+              onClick={() =>
                 download(
                   () =>
                     exportSlips({
                       slipType: mode,
-                      from: `${yyyy}-${mm}-01`,
-                      to: `${yyyy}-${mm}-${String(new Date(yyyy, now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`,
+                      ...(deliveryTagFilter ? { deliveryTag: deliveryTagFilter } : {}),
+                      includeDeleted: isOutbound,
                     }),
                   makeExportFilename(isOutbound ? '판매전표목록' : '입고전표목록'),
                 )
-              }}
+              }
               data-testid="slip-list-excel-export"
             >
               Excel 다운로드

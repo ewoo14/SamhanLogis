@@ -49,13 +49,27 @@ export interface PartnersExportParams {
 }
 
 /**
- * 전표 목록 export 파라미터 — BE SlipController.exportXlsx(slipType, status, from, to, partnerCode).
+ * 전표 목록 export 파라미터 — BE SlipController.exportXlsx(slipType, status, from, to, partnerCode,
+ * deliveryTag, includeDeleted, search*).
  *
- * @property slipType    OUTBOUND / INBOUND
- * @property status      DRAFT / SAVED / SENT / ACCEPTED / ... / CONFIRMED / REJECTED / CANCELED
- * @property from        전표일자 시작 (ISO yyyy-MM-dd)
- * @property to          전표일자 종료 (ISO yyyy-MM-dd)
- * @property partnerCode 거래처코드 정확 일치
+ * <p>2026-07 OPUS 재수렴 fix — 화면 검색/필터가 export 에 전량 누락되어 있던 결함 수정
+ * (판매관리/구매관리 검색모달 + 판매전표목록 배송태그). BE 가 이미 화면 조회에 쓰는
+ * {@code SlipQueryService.listForQuery}(검색 필드) / {@code SlipService.list}(deliveryTag +
+ * includeDeleted) 를 export 에도 그대로 위임하므로 신규 SQL/Specification 은 없다.
+ *
+ * @property slipType              OUTBOUND / INBOUND
+ * @property status                DRAFT / SAVED / SENT / ACCEPTED / ... / CONFIRMED / REJECTED / CANCELED
+ * @property from                  전표일자 시작 (ISO yyyy-MM-dd, 미지정 시 하한 없음)
+ * @property to                    전표일자 종료 (ISO yyyy-MM-dd, 미지정 시 상한 없음)
+ * @property partnerCode           거래처코드 정확 일치
+ * @property deliveryTag           배송태그 필터 — SlipListPage 배송태그 셀렉트 값
+ * @property includeDeleted        soft-delete 포함 여부 — 판매전표 목록(OUTBOUND) 화면 파리티용
+ * @property searchPartnerName     거래처명 부분 검색 — 판매/구매관리 검색모달
+ * @property searchPartnerCode     거래처코드 부분 검색
+ * @property searchBusinessNumber  사업자등록번호 부분 검색
+ * @property searchSlipNo          전표번호 부분 검색
+ * @property searchProjectName     프로젝트명 부분 검색
+ * @property searchDeliveryAddress 배송주소 부분 검색
  */
 export interface SlipsExportParams {
   slipType?: SlipType
@@ -63,20 +77,31 @@ export interface SlipsExportParams {
   from?: string
   to?: string
   partnerCode?: string
+  deliveryTag?: string
+  includeDeleted?: boolean
+  searchPartnerName?: string
+  searchPartnerCode?: string
+  searchBusinessNumber?: string
+  searchSlipNo?: string
+  searchProjectName?: string
+  searchDeliveryAddress?: string
 }
 
 /**
  * 분개장 export 파라미터 — BE JournalController.exportXlsx(from, to, status).
  *
- * <p>from/to 는 BE 가 필수로 받음 (@RequestParam without required=false). FE 호출 측에서 항상 전달.
+ * <p>2026-07 OPUS 재수렴 fix — from/to 는 이제 BE 가 선택으로 받는다({@code required=false}).
+ * 분개장 화면(JournalListPage) 자체에 기간 필터 UI 가 없으므로(상태 필터만 존재), 미지정 시
+ * BE `GET /accounting/journals` 목록 조회가 이미 쓰는 개방구간 기본값(1900-01-01~9999-12-31,
+ * "기간 미지정 시 전체 조회")과 동일하게 적용되어 화면·파일의 범위가 일치한다.
  *
- * @property from   분개일자 시작 (ISO yyyy-MM-dd, 필수)
- * @property to     분개일자 종료 (ISO yyyy-MM-dd, 필수)
+ * @property from   분개일자 시작 (ISO yyyy-MM-dd, 선택 — 미지정 시 하한 없음)
+ * @property to     분개일자 종료 (ISO yyyy-MM-dd, 선택 — 미지정 시 상한 없음)
  * @property status DRAFT / POSTED / REVERSED (선택)
  */
 export interface JournalsExportParams {
-  from: string
-  to: string
+  from?: string
+  to?: string
   status?: JournalStatus
 }
 

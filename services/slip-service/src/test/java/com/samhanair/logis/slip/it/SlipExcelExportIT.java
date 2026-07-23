@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -54,6 +56,10 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>TC-6 — 헤더 행(row 0) 첫 셀이 비어있지 않음 (컬럼명 존재)</li>
  *   <li>TC-7 — 전표 1건 생성 후 export 시 데이터 행(row 1 이상) 1건 이상</li>
  *   <li>TC-8 — SALES 권한 export → 403 (관리자 전용 endpoint)</li>
+ *   <li>TC-9 (#907 재수렴 R) — searchPartnerName 검색 필터가 export 에도 적용되어
+ *       무관한 거래처 행이 섞이지 않는다 (판매관리 검색모달 파리티)</li>
+ *   <li>TC-10 (#907 재수렴 R) — deliveryTag 필터가 export 에도 적용되고, from/to 를
+ *       보내지 않아도(판매전표목록 화면은 기간 UI 가 없음) 200 으로 응답한다</li>
  * </ol>
  *
  * <p>외부 client 전종 @MockBean 격리 (메모리 {@code feedback_it_mockbean_external_clients}):
@@ -313,5 +319,117 @@ class SlipExcelExportIT extends AbstractPostgresIT {
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isForbidden());
+    }
+
+    // ──────────────────────────── TC-9 (#907 재수렴 R) ────────────────────────────
+
+    /**
+     * TC-9: searchPartnerName 검색 필터가 export 에도 적용된다.
+     *
+     * <p>판매관리(SalesQueryPage) 검색모달과 동일 필드. 고치기 전에는 export 가 이 파라미터를
+     * 받지 않아 slipType/from/to 범위의 전체 행이 나왔다 — 화면에서 거래처명으로 좁혀도
+     * 파일은 무관한 거래처가 섞여 나오는 결함(예: 화면 1건 / 파일 222행).
+     */
+    @Test
+    void tc9_searchPartnerName_filtersExportToMatchingRowsOnly() throws Exception {
+        String marker = "OPUS재수렴검색전용거래처X9";
+        createOutboundSlip(marker, null, "2026-05-11");
+        createOutboundSlip("무관한거래처A9", null, "2026-05-11");
+        createOutboundSlip("무관한거래처B9", null, "2026-05-11");
+
+        MvcResult result = mockMvc.perform(get(EXPORT_URL)
+                        .queryParam("slipType", "OUTBOUND")
+                        .queryParam("from", "2000-01-01")
+                        .queryParam("to", "2099-12-31")
+                        .queryParam("searchPartnerName", marker)
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            assertThat(sheetContainsText(sheet, marker)).isTrue();
+            // 무관한 거래처가 검색 결과에 섞여 나오면 안 됨 (필터가 무시되고 있었다면 섞여 나온다).
+            assertThat(sheetContainsText(sheet, "무관한거래처A9")).isFalse();
+            assertThat(sheetContainsText(sheet, "무관한거래처B9")).isFalse();
+        }
+    }
+
+    // ──────────────────────────── TC-10 (#907 재수렴 R) ────────────────────────────
+
+    /**
+     * TC-10: deliveryTag 필터가 export 에도 적용되고, from/to 없이도 200 으로 응답한다.
+     *
+     * <p>판매전표목록(SlipListPage) 화면은 기간 필터 UI 가 없어 export 도 from/to 를 보내지
+     * 않는다(고치기 전에는 FE 가 당월을 임의로 계산해 보내 화면 밖 조건을 파일이 만들었다 —
+     * P-2 위반). deliveryTag 도 고치기 전에는 무시되어 화면에서 태그로 좁혀도 파일에는
+     * 다른 태그 전표가 섞여 나왔다.
+     */
+    @Test
+    void tc10_deliveryTag_filtersExportToMatchingRowsOnly_withoutDateBound() throws Exception {
+        createOutboundSlip("DT거래처DAY9", "DAY", "2026-05-11");
+        createOutboundSlip("DT거래처RENTAL9", "RENTAL", "2026-05-11");
+
+        MvcResult result = mockMvc.perform(get(EXPORT_URL)
+                        .queryParam("slipType", "OUTBOUND")
+                        .queryParam("deliveryTag", "DAY")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        try (Workbook wb = new XSSFWorkbook(
+                new ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+            Sheet sheet = wb.getSheetAt(0);
+            assertThat(sheetContainsText(sheet, "DT거래처DAY9")).isTrue();
+            assertThat(sheetContainsText(sheet, "DT거래처RENTAL9")).isFalse();
+        }
+    }
+
+    // ──────────────────────────── 테스트 헬퍼 ────────────────────────────
+
+    /** OUTBOUND 전표 1건 생성 — partnerName/deliveryTag(선택)/slipDate 파라미터화 (tc7 패턴 재사용). */
+    private void createOutboundSlip(String partnerName, String deliveryTag, String slipDate) throws Exception {
+        Map<String, Object> line = new HashMap<>();
+        line.put("productId", UUID.randomUUID().toString());
+        line.put("productName", "테스트 제품");
+        line.put("modelName", "MOD-TEST-001");
+        line.put("quantity", 1);
+        line.put("unitPrice", 10000);
+        line.put("note", "#907 재수렴 R export 파리티 테스트");
+
+        Map<String, Object> slipBody = new HashMap<>();
+        slipBody.put("slipType", "OUTBOUND");
+        slipBody.put("slipDate", slipDate);
+        slipBody.put("sourceWarehouseId", UUID.randomUUID().toString());
+        slipBody.put("destinationWarehouseId", UUID.randomUUID().toString());
+        slipBody.put("partnerId", UUID.randomUUID().toString());
+        slipBody.put("partnerName", partnerName);
+        if (deliveryTag != null) {
+            slipBody.put("deliveryTag", deliveryTag);
+        }
+        slipBody.put("memo", "#907 재수렴 R export 파리티 테스트");
+        slipBody.put("lines", List.of(line));
+
+        mockMvc.perform(post("/slips")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(slipBody)))
+                .andExpect(status().isCreated());
+    }
+
+    /** 시트 전체(모든 row/cell)에서 문자열 셀 값이 정확히 일치하는 셀이 있는지 확인. */
+    private boolean sheetContainsText(Sheet sheet, String text) {
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                if (cell.getCellType() == CellType.STRING && text.equals(cell.getStringCellValue())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
