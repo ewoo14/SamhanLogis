@@ -230,9 +230,13 @@ export function ElementInspector({
           </fieldset>
           <fieldset className="document-template-inspector-fieldset" style={{ display: 'grid', gap: 6 }}>
             <legend>스타일</legend>
-            <label>글꼴 크기<input type="number" min={1} max={200} disabled={!canEdit} value={style?.fontSize ?? ''} onChange={(event) => updateStyle({ fontSize: numberValue(event, style?.fontSize ?? 10) })} /></label>
-            <label><input type="checkbox" disabled={!canEdit} checked={style?.bold ?? false} onChange={(event) => updateStyle({ bold: event.target.checked })} /> 굵게</label>
-            <label>정렬<select disabled={!canEdit} value={style?.align ?? 'left'} onChange={(event) => updateStyle({ align: event.target.value as ElementStyle['align'] })}><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
+            {element.type !== 'IMAGE' ? (
+              <>
+                <label>글꼴 크기<input type="number" min={1} max={200} disabled={!canEdit} value={style?.fontSize ?? ''} onChange={(event) => updateStyle({ fontSize: numberValue(event, style?.fontSize ?? 10) })} /></label>
+                <label><input type="checkbox" disabled={!canEdit} checked={style?.bold ?? false} onChange={(event) => updateStyle({ bold: event.target.checked })} /> 굵게</label>
+                <label>정렬<select disabled={!canEdit} value={style?.align ?? 'left'} onChange={(event) => updateStyle({ align: event.target.value as ElementStyle['align'] })}><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
+              </>
+            ) : null}
             <label><input type="checkbox" disabled={!canEdit} checked={style?.border ?? false} onChange={(event) => updateStyle({ border: event.target.checked })} /> 테두리</label>
           </fieldset>
         </>

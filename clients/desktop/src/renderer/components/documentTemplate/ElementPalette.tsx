@@ -31,25 +31,27 @@ export function ElementPalette({
           // 나중에 활성화가 막힌다는 것을 팔레트에서부터 알 수 있어야 한다(BE 게이트는 그대로 존치).
           const activationBlocked = ACTIVATION_BLOCKED_ELEMENT_TYPES.has(type)
           return (
-            <Button
-              key={type}
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={!canEdit}
-              onClick={() => onAdd(type)}
-              title={activationBlocked ? '자동 업데이트 선행 전에는 이 요소가 있는 양식을 활성화할 수 없습니다.' : undefined}
-            >
-              {ELEMENT_TYPE_LABEL[type]} 추가
+            <div className="document-template-palette-action" key={type}>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={!canEdit}
+                onClick={() => onAdd(type)}
+                title={activationBlocked ? '자동 업데이트 선행 전에는 이 요소가 있는 양식을 활성화할 수 없습니다.' : undefined}
+                style={{ minWidth: 0, width: '100%' }}
+              >
+                {ELEMENT_TYPE_LABEL[type]} 추가
+              </Button>
               {activationBlocked ? (
                 <span
                   data-testid={`palette-activation-blocked-badge-${type}`}
-                  style={{ marginLeft: 4, fontSize: 11, color: 'var(--color-warning-700, #92600a)' }}
+                  style={{ fontSize: 11, color: 'var(--color-warning-700, #92600a)' }}
                 >
                   (활성화 제한)
                 </span>
               ) : null}
-            </Button>
+            </div>
           )
         })}
       </div>

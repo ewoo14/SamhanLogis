@@ -225,6 +225,25 @@ function imageDataUrlByteLength(value: string): number {
   return Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0))
 }
 
+function hasImageSignature(mime: string, base64: string): boolean {
+  try {
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+    if (mime === 'png') {
+      return bytes.length >= 8
+        && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
+        && bytes[4] === 0x0D && bytes[5] === 0x0A && bytes[6] === 0x1A && bytes[7] === 0x0A
+    }
+    if (mime === 'jpeg') {
+      return bytes.length >= 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF
+    }
+    return mime === 'webp' && bytes.length >= 12
+      && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+      && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  } catch {
+    return false
+  }
+}
+
 /** 문서 JSON 상한을 함께 고려한 이미지 파일 선택기의 실제 decoded 상한. */
 export function maxImageBytesForDocument(document: DocumentPayload, imageKey: string): number {
   const imageExists = document.bands.some((band) => band.elements.some((element) => element.key === imageKey && element.type === 'IMAGE'))
@@ -378,8 +397,8 @@ function parseImageSource(value: unknown): string | DocumentTemplateParseError {
   }
   const base64 = match[2] ?? ''
   const bytes = imageDataUrlByteLength(value)
-  if (bytes <= 0 || bytes > MAX_IMAGE_BYTES) {
-    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소 data URL은 50KB 이하여야 합니다.' }
+  if (bytes <= 0 || bytes > MAX_IMAGE_BYTES || !hasImageSignature(match[1]!, base64)) {
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 실제 PNG/JPEG/WebP 이미지 파일이어야 하며 50KB 이하여야 합니다.' }
   }
   return value
 }

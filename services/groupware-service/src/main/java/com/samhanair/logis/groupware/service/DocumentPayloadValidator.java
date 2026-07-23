@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import javax.imageio.ImageIO;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -197,8 +200,11 @@ public class DocumentPayloadValidator {
                 }
             }
         } else if ("IMAGE".equals(type)) {
-            if (element.has("binding") || !validImageSource(element.get("src"))) {
+            if (element.has("binding")) {
                 reject("IMAGE 요소 src가 허용 정책을 만족하지 않습니다");
+            }
+            if (!validImageSource(element.get("src"))) {
+                reject("IMAGE 요소 src는 실제로 열 수 있는 PNG/JPEG/WebP 이미지여야 합니다.");
             }
             if (!validString(element.get("alt"), MAX_ALT_LENGTH)) {
                 reject("IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다");
@@ -246,10 +252,35 @@ public class DocumentPayloadValidator {
         if (!matcher.matches()) return false;
         try {
             byte[] decoded = Base64.getDecoder().decode(matcher.group(2));
-            return decoded.length > 0 && decoded.length <= MAX_IMAGE_BYTES;
-        } catch (IllegalArgumentException ex) {
+            if (decoded.length == 0 || decoded.length > MAX_IMAGE_BYTES
+                    || !hasImageSignature(matcher.group(1), decoded)) {
+                return false;
+            }
+            // ImageIO는 PNG/JPEG의 실제 파일 구조와 checksum/truncation을 검사한다.
+            // 표준 JDK에는 WebP reader가 없으므로 WebP는 RIFF/WEBP 컨테이너 signature까지 검사한다.
+            if ("webp".equals(matcher.group(1))) {
+                return true;
+            }
+            return ImageIO.read(new ByteArrayInputStream(decoded)) != null;
+        } catch (IllegalArgumentException | IOException ex) {
             return false;
         }
+    }
+
+    private static boolean hasImageSignature(String mime, byte[] bytes) {
+        if ("png".equals(mime)) {
+            return bytes.length >= 8
+                    && (bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E
+                    && bytes[3] == 0x47 && bytes[4] == 0x0D && bytes[5] == 0x0A
+                    && bytes[6] == 0x1A && bytes[7] == 0x0A;
+        }
+        if ("jpeg".equals(mime)) {
+            return bytes.length >= 3 && (bytes[0] & 0xFF) == 0xFF
+                    && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF;
+        }
+        return "webp".equals(mime) && bytes.length >= 12
+                && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
+                && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
     }
 
     private static void checkGeometry(JsonNode geometry) {

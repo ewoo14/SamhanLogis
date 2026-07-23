@@ -128,7 +128,11 @@ describe('document template limits', () => {
     expect(maxBytes).toBeGreaterThan(0)
     expect(maxBytes).toBeLessThan(50 * 1024)
 
-    const base64For = (bytes: number) => 'A'.repeat(4 * Math.ceil(bytes / 3))
+    const base64For = (bytes: number) => {
+      const raw = new Uint8Array(bytes)
+      raw.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+      return Buffer.from(raw).toString('base64')
+    }
     const atLimit = structuredClone(document)
     const atLimitElement = atLimit.bands[0]!.elements.find((element) => element.key === 'uploaded-image')!
     atLimitElement.src = `data:image/png;base64,${base64For(maxBytes)}`

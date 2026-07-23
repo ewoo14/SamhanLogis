@@ -76,6 +76,14 @@
   min-width: 0;
 }
 
+/* H8: HEADER 좌표 슬롯은 반응형 결재란의 실제 높이에 따라 움직이면 안 된다.
+ * preview screen/print가 같은 flow 원점을 쓰도록 편집기 전용 슬롯 높이를 예약한다.
+ * 요소를 잘라내지 않으며, 모바일 column 헤더는 50mm 안에서 자연스럽게 배치된다. */
+.document-template-preview .paper-a4-portrait .print-approval-doc-header {
+  height: 31.5mm;
+  min-height: 31.5mm;
+}
+
 @media screen {
   /* R1: 이 선택자는 편집기 preview wrapper 아래에서만 적용된다. 공용 .paper는 변경하지 않는다. */
   .document-template-preview .paper {
@@ -131,6 +139,8 @@
    * 문서 제목/문서번호에 충분한 폭을 주고, 인쇄용 A4 헤더는 그대로 둔다.
    */
   .document-template-preview .paper-a4-portrait .print-approval-doc-header {
+    height: 50mm;
+    min-height: 50mm;
     flex-direction: column;
     gap: 2mm;
   }
@@ -173,9 +183,29 @@
   }
 }
 
+/* H8: 모바일 print도 화면과 같은 HEADER flow 높이를 예약하되, 인쇄의 가로 배치는 유지한다. */
+@media print and (max-width: 639px) {
+  .document-template-preview .paper-a4-portrait .print-approval-doc-header {
+    height: 50mm;
+    min-height: 50mm;
+    flex-direction: row;
+  }
+}
+
 .document-template-palette-actions {
   display: grid;
   gap: var(--space-2);
+}
+
+.document-template-palette-action {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.document-template-palette-action > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .document-template-band-header {

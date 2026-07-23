@@ -3346,17 +3346,6 @@ button {
   max-height: 100%;
 }
 
-@media screen and (max-width: 639px) {
-  .document-template-detail table {
-    font-size: 8pt;
-  }
-
-  .document-template-detail th,
-  .document-template-detail td {
-    padding: 1mm;
-  }
-}
-
 @media print {
   .document-template-detail table {
     break-inside: auto;

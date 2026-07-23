@@ -41,6 +41,7 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   const detailLayer = page.getByTestId('document-template-detail-layer')
   const templateName = `DS4 실서버QA ${Date.now()}`
 
+  try {
   await test.step('D1 편집기 진입 후 품목행·이미지 추가', async () => {
     // 웹(vite) 하네스는 BrowserRouter — `#/…` 해시는 무시되고 홈이 렌더된다(실측). 경로로 이동한다.
     await page.goto(`${BASE_URL}/groupware/document-templates`)
@@ -159,7 +160,8 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   // ── 정리 ─────────────────────────────────────────────────────────
   // 🚨 공유 실 DB 에 throwaway 가 남지 않게 한다(라이브QA 공유데이터 규칙).
   //    하네스가 자기 정리를 하지 않으면 실행할 때마다 실 양식 목록이 오염된다.
-  await test.step('QA 잔재 정리 — 생성한 양식 삭제', async () => {
+  } finally {
+    await test.step('QA 잔재 정리 — 생성한 양식 삭제', async () => {
     const listRes = await page.request.get(`${API_BASE}/admin/groupware/document-templates`, {
       headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
     })
@@ -172,5 +174,6 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
       console.log(`■ 정리 ${t.name} → HTTP ${del.status()}`)
     }
     console.log(`■ 정리 대상 ${mine.length}건`)
-  })
+    })
+  }
 })

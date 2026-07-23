@@ -44,6 +44,7 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
   const addText = page.getByRole('button', { name: '문구 추가' })
   const templateName = `DS4 회귀실측 ${Date.now()}`
 
+  try {
   /** `% geometry`가 실제 적용된 요소와 그 부모 BODY의 rect를 함께 측정한다. */
   const measurePositioned = async () => preview.locator('.approval-doc-print-content [data-template-element]').evaluateAll((els) => {
     const positioned = els.filter((el) => getComputedStyle(el).position === 'absolute')
@@ -179,7 +180,8 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
   })
 
   // ── 정리 — 공유 실 DB에 throwaway를 남기지 않는다 ───────────────
-  await test.step('QA 잔재 정리', async () => {
+  } finally {
+    await test.step('QA 잔재 정리', async () => {
     const listRes = await page.request.get(`${API_BASE}/admin/groupware/document-templates`, {
       headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
     })
@@ -192,5 +194,6 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
       console.log(`■ 정리 ${t.name} → HTTP ${del.status()}`)
     }
     console.log(`■ 정리 대상 ${mine.length}건`)
-  })
+    })
+  }
 })

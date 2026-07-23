@@ -260,7 +260,7 @@ class DocumentPayloadValidatorTest {
         headerElements.addObject()
                 .put("key", "company-logo")
                 .put("type", "IMAGE")
-                .put("src", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB")
+                .put("src", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
                 .put("alt", "회사 로고");
         var bodyElements = (com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/1/elements");
         bodyElements.addObject()
@@ -299,6 +299,18 @@ class DocumentPayloadValidatorTest {
                     .as(src)
                     .isInstanceOf(BusinessException.class);
         }
+    }
+
+    @Test
+    void DS4_imageSourcePolicy_rejectsDecodableEnvelopeWithInvalidImageBytes() throws Exception {
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "corrupt-image").put("type", "IMAGE")
+                .put("src", "data:image/png;base64,bm90IGFuIGltYWdl").put("alt", "손상 이미지");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .as("MIME과 Base64 길이만 맞는 손상 PNG는 저장되면 안 된다")
+                .isInstanceOf(BusinessException.class);
     }
 
     /** key 로 대상 요소를 명시적으로 찾는다. 없으면 예외로 실패한다(공허 충족 방지). */

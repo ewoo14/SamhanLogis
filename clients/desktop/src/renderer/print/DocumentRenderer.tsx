@@ -233,7 +233,9 @@ function renderImageElement(element: ImageElement) {
       src={element.src}
       alt={element.alt}
       style={{
-        ...geometryStyle(element.geometry, element.style),
+        // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
+        // 인스펙터도 해당 컨트롤을 숨기고, 출력에는 실제 반영 가능한 테두리만 전달한다.
+        ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
         display: 'block',
         objectFit: 'contain',
       }}
