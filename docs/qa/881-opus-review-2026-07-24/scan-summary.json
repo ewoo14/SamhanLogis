@@ -1,0 +1,22 @@
+{
+  "salesBasic": {
+    "uuids": [],
+    "logins": []
+  },
+  "salesExcel": {
+    "uuids": [],
+    "logins": []
+  },
+  "salesWide": {
+    "uuids": [],
+    "logins": []
+  },
+  "purchaseBasic": {
+    "uuids": [],
+    "logins": []
+  },
+  "purchaseExcel": {
+    "uuids": [],
+    "logins": []
+  }
+}
