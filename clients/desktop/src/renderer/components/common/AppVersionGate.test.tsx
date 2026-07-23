@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -106,6 +106,28 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(status.textContent).toContain('업데이트')
     expect(status.textContent).not.toContain(raw)
     expect(status.textContent).toContain('인터넷 연결')
+  })
+
+  // #909 OPUS 재수렴 도달가능 1건 — 오류 알림을 닫을 수 있어야 한다(P-2).
+  it('오류 알림은 닫기 버튼으로 치울 수 있다', async () => {
+    const raw = 'Cannot find channel https://intranet.example/latest.yml response-header'
+    updater.check.mockRejectedValueOnce(new Error(raw))
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    expect(await screen.findByTestId('login-sentinel')).toBeTruthy()
+    expect(await screen.findByTestId('app-auto-update-status')).toBeTruthy()
+
+    const dismissButton = screen.getByTestId('app-auto-update-dismiss')
+    fireEvent.click(dismissButton)
+
+    expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
+    // 닫아도 로그인 화면 자체는 그대로 조작 가능해야 한다(P-1).
+    expect(screen.getByTestId('login-sentinel')).toBeTruthy()
   })
 
   it('확인 상한을 넘으면 일반 수준은 로그인으로 진행한다', async () => {

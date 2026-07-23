@@ -162,6 +162,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   const [versionCheckReady, setVersionCheckReady] = useState(!isElectronPlatform || IS_MOCK_MODE)
   const [installing, setInstalling] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
   const checkedRef = useRef(false)
   const startupInstallAllowedRef = useRef(true)
   const blockingRef = useRef(false)
@@ -299,16 +300,19 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     window.close()
   }
 
-  const statusNotice = updateStatus && updateStatus.kind !== 'not-available' ? (
+  const statusNotice = updateStatus && updateStatus.kind !== 'not-available' && !noticeDismissed ? (
     <div
       role="status"
       data-testid="app-auto-update-status"
       style={{
         position: 'fixed',
-        insetInlineStart: 16,
-        insetBlockStart: 16,
+        // 좌상단(16,16)은 사이드바 "홈" 링크·페이지 제목과 겹친다(패키징 앱엔 주소창이 없어
+        // 홈이 유일한 상시 복귀 경로 — #909 OPUS 재수렴 도달가능 1건). 우하단은 이 파일의
+        // "minor" 배너·PwaUpdatePrompt/PushPermissionDeniedToast 와 동일한 기존 관례다.
+        insetInlineEnd: 16,
+        insetBlockEnd: 16,
         zIndex: 10000,
-        maxWidth: 520,
+        maxWidth: 'min(520px, calc(100vw - 32px))',
         padding: '10px 14px',
         border: `1px solid ${updateStatus.kind === 'error' ? 'var(--color-danger-300)' : 'var(--color-brand-200)'}`,
         borderRadius: 8,
@@ -319,9 +323,21 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     >
       <span>{updateStatusText(updateStatus, installing)}</span>
       {updateStatus.kind === 'error' && (
-        <Button type="button" size="sm" variant="secondary" onClick={checkForUpdate} style={{ marginInlineStart: 12 }}>
-          다시 확인
-        </Button>
+        <>
+          <Button type="button" size="sm" variant="secondary" onClick={checkForUpdate} style={{ marginInlineStart: 12 }}>
+            다시 확인
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setNoticeDismissed(true)}
+            data-testid="app-auto-update-dismiss"
+            style={{ marginInlineStart: 8 }}
+          >
+            닫기
+          </Button>
+        </>
       )}
     </div>
   ) : null
