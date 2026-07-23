@@ -114,8 +114,15 @@ test('DS-3b L10·L12 — ACTIVE 편집 차단 / 인쇄 미디어 no-print', asyn
       await expect(page.getByRole('button', { name: '저장' }), 'L12 위반 — 저장 버튼이 인쇄물에 포함').toBeHidden()
 
       // 정작 인쇄돼야 할 문서 본문은 남는다
+      // SONNET5 라운드 fix(N-7/Q-1 파생): PR #914가 도입한 인쇄 폭 사전측정 ruler(printRuler)가
+      // 화면 사본과 별개로 같은 텍스트를 aria-hidden·visibility:hidden 사본으로 하나 더 렌더한다
+      // (인쇄 시 A4 고정폭 줄바꿈을 화면 미디어 전환 이전에 미리 계산해 두기 위함 — 실제 측정에
+      // 필요해 display:none으로 걷어낼 수 없다). visibility:hidden은 Playwright getByText 매칭에서
+      // 배제되지 않으므로(실측 확인) 바깥 getByText는 두 사본 모두와 매칭돼 strict mode violation을
+      // 낸다. data-template-element(실제 화면 사본에만 붙는 속성)로 스코프하면 인쇄 측정 사본은
+      // data-template-print-element를 쓰므로 모호성 없이 하나만 남는다.
       await expect(page.getByTestId('document-template-live-preview')).toBeVisible()
-      await expect(page.getByText('L12 인쇄 대상 본문')).toBeVisible()
+      await expect(page.locator('[data-template-element]').filter({ hasText: 'L12 인쇄 대상 본문' })).toBeVisible()
 
       await shot('L12a-인쇄미디어-편집기UI-소거')
       await page.pdf({ path: join(SHOT_DIR, 'L12b-실제출력.pdf'), format: 'A4', printBackground: true })

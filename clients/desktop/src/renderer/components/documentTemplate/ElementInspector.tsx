@@ -27,6 +27,11 @@ const FIXED_BINDINGS: Array<{ value: BindingRef; label: string }> = [
 ]
 const FIELD_ROW_BINDING = /^body\.fieldRow\[([^\[\]]{1,100})\]$/
 
+/** N-3: fieldOptions(현재 docType의 실서버 본문 필드) 조회 상태 — "화면은 모르는 것을 안다고 말하지
+ * 않는다"를 지키려면 조회 중/실패/정말 없음(=조회를 마쳤는데 빈 배열) 세 사실을 구분해야 한다. 기본값
+ * 'ready'는 이 prop을 아직 넘기지 않는 기존 호출부와의 하위호환이다. */
+export type FieldOptionsStatus = 'loading' | 'error' | 'ready'
+
 function numberValue(event: ChangeEvent<HTMLInputElement>, fallback: number): number {
   const value = Number(event.target.value)
   return Number.isFinite(value) ? value : fallback
@@ -45,6 +50,8 @@ export function ElementInspector({
   onRemove,
   document,
   fieldOptions = [],
+  fieldOptionsStatus = 'ready',
+  onRetryFieldOptions,
   bandKind,
   onMoveBand,
   canEdit,
@@ -54,6 +61,11 @@ export function ElementInspector({
   onRemove: () => void
   document?: DocumentPayload
   fieldOptions?: Pick<ApprovalTemplateField, 'fieldKey' | 'label'>[]
+  /** N-3: fieldOptions 조회 상태. 'loading'/'error'에서는 fieldOptions가 아직 신뢰할 수 없으므로
+   * "사용할 수 없는 본문 필드"로 단정하지 않는다. */
+  fieldOptionsStatus?: FieldOptionsStatus
+  /** N-3: 'error' 상태의 회복 수단. */
+  onRetryFieldOptions?: () => void
   bandKind?: BandKind
   onMoveBand?: (bandKind: BandKind) => void
   /** H-E: 편집 잠금·권한 없음 상태에서는 속성 편집·삭제 자체가 불가능해야 한다(읽기 전용 표시는 허용). */
@@ -77,10 +89,20 @@ export function ElementInspector({
   }))
   const hasKnownFieldBinding = fieldRowKey !== undefined
     && fieldOptions.some((field) => field.fieldKey === fieldRowKey)
-  const unknownFieldBinding = element.type === 'FIELD' && fieldRowKey !== undefined && !hasKnownFieldBinding
-    ? { value: element.binding, label: `사용할 수 없는 본문 필드 · ${fieldRowKey}` }
-    : null
   const bindingSelectValue = element.type === 'FIELD' ? element.binding : undefined
+  // N-3: fieldOptions가 아직 조회 중이거나 조회에 실패했으면 "이 key가 진짜 없다"를 아직 모른다 —
+  // 그 상태에서까지 "사용할 수 없는"이라 단정하면 화면이 모르는 것을 안다고 말하는 셈이 된다(정상
+  // 필드를 사용자가 지우면 설정이 손실된다). ready에서 정말 없는 참조일 때만 기존처럼 단정한다.
+  const unknownFieldBinding = bindingSelectValue !== undefined && fieldRowKey !== undefined && !hasKnownFieldBinding
+    ? {
+        value: bindingSelectValue,
+        label: fieldOptionsStatus === 'loading'
+          ? `본문 필드 · ${fieldRowKey}(확인 중)`
+          : fieldOptionsStatus === 'error'
+          ? `본문 필드 · ${fieldRowKey}(목록을 불러오지 못함)`
+          : `사용할 수 없는 본문 필드 · ${fieldRowKey}`,
+      }
+    : null
   const imageMaxBytes = element.type === 'IMAGE' && document
     ? maxImageBytesForDocument(document, element.key)
     : 50 * 1024
@@ -121,11 +143,28 @@ export function ElementInspector({
               {FIXED_BINDINGS.map((binding) => <option key={binding.value} value={binding.value}>{binding.label}</option>)}
               {fieldRowBindings.length > 0
                 ? fieldRowBindings.map((binding) => <option key={binding.value} value={binding.value}>{binding.label}</option>)
-                : <option value="" disabled>본문 필드(현재 양식 필드 없음)</option>}
+                : (
+                  <option value="" disabled>
+                    {fieldOptionsStatus === 'loading'
+                      ? '본문 필드 불러오는 중…'
+                      : fieldOptionsStatus === 'error'
+                      ? '본문 필드 목록을 불러오지 못했습니다'
+                      : '본문 필드(현재 양식 필드 없음)'}
+                  </option>
+                )}
               {unknownFieldBinding ? <option value={unknownFieldBinding.value}>{unknownFieldBinding.label}</option> : null}
             </select>
           </label>
-          {fieldRowMatch && !hasKnownFieldBinding ? (
+          {fieldOptionsStatus === 'error' ? (
+            <p role="alert" style={{ margin: 0, color: 'var(--color-danger-700, #a12622)', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              본문 필드 목록을 불러오지 못했습니다.
+              <Button type="button" variant="ghost" size="sm" onClick={onRetryFieldOptions}>다시 시도</Button>
+            </p>
+          ) : fieldOptionsStatus === 'loading' ? (
+            <p role="status" style={{ margin: 0, color: 'var(--color-neutral-500)', fontSize: 12 }}>
+              본문 필드 목록을 확인하는 중입니다…
+            </p>
+          ) : fieldRowMatch && !hasKnownFieldBinding ? (
             <p role="alert" style={{ margin: 0, color: 'var(--color-danger-700, #a12622)', fontSize: 12 }}>
               현재 양식에서 선택할 수 없는 본문 필드 참조입니다. 목록에서 실제 필드를 선택하세요.
             </p>
@@ -228,6 +267,23 @@ export function ElementInspector({
               </label>
             ))}
           </fieldset>
+          {geometry !== undefined ? (
+            // N-5: 좌표 값 하나만 고쳐도(예: w 칸에만 입력) 이 요소가 조용히 일반 배치(flow)에서
+            // 좌표 배치(absolute)로 바뀐다 — 그 자체를 막지는 않되(A-4/A-5가 이미 확립한 "빈 칸에
+            // 0을 입력하면 절대배치가 된다" 동작은 유지) 바뀌었다는 사실은 항상 눈에 보이게 한다.
+            // N-4: 좌표를 만들 수 있으면 되돌릴 수도 있어야 한다 — 요소를 삭제하지 않고 이 버튼
+            // 하나로 "좌표 없음"(geometry: undefined)으로 되돌린다. numberValue의 `Number('')===0`
+            // 특성 때문에 네 칸을 전부 지워도 {x:0,y:0,w:0,h:0}(무효 geometry, 저장 차단)에 갇힐 뿐
+            // undefined로는 못 돌아간다 — 이 버튼이 그 유일한 탈출구다.
+            <div className="document-template-inspector-geometry-status" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-info-700, #1c5eab)' }}>
+                이 요소는 지정한 좌표로 배치되어 있습니다(일반 배치가 아님).
+              </p>
+              <Button type="button" variant="ghost" size="sm" disabled={!canEdit} onClick={() => onUpdate({ geometry: undefined })}>
+                좌표 해제
+              </Button>
+            </div>
+          ) : null}
           <fieldset className="document-template-inspector-fieldset" style={{ display: 'grid', gap: 6 }}>
             <legend>스타일</legend>
             {element.type !== 'IMAGE' ? (

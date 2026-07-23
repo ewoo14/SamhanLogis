@@ -21,72 +21,8 @@ import { useTemplateDraft } from '../components/documentTemplate/useTemplateDraf
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { DocumentRenderer } from '../print/DocumentRenderer'
-import type { ApprovalRenderModel } from '../print/approvalRenderModel'
+import { buildPreviewModel } from '../print/documentTemplateEditorPreview'
 import { hasActivationBlockedElements } from '../print/templateSchema'
-
-// M-E: 결재란(approvalSteps)이 빈 배열로 고정돼 있으면 편집기에서 APPROVAL_GRID 를 조작해도 미리보기
-// 픽셀이 전혀 바뀌지 않는다(결재란 자체가 그려지지 않으므로). 최소 1단계를 채워 "요소를 조작하면 그
-// 변화가 미리보기에 드러난다"는 편집기의 핵심 계약을 시연 가능하게 한다.
-const PREVIEW_MODEL: ApprovalRenderModel = {
-  header: { title: '결재 문서 미리보기', docNo: '예시 문서번호', issueDate: '2026-01-01' },
-  approvalSteps: [
-    { label: '작성', name: '작성자' },
-    { label: '결재', name: '결재자' },
-  ],
-  body: {
-    paragraphs: ['본문 미리보기'],
-    fieldRows: [
-      { key: 'exampleField', label: '예시 필드', value: '예시 값' },
-      { key: 'expenseItem', label: '지출항목', value: '미리보기 지출항목' },
-      { key: 'amount', label: '금액', value: '12,000' },
-      { key: 'accountCode', label: '계정과목', value: '복리후생비' },
-      { key: 'expenseDate', label: '지출일', value: '2026-07-23' },
-      { key: 'summary', label: '적요', value: '미리보기 적요' },
-      { key: 'leaveType', label: '휴가종류', value: '연차' },
-      { key: 'startDate', label: '시작일', value: '2026-07-23' },
-      { key: 'endDate', label: '종료일', value: '2026-07-23' },
-      { key: 'reason', label: '사유', value: '미리보기 사유' },
-    ],
-    attachments: [],
-    lineItemsAvailability: 'CONNECTED',
-    lineItems: [
-      {
-        productName: '미리보기 품목 A',
-        modelName: 'DS4-A',
-        specification: '샘플 규격',
-        quantity: 2,
-        supplyAmount: '30000',
-        vatAmount: '3000',
-        lineTotal: '33000',
-        note: '샘플 행',
-      },
-      {
-        productName: '미리보기 품목 B',
-        modelName: 'DS4-B',
-        specification: '샘플 규격',
-        quantity: 1,
-        supplyAmount: '15000',
-        vatAmount: '1500',
-        lineTotal: '16500',
-        note: '두 번째 행',
-      },
-    ],
-  },
-  closing: { note: '위와 같이 품의하오니 재가하여 주시기 바랍니다.' },
-}
-
-function previewLineItems(count: number): NonNullable<ApprovalRenderModel['body']['lineItems']> {
-  return Array.from({ length: count }, (_, index) => ({
-    productName: `미리보기 품목 ${String.fromCharCode(65 + (index % 26))}-${index + 1}`,
-    modelName: `DS4-${String(index + 1).padStart(2, '0')}`,
-    specification: '샘플 규격',
-    quantity: (index % 4) + 1,
-    supplyAmount: String((index + 1) * 15000),
-    vatAmount: String((index + 1) * 1500),
-    lineTotal: String((index + 1) * 16500),
-    note: `샘플 행 ${index + 1}`,
-  }))
-}
 
 function errorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -136,6 +72,15 @@ export function DocumentTemplateEditorPage() {
   })
   const approvalTemplateCode = draft.docType.replace(/^GROUPWARE_/, '')
   const approvalFieldOptions = (approvalTemplatesQuery.data ?? []).find((item) => item.code === approvalTemplateCode)?.fields ?? []
+  // N-3: isLoading/isError를 실제로 읽는다 — 조회 중/실패/정말 없음(ready인데 빈 배열)을 구분해
+  // ElementInspector에 전달한다. react-query v5의 isLoading은 "활성 fetch 중"만 true이므로
+  // enabled:false(docType 미선택) 상태는 자동으로 'ready'(빈 배열)로 떨어진다 — 그 상태는 실제로
+  // "정말 없음"이 맞다(아직 조회할 docType 자체가 없다).
+  const approvalFieldOptionsStatus = approvalTemplatesQuery.isLoading
+    ? 'loading' as const
+    : approvalTemplatesQuery.isError
+    ? 'error' as const
+    : 'ready' as const
 
   useEffect(() => {
     if (template) setEditable(template.status === 'DRAFT')
@@ -149,16 +94,20 @@ export function DocumentTemplateEditorPage() {
     document: draft.document,
   }), [draft.docType, draft.name, draft.document])
 
+  // N-2: fieldRows는 하드코딩이 아니라 approvalFieldOptions(현재 docType의 실서버 필드)에서 파생한다
+  // — buildPreviewModel 내부의 buildPreviewFieldRows가 담당한다. docType이 바뀌면(또는 fieldOptions가
+  // 아직 로딩 전이면) 미리보기도 그 문서 유형이 실제로 가진 필드만 정확히 반영한다(P2: 다른 유형의
+  // 필드가 섞이지 않는다).
   const previewModel = useMemo(() => {
     const requestedCountValue = new URLSearchParams(location.search).get('mockDetailRows')
-    if (requestedCountValue === null) return PREVIEW_MODEL
     const requestedCount = Number(requestedCountValue)
-    if (!Number.isInteger(requestedCount) || requestedCount < 0 || requestedCount > 200) return PREVIEW_MODEL
-    return {
-      ...PREVIEW_MODEL,
-      body: { ...PREVIEW_MODEL.body, lineItems: previewLineItems(requestedCount) },
-    }
-  }, [location.search])
+    const hasValidDetailRowCount = requestedCountValue !== null
+      && Number.isInteger(requestedCount) && requestedCount >= 0 && requestedCount <= 200
+    return buildPreviewModel({
+      fieldOptions: approvalFieldOptions,
+      ...(hasValidDetailRowCount ? { detailRowCount: requestedCount } : {}),
+    })
+  }, [location.search, approvalFieldOptions])
 
   const save = useMutation({
     mutationFn: () => isNew ? createDocumentTemplate(input) : updateDocumentTemplate(id!, input),
@@ -312,6 +261,8 @@ export function DocumentTemplateEditorPage() {
             onRemove={() => selectedKey && removeElement(selectedKey)}
             document={draft.document}
             fieldOptions={approvalFieldOptions}
+            fieldOptionsStatus={approvalFieldOptionsStatus}
+            onRetryFieldOptions={() => void approvalTemplatesQuery.refetch()}
             bandKind={selectedBandKind}
             onMoveBand={(kind) => selectedKey && moveElementToBand(selectedKey, kind)}
             canEdit={canEdit}
