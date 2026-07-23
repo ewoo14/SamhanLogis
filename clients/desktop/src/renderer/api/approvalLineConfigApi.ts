@@ -79,20 +79,31 @@ const SLIP_CONFIGURABLE_DOC_TYPES: ConfigurableDocType[] = DOC_TYPES.map((type) 
   kind: 'SLIP',
 }))
 
+/**
+ * R3(#914) 발견3: ApprovalLineConfigPage는 이 함수를 "그룹웨어 조회가 실패해도 최소한 전표
+ * 3종은 뜬다"는 계약으로 쓴다(아래 fetchConfigurableDocTypes, approvalLineConfigApi.test.ts 로
+ * 고정 — 바꾸지 않는다). DocumentTemplateEditorPage는 SLIP 종류를 쓰지 않고(kind==='GROUPWARE'만
+ * 사용) 정반대가 필요하다 — 그 삼킴 때문에 "그룹웨어 조회 실패"와 "활성 그룹웨어 양식 정말 0개"가
+ * 똑같이 빈 배열로 도착해 select 가 "고를 것이 없는데 고르라"고 말하게 된다(P-4 위반). 실패를
+ * 삼키지 않는 이 함수를 분리해 각자 맞는 계약을 쓰게 한다.
+ */
+export async function fetchActiveGroupwareDocTypes(): Promise<ConfigurableDocType[]> {
+  const res = await apiClient.get<ApiEnvelope<ActiveApprovalTemplateDto[]>>(
+    '/groupware/approval-templates/active',
+  )
+  return (res.data.data ?? [])
+    .filter((template) => template.active !== false)
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+    .map((template) => ({
+      value: `GROUPWARE_${template.code}`,
+      label: template.name,
+      kind: 'GROUPWARE' as const,
+    }))
+}
+
 export async function fetchConfigurableDocTypes(): Promise<ConfigurableDocType[]> {
   try {
-    const res = await apiClient.get<ApiEnvelope<ActiveApprovalTemplateDto[]>>(
-      '/groupware/approval-templates/active',
-    )
-    const groupwareDocTypes = (res.data.data ?? [])
-      .filter((template) => template.active !== false)
-      .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-      .map((template) => ({
-        value: `GROUPWARE_${template.code}`,
-        label: template.name,
-        kind: 'GROUPWARE' as const,
-      }))
-    return [...SLIP_CONFIGURABLE_DOC_TYPES, ...groupwareDocTypes]
+    return [...SLIP_CONFIGURABLE_DOC_TYPES, ...(await fetchActiveGroupwareDocTypes())]
   } catch {
     return [...SLIP_CONFIGURABLE_DOC_TYPES]
   }

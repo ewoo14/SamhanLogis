@@ -19,12 +19,12 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
       mockAppForce: 'CRITICAL',
       mockAppLatestVersion: '9.9.0',
     }), { waitUntil: 'domcontentloaded' })
-    await waitForApp(page)
 
     const modal = page.getByTestId('app-version-blocking-modal')
-    await expect(modal).toBeVisible()
+    // B1: CRITICAL은 라우터보다 먼저 차단되어 header-page-title을 기다리면 안 된다.
+    await expect(modal).toBeVisible({ timeout: 15_000 })
     await expect(modal).toContainText('9.9.0')
-    await expect(modal).toContainText('업데이트 전까지 앱 사용은 차단됩니다')
+    await expect(modal).toContainText('새 버전이 설치될 때까지 앱 사용은 차단됩니다. 잠시만 기다려 주세요.')
 
     await page.keyboard.press('Escape')
     await expect(modal).toBeVisible()

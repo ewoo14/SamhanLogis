@@ -84,8 +84,13 @@ function valueForBinding(binding: BindingRef, model: ApprovalRenderModel): strin
     case 'closing.note':
       return model.closing.note
     default: {
+      // N-1: "값이 비어 있음"과 "참조가 잘못됨"은 렌더 모델 안에서는 구분할 수 없다(둘 다 fieldRows에
+      // 없음으로 관측된다 — approvalDoc.ts의 fieldRows()가 빈 값 행을 filter로 제거하기 때문에,
+      // required=false로 비어 있는 실제 필드도 "없음"과 동일하게 보인다). 이 구분은 편집기
+      // ElementInspector의 hasKnownFieldBinding 경고(실제 fieldOptions 기준)가 이미 담당하므로,
+      // 완성된 결재문서 지면에는 어느 쪽이든 디버그 문자열을 싣지 않고 조용히 빈 칸으로 렌더한다.
       const fieldKey = binding.slice('body.fieldRow['.length, -1)
-      return model.body.fieldRows.find((field) => field.label === fieldKey)?.value ?? ''
+      return model.body.fieldRows.find((field) => field.key === fieldKey)?.value ?? ''
     }
   }
 }
@@ -151,12 +156,20 @@ function detailGeometryStyle(geometry: Geometry | undefined, style: ElementStyle
   } as CSSProperties
 }
 
-function renderPositionedElement(element: FieldElement | TextElement, model: ApprovalRenderModel) {
+/**
+ * N-7(Q-1) fix: `measurement=true`일 때는 `data-template-print-element`를 쓴다(IMAGE의
+ * `data-template-print-image`와 같은 패턴). PositionedElementBand는 화면용 ruler와 인쇄 측정용
+ * printRuler를 항상 동시에 렌더하는데, 이 둘이 같은 `data-template-element` 속성을 공유하면 실 DOM에
+ * 그 key를 가진 노드가 항상 2개 존재해 `[data-template-element]` 쿼리(#869 회귀 가드가 전제하는
+ * toHaveCount(1)류 단언, getByText strict mode)가 깨진다 — CI는 `-real-qa` 를 testIgnore 하므로
+ * 정적으로는 안 보이지만 라이브QA가 그 하네스로 돌면 그대로 재현된다.
+ */
+function renderPositionedElement(element: FieldElement | TextElement, model: ApprovalRenderModel, measurement = false) {
   const text = element.type === 'TEXT' ? element.text : valueForBinding(element.binding, model)
   return (
     <div
       key={element.key}
-      data-template-element={element.key}
+      {...(measurement ? { 'data-template-print-element': element.key } : { 'data-template-element': element.key })}
       style={geometryStyle(element.geometry, element.style)}
     >
       {text}
@@ -223,13 +236,15 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
   )
 }
 
-function renderImageElement(element: ImageElement) {
+function renderImageElement(element: ImageElement, measurement = false) {
   if (!isAllowedImageSource(element.src)) return null
   return (
     <img
       key={element.key}
       className="document-template-image"
-      data-template-image={element.key}
+      {...(measurement
+        ? { 'data-template-print-image': element.key }
+        : { 'data-template-image': element.key })}
       src={element.src}
       alt={element.alt}
       style={{
@@ -252,6 +267,11 @@ const POSITIONED_BAND_RULER_HEIGHT = `${POSITIONED_BAND_HEIGHT_MM_NUMBER}mm`
 const OVERFLOW_NOISE_FLOOR_PX = 0.5
 /** 실제 초과가 있을 때 rounding 으로 인한 `elRect.bottom > layerRect.bottom` false-RED 를 막는 여유(px). */
 const OVERFLOW_SAFETY_MARGIN_PX = 1
+/** N-7(Q-1): 화면(실제) 사본과 인쇄 측정 사본 양쪽 모두를 실측 대상으로 잡는 선택자. 화면/인쇄
+ * ruler 각각에서 실제 그 subtree 에 존재하는 속성만 매칭되므로(printRuler 에는 print-* 속성만,
+ * ruler 에는 비-print 속성만 존재) 하나로 공유해도 서로 침범하지 않는다 — 상수 하나로 관리해
+ * FIELD/TEXT(`data-template-print-element`)와 IMAGE(`data-template-print-image`)가 항상 함께 갱신된다. */
+const POSITIONED_NODE_SELECTOR = '[data-template-element], [data-template-image], [data-template-print-image], [data-template-print-element]'
 
 /**
  * SSR(`renderToStaticMarkup`)은 `useLayoutEffect` 사용 시 "does nothing on the server" 경고를 낸다.
@@ -292,7 +312,9 @@ interface PositionedElementBandProps {
  */
 function PositionedElementBand({ elements, model, testId }: PositionedElementBandProps) {
   const rulerRef = useRef<HTMLDivElement | null>(null)
-  const [overflowPx, setOverflowPx] = useState(0)
+  const printRulerRef = useRef<HTMLDivElement | null>(null)
+  const [screenOverflowPx, setScreenOverflowPx] = useState(0)
+  const [printOverflowPx, setPrintOverflowPx] = useState(0)
   // 좌표/스타일/실 렌더 문자열(TEXT 원문, FIELD 바인딩 결과, IMAGE src)이 바뀔 때만 재측정하면
   // 충분하다 — 매 렌더 재측정은 낭비이고, 반대로 이 신호들을 빠뜨리면 내용이 바뀌어도 재측정을
   // 건너뛰어 밴드가 낡은 높이로 남는다.
@@ -307,27 +329,39 @@ function PositionedElementBand({ elements, model, testId }: PositionedElementBan
       : valueForBinding(element.binding, model),
   })))
 
+  const recomputeOverflow = (ruler: HTMLDivElement, setOverflow: (value: number | ((previous: number) => number)) => void) => {
+    const rulerRect = ruler.getBoundingClientRect()
+    let maxBottom = 0
+    ruler.querySelectorAll(POSITIONED_NODE_SELECTOR).forEach((node) => {
+      const bottom = node.getBoundingClientRect().bottom - rulerRect.top
+      if (bottom > maxBottom) maxBottom = bottom
+    })
+    const rawOverflow = maxBottom - rulerRect.height
+    const nextOverflow = rawOverflow > OVERFLOW_NOISE_FLOOR_PX ? rawOverflow + OVERFLOW_SAFETY_MARGIN_PX : 0
+    setOverflow((previous) => Math.abs(previous - nextOverflow) < OVERFLOW_NOISE_FLOOR_PX ? previous : nextOverflow)
+  }
+
   useIsomorphicLayoutEffect(() => {
     const ruler = rulerRef.current
-    if (!ruler) return undefined
+    const printRuler = printRulerRef.current
+    if (!ruler || !printRuler) return undefined
     const recompute = () => {
-      const rulerRect = ruler.getBoundingClientRect()
-      let maxBottom = 0
-      ruler.querySelectorAll('[data-template-element], [data-template-image]').forEach((node) => {
-        const bottom = node.getBoundingClientRect().bottom - rulerRect.top
-        if (bottom > maxBottom) maxBottom = bottom
-      })
-      const rawOverflow = maxBottom - rulerRect.height
-      const nextOverflow = rawOverflow > OVERFLOW_NOISE_FLOOR_PX ? rawOverflow + OVERFLOW_SAFETY_MARGIN_PX : 0
-      setOverflowPx((prev) => (Math.abs(prev - nextOverflow) < OVERFLOW_NOISE_FLOOR_PX ? prev : nextOverflow))
+      recomputeOverflow(ruler, setScreenOverflowPx)
+      recomputeOverflow(printRuler, setPrintOverflowPx)
     }
     recompute()
     if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(recompute)
     observer.observe(ruler)
-    ruler.querySelectorAll('[data-template-element], [data-template-image]').forEach((node) => observer.observe(node))
+    observer.observe(printRuler)
+    ruler.querySelectorAll(POSITIONED_NODE_SELECTOR).forEach((node) => observer.observe(node))
+    printRuler.querySelectorAll(POSITIONED_NODE_SELECTOR).forEach((node) => observer.observe(node))
     return () => observer.disconnect()
   }, [contentSignature])
+
+  const renderElements = (measurement = false) => elements.map((element) => element.type === 'IMAGE'
+    ? renderImageElement(element, measurement)
+    : renderPositionedElement(element, model, measurement))
 
   return (
     <div
@@ -340,13 +374,34 @@ function PositionedElementBand({ elements, model, testId }: PositionedElementBan
         className="document-template-v2-elements-ruler"
         style={{ position: 'relative', height: POSITIONED_BAND_RULER_HEIGHT }}
       >
-        {elements.map((element) => element.type === 'IMAGE'
-          ? renderImageElement(element)
-          : renderPositionedElement(element, model))}
+        {renderElements()}
       </div>
-      {overflowPx > 0 ? (
-        <div aria-hidden="true" data-testid={`${testId}-overflow-spacer`} style={{ height: `${overflowPx}px` }} />
+      {screenOverflowPx > 0 ? (
+        <div
+          aria-hidden="true"
+          data-testid={`${testId}-overflow-spacer`}
+          className="document-template-v2-elements-screen-overflow-spacer"
+          style={{ height: `${screenOverflowPx}px` }}
+        />
       ) : null}
+      {printOverflowPx > 0 ? (
+        <div
+          aria-hidden="true"
+          data-testid={`${testId}-print-overflow-spacer`}
+          className="document-template-v2-elements-print-overflow-spacer"
+          style={{ height: `${printOverflowPx}px` }}
+        />
+      ) : null}
+      <div
+        ref={printRulerRef}
+        aria-hidden="true"
+        className="document-template-v2-elements-print-measure"
+        style={{ position: 'absolute', left: 0, top: 0, width: 'calc(210mm - 24mm - 2px)', height: POSITIONED_BAND_RULER_HEIGHT }}
+      >
+        <div style={{ position: 'relative', height: POSITIONED_BAND_RULER_HEIGHT }}>
+          {renderElements(true)}
+        </div>
+      </div>
     </div>
   )
 }

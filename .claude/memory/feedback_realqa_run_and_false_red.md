@@ -50,6 +50,19 @@ real-qa config(`clients/desktop/playwright.real-qa.config.ts`)엔 **webServer �
    → 스펙의 `AUDIT_BASE_URL` 기본값이 `http://127.0.0.1:...` 인 것들이 있으니 **`http://localhost:...` 로 넘겨야 한다.**
 2. **web 하네스(`vite.web.config.ts`)는 BrowserRouter 다** — 기존 스펙들이 쓰는 `#/groupware/document-templates` 해시가 **무시되고 홈(대시보드)이 렌더**된다. 증상은 "페이지 heading 을 못 찾음"이라 기능 결함처럼 보인다. → **경로로 이동**(`/groupware/document-templates`). Playwright `error-context.md` 의 page snapshot 에 사이드바만 보이면 이 함정이다.
 
+## 🪤 워크트리를 제거해도 그 vite 가 포트를 **계속 잡고 404** 를 낸다 (2026-07-23 #907 실측)
+
+`git worktree remove` 로 워크트리를 지워도 거기서 띄운 vite 프로세스는 **살아서 포트를 점유**한다. 서빙할 파일이 사라졌으니 `GET /` 이 **404** 를 내고, `--strictPort` 때문에 **새 프로세스는 바인딩에 실패해 조용히 죽는다** — 결과적으로 "새로 띄웠는데 404" 라는 혼란스러운 상태가 된다.
+- 판별: `Get-NetTCPConnection -LocalPort <port> -State Listen` → `(Get-CimInstance Win32_Process -Filter "ProcessId=<pid>").CommandLine` 로 **경로가 지운 워크트리인지** 확인.
+- 🚨 **라이브QA 전에 리스너 커맨드라인이 의도한 트리(메인/해당 워크트리)인지 매번 확인할 것** — 안 그러면 **사라진 워크트리의 stale 코드**를 상대로 QA 하게 된다.
+- 세션 종료 시 vite 를 정리하면 다음 세션이 이 함정을 안 밟는다.
+- 세션 백그라운드 태스크로 띄운 vite 는 **하네스가 태스크를 죽이면 같이 죽는다** — 오래 살아야 하면 `Start-Process powershell -WindowStyle Hidden` 로 **분리 기동**할 것(2026-07-23 실측: LUNA 라이브QA 도중 하네스가 죽어 25분을 날렸다).
+
+## 🪤 PowerShell probe 스크립트 2종 함정 (2026-07-23)
+
+1. **`Out-Null` 이 함수 안의 `Write-Output` 까지 삼킨다** — `Send-Probe ... | Out-Null` 로 반환값을 버리면 함수 내부 로그가 **통째로 사라진다**(PowerShell 은 `Write-Output` 을 파이프라인으로 보낸다). 로그는 **`Write-Host`** 로 쓸 것.
+2. **PS 5.1 이 BOM 없는 UTF-8 `.ps1` 을 ANSI 로 읽어** 한글 주석·문자열이 깨지고, 깨진 바이트가 문자열/해시 안에 들어가면 **파싱 자체가 실패**한다(`Unexpected token` / `The string is missing the terminator`). → probe 스크립트는 **ASCII 전용**으로 쓰고 한글은 출력 대상 데이터로만 다룰 것. ([[feedback_powershell_utf8_writes]])
+
 ## 🪤 BE 컨테이너가 브랜치보다 낡아 게이트가 **관측 불가**였다 (2026-07-23 #908)
 
 `DETAIL/IMAGE 활성화 422` 게이트를 라이브에서 확인하려는데 계속 **400 `"문서 요소가 유효하지 않습니다"`** 로 막혔다. 코드 결함이 아니라 **실행 중 BE 이미지가 게이트 커밋보다 먼저 빌드된 것**이었다(이미지 `2026-07-22T07:48Z` vs 게이트 커밋 `07-23 05:45 KST`). 게이트 이전 단계인 schema whitelist 에서 먼저 걸렸다.

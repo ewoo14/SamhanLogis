@@ -18,6 +18,7 @@ import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
 import { getLegacyEstimateUrl } from './legacy-asset.js'
 import { isAllowedExternalUrl } from './external-url.js'
+import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -105,6 +106,7 @@ function createMainWindow(): void {
 
 app.whenReady().then(() => {
   registerAuthIpcHandlers()
+  registerAutoUpdateIpcHandlers()
   // [Phase 6 v4] legacy estimate webview asset URL 조회 IPC.
   // renderer 의 EstimateLegacyWebviewPage 가 src 속성에 사용한다.
   ipcMain.handle('legacy:get-estimate-url', () => getLegacyEstimateUrl())
@@ -117,6 +119,9 @@ app.whenReady().then(() => {
       throw new Error('Invalid URL — https:// (dev 는 http://localhost 도) 만 허용')
     }
     await shell.openExternal(url)
+  })
+  ipcMain.handle('updater:quit', () => {
+    app.quit()
   })
   createMainWindow()
 

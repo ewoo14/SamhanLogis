@@ -9,6 +9,7 @@ import {
   type BandKind,
   type DocElement,
   type DocumentPayload,
+  type DocumentTemplateParseError,
   type ElementStyle,
   type Geometry,
   type TemplateEnvelope,
@@ -70,6 +71,7 @@ function toDraft(template: TemplateEnvelope | null | undefined): TemplateDraftSt
   return {
     ...v2,
     schemaVersion: 2,
+    docType: template ? v2.docType : '',
     document: {
       paper: v2.document.paper,
       bands: v2.document.bands.map((band) => ({
@@ -82,6 +84,44 @@ function toDraft(template: TemplateEnvelope | null | undefined): TemplateDraftSt
 
 function allKeys(document: DocumentPayload): Set<string> {
   return new Set(document.bands.flatMap((band) => [band.key, ...band.elements.map((element) => element.key)]))
+}
+
+/**
+ * R3(#914) 발견1 — 직전 라운드가 "name을 또 특수처리하면 반복"이라는 지적에 클래스(코드) 단위로
+ * 대응했지만, 그 클래스 전체를 코드당 문구 1개로 뭉개면서 파서가 이미 만들어 둔 한계값·형식 정보를
+ * 같이 버렸다(TEXT 4096자·IMAGE PNG/JPEG/WebP+50KB가 전부 "설정을 확인하세요"로 붕괴 — P-1/P-3 위반).
+ *
+ * INVALID_ELEMENT/INVALID_IMAGE_SOURCE 는 원문 그대로 노출해도 안전하다 — 두 코드의 모든 메시지를
+ * templateSchema.ts 에서 직접 감사했다: envelope|payload|schema|parse 를 포함하지 않고(F-8),
+ * TEXT/IMAGE 처럼 이미 이 화면의 라벨(ELEMENT_TYPE_LABEL)에 쓰이는 이름만 등장한다. 나머지 코드는
+ * (a) 사용자가 편집기로는 만들 수 없는 구조적 상태(밴드 배치·요소 개수·중복 key 등 — 팔레트/좌표
+ * select가 애초에 그 값을 못 만든다)이거나 (b) 원문에도 한계값이 없어 제네릭 문구로도 정보 손실이
+ * 없다(geometry/style) — 이 두 부류만 코드 단위 제네릭 문구를 유지한다.
+ */
+function validationMessage(error: DocumentTemplateParseError): string {
+  switch (error.code) {
+    case 'INVALID_ENVELOPE':
+    case 'UNKNOWN_VERSION':
+    case 'INVALID_ELEMENT':
+    case 'INVALID_IMAGE_SOURCE':
+      return error.message
+    case 'INVALID_PAPER':
+      return '문서 양식 용지를 확인하세요.'
+    case 'INVALID_BAND':
+      return '문서 양식 영역 구성을 확인하세요.'
+    case 'INVALID_GEOMETRY':
+      return '요소의 위치와 크기를 확인하세요.'
+    case 'INVALID_STYLE':
+      return '요소의 글꼴·정렬·테두리 설정을 확인하세요.'
+    case 'INVALID_BINDING':
+      return '본문 필드 연결을 확인하세요.'
+    case 'DUPLICATE_KEY':
+      return '문서 요소가 중복되지 않도록 확인하세요.'
+    case 'INVALID_BAND_PLACEMENT':
+      return '요소를 올바른 영역에 배치하세요.'
+    case 'INVALID_ELEMENT_COUNT':
+      return '문서 양식의 필수 요소 구성을 확인하세요.'
+  }
 }
 
 export function moveElementToBand(document: DocumentPayload, key: string, targetKind: BandKind): DocumentPayload {
@@ -252,9 +292,11 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     selectedElement,
     dirty,
     valid: parseResult.ok,
-    // H-C: 저장이 불가능한 상태의 이유를 화면에서 알 수 있어야 한다 — 종전에는 parseResult.error.message
-    // 를 버리고 ok 여부만 노출해 저장 버튼이 이유 없이 비활성화됐다.
-    validationError: parseResult.ok ? null : parseResult.error.message,
+    // H-C: 저장이 불가능한 상태의 이유를 화면에서 알 수 있어야 한다 — parser가 실패한 필드와
+    // 사용자가 할 일을 함께 판별해 반환하므로 내부 검증 용어를 소비처에서 다시 해석하지 않는다.
+    validationError: parseResult.ok
+      ? null
+      : validationMessage(parseResult.error),
     markSaved,
     notice,
     clearNotice: useCallback(() => setNotice(null), []),

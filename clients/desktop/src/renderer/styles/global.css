@@ -2647,6 +2647,22 @@ button {
   .no-print {
     display: none !important;
   }
+  /* #909 SONNET5 라운드2 — U-3: design-system 공용 Modal(backdrop+dialog, createPortal 로
+   * document.body 직속 렌더 — AppVersionGate JSX 트리 밖이라 부모에 no-print 를 둬도 안 먹는다)
+   * 중 "업데이트 안내류" 3개(CRITICAL 차단·MAJOR/recommend·MINOR "지금 보기")만 인쇄에서 뺀다.
+   * ⚠️ PM 반증(2026-07-24): 처음엔 [data-testid='ds-modal-backdrop'] 를 통째로 숨겼다가
+   * SlipDetailModal(배차보드 전표 미리보기 — Modal 안에 DispatchDocument 실제 인쇄 문서가 있음)
+   * 을 인쇄에서 지워버리는 새 결함을 만들었다(U-3 위반). :has() 로 update-modal 의 고유 표적
+   * (app-version-blocking-modal / app-version-recommend-modal / app-version-minor-detail-modal,
+   * 전부 AppVersionGate.tsx 소유)이 자손에 있는 backdrop 만 골라 숨긴다 — design-system 패키지는
+   * 여전히 미수정(그 3개 testid 는 desktop 코드가 Modal children 안에 넣은 것이라 CSS 만으로 표적
+   * 가능). SlipDetailModal 등 다른 56개 Modal 소비처는 이 selector 와 매치되지 않아 인쇄 그대로.
+   */
+  [data-testid='ds-modal-backdrop']:has([data-testid='app-version-blocking-modal']),
+  [data-testid='ds-modal-backdrop']:has([data-testid='app-version-recommend-modal']),
+  [data-testid='ds-modal-backdrop']:has([data-testid='app-version-minor-detail-modal']) {
+    display: none !important;
+  }
   .app-shell {
     display: block;
   }
@@ -3346,7 +3362,32 @@ button {
   max-height: 100%;
 }
 
+/* PR #914: 화면 ruler의 React 측정값은 window.print()의 동기 media 전환보다 늦을 수 있다.
+ * A4 인쇄 콘텐츠 폭을 고정한 비가시 ruler의 spacer를 인쇄에서 사용해, 인쇄 직전에도
+ * 실제 용지 폭으로 계산된 예약 높이가 이미 레이아웃에 존재하도록 한다. */
+.document-template-v2-elements-print-measure {
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.document-template-v2-elements {
+  overflow-x: clip;
+}
+
+.document-template-v2-elements-print-overflow-spacer {
+  display: none;
+}
+
 @media print {
+  .document-template-v2-elements-screen-overflow-spacer {
+    display: none;
+  }
+
+  .document-template-v2-elements-print-overflow-spacer {
+    display: block;
+  }
+
   .document-template-detail table {
     break-inside: auto;
     page-break-inside: auto;

@@ -83,7 +83,14 @@ test('R1 — 좌표 요소가 24mm 밴드를 넘치면 밴드가 자라 뒤 내�
     if (!el) return { error: '좌표 요소가 렌더되지 않았다' }
     const layerRect = layer.getBoundingClientRect()
     const elRect = el.getBoundingClientRect()
-    const spacer = layer.querySelector('[data-testid$="-overflow-spacer"]')
+    // SONNET5 라운드 fix — `[data-testid$="-overflow-spacer"]`는 화면용(`…-overflow-spacer`)과
+    // 인쇄용(`…-print-overflow-spacer`) 두 testid 모두와 매칭된다(둘 다 그 접미사로 끝난다).
+    // querySelector(단수)는 DOM 순서상 항상 먼저 오는 화면 spacer를 집는다 — print 미디어에서는
+    // 그 화면 spacer가 `@media print{display:none}`로 숨겨져 getBoundingClientRect()가 0을 반환해,
+    // 실제로는 표시 중인 인쇄 spacer가 있어도 "spacer 없음"으로 잘못 관측된다. 현재 미디어에서
+    // 실제로 표시되는(computed display !== 'none') 쪽을 고른다.
+    const spacerCandidates = Array.from(layer.querySelectorAll<HTMLElement>('[data-testid$="-overflow-spacer"]'))
+    const spacer = spacerCandidates.find((node) => getComputedStyle(node).display !== 'none') ?? null
     const spacerRect = spacer?.getBoundingClientRect()
     const body = layer.closest('.approval-doc-print-content')
     const bodyRect = body?.getBoundingClientRect()

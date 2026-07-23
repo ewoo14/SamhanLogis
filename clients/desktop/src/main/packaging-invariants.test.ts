@@ -103,6 +103,15 @@ describe('데스크톱 패키징 불변식 (white-screen 회귀 가드)', () => 
     expect(pkg.dependencies?.['@samhan/design-system']).toBeUndefined()
   })
 
+  it('Windows 패키지는 generic HTTPS 업데이트 피드와 코드서명 강제를 사용한다', () => {
+    // YAML의 `**/*` glob은 JS comment stripper가 block comment로 오인하므로 원문을 검사한다.
+    const builder = read('electron-builder.yml')
+    expect(builder).toMatch(/provider:\s*generic/)
+    expect(builder).toMatch(/url:\s*\$\{env\.DESKTOP_UPDATE_URL\}/)
+    expect(builder).toMatch(/forceCodeSigning:\s*true/)
+    expect(builder).not.toMatch(/publish:\s*null/)
+  })
+
   it('빌드 산출물이 있으면 main/preload 도 CJS preload 불변식을 만족한다', () => {
     const mainOut = readIfExists('out/main/index.js')
     const preloadOut = readIfExists('out/preload/index.cjs')

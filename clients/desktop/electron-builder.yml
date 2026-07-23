@@ -1,7 +1,8 @@
 # SamhanLogis Desktop — electron-builder 설정
 #
-# 첫 슬라이스: Windows NSIS installer + portable .exe (Q6=A 사내 환경 Windows 우선).
-# auto-update 미도입 (운영 부채로 후속 슬라이스에 분리 — Q1/Q4 결정).
+# Windows NSIS installer + portable .exe (Q6=A 사내 환경 Windows 우선).
+# 자동 업데이트는 NSIS 설치본에서 동작한다. portable은 기존 배포 호환용으로 유지하며
+# electron-updater의 설치/재시작 대상이 아니므로 운영 배포는 NSIS를 사용해야 한다.
 #
 # 빌드 명령:
 #   npm run build:win    # electron-vite build → electron-builder --win
@@ -12,6 +13,9 @@ appId: com.samhanair.logis.desktop
 productName: Samhan Public
 copyright: Copyright (c) 2026 (주)삼한공조시스템
 artifactName: ${productName}-${version}-${arch}.${ext}
+# publisherName만으로는 서명되지 않는다. 인증서가 없으면 빌드를 실패시켜
+# SmartScreen/업데이트 서명 검증이 우회되지 않도록 한다.
+forceCodeSigning: true
 
 directories:
   output: release/${version}
@@ -56,4 +60,9 @@ nsis:
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
 
-publish: null  # 자동 업데이트 미도입 (후속 슬라이스에서 GitHub Releases 또는 사내 호스팅 + electron-updater)
+# private GitHub Releases는 클라이언트에 토큰을 배포해야 하므로 사용하지 않는다.
+# 빌드 환경에서 DESKTOP_UPDATE_URL을 HTTPS 사내 정적 피드 주소로 주입한다.
+publish:
+  provider: generic
+  url: ${env.DESKTOP_UPDATE_URL}
+  channel: latest

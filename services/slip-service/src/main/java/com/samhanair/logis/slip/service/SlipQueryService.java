@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipStatus;
@@ -12,7 +13,12 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -52,6 +58,7 @@ public class SlipQueryService {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     private final SlipRepository slipRepository;
+    private final UserInternalClient userInternalClient;
 
     /**
      * 판매/구매조회 전표 목록 페이지 조회.
@@ -125,7 +132,7 @@ public class SlipQueryService {
         Pageable nativePageable = pageable == null || pageable.isUnpaged()
                 ? Pageable.unpaged()
                 : PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.unsorted());
-        return slipRepository.searchIncludingDeleted(
+        Page<Slip> slipPage = slipRepository.searchIncludingDeleted(
                         slipType == null ? null : slipType.name(),
                         status == null ? null : status.name(),
                         resolvedFrom,
@@ -138,8 +145,56 @@ public class SlipQueryService {
                         normalize(searchSlipNo),
                         normalize(searchProjectName),
                         normalize(searchDeliveryAddress),
-                        nativePageable)
-                .map(SlipResponse::from);
+                        nativePageable);
+
+        Map<UUID, String> salesPersonNames = resolveSalesPersonNames(slipPage.getContent());
+        return slipPage.map(slip -> SlipResponse.from(slip,
+                salesPersonNameOf(slip.getRequesterId(), salesPersonNames)));
+    }
+
+    /**
+     * 조회 페이지의 requesterId를 한 번에 직원명으로 해석한다. UUID가 아닌 legacy loginId와
+     * system sentinel은 user-service에 전달하지 않고 중립 표시로 남긴다.
+     */
+    private Map<UUID, String> resolveSalesPersonNames(List<Slip> slips) {
+        Set<UUID> requesterIds = new LinkedHashSet<>();
+        for (Slip slip : slips) {
+            UUID requesterId = parseSalesPersonId(slip.getRequesterId());
+            if (requesterId != null) {
+                requesterIds.add(requesterId);
+            }
+        }
+        if (requesterIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        try {
+            Map<UUID, String> resolved = userInternalClient.resolveFullNames(requesterIds);
+            return resolved == null ? Collections.emptyMap() : resolved;
+        } catch (RuntimeException ex) {
+            // user-service 장애가 목록 전체의 500으로 전파되지 않도록 fail-open.
+            return Collections.emptyMap();
+        }
+    }
+
+    private static UUID parseSalesPersonId(String requesterId) {
+        if (requesterId == null || requesterId.isBlank()) {
+            return null;
+        }
+        try {
+            UUID parsed = UUID.fromString(requesterId.trim());
+            return parsed.equals(new UUID(0L, 0L)) ? null : parsed;
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private static String salesPersonNameOf(String requesterId, Map<UUID, String> resolvedNames) {
+        UUID parsed = parseSalesPersonId(requesterId);
+        if (parsed == null) {
+            return "—";
+        }
+        String fullName = resolvedNames.get(parsed);
+        return fullName == null || fullName.isBlank() ? "—" : fullName;
     }
 
     /**

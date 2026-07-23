@@ -4,7 +4,8 @@ import { isAxiosError } from 'axios'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import { fetchConfigurableDocTypes } from '../api/approvalLineConfigApi'
+import { fetchActiveGroupwareDocTypes } from '../api/approvalLineConfigApi'
+import { listApprovalTemplates } from '../api/groupwareApprovalTemplate'
 import {
   createDocumentTemplate,
   deactivateDocumentTemplate,
@@ -20,66 +21,13 @@ import { useTemplateDraft } from '../components/documentTemplate/useTemplateDraf
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { DocumentRenderer } from '../print/DocumentRenderer'
-import type { ApprovalRenderModel } from '../print/approvalRenderModel'
+import { buildPreviewModel } from '../print/documentTemplateEditorPreview'
 import { hasActivationBlockedElements } from '../print/templateSchema'
-
-// M-E: 결재란(approvalSteps)이 빈 배열로 고정돼 있으면 편집기에서 APPROVAL_GRID 를 조작해도 미리보기
-// 픽셀이 전혀 바뀌지 않는다(결재란 자체가 그려지지 않으므로). 최소 1단계를 채워 "요소를 조작하면 그
-// 변화가 미리보기에 드러난다"는 편집기의 핵심 계약을 시연 가능하게 한다.
-const PREVIEW_MODEL: ApprovalRenderModel = {
-  header: { title: '결재 문서 미리보기', docNo: '예시 문서번호', issueDate: '2026-01-01' },
-  approvalSteps: [
-    { label: '작성', name: '작성자' },
-    { label: '결재', name: '결재자' },
-  ],
-  body: {
-    paragraphs: ['본문 미리보기'],
-    fieldRows: [{ label: '예시 필드', value: '예시 값' }],
-    attachments: [],
-    lineItemsAvailability: 'CONNECTED',
-    lineItems: [
-      {
-        productName: '미리보기 품목 A',
-        modelName: 'DS4-A',
-        specification: '샘플 규격',
-        quantity: 2,
-        supplyAmount: '30000',
-        vatAmount: '3000',
-        lineTotal: '33000',
-        note: '샘플 행',
-      },
-      {
-        productName: '미리보기 품목 B',
-        modelName: 'DS4-B',
-        specification: '샘플 규격',
-        quantity: 1,
-        supplyAmount: '15000',
-        vatAmount: '1500',
-        lineTotal: '16500',
-        note: '두 번째 행',
-      },
-    ],
-  },
-  closing: { note: '위와 같이 품의하오니 재가하여 주시기 바랍니다.' },
-}
-
-function previewLineItems(count: number): NonNullable<ApprovalRenderModel['body']['lineItems']> {
-  return Array.from({ length: count }, (_, index) => ({
-    productName: `미리보기 품목 ${String.fromCharCode(65 + (index % 26))}-${index + 1}`,
-    modelName: `DS4-${String(index + 1).padStart(2, '0')}`,
-    specification: '샘플 규격',
-    quantity: (index % 4) + 1,
-    supplyAmount: String((index + 1) * 15000),
-    vatAmount: String((index + 1) * 1500),
-    lineTotal: String((index + 1) * 16500),
-    note: `샘플 행 ${index + 1}`,
-  }))
-}
 
 function errorMessage(error: unknown): string {
   if (isAxiosError(error)) {
     const message = (error.response?.data as { message?: unknown } | undefined)?.message
-    if (typeof message === 'string' && message.trim()) return message.trim()
+    if (typeof message === 'string' && message.trim() && !/envelope|payload|schema|parse/i.test(message)) return message.trim()
   }
   return '문서 양식 처리에 실패했습니다.'
 }
@@ -103,9 +51,12 @@ export function DocumentTemplateEditorPage() {
   // H-D: docType 은 실제 결재 문서와 매칭되는 값만 의미가 있다(오타는 어떤 문서에도 매칭되지 않는
   // 죽은 양식을 만든다). 결재 유형 관리(#845)가 이미 관리하는 실제 GROUPWARE_* 코드 목록을 재사용한다
   // — 새 docType 도메인 확장은 비범위(spec §1.2)이므로 그룹웨어 결재 문서로 한정한다.
+  // R3(#914) 발견3: fetchConfigurableDocTypes()(ApprovalLineConfigPage 전용 계약)는 그룹웨어 조회
+  // 실패를 삼켜 빈 배열로 만든다 — 이 화면은 SLIP 종류를 쓰지 않으므로(아래 필터) 실패가 "정말
+  // 0개"와 구별 안 되는 빈 select 로 도착한다. 실패를 삼키지 않는 전용 함수를 쓴다.
   const docTypeOptionsQuery = useQuery({
     queryKey: ['groupwareDocumentTemplateDocTypeOptions'],
-    queryFn: fetchConfigurableDocTypes,
+    queryFn: fetchActiveGroupwareDocTypes,
     enabled: isNew,
     staleTime: 60_000,
   })
@@ -116,6 +67,25 @@ export function DocumentTemplateEditorPage() {
     draft, updateDraft, addElement, moveElement, moveElementToBand, updateElement, removeElement,
     selectedKey, setSelectedKey, selectedElement, dirty, valid, validationError, markSaved, notice, clearNotice,
   } = draftState
+  const approvalTemplatesQuery = useQuery({
+    queryKey: ['groupwareApprovalTemplatesForDocumentEditor'],
+    queryFn: listApprovalTemplates,
+    enabled: draft.docType.length > 0,
+    staleTime: 60_000,
+  })
+  const approvalTemplateCode = draft.docType.replace(/^GROUPWARE_/, '')
+  const approvalFieldOptions = (approvalTemplatesQuery.data ?? []).find((item) => item.code === approvalTemplateCode)?.fields ?? []
+  // R2(#914): 위 주석의 원래 판정("enabled:false는 실제로 '정말 없음'이 맞다")은 틀렸다 — docType
+  // 미선택은 "조회했더니 없었다"가 아니라 "조회 자체를 시도하지 않았다"이다. 'ready'로 뭉뚱그리면
+  // 이미 저장된 정상 바인딩(예: 지출결의서의 금액)을 유형을 잠깐 미선택으로 되돌렸다는 이유만으로
+  // "사용할 수 없는 필드"라고 단정하게 된다(P-2 위반). loading/error와 나란한 별도 상태로 구분한다.
+  const approvalFieldOptionsStatus = draft.docType.length === 0
+    ? 'unselected' as const
+    : approvalTemplatesQuery.isLoading
+    ? 'loading' as const
+    : approvalTemplatesQuery.isError
+    ? 'error' as const
+    : 'ready' as const
 
   useEffect(() => {
     if (template) setEditable(template.status === 'DRAFT')
@@ -129,16 +99,20 @@ export function DocumentTemplateEditorPage() {
     document: draft.document,
   }), [draft.docType, draft.name, draft.document])
 
+  // N-2: fieldRows는 하드코딩이 아니라 approvalFieldOptions(현재 docType의 실서버 필드)에서 파생한다
+  // — buildPreviewModel 내부의 buildPreviewFieldRows가 담당한다. docType이 바뀌면(또는 fieldOptions가
+  // 아직 로딩 전이면) 미리보기도 그 문서 유형이 실제로 가진 필드만 정확히 반영한다(P2: 다른 유형의
+  // 필드가 섞이지 않는다).
   const previewModel = useMemo(() => {
     const requestedCountValue = new URLSearchParams(location.search).get('mockDetailRows')
-    if (requestedCountValue === null) return PREVIEW_MODEL
     const requestedCount = Number(requestedCountValue)
-    if (!Number.isInteger(requestedCount) || requestedCount < 0 || requestedCount > 200) return PREVIEW_MODEL
-    return {
-      ...PREVIEW_MODEL,
-      body: { ...PREVIEW_MODEL.body, lineItems: previewLineItems(requestedCount) },
-    }
-  }, [location.search])
+    const hasValidDetailRowCount = requestedCountValue !== null
+      && Number.isInteger(requestedCount) && requestedCount >= 0 && requestedCount <= 200
+    return buildPreviewModel({
+      fieldOptions: approvalFieldOptions,
+      ...(hasValidDetailRowCount ? { detailRowCount: requestedCount } : {}),
+    })
+  }, [location.search, approvalFieldOptions])
 
   const save = useMutation({
     mutationFn: () => isNew ? createDocumentTemplate(input) : updateDocumentTemplate(id!, input),
@@ -246,6 +220,19 @@ export function DocumentTemplateEditorPage() {
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </Select>
+            {/* R3(#914) 발견3 P-4: 조회 실패 시 목록이 조용히 비어 "고를 것이 없는데 고르라"고 하지
+                않는다 — N-3(ElementInspector 본문 필드)가 이미 세운 실패 고지+재시도 패턴을 그대로
+                적용한다. */}
+            {docTypeOptionsQuery.isLoading ? (
+              <p role="status" style={{ margin: '4px 0 0', color: 'var(--color-neutral-500)', fontSize: 12 }}>
+                문서 유형 목록을 확인하는 중입니다…
+              </p>
+            ) : docTypeOptionsQuery.isError ? (
+              <p role="alert" style={{ margin: '4px 0 0', color: 'var(--color-danger-700, #a12622)', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                문서 유형 목록을 불러오지 못했습니다.
+                <Button type="button" variant="ghost" size="sm" onClick={() => void docTypeOptionsQuery.refetch()}>다시 시도</Button>
+              </p>
+            ) : null}
           </div>
         ) : (
           // H-D: 기존 양식은 BE 가 docType 변경을 항상 422 로 거부한다 — 수정 가능한 입력처럼 보이면
@@ -255,7 +242,15 @@ export function DocumentTemplateEditorPage() {
             <input value={draft.docType} disabled aria-readonly="true" />
           </label>
         )}
-        <label className="document-template-editor-form-field">양식명<input value={draft.name} disabled={!canEdit} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
+        {/* R5(#914) P-5: maxLength로 초과분을 버리지 않고, 입력 중 현재 길이와 상한을 함께 알린다.
+            저장 시 초과를 차단하는 파서 문구는 그대로 유지한다. */}
+        <label className="document-template-editor-form-field">
+          양식명
+          <input value={draft.name} disabled={!canEdit} onChange={(event) => updateDraft({ name: event.target.value })} />
+          <span role="status" aria-live="polite" style={{ fontSize: 12, color: draft.name.length > 100 ? 'var(--color-danger-700, #a12622)' : 'var(--color-neutral-500)' }}>
+            {draft.name.length} / 100
+          </span>
+        </label>
       </div>
 
       {/*
@@ -291,6 +286,9 @@ export function DocumentTemplateEditorPage() {
             onUpdate={(patch) => selectedKey && updateElement(selectedKey, patch)}
             onRemove={() => selectedKey && removeElement(selectedKey)}
             document={draft.document}
+            fieldOptions={approvalFieldOptions}
+            fieldOptionsStatus={approvalFieldOptionsStatus}
+            onRetryFieldOptions={() => void approvalTemplatesQuery.refetch()}
             bandKind={selectedBandKind}
             onMoveBand={(kind) => selectedKey && moveElementToBand(selectedKey, kind)}
             canEdit={canEdit}
