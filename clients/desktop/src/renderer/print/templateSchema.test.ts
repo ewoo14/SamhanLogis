@@ -47,6 +47,23 @@ const validTemplate = {
 } as const
 
 describe('parseDocumentTemplate', () => {
+  it.each([
+    ['id', (input: Record<string, unknown>) => { input.id = 42 }, '문서 양식 식별자를 확인하세요.'],
+    ['status', (input: Record<string, unknown>) => { input.status = 'BROKEN' }, '문서 양식 상태를 확인하세요.'],
+    ['revision', (input: Record<string, unknown>) => { input.revision = -1 }, '문서 양식 버전 정보를 확인하세요.'],
+    ['docType', (input: Record<string, unknown>) => { input.docType = '' }, '문서 유형을 선택해야 저장할 수 있습니다.'],
+    ['name', (input: Record<string, unknown>) => { input.name = '' }, '양식명을 입력해야 저장할 수 있습니다.'],
+    ['document', (input: Record<string, unknown>) => { input.document = null }, '문서 양식 내용을 확인하세요.'],
+  ])('%s가 잘못되면 해당 필드를 고치라는 문구를 반환한다', (_field, mutate, message) => {
+    const input = structuredClone(validTemplate) as Record<string, unknown>
+    mutate(input)
+
+    const result = parseDocumentTemplate(input)
+
+    expect(result).toMatchObject({ ok: false, error: { message } })
+    if (!result.ok) expect(result.error.message).not.toMatch(/envelope|payload|schema|parse/i)
+  })
+
   it('허용된 discriminated union 요소를 파싱한다', () => {
     const result = parseDocumentTemplate(validTemplate)
 

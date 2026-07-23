@@ -27,7 +27,7 @@ import { hasActivationBlockedElements } from '../print/templateSchema'
 function errorMessage(error: unknown): string {
   if (isAxiosError(error)) {
     const message = (error.response?.data as { message?: unknown } | undefined)?.message
-    if (typeof message === 'string' && message.trim()) return message.trim()
+    if (typeof message === 'string' && message.trim() && !/envelope|payload|schema|parse/i.test(message)) return message.trim()
   }
   return '문서 양식 처리에 실패했습니다.'
 }

@@ -9,6 +9,7 @@ import {
   type BandKind,
   type DocElement,
   type DocumentPayload,
+  type DocumentTemplateParseError,
   type ElementStyle,
   type Geometry,
   type TemplateEnvelope,
@@ -83,6 +84,34 @@ function toDraft(template: TemplateEnvelope | null | undefined): TemplateDraftSt
 
 function allKeys(document: DocumentPayload): Set<string> {
   return new Set(document.bands.flatMap((band) => [band.key, ...band.elements.map((element) => element.key)]))
+}
+
+function validationMessage(error: DocumentTemplateParseError): string {
+  switch (error.code) {
+    case 'INVALID_ENVELOPE':
+    case 'UNKNOWN_VERSION':
+      return error.message
+    case 'INVALID_PAPER':
+      return '문서 양식 용지를 확인하세요.'
+    case 'INVALID_BAND':
+      return '문서 양식 영역 구성을 확인하세요.'
+    case 'INVALID_ELEMENT':
+      return '문서 요소 설정을 확인하세요.'
+    case 'INVALID_GEOMETRY':
+      return '요소의 위치와 크기를 확인하세요.'
+    case 'INVALID_STYLE':
+      return '요소의 글꼴·정렬·테두리 설정을 확인하세요.'
+    case 'INVALID_BINDING':
+      return '본문 필드 연결을 확인하세요.'
+    case 'INVALID_IMAGE_SOURCE':
+      return '이미지 파일을 확인하세요.'
+    case 'DUPLICATE_KEY':
+      return '문서 요소가 중복되지 않도록 확인하세요.'
+    case 'INVALID_BAND_PLACEMENT':
+      return '요소를 올바른 영역에 배치하세요.'
+    case 'INVALID_ELEMENT_COUNT':
+      return '문서 양식의 필수 요소 구성을 확인하세요.'
+  }
 }
 
 export function moveElementToBand(document: DocumentPayload, key: string, targetKind: BandKind): DocumentPayload {
@@ -253,17 +282,11 @@ export function useTemplateDraft(template?: TemplateEnvelope | null) {
     selectedElement,
     dirty,
     valid: parseResult.ok,
-    // H-C: 저장이 불가능한 상태의 이유를 화면에서 알 수 있어야 한다 — 종전에는 parseResult.error.message
-    // 를 버리고 ok 여부만 노출해 저장 버튼이 이유 없이 비활성화됐다.
-    // R2(#914) P-4: docType이 비어 있으면 parseEnvelope의 단일 OR-조건 검사(id/status/revision/docType/
-    // name/document)가 항상 맨 먼저 걸려 매번 같은 제네릭 "envelope가 유효하지 않다" 문구만 내놓는다 —
-    // docType이 비어 있는 한 이 함수가 낼 수 있는 유일한 에러이므로, 그보다 사용자가 실제로 할 일(문서
-    // 유형 선택)을 말하는 문구로 안전하게 대체한다. 내부 파서 용어(envelope)를 화면에 내지 않는다.
+    // H-C: 저장이 불가능한 상태의 이유를 화면에서 알 수 있어야 한다 — parser가 실패한 필드와
+    // 사용자가 할 일을 함께 판별해 반환하므로 내부 검증 용어를 소비처에서 다시 해석하지 않는다.
     validationError: parseResult.ok
       ? null
-      : draft.docType.length === 0
-      ? '문서 유형을 선택해야 저장할 수 있습니다.'
-      : parseResult.error.message,
+      : validationMessage(parseResult.error),
     markSaved,
     notice,
     clearNotice: useCallback(() => setNotice(null), []),

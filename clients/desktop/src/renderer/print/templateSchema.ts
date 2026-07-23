@@ -420,7 +420,7 @@ function parseElement(value: unknown, schemaVersion: SchemaVersion): DocElement 
     return { code: 'INVALID_ELEMENT', message: `지원하지 않는 문서 요소 type입니다: ${value.type}` }
   }
   if (schemaVersion === 1 && !(LEGACY_ELEMENT_TYPES as readonly string[]).includes(value.type)) {
-    return { code: 'INVALID_ELEMENT', message: `schema v1에서 지원하지 않는 문서 요소 type입니다: ${value.type}` }
+    return { code: 'INVALID_ELEMENT', message: `이전 버전에서 지원하지 않는 문서 요소 type입니다: ${value.type}` }
   }
   if ((LEGACY_ELEMENT_TYPES as readonly string[]).includes(value.type)) {
     return { key: value.key, type: value.type as LegacyElementType }
@@ -486,27 +486,34 @@ function parseElement(value: unknown, schemaVersion: SchemaVersion): DocElement 
 }
 
 function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVersion): DocumentTemplateParseResult {
-  if (
-    ('id' in value && value.id !== undefined && !isNonEmptyString(value.id))
-    || ('status' in value && value.status !== undefined && value.status !== 'DRAFT' && value.status !== 'ACTIVE')
-    || !Number.isInteger(value.revision)
-    || (value.revision as number) < 0
-    || !isNonEmptyString(value.docType, MAX_DOC_TYPE_LENGTH)
-    || !isNonEmptyString(value.name, MAX_KEY_LENGTH)
-    || !isRecord(value.document)
-  ) {
-    return failure('INVALID_ENVELOPE', '문서 양식 envelope 필드가 유효하지 않습니다.')
+  if ('id' in value && value.id !== undefined && !isNonEmptyString(value.id)) {
+    return failure('INVALID_ENVELOPE', '문서 양식 식별자를 확인하세요.')
+  }
+  if ('status' in value && value.status !== undefined && value.status !== 'DRAFT' && value.status !== 'ACTIVE') {
+    return failure('INVALID_ENVELOPE', '문서 양식 상태를 확인하세요.')
+  }
+  if (!Number.isInteger(value.revision) || (value.revision as number) < 0) {
+    return failure('INVALID_ENVELOPE', '문서 양식 버전 정보를 확인하세요.')
+  }
+  if (!isNonEmptyString(value.docType, MAX_DOC_TYPE_LENGTH)) {
+    return failure('INVALID_ENVELOPE', '문서 유형을 선택해야 저장할 수 있습니다.')
+  }
+  if (!isNonEmptyString(value.name, MAX_KEY_LENGTH)) {
+    return failure('INVALID_ENVELOPE', '양식명을 입력해야 저장할 수 있습니다.')
+  }
+  if (!isRecord(value.document)) {
+    return failure('INVALID_ENVELOPE', '문서 양식 내용을 확인하세요.')
   }
 
   let serialized: string
   try {
     serialized = JSON.stringify(value.document)
   } catch {
-    return failure('INVALID_ENVELOPE', '문서 양식 JSON을 직렬화할 수 없습니다.')
+    return failure('INVALID_ENVELOPE', '문서 양식 내용을 저장할 수 없습니다.')
   }
   const bytes = serialized === undefined ? 0 : new TextEncoder().encode(serialized).byteLength
   if (bytes > MAX_REQUEST_BYTES || depthOf(value.document) > MAX_DEPTH) {
-    return failure('INVALID_ENVELOPE', '문서 양식 JSON 상한을 초과했습니다.')
+    return failure('INVALID_ENVELOPE', '문서 양식 내용이 너무 큽니다.')
   }
 
   if (value.document.paper !== 'A4_PORTRAIT') return failure('INVALID_PAPER', '지원하지 않는 문서 양식 용지입니다.')
@@ -569,8 +576,8 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
 
 /** 알 수 없는 입력을 검증된 결재 문서 템플릿으로 변환한다. */
 export function parseDocumentTemplate(value: unknown): DocumentTemplateParseResult {
-  if (!isRecord(value)) return failure('INVALID_ENVELOPE', '문서 양식 envelope가 아닙니다.')
-  if (!isSupportedSchemaVersion(value.schemaVersion)) return failure('UNKNOWN_VERSION', '지원하지 않는 문서 양식 schemaVersion입니다.')
+  if (!isRecord(value)) return failure('INVALID_ENVELOPE', '문서 양식 데이터를 확인할 수 없습니다.')
+  if (!isSupportedSchemaVersion(value.schemaVersion)) return failure('UNKNOWN_VERSION', '지원하지 않는 문서 양식 버전입니다.')
   return parseEnvelope(value, value.schemaVersion)
 }
 
@@ -584,7 +591,7 @@ export function upcastDocumentTemplate(value: unknown, fromVersion: number): Tem
   if (fromVersion !== 1) throw new Error(`지원하지 않는 문서 양식 버전입니다: ${fromVersion}`)
   const parsed = parseDocumentTemplate(value)
   if (!parsed.ok) throw new Error(parsed.error.message)
-  if (parsed.value.schemaVersion !== 1) throw new Error('v1 문서 양식 schemaVersion이 아닙니다.')
+  if (parsed.value.schemaVersion !== 1) throw new Error('이전 버전 문서 양식이 아닙니다.')
   return { ...parsed.value, schemaVersion: 2 }
 }
 
