@@ -148,6 +148,59 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(screen.getByTestId('app-auto-update-status').textContent).toContain('제한')
   })
 
+  it('일반 다운로드 상한 후에도 백그라운드 다운로드 이벤트를 유지하고 자동 설치하지 않는다', async () => {
+    vi.useFakeTimers()
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+    await act(async () => Promise.resolve())
+    act(() => updater.emit({ kind: 'available', version: '0.2.0' }))
+
+    await act(async () => {
+      vi.advanceTimersByTime(DESKTOP_UPDATE_DOWNLOAD_TIMEOUT_MS + 1)
+      await Promise.resolve()
+    })
+    expect(screen.getByTestId('login-sentinel')).toBeTruthy()
+
+    act(() => updater.emit({ kind: 'downloading', percent: 88 }))
+    act(() => updater.emit({ kind: 'downloaded', version: '0.2.0' }))
+
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('다음 기동 때 자동 설치합니다')
+    expect(updater.install).not.toHaveBeenCalled()
+  })
+
+  it('진행 이벤트가 계속 와도 다운로드 상한은 최초 시작부터 180초 후 로그인으로 진행한다', async () => {
+    vi.useFakeTimers()
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+    await act(async () => Promise.resolve())
+    act(() => updater.emit({ kind: 'available', version: '0.2.0' }))
+
+    act(() => updater.emit({ kind: 'downloading', percent: 1 }))
+    for (const percent of [11, 21, 31, 41, 51, 61, 71]) {
+      await act(async () => {
+        vi.advanceTimersByTime(25_000)
+        await Promise.resolve()
+      })
+      act(() => updater.emit({ kind: 'downloading', percent }))
+    }
+
+    await act(async () => {
+      vi.advanceTimersByTime(5_001)
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('login-sentinel')).toBeTruthy()
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('제한')
+  })
+
   it('기동 gate가 열린 뒤 도착한 다운로드 완료에는 자동 재시작하지 않는다', async () => {
     render(
       <AppVersionGate bootstrapped>

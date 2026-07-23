@@ -61,7 +61,7 @@ describe('Electron 자동 업데이트 IPC', () => {
     })
 
     await mocks.handlers.get('updater:install')?.()
-    expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true)
+    expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
   })
 
   it('electron-updater 오류 원문은 renderer 상태에 전달하지 않는다', () => {

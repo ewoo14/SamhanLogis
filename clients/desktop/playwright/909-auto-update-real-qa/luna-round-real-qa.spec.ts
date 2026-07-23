@@ -14,10 +14,10 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'LUNA-909-ROUND-20260723'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '909-luna-round-2026-07-23')
+const SHOT_DIR = process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-luna-round-2026-07-23')
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'
 
-type Scenario = 'available' | 'not-available' | 'check-error' | 'download-timeout' | 'critical-check-error'
+type Scenario = 'available' | 'not-available' | 'check-error' | 'download-timeout' | 'download-timeout-progress' | 'critical-check-error'
 
 function cleanupThrowaway(): string {
   const sql = [
@@ -83,6 +83,16 @@ async function installHarness(page: import('@playwright/test').Page, scenario: S
             emit({ kind: 'downloading', percent: 17 })
             return new Promise<void>(() => {})
           }
+          if (selectedScenario === 'download-timeout-progress') {
+            await delay(120)
+            emit({ kind: 'available', version: '9.9.8' })
+            emit({ kind: 'downloading', percent: 1 })
+            for (const percent of [11, 21, 31, 41, 51, 61, 71]) {
+              await delay(25_000)
+              emit({ kind: 'downloading', percent })
+            }
+            return new Promise<void>(() => {})
+          }
           if (selectedScenario === 'not-available') {
             await delay(120)
             emit({ kind: 'not-available' })
@@ -108,10 +118,10 @@ async function installHarness(page: import('@playwright/test').Page, scenario: S
   }, { selectedScenario: scenario, rawError: RAW_ERROR })
 }
 
-test.setTimeout(240_000)
+test.setTimeout(600_000)
 test.use({ viewport: { width: 1400, height: 900 } })
 
-test('PR #909 라운드 — 실제 updater 5개 기동 경로', async ({ browser, request }) => {
+test('PR #909 라운드 — 실제 updater 6개 기동 경로', async ({ browser, request }) => {
   mkdirSync(SHOT_DIR, { recursive: true })
   const cleanupAtStart = cleanupThrowaway()
   console.log(`■ 시작 잔재 회수 SQL 출력\n${cleanupAtStart.trim() || '(잔재 없음)'}`)
@@ -201,7 +211,8 @@ test('PR #909 라운드 — 실제 updater 5개 기동 경로', async ({ browser
       console.log(`■ ${name} updater 관측 ${JSON.stringify(audit)}`)
       await page.screenshot({ path: join(SHOT_DIR, `${screenshot}-02-실패후-상태.png`), fullPage: true })
     } else {
-      await expect(splash).toContainText('다운로드하는 중입니다. 17%')
+      const expectedProgress = scenario === 'download-timeout-progress' ? '다운로드하는 중입니다. 1%' : '다운로드하는 중입니다. 17%'
+      await expect(splash).toContainText(expectedProgress)
       await page.screenshot({ path: join(SHOT_DIR, `${screenshot}-02-다운로드진행.png`), fullPage: true })
       await page.waitForTimeout(180_500)
       await expect(splash, `${name}: 확인 상한 초과 후에도 스플래시가 남음`).toHaveCount(0)
@@ -220,7 +231,8 @@ test('PR #909 라운드 — 실제 updater 5개 기동 경로', async ({ browser
     await runScenario('업데이트 있음', 'available', '01-업데이트있음')
     await runScenario('업데이트 없음', 'not-available', '02-업데이트없음')
     await runScenario('확인 실패·오프라인', 'check-error', '03-확인실패')
-    await runScenario('다운로드 지연', 'download-timeout', '04-다운로드지연')
+    await runScenario('다운로드 지연·무진행', 'download-timeout', '04-다운로드지연-무진행')
+    await runScenario('다운로드 지연·진행중', 'download-timeout-progress', '05-다운로드지연-진행중')
 
     const criticalUpdate = await request.put(`${API_BASE}/app/releases/${releaseId}`, {
       headers: jsonAuth,
@@ -231,7 +243,7 @@ test('PR #909 라운드 — 실제 updater 5개 기동 경로', async ({ browser
     const serverVersionBody = await serverVersion.json()
     console.log(`■ CRITICAL 전환 후 서버 응답 ${JSON.stringify(serverVersionBody.data ?? serverVersionBody)}`)
     expect(serverVersionBody.data?.forceLevel).toBe('CRITICAL')
-    await runScenario('CRITICAL + 확인 실패', 'critical-check-error', '05-CRITICAL실패', true)
+    await runScenario('CRITICAL + 확인 실패', 'critical-check-error', '06-CRITICAL실패', true)
   } finally {
     const cleanupOutput = cleanupThrowaway()
     console.log(`■ 종료 정리 SQL 출력\n${cleanupOutput.trim() || '(잔재 없음)'}`)

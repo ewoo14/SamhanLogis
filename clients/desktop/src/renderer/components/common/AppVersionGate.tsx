@@ -224,7 +224,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
       const next = toUpdateStatus(status)
       if (!next || !active) return
       setUpdateStatus(next)
-      if (next.kind === 'available' || next.kind === 'downloading') {
+      if (next.kind === 'available') {
         armDownloadTimeout()
       } else if (next.kind === 'not-available' || next.kind === 'error') {
         settleStartup()

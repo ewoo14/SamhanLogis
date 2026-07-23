@@ -80,7 +80,7 @@ export function registerAutoUpdateIpcHandlers(): void {
   ipcMain.handle(INSTALL_CHANNEL, () => {
     if (!app.isPackaged) return
     try {
-      autoUpdater.quitAndInstall(false, true)
+      autoUpdater.quitAndInstall(true, true)
     } catch (error: unknown) {
       broadcast({ kind: 'error', message: messageFromError(error) })
     }
