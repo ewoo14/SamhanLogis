@@ -34,6 +34,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /**
  * 주문 목록 endpoint 의 legacy GAS 동등 필터를 검증한다.
@@ -143,6 +144,29 @@ class PartnerOrderListIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.totalElements").value(1))
                 .andExpect(jsonPath("$.data.content[0].partnerCode").value("P-%_"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    void list_merge_candidate_exact_partner_id_excludes_same_code_different_identity() throws Exception {
+        UUID selectedPartnerId = UUID.fromString("10000000-0000-0000-0000-000000000911");
+        UUID otherPartnerId = UUID.fromString("10000000-0000-0000-0000-000000000912");
+        PartnerOrder selected = saveOrder("2026/05/15-1", "P-SAME-UUID", "1515151515",
+                "선택 거래처 주문", "IDENTITY-SELECTED", "CONFIRMING");
+        PartnerOrder other = saveOrder("2026/05/16-1", "P-SAME-UUID", "1616161616",
+                "상이 거래처 주문", "IDENTITY-OTHER", "CONFIRMING");
+        ReflectionTestUtils.setField(selected, "partnerId", selectedPartnerId);
+        ReflectionTestUtils.setField(other, "partnerId", otherPartnerId);
+        orderRepository.saveAllAndFlush(java.util.List.of(selected, other));
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("partnerCode", "P-SAME-UUID")
+                        .param("partnerIdExact", selectedPartnerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/15-1"));
     }
 
     @Test

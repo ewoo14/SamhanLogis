@@ -283,6 +283,39 @@ class PartnerAdminControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void search_treats_percent_and_underscore_as_literal_characters() throws Exception {
+        String literalCode = "P-LUNA-%_";
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest(literalCode, "111-22-33341"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
+                        .header("X-User-Id", MASTER_ACCOUNT_ID)
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest("P-LUNA-PLAIN", "111-22-33342"))))
+                .andExpect(MockMvcResultMatchers.status().isOk());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "%"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.total").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value(literalCode));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/partners/search")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("q", "_"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.total").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.items[0].partnerCode").value(literalCode));
+    }
+
+    @Test
     void search_includeDeleted_true_exposes_deleted_partner_for_admin_list_only() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post("/admin/partners")
                         .header("X-User-Id", MASTER_ACCOUNT_ID)

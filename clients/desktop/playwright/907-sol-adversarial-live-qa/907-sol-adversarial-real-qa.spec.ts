@@ -13,7 +13,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '907-sol-round-2026-07-23')
+const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '907-luna-round-2026-07-23')
 const MARK = 'CODEX-907-QA-SOL'
 
 type OrderSummary = {
@@ -194,17 +194,19 @@ test('실 사용자 상태 전이에서 다른 거래처 주문 선택 상태가
     await expect(page.getByTestId('merge-convert-selected-partner')).toContainText(sourceA.partnerCode)
     await expect(page.getByTestId('merge-convert-order-candidate-summary')).toContainText(/[1-9]\d*건 후보/)
     const orderSearch = page.getByTestId('merge-convert-order-search')
+    // legacy(partner_id IS NULL)는 exact UUID 후보 집합에서 fail-closed로 제외된다.
+    await orderSearch.fill(sourceA.orderNumber)
+    await page.waitForTimeout(600)
+    await expect(page.getByTestId(`merge-convert-order-option-${sourceA.orderNumber}`)).toHaveCount(0)
     await orderSearch.fill(orderA)
     const optionA = page.getByTestId(`merge-convert-order-option-${orderA}`)
     await expect(optionA).toBeVisible()
     await optionA.click()
     await expect(page.getByTestId(`merge-convert-order-chip-${orderA}`)).toBeVisible()
-    await expect(page.getByTestId('merge-convert-order-ineligible-reason'))
-      .toContainText('기존 주문은 거래처 정체성을 확인할 수 없어 병합할 수 없습니다')
     await expect(page.getByRole('dialog')).not.toContainText(
       /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
     )
-    await shot('03-거래처A-양성후보선택-legacy제외')
+    await shot('03-거래처A-양성후보선택-legacy미노출')
 
     await pickPartner(sourceB.partnerCode)
     await expect(page.getByTestId(`merge-convert-order-chip-${orderA}`)).toHaveCount(0)
@@ -329,6 +331,8 @@ test('거래처 전환 시 창고·충돌 헤더가 새 거래처로 이월되�
     for (let i = 0; i < conflictCountA; i += 1) {
       await conflictsA.nth(i).locator('input[type="radio"]').first().check()
     }
+    await page.getByTestId('merge-convert-conflict-memo-radio-custom').check()
+    await page.getByTestId('merge-convert-conflict-memo-input-custom').fill('SOL 직접입력 11')
     await expect(page.getByTestId('merge-convert-submit')).toBeEnabled()
     await shot('07-거래처A-창고와충돌값확정')
 
@@ -346,25 +350,15 @@ test('거래처 전환 시 창고·충돌 헤더가 새 거래처로 이월되�
     // B 주문의 충돌값을 하나도 고르지 않았는데 A 귀속 shippingFields와 selectedWarehouse가
     // 내부 상태에 남아 제출 가능하다. WarehouseAutocomplete는 선택 뒤 검색 input을 비우므로
     // input value가 아니라 최종 제출 가능 상태로 selectedWarehouse 잔존을 함께 증명한다.
-    await expect(page.getByTestId('merge-convert-submit')).toBeEnabled()
-    await shot('08-거래처B-충돌값미선택인데제출활성')
+    await expect(page.getByTestId('merge-convert-submit')).toBeDisabled()
+    await expect(page.getByTestId('merge-convert-warehouse')).toContainText('출고 창고')
+    for (let i = 0; i < conflictCountB; i += 1) {
+      await expect(conflictsB.nth(i).locator('input[type="radio"]:checked')).toHaveCount(0)
+    }
+    await expect(page.getByTestId('merge-convert-conflict-memo-input-custom')).toHaveValue('')
+    await shot('08-거래처B-충돌값미선택-제출비활성-이전값초기화')
 
-    let capturedBody: Record<string, unknown> | null = null
-    await page.route('**/api/v1/partner-orders/convert-to-slip-merge', async (route) => {
-      capturedBody = JSON.parse(route.request().postData() ?? '{}') as Record<string, unknown>
-      await route.fulfill({
-        status: 409,
-        contentType: 'application/json',
-        body: JSON.stringify({ message: 'SOL QA 부작용 방지 차단' }),
-      })
-    })
-    await page.getByTestId('merge-convert-submit').click()
-    await expect.poll(() => capturedBody).not.toBeNull()
-    const shippingInfo = capturedBody?.['shippingInfo'] as Record<string, unknown>
-    expect(shippingInfo['paymentDueLabel']).toBe('2026-08-12')
-    expect(shippingInfo['memo']).toBe('SOL 충돌 메모 11')
-    console.log(`[재현] B 충돌 라디오 선택 0건, 제출 enabled, outgoing shippingInfo=`
-      + `${JSON.stringify(shippingInfo)}`)
+    console.log('[불변식] 거래처 B 전환 후 이전 거래처의 배송·충돌 확정값·직접입력값은 제출 payload에 도달할 수 없음')
   } finally {
     cleanup()
     console.log(`[원상 확인-충돌] 주문=${psql(`SELECT count(*) FROM partner_orders WHERE created_by=${sqlString(MARK)}`)}`
@@ -372,7 +366,7 @@ test('거래처 전환 시 창고·충돌 헤더가 새 거래처로 이월되�
   }
 })
 
-test('모달 재진입 시 후보 캐시가 새 주문을 실제로 누락하는지 검증한다', async ({ page }) => {
+test('모달 재진입 시 후보 캐시가 신규 주문을 누락하지 않는다', async ({ page }) => {
   mkdirSync(SHOT_DIR, { recursive: true })
   const shot = async (name: string) =>
     page.screenshot({ path: join(SHOT_DIR, `${name}.png`), fullPage: true })
@@ -422,9 +416,9 @@ test('모달 재진입 시 후보 캐시가 새 주문을 실제로 누락하는
         candidateRequestCount += 1
       }
     })
-
     const pickPartner = async () => {
       const input = page.getByTestId('merge-convert-partner-search')
+      await input.click()
       await input.fill(source.partnerCode)
       const option = page.getByRole('listbox', { name: '거래처 목록' })
         .locator('[role="option"]')
@@ -447,11 +441,13 @@ test('모달 재진입 시 후보 캐시가 새 주문을 실제로 누락하는
     const secondOrder = await createFixture(page, auth, source, 32)
     await page.getByTestId('merge-convert-open').click()
     await pickPartner()
+    await search.click()
     await search.fill(secondOrder)
     await page.waitForTimeout(800)
-    await expect(page.getByTestId(`merge-convert-order-option-${secondOrder}`)).toHaveCount(0)
-    expect(candidateRequestCount).toBe(1)
-    await shot('09-재진입-5분캐시로새주문누락')
+    console.log(`[계측] 모달 재진입 후보 요청=${candidateRequestCount}`)
+    await expect(page.getByTestId(`merge-convert-order-option-${secondOrder}`)).toBeVisible()
+    expect(candidateRequestCount).toBe(2)
+    await shot('09-재진입-신규주문즉시노출')
 
     // 양성 대조: 새 QueryClient가 생기는 전체 새로고침 뒤에는 같은 서버 주문이 보인다.
     await page.reload()
@@ -460,9 +456,9 @@ test('모달 재진입 시 후보 캐시가 새 주문을 실제로 누락하는
     const refreshedSearch = page.getByTestId('merge-convert-order-search')
     await refreshedSearch.fill(secondOrder)
     await expect(page.getByTestId(`merge-convert-order-option-${secondOrder}`)).toBeVisible()
-    expect(candidateRequestCount).toBe(2)
+    expect(candidateRequestCount).toBe(3)
     await shot('10-양성대조-새로고침후새주문노출')
-    console.log(`[캐시 재현] 재진입 요청=${1}, 새 주문 누락 / 새로고침 요청=${candidateRequestCount}, 새 주문 노출`)
+    console.log(`[캐시 GREEN] 최초 요청=1, 모달 재진입 요청=${2}로 신규 주문 노출, 전체 새로고침 누적 요청=${candidateRequestCount}`)
   } finally {
     cleanup()
     console.log(`[원상 확인-캐시] 주문=${psql(`SELECT count(*) FROM partner_orders WHERE created_by=${sqlString(MARK)}`)}`

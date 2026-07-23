@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -171,7 +172,7 @@ public class PartnerOrderQueryService {
 
     private PartnerOrderListFilter normalize(PartnerOrderListFilter filter) {
         if (filter == null) {
-            return new PartnerOrderListFilter(null, null, null, null, null, null, null);
+            return new PartnerOrderListFilter(null, null, null, null, null, null, null, null);
         }
         LocalDate from = filter.dateFrom();
         LocalDate to = filter.dateTo();
@@ -181,6 +182,7 @@ public class PartnerOrderQueryService {
                     from,
                     trimToNull(filter.partnerId()),
                     trimToNull(filter.partnerCode()),
+                    filter.partnerIdExact(),
                     filter.status(),
                     trimToNull(filter.slipPublishStatus()),
                     trimToNull(filter.searchKeyword()));
@@ -190,6 +192,7 @@ public class PartnerOrderQueryService {
                 to,
                 trimToNull(filter.partnerId()),
                 trimToNull(filter.partnerCode()),
+                filter.partnerIdExact(),
                 filter.status(),
                 trimToNull(filter.slipPublishStatus()),
                 trimToNull(filter.searchKeyword()));
@@ -273,6 +276,10 @@ public class PartnerOrderQueryService {
         if (filter.partnerCode() != null) {
             predicates.add("po.partner_code = :partnerCode");
             params.put("partnerCode", filter.partnerCode());
+        }
+        if (filter.partnerIdExact() != null) {
+            predicates.add("po.partner_id = :partnerIdExact");
+            params.put("partnerIdExact", filter.partnerIdExact());
         }
         if (filter.status() != null) {
             predicates.add("po.status = :status");
@@ -358,6 +365,9 @@ public class PartnerOrderQueryService {
             }
             if (filter.partnerCode() != null) {
                 predicates.add(cb.equal(root.get("partnerCode"), filter.partnerCode()));
+            }
+            if (filter.partnerIdExact() != null) {
+                predicates.add(cb.equal(root.get("partnerId"), filter.partnerIdExact()));
             }
             if (filter.status() != null) {
                 predicates.add(cb.equal(root.get("status"), filter.status()));

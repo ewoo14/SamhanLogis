@@ -79,10 +79,10 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
      */
     @Query("SELECT p FROM Partner p WHERE "
             + "(CAST(:q AS string) IS NULL "
-            + " OR LOWER(p.partnerCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(COALESCE(p.bizNo, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ) "
+            + " OR LOWER(p.partnerCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(COALESCE(p.bizNo, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' ) "
             + "AND (:status IS NULL OR p.status = :status)")
     Page<Partner> searchAdmin(@Param("q") String q,
                               @Param("status") PartnerStatus status,
@@ -103,10 +103,10 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
             SELECT *
               FROM partners p
              WHERE (CAST(:q AS varchar) IS NULL
-                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
-                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
-                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
-                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')))
+                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\'
+                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\'
+                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\'
+                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
              ORDER BY p.partner_code ASC
             """,
@@ -114,10 +114,10 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
             SELECT COUNT(*)
               FROM partners p
              WHERE (CAST(:q AS varchar) IS NULL
-                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
-                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
-                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%'))
-                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')))
+                    OR LOWER(p.partner_code) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\'
+                    OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\'
+                    OR LOWER(COALESCE(p.biz_no, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\'
+                    OR LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', CAST(:q AS varchar), '%')) ESCAPE E'\\\\')
                AND (CAST(:status AS varchar) IS NULL OR p.status = CAST(:status AS varchar))
             """,
             nativeQuery = true)
@@ -147,8 +147,8 @@ public interface PartnerRepository extends JpaRepository<Partner, UUID> {
      */
     @Query("SELECT p FROM Partner p WHERE p.status = com.samhanair.logis.partner.domain.PartnerStatus.ACTIVE "
             + "AND (CAST(:q AS string) IS NULL "
-            + " OR LOWER(p.partnerCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(COALESCE(p.bizNo, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))")
+            + " OR LOWER(p.partnerCode) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(COALESCE(p.bizNo, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\')")
     List<Partner> searchDirectory(@Param("q") String q, Pageable pageable);
 }

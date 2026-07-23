@@ -154,7 +154,10 @@ describe('MergeConvertDialog 거래처 우선 주문 칩', () => {
     expect(mocks.listPartnerOrders).toHaveBeenCalledWith(
       0,
       50,
-      expect.objectContaining({ partnerCode: PARTNER_A.partnerCode }),
+      expect.objectContaining({
+        partnerCode: PARTNER_A.partnerCode,
+        partnerIdExact: PARTNER_A.id,
+      }),
     )
 
     fireEvent.click(candidateA)

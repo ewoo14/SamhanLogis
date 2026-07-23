@@ -212,9 +212,10 @@ export function SalesPartnerOrderListPage() {
     setTimeout(() => setConvertSuccessMessage(null), 4000)
     // FE P1-4: 목록 캐시 + 전환된 각 주문 단건 캐시 무효화
     await queryClient.invalidateQueries({ queryKey: ['partner-orders'] })
+    await queryClient.invalidateQueries({ queryKey: ['partner-order-merge-candidates'] })
     await Promise.all(
       convertedOrderNos.map((orderNo) =>
-        queryClient.invalidateQueries({ queryKey: ['partner-order', orderNo] }),
+        queryClient.invalidateQueries({ queryKey: ['partner-order', toOrderPathId(orderNo)] }),
       ),
     )
   }

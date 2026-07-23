@@ -8,6 +8,7 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.security.permission.PermissionAction;
 import io.swagger.v3.oas.annotations.Operation;
 import java.time.LocalDate;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -55,6 +56,7 @@ public class PartnerOrderListController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(required = false) String partnerId,
             @RequestParam(name = "partnerCode", required = false) String partnerCodeFilter,
+            @RequestParam(required = false) UUID partnerIdExact,
             @RequestParam(required = false) PartnerOrderStatus status,
             @RequestParam(required = false) String slipPublishStatus,
             @RequestParam(required = false) String searchKeyword,
@@ -65,7 +67,8 @@ public class PartnerOrderListController {
         Pageable pageable = PageRequest.of(page, size);
         Page<?> result = partnerOrderQueryService.list(
                 new PartnerOrderListFilter(
-                        dateFrom, dateTo, partnerId, partnerCodeFilter, status, slipPublishStatus, searchKeyword),
+                        dateFrom, dateTo, partnerId, partnerCodeFilter, partnerIdExact,
+                        status, slipPublishStatus, searchKeyword),
                 pageable,
                 partnerCode,
                 includeDeleted);

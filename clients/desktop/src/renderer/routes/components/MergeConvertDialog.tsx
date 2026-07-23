@@ -225,14 +225,21 @@ export function MergeConvertDialog({
   }, [])
 
   const candidateOrdersQuery = useQuery({
-    queryKey: ['partner-order-merge-candidates', selectedPartner?.partnerCode ?? null],
+    queryKey: [
+      'partner-order-merge-candidates',
+      selectedPartner?.partnerCode ?? null,
+      selectedPartner?.id ?? null,
+    ],
     queryFn: () => listPartnerOrders(0, 50, {
       // 기존 partnerId 부분검색과 구분되는 병합 후보 전용 정확일치 계약.
       partnerCode: selectedPartner!.partnerCode,
+      partnerIdExact: selectedPartner!.id,
       includeDeleted: false,
     }),
-    enabled: Boolean(selectedPartner?.partnerCode),
+    enabled: Boolean(selectedPartner?.partnerCode && selectedPartner?.id),
     retry: 1,
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const candidateOrders = useMemo(
@@ -253,13 +260,6 @@ export function MergeConvertDialog({
     () => [...new Set(ineligibleOrders.map((order) => order.mergeIneligibilityReason).filter(Boolean))],
     [ineligibleOrders],
   )
-
-  const handlePartnerChange = (partner: PartnerOption | null) => {
-    setSelectedPartner(partner)
-    setPartnerSearchError(null)
-    // S7-4: 거래처가 바뀌는 동일 이벤트에서 이전 거래처의 선택을 폐기한다.
-    setSelectedOrders([])
-  }
 
   // 선택 주문 상세 로드 (라인 정보 필요) — useQueries 로 rules-of-hooks 위반 방지
   //
@@ -337,6 +337,18 @@ export function MergeConvertDialog({
 
   // 에러 메시지
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  /** 거래처 전환은 이전 거래처의 병합 wizard 상태를 전부 폐기한다. */
+  const handlePartnerChange = (partner: PartnerOption | null) => {
+    setSelectedPartner(partner)
+    setPartnerSearchError(null)
+    setSelectedOrders([])
+    setQtyMap({})
+    setSelectedWarehouse(null)
+    setShippingFields({})
+    setCustomInputs({})
+    setErrorMessage(null)
+  }
 
   // 충돌 필드 계산 — 주문마다 값이 다른 필드 목록
   const conflictFields: ShippingFieldKey[] = []

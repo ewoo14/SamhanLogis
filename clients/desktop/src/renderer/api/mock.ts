@@ -7841,6 +7841,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         if (partnerCodeParam) return row.partnerCode === partnerCodeParam.trim()
         if (!partnerIdParam) return true
         return matchesPartnerLike(row.partnerCode, partnerIdParam)
+          || matchesPartnerLike(String((row as PartnerOrderSummary & { bizCode?: string }).bizCode ?? ''), partnerIdParam)
       })
       .filter((row) => !(statusParam === 'DRAFT' && row.status === 'CONVERTED'))
       // BE parity: 기본(활성만) — includeDeleted 미요청 시 삭제행 제외(@SQLRestriction 경로 모사).
