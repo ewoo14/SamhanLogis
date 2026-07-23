@@ -15,7 +15,7 @@ import { expect, test } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5190'
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '867-s7-merge-live-qa-2026-07-23')
@@ -78,7 +78,7 @@ test('슬7 — 거래처 우선 선택으로 다른 거래처 주문을 섞을 �
 
   // ── S7-1 전제: 거래처 확정 전에는 주문 후보 자체가 없다 ───────────
   await test.step('S7-1 거래처 확정 전에는 주문 후보가 없다', async () => {
-    await page.goto(`${BASE_URL}/#/sales/partner-orders`)
+    await page.goto(`${BASE_URL}/sales/partner-orders`)
     // 양성 — 목록 화면이 실제로 렌더됐다
     await expect(page.getByTestId('merge-convert-open'), '병합 진입 버튼이 없다 — 화면이 안 떴을 수 있다')
       .toBeVisible({ timeout: 20000 })
