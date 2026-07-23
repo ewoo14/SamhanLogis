@@ -125,6 +125,21 @@ export const ELEMENT_TYPE_LABEL: Record<DocElement['type'], string> = {
   IMAGE: '이미지/로고',
 }
 
+/**
+ * H10(R5) — BE 활성화 게이트(`DocumentTemplateService.ADVANCED_ACTIVATION_GATE_ENABLED` +
+ * `DocumentPayloadValidator.containsActivationBlockedElements`)가 막는 요소 타입.
+ *
+ * 게이트 자체는 개발책임자 결정으로 존치한다(자동 업데이트 선행 전까지 DETAIL/IMAGE 포함 양식은
+ * 활성화 불가) — 여기서는 게이트를 우회/약화하지 않고, FE 가 "이 요소를 넣으면 활성화가 막힌다"를
+ * 사용자에게 되돌리기 어려운 상태(사용 중 양식을 내림)에 들어가기 **전에** 알리는 데만 쓴다.
+ * BE 목록과 나란히 유지해야 한다 — 이 파일 밖(Java)의 authoritative 목록이 바뀌면 이 상수도 갱신할 것.
+ */
+export const ACTIVATION_BLOCKED_ELEMENT_TYPES: ReadonlySet<DocElement['type']> = new Set(['DETAIL', 'IMAGE'])
+
+export function hasActivationBlockedElements(document: Pick<DocumentPayload, 'bands'>): boolean {
+  return document.bands.some((band) => band.elements.some((element) => ACTIVATION_BLOCKED_ELEMENT_TYPES.has(element.type)))
+}
+
 export const BAND_KIND_LABEL: Record<BandKind, string> = {
   HEADER: '머리말',
   BODY: '본문',

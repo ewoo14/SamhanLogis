@@ -17,7 +17,9 @@ import { expect, test } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5191'
+// SONNET5 R5 fix: 하네스가 HashRouter(5191)에서 BrowserRouter(5291)로 바뀐 뒤 갱신되지 않았던
+// fallback — AUDIT_BASE_URL 미지정 시 고아 vite/구 라우팅으로 false-RED 를 냈다([[feedback_realqa_run_and_false_red]]).
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '869-ds4-body-layer-2026-07-23')
@@ -85,7 +87,8 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
     }
   }
 
-  await page.goto(`${BASE_URL}/#/groupware/document-templates`)
+  // 웹(vite) 하네스는 BrowserRouter — `#/…` 해시는 무시되고 홈이 렌더된다(실측). 경로로 이동한다.
+  await page.goto(`${BASE_URL}/groupware/document-templates`)
   await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 20000 })
   await page.getByRole('button', { name: '신규 문서 양식' }).click()
   await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })

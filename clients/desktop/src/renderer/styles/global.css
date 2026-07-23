@@ -3306,7 +3306,11 @@ button {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 9pt;
+  /* H9(R7) fix: 이전에는 여기 고정 9pt 가 .document-template-detail(부모 div)의 inline
+     style.fontSize 상속을 항상 이겼다(직접 선택자가 상속보다 우선) — DocumentRenderer.tsx 의
+     detailGeometryStyle()가 같은 값을 --detail-font-size 로도 실어, 지정이 없을 때만 9pt 로
+     떨어지고 지정이 있으면 그 규칙 자체가 그 값을 쓰게 한다. */
+  font-size: var(--detail-font-size, 9pt);
 }
 
 .document-template-detail th,
@@ -3315,7 +3319,8 @@ button {
   padding: 1.5mm 1.5mm;
   border: 1px solid #000;
   line-height: 1.35;
-  text-align: left;
+  /* H9(R7) fix: 금액 열을 우측 정렬할 수단이 없던 원인 — 아래 참고. */
+  text-align: var(--detail-text-align, left);
   vertical-align: middle;
   white-space: pre-wrap;
   word-break: keep-all;

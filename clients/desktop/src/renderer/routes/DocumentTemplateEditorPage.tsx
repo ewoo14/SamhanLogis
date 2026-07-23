@@ -21,6 +21,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { DocumentRenderer } from '../print/DocumentRenderer'
 import type { ApprovalRenderModel } from '../print/approvalRenderModel'
+import { hasActivationBlockedElements } from '../print/templateSchema'
 
 // M-E: 결재란(approvalSteps)이 빈 배열로 고정돼 있으면 편집기에서 APPROVAL_GRID 를 조작해도 미리보기
 // 픽셀이 전혀 바뀌지 않는다(결재란 자체가 그려지지 않으므로). 최소 1단계를 채워 "요소를 조작하면 그
@@ -172,6 +173,9 @@ export function DocumentTemplateEditorPage() {
   // H-E: canEdit 이 팔레트·캔버스·인스펙터에 전달되지 않으면 ACTIVE 잠금·VIEW 전용 상태에서도
   // 요소 추가/문구 입력/삭제/이동이 전부 동작한다 — 편집 조작 자체를 막는다.
   const canEdit = canWrite && !activeLocked
+  // H10(R5): 저장은 되는데 활성화만 422로 막히는 상태(DETAIL/IMAGE 포함)를 사용자가 되돌리기 어려운
+  // 상태에 들어가기 전에 알 수 있어야 한다 — BE 게이트(DocumentTemplateService)는 그대로 둔다.
+  const blockedNow = hasActivationBlockedElements(draft.document)
   const selectedBandKind = selectedKey
     ? draft.document.bands.find((band) => band.elements.some((element) => element.key === selectedKey))?.kind
     : undefined
@@ -194,15 +198,30 @@ export function DocumentTemplateEditorPage() {
                 그 사이 승인되는 문서는 기본 양식으로 고정된다(D-DS3A-03 표면화, 신규 정책 아님). */}
             {' '}편집을 시작하면 이 문서 유형은 사용 중인 양식이 없는 상태가 되며, 그 사이 승인되는 문서는
             기본 양식으로 고정됩니다.
+            {/* H10(R5): 되돌리기 어려운 상태(편집 시작 = 즉시 비활성화)에 들어가기 *전에* — 그 뒤에
+                품목행/이미지·로고를 넣으면 자동 업데이트 선행 전까지 다시 활성화할 수 없다는 것을
+                미리 알려, "저장은 되는데 활성화만 막힌 채 기본 양식에 갇히는" 상태를 예방한다. */}
+            {' '}편집 중 품목행·이미지/로고 요소를 새로 추가하면, 자동 업데이트가 선행되기 전까지 이
+            양식을 다시 활성화할 수 없습니다.
           </p>
           {canWrite ? <Button type="button" variant="warning" onClick={() => deactivate.mutate()} disabled={deactivate.isPending}>편집 시작</Button> : null}
         </div>
       ) : null}
-      {/* M-H: 편집 후 원상복구(재활성화) 경로가 편집기 안에 있어야 한다. */}
+      {/* M-H: 편집 후 원상복구(재활성화) 경로가 편집기 안에 있어야 한다.
+          H10(R5): 이 재확인이 항상 참일 때만 보여준다 — 현재 draft 에 DETAIL/IMAGE 가 있으면
+          "다시 사용 설정할 수 있습니다"는 저장 시점부터 거짓이 되므로(BE 활성화 게이트 422), 대신
+          왜 지금 활성화가 막히는지와 무엇을 해야 하는지를 말한다. */}
       {!activeLocked && !isNew && template?.status === 'DRAFT' && canWrite ? (
-        <p className="no-print" role="status" style={{ margin: 0, fontSize: 13 }}>
-          편집을 마쳤다면 목록에서 이 양식을 다시 사용 설정(활성화)할 수 있습니다.
-        </p>
+        blockedNow ? (
+          <p className="no-print" role="alert" data-testid="document-template-activation-blocked-notice" style={{ margin: 0, fontSize: 13, color: 'var(--color-warning-700, #92600a)' }}>
+            현재 품목행 또는 이미지/로고 요소가 있어, 자동 업데이트가 선행되기 전까지는 이 양식을 다시
+            사용 설정(활성화)할 수 없습니다. 지금 활성화하려면 해당 요소를 제거하고 저장하세요.
+          </p>
+        ) : (
+          <p className="no-print" role="status" style={{ margin: 0, fontSize: 13 }}>
+            편집을 마쳤다면 목록에서 이 양식을 다시 사용 설정(활성화)할 수 있습니다.
+          </p>
+        )
       ) : null}
       {!canWrite ? <p className="no-print" role="status">수정 권한이 없어 읽기 전용으로 표시합니다.</p> : null}
       {notice ? (
