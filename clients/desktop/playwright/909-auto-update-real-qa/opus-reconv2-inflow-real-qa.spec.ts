@@ -188,12 +188,13 @@ test.describe('P-A 인쇄 출력', () => {
 
     console.log(`■■ 결론: 대조군 ${controlPages}p / 실험군 ${expPages}p · paper y ${controlRect?.y} → ${expRect?.y}`)
 
-    // 단언 — 인쇄 출력이 동일해야 한다.
-    expect(printVisible.display, '배너가 인쇄 미디어에서 숨겨지지 않는다(no-print 미부여)').not.toBe('none')
-    expect(expPages, `업데이트 배너 때문에 A4 1장 양식이 ${expPages}장으로 늘어남(대조군 ${controlPages}장)`).toBe(controlPages)
+    // 단언 — U-1: 화면용 알림은 인쇄 미디어에서 완전히 사라진다(no-print, #909 SONNET5 R2 fix).
+    // 단언 — U-2: 알림의 유무가 인쇄 페이지 수를 바꾸지 않는다.
+    expect(printVisible.display, 'U-1 위반 — 배너가 인쇄 미디어에서 숨겨지지 않는다(no-print 미부여)').toBe('none')
+    expect(expPages, `U-2 위반 — 업데이트 배너 때문에 A4 1장 양식이 ${expPages}장으로 늘어남(대조군 ${controlPages}장)`).toBe(controlPages)
   })
 
-  test('원인 확증 — 배너를 직전 fix 이전(position:fixed)으로 되돌리면 1장으로 복귀한다', async ({ page, request }) => {
+  test('뮤테이션 확증 — no-print 클래스를 DOM 에서 제거하면 다시 2장으로 밀린다', async ({ page, request }) => {
     mkdirSync(SHOT_DIR, { recursive: true })
     const auth = await login(request)
     await installAuthHarness(page, auth)
@@ -210,29 +211,22 @@ test.describe('P-A 인쇄 출력', () => {
     const before = pdfPageCount(beforePdf)
     const paperYBefore = await paper.evaluate((el) => el.getBoundingClientRect().y)
 
-    // 직전 fix 이전 상태(비차단 알림도 fixed 우하단)를 런타임에서 그대로 복원 — 제품 코드는 건드리지 않는다.
+    // #909 SONNET5 R2 fix(`className="no-print"`)를 DOM 에서만 되돌려 이 클래스 자체가
+    // 원인임을 확증한다 — 제품 소스는 건드리지 않는다(소스 레벨 뮤테이션은 터미널에서 별도 재현).
     await notice.evaluate((el) => {
-      const s = (el as HTMLElement).style
-      s.position = 'fixed'
-      s.insetInlineEnd = '16px'
-      s.insetBlockEnd = '16px'
-      s.zIndex = '10000'
-      s.width = 'auto'
-      s.maxWidth = 'min(520px, calc(100vw - 32px))'
-      s.marginInline = '0'
-      s.marginBlockEnd = '0'
+      el.classList.remove('no-print')
     })
     await page.waitForTimeout(300)
     const paperYAfter = await paper.evaluate((el) => el.getBoundingClientRect().y)
     const afterPdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '0', bottom: '0', left: '0', right: '0' } })
-    writeFileSync(join(SHOT_DIR, 'A-mutation-back-to-fixed.pdf'), afterPdf)
+    writeFileSync(join(SHOT_DIR, 'A-mutation-remove-no-print.pdf'), afterPdf)
     const after = pdfPageCount(afterPdf)
-    await page.screenshot({ path: join(SHOT_DIR, 'A4-뮤테이션-fixed복원-print미디어.png'), fullPage: true })
+    await page.screenshot({ path: join(SHOT_DIR, 'A4-뮤테이션-no-print제거-print미디어.png'), fullPage: true })
     await page.emulateMedia({ media: 'screen' })
 
-    console.log(`■■ 뮤테이션 대조: static ${before}p (paper y=${paperYBefore}) → fixed ${after}p (paper y=${paperYAfter})`)
-    expect(before, 'static(현재 코드) 에서 2장이어야 이 대조가 성립').toBe(2)
-    expect(after, 'fixed 로 되돌려도 2장 — 원인이 in-flow 전환이 아님').toBe(1)
+    console.log(`■■ 뮤테이션 대조: no-print 있음 ${before}p (paper y=${paperYBefore}) → no-print 제거 ${after}p (paper y=${paperYAfter})`)
+    expect(before, 'no-print 클래스가 있는 현재 코드에서는 1장이어야 이 대조가 성립').toBe(1)
+    expect(after, 'no-print 를 제거하면 다시 2장으로 밀려야 원인이 이 클래스임이 확증된다').toBe(2)
   })
 
   test('계열 전수 — 다른 인쇄 양식도 같은 방식으로 밀린다', async ({ page, request }) => {
@@ -447,7 +441,21 @@ test.describe('P-C 세로 공간 압박', () => {
     console.log(`■ [실험군 800px] ${JSON.stringify(narrow)}`)
     await page2.screenshot({ path: join(SHOT_DIR, 'C3-실험군-800px-배너.png') })
 
-    expect(exp.shellY, '배너가 앱 셸을 아래로 밀지 않는다').toBe(control.shellY)
+    // #909 SONNET5 라운드2 — stale 단언 정정(PM 지시).
+    // 이전: expect(exp.shellY).toBe(control.shellY) — "안 밀린다" 를 요구했으나, in-flow(static)
+    // 배너가 화면에서 앱 셸을 배너 높이만큼 미는 것은 OPUS 재수렴 라운드가 "화면상 62px 밀림 —
+    // 스크롤로 도달 가능" 이라며 **도달 불가로 판정해 수용한 설계**다(2026-07-24 커밋
+    // 5348c2ba0 진단 기록). fixed 로 되돌리면 R-2(다른 토스트 가림, 겹침면적 0)가 재발한다 —
+    // 즉 "밀린다"가 정상 동작이고, "안 밀린다"고 단언하는 쪽이 틀렸다. 수용된 설계를 문서화하도록
+    // "배너 높이(+margin)만큼만 밀린다"로 정정한다 — 0 이 되거나 배너 높이와 무관하게 더 밀리면
+    // 회귀로 잡는다.
+    const bannerMarginPx = exp.bannerMB ? parseFloat(exp.bannerMB) : 0
+    const expectedShellY = (control.shellY ?? 0) + (exp.bannerH ?? 0) + bannerMarginPx
+    console.log(`■ [수용된 설계 확인] control.shellY=${control.shellY} + bannerH=${exp.bannerH} + bannerMB=${bannerMarginPx} = ${expectedShellY} (실측 exp.shellY=${exp.shellY})`)
+    expect(
+      exp.shellY,
+      `배너가 뜨면 앱 셸이 정확히 배너 높이(+margin)만큼만 밀려야 한다(수용된 설계) — 기대 ${expectedShellY}, 실측 ${exp.shellY}`,
+    ).toBe(expectedShellY)
   })
 })
 

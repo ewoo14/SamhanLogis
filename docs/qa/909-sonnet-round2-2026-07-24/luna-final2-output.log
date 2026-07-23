@@ -1,0 +1,81 @@
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] playwright\909-auto-update-real-qa\luna-round-real-qa.spec.ts:124:1 › PR #909 라운드 — 실제 updater 6개 기동 경로
+[1A[2Kplaywright\909-auto-update-real-qa\luna-round-real-qa.spec.ts:124:1 › PR #909 라운드 — 실제 updater 6개 기동 경로
+■ 시작 잔재 회수 SQL 출력
+UPDATE 14
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+
+[1A[2K▶ 업데이트 있음 /app/version 요청 http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.0.0
+
+[1A[2K◀ 업데이트 있음 /app/version 응답 200 {"success":true,"code":"OK","message":"성공","data":{"latestVersion":"9.9.8","minSupportedVersion":"0.0.0","forceLevel":"MINOR","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"},"timestamp":
+
+[1A[2K■ 업데이트 있음 updater 관측 {"scenario":"available","checkCalls":1,"installCalls":1,"quitCalls":0,"events":[{"kind":"checking"},{"kind":"available","version":"9.9.8"},{"kind":"downloading","percent":42},{"kind":"downloading","percent":88},{"kind":"downloaded","version":"9.9.8"}]}
+
+[1A[2K▶ 업데이트 없음 /app/version 요청 http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.0.0
+
+[1A[2K◀ 업데이트 없음 /app/version 응답 200 {"success":true,"code":"OK","message":"성공","data":{"latestVersion":"9.9.8","minSupportedVersion":"0.0.0","forceLevel":"MINOR","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"},"timestamp":
+
+[1A[2K■ 업데이트 없음 updater 관측 {"scenario":"not-available","checkCalls":1,"installCalls":0,"quitCalls":0,"events":[{"kind":"checking"},{"kind":"not-available"}]}
+
+[1A[2K▶ 확인 실패·오프라인 /app/version 요청 http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.0.0
+
+[1A[2K◀ 확인 실패·오프라인 /app/version 응답 200 {"success":true,"code":"OK","message":"성공","data":{"latestVersion":"9.9.8","minSupportedVersion":"0.0.0","forceLevel":"MINOR","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"},"timestamp":
+
+[1A[2K■ 확인 실패·오프라인 updater 관측 {"scenario":"check-error","checkCalls":1,"installCalls":0,"quitCalls":0,"events":[{"kind":"checking"}]}
+
+[1A[2K▶ 다운로드 지연·무진행 /app/version 요청 http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.0.0
+
+[1A[2K◀ 다운로드 지연·무진행 /app/version 응답 200 {"success":true,"code":"OK","message":"성공","data":{"latestVersion":"9.9.8","minSupportedVersion":"0.0.0","forceLevel":"MINOR","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"},"timestamp":
+
+[1A[2K■ 다운로드 지연·무진행 updater 관측 {"scenario":"download-timeout","checkCalls":1,"installCalls":0,"quitCalls":0,"events":[{"kind":"checking"},{"kind":"available","version":"9.9.8"},{"kind":"downloading","percent":17}]}
+
+[1A[2K▶ 다운로드 지연·진행중 /app/version 요청 http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.0.0
+
+[1A[2K◀ 다운로드 지연·진행중 /app/version 응답 200 {"success":true,"code":"OK","message":"성공","data":{"latestVersion":"9.9.8","minSupportedVersion":"0.0.0","forceLevel":"MINOR","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"},"timestamp":
+
+[1A[2K■ 다운로드 지연·진행중 updater 관측 {"scenario":"download-timeout-progress","checkCalls":1,"installCalls":0,"quitCalls":0,"events":[{"kind":"checking"},{"kind":"available","version":"9.9.8"},{"kind":"downloading","percent":1},{"kind":"downloading","percent":11},{"kind":"downloading","percent":21},{"kind":"downloading","percent":31},{"kind":"downloading","percent":41},{"kind":"downloading","percent":51},{"kind":"downloading","percent":61},{"kind":"downloading","percent":71}]}
+
+[1A[2K■ CRITICAL 전환 후 서버 응답 {"latestVersion":"9.9.8","minSupportedVersion":"9.9.0","forceLevel":"CRITICAL","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"}
+
+[1A[2K▶ CRITICAL + 확인 실패 /app/version 요청 http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=0.0.0
+
+[1A[2K◀ CRITICAL + 확인 실패 /app/version 응답 200 {"success":true,"code":"OK","message":"성공","data":{"latestVersion":"9.9.8","minSupportedVersion":"9.9.0","forceLevel":"CRITICAL","releaseNotes":"LUNA-909-ROUND-20260723 throwaway 자동업데이트 실서버 검증용","releasedAt":"2026-07-23T00:00:00"},"timestam
+
+[1A[2K■ CRITICAL + 확인 실패 updater 관측 {"scenario":"critical-check-error","checkCalls":1,"installCalls":0,"quitCalls":0,"events":[{"kind":"checking"}]}
+
+[1A[2K■ 종료 정리 SQL 출력
+UPDATE 15
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+DESKTOP|9.9.8|t|LUNA-909-ROUND-20260723
+
+[1A[2K  Slow test file: playwright\909-auto-update-real-qa\luna-round-real-qa.spec.ts (6.1m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 passed (6.1m)

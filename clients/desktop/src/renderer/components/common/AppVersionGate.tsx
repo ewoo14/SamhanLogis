@@ -308,6 +308,12 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     <div
       role="status"
       data-testid="app-auto-update-status"
+      // U-1/U-2(#909 SONNET5 라운드2): 화면 전용 알림 — AppLayout 사이드바/헤더와 동일하게
+      // 인쇄 시 완전히 제거한다(global.css `@media print { .no-print { display:none !important } }`,
+      // 기존 관례 재사용). display:none 은 박스 자체를 없애 높이도 0 이 되므로, 이 알림이
+      // in-flow(static)로 렌더될 때도 아래 인쇄물을 아래로 밀어내지 못한다 — "화면에서 안 보이게"가
+      // 아니라 "인쇄 레이아웃에서 존재 자체를 지운다"가 핵심(마진/포지션과 무관하게 성립).
+      className="no-print"
       style={{
         position: promptState.kind === 'blocking' ? 'fixed' : 'static',
         ...(promptState.kind === 'blocking'
@@ -527,6 +533,11 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
         <div
           role="status"
           data-testid="app-version-minor-banner"
+          // U-1/U-2(#909 SONNET5 라운드2 계열 sweep): statusNotice 와 동일 결함 계열 —
+          // position:fixed 라 화면 레이아웃은 안 밀지만, useFitOneA4 가 A4 한 장에 꽉 채워
+          // 두는 이 앱 특성상 인쇄 캔버스에 픽셀이 더해지면 그 자체로 페이지가 늘어난다
+          // (sweep 실측: no-print 없이는 1p→2p). display:none 만이 U-1·U-2 를 동시에 만족한다.
+          className="no-print"
           style={{
             position: 'fixed',
             insetInlineEnd: 'max(16px, env(safe-area-inset-right))',
@@ -579,14 +590,20 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
             </Button>
           )}
         >
-          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-            {releaseNotesText(versionInfo)}
+          {/* U-3(#909 SONNET5 라운드2): 이 testid 는 global.css 의 :has() 인쇄 규칙이 "업데이트 안내"
+              모달만 골라 인쇄에서 뺄 수 있게 하는 표적이다 — Modal backdrop 을 통째로 숨기면
+              SlipDetailModal 처럼 Modal 안에 실제 인쇄 문서(DispatchDocument 등)가 있는 다른
+              소비처까지 인쇄에서 지워진다(PM 반증 확인). */}
+          <div data-testid="app-version-minor-detail-modal">
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+              {releaseNotesText(versionInfo)}
+            </div>
+            {updateStatus && updateStatus.kind !== 'not-available' && (
+              <p data-testid="app-auto-update-progress" style={{ margin: '10px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
+                {updateStatusText(updateStatus)}
+              </p>
+            )}
           </div>
-          {updateStatus && updateStatus.kind !== 'not-available' && (
-            <p data-testid="app-auto-update-progress" style={{ margin: '10px 0 0', color: 'var(--color-neutral-700)', fontSize: 13 }}>
-              {updateStatusText(updateStatus)}
-            </p>
-          )}
         </Modal>
       </>
     )
