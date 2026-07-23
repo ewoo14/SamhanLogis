@@ -15,8 +15,8 @@ import { expect, test, type Page } from '@playwright/test'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const MARKER = 'PR914-SONNET-R3-20260724'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-sonnet-round-2026-07-24')
+const MARKER = 'LUNA914R5'
+const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-round-2026-07-24')
 mkdirSync(SHOT_DIR, { recursive: true })
 
 // F-9 대상 — #848 라운드가 남긴 기존 v1·ACTIVE 실 템플릿(읽기전용 재사용, 절대 수정하지 않는다).
@@ -55,10 +55,9 @@ async function installAuth(page: Page, auth: LoginResult): Promise<void> {
   }, auth)
 }
 
-/** maxLength(P-5)가 fill()의 초과분 입력을 브라우저 레벨에서 자른다 — 그 자체가 P-5 fix 의 증거이지만,
- * parser 경로(4097/101자)를 확인하려면 다른 클라이언트/과거 revision이 보낼 수 있는 입력을 네이티브
- * value setter로 직접 주입해 React onChange 를 우회 없이 태워야 한다(fireEvent 계열과 동일 원리). */
-async function setValueBypassingMaxLength(locator: ReturnType<Page['getByLabel']>, value: string): Promise<void> {
+/** parser 경로(4097/101자)를 확인하기 위해 다른 클라이언트/과거 revision이 보낼 수 있는 입력을
+ * 네이티브 value setter로 직접 주입해 React onChange를 태운다(fireEvent 계열과 동일 원리). */
+async function setValueDirectly(locator: ReturnType<Page['getByLabel']>, value: string): Promise<void> {
   await locator.evaluate((element: HTMLInputElement | HTMLTextAreaElement, next: string) => {
     const proto = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')!.set!
@@ -84,6 +83,26 @@ test.beforeEach(async ({ page }) => {
 })
 test.afterEach(() => syncCleanup())
 
+test('R5-P5: 세 입력칸의 자연 초과 입력은 마지막 글자를 보존하고 현재 길이와 상한을 보여야 한다', async ({ page }) => {
+  await openNewEditor(page)
+  await page.getByLabel('양식명').fill('a'.repeat(101))
+  expect(await page.getByLabel('양식명').inputValue()).toHaveLength(101)
+  await expect(page.getByText('101 / 100')).toBeVisible()
+
+  await page.getByLabel(/^문서 유형/).selectOption('GROUPWARE_EXPENSE_REPORT')
+  await page.getByRole('button', { name: '문구 추가' }).click()
+  const text = page.getByLabel('문구', { exact: true })
+  await text.fill('b'.repeat(4097))
+  expect(await text.inputValue()).toHaveLength(4097)
+  await expect(page.getByText('4097 / 4096')).toBeVisible()
+
+  await page.getByRole('button', { name: '이미지/로고 추가' }).click()
+  const alt = page.getByLabel('이미지 대체 문구')
+  await alt.fill('c'.repeat(201))
+  expect(await alt.inputValue()).toHaveLength(201)
+  await expect(page.getByText('201 / 200')).toBeVisible()
+})
+
 test('R3-① 발견1 AFTER: TEXT 문구 4096자 양성대조 / 4097자·빈값은 4096 한계를 담은 서로 다른 문구', async ({ page }) => {
   await openNewEditor(page)
   await page.getByLabel('양식명').fill(`${MARKER}-text`)
@@ -96,7 +115,7 @@ test('R3-① 발견1 AFTER: TEXT 문구 4096자 양성대조 / 4097자·빈값�
   await expect(page.getByRole('alert')).toHaveCount(0)
   await page.screenshot({ path: join(SHOT_DIR, 'AFTER-01a-TEXT-4096자-양성대조-저장활성.png'), fullPage: true })
 
-  await setValueBypassingMaxLength(textarea, 'a'.repeat(4097))
+  await setValueDirectly(textarea, 'a'.repeat(4097))
   const tooLong = (await page.getByRole('alert').last().textContent()) ?? ''
   console.log(`■ [AFTER 발견1] TEXT 4097자: "${tooLong}"`)
   expect(tooLong).toContain('4096')
@@ -137,10 +156,10 @@ test('R3-③ 발견2 AFTER: 양식명 100자 양성대조 / 101자·빈값은 10
   await expect(page.getByRole('alert')).toHaveCount(0)
   await page.screenshot({ path: join(SHOT_DIR, 'AFTER-03a-양식명-100자-양성대조-저장활성.png'), fullPage: true })
 
-  // maxLength=100 이 있어 fill()로 101자를 직접 만들 수 없다(P-5 자체 증거) — 101자는 프로그램적으로
-  // 입력해 parser 경로를 확인한다(예: 다른 클라이언트/과거 revision이 보낼 수 있는 입력).
+  // 자연 입력 경로는 위 P-5 테스트가 검증하고, 여기서는 parser 경로도 별도로 확인한다
+  // (예: 다른 클라이언트/과거 revision이 보낼 수 있는 입력).
   await page.getByRole('button', { name: '필드 추가' }).click()
-  await setValueBypassingMaxLength(name, 'a'.repeat(101))
+  await setValueDirectly(name, 'a'.repeat(101))
   const tooLong = (await page.getByRole('alert').last().textContent()) ?? ''
   console.log(`■ [AFTER 발견2] 양식명 101자: "${tooLong}"`)
   expect(tooLong).toContain('100')
@@ -221,6 +240,7 @@ test('R3-F1/F2 라이브 — 실 결재문서 인쇄면: 진단문구 0 · A4 �
   const previewB = page.getByTestId('document-template-live-preview')
   for (const label of LEAVE) await expect(previewB).toContainText(`미리보기 ${label}`)
   for (const label of EXPENSE) await expect(previewB).not.toContainText(`미리보기 ${label}`)
+  console.log('■ [F-2 필드 측정] EXPENSE='+EXPENSE.length+', LEAVE='+LEAVE.length+', 상호 미혼입=0')
   await page.screenshot({ path: join(SHOT_DIR, 'F2-02-휴가신청서-4필드.png'), fullPage: true })
 })
 
@@ -229,6 +249,7 @@ test('R3-F3 라이브 — 미선택·조회중·조회실패(+회복)·필드0�
   await page.getByRole('button', { name: '필드 추가' }).click()
   const binding = page.getByRole('combobox', { name: '표시할 값' })
   await expect(binding.locator('option[value=""]')).toHaveText('본문 필드(문서 유형을 먼저 선택하세요)')
+  console.log('■ [F-3 미선택] '+await binding.locator('option[value=""]').textContent())
   await page.screenshot({ path: join(SHOT_DIR, 'F3-01-미선택.png'), fullPage: true })
 
   let releaseLoading!: () => void
@@ -236,6 +257,7 @@ test('R3-F3 라이브 — 미선택·조회중·조회실패(+회복)·필드0�
   await page.route('**/admin/groupware/approval-templates', async (route) => { await loadingGate; await route.continue() })
   await page.getByLabel(/^문서 유형/).selectOption('GROUPWARE_EXPENSE_REPORT')
   await expect(page.getByText('본문 필드 목록을 확인하는 중입니다')).toBeVisible()
+  console.log('■ [F-3 조회중] '+await page.getByText('본문 필드 목록을 확인하는 중입니다').textContent())
   await page.screenshot({ path: join(SHOT_DIR, 'F3-02-조회중.png'), fullPage: true })
   releaseLoading()
   await expect(binding.locator('option[value="body.fieldRow[amount]"]')).toHaveCount(1, { timeout: 15_000 })
@@ -247,6 +269,7 @@ test('R3-F3 라이브 — 미선택·조회중·조회실패(+회복)·필드0�
   await page.getByLabel(/^문서 유형/).selectOption('GROUPWARE_EXPENSE_REPORT')
   await page.getByRole('button', { name: '필드 추가' }).click()
   await expect(page.getByRole('alert')).toContainText('본문 필드 목록을 불러오지 못했습니다.')
+  console.log('■ [F-3 조회실패] '+await page.getByRole('alert').textContent())
   await page.screenshot({ path: join(SHOT_DIR, 'F3-03-조회실패.png'), fullPage: true })
 
   await page.unroute('**/admin/groupware/approval-templates')
@@ -259,6 +282,7 @@ test('R3-F3 라이브 — 미선택·조회중·조회실패(+회복)·필드0�
   await page.getByRole('button', { name: '필드 추가' }).click()
   await expect(page.getByRole('combobox', { name: '표시할 값' }).last().locator('option[value=""]'))
     .toHaveText('본문 필드(현재 양식 필드 없음)', { timeout: 15_000 })
+  console.log('■ [F-3 필드0개] '+await page.getByRole('combobox', { name: '표시할 값' }).last().locator('option[value=""]').textContent())
   await page.screenshot({ path: join(SHOT_DIR, 'F3-05-필드0개.png'), fullPage: true })
 })
 
@@ -271,6 +295,7 @@ test('R3-F4/F5/F6 라이브 — 좌표 해제 후 요소 존속·일반 배치 �
   await expect(page.getByText(/좌표로 배치/)).toHaveCount(0)
   await page.getByLabel('가로 위치(x, %)').fill('10')
   await expect(page.getByText(/좌표로 배치/)).toBeVisible()
+  console.log('■ [F-4/F-5 좌표 상태] 상태문구='+await page.getByText(/좌표로 배치/).count()+', 문구입력='+await page.getByLabel('문구', { exact: true }).count())
   await page.screenshot({ path: join(SHOT_DIR, 'F4F5-01-좌표입력-배치상태문구.png'), fullPage: true })
 
   // F-6: 좌표 배치 요소가 실제로 있는 지금, 화면 사본(data-template-element)과 인쇄 측정 사본
@@ -287,6 +312,7 @@ test('R3-F4/F5/F6 라이브 — 좌표 해제 후 요소 존속·일반 배치 �
   await page.getByRole('button', { name: '좌표 해제' }).click()
   await expect(page.getByText(/좌표로 배치/)).toHaveCount(0)
   await expect(page.getByLabel('문구', { exact: true })).toBeVisible() // 요소 존속(삭제되지 않음)
+  console.log('■ [F-4 해제 후] 상태문구='+await page.getByText(/좌표로 배치/).count()+', 문구입력='+await page.getByLabel('문구', { exact: true }).count())
   await page.screenshot({ path: join(SHOT_DIR, 'F4F5-02-좌표해제-요소존속-일반배치복귀.png'), fullPage: true })
 })
 
@@ -301,6 +327,7 @@ test('R3-F7 라이브 — 저장 체인: POST 201 → reload 유형 읽기전용
     page.getByRole('button', { name: '저장' }).click(),
   ])
   expect(postRes.status(), `저장 실패 — HTTP ${postRes.status()}`).toBe(201)
+  console.log('■ [F-7 POST] '+postRes.status())
   await page.screenshot({ path: join(SHOT_DIR, 'F7-01-POST201.png'), fullPage: true })
 
   await page.reload()
@@ -318,12 +345,14 @@ test('R3-F7 라이브 — 저장 체인: POST 201 → reload 유형 읽기전용
     page.getByRole('button', { name: '저장' }).click(),
   ])
   expect(putRes.status(), `PUT 실패 — HTTP ${putRes.status()}`).toBe(200)
+  console.log('■ [F-7 PUT] '+putRes.status())
   await page.screenshot({ path: join(SHOT_DIR, 'F7-03-PUT200.png'), fullPage: true })
 
   const activateRes = await page.request.post(`${API_BASE}/admin/groupware/document-templates/${id}/activate`, {
     headers: { Authorization: `Bearer ${auth.token}` },
   })
   expect(activateRes.status(), `활성화 실패 — HTTP ${activateRes.status()}`).toBe(200)
+  console.log('■ [F-7 활성화] '+activateRes.status())
   await page.screenshot({ path: join(SHOT_DIR, 'F7-04-활성화200.png'), fullPage: true })
 
   await page.reload()
@@ -333,6 +362,7 @@ test('R3-F7 라이브 — 저장 체인: POST 201 → reload 유형 읽기전용
     page.getByRole('button', { name: '편집 시작' }).click(),
   ])
   expect(deactivateRes.status(), `비활성화 실패 — HTTP ${deactivateRes.status()}`).toBe(200)
+  console.log('■ [F-7 비활성화] '+deactivateRes.status())
   await page.screenshot({ path: join(SHOT_DIR, 'F7-05-비활성화200.png'), fullPage: true })
 })
 

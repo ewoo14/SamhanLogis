@@ -242,9 +242,15 @@ export function DocumentTemplateEditorPage() {
             <input value={draft.docType} disabled aria-readonly="true" />
           </label>
         )}
-        {/* R3(#914) 발견2 P-5: BE(DocumentTemplate.validateName)와 동일한 100자 한계에 닿기 전에
-            막는다 — 저장 시점에 처음 아는 일이 없도록. */}
-        <label className="document-template-editor-form-field">양식명<input value={draft.name} disabled={!canEdit} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
+        {/* R5(#914) P-5: maxLength로 초과분을 버리지 않고, 입력 중 현재 길이와 상한을 함께 알린다.
+            저장 시 초과를 차단하는 파서 문구는 그대로 유지한다. */}
+        <label className="document-template-editor-form-field">
+          양식명
+          <input value={draft.name} disabled={!canEdit} onChange={(event) => updateDraft({ name: event.target.value })} />
+          <span role="status" aria-live="polite" style={{ fontSize: 12, color: draft.name.length > 100 ? 'var(--color-danger-700, #a12622)' : 'var(--color-neutral-500)' }}>
+            {draft.name.length} / 100
+          </span>
+        </label>
       </div>
 
       {/*

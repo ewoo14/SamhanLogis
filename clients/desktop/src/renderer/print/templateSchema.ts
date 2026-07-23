@@ -215,11 +215,9 @@ const MAX_DOC_TYPE_LENGTH = 70
 const MAX_FONT_SIZE = 200
 /** M-A: BE `DocumentPayloadValidator.MAX_TEXT_LENGTH` 와 동일해야 한다(과거 FE 65,536 vs BE 4,096
  * 불일치 — FE 가 통과시킨 요청이 BE 에서 "비어 있지 않은 문자열이어야 합니다"로 거부되어 실제 원인
- * (길이 초과)을 사용자가 알 수 없었다).
- * R3(#914) P-5: 입력칸(ElementInspector TEXT textarea)의 maxLength 로도 재사용해 한계값에 닿기 전에
- * 미리 막는다 — export 해 단일 소스를 유지한다. */
+ * (길이 초과)을 사용자가 알 수 없었다). R5(#914) P-5 입력 카운터와 파서 검증이 함께 사용한다. */
 export const MAX_TEXT_LENGTH = 4_096
-/** R3(#914) P-5: ElementInspector IMAGE 대체 문구 input의 maxLength 로 재사용한다. */
+/** R5(#914) P-5: ElementInspector IMAGE 대체 문구 입력 카운터와 파서 검증이 함께 사용한다. */
 export const MAX_ALT_LENGTH = 200
 export const MAX_IMAGE_BYTES = 50 * 1024
 

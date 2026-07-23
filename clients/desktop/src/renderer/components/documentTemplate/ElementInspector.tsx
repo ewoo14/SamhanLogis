@@ -125,16 +125,19 @@ export function ElementInspector({
       {element.type === 'TEXT' ? (
         <label>
           문구
-          {/* R3(#914) P-5: 한계값(4096자)에 닿기 전에 막는다 — 저장 시점에 처음 아는 일이 없도록. */}
+          {/* R5(#914) P-5: maxLength로 초과분을 버리지 않고, 입력 중 현재 길이와 상한을 함께 알린다.
+              저장 시 초과를 차단하는 파서 문구는 그대로 유지한다. */}
           <textarea
             aria-label="문구"
             value={element.text}
             disabled={!canEdit}
             onChange={(event) => onUpdate({ text: event.target.value })}
             rows={3}
-            maxLength={MAX_TEXT_LENGTH}
             style={{ width: '100%' }}
           />
+          <span role="status" aria-live="polite" style={{ display: 'block', fontSize: 12, color: element.text.length > MAX_TEXT_LENGTH ? 'var(--color-danger-700, #a12622)' : 'var(--color-neutral-500)' }}>
+            {element.text.length} / {MAX_TEXT_LENGTH}
+          </span>
         </label>
       ) : null}
       {element.type === 'FIELD' ? (
@@ -228,8 +231,11 @@ export function ElementInspector({
           </label>
           <label>
             대체 문구
-            {/* R3(#914) P-5: 한계값(200자)에 닿기 전에 막는다. */}
-            <input aria-label="이미지 대체 문구" value={element.alt} disabled={!canEdit} maxLength={MAX_ALT_LENGTH} onChange={(event) => onUpdate({ alt: event.target.value })} />
+            {/* R5(#914) P-5: maxLength로 초과분을 버리지 않고, 입력 중 현재 길이와 상한을 함께 알린다. */}
+            <input aria-label="이미지 대체 문구" value={element.alt} disabled={!canEdit} onChange={(event) => onUpdate({ alt: event.target.value })} />
+            <span role="status" aria-live="polite" style={{ display: 'block', fontSize: 12, color: element.alt.length > MAX_ALT_LENGTH ? 'var(--color-danger-700, #a12622)' : 'var(--color-neutral-500)' }}>
+              {element.alt.length} / {MAX_ALT_LENGTH}
+            </span>
           </label>
           <label>
             이미지 source
