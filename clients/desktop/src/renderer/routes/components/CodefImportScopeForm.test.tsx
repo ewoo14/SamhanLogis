@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CodefImportResultSummary, CodefImportScopeForm } from './CodefImportScopeForm'
-import type { CodefImportResponse } from '../../api/codef'
+import type { CodefImportResponse, CodefImportScope } from '../../api/codef'
 
 const listCodefBankAccountsMock = vi.fn()
 const listCodefCardsMock = vi.fn()
@@ -88,6 +88,9 @@ describe('CodefImportResultSummary 보류 경고 (#810 R3 계약 pin)', () => {
 
 const BANK_A = { ref: '국민 123-456', name: '국민운영', bankName: '국민은행', accountNumber: '123-456' }
 const CARD_A = { ref: '법인카드-001', name: '물류카드', issuerName: '신한카드', cardNumber: '9999' }
+const BANK_B = { ref: '신한 234-567', name: '신한운영', bankName: '신한은행', accountNumber: '234-567' }
+const BANK_C = { ref: '우리 345-678', name: '우리운영', bankName: '우리은행', accountNumber: '345-678' }
+const CARD_B = { ref: '법인카드-002', name: '운영카드', issuerName: '현대카드', cardNumber: '8888' }
 
 function renderForm(onImported = vi.fn(async () => undefined)) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -140,6 +143,65 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false)
     const allChipPressable = screen.getByTestId('codef-all-scope-chip').querySelector('[role="button"]')
     expect(allChipPressable?.getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('D-877-01 — 카드 필터에서 저장해도 계좌 3개와 카드 2개를 PUT·재진입 복원에 보존한다', async () => {
+    const accounts = [BANK_A, BANK_B, BANK_C]
+    const cards = [CARD_A, CARD_B]
+    let savedScope: CodefImportScope | undefined
+    listCodefBankAccountsMock.mockResolvedValue(accounts)
+    listCodefCardsMock.mockResolvedValue(cards)
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+      scopeMode: null,
+    })
+    saveCodefImportScopeMock.mockImplementation(async (payload: CodefImportScope) => {
+      savedScope = payload
+      return payload
+    })
+
+    renderForm()
+    await screen.findByTestId('codef-bank-account-2')
+    await screen.findByTestId('codef-card-1')
+
+    fireEvent.click(screen.getByTestId('codef-bank-account-select-all'))
+    fireEvent.click(screen.getByTestId('codef-card-select-all'))
+    fireEvent.change(screen.getByTestId('codef-import-type'), { target: { value: 'CARD' } })
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1))
+
+    expect(saveCodefImportScopeMock.mock.calls[0]![0]).toMatchObject({
+      accountRefs: [BANK_A.ref, BANK_B.ref, BANK_C.ref],
+      cardRefs: [CARD_A.ref, CARD_B.ref],
+    })
+    expect(savedScope).toMatchObject({
+      accountRefs: [BANK_A.ref, BANK_B.ref, BANK_C.ref],
+      cardRefs: [CARD_A.ref, CARD_B.ref],
+      loanRefs: [],
+      defaultImportType: 'CARD',
+      scopeMode: 'SELECTED',
+    })
+
+    cleanup()
+    loadCodefImportScopeMock.mockResolvedValue(savedScope)
+    renderForm()
+    await screen.findAllByTestId('codef-selected-chip')
+    fireEvent.change(screen.getByTestId('codef-import-type'), { target: { value: 'ALL' } })
+
+    await waitFor(() => {
+      expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+      expect((screen.getByTestId('codef-bank-account-1') as HTMLInputElement).checked).toBe(true)
+      expect((screen.getByTestId('codef-bank-account-2') as HTMLInputElement).checked).toBe(true)
+      expect((screen.getByTestId('codef-card-0') as HTMLInputElement).checked).toBe(true)
+      expect((screen.getByTestId('codef-card-1') as HTMLInputElement).checked).toBe(true)
+    })
   })
 
   /*
@@ -371,7 +433,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     await waitFor(() => expect(screen.getByTestId('codef-import-button')).not.toBeNull())
     const allChip = screen.getByTestId('codef-all-scope-chip')
     const selectedCheckbox = await screen.findByTestId('codef-bank-account-0') as HTMLInputElement
-    const selectedChip = screen.getByTestId('codef-selected-chip')
+    const selectedChip = await screen.findByTestId('codef-selected-chip')
     expect(allChip.querySelector('[role="button"]') !== null).toBe(canUpdate)
     expect(selectedCheckbox.disabled).toBe(!canUpdate)
     expect(selectedChip.querySelector('button')).toBe(canUpdate ? selectedChip.querySelector('button') : null)

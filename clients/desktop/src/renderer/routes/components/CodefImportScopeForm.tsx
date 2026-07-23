@@ -315,7 +315,7 @@ export function CodefImportScopeForm({
       // — 방어 방향은 reject 여야 한다).
       throw new Error('범위를 선택하지 않아 저장할 수 없습니다. 전체 또는 개별 항목을 선택하세요.')
     }
-    const refs = scopeMode === 'SELECTED' ? effectiveSelection(false) : EMPTY_SELECTION
+    const refs = scopeMode === 'SELECTED' ? selection : EMPTY_SELECTION
     return {
       connectedId: DEFAULT_CONNECTED_ID,
       ...refs,
