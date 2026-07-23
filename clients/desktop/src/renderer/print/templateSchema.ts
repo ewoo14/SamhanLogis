@@ -362,7 +362,7 @@ function parseBinding(value: unknown): BindingRef | DocumentTemplateParseError {
   if (value === 'header.title' || value === 'header.docNo' || value === 'header.issueDate' || value === 'closing.note') {
     return value
   }
-  if (typeof value === 'string' && /^body\.fieldRow\[[A-Za-z0-9_.-]{1,100}\]$/.test(value)) {
+  if (typeof value === 'string' && /^body\.fieldRow\[[^\[\]]{1,100}\]$/.test(value)) {
     return value as BindingRef
   }
   return { code: 'INVALID_BINDING', message: '허용되지 않은 문서 요소 binding입니다.' }

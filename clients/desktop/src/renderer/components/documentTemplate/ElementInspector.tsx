@@ -17,6 +17,7 @@ import {
   type ElementStyle,
   type Geometry,
 } from '../../print/templateSchema'
+import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
 
 const FIXED_BINDINGS: Array<{ value: BindingRef; label: string }> = [
   { value: 'header.title', label: '문서 제목' },
@@ -24,10 +25,7 @@ const FIXED_BINDINGS: Array<{ value: BindingRef; label: string }> = [
   { value: 'header.issueDate', label: '발행일' },
   { value: 'closing.note', label: '맺음말' },
 ]
-const FIELD_ROW_BINDING = /^body\.fieldRow\[([A-Za-z0-9_.-]{1,100})\]$/
-/** LOW: FIELD binding 선택지에 본문 필드 경로가 없어 FIELD 가 기존 출력을 중복 표시하는 것만
- * 가능했다. 본문 필드 참조를 직접 입력할 수 있는 선택지를 추가한다. */
-const FIELD_ROW_OPTION = 'FIELD_ROW'
+const FIELD_ROW_BINDING = /^body\.fieldRow\[([^\[\]]{1,100})\]$/
 
 function numberValue(event: ChangeEvent<HTMLInputElement>, fallback: number): number {
   const value = Number(event.target.value)
@@ -46,6 +44,7 @@ export function ElementInspector({
   onUpdate,
   onRemove,
   document,
+  fieldOptions = [],
   bandKind,
   onMoveBand,
   canEdit,
@@ -54,6 +53,7 @@ export function ElementInspector({
   onUpdate: (patch: Partial<DocElement>) => void
   onRemove: () => void
   document?: DocumentPayload
+  fieldOptions?: Pick<ApprovalTemplateField, 'fieldKey' | 'label'>[]
   bandKind?: BandKind
   onMoveBand?: (bandKind: BandKind) => void
   /** H-E: 편집 잠금·권한 없음 상태에서는 속성 편집·삭제 자체가 불가능해야 한다(읽기 전용 표시는 허용). */
@@ -70,9 +70,17 @@ export function ElementInspector({
   const updateGeometry = (key: keyof Geometry, value: number) => onUpdate({ geometry: { x: 0, y: 0, w: 100, h: 10, ...geometry, [key]: value } })
   const updateStyle = (patch: Partial<ElementStyle>) => onUpdate({ style: { ...style, ...patch } })
   const fieldRowMatch = element.type === 'FIELD' ? FIELD_ROW_BINDING.exec(element.binding) : null
-  const bindingSelectValue = element.type === 'FIELD'
-    ? (fieldRowMatch ? FIELD_ROW_OPTION : element.binding)
-    : undefined
+  const fieldRowKey = fieldRowMatch?.[1]
+  const fieldRowBindings = fieldOptions.map((field) => ({
+    value: `body.fieldRow[${field.fieldKey}]` as BindingRef,
+    label: `본문 필드 · ${field.label}`,
+  }))
+  const hasKnownFieldBinding = fieldRowKey !== undefined
+    && fieldOptions.some((field) => field.fieldKey === fieldRowKey)
+  const unknownFieldBinding = element.type === 'FIELD' && fieldRowKey !== undefined && !hasKnownFieldBinding
+    ? { value: element.binding, label: `사용할 수 없는 본문 필드 · ${fieldRowKey}` }
+    : null
+  const bindingSelectValue = element.type === 'FIELD' ? element.binding : undefined
   const imageMaxBytes = element.type === 'IMAGE' && document
     ? maxImageBytesForDocument(document, element.key)
     : 50 * 1024
@@ -107,28 +115,20 @@ export function ElementInspector({
               value={bindingSelectValue}
               disabled={!canEdit}
               onChange={(event) => {
-                const next = event.target.value
-                if (next === FIELD_ROW_OPTION) {
-                  onUpdate({ binding: 'body.fieldRow[field-key]' as BindingRef })
-                  return
-                }
-                onUpdate({ binding: next as BindingRef })
+                onUpdate({ binding: event.target.value as BindingRef })
               }}
             >
               {FIXED_BINDINGS.map((binding) => <option key={binding.value} value={binding.value}>{binding.label}</option>)}
-              <option value={FIELD_ROW_OPTION}>본문 필드 참조(직접 입력)</option>
+              {fieldRowBindings.length > 0
+                ? fieldRowBindings.map((binding) => <option key={binding.value} value={binding.value}>{binding.label}</option>)
+                : <option value="" disabled>본문 필드(현재 양식 필드 없음)</option>}
+              {unknownFieldBinding ? <option value={unknownFieldBinding.value}>{unknownFieldBinding.label}</option> : null}
             </select>
           </label>
-          {fieldRowMatch ? (
-            <label>
-              본문 필드 키
-              <input
-                aria-label="본문 필드 키"
-                value={fieldRowMatch[1]}
-                disabled={!canEdit}
-                onChange={(event) => onUpdate({ binding: `body.fieldRow[${event.target.value}]` as BindingRef })}
-              />
-            </label>
+          {fieldRowMatch && !hasKnownFieldBinding ? (
+            <p role="alert" style={{ margin: 0, color: 'var(--color-danger-700, #a12622)', fontSize: 12 }}>
+              현재 양식에서 선택할 수 없는 본문 필드 참조입니다. 목록에서 실제 필드를 선택하세요.
+            </p>
           ) : null}
         </>
       ) : null}
@@ -222,7 +222,7 @@ export function ElementInspector({
                   min={0}
                   max={100}
                   disabled={!canEdit}
-                  value={geometry?.[key] ?? (key === 'w' ? 100 : key === 'h' ? 10 : 0)}
+                  value={geometry?.[key] ?? ''}
                   onChange={(event) => updateGeometry(key, numberValue(event, geometry?.[key] ?? 0))}
                 />
               </label>

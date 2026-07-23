@@ -3346,7 +3346,32 @@ button {
   max-height: 100%;
 }
 
+/* PR #914: 화면 ruler의 React 측정값은 window.print()의 동기 media 전환보다 늦을 수 있다.
+ * A4 인쇄 콘텐츠 폭을 고정한 비가시 ruler의 spacer를 인쇄에서 사용해, 인쇄 직전에도
+ * 실제 용지 폭으로 계산된 예약 높이가 이미 레이아웃에 존재하도록 한다. */
+.document-template-v2-elements-print-measure {
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.document-template-v2-elements {
+  overflow-x: clip;
+}
+
+.document-template-v2-elements-print-overflow-spacer {
+  display: none;
+}
+
 @media print {
+  .document-template-v2-elements-screen-overflow-spacer {
+    display: none;
+  }
+
+  .document-template-v2-elements-print-overflow-spacer {
+    display: block;
+  }
+
   .document-template-detail table {
     break-inside: auto;
     page-break-inside: auto;

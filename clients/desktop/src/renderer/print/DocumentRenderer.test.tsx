@@ -123,8 +123,8 @@ describe('buildApprovalRenderModel', () => {
       issueDate: '2026-07-02T10:00:00',
     })
     expect(model.body.fieldRows).toEqual([
-      { label: '금액', value: '12,000' },
-      { label: '메모', value: '검증' },
+      { key: 'amount', label: '금액', value: '12,000' },
+      { key: 'memo', label: '메모', value: '검증' },
     ])
     expect(model.body.attachments).toEqual([
       { typeLabel: '파일', title: '첨부', detail: '' },
@@ -149,8 +149,8 @@ describe('buildApprovalRenderModel', () => {
     }))
 
     expect(model.body.fieldRows).toEqual([
-      { label: '금액', value: 'bad-number' },
-      { label: '코드', value: '1234' },
+      { key: 'amount', label: '금액', value: 'bad-number' },
+      { key: 'code', label: '코드', value: '1234' },
     ])
   })
 })

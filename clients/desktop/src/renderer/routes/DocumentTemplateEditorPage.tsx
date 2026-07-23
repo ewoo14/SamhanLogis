@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import { fetchConfigurableDocTypes } from '../api/approvalLineConfigApi'
+import { listApprovalTemplates } from '../api/groupwareApprovalTemplate'
 import {
   createDocumentTemplate,
   deactivateDocumentTemplate,
@@ -34,7 +35,18 @@ const PREVIEW_MODEL: ApprovalRenderModel = {
   ],
   body: {
     paragraphs: ['본문 미리보기'],
-    fieldRows: [{ label: '예시 필드', value: '예시 값' }],
+    fieldRows: [
+      { key: 'exampleField', label: '예시 필드', value: '예시 값' },
+      { key: 'expenseItem', label: '지출항목', value: '미리보기 지출항목' },
+      { key: 'amount', label: '금액', value: '12,000' },
+      { key: 'accountCode', label: '계정과목', value: '복리후생비' },
+      { key: 'expenseDate', label: '지출일', value: '2026-07-23' },
+      { key: 'summary', label: '적요', value: '미리보기 적요' },
+      { key: 'leaveType', label: '휴가종류', value: '연차' },
+      { key: 'startDate', label: '시작일', value: '2026-07-23' },
+      { key: 'endDate', label: '종료일', value: '2026-07-23' },
+      { key: 'reason', label: '사유', value: '미리보기 사유' },
+    ],
     attachments: [],
     lineItemsAvailability: 'CONNECTED',
     lineItems: [
@@ -116,6 +128,14 @@ export function DocumentTemplateEditorPage() {
     draft, updateDraft, addElement, moveElement, moveElementToBand, updateElement, removeElement,
     selectedKey, setSelectedKey, selectedElement, dirty, valid, validationError, markSaved, notice, clearNotice,
   } = draftState
+  const approvalTemplatesQuery = useQuery({
+    queryKey: ['groupwareApprovalTemplatesForDocumentEditor'],
+    queryFn: listApprovalTemplates,
+    enabled: draft.docType.length > 0,
+    staleTime: 60_000,
+  })
+  const approvalTemplateCode = draft.docType.replace(/^GROUPWARE_/, '')
+  const approvalFieldOptions = (approvalTemplatesQuery.data ?? []).find((item) => item.code === approvalTemplateCode)?.fields ?? []
 
   useEffect(() => {
     if (template) setEditable(template.status === 'DRAFT')
@@ -291,6 +311,7 @@ export function DocumentTemplateEditorPage() {
             onUpdate={(patch) => selectedKey && updateElement(selectedKey, patch)}
             onRemove={() => selectedKey && removeElement(selectedKey)}
             document={draft.document}
+            fieldOptions={approvalFieldOptions}
             bandKind={selectedBandKind}
             onMoveBand={(kind) => selectedKey && moveElementToBand(selectedKey, kind)}
             canEdit={canEdit}

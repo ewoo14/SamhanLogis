@@ -45,6 +45,7 @@ export interface ApprovalRenderStep {
 }
 
 export interface ApprovalRenderFieldRow {
+  key: string
   label: string
   value: string
 }
@@ -122,6 +123,7 @@ export function buildApprovalRenderModel(input: FrozenApprovalDocInput): Approva
     body: {
       paragraphs: contentParagraphs(input.approval.content),
       fieldRows: rows.map((row) => ({
+        key: row.key,
         label: row.label,
         value: row.fieldType === 'NUMBER' ? krw(row.value) || row.value : row.value,
       })),

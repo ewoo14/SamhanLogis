@@ -85,7 +85,8 @@ function valueForBinding(binding: BindingRef, model: ApprovalRenderModel): strin
       return model.closing.note
     default: {
       const fieldKey = binding.slice('body.fieldRow['.length, -1)
-      return model.body.fieldRows.find((field) => field.label === fieldKey)?.value ?? ''
+      return model.body.fieldRows.find((field) => field.key === fieldKey)?.value
+        ?? `[사용할 수 없는 본문 필드 참조: ${fieldKey}]`
     }
   }
 }
@@ -223,13 +224,15 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
   )
 }
 
-function renderImageElement(element: ImageElement) {
+function renderImageElement(element: ImageElement, measurement = false) {
   if (!isAllowedImageSource(element.src)) return null
   return (
     <img
       key={element.key}
       className="document-template-image"
-      data-template-image={element.key}
+      {...(measurement
+        ? { 'data-template-print-image': element.key }
+        : { 'data-template-image': element.key })}
       src={element.src}
       alt={element.alt}
       style={{
@@ -292,7 +295,9 @@ interface PositionedElementBandProps {
  */
 function PositionedElementBand({ elements, model, testId }: PositionedElementBandProps) {
   const rulerRef = useRef<HTMLDivElement | null>(null)
-  const [overflowPx, setOverflowPx] = useState(0)
+  const printRulerRef = useRef<HTMLDivElement | null>(null)
+  const [screenOverflowPx, setScreenOverflowPx] = useState(0)
+  const [printOverflowPx, setPrintOverflowPx] = useState(0)
   // 좌표/스타일/실 렌더 문자열(TEXT 원문, FIELD 바인딩 결과, IMAGE src)이 바뀔 때만 재측정하면
   // 충분하다 — 매 렌더 재측정은 낭비이고, 반대로 이 신호들을 빠뜨리면 내용이 바뀌어도 재측정을
   // 건너뛰어 밴드가 낡은 높이로 남는다.
@@ -307,27 +312,39 @@ function PositionedElementBand({ elements, model, testId }: PositionedElementBan
       : valueForBinding(element.binding, model),
   })))
 
+  const recomputeOverflow = (ruler: HTMLDivElement, setOverflow: (value: number | ((previous: number) => number)) => void) => {
+    const rulerRect = ruler.getBoundingClientRect()
+    let maxBottom = 0
+    ruler.querySelectorAll('[data-template-element], [data-template-image], [data-template-print-image]').forEach((node) => {
+      const bottom = node.getBoundingClientRect().bottom - rulerRect.top
+      if (bottom > maxBottom) maxBottom = bottom
+    })
+    const rawOverflow = maxBottom - rulerRect.height
+    const nextOverflow = rawOverflow > OVERFLOW_NOISE_FLOOR_PX ? rawOverflow + OVERFLOW_SAFETY_MARGIN_PX : 0
+    setOverflow((previous) => Math.abs(previous - nextOverflow) < OVERFLOW_NOISE_FLOOR_PX ? previous : nextOverflow)
+  }
+
   useIsomorphicLayoutEffect(() => {
     const ruler = rulerRef.current
-    if (!ruler) return undefined
+    const printRuler = printRulerRef.current
+    if (!ruler || !printRuler) return undefined
     const recompute = () => {
-      const rulerRect = ruler.getBoundingClientRect()
-      let maxBottom = 0
-      ruler.querySelectorAll('[data-template-element], [data-template-image]').forEach((node) => {
-        const bottom = node.getBoundingClientRect().bottom - rulerRect.top
-        if (bottom > maxBottom) maxBottom = bottom
-      })
-      const rawOverflow = maxBottom - rulerRect.height
-      const nextOverflow = rawOverflow > OVERFLOW_NOISE_FLOOR_PX ? rawOverflow + OVERFLOW_SAFETY_MARGIN_PX : 0
-      setOverflowPx((prev) => (Math.abs(prev - nextOverflow) < OVERFLOW_NOISE_FLOOR_PX ? prev : nextOverflow))
+      recomputeOverflow(ruler, setScreenOverflowPx)
+      recomputeOverflow(printRuler, setPrintOverflowPx)
     }
     recompute()
     if (typeof ResizeObserver === 'undefined') return undefined
     const observer = new ResizeObserver(recompute)
     observer.observe(ruler)
-    ruler.querySelectorAll('[data-template-element], [data-template-image]').forEach((node) => observer.observe(node))
+    observer.observe(printRuler)
+    ruler.querySelectorAll('[data-template-element], [data-template-image], [data-template-print-image]').forEach((node) => observer.observe(node))
+    printRuler.querySelectorAll('[data-template-element], [data-template-image], [data-template-print-image]').forEach((node) => observer.observe(node))
     return () => observer.disconnect()
   }, [contentSignature])
+
+  const renderElements = (measurement = false) => elements.map((element) => element.type === 'IMAGE'
+    ? renderImageElement(element, measurement)
+    : renderPositionedElement(element, model))
 
   return (
     <div
@@ -340,13 +357,34 @@ function PositionedElementBand({ elements, model, testId }: PositionedElementBan
         className="document-template-v2-elements-ruler"
         style={{ position: 'relative', height: POSITIONED_BAND_RULER_HEIGHT }}
       >
-        {elements.map((element) => element.type === 'IMAGE'
-          ? renderImageElement(element)
-          : renderPositionedElement(element, model))}
+        {renderElements()}
       </div>
-      {overflowPx > 0 ? (
-        <div aria-hidden="true" data-testid={`${testId}-overflow-spacer`} style={{ height: `${overflowPx}px` }} />
+      {screenOverflowPx > 0 ? (
+        <div
+          aria-hidden="true"
+          data-testid={`${testId}-overflow-spacer`}
+          className="document-template-v2-elements-screen-overflow-spacer"
+          style={{ height: `${screenOverflowPx}px` }}
+        />
       ) : null}
+      {printOverflowPx > 0 ? (
+        <div
+          aria-hidden="true"
+          data-testid={`${testId}-print-overflow-spacer`}
+          className="document-template-v2-elements-print-overflow-spacer"
+          style={{ height: `${printOverflowPx}px` }}
+        />
+      ) : null}
+      <div
+        ref={printRulerRef}
+        aria-hidden="true"
+        className="document-template-v2-elements-print-measure"
+        style={{ position: 'absolute', left: 0, top: 0, width: 'calc(210mm - 24mm - 2px)', height: POSITIONED_BAND_RULER_HEIGHT }}
+      >
+        <div style={{ position: 'relative', height: POSITIONED_BAND_RULER_HEIGHT }}>
+          {renderElements(true)}
+        </div>
+      </div>
     </div>
   )
 }
