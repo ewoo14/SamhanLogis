@@ -478,7 +478,14 @@ test.describe('P-D 직전 라운드 지적 재확인 + 레이아웃 튐', () => 
       await route.continue()
     })
 
-    await page.goto(`${BASE_URL}/#/admin/permission-groups/manage`)
+    await page.goto(`${BASE_URL}/#/`)
+    const hrToggle = page.getByTestId('sidebar-category-toggle-인사')
+    await expect(hrToggle, '인사 메뉴가 렌더되지 않음 — 권한 로딩 전제 실패').toBeVisible({ timeout: 20000 })
+    await hrToggle.click()
+    const groupManageLink = page.getByTestId('sidebar-hr-permission-groups-manage')
+    await expect(groupManageLink, '권한그룹 관리 메뉴가 렌더되지 않음 — 실 권한 전제 실패').toBeVisible({ timeout: 20000 })
+    await groupManageLink.click()
+    await expect(page).toHaveURL(/permission-groups\/manage/, { timeout: 10000 })
     const notice = page.getByTestId('app-auto-update-status')
     await expect(notice).toBeVisible({ timeout: 20000 })
     await expect(page.getByTestId('perm-group-add-btn')).toBeVisible({ timeout: 20000 })
@@ -533,11 +540,22 @@ test.describe('P-D 직전 라운드 지적 재확인 + 레이아웃 튐', () => 
     await page.screenshot({ path: join(SHOT_DIR, 'D2-R1-닫힘.png'), fullPage: true })
 
     await page.evaluate(() => (window as unknown as { __qaEmit: (s: unknown) => void }).__qaEmit({ kind: 'downloading', percent: 42 }))
-    await expect(notice, 'R-1 미해소 — 닫은 뒤 후속 상태가 영영 숨겨짐').toBeVisible({ timeout: 5000 })
+    await expect(notice, 'P-3 위반 — error→downloading 상태 경계에서 알림이 재등장하지 않음').toBeVisible({ timeout: 5000 })
+    await page.getByTestId('app-auto-update-dismiss').click()
+    await expect(notice).toHaveCount(0)
+
+    await page.evaluate(() => (window as unknown as { __qaEmit: (s: unknown) => void }).__qaEmit({ kind: 'downloading', percent: 73 }))
+    await expect(notice, 'P-2 위반 — 같은 downloading 세션의 진행률 갱신에서 닫힌 알림이 되살아남').toHaveCount(0, { timeout: 5000 })
+    const shellSameKind = await page.locator('.app-shell').evaluate((el) => el.getBoundingClientRect().y)
+    console.log(`■ P-2 동일 kind 진행률 갱신 후 알림 없음 · shell.y ${shellDismissed} → ${shellSameKind}`)
+    await page.screenshot({ path: join(SHOT_DIR, 'D3-P2-동일kind-진행률-닫힘.png'), fullPage: true })
+
+    await page.evaluate(() => (window as unknown as { __qaEmit: (s: unknown) => void }).__qaEmit({ kind: 'error' }))
+    await expect(notice, 'P-3 위반 — downloading→error 새 이벤트인데 닫힌 알림이 재등장하지 않음').toBeVisible({ timeout: 5000 })
     const afterText = (await notice.innerText()).replace(/\s+/g, ' ').trim()
     const shellBack = await page.locator('.app-shell').evaluate((el) => el.getBoundingClientRect().y)
-    console.log(`■ R-1 닫은 뒤 후속 상태 문구="${afterText}" · shell.y ${shellDismissed} → ${shellBack}`)
-    await page.screenshot({ path: join(SHOT_DIR, 'D3-R1-후속상태-재등장.png'), fullPage: true })
+    console.log(`■ P-3 kind 변경 후 알림 재등장 text="${afterText}" · shell.y ${shellSameKind} → ${shellBack}`)
+    await page.screenshot({ path: join(SHOT_DIR, 'D3-P3-kind변경-오류-재등장.png'), fullPage: true })
 
     // ── 배너 소멸/재등장이 클릭 대상 좌표를 얼마나 움직이는가 ─────────────────
     const probeY = 500

@@ -18,7 +18,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const MARKER = 'SONNET5-909-ROUND2-20260723'
+const MARKER = 'LUNA909R6'
 const SHOT_DIR = process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-sonnet-round-2026-07-23')
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'
 
@@ -120,7 +120,7 @@ test('P-1/P-2/P-3 — 오류 배너가 홈 클릭·페이지 제목을 막지 �
   expect(rectOverlap(titleBox, noticeBoxBefore), '페이지 제목과 오류 배너가 겹친다(P-1)').toBe(false)
 
   // ── P-1 ②: 홈 링크 중심에서 elementsFromPoint 최상단이 배너가 아니다 + 실제 클릭이 통한다 ──
-  const homeLink = page.locator('nav a[href="#/"]').first()
+  const homeLink = page.getByRole('link', { name: '홈', exact: true })
   const hb = await homeLink.boundingBox()
   expect(hb, '홈 링크 bounding box 를 못 얻음 — 시험 전제가 깨짐').not.toBeNull()
   const cx = hb!.x + hb!.width / 2
@@ -137,8 +137,10 @@ test('P-1/P-2/P-3 — 오류 배너가 홈 클릭·페이지 제목을 막지 �
   expect(hit[0]?.testid, `홈 링크 위에 다른 요소가 최상단 — ${JSON.stringify(hit)}`).not.toBe('app-auto-update-status')
 
   await homeLink.click({ timeout: 5000 })
-  await expect(page, '실제 클릭이 홈으로 이동시키지 못함(P-1)').toHaveURL(/\/#\/?$/, { timeout: 5000 })
-  console.log(`■ 실제 클릭 후 URL = ${page.url()}`)
+  const homeRoute = await page.evaluate(() => ({ pathname: location.pathname, hash: location.hash, href: location.href }))
+  console.log(`■ 실제 클릭 후 URL = ${page.url()} · route=${JSON.stringify(homeRoute)}`)
+  expect(homeRoute.pathname, '실제 클릭이 홈 route로 이동시키지 못함(P-1)').toBe('/')
+  expect(homeRoute.hash, '홈 route가 /#/로 이동하지 못함(P-1)').toBe('#/')
   await page.screenshot({ path: join(SHOT_DIR, '02-홈클릭-성공.png'), fullPage: true })
 
   // ── P-2: 알림을 치울 수 있다 ──

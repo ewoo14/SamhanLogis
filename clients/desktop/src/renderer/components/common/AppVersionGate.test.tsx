@@ -130,6 +130,44 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(screen.getByTestId('login-sentinel')).toBeTruthy()
   })
 
+  it('다운로드 중인 업데이트 알림도 닫기 버튼을 제공한다(P-1)', async () => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'error' }))
+    await screen.findByTestId('app-auto-update-status')
+
+    act(() => updater.emit({ kind: 'downloading', percent: 61 }))
+
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('61%')
+    expect(screen.getByTestId('app-auto-update-dismiss')).toBeTruthy()
+  })
+
+  it('다운로드 진행률 갱신만으로 닫은 알림을 되살리지 않는다(P-2)', async () => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'error' }))
+    await screen.findByTestId('app-auto-update-status')
+    fireEvent.click(screen.getByTestId('app-auto-update-dismiss'))
+    expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
+
+    act(() => updater.emit({ kind: 'downloading', percent: 61 }))
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('61%')
+    fireEvent.click(screen.getByTestId('app-auto-update-dismiss'))
+    expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
+
+    act(() => updater.emit({ kind: 'downloading', percent: 73 }))
+
+    expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
+  })
+
   it('오류 알림을 닫은 뒤 후속 업데이트 오류는 다시 표시한다', async () => {
     const raw = 'Cannot find channel https://intranet.example/latest.yml response-header'
     updater.check.mockRejectedValueOnce(new Error(raw))

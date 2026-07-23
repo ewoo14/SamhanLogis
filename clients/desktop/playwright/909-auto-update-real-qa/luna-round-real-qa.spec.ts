@@ -13,11 +13,11 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const MARKER = 'LUNA-909-ROUND-20260723'
+const MARKER = 'LUNA909R6'
 const SHOT_DIR = process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-luna-round-2026-07-23')
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'
 
-type Scenario = 'available' | 'not-available' | 'check-error' | 'download-timeout' | 'download-timeout-progress' | 'critical-check-error'
+type Scenario = 'available' | 'not-available' | 'check-error' | 'download-timeout' | 'download-timeout-progress' | 'critical-check-error' | 'dismiss-boundary'
 
 function cleanupThrowaway(): string {
   const sql = [
@@ -75,6 +75,19 @@ async function installHarness(page: import('@playwright/test').Page, scenario: S
           if (selectedScenario === 'check-error' || selectedScenario === 'critical-check-error') {
             await delay(120)
             throw new Error(rawError)
+          }
+          if (selectedScenario === 'dismiss-boundary') {
+            await delay(120)
+            emit({ kind: 'error' })
+            await delay(120)
+            emit({ kind: 'downloading', percent: 61 })
+            await new Promise<void>((resolve) => {
+              Object.defineProperty(window, '__luna909Continue', { configurable: true, value: resolve })
+            })
+            emit({ kind: 'downloading', percent: 73 })
+            await delay(120)
+            emit({ kind: 'error' })
+            return
           }
           if (selectedScenario === 'download-timeout') {
             await delay(120)
@@ -171,10 +184,22 @@ test('PR #909 라운드 — 실제 updater 6개 기동 경로', async ({ browser
     const splash = page.getByTestId('app-update-startup-splash')
     const loginInput = page.getByTestId('login-id-input')
     const modal = page.getByTestId('app-version-blocking-modal')
+    const status = page.getByTestId('app-auto-update-status')
     await expect(splash, `${name}: updater 확인 스플래시가 보이지 않음`).toBeVisible({ timeout: 10000 })
     await page.screenshot({ path: join(SHOT_DIR, `${screenshot}-01-확인중.png`), fullPage: true })
 
-    if (scenario === 'available') {
+    if (scenario === 'dismiss-boundary') {
+      await expect(status, `${name}: downloading 상태 알림이 보이지 않음`).toContainText('61%', { timeout: 10000 })
+      await expect(page.getByTestId('app-auto-update-dismiss'), `${name}: downloading 상태에 닫기 버튼이 없음(P-1)`).toBeVisible()
+      await page.screenshot({ path: join(SHOT_DIR, `${screenshot}-01-downloading61-닫기.png`), fullPage: true })
+      await page.getByTestId('app-auto-update-dismiss').click()
+      await expect(status, `${name}: 닫은 알림이 즉시 사라지지 않음`).toHaveCount(0)
+      await page.evaluate(() => (window as Window & { __luna909Continue?: () => void }).__luna909Continue?.())
+      await page.waitForTimeout(80)
+      await expect(status, `${name}: 같은 kind 진행률 갱신으로 알림이 재등장함(P-2)`).toHaveCount(0)
+      await expect(status, `${name}: kind 변경(error) 후 새 알림이 재등장하지 않음(P-3)`).toContainText('업데이트 실패', { timeout: 5000 })
+      await page.screenshot({ path: join(SHOT_DIR, `${screenshot}-02-error-kind변경-재등장.png`), fullPage: true })
+    } else if (scenario === 'available') {
       await expect.poll(async () => page.evaluate(() => (window as Window & { __luna909UpdaterAudit?: { installCalls: number } }).__luna909UpdaterAudit?.installCalls ?? 0), {
         timeout: 10000,
         message: `${name}: 자동 설치 호출이 발생하지 않음`,
@@ -230,9 +255,10 @@ test('PR #909 라운드 — 실제 updater 6개 기동 경로', async ({ browser
   try {
     await runScenario('업데이트 있음', 'available', '01-업데이트있음')
     await runScenario('업데이트 없음', 'not-available', '02-업데이트없음')
-    await runScenario('확인 실패·오프라인', 'check-error', '03-확인실패')
-    await runScenario('다운로드 지연·무진행', 'download-timeout', '04-다운로드지연-무진행')
-    await runScenario('다운로드 지연·진행중', 'download-timeout-progress', '05-다운로드지연-진행중')
+    await runScenario('닫기 경계·진행률 불변·오류 재등장', 'dismiss-boundary', '03-닫기경계')
+    await runScenario('확인 실패·오프라인', 'check-error', '04-확인실패')
+    await runScenario('다운로드 지연·무진행', 'download-timeout', '05-다운로드지연-무진행')
+    await runScenario('다운로드 지연·진행중', 'download-timeout-progress', '06-다운로드지연-진행중')
 
     const criticalUpdate = await request.put(`${API_BASE}/app/releases/${releaseId}`, {
       headers: jsonAuth,
@@ -243,7 +269,7 @@ test('PR #909 라운드 — 실제 updater 6개 기동 경로', async ({ browser
     const serverVersionBody = await serverVersion.json()
     console.log(`■ CRITICAL 전환 후 서버 응답 ${JSON.stringify(serverVersionBody.data ?? serverVersionBody)}`)
     expect(serverVersionBody.data?.forceLevel).toBe('CRITICAL')
-    await runScenario('CRITICAL + 확인 실패', 'critical-check-error', '06-CRITICAL실패', true)
+    await runScenario('CRITICAL + 확인 실패', 'critical-check-error', '07-CRITICAL실패', true)
   } finally {
     const cleanupOutput = cleanupThrowaway()
     console.log(`■ 종료 정리 SQL 출력\n${cleanupOutput.trim() || '(잔재 없음)'}`)

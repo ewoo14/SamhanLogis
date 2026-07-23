@@ -185,7 +185,7 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
 
   useEffect(() => {
     if (updateStatus) setNoticeDismissed(false)
-  }, [updateStatus])
+  }, [updateStatus?.kind])
 
   useEffect(() => {
     if (!bootstrapped) return
@@ -343,23 +343,19 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
       }}
     >
       <span>{updateStatusText(updateStatus, installing)}</span>
-      {updateStatus.kind === 'error' && (
-        <>
-          <Button type="button" size="sm" variant="secondary" onClick={checkForUpdate} style={{ marginInlineStart: 12 }}>
-            다시 확인
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => setNoticeDismissed(true)}
-            data-testid="app-auto-update-dismiss"
-            style={{ marginInlineStart: 8 }}
-          >
-            닫기
-          </Button>
-        </>
-      )}
+      <Button type="button" size="sm" variant="secondary" onClick={checkForUpdate} style={{ marginInlineStart: 12 }}>
+        다시 확인
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        onClick={() => setNoticeDismissed(true)}
+        data-testid="app-auto-update-dismiss"
+        style={{ marginInlineStart: 8 }}
+      >
+        닫기
+      </Button>
     </div>
   ) : null
 
