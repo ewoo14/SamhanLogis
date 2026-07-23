@@ -140,3 +140,30 @@ test('발송금지 거래처 MANAGER에서는 MASTER 전용 조건을 좁은 폭
   await expect(page.getByTestId('admin-blocked-unblock-6789012345')).toHaveCount(0)
   await expect(page.getByTestId('admin-blocked-table')).toContainText('MASTER 전용')
 })
+
+test('권한그룹 관리 목록은 375·320px에서 전폭을 사용하고 1280px에서는 2열을 유지', async ({ page }) => {
+  for (const width of [375, 320]) {
+    await openPage(page, '/admin/permission-groups/manage', width, 'perm-group-manage-table')
+
+    const tableContainer = page.getByTestId('perm-group-manage-table')
+    const layout = tableContainer.locator('xpath=../..')
+    const listSection = layout.locator(':scope > section').first()
+    const layoutBox = await layout.boundingBox()
+    const listSectionBox = await listSection.boundingBox()
+
+    expect(layoutBox, `${width}px 권한그룹 layout 실측`).not.toBeNull()
+    expect(listSectionBox, `${width}px 권한그룹 목록 실측`).not.toBeNull()
+    expect(listSectionBox!.width, `${width}px 권한그룹 목록이 전폭이 아님`).toBeGreaterThanOrEqual(layoutBox!.width * 0.9)
+  }
+
+  await openPage(page, '/admin/permission-groups/manage', 1280, 'perm-group-manage-table')
+  const wideLayout = page.getByTestId('perm-group-manage-table').locator('xpath=../..')
+  const wideSections = wideLayout.locator(':scope > section')
+  const firstWideSection = await wideSections.nth(0).boundingBox()
+  const secondWideSection = await wideSections.nth(1).boundingBox()
+
+  expect(firstWideSection, '1280px 권한그룹 목록 실측').not.toBeNull()
+  expect(secondWideSection, '1280px 계정 배속 폼 실측').not.toBeNull()
+  expect(firstWideSection!.width, '1280px 권한그룹 목록 1열이 사라짐').toBeGreaterThan(300)
+  expect(secondWideSection!.width, '1280px 계정 배속 폼 2열이 사라짐').toBeGreaterThan(300)
+})
