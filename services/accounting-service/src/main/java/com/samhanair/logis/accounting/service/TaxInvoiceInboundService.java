@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
 import com.samhanair.logis.accounting.domain.PurchaseAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
@@ -123,10 +124,11 @@ public class TaxInvoiceInboundService {
     }
 
     private String resolvePartnerBusinessNo(String partnerCode) {
-        return partnerLookupClient.findByPartnerCode(partnerCode)
-                .map(PartnerSummary::businessNo)
-                .filter(businessNo -> !businessNo.isBlank())
-                .orElse(null);
+        PartnerSummary partner = PartnerLookupSupport.foundOrNull(
+                PartnerLookupSupport.byCode(partnerLookupClient, partnerCode));
+        return partner == null || partner.businessNo() == null || partner.businessNo().isBlank()
+                ? null
+                : partner.businessNo();
     }
 
     private static void validateSlips(List<PurchaseAccountingSlip> slips, UUID partnerId,

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.accounting.domain.AccountCategory;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.Journal;
@@ -151,6 +152,24 @@ class LedgerImageServiceTest {
         assertThatThrownBy(() -> service.getLedger("UNKNOWN", FROM, TO))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("존재하지 않는 거래처");
+    }
+
+    @Test
+    @DisplayName("partner-service UNAVAILABLE은 거래처 미존재 404로 붕괴하지 않는다")
+    void partnerUnavailableIsNotNotFound() {
+        when(partnerLookupClient.findByPartnerCodeResult("P-DOWN"))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        assertThatThrownBy(() -> service.getLedger("P-DOWN", FROM, TO))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException failure = (BusinessException) ex;
+                    assertThat(failure.getErrorCode())
+                            .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE);
+                    assertThat(failure.getMessage())
+                            .contains("거래처 조회를 일시적으로")
+                            .doesNotContain("존재하지 않는 거래처");
+                });
     }
 
     @Test

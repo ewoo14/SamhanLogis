@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.report;
 
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.repository.JournalRepository;
@@ -181,9 +182,9 @@ public class JournalStatusReportService {
         if (!hasText(partnerCode)) {
             return null;
         }
-        return partnerLookupClient.findByPartnerCode(partnerCode.trim())
-                .map(PartnerSummary::partnerId)
-                .orElse(null);
+        PartnerSummary partner = PartnerLookupSupport.foundOrNull(
+                PartnerLookupSupport.byCode(partnerLookupClient, partnerCode.trim()));
+        return partner == null ? null : partner.partnerId();
     }
 
     private JournalStatusReportResponse emptyResponse(LocalDate from,

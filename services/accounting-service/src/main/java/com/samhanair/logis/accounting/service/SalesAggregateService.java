@@ -2,6 +2,7 @@ package com.samhanair.logis.accounting.service;
 
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
@@ -64,8 +65,8 @@ public class SalesAggregateService {
         String filterPartnerName = null;
         String filterBizNo = null;
         if (partnerCode != null && !partnerCode.isBlank()) {
-            PartnerSummary summary = partnerLookupClient.findByPartnerCode(partnerCode)
-                    .orElse(null);
+            PartnerSummary summary = PartnerLookupSupport.foundOrNull(
+                    PartnerLookupSupport.byCode(partnerLookupClient, partnerCode));
             if (summary == null) {
                 return List.of();
             }

@@ -124,6 +124,24 @@ class TaxInvoiceInboundServiceTest {
     }
 
     @Test
+    void registerInbound_partner_service_UNAVAILABLE이면_null사업자번호발행을차단한다() {
+        UUID partnerId = UUID.randomUUID();
+        List<UUID> ids = List.of(UUID.randomUUID());
+        PurchaseAccountingSlip slip = postedSlip("PAS-DOWN", LocalDate.of(2026, 5, 1),
+                partnerId, "P-DOWN", "장애거래처", "100000.00", "10000.00");
+        when(purchaseSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(slip));
+        when(partnerLookupClient.findByPartnerCodeResult("P-DOWN"))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        assertThatThrownBy(() -> service.registerInbound(
+                new RegisterInboundTaxInvoiceRequest(ids, "2026-05-19"), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE));
+        verify(taxInvoiceRepository, org.mockito.Mockito.never()).save(any(TaxInvoice.class));
+    }
+
+    @Test
     void registerInbound_with_purchaseSlipIds_3장_매칭_link() {
         UUID partnerId = UUID.randomUUID();
         UUID taxInvoiceId = UUID.randomUUID();

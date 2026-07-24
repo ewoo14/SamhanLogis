@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -11,6 +12,8 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -81,6 +84,24 @@ class SalesAggregateServiceTest {
         List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
 
         assertThat(rows).isEmpty();
+    }
+
+    @Test
+    @DisplayName("partner-service UNAVAILABLE은 매출집계를 0건으로 위장하지 않는다")
+    void aggregatePartnerUnavailableFailsClosed() {
+        when(partnerLookupClient.findByPartnerCodeResult("P-DOWN"))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        assertThatThrownBy(() -> service.aggregate(FROM, TO, "P-DOWN"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException failure = (BusinessException) ex;
+                    assertThat(failure.getErrorCode())
+                            .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE);
+                    assertThat(failure.getMessage())
+                            .contains("거래처 조회를 일시적으로")
+                            .doesNotContain("존재하지 않는 거래처");
+                });
     }
 
     @Test

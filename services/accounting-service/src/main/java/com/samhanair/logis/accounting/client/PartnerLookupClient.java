@@ -56,6 +56,29 @@ public class PartnerLookupClient {
         public boolean isUnavailable() { return status == LookupStatus.UNAVAILABLE; }
     }
 
+    /** directory 목록 조회 결과도 미존재와 partner-service 장애를 구분한다. */
+    public record DirectoryLookupResult(LookupStatus status, List<PartnerSummary> partners) {
+        public DirectoryLookupResult {
+            partners = partners == null ? List.of() : List.copyOf(partners);
+        }
+
+        public static DirectoryLookupResult found(List<PartnerSummary> partners) {
+            return new DirectoryLookupResult(LookupStatus.FOUND, partners);
+        }
+
+        public static DirectoryLookupResult notFound() {
+            return new DirectoryLookupResult(LookupStatus.NOT_FOUND, List.of());
+        }
+
+        public static DirectoryLookupResult unavailable() {
+            return new DirectoryLookupResult(LookupStatus.UNAVAILABLE, List.of());
+        }
+
+        public boolean isFound() { return status == LookupStatus.FOUND; }
+        public boolean isNotFound() { return status == LookupStatus.NOT_FOUND; }
+        public boolean isUnavailable() { return status == LookupStatus.UNAVAILABLE; }
+    }
+
     private static final Logger log = LoggerFactory.getLogger(PartnerLookupClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PARTNER_SERVICE_BASE = "http://partner-service";
@@ -200,8 +223,14 @@ public class PartnerLookupClient {
      * @return 매칭된 거래처 요약 목록. 실패 시 빈 목록
      */
     public List<PartnerSummary> searchDirectory(String query, int limit) {
+        DirectoryLookupResult result = searchDirectoryResult(query, limit);
+        return result.isFound() ? result.partners() : List.of();
+    }
+
+    /** directory 목록 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
+    public DirectoryLookupResult searchDirectoryResult(String query, int limit) {
         if (query == null || query.isBlank()) {
-            return List.of();
+            return DirectoryLookupResult.notFound();
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
@@ -217,17 +246,20 @@ public class PartnerLookupClient {
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);
-            return parseSummaryList(body);
+            return parseSummaryListResult(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
             if (status == 401 || status == 403) {
                 throw internalAuthMiss("partnerDirectory", query, status);
             }
+            if (status == 404 || status == 409) {
+                return DirectoryLookupResult.notFound();
+            }
             log.warn("PartnerLookupClient directory — q={} status={} (예외)", query, status);
-            return List.of();
+            return DirectoryLookupResult.unavailable();
         } catch (Exception ex) {
             log.warn("PartnerLookupClient directory 호출 실패 — q={}, msg={}", query, ex.getMessage());
-            return List.of();
+            return DirectoryLookupResult.unavailable();
         }
     }
 
@@ -242,7 +274,13 @@ public class PartnerLookupClient {
      * @return PartnerSummary (성공) 또는 empty (실패)
      */
     public Optional<PartnerSummary> findByPartnerName(String partnerName) {
-        return findByPartnerName(partnerName, false);
+        LookupResult result = findByPartnerNameResult(partnerName);
+        return result == null || !result.isFound() ? Optional.empty() : Optional.of(result.partner());
+    }
+
+    /** 거래처명 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
+    public LookupResult findByPartnerNameResult(String partnerName) {
+        return findByPartnerNameResult(partnerName, false);
     }
 
     /**
@@ -253,12 +291,13 @@ public class PartnerLookupClient {
      * 404/네트워크 실패는 기존 fail-soft miss 로 둔다.
      */
     public Optional<PartnerSummary> findByPartnerNameStrict(String partnerName) {
-        return findByPartnerName(partnerName, true);
+        LookupResult result = findByPartnerNameResult(partnerName, true);
+        return result == null || !result.isFound() ? Optional.empty() : Optional.of(result.partner());
     }
 
-    private Optional<PartnerSummary> findByPartnerName(String partnerName, boolean strictAmbiguous) {
+    private LookupResult findByPartnerNameResult(String partnerName, boolean strictAmbiguous) {
         if (partnerName == null || partnerName.isBlank()) {
-            return Optional.empty();
+            return LookupResult.notFound();
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
@@ -272,7 +311,7 @@ public class PartnerLookupClient {
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);
-            return parseSummary(body);
+            return parseSummaryResult(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
             if (status == 409 && strictAmbiguous) {
@@ -285,14 +324,14 @@ public class PartnerLookupClient {
             if (status == 404 || status == 409) {
                 log.debug("PartnerLookupClient — partnerName={} status={} (lookup miss/ambiguous)",
                         partnerName, status);
-                return Optional.empty();
+                return LookupResult.notFound();
             }
             log.warn("PartnerLookupClient — partnerName={} status={} (예외)", partnerName, status);
-            return Optional.empty();
+            return LookupResult.unavailable();
         } catch (Exception ex) {
             log.warn("PartnerLookupClient partnerName 호출 실패 — partnerName={}, msg={}",
                     partnerName, ex.getMessage());
-            return Optional.empty();
+            return LookupResult.unavailable();
         }
     }
 
@@ -374,14 +413,19 @@ public class PartnerLookupClient {
 
     /** ApiResponse wrapper 의 data 배열 → PartnerSummary 목록 변환. */
     private List<PartnerSummary> parseSummaryList(String body) {
+        DirectoryLookupResult result = parseSummaryListResult(body);
+        return result.isFound() ? result.partners() : List.of();
+    }
+
+    private DirectoryLookupResult parseSummaryListResult(String body) {
         if (body == null || body.isBlank()) {
-            return List.of();
+            return DirectoryLookupResult.unavailable();
         }
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || !data.isArray()) {
-                return List.of();
+                return DirectoryLookupResult.unavailable();
             }
             java.util.ArrayList<PartnerSummary> result = new java.util.ArrayList<>();
             for (JsonNode partner : data) {
@@ -397,11 +441,13 @@ public class PartnerLookupClient {
                             creditLimit, status));
                 }
             }
-            return result;
+            return result.isEmpty()
+                    ? DirectoryLookupResult.notFound()
+                    : DirectoryLookupResult.found(result);
         } catch (Exception ex) {
             log.warn("PartnerLookupClient directory response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
-            return List.of();
+            return DirectoryLookupResult.unavailable();
         }
     }
 

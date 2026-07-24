@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.domain.BankTransaction;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.CashReceiptKind;
@@ -436,7 +437,8 @@ public class CashReceiptService {
             return partner.partnerId() == null ? List.of() : List.of(partner.partnerId());
         }
         if (hasText(partnerName)) {
-            return partnerLookupClient.searchDirectory(partnerName.trim(), 100).stream()
+            return PartnerLookupSupport.availableDirectory(
+                            PartnerLookupSupport.directory(partnerLookupClient, partnerName.trim(), 100)).stream()
                     .map(PartnerSummary::partnerId)
                     .filter(Objects::nonNull)
                     .distinct()
@@ -451,26 +453,35 @@ public class CashReceiptService {
 
     private PartnerSummary resolvePartner(String partnerCode, String bizNo, String partnerName) {
         if (hasText(partnerCode)) {
-            return partnerLookupClient.findByPartnerCode(partnerCode.trim())
-                    .filter(p -> p.partnerId() != null)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
-                            "거래처코드로 거래처를 찾을 수 없습니다: " + partnerCode));
+            PartnerSummary partner = PartnerLookupSupport.requireFound(
+                    PartnerLookupSupport.byCode(partnerLookupClient, partnerCode.trim()),
+                    "거래처코드로 거래처를 찾을 수 없습니다: " + partnerCode);
+            if (partner.partnerId() == null) {
+                throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                        "거래처코드 조회 결과에 내부 거래처 ID가 없습니다: " + partnerCode);
+            }
+            return partner;
         }
         if (hasText(bizNo)) {
             return resolveByDirectorySingle(bizNo.trim(), "사업자번호");
         }
         if (hasText(partnerName)) {
-            return partnerLookupClient.findByPartnerName(partnerName.trim())
-                    .filter(p -> p.partnerId() != null)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
-                            "거래처명으로 거래처를 찾을 수 없습니다: " + partnerName));
+            PartnerSummary partner = PartnerLookupSupport.requireFound(
+                    PartnerLookupSupport.byName(partnerLookupClient, partnerName.trim()),
+                    "거래처명으로 거래처를 찾을 수 없습니다: " + partnerName);
+            if (partner.partnerId() == null) {
+                throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                        "거래처명 조회 결과에 내부 거래처 ID가 없습니다: " + partnerName);
+            }
+            return partner;
         }
         throw new BusinessException(ErrorCode.INVALID_INPUT,
                 "partnerCode, bizNo, partnerName 중 하나는 필수입니다");
     }
 
     private PartnerSummary resolveByDirectorySingle(String query, String label) {
-        List<PartnerSummary> matches = partnerLookupClient.searchDirectory(query, 2);
+        List<PartnerSummary> matches = PartnerLookupSupport.availableDirectory(
+                PartnerLookupSupport.directory(partnerLookupClient, query, 2));
         if (matches.isEmpty()) {
             throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
                     label + "로 거래처를 찾을 수 없습니다: " + query);

@@ -113,6 +113,33 @@ class PartnerLookupClientTest {
     }
 
     @Test
+    void findByPartnerNameResult는_partner_service_5xx를_UNAVAILABLE로_보존한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/by-name?name=%EC%9E%A5%EC%95%A0%EA%B1%B0%EB%9E%98%EC%B2%98"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.BAD_GATEWAY));
+
+        assertThat(client.findByPartnerNameResult("장애거래처").status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void searchDirectoryResult는_partner_service_5xx와_빈목록을_구분한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/list?q=%EC%9E%A5%EC%95%A0%EA%B1%B0%EB%9E%98%EC%B2%98&limit=2&page=0"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo("http://partner-service/internal/partners/list?q=%EC%97%86%EB%8A%94%EA%B1%B0%EB%9E%98%EC%B2%98&limit=2&page=0"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.searchDirectoryResult("장애거래처", 2).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        assertThat(client.searchDirectoryResult("없는거래처", 2).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.NOT_FOUND);
+        server.verify();
+    }
+
+    @Test
     void findByPartnerCodeResult는_파싱실패를_UNAVAILABLE로_반환한다() {
         server.expect(requestTo("http://partner-service/internal/partners/P-BAD"))
                 .andExpect(method(HttpMethod.GET))

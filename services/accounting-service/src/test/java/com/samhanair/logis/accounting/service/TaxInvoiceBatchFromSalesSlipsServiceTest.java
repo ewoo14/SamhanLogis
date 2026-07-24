@@ -136,6 +136,24 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
     }
 
     @Test
+    void createFromSalesSlips_partner_service_UNAVAILABLE이면_사업자번호없는발행을차단한다() {
+        UUID partnerId = UUID.randomUUID();
+        List<UUID> ids = List.of(UUID.randomUUID());
+        SalesAccountingSlip slip = postedSlip("SAS-DOWN", LocalDate.of(2026, 5, 1),
+                partnerId, "P-DOWN", "장애거래처", "100000.00", "10000.00");
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(slip));
+        when(partnerLookupClient.findByPartnerCodeResult("P-DOWN"))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        assertThatThrownBy(() -> service.createFromSalesSlips(
+                new CreateTaxInvoiceFromSalesSlipsRequest(ids, "2026-05-19"), "actor-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE));
+        verify(taxInvoiceRepository, org.mockito.Mockito.never()).save(any(TaxInvoice.class));
+    }
+
+    @Test
     void createFromSalesSlips_거래처_다름_SAS_PARTNER_MONTH_MISMATCH() {
         List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
         when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(

@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.domain.DailyClosing;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
 import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
@@ -120,9 +121,10 @@ public class DailyClosingService {
         String resolvedPartnerCode = null;
         String resolvedBizNo = "";
         if (request.partnerCode() != null && !request.partnerCode().isBlank()) {
-            PartnerSummary summary = partnerLookupClient.findByPartnerCode(request.partnerCode())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                            "존재하지 않는 거래처입니다: " + request.partnerCode()));
+            PartnerSummary summary = PartnerLookupSupport.requireFound(
+                    PartnerLookupSupport.byCode(partnerLookupClient, request.partnerCode()),
+                    ErrorCode.NOT_FOUND,
+                    "존재하지 않는 거래처입니다: " + request.partnerCode());
             partnerId = summary.partnerId();
             resolvedPartnerCode = summary.partnerCode();
             resolvedBizNo = bizNoDigits(summary);
@@ -256,9 +258,10 @@ public class DailyClosingService {
         String resolvedPartnerCode = null;
         String resolvedBizNo = "";
         if (partnerCode != null && !partnerCode.isBlank()) {
-            PartnerSummary summary = partnerLookupClient.findByPartnerCode(partnerCode)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                            "존재하지 않는 거래처입니다: " + partnerCode));
+            PartnerSummary summary = PartnerLookupSupport.requireFound(
+                    PartnerLookupSupport.byCode(partnerLookupClient, partnerCode),
+                    ErrorCode.NOT_FOUND,
+                    "존재하지 않는 거래처입니다: " + partnerCode);
             partnerId = summary.partnerId();
             resolvedPartnerCode = summary.partnerCode();
             resolvedBizNo = bizNoDigits(summary);

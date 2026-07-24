@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.it;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -259,6 +260,21 @@ class JournalStatusReportControllerIT extends AbstractPostgresIT {
                 .getContentAsString(StandardCharsets.UTF_8)).get("data");
         assertGroup(data, "계좌입금", "계좌입금", 1, "1200.00");
         assertGroup(data, "입금보고서", "입금보고서", 1, "800.00");
+    }
+
+    @Test
+    @DisplayName("전표현황 — partner-service UNAVAILABLE을 0건 성공으로 숨기지 않는다")
+    void journalStatusPartnerUnavailableReturnsExplicitError() throws Exception {
+        when(partnerLookupClient.findByPartnerCodeResult("P-DOWN"))
+                .thenReturn(PartnerLookupClient.LookupResult.unavailable());
+
+        mockMvc.perform(get("/accounting/reports/journal-status")
+                        .param("from", "2026-06-01")
+                        .param("to", "2026-06-30")
+                        .param("partnerCode", "P-DOWN")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isBadGateway());
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
@@ -56,9 +57,10 @@ public class LedgerImageService {
         if (from == null || to == null) {
             throw new IllegalArgumentException("from/to 는 필수입니다");
         }
-        PartnerSummary summary = partnerLookupClient.findByPartnerCode(partnerCode)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "존재하지 않는 거래처입니다: " + partnerCode));
+        PartnerSummary summary = PartnerLookupSupport.requireFound(
+                PartnerLookupSupport.byCode(partnerLookupClient, partnerCode),
+                ErrorCode.NOT_FOUND,
+                "존재하지 않는 거래처입니다: " + partnerCode);
 
         List<String> chatRooms = chatRoomMappingClient
                 .findChatRoomNamesByPartnerCode(partnerCode);
