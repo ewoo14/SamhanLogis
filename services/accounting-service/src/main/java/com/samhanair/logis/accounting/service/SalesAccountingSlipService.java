@@ -35,11 +35,15 @@ public class SalesAccountingSlipService {
         LocalDate resolvedTo = to == null ? DEFAULT_TO : to;
         String normalizedPartnerCode = partnerCode == null || partnerCode.isBlank()
                 ? null
-                : partnerCode.trim();
+                : escapeLikeLiteral(partnerCode.trim());
         return slipRepository.findByFilters(resolvedFrom, resolvedTo, normalizedPartnerCode, status)
                 .stream()
                 .map(SalesAccountingSlipResponse::of)
                 .toList();
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     public SalesAccountingSlipResponse createDraft(CreateSalesAccountingSlipRequest req, String actorUserId) {

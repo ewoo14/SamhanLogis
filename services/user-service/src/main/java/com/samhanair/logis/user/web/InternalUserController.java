@@ -69,7 +69,7 @@ public class InternalUserController {
     public ApiResponse<List<InternalEmployeeDirectoryResponse>> employees(
             @RequestParam(value = "q", required = false, defaultValue = "") String q,
             @RequestParam(value = "limit", defaultValue = "500") int limit) {
-        String normalized = q == null || q.isBlank() ? null : q.trim();
+        String normalized = q == null || q.isBlank() ? null : escapeLikeLiteral(q.trim());
         int normalizedLimit = Math.min(Math.max(limit, 1), 1000);
         List<InternalEmployeeDirectoryResponse> employees = employeeRepository
                 .searchEmployeeDirectory(normalized, PageRequest.of(0, normalizedLimit))
@@ -136,9 +136,10 @@ public class InternalUserController {
             return ApiResponse.ok(List.of());
         }
         int normalizedLimit = Math.min(Math.max(limit, 1), 50);
+        String escaped = escapeLikeLiteral(normalized);
         List<InternalEmployeeSearchResponse> employees = (activeOnly
-                ? employeeRepository.searchInternalActiveRecipients(normalized, PageRequest.of(0, normalizedLimit))
-                : employeeRepository.searchInternalApprovers(normalized, PageRequest.of(0, normalizedLimit))).stream()
+                ? employeeRepository.searchInternalActiveRecipients(escaped, PageRequest.of(0, normalizedLimit))
+                : employeeRepository.searchInternalApprovers(escaped, PageRequest.of(0, normalizedLimit))).stream()
                 .map(emp -> new InternalEmployeeSearchResponse(
                         emp.getId(),
                         emp.getFullName(),
@@ -147,6 +148,10 @@ public class InternalUserController {
                         emp.getEcountCode()))
                 .toList();
         return ApiResponse.ok(employees);
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**

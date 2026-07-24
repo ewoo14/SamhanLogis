@@ -45,7 +45,7 @@ public class TaxInvoiceBatchFromSalesSlipsService {
         LocalDate resolvedTo = to == null ? DEFAULT_TO : to;
         String normalizedPartnerCode = partnerCode == null || partnerCode.isBlank()
                 ? null
-                : partnerCode.trim();
+                : escapeLikeLiteral(partnerCode.trim());
         List<SalesAccountingSlip> slips = salesSlipRepository
                 .findPostedUnlinkedForBatchCandidates(resolvedFrom, resolvedTo, normalizedPartnerCode);
         Map<CandidateKey, List<SalesAccountingSlip>> grouped = new LinkedHashMap<>();
@@ -63,6 +63,10 @@ public class TaxInvoiceBatchFromSalesSlipsService {
                         entry.getKey().month(),
                         entry.getValue()))
                 .toList();
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     public TaxInvoiceFromSalesSlipsResponse createFromSalesSlips(

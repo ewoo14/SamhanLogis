@@ -45,7 +45,7 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
             SELECT DISTINCT s FROM SalesAccountingSlip s
             WHERE s.slipDate >= :from
               AND s.slipDate <= :to
-              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')) ESCAPE '\\')
               AND (:status IS NULL OR s.status = :status)
             ORDER BY s.slipDate DESC, s.slipNo DESC
             """)
@@ -68,7 +68,7 @@ public interface SalesAccountingSlipRepository extends JpaRepository<SalesAccoun
               AND s.taxInvoiceId IS NULL
               AND s.slipDate >= :from
               AND s.slipDate <= :to
-              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')) ESCAPE '\\')
             ORDER BY s.partnerCode ASC, s.slipDate ASC, s.slipNo ASC
             """)
     List<SalesAccountingSlip> findPostedUnlinkedForBatchCandidates(

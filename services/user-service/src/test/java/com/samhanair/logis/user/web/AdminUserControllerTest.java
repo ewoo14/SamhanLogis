@@ -82,6 +82,17 @@ class AdminUserControllerTest {
         assertThat(body.size()).isEqualTo(20);
     }
 
+    @Test
+    @DisplayName("list — LIKE wildcard를 repository에 literal escape하여 전달")
+    void list_escapes_like_wildcards_before_repository_call() {
+        when(employeeRepository.searchAdmin(any(), any(), any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        controller.list(0, 20, "LUNA%_\\", null, null, null);
+
+        verify(employeeRepository).searchAdmin(eq("LUNA\\%\\_\\\\"), any(), any(), any(), any());
+    }
+
     // -------------------------------------------------------------------------
     // listRoles
     // -------------------------------------------------------------------------

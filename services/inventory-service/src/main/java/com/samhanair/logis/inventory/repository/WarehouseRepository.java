@@ -27,9 +27,9 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, UUID> {
      */
     @Query("SELECT w FROM Warehouse w WHERE "
             + "(CAST(:q AS string) IS NULL "
-            + " OR LOWER(w.code) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(w.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + " OR LOWER(COALESCE(w.address, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) )")
+            + " OR LOWER(w.code) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(w.name) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + " OR LOWER(COALESCE(w.address, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' )")
     Page<Warehouse> searchAdmin(@Param("q") String q, Pageable pageable);
 
     /**

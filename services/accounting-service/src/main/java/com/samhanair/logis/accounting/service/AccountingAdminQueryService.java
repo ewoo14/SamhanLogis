@@ -118,7 +118,7 @@ public class AccountingAdminQueryService {
                 WHERE is_deleted = FALSE
                   AND (CAST(:from AS date) IS NULL OR transaction_date >= CAST(:from AS date))
                   AND (CAST(:to AS date) IS NULL OR transaction_date <= CAST(:to AS date))
-                  AND (CAST(:partnerName AS text) IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE CAST(:partnerName AS text))
+                  AND (CAST(:partnerName AS text) IS NULL OR LOWER(COALESCE(partner_name, '')) LIKE CAST(:partnerName AS text) ESCAPE '\\')
                   AND (CAST(:transformStatus AS text) IS NULL OR transform_status = CAST(:transformStatus AS text))
                 """;
     }
@@ -131,10 +131,10 @@ public class AccountingAdminQueryService {
                 predicates.add(cb.equal(root.get("progressStatus"), progressStatus));
             }
             if (notBlank(managerName)) {
-                predicates.add(cb.like(cb.lower(root.get("managerName")), likeLiteral(managerName)));
+                predicates.add(cb.like(cb.lower(root.get("managerName")), likeLiteral(managerName), '\\'));
             }
             if (notBlank(partnerName)) {
-                predicates.add(cb.like(cb.lower(root.get("partnerName")), likeLiteral(partnerName)));
+                predicates.add(cb.like(cb.lower(root.get("partnerName")), likeLiteral(partnerName), '\\'));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
@@ -216,7 +216,8 @@ public class AccountingAdminQueryService {
     }
 
     private static String likeLiteral(String value) {
-        return "%" + value.trim().toLowerCase() + "%";
+        return "%" + value.trim().toLowerCase(java.util.Locale.ROOT)
+                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
     }
 
     private static String blankToNull(String value) {

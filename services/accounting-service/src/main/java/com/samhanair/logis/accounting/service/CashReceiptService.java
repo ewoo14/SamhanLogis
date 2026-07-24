@@ -401,8 +401,9 @@ public class CashReceiptService {
                 predicates.add(root.get("partnerId").in(partnerIds));
             }
             if (hasText(slipNo)) {
-                predicates.add(cb.like(cb.lower(root.get("slipNo")),
-                        "%" + slipNo.trim().toLowerCase(java.util.Locale.ROOT) + "%"));
+                String pattern = "%" + slipNo.trim().toLowerCase(java.util.Locale.ROOT)
+                        .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+                predicates.add(cb.like(cb.lower(root.get("slipNo")), pattern, '\\'));
             }
             if (from != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("transactionDate"), from));

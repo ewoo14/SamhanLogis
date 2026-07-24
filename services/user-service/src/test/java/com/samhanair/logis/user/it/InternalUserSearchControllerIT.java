@@ -67,6 +67,45 @@ class InternalUserSearchControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void approver_recipient_directory_검색의_wildcard는_문자열로만_매칭한다() throws Exception {
+        UUID approver = employee("approver-luna-literal-" + shortToken(), "APP% 결재자", Role.MANAGER);
+        employee("approver-luna-sibling-" + shortToken(), "APPX 결재자", Role.MANAGER);
+        UUID recipient = employee("recipient-luna-literal-" + shortToken(), "REC% 수신자", Role.SALES);
+        employee("recipient-luna-sibling-" + shortToken(), "RECX 수신자", Role.SALES);
+        UUID directory = employeeWithEcount("directory-luna-literal-" + shortToken(),
+                "DIR% 담당자", Role.MANAGER, "EMP-LUNA");
+        employeeWithEcount("directory-luna-sibling-" + shortToken(),
+                "DIRX 담당자", Role.MANAGER, "EMP-LUNAX");
+
+        org.assertj.core.api.Assertions.assertThat(
+                employeeRepository.searchInternalApprovers("APP\\%", org.springframework.data.domain.PageRequest.of(0, 20)))
+                .extracting(Employee::getFullName)
+                .containsExactly("APP% 결재자");
+
+        mockMvc.perform(get("/internal/users/search")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("q", "APP%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].userId").value(approver.toString()));
+
+        mockMvc.perform(get("/internal/users/search")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("q", "REC%")
+                        .param("activeOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].userId").value(recipient.toString()));
+
+        mockMvc.perform(get("/internal/users/employees")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("q", "DIR%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(1)))
+                .andExpect(jsonPath("$.data[0].userId").value(directory.toString()));
+    }
+
+    @Test
     void loginId_부분일치로_검색하고_limit을_적용한다() throws Exception {
         String marker = "lim-" + shortToken();
         employee("approver-" + marker + "-a", "제한A", Role.SALES);

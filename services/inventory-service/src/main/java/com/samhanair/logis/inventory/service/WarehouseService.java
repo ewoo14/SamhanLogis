@@ -63,10 +63,15 @@ public class WarehouseService {
      */
     @Transactional(readOnly = true)
     public AdminWarehouseListResponse searchAdmin(String q, Pageable pageable) {
-        String normalized = (q == null || q.isBlank()) ? null : q.trim();
+        String normalized = (q == null || q.isBlank()) ? null : escapeLikeLiteral(q.trim());
         return AdminWarehouseListResponse.from(
                 warehouseRepository.searchAdmin(normalized, pageable));
     }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
 
     /**
      * 단건 조회.

@@ -108,12 +108,16 @@ public class AdminUserController {
             @RequestParam(required = false) Role role,
             @RequestParam(required = false) UUID departmentId,
             @RequestParam(required = false) String status) {
-        String normalizedQ = (q == null || q.isBlank()) ? null : q.trim();
+        String normalizedQ = (q == null || q.isBlank()) ? null : escapeLikeLiteral(q.trim());
         String normalizedStatus = (status == null || status.isBlank()) ? null : status.trim().toUpperCase();
         Page<Employee> result = employeeRepository.searchAdmin(
                 normalizedQ, role, departmentId, normalizedStatus,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "fullName")));
         return ApiResponse.ok(AdminUserListResponse.from(result));
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /**

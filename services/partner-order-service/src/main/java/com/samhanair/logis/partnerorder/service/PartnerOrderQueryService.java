@@ -270,7 +270,8 @@ public class PartnerOrderQueryService {
             params.put("dateTo", filter.dateTo().plusDays(1).atStartOfDay());
         }
         if (filter.partnerId() != null) {
-            predicates.add("(LOWER(po.partner_code) LIKE :partnerId OR LOWER(po.biz_code) LIKE :partnerId)");
+            predicates.add("(LOWER(po.partner_code) LIKE :partnerId ESCAPE E'\\\\'"
+                    + " OR LOWER(po.biz_code) LIKE :partnerId ESCAPE E'\\\\')");
             params.put("partnerId", like(filter.partnerId()));
         }
         if (filter.partnerCode() != null) {
@@ -301,17 +302,17 @@ public class PartnerOrderQueryService {
         if (filter.searchKeyword() != null) {
             predicates.add("""
                     (
-                        LOWER(po.order_no) LIKE :searchKeyword
-                        OR LOWER(po.partner_code) LIKE :searchKeyword
-                        OR LOWER(po.biz_code) LIKE :searchKeyword
+                        LOWER(po.order_no) LIKE :searchKeyword ESCAPE E'\\\\'
+                        OR LOWER(po.partner_code) LIKE :searchKeyword ESCAPE E'\\\\'
+                        OR LOWER(po.biz_code) LIKE :searchKeyword ESCAPE E'\\\\'
                         OR EXISTS (
                             SELECT 1
                             FROM partner_order_lines pol
                             WHERE pol.partner_order_id = po.id
                               AND (
-                                  LOWER(pol.product_name) LIKE :searchKeyword
-                                  OR LOWER(pol.model_name) LIKE :searchKeyword
-                                  OR LOWER(pol.remark) LIKE :searchKeyword
+                                  LOWER(pol.product_name) LIKE :searchKeyword ESCAPE E'\\\\'
+                                  OR LOWER(pol.model_name) LIKE :searchKeyword ESCAPE E'\\\\'
+                                  OR LOWER(pol.remark) LIKE :searchKeyword ESCAPE E'\\\\'
                               )
                         )
                     )
@@ -365,8 +366,8 @@ public class PartnerOrderQueryService {
             if (filter.partnerId() != null) {
                 String partner = like(filter.partnerId());
                 predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("partnerCode")), partner),
-                        cb.like(cb.lower(root.get("bizCode")), partner)));
+                        cb.like(cb.lower(root.get("partnerCode")), partner, '\\'),
+                        cb.like(cb.lower(root.get("bizCode")), partner, '\\')));
             }
             if (filter.partnerCode() != null) {
                 predicates.add(cb.equal(root.get("partnerCode"), filter.partnerCode()));
@@ -404,13 +405,13 @@ public class PartnerOrderQueryService {
                 lineExists.select(cb.literal(1)).where(
                         cb.equal(line.get("partnerOrder"), root),
                         cb.or(
-                                cb.like(cb.lower(line.get("productName")), keyword),
-                                cb.like(cb.lower(line.get("modelName")), keyword),
-                                cb.like(cb.lower(line.get("remark")), keyword)));
+                                cb.like(cb.lower(line.get("productName")), keyword, '\\'),
+                                cb.like(cb.lower(line.get("modelName")), keyword, '\\'),
+                                cb.like(cb.lower(line.get("remark")), keyword, '\\')));
                 predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("orderNo")), keyword),
-                        cb.like(cb.lower(root.get("partnerCode")), keyword),
-                        cb.like(cb.lower(root.get("bizCode")), keyword),
+                        cb.like(cb.lower(root.get("orderNo")), keyword, '\\'),
+                        cb.like(cb.lower(root.get("partnerCode")), keyword, '\\'),
+                        cb.like(cb.lower(root.get("bizCode")), keyword, '\\'),
                         cb.exists(lineExists)));
             }
 
@@ -437,7 +438,11 @@ public class PartnerOrderQueryService {
     }
 
     private String like(String value) {
-        return "%" + value.trim().toLowerCase(Locale.ROOT) + "%";
+        return "%" + escapeLikeLiteral(value.trim().toLowerCase(Locale.ROOT)) + "%";
+    }
+
+    private static String escapeLikeLiteral(String value) {
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     private Specification<PartnerOrder> ownPartnerSpec(String partnerCode) {

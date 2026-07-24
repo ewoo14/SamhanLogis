@@ -55,6 +55,7 @@ public class AccountingDocumentSearchService {
     }
 
     private String normalize(String q) {
-        return q == null ? "" : q.trim();
+        String value = q == null ? "" : q.trim();
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 }

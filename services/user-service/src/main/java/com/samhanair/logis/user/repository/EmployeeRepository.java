@@ -66,15 +66,15 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     /** groupware 결재자 picker 용 internal 검색 — fullName/loginId 부분일치. */
     @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
             + "WHERE e.isDeleted = false "
-            + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')))")
+            + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\' "
+            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\')")
     List<Employee> searchInternalApprovers(@Param("q") String q, Pageable pageable);
 
     /** 메신저 수신자 검색용 internal 조회 — soft-delete와 퇴사 직원을 제외한다. */
     @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
             + "WHERE e.isDeleted = false AND e.terminationDate IS NULL "
-            + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) "
-            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')))" )
+            + "AND (LOWER(e.fullName) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\' "
+            + "   OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\')" )
     List<Employee> searchInternalActiveRecipients(@Param("q") String q, Pageable pageable);
 
     /**
@@ -87,7 +87,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     @Query("SELECT e FROM Employee e LEFT JOIN FETCH e.department "
             + "WHERE e.isDeleted = false AND e.terminationDate IS NULL "
             + "AND (CAST(:q AS string) IS NULL "
-            + " OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')))")
+            + " OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\')")
     List<Employee> searchEmployeeDirectory(@Param("q") String q, Pageable pageable);
 
     /** #31 — estimate-app 접속 게이트 (legacy Notion AUTH DB 의 email 승인 조회 치환). */
@@ -109,9 +109,9 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     // [RC4] :q 가 null 일 때 PostgreSQL 이 파라미터를 bytea 로 추론해 lower(bytea) 500 → CAST(:q AS string)
     // 으로 text 바인딩 강제. CAST(null AS string) IS NULL → true 로 null 분기(전체 조회) 동작.
     @Query("SELECT e FROM Employee e JOIN FETCH e.department d "
-            + "WHERE (CAST(:q AS string) IS NULL OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + "       OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) "
-            + "       OR LOWER(COALESCE(e.email, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%'))) "
+            + "WHERE (CAST(:q AS string) IS NULL OR LOWER(e.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + "       OR LOWER(e.loginId) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\' "
+            + "       OR LOWER(COALESCE(e.email, '')) LIKE LOWER(CONCAT('%', CAST(:q AS string), '%')) ESCAPE '\\') "
             + "AND (:role IS NULL OR e.roleSnapshot = :role) "
             + "AND (:departmentId IS NULL OR d.id = :departmentId) "
             + "AND (:status IS NULL "

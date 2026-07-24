@@ -54,8 +54,8 @@ public interface JournalRepository extends JpaRepository<Journal, UUID> {
             )
             FROM Journal j
             LEFT JOIN j.lines l
-            WHERE LOWER(j.journalNo) LIKE LOWER(CONCAT('%', :q, '%'))
-               OR LOWER(COALESCE(j.description, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+            WHERE LOWER(j.journalNo) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
+               OR LOWER(COALESCE(j.description, '')) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
             GROUP BY j.id, j.journalNo, j.journalDate, j.description
             ORDER BY j.journalDate DESC, j.journalNo DESC
             """)

@@ -202,6 +202,21 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("입금보고서 slipNo 검색의 wildcard는 리터럴로만 매칭한다")
+    void list_slipNoWildcard_isLiteral() throws Exception {
+        insertConfirmedMigReceipt("CASH-LUNA%", "cash-red-1", "10000");
+        insertConfirmedMigReceipt("CASH-LUNAX", "cash-red-2", "20000");
+
+        mockMvc.perform(get(BASE_URL)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .param("slipNo", "CASH-LUNA%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].slipNo").value("CASH-LUNA%"));
+    }
+
+    @Test
     @DisplayName("확정은 POSTED 분개를 생성하고 기본/override 계정을 라인에 반영한다")
     void confirmCreatesPostedJournalWithDefaultAndOverrideAccounts() throws Exception {
         MvcResult defaultReceipt = createReceipt(createBody("61000"));

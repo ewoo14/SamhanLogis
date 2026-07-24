@@ -75,4 +75,14 @@ class AccountingDocumentSearchServiceTest {
 
         assertThat(service.searchLedgerPartners("P-", 10)).containsExactly(row);
     }
+
+    @Test
+    void wildcard_characters_are_escaped_before_repository_calls() {
+        when(journalRepository.searchApprovalReferences(eq("LUNA\\%\\_\\\\"), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        service.searchJournals("LUNA%_\\", 10);
+
+        verify(journalRepository).searchApprovalReferences(eq("LUNA\\%\\_\\\\"), any(Pageable.class));
+    }
 }

@@ -7,6 +7,7 @@ import com.samhanair.logis.inventory.InventoryServiceApplication;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
+import com.samhanair.logis.inventory.service.WarehouseService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.util.List;
@@ -36,6 +37,9 @@ class WarehouseRepositoryIT extends AbstractPostgresIT {
 
     @Autowired
     private WarehouseRepository warehouseRepository;
+
+    @Autowired
+    private WarehouseService warehouseService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -124,5 +128,19 @@ class WarehouseRepositoryIT extends AbstractPostgresIT {
 
         assertThat(hq.getContent()).extracting(Warehouse::getCode).contains("HQ-001");
         assertThat(hq.getContent()).extracting(Warehouse::getCode).doesNotContain("VR-001");
+    }
+
+    @Test
+    void searchAdmin_wildcardCharacters_are_literal_and_do_not_match_sibling_rows() {
+        warehouseRepository.save(Warehouse.create(
+                "LUNA-LITERAL-001", "LUNA% 창고", WarehouseType.HEADQUARTERS, null, 300, null));
+        warehouseRepository.save(Warehouse.create(
+                "LUNA-WILDCARD-002", "LUNAX 창고", WarehouseType.HEADQUARTERS, null, 301, null));
+        warehouseRepository.flush();
+
+        var result = warehouseService.searchAdmin("LUNA%", PageRequest.of(0, 50));
+
+        assertThat(result.items()).extracting(item -> item.code())
+                .containsExactly("LUNA-LITERAL-001");
     }
 }

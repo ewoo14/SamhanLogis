@@ -140,4 +140,29 @@ class AccountingAdminQueryServiceTest {
         assertThat(sql).contains("GROUP BY transaction_date");
         assertThat(sql).doesNotContain("SUM(total_amount) OVER (PARTITION BY transaction_date)");
     }
+
+    @Test
+    void ledgerPartnerName_escapesLikeWildcards_beforeJdbcQuery() {
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class),
+                        org.mockito.ArgumentMatchers.<RowMapper<Object>>any()))
+                .thenReturn(List.of());
+
+        service.listSalesLedger(
+                LocalDate.of(2026, 5, 1),
+                LocalDate.of(2026, 5, 31),
+                "LUNA%_\\",
+                "TRANSFORMED",
+                PageRequest.of(0, 20));
+
+        org.mockito.ArgumentCaptor<MapSqlParameterSource> paramsCaptor =
+                org.mockito.ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        org.mockito.Mockito.verify(jdbcTemplate).query(
+                anyString(),
+                paramsCaptor.capture(),
+                org.mockito.ArgumentMatchers.<RowMapper<Object>>any());
+        assertThat(paramsCaptor.getValue().getValue("partnerName"))
+                .isEqualTo("%luna\\%\\_\\\\%");
+    }
 }

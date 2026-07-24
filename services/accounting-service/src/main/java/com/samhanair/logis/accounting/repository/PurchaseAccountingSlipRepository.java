@@ -45,7 +45,7 @@ public interface PurchaseAccountingSlipRepository extends JpaRepository<Purchase
             SELECT DISTINCT s FROM PurchaseAccountingSlip s
             WHERE s.slipDate >= :from
               AND s.slipDate <= :to
-              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
+              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(s.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')) ESCAPE '\\')
               AND (:status IS NULL OR s.status = :status)
             ORDER BY s.slipDate DESC, s.slipNo DESC
             """)

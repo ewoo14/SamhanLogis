@@ -88,7 +88,7 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
             WHERE t.direction = com.samhanair.logis.accounting.domain.TaxInvoiceDirection.INBOUND
               AND t.supplyDate >= :from
               AND t.supplyDate <= :to
-              AND (CAST(:partnerCode AS string) IS NULL OR LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')))
+        AND (CAST(:partnerCode AS string) IS NULL OR LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', CAST(:partnerCode AS string), '%')) ESCAPE '\\')
             ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
             """)
     List<TaxInvoice> findInboundByFilters(@Param("from") LocalDate from,
@@ -127,8 +127,8 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
             FROM TaxInvoice t
             WHERE t.taxInvoiceNo IS NOT NULL
               AND (
-                    LOWER(t.taxInvoiceNo) LIKE LOWER(CONCAT('%', :q, '%'))
-                 OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+               LOWER(t.taxInvoiceNo) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
+            OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
               )
             ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
             """)
@@ -150,8 +150,8 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
             WHERE t.status = com.samhanair.logis.accounting.domain.TaxInvoiceStatus.ISSUED
               AND t.taxInvoiceNo IS NOT NULL
               AND (
-                    LOWER(t.taxInvoiceNo) LIKE LOWER(CONCAT('%', :q, '%'))
-                 OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+               LOWER(t.taxInvoiceNo) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
+            OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
               )
             ORDER BY t.supplyDate DESC, t.taxInvoiceNo DESC
             """)
@@ -171,8 +171,8 @@ public interface TaxInvoiceRepository extends JpaRepository<TaxInvoice, UUID> {
             WHERE t.partnerCode IS NOT NULL
               AND t.partnerCode <> ''
               AND (
-                    LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', :q, '%'))
-                 OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+               LOWER(t.partnerCode) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
+            OR LOWER(COALESCE(t.partnerName, '')) LIKE LOWER(CONCAT('%', :q, '%')) ESCAPE '\\'
               )
             ORDER BY t.partnerName ASC, t.partnerCode ASC
             """)

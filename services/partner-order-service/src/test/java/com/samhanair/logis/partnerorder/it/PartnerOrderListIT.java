@@ -230,6 +230,30 @@ class PartnerOrderListIT extends AbstractPostgresIT {
 
     @Test
     @WithMockUser(roles = {"SALES"})
+    void list_search_keyword_wildcards_are_literal_in_active_and_native_paths() throws Exception {
+        saveOrder("2026/05/20-1", "P-LUNA-LITERAL", "2020202020", "LUNA% 품목", "LUNA-MODEL", "CONFIRMING");
+        saveOrder("2026/05/21-1", "P-LUNA-SIBLING", "2121212121", "LUNAX 품목", "LUNA-MODEL", "CONFIRMING");
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("searchKeyword", "LUNA%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/20-1"));
+
+        mockMvc.perform(get("/api/v1/partner-orders")
+                        .header("X-User-Id", ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .param("includeDeleted", "true")
+                        .param("searchKeyword", "LUNA%"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].orderNumber").value("2026/05/20-1"));
+    }
+
+    @Test
+    @WithMockUser(roles = {"SALES"})
     void list_swaps_reversed_date_range() throws Exception {
         mockMvc.perform(get("/api/v1/partner-orders")
                         .header("X-User-Id", ACCOUNT_ID)
