@@ -89,4 +89,31 @@ describe('usePermissions freshness', () => {
 
     await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(2))
   })
+
+  it('여러 usePermissions 마운트에서도 한 번의 포커스 복귀는 권한을 한 번만 조회한다', async () => {
+    const originalNow = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(originalNow)
+    mocks.fetchMyPermissions.mockResolvedValue([
+      { pageCode: 'sales.slip.create', actions: ['create'] },
+    ])
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    const mountedHooks = Array.from({ length: 12 }, () =>
+      renderHook(() => usePermissions(), { wrapper }),
+    )
+    await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(1))
+
+    now.mockReturnValue(originalNow + 30_001)
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(2))
+    expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(2)
+
+    mountedHooks.forEach(({ unmount }) => unmount())
+  })
 })

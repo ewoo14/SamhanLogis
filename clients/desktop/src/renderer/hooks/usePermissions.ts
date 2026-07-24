@@ -58,6 +58,8 @@ export function usePermissions(): UsePermissionsResult {
   // Electron의 일반 창 포커스 복귀도 권한 쿼리만 stale 상태에서 재조회한다.
   useEffect(() => {
     const refetchStalePermissions = () => {
+      if (queryClient.isFetching({ queryKey: PERMISSIONS_QUERY_KEY }) > 0) return
+
       const permissionsQuery = queryClient.getQueryCache().find({ queryKey: PERMISSIONS_QUERY_KEY })
       if (permissionsQuery?.isStaleByTime(PERMISSIONS_STALE_TIME)) {
         void queryClient.refetchQueries({ queryKey: PERMISSIONS_QUERY_KEY, type: 'active' })
