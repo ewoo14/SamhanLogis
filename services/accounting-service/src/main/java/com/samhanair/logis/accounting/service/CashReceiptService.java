@@ -498,8 +498,13 @@ public class CashReceiptService {
         return partner;
     }
 
+    /**
+     * 단건 응답 조립 — createManual/updateDraft/confirm/cancel/updateConfirmed/getOne 공용
+     * write/detail 경로. 표시명은 부수 정보이므로 partner-service 장애 시에도 오퍼레이션을
+     * 롤백하지 않고 공란(미조회)으로 성사시킨다 (#924 개발책임자 결정).
+     */
     private CashReceiptResponse responseOf(CashReceipt receipt) {
-        Map<UUID, PartnerSummary> partners = resolveDisplays(List.of(receipt));
+        Map<UUID, PartnerSummary> partners = resolveDisplaysOrEmpty(List.of(receipt));
         Map<UUID, String> journalNos = resolveJournalNos(List.of(receipt));
         return CashReceiptResponse.of(
                 receipt,
@@ -508,16 +513,41 @@ public class CashReceiptService {
                 journalNoOf(receipt.getReverseJournalId(), journalNos));
     }
 
+    /**
+     * 목록 조회(read 리포트) 전용 — 파트너 신원이 곧 행의 의미이므로 partner-service 장애 시
+     * fail-closed(502)를 유지한다 (#924 개발책임자 결정, 근본 fix 정당분 — 되돌리지 않음).
+     * write/detail 단건 경로는 {@link #resolveDisplaysOrEmpty} 를 쓴다.
+     */
     private Map<UUID, PartnerSummary> resolveDisplays(List<CashReceipt> receipts) {
-        List<UUID> ids = receipts.stream()
+        List<UUID> ids = extractPartnerIds(receipts);
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return keyByPartnerId(partnerLookupClient.findByPartnerIdsBatch(ids));
+    }
+
+    /**
+     * 단건 write/detail 경로 전용(#924 개발책임자 결정) — partner-service 장애 시 표시명을
+     * 공란(빈 맵)으로 흡수하고 오퍼레이션은 롤백하지 않는다. {@link #responseOf},
+     * {@link #partnerNameSuffix(CashReceipt)} 가 사용한다.
+     */
+    private Map<UUID, PartnerSummary> resolveDisplaysOrEmpty(List<CashReceipt> receipts) {
+        List<UUID> ids = extractPartnerIds(receipts);
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return keyByPartnerId(PartnerLookupSupport.batchOrEmpty(partnerLookupClient, ids));
+    }
+
+    private static List<UUID> extractPartnerIds(List<CashReceipt> receipts) {
+        return receipts.stream()
                 .map(CashReceipt::getPartnerId)
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-        if (ids.isEmpty()) {
-            return Map.of();
-        }
-        Map<UUID, PartnerSummary> resolved = partnerLookupClient.findByPartnerIdsBatch(ids);
+    }
+
+    private static Map<UUID, PartnerSummary> keyByPartnerId(Map<UUID, PartnerSummary> resolved) {
         if (resolved == null || resolved.isEmpty()) {
             return Map.of();
         }
@@ -556,7 +586,7 @@ public class CashReceiptService {
      * 폴백 문자열이 불변 원장에 영구 각인되는 것을 방지한다.
      */
     private String partnerNameSuffix(CashReceipt receipt) {
-        PartnerSummary partner = resolveDisplays(List.of(receipt)).get(receipt.getPartnerId());
+        PartnerSummary partner = resolveDisplaysOrEmpty(List.of(receipt)).get(receipt.getPartnerId());
         return partnerNameSuffix(partner);
     }
 

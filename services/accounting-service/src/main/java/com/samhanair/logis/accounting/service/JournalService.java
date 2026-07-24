@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.domain.JournalStatus;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeResult;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
@@ -443,6 +444,11 @@ public class JournalService {
      *
      * <p>partnerId 는 내부 FK 이므로 응답 DTO 에 싣지 않고, partnerName 만 제공한다. 계정명은
      * accounting-service 의 ChartOfAccount 마스터를 한 번에 조회한다.
+     *
+     * <p>{@code create}/{@code post}/{@code reverse}/{@code getOne} 등 저널 write/detail 경로가
+     * 모두 이 메서드를 거친다. partner-service 장애(UNAVAILABLE) 시에도 저널 자체는 이미 확정된
+     * 오퍼레이션이므로 {@link PartnerLookupSupport#batchOrEmpty} 로 표시명만 공란 처리하고
+     * 롤백하지 않는다 (#924 개발책임자 결정 — write/detail은 표시명이 부수 정보).
      */
     private JournalDetailResponse toDetailResponse(Journal journal) {
         LinkedHashSet<UUID> partnerIds = new LinkedHashSet<>();
@@ -458,7 +464,7 @@ public class JournalService {
 
         Map<UUID, String> partnerNamesById = partnerIds.isEmpty()
                 ? Map.of()
-                : partnerLookupClient.findByPartnerIdsBatch(new ArrayList<>(partnerIds)).entrySet().stream()
+                : PartnerLookupSupport.batchOrEmpty(partnerLookupClient, new ArrayList<>(partnerIds)).entrySet().stream()
                         .filter(entry -> entry.getValue() != null && entry.getValue().name() != null)
                         .collect(java.util.stream.Collectors.toMap(
                                 Map.Entry::getKey,

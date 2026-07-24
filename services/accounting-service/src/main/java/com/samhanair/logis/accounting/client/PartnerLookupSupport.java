@@ -71,6 +71,29 @@ public final class PartnerLookupSupport {
         return result.partners();
     }
 
+    /**
+     * batch 조회 결과의 UNAVAILABLE 을 표시명 공란(빈 맵)으로 흡수한다 — write/detail 경로 전용
+     * (#924 개발책임자 결정, 2026-07-24).
+     *
+     * <p>저널 생성/게시/역분개, 입금보고서 확정/취소 등 회계 원장 write 오퍼레이션은 {@code partnerId}
+     * 자체를 요청/도메인에서 이미 저장하므로 partner-service 조회가 오퍼레이션 성사의 전제조건이
+     * 아니다. 표시명(거래처 이름) enrichment 는 부수 정보이므로, partner-service 장애
+     * ({@link PartnerLookupClient.LookupStatus#UNAVAILABLE}) 시에도 오퍼레이션을 롤백하지 않고
+     * 이름 공란/미조회로 성사시킨다.
+     *
+     * <p>read 리포트(에이징·집계·원장·자금현황·미수미지급·통장거래·수금계획·받을어음·일마감 목록 등,
+     * 파트너 신원이 곧 행의 의미인 경로)는 이 메서드 대신 {@link #availableBatch} (fail-closed 502)
+     * 를 그대로 쓴다 — 되돌리지 않는다.
+     *
+     * @param client 실 client (null 아님)
+     * @param partnerIds 조회할 거래처 UUID 목록
+     * @return FOUND(부분 성공 포함) 맵 또는 UNAVAILABLE 시 빈 맵(공란 표시)
+     */
+    public static Map<UUID, PartnerSummary> batchOrEmpty(PartnerLookupClient client, List<UUID> partnerIds) {
+        PartnerLookupClient.BatchLookupResult result = batch(client, partnerIds);
+        return result.isUnavailable() ? Map.of() : result.partners();
+    }
+
     /** FOUND가 아니면 A군의 fail-closed 오류를 던진다. */
     public static PartnerSummary requireFound(PartnerLookupClient.LookupResult result,
                                                String notFoundMessage) {
