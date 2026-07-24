@@ -103,12 +103,13 @@ public class SalesAggregateService {
             }
         }
 
+        // #831 B-1: 무필터 뷰의 표시명 enrichment. partner-service 5xx/timeout(UNAVAILABLE)을
+        // 조용히 빈 맵으로 삼켜 전 거래처 "-" 로 200 위장하지 않는다 — 명시 502로 fail-closed.
+        // (거래처 id 중 일부만 못 찾는 부분 성공은 FOUND 로 유지되어 여기서 예외가 나지 않는다.)
         Map<UUID, PartnerSummary> partnerSummaries = filterPartnerId == null && !byPartner.isEmpty()
-                ? partnerLookupClient.findByPartnerIdsBatch(new ArrayList<>(byPartner.keySet()))
+                ? PartnerLookupSupport.availableBatch(
+                        PartnerLookupSupport.batch(partnerLookupClient, new ArrayList<>(byPartner.keySet())))
                 : Map.of();
-        if (partnerSummaries == null) {
-            partnerSummaries = Map.of();
-        }
 
         List<SalesAggregateRow> rows = new ArrayList<>(byPartner.size());
         for (Map.Entry<UUID, PartnerAggregate> e : byPartner.entrySet()) {

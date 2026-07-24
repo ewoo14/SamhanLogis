@@ -6,6 +6,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
@@ -13,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -270,6 +272,61 @@ class PartnerLookupClientTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.MIG12_INTERNAL_AUTH_MISS));
+        server.verify();
+    }
+
+    // --- #831 B군 — findByPartnerIdsBatchResult 3분류 (findByPartnerIdsBatch 미승격 회귀 가드) ---
+
+    @Test
+    void findByPartnerIdsBatchResult는_5xx를_UNAVAILABLE로_분류한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThat(client.findByPartnerIdsBatchResult(List.of(PARTNER_ID)).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatchResult는_연결_예외_timeout을_UNAVAILABLE로_분류한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withException(new IOException("connection timed out")));
+
+        assertThat(client.findByPartnerIdsBatchResult(List.of(PARTNER_ID)).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatchResult는_구조손상_응답을_UNAVAILABLE로_격리한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{not-json", MediaType.APPLICATION_JSON));
+
+        assertThat(client.findByPartnerIdsBatchResult(List.of(PARTNER_ID)).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatchResult는_일부_id_미매칭을_장애가_아닌_FOUND_빈맵으로_유지한다() {
+        // 정상 무회귀: partner-service 가 200 으로 정상 응답했지만 요청한 id 가 하나도
+        // partners 배열에 없는 것(삭제/미존재 거래처 혼재)은 장애가 아니라 부분/빈 성공이다.
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"partners":[]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        PartnerLookupClient.BatchLookupResult result =
+                client.findByPartnerIdsBatchResult(List.of(PARTNER_ID));
+
+        assertThat(result.status()).isEqualTo(PartnerLookupClient.LookupStatus.FOUND);
+        assertThat(result.partners()).isEmpty();
         server.verify();
     }
 }

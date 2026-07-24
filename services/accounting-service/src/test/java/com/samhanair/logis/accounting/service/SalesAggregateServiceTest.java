@@ -105,6 +105,58 @@ class SalesAggregateServiceTest {
     }
 
     @Test
+    @DisplayName("무필터(전체) 집계 — partner-service UNAVAILABLE은 0건 성공으로 위장하지 않는다 (#831 B-1)")
+    void aggregateUnfilteredPartnerUnavailableFailsClosed() {
+        UUID pid = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerIdsBatchResult(any()))
+                .thenReturn(PartnerLookupClient.BatchLookupResult.unavailable());
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(
+                        new TestPartnerAccountTotal(pid, "401",
+                                BigDecimal.ZERO, new BigDecimal("1000000"))
+                ));
+
+        assertThatThrownBy(() -> service.aggregate(FROM, TO, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException failure = (BusinessException) ex;
+                    assertThat(failure.getErrorCode())
+                            .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE);
+                    assertThat(failure.getMessage())
+                            .contains("거래처 조회를 일시적으로")
+                            .doesNotContain("존재하지 않는 거래처");
+                });
+    }
+
+    @Test
+    @DisplayName("무필터 집계 — 일부 거래처 미매칭(삭제/미존재 혼재)은 장애가 아니라 \"-\" 표시로 무회귀한다")
+    void aggregateUnfilteredPartialMissIsNotTreatedAsUnavailable() {
+        UUID resolved = UUID.randomUUID();
+        UUID deleted = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerIdsBatchResult(any()))
+                .thenReturn(PartnerLookupClient.BatchLookupResult.found(
+                        Map.of(resolved, new PartnerSummary(resolved, "P-001", "정상거래처", "111", ""))));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(
+                        new TestPartnerAccountTotal(resolved, "401", BigDecimal.ZERO, new BigDecimal("100")),
+                        new TestPartnerAccountTotal(deleted, "401", BigDecimal.ZERO, new BigDecimal("200"))
+                ));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
+
+        assertThat(rows).hasSize(2);
+        SalesAggregateRow resolvedRow = rows.stream()
+                .filter(r -> r.salesTotal().compareTo(new BigDecimal("100")) == 0)
+                .findFirst().orElseThrow();
+        assertThat(resolvedRow.partnerCode()).isEqualTo("P-001");
+        SalesAggregateRow deletedRow = rows.stream()
+                .filter(r -> r.salesTotal().compareTo(new BigDecimal("200")) == 0)
+                .findFirst().orElseThrow();
+        assertThat(deletedRow.partnerCode()).isEqualTo("-");
+        assertThat(deletedRow.partnerName()).isEqualTo("-");
+    }
+
+    @Test
     @DisplayName("DcConfig 적용 — 매출 차변(할인) 반영 — 매출 = 대변 - 차변")
     void aggregateWithDiscount() {
         UUID pid = UUID.randomUUID();

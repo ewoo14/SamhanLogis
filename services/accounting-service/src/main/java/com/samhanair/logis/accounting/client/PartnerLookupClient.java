@@ -56,6 +56,30 @@ public class PartnerLookupClient {
         public boolean isUnavailable() { return status == LookupStatus.UNAVAILABLE; }
     }
 
+    /**
+     * partnerId batch 조회 결과 — 부분 성공과 전면 장애를 구분한다.
+     *
+     * <p>조회한 partnerId 중 일부가 결과에 없는 것(삭제/미존재 거래처 혼재)은 partner-service 가
+     * 정상 응답했다는 뜻이므로 {@code FOUND}(부분 맵, 심지어 빈 맵)이다. 5xx/timeout/네트워크
+     * 오류 및 구조적으로 손상된 응답만 {@code UNAVAILABLE} 로 승격해, 호출부가 "조용한 0건"과
+     * "장애"를 구별할 수 있게 한다(#831 B군).
+     */
+    public record BatchLookupResult(LookupStatus status, Map<UUID, PartnerSummary> partners) {
+        public BatchLookupResult {
+            partners = partners == null ? Map.of() : Map.copyOf(partners);
+        }
+
+        public static BatchLookupResult found(Map<UUID, PartnerSummary> partners) {
+            return new BatchLookupResult(LookupStatus.FOUND, partners);
+        }
+
+        public static BatchLookupResult unavailable() {
+            return new BatchLookupResult(LookupStatus.UNAVAILABLE, Map.of());
+        }
+
+        public boolean isUnavailable() { return status == LookupStatus.UNAVAILABLE; }
+    }
+
     /** directory 목록 조회 결과도 미존재와 partner-service 장애를 구분한다. */
     public record DirectoryLookupResult(LookupStatus status, List<PartnerSummary> partners) {
         public DirectoryLookupResult {
@@ -176,13 +200,26 @@ public class PartnerLookupClient {
      * @return partnerId → PartnerSummary Map
      */
     public Map<UUID, PartnerSummary> findByPartnerIdsBatch(List<UUID> partnerIds) {
+        return findByPartnerIdsBatchResult(partnerIds).partners();
+    }
+
+    /**
+     * partnerId batch 조회의 FOUND(부분 성공 포함)/UNAVAILABLE 결과를 보존한다 (#831 B군).
+     *
+     * <p>요청한 id 중 일부가 매칭되지 않는 것은 partner-service 가 정상 응답한 것이므로
+     * FOUND(부분 맵)이다. 5xx/timeout/네트워크 오류 및 구조 손상 응답만 UNAVAILABLE 로 승격한다.
+     *
+     * @param partnerIds 조회할 거래처 UUID 목록
+     * @return FOUND(부분 성공 포함) 또는 UNAVAILABLE
+     */
+    public BatchLookupResult findByPartnerIdsBatchResult(List<UUID> partnerIds) {
         if (partnerIds == null || partnerIds.isEmpty()) {
-            return Map.of();
+            return BatchLookupResult.found(Map.of());
         }
         LinkedHashSet<UUID> distinct = new LinkedHashSet<>(partnerIds);
         distinct.removeIf(java.util.Objects::isNull);
         if (distinct.isEmpty()) {
-            return Map.of();
+            return BatchLookupResult.found(Map.of());
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
@@ -195,19 +232,19 @@ public class PartnerLookupClient {
                     .body(Map.of("ids", distinct))
                     .retrieve()
                     .body(String.class);
-            return parsePartnerSummaries(body);
+            return parsePartnerSummariesResult(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
             if (status == 401 || status == 403) {
                 throw internalAuthMiss("partnerIds", distinct.size(), status);
             }
-            log.warn("PartnerLookupClient batch — count={} status={} (예외)",
+            log.warn("PartnerLookupClient batch — count={} status={} (일시 장애)",
                     distinct.size(), status);
-            return Map.of();
+            return BatchLookupResult.unavailable();
         } catch (Exception ex) {
             log.warn("PartnerLookupClient batch 호출 실패 — count={}, msg={}",
                     distinct.size(), ex.getMessage());
-            return Map.of();
+            return BatchLookupResult.unavailable();
         }
     }
 
@@ -378,16 +415,18 @@ public class PartnerLookupClient {
     }
 
     /** ApiResponse wrapper 의 data.partners 또는 root.partners → partnerId/summary Map 변환. */
-    private Map<UUID, PartnerSummary> parsePartnerSummaries(String body) {
+    private BatchLookupResult parsePartnerSummariesResult(String body) {
         if (body == null || body.isBlank()) {
-            return Map.of();
+            // 200 인데 body 가 비었다는 것은 구조적으로 손상된 응답 — 장애로 승격한다.
+            return BatchLookupResult.unavailable();
         }
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             JsonNode partners = data == null ? null : data.get("partners");
             if (partners == null || !partners.isArray()) {
-                return Map.of();
+                // partners 필드 자체가 없는 것(빈 배열과 다름)은 응답 계약 위반 — 장애로 승격한다.
+                return BatchLookupResult.unavailable();
             }
             Map<UUID, PartnerSummary> result = new LinkedHashMap<>();
             for (JsonNode partner : partners) {
@@ -403,11 +442,13 @@ public class PartnerLookupClient {
                             creditLimit, status));
                 }
             }
-            return result;
+            // partners 가 빈 배열([])인 것은 요청한 id 가 하나도 매칭되지 않은 정상 응답이다
+            // (삭제/미존재 거래처 혼재) — UNAVAILABLE 이 아니라 FOUND(부분/빈 맵)로 유지한다.
+            return BatchLookupResult.found(result);
         } catch (Exception ex) {
             log.warn("PartnerLookupClient batch response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
-            return Map.of();
+            return BatchLookupResult.unavailable();
         }
     }
 

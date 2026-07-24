@@ -3,6 +3,8 @@ package com.samhanair.logis.accounting.client;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * accounting 서비스의 거래처 조회 상태 처리 공통 helper.
@@ -49,6 +51,24 @@ public final class PartnerLookupSupport {
         return partners.isEmpty()
                 ? PartnerLookupClient.DirectoryLookupResult.notFound()
                 : PartnerLookupClient.DirectoryLookupResult.found(partners);
+    }
+
+    /** partnerId batch 조회 결과를 3분류로 정규화한다 (#831 B군, 구 Map API 호환 유지). */
+    public static PartnerLookupClient.BatchLookupResult batch(
+            PartnerLookupClient client, List<UUID> partnerIds) {
+        PartnerLookupClient.BatchLookupResult result = client.findByPartnerIdsBatchResult(partnerIds);
+        if (result != null) {
+            return result;
+        }
+        return PartnerLookupClient.BatchLookupResult.found(client.findByPartnerIdsBatch(partnerIds));
+    }
+
+    /** batch 결과에서 UNAVAILABLE을 명시적 오류로 올리고 부분 성공(빈 맵 포함) 맵을 반환한다. */
+    public static Map<UUID, PartnerSummary> availableBatch(PartnerLookupClient.BatchLookupResult result) {
+        if (result == null || result.isUnavailable()) {
+            throw unavailable();
+        }
+        return result.partners();
     }
 
     /** FOUND가 아니면 A군의 fail-closed 오류를 던진다. */

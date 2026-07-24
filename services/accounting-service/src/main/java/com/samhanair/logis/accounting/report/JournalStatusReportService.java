@@ -228,7 +228,10 @@ public class JournalStatusReportService {
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return safePartnerMap(partnerLookupClient.findByPartnerIdsBatch(new ArrayList<>(ids)));
+        // #831 B-2: partner-service UNAVAILABLE을 조용히 "(미조회)" 로 삼키지 않는다 —
+        // 명시 502 fail-closed. 일부 id 미매칭(삭제/미존재 거래처 혼재)은 정상 FOUND 로 유지된다.
+        return safePartnerMap(PartnerLookupSupport.availableBatch(
+                PartnerLookupSupport.batch(partnerLookupClient, new ArrayList<>(ids))));
     }
 
     private Map<UUID, PartnerSummary> resolvePartnersFromPartnerRows(List<JournalStatusPartnerReportRow> rows) {
@@ -239,7 +242,10 @@ public class JournalStatusReportService {
         if (ids.isEmpty()) {
             return Map.of();
         }
-        return safePartnerMap(partnerLookupClient.findByPartnerIdsBatch(new ArrayList<>(ids)));
+        // #831 B-2: groupBy=PARTNER 무필터 뷰 — UNAVAILABLE 을 단일 "(미조회)" 그룹 병합으로
+        // 위장하지 않는다(차/대 합계 뒤섞임 방지). 명시 502 fail-closed.
+        return safePartnerMap(PartnerLookupSupport.availableBatch(
+                PartnerLookupSupport.batch(partnerLookupClient, new ArrayList<>(ids))));
     }
 
     private Map<UUID, PartnerSummary> safePartnerMap(Map<UUID, PartnerSummary> resolved) {

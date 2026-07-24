@@ -278,6 +278,64 @@ class JournalStatusReportControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("전표현황 — 무필터 조회에서 partner-service UNAVAILABLE을 0건 성공으로 숨기지 않는다 (#831 B-2)")
+    void journalStatusUnfilteredPartnerUnavailableReturnsExplicitError() throws Exception {
+        seedFixtures();
+        when(partnerLookupClient.findByPartnerIdsBatchResult(anyList()))
+                .thenReturn(PartnerLookupClient.BatchLookupResult.unavailable());
+
+        mockMvc.perform(get("/accounting/reports/journal-status")
+                        .param("from", "2026-06-01")
+                        .param("to", "2026-06-30")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    @DisplayName("전표현황 — groupBy=PARTNER 무필터 조회에서 UNAVAILABLE을 \"(미조회)\" 단일 병합으로 숨기지 않는다 (#831 B-2)")
+    void journalStatusPartnerGroupByUnfilteredUnavailableReturnsExplicitError() throws Exception {
+        seedFixtures();
+        when(partnerLookupClient.findByPartnerIdsBatchResult(anyList()))
+                .thenReturn(PartnerLookupClient.BatchLookupResult.unavailable());
+
+        mockMvc.perform(get("/accounting/reports/journal-status")
+                        .param("from", "2026-06-01")
+                        .param("to", "2026-06-30")
+                        .param("groupBy", "PARTNER")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    @DisplayName("전표현황 — 무필터 조회에서 일부 거래처 미매칭(삭제)은 장애가 아니라 \"(미조회)\" 로 무회귀한다")
+    void journalStatusUnresolvedPartnerIsNotTreatedAsUnavailable() throws Exception {
+        UUID deletedPartner = UUID.fromString("dddddddd-dddd-dddd-dddd-dddddddddddd");
+        seedPosted("STATUS-F-DELETED-PARTNER", LocalDate.of(2026, 6, 10), "삭제거래처 라인",
+                JournalSourceType.MANUAL,
+                line("102", "700.00", "0.00", deletedPartner, "삭제거래처 차변"),
+                line("401", "0.00", "700.00", deletedPartner, "삭제거래처 대변"));
+
+        MvcResult result = mockMvc.perform(get("/accounting/reports/journal-status")
+                        .param("from", "2026-06-10")
+                        .param("to", "2026-06-10")
+                        .param("groupBy", "DATE")
+                        .header("X-User-Id", "00000000-0000-0000-0000-000000000101")
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String body = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        JsonNode line = objectMapper.readTree(body).get("data")
+                .get("groups").get(0)
+                .get("lines").get(0);
+        if (!"(미조회)".equals(line.get("partnerName").asText())) {
+            throw new AssertionError("삭제 거래처 표시가 예상과 다릅니다: " + line.get("partnerName").asText());
+        }
+    }
+
+    @Test
     @DisplayName("전표현황 — VIEW 권한 deny 시 403")
     void journalStatusDeniedPermissionReturns403() throws Exception {
         denyRequirePermission(ReportPermissionGuard.PAGE_CODE, PermissionAction.VIEW);
