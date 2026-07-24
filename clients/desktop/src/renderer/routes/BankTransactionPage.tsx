@@ -645,29 +645,35 @@ export function BankTransactionPage() {
       mobilePriority: 'hidden',
       render: (row) => formatCashReceiptAmount(row.balanceAfter),
     },
-    {
+    // 소스/매칭상태 열은 "전체" 탭에서만 보존한다 — 특정 탭(계좌/카드/대출,
+    // 미반영/반영/강제)으로 좁히면 보이는 행 전부가 같은 값을 공유해 열 자체가
+    // 중복 정보가 되므로 그때만 없앤다(I-B1: 전체 탭에서는 행마다 값이 달라
+    // 이 열이 유일한 구분 수단이라 정보 손실 없이는 없앨 수 없다 — #877 SONNET5
+    // R2 실측: source 는 API 로 BANK/CARD/LOAN 혼재 확인, matchStatus 는 REFLECTED/
+    // FORCED 가 거래처 열에서 서로 구분되지 않아 동일 근거로 보존).
+    ...(activeSourceTab === 'ALL' ? [{
       key: 'source',
       header: '소스',
       width: '80px',
-      mobilePriority: 'hidden',
-      render: (row) => BANK_TXN_SOURCE_LABEL[row.source],
-    },
-    {
+      mobilePriority: 'hidden' as const,
+      render: (row: BankTransactionRow) => BANK_TXN_SOURCE_LABEL[row.source],
+    }] : []),
+    ...(activeTab === 'ALL' ? [{
       key: 'matchStatus',
       header: '매칭상태',
       width: '100px',
-      mobilePriority: 'hidden',
-      render: (row) => (
+      mobilePriority: 'hidden' as const,
+      render: (row: BankTransactionRow) => (
         <span style={statusStyle(row.matchStatus)}>
           {BANK_MATCH_STATUS_LABEL[row.matchStatus]}
         </span>
       ),
-    },
+    }] : []),
     ]
 
     const visibleBaseColumns = canCreateBankDepositReceipt ? baseColumns : baseColumns.slice(1)
     return [...visibleBaseColumns, ...sourceSpecificColumns, ...trailingColumns]
-  }, [activeSourceTab, canCreateBankDepositReceipt, canDeleteAppliedMapping, canUpdate, clearAndDeleteMappingMutation, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
+  }, [activeSourceTab, activeTab, canCreateBankDepositReceipt, canDeleteAppliedMapping, canUpdate, clearAndDeleteMappingMutation, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

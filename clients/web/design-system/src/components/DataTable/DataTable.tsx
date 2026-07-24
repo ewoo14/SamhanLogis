@@ -140,7 +140,10 @@ export function DataTable<T>({
             {isEmpty ? (
               <tr className={styles['emptyRow']}>
                 <td className={styles['emptyCell']} colSpan={columns.length}>
-                  <MascotEmptyState title={emptyMessage} />
+                  {/* 가로 스크롤 시 "보이는 창" 중앙에 고정 — DataTable.module.css 참고 */}
+                  <div className={styles['emptyCellSticky']}>
+                    <MascotEmptyState title={emptyMessage} />
+                  </div>
                 </td>
               </tr>
             ) : (

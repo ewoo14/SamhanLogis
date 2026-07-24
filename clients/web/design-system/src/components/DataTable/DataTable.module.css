@@ -12,6 +12,10 @@
   width: 100%;
   max-height: 100%;
   overflow: auto;
+  /* 빈 상태를 "보이는 창" 폭 기준으로 고정하기 위한 컨테이너 쿼리 기준점.
+     이 자체는 .scroll 의 크기 계산에 영향을 주지 않는다(width:100% 로 이미 외부
+     결정) — inline-size containment 는 후손의 100cqw 계산 기준만 제공한다. */
+  container-type: inline-size;
 }
 
 .table {
@@ -109,6 +113,21 @@
   text-align: center;
   color: var(--color-text-subtle);
   font-size: var(--font-size-sm);
+}
+
+/*
+ * colSpan 셀은 (가로 스크롤이 있을 때) 표 전체 폭만큼 넓어진다 — 그 안에서
+ * MascotEmptyState 가 width:100% + justify-content:center 로 중앙 정렬해도
+ * "표 전체 폭"의 중앙일 뿐, 사용자가 실제로 보고 있는 스크롤 창의 중앙이
+ * 아니다(I-A1). 이 wrapper 는 .scroll 의 보이는 폭(container query inline-size)
+ * 만큼만 폭을 갖고 스크롤 좌측 경계에 sticky 로 고정되어, 어느 스크롤 위치에서도
+ * 항상 "지금 보이는 영역"과 정확히 겹친다 — 내부 콘텐츠는 그 안에서 중앙 정렬된다.
+ * td 자체(colSpan 폭 계산)는 건드리지 않으므로 table-layout 알고리즘에 영향이 없다.
+ */
+.emptyCellSticky {
+  position: sticky;
+  left: 0;
+  width: 100cqw;
 }
 
 .loadingOverlay {
