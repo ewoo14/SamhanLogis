@@ -1,0 +1,18 @@
+[T1] as-is           pages=1 bytes=349098 sha=ff24ca2fb214dd0e
+[T1] 접힘아래 제거   fold=831 removed=2 sample=["기사님 출발전에 수요처에 전화주세요~","※ 제품수량 및 이상유무 확인 후 서"]
+[T1] after-cut       pages=1 bytes=298494 sha=9d01fcdffe28909e
+[T1] ▶ 판정: 상이 = 접힘 아래도 인쇄에 참여
+[T1-대조] 접힘위 제거 before=349098/b5dc4c983e008b59 after=321548/c49882d4978cd2e5 → 상이(검정 유효)
+[T2] PR921 적용   app-main=none backdrop=none pages=1 bytes=1053
+[T2] PR921 제거(1건) app-main=block backdrop=none pages=1 bytes=213798
+[T2] ▶ 판정: PR921 이 이 경로의 인쇄를 백지로 만든다(회귀 확정)
+[T3] 화면 미디어 app-main: 모달없음=block 모달열림=block (둘 다 block 이어야 정상)
+[T1b] as-is  pages=1 bytes=349098 sha=4052c8fa82402d12
+[T1b] fold=1053 docBottom=1306 접힘초과=253px removed=0 []
+[T1b] cut    pages=1 bytes=349098 sha=4052c8fa82402d12
+[T1b] ▶ 동일 = 접힘 아래는 인쇄 안 됨(클리핑)
+[T4] 인쇄 라우트 + 임의 모달: app-main=none docHeight=0 pages=1 bytes=29983 (대조 P2 정상=213798)
+[T5] modalBody scrollTop=501 scrollH=1222 clientH=721
+[T5] scrollTop=0  bytes=349098 sha=7512ad69beb288b2
+[T5] scrollTop=max bytes=308945 sha=fbca0301f29ec926
+[T5] ▶ 상이 = 인쇄 결과가 스크롤 위치에 의존 ⇒ 스크롤포트만 인쇄(클리핑 확정)
