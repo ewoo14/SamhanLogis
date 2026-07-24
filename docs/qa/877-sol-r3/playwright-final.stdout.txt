@@ -1,0 +1,92 @@
+
+Running 4 tests using 1 worker
+
+[1A[2K[1/4] playwright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:271:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도1·4 — ①②③ 무회귀 + clean/dirty + 탭/페이지 재진입 상태머신
+[1A[2Kplaywright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:271:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도1·4 — ①②③ 무회귀 + clean/dirty + 탭/페이지 재진입 상태머신
+[BASELINE master scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":"ALL"}
+
+[1A[2K[BASELINE accountant scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":null}
+
+[1A[2K[① SAVE PUT] {"connectedId":"connected-main","accountRefs":["국민 123456-78-901234","신한 987654-32-109876","우리 222222-33-444444"],"cardRefs":["삼한 법인카드 1111","삼한 법인카드 2222"],"loanRefs":[],"defaultImportType":"CARD","scopeMode":"SELECTED"}
+
+[1A[2K[① SERVER GET] {"connectedId":"connected-main","accountRefs":["국민 123456-78-901234","신한 987654-32-109876","우리 222222-33-444444"],"cardRefs":["삼한 법인카드 1111","삼한 법인카드 2222"],"loanRefs":[],"defaultImportType":"CARD","scopeMode":"SELECTED"}
+
+[1A[2K[③ CLEAN IMPORT POST] {"connectedId":"connected-main","from":"2019-05-01","to":"2019-05-03","type":"CARD","scopeMode":"SELECTED","accountRefs":[],"cardRefs":["삼한 법인카드 1111","삼한 법인카드 2222"],"loanRefs":[],"submitMethod":"DRY_RUN"}
+
+[1A[2K[③ DIRTY IMPORT POST] {"connectedId":"connected-main","from":"2019-05-01","to":"2019-05-03","type":"CARD","scopeMode":"SELECTED","accountRefs":[],"cardRefs":["삼한 법인카드 1111","삼한 법인카드 2222"],"loanRefs":[],"submitMethod":"DRY_RUN"}
+
+[1A[2K[② FIRST SAVE GET] {"connectedId":"connected-main","accountRefs":["국민 123456-78-901234"],"cardRefs":[],"loanRefs":[],"defaultImportType":"BANK","scopeMode":"SELECTED"}
+
+[1A[2K[② FIRST SAVE DOM] 미저장 안내=0, 복원 안내=1
+
+[1A[2K[2/4] playwright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:349:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도2 — 소스4×상태4 16조합 열·행·중복성 + 선택/일괄작업
+[1A[2Kplaywright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:349:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도2 — 소스4×상태4 16조합 열·행·중복성 + 선택/일괄작업
+[REAL BE DISTRIBUTION] total=185 sources={"CODEF_BANK":85,"CODEF_CARD":60,"CODEF_LOAN":40} statuses={"UNREFLECTED":185,"REFLECTED":0,"FORCED":0}
+
+[1A[2K[16-COMBO ALL/ALL] expected=185 actual=185 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액","소스","매칭상태"] uniqueSources=["CODEF_CARD","CODEF_LOAN","CODEF_BANK"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO ALL/UNREFLECTED] expected=185 actual=185 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액","소스"] uniqueSources=["CODEF_CARD","CODEF_LOAN","CODEF_BANK"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO ALL/REFLECTED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액","소스"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO ALL/FORCED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액","소스"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO CODEF_BANK/ALL] expected=85 actual=85 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액","매칭상태"] uniqueSources=["CODEF_BANK"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO CODEF_BANK/UNREFLECTED] expected=85 actual=85 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액"] uniqueSources=["CODEF_BANK"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO CODEF_BANK/REFLECTED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO CODEF_BANK/FORCED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","거래후잔액"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO CODEF_CARD/ALL] expected=60 actual=60 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","법인카드","승인번호","거래후잔액","매칭상태"] uniqueSources=["CODEF_CARD"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO CODEF_CARD/UNREFLECTED] expected=60 actual=60 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","법인카드","승인번호","거래후잔액"] uniqueSources=["CODEF_CARD"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO CODEF_CARD/REFLECTED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","법인카드","승인번호","거래후잔액"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO CODEF_CARD/FORCED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","법인카드","승인번호","거래후잔액"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO CODEF_LOAN/ALL] expected=40 actual=40 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","대출명","거래후잔액","매칭상태"] uniqueSources=["CODEF_LOAN"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO CODEF_LOAN/UNREFLECTED] expected=40 actual=40 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","대출명","거래후잔액"] uniqueSources=["CODEF_LOAN"] uniqueStatuses=["UNREFLECTED"]
+
+[1A[2K[16-COMBO CODEF_LOAN/REFLECTED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","대출명","거래후잔액"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[16-COMBO CODEF_LOAN/FORCED] expected=0 actual=0 headers=["선택","거래일시","입출","금액","적요","상대","거래처","계좌/카드/대출","대출명","거래후잔액"] uniqueSources=[] uniqueStatuses=[]
+
+[1A[2K[BULK baseline] enabled=0 disabled=185 createDisabled=true
+
+[1A[2K[THROWAWAY MATCH] externalRef=BANK-2020-03-03-001 partnerCode=000011111111
+
+[1A[2K[BULK user path] 임시 매칭 입금 1건 선택 → 합계/거래처 표시 → 입금보고서 모달 열림
+
+[1A[2K[THROWAWAY MATCH CLEANUP] HTTP 200
+
+[1A[2K[3/4] playwright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:473:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도3 — DataTable 빈 상태: 가로스크롤 유/무·모달·좁은 폭
+[1A[2Kplaywright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:473:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도3 — DataTable 빈 상태: 가로스크롤 유/무·모달·좁은 폭
+[DATATABLE no-scroll real] {"containerType":"inline-size","overflowX":"auto","scrollClientWidth":1116,"scrollWidth":1116,"scrollLeft":0,"table":{"left":282,"right":1398,"width":1116,"top":671,"bottom":875},"scroll":{"left":282,"right":1398,"width":1116,"top":671,"bottom":875},"sticky":{"left":282,"right":1398,"width":1116,"top":707,"bottom":875},"stickyPosition":"sticky","stickyWidth":"1116px","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[DATATABLE horizontal empty left] {"containerType":"inline-size","overflowX":"auto","scrollClientWidth":1758,"scrollWidth":1882,"scrollLeft":0,"table":{"left":282,"right":2164,"width":1882,"top":251,"bottom":455},"scroll":{"left":282,"right":2040,"width":1758,"top":251,"bottom":455},"sticky":{"left":282,"right":2040,"width":1758,"top":287,"bottom":455},"stickyPosition":"sticky","stickyWidth":"1758px","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[DATATABLE horizontal empty right] {"containerType":"inline-size","overflowX":"auto","scrollClientWidth":1758,"scrollWidth":1882,"scrollLeft":124,"table":{"left":158,"right":2040,"width":1882,"top":251,"bottom":455},"scroll":{"left":282,"right":2040,"width":1758,"top":251,"bottom":455},"sticky":{"left":282,"right":2040,"width":1758,"top":287,"bottom":455},"stickyPosition":"sticky","stickyWidth":"1758px","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[DATATABLE narrow 375] {"containerType":"inline-size","overflowX":"visible","scrollClientWidth":307,"scrollWidth":307,"scrollLeft":0,"table":{"left":34,"right":341,"width":307,"top":1191,"bottom":1359},"scroll":{"left":34,"right":341,"width":307,"top":1191,"bottom":1359},"sticky":{"left":34,"right":341,"width":307,"top":1191,"bottom":1359},"stickyPosition":"sticky","stickyWidth":"307px","documentWidth":375,"viewportWidth":375}
+
+[1A[2K[DATATABLE modal real] {"dialogWidth":708,"tableWidth":666,"scrollClientWidth":678,"scrollWidth":678,"containerType":"inline-size","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[4/4] playwright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:568:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도5 — 실 BE와 부분 mock scope가 같은 사용자 저장 결과를 낸다
+[1A[2Kplaywright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:568:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도5 — 실 BE와 부분 mock scope가 같은 사용자 저장 결과를 낸다
+[PARITY real before] {"bank0":true,"card0":true}
+
+[1A[2K[PARITY mock before] {"bank0":true,"card0":true}
+
+[1A[2K[PARITY real after] {"bank0":true,"bank1":true,"card0":true,"card1":true}
+
+[1A[2K[PARITY mock after] {"bank0":true,"bank1":true,"card0":true,"card1":true}
+
+[1A[2K[CLEANUP master scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":"ALL"}
+
+[1A[2K[CLEANUP accountant scope] UPDATE 1
+
+[1A[2K  4 passed (46.2s)

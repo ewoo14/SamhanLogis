@@ -1,0 +1,22 @@
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] playwright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:455:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도3 — DataTable 빈 상태: 가로스크롤 유/무·모달·좁은 폭
+[1A[2Kplaywright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:455:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도3 — DataTable 빈 상태: 가로스크롤 유/무·모달·좁은 폭
+[BASELINE master scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":"ALL"}
+
+[1A[2K[BASELINE accountant scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":null}
+
+[1A[2K[DATATABLE no-scroll real] {"containerType":"inline-size","overflowX":"auto","scrollClientWidth":1116,"scrollWidth":1116,"scrollLeft":0,"table":{"left":282,"right":1398,"width":1116,"top":671,"bottom":875},"scroll":{"left":282,"right":1398,"width":1116,"top":671,"bottom":875},"sticky":{"left":282,"right":1398,"width":1116,"top":707,"bottom":875},"stickyPosition":"sticky","stickyWidth":"1116px","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[DATATABLE horizontal empty left] {"containerType":"inline-size","overflowX":"auto","scrollClientWidth":1758,"scrollWidth":1882,"scrollLeft":0,"table":{"left":282,"right":2164,"width":1882,"top":251,"bottom":455},"scroll":{"left":282,"right":2040,"width":1758,"top":251,"bottom":455},"sticky":{"left":282,"right":2040,"width":1758,"top":287,"bottom":455},"stickyPosition":"sticky","stickyWidth":"1758px","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[DATATABLE horizontal empty right] {"containerType":"inline-size","overflowX":"auto","scrollClientWidth":1758,"scrollWidth":1882,"scrollLeft":124,"table":{"left":158,"right":2040,"width":1882,"top":251,"bottom":455},"scroll":{"left":282,"right":2040,"width":1758,"top":251,"bottom":455},"sticky":{"left":282,"right":2040,"width":1758,"top":287,"bottom":455},"stickyPosition":"sticky","stickyWidth":"1758px","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[DATATABLE narrow 375] {"containerType":"inline-size","overflowX":"visible","scrollClientWidth":307,"scrollWidth":307,"scrollLeft":0,"table":{"left":34,"right":341,"width":307,"top":1191,"bottom":1359},"scroll":{"left":34,"right":341,"width":307,"top":1191,"bottom":1359},"sticky":{"left":34,"right":341,"width":307,"top":1191,"bottom":1359},"stickyPosition":"sticky","stickyWidth":"307px","documentWidth":375,"viewportWidth":375}
+
+[1A[2K[DATATABLE modal real] {"dialogWidth":712,"tableWidth":670,"scrollClientWidth":678,"scrollWidth":678,"containerType":"inline-size","documentWidth":1440,"viewportWidth":1440}
+
+[1A[2K[CLEANUP master scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":"ALL"}
+
+[1A[2K  1 passed (10.1s)

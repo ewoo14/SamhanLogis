@@ -1,0 +1,20 @@
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] playwright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:549:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도5 — 실 BE와 부분 mock scope가 같은 사용자 저장 결과를 낸다
+[1A[2Kplaywright\877-sol-r3-real-qa\877-sol-r3-adversarial-real-qa.spec.ts:549:3 › #877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증 › 각도5 — 실 BE와 부분 mock scope가 같은 사용자 저장 결과를 낸다
+[BASELINE master scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":"ALL"}
+
+[1A[2K[BASELINE accountant scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":null}
+
+[1A[2K[PARITY real before] {"bank0":true,"card0":true}
+
+[1A[2K[PARITY mock before] {"bank0":true,"card0":true}
+
+[1A[2K[PARITY real after] {"bank0":true,"bank1":true,"card0":true,"card1":true}
+
+[1A[2K[PARITY mock after] {"bank0":true,"bank1":true,"card0":true,"card1":true}
+
+[1A[2K[CLEANUP master scope] {"connectedId":"connected-main","accountRefs":[],"cardRefs":[],"loanRefs":[],"defaultImportType":"ALL","scopeMode":"ALL"}
+
+[1A[2K  1 passed (10.5s)
