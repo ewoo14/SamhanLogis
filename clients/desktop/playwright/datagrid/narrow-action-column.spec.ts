@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5290'
+const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const VIEWPORTS = [
   { name: '768px', width: 768 },
   { name: '375px', width: 375 },
