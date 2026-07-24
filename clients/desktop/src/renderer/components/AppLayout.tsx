@@ -203,9 +203,23 @@ function pageCodeForPath(pathname: string): { pageCode: string; label: string } 
  * (AppVersionGate/AppNoticeGate) 나 기타 모달이 이 라우트 위에 열려 있어도 인쇄 대상 자신을
  * 지우지 않기 위함이다(불변식 I-3). `/print` 판정은 세그먼트 경계(`/` 또는 문자열 끝)까지 확인해
  * 우연한 부분일치(예: `/imprint`)를 배제한다.
+ *
+ * PR #921 chore-B R4 (CODEX SOL 2차 적대검증 B-1) — `/sales/query`·`/purchases/query` 는
+ * deep-link/bookmark 호환용 **별칭**일 뿐, 사이드바 판매관리/구매관리 메뉴의 실제 진입점은
+ * `/sales`·`/purchases`(routes/index.tsx `{ path: '/sales', element: <SalesQueryPage /> }` —
+ * 별칭과 동일 컴포넌트를 렌더)다. 이 둘이 누락돼 기본 메뉴 경로에서 검색 모달을 열고 인쇄하면
+ * 목록이 차폐됐다. `/sales/closing`(회계)·`/sales/link-dispatch`(그룹웨어) 같은 타 그룹 자식
+ * 경로까지 인쇄 표면으로 오판하지 않도록 prefix 가 아닌 **exact 매칭**만 추가한다.
  */
 function isPrintSurfacePath(pathname: string): boolean {
-  if (pathname === '/sales/query' || pathname === '/purchases/query') return true
+  if (
+    pathname === '/sales' ||
+    pathname === '/sales/query' ||
+    pathname === '/purchases' ||
+    pathname === '/purchases/query'
+  ) {
+    return true
+  }
   return /(^|\/)print(\/|$)/.test(pathname)
 }
 

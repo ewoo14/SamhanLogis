@@ -56,6 +56,10 @@ export function SlipDetailModal({ slipId, onClose }: SlipDetailModalProps) {
       title={title}
       description={slip ? '판매전표 미리보기' : undefined}
       size="xl"
+      // body 가 DispatchDocument(자체 인쇄 대상 문서)를 담고 있어 인쇄 시 모달 크롬을
+      // 뺀다(opt-in). PR #921 chore-B R4 — CODEX SOL 2차 적대검증 A-1: 이 opt-in 없이
+      // 크롬 숨김을 전 모달에 적용했던 R-3 회귀의 fix.
+      printableBody
       footer={
         <Button
           type="button"

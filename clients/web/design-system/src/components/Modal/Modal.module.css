@@ -178,6 +178,14 @@
  *
  * 모달 크롬(제목·설명·✕·닫기 버튼, I-6)은 인쇄 대상이 아니므로 숨긴다. 배경 오버레이는
  * position:static 전환 + background 제거로 종이에 남지 않는다.
+ *
+ * ⚠️ PR #921 chore-B R4 (CODEX SOL 2차 적대검증 A-1) — 위 크롬 숨김을 원래 전 Modal
+ * 소비처에 무차별 적용했다가, `AddVehicleModal` 처럼 크롬(제목·설명·조작부)이 곧 모달의
+ * 유일한 의미인 일반 확인 모달의 정보가 인쇄물에서 통째로 사라지는 회귀를 냈다(PM 확증).
+ * `Modal` 의 `printableBody` opt-in prop(기본 false)이 `[role=dialog]` 에
+ * `data-print-document` 속성을 붙이며, 크롬 숨김 규칙은 그 속성이 있는 다이얼로그
+ * (= body 에 자체 인쇄 대상 문서를 가진 모달, 예: SlipDetailModal)에만 스코프한다.
+ * opt-in 하지 않은 모달(기본값)은 크롬이 인쇄물에 그대로 유지된다.
  */
 @media print {
   .backdrop {
@@ -191,9 +199,9 @@
     max-height: none;
   }
 
-  .header,
-  .description,
-  .footer {
+  .dialog[data-print-document] .header,
+  .dialog[data-print-document] .description,
+  .dialog[data-print-document] .footer {
     display: none;
   }
 

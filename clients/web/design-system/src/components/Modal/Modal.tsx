@@ -32,6 +32,20 @@ export interface ModalProps {
   /** Hide the close (X) button in the header. */
   hideCloseButton?: boolean
   /**
+   * body 가 그 자체로 인쇄 대상 문서(예: 전표 미리보기)를 담고 있는 모달인지.
+   *
+   * true 면 `[role=dialog]` 에 `data-print-document` 속성이 붙고, `@media print` 에서
+   * 크롬(제목·설명·닫기·푸터)이 인쇄에서 빠진다 — 화면(screen)에는 영향 없음.
+   *
+   * 기본값 false — 크롬(제목/설명/조작부)이 곧 모달의 유일한 의미인 일반 확인 모달
+   * (예: 차량 추가)은 인쇄물에도 제목·설명·버튼이 그대로 유지된다. body 안에 자체
+   * 인쇄 문서를 그리는 모달(예: `SlipDetailModal`)만 명시적으로 opt-in 할 것.
+   * (PR #921 chore-B R4 — CODEX SOL 2차 적대검증 A-1: R-3 가 크롬 숨김을 전 모달에
+   * 무차별 적용해 `AddVehicleModal` 등 일반 모달의 제목·설명·조작부가 인쇄물에서
+   * 통째로 사라졌던 회귀의 fix.)
+   */
+  printableBody?: boolean
+  /**
    * open 시 초기 포커스를 받을 요소 ref (예: 다이얼로그의 첫 입력란).
    *
    * 미지정 시 기존 동작(첫 focusable — 보통 닫기 버튼) 유지. 소비처 로컬 rAF 로
@@ -72,6 +86,7 @@ export function Modal({
   closeOnHeaderX = true,
   footer,
   hideCloseButton = false,
+  printableBody = false,
   initialFocusRef,
   children,
 }: ModalProps) {
@@ -196,6 +211,7 @@ export function Modal({
         aria-describedby={descId}
         tabIndex={-1}
         className={[styles['dialog'], sizeClass].filter(Boolean).join(' ')}
+        data-print-document={printableBody || undefined}
         onKeyDown={handleKeyDown}
       >
         {(title || !hideCloseButton) && (
