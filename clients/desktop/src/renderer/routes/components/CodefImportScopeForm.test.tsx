@@ -299,38 +299,55 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     },
   )
 
-  it('HIGH-4(R3) — 브랜치 B: 저장 scopeMode=SELECTED 로 재방문 후 저장 refs를 실행 계약에 명시한다', async () => {
+  it('HIGH-4(R3) — 브랜치 B: 저장 scopeMode=SELECTED 로 재방문 후 화면에 보이지 않는 카테고리는 가져오기에 참여하지 않는다(#877 SONNET5 R1 — PM 실서버 재현 pin)', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])
     listCodefLoansMock.mockResolvedValue([])
-    // 저장된 SELECTED scope — 계좌 1건 선택. 위 R2 BLOCKING-1 it.each 는 scopeMode='ALL'
-    // (branch A, buildImportPayload:320-332)만 커버한다. 이 테스트는 scopeMode='SELECTED'
-    // (branch B, :334-345)를 재방문 직후 어떤 상호작용(체크박스/타입 전환)도 없이(선택 그대로
-    // = selectionDirty=false 유지) 곧바로 가져오기를 눌러 정확히 그 경로를 탄다 — 기존
-    // "item5(type seam)" 테스트는 이 branch B 를 의도적으로 우회(dirty 강제)했고, "기존
-    // 빈-ref SELECTED" 테스트는 refs 가 비어 애초에 가져오기가 잠겨 있었다.
+    // 저장된 SELECTED scope — 계좌 1건 + 카드 1건 선택, defaultImportType='CARD' 이라
+    // 재방문 시 화면엔 카드 카테고리만 보이고 계좌 체크박스는 렌더되지 않는다(PM 이 실서버
+    // 에서 재현한 "계좌3+카드2 로 저장 후 카드만 보이는 화면에서 가져오기" 구성을 최소
+    // 조합으로 축약). 위 R2 BLOCKING-1 it.each 는 scopeMode='ALL'(branch A,
+    // buildImportPayload 상단)만 커버한다. 이 테스트는 scopeMode='SELECTED'(branch B)를
+    // 재방문 직후 어떤 상호작용(체크박스/타입 전환)도 없이(선택 그대로 = selectionDirty=false
+    // 유지) 곧바로 가져오기를 눌러 정확히 그 경로를 탄다 — 기존 "item5(type seam)" 테스트는
+    // 이 branch B 를 의도적으로 우회(dirty 강제)했고, "기존 빈-ref SELECTED" 테스트는 refs 가
+    // 비어 애초에 가져오기가 잠겨 있었다.
+    //
+    // 종전엔 이 테스트 자체가 결함을 pin 하고 있었다: branch B가 restoredScope 의 원본 세
+    // 배열을 type 필터 없이 그대로(type:'ALL') 보내는 것을 "정답"으로 단언했다 — 이 fixture
+    // 라면 화면에 없는 accountRefs=[BANK_A.ref] 가 그대로 새어나갔을 것이다. PM 이 실서버에서
+    // 확정한 결함(카드 범위로 저장 직후 가져오기 시 화면에 없는 계좌 거래 15건이 입출금
+    // 내역에 적재됨)이 바로 이 동작이었다. 새 불변식(I-1: 화면이 보여주지 않은 카테고리는
+    // 가져오기 실행에 참여하지 않는다)에 맞춰 type 은 현재 화면 범위(CARD)를, accountRefs 는
+    // 빈 배열을 기대하도록 갱신한다. 이 테스트의 원래 목적(branch B 코드 경로 커버 — 위
+    // 문단)은 그대로 유지된다: 여전히 restoredScope 존재·미더티 상태에서 상호작용 없이 즉시
+    // 가져오기를 누르는 시나리오다.
     loadCodefImportScopeMock.mockResolvedValue({
       connectedId: 'connected-main',
       accountRefs: [BANK_A.ref],
-      cardRefs: [],
+      cardRefs: [CARD_A.ref],
       loanRefs: [],
-      defaultImportType: 'BANK',
+      defaultImportType: 'CARD',
       scopeMode: 'SELECTED',
     })
     importScopedCodefMock.mockResolvedValue(baseResult)
 
     renderForm()
     await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+    // 화면엔 카드 카테고리만 보인다 — 계좌 체크박스는 아예 렌더되지 않는다(I-1 전제 조건).
+    expect(screen.queryByTestId('codef-bank-account-0')).toBeNull()
+    expect(screen.getByTestId('codef-card-0')).toBeTruthy()
 
     fireEvent.click(screen.getByTestId('codef-import-button'))
 
     await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
-    // 핵심 단언 — branch B는 저장된 선택을 scopeMode=SELECTED와 세 배열로 함께 보낸다.
+    // 핵심 단언 — branch B는 저장 여부와 무관하게 현재 화면 범위(type)로 필터링된 선택만
+    // 실행 계약에 명시한다. 화면에 없는 계좌(BANK_A)는 accountRefs 에 나타나지 않는다.
     expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({
-      type: 'ALL',
+      type: 'CARD',
       scopeMode: 'SELECTED',
-      accountRefs: [BANK_A.ref],
-      cardRefs: [],
+      accountRefs: [],
+      cardRefs: [CARD_A.ref],
       loanRefs: [],
     })
   })

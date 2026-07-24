@@ -326,41 +326,37 @@ export function CodefImportScopeForm({
   }
 
   function buildImportPayload(): CodefScopedImportRequest {
-    if (restoredScope && !selectionDirty) {
-      if (restoredScope.scopeMode === 'ALL') {
-        // 저장된 ALL은 defaultImportType이 실제 실행 범위다. type=ALL을 고정하면
-        // CARD/BANK/LOAN 저장 직후 다른 두 카테고리까지 조용히 열거한다(#825 슬5 R2
-        // BLOCKING-1). refs 필드를 생략해 BE의 진짜 전체(null) 경로로 보내되, 저장된
-        // 기본 유형을 그대로 전달해 한 카테고리 범위를 보존한다.
-        return {
-          connectedId: DEFAULT_CONNECTED_ID,
-          from,
-          to,
-          type: restoredScope.defaultImportType,
-          scopeMode: 'ALL',
-        }
-      }
-
-      // 저장된 SELECTED는 저장된 세 배열을 실행 계약에도 명시한다. 실행 POST의 scopeMode와
-      // refs가 함께 의미를 결정하므로 필드 부재/[]를 "전체"로 해석하는 경로가 없다.
+    if (restoredScope && !selectionDirty && restoredScope.scopeMode === 'ALL') {
+      // 저장된 ALL은 defaultImportType이 실제 실행 범위다. type=ALL을 고정하면
+      // CARD/BANK/LOAN 저장 직후 다른 두 카테고리까지 조용히 열거한다(#825 슬5 R2
+      // BLOCKING-1). refs 필드를 생략해 BE의 진짜 전체(null) 경로로 보내되, 저장된
+      // 기본 유형을 그대로 전달해 한 카테고리 범위를 보존한다.
       return {
         connectedId: DEFAULT_CONNECTED_ID,
         from,
         to,
-        type: 'ALL',
-        scopeMode: 'SELECTED',
-        accountRefs: normalizeRefs(restoredScope.accountRefs),
-        cardRefs: normalizeRefs(restoredScope.cardRefs),
-        loanRefs: normalizeRefs(restoredScope.loanRefs),
+        type: restoredScope.defaultImportType,
+        scopeMode: 'ALL',
       }
     }
 
     if (scopeMode === 'SELECTED') {
-      // #825 슬5 R1 item5(type seam) — SELECTED 는 화면 선택을 항상 explicit 배열로 보낸다.
-      // type 드롭다운 전환으로 현재 보이는 카테고리의 유효 선택이 0건이 되어도 refs 키를
-      // 생략하지 않는다 — 생략(undefined)하면 BE 가 '전체 미지정'으로 해석해 서버 전수
-      // 열거로 새어(화면=SELECTED·0개 vs 실행=전체), 이 슬라이스가 없애려던 바로 그
-      // null-semantics 모호성이 재발했다.
+      // #825 슬5 R1 item5(type seam) — SELECTED 는 화면에 실제로 보이는(현재 type 필터를
+      // 통과한) 선택만 explicit 배열로 보낸다. type 드롭다운 전환으로 현재 보이는 카테고리의
+      // 유효 선택이 0건이 되어도 refs 키를 생략하지 않는다 — 생략(undefined)하면 BE 가
+      // '전체 미지정'으로 해석해 서버 전수 열거로 새어(화면=SELECTED·0개 vs 실행=전체),
+      // 이 슬라이스가 없애려던 바로 그 null-semantics 모호성이 재발했다.
+      //
+      // #877 SONNET5 R1 — 저장 직후 재방문·미더티(restoredScope 존재)라도 예외를 두지
+      // 않는다. 종전에는 이 경우 restoredScope 의 원본 세 배열을 type 필터 없이 그대로
+      // 보내는 별도 분기가 있었는데(저장은 필터 밖 카테고리를 보존하므로), 그 결과 동일한
+      // 화면 상태(범위=카드·계좌 미표시)에서도 "저장을 눌렀는지"에 따라 실행 범위가
+      // 계좌+카드/카드만으로 갈렸다(PM 실서버 재현: 카드로 저장 직후 가져오기 시 화면에
+      // 없는 계좌 거래 15건이 입출금 내역에 적재). 저장(PUT)과 실행(POST)의 책임을
+      // 분리한다 — 저장은 무음 유실 방지를 위해 필터 밖 refs 를 보존하지만, 실행은
+      // effectiveSelection(false)(=현재 type 이 걸러낸 selection, canImport 게이트가 이미
+      // 쓰던 것과 동일한 값)만 사용해 화면에 보이지 않는 카테고리는 저장 여부와 무관하게
+      // 실행에 참여하지 않는다.
       const refs = effectiveSelection(false)
       return {
         connectedId: DEFAULT_CONNECTED_ID,
