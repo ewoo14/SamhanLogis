@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { isAxiosError } from 'axios'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Button,
   Input,
@@ -149,6 +149,7 @@ export function CodefImportScopeForm({
   const [selectionDirty, setSelectionDirty] = useState(false)
   const [result, setResult] = useState<CodefImportResponse | null>(null)
   const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
+  const queryClient = useQueryClient()
 
   const accountsQuery = useQuery({
     queryKey: ['accounting', 'codef', 'bank-accounts', DEFAULT_CONNECTED_ID],
@@ -385,6 +386,7 @@ export function CodefImportScopeForm({
   const saveMutation = useMutation({
     mutationFn: () => saveCodefImportScope(buildScopePayload()),
     onSuccess: (saved) => {
+      queryClient.setQueryData(['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID], saved)
       setRestoredScope(saved)
       setSelection({
         accountRefs: normalizeRefs(saved.accountRefs),

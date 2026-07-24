@@ -92,7 +92,10 @@ const BANK_B = { ref: '신한 234-567', name: '신한운영', bankName: '신한�
 const BANK_C = { ref: '우리 345-678', name: '우리운영', bankName: '우리은행', accountNumber: '345-678' }
 const CARD_B = { ref: '법인카드-002', name: '운영카드', issuerName: '현대카드', cardNumber: '8888' }
 
-function renderForm(onImported = vi.fn(async () => undefined)) {
+function renderForm(
+  onImported = vi.fn(async () => undefined),
+  onToast: (toast: { type: 'error' | 'success'; message: string }) => void = () => undefined,
+) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
@@ -101,7 +104,7 @@ function renderForm(onImported = vi.fn(async () => undefined)) {
         canUpdate
         initialFrom="2026-06-01"
         initialTo="2026-06-03"
-        onToast={() => undefined}
+        onToast={onToast}
         onImported={onImported}
       />
     </QueryClientProvider>,
@@ -202,6 +205,41 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
       expect((screen.getByTestId('codef-card-0') as HTMLInputElement).checked).toBe(true)
       expect((screen.getByTestId('codef-card-1') as HTMLInputElement).checked).toBe(true)
     })
+  })
+
+  it('SOL-877-2 — 최초 저장 성공 뒤 미저장 안내와 복원 안내를 동시에 표시하지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+      scopeMode: null,
+    })
+    const savedScope: CodefImportScope = {
+      connectedId: 'connected-main',
+      accountRefs: [BANK_A.ref],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'BANK',
+      scopeMode: 'SELECTED',
+    }
+    saveCodefImportScopeMock.mockResolvedValue(savedScope)
+    const toasts: Array<{ type: 'error' | 'success'; message: string }> = []
+
+    renderForm(vi.fn(async () => undefined), (toast) => toasts.push(toast))
+    await screen.findByTestId('codef-bank-account-0')
+    fireEvent.click(screen.getByTestId('codef-bank-account-0'))
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await waitFor(() => expect(toasts).toContainEqual({ type: 'success', message: '가져오기 선택을 저장했습니다.' }))
+
+    expect(screen.queryByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.')).toBeNull()
+    expect(screen.getByText('저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.')).toBeTruthy()
   })
 
   /*
@@ -336,6 +374,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     const hint = await screen.findByTestId('codef-scope-hint')
     expect(hint.getAttribute('role')).toBe('status')
+    expect(await screen.findByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.')).toBeTruthy()
     expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
   })

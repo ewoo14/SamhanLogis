@@ -28,7 +28,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const CONNECTED = 'connected-main'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/877-sol-round')
+const SHOTS = path.resolve(_dirname, '../../../../docs/qa/877-luna-fix')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const ACC = {
@@ -383,6 +383,46 @@ test.describe.serial('#877 SOL 2차 — 실사용자 도달성 라이브 QA', ()
     await shot(page, '04-round3-reentry-no-loss-no-resurrection')
   })
 
+  test('SOL-877 본체 — 계좌 3개·카드 2개를 CARD 필터로 저장해도 재진입 시 계좌 3개가 생존한다', async ({ page }) => {
+    await putScope(
+      page.request,
+      selectedBody(
+        [ACC.kb, ACC.shinhan, ACC.woori],
+        [CARD.c1111, CARD.c2222],
+        [LOAN.first],
+        'ALL',
+      ),
+    )
+    await gotoReal(page)
+    await assertExactVisibleChecks(
+      page,
+      [true, true, true, false],
+      [true, true, false],
+      [true, false],
+    )
+
+    await setType(page, 'CARD')
+    await saveAndWait(page)
+    const saved = await getScope(page.request)
+    console.log(`[SOL-877 본체 CARD 저장] ${JSON.stringify(saved)}`)
+    expect(saved.accountRefs).toEqual([ACC.kb, ACC.shinhan, ACC.woori])
+    expect(saved.cardRefs).toEqual([CARD.c1111, CARD.c2222])
+    expect(saved.loanRefs).toEqual([LOAN.first])
+    expect(saved.scopeMode).toBe('SELECTED')
+
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page.getByText('MASTER').first()).toBeVisible({ timeout: 25_000 })
+    await dismissUpdateModal(page)
+    await expect(page.getByTestId('codef-import-type')).toBeVisible({ timeout: 20_000 })
+    await assertExactVisibleChecks(
+      page,
+      [true, true, true, false],
+      [true, true, false],
+      [true, false],
+    )
+    await shot(page, '18-877-three-accounts-two-cards-card-filter-reentry')
+  })
+
   test('각도 2 — stale ref 상태의 재진입·재저장 실측(삭제 동작 자체는 DRY_RUN 고정목록이라 대체 fixture)', async ({ page }) => {
     const staleRef = `SOL-STALE-ACCOUNT-${Date.now()}`
     await putScope(
@@ -635,7 +675,7 @@ test.describe.serial('#877 SOL 2차 — 실사용자 도달성 라이브 QA', ()
     await shot(page, '15-restored-selection-anchor-fifth-navigation')
   })
 
-  test('각도 6 후속 — 실 BE 최초 저장 성공 뒤에도 미저장 안내가 남는다', async ({ page }) => {
+  test('각도 6 후속 — 실 BE 최초 저장 성공 뒤 미저장 안내가 사라지고 복원 안내만 남는다', async ({ page }) => {
     const accountant = await login(page.request, 'dev_accountant')
     const before = await getScope(page.request, CONNECTED, accountant.token)
     console.log(`[FIRST-SAVE before] ${JSON.stringify(before)}`)
@@ -643,6 +683,13 @@ test.describe.serial('#877 SOL 2차 — 실사용자 도달성 라이브 QA', ()
 
     await installAuth(page, accountant)
     await gotoReal(page, 'ACCOUNTANT')
+    await expect(
+      page.getByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.'),
+    ).toBeVisible()
+    await expect(
+      page.getByText('저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.'),
+    ).toBeHidden()
+    await shot(page, '16-first-save-before-save-unsaved-hint')
     await setExactChecks(
       page,
       [true, false, false, false],
@@ -660,13 +707,25 @@ test.describe.serial('#877 SOL 2차 — 실사용자 도달성 라이브 QA', ()
     await expect(page.getByText('가져오기 선택을 저장했습니다.')).toBeVisible()
     await expect(
       page.getByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.'),
-    ).toBeVisible()
+    ).toBeHidden()
     await expect(
       page.getByText('저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.'),
     ).toBeVisible()
     console.log(
-      '[DEFECT-REPRODUCED] 최초 저장 HTTP 200 뒤 성공 토스트·복원 안내와 미저장 안내가 동시에 노출',
+      '[SOL-877-2 FIXED] 최초 저장 HTTP 200 뒤 성공 토스트·복원 안내만 노출되고 미저장 안내는 사라짐',
     )
-    await shot(page, '16-first-save-success-but-unsaved-hint-remains')
+    await shot(page, '16-first-save-success-no-unsaved-hint')
+
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expect(page.getByText('ACCOUNTANT').first()).toBeVisible({ timeout: 25_000 })
+    await dismissUpdateModal(page)
+    await expect(page.getByTestId('codef-import-type')).toBeVisible({ timeout: 20_000 })
+    await expect(
+      page.getByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.'),
+    ).toBeHidden()
+    await expect(
+      page.getByText('저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.'),
+    ).toBeVisible()
+    await shot(page, '17-first-save-reentry-restored-hint-only')
   })
 })
