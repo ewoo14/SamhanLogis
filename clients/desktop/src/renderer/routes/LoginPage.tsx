@@ -29,6 +29,7 @@ import axios from 'axios'
 import { login, type LoginResponse } from '../api/auth'
 import { useSessionStore } from '../stores/session'
 import { getPasswordPolicy } from '../api/passwordApi'
+import { clearSessionQueryCache } from '../queryClientRegistry'
 // P0-2: "비밀번호를 잊으셨나요?" → /auth/password-reset 페이지 방식으로 navigate.
 // PasswordResetDialog (modal) 는 PasswordResetDialog.tsx 에 보존 (독립 재사용 가능).
 
@@ -67,6 +68,9 @@ export function LoginPage() {
   const mutation = useMutation<LoginResponse, unknown, void>({
     mutationFn: () => login({ loginId, password }),
     onSuccess: async (res) => {
+      // Electron/Capacitor 는 웹처럼 풀 리로드되지 않으므로 이전 계정의
+      // 권한 및 사용자 귀속 Query Cache를 새 세션이 읽기 전에 폐기한다.
+      clearSessionQueryCache()
       await setAuth(res)
       navigate('/', { replace: true })
     },

@@ -13,10 +13,11 @@ import { useSessionStore } from './stores/session'
 import { AppVersionGate } from './components/common/AppVersionGate'
 import { BiometricLockGate } from './components/common/BiometricLockGate'
 import { AppNoticeGate } from './components/common/AppNoticeGate'
+import { registerQueryClient } from './queryClientRegistry'
 
 /**
  * 단일 QueryClient — 5분 staleTime + 1회 retry.
- * 권한/토큰 변경 시 `queryClient.clear()` 로 초기화 가능.
+ * 권한/토큰 변경 시 registry 를 통해 `queryClient.clear()` 로 초기화한다.
  */
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,6 +28,8 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+registerQueryClient(queryClient)
 
 export function App() {
   const bootstrap = useSessionStore((s) => s.bootstrap)

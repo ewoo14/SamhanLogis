@@ -1,7 +1,7 @@
 /**
  * usePermissions — 현재 로그인 사용자의 동적 RBAC 권한 매트릭스를 조회/캐시하는 hook.
  *
- * SP-D1 슬라이스. TanStack Query 로 5분 staleTime 캐시.
+ * SP-D1 슬라이스. TanStack Query 로 30초 staleTime 캐시.
  * 로드 완료 후 permissionsApi.setPermissionsCache() 를 통해 동기 canAccess() 헬퍼에도 반영.
  *
  * 사용 패턴:
@@ -36,7 +36,7 @@ export interface UsePermissionsResult {
 }
 
 /**
- * 현재 로그인 사용자 권한 목록 조회 + 5분 캐시.
+ * 현재 로그인 사용자 권한 목록 조회 + 30초 freshness.
  *
  * <p>MASTER 는 PERMISSION_MATRIX 포함 모든 페이지에 view+edit 이 허용됨.
  * BE 가 역할별 기본 매트릭스를 반환하므로 FE 추가 처리 불필요.
@@ -45,7 +45,8 @@ export function usePermissions(): UsePermissionsResult {
   const query = useQuery({
     queryKey: ['permissions', 'my'],
     queryFn: fetchMyPermissions,
-    staleTime: 5 * 60 * 1000, // 5분
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
     retry: 1,
   })
 

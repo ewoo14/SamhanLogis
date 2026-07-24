@@ -227,4 +227,37 @@ describe('apiClient authProvider 배선', () => {
     expect(useSessionStore.getState().auth).toBeNull()
     expect(window.location.replace).toHaveBeenCalledWith('/login')
   })
+
+  it('Electron 보호 리소스 401 후 권한 Query Cache를 비운다', async () => {
+    platform.isElectron = true
+    const { QueryClient } = await import('@tanstack/react-query')
+    const { registerQueryClient } = await import('../../queryClientRegistry')
+    const { apiClient } = await import('../client')
+    const { canAccess, setPermissionsCache } = await import('../permissionsApi')
+    const queryClient = new QueryClient()
+    registerQueryClient(queryClient)
+    queryClient.setQueryData(['permissions', 'my'], [{ pageCode: 'sales.slip.create', actions: ['create'] }])
+    queryClient.setQueryData(['me', 'executive-office'], { isExecutiveOffice: true })
+    setPermissionsCache([{ pageCode: 'sales.slip.create', actions: ['create'] }])
+
+    expect(queryClient.getQueryData(['permissions', 'my'])).toBeDefined()
+
+    await expect(apiClient.get('/api/v1/slips', {
+      adapter: async (config) => {
+        const response = {
+          data: { success: false },
+          status: 401,
+          statusText: 'Unauthorized',
+          headers: {},
+          config,
+          request: {},
+        }
+        throw new axios.AxiosError('Unauthorized', undefined, config, {}, response)
+      },
+    })).rejects.toBeInstanceOf(axios.AxiosError)
+
+    expect(queryClient.getQueryData(['permissions', 'my'])).toBeUndefined()
+    expect(queryClient.getQueryData(['me', 'executive-office'])).toBeUndefined()
+    expect(canAccess('sales.slip.create', 'create')).toBe(false)
+  })
 })

@@ -1,0 +1,49 @@
+// @vitest-environment jsdom
+import React, { type ReactNode } from 'react'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { usePermissions } from './usePermissions'
+
+const mocks = vi.hoisted(() => ({
+  fetchMyPermissions: vi.fn(),
+  setPermissionsCache: vi.fn(),
+}))
+
+vi.mock('../api/permissionsApi', () => ({
+  fetchMyPermissions: mocks.fetchMyPermissions,
+  normalizePermissionAction: (action: string) => action === 'edit' ? 'update' : action,
+  setPermissionsCache: mocks.setPermissionsCache,
+}))
+
+afterEach(() => {
+  focusManager.setFocused(true)
+  vi.restoreAllMocks()
+})
+
+describe('usePermissions freshness', () => {
+  it('30초 후 포커스 복귀 시 권한을 다시 조회한다', async () => {
+    const originalNow = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(originalNow)
+    mocks.fetchMyPermissions.mockResolvedValue([
+      { pageCode: 'sales.slip.create', actions: ['create'] },
+    ])
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(['warehouses'], [{ code: 'WH-1' }])
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    renderHook(() => usePermissions(), { wrapper })
+    await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(1))
+
+    now.mockReturnValue(originalNow + 30_001)
+    act(() => {
+      focusManager.setFocused(false)
+      focusManager.setFocused(true)
+    })
+
+    await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(2))
+    expect(queryClient.getQueryData(['warehouses'])).toEqual([{ code: 'WH-1' }])
+  })
+})

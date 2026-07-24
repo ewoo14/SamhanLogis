@@ -28,6 +28,7 @@ import {
   isElectronPlatform,
   type SessionInfo,
 } from '../auth/authProvider'
+import { clearSessionQueryCache } from '../queryClientRegistry'
 
 interface SessionState {
   /** 세션 부팅 완료 여부 — false 이면 splash/스피너 표시. */
@@ -116,13 +117,18 @@ export const useSessionStore = create<SessionState>((set) => ({
     try {
       await getAuthProvider().clearSession()
     } finally {
+      clearSessionQueryCache()
       set({ auth: null })
     }
   },
   logout: async () => {
     await unregisterPushIfNative()
-    await getAuthProvider().clearSession()
-    set({ auth: null })
+    try {
+      await getAuthProvider().clearSession()
+    } finally {
+      clearSessionQueryCache()
+      set({ auth: null })
+    }
   },
 }))
 

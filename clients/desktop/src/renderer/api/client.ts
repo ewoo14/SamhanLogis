@@ -111,6 +111,8 @@ apiClient.interceptors.response.use(
       }
 
       try {
+        // 401 은 native 세션 경계다. clearAuthState() 가 provider 세션과
+        // QueryClient 및 모듈 전역 권한 캐시를 함께 폐기한다.
         await useSessionStore.getState().clearAuthState()
       } catch (clearErr) {
         console.error('[apiClient] 401 후 세션 클리어 실패', clearErr)

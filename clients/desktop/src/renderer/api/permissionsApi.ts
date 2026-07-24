@@ -13,10 +13,11 @@
  * FE PageCode 타입을 BE PageCode enum 의 dot-separated code 와 완전 일치시킨다.
  * 예) 'accounting.tax-invoice.emit-nts', 'admin.permissions' 등.
  *
- * 권한 캐시: usePermissions hook 이 TanStack Query staleTime 으로 5분 캐시.
+ * 권한 캐시: usePermissions hook 이 TanStack Query staleTime 으로 30초 캐시.
  * 동기 canAccess() 는 캐시된 데이터를 기반으로 즉시 응답.
  */
 import { apiClient, type ApiEnvelope } from './client'
+import { registerSessionCacheResetter } from '../queryClientRegistry'
 
 // ---------------------------------------------------------------------------
 // 타입 정의
@@ -574,6 +575,10 @@ export async function fetchMyPermissions(): Promise<MyPermission[]> {
 
 /** 내부 캐시 — usePermissions hook 이 setPermissionsCache 로 갱신한다. */
 let _permissionsCache: MyPermission[] | null = null
+
+registerSessionCacheResetter(() => {
+  _permissionsCache = null
+})
 
 /**
  * usePermissions hook 이 fetch 완료 후 호출하여 동기 canAccess 캐시를 갱신.
