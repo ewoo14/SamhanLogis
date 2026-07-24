@@ -2663,6 +2663,11 @@ button {
   [data-testid='ds-modal-backdrop']:has([data-testid='app-version-minor-detail-modal']) {
     display: none !important;
   }
+  /* PR #921 chore-B: body 직속 Modal portal 이 열린 동안에만 배경 본문을 인쇄에서 뺀다.
+   * .app-main 은 전체 페이지 인쇄 라우트의 컨테이너이므로 상시 no-print 로 만들지 않는다. */
+  body:has([data-testid='ds-modal-backdrop']) .app-main {
+    display: none;
+  }
   .app-shell {
     display: block;
   }
