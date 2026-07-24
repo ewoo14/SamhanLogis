@@ -1,0 +1,166 @@
+
+Running 16 tests using 1 worker
+
+[1A[2K[1/16] playwright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:77:1 › PR921: 문서 모달 인쇄는 .app-main 을 인쇄에서 제외한다
+[1A[2Kplaywright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:77:1 › PR921: 문서 모달 인쇄는 .app-main 을 인쇄에서 제외한다
+[PRINT] app-main display=none rect=0x0 textLength=552
+
+[1A[2K[PDF] document=1p marker=1p
+
+[1A[2K[2/16] playwright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:113:1 › IB-3 회귀 울타리: 모달 없는 배차보드는 정상 인쇄된다
+[1A[2Kplaywright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:113:1 › IB-3 회귀 울타리: 모달 없는 배차보드는 정상 인쇄된다
+[FENCE-2] app-main=block rect=1440x378 textLength=363 PDF=1p marker=2p backdrop=0
+
+[1A[2K[3/16] playwright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:132:1 › IB-3 회귀 울타리: 전표 상세 전체 페이지 인쇄 라우트는 불변이다
+[1A[2Kplaywright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:132:1 › IB-3 회귀 울타리: 전표 상세 전체 페이지 인쇄 라우트는 불변이다
+[FENCE-3] dispatch-page visible=true app-main=block rect=1440x1123 PDF=1p backdrop=0
+
+[1A[2K[4/16] playwright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:148:1 › IB-4 회귀 울타리: 문서 양식 편집기 미리보기 인쇄 규칙은 불변이다
+[1A[2Kplaywright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:148:1 › IB-4 회귀 울타리: 문서 양식 편집기 미리보기 인쇄 규칙은 불변이다
+[FENCE-4] app-main=block rect=1440x1123 editor-ui=1 editor-ui-visible=false paper=true PDF=1p backdrop=0
+
+[1A[2K[5/16] playwright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:168:1 › IB-2 회귀 울타리: 업데이트 모달 3종은 계속 인쇄 제외된다 + 배경 문서는 살아있다
+[1A[2Kplaywright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:168:1 › IB-2 회귀 울타리: 업데이트 모달 3종은 계속 인쇄 제외된다 + 배경 문서는 살아있다
+[FENCE-5-CONTROL] app-main=block textLength=102 PDF=1p
+
+[1A[2K[FENCE-5] CRITICAL backdrop=none 0x0 app-main=absent textLength=n/a PDF=1p (control=1p)
+
+[1A[2K[FENCE-5] MAJOR backdrop=none 0x0 app-main=block textLength=102 PDF=1p (control=1p)
+
+[1A[2K[FENCE-5] MINOR backdrop=none 0x0 app-main=block textLength=102 PDF=1p (control=1p)
+
+[1A[2K[6/16] playwright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:221:1 › 허용 edge: 비문서 차량 추가 모달은 모달만 인쇄되고 배경은 차폐된다
+[1A[2Kplaywright\choreb-modal-print-background-real-qa\choreb-modal-print-background-real-qa.spec.ts:221:1 › 허용 edge: 비문서 차량 추가 모달은 모달만 인쇄되고 배경은 차폐된다
+[FENCE-6] dialog=true backdrop=flex 1440x900 app-main=none rect=0x0 PDF=1p
+
+[1A[2K[7/16] playwright\choreb-sonnet-r1-real-qa\choreb-sonnet-r1-real-qa.spec.ts:110:3 › fence-3 매트릭스 [statement]: 4 모달상태(없음/업데이트/공지/일반) × 인쇄 산출물 대조군 비교
+[1A[2Kplaywright\choreb-sonnet-r1-real-qa\choreb-sonnet-r1-real-qa.spec.ts:110:3 › fence-3 매트릭스 [statement]: 4 모달상태(없음/업데이트/공지/일반) × 인쇄 산출물 대조군 비교
+[MATRIX-statement] anchorTextSample="SAMSUNG
+거래명세서
+주식회사 윌리-정현수貴 中
+공
+급
+자	일련번호	" noticeBackdropCount=1
+
+[1A[2K[MATRIX-statement][no-modal(control)] app-main=block textLength=597 pdf=65833B/1p
+
+[1A[2K[MATRIX-statement][generic-modal] app-main=block textLength=597 pdf=77790B/2p
+
+[1A[2K[MATRIX-statement][update-modal(MAJOR)] app-main=block textLength=597 pdf=65833B/1p
+
+[1A[2K[MATRIX-statement][notice-modal] app-main=block textLength=597 pdf=65833B/1p
+
+[1A[2K[8/16] playwright\choreb-sonnet-r1-real-qa\choreb-sonnet-r1-real-qa.spec.ts:110:3 › fence-3 매트릭스 [dispatch]: 4 모달상태(없음/업데이트/공지/일반) × 인쇄 산출물 대조군 비교
+[1A[2Kplaywright\choreb-sonnet-r1-real-qa\choreb-sonnet-r1-real-qa.spec.ts:110:3 › fence-3 매트릭스 [dispatch]: 4 모달상태(없음/업데이트/공지/일반) × 인쇄 산출물 대조군 비교
+[MATRIX-dispatch] anchorTextSample="SAMSUNG
+주식회사 윌리-정현수
+담당부서
+영업1팀
+작성자
+오병승
+출고" noticeBackdropCount=1
+
+[1A[2K[MATRIX-dispatch][no-modal(control)] app-main=block textLength=408 pdf=213798B/1p
+
+[1A[2K[MATRIX-dispatch][generic-modal] app-main=block textLength=408 pdf=225777B/2p
+
+[1A[2K[MATRIX-dispatch][update-modal(MAJOR)] app-main=block textLength=408 pdf=213798B/1p
+
+[1A[2K[MATRIX-dispatch][notice-modal] app-main=block textLength=408 pdf=213798B/1p
+
+[1A[2K[9/16] playwright\choreb-sonnet-r1-real-qa\choreb-sonnet-r1-real-qa.spec.ts:110:3 › fence-3 매트릭스 [purchase]: 4 모달상태(없음/업데이트/공지/일반) × 인쇄 산출물 대조군 비교
+[1A[2Kplaywright\choreb-sonnet-r1-real-qa\choreb-sonnet-r1-real-qa.spec.ts:110:3 › fence-3 매트릭스 [purchase]: 4 모달상태(없음/업데이트/공지/일반) × 인쇄 산출물 대조군 비교
+[MATRIX-purchase] anchorTextSample="(주)삼한공조시스템
+매 입 전 표
+전표번호
+2026/05/04-1
+담당자" noticeBackdropCount=1
+
+[1A[2K[MATRIX-purchase][no-modal(control)] app-main=block textLength=432 pdf=182006B/1p
+
+[1A[2K[MATRIX-purchase][generic-modal] app-main=block textLength=432 pdf=193980B/2p
+
+[1A[2K[MATRIX-purchase][update-modal(MAJOR)] app-main=block textLength=432 pdf=182006B/1p
+
+[1A[2K[MATRIX-purchase][notice-modal] app-main=block textLength=432 pdf=182006B/1p
+
+[1A[2K[10/16] playwright\opusb-print-surface-real-qa\opusb-notice-and-inpage-real-qa.spec.ts:39:1 › N1: 팝업공지 모달이 열린 채 배차지시서 인쇄 라우트 인쇄
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-notice-and-inpage-real-qa.spec.ts:39:1 › N1: 팝업공지 모달이 열린 채 배차지시서 인쇄 라우트 인쇄
+[N1] backdropCount=1
+
+[1A[2K[N1-NOTICE-PRINT] {"appMain":{"display":"block","w":1440,"h":1123},"backdrop":{"display":"none","w":0,"h":0},"bodyText":408} pdf=213798B/1p
+
+[1A[2K[11/16] playwright\opusb-print-surface-real-qa\opusb-notice-and-inpage-real-qa.spec.ts:54:1 › N2 회귀 울타리: 판매조회 검색 모달이 열린 채 일괄 인쇄 경로 — 목록이 계속 인쇄된다 (fence #6)
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-notice-and-inpage-real-qa.spec.ts:54:1 › N2 회귀 울타리: 판매조회 검색 모달이 열린 채 일괄 인쇄 경로 — 목록이 계속 인쇄된다 (fence #6)
+[N2-NO-MODAL] {"appMain":{"display":"block","w":1440,"h":1050},"backdrop":null,"bodyText":2019} pdf=217910B/1p
+
+[1A[2K[N2-SEARCH-MODAL] {"appMain":{"display":"block","w":1440,"h":1050},"backdrop":{"display":"flex","w":1440,"h":900},"bodyText":2070} pdf=316954B/1p
+
+[1A[2K[N2] before=block after=block backdrop=flex
+
+[1A[2K[12/16] playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:76:3 › H1-statement: 업데이트(MAJOR) 모달이 열린 채 전체 페이지 인쇄 라우트를 인쇄하면 백지가 되는가
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:76:3 › H1-statement: 업데이트(MAJOR) 모달이 열린 채 전체 페이지 인쇄 라우트를 인쇄하면 백지가 되는가
+[CONTROL-statement] {"appMain":{"display":"block","w":1440,"h":1123,"text":597},"printPage":null,"dispatchPage":null,"backdrop":null,"bodyText":597}
+
+[1A[2K[WITH-MODAL-statement] {"appMain":{"display":"block","w":1440,"h":1123,"text":597},"printPage":null,"dispatchPage":null,"backdrop":{"display":"none","w":0,"h":0,"text":150},"bodyText":597}
+
+[1A[2K[REVERT921-statement] {"appMain":{"display":"block","w":1440,"h":1123,"text":597},"printPage":null,"dispatchPage":null,"backdrop":{"display":"none","w":0,"h":0,"text":150},"bodyText":597}
+
+[1A[2K[SUMMARY-statement] control=65833B/1p withModal=65833B/1p revert921=65833B/1p
+
+[1A[2K[13/16] playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:76:3 › H1-dispatch: 업데이트(MAJOR) 모달이 열린 채 전체 페이지 인쇄 라우트를 인쇄하면 백지가 되는가
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:76:3 › H1-dispatch: 업데이트(MAJOR) 모달이 열린 채 전체 페이지 인쇄 라우트를 인쇄하면 백지가 되는가
+[CONTROL-dispatch] {"appMain":{"display":"block","w":1440,"h":1123,"text":408},"printPage":null,"dispatchPage":{"display":"block","w":1440,"h":1123,"text":408},"backdrop":null,"bodyText":408}
+
+[1A[2K[WITH-MODAL-dispatch] {"appMain":{"display":"block","w":1440,"h":1123,"text":408},"printPage":null,"dispatchPage":{"display":"block","w":1440,"h":1123,"text":408},"backdrop":{"display":"none","w":0,"h":0,"text":150},"bodyText":408}
+
+[1A[2K[REVERT921-dispatch] {"appMain":{"display":"block","w":1440,"h":1123,"text":408},"printPage":null,"dispatchPage":{"display":"block","w":1440,"h":1123,"text":408},"backdrop":{"display":"none","w":0,"h":0,"text":150},"bodyText":408}
+
+[1A[2K[SUMMARY-dispatch] control=213798B/1p withModal=213798B/1p revert921=213798B/1p
+
+[1A[2K[14/16] playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:76:3 › H1-purchase: 업데이트(MAJOR) 모달이 열린 채 전체 페이지 인쇄 라우트를 인쇄하면 백지가 되는가
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:76:3 › H1-purchase: 업데이트(MAJOR) 모달이 열린 채 전체 페이지 인쇄 라우트를 인쇄하면 백지가 되는가
+[CONTROL-purchase] {"appMain":{"display":"block","w":1440,"h":1123,"text":432},"printPage":null,"dispatchPage":null,"backdrop":null,"bodyText":432}
+
+[1A[2K[WITH-MODAL-purchase] {"appMain":{"display":"block","w":1440,"h":1123,"text":432},"printPage":null,"dispatchPage":null,"backdrop":{"display":"none","w":0,"h":0,"text":150},"bodyText":432}
+
+[1A[2K[REVERT921-purchase] {"appMain":{"display":"block","w":1440,"h":1123,"text":432},"printPage":null,"dispatchPage":null,"backdrop":{"display":"none","w":0,"h":0,"text":150},"bodyText":432}
+
+[1A[2K[SUMMARY-purchase] control=181869B/1p withModal=181869B/1p revert921=181869B/1p
+
+[1A[2K[15/16] playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:124:1 › H1-minor: MINOR 상세 모달이 열린 채 인쇄 라우트를 인쇄하면
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:124:1 › H1-minor: MINOR 상세 모달이 열린 채 인쇄 라우트를 인쇄하면
+[MINOR-BANNER-ONLY] {"appMain":{"display":"block","w":1440,"h":1123,"text":408},"printPage":null,"dispatchPage":{"display":"block","w":1440,"h":1123,"text":408},"backdrop":null,"bodyText":408}
+
+[1A[2K[MINOR-CONTROL-PDF] 213798B/1p
+
+[1A[2K[MINOR-DETAIL-OPEN] {"appMain":{"display":"block","w":1440,"h":1123,"text":408},"printPage":null,"dispatchPage":{"display":"block","w":1440,"h":1123,"text":408},"backdrop":{"display":"none","w":0,"h":0,"text":60},"bodyText":408}
+
+[1A[2K[SUMMARY-minor] bannerOnly.appMain=block withDetail.appMain=block pdf=213798B/1p
+
+[1A[2K[16/16] playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:156:1 › H3: SlipDetailModal 문서가 인쇄에서 잘리지 않는가(모달 max-height/overflow)
+[1A[2Kplaywright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:156:1 › H3: SlipDetailModal 문서가 인쇄에서 잘리지 않는가(모달 max-height/overflow)
+[H3] {"docRect":{"w":651,"h":1112,"scrollH":1123},"dialogRect":{"w":1070,"h":860,"scrollH":868,"maxH":"868px"},"firstBodyTag":"_header_15h84_32","clippedScroller":{"cls":"_body_15h84_55","clientH":721,"scrollH":1222}} pdf=348219B/1p
+
+[1A[2K  1) playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:156:1 › H3: SlipDetailModal 문서가 인쇄에서 잘리지 않는가(모달 max-height/overflow) 
+
+    Error: H3: 모달 내부 스크롤러가 인쇄에서 문서를 자른다 — {"cls":"_body_15h84_55","clientH":721,"scrollH":1222}
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBeNull[2m()[22m
+
+    Received: [31m{"clientH": 721, "cls": "_body_15h84_55", "scrollH": 1222}[39m
+
+      188 |   console.log(`[H3] ${JSON.stringify(geom)} pdf=${pdf.bytes}B/${pdf.pages}p`)
+      189 |
+    > 190 |   expect(geom.clippedScroller, `H3: 모달 내부 스크롤러가 인쇄에서 문서를 자른다 — ${JSON.stringify(geom.clippedScroller)}`).toBeNull()
+          |                                                                                                          ^
+      191 | })
+      192 |
+        at D:\dev\Samhan-Public\.claude\worktrees\907-merge\clients\desktop\playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:190:106
+
+    Error Context: test-results\opusb-print-surface-real-q-e504a-않는가-모달-max-height-overflow-\error-context.md
+
+
+[1A[2K  1 failed
+    playwright\opusb-print-surface-real-qa\opusb-print-surface-real-qa.spec.ts:156:1 › H3: SlipDetailModal 문서가 인쇄에서 잘리지 않는가(모달 max-height/overflow) 
+  15 passed (34.5s)

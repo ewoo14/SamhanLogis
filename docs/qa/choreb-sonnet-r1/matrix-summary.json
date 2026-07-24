@@ -1,0 +1,86 @@
+[
+  {
+    "state": "statement:no-modal(control)",
+    "appMainDisplay": "block",
+    "textLength": 597,
+    "bytes": 65833,
+    "pages": 1
+  },
+  {
+    "state": "statement:generic-modal",
+    "appMainDisplay": "block",
+    "textLength": 597,
+    "bytes": 77790,
+    "pages": 2
+  },
+  {
+    "state": "statement:update-modal(MAJOR)",
+    "appMainDisplay": "block",
+    "textLength": 597,
+    "bytes": 65833,
+    "pages": 1
+  },
+  {
+    "state": "statement:notice-modal",
+    "appMainDisplay": "block",
+    "textLength": 597,
+    "bytes": 65833,
+    "pages": 1
+  },
+  {
+    "state": "dispatch:no-modal(control)",
+    "appMainDisplay": "block",
+    "textLength": 408,
+    "bytes": 213798,
+    "pages": 1
+  },
+  {
+    "state": "dispatch:generic-modal",
+    "appMainDisplay": "block",
+    "textLength": 408,
+    "bytes": 225777,
+    "pages": 2
+  },
+  {
+    "state": "dispatch:update-modal(MAJOR)",
+    "appMainDisplay": "block",
+    "textLength": 408,
+    "bytes": 213798,
+    "pages": 1
+  },
+  {
+    "state": "dispatch:notice-modal",
+    "appMainDisplay": "block",
+    "textLength": 408,
+    "bytes": 213798,
+    "pages": 1
+  },
+  {
+    "state": "purchase:no-modal(control)",
+    "appMainDisplay": "block",
+    "textLength": 432,
+    "bytes": 182006,
+    "pages": 1
+  },
+  {
+    "state": "purchase:generic-modal",
+    "appMainDisplay": "block",
+    "textLength": 432,
+    "bytes": 193980,
+    "pages": 2
+  },
+  {
+    "state": "purchase:update-modal(MAJOR)",
+    "appMainDisplay": "block",
+    "textLength": 432,
+    "bytes": 182006,
+    "pages": 1
+  },
+  {
+    "state": "purchase:notice-modal",
+    "appMainDisplay": "block",
+    "textLength": 432,
+    "bytes": 182006,
+    "pages": 1
+  }
+]

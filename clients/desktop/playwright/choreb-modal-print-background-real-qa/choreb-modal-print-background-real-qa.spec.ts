@@ -165,7 +165,20 @@ test('IB-4 회귀 울타리: 문서 양식 편집기 미리보기 인쇄 규칙�
   await expect(paper, 'IB-4: 문서 양식 미리보기 paper 가 print 에서 사라졌다').toBeVisible()
 })
 
-test('IB-2 회귀 울타리: 업데이트 모달 3종은 계속 인쇄 제외된다', async ({ page }) => {
+test('IB-2 회귀 울타리: 업데이트 모달 3종은 계속 인쇄 제외된다 + 배경 문서는 살아있다', async ({ page }) => {
+  // SONNET5 R1 — 직전 라운드의 이 펜스는 backdrop.display==='none' 만 단언해 지면이 통째로
+  // 빈 것(R-1)을 통과시켰다(PM 지적). 대조군(모달 없는 루트 라우트 인쇄)을 먼저 찍어 MAJOR/MINOR
+  // 케이스의 .app-main 상태·PDF 바이트를 그 대조군과 직접 비교한다.
+  await page.goto(`${BASE_URL}/#/?mockRole=MASTER`, { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('.app-main')).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(500)
+  await page.emulateMedia({ media: 'print' })
+  const control = await appMainPrintState(page)
+  const controlPages = await savePrintPdf(page, '50-update-control-no-modal.pdf')
+  await page.emulateMedia({ media: 'screen' })
+  console.log(`[FENCE-5-CONTROL] app-main=${control?.display} textLength=${control?.textLength} PDF=${controlPages}p`)
+  expect(control?.display, '대조군(모달 없음) .app-main 이 이미 숨겨져 있다').not.toBe('none')
+
   const cases = [
     { force: 'CRITICAL', testId: 'app-version-blocking-modal', shot: '51-update-critical' },
     { force: 'MAJOR', testId: 'app-version-recommend-modal', shot: '52-update-major' },
@@ -191,9 +204,16 @@ test('IB-2 회귀 울타리: 업데이트 모달 3종은 계속 인쇄 제외된
     const state = await appMainPrintState(page)
     const pages = await savePrintPdf(page, `${item.shot}-after.pdf`)
     await page.screenshot({ path: path.join(SHOTS, `${item.shot}-after-print-media.png`), fullPage: false })
-    console.log(`[FENCE-5] ${item.force} backdrop=${backdropState.display} ${backdropState.width}x${backdropState.height} app-main=${state?.display ?? 'absent'} PDF=${pages}p`)
+    console.log(`[FENCE-5] ${item.force} backdrop=${backdropState.display} ${backdropState.width}x${backdropState.height} app-main=${state?.display ?? 'absent'} textLength=${state?.textLength ?? 'n/a'} PDF=${pages}p (control=${controlPages}p)`)
 
     expect(backdropState.display, `${item.force}: 업데이트 모달 backdrop 이 print 에 노출됐다`).toBe('none')
+    // CRITICAL(blocking) 은 children 을 렌더하지 않아 .app-main 자체가 없다 — 설계상 정상(U-3).
+    // MAJOR/MINOR 는 children 을 배경으로 계속 렌더하므로 .app-main 이 인쇄에서 살아있어야 한다(I-2).
+    if (item.force !== 'CRITICAL') {
+      expect(state?.display, `${item.force}: 배경 .app-main 이 인쇄에서 사라져 백지가 된다(R-1 재발)`).not.toBe('none')
+      expect(state?.textLength ?? 0, `${item.force}: 배경 .app-main 텍스트가 비어 있다`).toBeGreaterThan(0)
+      expect(pages, `${item.force}: 대조군 대비 인쇄 산출물이 사라졌다`).toBe(controlPages)
+    }
     await page.emulateMedia({ media: 'screen' })
   }
 })
