@@ -200,7 +200,13 @@ public class PartnerLookupClient {
      * @return partnerId → PartnerSummary Map
      */
     public Map<UUID, PartnerSummary> findByPartnerIdsBatch(List<UUID> partnerIds) {
-        return findByPartnerIdsBatchResult(partnerIds).partners();
+        BatchLookupResult result = findByPartnerIdsBatchResult(partnerIds);
+        if (result == null || result.isUnavailable()) {
+            // 구 Map API도 장애 상태를 빈 맵으로 위장하지 않는다. 이 API는 표시명
+            // enrichment 전용 소비처 12곳이 공통으로 사용하므로 502 fail-closed가 맞다.
+            throw PartnerLookupSupport.unavailable();
+        }
+        return result.partners();
     }
 
     /**
@@ -437,10 +443,14 @@ public class PartnerLookupClient {
                 String address = textOrNull(partner, "address");
                 BigDecimal creditLimit = decimalOrNull(partner, "creditLimit");
                 String status = textOrNull(partner, "status");
-                if (id != null && (partnerCode != null || name != null)) {
-                    result.put(id, new PartnerSummary(id, partnerCode, name, businessNo, address,
-                            creditLimit, status));
+                if (id == null || (partnerCode == null && name == null)) {
+                    // 배열에 원소가 존재하는데 필수 식별/표시 필드가 손상된 것은 정상
+                    // 미존재(요청 id가 배열에서 누락)와 다르다. 전체 응답을 장애로 승격한다.
+                    log.warn("PartnerLookupClient batch response 구조손상 — 필수 partner 필드 누락");
+                    return BatchLookupResult.unavailable();
                 }
+                result.put(id, new PartnerSummary(id, partnerCode, name, businessNo, address,
+                        creditLimit, status));
             }
             // partners 가 빈 배열([])인 것은 요청한 id 가 하나도 매칭되지 않은 정상 응답이다
             // (삭제/미존재 거래처 혼재) — UNAVAILABLE 이 아니라 FOUND(부분/빈 맵)로 유지한다.

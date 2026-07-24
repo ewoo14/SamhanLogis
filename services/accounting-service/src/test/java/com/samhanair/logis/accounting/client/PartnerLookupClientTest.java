@@ -275,6 +275,34 @@ class PartnerLookupClientTest {
         server.verify();
     }
 
+    @Test
+    void findByPartnerIdsBatch_5xx는_빈맵이_아닌_502로_fail_closed한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> client.findByPartnerIdsBatch(List.of(PARTNER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE));
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatch_timeout도_빈맵이_아닌_502로_fail_closed한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withException(new IOException("connection timed out")));
+
+        assertThatThrownBy(() -> client.findByPartnerIdsBatch(List.of(PARTNER_ID)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE));
+        server.verify();
+    }
+
     // --- #831 B군 — findByPartnerIdsBatchResult 3분류 (findByPartnerIdsBatch 미승격 회귀 가드) ---
 
     @Test
@@ -328,5 +356,44 @@ class PartnerLookupClientTest {
         assertThat(result.status()).isEqualTo(PartnerLookupClient.LookupStatus.FOUND);
         assertThat(result.partners()).isEmpty();
         server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatchResult는_배열_내_id_누락_원소를_UNAVAILABLE로_승격한다() {
+        expectBatchResponse("""
+                {"success":true,"data":{"partners":[{"partnerCode":"P-BROKEN","name":"손상거래처"}]}}
+                """);
+
+        assertThat(client.findByPartnerIdsBatchResult(List.of(PARTNER_ID)).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatchResult는_배열_내_UUID_손상_원소를_UNAVAILABLE로_승격한다() {
+        expectBatchResponse("""
+                {"success":true,"data":{"partners":[{"id":"not-a-uuid","partnerCode":"P-BROKEN"}]}}
+                """);
+
+        assertThat(client.findByPartnerIdsBatchResult(List.of(PARTNER_ID)).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    @Test
+    void findByPartnerIdsBatchResult는_배열_내_partnerCode와_name_동시결손을_UNAVAILABLE로_승격한다() {
+        expectBatchResponse("""
+                {"success":true,"data":{"partners":[{"id":"11111111-1111-1111-1111-111111111111"}]}}
+                """);
+
+        assertThat(client.findByPartnerIdsBatchResult(List.of(PARTNER_ID)).status())
+                .isEqualTo(PartnerLookupClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
+    private void expectBatchResponse(String body) {
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 }

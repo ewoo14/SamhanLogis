@@ -1,15 +1,23 @@
 package com.samhanair.logis.accounting.report;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
 import java.lang.reflect.RecordComponent;
 import java.time.LocalDate;
@@ -26,6 +34,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 /**
  * PartnerAgingService 단위 테스트.
@@ -205,6 +217,27 @@ class PartnerAgingServiceTest {
         assertThat(lineC.bizNo()).isEqualTo("");
         assertThat(lineC.partnerCode()).isNotEqualTo(partnerC.toString());
         assertThat(lineC.partnerName()).isEqualTo("(미조회)");
+    }
+
+    @Test
+    @DisplayName("partner-service 5xx — 대표 구 Map 소비처도 빈 맵 200 대신 502 fail-closed")
+    void findReceivable_partnerServiceUnavailable_returns502() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        InternalAuthProperties props = new InternalAuthProperties();
+        props.setToken("test-token");
+        PartnerLookupClient realClient = new PartnerLookupClient(builder, props, new ObjectMapper());
+        PartnerAgingService service = new PartnerAgingService(journalLineRepository, realClient);
+
+        server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> service.findReceivable(AS_OF))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE));
+        server.verify();
     }
 
     // ── fixture 헬퍼 ──
