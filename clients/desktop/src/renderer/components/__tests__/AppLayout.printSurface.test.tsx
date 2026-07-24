@@ -60,8 +60,11 @@ function renderAt(pathname: string) {
           <Route path="sales" element={<div>판매관리 화면</div>} />
           <Route path="sales/query" element={<div>판매조회 화면(별칭)</div>} />
           <Route path="sales/closing" element={<div>매출마감 화면</div>} />
+          <Route path="sales/link-dispatch" element={<div>배차 연결 화면</div>} />
+          <Route path="sales/new" element={<div>판매 신규 화면</div>} />
           <Route path="purchases" element={<div>구매관리 화면</div>} />
           <Route path="purchases/query" element={<div>구매조회 화면(별칭)</div>} />
+          <Route path="purchases/xxx" element={<div>구매 자식 화면</div>} />
           <Route path="sales/:id/print/statement" element={<div>거래명세서 인쇄 화면</div>} />
         </Route>
       </Routes>
@@ -100,13 +103,30 @@ describe('AppLayout isPrintSurfacePath — PR #921 SOL 2차 B-1', () => {
     expect(isPrintSurface()).toBe(true)
   })
 
-  test('과잉 방지 — /sales/closing(회계, 타 그룹 자식)은 인쇄 표면이 아니다(exact 매칭)', () => {
-    renderAt('/sales/closing')
-    expect(isPrintSurface(), '/sales/closing 이 prefix 과매칭으로 인쇄 표면이 됐다').toBe(false)
+  test.each([
+    ['/sales/', '판매관리 trailing slash'],
+    ['/Sales', '판매관리 대소문자 변형'],
+    ['/sales/query/', '판매조회 별칭 trailing slash'],
+    ['/PURCHASES/', '구매관리 대소문자·trailing slash'],
+    ['/purchases/query/', '구매조회 별칭 trailing slash'],
+  ])('%s 는 React Router 동등 경로이므로 인쇄 표면이다 — %s', (pathname) => {
+    renderAt(pathname)
+    expect(isPrintSurface(), `${pathname} 동등 경로가 인쇄 표면으로 판정되지 않았다`).toBe(true)
   })
 
-  test('불변 — 전체 페이지 인쇄 라우트(/print/ 세그먼트)는 여전히 인쇄 표면이다', () => {
-    renderAt('/sales/slip-1/print/statement')
+  test.each([
+    ['/sales/closing', '회계 자식 화면'],
+    ['/sales/link-dispatch', '그룹웨어 자식 화면'],
+    ['/sales/new', '판매 신규 화면'],
+    ['/purchases/xxx', '구매 자식 화면'],
+  ])('과잉 방지 — %s 는 인쇄 표면이 아니다(%s, exact 매칭)', (pathname) => {
+    renderAt(pathname)
+    expect(isPrintSurface(), `${pathname} 이 prefix 과매칭으로 인쇄 표면이 됐다`).toBe(false)
+  })
+
+  test.each(['/sales/slip-1/print/statement', '/sales/slip-1/Print/statement'])
+  ('불변 — 전체 페이지 인쇄 라우트(/print/ 세그먼트)는 여전히 인쇄 표면이다: %s', (pathname) => {
+    renderAt(pathname)
     expect(isPrintSurface()).toBe(true)
   })
 })

@@ -210,17 +210,22 @@ function pageCodeForPath(pathname: string): { pageCode: string; label: string } 
  * 별칭과 동일 컴포넌트를 렌더)다. 이 둘이 누락돼 기본 메뉴 경로에서 검색 모달을 열고 인쇄하면
  * 목록이 차폐됐다. `/sales/closing`(회계)·`/sales/link-dispatch`(그룹웨어) 같은 타 그룹 자식
  * 경로까지 인쇄 표면으로 오판하지 않도록 prefix 가 아닌 **exact 매칭**만 추가한다.
+ * PR #921 chore-B CODEX LUNA 5.6 B-2 — React Router 와 같은 화면으로 해석되는 trailing slash·
+ * 대소문자 변형도 같은 exact 경로로 판정하도록 비교 전에 정규화한다. 자식 경로는 정규화 후에도
+ * 허용 목록과 exact 일치하지 않으므로 계속 제외된다.
  */
 function isPrintSurfacePath(pathname: string): boolean {
+  const normalizedPathname = pathname.replace(/\/$/, '').toLowerCase()
+
   if (
-    pathname === '/sales' ||
-    pathname === '/sales/query' ||
-    pathname === '/purchases' ||
-    pathname === '/purchases/query'
+    normalizedPathname === '/sales' ||
+    normalizedPathname === '/sales/query' ||
+    normalizedPathname === '/purchases' ||
+    normalizedPathname === '/purchases/query'
   ) {
     return true
   }
-  return /(^|\/)print(\/|$)/.test(pathname)
+  return /(^|\/)print(\/|$)/.test(normalizedPathname)
 }
 
 /**
