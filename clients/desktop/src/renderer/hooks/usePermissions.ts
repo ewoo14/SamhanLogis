@@ -14,7 +14,7 @@
  * 네트워크 요청 중복 없음.
  */
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   fetchMyPermissions,
   normalizePermissionAction,
@@ -23,6 +23,9 @@ import {
   type PageCode,
   type PermissionLookupAction,
 } from '../api/permissionsApi'
+
+const PERMISSIONS_QUERY_KEY = ['permissions', 'my'] as const
+const PERMISSIONS_STALE_TIME = 30 * 1000
 
 export interface UsePermissionsResult {
   /** 권한 보유 여부 동기 확인. 로딩 중이면 false (보수적 deny). */
@@ -42,13 +45,28 @@ export interface UsePermissionsResult {
  * BE 가 역할별 기본 매트릭스를 반환하므로 FE 추가 처리 불필요.
  */
 export function usePermissions(): UsePermissionsResult {
+  const queryClient = useQueryClient()
   const query = useQuery({
-    queryKey: ['permissions', 'my'],
+    queryKey: PERMISSIONS_QUERY_KEY,
     queryFn: fetchMyPermissions,
-    staleTime: 30 * 1000,
+    staleTime: PERMISSIONS_STALE_TIME,
     refetchOnWindowFocus: true,
     retry: 1,
   })
+
+  // TanStack Query 5.100.9의 기본 focusManager는 visibilitychange만 구독한다.
+  // Electron의 일반 창 포커스 복귀도 권한 쿼리만 stale 상태에서 재조회한다.
+  useEffect(() => {
+    const refetchStalePermissions = () => {
+      const permissionsQuery = queryClient.getQueryCache().find({ queryKey: PERMISSIONS_QUERY_KEY })
+      if (permissionsQuery?.isStaleByTime(PERMISSIONS_STALE_TIME)) {
+        void queryClient.refetchQueries({ queryKey: PERMISSIONS_QUERY_KEY, type: 'active' })
+      }
+    }
+
+    window.addEventListener('focus', refetchStalePermissions)
+    return () => window.removeEventListener('focus', refetchStalePermissions)
+  }, [queryClient])
 
   // 캐시 갱신 — 동기 canAccess() 헬퍼를 위해 module-level 캐시에 반영.
   useEffect(() => {

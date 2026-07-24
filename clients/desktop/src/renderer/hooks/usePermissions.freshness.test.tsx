@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import React, { type ReactNode } from 'react'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePermissions } from './usePermissions'
 
 const mocks = vi.hoisted(() => ({
@@ -17,12 +17,20 @@ vi.mock('../api/permissionsApi', () => ({
 }))
 
 afterEach(() => {
-  focusManager.setFocused(true)
+  cleanup()
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  })
   vi.restoreAllMocks()
 })
 
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
 describe('usePermissions freshness', () => {
-  it('30초 후 포커스 복귀 시 권한을 다시 조회한다', async () => {
+  it('30초 후 일반 창 포커스 복귀 시 권한을 다시 조회한다', async () => {
     const originalNow = Date.now()
     const now = vi.spyOn(Date, 'now').mockReturnValue(originalNow)
     mocks.fetchMyPermissions.mockResolvedValue([
@@ -37,13 +45,48 @@ describe('usePermissions freshness', () => {
     renderHook(() => usePermissions(), { wrapper })
     await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(1))
 
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(1)
+
     now.mockReturnValue(originalNow + 30_001)
     act(() => {
-      focusManager.setFocused(false)
-      focusManager.setFocused(true)
+      window.dispatchEvent(new Event('focus'))
     })
 
     await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(2))
     expect(queryClient.getQueryData(['warehouses'])).toEqual([{ code: 'WH-1' }])
+  })
+
+  it('30초 후 visibility 복귀 시 권한을 다시 조회한다', async () => {
+    const originalNow = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(originalNow)
+    mocks.fetchMyPermissions.mockResolvedValue([
+      { pageCode: 'sales.slip.create', actions: ['create'] },
+    ])
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+
+    renderHook(() => usePermissions(), { wrapper })
+    await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(1))
+
+    now.mockReturnValue(originalNow + 30_001)
+    act(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      })
+      window.dispatchEvent(new Event('visibilitychange'))
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      })
+      window.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    await waitFor(() => expect(mocks.fetchMyPermissions).toHaveBeenCalledTimes(2))
   })
 })
