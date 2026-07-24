@@ -8,7 +8,12 @@ import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5430'
-const SHOTS = path.resolve('../../docs/qa/choreb-opus-b')
+// PR #921 chore-B SONNET5 R-3 — AUDIT_SHOT_DIR 미지원이 커밋된 docs/qa/choreb-opus-b/ 를
+// 덮어쓰는 함정이었다(다른 라운드에서 44개 산출물 덮어쓴 전례). 형제 스펙과 동일한 fallback
+// 패턴으로 통일 — 지정 없을 때의 기존 기본 경로는 그대로 유지한다.
+const SHOTS = process.env['AUDIT_SHOT_DIR']
+  ? path.resolve(process.env['AUDIT_SHOT_DIR'])
+  : path.resolve('../../docs/qa/choreb-opus-b')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 function pdfPageCount(pdf: Buffer): number {

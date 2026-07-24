@@ -2697,8 +2697,30 @@ button {
   )) .app-main:not(.is-print-surface) {
     display: none;
   }
+  /*
+   * PR #921 chore-B SONNET5 R-3 — .app-shell 의 화면용 min-height:100vh(라인 ~212)가 print 에서도
+   * 살아있으면, .app-main 이 display:none 으로 비어도(위 규칙) .app-shell 자체는 여전히 뷰포트
+   * 높이만큼 공간을 차지한다. design-system Modal 의 backdrop 을 이 라운드에서 position:fixed →
+   * static 으로 바꾸면서(인쇄 프래그멘테이션 확보 목적) 모달(body 직속 portal, .app-shell 의
+   * 뒤 형제)이 처음으로 "일반 문서 흐름" 에 놓이게 됐고, 그 결과 .app-shell 이 남긴 빈 100vh 만큼
+   * 문서 인쇄물 맨 앞에 실제 여백 페이지가 생긴다(실측: backdrop.top=900px, 뷰포트=900px —
+   * .app-shell 높이만큼 그대로 내려앉음). .app-main 콘텐츠 자체는 min-height 의 영향을 받지 않으므로
+   * (전체 페이지 인쇄 라우트는 콘텐츠가 이미 100vh 보다 커 무관, 회귀 울타리로 확인) 인쇄에서는
+   * 0 으로 무해하게 되돌린다.
+   *
+   * ⚠️ 이 fix 만으로는 부족하다(실측 재확인) — `html, body, #root { height: 100% }`(파일 상단
+   * 공통 규칙)가 body 를 100vh 로 정의값을 갖게 만들고, #root(= .app-shell 의 부모)도 그 100% 를
+   * 물려받아 자기 자신은 900px 높이를 유지한다(자식인 .app-shell 이 0 이 돼도 무관 — height:100%
+   * 는 조상의 정의값을 상속하지 min-height 가 아니다). backdrop 은 #root 의 "형제"(body 직속
+   * portal)라 #root 가 차지한 900px 뒤에 그대로 이어 붙는다. 그래서 #root 자체의 height 도
+   * auto 로 되돌려야 사슬이 끊긴다.
+   */
+  html, body, #root {
+    height: auto;
+  }
   .app-shell {
     display: block;
+    min-height: 0;
   }
   .app-main {
     padding: 0;

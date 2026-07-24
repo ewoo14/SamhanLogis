@@ -155,3 +155,50 @@
     padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
   }
 }
+
+/*
+ * PR #921 chore-B SONNET5 라운드 fix (개발책임자 표기 "R-3") — 문서 모달(예: 배차보드
+ * SlipDetailModal) 인쇄 시 하단 잘림(I-5) + 모달 크롬 인쇄 유입(I-6).
+ *
+ * 원인 — 아래 세 속성이 겹쳐 인쇄 시 "현재 스크롤 위치에서 보이는 뷰포트만" 인쇄된다
+ * (RED 실측: modalBody.scrollTop 을 바꾸면 인쇄 PDF 바이트가 달라지고, 문서 끝에
+ * break-before:page 마커를 심어도 인쇄 페이지 수가 늘지 않는다 — 콘텐츠가 정상적인
+ * 블록 흐름 프래그멘테이션에 전혀 참여하지 못한다는 뜻):
+ *   .backdrop position:fixed  — 인쇄 페이지네이션에 정상 참여하지 않는 뷰포트 고정 박스.
+ *   .dialog   max-height:...  — 뷰포트 근사 상한.
+ *   .body     overflow-y:auto — 스크롤 컨테이너. flexbox "automatic minimum size" 규칙상
+ *             overflow 가 visible 이 아닌 flex 자식은 0 까지 축소 가능해져, 위 .dialog
+ *             max-height 상한이 실제 압축(스크롤 가능한 클리핑)으로 바뀐다.
+ *
+ * fix — 인쇄 미디어에서만 세 속성을 해제해 모달 콘텐츠를 일반 블록 흐름으로 되돌린다
+ * (문서 본문(.dispatch-page 등)이 이미 의존하는, 전체 페이지 인쇄 라우트에서 검증된
+ * 프래그멘테이션 경로와 동일). 화면(I-7)은 @media print 밖이라 무영향 — .backdrop 의
+ * display(flex)는 그대로 둔다(다른 Modal 소비처의 비문서 모달 인쇄 회귀 울타리가 이
+ * 값을 전제하므로 최소 변경 원칙상 건드리지 않는다).
+ *
+ * 모달 크롬(제목·설명·✕·닫기 버튼, I-6)은 인쇄 대상이 아니므로 숨긴다. 배경 오버레이는
+ * position:static 전환 + background 제거로 종이에 남지 않는다.
+ */
+@media print {
+  .backdrop {
+    position: static;
+    inset: auto;
+    background: none;
+    padding: 0;
+  }
+
+  .dialog {
+    max-height: none;
+  }
+
+  .header,
+  .description,
+  .footer {
+    display: none;
+  }
+
+  .body {
+    overflow: visible;
+    padding: 0;
+  }
+}
