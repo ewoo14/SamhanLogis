@@ -34,6 +34,7 @@ type SelectionState = {
 }
 
 type Toast = { type: 'error' | 'success'; message: string }
+type ConflictInfo = { latest: CodefImportScope | null; baselineConfirmed: boolean }
 
 interface CodefImportScopeFormProps {
   canCreate: boolean
@@ -200,7 +201,7 @@ export function CodefImportScopeForm({
   const [baseVersion, setBaseVersion] = useState<number | null>(null)
   // 409 충돌 안내용 스냅샷 — 화면 작업 상태(selection/scopeMode/type)를 대체하지 않는
   // 순수 정보성 상태다. baselineConfirmed 는 F4 판정에 쓰인다(아래 onError 참조).
-  const [conflictInfo, setConflictInfo] = useState<{ latest: CodefImportScope; baselineConfirmed: boolean } | null>(null)
+  const [conflictInfo, setConflictInfo] = useState<ConflictInfo | null>(null)
   const [result, setResult] = useState<CodefImportResponse | null>(null)
   const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const queryClient = useQueryClient()
@@ -221,6 +222,10 @@ export function CodefImportScopeForm({
     queryKey: ['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID],
     queryFn: () => loadCodefImportScope(DEFAULT_CONNECTED_ID),
     retry: false,
+    // 전역 QueryClient 는 5분 캐시를 사용하지만, 이 값은 낙관적 잠금의 저장 기준이다.
+    // 화면에 다시 들어올 때 캐시의 과거 version 을 저장 기준으로 재사용하지 않는다.
+    staleTime: 0,
+    refetchOnMount: 'always',
   })
 
   const accounts = accountsQuery.data ?? []
@@ -236,7 +241,10 @@ export function CodefImportScopeForm({
   }, [scopeQuery.data])
 
   useEffect(() => {
-    if (!scopeQuery.data || !loadedScopeSelection || restoredApplied) return
+    // 재진입 시 fresh 캐시가 먼저 보이더라도, 이번 mount에서 완료된 GET 결과만 기준으로
+    // 복원한다. cached v0 을 먼저 복원하고 isFetchedAfterMount 가 true가 되기 전에는
+    // 저장을 열지 않아 v1을 놓치지 않는다.
+    if (!scopeQuery.data || !loadedScopeSelection || restoredApplied || !scopeQuery.isFetchedAfterMount) return
     // #825 슬5 R1(H-4) — refs 배열의 비어있음이 아니라 scopeMode 3-상태(null=미저장·ALL·
     // SELECTED)로 복원을 분기한다. refs=[] 는 ALL 저장에서도 나타나는 정상 표현이라(D-S5-02),
     // 종전처럼 refs 비어있음만으로 '미저장'을 추정하면 ALL 로 저장한 뒤 재방문 시 '미선택'으로
@@ -257,7 +265,7 @@ export function CodefImportScopeForm({
     setSelection(savedMode === 'SELECTED' ? loadedScopeSelection : EMPTY_SELECTION)
     setSelectionDirty(false)
     setRestoredApplied(true)
-  }, [loadedScopeSelection, restoredApplied, scopeQuery.data])
+  }, [loadedScopeSelection, restoredApplied, scopeQuery.data, scopeQuery.isFetchedAfterMount])
 
   const categories = useMemo(() => ([
     {
@@ -492,7 +500,9 @@ export function CodefImportScopeForm({
         } catch (reloadError) {
           // F5 — 재조회가 실패해도 "저장이 거부됐다"는 사실은 반드시 먼저 전달한다(K4).
           // errorMessage 가 이제 axios 원문(영문)을 새지 않으므로 원인 상세를 이어 붙여도
-          // 한국어 의무를 어기지 않는다.
+          // 한국어 의무를 어기지 않는다. 이전 충돌의 서버 스냅샷은 최신이라고 말할 수 없으므로
+          // latest=null 로 교체한다(L1).
+          setConflictInfo({ latest: null, baselineConfirmed })
           onToast({
             type: 'error',
             message: `${headline} 최신 선택 확인에 실패했습니다 — ${errorMessage(reloadError, '원인을 알 수 없습니다.')} 방금 선택한 항목은 화면에 그대로 남아 있습니다.`,
@@ -544,11 +554,15 @@ export function CodefImportScopeForm({
       : null
   const allScopeLocksItems = scopeMode === 'ALL'
   const importSelectionReady = scopeMode !== 'SELECTED' || selectedCount(effectiveSelection(false)) > 0
-  const canSave = canUpdate
+  const canSaveWithoutConflict = canUpdate
     && scopeMode !== null
     && !restoredSelectionInvalid
     && !listsLoading
+    && !scopeQuery.isFetching
     && !saveMutation.isPending
+  // 충돌 후 일반 저장은 서버의 상대 선택을 알리지 않고 지울 수 있다. 배너의 명시 버튼만
+  // 같은 화면 선택으로 다시 저장하게 해 K1(화면 선택 보존)과 K5(명시적 재저장 경로)를 함께 지킨다.
+  const canSave = canSaveWithoutConflict && !conflictInfo
   const canImport = canCreate
     && scopeMode !== null
     && importSelectionReady
@@ -650,8 +664,28 @@ export function CodefImportScopeForm({
           {conflictInfo.baselineConfirmed
             ? '다른 화면에서 가져오기 선택이 변경되었습니다. 저장이 거부되었습니다.'
             : '저장 전 서버의 기존 선택을 확인하지 못했습니다. 이미 저장된 선택이 있어 저장이 거부되었습니다.'}
-          {describeConflictSelection(conflictInfo.latest, itemLabelByRef)}
-          {' 방금 선택한 항목은 화면에 그대로 남아 있습니다. 필요하면 다시 확인한 뒤 저장하세요.'}
+          {conflictInfo.latest ? (
+            <>
+              {describeConflictSelection(conflictInfo.latest, itemLabelByRef)}
+              {' 현재 화면에 없는 서버 선택 항목은 저장하면 지워질 수 있습니다. 이 결과를 확인한 뒤 명시적으로 진행하세요.'}
+            </>
+          ) : (
+            ' 최신 선택을 확인하지 못했습니다. 서버에 있는 항목을 모른 채 저장하면 삭제될 수 있으므로 최신 상태를 확인한 뒤 진행하세요.'
+          )}
+          {' 방금 선택한 항목은 화면에 그대로 남아 있습니다.'}
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={!canSaveWithoutConflict}
+            onClick={() => saveMutation.mutate()}
+            data-testid="codef-scope-overwrite-button"
+          >
+            {saveMutation.isPending
+              ? '다시 저장 중'
+              : conflictInfo.latest
+                ? '현재 화면 선택으로 덮어쓰기'
+                : '현재 화면 선택으로 다시 저장'}
+          </Button>
         </div>
       ) : null}
       {restoredScope && !selectionDirty && !conflictInfo ? (
