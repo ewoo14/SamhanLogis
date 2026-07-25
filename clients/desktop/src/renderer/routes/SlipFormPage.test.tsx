@@ -954,15 +954,96 @@ describe('SlipFormPage 라인 입력 안내/증식 — #902 R2 결함 회귀 가
     expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('true')
   })
 
-  // D8·H7: 모바일 수량 입력은 소수점 등 비정수 문자를 제거해 정수만 상태에 반영한다.
-  // (BE CreateSlipRequest.SlipLineRequest.quantity 는 @Positive Integer — 소수는 절사/400.)
-  it('D8·H7: 모바일 수량 입력에서 소수점은 제거되고 자릿수만 남는다', () => {
+  // H7′(개발책임자 회귀 지시 — #902 R3 S5, H7 대체): 종전 D8 fix 는 "2.7"→"27"(10배
+  // 오주문)처럼 자릿수를 재조합해 사용자가 의도하지 않은 다른 수량을 조용히 만들었다.
+  // 전체 문자열이 순수 자연수(빈 값 포함)가 아니면 이 입력 자체를 반영하지 않는다.
+  it.each(['2.7', '0.5', '-3', '1e3'])('H7′: 모바일 수량 입력 "%s" 은 반영되지 않고 이전 값을 유지한다', (raw) => {
+    renderMobilePage()
+    const qty = screen.getByLabelText('라인 1 수량') as HTMLInputElement
+    expect(qty.value).toBe('1')
+
+    fireEvent.change(qty, { target: { value: raw } })
+
+    expect(qty.value).toBe('1')
+  })
+
+  it('H7′: 모바일 수량 입력 "12"는 그대로 반영된다(정상 경로 무회귀)', () => {
     renderMobilePage()
     const qty = screen.getByLabelText('라인 1 수량') as HTMLInputElement
 
-    fireEvent.change(qty, { target: { value: '2.7' } })
+    fireEvent.change(qty, { target: { value: '12' } })
 
-    expect(qty.value).toBe('27')
+    expect(qty.value).toBe('12')
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// #902 R3 — 개발책임자 직접 발견 회귀(모바일 표면): SlipMobileLineCard 는 LineRow 와 동일한
+// "excludedFromSave 면 무조건 0" 패턴을 자체 보유한다(design-system mock 밖의 실제 코드라
+// 이 파일에서만 재현 가능). 데스크톱(LineRow.test.tsx)과 동일한 회귀·수정을 검증한다.
+// ────────────────────────────────────────────────────────────────────────────
+describe('SlipFormPage 모바일 라인 카드 #902 R3 회귀 가드 — 제외 행에서도 입력한 금액은 남는다(H6′·H8)', () => {
+  it('H6′·H8: 품목 미선택 모바일 행도 공급가액 입력값이 화면에 남는다', () => {
+    renderMobilePage()
+    // (모바일 카드는 데스크톱 mock LineRow 의 data-testid="line-N"/data-excluded-from-save
+    // 를 갖지 않는다 — SlipMobileLineCard 는 실제 코드라 이 파일에서 mock 되지 않는다.
+    // 신규 페이지의 1행은 품목 미선택 상태라 excludedFromSave=true 임이 이미 전제된다.)
+    const supply = screen.getByLabelText('라인 1 공급가액') as HTMLInputElement
+
+    fireEvent.change(supply, { target: { value: '12345' } })
+
+    expect(supply.value).toBe('12,345')
+  })
+
+  it('H6′·H8: 수량 0 모바일 행도 부가세 입력값이 화면에 남는다', async () => {
+    renderMobilePage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    // 모바일 카드는 데스크톱 mock LineRow 의 data-testid="product-name-N" 을 갖지 않는다
+    // (SlipMobileLineCard 는 실제 코드 — 품목명은 일반 텍스트로만 렌더).
+    await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
+
+    const vat = screen.getByLabelText('라인 1 부가세') as HTMLInputElement
+    fireEvent.change(vat, { target: { value: '999' } })
+
+    expect(vat.value).toBe('999')
+  })
+
+  it('H6′·H8: 수량 0 모바일 행도 합계(VAT포함) 입력값이 화면에 남는다', async () => {
+    renderMobilePage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    // 모바일 카드는 데스크톱 mock LineRow 의 data-testid="product-name-N" 을 갖지 않는다
+    // (SlipMobileLineCard 는 실제 코드 — 품목명은 일반 텍스트로만 렌더).
+    await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
+
+    const total = screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement
+    fireEvent.change(total, { target: { value: '54321' } })
+
+    expect(total.value).toBe('54,321')
+  })
+
+  // H9 회귀 가드(모바일): 품목 선택 + 수량 0 이고, 금액 칸을 직접 편집한 적 없는 행은
+  // "수량 1로 클램프 계산된" 가짜 합계를 보여주면 안 된다(원래 D7 모순 — 모바일 표면).
+  it('H9(모바일): 품목 선택 + 수량 0 이고 금액을 직접 편집하지 않은 행은 합계가 0이다', async () => {
+    renderMobilePage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
+
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('0')
+  })
+
+  // H8 확장(모바일): 품목 미선택이라도 수량이 유효(기본값 1)하고 단가만 입력했다면 —
+  // 클램프가 왜곡한 게 없으므로 — 합계를 그대로 보여준다(이카운트 방식 "금액 먼저" 흐름).
+  it('H8 확장(모바일): 품목 미선택이라도 수량 유효 + 단가 입력 행은 합계를 보여준다', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '100000' } })
+
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('100,000')
   })
 })
 

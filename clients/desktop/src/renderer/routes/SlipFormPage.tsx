@@ -171,6 +171,29 @@ const calcVatInclusiveLine = (
   return { incl, supply, vat: incl - supply }
 }
 
+/**
+ * #902 R3(개발책임자 직접 발견 회귀 fix, 모바일 표면 — LineRow.tsx 의 동일 로직과 대응).
+ *
+ * 이전 라운드(D7·H6)는 excludedFromSave 하나만 보고 공급가액/부가세/합계를 무조건 '0'으로
+ * 강제했다 — 그 값이 controlled input 의 value 라서, 사용자가 이 칸들에 아무리 입력해도
+ * 다음 렌더에서 곧바로 '0'으로 되돌아갔다(H6′·H8 회귀). 억제 대상은 lineVat 의 수량 클램프
+ * (Math.max(1,...))가 실제로 왜곡해 만든 "가짜" 값이지, 사용자가 직접 친 값이 아니다.
+ *
+ * - authority 가 'SUPPLY'/'VAT'/'TOTAL' 이면 사용자가 그 권위 그룹의 금액을 직접 편집한
+ *   것 — lineVat.recalculateLineVat 의 해당 분기는 quantity 를 공급가액/부가세/합계 계산에
+ *   전혀 쓰지 않는다(unitPrice 역산에만 사용) — 클램프 미관여. 억제하지 않는다.
+ * - authority 가 'PRICE'(기본값 포함)면 세 값이 quantity 를 그대로(클램프 거쳐) 곱해
+ *   계산된다 — 실제 quantity 가 이미 1 이상으로 유효하면 클램프는 아무 것도 왜곡하지 않은
+ *   것이라(무영향) 억제하지 않는다. 실제 quantity 가 0 이하(빈 값 포함)일 때만 클램프가
+ *   "수량 1"을 대신 밀어넣어 값을 왜곡한다 — 이때만 억제해 H9(원 D7)의 모순을 막는다.
+ */
+function shouldSuppressComputedAmounts(line: LineDraft, excludedFromSave: boolean): boolean {
+  if (!excludedFromSave) return false
+  const isPriceAuthorityOrUnset = line.authority == null || line.authority === 'PRICE'
+  const quantityInvalid = !(Number(line.quantity) > 0)
+  return isPriceAuthorityOrUnset && quantityInvalid
+}
+
 function PriceChangeIndicator({ id }: { id: string }) {
   return (
     <span id={id} className="price-change-indicator">
@@ -234,7 +257,12 @@ function SlipMobileLineCard(props: {
   onVatAmountChange: (value: string) => void
   onLineTotalChange: (value: string) => void
   vatEditable: boolean
-  /** 저장에서 제외될 예정(#902 R2 D7·H6) — true 면 금액 열 표시를 0 으로 강제한다. */
+  /**
+   * 저장에서 제외될 예정(#902 R2 D7·H6) — true 라고 해서 금액 열 표시가 무조건 0 으로
+   * 강제되지 않는다(#902 R3 정정 — {@link shouldSuppressComputedAmounts} 참고). 사용자가
+   * 공급가액/부가세/합계 중 하나를 직접 편집했거나(authority 승격) quantity 가 이미
+   * 유효(>0)하면 실제 값을 그대로 보여준다(H6′·H8) — 수량 클램프가 실제로 왜곡한 값만 억제.
+   */
   excludedFromSave: boolean
   onDelete: () => void
   modelCell: ReactNode
@@ -332,10 +360,14 @@ function SlipMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.quantity}
           onChange={(e) => {
-            // #902 R2 D8·H7: BE 수량은 @Positive Integer — 소수점 등을 입력 단계에서
-            // 제거해 정수만 상태에 반영한다(데스크톱 LineRow 와 동일 규약).
-            const numeric = e.target.value.replace(/[^0-9]/g, '')
-            props.onQuantityChange(numeric)
+            // #902 R3 H7′(H7 대체, 개발책임자 회귀 지시 S5 — 데스크톱 LineRow 와 동일 규약):
+            // 종전 D8 fix 는 문자 단위로 숫자가 아닌 문자만 제거해 "2.7"→"27"(10배 오주문),
+            // "-3"→"3", "1e3"→"13" 처럼 자릿수가 재조합되어 사용자가 의도하지 않은 다른
+            // 수량이 조용히 만들어졌다. 전체 문자열이 순수 자연수(빈 값 포함)일 때만 그대로
+            // 받아들이고, 아니면 이 입력 자체를 반영하지 않는다(controlled input 이라 다음
+            // 렌더에서 이전 값으로 자동 복귀).
+            if (!/^\d*$/.test(e.target.value)) return
+            props.onQuantityChange(e.target.value)
           }}
           aria-label={`라인 ${props.lineNumber} 수량`}
         />
@@ -376,7 +408,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={props.excludedFromSave ? '0' : Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
+          value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
           onChange={(e) => props.onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
           aria-label={`라인 ${props.lineNumber} 합계(VAT포함)`}
           disabled={!props.vatEditable}
@@ -389,7 +421,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={props.excludedFromSave ? '0' : Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
+          value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
           onChange={(e) => props.onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
           aria-label={`라인 ${props.lineNumber} 공급가액`}
           disabled={!props.vatEditable}
@@ -402,7 +434,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={props.excludedFromSave ? '0' : Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
+          value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
           onChange={(e) => props.onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
           aria-label={`라인 ${props.lineNumber} 부가세`}
           disabled={!props.vatEditable}
