@@ -92,7 +92,9 @@ test.describe(`#924 partner lookup UNAVAILABLE 라이브QA (phase=${PHASE})`, ()
   test('통장거래 목록 — 316건이 남아 있는가', async ({ page }) => {
     await page.goto(`${BASE_URL}/accounting/bank-transactions`)
     await page.waitForLoadState('domcontentloaded')
-    await page.waitForTimeout(4000)
+    // 🚨 '조회 중' 조건은 쿼리 시작 전에 즉시 참이 돼 로딩 전 상태를 찍는다(실측 2회 오측정).
+    // react-query 전역 retry:1 이라 502 도 2.24s x 2 + 렌더 시간이 필요하다 — 고정 대기로 넘긴다.
+    await page.waitForTimeout(15000)
     await dumpVisible(page, '통장거래 본문', 'main')
     await capture(page, '01-bank-transactions', true)
   })
@@ -100,7 +102,7 @@ test.describe(`#924 partner lookup UNAVAILABLE 라이브QA (phase=${PHASE})`, ()
   test('거래처 에이징 — 502 시 사용자가 무엇을 읽는가', async ({ page }) => {
     await page.goto(`${BASE_URL}/accounting/reports/partner-aging?type=RECEIVABLE`)
     await page.waitForLoadState('domcontentloaded')
-    await page.waitForTimeout(4000)
+    await page.waitForTimeout(15000)
     await dumpVisible(page, '에이징 본문', 'main')
     await capture(page, '02-partner-aging')
   })
