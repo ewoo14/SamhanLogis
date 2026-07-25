@@ -66,6 +66,14 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY 지원 (unique index 의무 보유, V1 SQ
 남겨 둔다. `V7__app_release_client_identity.sql`은 `client_type`을 `VARCHAR(40)`으로 확장하고
 동일 앱 식별자 안에서만 `(client_type, version)` 활성 unique 제약을 적용한다.
 
+신규 릴리스의 `version`과 `minSupportedVersion`은 개발 버전 정책인
+`YYYY/MM/DD-{번호}` 형식(슬래시 날짜, 1 이상의 숫자 일련번호)을 사용한다. 등록 API는
+이 형식을 벗어난 값과 한국어 설명이 없는 값을 거부하며, 날짜와 일련번호를 숫자로 비교한다.
+패키지의 `0.1.0` 같은 semver는 빌드 산출물 식별자일 뿐 정책 판정에 사용하지 않는다.
+기존 semver 릴리스는 조회·정책 판정을 보존하고, 두 버전 필드를 바꾸지 않는 관리 수정도 허용해
+기존 등록 레코드를 조용히 무효화하지 않는다. 모바일·desktop 클라이언트의 개발 버전은 빌드 시
+환경 변수로 주입한다.
+
 이번 슬라이스는 웹 3앱과 아로로지스 데스크톱의 버전 체크 신설 및 OTA 활성화를 포함하지 않는다.
 
 ## 4. 4 외부 client (ServiceDiscoveryClient 네 번째 소비자)

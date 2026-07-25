@@ -1876,15 +1876,43 @@ describe('mock app version management contract', () => {
     expect(['NONE', 'MINOR', 'MAJOR', 'CRITICAL']).toContain(resolved.data.forceLevel)
   })
 
+  it('mock 개발 버전은 같은 날짜의 2보다 10을 최신으로 판정한다', () => {
+    const releases = ['2026/07/25-2', '2026/07/25-10'].map((version) => mockRequest({
+      method: 'POST',
+      url: '/app/releases',
+      data: {
+        clientType: 'AROLOGIS_DESKTOP',
+        version,
+        minSupportedVersion: '2026/07/25-1',
+        forceLevel: 'MINOR',
+        releaseNotes: `개발 버전 ${version}`,
+        releasedAt: '2026-07-25T10:00:00',
+      },
+    }) as MockEnvelope<{ id: string }>)
+
+    releases.forEach(({ data }) => {
+      mockRequest({ method: 'POST', url: `/app/releases/${data.id}/publish` })
+    })
+
+    const latest = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'AROLOGIS_DESKTOP', currentVersion: '2026/07/25-2' },
+    }) as MockEnvelope<{ latestVersion: string; forceLevel: string }>
+
+    expect(latest.data.latestVersion).toBe('2026/07/25-10')
+    expect(latest.data.forceLevel).toBe('MINOR')
+  })
+
   it('mock도 앱별 CRITICAL 릴리스가 다른 모바일 앱의 판정에 영향을 주지 않게 격리한다', () => {
-    const version = `91.0.${Date.now()}`
+    const version = `2026/07/25-${Date.now()}`
     const created = mockRequest({
       method: 'POST',
       url: '/app/releases',
       data: {
         clientType: 'AROLOGIS_MOBILE',
         version,
-        minSupportedVersion: '1.0.0',
+        minSupportedVersion: '2026/07/24-1',
         forceLevel: 'CRITICAL',
         releaseNotes: '아로로지스 모바일 긴급 업데이트',
         releasedAt: '2026-06-27T10:00:00',
@@ -1923,8 +1951,8 @@ describe('mock app version management contract', () => {
       url: '/app/releases',
       data: {
         clientType: 'WEB',
-        version: `0.3.${Date.now()}`,
-        minSupportedVersion: '0.1.0',
+        version: `2026/07/25-${Date.now()}`,
+        minSupportedVersion: '2026/07/24-1',
         forceLevel: 'MINOR',
         releaseNotes: 'Playwright mock 검증',
         releasedAt: '2026-06-27T10:00:00',
@@ -1940,8 +1968,8 @@ describe('mock app version management contract', () => {
       url: `/app/releases/${created.data.id}`,
       data: {
         clientType: 'WEB',
-        version: '0.3.1',
-        minSupportedVersion: '0.1.0',
+        version: `2026/07/25-${Date.now() + 1}`,
+        minSupportedVersion: '2026/07/24-1',
         forceLevel: 'MAJOR',
         releaseNotes: '수정된 릴리스',
         releasedAt: '2026-06-27T10:00:00',
@@ -1967,8 +1995,8 @@ describe('mock app version management contract', () => {
       url: '/app/releases',
       data: {
         clientType: 'WEB',
-        version: `8.8.${Date.now()}`,
-        minSupportedVersion: '0.1.0',
+        version: `2026/07/25-${Date.now()}`,
+        minSupportedVersion: '2026/07/24-1',
         forceLevel: 'MAJOR',
         releaseNotes: '테스트 릴리스',
         releasedAt: '2026-06-27T10:00:00',
@@ -2019,8 +2047,8 @@ describe('mock app version management contract', () => {
       url: '/app/releases',
       data: {
         clientType: 'WEB',
-        version: `0.3.${Date.now()}`,
-        minSupportedVersion: '0.1.0',
+        version: `2026/07/25-${Date.now()}`,
+        minSupportedVersion: '2026/07/24-1',
         forceLevel: 'MINOR',
         releaseNotes: 'offset 거부 검증',
         releasedAt: '2026-06-27T10:00:00+09:00',

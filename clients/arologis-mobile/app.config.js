@@ -2,7 +2,8 @@
  * app.config.js — 아로로지스 기사 Expo 설정.
  *
  * 버전 채번:
- *   - version = package.json version (마켓 표시 + runtimeVersion appVersion 정책의 기준).
+ *   - version = package.json version (마켓 메타데이터용 semver).
+ *   - extra.appVersion = EXPO_PUBLIC_APP_VERSION로 주입하는 정책용 개발 버전.
  *   - EAS Update publish는 EAS 계정/projectId 연동 후 활성화한다.
  */
 
@@ -10,6 +11,7 @@
 const pkg = require('./package.json');
 
 const BUILD_ENV = process.env.BUILD_ENV || 'development';
+const APP_DEVELOPMENT_VERSION = process.env.EXPO_PUBLIC_APP_VERSION || '0.0.0';
 const BUILD_NUMBER = process.env.EXPO_BUILD_NUMBER || '1';
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID';
 const HAS_EAS_PROJECT_ID = EAS_PROJECT_ID !== 'PLACEHOLDER_EAS_PROJECT_ID';
@@ -49,6 +51,7 @@ module.exports = {
     assetBundlePatterns: ['**/*'],
     extra: {
       buildEnv: BUILD_ENV,
+      appVersion: APP_DEVELOPMENT_VERSION,
       apiBaseUrl: resolveApiBaseUrl(),
       easUpdateUrl: EAS_UPDATE_URL,
       eas: {

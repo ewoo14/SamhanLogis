@@ -2,11 +2,20 @@ import {
   buildVersionCheckUrl,
   fetchMobileVersionStatus,
   getMinorDismissStorageKey,
+  resolveCurrentAppVersion,
   isBlockingForceLevel,
   normalizeVersionStatus,
 } from '../../version/versionCheck';
 
 describe('arologis mobile version check', () => {
+  it('아로로지스 모바일은 빌드 주입 개발 버전을 package semver보다 우선 사용한다', () => {
+    expect(resolveCurrentAppVersion({
+      version: '1.0.0',
+      extra: { appVersion: '2026/07/25-1' },
+    })).toBe('2026/07/25-1');
+    expect(resolveCurrentAppVersion({ version: '1.0.0', extra: {} })).toBe('1.0.0');
+  });
+
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();

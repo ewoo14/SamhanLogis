@@ -15,10 +15,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import type { PluginOption } from 'vite'
 import { resolve } from 'node:path'
-import { createRequire } from 'node:module'
 
-const require = createRequire(import.meta.url)
-const packageJson = require('./package.json') as { version: string }
+const appVersion = process.env['VITE_APP_VERSION']?.trim() || '0.0.0'
 
 export default defineConfig({
   main: {
@@ -62,7 +60,7 @@ export default defineConfig({
       },
     },
     define: {
-      'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
     build: {
       outDir: resolve(__dirname, 'out/renderer'),

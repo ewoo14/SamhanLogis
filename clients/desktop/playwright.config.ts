@@ -11,6 +11,8 @@
  */
 import { defineConfig, devices } from '@playwright/test'
 
+const MOCK_APP_VERSION = process.env['VITE_APP_VERSION']?.trim() || '2026/07/25-1'
+
 export default defineConfig({
   testDir: './playwright',
   // opt-out 컨벤션: 실서버/실QA·수동 캡처 전용 스펙 제외(나머지 mock 회귀는 자동 게이트)
@@ -64,7 +66,10 @@ export default defineConfig({
     ? undefined
     : {
         command: 'npx vite src/renderer --config vite.config.ts --host 127.0.0.1 --port 5173',
-        env: { VITE_MOCK_MODE: '1' },
+        env: {
+          VITE_MOCK_MODE: '1',
+          VITE_APP_VERSION: MOCK_APP_VERSION,
+        },
         url: 'http://127.0.0.1:5173/',
         reuseExistingServer: !process.env['CI'],
         timeout: 120_000,

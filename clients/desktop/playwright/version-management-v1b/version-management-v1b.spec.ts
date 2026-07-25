@@ -84,6 +84,7 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await expect(page.getByTestId('app-version-recommend-modal')).toHaveCount(0)
 
     const localStorageKeys = await page.evaluate(() => Object.keys(window.localStorage))
+    // 브라우저 runtime의 구버전 호환 식별자는 WEB으로 유지되며, admin 등록 선택지와는 별개다.
     expect(localStorageKeys.some((key) => key.includes('samhan.app-version.dismissed.WEB.9.9.2'))).toBe(false)
   })
 
@@ -106,7 +107,7 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
   })
 
   test('admin 릴리스 관리 화면에서 등록, 수정, 삭제한다', async ({ page }) => {
-    const version = `0.3.${Date.now()}`
+    const version = `2026/07/25-${Date.now()}`
 
     await page.goto(buildUrl('/admin/app-releases', { mockRole: 'MANAGER' }), {
       waitUntil: 'domcontentloaded',
@@ -116,21 +117,21 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await expect(page.getByTestId('app-release-admin-page')).toBeVisible()
 
     await page.getByTestId('app-release-create-open').click()
-    await page.getByTestId('app-release-client-type').selectOption('WEB')
+    await page.getByTestId('app-release-client-type').selectOption('DESKTOP')
     await page.getByTestId('app-release-force-level').selectOption('MINOR')
     await page.getByTestId('app-release-version').fill(version)
-    await page.getByTestId('app-release-min-supported').fill('0.1.0')
+    await page.getByTestId('app-release-min-supported').fill('2026/07/24-1')
     await expect(page.getByTestId('app-release-released-at')).toHaveAttribute('type', 'datetime-local')
     await page.getByTestId('app-release-released-at').fill('2026-06-27T10:00')
     await page.getByTestId('app-release-notes').fill('V1b Playwright 등록 검증')
     await page.getByTestId('app-release-save').click()
 
-    const rowTestId = `app-release-row-WEB-${version}-2026-06-27T10:00:00`
+    const rowTestId = `app-release-row-DESKTOP-${version}-2026-06-27T10:00:00`
 
     await expect(page.getByTestId(rowTestId)).toBeVisible()
     await expect(page.getByTestId(rowTestId)).toContainText('2026.06.27')
 
-    await page.getByTestId(`app-release-edit-WEB-${version}`).click()
+    await page.getByTestId(`app-release-edit-DESKTOP-${version}`).click()
     await page.getByTestId('app-release-force-level').selectOption('MAJOR')
     await page.getByTestId('app-release-notes').fill('V1b Playwright 수정 검증')
     await page.getByTestId('app-release-save').click()
@@ -139,7 +140,7 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     await expect(row).toContainText('필수')
     await expect(row).toContainText('V1b Playwright 수정 검증')
 
-    await page.getByTestId(`app-release-delete-WEB-${version}`).click()
+    await page.getByTestId(`app-release-delete-DESKTOP-${version}`).click()
     await expect(page.getByTestId('app-release-delete-dialog')).toContainText(version)
     await page.getByTestId('app-release-delete-confirm').click()
 

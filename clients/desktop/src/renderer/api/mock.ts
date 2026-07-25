@@ -386,6 +386,33 @@ function normalizeMockForceLevel(value: unknown): Exclude<MockAppForceLevel, 'NO
   return 'MINOR'
 }
 
+const DEVELOPMENT_VERSION_PATTERN = /^(\d{4})\/(\d{2})\/(\d{2})-([1-9][0-9]*)$/
+const LEGACY_SEMVER_PATTERN = /^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+
+function parseDevelopmentVersion(value: string): { dateKey: string; sequence: string } | null {
+  const match = DEVELOPMENT_VERSION_PATTERN.exec(value.trim())
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) return null
+  return { dateKey: `${match[1]}${match[2]}${match[3]}`, sequence: match[4]! }
+}
+
+function compareIntegerStrings(left: string, right: string): number {
+  const normalizedLeft = left.replace(/^0+/, '') || '0'
+  const normalizedRight = right.replace(/^0+/, '') || '0'
+  if (normalizedLeft.length !== normalizedRight.length) {
+    return normalizedLeft.length - normalizedRight.length
+  }
+  return normalizedLeft === normalizedRight ? 0 : normalizedLeft > normalizedRight ? 1 : -1
+}
+
 function compareSemverDesc(a: string, b: string): number {
   const left = a.split('.').map((part) => Number(part) || 0)
   const right = b.split('.').map((part) => Number(part) || 0)
@@ -396,8 +423,39 @@ function compareSemverDesc(a: string, b: string): number {
   return 0
 }
 
-function isSemverLessThan(a: string, b: string): boolean {
-  return compareSemverDesc(a, b) > 0
+function compareAppVersionDesc(a: string, b: string): number {
+  const leftDevelopment = parseDevelopmentVersion(a)
+  const rightDevelopment = parseDevelopmentVersion(b)
+  if (leftDevelopment || rightDevelopment) {
+    if (leftDevelopment && rightDevelopment) {
+      const dateCompare = rightDevelopment.dateKey.localeCompare(leftDevelopment.dateKey)
+      return dateCompare !== 0
+        ? dateCompare
+        : compareIntegerStrings(rightDevelopment.sequence, leftDevelopment.sequence)
+    }
+    return leftDevelopment ? -1 : 1
+  }
+  return compareSemverDesc(a, b)
+}
+
+function isAppVersionLessThan(a: string, b: string): boolean {
+  return compareAppVersionDesc(a, b) > 0
+}
+
+function mockReleaseVersionError(
+  value: unknown,
+  fieldName: string,
+) {
+  const normalized = String(value ?? '').trim()
+  if (!normalized) {
+    return mockError(400, 'INVALID_INPUT', `${fieldName}은 필수입니다.`)
+  }
+  if (parseDevelopmentVersion(normalized)) return null
+  return mockError(
+    400,
+    'INVALID_INPUT',
+    `${fieldName}은 YYYY/MM/DD-{번호} 형식이어야 합니다. 예: 2026/07/25-1`,
+  )
 }
 
 function isMockLocalDateTime(value: unknown): boolean {
@@ -412,8 +470,8 @@ function mockAppReleaseFromBody(
   return {
     id,
     clientType: normalizeMockClientType(body['clientType']),
-    version: String(body['version'] ?? '').trim() || '0.1.0',
-    minSupportedVersion: String(body['minSupportedVersion'] ?? '').trim() || '0.1.0',
+    version: String(body['version'] ?? '').trim(),
+    minSupportedVersion: String(body['minSupportedVersion'] ?? '').trim(),
     forceLevel: normalizeMockForceLevel(body['forceLevel']),
     releaseNotes: String(body['releaseNotes'] ?? '').trim() || '릴리스 노트가 등록되지 않았습니다.',
     releasedAt: String(body['releasedAt'] ?? '').trim() || '2026-06-27T09:00:00',
@@ -441,7 +499,7 @@ function sortedMockAppReleases(): MockAppRelease[] {
   return [...MOCK_APP_RELEASES].sort((a, b) => {
     const clientCompare = a.clientType.localeCompare(b.clientType)
     if (clientCompare !== 0) return clientCompare
-    return compareSemverDesc(a.version, b.version)
+    return compareAppVersionDesc(a.version, b.version)
   })
 }
 
@@ -2099,7 +2157,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const forcedLatest = params.get('mockAppLatestVersion')
     const latest = [...MOCK_APP_RELEASES]
       .filter((release) => release.clientType === clientType && release.isPublished)
-      .sort((a, b) => compareSemverDesc(a.version, b.version))[0]
+      .sort((a, b) => compareAppVersionDesc(a.version, b.version))[0]
 
     if (!latest) {
       return envelope({
@@ -2115,9 +2173,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     const forceLevel =
       forcedLevel === 'CRITICAL' || forcedLevel === 'MAJOR' || forcedLevel === 'MINOR' || forcedLevel === 'NONE'
         ? forcedLevel
-        : isSemverLessThan(currentVersion, latest.minSupportedVersion)
+        : isAppVersionLessThan(currentVersion, latest.minSupportedVersion)
           ? 'CRITICAL'
-          : isSemverLessThan(currentVersion, latestVersion)
+          : isAppVersionLessThan(currentVersion, latestVersion)
             ? latest.forceLevel
             : 'NONE'
 
@@ -2143,6 +2201,10 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if (!isMockLocalDateTime(body['releasedAt'])) {
       return mockError(400, 'INVALID_INPUT', 'releasedAt은 offset 없는 LocalDateTime 형식이어야 합니다.')
     }
+    const versionError = mockReleaseVersionError(body['version'], 'version')
+    if (versionError) return versionError
+    const minSupportedVersionError = mockReleaseVersionError(body['minSupportedVersion'], 'minSupportedVersion')
+    if (minSupportedVersionError) return minSupportedVersionError
     const created = mockAppReleaseFromBody(body, mockAppReleaseId(mockAppReleaseSeq), false)
     mockAppReleaseSeq += 1
     MOCK_APP_RELEASES = [...MOCK_APP_RELEASES, created]
@@ -2182,6 +2244,22 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const body = parseMockBody(config)
       if (!isMockLocalDateTime(body['releasedAt'])) {
         return mockError(400, 'INVALID_INPUT', 'releasedAt은 offset 없는 LocalDateTime 형식이어야 합니다.')
+      }
+      const currentRelease = MOCK_APP_RELEASES[index]!
+      const requestedVersion = String(body['version'] ?? '').trim()
+      const requestedMinSupportedVersion = String(body['minSupportedVersion'] ?? '').trim()
+      const preservesLegacyValues = requestedVersion === currentRelease.version.trim()
+        && requestedMinSupportedVersion === currentRelease.minSupportedVersion.trim()
+        && LEGACY_SEMVER_PATTERN.test(currentRelease.version.trim())
+        && LEGACY_SEMVER_PATTERN.test(currentRelease.minSupportedVersion.trim())
+      if (!preservesLegacyValues) {
+        const versionError = mockReleaseVersionError(requestedVersion, 'version')
+        if (versionError) return versionError
+        const minSupportedVersionError = mockReleaseVersionError(
+          requestedMinSupportedVersion,
+          'minSupportedVersion',
+        )
+        if (minSupportedVersionError) return minSupportedVersionError
       }
       const updated = mockAppReleaseFromBody(body, id, MOCK_APP_RELEASES[index]!.isPublished)
       MOCK_APP_RELEASES = MOCK_APP_RELEASES.map((release) => release.id === id ? updated : release)

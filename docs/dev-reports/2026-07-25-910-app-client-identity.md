@@ -272,3 +272,176 @@ DROP DATABASE
 - 실제 관리자 로그인 세션을 사용하는 브라우저 U-gate, 실 배포 릴리스 등록·복구 시나리오와 QA 스크린샷은 실행하지 못했다. API·mock·컴포넌트 테스트와 정적 타입 검증까지 수행했다.
 - 공유 `dashboard_db`에는 접속하거나 마이그레이션을 적용하지 않았다. throwaway `probe_910`만 생성·검증·삭제했다.
 - 구버전 `MOBILE` 조회의 fail-open은 기존 모바일 게이트의 예외 처리에 의존한다. 이번 범위에서는 그 게이트의 정책을 변경하지 않고, 서버가 새 앱 정책을 옛 식별자에 잘못 적용하지 않는 회귀만 추가했다.
+
+## 9. 2026-07-25 인수 세션 — 개발 버전 정책 보완 및 CI 재검증
+
+### 9-1. 이어받은 부분 산출물 상태
+
+인수 시점에 25개 파일, 441줄의 미커밋 변경이 있었다. 앱별 `AppClientType` 8값, V7,
+모바일 3앱의 명시 매핑, 관리자 8개 한국어 선택지는 이미 구현되어 있었고 A1~A5의
+기본 테스트도 존재했다. 미완성인 부분은 개발 버전 형식의 서버 update 경계, 기존 semver
+레코드 보존, mock과 Playwright의 새 정책 정합성, 클라이언트 빌드 버전 주입의 실행 검증이었다.
+기존 코드는 실행·검증되지 않은 상태로 간주하고 RED부터 다시 확인했다. V7과 기존 identity
+구현은 수정하지 않았다.
+
+### 9-2. 완성 수단과 판단
+
+- 개발 버전은 `YYYY/MM/DD-{번호}` 정규식과 실제 달력 날짜 검증으로 등록 단계에서 거부한다.
+  일련번호는 1 이상이며 선행 0을 허용하지 않는다. `Semver.compare`는 개발 버전끼리
+  날짜를 먼저 비교하고 같은 날짜에서는 `BigInteger` 일련번호를 비교하므로 `-2 < -10`의
+  문자열 비교 오류가 없다.
+- 패키지 `0.1.0` 등 semver는 `package.json`·Expo·electron-builder가 요구하는 빌드
+  식별자로 남기고, 서버 정책 판정에는 사용하지 않는다. Expo 3앱은
+  `EXPO_PUBLIC_APP_VERSION`, desktop은 `VITE_APP_VERSION`으로 개발 버전을 주입한다.
+  주입이 없는 구버전 실행 환경은 패키지 semver를 읽어 호환성을 유지하지만 신규 빌드의
+  정책 경로는 주입값을 우선한다.
+- V4 때문에 V7을 수정하지 않았고 V8도 추가하지 않았다. 현재 두 DB 컬럼은 이미
+  `VARCHAR(50)`이라 새 형식을 담을 수 있다. DB CHECK가 semver와 개발 버전을 동시에
+  허용하면 신규 등록을 강제할 수 없으므로, 신규 등록은 `AppReleaseService`의 애플리케이션
+  경계에서 엄격히 검증했다. 기존 semver 레코드는 두 버전 필드를 그대로 두는 수정만 허용하고,
+  실제 버전 변경은 새 형식을 요구한다. 따라서 기존 행이 조회 실패하거나 다른 버전으로
+  조용히 해석되지 않는다.
+- desktop mock도 서버와 동일하게 신규 등록을 검증하고, 기존 semver의 두 버전 값이 모두
+  그대로인 수정만 보존한다. 관리자 Playwright CRUD는 신규 정식 선택지인 `DESKTOP`을
+  사용하도록 갱신했다. 브라우저 런타임의 legacy `WEB` localStorage 키는 구버전 호환
+  계약이므로 남겼으며, 관리자 선택지에 `WEB`을 되살린 것은 아니다.
+
+### 9-3. RED 출력
+
+변경 전 HEAD의 `Semver.java`, `AppReleaseService.java`를 임시 복원해 신규 API 테스트를
+실행했다. 소스는 `git show HEAD:<경로>`로 복원한 뒤 `finally`에서 즉시 되돌렸다.
+새 `SemverTest`의 `requireDevelopmentVersion` 직접 호출은 HEAD에 해당 API가 없으므로
+컴파일 단계에서 RED가 되는 구조다. 따라서 실행 가능한 HEAD 테스트 소스와 현재 신규
+`AppReleaseControllerIT`를 조합해 등록·조회 경계의 런타임 RED도 함께 확보했다.
+
+```text
+AppReleaseControllerIT > POST /app/releases 신규 등록은 미발행 상태이며 publish 전까지 /app/version에 반영되지 않는다 FAILED
+AppReleaseControllerIT > 잘못된 개발 버전 2026-07-25-1은 등록을 거부한다 FAILED
+AppReleaseControllerIT > 잘못된 개발 버전 2026/7/5-1은 등록을 거부한다 FAILED
+AppReleaseControllerIT > 잘못된 개발 버전 0.1.0은 등록을 거부한다 FAILED
+AppReleaseControllerIT > admin CRUD는 admin.app-release 7-action 권한으로 등록/조회/수정/소프트삭제한다 FAILED
+AppReleaseControllerIT > 동시 POST 중복 릴리스는 200/409로 귀결되고 SQL 제약명을 노출하지 않는다 FAILED
+AppReleaseControllerIT > 개발 버전 릴리스는 슬래시 날짜-번호를 그대로 등록·조회한다 FAILED
+AppReleaseControllerIT > 최소 지원 버전도 신규 개발 버전 형식이 아니면 등록을 거부한다 FAILED
+20 tests completed, 8 failed
+BUILD FAILED
+```
+
+실패한 테스트는 신규 개발 버전 등록·한국어 형식 거부·최소 지원 버전 거부·admin CRUD·
+기존 publish CRUD·동시 중복 등록 경로였다. 기존 semver 값 유지 수정 회귀는 통과했지만,
+새 개발 버전 등록 계약은 변경 전 코드에서 실패했다. 첫 RED 시도에서 PowerShell의 UTF-8 BOM이 Java 소스에
+삽입되어 컴파일 오류가 난 것은 기능 RED가 아닌 실행 환경 오류였으며, BOM 없는
+`git show` 복원으로 다시 실행했다.
+
+### 9-4. GREEN 및 마이그레이션 probe 출력
+
+서버 대상 테스트와 전체 dashboard-service 테스트는 `--rerun-tasks --no-build-cache`로
+실행했다.
+
+```text
+./gradlew :services:dashboard-service:test --tests SemverTest --tests AppReleaseControllerIT --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 31s
+17 actionable tasks: 17 executed
+
+./gradlew :services:dashboard-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 37s
+17 actionable tasks: 17 executed
+```
+
+공유 `dashboard_db`가 아닌 throwaway `probe_910_20260725`에 V1~V7을 적용하고 확인한 뒤
+삭제했다.
+
+```text
+DROP DATABASE
+CREATE DATABASE
+APPLY V1__init_dashboard.sql
+APPLY V2__add_shedlock.sql
+APPLY V3__app_release.sql
+APPLY V4__app_release_published.sql
+APPLY V5...
+APPLY V6...
+APPLY V7...
+VERIFY version columns and client identity constraint
+ client_type 40
+ min_supported_version 50
+ version 50
+constraint contains all 8 canonical + WEB + MOBILE
+INSERT legacy and development release rows
+INSERT 0 2
+ AROLOGIS_MOBILE | 2026/07/25-10 | 2026/07/25-2
+ DESKTOP | 1.2.0 | 1.0.0
+DROP DATABASE
+DROP DATABASE completed
+remaining probe databases: 0
+```
+
+### 9-5. CI 실패 원인과 재검증
+
+PM 진단은 맞았다. `VITE_APP_VERSION`을 주입하지 않은 현재 스펙을 먼저 실행했을 때는
+mock의 기본 버전 `0.0.0`이 legacy `WEB`의 최소 지원 `0.1.0`보다 낮아 긴급 업데이트
+게이트가 관리자 화면보다 먼저 열리는 환경 문제도 확인했다. 유효한 기본 개발 버전을
+Playwright mock server에 주입한 뒤에는 다음 오래된 스펙 오류가 재현됐다.
+
+```text
+Error: locator.selectOption: Test timeout of 60000ms exceeded.
+version-management-v1b.spec.ts:119
+await page.getByTestId('app-release-client-type').selectOption('WEB')
+did not find some options
+```
+
+`WEB`은 A5에 따라 관리자 선택지에서 제거된 값이므로 스펙을 `DESKTOP`과 개발 버전
+형식으로 갱신했다. 재실행 결과:
+
+```text
+Running 6 tests using 1 worker
+6 passed (12.0s)
+```
+
+프론트·모바일 검증 결과:
+
+```text
+clients/desktop: npm run typecheck -> exit 0
+clients/desktop: npx vitest run -> exit 0 (mock 125 tests, versionCheck 6 tests 포함)
+clients/mobile: typecheck -> exit 0; versionCheck 7 passed
+clients/mobile-staff: typecheck -> exit 0; versionCheck 7 passed
+clients/arologis-mobile: typecheck -> exit 0; versionCheck 7 passed
+```
+
+### 9-6. 변경 파일
+
+- 서버: `Semver.java`, `AppReleaseService.java`, `AppRelease.java`, `AppReleaseRequest.java`와
+  `SemverTest.java`, `AppReleaseControllerIT.java` — 형식 검증, 숫자 비교, legacy update
+  보존, 한국어 오류 문구와 회귀 테스트.
+- desktop: Vite/electron build 설정, `AppVersionGate`·version helper, mock 정책·테스트,
+  관리자 안내 문구, Playwright mock 환경과 `version-management-v1b` — 개발 버전 주입과
+  정식 `DESKTOP` CRUD.
+- mobile 3앱: `app.config.js`, version helper와 각 테스트 — 빌드 주입값 우선 및 명시 앱
+  식별자 유지.
+- 문서: `README.md`, `ROADMAP.md`, dashboard-service README, 결정 기록, overview HTML,
+  본 리포트 — 개발 버전 정본·semver 분리·legacy 보존 정책을 동기화.
+
+### 9-7. V1~V5 및 A1~A5 대응
+
+| 불변식 | 대응 및 확인 |
+|---|---|
+| V1 | 서버 등록·저장·API 반환·관리 문구를 `YYYY/MM/DD-{번호}`로 통일하고, desktop/mobile 빌드 주입 테스트로 확인했다. |
+| V2 | `LocalDate` 후 `BigInteger` 비교와 mock 숫자 비교로 `2026/07/25-2 < 2026/07/25-10`을 검증했다. |
+| V3 | create와 `minSupportedVersion` 모두 등록 경계에서 거부하며 한국어 형식 안내를 반환한다. |
+| V4 | 기존 semver 조회를 허용하고 두 버전 필드 불변 update만 허용했다. probe에서 `DESKTOP 1.2.0/1.0.0` 행을 보존했다. |
+| V5 | 정책 판정은 개발 버전이며 package/Expo/electron semver는 빌드 식별자로만 남겼다. |
+
+A1~A5는 기존 identity 테스트와 함께 전체 dashboard-service 테스트, desktop typecheck/Vitest/
+Playwright, 모바일 3앱 versionCheck 테스트, V1~V7 throwaway probe로 재확인했다. 특히 probe의
+CHECK에는 8개 정식 식별자와 호환 `WEB`·`MOBILE`만 존재하고, Playwright 관리자 CRUD는
+`DESKTOP`을 사용하므로 A5의 legacy 선택지 제거를 되돌리지 않는다.
+
+### 9-8. Flyway 번호와 남은 불확실성
+
+Flyway는 **V7만 사용**하고 변경하지 않았다. V7은 이미 identity 배포·리뷰 환경에서 적용될
+수 있어 checksum 변경 위험이 있고, 기존 `VARCHAR(50)` 컬럼이 새 값을 수용하므로 이 정책에
+DB migration이 필요하지 않다. V8을 추가해 DB CHECK를 새 형식 전용으로 만들면 V4를 깨뜨리므로
+애플리케이션 등록 경계를 선택했다.
+
+실제 관리자 로그인 U-gate, 실제 배포 앱의 환경 변수 주입 산출물, 공유 DB 적용은 수행하지
+않았다. 공유 DB는 건드리지 않았고 throwaway probe만 DROP으로 정리했다. Playwright 실행으로
+`docs/qa/**` 스크린샷을 덮어쓰지 않았으며 최종 status에서 해당 경로 오염이 없는지 확인한다.

@@ -12,6 +12,7 @@ import com.samhanair.logis.dashboard.dto.AppVersionResponse;
 import com.samhanair.logis.dashboard.repository.AppReleaseRepository;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,6 +49,8 @@ public class AppReleaseService {
     /** admin 릴리스 등록. */
     @Transactional
     public AppRelease create(AppReleaseRequest request) {
+        Semver.requireDevelopmentVersion(request.version(), "version");
+        Semver.requireDevelopmentVersion(request.minSupportedVersion(), "minSupportedVersion");
         ensureUnique(null, request.clientType(), request.version());
         try {
             return repository.saveAndFlush(AppRelease.create(
@@ -66,6 +69,7 @@ public class AppReleaseService {
     @Transactional
     public AppRelease update(UUID id, AppReleaseRequest request) {
         AppRelease release = findActive(id);
+        validateUpdateVersions(release, request);
         ensureUnique(id, request.clientType(), request.version());
         try {
             release.update(
@@ -137,6 +141,23 @@ public class AppReleaseService {
                 .ifPresent(existing -> {
                     throw duplicateReleaseConflict(null);
                 });
+    }
+
+    private void validateUpdateVersions(AppRelease release, AppReleaseRequest request) {
+        boolean preservingLegacyValues = Objects.equals(release.getVersion().trim(), request.version().trim())
+                && Objects.equals(
+                        release.getMinSupportedVersion().trim(), request.minSupportedVersion().trim())
+                && !Semver.isDevelopmentVersion(release.getVersion())
+                && !Semver.isDevelopmentVersion(release.getMinSupportedVersion());
+        if (preservingLegacyValues) {
+            // 마이그레이션 전 semver 레코드는 두 버전 값을 그대로 유지하는 편집만 허용한다.
+            Semver.requireValid(request.version(), "version");
+            Semver.requireValid(request.minSupportedVersion(), "minSupportedVersion");
+            return;
+        }
+        // 한 필드만 새 형식으로 바꾸어 semver/dev 버전이 섞이는 상태는 허용하지 않는다.
+        Semver.requireDevelopmentVersion(request.version(), "version");
+        Semver.requireDevelopmentVersion(request.minSupportedVersion(), "minSupportedVersion");
     }
 
     private BusinessException duplicateReleaseConflict(Throwable cause) {

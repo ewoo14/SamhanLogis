@@ -293,7 +293,7 @@ export function AppReleaseManagementPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>버전 관리</h1>
           <p style={{ margin: '6px 0 0', color: 'var(--color-neutral-600)', fontSize: 13 }}>
-            앱별 최신 버전, 최소 지원 버전, 강제 수준을 관리합니다.
+            앱별 개발 버전(YYYY/MM/DD-{'{번호}'}), 최소 지원 버전, 강제 수준을 관리합니다.
           </p>
         </div>
         <Button type="button" onClick={openCreate} data-testid="app-release-create-open">
@@ -382,7 +382,8 @@ export function AppReleaseManagementPage() {
               label="최신 버전"
               value={form.version}
               onChange={(event) => setForm((prev) => ({ ...prev, version: event.target.value }))}
-              placeholder="0.2.0"
+              placeholder="2026/07/25-1"
+              hint="예: 2026/07/25-1"
               required
               data-testid="app-release-version"
             />
@@ -390,7 +391,8 @@ export function AppReleaseManagementPage() {
               label="최소 지원 버전"
               value={form.minSupportedVersion}
               onChange={(event) => setForm((prev) => ({ ...prev, minSupportedVersion: event.target.value }))}
-              placeholder="0.1.0"
+              placeholder="2026/07/24-1"
+              hint="예: 2026/07/24-1"
               required
               data-testid="app-release-min-supported"
             />

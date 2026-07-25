@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -126,6 +128,146 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("개발 버전 릴리스는 슬래시 날짜-번호를 그대로 등록·조회한다")
+    void developmentVersion_isStoredAndReturnedWithoutSemverSubstitution() throws Exception {
+        String createBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "2026/07/25-1",
+                  "forceLevel": "MINOR",
+                  "releaseNotes": "개발 버전 릴리스",
+                  "releasedAt": "2026-07-25T09:00:00",
+                  "minSupportedVersion": "2026/07/24-9"
+                }
+                """;
+
+        mockMvc.perform(withActor(post("/app/releases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value("2026/07/25-1"))
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("2026/07/24-9"));
+    }
+
+    @ParameterizedTest(name = "잘못된 개발 버전 {0}은 등록을 거부한다")
+    @ValueSource(strings = {"2026-07-25-1", "2026/7/5-1", "0.1.0"})
+    @DisplayName("릴리스 등록은 YYYY/MM/DD-번호가 아닌 version을 한국어로 거부한다")
+    void adminCreate_rejectsNonDevelopmentVersionWithKoreanGuide(String version) throws Exception {
+        String createBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "%s",
+                  "forceLevel": "MINOR",
+                  "releaseNotes": "잘못된 버전",
+                  "releasedAt": "2026-07-25T09:00:00",
+                  "minSupportedVersion": "2026/07/24-1"
+                }
+                """.formatted(version);
+
+        String body = mockMvc.perform(withActor(post("/app/releases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body)
+                .contains("YYYY/MM/DD-{번호}")
+                .contains("version");
+    }
+
+    @Test
+    @DisplayName("빈 version 등록은 한국어 필수 입력 오류로 거부한다")
+    void adminCreate_rejectsBlankVersionWithKoreanMessage() throws Exception {
+        String createBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "",
+                  "forceLevel": "MINOR",
+                  "releaseNotes": "빈 버전",
+                  "releasedAt": "2026-07-25T09:00:00",
+                  "minSupportedVersion": "2026/07/24-1"
+                }
+                """;
+
+        String body = mockMvc.perform(withActor(post("/app/releases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body).contains("version").contains("버전은 필수입니다.");
+    }
+
+    @Test
+    @DisplayName("기존 semver 릴리스는 새 형식 검증 도입 뒤에도 조회·판정을 유지한다")
+    void publicVersion_preservesLegacySemverReleaseAfterDevelopmentVersionValidation() throws Exception {
+        insertRelease("DESKTOP", "1.2.0", "MAJOR", "기존 semver 릴리스", "1.0.0");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "DESKTOP")
+                        .param("currentVersion", "1.1.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("1.2.0"))
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("1.0.0"))
+                .andExpect(jsonPath("$.data.forceLevel").value("MAJOR"));
+    }
+
+    @Test
+    @DisplayName("기존 semver 릴리스는 값 유지 수정 시에도 편집 경로를 보존한다")
+    void adminUpdate_preservesLegacySemverWhenValuesAreUnchanged() throws Exception {
+        String id = insertRelease("DESKTOP", "1.2.0", "MINOR", "기존 semver 편집", "1.0.0", true);
+        String updateBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "1.2.0",
+                  "forceLevel": "MAJOR",
+                  "releaseNotes": "기존 semver 편집 보존",
+                  "releasedAt": "2026-07-25T10:00:00",
+                  "minSupportedVersion": "1.0.0"
+                }
+                """;
+
+        mockMvc.perform(withActor(put("/app/releases/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(updateBody)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value("1.2.0"))
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("1.0.0"))
+                .andExpect(jsonPath("$.data.forceLevel").value("MAJOR"));
+    }
+
+    @Test
+    @DisplayName("최소 지원 버전도 신규 개발 버전 형식이 아니면 등록을 거부한다")
+    void adminCreate_rejectsLegacySemverMinSupportedVersion() throws Exception {
+        String createBody = """
+                {
+                  "clientType": "DESKTOP",
+                  "version": "2026/07/25-5",
+                  "forceLevel": "MINOR",
+                  "releaseNotes": "잘못된 최소 지원 버전",
+                  "releasedAt": "2026-07-25T09:00:00",
+                  "minSupportedVersion": "0.1.0"
+                }
+                """;
+
+        String body = mockMvc.perform(withActor(post("/app/releases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody)))
+                .andExpect(status().isBadRequest())
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(body)
+                .contains("YYYY/MM/DD-{번호}")
+                .contains("minSupportedVersion");
+    }
+
+    @Test
     @DisplayName("앱별 CRITICAL 릴리스는 다른 모바일 앱의 버전 판정을 바꾸지 않는다")
     void publicVersion_isolatedByExplicitAppIdentity() throws Exception {
         insertRelease("AROLOGIS_MOBILE", "1.1.0", "CRITICAL", "아로로지스 모바일 긴급 업데이트", "1.0.0");
@@ -182,11 +324,11 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
         String createBody = """
                 {
                   "clientType": "DESKTOP",
-                  "version": "4.0.0",
+                  "version": "2026/07/26-1",
                   "forceLevel": "MAJOR",
                   "releaseNotes": "staged release",
                   "releasedAt": "2026-06-27T12:00:00",
-                  "minSupportedVersion": "3.0.0"
+                  "minSupportedVersion": "2026/07/25-10"
                 }
                 """;
 
@@ -194,7 +336,7 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.version").value("4.0.0"))
+                .andExpect(jsonPath("$.data.version").value("2026/07/26-1"))
                 .andExpect(jsonPath("$.data.isPublished").value(false))
                 .andReturn()
                 .getResponse()
@@ -203,7 +345,7 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(get("/app/version")
                         .param("clientType", "DESKTOP")
-                        .param("currentVersion", "3.0.0"))
+                        .param("currentVersion", "2026/07/25-10"))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(withActor(post("/app/releases/{id}/publish", id)))
@@ -212,9 +354,9 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(get("/app/version")
                         .param("clientType", "DESKTOP")
-                        .param("currentVersion", "3.0.0"))
+                        .param("currentVersion", "2026/07/25-10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.latestVersion").value("4.0.0"))
+                .andExpect(jsonPath("$.data.latestVersion").value("2026/07/26-1"))
                 .andExpect(jsonPath("$.data.forceLevel").value("MAJOR"));
     }
 
@@ -282,11 +424,11 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
         String createBody = """
                 {
                   "clientType": "DESKTOP",
-                  "version": "1.0.0",
+                  "version": "2026/07/25-2",
                   "forceLevel": "MINOR",
                   "releaseNotes": "초기 릴리스",
                   "releasedAt": "2026-06-27T09:00:00",
-                  "minSupportedVersion": "0.9.0"
+                  "minSupportedVersion": "2026/07/25-1"
                 }
                 """;
 
@@ -295,7 +437,7 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
                         .content(createBody)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.clientType").value("DESKTOP"))
-                .andExpect(jsonPath("$.data.version").value("1.0.0"))
+                .andExpect(jsonPath("$.data.version").value("2026/07/25-2"))
                 .andExpect(jsonPath("$.data.forceLevel").value("MINOR"))
                 .andReturn()
                 .getResponse()
@@ -304,23 +446,23 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
 
         mockMvc.perform(withActor(get("/app/releases").param("clientType", "DESKTOP")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].version").value("1.0.0"));
+                .andExpect(jsonPath("$.data[0].version").value("2026/07/25-2"));
 
         String updateBody = """
                 {
                   "clientType": "DESKTOP",
-                  "version": "1.0.1",
+                  "version": "2026/07/25-3",
                   "forceLevel": "MAJOR",
                   "releaseNotes": "수정 릴리스",
                   "releasedAt": "2026-06-27T10:00:00",
-                  "minSupportedVersion": "1.0.0"
+                  "minSupportedVersion": "2026/07/25-2"
                 }
                 """;
         mockMvc.perform(withActor(put("/app/releases/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateBody)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.version").value("1.0.1"))
+                .andExpect(jsonPath("$.data.version").value("2026/07/25-3"))
                 .andExpect(jsonPath("$.data.forceLevel").value("MAJOR"));
 
         mockMvc.perform(withActor(delete("/app/releases/{id}", id)))
@@ -347,11 +489,11 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
         String createBody = """
                 {
                   "clientType": "DESKTOP",
-                  "version": "3.0.0",
+                  "version": "2026/07/27-1",
                   "forceLevel": "MINOR",
                   "releaseNotes": "동시 등록",
                   "releasedAt": "2026-06-27T11:00:00",
-                  "minSupportedVersion": "2.9.0"
+                  "minSupportedVersion": "2026/07/26-1"
                 }
                 """;
         installAppReleaseInsertDelayTrigger();
@@ -397,11 +539,11 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
         String updateBody = """
                 {
                   "clientType": "DESKTOP",
-                  "version": "1.0.1",
+                  "version": "2026/07/25-4",
                   "forceLevel": "MAJOR",
                   "releaseNotes": "수정 릴리스",
                   "releasedAt": "2026-06-27T10:00:00",
-                  "minSupportedVersion": "1.0.0"
+                  "minSupportedVersion": "2026/07/25-3"
                 }
                 """;
 

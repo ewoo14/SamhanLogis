@@ -32,7 +32,8 @@
   앱 차단으로 이어지지 않게 했다. 신규 모바일 3앱은 각자의 식별자를 보낸다.
 - 데스크톱 버전 관리 화면과 mock은 앱 이름을 한국어로 선택·표시하며, 한 앱의 CRITICAL
   릴리스가 다른 앱 판정을 바꾸지 않는 회귀 테스트를 둔다. 이번 슬라이스에서는 웹/아로로지스
-  데스크톱 버전 체크 신설과 OTA 활성화를 하지 않는다.
+  데스크톱 버전 체크 신설과 OTA 활성화를 하지 않는다. 신규 릴리스 개발 버전은
+  `YYYY/MM/DD-{번호}`로 등록·판정하고, 패키지 semver는 빌드 식별자로만 사용한다.
 - RED/GREEN·V7 throwaway PostgreSQL probe 결과는
   [`docs/dev-reports/2026-07-25-910-app-client-identity.md`](docs/dev-reports/2026-07-25-910-app-client-identity.md)에 기록한다.
 

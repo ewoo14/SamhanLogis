@@ -26,8 +26,24 @@ const DEFAULT_DEV_API = 'http://localhost:8080';
 const DEFAULT_PROD_API = 'https://api.samhan-air.com';
 const VERSION_CHECK_TIMEOUT_MS = 5000;
 
+export interface ExpoVersionConfig {
+  version?: string;
+  extra?: {
+    appVersion?: unknown;
+  };
+}
+
+/** 빌드 주입 개발 버전을 우선하고, 주입 전 구버전 앱은 Expo semver를 호환 사용한다. */
+export function resolveCurrentAppVersion(expoConfig: ExpoVersionConfig | null | undefined): string {
+  const injectedVersion = expoConfig?.extra?.appVersion;
+  if (typeof injectedVersion === 'string' && injectedVersion.trim().length > 0) {
+    return injectedVersion.trim();
+  }
+  return expoConfig?.version ?? '0.0.0';
+}
+
 export function getCurrentAppVersion(): string {
-  return Constants.expoConfig?.version ?? '0.0.0';
+  return resolveCurrentAppVersion(Constants.expoConfig);
 }
 
 export function resolveVersionApiBaseUrl(): string {

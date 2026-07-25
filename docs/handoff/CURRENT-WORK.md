@@ -2959,3 +2959,18 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - M3 권한 제거 Playwright 케이스를 추가했다: convert CREATE만 있고 partners.search VIEW가 없으면 병합 버튼 disabled, title과 권한 안내가 표시된다.
 - 관련 Playwright 두 디렉터리만 5회 실행해 매회 9/9 통과했다. fixture에서 partners.search를 제거한 뮤테이션은 disabled 버튼 클릭 timeout으로 RED였고 즉시 복구했다.
 - 최종 typecheck 및 fresh Postgres V12 probe도 통과했다. 전체 mock Playwright와 공유 DB 쓰기는 실행하지 않았다.
+
+## ✅ 2026-07-25 Codex Update — #910 개발 버전 정책 보완
+
+- `feat/910-app-client-identity`의 미커밋 산출물 25개 파일을 인수해 diff를 전수 확인하고,
+  `YYYY/MM/DD-{번호}` 개발 버전 등록 검증·날짜/BigInteger 비교·기존 semver 불변 update
+  보존·desktop/mobile 빌드 주입을 완성했다.
+- V7은 수정하지 않았고 V8은 추가하지 않았다. 기존 `VARCHAR(50)`과 legacy semver 조회를
+  보존해야 하므로 신규 등록 형식은 서비스 경계에서 검증한다.
+- 이전 `version-management-v1b` 실패 원인은 `WEB`을 선택하려는 낡은 스펙이었다. Playwright
+  mock 기본 개발 버전을 주입하고 정식 `DESKTOP` CRUD로 갱신해 6/6 통과했다.
+- fresh 검증: dashboard-service `17 actionable tasks: 17 executed`, desktop typecheck와
+  전체 Vitest, Playwright 6/6, 모바일 3앱 각각 typecheck·versionCheck 7/7. throwaway
+  `probe_910_20260725`에 V1~V7 적용·확인 후 DROP했고 공유 `dashboard_db`는 건드리지 않았다.
+- `docs/qa/**` 변경 없음. 커밋·push·GitHub 쓰기는 수행하지 않았으며, 다음 단계는 PM의
+  diff 검토 및 커밋 대행이다.

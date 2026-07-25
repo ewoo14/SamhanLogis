@@ -2,11 +2,20 @@ import {
   buildVersionCheckUrl,
   fetchMobileVersionStatus,
   getMinorDismissStorageKey,
+  resolveCurrentAppVersion,
   isBlockingForceLevel,
   normalizeVersionStatus,
 } from '../../version/versionCheck';
 
 describe('mobile version check', () => {
+  it('삼한 모바일는 빌드 주입 개발 버전을 package semver보다 우선 사용한다', () => {
+    expect(resolveCurrentAppVersion({
+      version: '0.5.0',
+      extra: { appVersion: '2026/07/25-1' },
+    })).toBe('2026/07/25-1');
+    expect(resolveCurrentAppVersion({ version: '0.5.0', extra: {} })).toBe('0.5.0');
+  });
+
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();

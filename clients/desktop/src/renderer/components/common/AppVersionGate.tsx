@@ -5,6 +5,7 @@ import type { AppClientType, AppVersionInfo } from '../../api/appVersion'
 import { isCapacitorPlatform, isElectronPlatform } from '../../auth/authProvider'
 import {
   resolveAppClientType,
+  resolveBuildAppVersion,
   resolveVersionPromptState,
   type VersionPromptState,
 } from '../../version/versionCheck'
@@ -17,7 +18,7 @@ import {
 import { formatKstDate } from '../../utils/formatDate'
 import type { DesktopUpdateStatus as ElectronDesktopUpdateStatus } from '../../types/electron'
 
-const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION ?? '0.0.0'
+const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
 // Playwright mock 인증 스텁은 Electron 인증 API를 흉내 내지만 updater IPC는 없다.
 // mock 회귀는 updater 실경로 검증 대상이 아니므로 안전 오류 알림을 만들지 않는다.
 // 실제 Electron과 B8 라이브 하네스에서는 이 값이 false라 updater effect가 그대로 돈다.

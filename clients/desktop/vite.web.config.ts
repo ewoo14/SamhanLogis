@@ -8,10 +8,8 @@ import { defineConfig, type PluginOption } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'node:path'
-import { createRequire } from 'node:module'
 
-const require = createRequire(import.meta.url)
-const packageJson = require('./package.json') as { version: string }
+const appVersion = process.env['VITE_APP_VERSION']?.trim() || '0.0.0'
 
 export default defineConfig({
   plugins: [
@@ -67,7 +65,7 @@ export default defineConfig({
   },
   define: {
     'import.meta.env.VITE_PLATFORM': JSON.stringify('web'),
-    'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     'import.meta.env.VITE_API_BASE_URL': JSON.stringify(
       process.env['VITE_API_BASE_URL'] ?? 'http://localhost:8080',
     ),
