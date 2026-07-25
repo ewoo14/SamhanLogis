@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.ApprovalLineAuthorizeClient;
@@ -36,13 +37,19 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 /**
  * #924 개발책임자 결정(2026-07-24) — write/detail 경로는 표시명(거래처 이름) 조회가
- * partner-service 장애(UNAVAILABLE)여도 오퍼레이션을 롤백하지 않고 공란/미조회로 성사시킨다.
+ * partner-service 장애(UNAVAILABLE)여도 오퍼레이션을 롤백하지 않고 표시만 공란으로 성사시킨다.
+ *
+ * <p>단, UNAVAILABLE(조회 실패)의 공란 표시는 진짜 NOT_FOUND(고아 partnerId)의 기존 "미등록"/
+ * "(미조회)" 표시와 서로 다르다(#831 R-3 재수렴 — 둘을 같은 문구로 표현하면 실존 거래처를
+ * 미등록으로 오인하게 된다). {@code confirm}/{@code cancel} 은 UNAVAILABLE 시 null 공란을,
+ * 아래 {@code getOne} 테스트 쌍은 두 케이스를 나란히 검증한다.
  *
  * <p>read 리포트(PartnerAging 등)는 그대로 502 fail-closed 를 유지해야 하므로
  * {@link com.samhanair.logis.accounting.client.LegacyBatchConsumerFailClosedTest} 의 회귀
@@ -198,7 +205,8 @@ class WriteDetailPartnerLookupBlankFallbackTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("confirm — partner-service 장애에도 확정+자동분개 게시를 성사시키고 거래처 표시는 미조회 기본값이다")
+    @DisplayName("confirm — partner-service 장애에도 확정+자동분개 게시를 성사시키고 거래처 표시는 "
+            + "\"미등록\"이 아닌 공란이다 (#831 R-3)")
     void confirmSucceedsWithBlankPartnerDisplayWhenPartnerServiceUnavailable() {
         CashReceiptRepository repository = mock(CashReceiptRepository.class);
         BankTransactionRepository bankTransactionRepository = mock(BankTransactionRepository.class);
@@ -238,14 +246,17 @@ class WriteDetailPartnerLookupBlankFallbackTest {
         CashReceiptResponse resp = service.confirm(receiptId, "system");
 
         assertThat(resp.status()).isEqualTo(CashReceiptStatus.CONFIRMED);
-        assertThat(resp.partnerCode()).isEqualTo("미등록");
-        assertThat(resp.partnerName()).isEqualTo("(미조회)");
+        // #831 R-3: UNAVAILABLE 은 "미등록"(확정적 미존재 주장)이 아니라 null(조회 실패) 이어야 한다
+        // — partnerId 는 partner-service 장애로 조회만 못 했을 뿐 실재할 수 있다.
+        assertThat(resp.partnerCode()).isNull();
+        assertThat(resp.partnerName()).isNull();
         assertThat(receipt.getJournalId()).isEqualTo(journalId);
         server.verify();
     }
 
     @Test
-    @DisplayName("cancel — partner-service 장애에도 취소+자동 역분개 게시를 성사시키고 거래처 표시는 미조회 기본값이다")
+    @DisplayName("cancel — partner-service 장애에도 취소+자동 역분개 게시를 성사시키고 거래처 표시는 "
+            + "\"미등록\"이 아닌 공란이다 (#831 R-3)")
     void cancelSucceedsWithBlankPartnerDisplayWhenPartnerServiceUnavailable() {
         CashReceiptRepository repository = mock(CashReceiptRepository.class);
         BankTransactionRepository bankTransactionRepository = mock(BankTransactionRepository.class);
@@ -288,9 +299,101 @@ class WriteDetailPartnerLookupBlankFallbackTest {
         CashReceiptResponse resp = service.cancel(receiptId, "system");
 
         assertThat(resp.status()).isEqualTo(CashReceiptStatus.CANCELLED);
+        // #831 R-3: UNAVAILABLE 은 "미등록"(확정적 미존재 주장)이 아니라 null(조회 실패) 이어야 한다.
+        assertThat(resp.partnerCode()).isNull();
+        assertThat(resp.partnerName()).isNull();
+        assertThat(receipt.getReverseJournalId()).isEqualTo(reversalJournalId);
+        server.verify();
+    }
+
+    // ------------------------------------------------------------------
+    // getOne(입금보고서 상세) — UNAVAILABLE 대 진짜 NOT_FOUND 구별 (#831 R-3 재수렴)
+    //
+    // 라이브 실측: partner-service 장애 중 GET 상세가 HTTP 200 과 함께
+    // {"partnerCode":"미등록","partnerName":"(미조회)"} 를 반환했다 — 그 partnerId 는 partner_db 에
+    // 실재하는 거래처였다. "조회하지 못했음"을 "확정적으로 없음"과 같은 문구로 표현한 것이 결함이며,
+    // 진짜 NOT_FOUND(고아 partnerId)의 기존 "미등록"/"(미조회)" 표시는 그대로 유지해야 한다.
+    // ------------------------------------------------------------------
+
+    @Test
+    @DisplayName("getOne — partner-service 장애(UNAVAILABLE) 시 \"미등록\"/\"(미조회)\" 위장 문구를 내지 않는다 (#831 R-3)")
+    void getOneDoesNotFabricateNotRegisteredWhenPartnerServiceUnavailable() {
+        CashReceiptRepository repository = mock(CashReceiptRepository.class);
+        BankTransactionRepository bankTransactionRepository = mock(BankTransactionRepository.class);
+        JournalRepository journalRepository = mock(JournalRepository.class);
+        CashReceiptNumberService numberService = mock(CashReceiptNumberService.class);
+        AccountService accountService = mock(AccountService.class);
+        JournalService journalService = mock(JournalService.class);
+        MonthEndCloseService monthEndCloseService = mock(MonthEndCloseService.class);
+        Mig9AgingSnapshotRefreshService agingSnapshotRefreshService = mock(Mig9AgingSnapshotRefreshService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        UUID partnerId = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        CashReceipt receipt = CashReceipt.createManual("2026/07/03-3", partnerId, new BigDecimal("600000"),
+                TODAY, "메모", "102", "110");
+        setField(receipt, "id", receiptId);
+        when(repository.findById(receiptId)).thenReturn(Optional.of(receipt));
+        when(journalRepository.findAllById(any())).thenReturn(List.of());
+
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        PartnerLookupClient client = client(builder);
+        expectUnavailable(server, ExpectedCount.once());
+
+        CashReceiptService service = new CashReceiptService(repository, bankTransactionRepository,
+                journalRepository, numberService, accountService, client, journalService,
+                monthEndCloseService, agingSnapshotRefreshService, objectMapper);
+
+        CashReceiptResponse resp = service.getOne(receiptId);
+
+        // partnerId 는 실존한다(partner-service 장애로 조회만 못 했을 뿐) — "확정적으로 없음"을
+        // 뜻하는 "미등록"/"(미조회)" 를 재사용하면 진짜 NOT_FOUND 와 구별 불가능해진다.
+        assertThat(resp.partnerCode()).isNotEqualTo("미등록");
+        assertThat(resp.partnerName()).isNotEqualTo("(미조회)");
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("getOne — partner-service 가 정상 응답했지만 거래처가 실제로 없으면(진짜 NOT_FOUND) "
+            + "\"미등록\"/\"(미조회)\" 표시를 그대로 유지한다 (#831 R-3 무회귀)")
+    void getOneKeepsNotRegisteredDisplayWhenPartnerGenuinelyNotFound() {
+        CashReceiptRepository repository = mock(CashReceiptRepository.class);
+        BankTransactionRepository bankTransactionRepository = mock(BankTransactionRepository.class);
+        JournalRepository journalRepository = mock(JournalRepository.class);
+        CashReceiptNumberService numberService = mock(CashReceiptNumberService.class);
+        AccountService accountService = mock(AccountService.class);
+        JournalService journalService = mock(JournalService.class);
+        MonthEndCloseService monthEndCloseService = mock(MonthEndCloseService.class);
+        Mig9AgingSnapshotRefreshService agingSnapshotRefreshService = mock(Mig9AgingSnapshotRefreshService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        UUID orphanPartnerId = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        CashReceipt receipt = CashReceipt.createManual("2026/07/05-1", orphanPartnerId, new BigDecimal("300000"),
+                TODAY, "메모", "102", "110");
+        setField(receipt, "id", receiptId);
+        when(repository.findById(receiptId)).thenReturn(Optional.of(receipt));
+        when(journalRepository.findAllById(any())).thenReturn(List.of());
+
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        PartnerLookupClient client = client(builder);
+        // 200 OK 이지만 partners 배열이 비어 있다 — 요청한 id 가 삭제/미존재(장애 아닌 진짜 NOT_FOUND).
+        server.expect(ExpectedCount.once(), requestTo("http://partner-service/internal/partners/lookup-by-ids"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"partners":[]}}
+                        """, MediaType.APPLICATION_JSON));
+
+        CashReceiptService service = new CashReceiptService(repository, bankTransactionRepository,
+                journalRepository, numberService, accountService, client, journalService,
+                monthEndCloseService, agingSnapshotRefreshService, objectMapper);
+
+        CashReceiptResponse resp = service.getOne(receiptId);
+
         assertThat(resp.partnerCode()).isEqualTo("미등록");
         assertThat(resp.partnerName()).isEqualTo("(미조회)");
-        assertThat(receipt.getReverseJournalId()).isEqualTo(reversalJournalId);
         server.verify();
     }
 
@@ -301,7 +404,10 @@ class WriteDetailPartnerLookupBlankFallbackTest {
     private static PartnerLookupClient client(RestClient.Builder builder) {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken("test-token");
-        return new PartnerLookupClient(builder, props, new ObjectMapper());
+        // #831 R-6: 프로덕션 생성자가 이제 자체 timeout requestFactory 를 설정해 MockRestServiceServer
+        // 의 mock requestFactory 를 덮어쓰므로, 여기서 baseUrl 만 적용해 직접 build() 한 뒤 테스트
+        // 전용 생성자로 주입한다(mock requestFactory 는 build() 이전에 이미 builder 에 반영돼 있음).
+        return new PartnerLookupClient(builder.baseUrl("http://partner-service").build(), props, new ObjectMapper());
     }
 
     private static void expectUnavailable(MockRestServiceServer server, ExpectedCount count) {

@@ -38,18 +38,22 @@ class PartnerLookupClientTest {
 
     @BeforeEach
     void setUp() {
-        RestClient.Builder builder = RestClient.builder();
+        // #831 R-6: 프로덕션 생성자가 이제 자체 timeout requestFactory 를 builder 에 설정하므로
+        // (MockRestServiceServer 의 mock requestFactory 를 덮어써 버림), 테스트는 MockRestServiceServer
+        // 로 이미 바인딩된 RestClient 를 "빌드까지 마친 뒤" 테스트 전용 생성자로 주입한다
+        // (ApprovalLineAuthorizeClient/AuthAccountLookupClient 테스트와 동일 관례).
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://partner-service");
         server = MockRestServiceServer.bindTo(builder).build();
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new PartnerLookupClient(builder, props, new ObjectMapper());
+        client = new PartnerLookupClient(builder.build(), props, new ObjectMapper());
     }
 
     @Test
     void token_null은_MIG12_INTERNAL_AUTH_MISS_throw() {
         InternalAuthProperties props = new InternalAuthProperties();
         PartnerLookupClient noTokenClient =
-                new PartnerLookupClient(RestClient.builder(), props, new ObjectMapper());
+                new PartnerLookupClient(RestClient.builder().build(), props, new ObjectMapper());
 
         assertThatThrownBy(() -> noTokenClient.findByPartnerCode("P-001"))
                 .isInstanceOf(BusinessException.class)
@@ -62,7 +66,7 @@ class PartnerLookupClientTest {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(" ");
         PartnerLookupClient noTokenClient =
-                new PartnerLookupClient(RestClient.builder(), props, new ObjectMapper());
+                new PartnerLookupClient(RestClient.builder().build(), props, new ObjectMapper());
 
         assertThatThrownBy(() -> noTokenClient.findByPartnerCode("P-001"))
                 .isInstanceOf(BusinessException.class)

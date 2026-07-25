@@ -222,11 +222,13 @@ class PartnerAgingServiceTest {
     @Test
     @DisplayName("partner-service 5xx — 대표 구 Map 소비처도 빈 맵 200 대신 502 fail-closed")
     void findReceivable_partnerServiceUnavailable_returns502() {
-        RestClient.Builder builder = RestClient.builder();
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://partner-service");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken("test-token");
-        PartnerLookupClient realClient = new PartnerLookupClient(builder, props, new ObjectMapper());
+        // #831 R-6: 프로덕션 생성자가 이제 자체 timeout requestFactory 를 설정해 MockRestServiceServer
+        // 의 mock requestFactory 를 덮어쓰므로, build() 까지 마친 RestClient 를 테스트 전용 생성자로 주입한다.
+        PartnerLookupClient realClient = new PartnerLookupClient(builder.build(), props, new ObjectMapper());
         PartnerAgingService service = new PartnerAgingService(journalLineRepository, realClient);
 
         server.expect(requestTo("http://partner-service/internal/partners/lookup-by-ids"))

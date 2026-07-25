@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,7 +15,9 @@ import java.util.UUID;
 import java.math.BigDecimal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -107,16 +110,58 @@ public class PartnerLookupClient {
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PARTNER_SERVICE_BASE = "http://partner-service";
 
+    /**
+     * 연결/응답 제한시간(#831 R-6) — partner-service 가 응답하지 않을 때(docker pause 라이브 실측:
+     * 40초 무응답) {@code CashReceiptService}/{@code JournalService} 의 클래스 레벨
+     * {@code @Transactional} write 오퍼레이션이 열린 DB 커넥션을 붙든 채 무한 대기하는 것을 막는다.
+     * 같은 패키지 형제 client 인 {@link ApprovalLineAuthorizeClient}·{@link AuthAccountLookupClient}
+     * 가 이미 이 값(connect 2s/read 3s)으로 오탐 없이 운용 중이라 동일 값을 채택했다 — partner-service
+     * 단건/배치 조회 모두 단순 indexed 조회이고, 배치 대상도 저널/입금보고서 1건에 실제 등장하는
+     * 거래처 수(보통 한 자릿수~수십)라 형제 client 의 단건 조회와 응답 생성 복잡도가 크게 다르지 않다.
+     */
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
+
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public PartnerLookupClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                InternalAuthProperties internalAuthProperties,
                                ObjectMapper objectMapper) {
-        this.restClient = builder.baseUrl(PARTNER_SERVICE_BASE).build();
+        this.restClient = builder.baseUrl(PARTNER_SERVICE_BASE)
+                .requestFactory(timeoutRequestFactory())
+                .build();
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 테스트 전용 생성자 — MockRestServiceServer/실 소켓에 바인딩된 RestClient 를 직접 주입한다.
+     *
+     * <p>public — {@code report}/{@code service} 패키지의 기존 테스트(PartnerAgingServiceTest 등)가
+     * client 패키지 밖에서도 이 생성자로 실 client + MockRestServiceServer 조합을 구성해야 한다.
+     * 프로덕션 DI 경로는 위의 {@code @Autowired} 생성자만 사용한다.
+     */
+    public PartnerLookupClient(RestClient restClient, InternalAuthProperties internalAuthProperties,
+                               ObjectMapper objectMapper) {
+        this.restClient = restClient;
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * {@link #CONNECT_TIMEOUT}/{@link #READ_TIMEOUT} 를 적용한 요청 factory.
+     *
+     * <p>package-private static 로 분리해 테스트가 프로덕션 생성자와 동일한 제한시간 설정을
+     * 재사용할 수 있게 한다(중복 정의 방지 — {@code PartnerLookupClientTimeoutTest}).
+     */
+    static SimpleClientHttpRequestFactory timeoutRequestFactory() {
+        SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
+        rf.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
+        rf.setReadTimeout((int) READ_TIMEOUT.toMillis());
+        return rf;
     }
 
     /**

@@ -501,16 +501,49 @@ public class CashReceiptService {
     /**
      * 단건 응답 조립 — createManual/updateDraft/confirm/cancel/updateConfirmed/getOne 공용
      * write/detail 경로. 표시명은 부수 정보이므로 partner-service 장애 시에도 오퍼레이션을
-     * 롤백하지 않고 공란(미조회)으로 성사시킨다 (#924 개발책임자 결정).
+     * 롤백하지 않고 표시만 공란으로 성사시킨다 (#924 개발책임자 결정).
+     *
+     * <p>단, "조회 실패"(UNAVAILABLE)와 "진짜 미등록"(NOT_FOUND)은 서로 다른 표시를 쓴다 —
+     * {@link #resolvePartnerDisplay} 참고(#831 R-3 재수렴, 라이브 실측: 장애 중에도 "미등록"/
+     * "(미조회)" 로 위장해 실존 거래처를 없는 것처럼 보여준 결함).
      */
     private CashReceiptResponse responseOf(CashReceipt receipt) {
-        Map<UUID, PartnerSummary> partners = resolveDisplaysOrEmpty(List.of(receipt));
         Map<UUID, String> journalNos = resolveJournalNos(List.of(receipt));
         return CashReceiptResponse.of(
                 receipt,
-                displayOf(partners.get(receipt.getPartnerId())),
+                resolvePartnerDisplay(receipt),
                 journalNoOf(receipt.getJournalId(), journalNos),
                 journalNoOf(receipt.getReverseJournalId(), journalNos));
+    }
+
+    /**
+     * write/detail 표시 조립 — UNAVAILABLE(조회 실패)과 진짜 NOT_FOUND(미등록)를 구별한다(#831 R-3).
+     *
+     * <p>{@link #resolveDisplaysOrEmpty}(및 그 기반인 {@link PartnerLookupSupport#batchOrEmpty})는
+     * UNAVAILABLE 을 빈 맵으로 흡수하므로, 그 결과만 보고는 "partner-service 가 장애라 못 찾았음"과
+     * "정상 응답했는데 그 거래처가 원래 없음(삭제/고아 partnerId)"을 구별할 수 없다. {@link #displayOf}
+     * 는 이 둘을 구별하지 못한 채 partner==null 이면 항상 "미등록"/"(미조회)" 를 반환하는데, 이는
+     * "확정적으로 존재하지 않는다"는 사실 주장이다 — partner-service 장애로 조회만 못 한 경우에
+     * 재사용하면 실존 거래처를 없는 것처럼 위장하게 된다(라이브 실측: 장애 중 HTTP 200 +
+     * "미등록"/"(미조회)", 그 partnerId 는 partner_db 에 실재했다).
+     *
+     * <p>여기서는 batch 조회 결과의 UNAVAILABLE 여부를 직접 보존해, UNAVAILABLE 이면
+     * {@link #PARTNER_DISPLAY_LOOKUP_UNAVAILABLE}(모든 필드 공란/null — "미등록" 같은 확정적
+     * 문구가 FE 편집 폼에 하이드레이트돼 그대로 재저장(PATCH)돼도 실 조회 키로 오인되지 않는다)로
+     * 분기하고, 그 외(FOUND, 요청한 id 가 매칭되지 않는 부분/빈 맵 포함)는 기존 {@link #displayOf}
+     * 를 그대로 써 진짜 NOT_FOUND 표시("미등록"/"(미조회)")를 무회귀로 유지한다.
+     */
+    private PartnerDisplay resolvePartnerDisplay(CashReceipt receipt) {
+        UUID partnerId = receipt.getPartnerId();
+        if (partnerId == null) {
+            return displayOf(null);
+        }
+        PartnerLookupClient.BatchLookupResult result =
+                PartnerLookupSupport.batch(partnerLookupClient, List.of(partnerId));
+        if (result.isUnavailable()) {
+            return PARTNER_DISPLAY_LOOKUP_UNAVAILABLE;
+        }
+        return displayOf(keyByPartnerId(result.partners()).get(partnerId));
     }
 
     /**
@@ -622,6 +655,19 @@ public class CashReceiptService {
     private static String journalNoOf(UUID journalId, Map<UUID, String> journalNos) {
         return journalId == null ? null : journalNos.get(journalId);
     }
+
+    /**
+     * partner-service 장애(UNAVAILABLE)로 조회 자체를 못 한 경우 전용 표시(#831 R-3).
+     *
+     * <p>partnerCode/partnerName 을 null 로 둬(bizNo 는 다른 분기와 동일하게 항상 "") 진짜
+     * NOT_FOUND 표시("미등록"/"(미조회)")와 결과가 절대 같아지지 않게 한다. {@link CashReceiptResponse}
+     * 는 {@code @JsonInclude(NON_NULL)} 이라 null 필드는 JSON 에서 아예 생략되므로, FE 편집 폼이
+     * 이 값을 무심코 하이드레이트해 그대로 PATCH 로 되돌려보내도 "존재하지 않는 거래처코드/거래처명"
+     * 으로 오인되어 조회를 시도할 문자열 자체가 없다 — {@code CashReceiptService.partnerNameSuffix}
+     * 가 "(미조회)" 폴백을 피해 빈 문자열을 쓰는 것과 같은 설계 원칙(원장에 위장 문구를 각인하지 않음)
+     * 을 API 응답에도 그대로 적용한다.
+     */
+    private static final PartnerDisplay PARTNER_DISPLAY_LOOKUP_UNAVAILABLE = new PartnerDisplay(null, "", null);
 
     private static PartnerDisplay displayOf(PartnerSummary partner) {
         if (partner == null) {

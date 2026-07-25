@@ -161,7 +161,10 @@ class LegacyBatchConsumerFailClosedTest {
     private static PartnerLookupClient client(RestClient.Builder builder) {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken("test-token");
-        return new PartnerLookupClient(builder, props, new ObjectMapper());
+        // #831 R-6: 프로덕션 생성자가 이제 자체 timeout requestFactory 를 설정해 MockRestServiceServer
+        // 의 mock requestFactory 를 덮어쓰므로, 여기서 baseUrl 만 적용해 직접 build() 한 뒤 테스트
+        // 전용 생성자로 주입한다(mock requestFactory 는 build() 이전에 이미 builder 에 반영돼 있음).
+        return new PartnerLookupClient(builder.baseUrl("http://partner-service").build(), props, new ObjectMapper());
     }
 
     private static PartnerAccountTotal partnerTotal(String accountCode) {
