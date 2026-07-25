@@ -37,6 +37,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -262,8 +263,40 @@ class InboundInspectionServiceTest {
 
             assertThat(result.status()).isEqualTo(InspectionStatus.COMPLETED);
             assertThat(result.stockApplied()).isTrue();
-            verify(stockLotRepository).save(any());
+            ArgumentCaptor<com.samhanair.logis.inventory.domain.StockLot> stockLotCaptor =
+                    ArgumentCaptor.forClass(com.samhanair.logis.inventory.domain.StockLot.class);
+            verify(stockLotRepository).save(stockLotCaptor.capture());
+            assertThat(stockLotCaptor.getValue().getUnitCost()).isEqualByComparingTo("100000");
             verify(stockMovementRepository).save(any());
+        }
+
+        @Test
+        @DisplayName("권위 금액 라인의 StockLot 원가는 공급가액/수량으로 VAT를 제외한다")
+        void authoritativeLine_usesSupplyUnitCostWithoutVat() {
+            InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");
+            InboundInspectionLine line = makeLine(inspection, lineId, productId, 2);
+            line.recordResult(2, 0, null);
+            inspection.addLine(line);
+
+            when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
+                    .thenReturn(Optional.of(inspection));
+            when(slipClient.getSlip(slipId)).thenReturn(makeAuthoritativeSlipDetail(slipId));
+
+            Warehouse warehouse = makeWarehouse(warehouseId);
+            when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(warehouse));
+            when(productClient.requireExists(productId)).thenReturn(goodsProduct(productId));
+            when(stockBalanceRepository
+                    .findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                    .thenReturn(Optional.of(StockBalance.create(productId, warehouse)));
+            lenient().when(stockLotRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            lenient().when(stockMovementRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.completeInspection(slipId, actorId);
+
+            ArgumentCaptor<com.samhanair.logis.inventory.domain.StockLot> captor =
+                    ArgumentCaptor.forClass(com.samhanair.logis.inventory.domain.StockLot.class);
+            verify(stockLotRepository).save(captor.capture());
+            assertThat(captor.getValue().getUnitCost()).isEqualByComparingTo("10000");
         }
 
         @Test
@@ -426,6 +459,15 @@ class InboundInspectionServiceTest {
                 SHARED_SLIP_LINE_ID, productId, "테스트 제품", "MODEL-001",
                 10, new BigDecimal("100000"));
         return new SlipDetail(slipId, "2025/01/10-001", slipType, status,
+                warehouseId, "테스트 거래처", "본사창고", "2025-01-10", "1234567890",
+                List.of(slipLine));
+    }
+
+    private SlipDetail makeAuthoritativeSlipDetail(UUID slipId) {
+        SlipLineDetail slipLine = new SlipLineDetail(
+                SHARED_SLIP_LINE_ID, productId, "테스트 제품", "MODEL-001",
+                2, new BigDecimal("11000"), new BigDecimal("20000"));
+        return new SlipDetail(slipId, "2025/01/10-001", "INBOUND", "SAVED",
                 warehouseId, "테스트 거래처", "본사창고", "2025-01-10", "1234567890",
                 List.of(slipLine));
     }

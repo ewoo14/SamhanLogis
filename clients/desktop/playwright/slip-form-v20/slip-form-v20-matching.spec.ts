@@ -7,7 +7,11 @@
  *   npx playwright test playwright/slip-form-v20/slip-form-v20-matching.spec.ts --reporter=line
  *
  * dev server 미가용 시 모든 UI 테스트 자동 SKIP.
- * 스크린샷 저장: docs/qa/slip-form-v20-and-menu-relocate/*.png
+ * 스크린샷 저장: 기본은 docs/qa/slip-form-v20-and-menu-relocate/_local/*.png (gitignore 대상 —
+ * 이 스펙은 CI mock 회귀 hard gate 에 포함돼 매 실행마다 찍히므로, 커밋된 확정 증거
+ * docs/qa/slip-form-v20-and-menu-relocate/tc-v*.png 와 경로를 분리해야 재실행이 그
+ * 확정 증거를 덮어쓰지 않는다. 의도적으로 새 확정 증거를 남기려면 QA_SHOTS_DIR
+ * 환경변수로 원하는 경로를 지정한다(신규 파일명 권장). 상세: playwright/support/qa-screenshot-dir.ts.
  *
  * PR #156 회귀 가드: page.on('pageerror') 훅 의무 적용.
  */
@@ -17,6 +21,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -27,13 +32,17 @@ const _dirname = path.dirname(_filename)
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
-/** 스크린샷 저장 디렉토리 */
-const QA_DIR = path.resolve(
+/** 커밋된 확정 증거 디렉토리 — 참조용. 실제 캡처는 아래 QA_DIR(기본 _local/ 서브폴더)에 쓴다. */
+const COMMITTED_QA_DIR = path.resolve(
   _dirname,
   '../../../../docs/qa/slip-form-v20-and-menu-relocate',
 )
 
+/** 이번 실행이 실제로 스크린샷을 쓸 디렉토리(기본 COMMITTED_QA_DIR/_local, QA_SHOTS_DIR 로 승격 가능) */
+const QA_DIR = resolveQaShotsDir(COMMITTED_QA_DIR)
+
 function ensureQaDir(): void {
+  // resolveQaShotsDir 이 모듈 로드 시점에 이미 mkdirSync(recursive) 했다 — 방어적 재확인만.
   if (!fs.existsSync(QA_DIR)) {
     fs.mkdirSync(QA_DIR, { recursive: true })
   }

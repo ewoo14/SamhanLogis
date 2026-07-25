@@ -15,6 +15,21 @@ import org.junit.jupiter.api.Test;
 class SlipLineAuthoritativeAmountsTest {
 
     @Test
+    @DisplayName("D-3: 권위 금액을 편집해도 요청 단가와 VAT 포함 단가를 그대로 보존한다")
+    void preservesRequestedUnitPriceForAuthoritativeAmounts() {
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("11000"), new BigDecimal("50000"), new BigDecimal("2000"),
+                new BigDecimal("52000"), null, null);
+
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("11000");
+        assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("11000");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("50000");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("2000");
+        assertThat(line.getLineTotal()).isEqualByComparingTo("50000");
+    }
+
+    @Test
     @DisplayName("끝수 공급가액을 보존하고 부가세·VAT 포함 합계를 그대로 저장한다")
     void createsFromAuthoritativeAmountsWithoutRecalculation() {
         Slip slip = newOutbound();
@@ -131,6 +146,19 @@ class SlipLineAuthoritativeAmountsTest {
 
         assertThat(line.getLineTotal()).isEqualByComparingTo("2000");
         assertThat(line.getSupplyAmount()).isEqualByComparingTo("2000");
+    }
+
+    @Test
+    @DisplayName("P5: 정상 VAT 포함 단가 경로는 공급가액·부가세·단가 계산을 유지한다")
+    void keepsNormalVatInclusivePath() {
+        SlipLine line = SlipLine.createFromVatInclusive(newOutbound(), UUID.randomUUID(), "품목", null,
+                null, 2, new BigDecimal("11000"), null, null);
+
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("10000");
+        assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("11000");
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("20000");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("2000");
+        assertThat(line.getLineTotal()).isEqualByComparingTo("20000");
     }
 
     @Test

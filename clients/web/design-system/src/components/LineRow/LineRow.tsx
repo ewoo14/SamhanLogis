@@ -180,6 +180,25 @@ export interface LineRowProps {
    * - 미지정(기본 `true`) 시 기존 동작 유지 (backward compatible).
    */
   partnerSelected?: boolean
+  /**
+   * 이 행이 저장 대상에서 제외될 예정(#902 R2 D7·H6, #902 R3 H6′로 정정) — 호출자의 저장
+   * 판정(예: `productId && quantity > 0`)과 같은 조건이어야 한다.
+   *
+   * <p>계산 로직(lineVat.ts 의 {@code recalculateLineVat})은 수량을
+   * {@code Math.max(1, ...)}로 클램프해 공급가액/부가세/합계를 계산한다(다른 화면·BE parity
+   * 유지를 위해 그대로 둔다) — 그래서 수량 0(저장 제외 예정) 행의 "authority=PRICE 로 계산된"
+   * 금액 필드는 "수량 1 로 계산된" 값이라, 화면에 그대로 보이면 "저장에서 제외됩니다" 밴드와
+   * 실제로는 저장되지 않을 금액이 동시에 뜨는 모순이 생긴다(H9, 원 D7).
+   *
+   * <p>⚠️ #902 R3 정정: true 라고 해서 공급가액/부가세/합계 표시가 무조건 0 으로 강제되지
+   * 않는다(그러면 controlled input 의 value 가 항상 0 이 되어 사용자가 그 칸에 입력할 수
+   * 없어진다 — 개발책임자 발견 회귀). 억제는 {@code line.authority} 가 'PRICE'(또는 미설정)
+   * 이고 실제 quantity 가 0 이하일 때만 적용된다 — 사용자가 공급가액/부가세/합계 중 하나를
+   * 직접 편집(authority 승격)했거나, quantity 가 이미 유효(>0)해 클램프가 아무 것도 왜곡하지
+   * 않았다면 실제 값을 그대로 보여준다(H6′·H8). 미지정(기본 false) 시 기존 동작 유지
+   * (backward compatible).
+   */
+  excludedFromSave?: boolean
 }
 
 /**
@@ -212,6 +231,14 @@ function computeVatBreakdown(qty: string, price: string): { incl: number; supply
   return { incl, supply, vat: incl - supply }
 }
 
+/** 금액 입력은 숫자와 천단위 콤마만 허용하고, 잘못된 문자열은 숫자로 재조합하지 않는다. */
+function parseEditableAmountInput(raw: string): string | null {
+  if (/^\d*$/.test(raw)) return raw
+  if (raw.includes(',,')) return null
+  if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
+  return raw.replace(/,/g, '')
+}
+
 /**
  * LineRow forwardRef — sortable container 의 ref 를 받는다.
  */
@@ -236,8 +263,11 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     partnerSelected = true,
     onSupplyAmountChange,
     onVatAmountChange,
-    onLineTotalChange,
+    // onLineTotalChange: P1(개발책임자 결정 2026-07-25)로 합계 편집 UI 자체가 사라져 더 이상
+    // 쓰이지 않는다 — 구조분해에서 뺐다(호출자가 여전히 넘겨도 무해, 인터페이스는 하위 호환
+    // 유지).
     vatEditable = true,
+    excludedFromSave = false,
   },
   ref,
 ) {
@@ -256,8 +286,36 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
   const hasVatAmounts = vatInclusive && line.supplyAmount != null
     && line.vatAmount != null && line.lineTotal != null
   const rowGridClass = vatInclusive ? styles['lineRowVat'] : undefined
+  /**
+   * #902 R3(개발책임자 직접 발견 회귀 fix): 이전 라운드(D7·H6)는 excludedFromSave 하나만
+   * 보고 무조건 '0'을 강제했다 — 그 값이 controlled input 의 value 라서, 사용자가 공급가액/
+   * 부가세/합계 칸에 아무리 입력해도 다음 렌더에서 곧바로 '0'으로 되돌아갔다(H6′·H8 회귀).
+   *
+   * <p>억제해야 할 대상은 lineVat 의 수량 클램프(Math.max(1,...))가 실제로 왜곡해 만든
+   * "가짜" 값이지, 사용자가 직접 친 값이 아니다(H6′ 단서). 이 둘은 두 신호로 구별한다.
+   * <ul>
+   *   <li>{@code authority} 가 'SUPPLY'/'VAT'/'TOTAL' 이면 사용자가 그 권위 그룹의 금액을
+   *       직접 편집한 것이다 — 이 컴포넌트는 계산 자체를 하지 않고 호출자가 이미 계산한
+   *       supplyAmount/vatAmount/lineTotal 을 그대로 받는다. 호출자(예: 데스크톱
+   *       SlipFormPage 의 {@code lineVat.editSlipLineAmount})가 그 계산에서 quantity 를
+   *       쓰지 않는 한 클램프는 관여하지 않는다. 억제하지 않는다. (#902 R5: SUPPLY/VAT 는
+   *       이제 quantity 는 물론 unitPrice 도 건드리지 않는 전용 함수를 거친다 — P4/P6,
+   *       2026-07-25 결정. TOTAL 은 이 컴포넌트의 합계 칸이 읽기전용으로 바뀌어 이 화면에서는
+   *       편집 UI 로 도달할 수 없지만, authority 값 자체는 여전히 유효한 타입이라 아래
+   *       판정에서 함께 다룬다.)
+   *   <li>{@code authority} 가 'PRICE'(기본값 포함)면 세 값이 quantity 를 그대로(클램프
+   *       거쳐) 곱해 계산된다 — 이때 실제 quantity 가 이미 1 이상으로 유효하면 클램프는
+   *       아무 것도 왜곡하지 않은 것이라(무영향) 억제하지 않는다 — "제외 예정"(예: 품목
+   *       미선택) 그 자체는 억제 사유가 아니다(이카운트 방식 "금액 먼저" 입력 흐름 보존).
+   *       실제 quantity 가 0 이하(빈 값 포함)일 때만 클램프가 "수량 1"을 대신 밀어넣어
+   *       값을 왜곡한다 — 이때만 억제해 H9(원 D7)의 모순을 막는다.
+   * </ul>
+   */
+  const suppressComputedAmounts = excludedFromSave
+    && (line.authority == null || line.authority === 'PRICE')
+    && !(Number(line.quantity) > 0)
   const amountDisplay = (value: string | undefined, fallback: number): string =>
-    Number(value ?? fallback).toLocaleString()
+    suppressComputedAmounts ? '0' : Number(value ?? fallback).toLocaleString()
   const priceDisplay = line.unitPrice ? Number(line.unitPrice).toLocaleString() : '0'
   // D-R4-1: 자동채움 값의 실체는 제품 등록 화면의 '판매가'(sellingPrice) — '정가' 라벨은
   // 기존 용어체계에서 출고가(releasePrice) 계열 별칭이라 오도되므로 사용 금지.
@@ -405,7 +463,17 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
             min={1}
             className={`${styles['input']} ${styles['numInput']}`}
             value={line.quantity}
-            onChange={(e) => onQuantityChange(e.target.value)}
+            onChange={(e) => {
+              // #902 R3 H7′(H7 대체, 개발책임자 회귀 지시 S5): 종전 D8 fix 는 문자 단위로
+              // 숫자가 아닌 문자만 제거해 "2.7"→"27"(10배 오주문), "0.5"→"05"→5, "-3"→"3",
+              // "1e3"→"13" 처럼 자릿수가 재조합되어 사용자가 의도하지 않은 다른 수량이
+              // 조용히 만들어졌다 — 원래 결함(BE 에서 2.7→2 절사)보다 더 나빴다(PM 실측).
+              // 전체 문자열이 순수 자연수(빈 값 포함)일 때만 그대로 받아들이고, 아니면 이
+              // 입력 자체를 반영하지 않는다 — controlled input 이라 다음 렌더에서 이전
+              // 값으로 자동 복귀한다(자릿수 재조합 없이 "받지 않음"으로 처리).
+              if (!/^\d*$/.test(e.target.value)) return
+              onQuantityChange(e.target.value)
+            }}
             aria-label={`라인 ${lineNumber} 수량`}
           />
         </div>
@@ -420,8 +488,8 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
               className={`${styles['input']} ${styles['numInput']}`}
               value={priceDisplay}
               onChange={(e) => {
-                const numeric = e.target.value.replace(/[^0-9]/g, '')
-                onUnitPriceChange(numeric)
+                const numeric = parseEditableAmountInput(e.target.value)
+                if (numeric !== null) onUnitPriceChange(numeric)
               }}
               aria-label={`라인 ${lineNumber} 단가`}
               aria-describedby={priceDescribedBy}
@@ -452,7 +520,10 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
                   inputMode="numeric"
                   className={`${styles['input']} ${styles['numInput']}`}
                   value={amountDisplay(line.supplyAmount, vatBreakdown?.supply ?? 0)}
-                  onChange={(e) => onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+                  onChange={(e) => {
+                    const numeric = parseEditableAmountInput(e.target.value)
+                    if (numeric !== null) onSupplyAmountChange(numeric)
+                  }}
                   aria-label={`라인 ${lineNumber} 공급가액`}
                   disabled={!vatEditable}
                 />
@@ -468,7 +539,10 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
                     inputMode="numeric"
                     className={`${styles['input']} ${styles['numInput']}`}
                     value={amountDisplay(line.vatAmount, vatBreakdown?.vat ?? 0)}
-                    onChange={(e) => onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(e) => {
+                      const numeric = parseEditableAmountInput(e.target.value)
+                      if (numeric !== null) onVatAmountChange(numeric)
+                    }}
                     aria-label={`라인 ${lineNumber} 부가세`}
                     disabled={!vatEditable}
                   />
@@ -483,24 +557,24 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
           </>
         ) : null}
 
-        {/* 9. 합계 — VAT 포함 모드에서는 권위 합계 입력, 기존 모드에서는 read-only 계산 */}
+        {/*
+          9. 합계 — 읽기전용(P1, 개발책임자 결정 2026-07-25 "금액 열 편집 정책"): 합계는
+          공급가액+부가세로만 파생되고 사용자가 직접 입력할 수단이 없다. 종전에는 VAT 포함
+          모드에서 hasVatAmounts && onLineTotalChange 조건일 때 편집 가능한 <input>을
+          렌더했으나(그 분기 제거), 이제는 상태와 무관하게 항상 읽기전용 표시로 통일한다 —
+          onLineTotalChange prop은 하위 호환을 위해 인터페이스에 남겨두되(다른 소비처가 아직
+          넘길 수 있음) 렌더에서는 쓰지 않는다(TOTAL 권위는 lineVat.ts 공유 함수 안에는 여전히
+          살아있다 — 견적/전표 상세가 계속 쓴다 — 다만 이 화면의 UI에서는 도달 불가하다).
+        */}
         <div className={`${styles['cell']} ${styles['cellSum']}`} aria-label={`라인 ${lineNumber} 합계`}>
-          {hasVatAmounts && onLineTotalChange ? (
-            <input
-              type="text"
-              inputMode="numeric"
-              className={`${styles['input']} ${styles['numInput']}`}
-              value={amountDisplay(line.lineTotal, vatBreakdown?.incl ?? 0)}
-              onChange={(e) => onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
-              aria-label={`라인 ${lineNumber} 합계(VAT포함)`}
-              disabled={!vatEditable}
-            />
-          ) : vatBreakdown ? (
+          {vatBreakdown ? (
             <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.25 }}>
-              <span aria-label={`라인 ${lineNumber} 합계(VAT포함)`}>{vatBreakdown.incl.toLocaleString()}</span>
+              <span aria-label={`라인 ${lineNumber} 합계(VAT포함)`}>
+                {hasVatAmounts ? amountDisplay(line.lineTotal, vatBreakdown.incl) : vatBreakdown.incl.toLocaleString()}
+              </span>
               <span style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)' }}
                 aria-label={`라인 ${lineNumber} 공급가액/부가세`}>
-                공급 {vatBreakdown.supply.toLocaleString()} · VAT {vatBreakdown.vat.toLocaleString()}
+                공급 {hasVatAmounts ? amountDisplay(line.supplyAmount, vatBreakdown.supply) : vatBreakdown.supply.toLocaleString()} · VAT {hasVatAmounts ? amountDisplay(line.vatAmount, vatBreakdown.vat) : vatBreakdown.vat.toLocaleString()}
               </span>
             </span>
           ) : (

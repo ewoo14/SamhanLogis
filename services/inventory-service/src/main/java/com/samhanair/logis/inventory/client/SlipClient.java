@@ -67,7 +67,8 @@ public class SlipClient {
      * 매입/매출 조회 guard 를 통과해야 하므로 internal token 외에 system-master 헤더를 함께 보낸다.
      *
      * <p>응답 envelope ({@code ApiResponse}) 의 {@code data} 키에서 슬립 정보를 추출하여
-     * {@link SlipDetail} 로 변환한다.
+     * {@link SlipDetail} 로 변환한다. 라인 공급가액도 함께 전달해 권위 금액 라인의 VAT 제외
+     * 원가를 downstream 이 계산할 수 있게 한다.
      *
      * @param slipId 슬립 UUID
      * @return 슬립 상세 정보
@@ -161,8 +162,12 @@ public class SlipClient {
                             && !lineNode.get("unitPrice").isNull()
                             ? new BigDecimal(lineNode.get("unitPrice").asText())
                             : BigDecimal.ZERO;
+                    BigDecimal supplyAmount = lineNode.has("supplyAmount")
+                            && !lineNode.get("supplyAmount").isNull()
+                            ? new BigDecimal(lineNode.get("supplyAmount").asText())
+                            : null;
                     lines.add(new SlipLineDetail(lineId, productId, productName, modelName,
-                            quantity, unitPrice));
+                            quantity, unitPrice, supplyAmount));
                 }
             }
 

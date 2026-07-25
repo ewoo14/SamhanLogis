@@ -84,10 +84,17 @@ import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
   changeLineQuantity,
-  editLineVat,
+  editSlipLineAmount,
   recalculateLineVat,
+  sumDisplayedLineVatAmounts,
   type LineVatLine,
 } from '../utils/lineVat'
+import {
+  isLineContentEqual,
+  lineIncompleteReason,
+  willLineBeSaved,
+  type LineIncompleteReason,
+} from '../utils/slipLineDraft'
 import {
   usePartnerPriceRefresh,
   type PartnerRepriceCandidate,
@@ -165,6 +172,42 @@ const calcVatInclusiveLine = (
   return { incl, supply, vat: incl - supply }
 }
 
+/**
+ * #902 R3(개발책임자 직접 발견 회귀 fix, 모바일 표면 — LineRow.tsx 의 동일 로직과 대응).
+ *
+ * 이전 라운드(D7·H6)는 excludedFromSave 하나만 보고 공급가액/부가세/합계를 무조건 '0'으로
+ * 강제했다 — 그 값이 controlled input 의 value 라서, 사용자가 이 칸들에 아무리 입력해도
+ * 다음 렌더에서 곧바로 '0'으로 되돌아갔다(H6′·H8 회귀). 억제 대상은 lineVat 의 수량 클램프
+ * (Math.max(1,...))가 실제로 왜곡해 만든 "가짜" 값이지, 사용자가 직접 친 값이 아니다.
+ *
+ * - authority 가 'SUPPLY'/'VAT'/'TOTAL' 이면 사용자가 그 권위 그룹의 금액을 직접 편집한
+ *   것 — quantity 를 공급가액/부가세/합계 계산에 전혀 쓰지 않는다 — 클램프 미관여. 억제
+ *   하지 않는다. (#902 R5 갱신 — 개발책임자 결정 2026-07-25 "금액 열 편집 정책": 이 화면의
+ *   SUPPLY/VAT 편집은 이제 {@code lineVat.editSlipLineAmount} 를 거친다 — quantity 는
+ *   물론 unitPrice 도 건드리지 않는 전용 함수라 이 결론이 전보다도 더 단순하게 성립한다.
+ *   TOTAL 은 이 화면에 편집 UI 자체가 없어졌다(P1) — line.authority 타입에는 남아있지만
+ *   이 화면에서 실제로 생성되지는 않는다. 그래도 혹시 남아있어도 이 억제 판정은 그대로
+ *   안전하다: PRICE 가 아니라는 사실만으로 억제 대상에서 제외되기 때문.)
+ * - authority 가 'PRICE'(기본값 포함)면 세 값이 quantity 를 그대로(클램프 거쳐) 곱해
+ *   계산된다 — 실제 quantity 가 이미 1 이상으로 유효하면 클램프는 아무 것도 왜곡하지 않은
+ *   것이라(무영향) 억제하지 않는다. 실제 quantity 가 0 이하(빈 값 포함)일 때만 클램프가
+ *   "수량 1"을 대신 밀어넣어 값을 왜곡한다 — 이때만 억제해 H9(원 D7)의 모순을 막는다.
+ */
+function shouldSuppressComputedAmounts(line: LineDraft, excludedFromSave: boolean): boolean {
+  if (!excludedFromSave) return false
+  const isPriceAuthorityOrUnset = line.authority == null || line.authority === 'PRICE'
+  const quantityInvalid = !(Number(line.quantity) > 0)
+  return isPriceAuthorityOrUnset && quantityInvalid
+}
+
+/** 금액 입력은 숫자와 천단위 콤마만 허용하고, 잘못된 문자열은 숫자로 재조합하지 않는다. */
+function parseEditableAmountInput(raw: string): string | null {
+  if (/^\d*$/.test(raw)) return raw
+  if (raw.includes(',,')) return null
+  if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
+  return raw.replace(/,/g, '')
+}
+
 function PriceChangeIndicator({ id }: { id: string }) {
   return (
     <span id={id} className="price-change-indicator">
@@ -173,6 +216,43 @@ function PriceChangeIndicator({ id }: { id: string }) {
       </svg>
       단가 변경
     </span>
+  )
+}
+
+/**
+ * 사용자가 입력을 시작했지만 현행 저장 조건을 아직 만족하지 못한 행의 안내.
+ * 초기 빈 행에는 렌더하지 않아, 입력 전부터 오류처럼 보이지 않게 한다.
+ *
+ * #902 R2 D4·H4: 문구는 `reason` 이 가리키는 실제 조건만 말한다 — 빈 행의 수량은 이미
+ * '1'로 채워져 있어 "수량을 모두 입력하면"은 이미 만족된 조건이고(진짜 할 일=품목 선택이
+ * 묻힘), 반대로 품목 선택 후 수량을 0/음수로 둔 행에는 "수량을 입력하면"이 틀린 말이었다
+ * (진짜 조건은 "0보다 커야 한다").
+ */
+function IncompleteLineNotice({
+  lineNumber,
+  reason,
+}: {
+  lineNumber: number
+  reason: LineIncompleteReason
+}) {
+  const message =
+    reason === 'NEEDS_PRODUCT'
+      ? '입력 중인 행입니다. 품목을 선택하면 저장되며, 현재는 저장에서 제외됩니다.'
+      : '입력 중인 행입니다. 수량을 1 이상 입력하면 저장되며, 현재는 저장에서 제외됩니다.'
+  return (
+    <div
+      role="note"
+      data-testid={`line-${lineNumber}-incomplete-notice`}
+      style={{
+        padding: '6px 12px',
+        color: 'var(--ink-secondary, #5C6773)',
+        background: 'var(--surface-subtle, #F8FAFC)',
+        fontSize: 12,
+        lineHeight: 1.4,
+      }}
+    >
+      {message}
+    </div>
   )
 }
 
@@ -189,8 +269,14 @@ function SlipMobileLineCard(props: {
   onUnitPriceChange: (value: string) => void
   onSupplyAmountChange: (value: string) => void
   onVatAmountChange: (value: string) => void
-  onLineTotalChange: (value: string) => void
   vatEditable: boolean
+  /**
+   * 저장에서 제외될 예정(#902 R2 D7·H6) — true 라고 해서 금액 열 표시가 무조건 0 으로
+   * 강제되지 않는다(#902 R3 정정 — {@link shouldSuppressComputedAmounts} 참고). 사용자가
+   * 공급가액/부가세/합계 중 하나를 직접 편집했거나(authority 승격) quantity 가 이미
+   * 유효(>0)하면 실제 값을 그대로 보여준다(H6′·H8) — 수량 클램프가 실제로 왜곡한 값만 억제.
+   */
+  excludedFromSave: boolean
   onDelete: () => void
   modelCell: ReactNode
   footer?: ReactNode
@@ -286,7 +372,16 @@ function SlipMobileLineCard(props: {
           min={1}
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.quantity}
-          onChange={(e) => props.onQuantityChange(e.target.value)}
+          onChange={(e) => {
+            // #902 R3 H7′(H7 대체, 개발책임자 회귀 지시 S5 — 데스크톱 LineRow 와 동일 규약):
+            // 종전 D8 fix 는 문자 단위로 숫자가 아닌 문자만 제거해 "2.7"→"27"(10배 오주문),
+            // "-3"→"3", "1e3"→"13" 처럼 자릿수가 재조합되어 사용자가 의도하지 않은 다른
+            // 수량이 조용히 만들어졌다. 전체 문자열이 순수 자연수(빈 값 포함)일 때만 그대로
+            // 받아들이고, 아니면 이 입력 자체를 반영하지 않는다(controlled input 이라 다음
+            // 렌더에서 이전 값으로 자동 복귀).
+            if (!/^\d*$/.test(e.target.value)) return
+            props.onQuantityChange(e.target.value)
+          }}
           aria-label={`라인 ${props.lineNumber} 수량`}
         />
       </div>
@@ -299,8 +394,8 @@ function SlipMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.unitPrice}
           onChange={(e) => {
-            const numeric = e.target.value.replace(/[^0-9]/g, '')
-            props.onUnitPriceChange(numeric)
+            const numeric = parseEditableAmountInput(e.target.value)
+            if (numeric !== null) props.onUnitPriceChange(numeric)
           }}
           aria-label={`라인 ${props.lineNumber} 단가`}
           aria-describedby={priceDescribedBy}
@@ -322,15 +417,18 @@ function SlipMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">금액(VAT포함)</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          className="mobile-line-text-input mobile-line-number-input"
-          value={Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
-          onChange={(e) => props.onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
+        {/*
+          P1(개발책임자 결정 2026-07-25 "금액 열 편집 정책"): 합계는 공급가액+부가세로만
+          파생되고 사용자가 직접 입력할 수단이 없다. 종전에는 <input>으로 편집 가능했으나
+          (그 경로 제거), 이제는 읽기전용 표시로 통일한다 — 데스크톱 LineRow.tsx의 동일
+          변경과 대응.
+        */}
+        <div
+          className="mobile-line-readonly"
           aria-label={`라인 ${props.lineNumber} 합계(VAT포함)`}
-          disabled={!props.vatEditable}
-        />
+        >
+          {shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
+        </div>
       </div>
 
       <div className="mobile-line-field">
@@ -339,8 +437,11 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
-          onChange={(e) => props.onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+          value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
+          onChange={(e) => {
+            const numeric = parseEditableAmountInput(e.target.value)
+            if (numeric !== null) props.onSupplyAmountChange(numeric)
+          }}
           aria-label={`라인 ${props.lineNumber} 공급가액`}
           disabled={!props.vatEditable}
         />
@@ -352,8 +453,11 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
-          onChange={(e) => props.onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+          value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
+          onChange={(e) => {
+            const numeric = parseEditableAmountInput(e.target.value)
+            if (numeric !== null) props.onVatAmountChange(numeric)
+          }}
           aria-label={`라인 ${props.lineNumber} 부가세`}
           disabled={!props.vatEditable}
         />
@@ -391,8 +495,9 @@ function SortableLineRow(props: {
   onUnitPriceChange: (v: string) => void
   onSupplyAmountChange: (v: string) => void
   onVatAmountChange: (v: string) => void
-  onLineTotalChange: (v: string) => void
   vatEditable: boolean
+  /** 저장에서 제외될 예정(#902 R2 D7·H6) — LineRow 의 금액 표시 억제로 전달. */
+  excludedFromSave: boolean
   onDelete: () => void
   /** AC-2: 모델명 셀 커스텀 렌더 slot (ProductAutocomplete 주입). */
   modelCell?: ReactNode
@@ -424,6 +529,7 @@ function SortableLineRow(props: {
         isDragging={isDragging}
         vatInclusive
         vatEditable={props.vatEditable}
+        excludedFromSave={props.excludedFromSave}
         lineNumber={props.lineNumber}
         line={props.line}
         selected={props.selected}
@@ -437,7 +543,6 @@ function SortableLineRow(props: {
         onUnitPriceChange={props.onUnitPriceChange}
         onSupplyAmountChange={props.onSupplyAmountChange}
         onVatAmountChange={props.onVatAmountChange}
-        onLineTotalChange={props.onLineTotalChange}
         onDelete={props.onDelete}
         modelCell={props.modelCell}
         dragHandleProps={{
@@ -477,8 +582,17 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [unloadDate, setUnloadDate] = useState<string>('')
   const [sameDay, setSameDay] = useState(false) // 당착 체크박스 (지방 한정)
 
-  const [lines, setLines] = useState<LineDraft[]>([emptyLine()])
+  // 이카운트식 연속 입력을 위해 처음부터 빈 행 5개를 준비한다.
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    Array.from({ length: 5 }, () => emptyLine()),
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [lineExpansionAnnouncement, setLineExpansionAnnouncement] = useState('')
+  // #902 R2 D6·H5: 마지막 행 반복 증식 시 문구가 같은 라인 번호를 가리키면 완전히 동일한
+  // 문자열이 되어 React 가 재렌더를 bail-out, 스크린리더가 재낭독하지 않는다. 매 증식마다
+  // 이 카운터를 늘려 문구 끝에 보이지 않는 폭 없는 공백을 붙임으로써 DOM 텍스트 자체를
+  // 실제로 바꾼다(시각적으로는 무영향 — 이 span 은 이미 스크린리더 전용으로 숨겨져 있다).
+  const expansionSeqRef = useRef(0)
   // link-dispatch-slice 신규 — 기사명 + 기사 휴대폰 (LinkDispatchListPage 자동 그룹의 키)
   const [driverName, setDriverName] = useState('')
   const [driverPhone, setDriverPhone] = useState('')
@@ -546,6 +660,53 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((ls) => [...ls, next])
   }
 
+  /**
+   * 마지막 행이 이 편집으로 실제로 바뀌었으면(H2) 빈 행을 정확히 하나만 덧붙인다.
+   *
+   * #902 R2 근본원인 정정: 종전엔 "onChange 가 발화했는가"(touchedLineIds 이력)로 증식을
+   * 트리거해, 화면상 아무 변화도 없는 제스처(단가 셀 Backspace 1회 등)도 빈 행을
+   * 증식시켰다(D2). 이제는 `before`(편집 전 스냅샷)와 `after`(편집 후 값) 가 실제로
+   * 다른지(`isLineContentEqual`)만 본다 — 값이 안 바뀌면 이력과 무관하게 증식하지 않는다.
+   *
+   * <p>위치 판정(`isLastLine`)은 유지한다 — 자동 증식으로 뒤에 새 빈 행이 생기면 그 순간
+   * 이 행은 더 이상 "마지막 행"이 아니게 되어, 같은 행에 대한 후속 편집이 중복 증식을
+   * 만들지 않는다(기존 "자동 증식 1회 1행" 불변식). 새 빈 행이 삭제돼 이 행이 다시
+   * 마지막이 되면, 재편집(값이 실제로 다시 바뀌는 편집) 시 다시 증식한다 — 의도된 동작이다.
+   *
+   * <p>setLines updater 안에서 위치를 다시 확인해 연속 이벤트에도 중복 증식을 막는다.
+   */
+  const maybeExpandLastLine = (id: string, before: LineDraft, after: LineDraft) => {
+    const isLastLine = linesRef.current[linesRef.current.length - 1]?.id === id
+    if (!isLastLine || isLineContentEqual(before, after)) return
+    const lineNumber = linesRef.current.length
+
+    setLines((current) => {
+      const idx = current.findIndex((line) => line.id === id)
+      if (idx === -1 || idx !== current.length - 1) return current
+      return [...current, emptyLine()]
+    })
+
+    // D6·H5: 반복 증식이 같은 문구로 이어지지 않도록 보이지 않는 폭 없는 공백(U+200B)으로
+    // 매번 문자열을 바꾼다(1~4개 순환 — 인접한 두 값은 항상 개수가 달라 문자열이 다르다).
+    // 시각적으로는 무영향 — 이 span 은 이미 스크린리더 전용으로 화면에서 숨겨져 있다.
+    expansionSeqRef.current += 1
+    const zeroWidthSpace = '​'
+    const rereadMarker = zeroWidthSpace.repeat((expansionSeqRef.current % 4) + 1)
+    setLineExpansionAnnouncement(
+      `라인 ${lineNumber} 입력 완료. 다음 입력 행 1개가 추가되었습니다.${rereadMarker}`,
+    )
+  }
+
+  /** 사용자 셀 변경 공통 경로 — 제품 선택과 수량/금액/규격 입력이 같은 증식 규칙을 쓴다. */
+  const updateLineFromUser = (id: string, updater: (line: LineDraft) => LineDraft) => {
+    const before = linesRef.current.find((line) => line.id === id)
+    setLines((current) => current.map((line) => (
+      line.id === id ? updater(line) : line
+    )))
+    if (!before) return
+    maybeExpandLastLine(id, before, updater(before))
+  }
+
   const removeLine = (id: string) => {
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((l) => l.id !== id)))
     setSelectedIds((prev) => {
@@ -553,13 +714,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       next.delete(id)
       return next
     })
+    // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
+    // 행 삭제 시 별도로 지워줄 이력이 없다 — 배열에서 빠지는 즉시 안내도 함께 사라진다.
   }
 
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
   const updatePrice = (id: string, unitPrice: string) =>
-    setLines((ls) => ls.map((line) => {
+    updateLineFromUser(id, (line) => {
       if (line.id !== id) return line
       return {
         ...recalculateLineVat(asVatLine({ ...line, unitPrice }), 'PRICE'),
@@ -570,20 +733,24 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         lookupError: null,
         lookupLoading: false,
       }
-    }))
+    })
 
   const updateQuantity = (id: string, quantity: string) =>
-    setLines((ls) => ls.map((line) => (
-      line.id === id ? changeLineQuantity(asVatLine(line), quantity) : line
-    )))
+    updateLineFromUser(id, (line) => changeLineQuantity(asVatLine(line), quantity))
 
+  /**
+   * 공급가액·부가세 편집 (개발책임자 결정 2026-07-25 "금액 열 편집 정책", 정정 포함).
+   *
+   * <p>{@link editSlipLineAmount} 를 쓴다 — 공유 {@code editLineVat} 의 SUPPLY/VAT 분기를
+   * 고치지 않고 전표 화면 전용 함수로 분리했다(견적·전표 상세는 원래 방향을 그대로 씀,
+   * lineVat.ts 의 함수 주석 참고). 합계(TOTAL) 편집은 이 화면에 UI 자체가 없다(P1) —
+   * authority 는 SUPPLY/VAT 만 받는다.
+   */
   const updateVatAmount = (
     id: string,
-    authority: 'SUPPLY' | 'VAT' | 'TOTAL',
+    authority: 'SUPPLY' | 'VAT',
     value: string,
-  ) => setLines((ls) => ls.map((line) => (
-    line.id === id ? editLineVat(asVatLine(line), authority, value) : line
-  )))
+  ) => updateLineFromUser(id, (line) => editSlipLineAmount(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
     setPriceLookupAnnouncement('')
@@ -596,7 +763,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const nextUnitPrice = shouldAutoFill ? fallbackUnitPrice : line.unitPrice
     const partnerId = selectedPartner?.id
     const pricedLine = recalculateLineVat(asVatLine({ ...line, unitPrice: nextUnitPrice }), 'PRICE')
-    updateLine(line.id, {
+    const nextLine: LineDraft = {
       ...pricedLine,
       productId,
       modelName: product?.modelName ?? '',
@@ -610,7 +777,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       modelCode: product?.modelCode ?? null,
       lookupError: null,
       lookupLoading: Boolean(partnerId && productId && shouldAutoFill),
-    })
+    }
+    updateLine(line.id, nextLine)
+    // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
+    // 실제로 다를 때만, 그리고 마지막 행일 때만 빈 행을 증식한다.
+    maybeExpandLastLine(line.id, line, nextLine)
     if (!partnerId || !productId || !shouldAutoFill) {
       if (productId && shouldAutoFill) {
         setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
@@ -731,13 +902,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const updateSetOption = (id: string, patch: Partial<BundleSetOptions>) =>
-    setLines((ls) =>
-      ls.map((l) =>
-        l.id === id
-          ? { ...l, setOptions: { ...(l.setOptions ?? emptyBundleSetOptions()), ...patch } }
-          : l,
-      ),
-    )
+    updateLineFromUser(id, (line) => ({
+      ...line,
+      setOptions: { ...(line.setOptions ?? emptyBundleSetOptions()), ...patch },
+    }))
 
   const toggleSelect = (id: string, selected: boolean) => {
     setSelectedIds((prev) => {
@@ -891,17 +1059,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // ── 합계 계산 (Designer components.md § 6.2 인용) ──────
 
   const totals = useMemo(() => {
-    // 단가 부가세포함(라인 단위 eCount): 라인별 합계(VAT포함)=round(수량×단가),
-    // 공급가액=round(합계/1.1), 부가세=차액 → 라인별 반올림 후 합산(BE 와 동일).
+    // 행이 현재 표시·저장하는 S/V/T를 그대로 합산한다. 행별 권위가 SUPPLY/VAT인
+    // 경우에도 여기서 recalculateLineVat를 다시 호출하면 부가세 10% 재계산과 단가
+    // 역산이 발생해 행 표시와 하단 합계가 갈라진다(D-1).
     const valid = lines.filter((l) => l.productId && Number(l.quantity) > 0)
-    let supply = 0
-    let total = 0
-    for (const l of valid) {
-    const calculated = recalculateLineVat(asVatLine(l), l.authority ?? 'PRICE')
-      supply += Number(calculated.supplyAmount)
-      total += Number(calculated.lineTotal)
-    }
-    return { count: valid.length, supply, vat: total - supply, total }
+    const displayed = sumDisplayedLineVatAmounts(valid.map(asVatLine))
+    return { count: valid.length, ...displayed }
   }, [lines])
 
   // ── 저장 mutation ───────────────────────────────────────
@@ -1000,6 +1163,43 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       : selectedProductLines.length === 1
         ? '재고조회'
         : `선택 항목 재고조회 (${selectedProductLines.length}건)`
+
+  const renderLineFooter = (line: LineDraft, index: number): ReactNode => {
+    // #902 R2 H1: 안내는 이제 순수하게 "현재 내용"의 함수다(lineIncompleteReason) — 이력을
+    // 남기지 않으므로, 입력을 원복하면 삭제 없이도 안내가 자동으로 사라진다(D1).
+    const reason = lineIncompleteReason(line)
+    const isBundle = line.productType === 'BUNDLE'
+    return (
+      <>
+        {isBundle ? (
+          <BundleOptionRow
+            line={{
+              modelName: line.modelName,
+              setOptions: line.setOptions ?? emptyBundleSetOptions(),
+            }}
+            index={index}
+            onChange={(patch) => updateSetOption(line.id, patch)}
+          />
+        ) : null}
+        {reason ? <IncompleteLineNotice lineNumber={index + 1} reason={reason} /> : null}
+      </>
+    )
+  }
+
+  /**
+   * 저장 전 제외 행 요약(#902 R2 D3·H3) — 개별 행 안내(role="note")는 그 행이 화면에
+   * 보일 때만 사실상 눈에 띈다. 이 요약은 총 및 제출 영역 근처에 항상 마운트되어(R4-D9
+   * 계열 상시 마운트 관행과 동일) 스크롤 없이도 몇 행이 왜 제외되는지 알려주고,
+   * role="status" 라이브 리전이라 스크린리더에도 전달된다(H5). 문구에 행 번호를 포함해
+   * 개수가 같아도 대상 행이 바뀌면 문자열이 달라지게 한다(재낭독 보장).
+   */
+  const incompleteLines = lines
+    .map((line, index) => ({ lineNumber: index + 1, reason: lineIncompleteReason(line) }))
+    .filter((entry): entry is { lineNumber: number; reason: LineIncompleteReason } => entry.reason !== null)
+  const incompleteSummaryText =
+    incompleteLines.length > 0
+      ? `입력 중인 행 ${incompleteLines.length}개(${incompleteLines.map((entry) => entry.lineNumber).join(', ')}행)가 저장에서 제외됩니다.`
+      : ''
 
   // ── render ──────────────────────────────────────────────
 
@@ -1379,6 +1579,25 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               + 라인 추가
             </Button>
           </div>
+          {/* 자동 증식은 현재 입력 포커스를 유지하고, 추가 사실만 한 번 낭독한다. */}
+          <span
+            role="status"
+            aria-live="polite"
+            data-testid="slip-form-line-expansion-announcement"
+            style={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          >
+            {lineExpansionAnnouncement}
+          </span>
         </div>
 
         {isMobile ? (
@@ -1407,13 +1626,13 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                   canDelete={lines.length > 1}
                   partnerSelected={partnerSelected}
                   onSelect={(s) => toggleSelect(line.id, s)}
-                  onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                  onSpecificationChange={(v) => updateLineFromUser(line.id, (current) => ({ ...current, specification: v }))}
                   onQuantityChange={(v) => updateQuantity(line.id, v)}
                   onUnitPriceChange={(v) => updatePrice(line.id, v)}
                   onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
                   onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
-                  onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
                   vatEditable={!isBundle}
+                  excludedFromSave={!willLineBeSaved(line)}
                   onDelete={() => removeLine(line.id)}
                   modelCell={
                     <ProductAutocomplete
@@ -1426,18 +1645,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       debounceMs={250}
                     />
                   }
-                  footer={
-                    isBundle ? (
-                      <BundleOptionRow
-                        line={{
-                          modelName: line.modelName,
-                          setOptions: line.setOptions ?? emptyBundleSetOptions(),
-                        }}
-                        index={idx}
-                        onChange={(patch) => updateSetOption(line.id, patch)}
-                      />
-                    ) : null
-                  }
+                  footer={renderLineFooter(line, idx)}
                 />
               )
             })}
@@ -1484,15 +1692,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       canDelete={lines.length > 1}
                       partnerSelected={partnerSelected}
                       onSelect={(s) => toggleSelect(line.id, s)}
-                      onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
+                      onModelNameChange={(v) => updateLineFromUser(line.id, (current) => ({ ...current, modelName: v }))}
                       onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
-                      onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                      onSpecificationChange={(v) => updateLineFromUser(line.id, (current) => ({ ...current, specification: v }))}
                       onQuantityChange={(v) => updateQuantity(line.id, v)}
                       onUnitPriceChange={(v) => updatePrice(line.id, v)}
                       onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
                       onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
-                      onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
                       vatEditable={!isBundle}
+                      excludedFromSave={!willLineBeSaved(line)}
                       onDelete={() => removeLine(line.id)}
                       modelCell={
                         <ProductAutocomplete
@@ -1505,18 +1713,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           debounceMs={250}
                         />
                       }
-                      footer={
-                        isBundle ? (
-                          <BundleOptionRow
-                            line={{
-                              modelName: line.modelName,
-                              setOptions: line.setOptions ?? emptyBundleSetOptions(),
-                            }}
-                            index={idx}
-                            onChange={(patch) => updateSetOption(line.id, patch)}
-                          />
-                        ) : null
-                      }
+                      footer={renderLineFooter(line, idx)}
                     />
                   )
                 })}
@@ -1552,6 +1749,21 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               ₩{totals.total.toLocaleString()}
             </span>
           </span>
+        </div>
+
+        {/*
+          #902 R2 D3·H3: 저장을 누르기 전에, 개별 행 안내(role="note")가 화면 밖에 있어도
+          몇 행이 왜 제외되는지 알 수 있게 하는 요약. R4-D9 계열 상시 마운트 관행과 동일 —
+          live region 이 빈 컨테이너로 먼저 존재해야 스크린리더 낭독이 신뢰된다(H5).
+        */}
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="slip-form-incomplete-summary"
+          data-incomplete-count={incompleteLines.length}
+          className={incompleteLines.length > 0 ? 'sfp-incomplete-summary' : undefined}
+        >
+          {incompleteSummaryText || null}
         </div>
 
         {errorMessage ? (
