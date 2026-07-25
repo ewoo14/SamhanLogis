@@ -102,6 +102,9 @@ function amountStyle(row: BankTransactionRow): React.CSSProperties {
     color: row.txnType === 'WITHDRAWAL' ? 'var(--state-danger)' : undefined,
     fontVariantNumeric: 'tabular-nums',
     fontWeight: 700,
+    display: 'inline-block',
+    maxWidth: '100%',
+    overflowWrap: 'anywhere',
   }
 }
 
@@ -164,51 +167,297 @@ function matchedPartnerDisplay(row: BankTransactionRow) {
   )
 }
 
-/**
- * #897 입출금 목록의 업무 핵심 열 집합.
- *
- * 거래 원문·계좌 식별·카드 승인·매칭 감사값은 아래 상세 disclosure에서 유지한다.
- * 이 배열은 목록 열을 조정할 때 수정하는 단일 기준점이다. 내보내기/인쇄 데이터는
- * API 원본 행을 그대로 사용하므로 이 화면 집합의 영향을 받지 않는다.
- */
-export const BANK_TRANSACTION_LIST_COLUMN_KEYS = [
-  'depositReceiptSelection',
-  'transactedAt',
-  'description',
-  'matchedPartnerCode',
-  'depositAmount',
-  'withdrawalAmount',
-  'balanceAfter',
-  'source',
-  'matchStatus',
-  'detail',
-  'cardName',
-  'approvalId',
-  'loanName',
-] as const
-
 function transactionAmount(row: BankTransactionRow, type: 'DEPOSIT' | 'WITHDRAWAL'): string {
   return row.txnType === type ? formatCashReceiptAmount(row.amount) : '—'
 }
 
-function BankTransactionDetail({ row }: { row: BankTransactionRow }) {
+function BankTransactionDetailToggle({
+  row,
+  expanded,
+  onToggle,
+}: {
+  row: BankTransactionRow
+  expanded: boolean
+  onToggle: () => void
+}) {
   return (
-    <details data-testid={`bank-transaction-detail-${row.externalRef}`} style={{ width: '100%' }}>
-      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>상세 보기</summary>
-      <dl style={{ display: 'grid', gridTemplateColumns: 'max-content minmax(0, 1fr)', gap: '4px 8px', margin: '8px 0 0', fontSize: 12 }}>
-        <dt>거래 유형</dt><dd style={{ margin: 0 }}>{BANK_TXN_TYPE_LABEL[row.txnType]}</dd>
-        <dt>계좌·카드·대출</dt><dd style={{ margin: 0 }}>{row.bankAccountLabel || '—'}</dd>
-        <dt>상대 계좌</dt><dd style={{ margin: 0 }}>{row.counterpartyAccount || '—'}</dd>
-        <dt>소스</dt><dd style={{ margin: 0 }}>{BANK_TXN_SOURCE_LABEL[row.source]}</dd>
-        <dt>법인카드</dt><dd style={{ margin: 0 }}>{row.cardName || '—'}</dd>
-        <dt>승인번호</dt><dd style={{ margin: 0 }}>{row.approvalId || '—'}</dd>
-        <dt>대출명</dt><dd style={{ margin: 0 }}>{row.loanName || '—'}</dd>
-        <dt>매칭 근거</dt><dd style={{ margin: 0 }}>{row.partnerMatchSource ? PARTNER_MATCH_SOURCE_META[row.partnerMatchSource]?.label ?? '—' : '—'}</dd>
-        <dt>입금자명 원문</dt><dd style={{ margin: 0 }}>{row.appliedMappingRawName || '—'}</dd>
-      </dl>
-    </details>
+    <button
+      type="button"
+      data-testid={`bank-transaction-detail-toggle-${row.externalRef}`}
+      aria-expanded={expanded}
+      aria-controls={`bank-transaction-detail-${row.externalRef}`}
+      onClick={onToggle}
+      style={{
+        display: 'block',
+        width: '100%',
+        minWidth: 0,
+        maxWidth: '100%',
+        padding: '4px 0',
+        border: 0,
+        background: 'transparent',
+        color: 'inherit',
+        cursor: 'pointer',
+        fontWeight: 600,
+        whiteSpace: 'normal',
+        overflowWrap: 'anywhere',
+        textAlign: 'left',
+      }}
+    >
+      {expanded ? '▼' : '▶'} 상세 보기
+    </button>
   )
 }
+
+function BankTransactionDetailPanel({ row }: { row: BankTransactionRow }) {
+  return (
+    <section
+      id={`bank-transaction-detail-${row.externalRef}`}
+      data-testid={`bank-transaction-detail-${row.externalRef}`}
+      role="region"
+      aria-label={`${row.description} 상세`}
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        marginTop: 8,
+        padding: '12px 16px',
+        border: '1px solid var(--color-neutral-200)',
+        borderRadius: 6,
+        background: 'var(--color-neutral-50)',
+        overflowX: 'auto',
+      }}
+    >
+      <dl style={{ display: 'grid', gridTemplateColumns: 'max-content minmax(0, 1fr)', gap: '4px 12px', margin: 0, fontSize: 12 }}>
+        <dt>거래 유형</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{BANK_TXN_TYPE_LABEL[row.txnType]}</dd>
+        <dt>계좌·카드·대출</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.bankAccountLabel || '—'}</dd>
+        <dt>상대 계좌</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.counterpartyAccount || '—'}</dd>
+        <dt>소스</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{BANK_TXN_SOURCE_LABEL[row.source]}</dd>
+        <dt>법인카드</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.cardName || '—'}</dd>
+        <dt>승인번호</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.approvalId || '—'}</dd>
+        <dt>대출명</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.loanName || '—'}</dd>
+        <dt>입금보고서 전표</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.cashReceiptSlipNo || '—'}</dd>
+        <dt>매칭 근거</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.partnerMatchSource ? PARTNER_MATCH_SOURCE_META[row.partnerMatchSource]?.label ?? '—' : '—'}</dd>
+        <dt>입금자명 원문</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.appliedMappingRawName || '—'}</dd>
+      </dl>
+    </section>
+  )
+}
+
+type BankTransactionListColumnKey =
+  | 'depositReceiptSelection'
+  | 'transactedAt'
+  | 'description'
+  | 'matchedPartnerCode'
+  | 'depositAmount'
+  | 'withdrawalAmount'
+  | 'balanceAfter'
+  | 'source'
+  | 'matchStatus'
+  | 'detail'
+
+interface BankTransactionColumnContext {
+  activeTab: StatusTab
+  activeSourceTab: SourceTab
+  canCreateBankDepositReceipt: boolean
+  canDeleteAppliedMapping: boolean
+  canUpdate: boolean
+  pending: boolean
+  selectedRowKeys: Set<string>
+  expandedRowKey: string | null
+  toggleReceiptRow: (row: BankTransactionRow, checked: boolean) => void
+  onMatch: (row: BankTransactionRow, partner: PartnerOption) => void
+  onClear: (row: BankTransactionRow) => void
+  onDeleteMapping: (row: BankTransactionRow) => void
+  onToggleDetail: (row: BankTransactionRow) => void
+}
+
+interface BankTransactionColumnDefinition {
+  key: BankTransactionListColumnKey
+  header: string
+  width: string
+  align?: 'left' | 'right' | 'center'
+  mobilePriority?: 'primary' | 'secondary' | 'hidden'
+  visible?: (context: BankTransactionColumnContext) => boolean
+  render: (row: BankTransactionRow, context: BankTransactionColumnContext) => React.ReactNode
+}
+
+/**
+ * #897 입출금 목록 열 정의의 단일 출처.
+ *
+ * API 원문·계좌 식별·카드 승인·대출명·입금보고서 전표는 상세 패널에서 유지한다.
+ * 목록에 열을 추가·제거·순서 변경할 때는 이 배열만 수정하고, export/인쇄 데이터는
+ * API 원본 행을 그대로 사용하므로 이 화면 집합의 영향을 받지 않는다.
+ */
+export const BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS: readonly BankTransactionColumnDefinition[] = [
+  {
+    key: 'depositReceiptSelection',
+    header: '선택',
+    width: '7%',
+    mobilePriority: 'secondary',
+    visible: ({ canCreateBankDepositReceipt }) => canCreateBankDepositReceipt,
+    render: (row, context) => {
+      const selectable = isBankDepositReceiptSelectable(row)
+      const disabledReason = bankDepositReceiptSelectionDisabledReason(row)
+      const key = bankTransactionRowKey(row)
+      return (
+        <label className="bank-transaction-select-cell" title={disabledReason || undefined}>
+          <input
+            type="checkbox"
+            checked={selectable && context.selectedRowKeys.has(key)}
+            disabled={!selectable}
+            onChange={(event) => context.toggleReceiptRow(row, event.target.checked)}
+            aria-label={`${formatDateTime(row.transactedAt)} ${row.description} 선택`}
+            data-testid={`bank-transaction-select-${row.externalRef}`}
+          />
+        </label>
+      )
+    },
+  },
+  {
+    key: 'transactedAt',
+    header: '거래일',
+    width: '10%',
+    mobilePriority: 'primary',
+    render: (row) => formatDateTime(row.transactedAt),
+  },
+  {
+    key: 'description',
+    header: '적요',
+    width: '14%',
+    mobilePriority: 'secondary',
+    render: (row) => (
+      <span style={{ display: 'grid', minWidth: 0, gap: 2, overflowWrap: 'anywhere' }}>
+        <strong>{row.description}</strong>
+        <span style={{ color: 'var(--color-neutral-500)', fontSize: 12 }}>{row.counterpartyName || '거래처 미상'}</span>
+      </span>
+    ),
+  },
+  {
+    key: 'matchedPartnerCode',
+    header: '거래처',
+    width: '17%',
+    mobilePriority: 'secondary',
+    render: (row, context) => {
+      if (row.source === 'CODEF_LOAN') {
+        return (
+          <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, fontWeight: 600, overflowWrap: 'anywhere' }}>
+            대출 거래는 거래처 매칭 대상이 아닙니다
+          </span>
+        )
+      }
+      if (row.matchStatus !== 'UNREFLECTED') return matchedPartnerDisplay(row)
+      const matched = partnerValueOf(row)
+      return (
+        <div className="bank-transaction-partner-match" style={{ display: 'grid', gridTemplateColumns: matched ? 'minmax(0, 1fr) auto' : 'minmax(0, 1fr)', gap: 8, alignItems: 'end', minWidth: 0 }}>
+          <div data-testid={`bank-transaction-partner-search-${row.source}-${row.externalRef}`} style={{ minWidth: 0 }}>
+            <PartnerAutocomplete
+              label=""
+              ariaLabel={`${row.counterpartyName ?? '통장 거래'} 거래처 검색`}
+              placeholder="거래처명/코드"
+              value={matched}
+              onChange={(partner) => {
+                if (partner) context.onMatch(row, partner)
+              }}
+              searchPartners={searchPartners}
+              disabled={!context.canUpdate || context.pending}
+              minChars={1}
+              debounceMs={200}
+            />
+            {matched ? partnerMatchEvidence(row) : null}
+          </div>
+          {matched ? (
+            <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={!context.canUpdate || context.pending}
+                onClick={() => context.onClear(row)}
+              >
+                이 거래만 해제
+              </Button>
+              {row.partnerMatchSource === 'DEPOSITOR_MAPPING' && context.canDeleteAppliedMapping ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="danger"
+                  disabled={!context.canUpdate || context.pending}
+                  onClick={() => context.onDeleteMapping(row)}
+                  data-testid={`bank-transaction-delete-mapping-${row.externalRef}`}
+                >
+                  매핑도 삭제
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )
+    },
+  },
+  {
+    key: 'depositAmount',
+    header: '입금',
+    width: '9%',
+    align: 'right',
+    mobilePriority: 'secondary',
+    render: (row) => <span style={amountStyle(row)}>{transactionAmount(row, 'DEPOSIT')}</span>,
+  },
+  {
+    key: 'withdrawalAmount',
+    header: '출금',
+    width: '9%',
+    align: 'right',
+    mobilePriority: 'secondary',
+    render: (row) => <span style={amountStyle(row)}>{transactionAmount(row, 'WITHDRAWAL')}</span>,
+  },
+  {
+    key: 'balanceAfter',
+    header: '잔액',
+    width: '10%',
+    align: 'right',
+    mobilePriority: 'secondary',
+    render: (row) => (
+      <span style={{ display: 'inline-block', maxWidth: '100%', overflowWrap: 'anywhere' }}>
+        {formatCashReceiptAmount(row.balanceAfter)}
+      </span>
+    ),
+  },
+  {
+    key: 'source',
+    header: '소스',
+    width: '8%',
+    mobilePriority: 'secondary',
+    visible: ({ activeSourceTab }) => activeSourceTab === 'ALL',
+    render: (row) => BANK_TXN_SOURCE_LABEL[row.source],
+  },
+  {
+    key: 'matchStatus',
+    header: '매칭상태',
+    width: '8%',
+    mobilePriority: 'secondary',
+    visible: ({ activeTab }) => activeTab === 'ALL',
+    render: (row) => (
+      <span style={statusStyle(row.matchStatus)}>
+        {BANK_MATCH_STATUS_LABEL[row.matchStatus]}
+      </span>
+    ),
+  },
+  {
+    key: 'detail',
+    header: '상세',
+    width: '8%',
+    mobilePriority: 'secondary',
+    render: (row, context) => (
+      <BankTransactionDetailToggle
+        row={row}
+        expanded={context.expandedRowKey === bankTransactionRowKey(row)}
+        onToggle={() => context.onToggleDetail(row)}
+      />
+    ),
+  },
+]
+
+/** 목록 순서를 검증·문서화할 때 사용하는 파생 키 목록. 실제 렌더링은 위 정의를 직접 사용한다. */
+export const BANK_TRANSACTION_LIST_COLUMN_KEYS = BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS.map((column) => column.key)
 
 export function BankTransactionPage() {
   usePageTitle('입출금 내역', '거래내역 가져오기')
@@ -237,6 +486,7 @@ export function BankTransactionPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(new Set())
   const [receiptModalOpen, setReceiptModalOpen] = useState(false)
   const [mappingDeleteRow, setMappingDeleteRow] = useState<BankTransactionRow | null>(null)
+  const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null)
   const selectAllCheckboxRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -421,6 +671,9 @@ export function BankTransactionPage() {
   const totalWithdrawal = rows
     .filter((row) => row.txnType === 'WITHDRAWAL')
     .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+  const expandedRow = expandedRowKey
+    ? rows.find((row) => bankTransactionRowKey(row) === expandedRowKey) ?? null
+    : null
 
   const currentModalOptions = filterModal === 'account' ? accountFilterOptions : cardFilterOptions
   const currentModalTitle = filterModal === 'account' ? '계좌 선택' : '카드 선택'
@@ -498,232 +751,46 @@ export function BankTransactionPage() {
   }
 
   const columns = useMemo<DataTableColumn<BankTransactionRow>[]>(() => {
-    const baseColumns: DataTableColumn<BankTransactionRow>[] = [
-      {
-        key: 'depositReceiptSelection',
-        header: '선택',
-        width: '56px',
-        mobilePriority: 'secondary',
-        render: (row) => {
-          const selectable = isBankDepositReceiptSelectable(row)
-          const disabledReason = bankDepositReceiptSelectionDisabledReason(row)
-          const key = bankTransactionRowKey(row)
-          return (
-            <label className="bank-transaction-select-cell" title={disabledReason || undefined}>
-              <input
-                type="checkbox"
-                checked={selectable && selectedRowKeys.has(key)}
-                disabled={!selectable}
-                onChange={(event) => toggleReceiptRow(row, event.target.checked)}
-                aria-label={`${formatDateTime(row.transactedAt)} ${row.description} 선택`}
-                data-testid={`bank-transaction-select-${row.externalRef}`}
-              />
-              {row.matchStatus === 'REFLECTED' && row.cashReceiptSlipNo ? (
-                <Badge
-                  variant="success"
-                  data-testid={`bank-transaction-cash-receipt-slip-${row.externalRef}`}
-                >
-                  {row.cashReceiptSlipNo}
-                </Badge>
-              ) : null}
-            </label>
-          )
-        },
+    const context: BankTransactionColumnContext = {
+      activeTab,
+      activeSourceTab,
+      canCreateBankDepositReceipt,
+      canDeleteAppliedMapping,
+      canUpdate,
+      pending: matchPartnerMutation.isPending || clearPartnerMutation.isPending || clearAndDeleteMappingMutation.isPending,
+      selectedRowKeys,
+      expandedRowKey,
+      toggleReceiptRow,
+      onMatch: (row, partner) => matchPartnerMutation.mutate({
+        bankAccountLabel: row.bankAccountLabel,
+        transactedAt: row.transactedAt,
+        amount: row.amount,
+        externalRef: row.externalRef,
+        partnerCode: partner.partnerCode,
+      }),
+      onClear: (row) => clearPartnerMutation.mutate({
+        bankAccountLabel: row.bankAccountLabel,
+        transactedAt: row.transactedAt,
+        amount: row.amount,
+        externalRef: row.externalRef,
+      }),
+      onDeleteMapping: setMappingDeleteRow,
+      onToggleDetail: (row) => {
+        const key = bankTransactionRowKey(row)
+        setExpandedRowKey((previous) => previous === key ? null : key)
       },
-      {
-        key: 'transactedAt',
-        header: '거래일',
-        width: '116px',
-        mobilePriority: 'primary',
-        render: (row) => formatDateTime(row.transactedAt),
-      },
-      {
-        key: 'description',
-        header: '적요',
-        width: '210px',
-        mobilePriority: 'secondary',
-        render: (row) => (
-          <span style={{ display: 'grid', gap: 2, minWidth: 0 }}>
-            <strong>{row.description}</strong>
-            <span style={{ color: 'var(--color-neutral-500)', fontSize: 12 }}>{row.counterpartyName || '거래처 미상'}</span>
-          </span>
-        ),
-      },
-      {
-        key: 'matchedPartnerCode',
-        header: '거래처',
-        width: '240px',
-        mobilePriority: 'secondary',
-        render: (row) => {
-          if (row.source === 'CODEF_LOAN') {
-            return (
-              <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, fontWeight: 600 }}>
-                대출 거래는 거래처 매칭 대상이 아닙니다
-              </span>
-            )
-          }
-          if (row.matchStatus !== 'UNREFLECTED') {
-            return matchedPartnerDisplay(row)
-          }
-          const matched = partnerValueOf(row)
-          const pending = matchPartnerMutation.isPending || clearPartnerMutation.isPending || clearAndDeleteMappingMutation.isPending
-          return (
-            <div className="bank-transaction-partner-match" style={{ display: 'grid', gridTemplateColumns: matched ? '1fr auto' : '1fr', gap: 8, alignItems: 'end' }}>
-              <div data-testid={`bank-transaction-partner-search-${row.source}-${row.externalRef}`}>
-                <PartnerAutocomplete
-                  label=""
-                  ariaLabel={`${row.counterpartyName ?? '통장 거래'} 거래처 검색`}
-                  placeholder="거래처명/코드"
-                  value={matched}
-                  onChange={(partner) => {
-                    // 해제는 명시 '해제' 버튼으로만 처리(AsyncAutocomplete 는 onChange(null) 을 발화하지 않음).
-                    if (partner) {
-                      matchPartnerMutation.mutate({
-                        bankAccountLabel: row.bankAccountLabel,
-                        transactedAt: row.transactedAt,
-                        amount: row.amount,
-                        externalRef: row.externalRef,
-                        partnerCode: partner.partnerCode,
-                      })
-                    }
-                  }}
-                  searchPartners={searchPartners}
-                  disabled={!canUpdate || pending}
-                  minChars={1}
-                  debounceMs={200}
-                />
-                {matched ? partnerMatchEvidence(row) : null}
-              </div>
-              {matched ? (
-                <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={!canUpdate || pending}
-                    onClick={() => clearPartnerMutation.mutate({
-                      bankAccountLabel: row.bankAccountLabel,
-                      transactedAt: row.transactedAt,
-                      amount: row.amount,
-                      externalRef: row.externalRef,
-                    })}
-                  >
-                    이 거래만 해제
-                  </Button>
-                  {row.partnerMatchSource === 'DEPOSITOR_MAPPING' && canDeleteAppliedMapping ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="danger"
-                      disabled={!canUpdate || pending}
-                      onClick={() => {
-                        setMappingDeleteRow(row)
-                      }}
-                      data-testid={`bank-transaction-delete-mapping-${row.externalRef}`}
-                    >
-                      매핑도 삭제
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          )
-        },
-      },
-      {
-        key: 'depositAmount',
-        header: '입금',
-        width: '100px',
-        align: 'right',
-        mobilePriority: 'secondary',
-        render: (row) => <span style={amountStyle(row)}>{transactionAmount(row, 'DEPOSIT')}</span>,
-      },
-      {
-        key: 'withdrawalAmount',
-        header: '출금',
-        width: '100px',
-        align: 'right',
-        mobilePriority: 'secondary',
-        render: (row) => <span style={amountStyle(row)}>{transactionAmount(row, 'WITHDRAWAL')}</span>,
-      },
-      {
-        key: 'balanceAfter',
-        header: '잔액',
-        align: 'right',
-        width: '110px',
-        mobilePriority: 'secondary',
-        render: (row) => formatCashReceiptAmount(row.balanceAfter),
-      },
-    ]
-
-    const sourceSpecificColumns: DataTableColumn<BankTransactionRow>[] = [
-      ...(activeSourceTab === 'CODEF_CARD' ? [
-        {
-          key: 'cardName',
-          header: '법인카드',
-          width: '90px',
-          mobilePriority: 'secondary' as const,
-          render: (row: BankTransactionRow) => row.cardName || '—',
-        },
-        {
-          key: 'approvalId',
-          header: '승인번호',
-          width: '150px',
-          mobilePriority: 'hidden' as const,
-          render: (row: BankTransactionRow) => row.approvalId || '—',
-        },
-      ] : []),
-      ...(activeSourceTab === 'CODEF_LOAN' ? [
-        {
-          key: 'loanName',
-          header: '대출명',
-          width: '90px',
-          mobilePriority: 'secondary' as const,
-          render: (row: BankTransactionRow) => row.loanName || '—',
-        },
-      ] : []),
-    ]
-
-    const trailingColumns: DataTableColumn<BankTransactionRow>[] = [
-    // 소스/매칭상태 열은 "전체" 탭에서만 보존한다 — 특정 탭(계좌/카드/대출,
-    // 미반영/반영/강제)으로 좁히면 보이는 행 전부가 같은 값을 공유해 열 자체가
-    // 중복 정보가 되므로 그때만 없앤다(I-B1: 전체 탭에서는 행마다 값이 달라
-    // 이 열이 유일한 구분 수단이라 정보 손실 없이는 없앨 수 없다 — #877 SONNET5
-    // R2 실측: source 는 API 로 BANK/CARD/LOAN 혼재 확인, matchStatus 는 REFLECTED/
-    // FORCED 가 거래처 열에서 서로 구분되지 않아 동일 근거로 보존).
-    ...(activeSourceTab === 'ALL' ? [{
-      key: 'source',
-      header: '소스',
-      width: '80px',
-      mobilePriority: 'secondary' as const,
-      render: (row: BankTransactionRow) => BANK_TXN_SOURCE_LABEL[row.source],
-    }] : []),
-    ...(activeTab === 'ALL' ? [{
-      key: 'matchStatus',
-      header: '매칭상태',
-      width: '90px',
-      mobilePriority: 'secondary' as const,
-      render: (row: BankTransactionRow) => (
-        <span style={statusStyle(row.matchStatus)}>
-          {BANK_MATCH_STATUS_LABEL[row.matchStatus]}
-        </span>
-      ),
-    }] : []),
-    {
-      key: 'detail',
-      header: '상세',
-      width: '74px',
-      mobilePriority: 'secondary',
-      render: (row) => <BankTransactionDetail row={row} />,
-    },
-    ]
-
-    const visibleBaseColumns = canCreateBankDepositReceipt ? baseColumns : baseColumns.slice(1)
-    const visibleColumns = [...visibleBaseColumns, ...sourceSpecificColumns, ...trailingColumns]
-    return visibleColumns.filter((column) =>
-      (BANK_TRANSACTION_LIST_COLUMN_KEYS as readonly (string | number)[]).includes(column.key),
-    )
-  }, [activeSourceTab, activeTab, canCreateBankDepositReceipt, canDeleteAppliedMapping, canUpdate, clearAndDeleteMappingMutation, clearPartnerMutation, matchPartnerMutation, selectedRowKeys])
+    }
+    return BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS
+      .filter((definition) => definition.visible?.(context) ?? true)
+      .map((definition) => ({
+        key: definition.key,
+        header: definition.header,
+        width: definition.width,
+        align: definition.align,
+        mobilePriority: definition.mobilePriority,
+        render: (row: BankTransactionRow) => definition.render(row, context),
+      }))
+  }, [activeSourceTab, activeTab, canCreateBankDepositReceipt, canDeleteAppliedMapping, canUpdate, clearAndDeleteMappingMutation.isPending, clearPartnerMutation.isPending, expandedRowKey, matchPartnerMutation.isPending, selectedRowKeys])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -944,6 +1011,7 @@ export function BankTransactionPage() {
                         emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
                         tableLayout="fixed"
                       />
+                      {expandedRow ? <BankTransactionDetailPanel row={expandedRow} /> : null}
                     </>
                   )}
                 </div>

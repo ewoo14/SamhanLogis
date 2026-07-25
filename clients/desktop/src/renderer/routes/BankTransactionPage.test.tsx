@@ -29,7 +29,11 @@ vi.mock('../api/accounting', async (importOriginal) => {
 // CodefImportScopeForm 는 별도 api/codef 모듈을 쓴다 — 실 apiClient 호출은 테스트 서버가 없어
 // reject 되지만, 그 하위 폼 자체의 에러 처리는 본 테스트 범위가 아니므로 그대로 둔다.
 
-import { partnerMatchEvidence, BankTransactionPage } from './BankTransactionPage'
+import {
+  BANK_TRANSACTION_LIST_COLUMN_KEYS,
+  partnerMatchEvidence,
+  BankTransactionPage,
+} from './BankTransactionPage'
 
 function partnerLookupUnavailableError(): AxiosError {
   return new AxiosError('Request failed', undefined, undefined, undefined, {
@@ -162,6 +166,45 @@ describe('BankTransactionPage 매칭근거 배지', () => {
 })
 
 describe('BankTransactionPage 열 계층화 (#897)', () => {
+  it('상세 disclosure는 좁은 상세 셀이 아니라 표 밖 전폭 패널에 연결된다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([{
+      ...baseRow,
+      externalRef: 'wide-detail-test',
+      counterpartyAccount: '국민 123-456',
+      cashReceiptSlipNo: '2026/07/04-11',
+      partnerMatchSource: 'MANUAL',
+    } satisfies BankTransactionRow])
+
+    renderPage()
+
+    const table = await screen.findByRole('table')
+    const toggle = await screen.findByTestId('bank-transaction-detail-toggle-wide-detail-test')
+    fireEvent.click(toggle)
+
+    const panel = await screen.findByTestId('bank-transaction-detail-wide-detail-test')
+    expect(table.contains(panel)).toBe(false)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(panel.textContent).toContain('국민 123-456')
+    expect(panel.textContent).toContain('2026/07/04-11')
+  })
+
+  it('열 집합 상수는 화면 순서를 직접 표현하고 목록 필터의 뒤늦은 no-op가 아니다', () => {
+    expect(BANK_TRANSACTION_LIST_COLUMN_KEYS).toEqual([
+      'depositReceiptSelection',
+      'transactedAt',
+      'description',
+      'matchedPartnerCode',
+      'depositAmount',
+      'withdrawalAmount',
+      'balanceAfter',
+      'source',
+      'matchStatus',
+      'detail',
+    ])
+  })
+
   it('목록은 핵심 열만 노출하고 상세 disclosure에서 감춘 원본 값을 실제로 확인한다', async () => {
     listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
     loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
@@ -202,8 +245,8 @@ describe('BankTransactionPage 열 계층화 (#897)', () => {
     expect(within(table).queryByRole('columnheader', { name: '계좌/카드/대출' })).toBeNull()
     expect(within(table).queryByRole('columnheader', { name: '거래후잔액' })).toBeNull()
 
-    const detailSummary = within(screen.getByTestId('bank-transaction-detail-evidence-test')).getByText('상세 보기')
-    fireEvent.click(detailSummary)
+    const detailToggle = within(table).getByTestId('bank-transaction-detail-toggle-evidence-test')
+    fireEvent.click(detailToggle)
     const details = screen.getByTestId('bank-transaction-detail-evidence-test')
     expect(details.textContent).toContain('국민 운영계좌')
     expect(details.textContent).toContain('국민 123-456')

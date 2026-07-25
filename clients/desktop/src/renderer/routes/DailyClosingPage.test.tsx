@@ -41,7 +41,7 @@ vi.mock('../api/closingApi', async (importOriginal) => {
   }
 })
 
-import { DailyClosingPage } from './DailyClosingPage'
+import { DAILY_CLOSING_LIST_COLUMN_KEYS, DailyClosingPage } from './DailyClosingPage'
 
 // BE 계약 충실 픽스처 — DiscountRevalidator.Status + ModelTokenExtractor.extractModelTokenOrNull:
 //   verified ∈ {true,false} ⟺ status=VERIFIED (판정 완료·실 모델품목만 도달)
@@ -720,6 +720,83 @@ describe('DailyClosingPage committed partnerCode 계약 (#840)', () => {
 })
 
 describe('DailyClosingPage 열 계층화 (#897)', () => {
+  it('전체 마감과 거래처 마감은 목록·상세·역마감 대상이 각각 다르게 식별된다', async () => {
+    listDailyClosingsMock.mockResolvedValue({
+      ...emptyPage,
+      content: [
+        {
+          closingKind: 'SALES',
+          sourceKind: 'TAX_INVOICE',
+          closingDate: '2020-01-02',
+          bizNo: '',
+          partnerCode: null,
+          totalSupply: '100000',
+          totalVat: '10000',
+          totalAmount: '110000',
+          slipCount: 1,
+          isLocked: true,
+          lockedAt: '2020-01-02T18:00:00+09:00',
+          lockedBy: '개발책임자',
+        },
+        {
+          closingKind: 'SALES',
+          sourceKind: 'TAX_INVOICE',
+          closingDate: '2020-01-02',
+          bizNo: '2018100002',
+          partnerCode: 'P0-6-C002',
+          totalSupply: '200000',
+          totalVat: '20000',
+          totalAmount: '220000',
+          slipCount: 2,
+          isLocked: true,
+          lockedAt: '2020-01-02T19:00:00+09:00',
+          lockedBy: '개발책임자',
+        },
+      ] satisfies DailyClosing[],
+    })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    const table = await screen.findByTestId('daily-closing-list-table')
+    const allRow = rowOf('전체 마감')
+    const partnerRow = rowOf('거래처 P0-6-C002')
+    expect(allRow).not.toBe(partnerRow)
+    expect(allRow.textContent).toContain('부가세 10,000원')
+    expect(partnerRow.textContent).toContain('부가세 20,000원')
+    expect(allRow.textContent).toContain('마감 시각 2020-01-02 18:00')
+    expect(partnerRow.textContent).toContain('마감 시각 2020-01-02 19:00')
+
+    const allDetailButton = within(allRow).getByTestId(
+      'daily-closing-detail-button-2020-01-02-ALL-SALES-TAX_INVOICE',
+    )
+    const partnerDetailButton = within(partnerRow).getByTestId(
+      'daily-closing-detail-button-2020-01-02-P0-6-C002-SALES-TAX_INVOICE',
+    )
+    expect(allDetailButton).not.toBe(partnerDetailButton)
+    expect(within(allRow).getByTestId('daily-closing-reverse-button-2020-01-02-ALL-SALES-TAX_INVOICE')).toBeTruthy()
+    expect(within(partnerRow).getByTestId('daily-closing-reverse-button-2020-01-02-P0-6-C002-SALES-TAX_INVOICE')).toBeTruthy()
+
+    fireEvent.click(allDetailButton)
+    expect((await screen.findByTestId('daily-closing-selected-scope')).textContent).toContain('전체 마감')
+    await waitFor(() => expect(screen.getByTestId('daily-closing-detail-button-2020-01-02-P0-6-C002-SALES-TAX_INVOICE')).toBeTruthy())
+    fireEvent.click(screen.getByTestId('daily-closing-detail-button-2020-01-02-P0-6-C002-SALES-TAX_INVOICE'))
+    expect((await screen.findByTestId('daily-closing-selected-scope')).textContent).toContain('P0-6-C002')
+    expect(table).toBeTruthy()
+  })
+
+  it('일마감 열 집합 상수는 실제 7열의 순서를 직접 표현한다', () => {
+    expect(DAILY_CLOSING_LIST_COLUMN_KEYS).toEqual([
+      'closingDate',
+      'kind',
+      'scope',
+      'slipCount',
+      'amountSummary',
+      'status',
+      'actions',
+    ])
+  })
+
   it('목록은 핵심 열만 노출하고 상세 경로에서 감춘 금액·전표 값을 실제로 확인한다', async () => {
     listDailyClosingsMock.mockResolvedValue({
       ...emptyPage,
@@ -745,7 +822,7 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
     const list = await screen.findByTestId('daily-closing-list-table')
     const table = within(list).getByRole('table')
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent)
-    expect(headers).toEqual(['마감일', '구분', '건수', '금액 합계', '마감상태', '상세', ''])
+    expect(headers).toEqual(['마감일', '구분', '마감범위', '건수', '금액 합계', '마감상태', '작업'])
     expect(within(table).queryByRole('columnheader', { name: '거래처코드' })).toBeNull()
     expect(within(table).queryByRole('columnheader', { name: '공급가' })).toBeNull()
     expect(within(table).queryByRole('columnheader', { name: '마감 시각' })).toBeNull()
@@ -753,7 +830,7 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
     fireEvent.click(within(table).getByRole('button', { name: '상세 보기' }))
     expect(await screen.findByText('2026/07/13-1')).toBeTruthy()
     expect(screen.getByText('삼한테스트')).toBeTruthy()
-    const reverseButton = screen.getByTestId('daily-closing-reverse-button-2026-07-13-SALES-TAX_INVOICE')
+    const reverseButton = screen.getByTestId('daily-closing-reverse-button-2026-07-13-ALL-SALES-TAX_INVOICE')
     expect(reverseButton).toBeTruthy()
     expect(reverseButton.hasAttribute('disabled')).toBe(false)
   })
