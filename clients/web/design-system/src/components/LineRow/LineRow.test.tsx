@@ -229,3 +229,115 @@ describe('LineRow price source marker', () => {
     expect(screen.getByLabelText('라인 1 단가').hasAttribute('aria-describedby')).toBe(false)
   })
 })
+
+// ────────────────────────────────────────────────────────────────────────────
+// #902 R2 8건 결함 리뷰(OPUS+SOL 적대검증) 회귀 가드 — D7(제외 행 금액 표시)·D8(소수 수량).
+// ────────────────────────────────────────────────────────────────────────────
+describe('LineRow #902 R2 결함 회귀 가드', () => {
+  // D7·H6: lineVat.ts 는 수량을 Math.max(1, ...)로 클램프해 계산하므로(계산 로직은 동결 —
+  // 다른 화면·BE parity 걸림), 수량 0(저장 제외 예정) 행의 supplyAmount/vatAmount/lineTotal
+  // 은 "수량 1 로 계산된" 값이 저장돼 있다. excludedFromSave=true 면 그 값 대신 0 을 표시한다.
+  it('excludedFromSave=true 면 클램프 계산값 대신 0 을 표시한다(D7)', () => {
+    render(
+      <div role="table">
+        <LineTableHeader allSelected={false} onToggleAll={vi.fn()} vatInclusive />
+        <LineRow
+          lineNumber={1}
+          line={{
+            ...line('USER'),
+            quantity: '0',
+            unitPrice: '2000',
+            // 부모(lineVat.recalculateLineVat)가 수량을 1로 클램프해 계산한 값 — 화면에 그대로
+            // 보이면 "저장에서 제외됩니다" 밴드와 함께 공급 1,818/부가세 182/합계 2,000 이
+            // 동시에 뜨는 정면 모순이 재현된다.
+            supplyAmount: '1818',
+            vatAmount: '182',
+            lineTotal: '2000',
+          }}
+          vatInclusive
+          vatEditable
+          excludedFromSave
+          selected={false}
+          onSelect={vi.fn()}
+          onModelNameChange={vi.fn()}
+          onModelNameBlur={vi.fn()}
+          onSpecificationChange={vi.fn()}
+          onQuantityChange={vi.fn()}
+          onUnitPriceChange={vi.fn()}
+          onSupplyAmountChange={vi.fn()}
+          onVatAmountChange={vi.fn()}
+          onLineTotalChange={vi.fn()}
+          onDelete={vi.fn()}
+          dragHandleProps={{}}
+        />
+      </div>,
+    )
+
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('0')
+  })
+
+  // 저장 대상(excludedFromSave 미지정/false)인 정상 행은 종전처럼 실제 값을 그대로 보여준다(무회귀).
+  it('excludedFromSave 가 아니면 실제 저장값을 그대로 표시한다(무회귀)', () => {
+    render(
+      <div role="table">
+        <LineTableHeader allSelected={false} onToggleAll={vi.fn()} vatInclusive />
+        <LineRow
+          lineNumber={1}
+          line={{
+            ...line('USER'),
+            quantity: '1',
+            unitPrice: '2000',
+            supplyAmount: '1818',
+            vatAmount: '182',
+            lineTotal: '2000',
+          }}
+          vatInclusive
+          vatEditable
+          selected={false}
+          onSelect={vi.fn()}
+          onModelNameChange={vi.fn()}
+          onModelNameBlur={vi.fn()}
+          onSpecificationChange={vi.fn()}
+          onQuantityChange={vi.fn()}
+          onUnitPriceChange={vi.fn()}
+          onSupplyAmountChange={vi.fn()}
+          onVatAmountChange={vi.fn()}
+          onLineTotalChange={vi.fn()}
+          onDelete={vi.fn()}
+          dragHandleProps={{}}
+        />
+      </div>,
+    )
+
+    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('2,000')
+  })
+
+  // D8·H7: BE CreateSlipRequest.SlipLineRequest.quantity 는 @NotNull @Positive Integer.
+  // 소수(2.7→2 절사, 0.5→0→400)가 안내 없이 넘어가지 않도록 입력 단계에서 자릿수만 남긴다.
+  it('수량 입력은 소수점 등 비정수 문자를 제거한다(D8)', () => {
+    const onQuantityChange = vi.fn()
+    render(
+      <div role="table">
+        <LineRow
+          lineNumber={1}
+          line={line('USER')}
+          selected={false}
+          onSelect={vi.fn()}
+          onModelNameChange={vi.fn()}
+          onModelNameBlur={vi.fn()}
+          onSpecificationChange={vi.fn()}
+          onQuantityChange={onQuantityChange}
+          onUnitPriceChange={vi.fn()}
+          onDelete={vi.fn()}
+          dragHandleProps={{}}
+        />
+      </div>,
+    )
+
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '2.7' } })
+
+    expect(onQuantityChange).toHaveBeenCalledWith('27')
+  })
+})

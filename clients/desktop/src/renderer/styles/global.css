@@ -1637,6 +1637,20 @@ button {
   font-size: 12px;
 }
 
+/* #902 R2 D3·H3: 저장 전 제외 행 요약 — 개별 행 안내(role="note")가 화면 밖에 있어도
+   몇 행이 왜 제외되는지 알려준다. 오류(danger)가 아니라 진행 중 상태라 중립 톤. */
+.sfp-incomplete-summary {
+  padding: 8px 16px;
+  margin-top: var(--space-2, 8px);
+  background: var(--surface-subtle, #F8FAFC);
+  border: 1px solid var(--line-default);
+  border-left-width: 4px;
+  border-left-color: var(--ink-secondary, #5C6773);
+  color: var(--ink-secondary, #5C6773);
+  font-size: 12px;
+  border-radius: var(--radius-input);
+}
+
 .sfp-error-banner {
   display: flex;
   align-items: center;

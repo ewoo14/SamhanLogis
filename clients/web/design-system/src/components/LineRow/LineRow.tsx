@@ -180,6 +180,19 @@ export interface LineRowProps {
    * - 미지정(기본 `true`) 시 기존 동작 유지 (backward compatible).
    */
   partnerSelected?: boolean
+  /**
+   * 이 행이 저장 대상에서 제외될 예정(#902 R2 D7·H6) — 호출자의 저장 판정(예:
+   * `productId && quantity > 0`)과 같은 조건이어야 한다.
+   *
+   * <p>계산 로직(lineVat.ts 의 {@code recalculateLineVat})은 수량을
+   * {@code Math.max(1, ...)}로 클램프해 공급가액/부가세/합계를 계산한다(다른 화면·BE parity
+   * 유지를 위해 그대로 둔다) — 그래서 수량 0(저장 제외 예정) 행의 저장된 금액 필드는
+   * "수량 1 로 계산된" 값이라, 화면에 그대로 보이면 "저장에서 제외됩니다" 밴드와
+   * 실제로는 저장되지 않을 금액이 동시에 뜨는 모순이 생긴다. true 면 공급가액/부가세/합계
+   * 표시를 0 으로 강제해 이 모순을 없앤다 — 계산 로직 자체는 건드리지 않는다.
+   * 미지정(기본 false) 시 기존 동작 유지(backward compatible).
+   */
+  excludedFromSave?: boolean
 }
 
 /**
@@ -238,6 +251,7 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     onVatAmountChange,
     onLineTotalChange,
     vatEditable = true,
+    excludedFromSave = false,
   },
   ref,
 ) {
@@ -256,8 +270,14 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
   const hasVatAmounts = vatInclusive && line.supplyAmount != null
     && line.vatAmount != null && line.lineTotal != null
   const rowGridClass = vatInclusive ? styles['lineRowVat'] : undefined
+  /**
+   * #902 R2 D7·H6: lineVat.ts 는 저장 판정과 무관하게 수량을 Math.max(1, ...)로 클램프해
+   * 공급가액/부가세/합계를 계산·저장한다(계산 로직은 동결 — 그대로 둔다). excludedFromSave
+   * 인 행은 그 "수량 1 로 계산된" 저장값 대신 0 을 표시해, "저장에서 제외됩니다" 밴드와
+   * 실제로는 저장되지 않을 금액이 함께 뜨는 모순을 없앤다.
+   */
   const amountDisplay = (value: string | undefined, fallback: number): string =>
-    Number(value ?? fallback).toLocaleString()
+    excludedFromSave ? '0' : Number(value ?? fallback).toLocaleString()
   const priceDisplay = line.unitPrice ? Number(line.unitPrice).toLocaleString() : '0'
   // D-R4-1: 자동채움 값의 실체는 제품 등록 화면의 '판매가'(sellingPrice) — '정가' 라벨은
   // 기존 용어체계에서 출고가(releasePrice) 계열 별칭이라 오도되므로 사용 금지.
@@ -405,7 +425,13 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
             min={1}
             className={`${styles['input']} ${styles['numInput']}`}
             value={line.quantity}
-            onChange={(e) => onQuantityChange(e.target.value)}
+            onChange={(e) => {
+              // #902 R2 D8·H7: BE 수량은 @Positive Integer — 소수점 등을 입력 단계에서
+              // 제거해 정수만 상태에 반영한다(2.7→2 절사·0.5→0→400 오류가 안내 없이
+              // 일어나는 것을 원천 차단). 단가 셀(아래)과 동일한 숫자만 허용 규약.
+              const numeric = e.target.value.replace(/[^0-9]/g, '')
+              onQuantityChange(numeric)
+            }}
             aria-label={`라인 ${lineNumber} 수량`}
           />
         </div>

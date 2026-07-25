@@ -89,6 +89,12 @@ import {
   type LineVatLine,
 } from '../utils/lineVat'
 import {
+  isLineContentEqual,
+  lineIncompleteReason,
+  willLineBeSaved,
+  type LineIncompleteReason,
+} from '../utils/slipLineDraft'
+import {
   usePartnerPriceRefresh,
   type PartnerRepriceCandidate,
 } from '../utils/usePartnerPriceRefresh'
@@ -179,8 +185,23 @@ function PriceChangeIndicator({ id }: { id: string }) {
 /**
  * 사용자가 입력을 시작했지만 현행 저장 조건을 아직 만족하지 못한 행의 안내.
  * 초기 빈 행에는 렌더하지 않아, 입력 전부터 오류처럼 보이지 않게 한다.
+ *
+ * #902 R2 D4·H4: 문구는 `reason` 이 가리키는 실제 조건만 말한다 — 빈 행의 수량은 이미
+ * '1'로 채워져 있어 "수량을 모두 입력하면"은 이미 만족된 조건이고(진짜 할 일=품목 선택이
+ * 묻힘), 반대로 품목 선택 후 수량을 0/음수로 둔 행에는 "수량을 입력하면"이 틀린 말이었다
+ * (진짜 조건은 "0보다 커야 한다").
  */
-function IncompleteLineNotice({ lineNumber }: { lineNumber: number }) {
+function IncompleteLineNotice({
+  lineNumber,
+  reason,
+}: {
+  lineNumber: number
+  reason: LineIncompleteReason
+}) {
+  const message =
+    reason === 'NEEDS_PRODUCT'
+      ? '입력 중인 행입니다. 품목을 선택하면 저장되며, 현재는 저장에서 제외됩니다.'
+      : '입력 중인 행입니다. 수량을 1 이상 입력하면 저장되며, 현재는 저장에서 제외됩니다.'
   return (
     <div
       role="note"
@@ -193,7 +214,7 @@ function IncompleteLineNotice({ lineNumber }: { lineNumber: number }) {
         lineHeight: 1.4,
       }}
     >
-      입력 중인 행입니다. 품목과 수량을 모두 입력하면 저장되며, 현재는 저장에서 제외됩니다.
+      {message}
     </div>
   )
 }
@@ -213,6 +234,8 @@ function SlipMobileLineCard(props: {
   onVatAmountChange: (value: string) => void
   onLineTotalChange: (value: string) => void
   vatEditable: boolean
+  /** 저장에서 제외될 예정(#902 R2 D7·H6) — true 면 금액 열 표시를 0 으로 강제한다. */
+  excludedFromSave: boolean
   onDelete: () => void
   modelCell: ReactNode
   footer?: ReactNode
@@ -308,7 +331,12 @@ function SlipMobileLineCard(props: {
           min={1}
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.quantity}
-          onChange={(e) => props.onQuantityChange(e.target.value)}
+          onChange={(e) => {
+            // #902 R2 D8·H7: BE 수량은 @Positive Integer — 소수점 등을 입력 단계에서
+            // 제거해 정수만 상태에 반영한다(데스크톱 LineRow 와 동일 규약).
+            const numeric = e.target.value.replace(/[^0-9]/g, '')
+            props.onQuantityChange(numeric)
+          }}
           aria-label={`라인 ${props.lineNumber} 수량`}
         />
       </div>
@@ -348,7 +376,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
+          value={props.excludedFromSave ? '0' : Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
           onChange={(e) => props.onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
           aria-label={`라인 ${props.lineNumber} 합계(VAT포함)`}
           disabled={!props.vatEditable}
@@ -361,7 +389,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
+          value={props.excludedFromSave ? '0' : Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
           onChange={(e) => props.onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
           aria-label={`라인 ${props.lineNumber} 공급가액`}
           disabled={!props.vatEditable}
@@ -374,7 +402,7 @@ function SlipMobileLineCard(props: {
           type="text"
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
-          value={Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
+          value={props.excludedFromSave ? '0' : Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
           onChange={(e) => props.onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
           aria-label={`라인 ${props.lineNumber} 부가세`}
           disabled={!props.vatEditable}
@@ -415,6 +443,8 @@ function SortableLineRow(props: {
   onVatAmountChange: (v: string) => void
   onLineTotalChange: (v: string) => void
   vatEditable: boolean
+  /** 저장에서 제외될 예정(#902 R2 D7·H6) — LineRow 의 금액 표시 억제로 전달. */
+  excludedFromSave: boolean
   onDelete: () => void
   /** AC-2: 모델명 셀 커스텀 렌더 slot (ProductAutocomplete 주입). */
   modelCell?: ReactNode
@@ -446,6 +476,7 @@ function SortableLineRow(props: {
         isDragging={isDragging}
         vatInclusive
         vatEditable={props.vatEditable}
+        excludedFromSave={props.excludedFromSave}
         lineNumber={props.lineNumber}
         line={props.line}
         selected={props.selected}
@@ -504,9 +535,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     Array.from({ length: 5 }, () => emptyLine()),
   )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // 사용자가 실제로 손댄 행만 기록한다. 빈 행은 제외 안내를 내지 않는다.
-  const [touchedLineIds, setTouchedLineIds] = useState<Set<string>>(new Set())
   const [lineExpansionAnnouncement, setLineExpansionAnnouncement] = useState('')
+  // #902 R2 D6·H5: 마지막 행 반복 증식 시 문구가 같은 라인 번호를 가리키면 완전히 동일한
+  // 문자열이 되어 React 가 재렌더를 bail-out, 스크린리더가 재낭독하지 않는다. 매 증식마다
+  // 이 카운터를 늘려 문구 끝에 보이지 않는 폭 없는 공백을 붙임으로써 DOM 텍스트 자체를
+  // 실제로 바꾼다(시각적으로는 무영향 — 이 span 은 이미 스크린리더 전용으로 숨겨져 있다).
+  const expansionSeqRef = useRef(0)
   // link-dispatch-slice 신규 — 기사명 + 기사 휴대폰 (LinkDispatchListPage 자동 그룹의 키)
   const [driverName, setDriverName] = useState('')
   const [driverPhone, setDriverPhone] = useState('')
@@ -575,37 +609,50 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   /**
-   * 사용자 입력을 표시하고, 마지막 행이면 빈 행을 정확히 하나만 덧붙인다.
-   * setLines updater 안에서 마지막 행 ID를 다시 확인해 연속 이벤트에도 중복 증식을 막는다.
+   * 마지막 행이 이 편집으로 실제로 바뀌었으면(H2) 빈 행을 정확히 하나만 덧붙인다.
+   *
+   * #902 R2 근본원인 정정: 종전엔 "onChange 가 발화했는가"(touchedLineIds 이력)로 증식을
+   * 트리거해, 화면상 아무 변화도 없는 제스처(단가 셀 Backspace 1회 등)도 빈 행을
+   * 증식시켰다(D2). 이제는 `before`(편집 전 스냅샷)와 `after`(편집 후 값) 가 실제로
+   * 다른지(`isLineContentEqual`)만 본다 — 값이 안 바뀌면 이력과 무관하게 증식하지 않는다.
+   *
+   * <p>위치 판정(`isLastLine`)은 유지한다 — 자동 증식으로 뒤에 새 빈 행이 생기면 그 순간
+   * 이 행은 더 이상 "마지막 행"이 아니게 되어, 같은 행에 대한 후속 편집이 중복 증식을
+   * 만들지 않는다(기존 "자동 증식 1회 1행" 불변식). 새 빈 행이 삭제돼 이 행이 다시
+   * 마지막이 되면, 재편집(값이 실제로 다시 바뀌는 편집) 시 다시 증식한다 — 의도된 동작이다.
+   *
+   * <p>setLines updater 안에서 위치를 다시 확인해 연속 이벤트에도 중복 증식을 막는다.
    */
-  const markLineInput = (id: string) => {
-    setTouchedLineIds((previous) => {
-      if (previous.has(id)) return previous
-      const next = new Set(previous)
-      next.add(id)
-      return next
-    })
-
-    const currentIndex = linesRef.current.findIndex((line) => line.id === id)
-    const isLastLine = currentIndex === linesRef.current.length - 1
-    if (!isLastLine) return
+  const maybeExpandLastLine = (id: string, before: LineDraft, after: LineDraft) => {
+    const isLastLine = linesRef.current[linesRef.current.length - 1]?.id === id
+    if (!isLastLine || isLineContentEqual(before, after)) return
+    const lineNumber = linesRef.current.length
 
     setLines((current) => {
-      const lastLine = current[current.length - 1]
-      if (!lastLine || lastLine.id !== id) return current
+      const idx = current.findIndex((line) => line.id === id)
+      if (idx === -1 || idx !== current.length - 1) return current
       return [...current, emptyLine()]
     })
+
+    // D6·H5: 반복 증식이 같은 문구로 이어지지 않도록 보이지 않는 폭 없는 공백(U+200B)으로
+    // 매번 문자열을 바꾼다(1~4개 순환 — 인접한 두 값은 항상 개수가 달라 문자열이 다르다).
+    // 시각적으로는 무영향 — 이 span 은 이미 스크린리더 전용으로 화면에서 숨겨져 있다.
+    expansionSeqRef.current += 1
+    const zeroWidthSpace = '​'
+    const rereadMarker = zeroWidthSpace.repeat((expansionSeqRef.current % 4) + 1)
     setLineExpansionAnnouncement(
-      `라인 ${currentIndex + 1} 입력 완료. 다음 입력 행 1개가 추가되었습니다.`,
+      `라인 ${lineNumber} 입력 완료. 다음 입력 행 1개가 추가되었습니다.${rereadMarker}`,
     )
   }
 
   /** 사용자 셀 변경 공통 경로 — 제품 선택과 수량/금액/규격 입력이 같은 증식 규칙을 쓴다. */
   const updateLineFromUser = (id: string, updater: (line: LineDraft) => LineDraft) => {
-    markLineInput(id)
+    const before = linesRef.current.find((line) => line.id === id)
     setLines((current) => current.map((line) => (
       line.id === id ? updater(line) : line
     )))
+    if (!before) return
+    maybeExpandLastLine(id, before, updater(before))
   }
 
   const removeLine = (id: string) => {
@@ -615,12 +662,8 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       next.delete(id)
       return next
     })
-    setTouchedLineIds((prev) => {
-      if (!prev.has(id)) return prev
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
+    // #902 R2: 안내는 이제 이력(touchedLineIds)이 아니라 현재 내용의 순수 함수라(H1),
+    // 행 삭제 시 별도로 지워줄 이력이 없다 — 배열에서 빠지는 즉시 안내도 함께 사라진다.
   }
 
   const updateLine = (id: string, patch: Partial<LineDraft>) =>
@@ -650,7 +693,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   ) => updateLineFromUser(id, (line) => editLineVat(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
-    markLineInput(line.id)
     setPriceLookupAnnouncement('')
     const lineNumber = Math.max(1, lines.findIndex((candidate) => candidate.id === line.id) + 1)
     const productId = product?.id ?? null
@@ -661,7 +703,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     const nextUnitPrice = shouldAutoFill ? fallbackUnitPrice : line.unitPrice
     const partnerId = selectedPartner?.id
     const pricedLine = recalculateLineVat(asVatLine({ ...line, unitPrice: nextUnitPrice }), 'PRICE')
-    updateLine(line.id, {
+    const nextLine: LineDraft = {
       ...pricedLine,
       productId,
       modelName: product?.modelName ?? '',
@@ -675,7 +717,11 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       modelCode: product?.modelCode ?? null,
       lookupError: null,
       lookupLoading: Boolean(partnerId && productId && shouldAutoFill),
-    })
+    }
+    updateLine(line.id, nextLine)
+    // 품목 선택도 다른 셀 입력과 같은 증식 규칙을 쓴다(H2) — before(line)/after(nextLine)가
+    // 실제로 다를 때만, 그리고 마지막 행일 때만 빈 행을 증식한다.
+    maybeExpandLastLine(line.id, line, nextLine)
     if (!partnerId || !productId || !shouldAutoFill) {
       if (productId && shouldAutoFill) {
         setPriceLookupAnnouncement(`라인 ${lineNumber} 판매가 적용`)
@@ -1064,8 +1110,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         : `선택 항목 재고조회 (${selectedProductLines.length}건)`
 
   const renderLineFooter = (line: LineDraft, index: number): ReactNode => {
-    const isIncomplete = touchedLineIds.has(line.id)
-      && !(line.productId && Number(line.quantity) > 0)
+    // #902 R2 H1: 안내는 이제 순수하게 "현재 내용"의 함수다(lineIncompleteReason) — 이력을
+    // 남기지 않으므로, 입력을 원복하면 삭제 없이도 안내가 자동으로 사라진다(D1).
+    const reason = lineIncompleteReason(line)
     const isBundle = line.productType === 'BUNDLE'
     return (
       <>
@@ -1079,10 +1126,25 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
             onChange={(patch) => updateSetOption(line.id, patch)}
           />
         ) : null}
-        {isIncomplete ? <IncompleteLineNotice lineNumber={index + 1} /> : null}
+        {reason ? <IncompleteLineNotice lineNumber={index + 1} reason={reason} /> : null}
       </>
     )
   }
+
+  /**
+   * 저장 전 제외 행 요약(#902 R2 D3·H3) — 개별 행 안내(role="note")는 그 행이 화면에
+   * 보일 때만 사실상 눈에 띈다. 이 요약은 총 및 제출 영역 근처에 항상 마운트되어(R4-D9
+   * 계열 상시 마운트 관행과 동일) 스크롤 없이도 몇 행이 왜 제외되는지 알려주고,
+   * role="status" 라이브 리전이라 스크린리더에도 전달된다(H5). 문구에 행 번호를 포함해
+   * 개수가 같아도 대상 행이 바뀌면 문자열이 달라지게 한다(재낭독 보장).
+   */
+  const incompleteLines = lines
+    .map((line, index) => ({ lineNumber: index + 1, reason: lineIncompleteReason(line) }))
+    .filter((entry): entry is { lineNumber: number; reason: LineIncompleteReason } => entry.reason !== null)
+  const incompleteSummaryText =
+    incompleteLines.length > 0
+      ? `입력 중인 행 ${incompleteLines.length}개(${incompleteLines.map((entry) => entry.lineNumber).join(', ')}행)가 저장에서 제외됩니다.`
+      : ''
 
   // ── render ──────────────────────────────────────────────
 
@@ -1516,6 +1578,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                   onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
                   onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
                   vatEditable={!isBundle}
+                  excludedFromSave={!willLineBeSaved(line)}
                   onDelete={() => removeLine(line.id)}
                   modelCell={
                     <ProductAutocomplete
@@ -1584,6 +1647,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
                       onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
                       vatEditable={!isBundle}
+                      excludedFromSave={!willLineBeSaved(line)}
                       onDelete={() => removeLine(line.id)}
                       modelCell={
                         <ProductAutocomplete
@@ -1632,6 +1696,21 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               ₩{totals.total.toLocaleString()}
             </span>
           </span>
+        </div>
+
+        {/*
+          #902 R2 D3·H3: 저장을 누르기 전에, 개별 행 안내(role="note")가 화면 밖에 있어도
+          몇 행이 왜 제외되는지 알 수 있게 하는 요약. R4-D9 계열 상시 마운트 관행과 동일 —
+          live region 이 빈 컨테이너로 먼저 존재해야 스크린리더 낭독이 신뢰된다(H5).
+        */}
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="slip-form-incomplete-summary"
+          data-incomplete-count={incompleteLines.length}
+          className={incompleteLines.length > 0 ? 'sfp-incomplete-summary' : undefined}
+        >
+          {incompleteSummaryText || null}
         </div>
 
         {errorMessage ? (

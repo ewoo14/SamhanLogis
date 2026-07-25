@@ -94,6 +94,7 @@ vi.mock('@samhan/design-system', () => ({
         data-product-id={props.line.productId ?? ''}
         data-price-source={props.line.priceSource ?? ''}
         data-partner-selected={String(props.partnerSelected ?? '')}
+        data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
         {props.modelCell}
         <span data-testid={`product-name-${lineNo}`}>{props.line.productName}</span>
@@ -849,6 +850,119 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     expect(screen.getByTestId('slip-form-line-expansion-announcement').textContent).toContain('입력 행 1개가 추가')
     expect(document.activeElement).toBe(lastQuantity)
     expect(screen.getByLabelText('line-6-quantity')).toBeTruthy()
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// #902 R2 8건 결함 리뷰(OPUS+SOL 적대검증) — 근본원인: 안내·증식 판정이 "행에 내용이
+// 있는가"가 아니라 "onChange 가 한 번 발화했는가"(touchedLineIds 이력)에 걸려 있었다.
+// 아래는 그 8건 각각의 재현 + 회귀 가드다.
+// ────────────────────────────────────────────────────────────────────────────
+describe('SlipFormPage 라인 입력 안내/증식 — #902 R2 결함 회귀 가드', () => {
+  // D1: 입력을 되돌리면(원복) 안내가 사라진다(H1) — touchedLineIds 이력이면 행 삭제 전까지 안 사라진다.
+  it('D1·H1: 규격을 입력했다 원복하면 제외 안내가 사라진다', () => {
+    renderPage()
+    const spec = screen.getByLabelText('line-1-specification')
+
+    fireEvent.change(spec, { target: { value: 'x' } })
+    expect(screen.getByTestId('line-1-incomplete-notice')).toBeTruthy()
+
+    fireEvent.change(spec, { target: { value: '' } })
+    expect(screen.queryByTestId('line-1-incomplete-notice')).toBeNull()
+  })
+
+  // D2: 단가 셀은 빈 값도 '0'으로 표시하므로(LineRow priceDisplay 폴백), 화면상 아무 변화도
+  // 없는 Backspace 1회(0→'')가 마지막 행에서 안내·증식을 유발하면 안 된다(H2).
+  it('D2·H2: 마지막 행 단가를 0에서 빈 문자열로 지워도(화면은 그대로 0) 안내·증식이 없다', () => {
+    renderPage()
+
+    fireEvent.change(unitPrice(5), { target: { value: '' } })
+
+    expect(screen.queryByTestId('line-6')).toBeNull()
+    expect(screen.queryByTestId('line-5-incomplete-notice')).toBeNull()
+    expect(screen.getByTestId('slip-form-line-expansion-announcement').textContent).toBe('')
+  })
+
+  // D3·H3: 저장 전에, 몇 행이 제외되는지 한 곳(스크롤 없이)에서 알 수 있어야 한다.
+  it('D3·H3: 여러 행이 미완성이면 저장 전 요약 안내가 제외 행 수를 보여준다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-2-quantity'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('line-3-specification'), { target: { value: '220V' } })
+
+    const summary = screen.getByTestId('slip-form-incomplete-summary')
+    expect(summary.getAttribute('data-incomplete-count')).toBe('2')
+    expect(summary.getAttribute('role')).toBe('status')
+    expect(summary.textContent).toContain('2')
+  })
+
+  it('D3·H3: 미완성 행이 없으면 요약 안내가 비어 있다', () => {
+    renderPage()
+    const summary = screen.getByTestId('slip-form-incomplete-summary')
+    expect(summary.getAttribute('data-incomplete-count')).toBe('0')
+    expect(summary.textContent).toBe('')
+  })
+
+  // D4·H4: 문구가 실제로 해야 할 일을 말한다 — 품목 미선택과 수량 0 은 서로 다른 조건이다.
+  it('D4·H4: 품목 미선택 행은 "품목을 선택"을, 수량 0 행은 "수량"을 말한다', async () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '2' } })
+    const noProductNotice = screen.getByTestId('line-1-incomplete-notice').textContent ?? ''
+    expect(noProductNotice).toContain('품목을 선택')
+    expect(noProductNotice).not.toContain('수량을')
+
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
+
+    const zeroQtyNotice = screen.getByTestId('line-1-incomplete-notice').textContent ?? ''
+    expect(zeroQtyNotice).toContain('수량')
+    expect(zeroQtyNotice).not.toContain('품목을 선택')
+  })
+
+  // D6·H5: 마지막 행에서 증식이 반복되면(같은 라인 번호라도) 안내 문구가 매번 달라져 재낭독된다.
+  // 동일 문자열이면 React 가 재렌더를 bail-out 해 스크린리더가 재낭독하지 않는다.
+  it('D6·H5: 같은 마지막 행에서 반복 증식되면 안내 문구가 매번 달라진다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-5-quantity'), { target: { value: '2' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    const first = screen.getByTestId('slip-form-line-expansion-announcement').textContent
+
+    fireEvent.click(screen.getByTestId('delete-line-6'))
+    expect(screen.queryByTestId('line-6')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('line-5-quantity'), { target: { value: '3' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    const second = screen.getByTestId('slip-form-line-expansion-announcement').textContent
+
+    expect(second).not.toBe(first)
+    expect(second).toContain('입력 행 1개가 추가')
+  })
+
+  // D7·H6 (wiring): SlipFormPage 는 저장에서 제외될 행을 LineRow 에 명시적으로 알려줘야
+  // 실제 금액 표시 억제(LineRow.test.tsx 에서 별도 검증)가 가능하다.
+  it('D7·H6(배선): 품목 선택 + 수량 0 인 행은 excludedFromSave=true 로 전달된다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('false')
+
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('true')
+  })
+
+  // D8·H7: 모바일 수량 입력은 소수점 등 비정수 문자를 제거해 정수만 상태에 반영한다.
+  // (BE CreateSlipRequest.SlipLineRequest.quantity 는 @Positive Integer — 소수는 절사/400.)
+  it('D8·H7: 모바일 수량 입력에서 소수점은 제거되고 자릿수만 남는다', () => {
+    renderMobilePage()
+    const qty = screen.getByLabelText('라인 1 수량') as HTMLInputElement
+
+    fireEvent.change(qty, { target: { value: '2.7' } })
+
+    expect(qty.value).toBe('27')
   })
 })
 
