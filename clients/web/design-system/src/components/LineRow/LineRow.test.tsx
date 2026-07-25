@@ -262,9 +262,13 @@ describe('LineRow price source marker', () => {
       </div>,
     )
 
-    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: raw } })
+    const supply = screen.getByLabelText('라인 1 공급가액') as HTMLInputElement
+    const before = supply.value
+
+    fireEvent.change(supply, { target: { value: raw } })
 
     expect(onSupplyAmountChange).not.toHaveBeenCalled()
+    expect(supply.value).toBe(before)
   })
 })
 

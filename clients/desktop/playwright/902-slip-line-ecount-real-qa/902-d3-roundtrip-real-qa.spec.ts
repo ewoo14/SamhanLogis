@@ -166,8 +166,16 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
     const supplyAfter = await supply.inputValue()
     const vatAfter = await page.getByLabel('라인 1 부가세', { exact: true }).inputValue()
     const rowTotalAfter = await readCell(page.getByLabel('라인 1 합계(VAT포함)', { exact: true }))
+    const beforeNoOpResave = {
+      unitPrice: priceAfter.replace(/[^0-9]/g, ''),
+      supply: supplyAfter.replace(/[^0-9]/g, ''),
+      vat: vatAfter.replace(/[^0-9]/g, ''),
+      total: rowTotalAfter.replace(/[^0-9]/g, ''),
+    }
     // eslint-disable-next-line no-console
     console.log(`[3. 공급가액 50,000 변경 후] 단가=${priceAfter} 공급가액=${supplyAfter} 부가세=${vatAfter} 행합계=${rowTotalAfter}`)
+    // eslint-disable-next-line no-console
+    console.log(`[E-2 1단계 저장 직전] 단가=${beforeNoOpResave.unitPrice} 공급가액=${beforeNoOpResave.supply} 부가세=${beforeNoOpResave.vat} 합계=${beforeNoOpResave.total}`)
 
     // 화면(스크래치, gitignore) + 확정 증거(신규 파일명, 커밋 대상) 둘 다 캡처.
     await capture(page, '08-d3-row-after-supply-edit')
@@ -228,22 +236,45 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
 
     // ── 7. 수정 화면도 열어 단가 확인 ────────────────────────────────────────
     const editBtn = page.getByTestId('sales-slip-edit-button')
-    if (await editBtn.count() > 0) {
-      await editBtn.click()
-      const editSection = page.getByTestId('sales-slip-edit-modal')
-      await expect(editSection, '매출 전표 수정 인라인 영역 미표시').toBeVisible({ timeout: 15000 })
-      const editPriceField = page.getByLabel('단가(VAT제외) 1', { exact: true })
-      await expect(editPriceField, '수정 화면 단가(VAT제외) 1 입력란 미표시').toBeVisible({ timeout: 15000 })
-      await page.waitForTimeout(400)
-      const editPriceValue = await editPriceField.inputValue()
-      // eslint-disable-next-line no-console
-      console.log(`[7. 수정 화면] 단가(VAT제외) 1 입력값 = "${editPriceValue}" (기대: 11,000)`)
-      await capture(page, '12-d3-edit-form-price')
-      expect.soft(editPriceValue.replace(/[^0-9]/g, ''), '🔑 D-3: 수정 화면 단가도 입력값(11,000)과 같아야 한다').toBe('11000')
-    } else {
-      // eslint-disable-next-line no-console
-      console.warn('[7. 수정 화면] "sales-slip-edit-button" 미발견 — dev_master 권한으로 direct-edit 진입 불가할 수 있음(정직 기록, 계속 진행)')
+    await expect(editBtn, 'E-2 무수정 재저장을 위해 매출 전표 수정 버튼이 필요하다').toHaveCount(1)
+    await editBtn.click()
+    const editSection = page.getByTestId('sales-slip-edit-modal')
+    await expect(editSection, '매출 전표 수정 인라인 영역 미표시').toBeVisible({ timeout: 15000 })
+    const editPriceField = page.getByLabel(/^단가\(VAT(?:제외|포함)\) 1$/)
+    await expect(editPriceField, '수정 화면 단가 입력란 미표시').toBeVisible({ timeout: 15000 })
+    await page.waitForTimeout(400)
+    const editPriceValue = await editPriceField.inputValue()
+    const editPriceLabel = await editPriceField.getAttribute('aria-label')
+    const editSupplyValue = await editSection.getByLabel('공급가액 1', { exact: true }).inputValue()
+    const editVatValue = await editSection.getByLabel('부가세 1', { exact: true }).inputValue()
+    const editTotalValue = await editSection.getByLabel('합계(VAT포함) 1', { exact: true }).inputValue()
+    // eslint-disable-next-line no-console
+    console.log(`[7. 수정 화면] 라벨=${editPriceLabel} 단가=${editPriceValue} 공급가액=${editSupplyValue} 부가세=${editVatValue} 합계=${editTotalValue}`)
+    await capture(page, '12-d3-edit-form-price')
+    expect.soft(editPriceLabel, '🔑 E-2: authoritative 입력 단가는 수정 화면에서도 VAT 포함으로 설명해야 한다').toBe('단가(VAT포함) 1')
+    expect.soft(editPriceValue.replace(/[^0-9]/g, ''), '🔑 D-3: 수정 화면 단가도 입력값(11,000)과 같아야 한다').toBe('11000')
+
+    // ── 7-2. 아무것도 바꾸지 않고 다시 저장 → 금액 네 값 무손실 확인 ─────
+    const resaveResponsePromise = page.waitForResponse(
+      (response) => response.request().method() === 'PUT' && new RegExp(`/slips/${slipId}/sales(?:\\?|$)`).test(response.url()),
+      { timeout: 30000 },
+    )
+    await editSection.getByRole('button', { name: '저장', exact: true }).click()
+    const resaveResponse = await resaveResponsePromise
+    expect(resaveResponse.ok(), `E-2 무수정 재저장 실패: HTTP ${resaveResponse.status()} ${await resaveResponse.text().catch(() => '')}`).toBeTruthy()
+
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
+    await expect(page.locator('td.col-price').first(), 'E-2 재저장 후 상세 단가 열 미표시').toBeVisible({ timeout: 20000 })
+    await page.waitForTimeout(500)
+    const afterNoOpResave = {
+      unitPrice: (await page.locator('td.col-price').first().innerText()).replace(/[^0-9]/g, ''),
+      supply: (await page.locator('td.col-supply').first().innerText()).replace(/[^0-9]/g, ''),
+      vat: (await page.locator('td.col-vat').first().innerText()).replace(/[^0-9]/g, ''),
+      total: (await page.locator('td.col-total').first().innerText()).replace(/[^0-9]/g, ''),
     }
+    // eslint-disable-next-line no-console
+    console.log(`[E-2 4단계 무수정 재저장 후] 단가=${afterNoOpResave.unitPrice} 공급가액=${afterNoOpResave.supply} 부가세=${afterNoOpResave.vat} 합계=${afterNoOpResave.total}`)
+    expect(afterNoOpResave, '🔑 E-2/Q3: 아무것도 바꾸지 않은 재저장 후 네 금액이 보존되어야 한다').toEqual(beforeNoOpResave)
   })
 
   test.afterAll(async () => {

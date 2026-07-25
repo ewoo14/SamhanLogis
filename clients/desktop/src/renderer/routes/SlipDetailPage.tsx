@@ -316,9 +316,46 @@ const INSPECTION_STATUS_LABEL: Record<string, string> = {
 
 type PurchaseEditLine = SlipLineInput & {
   key: string
+  /** authoritative 저장 경로에서 입력 단가를 보존했는지 판정하기 위한 서버 원본. */
+  unitPriceWithVat?: string | null
   authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
   vatDirty?: boolean
   isBundleComponent?: boolean
+}
+
+export type EditUnitPriceLabel = '단가(VAT포함)' | '단가(VAT제외)'
+
+/**
+ * 전표 상세 수정 행의 단가가 어느 VAT 도메인인지 판정한다.
+ *
+ * 정상 전표는 unitPrice(공급단가)와 unitPriceWithVat(화면 단가)가 다르다.
+ * authoritative 저장 경로는 개발책임자 결정에 따라 사용자가 입력한 단가를 두 컬럼에
+ * 그대로 보존하므로 두 값이 같다. 이 경우 수정 화면도 그 저장값을 VAT 포함 단가로
+ * 설명해야 같은 값에 서로 다른 사실을 붙이지 않는다.
+ */
+export function editUnitPriceLabel(
+  line: Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>,
+): EditUnitPriceLabel {
+  const unitPrice = Number(line.unitPrice)
+  const unitPriceWithVat = line.unitPriceWithVat == null ? Number.NaN : Number(line.unitPriceWithVat)
+  return Number.isFinite(unitPrice)
+    && Number.isFinite(unitPriceWithVat)
+    && unitPrice === unitPriceWithVat
+    ? '단가(VAT포함)'
+    : '단가(VAT제외)'
+}
+
+/**
+ * 여러 행이 섞인 수정 표의 공통 헤더. 행별 accessible label은 각 행의 판정값을 사용한다.
+ */
+export function editUnitPriceColumnHeader(
+  lines: ReadonlyArray<Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>>,
+): string {
+  if (lines.length === 0) return '단가(VAT제외)'
+  const first = editUnitPriceLabel(lines[0]!)
+  return lines.every((line) => editUnitPriceLabel(line) === first)
+    ? first
+    : '단가(행별 VAT 기준)'
 }
 
 /**
@@ -356,6 +393,7 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     specification: line.specification ?? '',
     quantity: line.quantity,
     unitPrice: String(line.unitPrice),
+    unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: String(line.supplyAmount ?? line.lineTotal),
     vatAmount: String(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     lineTotalWithVat: String(
@@ -531,6 +569,7 @@ export function coeditLinesToEditLines(
       // 타이핑 coedit 값은 Y.Doc 직접 사용(`|| previous` 폴백 제거) — 빈 문자열로 지울 수 있게(리뷰 FE B-1: 폴백이 ''를 falsy 처리해 숫자 셀 clear 불가). productId 는 선택기반(타이핑 아님)이라 폴백 유지.
       quantity: Number(quantityValue || 0),
       unitPrice: provider.getItemValue(index, 'unitPrice'),
+      unitPriceWithVat: previous?.unitPriceWithVat,
       note: provider.getItemValue(index, 'note'),
       supplyAmount: rawSupply || previous?.supplyAmount,
       vatAmount: rawVat || previous?.vatAmount,
@@ -2185,7 +2224,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               <th>모델명</th>
               <th>규격</th>
               <th>수량</th>
-              <th>단가(VAT제외)</th>
+              <th>{editUnitPriceColumnHeader(salesEditLines)}</th>
               <th>공급가액</th>
               <th>부가세</th>
               <th>합계(VAT포함)</th>
@@ -2249,7 +2288,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     min={0}
                     value={String(line.unitPrice)}
                     onValueChange={(value) => updateSalesLine(index, { unitPrice: value, vatDirty: false })}
-                    aria-label={`단가(VAT제외) ${index + 1}`}
+                    aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
                       changed ? changedStatusId : null,
@@ -2480,7 +2519,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               <th>모델명</th>
               <th>규격</th>
               <th>수량</th>
-              <th>단가(VAT제외)</th>
+              <th>{editUnitPriceColumnHeader(purchaseEditLines)}</th>
               <th>공급가액</th>
               <th>부가세</th>
               <th>합계(VAT포함)</th>
@@ -2544,7 +2583,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     min={0}
                     value={String(line.unitPrice)}
                     onValueChange={(value) => updatePurchaseLine(index, { unitPrice: value, vatDirty: false })}
-                    aria-label={`단가(VAT제외) ${index + 1}`}
+                    aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
                       changed ? changedStatusId : null,
