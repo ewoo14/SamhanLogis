@@ -84,7 +84,7 @@ import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
   changeLineQuantity,
-  editLineVat,
+  editSlipLineAmount,
   recalculateLineVat,
   type LineVatLine,
 } from '../utils/lineVat'
@@ -180,8 +180,13 @@ const calcVatInclusiveLine = (
  * (Math.max(1,...))가 실제로 왜곡해 만든 "가짜" 값이지, 사용자가 직접 친 값이 아니다.
  *
  * - authority 가 'SUPPLY'/'VAT'/'TOTAL' 이면 사용자가 그 권위 그룹의 금액을 직접 편집한
- *   것 — lineVat.recalculateLineVat 의 해당 분기는 quantity 를 공급가액/부가세/합계 계산에
- *   전혀 쓰지 않는다(unitPrice 역산에만 사용) — 클램프 미관여. 억제하지 않는다.
+ *   것 — quantity 를 공급가액/부가세/합계 계산에 전혀 쓰지 않는다 — 클램프 미관여. 억제
+ *   하지 않는다. (#902 R5 갱신 — 개발책임자 결정 2026-07-25 "금액 열 편집 정책": 이 화면의
+ *   SUPPLY/VAT 편집은 이제 {@code lineVat.editSlipLineAmount} 를 거친다 — quantity 는
+ *   물론 unitPrice 도 건드리지 않는 전용 함수라 이 결론이 전보다도 더 단순하게 성립한다.
+ *   TOTAL 은 이 화면에 편집 UI 자체가 없어졌다(P1) — line.authority 타입에는 남아있지만
+ *   이 화면에서 실제로 생성되지는 않는다. 그래도 혹시 남아있어도 이 억제 판정은 그대로
+ *   안전하다: PRICE 가 아니라는 사실만으로 억제 대상에서 제외되기 때문.)
  * - authority 가 'PRICE'(기본값 포함)면 세 값이 quantity 를 그대로(클램프 거쳐) 곱해
  *   계산된다 — 실제 quantity 가 이미 1 이상으로 유효하면 클램프는 아무 것도 왜곡하지 않은
  *   것이라(무영향) 억제하지 않는다. 실제 quantity 가 0 이하(빈 값 포함)일 때만 클램프가
@@ -255,7 +260,6 @@ function SlipMobileLineCard(props: {
   onUnitPriceChange: (value: string) => void
   onSupplyAmountChange: (value: string) => void
   onVatAmountChange: (value: string) => void
-  onLineTotalChange: (value: string) => void
   vatEditable: boolean
   /**
    * 저장에서 제외될 예정(#902 R2 D7·H6) — true 라고 해서 금액 열 표시가 무조건 0 으로
@@ -404,15 +408,18 @@ function SlipMobileLineCard(props: {
 
       <div className="mobile-line-field">
         <label className="mobile-line-field-label">금액(VAT포함)</label>
-        <input
-          type="text"
-          inputMode="numeric"
-          className="mobile-line-text-input mobile-line-number-input"
-          value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
-          onChange={(e) => props.onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
+        {/*
+          P1(개발책임자 결정 2026-07-25 "금액 열 편집 정책"): 합계는 공급가액+부가세로만
+          파생되고 사용자가 직접 입력할 수단이 없다. 종전에는 <input>으로 편집 가능했으나
+          (그 경로 제거), 이제는 읽기전용 표시로 통일한다 — 데스크톱 LineRow.tsx의 동일
+          변경과 대응.
+        */}
+        <div
+          className="mobile-line-readonly"
           aria-label={`라인 ${props.lineNumber} 합계(VAT포함)`}
-          disabled={!props.vatEditable}
-        />
+        >
+          {shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.lineTotal ?? vatBreakdown.incl).toLocaleString()}
+        </div>
       </div>
 
       <div className="mobile-line-field">
@@ -473,7 +480,6 @@ function SortableLineRow(props: {
   onUnitPriceChange: (v: string) => void
   onSupplyAmountChange: (v: string) => void
   onVatAmountChange: (v: string) => void
-  onLineTotalChange: (v: string) => void
   vatEditable: boolean
   /** 저장에서 제외될 예정(#902 R2 D7·H6) — LineRow 의 금액 표시 억제로 전달. */
   excludedFromSave: boolean
@@ -522,7 +528,6 @@ function SortableLineRow(props: {
         onUnitPriceChange={props.onUnitPriceChange}
         onSupplyAmountChange={props.onSupplyAmountChange}
         onVatAmountChange={props.onVatAmountChange}
-        onLineTotalChange={props.onLineTotalChange}
         onDelete={props.onDelete}
         modelCell={props.modelCell}
         dragHandleProps={{
@@ -718,11 +723,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const updateQuantity = (id: string, quantity: string) =>
     updateLineFromUser(id, (line) => changeLineQuantity(asVatLine(line), quantity))
 
+  /**
+   * 공급가액·부가세 편집 (개발책임자 결정 2026-07-25 "금액 열 편집 정책", 정정 포함).
+   *
+   * <p>{@link editSlipLineAmount} 를 쓴다 — 공유 {@code editLineVat} 의 SUPPLY/VAT 분기를
+   * 고치지 않고 전표 화면 전용 함수로 분리했다(견적·전표 상세는 원래 방향을 그대로 씀,
+   * lineVat.ts 의 함수 주석 참고). 합계(TOTAL) 편집은 이 화면에 UI 자체가 없다(P1) —
+   * authority 는 SUPPLY/VAT 만 받는다.
+   */
   const updateVatAmount = (
     id: string,
-    authority: 'SUPPLY' | 'VAT' | 'TOTAL',
+    authority: 'SUPPLY' | 'VAT',
     value: string,
-  ) => updateLineFromUser(id, (line) => editLineVat(asVatLine(line), authority, value))
+  ) => updateLineFromUser(id, (line) => editSlipLineAmount(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
     setPriceLookupAnnouncement('')
@@ -1608,7 +1621,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                   onUnitPriceChange={(v) => updatePrice(line.id, v)}
                   onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
                   onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
-                  onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
                   vatEditable={!isBundle}
                   excludedFromSave={!willLineBeSaved(line)}
                   onDelete={() => removeLine(line.id)}
@@ -1677,7 +1689,6 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       onUnitPriceChange={(v) => updatePrice(line.id, v)}
                       onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
                       onVatAmountChange={(v) => updateVatAmount(line.id, 'VAT', v)}
-                      onLineTotalChange={(v) => updateVatAmount(line.id, 'TOTAL', v)}
                       vatEditable={!isBundle}
                       excludedFromSave={!willLineBeSaved(line)}
                       onDelete={() => removeLine(line.id)}

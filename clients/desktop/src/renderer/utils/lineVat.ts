@@ -151,6 +151,51 @@ export function editLineVat<T extends LineVatLine>(
   return recalculateLineVat(next, authority)
 }
 
+/**
+ * 전표(SlipFormPage) 전용 — 공급가액·부가세 편집 (개발책임자 결정 2026-07-25, 정정 포함).
+ *
+ * <p>🚨 위 {@link editLineVat}/{@link recalculateLineVat} 의 SUPPLY/VAT 분기는 **일부러
+ * 건드리지 않았다.** 그 두 함수는 견적(EstimateFormPage)·전표 상세(SlipDetailPage)가
+ * 여전히 원래 방향(SUPPLY 편집 시 부가세를 공급가액의 10%로 재계산 + 단가 역산)으로 쓰고
+ * 있어(P5 — 다른 화면 금액 계약 보존), 공유 분기를 고치면 그 화면들의 동작이 바뀐다.
+ * 전표 화면만의 새 정책이 필요해 공유 계산을 고치는 대신 이 함수를 **별도로 추가**했다 —
+ * 전표 화면(SlipFormPage)만 이 함수를 호출하므로 다른 화면은 영향을 받지 않는다.
+ *
+ * <p>규칙(2026-07-25 결정 + 정정 반영):
+ * <ul>
+ *   <li>P4 — 단가는 결코 역산되지 않는다. 이 함수는 애초에 단가 편집 대상이 아니므로
+ *       {@code line.unitPrice} 를 전혀 건드리지 않고 그대로 승계한다.</li>
+ *   <li>P6(정정) — 공급가액을 편집해도 부가세는 그대로, 부가세를 편집해도 공급가액은
+ *       그대로 유지된다. 재계산의 출발점은 오직 단가({@link recalculateLineVat} 의 PRICE
+ *       분기) 하나뿐이고, 이 함수는 그 반대 방향(공급가액·부가세 → 단가/서로)으로는
+ *       아무 것도 역산하지 않는다 — 편집한 열 자신 + 합계(P2: 공급가액+부가세)만 바뀐다.</li>
+ *   <li>합계(TOTAL) 권위는 이 함수에 없다 — 전표 화면은 합계 편집 UI 자체가 없다(P1,
+ *       LineRow.tsx/SlipMobileLineCard 양쪽 읽기전용 표시로 전환).</li>
+ *   <li>부가세 경고(⚠ 10%와 다름)는 공급가액 편집으로도 발생할 수 있다 — 종전에는 SUPPLY
+ *       편집이 부가세를 강제로 10%에 맞춰 불일치가 애초에 존재할 수 없었지만, 이제는
+ *       부가세를 그대로 두므로 새 공급가액과 어긋날 수 있다. 그래서 이 함수는 authority
+ *       와 무관하게 항상 {@link warningFor} 로 판정한다(기존 editLineVat 은 VAT 편집일
+ *       때만 판정 — 그 함수는 SUPPLY 가 여전히 10%를 강제해 무의미했기 때문).</li>
+ * </ul>
+ */
+export function editSlipLineAmount<T extends LineVatLine>(
+  line: T,
+  authority: 'SUPPLY' | 'VAT',
+  value: string | number,
+): T {
+  const amount = integerAmount(value)
+  const supply = authority === 'SUPPLY' ? amount : integerAmount(line.supplyAmount)
+  const vat = authority === 'VAT' ? amount : integerAmount(line.vatAmount)
+  return {
+    ...line,
+    supplyAmount: String(supply),
+    vatAmount: String(vat),
+    lineTotal: String(supply + vat),
+    authority,
+    vatWarning: warningFor(supply, vat),
+  } as T
+}
+
 /** 수량 변경 — 비단가 권위 라인은 파생 단가를 승격해 PRICE 경로로 복귀한다. */
 export function changeLineQuantity<T extends LineVatLine>(line: T, quantity: string): T {
   const next = { ...line, quantity }

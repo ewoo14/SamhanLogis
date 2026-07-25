@@ -105,7 +105,7 @@ describe('LineRow price source marker', () => {
     expect(screen.getByRole('checkbox', { name: '모든 라인 선택' })).toBeTruthy()
   })
 
-  it('VAT 포함 모드는 공급가액·부가세·합계 입력 열과 경고를 표시한다', () => {
+  it('VAT 포함 모드는 공급가액·부가세 입력 열과 경고를 표시하고, 합계는 읽기전용이다(P1)', () => {
     const onSupplyAmountChange = vi.fn()
     const onVatAmountChange = vi.fn()
     const onLineTotalChange = vi.fn()
@@ -143,15 +143,19 @@ describe('LineRow price source marker', () => {
     expect(screen.getByText('부가세')).toBeTruthy()
     expect(screen.getByLabelText('라인 1 공급가액')).toBeTruthy()
     expect(screen.getByLabelText('라인 1 부가세')).toBeTruthy()
-    expect(screen.getByLabelText('라인 1 합계(VAT포함)')).toBeTruthy()
     expect(screen.getByRole('note').textContent).toBe('⚠ 10%와 다름')
 
     fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '100006' } })
     fireEvent.change(screen.getByLabelText('라인 1 부가세'), { target: { value: '10001' } })
-    fireEvent.change(screen.getByLabelText('라인 1 합계(VAT포함)'), { target: { value: '110007' } })
     expect(onSupplyAmountChange).toHaveBeenCalledWith('100006')
     expect(onVatAmountChange).toHaveBeenCalledWith('10001')
-    expect(onLineTotalChange).toHaveBeenCalledWith('110007')
+
+    // P1(개발책임자 결정 2026-07-25 — 금액 열 편집 정책): 합계는 편집 불가다. input 이 아닌
+    // 읽기전용 표시여야 하고, onLineTotalChange 는 어떤 경우에도 호출되지 않는다.
+    const total = screen.getByLabelText('라인 1 합계(VAT포함)')
+    expect(total.tagName).not.toBe('INPUT')
+    expect(total.textContent).toBe('100,005')
+    expect(onLineTotalChange).not.toHaveBeenCalled()
   })
 
   // BLOCKING-2 계열(#824 R1): 공급/부가세를 아직 보유하지 않은(hydrate 전) 라인의 read-only
@@ -275,7 +279,8 @@ describe('LineRow #902 R2 결함 회귀 가드', () => {
 
     expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('0')
     expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('0')
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('0')
+    // P1: 합계는 이제 읽기전용 표시라 HTMLInputElement가 아니다 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('0')
   })
 
   // 저장 대상(excludedFromSave 미지정/false)인 정상 행은 종전처럼 실제 값을 그대로 보여준다(무회귀).
@@ -311,7 +316,8 @@ describe('LineRow #902 R2 결함 회귀 가드', () => {
       </div>,
     )
 
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('2,000')
+    // P1: 합계는 읽기전용 표시 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('2,000')
   })
 
   // H7′(개발책임자 회귀 지시 — #902 R3 S5, H7 대체): 종전 D8 fix 는 문자 단위로 숫자가
@@ -537,15 +543,17 @@ describe('LineRow #902 R3 회귀 가드 — 제외 행에서도 사용자가 직
     expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('999')
   })
 
-  // 합계(TOTAL) 칸도 동일 — H8 "단가·공급가액·부가세·합계 입력이 전부 그대로 된다".
-  it('품목 미선택 행: 합계(VAT포함) 칸에 입력한 값이 화면에 남는다(H6′·H8)', () => {
+  // P1(개발책임자 결정 2026-07-25): 합계는 편집 불가다 — 종전 H6′·H8은 "직접 입력한 값이
+  // 남는다"였으나, 합계는 이제 입력 자체가 불가능하므로 "편집 수단이 없고, 공급가액+부가세
+  // 파생값을 읽기전용으로 보여준다"로 대체한다. 제외 예정 행에서도 동일하다.
+  it('품목 미선택 행: 합계(VAT포함) 칸은 편집할 수 없고 공급가액+부가세 파생값을 보여준다(P1)', () => {
     const onLineTotalChange = vi.fn()
-    const { rerender } = render(
+    render(
       <div role="table">
         <LineTableHeader allSelected={false} onToggleAll={vi.fn()} vatInclusive />
         <LineRow
           lineNumber={1}
-          line={excludedNoProductLine()}
+          line={{ ...excludedNoProductLine(), authority: 'SUPPLY', supplyAmount: '49383', vatAmount: '4938', lineTotal: '54321' }}
           vatInclusive
           vatEditable
           excludedFromSave
@@ -565,35 +573,10 @@ describe('LineRow #902 R3 회귀 가드 — 제외 행에서도 사용자가 직
       </div>,
     )
 
-    fireEvent.change(screen.getByLabelText('라인 1 합계(VAT포함)'), { target: { value: '54321' } })
-    expect(onLineTotalChange).toHaveBeenCalledWith('54321')
-
-    rerender(
-      <div role="table">
-        <LineTableHeader allSelected={false} onToggleAll={vi.fn()} vatInclusive />
-        <LineRow
-          lineNumber={1}
-          line={{ ...excludedNoProductLine(), authority: 'TOTAL', supplyAmount: '49383', vatAmount: '4938', lineTotal: '54321' }}
-          vatInclusive
-          vatEditable
-          excludedFromSave
-          selected={false}
-          onSelect={vi.fn()}
-          onModelNameChange={vi.fn()}
-          onModelNameBlur={vi.fn()}
-          onSpecificationChange={vi.fn()}
-          onQuantityChange={vi.fn()}
-          onUnitPriceChange={vi.fn()}
-          onSupplyAmountChange={vi.fn()}
-          onVatAmountChange={vi.fn()}
-          onLineTotalChange={onLineTotalChange}
-          onDelete={vi.fn()}
-          dragHandleProps={{}}
-        />
-      </div>,
-    )
-
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('54,321')
+    const total = screen.getByLabelText('라인 1 합계(VAT포함)')
+    expect(total.tagName).not.toBe('INPUT')
+    expect(total.textContent).toBe('54,321')
+    expect(onLineTotalChange).not.toHaveBeenCalled()
   })
 
   // H9(원 D7 모순 재발 방지 회귀 가드): authority 가 여전히 'PRICE'(또는 미설정)이고 —
@@ -634,7 +617,8 @@ describe('LineRow #902 R3 회귀 가드 — 제외 행에서도 사용자가 직
 
     expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('0')
     expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('0')
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('0')
+    // P1: 합계는 읽기전용 표시 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('0')
   })
 
   // 설계 결정 확인: authority='PRICE' 라도 실제 수량이 유효(>0)하면 클램프가 아무 것도
@@ -674,6 +658,7 @@ describe('LineRow #902 R3 회귀 가드 — 제외 행에서도 사용자가 직
       </div>,
     )
 
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('100,000')
+    // P1: 합계는 읽기전용 표시 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('100,000')
   })
 })

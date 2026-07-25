@@ -1009,18 +1009,22 @@ describe('SlipFormPage 모바일 라인 카드 #902 R3 회귀 가드 — 제외 
     expect(vat.value).toBe('999')
   })
 
-  it('H6′·H8: 수량 0 모바일 행도 합계(VAT포함) 입력값이 화면에 남는다', async () => {
+  // P1(개발책임자 결정 2026-07-25 "금액 열 편집 정책"): 합계는 편집 불가다. 종전 H6′·H8은
+  // "합계 칸에 입력한 값이 남는다"였으나, 이제 합계 칸 자체가 입력을 받지 않으므로 그
+  // 전제가 성립하지 않는다 — "편집 수단이 없고 공급가액+부가세 파생값을 보여준다"로 대체.
+  it('P1: 합계(VAT포함) 칸은 편집할 수 없고 공급가액+부가세 파생값을 읽기전용으로 보여준다', async () => {
     renderMobilePage()
     fireEvent.click(screen.getByTestId('select-product-a-1'))
     // 모바일 카드는 데스크톱 mock LineRow 의 data-testid="product-name-N" 을 갖지 않는다
     // (SlipMobileLineCard 는 실제 코드 — 품목명은 일반 텍스트로만 렌더).
     await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
-    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '50000' } })
 
-    const total = screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement
-    fireEvent.change(total, { target: { value: '54321' } })
-
-    expect(total.value).toBe('54,321')
+    const total = screen.getByLabelText('라인 1 합계(VAT포함)')
+    expect(total.tagName).not.toBe('INPUT')
+    // 종전(RED) 코드는 이 자리에 <input>이 있어 fireEvent.change로 값을 직접 밀어넣을 수
+    // 있었다 — 이제는 input이 아니므로 그 수단 자체가 없다는 것을 tagName으로 확인한다.
   })
 
   // H9 회귀 가드(모바일): 품목 선택 + 수량 0 이고, 금액 칸을 직접 편집한 적 없는 행은
@@ -1032,7 +1036,8 @@ describe('SlipFormPage 모바일 라인 카드 #902 R3 회귀 가드 — 제외 
     fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '2000' } })
     fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
 
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('0')
+    // P1: 합계는 이제 읽기전용 표시라 HTMLInputElement가 아니다 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('0')
     expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('0')
     expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('0')
   })
@@ -1043,7 +1048,48 @@ describe('SlipFormPage 모바일 라인 카드 #902 R3 회귀 가드 — 제외 
     renderMobilePage()
     fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '100000' } })
 
-    expect((screen.getByLabelText('라인 1 합계(VAT포함)') as HTMLInputElement).value).toBe('100,000')
+    // P1: 합계는 읽기전용 표시 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('100,000')
+  })
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // #902 금액 열 편집 정책(개발책임자 결정 2026-07-25, 정정 포함) — 실 화면 통합 가드.
+  // 단위 테스트(lineVat.test.ts의 editSlipLineAmount)로 이미 검증했지만, 실제 SlipMobileLineCard
+  // 배선(updateVatAmount → editSlipLineAmount)이 그 계산을 올바르게 호출하는지 통합 레벨에서도
+  // 확인한다 — SlipMobileLineCard는 이 파일에서 mock되지 않는 실제 코드이기 때문이다.
+  // ──────────────────────────────────────────────────────────────────────────
+  it('P4(통합): 공급가액을 편집해도 단가는 바뀌지 않는다(역산 금지)', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '50000' } })
+
+    expect(mobileUnitPrice().value).toBe('11000')
+  })
+
+  it('P4(통합): 부가세를 편집해도 단가는 바뀌지 않는다(역산 금지)', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 부가세'), { target: { value: '7000' } })
+
+    expect(mobileUnitPrice().value).toBe('11000')
+  })
+
+  it('P6(통합): 공급가액을 편집해도 부가세는 그대로다 — 합계만 재계산된다', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } }) // qty=1 → 공급 10000/부가세 1000
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '50000' } })
+
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('1,000')
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('51,000')
+  })
+
+  it('P6(통합): 부가세를 편집해도 공급가액은 그대로다 — 합계만 재계산된다', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } }) // qty=1 → 공급 10000/부가세 1000
+    fireEvent.change(screen.getByLabelText('라인 1 부가세'), { target: { value: '7000' } })
+
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('10,000')
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('17,000')
   })
 })
 

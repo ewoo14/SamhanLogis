@@ -255,7 +255,9 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
     partnerSelected = true,
     onSupplyAmountChange,
     onVatAmountChange,
-    onLineTotalChange,
+    // onLineTotalChange: P1(개발책임자 결정 2026-07-25)로 합계 편집 UI 자체가 사라져 더 이상
+    // 쓰이지 않는다 — 구조분해에서 뺐다(호출자가 여전히 넘겨도 무해, 인터페이스는 하위 호환
+    // 유지).
     vatEditable = true,
     excludedFromSave = false,
   },
@@ -285,9 +287,14 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
    * "가짜" 값이지, 사용자가 직접 친 값이 아니다(H6′ 단서). 이 둘은 두 신호로 구별한다.
    * <ul>
    *   <li>{@code authority} 가 'SUPPLY'/'VAT'/'TOTAL' 이면 사용자가 그 권위 그룹의 금액을
-   *       직접 편집한 것이다 — lineVat.recalculateLineVat 의 해당 분기는 quantity 를
-   *       공급가액/부가세/합계 계산에 전혀 쓰지 않는다(unitPrice 역산에만 사용) — 클램프
-   *       미관여. 억제하지 않는다.
+   *       직접 편집한 것이다 — 이 컴포넌트는 계산 자체를 하지 않고 호출자가 이미 계산한
+   *       supplyAmount/vatAmount/lineTotal 을 그대로 받는다. 호출자(예: 데스크톱
+   *       SlipFormPage 의 {@code lineVat.editSlipLineAmount})가 그 계산에서 quantity 를
+   *       쓰지 않는 한 클램프는 관여하지 않는다. 억제하지 않는다. (#902 R5: SUPPLY/VAT 는
+   *       이제 quantity 는 물론 unitPrice 도 건드리지 않는 전용 함수를 거친다 — P4/P6,
+   *       2026-07-25 결정. TOTAL 은 이 컴포넌트의 합계 칸이 읽기전용으로 바뀌어 이 화면에서는
+   *       편집 UI 로 도달할 수 없지만, authority 값 자체는 여전히 유효한 타입이라 아래
+   *       판정에서 함께 다룬다.)
    *   <li>{@code authority} 가 'PRICE'(기본값 포함)면 세 값이 quantity 를 그대로(클램프
    *       거쳐) 곱해 계산된다 — 이때 실제 quantity 가 이미 1 이상으로 유효하면 클램프는
    *       아무 것도 왜곡하지 않은 것이라(무영향) 억제하지 않는다 — "제외 예정"(예: 품목
@@ -536,24 +543,24 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
           </>
         ) : null}
 
-        {/* 9. 합계 — VAT 포함 모드에서는 권위 합계 입력, 기존 모드에서는 read-only 계산 */}
+        {/*
+          9. 합계 — 읽기전용(P1, 개발책임자 결정 2026-07-25 "금액 열 편집 정책"): 합계는
+          공급가액+부가세로만 파생되고 사용자가 직접 입력할 수단이 없다. 종전에는 VAT 포함
+          모드에서 hasVatAmounts && onLineTotalChange 조건일 때 편집 가능한 <input>을
+          렌더했으나(그 분기 제거), 이제는 상태와 무관하게 항상 읽기전용 표시로 통일한다 —
+          onLineTotalChange prop은 하위 호환을 위해 인터페이스에 남겨두되(다른 소비처가 아직
+          넘길 수 있음) 렌더에서는 쓰지 않는다(TOTAL 권위는 lineVat.ts 공유 함수 안에는 여전히
+          살아있다 — 견적/전표 상세가 계속 쓴다 — 다만 이 화면의 UI에서는 도달 불가하다).
+        */}
         <div className={`${styles['cell']} ${styles['cellSum']}`} aria-label={`라인 ${lineNumber} 합계`}>
-          {hasVatAmounts && onLineTotalChange ? (
-            <input
-              type="text"
-              inputMode="numeric"
-              className={`${styles['input']} ${styles['numInput']}`}
-              value={amountDisplay(line.lineTotal, vatBreakdown?.incl ?? 0)}
-              onChange={(e) => onLineTotalChange(e.target.value.replace(/[^0-9]/g, ''))}
-              aria-label={`라인 ${lineNumber} 합계(VAT포함)`}
-              disabled={!vatEditable}
-            />
-          ) : vatBreakdown ? (
+          {vatBreakdown ? (
             <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.25 }}>
-              <span aria-label={`라인 ${lineNumber} 합계(VAT포함)`}>{vatBreakdown.incl.toLocaleString()}</span>
+              <span aria-label={`라인 ${lineNumber} 합계(VAT포함)`}>
+                {hasVatAmounts ? amountDisplay(line.lineTotal, vatBreakdown.incl) : vatBreakdown.incl.toLocaleString()}
+              </span>
               <span style={{ fontSize: 10, color: 'var(--ink-secondary, #5C6773)' }}
                 aria-label={`라인 ${lineNumber} 공급가액/부가세`}>
-                공급 {vatBreakdown.supply.toLocaleString()} · VAT {vatBreakdown.vat.toLocaleString()}
+                공급 {hasVatAmounts ? amountDisplay(line.supplyAmount, vatBreakdown.supply) : vatBreakdown.supply.toLocaleString()} · VAT {hasVatAmounts ? amountDisplay(line.vatAmount, vatBreakdown.vat) : vatBreakdown.vat.toLocaleString()}
               </span>
             </span>
           ) : (
