@@ -58,6 +58,17 @@ const REVALIDATION_STATUS_LABEL: Record<DailyProductRevalidationStatus, string> 
   OUT_OF_SCOPE: '대상외',
 }
 
+/** #897 일마감 목록에서 업무 판단에 필요한 열만 유지하는 단일 기준점. */
+export const DAILY_CLOSING_LIST_COLUMN_KEYS = [
+  'closingDate',
+  'kind',
+  'slipCount',
+  'totalAmount',
+  'isLocked',
+  'detailAction',
+  'reverseAction',
+] as const
+
 /** 범위 미선택 안내 문구 id — 잠긴 실행 버튼/칩에서 aria-describedby 로 사유를 연결(#825 슬5 R1 item4). */
 const SCOPE_HINT_ID = 'daily-closing-scope-hint-text'
 
@@ -177,6 +188,7 @@ export function DailyClosingPage() {
   const [execKind, setExecKind] = useState<DailyClosingKind>('SALES')
   const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
+  const detailCardRef = useRef<HTMLDivElement | null>(null)
 
   const focusAllScopeChip = () => {
     setTimeout(() => {
@@ -273,31 +285,53 @@ export function DailyClosingPage() {
     },
   })
 
+  function revealDailyClosingDetail(row: DailyClosing) {
+    setFilterDate(row.closingDate)
+    setClosingKind(row.closingKind)
+    setSourceKind(row.sourceKind)
+    window.setTimeout(() => {
+      detailCardRef.current?.focus()
+      detailCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    }, 0)
+  }
+
   const columns: DataTableColumn<DailyClosing>[] = useMemo(
-    () => [
-      { key: 'closingDate', header: '마감일', width: '110px' },
+    () => {
+      const visibleColumns: DataTableColumn<DailyClosing>[] = [
+      {
+        key: 'closingDate',
+        header: '마감일',
+        width: '110px',
+        mobilePriority: 'primary',
+      },
       {
         key: 'kind',
-        header: '종류',
-        width: '110px',
-        render: (row) => KIND_LABEL[row.closingKind ?? 'SALES'],
+        header: '구분',
+        width: '180px',
+        mobilePriority: 'secondary',
+        render: (row) => `${KIND_LABEL[row.closingKind ?? 'SALES']} · ${SOURCE_LABEL[row.sourceKind ?? 'TAX_INVOICE']}`,
       },
       {
-        key: 'source',
-        header: '원천',
-        width: '120px',
-        render: (row) => SOURCE_LABEL[row.sourceKind ?? 'TAX_INVOICE'],
+        key: 'slipCount',
+        header: '건수',
+        width: '80px',
+        align: 'right',
+        mobilePriority: 'secondary',
+        render: (row) => row.slipCount.toLocaleString(),
       },
       {
-        key: 'bizNo',
-        header: '거래처코드',
-        width: '130px',
-        render: (row) => row.bizNo?.replace(/\D/g, '') || '—',
+        key: 'totalAmount',
+        header: '금액 합계',
+        width: '140px',
+        align: 'right',
+        mobilePriority: 'secondary',
+        render: (row) => fmtKrw(row.totalAmount),
       },
       {
         key: 'isLocked',
-        header: '상태',
-        width: '80px',
+        header: '마감상태',
+        width: '90px',
+        mobilePriority: 'secondary',
         render: (row) => {
           const status = deriveDailyClosingStatus(row.isLocked)
           return (
@@ -308,43 +342,28 @@ export function DailyClosingPage() {
         },
       },
       {
-        key: 'totalSupply',
-        header: '공급가',
-        width: '120px',
-        align: 'right',
-        render: (row) => fmtKrw(row.totalSupply),
-      },
-      {
-        key: 'totalVat',
-        header: '부가세',
-        width: '120px',
-        align: 'right',
-        render: (row) => fmtKrw(row.totalVat),
-      },
-      {
-        key: 'totalAmount',
-        header: '합계',
-        width: '120px',
-        align: 'right',
-        render: (row) => fmtKrw(row.totalAmount),
-      },
-      {
-        key: 'slipCount',
-        header: '건수',
-        width: '80px',
-        align: 'right',
-        render: (row) => row.slipCount.toLocaleString(),
-      },
-      {
-        key: 'lockedAt',
-        header: '마감 시각',
-        width: '140px',
-        render: (row) => fmtTimestamp(row.lockedAt),
+        key: 'detailAction',
+        header: '상세',
+        width: '74px',
+        mobilePriority: 'secondary',
+        render: (row) => (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="상세 보기"
+            data-testid={`daily-closing-detail-button-${row.closingDate}-${row.closingKind}-${row.sourceKind}`}
+            onClick={() => revealDailyClosingDetail(row)}
+          >
+            상세
+          </Button>
+        ),
       },
       {
         key: 'reverseAction',
         header: '',
-        width: '100px',
+        width: '86px',
+        mobilePriority: 'secondary',
         render: (row) =>
           row.isLocked && canReverse ? (
             <Button
@@ -358,7 +377,11 @@ export function DailyClosingPage() {
             </Button>
           ) : null,
       },
-    ],
+      ]
+      return visibleColumns.filter((column) =>
+        (DAILY_CLOSING_LIST_COLUMN_KEYS as readonly (string | number)[]).includes(column.key),
+      )
+    },
     [canReverse, reverseMutation.isPending],
   )
 
@@ -779,7 +802,13 @@ export function DailyClosingPage() {
       </Card>
 
       <Card>
-        <h3 style={{ margin: '0 0 12px' }}>Daily Detail</h3>
+        <div
+          id="daily-closing-detail"
+          ref={detailCardRef}
+          tabIndex={-1}
+          style={{ outline: 'none' }}
+        >
+        <h3 style={{ margin: '0 0 12px' }}>일마감 상세</h3>
         {closingKind === 'ALL' ? (
           <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-secondary)' }}>
             통합 조회에서는 이력만 표시합니다. 상세는 매출 또는 매입을 선택해 확인하세요.
@@ -832,6 +861,7 @@ export function DailyClosingPage() {
             ) : null}
           </>
         )}
+        </div>
       </Card>
 
       <Modal

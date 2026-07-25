@@ -76,6 +76,10 @@
 데이터를 바꾸지 않는다. 데스크톱은 서버 최신 선택을 다시 표시한 뒤 사용자가 명시적으로 다시
 선택해 저장하도록 안내한다. 상세: [`docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md`](docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md).
 
+### 최신 진행 메모 (2026-07-26)
+
+- **#897 입출금·일마감 열 계층화**: `BankTransactionPage`와 `DailyClosingPage`의 화면 목록을 업무 핵심 열로 축소하고, 열 집합을 각 화면의 단일 상수에서 관리하도록 정리했다. 입출금의 계좌·원문·소스 등 감춘 값은 행의 접근 가능한 상세 disclosure에서, 일마감의 세부 전표는 기존 `일마감 상세` 경로에서 확인한다. `소스`·`매칭상태`의 전체 탭 조건과 #880 좁은 폭 조작 버튼을 보존했다. 화면 표만 축소하고 API 원본 모델·기존 상세 데이터는 유지한다. mock/live 숫자 실측은 `tableW=1276`, `wrapperW=1278`, `scrollW=1276`이며 상세 검증과 QA 캡처는 [`docs/dev-reports/2026-07-26-897-column-hierarchy.md`](docs/dev-reports/2026-07-26-897-column-hierarchy.md)에 기록했다.
+
 ### 백엔드 (17 = 15 도메인 서비스 + 게이트웨이 + 디스커버리, MSA service-per-DB)
 
 | 서비스 | DB | 역할 |

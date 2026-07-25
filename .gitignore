@@ -69,6 +69,8 @@ test-results/
 # QA 일회용 — 실 캡처 PNG만 추적, 캡처 스크립트·결과 json·진단 스크립트 제외
 **/qa-*-capture.mjs
 docs/qa/**/_results.json
+# 로컬 QA 캡처는 커밋된 증거 PNG와 분리한다.
+docs/qa/**/_local/
 **/.diag-*.cjs
 **/.diag-*.mjs
 # 로컬 세션 QA 아티팩트 — CI testIgnore 대상·커밋 대상 아님 (git status 정리, 2026-07-05 개발책임자 요청)

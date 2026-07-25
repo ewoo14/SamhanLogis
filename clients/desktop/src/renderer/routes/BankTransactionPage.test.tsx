@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import React from 'react'
@@ -158,5 +158,97 @@ describe('BankTransactionPage 매칭근거 배지', () => {
   it('미매칭 근거가 null이면 배지를 렌더링하지 않는다', () => {
     const { container } = render(<>{partnerMatchEvidence({ ...baseRow, partnerMatchSource: null })}</>)
     expect(container.innerHTML).toBe('')
+  })
+})
+
+describe('BankTransactionPage 열 계층화 (#897)', () => {
+  it('목록은 핵심 열만 노출하고 상세 disclosure에서 감춘 원본 값을 실제로 확인한다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([{
+      ...baseRow,
+      txnType: 'DEPOSIT',
+      amount: '123000',
+      balanceAfter: '456000',
+      description: '입금 원문 적요',
+      counterpartyName: '원문 거래처',
+      counterpartyAccount: '국민 123-456',
+      bankAccountLabel: '국민 운영계좌',
+      source: 'CODEF_BANK',
+      cardName: null,
+      approvalId: null,
+      loanName: null,
+      partnerMatchSource: 'MANUAL',
+      appliedMappingRawName: null,
+    } satisfies BankTransactionRow])
+
+    renderPage()
+
+    const table = await screen.findByRole('table')
+    await screen.findByText('입금 원문 적요')
+    const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent)
+    expect(headers).toEqual([
+      '선택',
+      '거래일',
+      '적요',
+      '거래처',
+      '입금',
+      '출금',
+      '잔액',
+      '소스',
+      '매칭상태',
+      '상세',
+    ])
+    expect(within(table).queryByRole('columnheader', { name: '계좌/카드/대출' })).toBeNull()
+    expect(within(table).queryByRole('columnheader', { name: '거래후잔액' })).toBeNull()
+
+    const detailSummary = within(screen.getByTestId('bank-transaction-detail-evidence-test')).getByText('상세 보기')
+    fireEvent.click(detailSummary)
+    const details = screen.getByTestId('bank-transaction-detail-evidence-test')
+    expect(details.textContent).toContain('국민 운영계좌')
+    expect(details.textContent).toContain('국민 123-456')
+    expect(details.textContent).toContain('계좌')
+  })
+
+  it('핵심 입금/출금 열과 매칭 조작 버튼은 좁은 화면에서도 DOM에 남는다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([{
+      ...baseRow,
+      matchedPartnerCode: 'P-0001',
+      matchedPartnerName: '테스트 거래처',
+      partnerMatchSource: 'MANUAL',
+    } satisfies BankTransactionRow])
+
+    renderPage()
+
+    const clearButton = await screen.findByRole('button', { name: '이 거래만 해제' })
+    expect(clearButton).toBeTruthy()
+    expect(clearButton.hasAttribute('disabled')).toBe(false)
+    expect(screen.getByRole('columnheader', { name: '입금' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '출금' })).toBeTruthy()
+  })
+
+  it('소스·매칭상태 열은 기존 탭별 조건부 표시 규칙을 유지한다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([baseRow])
+
+    renderPage()
+
+    let table = await screen.findByRole('table')
+    expect(within(table).getByRole('columnheader', { name: '소스' })).toBeTruthy()
+    expect(within(table).getByRole('columnheader', { name: '매칭상태' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: '계좌' }))
+    table = await screen.findByRole('table')
+    await waitFor(() => expect(within(table).queryByRole('columnheader', { name: '소스' })).toBeNull())
+    expect(within(table).getByRole('columnheader', { name: '매칭상태' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: '전체' }))
+    fireEvent.click(screen.getByRole('button', { name: '미반영', exact: true }))
+    table = await screen.findByRole('table')
+    await waitFor(() => expect(within(table).queryByRole('columnheader', { name: '매칭상태' })).toBeNull())
+    expect(within(table).getByRole('columnheader', { name: '소스' })).toBeTruthy()
   })
 })

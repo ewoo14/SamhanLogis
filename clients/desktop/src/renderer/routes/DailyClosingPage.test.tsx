@@ -3,6 +3,7 @@ import React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { DailyClosing } from '../api/accounting'
 
 vi.mock('../hooks/usePermissions', () => ({
   usePermissions: () => ({ canAccess: () => true, isLoading: false }),
@@ -715,5 +716,45 @@ describe('DailyClosingPage committed partnerCode 계약 (#840)', () => {
     expect(createDailyClosingMock).toHaveBeenCalledWith(
       expect.objectContaining({ partnerCode: p2.partnerCode }),
     )
+  })
+})
+
+describe('DailyClosingPage 열 계층화 (#897)', () => {
+  it('목록은 핵심 열만 노출하고 상세 경로에서 감춘 금액·전표 값을 실제로 확인한다', async () => {
+    listDailyClosingsMock.mockResolvedValue({
+      ...emptyPage,
+      content: [{
+        closingKind: 'SALES',
+        sourceKind: 'TAX_INVOICE',
+        closingDate: '2026-07-13',
+        bizNo: '1234567890',
+        partnerCode: null,
+        totalSupply: '110000',
+        totalVat: '11000',
+        totalAmount: '121000',
+        slipCount: 1,
+        isLocked: true,
+        lockedAt: '2026-07-13T18:00:00+09:00',
+        lockedBy: '개발책임자',
+      } satisfies DailyClosing],
+    })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    const list = await screen.findByTestId('daily-closing-list-table')
+    const table = within(list).getByRole('table')
+    const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent)
+    expect(headers).toEqual(['마감일', '구분', '건수', '금액 합계', '마감상태', '상세', ''])
+    expect(within(table).queryByRole('columnheader', { name: '거래처코드' })).toBeNull()
+    expect(within(table).queryByRole('columnheader', { name: '공급가' })).toBeNull()
+    expect(within(table).queryByRole('columnheader', { name: '마감 시각' })).toBeNull()
+
+    fireEvent.click(within(table).getByRole('button', { name: '상세 보기' }))
+    expect(await screen.findByText('2026/07/13-1')).toBeTruthy()
+    expect(screen.getByText('삼한테스트')).toBeTruthy()
+    const reverseButton = screen.getByTestId('daily-closing-reverse-button-2026-07-13-SALES-TAX_INVOICE')
+    expect(reverseButton).toBeTruthy()
+    expect(reverseButton.hasAttribute('disabled')).toBe(false)
   })
 })

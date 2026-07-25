@@ -3025,3 +3025,14 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - M3 권한 제거 Playwright 케이스를 추가했다: convert CREATE만 있고 partners.search VIEW가 없으면 병합 버튼 disabled, title과 권한 안내가 표시된다.
 - 관련 Playwright 두 디렉터리만 5회 실행해 매회 9/9 통과했다. fixture에서 partners.search를 제거한 뮤테이션은 disabled 버튼 클릭 timeout으로 RED였고 즉시 복구했다.
 - 최종 typecheck 및 fresh Postgres V12 probe도 통과했다. 전체 mock Playwright와 공유 DB 쓰기는 실행하지 않았다.
+
+## ✅ 2026-07-26 Codex — #897 입출금·일일 마감 목록 열 계층화
+
+- `BankTransactionPage`와 `DailyClosingPage`에 화면 전용 핵심 열 집합 상수를 두고, 실제 렌더링 열을 그 집합으로 필터링했다. API 원문과 기존 목록 조작은 유지했다.
+- Bank 감춘 계좌·소스 값은 행의 native 상세 disclosure에서 확인하고, Daily는 기존 `#daily-closing-detail` 경로로 이동하도록 했다. 신규 모달은 만들지 않았다.
+- #880(PR #917, `2a1c3a076`)의 `secondary` 조작 열 계약을 유지했다. 공유 DataTable/design-system은 변경하지 않았다.
+- fix 후 mock 폭: Bank/Daily 각각 `tableW=1276`, `wrapperW=1278`, `scrollW=1276`.
+- 검증: 대상 Vitest `23/23`, mock Playwright `3/3`, Bank 일괄조작·권한 회귀 `14/14`, 데스크톱 전체 Vitest `168 files/1350 tests` 및 typecheck, design-system `23 files/146 tests` 및 typecheck, mock OFF live QA `3/3`.
+- 새 QA 캡처는 모두 `docs/qa/897-column-hierarchy/_local/`에 저장했다. 기존 `docs/qa/**` 커밋 파일은 건드리지 않았다.
+- 상세 RED/GREEN 원문과 범위 밖 발견은 `docs/dev-reports/2026-07-26-897-column-hierarchy.md`에 기록했다.
+- 다음 단계: 개발책임자 핵심 열 후보 확인 및 PM 커밋/통합 검토 대기. 이 세션에서는 git/GitHub 쓰기를 수행하지 않았다.

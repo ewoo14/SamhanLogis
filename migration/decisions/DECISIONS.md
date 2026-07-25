@@ -3109,3 +3109,12 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-S6-02 | `POST /admin/groupware/messages/bulk`는 한 트랜잭션에서 입력 dedup→self 차단→`verifyBulk` 1회→전체 존재 확인→전량 저장 순서로 처리한다. 한 명이라도 없으면 404와 0건 저장, self·51명 초과·빈 입력은 400, 요청은 비멱등이다. 알림은 commit 이후 수신자별 1건이다. |
 | D-S6-03 | 수신자 검색은 결재자 검색을 재사용하지 않고 `messenger.send` VIEW 전용 endpoint를 둔다. 부서 제약은 두지 않으며, groupware가 user-service `activeOnly=true`를 전달해 퇴사자를 제외한다. user-service `activeOnly` 기본값은 false로 기존 호출자 동작을 유지한다. |
 | D-S6-04 | 데스크톱 `/messenger`는 design-system의 기존 `MultiSelectAutocomplete`를 무수정 사용한다. 칩과 수신함에는 이름·부서·본문·상태만 표시하고 UUID/opaque user id는 표시하지 않는다. 기존 단건 발송 endpoint는 삭제·변경하지 않고 deprecated 표기만 추가한다. |
+
+## #897 입출금·일마감 목록 열 계층화 (2026-07-26)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-COL-897-01 | `BankTransactionPage`와 `DailyClosingPage`의 화면 목록 열 집합은 각각 `BANK_TRANSACTION_LIST_COLUMN_KEYS`와 `DAILY_CLOSING_LIST_COLUMN_KEYS` 단일 상수로 관리한다. 개발책임자 실사용 확인 전에는 PM 제안(거래일·적요·거래처·입금·출금·잔액·상태 / 일자·구분·건수·금액 합계·마감상태)을 기본값으로 사용하고, 후속 정정은 해당 상수와 열 정의만 조정한다. API 원본 모델은 축소하지 않는다. |
+| D-COL-897-02 | 입출금에서 목록에 감춘 계좌·상대계좌·원문 등은 신규 모달이나 UUID 링크를 만들지 않고 행 내부의 native `<details>` disclosure로 확인한다. 일마감은 기존 `/accounting/closings/daily` 상세 데이터 경로를 행의 `상세` 조작으로 연결한다. |
+| D-COL-897-03 | `소스`는 원천 전체 탭에서만, `매칭상태`는 상태 전체 탭에서만 표시하는 #877/#918 조건을 유지한다. #880이 정한 좁은 폭 조작 버튼의 `mobilePriority: secondary` 계약을 소비 화면에서 계속 사용한다. |
+| D-COL-897-04 | 열 축소는 화면 목록에만 적용한다. 두 화면에서 기존 인쇄·엑셀 export surface는 코드 실측상 존재하지 않으므로 신규 export 경로를 신설하지 않으며, API 원본·기존 상세 데이터의 전체 필드는 보존한다. |
