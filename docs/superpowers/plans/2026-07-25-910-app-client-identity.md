@@ -109,7 +109,10 @@ clients/arologis-mobile/src/version/versionCheck.ts:44 clientType: 'MOBILE',
 
 > 관리자가 **아로로지스 모바일용 릴리스를 `CRITICAL` 로 등록**했을 때, 아로로지스 모바일 사용자만 업데이트 안내를 받고 **삼한 모바일·직원 모바일 사용자는 아무 영향도 받지 않는다.**
 
-라이브QA 는 게이트웨이 `:8080` · mock OFF · 실 로그인으로. ⚠️ **실 공유 `app_release` 에 write 하지 말고 throwaway 버전(`0.0.x-qa-…`)만 쓰고 정리**하십시오 — 공유 스택이라 다른 트랙 QA 가 같은 DB 를 씁니다.
+라이브QA 는 게이트웨이 `:8080` · mock OFF · 실 로그인으로. ⚠️ **실 공유 `app_release` 에
+write 하더라도 반드시 `YYYY/MM/DD-{번호}` 개발 버전과 전환기 semver 최소 지원 버전(예:
+`0.1.0`)만 사용하는 throwaway 릴리스로 한정하고, 테스트 종료 시 soft-delete로 정리**하십시오.
+`0.0.x-qa-…`는 새 등록 계약에서 거부됩니다. 공유 스택이라 다른 트랙 QA가 같은 DB를 씁니다.
 
 ---
 

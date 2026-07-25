@@ -18,6 +18,7 @@
     "build:win": "npm run build:legacy && electron-vite build && electron-builder --win",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
+    "test:round-910-contract": "node --test scripts/round-910-contract.test.cjs",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "capture:v4": "node scripts/capture-v4-sales.cjs"

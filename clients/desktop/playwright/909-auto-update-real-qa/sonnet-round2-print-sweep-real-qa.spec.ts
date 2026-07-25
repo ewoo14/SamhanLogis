@@ -212,7 +212,7 @@ test.describe('인쇄 관점 sweep', () => {
       const created = await request.post(`${API_BASE}/app/releases`, {
         headers: authHeaders,
         data: {
-          clientType: 'DESKTOP', version: '9.9.7', forceLevel: 'MAJOR',
+          clientType: 'DESKTOP', version: '2026/07/25-91014', forceLevel: 'MAJOR',
           releaseNotes: `${MARKER} throwaway print-sweep MAJOR(recommend)`,
           releasedAt: '2026-07-24T00:00:00', minSupportedVersion: '0.0.0',
         },
@@ -286,7 +286,7 @@ test.describe('인쇄 관점 sweep', () => {
       const created = await request.post(`${API_BASE}/app/releases`, {
         headers: authHeaders,
         data: {
-          clientType: 'DESKTOP', version: '9.9.6', forceLevel: 'MINOR',
+          clientType: 'DESKTOP', version: '2026/07/25-91015', forceLevel: 'MINOR',
           releaseNotes: `${MARKER} throwaway print-sweep MINOR(banner)`,
           releasedAt: '2026-07-24T00:00:00', minSupportedVersion: '0.0.0',
         },
@@ -347,9 +347,9 @@ test.describe('인쇄 관점 sweep', () => {
       const created = await request.post(`${API_BASE}/app/releases`, {
         headers: authHeaders,
         data: {
-          clientType: 'DESKTOP', version: '9.9.5', forceLevel: 'CRITICAL',
+          clientType: 'DESKTOP', version: '2026/07/25-91016', forceLevel: 'CRITICAL',
           releaseNotes: `${MARKER} throwaway F-3 버튼 클릭 검증`,
-          releasedAt: '2026-07-24T00:00:00', minSupportedVersion: '9.9.0',
+          releasedAt: '2026-07-24T00:00:00', minSupportedVersion: '0.1.0',
         },
       })
       expect(created.status()).toBeLessThan(400)
@@ -592,7 +592,7 @@ test.describe('U-3 Modal 안 인쇄 지면(SlipDetailModal) — PM 반증 확인
       const created = await request.post(`${API_BASE}/app/releases`, {
         headers: authHeaders,
         data: {
-          clientType: 'DESKTOP', version: '9.9.3', forceLevel: 'MAJOR',
+          clientType: 'DESKTOP', version: '2026/07/25-91017', forceLevel: 'MAJOR',
           releaseNotes: `${MARKER} throwaway U-3 뮤테이션`,
           releasedAt: '2026-07-24T00:00:00', minSupportedVersion: '0.0.0',
         },

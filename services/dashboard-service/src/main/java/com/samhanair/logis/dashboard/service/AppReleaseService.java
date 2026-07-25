@@ -50,7 +50,8 @@ public class AppReleaseService {
     @Transactional
     public AppRelease create(AppReleaseRequest request) {
         Semver.requireDevelopmentVersion(request.version(), "version");
-        Semver.requireDevelopmentVersion(request.minSupportedVersion(), "minSupportedVersion");
+        // 전환기에는 이미 설치된 semver 클라이언트를 보호하기 위해 최소 지원 버전만 semver도 허용한다.
+        Semver.requireValid(request.minSupportedVersion(), "minSupportedVersion");
         ensureUnique(null, request.clientType(), request.version());
         try {
             return repository.saveAndFlush(AppRelease.create(
@@ -157,7 +158,8 @@ public class AppReleaseService {
         }
         // 한 필드만 새 형식으로 바꾸어 semver/dev 버전이 섞이는 상태는 허용하지 않는다.
         Semver.requireDevelopmentVersion(request.version(), "version");
-        Semver.requireDevelopmentVersion(request.minSupportedVersion(), "minSupportedVersion");
+        // 최신 버전이 개발 형식이면 최소 지원 버전은 전환기 semver 또는 개발 형식 모두 허용한다.
+        Semver.requireValid(request.minSupportedVersion(), "minSupportedVersion");
     }
 
     private BusinessException duplicateReleaseConflict(Throwable cause) {

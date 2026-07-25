@@ -24,9 +24,10 @@
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pkg = require('./package.json');
+const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs');
 
 const BUILD_ENV  = process.env.BUILD_ENV  || 'development';
-const APP_DEVELOPMENT_VERSION = process.env.EXPO_PUBLIC_APP_VERSION || '0.0.0';
+const APP_DEVELOPMENT_VERSION = resolveBuildAppVersion({ variable: 'EXPO_PUBLIC_APP_VERSION' });
 const APP_VARIANT = process.env.APP_VARIANT || 'staff';
 
 /** EAS Build 시 CI 가 EXPO_BUILD_NUMBER=<n> 을 주입한다. 로컬 기본값 = 1. */

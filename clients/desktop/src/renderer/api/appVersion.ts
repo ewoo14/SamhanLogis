@@ -15,19 +15,22 @@ export type AppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
 
 export type CanonicalAppClientType = Exclude<AppClientType, 'WEB' | 'MOBILE'>
 
-/** 관리자가 새 릴리스 등록 시 선택하는 앱 목록. 구버전 호환 식별자는 의도적으로 제외한다. */
-export const APP_CLIENT_OPTIONS: ReadonlyArray<{
+export interface AppClientOption {
   value: CanonicalAppClientType
   label: string
-}> = [
-  { value: 'DESKTOP', label: '삼한 데스크톱' },
-  { value: 'SAMHAN_MOBILE', label: '삼한 모바일' },
-  { value: 'SAMHAN_MOBILE_STAFF', label: '삼한 직원 모바일' },
-  { value: 'AROLOGIS_MOBILE', label: '아로로지스 모바일' },
-  { value: 'SAMHAN_ORDER_WEB', label: '삼한 주문 웹' },
-  { value: 'SAMHAN_ESTIMATE_WEB', label: '삼한 종합견적 웹' },
-  { value: 'SAMHAN_MOBILE_PUBLIC_WEB', label: '삼한 모바일 퍼블릭 웹' },
-  { value: 'AROLOGIS_DESKTOP', label: '아로로지스 데스크톱' },
+  versionCheckSupported: boolean
+}
+
+/** 관리자가 새 릴리스 등록 시 선택하는 앱 목록. 구버전 호환 식별자는 의도적으로 제외한다. */
+export const APP_CLIENT_OPTIONS: ReadonlyArray<AppClientOption> = [
+  { value: 'DESKTOP', label: '삼한 데스크톱', versionCheckSupported: true },
+  { value: 'SAMHAN_MOBILE', label: '삼한 모바일', versionCheckSupported: true },
+  { value: 'SAMHAN_MOBILE_STAFF', label: '삼한 직원 모바일', versionCheckSupported: true },
+  { value: 'AROLOGIS_MOBILE', label: '아로로지스 모바일', versionCheckSupported: true },
+  { value: 'SAMHAN_ORDER_WEB', label: '삼한 주문 웹', versionCheckSupported: false },
+  { value: 'SAMHAN_ESTIMATE_WEB', label: '삼한 종합견적 웹', versionCheckSupported: false },
+  { value: 'SAMHAN_MOBILE_PUBLIC_WEB', label: '삼한 모바일 퍼블릭 웹', versionCheckSupported: false },
+  { value: 'AROLOGIS_DESKTOP', label: '아로로지스 데스크톱', versionCheckSupported: false },
 ]
 
 const APP_CLIENT_LABEL: Record<AppClientType, string> = {
@@ -46,6 +49,31 @@ const APP_CLIENT_LABEL: Record<AppClientType, string> = {
 /** API 식별자를 사용자 화면에 표시할 한국어 앱 이름으로 변환한다. */
 export function appClientTypeLabel(clientType: AppClientType): string {
   return APP_CLIENT_LABEL[clientType]
+}
+
+/** 기존 legacy 행을 편집할 때 원래 호환 식별자를 선택지에 계속 남긴다. */
+export function appClientOptionsForRelease(
+  editingClientType?: AppClientType,
+): ReadonlyArray<{ value: AppClientType; label: string; versionCheckSupported?: boolean }> {
+  if (editingClientType === 'WEB' || editingClientType === 'MOBILE') {
+    return [
+      { value: editingClientType, label: appClientTypeLabel(editingClientType) },
+      ...APP_CLIENT_OPTIONS,
+    ]
+  }
+  return APP_CLIENT_OPTIONS
+}
+
+/** 관리 목록·배포 확인 문구에 버전 확인 지원 여부를 표시할 때 사용한다. */
+export function appClientTypeVersionCheckSupported(clientType: AppClientType): boolean {
+  if (clientType === 'WEB' || clientType === 'MOBILE') return true
+  return APP_CLIENT_OPTIONS.find((option) => option.value === clientType)?.versionCheckSupported ?? false
+}
+
+export function appClientTypeDisplayLabel(clientType: AppClientType): string {
+  return appClientTypeVersionCheckSupported(clientType)
+    ? appClientTypeLabel(clientType)
+    : `${appClientTypeLabel(clientType)} (버전 확인 미지원)`
 }
 
 export interface AppVersionInfo {

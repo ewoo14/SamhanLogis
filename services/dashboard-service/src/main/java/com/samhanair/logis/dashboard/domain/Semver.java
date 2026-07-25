@@ -113,12 +113,21 @@ public final class Semver {
 
     private static IllegalArgumentException developmentFormatException(String fieldName) {
         return new IllegalArgumentException(
-                fieldName + "은 YYYY/MM/DD-{번호} 형식이어야 합니다. 예: 2026/07/25-1");
+                displayFieldName(fieldName) + "은 YYYY/MM/DD-{번호} 형식이어야 합니다. 예: 2026/07/25-1");
+    }
+
+    private static String displayFieldName(String fieldName) {
+        return switch (fieldName) {
+            case "version" -> "최신 버전";
+            case "minSupportedVersion" -> "최소 지원 버전";
+            case "currentVersion" -> "현재 버전";
+            default -> fieldName;
+        };
     }
 
     private static Parsed parse(String raw, String fieldName) {
         if (raw == null || raw.isBlank()) {
-            throw new IllegalArgumentException(fieldName + " semver 필수");
+            throw new IllegalArgumentException(displayFieldName(fieldName) + " semver 필수");
         }
         String value = raw.trim();
         if (value.startsWith("v") || value.startsWith("V")) {
@@ -136,17 +145,17 @@ public final class Semver {
         }
         String[] parts = value.split("\\.");
         if (parts.length != 3) {
-            throw new IllegalArgumentException(fieldName + " semver 형식 불일치: " + raw);
+            throw new IllegalArgumentException(displayFieldName(fieldName) + " semver 형식 불일치: " + raw);
         }
         List<Integer> numbers = new ArrayList<>(3);
         for (String part : parts) {
             if (!part.matches("0|[1-9][0-9]*")) {
-                throw new IllegalArgumentException(fieldName + " semver 형식 불일치: " + raw);
+                throw new IllegalArgumentException(displayFieldName(fieldName) + " semver 형식 불일치: " + raw);
             }
             numbers.add(Integer.parseInt(part));
         }
         if (!prerelease.isEmpty() && !prerelease.matches("[0-9A-Za-z.-]+")) {
-            throw new IllegalArgumentException(fieldName + " semver 형식 불일치: " + raw);
+            throw new IllegalArgumentException(displayFieldName(fieldName) + " semver 형식 불일치: " + raw);
         }
         return new Parsed(numbers, prerelease);
     }

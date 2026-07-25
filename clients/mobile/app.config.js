@@ -9,9 +9,10 @@
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pkg = require('./package.json');
+const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs');
 
 const BUILD_ENV = process.env.BUILD_ENV || 'development';
-const APP_DEVELOPMENT_VERSION = process.env.EXPO_PUBLIC_APP_VERSION || '0.0.0';
+const APP_DEVELOPMENT_VERSION = resolveBuildAppVersion({ variable: 'EXPO_PUBLIC_APP_VERSION' });
 const BUILD_NUMBER = process.env.EXPO_BUILD_NUMBER || '1';
 const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'PLACEHOLDER_EAS_PROJECT_ID';
 const HAS_EAS_PROJECT_ID = EAS_PROJECT_ID !== 'PLACEHOLDER_EAS_PROJECT_ID';

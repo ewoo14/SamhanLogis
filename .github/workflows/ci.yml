@@ -604,6 +604,9 @@ jobs:
       - name: 단위 테스트(vitest)
         run: npm test
 
+      - name: #910 버전 빌드·QA·문서 계약 테스트
+        run: npm run test:round-910-contract
+
       - name: lint
         run: npm run lint
         continue-on-error: true   # legacy 코드 사전 존재 오류 허용 — feature 브랜치별 신규 코드 검증은 PR 검토에서

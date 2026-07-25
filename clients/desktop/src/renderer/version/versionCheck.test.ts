@@ -21,10 +21,10 @@ describe('version-check model', () => {
     expect(resolveBuildAppVersion(undefined)).toBe('0.0.0')
   })
 
-  it('Electron은 DESKTOP, Capacitor는 MOBILE, 기본 브라우저는 WEB clientType으로 판정한다', () => {
+  it('Electron·Capacitor·웹 빌드는 모두 삼한 데스크톱 clientType으로 판정한다', () => {
     expect(resolveAppClientType({ electron: true, capacitor: false })).toBe('DESKTOP')
-    expect(resolveAppClientType({ electron: false, capacitor: true })).toBe('MOBILE')
-    expect(resolveAppClientType({ electron: false, capacitor: false })).toBe('WEB')
+    expect(resolveAppClientType({ electron: false, capacitor: true })).toBe('DESKTOP')
+    expect(resolveAppClientType({ electron: false, capacitor: false })).toBe('DESKTOP')
   })
 
   it('CRITICAL 응답만 닫을 수 없는 차단 상태로 변환한다', () => {

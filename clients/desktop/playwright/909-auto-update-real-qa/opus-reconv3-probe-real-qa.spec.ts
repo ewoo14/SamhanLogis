@@ -327,9 +327,9 @@ test.describe('F-3/Q6 — CRITICAL 차단 중 statusNotice 닫기가 차단을 �
       const created = await request.post(`${API_BASE}/app/releases`, {
         headers: jsonAuth,
         data: {
-          clientType: 'DESKTOP', version: '9.9.9', forceLevel: 'CRITICAL',
+          clientType: 'DESKTOP', version: '2026/07/25-91013', forceLevel: 'CRITICAL',
           releaseNotes: `${MARKER} throwaway CRITICAL 차단-우회 검증`,
-          releasedAt: '2026-07-23T00:00:00', minSupportedVersion: '9.9.0',
+          releasedAt: '2026-07-23T00:00:00', minSupportedVersion: '0.1.0',
         },
       })
       expect(created.status(), `릴리스 등록 실패 HTTP ${created.status()}`).toBeLessThan(400)

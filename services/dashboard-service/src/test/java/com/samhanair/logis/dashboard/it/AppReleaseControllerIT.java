@@ -174,7 +174,8 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
 
         assertThat(body)
                 .contains("YYYY/MM/DD-{번호}")
-                .contains("version");
+                .contains("최신 버전")
+                .doesNotContain("version");
     }
 
     @Test
@@ -241,30 +242,39 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("최소 지원 버전도 신규 개발 버전 형식이 아니면 등록을 거부한다")
-    void adminCreate_rejectsLegacySemverMinSupportedVersion() throws Exception {
+    @DisplayName("전환기에는 최소 지원 버전으로 기존 semver를 등록하고 구버전 판정을 보존한다")
+    void adminCreate_acceptsLegacySemverMinSupportedVersionDuringTransition() throws Exception {
         String createBody = """
                 {
                   "clientType": "DESKTOP",
                   "version": "2026/07/25-5",
                   "forceLevel": "MINOR",
-                  "releaseNotes": "잘못된 최소 지원 버전",
+                  "releaseNotes": "전환기 semver 최소 지원 버전",
                   "releasedAt": "2026-07-25T09:00:00",
                   "minSupportedVersion": "0.1.0"
                 }
                 """;
 
-        String body = mockMvc.perform(withActor(post("/app/releases")
+        String id = mockMvc.perform(withActor(post("/app/releases")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value("2026/07/25-5"))
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("0.1.0"))
                 .andReturn()
                 .getResponse()
-                .getContentAsString(StandardCharsets.UTF_8);
+                .getContentAsString(StandardCharsets.UTF_8)
+                .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
 
-        assertThat(body)
-                .contains("YYYY/MM/DD-{번호}")
-                .contains("minSupportedVersion");
+        mockMvc.perform(withActor(post("/app/releases/{id}/publish", id)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "DESKTOP")
+                        .param("currentVersion", "0.1.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("0.1.0"))
+                .andExpect(jsonPath("$.data.forceLevel").value("MINOR"));
     }
 
     @Test

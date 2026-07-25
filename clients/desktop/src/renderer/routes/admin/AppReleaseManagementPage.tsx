@@ -13,8 +13,10 @@ import {
 import {
   createAppRelease,
   deleteAppRelease,
-  APP_CLIENT_OPTIONS,
+  appClientOptionsForRelease,
+  appClientTypeDisplayLabel,
   appClientTypeLabel,
+  appClientTypeVersionCheckSupported,
   listAppReleases,
   publishAppRelease,
   unpublishAppRelease,
@@ -193,9 +195,8 @@ export function AppReleaseManagementPage() {
     saveMutation.mutate(toPayload(form))
   }
 
-  const clientOptions = editing && (form.clientType === 'WEB' || form.clientType === 'MOBILE')
-    ? [{ value: form.clientType, label: appClientTypeLabel(form.clientType) }, ...APP_CLIENT_OPTIONS]
-    : APP_CLIENT_OPTIONS
+  // 편집 중 선택값이 바뀌어도 원래 legacy 행의 WEB/MOBILE 선택지를 유지해 되돌릴 수 있게 한다.
+  const clientOptions = appClientOptionsForRelease(editing?.clientType)
 
   const rows = query.data ?? []
   const columns = useMemo<DataTableColumn<AppRelease>[]>(() => [
@@ -204,7 +205,7 @@ export function AppReleaseManagementPage() {
       header: '앱',
       width: '110px',
       mobilePriority: 'secondary',
-      render: (row) => appClientTypeLabel(row.clientType),
+      render: (row) => appClientTypeDisplayLabel(row.clientType),
     },
     { key: 'version', header: '최신 버전', width: '120px', mobilePriority: 'primary' },
     { key: 'minSupportedVersion', header: '최소 지원', width: '120px', mobilePriority: 'secondary' },
@@ -362,7 +363,9 @@ export function AppReleaseManagementPage() {
               data-testid="app-release-client-type"
             >
               {clientOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
+                <option key={option.value} value={option.value}>
+                  {option.label}{option.versionCheckSupported === false ? ' (버전 확인 미지원)' : ''}
+                </option>
               ))}
             </Select>
             <Select
@@ -466,7 +469,9 @@ export function AppReleaseManagementPage() {
             : ''}
         </p>
         <p style={{ margin: '8px 0 0', color: 'var(--color-neutral-600)', fontSize: 13 }}>
-          선택한 앱 사용자에게만 업데이트 안내와 강제 수준 판단이 즉시 반영됩니다.
+          {publishTarget && appClientTypeVersionCheckSupported(publishTarget.clientType)
+            ? '버전 확인을 지원하는 선택한 앱 사용자에게만 업데이트 안내와 강제 수준 판단이 반영됩니다.'
+            : '이 앱은 현재 버전 확인을 지원하지 않아 사용자 업데이트 안내와 강제 수준 판단이 반영되지 않습니다.'}
         </p>
       </Modal>
 

@@ -291,10 +291,13 @@ DROP DATABASE
   날짜를 먼저 비교하고 같은 날짜에서는 `BigInteger` 일련번호를 비교하므로 `-2 < -10`의
   문자열 비교 오류가 없다.
 - 패키지 `0.1.0` 등 semver는 `package.json`·Expo·electron-builder가 요구하는 빌드
-  식별자로 남기고, 서버 정책 판정에는 사용하지 않는다. Expo 3앱은
-  `EXPO_PUBLIC_APP_VERSION`, desktop은 `VITE_APP_VERSION`으로 개발 버전을 주입한다.
-  주입이 없는 구버전 실행 환경은 패키지 semver를 읽어 호환성을 유지하지만 신규 빌드의
-  정책 경로는 주입값을 우선한다.
+  식별자로 남기고, 서버 정책 판정에는 사용하지 않는다. 저장소의
+  `scripts/app-build-version.cjs`가 Expo 3앱과 desktop의 빌드 경로를 공통 처리한다.
+  `EXPO_PUBLIC_APP_VERSION`·`VITE_APP_VERSION` 명시값은 검증 후 사용하고, 누락 시 KST
+  날짜와 `SAMHAN_BUILD_NUMBER`(또는 `EXPO_BUILD_NUMBER`, 기본 1)로 개발 버전을 생성하며
+  경고한다. 현재 빌드 경로는 `0.0.0`으로 조용히 폴백하지 않는다. 이미 설치된 오래된
+  Expo 번들이 `extra.appVersion`을 갖지 않는 경우에만 기존 `expoConfig.version` 호환
+  경로가 남아 있으며, desktop은 패키지 semver를 런타임에서 읽지 않는다.
 - V4 때문에 V7을 수정하지 않았고 V8도 추가하지 않았다. 현재 두 DB 컬럼은 이미
   `VARCHAR(50)`이라 새 형식을 담을 수 있다. DB CHECK가 semver와 개발 버전을 동시에
   허용하면 신규 등록을 강제할 수 없으므로, 신규 등록은 `AppReleaseService`의 애플리케이션
@@ -426,7 +429,7 @@ clients/arologis-mobile: typecheck -> exit 0; versionCheck 7 passed
 |---|---|
 | V1 | 서버 등록·저장·API 반환·관리 문구를 `YYYY/MM/DD-{번호}`로 통일하고, desktop/mobile 빌드 주입 테스트로 확인했다. |
 | V2 | `LocalDate` 후 `BigInteger` 비교와 mock 숫자 비교로 `2026/07/25-2 < 2026/07/25-10`을 검증했다. |
-| V3 | create와 `minSupportedVersion` 모두 등록 경계에서 거부하며 한국어 형식 안내를 반환한다. |
+| V3 | 최신 버전은 개발 형식을 강제하고, 전환기 `minSupportedVersion`은 개발 형식 또는 semver를 허용하며 한국어 형식 안내를 반환한다. |
 | V4 | 기존 semver 조회를 허용하고 두 버전 필드 불변 update만 허용했다. probe에서 `DESKTOP 1.2.0/1.0.0` 행을 보존했다. |
 | V5 | 정책 판정은 개발 버전이며 package/Expo/electron semver는 빌드 식별자로만 남겼다. |
 
@@ -442,6 +445,196 @@ Flyway는 **V7만 사용**하고 변경하지 않았다. V7은 이미 identity �
 DB migration이 필요하지 않다. V8을 추가해 DB CHECK를 새 형식 전용으로 만들면 V4를 깨뜨리므로
 애플리케이션 등록 경계를 선택했다.
 
-실제 관리자 로그인 U-gate, 실제 배포 앱의 환경 변수 주입 산출물, 공유 DB 적용은 수행하지
-않았다. 공유 DB는 건드리지 않았고 throwaway probe만 DROP으로 정리했다. Playwright 실행으로
-`docs/qa/**` 스크린샷을 덮어쓰지 않았으며 최종 status에서 해당 경로 오염이 없는지 확인한다.
+실제 관리자 로그인 U-gate와 공유 DB 적용은 수행하지 않았다. 공유 DB는 건드리지 않았고
+throwaway probe만 DROP으로 정리했다. Playwright 실행으로 `docs/qa/**` 스크린샷을
+덮어쓰지 않았으며 최종 status에서 해당 경로 오염이 없는지 확인한다. 실제 빌드 산출물
+주입은 §10-3에서 별도로 수행했다.
+
+## 10. 2026-07-25 라운드 fix — 적대검증 W-1~W-7
+
+### 10-1. RED-first 원문
+
+수정 전에 먼저 결함을 고정하는 테스트를 추가하고, 기존 구현에 실행했다. 기능 결함에
+해당하는 RED 원문은 다음과 같다.
+
+```text
+RUN v2.1.9
+versionCheck.test ... 1 failed
+× Electron·Capacitor·웹 ... → expected 'MOBILE' to be 'DESKTOP'
+appVersion.test ... 1 failed
+× ... → appClientOptionsForRelease is not a function
+mock.test ... 1 failed
+× ... → expected undefined to be true
+Test Files 3 failed
+Tests 3 failed | 134 passed (137)
+```
+
+백엔드도 전환기 semver 최소 버전과 관리자 오류 문구의 RED를 확인했다.
+
+```text
+AppReleaseControllerIT > 릴리스 등록은 ... 2026-07-25-1 FAILED
+AppReleaseControllerIT > ... 2026/7/5-1 FAILED
+AppReleaseControllerIT > ... 0.1.0 FAILED
+AppReleaseControllerIT > 전환기에는 ... semver ... FAILED
+53 tests completed, 4 failed
+BUILD FAILED
+17 actionable tasks: 17 executed
+```
+
+추가한 `clients/desktop/scripts/round-910-contract.test.cjs`도 구현 전에는 산출물의
+`0.0.0` 계약, #909 invalid payload, 문서 계약에서 RED였다. 이 테스트는 Windows에서
+`npx.cmd` 셸 상태에 의존하지 않고 `electron-vite` Node entry를 직접 실행하도록 작성했다.
+
+### 10-2. 구현 수단과 선택 이유
+
+- W1: 저장소 루트 `scripts/app-build-version.cjs`를 단일 해석기로 만들고 Electron 4개
+  Vite 설정과 Expo 3개 `app.config.js`에서 사용했다. 명시적인 `VITE_APP_VERSION`/
+  `EXPO_PUBLIC_APP_VERSION`은 엄격히 검증하고, 누락 시 KST 날짜와
+  `SAMHAN_BUILD_NUMBER`(없으면 1)로 `YYYY/MM/DD-{번호}`를 생성하며 경고한다. 기존 CI와
+  로컬 빌드를 모두 살리면서도 `0.0.0`으로 조용히 떨어지는 산출물을 막는 선택이다. desktop
+  계약 테스트를 CI allowlist에 넣어 실제 Electron 산출물까지 검사한다.
+- W2: `AppReleaseService.create/update`에서 최신 버전만 개발 형식을 강제하고,
+  `minSupportedVersion`은 전환기 동안 `Semver.requireValid`로 개발 형식 또는 semver를
+  받도록 했다. 이 방식은 이미 설치된 semver 사용자에게 `0.1.0` 최소 지원을 적용하고,
+  전환 종료 시 관리자가 최소 지원 값을 개발 형식으로 올리는 운영 절차를 보존한다. 이후
+  모든 설치 클라이언트가 개발 형식으로 전환된 것을 확인한 뒤 다음 릴리스 등록/수정에서
+  최소 지원 값도 개발 형식으로 올리고, semver 행은 삭제가 아니라 soft-delete 한다.
+- W3: Capacitor/Web도 같은 `clients/desktop` 백오피스 산출물이므로
+  `resolveAppClientType`을 세 런타임 모두 `DESKTOP`으로 통일했다. 관리 선택지는 8개
+  canonical client를 모두 제공하고, 실제 version endpoint 소비 코드가 없는 4개에는
+  `버전 확인 미지원`을 표시한다. 편집 시 원래 행의 legacy `WEB`/`MOBILE`을 form 현재값이
+  아니라 원본 행에서 파생해, 바꾼 뒤에도 되돌릴 수 있게 했다.
+- W4: #909 5개 실 QA 스펙의 등록 최신 버전을 개발 형식으로 바꾸고 최소 지원 값은
+  전환기 semver로 바꿨다. plan의 U-gate도 같은 계약으로 정정했다.
+- W5/W7: 존재하지 않는 package-semver runtime fallback 서술을 제거하고, 명시 주입값·누락
+  시 생성 및 경고 정책을 문서화했다. 서버와 mock의 형식 오류 필드명은 `최신 버전`/
+  `최소 지원 버전`으로 표시한다.
+- W6: version endpoint를 호출하지 않는 4개 canonical 앱에 목록/선택지 표시를 붙이고,
+  publish modal도 실제 지원 여부에 따라 안내 문구를 분기했다.
+
+### 10-3. GREEN 및 실제 산출물 원문
+
+```text
+./gradlew :services:dashboard-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 42s
+17 actionable tasks: 17 executed
+
+clients/desktop: npm run typecheck
+exit 0
+clients/desktop: npx vitest run
+exit 0
+clients/desktop: npx playwright test version-management-v1b
+Running 6 tests using 1 worker
+6 passed (12.2s)
+
+clients/mobile: versionCheck.test.ts
+Test Suites: 1 passed, Tests: 7 passed
+clients/mobile-staff: versionCheck.test.ts
+Test Suites: 1 passed, Tests: 7 passed
+clients/arologis-mobile: versionCheck.test.ts
+Test Suites: 1 passed, Tests: 7 passed
+
+npm run test:round-910-contract
+ℹ tests 5, pass 5, fail 0, duration 11367.9294ms
+```
+
+desktop 전체 Vitest에는 기존 jsdom/React Router 경고와 인증 실패를 모사하는 stderr가
+출력됐지만 프로세스는 exit 0이고 실패 테스트는 없었다. desktop 및 모바일 3앱의
+typecheck도 모두 exit 0이다.
+
+실제 Electron 산출물 바이트 대조:
+
+```text
+npx electron-vite build                         # VITE_APP_VERSION 없음
+[Samhan] 개발 버전 주입값(VITE_APP_VERSION)이 없어 2026/07/25-1을 자동 생성했습니다. 배포 릴리스에는 명시 주입값을 사용하십시오.
+out/renderer/assets\index-B8Cd92Df.js:148472:CURRENT_VERSION = resolveBuildAppVersion("2026/07/25-1");
+
+VITE_APP_VERSION=2026/07/25-3 npx electron-vite build
+out/renderer/assets\index-BqU3yRSV.js:148472:CURRENT_VERSION = resolveBuildAppVersion("2026/07/25-3");
+
+VITE_APP_VERSION=2026/07/25-3 npm run build:capacitor
+dist/capacitor/assets\index-bigLpY3H.js:599:2026/07/25-3
+
+npm run build:capacitor                         # VITE_APP_VERSION 없음
+[Samhan] 개발 버전 주입값(VITE_APP_VERSION)이 없어 2026/07/25-1을 자동 생성했습니다. 배포 릴리스에는 명시 주입값을 사용하십시오.
+dist/capacitor/assets\index-Dc1JHwyX.js:81:2026/07/25-1
+```
+
+`npm run build`와 `npm run build:web`도 환경변수 없이 exit 0이며 같은 경고와 개발 버전을
+생성했다. 산출물에 남아 있는 `0.0.0` 문자열은 `CURRENT_VERSION` 주입값이 아니라 기존
+runtime/mock의 구버전 호환 기본값이며, 실제 게이트에 전달되는 빌드 상수는 위처럼
+개발 형식이다. `npm run build:win`은 `electron-vite` 단계까지 같은 개발 버전으로
+성공했지만, 첫 실행은 기존 `DESKTOP_UPDATE_URL` 누락으로 electron-builder 단계에서
+실패했고, dummy URL을 준 재실행은 Windows 권한 없는 `winCodeSign` 심볼릭 링크 추출에서
+실패했다. 두 실패 모두 버전 주입 단계와 무관하다.
+
+### 10-4. W-1~W-7 및 기존 불변식 대응
+
+| 결함 | 대응 및 검증 |
+|---|---|
+| W-1 | 공통 resolver + 4 desktop config + Expo 3 config + CI contract test. Electron/Web/Capacitor no-env 경고와 injected artifact 바이트를 확인했다. Windows 패키징은 electron-vite 단계까지 통과했으며 기존 electron-builder 환경/권한 문제로 최종 installer는 미생성이다. |
+| W-2 | 최신 개발 형식/최소 semver 전환기 계약, `0.1.0` 등록·publish·조회 MINOR IT 테스트. 전환 종료는 모든 클라이언트 전환 확인 후 min을 개발 형식으로 올리는 운영 절차다. |
+| W-3 | Electron/Capacitor/Web 모두 DESKTOP mapping, canonical 8개 선택지, legacy 되돌리기, appVersion unit/UI 테스트. |
+| W-4 | #909 5개 payload와 plan U-gate를 개발 최신 + semver min으로 갱신하고 정적 계약 테스트 5/5를 통과했다. 실제 live five-spec 실행은 공유 DB 쓰기 때문에 수행하지 않았다. |
+| W-5 | dev-report와 dashboard-service README에서 존재하지 않는 폴백 계약을 제거하고 resolver의 누락 경고·명시 주입 정책으로 갱신했다. |
+| W-6 | version endpoint 미지원 4앱에 목록/선택지/게시 모달 표시를 추가했다. #928 자체 기능은 범위 밖이라 version endpoint 구현은 하지 않았다. |
+| W-7 | 서버 `Semver`와 desktop mock의 사용자 대면 필드명을 한국어 라벨로 매핑했다. IT 오류 응답에서 `최신 버전` 포함, 영문 `version` 미포함을 확인했다. |
+
+A1~A5·V1~V5 무회귀 확인 방법은 기존 테스트/throwaway probe 결과를 보존하고 이번 round에
+다음으로 재확인했다: 8개 canonical 식별자 정적 목록 및 runtime mapping, legacy
+`WEB`/`MOBILE` 편집 선택지, fail-open/NONE·MINOR·MAJOR·CRITICAL desktop tests, 개발 버전
+slash 형식과 날짜/BigInteger 경계 테스트, 기존 semver 조회·불변 update IT 테스트, package
+semver와 정책용 개발 버전의 분리. V7 migration은 수정하지 않았다.
+
+이번 round에는 DB schema 변경이 없으므로 새 migration을 실행하지 않았고, 공유
+`dashboard_db`에는 접근하지 않았다. 앞선 §9-5의 throwaway probe는 DROP 완료 기록을
+그대로 보존한다.
+
+### 10-5. 최종 상태
+
+```text
+git status --porcelain
+ M .github/workflows/ci.yml
+ M clients/arologis-mobile/app.config.js
+ M clients/desktop/electron.vite.config.ts
+ M clients/desktop/package.json
+ M clients/desktop/playwright/909-auto-update-real-qa/force-level-gate-real-qa.spec.ts
+ M clients/desktop/playwright/909-auto-update-real-qa/luna-round-real-qa.spec.ts
+ M clients/desktop/playwright/909-auto-update-real-qa/opus-reconv3-probe-real-qa.spec.ts
+ M clients/desktop/playwright/909-auto-update-real-qa/sonnet-round2-notice-overlap-real-qa.spec.ts
+ M clients/desktop/playwright/909-auto-update-real-qa/sonnet-round2-print-sweep-real-qa.spec.ts
+ M clients/desktop/src/renderer/api/appVersion.test.ts
+ M clients/desktop/src/renderer/api/appVersion.ts
+ M clients/desktop/src/renderer/api/mock.test.ts
+ M clients/desktop/src/renderer/api/mock.ts
+ M clients/desktop/src/renderer/routes/admin/AppReleaseManagementPage.test.tsx
+ M clients/desktop/src/renderer/routes/admin/AppReleaseManagementPage.tsx
+ M clients/desktop/src/renderer/version/versionCheck.test.ts
+ M clients/desktop/src/renderer/version/versionCheck.ts
+ M clients/desktop/vite.capacitor.config.ts
+ M clients/desktop/vite.config.ts
+ M clients/desktop/vite.web.config.ts
+ M clients/mobile-staff/app.config.js
+ M clients/mobile/app.config.js
+ M docs/dev-reports/2026-07-25-910-app-client-identity.md
+ M docs/handoff/CURRENT-WORK.md
+ M docs/superpowers/plans/2026-07-25-910-app-client-identity.md
+ M services/dashboard-service/README.md
+ M services/dashboard-service/src/main/java/com/samhanair/logis/dashboard/domain/Semver.java
+ M services/dashboard-service/src/main/java/com/samhanair/logis/dashboard/service/AppReleaseService.java
+ M services/dashboard-service/src/test/java/com/samhanair/logis/dashboard/it/AppReleaseControllerIT.java
+?? clients/desktop/scripts/round-910-contract.test.cjs
+?? scripts/app-build-version.cjs
+```
+
+```text
+git status --porcelain docs/qa
+(출력 없음)
+# docs/qa 오염 0
+```
+
+커밋/commit/차단된 GitHub 쓰기와 실제 live #909 5-spec 실행은 수행하지 않았다. live spec은
+실 로그인·실 서버·실 DB에 릴리스를 만들고 soft-delete하는 하네스라, 이번 round의 공유 DB
+비접근 규칙과 충돌한다. `build:win` 최종 installer도 기존 `DESKTOP_UPDATE_URL` 및
+Windows symlink 권한 문제로 만들지 못했다. 정적 payload 계약, mock Playwright, backend IT,
+실제 Electron/Web/Capacitor 빌드로 가능한 범위를 검증했다.

@@ -14,9 +14,14 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import type { PluginOption } from 'vite'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 
-const appVersion = process.env['VITE_APP_VERSION']?.trim() || '0.0.0'
+const require = createRequire(import.meta.url)
+const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs') as {
+  resolveBuildAppVersion: (options: { variable: string }) => string
+}
+const appVersion = resolveBuildAppVersion({ variable: 'VITE_APP_VERSION' })
 
 export default defineConfig({
   main: {

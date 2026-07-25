@@ -445,16 +445,23 @@ function isAppVersionLessThan(a: string, b: string): boolean {
 function mockReleaseVersionError(
   value: unknown,
   fieldName: string,
+  allowLegacySemver = false,
 ) {
   const normalized = String(value ?? '').trim()
+  const displayFieldName = fieldName === 'version'
+    ? '최신 버전'
+    : fieldName === 'minSupportedVersion'
+      ? '최소 지원 버전'
+      : fieldName
   if (!normalized) {
-    return mockError(400, 'INVALID_INPUT', `${fieldName}은 필수입니다.`)
+    return mockError(400, 'INVALID_INPUT', `${displayFieldName}은 필수입니다.`)
   }
   if (parseDevelopmentVersion(normalized)) return null
+  if (allowLegacySemver && LEGACY_SEMVER_PATTERN.test(normalized)) return null
   return mockError(
     400,
     'INVALID_INPUT',
-    `${fieldName}은 YYYY/MM/DD-{번호} 형식이어야 합니다. 예: 2026/07/25-1`,
+    `${displayFieldName}은 YYYY/MM/DD-{번호} 형식이어야 합니다. 예: 2026/07/25-1`,
   )
 }
 
@@ -2203,7 +2210,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     }
     const versionError = mockReleaseVersionError(body['version'], 'version')
     if (versionError) return versionError
-    const minSupportedVersionError = mockReleaseVersionError(body['minSupportedVersion'], 'minSupportedVersion')
+    const minSupportedVersionError = mockReleaseVersionError(body['minSupportedVersion'], 'minSupportedVersion', true)
     if (minSupportedVersionError) return minSupportedVersionError
     const created = mockAppReleaseFromBody(body, mockAppReleaseId(mockAppReleaseSeq), false)
     mockAppReleaseSeq += 1
@@ -2258,6 +2265,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         const minSupportedVersionError = mockReleaseVersionError(
           requestedMinSupportedVersion,
           'minSupportedVersion',
+          true,
         )
         if (minSupportedVersionError) return minSupportedVersionError
       }

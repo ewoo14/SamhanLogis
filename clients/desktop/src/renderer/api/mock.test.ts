@@ -1858,6 +1858,25 @@ describe('mock notes receivable transition contract', () => {
 })
 
 describe('mock app version management contract', () => {
+  it('전환기에는 개발 최신 버전과 semver 최소 지원 버전 조합을 등록할 수 있다', () => {
+    const created = mockRequest({
+      method: 'POST',
+      url: '/app/releases',
+      data: {
+        clientType: 'DESKTOP',
+        version: '2026/07/25-90910',
+        minSupportedVersion: '0.1.0',
+        forceLevel: 'MINOR',
+        releaseNotes: '전환기 semver 최소 지원 버전',
+        releasedAt: '2026-07-25T10:00:00',
+      },
+    }) as MockEnvelope<{ version: string; minSupportedVersion: string }>
+
+    expect(created.success).toBe(true)
+    expect(created.data.version).toBe('2026/07/25-90910')
+    expect(created.data.minSupportedVersion).toBe('0.1.0')
+  })
+
   it('GET /app/version은 clientType별 latestVersion과 forceLevel을 envelope로 반환한다', () => {
     const resolved = mockRequest({
       method: 'GET',

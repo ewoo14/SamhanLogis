@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from './client'
 import {
+  APP_CLIENT_OPTIONS,
+  appClientOptionsForRelease,
   createAppRelease,
   deleteAppRelease,
   getAppVersion,
@@ -36,6 +38,34 @@ describe('appVersion API client', () => {
     vi.mocked(apiClient.post).mockReset()
     vi.mocked(apiClient.put).mockReset()
     vi.mocked(apiClient.delete).mockReset()
+  })
+
+  it('데스크톱 Electron·Capacitor·웹 런타임을 덮는 canonical 선택지와 legacy 복원 선택지를 제공한다', () => {
+    expect(APP_CLIENT_OPTIONS.map((option) => option.value)).toEqual(expect.arrayContaining([
+      'DESKTOP',
+      'SAMHAN_MOBILE',
+      'SAMHAN_MOBILE_STAFF',
+      'AROLOGIS_MOBILE',
+      'SAMHAN_ORDER_WEB',
+      'SAMHAN_ESTIMATE_WEB',
+      'SAMHAN_MOBILE_PUBLIC_WEB',
+      'AROLOGIS_DESKTOP',
+    ]))
+    expect(APP_CLIENT_OPTIONS.map((option) => option.value)).not.toEqual(expect.arrayContaining(['WEB', 'MOBILE']))
+
+    const legacyOptions = appClientOptionsForRelease('WEB')
+    expect(legacyOptions[0]).toEqual({ value: 'WEB', label: '기존 웹 클라이언트(호환)' })
+    expect(legacyOptions.map((option) => option.value)).toContain('DESKTOP')
+  })
+
+  it('버전 확인을 지원하지 않는 4개 앱을 관리 선택지에 표시한다', () => {
+    expect(APP_CLIENT_OPTIONS.filter((option) => !option.versionCheckSupported).map((option) => option.value))
+      .toEqual(expect.arrayContaining([
+        'SAMHAN_ORDER_WEB',
+        'SAMHAN_ESTIMATE_WEB',
+        'SAMHAN_MOBILE_PUBLIC_WEB',
+        'AROLOGIS_DESKTOP',
+      ]))
   })
 
   it('GET /app/version은 skipAuth public 요청으로 currentVersion과 clientType을 보낸다', async () => {
