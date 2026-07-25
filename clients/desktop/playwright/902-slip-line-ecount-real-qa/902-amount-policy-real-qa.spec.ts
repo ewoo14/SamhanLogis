@@ -17,16 +17,17 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import * as path from 'path'
-import * as fs from 'fs'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5252'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/902-slip-line-ecount')
-fs.mkdirSync(SHOTS, { recursive: true })
+// 기본값은 커밋된 docs/qa/902-slip-line-ecount/ 가 아니라 그 밑 _local/ (gitignore 대상) —
+// 재실행이 커밋된 증거를 덮어쓰지 않는다. QA_SHOTS_DIR 로 의도적 승격만 opt-in.
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/902-slip-line-ecount'))
 
 async function login(page: Page): Promise<void> {
   const res = await page.request.post(`${API_BASE}/auth/login`, { data: { loginId: 'dev_master', password: PASSWORD } })
