@@ -190,32 +190,6 @@ function isScopeNotFoundError(error: unknown): boolean {
   return data?.code === 'NOT_FOUND'
 }
 
-/**
- * N7 root fix — 재수렴 R4. "삭제 경고"는 화면 저장이 서버의 최신 선택을 실제로 지울 수
- * 있을 때만 낸다(브리프 N-4: 서버 선택을 화면에 화해해 넣었는데도 여전히 "지워질 수
- * 있습니다"라고 만류하고, 왜 저장이 잠겼는지 설명도 없던 결함).
- *
- * <p>scopeMode='ALL'인 화면은 무엇이든 포괄한다(전체는 모든 항목의 상위집합이다).
- * scopeMode='SELECTED'인 화면은 세 카테고리 refs 전부가 latest 의 refs 를 부분집합으로
- * 포함해야 포괄로 본다 — 그래야 저장(전체교체 PUT)이 latest 의 어떤 항목도 지우지 않음을
- * 보장할 수 있다. latest 가 'ALL'이면 부분 선택 화면은 결코 그것을 포괄할 수 없다(부분
- * 선택은 전체를 대신하지 못한다).
- */
-function scopeCoversLatest(
-  current: { scopeMode: CodefScopeMode | null; selection: SelectionState },
-  latest: CodefImportScope,
-): boolean {
-  if (current.scopeMode === 'ALL') return true
-  if (current.scopeMode !== 'SELECTED') return false
-  if (latest.scopeMode === 'ALL') return false
-  if (latest.scopeMode === null) return true
-  const isSuperset = (superset: string[], subset: string[]) =>
-    subset.every((ref) => superset.includes(ref))
-  return isSuperset(current.selection.accountRefs, latest.accountRefs)
-    && isSuperset(current.selection.cardRefs, latest.cardRefs)
-    && isSuperset(current.selection.loanRefs, latest.loanRefs)
-}
-
 export function CodefImportScopeForm({
   canCreate,
   canUpdate,
@@ -300,12 +274,12 @@ export function CodefImportScopeForm({
   }, [scopeQuery.data])
 
   useEffect(() => {
-    // N-1/N-2 root fix(재수렴 R4) — 게이트를 isFetchedAfterMount(성공/오류 어느 쪽으로
+    // N-1 root fix(재수렴 R4, 유지) — 게이트를 isFetchedAfterMount(성공/오류 어느 쪽으로
     // "정착"해도 true)가 아니라 scopeConfirmedThisMount(이번 mount 에서 "성공"한 GET만
     // true)로 바꾼다. 재진입 재조회가 실패하면 이 effect 는 아예 실행되지 않고,
     // scopeBaselineUnconfirmed(위)가 저장·가져오기를 잠근 채 화면에 "확인 실패" 안내(아래
     // JSX)를 낸다 — 낡은 캐시(react-query 는 error 액션에서도 data 를 지우지 않는다)를
-    // "복원 완료"로 오인해 보여주지 않는다(N4: baseline 은 이번 mount 의 성공 응답에서만).
+    // "복원 완료"로 오인해 보여주지 않는다.
     if (!scopeQuery.data || !loadedScopeSelection || restoredApplied || !scopeConfirmedThisMount) return
     // #825 슬5 R1(H-4) — refs 배열의 비어있음이 아니라 scopeMode 3-상태(null=미저장·ALL·
     // SELECTED)로 복원을 분기한다. refs=[] 는 ALL 저장에서도 나타나는 정상 표현이라(D-S5-02),
@@ -314,28 +288,30 @@ export function CodefImportScopeForm({
     const savedMode = scopeQuery.data.scopeMode
     setBaseVersion(scopeQuery.data.version)
     setRestoredApplied(true)
-    if (selectionDirty) {
-      // N2 root fix(재수렴 R4) — 확인이 늦게 도착하는 동안(scopeBaselineUnconfirmed 로
-      // 저장·가져오기가 잠긴 창) 사용자가 이미 화면을 조작했다면(N-1 리포트: 재진입 창에서
-      // 계좌를 체크) 뒤늦게 도착한 서버 확인 결과로 그 입력을 조용히 덮어쓰지 않는다.
-      // baseVersion/restoredScope 는 낙관적 잠금·savedAllScopeDirty 판단을 위해 갱신하되,
-      // 사용자가 만든 selection/scopeMode/type 은 그대로 둔다 — restoredApplied 가 true 가
-      // 된 순간부터 scopeBaselineUnconfirmed 잠금은 풀리고, 사용자가 실제로 고른 값을
-      // 기준으로 정상 동작한다(가져오기도 화면에 보이는 그 값으로 나간다).
-      setRestoredScope(savedMode === null ? null : scopeQuery.data)
-      return
-    }
+    // 🔒 개발책임자 바운드 결정(2026-07-25, PR #925 — "UX 기제 2개 되돌리고 머지") — 여기
+    // 있던 `if (selectionDirty) { setRestoredScope(...); return }` 조기 반환 분기(05b8c9e5a
+    // N2 root fix)를 되돌린다. 확인이 늦게 도착하는 창에서 사용자가 이미 조작
+    // (selectionDirty=true)했더라도, 확인이 "성공"하면 그 결과(서버의 진짜 최신
+    // selection/scopeMode/type)를 화면에 그대로 반영한다 — 종전엔 서버 선택을 화면에 숨긴
+    // 채 baseVersion 만 앞당겨서, 뒤이은 저장이 409 없이 성공하며 서버가 실제로 가진 선택을
+    // 조용히 지웠다(A-1, rA-closing a1 실측: PUT version=9 200 OK 로 국민 계좌 소거 +
+    // defaultImportType BANK→ALL 동반 유실). 대가로 확인 창에서의 미저장 클릭은 확인 성공
+    // 시 서버 값으로 대체될 수 있다(가시적·비파괴 UX 불편) — 그러나 그 창에서는
+    // scopeBaselineUnconfirmed 가 저장·가져오기를 이미 잠그고 있어(N-1/N-3 은 유지) 이
+    // 대체가 잘못된 저장으로 이어지지 않는다. 이 되돌림을 다시 "고치려 하지 말 것".
     if (savedMode === null) {
       setRestoredScope(null)
       setSelection(EMPTY_SELECTION)
       setScopeMode(null)
+      setSelectionDirty(false)
       return
     }
     setRestoredScope(scopeQuery.data)
     setScopeMode(savedMode)
     setType(scopeQuery.data.defaultImportType)
     setSelection(savedMode === 'SELECTED' ? loadedScopeSelection : EMPTY_SELECTION)
-  }, [loadedScopeSelection, restoredApplied, scopeQuery.data, scopeConfirmedThisMount, selectionDirty])
+    setSelectionDirty(false)
+  }, [loadedScopeSelection, restoredApplied, scopeQuery.data, scopeConfirmedThisMount])
 
   const categories = useMemo(() => ([
     {
@@ -667,17 +643,15 @@ export function CodefImportScopeForm({
     && !scopeQuery.isFetching
     && !scopeBaselineUnconfirmed
     && !saveMutation.isPending
-  // N7 root fix(재수렴 R4) — 화면 선택이 충돌 시점의 서버 최신(conflictInfo.latest)을
-  // 포괄하면(그 항목을 전부 포함하면) 저장해도 아무것도 지워지지 않는다. 이 경우는 "삭제
-  // 경고"도, 명시적 우회 버튼도 필요 없다 — 일반 저장이 곧 안전한 저장이다.
-  const conflictLatestCovered = Boolean(
-    conflictInfo?.latest && scopeCoversLatest({ scopeMode, selection }, conflictInfo.latest),
-  )
-  // 충돌 후 일반 저장은(포괄하지 않는 한) 서버의 상대 선택을 알리지 않고 지울 수 있다.
-  // 배너의 명시 버튼만 같은 화면 선택으로 다시 저장하게 해 K1(화면 선택 보존)과 K5(명시적
-  // 재저장 경로)를 함께 지킨다. 포괄하는 경우(N7)는 그 우회가 필요 없으므로 일반 저장을
-  // 다시 연다 — 이는 또한 N6(사유 없는 잠금 금지)을 만족시킨다: 더 이상 잠글 사유가 없다.
-  const canSave = canSaveWithoutConflict && (!conflictInfo || conflictLatestCovered)
+  // 🔒 개발책임자 바운드 결정(2026-07-25, PR #925 — "UX 기제 2개 되돌리고 머지") — N7
+  // (scopeCoversLatest/conflictLatestCovered, 05b8c9e5a)을 되돌린다. scopeMode='ALL' 화면을
+  // 무조건 "포괄"로 판정하고 defaultImportType(실제 실행 범위)을 비교하지 않아, 배너가
+  // "삭제되지 않습니다"라고 단언하는 바로 그 저장이 서버의 refs 를 비우거나(A-2, rA-closing
+  // a2: PUT accountRefs=[] 인데 배너는 "삭제되지 않습니다") 서버가 좁혀둔 defaultImportType
+  // 을 무음 확대(B-1/A-3: CARD 로 좁혀진 서버 값이 ALL 로 덮임)하는 PUT을 냈다. 충돌 후
+  // 일반 저장은 포괄 여부와 무관하게 항상 잠그고, 명시적 덮어쓰기 버튼(K5)으로만 진행한다 —
+  // "포괄" 예외를 다시 만들지 말 것(클릭 1회 추가는 감수한 대가다).
+  const canSave = canSaveWithoutConflict && !conflictInfo
   const canImport = canCreate
     && scopeMode !== null
     && importSelectionReady
@@ -823,35 +797,30 @@ export function CodefImportScopeForm({
           {conflictInfo.latest ? (
             <>
               {describeConflictSelection(conflictInfo.latest, itemLabelByRef)}
-              {conflictLatestCovered
-                // N7 root fix(재수렴 R4) — 화면 선택이 서버 최신을 포괄하면(전부 포함하면)
-                // 저장해도 지워질 항목이 없다. 실제로 지워지지 않는데 "지워질 수 있습니다"로
-                // 만류하지 않는다 — 방금 화해(협조적 병합)한 사용자를 막아서는 안 된다.
-                ? ' 현재 화면 선택에 서버에 저장된 항목이 모두 포함되어 있어 저장해도 삭제되지 않습니다.'
-                : ' 현재 화면에 없는 서버 선택 항목은 저장하면 지워질 수 있습니다. 이 결과를 확인한 뒤 명시적으로 진행하세요.'}
+              {/* 🔒 개발책임자 바운드 결정(2026-07-25, PR #925) — "포괄하면 삭제되지
+                  않습니다" 분기(N7, 05b8c9e5a)를 되돌린다. scopeMode='ALL' 화면을 무조건
+                  포괄로 판정해 실제로는 서버 refs 를 비우거나 defaultImportType 을 무음
+                  확대하는 저장을 "안전하다"고 잘못 안심시켰다(A-2/B-1, rA-closing a2·a3).
+                  포괄 여부와 무관하게 항상 같은 경고를 낸다. */}
+              {' 현재 화면에 없는 서버 선택 항목은 저장하면 지워질 수 있습니다. 이 결과를 확인한 뒤 명시적으로 진행하세요.'}
             </>
           ) : (
             ' 최신 선택을 확인하지 못했습니다. 서버에 있는 항목을 모른 채 저장하면 삭제될 수 있으므로 먼저 최신 상태를 다시 확인하세요.'
           )}
           {' 방금 선택한 항목은 화면에 그대로 남아 있습니다.'}
           {conflictInfo.latest ? (
-            !conflictLatestCovered ? (
-              // K5 — latest 를 알고 있는(비-covering) 충돌에서는 명시적 우회 버튼만 다시
-              // 저장할 수 있다(일반 저장은 canSave 에서 계속 잠긴다 — 위 conflictLatestCovered
-              // 정의 참조).
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={!canSaveWithoutConflict}
-                onClick={() => saveMutation.mutate()}
-                data-testid="codef-scope-overwrite-button"
-              >
-                {saveMutation.isPending ? '다시 저장 중' : '현재 화면 선택으로 덮어쓰기'}
-              </Button>
-            ) : null
-            // covering 인 경우 위의 canSave 가 이미 true 라 일반 저장 버튼이 같은 동작을
-            // 안전하게 수행한다 — 여기 별도 버튼을 두면 "저장" 버튼이 두 개로 보이는
-            // 혼란만 커진다(N6: 사유 없는 잠금을 없애는 게 목적이지 버튼을 늘리는 게 아니다).
+            // K5 — latest 를 알고 있는 충돌에서는 명시적 우회 버튼만 다시 저장할 수 있다
+            // (일반 저장은 canSave 에서 계속 잠긴다 — conflictInfo 가 있는 한 포괄 여부와
+            // 무관하게 잠금, 위 바운드 결정 참조).
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!canSaveWithoutConflict}
+              onClick={() => saveMutation.mutate()}
+              data-testid="codef-scope-overwrite-button"
+            >
+              {saveMutation.isPending ? '다시 저장 중' : '현재 화면 선택으로 덮어쓰기'}
+            </Button>
           ) : (
             // N-3/N5 root fix(재수렴 R4) — latest=null 일 때는 "다시 저장"(낡은 버전으로
             // 맹목적 재PUT, 구조적으로 항상 409)이 아니라 "다시 확인"(GET 재시도)을 제시한다.

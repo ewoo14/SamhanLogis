@@ -1077,6 +1077,13 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 })
 
 describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도달 가능 결함)', () => {
+  // 🔒 개발책임자 바운드 결정(2026-07-25, PR #925 — "UX 기제 2개 되돌리고 머지") — 이
+  // describe 블록이 검증하던 N-1~N-4 중 N-2(확인 창의 사용자 입력이 서버 값으로 대체되지
+  // 않아야 한다)와 N-4/N7(화면 선택이 서버 선택을 포괄하면 삭제 경고 없이 일반 저장을 다시
+  // 연다)는 이후 라운드에서 각각 A-1(무음 데이터 파괴)과 A-2/B-1(거짓 안심 + 무음 삭제)의
+  // 원인으로 확인되어 되돌려졌다(rA-closing a1/a2/a3 실측). 아래 두 테스트('N-1' 제목의
+  // 후반부, 'N-4 되돌림')는 그 되돌린 거동을 단정하도록 갱신했다 — N-1(재진입 잠금)과
+  // N-3(latest=null 재확인)는 그대로 닫혀 있고 갱신되지 않았다.
   afterEach(() => {
     cleanup()
     listCodefBankAccountsMock.mockReset()
@@ -1087,7 +1094,7 @@ describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도�
     importScopedCodefMock.mockReset()
   })
 
-  it('N-1 — 재진입 확인 미완료 창에서 가져오기·저장이 잠기고, 그 사이 사용자 체크는 조용히 사라지지 않는다', async () => {
+  it('N-1 — 재진입 확인 미완료 창은 계속 잠긴다(유지) — 확인 성공 후에는 서버 값이 화면에 반영된다(N-2 되돌림, 개발책임자 바운드 결정)', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B, BANK_C])
     listCodefCardsMock.mockResolvedValue([])
     listCodefLoansMock.mockResolvedValue([])
@@ -1113,7 +1120,9 @@ describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도�
 
     // 브리프 재현 — 확인 미완료인데 화면이 "미저장"으로 보이면 안 되고(N1), 가져오기 버튼이
     // 이 순간 활성이면 안 된다(N3 — canSaveWithoutConflict 에만 있고 canImport 에는 없던
-    // !scopeQuery.isFetching 가드 누락의 직접 재현).
+    // !scopeQuery.isFetching 가드 누락의 직접 재현). 이 잠금은 개발책임자 바운드 결정
+    // (2026-07-25) 이후에도 그대로 유지된다(Z3) — scopeConfirmedThisMount/
+    // scopeBaselineUnconfirmed 는 되돌린 대상이 아니다.
     expect(screen.queryByTestId('codef-scope-hint')).toBeNull()
     expect(screen.getByTestId('codef-scope-confirming')).toBeTruthy()
     expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
@@ -1128,15 +1137,25 @@ describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도�
     resolveReentry(firstLoad)
     await waitFor(() => expect(screen.queryByTestId('codef-scope-confirming')).toBeNull())
 
-    // N2 — 확인 전 사용자가 체크한 우리은행이 서버 값(국민)으로 조용히 대체되지 않는다.
-    expect((screen.getByTestId('codef-bank-account-2') as HTMLInputElement).checked).toBe(true)
-    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(false)
+    // 🔒 개발책임자 바운드 결정(2026-07-25, PR #925) — 종전 N2 root fix(05b8c9e5a)는 여기서
+    // "확인 전 사용자가 체크한 우리은행이 서버 값(국민)으로 대체되지 않는다"를 정답으로
+    // 단언했다. 그 보존 로직(selectionDirty 조기 반환)이 바로 A-1 무음 데이터 파괴의
+    // 원인이었다 — 재확인이 성공한 뒤에도 서버 선택을 화면에 드러내지 않은 채 baseVersion
+    // 만 최신으로 앞당겨, 뒤이은 저장이 409 없이 200 OK 로 성공하며 서버에 실제로 저장돼
+    // 있던 선택을 조용히 지웠다(rA-closing a1-03/a1-04 실측: PUT version=9 200 OK 로 국민
+    // 계좌 소거 + defaultImportType BANK→ALL 동반 유실). 개발책임자가 이 UX 기제를
+    // 되돌리기로 결정했다: 확인이 성공하면 항상 서버 값(국민)이 화면에 그대로 반영된다 —
+    // 확인 창에서의 미저장 클릭(우리)은 사라질 수 있다(가시적·비파괴 UX 불편이나, 그
+    // 창에서는 저장·가져오기가 이미 scopeBaselineUnconfirmed 로 잠겨 있어 안전하다). 이
+    // assertion 을 다시 "우리 유지"로 고치지 말 것 — 그게 A-1 을 재발시킨다.
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-bank-account-2') as HTMLInputElement).checked).toBe(false)
     await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
 
-    // 이제 확인이 끝났으니 가져오기는 실제로 화면에 보이는 값(우리)으로 나가야 한다(N3).
+    // 가져오기는 이제 화면에 반영된 값(=서버가 확인해 준 국민 계좌)으로 나간다.
     fireEvent.click(screen.getByTestId('codef-import-button'))
     await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
-    expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({ accountRefs: [BANK_C.ref] })
+    expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({ accountRefs: [BANK_A.ref] })
   })
 
   it('N-2 — 재진입 재조회 실패를 확인 실패로 정직하게 안내하고 저장·가져오기를 잠그며, 다시 확인으로 회복한다', async () => {
@@ -1232,7 +1251,7 @@ describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도�
     await waitFor(() => expect(screen.queryByTestId('codef-scope-conflict')).toBeNull())
   })
 
-  it('N-4/N7 — 화면 선택이 서버 선택을 포괄하면 삭제 경고 없이 일반 저장이 다시 열린다(사유 없는 잠금 금지)', async () => {
+  it('N-4 되돌림 — 화면 선택이 서버 선택을 포괄해도 일반 저장은 계속 잠기고 명시 덮어쓰기(K5)로만 진행한다(개발책임자 바운드 결정)', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B, BANK_C])
     listCodefCardsMock.mockResolvedValue([])
     listCodefLoansMock.mockResolvedValue([])
@@ -1264,16 +1283,30 @@ describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도�
     expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
 
     // 사용자가 서버의 우리(BANK_C)를 화면에 추가하고, 신한(BANK_B)도 함께 추가해 화해한다 —
-    // 이제 화면(국민+신한+우리) ⊇ 서버(국민+우리)이므로 저장해도 아무것도 지워지지 않는다.
+    // 이제 화면(국민+신한+우리) ⊇ 서버(국민+우리)라 실제로 저장해도 지워질 항목은 없다.
     fireEvent.click(screen.getByTestId('codef-bank-account-2'))
     fireEvent.click(screen.getByTestId('codef-bank-account-1'))
+    await waitFor(() => expect((screen.getByTestId('codef-bank-account-1') as HTMLInputElement).checked).toBe(true))
 
-    // N6/N7 — 삭제 위험이 없어졌으니 사유 없는 잠금이 아니라 일반 저장이 다시 열린다.
-    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
-    expect(screen.getByTestId('codef-scope-conflict').textContent).not.toContain('지워질 수 있습니다')
-    expect(screen.queryByTestId('codef-scope-overwrite-button')).toBeNull()
+    // 🔒 개발책임자 바운드 결정(2026-07-25, PR #925) — 종전 N7 root fix(05b8c9e5a)는 여기서
+    // "포괄하므로 경고 제거 + 일반 저장 재활성"을 정답으로 단언했다. 그 "포괄" 판정
+    // (scopeCoversLatest)이 scopeMode='ALL' 화면을 무조건 포괄로 보고 defaultImportType 을
+    // 비교하지 않아, 실제로는 서버 refs 를 비우거나 defaultImportType 을 무음 확대하는
+    // 저장을 "삭제되지 않습니다"라며 안전하다고 잘못 안심시켰다(A-2/B-1, rA-closing a2·a3
+    // 실측: PUT accountRefs=[] 인데 배너는 "삭제되지 않습니다", CARD 로 좁혀진 서버 값이
+    // ALL 로 무음 확대). 개발책임자가 이 기제를 되돌리기로 결정했다: 포괄 여부와 무관하게
+    // 충돌 배너가 떠 있는 한 일반 저장은 항상 잠기고 경고 문구도 그대로 남는다 — 명시적
+    // "현재 화면 선택으로 덮어쓰기" 버튼(K5)만이 유일한 진행 경로다(클릭 1회 추가는 감수한
+    // 대가). 이 assertion 을 다시 "포괄하면 잠금 해제"로 고치지 말 것 — 그게 A-2/B-1 을
+    // 재발시킨다.
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByTestId('codef-scope-conflict').textContent).toContain('지워질 수 있습니다')
+    const overwriteButton = screen.getByTestId('codef-scope-overwrite-button') as HTMLButtonElement
+    expect(overwriteButton).toBeTruthy()
+    expect(overwriteButton.disabled).toBe(false)
 
-    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    // 명시 버튼(K5)으로 진행하면 화해된 화면 선택(국민+신한+우리) 그대로 저장된다.
+    fireEvent.click(overwriteButton)
     await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2))
     expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
     expect(saveCodefImportScopeMock.mock.calls[1]![0].accountRefs).toEqual(
