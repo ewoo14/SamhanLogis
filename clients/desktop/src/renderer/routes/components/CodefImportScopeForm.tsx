@@ -100,7 +100,11 @@ function errorMessage(error: unknown, fallback: string): string {
     if (data?.code === 'DEPOSIT_DATE_RANGE_INVALID') {
       return message ?? '날짜 범위를 확인하세요. 시작일은 종료일보다 이전이어야 합니다.'
     }
-    if (message) return message
+    // F5 — 서버가 한국어 메시지를 주지 않은 axios 오류(네트워크 단절 등)를 아래
+    // `error instanceof Error` 폴백으로 흘려보내면 axios 원문(주로 영문, 예: "Network
+    // Error")이 그대로 노출된다(한국어 의무 위반). AxiosError 는 이 분기 밖으로 절대
+    // 내보내지 않고 항상 한국어(매칭 코드 메시지 · data.message · fallback) 로 마감한다.
+    return message ?? fallback
   }
   if (error instanceof Error && error.message.trim()) return error.message
   return fallback
@@ -138,6 +142,41 @@ function categoryItemLabel(
   }
 }
 
+type ItemLabelMap = Map<string, { category: CodefScopeCategory; label: string }>
+
+/**
+ * 409 충돌 배너/토스트의 "서버 최신 상태" 문구를 만든다.
+ *
+ * <p>F2 — 라벨 해석 실패를 조용히 감추고 "선택 항목이 없습니다"로 오보하던 결함의 단일
+ * root fix. refs 가 실제로 0건일 때만 "없습니다"라고 말한다. refs 는 있으나 이 화면의
+ * 캐시(계좌/카드/대출 목록)에서 라벨을 못 찾으면(상대가 방금 등록한 신규 계좌, 또는 목록
+ * 조회 자체가 실패한 상태 등) "확인하지 못했다"고 사실대로 말한다 — 이 오보를 믿고 사용자가
+ * "서버엔 아무것도 없다"며 저장하면 전체교체 PUT 때문에 상대 선택이 그대로 사라진다(이 PR 이
+ * 없애려는 무음 유실의 재발).
+ */
+function describeConflictSelection(
+  latest: CodefImportScope,
+  itemLabelByRef: ItemLabelMap,
+): string {
+  if (latest.scopeMode === 'ALL') return ' 서버에는 현재 전체 범위가 저장되어 있습니다.'
+  const refs = [...latest.accountRefs, ...latest.cardRefs, ...latest.loanRefs]
+  if (refs.length === 0) return ' 서버에는 현재 저장된 선택 항목이 없습니다.'
+  const resolved: string[] = []
+  let unresolved = 0
+  refs.forEach((ref) => {
+    const info = itemLabelByRef.get(ref)
+    if (info) resolved.push(info.label)
+    else unresolved += 1
+  })
+  if (resolved.length === 0) {
+    return ` 서버에 선택 ${refs.length}건이 저장되어 있으나 이 화면의 목록에서 이름을 확인하지 못했습니다.`
+  }
+  if (unresolved > 0) {
+    return ` 서버에 저장된 선택: ${resolved.join(', ')} 외 ${unresolved}건(이름 확인 불가).`
+  }
+  return ` 서버에 저장된 선택: ${resolved.join(', ')}.`
+}
+
 export function CodefImportScopeForm({
   canCreate,
   canUpdate,
@@ -154,7 +193,14 @@ export function CodefImportScopeForm({
   const [restoredScope, setRestoredScope] = useState<CodefImportScope | null>(null)
   const [restoredApplied, setRestoredApplied] = useState(false)
   const [selectionDirty, setSelectionDirty] = useState(false)
-  const [conflictScope, setConflictScope] = useState<CodefImportScope | null>(null)
+  // F1 root fix — 낙관적 잠금 버전 커서를 restoredScope(마지막 "성공 저장/최초 로드" 스냅샷 —
+  // 화면 표시·buildImportPayload branch-A·savedAllScopeDirty 판단에 쓰인다)와 분리한다. 409
+  // 충돌 시 서버의 최신 버전 번호만 여기로 반영해 다음 저장 시도가 같은 버전으로 재충돌하지
+  // 않게 하되, 사용자가 화면에서 보고 있는 selection/scopeMode/type 은 절대 건드리지 않는다.
+  const [baseVersion, setBaseVersion] = useState<number | null>(null)
+  // 409 충돌 안내용 스냅샷 — 화면 작업 상태(selection/scopeMode/type)를 대체하지 않는
+  // 순수 정보성 상태다. baselineConfirmed 는 F4 판정에 쓰인다(아래 onError 참조).
+  const [conflictInfo, setConflictInfo] = useState<{ latest: CodefImportScope; baselineConfirmed: boolean } | null>(null)
   const [result, setResult] = useState<CodefImportResponse | null>(null)
   const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const queryClient = useQueryClient()
@@ -196,6 +242,7 @@ export function CodefImportScopeForm({
     // 종전처럼 refs 비어있음만으로 '미저장'을 추정하면 ALL 로 저장한 뒤 재방문 시 '미선택'으로
     // 잘못 되돌아가는 결함이 있었다(라이브 QA d3-s2c 로 실증됨).
     const savedMode = scopeQuery.data.scopeMode
+    setBaseVersion(scopeQuery.data.version)
     if (savedMode === null) {
       setRestoredScope(null)
       setSelection(EMPTY_SELECTION)
@@ -251,11 +298,13 @@ export function CodefImportScopeForm({
 
   const visibleCategories = categories.filter((category) => type === 'ALL' || type === category.key)
 
-  const itemLabelByRef = useMemo(() => {
-    const map = new Map<string, { category: CodefScopeCategory; label: string }>()
-    accounts.forEach((item) => map.set(item.ref, { category: 'BANK', label: item.name }))
-    cards.forEach((item) => map.set(item.ref, { category: 'CARD', label: item.name }))
-    loans.forEach((item) => map.set(item.ref, { category: 'LOAN', label: item.name }))
+  const itemLabelByRef = useMemo<ItemLabelMap>(() => {
+    const map: ItemLabelMap = new Map()
+    // F2(부수) — 배너/칩 라벨을 체크박스 행과 같은 전체 표기(은행명 · 별칭 · 계좌번호)로
+    // 통일한다. 종전 item.name 단독 표기는 동일 별칭의 서로 다른 계좌를 구분하지 못했다.
+    accounts.forEach((item) => map.set(item.ref, { category: 'BANK', label: categoryItemLabel('BANK', item) }))
+    cards.forEach((item) => map.set(item.ref, { category: 'CARD', label: categoryItemLabel('CARD', item) }))
+    loans.forEach((item) => map.set(item.ref, { category: 'LOAN', label: categoryItemLabel('LOAN', item) }))
     return map
   }, [accounts, cards, loans])
 
@@ -330,7 +379,7 @@ export function CodefImportScopeForm({
       ...refs,
       defaultImportType: type,
       scopeMode,
-      version: restoredScope?.version ?? null,
+      version: baseVersion,
     }
   }
 
@@ -392,7 +441,8 @@ export function CodefImportScopeForm({
     mutationFn: () => saveCodefImportScope(buildScopePayload()),
     onSuccess: (saved) => {
       queryClient.setQueryData(['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID], saved)
-      setConflictScope(null)
+      setConflictInfo(null)
+      setBaseVersion(saved.version)
       setRestoredScope(saved)
       setSelection({
         accountRefs: normalizeRefs(saved.accountRefs),
@@ -406,27 +456,47 @@ export function CodefImportScopeForm({
     },
     onError: async (error) => {
       if (isScopeConflict(error)) {
+        // F1 — 거부는 사용자의 미저장 선택을 지우는 사유가 아니다. selection/scopeMode/type/
+        // selectionDirty 는 여기서 절대 건드리지 않는다. PM 결정 재확인: 금지된 것은 "자동
+        // 합집합 병합"(사용자가 해제한 남의 항목이 되살아나는 것)이지, "사용자가 방금 고른
+        // 것의 보존"이 아니다 — conflictInfo 는 화면 작업 상태를 대체하지 않는 별도의
+        // 안내용 스냅샷일 뿐이다(K1).
+        //
+        // F4 — baselineConfirmed 는 이번 저장 시도 이전에 서버의 진짜 최신을 성공적으로 한
+        // 번이라도 확인했는지(restoredApplied)를 기록한다. 확인한 적이 없다면(예: 최초
+        // scope 조회가 실패한 채 저장을 시도) "다른 화면에서 변경되었다"는 사실이 아니다 —
+        // 애초 비교 기준 자체가 없었을 뿐이다(K3).
+        const baselineConfirmed = restoredApplied
+        const headline = baselineConfirmed
+          ? '다른 화면에서 가져오기 선택이 변경되었습니다. 저장이 거부되었습니다.'
+          : '저장 전 서버의 기존 선택을 확인하지 못했습니다. 이미 저장된 선택이 있어 저장이 거부되었습니다.'
+        // F1 회귀 방지 — baselineConfirmed 가 false 였던 경우(F4), 아래 setQueryData 가
+        // scopeQuery.data 를 최초로 채운다. 복원 useEffect 의 가드는 `restoredApplied` 하나뿐이라,
+        // 그 값을 여기서 앞당겨 true 로 만들지 않으면 setQueryData 직후 재렌더에서 그 effect가
+        // "최초 복원"으로 오인해 재실행되어 selection/scopeMode/type 을 서버 값으로 덮어써버린다
+        // (RED 로 실측: F4 테스트에서 bank-account-0 체크가 저장 시도 후 풀리는 회귀를 발견).
+        // baselineConfirmed 는 이미 위에서 그 이전 값을 스냅샷했으므로 안전하게 앞당겨 true로
+        // 고정할 수 있다 — 이 저장 시도부터는 "최초 복원 대기" 단계가 끝난 것이 맞다.
+        setRestoredApplied(true)
         try {
           const latest = await loadCodefImportScope(DEFAULT_CONNECTED_ID)
-          const latestSelection: SelectionState = {
-            accountRefs: normalizeRefs(latest.accountRefs),
-            cardRefs: normalizeRefs(latest.cardRefs),
-            loanRefs: normalizeRefs(latest.loanRefs),
-          }
           queryClient.setQueryData(['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID], latest)
-          setConflictScope(latest)
-          setRestoredScope(latest.scopeMode === null ? null : latest)
-          setScopeMode(latest.scopeMode)
-          setType(latest.defaultImportType)
-          setSelection(latest.scopeMode === 'SELECTED' ? latestSelection : EMPTY_SELECTION)
-          setSelectionDirty(false)
+          // 버전 커서만 최신화한다 — F1 에 따라 selection/scopeMode/type 은 그대로 둔다.
+          setBaseVersion(latest.version)
+          setConflictInfo({ latest, baselineConfirmed })
           onToast({
             type: 'error',
-            message: '다른 화면에서 가져오기 선택이 변경되었습니다. 최신 선택을 확인한 뒤 다시 저장해 주세요.',
+            message: `${headline}${describeConflictSelection(latest, itemLabelByRef)} 방금 선택한 항목은 화면에 그대로 남아 있습니다.`,
           })
           return
         } catch (reloadError) {
-          onToast({ type: 'error', message: errorMessage(reloadError, '최신 가져오기 선택을 불러오지 못했습니다.') })
+          // F5 — 재조회가 실패해도 "저장이 거부됐다"는 사실은 반드시 먼저 전달한다(K4).
+          // errorMessage 가 이제 axios 원문(영문)을 새지 않으므로 원인 상세를 이어 붙여도
+          // 한국어 의무를 어기지 않는다.
+          onToast({
+            type: 'error',
+            message: `${headline} 최신 선택 확인에 실패했습니다 — ${errorMessage(reloadError, '원인을 알 수 없습니다.')} 방금 선택한 항목은 화면에 그대로 남아 있습니다.`,
+          })
           return
         }
       }
@@ -495,16 +565,6 @@ export function CodefImportScopeForm({
       && isAxiosError(scopeQuery.error)
       && (scopeQuery.error.response?.data as { code?: unknown } | undefined)?.code === 'NOT_FOUND'
     )
-  const conflictSelectionLabels = conflictScope
-    ? [
-        ...conflictScope.accountRefs,
-        ...conflictScope.cardRefs,
-        ...conflictScope.loanRefs,
-      ]
-        .map((ref) => itemLabelByRef.get(ref)?.label)
-        .filter((label): label is string => Boolean(label))
-    : []
-
   return (
     <div className="codef-import-panel">
       <div>
@@ -585,18 +645,16 @@ export function CodefImportScopeForm({
           저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.
         </div>
       ) : null}
-      {conflictScope ? (
+      {conflictInfo ? (
         <div role="alert" className="codef-import-hint codef-import-hint--error" data-testid="codef-scope-conflict">
-          다른 화면에서 가져오기 선택이 변경되었습니다. 서버 최신 선택을 확인했습니다.
-          {conflictScope.scopeMode === 'ALL'
-            ? ' 최신 범위: 전체.'
-            : conflictSelectionLabels.length > 0
-              ? ` 최신 선택: ${conflictSelectionLabels.join(', ')}.`
-              : ' 최신 선택 항목이 없습니다.'}
-          내 의도를 다시 선택한 뒤 저장하세요.
+          {conflictInfo.baselineConfirmed
+            ? '다른 화면에서 가져오기 선택이 변경되었습니다. 저장이 거부되었습니다.'
+            : '저장 전 서버의 기존 선택을 확인하지 못했습니다. 이미 저장된 선택이 있어 저장이 거부되었습니다.'}
+          {describeConflictSelection(conflictInfo.latest, itemLabelByRef)}
+          {' 방금 선택한 항목은 화면에 그대로 남아 있습니다. 필요하면 다시 확인한 뒤 저장하세요.'}
         </div>
       ) : null}
-      {restoredScope && !selectionDirty ? (
+      {restoredScope && !selectionDirty && !conflictInfo ? (
         restoredSelectionInvalid ? (
           <div className="codef-import-hint codef-import-hint--error" role="alert" data-testid="codef-restored-scope-invalid">
             기존 저장 범위에 선택된 항목이 없습니다. 계좌·카드·대출 중 하나를 다시 선택하거나 '전체' 칩을 선택한 뒤 저장하세요.
@@ -712,7 +770,10 @@ export function CodefImportScopeForm({
 
       {allScopeLocksItems ? (
         <div className="codef-import-hint" id={SCOPE_ALL_LOCK_HINT_ID} role="status">
-          전체 범위가 선택되어 개별 항목 선택은 비활성화됩니다.
+          {/* F6 — 잠금 힌트가 잠금 사실만 말하고 해제 방법을 말하지 않던 결함. 위 '범위: 전체'
+              칩의 ✕(제거) 버튼이 유일한 탈출구인데 그 방법이 어디에도 없었다(K5). */}
+          전체 범위가 선택되어 개별 항목 선택은 비활성화됩니다. 개별 항목을 다시 고르려면 위
+          '범위: 전체' 칩의 ✕(전체 범위 제거) 버튼을 눌러 전체 선택을 해제하세요.
         </div>
       ) : null}
 

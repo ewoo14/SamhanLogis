@@ -3091,7 +3091,7 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 |---|---|
 | D-S5-11 | CODEF scope 전체 교체 PUT은 조회 당시 `version`과 현재 행 버전을 정확히 대조한다. 미저장 첫 저장은 `version=null`만 허용하고, 기존 행은 현재 버전과 일치해야 한다. 불일치·최초 저장 unique 충돌은 `409 CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT`로 거부하며 저장 retry로 last-write-wins를 만들지 않는다. |
 | D-S5-12 | 낙관적 잠금 충돌 시 데스크톱은 서버 최신 scope를 재조회해 표시하고 자동 합집합을 적용하지 않는다. 사용자가 최신 상태에서 의도한 계좌·카드·대출을 다시 명시적으로 선택해 저장한다. 충돌 안내에는 UUID를 쓰지 않고 사용자 표시명을 사용한다. |
-| D-S5-13 | V66은 `user_codef_import_scope.version BIGINT NOT NULL DEFAULT 0`을 추가한다. 기존 행과 신규 행 모두 버전 0에서 시작하며, 성공 응답의 증가 버전은 같은 화면의 다음 저장에 사용한다. |
+| D-S5-13 | V66은 `user_codef_import_scope.version BIGINT NOT NULL DEFAULT 0`을 추가한다. 기존 행과 신규 행 모두 버전 0에서 시작하며, 성공 응답의 증가 버전은 같은 화면의 다음 저장에 사용한다. **이 하위호환은 `version`을 보내는 클라이언트 한정이다** — `version`을 모르는 구버전 데스크톱(#920 이전 빌드)이 기존 행에 PUT하면 요청에 `version` 필드 자체가 없어 현재 버전(0)과 불일치로 간주돼 항상 409로 거부된다(영구, 업그레이드 전까지). 개발책임자 결정(2026-07-25): `UserCodefImportScopeService.verifyVersion`의 `requestedVersion == null` → 409 판정은 바꾸지 않고, 배포 순서로 해소한다 — ① 데스크톱 forceLevel=CRITICAL 강제 업데이트(비해제 차단 모달, `clients/desktop/src/renderer/version/versionCheck.ts:62-63`) 선행 → ② accounting-service 배포. 회귀 가드: `UserCodefImportScopeServiceTest.missingVersionFieldOnExistingRowRejectedWith409`(기존 행 + version 필드 없는 요청 → 409 pin). |
 
 ## #824 품목행 공급가액·부가가치세 정합성 (2026-07-22)
 

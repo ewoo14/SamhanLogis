@@ -170,7 +170,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
   })
 
-  it('CODEF 낙관적 잠금 — 충돌 시 서버 최신 선택을 보여주고 다시 선택·저장할 수 있다', async () => {
+  it('CODEF 낙관적 잠금 — 충돌해도 내 화면 선택은 그대로 두고 서버 최신은 배너로만 안내한다(F1 root fix)', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
     listCodefCardsMock.mockResolvedValue([])
     listCodefLoansMock.mockResolvedValue([])
@@ -212,13 +212,301 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     renderForm()
     await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    // 사용자는 아무것도 바꾸지 않고(추가 체크 없음) 곧바로 재저장을 누른다 — 그 사이 다른 탭이
+    // 먼저 BANK_B 를 추가해 저장했다.
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
 
     await waitFor(() => expect(loadCodefImportScopeMock).toHaveBeenCalledTimes(2))
     expect(screen.getByTestId('codef-scope-conflict').textContent).toContain('다른 화면에서 가져오기 선택이 변경되었습니다')
     expect(screen.getByTestId('codef-scope-conflict').textContent).toContain('신한운영')
-    expect((screen.getByTestId('codef-bank-account-1') as HTMLInputElement).checked).toBe(true)
+
+    // F1 — 종전엔 여기서 서버의 BANK_B 를 자동으로 체크해 "adopt" 하는 것을 정답으로
+    // 단언했다. 그 단언이 틀렸다: PM 이 금지한 건 "자동 합집합 병합"(사용자가 해제한 남의
+    // 항목이 되살아나는 것)이지 "서버가 무엇을 가졌는지 보여주는 것"이 아니다. 내 화면
+    // (BANK_A만 선택)은 마지막으로 내가 확인한 상태 그대로 남아야 하고, BANK_B 는 배너에서
+    // "정보"로만 보여준다 — 체크박스를 대신 켜지 않는다.
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-bank-account-1') as HTMLInputElement).checked).toBe(false)
     expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('F1 — 409 충돌이 사용자의 미저장 추가 선택을 화면에서 지우지 않는다(자동 병합 아님 — 내 선택 보존)', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B, BANK_C])
+    listCodefCardsMock.mockResolvedValue([CARD_A, CARD_B])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'ALL', scopeMode: 'SELECTED', version: 0,
+      } satisfies ScopeWithVersion)
+      .mockResolvedValueOnce({
+        // 다른 탭이 먼저 저장한 최신 — 내가 방금 고른 것과는 다른 조합(내 캐시엔 없는 ref).
+        connectedId: 'connected-main', accountRefs: ['신한 000-000'], cardRefs: [], loanRefs: [],
+        defaultImportType: 'ALL', scopeMode: 'SELECTED', version: 1,
+      } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+
+    renderForm()
+    await screen.findByTestId('codef-bank-account-2')
+    await screen.findByTestId('codef-card-1')
+
+    // 복원된 국민(BANK_A) 외에 계좌 2개 + 카드 2개를 추가로 체크한다(미저장) — 브리프의
+    // "계좌 3 + 카드 2" 시나리오를 이 fixture 로 재현한다.
+    fireEvent.click(screen.getByTestId('codef-bank-account-1'))
+    fireEvent.click(screen.getByTestId('codef-bank-account-2'))
+    fireEvent.click(screen.getByTestId('codef-card-0'))
+    fireEvent.click(screen.getByTestId('codef-card-1'))
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await screen.findByTestId('codef-scope-conflict')
+
+    // 방금 고른 5개(1 복원 + 4 추가) 전부가 화면에 그대로 남아 있어야 한다 — 서버의 다른
+    // 선택으로 대체되지 않는다(K1).
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-bank-account-1') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-bank-account-2') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-card-0') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-card-1') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('F2 — 라벨 해석이 전부 실패해도 "선택 항목이 없습니다"라고 말하지 않는다(무음 유실 재발 방지)', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 0,
+      } satisfies ScopeWithVersion)
+      .mockResolvedValueOnce({
+        // 서버 최신엔 계좌 2건이 있지만, 이 화면 캐시(목록)엔 없는 ref 들이다(라벨 해석 불가 —
+        // 예: 목록 조회 장애, 또는 상대가 방금 등록한 신규 계좌).
+        connectedId: 'connected-main',
+        accountRefs: ['알수없는-001', '알수없는-002'],
+        cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 1,
+      } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+
+    const banner = await screen.findByTestId('codef-scope-conflict')
+    // 서버엔 실제로 2건이 있다 — "없습니다"는 사실이 아니다(K2).
+    expect(banner.textContent).not.toContain('선택 항목이 없습니다')
+    expect(banner.textContent).toContain('2건')
+    expect(banner.textContent).toMatch(/확인하지 못했습니다|확인할 수 없습니다/)
+  })
+
+  it('F2 — 일부만 해석되면 해석된 이름은 보여주고 나머지는 "확인 불가"로 남긴다(부분 오보 방지)', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 0,
+      } satisfies ScopeWithVersion)
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main',
+        accountRefs: [BANK_B.ref, '신규-미등록-계좌'],
+        cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 1,
+      } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+
+    const banner = await screen.findByTestId('codef-scope-conflict')
+    expect(banner.textContent).toContain('신한운영')
+    expect(banner.textContent).toMatch(/외 1건|1건\(이름 확인 불가\)/)
+    expect(banner.textContent).not.toContain('선택 항목이 없습니다')
+  })
+
+  it('F4 — 동시 편집이 없는데(baseline 미확인) "다른 화면에서 변경되었습니다"라고 말하지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    // 최초 scope 조회가 실패한다 — retry:false 이고 전역 refetchOnWindowFocus:false 라
+    // restoredApplied 는 끝내 true 가 되지 않는다(F4 의 실제 원인 재현).
+    loadCodefImportScopeMock
+      .mockRejectedValueOnce(new Error('일시적 네트워크 오류'))
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_B.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 3,
+      } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+
+    renderForm()
+    // 목록은 정상 로드된다 — scopeMode 는 null 로 남으므로(복원 실패) 사용자가 직접 고른다.
+    await screen.findByTestId('codef-bank-account-0')
+    fireEvent.click(screen.getByTestId('codef-bank-account-0'))
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    const banner = await screen.findByTestId('codef-scope-conflict')
+
+    // 단일 사용자·단일 탭·동시 편집 없음 — "다른 화면에서" 는 사실이 아니다(K3).
+    expect(banner.textContent).not.toContain('다른 화면에서')
+    expect(banner.textContent).toContain('확인하지 못했습니다')
+    expect(banner.textContent).toContain('신한운영')
+    // F1 은 이 시나리오에서도 유지된다 — 내가 고른 BANK_A 는 그대로 남는다.
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('F5 — 재조회가 실패해도 저장 거부 사실을 한국어로 먼저 전달한다(영문 원문 노출 금지)', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 0,
+      } satisfies ScopeWithVersion)
+      // 충돌 핸들러의 재조회 자체가 네트워크 단절로 실패한다 — 실제 axios 가 던지는 모양
+      // (response 없음, message="Network Error")을 그대로 재현한다.
+      .mockRejectedValueOnce(new AxiosError('Network Error', 'ERR_NETWORK'))
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+    const toasts: Array<{ type: 'error' | 'success'; message: string }> = []
+
+    renderForm(vi.fn(async () => undefined), (toast) => toasts.push(toast))
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+
+    await waitFor(() => expect(toasts.some((t) => t.type === 'error')).toBe(true))
+    const toast = toasts.find((t) => t.type === 'error')!
+    // K4 — 거부됐다는 사실이 항상 먼저 전달된다.
+    expect(toast.message).toContain('거부')
+    // 한국어 의무 — axios 영문 원문이 새지 않는다.
+    expect(toast.message).not.toContain('Network Error')
+    // 재조회가 실패했으니 배너(서버 최신 정보)는 만들 수 없다 — 토스트로만 전달된다.
+    expect(screen.queryByTestId('codef-scope-conflict')).toBeNull()
+    // F1 — 재조회 실패로도 내가 고른 선택은 그대로 남는다.
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('F6 — 전체 범위 잠금 힌트가 해제 방법(칩 ✕)을 안내한다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    // scopeMode:null 초기 fixture 는 로컬 초기값(null)과 같아 "복원 완료" 신호가 없다 —
+    // 클릭이 비동기 복원 effect 와 경합해 되돌아가는 flaky 를 겪었다(SELECTED 로 바꿔
+    // canSave 활성화를 복원 완료 신호로 삼는다).
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 0,
+    } satisfies ScopeWithVersion)
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+
+    // TagChip 은 onClick+role="button" 조합(pressable chip)일 때 핸들러를 내부
+    // role="button" 자식 span 에 붙이고 바깥 testid span 에는 붙이지 않는다(TagChip.tsx:99-114)
+    // — 바깥을 클릭하면 버블링 방향이 반대라 핸들러가 걸리지 않는다.
+    const allChipPressable = screen.getByTestId('codef-all-scope-chip').querySelector('[role="button"]')
+    fireEvent.click(allChipPressable as Element)
+
+    const hint = await screen.findByText(/개별 항목 선택은 비활성화/)
+    expect(hint.textContent).toMatch(/✕/)
+    expect(hint.textContent).toContain('해제')
+  })
+
+  it('F6 — 충돌 후에도 화면 잠금은 서버 최신이 아닌 내 화면의 현재 범위를 따른다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 0,
+      } satisfies ScopeWithVersion)
+      .mockResolvedValueOnce({
+        // 다른 화면이 먼저 '전체'로 저장 — 서버 최신은 ALL 이다.
+        connectedId: 'connected-main', accountRefs: [], cardRefs: [], loanRefs: [],
+        defaultImportType: 'ALL', scopeMode: 'ALL', version: 1,
+      } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+
+    const banner = await screen.findByTestId('codef-scope-conflict')
+    expect(banner.textContent).toContain('전체')
+    // 서버 최신이 ALL 이어도, 내 화면은 여전히 SELECTED(계좌 1건 체크)다 — 강제로 잠기지
+    // 않는다(F1 의 부작용으로 F6 의 체크박스 강제잠금 트리거 자체가 사라짐).
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('F7 — 미변경 재저장이 충돌해도 상반된 안내(다시 선택 vs 그대로 가져와도 됨)가 동시에 뜨지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 0,
+      } satisfies ScopeWithVersion)
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main', accountRefs: [BANK_A.ref, BANK_B.ref], cardRefs: [], loanRefs: [],
+        defaultImportType: 'BANK', scopeMode: 'SELECTED', version: 1,
+      } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    ))
+
+    renderForm()
+    // 복원된 선택 그대로(변경 없음 = selectionDirty=false 유지) 곧바로 재저장을 누른다.
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+
+    await screen.findByTestId('codef-scope-conflict')
+    expect(screen.queryByText('저장된 선택을 복원했습니다. 그대로 가져오거나 항목을 바꿔 다시 저장할 수 있습니다.')).toBeNull()
   })
 
   it('H-4 — 저장 scopeMode=ALL 로 재방문하면 미선택이 아닌 전체로 복원된다(refs=[] 를 미저장과 혼동하지 않음)', async () => {

@@ -156,7 +156,7 @@ Tests 127 passed (127)
 | I2 거부 시 무변경 | 같은 BE stale 테스트, `CodefAccountSelectionIT.upsertScopeRejectsUniqueConflictWithoutMutatingExistingScope` | stale PUT 뒤 GET에서 최신 선택만 유지 |
 | I3 최신 상태 확인 및 의도 관철 경로 | `CodefImportScopeForm.test.tsx` 충돌 테스트 | 409 뒤 GET 재조회, 최신 표시값·체크 상태, 다시 활성화된 저장 경로 |
 | I4 최초 저장 경쟁도 무음 덮어쓰기 금지 | `CodefImportControllerIT.upsertScope_concurrentFirstSave_rejectsOneWithoutSilentOverwrite`, `CodefAccountSelectionIT.upsertScopeConcurrentRequests_acceptsOneAndRejectsTheOther` | 동시 최초 PUT 결과가 정확히 200/409이고 active row가 하나임 |
-| I5 기존 행 하위호환 | `UserCodefImportScopeMigrationIT.v65UpgradePreservesLegacySelectedEmptyRows`, `CodefAccountSelectionIT.upsertScope_isIdempotentPerUserAndConnectedId` | migration 후 기존 행 버전 0, version 0으로 정상 조회·갱신 |
+| I5 기존 행 하위호환(`version`을 보내는 클라이언트 한정) — 배포 순서 제약 | `UserCodefImportScopeMigrationIT.v65UpgradePreservesLegacySelectedEmptyRows`, `CodefAccountSelectionIT.upsertScope_isIdempotentPerUserAndConnectedId`, `UserCodefImportScopeServiceTest.missingVersionFieldOnExistingRowRejectedWith409`(신규 — `version` 필드 자체가 없는 PUT + 기존 행 조합이 409임을 의도된 계약으로 pin) | migration 후 기존 행 버전 0, `version`을 보내는 요청은 정상 조회·갱신. `version` 필드 자체가 없는 요청(#920 이전 구버전 데스크톱)은 기존 행에서 항상 409 — 개발책임자 결정(2026-07-25): BE는 바꾸지 않고 데스크톱 forceLevel=CRITICAL 강제 업데이트 선행 배포 순서로 해소(§6 참고) |
 | I6 저장 직후 재저장 | `CodefImportControllerIT.upsertScope_successResponseVersion_allowsImmediateSecondSave`, Form 연속 저장 테스트 | PUT 응답 버전 0→1→2와 다음 요청 버전 전달 |
 
 ## 6. 범위 밖에서 발견한 것
