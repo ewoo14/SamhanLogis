@@ -69,6 +69,10 @@ test-results/
 # QA 일회용 — 실 캡처 PNG만 추적, 캡처 스크립트·결과 json·진단 스크립트 제외
 **/qa-*-capture.mjs
 docs/qa/**/_results.json
+# 라이브QA 재캡처 스크래치 — 스펙 재실행 기본 출력지(clients/desktop/playwright/support/qa-screenshot-dir.ts).
+# docs/qa/<slug>/*.png(커밋된 확정 증거)와 경로를 분리해 재실행이 그 증거를 덮어쓰지 못하게 한다
+# (2026-07-25, #902 슬라이스 — 덮어쓰기 위험 때문에 리뷰어가 라이브QA 실행을 포기한 사고 재발 방지).
+docs/qa/**/_local/
 **/.diag-*.cjs
 **/.diag-*.mjs
 # 로컬 세션 QA 아티팩트 — CI testIgnore 대상·커밋 대상 아님 (git status 정리, 2026-07-05 개발책임자 요청)

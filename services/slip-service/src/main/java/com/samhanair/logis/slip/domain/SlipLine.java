@@ -241,16 +241,42 @@ public class SlipLine extends BaseEntity {
     }
 
     /**
-     * 화면에서 편집한 공급가액·부가세·VAT 포함 합계를 권위값으로 보존하는 생성 팩토리.
+     * 화면에서 편집한 공급가액·부가세·VAT 포함 합계와 입력 단가를 권위값으로 보존한다.
      *
      * <p>전표의 {@code lineTotal} 은 기존 계약상 VAT 미포함 공급가액이므로 {@code S} 를 저장한다.
-     * 요청의 VAT 포함 합계 {@code T} 는 {@code lineTotalWithVat} 로만 검증하고, 기존
-     * {@code lineTotal} 의미는 변경하지 않는다.
+     * 요청의 VAT 포함 합계 {@code T} 는 {@code lineTotalWithVat} 로 검증하되 단가로 역산하지
+     * 않는다. 사용자가 입력한 단가는 화면 왕복 보존을 위해 두 단가 컬럼에 그대로 저장한다.
      *
+     * @param unitPrice 사용자가 입력한 단가 (0 이상)
      * @param supplyAmount 공급가액 S (원 단위 정수, 0 이상)
      * @param vatAmount 부가세 V (원 단위 정수, 0 이상)
      * @param lineTotalWithVat VAT 포함 합계 T (원 단위 정수, 0 이상)
      * @throws BusinessException 금액·수량·항등식이 유효하지 않으면 INVALID_INPUT
+     */
+    public static SlipLine createFromAuthoritativeAmounts(
+            Slip slip, UUID productId, String productName, String modelName,
+            String specification, int quantity, BigDecimal unitPrice,
+            BigDecimal supplyAmount, BigDecimal vatAmount, BigDecimal lineTotalWithVat,
+            String note, UUID sourceOrderLineId) {
+        validatePositive(quantity);
+        validateUnitPrice(unitPrice);
+        validateAuthoritativeAmounts(supplyAmount, vatAmount, lineTotalWithVat);
+        // S/V/T는 화면 권위값이고 단가는 사용자가 직접 입력한 별도 권위값이다.
+        SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
+                quantity, unitPrice, note, sourceOrderLineId);
+        line.lineTotal = supplyAmount;
+        line.supplyAmount = supplyAmount;
+        line.vatAmount = vatAmount;
+        line.unitPriceWithVat = unitPrice;
+        line.validateStorableAmounts();
+        return line;
+    }
+
+    /**
+     * 화면에서 편집한 공급가액·부가세·VAT 포함 합계를 권위값으로 보존하는 기존 호환 팩토리.
+     * 입력 단가가 없던 내부 호출자의 기존 파생 단가 의미를 유지한다.
+     *
+     * <p>새 요청 저장 경로는 입력 단가 보존 오버로드를 사용한다.
      */
     public static SlipLine createFromAuthoritativeAmounts(
             Slip slip, UUID productId, String productName, String modelName,

@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.it;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -156,13 +157,13 @@ class SlipLineAmountOverflowControllerIT extends AbstractPostgresIT {
     }
 
     /**
-     * MED-4 R1 의 "이미 가드가 연결된" 경로(createFromAuthoritativeAmounts)조차 임계값이
-     * 틀려 500 을 낼 수 있음을 실 Postgres 로 증명한다: quantity=1 에서 15자리 공급가액은
-     * R1 임계값(15) 은 통과하지만 파생 단가(narrow NUMERIC(15,2), 13자리 한계) 에서 overflow.
+     * D-3 이후에는 요청 단가를 역산하지 않으므로 공급가액 15자리도 wide 컬럼에 그대로
+     * 저장된다. 예전에는 공급가액에서 파생한 narrow 단가가 overflow를 일으켰지만,
+     * 입력 단가가 narrow 범위 안이면 공급가액 자체의 wide 컬럼 범위까지 허용한다.
      */
     @Test
-    @DisplayName("R1 임계값 사각지대 재현: quantity=1 · 15자리 공급가액 → 500 아닌 400 INVALID_INPUT")
-    void fifteenDigitSupplyAtQuantityOne_rejectedAsBadRequest_notServerError() throws Exception {
+    @DisplayName("D-3: quantity=1 · 15자리 공급가액은 입력 단가를 보존하며 201 CREATED")
+    void fifteenDigitSupplyAtQuantityOne_acceptedWithPreservedUnitPrice() throws Exception {
         Map<String, Object> line = plainLine("1");
         line.put("supplyAmount", "999999999999999");
         line.put("vatAmount", "0");
@@ -174,8 +175,53 @@ class SlipLineAmountOverflowControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(1.0))
+                .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(1.0))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(999999999999999.0))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(0.0))
+                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(999999999999999.0));
+    }
+
+    /**
+     * D-3의 핵심 왕복 — 저장 응답과 상세 재조회 모두 입력 단가 11,000과 화면의 S/V를
+     * 그대로 반환해야 하며, S/Q 또는 T/Q 역산값 25,000/26,000을 만들면 안 된다.
+     */
+    @Test
+    @DisplayName("D-3: 입력 단가와 S/V/T를 저장 후 상세 재조회에서도 보존")
+    void authoritativeAmounts_roundTrip_preservesEnteredUnitPrice() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        Map<String, Object> line = plainLine("11000");
+        line.put("quantity", 2);
+        line.put("supplyAmount", "50000");
+        line.put("vatAmount", "2000");
+        line.put("lineTotalWithVat", "52000");
+        Map<String, Object> body = baseBody(line);
+
+        String response = mockMvc.perform(post("/slips")
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(11000.0))
+                .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(11000.0))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(50000.0))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(2000.0))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String slipId = objectMapper.readTree(response).path("data").path("id").asText();
+
+        mockMvc.perform(get("/slips/" + slipId)
+                        .header("X-User-Id", accountId.toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(11000.0))
+                .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(11000.0))
+                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(50000.0))
+                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(2000.0))
+                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(50000.0));
     }
 
     /**

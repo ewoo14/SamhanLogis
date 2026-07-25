@@ -34,6 +34,8 @@ public enum ErrorCode {
             "현재 상태에서는 주문서를 삭제할 수 없습니다."),
     SLIP_OPTIMISTIC_LOCK_CONFLICT(HttpStatus.CONFLICT,
             "전표가 이미 변경되었습니다. 최신 내용으로 다시 확인해 주세요."),
+    CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT(HttpStatus.CONFLICT,
+            "다른 화면에서 가져오기 선택이 변경되었습니다. 최신 선택을 확인한 뒤 다시 저장해 주세요."),
     SLIP_UPDATE_INVALID_LINE(HttpStatus.UNPROCESSABLE_ENTITY,
             "전표 라인 입력값이 올바르지 않습니다."),
     /**

@@ -34,3 +34,22 @@ git checkout -- "clients/desktop/playwright/*/screenshots/"
 - 구현자에게 원복을 위임할 때도 **금지 명령을 명시**해서 전달할 것.
 
 관련: [[feedback_design_system_playwright_mock_suite]] · [[feedback_qa_live_shared_data_readonly]](공유 실데이터 파괴 계열) · 이슈 #863(스위트가 증거를 덮어쓰는 구조적 함정 — 출력 경로 분리 제안)
+
+## 2026-07-25 실측 — **한 슬라이스에서 3회 반복**. 개별 스펙 하나가 범인이다
+
+#902(PR #926) 진행 중 **리뷰어 1명 + 구현자 2명이 각각 같은 함정에 빠졌습니다.** 셋 다 원복해 오염 0 으로 끝냈지만, 매번 사람이 알아채야 한다는 뜻입니다.
+
+🔑 **전체 스위트를 돌릴 필요도 없습니다** — `clients/desktop/playwright/slip-form-v20/slip-form-v20-matching.spec.ts` **하나만** mock 으로 돌려도 `docs/qa/slip-form-v20-and-menu-relocate/tc-v*.png` **7장**이 덮어써집니다. CI 게이트 재현(전표 폼 관련 6스펙)에 이게 포함돼 있어, 전표 폼을 건드리는 작업자는 거의 반드시 밟습니다.
+
+**안전한 원복(경로를 파일 단위로 좁힘)**:
+```
+git status --porcelain                          # 먼저 무엇이 바뀌었는지 본다
+git show HEAD:<파일경로> > <파일경로>            # 파일 하나씩 되돌린다
+git status --porcelain                          # 오염 0 재확인
+```
+`git checkout -- <디렉토리>` 는 쓰지 마십시오(위 2026-07-21 사고).
+
+**에이전트 브리프에 미리 넣을 것** — 이 세 문장을 지시서에 넣으면 실제로 셋 다 자진 신고하고 원복했습니다:
+> 🚨 `docs/qa/**` 의 커밋된 스크린샷을 덮어쓰지 마십시오. `slip-form-v20-matching.spec.ts` 를 mock 으로 돌리면 7장을 덮어씁니다. 실행했다면 `git status --porcelain` 확인 후 `git show HEAD:<path> > <path>` 로 반드시 원복하십시오.
+
+**근본 대책은 미실행**(범위 밖으로 보류): 스펙이 임시 경로에 쓰게 하거나 CI 잡에서 그 스펙만 격리하는 방안. 지금은 **매번 사람이 잡아내는 구조**이고, 언젠가 놓치면 QA 증거가 오염된 채 커밋됩니다.

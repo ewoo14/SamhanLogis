@@ -10,6 +10,8 @@ import {
   computeDetailQuantityChange,
   detailAmountState,
   detailVatLine,
+  editUnitPriceColumnHeader,
+  editUnitPriceLabel,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
   toPurchaseEditLines,
@@ -44,6 +46,28 @@ const serverLines = [
 ]
 
 const knownServerLineIds = toServerLineIdSet(serverLines)
+
+describe('SlipDetailPage — 수정 화면 단가 라벨 의미 계약', () => {
+  it('정상 라인은 VAT 제외, authoritative 라인은 입력값 보존에 맞춰 VAT 포함으로 표시한다', () => {
+    expect(editUnitPriceLabel({ unitPrice: '10000', unitPriceWithVat: '11000' }))
+      .toBe('단가(VAT제외)')
+    expect(editUnitPriceLabel({ unitPrice: '11000', unitPriceWithVat: '11000' }))
+      .toBe('단가(VAT포함)')
+  })
+
+  it('행이 하나의 단가 도메인이면 그 라벨을, 섞이면 행별 기준을 헤더에 표시한다', () => {
+    expect(editUnitPriceColumnHeader([
+      { unitPrice: '10000', unitPriceWithVat: '11000' },
+    ])).toBe('단가(VAT제외)')
+    expect(editUnitPriceColumnHeader([
+      { unitPrice: '11000', unitPriceWithVat: '11000' },
+    ])).toBe('단가(VAT포함)')
+    expect(editUnitPriceColumnHeader([
+      { unitPrice: '10000', unitPriceWithVat: '11000' },
+      { unitPrice: '11000', unitPriceWithVat: '11000' },
+    ])).toBe('단가(행별 VAT 기준)')
+  })
+})
 
 async function makeProvider(): Promise<DocCoeditProvider> {
   return createDocCoeditProvider({

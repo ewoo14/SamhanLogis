@@ -63,7 +63,18 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     // (VAT 포함)로 재설계하며 라벨도 "합계(VAT포함)"으로 바뀌었다 — 화면 실제와 어긋난
     // 스펙 문자열을 동기화한다(프로덕션 코드 변경 아님).
     expect(page).toContain('합계(VAT포함)')
-    expect(page).toContain('aria-label={`단가(VAT제외) ${index + 1}`}')
+    // RED-3(#902 라운드 fix, E-2): 매입 상세 "단가(VAT포함)" ↔ 수정 화면 "단가(VAT제외)"가
+    // 같은 저장값을 모순되게 설명하던 결함(E-2)을 고치며, 단가 aria-label 이 하드코드
+    // 리터럴에서 라인별 동적 판정(editUnitPriceLabel)으로 바뀌었다 — authoritative 라인
+    // (공급가액을 직접 편집한 라인)은 unitPrice === unitPriceWithVat 로 저장되어 "VAT제외"
+    // 라벨이 거짓이 되므로, 라인 성질에 따라 단가(VAT포함)/단가(VAT제외)/단가(행별 VAT
+    // 기준)을 말해야 한다. 하드코드 리터럴 회귀(라벨 모순 재발)를 잡기 위해 판정 로직
+    // 자체 + 호출부를 함께 단언한다 — 문자열 단순 존재만으로는 3528행 등 읽기전용 상세
+    // 헤더의 정적 "단가(VAT포함)" 라벨과 구분되지 않는다.
+    expect(page).toContain('export function editUnitPriceLabel(')
+    expect(page).toMatch(/unitPrice === unitPriceWithVat[\s\S]{0,20}\?\s*'단가\(VAT포함\)'[\s\S]{0,20}:\s*'단가\(VAT제외\)'/)
+    expect(page).toContain('단가(행별 VAT 기준)')
+    expect(page).toContain('aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}')
     expect(page).not.toMatch(/<Modal[\s\S]*title="매입 전표 수정"/)
     expect(page).toContain('Input')
     expect(api).toContain('updatePurchaseSlip')

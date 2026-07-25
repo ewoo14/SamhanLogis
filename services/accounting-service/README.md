@@ -159,3 +159,21 @@ MIG-14는 MIG-7~11 결과를 desktop admin UI에서 조회하기 위한 read end
 적용 후 구버전 앱 롤백 중 신규 INSERT가 `23502`로 실패하지 않게 한다. 저장 기반 import는
 `scopeMode=ALL`이면 요청의 `type` 카테고리만 CODEF에서 열거하고, `SELECTED`이면 저장 ref를
 사용한다. 서비스는 두 모순 방향과 null/invalid mode를 독립적으로 거부한다.
+
+### #920 CODEF scope 낙관적 잠금 (2026-07-25)
+
+`PUT /accounting/codef/scopes`는 조회 당시 `version`을 받는다. 미저장 첫 저장은 `null`, 기존 행은
+GET 또는 직전 PUT 응답의 버전을 보내야 하며, 현재 행과 다르면 `409 CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT`
+로 거부한다. 충돌 시 저장 retry를 하지 않아 기존 전체 교체 선택을 보존하고, 응답의 증가한 버전으로
+같은 화면의 즉시 재저장을 허용한다. V66은 기존 행을 버전 0으로 초기화한다. 데스크톱과 mock은
+409 최신 선택 재조회·명시적 재선택 계약을 공유한다.
+
+⚠️ **배포 순서 제약 — 무조건적 하위호환이 아니다**: `version`을 모르는 구버전 데스크톱(#920 이전
+빌드)이 기존 행에 PUT하면 요청에 `version` 필드 자체가 없어 현재 버전(0)과 불일치로 간주되어 항상
+409로 거부된다(영구, 업그레이드 전까지 — `UserCodefImportScopeService.verifyVersion`의
+`requestedVersion == null` 분기는 의도된 계약이며 바꾸지 않는다. 회귀 가드:
+`UserCodefImportScopeServiceTest.missingVersionFieldOnExistingRowRejectedWith409`). 개발책임자
+결정(2026-07-25): 배포 순서로 이 창을 없앤다 — ① 데스크톱 forceLevel=CRITICAL 강제 업데이트
+(비해제 차단 모달 — `clients/desktop/src/renderer/version/versionCheck.ts:62-63`의
+`forceLevel==='CRITICAL'` → `kind:'blocking'` 경로가 구버전 사용 자체를 막는다) 선행 → ②
+그 뒤에만 accounting-service를 배포한다. 상세: `docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md`.

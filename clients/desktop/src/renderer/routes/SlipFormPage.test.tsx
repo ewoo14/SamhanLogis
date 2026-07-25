@@ -94,9 +94,20 @@ vi.mock('@samhan/design-system', () => ({
         data-product-id={props.line.productId ?? ''}
         data-price-source={props.line.priceSource ?? ''}
         data-partner-selected={String(props.partnerSelected ?? '')}
+        data-excluded-from-save={String(props.excludedFromSave ?? '')}
       >
         {props.modelCell}
         <span data-testid={`product-name-${lineNo}`}>{props.line.productName}</span>
+        <input
+          aria-label={`line-${lineNo}-specification`}
+          value={props.line.specification}
+          onChange={(event) => props.onSpecificationChange(event.target.value)}
+        />
+        <input
+          aria-label={`line-${lineNo}-quantity`}
+          value={props.line.quantity}
+          onChange={(event) => props.onQuantityChange(event.target.value)}
+        />
         <input
           aria-label={`line-${lineNo}-unit-price`}
           value={props.line.unitPrice}
@@ -391,13 +402,15 @@ describe('SlipFormPage price memory autofill', () => {
     fireEvent.click(screen.getByTestId('select-product-a-2'))
     await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(harness.partnerA.id, harness.productA.id))
     fireEvent.click(screen.getByTestId('delete-line-2'))
-    expect(screen.queryByTestId('line-2')).toBeNull()
+    // 초기 5행 + 수동 1행 상태에서 2번 행을 삭제하면 뒤 행이 번호를 당긴다.
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
 
     await act(async () => {
       pending.resolve({ unitPrice: 999000, source: 'LINE_SAVE', updatedAt: '2026-07-10T09:00:00' })
       await pending.promise
     })
-    expect(screen.queryByTestId('line-2')).toBeNull()
+    // 늦은 가격 응답 이후에도 삭제로 줄어든 행 수가 복원되지 않는다.
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
     expect(unitPrice(1).value).toBe('0')
   })
 
@@ -746,6 +759,347 @@ describe('SlipFormPage price memory autofill', () => {
 
     await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({ partnerId: undefined }))
+  })
+})
+
+describe('SlipFormPage 이카운트식 라인 입력', () => {
+  it('초기에는 입력 가능한 빈 행 5개를 보여준다', () => {
+    renderPage()
+
+    expect(screen.getByTestId('line-1')).toBeTruthy()
+    expect(screen.getByTestId('line-5')).toBeTruthy()
+    expect(screen.queryByTestId('line-6')).toBeNull()
+  })
+
+  it('마지막 행의 셀에 입력하면 아래에 한 행만 증식하고 재입력은 중복 증식하지 않는다', () => {
+    renderPage()
+    const lastQuantity = screen.getByLabelText('line-5-quantity') as HTMLInputElement
+
+    fireEvent.change(lastQuantity, { target: { value: '2' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    expect(screen.queryByTestId('line-7')).toBeNull()
+
+    fireEvent.change(lastQuantity, { target: { value: '3' } })
+    fireEvent.change(lastQuantity, { target: { value: '' } })
+    fireEvent.change(lastQuantity, { target: { value: '4' } })
+
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    expect(screen.queryByTestId('line-7')).toBeNull()
+  })
+
+  it('중간 행 입력은 증식하지 않고 새 마지막 행에 입력하면 다시 한 행만 증식한다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-2-quantity'), { target: { value: '2' } })
+    expect(screen.queryByTestId('line-6')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('line-5-specification'), { target: { value: '220V' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('line-6-unit-price'), { target: { value: '5000' } })
+    expect(screen.getByTestId('line-7')).toBeTruthy()
+    expect(screen.queryByTestId('line-8')).toBeNull()
+  })
+
+  it('빈 행 5개는 저장 payload와 합계 건수·금액, 저장 가능 여부를 바꾸지 않는다', async () => {
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+    expect(screen.getByText('1건')).toBeTruthy()
+    expect(screen.getByText('₩1,000')).toBeTruthy()
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip.mock.calls[0][0].lines).toHaveLength(1)
+    expect(harness.createSlip.mock.calls[0][0].lines[0]).toEqual(expect.objectContaining({
+      productId: harness.productA.id,
+      quantity: 1,
+    }))
+  })
+
+  it('입력했지만 품목 또는 수량이 빠진 행은 저장 전에 중립적인 제외 안내를 보여주고 빈 행에는 보여주지 않는다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '2' } })
+
+    expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+    expect(screen.queryByTestId('line-2-incomplete-notice')).toBeNull()
+    expect(screen.getByTestId('line-1-incomplete-notice').getAttribute('role')).toBe('note')
+  })
+
+  it('품목을 선택했지만 수량을 0으로 둔 행도 저장 전에 제외 안내를 보여준다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
+
+    expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+  })
+
+  it('자동 증식 사실을 낭독하고 현재 입력 포커스를 끊지 않는다', () => {
+    renderPage()
+    const lastQuantity = screen.getByLabelText('line-5-quantity') as HTMLInputElement
+    lastQuantity.focus()
+
+    fireEvent.change(lastQuantity, { target: { value: '2' } })
+
+    expect(screen.getByTestId('slip-form-line-expansion-announcement').textContent).toContain('입력 행 1개가 추가')
+    expect(document.activeElement).toBe(lastQuantity)
+    expect(screen.getByLabelText('line-6-quantity')).toBeTruthy()
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// #902 R2 8건 결함 리뷰(OPUS+SOL 적대검증) — 근본원인: 안내·증식 판정이 "행에 내용이
+// 있는가"가 아니라 "onChange 가 한 번 발화했는가"(touchedLineIds 이력)에 걸려 있었다.
+// 아래는 그 8건 각각의 재현 + 회귀 가드다.
+// ────────────────────────────────────────────────────────────────────────────
+describe('SlipFormPage 라인 입력 안내/증식 — #902 R2 결함 회귀 가드', () => {
+  // D1: 입력을 되돌리면(원복) 안내가 사라진다(H1) — touchedLineIds 이력이면 행 삭제 전까지 안 사라진다.
+  it('D1·H1: 규격을 입력했다 원복하면 제외 안내가 사라진다', () => {
+    renderPage()
+    const spec = screen.getByLabelText('line-1-specification')
+
+    fireEvent.change(spec, { target: { value: 'x' } })
+    expect(screen.getByTestId('line-1-incomplete-notice')).toBeTruthy()
+
+    fireEvent.change(spec, { target: { value: '' } })
+    expect(screen.queryByTestId('line-1-incomplete-notice')).toBeNull()
+  })
+
+  // D2: 단가 셀은 빈 값도 '0'으로 표시하므로(LineRow priceDisplay 폴백), 화면상 아무 변화도
+  // 없는 Backspace 1회(0→'')가 마지막 행에서 안내·증식을 유발하면 안 된다(H2).
+  it('D2·H2: 마지막 행 단가를 0에서 빈 문자열로 지워도(화면은 그대로 0) 안내·증식이 없다', () => {
+    renderPage()
+
+    fireEvent.change(unitPrice(5), { target: { value: '' } })
+
+    expect(screen.queryByTestId('line-6')).toBeNull()
+    expect(screen.queryByTestId('line-5-incomplete-notice')).toBeNull()
+    expect(screen.getByTestId('slip-form-line-expansion-announcement').textContent).toBe('')
+  })
+
+  // D3·H3: 저장 전에, 몇 행이 제외되는지 한 곳(스크롤 없이)에서 알 수 있어야 한다.
+  it('D3·H3: 여러 행이 미완성이면 저장 전 요약 안내가 제외 행 수를 보여준다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-2-quantity'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('line-3-specification'), { target: { value: '220V' } })
+
+    const summary = screen.getByTestId('slip-form-incomplete-summary')
+    expect(summary.getAttribute('data-incomplete-count')).toBe('2')
+    expect(summary.getAttribute('role')).toBe('status')
+    expect(summary.textContent).toContain('2')
+  })
+
+  it('D3·H3: 미완성 행이 없으면 요약 안내가 비어 있다', () => {
+    renderPage()
+    const summary = screen.getByTestId('slip-form-incomplete-summary')
+    expect(summary.getAttribute('data-incomplete-count')).toBe('0')
+    expect(summary.textContent).toBe('')
+  })
+
+  // D4·H4: 문구가 실제로 해야 할 일을 말한다 — 품목 미선택과 수량 0 은 서로 다른 조건이다.
+  it('D4·H4: 품목 미선택 행은 "품목을 선택"을, 수량 0 행은 "수량"을 말한다', async () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '2' } })
+    const noProductNotice = screen.getByTestId('line-1-incomplete-notice').textContent ?? ''
+    expect(noProductNotice).toContain('품목을 선택')
+    expect(noProductNotice).not.toContain('수량을')
+
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
+
+    const zeroQtyNotice = screen.getByTestId('line-1-incomplete-notice').textContent ?? ''
+    expect(zeroQtyNotice).toContain('수량')
+    expect(zeroQtyNotice).not.toContain('품목을 선택')
+  })
+
+  // D6·H5: 마지막 행에서 증식이 반복되면(같은 라인 번호라도) 안내 문구가 매번 달라져 재낭독된다.
+  // 동일 문자열이면 React 가 재렌더를 bail-out 해 스크린리더가 재낭독하지 않는다.
+  it('D6·H5: 같은 마지막 행에서 반복 증식되면 안내 문구가 매번 달라진다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-5-quantity'), { target: { value: '2' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    const first = screen.getByTestId('slip-form-line-expansion-announcement').textContent
+
+    fireEvent.click(screen.getByTestId('delete-line-6'))
+    expect(screen.queryByTestId('line-6')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('line-5-quantity'), { target: { value: '3' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    const second = screen.getByTestId('slip-form-line-expansion-announcement').textContent
+
+    expect(second).not.toBe(first)
+    expect(second).toContain('입력 행 1개가 추가')
+  })
+
+  // D7·H6 (wiring): SlipFormPage 는 저장에서 제외될 행을 LineRow 에 명시적으로 알려줘야
+  // 실제 금액 표시 억제(LineRow.test.tsx 에서 별도 검증)가 가능하다.
+  it('D7·H6(배선): 품목 선택 + 수량 0 인 행은 excludedFromSave=true 로 전달된다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('false')
+
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('true')
+  })
+
+  // H7′(개발책임자 회귀 지시 — #902 R3 S5, H7 대체): 종전 D8 fix 는 "2.7"→"27"(10배
+  // 오주문)처럼 자릿수를 재조합해 사용자가 의도하지 않은 다른 수량을 조용히 만들었다.
+  // 전체 문자열이 순수 자연수(빈 값 포함)가 아니면 이 입력 자체를 반영하지 않는다.
+  it.each(['2.7', '0.5', '-3', '1e3'])('H7′: 모바일 수량 입력 "%s" 은 반영되지 않고 이전 값을 유지한다', (raw) => {
+    renderMobilePage()
+    const qty = screen.getByLabelText('라인 1 수량') as HTMLInputElement
+    expect(qty.value).toBe('1')
+
+    fireEvent.change(qty, { target: { value: raw } })
+
+    expect(qty.value).toBe('1')
+  })
+
+  it('H7′: 모바일 수량 입력 "12"는 그대로 반영된다(정상 경로 무회귀)', () => {
+    renderMobilePage()
+    const qty = screen.getByLabelText('라인 1 수량') as HTMLInputElement
+
+    fireEvent.change(qty, { target: { value: '12' } })
+
+    expect(qty.value).toBe('12')
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// #902 R3 — 개발책임자 직접 발견 회귀(모바일 표면): SlipMobileLineCard 는 LineRow 와 동일한
+// "excludedFromSave 면 무조건 0" 패턴을 자체 보유한다(design-system mock 밖의 실제 코드라
+// 이 파일에서만 재현 가능). 데스크톱(LineRow.test.tsx)과 동일한 회귀·수정을 검증한다.
+// ────────────────────────────────────────────────────────────────────────────
+describe('SlipFormPage 모바일 라인 카드 #902 R3 회귀 가드 — 제외 행에서도 입력한 금액은 남는다(H6′·H8)', () => {
+  it('H6′·H8: 품목 미선택 모바일 행도 공급가액 입력값이 화면에 남는다', () => {
+    renderMobilePage()
+    // (모바일 카드는 데스크톱 mock LineRow 의 data-testid="line-N"/data-excluded-from-save
+    // 를 갖지 않는다 — SlipMobileLineCard 는 실제 코드라 이 파일에서 mock 되지 않는다.
+    // 신규 페이지의 1행은 품목 미선택 상태라 excludedFromSave=true 임이 이미 전제된다.)
+    const supply = screen.getByLabelText('라인 1 공급가액') as HTMLInputElement
+
+    fireEvent.change(supply, { target: { value: '12345' } })
+
+    expect(supply.value).toBe('12,345')
+  })
+
+  it('H6′·H8: 수량 0 모바일 행도 부가세 입력값이 화면에 남는다', async () => {
+    renderMobilePage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    // 모바일 카드는 데스크톱 mock LineRow 의 data-testid="product-name-N" 을 갖지 않는다
+    // (SlipMobileLineCard 는 실제 코드 — 품목명은 일반 텍스트로만 렌더).
+    await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
+
+    const vat = screen.getByLabelText('라인 1 부가세') as HTMLInputElement
+    fireEvent.change(vat, { target: { value: '999' } })
+
+    expect(vat.value).toBe('999')
+  })
+
+  // P1(개발책임자 결정 2026-07-25 "금액 열 편집 정책"): 합계는 편집 불가다. 종전 H6′·H8은
+  // "합계 칸에 입력한 값이 남는다"였으나, 이제 합계 칸 자체가 입력을 받지 않으므로 그
+  // 전제가 성립하지 않는다 — "편집 수단이 없고 공급가액+부가세 파생값을 보여준다"로 대체.
+  it('P1: 합계(VAT포함) 칸은 편집할 수 없고 공급가액+부가세 파생값을 읽기전용으로 보여준다', async () => {
+    renderMobilePage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    // 모바일 카드는 데스크톱 mock LineRow 의 data-testid="product-name-N" 을 갖지 않는다
+    // (SlipMobileLineCard 는 실제 코드 — 품목명은 일반 텍스트로만 렌더).
+    await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '50000' } })
+
+    const total = screen.getByLabelText('라인 1 합계(VAT포함)')
+    expect(total.tagName).not.toBe('INPUT')
+    // 종전(RED) 코드는 이 자리에 <input>이 있어 fireEvent.change로 값을 직접 밀어넣을 수
+    // 있었다 — 이제는 input이 아니므로 그 수단 자체가 없다는 것을 tagName으로 확인한다.
+  })
+
+  // H9 회귀 가드(모바일): 품목 선택 + 수량 0 이고, 금액 칸을 직접 편집한 적 없는 행은
+  // "수량 1로 클램프 계산된" 가짜 합계를 보여주면 안 된다(원래 D7 모순 — 모바일 표면).
+  it('H9(모바일): 품목 선택 + 수량 0 이고 금액을 직접 편집하지 않은 행은 합계가 0이다', async () => {
+    renderMobilePage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByText(harness.productA.productName)).toBeTruthy())
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '2000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 수량'), { target: { value: '0' } })
+
+    // P1: 합계는 이제 읽기전용 표시라 HTMLInputElement가 아니다 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('0')
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('0')
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('0')
+  })
+
+  // H8 확장(모바일): 품목 미선택이라도 수량이 유효(기본값 1)하고 단가만 입력했다면 —
+  // 클램프가 왜곡한 게 없으므로 — 합계를 그대로 보여준다(이카운트 방식 "금액 먼저" 흐름).
+  it('H8 확장(모바일): 품목 미선택이라도 수량 유효 + 단가 입력 행은 합계를 보여준다', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '100000' } })
+
+    // P1: 합계는 읽기전용 표시 — textContent로 확인한다.
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('100,000')
+  })
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // #902 금액 열 편집 정책(개발책임자 결정 2026-07-25, 정정 포함) — 실 화면 통합 가드.
+  // 단위 테스트(lineVat.test.ts의 editSlipLineAmount)로 이미 검증했지만, 실제 SlipMobileLineCard
+  // 배선(updateVatAmount → editSlipLineAmount)이 그 계산을 올바르게 호출하는지 통합 레벨에서도
+  // 확인한다 — SlipMobileLineCard는 이 파일에서 mock되지 않는 실제 코드이기 때문이다.
+  // ──────────────────────────────────────────────────────────────────────────
+  it('P4(통합): 공급가액을 편집해도 단가는 바뀌지 않는다(역산 금지)', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '50000' } })
+
+    expect(mobileUnitPrice().value).toBe('11000')
+  })
+
+  it('P4(통합): 부가세를 편집해도 단가는 바뀌지 않는다(역산 금지)', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } })
+    fireEvent.change(screen.getByLabelText('라인 1 부가세'), { target: { value: '7000' } })
+
+    expect(mobileUnitPrice().value).toBe('11000')
+  })
+
+  it('P6(통합): 공급가액을 편집해도 부가세는 그대로다 — 합계만 재계산된다', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } }) // qty=1 → 공급 10000/부가세 1000
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: '50000' } })
+
+    expect((screen.getByLabelText('라인 1 부가세') as HTMLInputElement).value).toBe('1,000')
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('51,000')
+  })
+
+  it('P6(통합): 부가세를 편집해도 공급가액은 그대로다 — 합계만 재계산된다', () => {
+    renderMobilePage()
+    fireEvent.change(screen.getByLabelText('라인 1 단가'), { target: { value: '11000' } }) // qty=1 → 공급 10000/부가세 1000
+    fireEvent.change(screen.getByLabelText('라인 1 부가세'), { target: { value: '7000' } })
+
+    expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('10,000')
+    expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('17,000')
+  })
+
+  it.each(['2.7', '-3', '1e3', '1,,2'])('D-2: 모바일 금액 입력 "%s"은 숫자로 재조합하지 않고 거부한다', (raw) => {
+    renderMobilePage()
+    const supply = screen.getByLabelText('라인 1 공급가액') as HTMLInputElement
+    const before = supply.value
+
+    fireEvent.change(supply, { target: { value: raw } })
+
+    expect(supply.value).toBe(before)
   })
 })
 

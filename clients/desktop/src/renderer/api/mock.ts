@@ -6350,6 +6350,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       loanRefs?: string[]
       defaultImportType?: 'BANK' | 'CARD' | 'LOAN' | 'ALL'
       scopeMode?: 'ALL' | 'SELECTED'
+      version?: number | null
     }
     const connectedId = String(body.connectedId ?? '').trim()
     if (!connectedId) {
@@ -6363,6 +6364,17 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     if ((body.scopeMode === 'ALL' && hasSelection) || (body.scopeMode === 'SELECTED' && !hasSelection)) {
       return mockError(400, 'INVALID_INPUT', 'scopeMode 와 선택 목록이 일치하지 않습니다')
     }
+    const requestedVersion = body.version == null ? null : Number(body.version)
+    const savedScope = MOCK_CODEF_IMPORT_SCOPES[connectedId]
+    if (savedScope
+      ? requestedVersion !== savedScope.version
+      : requestedVersion !== null) {
+      return mockError(
+        409,
+        'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT',
+        '다른 화면에서 가져오기 선택이 변경되었습니다. 최신 선택을 확인한 뒤 다시 저장해 주세요.',
+      )
+    }
     const saved = {
       connectedId,
       accountRefs: normalizeMockRefs(body.accountRefs),
@@ -6370,6 +6382,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       loanRefs: normalizeMockRefs(body.loanRefs),
       defaultImportType: body.defaultImportType ?? 'ALL',
       scopeMode: body.scopeMode,
+      version: savedScope ? savedScope.version + 1 : 0,
     }
     MOCK_CODEF_IMPORT_SCOPES[connectedId] = saved
     return envelope(saved)
@@ -6388,6 +6401,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         loanRefs: [],
         defaultImportType: 'ALL' as const,
         scopeMode: null,
+        version: null,
       })
     }
     return envelope(saved)
@@ -17469,6 +17483,7 @@ type MockCodefScope = {
   loanRefs: string[]
   defaultImportType: MockCodefImportType
   scopeMode: 'ALL' | 'SELECTED'
+  version: number
 }
 
 type MockCodefRegisteredInstitution = {

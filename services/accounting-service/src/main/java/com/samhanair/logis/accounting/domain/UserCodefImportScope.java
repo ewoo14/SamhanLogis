@@ -11,6 +11,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -71,6 +72,11 @@ public class UserCodefImportScope extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "scope_mode", nullable = false, length = 20)
     private CodefScopeMode scopeMode = CodefScopeMode.SELECTED;
+
+    /** 같은 사용자·연결의 낡은 저장 요청을 구별하는 행 버전. API에는 잠금값으로만 노출한다. */
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     /**
      * 신규 사용자별 선택 scope 를 생성한다.

@@ -26,6 +26,8 @@ import com.samhanair.logis.inventory.web.dto.InboundInspectionLineResult;
 import com.samhanair.logis.inventory.web.dto.InboundInspectionRequest;
 import com.samhanair.logis.inventory.web.dto.InboundInspectionSummaryResponse;
 import jakarta.persistence.OptimisticLockException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -271,7 +273,7 @@ public class InboundInspectionService {
                     inspection.getSlipNo(),   // lotNo = slipNo
                     normalQty,
                     LocalDateTime.now(),
-                    slipLine.unitPrice()));
+                    inboundUnitCost(slipLine)));
 
             // StockBalance 가산 (낙관적 락 1회 재시도)
             StockBalance balance = loadOrCreateBalance(productId, warehouse);
@@ -370,6 +372,20 @@ public class InboundInspectionService {
 
     private boolean isInventoryExcluded(ProductSummary product) {
         return !product.goods() || PRODUCT_TYPE_BUNDLE.equals(product.productType());
+    }
+
+    /**
+     * 검수 입고 원가를 공급가액 기준으로 정규화한다.
+     * 정상 라인은 supplyAmount가 unitPrice×quantity라 기존 원가가 유지되고, 권위 금액 라인은
+     * 화면 입력 단가가 VAT 포함일 수 있으므로 공급가액/수량으로 VAT를 제외한다. 공급가액이
+     * 없는 legacy 응답은 기존 unitPrice를 그대로 사용한다.
+     */
+    private BigDecimal inboundUnitCost(SlipLineDetail line) {
+        if (line.supplyAmount() != null && line.quantity() > 0) {
+            return line.supplyAmount()
+                    .divide(BigDecimal.valueOf(line.quantity()), 2, RoundingMode.HALF_UP);
+        }
+        return line.unitPrice();
     }
 
     private static String slipStatusDisplayName(String status) {

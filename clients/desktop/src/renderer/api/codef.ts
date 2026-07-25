@@ -35,8 +35,10 @@ export interface CodefImportScope {
    * 저장된 선택 범위. 저장 요청(PUT)에서는 항상 명시(ALL/SELECTED)해야 한다.
    * 조회 응답(GET)에서는 한 번도 저장한 적 없으면 {@code null}(미저장)로 온다 —
    * '전체 저장'과 '미저장'을 재방문 시에도 구별하기 위한 3-상태 필드다(#825 슬5 R1 H-4).
-   */
+  */
   scopeMode: CodefScopeMode | null
+  /** 저장 행 버전. 미저장 상태는 null이며 PUT 요청의 낙관적 잠금값으로 사용한다. */
+  version: number | null
 }
 
 export interface CodefScopedImportRequest {
