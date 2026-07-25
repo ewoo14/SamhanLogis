@@ -41,12 +41,22 @@ npm run build
 # 4) Windows .exe 릴리스 패키지 (명시 버전 필수)
 $env:VITE_APP_VERSION = '2026/07/25-91003'
 npm run build:win
+
+# 5) PWA 릴리스 (명시 버전 필수)
+npm run build:web:release
+
+# 6) Capacitor 릴리스 자산 + Android sync (명시 버전 필수)
+npm run cap:sync:release
 ```
 
 `build:win`은 릴리스 wrapper가 `VITE_APP_VERSION`을 먼저 검증하고
 `SAMHAN_RELEASE_BUILD=1`을 하위 빌드에 전파합니다. 버전이 없으면 `0.1.0-dev`를 사용하지 않고
 즉시 실패합니다. 성공한 패키지는 사람이 구분할 수 있도록 `release/2026-07-25-91003/` 아래에
-생성됩니다. 일반 `build`·`build:web`·`build:capacitor`는 개발·CI용 고정 `0.1.0-dev` 경로입니다.
+생성됩니다. `electron-builder`를 직접 호출하는 경우에도 같은 릴리스 환경변수와 일치하는 renderer가
+필수이며, 그렇지 않으면 `beforePack` 검증에서 실패합니다. 일반 `build`·`build:web`·`build:capacitor`는
+개발·CI 전용 고정 `0.1.0-dev` 경로이고 배포하지 않습니다. PWA 배포는 `build:web:release`,
+Capacitor 배포는 `cap:sync:release`만 사용합니다. 릴리스 wrapper는 산출물에 `.samhan-release.json`을
+남겨 배포 직전에 버전과 릴리스 여부를 확인할 수 있게 합니다.
 
 ## 환경 변수
 
@@ -194,7 +204,7 @@ desktop 백오피스를 **설치형 PWA**로도 배포 가능하게 `vite-plugin
 
 | config | 용도 | vite-plugin-pwa |
 |---|---|---|
-| `vite.web.config.ts` | 웹/PWA 배포 (`npm run build:web`) | full `generateSW` — 앱셸 precache + 실 service worker |
+| `vite.web.config.ts` | 웹/PWA 개발·CI (`npm run build:web`) / 릴리스 (`npm run build:web:release`) | full `generateSW` — 앱셸 precache + 실 service worker |
 | `electron.vite.config.ts` | Electron 빌드 | `disable: true` (no-op) |
 | `vite.config.ts` | dev/mock 서버 (`npx vite src/renderer`, Playwright mock gate) | `virtual:pwa-register` no-op stub (SW 없음) |
 
@@ -210,16 +220,17 @@ Electron/PWA renderer 를 재사용하는 "one renderer, multiple targets" 구�
 | target | command | output | 인증/라우팅 |
 |---|---|---|---|
 | Electron desktop | `npm run build` | `out/main`, `out/preload`, `out/renderer` | Electron IPC + Bearer, HashRouter |
-| PWA web | `npm run build:web` | `dist/web` | httpOnly 쿠키, BrowserRouter, service worker |
-| Capacitor native | `npm run build:capacitor` | `dist/capacitor` | `capacitorAuthProvider` Bearer + Preferences, HashRouter |
+| PWA web 개발·CI | `npm run build:web` | `dist/web` (배포 금지 sentinel) | httpOnly 쿠키, BrowserRouter, service worker |
+| PWA web 릴리스 | `npm run build:web:release` | `dist/web` + `.samhan-release.json` | 명시 버전, httpOnly 쿠키, BrowserRouter, service worker |
+| Capacitor native 개발·CI | `npm run build:capacitor` | `dist/capacitor` (배포 금지 sentinel) | `capacitorAuthProvider` Bearer + Preferences, HashRouter |
+| Capacitor native 릴리스 | `npm run cap:sync:release` | `dist/capacitor` + `.samhan-release.json` | 명시 버전, Bearer + Preferences, HashRouter |
 | 개발/mock | `npm run dev` 또는 mock webServer | Vite dev server | PWA stub, service worker 없음 |
 
 Capacitor 빌드는 `vite.capacitor.config.ts`를 사용하며 `VITE_PLATFORM='capacitor'`, `base:''`, `dist/capacitor` 산출로 고정한다. PWA service worker 는 주입하지 않아 `dist/web` 캐시 정책과 네이티브 WebView 자산을 분리한다.
 
 ```powershell
 cd clients/desktop
-npm run build:capacitor
-npx cap sync android
+npm run cap:sync:release
 npx cap open android
 ```
 

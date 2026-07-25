@@ -128,6 +128,20 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("개발 sentinel은 정식 최소 지원 버전보다 낮아도 개발자 접속을 차단하지 않는다")
+    void publicVersion_whenCurrentIsDevelopmentSentinel_failsOpen() throws Exception {
+        insertRelease("DESKTOP", "2026/07/26-9911", "CRITICAL", "긴급 업데이트", "2026/07/26-9911");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "DESKTOP")
+                        .param("currentVersion", "0.1.0-dev"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("2026/07/26-9911"))
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("2026/07/26-9911"))
+                .andExpect(jsonPath("$.data.forceLevel").value("NONE"));
+    }
+
+    @Test
     @DisplayName("개발 버전 릴리스는 슬래시 날짜-번호를 그대로 등록·조회한다")
     void developmentVersion_isStoredAndReturnedWithoutSemverSubstitution() throws Exception {
         String createBody = """
@@ -150,7 +164,7 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @ParameterizedTest(name = "잘못된 개발 버전 {0}은 등록을 거부한다")
-    @ValueSource(strings = {"2026-07-25-1", "2026/7/5-1", "0.1.0"})
+    @ValueSource(strings = {"2026-07-25-1", "2026/7/5-1", "0.1.0", "0.1.0-dev"})
     @DisplayName("릴리스 등록은 YYYY/MM/DD-번호가 아닌 version을 한국어로 거부한다")
     void adminCreate_rejectsNonDevelopmentVersionWithKoreanGuide(String version) throws Exception {
         String createBody = """

@@ -11,6 +11,9 @@ import java.util.regex.Pattern;
 /** 개발 버전과 마이그레이션 전 semver를 함께 비교하는 앱 버전 유틸리티. */
 public final class Semver {
 
+    /** 무주입 개발·CI 산출물이 사용하는 고정 sentinel. 정식 릴리스 버전이 아니다. */
+    public static final String DEVELOPMENT_SENTINEL = "0.1.0-dev";
+
     private static final Pattern DEVELOPMENT_VERSION_PATTERN =
             Pattern.compile("^(\\d{4})/(\\d{2})/(\\d{2})-([1-9][0-9]*)$");
 
@@ -80,6 +83,11 @@ public final class Semver {
         }
         parseDevelopmentVersion(value, "version");
         return true;
+    }
+
+    /** 개발 sentinel인지 반환한다. sentinel은 릴리스 순서·최소 지원 판정의 대상이 아니다. */
+    public static boolean isDevelopmentSentinel(String value) {
+        return DEVELOPMENT_SENTINEL.equals(value == null ? null : value.trim());
     }
 
     private static boolean looksLikeDevelopmentVersion(String raw) {

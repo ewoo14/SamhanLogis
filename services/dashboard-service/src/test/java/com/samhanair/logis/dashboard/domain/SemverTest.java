@@ -82,7 +82,8 @@ class SemverTest {
             "2026/02/30-1",
             "2026/07/25-0",
             "2026/07/25-01",
-            "0.1.0"
+            "0.1.0",
+            "0.1.0-dev"
     })
     void requireDevelopmentVersion_rejects_non_development_format(String value) {
         assertThatThrownBy(() -> Semver.requireDevelopmentVersion(value, "version"))
@@ -94,5 +95,13 @@ class SemverTest {
     void requireDevelopmentVersion_accepts_zero_padded_date_and_numeric_sequence() {
         assertThatCode(() -> Semver.requireDevelopmentVersion("2026/07/05-10", "version"))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void isDevelopmentSentinel_acceptsOnlyFixedDevelopmentValue() {
+        assertThat(Semver.isDevelopmentSentinel("0.1.0-dev")).isTrue();
+        assertThat(Semver.isDevelopmentSentinel(" 0.1.0-dev ")).isTrue();
+        assertThat(Semver.isDevelopmentSentinel("0.1.0")).isFalse();
+        assertThat(Semver.isDevelopmentSentinel("2026/07/26-1")).isFalse();
     }
 }

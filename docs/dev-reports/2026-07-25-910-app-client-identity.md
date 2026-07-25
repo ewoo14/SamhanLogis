@@ -1015,3 +1015,140 @@ Desktop Vitest: 169 files / 1337 tests passed
 Playwright version-management-v1b: 6 passed
 AppReleaseControllerIT: tests=21 skipped=0 failures=0 errors=0
 ```
+
+## 14. 2026-07-26 SOL G11~G13 닫는 보완
+
+### 14-1. RED 원문
+
+수정 전 무주입 개발 산출물은 세 경로 모두 sentinel을 실제 renderer에 넣었다.
+
+```text
+dev-electron:file=out\renderer\assets\index-DSb77JMF.js
+dev-electron:context=const CURRENT_VERSION = resolveBuildAppVersion("0.1.0-dev")
+dev-web:file=dist\web\assets\index-DL_rRx66.js
+dev-web:context=const kb=y7e("0.1.0-dev"),Lb=!1
+dev-capacitor:file=dist\capacitor\assets\index-D9l1m-iz.js
+dev-capacitor:context=const kb=y7e("0.1.0-dev"),Lb=!1
+```
+
+기존 서버 판정은 정식 릴리스의 최소 지원 버전보다 sentinel을 낮게 보아 개발자를
+차단했다.
+
+```text
+AppReleaseControllerIT > 개발 sentinel은 정식 최소 지원 버전보다 낮아도 개발자 접속을 차단하지 않는다 FAILED
+22 tests completed, 1 failed
+BUILD FAILED
+```
+
+Electron 직접 포장은 수정 전에는 위 sentinel renderer를 그대로 포장할 수 있었고,
+이번 보완 전후를 가르는 우회 재현은 다음과 같다.
+
+```text
+ASAR_SENTINEL_CURRENT_VERSION_FILES=["\out\renderer\assets\index-DSb77JMF.js"]
+```
+
+### 14-2. G11~G13 구현과 긴장 해소
+
+- PWA 릴리스는 `build:web:release`, Capacitor 릴리스와 sync는
+  `cap:sync:release`로 분리했다. 무주입 `build:web`·`build:capacitor`는 개발·CI용
+  sentinel 빌드로 계속 성공하지만 README에서 배포 금지로 명시하고, 릴리스 wrapper가
+  없는 산출물에는 `.samhan-release.json`이 없다.
+- PWA·Capacitor wrapper는 공통 release environment를 통해 버전을 주입한 뒤 실제 JS
+  번들에 그 값이 존재하는지 검사하고, 검증된 버전과 `release: true` 표식을 기록한다.
+- `electron-builder.yml`의 `beforePack`은 릴리스 모드, 주입 버전, artifact 경로,
+  현재 `out/renderer`의 정확한 `CURRENT_VERSION`을 모두 검사한다. 따라서 직접
+  `electron-builder`를 호출하거나 stale renderer를 재사용해도 포장 전에 실패한다.
+- Capacitor 설정도 릴리스 표식 없는 `dist/capacitor`의 직접 sync를 거부하며,
+  관례적인 `cap:sync` 명령은 보호된 `cap:sync:release`로 연결했다.
+- 서버는 `0.1.0-dev`를 유효한 요청으로는 받되 릴리스 순서·최소 지원 비교에서는
+  제외하고 `latestVersion`/`minSupportedVersion`은 반환하면서 `forceLevel=NONE`을
+  응답한다. 최신 릴리스 자체가 없을 때 404로 끝나는 기존 A4 fail-open 경로는
+  변경하지 않았다. admin 등록은 기존 `requireDevelopmentVersion`을 유지하므로
+  sentinel을 릴리스로 등록할 수 없다.
+
+즉 G11과 G7은 명령의 의도로 분리했다. 개발 명령은 무주입 성공을 보장하고, 실제
+배포 명령은 명시 버전·실제 번들 검증·릴리스 표식을 요구한다. G12는 잘못 배포된
+sentinel을 정식 릴리스로 승격시키지 않고 판정 단계에서만 차단을 면하게 하므로,
+G13 및 G8과 충돌하지 않는다.
+
+### 14-3. GREEN 원문
+
+릴리스 경로:
+
+```text
+무주입 npm run build:win
+[release-build] VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다. 릴리스 모드에서는 개발 sentinel을 사용하지 않습니다.
+Exit code: 1
+
+무주입 npx electron-builder --win --dir
+cannot expand pattern "release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}": env SAMHAN_RELEASE_ARTIFACT_VERSION is not defined
+Exit code: 1
+
+stale renderer + 릴리스 환경을 강제로 준 직접 포장
+포장할 renderer가 VITE_APP_VERSION=2026/07/25-91003으로 빌드되지 않았습니다.
+Exit code: 1
+
+무주입 npx cap sync android
+Error: Capacitor sync는 명시 버전으로 build:capacitor:release를 먼저 실행해야 합니다.
+Exit code: 1
+```
+
+명시 주입 PWA/Capacitor 번들 확인:
+
+```text
+release-web:file=dist\web\assets\index-DMuQ4gZx.js
+release-web:context=const kb=y7e("2026/07/25-91003"),Lb=!1
+release-web:marker={"artifact":"dist/web","appVersion":"2026/07/25-91003","release":true}
+
+release-capacitor:file=dist\capacitor\assets\index-BRAtF4wk.js
+release-capacitor:context=const kb=y7e("2026/07/25-91003"),Lb=!1
+release-capacitor:marker={"artifact":"dist/capacitor","appVersion":"2026/07/25-91003","release":true}
+```
+
+개발·CI 경로는 다음과 같이 모두 성공했고 최종 산출물에는 릴리스 표식이 없다.
+
+```text
+npm run build             Exit code: 0
+npm run build:web         Exit code: 0
+npm run build:capacitor   Exit code: 0
+npx cap sync android      Exit code: 1 (개발 sentinel 보호)
+
+electron: CURRENT_VERSION = resolveBuildAppVersion("0.1.0-dev")
+web:      const kb=y7e("0.1.0-dev"),Lb=!1
+capacitor:const kb=y7e("0.1.0-dev"),Lb=!1
+release-marker=false (세 경로)
+```
+
+G12 서버 회귀:
+
+```text
+<testsuite name="com.samhanair.logis.dashboard.it.AppReleaseControllerIT"
+ tests="23" skipped="0" failures="0" errors="0">
+<testsuite name="com.samhanair.logis.dashboard.domain.SemverTest"
+ tests="35" skipped="0" failures="0" errors="0">
+BUILD SUCCESSFUL
+```
+
+`Semver.java` 단독 javac/java probe도 UTF-8로 통과했다.
+
+```text
+compare("0.1.0-dev","0.1.0")=-1
+compare("0.1.0-dev","2026/07/25-1")=-1
+compare("2026/07/25-2","2026/07/25-10")=-1
+sentinel=true
+```
+
+기타 회귀:
+
+```text
+typecheck: exit 0
+round-910-contract: 9 passed, 0 failed
+Vitest: 169 files / 1337 tests passed
+Playwright version-management-v1b: 6 passed
+mobile: 1 suite / 7 tests passed
+mobile-staff: 2 suites / 8 tests passed
+arologis-mobile: 8 suites / 30 tests passed
+```
+
+`cap:sync:release` 자체도 주입 버전으로 sync를 완료했으며, Capacitor가 생성한 Android
+plugin 목록의 tracked 보조 변경은 작업 후 원상 복구했다.

@@ -65,6 +65,38 @@ test('build:win은 무주입 릴리스 산출물을 만들기 전에 명시 버�
   assert.equal(output.includes('[build-legacy-estimate]'), false)
 })
 
+test('PWA·Capacitor 릴리스 wrapper도 무주입 sentinel 산출물을 허용하지 않는다', () => {
+  for (const scriptName of ['build:web:release', 'build:capacitor:release']) {
+    const command = process.platform === 'win32' ? process.env.ComSpec : 'npm'
+    const args = process.platform === 'win32'
+      ? ['/d', '/s', '/c', `npm run ${scriptName}`]
+      : ['run', scriptName]
+    const result = spawnSync(command, args, {
+      cwd: DESKTOP_DIR,
+      env: {
+        ...process.env,
+        VITE_APP_VERSION: '',
+        SAMHAN_RELEASE_BUILD: '',
+        BUILD_ENV: '',
+      },
+      encoding: 'utf8',
+    })
+    const output = `${result.stdout}\n${result.stderr}`
+    assert.notEqual(result.status, 0, `${scriptName}\n${result.error ?? ''}\n${output}`)
+    assert.match(output, /릴리스.*명시|VITE_APP_VERSION.*명시/, `${scriptName}\n${output}`)
+  }
+})
+
+test('Electron 직접 포장과 Capacitor sync도 릴리스 표식 없는 산출물을 거부한다', () => {
+  const builderConfig = read('clients/desktop/electron-builder.yml')
+  assert.match(builderConfig, /beforePack:\s*scripts\/validate-desktop-release\.cjs/)
+  assert.match(builderConfig, /SAMHAN_RELEASE_ARTIFACT_VERSION/)
+
+  const capacitorConfig = read('clients/desktop/capacitor.config.ts')
+  assert.match(capacitorConfig, /dist\/capacitor\/\.samhan-release\.json/)
+  assert.match(read('clients/desktop/package.json'), /"cap:sync":\s*"npm run cap:sync:release"/)
+})
+
 test('데스크톱의 모든 Vite 빌드 설정은 0.0.0 폴백 없이 공통 버전 해석기를 사용한다', () => {
   for (const relativePath of [
     'clients/desktop/electron.vite.config.ts',

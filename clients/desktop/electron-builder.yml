@@ -20,6 +20,7 @@ forceCodeSigning: true
 directories:
   output: release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}
   buildResources: build
+beforePack: scripts/validate-desktop-release.cjs
 
 files:
   - out/**/*
