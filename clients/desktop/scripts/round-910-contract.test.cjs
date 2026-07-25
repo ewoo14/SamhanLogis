@@ -29,6 +29,7 @@ function electronBuild(envOverrides) {
 test('Electron 산출물은 릴리스 주입과 개발 sentinel을 구분한다', () => {
   const output = electronBuild({ VITE_APP_VERSION: '2026/07/25-91001' })
   assert.match(output, /2026\/07\/25-91001/)
+  assert.match(output, /CURRENT_VERSION\s*=\s*resolveBuildAppVersion\(\s*["']2026\/07\/25-91001["']/)
   assert.equal(output.includes('CURRENT_VERSION = resolveBuildAppVersion("0.0.0")'), false)
 
   const developmentOutput = electronBuild({ VITE_APP_VERSION: '', SAMHAN_RELEASE_BUILD: '' })
@@ -42,6 +43,26 @@ test('Electron 산출물은 릴리스 주입과 개발 sentinel을 구분한다'
   })
   assert.notEqual(releaseResult.status, 0, `${releaseResult.error ?? ''}\n${releaseResult.stdout}\n${releaseResult.stderr}`)
   assert.match(`${releaseResult.stdout}\n${releaseResult.stderr}`, /릴리스.*명시|VITE_APP_VERSION.*명시/)
+})
+
+test('build:win은 무주입 릴리스 산출물을 만들기 전에 명시 버전 오류로 중단한다', () => {
+  const isWindows = process.platform === 'win32'
+  const command = isWindows ? process.env.ComSpec : 'npm'
+  const args = isWindows ? ['/d', '/s', '/c', 'npm run build:win'] : ['run', 'build:win']
+  const result = spawnSync(command, args, {
+    cwd: DESKTOP_DIR,
+    env: {
+      ...process.env,
+      VITE_APP_VERSION: '',
+      SAMHAN_RELEASE_BUILD: '',
+      BUILD_ENV: '',
+    },
+    encoding: 'utf8',
+  })
+  const output = `${result.stdout}\n${result.stderr}`
+  assert.notEqual(result.status, 0, output)
+  assert.match(output, /\[release-build\].*VITE_APP_VERSION.*명시/, `${result.error ?? ''}\n${output}`)
+  assert.equal(output.includes('[build-legacy-estimate]'), false)
 })
 
 test('데스크톱의 모든 Vite 빌드 설정은 0.0.0 폴백 없이 공통 버전 해석기를 사용한다', () => {
@@ -73,6 +94,34 @@ test('Expo 3앱의 app.config는 무주입 개발 sentinel을 사용한다', () 
     })
     assert.equal(result.status, 0, `${relativePath}\n${result.stdout}\n${result.stderr}`)
     assert.equal(result.stdout, '0.1.0-dev', relativePath)
+  }
+})
+
+test('Expo EAS preview·production 프로파일은 명시 버전 없이 릴리스 산출물을 허용하지 않는다', () => {
+  const apps = [
+    ['clients/mobile/eas.json', 'clients/mobile/app.config.js'],
+    ['clients/mobile-staff/eas.json', 'clients/mobile-staff/app.config.js'],
+    ['clients/arologis-mobile/eas.json', 'clients/arologis-mobile/app.config.js'],
+  ]
+  for (const [easPath, appConfigPath] of apps) {
+    const eas = JSON.parse(read(easPath))
+    for (const profile of ['preview', 'production']) {
+      assert.equal(eas.build[profile].env.BUILD_ENV, profile, `${easPath}:${profile}`)
+      const script = [
+        `const cfg = require(${JSON.stringify(join(REPOSITORY_DIR, appConfigPath))})`,
+        'process.stdout.write(String(cfg.expo.extra.appVersion))',
+      ].join(';')
+      const result = spawnSync(process.execPath, ['-e', script], {
+        env: {
+          ...process.env,
+          BUILD_ENV: profile,
+          EXPO_PUBLIC_APP_VERSION: '',
+        },
+        encoding: 'utf8',
+      })
+      assert.notEqual(result.status, 0, `${easPath}:${profile}\n${result.stdout}\n${result.stderr}`)
+      assert.match(`${result.stdout}\n${result.stderr}`, /EXPO_PUBLIC_APP_VERSION.*명시/, `${easPath}:${profile}`)
+    }
   }
 })
 

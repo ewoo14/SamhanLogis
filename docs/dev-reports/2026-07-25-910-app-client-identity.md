@@ -922,3 +922,96 @@ EXPO_PUBLIC_APP_VERSION=2026/07/25-91002  INJECTED_EXPO_CONFIG_EXIT=0
 
 CI workflow는 수정하지 않았으며, `git diff --name-only -- .github/workflows` 출력은 비어 있다.
 따라서 이번 보완에는 PyYAML workflow 파싱이 필요하지 않다.
+
+## 13. 2026-07-25 PM 재지적 G9/G10 릴리스 경로 보완
+
+### 13-1. RED 원문
+
+수정 전 `npm run build:win`은 `electron-vite`까지 무주입 sentinel로 진행했다. 이 호스트는
+`DESKTOP_UPDATE_URL`이 없어 `electron-builder`에서 추가 실패했지만, sentinel 산출물은 이미
+생성되었다.
+
+```text
+> @samhan/desktop@0.1.0 build:win
+> npm run build:legacy && electron-vite build && electron-builder --win
+
+assets/index-DSb77JMF.js
+packaging ... appOutDir=release\0.1.0\win-unpacked
+cannot expand pattern "${env.DESKTOP_UPDATE_URL}": env DESKTOP_UPDATE_URL is not defined
+
+CURRENT_VERSION = resolveBuildAppVersion(
+  "0.1.0-dev"
+);
+```
+
+### 13-2. G9/G10 구현
+
+`clients/desktop/package.json`의 `build:win`을
+`scripts/build-desktop-release.cjs` wrapper로 교체했다. wrapper는 실제 하위 명령 전에
+공통 resolver를 릴리스 모드(`SAMHAN_RELEASE_BUILD=1`)로 호출한다. 버전이 없으면 즉시
+실패하며, 성공 시 검증된 `VITE_APP_VERSION`, 릴리스 플래그, 안전한 산출물 표기 버전을
+`build:legacy`, `electron-vite`, `electron-builder`에 모두 전달한다.
+
+`electron-vite` 이후에는 renderer의 실제 `CURRENT_VERSION` 주입 문자열을 다시 검사한다.
+`electron-builder.yml`의 출력 경로와 파일명도 `release/2026-07-25-91003/`처럼 사람이
+식별할 수 있는 버전을 사용한다. 개발 명령은 package script가 wrapper를 거치지 않아 기존
+`0.1.0-dev` sentinel 경로를 유지한다. 이것으로 G9와 G7을 명령 자체에서 분리했다.
+
+Expo 3개 앱의 EAS `preview`/`production` 프로파일은 기존 `BUILD_ENV=preview|production`
+설정으로 릴리스 모드에 진입하고, `EXPO_PUBLIC_APP_VERSION`이 없으면 app.config에서
+실패한다. 각 README에 주입 명령과 실패 정책을 명시했다.
+
+### 13-3. GREEN 원문
+
+```text
+무주입 릴리스 명령
+> @samhan/desktop@0.1.0 build:win
+> node ../../scripts/build-desktop-release.cjs
+[release-build] VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다. 릴리스 모드에서는 개발 sentinel을 사용하지 않습니다.
+Exit code: 1
+```
+
+```text
+주입 릴리스 명령
+[release-build] VITE_APP_VERSION=2026/07/25-91003
+✓ built in 4.20s
+packaging ... appOutDir=release\2026-07-25-91003\win-unpacked
+```
+
+renderer 및 `app.asar` 확인:
+
+```text
+CURRENT_VERSION = resolveBuildAppVersion(
+  "2026/07/25-91003"
+);
+release-asar ... current=2026/07/25-91003 ... zeroLiteral=false
+```
+
+`electron-builder` 최종 installer 생성은 이 Windows 환경의 심볼릭 링크 권한으로 중단됐다.
+중단 원문은 `Cannot create symbolic link ... client has required privilege`이며, 버전 guard,
+renderer 빌드, 버전 경로 packaging까지는 성공했다.
+
+```text
+clients/mobile:preview:missing_status=1:injected_status=0:injected_value=2026/07/25-91003
+clients/mobile:production:missing_status=1:injected_status=0:injected_value=2026/07/25-91003
+clients/mobile-staff:preview:missing_status=1:injected_status=0:injected_value=2026/07/25-91003
+clients/mobile-staff:production:missing_status=1:injected_status=0:injected_value=2026/07/25-91003
+clients/arologis-mobile:preview:missing_status=1:injected_status=0:injected_value=2026/07/25-91003
+clients/arologis-mobile:production:missing_status=1:injected_status=0:injected_value=2026/07/25-91003
+```
+
+G7 무주입 경로는 `build`, `build:web`, `build:capacitor`, Expo config 모두 exit 0이다.
+실제 개발 산출물은 각각 `CURRENT_VERSION` 또는 번들 상수로 `0.1.0-dev`를 보고하고
+`0.0.0`은 포함하지 않는다. `npm run dev`도 Electron 프로세스까지 기동했으며, timeout으로
+남은 테스트 프로세스는 종료했다.
+
+계약·회귀 검증:
+
+```text
+node --test scripts/app-build-version.test.cjs: 5 passed, 0 failed
+node --test scripts/round-910-contract.test.cjs: 7 passed, 0 failed
+Desktop typecheck: exit 0
+Desktop Vitest: 169 files / 1337 tests passed
+Playwright version-management-v1b: 6 passed
+AppReleaseControllerIT: tests=21 skipped=0 failures=0 errors=0
+```

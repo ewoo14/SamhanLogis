@@ -15,7 +15,7 @@
     "build:capacitor": "vite build --config vite.capacitor.config.ts",
     "cap:sync": "npm run build:capacitor && cap sync android",
     "preview": "electron-vite preview",
-    "build:win": "npm run build:legacy && electron-vite build && electron-builder --win",
+    "build:win": "node ../../scripts/build-desktop-release.cjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
     "test:round-910-contract": "node --test scripts/round-910-contract.test.cjs",

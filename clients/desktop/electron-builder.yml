@@ -12,13 +12,13 @@
 appId: com.samhanair.logis.desktop
 productName: Samhan Public
 copyright: Copyright (c) 2026 (주)삼한공조시스템
-artifactName: ${productName}-${version}-${arch}.${ext}
+artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}.${ext}
 # publisherName만으로는 서명되지 않는다. 인증서가 없으면 빌드를 실패시켜
 # SmartScreen/업데이트 서명 검증이 우회되지 않도록 한다.
 forceCodeSigning: true
 
 directories:
-  output: release/${version}
+  output: release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}
   buildResources: build
 
 files:
@@ -58,7 +58,7 @@ nsis:
   language: '1042'  # Korean
 
 portable:
-  artifactName: ${productName}-${version}-${arch}-portable.${ext}
+  artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}-portable.${ext}
 
 # private GitHub Releases는 클라이언트에 토큰을 배포해야 하므로 사용하지 않는다.
 # 빌드 환경에서 DESKTOP_UPDATE_URL을 HTTPS 사내 정적 피드 주소로 주입한다.

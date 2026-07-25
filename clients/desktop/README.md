@@ -38,10 +38,15 @@ npm run dev
 # 3) 정적 빌드 — out/main, out/preload, out/renderer 산출
 npm run build
 
-# 4) Windows .exe 패키지 (electron-builder)
-#    DevOps 가 electron-builder.yml 을 작성한 뒤 실행 가능합니다.
+# 4) Windows .exe 릴리스 패키지 (명시 버전 필수)
+$env:VITE_APP_VERSION = '2026/07/25-91003'
 npm run build:win
 ```
+
+`build:win`은 릴리스 wrapper가 `VITE_APP_VERSION`을 먼저 검증하고
+`SAMHAN_RELEASE_BUILD=1`을 하위 빌드에 전파합니다. 버전이 없으면 `0.1.0-dev`를 사용하지 않고
+즉시 실패합니다. 성공한 패키지는 사람이 구분할 수 있도록 `release/2026-07-25-91003/` 아래에
+생성됩니다. 일반 `build`·`build:web`·`build:capacitor`는 개발·CI용 고정 `0.1.0-dev` 경로입니다.
 
 ## 환경 변수
 

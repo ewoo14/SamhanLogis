@@ -14,6 +14,15 @@ npx expo prebuild --no-install       # ios/android native 프로젝트 생성 (s
 eas build --profile preview --platform android
 ```
 
+preview/production은 `BUILD_ENV`가 릴리스 모드로 동작하므로 `EXPO_PUBLIC_APP_VERSION`을
+반드시 `YYYY/MM/DD-번호` 형식으로 주입해야 합니다. 누락하면 `0.1.0-dev` sentinel 대신
+app.config 단계에서 실패합니다.
+
+```powershell
+$env:EXPO_PUBLIC_APP_VERSION = '2026/07/25-91003'
+eas build --profile production --platform android
+```
+
 ## 환경 변수
 
 | 변수 | 기본값 | 설명 |

@@ -3,6 +3,7 @@
 const DEVELOPMENT_VERSION_PATTERN = /^(\d{4})\/(\d{2})\/(\d{2})-([1-9][0-9]*)$/
 const DEVELOPMENT_FALLBACK_VERSION = '0.1.0-dev'
 const RELEASE_BUILD_ENV = 'SAMHAN_RELEASE_BUILD'
+const RELEASE_ARTIFACT_VERSION_ENV = 'SAMHAN_RELEASE_ARTIFACT_VERSION'
 
 /**
  * 빌드 산출물에 넣을 개발 버전을 해석한다.
@@ -32,6 +33,30 @@ function resolveBuildAppVersion({
   return injected
 }
 
+/**
+ * 데스크톱 릴리스 하위 프로세스에 검증된 버전과 릴리스 모드를 전달한다.
+ * 릴리스 명령은 개발 sentinel을 사용할 수 없으므로 공통 resolver를 릴리스 모드로
+ * 고정한 뒤, 정규화한 버전을 자식 프로세스 환경에도 다시 기록한다.
+ */
+function createReleaseBuildEnvironment({
+  env = process.env,
+  variable = 'VITE_APP_VERSION',
+} = {}) {
+  const releaseEnv = {
+    ...env,
+    [RELEASE_BUILD_ENV]: '1',
+  }
+  const appVersion = resolveBuildAppVersion({ env: releaseEnv, variable })
+  return {
+    appVersion,
+    env: {
+      ...releaseEnv,
+      [variable]: appVersion,
+      [RELEASE_ARTIFACT_VERSION_ENV]: appVersion.replaceAll('/', '-'),
+    },
+  }
+}
+
 function isReleaseBuild(env) {
   const buildEnv = String(env.BUILD_ENV ?? '').trim().toLowerCase()
   return /^(1|true|yes)$/i.test(String(env[RELEASE_BUILD_ENV] ?? '').trim())
@@ -59,6 +84,8 @@ module.exports = {
   DEVELOPMENT_FALLBACK_VERSION,
   DEVELOPMENT_VERSION_PATTERN,
   RELEASE_BUILD_ENV,
+  RELEASE_ARTIFACT_VERSION_ENV,
+  createReleaseBuildEnvironment,
   resolveBuildAppVersion,
   validateDevelopmentVersion,
 }
