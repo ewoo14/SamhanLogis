@@ -49,6 +49,10 @@ const DEFAULT_CONNECTED_ID = 'connected-main'
 /** 범위 미선택 안내 문구 id — 잠긴 버튼/칩에서 aria-describedby 로 사유를 연결한다(#825 슬5 R1 item4). */
 const SCOPE_HINT_ID = 'codef-scope-hint-text'
 const SCOPE_ALL_LOCK_HINT_ID = 'codef-scope-all-lock-hint-text'
+/** 재수렴 R4 N1/N3 — 이번 mount 에서 baseline 확인이 아직 끝나지 않은 동안(확인 중·확인
+ * 실패) 저장·가져오기 버튼에 사유를 연결하는 힌트 id. scopeMode===null 여부와 무관하게
+ * 항상 렌더되므로 SCOPE_HINT_ID(칩 영역 전용)와 별도로 둔다. */
+const SCOPE_UNCONFIRMED_HINT_ID = 'codef-scope-unconfirmed-hint-text'
 const SCOPE_CONFLICT_CODE = 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT'
 
 const CATEGORY_LABEL: Record<CodefScopeCategory, string> = {
@@ -178,6 +182,40 @@ function describeConflictSelection(
   return ` 서버에 저장된 선택: ${resolved.join(', ')}.`
 }
 
+/** GET 이 "저장된 범위 없음"을 의미하는 NOT_FOUND 코드로 응답했는지 판정한다 — 이 경우는
+ * 확인 실패가 아니라 확인된 부재이므로 아래 scopeBaselineUnconfirmed 잠금 대상이 아니다. */
+function isScopeNotFoundError(error: unknown): boolean {
+  if (!isAxiosError(error)) return false
+  const data = error.response?.data as { code?: unknown } | undefined
+  return data?.code === 'NOT_FOUND'
+}
+
+/**
+ * N7 root fix — 재수렴 R4. "삭제 경고"는 화면 저장이 서버의 최신 선택을 실제로 지울 수
+ * 있을 때만 낸다(브리프 N-4: 서버 선택을 화면에 화해해 넣었는데도 여전히 "지워질 수
+ * 있습니다"라고 만류하고, 왜 저장이 잠겼는지 설명도 없던 결함).
+ *
+ * <p>scopeMode='ALL'인 화면은 무엇이든 포괄한다(전체는 모든 항목의 상위집합이다).
+ * scopeMode='SELECTED'인 화면은 세 카테고리 refs 전부가 latest 의 refs 를 부분집합으로
+ * 포함해야 포괄로 본다 — 그래야 저장(전체교체 PUT)이 latest 의 어떤 항목도 지우지 않음을
+ * 보장할 수 있다. latest 가 'ALL'이면 부분 선택 화면은 결코 그것을 포괄할 수 없다(부분
+ * 선택은 전체를 대신하지 못한다).
+ */
+function scopeCoversLatest(
+  current: { scopeMode: CodefScopeMode | null; selection: SelectionState },
+  latest: CodefImportScope,
+): boolean {
+  if (current.scopeMode === 'ALL') return true
+  if (current.scopeMode !== 'SELECTED') return false
+  if (latest.scopeMode === 'ALL') return false
+  if (latest.scopeMode === null) return true
+  const isSuperset = (superset: string[], subset: string[]) =>
+    subset.every((ref) => superset.includes(ref))
+  return isSuperset(current.selection.accountRefs, latest.accountRefs)
+    && isSuperset(current.selection.cardRefs, latest.cardRefs)
+    && isSuperset(current.selection.loanRefs, latest.loanRefs)
+}
+
 export function CodefImportScopeForm({
   canCreate,
   canUpdate,
@@ -202,6 +240,9 @@ export function CodefImportScopeForm({
   // 409 충돌 안내용 스냅샷 — 화면 작업 상태(selection/scopeMode/type)를 대체하지 않는
   // 순수 정보성 상태다. baselineConfirmed 는 F4 판정에 쓰인다(아래 onError 참조).
   const [conflictInfo, setConflictInfo] = useState<ConflictInfo | null>(null)
+  // N-3 root fix(재수렴 R4) — 충돌 배너의 latest=null(재조회 실패) 상태에서 "다시 확인" 중임을
+  // 추적한다. 이 액션은 saveMutation 과 분리된 GET 전용 시도라 별도 pending 플래그가 필요하다.
+  const [isReconfirmingConflict, setIsReconfirmingConflict] = useState(false)
   const [result, setResult] = useState<CodefImportResponse | null>(null)
   const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const queryClient = useQueryClient()
@@ -227,6 +268,24 @@ export function CodefImportScopeForm({
     staleTime: 0,
     refetchOnMount: 'always',
   })
+  // N-1/N-2 root fix(재수렴 R4) — react-query 는 error 액션에서도 data 를 지우지 않는다
+  // (query-core query.js:375-389, error 리듀서가 이전 성공 data 를 그대로 spread 한다).
+  // 그래서 isFetchedAfterMount(구 게이트, dataUpdateCount OR errorUpdateCount)는 "재진입
+  // 재조회가 실패"해도 true 가 되어 낡은 캐시를 "확인됨"으로 오인시킨다. 이 ref 는 mount
+  // 시점의 dataUpdatedAt 을 1회만 캡처해(useRef 초기값은 첫 렌더에만 반영) 이후 그보다
+  // 큰(=이번 mount 에서 진짜로 성공한) 값이 도착했는지만으로 확인 여부를 판정한다 —
+  // isFetching/isSuccess 타이밍 가정에 기대지 않는 결정적 신호다.
+  const mountScopeDataUpdatedAtRef = useRef(scopeQuery.dataUpdatedAt)
+  const scopeConfirmedThisMount = scopeQuery.dataUpdatedAt > mountScopeDataUpdatedAtRef.current
+  // N1/N3 root fix — 이번 mount 에서 아직 성공적으로 확인되지 않았는데(!restoredApplied)
+  // (a) 여전히 확인 중이거나 (b) 확인 시도가 오류로 끝났고 그 오류가 남긴 낡은 데이터가
+  // 있으면(=화면에 무언가를 보여줄 수 있어 오인될 여지가 있으면) "확인 불명" 상태로 본다.
+  // NOT_FOUND(확인된 부재)는 제외한다 — 그것은 실패가 아니라 정상적인 "미저장 확인"이다.
+  const scopeBaselineUnconfirmed = Boolean(
+    !restoredApplied
+    && (scopeQuery.isFetching
+      || (scopeQuery.isError && scopeQuery.data && !isScopeNotFoundError(scopeQuery.error))),
+  )
 
   const accounts = accountsQuery.data ?? []
   const cards = cardsQuery.data ?? []
@@ -241,31 +300,42 @@ export function CodefImportScopeForm({
   }, [scopeQuery.data])
 
   useEffect(() => {
-    // 재진입 시 fresh 캐시가 먼저 보이더라도, 이번 mount에서 완료된 GET 결과만 기준으로
-    // 복원한다. cached v0 을 먼저 복원하고 isFetchedAfterMount 가 true가 되기 전에는
-    // 저장을 열지 않아 v1을 놓치지 않는다.
-    if (!scopeQuery.data || !loadedScopeSelection || restoredApplied || !scopeQuery.isFetchedAfterMount) return
+    // N-1/N-2 root fix(재수렴 R4) — 게이트를 isFetchedAfterMount(성공/오류 어느 쪽으로
+    // "정착"해도 true)가 아니라 scopeConfirmedThisMount(이번 mount 에서 "성공"한 GET만
+    // true)로 바꾼다. 재진입 재조회가 실패하면 이 effect 는 아예 실행되지 않고,
+    // scopeBaselineUnconfirmed(위)가 저장·가져오기를 잠근 채 화면에 "확인 실패" 안내(아래
+    // JSX)를 낸다 — 낡은 캐시(react-query 는 error 액션에서도 data 를 지우지 않는다)를
+    // "복원 완료"로 오인해 보여주지 않는다(N4: baseline 은 이번 mount 의 성공 응답에서만).
+    if (!scopeQuery.data || !loadedScopeSelection || restoredApplied || !scopeConfirmedThisMount) return
     // #825 슬5 R1(H-4) — refs 배열의 비어있음이 아니라 scopeMode 3-상태(null=미저장·ALL·
     // SELECTED)로 복원을 분기한다. refs=[] 는 ALL 저장에서도 나타나는 정상 표현이라(D-S5-02),
     // 종전처럼 refs 비어있음만으로 '미저장'을 추정하면 ALL 로 저장한 뒤 재방문 시 '미선택'으로
     // 잘못 되돌아가는 결함이 있었다(라이브 QA d3-s2c 로 실증됨).
     const savedMode = scopeQuery.data.scopeMode
     setBaseVersion(scopeQuery.data.version)
+    setRestoredApplied(true)
+    if (selectionDirty) {
+      // N2 root fix(재수렴 R4) — 확인이 늦게 도착하는 동안(scopeBaselineUnconfirmed 로
+      // 저장·가져오기가 잠긴 창) 사용자가 이미 화면을 조작했다면(N-1 리포트: 재진입 창에서
+      // 계좌를 체크) 뒤늦게 도착한 서버 확인 결과로 그 입력을 조용히 덮어쓰지 않는다.
+      // baseVersion/restoredScope 는 낙관적 잠금·savedAllScopeDirty 판단을 위해 갱신하되,
+      // 사용자가 만든 selection/scopeMode/type 은 그대로 둔다 — restoredApplied 가 true 가
+      // 된 순간부터 scopeBaselineUnconfirmed 잠금은 풀리고, 사용자가 실제로 고른 값을
+      // 기준으로 정상 동작한다(가져오기도 화면에 보이는 그 값으로 나간다).
+      setRestoredScope(savedMode === null ? null : scopeQuery.data)
+      return
+    }
     if (savedMode === null) {
       setRestoredScope(null)
       setSelection(EMPTY_SELECTION)
       setScopeMode(null)
-      setSelectionDirty(false)
-      setRestoredApplied(true)
       return
     }
     setRestoredScope(scopeQuery.data)
     setScopeMode(savedMode)
     setType(scopeQuery.data.defaultImportType)
     setSelection(savedMode === 'SELECTED' ? loadedScopeSelection : EMPTY_SELECTION)
-    setSelectionDirty(false)
-    setRestoredApplied(true)
-  }, [loadedScopeSelection, restoredApplied, scopeQuery.data, scopeQuery.isFetchedAfterMount])
+  }, [loadedScopeSelection, restoredApplied, scopeQuery.data, scopeConfirmedThisMount, selectionDirty])
 
   const categories = useMemo(() => ([
     {
@@ -514,6 +584,37 @@ export function CodefImportScopeForm({
     },
   })
 
+  /**
+   * N-3 root fix(재수렴 R4) — conflictInfo.latest===null(충돌 후 재조회까지 실패) 상태의
+   * 유일한 저장 수단이었던 "현재 화면 선택으로 다시 저장" 버튼은 baseVersion 을 절대
+   * 갱신하지 않고 그대로 saveMutation.mutate() 만 재호출했다. baseVersion 은 이미 서버보다
+   * 낡은 값으로 확정된 상태였으므로(그래서 애초 409 를 받았다) 그 값으로 재PUT 하면 항상
+   * 다시 409 다 — 몇 번을 눌러도 성공할 수 없는, 성공 가능성 없는 버튼이었다(N5 위반의
+   * 직접 원인). 이 함수는 그 버튼을 대체한다: PUT 을 맹목적으로 반복하지 않고 먼저 GET 으로
+   * 진짜 최신을 다시 확인한다 — 성공하면 baseVersion/conflictInfo 가 갱신되어 화면은 latest
+   * 가 채워진 정상 배너(기존 "현재 화면 선택으로 덮어쓰기" 버튼)로 전환되고, 사용자는 그
+   * 버튼으로 명시적으로 저장을 이어간다(K5). 실패하면 latest=null 상태에 머물되, 이번
+   * 시도가 "진짜 재확인 시도"였다는 점에서 예전의 맹목적 재PUT 과 다르다 — 근본 원인(일시
+   * 장애 등)이 풀리면 다음 재시도는 성공할 수 있다.
+   */
+  async function reconfirmConflictLatest() {
+    setIsReconfirmingConflict(true)
+    try {
+      const latest = await loadCodefImportScope(DEFAULT_CONNECTED_ID)
+      queryClient.setQueryData(['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID], latest)
+      setBaseVersion(latest.version)
+      setConflictInfo({ latest, baselineConfirmed: true })
+    } catch (reloadError) {
+      setConflictInfo({ latest: null, baselineConfirmed: true })
+      onToast({
+        type: 'error',
+        message: `최신 선택 확인에 다시 실패했습니다 — ${errorMessage(reloadError, '원인을 알 수 없습니다.')} 방금 선택한 항목은 화면에 그대로 남아 있습니다.`,
+      })
+    } finally {
+      setIsReconfirmingConflict(false)
+    }
+  }
+
   const importMutation = useMutation({
     mutationFn: () => importScopedCodef(buildImportPayload()),
     onSuccess: async (data) => {
@@ -547,6 +648,11 @@ export function CodefImportScopeForm({
   )
   const scopeHint = !canUpdate
     ? '범위 변경 권한이 없어 저장 범위를 바꿀 수 없습니다. 권한 보유자에게 요청하세요.'
+    : scopeBaselineUnconfirmed
+      // N1/N6 root fix(재수렴 R4) — 확인 미완료 창에서는 "미선택" 힌트를 내지 않는다(사실이
+      // 아니다). 실제 문구는 아래 codef-scope-unconfirmed/-confirming 블록이 scopeMode 값과
+      // 무관하게 늘 렌더되며 담당한다 — 여기서는 칩 영역의 옛 힌트만 비운다.
+      ? null
     : savedAllScopeDirty
       ? '저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'
     : scopeMode === null
@@ -559,26 +665,41 @@ export function CodefImportScopeForm({
     && !restoredSelectionInvalid
     && !listsLoading
     && !scopeQuery.isFetching
+    && !scopeBaselineUnconfirmed
     && !saveMutation.isPending
-  // 충돌 후 일반 저장은 서버의 상대 선택을 알리지 않고 지울 수 있다. 배너의 명시 버튼만
-  // 같은 화면 선택으로 다시 저장하게 해 K1(화면 선택 보존)과 K5(명시적 재저장 경로)를 함께 지킨다.
-  const canSave = canSaveWithoutConflict && !conflictInfo
+  // N7 root fix(재수렴 R4) — 화면 선택이 충돌 시점의 서버 최신(conflictInfo.latest)을
+  // 포괄하면(그 항목을 전부 포함하면) 저장해도 아무것도 지워지지 않는다. 이 경우는 "삭제
+  // 경고"도, 명시적 우회 버튼도 필요 없다 — 일반 저장이 곧 안전한 저장이다.
+  const conflictLatestCovered = Boolean(
+    conflictInfo?.latest && scopeCoversLatest({ scopeMode, selection }, conflictInfo.latest),
+  )
+  // 충돌 후 일반 저장은(포괄하지 않는 한) 서버의 상대 선택을 알리지 않고 지울 수 있다.
+  // 배너의 명시 버튼만 같은 화면 선택으로 다시 저장하게 해 K1(화면 선택 보존)과 K5(명시적
+  // 재저장 경로)를 함께 지킨다. 포괄하는 경우(N7)는 그 우회가 필요 없으므로 일반 저장을
+  // 다시 연다 — 이는 또한 N6(사유 없는 잠금 금지)을 만족시킨다: 더 이상 잠글 사유가 없다.
+  const canSave = canSaveWithoutConflict && (!conflictInfo || conflictLatestCovered)
   const canImport = canCreate
     && scopeMode !== null
     && importSelectionReady
     && !restoredSelectionInvalid
     && datesValid
     && !savedAllScopeDirty
+    // N-1/N3 root fix(재수렴 R4) — canSaveWithoutConflict 에만 있던 !scopeQuery.isFetching
+    // 류 가드가 canImport 에는 없어, 재진입 확인이 아직 끝나지 않은 창에서도 가져오기
+    // 버튼이 활성일 수 있었다(브리프 N-1 의 직접 원인). scopeBaselineUnconfirmed 는 그
+    // 창(fetching 또는 미확인 오류) 전체를 포괄해 가져오기까지 함께 잠근다.
+    && !scopeBaselineUnconfirmed
     && !importMutation.isPending
   // #825 슬5 R1(H-4) — refs 배열 비어있음이 아니라 scopeMode===null(한 번도 저장한 적 없음)로
   // 판정한다. ALL 로 저장된 scope 도 refs 는 설계상 비어 있으므로(D-S5-02), ref 기준 판정은
   // 정상 저장된 ALL 을 '미저장'으로 오판해 이 힌트를 잘못 노출시킨다.
-  const scopeMissing = Boolean(scopeQuery.data && scopeQuery.data.scopeMode === null)
-    || (
-      scopeQuery.isError
-      && isAxiosError(scopeQuery.error)
-      && (scopeQuery.error.response?.data as { code?: unknown } | undefined)?.code === 'NOT_FOUND'
-    )
+  // N1 root fix(재수렴 R4) — scopeBaselineUnconfirmed 인 동안은 이 힌트를 내지 않는다.
+  // 캐시에 남은 scopeMode===null(과거 확인된 부재)이 이번 mount 의 미확인 상태와 겹치면
+  // "확인 중"/"확인 실패" 안내와 "저장된 선택이 없습니다"가 동시에 뜨는 모순을 막는다.
+  const scopeMissing = !scopeBaselineUnconfirmed && (
+    Boolean(scopeQuery.data && scopeQuery.data.scopeMode === null)
+    || (scopeQuery.isError && isScopeNotFoundError(scopeQuery.error))
+  )
   return (
     <div className="codef-import-panel">
       <div>
@@ -631,7 +752,9 @@ export function CodefImportScopeForm({
             disabled={!canSave}
             onClick={() => saveMutation.mutate()}
             data-testid="codef-save-scope-button"
-            aria-describedby={scopeHint ? SCOPE_HINT_ID : undefined}
+            aria-describedby={
+              scopeBaselineUnconfirmed ? SCOPE_UNCONFIRMED_HINT_ID : scopeHint ? SCOPE_HINT_ID : undefined
+            }
           >
             {saveMutation.isPending ? '저장 중' : '저장'}
           </Button>
@@ -641,7 +764,9 @@ export function CodefImportScopeForm({
             disabled={!canImport}
             onClick={() => importMutation.mutate()}
             data-testid="codef-import-button"
-            aria-describedby={scopeHint ? SCOPE_HINT_ID : undefined}
+            aria-describedby={
+              scopeBaselineUnconfirmed ? SCOPE_UNCONFIRMED_HINT_ID : scopeHint ? SCOPE_HINT_ID : undefined
+            }
           >
             {importMutation.isPending ? '가져오는 중' : '가져오기'}
           </Button>
@@ -654,6 +779,37 @@ export function CodefImportScopeForm({
         </div>
       ) : null}
 
+      {/* N1/N3/N6 root fix(재수렴 R4) — 이번 mount 에서 baseline 확인이 아직 안 끝난 동안은
+          scopeMode 값과 무관하게(체크박스를 사용자가 이미 조작했더라도) 이 블록이 항상
+          렌더된다. "확인 중"(role=status, 진행 중이라 비강제)과 "확인 실패"(role=alert,
+          저장·가져오기를 잠근 이유를 설명 + 재확인 수단 제공)를 구분한다 — 브리프 N-1 의
+          "완전히 로드된 미저장 화면처럼 보인다" 결함과 N-2 의 "확인 실패가 안 보인다"
+          결함의 공통 root fix. */}
+      {scopeBaselineUnconfirmed ? (
+        scopeQuery.isFetching ? (
+          <div className="codef-import-hint" role="status" id={SCOPE_UNCONFIRMED_HINT_ID} data-testid="codef-scope-confirming">
+            저장된 선택을 확인하는 중입니다. 확인이 끝날 때까지 저장·가져오기를 사용할 수 없습니다.
+          </div>
+        ) : (
+          <div
+            className="codef-import-hint codef-import-hint--error"
+            role="alert"
+            id={SCOPE_UNCONFIRMED_HINT_ID}
+            data-testid="codef-scope-unconfirmed"
+          >
+            최신 저장 상태를 확인하지 못했습니다. 이전에 확인된 값과 다를 수 있어 저장·가져오기를
+            잠급니다.
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => { void scopeQuery.refetch() }}
+              data-testid="codef-scope-reconfirm-button"
+            >
+              다시 확인
+            </Button>
+          </div>
+        )
+      ) : null}
       {scopeMissing ? (
         <div className="codef-import-hint">
           저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.
@@ -667,25 +823,49 @@ export function CodefImportScopeForm({
           {conflictInfo.latest ? (
             <>
               {describeConflictSelection(conflictInfo.latest, itemLabelByRef)}
-              {' 현재 화면에 없는 서버 선택 항목은 저장하면 지워질 수 있습니다. 이 결과를 확인한 뒤 명시적으로 진행하세요.'}
+              {conflictLatestCovered
+                // N7 root fix(재수렴 R4) — 화면 선택이 서버 최신을 포괄하면(전부 포함하면)
+                // 저장해도 지워질 항목이 없다. 실제로 지워지지 않는데 "지워질 수 있습니다"로
+                // 만류하지 않는다 — 방금 화해(협조적 병합)한 사용자를 막아서는 안 된다.
+                ? ' 현재 화면 선택에 서버에 저장된 항목이 모두 포함되어 있어 저장해도 삭제되지 않습니다.'
+                : ' 현재 화면에 없는 서버 선택 항목은 저장하면 지워질 수 있습니다. 이 결과를 확인한 뒤 명시적으로 진행하세요.'}
             </>
           ) : (
-            ' 최신 선택을 확인하지 못했습니다. 서버에 있는 항목을 모른 채 저장하면 삭제될 수 있으므로 최신 상태를 확인한 뒤 진행하세요.'
+            ' 최신 선택을 확인하지 못했습니다. 서버에 있는 항목을 모른 채 저장하면 삭제될 수 있으므로 먼저 최신 상태를 다시 확인하세요.'
           )}
           {' 방금 선택한 항목은 화면에 그대로 남아 있습니다.'}
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={!canSaveWithoutConflict}
-            onClick={() => saveMutation.mutate()}
-            data-testid="codef-scope-overwrite-button"
-          >
-            {saveMutation.isPending
-              ? '다시 저장 중'
-              : conflictInfo.latest
-                ? '현재 화면 선택으로 덮어쓰기'
-                : '현재 화면 선택으로 다시 저장'}
-          </Button>
+          {conflictInfo.latest ? (
+            !conflictLatestCovered ? (
+              // K5 — latest 를 알고 있는(비-covering) 충돌에서는 명시적 우회 버튼만 다시
+              // 저장할 수 있다(일반 저장은 canSave 에서 계속 잠긴다 — 위 conflictLatestCovered
+              // 정의 참조).
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={!canSaveWithoutConflict}
+                onClick={() => saveMutation.mutate()}
+                data-testid="codef-scope-overwrite-button"
+              >
+                {saveMutation.isPending ? '다시 저장 중' : '현재 화면 선택으로 덮어쓰기'}
+              </Button>
+            ) : null
+            // covering 인 경우 위의 canSave 가 이미 true 라 일반 저장 버튼이 같은 동작을
+            // 안전하게 수행한다 — 여기 별도 버튼을 두면 "저장" 버튼이 두 개로 보이는
+            // 혼란만 커진다(N6: 사유 없는 잠금을 없애는 게 목적이지 버튼을 늘리는 게 아니다).
+          ) : (
+            // N-3/N5 root fix(재수렴 R4) — latest=null 일 때는 "다시 저장"(낡은 버전으로
+            // 맹목적 재PUT, 구조적으로 항상 409)이 아니라 "다시 확인"(GET 재시도)을 제시한다.
+            // 성공하면 위 conflictInfo.latest 분기로 전환되어 그 때의 명시 저장 버튼을 쓴다.
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isReconfirmingConflict}
+              onClick={() => { void reconfirmConflictLatest() }}
+              data-testid="codef-scope-conflict-reconfirm-button"
+            >
+              {isReconfirmingConflict ? '확인 중' : '최신 상태 다시 확인'}
+            </Button>
+          )}
         </div>
       ) : null}
       {restoredScope && !selectionDirty && !conflictInfo ? (
@@ -769,11 +949,15 @@ export function CodefImportScopeForm({
           role={canUpdate ? 'button' : undefined}
           tabIndex={canUpdate ? 0 : undefined}
           aria-pressed={canUpdate ? scopeMode === 'ALL' : undefined}
-          aria-describedby={canUpdate && scopeMode === null ? SCOPE_HINT_ID : undefined}
+          aria-describedby={canUpdate && scopeMode === null && !scopeBaselineUnconfirmed ? SCOPE_HINT_ID : undefined}
         />
-        {scopeMode === null ? (
+        {scopeMode === null && !scopeBaselineUnconfirmed ? (
           // #825 슬5 R1 item12 — 상시 표시되는 수동적 안내는 role="alert"(긴급/동적 공지 전용)가
           // 아닌 role="status"(비강제적 polite live region)가 맞다. 세 화면 동일 시맨틱로 통일.
+          // N1 root fix(재수렴 R4) — scopeBaselineUnconfirmed 인 동안은 이 스팬 자체를
+          // 렌더하지 않는다(scopeHint 도 이 상태에선 null 이지만, 빈 스팬이 남으면
+          // "codef-scope-hint" 요소 자체는 여전히 존재해 "미선택" 시맨틱을 일부 유지하게
+          // 된다 — 위 전용 블록이 유일한 안내여야 한다).
           <span className="codef-import-hint" data-testid="codef-scope-hint" id={SCOPE_HINT_ID} role="status">
             {scopeHint}
           </span>

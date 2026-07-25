@@ -109,22 +109,47 @@ test('U-gate — 두 화면이 각자 다른 계좌를 추가해 저장하면 �
   // eslint-disable-next-line no-console
   console.log(`[B 충돌배너] ${hasConflict ? '있음 ✅' : '없음 ❌'} — ${conflictText}`)
   await dumpAccounts(pageB, 'B 충돌 후')
+  // 무음 유실 차단의 핵심 — B 는 A 가 먼저 저장했다는 사실을 통지받아야 한다. console.log
+  // 만으로는 회귀해도 스펙이 계속 green 이므로(재수렴 R4 지적) 실제 expect 로 고정한다.
+  expect(hasConflict, 'B 는 충돌(409) 통지를 받아야 한다 — 통지 없이 조용히 성공하면 무음 유실').toBeTruthy()
 
   // 🔑 K1 — B 가 방금 고른 하나은행이 화면에서 사라지지 않아야 한다
   const hanaStillChecked = await pageB.locator('[data-testid="codef-bank-account-3"]').isChecked().catch(() => false)
   // eslint-disable-next-line no-console
   console.log(`[K1 내 선택 보존] 하나은행 체크 유지 = ${hanaStillChecked ? '✅ 유지' : '❌ 사라짐'}`)
+  expect(hanaStillChecked, 'K1 — 충돌 후에도 방금 고른 하나은행 체크가 조용히 사라지면 안 된다').toBe(true)
 
   await pageB.screenshot({ path: path.join(SHOTS, '03-B-conflict-selection-preserved.png') })
 
-  // ④ B 가 다시 저장하면 이번엔 성공해야 한다(막다른 길이 아님 — K5)
-  await pageB.locator('[data-testid="codef-save-scope-button"]').click()
+  // ④ B 가 다시 저장하면 이번엔 성공해야 한다(막다른 길이 아님 — K5).
+  //
+  // ⚠️ 재수렴 R4 이전에는 여기서 일반 저장 버튼(codef-save-scope-button)을 다시 눌렀다 —
+  // 그러나 L3 fix 이후 충돌 중 일반 저장은 "서버 항목을 조용히 지울 수 있다"는 이유로
+  // 항상 비활성이다(가려진 채 아무 PUT 도 나가지 않아 이 스펙은 더 이상 K5 를 증명하지
+  // 못했다). B 의 화면(하나만 추가, 우리는 없음)은 A 가 저장한 우리를 포괄하지 않으므로
+  // (N7 covering 아님) 배너의 명시적 "현재 화면 선택으로 덮어쓰기" 버튼이 진짜 K5 경로다.
+  const overwriteButton = pageB.locator('[data-testid="codef-scope-overwrite-button"]')
+  await expect(
+    overwriteButton,
+    'K5 — 충돌 후에도 명시적 재저장 수단이 화면에 있어야 한다(막다른 길이면 안 된다)',
+  ).toBeVisible({ timeout: 5000 })
+  await expect(overwriteButton, 'K5 재저장 버튼은 클릭 가능(비활성 아님)해야 한다').toBeEnabled()
+  await overwriteButton.click()
   await pageB.waitForTimeout(3500)
   const stillConflict = await pageB.locator('[data-testid="codef-scope-conflict"]').count() > 0
   // eslint-disable-next-line no-console
   console.log(`[K5 재저장] 충돌배너 ${stillConflict ? '여전히 있음' : '해소됨 ✅'}`)
   await dumpAccounts(pageB, 'B 재저장 후')
   await pageB.screenshot({ path: path.join(SHOTS, '04-B-resaved.png') })
+  expect(stillConflict, 'K5 — 명시적 재저장 후에는 충돌 배너가 해소되어야 한다(막다른 길이 아님)').toBe(false)
+  // 재저장이 실제로 반영됐는지 새로고침으로 재확인한다(화면 상태만이 아니라 서버 반영 확인).
+  await pageB.reload()
+  await pageB.waitForLoadState('domcontentloaded')
+  await pageB.locator('[data-testid="codef-save-scope-button"]').waitFor({ state: 'visible', timeout: 40000 })
+  await pageB.waitForTimeout(2500)
+  await dumpAccounts(pageB, 'B 재진입(서버 반영 확인)')
+  const hanaPersisted = await pageB.locator('[data-testid="codef-bank-account-3"]').isChecked().catch(() => false)
+  expect(hanaPersisted, 'K5 — 재저장한 선택(하나은행)이 서버에 실제로 반영되어 재진입 시 복원되어야 한다').toBe(true)
 
   await ctxA.close()
   await ctxB.close()

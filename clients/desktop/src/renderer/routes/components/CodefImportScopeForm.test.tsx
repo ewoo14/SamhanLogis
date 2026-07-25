@@ -1075,3 +1075,210 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(importScopedCodefMock).not.toHaveBeenCalled()
   })
 })
+
+describe('CodefImportScopeForm — 재수렴 R4 (N-1~N-4, 0c91acc42 관련 도달 가능 결함)', () => {
+  afterEach(() => {
+    cleanup()
+    listCodefBankAccountsMock.mockReset()
+    listCodefCardsMock.mockReset()
+    listCodefLoansMock.mockReset()
+    loadCodefImportScopeMock.mockReset()
+    saveCodefImportScopeMock.mockReset()
+    importScopedCodefMock.mockReset()
+  })
+
+  it('N-1 — 재진입 확인 미완료 창에서 가져오기·저장이 잠기고, 그 사이 사용자 체크는 조용히 사라지지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B, BANK_C])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    importScopedCodefMock.mockResolvedValue(baseResult)
+    const firstLoad = {
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK' as const, scopeMode: 'SELECTED' as const, version: 3,
+    } satisfies ScopeWithVersion
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    loadCodefImportScopeMock.mockResolvedValueOnce(firstLoad)
+    renderForm(vi.fn(async () => undefined), () => undefined, queryClient)
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+    cleanup()
+
+    // 재진입 — GET 이 아직 응답하지 않는다(평범한 메뉴 이동 직후의 "확인 중" 창을 재현한다).
+    let resolveReentry!: (value: ScopeWithVersion) => void
+    loadCodefImportScopeMock.mockImplementationOnce(() => new Promise((resolve) => { resolveReentry = resolve }))
+    renderForm(vi.fn(async () => undefined), () => undefined, queryClient)
+
+    // 계좌 목록은 캐시로 즉시 그려진다 — 그러나 범위 확인(GET)은 아직 끝나지 않았다.
+    await screen.findByTestId('codef-bank-account-2')
+
+    // 브리프 재현 — 확인 미완료인데 화면이 "미저장"으로 보이면 안 되고(N1), 가져오기 버튼이
+    // 이 순간 활성이면 안 된다(N3 — canSaveWithoutConflict 에만 있고 canImport 에는 없던
+    // !scopeQuery.isFetching 가드 누락의 직접 재현).
+    expect(screen.queryByTestId('codef-scope-hint')).toBeNull()
+    expect(screen.getByTestId('codef-scope-confirming')).toBeTruthy()
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
+
+    // 사용자가 확인이 끝나기 전에 우리은행(3번째)을 체크한다(N-1 리포트의 "우리은행 체크" 재현).
+    fireEvent.click(screen.getByTestId('codef-bank-account-2'))
+    // N3 — 체크해도 여전히 잠긴다(화면이 사실과 다른 상태에서 실 데이터를 쓰지 않는다).
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+
+    // 이제 재진입 GET 이 도착한다(서버는 여전히 국민만 저장돼 있다 — version 3, 변경 없음).
+    resolveReentry(firstLoad)
+    await waitFor(() => expect(screen.queryByTestId('codef-scope-confirming')).toBeNull())
+
+    // N2 — 확인 전 사용자가 체크한 우리은행이 서버 값(국민)으로 조용히 대체되지 않는다.
+    expect((screen.getByTestId('codef-bank-account-2') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(false)
+    await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+
+    // 이제 확인이 끝났으니 가져오기는 실제로 화면에 보이는 값(우리)으로 나가야 한다(N3).
+    fireEvent.click(screen.getByTestId('codef-import-button'))
+    await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
+    expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({ accountRefs: [BANK_C.ref] })
+  })
+
+  it('N-2 — 재진입 재조회 실패를 확인 실패로 정직하게 안내하고 저장·가져오기를 잠그며, 다시 확인으로 회복한다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    const saved = {
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK' as const, scopeMode: 'SELECTED' as const, version: 3,
+    } satisfies ScopeWithVersion
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    loadCodefImportScopeMock.mockResolvedValueOnce(saved)
+    renderForm(vi.fn(async () => undefined), () => undefined, queryClient)
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    cleanup()
+
+    // 재진입 — GET 이 실패한다(서비스 일시 장애·게이트웨이 5xx·타임아웃). 캐시엔 이전
+    // 성공값(version 3, 국민 저장)이 남아 있다 — react-query 는 error 액션에서도 data 를
+    // 지우지 않는다(query.js:375-389).
+    loadCodefImportScopeMock.mockRejectedValueOnce(new Error('일시적 네트워크 오류'))
+    renderForm(vi.fn(async () => undefined), () => undefined, queryClient)
+
+    const unconfirmed = await screen.findByTestId('codef-scope-unconfirmed')
+    expect(unconfirmed.textContent).toContain('확인하지 못했습니다')
+    // K3/N4 — 아무도 바꾸지 않았는데 "다른 화면에서 변경되었습니다"로 잘못 귀인하지 않는다.
+    expect(unconfirmed.textContent).not.toContain('다른 화면에서')
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
+    // N1 — 저장된 선택이 없다고 거짓으로 말하지 않는다(캐시엔 실제로 저장값이 있다).
+    expect(screen.queryByText('저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.')).toBeNull()
+    expect(screen.queryByTestId('codef-scope-hint')).toBeNull()
+
+    // N5 — 다시 확인 버튼으로 회복할 수 있다(낡은 버전으로 영원히 재시도하는 게 아니라
+    // 진짜 재확인 경로가 있다).
+    loadCodefImportScopeMock.mockResolvedValueOnce(saved)
+    fireEvent.click(screen.getByTestId('codef-scope-reconfirm-button'))
+    await waitFor(() => expect(screen.queryByTestId('codef-scope-unconfirmed')).toBeNull())
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('N-3 — latest=null 재시도는 매번 최신을 다시 확인해야 하고, 낡은 버전으로 맹목적 PUT을 반복하지 않는다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    const staleScope = {
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK' as const, scopeMode: 'SELECTED' as const, version: 0,
+    } satisfies ScopeWithVersion
+    const latestScope = {
+      ...staleScope, accountRefs: [BANK_A.ref, BANK_B.ref], version: 1,
+    } satisfies ScopeWithVersion
+    const conflict = new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    )
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce(staleScope) // ① 최초 로드
+      .mockRejectedValueOnce(new AxiosError('Network Error', 'ERR_NETWORK')) // ② 충돌 자동 재조회 실패
+      .mockRejectedValueOnce(new AxiosError('Network Error', 'ERR_NETWORK')) // ③ 수동 재확인 1회차 실패
+      .mockResolvedValueOnce(latestScope) // ④ 수동 재확인 2회차 성공
+    saveCodefImportScopeMock
+      .mockRejectedValueOnce(conflict)
+      .mockResolvedValueOnce({ ...latestScope, version: 2 })
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await screen.findByTestId('codef-scope-conflict')
+
+    // latest=null 이므로 예전의 "현재 화면 선택으로 다시 저장"(낡은 버전으로 재PUT) 버튼이
+    // 아니라 재확인 버튼이어야 한다(N5 — 성공 가능성 없는 버튼을 활성으로 제시하지 않는다).
+    expect(screen.queryByTestId('codef-scope-overwrite-button')).toBeNull()
+    const recheckButton = screen.getByTestId('codef-scope-conflict-reconfirm-button')
+
+    fireEvent.click(recheckButton)
+    await waitFor(() => expect(loadCodefImportScopeMock).toHaveBeenCalledTimes(3))
+    // 재확인이 또 실패해도 PUT 은 시도조차 되지 않는다 — 예전 버그는 여기서 낡은 version=0
+    // 으로 맹목적 재PUT 을 반복해 영원히 409 를 받았다.
+    expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('codef-scope-overwrite-button')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('codef-scope-conflict-reconfirm-button'))
+    await waitFor(() => expect(loadCodefImportScopeMock).toHaveBeenCalledTimes(4))
+    const overwriteButton = await screen.findByTestId('codef-scope-overwrite-button')
+    fireEvent.click(overwriteButton)
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2))
+    expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
+    await waitFor(() => expect(screen.queryByTestId('codef-scope-conflict')).toBeNull())
+  })
+
+  it('N-4/N7 — 화면 선택이 서버 선택을 포괄하면 삭제 경고 없이 일반 저장이 다시 열린다(사유 없는 잠금 금지)', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B, BANK_C])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    const staleScope = {
+      connectedId: 'connected-main', accountRefs: [BANK_A.ref], cardRefs: [], loanRefs: [],
+      defaultImportType: 'BANK' as const, scopeMode: 'SELECTED' as const, version: 0,
+    } satisfies ScopeWithVersion
+    // 서버 최신 = 국민(BANK_A) + 우리(BANK_C) — 다른 화면이 우리를 추가해 저장했다.
+    const latestScope = {
+      ...staleScope, accountRefs: [BANK_A.ref, BANK_C.ref], version: 1,
+    } satisfies ScopeWithVersion
+    loadCodefImportScopeMock.mockResolvedValueOnce(staleScope).mockResolvedValueOnce(latestScope)
+    const conflict = new AxiosError(
+      '충돌', 'ERR_BAD_REQUEST', undefined, undefined,
+      {
+        status: 409, statusText: 'Conflict', headers: {}, config: {},
+        data: { success: false, code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT', message: '충돌', data: null },
+      },
+    )
+    saveCodefImportScopeMock
+      .mockRejectedValueOnce(conflict)
+      .mockResolvedValueOnce({ ...latestScope, accountRefs: [BANK_A.ref, BANK_C.ref, BANK_B.ref], version: 2 })
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    const banner = await screen.findByTestId('codef-scope-conflict')
+    expect(banner.textContent).toContain('지워질 수 있습니다')
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(true)
+
+    // 사용자가 서버의 우리(BANK_C)를 화면에 추가하고, 신한(BANK_B)도 함께 추가해 화해한다 —
+    // 이제 화면(국민+신한+우리) ⊇ 서버(국민+우리)이므로 저장해도 아무것도 지워지지 않는다.
+    fireEvent.click(screen.getByTestId('codef-bank-account-2'))
+    fireEvent.click(screen.getByTestId('codef-bank-account-1'))
+
+    // N6/N7 — 삭제 위험이 없어졌으니 사유 없는 잠금이 아니라 일반 저장이 다시 열린다.
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    expect(screen.getByTestId('codef-scope-conflict').textContent).not.toContain('지워질 수 있습니다')
+    expect(screen.queryByTestId('codef-scope-overwrite-button')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2))
+    expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
+    expect(saveCodefImportScopeMock.mock.calls[1]![0].accountRefs).toEqual(
+      expect.arrayContaining([BANK_A.ref, BANK_B.ref, BANK_C.ref]),
+    )
+    await waitFor(() => expect(screen.queryByTestId('codef-scope-conflict')).toBeNull())
+  })
+})
