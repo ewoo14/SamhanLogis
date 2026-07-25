@@ -1,5 +1,6 @@
 const { existsSync, readdirSync, readFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
+const { validateDevelopmentVersion } = require('../../../scripts/app-build-version.cjs')
 
 function releaseModeEnabled(value) {
   return ['1', 'true', 'yes'].includes(String(value ?? '').trim().toLowerCase())
@@ -28,6 +29,7 @@ module.exports = async function validateDesktopRelease(context) {
   if (!appVersion) {
     throw new Error('electron-builder 실행 전에 VITE_APP_VERSION을 명시해야 합니다.')
   }
+  validateDevelopmentVersion(appVersion, 'VITE_APP_VERSION')
   if (!artifactVersion || artifactVersion !== appVersion.replaceAll('/', '-')) {
     throw new Error('SAMHAN_RELEASE_ARTIFACT_VERSION은 주입한 버전과 일치해야 합니다.')
   }

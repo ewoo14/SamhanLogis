@@ -53,6 +53,7 @@ function createReleaseBuildEnvironment({
       ...releaseEnv,
       [variable]: appVersion,
       [RELEASE_ARTIFACT_VERSION_ENV]: appVersion.replaceAll('/', '-'),
+      VITE_MOCK_MODE: '0',
     },
   }
 }

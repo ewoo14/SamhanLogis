@@ -99,6 +99,12 @@ test('Electron 직접 포장과 Capacitor sync도 릴리스 표식 없는 산출
   assert.match(read('clients/desktop/package.json'), /"cap:sync:release":\s*"npm run build:capacitor:release && node \.\.\/\.\.\/scripts\/sync-capacitor\.cjs release"/)
 })
 
+test('Electron 직접 포장 검증기는 공통 릴리스 버전 형식 검증기를 호출한다', () => {
+  const validator = read('clients/desktop/scripts/validate-desktop-release.cjs')
+  assert.match(validator, /validateDevelopmentVersion/)
+  assert.match(validator, /app-build-version\.cjs/)
+})
+
 test('Capacitor sync wrapper는 개발·릴리스 모드를 명시적으로 전달한다', () => {
   const { createSyncEnvironment } = require(resolve(REPOSITORY_DIR, 'scripts/sync-capacitor.cjs'))
   assert.equal(createSyncEnvironment('development', {}).CAPACITOR_SYNC_MODE, 'development')

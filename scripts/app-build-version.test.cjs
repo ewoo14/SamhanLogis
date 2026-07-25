@@ -48,7 +48,7 @@ test('명시 주입 릴리스는 개발 형식 버전을 그대로 사용한다'
 
 test('데스크톱 릴리스 wrapper는 검증된 버전과 릴리스 모드를 하위 빌드에 전달한다', () => {
   const result = createReleaseBuildEnvironment({
-    env: { VITE_APP_VERSION: '2026/07/25-91003' },
+    env: { VITE_APP_VERSION: '2026/07/25-91003', VITE_MOCK_MODE: '1' },
     variable: 'VITE_APP_VERSION',
   })
 
@@ -56,4 +56,5 @@ test('데스크톱 릴리스 wrapper는 검증된 버전과 릴리스 모드를 
   assert.equal(result.env.VITE_APP_VERSION, '2026/07/25-91003')
   assert.equal(result.env[RELEASE_BUILD_ENV], '1')
   assert.equal(result.env[RELEASE_ARTIFACT_VERSION_ENV], '2026-07-25-91003')
+  assert.equal(result.env.VITE_MOCK_MODE, '0')
 })
