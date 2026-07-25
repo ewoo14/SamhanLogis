@@ -40,6 +40,12 @@
   OTA 활성화는 후속 범위다. 신규 릴리스 개발 버전은 `YYYY/MM/DD-{번호}`로 등록·판정하며
   패키지 semver는 빌드 식별자로만 사용한다. 상세 검증은
   `docs/dev-reports/2026-07-25-910-app-client-identity.md`.
+- **#928 웹 3앱 버전 안내**: `order-app`·`estimate-app`·`mobile-public`이 각자
+  `SAMHAN_ORDER_WEB`·`SAMHAN_ESTIMATE_WEB`·`SAMHAN_MOBILE_PUBLIC_WEB`로 기존
+  `/app/version`을 조회한다. 안내만으로 자동 새로고침하지 않고, 작성 중 주문·견적·서명
+  입력이 있으면 사용자의 추가 확인 전까지 보존한다. 404/네트워크 오류는 fail-open이며,
+  무주입 개발 빌드와 릴리스 버전 주입 경계를 세 앱 모두 검증했다. 상세 검증은
+  `docs/dev-reports/2026-07-26-928-web-version-check.md`.
 
 ### 최신 진행 메모 (2026-07-21)
 

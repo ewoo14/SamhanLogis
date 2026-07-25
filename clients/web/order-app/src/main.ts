@@ -22,9 +22,18 @@
  */
 import { installLegacyShim } from './legacyShim'
 import { samhanApi } from './samhanApi'
+import { mountOrderVersionGate } from './version/versionGate'
+
+const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0-dev'
+const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
 
 // ─── 1) shim 동기 설치 + head 선주입 bootstrap 보존 ───
 installLegacyShim(window.__SAMHAN_BOOTSTRAP__ || {})
+
+void mountOrderVersionGate({
+  currentVersion: CURRENT_VERSION,
+  apiBaseUrl: VERSION_API_BASE_URL,
+})
 
 // ─── 2) 동기 선주입이 없고 fatal 도 아닌 경로에서만 비동기 fallback prefetch ───
 if (!window.__SAMHAN_BOOTSTRAP_PREFETCHED__ && !window.__SAMHAN_BOOTSTRAP_FATAL__) {
