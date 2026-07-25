@@ -159,6 +159,37 @@ class SlipServiceTest {
     }
 
     @Test
+    void create_authoritativeAmounts_preservesRequestedUnitPriceInResponse() {
+        when(slipNumberService.next(any(LocalDate.class), eq(SlipType.OUTBOUND))).thenReturn("2026/05/04-2");
+        when(slipNumberService.extractSeqNo("2026/05/04-2")).thenReturn(2);
+        when(slipRepository.save(any(Slip.class))).thenAnswer(inv -> {
+            Slip s = inv.getArgument(0);
+            ReflectionTestUtils.setField(s, "id", slipId);
+            return s;
+        });
+
+        CreateSlipRequest req = new CreateSlipRequest(
+                SlipType.OUTBOUND, LocalDate.of(2026, 5, 4),
+                sourceWh, destWh, partnerId, "삼한공조", DeliveryTag.DAY, "권위 금액 QA",
+                null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null,
+                List.of(new CreateSlipRequest.SlipLineRequest(productId, "에어컨", "M-1", null,
+                        2, new BigDecimal("11000"), null, null, true,
+                        new BigDecimal("50000"), new BigDecimal("2000"), new BigDecimal("52000"))));
+
+        SlipDetailResponse res = service.create(req, "user-1", "홍길동");
+
+        assertThat(res.lines()).hasSize(1);
+        assertThat(res.lines().get(0).unitPrice()).isEqualByComparingTo("11000");
+        assertThat(res.lines().get(0).unitPriceWithVat()).isEqualByComparingTo("11000");
+        assertThat(res.lines().get(0).supplyAmount()).isEqualByComparingTo("50000");
+        assertThat(res.lines().get(0).vatAmount()).isEqualByComparingTo("2000");
+        assertThat(res.lines().get(0).lineTotal()).isEqualByComparingTo("50000");
+    }
+
+    @Test
     void create_inbound_setsSourceNull() {
         when(slipNumberService.next(any(LocalDate.class), eq(SlipType.INBOUND))).thenReturn("2026/05/04-1");
         when(slipNumberService.extractSeqNo("2026/05/04-1")).thenReturn(1);

@@ -19,6 +19,26 @@ export interface LineVatLine {
   vatWarning?: boolean
 }
 
+export interface DisplayedLineVatTotals {
+  supply: number
+  vat: number
+  total: number
+}
+
+/** 행이 현재 표시하는 공급가액·부가세·합계를 그대로 합산한다. */
+export function sumDisplayedLineVatAmounts(
+  lines: Array<Pick<LineVatLine, 'supplyAmount' | 'vatAmount' | 'lineTotal'>>,
+): DisplayedLineVatTotals {
+  return lines.reduce<DisplayedLineVatTotals>(
+    (totals, line) => ({
+      supply: totals.supply + Number(line.supplyAmount),
+      vat: totals.vat + Number(line.vatAmount),
+      total: totals.total + Number(line.lineTotal),
+    }),
+    { supply: 0, vat: 0, total: 0 },
+  )
+}
+
 interface DecimalParts {
   coefficient: bigint
   scale: number

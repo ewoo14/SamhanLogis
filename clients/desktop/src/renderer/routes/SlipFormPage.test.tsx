@@ -1091,6 +1091,16 @@ describe('SlipFormPage 모바일 라인 카드 #902 R3 회귀 가드 — 제외 
     expect((screen.getByLabelText('라인 1 공급가액') as HTMLInputElement).value).toBe('10,000')
     expect(screen.getByLabelText('라인 1 합계(VAT포함)').textContent).toBe('17,000')
   })
+
+  it.each(['2.7', '-3', '1e3', '1,,2'])('D-2: 모바일 금액 입력 "%s"은 숫자로 재조합하지 않고 거부한다', (raw) => {
+    renderMobilePage()
+    const supply = screen.getByLabelText('라인 1 공급가액') as HTMLInputElement
+    const before = supply.value
+
+    fireEvent.change(supply, { target: { value: raw } })
+
+    expect(supply.value).toBe(before)
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────

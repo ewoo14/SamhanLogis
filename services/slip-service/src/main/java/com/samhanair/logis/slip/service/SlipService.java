@@ -172,7 +172,7 @@ public class SlipService {
             // 단가 부가세포함 전환: priceVatInclusive 면 라인 단위로 공급가액/부가세 분리.
             slip.addLine(authoritative
                     ? SlipLine.createFromAuthoritativeAmounts(slip, productId, productName, modelName,
-                            specification, quantity, supplyAmount, vatAmount, lineTotalWithVat, note, null)
+                            specification, quantity, unitPrice, supplyAmount, vatAmount, lineTotalWithVat, note, null)
                     : priceVatInclusive
                     ? SlipLine.createFromVatInclusive(slip, productId, productName, modelName,
                             specification, quantity, unitPrice, note, null)

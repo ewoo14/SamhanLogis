@@ -88,7 +88,8 @@ public class EstimateToSlipConverter {
             SlipLine slipLine = authoritative
                     ? SlipLine.createFromAuthoritativeAmounts(slip,
                             line.getProductId(), line.getProductName(), line.getModelName(),
-                            line.getSpecification(), line.getQuantity(), line.getSupplyAmount(),
+                            line.getSpecification(), line.getQuantity(), line.getUnitPriceWithVat(),
+                            line.getSupplyAmount(),
                             line.getVatAmount(), line.getLineTotal(), line.getNote(), null)
                     : line.getUnitPriceWithVat() != null
                     ? SlipLine.createFromVatInclusive(slip,

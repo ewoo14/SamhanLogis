@@ -232,6 +232,40 @@ describe('LineRow price source marker', () => {
     expect(screen.queryByRole('note')).toBeNull()
     expect(screen.getByLabelText('라인 1 단가').hasAttribute('aria-describedby')).toBe(false)
   })
+
+  it.each(['2.7', '-3', '1e3', '1,,2'])('D-2: 잘못된 금액 문자열 "%s"은 숫자로 재조합하지 않고 거부한다', (raw) => {
+    const onSupplyAmountChange = vi.fn()
+    render(
+      <div role="table">
+        <LineRow
+          lineNumber={1}
+          line={{
+            ...line('USER'),
+            supplyAmount: '20000',
+            vatAmount: '2000',
+            lineTotal: '22000',
+          }}
+          vatInclusive
+          vatEditable
+          selected={false}
+          onSelect={vi.fn()}
+          onModelNameChange={vi.fn()}
+          onModelNameBlur={vi.fn()}
+          onSpecificationChange={vi.fn()}
+          onQuantityChange={vi.fn()}
+          onUnitPriceChange={vi.fn()}
+          onSupplyAmountChange={onSupplyAmountChange}
+          onVatAmountChange={vi.fn()}
+          onDelete={vi.fn()}
+          dragHandleProps={{}}
+        />
+      </div>,
+    )
+
+    fireEvent.change(screen.getByLabelText('라인 1 공급가액'), { target: { value: raw } })
+
+    expect(onSupplyAmountChange).not.toHaveBeenCalled()
+  })
 })
 
 // ────────────────────────────────────────────────────────────────────────────

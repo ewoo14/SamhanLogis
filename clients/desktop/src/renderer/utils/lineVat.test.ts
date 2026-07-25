@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { editLineVat, editSlipLineAmount, recalculateLineVat, type LineVatAuthority } from './lineVat'
+import {
+  editLineVat,
+  editSlipLineAmount,
+  recalculateLineVat,
+  sumDisplayedLineVatAmounts,
+  type LineVatAuthority,
+} from './lineVat'
 
 describe('lineVat — 품목행 권위 열 계산', () => {
   it('끝수가 있는 동일 공급가액에서 세금계산서 절사와 전표 계산이 어긋난다 (RED)', () => {
@@ -86,6 +92,13 @@ describe('lineVat — 품목행 권위 열 계산', () => {
 //       어느 쪽을 바꾸든 합계만(공급가액+부가세) 재계산된다.
 // ────────────────────────────────────────────────────────────────────────────
 describe('editSlipLineAmount — 전표 전용 금액 편집 정책(#902 P4/P6, 2026-07-25 결정)', () => {
+  it('D-1: 공급가액을 편집한 행의 하단 합계도 행과 같은 S/V/T를 합산한다', () => {
+    const before = { quantity: 2, unitPrice: '11000', supplyAmount: '20000', vatAmount: '2000', lineTotal: '22000' }
+    const after = editSlipLineAmount(before, 'SUPPLY', '50000')
+
+    expect(sumDisplayedLineVatAmounts([after])).toEqual({ supply: 50000, vat: 2000, total: 52000 })
+  })
+
   it('P4: 공급가액을 편집해도 단가는 바뀌지 않는다(역산 금지)', () => {
     const before = { quantity: 2, unitPrice: '11000', supplyAmount: '20000', vatAmount: '2000', lineTotal: '22000' }
     const after = editSlipLineAmount(before, 'SUPPLY', '50000')

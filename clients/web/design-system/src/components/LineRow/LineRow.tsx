@@ -231,6 +231,14 @@ function computeVatBreakdown(qty: string, price: string): { incl: number; supply
   return { incl, supply, vat: incl - supply }
 }
 
+/** 금액 입력은 숫자와 천단위 콤마만 허용하고, 잘못된 문자열은 숫자로 재조합하지 않는다. */
+function parseEditableAmountInput(raw: string): string | null {
+  if (/^\d*$/.test(raw)) return raw
+  if (raw.includes(',,')) return null
+  if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
+  return raw.replace(/,/g, '')
+}
+
 /**
  * LineRow forwardRef — sortable container 의 ref 를 받는다.
  */
@@ -480,8 +488,8 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
               className={`${styles['input']} ${styles['numInput']}`}
               value={priceDisplay}
               onChange={(e) => {
-                const numeric = e.target.value.replace(/[^0-9]/g, '')
-                onUnitPriceChange(numeric)
+                const numeric = parseEditableAmountInput(e.target.value)
+                if (numeric !== null) onUnitPriceChange(numeric)
               }}
               aria-label={`라인 ${lineNumber} 단가`}
               aria-describedby={priceDescribedBy}
@@ -512,7 +520,10 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
                   inputMode="numeric"
                   className={`${styles['input']} ${styles['numInput']}`}
                   value={amountDisplay(line.supplyAmount, vatBreakdown?.supply ?? 0)}
-                  onChange={(e) => onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+                  onChange={(e) => {
+                    const numeric = parseEditableAmountInput(e.target.value)
+                    if (numeric !== null) onSupplyAmountChange(numeric)
+                  }}
                   aria-label={`라인 ${lineNumber} 공급가액`}
                   disabled={!vatEditable}
                 />
@@ -528,7 +539,10 @@ export const LineRow = forwardRef<HTMLDivElement, LineRowProps>(function LineRow
                     inputMode="numeric"
                     className={`${styles['input']} ${styles['numInput']}`}
                     value={amountDisplay(line.vatAmount, vatBreakdown?.vat ?? 0)}
-                    onChange={(e) => onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+                    onChange={(e) => {
+                      const numeric = parseEditableAmountInput(e.target.value)
+                      if (numeric !== null) onVatAmountChange(numeric)
+                    }}
                     aria-label={`라인 ${lineNumber} 부가세`}
                     disabled={!vatEditable}
                   />

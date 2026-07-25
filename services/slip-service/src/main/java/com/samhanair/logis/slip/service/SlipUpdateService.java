@@ -229,6 +229,7 @@ public class SlipUpdateService {
                     line.modelName(),
                     line.specification(),
                     line.quantity(),
+                    line.unitPrice(),
                     line.supplyAmount(),
                     line.vatAmount(),
                     line.lineTotalWithVat(),

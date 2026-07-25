@@ -86,6 +86,7 @@ import {
   changeLineQuantity,
   editSlipLineAmount,
   recalculateLineVat,
+  sumDisplayedLineVatAmounts,
   type LineVatLine,
 } from '../utils/lineVat'
 import {
@@ -197,6 +198,14 @@ function shouldSuppressComputedAmounts(line: LineDraft, excludedFromSave: boolea
   const isPriceAuthorityOrUnset = line.authority == null || line.authority === 'PRICE'
   const quantityInvalid = !(Number(line.quantity) > 0)
   return isPriceAuthorityOrUnset && quantityInvalid
+}
+
+/** 금액 입력은 숫자와 천단위 콤마만 허용하고, 잘못된 문자열은 숫자로 재조합하지 않는다. */
+function parseEditableAmountInput(raw: string): string | null {
+  if (/^\d*$/.test(raw)) return raw
+  if (raw.includes(',,')) return null
+  if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
+  return raw.replace(/,/g, '')
 }
 
 function PriceChangeIndicator({ id }: { id: string }) {
@@ -385,8 +394,8 @@ function SlipMobileLineCard(props: {
           className="mobile-line-text-input mobile-line-number-input"
           value={props.line.unitPrice}
           onChange={(e) => {
-            const numeric = e.target.value.replace(/[^0-9]/g, '')
-            props.onUnitPriceChange(numeric)
+            const numeric = parseEditableAmountInput(e.target.value)
+            if (numeric !== null) props.onUnitPriceChange(numeric)
           }}
           aria-label={`라인 ${props.lineNumber} 단가`}
           aria-describedby={priceDescribedBy}
@@ -429,7 +438,10 @@ function SlipMobileLineCard(props: {
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
           value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.supplyAmount ?? vatBreakdown.supply).toLocaleString()}
-          onChange={(e) => props.onSupplyAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+          onChange={(e) => {
+            const numeric = parseEditableAmountInput(e.target.value)
+            if (numeric !== null) props.onSupplyAmountChange(numeric)
+          }}
           aria-label={`라인 ${props.lineNumber} 공급가액`}
           disabled={!props.vatEditable}
         />
@@ -442,7 +454,10 @@ function SlipMobileLineCard(props: {
           inputMode="numeric"
           className="mobile-line-text-input mobile-line-number-input"
           value={shouldSuppressComputedAmounts(props.line, props.excludedFromSave) ? '0' : Number(props.line.vatAmount ?? vatBreakdown.vat).toLocaleString()}
-          onChange={(e) => props.onVatAmountChange(e.target.value.replace(/[^0-9]/g, ''))}
+          onChange={(e) => {
+            const numeric = parseEditableAmountInput(e.target.value)
+            if (numeric !== null) props.onVatAmountChange(numeric)
+          }}
           aria-label={`라인 ${props.lineNumber} 부가세`}
           disabled={!props.vatEditable}
         />
@@ -1044,17 +1059,12 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   // ── 합계 계산 (Designer components.md § 6.2 인용) ──────
 
   const totals = useMemo(() => {
-    // 단가 부가세포함(라인 단위 eCount): 라인별 합계(VAT포함)=round(수량×단가),
-    // 공급가액=round(합계/1.1), 부가세=차액 → 라인별 반올림 후 합산(BE 와 동일).
+    // 행이 현재 표시·저장하는 S/V/T를 그대로 합산한다. 행별 권위가 SUPPLY/VAT인
+    // 경우에도 여기서 recalculateLineVat를 다시 호출하면 부가세 10% 재계산과 단가
+    // 역산이 발생해 행 표시와 하단 합계가 갈라진다(D-1).
     const valid = lines.filter((l) => l.productId && Number(l.quantity) > 0)
-    let supply = 0
-    let total = 0
-    for (const l of valid) {
-    const calculated = recalculateLineVat(asVatLine(l), l.authority ?? 'PRICE')
-      supply += Number(calculated.supplyAmount)
-      total += Number(calculated.lineTotal)
-    }
-    return { count: valid.length, supply, vat: total - supply, total }
+    const displayed = sumDisplayedLineVatAmounts(valid.map(asVatLine))
+    return { count: valid.length, ...displayed }
   }, [lines])
 
   // ── 저장 mutation ───────────────────────────────────────
