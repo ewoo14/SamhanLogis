@@ -71,6 +71,11 @@
 유지한다. 상세 결정은 `migration/decisions/DECISIONS.md`와
 `docs/dev-reports/825-s5-null-semantics-r4.md`의 HIGH-1 기록을 따른다.
 
+2026-07-25 #920에서는 CODEF scope PUT에 조회 버전 기반 낙관적 잠금을 추가했다. 최초 저장은
+`version=null`, 기존 저장은 GET 또는 직전 저장 응답의 버전을 보내며, 낡은 요청은 409로 거부하고
+데이터를 바꾸지 않는다. 데스크톱은 서버 최신 선택을 다시 표시한 뒤 사용자가 명시적으로 다시
+선택해 저장하도록 안내한다. 상세: [`docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md`](docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md).
+
 ### 백엔드 (17 = 15 도메인 서비스 + 게이트웨이 + 디스커버리, MSA service-per-DB)
 
 | 서비스 | DB | 역할 |

@@ -48,6 +48,7 @@ const DEFAULT_CONNECTED_ID = 'connected-main'
 /** 범위 미선택 안내 문구 id — 잠긴 버튼/칩에서 aria-describedby 로 사유를 연결한다(#825 슬5 R1 item4). */
 const SCOPE_HINT_ID = 'codef-scope-hint-text'
 const SCOPE_ALL_LOCK_HINT_ID = 'codef-scope-all-lock-hint-text'
+const SCOPE_CONFLICT_CODE = 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT'
 
 const CATEGORY_LABEL: Record<CodefScopeCategory, string> = {
   BANK: '계좌',
@@ -105,6 +106,12 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+function isScopeConflict(error: unknown): boolean {
+  if (!isAxiosError(error) || error.response?.status !== 409) return false
+  const data = error.response.data as { code?: unknown } | undefined
+  return data?.code === SCOPE_CONFLICT_CODE
+}
+
 function bankLabel(item: CodefBankAccountItem): string {
   return `${item.bankName} · ${item.name} · ${item.accountNumber}`
 }
@@ -147,6 +154,7 @@ export function CodefImportScopeForm({
   const [restoredScope, setRestoredScope] = useState<CodefImportScope | null>(null)
   const [restoredApplied, setRestoredApplied] = useState(false)
   const [selectionDirty, setSelectionDirty] = useState(false)
+  const [conflictScope, setConflictScope] = useState<CodefImportScope | null>(null)
   const [result, setResult] = useState<CodefImportResponse | null>(null)
   const allScopeChipRef = useRef<HTMLSpanElement | null>(null)
   const queryClient = useQueryClient()
@@ -322,6 +330,7 @@ export function CodefImportScopeForm({
       ...refs,
       defaultImportType: type,
       scopeMode,
+      version: restoredScope?.version ?? null,
     }
   }
 
@@ -383,6 +392,7 @@ export function CodefImportScopeForm({
     mutationFn: () => saveCodefImportScope(buildScopePayload()),
     onSuccess: (saved) => {
       queryClient.setQueryData(['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID], saved)
+      setConflictScope(null)
       setRestoredScope(saved)
       setSelection({
         accountRefs: normalizeRefs(saved.accountRefs),
@@ -394,7 +404,32 @@ export function CodefImportScopeForm({
       setSelectionDirty(false)
       onToast({ type: 'success', message: '가져오기 선택을 저장했습니다.' })
     },
-    onError: (error) => {
+    onError: async (error) => {
+      if (isScopeConflict(error)) {
+        try {
+          const latest = await loadCodefImportScope(DEFAULT_CONNECTED_ID)
+          const latestSelection: SelectionState = {
+            accountRefs: normalizeRefs(latest.accountRefs),
+            cardRefs: normalizeRefs(latest.cardRefs),
+            loanRefs: normalizeRefs(latest.loanRefs),
+          }
+          queryClient.setQueryData(['accounting', 'codef', 'scope', DEFAULT_CONNECTED_ID], latest)
+          setConflictScope(latest)
+          setRestoredScope(latest.scopeMode === null ? null : latest)
+          setScopeMode(latest.scopeMode)
+          setType(latest.defaultImportType)
+          setSelection(latest.scopeMode === 'SELECTED' ? latestSelection : EMPTY_SELECTION)
+          setSelectionDirty(false)
+          onToast({
+            type: 'error',
+            message: '다른 화면에서 가져오기 선택이 변경되었습니다. 최신 선택을 확인한 뒤 다시 저장해 주세요.',
+          })
+          return
+        } catch (reloadError) {
+          onToast({ type: 'error', message: errorMessage(reloadError, '최신 가져오기 선택을 불러오지 못했습니다.') })
+          return
+        }
+      }
       onToast({ type: 'error', message: errorMessage(error, '가져오기 선택 저장에 실패했습니다.') })
     },
   })
@@ -460,6 +495,15 @@ export function CodefImportScopeForm({
       && isAxiosError(scopeQuery.error)
       && (scopeQuery.error.response?.data as { code?: unknown } | undefined)?.code === 'NOT_FOUND'
     )
+  const conflictSelectionLabels = conflictScope
+    ? [
+        ...conflictScope.accountRefs,
+        ...conflictScope.cardRefs,
+        ...conflictScope.loanRefs,
+      ]
+        .map((ref) => itemLabelByRef.get(ref)?.label)
+        .filter((label): label is string => Boolean(label))
+    : []
 
   return (
     <div className="codef-import-panel">
@@ -539,6 +583,17 @@ export function CodefImportScopeForm({
       {scopeMissing ? (
         <div className="codef-import-hint">
           저장된 선택이 없습니다. 필요한 항목을 선택한 뒤 저장하세요.
+        </div>
+      ) : null}
+      {conflictScope ? (
+        <div role="alert" className="codef-import-hint codef-import-hint--error" data-testid="codef-scope-conflict">
+          다른 화면에서 가져오기 선택이 변경되었습니다. 서버 최신 선택을 확인했습니다.
+          {conflictScope.scopeMode === 'ALL'
+            ? ' 최신 범위: 전체.'
+            : conflictSelectionLabels.length > 0
+              ? ` 최신 선택: ${conflictSelectionLabels.join(', ')}.`
+              : ' 최신 선택 항목이 없습니다.'}
+          내 의도를 다시 선택한 뒤 저장하세요.
         </div>
       ) : null}
       {restoredScope && !selectionDirty ? (

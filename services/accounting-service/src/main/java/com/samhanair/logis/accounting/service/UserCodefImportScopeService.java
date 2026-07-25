@@ -7,10 +7,12 @@ import com.samhanair.logis.accounting.web.dto.CodefImportScopeRequest;
 import com.samhanair.logis.accounting.web.dto.CodefImportScopeResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import jakarta.persistence.OptimisticLockException;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -37,8 +39,12 @@ public class UserCodefImportScopeService {
         validateScope(scopeMode, request.accountRefs(), request.cardRefs(), request.loanRefs());
         try {
             return upsertInNewTransaction(userId, request, scopeMode);
-        } catch (DataIntegrityViolationException | ConstraintViolationException ex) {
-            return upsertInNewTransaction(userId, request, scopeMode);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (OptimisticLockingFailureException | OptimisticLockException
+                 | DataIntegrityViolationException | ConstraintViolationException ex) {
+            throw new BusinessException(ErrorCode.CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT,
+                    ErrorCode.CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT.getDefaultMessage(), ex);
         }
     }
 
@@ -68,7 +74,16 @@ public class UserCodefImportScopeService {
                                                 CodefScopeMode scopeMode) {
         UserCodefImportScope scope = repository
                 .findByUserIdAndConnectedId(userId, request.connectedId().trim())
-                .orElseGet(() -> UserCodefImportScope.create(userId, request.connectedId()));
+                .map(existing -> {
+                    verifyVersion(existing, request.version());
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    if (request.version() != null) {
+                        throw new BusinessException(ErrorCode.CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT);
+                    }
+                    return UserCodefImportScope.create(userId, request.connectedId());
+                });
         scope.updateSelections(
                 request.accountRefs(),
                 request.cardRefs(),
@@ -76,6 +91,13 @@ public class UserCodefImportScopeService {
                 request.defaultImportType(),
                 scopeMode);
         return CodefImportScopeResponse.from(repository.saveAndFlush(scope));
+    }
+
+    /** 저장 직전 클라이언트 스냅샷과 현재 행 버전을 대조한다. */
+    private static void verifyVersion(UserCodefImportScope scope, Long requestedVersion) {
+        if (requestedVersion == null || scope.getVersion() != requestedVersion.longValue()) {
+            throw new BusinessException(ErrorCode.CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT);
+        }
     }
 
     /** 인증 사용자 범위에서 선택 scope 를 조회한다. 미저장 상태는 빈 선택으로 응답한다. */

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
+import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -91,6 +92,7 @@ const CARD_A = { ref: '법인카드-001', name: '물류카드', issuerName: '신
 const BANK_B = { ref: '신한 234-567', name: '신한운영', bankName: '신한은행', accountNumber: '234-567' }
 const BANK_C = { ref: '우리 345-678', name: '우리운영', bankName: '우리은행', accountNumber: '345-678' }
 const CARD_B = { ref: '법인카드-002', name: '운영카드', issuerName: '현대카드', cardNumber: '8888' }
+type ScopeWithVersion = CodefImportScope & { version: number | null }
 
 function renderForm(
   onImported = vi.fn(async () => undefined),
@@ -120,6 +122,103 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     loadCodefImportScopeMock.mockReset()
     saveCodefImportScopeMock.mockReset()
     importScopedCodefMock.mockReset()
+  })
+
+  it('CODEF 낙관적 잠금 — 조회 버전을 저장 요청에 싣고 성공 응답 버전으로 다음 저장을 이어간다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [BANK_A.ref],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'BANK',
+      scopeMode: 'SELECTED',
+      version: 0,
+    } satisfies ScopeWithVersion)
+    saveCodefImportScopeMock
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main',
+        accountRefs: [BANK_A.ref],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'BANK',
+        scopeMode: 'SELECTED',
+        version: 1,
+      } satisfies ScopeWithVersion)
+      .mockResolvedValueOnce({
+        connectedId: 'connected-main',
+        accountRefs: [BANK_A.ref, BANK_B.ref],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'BANK',
+        scopeMode: 'SELECTED',
+        version: 2,
+      } satisfies ScopeWithVersion)
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1))
+    expect(saveCodefImportScopeMock.mock.calls[0]![0]).toMatchObject({ version: 0 })
+
+    fireEvent.click(screen.getByTestId('codef-bank-account-1'))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2))
+    expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
+  })
+
+  it('CODEF 낙관적 잠금 — 충돌 시 서버 최신 선택을 보여주고 다시 선택·저장할 수 있다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A, BANK_B])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    const staleScope = {
+      connectedId: 'connected-main',
+      accountRefs: [BANK_A.ref],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'BANK' as const,
+      scopeMode: 'SELECTED' as const,
+      version: 0,
+    } satisfies ScopeWithVersion
+    const latestScope = {
+      ...staleScope,
+      accountRefs: [BANK_A.ref, BANK_B.ref],
+      version: 1,
+    } satisfies ScopeWithVersion
+    loadCodefImportScopeMock
+      .mockResolvedValueOnce(staleScope)
+      .mockResolvedValueOnce(latestScope)
+    saveCodefImportScopeMock.mockRejectedValueOnce(new AxiosError(
+      '충돌',
+      'ERR_BAD_REQUEST',
+      undefined,
+      undefined,
+      {
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config: {},
+        data: {
+          success: false,
+          code: 'CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT',
+          message: '다른 화면에서 가져오기 선택이 변경되었습니다. 최신 선택을 확인한 뒤 다시 저장해 주세요.',
+          data: null,
+        },
+      },
+    ))
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(screen.getByTestId('codef-save-scope-button'))
+
+    await waitFor(() => expect(loadCodefImportScopeMock).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId('codef-scope-conflict').textContent).toContain('다른 화면에서 가져오기 선택이 변경되었습니다')
+    expect(screen.getByTestId('codef-scope-conflict').textContent).toContain('신한운영')
+    expect((screen.getByTestId('codef-bank-account-1') as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('H-4 — 저장 scopeMode=ALL 로 재방문하면 미선택이 아닌 전체로 복원된다(refs=[] 를 미저장과 혼동하지 않음)', async () => {
@@ -226,6 +325,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
       loanRefs: [],
       defaultImportType: 'BANK',
       scopeMode: 'SELECTED',
+      version: 0,
     }
     saveCodefImportScopeMock.mockResolvedValue(savedScope)
     const toasts: Array<{ type: 'error' | 'success'; message: string }> = []

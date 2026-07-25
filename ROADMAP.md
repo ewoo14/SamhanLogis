@@ -29,6 +29,10 @@
 
 ---
 
+### 최신 진행 메모 (2026-07-25)
+
+- **#920 CODEF scope 동시 저장 보호**: `user_codef_import_scope`에 V66 `version`과 JPA `@Version`을 추가하고 PUT 요청의 조회 버전을 정확히 대조한다. 최초 저장 경쟁과 낡은 전체 교체 요청은 409로 거부하며 기존 선택을 바꾸지 않는다. 데스크톱은 서버 최신 선택을 재조회해 표시하고 자동 합집합 없이 사용자의 명시적 재선택 경로를 제공한다. RED-first BE/FE/mock 회귀와 accounting-service 전체 테스트를 완료했다. 상세: `docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md`.
+
 ### 최신 진행 메모 (2026-07-21)
 
 - **#824 품목행 공급가액·부가세 정합성 보강 (2026-07-22)**: 부가가치세법 제29조와 국세청 유권해석의 공급가액 10% 원칙을 확인하고, 법령이 HALF_UP을 강제한다고 추정하지 않은 채 기존 세금계산서 절사 정책을 공통 계산기로 수렴했다. 전표·견적·세금계산서의 신규 계산은 `shared:common:VatAmountCalculator`/desktop `vatRounding.ts`를 사용하며 발행 완료 자료는 재계산하지 않는다. 주문 코드 실측 결과 `PartnerOrderLine.subtotal`은 VAT 포함 T였으므로 V12에서 nullable `supply_amount`·`vat_amount`만 추가하고 기존 행 backfill을 금지했다. 신규 주문은 `PRICE/SUPPLY/VAT/TOTAL`과 `S+V=T`, DC 선적용 후 PRICE 재계산을 고정한다. 상세 결정은 `migration/decisions/DECISIONS.md`, 검증은 `docs/dev-reports/2026-07-22-824-item-line-supply-vat.md` 참조.

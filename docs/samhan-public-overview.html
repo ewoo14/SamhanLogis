@@ -1412,6 +1412,10 @@ body {
     <div class="callout-icon">🧭</div>
     <div><strong>#825 슬5 null-semantics (PR #864 R2):</strong> 일마감·안전재고·CODEF 쓰기 범위는 <code>scopeMode=ALL|SELECTED</code>를 명시한다. CODEF 저장 범위는 <code>defaultImportType</code> 카테고리를 재가져오기에도 유지하고, accounting-service V64는 <code>scope_mode DEFAULT 'SELECTED'</code>와 기존 행 보수적 backfill로 구버전 앱 롤백 INSERT 및 무음 범위 확대를 막는다.</div>
   </div>
+  <div class="callout blue" style="margin-top: 12px;">
+    <div class="callout-icon">🔒</div>
+    <div><strong>#920 CODEF scope 낙관적 잠금:</strong> accounting-service V66 <code>version</code>과 JPA <code>@Version</code>으로 전체 교체 저장의 낡은 스냅샷을 409로 거부한다. 기존 행은 버전 0으로 호환하고, 데스크톱은 최신 계좌·카드·대출 표시명을 다시 보여준 뒤 자동 병합 없이 명시적 재선택을 안내한다.</div>
+  </div>
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">✉️</div>
     <div><strong>#825 슬6 메신저 수신자 칩 복수선택 (Issue #866 / PR #892):</strong> desktop <code>/messenger</code> 신설. <code>MultiSelectAutocomplete</code> 기반 재직자 수신자 칩(최대 50명)·읽기 전용 수신함과 groupware <code>/admin/groupware/messages/bulk</code> 원자적 복수 발송·전용 수신자 검색을 연결했다. groupware V14는 <code>messages.batch_id</code>만 추가하고 기존 단건 계약을 유지한다.</div>

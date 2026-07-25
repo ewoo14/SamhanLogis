@@ -26,6 +26,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -235,6 +236,142 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accountRefs[0]").value("국민 123-456"));
+    }
+
+    @Test
+    @DisplayName("CODEF scope — 저장 응답의 잠금값으로 같은 화면의 즉시 재저장이 성공한다")
+    void upsertScope_successResponseVersion_allowsImmediateSecondSave() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String connectedId = "connected-version-" + UUID.randomUUID();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "%s",
+                                  "version": null,
+                                  "scopeMode": "SELECTED",
+                                  "accountRefs": ["국민 123-456"],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "BANK"
+                                }
+                                """.formatted(connectedId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(0));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "connectedId": "%s",
+                                  "version": 0,
+                                  "scopeMode": "SELECTED",
+                                  "accountRefs": ["신한 987-654"],
+                                  "cardRefs": [],
+                                  "loanRefs": [],
+                                  "defaultImportType": "BANK"
+                                }
+                                """.formatted(connectedId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.version").value(1));
+    }
+
+    @Test
+    @DisplayName("CODEF scope — 낡은 저장은 409로 거부하고 최신 선택을 바꾸지 않는다")
+    void upsertScope_staleSnapshot_returns409AndPreservesLatestState() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String connectedId = "connected-stale-" + UUID.randomUUID();
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(scopeJson(connectedId, null,
+                                "[\"국민 123-456\"]", "[]")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                        .header("X-User-Id", userId)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(scopeJson(connectedId, 0L,
+                                "[\"국민 123-456\", \"신한 987-654\"]", "[]")))
+                .andExpect(status().isOk());
+
+        MvcResult staleResult = mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                                .header("X-User-Id", userId)
+                                .header("X-User-Role", "ACCOUNTANT")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(scopeJson(connectedId, 0L,
+                                        "[\"국민 123-456\"]", "[\"법인카드-001\"]")))
+                .andReturn();
+        MvcResult latestResult = mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(SCOPE_URL)
+                                .param("connectedId", connectedId)
+                                .header("X-User-Id", userId)
+                                .header("X-User-Role", "ACCOUNTANT"))
+                .andReturn();
+
+        org.junit.jupiter.api.Assertions.assertAll(
+                () -> assertThat(staleResult.getResponse().getStatus()).isEqualTo(409),
+                () -> assertThat(staleResult.getResponse().getContentAsString())
+                        .contains("CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT"),
+                () -> assertThat(latestResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                        .contains("신한 987-654")
+                        .doesNotContain("법인카드-001"));
+    }
+
+    @Test
+    @DisplayName("CODEF scope — 미저장 상태의 동시 첫 저장은 하나만 성사되고 다른 하나는 거부된다")
+    void upsertScope_concurrentFirstSave_rejectsOneWithoutSilentOverwrite() throws Exception {
+        String userId = UUID.randomUUID().toString();
+        String connectedId = "connected-first-race-" + UUID.randomUUID();
+        int requestCount = 2;
+        ExecutorService executor = Executors.newFixedThreadPool(requestCount);
+        CountDownLatch ready = new CountDownLatch(requestCount);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<MvcResult>> futures = new ArrayList<>();
+
+        try {
+            for (String accountRef : List.of("국민 123-456", "신한 987-654")) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+                    return mockMvc.perform(
+                                    org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(SCOPE_URL)
+                                            .header("X-User-Id", userId)
+                                            .header("X-User-Role", "ACCOUNTANT")
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content(scopeJson(connectedId, null,
+                                                    "[\"" + accountRef + "\"]", "[]")))
+                            .andReturn();
+                }));
+            }
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            List<MvcResult> results = new ArrayList<>();
+            for (Future<MvcResult> future : futures) {
+                results.add(future.get(20, TimeUnit.SECONDS));
+            }
+            long successCount = results.stream()
+                    .filter(result -> result.getResponse().getStatus() == 200)
+                    .count();
+            long conflictCount = results.stream()
+                    .filter(result -> result.getResponse().getStatus() == 409)
+                    .count();
+            assertThat(successCount).isEqualTo(1);
+            assertThat(conflictCount).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+        assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
     }
 
     @Test
@@ -594,6 +731,21 @@ class CodefImportControllerIT extends AbstractPostgresIT {
                         """)
                 .header("X-User-Id", UUID.randomUUID().toString())
                 .header("X-User-Role", "ACCOUNTANT"));
+    }
+
+    private static String scopeJson(String connectedId, Long version, String accountRefs, String cardRefs) {
+        String versionJson = version == null ? "null" : version.toString();
+        return """
+                {
+                  "connectedId": "%s",
+                  "version": %s,
+                  "scopeMode": "SELECTED",
+                  "accountRefs": %s,
+                  "cardRefs": %s,
+                  "loanRefs": [],
+                  "defaultImportType": "ALL"
+                }
+                """.formatted(connectedId, versionJson, accountRefs, cardRefs);
     }
 
     private org.springframework.test.web.servlet.ResultActions importCodefBank(String accountRef) throws Exception {

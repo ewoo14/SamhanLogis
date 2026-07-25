@@ -3085,6 +3085,14 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-S5-09 | 권한 없는 사용자에게 범위 전체 칩을 focusable button으로 노출하지 않는다. `role`·`tabIndex`·press handler를 제거하고 `aria-disabled="true"`를 둔다. |
 | D-S5-10-R4 | `import-scoped` 요청이 `scopeMode=ALL`이고 저장 scope도 `ALL`이면 BE는 사용자 scope를 조회해 저장 `defaultImportType`을 실행 type의 권위값으로 강제한다. 저장 scope가 없으면 명시 요청 type을 유지하고, `SELECTED`는 요청의 explicit refs/type 계약을 유지한다. FE 유형 드롭다운은 `canUpdate=false`에서 disabled이며 desktop mock도 같은 축소 규칙을 적용한다. |
 
+## #920 CODEF scope 낙관적 잠금 (2026-07-25)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-S5-11 | CODEF scope 전체 교체 PUT은 조회 당시 `version`과 현재 행 버전을 정확히 대조한다. 미저장 첫 저장은 `version=null`만 허용하고, 기존 행은 현재 버전과 일치해야 한다. 불일치·최초 저장 unique 충돌은 `409 CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT`로 거부하며 저장 retry로 last-write-wins를 만들지 않는다. |
+| D-S5-12 | 낙관적 잠금 충돌 시 데스크톱은 서버 최신 scope를 재조회해 표시하고 자동 합집합을 적용하지 않는다. 사용자가 최신 상태에서 의도한 계좌·카드·대출을 다시 명시적으로 선택해 저장한다. 충돌 안내에는 UUID를 쓰지 않고 사용자 표시명을 사용한다. |
+| D-S5-13 | V66은 `user_codef_import_scope.version BIGINT NOT NULL DEFAULT 0`을 추가한다. 기존 행과 신규 행 모두 버전 0에서 시작하며, 성공 응답의 증가 버전은 같은 화면의 다음 저장에 사용한다. |
+
 ## #824 품목행 공급가액·부가가치세 정합성 (2026-07-22)
 
 | 결정 코드 | 내용 |

@@ -156,7 +156,8 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "accountRefs": ["%s", "%s"],
                   "cardRefs": [],
                   "loanRefs": ["%s"],
-                  "defaultImportType": "BANK"
+                  "defaultImportType": "BANK",
+                  "version": 0
                 }
                 """.formatted(CONNECTED_ID, ACCOUNT_REF_1, ACCOUNT_REF_2, LOAN_REF_1))
                 .andExpect(status().isOk())
@@ -203,7 +204,8 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "accountRefs": [],
                   "cardRefs": [],
                   "loanRefs": [],
-                  "defaultImportType": "ALL"
+                  "defaultImportType": "ALL",
+                  "version": 0
                 }
                 """.formatted(CONNECTED_ID))
                 .andExpect(status().isOk())
@@ -227,7 +229,8 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                   "accountRefs": ["%s"],
                   "cardRefs": [],
                   "loanRefs": [],
-                  "defaultImportType": "BANK"
+                  "defaultImportType": "BANK",
+                  "version": 1
                 }
                 """.formatted(CONNECTED_ID, ACCOUNT_REF_2))
                 .andExpect(status().isOk())
@@ -254,8 +257,8 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("동시 scope 저장은 active unique 충돌 없이 둘 다 200 으로 멱등 처리된다")
-    void upsertScopeConcurrentRequests_areBothOkAndKeepSingleActiveRow() throws Exception {
+    @DisplayName("미저장 상태의 동시 scope 저장은 하나만 성사되고 다른 하나는 낙관적 잠금 충돌로 거부된다")
+    void upsertScopeConcurrentRequests_acceptsOneAndRejectsTheOther() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
         try {
@@ -283,7 +286,7 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             start.countDown();
 
             assertThat(List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
-                    .containsExactlyInAnyOrder(200, 200);
+                    .containsExactlyInAnyOrder(200, 409);
         } finally {
             executor.shutdownNow();
         }
@@ -298,8 +301,8 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("scope 저장 중 unique 충돌이 발생하면 재조회 후 update 로 200 응답한다")
-    void upsertScopeRecoversFromUniqueConflictByReloadingAndUpdating() throws Exception {
+    @DisplayName("scope 저장 중 unique 충돌이 발생하면 기존 선택을 바꾸지 않고 409로 거부한다")
+    void upsertScopeRejectsUniqueConflictWithoutMutatingExistingScope() throws Exception {
         DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
         definition.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         TransactionStatus blocker = transactionManager.getTransaction(definition);
@@ -343,9 +346,9 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
             blocker = null;
 
             MvcResult response = result.get(10, TimeUnit.SECONDS);
-            assertThat(response.getResponse().getStatus()).isEqualTo(200);
+            assertThat(response.getResponse().getStatus()).isEqualTo(409);
             assertThat(response.getResponse().getContentAsString(StandardCharsets.UTF_8))
-                    .contains(ACCOUNT_REF_1, CARD_REF_1, LOAN_REF_1, "\"defaultImportType\":\"ALL\"");
+                    .contains("CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT");
         } finally {
             if (blocker != null && !blocker.isCompleted()) {
                 transactionManager.rollback(blocker);
@@ -360,6 +363,12 @@ class CodefAccountSelectionIT extends AbstractPostgresIT {
                    AND is_deleted = false
                 """, Integer.class, USER_ID.toString(), CONNECTED_ID);
         assertThat(activeCount).isEqualTo(1);
+        mockMvc.perform(auth(get("/accounting/codef/scopes")
+                        .param("connectedId", CONNECTED_ID)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accountRefs[0]").value("기존 계좌"))
+                .andExpect(jsonPath("$.data.cardRefs.length()").value(0))
+                .andExpect(jsonPath("$.data.loanRefs.length()").value(0));
     }
 
     @Test

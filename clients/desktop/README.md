@@ -67,6 +67,13 @@ npm run build:win
 총 디자인 시스템 컴포넌트 11 / 16 개 첫 실사용
 (미사용: TagChip, TagInput, Input wrapper, Label, SlipNumberDisplay 외).
 
+## CODEF 가져오기 선택 저장
+
+`CodefImportScopeForm`은 저장 scope의 `version`을 PUT에 함께 보내 낡은 전체 교체 저장을 막는다.
+최초 저장은 null 버전, 성공 응답은 다음 저장에 사용할 증가 버전을 반환한다. 서버가 409로 거부하면
+최신 선택을 다시 조회해 계좌·카드·대출 표시명으로 안내하고, 자동 병합 없이 사용자가 의도를 다시
+선택해 저장할 수 있게 한다. desktop mock도 같은 충돌 계약을 검증한다.
+
 ## 보안 모델
 
 - `contextIsolation: true` + `nodeIntegration: false`

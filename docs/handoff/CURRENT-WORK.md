@@ -1,5 +1,14 @@
 # 현재 작업 핸드오프 노트
 
+## 2026-07-25 Codex Update — #920 CODEF scope 낙관적 잠금 구현 완료
+
+- 작업 브랜치: `fix/920-codef-scope-optimistic-lock`
+- `PUT /accounting/codef/scopes`에 조회 버전 계약과 `@Version`을 추가했다. 최초 저장은 `version=null`, 기존 저장은 일치하는 버전만 허용하며 낡은 저장과 최초 저장 경쟁의 한쪽은 `409 CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT`로 거부한다.
+- V66에서 기존 `user_codef_import_scope` 행을 버전 0으로 초기화했다. 충돌 시 서버 retry를 하지 않아 기존 전체 교체 선택을 보존한다.
+- 데스크톱 Form과 mock은 409 뒤 최신 선택을 재조회·표시하고 자동 합집합 없이 명시적 재선택 경로를 제공한다.
+- 검증: accounting-service 전체 `1483 tests / 0 failed / 10 skipped`, desktop typecheck 통과, Form `24/24`, mock·CODEF API `127/127` 통과.
+- 상세 보고서: `docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md`
+
 > 새 세션 시작 시 본 파일만 읽으면 즉시 컨텍스트 복원 가능.
 
 ---

@@ -1538,12 +1538,12 @@ describe('mock CODEF account selection BC3 contract', () => {
       method: 'PUT',
       url: '/accounting/codef/scopes',
       data: scopePayload,
-    }) as MockEnvelope<typeof scopePayload>
+    }) as MockEnvelope<typeof scopePayload & { version: number }>
     const loaded = mockRequest({
       method: 'GET',
       url: '/accounting/codef/scopes',
       params: { connectedId: 'connected-main' },
-    }) as MockEnvelope<typeof scopePayload>
+    }) as MockEnvelope<typeof scopePayload & { version: number }>
     const imported = mockRequest({
       method: 'POST',
       url: '/accounting/codef/import-scoped',
@@ -1568,8 +1568,10 @@ describe('mock CODEF account selection BC3 contract', () => {
       unavailableNames: string[]
     }>
 
-    expect(saved.data).toEqual(scopePayload)
-    expect(loaded.data).toEqual(scopePayload)
+    expect(saved.data).toMatchObject(scopePayload)
+    expect(saved.data.version).toBe(0)
+    expect(loaded.data).toMatchObject(scopePayload)
+    expect(loaded.data.version).toBe(0)
     expect(imported.data.fetchedCount).toBe(4)
     // #810 R3 (L2-M1) additive 계약 — stale(영구)과 unavailable(일시장애 재시도 대상) 필드가
     // 항상 존재한다. mock 은 일시장애 경로가 없어 0/빈 배열 기본값이다.
@@ -1577,6 +1579,60 @@ describe('mock CODEF account selection BC3 contract', () => {
     expect(imported.data.staleNormalizedNames).toEqual([])
     expect(imported.data.unavailableSkippedCount).toBe(0)
     expect(imported.data.unavailableNames).toEqual([])
+  })
+
+  it('CODEF scope mock — 낡은 잠금값 저장은 409로 거부하고 최신 선택을 보존한다', () => {
+    const connectedId = `optimistic-lock-${Date.now()}`
+    mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        version: null,
+        accountRefs: ['국민 123456-78-901234'],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'BANK',
+        scopeMode: 'SELECTED',
+      },
+    })
+    mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        version: 0,
+        accountRefs: ['국민 123456-78-901234', '하나 987-654321-001'],
+        cardRefs: [],
+        loanRefs: [],
+        defaultImportType: 'BANK',
+        scopeMode: 'SELECTED',
+      },
+    })
+
+    const stale = mockRequest({
+      method: 'PUT',
+      url: '/accounting/codef/scopes',
+      data: {
+        connectedId,
+        version: 0,
+        accountRefs: ['국민 123456-78-901234'],
+        cardRefs: ['삼한 물류카드'],
+        loanRefs: [],
+        defaultImportType: 'ALL',
+        scopeMode: 'SELECTED',
+      },
+    }) as { __mockStatus?: number; body?: { code?: string } }
+    const latest = mockRequest({
+      method: 'GET',
+      url: '/accounting/codef/scopes',
+      params: { connectedId },
+    }) as MockEnvelope<{ accountRefs: string[]; cardRefs: string[] }>
+
+    expect(stale.__mockStatus).toBe(409)
+    expect(stale.body?.code).toBe('CODEF_SCOPE_OPTIMISTIC_LOCK_CONFLICT')
+    expect(latest.data.accountRefs).toEqual(['국민 123456-78-901234', '하나 987-654321-001'])
+    expect(latest.data.cardRefs).toEqual([])
   })
 
   it('CSV import 응답도 stale·unavailable additive 계약 필드를 포함한다 (#810 R3 L2-M1)', () => {
@@ -1619,6 +1675,7 @@ describe('mock CODEF account selection BC3 contract', () => {
       loanRefs: [],
       defaultImportType: 'ALL',
       scopeMode: null,
+      version: null,
     })
   })
 

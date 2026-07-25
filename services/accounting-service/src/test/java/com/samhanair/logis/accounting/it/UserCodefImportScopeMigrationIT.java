@@ -54,6 +54,10 @@ class UserCodefImportScopeMigrationIT {
                             + "AND account_ref_selections = '[]' AND card_ref_selections = '[]' "
                             + "AND loan_ref_selections = '[]'"))
                     .isEqualTo(3);
+            assertThat(singleLong(connection,
+                    "SELECT MIN(version) FROM user_codef_import_scope "
+                            + "WHERE created_by = 'migration-regression'"))
+                    .isEqualTo(0L);
             assertThat(singleBoolean(connection,
                     "SELECT convalidated FROM pg_constraint "
                             + "WHERE conname = 'ck_user_codef_import_scope_refs_consistency'"))
@@ -119,6 +123,13 @@ class UserCodefImportScopeMigrationIT {
         try (ResultSet result = connection.createStatement().executeQuery(sql)) {
             result.next();
             return result.getInt(1);
+        }
+    }
+
+    private static long singleLong(Connection connection, String sql) throws Exception {
+        try (ResultSet result = connection.createStatement().executeQuery(sql)) {
+            result.next();
+            return result.getLong(1);
         }
     }
 
