@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   appVersionDismissKey,
+  resolveBuildAppVersion,
   resolveAppClientType,
   resolveVersionPromptState,
 } from './versionCheck'
@@ -15,10 +16,15 @@ const baseVersionInfo: AppVersionInfo = {
 }
 
 describe('version-check model', () => {
-  it('Electron은 DESKTOP, Capacitor는 MOBILE, 기본 브라우저는 WEB clientType으로 판정한다', () => {
+  it('빌드 주입 개발 버전을 패키지 semver 대체값보다 우선 사용한다', () => {
+    expect(resolveBuildAppVersion('2026/07/25-1')).toBe('2026/07/25-1')
+    expect(() => resolveBuildAppVersion(undefined)).toThrow(/VITE_APP_VERSION/)
+  })
+
+  it('Electron·Capacitor·웹 빌드는 모두 삼한 데스크톱 clientType으로 판정한다', () => {
     expect(resolveAppClientType({ electron: true, capacitor: false })).toBe('DESKTOP')
-    expect(resolveAppClientType({ electron: false, capacitor: true })).toBe('MOBILE')
-    expect(resolveAppClientType({ electron: false, capacitor: false })).toBe('WEB')
+    expect(resolveAppClientType({ electron: false, capacitor: true })).toBe('DESKTOP')
+    expect(resolveAppClientType({ electron: false, capacitor: false })).toBe('DESKTOP')
   })
 
   it('CRITICAL 응답만 닫을 수 없는 차단 상태로 변환한다', () => {

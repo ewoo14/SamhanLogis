@@ -13,6 +13,10 @@ import {
 import {
   createAppRelease,
   deleteAppRelease,
+  appClientOptionsForRelease,
+  appClientTypeDisplayLabel,
+  appClientTypeLabel,
+  appClientTypeVersionCheckSupported,
   listAppReleases,
   publishAppRelease,
   unpublishAppRelease,
@@ -37,12 +41,6 @@ type ReleaseFormState = {
   forceLevel: Exclude<AppForceLevel, 'NONE'>
   releaseNotes: string
   releasedAt: string
-}
-
-const CLIENT_TYPE_LABEL: Record<AppClientType, string> = {
-  DESKTOP: '데스크탑',
-  WEB: '웹',
-  MOBILE: '모바일',
 }
 
 const FORCE_LEVEL_LABEL: Record<Exclude<AppForceLevel, 'NONE'>, string> = {
@@ -197,14 +195,17 @@ export function AppReleaseManagementPage() {
     saveMutation.mutate(toPayload(form))
   }
 
+  // 편집 중 선택값이 바뀌어도 원래 legacy 행의 WEB/MOBILE 선택지를 유지해 되돌릴 수 있게 한다.
+  const clientOptions = appClientOptionsForRelease(editing?.clientType)
+
   const rows = query.data ?? []
   const columns = useMemo<DataTableColumn<AppRelease>[]>(() => [
     {
       key: 'clientType',
-      header: '클라이언트',
+      header: '앱',
       width: '110px',
       mobilePriority: 'secondary',
-      render: (row) => CLIENT_TYPE_LABEL[row.clientType],
+      render: (row) => appClientTypeDisplayLabel(row.clientType),
     },
     { key: 'version', header: '최신 버전', width: '120px', mobilePriority: 'primary' },
     { key: 'minSupportedVersion', header: '최소 지원', width: '120px', mobilePriority: 'secondary' },
@@ -293,7 +294,7 @@ export function AppReleaseManagementPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>버전 관리</h1>
           <p style={{ margin: '6px 0 0', color: 'var(--color-neutral-600)', fontSize: 13 }}>
-            클라이언트별 최신 버전, 최소 지원 버전, 강제 수준을 관리합니다.
+            앱별 개발 버전(YYYY/MM/DD-{'{번호}'}), 최소 지원 버전, 강제 수준을 관리합니다.
           </p>
         </div>
         <Button type="button" onClick={openCreate} data-testid="app-release-create-open">
@@ -355,15 +356,17 @@ export function AppReleaseManagementPage() {
         >
           <div className={styles.formGridTwo} data-testid="app-release-primary-grid">
             <Select
-              label="클라이언트"
+              label="앱"
               value={form.clientType}
               onChange={(event) => setForm((prev) => ({ ...prev, clientType: event.target.value as AppClientType }))}
               required
               data-testid="app-release-client-type"
             >
-              <option value="DESKTOP">데스크탑</option>
-              <option value="WEB">웹</option>
-              <option value="MOBILE">모바일</option>
+              {clientOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}{option.versionCheckSupported === false ? ' (버전 확인 미지원)' : ''}
+                </option>
+              ))}
             </Select>
             <Select
               label="강제 수준"
@@ -382,7 +385,8 @@ export function AppReleaseManagementPage() {
               label="최신 버전"
               value={form.version}
               onChange={(event) => setForm((prev) => ({ ...prev, version: event.target.value }))}
-              placeholder="0.2.0"
+              placeholder="2026/07/25-1"
+              hint="예: 2026/07/25-1"
               required
               data-testid="app-release-version"
             />
@@ -390,7 +394,8 @@ export function AppReleaseManagementPage() {
               label="최소 지원 버전"
               value={form.minSupportedVersion}
               onChange={(event) => setForm((prev) => ({ ...prev, minSupportedVersion: event.target.value }))}
-              placeholder="0.1.0"
+              placeholder="2026/07/24-1"
+              hint="예: 2026/07/24-1"
               required
               data-testid="app-release-min-supported"
             />
@@ -460,11 +465,13 @@ export function AppReleaseManagementPage() {
       >
         <p data-testid="app-release-publish-dialog" style={{ margin: 0 }}>
           {publishTarget
-            ? `${CLIENT_TYPE_LABEL[publishTarget.clientType]} ${publishTarget.version} 릴리스를 ${publishTarget.isPublished ? '배포 취소' : '배포'}합니다.`
+            ? `${appClientTypeLabel(publishTarget.clientType)} ${publishTarget.version} 릴리스를 ${publishTarget.isPublished ? '배포 취소' : '배포'}합니다.`
             : ''}
         </p>
         <p style={{ margin: '8px 0 0', color: 'var(--color-neutral-600)', fontSize: 13 }}>
-          전체 클라이언트의 업데이트 안내와 강제 수준 판단에 즉시 반영됩니다.
+          {publishTarget && appClientTypeVersionCheckSupported(publishTarget.clientType)
+            ? '버전 확인을 지원하는 선택한 앱 사용자에게만 업데이트 안내와 강제 수준 판단이 반영됩니다.'
+            : '이 앱은 현재 버전 확인을 지원하지 않아 사용자 업데이트 안내와 강제 수준 판단이 반영되지 않습니다.'}
         </p>
       </Modal>
 
@@ -492,7 +499,7 @@ export function AppReleaseManagementPage() {
         )}
       >
         <p data-testid="app-release-delete-dialog" style={{ margin: 0 }}>
-          {deleteTarget ? `${CLIENT_TYPE_LABEL[deleteTarget.clientType]} ${deleteTarget.version} 릴리스를 삭제합니다.` : ''}
+          {deleteTarget ? `${appClientTypeLabel(deleteTarget.clientType)} ${deleteTarget.version} 릴리스를 삭제합니다.` : ''}
         </p>
       </Modal>
     </div>

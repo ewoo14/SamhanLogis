@@ -32,6 +32,14 @@
 ### 최신 진행 메모 (2026-07-25)
 
 - **#920 CODEF scope 동시 저장 보호**: `user_codef_import_scope`에 V66 `version`과 JPA `@Version`을 추가하고 PUT 요청의 조회 버전을 정확히 대조한다. 최초 저장 경쟁과 낡은 전체 교체 요청은 409로 거부하며 기존 선택을 바꾸지 않는다. 데스크톱은 서버 최신 선택을 재조회해 표시하고 자동 합집합 없이 사용자의 명시적 재선택 경로를 제공한다. RED-first BE/FE/mock 회귀와 accounting-service 전체 테스트를 완료했다. 상세: `docs/dev-reports/2026-07-25-920-codef-scope-optimistic-lock.md`.
+- **#910 앱별 버전 정책 식별자 슬라이스 1**: dashboard-service `AppClientType`을 8개 사용자
+  대면 앱 식별자로 확장하고 V7에서 `client_type` CHECK와 길이를 교체했다. 기존 `DESKTOP`
+  릴리스는 삼한 데스크톱 정본으로 보존하며 구버전 `WEB`·`MOBILE` 조회값은 호환용으로 유지한다.
+  삼한 모바일·직원 모바일·아로로지스 모바일은 각각 전용 식별자를 보내고, desktop 관리 화면과
+  mock은 내부 enum 대신 한국어 앱 이름을 선택·표시한다. 웹/아로로지스 데스크톱 버전 체크 신설과
+  OTA 활성화는 후속 범위다. 신규 릴리스 개발 버전은 `YYYY/MM/DD-{번호}`로 등록·판정하며
+  패키지 semver는 빌드 식별자로만 사용한다. 상세 검증은
+  `docs/dev-reports/2026-07-25-910-app-client-identity.md`.
 
 ### 최신 진행 메모 (2026-07-21)
 

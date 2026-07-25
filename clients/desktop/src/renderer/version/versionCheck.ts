@@ -21,6 +21,15 @@ export interface VersionPromptInput {
   sessionStorage?: Pick<Storage, 'getItem'> | Map<string, string>
 }
 
+/** 빌드 시 주입된 개발 버전을 사용하며, 무주입 실행은 모호한 버전으로 진행하지 않는다. */
+export function resolveBuildAppVersion(injectedVersion: string | undefined): string {
+  const version = injectedVersion?.trim()
+  if (!version) {
+    throw new Error('VITE_APP_VERSION에 릴리스 버전을 명시적으로 주입해야 합니다.')
+  }
+  return version
+}
+
 function readStorageValue(
   storage: Pick<Storage, 'getItem'> | Map<string, string>,
   key: string,
@@ -34,9 +43,10 @@ function readStorageValue(
 export function resolveAppClientType(
   flags: RuntimePlatformFlags,
 ): AppClientType {
-  if (flags.electron) return 'DESKTOP'
-  if (flags.capacitor) return 'MOBILE'
-  return 'WEB'
+  // Electron·Capacitor·웹은 모두 clients/desktop의 같은 백오피스 앱 산출물이다.
+  // 네이티브 셸 종류가 아니라 배포 앱 경계를 식별해야 하므로 모두 DESKTOP 정책을 조회한다.
+  if (flags.electron || flags.capacitor) return 'DESKTOP'
+  return 'DESKTOP'
 }
 
 export function appVersionDismissKey(

@@ -19,7 +19,8 @@ import org.hibernate.annotations.UuidGenerator;
 /**
  * 클라이언트 앱 릴리스 정책.
  *
- * <p>클라이언트 유형별 semver 최신 버전, 최소 지원 버전, 강제 수준과 릴리스노트를 저장한다.
+ * <p>클라이언트 앱별 개발 버전 최신값, 최소 지원 버전, 강제 수준과 릴리스노트를 저장한다.
+ * 마이그레이션 전 semver 값은 기존 행의 호환을 위해 그대로 보존한다.
  * BaseEntity 7 audit + Soft Delete 만 사용하며 물리 삭제하지 않는다.
  */
 @Entity
@@ -36,7 +37,7 @@ public class AppRelease extends BaseEntity {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "client_type", nullable = false, length = 20)
+    @Column(name = "client_type", nullable = false, length = 40)
     private AppClientType clientType;
 
     @Column(name = "version", nullable = false, length = 50)

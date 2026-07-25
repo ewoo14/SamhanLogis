@@ -56,6 +56,37 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY 지원 (unique index 의무 보유, V1 SQ
 | GET | `/admin/dashboard/sales-aggregate?from=&to=&interval=DAILY&partnerCode=` | 매출 집계 (UUID 비공개 가드 — partnerCode 입력 + service-side resolve, W4 fix Q-W4-2) |
 | POST | `/admin/dashboard/refresh` | Materialized view REFRESH 트리거 + KPI cache invalidate |
 
+### 앱 릴리스 버전 정책
+
+공개 `GET /app/version?clientType=&currentVersion=`과 admin `/app/releases` CRUD는 앱별 정책을
+분리한다. 신규 등록 선택지는 `DESKTOP`(삼한 데스크톱), `SAMHAN_MOBILE`,
+`SAMHAN_MOBILE_STAFF`, `AROLOGIS_MOBILE`, `SAMHAN_ORDER_WEB`, `SAMHAN_ESTIMATE_WEB`,
+`SAMHAN_MOBILE_PUBLIC_WEB`, `AROLOGIS_DESKTOP` 8개이며, 화면에는 각각 한국어 앱 이름만 표시한다.
+기존 등록 데이터와 구버전 클라이언트 호환을 위해 `DESKTOP`·`WEB`·`MOBILE` 값은 DB/조회 계약에
+남겨 둔다. `V7__app_release_client_identity.sql`은 `client_type`을 `VARCHAR(40)`으로 확장하고
+동일 앱 식별자 안에서만 `(client_type, version)` 활성 unique 제약을 적용한다.
+
+신규 릴리스의 `version`과 `minSupportedVersion`은 개발 버전 정책인
+`YYYY/MM/DD-{번호}` 형식(슬래시 날짜, 1 이상의 숫자 일련번호)을 사용한다. 등록 API는
+이 형식을 벗어난 값과 한국어 설명이 없는 값을 거부하며, 날짜와 일련번호를 숫자로 비교한다.
+패키지의 `0.1.0` 같은 semver는 빌드 산출물 식별자일 뿐 정책 판정에 사용하지 않는다.
+기존 semver 릴리스는 조회·정책 판정을 보존하고, 두 버전 필드를 바꾸지 않는 관리 수정도 허용해
+기존 등록 레코드를 조용히 무효화하지 않는다. 새 빌드는 `VITE_APP_VERSION` 또는
+`EXPO_PUBLIC_APP_VERSION`에 릴리스 버전을 명시적으로 주입할 수 있다. `SAMHAN_RELEASE_BUILD=1`
+또는 `BUILD_ENV=production|preview`인 릴리스 모드에서 주입이 누락되면 공통 해석기가 빌드를
+실패시킨다. 일반 개발·CI 빌드는 고정된 `0.1.0-dev` sentinel을 사용하며, 서버의 신규 릴리스
+등록 형식이 아니므로 배포 가능한 릴리스로 오인되지 않는다. 빌드 호스트의 KST 날짜·시계로
+버전을 자동 생성하지 않으므로 서로 다른 산출물이 같은 날짜·일련번호를 보고하거나 미래 날짜로
+최신 판정을 위조할 수 없다. 따라서 `0.0.0`은 정책 버전으로 사용하지 않는다. 패키지 semver는
+마켓·번들 도구 식별자로만 남긴다.
+
+구버전 데스크톱 웹/Capacitor 요청의 `WEB`·`MOBILE` 식별자는 공개 조회에서 `DESKTOP` 최신
+정책을 우선 사용하고, 아직 `DESKTOP` 릴리스가 없을 때만 해당 legacy 정책으로 fallback한다.
+이렇게 하면 BE 선배포 중에는 기존 fail-open을 유지하면서도 `DESKTOP`의 최소 지원 버전으로
+남은 구형 설치자의 유예를 종료할 수 있다.
+
+이번 슬라이스는 웹 3앱과 아로로지스 데스크톱의 버전 체크 신설 및 OTA 활성화를 포함하지 않는다.
+
 ## 4. 4 외부 client (ServiceDiscoveryClient 네 번째 소비자)
 
 | Client | Target service | 호출 endpoint | 정책 |

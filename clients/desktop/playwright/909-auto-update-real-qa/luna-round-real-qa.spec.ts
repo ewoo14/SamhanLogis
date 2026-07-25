@@ -152,7 +152,7 @@ test('PR #909 라운드 — 실제 updater 6개 기동 경로', async ({ browser
   const jsonAuth = { ...auth, 'Content-Type': 'application/json' }
   const releaseBody = {
     clientType: 'DESKTOP',
-    version: '9.9.8',
+    version: '2026/07/25-91012',
     forceLevel: 'MINOR',
     releaseNotes: `${MARKER} throwaway 자동업데이트 실서버 검증용`,
     releasedAt: '2026-07-23T00:00:00',
@@ -262,7 +262,7 @@ test('PR #909 라운드 — 실제 updater 6개 기동 경로', async ({ browser
 
     const criticalUpdate = await request.put(`${API_BASE}/app/releases/${releaseId}`, {
       headers: jsonAuth,
-      data: { ...releaseBody, forceLevel: 'CRITICAL', minSupportedVersion: '9.9.0' },
+      data: { ...releaseBody, forceLevel: 'CRITICAL', minSupportedVersion: '0.1.0' },
     })
     expect(criticalUpdate.status(), `CRITICAL 전환 실패 HTTP ${criticalUpdate.status()}`).toBeLessThan(400)
     const serverVersion = await request.get(`${API_BASE}/app/version?clientType=DESKTOP&currentVersion=0.1.0`)
