@@ -94,7 +94,15 @@ test('Electron 직접 포장과 Capacitor sync도 릴리스 표식 없는 산출
 
   const capacitorConfig = read('clients/desktop/capacitor.config.ts')
   assert.match(capacitorConfig, /dist\/capacitor\/\.samhan-release\.json/)
-  assert.match(read('clients/desktop/package.json'), /"cap:sync":\s*"npm run cap:sync:release"/)
+  assert.match(capacitorConfig, /CAPACITOR_SYNC_MODE/)
+  assert.match(read('clients/desktop/package.json'), /"cap:sync":\s*"npm run build:capacitor && node \.\.\/\.\.\/scripts\/sync-capacitor\.cjs development"/)
+  assert.match(read('clients/desktop/package.json'), /"cap:sync:release":\s*"npm run build:capacitor:release && node \.\.\/\.\.\/scripts\/sync-capacitor\.cjs release"/)
+})
+
+test('Capacitor sync wrapper는 개발·릴리스 모드를 명시적으로 전달한다', () => {
+  const { createSyncEnvironment } = require(resolve(REPOSITORY_DIR, 'scripts/sync-capacitor.cjs'))
+  assert.equal(createSyncEnvironment('development', {}).CAPACITOR_SYNC_MODE, 'development')
+  assert.equal(createSyncEnvironment('release', {}).CAPACITOR_SYNC_MODE, 'release')
 })
 
 test('데스크톱의 모든 Vite 빌드 설정은 0.0.0 폴백 없이 공통 버전 해석기를 사용한다', () => {
