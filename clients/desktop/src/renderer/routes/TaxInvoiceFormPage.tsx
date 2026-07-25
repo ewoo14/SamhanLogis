@@ -266,11 +266,27 @@ export function TaxInvoiceFormPage() {
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()])
   const [topError, setTopError] = useState<string>('')
 
-  // edit 모드 hydrate
-  useEffect(() => {
-    if (!isEdit) return
+  // #831-hydrate — detailQuery.data 하이드레이션을 useEffect 대신 렌더 중 파생으로 처리한다
+  // (같은 계열, CashReceiptFormPage #831-hydrate 수단 1과 동일). useEffect 로 하면
+  // "isLoading→false 렌더"(partner 관련 state 는 아직 공란 초기값)와 "실제 세금계산서 값으로
+  // 채워지는 렌더"(effect 실행 후) 사이에 실제로 커밋되는 프레임이 존재한다. 이 파일의
+  // 저장/임시저장 버튼은 isPending 으로만 disabled 되므로(하이드레이션 관련 게이트 없음) 그
+  // 프레임에서 저장을 누르면 buildBody() 가 초기값(partnerIdSnapshot='', partnerName='' 등)
+  // 기준으로 "선택한 거래처의 식별자를 확인할 수 없습니다" 같은 엉뚱한 오류를 기존(실제로는
+  // 거래처가 있는) 세금계산서에 대해 낸다. 렌더 중 setState 를 호출하면 React 는 이 프레임을
+  // 커밋하지 않고 새 state 로 즉시 재렌더하므로(공식 패턴: "Adjusting state when a prop
+  // changes") 이 창 자체가 사라진다.
+  //
+  // 기존 useEffect 는 가드가 없어(ref 도 없음) detailQuery.data 참조가 바뀔 때마다 매번
+  // 재하이드레이트했다 — [#825 R1 M1] 이 명시적으로 의도한 시맨틱(SSE coedit·revert
+  // invalidate·refetch 시 미저장 새 선택 partner 를 포함해 로컬 편집 전부를 리셋)이므로
+  // identical 하게 보존한다. "직전에 하이드레이트한 데이터 참조"를 state 로 추적해 매번
+  // 참조가 바뀔 때만 재실행되도록 한다(CashReceiptFormPage 의 hydratedFromReceipt 와 동일
+  // 패턴).
+  const [hydratedFromDetail, setHydratedFromDetail] = useState<typeof detailQuery.data>(undefined)
+  if (isEdit && detailQuery.data && detailQuery.data !== hydratedFromDetail) {
+    setHydratedFromDetail(detailQuery.data)
     const t = detailQuery.data
-    if (!t) return
     // [#825 R1 M1] hydrate 재실행(SSE coedit·revert invalidate·refetch) 시 미저장 새 선택
     // partner 도 함께 리셋해 소스 정합을 강제한다. 리셋 없이는 partnerIdSnapshot/partnerName 만
     // 원본으로 복원되고 partner(새 선택 P2)가 잔존 → buildBody 가 P2 UUID + 원본 partnerName 을
@@ -298,7 +314,7 @@ export function TaxInvoiceFormPage() {
           }))
         : [emptyLine()],
     )
-  }, [isEdit, detailQuery.data])
+  }
 
   const totals = useMemo(() => {
     const supply = lines.reduce(
