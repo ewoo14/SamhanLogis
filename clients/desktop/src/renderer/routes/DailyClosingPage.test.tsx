@@ -41,7 +41,7 @@ vi.mock('../api/closingApi', async (importOriginal) => {
   }
 })
 
-import { DAILY_CLOSING_LIST_COLUMN_KEYS, DailyClosingPage } from './DailyClosingPage'
+import { DAILY_CLOSING_LIST_COLUMN_KEYS, DailyClosingPage, fmtTimestamp } from './DailyClosingPage'
 
 // BE 계약 충실 픽스처 — DiscountRevalidator.Status + ModelTokenExtractor.extractModelTokenOrNull:
 //   verified ∈ {true,false} ⟺ status=VERIFIED (판정 완료·실 모델품목만 도달)
@@ -721,6 +721,13 @@ describe('DailyClosingPage committed partnerCode 계약 (#840)', () => {
 
 describe('DailyClosingPage 열 계층화 (#897)', () => {
   it('전체 마감과 거래처 마감은 목록·상세·역마감 대상이 각각 다르게 식별된다', async () => {
+    // [#897 CI TZ 회귀] lockedAt 은 KST(+09:00) 오프셋을 명시한 특정 시각이고, 화면은
+    // 러너 로컬 타임존으로 렌더한다(KST PC 정상, UTC CI 러너에선 -9h 표시 — 옳은 동작).
+    // 하드코딩 'HH:mm' 리터럴 대신 프로덕션과 동일한 fmtTimestamp 로 기대값을 계산해
+    // 러너 타임존에 무관하게 통과시키되, "두 행이 서로 다른 시각을 보여준다"는 단정은
+    // 그대로 유지한다(T2 — 배지가 아니라 값 자체로 전체/거래처 마감을 구분).
+    const allLockedAt = '2020-01-02T18:00:00+09:00'
+    const partnerLockedAt = '2020-01-02T19:00:00+09:00'
     listDailyClosingsMock.mockResolvedValue({
       ...emptyPage,
       content: [
@@ -735,7 +742,7 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
           totalAmount: '110000',
           slipCount: 1,
           isLocked: true,
-          lockedAt: '2020-01-02T18:00:00+09:00',
+          lockedAt: allLockedAt,
           lockedBy: '개발책임자',
         },
         {
@@ -749,7 +756,7 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
           totalAmount: '220000',
           slipCount: 2,
           isLocked: true,
-          lockedAt: '2020-01-02T19:00:00+09:00',
+          lockedAt: partnerLockedAt,
           lockedBy: '개발책임자',
         },
       ] satisfies DailyClosing[],
@@ -764,8 +771,11 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
     expect(allRow).not.toBe(partnerRow)
     expect(allRow.textContent).toContain('부가세 10,000원')
     expect(partnerRow.textContent).toContain('부가세 20,000원')
-    expect(allRow.textContent).toContain('마감 시각 2020-01-02 18:00')
-    expect(partnerRow.textContent).toContain('마감 시각 2020-01-02 19:00')
+    // 서로 다른 lockedAt 이 서로 다른 렌더 결과를 낳는다는 사실 자체도 함께 고정한다
+    // (동일 문자열이면 이 비교가 무의미해지는 회귀를 방지).
+    expect(fmtTimestamp(allLockedAt)).not.toBe(fmtTimestamp(partnerLockedAt))
+    expect(allRow.textContent).toContain(`마감 시각 ${fmtTimestamp(allLockedAt)}`)
+    expect(partnerRow.textContent).toContain(`마감 시각 ${fmtTimestamp(partnerLockedAt)}`)
 
     const allDetailButton = within(allRow).getByTestId(
       'daily-closing-detail-button-2020-01-02-ALL-SALES-TAX_INVOICE',

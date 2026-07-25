@@ -233,7 +233,10 @@ const toggleButtonStyle: CSSProperties = {
   cursor: 'pointer',
 }
 
-function fmtTimestamp(iso: string | null | undefined): string {
+// export: 테스트가 러너 로컬 타임존에 의존한 하드코딩 문자열 대신 동일 함수로 기대값을
+// 계산할 수 있도록 노출한다(#897 CI TZ 회귀 — 화면 표시 자체는 무변경, KST PC 에선 항상
+// 동일 결과). DailyClosingPage.test.tsx 열 계층화 스펙 참고.
+export function fmtTimestamp(iso: string | null | undefined): string {
   if (!iso) return '-'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
