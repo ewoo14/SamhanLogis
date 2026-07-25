@@ -415,6 +415,71 @@ describe('CashReceiptFormPage', () => {
     expect(alert.textContent).not.toBe('거래처를 선택하거나 거래처명을 입력하세요.')
   })
 
+  it('#831-hydrate (H2/H4): receiptQuery 데이터 커밋 직후 hydrate effect 가 아직 실행되지 않은 프레임에서 저장해도 초기값 기반 오류가 섞이지 않는다', async () => {
+    // 이 결함은 "isLoading→false 렌더"와 "state 가 채워지는 렌더(useEffect)" 사이의 한 틱
+    // 창에서만 재현된다. act() 로 감싸인 waitFor/findBy*(fireEvent 도 act 래핑)는 이 창에서
+    // 예약된 passive effect 까지 우연히 flush 해버릴 수 있어 로컬 dev PC 에서는 이 결함이 늘
+    // GREEN 이었다(CI 는 vCPU 경합으로 매크로태스크 순서가 뒤집혀 우연히만 노출).
+    //
+    // 결정적 재현: setQueryData 알림(react-query notifyManager)과 그로 인한 React 커밋은
+    // 마이크로태스크 경유이지만, 커밋 이후 예약되는 passive effect(hydrate useEffect) 실행은
+    // 스케줄러의 매크로태스크(MessageChannel)다. act()/waitFor 를 전혀 쓰지 않고 "마이크로
+    // 태스크만" 흘려보내면(매크로태스크로는 절대 안 넘어감) "커밋은 됐지만 effect 는 아직"
+    // 프레임을 머신/부하와 무관하게 100% 결정적으로 잡을 수 있다.
+    const receiptId = 'receipt-hydrate-race'
+    const receiptKey = ['accounting', 'cash-receipt', receiptId]
+    const row = {
+      id: receiptId,
+      slipNo: '2026/07/05-99',
+      partnerCode: '',
+      bizNo: '',
+      partnerName: '',
+      amount: '410000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    }
+    // getCashReceipt 는 절대 resolve 되지 않는 pending Promise 로 둔다 — react-query 의 fetch
+    // 경로(마이크로태스크 체인 다수 hop)를 아예 안 타야 "언제 commit 되는지"를 완전히 통제할
+    // 수 있다.
+    mocks.getCashReceipt.mockImplementation(() => new Promise(() => {}))
+    const { client } = renderPage(`/accounting/admin/cash-receipts/${receiptId}/edit`)
+    // listAccounts 는 resolve 되는 진짜 Promise 라 최소 한 틱이 필요하다 — 이 대기는 accounts
+    // 게이트에만 관여하고(receiptQuery.data 는 아직 undefined 라 하이드레이트 effect 의 guard 가
+    // 즉시 return, flush 할 게 없다) 우리가 통제하려는 receipt hydrate 창과는 무관하다.
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('입금보고서 불러오는 중'))
+
+    client.setQueryData(receiptKey, row)
+    // react-query notifyManager → React 커밋까지는 마이크로태스크로 처리되지만, 그 커밋이
+    // 예약하는 passive effect(hydrate useEffect) flush 는 스케줄러의 별도 매크로태스크다.
+    // setTimeout(0) 매크로태스크 하나만 흘려보내면 "커밋은 됨·effect 는 아직" 프레임이 된다
+    // (내 setTimeout 콜백은 react 의 flush-effects 콜백보다 매크로태스크 큐에 먼저 들어가
+    // 있다 — 후자는 이 setQueryData 호출로 촉발된 커밋 처리 *도중*에야 비로소 예약되므로
+    // 인과적으로 항상 내 것보다 늦게 큐에 들어간다 — FIFO 이므로 항상 내 콜백이 먼저 실행된다.
+    // 머신 속도·부하와 무관한 큐 순서 보장이라 결정적이다).
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    let saveButton = screen.queryByRole('button', { name: '저장' })
+    // 혹시 몰라 마이크로태스크 몇 틱을 추가로 흘려보낸다 — 매크로태스크는 절대 안 섞이므로
+    // (아래는 전부 Promise.resolve() 마이크로태스크뿐) hydrate effect 가 끼어들 수 없다.
+    for (let tick = 0; tick < 50 && !saveButton; tick++) {
+      // 마이크로태스크를 한 틱씩만 정밀하게 흘려보내야 하므로 루프 안 await 가 의도적이다.
+      await Promise.resolve()
+      saveButton = screen.queryByRole('button', { name: '저장' })
+    }
+    if (!saveButton) throw new Error('receiptQuery 커밋을 관측하지 못했다 (매크로 1틱 + 마이크로 50틱)')
+
+    fireEvent.click(saveButton)
+
+    expect(mocks.updateCashReceipt).not.toHaveBeenCalled()
+    const alerts = screen.queryAllByRole('alert')
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0]!.textContent).toContain('조회')
+    expect(alerts[0]!.textContent).not.toMatch(/0보다/)
+  })
+
   it('#831 신규 발견: getCashReceipt 실패 시(PM 라이브QA — 검색 hang 이 detail 호출까지 지연시켜 timeout) 재시도 버튼을 제공한다 (이전엔 dead-end)', async () => {
     mocks.getCashReceipt.mockRejectedValue(new Error('timeout of 10000ms exceeded'))
     renderPage('/accounting/admin/cash-receipts/receipt-timeout/edit')
