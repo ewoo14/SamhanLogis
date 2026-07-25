@@ -226,27 +226,35 @@ describe('TaxInvoiceFormPage', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('세금계산서 불러오는 중'))
 
     client.setQueryData(['accounting', 'tax-invoice', id], detail)
-    // 매크로태스크 1틱 — MessageChannel 로 직접 만든다. setTimeout(fn,0) 은 WHATWG 스펙상
+    // 매크로태스크 — MessageChannel 로 직접 만든다. setTimeout(fn,0) 은 WHATWG 스펙상
     // "중첩 타이머 4ms 클램프" 대상이라 React 스케줄러의 MessageChannel 기반 flush 와 큐
     // 순서가 실행 컨텍스트(파일 내 이전 테스트 유무 등)에 따라 뒤집힐 수 있음을 실측
     // 확인했다(ProductFormPage #831-hydrate 테스트 설계 중 발견). React 스케줄러와 동일한
     // MessageChannel 매크로태스크를 직접 만들면 이 클램프 편차 없이 결정적이다.
-    await new Promise<void>((resolve) => {
-      const channel = new MessageChannel()
-      channel.port1.onmessage = () => resolve()
-      channel.port2.postMessage(undefined)
-    })
-    let saveButton = screen.queryByTestId('tax-invoice-form-save-button')
-    // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구 hydrate
-    // effect 가 끼어들 수 없다(넉넉한 상한 — 이 테스트 파일 첫 실행의 콜드스타트 오버헤드
-    // 흡수용. 매크로태스크가 섞이지 않는 한 몇 틱을 더 쓰든 구 hydrate effect 는 여전히
-    // 끼어들 수 없어 안전하다).
-    for (let tick = 0; tick < 300 && !saveButton; tick++) {
-      await Promise.resolve()
+    //
+    // #831-hydrate 계열 4파일 통일 기법(2026-07-26 PM 지적) — 매크로태스크를 정확히 1틱씩
+    // 만들고, 그때마다 마이크로태스크를 흘려 "커밋을 처음 관측하는 순간" 즉시 멈춘다(더
+    // 돌리지 않는다 — pre-fix 코드에서 hydrate effect 의 매크로태스크까지 우연히 넘어가는
+    // 일이 없다). CashReceiptFormPage 는 부수 상태가 더 많아 2틱이 필요했던 반면 이 파일은
+    // 1틱으로 충분함을 실측했지만, 다른 실행 컨텍스트에서도 안전하도록 동일한 상한 있는
+    // 재시도 루프 구조를 쓴다.
+    let saveButton: HTMLElement | null = null
+    for (let macroTick = 0; macroTick < 10 && !saveButton; macroTick++) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => resolve()
+        channel.port2.postMessage(undefined)
+      })
       saveButton = screen.queryByTestId('tax-invoice-form-save-button')
+      // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구
+      // hydrate effect 가 끼어들 수 없다.
+      for (let microTick = 0; microTick < 300 && !saveButton; microTick++) {
+        await Promise.resolve()
+        saveButton = screen.queryByTestId('tax-invoice-form-save-button')
+      }
     }
     if (!saveButton) {
-      throw new Error('detailQuery 커밋을 관측하지 못했다 (매크로 1틱 + 마이크로 300틱)')
+      throw new Error('detailQuery 커밋을 관측하지 못했다 (매크로 10틱 + 매 틱마다 마이크로 300틱)')
     }
 
     fireEvent.click(saveButton)

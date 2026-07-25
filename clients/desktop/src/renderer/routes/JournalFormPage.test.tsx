@@ -472,27 +472,37 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('분개 불러오는 중'))
 
     client.setQueryData(['accounting', 'journal', editId], row)
-    // 매크로태스크 1틱 — MessageChannel 로 직접 만든다. setTimeout(fn,0) 은 WHATWG 스펙상
+    // 매크로태스크 — MessageChannel 로 직접 만든다. setTimeout(fn,0) 은 WHATWG 스펙상
     // "중첩 타이머 4ms 클램프" 대상이라, 이전 테스트의 waitFor 폴링 등으로 타이머 중첩 깊이가
     // 쌓인 실행 컨텍스트에서는 React 스케줄러가 쓰는 MessageChannel 기반 매크로태스크보다
     // 내 setTimeout 이 더 늦게 실행돼(느려짐) "effect 가 이미 flush 된 뒤" 관측되는 순서
     // 역전이 실측 재현됐다(ProductFormPage #831-hydrate 테스트 설계 중 발견 — 파일 내 이전
     // 테스트 유무에 따라 결과가 달라졌다). React 스케줄러와 동일한 MessageChannel 매크로
     // 태스크를 직접 만들면 이 클램프 편차 없이 결정적이다.
-    await new Promise<void>((resolve) => {
-      const channel = new MessageChannel()
-      channel.port1.onmessage = () => resolve()
-      channel.port2.postMessage(undefined)
-    })
-    let dateInput = screen.queryByLabelText('일자') as HTMLInputElement | null
-    // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구 hydrate
-    // effect 가 끼어들 수 없다.
-    for (let tick = 0; tick < 50 && !dateInput; tick++) {
-      await Promise.resolve()
+    //
+    // #831-hydrate 계열 4파일 통일 기법(2026-07-26 PM 지적) — 매크로태스크를 정확히 1틱씩
+    // 만들고, 그때마다 마이크로태스크를 흘려 "커밋을 처음 관측하는 순간" 즉시 멈춘다(더
+    // 돌리지 않는다 — pre-fix 코드에서 hydrate effect 의 매크로태스크까지 우연히 넘어가는
+    // 일이 없다). CashReceiptFormPage 는 부수 상태가 더 많아 2틱이 필요했던 반면 이 파일은
+    // 1틱으로 충분함을 실측했지만, 다른 실행 컨텍스트에서도 안전하도록 동일한 상한 있는
+    // 재시도 루프 구조를 쓴다.
+    let dateInput: HTMLInputElement | null = null
+    for (let macroTick = 0; macroTick < 10 && !dateInput; macroTick++) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => resolve()
+        channel.port2.postMessage(undefined)
+      })
       dateInput = screen.queryByLabelText('일자') as HTMLInputElement | null
+      // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구
+      // hydrate effect 가 끼어들 수 없다.
+      for (let microTick = 0; microTick < 300 && !dateInput; microTick++) {
+        await Promise.resolve()
+        dateInput = screen.queryByLabelText('일자') as HTMLInputElement | null
+      }
     }
     if (!dateInput) {
-      throw new Error('journalQuery 커밋을 관측하지 못했다 (매크로 1틱 + 마이크로 50틱)')
+      throw new Error('journalQuery 커밋을 관측하지 못했다 (매크로 10틱 + 매 틱마다 마이크로 300틱)')
     }
 
     // K1 — 커밋된 바로 그 프레임에 이미 실제 분개 값이 보인다. "폼은 보이는데 아직 오늘

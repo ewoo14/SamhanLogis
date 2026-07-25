@@ -211,28 +211,38 @@ describe('ProductFormPage', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('품목 정보를 불러오는 중'))
 
     client.setQueryData(['product-form', modelCode], seed)
-    // react-query notifyManager → React 커밋에는 매크로태스크 1틱이 필요하다(실측 — 순수
+    // react-query notifyManager → React 커밋에는 매크로태스크가 필요하다(실측 — 순수
     // 마이크로태스크만으로는 200틱을 흘려도 커밋이 관측되지 않았다). 단 setTimeout(fn,0) 은
     // "중첩 타이머 4ms 클램프"(WHATWG 스펙) 대상이라 이전 테스트의 waitFor 폴링 등으로 중첩
     // 깊이가 쌓인 상태에서는 React 스케줄러가 쓰는 MessageChannel 기반 매크로태스크보다 내
     // setTimeout 이 더 늦게 실행돼 "effect 가 이미 flush 된 뒤" 관측되는 순서 역전이 실측
     // 재현됐다(파일 내 이전 테스트 유무에 따라 결과가 달라짐 — CashReceiptFormPage 의 동일
     // H4 테스트조차 파일 내 실행 순서에 따라 편차가 있었다). MessageChannel 로 직접 매크로
-    //태스크 1틱을 흘리면 React 스케줄러와 동일 메커니즘이라 클램프 편차 없이 결정적이다.
-    await new Promise<void>((resolve) => {
-      const channel = new MessageChannel()
-      channel.port1.onmessage = () => resolve()
-      channel.port2.postMessage(undefined)
-    })
-    let saveButton = screen.queryByTestId('product-form-save-button')
-    // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구 hydrate
-    // effect 가 끼어들 수 없다.
-    for (let tick = 0; tick < 50 && !saveButton; tick++) {
-      await Promise.resolve()
+    // 태스크를 흘리면 React 스케줄러와 동일 메커니즘이라 클램프 편차 없이 결정적이다.
+    //
+    // #831-hydrate 계열 4파일 통일 기법(2026-07-26 PM 지적) — 매크로태스크를 정확히 1틱씩
+    // MessageChannel 로 만들고, 그때마다 마이크로태스크를 흘려 "커밋을 처음 관측하는 순간"
+    // 즉시 멈춘다(더 돌리지 않는다 — pre-fix 코드에서 hydrate effect 의 매크로태스크까지
+    // 우연히 넘어가는 일이 없다). CashReceiptFormPage 는 부수 상태가 더 많아 2틱이 필요했던
+    // 반면 이 파일은 1틱으로 충분함을 실측했지만, 다른 실행 컨텍스트에서도 안전하도록 동일한
+    // 상한 있는 재시도 루프 구조를 쓴다.
+    let saveButton: HTMLElement | null = null
+    for (let macroTick = 0; macroTick < 10 && !saveButton; macroTick++) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => resolve()
+        channel.port2.postMessage(undefined)
+      })
       saveButton = screen.queryByTestId('product-form-save-button')
+      // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구
+      // hydrate effect 가 끼어들 수 없다.
+      for (let microTick = 0; microTick < 300 && !saveButton; microTick++) {
+        await Promise.resolve()
+        saveButton = screen.queryByTestId('product-form-save-button')
+      }
     }
     if (!saveButton) {
-      throw new Error('editSeedQuery 커밋을 관측하지 못했다 (매크로 1틱 + 마이크로 50틱)')
+      throw new Error('editSeedQuery 커밋을 관측하지 못했다 (매크로 10틱 + 매 틱마다 마이크로 300틱)')
     }
 
     fireEvent.click(saveButton)

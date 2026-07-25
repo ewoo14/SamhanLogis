@@ -423,9 +423,24 @@ describe('CashReceiptFormPage', () => {
     //
     // 결정적 재현: setQueryData 알림(react-query notifyManager)과 그로 인한 React 커밋은
     // 마이크로태스크 경유이지만, 커밋 이후 예약되는 passive effect(hydrate useEffect) 실행은
-    // 스케줄러의 매크로태스크(MessageChannel)다. act()/waitFor 를 전혀 쓰지 않고 "마이크로
-    // 태스크만" 흘려보내면(매크로태스크로는 절대 안 넘어감) "커밋은 됐지만 effect 는 아직"
-    // 프레임을 머신/부하와 무관하게 100% 결정적으로 잡을 수 있다.
+    // 스케줄러의 매크로태스크다. act()/waitFor 를 전혀 쓰지 않고 "마이크로태스크만" 흘려보내면
+    // (매크로태스크로는 절대 안 넘어감) "커밋은 됐지만 effect 는 아직" 프레임을 머신/부하와
+    // 무관하게 100% 결정적으로 잡을 수 있다.
+    //
+    // #831-hydrate 계열 4파일 통일 기법(ba83641af + 2026-07-26 PM 지적) — 매크로태스크
+    // 1틱은 setTimeout(fn,0) 대신 MessageChannel 로 만든다. setTimeout(fn,0) 은 WHATWG
+    // 스펙상 "중첩 타이머 4ms 클램프" 대상이라 실행 컨텍스트(파일 내 이전 테스트 유무 등)에
+    // 따라 React 스케줄러의 매크로태스크와 큐 순서가 뒤집힐 수 있음을 실측 확인했다(이 파일을
+    // pre-fix 코드로 되돌려 전체 스위트 실행에서는 RED 가 정확히 재현됐지만 `-t` 격리
+    // 실행에서는 콜드스타트 타이밍 차이로 false-GREEN 이 났었다). MessageChannel 은 React
+    // 스케줄러와 동일 메커니즘이라 이 클램프 편차가 없다.
+    //
+    // 이 컴포넌트는 accountsQuery 외에 coedit 관련 부수 상태도 있어 커밋 1회를 "관측 가능한
+    // 상태"로 만드는 데 매크로태스크가 정확히 몇 틱 필요한지가 다른 3파일(1틱)과 다르게 실측
+    // 됐다(2틱) — 그래서 "커밋을 처음 관측하는 순간 즉시 멈춘다" 는 상한 있는 재시도 루프로
+    // 짠다(더 돌리지 않는다 — 그래야 pre-fix 코드에서 hydrate effect 의 macrotask 까지
+    // 우연히 넘어가는 일이 없다). 렌더 중 파생(이 파일의 fix)은 "커밋 = 이미 hydrate 완료"를
+    // 구조적으로 보장하므로, fix 적용 후에는 몇 틱이 걸리든 이 루프가 항상 안전하게 GREEN 이다.
     const receiptId = 'receipt-hydrate-race'
     const receiptKey = ['accounting', 'cash-receipt', receiptId]
     const row = {
@@ -453,23 +468,34 @@ describe('CashReceiptFormPage', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('입금보고서 불러오는 중'))
 
     client.setQueryData(receiptKey, row)
-    // react-query notifyManager → React 커밋까지는 마이크로태스크로 처리되지만, 그 커밋이
-    // 예약하는 passive effect(hydrate useEffect) flush 는 스케줄러의 별도 매크로태스크다.
-    // setTimeout(0) 매크로태스크 하나만 흘려보내면 "커밋은 됨·effect 는 아직" 프레임이 된다
-    // (내 setTimeout 콜백은 react 의 flush-effects 콜백보다 매크로태스크 큐에 먼저 들어가
-    // 있다 — 후자는 이 setQueryData 호출로 촉발된 커밋 처리 *도중*에야 비로소 예약되므로
-    // 인과적으로 항상 내 것보다 늦게 큐에 들어간다 — FIFO 이므로 항상 내 콜백이 먼저 실행된다.
-    // 머신 속도·부하와 무관한 큐 순서 보장이라 결정적이다).
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    let saveButton = screen.queryByRole('button', { name: '저장' })
-    // 혹시 몰라 마이크로태스크 몇 틱을 추가로 흘려보낸다 — 매크로태스크는 절대 안 섞이므로
-    // (아래는 전부 Promise.resolve() 마이크로태스크뿐) hydrate effect 가 끼어들 수 없다.
-    for (let tick = 0; tick < 50 && !saveButton; tick++) {
-      // 마이크로태스크를 한 틱씩만 정밀하게 흘려보내야 하므로 루프 안 await 가 의도적이다.
-      await Promise.resolve()
+    // 매크로태스크를 정확히 1틱씩 MessageChannel 로 만들고(React 스케줄러와 동일 메커니즘 —
+    // setTimeout(fn,0) 의 WHATWG 중첩 타이머 4ms 클램프 편차 없음), 그때마다 마이크로태스크를
+    // 흘려 "커밋을 처음 관측하는 순간" 즉시 멈춘다(더 돌리지 않는다). 이 컴포넌트는
+    // accountsQuery·coedit 관련 부수 상태가 더 있어 다른 3파일(1 매크로태스크)과 달리 커밋
+    // 관측까지 매크로태스크가 몇 틱 필요한지가 실행 컨텍스트에 따라 다를 수 있음을 실측
+    // 확인했다 — 그래서 상한 있는 재시도로 짠다. "처음 관측 즉시 멈춤" 이라 pre-fix 코드에서
+    // hydrate effect 의 (반드시 한 틱 더 뒤에 오는) macrotask 까지 넘어갈 위험은 없다. 렌더
+    // 중 파생(이 파일의 fix)은 "커밋 = 이미 hydrate 완료" 를 구조적으로 보장하므로, fix 적용
+    // 후에는 몇 틱이 걸리든 이 루프가 항상 안전하게 GREEN 이다.
+    let saveButton: HTMLElement | null = null
+    for (let macroTick = 0; macroTick < 10 && !saveButton; macroTick++) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => resolve()
+        channel.port2.postMessage(undefined)
+      })
       saveButton = screen.queryByRole('button', { name: '저장' })
+      // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 절대 안 섞이므로(아래는
+      // 전부 Promise.resolve() 마이크로태스크뿐) hydrate effect 가 끼어들 수 없다.
+      for (let microTick = 0; microTick < 300 && !saveButton; microTick++) {
+        // 마이크로태스크를 한 틱씩만 정밀하게 흘려보내야 하므로 루프 안 await 가 의도적이다.
+        await Promise.resolve()
+        saveButton = screen.queryByRole('button', { name: '저장' })
+      }
     }
-    if (!saveButton) throw new Error('receiptQuery 커밋을 관측하지 못했다 (매크로 1틱 + 마이크로 50틱)')
+    if (!saveButton) {
+      throw new Error('receiptQuery 커밋을 관측하지 못했다 (매크로 10틱 + 매 틱마다 마이크로 300틱)')
+    }
 
     fireEvent.click(saveButton)
 
