@@ -261,8 +261,10 @@ public class SalesSlipUpdateService {
     }
 
     /**
-     * 매출 수정 화면 라인 단가는 VAT 제외 공급단가이므로 공용 store 기준인 VAT 포함 단가로 정규화한다.
-     * 서버가 복원한 세트 구성품 계보는 parent 기억을 오염시키지 않도록 후보에서 제외한다.
+     * 매출 수정 라인의 VAT 포함 단가를 가격기억에 저장한다.
+     * 권위 금액 라인은 입력 단가가 이미 VAT 포함이므로 그대로 사용하고, unitPriceWithVat가
+     * 없는 legacy 라인만 공급단가를 1.1배 한다. 서버가 복원한 세트 구성품 계보는 parent
+     * 기억을 오염시키지 않도록 후보에서 제외한다.
      */
     private List<PartnerProductPriceMemoryCommand> collectPriceMemory(
             Slip slip, List<SlipLine> lines, String actor) {
@@ -275,9 +277,11 @@ public class SalesSlipUpdateService {
                     || line.getProductId() == null || line.getUnitPrice() == null) {
                 continue;
             }
-            BigDecimal vatInclusive = line.getUnitPrice()
-                    .multiply(new BigDecimal("1.1"))
-                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal vatInclusive = line.getUnitPriceWithVat() != null
+                    ? line.getUnitPriceWithVat()
+                    : line.getUnitPrice()
+                            .multiply(new BigDecimal("1.1"))
+                            .setScale(2, RoundingMode.HALF_UP);
             commands.add(new PartnerProductPriceMemoryCommand(
                     slip.getPartnerId(), line.getProductId(), vatInclusive,
                     PartnerProductPriceMemory.SOURCE_LINE_SAVE, actor));

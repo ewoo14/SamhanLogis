@@ -68,7 +68,8 @@ class SlipClientTest {
                       "productName": "테스트 품목",
                       "modelName": "MODEL-A",
                       "quantity": 7,
-                      "unitPrice": 12345.67
+                      "unitPrice": 12345.67,
+                      "supplyAmount": 70000
                     }]
                   }
                 }
@@ -99,6 +100,7 @@ class SlipClientTest {
         assertThat(line.productId()).isEqualTo(productId);
         assertThat(line.quantity()).isEqualTo(7);
         assertThat(line.unitPrice()).isEqualByComparingTo(new BigDecimal("12345.67"));
+        assertThat(line.supplyAmount()).isEqualByComparingTo(new BigDecimal("70000"));
         server.verify();
     }
 

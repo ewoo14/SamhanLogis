@@ -120,7 +120,7 @@ public class InventoryClient {
      * @param warehouseId 입고 창고 (Slip.destinationWarehouseId)
      * @param quantity 입고 수량
      * @param lotNo 외부 lot 번호 (보통 slipNo)
-     * @param unitCost 단위 원가 (slip line 의 unitPrice 사용)
+     * @param unitCost 단위 원가 (slip line 공급가액/수량, legacy 는 unitPrice)
      * @throws BusinessException(CONFLICT) inventory-service 가 4xx 반환
      * @throws BusinessException(INTERNAL_ERROR) 5xx / 네트워크 실패
      */

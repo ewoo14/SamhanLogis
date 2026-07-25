@@ -275,6 +275,24 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
     // eslint-disable-next-line no-console
     console.log(`[E-2 4단계 무수정 재저장 후] 단가=${afterNoOpResave.unitPrice} 공급가액=${afterNoOpResave.supply} 부가세=${afterNoOpResave.vat} 합계=${afterNoOpResave.total}`)
     expect(afterNoOpResave, '🔑 E-2/Q3: 아무것도 바꾸지 않은 재저장 후 네 금액이 보존되어야 한다').toEqual(beforeNoOpResave)
+
+    // ── 7-3. 🔑 R1 실증 — 같은 거래처·품목을 새 전표에서 다시 선택 ─────────
+    // 가격기억은 저장 후 비동기 반영될 수 있으므로 UI 입력값이 11,000으로 수렴하는지 기다린다.
+    await page.goto(`${BASE_URL}/sales/new`)
+    const reselectPartner = page.getByRole('combobox', { name: '거래처' })
+    await expect(reselectPartner, 'R1 재선택 화면 거래처 입력란 미표시').toBeVisible({ timeout: 30000 })
+    await pickAutocomplete(page, reselectPartner, PARTNER_QUERY)
+    const reselectWarehouse = page.getByRole('combobox', { name: '출고 창고' })
+    if (await reselectWarehouse.count() > 0) await pickAutocomplete(page, reselectWarehouse, '')
+    await pickAutocomplete(page, page.getByLabel('라인 1 품목'), PRODUCT_QUERY)
+    const rememberedPrice = page.getByLabel('라인 1 단가', { exact: true })
+    await expect.poll(
+      async () => (await rememberedPrice.inputValue()).replace(/[^0-9]/g, ''),
+      { timeout: 15000, message: 'R1 같은 거래처·품목 재선택 후 가격기억 단가가 수렴하지 않음' },
+    ).toBe('11000')
+    // eslint-disable-next-line no-console
+    console.log(`[R1 라이브 재선택] 거래처=${PARTNER_EXPECTED_NAME} 품목=${PRODUCT_QUERY} 단가=${await rememberedPrice.inputValue()} (기대: 11,000)`)
+    await capture(page, '13-r1-reselect-remembered-price')
   })
 
   test.afterAll(async () => {

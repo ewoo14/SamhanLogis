@@ -1057,7 +1057,7 @@ public class SlipService {
                     ProductSummary product = productsById.get(line.getProductId());
                     if (!product.serialManaged()) {
                         inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                                line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+                                line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
                         continue;
                     }
                     if (dispatchedSerialProducts.add(line.getProductId())) {
@@ -1113,7 +1113,7 @@ public class SlipService {
                 ProductSummary product = productsById.get(line.getProductId());
                 if (!product.serialManaged()) {
                     inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                            line.getQuantity(), slip.getSlipNo(), line.getUnitPrice());
+                            line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
                 }
             }
         } catch (RuntimeException ex) {
@@ -1205,8 +1205,9 @@ public class SlipService {
 
         private void add(SlipLine line) {
             quantity += line.getQuantity();
-            if (line.getUnitPrice() != null) {
-                BigDecimal lineCost = line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
+            BigDecimal unitCost = inboundUnitCost(line);
+            if (unitCost != null) {
+                BigDecimal lineCost = unitCost.multiply(BigDecimal.valueOf(line.getQuantity()));
                 totalCost = totalCost == null ? lineCost : totalCost.add(lineCost);
             }
         }
@@ -1221,6 +1222,20 @@ public class SlipService {
             }
             return totalCost.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         }
+    }
+
+    /**
+     * 입고 원가를 공급가액 기준으로 정규화한다.
+     * 정상 라인은 supplyAmount가 unitPrice×quantity라 기존 원가가 유지되고, 권위 금액 라인은
+     * 화면 입력 단가가 VAT 포함일 수 있으므로 공급가액/수량으로 VAT를 제외한다. 공급가액이
+     * 없는 legacy 라인은 기존 unitPrice를 그대로 사용한다.
+     */
+    private static BigDecimal inboundUnitCost(SlipLine line) {
+        if (line.getSupplyAmount() != null && line.getQuantity() > 0) {
+            return line.getSupplyAmount()
+                    .divide(BigDecimal.valueOf(line.getQuantity()), 2, RoundingMode.HALF_UP);
+        }
+        return line.getUnitPrice();
     }
 
     /** 처리완료 → 배송중 (OUTBOUND 한정). */

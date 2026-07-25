@@ -345,7 +345,28 @@ class SlipServiceTest {
 
         assertThat(slip.getStatus()).isEqualTo(SlipStatus.INSPECTING);
         verify(inventoryClient, times(1))
-                .inbound(eq(productId), eq(destWh), anyInt(), anyString(), any(BigDecimal.class));
+                .inbound(eq(productId), eq(destWh), eq(1), eq("2026/05/04-1"), eq(new BigDecimal("10.00")));
+    }
+
+    @Test
+    void complete_inbound_authoritativeBatch_usesSupplyUnitCostWithoutVat() {
+        Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
+                destWh, partnerId, "삼한", null, null, "u");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        slip.addLine(SlipLine.createFromAuthoritativeAmounts(
+                slip, productId, "배관", "PIPE-BATCH", null, 2,
+                new BigDecimal("11000"), new BigDecimal("20000"), new BigDecimal("2000"),
+                new BigDecimal("22000"), null, null));
+        forceStatus(slip, SlipStatus.PROCESSING);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+
+        service.complete(slipId);
+
+        verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(2),
+                eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
     }
 
     @Test
@@ -364,6 +385,27 @@ class SlipServiceTest {
                         eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("500000.00")));
         verify(inventoryClient, never())
                 .inbound(any(), any(), anyInt(), anyString(), any(BigDecimal.class));
+    }
+
+    @Test
+    void complete_inbound_authoritativeSerial_usesSupplyUnitCostWithoutVat() {
+        Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
+                destWh, partnerId, "삼한", null, null, "u");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        slip.addLine(SlipLine.createFromAuthoritativeAmounts(
+                slip, productId, "에어컨", "MODEL-SERIAL", null, 2,
+                new BigDecimal("11000"), new BigDecimal("20000"), new BigDecimal("2000"),
+                new BigDecimal("22000"), null, null));
+        forceStatus(slip, SlipStatus.PROCESSING);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "에어컨", "MODEL-SERIAL", "AC-SERIAL-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", true));
+
+        service.complete(slipId);
+
+        verify(inventoryClient).inboundInstances(eq(productId), eq("AC-SERIAL-001"), eq(destWh),
+                eq(2), eq("구매"), eq("2026/05/04-1"), eq(new BigDecimal("10000.00")));
     }
 
     @Test
