@@ -18,7 +18,7 @@ const baseVersionInfo: AppVersionInfo = {
 describe('version-check model', () => {
   it('빌드 주입 개발 버전을 패키지 semver 대체값보다 우선 사용한다', () => {
     expect(resolveBuildAppVersion('2026/07/25-1')).toBe('2026/07/25-1')
-    expect(resolveBuildAppVersion(undefined)).toBe('0.0.0')
+    expect(() => resolveBuildAppVersion(undefined)).toThrow(/VITE_APP_VERSION/)
   })
 
   it('Electron·Capacitor·웹 빌드는 모두 삼한 데스크톱 clientType으로 판정한다', () => {

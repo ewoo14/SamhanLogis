@@ -51,17 +51,22 @@ export function appClientTypeLabel(clientType: AppClientType): string {
   return APP_CLIENT_LABEL[clientType]
 }
 
-/** 기존 legacy 행을 편집할 때 원래 호환 식별자를 선택지에 계속 남긴다. */
+/**
+ * 편집 중에는 잘못 저장한 행도 legacy 식별자로 되돌릴 수 있도록 호환 선택지를 남긴다.
+ * 등록 화면은 인자를 주지 않아 canonical 8개만 노출한다.
+ */
 export function appClientOptionsForRelease(
   editingClientType?: AppClientType,
 ): ReadonlyArray<{ value: AppClientType; label: string; versionCheckSupported?: boolean }> {
-  if (editingClientType === 'WEB' || editingClientType === 'MOBILE') {
-    return [
-      { value: editingClientType, label: appClientTypeLabel(editingClientType) },
-      ...APP_CLIENT_OPTIONS,
-    ]
-  }
-  return APP_CLIENT_OPTIONS
+  if (!editingClientType) return APP_CLIENT_OPTIONS
+
+  const legacyOptions = [
+    { value: 'WEB' as const, label: appClientTypeLabel('WEB') },
+    { value: 'MOBILE' as const, label: appClientTypeLabel('MOBILE') },
+  ]
+  const selectedLegacy = legacyOptions.filter((option) => option.value === editingClientType)
+  const remainingLegacy = legacyOptions.filter((option) => option.value !== editingClientType)
+  return [...selectedLegacy, ...APP_CLIENT_OPTIONS, ...remainingLegacy]
 }
 
 /** 관리 목록·배포 확인 문구에 버전 확인 지원 여부를 표시할 때 사용한다. */

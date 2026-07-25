@@ -329,6 +329,20 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("구버전 MOBILE 요청은 DESKTOP 릴리스의 최소 지원 정책에 도달한다")
+    void publicVersion_legacyMobileIdentifierUsesDesktopPolicyWhenAvailable() throws Exception {
+        insertRelease("DESKTOP", "2026/07/25-10", "CRITICAL", "삼한 데스크톱 최신 릴리스", "2026/07/25-10");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "MOBILE")
+                        .param("currentVersion", "0.1.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("2026/07/25-10"))
+                .andExpect(jsonPath("$.data.minSupportedVersion").value("2026/07/25-10"))
+                .andExpect(jsonPath("$.data.forceLevel").value("CRITICAL"));
+    }
+
+    @Test
     @DisplayName("POST /app/releases 신규 등록은 미발행 상태이며 publish 전까지 /app/version에 반영되지 않는다")
     void adminCreate_registersUnpublishedRelease_untilExplicitPublish() throws Exception {
         String createBody = """

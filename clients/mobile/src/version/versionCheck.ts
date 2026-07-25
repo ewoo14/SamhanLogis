@@ -33,13 +33,15 @@ export interface ExpoVersionConfig {
   };
 }
 
-/** 빌드 주입 개발 버전을 우선하고, 주입 전 구버전 앱은 Expo semver를 호환 사용한다. */
+/** 빌드 주입 개발 버전을 우선하고, 기존 설치본은 package semver를 호환 사용한다. */
 export function resolveCurrentAppVersion(expoConfig: ExpoVersionConfig | null | undefined): string {
   const injectedVersion = expoConfig?.extra?.appVersion;
   if (typeof injectedVersion === 'string' && injectedVersion.trim().length > 0) {
     return injectedVersion.trim();
   }
-  return expoConfig?.version ?? '0.0.0';
+  const packageVersion = expoConfig?.version?.trim();
+  if (packageVersion) return packageVersion;
+  throw new Error('앱 버전이 주입되지 않았고 package semver도 없습니다. 빌드를 중단합니다.');
 }
 
 export function getCurrentAppVersion(): string {

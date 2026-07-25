@@ -113,11 +113,23 @@ public class AppReleaseService {
         if (clientType == null) {
             throw new IllegalArgumentException("clientType 필수");
         }
-        return repository.findByClientTypeAndPublishedTrue(clientType).stream()
-                .max(Comparator.comparing(AppRelease::getVersion, Semver::compare)
-                        .thenComparing(AppRelease::getReleasedAt))
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "등록된 앱 릴리스가 없습니다: " + clientType));
+        for (AppClientType lookupType : lookupTypes(clientType)) {
+            AppRelease latest = repository.findByClientTypeAndPublishedTrue(lookupType).stream()
+                    .max(Comparator.comparing(AppRelease::getVersion, Semver::compare)
+                            .thenComparing(AppRelease::getReleasedAt))
+                    .orElse(null);
+            if (latest != null) return latest;
+        }
+        throw new BusinessException(ErrorCode.NOT_FOUND,
+                "등록된 앱 릴리스가 없습니다: " + clientType);
+    }
+
+    /** 구버전 웹/Capacitor 식별자는 canonical DESKTOP 정책을 우선 조회하고, 없으면 legacy를 보존한다. */
+    private List<AppClientType> lookupTypes(AppClientType clientType) {
+        return switch (clientType) {
+            case WEB, MOBILE -> List.of(AppClientType.DESKTOP, clientType);
+            default -> List.of(clientType);
+        };
     }
 
     private AppVersionForceLevel resolveForceLevel(AppRelease latest, String currentVersion) {

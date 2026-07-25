@@ -14,6 +14,7 @@ describe('arologis mobile version check', () => {
       extra: { appVersion: '2026/07/25-1' },
     })).toBe('2026/07/25-1');
     expect(resolveCurrentAppVersion({ version: '1.0.0', extra: {} })).toBe('1.0.0');
+    expect(() => resolveCurrentAppVersion({})).toThrow(/앱 버전/);
   });
 
   afterEach(() => {

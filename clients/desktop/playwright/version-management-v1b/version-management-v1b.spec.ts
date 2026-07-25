@@ -24,7 +24,9 @@ test.describe('V1b 버전관리 데스크탑/웹', () => {
     // B1: CRITICAL은 라우터보다 먼저 차단되어 header-page-title을 기다리면 안 된다.
     await expect(modal).toBeVisible({ timeout: 15_000 })
     await expect(modal).toContainText('9.9.0')
-    await expect(modal).toContainText('새 버전이 설치될 때까지 앱 사용은 차단됩니다. 잠시만 기다려 주세요.')
+    await expect(modal).toContainText('페이지를 새로고침하면 최신 웹 산출물을 확인합니다.')
+    await expect(page.getByRole('button', { name: '페이지 새로고침' })).toBeVisible()
+    await expect(page.getByTestId('app-version-blocking-quit')).toHaveCount(0)
 
     await page.keyboard.press('Escape')
     await expect(modal).toBeVisible()

@@ -18,7 +18,9 @@ import {
 import { formatKstDate } from '../../utils/formatDate'
 import type { DesktopUpdateStatus as ElectronDesktopUpdateStatus } from '../../types/electron'
 
-const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
+const CURRENT_VERSION = resolveBuildAppVersion(
+  import.meta.env.VITE_APP_VERSION ?? (import.meta.env.MODE === 'test' ? '0.1.0' : undefined),
+)
 // Playwright mock 인증 스텁은 Electron 인증 API를 흉내 내지만 updater IPC는 없다.
 // mock 회귀는 updater 실경로 검증 대상이 아니므로 안전 오류 알림을 만들지 않는다.
 // 실제 Electron과 B8 라이브 하네스에서는 이 값이 false라 updater effect가 그대로 돈다.
@@ -284,6 +286,11 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
   }, [bootstrapped])
 
   const checkForUpdate = () => {
+    if (!isElectronPlatform) {
+      // Web·Capacitor에는 Electron IPC가 없으므로 실제 산출물을 다시 읽도록 현재 문서를 갱신한다.
+      window.location.reload()
+      return
+    }
     if (!window.samhanUpdater) return
     setUpdateStatus({ kind: 'checking' })
     void window.samhanUpdater.check().catch((error: unknown) => {
@@ -304,6 +311,8 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     }
     window.close()
   }
+
+  const blockingReloadLabel = isCapacitorPlatform ? '앱 다시 불러오기' : '페이지 새로고침'
 
   const statusNotice = updateStatus && updateStatus.kind !== 'not-available' && !noticeDismissed ? (
     <div
@@ -401,11 +410,13 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
               onClick={checkForUpdate}
               data-testid="app-version-blocking-reload"
             >
-              업데이트 다시 확인
+              {isElectronPlatform ? '업데이트 다시 확인' : blockingReloadLabel}
             </Button>
-            <Button type="button" variant="ghost" onClick={quitApp} data-testid="app-version-blocking-quit">
-              앱 종료
-            </Button>
+            {isElectronPlatform && (
+              <Button type="button" variant="ghost" onClick={quitApp} data-testid="app-version-blocking-quit">
+                앱 종료
+              </Button>
+            )}
           </div>
         )}
       >
@@ -438,7 +449,11 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
               ? `${updateStatus.message} 다시 확인하거나 앱을 종료한 뒤 네트워크를 확인해 주세요. 계속되면 관리자에게 문의해 주세요.`
               : installing
                 ? '업데이트를 설치하고 앱을 다시 시작하는 중입니다.'
-                : '새 버전이 설치될 때까지 앱 사용은 차단됩니다. 잠시만 기다려 주세요.'}
+              : isElectronPlatform
+                ? '새 버전이 설치될 때까지 앱 사용은 차단됩니다. 잠시만 기다려 주세요.'
+                : isCapacitorPlatform
+                  ? '앱을 다시 불러오면 최신 Capacitor 산출물을 확인합니다.'
+                  : '페이지를 새로고침하면 최신 웹 산출물을 확인합니다.'}
           </p>
         </div>
       </Modal>

@@ -46,6 +46,9 @@ import type {
   GroupwareApprovalCollabEdit,
 } from './groupwareApprovalCollab'
 
+// 무주입 mock도 정식 릴리스로 오인되지 않도록 서버 등록 불가 sentinel을 사용한다.
+const MOCK_DEVELOPMENT_VERSION = '0.1.0-dev'
+
 declare global {
   interface Window {
     __SAMHAN_MOCK_LAST_ADD_VEHICLE_GROUP_BODY__?: AddVehicleGroupPayload
@@ -2157,7 +2160,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       config.params?.['clientType'] ?? urlObj.searchParams.get('clientType'),
     )
     const currentVersion = String(
-      config.params?.['currentVersion'] ?? urlObj.searchParams.get('currentVersion') ?? '0.0.0',
+      config.params?.['currentVersion'] ?? urlObj.searchParams.get('currentVersion') ?? MOCK_DEVELOPMENT_VERSION,
     )
     const params = mockLocationParams()
     const forcedLevel = params.get('mockAppForce')

@@ -32,7 +32,7 @@ clients/mobile-staff    -> SAMHAN_MOBILE_STAFF
 clients/arologis-mobile -> AROLOGIS_MOBILE
 ```
 
-구버전 클라이언트가 옛 `MOBILE` 식별자로 조회했을 때 새 앱 정책을 잘못 적용하지 않고 조회 실패로 끝나며, 기존 모바일 게이트의 fail-open 처리로 BE가 먼저 배포되어도 구버전 앱이 버전 확인 실패 때문에 차단되지 않는다. OTA 설정과 웹 3앱·아로로지스 데스크톱의 버전 체크는 건드리지 않았다.
+구버전 클라이언트가 옛 `MOBILE` 식별자로 조회하면 `DESKTOP` 릴리스가 있는 경우 그 정책으로 도달하고, 아직 canonical 릴리스가 없으면 기존 `MOBILE` 정책으로 fallback한다. 어느 정책도 없을 때의 404와 기존 모바일 게이트 fail-open은 유지된다. OTA 설정과 웹 3앱·아로로지스 데스크톱의 별도 version-check 신설은 건드리지 않았다.
 
 ## 2. RED 출력 원문
 
@@ -638,3 +638,287 @@ git status --porcelain docs/qa
 비접근 규칙과 충돌한다. `build:win` 최종 installer도 기존 `DESKTOP_UPDATE_URL` 및
 Windows symlink 권한 문제로 만들지 못했다. 정적 payload 계약, mock Playwright, backend IT,
 실제 Electron/Web/Capacitor 빌드로 가능한 범위를 검증했다.
+## 11. 2026-07-25 SOL 2차 적대검증 라운드 fix — F-1~F-5
+
+### 11-1. RED 원문
+
+#### F-1 — 같은 날 무주입 빌드 중복
+
+실행: `node --test scripts/app-build-version.test.cjs`
+
+```text
+✖ 같은 날 무주입 빌드 두 개는 모호한 동일 버전을 만들지 않고 실패한다
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+2 !== 0
+
+✖ 미래 날짜의 무주입 빌드는 오래된 코드도 최신으로 위조하지 않고 실패한다
+AssertionError [ERR_ASSERTION]: Missing expected exception.
+```
+
+기준선 resolver는 같은 KST 날짜에 두 번 모두 `2026/07/25-1`을 반환했고, 미래 날짜에도
+`2026/07/26-1`을 반환했다.
+
+#### F-2 — 미래 날짜 무주입 빌드
+
+위 동일 실행의 두 번째 테스트가 실패했다. 즉 호스트 날짜가 미래여도 빌드가 중단되지 않아
+오래된 코드가 정식 최신 릴리스보다 높게 판정될 수 있었다.
+
+#### F-3 — legacy MOBILE의 유예 미종료
+
+실행: `./gradlew.bat :services:dashboard-service:test --tests com.samhanair.logis.dashboard.it.AppReleaseControllerIT.publicVersion_legacyMobileIdentifierUsesDesktopPolicyWhenAvailable --no-daemon`
+
+첫 시도는 테스트 본문 전 `build/test-results/test/binary/output.bin` 잠금으로 실패한 환경 RED였다.
+Gradle daemon을 정리한 뒤 재실행한 기능 RED 원문은 다음과 같다.
+
+```text
+AppReleaseControllerIT > 구버전 MOBILE 요청은 DESKTOP 릴리스의 최소 지원 정책에 도달한다 FAILED
+    java.lang.AssertionError at AppReleaseControllerIT.java:339
+
+1 test completed, 1 failed
+BUILD FAILED
+```
+
+#### F-4 — Web/Capacitor CRITICAL 탈출구 부재
+
+실행: `npx vitest run src/renderer/api/appVersion.test.ts src/renderer/components/common/AppVersionGate.test.tsx`
+
+```text
+× 브라우저 런타임의 CRITICAL 차단은 updater 없는 상태에서도 페이지 새로고침 탈출구를 제공한다
+TestingLibraryElementError: Unable to find an accessible element with the role "button"
+and name "페이지 새로고침"
+현재 접근 가능한 버튼: "업데이트 다시 확인", "앱 종료"
+```
+
+#### F-5 — canonical 오저장 후 legacy 원복 불가
+
+같은 실행에서 다음 RED가 확인됐다.
+
+```text
+× canonical으로 잘못 저장한 뒤 다시 편집해도 legacy WEB/MOBILE로 되돌릴 수 있다
+expected [ 'DESKTOP', 'SAMHAN_MOBILE', …, 'AROLOGIS_DESKTOP', 'WEB', 'MOBILE' ]
+received [ 'DESKTOP', 'SAMHAN_MOBILE', …, 'AROLOGIS_DESKTOP' ]
+```
+
+### 11-2. 수정 수단과 불변식 대응
+
+- F-1/G1/G7: `SAMHAN_RELEASE_BUILD=1`인 릴리스 모드에서는
+  `VITE_APP_VERSION`/`EXPO_PUBLIC_APP_VERSION`을 명시하지 않으면 실패한다. 일반 개발·CI
+  경로는 `0.1.0-dev` 고정 sentinel을 사용하므로 클론 후 추가 설정 없이 실행된다.
+- F-2/G2/G8: 자동 KST 날짜·기본 일련번호·빌드 호스트 시계를 릴리스 버전 축에서 제거했다.
+  sentinel은 `Semver`에서 정식 개발 릴리스보다 항상 낮고 `requireDevelopmentVersion`을
+  통과하지 못해 등록할 수 없다. 기존 `Semver`의 날짜→일련번호 비교(V2)는 유지했다.
+  새 Flyway 파일은 없다.
+- F-3/G3/A4: 공개 조회에서 legacy `WEB`/`MOBILE`은 `DESKTOP`을 먼저 조회한다.
+  canonical 릴리스가 있으면 그 `minSupportedVersion`으로 구형 설치자를 정책에 도달시키고,
+  canonical 릴리스가 아직 없으면 기존 legacy 레코드로 fallback한다. 둘 다 없으면 기존 404와
+  클라이언트 fail-open을 유지하므로 BE 선배포 안전성을 보존한다.
+- F-4/G4/W-3: 세 런타임을 계속 `DESKTOP`으로 등록·조회한다. Electron만 updater 확인/종료를
+  사용하고, Web은 `페이지 새로고침`, Capacitor는 `앱 다시 불러오기`로 `window.location.reload()`를
+  실행한다. Web/Capacitor에는 동작하지 않는 `window.close()` 버튼을 렌더링하지 않는다.
+  따라서 W-3의 canonical `DESKTOP` 등록 가능성은 유지하면서 차단 화면의 실행 가능한 탈출구를
+  런타임별로 제공한다.
+- F-5/G5/A5: 등록 화면은 인자 없는 `appClientOptionsForRelease()`로 canonical 8개만 보여준다.
+  어떤 행을 편집하든 편집 폼에는 `WEB`/`MOBILE`을 추가하고, 현재 legacy 행이면 해당 값을 첫
+  선택지로 둔다. canonical으로 잘못 저장한 뒤에도 legacy 원복이 가능하다.
+- G6: 기존 `DESKTOP` 보존, 모바일 3앱의 명시 식별자, semver 기존 레코드 조회/불변 편집,
+  전환기 semver `minSupportedVersion`, canonical 8개 관리 선택지를 유지했다. 모바일 helper는
+  package semver가 있는 기존 설치본만 fallback하며, 값이 전혀 없을 때는 `0.0.0`을 보고하지
+  않고 예외로 중단한다. desktop mock도 `0.1.0-dev`를 사용해 번들 안에 `0.0.0` fallback을
+  남기지 않는다.
+
+- G7↔G1/G2 긴장 해소: 개발/CI 실행과 릴리스 실행을 `SAMHAN_RELEASE_BUILD`로 분리했다.
+  개발 sentinel은 날짜·시계에서 파생되지 않고 서버 등록 형식도 아니므로 릴리스 순서에
+  들어갈 수 없다. 정식 산출물만 파이프라인이 고유한 개발 버전을 주입한다.
+
+### 11-3. GREEN 원문
+
+```text
+node --test scripts/app-build-version.test.cjs
+✔ 무주입 개발·CI 빌드는 릴리스가 아닌 고정 sentinel을 사용한다
+✔ 릴리스 모드의 무주입 빌드는 호스트 날짜와 무관하게 실패한다
+✔ 명시 주입 릴리스는 개발 형식 버전을 그대로 사용한다
+ℹ pass 4
+ℹ fail 0
+
+clients/desktop: npx vitest run --reporter=dot
+Test Files 169 passed (169)
+Tests 1337 passed (1337)
+
+무주입 실제 빌드 경로
+clients/desktop: npm run build                         exit 0
+clients/desktop: npm run build:web                     exit 0
+clients/desktop: npm run build:capacitor               exit 0
+clients/arologis-mobile: npx expo config --type public  exit 0
+Electron/Web/Capacitor/Expo 모두 appVersion 또는 CURRENT_VERSION에 `0.1.0-dev`를 포함했다.
+Electron/Web/Capacitor 산출물의 `0.0.0` literal 검색 결과는 없음.
+
+G7/G8 Semver 단독 javac/java
+dev-sentinel-vs-release=-1
+dev-sentinel-vs-future-release=-1
+dev-sentinel-registerable=false
+SEMVER_G7_PROBE_EXIT=0
+SEMVER_G7_PROBE_CLEANED=True
+
+clients/desktop: npm run typecheck
+tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit
+
+clients/desktop: npm run test:round-910-contract
+ℹ tests 5
+ℹ pass 5
+ℹ fail 0
+
+clients/desktop: npx playwright test version-management-v1b
+6 passed (13.6s)
+
+clients/mobile: versionCheck.test.ts
+Test Suites: 1 passed, Tests: 7 passed
+clients/mobile-staff: npx jest --runInBand
+Test Suites: 2 passed, Tests: 8 passed
+clients/arologis-mobile: npx jest --runInBand
+Test Suites: 8 passed, Tests: 30 passed
+
+dashboard-service F-3 targeted IT
+process exit 0
+
+Semver 단독 UTF-8 javac/java
+same-day-2<same-day-10=true
+future-vs-latest=1
+legacy-semver=-1
+injected-format=valid
+SEMVER_PROBE_EXIT=0
+SEMVER_PROBE_CLEANED=True
+
+Electron 주입/무주입 대조
+VITE_APP_VERSION=2026/07/25-91002: INJECTED_BUILD_EXIT=0, out/renderer/assets/index-fP5v-JQR.js에서 주입 문자열 확인
+EXPO_PUBLIC_APP_VERSION=2026/07/25-91002: INJECTED_EXPO_CONFIG_EXIT=0, extra.appVersion 확인
+```
+
+Vitest의 updater 오류 stack trace는 기존 테스트가 의도적으로 원문 로그를 발생시키는 경로이며,
+사용자 화면에는 고정 한국어 메시지만 노출된다.
+
+### 11-4. 변경 파일과 Flyway 근거
+
+이번 라운드 변경 파일:
+
+```text
+scripts/app-build-version.cjs
+scripts/app-build-version.test.cjs
+services/dashboard-service/src/main/java/com/samhanair/logis/dashboard/service/AppReleaseService.java
+services/dashboard-service/src/test/java/com/samhanair/logis/dashboard/it/AppReleaseControllerIT.java
+services/dashboard-service/README.md
+clients/desktop/src/renderer/version/versionCheck.ts
+clients/desktop/src/renderer/version/versionCheck.test.ts
+clients/desktop/src/renderer/components/common/AppVersionGate.tsx
+clients/desktop/src/renderer/components/common/AppVersionGate.test.tsx
+clients/desktop/src/renderer/api/appVersion.ts
+clients/desktop/src/renderer/api/appVersion.test.ts
+clients/desktop/scripts/round-910-contract.test.cjs
+clients/desktop/playwright/version-management-v1b/version-management-v1b.spec.ts
+clients/mobile/src/version/versionCheck.ts
+clients/mobile/src/__tests__/version/versionCheck.test.ts
+clients/mobile-staff/src/version/versionCheck.ts
+clients/mobile-staff/src/__tests__/version/versionCheck.test.ts
+clients/arologis-mobile/src/version/versionCheck.ts
+clients/arologis-mobile/src/__tests__/version/versionCheck.test.ts
+docs/dev-reports/2026-07-25-910-app-client-identity.md
+```
+
+Flyway 신규 파일은 없다. 적용된 `V1`~`V7`은 수정하지 않았고, 번호 충돌을 만들 `V8`도 추가하지
+않았다. F-3은 기존 `client_type` 조회 계층의 alias로 해결해 DB schema 변경이 필요 없다.
+
+### 11-5. 미실행·잔여 의심 사항
+
+- `npm run typecheck`, 전체 Desktop Vitest, 전체 Playwright, `npx electron-vite build`의
+  주입/무주입 대조, 모바일 3앱 전체 Jest, Semver 단독 javac/java 판정표까지 완료했다.
+- 일반 CI 명령인 Desktop 3개 빌드와 아로로지스 Expo config의 무주입 실행도 완료했다.
+- 실제 관리자 로그인 U-gate와 #909 live QA 5-spec은 공유 `dashboard_db` write 규칙 때문에
+  실행하지 않았다. 이번 라운드에는 Flyway를 적용하지 않았고 공유 `dashboard_db`에 접근하지
+  않았으며, F-3 IT는 Testcontainers 임시 PostgreSQL 수명주기 안에서만 실행됐다.
+- Web/Capacitor의 `location.reload()`는 현재 배포된 웹/Capacitor 자산을 다시 읽는 실제 동작이다.
+  해당 런타임 산출물이 아직 배포되지 않았다면 새 버전을 즉시 만들 수 없으므로, 운영 배포 순서는
+  `DESKTOP` 정책과 각 산출물 배포를 함께 맞춰야 한다. 이는 UI가 동작하지 않는 화면에 가두는
+  문제는 해결하지만, 배포 순서 자체를 자동화하지는 않는다.
+- 전체 회귀에는 기존 React Router 경고와 의도적으로 updater 원문을 stderr에 남기는 테스트가
+  있으나, 테스트 실패는 없었다.
+
+## 12. 2026-07-25 PM 재지적 G7/G8 보완
+
+### 12-1. RED 원문
+
+무주입 일반 경로가 릴리스 주입을 강제하던 기준선에서 다음과 같이 실패했다.
+
+```text
+clients/desktop: npm run build
+EXIT=1
+Error: VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다.
+
+clients/desktop: npm run build:web
+EXIT=1
+Error: VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다.
+
+clients/desktop: npm run build:capacitor
+EXIT=1
+Error: VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다.
+
+clients/arologis-mobile: npx expo config --type public
+EXIT=1
+EXPO_PUBLIC_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다.
+
+clients/desktop: npm run dev
+EXIT=1
+error during start dev server and electron app:
+Error: VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다.
+```
+
+TDD sentinel 테스트도 기준선에서는 다음과 같이 실패했다.
+
+```text
+✖ 무주입 개발·CI 빌드는 릴리스가 아닌 고정 sentinel을 사용한다
+Error: VITE_APP_VERSION에 YYYY/MM/DD-{번호} 형식의 릴리스 버전을 명시적으로 주입해야 합니다.
+```
+
+### 12-2. 수정 및 G7/G8 긴장 해소
+
+`scripts/app-build-version.cjs`에 개발/CI 전용 `0.1.0-dev` sentinel을 추가했다. 이 값은
+호스트 날짜·시계에서 파생되지 않으며, `Semver.compare('0.1.0-dev', '2026/07/25-10')`이
+항상 음수다. 서버 신규 릴리스 등록 형식도 아니므로 두 무주입 산출물이 같은 sentinel을
+보고해도 각각 정식 배포 가능한 릴리스처럼 보이지 않는다.
+
+`SAMHAN_RELEASE_BUILD=1` 또는 `BUILD_ENV=production|preview`에서는 sentinel fallback을
+금지하고 `VITE_APP_VERSION`/`EXPO_PUBLIC_APP_VERSION` 명시 주입을 강제한다. 따라서 일반
+clone/CI 경로는 동작하고, 정식 릴리스 경로는 F-1/F-2의 자동 날짜·일련번호 문제를 재도입하지
+않는다. Desktop mock의 독립 `0.0.0` fallback도 `0.1.0-dev`로 교체했다.
+
+### 12-3. GREEN 원문
+
+```text
+node --test scripts/app-build-version.test.cjs
+ℹ tests 4
+ℹ pass 4
+ℹ fail 0
+
+무주입 실제 경로
+npm run build                         exit 0
+npm run build:web                     exit 0
+npm run build:capacitor               exit 0
+npx expo config --type public         exit 0
+
+Electron/Web/Capacitor artifact scan
+out/renderer/assets       sentinel=True zeroLiteral=False
+dist/web/assets           sentinel=True zeroLiteral=False
+dist/capacitor/assets     sentinel=True zeroLiteral=False
+
+Semver G7/G8 probe
+dev-sentinel-vs-release=-1
+dev-sentinel-vs-future-release=-1
+dev-sentinel-registerable=false
+SEMVER_G7_PROBE_EXIT=0
+SEMVER_G7_PROBE_CLEANED=True
+
+주입 경로
+VITE_APP_VERSION=2026/07/25-91002  INJECTED_BUILD_EXIT=0
+EXPO_PUBLIC_APP_VERSION=2026/07/25-91002  INJECTED_EXPO_CONFIG_EXIT=0
+```
+
+CI workflow는 수정하지 않았으며, `git diff --name-only -- .github/workflows` 출력은 비어 있다.
+따라서 이번 보완에는 PyYAML workflow 파싱이 필요하지 않다.

@@ -21,9 +21,13 @@ export interface VersionPromptInput {
   sessionStorage?: Pick<Storage, 'getItem'> | Map<string, string>
 }
 
-/** 빌드 시 주입된 개발 버전을 사용하고, 주입 전 로컬 실행은 안전한 호환값을 사용한다. */
+/** 빌드 시 주입된 개발 버전을 사용하며, 무주입 실행은 모호한 버전으로 진행하지 않는다. */
 export function resolveBuildAppVersion(injectedVersion: string | undefined): string {
-  return injectedVersion?.trim() || '0.0.0'
+  const version = injectedVersion?.trim()
+  if (!version) {
+    throw new Error('VITE_APP_VERSION에 릴리스 버전을 명시적으로 주입해야 합니다.')
+  }
+  return version
 }
 
 function readStorageValue(

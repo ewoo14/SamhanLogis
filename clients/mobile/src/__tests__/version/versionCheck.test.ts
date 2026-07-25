@@ -14,6 +14,7 @@ describe('mobile version check', () => {
       extra: { appVersion: '2026/07/25-1' },
     })).toBe('2026/07/25-1');
     expect(resolveCurrentAppVersion({ version: '0.5.0', extra: {} })).toBe('0.5.0');
+    expect(() => resolveCurrentAppVersion({})).toThrow(/앱 버전/);
   });
 
   afterEach(() => {

@@ -58,6 +58,21 @@ describe('appVersion API client', () => {
     expect(legacyOptions.map((option) => option.value)).toContain('DESKTOP')
   })
 
+  it('canonical으로 잘못 저장한 뒤 다시 편집해도 legacy WEB/MOBILE로 되돌릴 수 있다', () => {
+    expect(appClientOptionsForRelease('AROLOGIS_DESKTOP').map((option) => option.value)).toEqual([
+      'DESKTOP',
+      'SAMHAN_MOBILE',
+      'SAMHAN_MOBILE_STAFF',
+      'AROLOGIS_MOBILE',
+      'SAMHAN_ORDER_WEB',
+      'SAMHAN_ESTIMATE_WEB',
+      'SAMHAN_MOBILE_PUBLIC_WEB',
+      'AROLOGIS_DESKTOP',
+      'WEB',
+      'MOBILE',
+    ])
+  })
+
   it('버전 확인을 지원하지 않는 4개 앱을 관리 선택지에 표시한다', () => {
     expect(APP_CLIENT_OPTIONS.filter((option) => !option.versionCheckSupported).map((option) => option.value))
       .toEqual(expect.arrayContaining([
