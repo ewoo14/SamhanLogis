@@ -98,6 +98,16 @@ vi.mock('@samhan/design-system', () => ({
         {props.modelCell}
         <span data-testid={`product-name-${lineNo}`}>{props.line.productName}</span>
         <input
+          aria-label={`line-${lineNo}-specification`}
+          value={props.line.specification}
+          onChange={(event) => props.onSpecificationChange(event.target.value)}
+        />
+        <input
+          aria-label={`line-${lineNo}-quantity`}
+          value={props.line.quantity}
+          onChange={(event) => props.onQuantityChange(event.target.value)}
+        />
+        <input
           aria-label={`line-${lineNo}-unit-price`}
           value={props.line.unitPrice}
           onChange={(event) => props.onUnitPriceChange(event.target.value)}
@@ -391,13 +401,15 @@ describe('SlipFormPage price memory autofill', () => {
     fireEvent.click(screen.getByTestId('select-product-a-2'))
     await waitFor(() => expect(harness.getPriceMemory).toHaveBeenCalledWith(harness.partnerA.id, harness.productA.id))
     fireEvent.click(screen.getByTestId('delete-line-2'))
-    expect(screen.queryByTestId('line-2')).toBeNull()
+    // 초기 5행 + 수동 1행 상태에서 2번 행을 삭제하면 뒤 행이 번호를 당긴다.
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
 
     await act(async () => {
       pending.resolve({ unitPrice: 999000, source: 'LINE_SAVE', updatedAt: '2026-07-10T09:00:00' })
       await pending.promise
     })
-    expect(screen.queryByTestId('line-2')).toBeNull()
+    // 늦은 가격 응답 이후에도 삭제로 줄어든 행 수가 복원되지 않는다.
+    expect(screen.getAllByTestId(/^line-\d+$/)).toHaveLength(5)
     expect(unitPrice(1).value).toBe('0')
   })
 
@@ -746,6 +758,97 @@ describe('SlipFormPage price memory autofill', () => {
 
     await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
     expect(harness.createSlip).toHaveBeenCalledWith(expect.objectContaining({ partnerId: undefined }))
+  })
+})
+
+describe('SlipFormPage 이카운트식 라인 입력', () => {
+  it('초기에는 입력 가능한 빈 행 5개를 보여준다', () => {
+    renderPage()
+
+    expect(screen.getByTestId('line-1')).toBeTruthy()
+    expect(screen.getByTestId('line-5')).toBeTruthy()
+    expect(screen.queryByTestId('line-6')).toBeNull()
+  })
+
+  it('마지막 행의 셀에 입력하면 아래에 한 행만 증식하고 재입력은 중복 증식하지 않는다', () => {
+    renderPage()
+    const lastQuantity = screen.getByLabelText('line-5-quantity') as HTMLInputElement
+
+    fireEvent.change(lastQuantity, { target: { value: '2' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    expect(screen.queryByTestId('line-7')).toBeNull()
+
+    fireEvent.change(lastQuantity, { target: { value: '3' } })
+    fireEvent.change(lastQuantity, { target: { value: '' } })
+    fireEvent.change(lastQuantity, { target: { value: '4' } })
+
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+    expect(screen.queryByTestId('line-7')).toBeNull()
+  })
+
+  it('중간 행 입력은 증식하지 않고 새 마지막 행에 입력하면 다시 한 행만 증식한다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-2-quantity'), { target: { value: '2' } })
+    expect(screen.queryByTestId('line-6')).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('line-5-specification'), { target: { value: '220V' } })
+    expect(screen.getByTestId('line-6')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('line-6-unit-price'), { target: { value: '5000' } })
+    expect(screen.getByTestId('line-7')).toBeTruthy()
+    expect(screen.queryByTestId('line-8')).toBeNull()
+  })
+
+  it('빈 행 5개는 저장 payload와 합계 건수·금액, 저장 가능 여부를 바꾸지 않는다', async () => {
+    renderPage()
+    await selectPartnerA()
+    fireEvent.click(screen.getByTestId('select-warehouse'))
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+
+    await waitFor(() => expect(unitPrice().value).toBe(harness.productA.sellingPrice))
+    expect(screen.getByText('1건')).toBeTruthy()
+    expect(screen.getByText('₩1,000')).toBeTruthy()
+    expect((screen.getByRole('button', { name: '저장' }) as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    await waitFor(() => expect(harness.createSlip).toHaveBeenCalledTimes(1))
+    expect(harness.createSlip.mock.calls[0][0].lines).toHaveLength(1)
+    expect(harness.createSlip.mock.calls[0][0].lines[0]).toEqual(expect.objectContaining({
+      productId: harness.productA.id,
+      quantity: 1,
+    }))
+  })
+
+  it('입력했지만 품목 또는 수량이 빠진 행은 저장 전에 중립적인 제외 안내를 보여주고 빈 행에는 보여주지 않는다', () => {
+    renderPage()
+
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '2' } })
+
+    expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+    expect(screen.queryByTestId('line-2-incomplete-notice')).toBeNull()
+    expect(screen.getByTestId('line-1-incomplete-notice').getAttribute('role')).toBe('note')
+  })
+
+  it('품목을 선택했지만 수량을 0으로 둔 행도 저장 전에 제외 안내를 보여준다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('product-name-1').textContent).toBe(harness.productA.productName))
+    fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
+
+    expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+  })
+
+  it('자동 증식 사실을 낭독하고 현재 입력 포커스를 끊지 않는다', () => {
+    renderPage()
+    const lastQuantity = screen.getByLabelText('line-5-quantity') as HTMLInputElement
+    lastQuantity.focus()
+
+    fireEvent.change(lastQuantity, { target: { value: '2' } })
+
+    expect(screen.getByTestId('slip-form-line-expansion-announcement').textContent).toContain('입력 행 1개가 추가')
+    expect(document.activeElement).toBe(lastQuantity)
+    expect(screen.getByLabelText('line-6-quantity')).toBeTruthy()
   })
 })
 

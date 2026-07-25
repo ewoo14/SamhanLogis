@@ -176,6 +176,28 @@ function PriceChangeIndicator({ id }: { id: string }) {
   )
 }
 
+/**
+ * 사용자가 입력을 시작했지만 현행 저장 조건을 아직 만족하지 못한 행의 안내.
+ * 초기 빈 행에는 렌더하지 않아, 입력 전부터 오류처럼 보이지 않게 한다.
+ */
+function IncompleteLineNotice({ lineNumber }: { lineNumber: number }) {
+  return (
+    <div
+      role="note"
+      data-testid={`line-${lineNumber}-incomplete-notice`}
+      style={{
+        padding: '6px 12px',
+        color: 'var(--ink-secondary, #5C6773)',
+        background: 'var(--surface-subtle, #F8FAFC)',
+        fontSize: 12,
+        lineHeight: 1.4,
+      }}
+    >
+      입력 중인 행입니다. 품목과 수량을 모두 입력하면 저장되며, 현재는 저장에서 제외됩니다.
+    </div>
+  )
+}
+
 function SlipMobileLineCard(props: {
   line: LineDraft
   lineNumber: number
@@ -477,8 +499,14 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   const [unloadDate, setUnloadDate] = useState<string>('')
   const [sameDay, setSameDay] = useState(false) // 당착 체크박스 (지방 한정)
 
-  const [lines, setLines] = useState<LineDraft[]>([emptyLine()])
+  // 이카운트식 연속 입력을 위해 처음부터 빈 행 5개를 준비한다.
+  const [lines, setLines] = useState<LineDraft[]>(() =>
+    Array.from({ length: 5 }, () => emptyLine()),
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // 사용자가 실제로 손댄 행만 기록한다. 빈 행은 제외 안내를 내지 않는다.
+  const [touchedLineIds, setTouchedLineIds] = useState<Set<string>>(new Set())
+  const [lineExpansionAnnouncement, setLineExpansionAnnouncement] = useState('')
   // link-dispatch-slice 신규 — 기사명 + 기사 휴대폰 (LinkDispatchListPage 자동 그룹의 키)
   const [driverName, setDriverName] = useState('')
   const [driverPhone, setDriverPhone] = useState('')
@@ -546,9 +574,49 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((ls) => [...ls, next])
   }
 
+  /**
+   * 사용자 입력을 표시하고, 마지막 행이면 빈 행을 정확히 하나만 덧붙인다.
+   * setLines updater 안에서 마지막 행 ID를 다시 확인해 연속 이벤트에도 중복 증식을 막는다.
+   */
+  const markLineInput = (id: string) => {
+    setTouchedLineIds((previous) => {
+      if (previous.has(id)) return previous
+      const next = new Set(previous)
+      next.add(id)
+      return next
+    })
+
+    const currentIndex = linesRef.current.findIndex((line) => line.id === id)
+    const isLastLine = currentIndex === linesRef.current.length - 1
+    if (!isLastLine) return
+
+    setLines((current) => {
+      const lastLine = current[current.length - 1]
+      if (!lastLine || lastLine.id !== id) return current
+      return [...current, emptyLine()]
+    })
+    setLineExpansionAnnouncement(
+      `라인 ${currentIndex + 1} 입력 완료. 다음 입력 행 1개가 추가되었습니다.`,
+    )
+  }
+
+  /** 사용자 셀 변경 공통 경로 — 제품 선택과 수량/금액/규격 입력이 같은 증식 규칙을 쓴다. */
+  const updateLineFromUser = (id: string, updater: (line: LineDraft) => LineDraft) => {
+    markLineInput(id)
+    setLines((current) => current.map((line) => (
+      line.id === id ? updater(line) : line
+    )))
+  }
+
   const removeLine = (id: string) => {
     setLines((ls) => (ls.length === 1 ? ls : ls.filter((l) => l.id !== id)))
     setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    setTouchedLineIds((prev) => {
+      if (!prev.has(id)) return prev
       const next = new Set(prev)
       next.delete(id)
       return next
@@ -559,7 +627,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
 
   const updatePrice = (id: string, unitPrice: string) =>
-    setLines((ls) => ls.map((line) => {
+    updateLineFromUser(id, (line) => {
       if (line.id !== id) return line
       return {
         ...recalculateLineVat(asVatLine({ ...line, unitPrice }), 'PRICE'),
@@ -570,22 +638,19 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
         lookupError: null,
         lookupLoading: false,
       }
-    }))
+    })
 
   const updateQuantity = (id: string, quantity: string) =>
-    setLines((ls) => ls.map((line) => (
-      line.id === id ? changeLineQuantity(asVatLine(line), quantity) : line
-    )))
+    updateLineFromUser(id, (line) => changeLineQuantity(asVatLine(line), quantity))
 
   const updateVatAmount = (
     id: string,
     authority: 'SUPPLY' | 'VAT' | 'TOTAL',
     value: string,
-  ) => setLines((ls) => ls.map((line) => (
-    line.id === id ? editLineVat(asVatLine(line), authority, value) : line
-  )))
+  ) => updateLineFromUser(id, (line) => editLineVat(asVatLine(line), authority, value))
 
   const applyProductSelection = async (line: LineDraft, product: ProductOption | null) => {
+    markLineInput(line.id)
     setPriceLookupAnnouncement('')
     const lineNumber = Math.max(1, lines.findIndex((candidate) => candidate.id === line.id) + 1)
     const productId = product?.id ?? null
@@ -731,13 +796,10 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const updateSetOption = (id: string, patch: Partial<BundleSetOptions>) =>
-    setLines((ls) =>
-      ls.map((l) =>
-        l.id === id
-          ? { ...l, setOptions: { ...(l.setOptions ?? emptyBundleSetOptions()), ...patch } }
-          : l,
-      ),
-    )
+    updateLineFromUser(id, (line) => ({
+      ...line,
+      setOptions: { ...(line.setOptions ?? emptyBundleSetOptions()), ...patch },
+    }))
 
   const toggleSelect = (id: string, selected: boolean) => {
     setSelectedIds((prev) => {
@@ -1000,6 +1062,27 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
       : selectedProductLines.length === 1
         ? '재고조회'
         : `선택 항목 재고조회 (${selectedProductLines.length}건)`
+
+  const renderLineFooter = (line: LineDraft, index: number): ReactNode => {
+    const isIncomplete = touchedLineIds.has(line.id)
+      && !(line.productId && Number(line.quantity) > 0)
+    const isBundle = line.productType === 'BUNDLE'
+    return (
+      <>
+        {isBundle ? (
+          <BundleOptionRow
+            line={{
+              modelName: line.modelName,
+              setOptions: line.setOptions ?? emptyBundleSetOptions(),
+            }}
+            index={index}
+            onChange={(patch) => updateSetOption(line.id, patch)}
+          />
+        ) : null}
+        {isIncomplete ? <IncompleteLineNotice lineNumber={index + 1} /> : null}
+      </>
+    )
+  }
 
   // ── render ──────────────────────────────────────────────
 
@@ -1379,6 +1462,25 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
               + 라인 추가
             </Button>
           </div>
+          {/* 자동 증식은 현재 입력 포커스를 유지하고, 추가 사실만 한 번 낭독한다. */}
+          <span
+            role="status"
+            aria-live="polite"
+            data-testid="slip-form-line-expansion-announcement"
+            style={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          >
+            {lineExpansionAnnouncement}
+          </span>
         </div>
 
         {isMobile ? (
@@ -1407,7 +1509,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                   canDelete={lines.length > 1}
                   partnerSelected={partnerSelected}
                   onSelect={(s) => toggleSelect(line.id, s)}
-                  onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                  onSpecificationChange={(v) => updateLineFromUser(line.id, (current) => ({ ...current, specification: v }))}
                   onQuantityChange={(v) => updateQuantity(line.id, v)}
                   onUnitPriceChange={(v) => updatePrice(line.id, v)}
                   onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
@@ -1426,18 +1528,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       debounceMs={250}
                     />
                   }
-                  footer={
-                    isBundle ? (
-                      <BundleOptionRow
-                        line={{
-                          modelName: line.modelName,
-                          setOptions: line.setOptions ?? emptyBundleSetOptions(),
-                        }}
-                        index={idx}
-                        onChange={(patch) => updateSetOption(line.id, patch)}
-                      />
-                    ) : null
-                  }
+                  footer={renderLineFooter(line, idx)}
                 />
               )
             })}
@@ -1484,9 +1575,9 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                       canDelete={lines.length > 1}
                       partnerSelected={partnerSelected}
                       onSelect={(s) => toggleSelect(line.id, s)}
-                      onModelNameChange={(v) => updateLine(line.id, { modelName: v })}
+                      onModelNameChange={(v) => updateLineFromUser(line.id, (current) => ({ ...current, modelName: v }))}
                       onModelNameBlur={(v) => void handleModelNameBlur(line.id, v)}
-                      onSpecificationChange={(v) => updateLine(line.id, { specification: v })}
+                      onSpecificationChange={(v) => updateLineFromUser(line.id, (current) => ({ ...current, specification: v }))}
                       onQuantityChange={(v) => updateQuantity(line.id, v)}
                       onUnitPriceChange={(v) => updatePrice(line.id, v)}
                       onSupplyAmountChange={(v) => updateVatAmount(line.id, 'SUPPLY', v)}
@@ -1505,18 +1596,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                           debounceMs={250}
                         />
                       }
-                      footer={
-                        isBundle ? (
-                          <BundleOptionRow
-                            line={{
-                              modelName: line.modelName,
-                              setOptions: line.setOptions ?? emptyBundleSetOptions(),
-                            }}
-                            index={idx}
-                            onChange={(patch) => updateSetOption(line.id, patch)}
-                          />
-                        ) : null
-                      }
+                      footer={renderLineFooter(line, idx)}
                     />
                   )
                 })}
