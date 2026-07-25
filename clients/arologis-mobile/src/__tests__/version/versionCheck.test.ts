@@ -12,9 +12,9 @@ describe('arologis mobile version check', () => {
     jest.restoreAllMocks();
   });
 
-  it('builds the public MOBILE version endpoint with currentVersion', () => {
+  it('아로로지스 모바일 전용 version endpoint에 앱 식별자와 currentVersion을 보낸다', () => {
     expect(buildVersionCheckUrl('https://api.arologis.samhan-air.com/', '1.0.0')).toBe(
-      'https://api.arologis.samhan-air.com/app/version?clientType=MOBILE&currentVersion=1.0.0',
+      'https://api.arologis.samhan-air.com/app/version?clientType=AROLOGIS_MOBILE&currentVersion=1.0.0',
     );
   });
 

@@ -187,7 +187,17 @@ function parseMockBody(config: AxiosRequestConfig): Record<string, unknown> {
   return {}
 }
 
-type MockAppClientType = 'DESKTOP' | 'WEB' | 'MOBILE'
+type MockAppClientType =
+  | 'DESKTOP'
+  | 'SAMHAN_MOBILE'
+  | 'SAMHAN_MOBILE_STAFF'
+  | 'AROLOGIS_MOBILE'
+  | 'SAMHAN_ORDER_WEB'
+  | 'SAMHAN_ESTIMATE_WEB'
+  | 'SAMHAN_MOBILE_PUBLIC_WEB'
+  | 'AROLOGIS_DESKTOP'
+  | 'WEB'
+  | 'MOBILE'
 type MockAppForceLevel = 'NONE' | 'MINOR' | 'MAJOR' | 'CRITICAL'
 
 type MockAppRelease = {
@@ -356,7 +366,18 @@ let MOCK_ACTIVITY_LOGS: MockActivityLog[] = [
 ]
 
 function normalizeMockClientType(value: unknown): MockAppClientType {
-  if (value === 'DESKTOP' || value === 'WEB' || value === 'MOBILE') return value
+  if (
+    value === 'DESKTOP'
+    || value === 'SAMHAN_MOBILE'
+    || value === 'SAMHAN_MOBILE_STAFF'
+    || value === 'AROLOGIS_MOBILE'
+    || value === 'SAMHAN_ORDER_WEB'
+    || value === 'SAMHAN_ESTIMATE_WEB'
+    || value === 'SAMHAN_MOBILE_PUBLIC_WEB'
+    || value === 'AROLOGIS_DESKTOP'
+    || value === 'WEB'
+    || value === 'MOBILE'
+  ) return value
   return 'WEB'
 }
 

@@ -1,7 +1,7 @@
 # Samhan Public — (주)삼한공조시스템 자체 통합 플랫폼
 
 > 삼성 시스템에어컨 공식 파트너사 (주)삼한공조시스템의 자체 물류·회계·견적·주문 통합 플랫폼.
-> 14 backend MSA + 5 client (web 2 / desktop 1 / mobile 2) + legacy 마이그레이션 (견적서 / 주문서 / 장기미수) 으로 구성된다.
+> 14 backend MSA + 8 사용자 대면 client (web 3 / desktop 2 / mobile 3) + 공통 디자인 시스템 + legacy 마이그레이션 (견적서 / 주문서 / 장기미수) 으로 구성된다.
 
 ## 🔗 비주얼 Overview (GitHub Pages 풀 디자인)
 
@@ -22,6 +22,19 @@
 - 주문도 `PRICE / SUPPLY / VAT / TOTAL` 권위 경로를 지원하고, DC는 VAT 포함 단가에 먼저
   적용한 뒤 PRICE 경로에서 공급가액·부가세를 계산한다. 근거와 검증은
   [`docs/dev-reports/2026-07-22-824-item-line-supply-vat.md`](docs/dev-reports/2026-07-22-824-item-line-supply-vat.md)에 기록한다.
+
+## 2026-07-25 앱별 버전 정책 식별자 (#910)
+
+- dashboard-service의 앱 릴리스 식별자를 8개 사용자 대면 앱으로 분리했다. 기존
+  `DESKTOP`은 삼한 데스크톱 정본 값으로 보존하고, `SAMHAN_MOBILE`·
+  `SAMHAN_MOBILE_STAFF`·`AROLOGIS_MOBILE` 등 신규 식별자를 V7에서 허용한다.
+- 구버전 `WEB`·`MOBILE` 조회 요청은 BE가 계속 수용해 BE 선배포 시에도 버전 확인 실패가
+  앱 차단으로 이어지지 않게 했다. 신규 모바일 3앱은 각자의 식별자를 보낸다.
+- 데스크톱 버전 관리 화면과 mock은 앱 이름을 한국어로 선택·표시하며, 한 앱의 CRITICAL
+  릴리스가 다른 앱 판정을 바꾸지 않는 회귀 테스트를 둔다. 이번 슬라이스에서는 웹/아로로지스
+  데스크톱 버전 체크 신설과 OTA 활성화를 하지 않는다.
+- RED/GREEN·V7 throwaway PostgreSQL probe 결과는
+  [`docs/dev-reports/2026-07-25-910-app-client-identity.md`](docs/dev-reports/2026-07-25-910-app-client-identity.md)에 기록한다.
 
 ![Samhan Public 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
 

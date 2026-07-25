@@ -29,6 +29,15 @@
 
 ---
 
+### 최신 진행 메모 (2026-07-25)
+
+- **#910 앱별 버전 정책 식별자 슬라이스 1**: dashboard-service `AppClientType`을 8개 사용자
+  대면 앱 식별자로 확장하고 V7에서 `client_type` CHECK와 길이를 교체했다. 기존 `DESKTOP`
+  릴리스는 삼한 데스크톱 정본으로 보존하며 구버전 `WEB`·`MOBILE` 조회값은 호환용으로 유지한다.
+  삼한 모바일·직원 모바일·아로로지스 모바일은 각각 전용 식별자를 보내고, desktop 관리 화면과
+  mock은 내부 enum 대신 한국어 앱 이름을 선택·표시한다. 웹/아로로지스 데스크톱 버전 체크 신설과
+  OTA 활성화는 후속 범위다. 상세 검증은 `docs/dev-reports/2026-07-25-910-app-client-identity.md`.
+
 ### 최신 진행 메모 (2026-07-21)
 
 - **#824 품목행 공급가액·부가세 정합성 보강 (2026-07-22)**: 부가가치세법 제29조와 국세청 유권해석의 공급가액 10% 원칙을 확인하고, 법령이 HALF_UP을 강제한다고 추정하지 않은 채 기존 세금계산서 절사 정책을 공통 계산기로 수렴했다. 전표·견적·세금계산서의 신규 계산은 `shared:common:VatAmountCalculator`/desktop `vatRounding.ts`를 사용하며 발행 완료 자료는 재계산하지 않는다. 주문 코드 실측 결과 `PartnerOrderLine.subtotal`은 VAT 포함 T였으므로 V12에서 nullable `supply_amount`·`vat_amount`만 추가하고 기존 행 backfill을 금지했다. 신규 주문은 `PRICE/SUPPLY/VAT/TOTAL`과 `S+V=T`, DC 선적용 후 PRICE 재계산을 고정한다. 상세 결정은 `migration/decisions/DECISIONS.md`, 검증은 `docs/dev-reports/2026-07-22-824-item-line-supply-vat.md` 참조.

@@ -126,6 +126,57 @@ class AppReleaseControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("앱별 CRITICAL 릴리스는 다른 모바일 앱의 버전 판정을 바꾸지 않는다")
+    void publicVersion_isolatedByExplicitAppIdentity() throws Exception {
+        insertRelease("AROLOGIS_MOBILE", "1.1.0", "CRITICAL", "아로로지스 모바일 긴급 업데이트", "1.0.0");
+        insertRelease("SAMHAN_MOBILE", "0.5.0", "MINOR", "삼한 모바일 현재 릴리스", "0.5.0");
+        insertRelease("SAMHAN_MOBILE_STAFF", "0.4.0", "MINOR", "직원 모바일 현재 릴리스", "0.4.0");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "AROLOGIS_MOBILE")
+                        .param("currentVersion", "1.0.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.forceLevel").value("CRITICAL"));
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "SAMHAN_MOBILE")
+                        .param("currentVersion", "0.5.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.forceLevel").value("NONE"));
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "SAMHAN_MOBILE_STAFF")
+                        .param("currentVersion", "0.4.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.forceLevel").value("NONE"));
+    }
+
+    @Test
+    @DisplayName("마이그레이션 뒤 기존 DESKTOP 릴리스는 삼한 데스크톱 정책으로 계속 조회된다")
+    void publicVersion_preservesLegacyDesktopIdentityAfterIdentityMigration() throws Exception {
+        insertRelease("DESKTOP", "9.9.8", "CRITICAL", "기존 삼한 데스크톱 릴리스", "9.9.0");
+        insertRelease("AROLOGIS_DESKTOP", "1.0.1", "CRITICAL", "아로로지스 데스크톱 릴리스", "1.0.0");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "DESKTOP")
+                        .param("currentVersion", "9.9.0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.latestVersion").value("9.9.8"))
+                .andExpect(jsonPath("$.data.releaseNotes").value("기존 삼한 데스크톱 릴리스"));
+    }
+
+    @Test
+    @DisplayName("구버전 MOBILE 식별자는 신규 앱 릴리스 정책을 잘못 적용하지 않고 확인 실패로 끝난다")
+    void publicVersion_legacyMobileIdentifierFailsOpenWhenNewIdentityReleaseExists() throws Exception {
+        insertRelease("AROLOGIS_MOBILE", "1.1.0", "CRITICAL", "아로로지스 모바일 긴급 업데이트", "1.0.0");
+
+        mockMvc.perform(get("/app/version")
+                        .param("clientType", "MOBILE")
+                        .param("currentVersion", "0.5.0"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     @DisplayName("POST /app/releases 신규 등록은 미발행 상태이며 publish 전까지 /app/version에 반영되지 않는다")
     void adminCreate_registersUnpublishedRelease_untilExplicitPublish() throws Exception {
         String createBody = """

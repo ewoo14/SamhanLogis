@@ -12,9 +12,9 @@ describe('mobile version check', () => {
     jest.restoreAllMocks();
   });
 
-  it('builds the public MOBILE version endpoint with currentVersion', () => {
+  it('삼한 모바일 전용 버전 endpoint에 앱 식별자와 currentVersion을 보낸다', () => {
     expect(buildVersionCheckUrl('https://api.samhan-air.com/', '0.5.0')).toBe(
-      'https://api.samhan-air.com/app/version?clientType=MOBILE&currentVersion=0.5.0',
+      'https://api.samhan-air.com/app/version?clientType=SAMHAN_MOBILE&currentVersion=0.5.0',
     );
   });
 

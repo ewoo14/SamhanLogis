@@ -36,7 +36,7 @@ public class AppRelease extends BaseEntity {
     private UUID id;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "client_type", nullable = false, length = 20)
+    @Column(name = "client_type", nullable = false, length = 40)
     private AppClientType clientType;
 
     @Column(name = "version", nullable = false, length = 50)

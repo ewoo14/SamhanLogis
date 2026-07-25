@@ -1876,6 +1876,47 @@ describe('mock app version management contract', () => {
     expect(['NONE', 'MINOR', 'MAJOR', 'CRITICAL']).toContain(resolved.data.forceLevel)
   })
 
+  it('mock도 앱별 CRITICAL 릴리스가 다른 모바일 앱의 판정에 영향을 주지 않게 격리한다', () => {
+    const version = `91.0.${Date.now()}`
+    const created = mockRequest({
+      method: 'POST',
+      url: '/app/releases',
+      data: {
+        clientType: 'AROLOGIS_MOBILE',
+        version,
+        minSupportedVersion: '1.0.0',
+        forceLevel: 'CRITICAL',
+        releaseNotes: '아로로지스 모바일 긴급 업데이트',
+        releasedAt: '2026-06-27T10:00:00',
+      },
+    }) as MockEnvelope<{ id: string; version: string; isPublished: boolean }>
+
+    mockRequest({
+      method: 'POST',
+      url: `/app/releases/${created.data.id}/publish`,
+    })
+
+    const arologis = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'AROLOGIS_MOBILE', currentVersion: '1.0.0' },
+    }) as MockEnvelope<{ forceLevel: string }>
+    const samhan = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'SAMHAN_MOBILE', currentVersion: '0.5.0' },
+    }) as MockEnvelope<{ forceLevel: string }>
+    const staff = mockRequest({
+      method: 'GET',
+      url: '/app/version',
+      params: { clientType: 'SAMHAN_MOBILE_STAFF', currentVersion: '0.4.0' },
+    }) as MockEnvelope<{ forceLevel: string }>
+
+    expect(arologis.data.forceLevel).toBe('CRITICAL')
+    expect(samhan.data.forceLevel).toBe('NONE')
+    expect(staff.data.forceLevel).toBe('NONE')
+  })
+
   it('POST/PUT/DELETE /app/releases는 in-memory 목록에 반영한다', () => {
     const created = mockRequest({
       method: 'POST',

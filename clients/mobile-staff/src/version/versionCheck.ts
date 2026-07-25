@@ -41,7 +41,7 @@ export function resolveVersionApiBaseUrl(): string {
 export function buildVersionCheckUrl(apiBaseUrl: string, currentVersion: string): string {
   const base = apiBaseUrl.replace(/\/+$/, '');
   const params = new URLSearchParams({
-    clientType: 'MOBILE',
+    clientType: 'SAMHAN_MOBILE_STAFF',
     currentVersion,
   });
   return `${base}/app/version?${params.toString()}`;

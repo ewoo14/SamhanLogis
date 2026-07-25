@@ -41,7 +41,7 @@ export function resolveVersionApiBaseUrl(): string {
 export function buildVersionCheckUrl(apiBaseUrl: string, currentVersion: string): string {
   const base = apiBaseUrl.replace(/\/+$/, '');
   const params = new URLSearchParams({
-    clientType: 'MOBILE',
+    clientType: 'AROLOGIS_MOBILE',
     currentVersion,
   });
   return `${base}/app/version?${params.toString()}`;
