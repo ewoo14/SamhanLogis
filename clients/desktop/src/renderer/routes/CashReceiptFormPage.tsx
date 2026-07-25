@@ -16,6 +16,7 @@ import {
   updateCashReceipt,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { CollaborativeSlipInput } from '../components/collab/CollaborativeSlipInput'
@@ -24,6 +25,7 @@ import {
   buildCashReceiptRequest,
   cashReceiptFormStateFromRow,
   cashReceiptInitialFormState,
+  partnerLookupUnavailableOnHydrate,
   partnerOptionFromFormState,
   validateCashReceiptForm,
   type CashReceiptFormErrors,
@@ -122,6 +124,14 @@ export function CashReceiptFormPage() {
 
   const receipt = receiptQuery.data
   const bankLinked = receipt?.kind === 'BANK_LINKED'
+  // #831 R-3/R-5 — 영속화된 입금보고서는 항상 거래처가 있다(BE resolvePartner 가 create/
+  // update 시 강제). partnerCode/partnerName 이 둘 다 공란으로 hydrate 되면 "원래 거래처가
+  // 없다"가 아니라 partner-service 장애로 표시만 비었다는 뜻이다 — 서버 원본값(receipt)
+  // 기준으로 판정한다(state 는 사용자가 고치는 중 바뀌므로 판정 기준으로 쓰지 않는다).
+  const partnerLookupWasUnavailable = Boolean(
+    isEdit && receipt && partnerLookupUnavailableOnHydrate(receipt),
+  )
+  const partnerStillBlank = !state.partnerCode.trim() && !state.partnerName.trim()
   const canUpdate = canAccess(PAGE_CODE, 'update')
   // read-only = 권한 없음, 통장연계 또는 취소. CONFIRMED 은 편집 가능(역분개 후 재게시, S4b 기결 기능).
   const readOnly = Boolean(isEdit && receipt && (!canUpdate || bankLinked || receipt.status === 'CANCELLED'))
@@ -236,6 +246,15 @@ export function CashReceiptFormPage() {
   const handleSave = () => {
     setTopError('')
     const nextErrors = validateCashReceiptForm(state)
+    // #831 R-3/R-5 (G2) — 거래처가 비어 있는 이유가 사용자가 안 채워서가 아니라 partner-service
+    // 조회 실패인 경우, 일반 "거래처를 선택하거나 거래처명을 입력하세요." 대신 정확한 원인과
+    // 다음 행동(재선택)을 알린다. 가드(저장 차단) 자체는 기존과 동일 — 문구만 바뀐다.
+    if (partnerLookupWasUnavailable && partnerStillBlank && nextErrors.partner) {
+      nextErrors.partner = '거래처 조회 서비스 장애로 표시가 비었습니다. 거래처를 다시 선택해주세요.'
+      setErrors(nextErrors)
+      setTopError('거래처 조회 서비스에 일시 장애가 있어 거래처 표시가 비어 있습니다. 거래처를 다시 선택한 뒤 저장하세요.')
+      return
+    }
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
     saveMutation.mutate()
@@ -257,7 +276,20 @@ export function CashReceiptFormPage() {
     )
   }
 
-  if (isEdit && (receiptQuery.isError || !receiptQuery.data)) {
+  if (isEdit && receiptQuery.isError) {
+    // #831 신규 발견(PM 라이브QA) — 거래처 검색이 UNAVAILABLE 중 30초+ 매달리면 같은 origin
+    // 연결 풀을 점유해 이 화면의 단건 상세 호출(그 자체는 13ms 200)까지 지연/timeout 될 수
+    // 있다. 이전엔 재시도 수단이 없어 dead-end 였다.
+    return (
+      <PartnerLookupErrorBanner
+        error={receiptQuery.error}
+        onRetry={() => receiptQuery.refetch()}
+        subject="입금보고서"
+      />
+    )
+  }
+
+  if (isEdit && !receiptQuery.data) {
     return <div className="error-banner" role="alert">입금보고서를 불러오지 못했습니다.</div>
   }
 
@@ -275,6 +307,21 @@ export function CashReceiptFormPage() {
       {editNotice ? (
         <div className={editNotice.className} role={editNotice.role}>
           {editNotice.text}
+        </div>
+      ) : null}
+
+      {partnerLookupWasUnavailable && partnerStillBlank ? (
+        // #831 R-3/R-5 — 이 receipt 는 실제로 거래처가 없을 수 없다(영속 시 BE 가 강제).
+        // 저장을 시도하기 전에 먼저 "왜 비어 보이는지"를 알려 필수입력 오인을 막는다.
+        // role="status"(alert 아님) — DepositorMappingPage 의 "거래처 조회 불가(일시)" 표기와
+        // 같은 결의 정보성 안내이며 editNotice(role=alert 가능)와 동시 노출돼도 중복 alert 가
+        // 되지 않는다.
+        <div
+          role="status"
+          className="warning-banner"
+          style={{ marginBottom: 16 }}
+        >
+          이 입금보고서에는 거래처가 등록되어 있으나, 거래처 조회 서비스 장애로 표시되지 않았습니다. 저장하려면 거래처를 다시 선택하세요.
         </div>
       ) : null}
 

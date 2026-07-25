@@ -24,6 +24,7 @@ import {
   type NotesReceivableRow,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -249,6 +250,9 @@ export function NotesReceivablePage() {
     && Number.isFinite(amountValue)
     && amountValue > 0
     && !registerMutation.isPending
+  // 502(PARTNER_IDENTITY_LOOKUP_UNAVAILABLE) 시 notesQuery.data 는 undefined 이므로 합계가
+  // 0이 된다. 그 값을 그대로 보여주면 "받을 어음 없음"으로 오인된다(#831 R-1) — isError 시
+  // 아래 요약 문구를 렌더하지 않는다.
   const totalAmount = (notesQuery.data ?? []).reduce((sum, row) => sum + Number(row.amount || 0), 0)
 
   return (
@@ -256,9 +260,11 @@ export function NotesReceivablePage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>받을어음</h3>
-          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            합계 {formatKrw(totalAmount)}
-          </div>
+          {!notesQuery.isError ? (
+            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+              합계 {formatKrw(totalAmount)}
+            </div>
+          ) : null}
         </div>
         {notesQuery.isFetching ? <Spinner size="sm" /> : null}
       </div>
@@ -370,12 +376,21 @@ export function NotesReceivablePage() {
           </Button>
         </div>
 
-        <DataTable<NotesReceivableRow>
-          columns={columns}
-          rows={notesQuery.data ?? []}
-          rowKey={(row) => row.noteNo}
-          emptyMessage={notesQuery.isLoading ? '조회 중' : '등록된 받을어음이 없습니다'}
-        />
+        {notesQuery.isError ? (
+          <PartnerLookupErrorBanner
+            error={notesQuery.error}
+            onRetry={() => notesQuery.refetch()}
+            subject="받을어음"
+            testId="notes-receivable-error"
+          />
+        ) : (
+          <DataTable<NotesReceivableRow>
+            columns={columns}
+            rows={notesQuery.data ?? []}
+            rowKey={(row) => row.noteNo}
+            emptyMessage={notesQuery.isLoading ? '조회 중' : '등록된 받을어음이 없습니다'}
+          />
+        )}
       </Card>
     </div>
   )

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { AxiosError } from 'axios'
-import { extractApiErrorMessage, extractApiErrorResponseMessage, getApiErrorInfo } from './apiError'
+import {
+  extractApiErrorMessage,
+  extractApiErrorResponseMessage,
+  getApiErrorInfo,
+  isPartnerLookupUnavailableError,
+} from './apiError'
 
 function axiosError(status: number, data: unknown): AxiosError {
   return new AxiosError(
@@ -46,5 +51,35 @@ describe('apiError helpers', () => {
     expect(extractApiErrorResponseMessage(axiosError(500, {}))).toBeNull()
     expect(extractApiErrorResponseMessage(axiosError(500, { message: '   ' }))).toBeNull()
     expect(extractApiErrorResponseMessage(new Error('boom'))).toBeNull()
+  })
+
+  describe('isPartnerLookupUnavailableError (#831 후속 — 거래처 조회 UNAVAILABLE 502 분류)', () => {
+    it('502 + code=PARTNER_IDENTITY_LOOKUP_UNAVAILABLE 이면 true', () => {
+      const err = axiosError(502, {
+        success: false,
+        code: 'PARTNER_IDENTITY_LOOKUP_UNAVAILABLE',
+        message: '거래처 조회를 일시적으로 할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+      })
+      expect(isPartnerLookupUnavailableError(err)).toBe(true)
+    })
+
+    it('같은 502 라도 code 가 다르면(예: ETAX_SUBMIT_FAILED) false — 다른 502 원인과 혼동 금지', () => {
+      const err = axiosError(502, { success: false, code: 'ETAX_SUBMIT_FAILED', message: 'e-Tax 전송 중 오류' })
+      expect(isPartnerLookupUnavailableError(err)).toBe(false)
+    })
+
+    it('code 는 일치해도 status 가 502 가 아니면 false', () => {
+      const err = axiosError(500, { success: false, code: 'PARTNER_IDENTITY_LOOKUP_UNAVAILABLE', message: 'x' })
+      expect(isPartnerLookupUnavailableError(err)).toBe(false)
+    })
+
+    it('axios 오류가 아닌 일반 Error 는 false', () => {
+      expect(isPartnerLookupUnavailableError(new Error('boom'))).toBe(false)
+    })
+
+    it('undefined/null 입력도 안전하게 false', () => {
+      expect(isPartnerLookupUnavailableError(undefined)).toBe(false)
+      expect(isPartnerLookupUnavailableError(null)).toBe(false)
+    })
   })
 })

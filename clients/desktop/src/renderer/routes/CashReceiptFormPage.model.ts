@@ -80,6 +80,23 @@ export function validateCashReceiptForm(state: CashReceiptFormState): CashReceip
   return errors
 }
 
+/**
+ * 편집 hydrate 시점에 거래처 표시(partnerCode/partnerName)가 partner-service 조회 실패로
+ * 공란인지 판단한다 (#831 R-3/R-5).
+ *
+ * 영속화된 입금보고서는 항상 거래처가 있다 — BE `resolvePartner`가 create/update 시
+ * partnerCode/bizNo/partnerName 중 하나라도 없으면 422 로 막는다(CashReceiptService.java).
+ * 따라서 편집 화면에 이미 저장된 건을 불러왔는데 partnerCode 와 partnerName 이 둘 다
+ * 공란이면, 그 receipt 가 "원래 거래처가 없다"일 수 없고 partner-service 장애로 표시명
+ * enrichment 만 실패한 것이다(#924 write/detail 공란 성사 결정). 이 판정은 폼이 그 값을
+ * 그대로 되돌려 보내(하이드레이트) 저장하면 거래처 귀속이 무경고로 사라지는 것을 막는 데 쓴다.
+ */
+export function partnerLookupUnavailableOnHydrate(
+  row: { partnerCode?: string | null; partnerName?: string | null },
+): boolean {
+  return !(row.partnerCode ?? '').trim() && !(row.partnerName ?? '').trim()
+}
+
 function optionalTrim(value: string): string | undefined {
   const trimmed = value.trim()
   return trimmed || undefined

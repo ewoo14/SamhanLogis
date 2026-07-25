@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildCashReceiptRequest,
   cashReceiptInitialFormState,
+  partnerLookupUnavailableOnHydrate,
   validateCashReceiptForm,
 } from './CashReceiptFormPage.model'
 
@@ -62,5 +63,18 @@ describe('CashReceiptFormPage model', () => {
       debitAccountCode: '102',
       creditAccountCode: '110',
     })
+  })
+})
+
+describe('partnerLookupUnavailableOnHydrate (#831 R-3/R-5 — 입금보고서 편집 하이드레이트)', () => {
+  it('partnerCode/partnerName 이 모두 공란이면 조회 실패로 표시만 빈 것으로 판단한다 (영속 입금보고서는 항상 거래처가 있다 — BE resolvePartner 가 생성/수정 시 강제)', () => {
+    expect(partnerLookupUnavailableOnHydrate({ partnerCode: '', partnerName: '' })).toBe(true)
+    expect(partnerLookupUnavailableOnHydrate({ partnerCode: null, partnerName: '' })).toBe(true)
+    expect(partnerLookupUnavailableOnHydrate({ partnerCode: '   ', partnerName: '  ' })).toBe(true)
+  })
+
+  it('partnerCode 또는 partnerName 중 하나라도 있으면 정상 조회로 판단한다', () => {
+    expect(partnerLookupUnavailableOnHydrate({ partnerCode: 'P-001', partnerName: '' })).toBe(false)
+    expect(partnerLookupUnavailableOnHydrate({ partnerCode: '', partnerName: '삼한공조' })).toBe(false)
   })
 })

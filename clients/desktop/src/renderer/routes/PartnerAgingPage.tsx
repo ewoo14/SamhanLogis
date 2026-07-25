@@ -27,6 +27,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Input, Spinner } from '@samhan/design-system'
 import { getPartnerAging, type PartnerAgingResponse, type PartnerAgingLine } from '../api/accounting'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 // --------------------------------------------------------------------------
@@ -311,19 +312,14 @@ export function PartnerAgingPage() {
           <Spinner size="lg" label="거래처 잔액 불러오는 중" />
         </div>
       ) : query.isError ? (
-        <div
-          role="alert"
-          style={{
-            background: 'var(--state-danger-bg)',
-            border: '1px solid var(--state-danger)',
-            borderRadius: 6,
-            padding: '12px 16px',
-            color: 'var(--state-danger)',
-            fontSize: 14,
-          }}
-        >
-          거래처 잔액을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
-        </div>
+        // #831 R-2: 이전엔 "백엔드 연결을 확인하세요"로 사용자 귀책·설치 문제로 오인시켰고
+        // 재시도 수단도 없었다. BE 가 만든 정확한 원인 문구(거래처 서비스 일시 장애)를 그대로
+        // 노출하고 재시도 버튼을 제공한다.
+        <PartnerLookupErrorBanner
+          error={query.error}
+          onRetry={() => query.refetch()}
+          subject="거래처 잔액"
+        />
       ) : data ? (
         <Card>
           {/* 요약 */}

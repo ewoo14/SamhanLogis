@@ -8,6 +8,7 @@ import {
   type ReceivablesPayablesLine,
   type ReceivablesPayablesResponse,
 } from '../api/accounting'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 
 const DIRECTION_LABEL: Record<ReceivablesPayablesDirection, string> = {
@@ -179,20 +180,11 @@ export function ReceivablesPayablesPage() {
           <Spinner size="lg" label="채권채무 현황 불러오는 중" />
         </div>
       ) : query.isError ? (
-        <div
-          role="alert"
-          style={{
-            padding: '12px 14px',
-            border: '1px solid var(--state-danger)',
-            borderRadius: 6,
-            background: 'var(--state-danger-bg)',
-            color: 'var(--state-danger)',
-            fontSize: 13,
-            fontWeight: 600,
-          }}
-        >
-          채권채무 현황을 불러오지 못했습니다.
-        </div>
+        <PartnerLookupErrorBanner
+          error={query.error}
+          onRetry={() => query.refetch()}
+          subject="채권채무 현황"
+        />
       ) : data ? (
         <>
           <div

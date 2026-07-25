@@ -27,6 +27,7 @@ import {
   type PlanStatus,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 
@@ -282,6 +283,9 @@ export function CollectionPlanPage() {
     && Number.isFinite(plannedAmountValue)
     && plannedAmountValue > 0
     && !registerMutation.isPending
+  // 502(PARTNER_IDENTITY_LOOKUP_UNAVAILABLE) 시 plansQuery.data 는 undefined 이므로 이 합계는
+  // 0이 되지만, 그 값을 화면에 그대로 노출하면 "미수 없음"으로 오인된다(#831 R-1) — 아래 요약
+  // 문구는 plansQuery.isError 일 때 렌더하지 않는다.
   const totalAmount = (plansQuery.data ?? []).reduce((sum, row) => sum + Number(row.plannedAmount || 0), 0)
   const forecast = forecastQuery.data
 
@@ -290,9 +294,11 @@ export function CollectionPlanPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>수금계획</h3>
-          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            목록 합계 {formatKrw(totalAmount)} · 예측 합계 {formatKrw(forecast?.totalAmount)}
-          </div>
+          {!plansQuery.isError ? (
+            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+              목록 합계 {formatKrw(totalAmount)} · 예측 합계 {formatKrw(forecast?.totalAmount)}
+            </div>
+          ) : null}
         </div>
         {plansQuery.isFetching || forecastQuery.isFetching ? <Spinner size="sm" /> : null}
       </div>
@@ -454,12 +460,21 @@ export function CollectionPlanPage() {
           </Button>
         </div>
 
-        <DataTable<CollectionPlanRow>
-          columns={columns}
-          rows={plansQuery.data ?? []}
-          rowKey={(row) => row.planNo}
-          emptyMessage={plansQuery.isLoading ? '조회 중' : '등록된 수금계획이 없습니다'}
-        />
+        {plansQuery.isError ? (
+          <PartnerLookupErrorBanner
+            error={plansQuery.error}
+            onRetry={() => plansQuery.refetch()}
+            subject="수금계획"
+            testId="collection-plan-error"
+          />
+        ) : (
+          <DataTable<CollectionPlanRow>
+            columns={columns}
+            rows={plansQuery.data ?? []}
+            rowKey={(row) => row.planNo}
+            emptyMessage={plansQuery.isLoading ? '조회 중' : '등록된 수금계획이 없습니다'}
+          />
+        )}
       </Card>
     </div>
   )

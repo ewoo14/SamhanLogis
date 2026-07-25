@@ -367,6 +367,64 @@ describe('CashReceiptFormPage', () => {
     expect(alert.getAttribute('style')).toContain('color: var(--color-danger-700, #991B1B)')
   })
 
+  it('#831 R-3/R-5: partnerCode/partnerName 이 모두 공란인 편집 hydrate 는 "조회 실패" 안내를 보여준다 (일반 필수입력 오인 방지)', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-lookup-unavailable',
+      slipNo: '2026/07/05-13',
+      partnerCode: '',
+      bizNo: '',
+      partnerName: '',
+      amount: '410000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '조회장애 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-lookup-unavailable/edit')
+
+    const notice = await screen.findByText(/거래처 조회.*(장애|실패|불가)/)
+    expect(notice).toBeTruthy()
+    expect(screen.queryByText('거래처를 선택하거나 거래처명을 입력하세요.')).toBeNull()
+  })
+
+  it('#831 R-3/R-5: 조회 실패 hydrate 상태에서 저장을 시도하면 "필수 입력" 문구가 아니라 조회 실패 문구를 보여준다 (G2)', async () => {
+    mocks.getCashReceipt.mockResolvedValue({
+      id: 'receipt-lookup-unavailable-2',
+      slipNo: '2026/07/05-14',
+      partnerCode: '',
+      bizNo: '',
+      partnerName: '',
+      amount: '410000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '조회장애 적요',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    })
+    renderPage('/accounting/admin/cash-receipts/receipt-lookup-unavailable-2/edit')
+
+    await screen.findByLabelText('금액')
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(mocks.updateCashReceipt).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('조회')
+    expect(alert.textContent).not.toBe('거래처를 선택하거나 거래처명을 입력하세요.')
+  })
+
+  it('#831 신규 발견: getCashReceipt 실패 시(PM 라이브QA — 검색 hang 이 detail 호출까지 지연시켜 timeout) 재시도 버튼을 제공한다 (이전엔 dead-end)', async () => {
+    mocks.getCashReceipt.mockRejectedValue(new Error('timeout of 10000ms exceeded'))
+    renderPage('/accounting/admin/cash-receipts/receipt-timeout/edit')
+
+    await screen.findByRole('alert')
+    expect(mocks.getCashReceipt).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await waitFor(() => expect(mocks.getCashReceipt).toHaveBeenCalledTimes(2))
+  })
+
   it('DRAFT 편집 모드는 cash-receipt provider 를 seed 하고 header fieldPath 를 배선한다', async () => {
     const provider = makeProvider()
     mocks.getCashReceipt.mockResolvedValue({

@@ -41,8 +41,11 @@ import {
   type CreateJournalRequest,
   type JournalPartnerOption,
 } from '../api/accounting'
+import { isPartnerLookupUnavailableError } from '../api/apiError'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
+import { buildRiskyPartnerLinesWarning, findRiskyPartnerLines } from './JournalFormPage.model'
 
 /** 라인 번호 안정성을 위한 row uid (React key — index 사용 시 사라지면 input remount). */
 let __lineUidCounter = 0
@@ -232,6 +235,15 @@ export function JournalFormPage() {
   const [description, setDescription] = useState<string>('')
   const [lines, setLines] = useState<DraftLine[]>([emptyLine(), emptyLine()])
   const [topError, setTopError] = useState<string>('')
+  // #831 R-3/R-5 — 편집 hydrate 라인 중 지금도 partnerId 가 없는 라인을 무경고로 저장하지
+  // 않기 위한 추적 상태. hydratedLineUids=서버가 채운 라인 uid(사용자가 이번 세션에 새로
+  // 추가한 라인은 제외 — 의식적으로 비워둔 것이므로 위험 판정에서 뺀다).
+  // partnerLookupSuspectedUnavailable=이번 세션에 거래처 조회 UNAVAILABLE 502 를 실제로
+  // 관측했는지(정확한 안내 문구 선택에만 사용). pendingRiskyConfirm=경고를 이미 보여줘
+  // 재확인 대기 중인지 — "그대로 저장" 재클릭으로만 진행한다(하드 블록 아님).
+  const [hydratedLineUids, setHydratedLineUids] = useState<Set<string>>(new Set())
+  const [partnerLookupSuspectedUnavailable, setPartnerLookupSuspectedUnavailable] = useState(false)
+  const [pendingRiskyConfirm, setPendingRiskyConfirm] = useState(false)
 
   // 편집 모드: 데이터 도착 시 한 번 폼에 hydrate
   useEffect(() => {
@@ -240,17 +252,17 @@ export function JournalFormPage() {
     if (!j) return
     setJournalDate(j.journalDate)
     setDescription(j.description ?? '')
-    setLines(
-      j.lines.map((l) => ({
-        uid: nextLineUid(),
-        accountCode: l.accountCode,
-        debit: Number.parseInt(l.debit, 10) || 0,
-        credit: Number.parseInt(l.credit, 10) || 0,
-        partnerId: null,
-        partnerName: l.partnerName ?? '',
-        note: l.memo ?? l.note ?? '',
-      })),
-    )
+    const hydratedLines = j.lines.map((l) => ({
+      uid: nextLineUid(),
+      accountCode: l.accountCode,
+      debit: Number.parseInt(l.debit, 10) || 0,
+      credit: Number.parseInt(l.credit, 10) || 0,
+      partnerId: null,
+      partnerName: l.partnerName ?? '',
+      note: l.memo ?? l.note ?? '',
+    }))
+    setLines(hydratedLines)
+    setHydratedLineUids(new Set(hydratedLines.map((l) => l.uid)))
   }, [isEdit, journalQuery.data])
 
   // 편집 응답은 UUID 비공개 정책상 partnerId 없이 partnerName 만 온다.
@@ -271,16 +283,27 @@ export function JournalFormPage() {
           const exact = matches.find(
             (partner) => partner.name.trim().toLowerCase() === name.toLowerCase(),
           )
-          return exact ? { index, name, partnerId: exact.partnerId } : null
-        } catch {
-          return null
+          return exact ? { index, name, partnerId: exact.partnerId, unavailable: false } : null
+        } catch (err) {
+          // 검색 자체가 partner-service UNAVAILABLE(502)로 실패한 경우를 "결과 없음"과
+          // 구분해 기록한다 — 안내 문구에서 "다시 선택하세요"(정오 오인) 대신 "일시 장애"를
+          // 정확히 말하기 위함이다(#831 R-3 G2).
+          return { index, name, partnerId: null, unavailable: isPartnerLookupUnavailableError(err) }
         }
       }),
     ).then((resolved) => {
       if (cancelled) return
+      const settled = resolved.filter(
+        (item): item is { index: number; name: string; partnerId: string | null; unavailable: boolean } =>
+          Boolean(item),
+      )
+      if (settled.some((item) => item.unavailable)) {
+        setPartnerLookupSuspectedUnavailable(true)
+      }
       const byIndex = new Map(
-        resolved
-          .filter((item): item is { index: number; name: string; partnerId: string } => Boolean(item))
+        settled
+          .filter((item): item is { index: number; name: string; partnerId: string; unavailable: boolean } =>
+            Boolean(item.partnerId))
           .map((item) => [item.index, item]),
       )
       if (byIndex.size === 0) return
@@ -299,6 +322,12 @@ export function JournalFormPage() {
       cancelled = true
     }
   }, [isEdit, lines])
+
+  // 라인 내용이 바뀌면(사용자 수정 또는 위 resolve 효과의 partnerId 채움) 이전 재확인 상태를
+  // 무효화한다 — 바뀐 내용을 다시 평가받지 않고 stale 재확인으로 통과되지 않도록 한다.
+  useEffect(() => {
+    setPendingRiskyConfirm(false)
+  }, [lines])
 
   const totals = useMemo(() => {
     const debit = lines.reduce((sum, l) => sum + l.debit, 0)
@@ -356,10 +385,6 @@ export function JournalFormPage() {
         )
         return
       }
-      if (l.partnerName.trim() && !l.partnerId) {
-        setTopError(`라인 "${l.accountCode}" 거래처를 다시 선택하세요.`)
-        return
-      }
     }
     if (totals.diff !== 0) {
       setTopError(
@@ -367,6 +392,17 @@ export function JournalFormPage() {
       )
       return
     }
+
+    // #831 R-3/R-5 — 편집 hydrate 라인 중 지금도 partnerId 가 없는 라인은 원래 거래처가
+    // 없었는지 조회 실패로 비어 보이는지 폼이 구분할 수 없다. 재확인 없이 조용히 저장하지
+    // 않는다 — "그대로 저장" 재클릭으로만 진행한다(하드 블록이 아니라 경고 후 확인).
+    const riskyLines = findRiskyPartnerLines(lines, hydratedLineUids)
+    if (riskyLines.length > 0 && !pendingRiskyConfirm) {
+      setTopError(buildRiskyPartnerLinesWarning(riskyLines, partnerLookupSuspectedUnavailable))
+      setPendingRiskyConfirm(true)
+      return
+    }
+    setPendingRiskyConfirm(false)
 
     const body: CreateJournalRequest = {
       journalDate,
@@ -387,6 +423,21 @@ export function JournalFormPage() {
       <div style={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
         <Spinner size="lg" label="분개 불러오는 중" />
       </div>
+    )
+  }
+
+  if (isEdit && journalQuery.isError) {
+    // #831 신규 발견 — 이전에는 이 가드가 아예 없어 편집 대상 fetch 가 실패(502/타임아웃)해도
+    // hydrate effect 가 그냥 스킵되고 아래 폼이 "라인 2개짜리 빈 새 분개"로 렌더됐다. 사용자는
+    // 다른 분개를 편집 중인 줄 알고 저장하면 무관한 새 분개가 생성된다 — 폼 대신 장애 안내를
+    // 렌더한다.
+    return (
+      <PartnerLookupErrorBanner
+        error={journalQuery.error}
+        onRetry={() => journalQuery.refetch()}
+        subject="분개"
+        testId="journal-form-error"
+      />
     )
   }
 
@@ -604,7 +655,7 @@ export function JournalFormPage() {
           onClick={handleSave}
           disabled={createMutation.isPending || !isBalanced}
         >
-          {createMutation.isPending ? '저장 중...' : '저장'}
+          {createMutation.isPending ? '저장 중...' : pendingRiskyConfirm ? '그대로 저장' : '저장'}
         </Button>
       </div>
     </>

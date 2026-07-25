@@ -23,6 +23,7 @@ import {
   type FundsStatusAccountSection,
   type FundsStatusLine,
 } from '../api/accounting'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   buildFundsStatusRows,
@@ -282,9 +283,11 @@ export function FundsStatusPage() {
           <Spinner size="lg" label="자금현황 불러오는 중" />
         </div>
       ) : statusQuery.isError ? (
-        <div className="error-banner" role="alert">
-          자금현황을 불러오지 못했습니다. 백엔드 연결을 확인하세요.
-        </div>
+        <PartnerLookupErrorBanner
+          error={statusQuery.error}
+          onRetry={() => statusQuery.refetch()}
+          subject="자금현황"
+        />
       ) : (
         <>
           {groups.map((group) => (
@@ -369,9 +372,11 @@ export function FundsStatusPage() {
               <Spinner size="md" label="증가 상세 불러오는 중" />
             </div>
           ) : detailQuery.isError ? (
-            <div className="error-banner" role="alert">
-              자금 증가 상세를 불러오지 못했습니다.
-            </div>
+            <PartnerLookupErrorBanner
+              error={detailQuery.error}
+              onRetry={() => detailQuery.refetch()}
+              subject="자금 증가 상세"
+            />
           ) : detail ? (
             <>
               <div

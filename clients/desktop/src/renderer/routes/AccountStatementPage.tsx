@@ -17,6 +17,7 @@ import {
   getAccountStatement,
   type AccountStatementAccountSection,
 } from '../api/accounting'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   accountStatementTotalItems,
@@ -212,9 +213,11 @@ export function AccountStatementPage() {
           <Spinner size="lg" label="계정명세서 불러오는 중" />
         </div>
       ) : statementQuery.isError ? (
-        <div className="error-banner" role="alert">
-          계정명세서를 불러오지 못했습니다. 백엔드 연결을 확인하세요.
-        </div>
+        <PartnerLookupErrorBanner
+          error={statementQuery.error}
+          onRetry={() => statementQuery.refetch()}
+          subject="계정명세서"
+        />
       ) : (
         <>
           {groups.map((group) => (

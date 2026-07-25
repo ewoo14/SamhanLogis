@@ -23,6 +23,7 @@ import {
   type JournalStatusSourceType,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   JOURNAL_STATUS_GROUP_OPTIONS,
@@ -328,9 +329,11 @@ export function JournalStatusReportPage() {
           <Spinner size="lg" label="전표현황 불러오는 중" />
         </div>
       ) : query.isError ? (
-        <div className="error-banner" role="alert">
-          전표현황을 불러오지 못했습니다. 기간과 백엔드 연결을 확인하세요.
-        </div>
+        <PartnerLookupErrorBanner
+          error={query.error}
+          onRetry={() => query.refetch()}
+          subject="전표현황"
+        />
       ) : (
         <>
           {groups.map((group) => (

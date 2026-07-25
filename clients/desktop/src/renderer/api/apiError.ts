@@ -40,3 +40,24 @@ export function extractApiErrorResponseMessage(err: unknown): string | null {
   const message = getApiErrorInfo(err).data?.message
   return typeof message === 'string' && message.trim() ? message : null
 }
+
+/**
+ * BE `ErrorCode.PARTNER_IDENTITY_LOOKUP_UNAVAILABLE` — partner-service 장애로 거래처 신원
+ * 조회 자체가 실패한 502. (#831 sweep 후속)
+ *
+ * <p>read 리포트(수금계획/받을어음/입출금내역/거래처잔액 등, 파트너 신원이 곧 행의 의미인 조회)는
+ * 이 코드를 fail-closed 502 로 표면화한다 — 사용자 귀책(백엔드 연결 문제)이 아니라 외부 조회
+ * 서비스의 일시 장애임을 구분해서 안내하기 위한 판정.
+ */
+export const PARTNER_IDENTITY_LOOKUP_UNAVAILABLE_CODE = 'PARTNER_IDENTITY_LOOKUP_UNAVAILABLE'
+
+/**
+ * 오류가 partner-service 조회 UNAVAILABLE 502 인지 판정한다.
+ *
+ * <p>status===502 AND code===PARTNER_IDENTITY_LOOKUP_UNAVAILABLE 를 모두 요구한다 — 같은 502 라도
+ * 다른 원인(ETAX/KFTC/CODEF 외부 연동 등)과 혼동하지 않기 위해 code 까지 확인한다.
+ */
+export function isPartnerLookupUnavailableError(err: unknown): boolean {
+  const { status, data } = getApiErrorInfo(err)
+  return status === 502 && data?.code === PARTNER_IDENTITY_LOOKUP_UNAVAILABLE_CODE
+}

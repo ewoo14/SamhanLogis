@@ -4,6 +4,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { AxiosError } from 'axios'
+
+function partnerLookupUnavailableError(): AxiosError {
+  return new AxiosError('Request failed', undefined, undefined, undefined, {
+    data: {
+      success: false,
+      code: 'PARTNER_IDENTITY_LOOKUP_UNAVAILABLE',
+      message: '거래처 조회를 일시적으로 할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    },
+    status: 502,
+    statusText: 'Bad Gateway',
+    headers: {},
+    config: {} as never,
+  })
+}
 
 const mocks = vi.hoisted(() => ({
   createJournal: vi.fn(),
@@ -289,7 +304,15 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     })
     await waitFor(() => expect(mocks.searchJournalPartners).toHaveBeenCalledWith('삼한테스트상사'))
 
+    // #831 R-3 fix: 라인 2(partnerName=null — 조회 실패로 공란일 수도 있는 상태)는 재확인
+    // 없이 무경고로 저장되지 않는다. 첫 클릭은 저장을 막고 경고만 띄운다(G4).
     fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect(mocks.createJournal).not.toHaveBeenCalled()
+    const warning = await screen.findByRole('alert')
+    expect(warning.textContent).toContain('401')
+
+    // 재확인(두 번째 클릭 — "그대로 저장")으로만 실제 저장이 진행된다.
+    fireEvent.click(screen.getByRole('button', { name: '그대로 저장' }))
 
     await waitFor(() => expect(mocks.createJournal).toHaveBeenCalledTimes(1))
     const payload = mocks.createJournal.mock.calls[0][0]
@@ -297,6 +320,84 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
       accountCode: '102',
       partnerId: '00000000-0000-0000-0000-000000000713',
     })
+    expect(payload.lines[1]).toMatchObject({
+      accountCode: '401',
+      partnerId: null,
+    })
+  })
+
+  it('getJournal 이 실패하면(502/타임아웃) 빈 새 분개 폼으로 조용히 대체되지 않고 장애 안내를 렌더한다 (#831 신규 발견 — journalQuery.isError 가드 부재)', async () => {
+    mocks.getJournal.mockRejectedValue(partnerLookupUnavailableError())
+    renderPage('/accounting/journals/journal-edit/edit')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('거래처 조회를 일시적으로 할 수 없습니다')
+    // 편집 대상 로드가 실패했는데 빈 새 폼(라인 입력 필드)이 대신 렌더되면 사용자가 다른
+    // 분개를 편집 중인 줄 모르고 무관한 새 분개를 만들게 된다 — 폼 자체가 렌더되지 않아야 한다.
+    expect(screen.queryByLabelText('라인 1 계정과목')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    await waitFor(() => expect(mocks.getJournal).toHaveBeenCalledTimes(2))
+  })
+
+  it('거래처 검색이 UNAVAILABLE(502)로 실패하면 "다시 선택하세요" 대신 외부 조회 장애 문구를 보여준다 (G2 — R-3 dead-end 해소)', async () => {
+    mocks.getJournal.mockResolvedValue({
+      id: 'journal-edit-2',
+      journalNo: '2026/07/05-9',
+      journalDate: '2026-07-05',
+      status: 'DRAFT',
+      sourceType: 'MANUAL',
+      description: '조회장애 분개',
+      totalDebit: '1000',
+      totalCredit: '1000',
+      createdByName: '오병승',
+      createdAt: '2026-07-05T09:00:00+09:00',
+      postedAt: null,
+      reversedAt: null,
+      reverseReason: null,
+      lines: [
+        {
+          lineNo: 1,
+          accountCode: '102',
+          accountName: '보통예금',
+          debit: '1000',
+          credit: '0',
+          partnerName: '삼한테스트상사',
+          memo: null,
+        },
+        {
+          lineNo: 2,
+          accountCode: '401',
+          accountName: '매출',
+          debit: '0',
+          credit: '1000',
+          partnerName: null,
+          memo: null,
+        },
+      ],
+      version: 0,
+    })
+    renderPage('/accounting/journals/journal-edit-2/edit')
+    // renderPage() 는 내부에서 searchJournalPartners 를 기본 성공값으로 설정한다 — 그 이후에
+    // (동일 동기 구간에서) reject 로 덮어써야 실제 컴포넌트 effect(비동기, getJournal 해석
+    // 이후에야 호출)가 이 mock 을 부를 때 reject 가 적용된다.
+    mocks.searchJournalPartners.mockRejectedValue(partnerLookupUnavailableError())
+
+    await waitFor(() => expect(mocks.searchJournalPartners).toHaveBeenCalledWith('삼한테스트상사'))
+    await waitFor(() => {
+      expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('102')
+    })
+    // searchJournalPartners 의 reject → catch → Promise.all(...).then(...) 마이크로태스크
+    // 체인이 모두 드레인될 때까지 매크로태스크 경계로 flush 한다(순수 마이크로태스크 체인이라
+    // setTimeout(0) 이 뒤에 실행되는 것이 보장된다) — 그래야 이 클릭이
+    // partnerLookupSuspectedUnavailable 반영 이후 상태를 본다.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect(mocks.createJournal).not.toHaveBeenCalled()
+    const warning = await screen.findByRole('alert')
+    expect(warning.textContent).toContain('거래처 조회 서비스에 일시 장애')
+    expect(warning.textContent).not.toContain('다시 선택하세요')
   })
 })
 

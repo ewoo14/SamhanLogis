@@ -32,6 +32,7 @@ import {
   type BankTransactionRow,
 } from '../api/accounting'
 import { searchPartners } from '../api/partnerApi'
+import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErrorBanner'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import {
@@ -680,9 +681,14 @@ export function BankTransactionPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>입출금 내역</h3>
-          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
-            입금 {formatCashReceiptAmount(totalDeposit)} · 출금 {formatCashReceiptAmount(totalWithdrawal)} · {rows.length}건
-          </div>
+          {/* 502(PARTNER_IDENTITY_LOOKUP_UNAVAILABLE) 시 rows 는 빈 배열이라 이 요약이 "입금 —·
+              출금 —·0건"으로 보이면 "거래가 없다"로 오인된다(#831 R-1, PM 라이브QA: 316행 중 4건
+              매칭 실패로 312행까지 함께 사라짐) — isError 시 렌더하지 않는다. */}
+          {!transactionsQuery.isError ? (
+            <div style={{ marginTop: 4, fontSize: 13, color: 'var(--color-neutral-500)' }}>
+              입금 {formatCashReceiptAmount(totalDeposit)} · 출금 {formatCashReceiptAmount(totalWithdrawal)} · {rows.length}건
+            </div>
+          ) : null}
         </div>
         {transactionsQuery.isFetching ? <Spinner size="sm" /> : null}
       </div>
@@ -798,85 +804,99 @@ export function BankTransactionPage() {
               ) : null}
               {tab.key === activeSourceTab ? (
                 <div className="bank-transaction-table">
-                  <div
-                    className="bank-transaction-bulk-bar"
-                    data-testid="bank-transaction-bulk-bar"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      flexWrap: 'wrap',
-                      marginBottom: 12,
-                      padding: '10px 12px',
-                      border: '1px solid var(--color-neutral-200)',
-                      borderRadius: 6,
-                      background: 'var(--color-neutral-50)',
-                      fontSize: 13,
-                    }}
-                  >
-                    {canCreateBankDepositReceipt ? (
-                      <label className="bank-transaction-select-cell">
-                        <input
-                          ref={selectAllCheckboxRef}
-                          type="checkbox"
-                          checked={selectableAllSelected}
-                          disabled={selectableRows.length === 0}
-                          onChange={toggleAllReceiptRows}
-                          aria-label="전체 선택"
-                          data-testid="bank-transaction-select-all"
-                        />
-                        <span>전체 선택</span>
-                      </label>
-                    ) : null}
-                    <span>
-                      선택 <strong>{selectedSummary.count.toLocaleString('ko-KR')}</strong>건
-                    </span>
-                    <span>
-                      합산 <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCashReceiptAmount(selectedSummary.totalAmount)}원</strong>
-                    </span>
-                    <span>
-                      거래처 <strong title={selectedSummary.partnerName}>{truncatePartnerName(selectedSummary.partnerName)}</strong>
-                    </span>
-                    {selectedSummary.mixedPartner ? (
-                      <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-mixed-partner-warning">
-                        동일 거래처만 선택하세요
-                      </span>
-                    ) : null}
-                    {selectionLimitExceeded ? (
-                      <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-limit-warning">
-                        최대 {MAX_BANK_DEPOSIT_RECEIPT_SELECTION.toLocaleString('ko-KR')}건까지 생성할 수 있습니다
-                      </span>
-                    ) : null}
-                    {!canCreateBankDepositReceipt ? (
-                      <span role="note" style={{ color: 'var(--color-neutral-500)', fontWeight: 600 }}>
-                        입금보고서 생성 권한이 없습니다
-                      </span>
-                    ) : null}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="primary"
-                      style={{ marginLeft: 'auto' }}
-                      disabled={
-                        !canCreateBankDepositReceipt
-                        || selectedRows.length === 0
-                        || selectedSummary.mixedPartner
-                        || selectionLimitExceeded
-                        || createBankDepositReceiptMutation.isPending
-                      }
-                      onClick={() => setReceiptModalOpen(true)}
-                      data-testid="bank-transaction-create-receipt"
-                    >
-                      입금보고서 생성
-                    </Button>
-                  </div>
-                  <DataTable<BankTransactionRow>
-                    columns={columns}
-                    rows={rows}
-                    rowKey={bankTransactionRowKey}
-                    emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
-                    tableLayout="fixed"
-                  />
+                  {transactionsQuery.isError ? (
+                    // #831 R-1(PM 라이브QA 확증): 316행 중 4건만 거래처 매칭돼도 배치 조회가
+                    // 502 가 되면 나머지 312행까지 함께 사라져 "거래가 없다"로 오인된다.
+                    // 빈 표/불러그 대신 장애 안내 + 재시도를 렌더한다.
+                    <PartnerLookupErrorBanner
+                      error={transactionsQuery.error}
+                      onRetry={() => transactionsQuery.refetch()}
+                      subject="입출금 내역"
+                      testId="bank-transaction-error"
+                    />
+                  ) : (
+                    <>
+                      <div
+                        className="bank-transaction-bulk-bar"
+                        data-testid="bank-transaction-bulk-bar"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          flexWrap: 'wrap',
+                          marginBottom: 12,
+                          padding: '10px 12px',
+                          border: '1px solid var(--color-neutral-200)',
+                          borderRadius: 6,
+                          background: 'var(--color-neutral-50)',
+                          fontSize: 13,
+                        }}
+                      >
+                        {canCreateBankDepositReceipt ? (
+                          <label className="bank-transaction-select-cell">
+                            <input
+                              ref={selectAllCheckboxRef}
+                              type="checkbox"
+                              checked={selectableAllSelected}
+                              disabled={selectableRows.length === 0}
+                              onChange={toggleAllReceiptRows}
+                              aria-label="전체 선택"
+                              data-testid="bank-transaction-select-all"
+                            />
+                            <span>전체 선택</span>
+                          </label>
+                        ) : null}
+                        <span>
+                          선택 <strong>{selectedSummary.count.toLocaleString('ko-KR')}</strong>건
+                        </span>
+                        <span>
+                          합산 <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCashReceiptAmount(selectedSummary.totalAmount)}원</strong>
+                        </span>
+                        <span>
+                          거래처 <strong title={selectedSummary.partnerName}>{truncatePartnerName(selectedSummary.partnerName)}</strong>
+                        </span>
+                        {selectedSummary.mixedPartner ? (
+                          <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-mixed-partner-warning">
+                            동일 거래처만 선택하세요
+                          </span>
+                        ) : null}
+                        {selectionLimitExceeded ? (
+                          <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-limit-warning">
+                            최대 {MAX_BANK_DEPOSIT_RECEIPT_SELECTION.toLocaleString('ko-KR')}건까지 생성할 수 있습니다
+                          </span>
+                        ) : null}
+                        {!canCreateBankDepositReceipt ? (
+                          <span role="note" style={{ color: 'var(--color-neutral-500)', fontWeight: 600 }}>
+                            입금보고서 생성 권한이 없습니다
+                          </span>
+                        ) : null}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          style={{ marginLeft: 'auto' }}
+                          disabled={
+                            !canCreateBankDepositReceipt
+                            || selectedRows.length === 0
+                            || selectedSummary.mixedPartner
+                            || selectionLimitExceeded
+                            || createBankDepositReceiptMutation.isPending
+                          }
+                          onClick={() => setReceiptModalOpen(true)}
+                          data-testid="bank-transaction-create-receipt"
+                        >
+                          입금보고서 생성
+                        </Button>
+                      </div>
+                      <DataTable<BankTransactionRow>
+                        columns={columns}
+                        rows={rows}
+                        rowKey={bankTransactionRowKey}
+                        emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
+                        tableLayout="fixed"
+                      />
+                    </>
+                  )}
                 </div>
               ) : null}
             </div>
