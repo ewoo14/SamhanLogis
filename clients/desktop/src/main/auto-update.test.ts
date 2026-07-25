@@ -30,7 +30,9 @@ vi.mock('electron', () => ({
   },
 }))
 
-vi.mock('electron-updater', () => ({ autoUpdater: mocks.autoUpdater }))
+// 소스가 default import(`import electronUpdater from 'electron-updater'`)로 받아
+// 구조분해하므로(#909 ESM/CJS 상호운용 회귀 수정), mock 도 default export 형태로 맞춘다.
+vi.mock('electron-updater', () => ({ default: { autoUpdater: mocks.autoUpdater } }))
 
 import { registerAutoUpdateIpcHandlers } from './auto-update'
 
