@@ -184,14 +184,21 @@ public class SlipRedlineService {
     }
 
     /**
-     * 레드라인 "단가" 표시값 — 화면과 같은 VAT 포함 도메인 (재수렴 4차 #937 근본수정).
+     * 레드라인 "단가" 표시값 — 화면과 같은 VAT 포함 도메인 (재수렴 4차·5차 #937 근본수정).
      *
-     * <p>종전에는 저장 컬럼 {@code unitPriceWithVat} 을 그대로 읽었다. 그런데 두 단가 컬럼이
+     * <p>4차: 종전에는 저장 컬럼 {@code unitPriceWithVat} 을 그대로 읽었다. 그런데 두 단가 컬럼이
      * 같은 값이 된 행(2026-07-27 실측 활성 55건)은 그 컬럼이 실제로 VAT 제외 값일 수 있어,
      * 무수정 재저장으로 컬럼이 정상화되는 것만으로 <b>사용자가 하지 않은 "단가 100,000 →
-     * 110,000" 변경</b>이 레드라인에 찍혔다. 저장값이 권위 금액과의 항등식({@code 단가 × 수량 =
-     * 공급가액 + 부가세})을 만족할 때만 그대로 쓰고, 아니면 권위 금액에서 유도한다 — FE
-     * {@code lineVat.resolveUnitPrices} 와 같은 판정 규칙의 미러다.
+     * 110,000" 변경</b>이 레드라인에 찍혔다.
+     *
+     * <p>5차: 그 4차 판정("VAT 포함 항등식 불만족이면 무조건 유도")은 반대 방향의 가짜 이력을
+     * 만들었다 — <b>부가세만</b> 편집하면(2026-07-25 개발책임자 결정 P6) 단가는 그대로인데
+     * 항등식이 정당하게 깨져, 레드라인에 <b>"단가 110,000 → 112,500"</b> 이 찍혔다(사용자는
+     * 단가를 건드리지 않았다). {@code unit_price_with_vat} 는 사용자 권위 입력이고 P4 대로
+     * 역산 대상이 아니므로, <b>저장값이 VAT 제외 총액(공급가액)과 맞아떨어질 때만</b>(= 구 BE 가
+     * 화면 단가를 두 컬럼에 그대로 각인한 오염 신호) 권위 합계에서 유도한다.
+     *
+     * <p>FE {@code lineVat.resolveAuthoredUnit} 과 같은 판정 규칙의 미러다.
      */
     private static BigDecimal unitPriceDisplayValue(SlipSnapshot.Line line) {
         BigDecimal total = lineTotalDisplayValue(line);
@@ -199,12 +206,23 @@ public class SlipRedlineService {
         if (total == null || line.quantity() <= 0) {
             return stored;
         }
-        if (stored != null && stored.multiply(BigDecimal.valueOf(line.quantity()))
-                .setScale(0, java.math.RoundingMode.HALF_UP)
-                .compareTo(total.setScale(0, java.math.RoundingMode.HALF_UP)) == 0) {
+        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
+        if (stored != null && !scaledEquals(stored.multiply(BigDecimal.valueOf(line.quantity())), supply)) {
+            return stored;
+        }
+        if (stored != null && scaledEquals(stored.multiply(BigDecimal.valueOf(line.quantity())), total)) {
             return stored;
         }
         return total.divide(BigDecimal.valueOf(line.quantity()), 2, java.math.RoundingMode.HALF_UP);
+    }
+
+    /** 원 단위(scale 0, HALF_UP)로 반올림해 두 금액이 같은지 본다. */
+    private static boolean scaledEquals(BigDecimal left, BigDecimal right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return left.setScale(0, java.math.RoundingMode.HALF_UP)
+                .compareTo(right.setScale(0, java.math.RoundingMode.HALF_UP)) == 0;
     }
 
     private static BigDecimal lineTotalDisplayValue(SlipSnapshot.Line line) {

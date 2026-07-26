@@ -288,3 +288,86 @@ describe('lineVat — resolveUnitPrices 저장 단가 컬럼의 세금 도메인
     })).toEqual({ supplyUnit: '0', inclusiveUnit: '0' })
   })
 })
+
+/**
+ * 재수렴 5차(#937) 근본수정 — 저장된 VAT 포함 단가는 사용자 권위 입력이다 (RED-first).
+ *
+ * <p>재수렴 4차는 두 단가 컬럼을 모두 "권위 금액의 1개당 표시"(파생값)로 보고, 항등식이
+ * 깨지면 예외 없이 유도했다. 그런데 {@code unit_price_with_vat} 는 파생값이 아니라 <b>사용자가
+ * 화면에 직접 입력한 값</b>이다 — BE 가 {@code createFromAuthoritativeAmounts} 에서 요청 단가를
+ * 그대로 각인하고(끝수까지 무손실), {@code collectPriceMemory} 가 가격기억 각인 원천으로 읽는
+ * 컬럼도 이것이다. 반면 {@code unit_price} 는 BE 가 {@code S ÷ Q} 로 계산하는 순수 파생값이다.
+ *
+ * <p>2026-07-25 개발책임자 결정 P4 — <b>"단가는 결코 역산되지 않는다"</b>. 부가세만 편집하면
+ * ({@link editSlipLineAmount} — 같은 결정의 P6) 단가는 그대로 두고 S/V 만 바뀌므로 항등식
+ * {@code 단가 × 수량 = S + V} 가 <b>정당하게</b> 깨진다. 4차의 판정은 그 정당한 상태와 BE 구
+ * 저장이 만든 오염을 구별하지 못해, 부가세만 편집한 라인의 단가를 표시 계층에서 역산했다
+ * (라이브 실증 2026-07-27: 사용자 입력 110,000 → 표시 112,500 → 무편집 재저장이 DB 를 112,500
+ * 으로 덮음. 실 DB 활성 22행 중 10행에서 11,000 → 26,000, +136%).
+ *
+ * <p>구별 기준은 <b>저장값이 어느 세금 도메인의 총액과 맞아떨어지는가</b> 다:
+ * {@code 저장단가 × 수량 = S} 이면 그 컬럼은 VAT <b>제외</b> 값을 담고 있다(= 구 BE 가 화면
+ * 단가를 두 컬럼에 그대로 각인한 오염 — 라이브 실증 {@code 100000|100000|200000|20000|2}),
+ * 그 밖에는 사용자 권위 단가로 보존한다. VAT 포함 총액과 맞으면(정상) 물론 그대로 쓴다.
+ */
+describe('lineVat — resolveUnitPrices 사용자 권위 단가 보존 (재수렴 5차 #937, RED-first)', () => {
+  it('D-1 부가세만 편집한 라인 — 사용자 입력 단가를 역산하지 않는다', () => {
+    // 라이브 실증: 단가(VAT포함) 110,000 x 2 저장 후 부가세만 20,000 → 25,000.
+    // RED(수정 전): inclusiveUnit '112500'((200000+25000)/2) — 사용자가 입력한 적 없는 값.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '25000',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('실 DB 활성 10행 재현 — 공급가액·부가세를 직접 편집한 라인도 단가가 그대로다', () => {
+    // 실 DB(2026/07/25-1 등 10건): 11000|11000|50000|2000|2.
+    // 11,000 x 2 = 22,000 은 공급가액(50,000)과도 합계(52,000)와도 다르다 — P4 대상.
+    // RED(수정 전): inclusiveUnit '26000'(52000/2) — 저장값 대비 +136%.
+    // supplyUnit 은 BE 파생 컬럼이라 항등식(단가 x 수량 = 공급가액)을 지켜 유도한다.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '11000',
+      unitPriceWithVat: '11000',
+      supplyAmount: '50000',
+      vatAmount: '2000',
+    })).toEqual({ supplyUnit: '25000', inclusiveUnit: '11000' })
+  })
+
+  it('E2 끝수 단가 + 부가세 편집 — 끝수가 반올림으로 증발하지 않는다', () => {
+    // 라이브 실증: 33,333.33 x 3 저장 후 부가세만 9,091 → 12,000.
+    // RED(수정 전): inclusiveUnit '34303'((90909+12000)/3).
+    expect(resolveUnitPrices({
+      quantity: 3,
+      unitPrice: '30303',
+      unitPriceWithVat: '33333.33',
+      supplyAmount: '90909',
+      vatAmount: '12000',
+    })).toEqual({ supplyUnit: '30303', inclusiveUnit: '33333.33' })
+  })
+
+  it('⑤ 회귀 — 저장값이 공급가액 총액과 맞는 행(VAT 제외 오염)은 계속 유도한다', () => {
+    // 54,545 x 2 = 109,090 = 공급가액 → 그 컬럼은 VAT 제외 값을 담고 있다(구 BE 각인).
+    // 사용자가 실제로 입력한 값은 60,000(= 120,000 / 2)이다.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '54545',
+      unitPriceWithVat: '54545',
+      supplyAmount: '109090',
+      vatAmount: '10910',
+    })).toEqual({ supplyUnit: '54545', inclusiveUnit: '60000' })
+  })
+
+  it('부가세 0(면세) 라인 — 공급 총액과 합계가 같아도 저장값을 그대로 쓴다', () => {
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '0',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '100000' })
+  })
+})

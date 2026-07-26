@@ -1530,3 +1530,91 @@ describe('SlipDetailPage — 재수렴 4차(#937) ⑤ 두 컬럼이 같아진 �
     expect(afterResave.totalIncl).toBe(before.totalIncl)
   })
 })
+
+/**
+ * 재수렴 5차(#937) 근본수정 — 표시·하이드레이션도 P4 를 따른다 (RED-first).
+ *
+ * <p>PM 진단 원문(라이브 실측 2026-07-27): 단가(VAT포함) 110,000 x 2 로 저장한 뒤 <b>부가세만</b>
+ * 20,000 → 25,000 으로 고치면 DB 는 {@code 100000|110000|200000|25000|2} 가 된다(사용자 입력
+ * 단가는 그대로 남는다). 그런데 재열기하면 읽기전용 표와 수정 모달이 모두 <b>112,500</b> 을
+ * 보였고, 아무것도 고치지 않고 저장만 해도 {@code unit_price_with_vat} 가 112,500 으로 덮여
+ * 사용자가 입력한 단가가 영구 소멸했다(가격기억 각인 원천 컬럼이라 자동채움까지 오염).
+ *
+ * <p>{@code editSlipLineAmount}(편집 계층)는 2026-07-25 개발책임자 결정 P4 를 따라 단가를 결코
+ * 역산하지 않는데, 표시·하이드레이션 계층만 반대 규칙을 쓰고 있었다.
+ */
+describe('SlipDetailPage — 재수렴 5차(#937) 사용자 권위 단가 보존 (RED-first)', () => {
+  /** 부가세만 편집해 항등식이 정당하게 깨진 라인 — 두 단가 컬럼이 서로 다르다. */
+  const vatOnlyEdited = {
+    lines: [{
+      id: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '25000',
+      lineTotal: '200000',
+      note: '',
+    }],
+  } as unknown as SlipDetail
+
+  it('하이드레이션 — 부가세만 편집한 라인의 단가를 역산하지 않는다', () => {
+    const hydrated = toPurchaseEditLines(vatOnlyEdited)[0]!
+
+    // RED(수정 전): '112500' — (200,000+25,000)/2. 사용자는 110,000 을 입력했다.
+    expect(hydrated.unitPrice).toBe('110000')
+  })
+
+  it('읽기전용 표 — 같은 라인을 같은 단가로 보인다', () => {
+    const amounts = slipLineAmounts(vatOnlyEdited.lines[0]!)
+
+    // RED(수정 전): 112500.
+    expect(amounts.unitWithVat).toBe(110000)
+    expect(amounts.supply).toBe(200000)
+    expect(amounts.vat).toBe(25000)
+    expect(amounts.totalIncl).toBe(225000)
+  })
+
+  it('불변식 3 — 읽기전용 표와 수정 모달이 같은 단가를 보인다', () => {
+    const hydrated = toPurchaseEditLines(vatOnlyEdited)[0]!
+    const amounts = slipLineAmounts(vatOnlyEdited.lines[0]!)
+
+    expect(Number(hydrated.unitPrice)).toBe(amounts.unitWithVat)
+  })
+
+  it('불변식 2 — 무편집 재저장(BE 가 같은 값을 되돌려줌) 후에도 표시가 그대로다', () => {
+    const before = slipLineAmounts(vatOnlyEdited.lines[0]!)
+    // BE createFromAuthoritativeAmounts: unit_price = S/Q, unit_price_with_vat = 요청 단가.
+    const hydrated = toPurchaseEditLines(vatOnlyEdited)[0]!
+    const afterResave = slipLineAmounts({
+      ...vatOnlyEdited.lines[0]!,
+      unitPrice: String(Number(hydrated.supplyAmount) / hydrated.quantity),
+      unitPriceWithVat: hydrated.unitPrice,
+    } as never)
+
+    expect(afterResave.unitWithVat).toBe(before.unitWithVat)
+    expect(afterResave.totalIncl).toBe(before.totalIncl)
+  })
+
+  it('끝수 단가 + 부가세 편집 — 끝수가 반올림으로 증발하지 않는다', () => {
+    const fractional = {
+      lines: [{
+        ...vatOnlyEdited.lines[0]!,
+        quantity: 3,
+        unitPrice: '30303',
+        unitPriceWithVat: '33333.33',
+        supplyAmount: '90909',
+        vatAmount: '12000',
+        lineTotal: '90909',
+      }],
+    } as unknown as SlipDetail
+
+    // RED(수정 전): 읽기전용 34303 vs 수정모달 33333.33(Y.Doc 복원) — 두 화면 불일치.
+    expect(toPurchaseEditLines(fractional)[0]!.unitPrice).toBe('33333.33')
+    expect(slipLineAmounts(fractional.lines[0]!).unitWithVat).toBe(33333.33)
+  })
+})

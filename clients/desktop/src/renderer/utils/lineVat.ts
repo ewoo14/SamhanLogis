@@ -146,7 +146,11 @@ export interface ResolvedUnitPrices {
   inclusiveUnit: string
 }
 
-/** 저장값이 권위 금액과 항등식으로 맞으면 그대로, 아니면 권위 금액에서 유도한다. */
+/**
+ * 파생 단가 컬럼({@code unit_price = S ÷ Q}) — 저장값이 자기 항등식과 맞으면 그대로, 아니면
+ * 권위 금액에서 유도한다. 이 컬럼은 사용자 입력이 아니라 BE 가 계산해 넣는 값이다
+ * ({@code SlipLine.createFromAuthoritativeAmounts}).
+ */
 function resolveUnit(stored: string | number | null | undefined, target: bigint, quantity: number): string {
   if (stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
       && roundProduct(quantity, stored) === target) {
@@ -156,23 +160,63 @@ function resolveUnit(stored: string | number | null | undefined, target: bigint,
 }
 
 /**
- * 저장된 두 단가 컬럼을 각자의 세금 도메인으로 해석한다 — 재수렴 4차(#937) 근본수정.
+ * 사용자 권위 단가 컬럼({@code unit_price_with_vat}) — 재수렴 5차(#937) 근본수정.
  *
- * <p><b>계약</b>: 전표 라인의 권위값은 공급가액(S)·부가세(V)·수량(Q) 이고({@code
+ * <p>이 컬럼은 파생값이 아니라 <b>사용자가 화면에 입력한 VAT 포함 단가</b>다. BE 가 요청 단가를
+ * 끝수까지 무손실로 각인하고({@code SlipLine.createFromAuthoritativeAmounts}), 가격기억 각인
+ * 원천({@code collectPriceMemory} 의 {@code getUnitPriceWithVat})도 이 컬럼이다. 2026-07-25
+ * 개발책임자 결정 P4 — <b>"단가는 결코 역산되지 않는다"</b> — 는 편집 계층({@link
+ * editSlipLineAmount})뿐 아니라 표시·하이드레이션 계층에도 그대로 적용된다.
+ *
+ * <p>부가세(또는 공급가액)만 편집하면(P6) 단가는 그대로 두고 S/V 만 바뀌므로 항등식
+ * {@code 단가 × 수량 = S + V} 가 <b>정당하게</b> 깨진다. 그 정당한 상태와 BE 구 저장이 만든
+ * 오염(화면 단가를 두 컬럼에 그대로 각인 — 라이브 실증 {@code 100000|100000|200000|20000|2})은
+ * <b>저장값이 어느 세금 도메인의 총액과 맞아떨어지는지</b>로 구별된다: {@code 저장단가 × 수량 = S}
+ * 면 그 컬럼은 VAT <b>제외</b> 값을 담고 있으므로(오염) 권위 합계에서 유도하고, 그 밖에는 사용자
+ * 권위 단가로 보존한다. 부가세 0(면세) 라인은 {@code S = S + V} 라 유도해도 같은 값이 나온다.
+ *
+ * <p>재수렴 4차는 이 구별 없이 "항등식 불만족이면 무조건 유도"했고, 그래서 부가세만 편집한
+ * 라인의 단가를 표시 계층에서 역산했다 — 라이브 실증 2026-07-27: 사용자 입력 110,000 이 표시
+ * 112,500 이 되고, 무편집 재저장만으로 DB {@code unit_price_with_vat} 가 112,500 으로 덮여
+ * 사용자가 입력한 단가가 영구 소멸했다(실 DB 활성 22행 중 10행은 11,000 → 26,000, +136%).
+ */
+function resolveAuthoredUnit(
+  stored: string | number | null | undefined,
+  inclusiveTarget: bigint,
+  supplyTarget: bigint,
+  quantity: number,
+): string {
+  if (stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
+      && roundProduct(quantity, stored) !== supplyTarget) {
+    return String(stored)
+  }
+  return resolveUnit(stored, inclusiveTarget, quantity)
+}
+
+/**
+ * 저장된 두 단가 컬럼을 각자의 세금 도메인으로 해석한다 — 재수렴 4차·5차(#937) 근본수정.
+ *
+ * <p><b>계약</b>: 전표 라인의 금액 권위값은 공급가액(S)·부가세(V)·수량(Q) 이고({@code
  * SlipLine.createFromAuthoritativeAmounts} 가 요청 3값을 재계산 없이 그대로 저장한다), 두 단가
- * 컬럼은 그 권위값의 "1개당 표시"다 — {@code unit_price = S ÷ Q}(VAT 제외),
- * {@code unit_price_with_vat = (S+V) ÷ Q}(VAT 포함). 이 함수는 저장값이 그 항등식을 만족하면
- * 사용자가 입력한 원래 값(끝수 포함)을 그대로 돌려주고, 만족하지 않으면 권위값에서 유도한다.
+ * 컬럼의 <b>성격은 서로 다르다</b>:
+ * <ul>
+ *   <li>{@code unit_price}(VAT 제외) = <b>파생값</b>. BE 가 {@code S ÷ Q} 로 계산해 넣는다 —
+ *       세금계산서·매입전표의 "단가 × 수량 = 공급가액"이 이 컬럼의 항등식이다.</li>
+ *   <li>{@code unit_price_with_vat}(VAT 포함) = <b>사용자 권위 입력</b>. 화면 단가(2026-06-09
+ *       개발책임자 확정으로 VAT 포함)를 끝수까지 그대로 각인하며, 가격기억 각인 원천이다.
+ *       2026-07-25 결정 P4 대로 어떤 경로에서도 역산하지 않는다({@link resolveAuthoredUnit}).</li>
+ * </ul>
  *
- * <p><b>왜 저장값을 그대로 믿을 수 없는가</b>: 2026-07-27 slip_lines 실측(활성 2,779건) —
+ * <p><b>왜 저장값을 무조건 믿지 않는가</b>: 2026-07-27 slip_lines 실측(활성 2,781건) —
  * {@code unit_price × 수량 ≠ 공급가액} 44건, {@code unit_price_with_vat × 수량 ≠ 공급가액+부가세}
- * 22건, 두 컬럼이 같은 값인 행 55건. 두 컬럼이 같은 행은 그 상태만으로 "둘 다 VAT 포함" 인지
- * "둘 다 VAT 제외" 인지 <b>구별할 수 없다</b> — 권위값과 대조해야만 판정된다. BE 근본수정이
- * 앞으로의 저장을 바로잡아도 이미 그 상태인 행은 남으므로, 표시·하이드레이션은 권위값을
- * 진실원으로 삼는다.
+ * 22건, 두 컬럼이 같은 값인 행 55건. 구 BE 는 화면 단가를 <b>두 컬럼에 그대로</b> 각인해 한쪽이
+ * 반드시 틀린 상태를 남겼다. BE 근본수정이 앞으로의 저장을 바로잡아도 이미 그 상태인 행은
+ * 남으므로, 파생 컬럼은 권위값과 대조해 유도하고 권위 입력 컬럼은 "다른 도메인 총액과
+ * 맞아떨어지는" 오염 신호가 있을 때만 유도한다.
  *
- * <p><b>왜 무조건 유도하지 않는가</b>: 사용자가 입력한 끝수 단가(예: 가격기억 499,999.5)는
- * 권위값에서 되돌리면 반올림되어(500,000) 가격기억 왕복이 흔들린다. 정합인 저장값은 손대지 않는다.
+ * <p><b>왜 무조건 유도하지도 않는가</b>: 사용자가 입력한 끝수 단가(예: 가격기억 499,999.5)는
+ * 권위값에서 되돌리면 반올림되어(500,000) 가격기억 왕복이 흔들리고, 부가세만 편집한 라인
+ * (P6 — 정당하게 항등식이 깨진다)은 아예 다른 단가로 바뀐다.
  */
 export function resolveUnitPrices(source: StoredUnitPriceSource): ResolvedUnitPrices {
   const quantity = Math.max(1, Math.trunc(Number(source.quantity) || 1))
@@ -180,7 +224,7 @@ export function resolveUnitPrices(source: StoredUnitPriceSource): ResolvedUnitPr
   const vat = integerAmount(source.vatAmount)
   return {
     supplyUnit: resolveUnit(source.unitPrice, supply, quantity),
-    inclusiveUnit: resolveUnit(source.unitPriceWithVat, supply + vat, quantity),
+    inclusiveUnit: resolveAuthoredUnit(source.unitPriceWithVat, supply + vat, supply, quantity),
   }
 }
 

@@ -250,6 +250,40 @@ class SlipRedlineServiceTest {
                 .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
     }
 
+    @Test
+    @DisplayName("재수렴 5차(#937): 부가세만 편집해도 레드라인 단가에 사용자가 하지 않은 변경이 찍히지 않는다")
+    void computeRedlineKeepsAuthoredUnitPriceWhenOnlyVatEdited() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        // rev1 — 단가(VAT포함) 110,000 x 2 저장분: unit_price = S/Q, unit_price_with_vat = 사용자 입력.
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "110000", "20000", "200000"))));
+        // rev2 — 부가세만 20,000 → 25,000 (단가·수량 무편집). 사용자 입력 단가는 그대로 남는다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "110000", "25000", "200000"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        // RED(수정 전): rev2 의 단가를 (200,000+25,000)/2 = 112,500 으로 역산해
+        // "110000 -> 112500" layer 2개가 찍힌다 — 사용자는 단가를 건드리지 않았다.
+        assertThat(response.fields())
+                .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
+        // 실제로 바뀐 합계(VAT 포함)는 그대로 기록된다.
+        SlipRedlineResponse.FieldRedline total = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("lines[0].lineTotal"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(total.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("220000", "225000");
+    }
+
     private SlipRedlineService service() {
         return new SlipRedlineService(slipRepository, revisionRepository,
                 new SlipRevisionService(revisionRepository, new ObjectMapper().findAndRegisterModules()));
