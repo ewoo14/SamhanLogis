@@ -9,10 +9,14 @@
  * VAT 포함이다</b>. 이 파일의 {@link vatExclusiveOf}/{@link vatInclusiveOf} 는 "수정 필드=VAT
  * 제외"였던 시절 거래처 변경 재조회(SlipDetailPage {@code repriceEditLinesForPartner})가
  * 기억/카탈로그(VAT 포함)를 필드 도메인으로 변환하는 데 썼던 함수다 — 그 소비처가 이제
- * 변환을 쓰지 않도록 고쳐졌으므로({@link repricedFieldValue} 참고) <b>두 함수는 현재 프로덕션
- * 코드에서 호출되지 않는다</b>(자체 단위 테스트만 남아 있다). BigDecimal 정밀도로 정확히
- * 구현돼 있으므로 삭제하지 않고 남겨 둔다 — 장래에 실제로 두 도메인이 다시 갈리는 화면이
- * 생기면 재사용 가능하다.
+ * 변환을 쓰지 않도록 고쳐졌으므로({@link repricedFieldValue} 참고) 그 원래 소비처 기준으로는
+ * 여전히 호출되지 않는다. BigDecimal 정밀도로 정확히 구현돼 있으므로 삭제하지 않고 남겨
+ * 뒀는데, 🚨 <b>재수렴 3차(#937) 근본수정이 실제로 그 "장래 재사용"을 만들었다</b> —
+ * {@code SlipDetailPage.toPurchaseEditLines}(하이드레이션)의 U1 근본수정이
+ * {@link vatInclusiveOf} 를 {@code unit_price_with_vat} 가 null 인 legacy 라인의 VAT 포함
+ * 승격 폴백으로 쓴다(BE {@code collectPriceMemory} 의 ×1.1 정규화와 같은 계약 — 2026-07-27
+ * 실측 활성 라인 0건이라 방어적 경로이지만 코드 경로 자체는 production 이다). {@link vatExclusiveOf}
+ * 만 여전히 호출자가 없다(자체 단위 테스트만 남아 있다).
  *
  * <p><b>코드로 실증한 세만틱</b> (2026-07-16, #809 R8 fix 2차 — 아래 세 번째 항목만 이후 뒤집혔다):
  * <ul>

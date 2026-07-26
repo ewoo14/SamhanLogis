@@ -683,7 +683,14 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
   }
   const knownIds = toServerLineIdSet([{ id: SERVER_LINE_1 }])
 
-  it('1단계 전제 — REST 하이드레이션: 단가 100,000 / 공급 200,000 / 부가세 20,000 / 합계 220,000', () => {
+  it('1단계 전제 — REST 하이드레이션: 단가(VAT포함) 110,000 / 공급 200,000 / 부가세 20,000 / 합계 220,000 (재수렴 3차 U1 갱신)', () => {
+    // 🚨 재수렴 3차(#937) U1 근본수정으로 갱신 — 이 fixture 는 종전 unitPriceWithVat 를 아예
+    // 지정하지 않아 하이드레이션이 line.unitPrice(VAT 제외 100,000)를 그대로 싣는 것을
+    // "전제"로 삼고 있었다. 그 자체가 U1 결함(필드=VAT 제외, 라벨·계산=VAT 포함)이었다 — 이
+    // describe 블록 자신의 2단계(아래)도 "생성 화면과 같은 VAT 포함 정책"이라 명시한다. 이제
+    // unit_price/unit_price_with_vat 두 컬럼을 실제 DB 형태로 모두 명시(둘 다 자기 도메인
+    // 안에서 일관 — 100,000×2=200,000=supply, 110,000×2=220,000=supply+vat)하고, 하이드레이션이
+    // unit_price_with_vat 를 싣는 것을 검증한다(U1 전용 describe 블록과 같은 계약).
     const slip = {
       lines: [{
         id: SERVER_LINE_1,
@@ -693,6 +700,7 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
         specification: '',
         quantity: 2,
         unitPrice: '100000',
+        unitPriceWithVat: '110000',
         supplyAmount: '200000',
         vatAmount: '20000',
         lineTotal: '220000',
@@ -703,7 +711,7 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     const hydrated = toPurchaseEditLines(slip)[0]!
 
     expect(hydrated).toMatchObject({
-      unitPrice: '100000', supplyAmount: '200000', vatAmount: '20000', lineTotalWithVat: '220000',
+      unitPrice: '110000', supplyAmount: '200000', vatAmount: '20000', lineTotalWithVat: '220000',
     })
     // REST 하이드레이션은 저장된 라인(공급/부가세/합계 모두 non-null)을 전부 vatDirty=true 로 본다
     // — 재열기 후 무수정 저장이 4단계처럼 payload 에 supplyAmount 를 싣는 이유.
@@ -1205,6 +1213,220 @@ describe('SlipDetailPage — 생성/수정 화면 부가세 경고 판정 일치
 
     const hydrated = toPurchaseEditLines(slip)[0]!
     expect(hydrated.authority).toBe('PRICE')
+    // 재수렴 3차(#937) 갱신 — 메커니즘이 "무조건 false 하드코딩"에서 "hasVatWarning(±1원 허용
+    // 오차)로 계산하되 이 구체적 값(diff=+1)은 허용 오차 안이라 false" 로 바뀌었다. 관측값은
+    // 이 테스트가 세운 원래 케이스에서 동일해(회귀 없음) 아래 단언은 그대로 유지한다 — 아래
+    // 새 describe 블록(U2)이 "무조건 false" 가 아님을 별도로 확정한다(실질 불일치는 true).
     expect(hydrated.vatWarning).toBe(false)
+  })
+})
+
+/**
+ * 재수렴 3차(#937) 근본수정 — U1·U3, RED-first.
+ *
+ * <p>PM 진단 원문 그대로: 저장 전 DB 상태(unit_price=100,000·unit_price_with_vat=110,000·
+ * supply=200,000·vat=20,000·qty=2)는 그 자체로 자기모순이 없다 — 100,000(VAT 제외) × 2 =
+ * 200,000 = supply, 110,000(VAT 포함) × 2 = 220,000 = supply+vat, 둘 다 성립한다. 그런데 종전
+ * 하이드레이션({@link toPurchaseEditLines})은 VAT 제외 unit_price(100,000)를 unitPrice
+ * 필드에 실었다 — 이 화면의 라벨("단가(VAT포함)", R-1)과 실제 계산({@link recalculateLineVat}
+ * PRICE 권위, R-2)은 예외 없이 이 필드를 VAT 포함으로 해석하므로, 편집 진입 즉시(수량·단가
+ * 무편집) 필드 값의 세금 도메인이 라벨·계산과 어긋났다(U1) — 그 결과 수량만 2→3 으로 바꿔도
+ * 과세표준이 300,000(origin/main 이 보존하던 값) 대신 272,727 로 떨어졌다(U3 회귀). 근본수정은
+ * unit_price_with_vat(authoritative 저장 경로가 그대로 각인하는 컬럼 — 이미 VAT 포함 도메인)
+ * 를 싣는다.
+ */
+describe('SlipDetailPage — 재수렴 3차(#937) U1 근본수정 — 하이드레이션 unitPrice 의 세금 도메인 (RED-first)', () => {
+  const slipWithBothColumns = {
+    lines: [{
+      id: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 2,
+      unitPrice: '100000', // VAT 제외 공급단가(DB 원본) — 필드가 실으면 안 되는 값.
+      unitPriceWithVat: '110000', // VAT 포함 단가 — 필드가 실어야 하는 값.
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      lineTotal: '220000',
+      note: '',
+    }],
+  } as unknown as SlipDetail
+
+  it('U1 — 하이드레이션 unitPrice 는 unit_price_with_vat(VAT 포함)를 싣는다 — unit_price(VAT 제외)가 아니다', () => {
+    const hydrated = toPurchaseEditLines(slipWithBothColumns)[0]!
+
+    // RED(수정 전): hydrated.unitPrice === '100000'(line.unitPrice 그대로) — 라벨·계산과 반대 도메인.
+    expect(hydrated.unitPrice).toBe('110000')
+    // 무편집 진입 시점부터 이미 자기 정의상 일관돼야 한다: unitPrice × quantity === supply+vat.
+    expect(Number(hydrated.unitPrice) * hydrated.quantity).toBe(Number(hydrated.supplyAmount) + Number(hydrated.vatAmount))
+  })
+
+  it('U1+U3 — 무편집 진입 후 수량만 2→3 으로 바꾸면 origin/main 이 보존하던 과세표준(300,000)이 재현된다(회귀 0)', () => {
+    const hydrated = toPurchaseEditLines(slipWithBothColumns)[0]!
+    const afterQtyEdit = computeDetailQuantityChange(hydrated, '3')
+
+    // RED(수정 전): hydrated.unitPrice='100000' 이 VAT 포함으로 오인되어 100000×3=300000 을
+    // "합계"로 분리해 supply=272727 로 떨어진다(PM 진단 원문 실측치). GREEN(수정 후):
+    // unitPrice=110000(VAT 포함) × 3 = 330000 을 분리해 origin/main 과 같은 300,000 이 나온다.
+    expect(afterQtyEdit.supplyAmount).toBe('300000')
+    expect(afterQtyEdit.vatAmount).toBe('30000')
+    expect(afterQtyEdit.lineTotalWithVat).toBe('330000')
+  })
+
+  it('U1 legacy 폴백 — unit_price_with_vat 가 null 인 라인은 unit_price 를 VAT 포함으로 환산해 싣는다(vatInclusiveOf 재사용, ×1.1 HALF_UP)', () => {
+    const legacySlip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 1,
+        unitPrice: '100000',
+        unitPriceWithVat: null,
+        supplyAmount: '100000',
+        vatAmount: '10000',
+        lineTotal: '110000',
+        note: '',
+      }],
+    } as unknown as SlipDetail
+
+    const hydrated = toPurchaseEditLines(legacySlip)[0]!
+
+    // vatInclusiveOf('100000') = 100000 × 1.1 = '110000' (BE collectPriceMemory 미러, HALF_UP 2dp).
+    expect(hydrated.unitPrice).toBe('110000')
+  })
+})
+
+/**
+ * 재수렴 3차(#937) 근본수정 — U2, RED-first.
+ *
+ * <p>R-2(이전 라운드)는 하이드레이션 vatWarning 을 무조건 false 로 닫아 "저장 직후 재열기
+ * 거짓 경고"(±1원 잔차)를 없앴다. 그런데 그 근거 진술("저장된 라인은 거의 전부 10%를 만족하지
+ * 못한다")이 실측과 반대였다 — 2026-07-27 slip_lines 직접 조회: 정확히 10% 2,658건(97.8%),
+ * ±1원 잔차 48건(1.8%), 그 밖의 실질 불일치(3,000~18,000원) 11건(0.4%). 무조건 false 는 그
+ * 11건의 참 경고까지 함께 없앴다. hasVatWarning(±1원 허용 오차, lineVat.test.ts 근본수정)을
+ * 하이드레이션·원격 피어 동기화에 실사용해 두 결함(거짓 양성/거짓 음성)을 모두 피한다.
+ */
+describe('SlipDetailPage — 재수렴 3차(#937) U2 근본수정 — 하이드레이션·원격 피어 VAT 경고 (RED-first)', () => {
+  function slipWithAmounts(supplyAmount: string, vatAmount: string) {
+    return {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 1,
+        unitPrice: '100000',
+        unitPriceWithVat: '100000',
+        supplyAmount,
+        vatAmount,
+        lineTotal: String(Number(supplyAmount) + Number(vatAmount)),
+        note: '',
+      }],
+    } as unknown as SlipDetail
+  }
+
+  it('U2 — 저장된 라인의 실질 VAT 불일치(3,000원, 2026-07-27 slip_lines 실측 케이스)는 재열기 시 경고된다', () => {
+    // 실측 케이스(slip_lines.id=f2c4abed-...): supply=50,000 인데 vat=2,000(기대 5,000) — 3,000원 과소.
+    const hydrated = toPurchaseEditLines(slipWithAmounts('50000', '2000'))[0]!
+
+    // RED(수정 전): 하이드레이션이 vatWarning 을 무조건 false 로 닫아 실질 불일치가 숨는다.
+    expect(hydrated.vatWarning).toBe(true)
+  })
+
+  it('R-2 회귀 방지 — ±1원 잔차(PRICE 권위 ÷1.1 분리 구조적 잔차)는 재열기 시 여전히 경고하지 않는다', () => {
+    // 단가 60,000·수량 2 저장분(#937 R-2 원 재현 시나리오) — 공급 109,090 의 정확한 10%는
+    // 10,909 인데 저장된 부가세는 10,910(합계-공급가액). diff=+1, 허용 오차 안이다.
+    const hydrated = toPurchaseEditLines(slipWithAmounts('109090', '10910'))[0]!
+
+    expect(hydrated.vatWarning).toBe(false)
+  })
+
+  it('원격 피어 — previous 가 (구) 하이드레이션 스냅샷(vatWarning:false 고정)이어도 Y.Doc 에 동기화된 실질 불일치 supply/vat 로 재판정한다(2-peer)', async () => {
+    const provider = await makeProvider()
+    // 실질 불일치 라인을 Y.Doc 에 직접 심는다 — 편집자 피어가 이미 저장/동기화를 마친 상태 모사.
+    provider.replaceItems([{
+      lineId: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 1,
+      unitPrice: '100000',
+      supplyAmount: '50000',
+      vatAmount: '2000',
+      lineTotalWithVat: '52000',
+      note: '',
+    }])
+
+    // 원격 피어의 로컬 previous — REST 하이드레이션 직후 스냅샷을 흉내낸다. (구) 하이드레이션은
+    // vatWarning 을 무조건 false 로 닫았으므로 previous.vatWarning=false 로 시작한다.
+    const previous = [{
+      key: 'k1',
+      lineId: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 1,
+      unitPrice: '100000',
+      supplyAmount: '50000',
+      vatAmount: '2000',
+      lineTotalWithVat: '52000',
+      note: '',
+      authority: 'PRICE' as const,
+      vatWarning: false,
+    }]
+    const knownIds = toServerLineIdSet([{ id: SERVER_LINE_1 }])
+
+    const next = coeditLinesToEditLines(provider, previous, knownIds)[0]!
+
+    // RED(수정 전): previous.vatWarning(false) 를 그대로 승계 — 편집자는 경고를 봤어도 원격
+    // 피어는 못 본다(재수렴 3차 2-peer 실측 결함). GREEN(수정 후): 동기화된 supply/vat 로
+    // 재판정해 원격 피어도 경고를 본다.
+    expect(next.vatWarning).toBe(true)
+    provider.destroy()
+  })
+
+  it('원격 피어 — ±1원 잔차 라인을 동기화해도 거짓 경고를 재도입하지 않는다(R-2 원 결함 회귀 방지)', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([{
+      lineId: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 2,
+      unitPrice: '60000',
+      supplyAmount: '109090',
+      vatAmount: '10910',
+      lineTotalWithVat: '120000',
+      note: '',
+    }])
+    const previous = [{
+      key: 'k1',
+      lineId: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 2,
+      unitPrice: '60000',
+      supplyAmount: '109090',
+      vatAmount: '10910',
+      lineTotalWithVat: '120000',
+      note: '',
+      authority: 'PRICE' as const,
+      vatWarning: false,
+    }]
+    const knownIds = toServerLineIdSet([{ id: SERVER_LINE_1 }])
+
+    const next = coeditLinesToEditLines(provider, previous, knownIds)[0]!
+
+    expect(next.vatWarning).toBe(false)
+    provider.destroy()
   })
 })

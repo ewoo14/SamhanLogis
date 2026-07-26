@@ -105,9 +105,28 @@ function warningFor(supplyAmount: bigint, vatAmount: bigint): boolean {
   return vatAmount !== vatFromIntegerSupply(supplyAmount)
 }
 
-/** 공급가액 기준 공통 10% 절사값과 입력 부가세가 다른지 판정한다. */
+/**
+ * 공급가액 기준 10%(별도 절사)과 저장된 부가세의 "실질" 불일치를 판정한다 — ±1원은 허용 오차.
+ *
+ * <p>재수렴 3차(#937) 근본수정 — 종전엔 {@link warningFor}(엄격 일치)를 그대로 썼다.
+ * PRICE/TOTAL 권위의 실제 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·0 방향
+ * 절사)은 "공급가액×10%, 별도 절사"와 수학적으로 다른 절사 경계를 가져 <b>항상 0 또는 +1원만큼만</b>
+ * 어긋난다 — 증명: 합계 T=11k+r(0≤r≤10) 로 두면 공급가액 S=10k+⌊10r/11⌋, 부가세 V=T-S=
+ * k+r-⌊10r/11⌋, "공급가액의 10%"(별도 절사)는 k 이고, 그 차 r-⌊10r/11⌋ 은 r=0 이면 0, r=1..10
+ * 이면 항상 1이다(자기 자신과 비교해도 반올림 경계마다 거짓 경고가 붙던 #937 R-2 최초 발견의
+ * 원인). 실측(2026-07-27, 활성 slip_lines 2,717건)도 이를 뒷받침한다 — 정확히 10%: 2,658건,
+ * ±1원 잔차: 48건(diff=+1 40건·diff=-1 8건, 후자는 SUPPLY/VAT 권위 직접편집 등 다른 경로에서도
+ * 1원 잔차가 남을 수 있음을 보여준다), 그 밖의 실질 불일치(3,000~18,000원): 11건뿐이었다.
+ *
+ * <p>±1원을 허용 오차로 두지 않으면(엄격 일치) 정상 계산 라인 대다수가 거짓 경고를 받고
+ * (#937 R-2 최초 발견 — SlipDetailPage 하이드레이션이 저장 직후 재열기만으로 경고를 띄웠다),
+ * 반대로 무조건 억제하면(#937 R-2 fix, 이 함수를 실사용하기 전) 그 11건의 실질 불일치까지
+ * 함께 숨는다(재수렴 3차 U2 신규 발견). SlipDetailPage 하이드레이션·원격 피어 동기화가 이
+ * 함수를 실사용한다(재수렴 3차 이전엔 정의만 있고 호출자가 없었다).
+ */
 export function hasVatWarning(supplyAmount: string | number, vatAmount: string | number): boolean {
-  return warningFor(integerAmount(supplyAmount), integerAmount(vatAmount))
+  const diff = integerAmount(vatAmount) - vatFromIntegerSupply(integerAmount(supplyAmount))
+  return diff > 1n || diff < -1n
 }
 
 function fromAmounts<T extends LineVatLine>(

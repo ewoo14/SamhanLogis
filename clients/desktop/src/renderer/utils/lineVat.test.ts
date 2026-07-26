@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   editLineVat,
   editSlipLineAmount,
+  hasVatWarning,
   recalculateLineVat,
   sumDisplayedLineVatAmounts,
   type LineVatAuthority,
@@ -145,5 +146,51 @@ describe('editSlipLineAmount — 전표 전용 금액 편집 정책(#902 P4/P6, 
 
     expect(editSlipLineAmount(before, 'SUPPLY', '100').authority).toBe('SUPPLY')
     expect(editSlipLineAmount(before, 'VAT', '100').authority).toBe('VAT')
+  })
+})
+
+/**
+ * 재수렴 3차(#937) 근본수정 — U2, RED-first.
+ *
+ * <p>{@link hasVatWarning} 는 종전 정확 일치({@code warningFor})를 그대로 썼다 — 공급가액×10%
+ * (별도 절사)와 부가세가 한 원이라도 다르면 무조건 경고였다. 그런데 PRICE/TOTAL 권위의 실제
+ * 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·0 방향 절사)은 "공급가액×10%"와
+ * 수학적으로 다른 절사 경계를 가져 <b>항상 0 또는 +1원만큼만</b> 어긋난다 — 증명: 합계
+ * T=11k+r(0≤r≤10) 로 두면 공급가액 S=10k+⌊10r/11⌋, 부가세 V=T-S=k+r-⌊10r/11⌋, "공급가액의
+ * 10%"(별도 절사)는 k 이고, 그 차 r-⌊10r/11⌋ 은 r=0 이면 0, r=1..10 이면 항상 1이다. 실측
+ * (2026-07-27, 활성 라인 2,717건 — slip_lines 직접 조회)도 이를 뒷받침한다: 정확히 10% 2,658건,
+ * ±1원 잔차 48건(diff=+1 40건·diff=-1 8건 — SUPPLY/VAT 권위 직접편집 등 다른 경로에서도 1원
+ * 잔차가 남을 수 있음을 보여준다), 그 밖의 실질 불일치(3,000~18,000원) 11건뿐이었다.
+ *
+ * <p>이 경계를 반영하지 않고 무조건 엄격 일치를 쓰면(RED) 정상 계산 라인 태반이 거짓 경고를
+ * 받고, SlipDetailPage 하이드레이션이 그 결과를 그대로 쓰면(재수렴 3차 U2) 저장 직후
+ * 재열기만으로도 경고가 뜬다(#937 R-2 최초 발견) — 그렇다고 무조건 경고를 억제하면(#937 R-2
+ * fix) 실질 불일치 11건까지 함께 숨는다(재수렴 3차 신규 발견). ±1원을 허용 오차로 두는 것이
+ * 두 결함을 모두 피하는 유일한 경계다.
+ */
+describe('lineVat — hasVatWarning ±1원 허용 오차 (재수렴 3차 #937 U2, RED-first)', () => {
+  it('공급가액의 정확한 10%(diff=0)는 경고하지 않는다', () => {
+    expect(hasVatWarning('200000', '20000')).toBe(false)
+  })
+
+  it('PRICE/TOTAL 권위 분리 잔차(diff=+1) — ÷1.1 분리가 낳는 구조적 잔차는 경고하지 않는다', () => {
+    // 단가 60,000·수량 2 → 합계 120,000 을 ÷1.1 분리한 실측값(#937 R-2 원 재현 시나리오).
+    expect(hasVatWarning('109090', '10910')).toBe(false)
+    // 단가 100,000(VAT 포함, 수량 3 반영) → 합계 300,000 분리값(재수렴 3차 U1/U3 시나리오).
+    expect(hasVatWarning('272727', '27273')).toBe(false)
+  })
+
+  it('diff=-1 도 허용 오차다 — SUPPLY/VAT 권위 등 다른 경로의 1원 잔차까지 함께 허용한다(실측 8건)', () => {
+    expect(hasVatWarning('100000', '9999')).toBe(false)
+  })
+
+  it('diff=±2 부터는 더 이상 허용 오차가 아니다 — 허용 범위의 정확한 경계', () => {
+    expect(hasVatWarning('100000', '10002')).toBe(true) // diff=+2
+    expect(hasVatWarning('100000', '9998')).toBe(true) // diff=-2
+  })
+
+  it('실질 불일치(3,000원·18,000원 — 2026-07-27 slip_lines 실측 11건 중 2건)는 경고한다', () => {
+    expect(hasVatWarning('50000', '2000')).toBe(true) // 기대 5,000, 실제 2,000 — 3,000원 과소
+    expect(hasVatWarning('200000', '2000')).toBe(true) // 기대 20,000, 실제 2,000 — 18,000원 과소
   })
 })

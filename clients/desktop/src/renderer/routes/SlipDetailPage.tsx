@@ -114,10 +114,12 @@ import {
 import { lookupProducts } from '../api/productApi'
 import {
   editSlipLineAmount,
+  hasVatWarning,
   recalculateLineVat,
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
+import { vatInclusiveOf } from '../utils/vatPrice'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
@@ -414,22 +416,36 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     modelName: line.modelName ?? '',
     specification: line.specification ?? '',
     quantity: line.quantity,
-    unitPrice: String(line.unitPrice),
+    // 재수렴 3차(#937) 근본수정 — U1: 이 필드는 recalculateLineVat(PRICE 권위)이 예외 없이
+    // VAT 포함으로 해석하고 라벨도 상수 "단가(VAT포함)"다(R-1). 그런데 여태 VAT 제외
+    // 공급단가인 line.unitPrice 를 그대로 실어, 실측 활성 라인의 99%+(2026-07-27: 2,717건
+    // 중 2,697건)에서 "필드 값의 세금 도메인 ≠ 라벨·계산"이었다 — 무편집 진입 시점부터 이미
+    // 모순이었고, 수량만 바꿔도 과세표준이 틀어졌다(재수렴 3차 실측: 수량 2→3 시 300,000 이
+    // 272,727 로 하락). unit_price_with_vat 는 authoritative 저장 경로가 그대로 각인하는
+    // 컬럼이라(SlipLine.createFromAuthoritativeAmounts) 이미 VAT 포함 도메인이다 — 그 값을
+    // 싣는다. null(legacy, 2026-07-27 실측 활성 라인 0건이나 방어적으로 유지)이면 옛 BE
+    // collectPriceMemory 변환과 같은 ×1.1 HALF_UP(vatInclusiveOf)으로 승격한다.
+    unitPrice: line.unitPriceWithVat != null
+      ? String(line.unitPriceWithVat)
+      : vatInclusiveOf(line.unitPrice),
     unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: String(line.supplyAmount ?? line.lineTotal),
     vatAmount: String(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     lineTotalWithVat: String(
       Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     ),
-    // 재수렴 R-2(#937) — 라이브QA 2차 발견: 하이드레이션도 authority='PRICE' 로 표시하면서
-    // vatWarning 은 hasVatWarning(원시 DB 값)으로 독립 판정하면, PRICE 권위 자신의 fromAmounts
-    // 정책(authority==='PRICE' 는 항상 vatWarning:false)과 모순된다 — 실측: 저장된 라인은
-    // 거의 전부 "vat = supply 의 10%(별도 절사)"를 만족하지 못한다(PRICE 권위의 실제 분리
-    // 공식은 합계를 ÷1.1 로 쪼개는 것이지 "supply×10%" 가 아니라서, 자기 자신과 비교해도
-    // 반올림 경계마다 어긋난다) — 그 결과 방금 정책대로 저장한 라인을 재열기만 해도 거짓
-    // 경고가 떴다(저장 후 재열기 라이브 재현). authority 필드와 짝을 맞춰 PRICE 권위는 항상
-    // false 로 닫는다 — fromAmounts 의 PRICE 분기와 동일 정책(V2).
-    vatWarning: false,
+    // 재수렴 3차(#937) 근본수정 — U2: R-2(직전 라운드)는 "PRICE 권위는 항상 vatWarning:false"
+    // 정책과 짝을 맞춘다는 명분으로 하이드레이션 경고를 무조건 false 로 고정했다. 그 근거
+    // 진술("저장된 라인은 거의 전부 10%를 만족하지 못한다")은 실측과 반대였다 — 2026-07-27
+    // slip_lines 직접 조회: 정확히 10% 2,658건(97.8%), ±1원 잔차 48건(1.8%, PRICE/TOTAL
+    // 권위의 ÷1.1 분리가 구조적으로 낳는 잔차 — hasVatWarning 문서 참고), 그 밖의 실질
+    // 불일치(3,000~18,000원) 11건(0.4%). 무조건 false 는 그 11건의 참 경고까지 함께 없앴다.
+    // hasVatWarning 은 ±1원을 허용 오차로 두어 그 결함을 재도입하지 않으면서도(R-2 가 막던
+    // 거짓 양성은 계속 안 뜬다) 실질 불일치는 다시 경고한다(V2 유지 + 거짓 음성 회복).
+    vatWarning: hasVatWarning(
+      line.supplyAmount ?? line.lineTotal,
+      line.vatAmount ?? vatFromSupply(Number(line.lineTotal)),
+    ),
     authority: 'PRICE',
     // Hydrated S/V/T are already authoritative server values. Keep them in
     // every subsequent save payload, including header-only edits.
@@ -640,11 +656,20 @@ export function coeditLinesToEditLines(
       lineTotalWithVat,
       authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
       vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
-      // 재수렴 R-2(#937): vatWarning 은 authority 와 마찬가지로 Y.Doc 에 쓰이지 않는
-      // 파생 판정값이다 — 원격 갱신을 만든 그 함수(fromAmounts/editSlipLineAmount)가 이미
-      // 내린 판정을 이전 상태에서 그대로 승계한다(재계산하지 않음, 위 authority/vatDirty 와
-      // 동일한 이유).
-      vatWarning: previous?.vatWarning ?? false,
+      // 재수렴 3차(#937) 근본수정 — U2: R-2(직전 라운드)는 vatWarning 을 "재계산하지 않고
+      // 이전 상태 승계"로 닫았는데, 원격 피어의 첫 렌더에서 previous 는 REST 하이드레이션
+      // 스냅샷이고 그 vatWarning 은 (구) 무조건 false 였다 — 원격 피어는 이후로도 이 필드가
+      // Y.Doc 에 실리지 않아(파생값, authority/vatDirty 와 동일 이유) 계속 false 만 승계해,
+      // 편집자 자신은 실질 불일치를 보고 원격 피어는 못 보는 결함이 있었다(재수렴 3차 2-peer
+      // 실측). hasDerivedAmounts 가 있으면(=supply/vat 를 신뢰할 수 있으면) 매번 그 값으로
+      // 재판정한다 — hasVatWarning 이 ±1원 잔차를 허용 오차로 두므로(lineVat.ts 문서) PRICE
+      // 권위가 막 닫은 라인을 echo 로 되짚어도 거짓 경고가 되살아나지 않는다(R-2 원 결함
+      // 재도입 없음 — supplyAmount/vatAmount 는 위에서 이미 non-null·non-empty 로 좁혀져
+      // hasDerivedAmounts 가 그 증거다). 파생값이 아직 없으면(드문 초기 상태) 판정할 근거가
+      // 없으니 이전 상태를 승계한다.
+      vatWarning: hasDerivedAmounts
+        ? hasVatWarning(supplyAmount!, vatAmount!)
+        : (previous?.vatWarning ?? false),
     }
   })
 }
