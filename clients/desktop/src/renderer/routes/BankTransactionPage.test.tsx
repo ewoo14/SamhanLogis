@@ -310,6 +310,88 @@ describe('BankTransactionPage 열 계층화 (#897)', () => {
     expect(dataRows[1]?.textContent).toContain('신한 777-888')
   })
 
+  it('[머지 전 재수렴 S1] 계좌·카드·대출 등 패널 필드가 같은 두 거래도 패널 안에서 서로 다른 거래로 식별된다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    // 패널이 지금까지 렌더하던 필드(계좌·소스·카드·승인번호·대출명·전표·매칭근거·원문)를
+    // 전부 동일하게 두고, 패널에 없던 필드(거래일·적요·거래처·금액)만 다르게 한다 —
+    // 리뷰 실측("5행이 같은 패널")과 동일 구도.
+    const sharedPanelFields = {
+      bankAccountLabel: '국민 운영계좌',
+      source: 'CODEF_BANK' as const,
+      matchStatus: 'UNREFLECTED' as const,
+      cardName: null,
+      approvalId: null,
+      loanName: null,
+      cashReceiptSlipNo: null,
+      partnerMatchSource: null,
+      appliedMappingRawName: null,
+    }
+    const rowA: BankTransactionRow = {
+      ...sharedPanelFields,
+      transactedAt: '2026-07-20T09:00:00',
+      txnType: 'DEPOSIT',
+      amount: '111000',
+      description: '적요A',
+      counterpartyName: '거래처A',
+      externalRef: 'panel-a',
+    }
+    const rowB: BankTransactionRow = {
+      ...sharedPanelFields,
+      transactedAt: '2026-07-21T10:00:00',
+      txnType: 'DEPOSIT',
+      amount: '222000',
+      description: '적요B',
+      counterpartyName: '거래처B',
+      externalRef: 'panel-b',
+    }
+    listBankTransactionsMock.mockResolvedValue([rowA, rowB])
+
+    renderPage()
+
+    await screen.findByTestId('bank-transaction-detail-toggle-panel-a')
+    fireEvent.click(screen.getByTestId('bank-transaction-detail-toggle-panel-a'))
+    const panelA = await screen.findByTestId('bank-transaction-detail-panel-a')
+    expect(panelA.textContent).toContain('적요A')
+    expect(panelA.textContent).toContain('거래처A')
+    expect(panelA.textContent).toContain('111,000')
+
+    fireEvent.click(screen.getByTestId('bank-transaction-detail-toggle-panel-b'))
+    const panelB = await screen.findByTestId('bank-transaction-detail-panel-b')
+    expect(panelB.textContent, `패널이 서로 다른 거래를 구별하지 못함: ${panelB.textContent}`).toContain('적요B')
+    expect(panelB.textContent).toContain('거래처B')
+    expect(panelB.textContent).toContain('222,000')
+    expect(panelB.textContent).not.toContain('적요A')
+  })
+
+  it('[머지 전 재수렴 S2] 패널 내부에 닫기 컨트롤이 있고, 펼친 행이 화면 표식을 유지한다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([{
+      ...baseRow,
+      externalRef: 'close-test',
+    } satisfies BankTransactionRow])
+
+    renderPage()
+
+    const toggle = await screen.findByTestId('bank-transaction-detail-toggle-close-test')
+    fireEvent.click(toggle)
+    const panel = await screen.findByTestId('bank-transaction-detail-close-test')
+
+    // 펼친 행은 시각적 표식을 갖는다 — 패널이 화면 밖으로 스크롤돼도 되돌아왔을 때
+    // 어느 행이 펼쳐진 상태인지 식별할 수 있다(리뷰 실측: 14행 전수 표식 없음).
+    const rowEl = toggle.closest('tr')
+    expect(rowEl?.className, `펼친 행에 시각 표식이 없음: ${rowEl?.className}`).toContain('bank-transaction-row-expanded')
+
+    // 패널 안에 닫기 컨트롤이 있다 — 원행까지 스크롤해 올라가지 않아도 접을 수 있다
+    // (리뷰 실측: 패널 내부 조작 컨트롤 0개).
+    const closeButton = within(panel).getByRole('button', { name: /닫기/ })
+    fireEvent.click(closeButton)
+    await waitFor(() => expect(screen.queryByTestId('bank-transaction-detail-close-test')).toBeNull())
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(rowEl?.className).not.toContain('bank-transaction-row-expanded')
+  })
+
   it('소스·매칭상태 열은 기존 탭별 조건부 표시 규칙을 유지한다', async () => {
     listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
     loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })

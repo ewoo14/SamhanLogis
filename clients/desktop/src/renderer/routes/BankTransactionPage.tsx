@@ -45,6 +45,7 @@ import {
 } from './BankTransactionFilterModalModel'
 import { BankDepositReceiptModal } from './BankDepositReceiptModal'
 import {
+  bankDepositReceiptAccountsLabel,
   bankDepositReceiptPrunedSelectedRowKeys,
   bankDepositReceiptSelectionDisabledReason,
   bankDepositReceiptSelectionLimitExceeded,
@@ -178,7 +179,7 @@ function BankTransactionDetailToggle({
 }: {
   row: BankTransactionRow
   expanded: boolean
-  onToggle: () => void
+  onToggle: (button: HTMLButtonElement) => void
 }) {
   return (
     <button
@@ -186,7 +187,7 @@ function BankTransactionDetailToggle({
       data-testid={`bank-transaction-detail-toggle-${row.externalRef}`}
       aria-expanded={expanded}
       aria-controls={`bank-transaction-detail-${row.externalRef}`}
-      onClick={onToggle}
+      onClick={(event) => onToggle(event.currentTarget)}
       style={{
         display: 'block',
         width: '100%',
@@ -208,7 +209,15 @@ function BankTransactionDetailToggle({
   )
 }
 
-function BankTransactionDetailPanel({ row }: { row: BankTransactionRow }) {
+/**
+ * [머지 전 재수렴 S1·S2] 패널은 표 밖 전폭에 렌더돼 클릭한 행에서 물리적으로 멀어질 수
+ * 있다(316행이면 24,231px). 어느 거래의 상세인지 패널 "안"에서만 보고도 알 수 있도록
+ * 거래일·적요·거래처·금액을 머리글에 낸다(DailyClosingPage.selected-scope 선례와
+ * 동일 역할) — 계좌·카드·대출 등 나머지 필드가 같은 거래끼리도 이 머리글로 구별된다.
+ * onClose 는 원래 클릭했던 토글 버튼으로 돌아가는 닫기 컨트롤(S2) — 패널 안에서
+ * 접을 수 있어 원행까지 스크롤해 올라가지 않아도 된다.
+ */
+function BankTransactionDetailPanel({ row, onClose }: { row: BankTransactionRow; onClose: () => void }) {
   return (
     <section
       id={`bank-transaction-detail-${row.externalRef}`}
@@ -226,6 +235,17 @@ function BankTransactionDetailPanel({ row }: { row: BankTransactionRow }) {
         overflowX: 'auto',
       }}
     >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
+        <div data-testid={`bank-transaction-detail-scope-${row.externalRef}`} style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+          <strong style={{ overflowWrap: 'anywhere' }}>{formatDateTime(row.transactedAt)} · {row.description}</strong>
+          <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, overflowWrap: 'anywhere' }}>
+            {row.counterpartyName || row.matchedPartnerName || '거래처 미상'} · {row.txnType === 'DEPOSIT' ? '입금' : '출금'} {formatCashReceiptAmount(row.amount)}원
+          </span>
+        </div>
+        <Button type="button" size="sm" variant="ghost" onClick={onClose}>
+          닫기
+        </Button>
+      </div>
       <dl style={{ display: 'grid', gridTemplateColumns: 'max-content minmax(0, 1fr)', gap: '4px 12px', margin: 0, fontSize: 12 }}>
         <dt>거래 유형</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{BANK_TXN_TYPE_LABEL[row.txnType]}</dd>
         <dt>계좌·카드·대출</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.bankAccountLabel || '—'}</dd>
@@ -267,7 +287,7 @@ interface BankTransactionColumnContext {
   onMatch: (row: BankTransactionRow, partner: PartnerOption) => void
   onClear: (row: BankTransactionRow) => void
   onDeleteMapping: (row: BankTransactionRow) => void
-  onToggleDetail: (row: BankTransactionRow) => void
+  onToggleDetail: (row: BankTransactionRow, button: HTMLButtonElement) => void
 }
 
 interface BankTransactionColumnDefinition {
@@ -460,7 +480,7 @@ export const BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS: readonly BankTransactionC
       <BankTransactionDetailToggle
         row={row}
         expanded={context.expandedRowKey === bankTransactionRowKey(row)}
-        onToggle={() => context.onToggleDetail(row)}
+        onToggle={(button) => context.onToggleDetail(row, button)}
       />
     ),
   },
@@ -505,6 +525,12 @@ export function BankTransactionPage() {
    * 패널은 expandedRow 유무와 무관하게 이 wrapper 가 항상 마운트돼 있어야 ref 가 안정적이다.
    */
   const detailPanelRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * [머지 전 재수렴 S2] 패널의 "닫기" 컨트롤이 원래 클릭했던 토글 버튼으로 돌아가기
+   * 위해 마지막으로 연 토글의 DOM 참조를 보관한다 — 원행이 몇천 px 떨어져 있어도
+   * 사용자가 그 자리로 되돌아갈 수 있다(관계가 화면에서 유지된다).
+   */
+  const lastToggleButtonRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -792,14 +818,20 @@ export function BankTransactionPage() {
         externalRef: row.externalRef,
       }),
       onDeleteMapping: setMappingDeleteRow,
-      onToggleDetail: (row) => {
+      onToggleDetail: (row, button) => {
         const key = bankTransactionRowKey(row)
         const next = expandedRowKey === key ? null : key
         setExpandedRowKey(next)
         if (next !== null) {
-          // [머지 전 재수렴 R1] 펼치는 동작일 때만 스크롤·포커스 이동 — 접을 때는 대상이 없다.
+          lastToggleButtonRef.current = button
+          // [머지 전 재수렴 R1·S1·S2] 펼치는 동작일 때만 스크롤·포커스 이동 — 접을 때는
+          // 대상이 없다. focus() 의 preventScroll 기본값은 false 라 scrollIntoView 보다
+          // 먼저 즉시(비-smooth) 스크롤을 일으켜 뒤따르는 smooth 스크롤을 무의미하게
+          // 만든다(1프레임 순간이동 — 리뷰 실측 scrollY [0,535,24504], 중간 프레임 0개).
+          // preventScroll:true 로 focus 자체의 암묵적 스크롤을 끄고 scrollIntoView 의
+          // smooth 애니메이션만 실제로 재생되게 한다.
           window.setTimeout(() => {
-            detailPanelRef.current?.focus()
+            detailPanelRef.current?.focus({ preventScroll: true })
             detailPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
           }, 0)
         }
@@ -816,6 +848,22 @@ export function BankTransactionPage() {
         render: (row: BankTransactionRow) => definition.render(row, context),
       }))
   }, [activeSourceTab, activeTab, canCreateBankDepositReceipt, canDeleteAppliedMapping, canUpdate, clearAndDeleteMappingMutation.isPending, clearPartnerMutation.isPending, expandedRowKey, matchPartnerMutation.isPending, selectedRowKeys])
+
+  /**
+   * [머지 전 재수렴 S2] 패널 안의 "닫기" — 접은 뒤 마지막으로 클릭했던 토글 버튼으로
+   * 되돌아간다(포커스+스크롤). 원행이 패널에서 몇천 px 떨어져 있어도 사용자가 그
+   * 자리로 복귀할 수 있어 "클릭한 행과 패널의 관계가 화면에서 유지된다."
+   */
+  function closeDetailPanel() {
+    const button = lastToggleButtonRef.current
+    setExpandedRowKey(null)
+    if (button) {
+      window.setTimeout(() => {
+        button.focus({ preventScroll: true })
+        button.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      }, 0)
+    }
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1002,8 +1050,7 @@ export function BankTransactionPage() {
                           <span data-testid="bank-transaction-selection-accounts">
                             계좌{' '}
                             <strong title={selectedSummary.accountLabels.join(', ')}>
-                              {selectedSummary.accountLabels[0]}
-                              {selectedSummary.accountLabels.length > 1 ? ` 외 ${selectedSummary.accountLabels.length - 1}개` : ''}
+                              {bankDepositReceiptAccountsLabel(selectedSummary.accountLabels)}
                             </strong>
                           </span>
                         ) : null}
@@ -1044,11 +1091,15 @@ export function BankTransactionPage() {
                         columns={columns}
                         rows={rows}
                         rowKey={bankTransactionRowKey}
+                        // [머지 전 재수렴 S2] 펼친 행에 시각적 표식을 남겨, 패널이 화면
+                        // 밖으로 멀리 스크롤돼도 사용자가 되돌아왔을 때 어느 행이었는지
+                        // 알 수 있게 한다(리뷰 실측: 14행 전수 bg 무변화·표식 없음).
+                        rowClassName={(row) => expandedRowKey === bankTransactionRowKey(row) ? 'bank-transaction-row-expanded' : undefined}
                         emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
                         tableLayout="fixed"
                       />
                       <div ref={detailPanelRef} tabIndex={-1} style={{ outline: 'none' }}>
-                        {expandedRow ? <BankTransactionDetailPanel row={expandedRow} /> : null}
+                        {expandedRow ? <BankTransactionDetailPanel row={expandedRow} onClose={closeDetailPanel} /> : null}
                       </div>
                     </>
                   )}

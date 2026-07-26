@@ -105,6 +105,20 @@ export function bankDepositReceiptSelectionLimitExceeded(rows: BankTransactionRo
   return rows.length > MAX_BANK_DEPOSIT_RECEIPT_SELECTION
 }
 
+/**
+ * [머지 전 재수렴 S3] 계좌 라벨 목록 → "라벨 외 N개" 요약 문자열.
+ *
+ * <p>일괄 처리 바(BankTransactionPage)와 확정 모달(BankDepositReceiptModal)이 같은
+ * 문구를 공유해, 한쪽만 계좌를 보여주고 다른 쪽(확정 모달)은 빠뜨리는 드리프트를
+ * 막는다 — 계좌 혼재도 값을 그대로 보여줄 뿐 차단하지 않는다(가시성 보강, 업무 규칙
+ * 변경 아님).
+ */
+export function bankDepositReceiptAccountsLabel(accountLabels: readonly string[]): string {
+  if (accountLabels.length === 0) return ''
+  const [first, ...rest] = accountLabels
+  return rest.length > 0 ? `${first} 외 ${rest.length}개` : String(first)
+}
+
 export function bankDepositReceiptSelectionSummary(
   rows: BankTransactionRow[],
 ): BankDepositReceiptSelectionSummary {

@@ -807,6 +807,133 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
     ])
   })
 
+  it('[머지 전 재수렴 S3] 전체 마감과 거래처 마감의 역마감 확인 문구가 마감범위로 구별된다', async () => {
+    listDailyClosingsMock.mockResolvedValue({
+      ...emptyPage,
+      content: [
+        {
+          closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2020-01-02',
+          bizNo: '', partnerCode: null,
+          totalSupply: '100000', totalVat: '10000', totalAmount: '110000', slipCount: 1,
+          isLocked: true, lockedAt: '2020-01-02T18:00:00+09:00', lockedBy: '개발책임자',
+        },
+        {
+          closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2020-01-02',
+          bizNo: '2018100002', partnerCode: 'P0-6-C002',
+          totalSupply: '200000', totalVat: '20000', totalAmount: '220000', slipCount: 2,
+          isLocked: true, lockedAt: '2020-01-02T19:00:00+09:00', lockedBy: '개발책임자',
+        },
+      ] satisfies DailyClosing[],
+    })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByTestId('daily-closing-reverse-button-2020-01-02-ALL-SALES-TAX_INVOICE'))
+    const allDialogText = screen.getByRole('dialog').textContent ?? ''
+    fireEvent.click(screen.getByRole('button', { name: '취소' }))
+
+    fireEvent.click(screen.getByTestId('daily-closing-reverse-button-2020-01-02-P0-6-C002-SALES-TAX_INVOICE'))
+    const partnerDialogText = screen.getByRole('dialog').textContent ?? ''
+
+    expect(allDialogText, `전체·거래처 역마감 확인 문구가 구별되지 않음: "${allDialogText}"`).not.toBe(partnerDialogText)
+    expect(allDialogText).toContain('전체 마감')
+    expect(partnerDialogText).toContain('P0-6-C002')
+  })
+
+  it('[머지 전 재수렴 S4] 대상일을 바꾸면 이전 필터로 열어둔 상세 요약이 새 필터와 어긋난 채 남지 않는다', async () => {
+    const rowJul4: DailyClosing = {
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: null,
+      totalSupply: '100000', totalVat: '10000', totalAmount: '110000', slipCount: 1,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    }
+    listDailyClosingsMock.mockImplementation((opts: { from: string }) =>
+      Promise.resolve(opts.from === '2026-07-04' ? { ...emptyPage, content: [rowJul4] } : emptyPage),
+    )
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.change(screen.getByTestId('daily-closing-filter-date'), { target: { value: '2026-07-04' } })
+    fireEvent.click(await screen.findByTestId('daily-closing-detail-button-2026-07-04-ALL-SALES-TAX_INVOICE'))
+    expect(await screen.findByTestId('daily-closing-selected-scope')).toBeTruthy()
+
+    fireEvent.change(screen.getByTestId('daily-closing-filter-date'), { target: { value: '2026-07-05' } })
+    await waitFor(() => expect(screen.queryByTestId('daily-closing-selected-scope')).toBeNull())
+  })
+
+  it('[머지 전 재수렴 S5] 목록 금액 합계와 상세 요약의 0원은 단위 없이 — 로 표시된다', async () => {
+    const zeroRow: DailyClosing = {
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: null,
+      totalSupply: '0', totalVat: '0', totalAmount: '0', slipCount: 0,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    }
+    listDailyClosingsMock.mockResolvedValue({ ...emptyPage, content: [zeroRow] })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    await screen.findByTestId('daily-closing-list-table')
+    const row = rowOf('전체 마감')
+    expect(within(row).queryByText(/—원/), `목록 행에 '—원'(단위 붙은 placeholder) 잔존: ${row.textContent}`).toBeNull()
+    expect(within(row).getAllByText('—').length).toBeGreaterThan(0)
+
+    fireEvent.click(within(row).getByRole('button', { name: '상세 보기' }))
+    const scope = await screen.findByTestId('daily-closing-selected-scope')
+    expect(scope.textContent, `상세 요약에 '—원' 잔존: ${scope.textContent}`).not.toContain('—원')
+  })
+
+  it('[머지 전 재수렴 S6] 역마감(열림)된 행은 "이전 마감 시각"으로 표시해 열림 배지와 모순되지 않는다', async () => {
+    const reopenedRow: DailyClosing = {
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: null,
+      totalSupply: '100000', totalVat: '10000', totalAmount: '110000', slipCount: 1,
+      isLocked: false, lockedAt: '2026-07-26T18:51:00+09:00', lockedBy: '개발책임자',
+    }
+    listDailyClosingsMock.mockResolvedValue({ ...emptyPage, content: [reopenedRow] })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    const badge = await screen.findByText('열림')
+    const row = badge.closest('tr') as HTMLElement
+    expect(within(row).queryByText(/^마감 시각/), `'열림' 배지와 같은 셀에 무조건 '마감 시각' 문구 잔존: ${row.textContent}`).toBeNull()
+    expect(within(row).getByText(/이전 마감 시각/)).toBeTruthy()
+  })
+
+  it('[머지 전 재수렴 S7] 한 날짜의 마감이 21건 이상이면 페이저로 다음 페이지 행에 도달할 수 있다', async () => {
+    const rowsPage0 = Array.from({ length: 20 }, (_, i) => ({
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: `P-${String(i).padStart(3, '0')}`,
+      totalSupply: '1000', totalVat: '100', totalAmount: '1100', slipCount: 1,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    })) satisfies DailyClosing[]
+    const rowsPage1 = [{
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: 'P-020',
+      totalSupply: '1000', totalVat: '100', totalAmount: '1100', slipCount: 1,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    }] satisfies DailyClosing[]
+    listDailyClosingsMock.mockImplementation((opts: { page?: number }) =>
+      Promise.resolve(opts.page === 1
+        ? { content: rowsPage1, totalElements: 21, totalPages: 2, number: 1, size: 20, first: false, last: true }
+        : { content: rowsPage0, totalElements: 21, totalPages: 2, number: 0, size: 20, first: true, last: false }),
+    )
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.change(screen.getByTestId('daily-closing-filter-date'), { target: { value: '2026-07-04' } })
+    await screen.findByTestId('daily-closing-detail-button-2026-07-04-P-000-SALES-TAX_INVOICE')
+    expect(screen.queryByTestId('daily-closing-detail-button-2026-07-04-P-020-SALES-TAX_INVOICE')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('daily-closing-page-next'))
+    await waitFor(() => expect(listDailyClosingsMock).toHaveBeenCalledWith(expect.objectContaining({ page: 1 })))
+    expect(await screen.findByTestId('daily-closing-detail-button-2026-07-04-P-020-SALES-TAX_INVOICE')).toBeTruthy()
+  })
+
   it('목록은 핵심 열만 노출하고 상세 경로에서 감춘 금액·전표 값을 실제로 확인한다', async () => {
     listDailyClosingsMock.mockResolvedValue({
       ...emptyPage,

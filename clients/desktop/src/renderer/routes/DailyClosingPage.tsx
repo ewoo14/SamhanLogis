@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Badge,
@@ -149,9 +149,9 @@ export const DAILY_CLOSING_LIST_COLUMN_DEFINITIONS: readonly DailyClosingColumnD
     mobilePriority: 'secondary',
     render: (row) => (
       <div style={{ display: 'grid', gap: 2, minWidth: 0, overflowWrap: 'anywhere' }}>
-        <strong>{fmtKrw(row.totalAmount)}원</strong>
+        <strong>{fmtKrwUnit(row.totalAmount)}</strong>
         <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>
-          공급가 {fmtKrw(row.totalSupply)}원 · 부가세 {fmtKrw(row.totalVat)}원
+          공급가 {fmtKrwUnit(row.totalSupply)} · 부가세 {fmtKrwUnit(row.totalVat)}
         </span>
       </div>
     ),
@@ -168,9 +168,15 @@ export const DAILY_CLOSING_LIST_COLUMN_DEFINITIONS: readonly DailyClosingColumnD
           <Badge variant={row.isLocked ? 'danger' : 'success'}>
             {DAILY_CLOSING_STATUS_LABEL[status]}
           </Badge>
-          <span style={{ color: 'var(--ink-secondary)', fontSize: 12, overflowWrap: 'anywhere' }}>
-            마감 시각 {fmtTimestamp(row.lockedAt)}
-          </span>
+          {/* [머지 전 재수렴 S6] unlock() 은 감사 이력을 위해 lockedAt 을 보존한다(BE
+              불변, DailyClosing.java:204-213) — 역마감 직후에도 값이 남아 "마감 시각"
+              그대로 두면 '열림' 배지와 한 셀에서 자기모순으로 읽힌다("열림 마감 시각 …").
+              라벨을 상태에 맞춰 갈라 표시 층에서만 해소한다(BE 변경 없음). */}
+          {row.lockedAt ? (
+            <span style={{ color: 'var(--ink-secondary)', fontSize: 12, overflowWrap: 'anywhere' }}>
+              {row.isLocked ? '마감 시각' : '이전 마감 시각'} {fmtTimestamp(row.lockedAt)}
+            </span>
+          ) : null}
         </div>
       )
     },
@@ -265,6 +271,17 @@ function fmtNullableKrw(value: number | null): string {
   return value === null ? '—' : fmtKrw(String(value))
 }
 
+/**
+ * [머지 전 재수렴 S5] fmtKrw 는 0/null 을 '—'(회계 표시 규약 placeholder)로 반환하는데,
+ * 목록 금액 합계·상세 요약이 그 뒤에 무조건 '원'을 붙여 '—원'이 됐다 — 자릿수 없는
+ * placeholder 가 단위만 있는 값처럼 보이는 자기모순. placeholder 에는 단위를 붙이지
+ * 않는다. 매출 0인 날·면세 거래처 등 정상 업무 경로에서 상시 발생한다.
+ */
+function fmtKrwUnit(value: string): string {
+  const formatted = fmtKrw(value)
+  return formatted === '—' ? formatted : `${formatted}원`
+}
+
 function fmtRate(value: number | null): string {
   return value === null ? '—' : `${value}%`
 }
@@ -333,8 +350,18 @@ export function DailyClosingPage() {
   const [execKind, setExecKind] = useState<DailyClosingKind>('SALES')
   const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
-  const [selectedDetailRow, setSelectedDetailRow] = useState<DailyClosing | null>(null)
+  /**
+   * [머지 전 재수렴 S4] 상세 요약은 클릭 시점 행의 스냅샷이 아니라 "키"만 보관하고
+   * 매 렌더 현재 listQuery.data 에서 재도출한다(BankTransactionPage.expandedRow 선례와
+   * 동일 방향 — 그 화면은 이미 이렇게 하고 있었다). filterDate/closingKind/sourceKind/
+   * partnerCode 가 바뀌어 목록이 재조회되면, 더 이상 그 키를 포함하지 않는 결과에서는
+   * find 가 자동으로 null 을 반환해 stale 요약이 남지 않는다 — 별도 clear 이펙트가
+   * 필요 없다.
+   */
+  const [selectedDetailKey, setSelectedDetailKey] = useState<string | null>(null)
   const detailCardRef = useRef<HTMLDivElement | null>(null)
+  /** [머지 전 재수렴 S7] 21건 이상이면 21번째부터 상세/역마감이 화면에서 도달 불가했다. */
+  const [page, setPage] = useState(0)
 
   const focusAllScopeChip = () => {
     setTimeout(() => {
@@ -345,8 +372,14 @@ export function DailyClosingPage() {
   const queryKind = closingKind === 'ALL' ? undefined : closingKind
   const querySourceKind = closingKind === 'ALL' ? undefined : sourceKind
 
+  // [머지 전 재수렴 S7] 필터가 바뀌면 이전 필터 기준 페이지 번호가 새 결과 범위를
+  // 벗어날 수 있다(예: 2페이지에서 필터를 좁혀 1페이지만 남는 경우) — 1페이지로 되돌린다.
+  useEffect(() => {
+    setPage(0)
+  }, [filterDate, partnerCode, queryKind, querySourceKind])
+
   const listQuery = useQuery({
-    queryKey: ['daily-closings', filterDate, partnerCode, queryKind ?? 'ALL', querySourceKind ?? 'ALL'],
+    queryKey: ['daily-closings', filterDate, partnerCode, queryKind ?? 'ALL', querySourceKind ?? 'ALL', page],
     queryFn: () =>
       listDailyClosings({
         from: filterDate,
@@ -354,8 +387,14 @@ export function DailyClosingPage() {
         partnerCode: partnerCode.trim() || undefined,
         closingKind: queryKind,
         sourceKind: querySourceKind,
+        page,
       }),
   })
+
+  const selectedDetailRow = useMemo(() => {
+    if (!selectedDetailKey) return null
+    return (listQuery.data?.content ?? []).find((row) => dailyClosingRowKey(row) === selectedDetailKey) ?? null
+  }, [selectedDetailKey, listQuery.data])
 
   const detailQuery = useQuery({
     queryKey: ['daily-closing-detail', filterDate, queryKind, querySourceKind],
@@ -432,12 +471,16 @@ export function DailyClosingPage() {
   })
 
   function revealDailyClosingDetail(row: DailyClosing) {
-    setSelectedDetailRow(row)
+    setSelectedDetailKey(dailyClosingRowKey(row))
     setFilterDate(row.closingDate)
     setClosingKind(row.closingKind)
     setSourceKind(row.sourceKind)
     window.setTimeout(() => {
-      detailCardRef.current?.focus()
+      // preventScroll:true — focus() 기본값(false)이 scrollIntoView 보다 먼저 즉시
+      // 스크롤을 일으켜 뒤이은 smooth 애니메이션을 무의미하게 만드는 동일 결함이
+      // BankTransactionPage 쪽 표에서 더 크게(24,231px 표) 드러났다(S1·S2) — 같은
+      // 코드 모양을 양쪽 다 고쳐 미래 회귀를 막는다.
+      detailCardRef.current?.focus({ preventScroll: true })
       detailCardRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
     }, 0)
   }
@@ -873,6 +916,34 @@ export function DailyClosingPage() {
             />
           </div>
         )}
+        {/* [머지 전 재수렴 S7] 한 날짜의 마감이 21건 이상이면 21번째부터 상세·역마감
+            버튼이 화면에서 도달 불가했다(size=20 고정, page 미전달, 페이저 UI 없음).
+            BlockedPartnersPage 페이저 선례와 동일 형태로 이전/다음을 추가한다. */}
+        {listQuery.data && listQuery.data.totalPages > 1 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 12, fontSize: 13 }}>
+            <button
+              type="button"
+              data-testid="daily-closing-page-prev"
+              disabled={page <= 0}
+              onClick={() => setPage((p) => p - 1)}
+              style={toggleButtonStyle}
+            >
+              이전
+            </button>
+            <span data-testid="daily-closing-page-indicator">
+              {listQuery.data.number + 1} / {listQuery.data.totalPages}
+            </span>
+            <button
+              type="button"
+              data-testid="daily-closing-page-next"
+              disabled={page + 1 >= listQuery.data.totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              style={toggleButtonStyle}
+            >
+              다음
+            </button>
+          </div>
+        ) : null}
       </Card>
 
       <Card>
@@ -900,7 +971,7 @@ export function DailyClosingPage() {
             <strong>선택한 마감 범위: {dailyClosingScopeLabel(selectedDetailRow)}</strong>
             {selectedDetailRow.bizNo ? <span>사업자번호 {selectedDetailRow.bizNo}</span> : null}
             <span>
-              공급가 {fmtKrw(selectedDetailRow.totalSupply)}원 · 부가세 {fmtKrw(selectedDetailRow.totalVat)}원 · 합계 {fmtKrw(selectedDetailRow.totalAmount)}원
+              공급가 {fmtKrwUnit(selectedDetailRow.totalSupply)} · 부가세 {fmtKrwUnit(selectedDetailRow.totalVat)} · 합계 {fmtKrwUnit(selectedDetailRow.totalAmount)}
             </span>
             <span>마감 시각 {fmtTimestamp(selectedDetailRow.lockedAt)}</span>
             <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>
@@ -993,7 +1064,11 @@ export function DailyClosingPage() {
       >
         {reverseConfirmRow ? (
           <p style={{ margin: 0, fontSize: 13 }}>
-            {reverseConfirmRow.closingDate} {KIND_LABEL[reverseConfirmRow.closingKind]}{' '}
+            {/* [머지 전 재수렴 S3] 같은 날짜·구분·원천이면서 마감범위(전체/거래처)만 다른
+                두 행의 역마감 확인 문구가 100% 동일해 대상을 특정하지 못했다 — 목록의
+                '마감범위' 열과 동일한 dailyClosingScopeLabel 을 확인 문구 맨 앞에 낸다. */}
+            <strong>{dailyClosingScopeLabel(reverseConfirmRow)}</strong> · {reverseConfirmRow.closingDate}{' '}
+            {KIND_LABEL[reverseConfirmRow.closingKind]}{' '}
             {SOURCE_LABEL[reverseConfirmRow.sourceKind]} 마감을 해제합니다.
           </p>
         ) : null}

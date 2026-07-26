@@ -5788,6 +5788,16 @@ button {
   font-weight: 700;
 }
 
+/* [머지 전 재수렴 S2] 상세를 펼친 행의 시각 표식 — .slip-line-table
+   .price-memory-refreshed-row 선례와 동일 토큰(--surface-selected 셀 배경 +
+   --action-brand 좌측 accent). <tr> 배경은 브라우저 편차가 있어 td 배경으로 낸다. */
+.bank-transaction-table tr.bank-transaction-row-expanded td {
+  background: var(--surface-selected);
+}
+.bank-transaction-table tr.bank-transaction-row-expanded td:first-child {
+  box-shadow: inset 4px 0 0 var(--action-brand);
+}
+
 /* #897: 1024px desktop에서도 고정 목록의 내용 최소폭이 표 자체를 다시 늘리지 않게 한다.
    상세·카드 승인·입금보고서 전표는 표 밖 상세 패널에 있으므로 목록 셀은 줄바꿈을 허용한다.
    모바일 카드 레이아웃(#880)은 기존 overflow visible 계약을 유지한다. */

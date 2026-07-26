@@ -9,6 +9,7 @@ import {
 } from '@samhan/design-system'
 import { listAccounts, type BankDepositReceiptRequest, type BankTransactionRow } from '../api/accounting'
 import {
+  bankDepositReceiptAccountsLabel,
   bankDepositReceiptDefaultFormState,
   bankDepositReceiptSelectionLimitExceeded,
   bankDepositReceiptSelectionSummary,
@@ -137,6 +138,17 @@ export function BankDepositReceiptModal({
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>거래처</div>
             <strong title={summary.partnerName}>{truncatePartnerName(summary.partnerName)}</strong>
           </div>
+          {/* [머지 전 재수렴 S3] 확정 모달이 대상을 특정한다 — 어느 계좌의 입금을
+              생성하는지 확정 직전에 모달 자체에서 보인다(요약바에만 있고 모달엔
+              없던 계좌를 모달 안으로 옮김). accountLabels 는 이미 계산돼 있었다. */}
+          {summary.accountLabels.length > 0 ? (
+            <div style={{ gridColumn: '1 / -1' }} data-testid="bank-deposit-receipt-accounts">
+              <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>계좌</div>
+              <strong title={summary.accountLabels.join(', ')}>
+                {bankDepositReceiptAccountsLabel(summary.accountLabels)}
+              </strong>
+            </div>
+          ) : null}
         </div>
 
         {summary.mixedPartner ? (

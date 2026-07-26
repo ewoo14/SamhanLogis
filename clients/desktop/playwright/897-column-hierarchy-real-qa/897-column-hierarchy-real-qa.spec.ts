@@ -53,6 +53,21 @@ async function dismissUpdateModal(page: Page): Promise<void> {
   }
 }
 
+/**
+ * [머지 전 재수렴 S8] page.goto(url) 을 "이미 그 URL 에 있을 때" 다시 호출하면 해시
+ * 라우터 특성상 same-document navigation 으로 처리돼 실제로 reload 되지 않는다 —
+ * 직전 조건의 SPA 상태(펼친 상세 패널·필터)가 그대로 남는다. R1 테스트가 조건1→조건2
+ * →조건3 세 번 모두 동일 URL 로 재진입을 가정하는데, 조건2 의 goto 가 이 무동작에
+ * 해당돼 조건1 에서 이미 펼쳐둔 패널이 잔존한 채 조건2 의 "첫 클릭"이 열기 대신
+ * 접기로 동작해 "[기본필터] 상세 패널 미표시"로 실패했다(제품 결함 아님 — 스펙
+ * 자체가 실제 사용자 재진입을 흉내내지 못한 결함). about:blank 경유로 매번 완전한
+ * 재진입을 강제해 각 조건이 "새로 열었다"는 전제를 실제로 충족시킨다.
+ */
+async function gotoFresh(page: Page, url: string): Promise<void> {
+  await page.goto('about:blank')
+  await page.goto(url, { waitUntil: 'domcontentloaded' })
+}
+
 async function readGeometry(table: import('@playwright/test').Locator) {
   return table.evaluate((node) => {
     const scroll = node.parentElement
@@ -189,7 +204,7 @@ test.describe.serial('897 실 서버 U-gate', () => {
     await installAuth(page, login)
 
     // 조건1 — 전체기간(리뷰 재현과 동일: 2020-01-01~2030-12-31)
-    await page.goto('/#/accounting/bank-transactions', { waitUntil: 'domcontentloaded' })
+    await gotoFresh(page, '/#/accounting/bank-transactions')
     await dismissUpdateModal(page)
     await expect(page.getByTestId('header-page-title')).toContainText('입출금 내역', { timeout: 30_000 })
     await page.getByRole('textbox', { name: '시작일' }).nth(1).fill('2020-01-01')
@@ -199,7 +214,9 @@ test.describe.serial('897 실 서버 U-gate', () => {
     expect(wideRowCount, '전체기간 행수가 0 — 조건 자체가 성립하지 않음').toBeGreaterThan(0)
 
     // 조건2 — 기본 필터(당월, 조회 버튼을 다시 누르지 않은 최초 로드)
-    await page.goto('/#/accounting/bank-transactions', { waitUntil: 'domcontentloaded' })
+    // [머지 전 재수렴 S8] 조건1 과 동일 URL 이라 일반 goto 는 무동작(same-document)이라
+    // 조건1 이 펼쳐둔 패널이 잔존한다 — gotoFresh 로 실제 재진입을 강제한다.
+    await gotoFresh(page, '/#/accounting/bank-transactions')
     await dismissUpdateModal(page)
     await expect(page.getByTestId('header-page-title')).toContainText('입출금 내역', { timeout: 30_000 })
     const defaultToggleCount = await page.locator('button[data-testid^="bank-transaction-detail-toggle-"]').count()
@@ -210,7 +227,7 @@ test.describe.serial('897 실 서버 U-gate', () => {
     }
 
     // 조건3 — 모바일 375px (전체기간 데이터 유지한 채 리사이즈 — 리뷰가 측정한 "23,514px 화면 밖"과 동일 데이터량)
-    await page.goto('/#/accounting/bank-transactions', { waitUntil: 'domcontentloaded' })
+    await gotoFresh(page, '/#/accounting/bank-transactions')
     await dismissUpdateModal(page)
     await page.getByRole('textbox', { name: '시작일' }).nth(1).fill('2020-01-01')
     await page.getByRole('textbox', { name: '종료일' }).nth(1).fill('2030-12-31')
