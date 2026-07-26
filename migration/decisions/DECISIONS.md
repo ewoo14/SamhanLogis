@@ -3110,6 +3110,14 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-S6-03 | 수신자 검색은 결재자 검색을 재사용하지 않고 `messenger.send` VIEW 전용 endpoint를 둔다. 부서 제약은 두지 않으며, groupware가 user-service `activeOnly=true`를 전달해 퇴사자를 제외한다. user-service `activeOnly` 기본값은 false로 기존 호출자 동작을 유지한다. |
 | D-S6-04 | 데스크톱 `/messenger`는 design-system의 기존 `MultiSelectAutocomplete`를 무수정 사용한다. 칩과 수신함에는 이름·부서·본문·상태만 표시하고 UUID/opaque user id는 표시하지 않는다. 기존 단건 발송 endpoint는 삭제·변경하지 않고 deprecated 표기만 추가한다. |
 
+## #910 앱별 버전 정책 식별자 (2026-07-25)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-910-01 | 앱 식별자 정본은 `DESKTOP`(삼한 데스크톱), `SAMHAN_MOBILE`, `SAMHAN_MOBILE_STAFF`, `AROLOGIS_MOBILE`, `SAMHAN_ORDER_WEB`, `SAMHAN_ESTIMATE_WEB`, `SAMHAN_MOBILE_PUBLIC_WEB`, `AROLOGIS_DESKTOP` 8개로 둔다. `mobile-staff`의 EAS slug가 `samhan-estimate`인 것처럼 slug 추론은 금지하고 명시 매핑만 사용한다. |
+| D-910-02 | 기존 `DESKTOP` 레코드는 값을 변경하지 않고 삼한 데스크톱 정책으로 보존한다. 구버전 `WEB`·`MOBILE` 요청은 enum/DB에서 계속 수용하되 신규 관리 화면 선택지에서는 제외한다. 따라서 BE 선배포 후 구버전 클라이언트의 버전 확인 실패는 클라이언트 fail-open 경로로 수렴한다. |
+| D-910-03 | 앱 릴리스 unique/index 조회 축은 `client_type`별로 유지한다. `V7__app_release_client_identity.sql`에서만 CHECK와 길이를 변경하며, 웹/아로로지스 데스크톱 버전 체크 신설·사용 중 알림·OTA 활성화는 후속 슬라이스로 남긴다. |
+| D-910-04 | 개발 버전의 정책 정본은 `YYYY/MM/DD-{번호}`이며 날짜와 일련번호를 숫자로 비교한다. 패키지 semver는 빌드 식별자로만 사용한다. 기존 semver 레코드를 보존하기 위해 V7을 수정하거나 새 DB CHECK로 형식을 강제하지 않고, 신규 등록은 애플리케이션 경계에서 엄격히 검증하며 기존 semver의 버전 필드를 그대로 두는 수정만 허용한다. |
 ## #897 입출금·일마감 목록 열 계층화 (2026-07-26)
 
 | 결정 코드 | 내용 |

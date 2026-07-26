@@ -59,6 +59,10 @@ npm run export:web     # web preview build (CI)
 npm run capture:v4     # Playwright QA 캡처 (dev server 5185 필요)
 ```
 
+EAS `preview`/`production` 빌드는 `BUILD_ENV`가 릴리스 모드이므로
+`EXPO_PUBLIC_APP_VERSION=YYYY/MM/DD-번호`를 반드시 주입해야 합니다. 누락 시 app.config가
+실패하며 개발 sentinel을 포함한 릴리스 산출물을 만들지 않습니다.
+
 ## QA 캡처
 
 `docs/qa/migration-fe-mobile-v4-design-audit/` —

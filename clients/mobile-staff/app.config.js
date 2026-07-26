@@ -16,15 +16,18 @@
  * EAS Build 프로파일 → eas.json 참조.
  *
  * 버전 채번:
- *   - version       — package.json 과 1:1 (semver, 마켓 표시).
+ *   - version       — package.json 과 1:1 (semver, 마켓 메타데이터).
+ *   - extra.appVersion — EXPO_PUBLIC_APP_VERSION로 주입하는 정책용 개발 버전.
  *   - buildNumber   — iOS CFBundleVersion (빌드마다 단조 증가, CI 에서 EXPO_BUILD_NUMBER 주입).
  *   - versionCode   — Android versionCode (동일 환경변수 사용).
  */
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pkg = require('./package.json');
+const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs');
 
 const BUILD_ENV  = process.env.BUILD_ENV  || 'development';
+const APP_DEVELOPMENT_VERSION = resolveBuildAppVersion({ variable: 'EXPO_PUBLIC_APP_VERSION' });
 const APP_VARIANT = process.env.APP_VARIANT || 'staff';
 
 /** EAS Build 시 CI 가 EXPO_BUILD_NUMBER=<n> 을 주입한다. 로컬 기본값 = 1. */
@@ -106,6 +109,7 @@ module.exports = {
     // ------------------------------------------------------------------ //
     extra: {
       buildEnv:        BUILD_ENV,
+      appVersion:      APP_DEVELOPMENT_VERSION,
       appVariant:      APP_VARIANT,
       apiBaseUrl:      resolveApiBaseUrl(),
       estimateAppUrl:  resolveEstimateAppUrl(),

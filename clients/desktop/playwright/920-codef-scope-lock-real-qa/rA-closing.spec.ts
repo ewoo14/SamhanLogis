@@ -106,7 +106,9 @@ async function installCodefMocks(
 }
 
 async function gotoScopeScreen(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/accounting/bank-transactions`)
+  // 경로만(path) goto 하면 렌더러가 createHashRouter 라 해시가 비어 대시보드(기본 라우트)로
+  // 떨어진다(routes/index.tsx — VITE_PLATFORM!=='web' 이면 항상 HashRouter) — 반드시 `#/...`.
+  await page.goto(`${BASE_URL}/#/accounting/bank-transactions`)
   await page.waitForLoadState('domcontentloaded')
   await page.locator('[data-testid="codef-bank-account-0"]').waitFor({ state: 'visible', timeout: 25000 })
 }

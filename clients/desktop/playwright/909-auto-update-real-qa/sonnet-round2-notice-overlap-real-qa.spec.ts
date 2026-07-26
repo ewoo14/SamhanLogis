@@ -172,11 +172,11 @@ test('F-3 회귀 울타리 — CRITICAL 차단 모달은 이 fix 이후에도 �
   try {
     const body = {
       clientType: 'DESKTOP',
-      version: '9.9.9',
+      version: '2026/07/25-91018',
       forceLevel: 'CRITICAL',
       releaseNotes: `${MARKER} throwaway 자동업데이트 실서버 검증용(F-3 회귀)`,
       releasedAt: '2026-07-23T00:00:00',
-      minSupportedVersion: '9.9.0',
+      minSupportedVersion: '0.1.0',
     }
     const created = await request.post(`${API_BASE}/app/releases`, { headers: jsonAuth, data: body })
     expect(created.status(), `throwaway 릴리스 등록 실패 HTTP ${created.status()}`).toBeLessThan(400)

@@ -21,6 +21,11 @@ const updater = vi.hoisted(() => {
   }
 })
 
+const runtimeFlags = vi.hoisted(() => ({
+  electron: true,
+  capacitor: false,
+}))
+
 const versionInfo = vi.hoisted(() => ({
   latestVersion: '0.1.0',
   minSupportedVersion: '0.1.0',
@@ -30,8 +35,12 @@ const versionInfo = vi.hoisted(() => ({
 }))
 
 vi.mock('../../auth/authProvider', () => ({
-  isElectronPlatform: true,
-  isCapacitorPlatform: false,
+  get isElectronPlatform() {
+    return runtimeFlags.electron
+  },
+  get isCapacitorPlatform() {
+    return runtimeFlags.capacitor
+  },
 }))
 
 vi.mock('../../api/appVersion', () => ({
@@ -56,6 +65,8 @@ describe('AppVersionGate 기동 updater 경로', () => {
     updater.quit.mockReset().mockResolvedValue(undefined)
     updater.onStatus.mockClear()
     versionInfo.forceLevel = 'NONE'
+    runtimeFlags.electron = true
+    runtimeFlags.capacitor = false
     window.samhanUpdater = updater
   })
 
@@ -330,5 +341,22 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(screen.getByTestId('app-version-blocking-reload')).toBeTruthy()
     expect(screen.getByTestId('app-version-blocking-quit')).toBeTruthy()
     expect(screen.getByTestId('app-auto-update-status').textContent).toContain('인터넷 연결')
+  })
+
+  it('브라우저 런타임의 CRITICAL 차단은 updater 없는 상태에서도 페이지 새로고침 탈출구를 제공한다', async () => {
+    runtimeFlags.electron = false
+    runtimeFlags.capacitor = false
+    versionInfo.forceLevel = 'CRITICAL'
+    window.samhanUpdater = undefined
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    await screen.findByTestId('app-version-blocking-modal')
+    expect(screen.getByRole('button', { name: '페이지 새로고침' })).toBeTruthy()
+    expect(screen.queryByTestId('app-version-blocking-quit')).toBeNull()
   })
 })

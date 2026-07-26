@@ -21,7 +21,9 @@ const _dirname =
 const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5253'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/920-codef-scope-lock')
+// K5 라이브 재검증 전용 하위폴더 — docs/qa/** 기존 커밋 파일(01~04*, r3-*, r4-verify/*,
+// rA-closing/*, rB-bound-revert/*) 절대 미접촉(덮어쓰기 금지 컨벤션).
+const SHOTS = path.resolve(_dirname, '../../../../docs/qa/920-codef-scope-lock/k5-live')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }
@@ -65,7 +67,9 @@ async function dumpAccounts(page: Page, label: string): Promise<void> {
 }
 
 async function openScopeScreen(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/accounting/bank-transactions`)
+  // 경로만(path) goto 하면 렌더러가 createHashRouter 라 해시가 비어 대시보드(기본 라우트)로
+  // 떨어진다(routes/index.tsx — VITE_PLATFORM!=='web' 이면 항상 HashRouter) — 반드시 `#/...`.
+  await page.goto(`${BASE_URL}/#/accounting/bank-transactions`)
   await page.waitForLoadState('domcontentloaded')
   await page.locator('[data-testid="codef-save-scope-button"]').waitFor({ state: 'visible', timeout: 40000 })
   await page.waitForTimeout(2500)
@@ -150,6 +154,8 @@ test('U-gate — 두 화면이 각자 다른 계좌를 추가해 저장하면 �
   await dumpAccounts(pageB, 'B 재진입(서버 반영 확인)')
   const hanaPersisted = await pageB.locator('[data-testid="codef-bank-account-3"]').isChecked().catch(() => false)
   expect(hanaPersisted, 'K5 — 재저장한 선택(하나은행)이 서버에 실제로 반영되어 재진입 시 복원되어야 한다').toBe(true)
+  // ⑥ 최종 서버 상태가 B 선택과 일치함을 캡처로 남긴다(새로고침 후 화면 = 서버 GET 응답 그대로).
+  await pageB.screenshot({ path: path.join(SHOTS, '05-B-reentry-server-state-confirmed.png') })
 
   await ctxA.close()
   await ctxB.close()

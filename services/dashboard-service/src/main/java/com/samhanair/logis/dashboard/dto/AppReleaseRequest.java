@@ -9,10 +9,10 @@ import java.time.LocalDateTime;
 /** 앱 릴리스 등록/수정 요청. */
 public record AppReleaseRequest(
         @NotNull AppClientType clientType,
-        @NotBlank String version,
+        @NotBlank(message = "버전은 필수입니다.") String version,
         @NotNull AppReleaseForceLevel forceLevel,
         @NotBlank String releaseNotes,
         @NotNull LocalDateTime releasedAt,
-        @NotBlank String minSupportedVersion
+        @NotBlank(message = "최소 지원 버전은 필수입니다.") String minSupportedVersion
 ) {
 }

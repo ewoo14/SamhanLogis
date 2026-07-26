@@ -131,6 +131,10 @@ EXPO_PUBLIC_ESTIMATE_APP_URL=https://estimate.samhan-air.com/
 EXPO_PUBLIC_API_BASE_URL=https://api.samhan-air.com
 ```
 
+EAS `preview`/`production` 빌드는 `BUILD_ENV`가 릴리스 모드이므로
+`EXPO_PUBLIC_APP_VERSION=YYYY/MM/DD-번호`를 반드시 주입해야 합니다. 누락 시 app.config가
+실패하며 개발 sentinel을 포함한 릴리스 산출물을 만들지 않습니다.
+
 미정의 시:
 - dev (`__DEV__ === true`): `http://localhost:5183/` + `http://localhost:8080`
 - prod: `https://estimate.samhan-air.com/` + `https://api.samhan-air.com`

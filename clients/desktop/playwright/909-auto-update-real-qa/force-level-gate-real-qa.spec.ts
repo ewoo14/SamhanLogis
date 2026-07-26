@@ -69,9 +69,9 @@ test('자동 업데이트 — BE CRITICAL 이 실제로 앱을 차단하고 MINO
     // ── CRITICAL: 현재 버전(0.1.0)이 minSupported(9.9.0) 미만 → 등록값 무시하고 CRITICAL ──
     await test.step('P1 CRITICAL 등록 → 앱이 실제로 차단된다', async () => {
       const body = {
-        clientType: 'DESKTOP', version: '9.9.9', forceLevel: 'CRITICAL',
+        clientType: 'DESKTOP', version: '2026/07/25-91011', forceLevel: 'CRITICAL',
         releaseNotes: 'PM 자동업데이트 라이브QA throwaway (자동 정리됨)',
-        releasedAt: '2026-07-23T00:00:00', minSupportedVersion: '9.9.0',
+        releasedAt: '2026-07-23T00:00:00', minSupportedVersion: '0.1.0',
       }
       const created = await page.request.post(`${API_BASE}/app/releases`, { headers: jsonAuth, data: body })
       expect(created.status(), `릴리스 등록 실패 HTTP ${created.status()}`).toBeLessThan(400)
@@ -93,7 +93,7 @@ test('자동 업데이트 — BE CRITICAL 이 실제로 앱을 차단하고 MINO
       await page.reload()
       await expect(modal, 'BE 가 CRITICAL 인데 앱이 차단되지 않는다 — forceLevel 이 강제되지 않는다')
         .toBeVisible({ timeout: 20000 })
-      await expect(modal).toContainText('9.9.9')
+      await expect(modal).toContainText('2026/07/25-91011')
       console.log(`■ 차단 모달 본문 = ${(await modal.innerText()).replace(/\s+/g, ' ').slice(0, 200)}`)
       await shot('P1-CRITICAL-차단모달')
     })
@@ -112,7 +112,7 @@ test('자동 업데이트 — BE CRITICAL 이 실제로 앱을 차단하고 MINO
       const upd = await page.request.put(`${API_BASE}/app/releases/${releaseId}`, {
         headers: jsonAuth,
         data: {
-          clientType: 'DESKTOP', version: '9.9.9', forceLevel: 'MINOR',
+          clientType: 'DESKTOP', version: '2026/07/25-91011', forceLevel: 'MINOR',
           releaseNotes: 'PM 자동업데이트 라이브QA throwaway (자동 정리됨)',
           releasedAt: '2026-07-23T00:00:00', minSupportedVersion: '0.0.0',
         },
