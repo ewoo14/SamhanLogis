@@ -157,16 +157,61 @@ function balancedArgs(src: string, openParenIndex: number): string {
  *     돌리면, `.screenshot`/`copyFileSync` 만으로는 `OUT_DIR`/`OUT_ROOT` 가 전혀 안 잡혀
  *     "위반 0" 으로 조용히 통과했다 — pointsAtQa 는 참이어도 writeTargets 에 없어 3중 필터의
  *     2번째에서 탈락). G3a/H-2/H2b 전부 이 공유 정규식을 쓰므로 한 번에 이득.
+ *  ④ (2026-07-27 재수렴 3차 W1 흡수) `writeFile`(비-Sync, `node:fs/promises`) 를 추가한다 —
+ *     이전 8종 정규식 그 무엇에도 안 걸렸다. `scripts/generate-sp-07-google-sheets-source-
+ *     screenshots.mjs` 실측: 10행 `outDir`(screenshots/) 은 resolveQaShotsDir 로 감쌌지만
+ *     256행 아래 같은 파일의 `await fs.writeFile(path.join(repoRoot, 'docs/qa/.../
+ *     screenshot-checklist.md'), …)` 는 안 감쌌다. `writeFileSync` 와 시작 문자열을
+ *     공유하지만 alternation 뒤 `\s*\(` 를 강제하므로 "writeFileSync(" 에서 "writeFile" 이
+ *     오매치되지 않는다("Sync(" 가 `\s*\(` 에 안 걸려 엔진이 "writeFileSync" 대안으로 재시도).
+ *     이 정규식은 collectInlineLiteralWriteViolations(아래) 와도 공유한다 — 목적지가
+ *     `const` 선언이 아니라 인라인 인자인 경우(바로 위 실측 사례) 는 collectDeclarations 가
+ *     애초에 볼 decl 자체가 없어 이 함수(식별자 기반)만으로는 못 잡는다.
  */
+const WRITE_CALL = /(?:\.screenshot|\.pdf|writeFileSync|writeFile|appendFileSync|mkdirSync|\.saveAs|copyFileSync|\.toFile)\s*\(/g
+
+/**
+ * 백틱 템플릿 리터럴 구간 중 **개행을 포함하는 것만** 내용을 공백으로 지운다(백틱·개행
+ * 자체와 전체 길이는 보존 — 인덱스 계산에 영향 없게).
+ *
+ * (2026-07-27 재수렴 3차 W1 흡수, `writeFile` 추가의 부작용 fix) `collectWriteTargetIdentifiers`
+ * 는 쓰기 호출의 인자 텍스트 전체에서 식별자를 뽑는다 — 이 저장소의 기존 관례상 경로를
+ * 조립하는 템플릿 리터럴(`` `${OUT}/${name}.png` ``, M4b 실측)은 항상 한 줄이라 문제가
+ * 없었지만, `writeFile` 을 추가하자 generate-sp-07-google-sheets-source-screenshots.mjs 의
+ * 2번째 인자(커밋 체크리스트 **본문**, 여러 줄 마크다운 템플릿)까지 스캔 대상이 됐다. 그 본문
+ * 안의 `${screens.map(...)}` 보간이 `screens` 를 writeTargets 에 얹었고, `screens` 배열의 한
+ * 행 데이터 `['screenshots', 'PNG 6장', …]`(경로가 아니라 검증 매트릭스 표의 라벨 문자열)가
+ * 기존 G3a `/screenshots/i` 휴리스틱과 우연히 일치해 오탐(`const screens`)이 났다 — 실측
+ * RED: 이 함수 fix 전에는 G3a 가 `screens` 를 가짜 위반으로 보고했다(아래 M8 뮤테이션 참조).
+ * 경로 조립용 한 줄 템플릿은 그대로 두고(M4b 회귀 없음), 여러 줄 "본문 콘텐츠" 템플릿만
+ * 식별자 추출에서 제외한다.
+ */
+function stripMultilineTemplateContent(text: string): string {
+  let out = ''
+  let i = 0
+  while (i < text.length) {
+    const c = text[i]
+    if (c !== '`') { out += c; i++; continue }
+    let j = i + 1
+    while (j < text.length && text[j] !== '`') {
+      if (text[j] === '\\') j += 2
+      else j++
+    }
+    const span = text.slice(i, Math.min(j + 1, text.length))
+    out += span.includes('\n') ? span.replace(/[^\n`]/g, ' ') : span
+    i = j + 1
+  }
+  return out
+}
+
 function collectWriteTargetIdentifiers(
   src: string,
   decls: { name: string; body: string }[],
 ): Set<string> {
   const names = new Set<string>()
-  const writeCall = /(?:\.screenshot|\.pdf|writeFileSync|appendFileSync|mkdirSync|\.saveAs|copyFileSync|\.toFile)\s*\(/g
-  for (const m of src.matchAll(writeCall)) {
+  for (const m of src.matchAll(WRITE_CALL)) {
     const open = (m.index ?? 0) + m[0].length - 1
-    const args = balancedArgs(src, open)
+    const args = stripMultilineTemplateContent(balancedArgs(src, open))
     for (const id of args.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) names.add(id[0])
   }
   // 지역변수 간접 — 전이적 폐포(transitive closure). names 는 단조 증가만 하므로 종료된다.
@@ -187,6 +232,53 @@ function collectWriteTargetIdentifiers(
     }
   }
   return names
+}
+
+/** 텍스트에서 문자열/템플릿 리터럴 내용만 뽑는다(따옴표 밖 식별자와 섞이지 않도록). */
+function extractLiterals(text: string): string {
+  const re = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g
+  return (text.match(re) ?? []).join('\n')
+}
+
+/**
+ * 쓰기 호출의 인자 "텍스트 자체"에 docs/qa(또는 docs/manual) 문자열 리터럴이 직접 등장하는데
+ * resolveQaShotsDir 로 감싸지 않은 경우를 잡는다 — collectWriteTargetIdentifiers +
+ * collectDeclarations 조합은 목적지가 `const`로 이름 붙여진 경우만 본다(그 이름을 decls 에서
+ * 찾아 body 를 검사). 실 위반(2026-07-27 재수렴 3차 W1, generate-sp-07-google-sheets-source-
+ * screenshots.mjs)은 `fs.writeFile(path.join(repoRoot, 'docs/qa/.../screenshot-checklist.md'),
+ * …)` 처럼 목적지 리터럴이 그 호출의 인자 안에 바로 등장하고 별도 const 로 추출되지 않는다 —
+ * collectDeclarations 시야 밖(애초에 대상 decl 이 없다). 이 함수는 decls 를 전혀 거치지 않고
+ * 각 쓰기 호출의 인자에서 문자열/템플릿 리터럴만 뽑아 직접 검사한다.
+ *
+ * `/screenshots/i` 휴리스틱(H-2/G3a/H2b 의 decl 기반 pointsAtQa 가 쓰는 것과 동일)은 여기서는
+ * 의도적으로 **뺐다** — 안전하게 resolveQaShotsDir 로 감싼 디렉토리 상수(예: `SHOT_DIR`)를 쓰기
+ * 호출의 인자에 그대로 넘기는 것이 표준 패턴이라, 그 식별자 이름 자체가 대소문자 무관
+ * "screenshots" 부분일치를 갖는 경우가 흔하다(레포 전수: `SHOT_DIR`/`SCREENSHOT_DIR`/
+ * `SCREENSHOTS_DIR` 수백 건). decl 기반 검사는 decl **선언부의** body 만 보므로 이미 안전하지만,
+ * 이 함수는 매 호출부의 인자 텍스트를 보므로 원문 그대로 적용하면 안전한 기존 호출 수백 건이
+ * 오탐 폭발한다(호출부 자신은 `resolveQaShotsDir` 문구를 갖지 않는 게 정상 — 그건 몇 줄 위
+ * decl 선언부에 있다). `docs/qa`/`docs/manual` 리터럴은 슬래시를 포함해 식별자로 나올 수 없으므로
+ * (JS 식별자 문법 위반) 이 오탐 위험이 없다 — 그래서 이 리터럴 신호만 쓴다.
+ */
+function collectInlineLiteralWriteViolations(
+  src: string,
+  opts: { includeDocsManual?: boolean } = {},
+): string[] {
+  const violations: string[] = []
+  for (const m of src.matchAll(WRITE_CALL)) {
+    const open = (m.index ?? 0) + m[0].length - 1
+    const args = balancedArgs(src, open)
+    if (args.includes('resolveQaShotsDir')) continue
+    const literal = extractLiterals(args)
+    const pointsAtQa =
+      literal.includes('docs/qa') ||
+      (opts.includeDocsManual === true && literal.includes('docs/manual')) ||
+      /['"]docs['"]\s*,\s*['"]qa['"]/.test(args)
+    if (!pointsAtQa) continue
+    const callName = m[0].replace(/\s*\($/, '')
+    violations.push(`${callName}(...) → 인라인 리터럴 목적지(선언 없이 직접 등장)`)
+  }
+  return violations
 }
 
 /**
@@ -429,6 +521,11 @@ describe('하네스 거짓 green 가드', () => {
         if (decl.body.includes('resolveQaShotsDir')) continue
         violations.push(`${rel(file)} → const ${decl.name}`)
       }
+      // ③ (2026-07-27 재수렴 3차 W1 흡수) 목적지가 애초에 const 로 이름 붙지 않고 쓰기 호출의
+      // 인자에 리터럴로 바로 등장하는 경우 — ①②의 decl 순회 시야 밖.
+      for (const v of collectInlineLiteralWriteViolations(src)) {
+        violations.push(`${rel(file)} → ${v}`)
+      }
     }
     expect(
       violations,
@@ -633,6 +730,64 @@ describe('하네스 거짓 green 가드', () => {
       // fix 후 GREEN — 현재 정규식(collectWriteTargetIdentifiers 가 실제로 쓰는 것)은 잡는다.
       expect([...collectWriteTargetIdentifiers(src, [])], 'copyFileSync 인자의 SCREENSHOTS_DIR 가 안 잡힘').toContain('SCREENSHOTS_DIR')
     })
+
+    it('M6 (2026-07-27 재수렴 3차 W1 흡수) — fs.writeFile(비-Sync) 도 쓰기 호출로 잡는다 (generate-sp-07-* 실제 형태, 기존 8종 정규식 사각)', () => {
+      // fix 전 RED 재현 — 이전 정규식(screenshot/pdf/writeFileSync/appendFileSync/mkdirSync/
+      // saveAs/copyFileSync/toFile) 은 writeFile(비-Sync) 를 모른다.
+      const oldWriteCall = /(?:\.screenshot|\.pdf|writeFileSync|appendFileSync|mkdirSync|\.saveAs|copyFileSync|\.toFile)\s*\(/g
+      const src = "await fs.writeFile(path.join(repoRoot, 'docs/qa/x/y.md'), body, 'utf8')"
+      expect([...src.matchAll(oldWriteCall)], '이전 정규식이 이미 writeFile 을 잡고 있었다면 이 사각은 실재하지 않았다').toHaveLength(0)
+      // fix 후 GREEN — 현재 WRITE_CALL(fix 후 collectWriteTargetIdentifiers 가 쓰는 것)은 잡는다.
+      expect([...src.matchAll(WRITE_CALL)].length, '현재(fix 후) WRITE_CALL 이 fs.writeFile 을 못 잡음').toBeGreaterThan(0)
+      // writeFileSync 텍스트에서 "writeFile" 이 오매치되어 이중 카운트되지 않는지도 함께 확인한다
+      // (alternation 뒤 `\s*\(` 강제 — 문서화된 안전성 근거).
+      const syncSrc = "fs.writeFileSync(dest, body)"
+      expect([...syncSrc.matchAll(WRITE_CALL)].length, 'writeFileSync 호출이 writeFile+writeFileSync 이중으로 잡혀 카운트가 어긋남').toBe(1)
+    })
+
+    it('M7 (2026-07-27 재수렴 3차 W1 흡수) — 목적지가 const 선언이 아니라 인라인 인자여도 잡는다 (generate-sp-07-* 실제 형태, collectDeclarations 시야 밖)', () => {
+      const src = [
+        "const repoRoot = path.resolve(__dirname, '..')",
+        "await fs.writeFile(",
+        "  path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e/screenshot-checklist.md'),",
+        "  body,",
+        "  'utf8',",
+        ")",
+      ].join('\n')
+      // decls 기반 경로로는 못 잡는다는 것부터 확인한다 — repoRoot 선언 본문 자체는 docs/qa 를
+      // 언급하지 않으므로(그냥 __dirname 한 단계 위) pointsAtQa 가 false 라 애초에 대상이 아니다.
+      const decls = collectDeclarations(src)
+      const repoRootDecl = decls.find((d) => d.name === 'repoRoot')
+      expect(repoRootDecl?.body ?? '', 'repoRoot 선언 자체가 docs/qa 를 언급하면 이 사각은 실재하지 않았다').not.toContain('docs/qa')
+      // fix 전 RED 재현 — collectInlineLiteralWriteViolations 가 없으면(또는 무력화되면) 0건.
+      const violations = collectInlineLiteralWriteViolations(src)
+      expect(violations.length, '인라인 path.join(...) 리터럴 목적지가 collectInlineLiteralWriteViolations 로 안 잡힘').toBeGreaterThan(0)
+    })
+
+    it('M8 (2026-07-27 재수렴 3차 W1 회귀 방지) — 여러 줄 템플릿 리터럴 "본문" 안의 우연한 식별자는 writeTargets 로 오탐하지 않는다 (M6 fix 의 부작용 실측)', () => {
+      // 실제 형태 축약 — generate-sp-07-*.mjs 의 2번째 인자(체크리스트 본문)는 여러 줄
+      // 템플릿이고, 그 안 표 데이터 행 하나가 우연히 'screenshots' 문자열을 담고 있어
+      // (검증 매트릭스 표의 라벨, 경로 아님) 그 배열을 참조하는 `screens` 식별자가
+      // writeTargets 에 얹히면 G3a 의 기존 /screenshots/i 휴리스틱과 충돌해 가짜 위반이 났다.
+      const src = [
+        "const screens = [['screenshots', 'PNG 6장', '민감값 없음', '0']]",
+        'await fs.writeFile(',
+        '  dest,',
+        '  `# 체크리스트',
+        '${screens.map((s) => s[0]).join(", ")}',
+        '`,',
+        "  'utf8',",
+        ')',
+      ].join('\n')
+      const decls = collectDeclarations(src)
+      const targets = collectWriteTargetIdentifiers(src, decls)
+      expect([...targets], '여러 줄 템플릿 본문 안의 식별자(screens)가 writeTargets 로 오탐 포함됨').not.toContain('screens')
+      // 한 줄짜리 경로 조립 템플릿(M4b 형태)은 여전히 잡혀야 한다 — 과잉 수정 회귀 방지.
+      const pathSrc = "const OUT = 'x'\nawait page.screenshot({ path: `${OUT}/${name}.png` })"
+      const pathDecls = collectDeclarations(pathSrc)
+      const pathTargets = collectWriteTargetIdentifiers(pathSrc, pathDecls)
+      expect([...pathTargets], '한 줄 템플릿 보간(OUT)까지 같이 지워짐(과잉 수정)').toContain('OUT')
+    })
   })
 
   /**
@@ -678,6 +833,12 @@ describe('하네스 거짓 green 가드', () => {
         // H-2 와 동일 기준(어느 패키지에서 상대경로로 불러왔든 호출부 텍스트는 같다).
         if (decl.body.includes('resolveQaShotsDir')) continue
         violations.push(`${name} → const ${decl.name}`)
+      }
+      // (2026-07-27 재수렴 3차 W1 흡수) 목적지가 const 로 이름 붙지 않고 쓰기 호출의 인자에
+      // 리터럴로 바로 등장하는 경우 — 실측: generate-sp-07-google-sheets-source-screenshots.mjs
+      // 의 `fs.writeFile(path.join(repoRoot, 'docs/qa/.../screenshot-checklist.md'), …)`.
+      for (const v of collectInlineLiteralWriteViolations(src, { includeDocsManual: true })) {
+        violations.push(`${name} → ${v}`)
       }
     }
     expect(
@@ -768,8 +929,21 @@ describe('하네스 거짓 green 가드', () => {
    */
   const DOCS_QA_ROOT = path.resolve(REPO_ROOT, 'docs/qa')
 
+  /**
+   * (2026-07-27 재수렴 3차 W2 흡수) `.ts` 를 확장자 필터에 추가한다 — 이전 필터(js/cjs/mjs)는
+   * docs/qa 안의 `.ts` 캡처 스펙을 원천적으로 스캔 대상에서 뺐다. 실측:
+   * docs/qa/coedit-s3-5-dispatch/capture-dispatch-coedit.spec.ts 가
+   * `const SS_DIR = path.resolve(__dirname)` 로 자기 자신이 속한 커밋 디렉토리(01-login.png 등
+   * 3장이 이미 tracked)에 직접 스크린샷을 쓰는데, 확장자 필터가 `.ts` 를 몰라 `files` 목록에
+   * 아예 들어오지 못했다 — H2b 의 다른 안전장치(pointsAtQaRecursive 의 __dirname 신호 등)가
+   * 전부 정상이어도 무의미했다. `docs/qa/coedit-s3-5-dispatch/playwright.config.ts` 도 이 필터로
+   * 함께 들어오지만 쓰기 호출이 없어(config 파일) 위반 0 을 유지한다 — 확장 자체가 새 오탐을
+   * 만들지 않는다는 근거(스캔 대상이 실제로 잡혔다 테스트가 카운트 증가로 확인한다).
+   * `qa/playwright/**`(top-level, docs/qa 와 무관한 별도 트리) 는 DOCS_QA_ROOT 관할 밖이라
+   * 이 확장으로도 스캔되지 않는다 — #851 후속 슬라이스 경계 유지.
+   */
   function walkDocsQaJsSources(): string[] {
-    return walk(DOCS_QA_ROOT, (p) => /\.(?:js|cjs|mjs)$/.test(p))
+    return walk(DOCS_QA_ROOT, (p) => /\.(?:js|cjs|mjs|ts)$/.test(p))
   }
 
   /** H2b 전용 — 일반 G3a/H-2 의 pointsAtQa 에 `__dirname` 신호를 더한다(주석 위 설명 참조). */
@@ -782,7 +956,7 @@ describe('하네스 거짓 green 가드', () => {
     )
   }
 
-  it('H2b: docs/qa/**/*.{js,cjs,mjs} 의 캡처 목적지도 _local 격리를 거친다 (자기 자신의 형제 PNG 를 덮어쓰는 형태)', () => {
+  it('H2b: docs/qa/**/*.{js,cjs,mjs,ts} 의 캡처 목적지도 _local 격리를 거친다 (자기 자신의 형제 PNG 를 덮어쓰는 형태)', () => {
     const files = walkDocsQaJsSources()
     const violations: string[] = []
     for (const file of files) {
@@ -796,6 +970,10 @@ describe('하네스 거짓 green 가드', () => {
         if (!writeTargets.has(decl.name)) continue
         if (decl.body.includes('resolveQaShotsDir')) continue
         violations.push(`${name} → const ${decl.name}`)
+      }
+      // (2026-07-27 재수렴 3차 W1 흡수) 목적지가 const 로 이름 붙지 않는 인라인 리터럴 형태.
+      for (const v of collectInlineLiteralWriteViolations(src)) {
+        violations.push(`${name} → ${v}`)
       }
     }
     expect(
@@ -857,6 +1035,20 @@ describe('하네스 거짓 green 가드', () => {
     // (html 읽기에만 쓰이고 png 쓰기 호출에는 OUT_DIR 만 등장 — sp-09 fix 의 read/write 분리
     // 그 자체가 검증된다). 둘 다 위반 0 이 정답.
     expect(violations, `HERE/OUT_DIR 분리 패턴이 오탐 발생: ${violations.join(', ')}`).toEqual([])
+  })
+
+  it('MH5 (2026-07-27 재수렴 3차 W2 흡수) — docs/qa/**/*.ts 도 H2b 스캔 대상이다 (capture-dispatch-coedit.spec.ts 실제 형태, 기존 js/cjs/mjs 전용 확장자 사각)', () => {
+    // fix 전 RED 재현 — 이전 확장자 필터(js/cjs/mjs)는 .ts 를 몰랐다.
+    const oldExt = /\.(?:js|cjs|mjs)$/
+    expect(oldExt.test('capture-dispatch-coedit.spec.ts'), '이전 필터가 이미 .ts 를 잡고 있었다면 이 사각은 실재하지 않았다').toBe(false)
+    // fix 후 GREEN — 현재 walkDocsQaJsSources() 의 확장자 필터는 .ts 를 포함한다.
+    const newExt = /\.(?:js|cjs|mjs|ts)$/
+    expect(newExt.test('capture-dispatch-coedit.spec.ts'), '현재(fix 후) 필터가 여전히 .ts 를 놓침').toBe(true)
+    // 필터 정규식만이 아니라 실제 스캔 결과 목록에도 반영되는지 확인한다 — 정규식만 고치고
+    // walkDocsQaJsSources 호출부를 안 고치는 부분 fix 를 잡기 위함.
+    const files = walkDocsQaJsSources()
+    const found = files.some((f) => f.endsWith(`coedit-s3-5-dispatch${path.sep}capture-dispatch-coedit.spec.ts`))
+    expect(found, '.ts 확장 후에도 실 위반 파일이 walkDocsQaJsSources() 스캔 목록에 없음').toBe(true)
   })
 
   /**

@@ -263,8 +263,11 @@ try {
   await browser.close()
 }
 
+// _local 격리(2026-07-27 재수렴 3차 W1 — outDir 는 이미 감쌌지만 체크리스트 .md 쓰기는
+// 커밋 경로를 직접 가리켰다. 같은 resolveQaShotsDir 규약으로 감싼다).
+const checklistDir = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e'))
 await fs.writeFile(
-  path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e/screenshot-checklist.md'),
+  path.join(checklistDir, 'screenshot-checklist.md'),
   `# SP-07 QA 캡처 체크리스트
 
 | # | 파일 | 내용 |
