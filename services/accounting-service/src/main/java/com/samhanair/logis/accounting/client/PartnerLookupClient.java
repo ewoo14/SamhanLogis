@@ -238,7 +238,63 @@ public class PartnerLookupClient {
         return true;
     }
 
-    /** 거래처 코드 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
+    /**
+     * 응답 상태코드가 "요청이 자원을 지정하지 못했다"는 부류인지 판정한다 (#929 재수렴 5차 D-RC5-1).
+     *
+     * <p>{@code GET /internal/partners/{partnerCode}} 요청에서 사용자가 정하는 부분은 코드
+     * 세그먼트 하나뿐이다(경로 템플릿·토큰 헤더는 고정). 그러므로 이 호출이 4xx 로 거절됐다는
+     * 것은 <b>그 입력으로는 거래처 자원을 지정할 수 없다</b>는 뜻이고, partner-service 가 아픈
+     * 것이 아니다 — 미존재(NOT_FOUND)와 같은 결말로 성사시켜야 화면이 깨지지 않는다.
+     * 형제 라우트 {@code /by-name} 의 400(필수 파라미터 누락), firewall 의 400, 404, 409,
+     * 405/410/414/415 가 모두 여기에 해당한다.
+     *
+     * <p><b>왜 열거가 아닌가</b> — 막아야 할 대상인 형제 라우트는 앞으로도 늘어나는 열린 집합이라
+     * 이름으로 열거하면 다음 라우트에서 다시 샌다. 반면 HTTP 상태코드는 표준이 정한 닫힌 집합이고
+     * 여기서 쓰는 것은 "4xx = 클라이언트 오류"라는 <i>부류</i>다.
+     *
+     * <p><b>예외 두 개</b> — 401/403 은 호출부가 이 메서드에 닿기 전에 MIG-12 fail-fast 로
+     * 분기하므로 여기 오지 않는다(내부 토큰 오설정은 조용히 삼키면 안 된다).
+     * 408(Request Timeout)/429(Too Many Requests)는 RFC 9110 이 "잠시 후 재시도"로 정의한
+     * <b>서버 사정</b>이므로 4xx 이지만 UNAVAILABLE 로 남긴다 — 미존재로 삼키면 과부하/타임아웃이
+     * "없는 거래처"로 위장된다.
+     *
+     * @param status partner-service 응답 상태코드 (401/403 은 앞에서 이미 분기됨)
+     * @return 입력이 자원을 지정하지 못한 부류면 true
+     */
+    private static boolean isAddressingFailure(int status) {
+        if (status == 408 || status == 429) return false;
+        return status >= 400 && status < 500;
+    }
+
+    /**
+     * 거래처 코드 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다.
+     *
+     * <p><b>[#929 재수렴 5차 D-RC5-1] 응답이 "내가 지정한 자원"을 기술하는지 확인한다.</b>
+     * {@code trimmed} 는 {@code /internal/partners/{partnerCode}} 의 path 세그먼트가 되는데,
+     * partner-service 에는 같은 자리에 형제 라우트가 있다 — {@code /internal/partners/list} 는
+     * 거래처 <b>배열</b>을 200 으로, {@code /internal/partners/by-name} 은 필수 파라미터 누락으로
+     * 400 을 돌려준다(라이브 실측). 그래서 사용자가 거래처 코드 필터에 {@code "list"} 를 치면
+     * 전송은 성공했는데 응답이 내 거래처가 아니라서 {@code UNAVAILABLE} → 게이트웨이 502 가 됐다.
+     *
+     * <p>이 누출은 {@link #isAddressableAsPathSegment} 로는 원리적으로 막을 수 없다 —
+     * {@code "list"} 는 소문자 ASCII 4자라 어떤 문자 판정도 통과한다. 문제는 값의 <i>문자
+     * 부류</i>가 아니라 값이 <i>어느 자원을 가리키는가</i>이고, 그 답은 요청을 보내기 전이 아니라
+     * <b>응답을 받은 뒤</b>에만 알 수 있다. 그리고 형제 라우트 이름을 열거해 거부하는 방식은
+     * 라우트가 열린 집합이라 다음 라우트에서 다시 샌다(이 PR 이 같은 방식으로 세 번 샜다).
+     *
+     * <p>따라서 판정은 <b>응답 쪽</b>에서, 신원으로 한다:
+     * <ol>
+     *   <li>2xx 응답이 "내가 지정한 그 partnerCode" 를 스스로 밝히지 않으면 그것은 내 자원이
+     *       아니다 → {@code NOT_FOUND}. 배열이든 낯선 객체든 다른 거래처든 결론이 같고,
+     *       아직 존재하지 않는 라우트에도 그대로 적용된다 ({@link #parseSummaryResult}).</li>
+     *   <li>4xx 는 "요청이 이 자원을 지정하지 못했다"는 뜻이다. 이 요청에서 사용자가 정하는
+     *       부분은 코드 세그먼트뿐이므로 4xx 의 원인은 그 입력이다 → {@code NOT_FOUND}
+     *       ({@link #isAddressingFailure}).</li>
+     * </ol>
+     * 반대로 <b>5xx·네트워크 오류·재시도 지시(408/429)</b> 는 서버 사정이므로 {@code UNAVAILABLE}
+     * 을 유지하고, <b>401/403</b> 은 MIG-12 fail-fast 를 유지한다 — "서버가 아프다"와 "입력이
+     * 자원을 못 가리킨다"는 다른 상황이고, 전자를 미존재로 삼키면 장애가 조용히 위장된다.
+     */
     public LookupResult findByPartnerCodeResult(String partnerCode) {
         if (partnerCode == null || partnerCode.isBlank()) return LookupResult.notFound();
         String trimmed = partnerCode.trim();
@@ -255,11 +311,17 @@ public class PartnerLookupClient {
         try {
             String body = restClient.get().uri("/internal/partners/{partnerCode}", trimmed)
                     .header(INTERNAL_TOKEN_HEADER, token).retrieve().body(String.class);
-            return parseSummaryResult(body);
+            return parseSummaryResult(body, trimmed);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
-            if (status == 404 || status == 409) return LookupResult.notFound();
             if (status == 401 || status == 403) throw internalAuthMiss("partnerCode", partnerCode, status);
+            if (isAddressingFailure(status)) {
+                // [#929 재수렴 5차 D-RC5-1] 404/409 를 포함한 addressing 계열 4xx — 요청이 거래처
+                // 자원을 지정하지 못했다. 이 요청에서 사용자가 정하는 부분은 코드 세그먼트뿐이다.
+                log.debug("PartnerLookupClient — partnerCode 가 거래처를 지정하지 못함 (status={}, NOT_FOUND 처리)",
+                        status);
+                return LookupResult.notFound();
+            }
             log.warn("PartnerLookupClient — partnerCode={} status={} (일시 장애)", partnerCode, status);
             return LookupResult.unavailable();
         } catch (Exception ex) {
@@ -502,6 +564,39 @@ public class PartnerLookupClient {
     }
 
     private LookupResult parseSummaryResult(String body) {
+        return parseSummaryResult(body, null);
+    }
+
+    /**
+     * ApiResponse wrapper 의 data 필드를 PartnerSummary 로 해석하되, 요청이 지정한 자원을 기술한
+     * 응답인지 확인한다 (#929 재수렴 5차 D-RC5-1).
+     *
+     * <p><b>신원 확인의 판정 순서</b> — "FOUND 가 아니다" 안에서 "내 자원이 아니다(NOT_FOUND)" 와
+     * "내 자원인데 응답이 손상됐다(UNAVAILABLE)" 를 가른다:
+     * <ol>
+     *   <li>본문 자체가 파싱 불가 → {@code UNAVAILABLE}. 직렬화/전송이 깨진 것이지 입력 탓이 아니다.</li>
+     *   <li>{@code data} 가 단일 객체가 아님(배열·스칼라·null) → 단건 거래처 표현이 아니므로 내
+     *       자원이 아니다 → {@code NOT_FOUND}. 형제 라우트 {@code /list} 가 여기에 걸린다
+     *       (거래처 50건 배열 200) — 선두 원소를 내 거래처로 채택하면 전 화면이 엉뚱한 거래처를
+     *       보여주게 되므로, 배열은 반드시 미존재로 성사시킨다.</li>
+     *   <li>객체지만 스스로 밝힌 {@code partnerCode} 가 내가 지정한 코드와 다르거나 아예 없음 →
+     *       내 자원이 아니다 → {@code NOT_FOUND}. 아직 없는 형제 라우트가 낯선 객체를 돌려줘도
+     *       같은 결론이라, 라우트가 늘어나도 다시 새지 않는다.</li>
+     *   <li>내 코드를 밝힌 객체인데 {@code partnerId} 가 누락/형식오류 → {@code UNAVAILABLE}
+     *       (#810 R3-CODEX 그대로 — 부분배포/응답손상은 재시도 대상이며, 결손 요약이 매칭 경로로
+     *       흐르면 안 된다).</li>
+     * </ol>
+     *
+     * <p>partner-service 의 조회는 {@code partner_code} 완전 일치({@code varchar(100)},
+     * 표준 collation)이므로 성공 응답의 {@code partnerCode} 는 보낸 값과 문자 단위로 같다 —
+     * 이 확인이 지금 성공하는 조회를 하나도 잃지 않는다(실 DB 56행 전수 재측정으로 고정).
+     *
+     * @param body partner-service 응답 본문
+     * @param addressedPartnerCode 이 응답이 기술해야 할 거래처 코드. {@code null} 이면 신원 확인을
+     *        생략한다 — 호출 경로의 path 세그먼트가 UUID({@code /{partnerId}/summary})라 형제
+     *        라우트 이름과 충돌할 수 없는 경우로, 그 경로의 판정은 #810 그대로 둔다.
+     */
+    private LookupResult parseSummaryResult(String body, String addressedPartnerCode) {
         if (body == null || body.isBlank()) {
             return LookupResult.unavailable();
         }
@@ -509,10 +604,15 @@ public class PartnerLookupClient {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || data.isNull() || !data.isObject()) {
-                return LookupResult.unavailable();
+                return addressedPartnerCode == null
+                        ? LookupResult.unavailable()
+                        : notAddressedPartner(addressedPartnerCode, "단건 거래처 객체가 아닌 응답");
             }
             UUID partnerId = parseUuid(data, "partnerId", "id");
             String partnerCode = textOrNull(data, "partnerCode");
+            if (addressedPartnerCode != null && !addressedPartnerCode.equals(partnerCode)) {
+                return notAddressedPartner(addressedPartnerCode, "응답이 밝힌 partnerCode 가 다름");
+            }
             String name = textOrNull(data, "name", "partnerName", "businessName");
             String businessNo = textOrNull(data, "bizNo", "businessNo", "businessRegistrationNumber");
             String address = textOrNull(data, "address");
@@ -535,6 +635,19 @@ public class PartnerLookupClient {
                     body.length(), ex.getMessage());
             return LookupResult.unavailable();
         }
+    }
+
+    /**
+     * "응답은 왔지만 내가 지정한 거래처가 아니다" 를 미존재로 성사시킨다 (#929 재수렴 5차 D-RC5-1).
+     *
+     * <p>{@code UNAVAILABLE}(502 "일시 장애") 과 구별해야 하는 상황이다 — partner-service 는
+     * 정상이고, 사용자가 친 값이 거래처를 가리키지 못했을 뿐이다. 로그는 debug 로 남긴다:
+     * 사용자 입력 오타는 운영 경보 대상이 아니다.
+     */
+    private static LookupResult notAddressedPartner(String addressedPartnerCode, String reason) {
+        log.debug("PartnerLookupClient — 응답이 지정한 거래처를 기술하지 않음 (code={}, 사유={}, NOT_FOUND 처리)",
+                addressedPartnerCode, reason);
+        return LookupResult.notFound();
     }
 
     /** ApiResponse wrapper 의 data.partners 또는 root.partners → partnerId/summary Map 변환. */
