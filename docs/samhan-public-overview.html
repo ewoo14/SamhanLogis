@@ -955,7 +955,7 @@ body {
   <div class="section-header">
     <div class="section-tag">Client Applications</div>
     <h2 class="section-title">8개 사용자 대면 앱 + 공통 디자인 시스템</h2>
-    <p class="section-desc">삼한·아로로지스 desktop 2 · mobile 3 · web 3. 앱별 버전 정책은 명시 식별자를 사용하고 구버전 WEB/MOBILE 조회는 호환한다. 신규 개발 버전은 YYYY/MM/DD-번호로 관리하며 패키지 semver는 빌드 식별자다.</p>
+    <p class="section-desc">삼한·아로로지스 desktop 2 · mobile 3 · web 3. 앱별 버전 정책은 명시 식별자를 사용하고 구버전 WEB/MOBILE 조회는 호환한다. 웹 3앱은 기존 /app/version을 각자 조회하며, 안내만으로 자동 새로고침하지 않고 작성 중 입력을 사용자 선택 전까지 보존한다. 신규 개발 버전은 YYYY/MM/DD-번호로 관리하며 패키지 semver는 빌드 식별자다.</p>
   </div>
 
   <div class="client-grid">
@@ -989,7 +989,7 @@ body {
     <div class="client-card">
       <div class="client-platform web">🌐 Web Order</div>
       <div class="client-name">clients/web/order-app v4</div>
-      <div class="client-desc">외부 거래처 주문 포털. Vite + React SPA. PWA(offline 지원). 레거시 partner-order/index.html(9,427줄) 임베드. Cloudflare Pages CDN 자동 배포. TypeScript strict.</div>
+      <div class="client-desc">외부 거래처 주문 포털. Vite + React SPA. PWA(offline 지원). 레거시 partner-order/index.html(9,427줄) 임베드. <code>SAMHAN_ORDER_WEB</code> 버전 안내와 작성 중 주문서 보호. Cloudflare Pages CDN 자동 배포. TypeScript strict.</div>
       <div class="svc-tags">
         <span class="stag blue">Vite 5</span>
         <span class="stag cyan">React 18 + TypeScript</span>
@@ -1002,7 +1002,7 @@ body {
     <div class="client-card">
       <div class="client-platform web">🌐 Web Estimate</div>
       <div class="client-name">clients/web/estimate-app v2</div>
-      <div class="client-desc">견적서 웹앱. Node.js + Express + EJS SSR. 레거시 GAS 견적 로직(18,614줄) 1:1 이식(B2 옵션). Google Sheets 단가 연동. Render 배포. partner-order-service API 연결.</div>
+      <div class="client-desc">견적서 웹앱. Node.js + Express + EJS SSR. 레거시 GAS 견적 로직(18,614줄) 1:1 이식(B2 옵션). <code>SAMHAN_ESTIMATE_WEB</code> 버전 안내와 작성 중 견적서 보호. Google Sheets 단가 연동. Render 배포. partner-order-service API 연결.</div>
       <div class="svc-tags">
         <span class="stag yellow">Express + EJS</span>
         <span class="stag green">Google Sheets API</span>
@@ -1415,6 +1415,10 @@ body {
   <div class="callout blue" style="margin-top: 12px;">
     <div class="callout-icon">🔒</div>
     <div><strong>#920 CODEF scope 낙관적 잠금:</strong> accounting-service V66 <code>version</code>과 JPA <code>@Version</code>으로 전체 교체 저장의 낡은 스냅샷을 409로 거부한다. 기존 행은 버전 0으로 호환하고, 데스크톱은 최신 계좌·카드·대출 표시명을 다시 보여준 뒤 자동 병합 없이 명시적 재선택을 안내한다.</div>
+  </div>
+  <div class="callout blue" style="margin-top: 12px;">
+    <div class="callout-icon">🔔</div>
+    <div><strong>#928 웹 3앱 버전 안내:</strong> 주문·견적·모바일 퍼블릭 웹이 각각 <code>SAMHAN_ORDER_WEB</code>·<code>SAMHAN_ESTIMATE_WEB</code>·<code>SAMHAN_MOBILE_PUBLIC_WEB</code>로 기존 <code>/app/version</code>을 조회한다. 조회 실패는 fail-open이며 안내만으로 자동 새로고침하지 않는다. 주문·견적 작성 중 입력과 모바일 서명 상태가 있으면 사용자가 추가 확인하기 전까지 보존한다. 데스크톱 updater·OTA·주기 polling은 후속 범위다.</div>
   </div>
   <div class="callout" style="margin-top: 12px;">
     <div class="callout-icon">✉️</div>

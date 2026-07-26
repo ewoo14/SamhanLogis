@@ -138,7 +138,6 @@ export function ProductFormPage() {
   const [errors, setErrors] = useState<ProductFormErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [draggingSpecIndex, setDraggingSpecIndex] = useState<number | null>(null)
-  const editSeedLoadedModelRef = useRef<string | null>(null)
   const editSeedReconciledModelRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -190,14 +189,29 @@ export function ProductFormPage() {
     },
   })
 
-  useEffect(() => {
-    const seed = editSeedQuery.data
-    if (!seed || mode !== 'edit' || !modelCode) return
-    if (editSeedLoadedModelRef.current === modelCode) return
-    editSeedLoadedModelRef.current = modelCode
+  // #831-hydrate — editSeed 하이드레이션을 useEffect 대신 렌더 중 파생으로 처리한다(같은 계열,
+  // CashReceiptFormPage #831-hydrate 수단 1과 동일). useEffect 로 하면 "isLoading→false 렌더"
+  // (values 는 아직 initialProductFormValues())와 "values 가 채워지는 렌더"(effect 실행 후)
+  // 사이에 실제로 커밋되는 프레임이 존재한다. 이 파일의 Save 버튼은 isSaving 으로만 disabled
+  // 되므로(CashReceiptFormPage 와 달리 JournalFormPage 의 isBalanced 같은 추가 게이트가 없다)
+  // 그 프레임에서 저장을 누르면 validateProductForm 이 initialProductFormValues() 의 빈
+  // name/modelName/categoryId 에 대해 "~입력해 주세요" 오류를 실제 품목에 대해 낸다. 렌더 중
+  // setState 를 호출하면 React 는 이 프레임을 커밋하지 않고 새 state 로 즉시 재렌더하므로
+  // (공식 패턴: "Adjusting state when a prop changes") 이 창 자체가 사라진다.
+  //
+  // 기존 useEffect 는 ref(editSeedLoadedModelRef)로 "이 modelCode 는 이미 hydrate 했다"를
+  // 추적해 재조회(refetch)가 로컬 편집을 덮어쓰지 않게 했다 — 그 시맨틱을 identical 하게
+  // 보존하기 위해 ref 대신 state(hydratedModelCode)로 동일 가드를 둔다(렌더 중 setState 패턴은
+  // state 로 가드해야 StrictMode 재호출에서도 순수하다 — ref 를 가드 조건으로 쓰면 재호출 시
+  // 조건이 먼저 mutate 된 ref 때문에 어긋날 수 있다). 아래 두 번째 useEffect(사양 reconcile)의
+  // "이 modelCode 는 이미 base hydrate 됐다" 가드도 동일 state 를 그대로 사용해 순서 보장을
+  // 유지한다(하이드레이션 자체가 렌더 중 먼저 끝나므로 순서는 항상 만족된다).
+  const [hydratedModelCode, setHydratedModelCode] = useState<string | null>(null)
+  if (mode === 'edit' && modelCode && editSeedQuery.data && hydratedModelCode !== modelCode) {
+    setHydratedModelCode(modelCode)
     editSeedReconciledModelRef.current = null
-    setValues(editSeedToProductFormValues(seed))
-  }, [editSeedQuery.data, mode, modelCode])
+    setValues(editSeedToProductFormValues(editSeedQuery.data))
+  }
 
   const categoryOptions = useMemo(
     () => flattenCategories(categoriesQuery.data ?? []),
@@ -217,7 +231,10 @@ export function ProductFormPage() {
   useEffect(() => {
     const seed = editSeedQuery.data
     if (!seed || mode !== 'edit' || !modelCode) return
-    if (editSeedLoadedModelRef.current !== modelCode) return
+    // #831-hydrate — 위 base hydrate 의 완료 여부를 이제 ref 대신 hydratedModelCode state 로
+    // 판정한다(base hydrate 가 렌더 중 파생으로 바뀌어도 "이 modelCode 는 이미 base hydrate
+    // 됐다" 판정 시맨틱은 동일하게 유지).
+    if (hydratedModelCode !== modelCode) return
     if (editSeedReconciledModelRef.current === modelCode) return
     if (specTemplateByKey.size === 0) return
 
@@ -238,7 +255,7 @@ export function ProductFormPage() {
         }
       }),
     }))
-  }, [editSeedQuery.data, estimateCategory, mode, modelCode, specTemplateByKey])
+  }, [editSeedQuery.data, estimateCategory, hydratedModelCode, mode, modelCode, specTemplateByKey])
 
   const selectedSpecKeys = useMemo(() => {
     return new Set(values.specs.map((spec) => spec.specKey.trim()).filter(Boolean))

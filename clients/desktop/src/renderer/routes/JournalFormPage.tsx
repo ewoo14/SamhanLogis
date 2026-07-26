@@ -245,11 +245,24 @@ export function JournalFormPage() {
   const [partnerLookupSuspectedUnavailable, setPartnerLookupSuspectedUnavailable] = useState(false)
   const [pendingRiskyConfirm, setPendingRiskyConfirm] = useState(false)
 
-  // 편집 모드: 데이터 도착 시 한 번 폼에 hydrate
-  useEffect(() => {
-    if (!isEdit) return
+  // #831-hydrate — journalQuery.data 하이드레이션을 useEffect 대신 렌더 중 파생으로 처리한다
+  // (같은 계열, CashReceiptFormPage #831-hydrate 수단 1과 동일). useEffect 로 하면
+  // "isLoading→false 렌더"(journalDate/lines 는 아직 오늘 날짜·빈 라인 2개인 초기값)와
+  // "실제 분개 값으로 채워지는 렌더"(effect 실행 후) 사이에 실제로 커밋되는 프레임이
+  // 존재한다. 그 프레임에서는 최소 2 라인 미달로 "최소 2 라인 (계정 + 금액) 을 입력하세요."
+  // 같은 엉뚱한 topError 가 기존(실제로는 라인이 있는) 분개에 대해 뜰 수 있다. 렌더 중
+  // setState 를 호출하면 React 는 이 프레임을 커밋하지 않고 새 state 로 즉시 재렌더하므로
+  // (공식 패턴: "Adjusting state when a prop changes") 이 창 자체가 사라진다.
+  //
+  // 기존 useEffect 는 가드가 없어(ref 도 없음) journalQuery.data 참조가 바뀔 때마다 매번
+  // 재하이드레이트했다(SSE·재조회 등으로 새 데이터가 오면 로컬 편집을 그대로 버린다) — 그
+  // 시맨틱을 identical 하게 보존하기 위해 "직전에 하이드레이트한 데이터 참조"를 state 로
+  // 추적해 매번 참조가 바뀔 때만 재실행되도록 한다(CashReceiptFormPage 의
+  // hydratedFromReceipt 와 동일 패턴).
+  const [hydratedFromJournal, setHydratedFromJournal] = useState<typeof journalQuery.data>(undefined)
+  if (isEdit && journalQuery.data && journalQuery.data !== hydratedFromJournal) {
+    setHydratedFromJournal(journalQuery.data)
     const j = journalQuery.data
-    if (!j) return
     setJournalDate(j.journalDate)
     setDescription(j.description ?? '')
     const hydratedLines = j.lines.map((l) => ({
@@ -263,7 +276,7 @@ export function JournalFormPage() {
     }))
     setLines(hydratedLines)
     setHydratedLineUids(new Set(hydratedLines.map((l) => l.uid)))
-  }, [isEdit, journalQuery.data])
+  }
 
   // 편집 응답은 UUID 비공개 정책상 partnerId 없이 partnerName 만 온다.
   // 저장 시 무경고로 거래처가 빠지지 않도록 이름 정확 검색으로 내부 partnerId 를 복원한다.

@@ -5,9 +5,11 @@
  * POST /api/public/employee-signatures/{token}. 성공/만료(409 used·410 expired·404 무효) 화면.
  * UUID 비공개: 화면에 사원 식별자/UUID 미노출 — 토큰만.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button, SignaturePad, type SignaturePadHandle } from '@samhan/design-system'
 import * as api from './api'
+import { WebVersionGate } from './version/WebVersionGate'
+import { resolveBuildAppVersion } from './version/versionCheck'
 
 type Phase = 'sign' | 'success' | 'expired'
 
@@ -34,7 +36,7 @@ function isRetryableSignatureError(err: unknown): boolean {
   return s === 400 || s === 422
 }
 
-export function EmployeeSignaturePage({ token }: { token: string }) {
+export function EmployeeSignaturePage({ token, currentVersion }: { token: string; currentVersion?: string }) {
   const padRef = useRef<SignaturePadHandle>(null)
   const [empty, setEmpty] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -51,15 +53,21 @@ export function EmployeeSignaturePage({ token }: { token: string }) {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  const wrap = (content: ReactNode) => (
+    <WebVersionGate currentVersion={currentVersion ?? resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)} isDirty={() => !empty}>
+      {content}
+    </WebVersionGate>
+  )
+
   if (!token) {
-    return (
+    return wrap(
       <main style={{ padding: 24, textAlign: 'center' }}>
         <p data-testid="mobile-signature-invalid-token">유효하지 않은 서명 링크입니다.</p>
       </main>
     )
   }
   if (phase === 'success') {
-    return (
+    return wrap(
       <main style={{ padding: 24, textAlign: 'center' }}>
         <p data-testid="mobile-signature-success" role="status" aria-live="polite">
           서명이 등록되었습니다. 창을 닫으셔도 됩니다.
@@ -68,7 +76,7 @@ export function EmployeeSignaturePage({ token }: { token: string }) {
     )
   }
   if (phase === 'expired') {
-    return (
+    return wrap(
       <main style={{ padding: 24, textAlign: 'center' }}>
         <p data-testid="mobile-signature-expired" role="alert">
           서명 링크가 만료되었거나 이미 사용되었습니다. 관리자에게 재발급을 요청하세요.
@@ -103,7 +111,7 @@ export function EmployeeSignaturePage({ token }: { token: string }) {
     }
   }
 
-  return (
+  return wrap(
     <main style={{ maxWidth: 480, margin: '0 auto', padding: 16 }}>
       <header style={{ marginBottom: 12, textAlign: 'center' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-secondary)' }}>(주)삼한공조시스템</div>

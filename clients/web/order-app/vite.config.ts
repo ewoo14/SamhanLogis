@@ -16,9 +16,18 @@
  */
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 
 process.env.VITE_API_BASE_URL = process.env.VITE_API_BASE_URL || '/api/v1'
+const require = createRequire(import.meta.url)
+const { resolveBuildAppVersion } = require('../../../scripts/app-build-version.cjs') as {
+  resolveBuildAppVersion: (options: { variable: string }) => string
+}
+const appVersion = resolveBuildAppVersion({ variable: 'VITE_APP_VERSION' })
+const versionApiBaseUrl = (process.env.VITE_VERSION_API_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:8080')
+  .replace(/\/+$/, '')
+  .replace(/\/api\/v1$/, '')
 
 export default defineConfig({
   plugins: [
@@ -74,6 +83,10 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
     },
+  },
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    'import.meta.env.VITE_VERSION_API_BASE_URL': JSON.stringify(versionApiBaseUrl),
   },
   server: {
     port: 5180,

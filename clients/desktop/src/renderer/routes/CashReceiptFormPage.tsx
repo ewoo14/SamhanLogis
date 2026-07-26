@@ -89,11 +89,22 @@ export function CashReceiptFormPage() {
   const receiptDataRef = useRef<typeof receiptQuery.data | null>(null)
   receiptDataRef.current = receiptQuery.data ?? null
 
-  useEffect(() => {
-    if (!isEdit || !receiptQuery.data) return
-    if (coeditProvider) return
+  // #831-hydrate — receiptQuery.data 하이드레이션을 useEffect 대신 렌더 중 파생으로 처리한다.
+  // useEffect 로 하면 "isLoading→false 렌더"(state 는 아직 초기값)와 "state 가 채워지는
+  // 렌더"(effect 실행 후) 사이에 실제로 커밋되는 프레임이 존재한다. 그 프레임에서 저장을
+  // 누르면 아직 채워지지 않은 초기값(state.amount='')에 대해 검증이 돌아 "금액은 0보다 커야
+  // 합니다" 같은 엉뚱한 에러가 실제 하이드레이트 에러(#831 R-3/R-5 거래처 조회 실패 안내)와
+  // 함께 뜬다 — alert 가 2개가 되어 R-3/R-5(G2) 가 세운 불변식("조회 실패 원인만 알린다")이
+  // 깨진다. 느린 CI 에서만 스케줄러 타이밍이 뒤집혀 노출되는 결함이었다(#831-hydrate).
+  // 렌더 중 setState 를 호출하면 React 는 이 프레임을 커밋하지 않고 새 state 로 즉시
+  // 재렌더하므로(공식 패턴: "Adjusting state when a prop changes" —
+  // https://react.dev/learn/you-might-not-need-an-effect) 이 창 자체가 사라진다 — 스케줄러
+  // 타이밍(빠른 로컬 PC vs 부하 걸린 CI)과 무관하게 항상 결정적이다.
+  const [hydratedFromReceipt, setHydratedFromReceipt] = useState<typeof receiptQuery.data>(undefined)
+  if (isEdit && receiptQuery.data && !coeditProvider && receiptQuery.data !== hydratedFromReceipt) {
+    setHydratedFromReceipt(receiptQuery.data)
     setState(cashReceiptFormStateFromRow(receiptQuery.data))
-  }, [isEdit, receiptQuery.data, coeditProvider])
+  }
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -249,9 +260,13 @@ export function CashReceiptFormPage() {
     // #831 R-3/R-5 (G2) — 거래처가 비어 있는 이유가 사용자가 안 채워서가 아니라 partner-service
     // 조회 실패인 경우, 일반 "거래처를 선택하거나 거래처명을 입력하세요." 대신 정확한 원인과
     // 다음 행동(재선택)을 알린다. 가드(저장 차단) 자체는 기존과 동일 — 문구만 바뀐다.
+    // #831-hydrate 방어 강화 — nextErrors 를 그대로 setErrors 하지 않고 partner 하나만 담은
+    // 새 객체를 쓴다. validateCashReceiptForm 이 이 순간 다른 필드(amount 등)에도 우연히
+    // 에러를 냈다면(하이드레이션 타이밍이든, 사용자가 실제로 같이 비웠든) "조회 실패 원인만
+    // 알린다"(H1)는 이 배너의 목적과 무관한 alert 가 함께 뜨는 것을 막는다 — 그 필드 에러는
+    // (재선택 후 다시 저장을 누르면) 다음 handleSave 호출에서 정상적으로 다시 평가된다.
     if (partnerLookupWasUnavailable && partnerStillBlank && nextErrors.partner) {
-      nextErrors.partner = '거래처 조회 서비스 장애로 표시가 비었습니다. 거래처를 다시 선택해주세요.'
-      setErrors(nextErrors)
+      setErrors({ partner: '거래처 조회 서비스 장애로 표시가 비었습니다. 거래처를 다시 선택해주세요.' })
       setTopError('거래처 조회 서비스에 일시 장애가 있어 거래처 표시가 비어 있습니다. 거래처를 다시 선택한 뒤 저장하세요.')
       return
     }
