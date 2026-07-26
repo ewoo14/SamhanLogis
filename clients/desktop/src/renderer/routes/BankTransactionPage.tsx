@@ -324,10 +324,20 @@ export const BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS: readonly BankTransactionC
     header: '적요',
     width: '14%',
     mobilePriority: 'secondary',
+    // [머지 전 재수렴 R2] 계좌/카드/대출 라벨이 상세로만 옮겨간 뒤 날짜·적요·거래처·금액이
+    // 같은 서로 다른 계좌 거래가 목록에서 구별되지 않았다(316행 중 288행, 91%). 열을
+    // 복원하지 않고 이 칸의 정보 밀도를 높여 C5(목록만으로 서로 다른 거래는 구별된다)를
+    // 충족한다 — 상세를 열지 않아도 계좌·카드·대출 라벨이 3번째 줄로 보인다.
     render: (row) => (
       <span style={{ display: 'grid', minWidth: 0, gap: 2, overflowWrap: 'anywhere' }}>
         <strong>{row.description}</strong>
         <span style={{ color: 'var(--color-neutral-500)', fontSize: 12 }}>{row.counterpartyName || '거래처 미상'}</span>
+        <span
+          style={{ color: 'var(--color-neutral-500)', fontSize: 11 }}
+          data-testid={`bank-transaction-account-label-${row.externalRef}`}
+        >
+          {row.bankAccountLabel || '—'}
+        </span>
       </span>
     ),
   },
@@ -488,6 +498,13 @@ export function BankTransactionPage() {
   const [mappingDeleteRow, setMappingDeleteRow] = useState<BankTransactionRow | null>(null)
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null)
   const selectAllCheckboxRef = useRef<HTMLInputElement | null>(null)
+  /**
+   * [머지 전 재수렴 R1] 상세 패널은 항상 표 전체 아래에 렌더된다(316행이면 22,984px 아래).
+   * DailyClosingPage.revealDailyClosingDetail 선례와 동일하게, 펼침 시 패널을 뷰포트로
+   * scrollIntoView 하고 focus 를 옮겨 "클릭 시점에 값이 눈에 들어온다"(C2')를 보장한다.
+   * 패널은 expandedRow 유무와 무관하게 이 wrapper 가 항상 마운트돼 있어야 ref 가 안정적이다.
+   */
+  const detailPanelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -777,7 +794,15 @@ export function BankTransactionPage() {
       onDeleteMapping: setMappingDeleteRow,
       onToggleDetail: (row) => {
         const key = bankTransactionRowKey(row)
-        setExpandedRowKey((previous) => previous === key ? null : key)
+        const next = expandedRowKey === key ? null : key
+        setExpandedRowKey(next)
+        if (next !== null) {
+          // [머지 전 재수렴 R1] 펼치는 동작일 때만 스크롤·포커스 이동 — 접을 때는 대상이 없다.
+          window.setTimeout(() => {
+            detailPanelRef.current?.focus()
+            detailPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+          }, 0)
+        }
       },
     }
     return BANK_TRANSACTION_LIST_COLUMN_DEFINITIONS
@@ -971,6 +996,17 @@ export function BankTransactionPage() {
                         <span>
                           거래처 <strong title={selectedSummary.partnerName}>{truncatePartnerName(selectedSummary.partnerName)}</strong>
                         </span>
+                        {selectedSummary.accountLabels.length > 0 ? (
+                          // [머지 전 재수렴 R2] 목록에서 계좌가 상세로 옮겨간 뒤 "어느 계좌의
+                          // 입금을 체크했는지 모른 채 전표를 생성한다"는 업무 차단을 닫는다.
+                          <span data-testid="bank-transaction-selection-accounts">
+                            계좌{' '}
+                            <strong title={selectedSummary.accountLabels.join(', ')}>
+                              {selectedSummary.accountLabels[0]}
+                              {selectedSummary.accountLabels.length > 1 ? ` 외 ${selectedSummary.accountLabels.length - 1}개` : ''}
+                            </strong>
+                          </span>
+                        ) : null}
                         {selectedSummary.mixedPartner ? (
                           <span className="bank-transaction-blocking-warning" role="alert" data-testid="bank-transaction-mixed-partner-warning">
                             동일 거래처만 선택하세요
@@ -1011,7 +1047,9 @@ export function BankTransactionPage() {
                         emptyMessage={transactionsQuery.isLoading ? '조회 중' : '입출금 거래가 없습니다'}
                         tableLayout="fixed"
                       />
-                      {expandedRow ? <BankTransactionDetailPanel row={expandedRow} /> : null}
+                      <div ref={detailPanelRef} tabIndex={-1} style={{ outline: 'none' }}>
+                        {expandedRow ? <BankTransactionDetailPanel row={expandedRow} /> : null}
+                      </div>
                     </>
                   )}
                 </div>

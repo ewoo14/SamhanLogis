@@ -272,6 +272,44 @@ describe('BankTransactionPage 열 계층화 (#897)', () => {
     expect(screen.getByRole('columnheader', { name: '출금' })).toBeTruthy()
   })
 
+  it('[머지 전 재수렴 R2] 계좌만 다른 두 행이 목록(상세를 열지 않고)에서 서로 다르게 렌더된다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    // 리뷰 재현(#929 머지 전 재수렴)과 동일한 시그니처 — 날짜·적요·거래처·금액·잔액·소스·
+    // 매칭상태가 전부 같고 계좌만 다른 두 행. 실측: "2026-06-03 09:00 | 미상 입금
+    // 알수없는입금자 | | 99,000 | — | — | 계좌 | 미반영"가 13행 완전 동일했다.
+    const sharedFields = {
+      transactedAt: '2026-06-03T09:00:00',
+      txnType: 'DEPOSIT' as const,
+      amount: '99000',
+      balanceAfter: null,
+      description: '미상 입금',
+      counterpartyName: '알수없는입금자',
+      source: 'CODEF_BANK' as const,
+      matchStatus: 'UNREFLECTED' as const,
+    }
+    listBankTransactionsMock.mockResolvedValue([
+      { ...sharedFields, externalRef: 'dup-a', bankAccountLabel: '국민 123456-78-901234' },
+      { ...sharedFields, externalRef: 'dup-b', bankAccountLabel: '신한 777-888' },
+    ] satisfies BankTransactionRow[])
+
+    renderPage()
+
+    const table = await screen.findByRole('table')
+    await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(3)) // 헤더 1 + 데이터 2
+    const dataRows = within(table).getAllByRole('row').slice(1)
+    const rowSignature = (row: HTMLElement) =>
+      within(row).getAllByRole('cell')
+        .map((cell) => cell.textContent?.trim() ?? '')
+        .join('|')
+    const [sigA, sigB] = dataRows.map(rowSignature)
+
+    // 상세를 열지 않은 상태(C5) — 계좌만 다른 두 행이 완전히 동일하게 보이면 안 된다.
+    expect(sigA, `계좌만 다른 두 행이 목록에서 완전히 동일하게 렌더됨: ${sigA}`).not.toBe(sigB)
+    expect(dataRows[0]?.textContent).toContain('국민 123456-78-901234')
+    expect(dataRows[1]?.textContent).toContain('신한 777-888')
+  })
+
   it('소스·매칭상태 열은 기존 탭별 조건부 표시 규칙을 유지한다', async () => {
     listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
     loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })

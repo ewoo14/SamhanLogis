@@ -63,11 +63,34 @@ test.describe('897 열 계층화 mock 회귀 울타리', () => {
     expect(geometry.scrollW, JSON.stringify(geometry)).toBeLessThanOrEqual(geometry.wrapperW)
     expect(geometry.headers).toEqual(['선택', '거래일', '적요', '거래처', '입금', '출금', '잔액', '소스', '매칭상태', '상세'])
 
+    const beforeScrollY = await page.evaluate(() => window.scrollY)
     const detailToggle = page.getByTestId('bank-transaction-detail-toggle-mock-bank-20260623-001')
     await detailToggle.click()
     const detail = page.getByTestId('bank-transaction-detail-mock-bank-20260623-001')
     await expect(detail).toContainText('국민 123-456')
     await expect(detail).toContainText('파일')
+
+    // 🔴 머지 전 재수렴 R1 — panelW>0 는 표 아래 화면 밖(예: 316행이면 22,984px 아래)에서도
+    // 참이 되므로 6라운드를 통과시킨 원인이었다. "뷰포트 내 실제 가시성"을 폭이 아니라
+    // 위치로 직접 단정한다. scrollIntoView/focus 호출을 되돌리면 이 폴링이 타임아웃으로
+    // RED 가 된다(뮤테이션 확인 완료 — PR #929 fix 라운드 보고 참고).
+    await expect
+      .poll(
+        () => detail.evaluate((node) => {
+          const rect = (node as HTMLElement).getBoundingClientRect()
+          return rect.top < window.innerHeight && rect.bottom > 0
+        }),
+        { timeout: 3000, message: '상세 패널이 클릭 후에도 뷰포트 밖에 머문다 (R1)' },
+      )
+      .toBe(true)
+    const afterScrollY = await page.evaluate(() => window.scrollY)
+    const focusInsidePanel = await detail.evaluate((node) => {
+      const active = document.activeElement
+      return Boolean(active) && (node === active || node.contains(active) || Boolean(active?.contains(node)))
+    })
+    console.log('[897 R1 뷰포트 실측] bank', JSON.stringify({ beforeScrollY, afterScrollY, focusInsidePanel }))
+    expect(focusInsidePanel, '상세 클릭 후 포커스가 패널로 이동하지 않음 (R1)').toBe(true)
+
     const detailGeometry = await detail.evaluate((node) => {
       const panel = node as HTMLElement
       const values = Array.from(panel.querySelectorAll('dd')).map((value) => Math.round(value.getBoundingClientRect().width))
