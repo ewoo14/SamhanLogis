@@ -29,6 +29,10 @@ const G3_ROOTS = [
   path.resolve(REPO_ROOT, 'clients/web/estimate-app/scripts'),
   path.resolve(REPO_ROOT, 'clients/web/order-app/scripts'),
   path.resolve(REPO_ROOT, 'scripts'),
+  // H1(2026-07-27 하네스 흡수) — tools/manual-capture/*.js 가 docs/manual/screenshots 로
+  // 직접 쓰던 12파일. 평탄 디렉토리(node_modules/output 서브폴더는 walkG3Sources 가
+  // 디렉토리라 자동 skip)라 G3 와 동일한 비재귀 스캔으로 충분하다 — 새 워커 불필요.
+  path.resolve(REPO_ROOT, 'tools/manual-capture'),
 ]
 function walkG3Sources(): string[] {
   const out: string[] = []
@@ -141,13 +145,25 @@ function balancedArgs(src: string, openParenIndex: number): string {
  *     `SCREENSHOT_DIR` 를 놓쳤다(1홉 간접 실측: print-supplement-real-qa.spec.ts).
  *     템플릿 리터럴 보간(`` `${OUT}/...` ``)도 동일 메커니즘으로 잡힌다(실측:
  *     partner-restore-qa/capture.mjs).
+ *  ③ (2026-07-27 H1/H2 흡수) `copyFileSync` · `.toFile` 를 쓰기호출 집합에 추가한다 — 이전
+ *     6종 정규식(screenshot/pdf/writeFileSync/appendFileSync/mkdirSync/saveAs) 그 무엇에도
+ *     안 걸렸다. `copyFileSync` 는 tools/manual-capture/sync-screenshots.js 의
+ *     `fs.copyFileSync(captured, dest)` 실측(dest 가 커밋된 docs/manual/screenshots 를 직접
+ *     가리켜도 미탐지). `.toFile` 은 sharp 의 비동기 PNG 저장 API — tools/manual-capture 9개
+ *     파일이 `sharp(...).png().toFile(outPath)` 로 쓰는데(annotate.js·capture-manual-all.js·
+ *     capture-pr-{g1,h1,h2,h3,h4b,h4c}.js·generate-mobile-placeholders.js·
+ *     generate-placeholder.js, 실측 12건) 정규식에 없어 이 트리 전체가 가드 사각이었다
+ *     (RED 재현: G3_ROOTS 에 tools/manual-capture 추가 직후 fix 전 원본으로 되돌려 G3a 를
+ *     돌리면, `.screenshot`/`copyFileSync` 만으로는 `OUT_DIR`/`OUT_ROOT` 가 전혀 안 잡혀
+ *     "위반 0" 으로 조용히 통과했다 — pointsAtQa 는 참이어도 writeTargets 에 없어 3중 필터의
+ *     2번째에서 탈락). G3a/H-2/H2b 전부 이 공유 정규식을 쓰므로 한 번에 이득.
  */
 function collectWriteTargetIdentifiers(
   src: string,
   decls: { name: string; body: string }[],
 ): Set<string> {
   const names = new Set<string>()
-  const writeCall = /(?:\.screenshot|\.pdf|writeFileSync|appendFileSync|mkdirSync|\.saveAs)\s*\(/g
+  const writeCall = /(?:\.screenshot|\.pdf|writeFileSync|appendFileSync|mkdirSync|\.saveAs|copyFileSync|\.toFile)\s*\(/g
   for (const m of src.matchAll(writeCall)) {
     const open = (m.index ?? 0) + m[0].length - 1
     const args = balancedArgs(src, open)
@@ -607,6 +623,16 @@ describe('하네스 거짓 green 가드', () => {
       expect([...collectWriteTargetIdentifiers('await page.pdf({ path: PDF_OUT })', [])]).toContain('PDF_OUT')
       expect([...collectWriteTargetIdentifiers('await download.saveAs(DL_TARGET)', [])]).toContain('DL_TARGET')
     })
+
+    it('MH2 (2026-07-27 H1/H2 흡수) — fs.copyFileSync() 도 쓰기 호출로 잡는다 (sync-screenshots.js 실제 형태, 기존 6종 정규식 사각)', () => {
+      // fix 전 RED 재현 — 이전 정규식(screenshot/pdf/writeFileSync/appendFileSync/mkdirSync/saveAs)
+      // 은 copyFileSync 를 모른다. 아래는 그 사각을 그대로 문자열로 재현한다.
+      const oldWriteCall = /(?:\.screenshot|\.pdf|writeFileSync|appendFileSync|mkdirSync|\.saveAs)\s*\(/g
+      const src = "fs.copyFileSync(captured, path.join(SCREENSHOTS_DIR, mp))"
+      expect([...src.matchAll(oldWriteCall)], '이전 정규식이 이미 copyFileSync 를 잡고 있었다면 이 사각은 실재하지 않았다').toHaveLength(0)
+      // fix 후 GREEN — 현재 정규식(collectWriteTargetIdentifiers 가 실제로 쓰는 것)은 잡는다.
+      expect([...collectWriteTargetIdentifiers(src, [])], 'copyFileSync 인자의 SCREENSHOTS_DIR 가 안 잡힘').toContain('SCREENSHOTS_DIR')
+    })
   })
 
   /**
@@ -724,5 +750,182 @@ describe('하네스 거짓 green 가드', () => {
       violations,
       `5175(HashRouter) 하네스에 해시 없는 goto 발견 — 로그인/대시보드로 낙착해 rows=0 인데도 성공 종료한다:\n${violations.join('\n')}`,
     ).toEqual([])
+  })
+
+  /**
+   * H2 (2026-07-27 하네스 흡수 배치, PR #938) — G3 라운드가 "G3 불변식(clients/**\/scripts,
+   * 루트 scripts/) 문언 밖"이라는 이유로 미착수로 남긴 docs/qa/**\/*.{js,cjs,mjs,py,sh} 를
+   * 흡수한다(H1 = tools/manual-capture 는 G3_ROOTS 에 한 줄만 추가해 기존 G3a/G3b 가 그대로
+   * 관할 — 위의 G3_ROOTS 선언 참조).
+   *
+   * 이 파일들은 전부 docs/qa/** 내부에 물리적으로 위치한다 — 즉 `__dirname` 자체가 이미
+   * 커밋 경로다. 그래서 문자열 리터럴("docs/qa")이 소스에 아예 등장하지 않는 게 정상이고,
+   * H-2/G3a 의 pointsAtQa 휴리스틱(리터럴 매치)은 이 형태를 원천적으로 못 잡는다(sp-09-1~5·
+   * sp-d1 6파일 실측: `const HERE = __dirname` 뒤 `path.join(HERE, `${slug}.png`)`).
+   * pointsAtQaRecursive 는 `__dirname` 도 신호로 추가한다 — 이 규칙은 관할이 docs/qa/** 로
+   * 고정된 이 재귀 스캔에만 적용한다(G3_ROOTS 같은 범용 목록에 넣으면 tools/manual-capture/
+   * capture-desktop.js 의 무해한 `path.resolve(__dirname, 'output')` 까지 오탐한다).
+   */
+  const DOCS_QA_ROOT = path.resolve(REPO_ROOT, 'docs/qa')
+
+  function walkDocsQaJsSources(): string[] {
+    return walk(DOCS_QA_ROOT, (p) => /\.(?:js|cjs|mjs)$/.test(p))
+  }
+
+  /** H2b 전용 — 일반 G3a/H-2 의 pointsAtQa 에 `__dirname` 신호를 더한다(주석 위 설명 참조). */
+  function pointsAtQaRecursive(body: string): boolean {
+    return (
+      body.includes('docs/qa') ||
+      body.includes('__dirname') ||
+      /['"]docs['"]\s*,\s*['"]qa['"]/.test(body) ||
+      /screenshots/i.test(body)
+    )
+  }
+
+  it('H2b: docs/qa/**/*.{js,cjs,mjs} 의 캡처 목적지도 _local 격리를 거친다 (자기 자신의 형제 PNG 를 덮어쓰는 형태)', () => {
+    const files = walkDocsQaJsSources()
+    const violations: string[] = []
+    for (const file of files) {
+      const raw = fs.readFileSync(file, 'utf-8')
+      const src = stripComments(raw)
+      const decls = collectDeclarations(src)
+      const writeTargets = collectWriteTargetIdentifiers(src, decls)
+      const name = path.relative(REPO_ROOT, file).replace(/\\/g, '/')
+      for (const decl of decls) {
+        if (!pointsAtQaRecursive(decl.body)) continue
+        if (!writeTargets.has(decl.name)) continue
+        if (decl.body.includes('resolveQaShotsDir')) continue
+        violations.push(`${name} → const ${decl.name}`)
+      }
+    }
+    expect(
+      violations,
+      `docs/qa 안의 스크립트가 자기 자신이 속한 커밋 디렉토리(__dirname 포함)에 직접 쓴다 — resolveQaShotsDir() 경유 필수:\n${violations.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('스캔 대상이 실제로 잡혔다 (docs/qa JS 재귀 스캔이 빈 스캔으로 조용히 통과하는 사고 방지)', () => {
+    expect(walkDocsQaJsSources().length, 'docs/qa 안에서 .js/.cjs/.mjs 를 하나도 못 찾았다 — 경로 확인').toBeGreaterThan(10)
+  })
+
+  it('MH1 대조군 — __dirname 기반 쓰기 목적지는 pointsAtQaRecursive 에서만 잡힌다 (sp-09/sp-d1 계열 fix 전 실제 형태)', () => {
+    const src = ['const HERE = __dirname;', 'const png = path.join(HERE, `${slug}.png`);', 'await page.screenshot({ path: png });'].join('\n')
+    const decls = collectDeclarations(src)
+    const targets = collectWriteTargetIdentifiers(src, decls)
+    const here = decls.find((d) => d.name === 'HERE')
+    expect(here, 'HERE 선언 자체를 못 찾음').toBeTruthy()
+    expect([...targets], 'HERE 가 쓰기 목적지로 안 잡힘').toContain('HERE')
+    // fix 전 RED 재현 — 기존(G3a/H-2) pointsAtQa 는 문자열 리터럴만 보므로 __dirname 만으로는
+    // 이 선언을 "docs/qa 를 가리킨다" 고 판단하지 못한다(사각의 원인 그 자체).
+    const legacyPointsAtQa =
+      (here?.body ?? '').includes('docs/qa') || /screenshots/i.test(here?.body ?? '')
+    expect(legacyPointsAtQa, 'G3a/H-2 의 기존 리터럴 매치가 __dirname 선언을 잡는다면 이 사각은 실재하지 않았다').toBe(false)
+    // fix 후 GREEN — pointsAtQaRecursive 는 __dirname 신호를 추가로 봐서 잡는다.
+    expect(pointsAtQaRecursive(here?.body ?? ''), '__dirname 신호를 추가했는데도 여전히 못 잡음').toBe(true)
+  })
+
+  it('MH1b 회귀 방지 — resolveQaShotsDir 로 이미 래핑된 선언은 위반으로 오탐하지 않는다 (capture-pr-f1.js fix 후 실제 형태)', () => {
+    const src = [
+      "const OUT_DIR = resolveQaShotsDir(path.resolve(__dirname, '..', '..', 'docs', 'qa', 'phase-10-step-12-gas-cd-vendor'));",
+      'const png = path.join(OUT_DIR, `${name}.png`);',
+      'await page.screenshot({ path: png });',
+    ].join('\n')
+    const decls = collectDeclarations(src)
+    const targets = collectWriteTargetIdentifiers(src, decls)
+    const outDir = decls.find((d) => d.name === 'OUT_DIR')
+    expect(outDir?.body ?? '').toContain('resolveQaShotsDir')
+    expect([...targets]).toContain('OUT_DIR')
+    // pointsAtQaRecursive 는 __dirname/docs/qa 신호가 다 있어 true — 그럼에도 resolveQaShotsDir
+    // 포함이라 실 검사 루프의 세 번째 필터에서 skip 된다(위반 아님).
+    expect(pointsAtQaRecursive(outDir?.body ?? ''), '__dirname·docs/qa 신호가 있는데도 pointsAtQaRecursive 가 false').toBe(true)
+  })
+
+  it('MH1c 회귀 방지 — __dirname 을 별도 변수(HERE)로 한 번 거친 뒤 resolveQaShotsDir 로 래핑해도 오탐하지 않는다 (sp-09/sp-d1 fix 후 실제 형태)', () => {
+    const src = ['const HERE = __dirname;', 'const OUT_DIR = resolveQaShotsDir(HERE);', 'const png = path.join(OUT_DIR, `${slug}.png`);', 'await page.screenshot({ path: png });'].join('\n')
+    const decls = collectDeclarations(src)
+    const writeTargets = collectWriteTargetIdentifiers(src, decls)
+    const violations: string[] = []
+    for (const decl of decls) {
+      if (!pointsAtQaRecursive(decl.body)) continue
+      if (!writeTargets.has(decl.name)) continue
+      if (decl.body.includes('resolveQaShotsDir')) continue
+      violations.push(decl.name)
+    }
+    // OUT_DIR 자체는 pointsAtQaRecursive 가 false(body 에 __dirname 리터럴이 없음, HERE 를
+    // 경유)라 1번 필터에서 이미 제외된다 — resolveQaShotsDir 절까지 갈 필요조차 없다.
+    // HERE 는 pointsAtQaRecursive 가 true(__dirname 포함) 지만 애초에 writeTargets 에 없다
+    // (html 읽기에만 쓰이고 png 쓰기 호출에는 OUT_DIR 만 등장 — sp-09 fix 의 read/write 분리
+    // 그 자체가 검증된다). 둘 다 위반 0 이 정답.
+    expect(violations, `HERE/OUT_DIR 분리 패턴이 오탐 발생: ${violations.join(', ')}`).toEqual([])
+  })
+
+  /**
+   * .py/.sh 는 JS 파서(collectDeclarations 등)를 쓸 수 없다 — G3c(.ps1) 와 동일 원칙의 경량
+   * 텍스트 휴리스틱이다(완전한 파서가 아니라는 한계는 G3c 와 동일하게 명시한다).
+   */
+  function pyWritesEvidence(src: string): boolean {
+    // choreb-sonnet-r1/r2 의 pdf_text_check.py 류(PdfReader 로 읽기만 함)는 대상 밖으로 걸러야
+    // 오탐이 없다 — 실제 PNG/이미지 저장 호출이 있는 스크립트만 검사한다.
+    return /\.save\(|savefig\(/.test(src)
+  }
+
+  it('스캔 대상이 실제로 잡혔다 (docs/qa .py 스캔이 빈 스캔으로 조용히 통과하는 사고 방지)', () => {
+    const pyFiles = walk(DOCS_QA_ROOT, (p) => p.endsWith('.py'))
+    expect(pyFiles.length, 'docs/qa 안에서 .py 를 하나도 못 찾았다 — 경로 확인').toBeGreaterThanOrEqual(4)
+    const writers = pyFiles.filter((f) => pyWritesEvidence(fs.readFileSync(f, 'utf-8')))
+    expect(writers.length, 'PNG 를 저장하는 .py 가 0건 — pyWritesEvidence 필터가 전부 걸렀다면 아래 H2-py 는 항상 무의미하게 GREEN 이다').toBeGreaterThanOrEqual(2)
+  })
+
+  it('H2-py: docs/qa 의 PNG 를 저장하는 .py 스크립트도 _local 격리 마커가 있다', () => {
+    const files = walk(DOCS_QA_ROOT, (p) => p.endsWith('.py'))
+    const violations: string[] = []
+    for (const file of files) {
+      const src = fs.readFileSync(file, 'utf-8')
+      if (!pyWritesEvidence(src)) continue
+      if (src.includes('_local') || src.includes('QA_SHOTS_DIR') || src.includes('resolve_qa_shots_dir')) continue
+      violations.push(path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
+    }
+    expect(
+      violations,
+      `PNG 를 저장하는 .py 스크립트가 _local 격리 마커(resolve_qa_shots_dir/QA_SHOTS_DIR) 없이 커밋 경로에 직접 쓴다:\n${violations.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('MH3 — pyWritesEvidence 는 read-only PDF 검사 스크립트를 오탐하지 않는다 (choreb-sonnet-r1/r2 대조군, fix 전 gen_pngs.py 실제 형태로 RED 재현)', () => {
+    const readOnly = ['from pypdf import PdfReader', 'def extract_text(p):', '    return PdfReader(str(p)).pages[0].extract_text()'].join('\n')
+    expect(pyWritesEvidence(readOnly), 'PdfReader 읽기 전용 스크립트가 쓰기 위험으로 오판됨(오탐)').toBe(false)
+    const writerFixedFormat = "img.save(f'{OUT}/01-daily-closing-screen.png')" // sp-08-6-5 실제 형태
+    expect(pyWritesEvidence(writerFixedFormat), 'img.save() 가 쓰기 위험으로 인식되지 않음(RED 원인)').toBe(true)
+    const writerConvertFormat = "img1.convert('RGB').save(os.path.join(OUT_DIR, '01-x.png'), 'PNG')" // sp-08-6-3 실제 형태
+    expect(pyWritesEvidence(writerConvertFormat), '.convert().save() 체이닝이 쓰기 위험으로 인식되지 않음(RED 원인)').toBe(true)
+  })
+
+  it('스캔 대상이 실제로 잡혔다 (docs/qa .sh 스캔이 빈 스캔으로 조용히 통과하는 사고 방지)', () => {
+    const shFiles = walk(DOCS_QA_ROOT, (p) => p.endsWith('.sh'))
+    expect(shFiles.length, 'docs/qa 안에서 .sh 를 하나도 못 찾았다 — 경로 확인').toBeGreaterThanOrEqual(1)
+  })
+
+  it('H2-sh: docs/qa 의 .sh 스크립트도 _local 격리 마커가 있다', () => {
+    const files = walk(DOCS_QA_ROOT, (p) => p.endsWith('.sh'))
+    const violations: string[] = []
+    const outAssign = /\bOUT="[^"]*docs\/qa[^"]*"/
+    for (const file of files) {
+      const src = fs.readFileSync(file, 'utf-8')
+      if (!outAssign.test(src)) continue
+      if (src.includes('_local') || src.includes('QA_SHOTS_DIR') || src.includes('resolve_qa_shots_dir')) continue
+      violations.push(path.relative(REPO_ROOT, file).replace(/\\/g, '/'))
+    }
+    expect(
+      violations,
+      `docs/qa 커밋 경로를 직접 가리키는 OUT= 을 가진 .sh 스크립트가 _local 격리 마커 없이 있다:\n${violations.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('MH4 대조군 — OUT="...docs/qa..." 하드코딩을 잡는다 (dev-menu-dev2/backend-qa.sh fix 전 실제 형태로 RED 재현)', () => {
+    const src = ['OUT="C:/dev/Samhan-Public/docs/qa/dev-menu-dev2"', 'mkdir -p "$OUT"'].join('\n')
+    const outAssign = /\bOUT="[^"]*docs\/qa[^"]*"/
+    expect(outAssign.test(src), 'OUT= 하드코딩 커밋 경로 패턴이 안 잡힘(RED 원인)').toBe(true)
+    const fixed = ['SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"', 'source "$SCRIPT_DIR/../../../scripts/lib/qa-shots-dir.sh"', 'OUT="$(resolve_qa_shots_dir "$SCRIPT_DIR")"'].join('\n')
+    expect(fixed.includes('resolve_qa_shots_dir'), 'fix 후 형태에 resolve_qa_shots_dir 마커가 없음').toBe(true)
   })
 })

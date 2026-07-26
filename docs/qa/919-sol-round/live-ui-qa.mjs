@@ -1,9 +1,11 @@
 import { chromium } from 'file:///D:/dev/Samhan-Public/.claude/worktrees/907-merge/clients/desktop/node_modules/playwright/index.mjs'
 import path from 'node:path'
 import process from 'node:process'
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.mjs'
 
 const baseUrl = 'http://127.0.0.1:5441'
-const outputDir = path.resolve('docs/qa/919-sol-round')
+// _local 격리(2026-07-27 하네스 흡수 H2 — override 자체가 없어 재실행마다 커밋 증거를 덮어썼다).
+const outputDir = resolveQaShotsDir(path.resolve('docs/qa/919-sol-round'))
 const password = process.env.QA_DEV_MASTER_PASSWORD
 const ledgerOnly = process.argv.includes('--ledger-only')
 

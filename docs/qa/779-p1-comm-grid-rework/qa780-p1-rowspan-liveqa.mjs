@@ -7,8 +7,14 @@
 // 실행: 실 order-app dev server(:5195, VITE_API_BASE_URL=http://localhost:8080/api/v1, mock 없음)
 //       + 실 partner-auth-service(bizNo 2118712345 / PIN 1234) + 실 partner-order/product-service.
 import { chromium } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.mjs';
 
-const OUT = process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/779-p1-comm-grid-rework';
+const _dirname = path.dirname(fileURLToPath(import.meta.url));
+// _local 격리(2026-07-27 하네스 흡수 H2 — 기존 QA_OUT 기본값이 커밋 경로를 직접 가리켰다.
+// QA_SHOTS_DIR 로 통일한다).
+const OUT = resolveQaShotsDir(_dirname);
 const URL = process.env.QA_URL || 'http://localhost:5195/';
 
 const ODU_A = 'QA779-P1-ODU-A';

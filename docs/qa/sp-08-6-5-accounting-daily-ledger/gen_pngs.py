@@ -1,8 +1,14 @@
 from PIL import Image, ImageDraw
 import os
+import sys
 
-OUT = '/c/dev/SamhanLogis/docs/qa/sp-08-6-5-accounting-daily-ledger/screenshots'
-os.makedirs(OUT, exist_ok=True)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_HERE, '..', '..', '..', 'scripts', 'lib'))
+from qa_shots_dir import resolve_qa_shots_dir  # noqa: E402
+
+# _local 격리(2026-07-27 하네스 흡수 H2 — 기존 하드코딩 절대경로('/c/dev/SamhanLogis/...')는
+# 2026-06-06 rename 이전 이름이라 이미 무효했고, 유효했다 해도 커밋 경로를 직접 가리켰다).
+OUT = resolve_qa_shots_dir(os.path.join(_HERE, 'screenshots'))
 
 W, H = 1280, 900
 BG = (245, 247, 250)

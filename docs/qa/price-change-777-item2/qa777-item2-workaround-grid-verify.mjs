@@ -7,8 +7,13 @@
 // 실제로 정확히 동작하는지 별도 확인한다. 가격/구성 데이터는 100% 실 DB 시드 그대로,
 // 조작 없음 — 오직 참조 버그 1줄만 우회.
 import { chromium } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.mjs';
 
-const OUT = 'C:/dev/Samhan-Public/docs/qa/price-change-777-item2';
+const _dirname = path.dirname(fileURLToPath(import.meta.url));
+// _local 격리(2026-07-27 하네스 흡수 H2 — override 자체가 없어 재실행마다 커밋 증거를 덮어썼다).
+const OUT = resolveQaShotsDir(_dirname);
 const URL = 'http://localhost:5185/';
 const SET_MODEL = 'QA777-COMM-SET-01';
 const PART_MODEL = 'QA777-COMM-PART-01';

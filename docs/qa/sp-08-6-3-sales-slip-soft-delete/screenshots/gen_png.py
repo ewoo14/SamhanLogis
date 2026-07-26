@@ -1,8 +1,14 @@
 """SP-08-6-3 QA PNG 4장 생성 스크립트 (Malgun Gothic 폴백 포함)."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os
+import sys
 
-OUT_DIR = os.path.dirname(__file__)
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(_HERE, '..', '..', '..', '..', 'scripts', 'lib'))
+from qa_shots_dir import resolve_qa_shots_dir  # noqa: E402
+
+# _local 격리(2026-07-27 하네스 흡수 H2 — 기존 기본값이 자기 자신의 형제 PNG 를 직접 덮어썼다).
+OUT_DIR = resolve_qa_shots_dir(_HERE)
 
 # Color tokens
 WHITE = (255, 255, 255)

@@ -19,10 +19,16 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { execSync } = require('node:child_process');
+const { resolveQaShotsDir } = require('../../scripts/lib/qa-shots-dir.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MANUAL_DIR = path.join(ROOT, 'docs', 'manual');
-const SCREENSHOTS_DIR = path.join(MANUAL_DIR, 'screenshots');
+// _local 격리(2026-07-27 하네스 흡수 H1). fs.copyFileSync() 도 "쓰기 호출" 이라 커밋된
+// docs/manual/screenshots 를 직접 덮어쓸 수 있다(가드가 이전까지 못 잡던 형태 — 기존
+// 정규식이 .screenshot/.pdf/writeFileSync/appendFileSync/mkdirSync/.saveAs 만 인식했다).
+// 기본 실행은 docs/manual/screenshots/_local/ 로 복사하고, 실제 매뉴얼을 갱신하려면
+// QA_SHOTS_DIR 로 docs/manual/screenshots 자체를 명시적으로 opt-in 해야 한다.
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.join(MANUAL_DIR, 'screenshots'));
 const OUTPUT_DIR = path.join(__dirname, 'output');
 const PLACEHOLDER = path.join(OUTPUT_DIR, '_placeholder-screenshot-pending.png');
 
@@ -179,8 +185,13 @@ function copyFile(src, dest) {
     if (!fs.existsSync(captured)) {
       // capture 실패 → 모든 매뉴얼 path 에 placeholder
       for (const mp of manualPaths) {
-        const dest = path.join(SCREENSHOTS_DIR, mp);
-        copyFile(PLACEHOLDER, dest);
+        // destPath(외부 변수)와 copyFile(src, dest) 의 dest(함수 인자)는 별개 스코프지만
+        // 가드(harness-false-green-guard.test.ts)의 정적 스캐너는 스코프를 모르고 "같은
+        // 이름의 식별자" 로만 매칭한다 — 동명이라 SCREENSHOTS_DIR 경유(안전)인 이 변수까지
+        // "쓰기 목적지 미검증"으로 오탐했다(2026-07-27 H1/H2 흡수 라운드 실측). 이름을
+        // 분리해 오탐을 없앤다(로직 변경 없음).
+        const destPath = path.join(SCREENSHOTS_DIR, mp);
+        copyFile(PLACEHOLDER, destPath);
         fromPlaceholder.push({ manual: mp, reason: `capture id "${captureId}" 산출 실패` });
       }
       continue;
@@ -190,8 +201,8 @@ function copyFile(src, dest) {
       continue;
     }
     for (const mp of manualPaths) {
-      const dest = path.join(SCREENSHOTS_DIR, mp);
-      copyFile(captured, dest);
+      const destPath = path.join(SCREENSHOTS_DIR, mp);
+      copyFile(captured, destPath);
       fromCapture.push({ manual: mp, captureId });
     }
   }
@@ -199,9 +210,9 @@ function copyFile(src, dest) {
   // 3) 누락된 매뉴얼 image — placeholder 폴백
   const filled = new Set([...fromCapture.map((x) => x.manual), ...fromPlaceholder.map((x) => x.manual)]);
   for (const ref of manualRefs) {
-    const dest = path.join(SCREENSHOTS_DIR, ref);
-    if (!fs.existsSync(dest)) {
-      copyFile(PLACEHOLDER, dest);
+    const destPath = path.join(SCREENSHOTS_DIR, ref);
+    if (!fs.existsSync(destPath)) {
+      copyFile(PLACEHOLDER, destPath);
       fromPlaceholder.push({ manual: ref, reason: 'CAPTURE_MAP 매핑 없음' });
     } else if (!filled.has(ref)) {
       // 이미 다른 PR 에서 만든 PNG 존재 — skip (덮어쓰지 않음)
@@ -234,7 +245,11 @@ function copyFile(src, dest) {
   }
   console.log(`\n매뉴얼 image link 검증: ${manualRefs.length - missing}/${manualRefs.length} 존재`);
 
-  console.log('\n[done] sync 완료. PR 에 docs/manual/screenshots/ 변경 commit 필요.');
+  if (process.env.QA_SHOTS_DIR) {
+    console.log(`\n[done] sync 완료 → ${SCREENSHOTS_DIR} (QA_SHOTS_DIR opt-in). PR 에 docs/manual/screenshots/ 변경 commit 필요.`);
+  } else {
+    console.log(`\n[done] sync 완료 → ${SCREENSHOTS_DIR} (_local, 커밋 대상 아님). 실제 매뉴얼을 갱신하려면 QA_SHOTS_DIR=docs/manual/screenshots 로 재실행.`);
+  }
 })().catch((err) => {
   console.error(err);
   process.exit(1);

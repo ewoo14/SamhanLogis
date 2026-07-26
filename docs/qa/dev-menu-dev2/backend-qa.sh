@@ -2,8 +2,11 @@
 set -uo pipefail
 GW=http://127.0.0.1:8080
 SCR="C:/Users/user/AppData/Local/Temp/claude/C--dev-Samhan-Public/041c1826-13c2-4f84-96a4-45004098b316/scratchpad"
-OUT="C:/dev/Samhan-Public/docs/qa/dev-menu-dev2"
-mkdir -p "$OUT"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../../scripts/lib/qa-shots-dir.sh"
+# _local 격리(2026-07-27 하네스 흡수 H2 — 기존 하드코딩 절대경로가 커밋된 backend-real-qa.md 를
+# 직접 가리켰다. resolve_qa_shots_dir 가 mkdir -p 도 겸한다).
+OUT="$(resolve_qa_shots_dir "$SCRIPT_DIR")"
 EV="$OUT/backend-real-qa.md"
 
 log(){ echo "$@" | tee -a "$EV"; }

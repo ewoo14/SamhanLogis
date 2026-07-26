@@ -38,17 +38,19 @@ const { chromium } = require('playwright')
 const sharp = require('sharp')
 const path = require('node:path')
 const fs = require('node:fs')
+const { resolveQaShotsDir } = require('../../scripts/lib/qa-shots-dir.cjs')
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:5173'
 const ENTRY_PATH = '/src/renderer/index.html'
-const OUT_ROOT = path.resolve(
+// _local 격리(2026-07-27 하네스 흡수 H1 — 2026-07-26 G3 라운드와 동일 계약).
+const OUT_ROOT = resolveQaShotsDir(path.resolve(
   __dirname,
   '..',
   '..',
   'docs',
   'manual',
   'screenshots',
-)
+))
 const SAMPLE_ONLY = process.env.SAMPLE_ONLY === '1'
 
 /**

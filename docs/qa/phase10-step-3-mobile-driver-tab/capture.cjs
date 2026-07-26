@@ -15,8 +15,11 @@
 const path = require('path');
 const fs = require('fs');
 const { chromium } = require('playwright');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
 
-const DIR = __dirname;
+const SRC_DIR = __dirname; // .html mockup 원본 — 읽기 전용, 항상 커밋된 디렉토리
+// _local 격리(2026-07-27 하네스 흡수 H2 — 산출 PNG 는 SRC_DIR 와 분리해 기본 _local/ 로 쓴다).
+const DIR = resolveQaShotsDir(SRC_DIR);
 const FILES = [
   '1-driver-dashboard-screen',
   '2-gps-permission-flow',
@@ -28,7 +31,7 @@ const FILES = [
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   for (const name of FILES) {
-    const html = path.join(DIR, `${name}.html`);
+    const html = path.join(SRC_DIR, `${name}.html`);
     const png = path.join(DIR, `${name}.png`);
     const url = 'file://' + html.replace(/\\/g, '/');
     await page.goto(url, { waitUntil: 'networkidle' });

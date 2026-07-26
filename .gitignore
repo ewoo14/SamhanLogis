@@ -52,6 +52,11 @@ dist-ssr/
 .turbo/
 .parcel-cache/
 
+# ----- Python ----- (2026-07-27 하네스 흡수 H2 — docs/qa/**/*.py PNG 생성 스크립트가
+# scripts/lib/qa_shots_dir.py 를 import 하면서 실행할 때마다 __pycache__/*.pyc 가 생긴다)
+__pycache__/
+*.pyc
+
 # ----- Env -----
 .env
 .env.local
