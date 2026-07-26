@@ -35,6 +35,10 @@ type BankRow = {
   externalRef: string
   matchStatus: 'UNREFLECTED' | 'REFLECTED' | 'FORCED'
   matchedPartnerCode: string | null
+  // #897 I-B2 값 대조용 — BankTransactionResponse(BE) 원문 그대로, 상세 패널 전용 필드.
+  cardName?: string | null
+  approvalId?: string | null
+  loanName?: string | null
 }
 
 let master: Auth
@@ -233,6 +237,15 @@ async function tableGeometry(page: Page) {
   })
 }
 
+/**
+ * `<dl>` 안에서 dtLabel 과 정확히 일치하는 dt 바로 다음 dd(값)를 찾는다(그리드 배치라도 DOM 상
+ * 인접 형제) — 877-pm-cgate-real-qa/bank-txn-columns-real-qa.spec.ts·codef-fe-bc2.spec.ts 와
+ * 동일 헬퍼(I-B2 값 대조 — 존재/개수가 아니라 dd 텍스트를 실 API 값과 직접 비교).
+ */
+function detailFieldValue(detail: import('@playwright/test').Locator, dtLabel: string) {
+  return detail.locator(`xpath=.//dt[normalize-space(text())="${dtLabel}"]/following-sibling::dd[1]`)
+}
+
 test.describe.serial('#877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검증', () => {
   test.beforeAll(async ({ playwright }) => {
     const req = await playwright.request.newContext()
@@ -402,15 +415,60 @@ test.describe.serial('#877 CODEX SOL 5.6 2차 — 실 사용자 경로 적대검
         expect(headers.includes('매칭상태'), `${source.key}/${status.key} 상태 열 조건`).toBe(status.key === 'ALL')
         if (source.key !== 'ALL' && expected.length > 0) expect(uniqueSources).toEqual([source.key])
         if (status.key !== 'ALL' && expected.length > 0) expect(uniqueStatuses).toEqual([status.key])
-        if (source.key === 'CODEF_CARD') {
-          expect(headers).toContain('법인카드')
-          expect(headers).toContain('승인번호')
-        } else {
-          expect(headers).not.toContain('법인카드')
-          expect(headers).not.toContain('승인번호')
+        // #897(2f67d29bd) 컬럼 계층화로 법인카드/승인번호/대출명은 어느 소스 탭에서도
+        // columnheader 로 존재하지 않는다(BankTransactionDetailPanel 전용 이동 확정 —
+        // 되돌리면 회귀). 카드/대출 탭에서 여전히 columnheader 를 기대하던 구 단정은
+        // 실 서버 기준 드리프트였다(877-pm-cgate-real-qa/bank-txn-columns-real-qa.spec.ts,
+        // codef-fe-bc2.spec.ts 와 동일 판단).
+        expect(headers, `${source.key}/${status.key} 법인카드가 columnheader 로 남아있음(#897 회귀)`).not.toContain('법인카드')
+        expect(headers, `${source.key}/${status.key} 승인번호가 columnheader 로 남아있음(#897 회귀)`).not.toContain('승인번호')
+        expect(headers, `${source.key}/${status.key} 대출명이 columnheader 로 남아있음(#897 회귀)`).not.toContain('대출명')
+
+        // I-B2 값 대조 — "카드 탭에는 카드 고유 정보가, 대출 탭에는 대출 고유 정보가 표시되고
+        // 서로 섞이지 않는다"는 이 스펙의 원래 업무 사실을 상세 패널 경로로 확인한다. 카드/대출
+        // 탭 각 1회(상태=전체 — sourceCounts 실측으로 CARD 60/LOAN 40 존재 보장)만 열어
+        // allRows(이미 실 서버 응답) 의 참값과 dd 텍스트를 직접 비교한다(존재/개수 확인이 아님).
+        // 반대 탭 필드가 섞여 표시되지 않는지도 함께 확인한다(카드 행 상세의 대출명, 대출 행
+        // 상세의 법인카드/승인번호는 반드시 '—').
+        if (source.key === 'CODEF_CARD' && status.key === 'ALL') {
+          const cardRow = expected.find((row) => row.cardName && row.approvalId)
+          expect(cardRow, 'CODEF_CARD 실 행 중 법인카드·승인번호가 모두 채워진 행이 없음 — I-B2 값 대조 불가(RED)').toBeTruthy()
+
+          const toggle = page.getByTestId(`bank-transaction-detail-toggle-${cardRow!.externalRef}`).first()
+          await expect(toggle, `카드 실 행(${cardRow!.externalRef}) 토글을 찾을 수 없음 — I-B2 도달 불가(RED)`).toBeVisible({ timeout: 15_000 })
+          await toggle.click()
+          const detail = page.getByTestId(`bank-transaction-detail-${cardRow!.externalRef}`).first()
+          await expect(detail, 'I-B2 위반 — 카드 탭 상세 패널이 열리지 않음(법인카드/승인번호 도달 불가)').toBeVisible({ timeout: 10_000 })
+
+          await expect(
+            detailFieldValue(detail, '법인카드'),
+            `I-B2 위반 — 상세 패널 법인카드 값이 실 API 값(${cardRow!.cardName})과 다름`,
+          ).toContainText(cardRow!.cardName as string)
+          await expect(
+            detailFieldValue(detail, '승인번호'),
+            `I-B2 위반 — 상세 패널 승인번호 값이 실 API 값(${cardRow!.approvalId})과 다름`,
+          ).toContainText(cardRow!.approvalId as string)
+          await expect(detailFieldValue(detail, '대출명'), '카드 행 상세에 대출명이 섞여 표시됨(#897 회귀)').toHaveText('—')
+          await toggle.click()
         }
-        if (source.key === 'CODEF_LOAN') expect(headers).toContain('대출명')
-        else expect(headers).not.toContain('대출명')
+        if (source.key === 'CODEF_LOAN' && status.key === 'ALL') {
+          const loanRow = expected.find((row) => row.loanName)
+          expect(loanRow, 'CODEF_LOAN 실 행 중 대출명이 채워진 행이 없음 — I-B2 값 대조 불가(RED)').toBeTruthy()
+
+          const toggle = page.getByTestId(`bank-transaction-detail-toggle-${loanRow!.externalRef}`).first()
+          await expect(toggle, `대출 실 행(${loanRow!.externalRef}) 토글을 찾을 수 없음 — I-B2 도달 불가(RED)`).toBeVisible({ timeout: 15_000 })
+          await toggle.click()
+          const detail = page.getByTestId(`bank-transaction-detail-${loanRow!.externalRef}`).first()
+          await expect(detail, 'I-B2 위반 — 대출 탭 상세 패널이 열리지 않음(대출명 도달 불가)').toBeVisible({ timeout: 10_000 })
+
+          await expect(
+            detailFieldValue(detail, '대출명'),
+            `I-B2 위반 — 상세 패널 대출명 값이 실 API 값(${loanRow!.loanName})과 다름`,
+          ).toContainText(loanRow!.loanName as string)
+          await expect(detailFieldValue(detail, '법인카드'), '대출 행 상세에 법인카드가 섞여 표시됨(#897 회귀)').toHaveText('—')
+          await expect(detailFieldValue(detail, '승인번호'), '대출 행 상세에 승인번호가 섞여 표시됨(#897 회귀)').toHaveText('—')
+          await toggle.click()
+        }
         await shot(page, `combo-${source.slug}-${status.slug}`, false)
       }
     }
