@@ -14,6 +14,7 @@ import {
   coeditLinesToEditLines,
   computeDetailQuantityChange,
   computeDetailUnitPriceChange,
+  computeDetailVatChange,
   detailAmountDocWrites,
   detailAmountState,
   detailVatLine,
@@ -57,25 +58,34 @@ const serverLines = [
 
 const knownServerLineIds = toServerLineIdSet(serverLines)
 
-describe('SlipDetailPage — 수정 화면 단가 라벨 의미 계약', () => {
-  it('정상 라인은 VAT 제외, authoritative 라인은 입력값 보존에 맞춰 VAT 포함으로 표시한다', () => {
+describe('SlipDetailPage — 수정 화면 단가 라벨 의미 계약 (재수렴 R-1 근본수정 반영)', () => {
+  // 🚨 이 describe 는 원래 unitPrice/unitPriceWithVat 비교로 행마다 다른 라벨을 매기는
+  // 것을 "정상"으로 단언했다 — 그 자체가 #937 R-1 결함(라벨과 실제 계산 불일치)이었다.
+  // 실제 계산({@link computeDetailUnitPriceChange}/{@link computeDetailQuantityChange})은
+  // 두 컬럼 값과 무관하게 예외 없이 PRICE 권위(VAT 포함)이므로, 라벨도 데이터에 의존하지
+  // 않는 상수여야 한다(V1). 아래는 그 불변식에 맞춘 갱신이다 — "안 고쳤고 괜찮다" 판정이
+  // 아니라 근본수정이 뒤집은 스펙이다.
+  it('unitPrice/unitPriceWithVat 값과 무관하게 항상 "단가(VAT포함)" 이다 — 실제 계산이 항상 PRICE 권위이므로', () => {
     expect(editUnitPriceLabel({ unitPrice: '10000', unitPriceWithVat: '11000' }))
-      .toBe('단가(VAT제외)')
+      .toBe('단가(VAT포함)')
     expect(editUnitPriceLabel({ unitPrice: '11000', unitPriceWithVat: '11000' }))
+      .toBe('단가(VAT포함)')
+    expect(editUnitPriceLabel({ unitPrice: '10000', unitPriceWithVat: null }))
       .toBe('단가(VAT포함)')
   })
 
-  it('행이 하나의 단가 도메인이면 그 라벨을, 섞이면 행별 기준을 헤더에 표시한다', () => {
+  it('헤더도 행 구성과 무관하게 항상 "단가(VAT포함)" 이다 — 더 이상 행별로 갈릴 수 없다(라벨이 상수이므로)', () => {
     expect(editUnitPriceColumnHeader([
       { unitPrice: '10000', unitPriceWithVat: '11000' },
-    ])).toBe('단가(VAT제외)')
+    ])).toBe('단가(VAT포함)')
     expect(editUnitPriceColumnHeader([
       { unitPrice: '11000', unitPriceWithVat: '11000' },
     ])).toBe('단가(VAT포함)')
     expect(editUnitPriceColumnHeader([
       { unitPrice: '10000', unitPriceWithVat: '11000' },
       { unitPrice: '11000', unitPriceWithVat: '11000' },
-    ])).toBe('단가(행별 VAT 기준)')
+    ])).toBe('단가(VAT포함)')
+    expect(editUnitPriceColumnHeader([])).toBe('단가(VAT포함)')
   })
 })
 
@@ -962,5 +972,195 @@ describe('SlipDetailPage — 수량 입력 거부 규칙 (E-2, #937 R2, F2·F3)'
     // LineRow.tsx 는 이 PR 의 변경 금지 대상(적대검증 각도 ②, 바이트 단위 0)이라 그 인라인
     // 게이트를 import 할 수 없다 — 소스에 그 정규식이 여전히 그대로 있는지만 대조한다.
     expect(lineRowSource).toContain('if (!/^\\d*$/.test(e.target.value)) return')
+  })
+})
+
+/**
+ * 재수렴 라운드 R-1(#937) — RED-first.
+ *
+ * <p>1차 fix(#937 R1, {@code 1041bad17})는 계산을 SUPPLY 에서 PRICE 권위로 옮겨 생성 화면과
+ * 정렬했다({@link computeDetailUnitPriceChange}/{@link computeDetailQuantityChange} 모두 예외
+ * 없이 PRICE 하나만 쓴다) — 그러나 {@link editUnitPriceLabel}/{@link editUnitPriceColumnHeader}
+ * 는 옛 SUPPLY 계약(unitPrice vs unitPriceWithVat 비교) 위에 세워진 채 그대로 남았다. 실 DB
+ * 인구조사: 활성 slip_lines 2,709 중 unitPrice≠unitPriceWithVat 2,698(99.6%), 그중 수정 가능
+ * DRAFT 2,164건 — 전부 "단가(VAT제외)" 라벨로 열리는데, 그 라벨의 약속(공급가액=단가×수량)과
+ * 실제 계산(공급가액=VAT 포함 합계에서 분리)이 어긋난다. 단가를 전혀 건드리지 않고 수량만
+ * 바꿔도 발생한다(재현 B).
+ *
+ * <p>근본수정 전 RED(이 describe 추가 시점 그대로 실행 — 원문은 dev 보고 참조): 첫 테스트가
+ * `expected '272727' to be '300000'`(공급가액) 로 실패한다 — 라벨이 약속한 값과 실제 화면이
+ * 보여줄 값이 다르다는 뜻이다.
+ */
+describe('SlipDetailPage — 단가 라벨의 약속과 실제 계산 일치 (재수렴 R-1, RED-first)', () => {
+  it('헤더/aria-label 이 말하는 VAT 도메인과, 수량만 바꿔도 실제 적용되는 도메인이 항상 같다', () => {
+    // 실 DB 다수(활성 라인 99.6%)를 대표: unitPrice(단가)와 unitPriceWithVat(서버 원본)가 다르다.
+    const line = { quantity: 2, unitPrice: '100000', unitPriceWithVat: '110000' }
+    const label = editUnitPriceLabel(line)
+    expect(editUnitPriceColumnHeader([line])).toBe(label) // 단일 라인 — 행별 라벨과 헤더가 같아야 함
+
+    // 단가는 손대지 않고 수량만 2→3으로 바꾼다 — 사용자 눈에는 "단가 열"을 전혀 건드리지 않은 편집이다.
+    const patch = computeDetailQuantityChange({ quantity: line.quantity, unitPrice: line.unitPrice }, '3')
+
+    // 라벨의 약속을 그대로 재현한다: "VAT제외"라면 단가×수량이 공급가액 그 자체(분리 없음),
+    // "VAT포함"이라면 단가×수량이 VAT 포함 합계이고 공급가액은 거기서 분리한 값(생성 화면과
+    // 동일한 recalculateLineVat PRICE 분기 — 같은 함수로 "정답"을 재현해 이중 유지보수를 피한다).
+    const promisedSupply = label === '단가(VAT제외)'
+      ? String(Number(line.unitPrice) * 3)
+      : recalculateLineVat(
+          { quantity: 3, unitPrice: line.unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+          'PRICE',
+        ).supplyAmount
+
+    expect(patch.supplyAmount).toBe(promisedSupply)
+  })
+
+  it('단가를 직접 편집해도 라벨의 약속과 실제 계산이 같다(단가 편집 축도 함께 대조)', () => {
+    const line = { quantity: 2, unitPrice: '100000', unitPriceWithVat: '110000' }
+    const label = editUnitPriceLabel(line)
+
+    // 직전 단가(999999)는 의도적으로 무관한 값 — 결과가 "새 입력값"에만 좌우됨을 함께 확인한다.
+    const patch = computeDetailUnitPriceChange({ quantity: 2, unitPrice: '999999' }, '80000')
+
+    const promisedSupply = label === '단가(VAT제외)'
+      ? String(2 * 80000)
+      : recalculateLineVat(
+          { quantity: 2, unitPrice: '80000', supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+          'PRICE',
+        ).supplyAmount
+
+    expect(patch.supplyAmount).toBe(promisedSupply)
+  })
+
+  it('V3 — 편집 중에도 저장 후 재열기에도 라벨이 뒤집히지 않는다(우연히 두 컬럼이 같아진 라인도 동일 라벨)', () => {
+    // #937 R-1 부수 증상: 입력값이 저장된 unitPriceWithVat 와 우연히 같아지는 순간 라벨이
+    // 뒤집혔다("단가(VAT제외)" → "단가(VAT포함)"). 저장 전/후 두 상태를 대조해 라벨이
+    // 데이터에 의존하지 않는 상수임을 확인한다.
+    const beforeSave = { unitPrice: '100000', unitPriceWithVat: '110000' } // 흔한 케이스(불일치, 99.6%)
+    const afterSave = { unitPrice: '100000', unitPriceWithVat: '100000' } // 저장 후 재열기(우연 일치)
+
+    expect(editUnitPriceLabel(beforeSave)).toBe(editUnitPriceLabel(afterSave))
+  })
+})
+
+/**
+ * 재수렴 라운드 R-2(#937) — RED-first.
+ *
+ * <p>생성 화면({@code SlipFormPage.tsx:464})은 렌더 시점에 {@code line.vatWarning}
+ * (={@code lineVat.ts} {@code fromAmounts} 가 PRICE 권위에서 이미 false 로 닫아 저장해 둔 값)을
+ * 그대로 쓴다. 수정 화면은 그 저장값을 쓰지 않고 렌더마다 {@code hasVatWarning}(supply, vat)를
+ * 독립적으로 다시 계산했다(SlipDetailPage.tsx 옛 :2553/:2867) — PRICE 권위의 공급가액 분리
+ * (÷1.1, 0 방향 절사)와 hasVatWarning 의 "공급가액의 10%"(별도 절사) 기대치가 서로 다른
+ * 반올림 공식이라, 앱이 방금 스스로 계산해 자체 정의상 맞는 값에도 반올림 경계마다 거짓
+ * 경고를 붙였다(원문 sweep: 단가 11종 중 8건 경고).
+ *
+ * <p>근본수정 전 RED: {@link computeDetailUnitPriceChange} 의 patch 에는 vatWarning 키 자체가
+ * 없어(undefined) 생성 화면의 판정(전부 false)과 다르다 — 첫 테스트가
+ * `expected [ undefined, undefined, ... ] to deeply equal [ false, false, ... ]` 로 실패한다.
+ */
+describe('SlipDetailPage — 생성/수정 화면 부가세 경고 판정 일치 (재수렴 R-2, RED-first)', () => {
+  const quantity = 2
+  // #937 R-2 원문 sweep 재현 — 단가 11종.
+  const prices = ['11111', '22222', '33333', '44444', '55555', '66666', '77777', '88888', '99999', '60000', '80000']
+
+  it('단가 11종 sweep — 두 화면의 경고 판정이 (수량,단가) 쌍마다 같다(개수 대조)', () => {
+    const createWarnings = prices.map((unitPrice) => recalculateLineVat(
+      { quantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+      'PRICE',
+    ).vatWarning)
+
+    const editWarnings = prices.map((unitPrice) => (
+      computeDetailUnitPriceChange({ quantity, unitPrice: '1' }, unitPrice).vatWarning
+    ))
+
+    // 생성 화면은 PRICE 권위에서 전부 경고 없음(fromAmounts 정의상 false)이어야 정상 기준선이다.
+    expect(createWarnings.filter(Boolean)).toHaveLength(0)
+    // RED(수정 전): patch 에 vatWarning 자체가 없어 editWarnings 전부가 undefined 다
+    // (undefined !== false). GREEN(수정 후): 생성 화면과 완전히 같은 판정(전부 false)이 된다.
+    expect(editWarnings).toEqual(createWarnings)
+  })
+
+  it('render 는 hasVatWarning 재계산이 아니라 line.vatWarning 저장값을 쓴다 — 소스 배선 확인(매출·매입 2 지점)', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    // 근본수정 전: 이 패턴(렌더의 독립 재계산)이 매출·매입 두 곳에 있었다.
+    expect(source).not.toMatch(/hasVatWarning\(line\.supplyAmount \?\? line\.lineTotalWithVat \?\? '0', line\.vatAmount\)/)
+    // 근본수정 후: 두 렌더 지점(경고 <span> 조건) 모두 저장된 판정을 그대로 읽는다 — 주석 등
+    // 다른 문맥의 우발적 문자열 일치를 배제하기 위해 실제 JSX 가드 표현식을 그대로 찾는다.
+    const vatWarningGuardCount = (
+      source.match(/line\.vatAmount != null && line\.vatWarning/g) ?? []
+    ).length
+    expect(vatWarningGuardCount).toBe(2)
+  })
+
+  /**
+   * 라이브QA 추가 발견(R-2 계열, vitest 순수함수로는 안 잡히던 결함) — CollaborativeSlipInput
+   * 은 자기 필드의 Y.Doc 값이 "직전 렌더값"과 다르면 실사용자 입력이 아니어도 onValueChange
+   * 를 다시 부른다(syncFromDoc doc-sync echo). 단가 편집(PRICE 권위)이 같은 이벤트 안에서
+   * supplyAmount/vatAmount 를 Y.Doc 에 동기 반영하면(syncDetailAmountToDoc), 아직 재렌더 전인
+   * SUPPLY/VAT 입력이 이 변화를 "자기 필드가 바뀜"으로 오인해 updateDetailVat(SUPPLY/VAT) 를
+   * 다시 호출한다 — 값은 이미 같은데도 editSlipLineAmount(SUPPLY/VAT authority, 값 무관 항상
+   * 독립 재판정)를 타면 PRICE 권위가 방금 false 로 닫은 vatWarning 을 덮어써 되살린다.
+   * vitest 는 render 를 마운트하지 않아 이 echo 자체가 발생하지 않으므로(이 파일의 순수함수
+   * 조합 관례), computeDetailVatChange 를 echo 시나리오 입력으로 직접 호출해 재현한다.
+   *
+   * <p>근본수정 전 RED: `expected { vatWarning: true, ... } to equal {}` 로 실패한다(echo 가
+   * 무변경이 아니라 재계산·vatWarning 훼손으로 처리됐다는 뜻).
+   */
+  it('doc-sync 에코 가드 — SUPPLY/VAT 셀이 이미 같은 값을 되돌려 받으면 아무것도 재계산하지 않는다(라이브QA 실측)', () => {
+    // 단가 60,000·수량 2 편집 직후의 라인 — fromAmounts(PRICE)가 이미 vatWarning:false 로 닫았다.
+    const afterPriceEdit = {
+      quantity: 2,
+      unitPrice: '60000',
+      supplyAmount: '109090',
+      vatAmount: '10910',
+      lineTotalWithVat: '120000',
+      authority: 'PRICE' as const,
+    }
+
+    // 공급가액 필드 자신의 doc-sync echo — 같은 값 '109090' 이 "변경"으로 오인되어 되돌아온다.
+    expect(computeDetailVatChange(afterPriceEdit, 'SUPPLY', '109090')).toEqual({})
+    // 부가세 필드도 동일하게 echo 될 수 있다 — 같은 값이면 마찬가지로 무변경.
+    expect(computeDetailVatChange(afterPriceEdit, 'VAT', '10910')).toEqual({})
+
+    // 대조군 — 진짜 다른 값이면(사용자가 실제로 공급가액을 직접 고치면) 정상적으로 재계산하고
+    // 그 편집만의 경고 판정(warningFor)을 낸다. echo 가드가 진짜 편집까지 삼키지 않는지 확인한다.
+    const genuineEdit = computeDetailVatChange(afterPriceEdit, 'SUPPLY', '300000')
+    expect(genuineEdit.supplyAmount).toBe('300000')
+    expect(genuineEdit.vatAmount).toBe('10910') // VAT 편집이 아니므로 기존 부가세 보존(P6)
+    expect(genuineEdit.vatWarning).toBe(true) // 300000 의 10%(30000) != 10910 — 진짜 불일치 경고
+  })
+
+  /**
+   * 라이브QA 3차 발견(R-2 계열) — 하이드레이션은 라인의 authority 를 'PRICE' 로 표시하면서도
+   * vatWarning 은 원시 DB 값에 {@code hasVatWarning}(공급가액의 10%와 다른가)을 독립 적용해
+   * PRICE 권위 자신의 정책(fromAmounts: authority==='PRICE' 는 항상 false)과 모순됐다. PRICE
+   * 권위의 실제 분리 공식(합계를 ÷1.1 로 나눈 몫/나머지)은 "공급가액×10%"와 구조적으로 잘
+   * 안 맞아떨어지므로, 저장 직후 재열기만 해도 라이브에서 거짓 경고가 떴다(단가 60,000·수량
+   * 2 저장 → 재열기 시 "⚠ 10%와 다름" — 공급 109,090 의 정확한 10%는 10,909 인데 저장된
+   * 부가세는 합계-공급가액인 10,910). 근본수정 전 RED:
+   * `expected true to be false` 로 실패한다.
+   */
+  it('하이드레이션은 authority=PRICE 와 짝을 맞춰 vatWarning 도 항상 false 다 — 저장 직후 재열기만으로 경고가 뜨면 안 된다(라이브QA 3차 발견)', () => {
+    const slip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 2,
+        unitPrice: '60000',
+        supplyAmount: '109090', // 120,000 을 PRICE 권위로 분리한 값 — 정확한 10%(10,909)와는 다른 10,910 이 부가세로 저장된다.
+        vatAmount: '10910',
+        lineTotal: '120000',
+        note: '',
+      }],
+    } as unknown as SlipDetail
+
+    const hydrated = toPurchaseEditLines(slip)[0]!
+    expect(hydrated.authority).toBe('PRICE')
+    expect(hydrated.vatWarning).toBe(false)
   })
 })

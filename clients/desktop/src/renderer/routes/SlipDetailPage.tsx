@@ -115,7 +115,6 @@ import { lookupProducts } from '../api/productApi'
 import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 import {
   editSlipLineAmount,
-  hasVatWarning,
   recalculateLineVat,
   type LineVatLine,
 } from '../utils/lineVat'
@@ -321,37 +320,51 @@ type PurchaseEditLine = SlipLineInput & {
   authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
   vatDirty?: boolean
   isBundleComponent?: boolean
+  /**
+   * 재수렴 R-2(#937) 근본수정 — 이 라인의 supplyAmount/vatAmount 를 만든 함수(fromAmounts/
+   * editSlipLineAmount) 가 이미 내린 경고 판정을 저장해 둔다. 렌더는 이 값을 그대로 읽을
+   * 뿐 다시 계산하지 않는다 — 렌더가 hasVatWarning(supply, vat) 로 독립 재계산하면, PRICE
+   * 권위의 VAT 포함 분리(÷1.1, 0 방향 절사)와 hasVatWarning 의 "공급가액의 10%"가 서로 다른
+   * 반올림 공식이라 앱이 방금 스스로 계산한 값에도 거짓 경고가 붙는다(생성 화면 SlipFormPage
+   * 는 이미 이 저장값(line.vatWarning) 을 그대로 쓴다 — 두 화면이 같은 권위를 쓰게 맞춘다).
+   */
+  vatWarning?: boolean
 }
 
 export type EditUnitPriceLabel = '단가(VAT포함)' | '단가(VAT제외)'
 
 /**
- * 전표 상세 수정 행의 단가가 어느 VAT 도메인인지 판정한다.
+ * 전표 상세 수정 행의 단가 열이 어느 VAT 도메인인지 알린다.
  *
- * 정상 전표는 unitPrice(공급단가)와 unitPriceWithVat(화면 단가)가 다르다.
- * authoritative 저장 경로는 개발책임자 결정에 따라 사용자가 입력한 단가를 두 컬럼에
- * 그대로 보존하므로 두 값이 같다. 이 경우 수정 화면도 그 저장값을 VAT 포함 단가로
- * 설명해야 같은 값에 서로 다른 사실을 붙이지 않는다.
+ * <p>재수렴 R-1(#937) 근본수정: 이 화면은 단가를 직접 편집하든({@link computeDetailUnitPriceChange})
+ * 수량만 바꾸든({@link computeDetailQuantityChange}) 예외 없이 {@link recalculateLineVat} 의
+ * PRICE 권위(단가=VAT 포함, 생성 화면과 동일 함수)로 재계산한다 — 그 사실을 우회하는 경로가
+ * 이 화면에 없다. 이전 구현은 unitPrice/unitPriceWithVat 두 컬럼이 같은지로 행마다 다른
+ * 라벨을 매겼는데, 그 비교는 "하이드레이션 시점에 두 컬럼이 우연히 같은가"만 볼 뿐 "이
+ * 화면이 이 입력에 실제로 무엇을 적용하는가"와는 무관하다 — 실제로는 항상 VAT 포함으로
+ * 계산하므로, 두 컬럼이 다른 활성 라인(실 DB 인구조사: 2,709건 중 2,698건, 99.6%)에서
+ * "단가(VAT제외)" 라벨이 실제 계산과 반대되는 세금 도메인을 사용자에게 약속했다 — 그중
+ * 수정 가능한 DRAFT 2,164건 전부가 영향을 받았고, 단가를 전혀 건드리지 않고 수량만 바꿔도
+ * 발생했다. 라벨을 데이터에 의존하지 않는 상수로 바꿔 V1(라벨=실제 계산)과 V3(편집·재열기
+ * 어느 시점에도 라벨 불변)를 함께 만족한다 — 이 화면 자신의 읽기전용 상세 헤더(고정
+ * "단가(VAT포함)")·생성 화면(SlipFormPage "단가는 부가세 포함 단가")·견적 화면
+ * (EstimateFormPage/EstimateDetailPage 의 고정 "단가(VAT포함)")과도 이제 표현이 같다.
  */
 export function editUnitPriceLabel(
-  line: Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>,
+  _line: Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>,
 ): EditUnitPriceLabel {
-  const unitPrice = Number(line.unitPrice)
-  const unitPriceWithVat = line.unitPriceWithVat == null ? Number.NaN : Number(line.unitPriceWithVat)
-  return Number.isFinite(unitPrice)
-    && Number.isFinite(unitPriceWithVat)
-    && unitPrice === unitPriceWithVat
-    ? '단가(VAT포함)'
-    : '단가(VAT제외)'
+  return '단가(VAT포함)'
 }
 
 /**
  * 여러 행이 섞인 수정 표의 공통 헤더. 행별 accessible label은 각 행의 판정값을 사용한다.
+ * {@link editUnitPriceLabel} 이 상수를 반환하므로(재수렴 R-1) 이 함수도 항상 그 상수로
+ * 수렴한다 — 빈 표 fallback 도 같은 상수로 맞춰 어떤 행 구성에서도 라벨이 갈리지 않는다.
  */
 export function editUnitPriceColumnHeader(
   lines: ReadonlyArray<Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>>,
 ): string {
-  if (lines.length === 0) return '단가(VAT제외)'
+  if (lines.length === 0) return '단가(VAT포함)'
   const first = editUnitPriceLabel(lines[0]!)
   return lines.every((line) => editUnitPriceLabel(line) === first)
     ? first
@@ -409,6 +422,15 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     lineTotalWithVat: String(
       Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     ),
+    // 재수렴 R-2(#937) — 라이브QA 2차 발견: 하이드레이션도 authority='PRICE' 로 표시하면서
+    // vatWarning 은 hasVatWarning(원시 DB 값)으로 독립 판정하면, PRICE 권위 자신의 fromAmounts
+    // 정책(authority==='PRICE' 는 항상 vatWarning:false)과 모순된다 — 실측: 저장된 라인은
+    // 거의 전부 "vat = supply 의 10%(별도 절사)"를 만족하지 못한다(PRICE 권위의 실제 분리
+    // 공식은 합계를 ÷1.1 로 쪼개는 것이지 "supply×10%" 가 아니라서, 자기 자신과 비교해도
+    // 반올림 경계마다 어긋난다) — 그 결과 방금 정책대로 저장한 라인을 재열기만 해도 거짓
+    // 경고가 떴다(저장 후 재열기 라이브 재현). authority 필드와 짝을 맞춰 PRICE 권위는 항상
+    // false 로 닫는다 — fromAmounts 의 PRICE 분기와 동일 정책(V2).
+    vatWarning: false,
     authority: 'PRICE',
     // Hydrated S/V/T are already authoritative server values. Keep them in
     // every subsequent save payload, including header-only edits.
@@ -595,6 +617,11 @@ export function coeditLinesToEditLines(
       lineTotalWithVat,
       authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
       vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
+      // 재수렴 R-2(#937): vatWarning 은 authority 와 마찬가지로 Y.Doc 에 쓰이지 않는
+      // 파생 판정값이다 — 원격 갱신을 만든 그 함수(fromAmounts/editSlipLineAmount)가 이미
+      // 내린 판정을 이전 상태에서 그대로 승계한다(재계산하지 않음, 위 authority/vatDirty 와
+      // 동일한 이유).
+      vatWarning: previous?.vatWarning ?? false,
     }
   })
 }
@@ -644,7 +671,37 @@ export function detailAmountState(
     lineTotalWithVat: result.lineTotal,
     authority,
     vatDirty: true,
+    // 재수렴 R-2(#937): editSlipLineAmount 가 이미 내린 경고 판정(warningFor)을 그대로
+    // 승계한다 — 렌더가 다시 계산하지 않는다.
+    vatWarning: result.vatWarning,
   }
+}
+
+/**
+ * 전표 상세 공급가액/부가세 셀 편집 — 재수렴 R-2(#937) 근본수정, doc-sync 에코 가드.
+ *
+ * <p>{@link CollaborativeSlipInput} 은 자기 fieldPath 의 Y.Doc 값이 "직전 렌더값"과 다르면
+ * 실사용자 입력이 아니어도 onValueChange 를 다시 부른다(syncFromDoc). 단가/수량 편집(PRICE
+ * 권위)이 같은 이벤트 안에서 {@link syncDetailAmountToDoc}로 supplyAmount/vatAmount 를 Y.Doc
+ * 에 동기 반영하면, 아직 재렌더 전이라 stale 한 SUPPLY/VAT 입력의 직전값과 새 Y.Doc 값이 달라
+ * 보여 이 함수가 echo 로 다시 호출된다. echo 를 "직접 편집"과 똑같이 처리하면, PRICE 권위가
+ * 이미 false 로 닫은 vatWarning 을 {@link editSlipLineAmount}(SUPPLY/VAT 권위 — authority 와
+ * 무관하게 항상 독립 재판정)이 덮어써 되살린다(라이브QA 실측: 단가 60,000 입력 직후 공급가액
+ * 필드 echo 가 vatWarning:false→true 로 되돌림 — 순수함수 단위 vitest 로는 재현되지 않고 실제
+ * CollaborativeSlipInput 조합에서만 드러난 결함이다).
+ *
+ * <p>불변식: 값이 이미 그 필드의 현재값과 같으면(=echo 또는 무변경 재입력) 재계산 경로 자체를
+ * 타지 않는다 — {@link computeDetailQuantityChange}/{@link computeDetailUnitPriceChange} 의
+ * no-op 가드와 동일 원칙.
+ */
+export function computeDetailVatChange(
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
+  authority: 'SUPPLY' | 'VAT',
+  value: string,
+): Partial<PurchaseEditLine> {
+  const currentValue = authority === 'SUPPLY' ? line.supplyAmount : line.vatAmount
+  if (value === String(currentValue ?? '')) return {}
+  return detailAmountState(editSlipLineAmount(detailVatLine(line), authority, value), authority)
 }
 
 /**
@@ -702,11 +759,14 @@ export function computeDetailQuantityChange(
       lineTotalWithVat: '0',
       authority: 'PRICE',
       vatDirty: true,
+      vatWarning: false,
     }
   }
 
   const unitPrice = line.unitPrice ?? '0'
-  const vatLine = recalculateLineVat(
+  // 명시 타입인자 <LineVatLine> — 리터럴에 없는 선택 필드(vatWarning 등)를 T 추론이
+  // 좁혀버리면 fromAmounts 가 실제로 채워 돌려주는 vatWarning 이 타입에서 사라진다.
+  const vatLine = recalculateLineVat<LineVatLine>(
     { quantity: safeQuantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
     'PRICE',
   )
@@ -718,6 +778,9 @@ export function computeDetailQuantityChange(
     lineTotalWithVat: vatLine.lineTotal,
     authority: 'PRICE',
     vatDirty: true,
+    // 재수렴 R-2(#937): recalculateLineVat(PRICE) 가 fromAmounts 에서 이미 내린 판정(항상
+    // false)을 그대로 승계한다 — 생성 화면과 같은 권위, 렌더는 재계산하지 않는다.
+    vatWarning: vatLine.vatWarning,
   }
 }
 
@@ -756,7 +819,8 @@ export function computeDetailUnitPriceChange(
     return { unitPrice }
   }
 
-  const vatLine = recalculateLineVat(
+  // 명시 타입인자 <LineVatLine> — 위 computeDetailQuantityChange 와 동일 이유.
+  const vatLine = recalculateLineVat<LineVatLine>(
     { quantity: line.quantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
     'PRICE',
   )
@@ -767,6 +831,10 @@ export function computeDetailUnitPriceChange(
     lineTotalWithVat: vatLine.lineTotal,
     authority: 'PRICE',
     vatDirty: true,
+    // 재수렴 R-2(#937): 생성 화면과 같은 함수(recalculateLineVat PRICE)가 이미 내린 판정을
+    // 그대로 승계한다 — 렌더가 hasVatWarning 으로 다시 계산하면 반올림 공식이 달라 거짓
+    // 경고가 생긴다(11종 sweep 실측: 8/11 거짓 경고).
+    vatWarning: vatLine.vatWarning,
   }
 }
 
@@ -2550,7 +2618,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`부가세 ${index + 1}`}
                   />
-                  {line.vatAmount != null && hasVatWarning(line.supplyAmount ?? line.lineTotalWithVat ?? '0', line.vatAmount)
+                  {line.vatAmount != null && line.vatWarning
                     ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span>
                     : null}
                 </td>
@@ -2864,7 +2932,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`부가세 ${index + 1}`}
                   />
-                  {line.vatAmount != null && hasVatWarning(line.supplyAmount ?? line.lineTotalWithVat ?? '0', line.vatAmount)
+                  {line.vatAmount != null && line.vatWarning
                     ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span>
                     : null}
                 </td>
@@ -4548,7 +4616,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     authority: 'SUPPLY' | 'VAT',
     value: string,
   ) {
-    update(index, (line) => detailAmountState(editSlipLineAmount(detailVatLine(line), authority, value), authority))
+    update(index, (line) => computeDetailVatChange(line, authority, value))
   }
 
   function updatePurchaseLine(index: number, patch: LinePatch) {
