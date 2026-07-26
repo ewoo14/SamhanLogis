@@ -112,6 +112,46 @@ function isMockGateFile(p: string): boolean {
 const ALL_PW_TS = walk(PLAYWRIGHT_DIR, (p) => p.endsWith('.ts'))
 const MOCK_GATE_TS = ALL_PW_TS.filter(isMockGateFile)
 
+/**
+ * H-1 재발(2026-07-26 1차 적대검증 A-1) — "렌더러는 항상 createHashRouter" 는 틀렸다.
+ * routes/index.tsx:1726-1727 이 하네스별로 라우터를 가른다:
+ *   const isWebDeploy = import.meta.env['VITE_PLATFORM'] === 'web'
+ *   const createPlatformRouter = isWebDeploy ? createBrowserRouter : createHashRouter
+ * · vite.config.ts(mock 게이트 + VITE_PLATFORM 미정의 real-qa 다수) → HashRouter → `#/경로` 가 정답.
+ * · vite.web.config.ts(define 으로 VITE_PLATFORM='web' 고정) → BrowserRouter → 해시는 무시되고
+ *   대시보드로 낙착 — 경로 그대로가 정답.
+ * 둘 다 Vite SPA fallback 이 "틀린 쪽" 요청에도 200(index.html)을 주므로 조용히 홈 화면에서
+ * 통과하는 게 이 함정의 핵심이다.
+ *
+ * 아래 WEB_DEPLOY_REAL_QA 는 vite.web.config.ts(BrowserRouter) 하네스를 쓴다고 각 파일 자체
+ * 근거(포트 상속·config 상속·npm 실행 커맨드 주석·845-ds2 는 docs/qa 커밋 스크린샷)로 확정된
+ * real-qa 스펙 19개다(PR #938 fix 라운드 — 1차 적대검증 A-1 블라스트 반경 정정). 그 외 전부
+ * (mock 게이트 + 나머지 real-qa 다수)는 HashRouter 하네스로 실행되는 것으로 이미 검증돼 있다
+ * (H-1a). 새 real-qa 스펙을 vite.web.config.ts 로 작성했다면 이 목록에 추가할 것 — 반대로
+ * 하네스 없이 이 목록에서 빼면 안 된다(A-1 재발과 동일 사고).
+ */
+const WEB_DEPLOY_REAL_QA = new Set<string>([
+  '773-resolvebylabel-bulk-real-qa/773-bulk-real-qa.spec.ts',
+  '773-s4-daily-closing-render-real-qa/773-s4-real-qa.spec.ts',
+  '773-s5-purchase-render-real-qa/773-s5-real-qa.spec.ts',
+  '809-price-memory-real-qa/price-memory-r2-live-real-qa.spec.ts',
+  '809-price-memory-real-qa/price-memory-r8-adversarial-real-qa.spec.ts',
+  '845-ds2-document-template-real-qa/845-ds2-real-qa.spec.ts',
+  '869-ds4-real-qa/869-ds4-real-qa.spec.ts',
+  '869-ds4-real-qa/ds4-body-layer-regression-real-qa.spec.ts',
+  '869-ds4-real-qa/ds4-r1-band-overflow-real-qa.spec.ts',
+  '869-ds4-real-qa/ds4-r2-r6-r7-detail-geometry-style-real-qa.spec.ts',
+  '869-ds4-real-qa/ds4-r4-header-band-width-basis-real-qa.spec.ts',
+  '869-ds4-real-qa/ds4-r5-activation-gate-warning-real-qa.spec.ts',
+  '869-ds4-real-qa/luna-r6-red-real-qa.spec.ts',
+  '902-slip-line-ecount-real-qa/902-amount-input-real-qa.spec.ts',
+  '902-slip-line-ecount-real-qa/902-amount-policy-real-qa.spec.ts',
+  '902-slip-line-ecount-real-qa/902-d3-roundtrip-real-qa.spec.ts',
+  '902-slip-line-ecount-real-qa/902-slip-line-ecount-real-qa.spec.ts',
+  '910-app-client-identity-real-qa/910-identity-real-qa.spec.ts',
+  '924-lookup-unavailable-real-qa/924-lookup-unavailable-real-qa.spec.ts',
+])
+
 // 스캔 대상이 실제로 잡혔는지부터 확인한다 — 경로가 어긋나 0건이면 이 가드 전체가
 // 조용히 통과하는(=또 다른 거짓 green) 사고가 나기 때문이다.
 describe('하네스 거짓 green 가드', () => {
@@ -120,14 +160,36 @@ describe('하네스 거짓 green 가드', () => {
     expect(MOCK_GATE_TS.length, 'mock 게이트 스펙을 하나도 못 찾았다 — 경로 확인').toBeGreaterThan(50)
   })
 
+  it('WEB_DEPLOY_REAL_QA 목록의 파일이 전부 실존한다 (이름 변경/삭제로 조용히 빠지는 사고 방지)', () => {
+    const allRel = new Set(ALL_PW_TS.map(rel))
+    const missing = [...WEB_DEPLOY_REAL_QA].filter((f) => !allRel.has(f))
+    expect(
+      missing,
+      `WEB_DEPLOY_REAL_QA 에 등재된 파일을 찾지 못했다(이름 변경/이동/삭제?) — 목록을 갱신할 것:\n${missing.join('\n')}`,
+    ).toEqual([])
+  })
+
   /**
-   * H-1 — 렌더러는 createHashRouter 다(routes/index.tsx). Vite SPA fallback 이 어떤 경로에도
-   * index.html 을 주므로 `${BASE_URL}/sales/new` 는 200 을 받고도 해시가 비어 홈으로 낙착한다.
+   * H-1a — HashRouter 하네스(mock 게이트 전부 + WEB_DEPLOY_REAL_QA 에 없는 real-qa) 대상 goto 는
+   * 전부 해시 경로여야 한다. `${BASE_URL}/sales/new` 는 200 을 받고도 해시가 비어 홈으로 낙착한다.
+   *
+   * 🚨 커버리지 한계(정직 신고 — 1차 적대검증 B-4) — 이 정규식은 `.goto(\`${BASE_URL}/...\`)` 템플릿
+   * 리터럴을 **직접** 쓴 경우만 잡는다. 아래는 이 가드가 못 잡는다(레포에 실제로 존재하는 형태):
+   *   · `buildUrl(...)` 헬퍼 반환값을 넘기는 goto(예: admin-hr, sidebar-disabled, audit,
+   *     development-menu-dev1~dev3, version-management-v1b — 전부 HashRouter 하네스 대상이고
+   *     함수 본문이 이미 `#` 를 반환해 현재는 정답이지만 이 가드가 검증하지 않는다)
+   *   · `` `${BASE_URL}${route}` `` (중간에 `/` 리터럴이 없는 연결) · `BASE_URL + '/x'` 문자열 연결
+   *   · `goto(변수)` — 리터럴이 아닌 변수/식을 그대로 넘기는 호출
+   *   · BASE_URL 을 거치지 않는 하드코딩 절대 URL
+   * 이 갭을 닫는 것은 별도 배치다(가드를 일반적인 정적 URL 흐름분석기로 넓히는 작업 — 위험 대비
+   * 이득이 이 fix 라운드 범위를 벗어난다). 여기서는 "못 잡으면서 잡는 척" 하지 않도록 이 사실을
+   * 명시한다.
    */
-  it('H-1: 앱 대상 goto 는 전부 해시 경로다 (${BASE_URL}/경로 형태 0건)', () => {
+  it('H-1a: 해시라우터 하네스 대상 goto 는 전부 해시 경로다 (${BASE_URL}/경로 형태 0건)', () => {
     const gotoBaseUrl = new RegExp('\\.goto\\(\\s*`\\$\\{BASE_URL\\}/(?!#)([A-Za-z0-9_\\-$]+)', 'g')
     const violations: string[] = []
     for (const file of ALL_PW_TS) {
+      if (WEB_DEPLOY_REAL_QA.has(rel(file))) continue
       const src = fs.readFileSync(file, 'utf-8')
       for (const m of src.matchAll(gotoBaseUrl)) {
         violations.push(`${rel(file)} → \${BASE_URL}/${m[1]}...`)
@@ -135,7 +197,29 @@ describe('하네스 거짓 green 가드', () => {
     }
     expect(
       violations,
-      `해시 없는 경로 goto 발견 — 해시라우터에서 홈으로 낙착한다. \`\${BASE_URL}/#/경로\` 로 진입할 것:\n${violations.join('\n')}`,
+      `해시 없는 경로 goto 발견 — 이 하네스는 해시라우터라 홈으로 낙착한다. \`\${BASE_URL}/#/경로\` 로 진입할 것:\n${violations.join('\n')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * H-1b — WEB_DEPLOY_REAL_QA(vite.web.config.ts, BrowserRouter 확정)는 반대다. 해시를 쓰면
+   * 해시가 무시되고 대시보드로 낙착한다(1차 적대검증 A-1 실측: `/#/accounting/bank-transactions`
+   * → heading:"대시보드"). 경로 그대로가 정답이므로 해시 goto 는 여기서 위반이다.
+   */
+  it('H-1b: BrowserRouter 하네스로 확정된 real-qa 는 해시 경로 goto 를 쓰지 않는다', () => {
+    const gotoHash = new RegExp('\\.goto\\(\\s*`\\$\\{BASE_URL\\}/#', 'g')
+    const violations: string[] = []
+    for (const file of ALL_PW_TS) {
+      const r = rel(file)
+      if (!WEB_DEPLOY_REAL_QA.has(r)) continue
+      const src = fs.readFileSync(file, 'utf-8')
+      for (const _m of src.matchAll(gotoHash)) {
+        violations.push(r)
+      }
+    }
+    expect(
+      violations,
+      `이 하네스는 BrowserRouter(vite.web.config.ts) — 해시가 무시되고 대시보드로 낙착한다. 경로로 이동할 것:\n${violations.join('\n')}`,
     ).toEqual([])
   })
 

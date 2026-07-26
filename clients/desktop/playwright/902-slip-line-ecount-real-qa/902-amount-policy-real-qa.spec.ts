@@ -61,7 +61,7 @@ async function snapshot(page: Page): Promise<string> {
 
 test('금액 열 편집 정책 — 재계산의 출발점은 단가 하나뿐이고 합계는 편집 불가', async ({ page }) => {
   await login(page)
-  await page.goto(`${BASE_URL}/#/sales/new`)
+  await page.goto(`${BASE_URL}/sales/new`)
   await cell(page, '라인 1 수량').waitFor({ state: 'visible', timeout: 30000 })
   await page.waitForTimeout(1500)
 

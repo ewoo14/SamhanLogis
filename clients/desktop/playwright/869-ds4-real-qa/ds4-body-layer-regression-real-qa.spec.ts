@@ -89,7 +89,7 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
   }
 
   // 웹(vite) 하네스는 BrowserRouter — `#/…` 해시는 무시되고 홈이 렌더된다(실측). 경로로 이동한다.
-  await page.goto(`${BASE_URL}/#/groupware/document-templates`)
+  await page.goto(`${BASE_URL}/groupware/document-templates`)
   await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 20000 })
   await page.getByRole('button', { name: '신규 문서 양식' }).click()
   await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })

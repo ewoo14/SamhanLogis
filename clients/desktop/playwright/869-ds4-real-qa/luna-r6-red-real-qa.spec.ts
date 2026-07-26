@@ -20,7 +20,7 @@ test('LUNA B-1 — DETAIL screen/print style parity at mobile and desktop', asyn
   for (const width of [375, 1280]) {
     await page.setViewportSize({ width, height: 900 })
     await installAuth(page)
-    await page.goto(`${BASE_URL}/#/groupware/document-templates/new/edit`)
+    await page.goto(`${BASE_URL}/groupware/document-templates/new/edit`)
     await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
     const preview = page.getByTestId('document-template-live-preview')
     await page.getByRole('button', { name: '품목행 추가' }).click()
@@ -99,7 +99,7 @@ test('R7 REVERT — HEADER 은 12폭 스윕(H17)에서 넘침·겹침이 없고,
 
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 1400 })
-    await page.goto(`${BASE_URL}/#/groupware/document-templates/new/edit`)
+    await page.goto(`${BASE_URL}/groupware/document-templates/new/edit`)
     await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
 
     const screen = await measure()
@@ -139,7 +139,7 @@ test('R7 REVERT — HEADER 은 12폭 스윕(H17)에서 넘침·겹침이 없고,
 
 test('LUNA B-4 — IMAGE inspector does not expose non-rendering text controls', async ({ page }) => {
   await installAuth(page)
-  await page.goto(`${BASE_URL}/#/groupware/document-templates/new/edit`)
+  await page.goto(`${BASE_URL}/groupware/document-templates/new/edit`)
   await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
   await page.getByRole('button', { name: '이미지/로고 추가' }).click()
   const inspector = page.getByRole('region', { name: '속성 패널' })

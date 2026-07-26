@@ -290,7 +290,7 @@ async function apiPut<T>(page: Page, auth: LoginResult, apiPath: string, body: u
 }
 
 async function openSlipForm(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/#/sales/new`)
+  await page.goto(`${BASE_URL}/sales/new`)
   await expect(page.getByRole('combobox', { name: '거래처' })).toBeVisible({ timeout: 30000 })
   await page.waitForTimeout(400)
 }
@@ -428,7 +428,7 @@ async function saveEstimateDraftAndGetId(page: Page): Promise<string> {
 
 /** 견적 신규 폼 열기 — 거래처 검색 combobox 가시화까지 대기(03/08/09/10 공용). */
 async function openEstimateForm(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/#/sales/estimates/new`)
+  await page.goto(`${BASE_URL}/sales/estimates/new`)
   await expect(page.getByRole('combobox', { name: '거래처 검색' })).toBeVisible({ timeout: 30000 })
   await page.waitForTimeout(400)
 }
@@ -962,7 +962,7 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     // 이 테스트가 직접 만든 sentinel row만 읽는다. 저장 훅이 죽으면 remembered_at이 2000년에 머문다.
     seedMemoryRow(PARTNER_A.id, PRODUCT_X.id, PRICE_P)
 
-    await page.goto(`${BASE_URL}/#/sales/estimates/new`)
+    await page.goto(`${BASE_URL}/sales/estimates/new`)
     await expect(page.getByRole('combobox', { name: '거래처 검색' })).toBeVisible({ timeout: 30000 })
     await page.waitForTimeout(400)
     await pickAutocomplete(page, '거래처 검색', '거래처 목록', PARTNER_A.query)
@@ -1244,7 +1244,7 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     const slipId = await saveSlipAndWait(page)
     console.log('[#809 R4] 06 수정 대상 전표:', slipId)
 
-    await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
     await page.getByTestId('sales-slip-edit-button').click()
     await expect(page.getByTestId('sales-slip-edit-modal')).toBeVisible({ timeout: 20000 })
     await page.waitForTimeout(800)
@@ -1658,7 +1658,7 @@ test.describe('#809 R5-postfix — R4 false-green 커버리지 구멍 실서버 
         coeditFallbackGetCount += 1
         await route.abort('failed')
       })
-      await page.goto(`${BASE_URL}/#/sales/estimates/${target.id}/edit`)
+      await page.goto(`${BASE_URL}/sales/estimates/${target.id}/edit`)
       await expect(page.getByLabel('라인 1 모델명'), 'legacy 견적 편집 폼 미표시').toHaveValue(target.modelName, {
         timeout: 30000,
       })
@@ -1756,7 +1756,7 @@ test.describe('#809 R5-postfix — R4 false-green 커버리지 구멍 실서버 
       expect(memoryRow(PARTNER_A.id, target.productId), 'legacy price-memory 가 원 공급단가 기준이 아님').toBe(
         `${expectedMemoryPrice}|LINE_SAVE`,
       )
-      await page.goto(`${BASE_URL}/#/sales/estimates/${target.id}/edit`)
+      await page.goto(`${BASE_URL}/sales/estimates/${target.id}/edit`)
       await expectUnitPriceDigits(page, target.unitPrice, 1, 'legacy 저장 후 재진입 공급단가 불변')
       await capture(page, '34-KEY-legacy-estimate-after-put-supply-price-unchanged-memory-created')
 
@@ -1866,7 +1866,7 @@ test.describe('#809 R5-postfix — R4 false-green 커버리지 구멍 실서버 
         `${PRICE_BUNDLE}.00|BUNDLE_SET`,
       )
 
-      await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+      await page.goto(`${BASE_URL}/sales/${slipId}`)
       await page.getByTestId('sales-slip-edit-button').click()
       const editModal = page.getByTestId('sales-slip-edit-modal')
       await expect(editModal, '전표 BUNDLE 상세 편집 모달 미표시').toBeVisible({ timeout: 20000 })
@@ -1940,7 +1940,7 @@ test.describe('#809 R5-postfix — R4 false-green 커버리지 구멍 실서버 
         `${PRICE_BUNDLE}.00|BUNDLE_SET`,
       )
 
-      await page.goto(`${BASE_URL}/#/sales/estimates/${estimateId}/edit`)
+      await page.goto(`${BASE_URL}/sales/estimates/${estimateId}/edit`)
       const saveButton = page.getByTestId('estimate-form-save-button')
       await expect(page.getByLabel('라인 1 모델명'), '견적 BUNDLE 편집 폼 미표시').toBeVisible({ timeout: 30000 })
       await expect(page.getByLabel('라인 2 모델명'), '견적 BUNDLE 구성품 2행 미표시').toBeVisible()
@@ -2351,7 +2351,7 @@ test.describe('#809 R6-postfix — R6-H1/H2/H3 fix 선행 커버(공유 스택 �
       expect(memoryRowCount(PARTNER_B.id, BUNDLE.id), '14a parent 기억행 수 변형').toBe('1')
 
       // 5) 실 GUI 재진입 캡처 — 세트 표시(원 head) + 신규 평문 라인 공존 화면.
-      await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+      await page.goto(`${BASE_URL}/sales/${slipId}`)
       await page.waitForTimeout(1500)
       await capture(page, '37-KEY-slip-put-new-same-product-line-first-lineage-preserved')
     } finally {
@@ -2413,7 +2413,7 @@ test.describe('#809 R6-postfix — R6-H1/H2/H3 fix 선행 커버(공유 스택 �
       await expectMemoryRowEventually(PARTNER_A.id, BUNDLE.id, PRICE_BUNDLE, 'BUNDLE_SET')
       await page.waitForTimeout(MEMORY_FLUSH_GRACE_MS)
       // 실 GUI 사전 상태 캡처(편집 폼 — 3라인 공존).
-      await page.goto(`${BASE_URL}/#/sales/estimates/${estimateId}/edit`)
+      await page.goto(`${BASE_URL}/sales/estimates/${estimateId}/edit`)
       await expect(page.getByLabel('라인 3 모델명'), '14b 편집 폼 3라인 미표시').toBeVisible({ timeout: 30000 })
       await capture(page, '38-estimate-mixed-set-single-before-put')
 
@@ -2476,7 +2476,7 @@ test.describe('#809 R6-postfix — R6-H1/H2/H3 fix 선행 커버(공유 스택 �
       )
 
       // 5) 실 GUI 재진입 캡처 — head 없는 2라인 상태.
-      await page.goto(`${BASE_URL}/#/sales/estimates/${estimateId}/edit`)
+      await page.goto(`${BASE_URL}/sales/estimates/${estimateId}/edit`)
       await expect(page.getByLabel('라인 2 모델명'), '14b PUT 후 편집 폼 2라인 미표시').toBeVisible({ timeout: 30000 })
       await capture(page, '39-KEY-estimate-head-deleted-single-88000-no-lineage-theft')
     } finally {
@@ -2518,7 +2518,7 @@ test.describe('#809 R6-postfix — R6-H1/H2/H3 fix 선행 커버(공유 스택 �
         `2|1|2|${componentIds}`,
       )
 
-      await page.goto(`${BASE_URL}/#/sales/${sourceSlipId}`)
+      await page.goto(`${BASE_URL}/sales/${sourceSlipId}`)
       await expect(
         page.getByRole('button', { name: '전표 복사' }),
         '15 전표 복사 버튼 미표시',
@@ -2671,7 +2671,7 @@ test.describe('#809 R6-postfix — R6-H1/H2/H3 fix 선행 커버(공유 스택 �
         `${PRICE_BUNDLE}.00|BUNDLE_SET`,
       )
 
-      await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+      await page.goto(`${BASE_URL}/sales/${slipId}`)
       await page.waitForTimeout(1500)
       await capture(page, '42-KEY-slip-revision-restore-lineage-preserved')
     } finally {
@@ -2770,7 +2770,7 @@ test.describe('#809 R6-postfix — R6-H1/H2/H3 fix 선행 커버(공유 스택 �
         `${PRICE_BUNDLE}.00|BUNDLE_SET`,
       )
 
-      await page.goto(`${BASE_URL}/#/sales/estimates/${estimateId}/edit`)
+      await page.goto(`${BASE_URL}/sales/estimates/${estimateId}/edit`)
       await expect(page.getByLabel('라인 2 모델명'), '16b 복원 후 편집 폼 2라인 미표시').toBeVisible({ timeout: 30000 })
       await capture(page, '43-KEY-estimate-revision-restore-lineage-preserved')
     } finally {

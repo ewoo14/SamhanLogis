@@ -31,7 +31,7 @@ test.beforeAll(() => {
 })
 
 async function loginViaUi(page: Page) {
-  await page.goto(`${BASE_URL}/#/login`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
   await page.locator('[data-testid="login-id-input"]').fill('dev_master')
   await page.locator('[data-testid="login-password-input"]').fill(PASSWORD)
   await page.locator('[data-testid="login-submit-button"]').click()
@@ -45,7 +45,7 @@ test.describe('U-gate 1 — 실 관리자 화면 등록·배포 (A5)', () => {
   test('아로로지스 모바일 CRITICAL 릴리스를 화면에서 등록·배포한다', async ({ page }) => {
     await loginViaUi(page)
 
-    await page.goto(`${BASE_URL}/#/admin/app-releases`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`${BASE_URL}/admin/app-releases`, { waitUntil: 'domcontentloaded' })
     await expect(page.locator('[data-testid="app-release-admin-page"]')).toBeVisible({ timeout: 15_000 })
 
     await page.locator('[data-testid="app-release-create-open"]').click()
@@ -156,7 +156,7 @@ test.describe('F-4 — Web/Capacitor 런타임 탈출구 실증', () => {
     // AROLOGIS CRITICAL 등록과 무관하게 DESKTOP 자체를 CRITICAL 로 만들어 이 런타임의 차단 화면을 재현한다.
     await bumpDesktopToCritical()
     try {
-      await page.goto(`${BASE_URL}/#/login`, { waitUntil: 'domcontentloaded' })
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
       const modal = page.locator('[data-testid="app-version-blocking-modal"]')
       await expect(modal).toBeVisible({ timeout: 15_000 })
 
@@ -190,7 +190,7 @@ test.describe('F-4 — Web/Capacitor 런타임 탈출구 실증', () => {
       await page.addInitScript(() => {
         ;(window as unknown as { CapacitorCustomPlatform: { name: string } }).CapacitorCustomPlatform = { name: 'android' }
       })
-      await page.goto(`${BASE_URL}/#/login`, { waitUntil: 'domcontentloaded' })
+      await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
 
       const isCapacitor = await page.evaluate(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

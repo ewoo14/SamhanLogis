@@ -40,7 +40,7 @@ test('R4 — HEADER 밴드 좌표 요소가 BODY 와 같은(페이지 본문) �
   }, { token: d.token ?? '', userId: d.userId ?? '', role: d.role ?? 'MASTER', fullName: d.displayName ?? '개발책임자' })
 
   const preview = page.getByTestId('document-template-live-preview')
-  await page.goto(`${BASE_URL}/#/groupware/document-templates/new/edit`)
+  await page.goto(`${BASE_URL}/groupware/document-templates/new/edit`)
   await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 30000 })
   await expect(preview).toBeVisible()
 

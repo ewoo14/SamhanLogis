@@ -201,7 +201,7 @@ async function pickWarehouse(page: Page): Promise<void> {
 
 /** 매출 상세 진입 + '수정' 클릭 → coedit 편집 모달. provider 로드까지 대기. */
 async function openSalesEdit(page: Page, slipId: string): Promise<void> {
-  await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+  await page.goto(`${BASE_URL}/sales/${slipId}`)
   await page.getByTestId('sales-slip-edit-button').waitFor({ state: 'visible', timeout: 30000 })
   await page.getByTestId('sales-slip-edit-button').click()
   // coedit provider 로드 완료 = 라인 입력이 편집 가능해질 때.
@@ -211,7 +211,7 @@ async function openSalesEdit(page: Page, slipId: string): Promise<void> {
 
 /** 매입 상세 진입 + 수정 인라인 폼. 매출 미러의 고유 testid 로 분리한다. */
 async function openPurchaseEdit(page: Page, slipId: string): Promise<void> {
-  await page.goto(`${BASE_URL}/#/purchases/${slipId}`)
+  await page.goto(`${BASE_URL}/purchases/${slipId}`)
   await page.getByTestId('purchase-slip-edit-open').waitFor({ state: 'visible', timeout: 30000 })
   await page.getByTestId('purchase-slip-edit-open').click()
   await expect(page.getByTestId('purchase-slip-edit-modal')).toBeVisible({ timeout: 30000 })
@@ -252,7 +252,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     expect(memoryOf(COMP_HEAD.id), 'R8-QA-1 전제: 생성 시 head 구성품은 기억되지 않아야 함').toBe('NONE')
     expect(memoryOf(COMP_TAIL.id), 'R8-QA-1 전제: 생성 시 구성품은 기억되지 않아야 함').toBe('NONE')
 
-    await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
     await expect(page.getByText(COMP_HEAD.model).first()).toBeVisible({ timeout: 30000 })
     await capture(page, '01-r8-qa-1-slip-detail-set-lineage-intact')
 
@@ -381,7 +381,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     await capture(pageB, '06-r8-qa-2b-windowB-single-price-entered-299000')
 
     // 창A: 상세화면(편집 모달 아님) → 1행(세트 head) 선택 → 툴바 '행 삭제' → BE DELETE.
-    await pageA.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await pageA.goto(`${BASE_URL}/sales/${slipId}`)
     await pageA.getByTestId('sales-slip-edit-button').waitFor({ state: 'visible', timeout: 30000 })
     await pageA.getByRole('button', { name: '라인 1 선택' }).click()
     await pageA.waitForTimeout(400)
@@ -508,7 +508,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
       `${COMP_HEAD.model}:true:${BUNDLE.model}|${COMP_TAIL.model}:false:${BUNDLE.model}`,
     )
 
-    await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
     await page.getByTestId('sales-slip-edit-button').waitFor({ state: 'visible', timeout: 30000 })
     await capture(page, '18-r8-qa-6-set-slip-before-product-swap')
 
@@ -588,7 +588,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
          TIMESTAMP '2026-01-02 03:04:05', CURRENT_TIMESTAMP, 'qa-r8', FALSE)`,
     )
 
-    await page.goto(`${BASE_URL}/#/sales/new`)
+    await page.goto(`${BASE_URL}/sales/new`)
     await expect(page.getByRole('combobox', { name: '거래처' })).toBeVisible({ timeout: 30000 })
     await pickAutocomplete(page, '거래처', '거래처 목록', PARTNER.name)
     await pickWarehouse(page)
@@ -649,7 +649,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
          TIMESTAMP '2026-01-02 03:04:05', CURRENT_TIMESTAMP, 'qa-r8', FALSE)`,
     )
 
-    await page.goto(`${BASE_URL}/#/sales/new`)
+    await page.goto(`${BASE_URL}/sales/new`)
     await expect(page.getByRole('combobox', { name: '거래처' })).toBeVisible({ timeout: 30000 })
     await pickAutocomplete(page, '거래처', '거래처 목록', PARTNER.name)
     await pickWarehouse(page)
@@ -743,7 +743,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     expect((await putRes).status(), '거래처 변경 저장 PUT').toBe(200)
     await page.waitForTimeout(2500)
 
-    await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
     await expect(page.getByText(OTHER_PARTNER.name).first()).toBeVisible({ timeout: 30000 })
     await capture(page, '13-r8-qa-3-detail-shows-new-partner')
 
@@ -1263,7 +1263,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     )
     expect(memoryOf(COMP_HEAD.id), 'R8-QA-13 전제: head 구성품 미기억').toBe('NONE')
     expect(memoryOf(COMP_TAIL.id), 'R8-QA-13 전제: 구성품 미기억').toBe('NONE')
-    await page.goto(`${BASE_URL}/#/sales/${bundleSlipId}`)
+    await page.goto(`${BASE_URL}/sales/${bundleSlipId}`)
     await expect(page.getByText(COMP_HEAD.model).first()).toBeVisible({ timeout: 30000 })
     await capture(page, '30-r8-qa-13-bundle-slip-lineage-before-guard')
 
@@ -1443,7 +1443,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
       psql(`SELECT unit_price FROM slip_lines WHERE slip_id='${flatSlipId}' AND is_deleted=false`),
       'R8-QA-13 Part4: 전 라인 교체가 반영되지 않음',
     ).toBe('450000.00')
-    await page.goto(`${BASE_URL}/#/sales/${flatSlipId}`)
+    await page.goto(`${BASE_URL}/sales/${flatSlipId}`)
     await expect(page.getByText(SINGLE.model).first()).toBeVisible({ timeout: 30000 })
     await capture(page, '32-r8-qa-13-flat-slip-full-replace-200')
 
@@ -1825,7 +1825,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     )
     const aSingleBefore = memoryOf(SINGLE.id)
 
-    await page.goto(`${BASE_URL}/#/sales/estimates/${estimateId}/edit`)
+    await page.goto(`${BASE_URL}/sales/estimates/${estimateId}/edit`)
     await expect(page.getByLabel('라인 3 단가'), '견적 edit hydrate 3행 미표시').toBeVisible({ timeout: 30000 })
     const comp1Before = await page.getByLabel('라인 1 단가').inputValue()
     const comp2Before = await page.getByLabel('라인 2 단가').inputValue()

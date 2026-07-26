@@ -122,7 +122,7 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
     await installAuthStub(page, login)
 
     // ── 1. /sales/new → 거래처/창고/품목 선택 → 수량 2 · 단가 11,000 ─────────
-    await page.goto(`${BASE_URL}/#/sales/new`)
+    await page.goto(`${BASE_URL}/sales/new`)
     const partnerInput = page.getByRole('combobox', { name: '거래처' })
     await expect(partnerInput, '거래처 자동완성 입력란 미표시').toBeVisible({ timeout: 30000 })
     await pickAutocomplete(page, partnerInput, PARTNER_QUERY)
@@ -223,7 +223,7 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
     await capture(page, '10-d3-save-success')
 
     // ── 6-2. 전표 상세를 다시 열기 → 🔑 단가가 11,000 인지 확인 ──────────────
-    await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
     await expect(page.locator('td.col-price').first(), '상세 화면 단가 열 미표시').toBeVisible({ timeout: 20000 })
     await page.locator('td.col-price').first().scrollIntoViewIfNeeded()
     await page.waitForTimeout(500)
@@ -263,7 +263,7 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
     const resaveResponse = await resaveResponsePromise
     expect(resaveResponse.ok(), `E-2 무수정 재저장 실패: HTTP ${resaveResponse.status()} ${await resaveResponse.text().catch(() => '')}`).toBeTruthy()
 
-    await page.goto(`${BASE_URL}/#/sales/${slipId}`)
+    await page.goto(`${BASE_URL}/sales/${slipId}`)
     await expect(page.locator('td.col-price').first(), 'E-2 재저장 후 상세 단가 열 미표시').toBeVisible({ timeout: 20000 })
     await page.waitForTimeout(500)
     const afterNoOpResave = {
@@ -278,7 +278,7 @@ test.describe.serial('#902 D-3 라이브 왕복 — 단가 보존 정책 실증'
 
     // ── 7-3. 🔑 R1 실증 — 같은 거래처·품목을 새 전표에서 다시 선택 ─────────
     // 가격기억은 저장 후 비동기 반영될 수 있으므로 UI 입력값이 11,000으로 수렴하는지 기다린다.
-    await page.goto(`${BASE_URL}/#/sales/new`)
+    await page.goto(`${BASE_URL}/sales/new`)
     const reselectPartner = page.getByRole('combobox', { name: '거래처' })
     await expect(reselectPartner, 'R1 재선택 화면 거래처 입력란 미표시').toBeVisible({ timeout: 30000 })
     await pickAutocomplete(page, reselectPartner, PARTNER_QUERY)

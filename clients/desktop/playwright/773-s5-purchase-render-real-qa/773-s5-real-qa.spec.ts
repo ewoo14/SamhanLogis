@@ -71,7 +71,7 @@ test('일마감 매입 참고 배너 + 모델 컬럼 (S5 FE+BE)', async ({ page 
   const login = await realLogin(page, 'dev_accountant')
   await installAuthStub(page, login)
 
-  await page.goto(`${BASE_URL}/#/accounting/daily-closings`)
+  await page.goto(`${BASE_URL}/accounting/daily-closings`)
   await expect(page.getByRole('heading', { name: '일마감 조회' })).toBeVisible({ timeout: 30_000 })
   await capture(page, 'entry')
 

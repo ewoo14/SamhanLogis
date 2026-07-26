@@ -94,7 +94,9 @@ test('결재문서 렌더 — 활성 없음=DEFAULT, 활성 비기본=적용반�
   }
 
   // 01 — 활성 템플릿 없음 → DEFAULT 렌더
-  await page.goto(`${BASE_URL}/#/groupware/approvals/${APPROVAL_ID}/print`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(5188)는 vite.web.config.ts(BrowserRouter) — 해시 경로는 무시되고 대시보드가 렌더된다
+  // (docs/qa/845-ds2-document-template/01-*.png 가 원 경로 goto 로 결재문서 화면에 실제로 도달했음을 증거로 남긴다).
+  await page.goto(`${BASE_URL}/groupware/approvals/${APPROVAL_ID}/print`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('text=결재문서, .document-renderer, [data-doc-root], h1, table', { timeout: 20000 }).catch(() => {})
   await page.waitForTimeout(1500)
   await capture(page, 'no-active-template-default-render')
