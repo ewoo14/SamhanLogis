@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // PR #796 (#782) 라이브 QA 추가 라운드 — default_qty=1 회귀 없음 실증.
 // 같은 SET(QA782-SET-01) 안에 두 구성품: PART-01(defaultQty=2, 이미 확인) + PART-02(defaultQty=1,
 // 신규). setQty=3 입력 시 PART-02 는 "3 × 1" 표시 + 제출 qty=3(=setQty 그대로, 곱셈에 의한 변화 없음)
@@ -5,7 +6,7 @@
 // 회귀가드로 유효.
 import { chromium } from '@playwright/test';
 
-const OUT = process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-defaultqty';
+const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-defaultqty');
 const URL = process.env.QA_URL || 'http://localhost:5197/';
 
 const SET_MODEL = 'QA782-SET-01';

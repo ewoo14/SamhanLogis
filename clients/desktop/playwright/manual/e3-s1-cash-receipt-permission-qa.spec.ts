@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * E3 S1 CashReceipt(입금보고서) — Permission Matrix 실 서버 QA 스크린샷.
  * PR #709 Opus 재검 — UUID 비노출 계약 변경 라이브 검증의 부속 GUI 증거.
@@ -20,7 +21,7 @@ const MASTER_ROLE = 'MASTER'
 const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/e3-s1-cash-receipt-domain')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e3-s1-cash-receipt-domain'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

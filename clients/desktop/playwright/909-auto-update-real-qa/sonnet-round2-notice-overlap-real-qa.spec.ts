@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #909 SONNET5 라운드 fix — OPUS 재수렴 도달가능 1건 재현+검증.
  *
@@ -19,7 +20,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'LUNA909R6'
-const SHOT_DIR = process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-sonnet-round-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-sonnet-round-2026-07-23'))
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'
 
 type Rect = { x: number; y: number; width: number; height: number }

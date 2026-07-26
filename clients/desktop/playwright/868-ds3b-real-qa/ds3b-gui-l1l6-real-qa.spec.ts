@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3b 라이브 GUI QA — L1~L6 (PM 직접 수행)
  *
@@ -16,7 +17,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 
 // cwd = clients/desktop (ESM 스코프라 __dirname 불가 — process.cwd() 기준)
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '845-ds3b-live-qa-2026-07-22')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '845-ds3b-live-qa-2026-07-22'))
 const TEMPLATE_NAME = 'PM 라이브QA GUI 양식'
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
 

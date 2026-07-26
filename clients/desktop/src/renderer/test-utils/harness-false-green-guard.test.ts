@@ -110,6 +110,10 @@ function isMockGateFile(p: string): boolean {
 }
 
 const ALL_PW_TS = walk(PLAYWRIGHT_DIR, (p) => p.endsWith('.ts'))
+const ALL_PW_SOURCES = walk(
+  PLAYWRIGHT_DIR,
+  (p) => /\.(?:ts|tsx|js|mjs|cjs)$/.test(p),
+)
 const MOCK_GATE_TS = ALL_PW_TS.filter(isMockGateFile)
 
 /**
@@ -224,23 +228,26 @@ describe('하네스 거짓 green 가드', () => {
   })
 
   /**
-   * H-2 — 스펙 재실행이 docs/qa 의 커밋된 확정 증거 PNG 를 덮어쓰면 안 된다.
+   * H-2 — 스펙 재실행이 커밋된 QA 확정 증거를 덮어쓰면 안 된다.
    * 캡처 경로는 support/qa-screenshot-dir.ts 의 resolveQaShotsDir 를 반드시 경유한다
    * (기본 <dir>/_local, 승격은 QA_SHOTS_DIR opt-in).
    */
   it('H-2: 캡처 목적지로 쓰이는 docs/qa 경로 상수는 전부 resolveQaShotsDir 를 경유한다', () => {
     const violations: string[] = []
-    for (const file of MOCK_GATE_TS) {
+    for (const file of ALL_PW_SOURCES) {
       const src = stripComments(fs.readFileSync(file, 'utf-8'))
       // ① 이 파일에서 "쓰기" 호출의 인자에 등장하는 식별자를 모은다.
       const writeTargets = collectWriteTargetIdentifiers(src)
-      // ② docs/qa 를 가리키는 선언 중, 쓰기 목적지로 쓰이는 것만 래핑을 강제한다.
+      // ② docs/qa 또는 playwright/**/screenshots 를 가리키는 선언 중, 쓰기 목적지로
+      // 쓰이는 것만 래핑을 강제한다.
       //    (읽기 전용 참조 — 예: 커밋된 확정 증거의 존재 여부 검사 — 는 래핑 대상이 아니다.)
       for (const decl of collectDeclarations(src)) {
         // `'../../../../docs/qa/<slug>'` 형태와 `path.join(root, 'docs', 'qa', …)` 형태를 모두 잡는다.
-        const pointsAtDocsQa =
-          decl.body.includes('docs/qa') || /['"]docs['"]\s*,\s*['"]qa['"]/.test(decl.body)
-        if (!pointsAtDocsQa) continue
+        const pointsAtQa =
+          decl.body.includes('docs/qa') ||
+          /['"]docs['"]\s*,\s*['"]qa['"]/.test(decl.body) ||
+          /screenshots/i.test(decl.body)
+        if (!pointsAtQa) continue
         if (!writeTargets.has(decl.name)) continue
         if (decl.body.includes('resolveQaShotsDir')) continue
         violations.push(`${rel(file)} → const ${decl.name}`)
@@ -248,7 +255,7 @@ describe('하네스 거짓 green 가드', () => {
     }
     expect(
       violations,
-      `docs/qa 커밋 증거로 직접 캡처하는 경로 상수 발견 — resolveQaShotsDir() 경유 필수:\n${violations.join('\n')}`,
+      `커밋 QA 증거로 직접 쓰는 경로 상수 발견 — resolveQaShotsDir() 경유 필수:\n${violations.join('\n')}`,
     ).toEqual([])
   })
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 슬라이스2 주문(PartnerOrder) 협업 "수정완료 1-인" 모델 — 실 서버 QA 스크린샷 캡처.
  *
@@ -25,7 +26,7 @@ const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 const ORDER_PATH_ID = '2026-04-15-29'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/partner-order-collab')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/partner-order-collab'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

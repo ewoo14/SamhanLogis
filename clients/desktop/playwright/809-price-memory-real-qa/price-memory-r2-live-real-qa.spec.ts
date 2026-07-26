@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #809 (거래처+품목) 최근단가 자동채움 — R5 CODEX SOL 5.6 QA fix 후 라이브 재검증 (R5-postfix, mock OFF).
  *
@@ -144,7 +145,7 @@ const ACCOUNT = 'dev_manager'
 // r6/·r6-postfix/·r8/·r8-postfix/·r8-postfix2/ 는 전부 불가침(덮어쓰기 금지).
 // [R9 08-fix 재검증] r9-postfix/ 직하는 R9 fix 라운드 증거(87장)로 보존 — 08 GREEN 전환
 // 재실행분은 r2-suite/ 하위로 분리해 덮어쓰기를 피한다(코디네이터 지시 경로).
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/809-partner-product-price-memory/r9-postfix/r2-suite')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/809-partner-product-price-memory/r9-postfix/r2-suite'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const PARTNER_A = { name: '부산냉난방테크', query: '부산냉난방', id: 'e8ae9c86-afe1-3364-b484-1f5a2bf31313' }

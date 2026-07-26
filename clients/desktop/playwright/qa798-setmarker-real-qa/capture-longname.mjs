@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // PR #798 (#782 part3) 라이브 QA 추가검증 — Design/FE Low 지적 대응:
 // "PC뷰서 긴 SET 품목명 — 마커가 첫줄 폭 잠식→wrap/overflow:hidden 잘림 경계".
 // QA797-SET-01 name 을 임시로 42자 실제 HVAC 상업장비명 스타일 긴 이름으로 UPDATE 한 뒤
@@ -5,7 +6,7 @@
 // 캡처 후 원본 이름으로 즉시 revert 예정(별도 _tmp-revert-set.sql).
 import { chromium } from '@playwright/test';
 
-const OUT = process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker';
+const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker');
 const URL = process.env.QA_URL || 'http://localhost:5198/';
 const SET_MODEL = 'QA797-SET-01';
 const LONG_NAME = '삼성 상업용 냉난방 인버터 스탠드형 20마력 멀티 실외기 초고효율 세트 모델';

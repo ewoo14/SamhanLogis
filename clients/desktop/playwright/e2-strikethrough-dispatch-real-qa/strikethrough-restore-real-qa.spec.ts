@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * E2 기둥2 — 배차 취소선 삭제 + 복원 라이브 실서버 QA (mock OFF).
  *
@@ -19,7 +20,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-strikethrough-dispatch')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e2-strikethrough-dispatch'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

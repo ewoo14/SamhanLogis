@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬1 — 판매전표 양식 통일 + 명칭 정정 실 서버 QA 캡처.
  *
@@ -34,7 +35,7 @@ function hashUrl(p: string): string {
 }
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/sales-slip-form-unify-rename-s1')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/sales-slip-form-unify-rename-s1'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let seq = 0

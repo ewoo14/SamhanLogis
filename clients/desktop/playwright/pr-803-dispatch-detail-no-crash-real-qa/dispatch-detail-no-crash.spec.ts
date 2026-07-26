@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #803(#785) — arologis-desktop DispatchDetailPage 렌더 크래시 fix 라이브 QA.
  *
@@ -20,7 +21,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8097'
 const DISPATCH_ID = process.env['DISPATCH_ID'] ?? '6fca3392-f1c3-42ad-9d52-6597e6b87e01'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/pr-803')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/pr-803'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 function b64urlDecode(seg: string): string {

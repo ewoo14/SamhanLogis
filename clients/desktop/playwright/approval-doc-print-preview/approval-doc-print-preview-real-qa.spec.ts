@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 미리보기 표준화 슬라이스2 — 그룹웨어 결재문서 인쇄 미리보기 실 QA 캡처.
  *
@@ -27,7 +28,7 @@ const MASTER_ROLE = 'MASTER'
 const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/approval-doc-print-preview')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/approval-doc-print-preview'))
 
 interface ApiEnvelope<T> {
   data: T

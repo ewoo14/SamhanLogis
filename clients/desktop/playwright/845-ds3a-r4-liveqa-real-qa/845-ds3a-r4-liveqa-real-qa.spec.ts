@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3a R4 라이브 QA — 결재 재인쇄 화면의 캐시 freshness 검증 (R3 fix 반영본, V13 배포본).
  *
@@ -36,7 +37,7 @@ const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const APPROVAL_ID = process.env['APPROVAL_ID'] ?? '4d7a6c77-0b5f-4f4b-a1fe-5a01d8f732af'
 const REAL_TITLE = process.env['REAL_TITLE'] ?? '월말 재고 실사 일정 결재'
 
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r4-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r4-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 const RAW_LOG = path.resolve(SHOTS, '00-raw.txt')
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 슬라이스1 회계전표(Journal) 협업 "수정완료 1-인" 모델 — 실 서버 QA 스크린샷 캡처.
  *
@@ -27,7 +28,7 @@ const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 const JOURNAL_ID = '4e60aa22-c45a-3a4e-9f0c-f7a3c5b9d6e1'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/journal-edit-collab')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/journal-edit-collab'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let screenshotCounter = 0

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #773 S5 라이브 QA — 매입(PURCHASE) 재검증 노출(참고 배너) + modelName 채움 실증.
  *
@@ -30,7 +31,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const TARGET_DATE = process.env['S5_QA_DATE'] ?? '2026-05-03'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/773-s5-purchase-render-modelname')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/773-s5-purchase-render-modelname'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬4d — 매입(입고)전표 인쇄 결재란 설정기반 렌더 + 결재 서명자 이름 자동채움 실 서버 QA.
  *
@@ -23,7 +24,7 @@ const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 
 function hashUrl(p: string): string { return `${BASE_URL}/#${p}` }
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/inbound-approval-render-s4d')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/inbound-approval-render-s4d'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 let seq = 0
 async function capture(page: Page, name: string): Promise<void> {

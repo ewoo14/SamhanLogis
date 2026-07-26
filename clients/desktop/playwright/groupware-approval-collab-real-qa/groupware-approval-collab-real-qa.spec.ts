@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 슬라이스6 그룹웨어 결재(ApprovalLine) 협업 "수정완료 1-인" — 실 서버 QA 스크린샷 캡처.
  *
@@ -27,7 +28,7 @@ const PENDING_APPROVAL_ID = process.env['GW_PENDING_APPROVAL_ID'] ?? 'faaadfc6-5
 const APPROVED_APPROVAL_ID = process.env['GW_APPROVED_APPROVAL_ID'] ?? '4d7a6c77-0b5f-4f4b-a1fe-5a01d8f732af'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/groupware-approval-collab')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/groupware-approval-collab'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

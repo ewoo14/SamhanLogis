@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬2 V65 — 출고자/검수자 라벨 실 서버 QA 캡처 (결재정보 카드 + 인쇄 결재란).
  *
@@ -23,7 +24,7 @@ const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 function hashUrl(p: string): string { return `${BASE_URL}/#${p}` }
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/dynamic-approval-step-crud-s2')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dynamic-approval-step-crud-s2'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 let seq = 0
 async function capture(page: Page, name: string): Promise<void> {

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #825 슬5 R5 머지 전 라이브 QA — HIGH-1(저장 scope BE 강제) 실 GUI 캡처.
  *
@@ -24,7 +25,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s5-r5-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/825-s5-r5-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }

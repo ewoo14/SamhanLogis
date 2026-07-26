@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * print-detail-real-qa.spec.ts
  *
@@ -17,10 +18,10 @@ const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 const MASTER_USER_NAME = '[DEV-SEED] 개발마스터'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/supplier-profile-bank-stamp/screenshots',
-)
+))
 
 const REAL_SLIP_ID = '45d2db99-79c0-4c7d-a391-0d038fb27017'
 

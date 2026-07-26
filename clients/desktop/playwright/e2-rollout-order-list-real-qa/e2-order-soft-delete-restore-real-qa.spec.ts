@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * E2 롤아웃 — 주문 목록 soft-delete / 복원 / 누출차단 적대적 라이브 QA (R2).
  *
@@ -27,7 +28,7 @@ const ORDER_PATH = ORDER_NO.replace(/\//g, '-') // 2026-06-08-1983
 // 이식성: 대상 주문 합계는 env 로 주입(하드결합 시 시드 정리 후 재실행 불가 — real-qa 이식성 교훈).
 const EXPECTED_TOTAL = Number(process.env['EXPECTED_TOTAL'] ?? '1560000')
 
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const probe: Record<string, unknown> = { orderNo: ORDER_NO, ts: new Date().toISOString() }

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 880-opus-reconv-real-qa.spec.ts
  *
@@ -17,7 +18,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5350'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '880-opus-reconv-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '880-opus-reconv-2026-07-24'))
 const THROWAWAY_NAME =
   'ZZ재수렴검증_아주매우긴권한그룹이름가로스크롤유발용0123456789오버플로우검증문자열끝'
 

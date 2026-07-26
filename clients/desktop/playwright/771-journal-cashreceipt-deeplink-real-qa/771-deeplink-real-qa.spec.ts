@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #771 REVERSAL 분개 → 원천 입금보고서 deep-link 라이브 QA.
  *
@@ -32,7 +33,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/771-journal-cashreceipt-deeplink')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/771-journal-cashreceipt-deeplink'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const JOURNAL_ID = 'cf69a6f2-107f-4e5d-8bf1-df8534418c2e'

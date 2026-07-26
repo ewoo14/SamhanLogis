@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * task5 배차 전표확인 = 판매전표 미리보기 — 실서버 GUI QA.
  *
@@ -15,7 +16,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? ''
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/task5-dispatch-slip-preview')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/task5-dispatch-slip-preview'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

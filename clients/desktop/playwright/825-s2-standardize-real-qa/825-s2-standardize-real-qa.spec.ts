@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #825 슬2 — 거래처 입력 표준화 라이브 QA.
  * 실 게이트웨이 :8080(mock OFF)·실 거래처 검색·**dev_accountant(ACCOUNTANT)로 partners.search 실증**(V88 403→200).
@@ -14,7 +15,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5223'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s2-partner-standardize')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/825-s2-partner-standardize'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

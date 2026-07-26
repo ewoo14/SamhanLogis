@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #784 — warning 색 토큰 AA sweep — arologis-desktop 실서버 GUI QA.
  *
@@ -19,7 +20,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8097'
 const DISPATCH_ID = process.env['DISPATCH_ID'] ?? '49b3749d-a4c1-4a4f-890d-30af30330975'
 const PHASE = process.env['QA_PHASE'] ?? 'after'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/warning-token-aa-e784')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/warning-token-aa-e784'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 function b64urlDecode(seg: string): string {

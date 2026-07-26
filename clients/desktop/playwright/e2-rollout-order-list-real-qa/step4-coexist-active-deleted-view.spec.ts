@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #757 STEP4 회귀 보충 캡처 — 목록(키워드 미필터)에 활성행과 삭제행이 동시 공존하는 넓은 뷰.
  *
@@ -19,7 +20,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ORDER_NO = process.env['COEXIST_ORDER_NO'] ?? '2026/06/08-1980'
 const ORDER_PATH = ORDER_NO.replace(/\//g, '-')
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function realLogin(page: Page): Promise<{ token: string; role: string; userId: string; displayName: string }> {

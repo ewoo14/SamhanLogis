@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #809 R8 — OPUS 4.8 1차 적대검증 QA(라이브) 재현 스펙 (mock OFF, 실 게이트웨이 :8080 → 실 Postgres).
  *
@@ -41,7 +42,7 @@ const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ACCOUNT = 'dev_manager'
 // r2/·r4/·r4-postfix/·r5/·r5-postfix/·r6/·r6-postfix/·r8/·r8-postfix/·r8-postfix2/ 는
 // 이력 보존 — 불가침. R9 fix 재검증 캡처는 신규 r9-postfix/ 에만 기록한다.
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/809-partner-product-price-memory/r9-postfix')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/809-partner-product-price-memory/r9-postfix'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // ⚠️ [R8-postfix2] 공유 dev 스택의 product_db·partner_db 가 재시드돼 R8/R8-postfix 시점의 합성

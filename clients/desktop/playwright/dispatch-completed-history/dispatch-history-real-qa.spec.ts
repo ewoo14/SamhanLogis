@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #463 완료배차 내역 뷰 — 실서버(mock OFF) QA 캡처.
  *
@@ -16,7 +17,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/dispatch-completed-history')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dispatch-completed-history'))
 const TASK_CODE_PATTERN = /\b\d{4}\/\d{2}\/\d{2}-\d+\b/
 const SLIP_NO_PATTERN = /\b\d{4}\/\d{2}\/\d{2}-\d+\b/g
 const DRIVER_PATTERN = /기사\s+[^\s(]+(?:\s+[^\s(]+)*\s+\([A-Za-z0-9_-]+\)/

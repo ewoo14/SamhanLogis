@@ -138,15 +138,20 @@ TC-V1/V2/V4/V5 는 통과하지만 **내용이 공허하다**(검증 대상이 �
 - `src/renderer/biometric/biometricAuth.test.ts` (seed 777777)
 - `src/renderer/api/mock.test.ts` (seed 777777)
 
-### 4-E. `-real-qa` 스펙의 `docs/qa` 직접 캡처
+### 4-E. `-real-qa` 스펙의 `docs/qa` 직접 캡처 — D-1에서 해소
 
-H-2 는 **mock 게이트 36 파일**을 대상으로 했다. 교정 후 실측:
+2차 적대검증 D-1에서 H-2 스캔 범위를 mock 게이트에서 Playwright 소스 전체로 넓혔다.
+쓰기 목적지 기준 sweep 결과 TS/TSX **163개 선언·160파일**, 직접 실행 ESM 캡처 유틸리티 **9파일**을
+모두 `_local/` 출력으로 격리했다. `docs/qa`뿐 아니라 `playwright/**/screenshots`도 같은 규칙으로 검사한다.
 
-- mock 게이트에서 `docs/qa` 로 직접 캡처하는 파일 — **0 건**
-- `*-real-qa`/수동 스펙에서 직접 캡처하는 파일 — **135 건** (여전히 남음)
+기존 869 R4를 fix 전 실서버에서 실행하면 커밋 PNG 2장이 실제 변경됐다(BEFORE
+`9AEABA7C...49FF72`, AFTER `8319C092...D8EDAE`). 백업에서 즉시 복원한 뒤 해시 불일치 0건을 확인했다.
+fix 후 동일 R4(`AUDIT_BASE_URL=127.0.0.1:5320`, `API_BASE=localhost:8080`)는 1 passed, 커밋 파일 해시
+불변, 출력 2장은 `docs/qa/.../_local/`에만 생성됐다.
 
-라이브QA 재실행 시 확정 증거 덮어쓰기 위험이 남아 있다(#926 이 902/928 계열만 처리).
-리뷰어가 라이브QA 실행을 포기하게 만든 원인이 바로 이쪽이므로, 후속 배치 1순위로 제안한다.
+뮤테이션으로 869 R4의 `resolveQaShotsDir`를 제거하면 가드가 해당 `SHOT_DIR`를 지목해 RED가 된다.
+가드 원복 후 H-2 포함 7/7 GREEN이다. raw log/markdown 파일은 resolver가 반환한 `_local` 디렉터리 아래
+동일 파일명으로 분리해 디렉터리 경로를 파일 경로로 오용하지 않았다.
 
 ### 4-F. `clients/web/design-system` 의 `setTimeout(resolve, 0)` 1건
 
@@ -177,3 +182,18 @@ H-2 는 **mock 게이트 36 파일**을 대상으로 했다. 교정 후 실측:
 
 mock 게이트에는 "앱이 실제로 마운트됐는가"를 확인하는 공통 단정이 없다. 이번 배치의 범위를 벗어나므로
 고치지 않았지만, 남은 거짓 green 중 가장 넓은 표면이다.
+
+---
+
+## 7. 2026-07-26 D-1 Codex 2차 적대검증 fix
+
+- RED: H-2 대상 집합을 `MOCK_GATE_TS`에서 `ALL_PW_TS`로 바꾼 첫 실행은 `161`개 직접 목적지를
+  반환했고, 869 R1/R2/R4 실서버 재실행은 fix 전 R4에서 커밋 증거 2장 변경을 재현했다.
+- 수단: TS/TSX 163개 쓰기 목적지 선언을 `resolveQaShotsDir()`로 감싸고, 직접 실행 ESM 캡처 9건에는
+  동등한 ESM resolver를 사용했다. H-2 가드는 367개 Playwright 소스와 screenshot/write/mkdir 호출의
+  목적지를 검사한다.
+- GREEN: guard `7 tests passed`, desktop `typecheck` 통과, mock `--list` `635 tests / 115 files`,
+  ESM syntax check 9/9 통과.
+- 뮤테이션 RED: 869 R4 `SHOT_DIR` resolver 제거 시 H-2가 해당 파일을 단독 지목하며 1건 실패.
+- 안전성: R4 fix 후 커밋 대상 15장 해시 대조 `HASH_MISMATCH=0`; `git status --porcelain -- docs/qa/`
+  및 `clients/desktop/playwright/**/screenshots/**` 모두 빈 출력.

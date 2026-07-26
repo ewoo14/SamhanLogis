@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 출고전표 컷오프 마감시간 설정 — 실 gateway 실 UI QA 드라이버.
  *
@@ -44,10 +45,10 @@ const REAL_JWT: string = process.env['REAL_JWT'] ?? ''
 const REAL_SALES_JWT: string = process.env['REAL_SALES_JWT'] ?? ''
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/slip-outbound-cutoff-s3',
-)
+))
 
 if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 사양 인지형 입력 (사양 후속 #1 재설계) Docker 실서버 QA Playwright spec.
  *
@@ -18,8 +19,8 @@ import { fileURLToPath } from 'url'
 const _dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 const API_BASE = 'http://localhost:8080'
-const OUT = path.resolve(_dirname, '../../../../docs/qa/spec-aware-input')
-const PANEL_OUT = path.resolve(_dirname, '../../../../docs/qa/panel-spec-relabel')
+const OUT = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/spec-aware-input'))
+const PANEL_OUT = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/panel-spec-relabel'))
 fs.mkdirSync(OUT, { recursive: true })
 fs.mkdirSync(PANEL_OUT, { recursive: true })
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #863 R1 라이브QA ②③ — Prometheus 알람 GUI 실캡처.
  *
@@ -22,7 +23,7 @@ const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 const PROM = process.env['QA_PROM_URL'] ?? 'http://127.0.0.1:9091'
 const PREFIX = process.env['SHOT_PREFIX'] ?? 'prom'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/863-r1-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/863-r1-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function shot(page: Page, name: string): Promise<void> {

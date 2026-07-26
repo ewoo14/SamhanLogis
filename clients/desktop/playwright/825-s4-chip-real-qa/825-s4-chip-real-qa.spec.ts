@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #825 슬4 칩 복수선택 표준 컴포넌트 — 실서버 라이브 QA (OPUS 1차 적대검증 라운드).
  *
@@ -19,7 +20,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5271'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s4-chip-real-qa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/825-s4-chip-real-qa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i

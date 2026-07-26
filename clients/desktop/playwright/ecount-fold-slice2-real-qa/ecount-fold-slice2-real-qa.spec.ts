@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 이카운트 네이티브 편입 슬2 — 현금 지출/입금 silo 폐기 Docker 실서버 QA.
  *
@@ -23,7 +24,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/ecount-fold-slice2')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/ecount-fold-slice2'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }

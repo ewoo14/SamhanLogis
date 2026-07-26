@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #757 STEP4 FE LOW 실증 — restoreError 배너 필터변경 소거 + × dismiss 버튼.
  *
@@ -23,7 +24,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ORDER_NO = process.env['DISMISS_ORDER_NO'] ?? '2026/06/08-1981'
 const ORDER_PATH = ORDER_NO.replace(/\//g, '-')
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // GlobalExceptionHandler#handleResponseStatus 실 계약과 동일 envelope shape(ApiResponse.fail).

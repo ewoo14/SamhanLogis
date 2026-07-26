@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * cycle-3 view-only 변경 게이트 — 실서버(mock OFF) QA 캡처 (PR #462).
  *
@@ -21,7 +22,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/menu-5category-view-only-gates')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/menu-5category-view-only-gates'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const ACCOUNTS = ['dev_master', 'dev_manager', 'dev_sales', 'dev_accountant', 'dev_warehouse', 'dev_dispatch']

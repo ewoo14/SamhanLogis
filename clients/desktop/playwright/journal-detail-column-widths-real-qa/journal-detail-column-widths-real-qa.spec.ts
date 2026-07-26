@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #711 분개 상세 라인 테이블 열 재배분 — 실서버 GUI 실증 (mock OFF).
  * #714 후속 — 1024px(앱 minWidth) 열 압축 회귀 방지 케이스 추가.
@@ -32,7 +33,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/journal-detail-column-widths/screenshots')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/journal-detail-column-widths/screenshots'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

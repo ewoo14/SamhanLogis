@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬4a — 그룹웨어 결재라인 BE 엔드포인트 라이브 실 응답 캡처(스크린샷).
  *
@@ -12,7 +13,7 @@ import { test } from '@playwright/test'
 
 const GW = 'http://127.0.0.1:8080'
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const DIR = path.resolve(_dirname, '../../../../docs/qa/groupware-approval-line-config-s4a')
+const DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/groupware-approval-line-config-s4a'))
 fs.mkdirSync(DIR, { recursive: true })
 
 async function token(): Promise<string> {

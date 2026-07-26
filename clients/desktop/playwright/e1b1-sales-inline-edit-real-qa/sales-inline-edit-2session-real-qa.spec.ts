@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * E1-b-1 매출 전표 상세 품목행 인라인 편집 — 실서버 2세션 coedit GUI QA.
  *
@@ -15,7 +16,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? ''
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e1b1-sales-inline-edit')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e1b1-sales-inline-edit'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

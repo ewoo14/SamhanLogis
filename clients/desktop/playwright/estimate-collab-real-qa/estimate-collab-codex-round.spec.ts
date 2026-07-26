@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 슬라이스3 견적 collab — Codex 5-agent 라운드 실 서버 QA (회귀 무 재확인).
  *
@@ -25,7 +26,7 @@ const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 const ESTIMATE_ID = process.env['ESTIMATE_ID'] ?? '461531e0-6a89-4f92-ab2f-2c18e8d8a9f5'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/estimate-collab-codex')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/estimate-collab-codex'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

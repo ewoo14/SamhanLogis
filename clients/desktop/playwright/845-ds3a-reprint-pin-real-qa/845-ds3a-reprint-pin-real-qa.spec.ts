@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3a 라이브 QA — 결재 재인쇄 "승인 당시 레이아웃 pin" 실서버 검증.
  *
@@ -33,10 +34,13 @@ const SEED_UNPINNED_APPROVAL = '09d31223-2acf-46c3-8e09-254fc0cebffb' // 2026/05
 const PRE_DEPLOY_PENDING_APPROVAL = 'e98596be-dd56-47c2-a2bb-63e6a9bc5ce8' // 2026/07/21-1 PENDING
 const NO_ACTIVE_APPROVED_APPROVAL = '056ec1ac-ee7c-45a0-b378-f02a80d82f72' // 2026/07/21-2 ACTIVE 양식 부재 승인
 const CONTENT_MARKER = 'PIN-CONTENT-MARKER-본문식별자'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r1-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r1-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
-const RAW_LOG = path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r1-liveqa-raw.txt')
+const RAW_LOG = path.join(
+  resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa')),
+  '845-ds3a-r1-liveqa-raw.txt',
+)
 function rawLog(line: string): void {
   fs.appendFileSync(RAW_LOG, `${new Date().toISOString()} ${line}\n`)
 }

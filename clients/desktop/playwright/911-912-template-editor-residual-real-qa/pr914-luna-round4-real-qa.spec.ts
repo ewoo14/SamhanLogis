@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** PR #914 CODEX LUNA 5.6 — residual envelope validation live QA (5195). */
 import { execFileSync } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
@@ -9,7 +10,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'PR914-LUNA-R4-20260724'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-round4-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-round4-2026-07-24'))
 mkdirSync(SHOT_DIR, { recursive: true })
 
 interface LoginResult {

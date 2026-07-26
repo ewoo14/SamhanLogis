@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 배치 B2 — OPUS 적대검증 R1 라이브 QA.
  *
@@ -22,7 +23,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5216'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/b2-partner-integrity')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/b2-partner-integrity'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // 실 partner_db 거래처 2종(교체 audit용) — 상호 상이(교체 감지 명확)

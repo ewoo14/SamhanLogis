@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #923 (#870) — PM 직접 라이브QA (실서버 :8080 + 실 렌더러 mock OFF).
  *
@@ -21,7 +22,7 @@ import { expect, test, type Page } from '@playwright/test'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5522'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(process.env['AUDIT_SHOT_DIR'] ?? '../../docs/qa/pm-870-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(process.env['AUDIT_SHOT_DIR'] ?? '../../docs/qa/pm-870-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const DEV_GROUP = "[data-testid='sidebar-category-toggle-개발']"

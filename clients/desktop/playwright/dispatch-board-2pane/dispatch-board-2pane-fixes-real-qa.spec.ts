@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #2 P1 fix 라이브 실QA(mock OFF) — 재빌드 slip-service(today-draft 엔드포인트 + 발송그룹 가드).
  *
@@ -18,7 +19,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/dispatch-board-2pane')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dispatch-board-2pane'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }

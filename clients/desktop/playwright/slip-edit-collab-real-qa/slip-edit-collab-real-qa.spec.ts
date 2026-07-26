@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #474 §7 전표 수정(협업) "수정완료 1-인" 모델 — 실 서버 QA 스크린샷 캡처.
  *
@@ -46,10 +47,10 @@ const SLIP_ID = '1c72f28a-4aae-4f1c-8522-b7e9a921aa0d'
 
 /** QA 스크린샷 저장 디렉토리 */
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/slip-edit-collab',
-)
+))
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 

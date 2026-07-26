@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬3 — 판매전표 결재란 설정기반 렌더 실 서버 QA.
  *
@@ -18,7 +19,7 @@ const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 
 function hashUrl(p: string): string { return `${BASE_URL}/#${p}` }
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/approval-line-config-render-s3')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/approval-line-config-render-s3'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 let seq = 0
 async function capture(page: Page, name: string): Promise<void> {

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #914 OPUS 재수렴(2차) 적대검증 라이브 QA — 실서버 5195 / API 8080.
  *
@@ -15,7 +16,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'OPUSRECONV2-914-20260724'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-opus-reconv2-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-opus-reconv2-2026-07-24'))
 /** #848 라운드 잔재(실 데이터, schemaVersion=1, ACTIVE) — 읽기 전용으로만 연다. */
 const LEGACY_V1_TEMPLATE_ID = '31b97122-3a59-467c-901f-4bc375aaa811'
 /** 실 결재문서(지출결의서, 5필드 전부 값 있음). */

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * collab presence 4문서 롤아웃 — 실 서버 2세션 QA 스크린샷 캡처.
  *
@@ -24,7 +25,7 @@ const GW = 'http://127.0.0.1:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/collab-presence-rollout')
+const SHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/collab-presence-rollout'))
 fs.mkdirSync(SHOT_DIR, { recursive: true })
 
 /**

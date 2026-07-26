@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #720 월마감 실행 실패 fix 라이브 QA — lock-by-period 내부 엔드포인트화 실증.
  *
@@ -35,7 +36,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/720-month-end-close-lock-by-period')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/720-month-end-close-lock-by-period'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

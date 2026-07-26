@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * single-material-product 슬라이스 — 데스크톱 품목 관리 실서버 QA 캡처.
  *
@@ -32,7 +33,7 @@ const API_BASE = 'http://localhost:8080'
 const BUNDLE_CODE = 'AC110CS6PBH1SY'
 const SET_CATEGORY = 'SINGLE_SET'
 
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/single-material-product/screenshots')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/single-material-product/screenshots'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 async function shot(page: Page, name: string): Promise<void> {

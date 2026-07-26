@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** PR #914 SONNET5 라운드3 fix — 발견1/2/3 AFTER 라이브 검증 + 회귀 울타리 F-1~F-9 전 항목 실제 재실행.
  *
  * 배경: 직전 라운드(SOL)가 validationMessage 를 코드 단위 제네릭 문구로 뭉개 TEXT 4096자·IMAGE
@@ -16,7 +17,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'LUNA914R5'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-round-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-round-2026-07-24'))
 mkdirSync(SHOT_DIR, { recursive: true })
 
 // F-9 대상 — #848 라운드가 남긴 기존 v1·ACTIVE 실 템플릿(읽기전용 재사용, 절대 수정하지 않는다).

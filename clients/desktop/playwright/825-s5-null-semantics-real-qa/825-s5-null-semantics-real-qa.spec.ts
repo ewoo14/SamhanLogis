@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #825 슬5 null-semantics('전체' vs '미선택' 분리) — 실서버 라이브 QA (FABLE5 적대검증 차원F R4).
  *
@@ -38,7 +39,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5281'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s5-r4-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/825-s5-r4-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 /** 불활성 과거일 — 세금계산서/전표 0건 확인된 날짜(집계 0 스냅샷). */

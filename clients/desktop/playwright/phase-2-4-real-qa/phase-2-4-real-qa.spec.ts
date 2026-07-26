@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * Phase 2.4 실 partner-order-service QA 스크린샷 촬영 스크립트.
  *
@@ -46,10 +47,10 @@ const MASTER_USER_ROLE = 'MASTER'
 
 /** QA 스크린샷 저장 디렉토리 */
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/phase-2-4-partner-order-restore/screenshots',
-)
+))
 
 // 디렉토리 보장
 if (!fs.existsSync(SCREENSHOT_DIR)) {

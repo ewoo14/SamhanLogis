@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * R2 fix Design F-1 실증 — 삭제행 상태 배지 중립화.
  *
@@ -15,7 +16,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ORDER_NO = process.env['BADGE_ORDER_NO'] ?? '2026/07/07-9003'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e2-rollout-order-list'))
 
 async function realLogin(page: Page): Promise<{ token: string; role: string; userId: string; displayName: string }> {
   const res = await page.request.post(`${API_BASE}/auth/login`, { data: { loginId: 'dev_master', password: PASSWORD } })

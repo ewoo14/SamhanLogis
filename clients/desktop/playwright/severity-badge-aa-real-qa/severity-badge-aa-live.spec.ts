@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #795 — NotificationHistoryPage SeverityBadge(INFO/WARNING/CRITICAL) AA 대비 개선
  * 실서버 GUI QA (mock OFF). 실 게이트웨이(:8080) 로그인 + 실 notification-service(:8093) 데이터.
@@ -30,7 +31,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const NOTIFICATION_DIRECT_BASE = process.env['NOTIFICATION_DIRECT_BASE'] ?? 'http://localhost:8093'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const PHASE = process.env['QA_PHASE'] ?? 'after'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/severity-badge-aa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/severity-badge-aa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function capture(page: Page, name: string): Promise<void> {

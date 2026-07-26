@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR-B 품목 노출 수동 토글 — 실서버 QA 스펙
  *
@@ -19,7 +20,7 @@ const _dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const GATEWAY = 'http://localhost:8080'
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/product-usage-toggle-pr-b/screenshots')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/product-usage-toggle-pr-b/screenshots'))
 
 // Ensure screenshot dir exists
 if (!fs.existsSync(SCREENSHOT_DIR)) {

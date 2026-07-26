@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #461 #16 T2 — 구성품 편집 모달 FE 경유 Docker 실서버 QA.
  *
@@ -38,7 +39,7 @@ const API_BASE = 'http://localhost:8080'
 const BUNDLE_CODE = 'AC110CS6PBH1SY'
 const SET_CATEGORY = 'SINGLE_SET'
 
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/product-catalog-enhance')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/product-catalog-enhance'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 async function shot(page: Page, name: string): Promise<void> {

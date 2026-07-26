@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -6,7 +7,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5331'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const PHASE = process.env['SHOT_PHASE'] ?? 'after'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '880-luna-round-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '880-luna-round-2026-07-24'))
 
 type Auth = { token: string; userId: string; role: string; fullName: string }
 

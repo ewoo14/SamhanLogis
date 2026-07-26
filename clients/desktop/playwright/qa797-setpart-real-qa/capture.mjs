@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // PR #797 (#782 part2) 라이브 QA — 상업 SET 구성품 하위행(.set-part) 시각 폴리시 before/after.
 // index.html <style> CSS 3줄 추가만(fix/782-setpart-visual-policy): 하위행 연한배경(#fafbfc)·
 // muted·이름셀 들여쓰기(20px)+정상weight(400). 부모 SET행(.group-top) 대비 종속 표현.
@@ -8,7 +9,7 @@
 //       + 실 partner-auth-service(bizNo 2118712345 / PIN 1234) + 실 partner-order/product-service.
 import { chromium } from '@playwright/test';
 
-const OUT = process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-setpart';
+const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-setpart');
 const URL = process.env.QA_URL || 'http://localhost:5198/';
 const LABEL = process.env.QA_LABEL || 'after'; // after | before
 

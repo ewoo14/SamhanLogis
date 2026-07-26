@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 에픽 #18 슬2 — 세트 구성품 종류 그룹/기본 고정/같은 종류 안 순서 변경 실서버 QA.
  *
@@ -34,7 +35,7 @@ const API_BASE = 'http://localhost:8080'
 const BUNDLE_CODE = 'AC100CS6PHH1SY'
 const SET_CATEGORY = 'SINGLE_SET'
 
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/product-set-component-reorder')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/product-set-component-reorder'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 async function shot(page: Page, name: string): Promise<void> {

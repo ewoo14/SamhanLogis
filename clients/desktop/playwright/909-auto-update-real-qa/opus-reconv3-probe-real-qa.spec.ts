@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #909 OPUS 재수렴 라운드 3 (적대 probe) — 닫기 무효화 fix(fe83eb911) 를 실제로 조작해
  * 도달가능 결함 0 을 확인하고, "닫기 버튼을 모든 상태에 추가 + dismiss reset 의존성 [kind]"
@@ -22,7 +23,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5260'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'OPUS909R7'
-const SHOT_DIR = process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-opus-reconv3-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR'] ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-opus-reconv3-2026-07-24'))
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'
 
 type Auth = { token: string; userId: string; role: string; fullName: string }
