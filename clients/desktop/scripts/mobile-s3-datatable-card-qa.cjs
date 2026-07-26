@@ -2,7 +2,10 @@
  * 가짜 금지 [[feedback_no_fake_data_ever]]. 실 로그인·실 리스트 데이터·실 카드 캡처.
  */
 const { chromium } = require('playwright')
-const QA = 'C:/dev/Samhan-Public/docs/qa/mobile-s3-datatable-card'
+const path = require('path')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const QA = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/mobile-s3-datatable-card'))
 const BASE = 'http://localhost:5175'
 
 async function launch() {
@@ -10,7 +13,8 @@ async function launch() {
   catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) }
 }
 async function login(page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175)는 HashRouter — 해시 필수(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
@@ -19,9 +23,14 @@ async function login(page) {
   await page.waitForTimeout(1000)
 }
 async function capture(page, path, file, label) {
-  await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' })
+  // 해시 없는 goto 는 조용히 홈으로 낙착해 rows=0 인데도 QA_DONE 으로 끝난다(실측:
+  // "1.모바일 거래처(카드): /admin/partners rows=0" — 2026-07-26 하네스 재수렴 라운드 G5).
+  await page.goto(`${BASE}/#${path}`, { waitUntil: 'domcontentloaded' })
   // DataTable(table) 또는 empty 렌더 대기
   await page.waitForTimeout(2500)
+  if (!page.url().includes(`/#${path}`)) {
+    throw new Error(`${label} 목표 화면 도달 실패 — 기대=#${path} 실제=${page.url()}`)
+  }
   const rows = await page.locator('table tbody tr').count().catch(() => 0)
   const noH = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)
   await page.screenshot({ path: `${QA}/${file}`, fullPage: false })

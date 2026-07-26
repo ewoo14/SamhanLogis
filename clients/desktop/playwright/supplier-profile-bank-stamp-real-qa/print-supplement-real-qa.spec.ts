@@ -10,6 +10,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
 import { expect, test, type Page, type Route } from '@playwright/test'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5175'
 const GATEWAY_URL = 'http://localhost:8080'
@@ -21,9 +22,11 @@ const SALES_USER_ID = 'a0000000-0000-0000-0000-000000000004'
 const SALES_USER_NAME = '[DEV-SEED] 개발영업'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
-  _dirname,
-  '../../../../docs/qa/supplier-profile-bank-stamp/screenshots',
+// resolveQaShotsDir 로 감싸 기본 실행이 커밋된 docs/qa/supplier-profile-bank-stamp/screenshots/
+// 를 직접 덮어쓰지 않게 한다(기본 _local/ 격리, 2026-07-26 하네스 재수렴 라운드 G2 — 형제
+// 파일 supplier-profile-bank-stamp-real-qa.spec.ts 만 이미 보호돼 있었다).
+const SCREENSHOT_DIR = resolveQaShotsDir(
+  path.resolve(_dirname, '../../../../docs/qa/supplier-profile-bank-stamp/screenshots'),
 )
 
 async function capture(page: Page, name: string): Promise<void> {

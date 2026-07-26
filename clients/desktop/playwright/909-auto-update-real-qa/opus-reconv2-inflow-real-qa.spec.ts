@@ -12,12 +12,13 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5200'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = process.env['AUDIT_SHOT_DIR']
-  ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-opus-reconv2-2026-07-24')
+const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR']
+  ?? join(process.cwd(), '..', '..', 'docs', 'qa', '909-opus-reconv2-2026-07-24'))
 /** 실서버 slip_db 실데이터 — OUTBOUND 2026/01/15-1, 라인 5행. */
 const SLIP_ID = process.env['QA_SLIP_ID'] ?? '1d905732-3059-48b9-869d-456404e68249'
 const RAW_ERROR = 'Cannot find channel latest at https://intranet.example/latest.yml x-secret-header'

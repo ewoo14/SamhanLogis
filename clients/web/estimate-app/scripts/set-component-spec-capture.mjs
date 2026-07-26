@@ -5,9 +5,12 @@
 import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
-const OUT = 'C:/dev/Samhan-Public/docs/qa/set-component-spec-display';
-fs.mkdirSync(OUT, { recursive: true });
+const _dirname = path.dirname(fileURLToPath(import.meta.url));
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/set-component-spec-display'));
 const URL = 'http://localhost:5183/?email=dev_master@samhan-air.com';
 const log = (...a) => console.log('[cap]', ...a);
 

@@ -25,10 +25,13 @@ const { chromium } = require('@playwright/test')
 const path = require('path')
 const https = require('https')
 const http = require('http')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const VITE_URL = 'http://localhost:5175'
 const GATEWAY = 'http://localhost:8080'
-const SCREENSHOT_DIR = path.join(__dirname, '../../../docs/qa/phase-2-5-partner-order-hold/screenshots')
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3) — 기본 실행이 커밋된 확정 증거를 직접
+// 덮어쓰지 않는다.
+const SCREENSHOT_DIR = resolveQaShotsDir(path.join(__dirname, '../../../docs/qa/phase-2-5-partner-order-hold/screenshots'))
 
 // ──────────────────────────────────────────────────────────────────────────
 // 실 JWT 발급

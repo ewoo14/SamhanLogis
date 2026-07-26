@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$OutputDir = "docs/qa/sp-08-3-2-arologis-history/screenshots"
+    [string]$OutputDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs/qa/sp-08-3-2-arologis-history/screenshots/_local" })
 )
 
 # mock-only — Malgun Gothic + raw hex; 실 화면은 Pretendard + CSS var 사용 (SP-08-3-2 진입 시 실 컴포넌트 캡처로 교체)

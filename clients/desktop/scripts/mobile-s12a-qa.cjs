@@ -18,7 +18,8 @@ async function launch() {
   catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) }
 }
 async function login(page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175)는 HashRouter — 해시 필수(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
@@ -49,11 +50,17 @@ async function run(ctxLabel, page) {
   for (const t of TARGETS) {
     const r = { ctx: ctxLabel, label: t.label, path: t.path }
     try {
-      await page.goto(`${BASE}${t.path}`, { waitUntil: 'domcontentloaded' })
+      // 이 하네스(:5175)는 HashRouter — 해시 없는 goto 는 조용히 홈으로 낙착해 rows=0 인데도
+      // 성공으로 보고된다(2026-07-26 하네스 재수렴 라운드 G5 실측). 아래 REDIRECT 감지는
+      // 원래도 있었지만 상태 필드에만 기록되고 종료코드에 반영되지 않아 "감지=게이트" 가
+      // 아니었다 — 이제 도달 실패는 throw 로 승격한다.
+      await page.goto(`${BASE}/#${t.path}`, { waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1400)
       r.url = page.url()
+      if (!r.url.includes(`/#${t.path}`)) {
+        throw new Error(`목표 화면 도달 실패 — 기대=#${t.path} 실제=${r.url}`)
+      }
       if (/\/login(\?|$)/.test(r.url)) r.status = 'REDIRECT_LOGIN'
-      else if (r.url.replace(BASE, '') !== t.path) r.status = 'REDIRECT:' + r.url.replace(BASE, '')
       r.rows = await page.locator('table tbody tr').count().catch(() => 0)
       r.theadCols = await page.locator('table thead th').count().catch(() => 0)
       Object.assign(r, await probe(page))
@@ -85,6 +92,10 @@ async function run(ctxLabel, page) {
     const wt = r.worst && r.worst.length ? ` worst=${JSON.stringify(r.worst[0])}` : ''
     const rc = r.rowClickNav !== undefined ? ` rowClick=${r.rowClickNav}(${r.afterUrl})` : ''
     console.log(`[${r.ctx}] ${r.label} rows=${r.rows} thead=${r.theadCols} | ${flag}${wt}${rc}${r.error ? ' ' + r.error : ''}`)
+  }
+  if (all.some((r) => r.error)) {
+    console.error('QA_FAIL_PARTIAL', JSON.stringify(all.filter((r) => r.error).map((r) => `${r.ctx}/${r.label}`)))
+    process.exit(1)
   }
   console.log('QA_DONE')
 })().catch((e) => { console.error('QA_FAIL', e); process.exit(1) })

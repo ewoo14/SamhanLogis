@@ -573,6 +573,27 @@ jobs:
         shell: pwsh
         run: ./infrastructure/scripts/validate-config-audit.ps1 -Detailed
 
+  app-build-version-guard:
+    name: "App Build Version Guard (scripts/app-build-version, #910/#928)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # scripts/app-build-version.cjs 는 데스크톱 릴리스 빌드 · arologis-mobile · mobile ·
+      # mobile-staff · estimate-app 등 8개 소비자가 공유하는 버전 리졸버다(#910/#928 표면).
+      # node:test 빌트인만 쓰고 외부 의존성이 없어 npm ci 없이 그대로 실행된다(notion-zero-guard·
+      # credential-plaintext-guard 와 동일하게 checkout 전용 lightweight guard 잡으로 구성 —
+      # 2026-07-26 하네스 재수렴 라운드 G7, 이전에는 CI 러너가 0개였다).
+      - name: "scripts/app-build-version 계약 테스트"
+        run: node --test scripts/app-build-version.test.cjs
+
   frontend-ds:
     name: Frontend DS (typecheck + lint + build + storybook)
     runs-on: ubuntu-latest

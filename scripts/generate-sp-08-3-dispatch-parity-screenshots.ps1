@@ -1,7 +1,8 @@
 # mock only — Segoe UI + hex literal; 실 화면은 Pretendard 9 weight + CSS var(--color-*) 사용 (sub-sub-task PR 에서 교체)
 $ErrorActionPreference = 'Stop'
 
-$OutDir = Join-Path $PSScriptRoot '..\docs\qa\sp-08-3-dispatch-parity\screenshots'
+$CommittedDir = Join-Path $PSScriptRoot '..\docs\qa\sp-08-3-dispatch-parity\screenshots'
+$OutDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 Add-Type -AssemblyName System.Drawing

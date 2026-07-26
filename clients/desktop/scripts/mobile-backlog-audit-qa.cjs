@@ -15,7 +15,8 @@ async function launch() {
   catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) }
 }
 async function login(page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175)는 HashRouter — 해시 필수(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
@@ -46,9 +47,15 @@ async function probe(page) {
 async function visit(page, label, path, wait = 1400) {
   const r = { label, path }
   try {
-    await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' })
+    // 이 하네스(:5175)는 HashRouter — 해시 없는 goto 는 조용히 홈으로 낙착해 rows=0 인데도
+    // 성공으로 보고된다(2026-07-26 하네스 재수렴 라운드 G5 실측: mobile-s3-datatable-card-qa.cjs
+    // 와 동일 계열 결함).
+    await page.goto(`${BASE}/#${path}`, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(wait)
     r.url = page.url()
+    if (!r.url.includes(`/#${path}`)) {
+      throw new Error(`목표 화면 도달 실패 — 기대=#${path} 실제=${r.url}`)
+    }
     if (/\/login(\?|$)/.test(r.url)) r.status = 'REDIRECT_LOGIN'
     r.rows = await page.locator('table tbody tr').count().catch(() => 0)
     Object.assign(r, await probe(page))
@@ -66,7 +73,10 @@ async function visit(page, label, path, wait = 1400) {
   // === A. 드로어 네비 기능 동작 (슬2) ===
   const drawer = { label: 'A-drawer', path: '/' }
   try {
-    await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1000)
+    // 빈 해시도 명시한다 — 드로어 자체는 화면 무관이라 도달 대상은 홈이면 충분하지만,
+    // 해시 생략은 이 하네스(HashRouter)에서 "명시적으로 검증되지 않은 낙착"이라 가드가
+    // 구분하지 못한다(2026-07-26 하네스 재수렴 라운드 G5 — 의미상 동작 변화 없음).
+    await page.goto(`${BASE}/#/`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1000)
     await page.screenshot({ path: `${OUT}/A-home.png`, fullPage: true }).catch(() => {})
     const toggle = page.locator('.app-drawer-toggle')
     drawer.toggleVisible = await toggle.isVisible().catch(() => false)
@@ -91,7 +101,10 @@ async function visit(page, label, path, wait = 1400) {
   // 리스트→행클릭→상세 (슬4c 모바일-퍼스트)
   const detail = { label: 'B-detail-slip', path: '/sales/slips→row' }
   try {
-    await page.goto(`${BASE}/sales/slips`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1300)
+    await page.goto(`${BASE}/#/sales/slips`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1300)
+    if (!page.url().includes('/#/sales/slips')) {
+      throw new Error(`목표 화면 도달 실패 — 기대=#/sales/slips 실제=${page.url()}`)
+    }
     detail.rows = await page.locator('table tbody tr').count().catch(() => 0)
     if (detail.rows > 0) {
       await page.locator('table tbody tr').first().click().catch(() => {}); await page.waitForTimeout(1600)
@@ -118,6 +131,12 @@ async function visit(page, label, path, wait = 1400) {
     const flag = r.error ? 'ERR' : (/REDIRECT/.test(r.status || '') ? 'AUTH차단' : (r.hOverflow ? `가로오버플로 +${r.overBy}px` : 'OK(오버플로0)'))
     const worst = r.worst && r.worst.length ? ` worst=${JSON.stringify(r.worst[0])}` : ''
     console.log(`[${r.label}] ${r.path} → rows=${r.rows ?? '-'} | ${flag}${worst}${r.mobilePrimitives !== undefined ? ' mobilePrim=' + r.mobilePrimitives : ''}${r.error ? ' ' + r.error : ''}`)
+  }
+  // 목표 화면 도달 실패(reachability throw 로 만든 r.error 포함)가 하나라도 있으면 QA_DONE 을
+  // 찍지 않는다 — "도달 실패해도 성공 종료" 는 게이트가 아니다(2026-07-26 하네스 재수렴 라운드 G5).
+  if (results.some((r) => r.error)) {
+    console.error('QA_FAIL_PARTIAL', JSON.stringify(results.filter((r) => r.error).map((r) => r.label)))
+    process.exit(1)
   }
   console.log('QA_DONE')
 })().catch((e) => { console.error('QA_FAIL', e); process.exit(1) })

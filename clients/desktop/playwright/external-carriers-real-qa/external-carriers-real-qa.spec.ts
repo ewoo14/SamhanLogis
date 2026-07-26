@@ -15,6 +15,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
 import { test, expect, type Page } from '@playwright/test'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const GW_URL = 'http://127.0.0.1:8080'
@@ -30,10 +31,11 @@ const SALES_DISPLAY_NAME = '[DEV-SEED] 개발영업'
 const CARRIER_NAME = '한빛퀵QA'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR =
-  process.env['QA_SHOTS'] ??
-  path.resolve(_dirname, '../../../../docs/qa/external-carriers-s2')
-fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
+const SCREENSHOT_DIR = resolveQaShotsDir(
+  process.env['QA_SHOTS']
+    ? path.resolve(process.env['QA_SHOTS'])
+    : path.resolve(_dirname, '../../../../docs/qa/external-carriers-s2'),
+)
 
 async function capture(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, `${name}.png`), fullPage: false })

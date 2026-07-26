@@ -1,10 +1,11 @@
 /* 슬4c 가로 overflow 재검증 — 상세 페이지 mobile(390)에서 우측 넘침 요소가
  * scroll 컨테이너 안(OK·스크롤가능)인지 app-main 클리핑(BAD·접근불가)인지 분류. */
 const { chromium } = require('playwright')
-const fs = require('fs')
-const QA = 'C:/dev/Samhan-Public/docs/qa/mobile-s4c-detail-responsive'
+const path = require('path')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const QA = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/mobile-s4c-detail-responsive'))
 const BASE = 'http://localhost:5175'
-fs.mkdirSync(QA, { recursive: true })
 const ROUTES = [
   { label: 'slip', list: '/sales/slips' },
   { label: 'tax-invoice', list: '/accounting/tax-invoices' },
@@ -15,14 +16,18 @@ async function launch() { try { return await chromium.launch({ headless: true })
 ;(async () => {
   const b = await launch()
   const page = await (await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 })).newPage()
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175)는 HashRouter — 해시 필수(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   for (const r of ROUTES) {
-    await page.goto(`${BASE}${r.list}`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`${BASE}/#${r.list}`, { waitUntil: 'domcontentloaded' })
+    if (!page.url().includes(`/#${r.list}`)) {
+      throw new Error(`목표 화면 도달 실패 — 기대=#${r.list} 실제=${page.url()}`)
+    }
     await page.waitForSelector('table tbody tr', { timeout: 8000 }).catch(() => {})
     await page.waitForTimeout(700)
     if (await page.locator('table tbody tr').count().catch(() => 0) === 0) { console.log(`[${r.label}] 리스트 비어 미진입`); continue }

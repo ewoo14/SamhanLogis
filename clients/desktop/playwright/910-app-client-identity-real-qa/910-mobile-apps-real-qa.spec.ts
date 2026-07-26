@@ -14,9 +14,10 @@
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
-const SHOT_DIR = process.env['AUDIT_SHOT_DIR']
-  ?? join(process.cwd(), '..', '..', 'docs', 'qa', '910-app-client-identity')
+const SHOT_DIR = resolveQaShotsDir(process.env['AUDIT_SHOT_DIR']
+  ?? join(process.cwd(), '..', '..', 'docs', 'qa', '910-app-client-identity'))
 
 test.use({ viewport: { width: 430, height: 932 } })
 

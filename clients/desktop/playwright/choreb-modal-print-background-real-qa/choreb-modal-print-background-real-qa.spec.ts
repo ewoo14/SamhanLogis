@@ -8,14 +8,17 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5430'
-const SHOTS = process.env['AUDIT_SHOT_DIR']
-  ? path.resolve(process.env['AUDIT_SHOT_DIR'])
-  : path.resolve('../../docs/qa/choreb-luna-impl')
+// AUDIT_SHOT_DIR 미지정 시 커밋된 docs/qa/choreb-luna-impl/ 을 직접 덮어쓰던 함정을
+// resolveQaShotsDir 로 닫는다(기본 _local/ 격리, 2026-07-26 하네스 재수렴 라운드 G2).
+const SHOTS = resolveQaShotsDir(
+  process.env['AUDIT_SHOT_DIR']
+    ? path.resolve(process.env['AUDIT_SHOT_DIR'])
+    : path.resolve('../../docs/qa/choreb-luna-impl'),
+)
 const BACKDROP = "[data-testid='ds-modal-backdrop']"
-
-fs.mkdirSync(SHOTS, { recursive: true })
 
 function pdfPageCount(pdf: Buffer): number {
   const text = pdf.toString('latin1')

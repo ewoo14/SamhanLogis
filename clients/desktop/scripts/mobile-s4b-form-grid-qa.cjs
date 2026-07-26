@@ -3,17 +3,19 @@
  * 1열(mobile ≤768px)/2열(desktop >768px) ground-truth 측정(false-RED 회피 [[feedback_realqa_run_and_false_red]]).
  */
 const { chromium } = require('playwright')
-const fs = require('fs')
-const QA = 'C:/dev/Samhan-Public/docs/qa/mobile-s4b-form-grid'
+const path = require('path')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const QA = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/mobile-s4b-form-grid'))
 const BASE = 'http://localhost:5175'
-fs.mkdirSync(QA, { recursive: true })
 
 async function launch() {
   try { return await chromium.launch({ headless: true }) }
   catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) }
 }
 async function login(page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175)는 HashRouter — 해시 필수(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
@@ -39,7 +41,11 @@ async function measureGrids(page) {
 }
 async function capForm(ctxLabel, page, name, navPath, opener, waitSel) {
   try {
-    await page.goto(`${BASE}${navPath}`, { waitUntil: 'domcontentloaded' })
+    // 해시 없는 goto 는 조용히 홈으로 낙착한다(2026-07-26 하네스 재수렴 라운드 G5 실측).
+    await page.goto(`${BASE}/#${navPath}`, { waitUntil: 'domcontentloaded' })
+    if (!page.url().includes(`/#${navPath}`)) {
+      throw new Error(`목표 화면 도달 실패 — 기대=#${navPath} 실제=${page.url()}`)
+    }
     if (waitSel) await page.waitForSelector(waitSel, { timeout: 15000 }).catch(() => {})
     await page.waitForTimeout(1200)
     if (opener) { try { await opener(page) } catch (e) { console.log(`   opener fail ${name}: ${e.message}`) } }
@@ -84,6 +90,10 @@ async function capForm(ctxLabel, page, name, navPath, opener, waitSel) {
   await b.close()
   const fails = results.filter((r) => !r.ok)
   console.log(`\n=== 요약: ${results.length - fails.length}/${results.length} PASS ===`)
-  if (fails.length) console.log('미통과/미발견:', fails.map((r) => `${r.ctxLabel}-${r.name}`).join(', '))
+  if (fails.length) {
+    console.log('미통과/미발견:', fails.map((r) => `${r.ctxLabel}-${r.name}`).join(', '))
+    console.error('QA_FAIL_PARTIAL')
+    process.exit(1)
+  }
   console.log('QA_DONE')
 })().catch((e) => { console.error('QA_FAIL', e); process.exit(1) })

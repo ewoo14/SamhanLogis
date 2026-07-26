@@ -30,10 +30,12 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
 
 const VIEWPORT = { width: 390, height: 844 };
 const ESTIMATE_BASE = process.env.QA_ESTIMATE_BASE_URL || 'http://localhost:5183';
-const OUT_DIR = path.resolve(__dirname, '../../../docs/qa/migration-fe-mobile-staff-v3');
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT_DIR = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/migration-fe-mobile-staff-v3'));
 
 // react-native-webview 가 estimate-app 진입 시 보내는 user agent — App.tsx 의
 // `applicationNameForUserAgent = ' SamhanStaffApp/0.2.0 (samhan-staff-v2-webview)'` 와 동일.

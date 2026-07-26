@@ -12,16 +12,15 @@
  * 실행: `node scripts/qa-capture.mjs` (preview server `npm run preview` 가 5181 에서 동작 중이어야 함)
  */
 import puppeteer from 'puppeteer-core'
-import { mkdirSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const OUT_DIR = resolve(__dirname, '../../../../docs/qa/migration-fe-order-app-v4')
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT_DIR = resolveQaShotsDir(resolve(__dirname, '../../../../docs/qa/migration-fe-order-app-v4'))
 const URL_BASE = process.env.QA_URL || 'http://localhost:5181/'
 const EDGE_PATH = process.env.EDGE_PATH || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
-
-mkdirSync(OUT_DIR, { recursive: true })
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

@@ -2,11 +2,15 @@
  * 가짜 금지 [[feedback_no_fake_data_ever]]. 실 로그인·실 모달 풀스크린 캡처.
  */
 const { chromium } = require('playwright')
-const QA = 'C:/dev/Samhan-Public/docs/qa/mobile-s4a-modal-fullscreen'
+const path = require('path')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const QA = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/mobile-s4a-modal-fullscreen'))
 const BASE = 'http://localhost:5175'
 async function launch() { try { return await chromium.launch({ headless: true }) } catch { return await chromium.launch({ headless: true, channel: 'chromium-headless-shell' }) } }
 async function login(page) {
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175)는 HashRouter — 해시 필수(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
@@ -14,7 +18,10 @@ async function login(page) {
   await page.waitForSelector('.app-shell', { timeout: 20000 }); await page.waitForTimeout(1000)
 }
 async function openAndShoot(page, label, file, trigger, navPath = '/admin/partners', waitSel = 'table tbody tr', afterOpen = null) {
-  await page.goto(`${BASE}${navPath}`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/#${navPath}`, { waitUntil: 'domcontentloaded' })
+  if (!page.url().includes(`/#${navPath}`)) {
+    throw new Error(`${label} 목표 화면 도달 실패 — 기대=#${navPath} 실제=${page.url()}`)
+  }
   await page.waitForSelector(waitSel, { timeout: 15000 }); await page.waitForTimeout(1500)
   await trigger(page)
   if (afterOpen) { try { await afterOpen(page) } catch {} }

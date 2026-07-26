@@ -16,16 +16,20 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5430'
 // PR #921 chore-B SONNET5 R-3 — AUDIT_SHOT_DIR 미지원이 커밋된 docs/qa/choreb-opus-b/ 를
 // 덮어쓰는 함정이었다(다른 라운드에서 44개 산출물 덮어쓴 전례). 형제 스펙(choreb-sonnet-r1
-// 등)과 동일한 fallback 패턴으로 통일 — 지정 없을 때의 기존 기본 경로는 그대로 유지한다.
-const SHOTS = process.env['AUDIT_SHOT_DIR']
-  ? path.resolve(process.env['AUDIT_SHOT_DIR'])
-  : path.resolve('../../docs/qa/choreb-opus-b')
+// 등)과 동일한 fallback 패턴으로 통일했었으나, AUDIT_SHOT_DIR 를 안 준 "기본 실행" 자체가
+// 여전히 docs/qa/choreb-opus-b/ 를 직접 덮어썼다(실 오염 재현, 2026-07-26 하네스 재수렴
+// 라운드 G2). resolveQaShotsDir 로 한 번 더 감싸 기본값을 _local/ 로 격리한다.
+const SHOTS = resolveQaShotsDir(
+  process.env['AUDIT_SHOT_DIR']
+    ? path.resolve(process.env['AUDIT_SHOT_DIR'])
+    : path.resolve('../../docs/qa/choreb-opus-b'),
+)
 const BACKDROP = "[data-testid='ds-modal-backdrop']"
-fs.mkdirSync(SHOTS, { recursive: true })
 
 function pdfPageCount(pdf: Buffer): number {
   return (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length

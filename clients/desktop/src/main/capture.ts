@@ -28,10 +28,20 @@ const ROUTES: RouteSpec[] = [
   { path: '/slips/new', fileName: '05_slip_form', waitMs: 1500 },
 ]
 
-/** 출력 디렉토리 — worktree 루트 기준. */
+/**
+ * 출력 디렉토리 — worktree 루트 기준.
+ *
+ * CAPTURE_MODE 재실행은 커밋된 `01_login.png`~`05_slip_form.png`(5장, 파일명 완전 동일)를
+ * 직접 덮어썼다(2026-07-26 하네스 재수렴 라운드 G3 — "최악 두 건" 중 하나로 지목). 다른 QA
+ * 캡처 스크립트와 동일한 계약(QA_SHOTS_DIR opt-in override, 기본은 `_local/` 격리)을 그대로
+ * 인라인한다 — Electron main 번들(src/main/**)에 playwright 전용 헬퍼를 새로 의존시키지
+ * 않기 위해서다(패키징 함정 회피, [[feedback_electron_packaging_gotchas]]).
+ */
 function resolveOutputDir(): string {
   // 메인 프로세스의 cwd 는 보통 clients/desktop. worktree 루트로 두 단계 위.
-  return resolve(process.cwd(), '..', '..', 'docs', 'qa', 'electron-skeleton-slice', 'screenshots')
+  const committedDir = resolve(process.cwd(), '..', '..', 'docs', 'qa', 'electron-skeleton-slice', 'screenshots')
+  const override = process.env['QA_SHOTS_DIR']
+  return override && override.trim().length > 0 ? resolve(override) : resolve(committedDir, '_local')
 }
 
 /** 단일 라우트 캡처 — hash 변경 → 대기 → capturePage → PNG 저장. */

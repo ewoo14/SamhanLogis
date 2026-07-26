@@ -1,6 +1,6 @@
 param(
     [int]$IntervalSec = 300,
-    [string]$OutDir = "docs/qa/local-load-soak-test/timeseries",
+    [string]$OutDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs/qa/local-load-soak-test/timeseries/_local" }),
     [switch]$Once
 )
 

@@ -2,8 +2,11 @@
  * 가짜 금지 [[feedback_no_fake_data_ever]]. 실 로그인/실 쿠키/실 화면 캡처 + 진단.
  */
 const { chromium } = require('playwright')
+const path = require('path')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
-const QA = 'C:/dev/Samhan-Public/docs/qa/mobile-s1-foundation'
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const QA = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/mobile-s1-foundation'))
 const BASE = 'http://localhost:5175'
 
 async function launch() {
@@ -50,8 +53,8 @@ async function launch() {
 
   const log = (s) => console.log(s)
 
-  // 1) 로그인 페이지
-  await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
+  // 1) 로그인 페이지 — 이 하네스(:5175)는 HashRouter, 해시 필수(2026-07-26 G5 실측).
+  await page.goto(`${BASE}/#/login`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.screenshot({ path: `${QA}/B1-web-login-mobile.png` })
   log(`1. login page url=${page.url()} (B1 captured)`)

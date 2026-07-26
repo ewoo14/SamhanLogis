@@ -47,10 +47,12 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs');
 
 const VIEWPORT = { width: 390, height: 844 };
 const ORDER_BASE = process.env.QA_ORDER_BASE_URL || 'http://localhost:4173';
-const OUT_DIR = path.resolve(__dirname, '../../../docs/qa/migration-fe-mobile-v4-design-audit');
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT_DIR = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/migration-fe-mobile-v4-design-audit'));
 
 // react-native-webview 가 order-legacy 진입 시 보내는 user agent — App.tsx 의
 // `applicationNameForUserAgent = ' SamhanMobileApp/0.5.0 (samhan-mobile-v4-webview)'` 와 동일.
