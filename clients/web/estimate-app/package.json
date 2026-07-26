@@ -13,6 +13,8 @@
     "local-dev": "node ../../../scripts/run-client-local-dev.cjs web-estimate-app",
     "start": "node server.js",
     "test": "jest --passWithNoTests",
+    "typecheck": "node scripts/typecheck.cjs",
+    "build": "npm run typecheck",
     "qa:capture": "node scripts/qa-capture.mjs"
   },
   "dependencies": {

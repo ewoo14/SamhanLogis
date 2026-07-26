@@ -6,6 +6,11 @@ on:
       - 'qa/**'
       - 'clients/**'
       - 'services/arologis-service/**'
+      # [#851 G1] BE 계약 변경도 FE 게이트 발동 — accounting/slip 은 데스크톱 FE 가 직접
+      # 소비하는 계약(controller payload/DTO)의 원천. BE-only PR(#823 실측)이 Desktop
+      # Playwright 를 한 번도 돌리지 않아 FE 배분 차단을 CI 가 못 잡은 공백의 수선.
+      - 'services/accounting-service/**'
+      - 'services/slip-service/**'
       - '.github/workflows/qa-e2e.yml'
   workflow_dispatch:
 

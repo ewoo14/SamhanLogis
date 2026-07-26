@@ -10,6 +10,11 @@
 
 const express = require('express');
 const code = require('../lib/code');
+const { resolveBuildAppVersion } = require('../lib/version-check');
+
+const currentAppVersion = resolveBuildAppVersion();
+const versionApiBaseUrl = (process.env.SAMHAN_VERSION_API_BASE_URL || process.env.SAMHAN_API_BASE_URL || 'http://localhost:8080')
+  .replace(/\/+$/, '');
 
 const router = express.Router();
 
@@ -17,7 +22,7 @@ router.get('/', async (req, res, next) => {
   try {
     const userEmail = req.query.email || process.env.DEFAULT_USER_EMAIL || 'dev@samhan-air.com';
     const bootstrap = await code.bootstrap(userEmail);
-    res.render('index', bootstrap);
+    res.render('index', { ...bootstrap, currentAppVersion, versionApiBaseUrl });
   } catch (e) {
     next(e);
   }

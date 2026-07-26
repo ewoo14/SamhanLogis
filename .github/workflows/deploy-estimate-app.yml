@@ -55,5 +55,8 @@ jobs:
       - name: 단위 테스트
         run: npm test
 
-      - name: server.js syntax 검증 (실 기동 X)
-        run: node --check server.js
+      - name: JavaScript typecheck
+        run: npm run typecheck
+
+      - name: 무주입 개발 빌드
+        run: npm run build

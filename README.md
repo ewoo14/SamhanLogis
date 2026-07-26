@@ -37,6 +37,20 @@
 - RED/GREEN·V7 throwaway PostgreSQL probe 결과는
   [`docs/dev-reports/2026-07-25-910-app-client-identity.md`](docs/dev-reports/2026-07-25-910-app-client-identity.md)에 기록한다.
 
+## 2026-07-26 웹 3앱 버전 안내와 작성 중 입력 보호 (#928)
+
+- `order-app`·`estimate-app`·`mobile-public`이 기존 `GET /app/version`과 `#910`의
+  앱별 식별자·`0.1.0-dev` sentinel·빌드 버전 해석을 그대로 사용한다. 주문 웹은
+  `SAMHAN_ORDER_WEB`, 견적 웹은 `SAMHAN_ESTIMATE_WEB`, 모바일 퍼블릭은
+  `SAMHAN_MOBILE_PUBLIC_WEB`만 조회한다.
+- 웹 릴리스 안내는 자동 새로고침하지 않는다. 사용자가 새로고침을 선택했을 때
+  주문·견적 작성 폼 또는 모바일 서명 상태가 있으면 추가 확인을 거쳐 저장하지 않은
+  입력을 소리 없이 버리지 않는다. 조회 실패·404는 fail-open이다.
+- 세 앱의 typecheck·전체 단위 테스트·무주입 개발 빌드를 통과시켰고, 주문 웹
+  throwaway 릴리스의 실제 `/app/version` 응답과 안내 화면을 mock 없이 Playwright로
+  확인했다. 상세 RED/GREEN, 오폭 값, throwaway 전후 행 수와 캡처는
+  [`docs/dev-reports/2026-07-26-928-web-version-check.md`](docs/dev-reports/2026-07-26-928-web-version-check.md)에 기록한다.
+
 ![Samhan Public 시스템 구조도](docs/architecture/ARCHITECTURE.svg)
 
 ---

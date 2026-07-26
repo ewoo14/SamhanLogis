@@ -19614,5 +19614,13 @@ function initAutoLogout() {
   resetTimer();
 }
 </script>
+<script>
+  window.__SAMHAN_VERSION_GATE_CONFIG__ = <%- JSON.stringify({
+    clientType: 'SAMHAN_ESTIMATE_WEB',
+    currentVersion: currentAppVersion,
+    apiBaseUrl: versionApiBaseUrl,
+  }) %>;
+</script>
+<script src="/version-gate.js" defer></script>
 </body>
 </html>
