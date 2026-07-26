@@ -18,13 +18,14 @@ import {
   editUnitPriceColumnHeader,
   editUnitPriceLabel,
   parseEditableDetailAmountInput,
+  parseEditableDetailQuantityInput,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
   syncDetailAmountToDoc,
   toPurchaseEditLines,
 } from './SlipDetailPage'
 import { toServerLineIdSet } from '../realtime/coeditLineIds'
-import { editLineVat, editSlipLineAmount } from '../utils/lineVat'
+import { editLineVat, editSlipLineAmount, recalculateLineVat } from '../utils/lineVat'
 import type { SlipDetail } from '../api/slip'
 
 /**
@@ -374,6 +375,13 @@ describe('SlipDetailPage — 거래처 재조회 출처 마커와 배너', () =>
  * <p>이 describe 는 실제 화면 핸들러({@code updateDetailQuantity}/{@code updateDetailVat})가
  * 호출하는 그 함수들을 그대로 쓴다(재구현 아님) — SlipDetailPage.tsx 555줄 변경분에 도달
  * 테스트가 0건이던 공백(LOW-8)이 이 회귀를 통과시켰다.
+ *
+ * <p>🚨 #937 R2 갱신 — 첫 테스트의 기대값은 원래 "단가=VAT 제외 공급단가"(#937 R1 이 세운
+ * 이제는 틀린 것으로 밝혀진 가정) 기준이었다. 2차 적대검증 E-1 근본수정(단가=VAT 포함,
+ * 생성 화면과 동일 도메인) 이후 같은 (수량, 단가) 입력의 <b>합계</b>는 그대로 300,000
+ * (100,000 × 3)이지만, 그 300,000 이 이제는 "공급가액"이 아니라 "VAT 포함 합계"이므로
+ * 공급가액/부가세는 그 합계에서 분리한 272,727/27,273 이다(0 방향 절사) — 옛 330,000
+ * (공급가액 300,000 에 부가세 10%를 얹은 값)은 더 이상 나오지 않는다.
  */
 describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #824 R1)', () => {
   const baseLine = {
@@ -385,14 +393,14 @@ describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #82
     authority: 'PRICE' as const,
   }
 
-  it('수량 2→3: 단가는 고정, 합계는 330,000(단가×3+VAT) — 660,000(직전 합계×3) 아니다', () => {
+  it('수량 2→3(#937 R2 갱신 — 단가 VAT 포함 도메인): 합계는 300,000(단가×3) 에서 공급 272,727/부가세 27,273 로 분리 — 660,000(직전 합계×3)도, 330,000(구 SUPPLY 도메인)도 아니다', () => {
     const patch = computeDetailQuantityChange(baseLine, '3')
 
     expect(patch.unitPrice).toBe('100000')
     expect(patch.quantity).toBe(3)
-    expect(patch.supplyAmount).toBe('300000')
-    expect(patch.vatAmount).toBe('30000')
-    expect(patch.lineTotalWithVat).toBe('330000')
+    expect(patch.supplyAmount).toBe('272727')
+    expect(patch.vatAmount).toBe('27273')
+    expect(patch.lineTotalWithVat).toBe('300000')
   })
 
   it('값을 바꾸지 않은 재입력(2→2)은 어떤 금액도 바꾸지 않는다 — 220,000 유지, 440,000 아니다', () => {
@@ -497,6 +505,13 @@ describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #82
  * 붙여 적대검증 원문의 4단계 조작을 판별한다 — 이 파일의 기존 관례(전체 컴포넌트 마운트
  * 없이 순수함수 조합)를 따른다. detailAmountDocWrites 를 호출하지 않으면(=근본수정 이전
  * 코드) 3·4단계 assertion 이 stale 200000/20000 을 받아 실패한다(RED — 보고서 원문 첨부).
+ *
+ * <p>🚨 #937 R2 갱신 — 아래 단가 60,000 관련 기대값(120,000/12,000/132,000)은 #937 R1 이
+ * 세운 "단가=VAT 제외 공급단가" 가정 기준이었다. 2차 적대검증 E-1 이 이 가정 자체가 생성
+ * 화면과 다른 세금 정책이라 틀렸다고 확정해(수량 2·단가 60,000 이 생성 120,000 대 수정
+ * 132,000 으로 갈렸다), 이제는 생성 화면과 같은 VAT 포함 단가 도메인(109,090/10,910/
+ * 120,000)으로 재계산한다. 문서 흐름(재열기·무수정 재저장이 stale 값을 되돌리지 않는다)
+ * 자체는 이 라운드에서 바뀌지 않았다 — 바뀐 것은 그 흐름이 보존하는 "정답" 숫자뿐이다.
  */
 describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부가세 동기화 (발견 1·2, #937 R1)', () => {
   const seedLine = {
@@ -541,20 +556,20 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     expect(hydrated.vatDirty).toBe(true)
   })
 
-  it('2단계 — 단가만 60,000 으로 바꾸면 화면이 즉시 정책대로(120,000/12,000/132,000) 재계산된다 (E2 — 이 PR 제목의 주장)', () => {
+  it('2단계 — 단가만 60,000 으로 바꾸면 화면이 즉시 생성 화면과 같은 VAT 포함 정책대로(109,090/10,910/120,000) 재계산된다 (#937 R2 갱신 — E-1)', () => {
     const patch = computeDetailUnitPriceChange(seedLine, '60000')
 
     expect(patch.unitPrice).toBe('60000')
-    expect(patch.supplyAmount).toBe('120000')
-    expect(patch.vatAmount).toBe('12000')
-    expect(patch.lineTotalWithVat).toBe('132000')
+    expect(patch.supplyAmount).toBe('109090')
+    expect(patch.vatAmount).toBe('10910')
+    expect(patch.lineTotalWithVat).toBe('120000')
   })
 
   it('값을 바꾸지 않은 단가 재입력은 어떤 금액도 바꾸지 않는다(드리프트 원천 차단)', () => {
     expect(computeDetailUnitPriceChange(seedLine, '100000')).toEqual({ unitPrice: '100000' })
   })
 
-  it('RED→GREEN: 3단계 재열기 화면이 stale Y.Doc 값(200,000/20,000)이 아니라 재계산값(120,000/12,000)과 일치한다', async () => {
+  it('RED→GREEN: 3단계 재열기 화면이 stale Y.Doc 값(200,000/20,000)이 아니라 재계산값(109,090/10,910)과 일치한다(#937 R2 갱신)', async () => {
     const provider = await makeProvider()
     provider.replaceItems([seedLine])
 
@@ -573,12 +588,12 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     // 3단계 — 같은 문서를 새로 연다(새 컴포넌트 마운트, previous=REST 하이드레이션 스냅샷).
     const reopened = coeditLinesToEditLines(provider, [{ ...afterPriceEdit, key: 'k1' }], knownIds)[0]!
 
-    expect(reopened.supplyAmount).toBe('120000')
-    expect(reopened.vatAmount).toBe('12000')
+    expect(reopened.supplyAmount).toBe('109090')
+    expect(reopened.vatAmount).toBe('10910')
     provider.destroy()
   })
 
-  it('RED→GREEN: 4단계 무수정 재저장 payload 가 서버 값(120,000/12,000)을 되돌리지 않는다 (E1)', async () => {
+  it('RED→GREEN: 4단계 무수정 재저장 payload 가 서버 값(109,090/10,910)을 되돌리지 않는다 (E1, #937 R2 갱신)', async () => {
     const provider = await makeProvider()
     provider.replaceItems([seedLine])
     const afterPriceEdit = { ...seedLine, ...computeDetailUnitPriceChange(seedLine, '60000') }
@@ -593,22 +608,26 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     const payload = buildDetailLinePayload(reopened)
 
     if (reopened.vatDirty) {
-      expect(payload.supplyAmount).toBe('120000')
-      expect(payload.vatAmount).toBe('12000')
+      expect(payload.supplyAmount).toBe('109090')
+      expect(payload.vatAmount).toBe('10910')
     } else {
-      // vatDirty=false 여도 안전하다 — BE 가 quantity×unitPrice(2×60000)로 재계산해 같은 120,000.
+      // vatDirty=false 여도 안전하다 — BE 가 quantity×unitPrice(2×60000)로 재계산해 같은 120,000
+      // (BE 자신의 기본 재계산은 단가=VAT 제외 공급단가 가정이라 FE 의 VAT 포함 재계산과 다른
+      // 수치를 낸다 — 그러나 computeDetailUnitPriceChange 는 항상 vatDirty:true 를 반환하므로
+      // buildDetailLinePayload 가 이 분기를 타는 경우는 이 화면에서 실질적으로 없다).
       expect(payload.supplyAmount).toBeUndefined()
     }
     provider.destroy()
   })
 
-  it('RED→GREEN(발견 2 — 발견 1 과 같은 뿌리): 수량 2→3 변경도 화면 금액이 즉시 바뀌고 doc-sync 가 되돌리지 않는다 (E3)', async () => {
+  it('RED→GREEN(발견 2 — 발견 1 과 같은 뿌리): 수량 2→3 변경도 화면 금액이 즉시 바뀌고 doc-sync 가 되돌리지 않는다 (E3, #937 R2 갱신)', async () => {
     const provider = await makeProvider()
     provider.replaceItems([seedLine])
 
     const afterQtyEdit = { ...seedLine, ...computeDetailQuantityChange(seedLine, '3') }
-    expect(afterQtyEdit.supplyAmount).toBe('300000') // 단가(100,000, 고정) × 수량 3
-    expect(afterQtyEdit.vatAmount).toBe('30000')
+    // 단가(100,000, VAT 포함, 고정) × 수량 3 = 합계 300,000 에서 분리한 공급 272,727/부가세 27,273.
+    expect(afterQtyEdit.supplyAmount).toBe('272727')
+    expect(afterQtyEdit.vatAmount).toBe('27273')
     provider.setItemValueById(SERVER_LINE_1, 'quantity', String(afterQtyEdit.quantity))
 
     for (const write of detailAmountDocWrites(provider, [afterQtyEdit])) {
@@ -617,8 +636,8 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     }
 
     const resynced = coeditLinesToEditLines(provider, [{ ...afterQtyEdit, key: 'k1' }], knownIds)[0]!
-    expect(resynced.supplyAmount).toBe('300000')
-    expect(resynced.vatAmount).toBe('30000')
+    expect(resynced.supplyAmount).toBe('272727')
+    expect(resynced.vatAmount).toBe('27273')
     provider.destroy()
   })
 
@@ -651,7 +670,7 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
    * preEditLine 을 다시 넘겨받아 no-op 가드가 "값이 바뀌었다"고 영원히 오판 → 매 재귀마다
    * 다시 쓰기 → 무한루프. Y.Doc 현재값과 비교하는 이 가드가 없으면 재현된다.
    */
-  it('RED→GREEN(스택오버플로 회귀 가드, 라이브QA 실측): syncDetailAmountToDoc 를 같은 목표값으로 재호출해도 추가 문서변경을 내지 않는다', async () => {
+  it('RED→GREEN(스택오버플로 회귀 가드, 라이브QA 실측): syncDetailAmountToDoc 를 같은 목표값으로 재호출해도 추가 문서변경을 내지 않는다(#937 R2 갱신)', async () => {
     const provider = await makeProvider()
     provider.replaceItems([seedLine])
     let docChangeCount = 0
@@ -668,8 +687,8 @@ describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부�
     expect(docChangeCount).toBe(1) // 2·3차 — Y.Doc 이 이미 목표값이라 추가 변경 없음(재귀 종료 보장)
 
     expect(provider.getItemValueById(SERVER_LINE_1, 'unitPrice')).toBe('60000')
-    expect(provider.getItemValueById(SERVER_LINE_1, 'supplyAmount')).toBe('120000')
-    expect(provider.getItemValueById(SERVER_LINE_1, 'vatAmount')).toBe('12000')
+    expect(provider.getItemValueById(SERVER_LINE_1, 'supplyAmount')).toBe('109090')
+    expect(provider.getItemValueById(SERVER_LINE_1, 'vatAmount')).toBe('10910')
 
     unsubscribe()
     provider.destroy()
@@ -735,5 +754,113 @@ describe('SlipDetailPage — 금액 입력 거부 규칙 (발견 3, #937 R1, E4)
     expect(amountFieldBindings.every(
       (binding) => binding.includes('parseValue={parseEditableDetailAmountInput}'),
     )).toBe(true)
+  })
+})
+
+/**
+ * 2차 적대검증(CODEX SOL) E-1(#937 R2) — RED-first.
+ *
+ * <p>1차 fix(#937 R1)의 {@code computeDetailUnitPriceChange} 는 "이 화면의 단가는 VAT 제외
+ * 공급단가"라는 <b>틀린 계약</b>을 의도적으로 세워(커밋 메시지에 그렇게 적었다) 생성 화면의
+ * PRICE authority(단가=VAT 포함, {@link recalculateLineVat})를 우회했다. 두 화면에 같은
+ * (수량, 단가) 를 입력하면 생성 120,000/10,910/109,090 대 수정 132,000/12,000/120,000 로
+ * 갈린다 — 이 PR 제목("두 화면 정책 일치")의 정면 반박.
+ *
+ * <p>F1 — 같은 (수량, 단가) 입력은 두 화면에서 같은 금액을 낸다. 단가는 VAT 포함으로
+ * 해석한다(개발책임자 결정 "입력한 단가를 보존"·"소비처를 VAT포함 인식으로 수정" · 생성
+ * payload {@code priceVatInclusive: true} · #926 동적 라벨 라이브 실측 "단가(VAT포함)").
+ *
+ * <p>근본수정 전 RED(이 테스트 추가 시점 그대로 실행): 아래 첫 테스트가
+ * `expected '120000' to be '109090'`(공급가액) 로 실패한다 — 수정 화면이 생성 화면의
+ * VAT 포함 단가 도메인과 다른 값을 냈다는 뜻이다.
+ */
+describe('SlipDetailPage — 생성/수정 단가 세금 정책 일치 (E-1, #937 R2, F1)', () => {
+  it('단가 변경 — 생성 화면(recalculateLineVat PRICE)과 수정 화면(computeDetailUnitPriceChange)이 수량 2·단가 60,000 에 같은 금액을 낸다', () => {
+    const created = recalculateLineVat(
+      { quantity: 2, unitPrice: '60000', supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+      'PRICE',
+    )
+    // 생성 화면 기대값 고정핀 — VAT 포함 60,000 × 2 = 120,000 총액에서 공급가액을
+    // 분리(0 방향 절사, 2차 적대검증 원문과 동일).
+    expect(created.supplyAmount).toBe('109090')
+    expect(created.vatAmount).toBe('10910')
+    expect(created.lineTotal).toBe('120000')
+
+    // 수정 화면 — 직전 단가(999999)는 의도적으로 무관한 값을 넣어, 결과가 "새 입력값"에만
+    // 좌우됨을 확인한다(직전 단가에 의존하는 계산식이면 이 값이 새어 나온다).
+    const patch = computeDetailUnitPriceChange({ quantity: 2, unitPrice: '999999' }, '60000')
+
+    expect(patch.supplyAmount).toBe(created.supplyAmount)
+    expect(patch.vatAmount).toBe(created.vatAmount)
+    expect(patch.lineTotalWithVat).toBe(created.lineTotal)
+  })
+
+  it('수량 변경도 같은 VAT 포함 단가 도메인으로 재계산한다 — 단가 100,000·수량 2→3(생성 changeLineQuantity 와 동일 함수 경로)', () => {
+    const created = recalculateLineVat(
+      { quantity: 3, unitPrice: '100000', supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+      'PRICE',
+    )
+    const patch = computeDetailQuantityChange({ quantity: 2, unitPrice: '100000' }, '3')
+
+    expect(patch.unitPrice).toBe('100000') // 단가는 수량 변경으로 바뀌지 않는다
+    expect(patch.supplyAmount).toBe(created.supplyAmount)
+    expect(patch.vatAmount).toBe(created.vatAmount)
+    expect(patch.lineTotalWithVat).toBe(created.lineTotal)
+  })
+})
+
+/**
+ * 2차 적대검증(CODEX SOL) E-2(#937 R2) — RED-first.
+ *
+ * <p>수량 셀({@code items.${index}.quantity})은 단가/공급가액/부가세 셀과 달리 parseValue
+ * 필터가 아예 배선되지 않았다(SlipDetailPage.tsx 원 리뷰 지적 지점) — `2.7`(조용히 2로
+ * 절삭)·`-3`(0)·`1e3`(1000) 이 그대로 수용되고 공급가액·부가세까지 재계산된다. 1차 라운드가
+ * 추가한 "6개 셀 parseValue 배선" 테스트(위)가 단가·공급가액·부가세만 세느라 수량을 빼서
+ * 이 결함이 살아남았다(F3).
+ *
+ * <p>근본수정 전 RED: 첫 테스트가 `expected 0 to be 2`(수량 셀 중 parseValue 배선 개수) 로
+ * 실패한다.
+ */
+describe('SlipDetailPage — 수량 입력 거부 규칙 (E-2, #937 R2, F2·F3)', () => {
+  it('매출·매입 수량 셀(2개) 모두 parseValue 필터를 연결한다 — 소스 배선 확인(F3, 발견 3 계열 sweep)', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    const qtyFieldBindings = Array.from(source.matchAll(
+      /fieldPath=\{`items\.\$\{index\}\.quantity`\}[\s\S]*?\/>/g,
+    ), (match) => match[0])
+
+    expect(qtyFieldBindings).toHaveLength(2) // 매출 1 + 매입 1
+    expect(qtyFieldBindings.every(
+      (binding) => binding.includes('parseValue={parseEditableDetailQuantityInput}'),
+    )).toBe(true)
+  })
+
+  it.each(['2.7', '-3', '1e3', '1,000', 'abc', ' 3', '3 '])(
+    '생성 화면(LineRow.tsx)과 같은 게이트 — 잘못된 수량 문자열 "%s"는 거부(null)한다',
+    (raw) => {
+      expect(parseEditableDetailQuantityInput(raw)).toBeNull()
+    },
+  )
+
+  it.each([['', ''], ['0', '0'], ['3', '3'], ['999999999999', '999999999999']])(
+    '순수 자연수(빈 값 포함) "%s"는 정규화 없이 그대로 통과한다(생성 화면과 동일 — 콤마 그룹 미지원)',
+    (raw, expected) => {
+      expect(parseEditableDetailQuantityInput(raw)).toBe(expected)
+    },
+  )
+
+  it('LineRow.tsx 수량 게이트(`/^\\d*$/`)와 같은 정규식이다 — 생성 화면 소스 대조(F2)', () => {
+    const lineRowSource = readFileSync(
+      fileURLToPath(new URL(
+        '../../../../web/design-system/src/components/LineRow/LineRow.tsx',
+        import.meta.url,
+      )),
+      'utf8',
+    )
+    // LineRow.tsx 는 이 PR 의 변경 금지 대상(적대검증 각도 ②, 바이트 단위 0)이라 그 인라인
+    // 게이트를 import 할 수 없다 — 소스에 그 정규식이 여전히 그대로 있는지만 대조한다.
+    expect(lineRowSource).toContain('if (!/^\\d*$/.test(e.target.value)) return')
   })
 })

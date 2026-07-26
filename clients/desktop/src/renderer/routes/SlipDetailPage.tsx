@@ -114,10 +114,9 @@ import {
 import { lookupProducts } from '../api/productApi'
 import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 import {
-  editLineVat,
   editSlipLineAmount,
   hasVatWarning,
-  roundProduct,
+  recalculateLineVat,
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
@@ -593,11 +592,14 @@ export function coeditLinesToEditLines(
 /**
  * 전표 상세(수정) 라인 → {@link LineVatLine} 계산 도메인 변환.
  *
- * <p>이 화면의 단가 열(line.unitPrice)은 VAT 제외 공급단가 계약이라 {@code recalculateLineVat}
- * 의 PRICE 분기(단가=VAT 포함 전제)와 도메인이 다르다. SUPPLY/VAT 권위 편집
- * ({@code updateDetailVat})에서만 사용하고, 합계는 공급가액과 부가세의 파생값으로
- * 읽기 전용 처리한다. 수량 변경은 {@link computeDetailQuantityChange}
- * 가 별도로 처리한다(BLOCKING-1 — PRICE 분기로 우회하면 안 되는 이유는 그쪽 주석 참조).
+ * <p>공급가액/부가세 열 직접 편집({@code updateDetailVat}, SUPPLY/VAT authority)에서만
+ * 쓴다. 단가·수량 변경은 이 경로를 타지 않는다 — {@link computeDetailUnitPriceChange}/
+ * {@link computeDetailQuantityChange} 가 {@code recalculateLineVat} 의 PRICE 분기(단가=VAT
+ * 포함 전제)를 생성 화면과 똑같이 직접 호출한다(2차 적대검증 E-1, #937 R2 근본수정 — "이
+ * 화면의 단가는 VAT 제외 공급단가"라는 이전 가정이 틀렸다. 그 가정으로 우회했던 이유는
+ * BLOCKING-1 의 금액 폭증 회귀였는데, 우회 대신 PRICE 분기를 <b>단가 고정 + 새 수량</b>으로
+ * 호출하는 것으로 폭증 없이 해결한다 — {@link computeDetailQuantityChange} 주석 참조).
+ * 합계는 공급가액과 부가세의 파생값으로 읽기 전용 처리한다.
  */
 export function detailVatLine(
   line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
@@ -636,24 +638,38 @@ export function detailAmountState(
 }
 
 /**
- * 전표 상세(수정) 화면 수량 변경 — BLOCKING-1(#824 R1) 근본 수정.
+ * 전표 상세(수정) 화면 수량 변경 — BLOCKING-1(#824 R1) 금액 폭증 회귀 근본수정 + 2차
+ * 적대검증 E-1(#937 R2) 세금 정책 근본수정.
  *
- * <p>종전에는 {@code changeLineQuantity}(PRICE authority 경로)를 그대로 태워
+ * <p>종전(#824 R1 이전)에는 {@code changeLineQuantity}(PRICE authority 경로)를 그대로 태워
  * {@link detailVatLine} 이 unitPrice 자리에 lineTotalWithVat(합계)를 채워 넣었다. PRICE
  * 분기는 "단가(VAT 포함)×수량=합계"를 전제하므로, 수량을 바꿀 때마다 실제로는
  * "직전 합계 × 새 수량"을 다시 곱하는 꼴이 되어 금액이 기하급수로 불어났다(실측: 수량
  * 2→3 에 220,000→660,000, 2→2 재입력에도 220,000→440,000 — vatDirty=true 로 폭증값이
- * 그대로 권위값 전송됨). 이 화면의 단가 열은 VAT 제외 공급단가 계약이므로, PRICE 경로로
- * 우회하지 않고 <b>공급단가(unitPrice)를 고정한 채 새 수량을 곱해 공급가액만 다시 낸다</b>
- * (SUPPLY authority 로 닫아 부가세는 BE 와 같은 0 방향 절사).
+ * 그대로 권위값 전송됨).
+ *
+ * <p>#937 R1 fix 는 이 폭증만 없애려고 "이 화면의 단가 열은 VAT 제외 공급단가"라는 <b>틀린
+ * 계약</b>을 새로 세워(SUPPLY authority, quantity×unitPrice=공급가액) PRICE 경로 자체를
+ * 우회했다 — 그런데 그 단가 열은 생성 화면과 같은 필드이고, 개발책임자 결정("입력한 단가를
+ * 보존", "소비처를 VAT포함 인식으로 수정")·생성 payload {@code priceVatInclusive: true}·#926
+ * 동적 라벨의 라이브 실측("단가(VAT포함)")이 전부 VAT 포함을 가리킨다. 2차 적대검증(CODEX
+ * SOL) E-1 이 이 불일치를 실측했다(수량 2·단가 60,000 이 생성 120,000 대 수정 132,000 으로
+ * 갈렸다 — 이 PR 제목 "두 화면 정책 일치"의 정면 반박).
+ *
+ * <p>근본수정 — 폭증(직전 합계 재승수)과 세금 정책 불일치(VAT 제외 재정의)를 모두 피하려면,
+ * PRICE 경로 자체를 우회하는 대신 <b>단가는 고정하고 새 수량으로만</b> {@link recalculateLineVat}
+ * 를 다시 호출해야 한다 — 생성 화면(SlipFormPage.updateQuantity → lineVat.changeLineQuantity)이
+ * 수량 변경 시 실제로 하는 일과 동일한 함수 경로다. 별도 계산식을 유지보수하지 않으므로
+ * lineVat.ts 가 바뀌면 두 화면이 함께 바뀐다.
  *
  * <p>불변식:
  * <ol>
  *   <li>단가는 수량 변경으로 바뀌지 않는다 — 반환 patch 의 unitPrice 는 입력을 그대로 승계.</li>
  *   <li>값을 바꾸지 않은 재입력(예: 2→2)은 어떤 금액도 바꾸지 않는다 — 파싱한 수량이 현재
- *       수량과 같으면 반올림 경로 자체를 타지 않고 조기 반환한다(드리프트 원천 차단).</li>
+ *       수량과 같으면 재계산 경로 자체를 타지 않고 조기 반환한다(드리프트 원천 차단).</li>
  *   <li>빈 입력은 수량 0으로 반영한다 — 수량 입력칸을 비울 수 있어야 한다(RED-1, CI hard
  *       gate). 파생 금액도 0으로 닫아 미완성 라인이 이상값을 보이지 않게 한다.</li>
+ *   <li>같은 (수량, 단가) 쌍은 생성 화면과 같은 금액을 낸다(F1, #937 R2).</li>
  * </ol>
  */
 export function computeDetailQuantityChange(
@@ -663,7 +679,7 @@ export function computeDetailQuantityChange(
   const parsed = Number(quantity)
   const safeQuantity = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
 
-  // 불변식 2: no-op 재입력은 반올림 경로 자체를 타지 않는다.
+  // 불변식 2: no-op 재입력은 재계산 경로 자체를 타지 않는다.
   if (safeQuantity === Number(line.quantity)) {
     return { quantity: safeQuantity }
   }
@@ -680,11 +696,9 @@ export function computeDetailQuantityChange(
   }
 
   const unitPrice = line.unitPrice ?? '0'
-  const nextSupply = roundProduct(safeQuantity, unitPrice)
-  const vatLine = editLineVat(
+  const vatLine = recalculateLineVat(
     { quantity: safeQuantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
-    'SUPPLY',
-    String(nextSupply),
+    'PRICE',
   )
   return {
     quantity: safeQuantity,
@@ -698,20 +712,27 @@ export function computeDetailQuantityChange(
 }
 
 /**
- * 전표 상세(수정) 화면 단가 변경 — 발견 1(#937 R1) 근본수정.
+ * 전표 상세(수정) 화면 단가 변경 — 발견 1(#937 R1) 폭증 회귀 근본수정 + 2차 적대검증
+ * E-1(#937 R2) 세금 정책 근본수정.
  *
- * <p>{@link computeDetailQuantityChange} 와 축만 다른 자매 함수다 — 이 화면의 단가 열은
- * VAT 제외 공급단가 계약이므로(위 {@link detailVatLine} 주석 참조) PRICE authority(단가=
- * VAT 포함 전제, lineVat.ts recalculateLineVat)로 우회하지 않고 수량을 고정한 채 새 단가로
- * 공급가액을 다시 낸다(SUPPLY authority 로 닫아 부가세는 BE 와 같은 0 방향 절사) — 생성
- * 화면(SlipFormPage)이 단가 편집 시 화면 금액을 즉시 재계산하는 것과 같은 정책(E2, 두 화면
- * 정책 일치 — 이 PR 제목의 주장)이다.
+ * <p>{@link computeDetailQuantityChange} 와 축만 다른 자매 함수다. #937 R1 은 이 화면의 단가
+ * 열을 <b>VAT 제외 공급단가</b>로 재정의해(SUPPLY authority, quantity×unitPrice=공급가액)
+ * PRICE authority(생성 화면 lineVat.ts {@link recalculateLineVat}, 단가=VAT 포함 전제)를
+ * 의도적으로 우회했다 — 그 결과 두 화면에 같은 (수량, 단가) 를 입력해도 다른 금액이 나왔다
+ * (2차 적대검증 E-1 실측: 수량 2·단가 60,000 → 생성 120,000 대 수정 132,000). 개발책임자
+ * 결정("입력한 단가를 보존", "소비처를 VAT포함 인식으로 수정")·생성 payload
+ * {@code priceVatInclusive: true}·#926 동적 라벨 라이브 실측("단가(VAT포함)")이 전부 VAT
+ * 포함을 가리키므로, 확립된 규약은 VAT 포함이고 R1 fix 가 반대 방향을 골랐다.
  *
- * <p>종전에는 단가 셀 onChange 가 로컬 state 의 unitPrice/vatDirty 만 바꾸고 supplyAmount/
- * vatAmount 는 전혀 건드리지 않아(화면이 옛 금액을 그대로 보여줌), BE 저장 시에만
- * quantity×unitPrice 로 재계산돼 화면·DB 가 어긋났다(적대검증 발견 1 2단계). 이 함수가 낸
- * 파생값은 {@link detailAmountDocWrites}가 Y.Doc 에도 반영해 재열기·doc-sync 되돌림을
- * 막는다(발견 1 3·4단계 근본수정 — 같은 뿌리인 발견 2 도 함께 닫는다).
+ * <p>근본수정 — 생성 화면과 <b>같은 함수</b>({@link recalculateLineVat}, PRICE authority)를
+ * 그대로 호출한다. 별도 계산식을 유지보수하지 않으므로 lineVat.ts 가 바뀌면 두 화면이 함께
+ * 바뀐다(F1, #937 R2 — 같은 (수량, 단가) 쌍은 항상 같은 금액).
+ *
+ * <p>종전(#824 R1 이전)에는 단가 셀 onChange 가 로컬 state 의 unitPrice/vatDirty 만 바꾸고
+ * supplyAmount/vatAmount 는 전혀 건드리지 않아(화면이 옛 금액을 그대로 보여줌), BE 저장
+ * 시에만 quantity×unitPrice 로 재계산돼 화면·DB 가 어긋났다(1차 적대검증 발견 1 2단계). 이
+ * 함수가 낸 파생값은 {@link detailAmountDocWrites}가 Y.Doc 에도 반영해 재열기·doc-sync
+ * 되돌림을 막는다(발견 1 3·4단계 근본수정 — 같은 뿌리인 발견 2 도 함께 닫는다).
  *
  * <p>불변식: 값을 바꾸지 않은 재입력은 어떤 금액도 바꾸지 않는다({@link computeDetailQuantityChange}
  * 불변식 2 와 동일 원칙 — 드리프트 원천 차단).
@@ -725,11 +746,9 @@ export function computeDetailUnitPriceChange(
     return { unitPrice }
   }
 
-  const nextSupply = roundProduct(line.quantity, unitPrice || '0')
-  const vatLine = editLineVat(
+  const vatLine = recalculateLineVat(
     { quantity: line.quantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
-    'SUPPLY',
-    String(nextSupply),
+    'PRICE',
   )
   return {
     unitPrice,
@@ -759,6 +778,24 @@ export function parseEditableDetailAmountInput(raw: string): string | null {
   if (raw.includes(',,')) return null
   if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
   return raw.replace(/,/g, '')
+}
+
+/**
+ * 전표 상세 수량 셀 입력 문자열 필터 — 2차 적대검증 E-2(#937 R2), F2.
+ *
+ * <p>생성 화면(LineRow.tsx 수량 입력 {@code onChange} 의 인라인 게이트, `/^\d*$/`)과 같은
+ * 규칙이다 — 순수 자연수(빈 값 포함)만 통과시키고, 그 외(소수점 `2.7`의 조용한 절삭·부호
+ * `-3`의 음수 수용·지수표기 `1e3`)는 이 입력 자체를 반영하지 않는다(controlled input 이라
+ * 다음 렌더에서 이전 값으로 자동 복귀). 이 필터가 없어 두 화면의 수량 입력 거부 규칙이
+ * 갈렸었다(2차 적대검증 E-2 — 수정 화면은 `2.7`→2 로 조용히 절삭·`-3`→0·`1e3`→1000 을 전부
+ * 수용하고 공급가액·부가세까지 재계산했다). 금액 셀의 {@link parseEditableDetailAmountInput}
+ * 과 달리 콤마 그룹 표기는 허용하지 않는다 — 생성 화면 수량 입력도 콤마를 허용하지 않기
+ * 때문이다(수량은 금액이 아니라 개수라 3자리 그룹 표기 관례 대상이 아니다).
+ *
+ * @return 그대로 통과(정규화 없음), 또는 거부 시 {@code null}
+ */
+export function parseEditableDetailQuantityInput(raw: string): string | null {
+  return /^\d*$/.test(raw) ? raw : null
 }
 
 /**
@@ -2440,6 +2477,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={1}
                     value={String(line.quantity)}
+                    parseValue={parseEditableDetailQuantityInput}
                     onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, slipFormCoeditProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
@@ -2747,6 +2785,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={1}
                     value={String(line.quantity)}
+                    parseValue={parseEditableDetailQuantityInput}
                     onValueChange={(value) => updateDetailQuantity(index, updatePurchaseLine, slipFormCoeditProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
