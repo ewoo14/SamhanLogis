@@ -199,12 +199,15 @@ describe('하네스 거짓 green 가드', () => {
    * H-5 — "대상을 못 찾으면 console.warn 하고 통과" 는 게이트가 아니다.
    * 아래 목록은 **이번 배치에서 닫지 못하고 범위 판단으로 이월한 파일들**이다.
    * 새 파일이 목록에 추가되는 것은 금지 — 줄이는 방향으로만 수정한다.
+   *
+   * 2026-07-26 R2: slip-form-v20-matching.spec.ts 는 셀렉터 전면 교정(aria-label/실
+   * data-testid 기반) + soft-pass 전량 제거로 이 목록에서 뺀다 — PM 정정(필드는 실제
+   * DOM 에 있으나 셀렉터가 틀렸다) 반영, TC-V1~V5 전부 하드 단정으로 재작성.
    */
   it('H-5: mock 게이트 스펙의 soft-pass(console.warn) 는 이월 목록을 넘지 않는다', () => {
     // 이월 사유는 docs/dev-reports 및 PR 보고 참조. 실제 화면 구현이 없어 hard assert 로
     // 바꾸면 RED 가 되는 스펙들이라 harness 배치 범위를 벗어난다.
     const CARRIED_OVER = new Set<string>([
-      'slip-form-v20/slip-form-v20-matching.spec.ts',
       'dps-by-product/dps-by-product.spec.ts',
       'sidebar-disabled/sidebar-disabled.spec.ts',
     ])
