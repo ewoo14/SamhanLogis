@@ -72,7 +72,7 @@ test('R5 — 팔레트가 활성화 제한 요소를 미리 경고하고, 편집
 
   try {
     await test.step('신규 편집기 — 팔레트가 품목행/이미지·로고만 활성화 제한 배지를 상시 노출한다(추가 *전*)', async () => {
-      await page.goto(`${BASE_URL}/groupware/document-templates/new/edit`)
+      await page.goto(`${BASE_URL}/#/groupware/document-templates/new/edit`)
       await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
       await expect(page.getByTestId('palette-activation-blocked-badge-DETAIL'), '품목행 배지가 없다 — 추가 전에 경고가 안 보인다').toBeVisible()
       await expect(page.getByTestId('palette-activation-blocked-badge-IMAGE'), '이미지/로고 배지가 없다 — 추가 전에 경고가 안 보인다').toBeVisible()
@@ -107,7 +107,7 @@ test('R5 — 팔레트가 활성화 제한 요소를 미리 경고하고, 편집
     })
 
     await test.step('활성화 — 비차단 요소는 게이트를 그대로 통과한다', async () => {
-      await page.goto(`${BASE_URL}/groupware/document-templates`)
+      await page.goto(`${BASE_URL}/#/groupware/document-templates`)
       await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 20000 })
       const row = page.getByRole('row').filter({ has: page.getByRole('button', { name: templateName }) })
       await expect(row, '저장한 양식이 목록에 없다').toBeVisible({ timeout: 15000 })

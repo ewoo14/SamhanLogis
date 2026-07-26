@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushZeroDelayTasks } from '../test-utils/flush'
 
 let nativePlatform = true
 
@@ -238,7 +239,7 @@ describe('pushRegistration', () => {
     const unregister = unregisterPush().then(() => 'unregistered')
     const beforePostDone = await Promise.race([
       unregister,
-      new Promise((resolve) => setTimeout(() => resolve('pending'), 0)),
+      flushZeroDelayTasks().then(() => 'pending'),
     ])
 
     expect(beforePostDone).toBe('pending')

@@ -17,6 +17,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -33,10 +34,12 @@ function appUrl(route: string): string {
 }
 
 /** 스크린샷 저장 디렉토리 (docs/qa/sales-purchase-query-redesign/) */
-const QA_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const QA_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/sales-purchase-query-redesign',
-)
+))
 
 function ensureQaDir(): void {
   if (!fs.existsSync(QA_DIR)) {
@@ -162,42 +165,34 @@ test.describe('판매조회 페이지 (TC-S1~S6)', () => {
     })
     await page.waitForTimeout(1500)
 
-    // from/to 날짜 picker 로케이터 — data-testid 또는 name 속성 기준
-    const fromInput = page
-      .locator('[data-testid="sales-query-from"], input[name="from"], input[placeholder*="시작"]')
-      .first()
-    const toInput = page
-      .locator('[data-testid="sales-query-to"], input[name="to"], input[placeholder*="종료"]')
-      .first()
+    // from/to 날짜 picker — SalesQueryPage.tsx 의 실제 마크업은 aria-label 이다
+    // (`<Input type="date" aria-label="시작 날짜" />` / `"종료 날짜"`).
+    // (2026-07-26 하네스 배치) 이전 로케이터는 `[data-testid="sales-query-from"]` /
+    // `input[name="from"]` / `input[placeholder*="시작"]` 셋 다 실제 DOM 에 없어서 항상
+    // 0 매치였고, else 분기의 "body 길이 > 50" 으로 대체 통과했다 — 즉 ±15일 기본 범위는
+    // 이 테스트가 만들어진 이후 **한 번도 검증된 적이 없다**. 실제 셀렉터로 교정하고
+    // soft 분기를 제거한다(못 찾으면 RED).
+    const fromInput = page.getByLabel('시작 날짜')
+    const toInput = page.getByLabel('종료 날짜')
 
-    const fromExists = (await fromInput.count()) > 0
-    const toExists = (await toInput.count()) > 0
+    await expect(fromInput, '판매조회 시작 날짜 입력이 있어야 함').toHaveCount(1)
+    await expect(toInput, '판매조회 종료 날짜 입력이 있어야 함').toHaveCount(1)
 
-    if (fromExists && toExists) {
-      const fromVal = await fromInput.inputValue()
-      const toVal = await toInput.inputValue()
+    const fromVal = await fromInput.inputValue()
+    const toVal = await toInput.inputValue()
+    expect(fromVal, '시작 날짜 기본값이 비어있음').toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(toVal, '종료 날짜 기본값이 비어있음').toMatch(/^\d{4}-\d{2}-\d{2}$/)
 
-      const today = new Date(todaySeoul())
-      const expectedFrom = new Date(today)
-      expectedFrom.setDate(today.getDate() - 15)
-      const expectedTo = new Date(today)
-      expectedTo.setDate(today.getDate() + 15)
+    const today = new Date(todaySeoul())
+    const expectedFrom = new Date(today)
+    expectedFrom.setDate(today.getDate() - 15)
+    const expectedTo = new Date(today)
+    expectedTo.setDate(today.getDate() + 15)
 
-      if (fromVal) {
-        const actualFrom = parseDate(fromVal)
-        const diffFrom = Math.abs(actualFrom.getTime() - expectedFrom.getTime()) / 86400000
-        expect(diffFrom, `from 날짜 ±15일 범위 초과: ${fromVal}`).toBeLessThanOrEqual(1)
-      }
-      if (toVal) {
-        const actualTo = parseDate(toVal)
-        const diffTo = Math.abs(actualTo.getTime() - expectedTo.getTime()) / 86400000
-        expect(diffTo, `to 날짜 ±15일 범위 초과: ${toVal}`).toBeLessThanOrEqual(1)
-      }
-    } else {
-      // 날짜 picker 가 아직 구현 전이거나 다른 셀렉터 — 페이지 로드 자체는 검증
-      const body = await page.textContent('body') ?? ''
-      expect(body.length, '판매조회 페이지 body 비어있음').toBeGreaterThan(50)
-    }
+    const diffFrom = Math.abs(parseDate(fromVal).getTime() - expectedFrom.getTime()) / 86400000
+    expect(diffFrom, `from 날짜 ±15일 범위 초과: ${fromVal}`).toBeLessThanOrEqual(1)
+    const diffTo = Math.abs(parseDate(toVal).getTime() - expectedTo.getTime()) / 86400000
+    expect(diffTo, `to 날짜 ±15일 범위 초과: ${toVal}`).toBeLessThanOrEqual(1)
 
     ensureQaDir()
     await page.screenshot({

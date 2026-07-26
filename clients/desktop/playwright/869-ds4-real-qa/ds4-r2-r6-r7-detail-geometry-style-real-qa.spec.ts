@@ -93,7 +93,7 @@ test('R2·R6·R7 — DETAIL 의 y/h/글꼴/정렬이 좌표 요소와 같은 축
     }
   })
 
-  await page.goto(`${BASE_URL}/groupware/document-templates/new/edit?mockDetailRows=1`)
+  await page.goto(`${BASE_URL}/#/groupware/document-templates/new/edit?mockDetailRows=1`)
   await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 30000 })
   await expect(preview).toBeVisible()
   await page.getByRole('button', { name: '품목행 추가' }).click()

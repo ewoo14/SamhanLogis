@@ -68,7 +68,7 @@ test.describe('#902 전표 품목 입력 이카운트 방식 — U-gate', () => 
   test.beforeEach(async ({ page }) => {
     const login = await realLogin(page, 'dev_master')
     await installAuthStub(page, login)
-    await page.goto(`${BASE_URL}/sales/new`)
+    await page.goto(`${BASE_URL}/#/sales/new`)
     await page.waitForLoadState('domcontentloaded')
     await page.getByLabel('라인 1 수량').waitFor({ state: 'visible', timeout: 30000 })
     await page.waitForTimeout(1500)

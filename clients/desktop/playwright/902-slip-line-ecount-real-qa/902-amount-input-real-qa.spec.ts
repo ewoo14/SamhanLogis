@@ -39,7 +39,7 @@ async function login(page: Page): Promise<void> {
 
 test('금액 칸은 유효한 값만 표시하고 잘못된 입력을 재조합하지 않으며 합계는 읽기 전용이다', async ({ page }) => {
   await login(page)
-  await page.goto(`${BASE_URL}/sales/new`)
+  await page.goto(`${BASE_URL}/#/sales/new`)
   await page.getByLabel('라인 1 수량').waitFor({ state: 'visible', timeout: 30000 })
   await page.waitForTimeout(1500)
 

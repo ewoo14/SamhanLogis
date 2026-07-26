@@ -85,7 +85,7 @@ test('일마감 모델별 재검증 렌더 — SALES_SLIP 2026-05-19 실 데이�
 
   // 1) 일마감 조회 화면 진입
   // 웹 배포(VITE_PLATFORM='web')는 createBrowserRouter → 해시 없는 실 경로.
-  await page.goto(`${BASE_URL}/accounting/daily-closings`)
+  await page.goto(`${BASE_URL}/#/accounting/daily-closings`)
   await expect(page.getByRole('heading', { name: '일마감 조회' })).toBeVisible({ timeout: 30_000 })
   await capture(page, 'page-entry')
 

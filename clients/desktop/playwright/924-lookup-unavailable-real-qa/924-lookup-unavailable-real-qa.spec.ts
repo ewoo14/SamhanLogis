@@ -90,7 +90,7 @@ test.describe(`#924 partner lookup UNAVAILABLE 라이브QA (phase=${PHASE})`, ()
   })
 
   test('통장거래 목록 — 316건이 남아 있는가', async ({ page }) => {
-    await page.goto(`${BASE_URL}/accounting/bank-transactions`)
+    await page.goto(`${BASE_URL}/#/accounting/bank-transactions`)
     await page.waitForLoadState('domcontentloaded')
     // 🚨 '조회 중' 조건은 쿼리 시작 전에 즉시 참이 돼 로딩 전 상태를 찍는다(실측 2회 오측정).
     // react-query 전역 retry:1 이라 502 도 2.24s x 2 + 렌더 시간이 필요하다 — 고정 대기로 넘긴다.
@@ -100,7 +100,7 @@ test.describe(`#924 partner lookup UNAVAILABLE 라이브QA (phase=${PHASE})`, ()
   })
 
   test('거래처 에이징 — 502 시 사용자가 무엇을 읽는가', async ({ page }) => {
-    await page.goto(`${BASE_URL}/accounting/reports/partner-aging?type=RECEIVABLE`)
+    await page.goto(`${BASE_URL}/#/accounting/reports/partner-aging?type=RECEIVABLE`)
     await page.waitForLoadState('domcontentloaded')
     await page.waitForTimeout(15000)
     await dumpVisible(page, '에이징 본문', 'main')
@@ -108,7 +108,7 @@ test.describe(`#924 partner lookup UNAVAILABLE 라이브QA (phase=${PHASE})`, ()
   })
 
   test('입금보고서 편집 — 거래처 칸에 무엇이 하이드레이트되는가', async ({ page }) => {
-    await page.goto(`${BASE_URL}/accounting/admin/cash-receipts/${CASH_RECEIPT_ID}/edit`)
+    await page.goto(`${BASE_URL}/#/accounting/admin/cash-receipts/${CASH_RECEIPT_ID}/edit`)
     await page.waitForLoadState('domcontentloaded')
     await page.getByPlaceholder('거래처명 또는 사업자번호').first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => undefined)
     await page.waitForTimeout(3000)
@@ -118,7 +118,7 @@ test.describe(`#924 partner lookup UNAVAILABLE 라이브QA (phase=${PHASE})`, ()
   })
 
   test('분개 작성 — 거래처 자동완성이 장애를 어떻게 말하는가', async ({ page }) => {
-    await page.goto(`${BASE_URL}/accounting/journals/new`)
+    await page.goto(`${BASE_URL}/#/accounting/journals/new`)
     await page.waitForLoadState('domcontentloaded')
     await page.waitForTimeout(8000)
     const partnerInput = page.getByPlaceholder('거래처명 또는 코드').first()

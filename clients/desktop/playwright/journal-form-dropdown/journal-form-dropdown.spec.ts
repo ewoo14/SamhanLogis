@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
-const SCREENSHOT_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   process.cwd(),
   '../../docs/qa/29-713-journal-form-save-contract/screenshots',
-)
+))
 
 test.describe('분개 작성 거래처 드롭다운', () => {
   test('거래처 후보 목록은 grid overflow 밖 body portal 에 뜨고 클릭 선택된다', async ({ page }) => {

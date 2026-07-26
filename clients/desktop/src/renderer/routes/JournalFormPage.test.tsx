@@ -109,6 +109,7 @@ vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: mocks.isMobile }))
 vi.mock('../hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }))
 
 import { JournalFormPage } from './JournalFormPage'
+import { flushZeroDelayTasks } from '../test-utils/flush'
 
 function renderPage(initialEntry = '/accounting/journals/new') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -413,10 +414,12 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
       expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('102')
     })
     // searchJournalPartners 의 reject → catch → Promise.all(...).then(...) 마이크로태스크
-    // 체인이 모두 드레인될 때까지 매크로태스크 경계로 flush 한다(순수 마이크로태스크 체인이라
-    // setTimeout(0) 이 뒤에 실행되는 것이 보장된다) — 그래야 이 클릭이
+    // 체인이 모두 드레인될 때까지 매크로태스크 경계로 flush 한다 — 그래야 이 클릭이
     // partnerLookupSuspectedUnavailable 반영 이후 상태를 본다.
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // 경계는 setTimeout(fn,0) 단독이 아니라 flushZeroDelayTasks() 로 만든다: setTimeout(fn,0)
+    // 은 WHATWG 중첩 타이머 4ms 클램프 대상이라 실행 컨텍스트(파일 내 앞선 테스트 유무)에 따라
+    // React 스케줄러 큐와 순서가 뒤집혀 격리 실행/전체 실행 결과가 갈린다(#933 실측).
+    await flushZeroDelayTasks()
 
     fireEvent.click(screen.getByRole('button', { name: '저장' }))
     expect(mocks.createJournal).not.toHaveBeenCalled()

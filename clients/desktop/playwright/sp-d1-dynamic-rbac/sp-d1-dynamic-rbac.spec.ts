@@ -43,6 +43,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -54,10 +55,12 @@ const _dirname = path.dirname(_filename)
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** 스크린샷 저장 디렉터리 */
-const QA_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const QA_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/sp-d1-dynamic-rbac/screenshots',
-)
+))
 
 function ensureQaDir(): void {
   if (!fs.existsSync(QA_DIR)) {

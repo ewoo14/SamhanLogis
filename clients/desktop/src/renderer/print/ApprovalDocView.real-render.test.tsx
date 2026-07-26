@@ -15,6 +15,7 @@ import { buildApprovalRenderModel } from './approvalRenderModel'
 import { DocumentRenderer } from './DocumentRenderer'
 import type { TemplateEnvelope } from './templateSchema'
 import { ApprovalDocView } from './ApprovalDocView'
+import { flushZeroDelayTasks } from '../test-utils/flush'
 
 const mocks = vi.hoisted(() => ({
   getGroupwareApproval: vi.fn(),
@@ -280,7 +281,7 @@ describe('ApprovalDocView real DocumentRenderer route gate', () => {
     await waitFor(() => expect(screen.getByLabelText('결재문서 내용')).toBeTruthy())
     onlineManager.setOnline(false)
     onlineManager.setOnline(true)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushZeroDelayTasks()
     expect(mocks.findActiveDocumentTemplate).toHaveBeenCalledTimes(1)
   })
 })

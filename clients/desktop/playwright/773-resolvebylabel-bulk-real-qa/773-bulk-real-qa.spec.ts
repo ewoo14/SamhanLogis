@@ -53,7 +53,7 @@ test('일마감 상세 벌크 해소 후 parity 렌더 (#773 N+1→벌크)', asy
   const login = await realLogin(page, 'dev_accountant')
   await installAuthStub(page, login)
 
-  await page.goto(`${BASE_URL}/accounting/daily-closings`)
+  await page.goto(`${BASE_URL}/#/accounting/daily-closings`)
   await expect(page.getByRole('heading', { name: '일마감 조회' })).toBeVisible({ timeout: 30_000 })
 
   await page.getByTestId('daily-closing-filter-date').fill('2026-05-03')

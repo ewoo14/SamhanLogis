@@ -94,7 +94,7 @@ test('결재문서 렌더 — 활성 없음=DEFAULT, 활성 비기본=적용반�
   }
 
   // 01 — 활성 템플릿 없음 → DEFAULT 렌더
-  await page.goto(`${BASE_URL}/groupware/approvals/${APPROVAL_ID}/print`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE_URL}/#/groupware/approvals/${APPROVAL_ID}/print`, { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('text=결재문서, .document-renderer, [data-doc-root], h1, table', { timeout: 20000 }).catch(() => {})
   await page.waitForTimeout(1500)
   await capture(page, 'no-active-template-default-render')

@@ -18,6 +18,7 @@ import { test, expect } from '@playwright/test'
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 공통 설정
@@ -28,7 +29,9 @@ const _dirname = path.dirname(_filename)
 
 // 프로젝트 루트: spec 위치에서 4단계 위 (clients/desktop/playwright/operational/)
 const PROJECT_ROOT = path.resolve(_dirname, '../../../../')
-const QA_DIR = path.join(PROJECT_ROOT, 'docs', 'qa', 'operational-validation')
+// 캡처/산출물은 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const QA_DIR = resolveQaShotsDir(path.join(PROJECT_ROOT, 'docs', 'qa', 'operational-validation'))
 
 function ensureQaDir() {
   if (!fs.existsSync(QA_DIR)) {

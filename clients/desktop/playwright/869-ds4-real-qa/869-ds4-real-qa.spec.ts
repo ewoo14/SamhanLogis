@@ -44,7 +44,7 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   try {
   await test.step('D1 편집기 진입 후 품목행·이미지 추가', async () => {
     // 웹(vite) 하네스는 BrowserRouter — `#/…` 해시는 무시되고 홈이 렌더된다(실측). 경로로 이동한다.
-    await page.goto(`${BASE_URL}/groupware/document-templates`)
+    await page.goto(`${BASE_URL}/#/groupware/document-templates`)
     await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 20000 })
     await page.getByRole('button', { name: '신규 문서 양식' }).click()
     await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
@@ -149,7 +149,7 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     expect(approved.length, '실제 /print를 열 승인 완료 결재문서가 없다').toBeGreaterThan(0)
     const approvalId = approved[0]?.approvalId
     expect(approvalId).toBeTruthy()
-    await page.goto(`${BASE_URL}/groupware/approvals/${approvalId}/print`)
+    await page.goto(`${BASE_URL}/#/groupware/approvals/${approvalId}/print`)
     await expect(page.locator('.print-approval-doc')).toBeVisible({ timeout: 20000 })
     await page.emulateMedia({ media: 'print' })
     console.log(`■ 실제 결재문서 /print DOM 확인 = approvalId=${approvalId}`)

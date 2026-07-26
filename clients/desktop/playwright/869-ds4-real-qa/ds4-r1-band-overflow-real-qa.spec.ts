@@ -146,7 +146,7 @@ test('R1 — 좌표 요소가 24mm 밴드를 넘치면 밴드가 자라 뒤 내�
   })
 
   // 웹(vite) 하네스는 BrowserRouter — `#/…` 해시는 무시되고 홈이 렌더된다(실측). 경로로 이동한다.
-  await page.goto(`${BASE_URL}/groupware/document-templates`)
+  await page.goto(`${BASE_URL}/#/groupware/document-templates`)
   await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 30000 })
   await page.getByRole('button', { name: '신규 문서 양식' }).click()
   await expect(page.getByRole('heading', { name: '결재 문서 양식 편집기' })).toBeVisible({ timeout: 20000 })
