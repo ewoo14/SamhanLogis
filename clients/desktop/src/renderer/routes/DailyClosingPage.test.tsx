@@ -1071,3 +1071,101 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
     expect(reverseButton.hasAttribute('disabled')).toBe(false)
   })
 })
+
+describe('DailyClosingPage — off-page 상세 요약 (#929 재수렴 4차 ②)', () => {
+  const STALE_LOCKED_AT = '2026-07-20T03:41:00+09:00'
+
+  /** 클릭 대상 행 — 상세를 누르면 filterDate 가 이 날짜로 바뀌어 S7 페이지 리셋이 걸린다. */
+  const targetRow: DailyClosing = {
+    closingKind: 'SALES',
+    sourceKind: 'TAX_INVOICE',
+    closingDate: '2026-07-20',
+    bizNo: '2018100002',
+    partnerCode: 'P0-6-C002',
+    totalSupply: '200000',
+    totalVat: '20000',
+    totalAmount: '220000',
+    slipCount: 2,
+    isLocked: false,
+    lockedAt: STALE_LOCKED_AT,
+    lockedBy: '개발책임자',
+  }
+
+  /** 새 필터의 1페이지 — 대상 행이 없다(같은 날짜 21건 이상이면 21번째부터 2페이지). */
+  const otherRow: DailyClosing = {
+    ...targetRow,
+    partnerCode: 'P0-6-C999',
+    bizNo: '2018100999',
+    totalSupply: '10000',
+    totalVat: '1000',
+    totalAmount: '11000',
+    isLocked: true,
+    lockedAt: '2026-07-20T05:00:00+09:00',
+  }
+
+  it('클릭한 행이 새 1페이지에 없으면 검증 불가한 마감 상태를 표시하지 않는다', async () => {
+    // [기전] revealDailyClosingDetail 이 filterDate 를 바꾸면 S7 리셋이 page→0 으로 되돌린다.
+    // 클릭한 행이 그 1페이지에 없으면 live 재도출이 실패해 클릭 시점 스냅샷이 고정되고,
+    // 그 뒤 마감을 실행해 서버가 isLocked=true 가 되어도 화면은 '이전 마감 시각'(=열림)으로
+    // 남는다 — 사용자가 방금 마감한 그 화면에서 회계 잠금 상태를 반대로 읽는다.
+    listDailyClosingsMock.mockImplementation((opts: { from: string }) =>
+      Promise.resolve(
+        opts.from === targetRow.closingDate
+          ? { ...emptyPage, content: [otherRow], totalElements: 21, totalPages: 2 }
+          : { ...emptyPage, content: [targetRow], totalElements: 1, totalPages: 1 },
+      ),
+    )
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.click(
+      await screen.findByTestId('daily-closing-detail-button-2026-07-20-P0-6-C002-SALES-TAX_INVOICE'),
+    )
+
+    const scope = await screen.findByTestId('daily-closing-selected-scope')
+    // T2 무훼손 — "상세를 눌렀는데 상세가 사라진다"로 되돌아가지 않는다(신원은 남는다).
+    await waitFor(() => expect(scope.textContent).toContain('P0-6-C002'))
+    // 대상 행이 1페이지에 없다는 전제가 실제로 재현됐는지 확인.
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId('daily-closing-detail-button-2026-07-20-P0-6-C002-SALES-TAX_INVOICE'),
+        'off-page 전제 미재현 — 대상 행이 여전히 목록에 보인다',
+      ).toBeNull(),
+    )
+
+    expect(
+      scope.textContent,
+      `검증 불가한 스냅샷의 마감 시각이 그대로 표시됨: ${scope.textContent}`,
+    ).not.toContain(fmtTimestamp(STALE_LOCKED_AT))
+    expect(scope.textContent, '검증 불가한 스냅샷의 금액이 그대로 표시됨').not.toContain('220,000')
+    expect(screen.getByTestId('daily-closing-selected-scope-unverified')).toBeTruthy()
+  })
+
+  it('클릭한 행이 새 1페이지에 있으면 live 값(금액·마감 시각)을 그대로 보여준다 (무회귀)', async () => {
+    const liveRow: DailyClosing = { ...targetRow, isLocked: true, lockedAt: '2026-07-20T09:30:00+09:00' }
+    listDailyClosingsMock.mockImplementation((opts: { from: string }) =>
+      Promise.resolve(
+        opts.from === targetRow.closingDate
+          ? { ...emptyPage, content: [liveRow], totalElements: 1, totalPages: 1 }
+          : { ...emptyPage, content: [targetRow], totalElements: 1, totalPages: 1 },
+      ),
+    )
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.click(
+      await screen.findByTestId('daily-closing-detail-button-2026-07-20-P0-6-C002-SALES-TAX_INVOICE'),
+    )
+
+    const scope = await screen.findByTestId('daily-closing-selected-scope')
+    await waitFor(() =>
+      expect(scope.textContent).toContain(`마감 시각 ${fmtTimestamp('2026-07-20T09:30:00+09:00')}`),
+    )
+    // 스냅샷(열림)이 아니라 live(잠김) 라벨이어야 한다.
+    expect(scope.textContent).not.toContain('이전 마감 시각')
+    expect(scope.textContent).toContain('220,000')
+    expect(screen.queryByTestId('daily-closing-selected-scope-unverified')).toBeNull()
+  })
+})

@@ -2,10 +2,8 @@ package com.samhanair.logis.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -45,11 +43,14 @@ import org.springframework.data.domain.Pageable;
  * 목록 페이지 전체가 깨진다. {@code DailyClosingService.java:216-217} 의 javadoc 은 이미
  * "필터 입력 오타에 페이지 전체가 깨지지 않는다"를 명시적 불변식으로 선언하고 있다.
  *
+ * <p>[#929 재수렴 4차 D1·D2] 전달 가능/불가 판정 자체는 계약이 있는 client 로 옮겼다
+ * ({@code PartnerLookupCodeTransportGuardTest}) — 이 클래스는 service 의 몫만 고정한다.
+ *
  * <p>이 테스트는 3개 그룹으로 구성된다:
  * <ol>
- *   <li>안전하지 않은 입력 — partner-service 호출 없이 빈 페이지</li>
- *   <li>안전한 자유입력(특수문자 포함이라도 path 세그먼트에 안전) — 과차단 없이 여전히 조회</li>
- *   <li>안전한 입력이 실제로 매칭되는 무회귀 경로</li>
+ *   <li>전달 불가 입력(client NOT_FOUND) — 하드 오류 없이 빈 페이지, repository 미조회</li>
+ *   <li>전달 가능한 자유입력 — 과차단 없이 여전히 조회로 넘어감</li>
+ *   <li>전달 가능한 입력이 실제로 매칭되는 무회귀 경로</li>
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
@@ -69,13 +70,22 @@ class DailyClosingServiceListPartnerFilterTest {
 
     /**
      * 리뷰 실측(#929 재수렴 3차 V1) 5개 입력 — 각각 partner-service 를 direct 호출하면
-     * 403(percent 인코딩) 또는 400(slash 인코딩/경로순회)을 반환해 client 가 503/502 로
-     * 승격시킨 값들이다. 가드는 네트워크 호출 자체를 생략해야 한다.
+     * 403(percent/semicolon) 또는 400/500(slash·backslash·경로순회)을 반환해 client 가
+     * 503/502 로 승격시킨 값들이다.
+     *
+     * <p>[#929 재수렴 4차 D1·D2] "네트워크 호출을 생략한다"는 단언은 계약이 있는
+     * {@link PartnerLookupClient} 로 옮겼다(PartnerLookupCodeTransportGuardTest) — service 마다
+     * 가드를 두면 하나만 빠져도 그 화면이 깨지고(3차가 ';' 를 빠뜨려 실제로 그랬다) 같은 계약을
+     * 쓰는 나머지 15개 호출부가 남는다. 여기서는 service 의 몫만 고정한다: client 가 NOT_FOUND 를
+     * 돌려주면 목록은 하드 오류 없이 빈 페이지로 성사하고 repository 를 건드리지 않는다.
      */
-    @ParameterizedTest(name = "partnerCode=[{0}] 는 partner-service 호출 없이 빈 페이지로 성사한다")
-    @ValueSource(strings = {"50%", "P-2026-0004%", "%2F", "..", "P/2026"})
-    @DisplayName("V1 RED — URI path 세그먼트로 안전하지 않은 partnerCode 필터는 네트워크 호출 없이 빈 페이지")
-    void unsafePartnerCodeFilter_shortCircuitsWithoutNetworkCall(String unsafeCode) {
+    @ParameterizedTest(name = "partnerCode=[{0}] 는 빈 페이지로 성사하고 repository 를 조회하지 않는다")
+    @ValueSource(strings = {"50%", "P-2026-0004%", "%2F", "..", "P/2026", "P-2026-0004;"})
+    @DisplayName("V1 — 전달 불가 partnerCode 필터(client NOT_FOUND)는 빈 페이지로 성사한다")
+    void untransportablePartnerCodeFilter_resolvesToEmptyPage(String unsafeCode) {
+        when(partnerLookupClient.findByPartnerCodeResult(unsafeCode))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+
         Page<DailyClosingResponse> result = dailyClosingService.list(
                 FROM, TO, null, null, unsafeCode, Pageable.ofSize(20), null);
 
@@ -83,8 +93,6 @@ class DailyClosingServiceListPartnerFilterTest {
                 .as("partnerCode=[%s] 필터가 빈 페이지 대신 예외/다른 결과를 만듦", unsafeCode)
                 .isZero();
         assertThat(result.getContent()).isEmpty();
-        verify(partnerLookupClient, never()).findByPartnerCodeResult(anyString());
-        verify(partnerLookupClient, never()).findByPartnerCode(anyString());
         verifyNoInteractions(dailyClosingRepository);
     }
 

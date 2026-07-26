@@ -413,12 +413,42 @@ export function DailyClosingPage() {
       }),
   })
 
-  const selectedDetailRow = useMemo(() => {
-    if (!selectedDetailSnapshot) return null
+  /**
+   * 현재 목록 페이지에서 재도출한 그 행 — 서버가 방금 준 값이므로 신선하다.
+   * 재도출에 실패하면 null 이며, 그 상태에서는 이 행의 가변 상태를 아무도 검증할 수 없다.
+   */
+  const selectedDetailLiveRow = useMemo(() => {
+    if (!selectedDetailSnapshot || !listQuery.data) return null
     const key = dailyClosingRowKey(selectedDetailSnapshot)
-    const live = (listQuery.data?.content ?? []).find((row) => dailyClosingRowKey(row) === key)
-    return live ?? selectedDetailSnapshot
+    return listQuery.data.content.find((row) => dailyClosingRowKey(row) === key) ?? null
   }, [selectedDetailSnapshot, listQuery.data])
+
+  /** 신원(마감 범위·사업자번호)은 스냅샷으로도 불변이므로 카드 자체는 계속 보인다(T2 무훼손). */
+  const selectedDetailRow = selectedDetailLiveRow ?? selectedDetailSnapshot
+
+  /**
+   * [#929 재수렴 4차 ②] 가변 상태(금액 합계·마감 시각/잠금)를 검증할 수 없는 구간.
+   *
+   * <p>revealDailyClosingDetail 이 filterDate/closingKind/sourceKind 를 바꾸면 S7 리셋이
+   * page 를 0 으로 되돌린다 — 클릭한 행이 새 1페이지에 없으면(같은 날짜 21건 이상) live
+   * 재도출이 실패하고 클릭 시점 스냅샷이 그대로 고정된다. 스냅샷은 그 뒤 어떤 갱신도 받지
+   * 못하므로(clearSelectedDetail 은 사용자의 필터 조작에만 걸려 있어 '일마감 실행' 경로는
+   * 스냅샷을 건드리지 않는다) 사용자가 방금 그 범위를 마감해 서버가 isLocked=true 가 되어도
+   * 화면은 '이전 마감 시각'(=열림)을 계속 보여준다 — 회계 잠금 상태를 반대로 읽는다.
+   *
+   * <p>그래서 "어느 페이지에 있는지 다시 찾아내는" 대신 <b>검증하지 못한 값은 주장하지
+   * 않는다</b>. 신원은 남기고 가변 상태 자리에는 확인 불가를 명시한다 — live 가 돌아오면
+   * (같은 페이지로 이동하거나 재마감/역마감 invalidate 로 그 행이 1페이지에 들어오면)
+   * 자동으로 실제 값이 복귀한다.
+   *
+   * <p>단 목록이 아직 도착하지 않은 구간(필터가 바뀌어 새 queryKey 를 받아오는 중)은
+   * "없다"가 아니라 "아직 모른다"다 — 그때의 스냅샷은 사용자가 방금 그 행에서 본, 서버가
+   * 준 가장 최근 값이므로 그대로 두고 확인 불가 문구를 띄우지 않는다. 목록이 도착했는데도
+   * (또는 조회가 실패해 도착하지 못하는 것이 확정됐는데도) 그 행이 없을 때만 주장을 멈춘다.
+   */
+  const selectedDetailListSettled = listQuery.data !== undefined || !listQuery.isFetching
+  const selectedDetailStateUnverified =
+    selectedDetailRow !== null && selectedDetailLiveRow === null && selectedDetailListSettled
 
   /**
    * [#929 재수렴 T2 · S4 무훼손] 사용자가 필터를 직접 조작하면 이전 상세 선택(스냅샷
@@ -1014,14 +1044,27 @@ export function DailyClosingPage() {
           >
             <strong>선택한 마감 범위: {dailyClosingScopeLabel(selectedDetailRow)}</strong>
             {selectedDetailRow.bizNo ? <span>사업자번호 {selectedDetailRow.bizNo}</span> : null}
-            <span>
-              공급가 {fmtKrwUnit(selectedDetailRow.totalSupply)} · 부가세 {fmtKrwUnit(selectedDetailRow.totalVat)} · 합계 {fmtKrwUnit(selectedDetailRow.totalAmount)}
-            </span>
-            {/* [#929 재수렴 T1] 목록 열과 동일한 dailyClosingLockedAtDisplay 단일 출처 —
-                무조건 '마감 시각' 이면 열림 상태에서 목록('이전 마감 시각')과 모순됐다. */}
-            {dailyClosingLockedAtDisplay(selectedDetailRow) ? (
-              <span>{dailyClosingLockedAtDisplay(selectedDetailRow)}</span>
-            ) : null}
+            {/* [#929 재수렴 4차 ②] 금액·마감 시각은 가변 상태다 — 현재 목록에서 그 행을
+                재도출하지 못하면 확인할 방법이 없으므로 값을 주장하지 않는다. */}
+            {selectedDetailStateUnverified ? (
+              <span
+                data-testid="daily-closing-selected-scope-unverified"
+                style={{ color: 'var(--ink-secondary)' }}
+              >
+                이 마감 범위가 현재 목록 페이지에 없어 최신 금액·마감 상태를 표시하지 않습니다. 페이지를 이동하거나 필터를 좁혀 확인하세요.
+              </span>
+            ) : (
+              <>
+                <span>
+                  공급가 {fmtKrwUnit(selectedDetailRow.totalSupply)} · 부가세 {fmtKrwUnit(selectedDetailRow.totalVat)} · 합계 {fmtKrwUnit(selectedDetailRow.totalAmount)}
+                </span>
+                {/* [#929 재수렴 T1] 목록 열과 동일한 dailyClosingLockedAtDisplay 단일 출처 —
+                    무조건 '마감 시각' 이면 열림 상태에서 목록('이전 마감 시각')과 모순됐다. */}
+                {dailyClosingLockedAtDisplay(selectedDetailRow) ? (
+                  <span>{dailyClosingLockedAtDisplay(selectedDetailRow)}</span>
+                ) : null}
+              </>
+            )}
             {/* [#929 재수렴 T5] 통합(ALL)에서는 아래 DataTable 이 렌더되지 않는다("통합
                 조회에서는 이력만 표시합니다") — 그 표를 가리키는 문구는 표가 실제로
                 렌더되는 조건(closingKind !== 'ALL')과 함께 다닌다. */}

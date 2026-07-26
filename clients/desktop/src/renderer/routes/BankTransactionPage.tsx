@@ -173,6 +173,22 @@ function transactionAmount(row: BankTransactionRow, type: 'DEPOSIT' | 'WITHDRAWA
   return row.txnType === type ? formatCashReceiptAmount(row.amount) : '—'
 }
 
+/**
+ * 상세 패널의 DOM id (#929 재수렴 4차 R-1).
+ *
+ * <p>패널은 개방된 1행에만 렌더되고 그 유일성은 {@code bankTransactionRowKey}(개방·선택·강조가
+ * 이미 쓰는 복합 자연키 — DB 의 부분 UNIQUE 인덱스
+ * {@code (bank_account_label, transacted_at, amount, external_ref) WHERE is_deleted=false} 가
+ * 구조적으로 보장)에서 온다. externalRef 단독은 CARD/LOAN 소스에서 계좌마다 재사용되어
+ * 중복이므로 id 로 쓸 수 없다(리뷰 실측: 28행 중 10그룹 24행).
+ *
+ * <p>{@code aria-controls} 는 <b>공백으로 구분되는 ID 목록</b>이라 값에 공백이 들어가면
+ * 참조가 깨진다 — rowKey 는 계좌명·적요에 공백/한글을 담으므로 URI 인코딩해 공백을 없앤다.
+ */
+function bankTransactionDetailPanelId(row: BankTransactionRow): string {
+  return `bank-transaction-detail-${encodeURIComponent(bankTransactionRowKey(row)).replace(/%/g, '_')}`
+}
+
 function BankTransactionDetailToggle({
   row,
   expanded,
@@ -190,11 +206,14 @@ function BankTransactionDetailToggle({
       // (날짜, 순번) 참조를 계좌마다 재사용하는 행에서 중복된다(리뷰 실측: 기본 화면
       // 28행 중 10그룹 24행). data-row-key 는 bankTransactionRowKey(개방·선택·강조가
       // 이미 쓰는 유일 복합키)를 그대로 담아 findDetailToggleButton 재탐색이 정확히
-      // 그 행으로 복귀하게 한다 — data-testid/aria-controls 는 기존 테스트 호환을 위해
-      // 그대로 둔다.
+      // 그 행으로 복귀하게 한다 — data-testid 는 기존 테스트 호환을 위해 그대로 둔다.
       data-row-key={bankTransactionRowKey(row)}
       aria-expanded={expanded}
-      aria-controls={`bank-transaction-detail-${row.externalRef}`}
+      // [#929 재수렴 4차 R-1] 패널은 개방된 1행에만 렌더된다 — 닫힌 행이 패널 id 를 선언하면
+      // 존재하지 않는 요소를 가리키고(31개 중 30개), externalRef 가 중복인 행에서는 "남이 연
+      // 패널"을 자기 것으로 선언한다. 레포 정본 패턴(AsyncAutocomplete.tsx:527
+      // `aria-controls={hasListbox ? listId : undefined}`)대로 개방 시에만 선언한다.
+      aria-controls={expanded ? bankTransactionDetailPanelId(row) : undefined}
       onClick={(event) => onToggle(event.currentTarget)}
       style={{
         display: 'block',
@@ -228,7 +247,10 @@ function BankTransactionDetailToggle({
 function BankTransactionDetailPanel({ row, onClose }: { row: BankTransactionRow; onClose: () => void }) {
   return (
     <section
-      id={`bank-transaction-detail-${row.externalRef}`}
+      // [#929 재수렴 4차 R-1] id 는 rowKey 기반(유일) — externalRef 는 CARD/LOAN 에서 중복이라
+      // 토글의 aria-controls 가 다른 행의 패널을 가리키게 만들었다. data-testid 는 기존
+      // 테스트 계약이라 externalRef 형태를 유지한다(패널은 한 번에 하나만 렌더되어 중복 없음).
+      id={bankTransactionDetailPanelId(row)}
       data-testid={`bank-transaction-detail-${row.externalRef}`}
       role="region"
       aria-label={`${row.description} 상세`}

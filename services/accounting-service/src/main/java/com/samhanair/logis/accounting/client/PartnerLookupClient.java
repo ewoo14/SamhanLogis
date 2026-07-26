@@ -122,6 +122,16 @@ public class PartnerLookupClient {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
 
+    /**
+     * URI path 세그먼트가 실어 나를 수 없는 예약 문자 (#929 재수렴 4차 D1·D2).
+     *
+     * <p>인코딩 후 각각 {@code %25}·{@code %2F}·{@code %5C}·{@code %3B} 가 되며,
+     * partner-service 의 Spring Security {@code StrictHttpFirewall} 기본 설정이 이 4종을
+     * 모두 거부한다 (라이브 실측 {@code :8095} — {@code '%'}·{@code ';'} 는 403,
+     * {@code '/'}·{@code '\'} 는 400).
+     */
+    private static final String PATH_SEGMENT_RESERVED = "%/\\;";
+
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
     private final ObjectMapper objectMapper;
@@ -175,13 +185,75 @@ public class PartnerLookupClient {
         return result == null || !result.isFound() ? Optional.empty() : Optional.of(result.partner());
     }
 
+    /**
+     * partnerCode 를 {@code /internal/partners/{partnerCode}} 의 path 세그먼트로 실어 보낼 수
+     * 있는지 판정한다 (#929 재수렴 4차 D1·D2).
+     *
+     * <p><b>왜 client 인가</b> — partnerCode 를 path 세그먼트로 쓰는 것은 이 메서드의 계약이고,
+     * accounting 의 16개 호출부(일마감 목록/실행/역마감, 원장, 거래처원장 집계·인쇄, 받을어음,
+     * 수금계획, 입금보고서, 분개현황, 세금계산서 batch/inbound, 통장거래, CODEF import,
+     * 입금 자동매칭, 입금자 매핑, 이카운트 전표·세금계산서 import)가 전부 이 한 지점을 지난다.
+     * 세그먼트가 partner-service 의 {@code StrictHttpFirewall} 을 통과하지 못하면 4xx/5xx 가
+     * 돌아오고 아래 catch 절이 그것을 {@code MIG12_INTERNAL_AUTH_MISS}(503 fail-fast) 또는
+     * {@code UNAVAILABLE}(502 격상)로 승격시킨다 — 사용자 입력 오타 하나가 "시스템 장애" 화면이
+     * 된다. 호출부마다 가드를 두면 하나만 빠져도 그 화면이 깨지므로(#929 재수렴 3차가 실제로
+     * 그랬다: {@code DailyClosingService.list()} 한 곳만 막고 15곳을 남김) 계약이 있는 곳에서 막는다.
+     *
+     * <p><b>판정 기준은 열거가 아니라 전달 가능성이다.</b> 아래 세 부류만 거부한다:
+     * <ol>
+     *   <li>{@link #PATH_SEGMENT_RESERVED} — 인코딩 결과 자체가 firewall 차단 대상인 4종</li>
+     *   <li>정규화되지 않는 단독 {@code "."}/{@code ".."} 세그먼트 (경로순회로 간주 — 실측 500)</li>
+     *   <li>제어(Cc)·행분리(Zl)·문단분리(Zp)·비정상 서로게이트 문자 — {@code StrictHttpFirewall}
+     *       의 decoded blocklist 가 NUL/LF/CR/U+2028/U+2029 를 담고 있다. 문자 하나씩 열거하면
+     *       또 빠진다(리뷰의 printable ASCII 95자 스윕은 비ASCII 인 U+2028/U+2029 에 구조적으로
+     *       도달하지 못했다) — 유니코드 카테고리로 판정해 같은 부류 전체를 덮는다.</li>
+     * </ol>
+     *
+     * <p><b>과차단하지 않는다.</b> 거절된 값은 어차피 이 전송로로 조회가 불가능하므로 "지금
+     * 성공하는 조회"를 하나도 잃지 않는다 — 실 DB {@code partners} 전수에 {@code [^A-Za-z0-9_-]}
+     * 매치는 0행이고, 위 3부류 밖의 자유입력(한글·공백·{@code & # + ? < >}·전각 ％·이모지)은
+     * 그대로 partner-service 까지 전달된다(실측 200/404). query 파라미터를 쓰는 형제 메서드
+     * ({@code findByPartnerNameResult}·{@code searchDirectoryResult})는 같은 문자에도 정상
+     * 응답하므로(실측) 이 판정을 적용하지 않는다.
+     *
+     * @param segment {@code trim()} 된 partnerCode
+     * @return path 세그먼트로 전달 가능하면 true
+     */
+    static boolean isAddressableAsPathSegment(String segment) {
+        if (segment.equals(".") || segment.equals("..")) {
+            return false;
+        }
+        for (int i = 0; i < segment.length(); ) {
+            int cp = segment.codePointAt(i);
+            i += Character.charCount(cp);
+            if (cp < 0x80 && PATH_SEGMENT_RESERVED.indexOf(cp) >= 0) {
+                return false;
+            }
+            int type = Character.getType(cp);
+            if (type == Character.CONTROL || type == Character.LINE_SEPARATOR
+                    || type == Character.PARAGRAPH_SEPARATOR || type == Character.SURROGATE) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** 거래처 코드 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
     public LookupResult findByPartnerCodeResult(String partnerCode) {
         if (partnerCode == null || partnerCode.isBlank()) return LookupResult.notFound();
+        String trimmed = partnerCode.trim();
+        if (!isAddressableAsPathSegment(trimmed)) {
+            // [#929 재수렴 4차 D1·D2] 이 전송로로는 도달 자체가 불가능한 값 — 실존 partnerCode 일
+            // 수 없으므로 네트워크 호출을 생략하고 미존재로 성사시킨다. null/blank 가 이미 토큰
+            // 검사 앞에서 notFound 로 빠지는 것과 같은 자리·같은 이유다(주소 지정 불가한 입력).
+            log.debug("PartnerLookupClient — partnerCode 가 path 세그먼트로 전달 불가 (NOT_FOUND 처리, len={})",
+                    trimmed.length());
+            return LookupResult.notFound();
+        }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) throw internalAuthMiss("partnerCode", partnerCode, 0);
         try {
-            String body = restClient.get().uri("/internal/partners/{partnerCode}", partnerCode.trim())
+            String body = restClient.get().uri("/internal/partners/{partnerCode}", trimmed)
                     .header(INTERNAL_TOKEN_HEADER, token).retrieve().body(String.class);
             return parseSummaryResult(body);
         } catch (RestClientResponseException ex) {

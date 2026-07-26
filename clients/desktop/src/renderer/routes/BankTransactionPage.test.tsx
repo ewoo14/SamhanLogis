@@ -506,6 +506,50 @@ describe('BankTransactionPage 열 계층화 (#897)', () => {
     })
   })
 
+  it('[#929 재수렴 4차 R-1] aria-controls 는 존재하는 요소만 가리킨다 (기본 화면·개방 후 모두)', async () => {
+    // 패널은 열린 1행에만 렌더된다(BankTransactionPage.tsx: expandedRow ? <Panel/> : null).
+    // 그런데 토글은 행마다 렌더되며 전부 aria-controls 로 패널 id 를 선언한다 —
+    // 닫힌 행의 aria-controls 는 존재하지 않는 id 를 가리키고(dangling), externalRef 가
+    // 중복인 행에서는 "남이 연 패널"을 자기 것으로 선언한다(리뷰 실측 [D4]).
+    // 레포 정본 패턴은 AsyncAutocomplete.tsx:527 `aria-controls={hasListbox ? listId : undefined}`.
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    const dupExternalRef = 'CARD-2026-07-03-777'
+    const rows: BankTransactionRow[] = [
+      { ...baseRow, externalRef: dupExternalRef, bankAccountLabel: '삼한 법인카드 1111', amount: '30000', description: '적요-첫번째' },
+      { ...baseRow, externalRef: dupExternalRef, bankAccountLabel: '삼한 법인카드 3333', amount: '50000', description: '적요-대상' },
+      { ...baseRow, externalRef: 'REF-UNIQUE-1', bankAccountLabel: '국민 운영계좌', amount: '70000', description: '적요-단독' },
+    ]
+    listBankTransactionsMock.mockResolvedValue(rows)
+
+    renderPage()
+    await screen.findAllByTestId(`bank-transaction-detail-toggle-${dupExternalRef}`)
+
+    const danglingOf = () =>
+      Array.from(document.querySelectorAll('[aria-controls]'))
+        .map((el) => ({ el, id: el.getAttribute('aria-controls') as string }))
+        .filter(({ id }) => document.getElementById(id) === null)
+        .map(({ el, id }) => `${el.getAttribute('data-testid') ?? el.tagName}->#${id}`)
+
+    // (1) 기본 화면 — 패널이 하나도 없으므로 aria-controls 가 있으면 전부 dangling 이다.
+    expect(danglingOf(), `기본 화면 dangling aria-controls: ${danglingOf().join(', ')}`).toEqual([])
+
+    // (2) 한 행을 연 뒤 — 열린 행 외의 토글은 존재하는 패널을 가리켜서도 안 된다.
+    const toggles = await screen.findAllByTestId(`bank-transaction-detail-toggle-${dupExternalRef}`)
+    fireEvent.click(toggles[1])
+    await screen.findByRole('region', { name: /적요-대상 상세/ })
+
+    expect(danglingOf(), `개방 후 dangling aria-controls: ${danglingOf().join(', ')}`).toEqual([])
+
+    const collapsedPointingAtSomePanel = Array.from(
+      document.querySelectorAll('button[aria-expanded="false"][aria-controls]'),
+    ).map((el) => `${el.getAttribute('data-row-key')}->#${el.getAttribute('aria-controls')}`)
+    expect(
+      collapsedPointingAtSomePanel,
+      `닫힌 토글이 남의 패널을 자기 것으로 선언함: ${collapsedPointingAtSomePanel.join(', ')}`,
+    ).toEqual([])
+  })
+
   it('소스·매칭상태 열은 기존 탭별 조건부 표시 규칙을 유지한다', async () => {
     listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
     loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })

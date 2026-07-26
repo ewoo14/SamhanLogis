@@ -217,35 +217,13 @@ public class DailyClosingService {
      * 전체가 깨지지 않는다), partner-service 장애(UNAVAILABLE)만 502 로 표면화한다
      * (PartnerLookupSupport.foundOrNull).
      *
+     * <p>[#929 재수렴 4차 D1·D2] "필터 입력 오타에 페이지 전체가 깨지지 않는다"는 위 불변식은
+     * partnerCode 를 URI path 세그먼트로 전달할 수 없을 때도 지켜져야 한다. 그 판정은 계약이
+     * 있는 {@link PartnerLookupClient#isAddressableAsPathSegment} 한 곳에서만 하며, 전달 불가
+     * 입력은 NOT_FOUND 로 돌아와 위 빈 페이지 경로가 그대로 받는다.
+     *
      * @param partnerCode 거래처코드 필터 (선택 — null/blank 면 미지정)
      */
-    /**
-     * partnerCode 필터가 {@link PartnerLookupClient} 의 URI path 세그먼트로 안전한지 검사한다
-     * (#929 재수렴 3차 V1).
-     *
-     * <p>{@code PartnerLookupClient.findByPartnerCodeResult} 는 partnerCode 를 그대로
-     * {@code /internal/partners/{partnerCode}} path 세그먼트로 사용한다(URI 템플릿 변수 치환).
-     * '%' 는 인코딩 후 그 자체가 "%25"로 재인코딩되고, '/'·'\' 는 세그먼트 경계를 침범해
-     * "%2F"/"%5C"로 인코딩된다 — partner-service 의 Spring Security StrictHttpFirewall
-     * 기본 설정({@code allowUrlEncodedPercent=false}·{@code allowUrlEncodedSlash=false})이
-     * 이런 인코딩 패턴을 공격 시도로 간주해 403/400 을 반환한다. 단독 "." / ".." 세그먼트도
-     * 경로순회 시도로 거부된다. 이 메서드는 그런 문자를 담은 필터 입력이 애초에 실존
-     * partnerCode 일 수 없다는 전제로 네트워크 호출 자체를 생략시킨다 — 위 list() 필터
-     * 전용 가드이며, close()/unlock() 등 다른 호출부는 이 가드 밖이라 영향받지 않는다
-     * (#929 범위: 이 partnerCode 필터는 이 PR 신규 도입, 다른 호출부는 선존재 별개 표면).
-     *
-     * @param partnerCode null/blank 가 아닌 필터 입력
-     * @return path 세그먼트로 안전하면 true
-     */
-    private static boolean isPartnerCodeFilterSafe(String partnerCode) {
-        if (partnerCode.indexOf('%') >= 0 || partnerCode.indexOf('/') >= 0
-                || partnerCode.indexOf('\\') >= 0) {
-            return false;
-        }
-        String trimmed = partnerCode.trim();
-        return !trimmed.equals(".") && !trimmed.equals("..");
-    }
-
     @Transactional(readOnly = true)
     public Page<DailyClosingResponse> list(LocalDate from, LocalDate to,
                                            DailyClosingKind closingKind,
@@ -265,15 +243,11 @@ public class DailyClosingService {
         }
         UUID filterPartnerId = null;
         if (partnerCode != null && !partnerCode.isBlank()) {
-            if (!isPartnerCodeFilterSafe(partnerCode)) {
-                // [#929 재수렴 3차 V1] '%'·'/'·".." 는 URI path 세그먼트 인코딩 후
-                // partner-service StrictHttpFirewall 이 403/400 으로 거부하고, client 는
-                // 이를 각각 fail-fast(503)·UNAVAILABLE(502 격상)로 승격한다 — 필터 입력
-                // 오타 하나로 목록 페이지 전체가 깨진다(위 javadoc 불변식 위반). 이런 문자를
-                // 담은 입력은 애초에 실존 partnerCode 일 수 없으므로 네트워크 호출 자체를
-                // 생략하고 미존재로 취급한다.
-                return new PageImpl<>(List.of(), pageable, 0);
-            }
+            // [#929 재수렴 4차 D1·D2] path 세그먼트로 전달 불가한 입력('%'·'/'·'\'·';'·단독
+            // "."/".."·제어/분리 문자)의 단락 처리는 PartnerLookupClient 가 계약 지점에서
+            // 수행한다 — 여기서 다시 판정하면 같은 값을 두 곳에서 계산하게 되고(3차 가드가
+            // 실제로 그랬다: ';' 를 빠뜨려 자기 화면에서 우회됨), 같은 계약을 쓰는 나머지
+            // 15개 호출부는 여전히 깨진 채 남는다. NOT_FOUND 로 돌아오므로 아래 빈 페이지 경로가 받는다.
             PartnerSummary filterPartner = PartnerLookupSupport.foundOrNull(
                     PartnerLookupSupport.byCode(partnerLookupClient, partnerCode));
             if (filterPartner == null) {
