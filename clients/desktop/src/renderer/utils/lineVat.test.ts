@@ -4,6 +4,7 @@ import {
   editSlipLineAmount,
   hasVatWarning,
   recalculateLineVat,
+  resolveUnitPrices,
   sumDisplayedLineVatAmounts,
   type LineVatAuthority,
 } from './lineVat'
@@ -192,5 +193,98 @@ describe('lineVat — hasVatWarning ±1원 허용 오차 (재수렴 3차 #937 U2
   it('실질 불일치(3,000원·18,000원 — 2026-07-27 slip_lines 실측 11건 중 2건)는 경고한다', () => {
     expect(hasVatWarning('50000', '2000')).toBe(true) // 기대 5,000, 실제 2,000 — 3,000원 과소
     expect(hasVatWarning('200000', '2000')).toBe(true) // 기대 20,000, 실제 2,000 — 18,000원 과소
+  })
+})
+
+/**
+ * 재수렴 4차(#937) 근본수정 — 저장된 두 단가 컬럼의 세금 도메인 해석 (RED-first).
+ *
+ * <p><b>계약</b>: 전표 라인의 권위값은 공급가액(S)·부가세(V)·수량(Q) 이고, 두 단가 컬럼은
+ * 그 권위값의 "1개당 표시"다 — {@code unit_price = S ÷ Q}(VAT 제외), {@code unit_price_with_vat
+ * = (S+V) ÷ Q}(VAT 포함). 저장된 컬럼이 이 항등식을 만족하면 사용자가 입력한 원래 값(끝수
+ * 포함)을 그대로 쓰고, 만족하지 않으면(=그 컬럼이 다른 세금 도메인 값으로 오염됐다) 권위값에서
+ * 유도한다.
+ *
+ * <p><b>왜 "저장값 우선 + 불일치 시 유도" 인가</b>: 2026-07-27 slip_lines 실측(활성 2,779건)
+ * 결과 {@code unit_price × 수량 ≠ 공급가액} 44건, {@code unit_price_with_vat × 수량 ≠ 공급가액+
+ * 부가세} 22건이 이미 존재한다. 두 컬럼이 같은 값인 행도 55건 있는데, 그 상태만으로는 "둘 다
+ * VAT 포함" 인지 "둘 다 VAT 제외" 인지 구별할 수 없다 — 권위값과 대조해야만 판정된다. 저장값을
+ * 무조건 믿으면 그 행들에서 세금 도메인이 뒤집히고(재수렴 4차 진단 ①②③⑤), 반대로 무조건
+ * 유도하면 사용자가 입력한 끝수 단가(예: 499,999.5)가 반올림되어 가격기억 왕복이 흔들린다.
+ */
+describe('lineVat — resolveUnitPrices 저장 단가 컬럼의 세금 도메인 (재수렴 4차 #937, RED-first)', () => {
+  it('두 컬럼이 모두 권위값과 정합이면 저장값을 그대로 쓴다', () => {
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('⑤ 두 컬럼이 같은 VAT 제외 값인 행 — VAT 포함 단가는 권위값에서 유도한다', () => {
+    // 실 DB 재현(2026-07-27 live): main 편집화면 페이로드가 저장한 100000|100000|200000|20000|2.
+    // 100,000 × 2 = 200,000 = 공급가액 → VAT 제외 단가는 정합(저장값 유지),
+    // 100,000 × 2 = 200,000 ≠ 220,000 = 공급가액+부가세 → VAT 포함 단가는 오염(유도).
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('두 컬럼이 같은 VAT 포함 값인 행 — VAT 제외 단가를 권위값에서 유도한다(인쇄 단가×수량=공급가액)', () => {
+    // 재수렴 4차 진단 ①②: HEAD 무수정 재저장이 만드는 110000|110000|200000|20000|2.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '110000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('끝수 입력 단가는 권위값과 정합인 한 반올림하지 않는다(가격기억 왕복 보존)', () => {
+    // 기억 499,999.5 → 수량 1 → 합계 500,000(HALF_UP) → 공급 454,545 / 부가세 45,455.
+    expect(resolveUnitPrices({
+      quantity: 1,
+      unitPrice: '454545',
+      unitPriceWithVat: '499999.5',
+      supplyAmount: '454545',
+      vatAmount: '45455',
+    })).toEqual({ supplyUnit: '454545', inclusiveUnit: '499999.5' })
+  })
+
+  it('legacy 컬럼 null 은 권위값에서 유도한다', () => {
+    expect(resolveUnitPrices({
+      quantity: 1,
+      unitPrice: null,
+      unitPriceWithVat: null,
+      supplyAmount: '100000',
+      vatAmount: '10000',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('나눠떨어지지 않는 수량은 BE divide(scale 2, HALF_UP) 와 같은 자릿수로 유도한다', () => {
+    expect(resolveUnitPrices({
+      quantity: 3,
+      unitPrice: null,
+      unitPriceWithVat: null,
+      supplyAmount: '100005',
+      vatAmount: '10001',
+    })).toEqual({ supplyUnit: '33335', inclusiveUnit: '36668.67' })
+  })
+
+  it('수량 0·비수치 저장값 같은 병리 입력에서도 권위값 유도로 닫는다', () => {
+    expect(resolveUnitPrices({
+      quantity: 0,
+      unitPrice: '',
+      unitPriceWithVat: 'abc',
+      supplyAmount: '0',
+      vatAmount: '0',
+    })).toEqual({ supplyUnit: '0', inclusiveUnit: '0' })
   })
 })

@@ -116,10 +116,10 @@ import {
   editSlipLineAmount,
   hasVatWarning,
   recalculateLineVat,
+  resolveUnitPrices,
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
-import { vatInclusiveOf } from '../utils/vatPrice'
 
 const SLIP_HEADER_TEXT_FIELDS = new Set(['memo', 'deliveryAddress', 'supervisionAddress', 'projectName'])
 
@@ -201,12 +201,26 @@ function DetailGridItem({
 
 type SlipLine = SlipDetail['lines'][number]
 
-function slipLineAmounts(line: SlipLine) {
+/**
+ * 읽기전용 상세 표의 라인 금액 — 재수렴 4차(#937) 근본수정.
+ *
+ * <p>단가는 저장 컬럼({@code unit_price_with_vat})을 무조건 믿지 않고 권위 금액과의 항등식
+ * ({@code 단가 × 수량 = 공급가액 + 부가세})을 만족할 때만 그대로 쓴다 — 두 단가 컬럼이 같은
+ * 값이 된 행(2026-07-27 실측 55건)은 그 상태만으로 세금 도메인을 판정할 수 없어, 저장값을
+ * 그대로 믿으면 이 표가 바로 옆 칸의 공급가액·부가세와 어긋난 단가를 보여준다(무수정 재저장
+ * 전후로 표시가 흔들리는 원인이기도 하다). 판정·유도는 수정 화면과 같은 단일 진실원
+ * ({@link resolveUnitPrices})을 쓴다.
+ */
+export function slipLineAmounts(line: SlipLine) {
   const supply = line.supplyAmount != null ? Number(line.supplyAmount) : Number(line.lineTotal)
   const vat = line.vatAmount != null ? Number(line.vatAmount) : vatFromSupply(supply)
-  const unitWithVat = line.unitPriceWithVat != null
-    ? Number(line.unitPriceWithVat)
-    : Number(line.unitPrice)
+  const unitWithVat = Number(resolveUnitPrices({
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+    unitPriceWithVat: line.unitPriceWithVat,
+    supplyAmount: supply,
+    vatAmount: vat,
+  }).inclusiveUnit)
   return {
     supply,
     vat,
@@ -421,13 +435,21 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     // 공급단가인 line.unitPrice 를 그대로 실어, 실측 활성 라인의 99%+(2026-07-27: 2,717건
     // 중 2,697건)에서 "필드 값의 세금 도메인 ≠ 라벨·계산"이었다 — 무편집 진입 시점부터 이미
     // 모순이었고, 수량만 바꿔도 과세표준이 틀어졌다(재수렴 3차 실측: 수량 2→3 시 300,000 이
-    // 272,727 로 하락). unit_price_with_vat 는 authoritative 저장 경로가 그대로 각인하는
-    // 컬럼이라(SlipLine.createFromAuthoritativeAmounts) 이미 VAT 포함 도메인이다 — 그 값을
-    // 싣는다. null(legacy, 2026-07-27 실측 활성 라인 0건이나 방어적으로 유지)이면 옛 BE
-    // collectPriceMemory 변환과 같은 ×1.1 HALF_UP(vatInclusiveOf)으로 승격한다.
-    unitPrice: line.unitPriceWithVat != null
-      ? String(line.unitPriceWithVat)
-      : vatInclusiveOf(line.unitPrice),
+    // 272,727 로 하락).
+    // 재수렴 4차(#937) 근본수정 — ⑤: 3차는 unit_price_with_vat 를 "무조건 VAT 포함"으로 믿었다.
+    // 그런데 두 단가 컬럼이 같은 값인 행(2026-07-27 실측 활성 55건)은 그 상태만으로 둘 다 VAT
+    // 포함인지 둘 다 VAT 제외인지 구별할 수 없다 — main 편집화면 페이로드가 만든
+    // 100000|100000|200000|20000|2 행에서 100,000(실제로는 VAT 제외)을 VAT 포함으로 오인해
+    // 수량 2→3 시 과세표준이 300,000 대신 272,727 로 9.09% 떨어졌다. 권위 금액(공급가액·부가세·
+    // 수량)과의 항등식으로 판정해, 정합인 저장값은 끝수까지 보존하고(가격기억 왕복 불변)
+    // 불일치하는 행만 권위 금액에서 유도한다 — 판정·유도는 표시·인쇄와 같은 단일 진실원이다.
+    unitPrice: resolveUnitPrices({
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      unitPriceWithVat: line.unitPriceWithVat,
+      supplyAmount: line.supplyAmount ?? line.lineTotal,
+      vatAmount: line.vatAmount ?? vatFromSupply(Number(line.lineTotal)),
+    }).inclusiveUnit,
     unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: String(line.supplyAmount ?? line.lineTotal),
     vatAmount: String(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
@@ -3908,13 +3930,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 slip.lines.map((l, idx) => {
                   const selected = selectedLineId === l.id
                   const checked = checkedLineIds.has(l.id)
-                  // 단가 부가세포함 전환: unitPriceWithVat 있으면 VAT포함 단가/공급가액/부가세 표시.
-                  // legacy(없음) 는 unitPrice 를 공급단가로 보고 동일 방식 분해.
-                  const supplyVal = l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal)
-                  const vatVal = l.vatAmount != null ? Number(l.vatAmount) : vatFromSupply(supplyVal)
-                  const unitWithVatVal = l.unitPriceWithVat != null
-                    ? Number(l.unitPriceWithVat) : Number(l.unitPrice)
-                  const totalInclVal = supplyVal + vatVal
+                  // 단가 부가세포함 전환: 권위 금액(공급가액/부가세)에서 VAT 포함 단가/합계를 표시한다.
+                  // 재수렴 4차(#937): 모바일 카드와 같은 slipLineAmounts 단일 진실원으로 합친다 —
+                  // 종전엔 같은 화면이 데스크톱 표와 모바일 카드에서 단가를 따로 계산했다.
+                  const { supply: supplyVal, vat: vatVal, totalIncl: totalInclVal, unitWithVat: unitWithVatVal }
+                    = slipLineAmounts(l)
                   return (
                     <tr key={l.id} className={selected ? 'is-selected' : undefined}>
                       {/* Phase 2.6d: 재고조회 체크박스 */}

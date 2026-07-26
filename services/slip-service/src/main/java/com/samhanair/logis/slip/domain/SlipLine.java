@@ -245,9 +245,25 @@ public class SlipLine extends BaseEntity {
      *
      * <p>전표의 {@code lineTotal} 은 기존 계약상 VAT 미포함 공급가액이므로 {@code S} 를 저장한다.
      * 요청의 VAT 포함 합계 {@code T} 는 {@code lineTotalWithVat} 로 검증하되 단가로 역산하지
-     * 않는다. 사용자가 입력한 단가는 화면 왕복 보존을 위해 두 단가 컬럼에 그대로 저장한다.
+     * 않는다.
      *
-     * @param unitPrice 사용자가 입력한 단가 (0 이상)
+     * <p>🚨 <b>재수렴 4차(#937) 근본수정 — 두 단가 컬럼은 서로 다른 세금 도메인이다.</b>
+     * 종전에는 입력 단가를 "화면 왕복 보존" 명목으로 {@code unit_price}·{@code unit_price_with_vat}
+     * <b>두 컬럼에 그대로</b> 각인했다. 그러면 화면이 어느 도메인으로 단가를 보내든 두 컬럼 중
+     * 하나는 반드시 틀린다 — 화면 단가가 VAT 제외였을 때는 {@code unit_price_with_vat} 가 10%
+     * 과소했고(#937 U1), VAT 포함으로 고친 뒤에는 {@code unit_price} 가 10% 과대해져 세금계산서·
+     * 매입전표 인쇄의 {@code 단가 × 수량 = 공급가액} 이 깨지고(라이브 실증 2026-07-27:
+     * 무수정 재저장만으로 {@code 100000|110000} → {@code 110000|110000}) 감사 이력에 사용자가
+     * 하지 않은 "단가 100000 → 110000" 이 찍혔다.
+     *
+     * <p>화면 단가는 2026-06-09 개발책임자 확정대로 <b>VAT 포함</b>이므로 {@code unitPrice} 는
+     * {@code unit_price_with_vat} 에 그대로 보존하고(끝수까지 무손실 — 가격기억 각인 원천),
+     * VAT 제외 컬럼 {@code unit_price} 는 권위 공급가액에서 유도한다({@code S ÷ Q}) — 값이
+     * 없던 호환 팩토리(아래 오버로드)가 이미 쓰던 것과 같은 계산이다. 이로써 두 컬럼이 각자
+     * 자기 도메인의 항등식({@code unit_price × Q = S}, {@code unit_price_with_vat × Q = T})을
+     * 만족한다.
+     *
+     * @param unitPrice 사용자가 입력한 VAT 포함 단가 (0 이상)
      * @param supplyAmount 공급가액 S (원 단위 정수, 0 이상)
      * @param vatAmount 부가세 V (원 단위 정수, 0 이상)
      * @param lineTotalWithVat VAT 포함 합계 T (원 단위 정수, 0 이상)
@@ -261,9 +277,12 @@ public class SlipLine extends BaseEntity {
         validatePositive(quantity);
         validateUnitPrice(unitPrice);
         validateAuthoritativeAmounts(supplyAmount, vatAmount, lineTotalWithVat);
-        // S/V/T는 화면 권위값이고 단가는 사용자가 직접 입력한 별도 권위값이다.
+        // S/V/T는 화면 권위값이고 단가는 사용자가 직접 입력한 별도 권위값(VAT 포함)이다.
+        // VAT 제외 컬럼은 그 권위 공급가액에서 유도한다(재수렴 4차 #937 — 위 javadoc 참고).
+        BigDecimal supplyUnit = supplyAmount.divide(BigDecimal.valueOf(quantity), 2,
+                RoundingMode.HALF_UP);
         SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
-                quantity, unitPrice, note, sourceOrderLineId);
+                quantity, supplyUnit, note, sourceOrderLineId);
         line.lineTotal = supplyAmount;
         line.supplyAmount = supplyAmount;
         line.vatAmount = vatAmount;

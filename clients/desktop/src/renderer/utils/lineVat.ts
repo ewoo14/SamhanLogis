@@ -129,6 +129,61 @@ export function hasVatWarning(supplyAmount: string | number, vatAmount: string |
   return diff > 1n || diff < -1n
 }
 
+export interface StoredUnitPriceSource {
+  quantity: string | number
+  /** 저장된 VAT 제외 공급단가 컬럼 (slip_lines.unit_price). */
+  unitPrice?: string | number | null
+  /** 저장된 VAT 포함 단가 컬럼 (slip_lines.unit_price_with_vat). */
+  unitPriceWithVat?: string | number | null
+  supplyAmount: string | number
+  vatAmount: string | number
+}
+
+export interface ResolvedUnitPrices {
+  /** VAT 제외 공급단가 — 세금계산서·매입전표 인쇄의 "단가" 열 도메인. */
+  supplyUnit: string
+  /** VAT 포함 단가 — 상세/수정 화면·거래명세서의 "단가(VAT포함)" 도메인. */
+  inclusiveUnit: string
+}
+
+/** 저장값이 권위 금액과 항등식으로 맞으면 그대로, 아니면 권위 금액에서 유도한다. */
+function resolveUnit(stored: string | number | null | undefined, target: bigint, quantity: number): string {
+  if (stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
+      && roundProduct(quantity, stored) === target) {
+    return String(stored)
+  }
+  return divideToScale(target, BigInt(quantity), 2)
+}
+
+/**
+ * 저장된 두 단가 컬럼을 각자의 세금 도메인으로 해석한다 — 재수렴 4차(#937) 근본수정.
+ *
+ * <p><b>계약</b>: 전표 라인의 권위값은 공급가액(S)·부가세(V)·수량(Q) 이고({@code
+ * SlipLine.createFromAuthoritativeAmounts} 가 요청 3값을 재계산 없이 그대로 저장한다), 두 단가
+ * 컬럼은 그 권위값의 "1개당 표시"다 — {@code unit_price = S ÷ Q}(VAT 제외),
+ * {@code unit_price_with_vat = (S+V) ÷ Q}(VAT 포함). 이 함수는 저장값이 그 항등식을 만족하면
+ * 사용자가 입력한 원래 값(끝수 포함)을 그대로 돌려주고, 만족하지 않으면 권위값에서 유도한다.
+ *
+ * <p><b>왜 저장값을 그대로 믿을 수 없는가</b>: 2026-07-27 slip_lines 실측(활성 2,779건) —
+ * {@code unit_price × 수량 ≠ 공급가액} 44건, {@code unit_price_with_vat × 수량 ≠ 공급가액+부가세}
+ * 22건, 두 컬럼이 같은 값인 행 55건. 두 컬럼이 같은 행은 그 상태만으로 "둘 다 VAT 포함" 인지
+ * "둘 다 VAT 제외" 인지 <b>구별할 수 없다</b> — 권위값과 대조해야만 판정된다. BE 근본수정이
+ * 앞으로의 저장을 바로잡아도 이미 그 상태인 행은 남으므로, 표시·하이드레이션은 권위값을
+ * 진실원으로 삼는다.
+ *
+ * <p><b>왜 무조건 유도하지 않는가</b>: 사용자가 입력한 끝수 단가(예: 가격기억 499,999.5)는
+ * 권위값에서 되돌리면 반올림되어(500,000) 가격기억 왕복이 흔들린다. 정합인 저장값은 손대지 않는다.
+ */
+export function resolveUnitPrices(source: StoredUnitPriceSource): ResolvedUnitPrices {
+  const quantity = Math.max(1, Math.trunc(Number(source.quantity) || 1))
+  const supply = integerAmount(source.supplyAmount)
+  const vat = integerAmount(source.vatAmount)
+  return {
+    supplyUnit: resolveUnit(source.unitPrice, supply, quantity),
+    inclusiveUnit: resolveUnit(source.unitPriceWithVat, supply + vat, quantity),
+  }
+}
+
 function fromAmounts<T extends LineVatLine>(
   line: T,
   authority: LineVatAuthority,

@@ -25,7 +25,10 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ACCOUNT = 'dev_manager'
 
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/937-detail-readonly-fix/r1-fix')
+// 재수렴 4차(#937): 다른 두 #937 real-qa 스펙과 같이 QA_SHOTS_DIR 를 존중한다 —
+// 재실행이 커밋된 R1 라운드 증거를 덮어쓰지 않게 한다.
+const SHOTS = process.env['QA_SHOTS_DIR']
+  ?? path.resolve(_dirname, '../../../../docs/qa/937-detail-readonly-fix/r1-fix')
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // 기존 활성 거래처/품목/창고(조회만 — 신규 생성 없음). partner_db/product_db/inventory_db 직접 SELECT 로 확인.
@@ -157,16 +160,20 @@ test.describe.serial('#937 fix 라운드 — 발견 1·2·3 라이브 재검증'
     const unitPriceInput = page.getByLabel(/^단가\(VAT/).first()
     const supplyInput = page.getByLabel('공급가액 1')
     const vatInput = page.getByLabel('부가세 1')
-    await expect(unitPriceInput).toHaveValue('100000', { timeout: 15000 })
+    // 재수렴 3차(#937 U1) 이후 이 필드는 VAT 포함 단가다 — 공급 200,000 + 부가세 20,000 = 220,000,
+    // 수량 2 → 110,000. (이 스펙이 작성된 22ffc509d 시점의 '100,000'(VAT 제외)은 U1 이 폐기한 계약이다.)
+    await expect(unitPriceInput).toHaveValue('110000', { timeout: 15000 })
     await expect(supplyInput).toHaveValue('200000')
     await expect(vatInput).toHaveValue('20000')
-    await capture(page, '01-step1-initial-100000-200000-20000')
+    await capture(page, '01-step1-initial-110000-200000-20000')
 
-    // 2단계 — 단가만 60,000 으로 변경 → 저장. payload 를 가로챈다.
+    // 2단계 — 단가만 60,000(VAT 포함) 으로 변경 → 저장. payload 를 가로챈다.
+    // 합계 = 60,000 x 2 = 120,000 → 공급 = 120,000 ÷ 1.1 절사 = 109,090, 부가세 = 10,910
+    // (생성 화면 SlipFormPage 의 PRICE 권위 분리와 같은 공식).
     await unitPriceInput.fill('')
     await unitPriceInput.fill('60000')
-    await expect(supplyInput).toHaveValue('120000') // E2 — 화면이 즉시 정책대로 재계산(생성 화면과 동일 정책)
-    await expect(vatInput).toHaveValue('12000')
+    await expect(supplyInput).toHaveValue('109090') // E2 — 화면이 즉시 정책대로 재계산(생성 화면과 동일 정책)
+    await expect(vatInput).toHaveValue('10910')
     await capture(page, '02-step2-unitprice-60000-screen-recalculated')
 
     const [putReq1, putRes1] = await Promise.all([
@@ -183,8 +190,10 @@ test.describe.serial('#937 fix 라운드 — 발견 1·2·3 라이브 재검증'
     await page.waitForTimeout(1500) // 저장 완료 대기
     const dbAfterStep2 = queryActiveLine(slipId)
     fs.writeFileSync(path.join(SHOTS, '02-step2-db.txt'), JSON.stringify(dbAfterStep2, null, 2))
-    expect(dbAfterStep2.supply).toBe('120000.00')
-    expect(dbAfterStep2.vat).toBe('12000.00')
+    expect(dbAfterStep2.supply).toBe('109090.00')
+    expect(dbAfterStep2.vat).toBe('10910.00')
+    // 재수렴 4차(#937): VAT 제외 단가 컬럼은 공급가액에서 유도된다 — 109,090 / 2 = 54,545.
+    expect(dbAfterStep2.unitPrice).toBe('54545.00')
 
     // 3단계 — 같은 전표를 재열기(새 페이지 reload = 새 컴포넌트 마운트).
     await page.reload()
@@ -192,10 +201,12 @@ test.describe.serial('#937 fix 라운드 — 발견 1·2·3 라이브 재검증'
     await page.getByTestId('sales-slip-edit-button').click()
     const supplyInputReopen = page.getByLabel('공급가액 1')
     const vatInputReopen = page.getByLabel('부가세 1')
-    await capture(page, '03-step3-reopened-should-match-db-120000-12000')
+    await capture(page, '03-step3-reopened-should-match-db-109090-10910')
     // ★ 근본수정 검증 — 재열기 화면이 DB 값과 일치해야 한다(fix 이전엔 stale 200000/20000 이었다).
-    await expect(supplyInputReopen).toHaveValue('120000', { timeout: 15000 })
-    await expect(vatInputReopen).toHaveValue('12000')
+    await expect(supplyInputReopen).toHaveValue('109090', { timeout: 15000 })
+    await expect(vatInputReopen).toHaveValue('10910')
+    // 재수렴 4차(#937): 재열기 단가 필드는 입력값 60,000 을 끝수 없이 되돌려준다((109,090+10,910)/2).
+    await expect(page.getByLabel(/^단가\(VAT/).first()).toHaveValue('60000')
 
     // 4단계 — 아무것도 고치지 않고 저장.
     const [putReq2, putRes2] = await Promise.all([
@@ -211,8 +222,10 @@ test.describe.serial('#937 fix 라운드 — 발견 1·2·3 라이브 재검증'
     const dbAfterStep4 = queryActiveLine(slipId)
     fs.writeFileSync(path.join(SHOTS, '04-step4-db.txt'), JSON.stringify(dbAfterStep4, null, 2))
     // ★ E1 핵심 — 무수정 재저장이 DB 를 200000/20000 으로 되돌리지 않는다.
-    expect(dbAfterStep4.supply).toBe('120000.00')
-    expect(dbAfterStep4.vat).toBe('12000.00')
+    expect(dbAfterStep4.supply).toBe('109090.00')
+    expect(dbAfterStep4.vat).toBe('10910.00')
+    // 재수렴 4차(#937): 무수정 재저장이 단가 컬럼도 바꾸지 않는다.
+    expect(dbAfterStep4.unitPrice).toBe('54545.00')
     await capture(page, '04-step4-after-noop-resave')
   })
 
@@ -224,14 +237,15 @@ test.describe.serial('#937 fix 라운드 — 발견 1·2·3 라이브 재검증'
 
     const qtyInput = page.getByLabel('수량 1')
     const supplyInput = page.getByLabel('공급가액 1')
-    await expect(supplyInput).toHaveValue('120000', { timeout: 15000 }) // 이전 테스트가 남긴 DB 상태(단가 60,000)
+    await expect(supplyInput).toHaveValue('109090', { timeout: 15000 }) // 이전 테스트가 남긴 DB 상태(단가 60,000)
 
     await qtyInput.fill('')
     await qtyInput.fill('3')
     await capture(page, '05-quantity-2-to-3-screen')
-    // 단가 60,000(고정) × 수량 3 = 180,000 — 기하급수 폭증(BLOCKING-1 계열) 아니고, 불변(발견2 이전 버그) 아니다.
-    await expect(supplyInput).toHaveValue('180000')
-    await expect(page.getByLabel('부가세 1')).toHaveValue('18000')
+    // 단가 60,000(VAT 포함, 고정) × 수량 3 = 180,000 → 공급 163,636 / 부가세 16,364.
+    // 기하급수 폭증(BLOCKING-1 계열) 아니고, 불변(발견2 이전 버그) 아니다.
+    await expect(supplyInput).toHaveValue('163636')
+    await expect(page.getByLabel('부가세 1')).toHaveValue('16364')
   })
 
   test('03: 금액 입력 거부 — -3·2.7·1e3 (E4, 발견 3)', async ({ page }) => {

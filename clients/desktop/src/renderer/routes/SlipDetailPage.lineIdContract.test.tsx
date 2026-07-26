@@ -25,6 +25,7 @@ import {
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
   repricedFieldValue,
+  slipLineAmounts,
   syncDetailAmountToDoc,
   toPurchaseEditLines,
 } from './SlipDetailPage'
@@ -1428,5 +1429,104 @@ describe('SlipDetailPage — 재수렴 3차(#937) U2 근본수정 — 하이드�
 
     expect(next.vatWarning).toBe(false)
     provider.destroy()
+  })
+})
+
+/**
+ * 재수렴 4차(#937) 근본수정 — ⑤ "두 컬럼이 같아진 기존 행" (RED-first).
+ *
+ * <p>PM 각도 ② 실측: 실 DB(2026-07-27 활성 2,779건)에 {@code unit_price = unit_price_with_vat}
+ * 인 행이 55건 있다. 그 상태만으로는 <b>둘 다 VAT 포함인지 둘 다 VAT 제외인지 구별할 수 없다</b> —
+ * 권위 금액(공급가액/부가세/수량)과 대조해야 판정된다. 재수렴 3차 U1 fix 는
+ * {@code unit_price_with_vat} 를 무조건 VAT 포함으로 믿었기 때문에, main 편집화면 페이로드가
+ * 만든 {@code 100000|100000|200000|20000|2} 행에서 그 값을 다시 ÷1.1 해 과세표준이 9.09%
+ * 떨어졌다(수량 2→3: 300,000 기대 → 272,727 실측).
+ *
+ * <p>라이브 실증(2026-07-27, throwaway 전표 46ec2d03-…): 생성 직후 {@code 100000|110000|
+ * 200000|20000|2} → main 페이로드(unitPrice=100000) 저장 → {@code 100000|100000|200000|20000|2}.
+ */
+describe('SlipDetailPage — 재수렴 4차(#937) ⑤ 두 컬럼이 같아진 행의 세금 도메인 (RED-first)', () => {
+  /** 실 DB 재현 — 두 컬럼이 모두 VAT 제외 공급단가(100,000)인 행. */
+  const bothColumnsVatExclusive = {
+    lines: [{
+      id: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      lineTotal: '200000',
+      note: '',
+    }],
+  } as unknown as SlipDetail
+
+  /** 재수렴 4차 진단 ①② — HEAD 무수정 재저장이 만드는, 두 컬럼이 모두 VAT 포함인 행. */
+  const bothColumnsVatInclusive = {
+    lines: [{
+      id: SERVER_LINE_1,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 2,
+      unitPrice: '110000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      lineTotal: '200000',
+      note: '',
+    }],
+  } as unknown as SlipDetail
+
+  it('⑤ 하이드레이션 — 두 컬럼이 VAT 제외로 같아진 행도 권위 금액에서 VAT 포함 단가를 유도한다', () => {
+    const hydrated = toPurchaseEditLines(bothColumnsVatExclusive)[0]!
+
+    // RED(수정 전): unit_price_with_vat 를 무조건 믿어 '100000' — 라벨/계산 도메인과 반대.
+    expect(hydrated.unitPrice).toBe('110000')
+    expect(Number(hydrated.unitPrice) * hydrated.quantity)
+      .toBe(Number(hydrated.supplyAmount) + Number(hydrated.vatAmount))
+  })
+
+  it('⑤ 수량 2→3 — 과세표준이 9.09% 떨어지지 않는다', () => {
+    const hydrated = toPurchaseEditLines(bothColumnsVatExclusive)[0]!
+    const afterQtyEdit = computeDetailQuantityChange(hydrated, '3')
+
+    // RED(수정 전): 272,727 / 27,273 / 300,000 (PM 각도 ② 실측).
+    expect(afterQtyEdit.supplyAmount).toBe('300000')
+    expect(afterQtyEdit.vatAmount).toBe('30000')
+    expect(afterQtyEdit.lineTotalWithVat).toBe('330000')
+  })
+
+  it('⑤ 읽기전용 상세 표시 — 단가 x 수량 = 공급가액 + 부가세 가 성립한다', () => {
+    const amounts = slipLineAmounts(bothColumnsVatExclusive.lines[0]!)
+
+    // RED(수정 전): unitWithVat=100000 → 100,000 x 2 = 200,000 인데 표시 합계는 220,000.
+    expect(amounts.unitWithVat).toBe(110000)
+    expect(amounts.unitWithVat * 2).toBe(amounts.totalIncl)
+  })
+
+  it('①② 두 컬럼이 VAT 포함으로 같아진 행도 하이드레이션·표시가 흔들리지 않는다', () => {
+    const hydrated = toPurchaseEditLines(bothColumnsVatInclusive)[0]!
+    const amounts = slipLineAmounts(bothColumnsVatInclusive.lines[0]!)
+
+    expect(hydrated.unitPrice).toBe('110000')
+    expect(amounts.unitWithVat).toBe(110000)
+  })
+
+  it('무수정 재저장 안정성 — ⑤ 행을 재저장한 뒤(두 컬럼 정상화) 표시 값이 그대로다', () => {
+    const before = slipLineAmounts(bothColumnsVatExclusive.lines[0]!)
+    // BE 근본수정 후의 저장 결과: unit_price = 공급가액/수량, unit_price_with_vat = 입력(VAT 포함).
+    const afterResave = slipLineAmounts({
+      ...bothColumnsVatExclusive.lines[0]!,
+      unitPrice: '100000',
+      unitPriceWithVat: '110000',
+    } as never)
+
+    expect(afterResave.unitWithVat).toBe(before.unitWithVat)
+    expect(afterResave.totalIncl).toBe(before.totalIncl)
   })
 })

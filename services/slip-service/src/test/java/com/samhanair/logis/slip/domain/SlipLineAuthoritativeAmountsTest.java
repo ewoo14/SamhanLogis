@@ -15,14 +15,57 @@ import org.junit.jupiter.api.Test;
 class SlipLineAuthoritativeAmountsTest {
 
     @Test
-    @DisplayName("D-3: 권위 금액을 편집해도 요청 단가와 VAT 포함 단가를 그대로 보존한다")
+    @DisplayName("재수렴 4차(#937): 두 단가 컬럼은 서로 다른 세금 도메인을 담는다 — "
+            + "unit_price = 공급가액/수량(VAT 제외), unit_price_with_vat = 요청 단가(VAT 포함)")
+    void storesEachUnitPriceColumnInItsOwnTaxDomain() {
+        // 화면(SlipFormPage/SlipDetailPage)이 보내는 단가는 2026-06-09 정책상 VAT 포함이다.
+        // 수량 2 · 단가(VAT 포함) 110,000 → 공급가액 200,000 · 부가세 20,000 · 합계 220,000.
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("110000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        // RED(수정 전): 요청 단가를 두 컬럼에 그대로 각인해 unit_price 가 110,000 이 된다 —
+        // 세금계산서/매입전표 인쇄가 읽는 항등식(단가 x 수량 = 공급가액)이 220,000 != 200,000 으로 깨진다.
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("100000");
+        assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("110000");
+        assertThat(line.getUnitPrice().multiply(BigDecimal.valueOf(2)))
+                .isEqualByComparingTo(line.getSupplyAmount());
+    }
+
+    @Test
+    @DisplayName("재수렴 4차(#937): 무수정 재저장은 저장된 두 단가 컬럼을 바꾸지 않는다 "
+            + "(감사 이력이 사용자가 하지 않은 변경을 기록하지 않는다)")
+    void noOpResaveKeepsBothUnitPriceColumnsStable() {
+        SlipLine first = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("110000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        // 화면 하이드레이션이 다시 실어 보내는 값 = VAT 포함 단가(= 저장된 unit_price_with_vat).
+        SlipLine resaved = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                first.getUnitPriceWithVat(), first.getSupplyAmount(), first.getVatAmount(),
+                first.getSupplyAmount().add(first.getVatAmount()), null, null);
+
+        assertThat(resaved.getUnitPrice()).isEqualByComparingTo(first.getUnitPrice());
+        assertThat(resaved.getUnitPriceWithVat()).isEqualByComparingTo(first.getUnitPriceWithVat());
+    }
+
+    @Test
+    @DisplayName("D-3: 권위 금액을 편집해도 요청 단가를 VAT 포함 컬럼에 잃지 않고 보존한다")
     void preservesRequestedUnitPriceForAuthoritativeAmounts() {
         SlipLine line = SlipLine.createFromAuthoritativeAmounts(
                 newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
                 new BigDecimal("11000"), new BigDecimal("50000"), new BigDecimal("2000"),
                 new BigDecimal("52000"), null, null);
 
-        assertThat(line.getUnitPrice()).isEqualByComparingTo("11000");
+        // 재수렴 4차(#937): D-3 의 의도는 "요청 단가를 잃지 않는다" 였고 그 계약은 그대로다 —
+        // 다만 그것을 VAT 포함 컬럼 하나에만 담는다. 종전 단언(unit_price 도 11,000)은 결함
+        // 자체를 고정한 것이었다: 이 케이스는 공급가액 50,000·수량 2 이므로 VAT 제외 공급단가는
+        // 정의상 25,000 이고, 11,000 × 2 = 22,000 != 50,000 이라 세금계산서·매입전표 인쇄가
+        // 읽는 항등식(단가 x 수량 = 공급가액)이 애초에 깨진 값이었다.
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("25000");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("11000");
         assertThat(line.getSupplyAmount()).isEqualByComparingTo("50000");
         assertThat(line.getVatAmount()).isEqualByComparingTo("2000");

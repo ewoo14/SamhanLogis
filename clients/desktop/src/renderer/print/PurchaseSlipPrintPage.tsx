@@ -32,7 +32,7 @@ import {
 import { nowPrintedAt, fmtDatetime } from './printUtils'
 import { useCompanyProfile } from './useCompanyProfile'
 import { ApprovalRoleCells, fallbackRoles } from './approvalRoleCells'
-import { storedLineAmounts } from './printAmounts'
+import { storedLineAmounts, storedLineUnitPrices } from './printAmounts'
 
 export function PurchaseSlipPrintPage() {
   const params = useParams<{ id: string }>()
@@ -175,13 +175,15 @@ export function PurchaseSlipPrintPage() {
             {lines.slice(0, PAGE_LINE_LIMIT).map((l, idx) => {
               const { supply: lineSupply, vat: lineVat } = storedLineAmounts(l)
               /** 저장된 S/V/T를 우선 사용하고 legacy 라인만 호환 fallback 한다. */
+              /** 단가 열은 공급가액 열과 같은 VAT 제외 도메인 — 단가 x 수량 = 공급가액 (#937 재수렴 4차). */
+              const lineUnitPrice = storedLineUnitPrices(l).supplyUnit
               return (
                 <tr key={l.id}>
                   <td className="col-no">{idx + 1}</td>
                   <td className="col-product">{l.modelName ?? l.productName ?? '-'}</td>
                   <td className="col-spec">{l.specification ?? '-'}</td>
                   <td className="col-qty num">{l.quantity.toLocaleString('ko-KR')}</td>
-                  <td className="col-price num">{krw(l.unitPrice)}</td>
+                  <td className="col-price num">{krw(lineUnitPrice)}</td>
                   <td className="col-supply num">{krw(lineSupply)}</td>
                   <td className="col-vat num">{krw(lineVat)}</td>
                   <td className="col-memo">{l.note ?? ''}</td>

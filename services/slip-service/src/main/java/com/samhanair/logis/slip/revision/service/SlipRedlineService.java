@@ -178,9 +178,33 @@ public class SlipRedlineService {
             case PRODUCT_NAME -> line.productName();
             case SPECIFICATION -> line.specification();
             case QUANTITY -> String.valueOf(line.quantity());
-            case UNIT_PRICE -> plain(line.unitPriceWithVat() != null ? line.unitPriceWithVat() : line.unitPrice());
+            case UNIT_PRICE -> plain(unitPriceDisplayValue(line));
             case LINE_TOTAL -> plain(lineTotalDisplayValue(line));
         };
+    }
+
+    /**
+     * 레드라인 "단가" 표시값 — 화면과 같은 VAT 포함 도메인 (재수렴 4차 #937 근본수정).
+     *
+     * <p>종전에는 저장 컬럼 {@code unitPriceWithVat} 을 그대로 읽었다. 그런데 두 단가 컬럼이
+     * 같은 값이 된 행(2026-07-27 실측 활성 55건)은 그 컬럼이 실제로 VAT 제외 값일 수 있어,
+     * 무수정 재저장으로 컬럼이 정상화되는 것만으로 <b>사용자가 하지 않은 "단가 100,000 →
+     * 110,000" 변경</b>이 레드라인에 찍혔다. 저장값이 권위 금액과의 항등식({@code 단가 × 수량 =
+     * 공급가액 + 부가세})을 만족할 때만 그대로 쓰고, 아니면 권위 금액에서 유도한다 — FE
+     * {@code lineVat.resolveUnitPrices} 와 같은 판정 규칙의 미러다.
+     */
+    private static BigDecimal unitPriceDisplayValue(SlipSnapshot.Line line) {
+        BigDecimal total = lineTotalDisplayValue(line);
+        BigDecimal stored = line.unitPriceWithVat() != null ? line.unitPriceWithVat() : line.unitPrice();
+        if (total == null || line.quantity() <= 0) {
+            return stored;
+        }
+        if (stored != null && stored.multiply(BigDecimal.valueOf(line.quantity()))
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .compareTo(total.setScale(0, java.math.RoundingMode.HALF_UP)) == 0) {
+            return stored;
+        }
+        return total.divide(BigDecimal.valueOf(line.quantity()), 2, java.math.RoundingMode.HALF_UP);
     }
 
     private static BigDecimal lineTotalDisplayValue(SlipSnapshot.Line line) {

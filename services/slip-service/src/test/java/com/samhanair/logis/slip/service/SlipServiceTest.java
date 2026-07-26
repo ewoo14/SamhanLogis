@@ -182,7 +182,10 @@ class SlipServiceTest {
         SlipDetailResponse res = service.create(req, "user-1", "홍길동");
 
         assertThat(res.lines()).hasSize(1);
-        assertThat(res.lines().get(0).unitPrice()).isEqualByComparingTo("11000");
+        // 재수렴 4차(#937): 요청 단가(VAT 포함)는 unitPriceWithVat 에 그대로 보존하고,
+        // VAT 제외 컬럼은 권위 공급가액에서 유도한다(50,000 / 2 = 25,000) — 인쇄 항등식
+        // "단가 x 수량 = 공급가액" 을 정의상 만족시키기 위해서다.
+        assertThat(res.lines().get(0).unitPrice()).isEqualByComparingTo("25000");
         assertThat(res.lines().get(0).unitPriceWithVat()).isEqualByComparingTo("11000");
         assertThat(res.lines().get(0).supplyAmount()).isEqualByComparingTo("50000");
         assertThat(res.lines().get(0).vatAmount()).isEqualByComparingTo("2000");

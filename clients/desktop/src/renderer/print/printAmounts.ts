@@ -1,3 +1,4 @@
+import { resolveUnitPrices } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
 
 export interface StoredLineAmountInput {
@@ -5,6 +6,43 @@ export interface StoredLineAmountInput {
   vatAmount?: string | number | null
   /** BE의 lineTotal은 부가세 제외 라인 금액이다. */
   lineTotal?: string | number | null
+}
+
+export interface StoredLineUnitPriceInput extends StoredLineAmountInput {
+  quantity?: string | number | null
+  unitPrice?: string | number | null
+  unitPriceWithVat?: string | number | null
+}
+
+export interface StoredLineUnitPrices {
+  /** VAT 제외 공급단가 — 세금계산서·매입전표의 "단가" 열. */
+  supplyUnit: number
+  /** VAT 포함 단가 — 거래명세서의 "단가" 열. */
+  inclusiveUnit: number
+}
+
+/**
+ * 인쇄용 라인 단가를 저장 snapshot에서 읽는다 — 재수렴 4차(#937) 근본수정.
+ *
+ * <p>세금계산서/매입전표의 "단가" 열은 바로 옆 "공급가액" 열과 같은 VAT 제외 도메인이라
+ * 사용자가 읽는 항등식이 {@code 단가 × 수량 = 공급가액} 이고, 거래명세서의 "단가" 열은 VAT
+ * 포함이라 {@code 단가 × 수량 = 공급가액 + 부가세} 다. 저장된 단가 컬럼이 그 항등식을 만족하지
+ * 못하는 행(2026-07-27 실측 44건/22건)은 권위 금액에서 유도해 항등식을 정의상 보장한다 —
+ * 판정·유도 규칙은 화면과 같은 단일 진실원({@link resolveUnitPrices})을 쓴다.
+ */
+export function storedLineUnitPrices(line: StoredLineUnitPriceInput): StoredLineUnitPrices {
+  const { supply, vat } = storedLineAmounts(line)
+  const resolved = resolveUnitPrices({
+    quantity: line.quantity ?? 1,
+    unitPrice: line.unitPrice,
+    unitPriceWithVat: line.unitPriceWithVat,
+    supplyAmount: supply,
+    vatAmount: vat,
+  })
+  return {
+    supplyUnit: Number(resolved.supplyUnit),
+    inclusiveUnit: Number(resolved.inclusiveUnit),
+  }
 }
 
 export interface StoredLineAmounts {

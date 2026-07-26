@@ -222,6 +222,34 @@ class SlipRedlineServiceTest {
                 && field.fieldPath().endsWith(".unitPrice"));
     }
 
+    @Test
+    @DisplayName("재수렴 4차(#937) ⑤: 두 단가 컬럼이 VAT 제외로 같아진 행을 무수정 재저장해도 "
+            + "레드라인 단가에 사용자가 하지 않은 변경이 찍히지 않는다")
+    void computeRedlineDoesNotReportUnitPriceRepairAsUserEdit() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        // rev1 — main 편집화면 페이로드가 만든 실 DB 상태(2026-07-27 실측 55건 계열):
+        // unit_price = unit_price_with_vat = 100,000(둘 다 VAT 제외), 공급 200,000 / 부가세 20,000 / 수량 2.
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "100000", "20000", "200000"))));
+        // rev2 — 무수정 재저장. 근본수정 후 BE 는 unit_price_with_vat 를 VAT 포함 도메인으로 정상화한다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "110000", "20000", "200000"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        // RED(수정 전): 저장 컬럼을 그대로 읽어 "100000 -> 110000" layer 2개가 생긴다.
+        assertThat(response.fields())
+                .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
+    }
+
     private SlipRedlineService service() {
         return new SlipRedlineService(slipRepository, revisionRepository,
                 new SlipRevisionService(revisionRepository, new ObjectMapper().findAndRegisterModules()));

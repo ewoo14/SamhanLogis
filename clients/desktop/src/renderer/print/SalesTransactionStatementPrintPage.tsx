@@ -33,6 +33,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw } from './PrintLayout'
 import { krwHangul } from './printUtils'
+import { storedLineUnitPrices } from './printAmounts'
 import { vatFromSupply } from '../utils/vatRounding'
 import { useFitOneA4 } from './useFitOneA4'
 import { useCompanyProfile } from './useCompanyProfile'
@@ -51,17 +52,24 @@ function lineDisplayName(l: SlipLineDetail): string {
   return model || product || '-'
 }
 
-/** 라인 금액 분해 — supplyAmount/vatAmount 우선, legacy(null) 는 lineTotal 기준 산출. */
+/**
+ * 라인 금액 분해 — supplyAmount/vatAmount 우선, legacy(null) 는 lineTotal 기준 산출.
+ *
+ * <p>재수렴 4차(#937): 단가는 저장 컬럼을 무조건 믿지 않고 권위 금액과의 항등식
+ * ({@code 단가 × 수량 = 공급가액 + 부가세}, 이 양식의 원본 검증 13,662×3 = 37,260+3,726)을
+ * 만족할 때만 그대로 쓴다 — 만족하지 못하는 행(2026-07-27 실측 22건)은 권위 금액에서 유도한다.
+ */
 function lineAmounts(l: SlipLineDetail): { supply: number; vat: number; unitWithVat: number } {
   const supply =
     l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal) || 0
   const vat = l.vatAmount != null ? Number(l.vatAmount) : vatFromSupply(supply)
-  const unitWithVat =
-    l.unitPriceWithVat != null
-      ? Number(l.unitPriceWithVat)
-      : l.quantity > 0
-        ? Math.round((supply + vat) / l.quantity)
-        : 0
+  const unitWithVat = storedLineUnitPrices({
+    quantity: l.quantity,
+    unitPrice: l.unitPrice,
+    unitPriceWithVat: l.unitPriceWithVat,
+    supplyAmount: supply,
+    vatAmount: vat,
+  }).inclusiveUnit
   return { supply, vat, unitWithVat }
 }
 

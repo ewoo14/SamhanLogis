@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { storedLineAmounts } from './printAmounts'
+import { storedLineAmounts, storedLineUnitPrices } from './printAmounts'
 
 describe('저장 권위 금액 인쇄 계약', () => {
   it('저장된 비표준 S/V/T를 재계산하지 않고 그대로 반환한다', () => {
@@ -24,5 +24,64 @@ describe('저장 권위 금액 인쇄 계약', () => {
       vatAmount: 10000,
       lineTotal: 100000,
     }).total).toBe(110000)
+  })
+})
+
+/**
+ * 재수렴 4차(#937) 근본수정 — 인쇄 단가의 세금 도메인 (RED-first).
+ *
+ * <p>세금계산서/매입전표 인쇄의 "단가" 열은 바로 옆 "공급가액" 열과 같은 VAT 제외 도메인이어야
+ * 한다 — 사용자가 읽는 항등식이 {@code 단가 × 수량 = 공급가액} 이기 때문이다. 종전에는 저장된
+ * {@code unit_price} 컬럼을 그대로 찍었는데, 그 컬럼이 VAT 포함 값으로 오염된 행(2026-07-27
+ * 실측 44건)에서 단가만 10% 부풀어 그 항등식이 깨졌다. 거래명세서는 반대로 VAT 포함 도메인이라
+ * {@code 단가 × 수량 = 공급가액 + 부가세} 가 성립해야 한다.
+ */
+describe('인쇄 단가의 세금 도메인 (재수렴 4차 #937, RED-first)', () => {
+  it('저장 단가가 권위 금액과 정합이면 그대로 쓴다', () => {
+    expect(storedLineUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })).toEqual({ supplyUnit: 100000, inclusiveUnit: 110000 })
+  })
+
+  it('VAT 포함 값으로 오염된 unit_price 는 공급가액에서 유도해 단가 x 수량 = 공급가액 을 지킨다', () => {
+    const amounts = storedLineUnitPrices({
+      quantity: 2,
+      unitPrice: '110000',
+      unitPriceWithVat: '110000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })
+
+    expect(amounts.supplyUnit).toBe(100000)
+    expect(amounts.supplyUnit * 2).toBe(200000)
+    expect(amounts.inclusiveUnit * 2).toBe(220000)
+  })
+
+  it('VAT 제외 값으로 오염된 unit_price_with_vat 는 거래명세서 단가를 유도한다', () => {
+    const amounts = storedLineUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })
+
+    expect(amounts.inclusiveUnit).toBe(110000)
+    expect(amounts.inclusiveUnit * 2).toBe(220000)
+  })
+
+  it('legacy 라인(권위 금액 일부 null)도 lineTotal 폴백으로 단가를 유도한다', () => {
+    expect(storedLineUnitPrices({
+      quantity: 2,
+      unitPrice: null,
+      unitPriceWithVat: null,
+      supplyAmount: null,
+      vatAmount: null,
+      lineTotal: '200000',
+    })).toEqual({ supplyUnit: 100000, inclusiveUnit: 110000 })
   })
 })

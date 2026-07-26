@@ -157,13 +157,20 @@ class SlipLineAmountOverflowControllerIT extends AbstractPostgresIT {
     }
 
     /**
-     * D-3 이후에는 요청 단가를 역산하지 않으므로 공급가액 15자리도 wide 컬럼에 그대로
-     * 저장된다. 예전에는 공급가액에서 파생한 narrow 단가가 overflow를 일으켰지만,
-     * 입력 단가가 narrow 범위 안이면 공급가액 자체의 wide 컬럼 범위까지 허용한다.
+     * 재수렴 4차(#937) — quantity=1 에서 15자리 공급가액은 VAT 제외 단가 컬럼(narrow,
+     * {@code unit_price NUMERIC(15,2)} = 정수 13자리)에 담을 수 없으므로 400 으로 거부한다.
+     *
+     * <p>D-3 당시에는 입력 단가(1)를 두 단가 컬럼에 그대로 각인해 201 로 통과했는데, 그렇게
+     * 저장된 행은 {@code 단가 1 × 수량 1 != 공급가액 999,999,999,999,999} 로 <b>자기모순</b>
+     * 이었다 — 세금계산서·매입전표 인쇄가 그 행에서 "단가 1 / 공급가액 999조" 를 나란히 찍는다.
+     * 재수렴 4차 근본수정이 VAT 제외 컬럼을 공급가액에서 유도하도록 바꾸면서, 담을 수 없는
+     * 조합은 조용히 왜곡된 값을 저장하는 대신 명시적으로 거부한다(500 아닌 400). 나눗셈 마진이
+     * 있는 조합(수량 100 · 15자리 공급가액)은 그대로 허용된다 —
+     * {@code SlipLineAuthoritativeAmountsTest.acceptsExactlyFifteenIntegerDigitsInWideColumnWhenPerUnitFitsNarrowColumn}.
      */
     @Test
-    @DisplayName("D-3: quantity=1 · 15자리 공급가액은 입력 단가를 보존하며 201 CREATED")
-    void fifteenDigitSupplyAtQuantityOne_acceptedWithPreservedUnitPrice() throws Exception {
+    @DisplayName("재수렴 4차(#937): quantity=1 · 15자리 공급가액은 narrow 단가 컬럼 초과로 400 INVALID_INPUT")
+    void fifteenDigitSupplyAtQuantityOne_rejectedBecauseDerivedUnitPriceOverflows() throws Exception {
         Map<String, Object> line = plainLine("1");
         line.put("supplyAmount", "999999999999999");
         line.put("vatAmount", "0");
@@ -175,20 +182,21 @@ class SlipLineAmountOverflowControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(1.0))
-                .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(1.0))
-                .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(999999999999999.0))
-                .andExpect(jsonPath("$.data.lines[0].vatAmount").value(0.0))
-                .andExpect(jsonPath("$.data.lines[0].lineTotal").value(999999999999999.0));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 
     /**
-     * D-3의 핵심 왕복 — 저장 응답과 상세 재조회 모두 입력 단가 11,000과 화면의 S/V를
-     * 그대로 반환해야 하며, S/Q 또는 T/Q 역산값 25,000/26,000을 만들면 안 된다.
+     * D-3의 핵심 왕복 — 저장 응답과 상세 재조회 모두 입력 단가 11,000(VAT 포함)과 화면의
+     * S/V/T 를 그대로 반환해야 한다.
+     *
+     * <p>재수렴 4차(#937): 입력 단가는 VAT 포함 컬럼 하나에만 보존한다. VAT 제외 컬럼
+     * {@code unitPrice} 는 권위 공급가액에서 유도한 25,000(=50,000/2) 이어야 한다 — 두 컬럼에
+     * 같은 값을 넣으면 어느 쪽이든 자기 도메인의 항등식이 깨진다(11,000 × 2 = 22,000 은
+     * 공급가액 50,000 도 합계 52,000 도 아니다).
      */
     @Test
-    @DisplayName("D-3: 입력 단가와 S/V/T를 저장 후 상세 재조회에서도 보존")
+    @DisplayName("D-3: 입력 단가(VAT 포함)와 S/V/T를 저장 후 상세 재조회에서도 보존한다")
     void authoritativeAmounts_roundTrip_preservesEnteredUnitPrice() throws Exception {
         UUID accountId = UUID.randomUUID();
         Map<String, Object> line = plainLine("11000");
@@ -204,7 +212,7 @@ class SlipLineAmountOverflowControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(11000.0))
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(25000.0))
                 .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(11000.0))
                 .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(50000.0))
                 .andExpect(jsonPath("$.data.lines[0].vatAmount").value(2000.0))
@@ -217,7 +225,7 @@ class SlipLineAmountOverflowControllerIT extends AbstractPostgresIT {
                         .header("X-User-Id", accountId.toString())
                         .header("X-User-Role", "SALES"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(11000.0))
+                .andExpect(jsonPath("$.data.lines[0].unitPrice").value(25000.0))
                 .andExpect(jsonPath("$.data.lines[0].unitPriceWithVat").value(11000.0))
                 .andExpect(jsonPath("$.data.lines[0].supplyAmount").value(50000.0))
                 .andExpect(jsonPath("$.data.lines[0].vatAmount").value(2000.0))
