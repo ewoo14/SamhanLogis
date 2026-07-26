@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
+import * as Y from 'yjs'
 import {
+  encodeBase64Update,
   createDocCoeditProvider,
   type DocCoeditProvider,
 } from '../realtime/createCoeditProvider'
@@ -88,6 +90,17 @@ async function makeProvider(): Promise<DocCoeditProvider> {
   })
 }
 
+async function makeProviderFromSnapshot(snapshot: string): Promise<DocCoeditProvider> {
+  return createDocCoeditProvider({
+    documentId: 'slip-1',
+    basePath: '/slips/slip-1',
+    initialUpdates: async () => ({ updates: [snapshot] }),
+    postUpdate: vi.fn(),
+    postAwareness: vi.fn(),
+    subscribe: () => ({ abort: vi.fn() }) as unknown as AbortController,
+  })
+}
+
 /** SlipDetailPage.toPurchaseEditLines 와 동일한 seed 형태 (서버 line.id → Y.Doc lineId). */
 function seedRows(provider: DocCoeditProvider, rows: typeof serverLines) {
   provider.replaceItems(
@@ -120,6 +133,85 @@ function editLinesFrom(rows: typeof serverLines) {
 }
 
 describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
+  it('첫 라인 삭제와 둘째 라인 단가 편집이 동시에 일어나도 둘째 라인의 금액을 보존한다 (D1\')', async () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    expect(source).toMatch(/function removePurchaseLine\(index: number\)[\s\S]*?removeItem\(lineId\)/)
+    expect(source).toMatch(/function removeSalesLine\(index: number\)[\s\S]*?removeItem\(lineId\)/)
+    expect(source).toMatch(/function detailCoeditFieldPath\([\s\S]*lineId[\s\S]*items\.\$\{line\.lineId \|\| index\}/)
+    expect(source).not.toMatch(/fieldPath=\{`items\.\$\{index\}\./)
+    const inputSource = readFileSync(
+      fileURLToPath(new URL('../components/collab/CollaborativeSlipInput.tsx', import.meta.url)),
+      'utf8',
+    )
+    expect(inputSource).toMatch(/getItemIndexById\([\s\S]*rowKey/)
+
+    const baseDoc = new Y.Doc()
+    const baseItems = baseDoc.getArray<Y.Map<unknown>>('items')
+    const first = new Y.Map<unknown>()
+    first.set('lineId', SERVER_LINE_1)
+    first.set('productId', PRODUCT_1)
+    first.set('quantity', '1')
+    first.set('unitPrice', '10000')
+    first.set('supplyAmount', '10000')
+    first.set('vatAmount', '1000')
+    first.set('lineTotalWithVat', '11000')
+    const second = new Y.Map<unknown>()
+    second.set('lineId', SERVER_LINE_2)
+    second.set('productId', PRODUCT_2)
+    second.set('quantity', '1')
+    second.set('unitPrice', '20000')
+    second.set('supplyAmount', '20000')
+    second.set('vatAmount', '2000')
+    second.set('lineTotalWithVat', '22000')
+    baseItems.push([first, second])
+    const snapshot = encodeBase64Update(Y.encodeStateAsUpdate(baseDoc))
+
+    const deletingPeer = await makeProviderFromSnapshot(snapshot)
+    const editingPeer = await makeProviderFromSnapshot(snapshot)
+
+    // A: SlipDetailPage 의 수정된 삭제 경로 — 행 자신을 안정키로 제거한다.
+    deletingPeer.removeItem(SERVER_LINE_1)
+    // B: 실제 단가 편집이 동기적으로 쓰는 대상 라인의 필드를 동시에 변경한다.
+    editingPeer.doc.transact(() => {
+      editingPeer.setItemValue(1, 'unitPrice', '80000')
+      editingPeer.setItemValueById(SERVER_LINE_2, 'supplyAmount', '72727')
+      editingPeer.setItemValueById(SERVER_LINE_2, 'vatAmount', '7273')
+      editingPeer.setItemValueById(SERVER_LINE_2, 'lineTotalWithVat', '80000')
+    })
+
+    deletingPeer.applyRemoteUpdate(encodeBase64Update(Y.encodeStateAsUpdate(editingPeer.doc)))
+    editingPeer.applyRemoteUpdate(encodeBase64Update(Y.encodeStateAsUpdate(deletingPeer.doc)))
+
+    for (const peer of [deletingPeer, editingPeer]) {
+      expect(peer.items).toHaveLength(1)
+      expect(peer.getItemValueById(SERVER_LINE_2, 'unitPrice')).toBe('80000')
+      expect(peer.getItemValueById(SERVER_LINE_2, 'supplyAmount')).toBe('72727')
+      expect(peer.getItemValueById(SERVER_LINE_2, 'vatAmount')).toBe('7273')
+      expect(peer.getItemValueById(SERVER_LINE_2, 'lineTotalWithVat')).toBe('80000')
+      peer.destroy()
+    }
+  })
+
+  it('삭제는 React 행 언마운트 후에 coedit Map을 제거한다 (D1\' 인덱스 구독 경합)', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    // provider removeItem을 같은 클릭 핸들러에서 즉시 호출하면, 아직 살아 있는
+    // items.1 입력 구독이 빈 1번 행을 읽어 잔여 라인의 금액을 덮어쓴다. 삭제 대상은
+    // 먼저 로컬 배열에서 빠져야 하며, 그 뒤 안정키 Map을 제거해야 한다.
+    expect(source).toMatch(/function detailCoeditFieldPath\([\s\S]*lineId[\s\S]*items\.\$\{line\.lineId \|\| index\}/)
+    expect(source).not.toMatch(/fieldPath=\{`items\.\$\{index\}\./)
+    const inputSource = readFileSync(
+      fileURLToPath(new URL('../components/collab/CollaborativeSlipInput.tsx', import.meta.url)),
+      'utf8',
+    )
+    expect(inputSource).toMatch(/getItemIndexById\([\s\S]*rowKey/)
+  })
+
   it('원격 피어가 1행을 삭제해도 잔여 행이 자기 lineId 를 유지한다 (R8-FE-1 = R8-QA-2 BLOCKING)', async () => {
     const provider = await makeProvider()
     seedRows(provider, serverLines)
@@ -476,7 +568,7 @@ describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #82
       'utf8',
     )
     const totalBindings = Array.from(source.matchAll(
-      /fieldPath=\{`items\.\$\{index\}\.lineTotalWithVat`\}[\s\S]*?\/>/g,
+      /fieldPath=\{detailCoeditFieldPath\(index, line, 'lineTotalWithVat'\)\}[\s\S]*?\/>/g,
     ), (match) => match[0])
 
     expect(totalBindings).toHaveLength(2)
@@ -747,7 +839,7 @@ describe('SlipDetailPage — 금액 입력 거부 규칙 (발견 3, #937 R1, E4)
       'utf8',
     )
     const amountFieldBindings = Array.from(source.matchAll(
-      /fieldPath=\{`items\.\$\{index\}\.(?:unitPrice|supplyAmount|vatAmount)`\}[\s\S]*?\/>/g,
+      /fieldPath=\{detailCoeditFieldPath\(index, line, '(?:unitPrice|supplyAmount|vatAmount)'\)\}[\s\S]*?\/>/g,
     ), (match) => match[0])
 
     expect(amountFieldBindings).toHaveLength(6) // 매출 3(단가·공급가액·부가세) + 매입 3
@@ -828,7 +920,7 @@ describe('SlipDetailPage — 수량 입력 거부 규칙 (E-2, #937 R2, F2·F3)'
       'utf8',
     )
     const qtyFieldBindings = Array.from(source.matchAll(
-      /fieldPath=\{`items\.\$\{index\}\.quantity`\}[\s\S]*?\/>/g,
+      /fieldPath=\{detailCoeditFieldPath\(index, line, 'quantity'\)\}[\s\S]*?\/>/g,
     ), (match) => match[0])
 
     expect(qtyFieldBindings).toHaveLength(2) // 매출 1 + 매입 1

@@ -376,6 +376,11 @@ export function editUnitPriceColumnHeader(
  */
 type LinePatch = Partial<PurchaseEditLine> | ((line: PurchaseEditLine) => Partial<PurchaseEditLine>)
 
+/** 상세 수정 표의 coedit 경로 — 기존 전표 라인은 배열 위치가 아닌 자기 lineId 를 키로 쓴다. */
+function detailCoeditFieldPath(index: number, line: Pick<PurchaseEditLine, 'lineId'>, cell: string): string {
+  return `items.${line.lineId || index}.${cell}`
+}
+
 function createEditLineKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -2446,7 +2451,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.productName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'productName')}
                     value={line.productName ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { productName: value })}
                     aria-label={`품목 ${index + 1}`}
@@ -2455,7 +2460,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.modelName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'modelName')}
                     value={line.modelName ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { modelName: value })}
                     aria-label={`모델명 ${index + 1}`}
@@ -2464,7 +2469,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.specification`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'specification')}
                     value={line.specification ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { specification: value })}
                     aria-label={`규격 ${index + 1}`}
@@ -2473,7 +2478,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.quantity`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'quantity')}
                     type="number"
                     min={1}
                     value={String(line.quantity)}
@@ -2485,7 +2490,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.unitPrice`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'unitPrice')}
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
@@ -2513,7 +2518,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.supplyAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'supplyAmount')}
                     type="number" min={0}
                     value={String(line.supplyAmount ?? '0')}
                     parseValue={parseEditableDetailAmountInput}
@@ -2525,7 +2530,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.vatAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'vatAmount')}
                     type="number" min={0}
                     value={String(line.vatAmount ?? '0')}
                     parseValue={parseEditableDetailAmountInput}
@@ -2540,7 +2545,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.lineTotalWithVat`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'lineTotalWithVat')}
                     type="number" min={0}
                     value={String(line.lineTotalWithVat ?? '0')}
                     // 합계는 공급가액+부가세 파생값이다. 협업 입력은 원격 인식과
@@ -2754,7 +2759,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.productName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'productName')}
                     value={line.productName ?? ''}
                     onValueChange={(value) => updatePurchaseLine(index, { productName: value })}
                     aria-label={`품목 ${index + 1}`}
@@ -2763,7 +2768,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.modelName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'modelName')}
                     value={line.modelName ?? ''}
                     onValueChange={(value) => updatePurchaseLine(index, { modelName: value })}
                     aria-label={`모델명 ${index + 1}`}
@@ -2772,7 +2777,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.specification`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'specification')}
                     value={line.specification ?? ''}
                     onValueChange={(value) => updatePurchaseLine(index, { specification: value })}
                     aria-label={`규격 ${index + 1}`}
@@ -2781,7 +2786,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.quantity`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'quantity')}
                     type="number"
                     min={1}
                     value={String(line.quantity)}
@@ -2793,7 +2798,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.unitPrice`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'unitPrice')}
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
@@ -2819,7 +2824,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.supplyAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'supplyAmount')}
                     type="number" min={0}
                     value={String(line.supplyAmount ?? '0')}
                     parseValue={parseEditableDetailAmountInput}
@@ -2831,7 +2836,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.vatAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'vatAmount')}
                     type="number" min={0}
                     value={String(line.vatAmount ?? '0')}
                     parseValue={parseEditableDetailAmountInput}
@@ -2846,7 +2851,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.lineTotalWithVat`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'lineTotalWithVat')}
                     type="number" min={0}
                     value={String(line.lineTotalWithVat ?? '0')}
                     // 합계는 공급가액+부가세 파생값이다. 협업 입력은 원격 인식과
@@ -4537,12 +4542,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removePurchaseLine(index: number) {
-    clearRepriceHighlight(purchaseEditLinesRef.current[index]?.lineId)
-    setPurchaseEditLines((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      slipFormCoeditProvider?.replaceItems(next)
-      return next
-    })
+    const lineId = purchaseEditLinesRef.current[index]?.lineId
+    clearRepriceHighlight(lineId)
+    // 배열 인덱스 입력 구독은 안정키와 삭제행 가드로 잔여 Map에 쓰지 못한다.
+    setPurchaseEditLines((prev) => prev.filter((_, i) => i !== index))
+    if (lineId) slipFormCoeditProvider?.removeItem(lineId)
   }
 
   // SP-08-6-2: 매출 수정 라인 헬퍼
@@ -4575,11 +4579,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removeSalesLine(index: number) {
-    clearRepriceHighlight(salesEditLinesRef.current[index]?.lineId)
-    setSalesEditLines((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      slipFormCoeditProvider?.replaceItems(next)
-      return next
-    })
+    const lineId = salesEditLinesRef.current[index]?.lineId
+    clearRepriceHighlight(lineId)
+    // 매입과 동일하게 라인 Map 자체만 삭제한다.
+    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
+    if (lineId) slipFormCoeditProvider?.removeItem(lineId)
   }
 }

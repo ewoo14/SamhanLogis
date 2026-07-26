@@ -145,6 +145,11 @@ export function CollaborativeSlipInput({
   useEffect(() => {
     if (!provider) return undefined
     const syncFromDoc = () => {
+      const [scope, rowKey] = fieldPath.split('.')
+      // 안정키 행이 원격 삭제된 순간에는 빈값을 폼 index state에 반영하지 않는다.
+      // 반영하면 아직 렌더에서 제거되지 않은 구 행의 onValueChange가 다음 행을
+      // 덮어쓰고, 이어지는 provider write가 잔여 금액을 소실시킨다(D1').
+      if (scope === 'items' && rowKey && !/^\d+$/.test(rowKey) && provider.getItemIndexById(rowKey) < 0) return
       const nextValue = valueFromProvider(provider, fieldPath)
       // doc-sync 유래 반영은 실입력(onChange)과 분리 — onDocSyncValueChange 지정 시 그쪽만(R4-F6).
       if (nextValue !== latestValueRef.current) {
