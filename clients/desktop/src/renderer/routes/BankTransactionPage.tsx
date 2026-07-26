@@ -234,7 +234,7 @@ function BankTransactionDetailPanel({ row }: { row: BankTransactionRow }) {
         <dt>법인카드</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.cardName || '—'}</dd>
         <dt>승인번호</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.approvalId || '—'}</dd>
         <dt>대출명</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.loanName || '—'}</dd>
-        <dt>입금보고서 전표</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.cashReceiptSlipNo || '—'}</dd>
+        <dt>입금보고서 전표</dt><dd data-testid={`bank-transaction-detail-cash-receipt-slip-${row.externalRef}`} style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.cashReceiptSlipNo || '—'}</dd>
         <dt>매칭 근거</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.partnerMatchSource ? PARTNER_MATCH_SOURCE_META[row.partnerMatchSource]?.label ?? '—' : '—'}</dd>
         <dt>입금자명 원문</dt><dd style={{ minWidth: 0, margin: 0, overflowWrap: 'anywhere' }}>{row.appliedMappingRawName || '—'}</dd>
       </dl>

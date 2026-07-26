@@ -88,8 +88,15 @@ test.describe('E3 S4c bank bulk receipt', () => {
     const slipMatch = slipNo?.match(/\d{4}\/\d{2}\/\d{2}-\d+/)
     expect(slipMatch?.[0]).toBeTruthy()
 
-    await expect(page.getByTestId('bank-transaction-cash-receipt-slip-mock-bank-20260623-001')).toContainText(slipMatch![0])
-    await expect(page.getByTestId('bank-transaction-cash-receipt-slip-mock-bank-20260624-004')).toContainText(slipMatch![0])
+    // #897 W5 적대검증 fix로 전표번호 배지는 선택 셀(92→56px 침범 결함)에서 표 아래
+    // 상세 패널로 이동했다(BankTransactionDetailPanel). 존재 확인이 아니라 상세를 열어
+    // 실제 전표번호 값을 대조한다 — 두 선택행 모두 발급된 전표에 연결됐는지가 이 스펙의 핵심 단정이다.
+    await page.getByTestId('bank-transaction-detail-toggle-mock-bank-20260623-001').click()
+    await expect(page.getByTestId('bank-transaction-detail-cash-receipt-slip-mock-bank-20260623-001')).toContainText(slipMatch![0])
+
+    await page.getByTestId('bank-transaction-detail-toggle-mock-bank-20260624-004').click()
+    await expect(page.getByTestId('bank-transaction-detail-cash-receipt-slip-mock-bank-20260624-004')).toContainText(slipMatch![0])
+
     await expect(page.getByTestId('bank-transaction-select-mock-bank-20260623-001')).toBeDisabled()
     await expect(page.getByTestId('bank-transaction-select-mock-bank-20260624-004')).toBeDisabled()
   })

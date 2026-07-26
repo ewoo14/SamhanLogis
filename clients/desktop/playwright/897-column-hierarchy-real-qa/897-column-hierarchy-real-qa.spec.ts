@@ -82,9 +82,12 @@ test.describe.serial('897 실 서버 U-gate', () => {
     expect(geometry.tableW, JSON.stringify(geometry)).toBeLessThanOrEqual(geometry.wrapperW)
     expect(geometry.scrollW, JSON.stringify(geometry)).toBeLessThanOrEqual(geometry.wrapperW)
 
-    const detail = page.locator('details[data-testid^="bank-transaction-detail-"]').first()
-    if (await detail.count()) {
-      await detail.locator('summary').click()
+    // #897 적대검증 fix(721340f03)로 상세는 <details>/<summary> 대신 버튼 토글 +
+    // 표 아래 전폭 <section> 패널로 재설계됐다(고정폭 셀 안 disclosure의 0px 붕괴 결함).
+    const detailToggle = page.locator('button[data-testid^="bank-transaction-detail-toggle-"]').first()
+    if (await detailToggle.count()) {
+      await detailToggle.click()
+      const detail = page.locator('section[data-testid^="bank-transaction-detail-"]').first()
       const detailValue = await detail.locator('dd').first().textContent()
       console.log('[897 라이브 C2] bank 상세 첫 값', JSON.stringify(detailValue?.trim() ?? ''))
       expect(detailValue?.trim()).toBeTruthy()
