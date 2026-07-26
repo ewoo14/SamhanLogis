@@ -21,26 +21,54 @@ name: Harness Guard (docs/qa 관할 — ci.yml 이 무시하는 구간)
 # 🔒 이 트리거와 가드 관할이 어긋나면 harness-false-green-guard.test.ts 의 **G9 가 RED** 다.
 #   G9 는 가드가 실제로 스캔하는 파일 전수를 ci.yml paths-ignore · 여기의 paths 와 대조한다.
 #   즉 이 파일은 손으로 동기화하는 목록이 아니라 테스트가 강제하는 목록이다.
+#
+# 🚨 2026-07-27 재수렴 6차 ① — **두 글롭 형태를 병기한다.**
+#   `docs/qa/**.<ext>` 하나만 두면 관할 21파일이 **전부 중첩 경로**(`docs/qa/<slug>/…`,
+#   최상위 `docs/qa/*.<ext>` 는 0개)라서, 세그먼트 내부 `**` 가 `/` 를 못 넘는 구현에서는
+#   21파일이 여전히 게이트 0 이다.
+#     - GitHub 공식 치트시트는 `'**.js'` 가 `src/js/app.js` 를 잡는다고 적는다(= 넘는다).
+#     - 그러나 Node 표준 구현 minimatch 로 실측하면 같은 패턴이 `src/app.js` 를 **미매치**다.
+#     - `prefix/**.<ext>` 형태는 치트시트에 행이 없고, 이 레포 전 이력에도 전례가 0이다.
+#   ⟹ GitHub 서버측 필터는 push 없이 이 레포에서 **실측할 수 없다**. 그래서 "문서가 맞겠지" 에
+#     걸지 않고, 어느 해석이든 21파일이 발동하도록 `**.<ext>` 와 `**/*.<ext>` 를 함께 둔다.
+#     (`docs/qa/**/*.<ext>` 는 치트시트의 `docs/**​/*.md` → `docs/README.md` 행대로 `**` 0
+#     디렉토리도 잡으므로, 최상위 파일이 생겨도 놓치지 않는다.) 두 형태는 OR 이라 비용은 0 이다.
+#   G9 는 이 병기를 **보수적 해석 기준으로** 검사한다 — 한 형태만 남기면 즉시 RED.
+#
+# 🚨 push 와 pull_request 의 paths 는 동일해야 한다(G10). G9 는 `pull_request` 만 읽으므로
+#   `push:` 블록이 통째로 사라져도 못 잡는다 — 그 공백을 G10 이 막는다.
 on:
   pull_request:
     branches: [main]
     paths:
       - 'docs/qa/**.js'
+      - 'docs/qa/**/*.js'
       - 'docs/qa/**.cjs'
+      - 'docs/qa/**/*.cjs'
       - 'docs/qa/**.mjs'
+      - 'docs/qa/**/*.mjs'
       - 'docs/qa/**.ts'
+      - 'docs/qa/**/*.ts'
       - 'docs/qa/**.py'
+      - 'docs/qa/**/*.py'
       - 'docs/qa/**.sh'
+      - 'docs/qa/**/*.sh'
       - '.github/workflows/harness-guard.yml'
   push:
     branches: [main]
     paths:
       - 'docs/qa/**.js'
+      - 'docs/qa/**/*.js'
       - 'docs/qa/**.cjs'
+      - 'docs/qa/**/*.cjs'
       - 'docs/qa/**.mjs'
+      - 'docs/qa/**/*.mjs'
       - 'docs/qa/**.ts'
+      - 'docs/qa/**/*.ts'
       - 'docs/qa/**.py'
+      - 'docs/qa/**/*.py'
       - 'docs/qa/**.sh'
+      - 'docs/qa/**/*.sh'
       - '.github/workflows/harness-guard.yml'
   workflow_dispatch:
 

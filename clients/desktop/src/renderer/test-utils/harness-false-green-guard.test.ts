@@ -1465,9 +1465,15 @@ describe('하네스 거짓 green 가드', () => {
    *   `*`  = `/` 를 **제외한** 0자 이상
    *   `**` = `/` 를 **포함한** 0자 이상
    * 그래서 `docs/qa/**.mjs` 는 `docs/qa/x.mjs` 와 `docs/qa/a/b/x.mjs` 를 모두 잡는다.
-   * (`docs/qa/**​/*.mjs` 형태는 `**` 가 0자일 때 슬래시가 겹쳐 최상위 파일을 놓친다 —
-   * 이 레포의 트리거는 `**.<ext>` 형태로 쓴다.) `!` 부정 패턴은 이 레포가 쓰지 않으므로
-   * 다루지 않는다 — 새로 쓰이면 아래 sanity 가 아니라 이 함수부터 고쳐야 한다.
+   *
+   * ⚠️ 2026-07-27 정정 — 이 함수 원본 주석에 있던 "`docs/qa/**​/*.mjs` 형태는 `**` 가 0자일 때
+   * 슬래시가 겹쳐 최상위 파일을 놓친다" 는 **사실이 아니다**. GitHub 공식 치트시트의
+   * `docs/**​/*.md` 행이 드는 예시 매치가 바로 `docs/README.md`(=`**` 0 디렉토리)다. 그
+   * 잘못된 근거로 `**.<ext>` 형태만 채택했었는데, 그 형태야말로 이 레포 전 이력에서 전례가
+   * 없다(`c044cf652` 가 최초). 아래 `conservativeGlobToRegExp` 와 함께 쓰는 이유를 참조.
+   *
+   * `!` 부정 패턴은 이 레포가 쓰지 않으므로 다루지 않는다 — 새로 쓰이면 아래 sanity 가
+   * 아니라 이 함수부터 고쳐야 한다.
    */
   function ghGlobToRegExp(glob: string): RegExp {
     let out = ''
@@ -1483,6 +1489,51 @@ describe('하네스 거짓 green 가드', () => {
         continue
       }
       out += /[.+^${}()|[\]\\?]/.test(c) ? `\\${c}` : c
+    }
+    return new RegExp(`^${out}$`)
+  }
+
+  /**
+   * ─── ① 글롭 해석 축 (2026-07-27 재수렴 6차) ──────────────────────────────────
+   *
+   * **보수적** 글롭 → 정규식. `**` 가 **경로 세그먼트 전체**일 때만 `/` 를 넘고, 세그먼트
+   * 내부(`**.mjs`)에서는 `*` 로 강등된다 — Node 생태계 표준 구현인 minimatch 의 semantics 다.
+   *
+   * 왜 두 해석을 다 두는가:
+   *   - GitHub **공식 치트시트**는 `'**.js'` 가 `js/index.js`·`src/js/app.js` 를 잡는다고 적는다
+   *     (= `ghGlobToRegExp` 쪽). 그런데 같은 패턴을 minimatch 로 실측하면 `src/app.js` 는
+   *     **미매치**다. 즉 두 구현이 실제로 갈린다.
+   *   - GitHub 의 경로 필터는 서버측 구현이라 이 레포에서 **실행해 확인할 수 없다**(push 없이는
+   *     워크플로 발동 여부를 측정할 방법이 없다). 문서는 `docs/qa/**.mjs` 를 지지하지만,
+   *     `prefix/**.<ext>` 형태는 치트시트에 행이 없고 이 레포 전 이력에도 전례가 0이다.
+   *   - ⟹ **측정 불가**이므로 안 덮일 수 있는 쪽(보수적 해석)을 기준으로 센다. 트리거가 두
+   *     형태를 병기하면 어느 해석이 참이든 관할 파일이 전부 발동한다. 이것이 불변식이다.
+   *
+   * 이 함수는 위에서 실측한 minimatch 결과를 재현해야 한다 — 아래 sanity 가 그걸 고정한다.
+   */
+  function conservativeGlobToRegExp(glob: string): RegExp {
+    const segs = glob.split('/')
+    let out = ''
+    for (let i = 0; i < segs.length; i++) {
+      const seg = segs[i] as string
+      const last = i === segs.length - 1
+      if (seg === '**') {
+        // 마지막 세그먼트면 나머지 전부, 아니면 "0개 이상 디렉토리".
+        out += last ? '.*' : '(?:[^/]+/)*'
+        continue
+      }
+      let body = ''
+      for (let j = 0; j < seg.length; j++) {
+        const c = seg[j] as string
+        if (c === '*') {
+          // 세그먼트 내부 `**` 는 `*` 로 강등(= minimatch).
+          if (seg[j + 1] === '*') j++
+          body += '[^/]*'
+          continue
+        }
+        body += /[.+^${}()|[\]\\?]/.test(c) ? `\\${c}` : c
+      }
+      out += body + (last ? '' : '/')
     }
     return new RegExp(`^${out}$`)
   }
@@ -1527,25 +1578,95 @@ describe('하네스 거짓 green 가드', () => {
   }
 
   /**
-   * ci.yml 을 뺀 워크플로 중 **이 가드 파일을 실제로 실행하는** 것들의 `pull_request.paths` 합집합.
+   * ─── ② 커버리지 = 실행 (2026-07-27 재수렴 6차) ────────────────────────────────
    *
-   * 🔑 "아무 워크플로나 발동하면 된다" 로 세면 안 된다 — 예컨대 `paths: ['docs/**']` 을 가진
-   * 무관한 배포 워크플로가 하나 생기는 것만으로 이 검사가 통째로 무의미해진다(가드는 여전히
-   * 안 돈다). 그래서 파일 본문에 이 가드 스펙 경로가 등장하는 워크플로만 커버리지로 인정한다.
-   * (ci.yml 은 `npm test` 로 전 vitest 를 돌려 이름이 안 나오지만, 애초에 무시 목록을 제공하는
-   * 쪽이라 이 집합에서 빠져 있어도 무방하다.)
+   * 이 자리에는 원래 `yml.includes('harness-false-green-guard')` 가 있었다. **문자열이 있는가**만
+   * 봤기 때문에, 마커를 **주석에만** 적고 `echo` 만 하는 워크플로로 바꿔치기해도 G9 가 통과했다
+   * (2026-07-27 실측: 그 상태로 `45 passed`. 대조군인 "워크플로 파일 삭제" 는 sanity·G9 둘 다 RED).
+   *
+   * 그래서 커버리지 인정 조건을 **"그 가드를 실제로 실행하는 `run:` 명령이 있는가"** 로 올린다.
+   * 주석은 제거하고 보며, 블록 스칼라(`run: |`) 본문까지 이어 붙여 판정한다.
    */
-  const GUARD_SPEC_MARKER = 'harness-false-green-guard'
+  function stripYamlComments(yml: string): string {
+    return yml
+      .split(/\r?\n/)
+      .map((l) => l.replace(/(^|\s)#.*$/, '$1'))
+      .join('\n')
+  }
 
-  function guardRunningWorkflowPaths(): string[] {
+  /** 워크플로의 모든 `run:` 명령 본문(주석 제거 · 블록 스칼라 병합). */
+  function runCommands(yml: string): string[] {
+    const lines = stripYamlComments(yml).split(/\r?\n/)
     const out: string[] = []
+    for (let i = 0; i < lines.length; i++) {
+      const m = (lines[i] ?? '').match(/^(\s*)(?:-\s+)?run:\s*(\|[-+]?|>[-+]?)?\s*(.*)$/)
+      if (!m) continue
+      const indent = (m[1] ?? '').length
+      let cmd = m[3] ?? ''
+      if (m[2]) {
+        for (let j = i + 1; j < lines.length; j++) {
+          const b = lines[j] ?? ''
+          if (b.trim() !== '' && (b.match(/^\s*/)?.[0] ?? '').length <= indent) break
+          cmd += `\n${b}`
+        }
+      }
+      out.push(cmd)
+    }
+    return out
+  }
+
+  interface WorkflowTrigger {
+    readonly name: string
+    /** `pull_request.paths`. 블록은 있는데 `paths` 가 없으면 전 경로 발동이라 `['**']`. */
+    readonly paths: string[]
+    /** `push.paths` — 같은 규칙. */
+    readonly pushPaths: string[]
+  }
+
+  function eventPaths(yml: string, event: string): string[] {
+    const block = eventBlock(yml, event)
+    if (block.trim() === '') return []
+    const paths = yamlSeq(block, 'paths')
+    // `paths` 도 `paths-ignore` 도 없으면 그 이벤트는 전 경로에서 발동한다.
+    return paths.length > 0 || yamlSeq(block, 'paths-ignore').length > 0 ? paths : ['**']
+  }
+
+  /**
+   * `matches(runCommand)` 가 참인 `run:` 을 가진 워크플로들. ci.yml 은 제외한다 — ci.yml 은
+   * 무시 목록을 **제공하는** 쪽이라 커버리지 계산의 대상이 아니다(`npm test` 로 전 vitest 를
+   * 돌려 스펙 이름이 안 나오기도 한다).
+   */
+  function workflowsExecuting(matches: (cmd: string) => boolean): WorkflowTrigger[] {
+    const out: WorkflowTrigger[] = []
     for (const name of fs.readdirSync(WORKFLOW_DIR)) {
       if (!/\.ya?ml$/.test(name) || name === 'ci.yml') continue
       const yml = fs.readFileSync(path.join(WORKFLOW_DIR, name), 'utf-8')
-      if (!yml.includes(GUARD_SPEC_MARKER)) continue
-      out.push(...yamlSeq(eventBlock(yml, 'pull_request'), 'paths'))
+      if (!runCommands(yml).some(matches)) continue
+      out.push({ name, paths: eventPaths(yml, 'pull_request'), pushPaths: eventPaths(yml, 'push') })
     }
     return out
+  }
+
+  const GUARD_SPEC_MARKER = 'harness-false-green-guard'
+
+  /** 하네스 가드를 **실행**하는 명령인가 — 테스트 러너 + 스펙 경로 둘 다 있어야 한다. */
+  const RUNS_HARNESS_GUARD = (cmd: string): boolean =>
+    /\b(?:vitest|npm\s+(?:run\s+)?test)\b/.test(cmd) &&
+    cmd.includes(`test-utils/${GUARD_SPEC_MARKER}.test.ts`)
+
+  function guardRunningWorkflowPaths(): string[] {
+    return workflowsExecuting(RUNS_HARNESS_GUARD).flatMap((w) => w.paths)
+  }
+
+  /**
+   * `files` 중 **ci.yml 이 무시**하는데(=ci.yml 이 안 돎) `runnerPaths` 중 어느 것도
+   * 발동시키지 않는 것들. 무시 판정은 넓은 해석(공식 문서), 커버리지 판정은 **좁은 해석**
+   * (보수적) — 두 축에서 최악을 잡아야 "어느 글롭 구현이든 덮인다" 를 보장한다.
+   */
+  function ungatedFiles(files: string[], runnerPaths: string[]): string[] {
+    const ignored = ciPullRequestIgnores().map(ghGlobToRegExp)
+    const covered = runnerPaths.map(conservativeGlobToRegExp)
+    return files.filter((f) => ignored.some((re) => re.test(f)) && !covered.some((re) => re.test(f)))
   }
 
   /** 가드가 실제로 스캔하는 파일 전수(REPO_ROOT 상대, 슬래시 정규화) — guardRootFor 와 동일 규칙. */
@@ -1585,19 +1706,178 @@ describe('하네스 거짓 green 가드', () => {
     expect(ghGlobToRegExp('docs/qa/**.mjs').test('docs/qa/top.mjs'), '`**` 0자(최상위 파일) 미매치').toBe(true)
     expect(ghGlobToRegExp('docs/qa/**.mjs').test('docs/qa/a/b.js'), '확장자 구분이 안 된다').toBe(false)
     expect(ghGlobToRegExp('qa/**').test('docs/qa/a.mjs'), '`qa/**` 가 `docs/qa/**` 를 잘못 덮는다').toBe(false)
+
+    // 보수적 변환 자기검사 — minimatch 실측치(2026-07-27, clients/desktop 의 minimatch)를 재현해야
+    // 한다. 이게 넓은 해석과 같아져 버리면 아래 G9 의 "어느 해석이든" 축이 통째로 무의미해진다.
+    const conservativeCases: [string, string, boolean][] = [
+      ['docs/qa/**.mjs', 'docs/qa/a/b.mjs', false],
+      ['docs/qa/**.mjs', 'docs/qa/a/b/c/d.mjs', false],
+      ['docs/qa/**.mjs', 'docs/qa/top.mjs', true],
+      ['docs/qa/**/*.mjs', 'docs/qa/a/b.mjs', true],
+      ['docs/qa/**/*.mjs', 'docs/qa/a/b/c/d.mjs', true],
+      ['docs/qa/**/*.mjs', 'docs/qa/top.mjs', true],
+      ['docs/**', 'docs/qa/a/b.mjs', true],
+      ['**.js', 'src/app.js', false],
+    ]
+    for (const [glob, file, want] of conservativeCases) {
+      expect(
+        conservativeGlobToRegExp(glob).test(file),
+        `보수적 글롭 변환이 minimatch 실측과 다르다: ${glob} vs ${file}`,
+      ).toBe(want)
+    }
+
+    // 러너 판정 자기검사 — 주석에만 마커가 있는 워크플로를 커버리지로 인정하면 안 된다.
+    const commentOnly = [
+      'name: probe',
+      '# clients/desktop/src/renderer/test-utils/harness-false-green-guard.test.ts 를 커버한다(주장)',
+      'jobs:',
+      '  x:',
+      '    steps:',
+      '      - run: echo "가드 안 돎"',
+    ].join('\n')
+    expect(
+      runCommands(commentOnly).some(RUNS_HARNESS_GUARD),
+      '주석에만 마커가 있는 워크플로가 커버리지로 인정된다 — 실행 여부를 안 보고 문자열만 본 것',
+    ).toBe(false)
+    const realRun = [
+      'jobs:',
+      '  x:',
+      '    steps:',
+      '      - run: npx vitest run src/renderer/test-utils/harness-false-green-guard.test.ts',
+    ].join('\n')
+    expect(runCommands(realRun).some(RUNS_HARNESS_GUARD), '실제 실행 명령을 못 알아본다').toBe(true)
+    const blockScalar = ['jobs:', '  x:', '    steps:', '      - run: |', '          bash scripts/check-credential-plaintext.sh'].join('\n')
+    expect(
+      runCommands(blockScalar).some((c) => c.includes('scripts/check-credential-plaintext.sh')),
+      '블록 스칼라(run: |) 본문을 못 읽는다',
+    ).toBe(true)
   })
 
   it('G9: 가드가 스캔하는 파일 중 ci.yml 이 무시하는 것은 다른 워크플로가 반드시 발동시킨다 (게이트 0 표면 = RED)', () => {
-    const ignored = ciPullRequestIgnores().map(ghGlobToRegExp)
-    const covered = guardRunningWorkflowPaths().map(ghGlobToRegExp)
-    const ungated = guardScannedFiles().filter(
-      (f) => ignored.some((re) => re.test(f)) && !covered.some((re) => re.test(f)),
-    )
+    const ungated = ungatedFiles(guardScannedFiles(), guardRunningWorkflowPaths())
     expect(
       ungated,
       `가드 관할인데 **이 파일만 바뀌는 PR 은 어떤 워크플로도 돌지 않는다** — 가드가 실행되지 않으므로\n` +
         `위반이어도 조용히 GREEN 이다. ci.yml 의 paths-ignore 에서 빼거나(순수 문서 PR·QA 스크린샷\n` +
-        `커밋까지 14 서비스 BE 매트릭스를 통째로 돌리게 된다), 그 구간만 여는 경량 워크플로를 둘 것:\n${ungated.join('\n')}`,
+        `커밋까지 14 서비스 BE 매트릭스를 통째로 돌리게 된다), 그 구간만 여는 경량 워크플로를 둘 것.\n` +
+        `⚠️ 커버리지는 **보수적 글롭 해석**으로 센다 — GitHub 서버 필터의 세그먼트 내부 \`**\` 처리를\n` +
+        `이 레포에서 실측할 수 없으므로, 두 형태(\`p/**.ext\` · \`p/**/*.ext\`)를 병기해야 통과한다:\n${ungated.join('\n')}`,
     ).toEqual([])
+  })
+
+  it('G9b: 커버리지로 인정하는 워크플로는 그 가드를 실제로 실행한다 (마커가 주석에만 있는 워크플로는 인정 불가)', () => {
+    const runners = workflowsExecuting(RUNS_HARNESS_GUARD)
+    expect(
+      runners.map((w) => w.name),
+      `이 가드를 실행하는 별도 워크플로가 0건 — ci.yml 이 무시하는 구간이 통째로 게이트 0 이 된다`,
+    ).not.toEqual([])
+    for (const w of runners) {
+      const yml = fs.readFileSync(path.join(WORKFLOW_DIR, w.name), 'utf-8')
+      const cmds = runCommands(yml).filter(RUNS_HARNESS_GUARD)
+      for (const cmd of cmds) {
+        const spec = cmd.match(/\S*test-utils\/harness-false-green-guard\.test\.ts/)?.[0] ?? ''
+        // 워크플로가 지정한 스펙 경로가 실재해야 한다 — 파일이 옮겨가면 잡은 즉시 RED 여야지,
+        // "이름만 남은 워크플로" 로 조용히 살아 있으면 안 된다.
+        expect(
+          fs.existsSync(path.resolve(REPO_ROOT, 'clients/desktop', spec)),
+          `${w.name} 이 실행한다는 스펙 경로가 실재하지 않는다: ${spec}`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('G10: 하네스 가드 워크플로는 push 와 pull_request 에서 같은 경로를 발동시킨다 (한쪽만 지워도 RED)', () => {
+    for (const w of workflowsExecuting(RUNS_HARNESS_GUARD)) {
+      expect(
+        [...w.pushPaths].sort(),
+        `${w.name}: push.paths 와 pull_request.paths 가 다르다 — G9 는 pull_request 만 읽어서\n` +
+          `\`push:\` 블록이 통째로 사라져도 못 잡는다(2026-07-27 실측). 두 이벤트를 같이 유지할 것`,
+      ).toEqual([...w.paths].sort())
+    }
+  })
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * G11·G12 (2026-07-27 재수렴 6차) — **가드는 하네스 가드 하나가 아니다.**
+   *
+   * G9 는 `harness-false-green-guard.test.ts` 한 개의 관할만 본다. 그런데 같은 형태의 공백이
+   * 다른 가드에도 있었다(실측):
+   *
+   *   D-1 `scripts/check-credential-plaintext.sh` — `docs/qa`·`docs/dev-reports`·
+   *       `docs/operational-validation` 을 스캔하는데(.md/.mdx/.log 포함) 유일 러너가
+   *       ci.yml 이고, ci.yml 의 `paths-ignore` 가 `docs/**` 다. 실제 main 커밋
+   *       `fa678d63a`(docs/qa 전용 10파일) 의 check-runs 는 **total_count = 0** 이었다.
+   *   D-2 `clients/desktop/scripts/round-910-contract.test.cjs` — 본문에서
+   *       `docs/dev-reports/2026-07-25-910-app-client-identity.md` 를 단언하는데 러너가
+   *       ci.yml `frontend-desktop` 이라 docs 전용 PR 은 skip 된다. 문서에 금지 서술 1줄을
+   *       추가하면 로컬에선 RED(실측) 인데 CI 는 조용히 green 이다.
+   * ─────────────────────────────────────────────────────────────────────────────
+   */
+  it('G11 (D-1, 보안): 자격 평문 가드가 관할하는 표면을 바꾸는 PR 은 그 가드를 실행한다', () => {
+    const sh = fs.readFileSync(path.resolve(REPO_ROOT, 'scripts/check-credential-plaintext.sh'), 'utf-8')
+    /** `CODE_DIRS=( ... )` / `DOC_DIRS=( ... )` 배열의 인용 항목 전수. */
+    const scanDirs = ['CODE_DIRS', 'DOC_DIRS'].flatMap((name) => {
+      const body = sh.match(new RegExp(`${name}=\\(([^)]*)\\)`))?.[1] ?? ''
+      return [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1] as string)
+    })
+    expect(scanDirs.length, '자격 평문 가드의 스캔 디렉토리 파싱 0건 — 스크립트 구조가 바뀌었다').toBeGreaterThanOrEqual(8)
+
+    // 각 스캔 루트의 최상위·중첩 대표 경로. 이 가드는 docs 하위에서 .md/.mdx/.log 도 본다.
+    const probes = scanDirs.flatMap((d) => [`${d}/probe.md`, `${d}/nested/deep/probe.md`])
+    const runnerPaths = workflowsExecuting((cmd) =>
+      /\bbash\s+scripts\/check-credential-plaintext\.sh\b/.test(cmd),
+    ).flatMap((w) => w.paths)
+    const ungated = ungatedFiles(probes, runnerPaths)
+    expect(
+      ungated,
+      `자격 평문 가드 관할인데 **그 경로만 바꾸는 PR 은 가드를 한 번도 돌리지 않는다** — 실 자격이\n` +
+        `커밋돼도 조용히 머지된다(보안). ci.yml 의 paths-ignore 가 막는 구간을, 이 스크립트를 실제로\n` +
+        `실행하는 경량 워크플로가 덮어야 한다:\n${ungated.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('G12 (D-2): 문서 본문을 단언하는 계약 테스트는 그 문서를 바꾸는 PR 에서 실행된다', () => {
+    const rel = 'clients/desktop/scripts/round-910-contract.test.cjs'
+    const src = fs.readFileSync(path.resolve(REPO_ROOT, rel), 'utf-8')
+    const asserted = [...src.matchAll(/read\('([^']+)'\)/g)].map((m) => m[1] as string)
+    expect(asserted.length, `${rel} 의 단언 대상 파싱 0건 — 파일 구조가 바뀌었다`).toBeGreaterThanOrEqual(4)
+    for (const f of asserted) {
+      expect(fs.existsSync(path.resolve(REPO_ROOT, f)), `단언 대상이 실재하지 않는다: ${f}`).toBe(true)
+    }
+
+    const runners = workflowsExecuting((cmd) => /round-910-contract/.test(cmd))
+    const ungated = ungatedFiles(asserted, runners.flatMap((w) => w.paths))
+    expect(
+      ungated,
+      `계약 테스트가 단언하는 파일인데 **그 파일만 바꾸는 PR 은 테스트를 돌리지 않는다** — 단언이\n` +
+        `깨지는 변경이 CI 를 통과한다:\n${ungated.join('\n')}`,
+    ).toEqual([])
+
+    // 러너가 `--test-name-pattern` 으로 좁혀 돈다면, 문서를 단언하는 테스트가 그 필터에 실제로
+    // 걸려야 한다 — 안 걸리면 "0건 실행 후 exit 0" 이라는 새 거짓 green 이 된다.
+    const docAssertingNames = [...src.matchAll(/\btest\('([^']+)'/g)]
+      .map((m, i, all) => {
+        const start = m.index ?? 0
+        const end = all[i + 1]?.index ?? src.length
+        return { name: m[1] as string, body: src.slice(start, end) }
+      })
+      .filter((t) => /read\('docs\//.test(t.body))
+      .map((t) => t.name)
+    expect(docAssertingNames.length, '문서를 단언하는 테스트를 못 찾았다').toBeGreaterThanOrEqual(1)
+    for (const w of runners) {
+      const yml = fs.readFileSync(path.join(WORKFLOW_DIR, w.name), 'utf-8')
+      for (const cmd of runCommands(yml).filter((c) => /round-910-contract/.test(c))) {
+        const pattern = cmd.match(/--test-name-pattern[= ]'([^']+)'/)?.[1]
+        if (!pattern) continue
+        const re = new RegExp(pattern)
+        for (const name of docAssertingNames) {
+          expect(
+            re.test(name),
+            `${w.name} 의 --test-name-pattern='${pattern}' 이 문서 단언 테스트("${name}")를 안 잡는다 — ` +
+              `0건 실행 후 exit 0 이라 잡은 green 인데 아무것도 검사하지 않는다`,
+          ).toBe(true)
+        }
+      }
+    }
   })
 })

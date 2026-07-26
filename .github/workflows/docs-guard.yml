@@ -1,0 +1,89 @@
+name: Docs Guard (docs/** 관할 가드 — ci.yml 이 무시하는 구간)
+
+# 🚨 #851 재수렴 6차 D-1·D-2 — **가드가 관할하는 표면을 바꾸는 PR 은 그 가드를 실행한다.**
+#
+# ci.yml 의 `pull_request.paths-ignore` 에는 `docs/**` 가 들어 있다(순수 문서 PR 로 14 서비스
+# BE 매트릭스를 돌리지 않기 위한 의도적 설정). 그런데 `docs/**` 를 **관할로 삼는 가드**가
+# 두 개 있고, 둘 다 유일 러너가 ci.yml 이었다. 즉 관할은 미치는데 실행이 0이었다.
+#
+#   D-1 (보안) `scripts/check-credential-plaintext.sh`
+#       DOC_DIRS = docs/qa · docs/dev-reports · docs/operational-validation (…+ .md/.mdx/.log)
+#       실측: `docs/qa/<slug>/leak.md` 에 AWS 키를 넣으면 스크립트는 EXIT=1 로 정확히 잡는다.
+#       그런데 실제 main 커밋 `fa678d63a`(docs/qa 전용 10파일)의 check-runs 는
+#       **total_count = 0** 이었다 — 가드가 한 번도 안 돌고 조용히 머지된 것이다.
+#
+#   D-2 `clients/desktop/scripts/round-910-contract.test.cjs`
+#       본문이 `docs/dev-reports/2026-07-25-910-app-client-identity.md` 를 단언하는데 러너가
+#       ci.yml `frontend-desktop` 이라 docs 전용 PR 은 skip 된다. 문서에 금지 서술 1줄을
+#       추가하면 로컬은 R910_EXIT=1 인데 CI 는 green 이다(실측).
+#
+# ⚠️ 왜 harness-guard.yml 에 합치지 않는가 — 워크플로의 `on.paths` 는 **잡별이 아니라 파일 전체**에
+#   적용된다. harness-guard.yml 에 `docs/**` 를 넣으면 design-system 빌드 + desktop `npm ci` 가
+#   붙은 무거운 잡이 **QA 스크린샷 PNG 커밋마다** 돈다. 그래서 트리거 표면이 다른 이 둘은
+#   별도 파일로 두고, 여기 잡은 전부 **checkout(+node) 만 쓰는 경량 잡**으로 유지한다
+#   (ci.yml 의 notion-zero-guard · credential-plaintext-guard · app-build-version-guard 와 동일 패턴).
+#
+# 🔒 이 트리거와 두 가드의 관할이 어긋나면 harness-false-green-guard.test.ts 의 **G11·G12 가 RED** 다.
+#   G11 은 셸 스크립트의 CODE_DIRS/DOC_DIRS 를, G12 는 계약 테스트의 `read('…')` 전수를 직접
+#   파싱해 대조한다 — 손으로 동기화하는 목록이 아니다.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/qa/**'
+      - 'docs/dev-reports/**'
+      - 'docs/operational-validation/**'
+      - 'scripts/check-credential-plaintext.sh'
+      - 'clients/desktop/scripts/round-910-contract.test.cjs'
+      - '.github/workflows/docs-guard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/qa/**'
+      - 'docs/dev-reports/**'
+      - 'docs/operational-validation/**'
+      - 'scripts/check-credential-plaintext.sh'
+      - 'clients/desktop/scripts/round-910-contract.test.cjs'
+      - '.github/workflows/docs-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  credential-plaintext-guard-docs:
+    name: 자격 평문 비공개 가드 (docs 관할, SP-08-8)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      # ci.yml `credential-plaintext-guard` 와 **같은 스크립트**를 돌린다. 스크립트가 레포 전체를
+      # 스캔하므로 docs 전용 PR 에서도 CODE_DIRS 까지 함께 검사된다(비용은 수십 초).
+      - name: 자격 평문 비공개 정적 검사 (shell guard)
+        run: |
+          chmod +x scripts/check-credential-plaintext.sh
+          bash scripts/check-credential-plaintext.sh
+
+  round-910-doc-contract:
+    name: "#910 문서 계약 테스트 (docs/dev-reports 관할)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 이 파일의 나머지 테스트는 electron-vite 빌드를 spawn 하므로 `npm ci` 가 필요하고, 그래서
+      # 전체는 ci.yml `frontend-desktop` 이 계속 담당한다. 여기서는 **문서 본문을 단언하는
+      # 테스트만** 이름으로 좁혀 돌린다 — node:test 빌트인 + fs 만 쓰므로 설치가 필요 없다
+      # (그러려면 electron-vite 를 최상위에서 resolve 하면 안 된다 — 그래서 lazy 로 바꿨다).
+      # 🔒 이 `--test-name-pattern` 이 문서 단언 테스트를 실제로 잡는지는 G12 가 검사한다.
+      #    안 잡히면 "0건 실행 후 exit 0" 이라는 새 거짓 green 이 되기 때문이다.
+      - name: "#910 문서 계약 테스트 (round-910-contract 문서 단언)"
+        run: node --test --test-name-pattern='문서는' clients/desktop/scripts/round-910-contract.test.cjs
