@@ -461,6 +461,51 @@ describe('BankTransactionPage 열 계층화 (#897)', () => {
     })
   })
 
+  it('[#929 재수렴 3차 V2] externalRef 가 중복인 행에서도 닫기가 클릭한 바로 그 행으로 복귀한다', async () => {
+    // CARD/LOAN 소스는 (날짜, 순번) 기반 참조를 계좌마다 재사용한다(리뷰 실측: 기본 화면
+    // 28행 중 10그룹 24행이 externalRef 중복, DB 실측 최대 12행). data-testid 가
+    // externalRef 단독으로만 만들어지면 두 행이 같은 testid 를 공유한다 — 닫기가
+    // document 순서상 첫 매치(1번째 행)로 복귀하면 실제 클릭한 2번째 행과 어긋난다.
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    const dupExternalRef = 'CARD-2026-07-03-001'
+    const rowFirst: BankTransactionRow = {
+      ...baseRow,
+      externalRef: dupExternalRef,
+      bankAccountLabel: '삼한 법인카드 1111',
+      amount: '30000',
+      description: '적요-첫번째',
+    }
+    const rowTarget: BankTransactionRow = {
+      ...baseRow,
+      externalRef: dupExternalRef,
+      bankAccountLabel: '삼한 법인카드 3333',
+      amount: '50000',
+      description: '적요-대상',
+    }
+    listBankTransactionsMock.mockResolvedValue([rowFirst, rowTarget])
+
+    renderPage()
+
+    const toggles = await screen.findAllByTestId(`bank-transaction-detail-toggle-${dupExternalRef}`)
+    expect(toggles, 'externalRef 중복 전제(2행)가 재현되지 않음').toHaveLength(2)
+    const targetToggle = toggles[1] // 2번째(대상) 행 — 첫 번째가 아니라 이 행을 클릭한다.
+
+    fireEvent.click(targetToggle)
+    const panel = await screen.findByTestId(`bank-transaction-detail-${dupExternalRef}`)
+    expect(panel.textContent, `2번째(대상) 행의 패널이 열리지 않음: ${panel.textContent}`).toContain('적요-대상')
+
+    fireEvent.click(within(panel).getByRole('button', { name: /닫기/ }))
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLButtonElement | null
+      expect(
+        active,
+        `포커스가 클릭한 2번째 행이 아니라 다른 요소로 감: ${active?.dataset?.testid ?? active?.tagName}`,
+      ).toBe(targetToggle)
+    })
+  })
+
   it('소스·매칭상태 열은 기존 탭별 조건부 표시 규칙을 유지한다', async () => {
     listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
     loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
