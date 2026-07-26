@@ -59,6 +59,7 @@ import {
 import { CodefImportScopeForm } from './components/CodefImportScopeForm'
 import {
   formatCashReceiptAmount,
+  formatCashReceiptAmountUnit,
   truncatePartnerName,
 } from './CashReceiptListPage.model'
 import { localMonthStartIso, localTodayIso } from './localDate'
@@ -239,7 +240,9 @@ function BankTransactionDetailPanel({ row, onClose }: { row: BankTransactionRow;
         <div data-testid={`bank-transaction-detail-scope-${row.externalRef}`} style={{ display: 'grid', gap: 2, minWidth: 0 }}>
           <strong style={{ overflowWrap: 'anywhere' }}>{formatDateTime(row.transactedAt)} · {row.description}</strong>
           <span style={{ color: 'var(--color-neutral-500)', fontSize: 12, overflowWrap: 'anywhere' }}>
-            {row.counterpartyName || row.matchedPartnerName || '거래처 미상'} · {row.txnType === 'DEPOSIT' ? '입금' : '출금'} {formatCashReceiptAmount(row.amount)}원
+            {/* [#929 재수렴 T3] formatCashReceiptAmount 는 0/null 을 '—' 로 반환 — 단위는
+                formatCashReceiptAmountUnit 하나로만 붙인다(placeholder 에 '원' 금지). */}
+            {row.counterpartyName || row.matchedPartnerName || '거래처 미상'} · {row.txnType === 'DEPOSIT' ? '입금' : '출금'} {formatCashReceiptAmountUnit(row.amount)}
           </span>
         </div>
         <Button type="button" size="sm" variant="ghost" onClick={onClose}>
@@ -526,11 +529,29 @@ export function BankTransactionPage() {
    */
   const detailPanelRef = useRef<HTMLDivElement | null>(null)
   /**
-   * [머지 전 재수렴 S2] 패널의 "닫기" 컨트롤이 원래 클릭했던 토글 버튼으로 돌아가기
-   * 위해 마지막으로 연 토글의 DOM 참조를 보관한다 — 원행이 몇천 px 떨어져 있어도
-   * 사용자가 그 자리로 되돌아갈 수 있다(관계가 화면에서 유지된다).
+   * [머지 전 재수렴 S2 · #929 재수렴 T4] 패널의 "닫기" 컨트롤이 원래 클릭했던 토글
+   * 버튼으로 돌아가기 위한 식별자 — 원행이 몇천 px 떨어져 있어도 그 자리로 되돌아갈
+   * 수 있다(관계가 화면에서 유지된다).
+   *
+   * <p>원래는 클릭 시점의 DOM 노드 자체(HTMLButtonElement)를 ref 에 담았으나,
+   * transactionsQuery 의 queryKey(activeTab 등)가 바뀌면 로딩 중 rows=[] 를 거쳐
+   * 행 DOM 이 전부 언마운트되고 새 노드로 재생성된다 — 담아둔 노드는 detached 상태가
+   * 되어 focus()/scrollIntoView() 가 무동작이었다(포커스가 body 로 소실). 대신
+   * externalRef(안정적 자연키)만 보관하고, 닫을 때마다 현재 라이브 DOM 에서 그
+   * data-testid 로 버튼을 다시 찾는다 — DailyClosingPage.selectedDetailRow 가
+   * 스냅샷 대신 listQuery.data 에서 매 렌더 재도출하는 것과 같은 방향(단일 소스를
+   * 항상 "현재" 상태에서 다시 얻는다).
    */
-  const lastToggleButtonRef = useRef<HTMLButtonElement | null>(null)
+  const lastToggledExternalRefRef = useRef<string | null>(null)
+
+  /** data-testid 로 현재 라이브 DOM 에서 특정 행의 상세 토글 버튼을 다시 찾는다. */
+  function findDetailToggleButton(externalRef: string): HTMLButtonElement | null {
+    const targetTestId = `bank-transaction-detail-toggle-${externalRef}`
+    for (const el of document.querySelectorAll<HTMLButtonElement>('button[data-testid]')) {
+      if (el.dataset.testid === targetTestId) return el
+    }
+    return null
+  }
 
   useEffect(() => {
     if (!toast) return
@@ -823,7 +844,7 @@ export function BankTransactionPage() {
         const next = expandedRowKey === key ? null : key
         setExpandedRowKey(next)
         if (next !== null) {
-          lastToggleButtonRef.current = button
+          lastToggledExternalRefRef.current = row.externalRef
           // [머지 전 재수렴 R1·S1·S2] 펼치는 동작일 때만 스크롤·포커스 이동 — 접을 때는
           // 대상이 없다. focus() 의 preventScroll 기본값은 false 라 scrollIntoView 보다
           // 먼저 즉시(비-smooth) 스크롤을 일으켜 뒤따르는 smooth 스크롤을 무의미하게
@@ -855,12 +876,16 @@ export function BankTransactionPage() {
    * 자리로 복귀할 수 있어 "클릭한 행과 패널의 관계가 화면에서 유지된다."
    */
   function closeDetailPanel() {
-    const button = lastToggleButtonRef.current
+    const externalRef = lastToggledExternalRefRef.current
     setExpandedRowKey(null)
-    if (button) {
+    if (externalRef) {
       window.setTimeout(() => {
-        button.focus({ preventScroll: true })
-        button.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+        // [#929 재수렴 T4] 여기서 다시 찾는다 — 패널이 열려 있던 동안 재조회로 행이
+        // 재생성됐을 수 있어(위 ref 주석) 클릭 시점에 담아둔 노드가 아니라 지금
+        // 라이브 DOM 의 노드를 대상으로 focus/scroll 해야 한다.
+        const button = findDetailToggleButton(externalRef)
+        button?.focus({ preventScroll: true })
+        button?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
       }, 0)
     }
   }
@@ -1039,7 +1064,9 @@ export function BankTransactionPage() {
                           선택 <strong>{selectedSummary.count.toLocaleString('ko-KR')}</strong>건
                         </span>
                         <span>
-                          합산 <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCashReceiptAmount(selectedSummary.totalAmount)}원</strong>
+                          {/* [#929 재수렴 T3] 선택 0건이면 totalAmount=0 → formatCashReceiptAmount
+                              가 '—' 를 반환한다 — Unit 래퍼로 placeholder 에 '원' 을 붙이지 않는다. */}
+                          합산 <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCashReceiptAmountUnit(selectedSummary.totalAmount)}</strong>
                         </span>
                         <span>
                           거래처 <strong title={selectedSummary.partnerName}>{truncatePartnerName(selectedSummary.partnerName)}</strong>

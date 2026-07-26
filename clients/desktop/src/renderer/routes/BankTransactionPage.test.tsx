@@ -392,6 +392,75 @@ describe('BankTransactionPage 열 계층화 (#897)', () => {
     expect(rowEl?.className).not.toContain('bank-transaction-row-expanded')
   })
 
+  it('[#929 재수렴 T3] 선택 0건일 때 일괄 처리 바의 합산이 —원이 아니라 단위 없는 —로 표시된다', async () => {
+    // [머지 전 재수렴 S5] fmtKrw 는 고쳤지만 같은 계약(0/null → '—')을 공유하는
+    // formatCashReceiptAmount 호출부는 놓쳤다 — 선택 0건이면 totalAmount=0 이고
+    // formatCashReceiptAmount(0) === '—' 뒤에 무조건 '원'을 붙여 '—원'이 됐다.
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([])
+    renderPage()
+
+    const bulkBar = await screen.findByTestId('bank-transaction-bulk-bar')
+    expect(within(bulkBar).queryByText(/—원/), `일괄바 합산에 단위 붙은 placeholder 잔존: ${bulkBar.textContent}`).toBeNull()
+    // '합산' 뒤 정확히 단위 없는 '—' — '거래처' 열도 같은 '—' 를 렌더하므로(무관한 placeholder)
+    // getByText('—') 단일 매치 단정 대신 '합산' 텍스트를 담은 span 을 직접 좁혀 확인한다.
+    const amountSpan = Array.from(bulkBar.querySelectorAll('span'))
+      .find((el) => el.textContent?.trim().startsWith('합산'))
+    expect(amountSpan, '합산 span 을 찾을 수 없음').toBeTruthy()
+    expect(amountSpan!.textContent).toBe('합산 —')
+  })
+
+  it('[#929 재수렴 T3] 상세 패널 머리글의 금액이 0원이면 —원이 아니라 —로 표시된다', async () => {
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    listBankTransactionsMock.mockResolvedValue([{
+      ...baseRow,
+      externalRef: 'zero-amount-detail',
+      amount: '0',
+    } satisfies BankTransactionRow])
+    renderPage()
+
+    fireEvent.click(await screen.findByTestId('bank-transaction-detail-toggle-zero-amount-detail'))
+    const panel = await screen.findByTestId('bank-transaction-detail-zero-amount-detail')
+    const scopeHeader = within(panel).getByTestId('bank-transaction-detail-scope-zero-amount-detail')
+    expect(scopeHeader.textContent, `상세 패널 머리글에 '—원' 잔존: ${scopeHeader.textContent}`).not.toContain('—원')
+  })
+
+  it('[#929 재수렴 T4] 재조회로 행 DOM 이 재생성돼도 닫기가 원래 토글 버튼으로 포커스를 되돌린다', async () => {
+    // 쿼리 키(activeTab 포함)가 바뀌면 로딩 중 rows=[] 를 거쳐 행 DOM 이 전부
+    // 언마운트되고 새 노드로 재생성된다 — lastToggleButtonRef 가 잡고 있던 노드는
+    // detached 상태가 되어 focus()/scrollIntoView() 가 무동작이었다.
+    listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
+    const requeryRow: BankTransactionRow = {
+      ...baseRow,
+      externalRef: 'requery-test',
+      matchStatus: 'UNREFLECTED',
+    }
+    listBankTransactionsMock.mockResolvedValue([requeryRow])
+    renderPage()
+
+    const toggleBefore = await screen.findByTestId('bank-transaction-detail-toggle-requery-test')
+    fireEvent.click(toggleBefore)
+    await screen.findByTestId('bank-transaction-detail-requery-test')
+
+    // activeTab 은 transactionsQuery 의 queryKey 일부 — 탭 전환이 재조회를 유발한다.
+    fireEvent.click(screen.getByRole('button', { name: '미반영', exact: true }))
+    await waitFor(() => {
+      const toggleAfter = screen.getByTestId('bank-transaction-detail-toggle-requery-test')
+      expect(toggleAfter, '재조회 후에도 동일 DOM 노드 — 이 테스트 전제(재생성)가 재현되지 않음').not.toBe(toggleBefore)
+    })
+    const panel = await screen.findByTestId('bank-transaction-detail-requery-test')
+
+    fireEvent.click(within(panel).getByRole('button', { name: /닫기/ }))
+
+    await waitFor(() => {
+      const liveToggle = screen.getByTestId('bank-transaction-detail-toggle-requery-test')
+      expect(document.activeElement, '포커스가 body 로 소실됨(원행 토글로 복귀 실패)').toBe(liveToggle)
+    })
+  })
+
   it('소스·매칭상태 열은 기존 탭별 조건부 표시 규칙을 유지한다', async () => {
     listBankTransactionFilterLabelsMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })
     loadBankTransactionFilterPreferencesMock.mockResolvedValue({ accountLabels: [], cardLabels: [] })

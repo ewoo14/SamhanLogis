@@ -41,6 +41,19 @@ export function formatCashReceiptAmount(raw: string | number | null | undefined)
   return n < 0 ? `-${abs}` : abs
 }
 
+/**
+ * [#929 재수렴 T3] formatCashReceiptAmount 는 0/null 을 '—'(회계 표시 규약 placeholder)로
+ * 반환한다(DailyClosingPage.fmtKrwUnit 과 동일 계약) — 그 뒤에 호출부가 각자 무조건
+ * '원'을 붙이면 자릿수 없는 placeholder 가 단위만 있는 값처럼 보이는 '—원'이 된다.
+ * 선택 0건·0원 거래 등 정상 업무 경로에서 상시 발생한다. 단위가 필요한 호출부
+ * (BankTransactionPage 상세 패널·일괄바, BankDepositReceiptModal 합산액)는 각자
+ * `${...}원` 을 이어붙이지 않고 이 함수 하나로 단위 부착을 단일화한다.
+ */
+export function formatCashReceiptAmountUnit(raw: string | number | null | undefined): string {
+  const formatted = formatCashReceiptAmount(raw)
+  return formatted === '—' ? formatted : `${formatted}원`
+}
+
 export function formatCashReceiptDate(value: string | null | undefined): string {
   if (!value) return '—'
   return value.slice(0, 10)

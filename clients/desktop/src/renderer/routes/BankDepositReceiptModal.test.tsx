@@ -77,3 +77,21 @@ describe('BankDepositReceiptModal 확정 대상 특정 (머지 전 재수렴 S3)
     expect(accountsBlock.textContent).not.toMatch(/외 \d+개/)
   })
 })
+
+/**
+ * [#929 재수렴 T3] BankTransactionPage 일괄바(#929 재수렴 S5)와 동일 계약 —
+ * formatCashReceiptAmount 는 0/null 을 '—' 로 반환하는데 이 모달의 합산액(:135)이
+ * 그 뒤에 무조건 '원'을 붙여 '—원'이 됐다. rows=[] (선택 0건)에서 재현한다.
+ */
+describe('BankDepositReceiptModal 합산액 placeholder (#929 재수렴 T3)', () => {
+  it('선택 행이 0건이면 합산액이 —원이 아니라 단위 없는 —로 표시된다', async () => {
+    listAccountsMock.mockResolvedValue([])
+    renderModal([])
+
+    const amountLabel = await screen.findByText('합산액')
+    const amountValue = amountLabel.nextElementSibling as HTMLElement
+    expect(amountValue, '합산액 값 엘리먼트를 찾을 수 없음').toBeTruthy()
+    expect(amountValue.textContent, `합산액에 '—원' 잔존: ${amountValue.textContent}`).not.toBe('—원')
+    expect(amountValue.textContent).toBe('—')
+  })
+})

@@ -409,6 +409,64 @@ class DailyClosingIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    // ── 13. 기간 조회 partnerCode 필터 (#929 재수렴 T6) ─────────────────────
+
+    @Test
+    @DisplayName("일마감 기간 조회 — partnerCode 필터가 전체 마감을 배제하고 해당 거래처 마감만 반환한다 (#929 D)")
+    void testGetDailyClosingsFilteredByPartnerCode() throws Exception {
+        // 같은 날짜에 전체 마감 1건 + PARTNER_CODE 거래처 마감 1건을 만든다.
+        Map<String, Object> allBody = new HashMap<>();
+        allBody.put("closingDate", "2026-05-16");
+        allBody.put("scopeMode", "ALL");
+        mockMvc.perform(post("/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(allBody)))
+                .andExpect(status().isCreated());
+
+        Map<String, Object> partnerBody = new HashMap<>();
+        partnerBody.put("closingDate", "2026-05-16");
+        partnerBody.put("partnerCode", PARTNER_CODE);
+        partnerBody.put("scopeMode", "SELECTED");
+        mockMvc.perform(post("/accounting/daily-closings")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(partnerBody)))
+                .andExpect(status().isCreated());
+
+        // partnerCode 미지정 — 2건 모두(무훼손, 기존 동작 그대로).
+        mockMvc.perform(get("/accounting/daily-closings")
+                        .param("from", "2026-05-16")
+                        .param("to", "2026-05-16")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2));
+
+        // partnerCode=PC001 — 그 거래처 마감 1건만(전체 마감 행은 배제).
+        mockMvc.perform(get("/accounting/daily-closings")
+                        .param("from", "2026-05-16")
+                        .param("to", "2026-05-16")
+                        .param("partnerCode", PARTNER_CODE)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].partnerCode").value(PARTNER_CODE));
+
+        // partnerCode=NOTEXIST(미존재 거래처) — 하드 오류가 아니라 빈 페이지.
+        mockMvc.perform(get("/accounting/daily-closings")
+                        .param("from", "2026-05-16")
+                        .param("to", "2026-05-16")
+                        .param("partnerCode", "NOTEXIST")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
     // ── 12. MANAGER unlock → 403 ─────────────────────────────────────────────
 
     @Test

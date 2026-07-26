@@ -934,6 +934,105 @@ describe('DailyClosingPage 열 계층화 (#897)', () => {
     expect(await screen.findByTestId('daily-closing-detail-button-2026-07-04-P-020-SALES-TAX_INVOICE')).toBeTruthy()
   })
 
+  it('[#929 재수렴 T1] 열림(역마감) 상태에서 상세 요약도 "이전 마감 시각"으로 표시해 목록과 모순되지 않는다', async () => {
+    // S6 는 목록 열(:171-179)만 고쳤고 상세 요약 카드(:976)는 무조건 '마감 시각' 이라
+    // 같은 행이 한 화면에서 "열림 / 마감 시각 …"(목록) 과 "마감 시각 …"(요약)로 모순됐다.
+    // 두 지점이 단일 함수에서 값을 얻으면 이 모순이 구조적으로 불가능해진다(T1).
+    const reopenedRow: DailyClosing = {
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: null,
+      totalSupply: '100000', totalVat: '10000', totalAmount: '110000', slipCount: 1,
+      isLocked: false, lockedAt: '2026-07-26T18:51:00+09:00', lockedBy: '개발책임자',
+    }
+    listDailyClosingsMock.mockResolvedValue({ ...emptyPage, content: [reopenedRow] })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    const badge = await screen.findByText('열림')
+    const row = badge.closest('tr') as HTMLElement
+    fireEvent.click(within(row).getByRole('button', { name: '상세 보기' }))
+
+    const scope = await screen.findByTestId('daily-closing-selected-scope')
+    expect(within(scope).queryByText(/^마감 시각/), `상세 요약에 무조건 '마감 시각' 문구 잔존(목록은 '이전 마감 시각'): ${scope.textContent}`).toBeNull()
+    expect(within(scope).getByText(/이전 마감 시각/)).toBeTruthy()
+  })
+
+  it('[#929 재수렴 T2] 통합 2페이지에서 상세를 누르면 필터 전환으로 페이지가 리셋돼도 그 행의 상세가 열린다', async () => {
+    // revealDailyClosingDetail 이 closingKind/sourceKind 를 그 행의 값으로 바꾸면 S7
+    // 페이지 리셋 이펙트가 page=0 으로 되돌린다. 그 행이 새 필터의 첫 페이지에 없으면
+    // (예: 같은 날짜에 21건 이상) find 가 실패해 상세가 통째로 사라졌다 — 클릭 대상
+    // 행인데도. 페이지와 무관하게(RTL 은 kind 를 무시하고 page 로만 응답을 나눈다)
+    // targetRow 는 항상 page=1 에만 있어 재현 조건을 항상 성립시킨다.
+    const targetRow: DailyClosing = {
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: 'P-TARGET',
+      totalSupply: '5000', totalVat: '500', totalAmount: '5500', slipCount: 1,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    }
+    const page0Rows = Array.from({ length: 20 }, (_, i) => ({
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: `P-${String(i).padStart(3, '0')}`,
+      totalSupply: '1000', totalVat: '100', totalAmount: '1100', slipCount: 1,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    })) satisfies DailyClosing[]
+    listDailyClosingsMock.mockImplementation((opts: { page?: number }) =>
+      Promise.resolve(opts.page === 1
+        ? { content: [targetRow], totalElements: 21, totalPages: 2, number: 1, size: 20, first: false, last: true }
+        : { content: page0Rows, totalElements: 21, totalPages: 2, number: 0, size: 20, first: true, last: false }),
+    )
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('radio', { name: '통합' }))
+    await screen.findByTestId('daily-closing-detail-button-2026-07-04-P-000-SALES-TAX_INVOICE')
+    fireEvent.click(screen.getByTestId('daily-closing-page-next'))
+    const targetDetailButton = await screen.findByTestId('daily-closing-detail-button-2026-07-04-P-TARGET-SALES-TAX_INVOICE')
+    expect(screen.getByTestId('daily-closing-page-indicator').textContent).toBe('2 / 2')
+
+    fireEvent.click(targetDetailButton)
+
+    await waitFor(() => expect(listDailyClosingsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 0, closingKind: 'SALES' }),
+    ))
+    const scope = await screen.findByTestId('daily-closing-selected-scope')
+    expect(scope.textContent, `상세 클릭 대상 행의 요약이 사라짐: ${scope.textContent ?? '(없음)'}`).toContain('P-TARGET')
+  })
+
+  it('[#929 재수렴 T5] 상세 선택 후 통합으로 전환하면 존재하지 않는 표를 가리키는 안내 문구가 남지 않는다', async () => {
+    // "아래 전표 명세는… 통합 조회입니다"(:977-979) 는 selectedDetailRow 존재 여부에만
+    // 걸려 있고 closingKind 와 무관했다 — 통합에서는 그 표(:994 DataTable)가 전혀
+    // 렌더되지 않는데도("통합 조회에서는 이력만 표시합니다") 문구가 표를 가리켰다.
+    const row: DailyClosing = {
+      closingKind: 'SALES', sourceKind: 'TAX_INVOICE', closingDate: '2026-07-04',
+      bizNo: '', partnerCode: null,
+      totalSupply: '100000', totalVat: '10000', totalAmount: '110000', slipCount: 1,
+      isLocked: true, lockedAt: '2026-07-04T18:00:00+09:00', lockedBy: '개발책임자',
+    }
+    listDailyClosingsMock.mockResolvedValue({ ...emptyPage, content: [row] })
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    fireEvent.click(await screen.findByTestId('daily-closing-detail-button-2026-07-04-ALL-SALES-TAX_INVOICE'))
+    await screen.findByText(/아래 전표 명세는 선택한 날짜·구분의 통합 조회입니다/)
+
+    fireEvent.click(screen.getByRole('radio', { name: '통합' }))
+
+    // 통합은 결과를 좁히지 않고 넓힌다 — queryKind 변화로 listQuery 가 잠시 재조회되는
+    // 사이 selectedDetailRow 가 과도기적으로 null 이 될 수 있으나(react-query 새 키
+    // 최초 fetch 중 data=undefined), 재조회가 정착하면 동일 mock 이 같은 행을 다시
+    // 반환해 요약 카드가 재등장한다 — 그 정착 상태에서 문구만 사라졌는지 확인한다
+    // (과도기 타이밍에서 검사하면 우연히 통과하는 false-green 이 된다).
+    await waitFor(() => expect(screen.getByText(/통합 조회에서는 이력만 표시합니다/)).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('daily-closing-selected-scope')).toBeTruthy())
+    expect(
+      screen.queryByText(/아래 전표 명세는 선택한 날짜·구분의 통합 조회입니다/),
+      '통합 전환 후에도 존재하지 않는 표를 가리키는 안내 문구가 남아있음',
+    ).toBeNull()
+  })
+
   it('목록은 핵심 열만 노출하고 상세 경로에서 감춘 금액·전표 값을 실제로 확인한다', async () => {
     listDailyClosingsMock.mockResolvedValue({
       ...emptyPage,

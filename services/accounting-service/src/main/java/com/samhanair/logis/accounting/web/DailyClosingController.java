@@ -109,10 +109,13 @@ public class DailyClosingController {
             @RequestParam(required = false) DailyClosingKind kind,
             @Parameter(description = "집계 source (TAX_INVOICE/SALES_SLIP/PURCHASE_SLIP). 미지정 시 전체")
             @RequestParam(required = false) DailyClosingSourceKind sourceKind,
+            @Parameter(description = "거래처코드 필터 (선택 — 미지정 시 전체 거래처)")
+            @RequestParam(required = false) String partnerCode,
             @PageableDefault(size = 20, sort = "closingDate", direction = Sort.Direction.DESC)
             Pageable pageable,
             @RequestHeader(value = ROLE_HEADER, required = false) String roleHeader) {
-        return ApiResponse.ok(dailyClosingService.list(from, to, kind, sourceKind, pageable, roleHeader));
+        // [#929 재수렴 T6] partnerCode 는 이전에 여기서 받지 않아 조용히 버려졌다(#929 D).
+        return ApiResponse.ok(dailyClosingService.list(from, to, kind, sourceKind, partnerCode, pageable, roleHeader));
     }
 
     /**

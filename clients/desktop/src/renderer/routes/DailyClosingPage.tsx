@@ -74,6 +74,22 @@ function dailyClosingRowKey(row: DailyClosing): string {
   return `${row.closingDate}-${dailyClosingScopeKey(row)}-${row.closingKind}-${row.sourceKind}`
 }
 
+/**
+ * [#929 재수렴 T1] 마감 시각 표시 라벨 — 단일 출처.
+ *
+ * <p>unlock() 은 감사 이력을 위해 lockedAt 을 보존한다(BE 불변, DailyClosing.java:204-213)
+ * — 역마감 직후에도 값이 남아 라벨이 상태(isLocked)를 반영하지 않으면 '열림' 배지와
+ * 같은 자리에서 자기모순으로 읽힌다. 목록 열과 상세 요약 카드가 각자 이 조건을
+ * 계산하면(S6 가 목록 열만 고치며 실제로 그랬다) 한쪽만 갱신되어 같은 행이 한 화면
+ * 에서 모순된 라벨을 보일 수 있다 — 두 지점 다 이 함수 하나에서만 값을 얻는다.
+ * lockedAt 이 없으면 null(두 지점 모두 렌더하지 않음 — NULL 경계도 단일화).
+ */
+function dailyClosingLockedAtDisplay(row: DailyClosing): string | null {
+  if (!row.lockedAt) return null
+  const label = row.isLocked ? '마감 시각' : '이전 마감 시각'
+  return `${label} ${fmtTimestamp(row.lockedAt)}`
+}
+
 type DailyClosingListColumnKey =
   | 'closingDate'
   | 'kind'
@@ -163,18 +179,17 @@ export const DAILY_CLOSING_LIST_COLUMN_DEFINITIONS: readonly DailyClosingColumnD
     mobilePriority: 'secondary',
     render: (row) => {
       const status = deriveDailyClosingStatus(row.isLocked)
+      // [머지 전 재수렴 S6 · #929 재수렴 T1] 라벨은 dailyClosingLockedAtDisplay 단일
+      // 출처에서 얻는다 — 상세 요약 카드(아래)도 동일 함수를 쓴다(BE 변경 없음).
+      const lockedAtDisplay = dailyClosingLockedAtDisplay(row)
       return (
         <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
           <Badge variant={row.isLocked ? 'danger' : 'success'}>
             {DAILY_CLOSING_STATUS_LABEL[status]}
           </Badge>
-          {/* [머지 전 재수렴 S6] unlock() 은 감사 이력을 위해 lockedAt 을 보존한다(BE
-              불변, DailyClosing.java:204-213) — 역마감 직후에도 값이 남아 "마감 시각"
-              그대로 두면 '열림' 배지와 한 셀에서 자기모순으로 읽힌다("열림 마감 시각 …").
-              라벨을 상태에 맞춰 갈라 표시 층에서만 해소한다(BE 변경 없음). */}
-          {row.lockedAt ? (
+          {lockedAtDisplay ? (
             <span style={{ color: 'var(--ink-secondary)', fontSize: 12, overflowWrap: 'anywhere' }}>
-              {row.isLocked ? '마감 시각' : '이전 마감 시각'} {fmtTimestamp(row.lockedAt)}
+              {lockedAtDisplay}
             </span>
           ) : null}
         </div>
@@ -351,14 +366,21 @@ export function DailyClosingPage() {
   const [execSourceKind, setExecSourceKind] = useState<DailyClosingSourceKind>('TAX_INVOICE')
   const [reverseConfirmRow, setReverseConfirmRow] = useState<DailyClosing | null>(null)
   /**
-   * [머지 전 재수렴 S4] 상세 요약은 클릭 시점 행의 스냅샷이 아니라 "키"만 보관하고
-   * 매 렌더 현재 listQuery.data 에서 재도출한다(BankTransactionPage.expandedRow 선례와
-   * 동일 방향 — 그 화면은 이미 이렇게 하고 있었다). filterDate/closingKind/sourceKind/
-   * partnerCode 가 바뀌어 목록이 재조회되면, 더 이상 그 키를 포함하지 않는 결과에서는
-   * find 가 자동으로 null 을 반환해 stale 요약이 남지 않는다 — 별도 clear 이펙트가
-   * 필요 없다.
+   * [머지 전 재수렴 S4 · #929 재수렴 T2] 상세 요약은 클릭 시점 행을 스냅샷으로 보관하되
+   * 매 렌더 우선 현재 listQuery.data 에서 재도출을 시도한다(BankTransactionPage.
+   * expandedRow 선례와 동일 방향). 재도출(live)이 성공하면(대부분의 경우) 그 값을
+   * 써 신선도를 유지한다 — 재마감/역마감으로 invalidate 되면 클릭 없이도 요약이
+   * 갱신된다(S4 무훼손).
+   *
+   * <p>[T2] revealDailyClosingDetail 이 그 행에 맞춰 filterDate/closingKind/sourceKind
+   * 를 바꾸면 S7 페이지 리셋 이펙트가 page 를 0 으로 되돌리는데, 그 행이 새 필터의
+   * 첫 페이지에 없으면(예: 같은 날짜에 21건 이상) live 재도출이 실패해 "상세를
+   * 눌렀는데 상세가 사라진다"가 됐다 — 클릭 대상 행인데도. live 가 실패하면 이
+   * 스냅샷으로 폴백한다. 사용자가 필터를 직접 조작하면(clearSelectedDetail) 스냅샷도
+   * 함께 지워지므로, filterDate/closingKind/sourceKind/partnerCode 가 사용자 의도로
+   * 바뀔 때 stale 요약이 남지 않는다는 S4 의 원래 보장은 그대로 유지된다.
    */
-  const [selectedDetailKey, setSelectedDetailKey] = useState<string | null>(null)
+  const [selectedDetailSnapshot, setSelectedDetailSnapshot] = useState<DailyClosing | null>(null)
   const detailCardRef = useRef<HTMLDivElement | null>(null)
   /** [머지 전 재수렴 S7] 21건 이상이면 21번째부터 상세/역마감이 화면에서 도달 불가했다. */
   const [page, setPage] = useState(0)
@@ -392,9 +414,21 @@ export function DailyClosingPage() {
   })
 
   const selectedDetailRow = useMemo(() => {
-    if (!selectedDetailKey) return null
-    return (listQuery.data?.content ?? []).find((row) => dailyClosingRowKey(row) === selectedDetailKey) ?? null
-  }, [selectedDetailKey, listQuery.data])
+    if (!selectedDetailSnapshot) return null
+    const key = dailyClosingRowKey(selectedDetailSnapshot)
+    const live = (listQuery.data?.content ?? []).find((row) => dailyClosingRowKey(row) === key)
+    return live ?? selectedDetailSnapshot
+  }, [selectedDetailSnapshot, listQuery.data])
+
+  /**
+   * [#929 재수렴 T2 · S4 무훼손] 사용자가 필터를 직접 조작하면 이전 상세 선택(스냅샷
+   * 포함)을 지운다 — revealDailyClosingDetail 이 같은 필터 state 를 프로그램적으로
+   * 바꾸는 경로와 달리, 이 경로는 "다른 범위를 보겠다"는 명시적 의도이므로 stale
+   * 요약이 남으면 안 된다(S4 원래 보장).
+   */
+  function clearSelectedDetail() {
+    setSelectedDetailSnapshot(null)
+  }
 
   const detailQuery = useQuery({
     queryKey: ['daily-closing-detail', filterDate, queryKind, querySourceKind],
@@ -471,7 +505,7 @@ export function DailyClosingPage() {
   })
 
   function revealDailyClosingDetail(row: DailyClosing) {
-    setSelectedDetailKey(dailyClosingRowKey(row))
+    setSelectedDetailSnapshot(row)
     setFilterDate(row.closingDate)
     setClosingKind(row.closingKind)
     setSourceKind(row.sourceKind)
@@ -667,7 +701,10 @@ export function DailyClosingPage() {
             <input
               type="date"
               value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              // [#929 재수렴 T2 무훼손] 사용자가 직접 날짜를 바꾸는 것은 "다른 범위를
+              // 보겠다"는 명시적 의도 — 이전 상세 선택(스냅샷 포함)을 지운다(S4 원래
+              // 보장: stale 요약이 남지 않는다).
+              onChange={(e) => { setFilterDate(e.target.value); clearSelectedDetail() }}
               data-testid="daily-closing-filter-date"
               style={inputStyle}
             />
@@ -676,7 +713,7 @@ export function DailyClosingPage() {
             거래처 코드&nbsp;
             <input
               value={partnerCode}
-              onChange={(e) => setPartnerCode(e.target.value)}
+              onChange={(e) => { setPartnerCode(e.target.value); clearSelectedDetail() }}
               placeholder="선택"
               data-testid="daily-closing-filter-partner"
               style={{ ...inputStyle, width: 140 }}
@@ -692,6 +729,13 @@ export function DailyClosingPage() {
                 onClick={() => {
                   setClosingKind(kind)
                   if (kind !== 'ALL') setSourceKind((prev) => compatibleSource(kind, prev))
+                  // [#929 재수렴 T2 무훼손·T5] '매출'/'매입'은 결과를 좁혀 다른 kind 의
+                  // 이전 선택을 구조적으로 배제한다 — 스냅샷 폴백이 그 배제된 선택을
+                  // 계속 보여주면 stale 요약 회귀가 된다(S4 무훼손 위반), 그래서 지운다.
+                  // '통합'은 반대로 결과를 넓힐 뿐이라(이전 선택도 여전히 유효한 범위)
+                  // 지우지 않는다 — 요약 카드는 남고, 표를 가리키는 문구만 별도로
+                  // 조건화한다(T5, 아래 selectedDetailRow 블록).
+                  if (kind !== 'ALL') clearSelectedDetail()
                 }}
                 style={{
                   ...toggleButtonStyle,
@@ -708,7 +752,7 @@ export function DailyClosingPage() {
                 <button
                   key={source}
                   type="button"
-                  onClick={() => setSourceKind(source)}
+                  onClick={() => { setSourceKind(source); clearSelectedDetail() }}
                   style={{
                     ...toggleButtonStyle,
                     background: sourceKind === source ? 'var(--surface-selected)' : toggleButtonStyle.background,
@@ -973,10 +1017,19 @@ export function DailyClosingPage() {
             <span>
               공급가 {fmtKrwUnit(selectedDetailRow.totalSupply)} · 부가세 {fmtKrwUnit(selectedDetailRow.totalVat)} · 합계 {fmtKrwUnit(selectedDetailRow.totalAmount)}
             </span>
-            <span>마감 시각 {fmtTimestamp(selectedDetailRow.lockedAt)}</span>
-            <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>
-              아래 전표 명세는 선택한 날짜·구분의 통합 조회입니다. 선택한 마감 범위의 합계는 위 값을 확인하세요.
-            </span>
+            {/* [#929 재수렴 T1] 목록 열과 동일한 dailyClosingLockedAtDisplay 단일 출처 —
+                무조건 '마감 시각' 이면 열림 상태에서 목록('이전 마감 시각')과 모순됐다. */}
+            {dailyClosingLockedAtDisplay(selectedDetailRow) ? (
+              <span>{dailyClosingLockedAtDisplay(selectedDetailRow)}</span>
+            ) : null}
+            {/* [#929 재수렴 T5] 통합(ALL)에서는 아래 DataTable 이 렌더되지 않는다("통합
+                조회에서는 이력만 표시합니다") — 그 표를 가리키는 문구는 표가 실제로
+                렌더되는 조건(closingKind !== 'ALL')과 함께 다닌다. */}
+            {closingKind !== 'ALL' ? (
+              <span style={{ color: 'var(--ink-secondary)', fontSize: 12 }}>
+                아래 전표 명세는 선택한 날짜·구분의 통합 조회입니다. 선택한 마감 범위의 합계는 위 값을 확인하세요.
+              </span>
+            ) : null}
           </div>
         ) : null}
         {closingKind === 'ALL' ? (

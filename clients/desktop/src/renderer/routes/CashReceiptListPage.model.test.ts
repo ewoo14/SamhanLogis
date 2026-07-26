@@ -3,6 +3,7 @@ import {
   CASH_RECEIPT_KIND_OPTIONS,
   cashReceiptKindLabel,
   formatCashReceiptAmount,
+  formatCashReceiptAmountUnit,
   formatCashReceiptDate,
   listCashReceiptQueryOptions,
   truncatePartnerName,
@@ -48,6 +49,19 @@ describe('CashReceiptListPage model', () => {
       page: 2,
       size: 20,
     })
+  })
+
+  it('[#929 재수렴 T3] 단위 붙임 포맷터는 0/null placeholder(—)에는 단위를 붙이지 않는다', () => {
+    // formatCashReceiptAmount 와 동일 계약(0/null → '—')을 공유한다 — DailyClosingPage.
+    // fmtKrwUnit 과 동일 방향. 호출부(BankTransactionPage 상세 패널·일괄바,
+    // BankDepositReceiptModal 합산액)가 각자 `${...}원` 을 이어붙이지 않고 이 함수
+    // 하나로 단위 부착을 단일화한다.
+    expect(formatCashReceiptAmountUnit(0)).toBe('—')
+    expect(formatCashReceiptAmountUnit(null)).toBe('—')
+    expect(formatCashReceiptAmountUnit(undefined)).toBe('—')
+    expect(formatCashReceiptAmountUnit('')).toBe('—')
+    expect(formatCashReceiptAmountUnit(2480000)).toBe('2,480,000원')
+    expect(formatCashReceiptAmountUnit(-1200)).toBe('-1,200원')
   })
 
   it('거래처명은 18자 이후 말줄임한다', () => {

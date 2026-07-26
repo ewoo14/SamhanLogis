@@ -72,12 +72,19 @@ public interface DailyClosingRepository extends JpaRepository<DailyClosing, UUID
                                        @Param("to") LocalDate to,
                                        Pageable pageable);
 
+    /**
+     * [#929 재수렴 T6] partnerId 필터 — 이전에는 이 쿼리가 partnerCode/partnerId 를 전혀
+     * 받지 않아 FE 가 보낸 필터가 조용히 버려졌다(#929 D). null 이면 미지정(전체)과
+     * 동일하게 전 파트너 대상, 지정되면 정확히 그 partnerId(전체 마감 행은
+     * partnerId IS NULL 이므로 특정 거래처를 지정하면 자동으로 제외된다)만 남는다.
+     */
     @Query(value = """
             SELECT d FROM DailyClosing d
             WHERE d.closingDate >= :from
               AND d.closingDate <= :to
               AND (:closingKind IS NULL OR d.closingKind = :closingKind)
               AND (:sourceKind IS NULL OR d.sourceKind = :sourceKind)
+              AND (:partnerId IS NULL OR d.partnerId = :partnerId)
             ORDER BY d.closingDate DESC
             """,
             countQuery = """
@@ -86,11 +93,13 @@ public interface DailyClosingRepository extends JpaRepository<DailyClosing, UUID
               AND d.closingDate <= :to
               AND (:closingKind IS NULL OR d.closingKind = :closingKind)
               AND (:sourceKind IS NULL OR d.sourceKind = :sourceKind)
+              AND (:partnerId IS NULL OR d.partnerId = :partnerId)
             """)
     Page<DailyClosing> findByDateRangeAndKinds(@Param("from") LocalDate from,
                                                @Param("to") LocalDate to,
                                                @Param("closingKind") DailyClosingKind closingKind,
                                                @Param("sourceKind") DailyClosingSourceKind sourceKind,
+                                               @Param("partnerId") UUID partnerId,
                                                Pageable pageable);
 
     /**

@@ -18,7 +18,7 @@ import {
   type BankDepositReceiptFormState,
 } from './BankDepositReceiptModal.model'
 import {
-  formatCashReceiptAmount as formatKrw,
+  formatCashReceiptAmountUnit,
   truncatePartnerName,
 } from './CashReceiptListPage.model'
 
@@ -132,7 +132,9 @@ export function BankDepositReceiptModal({
           </div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>합산액</div>
-            <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatKrw(summary.totalAmount)}원</strong>
+            {/* [#929 재수렴 T3] BankTransactionPage 일괄바와 동일 계약 — 0/null 은 '—' 이고
+                Unit 래퍼가 그 경우에만 '원' 을 생략한다(선택 0건에서 '—원' 금지). */}
+            <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCashReceiptAmountUnit(summary.totalAmount)}</strong>
           </div>
           <div>
             <div style={{ fontSize: 12, color: 'var(--color-neutral-500)' }}>거래처</div>
