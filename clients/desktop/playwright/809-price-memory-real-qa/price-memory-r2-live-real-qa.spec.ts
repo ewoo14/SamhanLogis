@@ -1249,8 +1249,10 @@ test.describe.serial('#809 R4-postfix — R4 적대 fix 후 라이브 재검증'
     await expect(page.getByTestId('sales-slip-edit-modal')).toBeVisible({ timeout: 20000 })
     await page.waitForTimeout(800)
 
-    // 이 화면은 VAT 제외 입력
-    const priceCell = page.getByLabel('단가(VAT제외) 1')
+    // #937 R-3: 이 화면은 이제 VAT 포함 입력이다(1041bad17/071e6c7ac 이후) — 당시(#809 R4)엔
+    // VAT 제외 입력이었다. 셀렉터만 현재 라벨로 갱신(아래 EDIT_Q_EXCL_VAT 이름·주변 수치
+    // 단언은 그 시절 VAT 제외 계약 기준이라 재검증 없이 그대로 두었다 — #937 R-3 dev-report 참고).
+    const priceCell = page.getByLabel('단가(VAT포함) 1')
     await priceCell.scrollIntoViewIfNeeded()
     await priceCell.fill(EDIT_Q_EXCL_VAT)
     await page.waitForTimeout(300)
@@ -1870,7 +1872,7 @@ test.describe('#809 R5-postfix — R4 false-green 커버리지 구멍 실서버 
       await page.getByTestId('sales-slip-edit-button').click()
       const editModal = page.getByTestId('sales-slip-edit-modal')
       await expect(editModal, '전표 BUNDLE 상세 편집 모달 미표시').toBeVisible({ timeout: 20000 })
-      await expect(editModal.getByLabel('단가(VAT제외) 1')).toBeVisible()
+      await expect(editModal.getByLabel('단가(VAT포함) 1')).toBeVisible()
       await capture(page, '26-slip-bundle-detail-before-nochange-put')
       // [R6-M9] PUT 창구간 delta — 무수정 PUT 은 parent 재기록조차 없어(R6-M8 현행) flush 양성
       // 신호가 없으므로 2xx + grace 로 관측 창을 닫는다.

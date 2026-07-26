@@ -24,6 +24,7 @@ import {
   parseEditableDetailQuantityInput,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
+  repricedFieldValue,
   syncDetailAmountToDoc,
   toPurchaseEditLines,
 } from './SlipDetailPage'
@@ -476,6 +477,49 @@ describe('SlipDetailPage — 거래처 재조회 출처 마커와 배너', () =>
       { source: 'CATALOG' },
       { source: 'UNAVAILABLE' },
     ], 3)).toBe('거래처 변경 단가 확인 완료 · 최근단가 1건 · 판매가 2건 · 단가 확인 필요 1건 · 변경 3행')
+  })
+})
+
+/**
+ * #937 R-3 재수렴 — 거래처 재조회가 필드에 넣는 값의 VAT 도메인.
+ *
+ * <p>1041bad17 이 이 화면의 실제 계산(recalculateLineVat PRICE 권위)을 "필드=VAT 포함"으로
+ * 정렬했고 071e6c7ac 가 라벨도 상수 "단가(VAT포함)"로 고정했지만, 거래처 변경 재조회
+ * ({@code repriceEditLinesForPartner} 의 핵심 변환 {@link repricedFieldValue})는 그 전환에서
+ * 빠져 여전히 기억/카탈로그(VAT 포함)를 {@code vatExclusiveOf}(÷1.1)로 필드에 실었다 —
+ * "필드=VAT 제외"였던 옛 계약 그대로다. 두 도메인이 이제 같으므로 변환 없이 그대로 실려야
+ * 하는데, 옛 변환이 남아 있으면 기억 500,000 이 필드에 454,545 로 들어가 실단가가 9.09%
+ * 낮아지고 그 값이 다시 기억에 각인돼 거래처를 왕복할 때마다 복리로 준다.
+ *
+ * <p>근본수정 전 RED(라이브 실증 #937-R3 그대로 재현):
+ *   expected '500000' to be '454545'  (기억 500,000 hit)
+ *   expected '250000' to be '227272'  (카탈로그 판매가 250,000 miss)
+ */
+describe('SlipDetailPage — 거래처 재조회 필드 VAT 도메인 (#937 R-3)', () => {
+  it('기억(REMEMBERED) hit — 필드에 기억단가가 변환 없이 그대로 실린다(÷1.1 아니다)', () => {
+    expect(repricedFieldValue({ source: 'REMEMBERED', unitPrice: '500000' })).toBe('500000')
+  })
+
+  it('카탈로그(CATALOG) miss — 필드에 판매가가 변환 없이 그대로 실린다(÷1.1 아니다)', () => {
+    expect(repricedFieldValue({ source: 'CATALOG', unitPrice: '250000' })).toBe('250000')
+  })
+
+  it('소수 2자리 기억값도 절사 없이 그대로 승격된다(왕복 무손실 — 정수 절사는 더 이상 없다)', () => {
+    expect(repricedFieldValue({ source: 'REMEMBERED', unitPrice: '499999.50' })).toBe('499999.50')
+  })
+
+  it('UNAVAILABLE(카탈로그도 미확보) — 값을 지어내지 않고 빈 문자열로 저장을 막는다(기존 계약 유지)', () => {
+    expect(repricedFieldValue({ source: 'UNAVAILABLE', unitPrice: '' })).toBe('')
+  })
+
+  /**
+   * #937-R3 라이브 실증 그대로 — B 기억 500,000 인데 필드에 454,545(=round(500000/1.1))가
+   * 실리는 회귀를 죽인다. 뮤테이션(÷1.1 복원) 시 이 단언만 RED 로 되돌아온다.
+   */
+  it('회귀 가드 — 필드값이 기억÷1.1(454545) 이면 실패한다(#937-R3 라이브 실증 값)', () => {
+    const value = repricedFieldValue({ source: 'REMEMBERED', unitPrice: '500000' })
+    expect(value).not.toBe('454545')
+    expect(value).toBe('500000')
   })
 })
 

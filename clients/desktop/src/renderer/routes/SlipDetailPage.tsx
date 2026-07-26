@@ -112,7 +112,6 @@ import {
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
 import { lookupProducts } from '../api/productApi'
-import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 import {
   editSlipLineAmount,
   recalculateLineVat,
@@ -506,6 +505,30 @@ export function partnerRepriceBannerText(
     unavailable > 0 ? `단가 확인 필요 ${unavailable}건` : null,
     `변경 ${changedCount}행`,
   ].filter(Boolean).join(' · ')
+}
+
+/**
+ * 재조회 outcome(가격기억/카탈로그, VAT 포함 도메인) → 상세 수정 필드에 실제로 적용할 값.
+ *
+ * <p><b>#937 R-3 근본수정</b>: 종전엔 이 값을 {@code vatExclusiveOf}(BE ÷1.1 정수 절사 미러)로
+ * 변환해 필드에 넣었다 — 그 변환은 "수정 화면 필드 = VAT 제외 공급단가"였던 시절의 계약이다.
+ * 그런데 1041bad17 이 이 화면의 실제 계산({@link recalculateLineVat} PRICE 권위, 생성 화면과
+ * 동일 함수)을 "필드 = VAT 포함"으로 되돌렸고(개발책임자 결정 재확인), 071e6c7ac 가 라벨도
+ * 데이터 무관 상수 "단가(VAT포함)"로 고정했다 — 그런데 이 함수(그 전신인 인라인 변환)는 그
+ * 전환에서 빠져 계속 ÷1.1 을 적용했다. 기억·카탈로그와 필드가 이제 같은 VAT 포함 도메인인데
+ * 여전히 ÷1.1 하면, 필드에 들어간 값이 실제로는 VAT 포함 단가로 재해석되어 원래 기억보다
+ * 약 9.09% 낮게 청구된다 — 거래처를 바꿔 저장할 때마다 그 낮아진 값이 다시 기억에 각인되고
+ * 다음 재조회가 그 값을 또 ÷1.1 해, 왕복마다 복리로 더 축소된다(라이브 실증 #937-R3:
+ * 기억 500,000 → 1차 저장 454,545 → 2차 재조회·저장 413,222). 필드·기억이 이제 같은 도메인
+ * 이므로 변환 없이 그대로 승격한다.
+ *
+ * @returns UNAVAILABLE(카탈로그도 미확보)이면 빈 문자열 — 값을 지어내지 않고 저장을 막는
+ *   기존 계약(hasUnavailableReprice)을 그대로 유지한다. 그 외에는 outcome.unitPrice 그대로.
+ */
+export function repricedFieldValue(
+  outcome: Pick<PartnerRepriceOutcome, 'source' | 'unitPrice'>,
+): string {
+  return outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice
 }
 
 function EditPriceChangeIndicator({ id }: { id: string }) {
@@ -2123,13 +2146,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * 카탈로그 미확보 라인(품목 삭제/조회 실패/판매가 null)은 현재값을 비우고 UNAVAILABLE 마커와
    * 저장 차단을 적용한다. 값을 지어내지 않으면서 옛 거래처 단가의 조용한 각인도 허용하지 않는다.
    *
-   * <p><b>VAT 도메인 변환</b> (R8 잔여 2 — 드리프트): 기억·카탈로그는 VAT <b>포함</b>, 수정 필드는
-   * VAT <b>제외</b> 공급단가다(utils/vatPrice.ts 에 BE 실증 기록). 후보는 포함 도메인으로 승격해
-   * 훅에 넘기고(비교 도메인 통일), 적용 시 {@code vatExclusiveOf}(BE ÷1.1 정수 절사 미러)로
-   * 필드 도메인 변환한다. 미변환 시 기억 500,000 이 필드에 그대로 실려 저장 ×1.1 = 550,000 으로
-   * 거래처 변경마다 ~10% 복리 팽창했다(라이브 실증). 라인별 세구분 분기는 두지 않는다 — BE
-   * SlipLine 에 세구분 필드가 없고 수정 저장 각인이 전 라인 균일 ×1.1 이므로 균일 ÷1.1 이 유일한
-   * 정합 미러다.
+   * <p><b>VAT 도메인</b> (R8 잔여 2 드리프트 fix → <b>#937 R-3 근본수정으로 무변환</b>): 기억·
+   * 카탈로그는 VAT <b>포함</b>이고, 1041bad17/071e6c7ac 이후 이 화면의 수정 필드도 생성 화면과
+   * 같은 VAT <b>포함</b>이다({@link recalculateLineVat} PRICE 권위 — utils/vatPrice.ts 문서와
+   * {@link repricedFieldValue} 참고). 두 도메인이 같으므로 후보 build 와 적용 모두 변환하지
+   * 않는다 — 종전엔 {@code vatExclusiveOf}(BE ÷1.1 미러)로 변환했는데, 그건 필드가 아직 VAT
+   * 제외였던 시절의 계약이 남아 있던 것이다. 그 변환을 필드=VAT포함 전환 이후에도 그대로
+   * 두면 기억 500,000 이 필드에 454,545(÷1.1)로 실려 실단가가 9.09% 낮아지고, 거래처를
+   * 왕복하며 저장할 때마다 그 낮아진 값이 다시 기억에 각인돼 복리로 더 줄었다(라이브 실증
+   * #937-R3: 500,000 → 454,545 → 413,222). 라인별 세구분 분기는 두지 않는다 — BE SlipLine 에
+   * 세구분 필드가 없고 수정 저장 각인이 전 라인 균일이므로 균일 무변환이 유일한 정합이다.
    *
    * <p><b>세트 구성품 제외</b> (R8 재fix 회귀 교정): {@link bundleComponentLineIds} 라인
    * (parentSetModel 비공백 — head 포함)은 후보에서 뺀다. 구성품은 수정 저장의 가격기억 각인
@@ -2175,8 +2201,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setModalRepricePending(false)
       return
     }
-    // 필드(VAT제외) 스냅샷 — 적용 시 실변경 판정 기준(build 시점).
-    const currentExclusiveByLineId = new Map(
+    // 필드(VAT포함, #937 R-3) 스냅샷 — 적용 시 실변경 판정 기준(build 시점).
+    const currentFieldByLineId = new Map(
       targets.map((line) => [line.lineId!, String(line.unitPrice ?? '').trim()]),
     )
     // 1단계: 카탈로그 판매가(VAT포함) 조회 — miss fallback 원천.
@@ -2195,17 +2221,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           catalogInclusiveByProductId.set(product.id, String(product.sellingPrice))
         }
       }
-      // 2단계: 후보를 기억 도메인(VAT포함)으로 승격해 공용 훅 실행.
-      const candidates: PartnerRepriceCandidate[] = targets.map((line) => {
-        const currentInclusive = vatInclusiveOf(currentExclusiveByLineId.get(line.lineId!) ?? '')
-        return {
-          key: line.lineId!,
-          productId: line.productId!,
-          currentUnitPrice: currentInclusive,
-          // 삭제품목·sellingPrice null·조회 실패는 null — 공용 훅이 UNAVAILABLE 로 명시한다.
-          catalogFallback: catalogInclusiveByProductId.get(line.productId!) ?? null,
-        }
-      })
+      // 2단계: 후보 build — #937 R-3 이후 필드도 기억과 같은 VAT 포함 도메인이라 변환이 없다
+      // (종전 vatInclusiveOf 승격은 필드=VAT제외 시절의 계약 — 이제 그대로 넘긴다).
+      const candidates: PartnerRepriceCandidate[] = targets.map((line) => ({
+        key: line.lineId!,
+        productId: line.productId!,
+        currentUnitPrice: currentFieldByLineId.get(line.lineId!) ?? '',
+        // 삭제품목·sellingPrice null·조회 실패는 null — 공용 훅이 UNAVAILABLE 로 명시한다.
+        catalogFallback: catalogInclusiveByProductId.get(line.productId!) ?? null,
+      }))
       const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates)
       const requestIsCurrent = () => partnerRepriceSessionIsCurrent(
         seq,
@@ -2216,27 +2240,27 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       )
       if (!requestIsCurrent()) return
       // in-flight 편집 재검증 원천 — provider 있으면 Y.Doc(원격 포함 최신), 없으면 로컬 state 최신 ref.
-      const liveExclusiveOf = (lineId: string): string => {
+      const liveFieldValueOf = (lineId: string): string => {
         if (provider) return provider.getItemValueById(lineId, 'unitPrice').trim()
         const line = editLinesRef.current.find((candidate) => candidate.lineId === lineId)
         return line === undefined ? '' : String(line.unitPrice ?? '').trim()
       }
-      // 3단계: outcome(포함 도메인)을 필드 도메인(VAT제외)으로 변환한다.
+      // 3단계: outcome → 필드에 적용할 값(#937 R-3: 같은 VAT 포함 도메인이라 변환 없음).
       const changed = new Set<string>()
       const priceByLineId = new Map<string, string>()
       const appliedOutcomes = new Map<string, PartnerRepriceOutcome>()
       for (const outcome of outcomes) {
-        const nextExclusive = outcome.source === 'UNAVAILABLE' ? '' : vatExclusiveOf(outcome.unitPrice)
-        const currentExclusive = currentExclusiveByLineId.get(outcome.key)
-        if (currentExclusive === undefined || (outcome.source !== 'UNAVAILABLE' && !nextExclusive)) continue
+        const nextValue = repricedFieldValue(outcome)
+        const currentValue = currentFieldByLineId.get(outcome.key)
+        if (currentValue === undefined || (outcome.source !== 'UNAVAILABLE' && !nextValue)) continue
         // 조회 중 직접 편집된 값과 삭제된 라인은 결과로 덮지 않는다.
-        if (liveExclusiveOf(outcome.key) !== currentExclusive) continue
+        if (liveFieldValueOf(outcome.key) !== currentValue) continue
         appliedOutcomes.set(outcome.key, outcome)
-        if (nextExclusive === currentExclusive || (
-          nextExclusive !== '' && Number(nextExclusive) === Number(currentExclusive)
+        if (nextValue === currentValue || (
+          nextValue !== '' && Number(nextValue) === Number(currentValue)
         )) continue
         changed.add(outcome.key)
-        priceByLineId.set(outcome.key, nextExclusive)
+        priceByLineId.set(outcome.key, nextValue)
       }
       if (priceByLineId.size > 0) {
         if (!requestIsCurrent()) return

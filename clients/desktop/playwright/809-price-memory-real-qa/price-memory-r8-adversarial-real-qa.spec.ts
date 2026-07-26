@@ -205,7 +205,7 @@ async function openSalesEdit(page: Page, slipId: string): Promise<void> {
   await page.getByTestId('sales-slip-edit-button').waitFor({ state: 'visible', timeout: 30000 })
   await page.getByTestId('sales-slip-edit-button').click()
   // coedit provider 로드 완료 = 라인 입력이 편집 가능해질 때.
-  await expect(page.getByLabel('단가(VAT제외) 1')).toBeEnabled({ timeout: 30000 })
+  await expect(page.getByLabel('단가(VAT포함) 1')).toBeEnabled({ timeout: 30000 })
   await page.waitForTimeout(1500)
 }
 
@@ -215,7 +215,7 @@ async function openPurchaseEdit(page: Page, slipId: string): Promise<void> {
   await page.getByTestId('purchase-slip-edit-open').waitFor({ state: 'visible', timeout: 30000 })
   await page.getByTestId('purchase-slip-edit-open').click()
   await expect(page.getByTestId('purchase-slip-edit-modal')).toBeVisible({ timeout: 30000 })
-  await expect(page.getByLabel('단가(VAT제외) 1')).toBeEnabled({ timeout: 30000 })
+  await expect(page.getByLabel('단가(VAT포함) 1')).toBeEnabled({ timeout: 30000 })
   await page.waitForTimeout(1500)
 }
 
@@ -376,7 +376,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     // 창B: coedit 편집 모달 진입 → 단품(3행) 단가 직접 입력.
     await openSalesEdit(pageB, slipId)
     await capture(pageB, '05-r8-qa-2b-windowB-coedit-3lines')
-    await pageB.getByLabel('단가(VAT제외) 3').fill(NEW_SINGLE_PRICE)
+    await pageB.getByLabel('단가(VAT포함) 3').fill(NEW_SINGLE_PRICE)
     await pageB.waitForTimeout(600)
     await capture(pageB, '06-r8-qa-2b-windowB-single-price-entered-299000')
 
@@ -731,7 +731,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
 
     // 실제 거래처 변경 — 자동완성 후보를 골라 확정한다.
     await pickAutocomplete(page, '거래처', '거래처 목록', OTHER_PARTNER.name)
-    await page.getByLabel('단가(VAT제외) 3').fill(NEW_PRICE)
+    await page.getByLabel('단가(VAT포함) 3').fill(NEW_PRICE)
     await page.waitForTimeout(600)
     await capture(page, '12-r8-qa-3-partner-switched-via-autocomplete-and-price')
 
@@ -977,7 +977,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     })
 
     await openSalesEdit(page, slipId)
-    const priceField = page.getByLabel('단가(VAT제외) 1')
+    const priceField = page.getByLabel('단가(VAT포함) 1')
     expect((await priceField.inputValue()).replace(/[^0-9]/g, ''), '전제: 진입 시 라인=A 단가').toBe(String(NEGOTIATED_FOR_A))
     await capture(page, '24-r8-qa-11-hit-edit-modal-partnerA-price-913000')
 
@@ -1113,7 +1113,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
       page.getByTestId('sales-slip-edit-price-refresh-banner'),
       'R8-QA-11-MISS fix 가드: miss 재적용 배너 미표시(카탈로그 fallback 미작동 — 잔여결함 회귀)',
     ).toBeVisible({ timeout: 10000 })
-    const priceAfter = (await page.getByLabel('단가(VAT제외) 1').inputValue()).replace(/[^0-9]/g, '')
+    const priceAfter = (await page.getByLabel('단가(VAT포함) 1').inputValue()).replace(/[^0-9]/g, '')
     console.log(`[R8-QA-11-MISS] 거래처 변경 후 라인 단가=${priceAfter} (기대=round(${missCatalog}/1.1)=${missFieldExpected} · 옛 A=${NEGOTIATED_FOR_A})`)
     expect(
       priceAfter,
@@ -1222,7 +1222,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
       name: '카탈로그 판매가를 확인할 수 없어 단가를 비웠습니다. 직접 입력해 주세요',
     })
     await expect(unavailableMarker, 'R9-QA #14: fail 마커 미표시').toHaveText('단가 확인 필요', { timeout: 15000 })
-    await expect(page.getByLabel('단가(VAT제외) 1'), 'R9-QA #9: 카탈로그 미확보인데 옛 A 단가가 잔존').toHaveValue('')
+    await expect(page.getByLabel('단가(VAT포함) 1'), 'R9-QA #9: 카탈로그 미확보인데 옛 A 단가가 잔존').toHaveValue('')
     await expect(save, 'R9-QA #9: UNAVAILABLE 단가 미확인 상태에서 저장 활성').toBeDisabled()
     const banner = page.getByTestId('sales-slip-edit-price-refresh-banner')
     await expect(banner).toContainText('단가 확인 필요 1건')
@@ -1511,8 +1511,8 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     )
 
     await openSalesEdit(page, pureSlipId)
-    await expect(page.getByLabel('단가(VAT제외) 1')).toHaveValue(/88,?000/)
-    await expect(page.getByLabel('단가(VAT제외) 2')).toHaveValue(/55,?000/)
+    await expect(page.getByLabel('단가(VAT포함) 1')).toHaveValue(/88,?000/)
+    await expect(page.getByLabel('단가(VAT포함) 2')).toHaveValue(/55,?000/)
     await capture(page, '33-r8-qa-14-pure-set-edit-modal-components-88000-55000')
 
     await pickAutocomplete(page, '거래처', '거래처 목록', OTHER_PARTNER.name)
@@ -1520,11 +1520,11 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
 
     // 🔴 가드 1 — 구성품 필드 불변(bait hit 908182 도, 카탈로그 80000/50000 도 아님).
     await expect(
-      page.getByLabel('단가(VAT제외) 1'),
+      page.getByLabel('단가(VAT포함) 1'),
       'R8-QA-14 Part1: head 배분가가 재가격됨(88,000 이탈) — 구성품 제외 회귀',
     ).toHaveValue(/^88,?000$/)
     await expect(
-      page.getByLabel('단가(VAT제외) 2'),
+      page.getByLabel('단가(VAT포함) 2'),
       'R8-QA-14 Part1: tail 배분가가 재가격됨(55,000 이탈) — 구성품 제외 회귀',
     ).toHaveValue(/^55,?000$/)
     // 🔴 가드 2 — 재가격 대상 0 이므로 재조회 API 호출 자체가 없어야 한다(bulk 0 · lookup 0).
@@ -1581,7 +1581,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     expect(aSingleMemory, 'R8-QA-14 Part2 전제: A 단품 기억').toBe('367840.00/LINE_SAVE')
 
     await openSalesEdit(page, mixedSlipId)
-    await expect(page.getByLabel('단가(VAT제외) 3')).toHaveValue(/334,?400/)
+    await expect(page.getByLabel('단가(VAT포함) 3')).toHaveValue(/334,?400/)
     await capture(page, '35-r8-qa-14-mixed-edit-modal-3lines')
 
     await pickAutocomplete(page, '거래처', '거래처 목록', OTHER_PARTNER.name)
@@ -1589,15 +1589,15 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
 
     // 🔴 가드 5 — 구성품 필드 불변 · 단품만 B 기억 기준으로 재가격(700,000).
     await expect(
-      page.getByLabel('단가(VAT제외) 1'),
+      page.getByLabel('단가(VAT포함) 1'),
       'R8-QA-14 Part2: 혼합 전표 head 배분가가 재가격됨 — 구성품 제외 회귀',
     ).toHaveValue(/^88,?000$/)
     await expect(
-      page.getByLabel('단가(VAT제외) 2'),
+      page.getByLabel('단가(VAT포함) 2'),
       'R8-QA-14 Part2: 혼합 전표 tail 배분가가 재가격됨 — 구성품 제외 회귀',
     ).toHaveValue(/^55,?000$/)
     await expect(
-      page.getByLabel('단가(VAT제외) 3'),
+      page.getByLabel('단가(VAT포함) 3'),
       'R8-QA-14 Part2: 단품이 B 기억 제외환산(700,000)으로 재가격되지 않음 — 단품 재가격까지 깨짐(과잉 제외)',
     ).toHaveValue(/^700,?000$/)
     // 🔴 가드 6 — 재조회 요청 body 에 단품 productId 만(구성품 미포함).
@@ -1699,14 +1699,14 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
       if (request.method() === 'POST' && request.url().includes('/api/products/lookup')) hitLookupBodies.push(request.postData() ?? '')
     })
     await openPurchaseEdit(page, hitSlipId)
-    const comp1Before = await page.getByLabel('단가(VAT제외) 1').inputValue()
-    const comp2Before = await page.getByLabel('단가(VAT제외) 2').inputValue()
+    const comp1Before = await page.getByLabel('단가(VAT포함) 1').inputValue()
+    const comp2Before = await page.getByLabel('단가(VAT포함) 2').inputValue()
     await pickAutocomplete(page, '거래처', '거래처 목록', OTHER_PARTNER.name)
     await page.waitForTimeout(2500)
 
-    await expect(page.getByLabel('단가(VAT제외) 1'), '매입 HIT: head 구성품 배분가 변형').toHaveValue(comp1Before)
-    await expect(page.getByLabel('단가(VAT제외) 2'), '매입 HIT: tail 구성품 배분가 변형').toHaveValue(comp2Before)
-    await expect(page.getByLabel('단가(VAT제외) 3'), '매입 HIT: B 기억 제외환산 미적용').toHaveValue(/^700,?000$/)
+    await expect(page.getByLabel('단가(VAT포함) 1'), '매입 HIT: head 구성품 배분가 변형').toHaveValue(comp1Before)
+    await expect(page.getByLabel('단가(VAT포함) 2'), '매입 HIT: tail 구성품 배분가 변형').toHaveValue(comp2Before)
+    await expect(page.getByLabel('단가(VAT포함) 3'), '매입 HIT: B 기억 제외환산 미적용').toHaveValue(/^700,?000$/)
     expect(hitBulkBodies, '매입 HIT: bulk 정확히 1건').toHaveLength(1)
     expect(hitLookupBodies, '매입 HIT: catalog lookup 정확히 1건').toHaveLength(1)
     for (const [label, body] of [['bulk', hitBulkBodies[0] ?? ''], ['lookup', hitLookupBodies[0] ?? '']] as const) {
@@ -1765,7 +1765,7 @@ test.describe('#809 R8 — OPUS 4.8 적대검증 라이브 재현', () => {
     await openPurchaseEdit(page, missSlipId)
     await pickAutocomplete(page, '거래처', '거래처 목록', OTHER_PARTNER.name)
     await page.waitForTimeout(2500)
-    await expect(page.getByLabel('단가(VAT제외) 1'), '매입 MISS: 카탈로그 제외환산 미적용').toHaveValue(new RegExp(`^${missField}$`))
+    await expect(page.getByLabel('단가(VAT포함) 1'), '매입 MISS: 카탈로그 제외환산 미적용').toHaveValue(new RegExp(`^${missField}$`))
     await expect(page.getByTestId('purchase-slip-edit-price-refresh-banner')).toContainText('판매가 1건')
     await expect(page.locator('tr.price-memory-refreshed-row'), '매입 MISS: 변경 1행 강조').toHaveCount(1)
     await expect(
