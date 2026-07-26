@@ -380,8 +380,9 @@ function collectInlineLiteralDestinations(src: string): string[] {
  * 아니다(PM 정정, 2026-07-27 재수렴 4차).
  *
  * 🚨 다만 **정적 면제로 두지 않는다** — 이 목록은 "이 파일을 안 본다" 가 아니라 "이 파일의
- * 인라인 목적지가 실제 커밋 파일을 가리키지 않는다" 를 G8d 가 매 실행 재확인한다는 뜻이다.
- * 파일명이 커밋 증거와 겹치는 순간(=이월 사유 소멸) G8d 가 RED 다. 목록은 줄이는 방향으로만
+ * 인라인 목적지 경로에 파일이 실재하지 않는다" 를 G8d 가 매 실행 재확인한다는 뜻이다.
+ * 목적지에 파일이 나타나는 순간 G8d 가 RED 다(tracked 면 이월 사유 소멸, 미추적이면 로컬
+ * 실행 잔여물 — G8d 메시지가 둘을 구분해 안내한다). 목록은 줄이는 방향으로만
  * 수정한다(H-5 CARRIED_OVER 와 동일 규약).
  */
 const INLINE_RELATIVE_CARRIED_OVER = new Set<string>([
@@ -1394,9 +1395,17 @@ describe('하네스 거짓 green 가드', () => {
   /**
    * G8d — 이월(INLINE_RELATIVE_CARRIED_OVER)은 **면제가 아니라 조건부 유예**다.
    * 유예 사유("cwd 상대경로라 커밋 증거를 침범하지 않는다")가 여전히 참인지를 매 실행
-   * 재확인한다 — 목적지 파일명이 커밋된 증거와 겹치는 순간 RED.
+   * 재확인한다 — 목적지 경로에 파일이 나타나는 순간 RED.
+   *
+   * ⚠️ 이 검사가 쓰는 것은 `fs.existsSync` 라 **tracked/untracked 를 구분하지 않는다**
+   * (2026-07-27 재수렴 5차). 즉 "커밋 파일이 실재한다" 가 아니라 "그 경로에 파일이
+   * 실재한다" 까지만 판정한다. 레포 루트를 cwd 로 sp-10-2 스펙을 로컬 실행하면 미추적
+   * 잔여물이 같은 경로에 생겨 즉시 RED 인데, 그건 이월 사유 소멸이 아니라 실행 잔여물이다.
+   * CI 는 `working-directory: qa/playwright` 로 돌고 서버 부재 시 hard-fail 이라 이 경로가
+   * 생기지 않는다(무해함 실행 확인). 판정을 좁히지 않고 **메시지를 판정에 맞춘다** —
+   * git 조회를 테스트에 끌어들이면 가드가 VCS 상태에 의존하게 되어 더 나빠진다.
    */
-  it('G8d: 이월된 cwd-상대 인라인 목적지가 실제 커밋 파일을 가리키지 않는다 (이월 사유 생존 검사)', () => {
+  it('G8d: 이월된 cwd-상대 인라인 목적지 경로에 파일이 실재하지 않는다 (이월 사유 생존 검사 — existsSync 라 tracked/untracked 는 구분하지 않는다)', () => {
     const violations: string[] = []
     for (const relFile of INLINE_RELATIVE_CARRIED_OVER) {
       const abs = path.resolve(REPO_ROOT, relFile)
@@ -1412,13 +1421,183 @@ describe('하네스 거짓 green 가드', () => {
       }
       for (const dest of dests) {
         if (fs.existsSync(path.resolve(REPO_ROOT, dest))) {
-          violations.push(`${relFile} → ${dest} (이 경로에 커밋 파일이 실재한다 — 이월 사유 소멸, 즉시 fix)`)
+          violations.push(
+            `${relFile} → ${dest} (이 경로에 파일이 실재한다. ` +
+              `이 판정은 fs.existsSync 라 tracked/untracked 를 구분하지 않는다 — ` +
+              `git ls-files 로 tracked 면 이월 사유 소멸이니 즉시 fix, ` +
+              `아니면 레포 루트를 cwd 로 로컬 실행해 생긴 미추적 잔여물이니 지울 것)`,
+          )
         }
       }
     }
     expect(
       violations,
-      `이월 사유가 더는 성립하지 않는다 — resolveQaShotsDir 경유로 고치거나 목록에서 뺄 것:\n${violations.join('\n')}`,
+      `이월 사유의 생존 검사가 걸렸다 — 각 줄의 판정 근거를 확인해 고치거나 목록에서 뺄 것:\n${violations.join('\n')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * G9 (2026-07-27 재수렴 5차 R-2) — **가드가 검사하는 표면 × 워크플로 트리거**.
+   *
+   * G8c 까지의 축은 "관할 루트가 가드 안에 다 들어왔는가" 였다. 그런데 관할 안에 있어도
+   * **그 파일을 바꾸는 PR 이 CI 를 발동시키지 않으면 가드는 한 번도 안 돈다** — 관할은
+   * 완전한데 실행이 0인 상태다. 실측(2026-07-27):
+   *
+   *   ci.yml   `pull_request.paths-ignore` 에 `docs/**`  → docs/qa 변경은 CI 자체가 skip
+   *   qa-e2e.yml `pull_request.paths` 는 `qa/**`(≠ `docs/qa/**`) · `clients/**` · 서비스 3종
+   *   그 외 워크플로는 arologis/estimate-app/order-app 전용 또는 schedule·tag 전용
+   *
+   * ⟹ `docs/qa/<slug>/capture.mjs` 만 추가하는 PR 은 **어떤 워크플로도** 돌지 않는다. 그
+   * 파일의 관할자인 H2b·H2-py·H2-sh 는 6c49d39ad·44d718491 에서 관할로 편입됐는데, 정작
+   * 그 관할을 건드리는 PR 이 게이트를 안 탄다.
+   *
+   * 그래서 손으로 적은 목록이 아니라 **가드가 실제로 스캔하는 파일 전수**를 GitHub Actions
+   * 경로 필터 문법으로 직접 대조한다. 정적 근사의 한계는 파서 sanity 테스트가 지킨다.
+   * ─────────────────────────────────────────────────────────────────────────────
+   */
+  const WORKFLOW_DIR = path.resolve(REPO_ROOT, '.github/workflows')
+
+  /**
+   * GitHub Actions 경로 필터 글롭 → 정규식.
+   *
+   * 공식 문법(Workflow syntax — 필터 패턴 치트시트)을 그대로 옮긴다:
+   *   `*`  = `/` 를 **제외한** 0자 이상
+   *   `**` = `/` 를 **포함한** 0자 이상
+   * 그래서 `docs/qa/**.mjs` 는 `docs/qa/x.mjs` 와 `docs/qa/a/b/x.mjs` 를 모두 잡는다.
+   * (`docs/qa/**​/*.mjs` 형태는 `**` 가 0자일 때 슬래시가 겹쳐 최상위 파일을 놓친다 —
+   * 이 레포의 트리거는 `**.<ext>` 형태로 쓴다.) `!` 부정 패턴은 이 레포가 쓰지 않으므로
+   * 다루지 않는다 — 새로 쓰이면 아래 sanity 가 아니라 이 함수부터 고쳐야 한다.
+   */
+  function ghGlobToRegExp(glob: string): RegExp {
+    let out = ''
+    for (let i = 0; i < glob.length; i++) {
+      const c = glob[i] as string
+      if (c === '*') {
+        if (glob[i + 1] === '*') {
+          out += '.*'
+          i++
+        } else {
+          out += '[^/]*'
+        }
+        continue
+      }
+      out += /[.+^${}()|[\]\\?]/.test(c) ? `\\${c}` : c
+    }
+    return new RegExp(`^${out}$`)
+  }
+
+  /** `on:` 아래 2칸 들여쓰기 이벤트(pull_request 등) 블록 본문만 잘라낸다. */
+  function eventBlock(yml: string, event: string): string {
+    const lines = yml.split(/\r?\n/)
+    const start = lines.findIndex((l) => new RegExp(`^  ${event}:\\s*$`).test(l))
+    if (start < 0) return ''
+    let end = lines.length
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i] ?? ''
+      if (l.trim() === '') continue
+      if (!/^\s{3,}/.test(l)) {
+        end = i
+        break
+      }
+    }
+    return lines.slice(start + 1, end).join('\n')
+  }
+
+  /** 블록 안 `<key>:` 시퀀스의 인용 문자열 항목 전수(주석/빈 줄 skip). */
+  function yamlSeq(block: string, key: string): string[] {
+    const lines = block.split(/\r?\n/)
+    const start = lines.findIndex((l) => new RegExp(`^\\s*${key}:\\s*$`).test(l))
+    if (start < 0) return []
+    const base = (lines[start]?.match(/^\s*/)?.[0] ?? '').length
+    const out: string[] = []
+    for (let i = start + 1; i < lines.length; i++) {
+      const l = lines[i] ?? ''
+      if (l.trim() === '' || /^\s*#/.test(l)) continue
+      if ((l.match(/^\s*/)?.[0] ?? '').length <= base) break
+      const m = l.match(/^\s*-\s*'([^']*)'\s*(?:#.*)?$/) ?? l.match(/^\s*-\s*"([^"]*)"\s*(?:#.*)?$/)
+      if (m) out.push(m[1] ?? '')
+    }
+    return out
+  }
+
+  function ciPullRequestIgnores(): string[] {
+    const yml = fs.readFileSync(path.join(WORKFLOW_DIR, 'ci.yml'), 'utf-8')
+    return yamlSeq(eventBlock(yml, 'pull_request'), 'paths-ignore')
+  }
+
+  /**
+   * ci.yml 을 뺀 워크플로 중 **이 가드 파일을 실제로 실행하는** 것들의 `pull_request.paths` 합집합.
+   *
+   * 🔑 "아무 워크플로나 발동하면 된다" 로 세면 안 된다 — 예컨대 `paths: ['docs/**']` 을 가진
+   * 무관한 배포 워크플로가 하나 생기는 것만으로 이 검사가 통째로 무의미해진다(가드는 여전히
+   * 안 돈다). 그래서 파일 본문에 이 가드 스펙 경로가 등장하는 워크플로만 커버리지로 인정한다.
+   * (ci.yml 은 `npm test` 로 전 vitest 를 돌려 이름이 안 나오지만, 애초에 무시 목록을 제공하는
+   * 쪽이라 이 집합에서 빠져 있어도 무방하다.)
+   */
+  const GUARD_SPEC_MARKER = 'harness-false-green-guard'
+
+  function guardRunningWorkflowPaths(): string[] {
+    const out: string[] = []
+    for (const name of fs.readdirSync(WORKFLOW_DIR)) {
+      if (!/\.ya?ml$/.test(name) || name === 'ci.yml') continue
+      const yml = fs.readFileSync(path.join(WORKFLOW_DIR, name), 'utf-8')
+      if (!yml.includes(GUARD_SPEC_MARKER)) continue
+      out.push(...yamlSeq(eventBlock(yml, 'pull_request'), 'paths'))
+    }
+    return out
+  }
+
+  /** 가드가 실제로 스캔하는 파일 전수(REPO_ROOT 상대, 슬래시 정규화) — guardRootFor 와 동일 규칙. */
+  function guardScannedFiles(): string[] {
+    const out = new Set<string>()
+    for (const spec of GUARD_ROOTS) {
+      const root = path.resolve(REPO_ROOT, spec.dir)
+      if (!fs.existsSync(root)) continue
+      const files = spec.recursive
+        ? walk(root, (p) => spec.exts.test(p))
+        : fs
+            .readdirSync(root, { withFileTypes: true })
+            .filter((e) => !e.isDirectory() && spec.exts.test(e.name))
+            .map((e) => path.join(root, e.name))
+      for (const f of files) {
+        if (spec.exts === JS_CAPTURE_EXT && f.includes(`${path.sep}lib${path.sep}`)) continue
+        out.add(path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
+      }
+    }
+    return [...out].sort()
+  }
+
+  it('G9 파서 sanity: 워크플로 트리거 파싱과 글롭 변환이 실제로 동작한다 (파싱이 깨지면 G9 는 항상 무의미하게 GREEN)', () => {
+    expect(
+      ciPullRequestIgnores().length,
+      'ci.yml pull_request.paths-ignore 파싱 0건 — YAML 구조가 바뀌었다면 eventBlock/yamlSeq 부터 고칠 것',
+    ).toBeGreaterThanOrEqual(5)
+    expect(
+      guardRunningWorkflowPaths().length,
+      `이 가드를 실행하는 별도 워크플로의 pull_request.paths 파싱 0건 — YAML 구조가 바뀌었거나 ` +
+        `그 워크플로가 사라졌다(${GUARD_SPEC_MARKER} 문자열로 식별한다)`,
+    ).toBeGreaterThanOrEqual(5)
+    expect(guardScannedFiles().length, '가드 스캔 파일 도출이 사실상 0건').toBeGreaterThan(50)
+    // 글롭 변환 자기검사 — GitHub 문법(`*`=슬래시 제외, `**`=슬래시 포함)을 지키는지.
+    expect(ghGlobToRegExp('docs/**').test('docs/qa/a/b.mjs'), '`**` 가 슬래시를 못 넘는다').toBe(true)
+    expect(ghGlobToRegExp('docs/qa/**.mjs').test('docs/qa/a/b.mjs'), '중첩 경로 확장자 글롭 미매치').toBe(true)
+    expect(ghGlobToRegExp('docs/qa/**.mjs').test('docs/qa/top.mjs'), '`**` 0자(최상위 파일) 미매치').toBe(true)
+    expect(ghGlobToRegExp('docs/qa/**.mjs').test('docs/qa/a/b.js'), '확장자 구분이 안 된다').toBe(false)
+    expect(ghGlobToRegExp('qa/**').test('docs/qa/a.mjs'), '`qa/**` 가 `docs/qa/**` 를 잘못 덮는다').toBe(false)
+  })
+
+  it('G9: 가드가 스캔하는 파일 중 ci.yml 이 무시하는 것은 다른 워크플로가 반드시 발동시킨다 (게이트 0 표면 = RED)', () => {
+    const ignored = ciPullRequestIgnores().map(ghGlobToRegExp)
+    const covered = guardRunningWorkflowPaths().map(ghGlobToRegExp)
+    const ungated = guardScannedFiles().filter(
+      (f) => ignored.some((re) => re.test(f)) && !covered.some((re) => re.test(f)),
+    )
+    expect(
+      ungated,
+      `가드 관할인데 **이 파일만 바뀌는 PR 은 어떤 워크플로도 돌지 않는다** — 가드가 실행되지 않으므로\n` +
+        `위반이어도 조용히 GREEN 이다. ci.yml 의 paths-ignore 에서 빼거나(순수 문서 PR·QA 스크린샷\n` +
+        `커밋까지 14 서비스 BE 매트릭스를 통째로 돌리게 된다), 그 구간만 여는 경량 워크플로를 둘 것:\n${ungated.join('\n')}`,
     ).toEqual([])
   })
 })

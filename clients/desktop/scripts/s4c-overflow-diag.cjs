@@ -25,8 +25,10 @@ async function launch() { try { return await chromium.launch({ headless: true })
   await page.waitForSelector('.app-shell', { timeout: 20000 })
   for (const r of ROUTES) {
     await page.goto(`${BASE}/#${r.list}`, { waitUntil: 'domcontentloaded' })
+    // ⚠️ 이 단언이 재는 것은 URL 문자열이지 실제 화면 도달이 아니다(2026-07-27 재수렴 5차 X3).
+    // 잡는 것은 "작성자가 `/#` 를 빠뜨렸다" 뿐 — 실 도달 측정은 페이지별 DOM 마커 단언이 필요하다.
     if (!page.url().includes(`/#${r.list}`)) {
-      throw new Error(`목표 화면 도달 실패 — 기대=#${r.list} 실제=${page.url()}`)
+      throw new Error(`해시 경로 이탈 — 기대=#${r.list} 실제=${page.url()}`)
     }
     await page.waitForSelector('table tbody tr', { timeout: 8000 }).catch(() => {})
     await page.waitForTimeout(700)

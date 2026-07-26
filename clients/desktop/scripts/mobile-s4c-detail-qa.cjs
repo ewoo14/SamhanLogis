@@ -57,10 +57,11 @@ async function measure(page) {
 async function cap(ctxLabel, page, c) {
   try {
     // 해시 없는 goto 는 조용히 홈으로 낙착해 "리스트 비어있음"으로 오분류된다(2026-07-26
-    // 하네스 재수렴 라운드 G5 실측) — rows===0 판정보다 먼저 도달성부터 확인한다.
+    // 하네스 재수렴 라운드 G5 실측) — rows===0 판정보다 먼저 해시 경로부터 확인한다.
+    // ⚠️ 이 단언이 재는 것은 URL 문자열이지 실제 화면 도달이 아니다(2026-07-27 재수렴 5차 X3).
     await page.goto(`${BASE}/#${c.list}`, { waitUntil: 'domcontentloaded' })
     if (!page.url().includes(`/#${c.list}`)) {
-      throw new Error(`목표 화면 도달 실패 — 기대=#${c.list} 실제=${page.url()}`)
+      throw new Error(`해시 경로 이탈 — 기대=#${c.list} 실제=${page.url()}`)
     }
     await page.waitForSelector('table tbody tr', { timeout: 8000 }).catch(() => {})
     await page.waitForTimeout(800)
@@ -94,7 +95,7 @@ async function cap(ctxLabel, page, c) {
   const reached = results.filter((r) => r.reachable && r.found && r.found.length)
   console.log(`\n=== 요약: 진입+측정 ${reached.length} / 후보 ${CANDIDATES.length * 2} ===`)
   console.log('진입 가능:', [...new Set(reached.map((r) => r.label))].join(', ') || '(없음)')
-  // 빈 리스트(데이터 없음)로 인한 reachable:false 는 정상 소프트스킵이지만, 도달성 자체가
+  // 빈 리스트(데이터 없음)로 인한 reachable:false 는 정상 소프트스킵이지만, 해시 경로 이탈로
   // 실패(.error)한 항목은 게이트다(2026-07-26 하네스 재수렴 라운드 G5).
   if (results.some((r) => r.error)) {
     console.error('QA_FAIL_PARTIAL', JSON.stringify(results.filter((r) => r.error).map((r) => `${r.ctxLabel}-${r.label}`)))

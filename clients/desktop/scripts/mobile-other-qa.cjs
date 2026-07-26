@@ -34,7 +34,7 @@ async function launch() { try { return await chromium.launch({ headless: true })
       await page.goto(`${BASE}/#${p.path}`, { waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(1800)
       if (!page.url().includes(`/#${p.path}`)) {
-        throw new Error(`목표 화면 도달 실패 — 기대=#${p.path} 실제=${page.url()}`)
+        throw new Error(`해시 경로 이탈 — 기대=#${p.path} 실제=${page.url()}`)
       }
       // 페이지 가로 overflow 측정
       const ov = await page.evaluate(() => {

@@ -17,8 +17,10 @@ async function login(page) {
 }
 async function cap(page, path, file, label) {
   await page.goto(`${BASE}/#${path}`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(3000)
+  // ⚠️ 이 단언이 재는 것은 URL 문자열이지 실제 화면 도달이 아니다(2026-07-27 재수렴 5차 X3).
+  // 잡는 것은 "작성자가 `/#` 를 빠뜨렸다" 뿐 — 실 도달 측정은 페이지별 DOM 마커 단언이 필요하다.
   if (!page.url().includes(`/#${path}`)) {
-    throw new Error(`${label} 목표 화면 도달 실패 — 기대=#${path} 실제=${page.url()}`)
+    throw new Error(`${label} 해시 경로 이탈 — 기대=#${path} 실제=${page.url()}`)
   }
   const sw = await page.evaluate(() => document.documentElement.scrollWidth)
   const iw = await page.evaluate(() => window.innerWidth)

@@ -14,7 +14,7 @@ const P = process.argv[2] || '/accounting/bank-transactions'
   await page.goto('http://localhost:5175/#' + P, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(2200)
   if (!page.url().includes('/#' + P)) {
-    throw new Error(`목표 화면 도달 실패 — 기대=#${P} 실제=${page.url()}`)
+    throw new Error(`해시 경로 이탈 — 기대=#${P} 실제=${page.url()}`)
   }
   const r = await page.evaluate(() => {
     const vw = window.innerWidth

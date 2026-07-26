@@ -1,0 +1,84 @@
+name: Harness Guard (docs/qa 관할 — ci.yml 이 무시하는 구간)
+
+# 🚨 #851 재수렴 5차 R-2 — **가드가 검사하는 표면을 바꾸는 PR 은 그 가드를 실행한다.**
+#
+# 하네스 거짓 green 가드(clients/desktop/src/renderer/test-utils/harness-false-green-guard.test.ts)
+# 는 6c49d39ad·44d718491 에서 `docs/qa/**` 를 관할(H2b·H2-py·H2-sh)로 편입했다. 그런데
+# 그 가드를 실행하는 잡은 ci.yml 의 `frontend-desktop` 하나뿐이고, ci.yml 의
+# `pull_request.paths-ignore` 에는 `docs/**` 가 들어 있다. qa-e2e.yml 의 `paths` 도
+# `qa/**`(최상위 별도 트리)이지 `docs/qa/**` 가 아니다. 나머지 워크플로는 arologis /
+# estimate-app / order-app 전용이거나 schedule·tag 전용이다.
+#
+#   ⟹ `docs/qa/<slug>/capture.mjs` 만 추가하는 PR 은 **어떤 워크플로도 발동하지 않는다.**
+#     그 파일이 커밋된 스크린샷을 덮어써도 조용히 green 이다(2026-07-27 실측 21파일).
+#
+# ⚠️ ci.yml 의 `paths-ignore` 에서 `docs/**` 를 빼는 방식은 쓰지 않는다 — 순수 문서 PR 과
+#   QA 스크린샷 PNG 커밋(라운드마다 발생)까지 14 서비스 BE 매트릭스 + 프론트 6잡을 통째로
+#   돌리게 되어 낭비가 크다. 대신 **ci.yml 이 무시하는 바로 그 구간만** 여는 경량 잡을 둔다.
+#   트리거 확장자는 가드의 관할 확장자(js·cjs·mjs·ts / py / sh)와 1:1 이다. PNG 등 증거
+#   파일만 바뀌는 커밋은 여기서도 발동하지 않는다(가드가 스캔하는 대상이 아니다).
+#
+# 🔒 이 트리거와 가드 관할이 어긋나면 harness-false-green-guard.test.ts 의 **G9 가 RED** 다.
+#   G9 는 가드가 실제로 스캔하는 파일 전수를 ci.yml paths-ignore · 여기의 paths 와 대조한다.
+#   즉 이 파일은 손으로 동기화하는 목록이 아니라 테스트가 강제하는 목록이다.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/qa/**.js'
+      - 'docs/qa/**.cjs'
+      - 'docs/qa/**.mjs'
+      - 'docs/qa/**.ts'
+      - 'docs/qa/**.py'
+      - 'docs/qa/**.sh'
+      - '.github/workflows/harness-guard.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/qa/**.js'
+      - 'docs/qa/**.cjs'
+      - 'docs/qa/**.mjs'
+      - 'docs/qa/**.ts'
+      - 'docs/qa/**.py'
+      - 'docs/qa/**.sh'
+      - '.github/workflows/harness-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  harness-false-green-guard:
+    name: 하네스 거짓 green 가드 (docs/qa 관할)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            clients/web/design-system/package-lock.json
+            clients/desktop/package-lock.json
+
+      # ci.yml frontend-desktop · qa-e2e.yml desktop-playwright 과 동일한 설치 순서.
+      # design-system 은 `file:` 의존이라 desktop 설치 전에 먼저 준비한다.
+      - name: "design-system 사전 빌드 (file: dependency)"
+        working-directory: clients/web/design-system
+        run: |
+          npm ci
+          npm run build
+
+      - name: desktop 의존성 설치
+        working-directory: clients/desktop
+        run: npm ci
+
+      # 가드 파일 하나만 돌린다 — 이 잡의 목적은 docs/qa 관할을 게이트하는 것이고,
+      # 나머지 desktop 단위 테스트는 clients/** 를 건드리는 PR 에서 ci.yml 이 이미 돌린다.
+      - name: 하네스 거짓 green 가드 실행
+        working-directory: clients/desktop
+        run: npx vitest run src/renderer/test-utils/harness-false-green-guard.test.ts

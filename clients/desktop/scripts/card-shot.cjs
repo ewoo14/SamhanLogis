@@ -21,7 +21,7 @@ const QA = resolveQaShotsDir(nodePath.resolve(__dirname, '../../../docs/qa/mobil
   await page.goto('http://localhost:5175/#' + path, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(2200)
   if (!page.url().includes('/#' + path)) {
-    throw new Error(`목표 화면 도달 실패 — 기대=#${path} 실제=${page.url()}`)
+    throw new Error(`해시 경로 이탈 — 기대=#${path} 실제=${page.url()}`)
   }
   const tr = page.locator('.app-main table tbody tr').first()
   const n = await page.locator('.app-main table tbody tr').count()

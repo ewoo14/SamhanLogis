@@ -20,7 +20,7 @@ const QA = resolveQaShotsDir(path.resolve(__dirname, '../../../docs/qa/mobile-ot
   await page.goto('http://localhost:5175/#' + LIST, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(2000)
   if (!page.url().includes('/#' + LIST)) {
-    throw new Error(`목표 화면 도달 실패 — 기대=#${LIST} 실제=${page.url()}`)
+    throw new Error(`해시 경로 이탈 — 기대=#${LIST} 실제=${page.url()}`)
   }
   // 첫 행(카드) 클릭 → 상세
   const row = page.locator('.app-main table tbody tr').first()

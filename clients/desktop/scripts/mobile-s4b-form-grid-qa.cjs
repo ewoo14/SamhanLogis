@@ -44,7 +44,7 @@ async function capForm(ctxLabel, page, name, navPath, opener, waitSel) {
     // 해시 없는 goto 는 조용히 홈으로 낙착한다(2026-07-26 하네스 재수렴 라운드 G5 실측).
     await page.goto(`${BASE}/#${navPath}`, { waitUntil: 'domcontentloaded' })
     if (!page.url().includes(`/#${navPath}`)) {
-      throw new Error(`목표 화면 도달 실패 — 기대=#${navPath} 실제=${page.url()}`)
+      throw new Error(`해시 경로 이탈 — 기대=#${navPath} 실제=${page.url()}`)
     }
     if (waitSel) await page.waitForSelector(waitSel, { timeout: 15000 }).catch(() => {})
     await page.waitForTimeout(1200)

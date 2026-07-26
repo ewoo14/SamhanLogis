@@ -54,7 +54,7 @@ async function visit(page, label, path, wait = 1400) {
     await page.waitForTimeout(wait)
     r.url = page.url()
     if (!r.url.includes(`/#${path}`)) {
-      throw new Error(`목표 화면 도달 실패 — 기대=#${path} 실제=${r.url}`)
+      throw new Error(`해시 경로 이탈 — 기대=#${path} 실제=${r.url}`)
     }
     if (/\/login(\?|$)/.test(r.url)) r.status = 'REDIRECT_LOGIN'
     r.rows = await page.locator('table tbody tr').count().catch(() => 0)
@@ -102,8 +102,9 @@ async function visit(page, label, path, wait = 1400) {
   const detail = { label: 'B-detail-slip', path: '/sales/slips→row' }
   try {
     await page.goto(`${BASE}/#/sales/slips`, { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(1300)
+    // ⚠️ 이 단언이 재는 것은 URL 문자열이지 실제 화면 도달이 아니다(2026-07-27 재수렴 5차 X3).
     if (!page.url().includes('/#/sales/slips')) {
-      throw new Error(`목표 화면 도달 실패 — 기대=#/sales/slips 실제=${page.url()}`)
+      throw new Error(`해시 경로 이탈 — 기대=#/sales/slips 실제=${page.url()}`)
     }
     detail.rows = await page.locator('table tbody tr').count().catch(() => 0)
     if (detail.rows > 0) {
@@ -132,8 +133,8 @@ async function visit(page, label, path, wait = 1400) {
     const worst = r.worst && r.worst.length ? ` worst=${JSON.stringify(r.worst[0])}` : ''
     console.log(`[${r.label}] ${r.path} → rows=${r.rows ?? '-'} | ${flag}${worst}${r.mobilePrimitives !== undefined ? ' mobilePrim=' + r.mobilePrimitives : ''}${r.error ? ' ' + r.error : ''}`)
   }
-  // 목표 화면 도달 실패(reachability throw 로 만든 r.error 포함)가 하나라도 있으면 QA_DONE 을
-  // 찍지 않는다 — "도달 실패해도 성공 종료" 는 게이트가 아니다(2026-07-26 하네스 재수렴 라운드 G5).
+  // 해시 경로 이탈(URL 문자열 검사 throw 로 만든 r.error 포함)이 하나라도 있으면 QA_DONE 을
+  // 찍지 않는다 — "이탈해도 성공 종료" 는 게이트가 아니다(2026-07-26 하네스 재수렴 라운드 G5).
   if (results.some((r) => r.error)) {
     console.error('QA_FAIL_PARTIAL', JSON.stringify(results.filter((r) => r.error).map((r) => r.label)))
     process.exit(1)
