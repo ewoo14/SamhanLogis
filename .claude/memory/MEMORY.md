@@ -55,6 +55,8 @@
 - [standalone-boot 실QA](feedback_standalone_boot_real_qa.md) — Windows IT skip 시 jar standalone+docker PG
 
 # QA/테스트 규율
+- [🚨 PR 충돌이면 워크플로가 아예 안 생성된다](feedback_pr_conflict_blocks_all_workflows.md) — `mergeable=CONFLICTING` 이면 GitHub 이 merge commit 을 못 만들어 `pull_request` run 이 **0건**. 조용히 멈추며 "큐에 있음" 으로 오독하기 쉽다(#929 3커밋 연속·개발책임자 정정). **체크 수가 평소(33~41)보다 적으면 `gh pr view --json mergeable` 부터**
+- [🚨 게이트 0 표면 · mock 이 결함을 덮음](feedback_ungated_surface_and_mock_covering_defect.md) — CI green 을 세기 전에 **그 CI 가 검사하지 않는 표면**을 명시하라. Electron main 은 CI 스텝 0개였고 `vi.mock('electron-updater')` 가 깨진 import 자체를 덮어 2026-07-24~26 main 이 깨진 채 방치됐다. 데스크톱 라이브QA=Electron 실제 기동
 - [QA Docker 실서버 의무](feedback_qa_docker_real_test.md) — 실서버 테스트, code read PASS 금지, 미가용시 P2+CI fetch
 - [실서버 점검=실사용자 UI 캡처](feedback_real_server_check_screenshot.md) — API JSON 아닌 실 데스크톱 화면(:8080·dev_master·mock OFF)
 - [야간=라이브 Docker 캡처 미루지말것](feedback_overnight_live_capture.md) — 재빌드해서라도 라이브 캡처, CI IT 대체 금지
