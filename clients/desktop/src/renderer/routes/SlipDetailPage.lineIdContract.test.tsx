@@ -141,7 +141,15 @@ describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
     expect(source).toMatch(/function removePurchaseLine\(index: number\)[\s\S]*?removeItem\(lineId\)/)
     expect(source).toMatch(/function removeSalesLine\(index: number\)[\s\S]*?removeItem\(lineId\)/)
     expect(source).toMatch(/function detailCoeditFieldPath\([\s\S]*lineId[\s\S]*items\.\$\{line\.lineId \|\| index\}/)
+    expect(source).toMatch(/function detailCoeditTestIdPath\([\s\S]*items\.\$\{index\}/)
     expect(source).not.toMatch(/fieldPath=\{`items\.\$\{index\}\./)
+    const detailDomPaths = Array.from(source.matchAll(
+      /testIdPath=\{detailCoeditTestIdPath\(index, '([^']+)'\)\}/g,
+    ), (match) => match[1])
+    expect(detailDomPaths).toEqual([
+      'productName', 'modelName', 'specification', 'quantity', 'unitPrice', 'supplyAmount', 'vatAmount', 'lineTotalWithVat',
+      'productName', 'modelName', 'specification', 'quantity', 'unitPrice', 'supplyAmount', 'vatAmount', 'lineTotalWithVat',
+    ])
     const inputSource = readFileSync(
       fileURLToPath(new URL('../components/collab/CollaborativeSlipInput.tsx', import.meta.url)),
       'utf8',

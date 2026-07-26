@@ -151,6 +151,28 @@ describe('CollaborativeSlipInput', () => {
     expect(screen.queryByText('77')).toBeNull()
   })
 
+  it('CRDT lineId 경로와 DOM testid 경로를 분리해 첫 행 식별자를 유지한다', () => {
+    const provider = providerStub()
+    const lineId = provider.addItem({ quantity: '1' })
+
+    render(
+      <CollaborativeSlipInput
+        provider={provider}
+        fieldPath={`items.${lineId}.quantity`}
+        testIdPath="items.0.quantity"
+        value="1"
+        onValueChange={() => undefined}
+        aria-label="수량 1"
+      />,
+    )
+
+    expect(screen.getByTestId('slip-coedit-field-items-0-quantity')).toBeTruthy()
+    expect(screen.queryByTestId(`slip-coedit-field-items-${lineId}-quantity`)).toBeNull()
+
+    fireEvent.change(screen.getByLabelText('수량 1'), { target: { value: '2' } })
+    expect(provider.getItemValueById(lineId, 'quantity')).toBe('2')
+  })
+
   it('provider 문서 변경을 controlled input 값으로 반영한다', () => {
     const provider = providerStub()
     const onValueChange = vi.fn()

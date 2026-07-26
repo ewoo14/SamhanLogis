@@ -53,6 +53,11 @@ function remoteEditsFor(provider: DocCoeditProvider | null, fieldPath: string): 
 export interface CollaborativeSlipInputProps {
   provider: DocCoeditProvider | null
   fieldPath: string
+  /**
+   * DOM testid 에 사용할 경로. CRDT fieldPath 는 lineId 안정키를 쓰더라도,
+   * 상세 표의 협업 회귀 스펙은 행 위치 기반 식별자를 사용한다(D1' 경계 분리).
+   */
+  testIdPath?: string
   value: string
   onValueChange: (value: string) => void
   /**
@@ -97,6 +102,7 @@ export interface CollaborativeSlipInputProps {
 export function CollaborativeSlipInput({
   provider,
   fieldPath,
+  testIdPath,
   value,
   onValueChange,
   onDocSyncValueChange,
@@ -212,7 +218,7 @@ export function CollaborativeSlipInput({
 
   return (
     <span
-      data-testid={`slip-coedit-field-${fieldPath.replace(/\./g, '-')}`}
+      data-testid={`slip-coedit-field-${(testIdPath ?? fieldPath).replace(/\./g, '-')}`}
       style={wrapperStyle}
     >
       {editHighlight ? (
