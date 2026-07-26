@@ -125,16 +125,19 @@ function renderPage(initialEntry = '/accounting/journals/new') {
     },
   ])
 
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <Routes>
-          <Route path="/accounting/journals/new" element={<JournalFormPage />} />
-          <Route path="/accounting/journals/:id/edit" element={<JournalFormPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <Routes>
+            <Route path="/accounting/journals/new" element={<JournalFormPage />} />
+            <Route path="/accounting/journals/:id/edit" element={<JournalFormPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  }
 }
 
 afterEach(() => {
@@ -144,6 +147,28 @@ afterEach(() => {
 })
 
 describe('JournalFormPage 데스크톱 라인 grid', () => {
+  it('신규 작성 모드에서 라인을 채우지 않고 저장하면 여전히 "최소 2 라인" 오류를 표시한다 (정상 경로 검증 유지 — K2)', async () => {
+    renderPage()
+    await screen.findByText('계정과목')
+
+    // 신규 작성(create) 경로는 isEdit=false 라 #831-hydrate 렌더 중 파생 분기 자체가 아예
+    // 실행되지 않는다(단락 평가) — 이 테스트는 그 경로가 이번 전환으로 전혀 건드려지지
+    // 않았음을 확인한다. Save 버튼은 isBalanced(차변합=대변합>0)로도 게이트되므로, "계정 없이
+    // 금액만 있는 라인은 무의미"라는 원 결함 조건(meaningfulLines<2 인데 차/대변 합계는
+    // 우연히 일치)을 그대로 재현해 버튼을 활성화한 채로 여전히 "최소 2 라인" 오류가 뜨는지
+    // 본다 — 라인 1 은 계정+차변(의미있음), 라인 2 는 계정 없이 대변만(합계는 맞지만
+    // 계정과목이 없어 무의미) 채운다.
+    fireEvent.change(screen.getByLabelText('라인 1 계정과목'), { target: { value: '102' } })
+    fireEvent.change(screen.getByLabelText('라인 1 차변'), { target: { value: '1000' } })
+    fireEvent.change(screen.getByLabelText('라인 2 대변'), { target: { value: '1000' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+
+    expect(mocks.createJournal).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('최소 2 라인 (계정 + 금액) 을 입력하세요.')
+  })
+
   it('헤더/라인/합계행을 단일 가로 스크롤 컨테이너와 동일 좌우 기준선에 렌더한다', async () => {
     const view = renderPage()
 
@@ -398,6 +423,116 @@ describe('JournalFormPage 데스크톱 라인 grid', () => {
     const warning = await screen.findByRole('alert')
     expect(warning.textContent).toContain('거래처 조회 서비스에 일시 장애')
     expect(warning.textContent).not.toContain('다시 선택하세요')
+  })
+
+  it('#831-hydrate 계열: journalQuery 데이터 커밋 직후 hydrate effect 가 아직 실행되지 않은 프레임에도 오늘 날짜·빈 라인 2개인 초기값이 아니라 기존 분개 값이 이미 보인다 (K1/K3)', async () => {
+    const editId = 'journal-hydrate-race'
+    const row = {
+      id: editId,
+      journalNo: '2026/07/05-77',
+      journalDate: '2026-07-01',
+      status: 'DRAFT',
+      sourceType: 'MANUAL',
+      description: '기존 분개 설명',
+      totalDebit: '500000',
+      totalCredit: '500000',
+      createdByName: '오병승',
+      createdAt: '2026-07-01T09:00:00+09:00',
+      postedAt: null,
+      reversedAt: null,
+      reverseReason: null,
+      lines: [
+        {
+          lineNo: 1,
+          accountCode: '102',
+          accountName: '보통예금',
+          debit: '500000',
+          credit: '0',
+          partnerName: '기존거래처',
+          memo: '기존 메모1',
+        },
+        {
+          lineNo: 2,
+          accountCode: '401',
+          accountName: '매출',
+          debit: '0',
+          credit: '500000',
+          partnerName: null,
+          memo: null,
+        },
+      ],
+      version: 0,
+    }
+    // getJournal 을 영원히 pending 으로 둔다 — react-query 의 실 fetch 경로를 타지 않아야
+    // "언제 commit 되는지" 완전히 통제할 수 있다(#831-hydrate H4 기법과 동일 —
+    // client.setQueryData 로 캐시에 직접 주입).
+    mocks.getJournal.mockImplementation(() => new Promise(() => {}))
+
+    const { client } = renderPage(`/accounting/journals/${editId}/edit`)
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('분개 불러오는 중'))
+
+    client.setQueryData(['accounting', 'journal', editId], row)
+    // 매크로태스크 — MessageChannel 로 직접 만든다. setTimeout(fn,0) 은 WHATWG 스펙상
+    // "중첩 타이머 4ms 클램프" 대상이라, 이전 테스트의 waitFor 폴링 등으로 타이머 중첩 깊이가
+    // 쌓인 실행 컨텍스트에서는 React 스케줄러가 쓰는 MessageChannel 기반 매크로태스크보다
+    // 내 setTimeout 이 더 늦게 실행돼(느려짐) "effect 가 이미 flush 된 뒤" 관측되는 순서
+    // 역전이 실측 재현됐다(ProductFormPage #831-hydrate 테스트 설계 중 발견 — 파일 내 이전
+    // 테스트 유무에 따라 결과가 달라졌다). React 스케줄러와 동일한 MessageChannel 매크로
+    // 태스크를 직접 만들면 이 클램프 편차 없이 결정적이다.
+    //
+    // #831-hydrate 계열 4파일 통일 기법(2026-07-26 PM 지적) — 매크로태스크를 정확히 1틱씩
+    // 만들고, 그때마다 마이크로태스크를 흘려 "커밋을 처음 관측하는 순간" 즉시 멈춘다(더
+    // 돌리지 않는다 — pre-fix 코드에서 hydrate effect 의 매크로태스크까지 우연히 넘어가는
+    // 일이 없다). CashReceiptFormPage 는 부수 상태가 더 많아 2틱이 필요했던 반면 이 파일은
+    // 1틱으로 충분함을 실측했지만, 다른 실행 컨텍스트에서도 안전하도록 동일한 상한 있는
+    // 재시도 루프 구조를 쓴다.
+    let dateInput: HTMLInputElement | null = null
+    for (let macroTick = 0; macroTick < 10 && !dateInput; macroTick++) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => resolve()
+        channel.port2.postMessage(undefined)
+      })
+      dateInput = screen.queryByLabelText('일자') as HTMLInputElement | null
+      // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 섞이지 않으므로 구
+      // hydrate effect 가 끼어들 수 없다.
+      for (let microTick = 0; microTick < 300 && !dateInput; microTick++) {
+        await Promise.resolve()
+        dateInput = screen.queryByLabelText('일자') as HTMLInputElement | null
+      }
+    }
+    if (!dateInput) {
+      throw new Error('journalQuery 커밋을 관측하지 못했다 (매크로 10틱 + 매 틱마다 마이크로 300틱)')
+    }
+
+    // K1 — 커밋된 바로 그 프레임에 이미 실제 분개 값이 보인다. "폼은 보이는데 아직 오늘
+    // 날짜·빈 라인 2개(초기값)" 인 프레임이 스케줄러 타이밍과 무관하게 존재하지 않아야 한다.
+    expect(dateInput.value).toBe('2026-07-01')
+    expect((screen.getByLabelText('적요') as HTMLInputElement).value).toBe('기존 분개 설명')
+    expect((screen.getByLabelText('라인 1 계정과목') as HTMLInputElement).value).toBe('102')
+    expect((screen.getByLabelText('라인 2 계정과목') as HTMLInputElement).value).toBe('401')
+
+    // 부가 확인(JournalFormPage 특별 주의 — #831 R-3/R-5 findRiskyPartnerLines 2단계 확인
+    // 가드 무회귀): partnerId 는 이 hydrate 프레임에서 항상 null(UUID 비공개 정책상 별도
+    // 비동기 effect 로만 복원되며, 이 테스트는 그 매크로태스크를 아직 허용하지 않았다) —
+    // 그래서 첫 클릭은 여전히 "거래처 정보가 비어 있습니다" 확인을 요구해야 하고(하드 블록
+    // 아님), 이 전환으로 인해 "최소 2 라인" 같은 하이드레이션-창 특유의 엉뚱한 오류로
+    // 대체되면 안 된다.
+    fireEvent.click(screen.getByRole('button', { name: '저장' }))
+    expect(mocks.createJournal).not.toHaveBeenCalled()
+    const warning = await screen.findByRole('alert')
+    expect(warning.textContent).not.toBe('최소 2 라인 (계정 + 금액) 을 입력하세요.')
+    expect(warning.textContent).toMatch(/거래처/)
+
+    // "그대로 저장" 재클릭으로 hydrate 된 실제 값이 온전히 전송되는지 끝까지 확인한다.
+    fireEvent.click(screen.getByRole('button', { name: '그대로 저장' }))
+    await waitFor(() => expect(mocks.createJournal).toHaveBeenCalledTimes(1))
+    const payload = mocks.createJournal.mock.calls[0][0]
+    expect(payload.journalDate).toBe('2026-07-01')
+    expect(payload.lines).toEqual([
+      { accountCode: '102', debitAmount: '500000', creditAmount: '0', partnerId: null, memo: '기존 메모1' },
+      { accountCode: '401', debitAmount: '0', creditAmount: '500000', partnerId: null, memo: undefined },
+    ])
   })
 })
 

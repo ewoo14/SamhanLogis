@@ -415,6 +415,97 @@ describe('CashReceiptFormPage', () => {
     expect(alert.textContent).not.toBe('거래처를 선택하거나 거래처명을 입력하세요.')
   })
 
+  it('#831-hydrate (H2/H4): receiptQuery 데이터 커밋 직후 hydrate effect 가 아직 실행되지 않은 프레임에서 저장해도 초기값 기반 오류가 섞이지 않는다', async () => {
+    // 이 결함은 "isLoading→false 렌더"와 "state 가 채워지는 렌더(useEffect)" 사이의 한 틱
+    // 창에서만 재현된다. act() 로 감싸인 waitFor/findBy*(fireEvent 도 act 래핑)는 이 창에서
+    // 예약된 passive effect 까지 우연히 flush 해버릴 수 있어 로컬 dev PC 에서는 이 결함이 늘
+    // GREEN 이었다(CI 는 vCPU 경합으로 매크로태스크 순서가 뒤집혀 우연히만 노출).
+    //
+    // 결정적 재현: setQueryData 알림(react-query notifyManager)과 그로 인한 React 커밋은
+    // 마이크로태스크 경유이지만, 커밋 이후 예약되는 passive effect(hydrate useEffect) 실행은
+    // 스케줄러의 매크로태스크다. act()/waitFor 를 전혀 쓰지 않고 "마이크로태스크만" 흘려보내면
+    // (매크로태스크로는 절대 안 넘어감) "커밋은 됐지만 effect 는 아직" 프레임을 머신/부하와
+    // 무관하게 100% 결정적으로 잡을 수 있다.
+    //
+    // #831-hydrate 계열 4파일 통일 기법(ba83641af + 2026-07-26 PM 지적) — 매크로태스크
+    // 1틱은 setTimeout(fn,0) 대신 MessageChannel 로 만든다. setTimeout(fn,0) 은 WHATWG
+    // 스펙상 "중첩 타이머 4ms 클램프" 대상이라 실행 컨텍스트(파일 내 이전 테스트 유무 등)에
+    // 따라 React 스케줄러의 매크로태스크와 큐 순서가 뒤집힐 수 있음을 실측 확인했다(이 파일을
+    // pre-fix 코드로 되돌려 전체 스위트 실행에서는 RED 가 정확히 재현됐지만 `-t` 격리
+    // 실행에서는 콜드스타트 타이밍 차이로 false-GREEN 이 났었다). MessageChannel 은 React
+    // 스케줄러와 동일 메커니즘이라 이 클램프 편차가 없다.
+    //
+    // 이 컴포넌트는 accountsQuery 외에 coedit 관련 부수 상태도 있어 커밋 1회를 "관측 가능한
+    // 상태"로 만드는 데 매크로태스크가 정확히 몇 틱 필요한지가 다른 3파일(1틱)과 다르게 실측
+    // 됐다(2틱) — 그래서 "커밋을 처음 관측하는 순간 즉시 멈춘다" 는 상한 있는 재시도 루프로
+    // 짠다(더 돌리지 않는다 — 그래야 pre-fix 코드에서 hydrate effect 의 macrotask 까지
+    // 우연히 넘어가는 일이 없다). 렌더 중 파생(이 파일의 fix)은 "커밋 = 이미 hydrate 완료"를
+    // 구조적으로 보장하므로, fix 적용 후에는 몇 틱이 걸리든 이 루프가 항상 안전하게 GREEN 이다.
+    const receiptId = 'receipt-hydrate-race'
+    const receiptKey = ['accounting', 'cash-receipt', receiptId]
+    const row = {
+      id: receiptId,
+      slipNo: '2026/07/05-99',
+      partnerCode: '',
+      bizNo: '',
+      partnerName: '',
+      amount: '410000',
+      transactionDate: '2026-07-05',
+      kind: 'MANUAL_RECEIPT',
+      status: 'DRAFT',
+      memo: '',
+      debitAccountCode: '102',
+      creditAccountCode: '110',
+    }
+    // getCashReceipt 는 절대 resolve 되지 않는 pending Promise 로 둔다 — react-query 의 fetch
+    // 경로(마이크로태스크 체인 다수 hop)를 아예 안 타야 "언제 commit 되는지"를 완전히 통제할
+    // 수 있다.
+    mocks.getCashReceipt.mockImplementation(() => new Promise(() => {}))
+    const { client } = renderPage(`/accounting/admin/cash-receipts/${receiptId}/edit`)
+    // listAccounts 는 resolve 되는 진짜 Promise 라 최소 한 틱이 필요하다 — 이 대기는 accounts
+    // 게이트에만 관여하고(receiptQuery.data 는 아직 undefined 라 하이드레이트 effect 의 guard 가
+    // 즉시 return, flush 할 게 없다) 우리가 통제하려는 receipt hydrate 창과는 무관하다.
+    await waitFor(() => expect(screen.getByRole('status').textContent).toBe('입금보고서 불러오는 중'))
+
+    client.setQueryData(receiptKey, row)
+    // 매크로태스크를 정확히 1틱씩 MessageChannel 로 만들고(React 스케줄러와 동일 메커니즘 —
+    // setTimeout(fn,0) 의 WHATWG 중첩 타이머 4ms 클램프 편차 없음), 그때마다 마이크로태스크를
+    // 흘려 "커밋을 처음 관측하는 순간" 즉시 멈춘다(더 돌리지 않는다). 이 컴포넌트는
+    // accountsQuery·coedit 관련 부수 상태가 더 있어 다른 3파일(1 매크로태스크)과 달리 커밋
+    // 관측까지 매크로태스크가 몇 틱 필요한지가 실행 컨텍스트에 따라 다를 수 있음을 실측
+    // 확인했다 — 그래서 상한 있는 재시도로 짠다. "처음 관측 즉시 멈춤" 이라 pre-fix 코드에서
+    // hydrate effect 의 (반드시 한 틱 더 뒤에 오는) macrotask 까지 넘어갈 위험은 없다. 렌더
+    // 중 파생(이 파일의 fix)은 "커밋 = 이미 hydrate 완료" 를 구조적으로 보장하므로, fix 적용
+    // 후에는 몇 틱이 걸리든 이 루프가 항상 안전하게 GREEN 이다.
+    let saveButton: HTMLElement | null = null
+    for (let macroTick = 0; macroTick < 10 && !saveButton; macroTick++) {
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel()
+        channel.port1.onmessage = () => resolve()
+        channel.port2.postMessage(undefined)
+      })
+      saveButton = screen.queryByRole('button', { name: '저장' })
+      // 마이크로태스크만 정밀하게 추가로 흘려보낸다 — 매크로태스크는 절대 안 섞이므로(아래는
+      // 전부 Promise.resolve() 마이크로태스크뿐) hydrate effect 가 끼어들 수 없다.
+      for (let microTick = 0; microTick < 300 && !saveButton; microTick++) {
+        // 마이크로태스크를 한 틱씩만 정밀하게 흘려보내야 하므로 루프 안 await 가 의도적이다.
+        await Promise.resolve()
+        saveButton = screen.queryByRole('button', { name: '저장' })
+      }
+    }
+    if (!saveButton) {
+      throw new Error('receiptQuery 커밋을 관측하지 못했다 (매크로 10틱 + 매 틱마다 마이크로 300틱)')
+    }
+
+    fireEvent.click(saveButton)
+
+    expect(mocks.updateCashReceipt).not.toHaveBeenCalled()
+    const alerts = screen.queryAllByRole('alert')
+    expect(alerts).toHaveLength(1)
+    expect(alerts[0]!.textContent).toContain('조회')
+    expect(alerts[0]!.textContent).not.toMatch(/0보다/)
+  })
+
   it('#831 신규 발견: getCashReceipt 실패 시(PM 라이브QA — 검색 hang 이 detail 호출까지 지연시켜 timeout) 재시도 버튼을 제공한다 (이전엔 dead-end)', async () => {
     mocks.getCashReceipt.mockRejectedValue(new Error('timeout of 10000ms exceeded'))
     renderPage('/accounting/admin/cash-receipts/receipt-timeout/edit')
