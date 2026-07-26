@@ -63,6 +63,14 @@ export interface CollaborativeSlipInputProps {
    * 미지정 시 기존대로 onValueChange 를 호출한다.
    */
   onDocSyncValueChange?: (value: string) => void
+  /**
+   * 원시 입력 필터 — 지정 시 DOM {@code onChange} 의 raw 값을 이 함수로 먼저 검증한다.
+   * {@code null} 반환 시 그 keystroke 전체를 버린다(onValueChange 미호출 + Y.Doc 미기록) —
+   * 단가/공급가액/부가세 등 숫자 전용 셀이 잘못된 문자열(`-3`/`2.7`/`1e3`)을 그대로 Y.Doc 에
+   * 써 원격 피어·재열기에 전파하는 것을 막는다(전표 상세 발견 3, #937 R1). 미지정 시(기존
+   * 호출부 전부) raw 값을 그대로 통과시켜 기존 동작과 100% 동일하다.
+   */
+  parseValue?: (raw: string) => string | null
   type?: string
   min?: number
   maxLength?: number
@@ -92,6 +100,7 @@ export function CollaborativeSlipInput({
   value,
   onValueChange,
   onDocSyncValueChange,
+  parseValue,
   type,
   min,
   maxLength,
@@ -271,7 +280,11 @@ export function CollaborativeSlipInput({
         }}
         onChange={(event) => {
           if (effectiveReadOnly) return
-          const nextValue = event.target.value
+          const raw = event.target.value
+          // parseValue 거부(null) 시 keystroke 전체를 버린다 — onValueChange 미호출 +
+          // Y.Doc 미기록. controlled input 이라 다음 렌더에서 이전 value prop 으로 되돌아간다.
+          const nextValue = parseValue ? parseValue(raw) : raw
+          if (nextValue === null) return
           onValueChange(nextValue)
           if (provider) {
             setProviderValue(provider, fieldPath, nextValue)

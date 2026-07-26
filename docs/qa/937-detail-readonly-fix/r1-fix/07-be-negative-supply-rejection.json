@@ -1,0 +1,4 @@
+{
+  "status": 400,
+  "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"공급가액은 0 이상의 원 단위 정수여야 합니다\",\"data\":null,\"timestamp\":\"2026-07-26T06:50:27.800596542Z\"}"
+}

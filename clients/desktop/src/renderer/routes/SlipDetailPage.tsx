@@ -698,6 +698,192 @@ export function computeDetailQuantityChange(
 }
 
 /**
+ * 전표 상세(수정) 화면 단가 변경 — 발견 1(#937 R1) 근본수정.
+ *
+ * <p>{@link computeDetailQuantityChange} 와 축만 다른 자매 함수다 — 이 화면의 단가 열은
+ * VAT 제외 공급단가 계약이므로(위 {@link detailVatLine} 주석 참조) PRICE authority(단가=
+ * VAT 포함 전제, lineVat.ts recalculateLineVat)로 우회하지 않고 수량을 고정한 채 새 단가로
+ * 공급가액을 다시 낸다(SUPPLY authority 로 닫아 부가세는 BE 와 같은 0 방향 절사) — 생성
+ * 화면(SlipFormPage)이 단가 편집 시 화면 금액을 즉시 재계산하는 것과 같은 정책(E2, 두 화면
+ * 정책 일치 — 이 PR 제목의 주장)이다.
+ *
+ * <p>종전에는 단가 셀 onChange 가 로컬 state 의 unitPrice/vatDirty 만 바꾸고 supplyAmount/
+ * vatAmount 는 전혀 건드리지 않아(화면이 옛 금액을 그대로 보여줌), BE 저장 시에만
+ * quantity×unitPrice 로 재계산돼 화면·DB 가 어긋났다(적대검증 발견 1 2단계). 이 함수가 낸
+ * 파생값은 {@link detailAmountDocWrites}가 Y.Doc 에도 반영해 재열기·doc-sync 되돌림을
+ * 막는다(발견 1 3·4단계 근본수정 — 같은 뿌리인 발견 2 도 함께 닫는다).
+ *
+ * <p>불변식: 값을 바꾸지 않은 재입력은 어떤 금액도 바꾸지 않는다({@link computeDetailQuantityChange}
+ * 불변식 2 와 동일 원칙 — 드리프트 원천 차단).
+ */
+export function computeDetailUnitPriceChange(
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice'>,
+  unitPrice: string,
+): Partial<PurchaseEditLine> {
+  // 불변식: no-op 재입력은 재계산 경로 자체를 타지 않는다.
+  if (unitPrice === String(line.unitPrice ?? '')) {
+    return { unitPrice }
+  }
+
+  const nextSupply = roundProduct(line.quantity, unitPrice || '0')
+  const vatLine = editLineVat(
+    { quantity: line.quantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+    'SUPPLY',
+    String(nextSupply),
+  )
+  return {
+    unitPrice,
+    supplyAmount: vatLine.supplyAmount,
+    vatAmount: vatLine.vatAmount,
+    lineTotalWithVat: vatLine.lineTotal,
+    authority: 'PRICE',
+    vatDirty: true,
+  }
+}
+
+/**
+ * 전표 상세 금액 셀(단가/공급가액/부가세) 입력 문자열 필터 — 발견 3(#937 R1), E4.
+ *
+ * <p>생성 화면(LineRow.tsx 의 모듈-로컬 {@code parseEditableAmountInput})과 <b>같은 규칙</b>을
+ * 그대로 복제한다 — 그 함수는 export 되지 않고, LineRow.tsx 는 이 PR 의 변경 금지 대상(적대검증
+ * 각도 ②, 바이트 단위 0)이라 import 할 수 없다. 규칙을 바꿀 때는 두 곳을 함께 고쳐야 한다.
+ *
+ * <p>순수 자연수(빈 값 포함) 또는 3자리 콤마 그룹 형식만 허용한다 — 소수점(2.7→3 조용한
+ * HALF_UP 반올림)·부호(-3 음수 공급가액 수용)·지수표기(1e3→1000)를 전부 거부해, 사용자가
+ * 의도하지 않은 다른 금액이 조용히 만들어지는 것을 막는다.
+ *
+ * @return 정규화(콤마 제거)된 숫자 문자열, 또는 거부 시 {@code null}
+ */
+export function parseEditableDetailAmountInput(raw: string): string | null {
+  if (/^\d*$/.test(raw)) return raw
+  if (raw.includes(',,')) return null
+  if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
+  return raw.replace(/,/g, '')
+}
+
+/**
+ * 로컬에서 재계산된 supplyAmount/vatAmount 를 Y.Doc 필드와 대조해, 갱신이 필요한(=stale 한)
+ * 라인만 골라낸다 — 발견 1·2 근본수정(#937 R1) 이 실제로 쓰는 계산 부분(무엇을 쓸지)이다.
+ * "언제 쓰는지"는 {@link syncDetailAmountToDoc} 참조 — **반드시 동기 호출**해야 한다(그 함수
+ * 주석이 이유를 설명한다).
+ *
+ * <p>quantity/unitPrice 변경({@link computeDetailQuantityChange}/{@link computeDetailUnitPriceChange})은
+ * 로컬 React state 만 갱신하고 Y.Doc 의 supplyAmount/vatAmount 필드는 건드리지 않는다. 그런데
+ * {@link coeditLinesToEditLines}(:558-563 부근)는 그 두 필드의 Y.Doc 원문이 있으면 그것을
+ * 신뢰한다(원격 피어의 직접 편집을 반영하기 위한 정상 설계) — 이 함수가 재계산된 값을 Y.Doc
+ * 에도 함께 반영해 두 저장소를 늘 일치시킨다.
+ *
+ * <p>lineTotalWithVat 는 동기화 대상에서 <b>의도적으로 제외</b>한다 —
+ * {@link coeditLinesToEditLines} 는 supplyAmount·vatAmount 가 둘 다 있으면 항상 그 합으로
+ * 새로 유도하므로(:565-571), Y.Doc 의 원본 lineTotalWithVat 필드는 그 분기에서 읽히지 않는다.
+ *
+ * <p>신규(미저장) 라인은 이 화면에서 만들 수 없다(행 추가 버튼이 SlipFormPage 로 안내만
+ * 한다) — 모든 라인이 항상 lineId 를 갖는다는 이 화면의 기존 전제를 그대로 따른다.
+ */
+export function detailAmountDocWrites(
+  provider: Pick<DocCoeditProvider, 'getItemValueById'>,
+  lines: ReadonlyArray<Pick<PurchaseEditLine, 'lineId' | 'supplyAmount' | 'vatAmount'>>,
+): Array<{ lineId: string; supplyAmount: string; vatAmount: string }> {
+  const writes: Array<{ lineId: string; supplyAmount: string; vatAmount: string }> = []
+  for (const line of lines) {
+    if (!line.lineId) continue
+    const nextSupply = line.supplyAmount ?? '0'
+    const nextVat = line.vatAmount ?? '0'
+    if (
+      provider.getItemValueById(line.lineId, 'supplyAmount') === nextSupply
+      && provider.getItemValueById(line.lineId, 'vatAmount') === nextVat
+    ) continue
+    writes.push({ lineId: line.lineId, supplyAmount: nextSupply, vatAmount: nextVat })
+  }
+  return writes
+}
+
+/**
+ * quantity/unitPrice 재계산 직후 Y.Doc 에 동기 반영한다 — 발견 1·2 근본수정(#937 R1),
+ * "언제"를 담당한다({@link detailAmountDocWrites} 는 "무엇을").
+ *
+ * <p>🚨 <b>반드시 이 필드를 편집한 {@code CollaborativeSlipInput} 의 onValueChange 콜백
+ * 안에서, 동기로(await 없이) 호출해야 한다</b> — React {@code useEffect}(비동기, post-commit)
+ * 로는 늦다는 것이 라이브 실측이다: 그 컴포넌트 자신이 onValueChange 직후 <b>같은 이벤트
+ * 핸들러 안에서</b> quantity/unitPrice 를 Y.Doc 에 쓰고, 그 쓰기가 즉시(동기) 문서변경
+ * 이벤트를 내 {@link coeditLinesToEditLines} 를 재호출시킨다. 그 함수는 Y.Doc 의
+ * supplyAmount/vatAmount 원문을 신뢰하므로, 이 동기화가 effect 로 미뤄지면(다음 렌더 커밋
+ * 후) 그 사이에 낀 coeditLinesToEditLines 호출이 <b>아직 안 쓰인(stale) Y.Doc 값</b>을 읽어
+ * 방금 재계산한 로컬값을 되돌린다 — effect 버전은 vitest 는 전부 통과했지만 실 브라우저에서
+ * 재현되지 않았다(라이브QA 로만 드러남, RED-first 로도 못 잡는 유형).
+ *
+ * <p>{@code preEditLine}(patch 적용 <b>전</b> 스냅샷)은 JSX map 클로저 값이다 — 한 번의
+ * 동기 키 입력 캐스케이드 안에서는 이 컴포넌트가 다시 렌더되지 않으므로(React 는 이벤트
+ * 핸들러 종료까지 커밋을 미룬다) 이 시점의 line 이 곧 "이번 편집 직전"의 유일한 참값이다.
+ *
+ * <p>unitPrice/quantity 자신도 함께 쓴다(중복 — CollaborativeSlipInput 이 어차피 다시 쓴다)
+ * — 그래야 이 트랜잭션 하나로 Y.Doc 이 즉시 완전히 일치해, 뒤이은 개별 필드 syncFromDoc
+ * 재동기 캐스케이드가 몇 단계를 거치든 항상 같은(정답) 값으로 수렴한다.
+ *
+ * <p>🚨 <b>Y.Doc 의 현재값과 비교해 실제로 다를 때만 쓴다</b>(unitPrice/quantity 포함 —
+ * detailAmountDocWrites 는 supplyAmount/vatAmount 만 대조하므로 이 함수가 나머지 두 필드도
+ * 직접 대조한다). 이 대조가 없으면 무한 재귀로 콜스택이 터진다(라이브 실측 — "Maximum call
+ * stack size exceeded"): 이 필드 자신의 개별 syncFromDoc 이 방금 쓴 값을 "원격 변경"으로
+ * 오인해 onValueChange 를 재호출하는데, 그 재호출은 JSX map 클로저의 stale {@code preEditLine}
+ * 을 다시 넘겨받으므로 {@link computeDetailUnitPriceChange}/{@link computeDetailQuantityChange}
+ * 의 no-op 가드(입력값 vs stale 이전 라인)가 "값이 바뀌었다"고 영원히 오판한다 — 가드가
+ * 막아주지 못하는 이 재귀는 반드시 <b>Y.Doc 현재값과 이번에 쓸 값이 이미 같은지</b>로 끊어야
+ * 한다(stale 클로저와 무관하게 Y.Doc 자신은 각 라운드마다 최신이므로 여기서는 안전하다).
+ */
+export function syncDetailAmountToDoc(
+  provider: DocCoeditProvider | null,
+  preEditLine: Pick<PurchaseEditLine, 'lineId'>,
+  patch: Partial<PurchaseEditLine>,
+) {
+  if (!provider || !preEditLine.lineId || patch.supplyAmount == null || patch.vatAmount == null) return
+  const lineId = preEditLine.lineId
+  const writes = detailAmountDocWrites(provider, [
+    { lineId, supplyAmount: patch.supplyAmount, vatAmount: patch.vatAmount },
+  ])
+  const needsUnitPrice = patch.unitPrice != null
+    && provider.getItemValueById(lineId, 'unitPrice') !== String(patch.unitPrice)
+  const needsQuantity = patch.quantity != null
+    && provider.getItemValueById(lineId, 'quantity') !== String(patch.quantity)
+  if (writes.length === 0 && !needsUnitPrice && !needsQuantity) return
+  provider.doc.transact(() => {
+    if (needsUnitPrice) provider.setItemValueById(lineId, 'unitPrice', String(patch.unitPrice))
+    if (needsQuantity) provider.setItemValueById(lineId, 'quantity', String(patch.quantity))
+    for (const write of writes) {
+      provider.setItemValueById(write.lineId, 'supplyAmount', write.supplyAmount)
+      provider.setItemValueById(write.lineId, 'vatAmount', write.vatAmount)
+    }
+  })
+}
+
+/**
+ * 전표 상세 수정 라인 → BE {@code SlipUpdateRequest.LineRequest} payload 변환.
+ *
+ * <p>발견 1(#937 R1) RED 테스트가 저장 payload 를 직접 단정할 수 있도록 매출/매입 저장
+ * 핸들러의 중복 인라인 매핑을 추출했다(동작 변경 없음 — 순수 리팩터). {@code vatDirty} 가
+ * 아니면 공급가액·부가세·합계를 생략해 BE 가 quantity×unitPrice 로 재계산하게 한다
+ * (all-or-nothing 계약, BE AuthoritativeAmountValidator 미러).
+ */
+export function buildDetailLinePayload(line: PurchaseEditLine): SlipLineInput {
+  return {
+    lineId: line.lineId ?? null,
+    productId: line.productId,
+    productName: line.productName?.trim() || undefined,
+    modelName: line.modelName?.trim() || undefined,
+    specification: line.specification?.trim() || undefined,
+    quantity: Number(line.quantity),
+    unitPrice: String(line.unitPrice || '0'),
+    note: line.note?.trim() || undefined,
+    ...(line.vatDirty
+      ? {
+          supplyAmount: line.supplyAmount,
+          vatAmount: line.vatAmount,
+          lineTotalWithVat: line.lineTotalWithVat,
+        }
+      : {}),
+  }
+}
+
+/**
  * "2026-05-04T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4.
  */
 function formatHHmm(iso: string | null | undefined): string {
@@ -2001,23 +2187,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: purchaseProjectName.trim() || null,
       recipientPhone: purchaseRecipientPhone.trim() || null,
       paymentDueDate: purchasePaymentDueDate || null,
-      lines: purchaseEditLines.map((line) => ({
-        lineId: line.lineId ?? null,
-        productId: line.productId,
-        productName: line.productName?.trim() || undefined,
-        modelName: line.modelName?.trim() || undefined,
-        specification: line.specification?.trim() || undefined,
-        quantity: Number(line.quantity),
-        unitPrice: String(line.unitPrice || '0'),
-        note: line.note?.trim() || undefined,
-        ...(line.vatDirty
-          ? {
-              supplyAmount: line.supplyAmount,
-              vatAmount: line.vatAmount,
-              lineTotalWithVat: line.lineTotalWithVat,
-            }
-          : {}),
-      })),
+      lines: purchaseEditLines.map(buildDetailLinePayload),
     })
   }
 
@@ -2037,23 +2207,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: salesProjectName.trim() || null,
       recipientPhone: salesRecipientPhone.trim() || null,
       paymentDueDate: salesPaymentDueDate || null,
-      lines: salesEditLines.map((line) => ({
-        lineId: line.lineId ?? null,
-        productId: line.productId,
-        productName: line.productName?.trim() || undefined,
-        modelName: line.modelName?.trim() || undefined,
-        specification: line.specification?.trim() || undefined,
-        quantity: Number(line.quantity),
-        unitPrice: String(line.unitPrice || '0'),
-        note: line.note?.trim() || undefined,
-        ...(line.vatDirty
-          ? {
-              supplyAmount: line.supplyAmount,
-              vatAmount: line.vatAmount,
-              lineTotalWithVat: line.lineTotalWithVat,
-            }
-          : {}),
-      })),
+      lines: salesEditLines.map(buildDetailLinePayload),
     })
   }
 
@@ -2286,7 +2440,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={1}
                     value={String(line.quantity)}
-                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, value)}
+                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, slipFormCoeditProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
@@ -2297,7 +2451,14 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
-                    onValueChange={(value) => updateSalesLine(index, { unitPrice: value, vatDirty: false })}
+                    parseValue={parseEditableDetailAmountInput}
+                    onValueChange={(value) => {
+                      // 함수형 patch 로 바뀌어 updateSalesLine 내부의 object-patch 전용
+                      // 강조해제 분기를 타지 않는다 — 여기서 직접 처리한다(단가값 자체는
+                      // 안정적이라 race 걱정 없이 closure 의 line.lineId 로 충분하다).
+                      clearRepriceHighlight(line.lineId)
+                      updateDetailUnitPrice(index, updateSalesLine, slipFormCoeditProvider, line, value)
+                    }}
                     aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
@@ -2317,6 +2478,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     fieldPath={`items.${index}.supplyAmount`}
                     type="number" min={0}
                     value={String(line.supplyAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'SUPPLY', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`공급가액 ${index + 1}`}
@@ -2328,6 +2490,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     fieldPath={`items.${index}.vatAmount`}
                     type="number" min={0}
                     value={String(line.vatAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'VAT', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`부가세 ${index + 1}`}
@@ -2584,7 +2747,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={1}
                     value={String(line.quantity)}
-                    onValueChange={(value) => updateDetailQuantity(index, updatePurchaseLine, value)}
+                    onValueChange={(value) => updateDetailQuantity(index, updatePurchaseLine, slipFormCoeditProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
@@ -2595,7 +2758,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
-                    onValueChange={(value) => updatePurchaseLine(index, { unitPrice: value, vatDirty: false })}
+                    parseValue={parseEditableDetailAmountInput}
+                    onValueChange={(value) => {
+                      // 매출 행과 동일 — 함수형 patch 전환으로 우회된 강조해제를 여기서 직접 처리.
+                      clearRepriceHighlight(line.lineId)
+                      updateDetailUnitPrice(index, updatePurchaseLine, slipFormCoeditProvider, line, value)
+                    }}
                     aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
@@ -2615,6 +2783,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     fieldPath={`items.${index}.supplyAmount`}
                     type="number" min={0}
                     value={String(line.supplyAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'SUPPLY', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`공급가액 ${index + 1}`}
@@ -2626,6 +2795,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     fieldPath={`items.${index}.vatAmount`}
                     type="number" min={0}
                     value={String(line.vatAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'VAT', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`부가세 ${index + 1}`}
@@ -4273,14 +4443,38 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     </>
   )
 
+  /**
+   * 수량 셀 편집. 로컬 state 는 함수형 patch 로 넘겨 setState 업데이터 내부의 최신(직전
+   * patch 반영 후) 라인으로 계산한다(LinePatch 주석 — ref 스냅샷 경합 차단). Y.Doc 동기화는
+   * {@code preEditLine}(JSX map 클로저 — 이번 편집 직전 스냅샷)으로 별도 계산해
+   * {@link syncDetailAmountToDoc} 에 동기로 넘긴다(발견 2, #937 R1 근본수정 — 그 함수 주석이
+   * "동기" 여야 하는 이유를 설명한다).
+   */
   function updateDetailQuantity(
     index: number,
     update: (index: number, patch: LinePatch) => void,
+    provider: DocCoeditProvider | null,
+    preEditLine: PurchaseEditLine,
     value: string,
   ) {
-    // 함수형 patch — setState 업데이터 내부의 최신(직전 patch 반영 후) 라인으로 계산한다
-    // (LinePatch 주석 — ref 스냅샷 경합 차단).
     update(index, (line) => computeDetailQuantityChange(line, value))
+    syncDetailAmountToDoc(provider, preEditLine, computeDetailQuantityChange(preEditLine, value))
+  }
+
+  /**
+   * 단가 셀 편집 — 발견 1(#937 R1) 근본수정. {@link updateDetailQuantity} 와 동일 구조
+   * (함수형 patch + preEditLine 스냅샷). 재조회 강조 해제(clearRepriceHighlight)는 호출부가
+   * closure 의 `line.lineId` 로 직접 처리한다.
+   */
+  function updateDetailUnitPrice(
+    index: number,
+    update: (index: number, patch: LinePatch) => void,
+    provider: DocCoeditProvider | null,
+    preEditLine: PurchaseEditLine,
+    value: string,
+  ) {
+    update(index, (line) => computeDetailUnitPriceChange(line, value))
+    syncDetailAmountToDoc(provider, preEditLine, computeDetailUnitPriceChange(preEditLine, value))
   }
 
   function updateDetailVat(

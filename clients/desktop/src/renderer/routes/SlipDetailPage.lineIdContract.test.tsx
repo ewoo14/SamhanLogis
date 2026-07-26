@@ -6,16 +6,21 @@ import {
   type DocCoeditProvider,
 } from '../realtime/createCoeditProvider'
 import {
+  buildDetailLinePayload,
   bundleComponentLineIds,
   coeditHeaderValues,
   coeditLinesToEditLines,
   computeDetailQuantityChange,
+  computeDetailUnitPriceChange,
+  detailAmountDocWrites,
   detailAmountState,
   detailVatLine,
   editUnitPriceColumnHeader,
   editUnitPriceLabel,
+  parseEditableDetailAmountInput,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
+  syncDetailAmountToDoc,
   toPurchaseEditLines,
 } from './SlipDetailPage'
 import { toServerLineIdSet } from '../realtime/coeditLineIds'
@@ -471,5 +476,264 @@ describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #82
     expect(totalBindings.every((binding) => !binding.includes("updateDetailVat(index, updateSalesLine, 'TOTAL'"))).toBe(true)
     expect(totalBindings.every((binding) => !binding.includes("updateDetailVat(index, updatePurchaseLine, 'TOTAL'"))).toBe(true)
     expect(source).toContain('editSlipLineAmount')
+  })
+})
+
+/**
+ * 1차 적대검증(OPUS) 발견 1·2(#937 R1) — PR #937(#926 슬라이스) 이 세운 "두 화면 정책 일치"
+ * 주장이 정책표 1행(단가)에서 성립하지 않았다.
+ *
+ * <p>근본원인: quantity/unitPrice 변경({@link computeDetailQuantityChange}/
+ * {@link computeDetailUnitPriceChange})은 로컬 React state 만 재계산하고 Y.Doc 의
+ * supplyAmount/vatAmount 필드는 건드리지 않았다. 그 필드들 자신이 아니라 quantity/unitPrice
+ * 자신의 {@code CollaborativeSlipInput} 이 Y.Doc 에 값을 쓸 때마다 전체 문서변경 이벤트가
+ * 나가고, {@link coeditLinesToEditLines} 가 그 이벤트에서 "Y.Doc 원문이 있으면 그것을
+ * 신뢰"(원격 피어 반영을 위한 정상 설계)하므로 방금 재계산한 로컬값을 stale Y.Doc 값으로
+ * 되돌렸다. 이 Y.Doc 은 REST 재조회와 무관하게 세션 간 영속하므로 재열기도 같은 stale 값을
+ * 본다 — 그 상태에서 무수정 재저장하면 payload 가 stale 값을 서버에 되돌려 쓴다.
+ *
+ * <p>이 describe 는 화면 핸들러가 실제로 호출하는 함수(computeDetailUnitPriceChange/
+ * computeDetailQuantityChange/detailAmountDocWrites/buildDetailLinePayload)를 그대로 이어
+ * 붙여 적대검증 원문의 4단계 조작을 판별한다 — 이 파일의 기존 관례(전체 컴포넌트 마운트
+ * 없이 순수함수 조합)를 따른다. detailAmountDocWrites 를 호출하지 않으면(=근본수정 이전
+ * 코드) 3·4단계 assertion 이 stale 200000/20000 을 받아 실패한다(RED — 보고서 원문 첨부).
+ */
+describe('SlipDetailPage — 단가·수량 변경 시 Y.Doc 공급가액·부가세 동기화 (발견 1·2, #937 R1)', () => {
+  const seedLine = {
+    lineId: SERVER_LINE_1,
+    productId: PRODUCT_1,
+    productName: '품목1',
+    modelName: 'MODEL-1',
+    specification: '',
+    quantity: 2,
+    unitPrice: '100000',
+    supplyAmount: '200000',
+    vatAmount: '20000',
+    lineTotalWithVat: '220000',
+    note: '',
+  }
+  const knownIds = toServerLineIdSet([{ id: SERVER_LINE_1 }])
+
+  it('1단계 전제 — REST 하이드레이션: 단가 100,000 / 공급 200,000 / 부가세 20,000 / 합계 220,000', () => {
+    const slip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 2,
+        unitPrice: '100000',
+        supplyAmount: '200000',
+        vatAmount: '20000',
+        lineTotal: '220000',
+        note: '',
+      }],
+    } as unknown as SlipDetail
+
+    const hydrated = toPurchaseEditLines(slip)[0]!
+
+    expect(hydrated).toMatchObject({
+      unitPrice: '100000', supplyAmount: '200000', vatAmount: '20000', lineTotalWithVat: '220000',
+    })
+    // REST 하이드레이션은 저장된 라인(공급/부가세/합계 모두 non-null)을 전부 vatDirty=true 로 본다
+    // — 재열기 후 무수정 저장이 4단계처럼 payload 에 supplyAmount 를 싣는 이유.
+    expect(hydrated.vatDirty).toBe(true)
+  })
+
+  it('2단계 — 단가만 60,000 으로 바꾸면 화면이 즉시 정책대로(120,000/12,000/132,000) 재계산된다 (E2 — 이 PR 제목의 주장)', () => {
+    const patch = computeDetailUnitPriceChange(seedLine, '60000')
+
+    expect(patch.unitPrice).toBe('60000')
+    expect(patch.supplyAmount).toBe('120000')
+    expect(patch.vatAmount).toBe('12000')
+    expect(patch.lineTotalWithVat).toBe('132000')
+  })
+
+  it('값을 바꾸지 않은 단가 재입력은 어떤 금액도 바꾸지 않는다(드리프트 원천 차단)', () => {
+    expect(computeDetailUnitPriceChange(seedLine, '100000')).toEqual({ unitPrice: '100000' })
+  })
+
+  it('RED→GREEN: 3단계 재열기 화면이 stale Y.Doc 값(200,000/20,000)이 아니라 재계산값(120,000/12,000)과 일치한다', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([seedLine])
+
+    // 2단계 — CollaborativeSlipInput 은 자신이 바인딩된 필드(unitPrice)만 Y.Doc 에 쓴다
+    // (라이브 동작 그대로 재현 — supplyAmount/vatAmount 필드에는 이 시점에 아무도 쓰지 않는다).
+    const afterPriceEdit = { ...seedLine, ...computeDetailUnitPriceChange(seedLine, '60000') }
+    provider.setItemValueById(SERVER_LINE_1, 'unitPrice', afterPriceEdit.unitPrice as string)
+
+    // 근본수정 — 실 컴포넌트의 sync effect 가 하는 일 그대로(detailAmountDocWrites 는 그
+    // effect 가 호출하는 순수함수 자신 — 이 두 줄을 빼면 RED 로 되돌아간다).
+    for (const write of detailAmountDocWrites(provider, [afterPriceEdit])) {
+      provider.setItemValueById(write.lineId, 'supplyAmount', write.supplyAmount)
+      provider.setItemValueById(write.lineId, 'vatAmount', write.vatAmount)
+    }
+
+    // 3단계 — 같은 문서를 새로 연다(새 컴포넌트 마운트, previous=REST 하이드레이션 스냅샷).
+    const reopened = coeditLinesToEditLines(provider, [{ ...afterPriceEdit, key: 'k1' }], knownIds)[0]!
+
+    expect(reopened.supplyAmount).toBe('120000')
+    expect(reopened.vatAmount).toBe('12000')
+    provider.destroy()
+  })
+
+  it('RED→GREEN: 4단계 무수정 재저장 payload 가 서버 값(120,000/12,000)을 되돌리지 않는다 (E1)', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([seedLine])
+    const afterPriceEdit = { ...seedLine, ...computeDetailUnitPriceChange(seedLine, '60000') }
+    provider.setItemValueById(SERVER_LINE_1, 'unitPrice', afterPriceEdit.unitPrice as string)
+    for (const write of detailAmountDocWrites(provider, [afterPriceEdit])) {
+      provider.setItemValueById(write.lineId, 'supplyAmount', write.supplyAmount)
+      provider.setItemValueById(write.lineId, 'vatAmount', write.vatAmount)
+    }
+    const reopened = coeditLinesToEditLines(provider, [{ ...afterPriceEdit, key: 'k1' }], knownIds)[0]!
+
+    // 4단계 — 아무것도 고치지 않고 저장.
+    const payload = buildDetailLinePayload(reopened)
+
+    if (reopened.vatDirty) {
+      expect(payload.supplyAmount).toBe('120000')
+      expect(payload.vatAmount).toBe('12000')
+    } else {
+      // vatDirty=false 여도 안전하다 — BE 가 quantity×unitPrice(2×60000)로 재계산해 같은 120,000.
+      expect(payload.supplyAmount).toBeUndefined()
+    }
+    provider.destroy()
+  })
+
+  it('RED→GREEN(발견 2 — 발견 1 과 같은 뿌리): 수량 2→3 변경도 화면 금액이 즉시 바뀌고 doc-sync 가 되돌리지 않는다 (E3)', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([seedLine])
+
+    const afterQtyEdit = { ...seedLine, ...computeDetailQuantityChange(seedLine, '3') }
+    expect(afterQtyEdit.supplyAmount).toBe('300000') // 단가(100,000, 고정) × 수량 3
+    expect(afterQtyEdit.vatAmount).toBe('30000')
+    provider.setItemValueById(SERVER_LINE_1, 'quantity', String(afterQtyEdit.quantity))
+
+    for (const write of detailAmountDocWrites(provider, [afterQtyEdit])) {
+      provider.setItemValueById(write.lineId, 'supplyAmount', write.supplyAmount)
+      provider.setItemValueById(write.lineId, 'vatAmount', write.vatAmount)
+    }
+
+    const resynced = coeditLinesToEditLines(provider, [{ ...afterQtyEdit, key: 'k1' }], knownIds)[0]!
+    expect(resynced.supplyAmount).toBe('300000')
+    expect(resynced.vatAmount).toBe('30000')
+    provider.destroy()
+  })
+
+  it('detailAmountDocWrites 는 이미 Y.Doc 과 일치하는 라인은 걸러낸다(무한루프 방지 — 재기록 없음)', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([{ ...seedLine, supplyAmount: '120000', vatAmount: '12000' }])
+
+    const writes = detailAmountDocWrites(provider, [
+      { lineId: SERVER_LINE_1, supplyAmount: '120000', vatAmount: '12000' },
+    ])
+
+    expect(writes).toHaveLength(0)
+    provider.destroy()
+  })
+
+  it('detailAmountDocWrites 는 lineId 없는 라인을 건너뛴다(이 화면은 신규 라인을 만들 수 없다 — "행 추가"가 SlipFormPage 로 안내만 함)', async () => {
+    const provider = await makeProvider()
+    const writes = detailAmountDocWrites(provider, [
+      { lineId: null, supplyAmount: '999', vatAmount: '99' },
+    ])
+    expect(writes).toHaveLength(0)
+    provider.destroy()
+  })
+
+  /**
+   * 라이브QA 도중 실제로 터진 회귀(RED — vitest 는 못 잡고 브라우저에서만 재현됨,
+   * "Maximum call stack size exceeded"): syncDetailAmountToDoc 최초 구현은 unitPrice/
+   * quantity 를 무조건 썼다. 그 필드 자신의 개별 CollaborativeSlipInput 이 방금 쓴 값을
+   * "원격 변경"으로 오인해 onValueChange 를 재호출하는데, 그 재호출은 JSX map 클로저의 stale
+   * preEditLine 을 다시 넘겨받아 no-op 가드가 "값이 바뀌었다"고 영원히 오판 → 매 재귀마다
+   * 다시 쓰기 → 무한루프. Y.Doc 현재값과 비교하는 이 가드가 없으면 재현된다.
+   */
+  it('RED→GREEN(스택오버플로 회귀 가드, 라이브QA 실측): syncDetailAmountToDoc 를 같은 목표값으로 재호출해도 추가 문서변경을 내지 않는다', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([seedLine])
+    let docChangeCount = 0
+    const unsubscribe = provider.subscribeDoc(() => { docChangeCount += 1 })
+
+    const patch = computeDetailUnitPriceChange(seedLine, '60000')
+    syncDetailAmountToDoc(provider, seedLine, patch)
+    expect(docChangeCount).toBe(1) // 1차 — 실제 변경(unitPrice/supplyAmount/vatAmount 갱신) 발생
+
+    // 실 브라우저의 재진입 캐스케이드는 stale JSX 클로저(seedLine — 편집 전 스냅샷)를 그대로
+    // 다시 넘긴다. 이 재호출이 또 다른 문서변경을 내면 재귀가 끝나지 않는다.
+    syncDetailAmountToDoc(provider, seedLine, patch)
+    syncDetailAmountToDoc(provider, seedLine, patch)
+    expect(docChangeCount).toBe(1) // 2·3차 — Y.Doc 이 이미 목표값이라 추가 변경 없음(재귀 종료 보장)
+
+    expect(provider.getItemValueById(SERVER_LINE_1, 'unitPrice')).toBe('60000')
+    expect(provider.getItemValueById(SERVER_LINE_1, 'supplyAmount')).toBe('120000')
+    expect(provider.getItemValueById(SERVER_LINE_1, 'vatAmount')).toBe('12000')
+
+    unsubscribe()
+    provider.destroy()
+  })
+})
+
+/**
+ * 발견 3(#937 R1, 1차 적대검증) — 생성 화면(LineRow.tsx)은 단가/공급가액/부가세 입력에서
+ * `2.7`(조용한 HALF_UP 반올림)·`-3`(음수 수용)·`1e3`(지수표기) 를 거부하지만, 전표 상세
+ * 수정 화면은 아무 필터 없이 전부 수용했다(음수 공급가액까지). E4 — 두 화면의 거부 규칙은
+ * 같아야 한다.
+ */
+describe('SlipDetailPage — 금액 입력 거부 규칙 (발견 3, #937 R1, E4)', () => {
+  it.each(['2.7', '-3', '1e3', '1,,2'])('D-2 미러(LineRow.test.tsx): 잘못된 금액 문자열 "%s"은 숫자로 재조합하지 않고 거부한다', (raw) => {
+    expect(parseEditableDetailAmountInput(raw)).toBeNull()
+  })
+
+  it.each([
+    ['', ''],
+    ['0', '0'],
+    ['60000', '60000'],
+    ['1,000', '1000'],
+    ['12,345,678', '12345678'],
+  ])('허용된 입력 "%s"은 콤마만 제거해 그대로 받는다', (raw, expected) => {
+    expect(parseEditableDetailAmountInput(raw)).toBe(expected)
+  })
+
+  it('LineRow.tsx 의 parseEditableAmountInput 과 판정 규칙이 바이트 단위로 동일하다(E4) — 생성 화면 소스 정규식 대조', () => {
+    const lineRowSource = readFileSync(
+      fileURLToPath(new URL(
+        '../../../../web/design-system/src/components/LineRow/LineRow.tsx',
+        import.meta.url,
+      )),
+      'utf8',
+    )
+    const lineRowMatch = lineRowSource.match(
+      /function parseEditableAmountInput\(raw: string\): string \| null \{([\s\S]*?)\n\}/,
+    )
+    expect(lineRowMatch).not.toBeNull()
+
+    const detailSource = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    const detailMatch = detailSource.match(
+      /export function parseEditableDetailAmountInput\(raw: string\): string \| null \{([\s\S]*?)\n\}/,
+    )
+    expect(detailMatch).not.toBeNull()
+
+    expect(detailMatch![1]!.trim()).toBe(lineRowMatch![1]!.trim())
+  })
+
+  it('단가·공급가액·부가세 6개 셀(매출·매입) 모두 parseValue 필터를 연결한다 — 소스 배선 확인', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    const amountFieldBindings = Array.from(source.matchAll(
+      /fieldPath=\{`items\.\$\{index\}\.(?:unitPrice|supplyAmount|vatAmount)`\}[\s\S]*?\/>/g,
+    ), (match) => match[0])
+
+    expect(amountFieldBindings).toHaveLength(6) // 매출 3(단가·공급가액·부가세) + 매입 3
+    expect(amountFieldBindings.every(
+      (binding) => binding.includes('parseValue={parseEditableDetailAmountInput}'),
+    )).toBe(true)
   })
 })
