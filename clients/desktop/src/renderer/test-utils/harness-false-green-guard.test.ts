@@ -20,33 +20,102 @@ const PLAYWRIGHT_DIR = path.resolve(REPO_ROOT, 'clients/desktop/playwright')
 const DESKTOP_SRC = path.resolve(REPO_ROOT, 'clients/desktop/src')
 /** G3/G5(2026-07-26 재수렴 라운드) — 가드 관할을 clients/desktop/playwright 밖으로 넓힌다. */
 const DESKTOP_SCRIPTS = path.resolve(REPO_ROOT, 'clients/desktop/scripts')
+
+/**
+ * 가드 관할 루트 1건의 명세.
+ *
+ * 🚨 2026-07-27 재수렴 4차 X2 — **관할 루트 집합 자체가 이 가드의 일곱 번째 사각이었다.**
+ * 앞선 여섯 라운드가 고친 축(하네스 대수·게이트 종류·스캔 깊이·확장자·디렉토리·글롭)은
+ * 전부 "정해진 루트 **안에서**" 무엇이 달라질 수 있는가의 변주였고, 루트 목록 자체는 한
+ * 번도 도출된 적이 없다 — 결함이 발견된 자리마다 반응적으로 한 줄씩 덧붙었다(53ae9e560
+ * clients/desktop/playwright · af1ee384f clients/**\/scripts+scripts/ · 6c49d39ad
+ * tools/manual-capture+docs/qa). 각 walker 는 "스캔 대상이 잡혔다(count > N)" 만 단언해서
+ * **루트가 통째로 빠져도 조용히 GREEN** 이었다. 그래서 루트를 문자열 목록이 아니라
+ * **명세 배열**로 바꾸고(아래 GUARD_ROOTS), 모든 walker 와 커버리지 검사(G8c)가 같은
+ * 진실원을 읽게 한다 — 루트 하나를 빼면 G8c 가 즉시 RED 다(M9 뮤테이션 참조).
+ */
+interface GuardRootSpec {
+  /** REPO_ROOT 기준 상대 디렉토리. */
+  readonly dir: string
+  /** true 면 하위 디렉토리까지(walk 가 node_modules/_local 은 자동 skip). */
+  readonly recursive: boolean
+  /** 이 루트에서 스캔할 확장자. */
+  readonly exts: RegExp
+  /** 이 루트를 실제로 검사하는 테스트 이름(커버리지 보고용). */
+  readonly label: string
+}
+
+const JS_CAPTURE_EXT = /\.(?:cjs|mjs|js)$/
+
 /** G3 — clients/** 와 루트 scripts/ 의 캡처 목적지도 커밋 증거를 덮어쓰면 안 된다. */
-const G3_ROOTS = [
-  path.resolve(REPO_ROOT, 'clients/desktop/scripts'),
-  path.resolve(REPO_ROOT, 'clients/desktop'), // 루트 산개 스크립트(qa-formula-f1-*.mjs) — 비재귀
-  path.resolve(REPO_ROOT, 'clients/mobile/scripts'),
-  path.resolve(REPO_ROOT, 'clients/mobile-staff/scripts'),
-  path.resolve(REPO_ROOT, 'clients/web/estimate-app/scripts'),
-  path.resolve(REPO_ROOT, 'clients/web/order-app/scripts'),
-  path.resolve(REPO_ROOT, 'scripts'),
+const G3_ROOTS: GuardRootSpec[] = [
+  { dir: 'clients/desktop/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  // 루트 산개 스크립트(qa-formula-f1-*.mjs) — 비재귀
+  { dir: 'clients/desktop', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  { dir: 'clients/mobile/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  { dir: 'clients/mobile-staff/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  { dir: 'clients/web/estimate-app/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  { dir: 'clients/web/order-app/scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  { dir: 'scripts', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
   // H1(2026-07-27 하네스 흡수) — tools/manual-capture/*.js 가 docs/manual/screenshots 로
   // 직접 쓰던 12파일. 평탄 디렉토리(node_modules/output 서브폴더는 walkG3Sources 가
   // 디렉토리라 자동 skip)라 G3 와 동일한 비재귀 스캔으로 충분하다 — 새 워커 불필요.
-  path.resolve(REPO_ROOT, 'tools/manual-capture'),
+  { dir: 'tools/manual-capture', recursive: false, exts: JS_CAPTURE_EXT, label: 'G3a' },
+  // 🚨 X1(2026-07-27 재수렴 4차) — `qa/playwright` 는 `clients/desktop/playwright` 와 이름만
+  // 비슷한 **별도 최상위 트리**다(자체 package.json·playwright.config.ts, CI 는 qa-e2e.yml 에서
+  // working-directory: qa/playwright 로 돌린다). 44d718491 커밋 메시지의 "qa/** 는 DOCS_QA_ROOT
+  // 스코프상 물리적으로 도달 불가" 는 **가드가 거기 못 간다**는 뜻이었지 **거기 스크립트가 커밋
+  // 증거에 못 간다**는 뜻이 아니었다 — 실제로는 정반대였다. scripts/generate-*.mjs 9개가
+  // `path.join(repoRoot, 'docs/qa/<slug>/screenshots')` 로 tracked PNG 68장을 직접 덮어썼다.
+  // 이 트리는 재귀 + `.ts` 포함으로 잡는다(tests/·utils/ 에도 쓰기 호출이 있다).
+  { dir: 'qa/playwright', recursive: true, exts: /\.(?:cjs|mjs|js|ts)$/, label: 'G3a' },
 ]
+
 function walkG3Sources(): string[] {
   const out: string[] = []
-  for (const root of G3_ROOTS) {
-    const shallow = root === path.resolve(REPO_ROOT, 'clients/desktop')
+  for (const spec of G3_ROOTS) {
+    const root = path.resolve(REPO_ROOT, spec.dir)
     if (!fs.existsSync(root)) continue
+    if (spec.recursive) {
+      out.push(...walk(root, (p) => spec.exts.test(p) && !p.includes(`${path.sep}lib${path.sep}`)))
+      continue
+    }
     for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!shallow && entry.isDirectory()) continue // 하위 client 앱 소스까지 재귀하지 않는다
-      if (entry.isDirectory()) continue
+      if (entry.isDirectory()) continue // 하위 client 앱 소스까지 재귀하지 않는다
       const full = path.join(root, entry.name)
-      if (/\.(?:cjs|mjs|js)$/.test(entry.name) && !full.includes(`${path.sep}lib${path.sep}`)) out.push(full)
+      if (spec.exts.test(entry.name) && !full.includes(`${path.sep}lib${path.sep}`)) out.push(full)
     }
   }
   return out
+}
+
+/**
+ * 이 가드가 실제로 검사하는 **관할 루트 전수**(단일 진실원).
+ *
+ * 각 walker 는 여기서 자기 몫을 읽고, G8c 는 "레포에서 증거를 쓸 수 있는 파일 전수" 가
+ * 이 목록에 덮이는지를 검사한다. 새 트리가 생기거나 여기서 한 줄이 빠지면 G8c 가 RED 다.
+ * (H-4 는 타이밍 축이라 증거 쓰기 관할이 아니다 — 여기 넣지 않는다.)
+ */
+const GUARD_ROOTS: GuardRootSpec[] = [
+  { dir: 'clients/desktop/playwright', recursive: true, exts: /\.(?:ts|tsx|js|mjs|cjs)$/, label: 'H-2' },
+  { dir: 'docs/qa', recursive: true, exts: /\.(?:js|cjs|mjs|ts)$/, label: 'H2b' },
+  { dir: 'docs/qa', recursive: true, exts: /\.py$/, label: 'H2-py' },
+  { dir: 'docs/qa', recursive: true, exts: /\.sh$/, label: 'H2-sh' },
+  { dir: 'scripts', recursive: false, exts: /\.ps1$/, label: 'G3c' },
+  ...G3_ROOTS,
+]
+
+/** 절대경로가 어느 관할 루트에 속하는지 — 아무 데도 안 속하면 null. */
+function guardRootFor(abs: string): GuardRootSpec | null {
+  for (const spec of GUARD_ROOTS) {
+    const root = path.resolve(REPO_ROOT, spec.dir)
+    if (!abs.startsWith(root + path.sep)) continue
+    if (!spec.recursive && path.dirname(abs) !== root) continue
+    if (!spec.exts.test(abs)) continue
+    if (spec.exts === JS_CAPTURE_EXT && abs.includes(`${path.sep}lib${path.sep}`)) continue
+    return spec
+  }
+  return null
 }
 
 /** 자기 자신은 패턴 문자열을 담고 있으므로 스캔 대상에서 제외한다. */
@@ -280,6 +349,44 @@ function collectInlineLiteralWriteViolations(
   }
   return violations
 }
+
+/**
+ * 쓰기 호출 인자에 **인라인 리터럴로** 등장하는 `docs/qa`·`docs/manual` 목적지 전수
+ * (collectInlineLiteralWriteViolations 는 "위반 문구"를, 이쪽은 "경로 그 자체"를 준다).
+ * G8d 가 이월 사유의 생존을 검사할 때 쓴다.
+ */
+function collectInlineLiteralDestinations(src: string): string[] {
+  const out: string[] = []
+  for (const m of src.matchAll(WRITE_CALL)) {
+    const open = (m.index ?? 0) + m[0].length - 1
+    const args = balancedArgs(src, open)
+    if (args.includes('resolveQaShotsDir')) continue
+    for (const lit of extractLiterals(args).split('\n')) {
+      const body = lit.slice(1, -1)
+      if (/^docs[/\\](?:qa|manual)[/\\]/.test(body)) out.push(body)
+    }
+  }
+  return out
+}
+
+/**
+ * G8d 이월 — **cwd 상대경로** 인라인 목적지를 가진 파일.
+ *
+ * `qa/playwright/tests/arologis/sp-10-2-insung-quick-vendor.spec.ts` 의 14개
+ * `page.screenshot({ path: 'docs/qa/sp-10-2-…/screenshots/QA-N-*.png' })` 는 레포 루트
+ * 앵커(`repoRoot`/`__dirname`) 없이 **실행 cwd 기준**으로 해석된다. CI(qa-e2e.yml,
+ * `working-directory: qa/playwright`)에서는 `qa/playwright/docs/qa/…` 로 떨어져 커밋 증거를
+ * 침범하지 않는다(tracked 0건 확인). 커밋 증거 침범이 아니므로 이번 라운드 fix 대상이
+ * 아니다(PM 정정, 2026-07-27 재수렴 4차).
+ *
+ * 🚨 다만 **정적 면제로 두지 않는다** — 이 목록은 "이 파일을 안 본다" 가 아니라 "이 파일의
+ * 인라인 목적지가 실제 커밋 파일을 가리키지 않는다" 를 G8d 가 매 실행 재확인한다는 뜻이다.
+ * 파일명이 커밋 증거와 겹치는 순간(=이월 사유 소멸) G8d 가 RED 다. 목록은 줄이는 방향으로만
+ * 수정한다(H-5 CARRIED_OVER 와 동일 규약).
+ */
+const INLINE_RELATIVE_CARRIED_OVER = new Set<string>([
+  'qa/playwright/tests/arologis/sp-10-2-insung-quick-vendor.spec.ts',
+])
 
 /**
  * `const/let NAME = <초기화식>` 선언 목록.
@@ -802,6 +909,20 @@ describe('하네스 거짓 green 가드', () => {
    * 문자열 연결(`.goto('http://localhost:5175' + x)`, card-shot.cjs·diag-detail.cjs
    * 2개 — PM 이 지목한 11개 목록에는 없었다. "파일명이 아니라 쓰기 목적지·하네스
    * 판정 지점" 스윕 원칙으로 찾았다).
+   *
+   * 🚨 정직 신고 — 이 축이 **보장하지 않는 것**(2026-07-27 재수렴 4차 X3, 실행 반증됨).
+   * G5 fix 로 각 스크립트에 들어간 런타임 단언(14개 파일의
+   * `if (!page.url().includes('/#'+path)) throw` 형태)은 **`goto` 직후의 URL 문자열 검사**다.
+   * 따라서 잡는 것은 "작성자가 해시를 빠뜨렸다"(자기 뮤테이션) 하나뿐이고,
+   * **목표 화면에 실제로 도달했는지는 재지 않는다**. 5175 에 BrowserRouter 하네스
+   * (`vite.web.config.ts`)를 대신 띄우면 앱이 해시를 무시하고 대시보드로 낙착하는데도
+   * URL 에는 해시가 남아 있어 단언이 통과한다 — 실측:
+   * `1.모바일 거래처(카드): /admin/partners rows=0 … QA_DONE  EXIT=0`
+   * (대조군: 정상 하네스 `rows=20`/exit 0 · 서버 down `QA_FAIL`/exit 1).
+   * 즉 "라이브QA 스크립트가 목표 화면에 도달하지 못하면 성공으로 끝나지 않는다" 는
+   * **과장**이고, 정확한 진술은 "해시 없는 goto 는 정적으로도 런타임으로도 막힌다" 다.
+   * 실 도달 측정(페이지별 DOM 마커 단언)은 이 배치의 축(관할 루트 집합)과 다른 축이라
+   * 여기서 손대지 않는다 — 오늘 이 약점이 가리는 실 제품 결함은 없다(도달성 0).
    */
   /**
    * G3 (2026-07-26 재수렴 라운드) — `clients/desktop/playwright` 밖(clients/**\/scripts,
@@ -837,6 +958,8 @@ describe('하네스 거짓 green 가드', () => {
       // (2026-07-27 재수렴 3차 W1 흡수) 목적지가 const 로 이름 붙지 않고 쓰기 호출의 인자에
       // 리터럴로 바로 등장하는 경우 — 실측: generate-sp-07-google-sheets-source-screenshots.mjs
       // 의 `fs.writeFile(path.join(repoRoot, 'docs/qa/.../screenshot-checklist.md'), …)`.
+      // cwd 상대 인라인 목적지 이월분은 G8d 가 "사유 생존" 으로 따로 검사한다(면제 아님).
+      if (INLINE_RELATIVE_CARRIED_OVER.has(name)) continue
       for (const v of collectInlineLiteralWriteViolations(src, { includeDocsManual: true })) {
         violations.push(`${name} → ${v}`)
       }
@@ -1119,5 +1242,183 @@ describe('하네스 거짓 green 가드', () => {
     expect(outAssign.test(src), 'OUT= 하드코딩 커밋 경로 패턴이 안 잡힘(RED 원인)').toBe(true)
     const fixed = ['SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"', 'source "$SCRIPT_DIR/../../../scripts/lib/qa-shots-dir.sh"', 'OUT="$(resolve_qa_shots_dir "$SCRIPT_DIR")"'].join('\n')
     expect(fixed.includes('resolve_qa_shots_dir'), 'fix 후 형태에 resolve_qa_shots_dir 마커가 없음').toBe(true)
+  })
+
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * G8 (2026-07-27 재수렴 4차) — **관할 루트 집합이 모집단을 덮는가**.
+   *
+   * 여섯 번의 재수렴이 전부 "루트 안에서의 변주"(하네스 대수 → mock 게이트 → 1행 정적
+   * 스캔 → 확장자 → 디렉토리 → 확장자 글롭)를 고쳤고, 일곱 번째는 **루트 목록 자체**였다.
+   * 기존 walker 는 전부 "스캔 대상이 잡혔다(count > N)" 만 단언했다 — 그 단언은 **이미
+   * 등재된** 루트가 비지 않았다는 뜻일 뿐이라, 루트가 통째로 빠져 있으면 아무 말도 하지
+   * 않는다. 실측: `qa/playwright/scripts/generate-*.mjs` 9개가 `path.join(repoRoot,
+   * 'docs/qa/<slug>/screenshots')` 로 tracked PNG 68장을 직접 덮어쓰는데도 전 walker 가
+   * GREEN 이었다(재현: 무수정 실행 → 커밋 PNG 재기록, sentinel 30B → 91,813B 로 파괴).
+   *
+   * 그래서 아래 세 테스트는 **가드가 무엇을 못 보는가**를 직접 센다. 모집단은 손으로 적은
+   * 목록이 아니라 레포에서 매번 도출한다 — 새 트리가 생기면 자동으로 RED 다.
+   * ─────────────────────────────────────────────────────────────────────────────
+   */
+  const REPO_SKIP_DIRS = new Set([
+    'node_modules', '.git', '_local', 'dist', 'build', 'out', 'bin', 'coverage',
+    'playwright-report', 'test-results', '.gradle', '.next', '.turbo', 'target',
+    'venv', '.venv', '__pycache__', 'worktrees',
+  ])
+
+  function walkRepo(dir: string, filter: (p: string) => boolean, out: string[] = []): string[] {
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return out
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (REPO_SKIP_DIRS.has(entry.name)) continue
+        walkRepo(full, filter, out)
+      } else if (filter(full)) {
+        out.push(full)
+      }
+    }
+    return out
+  }
+
+  /** 커밋 증거 트리를 가리키는 리터럴 신호(경로 구분자 양쪽 표기 + `'docs','qa'` 분해형). */
+  const EVIDENCE_LITERAL = /docs[/\\]qa|docs[/\\]manual/
+  const EVIDENCE_SPLIT = /['"]docs['"]\s*,\s*['"](?:qa|manual)['"]/
+
+  /**
+   * JS 계열 파일이 "커밋 증거를 쓸 수 있는가" — 가드 본체와 **같은 machinery** 로 판정한다
+   * (WRITE_CALL · stripComments · collectDeclarations · collectWriteTargetIdentifiers).
+   * 새 판정 규칙을 발명하지 않는 것이 요점이다: 모집단과 판정이 어긋나면 그 틈이 여덟
+   * 번째 사각이 된다.
+   */
+  function jsWritesEvidence(src: string, abs: string): boolean {
+    const decls = collectDeclarations(src)
+    const targets = collectWriteTargetIdentifiers(src, decls)
+    const insideEvidenceTree =
+      abs.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
+      abs.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+    for (const decl of decls) {
+      if (!targets.has(decl.name)) continue
+      // 파일 자신이 증거 트리 안에 있으면 `__dirname` 자체가 이미 커밋 경로다(H2b 근거).
+      if (EVIDENCE_LITERAL.test(decl.body) || EVIDENCE_SPLIT.test(decl.body)) return true
+      if (insideEvidenceTree && decl.body.includes('__dirname')) return true
+    }
+    for (const m of src.matchAll(WRITE_CALL)) {
+      const open = (m.index ?? 0) + m[0].length - 1
+      const args = balancedArgs(src, open)
+      if (EVIDENCE_LITERAL.test(extractLiterals(args)) || EVIDENCE_SPLIT.test(args)) return true
+    }
+    return false
+  }
+
+  /** 레포 전수에서 "증거를 쓸 수 있는 파일" 을 도출한다(언어별 판정은 각 walker 와 동일). */
+  function derivedEvidenceWriters(): string[] {
+    const found: string[] = []
+    const jsFiles = walkRepo(REPO_ROOT, (p) => /\.(?:js|cjs|mjs|ts|tsx)$/.test(p))
+    for (const file of jsFiles) {
+      if (path.resolve(file) === SELF) continue // 가드 자신은 패턴 문자열 보관소다
+      let raw: string
+      try {
+        raw = fs.readFileSync(file, 'utf-8')
+      } catch {
+        continue
+      }
+      const inEvidenceTree =
+        file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep) ||
+        file.startsWith(path.resolve(REPO_ROOT, 'docs/manual') + path.sep)
+      if (!EVIDENCE_LITERAL.test(raw) && !EVIDENCE_SPLIT.test(raw) && !inEvidenceTree) continue
+      if (jsWritesEvidence(stripComments(raw), file)) found.push(file)
+    }
+    // .ps1 / .sh / .py — G3c·H2-sh·H2-py 와 동일한 경량 텍스트 휴리스틱(파서 없음).
+    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.ps1'))) {
+      const src = fs.readFileSync(file, 'utf-8')
+      if (/\$Out(?:put)?Dir\s*=\s*(?:Join-Path\s+\$PSScriptRoot\s+)?['"][^'"]*docs[\\/]qa[^'"]*['"]/i.test(src)) found.push(file)
+    }
+    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.sh'))) {
+      const src = fs.readFileSync(file, 'utf-8')
+      if (/\bOUT="[^"]*docs\/qa[^"]*"/.test(src)) found.push(file)
+    }
+    for (const file of walkRepo(REPO_ROOT, (p) => p.endsWith('.py'))) {
+      const src = fs.readFileSync(file, 'utf-8')
+      const inEvidenceTree = file.startsWith(path.resolve(REPO_ROOT, 'docs/qa') + path.sep)
+      if (pyWritesEvidence(src) && (inEvidenceTree || EVIDENCE_LITERAL.test(src))) found.push(file)
+    }
+    return found
+  }
+
+  it('G8a: 관할 루트 명세가 전부 실존하고 실제로 파일을 잡는다 (오타/이동으로 조용히 0건이 되는 사고 방지)', () => {
+    const empty: string[] = []
+    for (const spec of GUARD_ROOTS) {
+      const root = path.resolve(REPO_ROOT, spec.dir)
+      if (!fs.existsSync(root)) {
+        empty.push(`${spec.label} ${spec.dir} → 디렉토리 자체가 없다`)
+        continue
+      }
+      const files = spec.recursive
+        ? walk(root, (p) => spec.exts.test(p))
+        : fs
+            .readdirSync(root, { withFileTypes: true })
+            .filter((e) => !e.isDirectory() && spec.exts.test(e.name))
+            .map((e) => path.join(root, e.name))
+      if (files.length === 0) empty.push(`${spec.label} ${spec.dir} (${String(spec.exts)}) → 0건`)
+    }
+    expect(
+      empty,
+      `관할 루트가 파일을 하나도 안 잡는다 — 경로 오타/이동이면 그 루트는 있으나 마나다:\n${empty.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('G8b: 증거를 쓸 수 있는 파일이 레포에 실제로 다수 존재한다 (모집단 도출이 0건이면 G8c 는 항상 무의미하게 GREEN)', () => {
+    expect(
+      derivedEvidenceWriters().length,
+      '모집단 도출이 사실상 0건 — 도출 로직이 깨졌다면 G8c 커버리지 검사가 통째로 거짓 green 이다',
+    ).toBeGreaterThan(200)
+  })
+
+  it('G8c: 증거를 쓸 수 있는 레포 전 파일이 가드 관할 안에 있다 (루트 집합 누락 = RED)', () => {
+    const uncovered = derivedEvidenceWriters()
+      .filter((f) => guardRootFor(f) === null)
+      .map((f) => path.relative(REPO_ROOT, f).replace(/\\/g, '/'))
+      .sort()
+    expect(
+      uncovered,
+      `커밋 증거를 쓸 수 있는데 어떤 가드 walker 의 관할에도 없는 파일 — GUARD_ROOTS 에 루트를 추가할 것\n` +
+        `(이 목록이 비어 있지 않으면 그 파일들은 위반이어도 조용히 GREEN 이다):\n${uncovered.join('\n')}`,
+    ).toEqual([])
+  })
+
+  /**
+   * G8d — 이월(INLINE_RELATIVE_CARRIED_OVER)은 **면제가 아니라 조건부 유예**다.
+   * 유예 사유("cwd 상대경로라 커밋 증거를 침범하지 않는다")가 여전히 참인지를 매 실행
+   * 재확인한다 — 목적지 파일명이 커밋된 증거와 겹치는 순간 RED.
+   */
+  it('G8d: 이월된 cwd-상대 인라인 목적지가 실제 커밋 파일을 가리키지 않는다 (이월 사유 생존 검사)', () => {
+    const violations: string[] = []
+    for (const relFile of INLINE_RELATIVE_CARRIED_OVER) {
+      const abs = path.resolve(REPO_ROOT, relFile)
+      if (!fs.existsSync(abs)) {
+        violations.push(`${relFile} → 이월 목록의 파일이 없다(이동/삭제?) — 목록을 갱신할 것`)
+        continue
+      }
+      const src = stripComments(fs.readFileSync(abs, 'utf-8'))
+      const dests = collectInlineLiteralDestinations(src)
+      if (dests.length === 0) {
+        violations.push(`${relFile} → 인라인 목적지 0건 — 이미 고쳐졌다면 이월 목록에서 뺄 것`)
+        continue
+      }
+      for (const dest of dests) {
+        if (fs.existsSync(path.resolve(REPO_ROOT, dest))) {
+          violations.push(`${relFile} → ${dest} (이 경로에 커밋 파일이 실재한다 — 이월 사유 소멸, 즉시 fix)`)
+        }
+      }
+    }
+    expect(
+      violations,
+      `이월 사유가 더는 성립하지 않는다 — resolveQaShotsDir 경유로 고치거나 목록에서 뺄 것:\n${violations.join('\n')}`,
+    ).toEqual([])
   })
 })
