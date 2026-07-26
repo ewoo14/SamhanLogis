@@ -2043,7 +2043,11 @@ public class Slip extends BaseEntity {
                         line.getSupplyAmount(),
                         // R6-H3 — 세트 계보 캡처. head 만 true, 일반 라인은 null 로 생략(NON_NULL).
                         line.isSetHead() ? Boolean.TRUE : null,
-                        line.getParentSetModel()))
+                        line.getParentSetModel(),
+                        // #937 재수렴 6차 A안 — 단가 권위 도메인 캡처. 버전이력/레드라인의 "단가"
+                        // 표시는 스냅샷만 보고 판정하므로, 이 값이 실리지 않으면 화면(엔티티를
+                        // 보는 쪽)과 감사 이력(스냅샷을 보는 쪽)이 서로 다른 단가를 말하게 된다.
+                        line.getUnitPriceDomain() == null ? null : line.getUnitPriceDomain().name()))
                 .toList();
         return new SlipSnapshot(
                 this.slipNo,
@@ -2177,11 +2181,36 @@ public class Slip extends BaseEntity {
                 // #822 계열 sweep — 스냅샷 캡처 금액 권위값 승계. create 는 공급단가에서
                 // vat/withVat 를 재계산하므로 VAT 포함 입력 라인(11의 배수가 아닌 단가)에서
                 // 캡처값 대비 반올림 드리프트가 생긴다. legacy(withVat null) 라인은 no-op.
+                // #937 재수렴 6차 A안 — 캡처 시점 단가 도메인도 함께 승계한다. 구 스냅샷은
+                // null 이므로 복원본도 legacy 로 남고(복원 전과 같은 표시), 알 수 없는 값을
+                // 문자열 그대로 되살릴 수 없을 때도 null(=legacy)로 안전하게 떨어진다.
                 restored.restoreAuthoritativeAmounts(snapLine.lineTotal(),
                         snapLine.supplyAmount(), snapLine.vatAmount(),
-                        snapLine.unitPriceWithVat());
+                        snapLine.unitPriceWithVat(),
+                        parseUnitPriceDomain(snapLine.unitPriceDomain()));
                 this.lines.add(restored);
             }
+        }
+    }
+
+    /**
+     * 스냅샷의 단가 도메인 문자열을 enum 으로 되살린다 — #937 재수렴 6차 A안.
+     *
+     * <p>알 수 없는 값(구 스냅샷의 null, 오타, 이후 제거된 상수)은 {@code null}(legacy) 로
+     * 떨어뜨린다. 복원이 예외로 실패하는 것보다 "모른다"로 남아 현행 휴리스틱을 타는 편이
+     * 안전하다 — 도메인 정보는 표시 판정용이지 금액 자체가 아니다.
+     *
+     * @param name 스냅샷에 담긴 enum name (null/공백/미상 허용)
+     * @return 대응 enum, 알 수 없으면 null
+     */
+    private static com.samhanair.logis.slip.domain.UnitPriceDomain parseUnitPriceDomain(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        try {
+            return com.samhanair.logis.slip.domain.UnitPriceDomain.valueOf(name.trim());
+        } catch (IllegalArgumentException unknown) {
+            return null;
         }
     }
 }

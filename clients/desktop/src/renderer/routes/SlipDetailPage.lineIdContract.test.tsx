@@ -1301,6 +1301,72 @@ describe('SlipDetailPage — 재수렴 3차(#937) U1 근본수정 — 하이드�
 })
 
 /**
+ * 재수렴 6차(#937) 근본수정 — D-1R6, 개발책임자 결정 A안 "저장 시점에 도메인 기록".
+ *
+ * <p>읽기전용 표({@link slipLineAmounts})와 수정 모달 하이드레이션({@link toPurchaseEditLines})은
+ * <b>같은 전표에 대해 같은 단가</b>를 보여야 한다(불변식 3). 라이브 실증(전표 2026/07/27-209,
+ * 실 GUI): 사용자가 단가(VAT포함) 100,000 을 입력하고 공급가액 200,000 · 부가세 20,000 으로
+ * "부가세 별도" 정정하자 <b>읽기전용 표 110,000 · 수정 모달 100,000</b> — 같은 세션에서 10,000원
+ * 차이가 났고, Y.Doc 없는 진입에서는 무편집 재저장만으로 사용자 입력이 영구 소멸했다.
+ *
+ * <p>두 지점 모두 저장 시점 도메인({@code unitPriceDomain})을 <b>읽어야</b> 판정 없이 같은 답을
+ * 낸다 — 한쪽만 읽으면 두 화면이 다시 갈린다.
+ */
+describe('SlipDetailPage — 재수렴 6차(#937) D-1R6 — 저장 시점 단가 도메인 (RED-first)', () => {
+  /** 라이브 실증 좌표: 100000|100000|200000|20000|2. */
+  function slipAtD1R6Coordinate(unitPriceDomain: string | null) {
+    return {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 2,
+        unitPrice: '100000',
+        unitPriceWithVat: '100000',
+        supplyAmount: '200000',
+        vatAmount: '20000',
+        lineTotal: '200000',
+        unitPriceDomain,
+        note: '',
+      }],
+    } as unknown as SlipDetail
+  }
+
+  it('읽기전용 표 — 도메인이 기록된 행은 사용자 입력 단가(100,000)를 그대로 보인다', () => {
+    // RED(수정 전): 110000 — slipLineAmounts 가 도메인을 읽지 않아 휴리스틱이 유도했다.
+    expect(slipLineAmounts(slipAtD1R6Coordinate('VAT_INCLUSIVE').lines[0]!).unitWithVat).toBe(100000)
+  })
+
+  it('수정 모달 하이드레이션 — 같은 행에서 같은 단가를 싣는다(불변식 3)', () => {
+    const slip = slipAtD1R6Coordinate('VAT_INCLUSIVE')
+    const readonlyUnit = slipLineAmounts(slip.lines[0]!).unitWithVat
+    const hydrated = toPurchaseEditLines(slip)[0]!
+
+    // RED(수정 전): toPurchaseEditLines 가 도메인을 읽지 않으면 하이드레이션만 110000 이 된다.
+    expect(Number(hydrated.unitPrice)).toBe(100000)
+    expect(Number(hydrated.unitPrice)).toBe(readonlyUnit)
+  })
+
+  it('무편집 재저장 payload — 하이드레이션 단가가 저장값과 같아 DB 를 덮지 않는다(불변식 2)', () => {
+    const hydrated = toPurchaseEditLines(slipAtD1R6Coordinate('VAT_INCLUSIVE'))[0]!
+
+    // Y.Doc 없는 진입(다른 담당자·다른 PC)이 그대로 저장해도 사용자 입력이 소멸하지 않는다.
+    expect(hydrated.unitPrice).toBe('100000')
+    expect(hydrated.supplyAmount).toBe('200000')
+    expect(hydrated.vatAmount).toBe('20000')
+  })
+
+  it('legacy(도메인 null) 동일 좌표는 두 지점 모두 현행 휴리스틱을 유지한다 — 개발책임자 결정', () => {
+    const slip = slipAtD1R6Coordinate(null)
+
+    expect(slipLineAmounts(slip.lines[0]!).unitWithVat).toBe(110000)
+    expect(Number(toPurchaseEditLines(slip)[0]!.unitPrice)).toBe(110000)
+  })
+})
+
+/**
  * 재수렴 3차(#937) 근본수정 — U2, RED-first.
  *
  * <p>R-2(이전 라운드)는 하이드레이션 vatWarning 을 무조건 false 로 닫아 "저장 직후 재열기

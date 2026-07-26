@@ -76,6 +76,23 @@ class SlipLineResponseTest {
         assertThat(response.specification()).isNull();
     }
 
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 단가 권위 도메인을 응답에 전사한다 — "
+            + "FE 표시 계층이 두 단가 컬럼을 추측하지 않으려면 이 값이 응답에 실려야 한다")
+    void from_mapsUnitPriceDomain() {
+        Slip slip = newOutbound();
+        SlipLine authoritative = SlipLine.createFromAuthoritativeAmounts(slip, PRODUCT, "에어컨",
+                "M-1", null, 2, new BigDecimal("100000"), new BigDecimal("200000"),
+                new BigDecimal("20000"), new BigDecimal("220000"), null, null);
+        SlipLine plain = SlipLine.create(slip, PRODUCT, "에어컨", "M-1", null,
+                1, new BigDecimal("500.00"), null);
+
+        // RED(수정 전): null — 응답에 도메인이 없어 FE 가 legacy 휴리스틱으로 떨어지고
+        // 읽기전용 표가 사용자 입력 100,000 을 110,000 으로 유도했다(라이브 실증 D-1R6).
+        assertThat(SlipLineResponse.from(authoritative).unitPriceDomain()).isEqualTo("VAT_INCLUSIVE");
+        assertThat(SlipLineResponse.from(plain).unitPriceDomain()).isEqualTo("SUPPLY");
+    }
+
     private Slip newOutbound() {
         return Slip.createOutbound("2026/06/11-1", LocalDate.of(2026, 6, 11), 1,
                 SOURCE_WH, DEST_WH, PARTNER, "삼한공조",

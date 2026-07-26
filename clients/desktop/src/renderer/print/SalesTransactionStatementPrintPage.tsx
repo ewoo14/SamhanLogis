@@ -33,8 +33,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw } from './PrintLayout'
 import { krwHangul } from './printUtils'
-import { storedLineUnitPrices } from './printAmounts'
-import { vatFromSupply } from '../utils/vatRounding'
+import { storedLineAmounts, storedLineUnitPrices } from './printAmounts'
 import { useFitOneA4 } from './useFitOneA4'
 import { useCompanyProfile } from './useCompanyProfile'
 
@@ -60,17 +59,12 @@ function lineDisplayName(l: SlipLineDetail): string {
  * 만족할 때만 그대로 쓴다 — 만족하지 못하는 행(2026-07-27 실측 22건)은 권위 금액에서 유도한다.
  */
 function lineAmounts(l: SlipLineDetail): { supply: number; vat: number; unitWithVat: number } {
-  const supply =
-    l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal) || 0
-  const vat = l.vatAmount != null ? Number(l.vatAmount) : vatFromSupply(supply)
-  const unitWithVat = storedLineUnitPrices({
-    quantity: l.quantity,
-    unitPrice: l.unitPrice,
-    unitPriceWithVat: l.unitPriceWithVat,
-    supplyAmount: supply,
-    vatAmount: vat,
-  }).inclusiveUnit
-  return { supply, vat, unitWithVat }
+  // 🚨 재수렴 6차(#937): 라인 객체를 <b>통째로</b> 넘긴다 — 종전처럼 필드를 하나씩 골라 넘기면
+  // 저장 컬럼이 늘 때마다 이 지점이 조용히 누락된다(실제로 A안의 unitPriceDomain 을 여기서만
+  // 빠뜨려도 거래명세서가 화면과 다른 단가를 인쇄했다 — 뮤테이션 FE5 가 어떤 테스트도 깨지
+  // 않고 통과했다). 세금계산서·매입전표 인쇄는 이미 이 방식으로 호출한다.
+  const { supply, vat } = storedLineAmounts(l)
+  return { supply, vat, unitWithVat: storedLineUnitPrices(l).inclusiveUnit }
 }
 
 /** 빈행 filler — 원본 양식의 고정 높이 느낌 유지 (품목 적을 때 최소 행수). */

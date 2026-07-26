@@ -12,6 +12,11 @@ export interface StoredLineUnitPriceInput extends StoredLineAmountInput {
   quantity?: string | number | null
   unitPrice?: string | number | null
   unitPriceWithVat?: string | number | null
+  /**
+   * 저장 시점 단가 권위 도메인 (#937 재수렴 6차 A안, V59) — 있으면 휴리스틱 없이 해석한다.
+   * 인쇄가 화면과 <b>같은 단가</b>를 보이려면 같은 정보를 읽어야 한다.
+   */
+  unitPriceDomain?: string | null
 }
 
 export interface StoredLineUnitPrices {
@@ -46,6 +51,7 @@ export function storedLineUnitPrices(line: StoredLineUnitPriceInput): StoredLine
     unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: supply,
     vatAmount: vat,
+    unitPriceDomain: line.unitPriceDomain,
   })
   return {
     supplyUnit: Number(resolved.supplyUnit),

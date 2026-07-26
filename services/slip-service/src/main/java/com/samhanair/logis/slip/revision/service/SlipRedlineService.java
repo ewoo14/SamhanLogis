@@ -2,7 +2,6 @@ package com.samhanair.logis.slip.revision.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevision;
@@ -178,65 +177,12 @@ public class SlipRedlineService {
             case PRODUCT_NAME -> line.productName();
             case SPECIFICATION -> line.specification();
             case QUANTITY -> String.valueOf(line.quantity());
-            case UNIT_PRICE -> plain(unitPriceDisplayValue(line));
-            case LINE_TOTAL -> plain(lineTotalDisplayValue(line));
+            // 🚨 단가/합계 표시값은 SlipRevisionService 의 단일 진실원을 쓴다 — 버전이력
+            // (fieldChanges)과 이 레드라인이 <b>같은 화면에 나란히</b> 렌더되므로(#937 ⑦),
+            // 두 지점이 다른 판정을 하면 사용자는 같은 셀에 대해 두 값을 동시에 본다.
+            case UNIT_PRICE -> plain(SlipRevisionService.unitPriceDisplayValue(line));
+            case LINE_TOTAL -> plain(SlipRevisionService.lineTotalDisplayValue(line));
         };
-    }
-
-    /**
-     * 레드라인 "단가" 표시값 — 화면과 같은 VAT 포함 도메인 (재수렴 4차·5차 #937 근본수정).
-     *
-     * <p>4차: 종전에는 저장 컬럼 {@code unitPriceWithVat} 을 그대로 읽었다. 그런데 두 단가 컬럼이
-     * 같은 값이 된 행(2026-07-27 실측 활성 55건)은 그 컬럼이 실제로 VAT 제외 값일 수 있어,
-     * 무수정 재저장으로 컬럼이 정상화되는 것만으로 <b>사용자가 하지 않은 "단가 100,000 →
-     * 110,000" 변경</b>이 레드라인에 찍혔다.
-     *
-     * <p>5차: 그 4차 판정("VAT 포함 항등식 불만족이면 무조건 유도")은 반대 방향의 가짜 이력을
-     * 만들었다 — <b>부가세만</b> 편집하면(2026-07-25 개발책임자 결정 P6) 단가는 그대로인데
-     * 항등식이 정당하게 깨져, 레드라인에 <b>"단가 110,000 → 112,500"</b> 이 찍혔다(사용자는
-     * 단가를 건드리지 않았다). {@code unit_price_with_vat} 는 사용자 권위 입력이고 P4 대로
-     * 역산 대상이 아니므로, <b>저장값이 VAT 제외 총액(공급가액)과 맞아떨어질 때만</b>(= 구 BE 가
-     * 화면 단가를 두 컬럼에 그대로 각인한 오염 신호) 권위 합계에서 유도한다.
-     *
-     * <p>FE {@code lineVat.resolveAuthoredUnit} 과 같은 판정 규칙의 미러다.
-     */
-    private static BigDecimal unitPriceDisplayValue(SlipSnapshot.Line line) {
-        BigDecimal total = lineTotalDisplayValue(line);
-        BigDecimal stored = line.unitPriceWithVat() != null ? line.unitPriceWithVat() : line.unitPrice();
-        if (total == null || line.quantity() <= 0) {
-            return stored;
-        }
-        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
-        if (stored != null && !scaledEquals(stored.multiply(BigDecimal.valueOf(line.quantity())), supply)) {
-            return stored;
-        }
-        if (stored != null && scaledEquals(stored.multiply(BigDecimal.valueOf(line.quantity())), total)) {
-            return stored;
-        }
-        return total.divide(BigDecimal.valueOf(line.quantity()), 2, java.math.RoundingMode.HALF_UP);
-    }
-
-    /** 원 단위(scale 0, HALF_UP)로 반올림해 두 금액이 같은지 본다. */
-    private static boolean scaledEquals(BigDecimal left, BigDecimal right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        return left.setScale(0, java.math.RoundingMode.HALF_UP)
-                .compareTo(right.setScale(0, java.math.RoundingMode.HALF_UP)) == 0;
-    }
-
-    private static BigDecimal lineTotalDisplayValue(SlipSnapshot.Line line) {
-        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
-        if (supply == null) {
-            return null;
-        }
-        if (line.vatAmount() != null) {
-            return supply.add(line.vatAmount());
-        }
-        if (line.supplyAmount() != null) {
-            return supply.add(VatAmountCalculator.fromSupply(supply));
-        }
-        return line.lineTotal();
     }
 
     private static String plain(BigDecimal value) {

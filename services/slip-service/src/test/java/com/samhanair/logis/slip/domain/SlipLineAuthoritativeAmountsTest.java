@@ -213,6 +213,60 @@ class SlipLineAuthoritativeAmountsTest {
         assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
     }
 
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 사용자 입력 단가 경로는 저장 시점에 VAT_INCLUSIVE 를 기록한다")
+    void recordsVatInclusiveDomainOnAuthoritativeFactory() {
+        // D-1R6 좌표 — 사용자가 단가(VAT포함) 100,000 을 입력하고 "부가세 별도"로 정정한 상태.
+        // 저장 상태만 보면 구 BE 오염행(두 컬럼에 같은 VAT 제외 값)과 완전히 같다.
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("100000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("100000");
+        assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("100000");
+        // RED(수정 전): null — DB 에 도메인 정보가 없어 표시 계층이 110,000 으로 유도했다.
+        assertThat(line.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: VAT 포함 팩토리·호환 권위 팩토리도 VAT_INCLUSIVE 를 기록한다")
+    void recordsVatInclusiveDomainOnVatInclusiveFactories() {
+        SlipLine fromVatInclusive = SlipLine.createFromVatInclusive(newOutbound(), UUID.randomUUID(),
+                "품목", null, null, 2, new BigDecimal("11000"), null, null);
+        assertThat(fromVatInclusive.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+
+        SlipLine compat = SlipLine.createFromAuthoritativeAmounts(newOutbound(), UUID.randomUUID(),
+                "품목", null, null, 2, new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+        assertThat(compat.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 평문 공급단가 팩토리는 SUPPLY 를 기록한다")
+    void recordsSupplyDomainOnPlainFactory() {
+        SlipLine line = SlipLine.create(newOutbound(), UUID.randomUUID(), "품목", null, null,
+                2, new BigDecimal("1000"), null);
+
+        assertThat(line.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.SUPPLY);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 사본은 원본 도메인을 그대로 승계한다 "
+            + "(원본이 legacy 면 사본도 legacy — 사본이 원본과 다른 단가를 보이면 안 된다)")
+    void copyInheritsUnitPriceDomain() {
+        Slip target = newOutbound();
+        SlipLine source = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("100000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        SlipLine copy = SlipLine.copyOf(target, source);
+
+        assertThat(copy.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+        assertThat(copy.getUnitPriceWithVat()).isEqualByComparingTo("100000");
+    }
+
     private Slip newOutbound() {
         return Slip.createOutbound("2026/07/22-1", LocalDate.of(2026, 7, 22), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "거래처",

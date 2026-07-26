@@ -371,3 +371,89 @@ describe('lineVat — resolveUnitPrices 사용자 권위 단가 보존 (재수�
     })).toEqual({ supplyUnit: '100000', inclusiveUnit: '100000' })
   })
 })
+
+/**
+ * 재수렴 6차(#937) — 개발책임자 결정 A안 "저장 시점에 도메인 기록".
+ *
+ * <p>판정식으로는 닫히지 않는다는 것이 6라운드로 실증됐다: 기준을 세 번 바꿨지만(동일성 →
+ * 항등식 → 공급가액 일치) 오판 표면이 22행 → 10행으로 줄었을 뿐 0 이 되지 않았다. 같은 DB 행
+ * {@code 100000|100000|200000|20000|2} 에 대해 <b>구 BE 오염</b>이면 유도(110,000)가,
+ * <b>사용자가 "부가세 별도"로 정정한 정당한 상태</b>면 보존(100,000)이 정답인데 두 경우의 저장
+ * 상태가 완전히 같다 — DB 에 이를 가르는 정보가 없었다.
+ *
+ * <p>이제 저장 시점에 {@code unitPriceDomain} 을 남긴다. 이 값이 있으면 <b>휴리스틱을 아예
+ * 타지 않는다</b>. 값이 없는 legacy 행만 위 5차 휴리스틱으로 해석한다(개발책임자 결정).
+ */
+describe('lineVat — resolveUnitPrices 저장 시점 단가 도메인 (재수렴 6차 #937, RED-first)', () => {
+  it('D-1R6 — "부가세 별도" 정정 행은 사용자 입력 단가를 그대로 보인다', () => {
+    // 라이브 실증(전표 2026/07/27-209): 단가(VAT포함) 100,000 x 2 저장 → 공급가액 200,000 ·
+    // 부가세 20,000 으로 정정(P6, 승인된 편집) → DB 100000|100000|200000|20000|2.
+    // RED(수정 전): inclusiveUnit '110000' — 사용자가 입력한 적 없는 값(읽기전용 표 실측).
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      unitPriceDomain: 'VAT_INCLUSIVE',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '100000' })
+  })
+
+  it('legacy(도메인 null) 동일 좌표는 현행 휴리스틱을 그대로 유지한다 — 개발책임자 결정', () => {
+    // 위와 <b>완전히 같은 저장 상태</b>인데 도메인만 없다. 이 행은 구 BE 오염일 수 있으므로
+    // 5차 규칙대로 권위 합계에서 유도한다. 두 케이스를 가르는 것은 오직 도메인 기록이다.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('SUPPLY 도메인 — VAT 제외 단가로 저장된 행도 파생 VAT 포함 단가를 그대로 쓴다', () => {
+    // create() 평문 경로: unit_price 90,909 가 권위, unit_price_with_vat 는 x1.1 파생값.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '90909',
+      unitPriceWithVat: '99999.90',
+      supplyAmount: '181818',
+      vatAmount: '18181',
+      unitPriceDomain: 'SUPPLY',
+    })).toEqual({ supplyUnit: '90909', inclusiveUnit: '99999.90' })
+  })
+
+  it('도메인이 있어도 저장 단가가 비어 있으면 legacy 휴리스틱으로 떨어진다', () => {
+    // V12 이전 라인처럼 unit_price_with_vat 가 null 이면 기록할 도메인 값 자체가 없다.
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: null,
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      unitPriceDomain: 'VAT_INCLUSIVE',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+
+  it('끝수 단가 — 도메인이 있으면 반올림 없이 끝수까지 보존한다', () => {
+    expect(resolveUnitPrices({
+      quantity: 3,
+      unitPrice: '30303',
+      unitPriceWithVat: '33333.33',
+      supplyAmount: '90909',
+      vatAmount: '9091',
+      unitPriceDomain: 'VAT_INCLUSIVE',
+    })).toEqual({ supplyUnit: '30303', inclusiveUnit: '33333.33' })
+  })
+
+  it('알 수 없는 도메인 문자열은 신뢰하지 않고 legacy 휴리스틱으로 떨어진다', () => {
+    expect(resolveUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      unitPriceDomain: 'MYSTERY',
+    })).toEqual({ supplyUnit: '100000', inclusiveUnit: '110000' })
+  })
+})

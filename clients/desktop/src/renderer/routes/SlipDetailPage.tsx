@@ -220,6 +220,7 @@ export function slipLineAmounts(line: SlipLine) {
     unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: supply,
     vatAmount: vat,
+    unitPriceDomain: line.unitPriceDomain,
   }).inclusiveUnit)
   return {
     supply,
@@ -447,12 +448,16 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     // 덮었다(가격기억 각인 원천 컬럼이라 자동채움까지 오염). 이제는 저장값이 VAT 제외 총액과
     // 맞아떨어지는 오염 신호가 있을 때만 유도하고, 그 밖에는 사용자 권위 단가를 끝수까지
     // 보존한다(P4) — 판정·유도는 표시·인쇄와 같은 단일 진실원이다.
+    // 재수렴 6차(#937) 근본수정 — D-1R6: 5차의 "저장값 × 수량 = 공급가액이면 오염" 판정은
+    // 사용자가 공급가액을 단가×수량 에 맞춘 정당한 상태(부가세 별도 정정)를 오염으로 오인했다.
+    // 개발책임자 결정 A안대로 저장 시점 도메인을 읽어 판정 자체를 없앤다(legacy 행만 휴리스틱).
     unitPrice: resolveUnitPrices({
       quantity: line.quantity,
       unitPrice: line.unitPrice,
       unitPriceWithVat: line.unitPriceWithVat,
       supplyAmount: line.supplyAmount ?? line.lineTotal,
       vatAmount: line.vatAmount ?? vatFromSupply(Number(line.lineTotal)),
+      unitPriceDomain: line.unitPriceDomain,
     }).inclusiveUnit,
     unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: String(line.supplyAmount ?? line.lineTotal),

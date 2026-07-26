@@ -6,6 +6,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -103,6 +105,21 @@ public class SlipLine extends BaseEntity {
     @Column(name = "vat_amount", precision = 15, scale = 2)
     private BigDecimal vatAmount;
 
+    /**
+     * 단가 권위 도메인 — #937 재수렴 6차, 개발책임자 결정 A안 (V59 migration).
+     *
+     * <p>두 단가 컬럼 중 <b>어느 쪽이 사용자 입력이고 어느 쪽이 파생값인지</b>를 저장 시점에
+     * 기록한다. 값이 있으면 표시 계층은 휴리스틱 판정 없이 그대로 해석하고, {@code null}
+     * (V59 이전 legacy 행)일 때만 현행 휴리스틱으로 추측한다. 상세는 {@link UnitPriceDomain}.
+     *
+     * <p>🚨 이 필드는 <b>생성 팩토리에서만</b> 정해진다 — 라인 편집은 전부 전량 교체
+     * ({@code Slip.replaceLines}/{@code replaceSalesLines})라 실사용 mutator 가 없다.
+     * 새 팩토리를 추가하면 반드시 이 값을 함께 정해야 한다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unit_price_domain", length = 20)
+    private UnitPriceDomain unitPriceDomain;
+
     @Column(name = "note", length = 200)
     private String note;
 
@@ -140,6 +157,9 @@ public class SlipLine extends BaseEntity {
         this.supplyAmount = this.lineTotal;
         this.vatAmount = computeVat(this.lineTotal);
         this.unitPriceWithVat = computeUnitPriceWithVat(unitPrice);
+        // #937 재수렴 6차 A안 — 이 생성자는 VAT 제외 공급 단가를 받아 나머지를 파생시킨다.
+        // VAT 포함 입력 팩토리는 아래에서 권위 금액을 덮어쓰며 도메인도 함께 바꾼다.
+        this.unitPriceDomain = UnitPriceDomain.SUPPLY;
     }
 
     /**
@@ -232,6 +252,8 @@ public class SlipLine extends BaseEntity {
         line.supplyAmount = supply;
         line.vatAmount = vat;
         line.unitPriceWithVat = unitPriceWithVat.setScale(2, RoundingMode.HALF_UP);
+        // #937 재수렴 6차 A안 — 사용자가 입력한 값은 VAT 포함 단가다(파라미터 자체가 그 계약).
+        line.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         // MED-4(#824 R2) — R1 은 이 경로(2026-06-09 라인단위 eCount 전환 이후 기본 입력 방식)에
         // 자릿수 가드를 전혀 연결하지 않았다. 위 4개 덮어쓰기 이후 "최종" 필드 상태를 검증해야
         // 실제 저장될 값을 검사하는 것이 된다(생성자 내부에서 검증하면 이후 덮어써질 중간값을
@@ -287,6 +309,12 @@ public class SlipLine extends BaseEntity {
         line.supplyAmount = supplyAmount;
         line.vatAmount = vatAmount;
         line.unitPriceWithVat = unitPrice;
+        // 🚨 #937 재수렴 6차 A안 — 여기가 D-1R6 의 발생 지점이다. 사용자가 화면에서 입력한
+        // VAT 포함 단가를 그대로 각인하면서도 "그것이 VAT 포함 입력이라는 사실"을 남기지 않아,
+        // 사용자가 공급가액을 단가×수량 에 맞춘 순간(부가세 별도 정정) 저장 상태가 구 BE 오염행
+        // (두 컬럼에 같은 VAT 제외 값)과 완전히 같아졌다. 그 결과 표시 계층 휴리스틱이 사용자
+        // 입력 100,000 을 110,000 으로 유도했다. 이제 도메인을 함께 남겨 추측을 없앤다.
+        line.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         line.validateStorableAmounts();
         return line;
     }
@@ -313,6 +341,10 @@ public class SlipLine extends BaseEntity {
         line.vatAmount = vatAmount;
         line.unitPriceWithVat = lineTotalWithVat.divide(BigDecimal.valueOf(quantity), 2,
                 RoundingMode.HALF_UP);
+        // #937 재수렴 6차 A안 — 이 호환 팩토리는 입력 단가가 없어 두 컬럼을 모두 권위 금액에서
+        // 유도한다. unit_price_with_vat 는 VAT 포함 합계 T ÷ Q 이므로 도메인은 VAT 포함이다
+        // (표시 계층이 이 값을 그대로 써도 T 항등식이 성립한다).
+        line.unitPriceDomain = UnitPriceDomain.VAT_INCLUSIVE;
         // MED-4(#824 R2) — R1 의 validateAuthoritativeAmounts 는 입력 3값만 단일 임계값(15)으로
         // 검사해 quantity=1 처럼 나눗셈 마진이 없는 경우 파생 unitPriceWithVat(narrow 컬럼,
         // 13자리 한계)이 여전히 overflow 될 수 있었다. 최종 필드 상태를 다시 검증한다.
@@ -354,6 +386,10 @@ public class SlipLine extends BaseEntity {
             line.supplyAmount = source.supplyAmount;
             line.vatAmount = source.vatAmount;
             line.unitPriceWithVat = source.unitPriceWithVat;
+            // #937 재수렴 6차 A안 — 금액을 그대로 승계하므로 도메인도 그대로 승계한다. 원본이
+            // legacy(null)면 사본도 legacy 로 남겨야 사본이 원본과 <b>같은 단가를 표시</b>한다
+            // (추측으로 채우면 원본과 사본이 다른 단가를 보이게 된다).
+            line.unitPriceDomain = source.unitPriceDomain;
         }
         line.parentSetModel = source.parentSetModel;
         line.setHead = source.setHead;
@@ -379,13 +415,19 @@ public class SlipLine extends BaseEntity {
      * @param supplyAmount 캡처 시점 공급가액 (null 이면 재계산값 유지)
      * @param vatAmount 캡처 시점 부가세 (null 이면 재계산값 유지)
      * @param unitPriceWithVat 캡처 시점 VAT 포함 단가 (null 이면 전체 no-op)
+     * @param unitPriceDomain 캡처 시점 단가 권위 도메인 (#937 재수렴 6차 A안 — 캡처 당시 값을
+     *        그대로 승계한다. 도메인 컬럼이 없던 구 스냅샷은 null 이며, 그 경우 복원본도
+     *        legacy 로 남아 <b>복원 전과 같은 단가를 표시</b>한다. 추측으로 채우면 복원만으로
+     *        표시 단가가 바뀐다.)
      */
     void restoreAuthoritativeAmounts(BigDecimal lineTotal, BigDecimal supplyAmount,
-                                     BigDecimal vatAmount, BigDecimal unitPriceWithVat) {
+                                     BigDecimal vatAmount, BigDecimal unitPriceWithVat,
+                                     UnitPriceDomain unitPriceDomain) {
         if (unitPriceWithVat == null) {
             return;
         }
         this.unitPriceWithVat = unitPriceWithVat;
+        this.unitPriceDomain = unitPriceDomain;
         if (lineTotal != null) {
             this.lineTotal = lineTotal;
         }
@@ -425,6 +467,10 @@ public class SlipLine extends BaseEntity {
         this.supplyAmount = this.lineTotal;
         this.vatAmount = computeVat(this.lineTotal);
         this.unitPriceWithVat = computeUnitPriceWithVat(newUnitPrice);
+        // #937 재수렴 6차 A안 — 이 mutator 는 VAT 제외 단가를 권위로 받아 나머지를 파생시키므로
+        // 도메인도 SUPPLY 로 옮겨간다(생성자와 같은 계약). 실사용 호출자는 없다 — 라인 편집은
+        // 전량 교체 경로다 — 그러나 "쓰는 지점"이므로 도메인을 미정으로 두지 않는다.
+        this.unitPriceDomain = UnitPriceDomain.SUPPLY;
         validateStorableAmounts();
     }
 

@@ -111,3 +111,41 @@ describe('인쇄 단가 — 사용자 권위 단가 보존 (재수렴 5차 #937,
     expect(amounts.supplyUnit * 2, '세금계산서 단가 x 수량 == 공급가액').toBe(200000)
   })
 })
+
+/**
+ * 재수렴 6차(#937) — 저장 시점 단가 도메인(A안)이 인쇄에도 그대로 전달된다.
+ *
+ * <p>인쇄가 도메인을 읽지 않으면 <b>화면과 인쇄가 다른 단가</b>를 보인다(불변식 3 위반).
+ * 세금계산서·매입전표의 VAT 제외 "단가" 열은 종전대로 권위 공급가액에서 유도한다 —
+ * 그 열의 항등식({@code 단가 × 수량 = 공급가액})은 도메인과 무관하게 유지된다.
+ */
+describe('인쇄 단가 — 저장 시점 단가 도메인 (재수렴 6차 #937, RED-first)', () => {
+  it('D-1R6 좌표 — 거래명세서는 사용자 입력 단가 100,000 을, 세금계산서는 유도 공급단가를 쓴다', () => {
+    const amounts = storedLineUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+      unitPriceDomain: 'VAT_INCLUSIVE',
+    })
+
+    // RED(수정 전): inclusiveUnit 110000 — 인쇄가 도메인을 안 읽어 화면과 갈렸다.
+    expect(amounts.inclusiveUnit).toBe(100000)
+    expect(amounts.supplyUnit).toBe(100000)
+    expect(amounts.supplyUnit * 2, '세금계산서 단가 x 수량 == 공급가액').toBe(200000)
+  })
+
+  it('legacy(도메인 null) 동일 좌표는 현행 휴리스틱을 유지한다', () => {
+    const amounts = storedLineUnitPrices({
+      quantity: 2,
+      unitPrice: '100000',
+      unitPriceWithVat: '100000',
+      supplyAmount: '200000',
+      vatAmount: '20000',
+    })
+
+    expect(amounts.inclusiveUnit).toBe(110000)
+    expect(amounts.supplyUnit * 2).toBe(200000)
+  })
+})

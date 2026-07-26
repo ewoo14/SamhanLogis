@@ -557,6 +557,81 @@ class SlipRevisionServiceTest {
         assertThat(summary.lineModified()).isZero();
     }
 
+    /**
+     * 재수렴 6차(#937) ⑦ — 버전이력 "단가"가 화면과 같은 VAT 포함 도메인을 말한다.
+     *
+     * <p>라이브 실증(전표 2026/07/27-209): 사용자는 단가(VAT 포함) 100,000 을 한 번 입력하고
+     * 이후 <b>공급가액·부가세만</b> 편집했는데, 버전이력은 {@code 단가 null→90,909} +
+     * {@code 단가 90,909→100,000} 이라는 <b>하지 않은 변경 2건</b>을 기록했다. 재수렴 4차가
+     * {@code unit_price} 의 의미를 "사용자 입력" → "공급가액 ÷ 수량"으로 바꿨는데 버전이력이
+     * 그 컬럼을 정규화 없이 읽고 있었기 때문이다. 같은 상세 화면이 레드라인(VAT 포함)과
+     * 버전이력을 나란히 렌더하므로 사용자는 한 화면에서 두 단가를 본다.
+     */
+    @Test
+    @DisplayName("재수렴 6차 ⑦: 공급가액만 편집한 라인은 버전이력에 단가 변경을 남기지 않는다")
+    void versionHistoryUnitPriceUsesScreenTaxDomain() {
+        UUID productId = UUID.randomUUID();
+        // 생성 직후: 단가(VAT포함) 100,000 x 2 → S=181,818 · V=18,182 · unit_price=90,909
+        SlipSnapshot.Line before = domainLine(productId, 2, "90909", "100000",
+                "181818", "18182", "VAT_INCLUSIVE");
+        // 공급가액·부가세만 정정("부가세 별도") → unit_price 는 S÷Q 로 100,000 이 된다.
+        SlipSnapshot.Line after = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", "VAT_INCLUSIVE");
+
+        JsonNode fieldChanges = fieldChangesFor(List.of(before), List.of(after));
+
+        // RED(수정 전): {beforeValue:"90909", afterValue:"100000"} — 사용자가 하지 않은 변경.
+        assertThat(findChange(fieldChanges, "lines[0].unitPrice"))
+                .as("사용자가 건드리지 않은 단가는 이력에 남지 않는다").isNull();
+        // 합계(lineTotal)는 이 PR 이전부터 VAT 제외 의미라 그대로 변경으로 남는다(선존재).
+        assertThat(findChange(fieldChanges, "lines[0].lineTotal")).isNotNull();
+    }
+
+    @Test
+    @DisplayName("재수렴 6차 ⑦: 실제 단가 변경은 화면 도메인(VAT 포함) 값으로 기록된다")
+    void versionHistoryRecordsRealUnitPriceChangeInScreenDomain() {
+        UUID productId = UUID.randomUUID();
+        SlipSnapshot.Line before = domainLine(productId, 2, "90909", "100000",
+                "181818", "18182", "VAT_INCLUSIVE");
+        SlipSnapshot.Line after = domainLine(productId, 2, "109091", "120000",
+                "218182", "21818", "VAT_INCLUSIVE");
+
+        JsonNode change = findChange(fieldChangesFor(List.of(before), List.of(after)),
+                "lines[0].unitPrice");
+
+        assertThat(change).isNotNull();
+        assertThat(change.get("beforeValue").asText()).isEqualTo("100000");
+        assertThat(change.get("afterValue").asText()).isEqualTo("120000");
+    }
+
+    @Test
+    @DisplayName("재수렴 6차 A안: 도메인이 없는 legacy 스냅샷은 현행 휴리스틱을 유지한다")
+    void versionHistoryKeepsHeuristicForLegacySnapshotLines() {
+        UUID productId = UUID.randomUUID();
+        // 같은 좌표인데 도메인만 없다 — 구 BE 오염행일 수 있어 권위 합계에서 유도(220,000/2).
+        SlipSnapshot.Line legacy = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", null);
+        SlipSnapshot.Line changed = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", "VAT_INCLUSIVE");
+
+        JsonNode change = findChange(fieldChangesFor(List.of(legacy), List.of(changed)),
+                "lines[0].unitPrice");
+
+        assertThat(change).isNotNull();
+        assertThat(change.get("beforeValue").asText()).isEqualTo("110000");
+        assertThat(change.get("afterValue").asText()).isEqualTo("100000");
+    }
+
+    /** 금액 5값 + 단가 도메인을 가진 스냅샷 라인 (재수렴 6차 #937). */
+    private SlipSnapshot.Line domainLine(UUID productId, int quantity, String unitPrice,
+                                         String unitPriceWithVat, String supplyAmount,
+                                         String vatAmount, String unitPriceDomain) {
+        return new SlipSnapshot.Line(productId, "품목", "모델", "규격", quantity,
+                new BigDecimal(unitPrice), new BigDecimal(supplyAmount), null,
+                new BigDecimal(unitPriceWithVat), new BigDecimal(vatAmount),
+                new BigDecimal(supplyAmount), null, null, unitPriceDomain);
+    }
+
     private JsonNode fieldChangesFor(List<SlipSnapshot.Line> prevLines,
                                      List<SlipSnapshot.Line> curLines) {
         UUID slipId = UUID.randomUUID();

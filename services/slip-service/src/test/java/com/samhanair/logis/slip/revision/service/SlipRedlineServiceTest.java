@@ -284,6 +284,72 @@ class SlipRedlineServiceTest {
                 .containsExactly("220000", "225000");
     }
 
+    @Test
+    @DisplayName("재수렴 6차(#937) D-1R6: 도메인이 기록된 행은 '부가세 별도' 정정 후에도 "
+            + "사용자 입력 단가를 그대로 보인다 (같은 좌표의 legacy 행은 계속 유도)")
+    void computeRedlineTrustsRecordedUnitPriceDomain() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        // rev1 — 단가(VAT포함) 100,000 x 2 저장분(S=181,818 · V=18,182).
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(domainLine(productId, 2, "90909", "181818", "100000", "18182",
+                        "181818", "VAT_INCLUSIVE"))));
+        // rev2 — 공급가액·부가세만 "부가세 별도"로 정정. 저장 좌표가 구 BE 오염행과 같아진다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(domainLine(productId, 2, "100000", "200000", "100000", "20000",
+                        "200000", "VAT_INCLUSIVE"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        // RED(수정 전): rev2 를 (200,000+20,000)/2 = 110,000 으로 유도해
+        // "100000 -> 110000" layer 가 찍힌다 — 사용자는 단가를 건드리지 않았다.
+        assertThat(response.fields())
+                .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 도메인이 없는 legacy 스냅샷 행은 현행 휴리스틱을 유지한다")
+    void computeRedlineKeepsHeuristicForLegacySnapshotLines() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(domainLine(productId, 2, "90909", "181818", "100000", "18182",
+                        "181818", null))));
+        // 같은 좌표인데 도메인이 없다 — 구 BE 오염행일 수 있어 권위 합계에서 유도한다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(domainLine(productId, 2, "100000", "200000", "100000", "20000",
+                        "200000", null))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        SlipRedlineResponse.FieldRedline unitPrice = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("lines[0].unitPrice"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(unitPrice.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("100000", "110000");
+    }
+
+    /** 금액 5값 + 단가 도메인을 가진 스냅샷 라인 (재수렴 6차 #937). */
+    private SlipSnapshot.Line domainLine(UUID productId, int quantity, String unitPrice,
+                                         String lineTotal, String unitPriceWithVat,
+                                         String vatAmount, String supplyAmount,
+                                         String unitPriceDomain) {
+        return new SlipSnapshot.Line(productId, "품목", "모델", "규격", quantity,
+                decimal(unitPrice), decimal(lineTotal), null, decimal(unitPriceWithVat),
+                decimal(vatAmount), decimal(supplyAmount), null, null, unitPriceDomain);
+    }
+
     private SlipRedlineService service() {
         return new SlipRedlineService(slipRepository, revisionRepository,
                 new SlipRevisionService(revisionRepository, new ObjectMapper().findAndRegisterModules()));

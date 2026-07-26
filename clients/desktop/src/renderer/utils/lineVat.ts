@@ -129,6 +129,19 @@ export function hasVatWarning(supplyAmount: string | number, vatAmount: string |
   return diff > 1n || diff < -1n
 }
 
+/**
+ * 저장 시점에 기록된 단가 권위 도메인 (slip_lines.unit_price_domain, V59) — 재수렴 6차 #937.
+ *
+ * <ul>
+ *   <li>{@code VAT_INCLUSIVE} — {@code unit_price_with_vat} 가 이 라인의 VAT 포함 단가다.</li>
+ *   <li>{@code SUPPLY} — {@code unit_price} 가 권위이고 {@code unit_price_with_vat} 는 x1.1 파생값.
+ *       어느 쪽이든 {@code unit_price_with_vat} 는 <b>충실한 VAT 포함 단가</b>이므로 표시는 같다.</li>
+ * </ul>
+ */
+export type StoredUnitPriceDomain = 'VAT_INCLUSIVE' | 'SUPPLY'
+
+const KNOWN_UNIT_PRICE_DOMAINS: readonly string[] = ['VAT_INCLUSIVE', 'SUPPLY']
+
 export interface StoredUnitPriceSource {
   quantity: string | number
   /** 저장된 VAT 제외 공급단가 컬럼 (slip_lines.unit_price). */
@@ -137,6 +150,13 @@ export interface StoredUnitPriceSource {
   unitPriceWithVat?: string | number | null
   supplyAmount: string | number
   vatAmount: string | number
+  /**
+   * 저장 시점에 기록된 단가 권위 도메인 (slip_lines.unit_price_domain, V59) — 재수렴 6차 #937.
+   * 값이 있으면 <b>휴리스틱 판정을 아예 하지 않는다</b>. V59 이전 legacy 행은 null/undefined 이며
+   * 그 행만 현행 휴리스틱으로 해석한다(개발책임자 결정).
+   * BE 응답 문자열을 그대로 받으므로 알 수 없는 값이 올 수 있어 타입을 넓게 둔다.
+   */
+  unitPriceDomain?: StoredUnitPriceDomain | string | null
 }
 
 export interface ResolvedUnitPrices {
@@ -217,14 +237,38 @@ function resolveAuthoredUnit(
  * <p><b>왜 무조건 유도하지도 않는가</b>: 사용자가 입력한 끝수 단가(예: 가격기억 499,999.5)는
  * 권위값에서 되돌리면 반올림되어(500,000) 가격기억 왕복이 흔들리고, 부가세만 편집한 라인
  * (P6 — 정당하게 항등식이 깨진다)은 아예 다른 단가로 바뀐다.
+ *
+ * <p>🚨 <b>재수렴 6차(#937) — 개발책임자 결정 A안 "저장 시점에 도메인 기록"</b>.
+ * 위 두 문단의 휴리스틱은 <b>legacy 행 전용</b>이 됐다. {@code unitPriceDomain}
+ * ({@code slip_lines.unit_price_domain}, V59)이 실려 있으면 판정을 아예 하지 않고 저장된
+ * {@code unitPriceWithVat} 를 그대로 쓴다.
+ *
+ * <p><b>왜 판정식을 또 고치지 않았나</b>: 6라운드에 걸쳐 기준을 세 번 바꿨다(동일성 → 항등식 →
+ * 공급가액 일치). 오판 표면은 22행 → 10행으로 줄었을 뿐 <b>0 이 되지 않았다</b>. 같은 DB 행
+ * {@code 100000|100000|200000|20000|2} 에 대해 "구 BE 오염 방지"는 유도(→110,000)를,
+ * 2026-07-25 결정 P4 는 보존(→100,000)을 요구하는데 <b>DB 에 이를 가르는 정보가 없었다</b> —
+ * 사용자가 공급가액을 {@code 단가 × 수량} 에 맞추는 순간(부가세 별도 정정, 한국 B2B 기본 관행)
+ * 정당한 상태가 오염행과 완전히 같은 좌표가 되기 때문이다(라이브 실증 전표 2026/07/27-209:
+ * 읽기전용 표 110,000 vs 수정모달 100,000 — 같은 전표·같은 세션 10,000원 차이). 그래서 판정을
+ * 개선하는 대신 <b>저장 시점에 답을 기록</b>한다.
+ *
+ * <p>BE 미러: {@code SlipRevisionService.unitPriceDisplayValue} (버전이력·레드라인 공용).
+ * 갈리면 화면과 감사 이력이 어긋난다.
  */
 export function resolveUnitPrices(source: StoredUnitPriceSource): ResolvedUnitPrices {
   const quantity = Math.max(1, Math.trunc(Number(source.quantity) || 1))
   const supply = integerAmount(source.supplyAmount)
   const vat = integerAmount(source.vatAmount)
+  const stored = source.unitPriceWithVat
+  const domainKnown = source.unitPriceDomain != null
+    && KNOWN_UNIT_PRICE_DOMAINS.includes(String(source.unitPriceDomain).trim())
+  const storedUsable = stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
   return {
     supplyUnit: resolveUnit(source.unitPrice, supply, quantity),
-    inclusiveUnit: resolveAuthoredUnit(source.unitPriceWithVat, supply + vat, supply, quantity),
+    // A안 — 저장 시점 도메인이 있으면 추측하지 않고 저장값을 그대로 쓴다.
+    inclusiveUnit: domainKnown && storedUsable
+      ? String(stored)
+      : resolveAuthoredUnit(stored, supply + vat, supply, quantity),
   }
 }
 
