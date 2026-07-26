@@ -115,6 +115,7 @@ import { lookupProducts } from '../api/productApi'
 import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 import {
   editLineVat,
+  editSlipLineAmount,
   hasVatWarning,
   roundProduct,
   type LineVatLine,
@@ -559,6 +560,15 @@ export function coeditLinesToEditLines(
     const rawLineTotal = provider.getItemValue(index, 'lineTotalWithVat')
     const rawAuthority = provider.getItemValue(index, 'authority')
     const rawVatDirty = provider.getItemValue(index, 'vatDirty')
+    const supplyAmount = rawSupply || previous?.supplyAmount
+    const vatAmount = rawVat || previous?.vatAmount
+    const hasDerivedAmounts = supplyAmount != null
+      && supplyAmount !== ''
+      && vatAmount != null
+      && vatAmount !== ''
+    const lineTotalWithVat = hasDerivedAmounts
+      ? String(Number(supplyAmount) + Number(vatAmount))
+      : rawLineTotal || previous?.lineTotalWithVat
     return {
       key: previous?.key ?? createEditLineKey(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
@@ -571,9 +581,9 @@ export function coeditLinesToEditLines(
       unitPrice: provider.getItemValue(index, 'unitPrice'),
       unitPriceWithVat: previous?.unitPriceWithVat,
       note: provider.getItemValue(index, 'note'),
-      supplyAmount: rawSupply || previous?.supplyAmount,
-      vatAmount: rawVat || previous?.vatAmount,
-      lineTotalWithVat: rawLineTotal || previous?.lineTotalWithVat,
+      supplyAmount,
+      vatAmount,
+      lineTotalWithVat,
       authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
       vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
     }
@@ -584,17 +594,18 @@ export function coeditLinesToEditLines(
  * 전표 상세(수정) 라인 → {@link LineVatLine} 계산 도메인 변환.
  *
  * <p>이 화면의 단가 열(line.unitPrice)은 VAT 제외 공급단가 계약이라 {@code recalculateLineVat}
- * 의 PRICE 분기(단가=VAT 포함 전제)와 도메인이 다르다. SUPPLY/VAT/TOTAL 권위 편집
- * ({@code updateDetailVat})에서만 사용하고, 수량 변경은 {@link computeDetailQuantityChange}
+ * 의 PRICE 분기(단가=VAT 포함 전제)와 도메인이 다르다. SUPPLY/VAT 권위 편집
+ * ({@code updateDetailVat})에서만 사용하고, 합계는 공급가액과 부가세의 파생값으로
+ * 읽기 전용 처리한다. 수량 변경은 {@link computeDetailQuantityChange}
  * 가 별도로 처리한다(BLOCKING-1 — PRICE 분기로 우회하면 안 되는 이유는 그쪽 주석 참조).
  */
 export function detailVatLine(
-  line: Pick<PurchaseEditLine, 'quantity' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
 ): LineVatLine {
   const total = line.lineTotalWithVat ?? '0'
   return {
     quantity: line.quantity,
-    unitPrice: total,
+    unitPrice: String(line.unitPrice ?? '0'),
     supplyAmount: line.supplyAmount ?? '0',
     vatAmount: line.vatAmount ?? '0',
     lineTotal: total,
@@ -608,15 +619,14 @@ export function detailAmountState(
   authority: PurchaseEditLine['authority'],
 ): Partial<PurchaseEditLine> {
   // BLOCKING-1 부수 발견(#824 R1): `Number(x) || 1` 은 진짜 수량 0(방금 수량 셀을 비운
-  // 직후)을 "값 없음"으로 오판해 1로 되돌린다(JS 0 은 falsy). 수량은 보존하고, 단가
-  // 역산(divisor)만 0 나눗셈 방지로 최소 1을 쓴다.
+  // 직후)을 "값 없음"으로 오판해 1로 되돌린다(JS 0 은 falsy). 수량과 사용자가 입력한
+  // 단가를 그대로 보존하고, 금액 편집에서는 단가를 역산하지 않는다.
   const parsedQuantity = Number(result.quantity)
   const quantity = Number.isFinite(parsedQuantity) ? Math.max(0, Math.trunc(parsedQuantity)) : 0
-  const divisor = Math.max(1, quantity)
   return {
     quantity,
-    // 전표 상세의 기존 단가 열은 VAT 제외 공급단가라는 계약을 유지한다.
-    unitPrice: String(Number(result.supplyAmount) / divisor),
+    // 전표 상세의 단가는 사용자가 입력한 값을 보존하며 역산하지 않는다.
+    unitPrice: String(result.unitPrice),
     supplyAmount: result.supplyAmount,
     vatAmount: result.vatAmount,
     lineTotalWithVat: result.lineTotal,
@@ -2332,8 +2342,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     fieldPath={`items.${index}.lineTotalWithVat`}
                     type="number" min={0}
                     value={String(line.lineTotalWithVat ?? '0')}
-                    onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'TOTAL', value)}
-                    readOnly={Boolean(line.isBundleComponent)}
+                    // 합계는 공급가액+부가세 파생값이다. 협업 입력은 원격 인식과
+                    // 문서 구독을 유지하되, 사용자 입력과 협업 문서의 합계 직접 편집은 받지 않는다.
+                    onValueChange={() => undefined}
+                    onDocSyncValueChange={() => undefined}
+                    readOnly
                     aria-label={`합계(VAT포함) ${index + 1}`}
                   />
                 </td>
@@ -2627,8 +2640,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     fieldPath={`items.${index}.lineTotalWithVat`}
                     type="number" min={0}
                     value={String(line.lineTotalWithVat ?? '0')}
-                    onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'TOTAL', value)}
-                    readOnly={Boolean(line.isBundleComponent)}
+                    // 합계는 공급가액+부가세 파생값이다. 협업 입력은 원격 인식과
+                    // 문서 구독을 유지하되, 사용자 입력과 협업 문서의 합계 직접 편집은 받지 않는다.
+                    onValueChange={() => undefined}
+                    onDocSyncValueChange={() => undefined}
+                    readOnly
                     aria-label={`합계(VAT포함) ${index + 1}`}
                   />
                 </td>
@@ -4270,10 +4286,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   function updateDetailVat(
     index: number,
     update: (index: number, patch: LinePatch) => void,
-    authority: 'SUPPLY' | 'VAT' | 'TOTAL',
+    authority: 'SUPPLY' | 'VAT',
     value: string,
   ) {
-    update(index, (line) => detailAmountState(editLineVat(detailVatLine(line), authority, value), authority))
+    update(index, (line) => detailAmountState(editSlipLineAmount(detailVatLine(line), authority, value), authority))
   }
 
   function updatePurchaseLine(index: number, patch: LinePatch) {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createDocCoeditProvider,
@@ -17,7 +19,7 @@ import {
   toPurchaseEditLines,
 } from './SlipDetailPage'
 import { toServerLineIdSet } from '../realtime/coeditLineIds'
-import { editLineVat } from '../utils/lineVat'
+import { editLineVat, editSlipLineAmount } from '../utils/lineVat'
 import type { SlipDetail } from '../api/slip'
 
 /**
@@ -404,12 +406,23 @@ describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #82
     expect(patch.lineTotalWithVat).toBe('0')
   })
 
-  it('공급가액 편집(SUPPLY authority)도 단가를 그대로 승계한다', () => {
-    const patch = detailAmountState(editLineVat(detailVatLine(baseLine), 'SUPPLY', '300000'), 'SUPPLY')
+  it('수정 화면 공급가액 편집은 단가와 기존 부가세를 보존하고 합계만 재계산한다', () => {
+    const patch = detailAmountState(editSlipLineAmount(detailVatLine(baseLine), 'SUPPLY', '300000'), 'SUPPLY')
 
     expect(patch.quantity).toBe(2)
-    expect(patch.unitPrice).toBe('150000') // 300000 / 2
+    expect(patch.unitPrice).toBe('100000')
     expect(patch.supplyAmount).toBe('300000')
+    expect(patch.vatAmount).toBe('20000')
+    expect(patch.lineTotalWithVat).toBe('320000')
+  })
+
+  it('수정 화면 부가세 편집은 단가와 기존 공급가액을 보존하고 합계만 재계산한다', () => {
+    const patch = detailAmountState(editSlipLineAmount(detailVatLine(baseLine), 'VAT', '7000'), 'VAT')
+
+    expect(patch.unitPrice).toBe('100000')
+    expect(patch.supplyAmount).toBe('200000')
+    expect(patch.vatAmount).toBe('7000')
+    expect(patch.lineTotalWithVat).toBe('207000')
   })
 
   it('detailAmountState 는 수량 0을 "값 없음"으로 오판해 1로 되돌리지 않는다', () => {
@@ -421,5 +434,42 @@ describe('SlipDetailPage — 수량 변경 금액 폭증 회귀 (BLOCKING-1, #82
     const patch = detailAmountState(editLineVat(detailVatLine(zeroQuantityLine), 'SUPPLY', ''), 'SUPPLY')
 
     expect(patch.quantity).toBe(0)
+  })
+
+  it('협업 중 공급가액이 바뀌면 합계는 Y.Doc의 공급가액+부가세로 파생된다', async () => {
+    const provider = await makeProvider()
+    seedRows(provider, serverLines)
+    provider.setItemValue(0, 'supplyAmount', '200000')
+    provider.setItemValue(0, 'vatAmount', '20000')
+    provider.setItemValue(0, 'lineTotalWithVat', '220000')
+    provider.setItemValue(0, 'supplyAmount', '300000')
+
+    const current = editLinesFrom(serverLines).map((line, index) => index === 0
+      ? { ...line, supplyAmount: '200000', vatAmount: '20000', lineTotalWithVat: '220000' }
+      : line)
+    const next = coeditLinesToEditLines(provider, current, knownServerLineIds)
+
+    expect(next[0]).toMatchObject({
+      supplyAmount: '300000',
+      vatAmount: '20000',
+      lineTotalWithVat: '320000',
+    })
+    provider.destroy()
+  })
+
+  it('수정 화면 합계 협업 입력은 읽기 전용이고 TOTAL 사용자 편집 경로를 노출하지 않는다', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    const totalBindings = Array.from(source.matchAll(
+      /fieldPath=\{`items\.\$\{index\}\.lineTotalWithVat`\}[\s\S]*?\/>/g,
+    ), (match) => match[0])
+
+    expect(totalBindings).toHaveLength(2)
+    expect(totalBindings.every((binding) => /readOnly(?:=\{true\})?/.test(binding))).toBe(true)
+    expect(totalBindings.every((binding) => !binding.includes("updateDetailVat(index, updateSalesLine, 'TOTAL'"))).toBe(true)
+    expect(totalBindings.every((binding) => !binding.includes("updateDetailVat(index, updatePurchaseLine, 'TOTAL'"))).toBe(true)
+    expect(source).toContain('editSlipLineAmount')
   })
 })
