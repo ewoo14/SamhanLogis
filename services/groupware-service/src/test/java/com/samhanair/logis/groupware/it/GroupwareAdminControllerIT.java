@@ -350,6 +350,56 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.document.bands[0].key").value("new-layout"));
     }
 
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "r2-missing-revision-it",
+            authorities = {"ROLE_MANAGER"})
+    void httpApproval_whenActiveTemplateRevisionIsMissing_selfHealsBeforePin() throws Exception {
+        UUID templateId = UUID.randomUUID();
+        String docType = "GROUPWARE_R2_MISSING_REVISION";
+        insertRawTemplate(templateId, docType, "revision 없는 ACTIVE 양식", "ACTIVE",
+                "{\"paper\":\"A4_PORTRAIT\",\"bands\":[]}");
+        UUID approver = UUID.randomUUID();
+        ApprovalLine line = ApprovalLine.open("2099/01/01-851", UUID.randomUUID(), "R2 self-heal 결재", "본문");
+        line.linkGroupwareDocument(docType, null).appendStep(approver);
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM document_template_revisions WHERE template_id = ?", Integer.class,
+                templateId)).isZero();
+
+        mvcApprovalApprove(approvalId, approver)
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateId")
+                        .value(templateId.toString()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateRevision").value(1));
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT status, version, document_template_id, document_template_revision, "
+                        + "document_template_default_pinned FROM approval_lines WHERE id = ?", approvalId);
+        assertThat(row.get("status")).isEqualTo("APPROVED");
+        assertThat(row.get("version")).isEqualTo(1L);
+        assertThat(row.get("document_template_id")).isEqualTo(templateId);
+        assertThat(row.get("document_template_revision")).isEqualTo(1);
+        assertThat(row.get("document_template_default_pinned")).isEqualTo(false);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM document_template_revisions WHERE template_id = ? AND revision = 1",
+                Integer.class, templateId)).isEqualTo(1);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_id = NULL, "
+                        + "document_template_revision = NULL, document_template_default_pinned = FALSE "
+                        + "WHERE id = ?", approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+        Map<String, Object> immutableRow = jdbcTemplate.queryForMap(
+                "SELECT status, document_template_id, document_template_revision, "
+                        + "document_template_default_pinned FROM approval_lines WHERE id = ?", approvalId);
+        assertThat(immutableRow.get("status")).isEqualTo("APPROVED");
+        assertThat(immutableRow.get("document_template_id")).isEqualTo(templateId);
+        assertThat(immutableRow.get("document_template_revision")).isEqualTo(1);
+        assertThat(immutableRow.get("document_template_default_pinned")).isEqualTo(false);
+    }
+
     /**
      * R3 B-1 fix — V12이 신설한 CHECK {@code ck_approval_lines_document_template_default_pin}에
      * 대한 직접 테스트가 0건이었다. 형제 제약(append-only 트리거는 {@code DocumentTemplateIT},
@@ -570,6 +620,14 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         new DocumentPayload.Element("content", "CONTENT_PARAGRAPHS"))),
                 new DocumentPayload.Band("footer", "FOOTER", List.of(
                         new DocumentPayload.Element("closing", "CLOSING")))));
+    }
+
+    private void insertRawTemplate(UUID id, String docType, String name, String status, String document) {
+        jdbcTemplate.update("INSERT INTO document_templates (id,doc_type,name,revision,status,schema_version,"
+                        + "lock_version,document,created_at,created_by,is_deleted) "
+                        + "VALUES (?,?,?,?,?,?,?,?::jsonb,?,?,false)",
+                id, docType, name, 1, status, (short) 1, 0L, document,
+                java.sql.Timestamp.valueOf(LocalDateTime.now()), "r2-missing-revision-it");
     }
 
     private JsonNode payloadJson(String bandKey) {

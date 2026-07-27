@@ -359,8 +359,11 @@ public class ApprovalLineService {
         documentTemplateRepository.findFirstByDocTypeAndStatusAndIsDeletedFalse(
                         line.getDocumentType(), DocumentTemplateStatus.ACTIVE)
                 .ifPresentOrElse(template -> {
-                    documentTemplateRevisionService.ensureCurrentRevision(template);
+                    documentTemplateRevisionService.ensureCurrentRevisionForApproval(template);
                     line.pinDocumentTemplate(template.getId(), template.getRevision());
                 }, line::pinDefaultDocumentTemplate);
+        // revision INSERT와 APPROVED + pin UPDATE를 같은 flush에서 처리한다. V15는 OLD.status가
+        // PENDING인 승인 당시 각인만 허용하므로, 승인 상태만 먼저 flush되는 중간 상태를 만들면 안 된다.
+        repository.flush();
     }
 }
