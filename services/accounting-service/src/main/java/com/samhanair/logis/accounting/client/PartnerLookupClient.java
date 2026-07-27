@@ -214,9 +214,21 @@ public class PartnerLookupClient {
      * 매치는 0행이고, 위 3부류 밖의 자유입력(한글·공백·{@code & # + ? < >}·전각 ％·이모지)은
      * 그대로 partner-service 까지 전달된다(실측 200/404). query 파라미터를 쓰는 형제 메서드
      * ({@code findByPartnerNameResult}·{@code searchDirectoryResult})는 같은 문자에도 정상
-     * 응답하므로(실측) 이 판정을 적용하지 않는다.
+     * 응답하므로(실측) 이 <i>문자</i> 판정을 적용하지 않는다 — 다만 <b>빈 값 판정은 세 메서드가
+     * 모두 필요하다</b>. 셋 다 {@code trim()} 한 값을 실어 보내므로, 판정을 원본에 걸면
+     * {@code q=}·{@code name=} 이 비어 나가 각각 거래처 전량 200·400 이 돌아온다
+     * (#929 재수렴 6차 D-RC6-1, 라이브 실측).
      *
-     * @param segment {@code trim()} 된 partnerCode
+     * <p><b>전제 — 세그먼트는 비어 있지 않다</b> (#929 재수렴 6차 D-RC6-1). 이 판정은 문자를
+     * 하나씩 돌며 거부 사유를 찾는 구조라 <b>빈 문자열에서는 루프가 0회 실행되어 무조건
+     * {@code true}</b> 가 된다 — 어떤 문자 판정도 적용되지 않는다. 그런데 빈 문자열이야말로
+     * path 세그먼트로 전달 불가능한 값이다({@code GET /internal/partners/} → 실측 500).
+     * 그 구간은 호출부가 <b>전송할 값({@code trimmed})으로</b> 빈 값 검사를 먼저 해서 닫는다 —
+     * 원본으로 검사하면 {@code Character.isWhitespace} 가 false 인 제어문자 23종
+     * (U+0000–U+0008 · U+000E–U+001B)이 그 검사를 통과한 뒤 {@code trim()} 에서 사라져
+     * 여기로 빈 문자열이 흘러든다.
+     *
+     * @param segment {@code trim()} 된 <b>비어 있지 않은</b> partnerCode (호출부가 보장)
      * @return path 세그먼트로 전달 가능하면 true
      */
     static boolean isAddressableAsPathSegment(String segment) {
@@ -296,8 +308,10 @@ public class PartnerLookupClient {
      * 자원을 못 가리킨다"는 다른 상황이고, 전자를 미존재로 삼키면 장애가 조용히 위장된다.
      */
     public LookupResult findByPartnerCodeResult(String partnerCode) {
-        if (partnerCode == null || partnerCode.isBlank()) return LookupResult.notFound();
-        String trimmed = partnerCode.trim();
+        // [#929 재수렴 6차 D-RC6-1] 판정은 전송할 값으로 한다 — 아래 판정들과 실제 요청이 모두
+        // trimmed 를 쓰므로, 빈 값 검사도 원본이 아니라 trimmed 에 건다.
+        String trimmed = partnerCode == null ? "" : partnerCode.trim();
+        if (trimmed.isBlank()) return LookupResult.notFound();
         if (!isAddressableAsPathSegment(trimmed)) {
             // [#929 재수렴 4차 D1·D2] 이 전송로로는 도달 자체가 불가능한 값 — 실존 partnerCode 일
             // 수 없으므로 네트워크 호출을 생략하고 미존재로 성사시킨다. null/blank 가 이미 토큰
@@ -451,7 +465,9 @@ public class PartnerLookupClient {
 
     /** directory 목록 조회의 FOUND/NOT_FOUND/UNAVAILABLE 결과를 보존한다. */
     public DirectoryLookupResult searchDirectoryResult(String query, int limit) {
-        if (query == null || query.isBlank()) {
+        // [#929 재수렴 6차 D-RC6-1] 판정은 전송할 값으로 한다 — 실제 요청이 query.trim() 을 싣는다.
+        String trimmedQuery = query == null ? "" : query.trim();
+        if (trimmedQuery.isBlank()) {
             return DirectoryLookupResult.notFound();
         }
         String token = internalAuthProperties.getToken();
@@ -461,7 +477,7 @@ public class PartnerLookupClient {
         try {
             String body = restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/internal/partners/list")
-                            .queryParam("q", query.trim())
+                            .queryParam("q", trimmedQuery)
                             .queryParam("limit", Math.max(1, limit))
                             .queryParam("page", 0)
                             .build())
@@ -518,7 +534,9 @@ public class PartnerLookupClient {
     }
 
     private LookupResult findByPartnerNameResult(String partnerName, boolean strictAmbiguous) {
-        if (partnerName == null || partnerName.isBlank()) {
+        // [#929 재수렴 6차 D-RC6-1] 판정은 전송할 값으로 한다 — 실제 요청이 partnerName.trim() 을 싣는다.
+        String trimmedName = partnerName == null ? "" : partnerName.trim();
+        if (trimmedName.isBlank()) {
             return LookupResult.notFound();
         }
         String token = internalAuthProperties.getToken();
@@ -528,7 +546,7 @@ public class PartnerLookupClient {
         try {
             String body = restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/internal/partners/by-name")
-                            .queryParam("name", partnerName.trim())
+                            .queryParam("name", trimmedName)
                             .build())
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
