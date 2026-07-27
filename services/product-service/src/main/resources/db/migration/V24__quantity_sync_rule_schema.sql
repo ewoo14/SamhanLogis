@@ -29,7 +29,13 @@ CREATE TABLE quantity_sync_rule (
     CONSTRAINT chk_qsr_condition_object CHECK (jsonb_typeof(condition_json) = 'object'),
     CONSTRAINT chk_qsr_inactive_behavior CHECK (inactive_behavior IN ('ZERO', 'KEEP')),
     CONSTRAINT chk_qsr_conflict_policy CHECK (conflict_policy IN ('ADD', 'REPLACE')),
-    CONSTRAINT chk_qsr_priority CHECK (priority >= 0)
+    CONSTRAINT chk_qsr_priority CHECK (priority >= 0),
+    -- 재수렴 결함 3 [MED~HIGH] fix — rule_key가 URL 경로 세그먼트로 항상 안전해야
+    -- API로 생성한 규칙을 API로 조회/삭제할 수 있다(S-5). '/'가 들어가면 GET/DELETE가
+    -- Spring 라우팅(원문 '/'는 경로 분할, 인코딩 %2F는 Tomcat이 400 HTML로 거부)
+    -- 양쪽에서 막혀 영구 고아가 된다. 기존 시드/문서 키 형식(예: HOME_HOSE_1WAY_L)과
+    -- QuantitySyncRuleDbProbeIT의 하이픈 키(예: DB-SELFSWAP)를 모두 허용한다.
+    CONSTRAINT chk_qsr_rule_key_path_safe CHECK (rule_key ~ '^[A-Za-z0-9_-]+$')
 );
 
 CREATE TABLE quantity_sync_source (
@@ -99,18 +105,31 @@ CREATE INDEX ix_qst_product_active
     ON quantity_sync_target (target_product_id)
     WHERE is_deleted = FALSE;
 
--- 기존 Product 값(COMMERCIAL_MULTI)을 survey 정본의 저장 category(COMM_MULTI)로 매핑한다.
-CREATE OR REPLACE FUNCTION quantity_sync_product_category(p_product_id UUID)
-RETURNS VARCHAR
+-- 재수렴 결함 1 [최우선] fix — 카테고리 판정 원천을 products.estimate_category(V18 이후 죽은
+-- 컬럼, V18__add_product_estimate_exposure.sql:2-3)에서 product_estimate_exposure M:N
+-- 테이블로 옮긴다. 실 API(POST /products estimateCategories)로 만든 품목은 전부 이 테이블에만
+-- 행이 생기고 products 컬럼은 항상 NULL로 남으므로, 죽은 컬럼을 계속 읽으면 실 API로 만든
+-- 어떤 품목도 이 함수가 카테고리를 찾지 못해 모든 규칙 연결이 거부된다(S-1).
+--
+-- 품목은 여러 카테고리에 동시 노출될 수 있어(M:N, S-3) 스칼라 반환이 아니라 "이 카테고리에
+-- 노출되어 있는가" 멤버십 판정으로 바꾼다 — source/target 각각이 rule의 category에 노출만
+-- 되어 있으면 연결을 허용한다(다른 카테고리에도 노출되어 있다는 사실은 이 판정과 무관하다).
+-- 이는 §6.5 "같은 category 안에서만 연결"을 M:N으로 그대로 확장한 것이며 신규 승인이 아니다
+-- (product-service의 Product는 여전히 정확히 1개 rule category 전용이 아니라 노출 집합을 갖고,
+-- 규칙은 그 집합의 원소 하나와 일치하면 된다).
+CREATE OR REPLACE FUNCTION quantity_sync_product_in_category(p_product_id UUID, p_category VARCHAR)
+RETURNS BOOLEAN
 LANGUAGE SQL
 STABLE
 AS $$
-    SELECT CASE
-             WHEN p.estimate_category = 'COMMERCIAL_MULTI' THEN 'COMM_MULTI'
-             ELSE p.estimate_category
-           END
-      FROM products p
-     WHERE p.id = p_product_id;
+    SELECT EXISTS (
+        SELECT 1
+          FROM product_estimate_exposure e
+         WHERE e.product_id = p_product_id
+           AND e.is_deleted = FALSE
+           AND (CASE WHEN e.estimate_category = 'COMMERCIAL_MULTI' THEN 'COMM_MULTI'
+                     ELSE e.estimate_category END) = p_category
+    );
 $$;
 
 -- condition_json은 정본에 정의된 typed operator만 허용한다.
@@ -247,16 +266,26 @@ BEGIN
             MESSAGE = 'quantity_sync source and target cannot be the same product';
     END IF;
 
+    -- 재수렴 결함 1 [최우선] fix 중 발견 — 카테고리 판정이 이제 product_estimate_exposure의
+    -- is_deleted 플래그에 의존하므로(quantity_sync_product_in_category), ProductService.delete()가
+    -- 품목 자신을 soft-delete할 때 그 품목의 노출 행도 함께 soft-delete한다(기존 동작,
+    -- ProductService.java:701). 이 EXISTS가 r.enabled를 걸러내지 않으면 "품목 단종/삭제는
+    -- 비활성 규칙을 막지 않는다"(R1 결함 2(a), survey.md:509 — 바로 아래 EXISTS는 이미
+    -- r.enabled=TRUE로 걸러낸다)는 불변식이 이 검사에서만 깨진다: 삭제 대상 품목을 비활성
+    -- 규칙이 참조하면, 그 품목의 노출이 사라지는 순간 이 검사가 "카테고리 밖" 위반으로
+    -- 오판해 삭제 자체를 막는다(재수렴 라운드 실측 — QuantitySyncRuleProductDeletionCascadeHttpIT
+    -- DELETE 단계가 204 대신 409). 원본(V18 이전 dead column 시절)에는 이 EXISTS에 enabled
+    -- 게이팅이 아예 없었지만, 그때는 category 값이 delete로 바뀌지 않는 별도 컬럼이라
+    -- 이 상호작용이 도달 불가능했다 — 판정 원천을 옮기며 처음으로 도달 가능해진 잠복 결함이라
+    -- 같은 파일의 다른 EXISTS와 동일하게 여기서도 enabled 게이팅을 맞춘다.
     IF EXISTS (
         SELECT 1
           FROM quantity_sync_rule r
           JOIN quantity_sync_source s ON s.rule_id = r.id AND s.is_deleted = FALSE
           JOIN quantity_sync_target t ON t.rule_id = r.id AND t.is_deleted = FALSE
-          JOIN products sp ON sp.id = s.source_product_id
-          JOIN products tp ON tp.id = t.target_product_id
-         WHERE r.is_deleted = FALSE
-           AND (quantity_sync_product_category(sp.id) IS DISTINCT FROM r.estimate_category
-                OR quantity_sync_product_category(tp.id) IS DISTINCT FROM r.estimate_category)
+         WHERE r.is_deleted = FALSE AND r.enabled = TRUE
+           AND (NOT quantity_sync_product_in_category(s.source_product_id, r.estimate_category)
+                OR NOT quantity_sync_product_in_category(t.target_product_id, r.estimate_category))
     ) THEN
         RAISE EXCEPTION USING ERRCODE = '23514',
             MESSAGE = 'quantity_sync source and target must stay inside rule category';
@@ -378,5 +407,14 @@ CREATE CONSTRAINT TRIGGER trg_qsr_product_validate_graph
 
 CREATE CONSTRAINT TRIGGER trg_qsr_bundle_validate_graph
     AFTER INSERT OR UPDATE OR DELETE ON bundle_component
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION quantity_sync_deferred_validate();
+
+-- 재수렴 결함 1 [최우선] fix — 카테고리 판정 원천이 product_estimate_exposure로 옮겨갔으므로
+-- (quantity_sync_product_in_category) 이 테이블의 변경도 products/bundle_component와 동일하게
+-- 기존 graph를 다시 검사해야 한다. 그렇지 않으면 노출 카테고리가 바뀐 뒤에도 quantity_sync_rule/
+-- source/target 자신을 건드리는 무관한 쓰기가 있을 때까지 위반이 감지되지 않는다.
+CREATE CONSTRAINT TRIGGER trg_qsr_exposure_validate_graph
+    AFTER INSERT OR UPDATE OR DELETE ON product_estimate_exposure
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION quantity_sync_deferred_validate();

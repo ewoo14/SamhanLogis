@@ -131,6 +131,87 @@ class QuantitySyncRuleValidationTest {
         assertInvalid(draft, "source/target");
     }
 
+    // ---- 재수렴(PR #958 R2) 결함 1 [최우선] S-3 RED-first — 품목의 M:N 카테고리 노출 ----
+    //
+    // product_estimate_exposure는 한 품목을 여러 카테고리에 동시 노출할 수 있다. "이 품목의
+    // category"라는 단일값은 더 이상 사실과 맞지 않아 ProductSnapshot.category(String)를
+    // categories(Set<String>) 멤버십으로 바꿨다 — 아래 두 테스트가 그 판정을 고정한다.
+
+    @Test
+    void 품목이_여러_카테고리에_노출되면_그중_하나가_규칙_category와_같으면_연결할_수_있다() {
+        // draft()의 rule category는 항상 "HOME_MULTI"(정적 helper 고정값). SRC-MULTI는
+        // HOME_MULTI·SINGLE_SET 양쪽에 노출되어 있고, 그중 HOME_MULTI가 이 규칙과 일치한다 —
+        // 다른 카테고리(SINGLE_SET)에도 노출되어 있다는 사실은 이 판정과 무관해야 한다.
+        Draft draft = draft(
+                merge(products(product("TARGET", "HOME_MULTI", true, true, false)),
+                        productMulti("SRC-MULTI", Set.of("HOME_MULTI", "SINGLE_SET"),
+                                true, true, false, Set.of())),
+                List.of(new SourceDraft("SRC-MULTI", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")));
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 품목이_노출되지_않은_카테고리로는_여러_카테고리에_노출되어도_연결할_수_없다() {
+        // 회귀 방지 lock — M:N으로 바뀌어도 "노출 안 된 카테고리는 여전히 거부"는 유지되어야
+        // 한다(§6.5 "같은 category 안에서만 연결"의 핵심은 그대로). SRC-MULTI는 SINGLE_SET·
+        // COMM_MULTI 둘에 노출되어 있지만 이 규칙(HOME_MULTI) 어디에도 없다 — 여러 카테고리에
+        // 노출되어 있다는 사실 자체가 "아무 카테고리나 연결 가능"으로 완화되면 안 된다.
+        Draft draft = draft(
+                merge(products(product("TARGET", "HOME_MULTI", true, true, false)),
+                        productMulti("SRC-MULTI", Set.of("SINGLE_SET", "COMM_MULTI"),
+                                true, true, false, Set.of())),
+                List.of(new SourceDraft("SRC-MULTI", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")));
+
+        assertInvalid(draft, "category");
+    }
+
+    // ---- 재수렴(PR #958 R2) 결함 2 [MED] RED-first — 평범한 입력 실수 B/C/D
+    // (A=ruleKey 중복은 서비스 repository 조회가 필요해 QuantitySyncRuleInputMistakeIT에서
+    // 실 DB로 검증한다) ----
+
+    @Test
+    void source에_같은_productCode를_두_번_지정하면_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1")),
+                        new SourceDraft("SRC", new BigDecimal("2"))),
+                List.of(target("TARGET", "1")));
+
+        assertInvalid(draft, "source");
+    }
+
+    @Test
+    void target에_같은_productCode를_두_번_지정하면_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1"),
+                        new TargetDraft("TARGET", new BigDecimal("1"), "NONE", 2)));
+
+        assertInvalid(draft, "target");
+    }
+
+    @Test
+    void target_displayOrder를_두_번_지정하면_저장할_수_없다() {
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET-1", "HOME_MULTI", true, true, false),
+                        product("TARGET-2", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET-1", "1"),
+                        new TargetDraft("TARGET-2", new BigDecimal("1"), "NONE", 1)));
+
+        assertInvalid(draft, "displayOrder");
+    }
+
     // ---- R1 결함 1 [HIGH] · 결함 2 [MED] RED-first (PR #958 R1 발견 각도) ----
 
     @Test
@@ -332,7 +413,18 @@ class QuantitySyncRuleValidationTest {
     private static ProductSnapshot product(String code, String category,
                                           boolean active, boolean visible, boolean bundle,
                                           Set<String> componentCodes) {
-        return new ProductSnapshot(code, code + " 품목", category, active, visible, bundle, componentCodes);
+        return productMulti(code, Set.of(category), active, visible, bundle, componentCodes);
+    }
+
+    /**
+     * 재수렴 결함 1 [최우선] fix — 품목이 여러 카테고리에 동시 노출(M:N, S-3)될 때를
+     * 구성하는 헬퍼. 기존 {@link #product(String, String, boolean, boolean, boolean)}는
+     * 단일 category만 표현할 수 있어 남겨두고, 이 헬퍼로 M:N 케이스만 별도로 구성한다.
+     */
+    private static ProductSnapshot productMulti(String code, Set<String> categories,
+                                                 boolean active, boolean visible, boolean bundle,
+                                                 Set<String> componentCodes) {
+        return new ProductSnapshot(code, code + " 품목", categories, active, visible, bundle, componentCodes);
     }
 
     private static Map<String, ProductSnapshot> products(ProductSnapshot... products) {

@@ -544,3 +544,259 @@ JUnit reports: files=51 tests=548 skipped=0 failures=0 errors=0
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDeletionCascadeHttpIT.java` — 결함 2 실 HTTP RED(신규)
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDiscontinueIT.java` — 결함 3 RED
 - 본 보고서 — §6·§7 정정 + 본 §8
+
+---
+
+## 9. 재수렴 R2 라운드 (2026-07-28) — 카테고리 판정 죽은 컬럼 + 위장 409 4종 + ruleKey 경로 안전성
+
+재수렴 라운드가 §8 GREEN(548 tests) 이후 실서버 재현으로 도달 가능 결함 3건(최우선 1·MED 2·
+MED~HIGH 1)을 새로 잡았다. §8까지의 fix 자체가 만든 회귀는 아니고, §8 GREEN을 만든 548개
+테스트가 **전부 raw SQL로 죽은 컬럼을 채우는 fixture**를 썼기 때문에 처음부터 도달 불가능했던
+결함이 이번에 처음 실 API 경로로 재현됐다. 전부 RED-first(재현 실패 테스트 → RED 원문 확보 →
+수정 → GREEN)로 처리했다.
+
+### 결함 1 [최우선] — 카테고리 판정이 V18에서 폐기된 죽은 컬럼을 읽음
+
+`products.estimate_category`는 V18(`V18__add_product_estimate_exposure.sql:2-3`)에서
+"단일 컬럼에서 product_estimate_exposure M:N 단일 원천으로 이관한다"고 명시했고,
+`Product.changeUsage(UsageScope, EstimateCategory)`는 `@Deprecated`로 두 번째 인자를 버린다
+(대입 0건, 저장소 전체 grep 확인). 그런데 `QuantitySyncRuleService.toSnapshot()`(구:
+`product.getEstimateCategory()`)과 V24 SQL `quantity_sync_product_category(product_id)`
+(구: `SELECT p.estimate_category FROM products p`)가 둘 다 이 죽은 컬럼을 읽었다 — 실 API
+(`POST /products` `estimateCategories`)로 만든 품목은 이 컬럼이 항상 NULL이라(공유 DB 실측
+101/105 NULL) **실 API로 만든 어떤 품목도 규칙에 연결할 수 없었다.**
+
+기존 quantitysync IT 5개(CrudIT·ProductDiscontinueIT·ProductDeletionCascadeHttpIT·
+OptionInParityIT·DbProbeIT)가 전부 raw SQL `product()` 헬퍼로 `products.estimate_category`를
+직접 채웠기 때문에 이 결함이 548개 테스트 전체를 통과하고도 숨어 있었다(S-2, 아래 별도 절).
+
+**RED** — 실 API(`ProductService.create()`, HTTP가 아니라 `QuantitySyncRuleProductDiscontinueIT`
+등 기존 IT와 동일하게 real bean 직접 호출 관례를 따름)로 두 품목을 `estimateCategories:
+[HOME_MULTI]`로 만든 뒤 규칙 연결을 시도하는 신규 IT(`QuantitySyncRuleCategoryFromExposureIT`)로
+재현. fix 전 원문(V24 SQL·Validator·Service의 카테고리 판정 3개소만 원본으로 되돌리고 나머지
+결함 2·3 fix는 그대로 둔 격리 revert에서 실행 — 이하 각 결함의 RED도 동일한 방식으로 나머지
+두 결함의 fix는 유지한 채 해당 결함만 되돌려 확보):
+
+```text
+com.samhanair.logis.common.exception.BusinessException:
+category 안에서만 source/target을 연결할 수 있습니다.
+    at QuantitySyncRuleCategoryFromExposureIT.java:88 (실_API로_생성한_품목은_...)
+    at QuantitySyncRuleCategoryFromExposureIT.java:120 (품목이_여러_카테고리에_동시_노출되면_...)
+```
+
+**fix** — 판정 원천을 `product_estimate_exposure`로 옮겼다.
+- V24 SQL: `quantity_sync_product_category(product_id) RETURNS VARCHAR`(단일값)를
+  `quantity_sync_product_in_category(product_id, category) RETURNS BOOLEAN`(멤버십)으로
+  교체 — `product_estimate_exposure WHERE product_id=... AND is_deleted=FALSE AND
+  estimate_category(COMMERCIAL_MULTI→COMM_MULTI 매핑)=category`의 `EXISTS`.
+- `product_estimate_exposure` 자체 변경도 기존 graph를 재검사하도록
+  `trg_qsr_exposure_validate_graph` constraint trigger를 신설했다(`products`/
+  `bundle_component`에 이미 있는 동일 패턴 — 판정 원천이 이 테이블로 옮겨간 이상 이
+  테이블의 변경도 같은 자격으로 재검사 대상이어야 한다).
+- Java: `QuantitySyncRuleValidator.ProductSnapshot.category(String)`를
+  `categories(Set<String>)`로 바꾸고 `sameCategory()`(단일값 비교)를 `Set.contains()`
+  멤버십으로 교체. `QuantitySyncRuleService`는 `ProductEstimateExposureRepository`를 새로
+  주입받아 `resolveProductCategories()`(요청에 등장한 Product ID 전체를 일괄 조회, N+1
+  방지)로 카테고리 집합을 만들고 `toRuleCategory()`로 노출 5종→규칙 3종을 매핑한다
+  (LEGACY/OTHER는 규칙 category에 대응이 없어 제외 — 그 노출만 가진 품목은 여전히 어떤
+  규칙에도 연결할 수 없다).
+
+**S-3 — 다중 카테고리(M:N) 판정 결정과 근거**: "품목이 카테고리 X에 노출되어 있는가"
+멤버십 판정으로 정했다. 정본 §6.5는 "같은 category 안에서만 연결"만 규정하고 M:N을 다루지
+않지만, 이 판정은 그 규칙을 M:N으로 최소 확장한 것이지 새 승인이 아니다 — source/target
+각각이 규칙의 category **하나**에 포함되면 되고, 그 품목이 다른 카테고리에도 노출되어 있다는
+사실은 이 판정에 영향을 주지 않는다(포함 여부만 본다). 신규 테스트 3건(단위 2 + IT 1)으로
+고정했다: ①품목이 HOME_MULTI·SINGLE_SET 둘에 노출되면 두 카테고리 규칙 양쪽에서 연결
+가능, ②노출 안 된 카테고리로는 다른 카테고리에 노출되어 있어도 여전히 거부, ③실 API로
+두 카테고리에 노출시킨 품목이 실제로 양쪽 규칙에 연결됨(IT).
+
+**버린 대안**:
+- *죽은 컬럼을 계속 쓰되 exposure 변경 시 역으로 백필* — V18이 명시적으로 폐기를 선언한
+  단일 컬럼을 다시 쓰는 것은 그 마이그레이션의 의도(M:N 단일 원천 이관)를 정면으로
+  되돌리는 것이라 버렸다. `Product.changeUsage(UsageScope, EstimateCategory)`가 이미
+  `@Deprecated`로 이 경로를 막아뒀다.
+- *ProductSnapshot.category를 단일 String으로 유지하고 "대표 카테고리 하나"만 고름* —
+  M:N을 올바르게 표현하지 못한다. 두 카테고리 모두에서 독립적으로 연결 가능해야 하는데
+  단일값은 "어느 것을 대표로 고를지"라는 근거 없는 정책을 만들어야 한다.
+- *규칙 category와 "우선 노출"만 일치하면 된다는 순서 기반 판정* — `display_order`는
+  카테고리 **내부** 표시 순서일 뿐 카테고리 **간** 우선순위 개념이 아니다. 존재하지 않는
+  개념을 지어내는 것은 이 PR이 이미 거부한 것과 같은 함정(대조-1의 근거 없는 allowlist와
+  동일 원칙)이라 버렸다.
+
+### 결함 2 [MED] — 평범한 입력 실수 4종이 전부 위장 409
+
+이미 존재하는 `ruleKey`로 POST(A), `sources`에 같은 `productCode` 중복(B), `targets`에 같은
+`displayOrder` 중복(C), `targets`에 같은 `productCode` 중복(D) 넷 다 `validate()`에 검사가
+없어 DB 부분 unique index(`ux_qsr_rule_key_active`/`ux_qss_rule_source_active`/
+`ux_qst_rule_display_order_active`/`ux_qst_rule_target_active`)까지 도달해
+`DataIntegrityViolationException` → `GlobalExceptionHandler`의 범용 409("동시 편집 충돌
+또는 제약 위반")로 원인이 뭉개졌다.
+
+**RED** — `QuantitySyncRuleInputMistakeIT`(신규, 실 서비스+실 Postgres)로 4종 모두 확보.
+결함 1·3의 fix는 유지한 채 결함 2 fix(Validator 중복검사 2개·Service ruleKey 사전확인)만
+격리 revert한 상태에서 실행한 원문:
+
+```text
+A) org.springframework.dao.DataIntegrityViolationException: could not execute statement
+   [ERROR: duplicate key value violates unique constraint "ux_qsr_rule_key_active"
+   Detail: Key (rule_key)=(MISTAKE_RULE_DUP) already exists.]
+B) ... constraint "ux_qss_rule_source_active"
+   Detail: Key (rule_id, source_product_id)=(20f6ecc6-..., b05148...) already exists.
+C) ... constraint "ux_qst_rule_display_order_active"
+   Detail: Key (rule_id, display_order)=(4ab09175-..., 1) already exists.
+D) ... constraint "ux_qst_rule_target_active"
+   Detail: Key (rule_id, target_product_id)=(06c763ad-..., 550f41...) already exists.
+```
+
+단위 계층(`QuantitySyncRuleValidationTest`, DB 없이 validator만)에서도 B/C/D 3건을
+"Expecting code to raise a throwable"(검사 부재로 예외 자체가 안 남)로 확보했다.
+
+**fix** — DB 왕복 전에 Java 층에서 걸러 원인을 드러낸다.
+- A: `QuantitySyncRuleService.create()`에 `ruleRepository.findByRuleKeyAndIsDeletedFalse(...)`
+  사전 조회를 추가해 이미 존재하면 `BusinessException(CONFLICT, "이미 존재하는 규칙
+  키입니다: <key>")`. 순수 동시성 경합(두 요청이 완전히 동시에 같은 신규 키로 도착)은
+  여전히 DB unique index가 backstop으로 막아 그 경우엔 기존 범용 409가 그대로 유지된다
+  (S-4 "DB 제약은 backstop으로 유지").
+- B/C/D: `QuantitySyncRuleValidator`에 `requireUniqueSourceProductCodes()`·
+  `requireUniqueTargets()`를 추가해 각각 "source productCode가 중복되었습니다: <code>"·
+  "target productCode가 중복되었습니다: <code>"·"target displayOrder가 중복되었습니다:
+  <n>"으로 원인을 구체적으로 밝힌다.
+
+**GREEN** — `QuantitySyncRuleInputMistakeIT` 4/4, `QuantitySyncRuleValidationTest`의 B/C/D
+단위 3/3 전부 통과. 각 IT 어서션은 `BusinessException`+`ErrorCode` 뿐 아니라 메시지 본문까지
+정확히 대조하도록 강화했다 — 결함 1의 카테고리 오류(둘 다 `INVALID_INPUT`)와 우연히
+같은 코드로 뭉개져 보이는 것을 막기 위함이다(격리 revert로 실제 재현 중 이 혼선을 직접
+겪고 나서 어서션을 강화했다 — 최초 버전은 결함 1이 아직 안 고쳐진 조합 상태에서 "정답이지만
+엉뚱한 이유로 우연히 통과"했다).
+
+**버린 대안**:
+- *A: `DataIntegrityViolationException`을 잡아 제약 이름 문자열을 파싱해 원인별
+  메시지로 재매핑* — Postgres 드라이버/버전에 따라 메시지 문구가 달라질 수 있어 취약하다.
+  사전 존재 확인 쿼리 쪽이 DB 문구에 의존하지 않고 명시적이라 채택했다.
+- *B/C/D: 중복을 에러로 거부하는 대신 자동으로 dedup(마지막 값만 사용)* — 사용자 실수를
+  조용히 고쳐버리면 "무엇이 잘못됐는지 알려준다"(S-4)는 목표에 반한다. 침묵 정정은
+  사용자가 자신이 실수했다는 사실 자체를 모르게 만든다.
+
+### 결함 3 [MED~HIGH] — `ruleKey`에 `/`가 들어가면 영구 고아
+
+`ruleKey`는 `QuantitySyncRuleController`의 GET/PUT/DELETE에서 그대로 URL 경로 세그먼트로
+쓰인다. `POST ruleKey="QA/SLASH"`는 201로 생성되지만 이후 `GET/DELETE .../QA/SLASH`는 Spring이
+경로를 분할해 500, `GET/DELETE .../QA%2FSLASH`는 Tomcat이 400 HTML로 거부 — API로 만든 규칙을
+API로 지울 방법이 없어졌다.
+
+**RED** — `QuantitySyncRuleKeyPathSafetyHttpIT`(신규, MockMvc 실 HTTP dispatch)로 확보. 결함
+1·2의 fix는 유지한 채 결함 3 fix(`@Pattern`·V24 CHECK)만 격리 revert한 상태에서 실행:
+
+```text
+ruleKey에_슬래시가_있으면_생성_자체가_거부되어_영구_고아가_생기지_않는다()
+  java.lang.AssertionError: Status expected:<400> but was:<201>   ← 슬래시 포함 규칙이 그대로 생성됨
+
+DB_직접_SQL로_만들어도_슬래시가_있는_rule_key는_CHECK_제약이_거부한다()
+  java.lang.AssertionError: Expecting throwable message: "...chk_qsr_rule_key_path_safe..."
+  but message was: "ERROR: quantity_sync rule must have active source and target rows"
+    ← CHECK 제약이 없어 삽입은 성공하고, 무관한 다른 불변식(source/target 없음)에서만 걸림
+```
+
+**fix** — 생성 시점 자체를 차단해 애초에 고아가 생기지 않게 한다.
+- `QuantitySyncRuleRequest.ruleKey`에 `@Pattern(regexp = "^[A-Za-z0-9_-]+$")` 추가.
+- V24 `quantity_sync_rule`에 동일 정규식의 `CONSTRAINT chk_qsr_rule_key_path_safe`를
+  backstop으로 추가 — Bean Validation을 우회하는 raw SQL 경로도 막는다.
+
+**S-5 — 문자 집합 결정과 근거**: `[A-Za-z0-9_-]+`(영문자·숫자·밑줄·하이픈)로 정했다.
+정본 §6.2 예시 `HOME_HOSE_1WAY_L`(대문자+숫자+밑줄)과 `QuantitySyncRuleDbProbeIT`의 기존
+하이픈 키(`DB-SELFSWAP` 계열, 이 파일은 서비스/JPA를 우회하는 순수 SQL 파일이라 Java
+`@Pattern`이 적용되지 않지만 CHECK 제약은 적용된다 — 이 키 형식이 CHECK를 통과하는지
+직접 확인했다) 양쪽을 깨지 않는 최소 제한 집합이다.
+
+**GREEN** — `QuantitySyncRuleKeyPathSafetyHttpIT` 3/3(슬래시 거부·기존 키 형식 허용·DB
+backstop) 전부 통과.
+
+**버린 대안**:
+- *ruleKey를 그대로 두고 opaque ID로 라우팅* — 정본이 `rule_key`를 "사람이 추적 가능한
+  안정 키"로 명시했다(§6.2). 불투명 ID로 바꾸면 그 설계 의도 자체를 뒤집는 것이라 버렸다.
+- *영문 대문자+숫자+밑줄만 허용(하이픈 제외)* — `QuantitySyncRuleDbProbeIT`의 기존
+  하이픈 키를 깨뜨려(S-5가 명시적으로 금지) 버렸다.
+- *컨트롤러 `@PathVariable`에만 정규식을 걸고 요청 바디는 그대로 둠* — POST/PUT 바디의
+  `ruleKey`가 애초에 생성되는 지점이라, 바디 검증 없이 경로만 막으면 생성 자체는 막지
+  못한다.
+
+### 새로 발견한 상호작용 회귀 — 카테고리 검사가 `enabled=false` 규칙까지 막음
+
+결함 1 fix를 적용한 뒤 §8 GREEN이었던 `QuantitySyncRuleProductDeletionCascadeHttpIT`의 DELETE
+단계가 204 대신 409로 깨졌다. 원인: `ProductService.delete()`는 품목 자신을 soft-delete할 때
+그 품목의 `product_estimate_exposure` 행도 함께 soft-delete한다(기존 동작,
+`ProductService.java:701`). 카테고리 판정이 이제 그 exposure 행의 `is_deleted`에 의존하므로,
+그 품목을 참조하는 **비활성** 규칙이 있으면 exposure가 사라지는 순간 카테고리 검사가 "카테고리
+밖" 위반으로 오판했다 — 원본(V24 SQL)에도 이 EXISTS엔 애초에 `enabled` 게이팅이 없었지만,
+그때는 카테고리 값이 delete로 바뀌지 않는 별도 컬럼이라 이 상호작용이 도달 불가능했다.
+판정 원천을 옮기며 처음으로 도달 가능해진 잠복 결함이다.
+
+**fix** — 같은 함수의 "삭제·비노출 Product 연결 금지" 검사가 이미 쓰는 패턴과 동일하게
+카테고리 검사에도 `AND r.enabled = TRUE`를 추가했다 — 비활성 규칙은 이 검사에도 강제력이
+없다(survey.md:509, R1 §7 결함 2와 동일 원칙).
+
+**GREEN** — `QuantitySyncRuleProductDeletionCascadeHttpIT` 재통과 확인.
+
+### S-2 처리 — 기존 quantitysync IT 5개의 fixture를 실 API 재현 가능 상태로 교체
+
+`QuantitySyncRuleCrudIT`·`QuantitySyncRuleProductDiscontinueIT`·
+`QuantitySyncRuleProductDeletionCascadeHttpIT`·`QuantitySyncRuleOptionInParityIT`·
+`QuantitySyncRuleDbProbeIT` 5개 파일의 raw SQL `product()` 헬퍼가 전부
+`products.estimate_category='HOME_MULTI'`를 직접 채웠다 — 실 API로는 만들 수 없는 상태였다.
+다섯 파일 모두 다음으로 바꿨다: ① `INSERT INTO products` 문에서 `estimate_category` 컬럼을
+제거(실 API처럼 NULL로 남김), ② 바로 뒤에 `INSERT INTO product_estimate_exposure(product_id,
+estimate_category, display_order, ...)`를 추가해 `ProductService.syncEstimateExposures()`가
+실제로 만드는 행 상태와 동일하게 맞춤, ③ `cleanup()`에 `product_estimate_exposure`를
+`products`보다 먼저 삭제하는 문을 추가(FK 순서).
+
+`QuantitySyncRuleDbProbeIT`만 예외적으로 취급했다 — 이 파일은 "서비스·DTO·JPA repository를
+사용하지 않고 SQL을 직접 실행"하는 것이 자체 목적(클래스 Javadoc)이라 실 API 경로로 품목을
+만드는 대안 자체가 이 파일의 존재 이유와 모순된다. 대신 "실 API가 만드는 것과 동일한 행
+상태"(S-2의 두 번째 대안)로 맞췄다 — `product()`의 `category` 파라미터를 그대로
+`product_estimate_exposure`에 반영했다.
+
+신규 3개 IT(`QuantitySyncRuleCategoryFromExposureIT`·`QuantitySyncRuleInputMistakeIT`)는
+처음부터 실 API(`ProductService.create()`)로 품목을 만들거나(전자), 이 fix된 fixture 패턴을
+그대로 따랐다(후자). `QuantitySyncRuleKeyPathSafetyHttpIT`도 fix된 fixture 패턴을 따른다.
+
+### RED/GREEN 요약
+
+```text
+RED (각 결함을 나머지 두 결함의 fix는 유지한 채 해당 결함만 격리 revert 후 개별 실행 —
+     원문은 위 각 절 참조. 3개 결함을 동시에 revert한 최초 시도는 결함 1의 카테고리
+     거부가 결함 2·3 테스트의 실패 사유를 가려 confound를 만들어 폐기하고 격리 재실행함)
+  결함 1: QuantitySyncRuleCategoryFromExposureIT  2/3 FAILED (BusinessException, category)
+  결함 2: QuantitySyncRuleInputMistakeIT           4/4 FAILED (DataIntegrityViolationException)
+          QuantitySyncRuleValidationTest(B/C/D)    3/3 FAILED (예외 미발생)
+  결함 3: QuantitySyncRuleKeyPathSafetyHttpIT       2/3 FAILED (201 대신 400 기대·CHECK 메시지 불일치)
+
+GREEN (fix 전부 복원 후)
+.\gradlew :services:product-service:test --tests "com.samhanair.logis.product.quantitysync.*" --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 43s
+  files=10 tests=56 skipped=0 failures=0 errors=0
+  (QuantitySyncRuleCategoryFromExposureIT 3, QuantitySyncRuleCrudIT 2, QuantitySyncRuleDbProbeIT 11,
+   QuantitySyncRuleInputMistakeIT 4, QuantitySyncRuleKeyPathSafetyHttpIT 3, QuantitySyncRuleOptionInParityIT 3,
+   QuantitySyncRuleProductDeletionCascadeHttpIT 1, QuantitySyncRuleProductDiscontinueIT 7,
+   QuantitySyncRuleSeedAbsenceIT 1, QuantitySyncRuleValidationTest 21)
+
+.\gradlew :services:product-service:test --rerun-tasks --no-build-cache   (전체 product-service, 사용자 지정 명령)
+BUILD SUCCESSFUL in 1m 55s
+  files=54 tests=563 skipped=0 failures=0 errors=0
+```
+
+### 변경 파일 (재수렴 R2 라운드)
+
+- `services/product-service/src/main/resources/db/migration/V24__quantity_sync_rule_schema.sql` — 결함 1(카테고리 판정 원천 교체 + exposure 트리거 신설 + enabled 게이팅) · 결함 3(CHECK 제약)
+- `services/product-service/src/main/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidator.java` — 결함 1(ProductSnapshot categories Set) · 결함 2(B/C/D 중복 검사)
+- `services/product-service/src/main/java/com/samhanair/logis/product/service/QuantitySyncRuleService.java` — 결함 1(exposure 조회·카테고리 매핑) · 결함 2(A ruleKey 사전 확인)
+- `services/product-service/src/main/java/com/samhanair/logis/product/web/dto/QuantitySyncRuleRequest.java` — 결함 3(`@Pattern`)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidationTest.java` — 결함 1 M:N 단위(+2) · 결함 2 B/C/D 단위 RED(+3)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleCrudIT.java` — S-2 fixture 교체
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDiscontinueIT.java` — S-2 fixture 교체
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDeletionCascadeHttpIT.java` — S-2 fixture 교체
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleOptionInParityIT.java` — S-2 fixture 교체
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleDbProbeIT.java` — S-2 fixture 교체(예외적으로 raw SQL 유지, exposure 행만 추가)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleCategoryFromExposureIT.java` — 신규, 결함 1 실 API RED
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleInputMistakeIT.java` — 신규, 결함 2 A~D RED
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleKeyPathSafetyHttpIT.java` — 신규, 결함 3 RED
+- 본 보고서 — 본 §9

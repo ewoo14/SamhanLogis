@@ -208,9 +208,17 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
                 INSERT INTO products (
                     id, name, model_name, category_id, selling_price, purchase_price,
                     created_at, created_by, is_deleted, status, model_code, product_type,
-                    usage_scope, estimate_category)
-                VALUES (?, ?, ?, ?, 0, 0, now(), ?, false, 'ACTIVE', ?, 'SINGLE', 'BOTH', 'HOME_MULTI')
+                    usage_scope)
+                VALUES (?, ?, ?, ?, 0, 0, now(), ?, false, 'ACTIVE', ?, 'SINGLE', 'BOTH')
                 """, id, code + " 품목", code, categoryId, CREATED_BY, code);
+        // 재수렴 결함 1 [최우선] S-2 fix — products.estimate_category(V18 이후 죽은 컬럼)
+        // 대신 실 API가 만드는 것과 동일하게 product_estimate_exposure에 노출 행을 심는다.
+        jdbcTemplate.update("""
+                INSERT INTO product_estimate_exposure (
+                    id, product_id, estimate_category, display_order,
+                    created_at, created_by, is_deleted)
+                VALUES (?, ?, 'HOME_MULTI', 1, now(), ?, false)
+                """, UUID.randomUUID(), id, CREATED_BY);
         return id;
     }
 
@@ -229,6 +237,8 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
                     """, LEGACY_REF);
             execute(connection, "DELETE FROM quantity_sync_rule WHERE legacy_ref = ?", LEGACY_REF);
         });
+        // product_estimate_exposure가 products FK를 참조하므로 products보다 먼저 지운다.
+        jdbcTemplate.update("DELETE FROM product_estimate_exposure WHERE created_by = ?", CREATED_BY);
         jdbcTemplate.update("DELETE FROM products WHERE created_by = ?", CREATED_BY);
     }
 

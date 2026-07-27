@@ -3,7 +3,9 @@ package com.samhanair.logis.product.service;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductStatus;
 import com.samhanair.logis.product.domain.ProductType;
 import com.samhanair.logis.product.domain.QuantitySyncAggregation;
@@ -16,6 +18,7 @@ import com.samhanair.logis.product.domain.QuantitySyncSource;
 import com.samhanair.logis.product.domain.QuantitySyncTarget;
 import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.BundleComponentRepository;
+import com.samhanair.logis.product.repository.ProductEstimateExposureRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.QuantitySyncRuleRepository;
 import com.samhanair.logis.product.repository.QuantitySyncSourceRepository;
@@ -64,6 +67,7 @@ public class QuantitySyncRuleService {
     private final QuantitySyncTargetRepository targetRepository;
     private final ProductRepository productRepository;
     private final BundleComponentRepository bundleComponentRepository;
+    private final ProductEstimateExposureRepository exposureRepository;
     private final QuantitySyncRuleValidator validator;
 
     @PersistenceContext
@@ -74,12 +78,14 @@ public class QuantitySyncRuleService {
                                    QuantitySyncTargetRepository targetRepository,
                                    ProductRepository productRepository,
                                    BundleComponentRepository bundleComponentRepository,
+                                   ProductEstimateExposureRepository exposureRepository,
                                    QuantitySyncRuleValidator validator) {
         this.ruleRepository = ruleRepository;
         this.sourceRepository = sourceRepository;
         this.targetRepository = targetRepository;
         this.productRepository = productRepository;
         this.bundleComponentRepository = bundleComponentRepository;
+        this.exposureRepository = exposureRepository;
         this.validator = validator;
     }
 
@@ -130,6 +136,16 @@ public class QuantitySyncRuleService {
     /** 신규 규칙을 전체 graph 검증 후 생성한다. */
     @Transactional
     public QuantitySyncRuleResponse create(QuantitySyncRuleRequest request, String actor) {
+        // 재수렴 결함 2 [MED] A — 이미 활성 상태인 ruleKey로 POST하면 부분 unique index
+        // ux_qsr_rule_key_active(V24:80-82)에서만 걸려 DataIntegrityViolationException →
+        // "동시 편집 충돌 또는 제약 위반"(409, GlobalExceptionHandler:131-136)으로 원인이
+        // 뭉개졌다. 평범한 입력 실수(이미 쓰는 키로 다시 생성 시도)이지 동시 편집 충돌이
+        // 아니므로 여기서 먼저 걸러 어떤 ruleKey가 이미 존재하는지 알려준다. 순수 동시성
+        // 경합(두 요청이 동시에 같은 신규 ruleKey로 도착)은 여전히 DB unique index가
+        // backstop으로 막고 그 경우엔 기존 409 그대로 유지된다(S-4).
+        if (ruleRepository.findByRuleKeyAndIsDeletedFalse(request.ruleKey()).isPresent()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "이미 존재하는 규칙 키입니다: " + request.ruleKey());
+        }
         Map<String, Product> products = resolveProducts(request);
         validator.validate(toDraft(request, products, activeRuleSnapshots()));
         QuantitySyncRule rule = QuantitySyncRule.create(request.ruleKey(), request.estimateCategory(),
@@ -213,8 +229,11 @@ public class QuantitySyncRuleService {
 
     private Draft toDraft(QuantitySyncRuleRequest request, Map<String, Product> products,
                           List<RuleSnapshot> existingRules) {
+        Set<UUID> productIds = products.values().stream().map(Product::getId).collect(Collectors.toSet());
+        Map<UUID, Set<String>> categoriesByProductId = resolveProductCategories(productIds);
         Map<String, ProductSnapshot> snapshots = products.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> toSnapshot(entry.getValue())));
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> toSnapshot(entry.getValue(),
+                        categoriesByProductId.getOrDefault(entry.getValue().getId(), Set.of()))));
         return new Draft(request.ruleKey(), request.estimateCategory().name(), request.name(), request.enabled(),
                 request.aggregation(), request.conditionJson(), request.inactiveBehavior().name(),
                 request.conflictPolicy().name(), request.priority(), request.legacyRef(),
@@ -223,13 +242,51 @@ public class QuantitySyncRuleService {
                         t.roundingMode(), t.displayOrder())).toList(), snapshots, existingRules);
     }
 
-    private ProductSnapshot toSnapshot(Product product) {
+    /**
+     * 재수렴 결함 1 [최우선] fix — product_estimate_exposure(V18 M:N 단일 원천)에서 Product별
+     * 활성 노출 카테고리 집합을 일괄 조회하고, 규칙 category 어휘(HOME_MULTI/SINGLE_SET/
+     * COMM_MULTI)로 매핑한다. products.estimate_category(V18 이후 죽은 컬럼)는 읽지 않는다 —
+     * 실 API로 만든 품목은 그 컬럼이 항상 NULL이라 계속 읽으면 어떤 품목도 카테고리를
+     * 찾지 못해 모든 규칙 연결이 거부된다(S-1). N+1을 피하려 요청에 등장한 Product ID
+     * 전체를 한 번에 조회한다.
+     */
+    private Map<UUID, Set<String>> resolveProductCategories(Set<UUID> productIds) {
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Set<String>> result = new HashMap<>();
+        for (ProductEstimateExposure exposure : exposureRepository.findByProductIdInAndIsDeletedFalse(productIds)) {
+            String ruleCategory = toRuleCategory(exposure.getEstimateCategory());
+            if (ruleCategory == null) {
+                continue;
+            }
+            result.computeIfAbsent(exposure.getProductId(), ignored -> new HashSet<>()).add(ruleCategory);
+        }
+        return result;
+    }
+
+    /**
+     * 노출 카테고리(5종: HOME_MULTI/SINGLE_SET/COMMERCIAL_MULTI/LEGACY/OTHER)를 규칙 category
+     * 어휘(3종: HOME_MULTI/SINGLE_SET/COMM_MULTI)로 매핑한다. LEGACY/OTHER는 어떤 규칙
+     * category에도 대응하지 않으므로 null — 그 노출만 가진 Product는 규칙에 연결할 수 없다
+     * (V24 CHECK chk_qsr_category와 QuantitySyncRuleValidator.CATEGORIES가 이미 3종만
+     * 허용하므로 대칭이다).
+     */
+    private static String toRuleCategory(EstimateCategory category) {
+        return switch (category) {
+            case HOME_MULTI -> "HOME_MULTI";
+            case SINGLE_SET -> "SINGLE_SET";
+            case COMMERCIAL_MULTI -> "COMM_MULTI";
+            case LEGACY, OTHER -> null;
+        };
+    }
+
+    private ProductSnapshot toSnapshot(Product product, Set<String> categories) {
         Set<String> componentCodes = product.getProductType() == ProductType.BUNDLE
                 ? bundleComponentRepository.findByBundleProductId(product.getId()).stream()
                         .map(BundleComponent::getComponentProductCode).collect(Collectors.toSet())
                 : Set.of();
-        String category = product.getEstimateCategory() == null ? null : product.getEstimateCategory().name();
-        return new ProductSnapshot(productCode(product), product.getName(), category,
+        return new ProductSnapshot(productCode(product), product.getName(), categories,
                 product.getStatus() == ProductStatus.ACTIVE,
                 product.getUsageScope() != UsageScope.NONE,
                 product.getProductType() == ProductType.BUNDLE,

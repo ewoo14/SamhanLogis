@@ -119,11 +119,22 @@ public class QuantitySyncRuleValidator {
     public record TargetDraft(String productCode, BigDecimal multiplier,
                               String roundingMode, Integer displayOrder) {}
 
-    /** 저장 시점에 해소한 Product의 검증용 immutable snapshot. */
-    public record ProductSnapshot(String productCode, String productName, String category,
+    /**
+     * 저장 시점에 해소한 Product의 검증용 immutable snapshot.
+     *
+     * <p>재수렴 결함 1 [최우선] fix — {@code category} 단일 nullable String을
+     * {@code categories} Set으로 바꾼다. V18 이후 품목은 product_estimate_exposure
+     * M:N 테이블로 여러 카테고리에 동시 노출될 수 있어(S-3), "이 품목의 카테고리"라는
+     * 단일값 개념 자체가 더 이상 사실과 맞지 않는다 — "이 품목이 노출된 카테고리 집합"만
+     * 존재한다. 호출자(QuantitySyncRuleService)가 product_estimate_exposure를 읽어
+     * COMMERCIAL_MULTI→COMM_MULTI 매핑과 LEGACY/OTHER 배제(규칙 category 3종에 대응하는
+     * 것만 포함)를 마친 뒤 이 집합을 채운다.
+     */
+    public record ProductSnapshot(String productCode, String productName, Set<String> categories,
                                   boolean active, boolean visible, boolean bundle,
                                   Set<String> componentCodes) {
         public ProductSnapshot {
+            categories = Set.copyOf(categories == null ? Set.of() : categories);
             componentCodes = Set.copyOf(componentCodes == null ? Set.of() : componentCodes);
         }
     }
@@ -165,6 +176,14 @@ public class QuantitySyncRuleValidator {
         if (draft.sources().isEmpty() || draft.targets().isEmpty()) {
             invalid("source/target은 하나 이상이어야 합니다.");
         }
+        // 재수렴 결함 2 [MED] fix — B/C/D: source productCode 중복·target productCode
+        // 중복·target displayOrder 중복은 전부 부분 unique index(V24:88-90/96-98/100-102)에서만
+        // 걸려 DataIntegrityViolationException → "동시 편집 충돌 또는 제약 위반"(409)으로
+        // 원인이 뭉개졌다(GlobalExceptionHandler:131-136). 평범한 입력 실수이지 동시 편집
+        // 충돌이 아니므로 여기서 먼저 걸러 400과 함께 무엇이 중복인지 알려준다. DB unique
+        // index는 동시 편집 경합의 backstop으로 그대로 둔다(S-4).
+        requireUniqueSourceProductCodes(draft.sources());
+        requireUniqueTargets(draft.targets());
 
         for (SourceDraft source : draft.sources()) {
             ProductSnapshot product = product(draft, source.productCode());
@@ -202,8 +221,14 @@ public class QuantitySyncRuleValidator {
             }
             for (TargetDraft target : draft.targets()) {
                 ProductSnapshot targetProduct = product(draft, target.productCode());
-                if (!sameCategory(draft.category(), sourceProduct.category())
-                        || !sameCategory(draft.category(), targetProduct.category())) {
+                // 재수렴 결함 1 [최우선] fix — "카테고리가 같다"가 아니라 "이 카테고리에
+                // 노출되어 있다" 멤버십 판정이다(M:N, S-3). 품목이 여러 카테고리에 동시
+                // 노출되어도 규칙의 category 하나에만 포함되면 연결을 허용한다 — 다른
+                // 카테고리 노출 여부는 이 판정과 무관하다. V24 SQL의
+                // quantity_sync_product_in_category와 같은 원천(product_estimate_exposure)·
+                // 같은 규칙을 본다.
+                if (!sourceProduct.categories().contains(draft.category())
+                        || !targetProduct.categories().contains(draft.category())) {
                     invalid("category 안에서만 source/target을 연결할 수 있습니다.");
                 }
             }
@@ -224,6 +249,38 @@ public class QuantitySyncRuleValidator {
             }
         }
         rejectCycles(draft, sourceCodes, targetCodes);
+    }
+
+    /**
+     * 재수렴 결함 2 [MED] B — 같은 productCode를 source에 두 번 지정하면
+     * 부분 unique index {@code ux_qss_rule_source_active}(V24:88-90)에서만 걸린다.
+     */
+    private void requireUniqueSourceProductCodes(List<SourceDraft> sources) {
+        Set<String> seen = new HashSet<>();
+        for (SourceDraft source : sources) {
+            if (!seen.add(source.productCode())) {
+                invalid("source productCode가 중복되었습니다: " + source.productCode());
+            }
+        }
+    }
+
+    /**
+     * 재수렴 결함 2 [MED] C·D — 같은 productCode를 target에 두 번 지정(D)하거나
+     * 같은 displayOrder를 두 번 지정(C)하면 각각 부분 unique index
+     * {@code ux_qst_rule_target_active}(V24:96-98)·{@code ux_qst_rule_display_order_active}
+     * (V24:100-102)에서만 걸린다.
+     */
+    private void requireUniqueTargets(List<TargetDraft> targets) {
+        Set<String> seenCodes = new HashSet<>();
+        Set<Integer> seenOrders = new HashSet<>();
+        for (TargetDraft target : targets) {
+            if (!seenCodes.add(target.productCode())) {
+                invalid("target productCode가 중복되었습니다: " + target.productCode());
+            }
+            if (target.displayOrder() != null && !seenOrders.add(target.displayOrder())) {
+                invalid("target displayOrder가 중복되었습니다: " + target.displayOrder());
+            }
+        }
     }
 
     private void validateProduct(ProductSnapshot product) {
@@ -355,11 +412,6 @@ public class QuantitySyncRuleValidator {
         } else if (!operand.isValueNode()) {
             invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
         }
-    }
-
-    private boolean sameCategory(String expected, String actual) {
-        String mapped = "COMMERCIAL_MULTI".equals(actual) ? "COMM_MULTI" : actual;
-        return expected.equals(mapped);
     }
 
     private static boolean isBlank(String value) {
