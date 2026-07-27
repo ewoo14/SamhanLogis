@@ -6,13 +6,11 @@ import com.samhanair.logis.shared.realtime.audit.AuditEventPayloadBuilder;
 import com.samhanair.logis.shared.realtime.audit.AuditLogRecorder;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,8 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
  * {@link AuditLogRecorder#EVENT_SUFFIX_EDIT} 의 도메인 prefix).
  *
  * <p><b>revision 채번 정책</b> — accounting-service 의 도메인 entity 는 slip 의 revision_count
- * 컬럼 같은 별도 컬럼이 없으므로 audit log 자체의 max(revision_no) + 1 로 채번. in-memory cache
- * (entityId → AtomicInteger) 로 동시성 가드.
+ * 컬럼 같은 별도 컬럼이 없으므로 PostgreSQL transaction advisory lock 으로 entity 별 채번 구간을
+ * 직렬화한 뒤 audit log 자체의 max(revision_no) + 1 로 채번한다. JVM-local cache 는 인스턴스 간
+ * 정합성을 보장하지 못하므로 사용하지 않는다.
  *
  * <p><b>UUID 비공개</b>: payload 에 actorId 포함은 FE 색상 hash 결정성용. 사용자 화면 표시는
  * actorName 만 사용.
@@ -44,9 +43,7 @@ public class AccountingAuditLogService implements AuditLogRecorder {
 
     private final AccountingAuditLogRepository auditLogRepository;
     private final RealtimeBroker broker;
-
-    /** entity 별 revision 채번 cache — DB max(revision_no) lookup 의 동시성 가드. */
-    private final Map<UUID, AtomicInteger> revisionCounters = new ConcurrentHashMap<>();
+    private final EntityManager entityManager;
 
     /**
      * shared {@link AuditLogRecorder#recordOverlayPatch} 구현 — 단일 필드 변경.
@@ -114,19 +111,21 @@ public class AccountingAuditLogService implements AuditLogRecorder {
     }
 
     /**
-     * entity 별 다음 revision_no 채번. cache miss 시 DB max(revision_no) lookup, hit 시
-     * AtomicInteger.incrementAndGet.
+     * entity 별 다음 revision_no 채번.
+     *
+     * <p>transaction advisory lock 은 현재 {@code @Transactional} 호출이 commit/rollback 될 때까지
+     * 유지되므로, 서로 다른 accounting-service 인스턴스도 같은 entity 의 max 조회와 INSERT를
+     * 직렬화한다. 서로 다른 entity는 UUID 문자열 해시가 달라 독립적으로 채번한다.
      */
     private int nextRevisionNo(UUID entityId) {
-        AtomicInteger counter = revisionCounters.computeIfAbsent(entityId, id -> {
-            int currentMax = auditLogRepository
-                    .findByEntityIdOrderByRevisionNoDescChangedAtDesc(id)
-                    .stream()
-                    .mapToInt(AccountingAuditLog::getRevisionNo)
-                    .max()
-                    .orElse(0);
-            return new AtomicInteger(currentMax);
-        });
-        return counter.incrementAndGet();
+        entityManager.createNativeQuery(
+                        "SELECT pg_advisory_xact_lock(CAST(hashtextextended(CAST(?1 AS text), 0) AS bigint))")
+                .setParameter(1, entityId.toString())
+                .getSingleResult();
+        return auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId)
+                .stream()
+                .mapToInt(AccountingAuditLog::getRevisionNo)
+                .max()
+                .orElse(0) + 1;
     }
 }
