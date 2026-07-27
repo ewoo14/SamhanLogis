@@ -657,10 +657,11 @@ export function CodefImportScopeForm({
   // 저장/가져오기 버튼이 비활성일 때 그 사유를 설명하는 요소(들)를 연결한다. 두 개 이상
   // 동시에 참이면 aria-describedby 표준대로 공백으로 구분해 함께 가리킨다 — 그리고 여기 담긴
   // id 는 아래 JSX 에서 정확히 같은 조건으로 항상 렌더되어 대상 없는 참조가 남지 않는다.
+  // 아래 칩 영역의 DOM 렌더 순서(일반 안내 → dirty 안내)와 해결 순서에 맞춘다.
   const scopeHintDescribedBy = [
     scopeBaselineUnconfirmed ? SCOPE_UNCONFIRMED_HINT_ID : null,
-    scopeAllDirtyHint ? SCOPE_ALL_DIRTY_HINT_ID : null,
     scopeHint ? SCOPE_HINT_ID : null,
+    scopeAllDirtyHint ? SCOPE_ALL_DIRTY_HINT_ID : null,
   ].filter(Boolean).join(' ') || undefined
   const allScopeLocksItems = scopeMode === 'ALL'
   const importSelectionReady = scopeMode !== 'SELECTED' || selectedCount(effectiveSelection(false)) > 0

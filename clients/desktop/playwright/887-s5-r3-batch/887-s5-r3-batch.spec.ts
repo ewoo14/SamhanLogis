@@ -157,6 +157,58 @@ test.describe('#887 슬5 R3 잔여 3건 mock 회귀', () => {
     ).toBeVisible()
   })
 
+  test('R2-1(#950) — 경합 잠금 힌트의 aria-describedby 순서가 화면 렌더 순서와 일치한다', async ({ page }) => {
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
+    await gotoMock(page, '/accounting/bank-transactions?mockRole=ACCOUNTANT', 'codef-import-type')
+    const pressable = page.getByTestId('codef-all-scope-chip').locator('[role="button"]')
+
+    await pressable.press('Enter')
+    await expect(pressable).toHaveAttribute('aria-pressed', 'true')
+    await page.getByTestId('codef-save-scope-button').click()
+    await expect(page.getByText('가져오기 선택을 저장했습니다.')).toBeVisible()
+
+    // 저장된 ALL을 해제하면 scopeMode=null과 savedAllScopeDirty=true가 동시에 참이 된다.
+    await pressable.click()
+    await expect(pressable).toHaveAttribute('aria-pressed', 'false')
+
+    const importButton = page.getByTestId('codef-import-button')
+    await expect(importButton).toBeDisabled()
+    const describedBy = await importButton.getAttribute('aria-describedby')
+    const hintTexts = await page.locator('[id="codef-scope-hint-text"], [id="codef-scope-all-dirty-hint-text"]').allTextContents()
+    const cdp = await page.context().newCDPSession(page)
+    const documentNode = await cdp.send('DOM.getDocument')
+    const buttonNode = await cdp.send('DOM.querySelector', {
+      nodeId: documentNode.root.nodeId,
+      selector: '[data-testid="codef-import-button"]',
+    })
+    const axTree = await cdp.send('Accessibility.getPartialAXTree', {
+      nodeId: buttonNode.nodeId,
+      fetchRelatives: true,
+    })
+    const axButton = axTree.nodes.find((node) => node.role?.value === 'button')
+    const missingDescribedByIds = await page.locator('[aria-describedby]').evaluateAll((elements) =>
+      elements.flatMap((element) => (element.getAttribute('aria-describedby') ?? '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter((id) => !document.getElementById(id))),
+    )
+    console.log(`[R2-1 GREEN] aria-describedby=${describedBy}\nhint DOM order=${JSON.stringify(hintTexts)}\nAX button=${JSON.stringify(axButton)}\npageerror=${pageErrors.length} missing aria-describedby ids=${missingDescribedByIds.length}`)
+
+    expect(hintTexts).toEqual([
+      "전체로 처리하려면 '전체' 칩을 선택하세요. 특정 항목만 처리하려면 계좌·카드·대출 항목을 선택하세요.",
+      '저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.',
+    ])
+    expect(describedBy, 'R2-1 — 화면 렌더 순서(일반 안내 → dirty 안내)와 같은 id 순서여야 한다').toBe(
+      'codef-scope-hint-text codef-scope-all-dirty-hint-text',
+    )
+    expect(axButton?.description?.value, 'R2-1 — 보조기술 description도 화면 힌트 순서를 따라야 한다').toBe(
+      hintTexts.join(' '),
+    )
+    expect(pageErrors, `R2-1 — pageerror 발생: ${pageErrors.join(' | ')}`).toHaveLength(0)
+    expect(missingDescribedByIds, `R2-1 — 대상 없는 aria-describedby: ${missingDescribedByIds.join(', ')}`).toHaveLength(0)
+  })
+
   test('일마감 전체 범위 칩은 Enter와 Space로 켜고 끄는 왕복 조작이 된다', async ({ page }) => {
     await gotoMock(page, '/accounting/daily-closings?mockRole=MANAGER', 'daily-closing-page')
     const pressable = page.getByTestId('daily-closing-all-chip').locator('[role="button"]')
