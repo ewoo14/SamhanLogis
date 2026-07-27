@@ -1,7 +1,6 @@
 package com.samhanair.logis.accounting.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -25,12 +24,20 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** 같은 PostgreSQL을 공유하는 독립 audit service 인스턴스의 revision 채번 동시성 IT. */
+/**
+ * 같은 PostgreSQL을 공유하는 독립 audit service 인스턴스의 revision 채번 동시성 IT.
+ *
+ * <p>🚨 개발책임자 결정(2026-07-27, PR #947 1차 적대검증 fix): V67
+ * {@code ux_accounting_audit_logs_entity_revision_field_active} UNIQUE 안전망은 기존
+ * {@code DepositMatchAuditRecorder}(actorId 를 entity_id 로 재사용 + revision 하드코딩 1/2 로
+ * 직접 save)와 충돌해 fetch-and-match 반복 시 제약 위반을 일으킬 수 있어 폐기했다. 이 UNIQUE
+ * 존재/위반/soft-delete 재사용을 검증하던 케이스는 제거했고, advisory lock 만으로 채번 유일성을
+ * 보장하는 아래 동시성 테스트만 유지한다.
+ */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 class AccountingAuditLogServiceMultiInstanceIT extends AbstractPostgresIT {
 
@@ -101,47 +108,5 @@ class AccountingAuditLogServiceMultiInstanceIT extends AbstractPostgresIT {
                 Integer.class, entityId)).isEqualTo(2);
         verify(broker, times(2)).publish(
                 eq(entityId), eq(AccountingAuditLogService.EVENT_ACCOUNTING_EDIT), any());
-    }
-
-    @Test
-    void v67_createsFieldLevelActiveUniqueIndex_andExistingShapeIsCompatible() {
-        String indexDefinition = jdbcTemplate.queryForObject(
-                "SELECT indexdef FROM pg_indexes "
-                        + "WHERE indexname = 'ux_accounting_audit_logs_entity_revision_field_active'",
-                String.class);
-        assertThat(indexDefinition)
-                .contains("(entity_id, revision_no, field_name)")
-                .contains("is_deleted = false");
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                  FROM (
-                    SELECT entity_id, revision_no, field_name
-                      FROM accounting_audit_logs
-                     WHERE is_deleted = FALSE
-                     GROUP BY entity_id, revision_no, field_name
-                    HAVING COUNT(*) > 1
-                  ) duplicate_keys
-                """, Integer.class)).isZero();
-    }
-
-    @Test
-    void activeSameFieldAndRevisionIsRejected_butSoftDeletedRowIsAllowed() {
-        UUID entityId = UUID.randomUUID();
-        insertAuditRow(UUID.randomUUID(), entityId, 1, "field", false);
-
-        assertThatThrownBy(() -> insertAuditRow(UUID.randomUUID(), entityId, 1, "field", false))
-                .isInstanceOf(DataIntegrityViolationException.class);
-
-        insertAuditRow(UUID.randomUUID(), entityId, 1, "field", true);
-    }
-
-    private void insertAuditRow(UUID id, UUID entityId, int revisionNo, String fieldName,
-                                boolean deleted) {
-        jdbcTemplate.update("""
-                INSERT INTO accounting_audit_logs
-                    (id, entity_id, revision_no, actor_id, actor_name, field_name,
-                     changed_at, created_at, created_by, is_deleted)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)
-                """, id, entityId, revisionNo, UUID.randomUUID(), "테스트", fieldName, "test", deleted);
     }
 }
