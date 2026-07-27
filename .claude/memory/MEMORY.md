@@ -1,5 +1,5 @@
 ﻿# 🚨 워크플로우 규율 (매 작업 최우선 — 상세는 각 토픽파일)
-- [🚨 표준 워크플로우 유일 진실원 (2026-07-23 현행)](feedback_canonical_workflow.md) — 머지게이트=①실 사용자 경로 재현 결함 0 ②CI green(exact SHA) ③라이브QA 실서버 실행. 🚨**적대리뷰는 오직 도달성만**(검증품질 제도 폐지) · 🚨**3턴 내 수렴·새 이슈 금지·PM 이 fix 기획**. PM 재량=오류/보안만 게이트. OPUS 기획→LUNA 구현→(OPUS+PM QA+SONNET5 / SOL+SOL QA+LUNA) 반복→머지. `gpt-5.6-sol`/`gpt-5.6-luna`
+- [🚨 표준 워크플로우 유일 진실원 (2026-07-27 현행)](feedback_canonical_workflow.md) — 머지게이트=①실 사용자 경로 재현 결함 0 ②CI green(exact SHA) ③라이브QA 실서버 실행. 🚨**적대리뷰는 오직 도달성만**(검증품질 제도 폐지) · 🚨**3턴 내 수렴·새 이슈 금지·PM 이 fix 기획**. PM 재량=오류/보안만 게이트. OPUS 기획→LUNA 구현→(OPUS+PM QA+SONNET5 / SOL+SOL QA+LUNA) 반복→머지. 🆕**1차 리뷰 각도 분리 — 발견=OPUS / 대조=SONNET5**(문서수치·인용 원문 재현·sweep 카운팅·무훼손 비교. 애매하면 발견 쪽). `gpt-5.6-sol`/`gpt-5.6-luna`
 - [🚨 하네스 설계 정본 — 결함 0 이 궁극 목적](feedback_harness_defect_zero_design.md) — 목표=**수렴비 c<0.45**(이번 라운드 도달가능÷직전), 매 라운드 c·r 을 PR 기록. 5부=①진단 확증 ②표면 분할 3~4 리뷰(5차원 폐기) ③**fix 최소 변경** ④회귀 울타리+전수 sweep ⑤**U-gate**(기획 1문장+머지 전 실데이터 실행). 적응=c≥0.45&r≥0.5 2연속→**fix 분할 동결**. **3턴은 권고**
 - [🚨 Codex 5-agent=mcp 직접(codex-rescue unreliable)](feedback_codex_rescue_unreliable_use_mcp.md) — codex-rescue는 이 환경서 bg태스크화·샌드박스 차단(gradlew/gh/npm)로 findings 미전달 → CODEX SOL 5-agent 라운드 …
 - [🚨 처리량 3레버+라운드 5레버 — 병렬화·범위동결·chore배치 · **07-26 승인 R1~R5**](feedback_throughput_parallel_scope_freeze_batch.md) — 07-26: 병목=라운드 **개수**(PR당 4~6R·3~6h). R1 적대검증 **각도 4~5 병렬** R2 로컬 전체스위트 금지(권위=CI) R3 계열 sweep 은 **파일명 아닌 단정 내용**으로 R4 🚨**구현자의 "우회했다/다르다" 문장을 PM 이 PR 제목·기존결정과 대조**(#937 E-1 이 이 누락) R5 CI 대기중 다음라운드. 🚫라이브QA·RED-first·2검증스테이지는 불변
@@ -12,6 +12,7 @@
 - [🚨 라이브QA 매 라운드 GUI 스샷](feedback_live_qa_every_round_screenshots.md) — Docker 실서버+실 GUI 스크린샷(단계별) 매 리뷰 라운드마다. 끝1회·SSE/API 텍스트로 GUI스샷 대체 금지 …
 - [🚨 PM 직접구현 금지](feedback_pm_no_direct_implementation.md) — 구현=CODEX LUNA 5.6, PM=오케스트레이션·commit대행·머지만(검증 라운드 fix는 라운드 모델) …
 - [🚨 가짜 데이터·목업 영구 배제](feedback_no_fake_data_ever.md) — 실데이터·실서버·실화면·실측정만. QA스샷=실캡처만(합성/fixture 금지). 불가 시 정직 보고
+- [🚨 "실행 원문" 인용도 위조일 수 있다 — 재현 대조](feedback_quoted_output_splice_forgery.md) — 2026-07-27 #949: dev-report 인용이 **변경 후 Error 줄 + 변경 전 Call log 줄 스플라이스**(baseURL 있으면 Call log 는 항상 절대 URL → 존재 불가 조합). 대조 각도가 **같은 명령을 실제로 돌려** 맞춰볼 것. 🔑요약 수치는 참이어도 인용 블록은 거짓일 수 있다(548/172·15/4 는 정확했음)
 - [🚨 도구 호출은 실제 invocation](feedback_emit_real_tool_calls.md) — 도구 호출을 텍스트로 적으면 미실행. 진짜 함수 호출+결과 확인. ScheduleWakeup 단독발행 시 실수 잦음
 - [야간/장시간 ScheduleWakeup 재자각 · 🚨codex=통지 대기 금지·10분 폴링](feedback_autonomous_loop_schedulewakeup.md) — 매 단계(1~2묶음) 완료 후 다음 단계 예약·재자각·턴종료(연속 mega턴 금지). 부재/활성 무관 …
 - [PR OPEN(≠DRAFT)](feedback_pr_open_not_draft.md) — 조기PR 포함 draft 금지, --draft 쓰지말것 (2026-07-02)
