@@ -29,6 +29,7 @@ export default defineConfig({
   reporter: 'line',
   use: {
     ...devices['Desktop Chrome'],
+    baseURL: process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175',
     headless: true,
     viewport: { width: 1440, height: 900 },
     actionTimeout: 15000,
