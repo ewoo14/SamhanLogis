@@ -13,7 +13,11 @@ import com.samhanair.logis.product.service.QuantitySyncRuleService;
 import com.samhanair.logis.product.web.dto.QuantitySyncRuleRequest;
 import com.samhanair.logis.product.web.dto.QuantitySyncRuleResponse;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.UUID;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +34,9 @@ class QuantitySyncRuleCrudIT extends AbstractPostgresIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Autowired
     private QuantitySyncRuleService service;
@@ -75,6 +82,30 @@ class QuantitySyncRuleCrudIT extends AbstractPostgresIT {
                 Integer.class)).isEqualTo(1);
     }
 
+    @Test
+    void 기존_규칙의_source_target을_맞교환해도_순환으로_거부되지_않는다() throws Exception {
+        // R1 결함 1 [HIGH] — 실 서비스 + 실 Postgres 양쪽을 통과하는 전체 스택 재현.
+        // replace()가 validator.validate()를 호출한 뒤에야 옛 child를 soft-delete하므로
+        // (QuantitySyncRuleService.java:116-126) 검증 시점에 옛 간선(A->B)과 새 간선(B->A)이
+        // 합쳐져 순환으로 오판됐다.
+        service.create(request("SWAP_RULE", "CRUD-TARGET-B"), "qa-crud");
+
+        JsonNode condition = MAPPER.readTree("{}");
+        QuantitySyncRuleRequest swapped = new QuantitySyncRuleRequest(
+                "SWAP_RULE", QuantitySyncEstimateCategory.HOME_MULTI, "SWAP 테스트 규칙", true, "SUM",
+                condition, QuantitySyncInactiveBehavior.ZERO, QuantitySyncConflictPolicy.ADD, 10,
+                "896-swap",
+                java.util.List.of(new QuantitySyncRuleRequest.SourceRequest(
+                        "CRUD-TARGET-B", new BigDecimal("1"))),
+                java.util.List.of(new QuantitySyncRuleRequest.TargetRequest(
+                        "CRUD-SOURCE-A", new BigDecimal("1"), "NONE", 1)));
+
+        QuantitySyncRuleResponse replaced = service.replace("SWAP_RULE", swapped, "qa-crud");
+
+        assertThat(replaced.sources()).singleElement().extracting("productCode").isEqualTo("CRUD-TARGET-B");
+        assertThat(replaced.targets()).singleElement().extracting("productCode").isEqualTo("CRUD-SOURCE-A");
+    }
+
     private QuantitySyncRuleRequest request(String ruleKey, String targetCode) throws Exception {
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
@@ -98,15 +129,48 @@ class QuantitySyncRuleCrudIT extends AbstractPostgresIT {
     }
 
     private void cleanup() {
-        jdbcTemplate.update("""
-                DELETE FROM quantity_sync_source
-                 WHERE rule_id IN (SELECT id FROM quantity_sync_rule WHERE rule_key='CRUD_RULE')
-                """);
-        jdbcTemplate.update("""
-                DELETE FROM quantity_sync_target
-                 WHERE rule_id IN (SELECT id FROM quantity_sync_rule WHERE rule_key='CRUD_RULE')
-                """);
-        jdbcTemplate.update("DELETE FROM quantity_sync_rule WHERE rule_key = 'CRUD_RULE'");
+        // source/target/rule hard-delete를 각각 별도 auto-commit 문으로 실행하면 그 사이
+        // 순간(예: source만 지워지고 target·rule은 아직 남은 상태)에 deferred constraint
+        // trigger가 "rule must have active source and target rows"로 오탐한다
+        // (R1 fix 라운드에서 실측 — Suppressed DataIntegrityViolationException). 세 DELETE를
+        // 한 transaction으로 묶어 트리거가 최종 상태(전부 삭제된 뒤)만 보게 한다.
+        runInTransaction(connection -> {
+            execute(connection, """
+                    DELETE FROM quantity_sync_source
+                     WHERE rule_id IN (SELECT id FROM quantity_sync_rule WHERE rule_key IN ('CRUD_RULE', 'SWAP_RULE'))
+                    """);
+            execute(connection, """
+                    DELETE FROM quantity_sync_target
+                     WHERE rule_id IN (SELECT id FROM quantity_sync_rule WHERE rule_key IN ('CRUD_RULE', 'SWAP_RULE'))
+                    """);
+            execute(connection, "DELETE FROM quantity_sync_rule WHERE rule_key IN ('CRUD_RULE', 'SWAP_RULE')");
+        });
         jdbcTemplate.update("DELETE FROM products WHERE created_by = ?", CREATED_BY);
+    }
+
+    private void runInTransaction(SqlWork work) {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try {
+                work.run(connection);
+                connection.commit();
+            } catch (Exception failure) {
+                connection.rollback();
+                throw new IllegalStateException("cleanup 실패", failure);
+            }
+        } catch (SQLException e) {
+            throw new IllegalStateException("cleanup 연결 실패", e);
+        }
+    }
+
+    private void execute(Connection connection, String sql) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.executeUpdate();
+        }
+    }
+
+    @FunctionalInterface
+    private interface SqlWork {
+        void run(Connection connection) throws Exception;
     }
 }

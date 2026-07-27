@@ -1,5 +1,6 @@
 package com.samhanair.logis.product.quantitysync;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,7 +62,7 @@ class QuantitySyncRuleValidationTest {
                 .withConflictPolicy("REPLACE")
                 .withCondition(condition)
                 .withExistingRules(List.of(new RuleSnapshot(
-                        "EXISTING", "HOME_MULTI", condition, "REPLACE", 10,
+                        "EXISTING", "HOME_MULTI", true, condition, "REPLACE", 10,
                         Set.of("OTHER-SRC"), Set.of("TARGET"))));
         draft = draft.withProducts(merge(draft.products(), product("OTHER-SRC", "HOME_MULTI", true, true, false)));
 
@@ -78,7 +79,7 @@ class QuantitySyncRuleValidationTest {
                 List.of(new SourceDraft("SRC-A", new BigDecimal("1"))),
                 List.of(target("TARGET-B", "1")))
                 .withExistingRules(List.of(new RuleSnapshot(
-                        "OTHER", "HOME_MULTI", emptyCondition(), "ADD", 10,
+                        "OTHER", "HOME_MULTI", true, emptyCondition(), "ADD", 10,
                         Set.of("TARGET-B"), Set.of("SRC-A"))));
 
         assertInvalid(draft, "순환");
@@ -128,6 +129,103 @@ class QuantitySyncRuleValidationTest {
                 List.of(target("TARGET", "1")));
 
         assertInvalid(draft, "source/target");
+    }
+
+    // ---- R1 결함 1 [HIGH] · 결함 2 [MED] RED-first (PR #958 R1 발견 각도) ----
+
+    @Test
+    void 자기_자신을_편집할_때_옛_관계가_새_관계와_합쳐져_순환으로_오판되지_않는다() {
+        // draft()의 ruleKey는 항상 "TEST_RULE". 이 규칙 자신의 옛 snapshot(A->B)을
+        // existingRules에 그대로 두고, 새 정의는 맞교환(B->A)한다. 자기 자신의 옛 간선은
+        // 판정에서 제외되어야 한다(J-1) — REPLACE 중복 검사(:218)는 이미 self를 제외하는데
+        // rejectCycles만 제외가 없었다(R1 결함 1).
+        Draft draft = draft(
+                products(
+                        product("A", "HOME_MULTI", true, true, false),
+                        product("B", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("B", new BigDecimal("1"))),
+                List.of(target("A", "1")))
+                .withExistingRules(List.of(new RuleSnapshot(
+                        "TEST_RULE", "HOME_MULTI", true, emptyCondition(), "ADD", 10,
+                        Set.of("A"), Set.of("B"))));
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 비활성_기존_규칙은_순환_판정에_강제력이_없다() {
+        // ruleKey가 draft와 다른 "DISABLED_OTHER" — self 제외가 아니라 enabled 제외가
+        // 이 케이스를 구제해야 한다(R1 결함 2(b): X(A->B, enabled=false) 후 Y(B->A)가
+        // 순환으로 오거부됨).
+        Draft draft = draft(
+                products(
+                        product("A", "HOME_MULTI", true, true, false),
+                        product("B", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("B", new BigDecimal("1"))),
+                List.of(target("A", "1")))
+                .withExistingRules(List.of(new RuleSnapshot(
+                        "DISABLED_OTHER", "HOME_MULTI", false, emptyCondition(), "ADD", 10,
+                        Set.of("A"), Set.of("B"))));
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 비활성_기존_규칙은_REPLACE_중복_판정에도_강제력이_없다() {
+        // survey.md:509 "enabled: 활성 여부"가 REPLACE 중복 검사에도 대칭 적용되어야
+        // 한다(J-3) — 순환 검사만 고치고 REPLACE 중복은 남겨두면 같은 결함이 다른 자리에
+        // 남는다.
+        JsonNode condition = condition("{\"optionEquals\":[\"homeNoHose\",false]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false),
+                        product("OTHER-SRC", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withConflictPolicy("REPLACE")
+                .withCondition(condition)
+                .withExistingRules(List.of(new RuleSnapshot(
+                        "DISABLED_REPLACE", "HOME_MULTI", false, condition, "REPLACE", 10,
+                        Set.of("OTHER-SRC"), Set.of("TARGET"))));
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    // ---- 대조-1 [MED] J-5: option key allowlist 근거 부재 → 슬3으로 이관 ----
+
+    @Test
+    void 조건_JSON의_option_key는_실재_근거_불명_allowlist에_없어도_공백만_아니면_저장할_수_있다() {
+        // R1 대조(SONNET5): 하드코딩 18개 중 legacy-quantity-golden/fixtures.js 실제
+        // 식별자와 문자 그대로 일치 0개. "outdoorModel"은 그 fixtures.js의 실제 플래그
+        // 이름이지만 18개 allowlist에는 없었다 — allowlist 자체가 근거 없이 발명된 것임을
+        // 보여준다. 근거 없는 key-vocabulary 검증은 슬3(evaluator)로 미룬다(J-5).
+        JsonNode condition = condition("{\"optionEquals\":[\"outdoorModel\",\"SLIM\"]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void 조건_JSON의_option_key가_공백이면_여전히_저장할_수_없다() {
+        // 잠금 테스트(RED-first 아님) — key-vocabulary 검증을 슬3으로 미뤄도 구조적
+        // 제약(공백 아닌 문자열)까지 사라지면 안 된다.
+        JsonNode condition = condition("{\"optionEquals\":[\"\",\"SLIM\"]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "option");
     }
 
     private void assertInvalid(Draft draft, String messageFragment) {

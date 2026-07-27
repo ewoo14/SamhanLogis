@@ -53,6 +53,12 @@ SamhanLogis Product 마스터 + Category 트리 + Google Sheets 동기화 서비
 않는다. V24는 실 catalog snapshot을 확보한 뒤에만 명시 seed를 추가할 수 있도록 현재
 seed INSERT를 포함하지 않는다.
 
+`enabled=false` 규칙은 강제력이 없다(survey.md:509) — 순환·REPLACE 중복 판정에서 제외되고,
+그 규칙이 참조하는 Product의 단종/삭제도 막지 않는다. `POST /products/{id}/discontinue` ·
+`DELETE /products/{id}`는 **활성(enabled)** 규칙이 참조 중이면 409 `CONFLICT`로 거부하며,
+메시지에 참조 중인 ruleKey를 담아 원인을 드러낸다(예: `수량 동기화 규칙이 이 품목을 참조하고
+있어 단종/삭제할 수 없습니다: HOME_1WAY_HOSE_L`). 규칙을 비활성화하거나 삭제하면 해제된다.
+
 ## 품목 노출 수동 토글 + usageScope 질의 (요구사항1 PR-B, PR #460)
 
 품목별 견적/주문 노출을 시트 탭 자동 분류 + **수동 토글**로 운영한다 (개발책임자 2026-06-10 결정 — 시트에 없는 품목도 수동 노출 가능).

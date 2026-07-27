@@ -9,4 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface QuantitySyncSourceRepository extends JpaRepository<QuantitySyncSource, UUID> {
 
     List<QuantitySyncSource> findAllByRuleIdAndIsDeletedFalseOrderById(UUID ruleId);
+
+    /** 주어진 Product를 source로 참조하는 활성 행 — 품목 단종/삭제 차단 사유 조회용(R1 결함 3). */
+    List<QuantitySyncSource> findAllBySourceProductIdAndIsDeletedFalse(UUID sourceProductId);
 }

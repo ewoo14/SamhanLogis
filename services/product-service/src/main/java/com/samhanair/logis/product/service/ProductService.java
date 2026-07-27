@@ -82,6 +82,13 @@ public class ProductService {
     private final ProductSheetSyncService productSheetSyncService;
 
     /**
+     * 품목 단종/삭제 전 수량 동기화 규칙 참조 여부 확인용(R1 결함 3). QuantitySyncRuleService
+     * → ProductService 방향의 의존이 없으므로(ProductRepository/BundleComponentRepository만
+     * 사용) 순환 없음.
+     */
+    private final QuantitySyncRuleService quantitySyncRuleService;
+
+    /**
      * 품목 목록 검색 — categoryId/status/tag/q 필터 기존 유지 + usageScope/productCategory 신규 AND 결합.
      *
      * <p>{@code /products} (GET) 엔드포인트의 서비스 구현체이다. 이 경로는 어드민/데스크톱 품목관리 화면의
@@ -562,7 +569,9 @@ public class ProductService {
     }
 
     public void discontinue(UUID id) {
-        loadOrThrow(id).discontinue();
+        Product product = loadOrThrow(id);
+        assertNotReferencedByEnabledQuantitySyncRule(id);
+        product.discontinue();
     }
 
     public void reactivate(UUID id) {
@@ -668,9 +677,28 @@ public class ProductService {
 
     public void delete(UUID id, String callerId) {
         Product product = loadOrThrow(id);
+        assertNotReferencedByEnabledQuantitySyncRule(id);
         String actor = callerId == null ? "system" : callerId;
         product.markDeleted(actor);
         softDeleteAll(exposureRepository.findByProductIdAndIsDeletedFalse(product.getId()), actor);
+    }
+
+    /**
+     * R1 결함 3 [MED] — 품목 단종/삭제가 수량 동기화 규칙 참조 때문에 막힐 때, 그 원인이
+     * "동시 편집 충돌 또는 제약 위반"(DB constraint trigger 우회 후 GlobalExceptionHandler의
+     * 범용 409)으로 위장되지 않고 사용자에게 드러나도록(J-4) 실제 mutation 전에 선제 확인한다.
+     * DB 층 deferred constraint trigger는 여전히 fail-closed 안전망으로 남는다(J-2).
+     *
+     * @param productId 단종/삭제하려는 Product 내부 FK
+     * @throws BusinessException(CONFLICT) 활성(enabled)+비삭제 규칙이 참조 중일 때
+     */
+    private void assertNotReferencedByEnabledQuantitySyncRule(UUID productId) {
+        List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysReferencing(productId);
+        if (!ruleKeys.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "수량 동기화 규칙이 이 품목을 참조하고 있어 단종/삭제할 수 없습니다: "
+                            + String.join(", ", ruleKeys));
+        }
     }
 
     private Product loadOrThrow(UUID id) {

@@ -153,14 +153,14 @@ BEGIN
                 MESSAGE = 'quantity_sync option condition must be [key,value]';
         END IF;
         option_key := operator_value ->> 0;
-        IF option_key NOT IN (
-            'homeNoHose', 'homeHoseType', 'homeFoot', 'homeRemote', 'homePanel',
-            'singleRemote', 'singlePanel', 'singleFoot', 'singleWiredBoard',
-            'singleCeilingPump', 'commPanel', 'commRemote', 'commHose',
-            'commExHose', 'commExBase', 'commIndoorKind', 'remoteOption', 'panelOption'
-        ) THEN
+        -- 2026-07-28 R1 대조(SONNET5): 이전 18개 하드코딩 option key allowlist의 근거를
+        -- 저장소 전체에서 찾지 못했다(legacy-quantity-golden/fixtures.js 실 식별자와 문자
+        -- 그대로 일치 0개, remoteOption/panelOption은 BundleComponent 세트옵션이라는 다른
+        -- 도메인 필드명과 우연히 같음). 근거 없는 key-vocabulary 검증은 evaluator가 실제
+        -- 옵션 계약을 읽는 슬3으로 미루고(J-5), 여기서는 공백이 아닌 문자열만 요구한다.
+        IF option_key IS NULL OR length(btrim(option_key)) = 0 THEN
             RAISE EXCEPTION USING ERRCODE = '23514',
-                MESSAGE = 'quantity_sync option key is not allowed';
+                MESSAGE = 'quantity_sync option key must not be blank';
         END IF;
         IF operator_name = 'optionEquals'
            AND jsonb_typeof(operator_value -> 1) NOT IN ('string', 'number', 'boolean', 'null') THEN
@@ -249,6 +249,8 @@ BEGIN
             MESSAGE = 'quantity_sync source and target must stay inside rule category';
     END IF;
 
+    -- R1 결함 2 [MED]: enabled=false 규칙은 강제력이 없다(survey.md:509) — 양쪽 다
+    -- enabled=TRUE일 때만 REPLACE 중복으로 본다.
     IF EXISTS (
         SELECT 1
           FROM quantity_sync_rule r1
@@ -256,6 +258,7 @@ BEGIN
           JOIN quantity_sync_target t1 ON t1.rule_id = r1.id AND t1.is_deleted = FALSE
           JOIN quantity_sync_target t2 ON t2.rule_id = r2.id AND t2.is_deleted = FALSE
          WHERE r1.is_deleted = FALSE AND r2.is_deleted = FALSE
+           AND r1.enabled = TRUE AND r2.enabled = TRUE
            AND r1.conflict_policy = 'REPLACE'
            AND r2.conflict_policy = 'REPLACE'
            AND r1.estimate_category = r2.estimate_category
@@ -266,6 +269,8 @@ BEGIN
             MESSAGE = 'quantity_sync duplicate REPLACE condition and target';
     END IF;
 
+    -- R1 결함 2(a) [MED]: enabled=false 규칙은 강제력이 없다(survey.md:509) — 비활성
+    -- 규칙이 참조하는 Product를 단종/삭제해도 이 검사가 막으면 안 된다.
     IF EXISTS (
         SELECT 1
           FROM quantity_sync_rule r
@@ -273,7 +278,7 @@ BEGIN
           JOIN quantity_sync_target t ON t.rule_id = r.id AND t.is_deleted = FALSE
           JOIN products sp ON sp.id = s.source_product_id
           JOIN products tp ON tp.id = t.target_product_id
-         WHERE r.is_deleted = FALSE
+         WHERE r.is_deleted = FALSE AND r.enabled = TRUE
            AND (sp.is_deleted = TRUE OR sp.status <> 'ACTIVE' OR sp.usage_scope = 'NONE'
                 OR tp.is_deleted = TRUE OR tp.status <> 'ACTIVE' OR tp.usage_scope = 'NONE')
     ) THEN
@@ -299,13 +304,15 @@ BEGIN
             MESSAGE = 'quantity_sync cannot connect a BUNDLE to its own component';
     END IF;
 
+    -- R1 결함 2(b) [MED]: enabled=false 규칙은 강제력이 없다(survey.md:509) — 비활성
+    -- 규칙의 간선은 순환 그래프에서 제외한다.
     IF EXISTS (
         WITH RECURSIVE edges AS (
             SELECT s.source_product_id, t.target_product_id
               FROM quantity_sync_rule r
               JOIN quantity_sync_source s ON s.rule_id = r.id AND s.is_deleted = FALSE
               JOIN quantity_sync_target t ON t.rule_id = r.id AND t.is_deleted = FALSE
-             WHERE r.is_deleted = FALSE
+             WHERE r.is_deleted = FALSE AND r.enabled = TRUE
         ), walk(start_node, current_node, path) AS (
             SELECT source_product_id, target_product_id,
                    ARRAY[source_product_id, target_product_id]::UUID[]

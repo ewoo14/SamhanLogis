@@ -28,11 +28,6 @@ public class QuantitySyncRuleValidator {
     private static final Set<String> CATEGORIES = Set.of("HOME_MULTI", "SINGLE_SET", "COMM_MULTI");
     private static final Set<String> CONDITION_OPERATORS = Set.of(
             "optionEquals", "optionIn", "all", "any", "not");
-    private static final Set<String> OPTION_KEYS = Set.of(
-            "homeNoHose", "homeHoseType", "homeFoot", "homeRemote", "homePanel",
-            "singleRemote", "singlePanel", "singleFoot", "singleWiredBoard", "singleCeilingPump",
-            "commPanel", "commRemote", "commHose", "commExHose", "commExBase",
-            "commIndoorKind", "remoteOption", "panelOption");
 
     /** 저장 검증 입력. Product 식별자는 사용자 노출 코드이며 UUID는 포함하지 않는다. */
     public static final class Draft {
@@ -134,7 +129,7 @@ public class QuantitySyncRuleValidator {
     }
 
     /** 기존 활성 규칙의 graph/충돌 검사용 immutable snapshot. */
-    public record RuleSnapshot(String ruleKey, String category, JsonNode condition,
+    public record RuleSnapshot(String ruleKey, String category, boolean enabled, JsonNode condition,
                                String conflictPolicy, int priority,
                                Set<String> sourceCodes, Set<String> targetCodes) {
         public RuleSnapshot {
@@ -215,7 +210,11 @@ public class QuantitySyncRuleValidator {
         }
 
         for (RuleSnapshot existing : draft.existingRules()) {
+            // R1 결함 2 [MED]: enabled=false 규칙은 survey.md:509("활성 여부") 대로
+            // 강제력이 없어야 한다. 자기 자신(REPLACE 편집) 제외는 이미 있었는데
+            // enabled 제외가 없어 비활성 기존 REPLACE 규칙도 새 저장을 막고 있었다.
             if (!draft.ruleKey().equals(existing.ruleKey())
+                    && draft.enabled() && existing.enabled()
                     && "REPLACE".equals(draft.conflictPolicy())
                     && "REPLACE".equals(existing.conflictPolicy())
                     && draft.category().equals(existing.category())
@@ -239,12 +238,26 @@ public class QuantitySyncRuleValidator {
     private void rejectCycles(Draft draft, Set<String> sourceCodes, Set<String> targetCodes) {
         Map<String, Set<String>> edges = new HashMap<>();
         for (RuleSnapshot existing : draft.existingRules()) {
+            // R1 결함 1 [HIGH]: 이 규칙 자신을 편집(PUT)할 때 activeRuleSnapshots()가
+            // soft-delete 전 옛 child를 그대로 포함해, 옛 간선+새 간선이 합쳐져 순환으로
+            // 오판됐다. 바로 위 REPLACE 중복 검사는 이미 self를 제외하는데 여기만 빠져
+            // 있었다 — 같은 방식으로 self를 제외한다.
+            // R1 결함 2 [MED]: enabled=false 기존 규칙도 강제력이 없어야 하므로 cycle
+            // 그래프에서 제외한다(survey.md:509).
+            if (draft.ruleKey().equals(existing.ruleKey()) || !existing.enabled()) {
+                continue;
+            }
             for (String source : existing.sourceCodes()) {
                 edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(existing.targetCodes());
             }
         }
-        for (String source : sourceCodes) {
-            edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(targetCodes);
+        // draft 자신이 enabled=false로 저장되는 경우도 대칭적으로 강제력이 없다 — DB측
+        // cycle CTE도 quantity_sync_rule.enabled=TRUE만 edges에 포함하므로(J-2), 서비스
+        // 계층도 같은 답을 내도록 맞춘다.
+        if (draft.enabled()) {
+            for (String source : sourceCodes) {
+                edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(targetCodes);
+            }
         }
         for (String start : edges.keySet()) {
             Deque<String> queue = new ArrayDeque<>();
@@ -308,9 +321,21 @@ public class QuantitySyncRuleValidator {
         }
     }
 
+    /**
+     * option key 검증 — 하드코딩 allowlist를 두지 않는다.
+     *
+     * <p>🚨 2026-07-28 R1 대조(SONNET5) 결정: 이전에는 18개 하드코딩 option key만 허용했으나,
+     * 그 근거를 저장소 전체에서 찾지 못했다 — 실 legacy 식별자({@code legacy-quantity-golden/
+     * fixtures.js})는 DOM selector(#home_no_hose 등)·플래그(showIHose·outdoorModel·branchSlots)
+     * 형태라 18개 중 문자 그대로 일치 0개였고, {@code remoteOption}/{@code panelOption}은
+     * 오히려 {@code BundleExpander.ExpandOptions}(세트옵션, 전혀 다른 도메인)의 필드명과
+     * 우연히 같았다. 없는 근거를 지어내는 대신(J-5) 이 key-vocabulary 검증은 evaluator가
+     * 실제 옵션 계약을 읽는 슬3으로 미루고, 여기서는 typed 구조(연산자 whitelist·
+     * [key,value] arity·key가 공백 아닌 문자열)만 유지한다.
+     */
     private void validateOptionPair(JsonNode value, boolean allowList) {
         if (!value.isArray() || value.size() != 2 || !value.get(0).isTextual()
-                || !OPTION_KEYS.contains(value.get(0).asText())
+                || value.get(0).asText().isBlank()
                 || (!value.get(1).isValueNode() && !(allowList && value.get(1).isArray()))) {
             invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
         }

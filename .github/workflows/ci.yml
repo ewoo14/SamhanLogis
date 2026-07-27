@@ -146,26 +146,31 @@ jobs:
         if: matrix.group.name == 'product-quantity-sync-schema'
         run: |
           set -euo pipefail
-          reports=(
-            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml'
-            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleDbProbeIT.xml'
-            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleCrudIT.xml'
-            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleSeedAbsenceIT.xml'
+          # R1 대조(SONNET5) 문제 4 + R1 fix 라운드: tests>=1 하한은 8/8/1/1 -> N/M로 줄어드는
+          # 회귀도 통과시켜 실제 실측치(13/11/2/1/4, R1 fix 라운드 신규 IT 포함)보다 느슨했다.
+          # #956과 같은 방식으로 report별 정확한 최소값을 강제한다.
+          declare -A min_tests=(
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml']=13
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleDbProbeIT.xml']=11
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleCrudIT.xml']=2
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleSeedAbsenceIT.xml']=1
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDiscontinueIT.xml']=4
           )
-          for report in "${reports[@]}"; do
+          for report in "${!min_tests[@]}"; do
             if [ ! -f "$report" ]; then
               echo "::error::#896 S2 JUnit report not found: $report"
               exit 1
             fi
+            min="${min_tests[$report]}"
             tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
             skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
             failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
             errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
-            if [ "${tests:-0}" -lt 1 ] || [ "${skipped:-missing}" != "0" ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ]; then
-              echo "::error::#896 S2 hard gate failed: $report tests=${tests:-missing} skipped=${skipped:-missing} failures=${failures:-missing} errors=${errors:-missing}"
+            if [ "${tests:-0}" -lt "$min" ] || [ "${skipped:-missing}" != "0" ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ]; then
+              echo "::error::#896 S2 hard gate failed: $report tests=${tests:-missing} (min=$min) skipped=${skipped:-missing} failures=${failures:-missing} errors=${errors:-missing}"
               exit 1
             fi
-            echo "#896 S2 hard gate: $report tests=$tests skipped=$skipped failures=$failures errors=$errors"
+            echo "#896 S2 hard gate: $report tests=$tests (min=$min) skipped=$skipped failures=$failures errors=$errors"
           done
 
       - name: "#848 DocumentTemplateIT skipped=0 hard gate"

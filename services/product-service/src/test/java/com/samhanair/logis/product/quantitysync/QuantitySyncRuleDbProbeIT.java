@@ -150,6 +150,106 @@ class QuantitySyncRuleDbProbeIT extends AbstractPostgresIT {
         assertThat(activeRules()).isEqualTo(before);
     }
 
+    // ---- R1 결함 1 [HIGH] · 결함 2 [MED] DB 층 RED-first ----
+
+    @Test
+    void DB_직접_SQL도_비활성_규칙은_Product_비노출_전환을_막지_않는다() throws Exception {
+        // R1 결함 2(a): PUT rule enabled=false 후에도 discontinue가 여전히 409였다.
+        // DB constraint trigger가 enabled를 전혀 읽지 않아서다 — 비활성 규칙이 참조하는
+        // Product를 비노출로 바꿔도 graph 검증이 막으면 안 된다.
+        UUID source = product("DB-DISABLED-VIS-SOURCE", "HOME_MULTI", "SINGLE", "BOTH", true);
+        UUID target = product("DB-DISABLED-VIS-TARGET", "HOME_MULTI", "SINGLE", "BOTH", true);
+        inTransaction(c -> {
+            UUID rule = rule(c, "DB-DISABLED-VIS", "HOME_MULTI", "ADD", "{}", false);
+            source(c, rule, source, "1");
+            target(c, rule, target, "1", 1);
+            try (PreparedStatement statement = c.prepareStatement(
+                    "UPDATE products SET usage_scope = 'NONE' WHERE id = ?")) {
+                statement.setObject(1, target);
+                statement.executeUpdate();
+            }
+        });
+
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT usage_scope FROM products WHERE id = ?", String.class, target))
+                .isEqualTo("NONE");
+    }
+
+    @Test
+    void DB_직접_SQL도_비활성_규칙간_순환은_거부하지_않는다() throws Exception {
+        // R1 결함 2(b): 규칙 X(A->B, enabled=false) 저장 후 규칙 Y(B->A)가 순환으로
+        // 오거부됐다. cycle CTE가 enabled를 걸러야 한다.
+        UUID a = product("DB-DISABLED-CYCLE-A", "HOME_MULTI", "SINGLE", "BOTH", true);
+        UUID b = product("DB-DISABLED-CYCLE-B", "HOME_MULTI", "SINGLE", "BOTH", true);
+        inTransaction(c -> {
+            UUID disabled = rule(c, "DB-DISABLED-CYCLE-1", "HOME_MULTI", "ADD", "{}", false);
+            source(c, disabled, a, "1");
+            target(c, disabled, b, "1", 1);
+            UUID enabled = rule(c, "DB-DISABLED-CYCLE-2", "HOME_MULTI", "ADD", "{}", true);
+            source(c, enabled, b, "1");
+            target(c, enabled, a, "1", 1);
+        });
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM quantity_sync_rule
+                 WHERE rule_key IN ('DB-DISABLED-CYCLE-1', 'DB-DISABLED-CYCLE-2') AND is_deleted = false
+                """, Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void DB_직접_SQL은_같은_규칙의_source_target_교체를_수락한다() throws Exception {
+        // R1 결함 1 재현 원문의 DB측 대응을 영구 회귀로 고정한다: "같은 최종 상태를 직접
+        // SQL로 만들면 DB 트리거는 수락한다"는 리뷰어의 수기 확인 그대로다. deferred
+        // constraint trigger는 커밋 시점의 최종 상태만 재검사하므로 자기 자신의 옛/새
+        // 간선이 뒤섞이는 결함이 DB 층에는 원래 없었다(결함 1은 서비스 activeRuleSnapshots()
+        // 타이밍 문제). 따라서 이 테스트는 RED-first가 아니라 그 사실을 잠그는 parity
+        // 확인이며, 수정 전후 항상 GREEN이어야 한다.
+        //
+        // 최초 rule/source/target 삽입은 반드시 rule()/source()/target() 헬퍼로 **한
+        // transaction 안에서** 해야 한다 — 별도 auto-commit 문으로 rule만 먼저 커밋하면
+        // 그 순간 "rule must have active source and target rows"에 걸린다(자기 자신도
+        // R1 fix 라운드에서 이 실수로 한 차례 깨졌었다).
+        UUID x = product("DB-SELFSWAP-X", "HOME_MULTI", "SINGLE", "BOTH", true);
+        UUID y = product("DB-SELFSWAP-Y", "HOME_MULTI", "SINGLE", "BOTH", true);
+        inTransaction(c -> {
+            UUID rule = rule(c, "DB-SELFSWAP", "HOME_MULTI", "ADD", "{}");
+            source(c, rule, x, "1");
+            target(c, rule, y, "1", 1);
+        });
+
+        inTransaction(c -> {
+            try (PreparedStatement swapSource = c.prepareStatement("""
+                    UPDATE quantity_sync_source SET source_product_id = ?
+                     WHERE rule_id = (SELECT id FROM quantity_sync_rule WHERE rule_key = 'DB-SELFSWAP')
+                       AND source_product_id = ?
+                    """)) {
+                swapSource.setObject(1, y);
+                swapSource.setObject(2, x);
+                swapSource.executeUpdate();
+            }
+            try (PreparedStatement swapTarget = c.prepareStatement("""
+                    UPDATE quantity_sync_target SET target_product_id = ?
+                     WHERE rule_id = (SELECT id FROM quantity_sync_rule WHERE rule_key = 'DB-SELFSWAP')
+                       AND target_product_id = ?
+                    """)) {
+                swapTarget.setObject(1, x);
+                swapTarget.setObject(2, y);
+                swapTarget.executeUpdate();
+            }
+        });
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT s.source_product_id FROM quantity_sync_source s
+                 JOIN quantity_sync_rule r ON r.id = s.rule_id
+                WHERE r.rule_key = 'DB-SELFSWAP'
+                """, UUID.class)).isEqualTo(y);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT t.target_product_id FROM quantity_sync_target t
+                 JOIN quantity_sync_rule r ON r.id = t.rule_id
+                WHERE r.rule_key = 'DB-SELFSWAP'
+                """, UUID.class)).isEqualTo(x);
+    }
+
     private void assertRejected(SqlWork work) throws Exception {
         long before = activeRules();
         assertThatThrownBy(() -> inTransaction(work)).isInstanceOf(SQLException.class);
@@ -195,22 +295,28 @@ class QuantitySyncRuleDbProbeIT extends AbstractPostgresIT {
 
     private UUID rule(Connection connection, String key, String category,
                       String policy, String condition) throws SQLException {
+        return rule(connection, key, category, policy, condition, true);
+    }
+
+    private UUID rule(Connection connection, String key, String category,
+                      String policy, String condition, boolean enabled) throws SQLException {
         UUID id = UUID.randomUUID();
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO quantity_sync_rule (
                     id, rule_key, estimate_category, name, enabled, aggregation, condition_json,
                     inactive_behavior, conflict_policy, priority, legacy_ref,
                     created_at, created_by, is_deleted)
-                VALUES (?, ?, ?, ?, true, 'SUM', ?::jsonb, 'ZERO', ?, 10, ?, now(), ?, false)
+                VALUES (?, ?, ?, ?, ?, 'SUM', ?::jsonb, 'ZERO', ?, 10, ?, now(), ?, false)
                 """)) {
             statement.setObject(1, id);
             statement.setString(2, key);
             statement.setString(3, category);
             statement.setString(4, key + " name");
-            statement.setString(5, condition);
-            statement.setString(6, policy);
-            statement.setString(7, key + " legacy");
-            statement.setString(8, CREATED_BY);
+            statement.setBoolean(5, enabled);
+            statement.setString(6, condition);
+            statement.setString(7, policy);
+            statement.setString(8, key + " legacy");
+            statement.setString(9, CREATED_BY);
             statement.executeUpdate();
         }
         return id;
@@ -257,9 +363,32 @@ class QuantitySyncRuleDbProbeIT extends AbstractPostgresIT {
     }
 
     private void cleanup() {
-        jdbcTemplate.update("DELETE FROM quantity_sync_source WHERE created_by = ?", CREATED_BY);
-        jdbcTemplate.update("DELETE FROM quantity_sync_target WHERE created_by = ?", CREATED_BY);
-        jdbcTemplate.update("DELETE FROM quantity_sync_rule WHERE created_by = ?", CREATED_BY);
+        // source/target/rule 하드 삭제를 별도 auto-commit 문으로 나누면 그 사이 순간에
+        // deferred constraint trigger가 "rule must have active source and target rows"로
+        // 오탐한다. 기존 8종은 전부 rollback되어 문제가 없었지만, 새로 추가한 성공(commit)
+        // 케이스(비활성 규칙 2종·selfswap parity)부터는 세 DELETE를 한 transaction으로
+        // 묶어야 한다.
+        try {
+            inTransaction(c -> {
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM quantity_sync_source WHERE created_by = ?")) {
+                    s.setString(1, CREATED_BY);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM quantity_sync_target WHERE created_by = ?")) {
+                    s.setString(1, CREATED_BY);
+                    s.executeUpdate();
+                }
+                try (PreparedStatement s = c.prepareStatement(
+                        "DELETE FROM quantity_sync_rule WHERE created_by = ?")) {
+                    s.setString(1, CREATED_BY);
+                    s.executeUpdate();
+                }
+            });
+        } catch (Exception e) {
+            throw new IllegalStateException("cleanup 실패", e);
+        }
         jdbcTemplate.update("DELETE FROM bundle_component WHERE created_by = ?", CREATED_BY);
         jdbcTemplate.update("DELETE FROM products WHERE created_by = ?", CREATED_BY);
     }

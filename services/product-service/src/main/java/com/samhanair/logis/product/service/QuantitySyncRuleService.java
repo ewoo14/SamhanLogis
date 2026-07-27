@@ -91,6 +91,35 @@ public class QuantitySyncRuleService {
         return toResponse(findRule(ruleKey));
     }
 
+    /**
+     * 활성이며 enabled인 규칙 중 주어진 Product를 source 또는 target으로 참조하는
+     * ruleKey 목록을 ruleKey 오름차순으로 반환한다.
+     *
+     * <p>R1 결함 3 [MED] — 품목 단종/삭제가 이 규칙들 때문에 막힐 때 {@link
+     * com.samhanair.logis.product.service.ProductService#discontinue}/{@code delete}가
+     * 원인을 사용자에게 드러내기 위해 사용한다(UUID 대신 ruleKey 노출, I-3 준수).
+     * R1 결함 2 [MED] — enabled=false 규칙은 강제력이 없으므로(survey.md:509) 제외한다.
+     *
+     * @param productId 참조 여부를 확인할 Product 내부 FK
+     * @return 참조하는 활성+enabled 규칙의 ruleKey 목록(없으면 빈 목록)
+     */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysReferencing(UUID productId) {
+        Set<UUID> ruleIds = new HashSet<>();
+        sourceRepository.findAllBySourceProductIdAndIsDeletedFalse(productId)
+                .forEach(source -> ruleIds.add(source.getRuleId()));
+        targetRepository.findAllByTargetProductIdAndIsDeletedFalse(productId)
+                .forEach(target -> ruleIds.add(target.getRuleId()));
+        if (ruleIds.isEmpty()) {
+            return List.of();
+        }
+        return ruleRepository.findAllById(ruleIds).stream()
+                .filter(QuantitySyncRule::isEnabled)
+                .map(QuantitySyncRule::getRuleKey)
+                .sorted()
+                .toList();
+    }
+
     /** 신규 규칙을 전체 graph 검증 후 생성한다. */
     @Transactional
     public QuantitySyncRuleResponse create(QuantitySyncRuleRequest request, String actor) {
@@ -216,7 +245,7 @@ public class QuantitySyncRuleService {
         Map<UUID, Product> products = productRepository.findAllByIdIn(productIds).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
         return rules.stream().map(rule -> new RuleSnapshot(
-                rule.getRuleKey(), rule.getEstimateCategory().name(), rule.getConditionJson(),
+                rule.getRuleKey(), rule.getEstimateCategory().name(), rule.isEnabled(), rule.getConditionJson(),
                 rule.getConflictPolicy().name(), rule.getPriority(),
                 sourcesByRule.getOrDefault(rule.getId(), List.of()).stream()
                         .map(source -> productCode(products.get(source.getSourceProductId())))

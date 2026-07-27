@@ -80,6 +80,9 @@ class ProductServiceTest {
     @Mock
     private ProductSheetSyncService productSheetSyncService;
 
+    @Mock
+    private QuantitySyncRuleService quantitySyncRuleService;
+
     @InjectMocks
     private ProductService service;
 
@@ -459,6 +462,35 @@ class ProductServiceTest {
 
         assertThat(product.getIsDeleted()).isTrue();
         assertThat(product.getDeletedBy()).isEqualTo("user-1");
+    }
+
+    // R1 결함 3 [MED] — discontinue/delete가 수량 동기화 규칙 참조 때문에 막힐 때
+    // 원인이 드러나야 한다(J-4). 단위 테스트라 실 DB 트리거 없이 서비스 계층의
+    // 선제 확인만 격리해 검증한다.
+    @Test
+    void discontinue_참조하는_활성_규칙이_있으면_수량동기화_사유와_함께_거부한다() {
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(quantitySyncRuleService.findEnabledRuleKeysReferencing(productId))
+                .thenReturn(List.of("QSREV-LIVE-01"));
+
+        assertThatThrownBy(() -> service.discontinue(productId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("QSREV-LIVE-01");
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+    }
+
+    @Test
+    void delete_참조하는_활성_규칙이_있으면_수량동기화_사유와_함께_거부한다() {
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(quantitySyncRuleService.findEnabledRuleKeysReferencing(productId))
+                .thenReturn(List.of("QSREV-LIVE-01"));
+
+        assertThatThrownBy(() -> service.delete(productId, "user-1"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("QSREV-LIVE-01");
+        assertThat(product.getIsDeleted()).isFalse();
     }
 
     @Test
