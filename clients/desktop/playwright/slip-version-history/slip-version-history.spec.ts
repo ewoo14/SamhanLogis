@@ -29,7 +29,7 @@
  */
 import { expect, test, type Page } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
-import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
@@ -38,7 +38,7 @@ const SLIP_ID = 'slip-001'
 const PAGE_URL = `${BASE_URL}/#/sales/${SLIP_ID}?mockRole=MASTER`
 // 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
 // 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
-const SCREENSHOT_DIR = resolveQaShotsDir('../../docs/qa/coedit-s2b-audit-log/screenshots')
+const SCREENSHOT_DIR = resolveMockQaShotsDir('../../docs/qa/coedit-s2b-audit-log/screenshots')
 
 /**
  * window.samhanAuth stub — AuthGuard 통과용 (matrix.spec 패턴 동일).

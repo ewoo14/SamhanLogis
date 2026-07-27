@@ -50,7 +50,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
-import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -64,12 +64,12 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 /** Playwright 스펙 내 스크린샷 저장 디렉터리 */
 // 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
 // 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
-const SPEC_SS_DIR = resolveQaShotsDir(path.resolve(_dirname, 'screenshots'))
+const SPEC_SS_DIR = resolveMockQaShotsDir(path.resolve(_dirname, 'screenshots'))
 
 /** docs/qa 사이드바 스크린샷 저장 디렉터리 */
 // 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
 // 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
-const SIDEBAR_SS_DIR = resolveQaShotsDir(path.resolve(
+const SIDEBAR_SS_DIR = resolveMockQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/sp-d4-remaining-pages-permission-migration/screenshots',
 ))
@@ -1645,7 +1645,7 @@ test.describe('SP-D4 회귀 가드 (false green 0건 + SP-D4 PageCode 정합 검
     // (2026-07-26 하네스 배치) 이전에는 누락 시 console.warn 만 하고 디렉터리 존재만
     // 단정했다 — 7개 중 0개여도 통과하는 soft-pass 였다. 이 캡처들은 커밋된 확정 증거이고
     // (git ls-files 로 7개 전부 추적됨) 라이브 실행 출력은 _local/ 로 분리됐으므로
-    // (resolveQaShotsDir), 재실행이 이 파일들을 지우거나 덮어쓰는 일도 없다. 따라서
+    // (resolveMockQaShotsDir), 재실행이 이 파일들을 지우거나 덮어쓰는 일도 없다. 따라서
     // "없으면 RED" 가 정확한 계약이다.
     expect(
       fs.existsSync(sidebarDir),

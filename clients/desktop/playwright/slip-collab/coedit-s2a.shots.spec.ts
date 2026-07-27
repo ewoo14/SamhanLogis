@@ -37,7 +37,7 @@ import { fileURLToPath } from 'url'
 import { test, expect, type Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
-import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ============================================================
 // 상수 · 경로
@@ -51,7 +51,7 @@ const SLIP_ID = 'slip-005'
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
 // 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
 // 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
-const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/coedit-s2a'))
+const SCREENSHOT_DIR = resolveMockQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/coedit-s2a'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 // ============================================================

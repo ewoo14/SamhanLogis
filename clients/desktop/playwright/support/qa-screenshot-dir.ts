@@ -10,17 +10,11 @@
  *   라이브QA 실행 자체를 포기한 사례가 2회 있었다 — 머지 게이트 ③(라이브QA 실서버
  *   실행)을 구조적으로 차단하는 결과였다.
  *
- * 해법 — 출력 경로 분리 (이슈 #863 제안과 동일 방향):
- *   - 기본값은 커밋된 디렉토리 밑의 `_local/` 서브폴더다. `.gitignore` 가
- *     `docs/qa/**\/_local/` 을 제외 대상으로 지정하므로, 이 경로는 몇 번을
- *     다시 캡처해도 git 이 추적하는 파일은 단 1바이트도 바뀌지 않는다
- *     (`git status`/`git diff` 에 아예 나타나지 않는다).
- *   - `docs/qa/<slug>/*.png` (커밋된 원본)는 이 함수가 절대 건드리지 않는다 —
- *     기존 문서·PR 참조 경로가 그대로 유효하다.
- *   - 이번 라운드처럼 "새 캡처를 확정 증거로 PR 에 올리겠다"는 의도적 결정이
- *     있을 때만 `QA_SHOTS_DIR` 환경변수로 원하는 경로(신규 파일명 권장)를
- *     명시적으로 지정한다. 우발적 재실행은 기본값(`_local/`)이라 안전하고,
- *     의도적 승격은 opt-in 이라 되돌릴 수 없는 덮어쓰기가 없다.
+ * 해법 — real-QA와 mock 출력 경로를 분리한다(이슈 #863):
+ *   - real-QA용 `resolveQaShotsDir`는 커밋된 디렉터리를 기본 대상으로 유지한다.
+ *   - mock용 `resolveMockQaShotsDir`는 커밋 디렉터리 밑의 `_local/`을 기본값으로
+ *     사용한다. `QA_SHOTS_DIR`가 커밋 경로 또는 그 하위이면
+ *     `QA_ALLOW_OVERWRITE=1` 없이는 즉시 차단한다.
  *
  * @param committedDir 기존 커밋 캡처가 있는(또는 있을) 절대경로 — 보통
  *   `path.resolve(_dirname, '../../../../docs/qa/<slug>')` 형태로 계산해 전달한다.
@@ -31,10 +25,37 @@ import * as path from 'path'
 
 export function resolveQaShotsDir(committedDir: string): string {
   const override = process.env['QA_SHOTS_DIR']
-  const dir =
-    override && override.trim().length > 0
-      ? path.resolve(override)
-      : path.join(committedDir, '_local')
+  const dir = override && override.trim().length > 0 ? path.resolve(override) : path.resolve(committedDir)
+  fs.mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+function hasExplicitOverwriteIntent(): boolean {
+  return ['1', 'true', 'yes'].includes(
+    String(process.env['QA_ALLOW_OVERWRITE'] ?? '').trim().toLowerCase(),
+  )
+}
+
+function isWithin(parentDir: string, candidateDir: string): boolean {
+  const relative = path.relative(parentDir, candidateDir)
+  return (
+    relative === '' ||
+    (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  )
+}
+
+export function resolveMockQaShotsDir(committedDir: string): string {
+  const committed = path.resolve(committedDir)
+  const override = process.env['QA_SHOTS_DIR']?.trim()
+  const dir = override ? path.resolve(override) : path.join(committed, '_local')
+
+  if (override && isWithin(committed, dir) && !hasExplicitOverwriteIntent()) {
+    throw new Error(
+      `[QA 출력 경로 가드] mock 캡처의 커밋 경로 overwrite 시도를 차단했습니다: ${dir}. ` +
+        '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',
+    )
+  }
+
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }

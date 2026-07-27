@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
-import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
 
 // 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
 // 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
-const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
+const SCREENSHOT_DIR = resolveMockQaShotsDir(path.resolve(
   process.cwd(),
   '../../docs/qa/29-713-journal-form-save-contract/screenshots',
 ))

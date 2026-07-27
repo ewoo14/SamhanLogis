@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { join } from 'node:path'
-import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
 
-const qaShotsDir = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '897-column-hierarchy'))
+const qaShotsDir = resolveMockQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '897-column-hierarchy'))
 
 type TableGeometry = {
   tableW: number

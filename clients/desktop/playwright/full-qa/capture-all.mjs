@@ -1,4 +1,4 @@
-import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
+import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 /**
  * 전 기능 Docker 실 QA — 데스크톱 화면 일괄 캡처 (2026-05-30).
  *
@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const OUT = resolveQaShotsDir(resolve(__dirname, '../../../../docs/qa/full-desktop-qa-2026-05-30/screens'));
+const OUT = resolveMockQaShotsDir(resolve(__dirname, '../../../../docs/qa/full-desktop-qa-2026-05-30/screens'));
 const BASE = 'http://127.0.0.1:5173'
 const CODES = JSON.parse(fs.readFileSync(resolve(__dirname, 'pagecodes.json'), 'utf8'))
 const ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'DOWNLOAD', 'PRINT']
