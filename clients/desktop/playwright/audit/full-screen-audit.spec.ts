@@ -1,4 +1,4 @@
-import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * Desktop 전 화면 자동 점검 Playwright 스펙 — full-screen-audit.
  *
@@ -32,7 +32,7 @@ import * as fs from 'fs'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
 /** 스크린샷 저장 디렉토리 */
-const SCREENSHOT_DIR = resolveMockQaShotsDir(path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   __dirname,
   '../../../../docs/qa/full-audit',
 ))

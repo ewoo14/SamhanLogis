@@ -74,7 +74,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
-import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -92,10 +92,10 @@ const COMMITTED_QA_DIR = path.resolve(
 )
 
 /** 이번 실행이 실제로 스크린샷을 쓸 디렉토리(기본 COMMITTED_QA_DIR/_local, QA_SHOTS_DIR 로 승격 가능) */
-const QA_DIR = resolveMockQaShotsDir(COMMITTED_QA_DIR)
+const QA_DIR = resolveQaShotsDir(COMMITTED_QA_DIR)
 
 function ensureQaDir(): void {
-  // resolveMockQaShotsDir 이 모듈 로드 시점에 이미 mkdirSync(recursive) 했다 — 방어적 재확인만.
+  // resolveQaShotsDir 이 모듈 로드 시점에 이미 mkdirSync(recursive) 했다 — 방어적 재확인만.
   if (!fs.existsSync(QA_DIR)) {
     fs.mkdirSync(QA_DIR, { recursive: true })
   }

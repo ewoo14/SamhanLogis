@@ -10,11 +10,29 @@
  *   라이브QA 실행 자체를 포기한 사례가 2회 있었다 — 머지 게이트 ③(라이브QA 실서버
  *   실행)을 구조적으로 차단하는 결과였다.
  *
- * 해법 — real-QA와 mock 출력 경로를 분리한다(이슈 #863):
- *   - real-QA용 `resolveQaShotsDir`는 커밋된 디렉터리를 기본 대상으로 유지한다.
- *   - mock용 `resolveMockQaShotsDir`는 커밋 디렉터리 밑의 `_local/`을 기본값으로
- *     사용한다. `QA_SHOTS_DIR`가 커밋 경로 또는 그 하위이면
- *     `QA_ALLOW_OVERWRITE=1` 없이는 즉시 차단한다.
+ * 계약 (2026-07-26 PR #938 H-2→D-1 로 확정, real-QA·mock 공통 단일 함수):
+ *   - `QA_SHOTS_DIR` 를 지정하지 않으면 기본값은 항상 `<committedDir>/_local` 이다.
+ *     (#938 D-1: 1차 적용이 mock 게이트만 덮어 real-QA 가 뚫려 있었고, 실측으로
+ *     커밋 증거 12장 오염이 나온 뒤 real-QA 포함 172파일 전체로 넓혔다 — 그 계약이
+ *     이 함수다. real-QA 전용으로 "기본값은 커밋 디렉터리 자체" 를 되살리는 것은
+ *     이 fix 이전으로 되돌아가는 회귀다.)
+ *   - `QA_SHOTS_DIR` 를 지정했는데 그 경로가 레포의 커밋 QA 증거 루트
+ *     (`docs/qa/**` — 자기 슬러그든 다른 슬러그든 루트 자체든) 안에 들어가면,
+ *     `QA_ALLOW_OVERWRITE=1` 없이는 즉시 차단한다. `QA_SHOTS_DIR` 는 프로세스 전체가
+ *     공유하는 전역 값이라, mock 스위트(또는 여러 real-QA 스펙)를 한 번에 실행하면
+ *     "내 슬러그만 승격하려 했는데 다른 스펙 전부가 그 경로에 같이 쓰는" 사고가
+ *     난다 — 그래서 자기 슬러그·타 슬러그·루트 자체를 가리지 않고 전부 막는다
+ *     (2026-07-27 이슈 #863 D-3).
+ *
+ * (2026-07-27 R1 재수렴 — 이 파일은 한때 real-QA 용 `resolveQaShotsDir` 와 mock 전용
+ *  `resolveMockQaShotsDir` 두 함수로 갈렸었다. 그 전제 — "mock 스펙 41개가 docs/qa 에
+ *  직접 쓴다" — 가 거짓으로 드러났다: 전환 대상 35파일 전부가 main 에서 이미 이
+ *  resolveQaShotsDir 를 경유했고 기본값도 이미 `_local` 이었다. 함수명이 갈리자
+ *  harness-false-green-guard.test.ts 의 H-2 가드(decl.body.includes('resolveQaShotsDir')
+ *  부분문자열 검사)가 깨져 전환 대상 34~35파일이 전부 위반으로 뒤집혔다 — 그래서 다시
+ *  단일 함수로 합쳤다. D-3(전역 QA_SHOTS_DIR 가 다른 슬러그·루트를 침범하는 문제)는
+ *  이 단일 함수에 합류시켜 real-QA 도 함께 보호한다 — mock 만 덮었다가 real-QA 가
+ *  뚫려 있던 #938 D-1 과 같은 종류의 실수를 반복하지 않기 위해서다.)
  *
  * @param committedDir 기존 커밋 캡처가 있는(또는 있을) 절대경로 — 보통
  *   `path.resolve(_dirname, '../../../../docs/qa/<slug>')` 형태로 계산해 전달한다.
@@ -22,13 +40,13 @@
  */
 import * as fs from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
 
-export function resolveQaShotsDir(committedDir: string): string {
-  const override = process.env['QA_SHOTS_DIR']
-  const dir = override && override.trim().length > 0 ? path.resolve(override) : path.resolve(committedDir)
-  fs.mkdirSync(dir, { recursive: true })
-  return dir
-}
+const _dirname =
+  typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
+
+/** 이 파일(clients/desktop/playwright/support) 기준 레포의 커밋 QA 증거 루트 전체. */
+const DOCS_QA_ROOT = path.resolve(_dirname, '../../../../docs/qa')
 
 function hasExplicitOverwriteIntent(): boolean {
   return ['1', 'true', 'yes'].includes(
@@ -44,14 +62,15 @@ function isWithin(parentDir: string, candidateDir: string): boolean {
   )
 }
 
-export function resolveMockQaShotsDir(committedDir: string): string {
+export function resolveQaShotsDir(committedDir: string): string {
   const committed = path.resolve(committedDir)
-  const override = process.env['QA_SHOTS_DIR']?.trim()
-  const dir = override ? path.resolve(override) : path.join(committed, '_local')
+  const override = process.env['QA_SHOTS_DIR']
+  const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
+  const dir = trimmed ? path.resolve(trimmed) : path.join(committed, '_local')
 
-  if (override && isWithin(committed, dir) && !hasExplicitOverwriteIntent()) {
+  if (trimmed && isWithin(DOCS_QA_ROOT, dir) && !hasExplicitOverwriteIntent()) {
     throw new Error(
-      `[QA 출력 경로 가드] mock 캡처의 커밋 경로 overwrite 시도를 차단했습니다: ${dir}. ` +
+      `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',
     )
   }

@@ -9,14 +9,14 @@ import { test, expect, type Page } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import * as path from 'path'
 import * as fs from 'fs'
-import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 // 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
 // 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
-const QA_DIR = resolveMockQaShotsDir(path.resolve(__dirname, '../../../../docs/qa/727-cash-receipt-list'))
+const QA_DIR = resolveQaShotsDir(path.resolve(__dirname, '../../../../docs/qa/727-cash-receipt-list'))
 
 async function shot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(QA_DIR, { recursive: true })

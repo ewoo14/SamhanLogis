@@ -25,13 +25,13 @@ import { chromium } from '@playwright/test'
 import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
-import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir.mjs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-// resolveMockQaShotsDir 로 감싸 기본 실행이 커밋된 docs/qa/phase-2-3-partner-restore/ 를 직접
+// resolveQaShotsDir 로 감싸 기본 실행이 커밋된 docs/qa/phase-2-3-partner-restore/ 를 직접
 // 덮어쓰지 않게 한다(기본 _local/ 격리, 2026-07-26 하네스 재수렴 라운드 G2 — OUT 은 이
 // 파일에서 템플릿 리터럴 `${OUT}/...` 로 간접 참조되어 기존 가드가 놓쳤다).
-const OUT = resolveMockQaShotsDir(resolve(__dirname, '../../../../docs/qa/phase-2-3-partner-restore'))
+const OUT = resolveQaShotsDir(resolve(__dirname, '../../../../docs/qa/phase-2-3-partner-restore'))
 const BASE = 'http://127.0.0.1:5173'
 const PARTNER_HOST = 'localhost'
 const PARTNER_PORT = 8095

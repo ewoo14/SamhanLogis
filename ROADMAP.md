@@ -29,6 +29,23 @@
 
 ---
 
+### 최신 진행 메모 (2026-07-27)
+
+- **#863 잔여 R1 fix — 기획 전제 재검증 후 축소, real-QA·mock 공통 overwrite 가드 일반화**:
+  PR #952(#863 잔여 — "mock 스펙 41개가 `docs/qa/**` 에 직접 쓴다")의 기획 전제가 R1
+  적대검증에서 거짓으로 드러났다 — 전환 대상 35파일 전부가 `main` 에서 이미
+  `resolveQaShotsDir` 를 경유했고 기본값도 이미 `_local` 이었다(원 근거였던
+  `grep -rl "docs/qa"` 는 쓰기가 아니라 문자열 참조를 센 것이었고 재실측 결과도 41이 아닌
+  44). 실제로 구현이 바꾼 동작은 회귀 2건뿐이었다: mock 스펙 개명이 `harness-false-green-guard.test.ts`
+  의 H-2 가드(부분문자열 검사)를 깬 CI RED, real-QA 기본 출력 경로가 2026-07-26 PR #938
+  이 확정한 `_local` 계약에서 커밋 디렉터리 직행으로 되돌아간 회귀. 두 회귀를 되돌리고
+  (mock 측 함수명·전환 35파일을 `main` 과 byte-identical 하게 복원), 실제로 남아 있던
+  하나의 진짜 문제(overwrite 차단 가드가 자기 슬러그만 검사해 다른 슬러그 커밋 디렉터리·
+  `docs/qa` 루트 자체를 전역 `QA_SHOTS_DIR` 로 지정해도 못 막던 것)는 비교 기준을
+  호출자의 committedDir 에서 레포의 고정 `docs/qa` 루트로 일반화해 닫았다 —
+  real-QA·mock 이 공유하는 단일 `resolveQaShotsDir` 함수(.ts/.mjs/.cjs 3벌 동일 계약)로
+  합쳤다. 상세: `docs/dev-reports/2026-07-27-863-qa-output-path.md`.
+
 ### 최신 진행 메모 (2026-07-26)
 
 - **#851 슬1 CI 게이트 커버리지 — 게이트가 실제로 검사하게**: qa-e2e trigger 에 `services/accounting-service/**`·`services/slip-service/**` 를 추가해 BE 계약 변경도 Desktop Playwright mock 회귀 hard gate 를 발동시킨다(#823 의 BE-only 커밋 `728b98bc7` 이 34체크를 통과하는 동안 qa-e2e 4잡이 전원 부재 — FE 배분 차단을 CI 가 못 잡은 공백). 함께, 실행되면서 아무것도 검증하지 않던 `datagrid-interaction.spec.ts`(7 TC 전부 "셀 미발견"을 console.warn 으로 찍고 통과 — 해시라우터에 경로만 goto 해 대시보드로 낙착)를 해시 네비게이션 + hard expect 정확 수치 검증(단일 1셀·사각형 30셀·Ctrl+A 1,700셀·TSV 셀 값·열 필터 20행)으로 재작성했다. 뮤테이션 증명(해시 제거 시 7 failed)·trigger 확대 비용 실측(BE-only push 당 러너 +15.5분, wall-clock 6.2→11분, public repo 라 과금 0)을 포함한다. 상세: `docs/dev-reports/2026-07-26-851-ci-gate-coverage.md`.

@@ -42,7 +42,7 @@
 import { test, expect, type Page, type BrowserContext } from '@playwright/test'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
-import { resolveMockQaShotsDir } from '../support/qa-screenshot-dir'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -54,7 +54,7 @@ const _dirname = path.dirname(_filename)
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
 /** 스크린샷 저장 디렉토리 — 커밋 캡처 오염 방지(_local, gitignore). */
-const QA_DIR = resolveMockQaShotsDir(
+const QA_DIR = resolveQaShotsDir(
   path.resolve(_dirname, '../../../../docs/qa/supplier-profile-and-grid-ux'),
 )
 
