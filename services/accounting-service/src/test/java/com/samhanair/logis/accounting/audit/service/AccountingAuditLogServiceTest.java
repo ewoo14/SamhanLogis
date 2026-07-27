@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.audit.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,6 +13,9 @@ import com.samhanair.logis.accounting.audit.domain.AccountingAuditLog;
 import com.samhanair.logis.accounting.audit.repository.AccountingAuditLogRepository;
 import com.samhanair.logis.shared.realtime.audit.ChangeEntry;
 import com.samhanair.logis.shared.realtime.broker.RealtimeBroker;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +46,8 @@ class AccountingAuditLogServiceTest {
 
     @Mock private AccountingAuditLogRepository auditLogRepository;
     @Mock private RealtimeBroker broker;
+    @Mock private EntityManager entityManager;
+    @Mock private Query revisionLockQuery;
 
     @InjectMocks private AccountingAuditLogService service;
 
@@ -52,6 +58,9 @@ class AccountingAuditLogServiceTest {
     void setUp() {
         entityId = UUID.randomUUID();
         actorId = UUID.randomUUID();
+        when(entityManager.createNativeQuery(any(String.class))).thenReturn(revisionLockQuery);
+        when(revisionLockQuery.setParameter(eq(1), any(String.class))).thenReturn(revisionLockQuery);
+        when(revisionLockQuery.getSingleResult()).thenReturn(0);
         when(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId))
                 .thenReturn(List.of());
     }
@@ -117,9 +126,13 @@ class AccountingAuditLogServiceTest {
 
     @Test
     void revisionNo_isMonotonicIncreasing_acrossCalls() {
+        List<AccountingAuditLog> persisted = new ArrayList<>();
+        when(auditLogRepository.findByEntityIdOrderByRevisionNoDescChangedAtDesc(entityId))
+                .thenAnswer(inv -> List.copyOf(persisted));
         when(auditLogRepository.save(any(AccountingAuditLog.class))).thenAnswer(inv -> {
             AccountingAuditLog log = inv.getArgument(0);
             ReflectionTestUtils.setField(log, "id", UUID.randomUUID());
+            persisted.add(log);
             return log;
         });
 
@@ -127,8 +140,10 @@ class AccountingAuditLogServiceTest {
         service.recordOverlayPatch(entityId, actorId, "이수민", null, "field2", null, "v2");
         service.recordOverlayPatch(entityId, actorId, "이수민", null, "field3", null, "v3");
 
-        // 3 publish events with strictly increasing revisionNo (1, 2, 3)
+        assertThat(persisted).extracting(AccountingAuditLog::getRevisionNo)
+                .containsExactly(1, 2, 3);
         verify(broker, times(3))
                 .publish(eq(entityId), eq(AccountingAuditLogService.EVENT_ACCOUNTING_EDIT), any());
+        verify(entityManager, times(3)).createNativeQuery(contains("pg_advisory_xact_lock"));
     }
 }

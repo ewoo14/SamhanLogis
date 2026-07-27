@@ -13,7 +13,7 @@
 
 ---
 
-## 🏢 2026-07-27 (회사PC) — **#937 머지 완료 · #938·#929 잔여** ◀◀◀ 여기부터 읽으십시오
+## 🏢 2026-07-27 (회사PC) — **4트랙 머지(#937·#938·#929·#830) · #896 기획완료(구현 대기)** ◀◀◀ 여기부터 읽으십시오
 
 > 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
 
@@ -26,19 +26,29 @@
 - **잔존(수용)** — 버전이력 diff에 "부가세" 행은 없고 그 귀결인 "합계"만 표시(pre-existing LINE_FIELDS). **표기 granularity**(스냅샷 데이터 완전·오류 아님), 개발책임자 수용.
 - 검증: OPUS 양표면 도달가능 0(316 라인 전수) · SOL 라이브QA(R7-1 표+이력 한화면·부가세 캡처·over-capture 0) · CI 35/35 green(exact `f5ba1a2a2`). dev-report `docs/dev-reports/2026-07-27-937-slip-revision-tax-domain.md` + QA증거 `docs/qa/937-slip-revision-tax-domain/`.
 
-### 잔여 2트랙 (재수렴 상한 9차, [feedback_canonical_workflow] 준수)
+### ✅ 추가 머지 3트랙 (#937 이후)
 
-| PR | 브랜치 | 다음 |
-|---|---|---|
-| **#938** | `chore/harness-false-green-batch` | 재수렴 8차 — 도출 한계 ⓐ~ⓓ(네이밍 미준수 가드·조립 경로·읽기/쓰기 미구분·`testIgnore`만 반영) 공격. **열 번 연속 "열거 좁음" 실패** 이력 |
-| **#929** | `feat/897-column-hierarchy` | 재수렴 7차 재착수 — `isAddressableAsPathSegment("")`=true 안전성(호출부 유일 전제)·`trim()` NBSP/전각공백 실측·GitGuardian 판정 |
+- **#938 하네스 거짓 green** (`a776f3e45`) — main-sync(1파일 충돌 해소) → 재수렴 8차 OPUS: 도출이 여전히 `docs/` 접두·`.test/.spec` 네이밍 열거에 갇힘(11번째 사각, 완전성=미결정). **개발책임자 결정: migration/ 갭만 닫고 완전성 사각 수용** → LUNA fix(자격가드 DOC_DIRS·G12·docs-guard 트리거에 `migration/` 추가 · H-1a 6 BrowserRouter 스펙 `WEB_DEPLOY_REAL_QA` 선언 · H-2 4 스펙 `resolveQaShotsDir`). RED-first(DECISIONS.md 시크릿 주입 RED). CI 47/47.
+- **#929 열 계층화** (`935814a6b`) — OPUS 7차 0(3축 도달불가/graceful) + SOL 2차 소스 0. **⚠️라이브QA 함정**: SOL이 stale accounting-service(구 이미지)에 QA→"필터무시·502" 오검출 → **재배포(#929 build) 후 PM 프로브로 전부 graceful 확증**(NOSUCH→0·STX→200·NBSP→0). GitGuardian=dev 시드 크레덴셜 오탐 판정.
+- **#830 감사 revision 멀티인스턴스** (`701704261`) — advisory lock(`pg_advisory_xact_lock`) 채번 직렬화. OPUS 1차가 **V67 UNIQUE ⟂ `DepositMatchAuditRecorder`(actorId 를 entity_id 로·revision 하드코딩 1/2 직접 save)** BLOCKING 발견 → **개발책임자 결정 V67 폐기(advisory lock 단독)** → SONNET fix. SOL 2차 0(라이브 단일인스턴스 revision 0→1→2·멀티 IT `[1,2]`).
 
-### 환경 (회사PC, 이 세션)
+### 🔧 #896 품목 수량동기 칩 기반 (PR #948) — **기획 완료, 구현 대기**
 
-- Docker 풀스택 healthy(2h+). slip-service = round-9 배포본(= merged main 동일). DB `slip_db` 149 리비전(집PC 2,510과 상이).
-- 🚩 알려진 flake `CodefImportScopeForm.test.tsx` **1-in-7**(재실행 확정) — #937 CI서 1회 발생, 재실행 green.
-- ⚠️ 워크트리 `.claude/worktrees/937-history-total` 삭제 실패(gradle 데몬 점유) — 데몬 종료 후 `git worktree prune`.
-- 개발책임자 지시(이 세션): **직접 실행 최소화·Codex 위임**(토큰 절약) · **#937 라운드 과다 인지·바운드** · **3트랙은 #937 머지 후 순차**.
+개발책임자 지시로 4번째 트랙 추가. **Codex 전수 정찰 완료**(`docs/superpowers/specs/2026-07-27-896-survey.md`): 20 규칙(18 표현가능·**H-07/C-09 는 하드코딩 유지**)·규칙모델(product-service `quantity_sync_rule/source/target` typed 조건, 정규식/eval 금지)·경계(Bundle #494/수식빌더 #499~ 소유권 유지)·금액 회귀 0 마이그(golden→shadow→기존 문서 replay 금액 exact 0)·**설계 결정 10항(권장 포함, survey §11)**.
+🚩 **다음**: 개발책임자 설계 결정(§11) 확정 → golden 고정 → shadow evaluator → 문서 replay → 앱별 SHADOW/CONFIG cutover. **금액 민감·대형 FEAT(다세션)**. 🔑 정본 파일 = `clients/web/estimate-app/views/index.ejs`·`clients/web/order-app/index.html`(이슈가 가리킨 `tools/legacy-gas/*` 는 감사 원본, 행수·해시 상이).
+
+### 📌 개발책임자 지시 (이 세션)
+
+- **직접 실행 최소화·가급적 Codex 토큰 위임**(PM 토큰 절약 — 기획 정찰·구현·리뷰·라이브QA 모두 Codex/서브에이전트, PM 은 오케스트레이션·검증·commit·머지) → [[feedback_pm_delegate_to_codex_conserve_tokens]]
+- **라운드 과다 인지·상한 절차**(#937 8·9차·#938 migration/만) · **3트랙 상시**(머지 후 순차 충원, #896 까지 4트랙 가동)
+- **"우선 세션 정리"** → 이 인계로 마감. #896 구현은 후속 세션.
+
+### 🚨 환경 함정 (이 세션 실측)
+
+- 🚨 **stale 배포 라이브QA 오검출**(#929·#830 공통) — SOL 이 구 컨테이너에 QA 해 "결함" 오검출(실은 그 결함을 PR 이 고침). **BE 변경 라이브QA 전 `docker compose -p infrastructure -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-all.yml up -d --build --no-deps <svc>` 재배포 필수** → [[project_local_stack_qa_gotchas]]
+- flake `CodefImportScopeForm.test.tsx` **1-in-7**(재실행). PR `mergeable=UNKNOWN` 은 GitHub 지연 계산(체크 다 돌면 확정, CONFLICTING 과 구분).
+- 워크트리 삭제 시 **gradle 데몬 점유**로 Permission denied 빈번 → `./gradlew --stop` 후 `git worktree prune`. 잔존 dir: `830-audit`·`929-column`(브랜치는 삭제됨)·`831-lookup`(stale #924).
+- Docker 풀스택 healthy 가동. slip/accounting-service = 각 PR 배포본(merged main 동일).
 
 ---
 
