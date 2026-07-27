@@ -3075,6 +3075,19 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-DS4-03 | `IMAGE` source는 정확한 `/print-logo.svg` 또는 50KB 이하 PNG/JPEG/WebP base64 data URL만 허용한다. 외부 URL·토큰 query/hash·blob/file/protocol-relative/SVG data는 차단한다. |
 | D-DS4-04 | 신규 DB/Flyway/API/design-system 컴포넌트 없이 기존 JSONB와 `DocumentRenderer → PrintLayout` 경로를 사용한다. 반복 표는 flow 높이·`thead` 반복·행 `break-inside: avoid`를 사용한다. |
 
+## #913 + #890 검증품질 (2026-07-27)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-913-890-01 | **DS-4 실서버 QA 정리는 run 단위 exact-match로 격리한다.** 양식명에 프로세스·시각·UUID를 포함하고, 부모 테스트의 정상 종료·타임아웃·강제 종료를 모두 감시하는 detached worker가 해당 이름만 삭제한다. broad `startsWith` 삭제는 금지하며, timeout·강제 종료·동시 2프로세스에서 남의 run이 남아 있는지 실 DB로 확인한다. |
+| D-913-890-02 | **IMAGE style은 geometry와 실제 전달 가능한 border만 인쇄한다.** replaced element에 fontSize/bold/align을 넘기지 않으며, static renderer DOM의 `img` style에서 해당 속성 부재를 회귀 검증한다. |
+| D-913-890-03 | **BE PNG/JPEG 검증은 signature 검사로 끝내지 않는다.** 크기 예산 검사 후 `ImageIO.read`가 실제로 디코드하는 분기를 유지하고, 유효 signature·CRC이지만 IDAT scanline이 없는 PNG fixture로 거부를 검증한다. |
+| D-890-02 | **승인 당시 ACTIVE-0의 기본 pin과 그 철회를 DB trigger로 보호한다.** 적용된 V13은 수정하지 않고 최신 적용 버전 뒤에 V15를 추가해 보호 조건을 보강하며, OLD default-pin disjunct를 제거한 변이에서 직접 SQL 회귀 테스트가 RED인지 확인한다. |
+| D-890-03 | **mock 승인 최종 응답은 BE의 pin 3필드 형식을 그대로 낸다.** ACTIVE 양식이면 `(UUID, 양의 revision, false)`, ACTIVE-0이면 `(null, null, true)`를 반환하며 pre-seed로 승인 경로를 우회하지 않는다. |
+| D-890-04 | **승인 충돌 테스트는 공개 3-인자 승인 오버로드를 호출한다.** `actorGroupIds`는 빈 집합으로 명시해 controller 공개 경로와 동일한 `approve(UUID, UUID, Set<UUID>)` 계약을 검증한다. |
+| D-890-05 | **재인쇄 고지는 실제 print media에서 제거되어야 한다.** `no-print` 클래스 문자열만으로 충족시키지 않고, pin revision 조회 실패 mock 시드를 통해 Chromium `emulateMedia({ media: 'print' })`의 비가시성을 검증한다. |
+| D-890-06 | **이미 APPROVED인 미pin 레거시 행은 사후 최초 pin도 금지한다.** V15 trigger가 OLD status `APPROVED`를 보호하고, 이 disjunct를 제거한 변이에서 직접 SQL 회귀 테스트가 RED인지 확인한다. |
+
 ## #825 슬5 null-semantics (2026-07-21, PR #864 R2)
 
 | 결정 코드 | 내용 |

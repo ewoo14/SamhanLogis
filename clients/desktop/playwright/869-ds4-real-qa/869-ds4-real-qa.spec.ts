@@ -13,6 +13,12 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import { expect, test } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import {
+  cleanupDs4Template,
+  extendDs4CleanupTimeout,
+  startDs4RunScope,
+  stopDs4RunScope,
+} from '../support/ds4-real-qa-cleanup'
 
 // SONNET5 R5 라운드 fix: 하네스가 HashRouter(5191)에서 BrowserRouter(5291)로 바뀐 뒤 갱신되지 않았던
 // fallback — AUDIT_BASE_URL 미지정 시 고아 vite/구 라우팅으로 false-RED 를 냈다(동일 패턴 전수 스윕,
@@ -40,7 +46,8 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
 
   const preview = page.getByTestId('document-template-live-preview')
   const detailLayer = page.getByTestId('document-template-detail-layer')
-  const templateName = `DS4 실서버QA ${Date.now()}`
+  const runScope = startDs4RunScope('DS4 실서버QA', API_BASE, PASSWORD)
+  const templateName = runScope.templateName
 
   try {
   await test.step('D1 편집기 진입 후 품목행·이미지 추가', async () => {
@@ -162,19 +169,18 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   // 🚨 공유 실 DB 에 throwaway 가 남지 않게 한다(라이브QA 공유데이터 규칙).
   //    하네스가 자기 정리를 하지 않으면 실행할 때마다 실 양식 목록이 오염된다.
   } finally {
-    await test.step('QA 잔재 정리 — 생성한 양식 삭제', async () => {
-    const listRes = await page.request.get(`${API_BASE}/admin/groupware/document-templates`, {
-      headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
-    })
-    const items: Array<{ id: string; name: string }> = listRes.ok() ? ((await listRes.json()).data ?? []) : []
-    const mine = items.filter((t) => t.name?.startsWith('DS4 실서버QA'))
-    for (const t of mine) {
-      const del = await page.request.delete(`${API_BASE}/admin/groupware/document-templates/${t.id}`, {
-        headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
+    extendDs4CleanupTimeout(test.info())
+    try {
+      await test.step('QA 잔재 정리 — 현재 run 양식만 삭제', async () => {
+        const result = await cleanupDs4Template(page.request, API_BASE, {
+          token: d.token,
+          userId: d.userId,
+          role: d.role ?? 'MASTER',
+        }, templateName)
+        console.log(`■ 정리 run=${runScope.runId} 대상=${result.matched}건 삭제=${result.deleted}건`)
       })
-      console.log(`■ 정리 ${t.name} → HTTP ${del.status()}`)
+    } finally {
+      stopDs4RunScope(runScope)
     }
-    console.log(`■ 정리 대상 ${mine.length}건`)
-    })
   }
 })

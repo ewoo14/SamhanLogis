@@ -51,6 +51,7 @@ const APPROVAL_UNPINNED_ACTIVE_REV2 = '77777777-aaaa-4aaa-8aaa-000000000005'
 // R3 mock parity fix — Design/a11y·FE·통합보안 3차원이 독립적으로 지목한 공백(ACTIVE-0
 // 케이스 mock 회귀 0건)을 메운다.
 const APPROVAL_ACTIVE_ZERO_DEFAULT_PINNED = '77777777-aaaa-4aaa-8aaa-000000000006'
+const APPROVAL_PIN_FETCH_FAILED = '77777777-aaaa-4aaa-8aaa-000000000007'
 const PINNED_CONTENT_MARKER = 'DS-3a 재인쇄 pin mock 회귀 게이트용'
 
 /** window.samhanAuth stub — AuthGuard 통과(MASTER). ac-845-ds1-form-renderer 검증 패턴 동형. */
@@ -210,6 +211,24 @@ test.describe('AC-845 DS-3a 재인쇄 pin screen/print mock 회귀', () => {
     const toolbarVisibleInPrint = await page.locator('.no-print').first().isVisible().catch(() => false)
     expect(toolbarVisibleInPrint, 'print 매체에서 no-print 토올바는 사라져야 함(프린트 CSS 적용 증명)').toBe(false)
     expect(noticeVisibleInPrint, 'ACTIVE-0 고지 배너가 종이 출력물에 포함되면 안 됨').toBe(false)
+    await page.emulateMedia({ media: null })
+  })
+
+  test('pin revision 조회 실패 고지는 실제 print 매체에서 제거된다', async ({ page }) => {
+    await gotoApproval(page, APPROVAL_PIN_FETCH_FAILED)
+
+    const notice = page.getByTestId('approval-reprint-pin-failed-notice')
+    await expect(notice).toBeVisible()
+    await expect(notice).toHaveText(
+      '승인 당시 레이아웃 조회에 실패해 기본 양식(GROUPWARE_DEFAULT)으로 대신 표시됩니다. 실제 승인 당시 양식과 다를 수 있습니다. 다시 시도',
+    )
+    await expect(page.locator('.paper-a4-portrait')).toBeVisible()
+
+    await page.emulateMedia({ media: 'print' })
+    await page.waitForTimeout(200)
+    const toolbarVisibleInPrint = await page.locator('.no-print').first().isVisible().catch(() => false)
+    expect(toolbarVisibleInPrint, 'print 매체에서 no-print 토올바는 사라져야 함(프린트 CSS 적용 증명)').toBe(false)
+    expect(await notice.isVisible(), 'pin 조회 실패 고지가 종이 출력물에 포함되면 안 됨').toBe(false)
     await page.emulateMedia({ media: null })
   })
 })

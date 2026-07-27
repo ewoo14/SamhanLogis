@@ -612,4 +612,46 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(html).toContain('width:20%')
     expect(html).toContain('min-height:12%')
   })
+
+  it('DS-4: IMAGE는 문서 스타일을 img에 주입하지 않고 geometry만 인쇄한다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'HEADER'
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: 'logo-image-style-regression',
+                  type: 'IMAGE' as const,
+                  src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
+                  alt: '스타일 회귀 로고',
+                  geometry: { x: 70, y: 4, w: 20, h: 12 },
+                  style: { fontSize: 20, bold: true, align: 'center' as const, border: true },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+    const image = new JSDOM(html).window.document.querySelector(
+      '[data-template-image="logo-image-style-regression"]',
+    )
+
+    expect(image).not.toBeNull()
+    expect(image?.getAttribute('style')).toContain('left:70%')
+    expect(image?.getAttribute('style')).toContain('top:4%')
+    expect(image?.getAttribute('style')).toContain('width:20%')
+    expect(image?.getAttribute('style')).toContain('min-height:12%')
+    expect(image?.getAttribute('style')).not.toContain('font-size')
+    expect(image?.getAttribute('style')).not.toContain('font-weight')
+    expect(image?.getAttribute('style')).not.toContain('text-align')
+    expect(image?.getAttribute('style')).not.toContain('border: 1px solid')
+  })
 })

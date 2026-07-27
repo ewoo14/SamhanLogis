@@ -62,7 +62,7 @@
 | 아키텍처   | MSA (service-per-DB), Spring Cloud Gateway + Eureka + Resilience4j 회로차단        |
 | 인증       | JWT HS256 (auth-service) + gateway HeaderAuthenticationFilter + Internal-Token     |
 | 배포 형태  | 내부: Electron (Windows .exe) / 외부: Web (estimate / order) + Mobile (Expo)       |
-| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 자율 연속 완료 — MIG-1~21 완료, 사용자 결정 대기** · **#845 DS-2 문서 레이아웃 영속/활성 렌더 완료** · **DS-3a 재인쇄 승인시점 레이아웃 pin 완료** · **DS-3b schema v2 3-pane 문서 양식 편집기 MVP 구현·검증 완료(CODEX LUNA)** · **DS-4 반복 품목행·로고·A4 인쇄 fidelity 완료** |
+| 진척률     | Phase 0 ~ 10.5 완료, **Phase 10.6 이카운트 마이그레이션 자율 연속 완료 — MIG-1~21 완료, 사용자 결정 대기** · **#845 DS-2 문서 레이아웃 영속/활성 렌더 완료** · **DS-3a 재인쇄 승인시점 레이아웃 pin 완료** · **DS-3b schema v2 3-pane 문서 양식 편집기 MVP 구현·검증 완료(CODEX LUNA)** · **DS-4 반복 품목행·로고·A4 인쇄 fidelity 구현·검증 완료(활성화 선행조건 게이트 유지)** |
 | 운영 단위 | **Samhan Public** (14 service, api.samhan-air.com) + **아로로지스** (독립 운영 단위, 같은 AWS 공유, api.arologis.samhan-air.com) — Phase 10.5 분리 후 |
 
 ---
@@ -73,7 +73,11 @@
 
 ### 최신 진행 메모 (2026-07-23)
 
-- **#845 DS-4 문서 양식 고도화**: schema v2에 allowlist 기반 `DETAIL`·`IMAGE`를 additive 확장했다. `EstimateLineResponse`의 공급가액·부가세·부가세 포함 합계를 대조해 반복 품목행을 렌더하고, 로컬 로고/data URL 정책·7개 viewport 기하/hit-test·실제 2페이지 `page.pdf()` 헤더 반복을 검증했다. 신규 Flyway/API/design-system 컴포넌트는 없다. 상세 `docs/dev-reports/2026-07-23-869-ds4-document-template-advanced.md`.
+- **#845 DS-4 문서 양식 고도화**: schema v2에 allowlist 기반 `DETAIL`·`IMAGE`를 additive 확장했다. `EstimateLineResponse`의 공급가액·부가세·부가세 포함 합계를 대조해 반복 품목행을 렌더하고, 로컬 로고/data URL 정책·7개 viewport 기하/hit-test·실제 2페이지 `page.pdf()` 헤더 반복을 검증했다. 구현·인쇄 회귀 검증은 완료했지만 `DETAIL`/`IMAGE`의 ACTIVE 배포는 updater와 `body.lineItems` 연결 선행조건이 충족될 때까지 기존 활성화 게이트를 유지한다. 신규 Flyway/API/design-system 컴포넌트는 없다. 상세 `docs/dev-reports/2026-07-23-869-ds4-document-template-advanced.md`.
+
+### 최신 진행 메모 (2026-07-27)
+
+- **#913 + #890 검증품질 보강**: DS-4 실서버 QA는 run 고유 양식명·detached cleanup worker·정확 일치 삭제로 타 run 삭제를 차단하고, 타임아웃·강제 종료·동시 2프로세스 실측을 추가했다. `IMAGE` 인쇄 style 미주입, BE `ImageIO` 실디코딩, 승인 pin trigger의 ACTIVE-0/승인 레거시 보호, mock pin 3필드 parity, 공개 3-인자 승인 경로, 실제 print media `no-print`를 RED→GREEN으로 검증했다. 상세 `docs/dev-reports/2026-07-27-913-890-verify-quality.md`.
 
 ### 최신 진행 메모 (2026-07-19)
 

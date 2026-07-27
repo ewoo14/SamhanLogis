@@ -3224,3 +3224,11 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - 새 QA 캡처는 모두 `docs/qa/897-column-hierarchy/_local/`에 저장했다. 기존 `docs/qa/**` 커밋 파일은 건드리지 않았다.
 - 상세 RED/GREEN 원문과 범위 밖 발견은 `docs/dev-reports/2026-07-26-897-column-hierarchy.md`에 기록했다.
 - 다음 단계: 개발책임자 핵심 열 후보 확인 및 PM 커밋/통합 검토 대기. 이 세션에서는 git/GitHub 쓰기를 수행하지 않았다.
+
+## ✅ 2026-07-27 Codex — PR #951 #913 + #890 검증품질
+
+- #913-1 실서버 QA cleanup을 run 고유 양식명·exact-match·detached worker로 격리했다. timeout·강제 종료·동시 2프로세스에서 공유 실 DB sentinel이 각각 `1`로 보존되고, probe 소유 잔여 행 수가 `before=1 after=0`이 되는 것을 확인했다.
+- #913-2 IMAGE style 회귀, #913-3 BE ImageIO 실제 디코드 fixture, #913-4 README/ROADMAP 활성화 게이트 정합성을 보강했다.
+- #890-2~6에 ACTIVE-0/승인 레거시 DB trigger V15, mock pin 3필드 parity, 공개 3-인자 승인 테스트, 실제 Chromium print media no-print 검증을 추가했다. 적용 V13/V14는 수정하지 않았다.
+- 최종 선택 검증: Desktop 관련 Vitest `3 files / 145 tests`, groupware Gradle 선택 테스트 `BUILD SUCCESSFUL`, 신규 Playwright print-media `1 passed`, 공유 cleanup probe 3시나리오 GREEN.
+- 상세 RED→GREEN·변이 RED·실측 원문: `docs/dev-reports/2026-07-27-913-890-verify-quality.md`. 커밋·push·GitHub 쓰기는 수행하지 않았으며 PM 커밋 대행 대기.

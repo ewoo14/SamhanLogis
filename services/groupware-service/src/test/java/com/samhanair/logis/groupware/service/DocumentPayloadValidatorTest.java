@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.zip.CRC32;
@@ -325,6 +326,32 @@ class DocumentPayloadValidatorTest {
 
         assertThatThrownBy(() -> validator.validate((short) 2, document))
                 .as("MIME과 Base64 길이만 맞는 손상 PNG는 저장되면 안 된다")
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void DS4_imageSourcePolicy_rejectsSignatureValidButTruncatedPngThroughImageIO() throws Exception {
+        // PNG signature/IHDR/CRC는 맞지만 IDAT scanline이 비어 있는 실제 ImageIO 입력이다.
+        String truncatedPng = Base64.getEncoder().encodeToString(realPngBomb(1, 1, 6, 0));
+        byte[] decoded = Base64.getDecoder().decode(truncatedPng);
+        assertThat(decoded).hasSizeGreaterThan(8);
+        assertThat(Arrays.copyOf(decoded, 8))
+                .containsExactly((byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A);
+        try {
+            assertThat(ImageIO.read(new ByteArrayInputStream(decoded)))
+                    .as("사전조건: 손상 PNG는 ImageIO에서 이미지로 디코드되지 않아야 한다")
+                    .isNull();
+        } catch (IOException expected) {
+            // ImageIO 구현에 따라 빈 IDAT은 null 대신 IIOException으로 보고할 수 있다.
+        }
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "truncated-png").put("type", "IMAGE")
+                .put("src", "data:image/png;base64," + truncatedPng).put("alt", "잘린 PNG");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .as("PNG signature만 맞고 실제로 디코드할 수 없는 입력은 ImageIO 분기에서 거부되어야 한다")
                 .isInstanceOf(BusinessException.class);
     }
 

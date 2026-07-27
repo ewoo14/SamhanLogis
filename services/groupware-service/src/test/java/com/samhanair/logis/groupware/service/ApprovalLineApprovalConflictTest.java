@@ -17,11 +17,12 @@ import com.samhanair.logis.groupware.domain.DocumentTemplateStatus;
 import com.samhanair.logis.groupware.repository.ApprovalLineRepository;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
- * 승인 시 revision self-heal 충돌이 {@link ApprovalLineService#approve(UUID, UUID)} 호출자에게
+ * 승인 시 revision self-heal 충돌이 {@link ApprovalLineService#approve(UUID, UUID, Set)} 공개 경로 호출자에게
  * generic 500이 아닌 typed {@code CONFLICT} 로 전달되는지 검증한다.
  *
  * <p><b>R3 false-green fix</b>: 원래 이 테스트는 {@code revisionService.ensureCurrentRevision}가
@@ -70,7 +71,7 @@ class ApprovalLineApprovalConflictTest {
                 "문서 양식 revision 생성 경합이 발생했습니다. 다시 시도해 주세요");
         doThrow(revisionConflict).when(revisionService).ensureCurrentRevision(any(DocumentTemplate.class));
 
-        assertThatThrownBy(() -> service.approve(approvalId, approver))
+        assertThatThrownBy(() -> service.approve(approvalId, approver, Set.of()))
                 .isSameAs(revisionConflict)
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())

@@ -470,6 +470,18 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateRevision").doesNotExist())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.documentTemplateDefaultPinned").value(true));
 
+        // ACTIVE-0 각인은 default=true 자체가 감사 사실이므로 직접 철회할 수 없어야 한다.
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_default_pinned = FALSE WHERE id = ?",
+                approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+        Map<String, Object> defaultPinRow = jdbcTemplate.queryForMap(
+                "SELECT document_template_id, document_template_revision, document_template_default_pinned "
+                        + "FROM approval_lines WHERE id = ?", approvalId);
+        assertThat(defaultPinRow.get("document_template_id")).isNull();
+        assertThat(defaultPinRow.get("document_template_revision")).isNull();
+        assertThat(defaultPinRow.get("document_template_default_pinned")).isEqualTo(true);
+
         DocumentTemplateCreateRequest newRequest = new DocumentTemplateCreateRequest(
                 docType, "승인 이후 새 양식", (short) 1, payloadJson("new-active-after-approval"));
         UUID newTemplateId = documentTemplateService.create(newRequest).id();
@@ -486,6 +498,58 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         assertThat(documentTemplateRepository.findById(draftId)).isPresent();
         assertThat(documentTemplateRepository.findById(newTemplateId).orElseThrow().getStatus())
                 .isEqualTo(com.samhanair.logis.groupware.domain.DocumentTemplateStatus.ACTIVE);
+    }
+
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "ds3a-default-pin-trigger-it",
+            authorities = {"ROLE_MANAGER"})
+    void directSql_defaultPinFactCannotBeWithdrawnAfterItsFirstWrite() {
+        ApprovalLine line = ApprovalLine.open("2099/01/01-850", UUID.randomUUID(), "기본 양식 pin 불변성", "pending");
+        line.appendStep(UUID.randomUUID());
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        // V13의 OLD.document_template_default_pinned disjunct만 독립적으로 검증한다.
+        jdbcTemplate.update("UPDATE approval_lines SET document_template_default_pinned = TRUE WHERE id = ?",
+                approvalId);
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_default_pinned = FALSE WHERE id = ?",
+                approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT document_template_default_pinned FROM approval_lines WHERE id = ?", Boolean.class,
+                approvalId)).isTrue();
+    }
+
+    @Test
+    @org.springframework.security.test.context.support.WithMockUser(username = "ds3a-approved-legacy-it",
+            authorities = {"ROLE_MANAGER"})
+    void directSql_approvedLegacyUnpinnedCannotReceiveFirstDocumentTemplatePin() throws Exception {
+        String docType = "GROUPWARE_APPROVED_LEGACY_PIN";
+        DocumentTemplate template = documentTemplateRepository.findById(documentTemplateService.create(
+                new DocumentTemplateCreateRequest(docType, "legacy 승인 행 검증용", (short) 1,
+                        payloadJson("legacy-pin-layout"))).id()).orElseThrow();
+        documentTemplateService.activate(template.getId(), "ds3a-approved-legacy-it");
+
+        ApprovalLine line = ApprovalLine.open("2099/01/01-847", UUID.randomUUID(), "legacy 승인 행", "legacy");
+        line.appendStep(UUID.randomUUID());
+        UUID approvalId = approvalLineRepository.saveAndFlush(line).getId();
+
+        // 과거 데이터에 있을 수 있는 APPROVED + 미pin 행을 직접 재현한다.
+        jdbcTemplate.update("UPDATE approval_lines SET status = 'APPROVED' WHERE id = ?", approvalId);
+
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE approval_lines SET document_template_id = ?, document_template_revision = ?, "
+                        + "document_template_default_pinned = FALSE WHERE id = ?",
+                template.getId(), 1, approvalId))
+                .isInstanceOf(org.springframework.dao.DataAccessException.class);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT status, document_template_id, document_template_revision, "
+                        + "document_template_default_pinned FROM approval_lines WHERE id = ?", approvalId);
+        assertThat(row.get("status")).isEqualTo("APPROVED");
+        assertThat(row.get("document_template_id")).isNull();
+        assertThat(row.get("document_template_revision")).isNull();
+        assertThat(row.get("document_template_default_pinned")).isEqualTo(false);
     }
 
     private org.springframework.test.web.servlet.ResultActions mvcApprovalApprove(UUID approvalId, UUID approver)

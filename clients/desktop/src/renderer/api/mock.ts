@@ -11124,6 +11124,19 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       current.status = 'APPROVED'
       current.decidedAt = new Date().toISOString()
       approval.status = approval.steps.every((step) => step.status === 'APPROVED') ? 'APPROVED' : 'IN_PROGRESS'
+      if (approval.status === 'APPROVED' && approval.documentType) {
+        const activeTemplate = Object.values(MOCK_DOCUMENT_TEMPLATES)
+          .find((template) => template.docType === approval.documentType && template.status === 'ACTIVE')
+        if (activeTemplate) {
+          approval.documentTemplateId = activeTemplate.id
+          approval.documentTemplateRevision = activeTemplate.revision
+          approval.documentTemplateDefaultPinned = false
+        } else {
+          approval.documentTemplateId = null
+          approval.documentTemplateRevision = null
+          approval.documentTemplateDefaultPinned = true
+        }
+      }
     } else {
       current.status = 'REJECTED'
       current.decidedAt = new Date().toISOString()
@@ -15941,6 +15954,36 @@ const MOCK_GROUPWARE_APPROVALS: ApprovalLineAdminResponse[] = [
         approverName: '김기철',
         status: 'APPROVED',
         decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T09:45:00`,
+        reason: null,
+      },
+    ],
+  },
+  // #890-5 print 회귀 — pin 이력 조회가 null로 돌아오는 경로는 기본 양식 fallback과
+  // 조회 실패 고지를 모두 표시해야 한다. 존재하지 않는 revision id를 의도적으로 사용한다.
+  {
+    approvalId: '77777777-aaaa-4aaa-8aaa-000000000007',
+    approvalNo: `${MOCK_DISPATCH_HISTORY_PREVIOUS.replace(/-/g, '/')}-7`,
+    requesterId: MOCK_AUTH.userId,
+    requesterName: MOCK_AUTH.fullName,
+    title: '[QA] DS-3a 재인쇄 pin 조회 실패 — print 고지 검증',
+    content: 'pin revision 조회가 실패한 결재 문서는 기본 양식으로 대신 표시된다.',
+    templateId: null,
+    templateName: null,
+    documentType: 'GROUPWARE_QA_DS3A_PIN_FETCH_FAILED',
+    documentTemplateId: '77777777-ffff-4fff-8fff-000000000007',
+    documentTemplateRevision: 3,
+    documentTemplateDefaultPinned: false,
+    fieldValues: {},
+    status: 'APPROVED',
+    steps: [
+      {
+        sequence: 0,
+        stepType: 'USER',
+        approverGroupId: null,
+        approverId: '00000000-0000-0000-0000-000000010002',
+        approverName: '김기철',
+        status: 'APPROVED',
+        decidedAt: `${MOCK_DISPATCH_HISTORY_PREVIOUS}T10:00:00`,
         reason: null,
       },
     ],

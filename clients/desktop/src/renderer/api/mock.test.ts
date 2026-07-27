@@ -180,6 +180,72 @@ describe('mock 그룹웨어 결재 생성 요청 관찰', () => {
     expect((globalThis as unknown as Window)
       .__SAMHAN_MOCK_LAST_GROUPWARE_APPROVAL_CREATE_BODY__?.approverIds).toEqual(approverIds)
   })
+
+  it('최종 승인 시 BE와 같은 문서양식 pin 3필드의 값 형식을 반환한다', () => {
+    type Approval = {
+      approvalId: string
+      status: string
+      documentType: string | null
+      documentTemplateId?: string | null
+      documentTemplateRevision?: number | null
+      documentTemplateDefaultPinned: boolean
+      steps: Array<{ status: string }>
+    }
+
+    const approveAll = (created: Approval): Approval => {
+      let current = created
+      while (current.status !== 'APPROVED') {
+        const response = mockRequest({
+          method: 'PUT',
+          url: `/admin/groupware/approvals/${current.approvalId}/approve`,
+          data: {},
+        }) as MockEnvelope<Approval>
+        current = response.data
+      }
+      return current
+    }
+
+    const activeCreated = mockRequest({
+      method: 'POST',
+      url: '/admin/groupware/approvals',
+      data: {
+        requesterId: '00000000-0000-0000-0000-000000010001',
+        title: `mock pin parity active ${Date.now()}`,
+        templateId: '77777777-dddd-4ddd-8ddd-000000000001',
+        approverIds: ['00000000-0000-0000-0000-000000010002'],
+        fieldValues: {
+          expenseItem: '배송비',
+          amount: '1000',
+          accountCode: '여비교통비',
+          expenseDate: '2026-07-27',
+        },
+      },
+    }) as MockEnvelope<Approval>
+    const activeApproved = approveAll(activeCreated.data)
+
+    expect(activeApproved.documentType).toBe('GROUPWARE_EXPENSE_REPORT')
+    expect(activeApproved.documentTemplateId).toBe('77777777-eeee-4eee-8eee-000000000001')
+    expect(activeApproved.documentTemplateRevision).toBe(1)
+    expect(activeApproved.documentTemplateDefaultPinned).toBe(false)
+
+    const activeZeroCreated = mockRequest({
+      method: 'POST',
+      url: '/admin/groupware/approvals',
+      data: {
+        requesterId: '00000000-0000-0000-0000-000000010001',
+        title: `mock pin parity active zero ${Date.now()}`,
+        templateId: '77777777-dddd-4ddd-8ddd-000000000003',
+        approverIds: ['00000000-0000-0000-0000-000000010002'],
+        fieldValues: { title: '비활성 양식 요청' },
+      },
+    }) as MockEnvelope<Approval>
+    const activeZeroApproved = approveAll(activeZeroCreated.data)
+
+    expect(activeZeroApproved.documentType).toBe('GROUPWARE_INACTIVE_TEMPLATE')
+    expect(activeZeroApproved.documentTemplateId).toBeNull()
+    expect(activeZeroApproved.documentTemplateRevision).toBeNull()
+    expect(activeZeroApproved.documentTemplateDefaultPinned).toBe(true)
+  })
 })
 
 describe('mock price memory contract', () => {
