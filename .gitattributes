@@ -32,3 +32,8 @@
 
 # UTF-16 LE 스크립트 — EOL 변환 시 바이트 정렬 손상되므로 제외
 infrastructure/scripts/operational-validation.ps1 -text
+# 2026-07-28 이슈 #851 R2 재수렴 D-A — scripts/lib/qa-shots-dir.ps1 도 UTF-16LE+BOM 인데
+# 이 목록에 없어 *.ps1 text eol=crlf(위)가 그대로 적용돼 체크아웃마다 바이트 정렬이
+# 깨졌다(신규 클론에서 재현, 워크트리에서는 이미 자리잡은 파일이라 재현되지 않음).
+# 30개 스크립트가 이 파일을 dot-source 하므로 전멸 + CI green(가드가 손실을 흡수, N-2 별도 fix)이었다.
+scripts/lib/qa-shots-dir.ps1 -text

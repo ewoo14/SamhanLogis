@@ -28,10 +28,31 @@
  * resolver 가 차단하지 않고 실제 mkdirSync 까지 진행해 저장소 밖에 부작용을 남기므로,
  * "차단 안 됨"을 직접 단언하는 대신 아예 실행하지 않는다).
  *
+ * 2026-07-28 재수렴(D-A/D-B/N-1/N-2) — 신규 `scripts/lib/qa-shots-dir.ps1`(UTF-16LE+BOM)가
+ * `.gitattributes`의 `*.ps1 text eol=crlf`(UTF-16 예외 목록에 미등재)로 인해 체크아웃마다
+ * 바이트 정렬이 깨져(신규 클론에서만 재현 — 기존 워크트리는 이미 자리잡은 파일이라 재현
+ * 안 됨) 30개 스크립트가 dot-source 시점에 파싱 실패했는데도 CI 는 green 이었다: 손상된
+ * 바이트를 `readSourceText`가 UTF-16 디코드하면 쓰레기가 나와 `discoverQaResolverSources()`
+ * 의 정규식이 매치하지 못해 그 사본이 인벤토리에서 조용히 사라지고, 당시 하한이
+ * `count >= 8`이라 10→9 손실을 흡수했다(D-A). 대응: ① `.gitattributes`에
+ * `scripts/lib/qa-shots-dir.ps1 -text`를 추가(기존 `operational-validation.ps1`과 동일
+ * 패턴). ② 아래 "N-2" 테스트로 하한을 정확한 목록 비교로 강화 — 사본 하나가 사라지면
+ * 반드시 RED. ③ 아래 "N-1" 테스트로 `git checkout-index`(신규 클론과 동일한 EOL/attr
+ * 처리)가 UTF-16 resolver 사본을 committed blob 과 바이트 단위로 동일하게 materialize
+ * 하는지 직접 검증 — PowerShell 실행 없이 Windows·Linux CI 양쪽에서 이 회귀 클래스
+ * 전체(향후 추가되는 UTF-16 사본 포함)를 잡는다. 별개로 `generate-sp-08-4-4-order-print-
+ * form-screenshots.ps1:99`의 `Join-Path (Get-Location) $OutputDir`도 고쳤다(D-B) — main
+ * 에서는 `$OutputDir` 기본값이 상대경로라 옳았지만, 이 PR 이 `Resolve-QaShotsDir`(항상
+ * 절대경로)로 바꾸며 PowerShell Join-Path(.NET Path.Combine과 달리 절대+절대 결합 시
+ * 첫 인자를 버리지 않음)가 `C:\...\C:\...` 형태로 깨져 New-Item/Save 가 전부 실패하고도
+ * exit 0 + "Generated..." 문구가 그대로 찍혔다 — 그 스크립트 자체에 산출물 존재 검증을
+ * 추가해 실패가 성공처럼 보이지 않게 했다(N-3, 이 테스트 파일 범위 밖).
+ *
  * 실행: `node --test clients/desktop/scripts/qa-output-path-guard.test.cjs`
  * (CI: .github/workflows/qa-e2e.yml desktop-playwright 잡, "QA 출력 경로·덮어쓰기 가드" step)
  */
 const assert = require('node:assert/strict')
+const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -299,6 +320,25 @@ test('qa/playwright 캡처 호출은 실행 시 docs/qa 직접 경로를 사용�
 // CI 러너에는 `.claude/worktrees` 가 없어 이 결함이 CI 로는 전혀 드러나지 않는다.
 const EXCLUDED_DIR_NAMES = new Set(['.git', '.claude', 'node_modules', 'test-results', 'playwright-report'])
 
+// N-2 (2026-07-28 재수렴) — 이전엔 `sources.length >= 8` 느슨한 하한이었다. 실제 인벤토리는
+// 10개인데, resolver 사본 하나가 인코딩 손상으로 발견에서 조용히 사라져도(9개) 그 하한을
+// 여전히 만족해 CI 가 green 이었다(D-A). 정확한 목록 비교로 강화한다 — 사본이 하나라도
+// 사라지거나(경로 바뀜·인코딩 손상·정규식 미매치) 늘어나면 즉시 RED. 새 resolver 사본을
+// 의도적으로 추가/제거했다면 이 목록도 함께 갱신할 것(그 자체가 "발견을 인지했다"는 의도적
+// 신호다 — 조용한 하한 통과가 아니라).
+const EXPECTED_RESOLVER_PATHS = [
+  'clients/desktop/playwright/support/qa-screenshot-dir.mjs',
+  'clients/desktop/playwright/support/qa-screenshot-dir.ts',
+  'clients/desktop/src/main/capture.ts',
+  'infrastructure/scripts/operational-validation.ps1',
+  'qa/playwright/utils/screenshot.ts',
+  'scripts/lib/qa_shots_dir.py',
+  'scripts/lib/qa-shots-dir.cjs',
+  'scripts/lib/qa-shots-dir.mjs',
+  'scripts/lib/qa-shots-dir.ps1',
+  'scripts/lib/qa-shots-dir.sh',
+]
+
 function discoverQaResolverSources() {
   const sources = []
   const pending = [repoRoot]
@@ -334,7 +374,13 @@ test('QA resolver 가드 표면은 저장소 소스에서 동적으로 발견되
   const sources = discoverQaResolverSources()
   const relativePaths = sources.map(({ path: filePath }) => path.relative(repoRoot, filePath).replaceAll(path.sep, '/'))
 
-  assert.ok(sources.length >= 8, `resolver 사본이 예상 최소치보다 적습니다: ${sources.length}`)
+  assert.deepStrictEqual(
+    relativePaths,
+    EXPECTED_RESOLVER_PATHS,
+    `resolver 인벤토리가 예상 목록과 다릅니다(발견 ${relativePaths.length}개, 예상 ${EXPECTED_RESOLVER_PATHS.length}개). ` +
+      '사본이 조용히 사라지면(인코딩 손상으로 소스가 깨져 정규식 미매치 등) 느슨한 하한(>=8)은 이를 흡수했다(D-A, 2026-07-28). ' +
+      'resolver 사본을 의도적으로 추가/제거했다면 EXPECTED_RESOLVER_PATHS 도 함께 갱신할 것.',
+  )
   for (const { path: filePath, source } of sources) {
     assert.match(
       source,
@@ -344,6 +390,65 @@ test('QA resolver 가드 표면은 저장소 소스에서 동적으로 발견되
   }
 
   console.log(`[QA resolver inventory] count=${sources.length} ${relativePaths.join(', ')}`)
+})
+
+test('N-2 (2026-07-28 재수렴) — 느슨한 하한(>=8)은 사본 1개 손실(10→9)을 흡수하지만 정확한 목록 비교는 잡는다', () => {
+  // 이 테스트는 discoverQaResolverSources() 를 다시 부르지 않는다 — "가드 로직 자체의
+  // 민감도"를 검증하는 메타 테스트다(D-A 때 실제로 벌어진 일: 인코딩 손상으로 사본 1개가
+  // 조용히 사라져 10→9 가 됐는데 당시 하한 `count >= 8` 은 여전히 통과였다).
+  const droppedByOne = EXPECTED_RESOLVER_PATHS.slice(0, -1)
+  assert.equal(droppedByOne.length, EXPECTED_RESOLVER_PATHS.length - 1)
+
+  // 옛 느슨한 하한 — 9개도 여전히 통과시켰다(이게 D-A 를 흡수한 바로 그 조건이다).
+  assert.ok(droppedByOne.length >= 8, '(참고용, 회귀 없음 확인) 예전 하한도 9개를 통과시켰어야 한다')
+
+  // 새 정확한 목록 비교 — 사본 1개 손실을 반드시 RED 로 잡아야 한다.
+  assert.throws(
+    () => assert.deepStrictEqual(droppedByOne, EXPECTED_RESOLVER_PATHS),
+    /AssertionError/,
+    '정확한 목록 비교가 사본 1개 손실을 잡지 못했습니다 — N-2 가 회귀했습니다',
+  )
+})
+
+test('N-1 (2026-07-28 재수렴, D-A 회귀 가드) — UTF-16 resolver 사본은 git checkout 시 committed blob 과 바이트가 동일하다', () => {
+  // git checkout-index 는 실제 checkout/신규 clone 과 동일한 clean/smudge·EOL 변환을
+  // 거친다(단 대상 경로 밖 --prefix 로만 써서 이 워크트리의 추적 파일은 절대 건드리지
+  // 않는다). UTF-16 파일에 `*.ps1 text eol=crlf` 류 EOL 강제가 적용되면 바이트 정렬이
+  // 깨진다(D-A) — 이 테스트는 그 손상이 CI 에서도(PowerShell 실행 없이, Windows·Linux
+  // 무관) 잡히게 한다. discoverQaResolverSources() 가 찾아낸 "지금 이 순간의" 전체
+  // resolver 사본을 대상으로 하므로, 향후 추가되는 UTF-16 사본도 자동으로 커버한다.
+  const sources = discoverQaResolverSources()
+  const checkoutRoot = path.join(tempRoot, 'n1-checkout-index-probe')
+  fs.rmSync(checkoutRoot, { recursive: true, force: true })
+  fs.mkdirSync(checkoutRoot, { recursive: true })
+
+  let utf16Checked = 0
+  for (const { path: filePath } of sources) {
+    const relPath = path.relative(repoRoot, filePath).replaceAll(path.sep, '/')
+    const blobBuffer = execFileSync('git', ['cat-file', 'blob', `HEAD:${relPath}`], {
+      cwd: repoRoot,
+      maxBuffer: 20 * 1024 * 1024,
+    })
+    const isUtf16 =
+      (blobBuffer[0] === 0xff && blobBuffer[1] === 0xfe) || (blobBuffer[0] === 0xfe && blobBuffer[1] === 0xff)
+    if (!isUtf16) continue // 이 회귀는 UTF-16 파일에만 해당한다 — 다른 인코딩은 EOL 변환 자체가 안전하다(N-4 sweep 확인).
+    utf16Checked += 1
+
+    const prefix = `${checkoutRoot.replaceAll('\\', '/')}/`
+    execFileSync('git', ['checkout-index', `--prefix=${prefix}`, '--', relPath], { cwd: repoRoot })
+    const checkedOutBuffer = fs.readFileSync(path.join(checkoutRoot, ...relPath.split('/')))
+
+    assert.ok(
+      blobBuffer.equals(checkedOutBuffer),
+      `${relPath} 가 git checkout(신규 클론과 동일한 EOL/attr 처리)에서 committed blob 과 바이트가 다릅니다 ` +
+        `(blob ${blobBuffer.length}바이트, checkout ${checkedOutBuffer.length}바이트) — UTF-16 파일에 CRLF 변환이 ` +
+        `적용되면 바이트 정렬이 깨집니다(D-A). .gitattributes 에 '${relPath} -text' 를 추가하세요.`,
+    )
+  }
+
+  // 최소 1개(scripts/lib/qa-shots-dir.ps1, infrastructure/scripts/operational-validation.ps1)는
+  // 항상 UTF-16 이어야 한다 — 0건이면 discoverQaResolverSources() 자체가 손상됐다는 신호다.
+  assert.ok(utf16Checked >= 1, 'UTF-16 resolver 사본이 하나도 발견되지 않았습니다(discoverQaResolverSources 이상 의심)')
 })
 
 test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소스는 구조 마커로, .mjs 는 실행으로 대조', async () => {

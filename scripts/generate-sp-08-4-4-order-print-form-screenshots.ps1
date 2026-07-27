@@ -96,7 +96,14 @@ function Draw-A4Order($g, [int]$x, [int]$y, [double]$scale, [bool]$success) {
     }
 }
 
-$out = Join-Path (Get-Location) $OutputDir
+# 2026-07-28 R2 재수렴 D-B — $OutputDir 는 이제(Resolve-QaShotsDir 경유) 항상 절대경로다.
+# 이전엔 기본값이 상대경로라 Get-Location 과 결합이 필요했지만, PowerShell Join-Path 는
+# .NET Path.Combine 과 달리 두 번째 인자가 절대경로여도 첫 인자를 버리지 않고 그대로
+# 이어붙인다 — absolute+absolute 결합이 "C:\...\C:\..." 형태로 깨져 New-Item/Save 가
+# 전부 실패했다(그런데도 exit 0 + "Generated..." 문구 — 사용자가 알아챌 수 없었다).
+# 다른 29개 스크립트와 동일하게 $OutputDir 를 그대로 쓴다(이미 절대경로이거나, 명시
+# 상대경로 override 시에도 .NET 파일 I/O 가 현재 작업 디렉터리 기준으로 정상 처리한다).
+$out = $OutputDir
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 New-Canvas (Join-Path $out "01-desktop-print-preview.png") (K "\uC8FC\uBB38\uC11C \uC0C1\uC138 - \uC778\uC1C4 \uBC84\uD2BC") (K "SALES/MANAGER/MASTER Desktop \uC778\uC1C4 \uC9C4\uC785, PARTNER Desktop route \uCC28\uB2E8") {
@@ -137,6 +144,25 @@ New-Canvas (Join-Path $out "04-partner-other-order-print-403.png") (K "PARTNER \
     $g.FillRectangle($dangerBg, 390, 265, 580, 110)
     $g.DrawString("403", $fontH, $danger, 620, 205)
     $g.DrawString((K "\uBCF8\uC778 \uAC70\uB798\uCC98 \uC8FC\uBB38\uC11C\uB9CC \uC778\uC1C4\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."), $font, $danger, 430, 305)
+}
+
+# 2026-07-28 R2 재수렴 N-3 — D-B(절대경로 이중결합)가 New-Item/Save 를 전부 실패시키고도
+# exit 0 + 아래 "Generated..." 문구를 그대로 찍어 QA 실행자가 실패를 알아챌 수 없었다.
+# 근본 원인(위 $out 결합)은 고쳤지만, 같은 "성공 문구인데 산출물 0" 형태의 재발(예: 디스크
+# 공간 부족, 권한 거부 등 다른 원인)을 흡수하지 않도록 산출물 존재·비어있지 않음을 직접
+# 확인하고, 부족하면 성공 문구 대신 terminating error 로 exit 0 이 아니게 만든다.
+$expectedFiles = @(
+    '01-desktop-print-preview.png',
+    '02-a4-order-print-form.png',
+    '03-partner-own-order-print-success.png',
+    '04-partner-other-order-print-403.png'
+)
+$missingOrEmpty = $expectedFiles | Where-Object {
+    $candidate = Join-Path $out $_
+    -not (Test-Path -LiteralPath $candidate) -or (Get-Item -LiteralPath $candidate).Length -eq 0
+}
+if ($missingOrEmpty.Count -gt 0) {
+    throw "[SP-08-4-4 QA 스크린샷 생성 실패] 누락/빈 파일: $($missingOrEmpty -join ', ') (출력 디렉터리: $out)"
 }
 
 Write-Host "Generated SP-08-4-4 QA screenshots in $out"
