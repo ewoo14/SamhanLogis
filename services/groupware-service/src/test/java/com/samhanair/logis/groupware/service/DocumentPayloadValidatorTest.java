@@ -385,6 +385,63 @@ class DocumentPayloadValidatorTest {
         assertThat(validator.validate((short) 2, document)).isNotNull();
     }
 
+    @Test
+    void R3_webp_rejectsVp8lHeaderWithoutImagePayload() throws Exception {
+        byte[] headerOnly = headerOnlyWebpVp8L(4, 4);
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "header-only-vp8l").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(headerOnly))
+                .put("alt", "헤더만 있는 VP8L");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .as("VP8L 시그니처와 5바이트 헤더만 있는 입력은 디코드 가능한 이미지가 아니다")
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void R3_webp_rejectsVp8xWithoutImageSubchunk() throws Exception {
+        byte[] extensionHeaderOnly = buildWebp("VP8X", new byte[10]);
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "header-only-vp8x").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(extensionHeaderOnly))
+                .put("alt", "이미지 청크 없는 VP8X");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .as("VP8X 확장 헤더만 있고 이미지 서브청크가 없는 입력은 디코드 가능한 이미지가 아니다")
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void R3_webp_acceptsVp8xContainerWithVp8ImageSubchunk() throws Exception {
+        byte[] extended = minimalValidWebpVp8xWithVp8Image();
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "valid-vp8x").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(extended))
+                .put("alt", "정상 VP8X 컨테이너");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    @Test
+    void R3_webp_acceptsChromiumProducedVp8xWithMetadata() throws Exception {
+        // Chromium canvas.toDataURL('image/webp')가 실제로 생성한 4x4 WebP(ICC 메타데이터 + VP8X + VP8).
+        String chromiumWebp = "UklGRhwCAABXRUJQVlA4WAoAAAAgAAAAAwAAAwAASUNDUMgBAAAAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADZWUDggLgAAANABAJ0BKgQABAABQCYloAJ0ugH4AAOwAP7lCv/4s5GI7PN/9tD+tD+tD/pQAAA=";
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "chromium-webp").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + chromiumWebp)
+                .put("alt", "Chromium WebP 로고");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
     /**
      * 🔴 R1-4 RED-first(이슈 #913 코멘트 "손상 WebP" — 개발책임자 결정 2026-07-27로 이 PR에
      * 흡수): RIFF/WEBP 시그니처(offset 0~11)는 유효하지만 그 뒤 VP8 청크 데이터가 통째로
@@ -862,8 +919,39 @@ class DocumentPayloadValidatorTest {
                 0x2F,
                 (byte) (bits & 0xFF), (byte) ((bits >> 8) & 0xFF),
                 (byte) ((bits >> 16) & 0xFF), (byte) ((bits >> 24) & 0xFF),
+                0x00, // packed header 뒤의 최소 bitstream payload
         };
         return buildWebp("VP8L", chunkData);
+    }
+
+    private static byte[] headerOnlyWebpVp8L(int width, int height) throws IOException {
+        long bits = (long) (width - 1) | ((long) (height - 1) << 14);
+        byte[] chunkData = new byte[]{
+                0x2F,
+                (byte) (bits & 0xFF), (byte) ((bits >> 8) & 0xFF),
+                (byte) ((bits >> 16) & 0xFF), (byte) ((bits >> 24) & 0xFF),
+        };
+        return buildWebp("VP8L", chunkData);
+    }
+
+    /** VP8X 확장 헤더만으로 통과하지 않도록 실제 VP8 이미지 서브청크를 함께 둔 변형. */
+    private static byte[] minimalValidWebpVp8xWithVp8Image() throws IOException {
+        byte[] extensionData = new byte[10];
+        extensionData[4] = 0x03; // canvas width - 1 (4px)
+        extensionData[7] = 0x03; // canvas height - 1 (4px)
+        byte[] vp8Data = new byte[]{
+                0x70, 0x00, 0x00,
+                (byte) 0x9D, 0x01, 0x2A,
+                0x04, 0x00, 0x04, 0x00,
+        };
+        var out = new ByteArrayOutputStream();
+        int riffSize = 4 + 8 + extensionData.length + 8 + vp8Data.length;
+        out.write(new byte[]{'R', 'I', 'F', 'F'});
+        writeUInt32LE(out, riffSize);
+        out.write(new byte[]{'W', 'E', 'B', 'P'});
+        writeWebpChunk(out, "VP8X", extensionData);
+        writeWebpChunk(out, "VP8 ", vp8Data);
+        return out.toByteArray();
     }
 
     /** RIFF/WEBP/VP8 헤더(시그니처 포함)는 온전하지만 청크 데이터가 통째로 잘린 —
@@ -894,10 +982,15 @@ class DocumentPayloadValidatorTest {
         out.write(new byte[]{'R', 'I', 'F', 'F'});
         writeUInt32LE(out, riffSize);
         out.write(new byte[]{'W', 'E', 'B', 'P'});
+        writeWebpChunk(out, fourCc, chunkData);
+        return out.toByteArray();
+    }
+
+    private static void writeWebpChunk(ByteArrayOutputStream out, String fourCc, byte[] chunkData) throws IOException {
         out.write(fourCc.getBytes(StandardCharsets.US_ASCII));
         writeUInt32LE(out, chunkData.length);
         out.write(chunkData);
-        return out.toByteArray();
+        if ((chunkData.length & 1) != 0) out.write(0);
     }
 
     private static void writeUInt32LE(ByteArrayOutputStream out, int value) {

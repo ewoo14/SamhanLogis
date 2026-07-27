@@ -25,11 +25,10 @@ const names = {
   sentinel: `DS4 실서버QA probe-sentinel ${runId}`,
   treekill: `DS4 실서버QA probe-treekill ${runId}`,
 }
-// R1-1 신규 시나리오 전용 — reap 대상은 이름에 pid-시각-uuid 를 "직접" 새겨넣어야 stale 판정
-// 대상이 된다(ds4-real-qa-stale.cjs 의 RUN_NAME_PATTERN 요구 형태). 999999937 은 이 환경에서
-// 실존할 수 없는(Windows PID 상한보다 큰) pid라 항상 "죽은 소유자"로 판정된다.
+// R3 안전성 시나리오 — stale 판정은 이름이 아니라 registry의 서버 발급 templateId로 한다.
 const reapStaleOwnerPid = 999999937
-const reapStaleName = `DS4 실서버QA probe-reap-stale ${reapStaleOwnerPid}-${Date.now() - 5 * 60 * 1000}-${randomUUID()}`
+const reapStaleName = `QA reap arbitrary display name ${randomUUID()}`
+const userChosenName = `Monthly close user template ${reapStaleOwnerPid}-${Date.now() - 5 * 60 * 1000}-${randomUUID()}`
 
 const document = {
   paper: 'A4_PORTRAIT',
@@ -48,6 +47,8 @@ const document = {
 }
 
 let authHeaders
+const templateIds = new Map()
+const scopeFiles = new Set()
 
 async function login() {
   const response = await fetch(`${apiBase}/api/auth/login`, {
@@ -85,7 +86,26 @@ async function create(name) {
   })
   if (!response.ok) throw new Error(`양식 생성(${name}) HTTP ${response.status}`)
   const body = await response.json()
-  return body.data?.id
+  const id = body.data?.id
+  if (!id) throw new Error(`양식 생성(${name}) 응답에 ID가 없다`)
+  templateIds.set(name, id)
+  return id
+}
+
+function writeScope(name, ownerPid, startedAtMs = Date.now()) {
+  const templateId = templateIds.get(name)
+  if (!templateId) throw new Error(`scope 대상 ID가 없다: ${name}`)
+  const scopeFile = path.join(os.tmpdir(), `samhan-ds4-real-qa-${runId}-${randomUUID()}.json`)
+  fs.writeFileSync(scopeFile, JSON.stringify({
+    version: 1,
+    runId: `${runId}-${randomUUID()}`,
+    templateId,
+    templateName: name,
+    ownerPid,
+    startedAtMs,
+  }), 'utf8')
+  scopeFiles.add(scopeFile)
+  return scopeFile
 }
 
 async function deleteExact(name) {
@@ -103,12 +123,12 @@ async function deleteExact(name) {
 
 function runWorkerForOwner(name, ownerPid) {
   const stopFile = path.join(os.tmpdir(), `samhan-ds4-probe-${runId}-${randomUUID()}.stop`)
+  const scopeFile = writeScope(name, ownerPid)
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [
       workerPath,
       '--api-base', apiBase,
-      '--template-name', name,
-      '--owner-pid', String(ownerPid),
+      '--scope-file', scopeFile,
       '--stop-file', stopFile,
     ], {
       env: { ...process.env, SAMHAN_DS4_QA_PASSWORD: password },
@@ -170,17 +190,26 @@ async function runTreeKillScenario() {
   const parentScriptPath = path.join(os.tmpdir(), `samhan-ds4-treekill-parent-${runId}.cjs`)
   const grandparentScriptPath = path.join(os.tmpdir(), `samhan-ds4-treekill-grandparent-${runId}.cjs`)
   const parentPidFile = path.join(os.tmpdir(), `samhan-ds4-treekill-parentpid-${runId}.txt`)
+  const scopeFile = path.join(os.tmpdir(), `samhan-ds4-treekill-scope-${runId}.json`)
+  scopeFiles.add(scopeFile)
 
   // "parent" = 실제 startDs4RunScope()가 호출되는 컨텍스트(=playwright worker 프로세스)를
   // 그대로 흉내낸다 — 운영 코드와 동일한 spawnDs4CleanupWorker() 헬퍼를 그대로 require 한다.
   const parentScript = `
     const { spawnDs4CleanupWorker } = require(${JSON.stringify(spawnHelperPath)})
     const fs = require('node:fs')
+    fs.writeFileSync(${JSON.stringify(scopeFile)}, JSON.stringify({
+      version: 1,
+      runId: ${JSON.stringify(`${runId}-treekill`)},
+      templateId: ${JSON.stringify(templateIds.get(names.treekill))},
+      templateName: ${JSON.stringify(names.treekill)},
+      ownerPid: process.pid,
+      startedAtMs: Date.now(),
+    }))
     spawnDs4CleanupWorker({
       workerPath: ${JSON.stringify(workerPath)},
       apiBase: ${JSON.stringify(apiBase)},
-      templateName: ${JSON.stringify(names.treekill)},
-      ownerPid: process.pid,
+      scopeFile: ${JSON.stringify(scopeFile)},
       stopFile: ${JSON.stringify(stopFile)},
       password: ${JSON.stringify(password)},
     }).then((result) => {
@@ -241,14 +270,17 @@ async function runTreeKillScenario() {
 
 /**
  * 🚨 R1-1/R1-2 안전망 실측 — worker가 어떤 이유로도 자기 run을 못 지운 것처럼 "소유자가
- * 이미 죽고 유예기간도 지난" 행을 직접 만들어두고, 사람이 즉시 실행하는 `ds4-real-qa-reap.cjs`
- * CLI가 그 행만 회수하고 sentinel은 그대로 두는지 확인한다.
+ * 이미 죽고 유예기간도 지난 registry 행과 이름이 우연히 같은 사용자 양식을 함께 두고, 사람이
+ * 즉시 실행하는 `ds4-real-qa-reap.cjs` CLI가 registry ID만 회수하는지 확인한다.
  */
 async function runReapScenario() {
   await create(reapStaleName)
+  await create(userChosenName)
+  writeScope(reapStaleName, reapStaleOwnerPid, Date.now() - 5 * 60 * 1000)
   const items = await listNames()
   const staleExists = items.some((item) => item.name === reapStaleName)
-  if (!staleExists) throw new Error('reap 시나리오: stale 행 생성 확인 실패')
+  const userExists = items.some((item) => item.name === userChosenName)
+  if (!staleExists || !userExists) throw new Error('reap 시나리오: 검증 행 생성 확인 실패')
 
   const output = execSync(
     `"${process.execPath}" "${reapCliPath}" --api-base "${apiBase}" --grace-ms 60000 --password "${password}"`,
@@ -257,10 +289,12 @@ async function runReapScenario() {
 
   const after = await listNames()
   const staleGone = !after.some((item) => item.name === reapStaleName)
+  const userRemains = after.some((item) => item.name === userChosenName)
   const sentinelRemains = after.some((item) => item.name === names.sentinel)
   console.log(`REAP CLI 출력:\n${output.trim().split('\n').map((l) => `  ${l}`).join('\n')}`)
-  console.log(`REAP exact cleanup: staleGone=${staleGone} sentinelRemains=${sentinelRemains}`)
+  console.log(`REAP ID cleanup: staleGone=${staleGone} userRemains=${userRemains} sentinelRemains=${sentinelRemains}`)
   if (!staleGone) throw new Error('reap 시나리오: stale 행이 회수되지 않았다')
+  if (!userRemains) throw new Error('reap 시나리오: 이름만 같은 사용자 양식이 삭제되었다')
   if (!sentinelRemains) throw new Error('reap 시나리오: sentinel까지 지워졌다(exact-match 위반)')
 }
 
@@ -308,6 +342,10 @@ async function main() {
   const beforeFinalCleanup = await listNames()
   for (const name of Object.values(names)) await deleteExact(name)
   await deleteExact(reapStaleName)
+  await deleteExact(userChosenName)
+  for (const scopeFile of scopeFiles) {
+    try { fs.unlinkSync(scopeFile) } catch { /* worker/reaper가 이미 삭제 */ }
+  }
   const afterFinalCleanup = await listNames()
   const remaining = afterFinalCleanup.filter((item) => item.name && item.name.includes(runId))
   console.log(`CLEANUP ROW COUNT: before=${beforeFinalCleanup.filter((item) => item.name?.includes(runId)).length} after=${remaining.length}`)
@@ -321,6 +359,10 @@ main().catch(async (error) => {
     if (authHeaders) {
       for (const name of Object.values(names)) await deleteExact(name)
       await deleteExact(reapStaleName)
+      await deleteExact(userChosenName)
+      for (const scopeFile of scopeFiles) {
+        try { fs.unlinkSync(scopeFile) } catch { /* worker/reaper가 이미 삭제 */ }
+      }
     }
   } catch (cleanupError) {
     console.error(`probe 실패 후 정리도 실패: ${cleanupError.stack || cleanupError}`)

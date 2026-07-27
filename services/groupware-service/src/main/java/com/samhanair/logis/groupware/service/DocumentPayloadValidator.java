@@ -363,44 +363,55 @@ public class DocumentPayloadValidator {
     }
 
     /**
-     * R1-4: WebP는 표준 JDK ImageIO reader가 없어 실제 픽셀 디코드로 무결성을 검증할 수
-     * 없다. {@code hasImageSignature()}가 확인하는 RIFF/WEBP 8바이트만으로는 "시그니처는
-     * 멀쩡하고 내용이 깨진" 파일(예: 헤더 뒤가 잘리거나 0으로 채워진 파일)을 걸러내지
-     * 못했다(R1-4 실측 — 이슈 #913 코멘트 "손상 WebP" 지적).
-     *
-     * <p>대신 libwebp의 {@code VP8GetInfo}/{@code VP8LCheckSignature}와 동일한 수준의
-     * 컨테이너 구조 검사를 직접 수행한다:
-     * <ol>
-     *   <li>RIFF가 선언한 크기(offset 4, LE u32)가 실제 바이트 수와 정확히 일치해야 한다
-     *       — 잘림(truncation)과 뒤에 덧붙은 garbage를 함께 검출한다.</li>
-     *   <li>WEBP 뒤 첫 서브청크 FourCC(offset 12)가 VP8␠(단순 손실)/VP8L(무손실)/VP8X
-     *       (확장 컨테이너) 중 하나여야 한다.</li>
-     *   <li>VP8␠는 3바이트 시작 코드 {@code 0x9D 0x01 0x2A}(offset 23~25)가 정확히
-     *       있어야 한다 — libwebp가 유효한 VP8 키프레임으로 인정하는 바로 그 조건이다.</li>
-     *   <li>VP8L은 1바이트 시그니처 {@code 0x2F}(offset 20)가 있어야 한다.</li>
-     * </ol>
-     *
-     * <p>VP8X(애니메이션/알파/메타데이터를 포함하는 확장 컨테이너)는 RIFF 크기 일치와
-     * 고정 10바이트 청크 크기까지만 검사하고, 그 뒤에 이어지는 서브청크 전체를
-     * 재귀적으로 걷지는 않는다 — 이 화면이 다루는 로고/문서 이미지는 실무상 단순
-     * VP8␠/VP8L이 절대다수이므로, 확장 컨테이너의 완전한 무결성 보장은 범위 밖으로
-     * 남긴다(전면 디코더 없이는 100% 보장 불가 — 문서화된 한계).
+     * R1-4/R3: WebP는 표준 JDK ImageIO reader가 없어 실제 픽셀 디코드로 무결성을 검증할 수
+     * 없다. 따라서 RIFF 전체 청크를 끝까지 순회하고, 실제 이미지 서브청크가 하나 이상 있는지
+     * 확인하는 보수적 구조 검사를 수행한다. 특히 VP8L의 5바이트 헤더만 있는 입력과 VP8X
+     * 확장 헤더만 있는 입력은 저장 전에 거부한다.
      */
     private static boolean isStructurallyValidWebp(byte[] decoded) {
         if (decoded.length < 20) return false; // RIFF 헤더(12) + 첫 서브청크 헤더(8)
         long riffDeclaredSize = readUInt32LE(decoded, 4);
         if (riffDeclaredSize != decoded.length - 8L) return false; // 잘림/덧붙음 검출
-        String fourCc = new String(decoded, 12, 4, StandardCharsets.US_ASCII);
-        long chunkSize = readUInt32LE(decoded, 16);
-        long availableChunkBytes = decoded.length - 20L;
-        if (chunkSize > availableChunkBytes) return false;
-        return switch (fourCc) {
-            case "VP8 " -> chunkSize >= 10
-                    && (decoded[23] & 0xFF) == 0x9D && (decoded[24] & 0xFF) == 0x01 && (decoded[25] & 0xFF) == 0x2A;
-            case "VP8L" -> chunkSize >= 5 && (decoded[20] & 0xFF) == 0x2F;
-            case "VP8X" -> chunkSize == 10;
-            default -> false;
-        };
+        int offset = 12;
+        boolean hasImageChunk = false;
+        boolean hasExtendedHeader = false;
+        while (offset < decoded.length) {
+            if (decoded.length - offset < 8) return false;
+            String fourCc = new String(decoded, offset, 4, StandardCharsets.US_ASCII);
+            long chunkSize = readUInt32LE(decoded, offset + 4);
+            long paddedChunkSize = chunkSize + (chunkSize & 1L);
+            if (chunkSize > decoded.length - offset - 8L
+                    || paddedChunkSize > decoded.length - offset - 8L) {
+                return false;
+            }
+            int dataOffset = offset + 8;
+            if ("VP8X".equals(fourCc)) {
+                if (chunkSize != 10) return false;
+                hasExtendedHeader = true;
+            } else if ("VP8 ".equals(fourCc)) {
+                if (!isStructurallyValidVp8(decoded, dataOffset, chunkSize)) return false;
+                hasImageChunk = true;
+            } else if ("VP8L".equals(fourCc)) {
+                if (!isStructurallyValidVp8l(decoded, dataOffset, chunkSize)) return false;
+                hasImageChunk = true;
+            }
+            offset += 8 + (int) paddedChunkSize;
+        }
+        // VP8X는 컨테이너 헤더만으로는 이미지가 아니다. VP8/VP8L 서브청크가 있어야 한다.
+        return offset == decoded.length && hasImageChunk && (hasExtendedHeader || decoded[12] != 'V'
+                || decoded[13] != 'P' || decoded[14] != '8' || decoded[15] != 'X');
+    }
+
+    private static boolean isStructurallyValidVp8(byte[] bytes, int dataOffset, long chunkSize) {
+        return chunkSize >= 10
+                && (bytes[dataOffset + 3] & 0xFF) == 0x9D
+                && (bytes[dataOffset + 4] & 0xFF) == 0x01
+                && (bytes[dataOffset + 5] & 0xFF) == 0x2A;
+    }
+
+    private static boolean isStructurallyValidVp8l(byte[] bytes, int dataOffset, long chunkSize) {
+        // 0x2F + 4바이트 packed canvas는 헤더일 뿐이며, 뒤에 실제 bitstream payload가 있어야 한다.
+        return chunkSize > 5 && (bytes[dataOffset] & 0xFF) == 0x2F;
     }
 
     private static long readUInt32LE(byte[] bytes, int offset) {

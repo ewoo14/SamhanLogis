@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import {
   cleanupDs4Template,
   extendDs4CleanupTimeout,
+  rememberDs4TemplateId,
   startDs4RunScope,
   stopDs4RunScope,
   sweepStaleDs4Templates,
@@ -110,6 +111,7 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
       .toBeLessThan(400)
     await expect(page.getByText('저장된 상태입니다.')).toBeVisible({ timeout: 15000 })
     expect(savedTemplateId, '저장 응답에 template id가 없다').not.toBe('')
+    rememberDs4TemplateId(runScope, savedTemplateId)
     const activation = await page.request.post(`${API_BASE}/admin/groupware/document-templates/${savedTemplateId}/activate`, {
       headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
     })
@@ -173,11 +175,12 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     extendDs4CleanupTimeout(test.info())
     try {
       await test.step('QA 잔재 정리 — 현재 run 양식만 삭제', async () => {
+        if (!savedTemplateId) return
         const result = await cleanupDs4Template(page.request, API_BASE, {
           token: d.token,
           userId: d.userId,
           role: d.role ?? 'MASTER',
-        }, templateName)
+        }, savedTemplateId)
         console.log(`■ 정리 run=${runScope.runId}(spawn=${runScope.spawnMethod}) 대상=${result.matched}건 삭제=${result.deleted}건`)
       })
       // 🚨 R1-1/R1-2 self-healing — 이 run 자신이 아니라 "이전에 죽고 아무도 못 지운" run 을

@@ -3,7 +3,13 @@
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
-const { isStaleDs4Run, isOwnerAlive } = require('./ds4-real-qa-stale.cjs')
+const {
+  isStaleDs4Run,
+  isOwnerAlive,
+  parseDs4RunRecord,
+  RUN_SCOPE_FILE_PREFIX,
+  RUN_SCOPE_FILE_SUFFIX,
+} = require('./ds4-real-qa-stale.cjs')
 
 /**
  * R1-1/R1-2 안전망의 실제 I/O 구현. `ds4-real-qa-stale.cjs`(순수 판정)를 그대로 쓰고 이
@@ -26,12 +32,51 @@ function appendNotice(message) {
   }
 }
 
+function readRunRecords(registryDir = os.tmpdir()) {
+  let entries
+  try {
+    entries = fs.readdirSync(registryDir)
+  } catch (error) {
+    appendNotice(`run scope 스캔 실패: ${error && error.stack ? error.stack : error}`)
+    return []
+  }
+  return entries
+    .filter((file) => file.startsWith(RUN_SCOPE_FILE_PREFIX) && file.endsWith(RUN_SCOPE_FILE_SUFFIX))
+    .flatMap((file) => {
+      const registryFile = path.join(registryDir, file)
+      try {
+        const parsed = parseDs4RunRecord(JSON.parse(fs.readFileSync(registryFile, 'utf8')))
+        return parsed ? [{ ...parsed, registryFile }] : []
+      } catch (error) {
+        appendNotice(`run scope 읽기 실패 file="${registryFile}": ${error && error.stack ? error.stack : error}`)
+        return []
+      }
+    })
+}
+
+function removeRegistryFile(file) {
+  if (!file) return
+  try {
+    fs.unlinkSync(file)
+  } catch (error) {
+    if (error && error.code !== 'ENOENT') {
+      appendNotice(`run scope 삭제 실패 file="${file}": ${error && error.stack ? error.stack : error}`)
+    }
+  }
+}
+
 /**
- * 소유자가 죽은(stale) run 의 문서양식만 정확히 그 이름으로 삭제한다. broad prefix 삭제가
- * 아니다 — `isStaleDs4Run`이 이름 구조 + 유예기간 + 소유자 생존을 모두 확인한 것만 대상이라
- * 살아있는 다른 run(동시 실행 포함)은 절대 건드리지 않는다(R1-1 불변식 5).
+ * 등록된 run scope의 templateId만 삭제한다. 문서 양식 name은 사용자 입력이므로 판정에 사용하지
+ * 않는다. `runRecords`는 계약 테스트/호출자가 주입할 수 있고, 기본값은 %TEMP% registry를 읽는다.
  */
-async function reapStaleDs4Templates({ apiBase, authHeaders, graceMs, now = Date.now() }) {
+async function reapStaleDs4Templates({
+  apiBase,
+  authHeaders,
+  graceMs,
+  now = Date.now(),
+  registryDir = os.tmpdir(),
+  runRecords = readRunRecords(registryDir),
+}) {
   const listRes = await fetch(`${apiBase}/admin/groupware/document-templates`, { headers: authHeaders })
   if (!listRes.ok) {
     const message = `stale sweep: 양식 목록 조회 실패 HTTP ${listRes.status}`
@@ -40,7 +85,12 @@ async function reapStaleDs4Templates({ apiBase, authHeaders, graceMs, now = Date
   }
   const body = await listRes.json()
   const items = Array.isArray(body.data) ? body.data : []
-  const staleItems = items.filter((item) => isStaleDs4Run(item.name, { now, graceMs }))
+  const staleRecords = runRecords
+    .map((record) => ({ record, parsed: parseDs4RunRecord(record) }))
+    .filter(({ record, parsed }) => parsed && isStaleDs4Run(record, { now, graceMs }))
+    .map(({ record, parsed }) => ({ ...parsed, registryFile: record.registryFile }))
+  const staleIds = new Set(staleRecords.map((record) => record.templateId))
+  const staleItems = items.filter((item) => staleIds.has(item.id))
   let deleted = 0
   const failed = []
   for (const item of staleItems) {
@@ -50,10 +100,13 @@ async function reapStaleDs4Templates({ apiBase, authHeaders, graceMs, now = Date
     })
     if (deleteRes.ok) {
       deleted += 1
+      staleRecords
+        .filter((record) => record.templateId === item.id)
+        .forEach((record) => removeRegistryFile(record.registryFile))
     } else {
-      const message = `stale sweep: 삭제 실패 name="${item.name}" HTTP ${deleteRes.status}`
+      const message = `stale sweep: 삭제 실패 id="${item.id}" HTTP ${deleteRes.status}`
       appendNotice(message)
-      failed.push({ name: item.name, error: message })
+      failed.push({ id: item.id, error: message })
     }
   }
   return { checked: items.length, stale: staleItems.length, deleted, failed }
@@ -100,4 +153,4 @@ function sweepStaleStopMarkers({ graceMs, now = Date.now() }) {
   return { removed, failed }
 }
 
-module.exports = { NOTICE_LOG_PATH, appendNotice, reapStaleDs4Templates, sweepStaleStopMarkers }
+module.exports = { NOTICE_LOG_PATH, appendNotice, readRunRecords, reapStaleDs4Templates, sweepStaleStopMarkers }

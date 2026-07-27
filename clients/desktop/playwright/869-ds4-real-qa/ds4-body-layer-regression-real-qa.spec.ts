@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import {
   cleanupDs4Template,
   extendDs4CleanupTimeout,
+  rememberDs4TemplateId,
   startDs4RunScope,
   stopDs4RunScope,
   sweepStaleDs4Templates,
@@ -140,6 +141,7 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
     await shot('B2-variable-flow')
   })
 
+  let savedTemplateId = ''
   await test.step('실 BE 왕복 후에도 % geometry가 유지된다', async () => {
     const docType = page.getByLabel('문서 유형')
     const values = await docType.locator('option')
@@ -152,8 +154,9 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
     await page.getByRole('button', { name: '저장' }).click()
     const res = await saved
     expect(res.status(), `실 BE 저장 실패 HTTP ${res.status()}`).toBeLessThan(400)
-    const savedTemplateId = String((await res.json()).data?.id ?? '')
+    savedTemplateId = String((await res.json()).data?.id ?? '')
     expect(savedTemplateId, '저장 응답에 template id가 없다').not.toBe('')
+    rememberDs4TemplateId(runScope, savedTemplateId)
 
     await page.getByRole('button', { name: '목록' }).click()
     await expect(page.getByRole('heading', { name: '결재 문서 양식', level: 1 })).toBeVisible({ timeout: 15000 })
@@ -193,11 +196,12 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
     extendDs4CleanupTimeout(test.info())
     try {
       await test.step('QA 잔재 정리 — 현재 run 양식만 삭제', async () => {
+        if (!savedTemplateId) return
         const result = await cleanupDs4Template(page.request, API_BASE, {
           token: d.token,
           userId: d.userId,
           role: d.role ?? 'MASTER',
-        }, templateName)
+        }, savedTemplateId)
         console.log(`■ 정리 run=${runScope.runId}(spawn=${runScope.spawnMethod}) 대상=${result.matched}건 삭제=${result.deleted}건`)
       })
       // 🚨 R1-1/R1-2 self-healing — 이 run 자신이 아니라 "이전에 죽고 아무도 못 지운" run 을

@@ -25,16 +25,15 @@ const { spawn, exec } = require('node:child_process')
  * 두 spawn 방식 모두 별도의 self-healing sweep/reap(ds4-real-qa-reap-core.cjs 기반)이
  * 최종 안전망으로 남는다.
  *
- * @param {{ workerPath: string, apiBase: string, templateName: string, ownerPid: number,
+ * @param {{ workerPath: string, apiBase: string, scopeFile: string,
  *   stopFile: string, password: string }} options
  * @returns {Promise<{ method: 'wmic' | 'detached-fallback', pid: number | null, warning: string | null }>}
  */
-async function spawnDs4CleanupWorker({ workerPath, apiBase, templateName, ownerPid, stopFile, password }) {
+async function spawnDs4CleanupWorker({ workerPath, apiBase, scopeFile, stopFile, password }) {
   const passwordB64 = Buffer.from(password, 'utf8').toString('base64')
   const workerArgs = [
     '--api-base', apiBase,
-    '--template-name', templateName,
-    '--owner-pid', String(ownerPid),
+    '--scope-file', scopeFile,
     '--stop-file', stopFile,
     '--password-b64', passwordB64,
   ]

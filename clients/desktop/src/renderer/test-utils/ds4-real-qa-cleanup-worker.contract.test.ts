@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -47,8 +47,7 @@ function startFakeGroupwareServer(): Promise<FakeServer> {
 
 function spawnWorker(opts: {
   apiBase: string
-  templateName: string
-  ownerPid: number
+  scopeFile: string
   stopFile: string
   noticeIntervalMs: number
 }): ChildProcess {
@@ -56,8 +55,7 @@ function spawnWorker(opts: {
   return spawn(process.execPath, [
     WORKER_PATH,
     '--api-base', opts.apiBase,
-    '--template-name', opts.templateName,
-    '--owner-pid', String(opts.ownerPid),
+    '--scope-file', opts.scopeFile,
     '--stop-file', opts.stopFile,
     '--password-b64', passwordB64,
     '--notice-interval-ms', String(opts.noticeIntervalMs),
@@ -94,11 +92,19 @@ describe('#913-1/R1-2 실 QA cleanup worker — owner 생존이 TTL을 이긴다
     server = await startFakeGroupwareServer()
     tmpDir = mkdtempSync(join(tmpdir(), 'ds4-worker-test-'))
     const stopFile = join(tmpDir, 'never-created.stop')
+    const scopeFile = join(tmpDir, 'scope.json')
+    writeFileSync(scopeFile, JSON.stringify({
+      version: 1,
+      runId: 'owner-alive',
+      templateId: '11111111-1111-4111-8111-111111111111',
+      templateName: '사용자가 정할 수 있는 이름',
+      ownerPid: process.pid,
+      startedAtMs: Date.now(),
+    }))
 
     child = spawnWorker({
       apiBase: server.url,
-      templateName: 'DS4 실서버QA contract-test-owner-alive',
-      ownerPid: process.pid, // 이 테스트 프로세스 자신 — 테스트가 끝날 때까지 확실히 생존
+      scopeFile,
       stopFile,
       noticeIntervalMs: 120,
     })
@@ -118,11 +124,19 @@ describe('#913-1/R1-2 실 QA cleanup worker — owner 생존이 TTL을 이긴다
     const owner = spawn(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 50)'], { stdio: 'ignore' })
     const ownerPid = owner.pid
     if (!ownerPid) throw new Error('owner pid를 얻지 못했다')
+    const scopeFile = join(tmpDir, 'scope2.json')
+    writeFileSync(scopeFile, JSON.stringify({
+      version: 1,
+      runId: 'owner-dead',
+      templateId: '22222222-2222-4222-8222-222222222222',
+      templateName: 'owner dead',
+      ownerPid,
+      startedAtMs: Date.now(),
+    }))
 
     child = spawnWorker({
       apiBase: server.url,
-      templateName: 'DS4 실서버QA contract-test-owner-dead',
-      ownerPid,
+      scopeFile,
       stopFile,
       noticeIntervalMs: 100_000,
     })

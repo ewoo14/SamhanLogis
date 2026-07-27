@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,7 +7,7 @@ import type { APIRequestContext, TestInfo } from '@playwright/test'
 // eslint-disable-next-line @typescript-eslint/no-var-requires -- .cjs 지원 모듈은 型 선언이 없다(playwright/·scripts/ 는 tsc typecheck 범위 밖 — tsconfig.node.json/tsconfig.web.json 둘 다 미포함).
 import { spawnDs4CleanupWorker } from '../../scripts/ds4-real-qa-spawn-worker.cjs'
 import { appendNotice, reapStaleDs4Templates } from '../../scripts/ds4-real-qa-reap-core.cjs'
-import { DEFAULT_STALE_GRACE_MS } from '../../scripts/ds4-real-qa-stale.cjs'
+import { DEFAULT_STALE_GRACE_MS, RUN_SCOPE_VERSION, TEMPLATE_ID_PATTERN } from '../../scripts/ds4-real-qa-stale.cjs'
 
 export interface Ds4RealQaAuth {
   token: string
@@ -20,13 +20,10 @@ export interface Ds4RunScope {
   templateName: string
   ownerPid: number
   stopFile: string
+  scopeFile: string
+  templateId: string | null
   /** R1-1: 어느 방식으로 회수 worker 를 띄웠는지 — 'wmic'만 taskkill /T /F(트리 종료)에 안전하다. */
   spawnMethod: 'wmic' | 'detached-fallback'
-}
-
-interface TemplateSummary {
-  id: string
-  name: string
 }
 
 const WORKER_PATH = resolve(
@@ -51,18 +48,37 @@ export async function startDs4RunScope(label: string, apiBase: string, password:
   const runId = `${process.pid}-${Date.now()}-${randomUUID()}`
   const templateName = `${label} ${runId}`
   const stopFile = resolve(tmpdir(), `samhan-ds4-real-qa-${runId}.stop`)
+  const scopeFile = resolve(tmpdir(), `samhan-ds4-real-qa-${runId}.json`)
+  writeRunScope(scopeFile, {
+    version: RUN_SCOPE_VERSION,
+    runId,
+    templateId: null,
+    templateName,
+    ownerPid: process.pid,
+    startedAtMs: Date.now(),
+  })
   const result = await spawnDs4CleanupWorker({
     workerPath: WORKER_PATH,
     apiBase,
-    templateName,
-    ownerPid: process.pid,
+    scopeFile,
     stopFile,
     password,
   })
   if (result.warning) {
     appendNotice(`startDs4RunScope: ${result.warning} (template="${templateName}")`)
   }
-  return { runId, templateName, ownerPid: process.pid, stopFile, spawnMethod: result.method }
+  return { runId, templateName, ownerPid: process.pid, stopFile, scopeFile, templateId: null, spawnMethod: result.method }
+}
+
+/** 서버가 발급한 template ID를 scope registry에 기록한다. 이름은 이 registry의 소유 근거가 아니다. */
+export function rememberDs4TemplateId(scope: Ds4RunScope, templateId: string): void {
+  if (!TEMPLATE_ID_PATTERN.test(templateId)) throw new Error(`유효하지 않은 문서 양식 ID: ${templateId}`)
+  const current = JSON.parse(readFileSync(scope.scopeFile, 'utf8')) as Record<string, unknown>
+  const next = { ...current, templateId }
+  const tempFile = `${scope.scopeFile}.tmp-${process.pid}-${Date.now()}`
+  writeFileSync(tempFile, JSON.stringify(next), 'utf8')
+  renameSync(tempFile, scope.scopeFile)
+  scope.templateId = templateId
 }
 
 /** 테스트 timeout으로 page 요청이 끊겨도 cleanup 요청에 별도 예산을 준다. */
@@ -70,32 +86,24 @@ export function extendDs4CleanupTimeout(testInfo: TestInfo, extraMs = 30_000): v
   testInfo.setTimeout(testInfo.timeout + extraMs)
 }
 
-/** 목록에서 현재 run의 정확한 이름만 지운다. 다른 run의 양식은 선택하지 않는다. */
+/** 서버가 이 run에 발급한 ID 하나만 지운다. 이름으로 목록을 분류하지 않는다. */
 export async function cleanupDs4Template(
   request: APIRequestContext,
   apiBase: string,
   auth: Ds4RealQaAuth,
-  templateName: string,
+  templateId: string,
 ): Promise<{ listed: number; matched: number; deleted: number }> {
   const headers = {
     Authorization: `Bearer ${auth.token}`,
     'X-User-Id': auth.userId,
     'X-User-Role': auth.role,
   }
-  const listRes = await request.get(`${apiBase}/admin/groupware/document-templates`, { headers })
-  if (!listRes.ok()) return { listed: 0, matched: 0, deleted: 0 }
-  const body = await listRes.json() as { data?: TemplateSummary[] }
-  const items = Array.isArray(body.data) ? body.data : []
-  const mine = items.filter((template) => template.name === templateName)
-  let deleted = 0
-  for (const template of mine) {
-    const deleteRes = await request.delete(
-      `${apiBase}/admin/groupware/document-templates/${template.id}`,
-      { headers },
-    )
-    if (deleteRes.ok()) deleted += 1
-  }
-  return { listed: items.length, matched: mine.length, deleted }
+  if (!TEMPLATE_ID_PATTERN.test(templateId)) return { listed: 0, matched: 0, deleted: 0 }
+  const deleteRes = await request.delete(
+    `${apiBase}/admin/groupware/document-templates/${templateId}`,
+    { headers },
+  )
+  return { listed: 1, matched: 1, deleted: deleteRes.ok() || deleteRes.status() === 404 ? 1 : 0 }
 }
 
 /**
@@ -127,4 +135,8 @@ export async function sweepStaleDs4Templates(
 /** 정상 종료에서도 worker가 마지막 exact-match 정리를 확인한 뒤 종료하도록 stop marker를 남긴다. */
 export function stopDs4RunScope(scope: Ds4RunScope): void {
   writeFileSync(scope.stopFile, '정상 종료 요청', 'utf8')
+}
+
+function writeRunScope(scopeFile: string, record: Record<string, unknown>): void {
+  writeFileSync(scopeFile, JSON.stringify(record), 'utf8')
 }

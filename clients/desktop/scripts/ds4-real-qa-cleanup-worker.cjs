@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs')
-const { isOwnerAlive } = require('./ds4-real-qa-stale.cjs')
+const { isOwnerAlive, parseDs4RunRecord } = require('./ds4-real-qa-stale.cjs')
 const { appendNotice } = require('./ds4-real-qa-reap-core.cjs')
 
 const args = process.argv.slice(2)
@@ -11,8 +11,7 @@ const value = (name) => {
 }
 
 const apiBase = value('--api-base')
-const templateName = value('--template-name')
-const ownerPid = Number(value('--owner-pid'))
+const scopeFile = value('--scope-file')
 const stopFile = value('--stop-file')
 const passwordB64 = value('--password-b64')
 const password = passwordB64
@@ -27,22 +26,35 @@ const pollMs = 500
 // 트리거가 아니다. 테스트가 분 단위로 기다리지 않고 짧게 검증할 수 있도록 override 가능하다.
 const noticeIntervalMs = Number(value('--notice-interval-ms') ?? 15 * 60 * 1000)
 
-if (!apiBase || !templateName || !Number.isInteger(ownerPid) || !stopFile || !password) {
+if (!apiBase || !scopeFile || !stopFile || !password) {
   process.exitCode = 2
   process.exit()
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-async function cleanupExactName() {
+function readScope() {
+  try {
+    return parseDs4RunRecord(JSON.parse(fs.readFileSync(scopeFile, 'utf8')))
+  } catch (error) {
+    appendNotice(`cleanup scope 읽기 실패 file="${scopeFile}": ${error && error.stack ? error.stack : error}`)
+    return null
+  }
+}
+
+async function cleanupExactId(scope) {
+  if (!scope || !scope.templateId) {
+    appendNotice(`cleanup 보류: 서버가 발급한 templateId가 scope에 기록되지 않음 file="${scopeFile}"`)
+    return false
+  }
   const loginResponse = await fetch(`${apiBase}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ loginId: 'dev_master', password }),
   })
   if (!loginResponse.ok) {
-    appendNotice(`cleanup 실패: 로그인 HTTP ${loginResponse.status} template="${templateName}"`)
-    return
+    appendNotice(`cleanup 실패: 로그인 HTTP ${loginResponse.status} id="${scope.templateId}"`)
+    return false
   }
   const loginBody = await loginResponse.json()
   const auth = loginBody.data ?? {}
@@ -51,27 +63,24 @@ async function cleanupExactName() {
     'X-User-Id': auth.userId ?? '',
     'X-User-Role': auth.role ?? 'MASTER',
   }
-  const listResponse = await fetch(`${apiBase}/admin/groupware/document-templates`, { headers })
-  if (!listResponse.ok) {
-    appendNotice(`cleanup 실패: 양식 목록 HTTP ${listResponse.status} template="${templateName}"`)
-    return
+  const deleteRes = await fetch(`${apiBase}/admin/groupware/document-templates/${scope.templateId}`, {
+    method: 'DELETE',
+    headers,
+  })
+  if (!deleteRes.ok && deleteRes.status !== 404) {
+    appendNotice(`cleanup 실패: 삭제 HTTP ${deleteRes.status} id="${scope.templateId}"`)
+    return false
   }
-  const listBody = await listResponse.json()
-  const mine = Array.isArray(listBody.data)
-    ? listBody.data.filter((template) => template.name === templateName)
-    : []
-  for (const template of mine) {
-    const deleteRes = await fetch(`${apiBase}/admin/groupware/document-templates/${template.id}`, {
-      method: 'DELETE',
-      headers,
-    })
-    if (!deleteRes.ok) {
-      appendNotice(`cleanup 실패: 삭제 HTTP ${deleteRes.status} template="${templateName}" id=${template.id}`)
-    }
-  }
+  return true
 }
 
 async function main() {
+  const initialScope = readScope()
+  if (!initialScope) {
+    process.exitCode = 2
+    return
+  }
+  const ownerPid = initialScope.ownerPid
   const started = Date.now()
   let nextNoticeAt = started + noticeIntervalMs
   // 🚨 R1-2 fix: owner 생존 여부와 stop marker 만이 종료 조건이다 — 시간 경과 자체는 더 이상
@@ -79,7 +88,15 @@ async function main() {
   while (true) {
     if (fs.existsSync(stopFile) || !isOwnerAlive(ownerPid)) {
       try {
-        await cleanupExactName()
+        // 부모가 저장 응답을 받은 뒤 scope registry를 갱신하므로 종료 시점에 다시 읽는다.
+        const cleaned = await cleanupExactId(readScope())
+        if (cleaned) {
+          try {
+            fs.unlinkSync(scopeFile)
+          } catch {
+            /* scope registry가 이미 reaper에 의해 정리된 경우 */
+          }
+        }
       } finally {
         try {
           fs.unlinkSync(stopFile)
@@ -94,7 +111,7 @@ async function main() {
       const minutes = Math.round((now - started) / 60000)
       appendNotice(
         `owner(pid=${ownerPid})가 ${minutes}분째 살아있어 대기 계속 — 강제 삭제하지 않음. ` +
-          `template="${templateName}"`,
+          `scope="${scopeFile}"`,
       )
       nextNoticeAt = now + noticeIntervalMs
     }
@@ -103,6 +120,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  appendNotice(`worker 미처리 예외: ${error && error.stack ? error.stack : error} template="${templateName}"`)
+  appendNotice(`worker 미처리 예외: ${error && error.stack ? error.stack : error} scope="${scopeFile}"`)
   process.exitCode = 1
 })
