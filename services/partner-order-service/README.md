@@ -48,6 +48,25 @@ Scheduler (5분):
     └ elapsed ≥ 24h → FAILED + markSlipFailedPermanent + alert
 ```
 
+## Scheduler 격리 (#888)
+
+`spring.task.scheduling.pool.size=5`는 outbox를 제외한 형제 `@Scheduled` 작업이 사용하는
+기본 `taskScheduler` 풀의 크기다. `SlipPublishOutboxScheduler.retryPending()`은
+`outboxTaskScheduler`라는 별도 `ThreadPoolTaskScheduler`(pool 1)를 명시적으로 선택한다.
+따라서 형제 5개가 동시에 점유해도 outbox tick은 전용 실행 스레드를 얻고, outbox가 오래 걸려도
+형제 주기는 밀리지 않는다. `samhan.outbox.cron` 표현식과 `@Profile("!local")`은 유지되며,
+`local`에서는 `SlipPublishOutboxScheduler` 컴포넌트가 생성되지 않는다(인프라 scheduler bean은
+컨텍스트 기동을 위해 존재한다).
+
+`BootstrapCacheRefreshScheduler.refreshBootstrapCache()`의 전체 실행 시간은
+`bootstrap_cache_refresh_duration` Timer로 기록한다. Prometheus exporter에서는
+`bootstrap_cache_refresh_duration_seconds` 시계열로 노출되어 운영 이식 후 별도 코드 변경 없이
+실제 외부 Sheets/product 호출 소요를 관측할 수 있다.
+
+회귀 울타리는 `TaskSchedulerPoolSizeIT`(1-sibling + 5-sibling + 역방향),
+`TaskSchedulerIsolationIT`(실제 bean/annotation/CRON_DISABLED 배선),
+`TaskSchedulerLocalProfileIT`(local 컨텍스트 기동)이다.
+
 ## Outbox 관측 및 알람 (#863, R1 fix로 갱신)
 
 `SlipPublishOutboxScheduler`는 5분 주기로 native claim 쿼리가 **성공한 뒤에만** 마지막 tick

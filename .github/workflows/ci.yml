@@ -215,7 +215,7 @@ jobs:
             exit 1
           fi
 
-      - name: "#863 N-3 TaskSchedulerPoolSizeIT tests>=1 failures=0 errors=0 skipped=0 hard gate"
+      - name: "#888/#863 TaskSchedulerPoolSizeIT tests>=3 failures=0 errors=0 skipped=0 hard gate"
         if: matrix.group.name == 'accounting+partner'
         run: |
           report='services/partner-order-service/build/test-results/test/TEST-com.samhanair.logis.partnerorder.config.TaskSchedulerPoolSizeIT.xml'
@@ -227,8 +227,42 @@ jobs:
           tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
           failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
           errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
-          if [ "${tests:-0}" -lt 1 ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ] || [ "${skipped:-missing}" != "0" ]; then
+          if [ "${tests:-0}" -lt 3 ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ] || [ "${skipped:-missing}" != "0" ]; then
             echo "::error::#863 TaskSchedulerPoolSizeIT hard gate failed: tests=${tests:-missing} failures=${failures:-missing} errors=${errors:-missing} skipped=${skipped:-missing}"
+            exit 1
+          fi
+
+      - name: "#888 TaskSchedulerIsolationIT tests>=3 failures=0 errors=0 skipped=0 hard gate"
+        if: matrix.group.name == 'accounting+partner'
+        run: |
+          report='services/partner-order-service/build/test-results/test/TEST-com.samhanair.logis.partnerorder.config.TaskSchedulerIsolationIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#888 TaskSchedulerIsolationIT JUnit report not found; scheduler bean/annotation isolation IT가 필터되었을 수 있음."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${tests:-0}" -lt 3 ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ] || [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#888 TaskSchedulerIsolationIT hard gate failed: tests=${tests:-missing} failures=${failures:-missing} errors=${errors:-missing} skipped=${skipped:-missing}"
+            exit 1
+          fi
+
+      - name: "#888 TaskSchedulerLocalProfileIT tests>=1 failures=0 errors=0 skipped=0 hard gate"
+        if: matrix.group.name == 'accounting+partner'
+        run: |
+          report='services/partner-order-service/build/test-results/test/TEST-com.samhanair.logis.partnerorder.config.TaskSchedulerLocalProfileIT.xml'
+          if [ ! -f "$report" ]; then
+            echo "::error::#888 TaskSchedulerLocalProfileIT JUnit report not found; local profile scheduler 기동 IT가 필터되었을 수 있음."
+            exit 1
+          fi
+          skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+          if [ "${tests:-0}" -lt 1 ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ] || [ "${skipped:-missing}" != "0" ]; then
+            echo "::error::#888 TaskSchedulerLocalProfileIT hard gate failed: tests=${tests:-missing} failures=${failures:-missing} errors=${errors:-missing} skipped=${skipped:-missing}"
             exit 1
           fi
 

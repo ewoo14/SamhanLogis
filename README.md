@@ -845,7 +845,7 @@ SamhanLogis/    # repository root (제품 표기 = Samhan Public)
 | inventory-service        | 8085 | inventory_db        | 4-tier 창고 + FIFO + 22 endpoint           | Phase 2 (운영)   |
 | slip-service             | 8086 | slip_db             | 10단계 라이프사이클 + 전자서명 + M5 `/from-*` | Phase 3 (운영) |
 | accounting-service       | 8087 | accounting_db       | 한국 일반기업회계기준 65 row 시드          | Phase 4 (운영)   |
-| partner-order-service    | 8088 | partner_order_db    | confirm 흐름 + outbox 상태 게이지 관측(#863) + 16종 bootstrap | Phase 6 (운영)   |
+| partner-order-service    | 8088 | partner_order_db    | confirm 흐름 + outbox 전용 scheduler/상태 게이지 관측(#888/#863) + 16종 bootstrap | Phase 6 (운영)   |
 | dc-config-service        | 8089 | dc_config_db        | DC 5겹 가드 + Partner master owner         | Phase 6 (운영)   |
 | partner-auth-service     | 8091 | partner_auth_db     | 거래처 자체 인증 7 endpoint                | Phase 6 (운영)   |
 | **groupware-service**    | **8092** | **groupware_db** | **결재선 + 메신저 + 일정 + UserClient (user-service Internal API) — ServiceDiscoveryClient 두 번째 소비자** | **Phase 9 2차 신규** |

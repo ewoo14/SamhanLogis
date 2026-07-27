@@ -1,7 +1,8 @@
 package com.samhanair.logis.partnerorder.config;
 
 import com.samhanair.logis.partnerorder.service.BootstrapService;
-import lombok.RequiredArgsConstructor;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -16,10 +17,21 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class BootstrapCacheRefreshScheduler {
 
+    public static final String REFRESH_DURATION_METRIC = "bootstrap_cache_refresh_duration";
+
     private final BootstrapService bootstrapService;
+    private final MeterRegistry meterRegistry;
+    private final Timer refreshDuration;
+
+    public BootstrapCacheRefreshScheduler(BootstrapService bootstrapService, MeterRegistry meterRegistry) {
+        this.bootstrapService = bootstrapService;
+        this.meterRegistry = meterRegistry;
+        this.refreshDuration = Timer.builder(REFRESH_DURATION_METRIC)
+                .description("bootstrap cache refresh 실행 소요 시간")
+                .register(meterRegistry);
+    }
 
     /**
      * 이전 갱신 완료 후 N분 뒤 bootstrap 캐시를 비우고 다시 적재한다.
@@ -30,6 +42,7 @@ public class BootstrapCacheRefreshScheduler {
      */
     @Scheduled(fixedDelayString = "#{${app.bootstrap.cache-refresh-minutes:10} * 60000}")
     public void refreshBootstrapCache() {
+        Timer.Sample sample = Timer.start(meterRegistry);
         try {
             log.info("[BootstrapCacheRefreshScheduler] bootstrap cache refresh 시작");
             bootstrapService.evictAll();
@@ -38,6 +51,8 @@ public class BootstrapCacheRefreshScheduler {
             log.info("[BootstrapCacheRefreshScheduler] bootstrap cache refresh 완료");
         } catch (Exception ex) {
             log.warn("[BootstrapCacheRefreshScheduler] bootstrap cache refresh 실패: {}", ex.getMessage(), ex);
+        } finally {
+            sample.stop(refreshDuration);
         }
     }
 }

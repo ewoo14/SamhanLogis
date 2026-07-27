@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.scheduler;
 
 import com.samhanair.logis.partnerorder.config.OutboxProperties;
+import com.samhanair.logis.partnerorder.config.PartnerOrderTaskSchedulerConfiguration;
 import com.samhanair.logis.partnerorder.observability.OutboxObservabilityMetrics;
 import com.samhanair.logis.partnerorder.outbox.SlipPublishOutbox;
 import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
@@ -72,7 +73,9 @@ public class SlipPublishOutboxScheduler {
     /**
      * 본 스케줄러는 yml 의 {@code samhan.outbox.cron} (기본 5분) 으로 실행.
      */
-    @Scheduled(cron = "${samhan.outbox.cron:0 */5 * * * *}")
+    @Scheduled(
+            cron = "${samhan.outbox.cron:0 */5 * * * *}",
+            scheduler = PartnerOrderTaskSchedulerConfiguration.OUTBOX_TASK_SCHEDULER_BEAN_NAME)
     public void retryPending() {
         // #863 R1 HIGH-1: heartbeat는 claim(DB 접근) 이 성공한 뒤에만 갱신한다. claim 이전에 갱신하면
         // DB 가 죽어 매 tick 이 예외를 던져도 heartbeat 는 계속 새 값으로 살아있는 것처럼 보여

@@ -3152,3 +3152,11 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-COL-897-02 | 입출금에서 목록에 감춘 계좌·상대계좌·원문 등은 신규 모달이나 UUID 링크를 만들지 않고 행 내부의 native `<details>` disclosure로 확인한다. 일마감은 기존 `/accounting/closings/daily` 상세 데이터 경로를 행의 `상세` 조작으로 연결한다. |
 | D-COL-897-03 | `소스`는 원천 전체 탭에서만, `매칭상태`는 상태 전체 탭에서만 표시하는 #877/#918 조건을 유지한다. #880이 정한 좁은 폭 조작 버튼의 `mobilePriority: secondary` 계약을 소비 화면에서 계속 사용한다. |
 | D-COL-897-04 | 열 축소는 화면 목록에만 적용한다. 두 화면에서 기존 인쇄·엑셀 export surface는 코드 실측상 존재하지 않으므로 신규 export 경로를 신설하지 않으며, API 원본·기존 상세 데이터의 전체 필드는 보존한다. |
+
+## #888 outbox 전용 scheduler 분리 (2026-07-28)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-888-01 | `spring.task.scheduling.pool.size=5` 값은 올리지 않고 형제 `@Scheduled`용 기본 `taskScheduler` 풀로 유지한다. `SlipPublishOutboxScheduler.retryPending()`은 `@Scheduled(scheduler="outboxTaskScheduler")`로 명시한 별도 `ThreadPoolTaskScheduler`(pool 1)를 사용한다. 형제 수가 늘어나도 outbox starvation이 발생하지 않고, outbox 장기 점유도 형제 주기를 막지 않는다. |
+| D-888-02 | 기존 `samhan.outbox.cron` 표현식과 `SlipPublishOutboxScheduler`의 `@Profile("!local")`을 변경하지 않는다. `samhan.outbox.cron=-`는 전용 scheduler를 우회하지 않고 outbox scheduled task 등록만 비활성화하며, `local` 프로파일 컨텍스트는 기동 가능해야 한다. Flyway migration은 추가하지 않는다. |
+| D-888-03 | `BootstrapCacheRefreshScheduler.refreshBootstrapCache()` 전체 try/catch 실행을 Micrometer `bootstrap_cache_refresh_duration` Timer로 측정한다. Prometheus에서는 `_seconds` 시계열로 노출되므로 운영 이식 후 외부 호출 소요를 별도 코드 변경 없이 관측한다. |

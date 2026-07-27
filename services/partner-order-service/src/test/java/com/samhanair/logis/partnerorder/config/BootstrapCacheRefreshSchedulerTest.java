@@ -4,6 +4,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.samhanair.logis.partnerorder.service.BootstrapService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +29,7 @@ class BootstrapCacheRefreshSchedulerTest {
 
     @BeforeEach
     void setUp() {
-        scheduler = new BootstrapCacheRefreshScheduler(bootstrapService);
+        scheduler = new BootstrapCacheRefreshScheduler(bootstrapService, new SimpleMeterRegistry());
     }
 
     @Test
