@@ -13,7 +13,84 @@
 
 ---
 
-## 🏠 2026-07-25 (집PC) — **T7 머지 + 3트랙 상시 가동** ◀◀◀ 여기부터 읽으십시오
+## 🏠 2026-07-27 (집PC 야간~오전) — **3트랙 재수렴 7차까지 · 머지 0건** ◀◀◀ 여기부터 읽으십시오
+
+> 🚩 **회사 PC 시작 절차**: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+
+### 현황 — 세 트랙 모두 CI green, 도달 가능 결함이 남아 미머지
+
+| PR | 브랜치 | HEAD | CI | 마지막 라운드 | 다음 |
+|---|---|---|---|---|---|
+| **#937** | `fix/926-slip-detail-total-readonly` | `b2fd49296` | **35/35 green** | 재수렴 7차 → **결함 2건** | A안 fix **미완**(WIP 브랜치) |
+| **#938** | `chore/harness-false-green-batch` | `a4a1edcfc` | 46/47(1 진행) | fix7 push 완료 | **재수렴 8차** |
+| **#929** | `feat/897-column-hierarchy` | `6b982ce82` | 34/35(GitGuardian만) | 제어문자 fix push 완료 | **재수렴 7차**(중단됨, 재착수) |
+
+🚨 **머지 게이트**: ① 실 사용자 경로 재현 결함 0 ② CI green(exact SHA) ③ 라이브QA 실서버.
+**②③은 충족, ①이 미충족**이라 어느 것도 머지하지 않았습니다.
+
+### 📌 개발책임자 결정 (2026-07-27)
+
+| # | 결정 | 상태 |
+|---|---|---|
+| 1 | **#937 A안** — 저장 시점에 단가 도메인 기록(`unit_price_domain` V59). legacy 는 휴리스틱 유지·**backfill 없음** | ✅ 구현·머지됨(`b2fd49296`) |
+| 2 | **거래명세서 `단가×수량≠합계` 현행 유지** — P4 의 수학적 귀결. **머지 조건에서 제외** | ✅ 반영 |
+| 3 | **#937 R7-1 = A안** — 이력 합계도 VAT 포함으로. *"과거 감사 이력 숫자가 두 번 바뀌는 셈"* 인지 후 결정 | ⏸️ **fix 미완** |
+| 4 | `mock.ts` 도메인 미기입 PM 수용 | ⚠️ `domainKnown` 분기가 **mock 게이트 0 표면**임 기록됨 |
+
+### ⏸️ 미완 WIP — **회사 PC 에서 이어받을 것**
+
+```
+origin/wip/937-fix7-history-total-domain    ← 5파일 +459/−17, 미검증
+```
+구현은 끝났고 **전체 스위트 실행 직전에 중단**됐습니다. RED-first·뮤테이션·라이브QA·무훼손 재측정이 **전부 미실행**입니다. feature 브랜치는 청결(`b2fd49296`).
+
+**회사 PC 에서 할 일** — 브랜치 cherry-pick/rebase → RED 재확보(구현 전 RED 원문 없음) → 뮤테이션 → 🚨 **소급 변경 규모 재측정**(현재 751건에서 얼마나 느는지, 2,510 리비전 전수) → 라이브QA(**표와 이력이 한 화면에 보이는 캡처 필수**) → 무훼손 13항목.
+
+### 각 트랙 다음 할 일
+
+**#937** — 위 WIP 이어받기. 남은 결함: R7-1(이력 `단가×수량≠합계`, 751건 소급 변경) · R7-2(LOW, 실데이터 1건, `supplyAmount==null` 구 스냅샷에서 FE/BE 미러 발산).
+
+**#938** — 재수렴 8차. fix7 이 **열거를 도출로 전환**(`*.spec.ts`/`*.test.*` 전수에서 `docs/…` 리터럴 도출). 🚨 **이 PR 은 열 번 연속 "열거가 좁았다"로 실패**했고, fix7 의 뮤테이션 M2 가 **구현자 자신의 가짜 게이트를 같은 라운드에 잡았습니다**(러너 판정 `\bplaywright\b` 가 인자 경로에 걸려 `echo` 로 바꿔도 통과). 8차는 **도출의 한계 ⓐ~ⓓ**(네이밍 미준수 가드 · 조립 경로 · 읽기/쓰기 미구분 · `testIgnore` 만 반영)를 공격할 것.
+
+**#929** — 재수렴 7차 재착수. 1순위는 **구현자가 의도적으로 남긴 `isAddressableAsPathSegment("")` 가 여전히 `true`** 라는 점(근거: 가드 이중화하면 fix 가 load-bearing 인지 증명 불가). *"호출부가 유일하다"* 는 전제 검증 + **`trim()` 이 `≤U+0020` 만 제거**하므로 NBSP·전각 공백 실측.
+
+### 🚨 이번 세션에서 발견한 환경 함정
+
+| | 내용 |
+|---|---|
+| **`docker exec` stdin 미전달** | heredoc 이 **조용히 무시**되고 psql 이 무출력 종료. DB 작업은 **`docker cp` + `psql -f`**(`MSYS_NO_PATHCONV=1`) |
+| **`playwright.real-qa.config.ts` 에 `use.baseURL` 부재** | 상대경로 `page.goto('/#…')` 스펙(**`929-r4` 포함**)이 공유 config 로 **실행 자체가 안 됨**(`Cannot navigate to invalid URL`). 즉 **repo 전체 real-QA 일괄 실행에서 조용히 빠짐**. 절대 URL 사용 |
+| **`TaskStop` 후 Gradle 데몬 잔존** | 같은 build 트리 경합으로 `NoClassDefFoundError` **97건** 발생 사례. `./gradlew --stop` + `build/classes`·`test-results` 삭제 후 재실행 |
+| **Docker 재기동 직후 첫 측정** | Eureka 재등록 전 창이라 게이트웨이 500. 워밍업 후 재측정 |
+| `CodefImportScopeForm.test.tsx` | **1-in-7 flake** — 재실행으로 확정 |
+| `dispatch-board-2pane.spec.ts` | 부하 flake(동시 에이전트 자원 경합). 단독 재실행 통과, CI 는 `retries:1` |
+
+### #851 이월 항목 (후속 슬라이스)
+
+1. **R-1 형태 축** — `collectDeclarations` 가 `const`/`let` 만 보고 fixed-point 가 **함수 호출 경계를 못 넘음**. 수단은 **AST 급 분석**. 레포 현재 코드에 그 형태 0건
+2. **arologis 게이트 0 2건** — `notion-zero-guard`·`config-audit-guard` 가 `arologis-ci.yml` 에 잡이 없어 arologis-only PR 에서 안 돎. 🚩 `config-audit-guard` 는 **#745 SlipClient 8084 오배정 재발 방지용**
+3. **`playwright.real-qa.config.ts` `use.baseURL` 부재** (위 함정 표)
+4. **`docs/planning` 을 자격 가드 `DOC_DIRS` 에 미추가** — 넣으면 마크다운 닫는 백틱 **기존 오탐**이 걸림. 판정 의미를 건드리는 별건
+
+### 🧹 정리 완료
+
+`daily_closings` 미래일자 **23행 삭제**(2034-11-11·2031-05-15) · `bank_transaction 929-RC5%` **1행 삭제** · 세 워크트리 `git status` **clean** · 임시 스펙·config 삭제 · `docs/qa` PNG/PDF 변경 **0건**
+
+⚠️ **분개 잔액은 건드리지 않았습니다** — `created_at >= 2026-07-26` 계정별 순액이 0 아닌 건 **정상 회계 데이터**이지 throwaway 지표가 아닙니다. 실데이터 위험이라 판단 보류했습니다.
+
+### 📊 수렴 상태 — 정직 기록
+
+| 트랙 | 6차 | 7차 | c |
+|---|---|---|---|
+| #937 | 1건 | **2건** | **2.0** |
+| #938 | 2건 | 2건 | 1.0 |
+| #929 | 1건 | (미완) | — |
+
+목표는 **c < 0.45**. 세션 누적 **10시간 · 트랙당 4라운드 · 머지 0건**이고 **c 가 개선되지 않았습니다.** 개발책임자께 바운드 옵션 4안(라운드 상한 / #929 스코프 축소 / #938 우선 종결 / 현행 유지)을 올렸고 **PM 권고는 "라운드 상한 설정"**(트랙당 2라운드 더 돌고 그때 판단)입니다. **회신 대기 중**입니다.
+
+---
+
+## 🏠 2026-07-25 (집PC) — **T7 머지 + 3트랙 상시 가동**
 
 > 🚩 **다음 세션 시작 절차**: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
 

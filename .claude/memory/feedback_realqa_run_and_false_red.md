@@ -9,7 +9,19 @@ metadata:
 
 ## 🚨🚨 2026-07-26 실측 — **렌더러 하네스가 3종이고 스펙마다 다르다** (아래 구 실행법보다 이걸 먼저 읽을 것)
 
-`playwright.real-qa.config.ts` 와 디렉토리별 `playwright/<slug>-real-qa/playwright.config.ts` 는 **`baseURL` 만 정하고 `webServer` 가 없다** → **어느 config 로 렌더러를 띄울지는 실행자가 결정**하고, 스펙에는 적혀 있지 않다. 그래서 **같은 레포 안에서 스펙마다 정답 goto 형태가 다르다.** PM 이 이걸 구별하느라 30분을 썼고 한 번 오판했다.
+디렉토리별 `playwright/<slug>-real-qa/playwright.config.ts` 와 공유 `playwright.real-qa.config.ts` 는 **`webServer` 가 없다** → **어느 config 로 렌더러를 띄울지는 실행자가 결정**하고, 스펙에는 적혀 있지 않다. 그래서 **같은 레포 안에서 스펙마다 정답 goto 형태가 다르다.** PM 이 이걸 구별하느라 30분을 썼고 한 번 오판했다.
+
+### 🚨🚨 2026-07-27 정정 — **공유 config 에는 `baseURL` 도 없다**
+
+위 문단이 *"`baseURL` 만 정하고"* 라고 적어 뒀는데 **틀렸다.** `clients/desktop/playwright.real-qa.config.ts` 의 `use` 블록은 `devices['Desktop Chrome']` · `headless` · `viewport` · 타임아웃뿐이고 **`baseURL` 이 없다**(실측).
+
+⟹ **상대경로 `page.goto('/#…')` 를 쓰는 스펙은 공유 config 로 실행 자체가 안 된다:**
+```
+Protocol error (Page.navigate): Cannot navigate to invalid URL
+```
+그 config 는 `testMatch: ['**/*-real-qa.spec.ts']` 로 **repo 전체 83개**를 대상으로 삼으므로, **전체 real-QA 일괄 실행에서 상대경로 스펙이 조용히 빠진다**(`929-r4` 가 실측 사례 — 전용 config 로는 5/5 통과).
+
+🔑 **새 real-qa 스펙은 절대 URL 을 쓸 것**(`process.env.QA_BASE_URL` 등). 상대경로를 쓰면 전용 config 를 함께 만들어야 하고, 그러면 공유 하네스 일괄 실행에서 빠진다.
 
 | 기동 방식 | 라우터 | 정답 goto | 실측 |
 |---|---|---|---|

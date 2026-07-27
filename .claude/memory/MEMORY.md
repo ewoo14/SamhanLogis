@@ -39,6 +39,7 @@
 - [Monitor 자동 사용](feedback_monitor_no_permission.md) — CI watch 허락없이 즉시
 
 # 개발환경/빌드 함정
+- [🚨 docker exec 는 stdin 미전달 — heredoc SQL 이 조용히 무동작](feedback_docker_exec_stdin_silent_noop.md) — heredoc 이 무시되고 psql 이 **무출력 exit 0**. "실행된 것처럼 보였으나 0행 삭제"(2026-07-27 실측). DB 작업은 **`docker cp` + `psql -f`**(`MSYS_NO_PATHCONV=1`). `-c "SQL"` 은 정상. 정리 후 **행 수를 다시 셀 것**
 - [Dev Environment](project_dev_environment.md) — · [Build Conventions](project_build_conventions.md) — JDK17/Gradle/Docker …
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md) — 한글경로 gradle test 실패→assemble
 - [gradlew 실행권한](feedback_gradlew_exec_bit.md) — `git update-index --chmod=+x gradlew`
