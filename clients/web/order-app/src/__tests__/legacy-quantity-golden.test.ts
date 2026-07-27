@@ -200,6 +200,12 @@ describe('단계 0 주문 앱 legacy 수량 경계 golden', () => {
     expect(actual.total).toBeNull();
   });
 
+  test('C-09-2812 주문 분기에는 견적 수동 추가 경로가 없어 2개를 유지한다', () => {
+    const fixture = optionFixtures.find((item: any) => item.id === 'C-09-2812');
+    const actual = evaluateLegacyQuantityBoundary(inputFor(fixture));
+    expect(actual.quantities['AXJ-YA2812M']).toBe(2);
+  });
+
   test('두 앱 드리프트의 주문 fixture를 보존한다', () => {
     expect(orderGoldens['H-01']['AR-KH05']).toBe(1);
     expect(orderGoldens['H-07']['AXJ-YA1509N']).toBeUndefined();

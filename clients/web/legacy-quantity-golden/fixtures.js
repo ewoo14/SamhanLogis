@@ -239,6 +239,9 @@ const optionFixtures = [
     manualLocks: { home: {} },
     expected: null,
   },
+  // 정찰 §5 홈 I형 호스 드리프트 — 견적은 DOM 칩을 읽지만 주문은 읽지 않는다.
+  // 주문의 window.SHOW_I_HOSE는 의도적으로 끄고, 견적 DOM 입력만 경계에 둔다.
+  optionCase('H-01-I-DOM-ONLY', 'H-01', { '#home_hose_i': true }),
   optionCase('H-01-NO-HOSE', 'H-01', { '#home_no_hose': true }),
   optionCase('H-02-NO-PANEL', 'H-02', { '#home_panel': '판넬제외' }),
   optionCase('H-03-AIR-PANEL', 'H-03', { '#home_panel': '공청판넬' }),
@@ -258,6 +261,9 @@ const optionFixtures = [
   optionCase('H-08-NO-FOOT', 'H-08', { '#home_foot': false }),
   optionCase('S-01-NO-BASE', 'S-01', { '#ss_base': false }),
   optionCase('S-01-FLAT-BASE', 'S-01', { '#ss_base': true }, { sourceQuantities: { 'set-round-source': 0, 'set-flat-source': 2 } }),
+  // 정찰 §5 싱글 받침대 대상 드리프트 — 기존 카탈로그의 부자재 세트를 사용한다.
+  // 견적은 부자재를 받침대 계산에서 제외하지만 주문은 운임/절삭만 제외한다.
+  optionCase('S-01-CATEGORY-DRIFT', 'S-01', { '#ss_base': true }, { sourceQuantities: { 'set-ceiling-source': 4 } }),
   optionCase('S-02-COLOR', 'S-02', { '#ss_remote': '컬러유선리모컨' }),
   optionCase('S-02-NO-REMOTE', 'S-02', { '#ss_remote_ex': true }),
   // D-4 — allowRemoteChange_의 거짓 갈래를 실제로 실행한다. set-1way-source(기본 리모컨
@@ -286,6 +292,9 @@ const optionFixtures = [
   // pickHoseModel의 window.SHOW_I_HOSE가 4way target을 정하므로, 두 스위치를 함께
   // 켜야 1way·4way 모두 I형으로 일관되게 나온다.
   optionCase('C-02-I-HOSE', 'C-02', { '#comm_hose_i': true }, { options: { dom: { '#comm_panel': '기본판넬', '#comm_p360': '원형', '#comm_hose_i': true, '#comm_ex_hose': false }, showIHose: true } }),
+  // 정찰 §5 상업 호스 나머지 드리프트 — 기존 펌프 대상 실내기 행은 이름상 실내기지만
+  // 1/2/4WAY·360 어느 것도 아니다. 견적은 이를 4WAY측 나머지로 합산하고 주문은 버린다.
+  optionCase('C-02-REMAINDER-DRIFT', 'C-02', { '#comm_panel': '판넬제외', '#comm_remote': '제외', '#comm_ex_hose': false }, { sourceQuantities: { 'AM072TNCDBH1': 2 } }),
   optionCase('C-02-NO-HOSE', 'C-02', { '#comm_ex_hose': true }),
   optionCase('C-03-WIRELESS', 'C-03', { '#comm_remote': '무선' }),
   optionCase('C-03-WIRED', 'C-03', { '#comm_remote': '유선' }),
@@ -307,7 +316,7 @@ const optionFixtures = [
   // 2812)이고 나머지는 버킷 코드 1개 + 강제 2812 코드 1개가 함께 나온다.
   optionCase('C-09-1509', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 148 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1' } }),
   optionCase('C-09-2512', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 149 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1' } }),
-  optionCase('C-09-2812', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 405 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1' } }),
+  optionCase('C-09-2812', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 405 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1', branchExtras: { '2812': 3 } } }),
   optionCase('C-09-2815', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 463 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1' } }),
   optionCase('C-09-3419', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 695 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1' } }),
   optionCase('C-09-4119', 'C-09', {}, { options: { branchSlots: [{ cap: 1 }, { cap: 985 }, { cap: 1 }], outdoorModel: 'AM120AXVHHH1' } }),

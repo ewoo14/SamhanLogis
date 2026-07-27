@@ -2,7 +2,7 @@
 
 const { evaluateLegacyQuantityBoundary } = require('../../legacy-quantity-golden/legacyQuantityBoundary');
 const { fixtures, optionFixtures } = require('../../legacy-quantity-golden/fixtures');
-const { estimateGoldens, estimateOptionGoldens } = require('../../legacy-quantity-golden/goldens');
+const { estimateGoldens, estimateOptionGoldens, orderGoldens, orderOptionGoldens } = require('../../legacy-quantity-golden/goldens');
 
 const FAMILY_ORDER = ['H-01', 'H-02', 'H-03', 'H-04', 'H-05', 'H-06', 'H-07', 'H-08', 'S-01', 'S-02', 'S-03', 'C-01', 'C-02', 'C-03', 'C-04', 'C-05', 'C-06', 'C-07', 'C-08', 'C-09'];
 
@@ -197,6 +197,30 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     expect(actual.supplyAmount).toBeNull();
     expect(actual.vat).toBeNull();
     expect(actual.total).toBeNull();
+  });
+
+  test('C-09-2812 견적 분기 수동 추가 3개를 golden에 반영한다', () => {
+    const fixture = optionFixtures.find((item) => item.id === 'C-09-2812');
+    const actual = evaluateLegacyQuantityBoundary(inputFor(fixture));
+    expect(actual.quantities['AXJ-YA2812M']).toBe(5);
+  });
+
+  test('정찰 §5 드리프트 8종이 양 앱 golden에 각각 남아 있다', () => {
+    const cases = [
+      [estimateGoldens['H-01'], orderGoldens['H-01'], 'AR-EC05', 4, 3],
+      [estimateGoldens['H-07'], orderGoldens['H-07'], 'AXJ-YA1509N', 1, 0],
+      [estimateOptionGoldens['H-01-I-DOM-ONLY'], orderOptionGoldens['H-01-I-DOM-ONLY'], 'FH-LFHIF', 2, 0],
+      [estimateOptionGoldens['C-01-AIR-PANEL'], orderOptionGoldens['C-01-AIR-PANEL'], 'PC4NUCK4NW', 1, 0],
+      [estimateOptionGoldens['S-01-CATEGORY-DRIFT'], orderOptionGoldens['S-01-CATEGORY-DRIFT'], 'set-round-target', 0, 4],
+      [estimateOptionGoldens['C-02-REMAINDER-DRIFT'], orderOptionGoldens['C-02-REMAINDER-DRIFT'], 'FH-LFHLF4W', 2, 0],
+      [estimateOptionGoldens['H-03-PANEL-LOCK'], orderOptionGoldens['H-03-PANEL-LOCK'], 'PC1MWSK3NW', 9, 1],
+      [estimateOptionGoldens['C-09-2812'], orderOptionGoldens['C-09-2812'], 'AXJ-YA2812M', 5, 2],
+    ];
+    cases.forEach(([estimate, order, model, estimateQty, orderQty]) => {
+      expect(estimate[model] || 0).toBe(estimateQty);
+      expect(order[model] || 0).toBe(orderQty);
+      expect(estimateQty).not.toBe(orderQty);
+    });
   });
 
   test('두 앱 드리프트의 견적 fixture를 보존한다', () => {

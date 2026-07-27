@@ -316,6 +316,7 @@ function runBranch(source, input) {
     'pushBranchPartsToCommFromBadges',
   ]);
   const slots = input.options?.branchSlots || [];
+  const branchExtras = input.options?.branchExtras || {};
   const isOrder = input.app === 'order';
   const slotSelector = isOrder ? '.out-drop' : '.out-slot';
   const html = `
@@ -340,7 +341,15 @@ function runBranch(source, input) {
     });
     const document = {
       querySelectorAll: (selector) => selector === '${slotSelector}[data-out="out1"]' ? __slots : (selector === '.code-cell' ? __cells : []),
-      querySelector: () => null,
+      querySelector: (selector) => {
+        const extraMatch = selector.match(/^#branchSummaryBar \\[data-k="([^\"]+)"\\] \\.extra-branch$/);
+        if (extraMatch) {
+          const key = extraMatch[1];
+          return { value: Object.prototype.hasOwnProperty.call(${JSON.stringify(branchExtras)}, key) ? String(${JSON.stringify(branchExtras)}[key] ?? '') : '' };
+        }
+        if (/^#branchSummaryBar \\[data-k="[^\"]+"\\] b$/.test(selector)) return { textContent: '' };
+        return null;
+      },
     };
     const saveBranchState = () => {};
     recomputeBranchCodes([{ model: ${JSON.stringify(input.options?.outdoorModel || 'AM120AXVHHH1')} }]);

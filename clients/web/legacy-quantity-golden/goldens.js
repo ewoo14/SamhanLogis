@@ -57,6 +57,7 @@ const o = {
 
 const estimateOptionGoldens = {
   'H-01-I': { AM020BN1PBH1: 2, 'FH-LFHIF': 2, 'AR-EC05': 2, PC1NWSK3NW: 2 },
+  'H-01-I-DOM-ONLY': { AM020BN1PBH1: 2, AM052BN4DBH1: 1, AM083BN6PBH1: 1, 'FH-LFHIF': 2, 'FH-LFHLF4W': 2, 'AR-EC05': 4, PC1NWSK3NW: 2, PC4NUFK1NW: 1, PC6NUDK1NW: 1 },
   'H-01-NO-HOSE': { AM020BN1PBH1: 2, AM052BN4DBH1: 1, AM083BN6PBH1: 1, 'AR-EC05': 4, PC1NWSK3NW: 2, PC4NUFK1NW: 1, PC6NUDK1NW: 1 },
   'H-02-NO-PANEL': { AM052BN4DBH1: 2, AM083BN6PBH1: 3, 'FH-LFHLF4W': 5, 'AR-EC05': 5 },
   'H-03-AIR-PANEL': { AM016BN1PBH2: 1, AM020BN1PBH1: 2, AM060BN1PBH1: 3, 'FH-LFHLF': 6, 'AR-EC05': 6, PC1MWCK3NW: 1, PC1NWCK3NW: 2, PC1BWCK3NW: 3 },
@@ -73,6 +74,7 @@ const estimateOptionGoldens = {
   'H-08-NO-FOOT': { AJ060MXHNBC1: 2 },
   'S-01-NO-BASE': { 'set-round-source': 2, 'set-flat-source': 1 },
   'S-01-FLAT-BASE': { 'set-flat-source': 2, 'set-flat-target': 2 },
+  'S-01-CATEGORY-DRIFT': { 'set-ceiling-source': 4, 'ceiling-pump': 4 },
   'S-02-COLOR': { 'set-1way-source': 3, 'wired-board': 3 },
   'S-02-NO-REMOTE': { 'set-1way-source': 3 },
   'S-02-REMOTE-CHANGE-GATE': { 'set-1way-source': 3, 'set-1way-inf-source': 2, 'wired-board': 3 },
@@ -83,6 +85,7 @@ const estimateOptionGoldens = {
   'C-01-CIRCLE-360': { AM100DNMDBH1: 1, 'FH-LFHLF4W': 1, 'ADP-G075SPK1D': 1, PC6NUNK1NW: 1, 'AR-EH05': 1 },
   'C-01-SQUARE-360': { AM100DNMDBH1: 1, 'FH-LFHLF4W': 1, 'ADP-G075SPK1D': 1, PC6NUDK1NW: 1, 'AR-EH05': 1 },
   'C-02-I-HOSE': { AM052DNLDBH1: 2, AM083DNMDBH1: 1, AM130ANHDBH1: 1, 'FH-LFHIF4W': 1, 'AWR-WE13N': 1, 'MDP-Z075SZED': 2, 'ADP-G075SPK1D': 2, PC1MWSK3NW: 2, PC4NUFK1NW: 1, 'AR-EH05': 3 },
+  'C-02-REMAINDER-DRIFT': { 'FH-LFHLF4W': 2, 'ADP-F075SP': 2 },
   'C-02-NO-HOSE': { AM052DNLDBH1: 2, AM083DNMDBH1: 1, AM130ANHDBH1: 1, 'AWR-WE13N': 1, 'MDP-Z075SZED': 2, 'ADP-G075SPK1D': 2, PC1MWSK3NW: 2, PC4NUFK1NW: 1, 'AR-EH05': 3 },
   'C-03-WIRELESS': { AM052DNLDBH1: 2, 'MDP-Z075SZED': 2, 'AR-EH05': 2 },
   'C-03-WIRED': { AM052DNLDBH1: 2, 'AWR-WE13N': 2, 'MDP-Z075SZED': 2 },
@@ -93,7 +96,7 @@ const estimateOptionGoldens = {
   'C-08-NO-BASE': { 'ACL-KORGHP07': 2 },
   'C-09-1509': { 'AXJ-YA1509N': 1, 'AXJ-YA2812M': 1 },
   'C-09-2512': { 'AXJ-YA2512N': 1, 'AXJ-YA2812M': 1 },
-  'C-09-2812': { 'AXJ-YA2812M': 2 },
+  'C-09-2812': { 'AXJ-YA2812M': 5 },
   'C-09-2815': { 'AXJ-YA2812M': 1, 'AXJ-YA2815M': 1 },
   'C-09-3419': { 'AXJ-YA2812M': 1, 'AXJ-YA3419M': 1 },
   'C-09-4119': { 'AXJ-YA2812M': 1, 'AXJ-YA4119M': 1 },
@@ -102,6 +105,7 @@ const estimateOptionGoldens = {
 
 const orderOptionGoldens = {
   'H-01-I': { AM020BN1PBH1: 2, 'FH-LFHIF': 2, 'AR-EC05': 2, PC1NWSK3NW: 2 },
+  'H-01-I-DOM-ONLY': { AM020BN1PBH1: 2, AM052BN4DBH1: 1, AM083BN6PBH1: 1, 'FH-LFHLF': 2, 'FH-LFHLF4W': 2, 'AR-EC05': 3, 'AR-KH05': 1, PC1NWSK3NW: 2, PC4NUFK1NW: 1, PC6NUDK1NW: 1 },
   'H-01-NO-HOSE': { AM020BN1PBH1: 2, AM052BN4DBH1: 1, AM083BN6PBH1: 1, 'AR-EC05': 3, 'AR-KH05': 1, PC1NWSK3NW: 2, PC4NUFK1NW: 1, PC6NUDK1NW: 1 },
   'H-02-NO-PANEL': { AM052BN4DBH1: 2, AM083BN6PBH1: 3, 'FH-LFHLF4W': 5, 'AR-EC05': 2, 'AR-KH05': 3 },
   'H-03-AIR-PANEL': { AM016BN1PBH2: 1, AM020BN1PBH1: 2, AM060BN1PBH1: 3, 'FH-LFHLF': 6, 'AR-EC05': 6, PC1MWCK3NW: 1, PC1NWCK3NW: 2, PC1BWCK3NW: 3 },
@@ -122,6 +126,7 @@ const orderOptionGoldens = {
   'H-08-NO-FOOT': { AJ060MXHNBC1: 2 },
   'S-01-NO-BASE': { 'set-round-source': 2, 'set-flat-source': 1 },
   'S-01-FLAT-BASE': { 'set-flat-source': 2, 'set-flat-target': 2 },
+  'S-01-CATEGORY-DRIFT': { 'set-ceiling-source': 4, 'set-round-target': 4, 'ceiling-pump': 4 },
   'S-02-COLOR': { 'set-1way-source': 3, 'wired-board': 3 },
   'S-02-NO-REMOTE': { 'set-1way-source': 3 },
   'S-02-REMOTE-CHANGE-GATE': { 'set-1way-source': 3, 'set-1way-inf-source': 2, 'wired-board': 3 },
@@ -132,6 +137,7 @@ const orderOptionGoldens = {
   'C-01-CIRCLE-360': { AM100DNMDBH1: 1, PC6NUNK1NW: 1, 'FH-LFHLF4W': 1, 'ADP-G075SPK1D': 1 },
   'C-01-SQUARE-360': { AM100DNMDBH1: 1, PC6NUDK1NW: 1, 'FH-LFHLF4W': 1, 'ADP-G075SPK1D': 1 },
   'C-02-I-HOSE': { AM052DNLDBH1: 2, AM083DNMDBH1: 1, AM130ANHDBH1: 1, PC1MWSK3NW: 2, PC4NUFK1NW: 1, 'FH-LFHIF': 2, 'FH-LFHIF4W': 1, 'AWR-WE13N': 1, 'MDP-Z075SZED': 2, 'ADP-G075SPK1D': 2, 'AR-EH05': 3 },
+  'C-02-REMAINDER-DRIFT': { 'ADP-F075SP': 2 },
   'C-02-NO-HOSE': { AM052DNLDBH1: 2, AM083DNMDBH1: 1, AM130ANHDBH1: 1, PC1MWSK3NW: 2, PC4NUFK1NW: 1, 'AWR-WE13N': 1, 'MDP-Z075SZED': 2, 'ADP-G075SPK1D': 2, 'AR-EH05': 3 },
   'C-03-WIRELESS': { AM052DNLDBH1: 2, 'MDP-Z075SZED': 2, 'AR-EH05': 2 },
   'C-03-WIRED': { AM052DNLDBH1: 2, 'AWR-WE13N': 2, 'MDP-Z075SZED': 2 },

@@ -9,7 +9,7 @@ R1 적대검증(OPUS 4.8)이 지적한 4대 결함(D-1~D-4, 전부 BLOCKING/HIGH
 - `legacyQuantityBoundary.js`의 자체 구현·스텁·target 주입을 전부 제거했다. `codeByCumulativeSum`/`codeByOutdoorHP`/`pushBranchPartsToCommFromBadges`/`partsForSetStrict_`/`getDefaultRemoteRows`를 정본에서 그대로 추출해 실행한다. HOSE_\*/FOOT_\*/REMOTE_\*/BRANCH_\*/MODEL_6HP_SINGLE/PANEL_MODELS/SS_\*_ID는 정본의 top-level 도출 블록(`derivationPreambleSource`)을 그대로 실행해 카탈로그 snapshot에서 얻는다 — fixture는 더 이상 이 값들을 주지 않는다.
 - `fixtures.js`에 실제 도출을 가능하게 하는 카탈로그 행을 추가했다(4WAY 유연호스 2종, `SINGLE_PARTS` 카탈로그, `wired-board`/`ceiling-pump` target 행, `set-1way-inf-source`). 신규 코드 3종은 저장소에 실제 코드가 없어 새로 채운 자리이며 아래 §2에서 출처를 밝힌다.
 - 재생성 결과 **기존 golden 70건의 값이 바뀌었다**(§9). 이는 예상된 결과다 — R1이 예고한 대로다.
-- D-2 재발 방지를 위해 **12종의 신규 뮤테이션**을 두 테스트 파일에 영구 게이트로 추가했다. 실행 결과 22/24(11개×2앱)가 RED, 2/24(같은 1개 뮤테이션×2앱... 실제로는 1개×주문 앱만)는 주문 앱 자체 코드 경로 미도달임을 실행으로 확인하고 그 사실을 테스트 자체가 문서화하도록 만들었다(§4).
+- D-2 재발 방지를 위해 **12종의 신규 뮤테이션**을 두 테스트 파일에 영구 게이트로 추가했다. 재실행 결과 **23/24가 RED, 1/24가 정당한 GREEN**이었다(견적 12종 전부 RED, 주문 11종 RED + `derive-renew-filter-map` 1종은 주문 앱 자체 코드 경로 미도달). 그 사실을 테스트 자체가 문서화하도록 만들었다(§4).
 - 기존 8종 뮤테이션의 증거를 실제 실행 원문으로 교체했다. 이전 보고서의 "Test Suites: 1 failed, 1 passed, 2 total"은 이 저장소 구조상 나올 수 없는 수치였다는 지적이 맞다 — 실제로는 단일 파일 스코프 실행 시 `Test Suites: 1 failed, 1 total`이다(§5).
 - `deploy-estimate-app.yml`의 PR 경로 필터에 `clients/web/legacy-quantity-golden/**`을 추가했다(§8).
 - 이번 재생성이 그 자체로 **두 앱 사이의 새로운 실제 드리프트 3건**을 발견했다(§6) — 손으로 만든 게 아니라 실행이 드러낸 것이다.
@@ -170,7 +170,7 @@ Tests       65 passed (65)
 
 R1이 지적한 증거 무결성 문제 3건을 실제 실행 원문으로 바로잡았다.
 
-**정정 1 — 불가능한 테스트 수치.** 이전 보고서의 "`Test Suites: 1 failed, 1 passed, 2 total`"은 이 구조에서 나올 수 없는 수치였다(단일 파일 스코프 실행이면 스위트가 1개뿐이라 "1 passed"가 있을 수 없고, 전체 스위트면 8개 파일이라 "2 total"이 될 수 없다). 이번엔 **실제로 실행한 명령**(`npx jest test/legacy-quantity-golden.test.js --runInBand`, 단일 파일 스코프 — "로컬 전체 스위트 금지, golden 테스트는 직접 돌릴 것" 지침에 정확히 맞는 범위)의 원문을 그대로 옮긴다: `Test Suites: 1 failed, 1 total` / `Tests: 1 failed, 64 passed, 65 total`(견적), `Test Files 1 failed (1)` / `Tests 1 failed | 64 passed (65)`(주문, vitest). 64는 정상 fixture(20+32=52 — 신규 4건 포함) + 드리프트 보존 테스트(1) + 20 가족 검사(1) + 옵션 실행... 실제로는 `test.each` 확장 포함 정확히 64건이며, 뮤테이션 게이트 1건이 추가되면 65건이다.
+**정정 1 — 불가능한 테스트 수치.** 이전 보고서의 "`Test Suites: 1 failed, 1 passed, 2 total`"은 이 구조에서 나올 수 없는 수치였다(단일 파일 스코프 실행이면 스위트가 1개뿐이라 "1 passed"가 있을 수 없고, 전체 스위트면 8개 파일이라 "2 total"이 될 수 없다). 이번엔 **실제로 실행한 명령**(`npx jest test/legacy-quantity-golden.test.js --runInBand`, 단일 파일 스코프 — "로컬 전체 스위트 금지, golden 테스트는 직접 돌릴 것" 지침에 정확히 맞는 범위)의 원문을 그대로 옮긴다: `Test Suites: 1 failed, 1 total` / `Tests: 1 failed, 64 passed, 65 total`(견적), `Test Files 1 failed (1)` / `Tests 1 failed | 64 passed (65)`(주문, vitest). 64는 **20 + 42 + 가족순서 1 + 드리프트 보존 1 = 64**이다. 뮤테이션 게이트 1건이 추가되면 65건이다.
 
 **정정 2 — Vitest 배열 축약 표기.** `drift-fixture-delete` 인용의 `…, 'H-07', …`는 Vitest가 내지 않는 형식이었다는 지적이 맞다. 실제 출력(주문, 그대로 복사):
 
@@ -385,3 +385,106 @@ Tests       93 passed (93)
 ```
 
 각 실행 후 `LEGACY_MUTATION` 환경변수는 제거했고, §12 정상 검증은 뮤테이션 없이 별도로 재실행해 확인했다. 뮤테이션은 정본 파일에 쓰지 않았다(`git status`로 매 실행 후 clean 확인).
+
+## 13. R2 라운드 fix — 분기보드 수동 추가 입력 경계
+
+### 13.1 R2-1 RED 원문과 원인
+
+`C-09-2812` 입력에서 분기 슬롯의 계산 셀 2개와 견적 화면의 `extra-branch=3`을 함께 재현했다. R2 fix 전 실제 실행 출력은 다음과 같다.
+
+```text
+{"app":"estimate","state":{"computed2812Cells":2,"userExtra2812":3},"boundary":{"AXJ-YA2812M":2},"directCanonical":{"AXJ-YA1509N":0,"AXJ-YA2512N":0,"AXJ-YA2812M":5,"AXJ-YA2815M":0,"AXJ-YA3419M":0,"AXJ-YA4119M":0}}
+{"app":"order","state":{"computed2812Cells":2,"userExtra2812":3},"boundary":{"AXJ-YA2812M":2},"directCanonical":{"AXJ-YA1509N":0,"AXJ-YA2512N":0,"AXJ-YA2812M":2,"AXJ-YA2815M":0,"AXJ-YA3419M":0,"AXJ-YA4119M":0}}
+```
+
+원인은 `runBranch()`의 `document.querySelector: () => null`이었다. 정본 견적 함수가 `#branchSummaryBar [data-k="2812"] .extra-branch`의 `value`를 읽는데, 하네스가 그 입력까지 없애 계산 셀 2개만 반환했다. 주문 정본에는 해당 추가 입력 경로가 없으므로 주문의 2는 정상이다.
+
+### 13.2 R2-1 fix
+
+- `legacyQuantityBoundary.js`에 `options.branchExtras`를 경계 입력으로 추가했다.
+- 분기 추가 입력 selector에는 경계 Map의 값을 `{ value }`로 반환하고, 분기 badge는 표시용 `{ textContent }`로 반환한다. 그 밖의 선택적 출력 DOM만 `null`로 남겼다. 정본 함수는 계속 파일에서 추출·실행한다.
+- `fixtures.js`의 `C-09-2812`에 `branchExtras: { '2812': 3 }`을 넣었다.
+- `estimateOptionGoldens['C-09-2812']`는 정본 실행 결과 `2→5`로 바꾸고, `orderOptionGoldens['C-09-2812']`는 `2`를 유지했다.
+- 회귀 단언을 두 앱에 추가해 견적 5와 주문 2를 각각 고정했다.
+
+초회 하네스 수정에서 생성 VM 정규식의 대괄호 escape가 소실되어 다음 오류가 발생했고, escape를 보정한 뒤 재실행했다.
+
+```text
+Invalid regular expression: /^#branchSummaryBar [data-k="([^"]+)"] .extra-branch$/: Unmatched ')'
+```
+
+### 13.3 R2-1 GREEN 직접 대조 원문
+
+수정 후 같은 입력을 정본 직접 실행과 경계 실행으로 다시 대조한 실제 출력이다.
+
+```text
+{"app":"estimate","state":{"computed2812Cells":2,"userExtra2812":3},"boundary":{"AXJ-YA2812M":5},"directCanonical":{"AXJ-YA1509N":0,"AXJ-YA2512N":0,"AXJ-YA2812M":5,"AXJ-YA2815M":0,"AXJ-YA3419M":0,"AXJ-YA4119M":0}}
+{"app":"order","state":{"computed2812Cells":2,"userExtra2812":3},"boundary":{"AXJ-YA2812M":2},"directCanonical":{"AXJ-YA1509N":0,"AXJ-YA2512N":0,"AXJ-YA2812M":2,"AXJ-YA2815M":0,"AXJ-YA3419M":0,"AXJ-YA4119M":0}}
+```
+
+주문 직접 대조 원문에서 `AXJ-YA2812M`은 2이며, 견적만 수동 추가 3을 더해 5가 된다.
+
+### 13.4 정찰 §5 드리프트 8종 전수 결과
+
+기존 5종은 기존 golden을 확인했고, fixture가 차이를 가리던 3종은 기존 카탈로그 행만 사용한 옵션 fixture를 추가해 다시 정본 실행했다. 독립 sweep 결과는 **8/8 distinct**였다.
+
+```text
+{"id":"H-01","model":"AR-EC05","estimate":4,"order":3,"distinct":true}
+{"id":"H-07","model":"AXJ-YA1509N","estimate":1,"order":0,"distinct":true}
+{"id":"H-01-I-DOM-ONLY","model":"FH-LFHIF","estimate":2,"order":0,"distinct":true}
+{"id":"C-01-AIR-PANEL","model":"PC4NUCK4NW","estimate":1,"order":0,"distinct":true}
+{"id":"S-01-CATEGORY-DRIFT","model":"set-round-target","estimate":0,"order":4,"distinct":true}
+{"id":"C-02-REMAINDER-DRIFT","model":"FH-LFHLF4W","estimate":2,"order":0,"distinct":true}
+{"id":"H-03-PANEL-LOCK","model":"PC1MWSK3NW","estimate":9,"order":1,"distinct":true}
+{"id":"C-09-2812","model":"AXJ-YA2812M","estimate":5,"order":2,"distinct":true}
+{"total":8,"distinct":8}
+```
+
+추가한 3개 fixture는 `H-01-I-DOM-ONLY`(견적 DOM 칩만 ON), `S-01-CATEGORY-DRIFT`(기존 `set-ceiling-source` 부자재 행), `C-02-REMAINDER-DRIFT`(기존 `AM072TNCDBH1` 미분류 실내기 행)이다. 합성 제품 코드나 정본 로직은 추가하지 않았다.
+
+### 13.5 R2 직접 테스트 GREEN 원문
+
+```text
+[견적] npx jest test/legacy-quantity-golden.test.js --runInBand
+Test Suites: 1 passed, 1 total
+Tests:       69 passed, 69 total
+
+[주문] npx vitest run src/__tests__/legacy-quantity-golden.test.ts
+Test Files  1 passed (1)
+Tests       68 passed (68)
+```
+
+### 13.6 R2 golden 변경 목록
+
+기존 항목 중 값이 바뀐 golden은 1건이다.
+
+| 앱 | golden | 변경 전 | 변경 후 | 근거 |
+|---|---|---:|---:|---|
+| 견적 | `estimateOptionGoldens['C-09-2812']['AXJ-YA2812M']` | 2 | 5 | 계산 셀 2 + 수동 추가 3 |
+
+주문 `orderOptionGoldens['C-09-2812']['AXJ-YA2812M']`는 2로 유지했다. 드리프트 전수 확인을 위해 다음 신규 option golden 3종은 견적·주문에 각각 추가했으며, 기존 값의 수정이 아닌 새 관측값이다: `H-01-I-DOM-ONLY`, `S-01-CATEGORY-DRIFT`, `C-02-REMAINDER-DRIFT`.
+
+### 13.7 R2-2 뮤테이션 수치 재실행 원문
+
+12종의 정본 도출 뮤테이션을 각 앱의 golden 테스트 파일에만 주입해 재실행했다. 저장소 전체 스위트는 실행하지 않았다.
+
+```text
+[견적] 12회
+  derive-foot-round ... derive-ceiling-pump-off: exit=1 (12/12)
+  Test Suites: 1 failed, 1 total
+  Tests:       1 failed, 69 passed, 70 total
+
+[주문] RED 11회
+  derive-foot-round ... derive-ceiling-pump-off 중 derive-renew-filter-map 제외: exit=1 (11/12)
+  Test Files  1 failed (1)
+  Tests       1 failed | 68 passed (69)
+
+[주문] derive-renew-filter-map 1회
+  exit=0
+  Test Files  1 passed (1)
+  Tests       69 passed (69)
+```
+
+따라서 실제 합계는 **24회 중 23회 RED, 1회 정당한 GREEN**이다. 주문의 `derive-renew-filter-map` GREEN은 `isCommOutdoorRow`가 해당 fixture를 실외기로 판정하지 않아 해당 맵의 계산 경로에 도달하지 않는 기존 포팅 드리프트를 문서화한 결과다.
+
+정본 `clients/web/estimate-app/views/index.ejs`, `clients/web/order-app/index.html` 및 `tools/legacy-gas/**`는 R2에서도 수정하지 않았다.
