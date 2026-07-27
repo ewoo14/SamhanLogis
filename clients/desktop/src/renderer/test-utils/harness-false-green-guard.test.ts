@@ -472,7 +472,7 @@ const MOCK_GATE_TS = ALL_PW_TS.filter(isMockGateFile)
  *
  * 아래 WEB_DEPLOY_REAL_QA 는 vite.web.config.ts(BrowserRouter) 하네스를 쓴다고 각 파일 자체
  * 근거(포트 상속·config 상속·npm 실행 커맨드 주석·845-ds2 는 docs/qa 커밋 스크린샷)로 확정된
- * real-qa 스펙 22개다(PR #938 fix 라운드 — 1차 적대검증 A-1 블라스트 반경 정정 19개 +
+ * real-qa 스펙 28개다(PR #938 fix 라운드 — 1차 적대검증 A-1 블라스트 반경 정정 19개 +
  * 2026-07-26 재수렴 라운드 G6 에서 자기진술("BrowserRouter") vs 미등재 불일치로 찾은 3개:
  * 825-s4-chip-real-qa·877-opus-review-real-qa(둘 다 PM 1차 적대검증 원 지적)·
  * 832-mock-parity-real-qa(같은 grep 으로 이번에 추가 발견)). 그 외 전부(mock 게이트 +
@@ -504,6 +504,12 @@ const WEB_DEPLOY_REAL_QA = new Set<string>([
   '902-slip-line-ecount-real-qa/902-slip-line-ecount-real-qa.spec.ts',
   '910-app-client-identity-real-qa/910-identity-real-qa.spec.ts',
   '924-lookup-unavailable-real-qa/924-lookup-unavailable-real-qa.spec.ts',
+  '937-fix3-real-qa/937-fix3-real-qa.spec.ts',
+  '937-fix5-price-authority-real-qa/937-fix5-price-authority-real-qa.spec.ts',
+  '937-fix6-price-domain-real-qa/937-fix6-price-domain-real-qa.spec.ts',
+  '937-fix7-history-total-domain-real-qa/937-fix7-history-total-domain-real-qa.spec.ts',
+  '937-r3-vat-domain-real-qa/937-r3-vat-domain-real-qa.spec.ts',
+  '937-r4-unit-price-domain-real-qa/937-r4-unit-price-domain-real-qa.spec.ts',
 ])
 
 // 스캔 대상이 실제로 잡혔는지부터 확인한다 — 경로가 어긋나 0건이면 이 가드 전체가
@@ -1877,11 +1883,13 @@ describe('하네스 거짓 green 가드', () => {
    *   ⓒ 리터럴이 읽기 인자인지 쓰기 대상인지는 구분하지 않는다(파일에 읽기 primitive 가
    *      있으면 그 파일의 docs 리터럴을 전부 관할로 본다 — 과대 포함 쪽으로 틀린다),
    *   ⓓ desktop playwright 스위트의 `testIgnore` 만 반영한다(다른 스위트의 제외 규칙은 모른다).
+   *   ⓔ 네이밍 미준수(`.cjs`/인라인)·config `testIgnore` 드리프트 사각은 가드 완전성
+   *      미결정 문제로 2026-07-27 개발책임자 수용 — migration/ 갭만 이 PR에서 닫는다.
    * ─────────────────────────────────────────────────────────────────────────────
    */
 
-  /** 실재 파일을 가리키는 `docs/**` 문자열 리터럴(글롭/치환자 형태는 존재 검사에서 탈락). */
-  const DOCS_FILE_LITERAL = /['"`](docs\/[^'"`\n]*?\.[A-Za-z0-9]+)['"`]/g
+  /** 실재 파일을 가리키는 `docs/**` 또는 `migration/**` 문자열 리터럴(글롭/치환자 형태는 존재 검사에서 탈락). */
+  const DOCS_FILE_LITERAL = /['"`]((?:docs|migration)\/[^'"`\n]*?\.[A-Za-z0-9]+)['"`]/g
 
   /**
    * 문서 본문을 단언하는 **검사 파일 전수**를 네이밍 컨벤션에서 도출한다(손 열거 아님).
@@ -1937,7 +1945,11 @@ describe('하네스 거짓 green 가드', () => {
 
     // 도출 자기검사 — 2026-07-27 에 실측한 두 표면을 실제로 잡아야 한다(회귀 앵커).
     const allDocs = new Set(contracts.flatMap((c) => c.docs))
-    for (const anchor of ['docs/handoff/CURRENT-WORK.md', 'docs/operational-validation/README.md']) {
+    for (const anchor of [
+      'docs/handoff/CURRENT-WORK.md',
+      'docs/operational-validation/README.md',
+      'migration/decisions/DECISIONS.md',
+    ]) {
       expect(allDocs.has(anchor), `도출이 ${anchor} 를 놓쳤다 — 재수렴 7차의 실측 표면이다`).toBe(true)
     }
 
@@ -1999,7 +2011,7 @@ describe('하네스 거짓 green 가드', () => {
           name: m[1] as string,
           body: src.slice(m.index ?? 0, blocks[i + 1]?.index ?? src.length),
         }))
-        .filter((t) => /['"`]docs\//.test(t.body))
+        .filter((t) => /['"`](?:docs|migration)\//.test(t.body))
         .map((t) => t.name)
       for (const w of runners) {
         const yml = fs.readFileSync(path.join(WORKFLOW_DIR, w.name), 'utf-8')

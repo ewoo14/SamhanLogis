@@ -6,6 +6,7 @@
 #   docs/qa/sp-08-*/          (QA 결과 문서)
 #   docs/dev-reports/sp-08-*.md
 #   docs/operational-validation/*.md
+#   migration/decisions/*.md
 #   clients/desktop/playwright/
 #   services/*/src/main/
 #   clients/{desktop,mobile-staff,arologis-desktop,arologis-mobile}/src/
@@ -112,6 +113,7 @@ DOC_DIRS=(
   "docs/dev-reports"
   "docs/handoff"
   "docs/operational-validation"
+  "migration/decisions"
   "clients/desktop/playwright"
   "tools/operational-validation"
 )

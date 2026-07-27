@@ -22,6 +22,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
@@ -29,7 +30,7 @@ const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://localhost:5765'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ACCOUNT = 'dev_manager'
-const SHOTS = process.env['QA_SHOTS_DIR'] ?? path.resolve(_dirname, '../../../../docs/qa/937-fix3')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/937-fix3'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const PARTNER_A = { id: 'e5c62496-47df-3a07-a3d7-c28fa7123675', name: '강릉HVAC솔루션' }

@@ -24,6 +24,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
@@ -35,8 +36,7 @@ const SALES_SLIP = process.env['QA_SALES_SLIP'] ?? ''
 const PURCHASE_SLIP = process.env['QA_PURCHASE_SLIP'] ?? ''
 /** 무수정 재저장 전용 전표 — 다른 테스트가 남긴 coedit 문서 상태와 섞이지 않도록 분리한다. */
 const NOOP_SLIP = process.env['QA_NOOP_SLIP'] ?? ''
-const SHOTS = process.env['QA_SHOTS_DIR']
-  ?? path.resolve(_dirname, '../../../../docs/qa/937-detail-readonly-fix/r4-fix')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/937-detail-readonly-fix/r4-fix'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 function psql(sql: string): string {

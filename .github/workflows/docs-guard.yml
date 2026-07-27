@@ -24,9 +24,10 @@ name: Docs Guard (docs/** 관할 가드 — ci.yml 이 무시하는 구간)
 #       ci.yml `frontend-desktop` 이라 docs 전용 PR 은 skip 된다. 문서에 금지 서술 1줄을
 #       추가하면 로컬은 R910_EXIT=1 인데 CI 는 green 이다(실측).
 #
-#   D-3 (2026-07-27) mock 게이트 playwright 스펙 5개가 문서 본문을 단언한다 —
+#   D-3 (2026-07-27) mock 게이트 playwright 스펙 6개가 문서 본문을 단언한다 —
 #       purchase-inspection-cta · sp-05-crud-surface · sp-06-notion-db-crud ·
-#       sp-07-google-sheets-source · sp-08-3-dispatch-parity. 이들의 유일 러너는
+#       sp-07-google-sheets-source · sp-08-3-dispatch-parity ·
+#       sp-08-5-1-purchase-slip-list-detail. 이들의 유일 러너는
 #       qa-e2e.yml `desktop-playwright` 인데 그 `paths` 에 `docs/**` 가 없다.
 #       ⓐ `docs/handoff`·`docs/manual`·`docs/planning` 은 **어떤 워크플로도** 발동시키지 않았다
 #          (실측: `docs/handoff/CURRENT-WORK.md` 단독 커밋 cbfe2bea2·a1aefdd20 의 check-runs
@@ -60,6 +61,7 @@ on:
       - 'docs/manual/**'
       - 'docs/operational-validation/**'
       - 'docs/planning/**'
+      - 'migration/decisions/**'
       - 'scripts/check-credential-plaintext.sh'
       - 'clients/desktop/scripts/round-910-contract.test.cjs'
       - '.github/workflows/docs-guard.yml'
@@ -72,6 +74,7 @@ on:
       - 'docs/manual/**'
       - 'docs/operational-validation/**'
       - 'docs/planning/**'
+      - 'migration/decisions/**'
       - 'scripts/check-credential-plaintext.sh'
       - 'clients/desktop/scripts/round-910-contract.test.cjs'
       - '.github/workflows/docs-guard.yml'
@@ -153,4 +156,5 @@ jobs:
             playwright/sp-05-crud-surface/sp-05-crud-surface.spec.ts \
             playwright/sp-06-notion-db-crud/sp-06-notion-db-crud.spec.ts \
             playwright/sp-07-google-sheets-source/sp-07-google-sheets-source.spec.ts \
-            playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts
+            playwright/sp-08-3-dispatch-parity/sp-08-3-dispatch-parity.spec.ts \
+            playwright/sp-08-5-1-purchase-slip-list-detail/sp-08-5-1-purchase-slip-list-detail.spec.ts

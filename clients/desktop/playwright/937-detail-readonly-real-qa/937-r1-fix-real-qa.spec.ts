@@ -17,6 +17,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
@@ -27,8 +28,7 @@ const ACCOUNT = 'dev_manager'
 
 // 재수렴 4차(#937): 다른 두 #937 real-qa 스펙과 같이 QA_SHOTS_DIR 를 존중한다 —
 // 재실행이 커밋된 R1 라운드 증거를 덮어쓰지 않게 한다.
-const SHOTS = process.env['QA_SHOTS_DIR']
-  ?? path.resolve(_dirname, '../../../../docs/qa/937-detail-readonly-fix/r1-fix')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/937-detail-readonly-fix/r1-fix'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // 기존 활성 거래처/품목/창고(조회만 — 신규 생성 없음). partner_db/product_db/inventory_db 직접 SELECT 로 확인.
