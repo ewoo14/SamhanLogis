@@ -30,9 +30,9 @@ $Green500 = [System.Drawing.ColorTranslator]::FromHtml('#22C55E')
 $Red500   = [System.Drawing.ColorTranslator]::FromHtml('#EF4444')
 $Amber500 = [System.Drawing.ColorTranslator]::FromHtml('#F59E0B')
 
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
 $CommittedDir = Join-Path $PSScriptRoot '..\docs\qa\arologis-extract\screenshots'
-$OutDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
-$OutDir = [System.IO.Path]::GetFullPath($OutDir)
+$OutDir = Resolve-QaShotsDir -CommittedDir $CommittedDir
 if(-not (Test-Path $OutDir)){ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 Write-Host "[generate-arologis-qa-screenshots] output dir: $OutDir"
 

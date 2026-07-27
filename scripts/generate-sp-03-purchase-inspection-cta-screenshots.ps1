@@ -1,7 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
 $CommittedDir = Join-Path $PSScriptRoot '..\docs\qa\sp-03-purchase-inspection-cta\screenshots'
-$OutDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
+$OutDir = Resolve-QaShotsDir -CommittedDir $CommittedDir
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 Add-Type -AssemblyName System.Drawing

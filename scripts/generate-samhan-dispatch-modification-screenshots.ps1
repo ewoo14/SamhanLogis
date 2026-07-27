@@ -50,9 +50,9 @@ $Purple100 = [System.Drawing.ColorTranslator]::FromHtml('#EDE9FE')
 $Gray500   = [System.Drawing.ColorTranslator]::FromHtml('#6B7280')
 $Gray100   = [System.Drawing.ColorTranslator]::FromHtml('#E5E7EB')
 
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
 $CommittedDir = Join-Path $PSScriptRoot '..\docs\qa\samhan-dispatch-modification\screenshots'
-$OutDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
-$OutDir = [System.IO.Path]::GetFullPath($OutDir)
+$OutDir = Resolve-QaShotsDir -CommittedDir $CommittedDir
 if(-not (Test-Path $OutDir)){ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 Write-Host "[generate-samhan-dispatch-modification-screenshots] output dir: $OutDir"
 

@@ -64,9 +64,9 @@ $Blue100  = [System.Drawing.ColorTranslator]::FromHtml('#DBEAFE')
 $Purple500 = [System.Drawing.ColorTranslator]::FromHtml('#8B5CF6')
 $Yellow500 = [System.Drawing.ColorTranslator]::FromHtml('#FBBF24')
 
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
 $CommittedDir = Join-Path $PSScriptRoot '..\docs\qa\samhan-signature-copy\screenshots'
-$OutDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
-$OutDir = [System.IO.Path]::GetFullPath($OutDir)
+$OutDir = Resolve-QaShotsDir -CommittedDir $CommittedDir
 if(-not (Test-Path $OutDir)){ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null }
 Write-Host "[generate-samhan-signature-copy-screenshots] output dir: $OutDir"
 

@@ -1,12 +1,22 @@
 param(
     [int]$IntervalSec = 300,
-    [string]$OutDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs/qa/local-load-soak-test/timeseries/_local" }),
+    [string]$OutDir = "",
     [switch]$Once
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$resolvedOutDir = Join-Path $repoRoot $OutDir
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
+# contrast-1 fix (2026-07-28 R1 adversarial review): the param default used to be an
+# unguarded inline ternary ($env:QA_SHOTS_DIR assigned directly), invisible to
+# discoverQaResolverSources()'s function-declaration-only detection regex. An
+# explicit -OutDir keeps its prior repoRoot-relative behavior unchanged; only the
+# default (omitted) case now goes through the shared, physically-guarded resolver.
+if ([string]::IsNullOrEmpty($OutDir)) {
+    $resolvedOutDir = Resolve-QaShotsDir -CommittedDir (Join-Path $repoRoot "docs/qa/local-load-soak-test/timeseries")
+} else {
+    $resolvedOutDir = Join-Path $repoRoot $OutDir
+}
 New-Item -ItemType Directory -Force -Path $resolvedOutDir | Out-Null
 $csvPath = Join-Path $resolvedOutDir ("metrics-" + (Get-Date -Format "yyyyMMdd") + ".csv")
 

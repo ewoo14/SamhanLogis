@@ -22,18 +22,42 @@ _qa_has_explicit_overwrite_intent() {
 
 _qa_physical_path() {
   local candidate="$1"
+  local resolved
   if command -v realpath >/dev/null 2>&1; then
-    realpath -m -- "$candidate"
+    resolved="$(realpath -m -- "$candidate")"
   else
-    readlink -f -- "$candidate"
+    resolved="$(readlink -f -- "$candidate")"
+  fi
+  # D-2 (2026-07-28 R1 적대검증): MSYS/Git-Bash 환경에서 realpath -m 은 입력 표기를
+  # 그대로 보존한다 — POSIX 입력(`/c/...`)은 POSIX로, Windows 입력(`C:\...`, `C:/...`)은
+  # Windows 형식(`C:/...`)으로 남는다. 반면 이 파일의 다른 호출부는 `pwd -P` 로 항상
+  # POSIX 형식을 만들어 두 값이 바이트 단위로 어긋났다(실측: win-backslash/win-fwdslash
+  # 둘 다 차단 실패). cygpath 가 있으면(MSYS/Cygwin 환경의 신호 — 순수 Linux 에는 없다)
+  # POSIX 정규형으로 통일해 비교 기준을 하나로 맞춘다. 존재하지 않는 하위 경로에도
+  # 동작해야 하므로(realpath -m 과 동일 계약) cygpath 실패 시 원래 값으로 폴백한다.
+  if command -v cygpath >/dev/null 2>&1; then
+    resolved="$(cygpath -u -- "$resolved" 2>/dev/null)" || resolved="$(realpath -m -- "$candidate" 2>/dev/null || readlink -f -- "$candidate")"
+  fi
+  printf '%s' "$resolved"
+}
+
+# Windows(NTFS/MSYS) 파일시스템은 대소문자를 구분하지 않는다 — 같은 근거로 win32
+# 분기를 쓰는 .cjs/.mjs/.ts/.ps1 resolver 와 대칭(D-2). cygpath 존재를 그 환경 신호로
+# 쓴다: 순수 Linux(CI)에는 cygpath 가 없고 그 파일시스템은 대소문자를 구분하므로
+# 원래 표기를 그대로 비교해야 한다(대문자 표기가 실제로 "다른" 이름일 수 있다).
+_qa_casefold_if_windows() {
+  if command -v cygpath >/dev/null 2>&1; then
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+  else
+    printf '%s' "$1"
   fi
 }
 
 _qa_is_within_physical() {
   local parent
   local candidate
-  parent="$(_qa_physical_path "$1")"
-  candidate="$(_qa_physical_path "$2")"
+  parent="$(_qa_casefold_if_windows "$(_qa_physical_path "$1")")"
+  candidate="$(_qa_casefold_if_windows "$(_qa_physical_path "$2")")"
   case "$candidate" in
     "$parent"|"$parent"/*) return 0 ;;
     *) return 1 ;;

@@ -113,20 +113,28 @@ export async function captureAllScreens(window: BrowserWindow): Promise<void> {
   if (process.env['CAPTURE_MODE'] !== '1') {
     return
   }
-  const outDir = resolveOutputDir()
-  mkdirSync(outDir, { recursive: true })
+  // D-4 (2026-07-28 R1 적대검증): resolveOutputDir() 의 물리 경로 가드가 throw 하면
+  // 이 함수 아래 app.quit() 에 도달하지 못해 자동화 호출자가 무한 대기했다(실측
+  // exited-within-60s=False). try/finally 로 감싸 가드 차단을 포함한 모든 종료
+  // 경로에서 앱이 스스로 꺼지도록 한다 — 에러 자체는 finally 이후에도 그대로
+  // 전파되어 index.ts 의 .catch 로그는 그대로 유지된다.
+  try {
+    const outDir = resolveOutputDir()
+    mkdirSync(outDir, { recursive: true })
 
-  // 첫 페이지 (Vite dev server 기준 `/`) 가 완전히 로드될 때까지 대기.
-  await new Promise((resolve) => setTimeout(resolve, 4000))
+    // 첫 페이지 (Vite dev server 기준 `/`) 가 완전히 로드될 때까지 대기.
+    await new Promise((resolve) => setTimeout(resolve, 4000))
 
-  for (const route of ROUTES) {
-    try {
-      await captureRoute(window, route, outDir)
-    } catch (err) {
-      console.error(`[capture] ${route.path} 실패`, err)
+    for (const route of ROUTES) {
+      try {
+        await captureRoute(window, route, outDir)
+      } catch (err) {
+        console.error(`[capture] ${route.path} 실패`, err)
+      }
     }
-  }
 
-  console.log('[capture] 모든 화면 캡처 완료. 앱 종료.')
-  app.quit()
+    console.log('[capture] 모든 화면 캡처 완료.')
+  } finally {
+    app.quit()
+  }
 }

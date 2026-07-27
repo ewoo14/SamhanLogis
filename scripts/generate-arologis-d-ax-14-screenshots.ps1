@@ -11,8 +11,9 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
 $CommittedDir = "$PSScriptRoot\..\docs\qa\arologis-extract\screenshots\d-ax-14"
-$outDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
+$outDir = Resolve-QaShotsDir -CommittedDir $CommittedDir
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
 
 $arologisTeal = [System.Drawing.Color]::FromArgb(42, 157, 143)

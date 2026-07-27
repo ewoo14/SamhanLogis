@@ -26,13 +26,31 @@
 AssertionError: Missing expected exception: root-mjs:junction-root 물리 경로가 차단되지 않음
 ```
 
-그 상태에서 테스트를 통과시키도록 조정하지 않고, `qa/playwright` 직접 캡처와 helper 자체의 물리 가드도 RED 조건으로 추가했다. 구현 전 재실행 원문의 핵심은 다음과 같다.
+그 상태에서 테스트를 통과시키도록 조정하지 않고, `qa/playwright` 직접 캡처와 helper 자체의 물리 가드도 RED 조건으로 추가했다. 구현 전 재실행에서 4개 assert 가 실패했다(`tests 10 / pass 6 / fail 4`).
+
+> 📌 **2026-07-28 R1 fix 라운드 정정(대조-2)** — 아래 원래 인용 4줄 중 2~4번째 줄이 실제 소스의 assert 실패 메시지와 달랐다(R1 적대검증 대조 각도 적발 — `git log --all -p -S"<각 문구>"` 로 전체 히스토리를 뒤져도 이 dev-report 자신에만 존재해 재현 불가였다). 1번째 줄만 실제 원문과 일치했다. 정정: 나머지 세 줄은 각 assert 를 소스와 동일한 형태로 독립 재현해 얻은 실제 Node 출력으로 바꾼다.
+
+실패 1 — 물리 alias(junction 등) 미차단, `qa-output-path-guard.test.cjs:220` 커스텀 메시지 템플릿(원래 인용과 일치, 재확인):
+```text
+AssertionError: Missing expected exception: root-mjs:junction-root 물리 경로가 차단되지 않음
+```
+
+실패 2 — `qa/playwright` captureForQa 가 물리 alias 목적지를 차단하지 않음. `:242-245` 의 `assert.rejects` 호출에는 커스텀 메시지 파라미터가 없어 Node 기본 문구만 남는다(정정 전 인용 "물리 alias 목적지를 차단하지 않음"은 이 assert 가 실제로 낸 적 없는 문구였다):
+```text
+AssertionError [ERR_ASSERTION]: Missing expected rejection.
+```
+
+실패 3 — `qa/playwright` 직접 `path: 'docs/qa/...'` 캡처 14건 존재(구현 전). `:289` 실제 메시지 템플릿(정정 전 인용 "캡처 14건이 발견됨"과 달리 실제로는 "남아 있습니다"):
+```text
+AssertionError [ERR_ASSERTION]: 직접 docs/qa 캡처 경로 14개가 남아 있습니다
+```
+
+실패 4 — `qa/playwright` resolver 에 물리 판정 마커 없음(구현 전). `:332` 실제 메시지 템플릿(상대경로는 재현용 예시, 정정 전 인용 "DOCS_QA_ROOT 가드 마커가 없음"과 달리 실제로는 "물리 경로 판정이 없습니다"):
+```text
+AssertionError [ERR_ASSERTION]: qa/playwright/utils/screenshot.ts 에 물리 경로 판정이 없습니다
+```
 
 ```text
-✖ root-mjs:junction-root 물리 경로가 차단되지 않음
-✖ qa/playwright captureForQa ... 물리 alias 목적지를 차단하지 않음
-✖ qa/playwright 직접 path: 'docs/qa/... 캡처 14건이 발견됨
-✖ qa/playwright resolver에 DOCS_QA_ROOT 가드 마커가 없음
 ℹ tests 10
 ℹ pass 6
 ℹ fail 4

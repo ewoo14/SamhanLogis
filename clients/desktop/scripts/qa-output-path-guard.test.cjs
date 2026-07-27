@@ -289,6 +289,16 @@ test('qa/playwright 캡처 호출은 실행 시 docs/qa 직접 경로를 사용�
   assert.deepEqual(directPaths, [], `직접 docs/qa 캡처 경로 ${directPaths.length}개가 남아 있습니다`)
 })
 
+// D-1 (2026-07-28 R1 적대검증) 이 제외해야 하는 디렉토리 이름 — repoRoot 전체를 훑는
+// 동안 어떤 깊이에서도 이 이름을 가진 디렉토리는 서브트리째 건너뛴다. `.claude` 는 이
+// 저장소 관례상 `.claude/worktrees/**` 에 이 저장소 자신의 다른 git worktree 전체
+// (다른 브랜치 체크아웃)를 담고 있다 — 그 worktree 들은 별도 진행 중 작업이라 이
+// 가드 대상이 아닌데도 실측 41개 파일(그중 36개가 .claude/worktrees 출처)이
+// 물리 판정 마커 없이 걸려 개발자 로컬(메인 체크아웃, 활성 worktree 다수)에서
+// hard RED 였고, 부수로 전체 walk 가 1.1초 → 73.8초로 느려졌다(worktree 22개 실측).
+// CI 러너에는 `.claude/worktrees` 가 없어 이 결함이 CI 로는 전혀 드러나지 않는다.
+const EXCLUDED_DIR_NAMES = new Set(['.git', '.claude', 'node_modules', 'test-results', 'playwright-report'])
+
 function discoverQaResolverSources() {
   const sources = []
   const pending = [repoRoot]
@@ -297,7 +307,7 @@ function discoverQaResolverSources() {
     const stat = fs.statSync(current)
     if (stat.isDirectory()) {
       const name = path.basename(current)
-      if (name !== '.git' && name !== 'node_modules' && name !== 'test-results' && name !== 'playwright-report') {
+      if (!EXCLUDED_DIR_NAMES.has(name)) {
         for (const entry of fs.readdirSync(current)) pending.push(path.join(current, entry))
       }
       continue

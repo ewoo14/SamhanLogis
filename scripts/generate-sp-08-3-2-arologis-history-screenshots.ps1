@@ -1,6 +1,11 @@
 ﻿param(
-    [string]$OutputDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs/qa/sp-08-3-2-arologis-history/screenshots/_local" })
+    [string]$OutputDir = ''
 )
+. (Join-Path $PSScriptRoot 'lib\qa-shots-dir.ps1')
+# 대조-1 (2026-07-28 R1 적대검증): 이전에는 이 param 기본값 자체가 무가드 인라인
+# 삼항식($env:QA_SHOTS_DIR 를 그대로 대입)이라 discoverQaResolverSources() 의 함수
+# 선언 전용 탐지 정규식 밖이었다. 공유 Resolve-QaShotsDir 로 옮겨 물리 판정을 받는다.
+if (-not $OutputDir) { $OutputDir = Resolve-QaShotsDir -CommittedDir (Join-Path $PSScriptRoot '..\docs\qa\sp-08-3-2-arologis-history\screenshots') }
 
 # mock-only — Malgun Gothic + raw hex; 실 화면은 Pretendard + CSS var 사용 (SP-08-3-2 진입 시 실 컴포넌트 캡처로 교체)
 # Windows-only (System.Drawing GDI+). Do not add to CI; Linux runner will fail.
