@@ -206,8 +206,16 @@ tests="3" skipped="0" failures="0" errors="0"`.
 `@Lazy` + `ThreadPoolTaskExecutorBuilder` 로 `applicationTaskExecutor`/`taskExecutor` alias를,
 `@ConditionalOnThreading(Threading.VIRTUAL)` + `SimpleAsyncTaskExecutorBuilder`로 virtual-thread
 분기를 명시 복원했다. 둘 다 Boot 3.3.5 자신의 분기와 동등하다(`ThreadPoolTaskExecutorBuilder`/
-`SimpleAsyncTaskExecutorBuilder`는 `TaskExecutorConfiguration`의 back-off 대상이 아닌 별도 nested
-config에서 항상 제공되므로 주입이 끊기지 않는다).
+`SimpleAsyncTaskExecutorBuilder`는 executor bean 자체의 `@ConditionalOnMissingBean(Executor.class)`
+(`TaskExecutorConfiguration`)의 back-off 대상은 아닌 별도 nested config에서 제공된다). 🚨**정정(R3
+재수렴 라운드, 2026-07-28 — 증거 무결성)**: 다만 ~~"항상 제공되므로 주입이 끊기지 않는다"~~는
+부정확했다. `ThreadPoolTaskExecutorBuilder`를 제공하는 `ThreadPoolTaskExecutorBuilderConfiguration`
+(spring-boot-autoconfigure 3.3.5 sources jar, `TaskExecutorConfigurations.java:110-111`) 자신도
+`TaskExecutorBuilder`/`ThreadPoolTaskExecutorBuilder` 둘 다를 대상으로 하는 별도의
+`@ConditionalOnMissingBean` 조건을 갖고 있어, 누군가 커스텀 `TaskExecutorBuilder` bean을 정의하면
+이 builder도 back-off한다 — "항상"이 아니라 조건부다. 현재 저장소에는 그런 커스텀 bean과
+`spring.autoconfigure.exclude` 설정이 모두 0건이라 결과적으로 항상 제공될 뿐이다(도달성 0, 머지
+게이트 아님 — 문서 서술 정확성만 정정).
 
 **버린 대안**:
 - `taskScheduler`/`outboxTaskScheduler`를 `TaskScheduler` 인터페이스 반환 타입으로 선언해 Boot
@@ -325,8 +333,19 @@ claim 대상이 0건이면 무출력이다. 대신 스레드 자체의 실존은
 5개 형제 스레드(`scheduling-1`~`5`)와 outbox 전용 스레드(`outbox-1`)가 실제로 존재하고, `outbox-1`의
 `cpu=46.88ms`는 5초 주기 tick이 실제로 반복 실행됐음을 보여준다(0건 claim이라 로그는 없지만
 스레드는 유휴가 아니라 주기적으로 깨어나 CPU를 소모했다). `applicationTaskExecutor` 스레드는
-스레드 덤프에 없다 — `@Lazy`이고 이 검증 세션에서 `@Async` 호출을 하나도 만들지 않았으므로
-기대한 대로다(빈 자체는 위 prometheus 값으로 이미 존재가 확인됐다).
+스레드 덤프에 없다 — ~~`@Lazy`이고 이 검증 세션에서 `@Async` 호출을 하나도 만들지 않았으므로
+기대한 대로다(빈 자체는 위 prometheus 값으로 이미 존재가 확인됐다)~~. 🚨**정정(R3 재수렴 라운드,
+2026-07-28 — 증거 무결성)**: `@Lazy`는 이유가 아니다. `WebMvcAutoConfiguration.configureAsyncSupport`
+(spring-boot-autoconfigure 3.3.5 sources jar, `WebMvcAutoConfiguration.java:229-236`)가 기동 시
+이름으로 `containsBean`/`getBean("applicationTaskExecutor")`를 호출해 bean 자체는 `@Lazy`와
+무관하게 이미 생성돼 있다(위 prometheus `executor_pool_core_threads{name="applicationTaskExecutor"}
+8.0`이 그 증거 — bean이 없었다면 이 시계열 자체가 없다). 스레드 덤프에 워커 스레드가 없는 진짜
+이유는 JDK `java.util.concurrent.ThreadPoolExecutor`가 기본적으로 core 스레드를 prestart하지
+않기 때문이다(JDK 17 소스, `ThreadPoolExecutor.java:96-102`: "By default, even core threads are
+initially created and started only when new tasks arrive, but this can be overridden dynamically
+using method prestartCoreThread or prestartAllCoreThreads"). `prestartCoreThread()`류를 명시
+호출하지 않는 한, 이 검증 세션처럼 `@Async`/작업 제출이 한 번도 없으면 core 스레드 자체가 만들어지지
+않는다 — bean의 존재와 워커 스레드의 존재는 서로 다른 질문이며, 정정 전 문장은 그 둘을 혼동했다.
 
 검증 후 `taskkill /PID <jvm-pid> /F`로 프로세스를 종료하고 `docker rm -f verify-888-pg`로
 컨테이너를 제거했다. `docker ps`로 재확인해 흔적이 남지 않았음을 확인했다.
@@ -559,3 +578,105 @@ executor_pool_core_threads{application="partner-order-service",name="taskSchedul
 않았다. 새 테스트 메서드 2개는 기존 `ExecutorCoexistenceTest`(plain JUnit, Docker 불필요) 안에
 추가돼 `ci.yml`의 hard gate(`tests>=N`) 컨벤션에 새 항목이 필요 없다 — 기존
 `ExecutorCoexistenceTest` 실행에 자동 포함된다.
+
+## R3 재수렴 라운드 — 증거 무결성 문서 정정 3건 (2026-07-28, 코드 무변경)
+
+R3 재수렴 라운드는 도달 가능한 결함을 0건으로 판정했다. 남은 것은 "바이트코드 실측"으로 제시된
+Boot 3.3.5 동작 서술이 실제 소스와 반대 방향이었던 증거 무결성 문제 3건이었다. 아래는 무엇을
+어떻게 직접 열어 확인했는지와 정정 내용이다. **코드는 한 줄도 변경하지 않았다** — Javadoc 주석과
+본 문서만 고쳤다.
+
+### 확인 방법 — 직접 연 소스
+
+- `spring-boot-autoconfigure-3.3.5-sources.jar`(Gradle 캐시 —
+  `~/.gradle/caches/modules-2/files-2.1/org.springframework.boot/spring-boot-autoconfigure/3.3.5/5e423297757b31226454128b37905400c62ac98c/`
+  경로)를 압축 해제해
+  `org/springframework/boot/autoconfigure/task/TaskExecutorConfigurations.java`와
+  `org/springframework/boot/autoconfigure/web/servlet/WebMvcAutoConfiguration.java`를 직접 읽었다.
+- `spring-aop-6.1.14-sources.jar`도 같은 방식으로 압축 해제해 대조했다(R2에서 이미 인용된
+  `AsyncExecutionAspectSupport.java:238-274`와 이번 정정이 모순되지 않는지 재확인 목적).
+- JDK 17(Temurin 17.0.18, `$JAVA_HOME/lib/src.zip`)에서
+  `java.base/java/util/concurrent/ThreadPoolExecutor.java`를 압축 해제해 core 스레드 prestart
+  정책(96-102행)을 직접 확인했다 — 이 부분은 Spring이 아니라 JDK 표준 라이브러리 동작이다.
+
+### 정정 1 — `PartnerOrderTaskSchedulerConfiguration.java` 프로덕션 Javadoc(구 147-152행)
+
+기존 서술은 "PLATFORM 분기는 deprecated `TaskExecutorBuilder`를 `ObjectProvider.getIfUnique()`로
+먼저 조회한 뒤 신형 `ThreadPoolTaskExecutorBuilder`로 fallback한다"고 했으나, 실제
+`TaskExecutorConfigurations.java:64-73`의 `TaskExecutorConfiguration#applicationTaskExecutor`는:
+
+```java
+ThreadPoolTaskExecutor applicationTaskExecutor(
+        org.springframework.boot.task.TaskExecutorBuilder taskExecutorBuilder,               // deprecated = 직접 필수 파라미터
+        ObjectProvider<ThreadPoolTaskExecutorBuilder> threadPoolTaskExecutorBuilderProvider) { // 신형 = ObjectProvider
+    ThreadPoolTaskExecutorBuilder b = threadPoolTaskExecutorBuilderProvider.getIfUnique();     // 신형을 먼저 조회
+    if (b != null) return b.build();
+    return taskExecutorBuilder.build();                                                        // deprecated 가 fallback
+}
+```
+
+`ObjectProvider`로 감싸 먼저 조회하는 쪽이 **신형**이고, **deprecated 가 fallback**이다 — 기존
+서술과 정반대다. 그리고 같은 파일 `TaskExecutorConfigurations.java:110-111`의
+`ThreadPoolTaskExecutorBuilderConfiguration#threadPoolTaskExecutorBuilder`는
+`@ConditionalOnMissingBean({TaskExecutorBuilder.class, ThreadPoolTaskExecutorBuilder.class})`
+조건을 갖고 있어, 누군가 커스텀 `TaskExecutorBuilder` bean을 정의하면 신형 builder가 back-off한다.
+이 PR의 `applicationTaskExecutor` bean은 신형 builder를 **직접 필수 파라미터**로만 받으므로(Boot
+원본처럼 `ObjectProvider`로 감싸 신형 부재를 견디지 않는다), 그 상황에서 **컨텍스트 기동
+실패**로 이어진다 — **이 PR 쪽이 Boot 원본보다 더 취약하다**(원본은 신형이 없어도 deprecated로
+fallback해 살아남는다). 도달성 — 저장소 전체에 사용자 정의 `TaskExecutorBuilder`/
+`ThreadPoolTaskSchedulerBuilder` bean과 `spring.autoconfigure.exclude` 설정이 모두 0건이라 오늘은
+도달 가능하지 않다. Javadoc 본문을 이 방향으로 정정했다(파일 내 정확한 위치는 코드 변경 이력 참조).
+
+### 정정 2 — 본 문서 208-210행(위 "결함1" 절 "수단")
+
+"`ThreadPoolTaskExecutorBuilder`/`SimpleAsyncTaskExecutorBuilder`는 … 별도 nested config에서
+**항상 제공**되므로"라는 서술이 부정확했다. 위에서 확인한 대로 `ThreadPoolTaskExecutorBuilder`를
+제공하는 nested config 자신도 `@ConditionalOnMissingBean`(`TaskExecutorConfigurations.java:
+110-111`) 조건이 있어 "항상"이 아니다 — 커스텀 `TaskExecutorBuilder` bean이 없는 **현재 저장소
+상태**에서 결과적으로 항상 제공될 뿐이다. 해당 절을 취소선 + 정정 각주로 갱신했다(도달성 0, 머지
+게이트 아님 — 서술 정확성만 정정).
+
+### 정정 3 — 본 문서 326-328행(위 "실기동 검증" 절)
+
+"`applicationTaskExecutor` 스레드는 스레드 덤프에 없다 — `@Lazy`이고 … 기대한 대로다"라는 서술이
+원인을 잘못 짚었다. `WebMvcAutoConfiguration.java:229-236`의 `configureAsyncSupport`가 기동 시
+이름으로 `containsBean`/`getBean("applicationTaskExecutor")`를 호출하므로 bean 자체는 `@Lazy`와
+무관하게 **이미 생성돼 있다**(실기동 `executor_pool_core_threads{name="applicationTaskExecutor"}
+8.0`이 그 증거). 스레드 덤프에 워커 스레드가 없는 진짜 이유는 JDK
+`java.util.concurrent.ThreadPoolExecutor`가 **기본적으로 core 스레드를 prestart하지 않기**
+때문이다(JDK 17 소스 `ThreadPoolExecutor.java:96-102`: "By default, even core threads are
+initially created and started only when new tasks arrive"). 이 검증 세션에서 `@Async`/작업 제출이
+한 번도 없었으므로 bean은 존재해도 워커 스레드는 하나도 만들어지지 않았다 — bean 존재와 스레드
+존재는 다른 질문이다. 해당 절을 취소선 + 정정 각주로 갱신했다.
+
+### 🚩 범위 밖 — slip-service 원본에 선재하는 같은 오류 (기록만, 미수정)
+
+정정 1과 동일한 오류 문장이 `services/slip-service/src/main/java/com/samhanair/logis/slip/price/
+config/PartnerProductPriceMemoryAsyncConfig.java:56-59`에 **이미 존재한다**(이 PR이 그 문서를
+전례로 인용하며 복제한 것이 정정 1의 원출처). 이 파일은 slip-service 소속으로 **본 PR(#888,
+partner-order-service) 범위 밖**이라 고치지 않았다 — 읽기만 하고 코드/문서 어느 쪽도 손대지
+않았다. **개발책임자 처분 대상으로 기록한다.**
+
+### 검증 — 문서만 변경했으므로 테스트 수치 불변
+
+문서·Javadoc 주석만 수정했고 production/test 코드는 한 줄도 바꾸지 않았다. 정정 후 실제로
+재실행한 결과는 다음과 같다.
+
+```text
+.\gradlew :services:partner-order-service:test --rerun-tasks --no-build-cache
+...
+BUILD SUCCESSFUL in 4m 25s
+15 actionable tasks: 15 executed
+```
+
+`build/test-results/test/*.xml` **77개**(R2와 동일한 파일 수 — 새 테스트 파일 없음)의
+`<testsuite>` 속성을 전량 합산한 실제 값:
+
+```text
+tests=471 skipped=0 failures=0 errors=0
+```
+
+R2 기록값(`tests=471 skipped=0 failures=0 errors=0`, 77 XML)과 정확히 일치 — 문서만 바뀌었을 뿐
+회귀가 없다. (종료 로그에 CloudWatch mock의 `NullPointerException` WARN 스택트레이스가 다시
+나타났는데, 이는 위 "최종 전체 테스트" 절이 이미 기록한 기존 무관 잡음과 동일한 것이라 조용히
+가리지 않고 그대로 남긴다 — Gradle 판정은 `BUILD SUCCESSFUL`, 실패/에러 0이었다.)

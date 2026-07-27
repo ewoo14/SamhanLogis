@@ -144,12 +144,29 @@ public class PartnerOrderTaskSchedulerConfiguration {
      * (결함1 — platform thread 분기). Boot 3.3.5와 동등하게 {@link ThreadPoolTaskExecutorBuilder}로
      * 생성한다.
      *
-     * <p><b>전례와의 차이(같은 계열 — 함께 처리, R1 리뷰어 지적 2)</b>: slip-service {@code
-     * PartnerProductPriceMemoryAsyncConfig}(R6-L3 바이트코드 실측)에 따르면 Boot 3.3.5의 PLATFORM
-     * 분기는 deprecated {@code TaskExecutorBuilder}를 {@code ObjectProvider.getIfUnique()}로
-     * 먼저 조회한 뒤 {@link ThreadPoolTaskExecutorBuilder}로 fallback하지만, 이 bean은 신형
-     * builder만 직주입한다(deprecated builder 커스터마이즈 미지원 — 현재 이 서비스에 해당
-     * 커스터마이즈가 0건이라 관측 가능한 차이는 없다). 전례 문서와 동일하게 이 차이를 명시한다.
+     * <p><b>전례와의 차이(같은 계열 — 함께 처리, R1 리뷰어 지적 2) — R3 재수렴 라운드 정정(방향이
+     * 반대였다)</b>: R1은 slip-service {@code PartnerProductPriceMemoryAsyncConfig}(R6-L3
+     * 바이트코드 실측)를 인용해 "Boot 3.3.5의 PLATFORM 분기는 deprecated {@code
+     * TaskExecutorBuilder}를 {@code ObjectProvider.getIfUnique()}로 먼저 조회한 뒤 {@link
+     * ThreadPoolTaskExecutorBuilder}로 fallback한다"고 서술했으나, spring-boot-autoconfigure
+     * 3.3.5 sources jar를 직접 열어({@code TaskExecutorConfigurations.java:64-73}) 확인하면 두
+     * 가지가 모두 뒤집혀 있다 — {@code ObjectProvider}가 감싸는 것은 <b>신형</b> {@link
+     * ThreadPoolTaskExecutorBuilder}이고 그 신형을 {@code getIfUnique()}로 <b>먼저</b>
+     * 조회하며, deprecated {@code TaskExecutorBuilder}(직접 필수 파라미터로 주입됨)는 신형이
+     * null일 때만 쓰이는 <b>fallback</b>이다. 이 bean은 신형 builder만 직주입해 그 fallback
+     * 경로 자체가 없다 — Boot 원본은 신형 부재를 deprecated fallback으로 견디지만, 이 bean은
+     * 신형이 없으면 그대로 기동 실패한다. 같은 jar의 {@code
+     * TaskExecutorConfigurations.java:110-111}에 있는 {@code
+     * ThreadPoolTaskExecutorBuilderConfiguration#threadPoolTaskExecutorBuilder}는 deprecated
+     * {@code TaskExecutorBuilder}와 신형 {@link ThreadPoolTaskExecutorBuilder} 둘 다를
+     * 대상으로 하는 {@code @ConditionalOnMissingBean} 조건이 있어, 누군가 커스텀 {@code
+     * TaskExecutorBuilder} bean을 정의하면 신형 builder가 back-off한다 — 그러면 이 bean의 필수
+     * 파라미터가 사라져 기동에 실패한다. 즉 <b>이 bean 쪽이 Boot 원본보다 더 취약하다</b>(원본과
+     * 정확히 반대되는 결론이었다). 현재 저장소에는 사용자 정의 {@code TaskExecutorBuilder}/
+     * {@code ThreadPoolTaskSchedulerBuilder} bean과 {@code spring.autoconfigure.exclude}
+     * 설정이 모두 0건이라 오늘은 도달 가능하지 않다(도달성 0). 같은 오류 문장이 slip-service
+     * {@code PartnerProductPriceMemoryAsyncConfig}(해당 파일 56-59행)에 선재한다 — 다른
+     * 서비스라 이 PR 범위 밖이며 손대지 않고 dev-report에만 기록한다(개발책임자 처분 대상).
      */
     @Lazy
     @ConditionalOnThreading(Threading.PLATFORM)
