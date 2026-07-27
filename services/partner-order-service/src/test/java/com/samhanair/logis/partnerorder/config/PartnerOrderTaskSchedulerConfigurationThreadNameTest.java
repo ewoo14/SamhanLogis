@@ -3,6 +3,7 @@ package com.samhanair.logis.partnerorder.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.task.ThreadPoolTaskSchedulerBuilder;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 /**
@@ -31,7 +32,8 @@ class PartnerOrderTaskSchedulerConfigurationThreadNameTest {
 
     @Test
     void 형제_풀_스레드_이름은_로그_필드_15자_이하여서_한_글자도_잘리면_안_된다() {
-        ThreadPoolTaskScheduler sibling = new PartnerOrderTaskSchedulerConfiguration().taskScheduler(5);
+        ThreadPoolTaskScheduler sibling = new PartnerOrderTaskSchedulerConfiguration()
+                .taskScheduler(new ThreadPoolTaskSchedulerBuilder(), 5);
         String threadName = sibling.newThread(() -> { }).getName();
 
         assertThat(threadName.length())
@@ -45,7 +47,8 @@ class PartnerOrderTaskSchedulerConfigurationThreadNameTest {
 
     @Test
     void outbox_풀_스레드_이름은_로그_필드_15자_이하여서_한_글자도_잘리면_안_된다() {
-        ThreadPoolTaskScheduler outbox = new PartnerOrderTaskSchedulerConfiguration().outboxTaskScheduler();
+        ThreadPoolTaskScheduler outbox = new PartnerOrderTaskSchedulerConfiguration()
+                .outboxTaskScheduler(new ThreadPoolTaskSchedulerBuilder());
         String threadName = outbox.newThread(() -> { }).getName();
 
         assertThat(threadName.length())
@@ -59,8 +62,10 @@ class PartnerOrderTaskSchedulerConfigurationThreadNameTest {
 
     @Test
     void 형제_풀과_outbox_풀의_스레드_이름은_서로_달라야_로그만으로_구분할_수_있다() {
-        ThreadPoolTaskScheduler sibling = new PartnerOrderTaskSchedulerConfiguration().taskScheduler(5);
-        ThreadPoolTaskScheduler outbox = new PartnerOrderTaskSchedulerConfiguration().outboxTaskScheduler();
+        ThreadPoolTaskScheduler sibling = new PartnerOrderTaskSchedulerConfiguration()
+                .taskScheduler(new ThreadPoolTaskSchedulerBuilder(), 5);
+        ThreadPoolTaskScheduler outbox = new PartnerOrderTaskSchedulerConfiguration()
+                .outboxTaskScheduler(new ThreadPoolTaskSchedulerBuilder());
 
         String siblingName = sibling.newThread(() -> { }).getName();
         String outboxName = outbox.newThread(() -> { }).getName();

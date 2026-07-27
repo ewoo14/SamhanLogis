@@ -215,13 +215,22 @@ config에서 항상 제공되므로 주입이 끊기지 않는다).
   (`ThreadPoolTaskScheduler` 고유 API(`getScheduledThreadPoolExecutor()`)를 쓰는 기존 7개 테스트가
   캐스팅에 의존), slip-service에 이미 검증된 "명시 복원" 패턴이 있는데 새 패턴을 도입할 이유가
   없었다.
-- `@Primary` 제거/재배치로 우회하는 안 — `@Async`의 실행기 탐색은 `@Primary`가 아니라 `TaskExecutor`
-  타입 유일성→이름("taskExecutor") 순으로 동작해(Spring `AsyncExecutionAspectSupport.getDefaultExecutor`),
-  `@Primary` 조정은애초에 이 결함의 원인이 아니라 손대지 않았다.
+- ~~`@Primary` 제거/재배치로 우회하는 안 — `@Async`의 실행기 탐색은 `@Primary`가 아니라
+  `TaskExecutor` 타입 유일성→이름("taskExecutor") 순으로 동작해(Spring
+  `AsyncExecutionAspectSupport.getDefaultExecutor`), `@Primary` 조정은 애초에 이 결함의 원인이
+  아니라 손대지 않았다.~~ 🚨**정정(재수렴 라운드, 2026-07-28)**: 이 서술은 틀렸다. 실측 결과
+  `@Primary`가 있으면 1단계 `getBean(TaskExecutor.class)`가 `NoUniqueBeanDefinitionException` 없이
+  그 `@Primary` 후보를 곧바로 반환해, 그 예외를 잡아야만 도달하는 이름 fallback 자체에 진입하지
+  못한다 — `@Primary`가 정확히 이 경로의 결정 요인이었다. 상세는 아래 "재수렴 라운드(2026-07-28)"
+  절 참조. 이 문단은 삭제하지 않고 취소선으로 남긴다 — 무엇을 왜 틀렸는지가 기록에서 사라지면
+  같은 오류가 반복되기 쉽다.
 
-**G-2 회귀 가드**: `복원된_applicationTaskExecutor는_형제_스케줄링_풀과_별개_인스턴스여야_한다()`가
-복원된 executor가 `taskScheduler`/`outboxTaskScheduler`와 다른 인스턴스임을 고정한다 — 향후
-`@Async`가 켜져도 형제 풀(5)이나 outbox 풀(1) 위에서 돌지 않는다.
+**G-2 회귀 가드(부분적 — 재수렴 라운드에서 보강, 아래 참조)**:
+`복원된_applicationTaskExecutor는_형제_스케줄링_풀과_별개_인스턴스여야_한다()`가 복원된 executor가
+`taskScheduler`/`outboxTaskScheduler`와 "다른 인스턴스"임을 이름으로 직접 조회해 고정했다. 그러나 이
+assertion은 `@Async`가 실제로 쓰는 모호성 해석 경로(`getBean(TaskExecutor.class)` → 실패 시 이름
+fallback)를 한 번도 타지 않아, `taskScheduler`의 `@Primary`가 그 경로를 가로채는 결함을 놓쳤다 —
+아래 "재수렴 라운드" 절의 G-4가 그 경로 자체를 직접 재현해 보강한다.
 
 ### 결함2 — 스케줄러 스레드 이름이 로그 15자 필드에서 잘림
 
@@ -361,3 +370,192 @@ fix 전 기록값(463)과의 차이(+6)는 정확히 이번에 추가한 두 테
 시에도 스킵되지 않으므로(스킵 가능한 것은 IT 클래스뿐), 기존 hard gate 컨벤션(`ci.yml`의
 `skipped=0` 게이트는 Docker-skip 위험이 있는 IT 전용)에 새 항목을 추가할 필요가 없었다 —
 `:services:partner-order-service:test` 모듈 전체 실행에 자동 포함되고 실패 시 그대로 CI red가 된다.
+
+## 재수렴 라운드 (2026-07-28) — R1 결함1 서술 오류 정정 + `@Primary` 제거
+
+적대검증 재수렴 라운드가 R1의 "`@Primary` 조정은 이 결함의 원인이 아니다"라는 서술이 실행으로
+반증됨을 잡았다. 이 절은 그 재현·정정·수정 내용을 기록한다.
+
+### 무엇이 틀렸었나
+
+R1은 `applicationTaskExecutor`를 복원했지만 `taskScheduler` bean에 `@Primary`를 그대로 남겼다(위
+"결함1" 절의 구현). R1의 "버린 대안" 문단(위, 취소선 처리)은 "`@Primary`는 이 결함의 원인이
+아니다"라고 단정했으나 실측 결과는 반대였다 — `@Primary`가 있으면 Spring
+`AsyncExecutionAspectSupport.getDefaultExecutor`(spring-aop 6.1.14,
+`AsyncExecutionAspectSupport.java:238-274`)의 1단계 `beanFactory.getBean(TaskExecutor.class)`가
+모호성 예외 없이 그 `@Primary` 후보(`taskScheduler`, 형제 풀)를 즉시 반환한다.
+`NoUniqueBeanDefinitionException`이 나야만 도달하는 2단계 이름("taskExecutor") fallback에는 아예
+진입하지 못한다. `ThreadPoolTaskScheduler`가 `TaskExecutor`도 구현하므로 이 `@Primary`는
+`TaskScheduler` 축뿐 아니라 `TaskExecutor` 축의 해석에도 그대로 번진다.
+
+### RED — 재현 (fix 전, `taskScheduler`에 `@Primary`가 남아 있던 시점)
+
+`PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest`에 G-4(`@Async` 기본 executor 해석
+직접 재현, `@EnableAsync` 미사용 — 이 저장소는 여전히 `@EnableAsync` 0건)를 RED-first로 추가하고,
+production 코드는 그대로 둔 채(`@Primary` 유지) 실행한 실제 원문:
+
+```text
+.\gradlew :services:partner-order-service:test --tests "*PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest*" --rerun-tasks --no-build-cache
+...
+PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest > G4_async_기본_executor_해석은_형제_스케줄링_풀이나_outbox_풀로_귀결되면_안_된다() FAILED
+    java.lang.AssertionError at PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest.java:140
+
+5 tests completed, 1 failed
+BUILD FAILED in 18s
+```
+
+JUnit XML 실패 상세(원문, `NoUniqueBeanDefinitionException` 없이 `@Primary` 후보가 그대로
+반환됐음을 보여준다):
+
+```text
+java.lang.AssertionError: [@Async 기본 executor 해석(Spring getDefaultExecutor)이
+applicationTaskExecutor로 귀결돼야 한다 — 형제/outbox 스케줄링 풀로 새면 이 PR이 없앤 굶주림
+구조가 스케줄링→비동기 실행 축에서 재발한다]
+Expecting actual:
+  org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler@21f459fc
+and:
+  org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor@a18649a
+to refer to the same object
+```
+
+`resolved`(`getBean(TaskExecutor.class)`가 반환한 값)가 `ThreadPoolTaskScheduler`(형제 풀 자신)였고
+기대했던 `ThreadPoolTaskExecutor`(`applicationTaskExecutor`)가 아니었다 — 재수렴 라운드가 보고한
+결함을 정확히 재현한다. 다른 4개(G-1·G-2·G-3·G-5)는 이 시점에도 그대로 통과했다 — G-2/G-3는 이름
+직접 조회만 검증해 이 결함을 가리지 못했고(위 정정 참조), G-5(기본 `TaskScheduler` 해석)는
+`@Primary`가 `TaskScheduler` 축 해석 자체는 여전히 옳게 가리키므로(형제 풀 이름이 정확히
+"taskScheduler") 이 시점에는 항상 참이었다.
+
+### 수단 — `@Primary` 제거, 이름 fallback에 위임
+
+`taskScheduler` bean에서 `@Primary`를 제거했다. Spring이 이미 각 축마다 "유일 후보 아니면 이름
+fallback"을 제공하고, 두 bean의 이름이 정확히 그 fallback 대상("taskScheduler"·"taskExecutor")과
+일치하므로 `@Primary` 없이도 두 축 모두 올바르게 해소된다:
+
+- **`TaskScheduler` 축**(기본 `@Scheduled`, `scheduler=` 속성 없음): Spring 6.1
+  `TaskSchedulerRouter#determineDefaultScheduler`(spring-context 6.1.14,
+  `TaskSchedulerRouter.java:169-231`) — `taskScheduler`/`outboxTaskScheduler` 2개가 후보라 유일성
+  조회 실패 → 이름 "taskScheduler" fallback → 형제 풀 자신.
+- **`TaskExecutor` 축**(`@Async`, 향후 도입 시): 위 `getDefaultExecutor` — 3개(형제·outbox·
+  applicationTaskExecutor)가 후보라 유일성 조회 실패 → 이름 "taskExecutor" fallback →
+  `applicationTaskExecutor`.
+- **outbox의 `@Scheduled(scheduler = "outboxTaskScheduler")`**: `@Primary`와 무관한 별도
+  경로(`BeanFactoryAnnotationUtils#qualifiedBeanOfType`, 이름/한정자 직접 조회)라 애초에 영향받지
+  않는다.
+
+Boot 자신의 기본 스케줄러 bean(`TaskSchedulingConfigurations.TaskSchedulerConfiguration#taskScheduler`)과
+기본 executor bean(`TaskExecutorConfigurations.TaskExecutorConfiguration#applicationTaskExecutor`)도
+원래 `@Primary`가 아니다(spring-boot-autoconfigure 3.3.5 소스 확인) — Boot 기본 구성에서는 유일
+후보이거나 이름 fallback으로 항상 해소되므로 `@Primary`가 필요 없다. 이 서비스가 형제/outbox 두
+`TaskScheduler`를 등록해 유일성이 깨지는 것은 이 서비스의 선택이었을 뿐, 그 이름이 fallback 대상과
+일치하는 한 `@Primary`는 애초에 불필요했다.
+
+### GREEN — `@Primary` 제거 후 같은 명령 재실행
+
+```text
+PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest tests="5" skipped="0" failures="0" errors="0"
+PartnerOrderTaskSchedulerConfigurationThreadNameTest tests="3" skipped="0" failures="0" errors="0"
+```
+
+### 함께 처리 — 같은 계열 리뷰어 지적 2건 (R1 대비 잔여, "값싸다"고 보고됨)
+
+1. **스케줄러 bean이 Boot `ThreadPoolTaskSchedulerBuilder`를 우회해 `shutdown.await-termination`/
+   `.await-termination-period` property를 무시하던 문제** — `taskScheduler`(R1이 잡은 것과 같은
+   "silently-ignored property" 계열)를 `new ThreadPoolTaskScheduler()` 직접 생성에서
+   `ThreadPoolTaskSchedulerBuilder` 주입 기반으로 바꿨다. `applicationTaskExecutor`가 이미
+   `ThreadPoolTaskExecutorBuilder`로 같은 패턴을 쓰고 있어 일관성도 개선된다.
+   `spring.task.scheduling.thread-name-prefix`는 의도적으로 계속 오버라이드한다(형제/outbox 두
+   풀이 서로 다른 접두어를 가져야 결함2가 고친 로그 구분이 유지되므로) — 판단 근거는 production
+   코드 Javadoc(`scheduler(...)` 헬퍼)에 남겼다. `TaskSchedulingProperties` 기본값(`awaitTermination
+   =false`, `awaitTerminationPeriod=null`)을 spring-boot-autoconfigure 3.3.5 소스로 확인해, 이
+   property를 아무도 설정하지 않은 현재 상태에서는 관측 가능한 동작 변화가 없음을 근거로 채택했다
+   (실기동 검증에서 pool 크기 8/5/1이 fix 전후 동일함을 재확인).
+2. **전례(slip-service `PartnerProductPriceMemoryAsyncConfig`) 대비 누락된 Javadoc 문단** —
+   `applicationTaskExecutor`/`applicationTaskExecutorVirtualThreads`에 "이 bean이 Boot 3.3.5 자신의
+   분기와 완전히 동일하지는 않다"는 전례의 고지(deprecated `TaskExecutorBuilder` 우선 조회 생략,
+   VIRTUAL 분기 `@Lazy` 유무 차이)를 그대로 추가했다. 동작 변경은 없다 — 문서만 전례와 맞췄다.
+
+두 항목 모두 이 파일(`PartnerOrderTaskSchedulerConfiguration.java`) 안에서 처리해 리뷰·검증 범위를
+넓히지 않았다.
+
+### 회귀 확인 — 기존 7개 + 신규 2개(G-4/G-5), 모듈 전체
+
+```text
+TaskSchedulerPoolSizeIT tests="3" skipped="0" failures="0" errors="0"
+TaskSchedulerIsolationIT tests="3" skipped="0" failures="0" errors="0"
+TaskSchedulerLocalProfileIT tests="1" skipped="0" failures="0" errors="0"
+PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest tests="5" skipped="0" failures="0" errors="0"
+PartnerOrderTaskSchedulerConfigurationThreadNameTest tests="3" skipped="0" failures="0" errors="0"
+```
+
+`:services:partner-order-service:test --rerun-tasks --no-build-cache` 모듈 전체 재실행(캐시 없이
+genuine 실행) 후 `build/test-results/test/TEST-*.xml` 77개(R1과 파일 수 동일 — 새 파일이 아니라
+기존 `ExecutorCoexistenceTest`에 테스트 메서드 2개를 추가했다) 합산 실제 값:
+
+```text
+tests=471 skipped=0 failures=0 errors=0
+```
+
+R1 기록값(469)과의 차이(+2)는 정확히 이번에 추가한 G-4/G-5와 일치한다.
+
+### 실기동 재검증(actuator/prometheus + jstack + 실 로그)
+
+R1과 동일하게 공유 dev docker-compose 스택(`samhan-postgres`·`samhan-partner-order-service` 등)은
+건드리지 않았다. 완전히 격리된 throwaway Postgres(`verify-888-r2-pg`, 포트 15433, 검증 종료 후
+`docker rm -f`)를 새로 띄우고 fix 반영 jar를 별도 포트(18089)로 기동했다.
+
+`GET /actuator/prometheus` 실제 값 — R1 기록값과 동일(회귀 없음):
+
+```text
+executor_pool_core_threads{application="partner-order-service",name="applicationTaskExecutor"} 8.0
+executor_pool_core_threads{application="partner-order-service",name="outboxTaskScheduler"} 1.0
+executor_pool_core_threads{application="partner-order-service",name="taskScheduler"} 5.0
+```
+
+`jstack` 스레드 덤프 — 형제 5개·outbox 1개 스레드 이름이 여전히 온전하다(결함2 fix 유지 확인):
+
+```text
+"scheduling-1" #54 ... waiting on condition
+"outbox-1" #55 ... waiting on condition
+"scheduling-2" #56 ... waiting on condition
+"scheduling-3" #57 ... waiting on condition
+"scheduling-4" #58 ... waiting on condition
+"scheduling-5" #59 ... waiting on condition
+```
+
+실 부팅 로그에서 `BootstrapCacheRefreshScheduler.refreshBootstrapCache()`(`scheduler=` 속성 없는
+기본 `@Scheduled`)가 실제로 `scheduling-4` 스레드에서 실행됐음을 확인했다 — `@Primary` 제거가
+기본 `@Scheduled` → 형제 풀 라우팅(L-2, 이 PR의 원래 목적)을 실서버에서도 깨지 않았다는 직접
+증거다:
+
+```text
+2026-07-28T05:02:03.778+09:00  INFO 51984 --- [partner-order-service] [   scheduling-4] c.s.l.p.service.BootstrapService         : Bootstrap cache evicted (product catalog cache + sheet cache + spring cache)
+```
+
+(`No servers available for service: product-service` WARN/ERROR는 이 검증 세션에 product-service를
+띄우지 않아 발생한 예상된 잡음이다 — Eureka를 의도적으로 비활성화한 throwaway 단일 서비스
+기동이라 관련 없다.)
+
+`@Async`는 이 저장소에 여전히 0건이라(`@EnableAsync` 미사용 유지) 실 프로세스에서 관찰할 호출
+자체가 없다 — 그 축은 G-4(위 RED/GREEN)가 유일하고 올바른 검증 경로다(AOP 프록시를 세우지 않고
+`AsyncExecutionAspectSupport`의 실제 해석 알고리즘을 bean factory에 직접 재현했다).
+
+검증 후 프로세스 종료(`taskkill /F`) 및 `docker rm -f verify-888-r2-pg`로 컨테이너 제거,
+`docker ps`로 흔적 없음과 기존 20개 공유 dev 컨테이너가 그대로임을 확인했다.
+
+### 변경 파일 (재수렴 라운드)
+
+- `services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/config/PartnerOrderTaskSchedulerConfiguration.java` —
+  `taskScheduler`의 `@Primary` 제거, `ThreadPoolTaskSchedulerBuilder` 주입으로 전환(같은 계열 항목
+  1), Javadoc 정정 + 전례 parity 문단 추가(같은 계열 항목 2).
+- `services/partner-order-service/src/test/java/com/samhanair/logis/partnerorder/config/PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest.java` —
+  `contextRunner`에 `TaskSchedulingAutoConfiguration` 추가(신규 `ThreadPoolTaskSchedulerBuilder`
+  주입에 필요), G-4(`@Async` 기본 executor 해석)·G-5(기본 scheduler 해석) RED-first 추가.
+- `services/partner-order-service/src/test/java/com/samhanair/logis/partnerorder/config/PartnerOrderTaskSchedulerConfigurationThreadNameTest.java` —
+  `taskScheduler`/`outboxTaskScheduler` 메서드 시그니처 변경(빌더 파라미터 추가)에 맞춰 3개
+  호출부만 기계적으로 갱신(assertion 변경 없음).
+- 본 문서 — 이 절 + 위 "버린 대안"/G-2 정정.
+
+`pool.size`(5/1) 값·기존 테스트 assertion·`.github/workflows/ci.yml`·`application.yml`은 변경하지
+않았다. 새 테스트 메서드 2개는 기존 `ExecutorCoexistenceTest`(plain JUnit, Docker 불필요) 안에
+추가돼 `ci.yml`의 hard gate(`tests>=N`) 컨벤션에 새 항목이 필요 없다 — 기존
+`ExecutorCoexistenceTest` 실행에 자동 포함된다.

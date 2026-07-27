@@ -2,11 +2,16 @@ package com.samhanair.logis.partnerorder.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
+import org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.core.task.TaskExecutor;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -28,11 +33,22 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * <p>slip-service의 {@code PartnerProductPriceMemoryAsyncConfig}가 동일 함정을 이미 겪었고(전례:
  * {@code PartnerProductPriceMemoryAsyncConfigTest.priceMemoryExecutor_doesNotBackOffBootApplicationTaskExecutor}),
  * 이 테스트는 그 계약 검증 패턴을 partner-order-service에 그대로 옮긴 것이다.
+ *
+ * <p><b>#888 재수렴 라운드 — G-4/G-5 추가.</b> G-2는 {@code applicationTaskExecutor}가 형제 풀과
+ * "다른 인스턴스"임만 이름으로 직접 조회해 확인했을 뿐, {@code @Async}가 실제로 쓰는 모호성 해석
+ * 경로({@code getBean(TaskExecutor.class)} → 실패 시 이름 "taskExecutor" fallback)는 한 번도
+ * 타지 않았다 — 그래서 {@code taskScheduler}의 {@code @Primary}가 그 경로를 가로채 형제 풀로
+ * 보내는 결함을 G-2가 놓쳤다(재수렴 라운드 실기동 재현, {@link
+ * PartnerOrderTaskSchedulerConfiguration} 클래스 Javadoc 참조). G-4는 {@code @EnableAsync} 없이
+ * 그 경로 자체를 직접 재현하고, G-5는 대칭 축인 기본 {@code TaskScheduler} 해석(이름
+ * "taskScheduler" fallback)이 {@code @Primary} 제거 후에도 여전히 형제 풀 자신을 가리키는지
+ * 고정한다(L-2 — 이 PR의 원래 목적인 outbox tick 격리가 훼손되지 않았는지의 회귀 가드).
  */
 class PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(TaskExecutionAutoConfiguration.class))
+            .withConfiguration(AutoConfigurations.of(
+                    TaskExecutionAutoConfiguration.class, TaskSchedulingAutoConfiguration.class))
             .withUserConfiguration(PartnerOrderTaskSchedulerConfiguration.class)
             .withPropertyValues("spring.task.scheduling.pool.size=5");
 
@@ -85,6 +101,81 @@ class PartnerOrderTaskSchedulerConfigurationExecutorCoexistenceTest {
 
             assertThat(siblingScheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isEqualTo(5);
             assertThat(outboxScheduler.getScheduledThreadPoolExecutor().getCorePoolSize()).isEqualTo(1);
+        });
+    }
+
+    @Test
+    void G4_async_기본_executor_해석은_형제_스케줄링_풀이나_outbox_풀로_귀결되면_안_된다() throws Exception {
+        // #888 재수렴 라운드 — Spring AsyncExecutionAspectSupport.getDefaultExecutor(spring-aop
+        // 6.1.14, AsyncExecutionAspectSupport.java:238-274)의 실제 알고리즘을 이 bean factory에
+        // 직접 재현한다: ①TaskExecutor 타입으로 getBean 시도 ②NoUniqueBeanDefinitionException이면
+        // 이름 "taskExecutor"로 fallback. @EnableAsync를 쓰지 않는 이유 — 이 결함은 AOP 프록시가
+        // 아니라 이 두 줄의 bean 해석 알고리즘 자체이므로 프록시 없이도 정확히 같은 질문을 던질 수
+        // 있고, 이 저장소는 @EnableAsync 0건을 프로덕션뿐 아니라 테스트에서도 유지한다.
+        //
+        // fix 전(taskScheduler에 @Primary가 있던 시점) 이 테스트는 RED였다 — getBean(TaskExecutor.class)가
+        // NoUniqueBeanDefinitionException 없이 곧바로 @Primary 후보인 taskScheduler를 반환해
+        // resolved가 applicationTaskExecutor가 아닌 siblingScheduler와 같았다.
+        contextRunner.run(context -> {
+            assertThat(context.getBeanNamesForType(TaskExecutor.class))
+                    .as("이 결함이 재현 가능하려면 TaskExecutor 후보 3개(형제 taskScheduler·"
+                            + "outboxTaskScheduler·applicationTaskExecutor)가 모두 존재해야 한다")
+                    .containsExactlyInAnyOrder("taskScheduler", "outboxTaskScheduler", "applicationTaskExecutor");
+
+            Executor resolved;
+            try {
+                resolved = context.getBean(TaskExecutor.class);
+            } catch (NoUniqueBeanDefinitionException ex) {
+                resolved = context.getBean("taskExecutor", Executor.class);
+            }
+
+            Executor applicationTaskExecutor = context.getBean("applicationTaskExecutor", Executor.class);
+            TaskScheduler siblingScheduler = context.getBean("taskScheduler", TaskScheduler.class);
+            TaskScheduler outboxScheduler = context.getBean("outboxTaskScheduler", TaskScheduler.class);
+
+            assertThat(resolved)
+                    .as("@Async 기본 executor 해석(Spring getDefaultExecutor)이 applicationTaskExecutor로"
+                            + " 귀결돼야 한다 — 형제/outbox 스케줄링 풀로 새면 이 PR이 없앤 굶주림 구조가"
+                            + " 스케줄링→비동기 실행 축에서 재발한다")
+                    .isSameAs(applicationTaskExecutor)
+                    .isNotSameAs(siblingScheduler)
+                    .isNotSameAs(outboxScheduler);
+
+            // resolved executor에 실제로 task를 제출해, 어느 스레드 풀에서 도는지도 직접 확인한다
+            // (bean 정체성 비교만으로는 부족하다는 것이 바로 이번 재수렴 라운드가 잡은 교훈이다).
+            CompletableFuture<String> threadName = new CompletableFuture<>();
+            resolved.execute(() -> threadName.complete(Thread.currentThread().getName()));
+            assertThat(threadName.get(5, TimeUnit.SECONDS))
+                    .as("실제 실행 스레드도 형제/outbox 풀 접두어여서는 안 된다")
+                    .doesNotStartWith("scheduling-")
+                    .doesNotStartWith("outbox-");
+        });
+    }
+
+    @Test
+    void G5_기본_scheduler_해석은_이름_taskScheduler로_귀결돼_형제_풀을_그대로_가리킨다() {
+        // #888 재수렴 라운드 — Spring TaskSchedulerRouter#determineDefaultScheduler(spring-context
+        // 6.1.14, TaskSchedulerRouter.java:169-231)가 scheduler= 속성 없는 기본 @Scheduled에 대해
+        // 수행하는 것과 같은 알고리즘: ①TaskScheduler 타입으로 유일성 조회 ②모호하면 이름
+        // "taskScheduler"로 fallback. taskScheduler의 @Primary를 제거해도 이 fallback이 여전히
+        // 형제 풀(5) 자신을 가리키는지 고정한다 — L-2(이 PR의 원래 목적인 outbox tick 격리 유지)의
+        // 대칭 축 회귀 가드다.
+        contextRunner.run(context -> {
+            TaskScheduler resolved;
+            try {
+                resolved = context.getBean(TaskScheduler.class);
+            } catch (NoUniqueBeanDefinitionException ex) {
+                resolved = context.getBean("taskScheduler", TaskScheduler.class);
+            }
+
+            TaskScheduler siblingScheduler = context.getBean("taskScheduler", TaskScheduler.class);
+            TaskScheduler outboxScheduler = context.getBean("outboxTaskScheduler", TaskScheduler.class);
+
+            assertThat(resolved)
+                    .as("scheduler= 속성 없는 기본 @Scheduled는 형제 풀(taskScheduler, pool 5)로"
+                            + " 귀결돼야 한다 — outbox 전용 풀이나 임의의 로컬 폴백으로 새면 안 된다")
+                    .isSameAs(siblingScheduler)
+                    .isNotSameAs(outboxScheduler);
         });
     }
 }
