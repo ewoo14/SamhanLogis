@@ -160,14 +160,29 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     renderForm()
     await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    // #950 R3 flake 흡수 — 이 대기는 accounts/cards/loans/scope 4개 쿼리가 각기 다른
+    // 마이크로태스크에서 resolve되고, 그 뒤를 잇는 복원 useEffect·react-query 알림이 React
+    // 스케줄러(MessageChannel 매크로태스크)를 거쳐 커밋되는 다단 비동기 경계 위에 서 있다.
+    // "disabled=false"를 확인한 시점에도 같은 매크로태스크 큐에 아직 배출되지 않은 후속
+    // 커밋이 남아 있을 수 있어(test-utils/flush.ts의 #933 분석과 동일 계열 경계 — 그 큐
+    // 배출 순서는 격리 실행과 전체 스위트 동시 실행에서 달라질 수 있다), 클릭 전에 그 큐를
+    // 결정적으로 비워 지금 읽은 disabled=false가 이후 취소되지 않을 안정 상태임을 보장한다.
+    await flushZeroDelayTasks()
 
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
-    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1))
+    // 저장 스파이 호출 자체가 mutate() 호출 직후 마이크로태스크를 몇 틱 더 거쳐야 관측된다
+    // (RED 조사에서 클릭 직후 동기적으로는 calls.length===0임을 실측). 전체 스위트 동시
+    // 실행처럼 스케줄링 지연이 커지는 환경에서도 이 관측 자체는 무너지지 않도록(assert가
+    // 검증하는 낙관적 잠금 계약은 그대로 두고) 대기 한도만 넉넉히 잡는다.
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     expect(saveCodefImportScopeMock.mock.calls[0]![0]).toMatchObject({ version: 0 })
 
     fireEvent.click(screen.getByTestId('codef-bank-account-1'))
+    // 체크박스 클릭의 setSelection/setScopeMode 커밋이 저장 버튼 재계산에 반영됐음을 다음
+    // 클릭 전에 보장한다 — 위와 동일한 이유(대기 조건 부재가 아니라 상태 갱신 타이밍).
+    await flushZeroDelayTasks()
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
-    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(2), { timeout: 5000 })
     expect(saveCodefImportScopeMock.mock.calls[1]![0]).toMatchObject({ version: 1 })
   })
 
