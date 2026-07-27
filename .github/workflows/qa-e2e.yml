@@ -97,6 +97,9 @@ jobs:
       - name: 의존성 설치
         working-directory: clients/desktop
         run: npm ci
+      - name: QA 출력 경로·덮어쓰기 가드
+        working-directory: clients/desktop
+        run: node --test scripts/qa-output-path-guard.test.cjs
       - name: Playwright 브라우저 설치
         working-directory: clients/desktop
         run: npx playwright install --with-deps chromium

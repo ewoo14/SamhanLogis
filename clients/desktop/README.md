@@ -243,4 +243,23 @@ npx cap open android
 
 네이티브 WebView(`capacitor://localhost`)는 api-gateway 로 httpOnly 쿠키 전달이 안정적이지 않으므로 웹 쿠키 경로를 사용하지 않는다. `capacitorAuthProvider`가 로그인 토큰/세션 식별정보를 `@capacitor/preferences`에 저장하고 요청마다 `Authorization: Bearer` 헤더를 붙인다. 이 Bearer 경로는 Electron에서 이미 사용하는 백엔드 계약을 그대로 재사용한다.
 
+## Playwright QA 캡처 출력 경로 — `docs/qa/**` 커밋 증거 덮어쓰기 가드 (2026-07-27, 이슈 #863)
+
+`playwright/support/qa-screenshot-dir.ts`(및 `.mjs`, 그리고 `clients/*`/루트 `scripts/` 공용
+`scripts/lib/qa-shots-dir.cjs`)의 `resolveQaShotsDir(committedDir)`는 mock·real-QA 스펙이
+공통으로 쓰는 QA 캡처 출력 경로 resolver다.
+
+- **기본값**(`QA_SHOTS_DIR` 환경변수 미지정)은 항상 `<committedDir>/_local`(gitignore 대상)이다
+  — 스펙을 재실행해도 `docs/qa/<slug>/*.png` 커밋 증거가 덮어써지지 않는다.
+- **승격**(커밋 증거 자체를 새 캡처로 갱신)하려면 `QA_SHOTS_DIR=<repo>/docs/qa/<slug>`를
+  명시하고, 그 경로가 레포의 커밋 QA 증거 루트(`docs/qa/**`) 안에 들어가면 —
+  자기 슬러그든 다른 슬러그든 `docs/qa` 루트 자체든 — `QA_ALLOW_OVERWRITE=1`도 함께
+  지정해야 한다. 둘 중 하나만 있으면 한국어 오류(`[QA 출력 경로 가드] …`)로 즉시 차단한다.
+- 이 가드는 `QA_SHOTS_DIR`가 프로세스 전체가 공유하는 전역 값이라는 데서 온다 — mock
+  스위트(35개 이상 스펙)를 한 번에 실행하면서 자기 슬러그만 승격할 셈으로 `QA_SHOTS_DIR`를
+  걸면, 그 값이 다른 스펙들에도 똑같이 적용돼 남의 커밋 디렉터리가 통째로 덮어써질 수 있다
+  — `QA_ALLOW_OVERWRITE=1` 이중 확인이 그 사고를 막는다.
+- 회귀 테스트: `clients/desktop/scripts/qa-output-path-guard.test.cjs`(`node --test`로 단독
+  실행 가능, CI `qa-e2e.yml`의 `desktop-playwright` 잡에도 등재).
+
 제약: N1은 Android 스캐폴드와 자산 sync 기반 구축 단계다. 실제 APK/스토어 배포, iOS 스캐폴드/빌드, secure storage 승격, 푸시/생체인증/스캔은 후속 N2~N5 범위다. 실기기 운영 검증은 Phase 11 HTTPS 게이트웨이 확보 후 진행한다.

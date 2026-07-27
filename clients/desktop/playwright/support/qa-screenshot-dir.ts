@@ -10,17 +10,29 @@
  *   라이브QA 실행 자체를 포기한 사례가 2회 있었다 — 머지 게이트 ③(라이브QA 실서버
  *   실행)을 구조적으로 차단하는 결과였다.
  *
- * 해법 — 출력 경로 분리 (이슈 #863 제안과 동일 방향):
- *   - 기본값은 커밋된 디렉토리 밑의 `_local/` 서브폴더다. `.gitignore` 가
- *     `docs/qa/**\/_local/` 을 제외 대상으로 지정하므로, 이 경로는 몇 번을
- *     다시 캡처해도 git 이 추적하는 파일은 단 1바이트도 바뀌지 않는다
- *     (`git status`/`git diff` 에 아예 나타나지 않는다).
- *   - `docs/qa/<slug>/*.png` (커밋된 원본)는 이 함수가 절대 건드리지 않는다 —
- *     기존 문서·PR 참조 경로가 그대로 유효하다.
- *   - 이번 라운드처럼 "새 캡처를 확정 증거로 PR 에 올리겠다"는 의도적 결정이
- *     있을 때만 `QA_SHOTS_DIR` 환경변수로 원하는 경로(신규 파일명 권장)를
- *     명시적으로 지정한다. 우발적 재실행은 기본값(`_local/`)이라 안전하고,
- *     의도적 승격은 opt-in 이라 되돌릴 수 없는 덮어쓰기가 없다.
+ * 계약 (2026-07-26 PR #938 H-2→D-1 로 확정, real-QA·mock 공통 단일 함수):
+ *   - `QA_SHOTS_DIR` 를 지정하지 않으면 기본값은 항상 `<committedDir>/_local` 이다.
+ *     (#938 D-1: 1차 적용이 mock 게이트만 덮어 real-QA 가 뚫려 있었고, 실측으로
+ *     커밋 증거 12장 오염이 나온 뒤 real-QA 포함 172파일 전체로 넓혔다 — 그 계약이
+ *     이 함수다. real-QA 전용으로 "기본값은 커밋 디렉터리 자체" 를 되살리는 것은
+ *     이 fix 이전으로 되돌아가는 회귀다.)
+ *   - `QA_SHOTS_DIR` 를 지정했는데 그 경로가 레포의 커밋 QA 증거 루트
+ *     (`docs/qa/**` — 자기 슬러그든 다른 슬러그든 루트 자체든) 안에 들어가면,
+ *     `QA_ALLOW_OVERWRITE=1` 없이는 즉시 차단한다. `QA_SHOTS_DIR` 는 프로세스 전체가
+ *     공유하는 전역 값이라, mock 스위트(또는 여러 real-QA 스펙)를 한 번에 실행하면
+ *     "내 슬러그만 승격하려 했는데 다른 스펙 전부가 그 경로에 같이 쓰는" 사고가
+ *     난다 — 그래서 자기 슬러그·타 슬러그·루트 자체를 가리지 않고 전부 막는다
+ *     (2026-07-27 이슈 #863 D-3).
+ *
+ * (2026-07-27 R1 재수렴 — 이 파일은 한때 real-QA 용 `resolveQaShotsDir` 와 mock 전용
+ *  `resolveMockQaShotsDir` 두 함수로 갈렸었다. 그 전제 — "mock 스펙 41개가 docs/qa 에
+ *  직접 쓴다" — 가 거짓으로 드러났다: 전환 대상 35파일 전부가 main 에서 이미 이
+ *  resolveQaShotsDir 를 경유했고 기본값도 이미 `_local` 이었다. 함수명이 갈리자
+ *  harness-false-green-guard.test.ts 의 H-2 가드(decl.body.includes('resolveQaShotsDir')
+ *  부분문자열 검사)가 깨져 전환 대상 34~35파일이 전부 위반으로 뒤집혔다 — 그래서 다시
+ *  단일 함수로 합쳤다. D-3(전역 QA_SHOTS_DIR 가 다른 슬러그·루트를 침범하는 문제)는
+ *  이 단일 함수에 합류시켜 real-QA 도 함께 보호한다 — mock 만 덮었다가 real-QA 가
+ *  뚫려 있던 #938 D-1 과 같은 종류의 실수를 반복하지 않기 위해서다.)
  *
  * @param committedDir 기존 커밋 캡처가 있는(또는 있을) 절대경로 — 보통
  *   `path.resolve(_dirname, '../../../../docs/qa/<slug>')` 형태로 계산해 전달한다.
@@ -28,13 +40,76 @@
  */
 import * as fs from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
+
+const _dirname =
+  typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
+
+/** 이 파일(clients/desktop/playwright/support) 기준 레포의 커밋 QA 증거 루트 전체. */
+const DOCS_QA_ROOT = path.resolve(_dirname, '../../../../docs/qa')
+
+function hasExplicitOverwriteIntent(): boolean {
+  return ['1', 'true', 'yes'].includes(
+    String(process.env['QA_ALLOW_OVERWRITE'] ?? '').trim().toLowerCase(),
+  )
+}
+
+/** 존재하지 않는 하위 경로도 기존 부모의 junction/symlink를 물리 경로로 풀어낸다. */
+function resolvePhysicalPath(candidateDir: string): string {
+  let current = path.resolve(candidateDir)
+  const missingParts: string[] = []
+
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current)
+    if (parent === current) return current
+    missingParts.unshift(path.basename(current))
+    current = parent
+  }
+
+  return path.join(fs.realpathSync.native(current), ...missingParts)
+}
+
+function normalizePhysicalPath(candidateDir: string): string {
+  const isWindows = process.platform === 'win32'
+  const withoutExtendedPrefix = isWindows && candidateDir.startsWith('\\\\?\\UNC\\')
+    ? `\\\\${candidateDir.slice('\\\\?\\UNC\\'.length)}`
+    : isWindows && candidateDir.startsWith('\\\\?\\')
+      ? candidateDir.slice('\\\\?\\'.length)
+      : candidateDir
+  const normalized = path.normalize(withoutExtendedPrefix)
+  const root = path.parse(normalized).root
+  const comparable = normalized === root ? normalized : normalized.replace(/[\\/]+$/, '')
+  return isWindows ? comparable.toLowerCase() : comparable
+}
+
+function isWithin(parentDir: string, candidateDir: string): boolean {
+  const relative = path.relative(parentDir, candidateDir)
+  return (
+    relative === '' ||
+    (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  )
+}
+
+function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
+  return isWithin(
+    normalizePhysicalPath(resolvePhysicalPath(parentDir)),
+    normalizePhysicalPath(resolvePhysicalPath(candidateDir)),
+  )
+}
 
 export function resolveQaShotsDir(committedDir: string): string {
+  const committed = path.resolve(committedDir)
   const override = process.env['QA_SHOTS_DIR']
-  const dir =
-    override && override.trim().length > 0
-      ? path.resolve(override)
-      : path.join(committedDir, '_local')
+  const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
+  const dir = trimmed ? path.resolve(trimmed) : path.join(committed, '_local')
+
+  if (trimmed && isWithinPhysical(DOCS_QA_ROOT, dir) && !hasExplicitOverwriteIntent()) {
+    throw new Error(
+      `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
+        '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',
+    )
+  }
+
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }
