@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * Phase 2 확장 — 세금계산서 발행번호 0제거 실 QA 캡처.
  *
@@ -33,7 +34,7 @@ const MASTER_ROLE = 'MASTER'
 const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/slip-no-zero-strip-global')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/slip-no-zero-strip-global'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let seq = 2  // 01/02 는 입고/출고 기존 캡처 — 03부터 시작

@@ -31,6 +31,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -42,10 +43,12 @@ const _dirname = path.dirname(_filename)
 const BASE_URL = process.env['VITE_BASE_URL'] ?? process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
 /** 스크린샷 저장 디렉토리 */
-const QA_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const QA_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/p0-b-dps-by-product',
-)
+))
 
 function ensureQaDir(): void {
   if (!fs.existsSync(QA_DIR)) {
@@ -162,26 +165,12 @@ test.describe('품목별 DPS 분석 페이지 (TC-DBP-1~7)', () => {
       fullPage: true,
     })
 
-    // 각 요소가 DOM에 존재하는지 확인 (MOCK_MODE에서 페이지 구현 시)
-    const fromExists = (await fromInput.count()) > 0
-    const toExists = (await toInput.count()) > 0
-    const warehouseExists = (await warehouseSelect.count()) > 0
-    const queryButtonExists = (await queryButton.count()) > 0
-
-    if (fromExists && toExists && warehouseExists && queryButtonExists) {
-      await expect(fromInput).toBeVisible()
-      await expect(toInput).toBeVisible()
-      await expect(warehouseSelect).toBeVisible()
-      await expect(queryButton).toBeVisible()
-    } else {
-      // FE agent 미완성 시 — 페이지 로드 자체는 확인
-      console.warn(
-        `TC-DBP-1: toolbar 요소 미발견 (from=${fromExists}, to=${toExists}, warehouse=${warehouseExists}, btn=${queryButtonExists})` +
-        ' — FE agent DpsByProductPage 미완성 가능. 페이지 body 존재 확인으로 대체.'
-      )
-      const bodyText = (await page.textContent('body')) ?? ''
-      expect(bodyText.length, 'TC-DBP-1: 페이지 body 비어있음').toBeGreaterThan(30)
-    }
+    // (2026-07-26 하네스 배치) "요소 없으면 body 길이만 확인" soft 분기 제거.
+    // DpsByProductPage.tsx 가 네 testid 를 전부 렌더한다(실측 확인) — 못 찾으면 RED 가 계약이다.
+    await expect(fromInput, 'TC-DBP-1: 시작 날짜 picker').toBeVisible()
+    await expect(toInput, 'TC-DBP-1: 종료 날짜 picker').toBeVisible()
+    await expect(warehouseSelect, 'TC-DBP-1: 창고 dropdown').toBeVisible()
+    await expect(queryButton, 'TC-DBP-1: 조회 버튼').toBeVisible()
 
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })
@@ -210,57 +199,34 @@ test.describe('품목별 DPS 분석 페이지 (TC-DBP-1~7)', () => {
     const queryButton = page.locator('[data-testid="dps-by-product-query-button"]')
     const gridWrapper = page.locator('[data-testid="dps-by-product-grid"]')
 
-    if ((await queryButton.count()) > 0) {
-      // 조회 버튼 클릭
-      await queryButton.click()
-      await page.waitForTimeout(1500)
-      await waitForSettle(page)
+    // (2026-07-26 하네스 배치) soft 분기 3종 제거 — ①조회 버튼 없으면 body 길이만 확인,
+    // ②grid wrapper 없으면 console.warn, ③행 수 `toBeGreaterThanOrEqual(0)`(항상 참).
+    // 실측: 컬럼 8/8, 행 12. 따라서 "mock 12행 기대" 는 지금 그대로 단언 가능하다.
+    await expect(queryButton, 'TC-DBP-2: 조회 버튼').toBeVisible()
+    await queryButton.click()
+    await page.waitForTimeout(1500)
+    await waitForSettle(page)
 
-      await page.screenshot({
-        path: path.join(QA_DIR, 'TC-DBP-2-datagrid-8-columns.png'),
-        fullPage: true,
-      })
+    await page.screenshot({
+      path: path.join(QA_DIR, 'TC-DBP-2-datagrid-8-columns.png'),
+      fullPage: true,
+    })
 
-      // 8 컬럼 헤더 텍스트 검증
-      const expectedColumns = ['상품코드', '상품명', '입고대기', '완료', '품질검사', '반품', '합계', 'DPS차이']
-      let foundColumnCount = 0
-      for (const colLabel of expectedColumns) {
-        const header = page.locator(`th:has-text("${colLabel}"), [role="columnheader"]:has-text("${colLabel}")`)
-        if ((await header.count()) > 0) {
-          foundColumnCount++
-        }
-      }
-
-      console.log(`TC-DBP-2: 발견된 컬럼 헤더 수 = ${foundColumnCount} / 8`)
-
-      // DataGrid wrapper 존재 확인
-      if ((await gridWrapper.count()) > 0) {
-        // tbody 행 확인
-        const rows = page.locator(
-          '[data-testid="dps-by-product-grid"] tbody tr, [data-testid="dps-by-product-grid"] [role="row"]'
-        )
-        const rowCount = await rows.count()
-        console.log(`TC-DBP-2: DataGrid 행 수 = ${rowCount}`)
-        // 행 수 검증 (mock 데이터 12행 기대, 0 이상)
-        expect(rowCount, 'TC-DBP-2: DataGrid 행이 있어야 함 (mock 12행 기대)').toBeGreaterThanOrEqual(0)
-      } else {
-        console.warn('TC-DBP-2: data-testid="dps-by-product-grid" 미발견 — DataGrid wrapper testid 확인 필요')
-        const tableExists = (await page.locator('table').count()) > 0
-        console.log(`TC-DBP-2: table 요소 존재=${tableExists}`)
-      }
-
-      // 8 컬럼 중 최소 4개 이상 발견 기대 (FE 미완성 허용)
-      if (foundColumnCount < 4) {
-        console.warn(`TC-DBP-2: 컬럼 헤더 ${foundColumnCount}/8 발견 — DataGrid 렌더링 확인 필요`)
-      } else {
-        expect(foundColumnCount, 'TC-DBP-2: 8 컬럼 헤더 중 최소 4개 이상 존재해야 함').toBeGreaterThanOrEqual(4)
-      }
-    } else {
-      console.warn('TC-DBP-2: 조회 버튼 미발견 — FE agent 미완성 가능')
-      await page.screenshot({ path: path.join(QA_DIR, 'TC-DBP-2-no-query-button.png'), fullPage: true })
-      const bodyText = (await page.textContent('body')) ?? ''
-      expect(bodyText.length, 'TC-DBP-2: 페이지 body 비어있음').toBeGreaterThan(30)
+    // 8 컬럼 헤더 텍스트 검증
+    const expectedColumns = ['상품코드', '상품명', '입고대기', '완료', '품질검사', '반품', '합계', 'DPS차이']
+    const missingColumns: string[] = []
+    for (const colLabel of expectedColumns) {
+      const header = page.locator(`th:has-text("${colLabel}"), [role="columnheader"]:has-text("${colLabel}")`)
+      if ((await header.count()) === 0) missingColumns.push(colLabel)
     }
+    expect(missingColumns, `TC-DBP-2: 8 컬럼 헤더 전부 존재해야 함 (누락: ${missingColumns.join(', ')})`).toEqual([])
+
+    await expect(gridWrapper, 'TC-DBP-2: DataGrid wrapper').toBeVisible()
+    const rows = page.locator(
+      '[data-testid="dps-by-product-grid"] tbody tr, [data-testid="dps-by-product-grid"] [role="row"]'
+    )
+    const rowCount = await rows.count()
+    expect(rowCount, `TC-DBP-2: DataGrid 행이 있어야 함 (mock 12행 기대, 실제 ${rowCount})`).toBeGreaterThanOrEqual(1)
 
     expect(errors, `pageerror 발생: ${errors.join(', ')}`).toHaveLength(0)
   })

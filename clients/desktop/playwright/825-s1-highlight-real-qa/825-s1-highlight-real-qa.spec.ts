@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #825 슬1 — 거래처 자동완성 ④ 매치 하이라이트 라이브 QA.
  * 실 게이트웨이 :8080(mock OFF) · 실 거래처 검색(searchAdmin 3필드) · dev_master.
@@ -15,7 +16,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5213'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/825-s1-highlight')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/825-s1-highlight'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

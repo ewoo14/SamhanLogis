@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 슬5 capstone — 메뉴↔권한설정 정합 라이브 UI 증명.
  *
@@ -17,7 +18,7 @@ const MANAGER_USER_ID = 'a0000000-0000-0000-0000-000000000003'
 
 function hashUrl(p: string): string { return `${BASE_URL}/#${p}` }
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/menu-permission-capstone-s5')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/menu-permission-capstone-s5'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 let seq = 0
 async function capture(page: Page, name: string): Promise<void> {

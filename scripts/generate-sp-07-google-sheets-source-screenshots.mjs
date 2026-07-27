@@ -2,10 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
+import { resolveQaShotsDir } from './lib/qa-shots-dir.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
-const outDir = path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e/screenshots')
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const outDir = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e/screenshots'))
 const requireFromDesktop = createRequire(new URL('../clients/desktop/package.json', import.meta.url))
 const { chromium } = requireFromDesktop('@playwright/test')
 
@@ -261,8 +263,11 @@ try {
   await browser.close()
 }
 
+// _local 격리(2026-07-27 재수렴 3차 W1 — outDir 는 이미 감쌌지만 체크리스트 .md 쓰기는
+// 커밋 경로를 직접 가리켰다. 같은 resolveQaShotsDir 규약으로 감싼다).
+const checklistDir = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e'))
 await fs.writeFile(
-  path.join(repoRoot, 'docs/qa/sp-07-google-sheets-quote-order-e2e/screenshot-checklist.md'),
+  path.join(checklistDir, 'screenshot-checklist.md'),
   `# SP-07 QA 캡처 체크리스트
 
 | # | 파일 | 내용 |

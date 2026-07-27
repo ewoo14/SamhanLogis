@@ -1,6 +1,7 @@
 ﻿$ErrorActionPreference = 'Stop'
 
-$OutDir = Join-Path $PSScriptRoot '..\docs\qa\sp-02-accounting-closing-menu-gap-audit\screenshots'
+$CommittedDir = Join-Path $PSScriptRoot '..\docs\qa\sp-02-accounting-closing-menu-gap-audit\screenshots'
+$OutDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 Add-Type -AssemblyName System.Drawing

@@ -24,6 +24,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import * as path from 'path'
 import * as fs from 'fs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -34,10 +35,12 @@ const __dirname = path.dirname(__filename)
 
 const BASE_URL = process.env['HR_BASE_URL'] ?? 'http://localhost:5173'
 
-const SCREENSHOT_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   __dirname,
   '../../../../docs/qa/admin-hr-category-and-disabled-ux',
-)
+))
 
 /**
  * dev server 가용 여부 — false green 방지 가드.

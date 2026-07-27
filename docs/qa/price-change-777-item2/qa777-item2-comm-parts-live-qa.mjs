@@ -10,8 +10,13 @@
 // #778 자체(H1: commPartUnitPrice 공유헬퍼) 검증은 `#btnPreview` 재클릭(신선한 openPreview())
 // 캡처로 한다.
 import { chromium } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.mjs';
 
-const OUT = 'C:/dev/Samhan-Public/docs/qa/price-change-777-item2';
+const _dirname = path.dirname(fileURLToPath(import.meta.url));
+// _local 격리(2026-07-27 하네스 흡수 H2 — override 자체가 없어 재실행마다 커밋 증거를 덮어썼다).
+const OUT = resolveQaShotsDir(_dirname);
 const URL = 'http://localhost:5185/';
 const SET_MODEL = 'QA777-COMM-SET-01';
 const PART_MODEL = 'QA777-COMM-PART-01';

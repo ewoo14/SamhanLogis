@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #590 슬1 — 배차 발송 대기 검수 완료 게이트 실 서버 QA 캡처.
  *
@@ -26,7 +27,7 @@ const SLIP_A = '2026/06/24-901' // 검수완료 → 표시되어야 함
 const SLIP_B = '2026/06/24-902' // 미검수 → 미표시(게이트)
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/dispatch-send-queue-inspect-gate-s1')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dispatch-send-queue-inspect-gate-s1'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 async function capture(page: Page, name: string): Promise<void> {

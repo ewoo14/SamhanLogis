@@ -37,9 +37,11 @@ export interface PartnerRepriceOutcome {
    *
    * <p>⚠️ <b>값 도메인</b>: hit(REMEMBERED)은 <b>기억 도메인 = VAT 포함</b>
    * (BE PartnerProductPriceMemory — utils/vatPrice.ts 실증), miss(CATALOG)는
-   * <b>candidate.catalogFallback 도메인 그대로</b>다. 필드가 VAT 제외인 소비자
-   * (전표 수정 화면)는 후보를 포함 도메인으로 승격해 넘기고 적용 시 vatExclusiveOf 로
-   * 변환해야 한다 — 폼(필드=VAT포함)은 도메인이 일치해 변환이 없다.
+   * <b>candidate.catalogFallback 도메인 그대로</b>다. #937 R-3 이후 두 소비자(폼·전표 수정
+   * 화면) 모두 필드가 VAT 포함이라 도메인이 일치 — 적용 시 변환이 없다(SlipDetailPage
+   * {@code repricedFieldValue} 참고). 과거(#809 R8 잔여2 시절) 전표 수정 화면 필드가 VAT
+   * 제외였을 때는 여기서 vatExclusiveOf 변환이 필요했다 — 그 문서는 utils/vatPrice.ts 상단에
+   * 역사적 기록으로 남겨 두었다.
    */
   unitPrice: string
   /** hit 이면 기억 저장시각(remembered_at), miss/실패면 null. */

@@ -2,10 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
+import { resolveQaShotsDir } from './lib/qa-shots-dir.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
-const outDir = path.join(repoRoot, 'docs/qa/sp-08-legacy-gas-db-api-parity/screenshots')
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const outDir = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/sp-08-legacy-gas-db-api-parity/screenshots'))
 const requireFromDesktop = createRequire(new URL('../clients/desktop/package.json', import.meta.url))
 const { chromium } = requireFromDesktop('@playwright/test')
 

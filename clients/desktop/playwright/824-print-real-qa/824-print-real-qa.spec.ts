@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #824 R2 — 인쇄 경로 라이브 GUI QA (PM 직접 수행)
  *
@@ -22,7 +23,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5192'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '824-print-live-qa-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '824-print-live-qa-2026-07-23'))
 
 const PRODUCT_LABEL = 'PMQA 인쇄-비표준VAT'
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * Round C 접기/펼치기(collapsible) 좌측메뉴 (PR #462) Docker 실서버 QA Playwright spec.
  *
@@ -33,7 +34,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/menu-5category')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/menu-5category'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 const GROUP_LABELS = ['판매', '구매', '회계', '그룹웨어', '인사', '배차', '창고 운영'] as const

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import { expect, test, type Page } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -5,7 +6,7 @@ import * as path from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5210'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const QA_DIR = path.resolve(process.cwd(), '..', '..', 'docs', 'qa', '907-luna-round-2026-07-24')
+const QA_DIR = resolveQaShotsDir(path.resolve(process.cwd(), '..', '..', 'docs', 'qa', '907-luna-round-2026-07-24'))
 const DOWNLOAD_DIR = path.join(QA_DIR, 'downloads')
 fs.mkdirSync(QA_DIR, { recursive: true })
 fs.mkdirSync(DOWNLOAD_DIR, { recursive: true })

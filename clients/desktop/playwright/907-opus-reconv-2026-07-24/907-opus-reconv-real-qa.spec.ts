@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #907 OPUS 재수렴 적대검증 라이브 QA — 실서버(:8080) + 실 렌더러(vite dev).
  * 산출물 스크린샷: docs/qa/907-opus-reconv-2026-07-24/
@@ -12,7 +13,7 @@ import * as path from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5230'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const QA_DIR = path.resolve(process.cwd(), '..', '..', 'docs', 'qa', '907-opus-reconv-2026-07-24')
+const QA_DIR = resolveQaShotsDir(path.resolve(process.cwd(), '..', '..', 'docs', 'qa', '907-opus-reconv-2026-07-24'))
 const DL_DIR = path.join(QA_DIR, 'downloads')
 fs.mkdirSync(QA_DIR, { recursive: true })
 fs.mkdirSync(DL_DIR, { recursive: true })

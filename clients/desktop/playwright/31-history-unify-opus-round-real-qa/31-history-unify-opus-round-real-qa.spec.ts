@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #747(#31 이력 일원화) Opus 라운드 fix — 실서버 라이브 QA.
  *
@@ -22,7 +23,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5183'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/31-history-unify-opus-round')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/31-history-unify-opus-round'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 /** 실 슬립 — revisionCount=3(EDIT/EDIT/CREATE), 복원 후보(비-latest) 2건: rev #2, #1. */

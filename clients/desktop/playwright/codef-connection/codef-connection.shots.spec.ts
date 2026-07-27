@@ -17,6 +17,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import * as path from 'path'
 import * as fs from 'fs'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 경로 설정
@@ -27,7 +28,9 @@ const __dirname = path.dirname(__filename)
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 // spec 위치: playwright/codef-connection/ → 4단계 상위 = 레포 루트
-const QA_DIR = path.resolve(__dirname, '../../../../docs/qa/codef-task7')
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const QA_DIR = resolveQaShotsDir(path.resolve(__dirname, '../../../../docs/qa/codef-task7'))
 
 // ---------------------------------------------------------------------------
 // 헬퍼

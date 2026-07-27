@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR-B 보충 QA (cb099ab3) — T8 q 검색 UI + T9R 페이징 결정성
  *
@@ -21,10 +22,10 @@ const _dirname = path.dirname(fileURLToPath(import.meta.url))
 // 5173 포트 = 기본 vite dev (VITE_MOCK_MODE=1 가능성 있음)
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const GATEWAY = 'http://localhost:8080'
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/product-usage-toggle-pr-b/screenshots',
-)
+))
 
 if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })

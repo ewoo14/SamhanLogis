@@ -1,11 +1,19 @@
 // formula-f1-capture.mjs — 종합견적서(estimate-app) 실화면 캡처 (실 DB)
-// 데스크톱 node_modules 의 chromium 사용. 실데이터, 가짜 금지.
-import pw from 'file:///C:/dev/Samhan-Public/clients/desktop/node_modules/@playwright/test/index.js';
-const { chromium } = pw;
+// 실데이터, 가짜 금지.
+import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
+// 이전: file:///C:/dev/Samhan-Public/clients/desktop/node_modules/@playwright/test/index.js 를
+// 절대경로로 직접 import — estimate-app 자신의 package.json 에 playwright(^1.48.0)가 이미
+// 있어 불필요했다(워크트리에서 실행하면 존재하지도 않는 형제 체크아웃 경로를 참조하는
+// 별개 결함이기도 했다). 2026-07-26 하네스 재수렴 라운드 G3.
+const _dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = 'http://localhost:5183';
 const EMAIL = 'dev_master@samhan-air.com';
-const OUT = 'C:/dev/Samhan-Public/docs/qa/formula-f1-estimate-app';
+// 절대경로 하드코딩 제거 + _local 격리.
+const OUT = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/formula-f1-estimate-app'));
 
 const consoleErrors = [];
 const pageErrors = [];

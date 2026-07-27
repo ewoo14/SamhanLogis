@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * item 3-D 비파괴 실 QA — SlipFormPage 재고모달 일원화(InventoryLookupModal).
  *
@@ -14,7 +15,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const JWT = process.env['SAMHAN_QA_JWT'] ?? ''
-const SHOT_DIR = '../../docs/qa/slice-3-d-slipform-stock-modal-unify'
+const SHOT_DIR = resolveQaShotsDir('../../docs/qa/slice-3-d-slipform-stock-modal-unify')
 const UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
 
 async function installRealAuth(page: Page): Promise<void> {

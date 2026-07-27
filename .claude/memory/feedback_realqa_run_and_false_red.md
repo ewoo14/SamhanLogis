@@ -7,9 +7,39 @@ metadata:
 
 2026-06-17 PR #495(에픽 #18 슬2) 회고.
 
-## 데스크톱 real-qa 실행법 (실 게이트웨이 실서버 QA — mock 아님)
+## 🚨🚨 2026-07-26 실측 — **렌더러 하네스가 3종이고 스펙마다 다르다** (아래 구 실행법보다 이걸 먼저 읽을 것)
+
+디렉토리별 `playwright/<slug>-real-qa/playwright.config.ts` 와 공유 `playwright.real-qa.config.ts` 는 **`webServer` 가 없다** → **어느 config 로 렌더러를 띄울지는 실행자가 결정**하고, 스펙에는 적혀 있지 않다. 그래서 **같은 레포 안에서 스펙마다 정답 goto 형태가 다르다.** PM 이 이걸 구별하느라 30분을 썼고 한 번 오판했다.
+
+### 🚨🚨 2026-07-27 정정 — **공유 config 에는 `baseURL` 도 없다**
+
+위 문단이 *"`baseURL` 만 정하고"* 라고 적어 뒀는데 **틀렸다.** `clients/desktop/playwright.real-qa.config.ts` 의 `use` 블록은 `devices['Desktop Chrome']` · `headless` · `viewport` · 타임아웃뿐이고 **`baseURL` 이 없다**(실측).
+
+⟹ **상대경로 `page.goto('/#…')` 를 쓰는 스펙은 공유 config 로 실행 자체가 안 된다:**
+```
+Protocol error (Page.navigate): Cannot navigate to invalid URL
+```
+그 config 는 `testMatch: ['**/*-real-qa.spec.ts']` 로 **repo 전체 83개**를 대상으로 삼으므로, **전체 real-QA 일괄 실행에서 상대경로 스펙이 조용히 빠진다**(`929-r4` 가 실측 사례 — 전용 config 로는 5/5 통과).
+
+🔑 **새 real-qa 스펙은 절대 URL 을 쓸 것**(`process.env.QA_BASE_URL` 등). 상대경로를 쓰면 전용 config 를 함께 만들어야 하고, 그러면 공유 하네스 일괄 실행에서 빠진다.
+
+| 기동 방식 | 라우터 | 정답 goto | 실측 |
+|---|---|---|---|
+| `npx vite src/renderer` (root 인자) | — | — | 🚫 **앱이 아예 안 뜬다** — `virtual:pwa-register` 미해결(`PwaUpdatePrompt.tsx`). `root` 비어있음·body 0자. **아래 구 실행법이 이것이라 현재 무효** |
+| `vite --config vite.web.config.ts` | **BrowserRouter** (`VITE_PLATFORM='web'` define) | **경로** `/accounting/…` | `#/` 주면 대시보드 렌더(`table:false`, body 272자) |
+| `vite dev --config vite.renderer.dev.config.ts` | **HashRouter** (`VITE_PLATFORM` 미정의) | **`#/경로`** | QA 전용 config — `virtual:pwa-register` 를 `playwright/support/pwa-register-stub.ts` 로 alias. 경로형 주면 대시보드 |
+
+🔑 **판정 순서** — ①스펙이 쓰는 config 파일을 찾고 ②그 config 의 `baseURL` 포트를 누가 띄우는지 확인하고 ③**띄우기 전에 두 형태를 다 goto 해 보고** `document.title`·`th` 목록으로 목표 화면 도달을 확정한다. #938 A-1(“H-1 이 60곳 중 54곳을 거꾸로 고쳤다”)이 정확히 이 확인을 생략해서 났다.
+
+🚨 **`VITE_APP_VERSION` 미주입 시 런타임에서 앱이 죽는다** (#910/#928 도입) — `Error: VITE_APP_VERSION에 릴리스 버전을 명시적으로 주입해야 합니다`. `YYYY/MM/DD-{번호}` 형식(예 `2026/07/26-1`)으로 주입할 것. `vite.web.config.ts` 는 `resolveBuildAppVersion` 으로 자체 해결하지만 `vite.renderer.dev.config.ts` 는 하지 않는다.
+
+⟹ 근본 해결은 **config 가 `webServer` 를 소유하는 것**(실행자가 추측할 일이 없어짐) + **스펙이 첫 단정 전에 “내가 목표 화면에 있다”를 증명하는 것**. 30초 검사가 20~70분짜리 라운드를 통째로 살린다. → [[feedback_throughput_parallel_scope_freeze_batch]] R6~R8
+
+---
+
+## 데스크톱 real-qa 실행법 (구 기록 — 1번 항목은 위 표대로 **현재 무효**)
 real-qa config(`clients/desktop/playwright.real-qa.config.ts`)엔 **webServer 없음** → 렌더러 dev 를 **수동 기동** 후 실행.
-1. 렌더러(web, mock OFF): `cd clients/desktop && VITE_API_BASE_URL=http://localhost:8080 npx vite src/renderer --host 127.0.0.1 --port 5175` (백그라운드). **VITE_API_BASE_URL 필수** — 없으면 axios baseURL 미설정으로 API 미도달. VITE_MOCK_MODE 미설정=mock off.
+1. 렌더러(web, mock OFF): `cd clients/desktop && VITE_API_BASE_URL=http://localhost:8080 npx vite src/renderer --host 127.0.0.1 --port 5175` (백그라운드). **VITE_API_BASE_URL 필수** — 없으면 axios baseURL 미설정으로 API 미도달. VITE_MOCK_MODE 미설정=mock off. ⚠️ **이 명령은 2026-07-26 현재 `virtual:pwa-register` 로 실패한다** — 위 표의 3종 중 하나를 `--config` 로 명시할 것.
 2. 실행: `cd clients/desktop && AUDIT_BASE_URL=http://127.0.0.1:5175 node_modules/.bin/playwright test --config=playwright.real-qa.config.ts <spec> --reporter=line --timeout=90000` ([[playwright-local-version-skew]] — node_modules/.bin 직접).
 3. 로그인: spec 이 `POST :8080/auth/login {dev_master, dev_p05_pass!}` → `window.samhanAuth` stub `addInitScript` 주입(client.ts interceptor 가 토큰 사용). 스크린샷 `docs/qa/<slug>/*.png`.
 
@@ -57,6 +87,7 @@ real-qa config(`clients/desktop/playwright.real-qa.config.ts`)엔 **webServer �
 - 🚨 **라이브QA 전에 리스너 커맨드라인이 의도한 트리(메인/해당 워크트리)인지 매번 확인할 것** — 안 그러면 **사라진 워크트리의 stale 코드**를 상대로 QA 하게 된다.
 - 세션 종료 시 vite 를 정리하면 다음 세션이 이 함정을 안 밟는다.
 - 세션 백그라운드 태스크로 띄운 vite 는 **하네스가 태스크를 죽이면 같이 죽는다** — 오래 살아야 하면 `Start-Process powershell -WindowStyle Hidden` 로 **분리 기동**할 것(2026-07-23 실측: LUNA 라이브QA 도중 하네스가 죽어 25분을 날렸다).
+- 🚨 **2026-07-26 병렬 트랙 재현** — 3트랙 동시 운영 중 **다른 워크트리(`harness`)의 stale vite 가 5173 을 점유**했고 Playwright `reuseExistingServer:true` 가 그걸 재사용해 **#897 이전 구코드를 서빙**, mock 스펙 **9건이 false-RED**(헤더가 구시대 스키마 `계좌/카드/대출` 별도 열). PID 종료 후 재실행 28/28. ⟹ **브리프에 "실행 전 포트 리스너 커맨드라인이 이 워크트리인지 확인" 을 넣을 것.** 병렬 트랙에서는 포트 대역을 에이전트별로 배정해도 `reuseExistingServer` 가 이 구멍을 만든다.
 
 ## 🪤 PowerShell probe 스크립트 2종 함정 (2026-07-23)
 

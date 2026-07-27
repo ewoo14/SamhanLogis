@@ -4,10 +4,13 @@
 import { test, expect } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.cjs'
 
 const BASE_URL = 'http://127.0.0.1:5175'
 const API_BASE = 'http://localhost:8080'
-const SS_DIR = path.resolve(__dirname)
+// _local 격리(2026-07-27 재수렴 3차 W2 — __dirname 직접 지정은 재실행마다 커밋된
+// 01~03*.png 를 덮어썼다. 다른 docs/qa 캡처 스크립트와 같은 resolveQaShotsDir 규약으로 감싼다).
+const SS_DIR = resolveQaShotsDir(path.resolve(__dirname))
 
 test('배차 보드 → task 모달 협업 메모 섹션 캡처', async ({ page }) => {
   // 1. 로그인

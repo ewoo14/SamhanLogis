@@ -2,7 +2,6 @@ package com.samhanair.logis.slip.revision.service;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
-import com.samhanair.logis.common.financial.VatAmountCalculator;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.revision.domain.SlipRevision;
@@ -178,23 +177,12 @@ public class SlipRedlineService {
             case PRODUCT_NAME -> line.productName();
             case SPECIFICATION -> line.specification();
             case QUANTITY -> String.valueOf(line.quantity());
-            case UNIT_PRICE -> plain(line.unitPriceWithVat() != null ? line.unitPriceWithVat() : line.unitPrice());
-            case LINE_TOTAL -> plain(lineTotalDisplayValue(line));
+            // 🚨 단가/합계 표시값은 SlipRevisionService 의 단일 진실원을 쓴다 — 버전이력
+            // (fieldChanges)과 이 레드라인이 <b>같은 화면에 나란히</b> 렌더되므로(#937 ⑦),
+            // 두 지점이 다른 판정을 하면 사용자는 같은 셀에 대해 두 값을 동시에 본다.
+            case UNIT_PRICE -> plain(SlipRevisionService.unitPriceDisplayValue(line));
+            case LINE_TOTAL -> plain(SlipRevisionService.lineTotalDisplayValue(line));
         };
-    }
-
-    private static BigDecimal lineTotalDisplayValue(SlipSnapshot.Line line) {
-        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
-        if (supply == null) {
-            return null;
-        }
-        if (line.vatAmount() != null) {
-            return supply.add(line.vatAmount());
-        }
-        if (line.supplyAmount() != null) {
-            return supply.add(VatAmountCalculator.fromSupply(supply));
-        }
-        return line.lineTotal();
     }
 
     private static String plain(BigDecimal value) {

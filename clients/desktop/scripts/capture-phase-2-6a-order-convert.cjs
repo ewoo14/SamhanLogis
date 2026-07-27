@@ -22,10 +22,12 @@ const { chromium } = require('@playwright/test')
 const path = require('path')
 const http = require('http')
 const fs = require('fs')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const VITE_URL = 'http://localhost:5175'
 const GATEWAY = 'http://localhost:8080'
-const SCREENSHOT_DIR = path.join(__dirname, '../../../docs/qa/phase-2-6a-order-convert/screenshots')
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const SCREENSHOT_DIR = resolveQaShotsDir(path.join(__dirname, '../../../docs/qa/phase-2-6a-order-convert/screenshots'))
 
 if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })

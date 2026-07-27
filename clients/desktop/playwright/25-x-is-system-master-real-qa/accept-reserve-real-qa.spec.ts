@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #25 X-Is-System-Master 회귀 fix(PR #734) 라이브 QA — 전표 수락(accept) 시
  * slip-service → inventory-service 재고 예약(reserve/reserve-batch) 서비스간 인가 실증.
@@ -32,7 +33,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const ROUND = process.env['QA_ROUND'] ?? 'unknown-round'
 const SLIP_ID = process.env['SLIP_ID'] ?? '4b0124ad-c1dc-4f3b-b8f6-b71cf84357da'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/25-x-is-system-master')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/25-x-is-system-master'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

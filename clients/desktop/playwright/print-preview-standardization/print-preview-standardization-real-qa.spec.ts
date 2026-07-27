@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 미리보기 표준화 슬라이스1 — 전자서명 결재문서 형식 실 QA 캡처.
  *
@@ -35,7 +36,7 @@ const MASTER_ROLE = 'MASTER'
 const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/print-preview-standardization')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/print-preview-standardization'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let seq = 0

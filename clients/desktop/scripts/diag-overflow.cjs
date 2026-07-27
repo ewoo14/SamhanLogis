@@ -3,14 +3,19 @@ const P = process.argv[2] || '/accounting/bank-transactions'
 ;(async () => {
   const b = await chromium.launch({ headless: true }).catch(() => chromium.launch({ headless: true, channel: 'chromium-headless-shell' }))
   const page = await (await b.newContext({ viewport: { width: 390, height: 844 } })).newPage()
-  await page.goto('http://localhost:5175/login', { waitUntil: 'domcontentloaded' })
+  await page.goto('http://localhost:5175/#/login', { waitUntil: 'domcontentloaded' })
   await page.waitForSelector('[data-testid=login-id-input]', { timeout: 15000 })
   await page.fill('[data-testid=login-id-input]', 'dev_master')
   await page.fill('[data-testid=login-password-input]', 'dev_p05_pass!')
   await page.click('[data-testid=login-submit-button]')
   await page.waitForSelector('.app-shell', { timeout: 20000 })
-  await page.goto('http://localhost:5175' + P, { waitUntil: 'domcontentloaded' })
+  // 이 하네스(:5175, vite.renderer.dev.config.ts)는 HashRouter — 해시 없는 goto 는 조용히
+  // 홈으로 낙착한다(2026-07-26 하네스 재수렴 라운드 G5 실측).
+  await page.goto('http://localhost:5175/#' + P, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(2200)
+  if (!page.url().includes('/#' + P)) {
+    throw new Error(`해시 경로 이탈 — 기대=#${P} 실제=${page.url()}`)
+  }
   const r = await page.evaluate(() => {
     const vw = window.innerWidth
     const over = []

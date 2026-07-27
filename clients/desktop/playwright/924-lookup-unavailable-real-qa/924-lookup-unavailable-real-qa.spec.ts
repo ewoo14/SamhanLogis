@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #924 (#831) 라이브QA — partner lookup UNAVAILABLE 시 실 사용자 화면 거동.
  *
@@ -27,7 +28,7 @@ const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5250'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const PHASE = process.env['QA_PHASE'] ?? 'up'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/924-lookup-unavailable')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/924-lookup-unavailable'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 /** 실 입금보고서 — partner_id 보유(= 표시명 enrichment 대상). */

@@ -1,9 +1,14 @@
 // G2 QA — estimate-app 거래처 검색이 partner-service DB에서 채워지는 실 화면 캡처.
 import { chromium } from 'playwright';
-import fs from 'fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
-const OUT = 'docs/qa/estimate-partner-manager-db/screenshots';
-fs.mkdirSync(OUT, { recursive: true });
+const _dirname = path.dirname(fileURLToPath(import.meta.url));
+// 이전: 상대경로 문자열('docs/qa/...')이라 저장소 루트가 아닌 곳에서 실행하면 엉뚱한
+// 위치에 쓰거나 실패했다. __dirname 기준 절대경로 + _local 격리로 교체한다(2026-07-26
+// 하네스 재수렴 라운드 G3).
+const OUT = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/estimate-partner-manager-db/screenshots'));
 const URL = 'http://localhost:5183/?email=dev_master@samhan-air.com';
 const report = {};
 

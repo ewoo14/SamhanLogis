@@ -194,6 +194,13 @@ jobs:
         run: npm run typecheck
         continue-on-error: true   # 초기 스캐폴드 graceful guard
 
+      # 🚨 continue-on-error 금지 — 이 잡은 그동안 typecheck·expo-doctor·prebuild 만 돌고
+      # jest 를 실행하지 않아(그마저 typecheck 은 graceful) 드라이버 화면·API 계약 회귀가
+      # CI 에서 전혀 관측되지 않았다. 로컬 실측 8 스위트/30 테스트 green (2026-07-26 하네스 배치).
+      - name: 단위 테스트(jest, arologis-mobile)
+        working-directory: clients/arologis-mobile
+        run: npm test
+
       - name: Expo doctor (plugin 정합 점검)
         working-directory: clients/arologis-mobile
         run: npx expo-doctor

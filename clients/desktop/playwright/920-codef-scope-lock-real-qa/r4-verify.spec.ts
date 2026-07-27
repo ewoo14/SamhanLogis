@@ -13,6 +13,7 @@ import { expect, test, type Page, type Route } from '@playwright/test'
 import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const _dirname =
   typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
@@ -20,9 +21,9 @@ const BASE_URL = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5253'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 // 기존 902-... 캡처(01-04.png, 트래킹됨)·다른 리뷰어의 r3-*.png 와 절대 겹치지 않도록 전용
-// 하위 폴더에만 쓴다(docs/qa/** 기존 파일 덮어쓰기 금지).
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/920-codef-scope-lock/r4-verify')
-fs.mkdirSync(SHOTS, { recursive: true })
+// 하위 폴더에만 쓴다(docs/qa/** 기존 파일 덮어쓰기 금지). resolveQaShotsDir 로 감싸 재실행이
+// 이 전용 폴더 자신의 기존 증거도 덮어쓰지 않게 한다(2026-07-26 하네스 재수렴 라운드 G2).
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/920-codef-scope-lock/r4-verify'))
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }
 

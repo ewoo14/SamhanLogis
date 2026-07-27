@@ -124,6 +124,7 @@ vi.mock('../hooks/useIsMobile', () => ({ useIsMobile: mocks.useIsMobile }))
 vi.mock('../components/sales/sales.module.css', () => ({ default: new Proxy({}, { get: (_target, key) => String(key) }) }))
 
 import { SalesPartnerOrderDetailPage } from './SalesPartnerOrderDetailPage'
+import { flushZeroDelayTasks } from '../test-utils/flush'
 
 function makeOrder(overrides: Partial<PartnerOrderDetail> = {}): PartnerOrderDetail {
   const order: PartnerOrderDetail = {
@@ -419,7 +420,7 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
     await act(async () => {
       // React Query invalidate/refetch 후 새 객체 참조가 들어와도 편집 세션은 유지되어야 한다.
       client.setQueryData(['partner-order', 'PO/2099-1'], makeOrder({ memo: '리페치 요청' }))
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await flushZeroDelayTasks()
     })
 
     expect(mocks.createDocCoeditProvider).toHaveBeenCalledTimes(1)
@@ -461,7 +462,7 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
           ],
         }),
       )
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await flushZeroDelayTasks()
     })
 
     resolveProvider(provider)
@@ -498,7 +499,7 @@ describe('SalesPartnerOrderDetailPage 주문 수정모달 full-form coedit 배�
         ['partner-order', 'PO/2099-1'],
         makeOrder({ updatedAt: '2099-07-02T00:00:00', memo: '다른 세션 최신 요청' }),
       )
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      await flushZeroDelayTasks()
     })
 
     fireEvent.click(screen.getByTestId('partner-order-edit-submit'))

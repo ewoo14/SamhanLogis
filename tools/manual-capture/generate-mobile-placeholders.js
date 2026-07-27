@@ -22,8 +22,10 @@
 const sharp = require('sharp')
 const path = require('node:path')
 const fs = require('node:fs')
+const { resolveQaShotsDir } = require('../../scripts/lib/qa-shots-dir.cjs')
 
-const OUT_DIR = path.resolve(__dirname, '..', '..', 'docs', 'manual', 'screenshots', '04-모바일')
+// _local 격리(2026-07-27 하네스 흡수 H1 — 2026-07-26 G3 라운드와 동일 계약).
+const OUT_DIR = resolveQaShotsDir(path.resolve(__dirname, '..', '..', 'docs', 'manual', 'screenshots', '04-모바일'))
 
 /**
  * 매트릭스 § 2.1 04-모바일 PNG 명세 (8~10 PNG).

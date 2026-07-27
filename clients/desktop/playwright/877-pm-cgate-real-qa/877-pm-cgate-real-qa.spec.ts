@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 877-pm-cgate-real-qa.spec.ts
  *
@@ -34,7 +35,7 @@ const PASSWORD = 'dev_p05_pass!'
 const CONNECTED = 'connected-main'
 const FROM = '2019-05-01'
 const TO = '2019-05-03'
-const SHOTS = path.resolve('../../docs/qa/877-sonnet-r1-fix')
+const SHOTS = resolveQaShotsDir(path.resolve('../../docs/qa/877-sonnet-r1-fix'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface Scope {

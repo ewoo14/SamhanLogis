@@ -19,10 +19,12 @@
 const { chromium } = require('@playwright/test')
 const path = require('path')
 const http = require('http')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const VITE_URL = 'http://localhost:5173'
 const GATEWAY = 'http://localhost:8080'
-const OUT = path.join(__dirname, '../../../docs/qa/slip-shipout-print-form/screenshots')
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT = resolveQaShotsDir(path.join(__dirname, '../../../docs/qa/slip-shipout-print-form/screenshots'))
 
 /** 기존 실전표 (slip_db 조회 — 2026/06/09-1 QA거래처 4 lines). */
 const BASE_SLIP_ID = process.env.QA_SLIP_ID || '44a5e186-e9dc-4006-b46c-99e65d66dda3'

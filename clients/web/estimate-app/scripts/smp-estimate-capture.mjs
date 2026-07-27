@@ -17,10 +17,11 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', 'single-material-product', 'screenshots');
-fs.mkdirSync(OUT, { recursive: true });
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT = resolveQaShotsDir(path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', 'single-material-product', 'screenshots'));
 const URL = 'http://localhost:5183/?email=dev_master@samhan-air.com';
 const log = (...a) => console.log('[smp-est]', ...a);
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3a R3 라이브 QA — 결재 재인쇄 "승인 당시 레이아웃 pin" 실서버 검증 (R2 fix 반영본).
  *
@@ -42,7 +43,7 @@ const DOC_TYPE = `GROUPWARE_${QA_CODE}`
 const CONTENT_MARKER = 'R3-PIN-CONTENT-MARKER-본문식별자'
 const FIELD_LABEL = 'R3 검증 사유'
 
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r3-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r3-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 const RAW_LOG = path.resolve(SHOTS, '00-raw.txt')
 

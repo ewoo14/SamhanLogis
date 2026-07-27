@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 품목관리 고도화 (PR #461) Docker 실서버 QA Playwright spec.
  *
@@ -22,10 +23,10 @@ const _dirname = typeof __dirname !== 'undefined'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5175'
 const API_BASE = 'http://localhost:8080'
 
-const SCREENSHOTS_DIR = path.resolve(
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/product-catalog-enhance/screenshots',
-)
+))
 
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 

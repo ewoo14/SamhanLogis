@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #907 OPUS 재수렴 라운드 fix — Excel export 화면 필터 파리티 라이브 QA.
  *
@@ -21,7 +22,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/907-sonnet-round-2026-07-24')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/907-sonnet-round-2026-07-24'))
 const DOWNLOADS = path.join(SHOTS, 'downloads')
 fs.mkdirSync(SHOTS, { recursive: true })
 fs.mkdirSync(DOWNLOADS, { recursive: true })

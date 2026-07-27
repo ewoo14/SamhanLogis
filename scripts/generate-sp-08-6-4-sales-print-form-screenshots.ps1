@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$OutputDir = "docs\qa\sp-08-6-4-sales-print-form\screenshots"
+    [string]$OutputDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs\qa\sp-08-6-4-sales-print-form\screenshots\_local" })
 )
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing

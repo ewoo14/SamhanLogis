@@ -52,6 +52,11 @@ dist-ssr/
 .turbo/
 .parcel-cache/
 
+# ----- Python ----- (2026-07-27 하네스 흡수 H2 — docs/qa/**/*.py PNG 생성 스크립트가
+# scripts/lib/qa_shots_dir.py 를 import 하면서 실행할 때마다 __pycache__/*.pyc 가 생긴다)
+__pycache__/
+*.pyc
+
 # ----- Env -----
 .env
 .env.local
@@ -69,10 +74,15 @@ test-results/
 # QA 일회용 — 실 캡처 PNG만 추적, 캡처 스크립트·결과 json·진단 스크립트 제외
 **/qa-*-capture.mjs
 docs/qa/**/_results.json
-# 라이브QA 재캡처 스크래치 — 스펙 재실행 기본 출력지(clients/desktop/playwright/support/qa-screenshot-dir.ts).
-# docs/qa/<slug>/*.png(커밋된 확정 증거)와 경로를 분리해 재실행이 그 증거를 덮어쓰지 못하게 한다
-# (2026-07-25, #902 슬라이스 — 덮어쓰기 위험 때문에 리뷰어가 라이브QA 실행을 포기한 사고 재발 방지).
-docs/qa/**/_local/
+# 라이브QA 재캡처 스크래치 — 스펙 재실행 기본 출력지(resolveQaShotsDir, clients/desktop/playwright/
+# support/qa-screenshot-dir.ts 및 .mjs 버전). 커밋된 확정 증거(docs/qa/<slug>/*.png,
+# clients/desktop/playwright/<slug>/screenshots/*.png, docs/manual/screenshots/*.png 등)와
+# 경로를 분리해 재실행이 그 증거를 덮어쓰지 못하게 한다 (2026-07-25, #902 슬라이스 — 덮어쓰기
+# 위험 때문에 리뷰어가 라이브QA 실행을 포기한 사고 재발 방지). resolveQaShotsDir 는 임의의
+# committedDir 인자를 받아 그 밑에 `_local/` 을 만들 수 있으므로(2026-07-26 하네스 재수렴
+# 라운드 G4 — docs/manual/screenshots/_local/ 이 이 규칙 밖이라 미추적 잔재로 남던 결함 실측)
+# 특정 디렉토리를 나열하지 않고 저장소 전역에서 `_local/` 이름의 디렉토리를 전부 제외한다.
+**/_local/
 **/.diag-*.cjs
 **/.diag-*.mjs
 # 로컬 세션 QA 아티팩트 — CI testIgnore 대상·커밋 대상 아님 (git status 정리, 2026-07-05 개발책임자 요청)

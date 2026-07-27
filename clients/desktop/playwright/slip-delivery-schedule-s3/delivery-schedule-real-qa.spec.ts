@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 출고전표 배송일정(M상N하) 슬라이스 — 실 gateway 실 UI QA 드라이버.
  *
@@ -36,10 +37,10 @@ const MASTER_USER_NAME = '[DEV-SEED] 개발마스터'
 const REAL_JWT: string = process.env['REAL_JWT'] ?? ''
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/slip-delivery-schedule-s3',
-)
+))
 
 if (!fs.existsSync(SCREENSHOT_DIR)) {
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })

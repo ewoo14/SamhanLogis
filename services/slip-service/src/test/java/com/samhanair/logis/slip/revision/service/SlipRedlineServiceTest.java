@@ -201,7 +201,11 @@ class SlipRedlineServiceTest {
     }
 
     @Test
-    @DisplayName("과거 VAT-null 스냅샷은 VAT 제외 단가로 비교하고 단일 layer 는 응답에서 제외한다")
+    // 재수렴 7차(#937) R7-2 — 종전 제목은 "VAT 제외 단가로 비교"였으나, 금액 3값이 없는 구
+    // 스냅샷의 총액 해석을 화면(FE slipLineAmounts = lineTotal + 10%)에 맞추면서 이 좌표의
+    // 비교 도메인도 VAT 포함(11,000)이 됐다. 두 revision 이 같은 값이므로 layer 는 1개뿐이고,
+    // 단일 layer 는 응답에서 제외된다는 성질은 그대로다.
+    @DisplayName("과거 VAT-null 스냅샷도 화면과 같은 VAT 포함 단가로 비교하고 단일 layer 는 응답에서 제외한다")
     void legacySnapshotFallsBackToVatExclusiveAndFiltersSingleLayer() throws Exception {
         UUID slipId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();
@@ -220,6 +224,134 @@ class SlipRedlineServiceTest {
 
         assertThat(response.fields()).noneMatch(field -> field.fieldPath().startsWith("lines[")
                 && field.fieldPath().endsWith(".unitPrice"));
+    }
+
+    @Test
+    @DisplayName("재수렴 4차(#937) ⑤: 두 단가 컬럼이 VAT 제외로 같아진 행을 무수정 재저장해도 "
+            + "레드라인 단가에 사용자가 하지 않은 변경이 찍히지 않는다")
+    void computeRedlineDoesNotReportUnitPriceRepairAsUserEdit() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        // rev1 — main 편집화면 페이로드가 만든 실 DB 상태(2026-07-27 실측 55건 계열):
+        // unit_price = unit_price_with_vat = 100,000(둘 다 VAT 제외), 공급 200,000 / 부가세 20,000 / 수량 2.
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "100000", "20000", "200000"))));
+        // rev2 — 무수정 재저장. 근본수정 후 BE 는 unit_price_with_vat 를 VAT 포함 도메인으로 정상화한다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "110000", "20000", "200000"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        // RED(수정 전): 저장 컬럼을 그대로 읽어 "100000 -> 110000" layer 2개가 생긴다.
+        assertThat(response.fields())
+                .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
+    }
+
+    @Test
+    @DisplayName("재수렴 5차(#937): 부가세만 편집해도 레드라인 단가에 사용자가 하지 않은 변경이 찍히지 않는다")
+    void computeRedlineKeepsAuthoredUnitPriceWhenOnlyVatEdited() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        // rev1 — 단가(VAT포함) 110,000 x 2 저장분: unit_price = S/Q, unit_price_with_vat = 사용자 입력.
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "110000", "20000", "200000"))));
+        // rev2 — 부가세만 20,000 → 25,000 (단가·수량 무편집). 사용자 입력 단가는 그대로 남는다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(lineWithAmounts(productId, "품목", "모델", "규격", 2,
+                        "100000", "200000", "110000", "25000", "200000"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        // RED(수정 전): rev2 의 단가를 (200,000+25,000)/2 = 112,500 으로 역산해
+        // "110000 -> 112500" layer 2개가 찍힌다 — 사용자는 단가를 건드리지 않았다.
+        assertThat(response.fields())
+                .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
+        // 실제로 바뀐 합계(VAT 포함)는 그대로 기록된다.
+        SlipRedlineResponse.FieldRedline total = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("lines[0].lineTotal"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(total.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("220000", "225000");
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) D-1R6: 도메인이 기록된 행은 '부가세 별도' 정정 후에도 "
+            + "사용자 입력 단가를 그대로 보인다 (같은 좌표의 legacy 행은 계속 유도)")
+    void computeRedlineTrustsRecordedUnitPriceDomain() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        // rev1 — 단가(VAT포함) 100,000 x 2 저장분(S=181,818 · V=18,182).
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(domainLine(productId, 2, "90909", "181818", "100000", "18182",
+                        "181818", "VAT_INCLUSIVE"))));
+        // rev2 — 공급가액·부가세만 "부가세 별도"로 정정. 저장 좌표가 구 BE 오염행과 같아진다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(domainLine(productId, 2, "100000", "200000", "100000", "20000",
+                        "200000", "VAT_INCLUSIVE"))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        // RED(수정 전): rev2 를 (200,000+20,000)/2 = 110,000 으로 유도해
+        // "100000 -> 110000" layer 가 찍힌다 — 사용자는 단가를 건드리지 않았다.
+        assertThat(response.fields())
+                .noneMatch(field -> field.fieldPath().endsWith(".unitPrice"));
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 도메인이 없는 legacy 스냅샷 행은 현행 휴리스틱을 유지한다")
+    void computeRedlineKeepsHeuristicForLegacySnapshotLines() throws Exception {
+        UUID slipId = UUID.randomUUID();
+        UUID productId = UUID.randomUUID();
+        Slip slip = anchoredSlip(slipId, 1);
+        SlipRevision rev1 = revision(slipId, 1, snapshot("memo",
+                List.of(domainLine(productId, 2, "90909", "181818", "100000", "18182",
+                        "181818", null))));
+        // 같은 좌표인데 도메인이 없다 — 구 BE 오염행일 수 있어 권위 합계에서 유도한다.
+        SlipRevision rev2 = revision(slipId, 2, snapshot("memo",
+                List.of(domainLine(productId, 2, "100000", "200000", "100000", "20000",
+                        "200000", null))),
+                UUID.randomUUID(), "김영업", "#3366ff");
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(revisionRepository.findBySlipIdOrderByRevisionNoDesc(slipId))
+                .thenReturn(List.of(rev2, rev1));
+
+        SlipRedlineResponse response = service().computeRedline(slipId);
+
+        SlipRedlineResponse.FieldRedline unitPrice = response.fields().stream()
+                .filter(field -> field.fieldPath().equals("lines[0].unitPrice"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(unitPrice.layers()).extracting(SlipRedlineResponse.Layer::value)
+                .containsExactly("100000", "110000");
+    }
+
+    /** 금액 5값 + 단가 도메인을 가진 스냅샷 라인 (재수렴 6차 #937). */
+    private SlipSnapshot.Line domainLine(UUID productId, int quantity, String unitPrice,
+                                         String lineTotal, String unitPriceWithVat,
+                                         String vatAmount, String supplyAmount,
+                                         String unitPriceDomain) {
+        return new SlipSnapshot.Line(productId, "품목", "모델", "규격", quantity,
+                decimal(unitPrice), decimal(lineTotal), null, decimal(unitPriceWithVat),
+                decimal(vatAmount), decimal(supplyAmount), null, null, unitPriceDomain);
     }
 
     private SlipRedlineService service() {

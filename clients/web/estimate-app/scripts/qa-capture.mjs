@@ -16,10 +16,12 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT_DIR = path.resolve(ROOT, '..', '..', '..', 'docs', 'qa', 'migration-fe-estimate-app-v2');
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT_DIR = resolveQaShotsDir(path.resolve(ROOT, '..', '..', '..', 'docs', 'qa', 'migration-fe-estimate-app-v2'));
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const BASE = process.env.QA_BASE_URL || 'http://localhost:5183';

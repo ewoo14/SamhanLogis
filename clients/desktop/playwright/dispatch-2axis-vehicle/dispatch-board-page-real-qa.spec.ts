@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #1 배차 보드 — 라이브 실서버 캡처(mock OFF, Fable5 라운드 QA).
  *
@@ -16,7 +17,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5178'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/dispatch-2axis-vehicle')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dispatch-2axis-vehicle'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }

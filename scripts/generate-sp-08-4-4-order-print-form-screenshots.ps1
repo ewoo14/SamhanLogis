@@ -1,5 +1,5 @@
 param(
-    [string]$OutputDir = "docs/qa/sp-08-4-4-order-print-form/screenshots"
+    [string]$OutputDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs/qa/sp-08-4-4-order-print-form/screenshots/_local" })
 )
 
 Add-Type -AssemblyName System.Drawing

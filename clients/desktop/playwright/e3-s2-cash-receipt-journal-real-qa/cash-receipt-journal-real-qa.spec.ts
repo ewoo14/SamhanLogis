@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * E3 S2 — 입금보고서 확정/수정/취소가 만든 실 원장 분개를 회계전표 GUI 로 실증 (mock OFF).
  *
@@ -26,7 +27,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/e3-s2-cash-receipt-journal')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e3-s2-cash-receipt-journal'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

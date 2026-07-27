@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 품목 다중 카테고리 노출 (M:N) — PR #494 / 에픽 #18 슬1 실서버 QA 캡처.
  *
@@ -37,7 +38,7 @@ const API_BASE = 'http://localhost:8080'
 const TARGET_CODE = 'AJ060MXHNBC1'
 
 // 프롬프트 지정 저장 경로: docs/qa/product-multi-category-exposure/
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/product-multi-category-exposure')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/product-multi-category-exposure'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 async function shot(page: Page, name: string): Promise<void> {

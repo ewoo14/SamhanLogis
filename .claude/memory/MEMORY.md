@@ -2,7 +2,7 @@
 - [🚨 표준 워크플로우 유일 진실원 (2026-07-23 현행)](feedback_canonical_workflow.md) — 머지게이트=①실 사용자 경로 재현 결함 0 ②CI green(exact SHA) ③라이브QA 실서버 실행. 🚨**적대리뷰는 오직 도달성만**(검증품질 제도 폐지) · 🚨**3턴 내 수렴·새 이슈 금지·PM 이 fix 기획**. PM 재량=오류/보안만 게이트. OPUS 기획→LUNA 구현→(OPUS+PM QA+SONNET5 / SOL+SOL QA+LUNA) 반복→머지. `gpt-5.6-sol`/`gpt-5.6-luna`
 - [🚨 하네스 설계 정본 — 결함 0 이 궁극 목적](feedback_harness_defect_zero_design.md) — 목표=**수렴비 c<0.45**(이번 라운드 도달가능÷직전), 매 라운드 c·r 을 PR 기록. 5부=①진단 확증 ②표면 분할 3~4 리뷰(5차원 폐기) ③**fix 최소 변경** ④회귀 울타리+전수 sweep ⑤**U-gate**(기획 1문장+머지 전 실데이터 실행). 적응=c≥0.45&r≥0.5 2연속→**fix 분할 동결**. **3턴은 권고**
 - [🚨 Codex 5-agent=mcp 직접(codex-rescue unreliable)](feedback_codex_rescue_unreliable_use_mcp.md) — codex-rescue는 이 환경서 bg태스크화·샌드박스 차단(gradlew/gh/npm)로 findings 미전달 → CODEX SOL 5-agent 라운드 …
-- [🚨 처리량 3레버 — 병렬화·범위 동결·chore 배치 (위험등급제 미채택)](feedback_throughput_parallel_scope_freeze_batch.md) — 2026-07-20 개발책임자 결정(#854 가 8h21m·69파일·5라운드 쓰고도 미머지 …
+- [🚨 처리량 3레버+라운드 5레버 — 병렬화·범위동결·chore배치 · **07-26 승인 R1~R5**](feedback_throughput_parallel_scope_freeze_batch.md) — 07-26: 병목=라운드 **개수**(PR당 4~6R·3~6h). R1 적대검증 **각도 4~5 병렬** R2 로컬 전체스위트 금지(권위=CI) R3 계열 sweep 은 **파일명 아닌 단정 내용**으로 R4 🚨**구현자의 "우회했다/다르다" 문장을 PM 이 PR 제목·기존결정과 대조**(#937 E-1 이 이 누락) R5 CI 대기중 다음라운드. 🚫라이브QA·RED-first·2검증스테이지는 불변
 - [🚨 PM 슬라이스 effort 조절·엣지 바운드](feedback_pm_regulate_slice_effort.md) — 한 슬라이스 하루종일 iterate 금지. 3라운드+ "fix가 새 결함" 시 개발책임자께 바운드옵션 제시(현 견고상태 게시+엣지 후속분리/스코프 재논의) …
 - [🚨 머지 전 재수렴 의무·CI green≠수렴·[NEW] baseline diff 확증](feedback_reconvergence_before_merge.md) — 검증 fix(상태머신·타이밍·불변식·CI/늦은포착 fix 포함) 후 좁은 재검증으로 끝내지 말고 머지 전 재수렴 적대라운드 1회(신규 HIGH/MED 0 확인 …
 - [기획 spec 기존 결정 교차검증](feedback_spec_cross_check_prior_decisions.md) — 새 slice spec 각 결정을 에픽 dev-report/메모리와 grep 대조(편집가부·상태전이·계정 …
@@ -39,6 +39,7 @@
 - [Monitor 자동 사용](feedback_monitor_no_permission.md) — CI watch 허락없이 즉시
 
 # 개발환경/빌드 함정
+- [🚨 docker exec 는 stdin 미전달 — heredoc SQL 이 조용히 무동작](feedback_docker_exec_stdin_silent_noop.md) — heredoc 이 무시되고 psql 이 **무출력 exit 0**. "실행된 것처럼 보였으나 0행 삭제"(2026-07-27 실측). DB 작업은 **`docker cp` + `psql -f`**(`MSYS_NO_PATHCONV=1`). `-c "SQL"` 은 정상. 정리 후 **행 수를 다시 셀 것**
 - [Dev Environment](project_dev_environment.md) — · [Build Conventions](project_build_conventions.md) — JDK17/Gradle/Docker …
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md) — 한글경로 gradle test 실패→assemble
 - [gradlew 실행권한](feedback_gradlew_exec_bit.md) — `git update-index --chmod=+x gradlew`
@@ -55,6 +56,8 @@
 - [standalone-boot 실QA](feedback_standalone_boot_real_qa.md) — Windows IT skip 시 jar standalone+docker PG
 
 # QA/테스트 규율
+- [🚨 PR 충돌이면 워크플로가 아예 안 생성된다](feedback_pr_conflict_blocks_all_workflows.md) — `mergeable=CONFLICTING` 이면 GitHub 이 merge commit 을 못 만들어 `pull_request` run 이 **0건**. 조용히 멈추며 "큐에 있음" 으로 오독하기 쉽다(#929 3커밋 연속·개발책임자 정정). **체크 수가 평소(33~41)보다 적으면 `gh pr view --json mergeable` 부터**
+- [🚨 게이트 0 표면 · mock 이 결함을 덮음](feedback_ungated_surface_and_mock_covering_defect.md) — CI green 을 세기 전에 **그 CI 가 검사하지 않는 표면**을 명시하라. Electron main 은 CI 스텝 0개였고 `vi.mock('electron-updater')` 가 깨진 import 자체를 덮어 2026-07-24~26 main 이 깨진 채 방치됐다. 데스크톱 라이브QA=Electron 실제 기동
 - [QA Docker 실서버 의무](feedback_qa_docker_real_test.md) — 실서버 테스트, code read PASS 금지, 미가용시 P2+CI fetch
 - [실서버 점검=실사용자 UI 캡처](feedback_real_server_check_screenshot.md) — API JSON 아닌 실 데스크톱 화면(:8080·dev_master·mock OFF)
 - [야간=라이브 Docker 캡처 미루지말것](feedback_overnight_live_capture.md) — 재빌드해서라도 라이브 캡처, CI IT 대체 금지
@@ -87,7 +90,7 @@
 - [JPA JOIN FETCH 카르테시안 dedup](feedback_jpa_joinfetch_cartesian_dedup.md) — 다행 컬렉션 fetch 중복, id-distinct+다행 IT시드
 - [MockMvc getContentAsString charset](feedback_mockmvc_getcontentasstring_charset.md) — 인자없으면 ISO-8859-1 깨짐, UTF_8 명시
 - [X-User-Name charset+FilterRegistrationBean MockMvc](feedback_x_user_name_header_charset_mockmvc.md)
-- [real-qa 실행법+스펙 false-RED](feedback_realqa_run_and_false_red.md) — mock off+:8080+config(webServer 없음), DragHandle 글리프 false-RED …
+- [🚨 real-qa 하네스 **3종**·실행법(07-26 갱신)+스펙 false-RED](feedback_realqa_run_and_false_red.md) — `webServer` 가 없어 **어느 config 로 띄울지 실행자가 결정** → 스펙마다 정답 goto 가 다르다. `vite.web.config.ts`=BrowserRouter(**경로**) · `vite.renderer.dev.config.ts`=HashRouter(**`#/`**, pwa stub) · `npx vite src/renderer`=**앱 자체가 안 뜸**(`virtual:pwa-register`). 🚨`VITE_APP_VERSION`(`YYYY/MM/DD-N`) 미주입 시 런타임 사망. 띄우기 전 두 형태 goto 로 목표 화면 확정할 것 …
 - [real-qa 프록시 글롭+resourceType](feedback_realqa_proxy_glob_resourcetype.md) — 백엔드만 좁게+xhr/fetch, /collab/stream abort, networkidle 금지
 - [real-qa 디렉토리 -real-qa 접미사](project_dispatch_on_inspect_epic.md) — 누락시 CI mock잡 미제외→ECONNREFUSED
 - [arologis-desktop standalone QA 하네스](feedback_arologis_desktop_standalone_qa_harness.md) — 브라우저 렌더러 vite config+프록시 rewrite(`/api/arologis`→`/admin/arologis`) …

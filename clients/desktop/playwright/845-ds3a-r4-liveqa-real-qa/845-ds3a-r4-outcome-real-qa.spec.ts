@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #845 DS-3a R4 라이브 QA — 결재 재인쇄 "승인 당시 pin" end-to-end OUTCOME (V13 배포본).
  *
@@ -34,7 +35,7 @@ const DOC_TYPE = `GROUPWARE_${QA_CODE}`
 const CONTENT_MARKER = 'R4-OUTCOME-CONTENT-MARKER-본문식별자'
 const FIELD_LABEL = 'R4 검증 사유'
 
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r4-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/845-ds3a-r4-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 const RAW_LOG = path.resolve(SHOTS, '00-outcome-raw.txt')
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** PR #914 라이브 RED 하네스.
  *
  * 실제 게이트웨이와 groupware_db에 마커 throwaway DRAFT만 생성한다.
@@ -13,7 +14,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'PR914-LUNA-20260723'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-impl-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-luna-impl-2026-07-23'))
 mkdirSync(SHOT_DIR, { recursive: true })
 
 const DOCUMENT = {

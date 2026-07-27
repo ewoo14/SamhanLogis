@@ -21,6 +21,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import * as http from 'http'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ---------------------------------------------------------------------------
 // 설정
@@ -32,10 +33,12 @@ const _dirname = path.dirname(_filename)
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5173'
 
 /** 스크린샷 저장 디렉토리 */
-const QA_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const QA_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/slip-form-v20-and-menu-relocate',
-)
+))
 
 function ensureQaDir(): void {
   // Mock 계약 스펙은 Playwright test-results 아래에 스크린샷을 남긴다.
@@ -274,14 +277,9 @@ test.describe('admin GAS 메뉴 일반 카테고리 노출 (TC-M1~M5)', () => {
       fullPage: true,
     })
 
-    // 최소 1개 이상의 역할에서 visible 이어야 함 (FE agent 미완성 허용 — 0건이면 경고)
-    const anyVisible = Object.values(results).some(v => v)
-    if (!anyVisible) {
-      console.warn('[TC-M1] "배차지역 관리" 메뉴 미발견 — FE agent 작업 완료 후 재확인 필요. 현재 메뉴 구조:')
-      const allLinks = await page.locator('nav a, sidebar a, .menu-item').allTextContents()
-      console.warn('발견된 메뉴 항목:', allLinks.slice(0, 20))
-    }
-
+    // (2026-07-26 하네스 배치) "0건이면 console.warn" 진단 블록 제거 — 바로 아래 hard
+    // assert 가 이미 3역할 전부를 강제하고 실패 시 실제 results 를 출력하므로, warn 은
+    // "soft-pass 처럼 보이는" 노이즈일 뿐이었다. soft 분기 0건 유지가 이 배치의 계약이다.
     expect(results, 'TC-M1: DISPATCH/MANAGER/MASTER 모두 배차 그룹의 배차지역 관리가 보여야 함').toEqual({
       DISPATCH: true,
       MANAGER: true,

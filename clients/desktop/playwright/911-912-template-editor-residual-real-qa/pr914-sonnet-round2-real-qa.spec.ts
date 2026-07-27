@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** PR #914 OPUS 재수렴 라운드 fix — SONNET5 라이브 QA 하네스(round2).
  *
  * 두 발견(같은 뿌리 — docType=''을 1급 상태로 다루지 못함)을 실서버·실 렌더러(HashRouter, :5195)에서
@@ -23,7 +24,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'PR914-SONNET-R2-20260724'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-sonnet-round2-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-sonnet-round2-2026-07-23'))
 mkdirSync(SHOT_DIR, { recursive: true })
 
 interface LoginResult {

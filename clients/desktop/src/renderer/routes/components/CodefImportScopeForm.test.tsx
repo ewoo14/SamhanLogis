@@ -7,6 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CodefImportResultSummary, CodefImportScopeForm } from './CodefImportScopeForm'
 import type { CodefImportResponse, CodefImportScope } from '../../api/codef'
+import { flushZeroDelayTasks } from '../../test-utils/flush'
 
 const listCodefBankAccountsMock = vi.fn()
 const listCodefCardsMock = vi.fn()
@@ -625,7 +626,7 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     // 아무것도 바꾸지 않은 일반 저장은 PUT하지 않아야 한다.
     fireEvent.click(screen.getByTestId('codef-save-scope-button'))
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushZeroDelayTasks()
     expect(saveCodefImportScopeMock).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('codef-scope-conflict').textContent).toContain('지워질 수 있습니다')
 

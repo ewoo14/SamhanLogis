@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // PR #798 (#782 part3) 라이브 QA — 상업 SET 부모행 'SET' 마커(discoverability) 검증.
 // index.html <style> CSS 1줄 추가만(fix/782-setpart-discoverability):
 //   tr[data-is-set="1"]:not(.set-part) td.colD::before{content:"SET";...소형 파랑 pill}
@@ -8,7 +9,7 @@
 //       + 실 partner-auth-service(bizNo 2118712345 / PIN 1234) + 실 partner-order/product-service.
 import { chromium } from '@playwright/test';
 
-const OUT = process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker';
+const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker');
 const URL = process.env.QA_URL || 'http://localhost:5198/';
 const LABEL = process.env.QA_LABEL || 'after';
 

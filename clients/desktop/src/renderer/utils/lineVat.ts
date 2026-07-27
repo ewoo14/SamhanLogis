@@ -105,9 +105,171 @@ function warningFor(supplyAmount: bigint, vatAmount: bigint): boolean {
   return vatAmount !== vatFromIntegerSupply(supplyAmount)
 }
 
-/** 공급가액 기준 공통 10% 절사값과 입력 부가세가 다른지 판정한다. */
+/**
+ * 공급가액 기준 10%(별도 절사)과 저장된 부가세의 "실질" 불일치를 판정한다 — ±1원은 허용 오차.
+ *
+ * <p>재수렴 3차(#937) 근본수정 — 종전엔 {@link warningFor}(엄격 일치)를 그대로 썼다.
+ * PRICE/TOTAL 권위의 실제 분리 공식({@link supplyFromVatInclusive} 미러, 합계를 ÷1.1·0 방향
+ * 절사)은 "공급가액×10%, 별도 절사"와 수학적으로 다른 절사 경계를 가져 <b>항상 0 또는 +1원만큼만</b>
+ * 어긋난다 — 증명: 합계 T=11k+r(0≤r≤10) 로 두면 공급가액 S=10k+⌊10r/11⌋, 부가세 V=T-S=
+ * k+r-⌊10r/11⌋, "공급가액의 10%"(별도 절사)는 k 이고, 그 차 r-⌊10r/11⌋ 은 r=0 이면 0, r=1..10
+ * 이면 항상 1이다(자기 자신과 비교해도 반올림 경계마다 거짓 경고가 붙던 #937 R-2 최초 발견의
+ * 원인). 실측(2026-07-27, 활성 slip_lines 2,717건)도 이를 뒷받침한다 — 정확히 10%: 2,658건,
+ * ±1원 잔차: 48건(diff=+1 40건·diff=-1 8건, 후자는 SUPPLY/VAT 권위 직접편집 등 다른 경로에서도
+ * 1원 잔차가 남을 수 있음을 보여준다), 그 밖의 실질 불일치(3,000~18,000원): 11건뿐이었다.
+ *
+ * <p>±1원을 허용 오차로 두지 않으면(엄격 일치) 정상 계산 라인 대다수가 거짓 경고를 받고
+ * (#937 R-2 최초 발견 — SlipDetailPage 하이드레이션이 저장 직후 재열기만으로 경고를 띄웠다),
+ * 반대로 무조건 억제하면(#937 R-2 fix, 이 함수를 실사용하기 전) 그 11건의 실질 불일치까지
+ * 함께 숨는다(재수렴 3차 U2 신규 발견). SlipDetailPage 하이드레이션·원격 피어 동기화가 이
+ * 함수를 실사용한다(재수렴 3차 이전엔 정의만 있고 호출자가 없었다).
+ */
 export function hasVatWarning(supplyAmount: string | number, vatAmount: string | number): boolean {
-  return warningFor(integerAmount(supplyAmount), integerAmount(vatAmount))
+  const diff = integerAmount(vatAmount) - vatFromIntegerSupply(integerAmount(supplyAmount))
+  return diff > 1n || diff < -1n
+}
+
+/**
+ * 저장 시점에 기록된 단가 권위 도메인 (slip_lines.unit_price_domain, V59) — 재수렴 6차 #937.
+ *
+ * <ul>
+ *   <li>{@code VAT_INCLUSIVE} — {@code unit_price_with_vat} 가 이 라인의 VAT 포함 단가다.</li>
+ *   <li>{@code SUPPLY} — {@code unit_price} 가 권위이고 {@code unit_price_with_vat} 는 x1.1 파생값.
+ *       어느 쪽이든 {@code unit_price_with_vat} 는 <b>충실한 VAT 포함 단가</b>이므로 표시는 같다.</li>
+ * </ul>
+ */
+export type StoredUnitPriceDomain = 'VAT_INCLUSIVE' | 'SUPPLY'
+
+const KNOWN_UNIT_PRICE_DOMAINS: readonly string[] = ['VAT_INCLUSIVE', 'SUPPLY']
+
+export interface StoredUnitPriceSource {
+  quantity: string | number
+  /** 저장된 VAT 제외 공급단가 컬럼 (slip_lines.unit_price). */
+  unitPrice?: string | number | null
+  /** 저장된 VAT 포함 단가 컬럼 (slip_lines.unit_price_with_vat). */
+  unitPriceWithVat?: string | number | null
+  supplyAmount: string | number
+  vatAmount: string | number
+  /**
+   * 저장 시점에 기록된 단가 권위 도메인 (slip_lines.unit_price_domain, V59) — 재수렴 6차 #937.
+   * 값이 있으면 <b>휴리스틱 판정을 아예 하지 않는다</b>. V59 이전 legacy 행은 null/undefined 이며
+   * 그 행만 현행 휴리스틱으로 해석한다(개발책임자 결정).
+   * BE 응답 문자열을 그대로 받으므로 알 수 없는 값이 올 수 있어 타입을 넓게 둔다.
+   */
+  unitPriceDomain?: StoredUnitPriceDomain | string | null
+}
+
+export interface ResolvedUnitPrices {
+  /** VAT 제외 공급단가 — 세금계산서·매입전표 인쇄의 "단가" 열 도메인. */
+  supplyUnit: string
+  /** VAT 포함 단가 — 상세/수정 화면·거래명세서의 "단가(VAT포함)" 도메인. */
+  inclusiveUnit: string
+}
+
+/**
+ * 파생 단가 컬럼({@code unit_price = S ÷ Q}) — 저장값이 자기 항등식과 맞으면 그대로, 아니면
+ * 권위 금액에서 유도한다. 이 컬럼은 사용자 입력이 아니라 BE 가 계산해 넣는 값이다
+ * ({@code SlipLine.createFromAuthoritativeAmounts}).
+ */
+function resolveUnit(stored: string | number | null | undefined, target: bigint, quantity: number): string {
+  if (stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
+      && roundProduct(quantity, stored) === target) {
+    return String(stored)
+  }
+  return divideToScale(target, BigInt(quantity), 2)
+}
+
+/**
+ * 사용자 권위 단가 컬럼({@code unit_price_with_vat}) — 재수렴 5차(#937) 근본수정.
+ *
+ * <p>이 컬럼은 파생값이 아니라 <b>사용자가 화면에 입력한 VAT 포함 단가</b>다. BE 가 요청 단가를
+ * 끝수까지 무손실로 각인하고({@code SlipLine.createFromAuthoritativeAmounts}), 가격기억 각인
+ * 원천({@code collectPriceMemory} 의 {@code getUnitPriceWithVat})도 이 컬럼이다. 2026-07-25
+ * 개발책임자 결정 P4 — <b>"단가는 결코 역산되지 않는다"</b> — 는 편집 계층({@link
+ * editSlipLineAmount})뿐 아니라 표시·하이드레이션 계층에도 그대로 적용된다.
+ *
+ * <p>부가세(또는 공급가액)만 편집하면(P6) 단가는 그대로 두고 S/V 만 바뀌므로 항등식
+ * {@code 단가 × 수량 = S + V} 가 <b>정당하게</b> 깨진다. 그 정당한 상태와 BE 구 저장이 만든
+ * 오염(화면 단가를 두 컬럼에 그대로 각인 — 라이브 실증 {@code 100000|100000|200000|20000|2})은
+ * <b>저장값이 어느 세금 도메인의 총액과 맞아떨어지는지</b>로 구별된다: {@code 저장단가 × 수량 = S}
+ * 면 그 컬럼은 VAT <b>제외</b> 값을 담고 있으므로(오염) 권위 합계에서 유도하고, 그 밖에는 사용자
+ * 권위 단가로 보존한다. 부가세 0(면세) 라인은 {@code S = S + V} 라 유도해도 같은 값이 나온다.
+ *
+ * <p>재수렴 4차는 이 구별 없이 "항등식 불만족이면 무조건 유도"했고, 그래서 부가세만 편집한
+ * 라인의 단가를 표시 계층에서 역산했다 — 라이브 실증 2026-07-27: 사용자 입력 110,000 이 표시
+ * 112,500 이 되고, 무편집 재저장만으로 DB {@code unit_price_with_vat} 가 112,500 으로 덮여
+ * 사용자가 입력한 단가가 영구 소멸했다(실 DB 활성 22행 중 10행은 11,000 → 26,000, +136%).
+ */
+function resolveAuthoredUnit(
+  stored: string | number | null | undefined,
+  inclusiveTarget: bigint,
+  supplyTarget: bigint,
+  quantity: number,
+): string {
+  if (stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
+      && roundProduct(quantity, stored) !== supplyTarget) {
+    return String(stored)
+  }
+  return resolveUnit(stored, inclusiveTarget, quantity)
+}
+
+/**
+ * 저장된 두 단가 컬럼을 각자의 세금 도메인으로 해석한다 — 재수렴 4차·5차(#937) 근본수정.
+ *
+ * <p><b>계약</b>: 전표 라인의 금액 권위값은 공급가액(S)·부가세(V)·수량(Q) 이고({@code
+ * SlipLine.createFromAuthoritativeAmounts} 가 요청 3값을 재계산 없이 그대로 저장한다), 두 단가
+ * 컬럼의 <b>성격은 서로 다르다</b>:
+ * <ul>
+ *   <li>{@code unit_price}(VAT 제외) = <b>파생값</b>. BE 가 {@code S ÷ Q} 로 계산해 넣는다 —
+ *       세금계산서·매입전표의 "단가 × 수량 = 공급가액"이 이 컬럼의 항등식이다.</li>
+ *   <li>{@code unit_price_with_vat}(VAT 포함) = <b>사용자 권위 입력</b>. 화면 단가(2026-06-09
+ *       개발책임자 확정으로 VAT 포함)를 끝수까지 그대로 각인하며, 가격기억 각인 원천이다.
+ *       2026-07-25 결정 P4 대로 어떤 경로에서도 역산하지 않는다({@link resolveAuthoredUnit}).</li>
+ * </ul>
+ *
+ * <p><b>왜 저장값을 무조건 믿지 않는가</b>: 2026-07-27 slip_lines 실측(활성 2,781건) —
+ * {@code unit_price × 수량 ≠ 공급가액} 44건, {@code unit_price_with_vat × 수량 ≠ 공급가액+부가세}
+ * 22건, 두 컬럼이 같은 값인 행 55건. 구 BE 는 화면 단가를 <b>두 컬럼에 그대로</b> 각인해 한쪽이
+ * 반드시 틀린 상태를 남겼다. BE 근본수정이 앞으로의 저장을 바로잡아도 이미 그 상태인 행은
+ * 남으므로, 파생 컬럼은 권위값과 대조해 유도하고 권위 입력 컬럼은 "다른 도메인 총액과
+ * 맞아떨어지는" 오염 신호가 있을 때만 유도한다.
+ *
+ * <p><b>왜 무조건 유도하지도 않는가</b>: 사용자가 입력한 끝수 단가(예: 가격기억 499,999.5)는
+ * 권위값에서 되돌리면 반올림되어(500,000) 가격기억 왕복이 흔들리고, 부가세만 편집한 라인
+ * (P6 — 정당하게 항등식이 깨진다)은 아예 다른 단가로 바뀐다.
+ *
+ * <p>🚨 <b>재수렴 6차(#937) — 개발책임자 결정 A안 "저장 시점에 도메인 기록"</b>.
+ * 위 두 문단의 휴리스틱은 <b>legacy 행 전용</b>이 됐다. {@code unitPriceDomain}
+ * ({@code slip_lines.unit_price_domain}, V59)이 실려 있으면 판정을 아예 하지 않고 저장된
+ * {@code unitPriceWithVat} 를 그대로 쓴다.
+ *
+ * <p><b>왜 판정식을 또 고치지 않았나</b>: 6라운드에 걸쳐 기준을 세 번 바꿨다(동일성 → 항등식 →
+ * 공급가액 일치). 오판 표면은 22행 → 10행으로 줄었을 뿐 <b>0 이 되지 않았다</b>. 같은 DB 행
+ * {@code 100000|100000|200000|20000|2} 에 대해 "구 BE 오염 방지"는 유도(→110,000)를,
+ * 2026-07-25 결정 P4 는 보존(→100,000)을 요구하는데 <b>DB 에 이를 가르는 정보가 없었다</b> —
+ * 사용자가 공급가액을 {@code 단가 × 수량} 에 맞추는 순간(부가세 별도 정정, 한국 B2B 기본 관행)
+ * 정당한 상태가 오염행과 완전히 같은 좌표가 되기 때문이다(라이브 실증 전표 2026/07/27-209:
+ * 읽기전용 표 110,000 vs 수정모달 100,000 — 같은 전표·같은 세션 10,000원 차이). 그래서 판정을
+ * 개선하는 대신 <b>저장 시점에 답을 기록</b>한다.
+ *
+ * <p>BE 미러: {@code SlipRevisionService.unitPriceDisplayValue} (버전이력·레드라인 공용).
+ * 갈리면 화면과 감사 이력이 어긋난다.
+ */
+export function resolveUnitPrices(source: StoredUnitPriceSource): ResolvedUnitPrices {
+  const quantity = Math.max(1, Math.trunc(Number(source.quantity) || 1))
+  const supply = integerAmount(source.supplyAmount)
+  const vat = integerAmount(source.vatAmount)
+  const stored = source.unitPriceWithVat
+  const domainKnown = source.unitPriceDomain != null
+    && KNOWN_UNIT_PRICE_DOMAINS.includes(String(source.unitPriceDomain).trim())
+  const storedUsable = stored != null && String(stored).trim() !== '' && decimalParts(stored) !== null
+  return {
+    supplyUnit: resolveUnit(source.unitPrice, supply, quantity),
+    // A안 — 저장 시점 도메인이 있으면 추측하지 않고 저장값을 그대로 쓴다.
+    inclusiveUnit: domainKnown && storedUsable
+      ? String(stored)
+      : resolveAuthoredUnit(stored, supply + vat, supply, quantity),
+  }
 }
 
 function fromAmounts<T extends LineVatLine>(

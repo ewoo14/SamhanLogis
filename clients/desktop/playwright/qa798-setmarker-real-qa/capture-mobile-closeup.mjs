@@ -1,9 +1,10 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir.mjs'
 // PR #798 라이브 QA 추가검증 — Design/FE Low 지적 (a) 모바일 좁은폭에서 10px 마커 가독성.
 // 기본 캡처(after-set-marker-mobile.png)는 카드 전체 뷰라 마커가 작게 나와 판독이 어려움 —
 // SET 행의 mobile-only 이름셀만 확대 캡처(2x 스케일)로 가독성 판정.
 import { chromium } from '@playwright/test';
 
-const OUT = process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker';
+const OUT = resolveQaShotsDir(process.env.QA_OUT || 'C:/dev/Samhan-Public/docs/qa/e782-part3-marker');
 const URL = process.env.QA_URL || 'http://localhost:5198/';
 const SET_MODEL = 'QA797-SET-01';
 

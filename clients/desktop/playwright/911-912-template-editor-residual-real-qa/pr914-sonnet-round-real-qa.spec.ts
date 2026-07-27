@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /** PR #914 OPUS 라운드 fix — SONNET5 라이브 QA 하네스.
  *
  * N-1/N-2(실 문서유형 지출결의서·휴가신청서 9필드), N-3(조회중/실패/회복), N-4(좌표 해제),
@@ -16,7 +17,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5195'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const MARKER = 'PR914-SONNET-R-20260723'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '914-sonnet-round-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '914-sonnet-round-2026-07-23'))
 mkdirSync(SHOT_DIR, { recursive: true })
 
 interface LoginResult {

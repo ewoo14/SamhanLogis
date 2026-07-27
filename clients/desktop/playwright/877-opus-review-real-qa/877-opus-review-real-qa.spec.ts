@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #877 — CODEF 저장 시 type 필터 밖 카테고리 무음 유실 fix — OPUS 4.8 적대검증 라이브 QA.
  *
@@ -25,7 +26,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const CONNECTED = 'connected-main'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/877-opus-review-2026-07-24')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/877-opus-review-2026-07-24'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // 실 서버 시드 ref (probe 확인)

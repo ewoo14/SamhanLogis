@@ -6,14 +6,22 @@ const { test } = require('node:test')
 
 const DESKTOP_DIR = resolve(__dirname, '..')
 const REPOSITORY_DIR = resolve(DESKTOP_DIR, '../..')
-const ELECTRON_VITE = resolve(dirname(require.resolve('electron-vite')), '..', 'bin', 'electron-vite.js')
+// 🚨 2026-07-27 재수렴 6차 D-2 — **최상위에서 resolve 하지 않는다.**
+// 이 파일에는 빌드 산출물 계약(=electron-vite 필요)과 문서/소스 본문 계약(=node 빌트인만
+// 필요)이 함께 있다. 최상위 `require.resolve('electron-vite')` 는 `npm ci` 를 하지 않은
+// 경량 러너에서 즉시 MODULE_NOT_FOUND 로 파일 전체를 죽여서, 문서 계약만 돌리는
+// docs-guard.yml 잡을 원천적으로 불가능하게 만들었다(실측: 레포 루트에서 THROWS).
+// 빌드가 필요한 테스트가 실제로 호출할 때만 resolve 한다.
+function electronViteBin() {
+  return resolve(dirname(require.resolve('electron-vite')), '..', 'bin', 'electron-vite.js')
+}
 
 function read(relativePath) {
   return readFileSync(join(REPOSITORY_DIR, relativePath), 'utf8')
 }
 
 function electronBuild(envOverrides) {
-  const result = spawnSync(process.execPath, [ELECTRON_VITE, 'build'], {
+  const result = spawnSync(process.execPath, [electronViteBin(), 'build'], {
     cwd: DESKTOP_DIR,
     env: { ...process.env, ...envOverrides },
     encoding: 'utf8',
@@ -36,7 +44,7 @@ test('Electron 산출물은 릴리스 주입과 개발 sentinel을 구분한다'
   assert.match(developmentOutput, /0\.1\.0-dev/)
   assert.equal(developmentOutput.includes('0.0.0'), false)
 
-  const releaseResult = spawnSync(process.execPath, [ELECTRON_VITE, 'build'], {
+  const releaseResult = spawnSync(process.execPath, [electronViteBin(), 'build'], {
     cwd: DESKTOP_DIR,
     env: { ...process.env, VITE_APP_VERSION: '', SAMHAN_RELEASE_BUILD: '1' },
     encoding: 'utf8',

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * mascot-center-probe-real-qa.spec.ts
  *
@@ -30,7 +31,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5420'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const SHOTS = path.resolve('../../docs/qa/877-pm-cgate')
+const SHOTS = resolveQaShotsDir(path.resolve('../../docs/qa/877-pm-cgate'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface Box { left: number; right: number; width: number; center: number }

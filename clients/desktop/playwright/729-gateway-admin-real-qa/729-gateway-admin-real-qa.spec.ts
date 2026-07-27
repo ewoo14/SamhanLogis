@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #729 게이트웨이 매출/매입 전표 admin 라우트 추가 — 404 해소 라이브 QA (2차 — 실데이터 검증).
  *
@@ -32,7 +33,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/729-gateway-admin-slip-route')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/729-gateway-admin-slip-route'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 // 데이터가 실재하는 구간 — 사전 curl 검증: sales-slips ~2512건 / purchase-slips ~35건 /

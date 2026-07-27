@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #869 DS-4 — R1 라이브 실측 QA (SONNET5 라운드 fix, 2026-07-23 H6′ 개정)
  *
@@ -41,7 +42,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5291'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '908-r1-band-overflow-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '908-r1-band-overflow-2026-07-23'))
 
 /** 24mm @96dpi = 90.71px — ruler(좌표 원점의 기준)의 고정 높이. H2 의 "항상 같은 자". */
 const RULER_PX = 90.71

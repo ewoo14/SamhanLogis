@@ -573,6 +573,27 @@ jobs:
         shell: pwsh
         run: ./infrastructure/scripts/validate-config-audit.ps1 -Detailed
 
+  app-build-version-guard:
+    name: "App Build Version Guard (scripts/app-build-version, #910/#928)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # scripts/app-build-version.cjs 는 데스크톱 릴리스 빌드 · arologis-mobile · mobile ·
+      # mobile-staff · estimate-app 등 8개 소비자가 공유하는 버전 리졸버다(#910/#928 표면).
+      # node:test 빌트인만 쓰고 외부 의존성이 없어 npm ci 없이 그대로 실행된다(notion-zero-guard·
+      # credential-plaintext-guard 와 동일하게 checkout 전용 lightweight guard 잡으로 구성 —
+      # 2026-07-26 하네스 재수렴 라운드 G7, 이전에는 CI 러너가 0개였다).
+      - name: "scripts/app-build-version 계약 테스트"
+        run: node --test scripts/app-build-version.test.cjs
+
   frontend-ds:
     name: Frontend DS (typecheck + lint + build + storybook)
     runs-on: ubuntu-latest
@@ -755,8 +776,40 @@ jobs:
       - name: vite build
         run: npm run build
 
+  # clients/mobile (삼한 모바일 · Expo RN) — 2026-07-26 신설.
+  # 그 전까지 이 앱은 CI 잡이 아예 없어 jest 11 스위트/45 테스트(3앱 합계)가 한 번도
+  # CI 에서 실행되지 않았다. 모바일 3앱의 런타임 판정이 CI 에서 관측되지 않던 구멍을 막는다.
+  frontend-mobile:
+    name: Frontend Mobile (삼한 모바일 · typecheck + jest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: clients/mobile
+
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 20 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: clients/mobile/package-lock.json
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      # 🚨 continue-on-error 금지 — 이 스텝이 모바일 런타임 판정의 유일한 CI 게이트다.
+      - name: 단위 테스트(jest)
+        run: npm test
+
   frontend-mobile-staff:
-    name: Frontend Mobile-Staff (typecheck + expo doctor + prebuild dry-run)
+    name: Frontend Mobile-Staff (typecheck + jest + expo doctor + prebuild dry-run)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -779,6 +832,11 @@ jobs:
 
       - name: typecheck (tsc --noEmit)
         run: npm run typecheck
+
+      # 🚨 continue-on-error 금지 — 이 잡은 그동안 typecheck·expo-doctor·prebuild 만 돌고
+      # jest 를 실행하지 않아 런타임 회귀를 전혀 잡지 못했다 (2026-07-26 하네스 배치).
+      - name: 단위 테스트(jest)
+        run: npm test
 
       # P1-4 영업 native 앱 (Phase 11+1개월 예정) 빌드 분기 검증.
       # app.config.js 의 BUILD_ENV / APP_VARIANT 환경변수 분기 및 EAS Build 프로파일 정합 사전 가드.

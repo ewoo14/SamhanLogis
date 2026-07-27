@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 그룹웨어 결재 — 리뷰 fix 반영 후 재빌드 라이브 QA.
  *
@@ -24,7 +25,7 @@ const MASTER_ROLE = 'MASTER'
 const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/groupware-approval-templates')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/groupware-approval-templates'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let captureIdx = 0

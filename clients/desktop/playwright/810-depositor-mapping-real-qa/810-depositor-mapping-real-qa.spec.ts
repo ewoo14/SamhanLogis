@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #810 입금자명↔거래처 매핑 — OPUS 적대검증 R1 fix 라이브 QA.
  *
@@ -21,7 +22,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5212'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/810-depositor-mapping')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/810-depositor-mapping'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const RAW = 'QA-R2-매핑검증-' + Date.now()

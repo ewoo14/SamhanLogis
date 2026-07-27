@@ -14,12 +14,16 @@
  * mock OFF. 실 gateway(:8080). dev_master. renderer localhost:5173.
  */
 import { chromium } from '@playwright/test'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../../scripts/lib/qa-shots-dir.mjs'
 
+const _dirname = path.dirname(fileURLToPath(import.meta.url))
 const RENDERER = 'http://localhost:5173'
 const GATEWAY = 'http://localhost:8080'
-const OUT = 'C:/dev/Samhan-Public/docs/qa/formula-f1-inline-dc'
-mkdirSync(OUT, { recursive: true })
+// 절대경로 하드코딩 제거 + _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT = resolveQaShotsDir(path.resolve(_dirname, '../../docs/qa/formula-f1-inline-dc'))
 const results = []
 const record = (s, p, n) => { results.push({ scene: s, pass: p, note: n }); console.log(`[qa] ${p ? 'PASS' : 'FAIL'} — ${s}${n ? ' :: ' + n : ''}`) }
 

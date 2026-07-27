@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 매뉴얼 PNG 자동 캡처 Playwright 스펙 — manual-capture.
  *
@@ -65,15 +66,15 @@ async function isServerAvailable(): Promise<boolean> {
 }
 
 /** docs/manual/screenshots 루트 (절대 경로) */
-const MANUAL_SHOTS = path.resolve(
+const MANUAL_SHOTS = resolveQaShotsDir(path.resolve(
   __dirname,
   '../../../../docs/manual/screenshots',
-)
+))
 
 /** 페이지 에러 누적 보고서 경로 */
-const ERROR_REPORT = path.resolve(
-  __dirname,
-  '../../../../docs/qa/manual-page-errors.md',
+const ERROR_REPORT = path.join(
+  resolveQaShotsDir(path.resolve(__dirname, '../../../../docs/qa')),
+  'manual-page-errors.md',
 )
 
 const IDLE_TIMEOUT = 6_000

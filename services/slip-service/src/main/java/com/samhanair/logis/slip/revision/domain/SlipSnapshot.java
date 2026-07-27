@@ -139,6 +139,12 @@ public record SlipSnapshot(
      * @param setHead 세트 전개 그룹 첫 구성품 여부 (R6-H3, head 만 {@code true} — 일반 라인/구
      *        스냅샷은 null, 복원 시 {@code Boolean.TRUE.equals} 로 판정)
      * @param parentSetModel 세트 구성품일 때 부모 세트 modelCode (R6-H3 — 일반 라인/구 스냅샷은 null)
+     * @param unitPriceDomain 단가 권위 도메인 enum name (#937 재수렴 6차 A안 —
+     *        {@code "VAT_INCLUSIVE"}/{@code "SUPPLY"}, 도메인 컬럼이 없던 legacy 행/구 스냅샷은
+     *        null). 버전이력·레드라인의 "단가" 표시값이 화면과 같은 세금 도메인을 말하려면 이
+     *        정보가 스냅샷에도 실려야 한다 — 표시 판정이 스냅샷만 보고 이뤄지기 때문이다.
+     *        nullable 이므로 이 키가 없는 <b>구 JSONB 스냅샷도 null 로 안전하게 역직렬화</b>되며
+     *        (하위호환), null 은 {@code NON_NULL} 정책으로 직렬화에서 생략된다.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Line(
@@ -154,7 +160,22 @@ public record SlipSnapshot(
             BigDecimal vatAmount,
             BigDecimal supplyAmount,
             Boolean setHead,
-            String parentSetModel) {
+            String parentSetModel,
+            String unitPriceDomain) {
+
+        /**
+         * 단가 도메인 없는 구 시그니처 호환 생성자 (#937 재수렴 6차) — 세트 계보까지만 쓰는
+         * 기존 호출처/테스트 픽스처용. <b>운영 캡처 경로인 {@code Slip#toSnapshot()} 은 canonical
+         * 생성자를 써야 한다</b> — 이 생성자로 회귀하면 저장된 도메인이 스냅샷에서 누락되어
+         * 버전이력·레드라인이 다시 휴리스틱으로 돌아간다.
+         */
+        public Line(UUID productId, String productName, String modelName, String specification,
+                    int quantity, BigDecimal unitPrice, BigDecimal lineTotal, String note,
+                    BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount,
+                    Boolean setHead, String parentSetModel) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
+                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel, null);
+        }
 
         /**
          * 세트 계보 없는 구 시그니처 호환 생성자 — 기존 호출처(테스트 포함)와 계보 무관 라인 생성용.
@@ -163,7 +184,7 @@ public record SlipSnapshot(
                     int quantity, BigDecimal unitPrice, BigDecimal lineTotal, String note,
                     BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount) {
             this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
-                    note, unitPriceWithVat, vatAmount, supplyAmount, null, null);
+                    note, unitPriceWithVat, vatAmount, supplyAmount, null, null, null);
         }
     }
 }

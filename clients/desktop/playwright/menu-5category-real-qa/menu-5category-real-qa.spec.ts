@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * 좌측 메뉴 5대분류 재편 (PR #462) Docker 실서버 QA Playwright spec.
  *
@@ -41,7 +42,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5175'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 
-const SCREENSHOTS_DIR = path.resolve(_dirname, '../../../../docs/qa/menu-5category')
+const SCREENSHOTS_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/menu-5category'))
 fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true })
 
 /** 7대 그룹 카테고리 헤더 라벨(AppLayout SidebarCategory label 과 1:1). */

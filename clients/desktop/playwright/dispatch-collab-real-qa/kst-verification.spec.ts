@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * KST(Asia/Seoul) 전역 표준화 — 실서버 검증 캡처.
  *
@@ -17,7 +18,7 @@ const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 const TASK_CODE = process.env['DISPATCH_TASK_CODE'] ?? '2026/06/12-3'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/kst-verification')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/kst-verification'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

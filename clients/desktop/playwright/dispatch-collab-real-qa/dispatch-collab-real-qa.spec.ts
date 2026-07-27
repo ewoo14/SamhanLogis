@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * §7 슬라이스4 배차(DispatchTask) 협업 "수정완료 1-인" — 실 서버 QA 스크린샷 캡처.
  *
@@ -24,7 +25,7 @@ const MASTER_DISPLAY_NAME = '[DEV-SEED] 개발마스터'
 const TASK_CODE = process.env['DISPATCH_TASK_CODE'] ?? '2026/06/12-3'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/dispatch-collab')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/dispatch-collab'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

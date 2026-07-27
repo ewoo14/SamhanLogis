@@ -3,6 +3,7 @@ import * as fs from 'fs'
 import * as http from 'http'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -10,10 +11,12 @@ const dirname = path.dirname(filename)
 export const BASE_URL =
   process.env['VITE_BASE_URL'] ?? process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 
-export const QA_DIR = path.resolve(
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+export const QA_DIR = resolveQaShotsDir(path.resolve(
   dirname,
   '../../../../docs/qa/mig-14-admin-ui/screenshots',
-)
+))
 
 export const SKIP_UI =
   process.env['PLAYWRIGHT_SKIP_UI'] === '1' ||
@@ -78,11 +81,10 @@ export async function capture(page: Page, fileName: string): Promise<void> {
   ensureQaDir()
   const image = await page.screenshot({ fullPage: true })
   const destination = path.join(QA_DIR, fileName)
-  try {
-    fs.writeFileSync(destination, image)
-  } catch (err) {
-    console.warn(`MIG-14 screenshot pending: ${destination} (${String(err)})`)
-  }
+  // (2026-07-26 하네스 배치) 예전에는 쓰기 실패를 console.warn 으로 삼켰다 — 캡처가
+  // 한 장도 안 남아도 테스트는 통과했다. QA_DIR 은 resolveQaShotsDir 이 모듈 로드
+  // 시점에 mkdirSync(recursive) 로 보장하므로 여기서 실패하면 진짜 결함이다 → 그대로 던진다.
+  fs.writeFileSync(destination, image)
 }
 
 export async function mockPermissions(page: Page, permissions: Permission[]): Promise<void> {

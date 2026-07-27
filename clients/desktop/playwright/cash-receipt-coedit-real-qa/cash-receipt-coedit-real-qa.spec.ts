@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * E3 S4d 입금보고서(CashReceipt) coedit — 실 서버 GUI QA 스크린샷 캡처(단일 세션).
  *
@@ -25,7 +26,7 @@ const MASTER_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 const RECEIPT_ID = process.env['RECEIPT_ID'] ?? ''
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/e3-s4d-coedit')
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/e3-s4d-coedit'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 let n = 0

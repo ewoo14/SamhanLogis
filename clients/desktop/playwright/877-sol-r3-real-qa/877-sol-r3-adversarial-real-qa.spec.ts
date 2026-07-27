@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -7,7 +8,7 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5490'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = 'dev_p05_pass!'
 const CONNECTED = 'connected-main'
-const SHOTS = path.resolve('../../docs/qa/877-sol-r3')
+const SHOTS = resolveQaShotsDir(path.resolve('../../docs/qa/877-sol-r3'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 type Scope = {

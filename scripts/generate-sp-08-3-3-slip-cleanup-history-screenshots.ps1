@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$OutputDir = "docs/qa/sp-08-3-3-slip-cleanup-history/screenshots"
+    [string]$OutputDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs/qa/sp-08-3-3-slip-cleanup-history/screenshots/_local" })
 )
 
 # Windows-only (System.Drawing GDI+). Do not add to Linux CI.

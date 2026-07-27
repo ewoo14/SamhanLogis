@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * ct-blast-radius-real-qa.spec.ts — #877 OPUS R3 표면A
  *
@@ -20,7 +21,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5420'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
-const SHOTS = path.resolve('../../docs/qa/877-opus-r3-a')
+const SHOTS = resolveQaShotsDir(path.resolve('../../docs/qa/877-opus-r3-a'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function installAuth(page: Page) {

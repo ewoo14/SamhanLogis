@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * supplier-profile-bank-stamp-real-qa.spec.ts
  *
@@ -47,10 +48,10 @@ const SALES_USER_ID = 'a0000000-0000-0000-0000-000000000004'
 const SALES_USER_NAME = '[DEV-SEED] 개발영업'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(
   _dirname,
   '../../../../docs/qa/supplier-profile-bank-stamp/screenshots',
-)
+))
 const STAMP_FILE = path.resolve(
   _dirname,
   '../../../../docs/qa/supplier-profile-bank-stamp/test-stamp.png',

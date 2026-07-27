@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * PR #921 R-4 — PM 직접 라이브QA (실서버 :8080 + 실 렌더러 :5441 mock OFF).
  * SONNET5 R-4 는 mock 렌더러(:5520)로 검증했다. 캐논상 실서버 종단을 PM 이 재취득한다.
@@ -11,7 +12,7 @@ import { expect, test, type Page } from '@playwright/test'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5441'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(process.env['AUDIT_SHOT_DIR'] ?? '../../docs/qa/pm-921-r4-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(process.env['AUDIT_SHOT_DIR'] ?? '../../docs/qa/pm-921-r4-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 const BACKDROP = "[data-testid='ds-modal-backdrop']"
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #773 후속 — resolveByLabel N+1 → lookup-by-label 벌크 라이브 QA.
  *
@@ -21,7 +22,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://localhost:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/773-resolvebylabel-bulk')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/773-resolvebylabel-bulk'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 interface LoginResult { token: string; role: string; userId: string; displayName: string }
@@ -53,6 +54,7 @@ test('일마감 상세 벌크 해소 후 parity 렌더 (#773 N+1→벌크)', asy
   const login = await realLogin(page, 'dev_accountant')
   await installAuthStub(page, login)
 
+  // 웹 배포(VITE_PLATFORM='web')는 createBrowserRouter → 해시 없는 실 경로(773-s4/s5 동일 포트군과 동일 하네스).
   await page.goto(`${BASE_URL}/accounting/daily-closings`)
   await expect(page.getByRole('heading', { name: '일마감 조회' })).toBeVisible({ timeout: 30_000 })
 

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #877 / PR #918 — CODEX SOL 5.6 2차 적대검증 라이브 QA.
  *
@@ -28,7 +29,7 @@ const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const LOGIN_ID = process.env['DEV_LOGIN'] ?? 'dev_master'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
 const CONNECTED = 'connected-main'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/877-luna-fix')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/877-luna-fix'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 const ACC = {

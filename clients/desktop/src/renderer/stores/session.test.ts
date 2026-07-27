@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LoginResponse } from '../api/auth'
+import { flushZeroDelayTasks } from '../test-utils/flush'
 
 const authProvider = {
   bootstrap: vi.fn(),
@@ -80,7 +81,7 @@ describe('session store authProvider 배선', () => {
     const { useSessionStore } = await import('./session')
 
     await useSessionStore.getState().bootstrap()
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushZeroDelayTasks()
 
     expect(useSessionStore.getState().bootstrapped).toBe(true)
     expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
@@ -104,7 +105,7 @@ describe('session store authProvider 배선', () => {
     expect(authProvider.establishSession).toHaveBeenCalledWith(login)
     expect(useSessionStore.getState().auth?.token).toBe('')
     expect(useSessionStore.getState().auth?.fullName).toBe('개발책임자')
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushZeroDelayTasks()
     expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
 
     await useSessionStore.getState().logout()
@@ -122,7 +123,7 @@ describe('session store authProvider 배선', () => {
     const logout = useSessionStore.getState().logout().then(() => 'logged-out')
     const beforeUnregisterDone = await Promise.race([
       logout,
-      new Promise((resolve) => setTimeout(() => resolve('pending'), 0)),
+      flushZeroDelayTasks().then(() => 'pending'),
     ])
 
     expect(beforeUnregisterDone).toBe('pending')
@@ -195,7 +196,7 @@ describe('session store authProvider 배선', () => {
 
     expect(result).toBe('resolved')
     expect(useSessionStore.getState().auth?.fullName).toBe('Push User')
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushZeroDelayTasks()
     expect(pushRegistration.registerPush).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #863 R1 라이브QA ① — 주문 목록 발행상태 배지 390px 실측 캡처.
  *
@@ -27,7 +28,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5866'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/863-r1-liveqa')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/863-r1-liveqa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 /** dev 시드 실데이터 — slip_publish_status='PENDING_RETRY' (라이브 DB 조회로 확인한 실제 행). */

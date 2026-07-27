@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #868 DS-3b 점증분 — **레이아웃 개선 + 모바일 대응** 라이브 GUI QA (PM 직접 수행)
  *
@@ -17,7 +18,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5190'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '868-ds3b-layout-mobile-live-qa-2026-07-23')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '868-ds3b-layout-mobile-live-qa-2026-07-23'))
 
 /** 브레이크포인트 경계는 양쪽을 본다 — 한쪽만 보면 경계가 밀려도 통과한다. */
 const VIEWPORTS = [

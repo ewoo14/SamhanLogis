@@ -62,6 +62,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 })
 
 import { ProductFormPage } from './ProductFormPage'
+import { flushZeroDelayTasks } from '../test-utils/flush'
 
 const categories: ProductCategoryNode[] = [
   { id: 'cat-1', code: 'C1', name: '싱글 구성품', parentId: null, displayOrder: 0, children: [] },
@@ -188,7 +189,7 @@ describe('ProductFormPage', () => {
       summary: { ...seed.summary },
       detail: { ...seed.detail },
     })
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushZeroDelayTasks()
 
     expect(screen.getByTestId('product-form-name')).toHaveProperty('value', '사용자 수정명')
   })

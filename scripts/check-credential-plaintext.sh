@@ -6,6 +6,7 @@
 #   docs/qa/sp-08-*/          (QA 결과 문서)
 #   docs/dev-reports/sp-08-*.md
 #   docs/operational-validation/*.md
+#   migration/decisions/*.md
 #   clients/desktop/playwright/
 #   services/*/src/main/
 #   clients/{desktop,mobile-staff,arologis-desktop,arologis-mobile}/src/
@@ -91,10 +92,28 @@ CODE_DIRS=(
   "clients/web"
 )
 
+# 🚨 2026-07-27 재수렴 7차 — `docs/handoff` 추가.
+#   sp-08-3-dispatch-parity.spec.ts 가 secret-like 마커를 스캔하는 대상 6개 중
+#   `docs/handoff/CURRENT-WORK.md` 만 이 배열에 없었다. 그래서 실 AWS 키 형태를 넣어도
+#   이 스크립트는 EXIT=0 이었고(실측), 그 파일의 자격 스캔을 담당하는 유일한 장치가
+#   **게이트 0 인 playwright 스펙** 하나였다. `CURRENT-WORK.md` 는 CLAUDE.md 가
+#   "PC 이동 직전 반드시 갱신" 으로 규정한 매 세션 **main 직행** 경로다.
+#   🔒 여기 추가한 루트를 발동시키는 워크플로가 이 스크립트를 실제로 실행하지 않으면
+#   harness-false-green-guard.test.ts 의 G11 이 RED 다(docs-guard.yml 이 그 러너다).
+#
+# ⚠️ 같은 스캔 대상인 `docs/planning` 은 **일부러 넣지 않았다** — 넣으면
+#   `docs/planning/2026-05-19_sp-10-2-insung-quick-program.md:71` 이 INSUNG_QUICK 으로 걸리는데,
+#   그건 마크다운 닫는 백틱(`…WEBHOOK_SECRET=` +  ` ` `) 때문에 생기는 **기존 오탐**이다
+#   (문서 본문은 "빈 값 유지" 를 지시한다). 해소하려면 파일 화이트리스트를 늘리거나
+#   PATTERN_* 의 제외 문자류에 백틱을 넣어야 하는데, 둘 다 이번 축(=관할↔러너 정합)이 아니라
+#   자격 가드의 판정 의미를 바꾸는 별건이다. `docs/manual` 은 애초에 secret 스캔 대상이 아니다
+#   (sp-05·purchase-inspection-cta 가 읽는 것은 본문 계약이지 자격이 아니다).
 DOC_DIRS=(
   "docs/qa"
   "docs/dev-reports"
+  "docs/handoff"
   "docs/operational-validation"
+  "migration/decisions"
   "clients/desktop/playwright"
   "tools/operational-validation"
 )

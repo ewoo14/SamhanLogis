@@ -3,7 +3,8 @@
 Add-Type -AssemblyName System.Drawing
 
 $ErrorActionPreference = "Stop"
-$OutputDir = Join-Path $PSScriptRoot "..\docs\qa\sp-08-4-2-partner-order-edit-put\screenshots"
+$CommittedDir = Join-Path $PSScriptRoot "..\docs\qa\sp-08-4-2-partner-order-edit-put\screenshots"
+$OutputDir = if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { Join-Path $CommittedDir '_local' }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 function K {

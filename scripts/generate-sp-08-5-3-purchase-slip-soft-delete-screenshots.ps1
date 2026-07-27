@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$OutputDir = "docs\qa\sp-08-5-3-purchase-slip-soft-delete\screenshots"
+    [string]$OutputDir = $(if ($env:QA_SHOTS_DIR) { $env:QA_SHOTS_DIR } else { "docs\qa\sp-08-5-3-purchase-slip-soft-delete\screenshots\_local" })
 )
 
 $ErrorActionPreference = "Stop"

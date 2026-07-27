@@ -241,6 +241,41 @@ class SlipRestoreTest {
         SlipLine supplyLine = slip.getLines().get(0);
         assertThat(supplyLine.getUnitPriceWithVat()).isEqualByComparingTo("16500.00");
         assertThat(supplyLine.getVatAmount()).isEqualByComparingTo("3000.00");
+        // 재수렴 6차(#937) A안 — 단가 도메인도 왕복에서 보존된다. 복원만으로 도메인이 바뀌면
+        // (create 가 넣는 SUPPLY 로 남으면) 복원 전후로 표시 단가가 달라진다.
+        assertThat(restored.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+        assertThat(supplyLine.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.SUPPLY);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 도메인 키가 없는 구 스냅샷은 복원 후에도 legacy(null) 로 남는다 "
+            + "— 추측으로 채우면 복원만으로 표시 단가가 바뀐다")
+    void restoreKeepsLegacyNullDomainForOldSnapshot() {
+        Slip slip = sampleSlip();
+        slip.addLine(SlipLine.createFromVatInclusive(slip, UUID.randomUUID(), "컴프레서", "CP-9",
+                "380V", 3, new BigDecimal("87999"), "VAT포함 라인", null));
+        SlipSnapshot captured = slip.toSnapshot();
+        // 도메인 컬럼이 없던 시절의 스냅샷 재현 — 라인의 unitPriceDomain 만 제거한다.
+        List<SlipSnapshot.Line> legacyLines = captured.lines().stream()
+                .map(l -> new SlipSnapshot.Line(l.productId(), l.productName(), l.modelName(),
+                        l.specification(), l.quantity(), l.unitPrice(), l.lineTotal(), l.note(),
+                        l.unitPriceWithVat(), l.vatAmount(), l.supplyAmount(),
+                        l.setHead(), l.parentSetModel()))
+                .toList();
+
+        slip.restoreFromSnapshot(new SlipSnapshot(captured.slipNo(), captured.slipDate(),
+                captured.partnerId(), captured.partnerName(), captured.partnerCode(),
+                captured.businessNumber(), captured.memo(), captured.deliveryTag(),
+                captured.deliveryAddress(), captured.supervisionAddress(), captured.projectName(),
+                captured.recipientPhone(), captured.paymentDueDate(),
+                captured.destinationWarehouseId(), captured.destinationWarehouseName(),
+                captured.shippingAddress(), captured.inspectionAddress(), captured.receiverPhone(),
+                captured.customerTel(), captured.customerAddress(),
+                captured.customerRepresentative(), captured.paymentDueLabel(),
+                captured.discountInfo(), captured.collectTerm(), captured.agreeTerm(), legacyLines));
+
+        assertThat(slip.getLines().get(2).getUnitPriceDomain()).isNull();
+        assertThat(slip.getLines().get(2).getUnitPriceWithVat()).isEqualByComparingTo("87999.00");
     }
 
     @Test

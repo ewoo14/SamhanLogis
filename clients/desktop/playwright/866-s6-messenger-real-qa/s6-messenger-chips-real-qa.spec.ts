@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #866 / #825 슬6 — 쪽지 수신자 칩 복수선택 라이브 GUI QA (PM 직접 수행)
  *
@@ -12,7 +13,7 @@ import { join } from 'node:path'
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5191'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOT_DIR = join(process.cwd(), '..', '..', 'docs', 'qa', '866-s6-messenger-live-qa-2026-07-22')
+const SHOT_DIR = resolveQaShotsDir(join(process.cwd(), '..', '..', 'docs', 'qa', '866-s6-messenger-live-qa-2026-07-22'))
 
 const MARKER = 'PMLIVEQA-S6-20260722'
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i

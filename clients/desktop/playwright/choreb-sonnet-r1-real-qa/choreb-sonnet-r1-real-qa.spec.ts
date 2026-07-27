@@ -26,12 +26,16 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5430'
-const SHOTS = process.env['AUDIT_SHOT_DIR']
-  ? path.resolve(process.env['AUDIT_SHOT_DIR'])
-  : path.resolve('../../docs/qa/choreb-sonnet-r1')
-fs.mkdirSync(SHOTS, { recursive: true })
+// resolveQaShotsDir 로 감싸 기본 실행이 커밋된 docs/qa/choreb-sonnet-r1/ 을 직접 덮어쓰지
+// 않게 한다(기본 _local/ 격리, 2026-07-26 하네스 재수렴 라운드 G2).
+const SHOTS = resolveQaShotsDir(
+  process.env['AUDIT_SHOT_DIR']
+    ? path.resolve(process.env['AUDIT_SHOT_DIR'])
+    : path.resolve('../../docs/qa/choreb-sonnet-r1'),
+)
 
 const BACKDROP = "[data-testid='ds-modal-backdrop']"
 const SYNTHETIC_MARKER_TEXT = 'SONNET-R1-SYNTHETIC-GENERIC-MODAL-MARKER-9f3c1a'

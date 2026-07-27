@@ -4,9 +4,10 @@
  * 검증 포인트:
  *  ① 전표 인라인 편집(매출 전표 수정) — CollaborativeSlipInput 헤더 필드 Yjs 바인딩
  *    원격 Y.Doc 업데이트 → header.memo / header.deliveryAddress 원격 텍스트 병합 표시
- *  ② items Y.Array — items[0].quantity / items[0].unitPrice 셀 원격 값 반영
+ *  ② items Y.Array — CRDT `items.line-001.quantity` / `items.line-001.unitPrice` 셀의
+ *    원격 값 반영 (DOM testid는 별도 목적의 `items.0.*` 경로)
  *  ③ 원격 커서 배지 — header.memo 필드에 "원격사용자A" 배지,
- *    items.0.quantity 셀에 "원격사용자B" 배지
+ *    CRDT `items.line-001.quantity` 셀에 "원격사용자B" 배지
  *  ④ Design B-2 fix: 배지 position:absolute 오버레이 → 품목 셀 높이/행 정렬 불변
  *  ⑤ FE B-1 fix: 숫자 셀(수량) clear → 재입력 가능
  *    (|| previous 폴백 제거로 빈 문자열로 지우기 가능)
@@ -18,7 +19,7 @@
  *    → GET /collab/coedit mock 핸들러가 base64 update 배열 반환
  *    → DocCoeditProvider.applySnapshot → Y.applyUpdate → header Y.Map + items Y.Array 병합
  *  - SSE 커서 주입: page.route(collab/stream glob) 인터셉트
- *    coedit:awareness SSE 이벤트 2건 (user1: header.memo, user2: items.0.quantity)
+ *    coedit:awareness SSE 이벤트 2건 (user1: header.memo, user2: items.line-001.quantity)
  *    provider.applyRemoteAwareness 적용 후 CollaborativeSlipInput.setRemoteCursors 배지 렌더
  *  - 실 2세션 SSE 미수행 사유: Docker 스택 미기동 환경 — page.route 정적 mock 대체.
  *    각 검증 포인트별 PASS/미확인 여부 로그에 정직 기록.
@@ -36,6 +37,7 @@ import { fileURLToPath } from 'url'
 import { test, expect, type Page } from '@playwright/test'
 import * as Y from 'yjs'
 import { Awareness, encodeAwarenessUpdate } from 'y-protocols/awareness'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 // ============================================================
 // 상수 · 경로
@@ -47,7 +49,9 @@ const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5173'
 const SLIP_ID = 'slip-005'
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url))
-const SCREENSHOT_DIR = path.resolve(_dirname, '../../../../docs/qa/coedit-s2a')
+// 캡처는 커밋된 확정 증거(docs/qa/<slug>/*.png)가 아니라 gitignore 된 _local/ 로 나간다 —
+// 재실행이 증거를 덮어쓰지 못하게 한다. 승격은 QA_SHOTS_DIR 로만 opt-in (#926 참조 구현).
+const SCREENSHOT_DIR = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/coedit-s2a'))
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
 // ============================================================
@@ -110,7 +114,7 @@ interface CoeditSeedResult {
   yjsUpdateBase64: string
   /** 원격사용자A awareness (header.memo 커서) base64 */
   awarenessBase64User1: string
-  /** 원격사용자B awareness (items.0.quantity 커서) base64 */
+  /** 원격사용자B awareness (items.line-001.quantity 커서) base64 */
   awarenessBase64User2: string
 }
 
@@ -138,6 +142,7 @@ function buildDocCoeditSeed(): CoeditSeedResult {
 
     // items (Y.Map per row — plain string 값, SAMPLE_LINES 3건 반영)
     const item0 = new Y.Map<unknown>()
+    item0.set('lineId', 'line-001')
     item0.set('productId', 'p-aj040')
     item0.set('productName', '시스템에어컨 4Way 4HP')
     item0.set('modelName', 'AJ040RXH4BC1')
@@ -147,6 +152,7 @@ function buildDocCoeditSeed(): CoeditSeedResult {
     item0.set('note', '')
 
     const item1 = new Y.Map<unknown>()
+    item1.set('lineId', 'line-002')
     item1.set('productId', 'p-mwr10')
     item1.set('productName', '유선 리모컨 (WE10N)')
     item1.set('modelName', 'MWR-WE10N')
@@ -156,6 +162,7 @@ function buildDocCoeditSeed(): CoeditSeedResult {
     item1.set('note', '')
 
     const item2 = new Y.Map<unknown>()
+    item2.set('lineId', 'line-003')
     item2.set('productId', 'p-pc1nw')
     item2.set('productName', 'WIFI 판넬')
     item2.set('modelName', 'PC1NWSK3NW')
@@ -180,12 +187,12 @@ function buildDocCoeditSeed(): CoeditSeedResult {
     encodeAwarenessUpdate(awareness1, [awarenessDoc1.clientID])
   )
 
-  // 3. 원격 awareness 2 — items.0.quantity 셀 커서 (원격사용자B, 주황색)
+  // 3. 원격 awareness 2 — items.line-001.quantity 셀 커서 (원격사용자B, 주황색)
   const awarenessDoc2 = new Y.Doc()
   const awareness2 = new Awareness(awarenessDoc2)
   awareness2.setLocalState({
     user: { displayName: '원격사용자B', color: '#B45309' },
-    cursor: { fieldPath: 'items.0.quantity', anchor: 0, head: 1 },
+    cursor: { fieldPath: 'items.line-001.quantity', anchor: 0, head: 1 },
   })
   const awarenessBase64User2 = toBase64(
     encodeAwarenessUpdate(awareness2, [awarenessDoc2.clientID])
@@ -214,7 +221,7 @@ async function installCoeditSeedAndRoute(page: Page, seed: CoeditSeedResult): Pr
   )
 
   // 2. SSE /collab/stream 인터셉트 — awareness 2건 주입
-  //    user1: header.memo 커서, user2: items.0.quantity 커서
+  //    user1: header.memo 커서, user2: items.line-001.quantity 커서
   //    page.route 는 정적 응답 → EOF 후 provider 가 5초 재연결 시도
   //    재연결도 동일 route 가 처리 → awareness 상태 유지됨
   const sseBody = [
@@ -309,7 +316,7 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
     expect(memoBadgeCount).toBeGreaterThan(0)
     expect(memoBadgeText).toContain('원격사용자A')
 
-    // ─── 검증 ② 품목 셀 수량(items.0.quantity) 원격 값 반영 ───
+    // ─── 검증 ② 품목 셀 수량(CRDT items.line-001.quantity) 원격 값 반영 ───
     // sales-slip-edit-lines testid가 없으면 모달 내 테이블로 대체
     const salesEditLinesById = page.getByTestId('sales-slip-edit-lines')
     const salesEditLinesHasTestid = await salesEditLinesById.isVisible({ timeout: 3_000 }).catch(() => false)
@@ -322,10 +329,10 @@ test.describe('PR #674 S2a Yjs 코-에디팅 (전표 전체 폼) QA 스크린샷
 
     const quantityInput = quantityFieldWrapper.locator('input')
     const quantityValue = await quantityInput.inputValue().catch(() => '(ERROR)')
-    console.log(`[CHECK-②] items.0.quantity 원격 값: "${quantityValue}" (기대: 7 — 원격 사용자가 2→7 수정)`)
+    console.log(`[CHECK-②] items.line-001.quantity 원격 값: "${quantityValue}" (기대: 7 — 원격 사용자가 2→7 수정)`)
     expect(quantityValue).toBe('7')
 
-    // ─── 검증 ③ 원격 커서 배지 (items.0.quantity → 원격사용자B) ───
+    // ─── 검증 ③ 원격 커서 배지 (items.line-001.quantity → 원격사용자B) ───
     const qtyNameBadges = quantityFieldWrapper.locator('[aria-hidden="true"]')
     const qtyBadgeCount = await qtyNameBadges.count()
     const qtyBadgeText = qtyBadgeCount > 0

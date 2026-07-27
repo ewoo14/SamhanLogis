@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * #773 S4 라이브 QA — 일마감 "모델별 재검증" FE 렌더 실증.
  *
@@ -26,7 +27,7 @@ const _dirname =
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5199'
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 const PASSWORD = process.env['DEV_PASSWORD'] ?? 'dev_p05_pass!'
-const SHOTS = path.resolve(_dirname, '../../../../docs/qa/773-s4-daily-closing-render')
+const SHOTS = resolveQaShotsDir(path.resolve(_dirname, '../../../../docs/qa/773-s4-daily-closing-render'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 let shotNo = 0

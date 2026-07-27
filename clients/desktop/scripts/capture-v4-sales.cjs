@@ -25,6 +25,7 @@
 const { spawnSync } = require('node:child_process')
 const { mkdirSync } = require('node:fs')
 const { resolve } = require('node:path')
+const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
 const EDGE_PATH =
   process.env.EDGE_PATH ||
@@ -33,14 +34,17 @@ const EDGE_PATH =
 const VITE_PORT = process.env.VITE_PORT || '5173'
 const BASE_URL = `http://localhost:${VITE_PORT}`
 
-const OUT_DIR = resolve(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  'docs',
-  'qa',
-  'migration-fe-desktop-v4',
+// _local 격리(2026-07-26 하네스 재수렴 라운드 G3).
+const OUT_DIR = resolveQaShotsDir(
+  resolve(
+    __dirname,
+    '..',
+    '..',
+    '..',
+    'docs',
+    'qa',
+    'migration-fe-desktop-v4',
+  ),
 )
 
 const STEPS = [

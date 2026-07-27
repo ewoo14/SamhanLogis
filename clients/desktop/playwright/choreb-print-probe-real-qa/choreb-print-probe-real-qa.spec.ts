@@ -1,3 +1,4 @@
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 /**
  * choreb-print-probe-real-qa.spec.ts
  *
@@ -16,7 +17,7 @@ import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 
 const BASE_URL = process.env['AUDIT_BASE_URL'] ?? 'http://127.0.0.1:5430'
-const SHOTS = path.resolve('../../docs/qa/choreb-print-probe')
+const SHOTS = resolveQaShotsDir(path.resolve('../../docs/qa/choreb-print-probe'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function measure(page: Page, tag: string) {
