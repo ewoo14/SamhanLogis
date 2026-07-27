@@ -57,6 +57,34 @@ jobs:
           chmod +x scripts/check-credential-plaintext.sh
           bash scripts/check-credential-plaintext.sh
 
+  # 공용 CI의 동일 가드와 별도 check로 실행한다. shared/** 변경처럼 두 워크플로가
+  # 함께 트리거되는 경우에도 각 워크플로가 체크아웃한 커밋을 독립적으로 검사한다.
+  notion-zero-guard:
+    name: Arologis Notion Runtime Zero Guard (SP-08-7)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Notion runtime 의존 zero 정적 검사
+        run: |
+          chmod +x scripts/check-notion-zero.sh
+          bash scripts/check-notion-zero.sh
+
+  config-audit-guard:
+    name: "Arologis Config Audit Guard (다운스트림 URL/포트 정합, #745)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      # 아로로지스 SlipClient 8084 오배정류 #745 재발 방지용 정적 검사.
+      - name: 다운스트림 URL/포트 정합 검사 (validate-config-audit.ps1)
+        shell: pwsh
+        run: ./infrastructure/scripts/validate-config-audit.ps1 -Detailed
+
   # ─── Backend ───────────────────────────────────────────────────────────────
   # arologis-service test + bootJar 산출. JAR artifact 는 후속 deploy workflow 에서 재활용 가능.
   backend:

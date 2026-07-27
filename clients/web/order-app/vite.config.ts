@@ -12,7 +12,8 @@
  * - alias `@` → src
  * - dev server proxy → api-gateway (8080) (운영은 nginx/edge 라우팅, 본 설정은 dev 전용)
  *
- * <p>VITE_API_BASE_URL 환경변수로 BASE URL override 가능.
+ * <p>VITE_API_BASE_URL 환경변수로 BASE URL override 가능. real-QA preview는
+ * `http://localhost:8080/api/v1`과 `VITE_APP_VERSION`을 명시하고 `npm run preview`를 실행한다.
  */
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
