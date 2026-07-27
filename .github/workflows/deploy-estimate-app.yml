@@ -17,12 +17,14 @@ on:
   pull_request:
     paths:
       - 'clients/web/estimate-app/**'
+      - 'clients/web/legacy-quantity-golden/**'
       - 'infrastructure/render/**'
       - '.github/workflows/deploy-estimate-app.yml'
   push:
     branches: [main]
     paths:
       - 'clients/web/estimate-app/**'
+      - 'clients/web/legacy-quantity-golden/**'
       - '.github/workflows/deploy-estimate-app.yml'
   workflow_dispatch:
 
