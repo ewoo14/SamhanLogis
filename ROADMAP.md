@@ -45,6 +45,19 @@
   호출자의 committedDir 에서 레포의 고정 `docs/qa` 루트로 일반화해 닫았다 —
   real-QA·mock 이 공유하는 단일 `resolveQaShotsDir` 함수(.ts/.mjs/.cjs 3벌 동일 계약)로
   합쳤다. 상세: `docs/dev-reports/2026-07-27-863-qa-output-path.md`.
+- **#851 이월 — CI 게이트 0 표면 2종(real-QA baseURL 부재 · arologis 가드 미배치) + R1 재설계**:
+  `clients/desktop/playwright.real-qa.config.ts`(repo 공유 real-QA 배치 하네스)에 Playwright
+  `projects`를 도입해 상대경로 `page.goto('/…')`에 의존하던 897·928·929-r4 3개 스펙이 더는
+  `Cannot navigate to invalid URL`로 실패하지 않게 했다. 928(웹 order-app)은 데스크톱 렌더러와
+  다른 Vite 앱이라 전역 baseURL 하나로는 둘 다 만족시킬 수 없다는 것이 R1 적대검증에서 드러나,
+  928만 별도 오리진 프로젝트로 분리하고 override 환경변수 이름도 기존 148개 스펙이 이미 쓰던
+  `AUDIT_BASE_URL`/`QA_BASE_URL`과 겹치지 않는 신규 이름으로 교체했다(두 이름 모두 저장소
+  전체에서 미사용이었음을 확인, 172파일/548테스트 배치 목록 불변 실측 — projects 분할 후
+  order-app 1 + renderer 547 = 548로 누락·중복 0). `scripts/check-notion-zero.sh`의 `SCAN_DIRS`에
+  `clients/arologis-desktop/src`·`clients/arologis-mobile/src`·`shared`(Java, src/main/ 한정)를
+  추가해 arologis 전용 `notion-zero-guard` 잡이 실제로 arologis 표면을 스캔하게 했다(RED-first —
+  fix 전 arologis 트리거 경로에 주입한 Notion 토큰이 false PASS였고, fix 후 동일 주입이 RED로
+  잡힘을 직접 확인). 상세: `docs/dev-reports/2026-07-27-851-gate-gaps.md`.
 
 ### 최신 진행 메모 (2026-07-26)
 

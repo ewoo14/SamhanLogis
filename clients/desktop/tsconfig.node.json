@@ -22,7 +22,8 @@
     "src/preload/**/*",
     "electron.vite.config.ts",
     "vite.capacitor.config.ts",
-    "capacitor.config.ts"
+    "capacitor.config.ts",
+    "playwright.real-qa.config.ts"
   ],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
