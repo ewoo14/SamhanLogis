@@ -62,6 +62,7 @@
 
 # QA/테스트 규율
 - [🚨 PR 충돌이면 워크플로가 아예 안 생성된다](feedback_pr_conflict_blocks_all_workflows.md) — `mergeable=CONFLICTING` 이면 GitHub 이 merge commit 을 못 만들어 `pull_request` run 이 **0건**. 조용히 멈추며 "큐에 있음" 으로 오독하기 쉽다(#929 3커밋 연속·개발책임자 정정). **체크 수가 평소(33~41)보다 적으면 `gh pr view --json mergeable` 부터**
+- [🚨 fixture 는 **실 경로가 만들 수 있는 상태**만 (2026-07-28 #958)](feedback_fixture_must_be_reachable_by_real_path.md) — 카테고리 불변식이 **V18 에서 폐기된 `products.estimate_category`** 를 읽어 **실 API 로 만든 품목은 규칙에 못 붙는다**(실 DB NULL **101/105 = 96%**). 그런데 **548 테스트가 3라운드 동안 green** — quantitysync IT 6개가 raw SQL 로 그 죽은 컬럼을 직접 채웠기 때문. 🔑fixture 가 **실 API 가 만들 수 없는 상태**를 쓰면 실재하지 않는 세계를 검증한다. 적대검증 브리핑에 **"실 API 로 만들어 재현하라"** 를 명시할 것. 반대로 실 경로로 못 만드는 이유가 있으면 **그 이유 자체가 결함 신호**
 - [🚨 게이트 0 표면 · mock 이 결함을 덮음](feedback_ungated_surface_and_mock_covering_defect.md) — CI green 을 세기 전에 **그 CI 가 검사하지 않는 표면**을 명시하라. Electron main 은 CI 스텝 0개였고 `vi.mock('electron-updater')` 가 깨진 import 자체를 덮어 2026-07-24~26 main 이 깨진 채 방치됐다. 데스크톱 라이브QA=Electron 실제 기동
 - [QA Docker 실서버 의무](feedback_qa_docker_real_test.md) — 실서버 테스트, code read PASS 금지, 미가용시 P2+CI fetch
 - [실서버 점검=실사용자 UI 캡처](feedback_real_server_check_screenshot.md) — API JSON 아닌 실 데스크톱 화면(:8080·dev_master·mock OFF)
