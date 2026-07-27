@@ -23,8 +23,9 @@
  * 897 · 929-r4 가 깨진다) 아래 projects 로 928 만 별도 오리진 프로젝트로 분리한다.
  *
  * 🚨 [#851 R1 fix] 오리진 override 환경변수 이름도 새로 만든다 — `AUDIT_BASE_URL` ·
- * `QA_BASE_URL` 은 이미 real-QA 스펙 148개가 "자기 오리진" 기본값으로 스펙 코드 안에서
- * 직접 읽고 있고(그중 106개는 기본 오리진이 5175 가 아니다). 이 두 이름을 이 공유
+ * `QA_BASE_URL` 은 이미 real-QA 스펙 163개가 "자기 오리진" 기본값으로 스펙 코드 안에서
+ * 직접 읽고 있고(`AUDIT_BASE_URL` 146개 + `QA_BASE_URL` 17개), 그중 기본 오리진이
+ * 5175가 아닌 파일은 121개다. 이 두 이름을 이 공유
  * config 의 override 로 재사용하면, 이 config 로 배치 실행할 때 그 스펙들이 자체적으로
  * 읽는 오리진까지 함께 끌려간다 — 예컨대 928 을 맞추려고 QA_BASE_URL=5181 을 export 하면
  * 937-* · 929-r6 · 924 · 920-* · 902-* · 809-* 등 QA_BASE_URL 을 직접 읽는 다른 스펙도
@@ -35,6 +36,15 @@
  *   cd clients/desktop
  *   # 전체 real-QA 스펙(172개 파일 · 548개 테스트) 실행 — 데스크톱 렌더러(:5175)를 먼저 띄울 것.
  *   # 928 도 포함해 전부 통과시키려면 order-app(:5181, clients/web/order-app)도 함께 띄운다.
+ *   # renderer 기동(별도 터미널):
+ *   #   $env:VITE_API_BASE_URL='http://localhost:8080'
+ *   #   $env:VITE_APP_VERSION='2026/07/26-92700'
+ *   #   .\node_modules\.bin\vite.cmd dev --config vite.renderer.dev.config.ts
+ *   # order-app 기동(별도 터미널, 깨끗한 체크아웃에서도 build를 먼저 수행):
+ *   #   cd ..\web\order-app
+ *   #   $env:VITE_API_BASE_URL='http://localhost:8080/api/v1'
+ *   #   $env:VITE_APP_VERSION='2026/07/26-92700'
+ *   #   npm run preview -- --host 127.0.0.1 --port 5181 --strictPort
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000
  *   # 이 슬라이스(#825 슬5)만 격리 실행:
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000 `
