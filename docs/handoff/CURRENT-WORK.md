@@ -13,7 +13,58 @@
 
 ---
 
-## 🏢 2026-07-27 (회사PC) — **4트랙 머지(#937·#938·#929·#830) · #896 기획완료(구현 대기)** ◀◀◀ 여기부터 읽으십시오
+## 🌙 2026-07-27 심야 ~ 07-28 낮 (집PC) — **머지 9건 · 신규 3트랙 착수 · 4트랙 라운드 진행 중** ◀◀◀ 여기부터 읽으십시오
+
+> 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+> ⚠️ 이 세션에서 `sync-claude-memory.ps1` 이 샌드박스 가드(`Remove-Item on system path '//'`)에 걸렸다. 실패하면 수동 복사하거나 스크립트를 점검할 것.
+
+### 머지 (main `a666a6700` 기준)
+
+| PR | 내용 |
+|---|---|
+| **#949** | #851 이월 — CI 게이트 0 표면 2종(real-QA baseURL · arologis 가드) |
+| **#948** | #896 슬1 — 레거시 수량 골든 정답 고정(런타임 동작 변경 0) |
+| **#952** | #863 잔여 — mock 스위트가 커밋 스크린샷을 덮어쓰던 문제 |
+| **#950** | #887 — 대비 3.76→**8.31:1** · Enter/Space 해제 · 3화면 문구 통일 |
+| **#953 #954 #955 #959 #960** | 메모리 5건 |
+
+**이슈 #887 CLOSED** — 잔여 3건 전부 해소, 이월 0.
+
+### 열린 트랙 4건 (전부 2~3라운드째)
+
+| PR | 트랙 | 상태 |
+|---|---|---|
+| **#951** | #913+#890 검증품질 배치 | R6 재수렴 중. 워크트리 `.claude/worktrees/913-890` |
+| **#956** | **#888** outbox 전용 TaskScheduler | R2 fix 중. 워크트리 `.claude/worktrees/888-sched` |
+| **#957** | **#851 슬2** QA 가드 전 표면(+#863 이월 흡수) | R2 재수렴 중. 워크트리 `.claude/worktrees/851-gate` |
+| **#958** | **#896 슬2** 수량동기화 스키마 | R3 fix 중. 워크트리 `.claude/worktrees/896-s2` |
+
+### 🚨 이번 세션 최대 교훈 — 메모리 3건으로 기록 완료
+
+1. **"범위 밖" 을 "결함 0" 으로 세지 마라** ([[feedback_unverified_scope_is_not_zero_defects]]) — #951 R3 가 *"도달 가능 결함 없음 · 머지 가능"* 판정했으나 판정문에 *"범위 외 2영역은 조사하지 않았습니다"* 가 적혀 있었고, 그 2영역을 넣자 **실사용자 문서 양식 삭제** 결함이 나왔다. **R3 는 정직했고 집계한 PM 이 틀렸다.**
+2. **재수렴을 좁게 하면 놓친다 — 한 밤에 3연속** ([[feedback_reconvergence_before_merge]] 갱신) — #951(fix 가 애니메이션 WebP 거부 회귀) · #956(fix 의 핵심 주장이 거짓) · #958(fix 가 규칙 API 를 404 벽돌로). **fix 는 새 표면을 만들고, 재수렴 범위는 그 표면 전체다.**
+3. **삭제 전 `git ls-files` 로 커밋 여부 확인** ([[feedback_check_tracked_before_delete]]) — #957 작업 중 `rm -rf docs/qa/local-load-soak-test` 로 **커밋 파일 33개 삭제**(복구·PM 확증 완료). 하위에 `_local` 이 있다고 상위 전체가 throwaway 가 아니다.
+
+### 🔴 개발책임자 판단 대기 1건
+
+**#896 슬3 선행조건** — `clients/web/legacy-quantity-golden/legacyQuantityBoundary.js:334` 가 **빈 슬롯과 용량 0 을 둘 다 `'0'` 으로 뭉갠다.**
+정찰 결과 그 `chip` 은 **#825 UI 칩이 아니라 주문 앱 분기보드의 `.capsule.in-grid` DOM mock** 이고, C-09(분기보드)는 승인 결정 #5 로 **슬2 시드 제외**다. 따라서 **슬3(evaluator + shadow diff) 착수 시점에 걸린다.**
+**PM 권고 = 슬3 흡수**(그때 golden 을 실 카탈로그 snapshot 으로 재생성하면서 함께 처리).
+
+### ⚠️ 환경 함정 (이 세션 신규)
+
+- **PowerShell here-string 에 긴 마크다운 본문을 담으면** 가드가 `Remove-Item on system path '//'` 로 차단한다(2회 재현). ⟹ 긴 PR 코멘트·PR 본문은 **`Write` 도구로 파일 → `gh pr comment --body-file`**. 커밋 메시지 here-string 은 정상.
+- **병렬 에이전트 gradle 워크트리 경합** — `Unable to delete directory …build/test-results/test/binary`. 재실행으로 해소, 권위는 CI(exact SHA).
+- `scripts\sync-claude-memory.ps1` 이 같은 가드에 걸림(미해결).
+
+### 진행 규율 메모
+
+- **#958 이 "fix 가 새 결함" 2연속.** 다음 라운드도 같으면 [[feedback_pm_regulate_slice_effort]] 에 따라 **바운드 옵션을 개발책임자께 제시**할 것.
+- 라운드 상한 9차. 현재 #951 R6 · #956 R2 · #957 R2 · #958 R3 — 전부 매 라운드 **실제 도달 가능 결함**이 나오고 있어 정상 진행.
+
+---
+
+## 🏢 2026-07-27 (회사PC) — **4트랙 머지(#937·#938·#929·#830) · #896 기획완료(구현 대기)**
 
 > 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
 
