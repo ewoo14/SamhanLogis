@@ -50,6 +50,7 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
   const detailLayer = page.getByTestId('document-template-detail-layer')
   const runScope = await startDs4RunScope('DS4 실서버QA', API_BASE, PASSWORD)
   const templateName = runScope.templateName
+  let savedTemplateId = ''
 
   try {
   await test.step('D1 편집기 진입 후 품목행·이미지 추가', async () => {
@@ -84,7 +85,6 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     console.log(`■ 이미지 naturalWidth = ${natural}`)
   })
 
-  let savedTemplateId = ''
   await test.step('D2 실 BE 저장·활성화 게이트 — 신규 타입은 저장되지만 ACTIVE 승격은 막힌다', async () => {
     // 🚨 문서 유형을 고르지 않으면 예약 docType(GROUPWARE_DEFAULT)이 나가 422 로 거절된다.
     //    기존 L1~L6 하네스와 동일하게 실제 옵션을 골라야 저장 경로에 도달한다(PM 실측).

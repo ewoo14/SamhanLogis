@@ -53,6 +53,7 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
   const addText = page.getByRole('button', { name: '문구 추가' })
   const runScope = await startDs4RunScope('DS4 회귀실측', API_BASE, PASSWORD)
   const templateName = runScope.templateName
+  let savedTemplateId = ''
 
   try {
   /** `% geometry`가 실제 적용된 요소와 그 부모 BODY의 rect를 함께 측정한다. */
@@ -141,7 +142,6 @@ test('DS-4 회귀 — BODY % geometry 레이어가 flow 높이를 예약하고 �
     await shot('B2-variable-flow')
   })
 
-  let savedTemplateId = ''
   await test.step('실 BE 왕복 후에도 % geometry가 유지된다', async () => {
     const docType = page.getByLabel('문서 유형')
     const values = await docType.locator('option')
