@@ -1,5 +1,144 @@
 # #863 QA 출력 경로 분리·덮어쓰기 가드
 
+## 2026-07-28 R3 재수렴 — 가드 테스트 리눅스 CI 오탐 수정 · 플랫폼 표기 정정
+
+### R3-1 RED 원문 (리눅스 컨테이너, 수정 전 HEAD `a7ebd0e70`)
+
+R2 가 추가한 물리 경로 판정 테스트(`clients/desktop/scripts/qa-output-path-guard.test.cjs:134-175`)를
+CI 와 동일한 Node 20 리눅스 컨테이너(읽기 전용 마운트)에서 그대로 실행해 CI 실패를 먼저
+재현했다.
+
+```bash
+docker run --rm -v "<worktree>:/repo:ro" -w /repo/clients/desktop node:20 \
+  node --test scripts/qa-output-path-guard.test.cjs
+```
+
+```text
+# Subtest: 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다
+not ok 7 - 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다
+  ---
+  duration_ms: 82.14351
+  location: '/repo/clients/desktop/scripts/qa-output-path-guard.test.cjs:134:1'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected exception: cjs:extended-root 물리 경로가 차단되지 않음'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 7
+# fail 1
+```
+
+실 CI 로그(`gh pr checks 952`, `a7ebd0e70`)와 동일 실패였다 — 이 가드 step 은
+`.github/workflows/qa-e2e.yml:100-102`(`runs-on: ubuntu-latest`)에서 `npm ci` 직후·
+Playwright 실행 전에 있어, step 이 죽으면 mock 회귀 hard gate **641 테스트가 아예
+실행되지 않는다**(후속 `silent-skip 가드`도 `results.json` ENOENT 로 연쇄 실패).
+
+전수 실패 단언도 조기 종료 없이 별도 확인했다(cjs·mjs 2 resolver × 9 케이스 = 18 단언,
+동일 로직인 ts resolver 포함 시 27 단언 중 9 = PM 보고와 일치):
+
+```text
+PLATFORM=linux
+TOTAL_ASSERTIONS=18
+FAILED_ASSERTIONS=6
+FAILED_LIST=cjs:extended-root,cjs:extended-missing,cjs:case,mjs:extended-root,mjs:extended-missing,mjs:case
+```
+
+### R3-1 원인
+
+`\\?\` 확장 길이 prefix 제거와 대소문자 무시는 **Windows 파일시스템 의미론**이고,
+resolver 3벌은 이를 `process.platform === 'win32'` 로 정확히 분기한다
+(`scripts/lib/qa-shots-dir.cjs:43,52` · `clients/desktop/playwright/support/qa-screenshot-dir.ts:73,82` ·
+`.mjs:38,47` — 세 파일 모두 로직이 byte-identical). 그런데 R2 가 추가한 테스트는 이
+세 케이스(`extended-root`·`extended-missing`·`case`)에서 플랫폼 분기 없이 Windows
+판정을 무조건 단언했다. POSIX 에서 `\\?\<path>` 표기와 대문자 표기는 물리적으로
+"다른"(실존하지 않는) 경로이므로 **resolver 는 옳고 테스트가 틀렸다.**
+
+### R3-1 fix
+
+`qa-output-path-guard.test.cjs` 의 케이스 목록을 `universalCases`(플랫폼 불문 6종)와
+`windowsOnlyCases`(Windows 전용 3종)로 나누고, `process.platform === 'win32'` 일 때만
+`windowsOnlyCases` 를 실행 목록에 합쳤다 — resolver 자신의 분기와 같은 조건이다.
+POSIX 에서 이 세 케이스를 "차단 안 됨"으로 뒤집어 단언하지 않고 아예 실행하지 않은
+이유: 차단되지 않으면 resolver 가 실제 `fs.mkdirSync` 까지 진행해 대문자/이스케이프
+경로를 저장소 밖(케이스에 따라 파일시스템 루트 바로 아래)에 실제로 생성하는 부작용이
+있기 때문이다 — 저장소·CI 환경 오염 위험을 감수할 이유가 없다. resolver 본체(3파일)는
+변경하지 않았다.
+
+### R3-1 GREEN 원문 — 양 플랫폼
+
+리눅스 컨테이너(fix 후, 동일 이미지·마운트):
+
+```text
+# Subtest: 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다
+ok 7 - 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다
+  ---
+  duration_ms: 186.886315
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+```
+
+Windows 로컬(fix 후, 네이티브 `node --test`) — Windows 는 `windowsOnlyCases` 를
+포함한 전체 9 케이스 × 3 resolver = 27 단언을 그대로 전수 실행하므로 판정력 손실이
+없다:
+
+```text
+✔ 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다 (49.9038ms)
+ℹ tests 8
+ℹ pass 8
+ℹ fail 0
+```
+
+### R3-1 회귀 울타리 (fix 후 실행, 원문)
+
+```text
+$ git grep -l "docs/qa" 9a474aca2 -- clients/desktop/playwright/ | grep -v -- "-real-qa" | wc -l
+44
+
+$ npm test -- --reporter=dot   (clients/desktop, vitest)
+Test Files  175 passed (175)
+Tests       1632 passed (1632)
+src/renderer/test-utils/harness-false-green-guard.test.ts (49 tests) ✓
+
+$ CI=1 node_modules/.bin/playwright.cmd test --reporter=line   (clients/desktop, Windows 로컬)
+Running 641 tests using 2 workers
+641 passed (6.2m)
+PLAYWRIGHT_EXIT=0
+```
+
+Playwright mock 스위트 실행 전후 저장소 루트에서 `docs/qa` status·working diff·
+cached diff 3블록을 확인했다 — 전부 빈 출력(오염 없음).
+
+resolver 본체(`.cjs`/`.ts`/`.mjs` 3파일)는 이번 라운드에서 diff 가 0이다 — R3 이전
+재수렴 라운드가 확인한 "Windows 20 표기 × 3 resolver = 60/60 일치·Linux 20/20 일치·
+정상 경로(첫 캡처·승격·real-QA 커밋) 미차단" 은 코드 변경이 없으므로 그대로 유지된다.
+이번 라운드의 `resolver 기본 출력` · `D-3 A~D` · `QA_ALLOW_OVERWRITE=1 승격` 세 단위
+테스트(위 GREEN 원문의 test 1~6)가 양 플랫폼에서 그대로 통과해 첫 캡처·승격 경로가
+살아있음을 재확인했다.
+
+### R3-2 증거 무결성 정정
+
+R2 절의 "`8 passed / 0 failed`"는 Windows 한정 결과였는데 플랫폼 표기가 없었다 —
+CI(리눅스)에서는 `7 passed / 1 failed`였다. 위 R2 절 해당 문단에 플랫폼 라벨과 정정을
+추가했다.
+
+### 정리
+
+`git status --untracked-files=all` 빈 출력(테스트 파일·본 dev-report 변경 2건만 남음).
+RED/GREEN 재현에 쓴 Docker 컨테이너(`:ro` 마운트)·정상 경로 확인 프로브는 워크트리
+밖(`os.tmpdir()`/scratch 디렉터리)에서만 쓰고 그 자리에서 정리했다. `docs/qa/
+__863-r1-guard-fixture__` 빈 디렉터리는 R3 이전부터 있던 것(R3 리뷰가 이미 관측·
+범위 밖으로 판정)으로, git 이 빈 디렉터리를 추적하지 않아 status 에 나타나지 않는다
+— 이번 라운드가 새로 만들거나 지운 것이 아니다.
+
+---
+
 ## 2026-07-28 Codex R2 — 물리 경로 동등성·증거 명령 정정
 
 ### R2-1 RED 원문
@@ -44,11 +183,20 @@ Error: Missing expected exception: cjs:junction-root 물리 경로가 차단되�
 후행 구분자·상대/절대·대소문자·드라이브 문자 변형을 세 resolver에 대해 실행했다.
 
 ```text
+(Windows 로컬 실행)
 ✔ 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다
 ℹ tests 8
 ℹ pass 8
 ℹ fail 0
 ```
+
+> 🚨 **R3 정정(2026-07-28)** — 위 `8 passed / 0 failed`는 **Windows 한정** 결과인데
+> 플랫폼 표기가 없었다(R3 적대검증 지적, 증거 무결성 항목). 이 fix 가 실제로 CI 에서
+> 실행되는 `runs-on: ubuntu-latest`(리눅스)에서는 `extended-root`·`extended-missing`·
+> `case` 세 케이스 × 세 resolver = 9개 단언이 실패해 **7 passed / 1 failed**였다(CI 원문·
+> 로컬 Docker 재현 모두 동일 — 아래 R3 절 참조). 원인은 이 R2 테스트가 Windows 전용
+> 파일시스템 의미론(확장 길이 prefix 제거·대소문자 무시)을 플랫폼 분기 없이 무조건
+> 단언했기 때문이다. R3 fix 로 두 플랫폼 모두 `8 passed / 0 failed`가 된다.
 
 ### R2-2 증거 명령 정정
 

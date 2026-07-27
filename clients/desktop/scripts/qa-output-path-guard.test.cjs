@@ -17,6 +17,17 @@
  * 이 파일에 남기는 것 — D-3(전역 QA_SHOTS_DIR 가 "다른 슬러그"·"docs/qa 루트 자체"를
  * 전혀 막지 못했던 문제)의 회귀 가드와, resolver 3벌(.ts/.mjs/.cjs)의 parity 검증.
  *
+ * 2026-07-28 R3 재수렴 — R2 가 추가한 물리 경로 판정 테스트("물리적으로 docs/qa 아래인
+ * junction·extended·표기 변형은 세 resolver가 차단한다")가 `extended-root`·
+ * `extended-missing`·`case` 세 케이스에서 플랫폼 분기 없이 Windows 판정(확장 길이
+ * prefix 제거·대소문자 무시)을 무조건 단언해, 리눅스 CI(desktop-playwright 잡의
+ * mock 회귀 hard gate 641 테스트 전체)를 막았다. resolver 자신은 이 세 의미론을
+ * `process.platform === 'win32'` 로 정확히 분기하므로(qa-shots-dir.cjs:43,52 등),
+ * POSIX 에서는 이 표기들이 물리적으로 다른(차단되지 않아야 할) 경로다 — resolver 는
+ * 옳고 테스트가 틀렸다. 세 케이스는 이제 Windows 에서만 실행한다(POSIX 에서 실행하면
+ * resolver 가 차단하지 않고 실제 mkdirSync 까지 진행해 저장소 밖에 부작용을 남기므로,
+ * "차단 안 됨"을 직접 단언하는 대신 아예 실행하지 않는다).
+ *
  * 실행: `node --test clients/desktop/scripts/qa-output-path-guard.test.cjs`
  * (CI: .github/workflows/qa-e2e.yml desktop-playwright 잡, "QA 출력 경로·덮어쓰기 가드" step)
  */
@@ -150,17 +161,33 @@ test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세
     ['mjs', mjsResolve],
     ['ts', loadTypeScriptResolver()],
   ]
-  const cases = [
+  // 플랫폼 불문 케이스 — junction·후행 구분자·상대/절대·드라이브 문자는 물리적으로
+  // 같은 경로임이 POSIX 에서도 성립한다(리눅스 CI 재현으로 확인, R3 재수렴).
+  const universalCases = [
     ['junction-root', junctionRoot],
     ['junction-missing', junctionMissing],
-    ['extended-root', extendedRoot],
-    ['extended-missing', extendedMissing],
     ['trailing-separator', `${OTHER_SLUG_COMMITTED_DIR}${path.sep}`],
     ['relative', relativeOtherSlug],
     ['absolute', path.resolve(OTHER_SLUG_COMMITTED_DIR)],
-    ['case', OTHER_SLUG_COMMITTED_DIR.toUpperCase()],
     ['drive-letter', lowerDriveOtherSlug],
   ]
+  // Windows 전용 케이스 — `\\?\` 확장 길이 prefix 제거와 대소문자 무시는 Windows
+  // 파일시스템 의미론이고, resolver 도 이를 `process.platform === 'win32'` 로 정확히
+  // 분기한다(qa-shots-dir.cjs:43,52 · qa-screenshot-dir.ts:73,82 · .mjs:38,47). POSIX
+  // 에서 `\\?\<path>` 표기와 대문자 표기는 물리적으로 "다른"(실존하지 않는) 경로이므로
+  // resolver 가 차단하지 '않는' 것이 옳다 — 여기서 무조건 차단을 단언한 R2 테스트가
+  // 리눅스 CI(mock 회귀 hard gate 641 테스트 게이트)를 막았다(R3 재수렴, 2026-07-28,
+  // PR #952). POSIX 에서 "차단되지 않음"을 직접 단언하는 대신 이 세 케이스를 아예
+  // 실행하지 않는다: 차단되지 않으면 resolver 가 실제 fs.mkdirSync 까지 진행해
+  // 저장소 밖(심하면 파일시스템 루트 바로 아래)에 우연한 대문자/이스케이프 경로를
+  // 실제로 생성해버리는 부작용이 있기 때문이다.
+  const windowsOnlyCases = [
+    ['extended-root', extendedRoot],
+    ['extended-missing', extendedMissing],
+    ['case', OTHER_SLUG_COMMITTED_DIR.toUpperCase()],
+  ]
+  const isWindows = process.platform === 'win32'
+  const cases = isWindows ? [...universalCases, ...windowsOnlyCases] : universalCases
 
   for (const [resolverName, resolver] of resolvers) {
     for (const [caseName, target] of cases) {
