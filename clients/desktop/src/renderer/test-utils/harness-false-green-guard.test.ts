@@ -1649,10 +1649,21 @@ describe('하네스 거짓 green 가드', () => {
 
   const GUARD_SPEC_MARKER = 'harness-false-green-guard'
 
-  /** 하네스 가드를 **실행**하는 명령인가 — 테스트 러너 + 스펙 경로 둘 다 있어야 한다. */
+  /**
+   * 테스트 러너 **호출**인가.
+   *
+   * 🚨 2026-07-27 뮤테이션 M2 가 잡은 구멍 — 처음엔 `\b(?:vitest|playwright|…)\b` 로 썼는데,
+   * `playwright/sp-07-…/….spec.ts` 라는 **인자 경로 자체**가 `\bplaywright\b` 에 걸렸다.
+   * 그래서 실행 줄을 `npx playwright test …` → `echo …` 로 바꿔치기해도 커버리지로 인정됐다
+   * (= G9b 가 막으려던 "마커만 있고 실행은 안 함" 의 재발 형태). 러너 이름 뒤에 `/` 나
+   * 단어문자가 오면 그건 경로지 명령이 아니다.
+   */
+  const RUNNER_INVOCATION =
+    /\bplaywright\s+test(?![\w/])|\bvitest(?![\w/])|\bnode\s+--test(?![\w/])|\bnpm\s+(?:run\s+)?test(?![\w/])|\bjest(?![\w/])/
+
+  /** 하네스 가드를 **실행**하는 명령인가 — 테스트 러너 호출 + 스펙 경로 둘 다 있어야 한다. */
   const RUNS_HARNESS_GUARD = (cmd: string): boolean =>
-    /\b(?:vitest|npm\s+(?:run\s+)?test)\b/.test(cmd) &&
-    cmd.includes(`test-utils/${GUARD_SPEC_MARKER}.test.ts`)
+    RUNNER_INVOCATION.test(cmd) && cmd.includes(`test-utils/${GUARD_SPEC_MARKER}.test.ts`)
 
   function guardRunningWorkflowPaths(): string[] {
     return workflowsExecuting(RUNS_HARNESS_GUARD).flatMap((w) => w.paths)
@@ -1836,46 +1847,173 @@ describe('하네스 거짓 green 가드', () => {
     ).toEqual([])
   })
 
-  it('G12 (D-2): 문서 본문을 단언하는 계약 테스트는 그 문서를 바꾸는 PR 에서 실행된다', () => {
-    const rel = 'clients/desktop/scripts/round-910-contract.test.cjs'
-    const src = fs.readFileSync(path.resolve(REPO_ROOT, rel), 'utf-8')
-    const asserted = [...src.matchAll(/read\('([^']+)'\)/g)].map((m) => m[1] as string)
-    expect(asserted.length, `${rel} 의 단언 대상 파싱 0건 — 파일 구조가 바뀌었다`).toBeGreaterThanOrEqual(4)
-    for (const f of asserted) {
-      expect(fs.existsSync(path.resolve(REPO_ROOT, f)), `단언 대상이 실재하지 않는다: ${f}`).toBe(true)
+  /**
+   * ─────────────────────────────────────────────────────────────────────────────
+   * G12 (2026-07-27 재수렴 7차) — **열거를 도출로 바꾼다.**
+   *
+   * 재수렴 6차의 G12 는 여기서 `const rel = 'clients/desktop/scripts/round-910-contract.test.cjs'`
+   * 로 **파일 하나를 손으로 적었다**. 같은 손 열거가 docs-guard.yml 헤더에도 있었다
+   * ("`docs/**` 를 관할로 삼는 가드가 **두 개** 있다"). 둘 다 좁았다 — 레포에서 도출하면
+   * 문서 본문을 단언하는 검사는 6개고, 그중 5개가 게이트 0 인 경로를 읽었다:
+   *
+   *   docs/handoff/CURRENT-WORK.md       ← sp-08-3-dispatch-parity.spec.ts (secret-like 마커 스캔)
+   *   docs/planning/2026-05-16_…md       ← 같은 스펙
+   *   docs/manual/inventory/*.md         ← sp-05-crud-surface.spec.ts
+   *   docs/manual/02-창고/06-구매조회.md  ← purchase-inspection-cta.spec.ts
+   *   docs/operational-validation/*.md   ← sp-06-notion-db-crud · sp-07-google-sheets-source
+   *
+   * 실측 ①(트리거가 0) — `docs/handoff/CURRENT-WORK.md` 단독 커밋 2건(cbfe2bea2 · a1aefdd20)의
+   *   check-runs 는 `total_count: 0` 이었다. 이 파일은 CLAUDE.md 가 "PC 이동 직전 반드시 갱신"
+   *   으로 규정한 **매 세션 main 직행 경로**이고, 그 자격 스캔을 담당하는 유일한 장치가 바로
+   *   위 게이트 0 인 스펙이었다(셸 가드 DOC_DIRS 에도 없어 AWS 액세스 키 형태 주입 시 EXIT=0).
+   * 실측 ②(트리거는 열렸는데 러너가 없다) — `docs/operational-validation/README.md` 의 한 구절을
+   *   바꾸면 docs-guard.yml 두 잡은 EXIT=0(green) 인데 sp-07 스펙은 `1 failed / 5 passed` 다.
+   *   ⟹ **트리거를 여는 것과 러너를 두는 것은 별개 축이고, 둘 다 필요하다.**
+   *
+   * ⚠️ 도출의 한계(주장하지 않는 것) — 아래 `docsAssertingChecks()` 는
+   *   ⓐ `*.spec.ts` / `*.test.*` 네이밍을 따르는 파일만 본다(그 밖의 가드는 안 보인다),
+   *   ⓑ **실재하는** `docs/…<확장자>` 문자열 리터럴만 센다(경로를 조립·보간하거나 아직 없는
+   *      파일을 가리키는 읽기는 안 보인다),
+   *   ⓒ 리터럴이 읽기 인자인지 쓰기 대상인지는 구분하지 않는다(파일에 읽기 primitive 가
+   *      있으면 그 파일의 docs 리터럴을 전부 관할로 본다 — 과대 포함 쪽으로 틀린다),
+   *   ⓓ desktop playwright 스위트의 `testIgnore` 만 반영한다(다른 스위트의 제외 규칙은 모른다).
+   * ─────────────────────────────────────────────────────────────────────────────
+   */
+
+  /** 실재 파일을 가리키는 `docs/**` 문자열 리터럴(글롭/치환자 형태는 존재 검사에서 탈락). */
+  const DOCS_FILE_LITERAL = /['"`](docs\/[^'"`\n]*?\.[A-Za-z0-9]+)['"`]/g
+
+  /**
+   * 문서 본문을 단언하는 **검사 파일 전수**를 네이밍 컨벤션에서 도출한다(손 열거 아님).
+   * 자기 자신은 제외한다 — 이 파일의 `docs/…` 리터럴은 글롭 sanity 케이스와 합성 픽스처이고,
+   * 이 파일이 스캔하는 표면은 G9 가 따로 검사한다.
+   */
+  function docsAssertingChecks(): { reader: string; docs: string[] }[] {
+    const files = walkRepo(
+      REPO_ROOT,
+      (p) =>
+        /\.test\.(?:ts|tsx|cjs|mjs|js)$/.test(p) ||
+        (/\.spec\.ts$/.test(p) && (!p.startsWith(PLAYWRIGHT_DIR + path.sep) || isMockGateFile(p))),
+    )
+    const out: { reader: string; docs: string[] }[] = []
+    for (const abs of files) {
+      if (abs === SELF) continue
+      const src = stripComments(fs.readFileSync(abs, 'utf-8'))
+      if (!/readFileSync|readFile\s*\(/.test(src)) continue
+      const docs = [...new Set([...src.matchAll(DOCS_FILE_LITERAL)].map((m) => m[1] as string))]
+        .filter((f) => fs.existsSync(path.resolve(REPO_ROOT, f)))
+        .sort()
+      if (docs.length > 0) out.push({ reader: rel2(abs), docs })
+    }
+    return out.sort((a, b) => a.reader.localeCompare(b.reader))
+  }
+
+  function rel2(abs: string): string {
+    return path.relative(REPO_ROOT, abs).replace(/\\/g, '/')
+  }
+
+  /**
+   * `cmd` 가 `reader` 를 **직접 지목해 실행**하는가.
+   * 러너 호출이 있어야 하고, 경로는 `working-directory` 를 파싱하지 않도록 "디렉토리 1개 이상 +
+   * 파일명" 접미사 일치로 본다(`clients/desktop` 기준 상대 호출 대응).
+   * ⚠️ 인자 없는 스위트 통짜 호출(`npx playwright test`)은 **커버리지로 세지 않는다** — 어떤
+   * 스펙이 실제로 돌지 정적으로 알 수 없고, 그 낙관이 6차의 실패 형태였다.
+   */
+  function commandRunsReader(cmd: string, reader: string): boolean {
+    if (!RUNNER_INVOCATION.test(cmd)) return false
+    const segs = reader.split('/')
+    for (let i = 0; i <= segs.length - 2; i++) {
+      if (cmd.includes(segs.slice(i).join('/'))) return true
+    }
+    return false
+  }
+
+  it('G12 (도출식): 문서 본문을 단언하는 검사 전수를, 그 문서만 바꾸는 PR 이 실제로 실행한다', () => {
+    const contracts = docsAssertingChecks()
+    expect(
+      contracts.length,
+      '문서 단언 검사 도출 0건 — 도출 규칙(네이밍 컨벤션/리터럴 정규식)이 깨졌다면 이 테스트는 항상 무의미하게 GREEN 이다',
+    ).toBeGreaterThanOrEqual(5)
+
+    // 도출 자기검사 — 2026-07-27 에 실측한 두 표면을 실제로 잡아야 한다(회귀 앵커).
+    const allDocs = new Set(contracts.flatMap((c) => c.docs))
+    for (const anchor of ['docs/handoff/CURRENT-WORK.md', 'docs/operational-validation/README.md']) {
+      expect(allDocs.has(anchor), `도출이 ${anchor} 를 놓쳤다 — 재수렴 7차의 실측 표면이다`).toBe(true)
     }
 
-    const runners = workflowsExecuting((cmd) => /round-910-contract/.test(cmd))
-    const ungated = ungatedFiles(asserted, runners.flatMap((w) => w.paths))
+    // 러너 판정 자기검사 (뮤테이션 M2 회귀 울타리) — **인자 경로**에 러너 이름이 들어 있다는
+    // 이유로 커버리지를 인정하면 안 된다. 실측: 이 구분이 없을 때 실행 줄을 `echo` 로 바꿔도
+    // G12 가 통과했다(= 아무것도 안 돌리는데 green).
+    const target = 'clients/desktop/playwright/sp-07-x/sp-07-x.spec.ts'
+    const args = '\n            playwright/sp-07-x/sp-07-x.spec.ts'
     expect(
-      ungated,
-      `계약 테스트가 단언하는 파일인데 **그 파일만 바꾸는 PR 은 테스트를 돌리지 않는다** — 단언이\n` +
-        `깨지는 변경이 CI 를 통과한다:\n${ungated.join('\n')}`,
+      commandRunsReader(`echo 가드-안-돎 \\${args}`, target),
+      '실행 명령이 아닌데 인자 경로의 `playwright/` 때문에 러너로 인정된다',
+    ).toBe(false)
+    expect(
+      commandRunsReader(`npx playwright test --reporter=line \\${args}`, target),
+      '실제 playwright 실행 명령을 못 알아본다',
+    ).toBe(true)
+    expect(
+      commandRunsReader(
+        "node --test --test-name-pattern='문서는' clients/desktop/scripts/round-910-contract.test.cjs",
+        'clients/desktop/scripts/round-910-contract.test.cjs',
+      ),
+      '`node --test` 호출을 못 알아본다',
+    ).toBe(true)
+
+    const violations: string[] = []
+    for (const { reader, docs } of contracts) {
+      const runners = workflowsExecuting((cmd) => commandRunsReader(cmd, reader))
+      for (const f of ungatedFiles(docs, runners.flatMap((w) => w.paths))) {
+        violations.push(`${f}\n      ← ${reader}`)
+      }
+    }
+    expect(
+      violations,
+      `문서 본문을 단언하는 검사가 있는데 **그 문서만 바꾸는 PR 은 그 검사를 한 번도 돌리지 않는다**.\n` +
+        `트리거만 여는 것으로는 부족하다 — 그 경로를 발동시키는 워크플로가 **그 검사를 실행**해야 한다\n` +
+        `(docs-guard.yml 두 잡이 green 인 채로 sp-07 계약이 깨지는 것을 2026-07-27 실측했다):\n` +
+        `${violations.join('\n')}`,
     ).toEqual([])
 
-    // 러너가 `--test-name-pattern` 으로 좁혀 돈다면, 문서를 단언하는 테스트가 그 필터에 실제로
-    // 걸려야 한다 — 안 걸리면 "0건 실행 후 exit 0" 이라는 새 거짓 green 이 된다.
-    const docAssertingNames = [...src.matchAll(/\btest\('([^']+)'/g)]
-      .map((m, i, all) => {
-        const start = m.index ?? 0
-        const end = all[i + 1]?.index ?? src.length
-        return { name: m[1] as string, body: src.slice(start, end) }
-      })
-      .filter((t) => /read\('docs\//.test(t.body))
-      .map((t) => t.name)
-    expect(docAssertingNames.length, '문서를 단언하는 테스트를 못 찾았다').toBeGreaterThanOrEqual(1)
-    for (const w of runners) {
-      const yml = fs.readFileSync(path.join(WORKFLOW_DIR, w.name), 'utf-8')
-      for (const cmd of runCommands(yml).filter((c) => /round-910-contract/.test(c))) {
-        const pattern = cmd.match(/--test-name-pattern[= ]'([^']+)'/)?.[1]
-        if (!pattern) continue
-        const re = new RegExp(pattern)
-        for (const name of docAssertingNames) {
-          expect(
-            re.test(name),
-            `${w.name} 의 --test-name-pattern='${pattern}' 이 문서 단언 테스트("${name}")를 안 잡는다 — ` +
-              `0건 실행 후 exit 0 이라 잡은 green 인데 아무것도 검사하지 않는다`,
-          ).toBe(true)
+    for (const { reader, docs } of contracts) {
+      const runners = workflowsExecuting((cmd) => commandRunsReader(cmd, reader)).filter((w) =>
+        docs.some((f) => w.paths.some((g) => conservativeGlobToRegExp(g).test(f))),
+      )
+      // push 와 pull_request 가 갈리면 `docs/handoff/CURRENT-WORK.md` 처럼 **main 직행 push** 로
+      // 갱신되는 파일이 통째로 미검사가 된다(PR 로만 오지 않는다).
+      for (const w of runners) {
+        expect(
+          [...w.pushPaths].sort(),
+          `${w.name}: push.paths 와 pull_request.paths 가 다르다 — 위 커버리지는 pull_request 만 읽는다`,
+        ).toEqual([...w.paths].sort())
+      }
+
+      // 러너가 이름으로 좁혀 돈다면, 문서를 단언하는 테스트가 그 필터에 실제로 걸려야 한다 —
+      // 안 걸리면 "0건 실행 후 exit 0" 이라는 새 거짓 green 이 된다.
+      const src = fs.readFileSync(path.resolve(REPO_ROOT, reader), 'utf-8')
+      const blocks = [...src.matchAll(/\b(?:test|it)\(\s*'([^']+)'/g)]
+      const docAssertingNames = blocks
+        .map((m, i) => ({
+          name: m[1] as string,
+          body: src.slice(m.index ?? 0, blocks[i + 1]?.index ?? src.length),
+        }))
+        .filter((t) => /['"`]docs\//.test(t.body))
+        .map((t) => t.name)
+      for (const w of runners) {
+        const yml = fs.readFileSync(path.join(WORKFLOW_DIR, w.name), 'utf-8')
+        for (const cmd of runCommands(yml).filter((c) => commandRunsReader(c, reader))) {
+          const pattern = cmd.match(/--(?:test-name-pattern|grep)[= ]'([^']+)'/)?.[1]
+          if (!pattern) continue
+          const re = new RegExp(pattern)
+          for (const name of docAssertingNames) {
+            expect(
+              re.test(name),
+              `${w.name} 의 --test-name-pattern='${pattern}' 이 ${reader} 의 문서 단언 테스트\n` +
+                `("${name}")를 안 잡는다 — 0건 실행 후 exit 0 이라 잡은 green 인데 아무것도 검사하지 않는다`,
+            ).toBe(true)
+          }
         }
       }
     }
