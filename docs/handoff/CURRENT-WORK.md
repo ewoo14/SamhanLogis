@@ -13,10 +13,114 @@
 
 ---
 
-## 🌙 2026-07-27 심야 ~ 07-28 낮 (집PC) — **머지 9건 · 신규 3트랙 착수 · 4트랙 라운드 진행 중** ◀◀◀ 여기부터 읽으십시오
+## 🏁 2026-07-28 (집PC 마감) — **머지 13건 · 이슈 4 CLOSED / 3 신규 · 🚨 워크플로우 자기감사 시정** ◀◀◀ 여기부터 읽으십시오
 
 > 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
 > ⚠️ 이 세션에서 `sync-claude-memory.ps1` 이 샌드박스 가드(`Remove-Item on system path '//'`)에 걸렸다. 실패하면 수동 복사하거나 스크립트를 점검할 것.
+
+**main = `ee802500f`**
+
+---
+
+### 🚨🚨 가장 먼저 읽을 것 — 워크플로우 자기감사
+
+개발책임자가 *"머지한 PR 혹시 스킵한 건 없는지"* 물어 **PR 코멘트 이력으로 전수 감사**한 결과, 머지 6건 전부에 절차 결손이 있었다.
+
+| 항목 | 내용 | 시정 |
+|---|---|---|
+| ① | **#956 이 CODEX SOL 라운드를 0회** 돌고 머지 | 사후 SOL 완료 → **결함 0** |
+| ② | **#948·#949·#952 머지 게이트 종합 게시 누락** | 3건 전부 뒤늦게 게시 |
+| ③ | **6건 전부 마지막 fix 이후 SOL 재검증 없음** | **6건 전부 사후 SOL 실행** |
+| ④ | #952 R4 재수렴을 SONNET5 로(재수렴=발견 각도라 OPUS 여야 함) | PR 기록 |
+| ⑤ | #956 라이브QA GUI 스샷 0장(백엔드라 화면 부재, PM 이 임의 대체 판정) | PR 기록 |
+
+#### 🔑 이 감사가 드러낸 진짜 문제
+
+**게이트 ①("도달 가능 결함 0")을 "OPUS 축에서 0" 으로 집계한 것이 잘못이었다.** 캐논은 **두 검증 스테이지(OPUS + CODEX SOL)가 모두 0** 에 도달할 것을 요구하는데, 마지막 fix 이후 SOL 을 안 돌리고 수렴 선언했다.
+
+이는 같은 날 메모리로 기록한 [[feedback_unverified_scope_is_not_zero_defects]] 와 **같은 계열**이다 — 그때는 **리뷰가 안 본 영역**, 이번엔 **안 돌린 검증 축**. 같은 실수를 축만 바꿔 반복했다.
+
+#### 사후 SOL 6건 결과 — **3건에서 실제 결함이 나왔다**
+
+| PR | 결과 |
+|---|---|
+| #950 · #952 · #956 | **결함 0** |
+| **#948** | 🚨 정본 결함 2건 → **신규 이슈 #963** |
+| **#949** | 🚨 real-QA `testMatch` 범위 → **신규 이슈 #964** |
+| **#951** | 🚨 VP8L version 비트 미검사 → **신규 이슈 #965** |
+
+⟹ **"절차를 안 지켰다"는 0건이 됐지만 "지켰더라면 머지 안 됐을 것"이 3건**이었다. 개발책임자 지시로 신규 이슈 3건 등록.
+
+### 🚨 규율 — **머지 전 SOL 스테이지 필수**
+
+- 캐논상 **두 검증은 순차**: OPUS 라운드 **완료·게시 후** CODEX SOL. 동시 실행 금지
+- **마지막 fix 이후에도** SOL 을 돌려야 수렴이다. OPUS 축만으로 게이트 ① 충족을 선언하지 말 것
+- 머지 시 **"머지 게이트 3/3 충족" 종합을 반드시 게시**(실행=게시 1:1)
+
+---
+
+### 머지 13건 (코드 6 + 문서/메모리 7)
+
+| PR | 내용 | 라운드 |
+|---|---|---|
+| #949 | #851 이월 — CI 게이트 0 표면 2종 | R1→R4 |
+| #948 | #896 슬1 — 레거시 수량 골든 정답 고정(동작 변경 0) | R1→R3 |
+| #952 | #863 — mock 스위트가 커밋 스크린샷을 덮어쓰던 문제 | R1→R4 |
+| #950 | #887 — 대비 3.76→**8.31:1** · Enter/Space 해제 · 문구 통일 | R1→R3 |
+| **#951** | #913+#890 — **사용자 문서 양식 삭제를 구조적으로 차단** | **R1→R7** |
+| **#956** | #888 — outbox 전용 TaskScheduler 분리 | R1→R3 |
+| #953·#954·#955·#959·#960·#961·#962 | 캐논 변경 · PM 자율 위임 · 콘텐츠 필터 · 메모리 3 · 인계 | — |
+
+**CLOSED**: #887 · #913 · #890 · #888
+
+### 🔴 진행 중 트랙 2건 (재개 대상)
+
+#### PR #957 — #851 슬2 QA 가드 (`chore/851-fe-be-contract-gate` @ `9dbcf66f4`)
+- R1(6건) → R2(BLOCKING 2건) → R3(2건) 전부 fix 완료·게시. CI 는 GitGuardian(오탐 판정 완료)만
+- **R4 재수렴을 돌리다 세션 종료로 중단**(Linux 컨테이너 가드 테스트 실행 중이었음) — **재개 시 R4 재수렴부터**
+- **그 다음 반드시 CODEX SOL 라운드** → 머지 게이트
+- 워크트리 `.claude/worktrees/851-gate` (clean)
+
+#### PR #958 — #896 슬2 수량동기화 스키마 (`feat/896-s2-quantity-sync-schema` @ `e77c351e0`)
+- R1→R3 fix 완료. CI CLEAN 38/38. **R4 재수렴이 결함 2건 적발**(노출 카테고리 변경 위장 409 · jsonb/Jackson 수치 동등성)
+- 🚨 **`wip/896-s2-r4-fix-incomplete` 브랜치에 R4 fix 중단분이 격리돼 있다 — 미검증이다. 완료로 착각하지 말 것.** 테스트 한 번도 안 돌렸고 RED/GREEN 없음. `ProductSheetSyncService` 작업이 미완(중단 직전 발화가 *"Now let's update the aggregation logic in syncAll()"*)
+- 재개 절차: WIP 를 검토하되 신뢰하지 말고 **RED-first 로 결함 A·B 를 실 HTTP 로 재현**한 뒤 진행. 불변식·원문은 PR #958 의 R4 재수렴 코멘트에
+- 🚨 **"위장 409" 가 4라운드 연속 같은 계열**(R1 단종/삭제 · R2 `optionIn` · R3 `usageScope=NONE` · R4 `estimateCategories`). 매 라운드가 **직전 라운드가 찾은 경로에만** 가드를 달아 다음 라운드가 새 경로를 찾는다 ⟹ fix 불변식을 **"경로 수와 무관하게 성립"** 으로 걸었음
+- 워크트리 `.claude/worktrees/896-s2` (clean, 검증된 `e77c351e0`)
+
+### 🆕 신규 이슈 3건 (착수 전)
+
+| # | 내용 |
+|---|---|
+| **#963** | 레거시 GAS 수량 결함 2건 — 견적 I형 1WAY 호스 **0 소실** · 주문 홈멀티 **수동수량 소실**. ⚠️ 고치면 **#948 golden 이 RED 가 되고 재생성 필요**. **금액 직접 영향** |
+| **#964** | 공유 real-QA `testMatch` 가 **gitignore 스펙까지 수집**(로컬 558/176 vs CI 548/172). 사후 SOL **3건이 독립 관측**. `electron-updater` 로컬 미설치도 같이 |
+| **#965** | 문서양식 이미지 validator 가 **디코드 가능성을 보장하지 않음**(VP8L version 비트). **형태별로 막는 방식 비권장** — 계약 자체를 다룰 것 |
+
+📌 **정본 파일 경계 정정** — 내가 *"정본 2파일 수정 금지"* 라고 쓴 것은 **틀렸다.** 결정 #1 은 `clients/web/estimate-app/views/index.ejs` · `clients/web/order-app/index.html` 을 **구현 대상**으로 지정했고, read-only 는 **`tools/legacy-gas/**`** 다. 슬1·슬2 의 **슬라이스 범위 제외**를 전역 금지로 잘못 옮긴 것. 결정 #2 가 *"행위 수정은 별건 분리"* 라 #963 이 정확히 그 경로다.
+
+### 🚩 처분 대상 (선재 · 범위 밖으로 기록만)
+
+- `slip-service/.../PartnerProductPriceMemoryAsyncConfig.java:56-59` — Boot 3.3.5 빌더 조회 순서를 **반대로 서술**. #956 이 복제했다 정정했으나 **원본은 그대로**
+- `EstimateCatalogInternalController.java:552` — V18 에서 폐기된 `getEstimateCategory()` 를 읽음
+- `docs/qa/__863-r1-guard-fixture__` 빈 디렉터리가 가드 테스트 실행으로 생기고 안 지워짐
+
+### ⚠️ 환경 함정 (이 세션 실측 6종)
+
+1. **PowerShell here-string 에 긴 마크다운** → 가드가 `Remove-Item on system path '//'` 로 차단(2회) ⟹ **`Write` 도구로 파일 → `gh pr comment --body-file`**
+2. `scripts\sync-claude-memory.ps1` 도 같은 가드 (**미해결**)
+3. **병렬 에이전트 gradle 워크트리 경합** — `Unable to delete directory …build/test-results`. 재실행으로 해소, 권위는 CI(exact SHA)
+4. **워크트리 `remove` 가 파일 잠금으로 실패**해도 브랜치 삭제는 됨. 디렉터리는 나중에 prune
+5. 🆕 **로컬 `clients/desktop/node_modules` 에 `electron-updater` 없음** — `npm test`/`typecheck` 가 그 탓에 실패. **데스크톱 작업 전 `npm ci` 먼저** (CI 는 green)
+6. 🆕 **로컬 작업 디렉터리가 `.gitignore` 스펙까지 수집** — 로컬 테스트 수치가 CI 와 다름(→ #964)
+
+### 📚 이 세션이 남긴 메모리 4건
+
+- [[feedback_unverified_scope_is_not_zero_defects]] — **"범위 밖"을 "결함 0"으로 세지 마라**
+- [[feedback_reconvergence_before_merge]] 갱신 — **재수렴을 좁게 하면 놓친다(3연속 실증)**
+- [[feedback_check_tracked_before_delete]] — **삭제 전 `git ls-files`**(커밋 파일 33개 삭제 사고)
+- [[feedback_fixture_must_be_reachable_by_real_path]] — **fixture 는 실 경로가 만들 수 있는 상태만**(548 테스트가 3라운드 동안 근본 결함을 가림)
+
+---
 
 ### 머지 (main `a666a6700` 기준)
 
