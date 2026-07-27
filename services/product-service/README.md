@@ -36,6 +36,23 @@ SamhanLogis Product 마스터 + Category 트리 + Google Sheets 동기화 서비
 | PATCH | `/products/categories/{id}` | MASTER / MANAGER / DEVELOPER |
 | DELETE | `/products/categories/{id}` | MASTER / MANAGER / DEVELOPER (자식 존재 시 409) |
 
+## 수량 동기화 규칙 저장 경계 (#896 S2)
+
+`quantity_sync_rule`/`quantity_sync_source`/`quantity_sync_target`는 독립 Product 간
+수량 동기화 규칙을 저장하는 스키마다. 이 슬라이스는 evaluator를 호출하지 않는다.
+
+| Method | Path | 권한 |
+|---|---|---|
+| GET | `/api/v1/quantity-sync-rules` | 인증 |
+| GET | `/api/v1/quantity-sync-rules/{ruleKey}` | 인증 |
+| POST | `/api/v1/quantity-sync-rules` | MASTER / MANAGER / DEVELOPER |
+| PUT | `/api/v1/quantity-sync-rules/{ruleKey}` | MASTER / MANAGER / DEVELOPER |
+| DELETE | `/api/v1/quantity-sync-rules/{ruleKey}` | MASTER / MANAGER / DEVELOPER |
+
+저장 시 source/target은 `modelCode`와 품목명으로 해소·응답하며 내부 UUID를 API에 노출하지
+않는다. V24는 실 catalog snapshot을 확보한 뒤에만 명시 seed를 추가할 수 있도록 현재
+seed INSERT를 포함하지 않는다.
+
 ## 품목 노출 수동 토글 + usageScope 질의 (요구사항1 PR-B, PR #460)
 
 품목별 견적/주문 노출을 시트 탭 자동 분류 + **수동 토글**로 운영한다 (개발책임자 2026-06-10 결정 — 시트에 없는 품목도 수동 노출 가능).

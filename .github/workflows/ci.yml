@@ -56,6 +56,11 @@ jobs:
           - name: user+product+inventory+logging
             timeout: 30
             test-tasks: ':services:user-service:test :services:product-service:test :services:inventory-service:test :services:logging-service:test'
+          - name: product-quantity-sync-schema
+            # #896 S2: 스키마 저장 경계 8종 + isolated PostgreSQL probe + CRUD/H-07/C-09 부재를
+            # product-service 전체 테스트의 우연한 포함에 의존하지 않는 별도 hard gate로 고정한다.
+            timeout: 30
+            test-tasks: ':services:product-service:test --tests "com.samhanair.logis.product.quantitysync.*"'
           - name: slip-units
             # slip-service 단위 + 빠른 client mock 만 (큰 IT 제외)
             timeout: 30
@@ -136,6 +141,32 @@ jobs:
 
       - name: test (${{ matrix.group.name }})
         run: ./gradlew ${{ matrix.group.test-tasks }}
+
+      - name: "#896 S2 quantity sync schema skipped=0 hard gate"
+        if: matrix.group.name == 'product-quantity-sync-schema'
+        run: |
+          set -euo pipefail
+          reports=(
+            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml'
+            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleDbProbeIT.xml'
+            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleCrudIT.xml'
+            'services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleSeedAbsenceIT.xml'
+          )
+          for report in "${reports[@]}"; do
+            if [ ! -f "$report" ]; then
+              echo "::error::#896 S2 JUnit report not found: $report"
+              exit 1
+            fi
+            tests="$(grep -o 'tests="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            skipped="$(grep -o 'skipped="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            failures="$(grep -o 'failures="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            errors="$(grep -o 'errors="[0-9]*"' "$report" | head -n 1 | sed 's/[^0-9]//g')"
+            if [ "${tests:-0}" -lt 1 ] || [ "${skipped:-missing}" != "0" ] || [ "${failures:-missing}" != "0" ] || [ "${errors:-missing}" != "0" ]; then
+              echo "::error::#896 S2 hard gate failed: $report tests=${tests:-missing} skipped=${skipped:-missing} failures=${failures:-missing} errors=${errors:-missing}"
+              exit 1
+            fi
+            echo "#896 S2 hard gate: $report tests=$tests skipped=$skipped failures=$failures errors=$errors"
+          done
 
       - name: "#848 DocumentTemplateIT skipped=0 hard gate"
         if: matrix.group.name == 'phase9-10 (groupware+notification+dashboard)'

@@ -384,6 +384,14 @@ spring:
           filters:
             - JwtAuthentication
 
+        # [#896 슬2] 수량 동기화 규칙 CRUD — product-service 컨트롤러가 /api/v1 풀패스를 사용하므로 no-strip.
+        - id: product-quantity-sync-rules-v1
+          uri: lb://product-service
+          predicates:
+            - Path=/api/v1/quantity-sync-rules,/api/v1/quantity-sync-rules/**
+          filters:
+            - JwtAuthentication
+
         - id: product-service-v1
           uri: lb://product-service
           predicates:
