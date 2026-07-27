@@ -48,6 +48,12 @@ interface CodefImportScopeFormProps {
 const DEFAULT_CONNECTED_ID = 'connected-main'
 /** 범위 미선택 안내 문구 id — 잠긴 버튼/칩에서 aria-describedby 로 사유를 연결한다(#825 슬5 R1 item4). */
 const SCOPE_HINT_ID = 'codef-scope-hint-text'
+/** R1-1 root fix(#950) — 저장된 전체 범위가 미저장 변경으로 dirty 해진 사유 id. savedAllScopeDirty
+ * 는 scopeMode 값과 무관하게(개별 항목을 골라 'SELECTED' 로 바뀌어도) 가져오기를 계속 잠그므로,
+ * 이 사유도 SCOPE_HINT_ID("무엇을 고르세요")와 분리해 scopeMode 와 무관하게 항상 렌더한다 —
+ * 종전에는 scopeHint 문자열에 섞여 scopeMode===null 인 순간에만(그마저 새 통일 안내를 가리며)
+ * 노출되고, 개별 항목 선택 순간 DOM 에서 사라져 aria-describedby 만 대상 없는 참조로 남았다. */
+const SCOPE_ALL_DIRTY_HINT_ID = 'codef-scope-all-dirty-hint-text'
 const SCOPE_ALL_LOCK_HINT_ID = 'codef-scope-all-lock-hint-text'
 /** 재수렴 R4 N1/N3 — 이번 mount 에서 baseline 확인이 아직 끝나지 않은 동안(확인 중·확인
  * 실패) 저장·가져오기 버튼에 사유를 연결하는 힌트 id. scopeMode===null 여부와 무관하게
@@ -637,11 +643,25 @@ export function CodefImportScopeForm({
       // 아니다). 실제 문구는 아래 codef-scope-unconfirmed/-confirming 블록이 scopeMode 값과
       // 무관하게 늘 렌더되며 담당한다 — 여기서는 칩 영역의 옛 힌트만 비운다.
       ? null
-    : savedAllScopeDirty
-      ? '저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'
     : scopeMode === null
       ? "전체로 처리하려면 '전체' 칩을 선택하세요. 특정 항목만 처리하려면 계좌·카드·대출 항목을 선택하세요."
       : null
+  // R1-1 root fix(#950) — savedAllScopeDirty 사유를 위 scopeHint 에서 분리한 독립 변수.
+  // scopeMode 가 무엇이든(개별 항목 선택으로 'SELECTED' 가 되어도) 계속 참일 수 있고, 그동안
+  // 가져오기는 계속 잠긴다 — 아래 렌더/aria-describedby 도 scopeMode 와 무관하게 이 값 자체의
+  // 진위만 본다. scopeHint(무엇을 고르세요)와 동시에 참일 수 있다 — 서로 다른 질문에 대한
+  // 답이므로 하나가 다른 하나를 가리지 않는다(개발책임자 브리핑 불변식 3·4).
+  const scopeAllDirtyHint = canUpdate && !scopeBaselineUnconfirmed && savedAllScopeDirty
+    ? '저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'
+    : null
+  // 저장/가져오기 버튼이 비활성일 때 그 사유를 설명하는 요소(들)를 연결한다. 두 개 이상
+  // 동시에 참이면 aria-describedby 표준대로 공백으로 구분해 함께 가리킨다 — 그리고 여기 담긴
+  // id 는 아래 JSX 에서 정확히 같은 조건으로 항상 렌더되어 대상 없는 참조가 남지 않는다.
+  const scopeHintDescribedBy = [
+    scopeBaselineUnconfirmed ? SCOPE_UNCONFIRMED_HINT_ID : null,
+    scopeAllDirtyHint ? SCOPE_ALL_DIRTY_HINT_ID : null,
+    scopeHint ? SCOPE_HINT_ID : null,
+  ].filter(Boolean).join(' ') || undefined
   const allScopeLocksItems = scopeMode === 'ALL'
   const importSelectionReady = scopeMode !== 'SELECTED' || selectedCount(effectiveSelection(false)) > 0
   const canSaveWithoutConflict = canUpdate
@@ -734,9 +754,7 @@ export function CodefImportScopeForm({
             disabled={!canSave}
             onClick={() => saveMutation.mutate()}
             data-testid="codef-save-scope-button"
-            aria-describedby={
-              scopeBaselineUnconfirmed ? SCOPE_UNCONFIRMED_HINT_ID : scopeHint ? SCOPE_HINT_ID : undefined
-            }
+            aria-describedby={scopeHintDescribedBy}
           >
             {saveMutation.isPending ? '저장 중' : '저장'}
           </Button>
@@ -746,9 +764,7 @@ export function CodefImportScopeForm({
             disabled={!canImport}
             onClick={() => importMutation.mutate()}
             data-testid="codef-import-button"
-            aria-describedby={
-              scopeBaselineUnconfirmed ? SCOPE_UNCONFIRMED_HINT_ID : scopeHint ? SCOPE_HINT_ID : undefined
-            }
+            aria-describedby={scopeHintDescribedBy}
           >
             {importMutation.isPending ? '가져오는 중' : '가져오기'}
           </Button>
@@ -926,19 +942,37 @@ export function CodefImportScopeForm({
           role={canUpdate ? 'button' : undefined}
           tabIndex={canUpdate ? 0 : undefined}
           aria-pressed={canUpdate ? scopeMode === 'ALL' : undefined}
-          aria-describedby={canUpdate && scopeMode === null && !scopeBaselineUnconfirmed ? SCOPE_HINT_ID : undefined}
+          aria-describedby={canUpdate ? scopeHintDescribedBy : undefined}
         />
-        {scopeMode === null && !scopeBaselineUnconfirmed ? (
+        {scopeHint ? (
           // #825 슬5 R1 item12 — 상시 표시되는 수동적 안내는 role="alert"(긴급/동적 공지 전용)가
           // 아닌 role="status"(비강제적 polite live region)가 맞다. 세 화면 동일 시맨틱로 통일.
           // N1 root fix(재수렴 R4) — scopeBaselineUnconfirmed 인 동안은 이 스팬 자체를
           // 렌더하지 않는다(scopeHint 도 이 상태에선 null 이지만, 빈 스팬이 남으면
           // "codef-scope-hint" 요소 자체는 여전히 존재해 "미선택" 시맨틱을 일부 유지하게
           // 된다 — 위 전용 블록이 유일한 안내여야 한다).
+          // R1-1 root fix(#950) — 렌더 조건을 "scopeMode===null" 이 아니라 scopeHint(값 자체)의
+          // 진위로 바꾼다. scopeHint 는 이미 scopeMode/canUpdate/scopeBaselineUnconfirmed 를 모두
+          // 반영해 계산되므로, scopeMode 가 이후 'SELECTED' 로 바뀌어도(개별 항목 체크) 계속
+          // scopeHint 값과 함께 사라진다 — 종전에는 이 자리가 "힌트 아니면 선택 chip 목록"
+          // 이라는 상호배타 삼항이라, scopeMode 가 'SELECTED' 로 바뀌는 순간 scopeHint 가 아직
+          // 참이어도(예: !canUpdate 안내) 이 span 이 통째로 사라지고 aria-describedby 만 대상
+          // 없는 참조로 남았다. 아래 선택 chip 목록과는 별도 블록이라 필요하면 동시에 보인다.
           <span className="codef-import-hint" data-testid="codef-scope-hint" id={SCOPE_HINT_ID} role="status">
             {scopeHint}
           </span>
-        ) : scopeMode === 'SELECTED' ? (
+        ) : null}
+        {scopeAllDirtyHint ? (
+          // R1-1 root fix(#950) — "저장된 전체가 아직 반영되지 않았다"는 사유는 scopeMode 값과
+          // 무관하게 가져오기를 계속 잠그므로(savedAllScopeDirty 정의 자체가 scopeMode 를 보지
+          // 않는다 — PR #925 바운드 결정으로 재변경 금지 대상), 화면 노출도 scopeMode 와
+          // 무관하게 이 블록 하나로 늘 담당한다. scopeHint("무엇을 고르세요")와 동시에
+          // 보일 수 있다 — 서로 다른 질문에 대한 별개의 참인 답이기 때문이다.
+          <div className="codef-import-hint" id={SCOPE_ALL_DIRTY_HINT_ID} role="status" data-testid="codef-scope-all-dirty-hint">
+            {scopeAllDirtyHint}
+          </div>
+        ) : null}
+        {scopeMode === 'SELECTED' ? (
           ([
             ...selection.accountRefs.map((ref) => ({ ref, category: 'BANK' as const })),
             ...selection.cardRefs.map((ref) => ({ ref, category: 'CARD' as const })),

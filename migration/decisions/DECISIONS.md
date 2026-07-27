@@ -3093,6 +3093,13 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-S5-12 | 낙관적 잠금 충돌 시 데스크톱은 서버 최신 scope를 재조회해 표시하고 자동 합집합을 적용하지 않는다. 사용자가 최신 상태에서 의도한 계좌·카드·대출을 다시 명시적으로 선택해 저장한다. 충돌 안내에는 UUID를 쓰지 않고 사용자 표시명을 사용한다. |
 | D-S5-13 | V66은 `user_codef_import_scope.version BIGINT NOT NULL DEFAULT 0`을 추가한다. 기존 행과 신규 행 모두 버전 0에서 시작하며, 성공 응답의 증가 버전은 같은 화면의 다음 저장에 사용한다. **이 하위호환은 `version`을 보내는 클라이언트 한정이다** — `version`을 모르는 구버전 데스크톱(#920 이전 빌드)이 기존 행에 PUT하면 요청에 `version` 필드 자체가 없어 현재 버전(0)과 불일치로 간주돼 항상 409로 거부된다(영구, 업그레이드 전까지). 개발책임자 결정(2026-07-25): `UserCodefImportScopeService.verifyVersion`의 `requestedVersion == null` → 409 판정은 바꾸지 않고, 배포 순서로 해소한다 — ① 데스크톱 forceLevel=CRITICAL 강제 업데이트(비해제 차단 모달, `clients/desktop/src/renderer/version/versionCheck.ts:62-63`) 선행 → ② accounting-service 배포. 회귀 가드: `UserCodefImportScopeServiceTest.missingVersionFieldOnExistingRowRejectedWith409`(기존 행 + version 필드 없는 요청 → 409 pin). |
 
+## #887 슬5 R3 잔여 3건 + R1 적대검증 fix (2026-07-27, Issue #887 / PR #950)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-S5-14 | CODEF·입출금 화면의 오류 텍스트(`role="alert"` 힌트·오류 토스트)는 배경/테두리용 `--state-danger`가 아니라 `--color-danger-700`을 텍스트 색으로 쓴다. `--state-danger`(rgb(239,68,68))는 12~13px 텍스트에서 흰 배경 위 3.76:1, 옅은 위험 배경(`--state-danger-bg`) 위에서는 3.08:1로 AA(4.5:1) 미달이다. 배경·테두리는 `--state-danger`를 그대로 유지한다(비-텍스트 3:1 기준은 이미 충족해 변경 불요). |
+| D-S5-15 | `CodefImportScopeForm`에서 저장/가져오기가 비활성일 때 그 사유를 설명하는 힌트 요소는 현재 `scopeMode` 값과 무관하게, 사유가 참인 동안 항상 DOM에 렌더한다. 서로 다른 사유(예: 저장된 전체 범위가 dirty함 vs 아직 아무것도 선택하지 않음)가 동시에 참이면 각각 독립된 블록으로 렌더하고, `aria-describedby`는 공백으로 구분한 id 목록으로 참인 사유 전부를 가리킨다 — 한 문구가 다른 문구를 조용히 가리는 either/or 렌더는 금지한다. |
+
 ## #824 품목행 공급가액·부가가치세 정합성 (2026-07-22)
 
 | 결정 코드 | 내용 |

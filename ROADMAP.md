@@ -29,6 +29,19 @@
 
 ---
 
+### 최신 진행 메모 (2026-07-27)
+
+- **#887 슬5 R3 잔여 3건 + R1 적대검증 fix (Issue #887 / PR #950)**: CODEF 오류 힌트 대비
+  미달(3.76:1)을 자매 화면과 같은 `--color-danger-700`로 8.31:1까지 올리고, CODEF·일마감·
+  안전재고 전체 범위 칩이 Enter/Space로 켜고 끄는 왕복 조작이 되도록 고치고, 세 화면 미선택
+  안내를 전체·개별 경로 동시 명시로 통일했다. 이어진 R1 적대검증은 두 결함을 root fix했다 —
+  ① 저장된 전체 범위가 dirty해진 채 개별 항목을 고르면 가져오기 잠금 사유 힌트가 DOM에서
+  사라지고 `aria-describedby`만 대상 없는 id를 가리키던 결함(사유 힌트를 `scopeMode` 값과
+  독립된 블록으로 분리해 항상 렌더), ② `CodefImportScopeForm` 저장/가져오기 오류 토스트
+  (`.bank-transaction-toast--error`)의 실측 대비 3.08:1을 텍스트 색 통일로 6.80:1까지
+  올렸다(같은 클래스를 쓰는 `DepositorMappingPage` 오류 토스트도 함께 해소). RED-first
+  Vitest·Playwright 검증과 typecheck을 통과했다. 상세: `docs/dev-reports/2026-07-27-887-s5-r3-batch.md`.
+
 ### 최신 진행 메모 (2026-07-26)
 
 - **#851 슬1 CI 게이트 커버리지 — 게이트가 실제로 검사하게**: qa-e2e trigger 에 `services/accounting-service/**`·`services/slip-service/**` 를 추가해 BE 계약 변경도 Desktop Playwright mock 회귀 hard gate 를 발동시킨다(#823 의 BE-only 커밋 `728b98bc7` 이 34체크를 통과하는 동안 qa-e2e 4잡이 전원 부재 — FE 배분 차단을 CI 가 못 잡은 공백). 함께, 실행되면서 아무것도 검증하지 않던 `datagrid-interaction.spec.ts`(7 TC 전부 "셀 미발견"을 console.warn 으로 찍고 통과 — 해시라우터에 경로만 goto 해 대시보드로 낙착)를 해시 네비게이션 + hard expect 정확 수치 검증(단일 1셀·사각형 30셀·Ctrl+A 1,700셀·TSV 셀 값·열 필터 20행)으로 재작성했다. 뮤테이션 증명(해시 제거 시 7 failed)·trigger 확대 비용 실측(BE-only push 당 러너 +15.5분, wall-clock 6.2→11분, public repo 라 과금 0)을 포함한다. 상세: `docs/dev-reports/2026-07-26-851-ci-gate-coverage.md`.

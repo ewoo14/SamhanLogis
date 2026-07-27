@@ -5758,9 +5758,13 @@ button {
 }
 
 .bank-transaction-toast--error {
+  /* #950 R1-2 — 13px/600 텍스트에서 --state-danger(rgb(239,68,68)) on --state-danger-bg
+     (rgb(254,226,226)) 는 실측 3.08:1 로 AA(4.5:1) 미달(같은 화면 .codef-import-hint--error
+     보다도 낮음). 자매 채널이 이미 쓰는 --color-danger-700 으로 텍스트 색만 맞춘다(테두리는
+     비-텍스트 3:1 기준을 이미 충족해 변경 불요 — 최소 변경). */
   border-color: var(--state-danger);
   background: var(--state-danger-bg);
-  color: var(--state-danger);
+  color: var(--color-danger-700);
 }
 
 .bank-transaction-select-cell {

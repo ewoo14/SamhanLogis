@@ -77,6 +77,35 @@ test.describe('#887 슬5 R3 잔여 3건 mock 회귀', () => {
     expect(ratio, `실제 렌더 대비 미달: ${metrics.color} on ${metrics.background} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
   })
 
+  test('R1-2(#950) — CodefImportScopeForm 저장/가져오기 오류 토스트(.bank-transaction-toast--error)도 AA 대비를 충족한다', async ({ page }) => {
+    // 이 토스트는 CodefImportScopeForm 자신의 오류 채널(저장 실패·가져오기 실패·충돌)이
+    // BankTransactionPage 의 toast 상태로 올라와 렌더된다. 실 라운드트립(409 충돌 등)은
+    // in-process mock 이 페이지(JS 컨텍스트) 단위로만 상태를 갖고 있어 단일 탭에서 결정적으로
+    // 재현할 수 없다 — 대신 실제 컴포넌트가 렌더하는 것과 동일한 두 클래스 조합
+    // (`bank-transaction-toast bank-transaction-toast--error`)을 가진 노드를 만들어 실제
+    // 오류 토스트가 뜬 순간과 동일한 computed style(캐스케이드 포함)을 측정한다 — 위
+    // `.codef-import-hint--error` 테스트가 이미 쓰는 합성 probe 기법과 동일 정당성.
+    await gotoMock(page, '/accounting/bank-transactions?mockRole=ACCOUNTANT', 'codef-import-type')
+
+    const metrics = await page.evaluate(() => {
+      const probe = document.createElement('div')
+      probe.className = 'bank-transaction-toast bank-transaction-toast--error'
+      document.body.append(probe)
+      const style = getComputedStyle(probe)
+      const result = { color: style.color, background: style.backgroundColor }
+      probe.remove()
+      return result
+    })
+    const foreground = parseCssColor(metrics.color)
+    const background = parseCssColor(metrics.background)
+    const ratio = contrastRatio(
+      [foreground[0], foreground[1], foreground[2]],
+      [background[0], background[1], background[2]],
+    )
+    console.log(`[대비 실측] .bank-transaction-toast--error 전경=${metrics.color} 배경=${metrics.background} 대비=${ratio.toFixed(2)}:1`)
+    expect(ratio, `실제 렌더 대비 미달: ${metrics.color} on ${metrics.background} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+  })
+
   test('CODEF 전체 범위 칩은 Enter와 Space로 켜고 끄는 왕복 조작이 된다', async ({ page }) => {
     await gotoMock(page, '/accounting/bank-transactions?mockRole=ACCOUNTANT', 'codef-scope-hint')
     const pressable = page.getByTestId('codef-all-scope-chip').locator('[role="button"]')
@@ -92,6 +121,40 @@ test.describe('#887 슬5 R3 잔여 3건 mock 회귀', () => {
     await pressable.press('Space')
     await expect(pressable).toHaveAttribute('aria-pressed', 'false')
     await expect(page.getByTestId('codef-scope-hint')).toBeVisible()
+  })
+
+  test('R1-1(#950) — 전체 저장 후 해제→개별 선택 시 가져오기 잠금 사유가 화면에 남고 aria-describedby 는 실재 id만 가리킨다', async ({ page }) => {
+    // 개발책임자 R1 브리핑 재현 그대로: ①'범위: 전체' 칩 선택 → ②저장 → ③칩을 다시 눌러
+    // 해제 → ④계좌 목록에서 1건 체크.
+    await gotoMock(page, '/accounting/bank-transactions?mockRole=ACCOUNTANT', 'codef-import-type')
+    const pressable = page.getByTestId('codef-all-scope-chip').locator('[role="button"]')
+
+    await pressable.press('Enter')
+    await expect(pressable).toHaveAttribute('aria-pressed', 'true')
+
+    await page.getByTestId('codef-save-scope-button').click()
+    await expect(page.getByText('가져오기 선택을 저장했습니다.')).toBeVisible()
+
+    await pressable.click()
+    await expect(pressable).toHaveAttribute('aria-pressed', 'false')
+
+    const firstAccountCheckbox = page.getByTestId('codef-bank-account-0')
+    await firstAccountCheckbox.waitFor({ state: 'visible' })
+    await firstAccountCheckbox.check()
+    await expect(firstAccountCheckbox).toBeChecked()
+
+    const importButton = page.getByTestId('codef-import-button')
+    await expect(importButton).toBeDisabled()
+    const describedBy = await importButton.getAttribute('aria-describedby')
+    expect(describedBy, 'R1-1 문제2 — 가져오기 버튼에 aria-describedby 가 아예 없음').toBeTruthy()
+    for (const id of (describedBy ?? '').split(' ').filter(Boolean)) {
+      const target = page.locator(`#${id}`)
+      expect(await target.count(), `R1-1 문제2 — aria-describedby 대상 id가 DOM에 없음: ${id}`).toBeGreaterThan(0)
+    }
+    await expect(
+      page.getByText('저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'),
+      'R1-1 문제1 — 가져오기가 잠긴 이유가 화면 어디에도 보이지 않음',
+    ).toBeVisible()
   })
 
   test('일마감 전체 범위 칩은 Enter와 Space로 켜고 끄는 왕복 조작이 된다', async ({ page }) => {

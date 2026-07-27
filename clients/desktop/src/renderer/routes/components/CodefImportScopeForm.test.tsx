@@ -958,6 +958,56 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect(screen.getByTestId('codef-scope-hint')).toBeTruthy()
   })
 
+  it('R1-1(#950) — 저장된 전체가 dirty 해진 뒤 개별 항목을 고르면 가져오기 잠금 사유가 화면에 남고 aria-describedby 는 실재하는 id만 가리킨다', async () => {
+    // 재현 — 개발책임자 R1 브리핑 4단계 그대로: ①전체 저장(=scopeMode:'ALL' 복원) →
+    // ②전체 칩을 다시 눌러 해제(scopeMode:null, restoredScope 는 여전히 ALL이라 dirty) →
+    // ③계좌 목록에서 1건 체크(scopeMode:'SELECTED' 로 전환). 저장까지 왕복하지 않고
+    // "이미 저장된 ALL" 을 mount 복원으로 준비해 같은 클라이언트 상태를 결정적으로 만든다
+    // (H-4 기존 테스트와 동일 관행 — savedAllScopeDirty 는 restoredScope.scopeMode 와
+    // selectionDirty 만으로 계산되어 저장 왕복 여부와 무관하다).
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main',
+      accountRefs: [],
+      cardRefs: [],
+      loanRefs: [],
+      defaultImportType: 'ALL',
+      scopeMode: 'ALL',
+      version: 3,
+    } satisfies ScopeWithVersion)
+
+    renderForm()
+    await waitFor(() => expect((screen.getByTestId('codef-save-scope-button') as HTMLButtonElement).disabled).toBe(false))
+    const pressable = screen.getByTestId('codef-all-scope-chip').querySelector('[role="button"]') as HTMLElement
+    expect(pressable.getAttribute('aria-pressed')).toBe('true')
+
+    // ② 전체 칩을 다시 눌러 해제한다.
+    fireEvent.click(pressable)
+    await waitFor(() => expect(pressable.getAttribute('aria-pressed')).toBe('false'))
+
+    // ③ 계좌 목록에서 1건을 체크한다.
+    fireEvent.click(screen.getByTestId('codef-bank-account-0'))
+    await waitFor(() => expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).checked).toBe(true))
+
+    const importButton = screen.getByTestId('codef-import-button') as HTMLButtonElement
+    // savedAllScopeDirty 는 scopeMode 값과 무관해 계속 가져오기를 잠근다 — 이 자체는
+    // 버그가 아니다(의도된 게이트). 버그는 "그 이유가 화면에 없다" + "가리키는 id가 없다".
+    expect(importButton.disabled).toBe(true)
+    const describedBy = importButton.getAttribute('aria-describedby')
+    expect(describedBy, 'R1-1 문제2 — 가져오기 버튼에 aria-describedby 가 아예 없음').toBeTruthy()
+    for (const id of (describedBy ?? '').split(' ').filter(Boolean)) {
+      expect(document.getElementById(id), `R1-1 문제2 — aria-describedby 대상 id가 DOM에 없음: ${id}`).not.toBeNull()
+    }
+    // R1-1 문제1 — 비활성 사유(저장된 전체가 아직 반영되지 않았다는 사실)를 설명하는 문구가
+    // scopeMode==='SELECTED' 로 바뀐 뒤에도 화면 어딘가에 실제로 보여야 한다.
+    expect(
+      screen.queryByText('저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'),
+      'R1-1 문제1 — 가져오기가 잠긴 이유가 화면 어디에도 보이지 않음',
+    ).not.toBeNull()
+  })
+
   it('기존 빈-ref SELECTED 행은 복원 실패를 안내하고 저장·가져오기를 잠근다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])
