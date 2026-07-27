@@ -18,6 +18,7 @@ import {
   extendDs4CleanupTimeout,
   startDs4RunScope,
   stopDs4RunScope,
+  sweepStaleDs4Templates,
 } from '../support/ds4-real-qa-cleanup'
 
 // SONNET5 R5 라운드 fix: 하네스가 HashRouter(5191)에서 BrowserRouter(5291)로 바뀐 뒤 갱신되지 않았던
@@ -46,7 +47,7 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
 
   const preview = page.getByTestId('document-template-live-preview')
   const detailLayer = page.getByTestId('document-template-detail-layer')
-  const runScope = startDs4RunScope('DS4 실서버QA', API_BASE, PASSWORD)
+  const runScope = await startDs4RunScope('DS4 실서버QA', API_BASE, PASSWORD)
   const templateName = runScope.templateName
 
   try {
@@ -177,7 +178,13 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
           userId: d.userId,
           role: d.role ?? 'MASTER',
         }, templateName)
-        console.log(`■ 정리 run=${runScope.runId} 대상=${result.matched}건 삭제=${result.deleted}건`)
+        console.log(`■ 정리 run=${runScope.runId}(spawn=${runScope.spawnMethod}) 대상=${result.matched}건 삭제=${result.deleted}건`)
+      })
+      // 🚨 R1-1/R1-2 self-healing — 이 run 자신이 아니라 "이전에 죽고 아무도 못 지운" run 을
+      // 이번 실행이 대신 회수한다(도구 자체가 wmic/reap 로 즉시 회수하지 못한 예외적 경우의 안전망).
+      await test.step('QA 잔재 정리 — 이전 run 중 소유자가 죽은 stale 항목도 함께 회수', async () => {
+        const swept = await sweepStaleDs4Templates(API_BASE, { token: d.token, userId: d.userId, role: d.role ?? 'MASTER' })
+        console.log(`■ stale sweep 조회=${swept.checked}건 stale=${swept.stale}건 삭제=${swept.deleted}건 실패=${swept.failed}건`)
       })
     } finally {
       stopDs4RunScope(runScope)

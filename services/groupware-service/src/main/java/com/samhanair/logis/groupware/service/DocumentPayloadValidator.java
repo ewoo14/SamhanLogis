@@ -272,9 +272,9 @@ public class DocumentPayloadValidator {
                 return false;
             }
             // ImageIO는 PNG/JPEG의 실제 파일 구조와 checksum/truncation을 검사한다.
-            // 표준 JDK에는 WebP reader가 없으므로 WebP는 RIFF/WEBP 컨테이너 signature까지 검사한다.
+            // 표준 JDK에는 WebP reader가 없으므로 WebP는 컨테이너 구조를 직접 검사한다(R1-4).
             if ("webp".equals(matcher.group(1))) {
-                return true;
+                return isStructurallyValidWebp(decoded);
             }
             // H15: ImageIO.read()는 PNG/JPEG 모두 IHDR/SOF에 선언된 가로×세로 치수(+색상 정보)만으로
             // 목적지 픽셀 버퍼를 "먼저" 할당하고, 그 다음에야 IDAT/scan 데이터를 실제로 읽는다 — IDAT이
@@ -360,6 +360,54 @@ public class DocumentPayloadValidator {
         return "webp".equals(mime) && bytes.length >= 12
                 && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F' && bytes[3] == 'F'
                 && bytes[8] == 'W' && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+    }
+
+    /**
+     * R1-4: WebP는 표준 JDK ImageIO reader가 없어 실제 픽셀 디코드로 무결성을 검증할 수
+     * 없다. {@code hasImageSignature()}가 확인하는 RIFF/WEBP 8바이트만으로는 "시그니처는
+     * 멀쩡하고 내용이 깨진" 파일(예: 헤더 뒤가 잘리거나 0으로 채워진 파일)을 걸러내지
+     * 못했다(R1-4 실측 — 이슈 #913 코멘트 "손상 WebP" 지적).
+     *
+     * <p>대신 libwebp의 {@code VP8GetInfo}/{@code VP8LCheckSignature}와 동일한 수준의
+     * 컨테이너 구조 검사를 직접 수행한다:
+     * <ol>
+     *   <li>RIFF가 선언한 크기(offset 4, LE u32)가 실제 바이트 수와 정확히 일치해야 한다
+     *       — 잘림(truncation)과 뒤에 덧붙은 garbage를 함께 검출한다.</li>
+     *   <li>WEBP 뒤 첫 서브청크 FourCC(offset 12)가 VP8␠(단순 손실)/VP8L(무손실)/VP8X
+     *       (확장 컨테이너) 중 하나여야 한다.</li>
+     *   <li>VP8␠는 3바이트 시작 코드 {@code 0x9D 0x01 0x2A}(offset 23~25)가 정확히
+     *       있어야 한다 — libwebp가 유효한 VP8 키프레임으로 인정하는 바로 그 조건이다.</li>
+     *   <li>VP8L은 1바이트 시그니처 {@code 0x2F}(offset 20)가 있어야 한다.</li>
+     * </ol>
+     *
+     * <p>VP8X(애니메이션/알파/메타데이터를 포함하는 확장 컨테이너)는 RIFF 크기 일치와
+     * 고정 10바이트 청크 크기까지만 검사하고, 그 뒤에 이어지는 서브청크 전체를
+     * 재귀적으로 걷지는 않는다 — 이 화면이 다루는 로고/문서 이미지는 실무상 단순
+     * VP8␠/VP8L이 절대다수이므로, 확장 컨테이너의 완전한 무결성 보장은 범위 밖으로
+     * 남긴다(전면 디코더 없이는 100% 보장 불가 — 문서화된 한계).
+     */
+    private static boolean isStructurallyValidWebp(byte[] decoded) {
+        if (decoded.length < 20) return false; // RIFF 헤더(12) + 첫 서브청크 헤더(8)
+        long riffDeclaredSize = readUInt32LE(decoded, 4);
+        if (riffDeclaredSize != decoded.length - 8L) return false; // 잘림/덧붙음 검출
+        String fourCc = new String(decoded, 12, 4, StandardCharsets.US_ASCII);
+        long chunkSize = readUInt32LE(decoded, 16);
+        long availableChunkBytes = decoded.length - 20L;
+        if (chunkSize > availableChunkBytes) return false;
+        return switch (fourCc) {
+            case "VP8 " -> chunkSize >= 10
+                    && (decoded[23] & 0xFF) == 0x9D && (decoded[24] & 0xFF) == 0x01 && (decoded[25] & 0xFF) == 0x2A;
+            case "VP8L" -> chunkSize >= 5 && (decoded[20] & 0xFF) == 0x2F;
+            case "VP8X" -> chunkSize == 10;
+            default -> false;
+        };
+    }
+
+    private static long readUInt32LE(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xFFL)
+                | ((bytes[offset + 1] & 0xFFL) << 8)
+                | ((bytes[offset + 2] & 0xFFL) << 16)
+                | ((bytes[offset + 3] & 0xFFL) << 24);
     }
 
     private static void checkGeometry(JsonNode geometry) {

@@ -3077,16 +3077,23 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 
 ## #913 + #890 검증품질 (2026-07-27)
 
+🚨 R1-5: 이 절의 결정 코드가 `D-913-890-01~03`과 `D-890-02~06` 두 접두사로 혼재했고, dev-report의
+`#913-4`(문서 상태와 활성화 게이트 정합성)는 코드 변경이 없다는 이유로 행 자체가 누락되어 있었다.
+아래는 `D-913-890-01`~`10` 단일 접두사로 통합하고 `#913-4` 행을 보강한 것이다 — 원 에픽 하위번호
+(`#913-N`/`#890-N`)는 각 행 앞에 그대로 남겨 추적성을 유지한다.
+
 | 결정 코드 | 내용 |
 |---|---|
-| D-913-890-01 | **DS-4 실서버 QA 정리는 run 단위 exact-match로 격리한다.** 양식명에 프로세스·시각·UUID를 포함하고, 부모 테스트의 정상 종료·타임아웃·강제 종료를 모두 감시하는 detached worker가 해당 이름만 삭제한다. broad `startsWith` 삭제는 금지하며, timeout·강제 종료·동시 2프로세스에서 남의 run이 남아 있는지 실 DB로 확인한다. |
-| D-913-890-02 | **IMAGE style은 geometry와 실제 전달 가능한 border만 인쇄한다.** replaced element에 fontSize/bold/align을 넘기지 않으며, static renderer DOM의 `img` style에서 해당 속성 부재를 회귀 검증한다. |
-| D-913-890-03 | **BE PNG/JPEG 검증은 signature 검사로 끝내지 않는다.** 크기 예산 검사 후 `ImageIO.read`가 실제로 디코드하는 분기를 유지하고, 유효 signature·CRC이지만 IDAT scanline이 없는 PNG fixture로 거부를 검증한다. |
-| D-890-02 | **승인 당시 ACTIVE-0의 기본 pin과 그 철회를 DB trigger로 보호한다.** 적용된 V13은 수정하지 않고 최신 적용 버전 뒤에 V15를 추가해 보호 조건을 보강하며, OLD default-pin disjunct를 제거한 변이에서 직접 SQL 회귀 테스트가 RED인지 확인한다. |
-| D-890-03 | **mock 승인 최종 응답은 BE의 pin 3필드 형식을 그대로 낸다.** ACTIVE 양식이면 `(UUID, 양의 revision, false)`, ACTIVE-0이면 `(null, null, true)`를 반환하며 pre-seed로 승인 경로를 우회하지 않는다. |
-| D-890-04 | **승인 충돌 테스트는 공개 3-인자 승인 오버로드를 호출한다.** `actorGroupIds`는 빈 집합으로 명시해 controller 공개 경로와 동일한 `approve(UUID, UUID, Set<UUID>)` 계약을 검증한다. |
-| D-890-05 | **재인쇄 고지는 실제 print media에서 제거되어야 한다.** `no-print` 클래스 문자열만으로 충족시키지 않고, pin revision 조회 실패 mock 시드를 통해 Chromium `emulateMedia({ media: 'print' })`의 비가시성을 검증한다. |
-| D-890-06 | **이미 APPROVED인 미pin 레거시 행은 사후 최초 pin도 금지한다.** V15 trigger가 OLD status `APPROVED`를 보호하고, 이 disjunct를 제거한 변이에서 직접 SQL 회귀 테스트가 RED인지 확인한다. |
+| D-913-890-01 | (#913-1) **DS-4 실서버 QA 정리는 run 단위 exact-match로 격리하고, 회수 자체가 taskkill 방식에 좌우되지 않는다.** 양식명에 프로세스·시각·UUID를 포함한다. 🚨R1-1 fix: cleanup worker는 `wmic process call create`(제3자 WmiPrvSE.exe가 CreateProcess를 대행 — 2026-07-27 실측: 3단 프로세스 트리를 재현해 `taskkill /T /F`에도 heartbeat 계속 갱신·`tasklist` 생존 확인, 동일 실험에서 Node `detached:true` 자식은 즉사)로 우선 기동하고, 실패 시에만 Node detached spawn으로 강등하되 그 사실을 warning으로 남긴다(무음 강등 금지) — Node detached 단독으로는 정상 종료·타임아웃·Ctrl+C·비-트리 강제종료(`taskkill /F` 단독)에는 강하지만 트리 종료(`taskkill /T /F`)는 막지 못한다(Windows는 CreateProcess가 기록한 PPID를 재부모화하지 않는다). 🚨R1-2 fix: 소유자(owner) 생존 여부가 유일한 회수 판단 기준이다 — 과거의 "TTL(15분) 경과 시 owner 생존과 무관하게 강제 삭제"는 살아있는 실행(`--timeout=0`/`PWDEBUG=1` 수동 세션)의 데이터를 지우는 결함이라 제거했고, 그 시간값은 이제 "아직 대기 중"이라는 사실을 무음이 아니게 기록하는 notice 주기일 뿐이다. wmic도 실패하는 예외적 경우를 위해 각 real-qa 실행의 finally가 이전 run 중 소유자가 실제로 죽은(exact 이름 구조 + 유예기간 + owner 생존 확인) 것만 회수하는 self-healing sweep을 수행하고, 사람이 즉시 실행 가능한 독립 reap CLI(`ds4-real-qa-reap.cjs`)도 동일 로직을 공유한다 — 둘 다 살아있는 다른 run은 절대 건드리지 않으며(exact-match 불변식 유지), `.stop` marker 파일도 함께 정리해 영구 잔류를 막는다. timeout·강제 종료·트리 종료·동시 2프로세스·reap 각각에서 남의 run이 남아 있는지 실 DB로 확인한다. |
+| D-913-890-02 | (#913-2) **IMAGE style은 geometry와 실제 전달 가능한 border만 인쇄한다.** replaced element에 fontSize/bold/align을 넘기지 않으며, static renderer DOM의 `img` style에서 해당 속성 부재를 회귀 검증한다. |
+| D-913-890-03 | (#913-3) **BE PNG/JPEG 검증은 signature 검사로 끝내지 않는다.** 크기 예산 검사 후 `ImageIO.read`가 실제로 디코드하는 분기를 유지하고, 유효 signature·CRC이지만 IDAT scanline이 없는 PNG fixture로 거부를 검증한다. |
+| D-913-890-04 | (#913-4) **문서 상태 표현은 실제 활성화 게이트와 같은 상태를 말해야 한다.** README/ROADMAP의 "DS-4 완료" 표현을 "구현·검증 완료(활성화 선행조건 게이트 유지)"로 정정하고, `DETAIL`/`IMAGE`의 ACTIVE 배포는 updater와 `body.lineItems` 연결이 선행되어야 한다는 문장을 명시한다(코드 변경 없음 — 문서-실제 상태 불일치 정정). |
+| D-913-890-05 | (#890-2) **승인 당시 ACTIVE-0의 기본 pin과 그 철회를 DB trigger로 보호한다.** 적용된 V13은 수정하지 않고 최신 적용 버전 뒤에 V15를 추가해 보호 조건을 보강하며, OLD default-pin disjunct를 제거한 변이에서 직접 SQL 회귀 테스트가 RED인지 확인한다. |
+| D-913-890-06 | (#890-3) **mock 승인 최종 응답은 BE의 pin 3필드 형식을 그대로 낸다.** ACTIVE 양식이면 `(UUID, 양의 revision, false)`, ACTIVE-0이면 `(null, null, true)`를 반환하며 pre-seed로 승인 경로를 우회하지 않는다. |
+| D-913-890-07 | (#890-4) **승인 충돌 테스트는 공개 3-인자 승인 오버로드를 호출한다.** `actorGroupIds`는 빈 집합으로 명시해 controller 공개 경로와 동일한 `approve(UUID, UUID, Set<UUID>)` 계약을 검증한다. |
+| D-913-890-08 | (#890-5) **재인쇄 고지는 실제 print media에서 제거되어야 한다.** `no-print` 클래스 문자열만으로 충족시키지 않고, pin revision 조회 실패 mock 시드를 통해 Chromium `emulateMedia({ media: 'print' })`의 비가시성을 검증한다. |
+| D-913-890-09 | (#890-6) **이미 APPROVED인 미pin 레거시 행은 사후 최초 pin도 금지한다.** V15 trigger가 OLD status `APPROVED`를 보호하고, 이 disjunct를 제거한 변이에서 직접 SQL 회귀 테스트가 RED인지 확인한다. |
+| D-913-890-10 | (R1-4, 이슈 #913 코멘트 흡수) **WebP도 시그니처만으로 끝내지 않는다.** 표준 JDK에는 WebP reader가 없어 픽셀 디코드는 못 하지만, RIFF 선언 크기가 실제 바이트 수와 일치하는지(잘림 검출) · 첫 서브청크가 VP8/VP8L/VP8X인지 · VP8은 3바이트 시작 코드(`0x9D 0x01 0x2A`) · VP8L은 1바이트 시그니처(`0x2F`)가 정확한 오프셋에 있는지를 검사한다(libwebp의 `VP8GetInfo`/`VP8LCheckSignature`와 동급 구조 검사). VP8X(확장 컨테이너)는 크기 일치까지만 검사하고 서브청크 전체는 걷지 않는다 — 전면 디코더 없이는 100% 보장 불가라는 한계를 그대로 남긴다. 정상 WebP(VP8/VP8L) 업로드는 계속 통과한다(전면 거부 아님). |
 
 ## #825 슬5 null-semantics (2026-07-21, PR #864 R2)
 
