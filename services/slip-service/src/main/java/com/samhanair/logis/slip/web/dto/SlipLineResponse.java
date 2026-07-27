@@ -35,6 +35,15 @@ public record SlipLineResponse(
         /** 부가세(라인 단위). nullable(legacy). */
         BigDecimal vatAmount,
         /**
+         * 단가 권위 도메인 — #937 재수렴 6차 A안 (V59). {@code "VAT_INCLUSIVE"}/{@code "SUPPLY"},
+         * V59 이전 legacy 행은 null.
+         *
+         * <p>FE 표시 계층({@code lineVat.resolveUnitPrices})이 두 단가 컬럼 중 어느 쪽이 사용자
+         * 입력인지 <b>추측하지 않기 위해</b> 필요하다. 이 값이 없으면(legacy) FE 는 현행
+         * 휴리스틱으로 떨어진다. 화면에 표시하는 값이 아니라 해석 계약이다.
+         */
+        String unitPriceDomain,
+        /**
          * 세트 전개 첫 구성품 여부 — PR-3 V34 신규 (PR #461 갱신).
          * 세트 전개된 첫 번째 구성품 라인 = true. 일반 단품 라인 = false.
          */
@@ -65,6 +74,7 @@ public record SlipLineResponse(
                 line.getUnitPriceWithVat(),
                 line.getSupplyAmount(),
                 line.getVatAmount(),
+                line.getUnitPriceDomain() == null ? null : line.getUnitPriceDomain().name(),
                 line.isSetHead(),
                 line.getParentSetModel());
     }

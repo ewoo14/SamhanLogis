@@ -58,22 +58,27 @@ test.describe('SP-08-5-2 매입 수정 direct PUT 계약', () => {
     expect(page).toContain('purchaseEditFormRef')
     expect(page).toContain('scrollIntoView({ behavior: \'smooth\', block: \'start\' })')
     expect(page).toContain("!((salesEditOpen && mode === 'OUTBOUND') || (purchaseEditOpen && mode === 'INBOUND'))")
-    expect(page).toContain('단가(VAT제외)')
+    expect(page).toContain('단가(VAT포함)')
     // RED-2(#824 R1): #824 가 "합계" 열을 VAT 제외 raw total 에서 라인 권위 lineTotalWithVat
     // (VAT 포함)로 재설계하며 라벨도 "합계(VAT포함)"으로 바뀌었다 — 화면 실제와 어긋난
     // 스펙 문자열을 동기화한다(프로덕션 코드 변경 아님).
     expect(page).toContain('합계(VAT포함)')
-    // RED-3(#902 라운드 fix, E-2): 매입 상세 "단가(VAT포함)" ↔ 수정 화면 "단가(VAT제외)"가
-    // 같은 저장값을 모순되게 설명하던 결함(E-2)을 고치며, 단가 aria-label 이 하드코드
-    // 리터럴에서 라인별 동적 판정(editUnitPriceLabel)으로 바뀌었다 — authoritative 라인
-    // (공급가액을 직접 편집한 라인)은 unitPrice === unitPriceWithVat 로 저장되어 "VAT제외"
-    // 라벨이 거짓이 되므로, 라인 성질에 따라 단가(VAT포함)/단가(VAT제외)/단가(행별 VAT
-    // 기준)을 말해야 한다. 하드코드 리터럴 회귀(라벨 모순 재발)를 잡기 위해 판정 로직
-    // 자체 + 호출부를 함께 단언한다 — 문자열 단순 존재만으로는 3528행 등 읽기전용 상세
-    // 헤더의 정적 "단가(VAT포함)" 라벨과 구분되지 않는다.
+    // RED-3(#902 라운드 fix, E-2) 은 매입 상세 "단가(VAT포함)" ↔ 수정 화면 "단가(VAT제외)"가
+    // 같은 저장값을 모순되게 설명하던 결함을 라인별 동적 판정(unitPrice===unitPriceWithVat)
+    // 으로 고쳤었다 — 그런데 재수렴 R-1(#937)이 그 "동적 판정" 자체가 새 결함이었음을
+    // 실증했다: 이 화면은 단가 입력을 예외 없이 VAT 포함으로 계산하는데(수량만 바꿔도
+    // 마찬가지), 동적 판정은 unitPrice/unitPriceWithVat 두 컬럼이 하이드레이션 시점에
+    // 우연히 같은지만 볼 뿐 "실제로 무엇을 계산하는가"와 무관했다 — 그 결과 활성 라인
+    // 99.6%(수정 가능 DRAFT 2,164건 전부)가 "단가(VAT제외)" 로 열리면서 실제로는 VAT
+    // 포함으로 계산됐다(실 DB 인구조사, docs/qa/937-detail-readonly-fix 재수렴 라운드).
+    // 근본수정은 라벨을 데이터에 의존하지 않는 상수로 되돌린다 — 이 화면이 실제로 적용하는
+    // 세금 도메인이 상수이므로 라벨도 상수여야 한다(V1). 하드코드 리터럴 자체는 되돌아왔지만
+    // "행마다 다른 라벨" 회귀(RED-3 이 원래 막으려던 겉모습)가 아니라 "라벨이 계산과
+    // 반대말을 하는" 회귀(V1)를 막는 것이 이제 이 표면의 진짜 불변식이다 — 판정 로직
+    // 자체 + 호출부를 함께 단언해 다음 회귀도 이 스펙에서 잡히게 한다.
     expect(page).toContain('export function editUnitPriceLabel(')
-    expect(page).toMatch(/unitPrice === unitPriceWithVat[\s\S]{0,20}\?\s*'단가\(VAT포함\)'[\s\S]{0,20}:\s*'단가\(VAT제외\)'/)
-    expect(page).toContain('단가(행별 VAT 기준)')
+    expect(page).toMatch(/export function editUnitPriceLabel\(\s*\n\s*_line: Pick<PurchaseEditLine, 'unitPrice' \| 'unitPriceWithVat'>,\s*\n\): EditUnitPriceLabel \{\s*\n\s*return '단가\(VAT포함\)'/)
+    expect(page).not.toMatch(/unitPrice === unitPriceWithVat/)
     expect(page).toContain('aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}')
     expect(page).not.toMatch(/<Modal[\s\S]*title="매입 전표 수정"/)
     expect(page).toContain('Input')

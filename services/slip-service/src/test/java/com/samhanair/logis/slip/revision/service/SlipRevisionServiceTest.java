@@ -557,6 +557,188 @@ class SlipRevisionServiceTest {
         assertThat(summary.lineModified()).isZero();
     }
 
+    /**
+     * 재수렴 6차(#937) ⑦ — 버전이력 "단가"가 화면과 같은 VAT 포함 도메인을 말한다.
+     *
+     * <p>라이브 실증(전표 2026/07/27-209): 사용자는 단가(VAT 포함) 100,000 을 한 번 입력하고
+     * 이후 <b>공급가액·부가세만</b> 편집했는데, 버전이력은 {@code 단가 null→90,909} +
+     * {@code 단가 90,909→100,000} 이라는 <b>하지 않은 변경 2건</b>을 기록했다. 재수렴 4차가
+     * {@code unit_price} 의 의미를 "사용자 입력" → "공급가액 ÷ 수량"으로 바꿨는데 버전이력이
+     * 그 컬럼을 정규화 없이 읽고 있었기 때문이다. 같은 상세 화면이 레드라인(VAT 포함)과
+     * 버전이력을 나란히 렌더하므로 사용자는 한 화면에서 두 단가를 본다.
+     */
+    @Test
+    @DisplayName("재수렴 6차 ⑦: 공급가액만 편집한 라인은 버전이력에 단가 변경을 남기지 않는다")
+    void versionHistoryUnitPriceUsesScreenTaxDomain() {
+        UUID productId = UUID.randomUUID();
+        // 생성 직후: 단가(VAT포함) 100,000 x 2 → S=181,818 · V=18,182 · unit_price=90,909
+        SlipSnapshot.Line before = domainLine(productId, 2, "90909", "100000",
+                "181818", "18182", "VAT_INCLUSIVE");
+        // 공급가액·부가세만 정정("부가세 별도") → unit_price 는 S÷Q 로 100,000 이 된다.
+        SlipSnapshot.Line after = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", "VAT_INCLUSIVE");
+
+        JsonNode fieldChanges = fieldChangesFor(List.of(before), List.of(after));
+
+        // RED(수정 전): {beforeValue:"90909", afterValue:"100000"} — 사용자가 하지 않은 변경.
+        assertThat(findChange(fieldChanges, "lines[0].unitPrice"))
+                .as("사용자가 건드리지 않은 단가는 이력에 남지 않는다").isNull();
+        // 합계는 실제로 바뀌었다(표시 도메인 200,000 → 220,000) — 재수렴 7차 R7-1 이후 VAT 포함.
+        JsonNode lineTotal = findChange(fieldChanges, "lines[0].lineTotal");
+        assertThat(lineTotal).isNotNull();
+        assertThat(lineTotal.get("beforeValue").asText()).isEqualTo("200000");
+        assertThat(lineTotal.get("afterValue").asText()).isEqualTo("220000");
+    }
+
+    @Test
+    @DisplayName("재수렴 6차 ⑦: 실제 단가 변경은 화면 도메인(VAT 포함) 값으로 기록된다")
+    void versionHistoryRecordsRealUnitPriceChangeInScreenDomain() {
+        UUID productId = UUID.randomUUID();
+        SlipSnapshot.Line before = domainLine(productId, 2, "90909", "100000",
+                "181818", "18182", "VAT_INCLUSIVE");
+        SlipSnapshot.Line after = domainLine(productId, 2, "109091", "120000",
+                "218182", "21818", "VAT_INCLUSIVE");
+
+        JsonNode change = findChange(fieldChangesFor(List.of(before), List.of(after)),
+                "lines[0].unitPrice");
+
+        assertThat(change).isNotNull();
+        assertThat(change.get("beforeValue").asText()).isEqualTo("100000");
+        assertThat(change.get("afterValue").asText()).isEqualTo("120000");
+    }
+
+    @Test
+    @DisplayName("재수렴 6차 A안: 도메인이 없는 legacy 스냅샷은 현행 휴리스틱을 유지한다")
+    void versionHistoryKeepsHeuristicForLegacySnapshotLines() {
+        UUID productId = UUID.randomUUID();
+        // 같은 좌표인데 도메인만 없다 — 구 BE 오염행일 수 있어 권위 합계에서 유도(220,000/2).
+        SlipSnapshot.Line legacy = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", null);
+        SlipSnapshot.Line changed = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", "VAT_INCLUSIVE");
+
+        JsonNode change = findChange(fieldChangesFor(List.of(legacy), List.of(changed)),
+                "lines[0].unitPrice");
+
+        assertThat(change).isNotNull();
+        assertThat(change.get("beforeValue").asText()).isEqualTo("110000");
+        assertThat(change.get("afterValue").asText()).isEqualTo("100000");
+    }
+
+    /**
+     * 재수렴 7차(#937) R7-1 — 버전이력 "합계"가 전표 라인 표의 "합계(VAT포함)"와 같은 값을 말한다.
+     *
+     * <p>라이브 실증(단가 VAT포함 100,000 × 2 → 단가만 120,000 수정): 같은 상세 화면이
+     * <b>전표 라인 표</b>에 {@code 단가(VAT포함) 120,000 | 공급가액 218,181 | 합계(VAT포함) 240,000}
+     * 을, 바로 아래 <b>버전 이력</b>에 {@code 단가 100000 → 120000} + {@code 합계 181818 → 218181}
+     * 을 나란히 렌더했다. {@code 120,000 × 2 = 240,000 ≠ 218,181} — 표 헤더의 "합계(VAT포함)"와
+     * 이력의 "합계"가 <b>같은 단어로 다른 값</b>이었다.
+     *
+     * <p>개발책임자 결정(2026-07-27) = <b>A안 "이력 합계도 VAT 포함으로"</b>. 과거 감사 이력의
+     * 숫자가 소급 변경된다는 점을 인지한 상태의 결정이다.
+     */
+    @Test
+    @DisplayName("재수렴 7차 R7-1: 단가만 수정하면 버전이력 합계가 표의 합계(VAT포함)와 같은 값으로 기록된다")
+    void versionHistoryLineTotalUsesScreenTaxDomain() {
+        UUID productId = UUID.randomUUID();
+        // 단가(VAT포함) 100,000 × 2 → S=181,818 · V=18,182 · 표의 합계(VAT포함)=200,000
+        SlipSnapshot.Line before = domainLine(productId, 2, "90909", "100000",
+                "181818", "18182", "VAT_INCLUSIVE");
+        // 단가만 120,000 으로 수정 → S=218,181 · V=21,819 · 표의 합계(VAT포함)=240,000
+        SlipSnapshot.Line after = domainLine(productId, 2, "109090.50", "120000",
+                "218181", "21819", "VAT_INCLUSIVE");
+
+        JsonNode fieldChanges = fieldChangesFor(List.of(before), List.of(after));
+
+        JsonNode unitPrice = findChange(fieldChanges, "lines[0].unitPrice");
+        JsonNode lineTotal = findChange(fieldChanges, "lines[0].lineTotal");
+        assertThat(unitPrice).isNotNull();
+        assertThat(unitPrice.get("beforeValue").asText()).isEqualTo("100000");
+        assertThat(unitPrice.get("afterValue").asText()).isEqualTo("120000");
+        assertThat(lineTotal).isNotNull();
+        // RED(수정 전): 181818 → 218181 (VAT 제외 공급가액) — 같은 화면의 "합계(VAT포함) 240,000"과 어긋난다.
+        assertThat(lineTotal.get("beforeValue").asText()).isEqualTo("200000");
+        assertThat(lineTotal.get("afterValue").asText()).isEqualTo("240000");
+        // 불변식 1 — 한 행 안에서 단가 × 수량 = 합계.
+        assertThat(new BigDecimal(lineTotal.get("afterValue").asText()))
+                .isEqualByComparingTo(new BigDecimal(unitPrice.get("afterValue").asText())
+                        .multiply(BigDecimal.valueOf(2)));
+        assertThat(new BigDecimal(lineTotal.get("beforeValue").asText()))
+                .isEqualByComparingTo(new BigDecimal(unitPrice.get("beforeValue").asText())
+                        .multiply(BigDecimal.valueOf(2)));
+    }
+
+    /**
+     * 재수렴 7차(#937) R7-2 — 금액 3값이 없는 구 스냅샷에서 FE/BE 표시 판정이 갈렸다.
+     *
+     * <p>실전표 {@code 2026/06/24-7} rev3 → rev4 에 <b>사용자가 하지 않은</b> "품목 1행 단가
+     * 100000 → 110000" 이 새로 생겼다(main 에는 없는 항목). 원인은
+     * {@code supplyAmount}·{@code vatAmount} 가 둘 다 없을 때의 총액 해석 차이다 —
+     * BE {@code lineTotalDisplayValue} 는 {@code lineTotal}(VAT 제외) 을 총액으로 보고,
+     * FE {@code SlipDetailPage.slipLineAmounts} 는 {@code lineTotal + 10%} 를 총액으로 본다.
+     * 화면이 권위이므로 BE 를 FE 에 맞춘다(불변식 3).
+     */
+    @Test
+    @DisplayName("재수렴 7차 R7-2: 금액 3값이 없는 구 스냅샷도 화면(FE)과 같은 VAT 포함 총액으로 읽는다")
+    void versionHistoryLegacySnapshotWithoutAmountsMirrorsScreen() {
+        UUID productId = UUID.randomUUID();
+        // 실전표 2026/06/24-7 rev3 — supplyAmount·vatAmount·unitPriceWithVat 가 전부 없다.
+        SlipSnapshot.Line legacy = new SlipSnapshot.Line(productId, "품목", "모델", "규격", 1,
+                new BigDecimal("100000.00"), new BigDecimal("100000.00"), null, null, null, null);
+        // 같은 전표 rev4 — 같은 라인에 금액 3값이 채워졌다(사용자는 단가를 건드리지 않았다).
+        SlipSnapshot.Line filled = new SlipSnapshot.Line(productId, "품목", "모델", "규격", 1,
+                new BigDecimal("100000"), new BigDecimal("100000.00"), null,
+                new BigDecimal("110000.00"), new BigDecimal("10000.00"), new BigDecimal("100000.00"));
+
+        JsonNode fieldChanges = fieldChangesFor(List.of(legacy), List.of(filled));
+
+        // RED(수정 전): {beforeValue:"100000", afterValue:"110000"} — 하지 않은 단가 변경.
+        assertThat(findChange(fieldChanges, "lines[0].unitPrice")).isNull();
+        assertThat(findChange(fieldChanges, "lines[0].lineTotal")).isNull();
+    }
+
+    /**
+     * 재수렴 7차(#937) R7-1 부수 — 같은 패널의 "변경 요약" 1줄과 "변경 목록"이 같은 판정을 한다.
+     *
+     * <p>{@code SlipVersionHistoryPanel.formatChangeSummary} 는 {@code changeSummary} 가 전부 0 이면
+     * "변경 없음" 을 쓰고, 바로 아래에 {@code fieldChanges} 를 나열한다. 합계를 표시 도메인으로
+     * 바꾸면 부가세만 편집한 라인이 <b>목록에는</b> 뜨는데 {@code summarize} 의 {@code lineDiffers}
+     * 는 저장 컬럼만 비교해 {@code lineModified=0} 이라, 한 카드가 "변경 없음"이라고 쓰고 그 아래에
+     * 변경 1건을 나열하는 자기모순이 생긴다. 두 지점이 같은 표시 판정을 쓰게 한다.
+     */
+    @Test
+    @DisplayName("재수렴 7차 R7-1 부수: 부가세만 편집한 라인은 변경 요약과 변경 목록이 같은 판정을 한다")
+    void versionSummaryAgreesWithFieldChangesOnDisplayedAmounts() {
+        UUID productId = UUID.randomUUID();
+        SlipSnapshot.Line before = domainLine(productId, 2, "100000", "100000",
+                "200000", "20000", "VAT_INCLUSIVE");
+        // 부가세만 20,000 → 25,000 (공급가액·수량·단가 무편집 — 2026-07-25 결정 P6 경로)
+        SlipSnapshot.Line after = domainLine(productId, 2, "100000", "100000",
+                "200000", "25000", "VAT_INCLUSIVE");
+
+        JsonNode fieldChanges = fieldChangesFor(List.of(before), List.of(after));
+        ChangeSummary summary = service.summarize(
+                snapshot("memo", List.of(before)), snapshot("memo", List.of(after)));
+
+        // RED(수정 전): 저장 lineTotal(=공급가액) 이 그대로라 목록에도 안 뜬다.
+        JsonNode lineTotal = findChange(fieldChanges, "lines[0].lineTotal");
+        assertThat(lineTotal).isNotNull();
+        assertThat(lineTotal.get("beforeValue").asText()).isEqualTo("220000");
+        assertThat(lineTotal.get("afterValue").asText()).isEqualTo("225000");
+        // RED(수정 전): lineModified=0 — 패널이 "변경 없음"이라 쓰고 그 아래에 변경을 나열한다.
+        assertThat(summary.lineModified()).isEqualTo(1);
+    }
+
+    /** 금액 5값 + 단가 도메인을 가진 스냅샷 라인 (재수렴 6차 #937). */
+    private SlipSnapshot.Line domainLine(UUID productId, int quantity, String unitPrice,
+                                         String unitPriceWithVat, String supplyAmount,
+                                         String vatAmount, String unitPriceDomain) {
+        return new SlipSnapshot.Line(productId, "품목", "모델", "규격", quantity,
+                new BigDecimal(unitPrice), new BigDecimal(supplyAmount), null,
+                new BigDecimal(unitPriceWithVat), new BigDecimal(vatAmount),
+                new BigDecimal(supplyAmount), null, null, unitPriceDomain);
+    }
+
     private JsonNode fieldChangesFor(List<SlipSnapshot.Line> prevLines,
                                      List<SlipSnapshot.Line> curLines) {
         UUID slipId = UUID.randomUUID();

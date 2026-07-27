@@ -13,7 +13,151 @@
 
 ---
 
-## 🏠 2026-07-25 (집PC) — **T7 머지 + 3트랙 상시 가동** ◀◀◀ 여기부터 읽으십시오
+## 🏢 2026-07-27 (회사PC) — **#937 머지 완료 · #938·#929 잔여** ◀◀◀ 여기부터 읽으십시오
+
+> 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+
+### ✅ #937 머지 (`37bd02ff4`, squash)
+
+집PC WIP(`wip/937-fix7-history-total-domain`)를 이어받아 재수렴 8·9차로 수렴·머지.
+
+- **A안 (R7-1/R7-2)** — 버전이력 "단가·합계" = 전표 라인 표 "단가·합계(VAT포함)" 같은 도메인. **저장 스냅샷 불변, 파생 표시값만 정규화**(감사 위조 아님). RED-first(pre-fix 4 RED→GREEN)·FE/BE 반올림 parity 정수 원 0..2,000,000 전수 0불일치.
+- **캡처 게이트 fix(흡수)** — SOL 2차 라이브QA가 **"부가세만 편집→revision 미캡처(감사 이력 누락)"** pre-existing 결함 발견 → 개발책임자 결정 = 흡수 → CODEX LUNA fix(매출 `SalesSlipUpdateService`·매입 `SlipUpdateService` `summarizeLines`에 supply/vat/lineTotal 추가). 부가세 편집도 revision 캡처, **무편집 재저장 idempotent 유지**(`normalize(stripTrailingZeros)`). 감사 캡처 정책 = "금액 변경 편집은 모두 이력 기록".
+- **잔존(수용)** — 버전이력 diff에 "부가세" 행은 없고 그 귀결인 "합계"만 표시(pre-existing LINE_FIELDS). **표기 granularity**(스냅샷 데이터 완전·오류 아님), 개발책임자 수용.
+- 검증: OPUS 양표면 도달가능 0(316 라인 전수) · SOL 라이브QA(R7-1 표+이력 한화면·부가세 캡처·over-capture 0) · CI 35/35 green(exact `f5ba1a2a2`). dev-report `docs/dev-reports/2026-07-27-937-slip-revision-tax-domain.md` + QA증거 `docs/qa/937-slip-revision-tax-domain/`.
+
+### 잔여 2트랙 (재수렴 상한 9차, [feedback_canonical_workflow] 준수)
+
+| PR | 브랜치 | 다음 |
+|---|---|---|
+| **#938** | `chore/harness-false-green-batch` | 재수렴 8차 — 도출 한계 ⓐ~ⓓ(네이밍 미준수 가드·조립 경로·읽기/쓰기 미구분·`testIgnore`만 반영) 공격. **열 번 연속 "열거 좁음" 실패** 이력 |
+| **#929** | `feat/897-column-hierarchy` | 재수렴 7차 재착수 — `isAddressableAsPathSegment("")`=true 안전성(호출부 유일 전제)·`trim()` NBSP/전각공백 실측·GitGuardian 판정 |
+
+### 환경 (회사PC, 이 세션)
+
+- Docker 풀스택 healthy(2h+). slip-service = round-9 배포본(= merged main 동일). DB `slip_db` 149 리비전(집PC 2,510과 상이).
+- 🚩 알려진 flake `CodefImportScopeForm.test.tsx` **1-in-7**(재실행 확정) — #937 CI서 1회 발생, 재실행 green.
+- ⚠️ 워크트리 `.claude/worktrees/937-history-total` 삭제 실패(gradle 데몬 점유) — 데몬 종료 후 `git worktree prune`.
+- 개발책임자 지시(이 세션): **직접 실행 최소화·Codex 위임**(토큰 절약) · **#937 라운드 과다 인지·바운드** · **3트랙은 #937 머지 후 순차**.
+
+---
+
+## 🏠 2026-07-27 (집PC 야간~오전) — **3트랙 재수렴 7차까지 · 머지 0건**
+
+> 🚩 **회사 PC 시작 절차**: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+
+### 현황 — 세 트랙 모두 CI green, 도달 가능 결함이 남아 미머지
+
+| PR | 브랜치 | HEAD | CI | 마지막 라운드 | 다음 |
+|---|---|---|---|---|---|
+| **#937** | `fix/926-slip-detail-total-readonly` | `b2fd49296` | **35/35 green** | 재수렴 7차 → **결함 2건** | A안 fix **미완**(WIP 브랜치) |
+| **#938** | `chore/harness-false-green-batch` | `a4a1edcfc` | 46/47(1 진행) | fix7 push 완료 | **재수렴 8차** |
+| **#929** | `feat/897-column-hierarchy` | `6b982ce82` | 34/35(GitGuardian만) | 제어문자 fix push 완료 | **재수렴 7차**(중단됨, 재착수) |
+
+🚨 **머지 게이트**: ① 실 사용자 경로 재현 결함 0 ② CI green(exact SHA) ③ 라이브QA 실서버.
+**②③은 충족, ①이 미충족**이라 어느 것도 머지하지 않았습니다.
+
+### 📌 개발책임자 결정 (2026-07-27)
+
+| # | 결정 | 상태 |
+|---|---|---|
+| 1 | **#937 A안** — 저장 시점에 단가 도메인 기록(`unit_price_domain` V59). legacy 는 휴리스틱 유지·**backfill 없음** | ✅ 구현·머지됨(`b2fd49296`) |
+| 2 | **거래명세서 `단가×수량≠합계` 현행 유지** — P4 의 수학적 귀결. **머지 조건에서 제외** | ✅ 반영 |
+| 3 | **#937 R7-1 = A안** — 이력 합계도 VAT 포함으로. *"과거 감사 이력 숫자가 두 번 바뀌는 셈"* 인지 후 결정 | ⏸️ **fix 미완** |
+| 4 | `mock.ts` 도메인 미기입 PM 수용 | ⚠️ `domainKnown` 분기가 **mock 게이트 0 표면**임 기록됨 |
+
+### ⏸️ 미완 WIP — **회사 PC 에서 이어받을 것**
+
+```
+origin/wip/937-fix7-history-total-domain    ← 5파일 +459/−17, 미검증
+```
+구현은 끝났고 **전체 스위트 실행 직전에 중단**됐습니다. RED-first·뮤테이션·라이브QA·무훼손 재측정이 **전부 미실행**입니다. feature 브랜치는 청결(`b2fd49296`).
+
+**회사 PC 에서 할 일** — 브랜치 cherry-pick/rebase → RED 재확보(구현 전 RED 원문 없음) → 뮤테이션 → 🚨 **소급 변경 규모 재측정**(현재 751건에서 얼마나 느는지, 2,510 리비전 전수) → 라이브QA(**표와 이력이 한 화면에 보이는 캡처 필수**) → 무훼손 13항목.
+
+### 각 트랙 다음 할 일
+
+**#937** — 위 WIP 이어받기. 남은 결함: R7-1(이력 `단가×수량≠합계`, 751건 소급 변경) · R7-2(LOW, 실데이터 1건, `supplyAmount==null` 구 스냅샷에서 FE/BE 미러 발산).
+
+**#938** — 재수렴 8차. fix7 이 **열거를 도출로 전환**(`*.spec.ts`/`*.test.*` 전수에서 `docs/…` 리터럴 도출). 🚨 **이 PR 은 열 번 연속 "열거가 좁았다"로 실패**했고, fix7 의 뮤테이션 M2 가 **구현자 자신의 가짜 게이트를 같은 라운드에 잡았습니다**(러너 판정 `\bplaywright\b` 가 인자 경로에 걸려 `echo` 로 바꿔도 통과). 8차는 **도출의 한계 ⓐ~ⓓ**(네이밍 미준수 가드 · 조립 경로 · 읽기/쓰기 미구분 · `testIgnore` 만 반영)를 공격할 것.
+
+**#929** — 재수렴 7차 재착수. 1순위는 **구현자가 의도적으로 남긴 `isAddressableAsPathSegment("")` 가 여전히 `true`** 라는 점(근거: 가드 이중화하면 fix 가 load-bearing 인지 증명 불가). *"호출부가 유일하다"* 는 전제 검증 + **`trim()` 이 `≤U+0020` 만 제거**하므로 NBSP·전각 공백 실측.
+
+### 🚨 이번 세션에서 발견한 환경 함정
+
+| | 내용 |
+|---|---|
+| **`docker exec` stdin 미전달** | heredoc 이 **조용히 무시**되고 psql 이 무출력 종료. DB 작업은 **`docker cp` + `psql -f`**(`MSYS_NO_PATHCONV=1`) |
+| **`playwright.real-qa.config.ts` 에 `use.baseURL` 부재** | 상대경로 `page.goto('/#…')` 스펙(**`929-r4` 포함**)이 공유 config 로 **실행 자체가 안 됨**(`Cannot navigate to invalid URL`). 즉 **repo 전체 real-QA 일괄 실행에서 조용히 빠짐**. 절대 URL 사용 |
+| **`TaskStop` 후 Gradle 데몬 잔존** | 같은 build 트리 경합으로 `NoClassDefFoundError` **97건** 발생 사례. `./gradlew --stop` + `build/classes`·`test-results` 삭제 후 재실행 |
+| **Docker 재기동 직후 첫 측정** | Eureka 재등록 전 창이라 게이트웨이 500. 워밍업 후 재측정 |
+| `CodefImportScopeForm.test.tsx` | **1-in-7 flake** — 재실행으로 확정 |
+| `dispatch-board-2pane.spec.ts` | 부하 flake(동시 에이전트 자원 경합). 단독 재실행 통과, CI 는 `retries:1` |
+
+### #851 이월 항목 (후속 슬라이스)
+
+1. **R-1 형태 축** — `collectDeclarations` 가 `const`/`let` 만 보고 fixed-point 가 **함수 호출 경계를 못 넘음**. 수단은 **AST 급 분석**. 레포 현재 코드에 그 형태 0건
+2. **arologis 게이트 0 2건** — `notion-zero-guard`·`config-audit-guard` 가 `arologis-ci.yml` 에 잡이 없어 arologis-only PR 에서 안 돎. 🚩 `config-audit-guard` 는 **#745 SlipClient 8084 오배정 재발 방지용**
+3. **`playwright.real-qa.config.ts` `use.baseURL` 부재** (위 함정 표)
+4. **`docs/planning` 을 자격 가드 `DOC_DIRS` 에 미추가** — 넣으면 마크다운 닫는 백틱 **기존 오탐**이 걸림. 판정 의미를 건드리는 별건
+
+### 🧹 정리 완료
+
+`daily_closings` 미래일자 **23행 삭제**(2034-11-11·2031-05-15) · `bank_transaction 929-RC5%` **1행 삭제** · 세 워크트리 `git status` **clean** · 임시 스펙·config 삭제 · `docs/qa` PNG/PDF 변경 **0건**
+
+⚠️ **분개 잔액은 건드리지 않았습니다** — `created_at >= 2026-07-26` 계정별 순액이 0 아닌 건 **정상 회계 데이터**이지 throwaway 지표가 아닙니다. 실데이터 위험이라 판단 보류했습니다.
+
+### 📊 수렴 상태 — 정직 기록
+
+| 트랙 | 6차 | 7차 | c |
+|---|---|---|---|
+| #937 | 1건 | **2건** | **2.0** |
+| #938 | 2건 | 2건 | 1.0 |
+| #929 | 1건 | (미완) | — |
+
+목표는 **c < 0.45**. 세션 누적 **10시간 · 트랙당 4라운드 · 머지 0건**이고 **c 가 개선되지 않았습니다.**
+
+---
+
+## 🚨📌 개발책임자 결정 (2026-07-27) — **라운드 상한 설정**
+
+### 상한
+
+**트랙당 재수렴 9차까지.** 현재 #937·#938 은 7차, #929 는 7차 미완 — 즉 **각 2라운드 남았습니다.**
+
+한 라운드 = **리뷰 → fix → CI(exact SHA)** 1회전.
+
+### 조기 종료 (상한 전)
+
+**도달 가능 결함 0 + CI green + 라이브QA** 를 만족하면 **즉시 머지**합니다. 기존 캐논 게이트 그대로이며 상한이 이를 완화하지 않습니다.
+
+### 🚨 상한 도달 시 — **"그때 판단"이 아니라 지금 정한 절차를 따릅니다**
+
+> ⚠️ *"결함이 있는데 머지"* 는 하지 않습니다(2026-07-27 개발책임자 지시 유지). 아래는 **결함이 있는 표면을 내보내지 않는** 방법입니다.
+
+9차까지 돌고도 결함이 남으면:
+
+1. **남은 결함의 표면을 특정한다** — 어느 파일·어느 화면·어느 엔드포인트인가
+2. **그 표면을 PR 에서 분리할 수 있는가 판단한다**
+   - 예: #929 의 거래처코드 필터를 BE 미배선 상태로 되돌리면 502 계열 전체가 **범위 밖**으로 나감
+3. **분리 가능** → 스코프를 줄여 **결함 없는 부분만 머지**하고, 뺀 표면은 후속 슬라이스로. 🔑 이건 *"결함 잔존 머지"* 가 아니라 **결함이 있는 코드를 안 내보내는 것**
+4. **분리 불가** → 개발책임자께 보고하고 그 트랙은 **정지**
+
+### 매 라운드 기록 의무
+
+PR 코멘트에 **`c = 이번 라운드 도달가능 ÷ 직전 라운드`** 와 **누적 라운드 수**를 남깁니다. 상한까지 몇 라운드 남았는지가 항상 보이게 합니다.
+
+### 현재 잔여
+
+| 트랙 | 현재 | 남은 라운드 |
+|---|---|---|
+| #937 | 7차 완료(결함 2건) | **2** |
+| #938 | 7차 완료(fix7 push) | **2** |
+| #929 | 7차 미완(중단) | **2** |
+
+---
+
+## 🏠 2026-07-25 (집PC) — **T7 머지 + 3트랙 상시 가동**
 
 > 🚩 **다음 세션 시작 절차**: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
 

@@ -53,3 +53,23 @@ git status --porcelain                          # 오염 0 재확인
 > 🚨 `docs/qa/**` 의 커밋된 스크린샷을 덮어쓰지 마십시오. `slip-form-v20-matching.spec.ts` 를 mock 으로 돌리면 7장을 덮어씁니다. 실행했다면 `git status --porcelain` 확인 후 `git show HEAD:<path> > <path>` 로 반드시 원복하십시오.
 
 **근본 대책은 미실행**(범위 밖으로 보류): 스펙이 임시 경로에 쓰게 하거나 CI 잡에서 그 스펙만 격리하는 방안. 지금은 **매번 사람이 잡아내는 구조**이고, 언젠가 놓치면 QA 증거가 오염된 채 커밋됩니다.
+
+## ✅ 2026-07-26 — **근본 대책이 실행됐다** (PR #938). 그 전까지 하루에 또 3회 반복
+
+**같은 날 세 트랙에서 또 터졌습니다.** 셋 다 *"무훼손 확인차 인접 스펙을 돌렸더니 커밋 증거가 덮어써진"* **동일 형태**이고, 셋 다 브리프에 원복 절차를 미리 넣어 둔 덕에 **자진 신고**했습니다.
+
+| 회차 | 트랙 | 오염 | 범인 스펙 |
+|---|---|---|---|
+| 1 | #929 재수렴 표면 ① | 13장 | `bank-txn-filter` · `codef-connection.shots` |
+| 2 | #929 배치 fix | 13장 | 동일 |
+| 3 | #937 회귀 fix | 1장 | `slip-version-history` |
+
+> 🔑 **`docs/qa` 만 오염됐고 스펙 수정은 섞이지 않은 것을 `git status --porcelain` 으로 확인한 뒤**에는 `git checkout -- docs/qa/` 가 안전합니다(2026-07-21 사고는 `clients/desktop/playwright/` 를 함께 넘긴 것이 원인). **확인 없이 쓰지 마십시오.**
+
+### 근본 fix = 쓰기 목적지 격리 (#938 H-2 → D-1)
+
+`resolveQaShotsDir()` 로 기본 출력을 `<committed-dir>/_local/`(gitignore)로 보내고, 승격은 `QA_SHOTS_DIR` **opt-in**. 1차 적용은 **mock 게이트만** 덮어 real-qa 가 뚫려 있었고(2차 적대검증 D-1 이 커밋 증거 12장 오염을 실증), 최종 fix 가 **TS/TSX 163개 목적지 + ESM 캡처 유틸리티 9개**를 전부 격리했다(172파일 / +413 −199, CI 41/41 green).
+
+🔑 **sweep 은 파일명이 아니라 「쓰기 목적지」로 해야 한다** — `*-real-qa` 같은 파일명 패턴으로 훑었다면 ESM 9개(`full-qa/capture-all.mjs` · `qa782` · `qa797` · `qa798`)를 또 놓쳤을 것이다. `screenshot`/`write`/`append`/`mkdir` 의 실제 목적지를 검사하라. → [[feedback_defect_family_sweep_fix]]
+
+**⟹ #938 머지 이후에는 이 계열이 구조적으로 끝난다.** 그 전까지는 위 브리프 3문장을 계속 넣을 것.

@@ -53,6 +53,11 @@ function remoteEditsFor(provider: DocCoeditProvider | null, fieldPath: string): 
 export interface CollaborativeSlipInputProps {
   provider: DocCoeditProvider | null
   fieldPath: string
+  /**
+   * DOM testid 에 사용할 경로. CRDT fieldPath 는 lineId 안정키를 쓰더라도,
+   * 상세 표의 협업 회귀 스펙은 행 위치 기반 식별자를 사용한다(D1' 경계 분리).
+   */
+  testIdPath?: string
   value: string
   onValueChange: (value: string) => void
   /**
@@ -63,6 +68,14 @@ export interface CollaborativeSlipInputProps {
    * 미지정 시 기존대로 onValueChange 를 호출한다.
    */
   onDocSyncValueChange?: (value: string) => void
+  /**
+   * 원시 입력 필터 — 지정 시 DOM {@code onChange} 의 raw 값을 이 함수로 먼저 검증한다.
+   * {@code null} 반환 시 그 keystroke 전체를 버린다(onValueChange 미호출 + Y.Doc 미기록) —
+   * 단가/공급가액/부가세 등 숫자 전용 셀이 잘못된 문자열(`-3`/`2.7`/`1e3`)을 그대로 Y.Doc 에
+   * 써 원격 피어·재열기에 전파하는 것을 막는다(전표 상세 발견 3, #937 R1). 미지정 시(기존
+   * 호출부 전부) raw 값을 그대로 통과시켜 기존 동작과 100% 동일하다.
+   */
+  parseValue?: (raw: string) => string | null
   type?: string
   min?: number
   maxLength?: number
@@ -89,9 +102,11 @@ export interface CollaborativeSlipInputProps {
 export function CollaborativeSlipInput({
   provider,
   fieldPath,
+  testIdPath,
   value,
   onValueChange,
   onDocSyncValueChange,
+  parseValue,
   type,
   min,
   maxLength,
@@ -136,6 +151,11 @@ export function CollaborativeSlipInput({
   useEffect(() => {
     if (!provider) return undefined
     const syncFromDoc = () => {
+      const [scope, rowKey] = fieldPath.split('.')
+      // 안정키 행이 원격 삭제된 순간에는 빈값을 폼 index state에 반영하지 않는다.
+      // 반영하면 아직 렌더에서 제거되지 않은 구 행의 onValueChange가 다음 행을
+      // 덮어쓰고, 이어지는 provider write가 잔여 금액을 소실시킨다(D1').
+      if (scope === 'items' && rowKey && !/^\d+$/.test(rowKey) && provider.getItemIndexById(rowKey) < 0) return
       const nextValue = valueFromProvider(provider, fieldPath)
       // doc-sync 유래 반영은 실입력(onChange)과 분리 — onDocSyncValueChange 지정 시 그쪽만(R4-F6).
       if (nextValue !== latestValueRef.current) {
@@ -198,7 +218,7 @@ export function CollaborativeSlipInput({
 
   return (
     <span
-      data-testid={`slip-coedit-field-${fieldPath.replace(/\./g, '-')}`}
+      data-testid={`slip-coedit-field-${(testIdPath ?? fieldPath).replace(/\./g, '-')}`}
       style={wrapperStyle}
     >
       {editHighlight ? (
@@ -271,7 +291,11 @@ export function CollaborativeSlipInput({
         }}
         onChange={(event) => {
           if (effectiveReadOnly) return
-          const nextValue = event.target.value
+          const raw = event.target.value
+          // parseValue 거부(null) 시 keystroke 전체를 버린다 — onValueChange 미호출 +
+          // Y.Doc 미기록. controlled input 이라 다음 렌더에서 이전 value prop 으로 되돌아간다.
+          const nextValue = parseValue ? parseValue(raw) : raw
+          if (nextValue === null) return
           onValueChange(nextValue)
           if (provider) {
             setProviderValue(provider, fieldPath, nextValue)

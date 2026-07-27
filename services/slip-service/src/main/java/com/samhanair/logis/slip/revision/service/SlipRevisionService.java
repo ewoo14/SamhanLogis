@@ -97,8 +97,26 @@ public class SlipRevisionService {
             new LineField("modelName", "모델명", SlipSnapshot.Line::modelName),
             new LineField("specification", "규격", SlipSnapshot.Line::specification),
             new LineField("quantity", "수량", SlipSnapshot.Line::quantity),
-            new LineField("unitPrice", "단가", SlipSnapshot.Line::unitPrice),
-            new LineField("lineTotal", "합계", SlipSnapshot.Line::lineTotal),
+            // 🚨 #937 재수렴 6차 ⑦ — 종전에는 {@code Line::unitPrice} 컬럼을 정규화 없이 그대로
+            // 읽었다. 재수렴 4차가 그 컬럼의 의미를 "사용자 입력 단가" → "공급가액 ÷ 수량"(VAT
+            // 제외 파생값)으로 바꾸면서, 그 위에 얹혀 있던 버전이력의 의미가 조용히 바뀌었다.
+            // 실측(전표 2026/07/27-209): 사용자는 단가 100,000(VAT 포함)을 한 번 입력하고 이후
+            // 공급가액·부가세만 편집했는데 버전이력은 "단가 null→90,909" + "단가 90,909→100,000"
+            // 이라는 <b>하지 않은 변경 2건</b>을 기록했다. 같은 상세 화면이 레드라인(VAT 포함)과
+            // 버전이력(VAT 제외)을 나란히 렌더하므로 사용자는 한 화면에서 두 단가를 본다.
+            // 레드라인과 같은 표시 판정({@link #unitPriceDisplayValue})을 쓴다.
+            new LineField("unitPrice", "단가", SlipRevisionService::unitPriceDisplayValue),
+            // 🚨 #937 재수렴 7차 R7-1 — 개발책임자 결정 A안 "이력 합계도 VAT 포함으로".
+            // 종전에는 {@code lineTotal} 저장 컬럼(= 공급가액, VAT 제외)을 그대로 읽었다. 그 결과
+            // 같은 상세 화면이 <b>전표 라인 표</b>에 "합계(VAT포함) 240,000" 을, 바로 아래
+            // <b>버전 이력</b>에 "합계 218,181" 을 나란히 렌더해 <b>같은 단어가 다른 값</b>을
+            // 가리켰다(실측: 단가 VAT포함 100,000 × 2 → 단가만 120,000 수정). 위 "단가"가 이미
+            // VAT 포함 도메인이므로 {@code 단가 × 수량 = 합계} 항등식도 깨져 있었다
+            // (120,000 × 2 = 240,000 ≠ 218,181).
+            // 레드라인({@link SlipRedlineService} LINE_TOTAL)은 이미 {@link #lineTotalDisplayValue}
+            // 를 쓰고 있었다 — 이 한 줄만 저장 컬럼을 직접 읽던 유일한 예외였다.
+            // ⚠️ 과거 이력의 표시 숫자가 소급 변경된다. 개발책임자가 그 규모를 인지한 상태의 결정.
+            new LineField("lineTotal", "합계", SlipRevisionService::lineTotalDisplayValue),
             new LineField("note", "비고", SlipSnapshot.Line::note)
     );
 
@@ -328,7 +346,9 @@ public class SlipRevisionService {
      *       리스트는 헤더 카운트에서 제외.</li>
      *   <li><b>라인</b>: productId 기준 매칭 — cur 에만 있으면 added, prev 에만 있으면 removed,
      *       양쪽 존재하나 라인 필드(quantity, unitPrice, productName, modelName, specification,
-     *       lineTotal, note) 중 하나라도 다르면 modified.</li>
+     *       lineTotal, note) 중 하나라도 다르면 modified. 단가·합계는 저장 컬럼이 아니라
+     *       {@link #LINE_FIELDS} 와 같은 <b>화면 표시값</b>으로 비교한다 (재수렴 7차 #937 —
+     *       {@link #lineDiffers} 참고).</li>
      * </ul>
      *
      * <p>productId 가 null 인 라인은 매칭 키가 없어 added/removed 로만 집계된다 (modified 미판정).
@@ -473,15 +493,22 @@ public class SlipRevisionService {
 
     /**
      * 동일 productId 라인 2건의 필드값이 하나라도 다른지 판정한다 (BigDecimal 은 compareTo).
+     *
+     * <p>🚨 <b>#937 재수렴 7차 R7-1 부수 — 요약과 목록이 같은 판정을 한다</b>. 금액 2필드는
+     * 저장 컬럼이 아니라 {@link #LINE_FIELDS} 와 <b>같은 표시값</b>으로 비교한다. 같은 카드가
+     * {@code changeSummary}(FE {@code formatChangeSummary} 가 전부 0 이면 "변경 없음"으로 렌더)와
+     * {@code fieldChanges} 목록을 함께 보여주므로, 두 지점이 다른 판정을 하면 "변경 없음"이라고
+     * 쓴 카드가 그 아래에 변경을 나열하는 자기모순이 된다 — 부가세만 편집한 라인이 정확히 그
+     * 경우다(저장 {@code lineTotal}=공급가액은 그대로인데 표시 합계 {@code S+V} 는 바뀐다).
      */
     private boolean lineDiffers(SlipSnapshot.Line a, SlipSnapshot.Line b) {
         if (a.quantity() != b.quantity()) {
             return true;
         }
-        if (!bigDecimalEquals(a.unitPrice(), b.unitPrice())) {
+        if (!bigDecimalEquals(unitPriceDisplayValue(a), unitPriceDisplayValue(b))) {
             return true;
         }
-        if (!bigDecimalEquals(a.lineTotal(), b.lineTotal())) {
+        if (!bigDecimalEquals(lineTotalDisplayValue(a), lineTotalDisplayValue(b))) {
             return true;
         }
         return !Objects.equals(a.productName(), b.productName())
@@ -556,6 +583,92 @@ public class SlipRevisionService {
             removedIdx++;
         }
         return changes;
+    }
+
+    /**
+     * 스냅샷 라인의 "단가" 표시값 — 화면과 같은 VAT 포함 도메인. <b>버전이력·레드라인 공용</b>.
+     *
+     * <p>🚨 <b>#937 재수렴 6차 — 개발책임자 결정 A안 "저장 시점에 도메인 기록"</b>.
+     * {@code unitPriceDomain} 이 실려 있으면 <b>휴리스틱 판정을 아예 하지 않고</b> 저장된
+     * {@code unitPriceWithVat} 를 그대로 쓴다. 이 값이 곧 "이 단가가 어느 도메인의 사용자
+     * 입력인가"에 대한 저장 시점의 답이기 때문이다.
+     *
+     * <p><b>왜 판정식으로는 닫히지 않았나</b>: 6라운드에 걸쳐 기준을 세 번 바꿨지만(동일성 →
+     * 항등식 → 공급가액 일치) 오판 표면이 22행 → 10행으로 줄었을 뿐 0 이 되지 않았다. 같은 행
+     * {@code 100000|100000|200000|20000|2} 에 대해 "구 BE 오염 방지"는 유도(110,000)를,
+     * 2026-07-25 결정 P4 는 보존(100,000)을 요구하는데 <b>두 경우의 저장 상태가 완전히 같다</b>.
+     *
+     * <p><b>legacy 행({@code unitPriceDomain == null})은 현행 휴리스틱을 유지한다</b> — 개발책임자
+     * 결정 내용이며, 그 행들의 도메인은 실제로 알 수 없다. 휴리스틱 규칙(4차·5차 근본수정):
+     * {@code unit_price_with_vat} 는 사용자 권위 입력이므로 P4 대로 역산하지 않되,
+     * <b>저장값 × 수량이 VAT 제외 총액(공급가액)과 맞아떨어질 때만</b>(= 구 BE 가 화면 단가를 두
+     * 컬럼에 그대로 각인한 오염 신호) 권위 합계에서 유도한다.
+     *
+     * <p>FE {@code lineVat.resolveUnitPrices} 와 같은 판정 규칙의 미러다 — 갈리면 화면과 감사
+     * 이력이 어긋난다.
+     *
+     * @param line 스냅샷 라인
+     * @return 화면 도메인(VAT 포함) 단가 표시값
+     */
+    static BigDecimal unitPriceDisplayValue(SlipSnapshot.Line line) {
+        BigDecimal stored = line.unitPriceWithVat() != null ? line.unitPriceWithVat() : line.unitPrice();
+        // A안 — 저장 시점에 기록된 도메인이 있으면 추측하지 않는다.
+        if (line.unitPriceDomain() != null && !line.unitPriceDomain().isBlank()
+                && line.unitPriceWithVat() != null) {
+            return line.unitPriceWithVat();
+        }
+        BigDecimal total = lineTotalDisplayValue(line);
+        if (total == null || line.quantity() <= 0) {
+            return stored;
+        }
+        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
+        if (stored != null && !scaledEquals(stored.multiply(BigDecimal.valueOf(line.quantity())), supply)) {
+            return stored;
+        }
+        if (stored != null && scaledEquals(stored.multiply(BigDecimal.valueOf(line.quantity())), total)) {
+            return stored;
+        }
+        return total.divide(BigDecimal.valueOf(line.quantity()), 2, java.math.RoundingMode.HALF_UP);
+    }
+
+    /** 원 단위(scale 0, HALF_UP)로 반올림해 두 금액이 같은지 본다. */
+    private static boolean scaledEquals(BigDecimal left, BigDecimal right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return left.setScale(0, java.math.RoundingMode.HALF_UP)
+                .compareTo(right.setScale(0, java.math.RoundingMode.HALF_UP)) == 0;
+    }
+
+    /**
+     * 스냅샷 라인의 "합계" 표시값 — 화면과 같은 VAT 포함 합계 {@code S + V}.
+     * <b>버전이력·레드라인 공용</b> (재수렴 7차 R7-1 부터 버전이력도 이 함수를 쓴다).
+     *
+     * <p>🚨 <b>#937 재수렴 7차 R7-2 — FE 미러 정렬</b>. 종전에는 {@code supplyAmount} 와
+     * {@code vatAmount} 가 <b>둘 다 없는</b> 구 스냅샷에서 {@code lineTotal}(VAT 제외)을 총액으로
+     * 그대로 반환했다. 그런데 같은 좌표에서 화면({@code SlipDetailPage.slipLineAmounts})은
+     * {@code 공급가액 = lineTotal}, {@code 부가세 = 그 10%} 로 보아 {@code lineTotal + 10%} 를
+     * 총액으로 쓴다. 이 발산 때문에 실전표 {@code 2026/06/24-7} 은 rev3(금액 3값 없음) →
+     * rev4(금액 3값 채워짐) 전이에서 <b>사용자가 하지 않은</b> "품목 1행 단가 100000 → 110000"
+     * 을 버전이력에 남겼다 — 표시 총액이 100,000 에서 110,000 으로 <i>해석만</i> 바뀐 탓이다.
+     * 화면이 사용자가 보는 권위이므로 BE 를 화면에 맞춘다(불변식 3).
+     *
+     * <p>따라서 판정은 화면과 1:1 이다: {@code S = supplyAmount ?: lineTotal},
+     * {@code V = vatAmount ?: S 의 10%(0 방향 절사)}, 총액 {@code = S + V}.
+     * FE 미러: {@code SlipDetailPage.slipLineAmounts} / {@code vatRounding.vatFromSupply}.
+     *
+     * @param line 스냅샷 라인
+     * @return VAT 포함 라인 합계 (금액 정보가 전혀 없으면 null)
+     */
+    static BigDecimal lineTotalDisplayValue(SlipSnapshot.Line line) {
+        BigDecimal supply = line.supplyAmount() != null ? line.supplyAmount() : line.lineTotal();
+        if (supply == null) {
+            return null;
+        }
+        if (line.vatAmount() != null) {
+            return supply.add(line.vatAmount());
+        }
+        return supply.add(com.samhanair.logis.common.financial.VatAmountCalculator.fromSupply(supply));
     }
 
     private Map<UUID, Deque<SlipSnapshot.Line>> lineQueuesByProductId(List<SlipSnapshot.Line> lines) {

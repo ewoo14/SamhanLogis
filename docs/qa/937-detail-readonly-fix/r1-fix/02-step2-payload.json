@@ -1,0 +1,27 @@
+{
+  "updatedAt": "2026-07-26T15:50:17.542489",
+  "partnerId": "a1b2c3d4-0001-0001-0001-000000000001",
+  "partnerName": null,
+  "partnerCode": "P0-6-C001",
+  "businessNumber": "101-81-00001",
+  "memo": "#937-R1-fix-live-qa-throwaway",
+  "deliveryAddress": null,
+  "supervisionAddress": null,
+  "projectName": null,
+  "recipientPhone": null,
+  "paymentDueDate": null,
+  "lines": [
+    {
+      "lineId": "fd528c21-f530-4e4e-acf1-c1a5754a6165",
+      "productId": "d7f488a5-6259-379c-8035-ed551e75a102",
+      "productName": "삼성 윈드프리 9평형",
+      "modelName": "AR09TXEAAWKNEU-04",
+      "quantity": 2,
+      "unitPrice": "60000",
+      "supplyAmount": "120000",
+      "vatAmount": "12000",
+      "lineTotalWithVat": "132000"
+    }
+  ],
+  "lineIdContract": true
+}

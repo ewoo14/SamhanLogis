@@ -73,6 +73,14 @@ export interface SlipLineDetail {
   /** 부가세(라인 단위). nullable(legacy). */
   vatAmount?: string | null
   /**
+   * 단가 권위 도메인 — #937 재수렴 6차 A안 (V59). `'VAT_INCLUSIVE'` / `'SUPPLY'`,
+   * V59 이전 legacy 행은 null.
+   *
+   * 두 단가 컬럼 중 어느 쪽이 사용자 입력인지 표시 계층이 **추측하지 않게** 하는 해석 계약이다
+   * (화면 표시 값 아님). 없으면 `lineVat.resolveUnitPrices` 가 현행 휴리스틱으로 떨어진다.
+   */
+  unitPriceDomain?: string | null
+  /**
    * 세트 전개 첫 구성품 여부 — PR-3 V34 / PR #461.
    * BUNDLE 세트가 전개 저장될 때 첫 번째 구성품 라인 = true, 나머지 = false.
    * 일반 단품 라인 = false (기본값).

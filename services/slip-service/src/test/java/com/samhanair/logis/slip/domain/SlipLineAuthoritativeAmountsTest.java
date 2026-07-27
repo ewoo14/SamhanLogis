@@ -15,14 +15,57 @@ import org.junit.jupiter.api.Test;
 class SlipLineAuthoritativeAmountsTest {
 
     @Test
-    @DisplayName("D-3: 권위 금액을 편집해도 요청 단가와 VAT 포함 단가를 그대로 보존한다")
+    @DisplayName("재수렴 4차(#937): 두 단가 컬럼은 서로 다른 세금 도메인을 담는다 — "
+            + "unit_price = 공급가액/수량(VAT 제외), unit_price_with_vat = 요청 단가(VAT 포함)")
+    void storesEachUnitPriceColumnInItsOwnTaxDomain() {
+        // 화면(SlipFormPage/SlipDetailPage)이 보내는 단가는 2026-06-09 정책상 VAT 포함이다.
+        // 수량 2 · 단가(VAT 포함) 110,000 → 공급가액 200,000 · 부가세 20,000 · 합계 220,000.
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("110000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        // RED(수정 전): 요청 단가를 두 컬럼에 그대로 각인해 unit_price 가 110,000 이 된다 —
+        // 세금계산서/매입전표 인쇄가 읽는 항등식(단가 x 수량 = 공급가액)이 220,000 != 200,000 으로 깨진다.
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("100000");
+        assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("110000");
+        assertThat(line.getUnitPrice().multiply(BigDecimal.valueOf(2)))
+                .isEqualByComparingTo(line.getSupplyAmount());
+    }
+
+    @Test
+    @DisplayName("재수렴 4차(#937): 무수정 재저장은 저장된 두 단가 컬럼을 바꾸지 않는다 "
+            + "(감사 이력이 사용자가 하지 않은 변경을 기록하지 않는다)")
+    void noOpResaveKeepsBothUnitPriceColumnsStable() {
+        SlipLine first = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("110000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        // 화면 하이드레이션이 다시 실어 보내는 값 = VAT 포함 단가(= 저장된 unit_price_with_vat).
+        SlipLine resaved = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                first.getUnitPriceWithVat(), first.getSupplyAmount(), first.getVatAmount(),
+                first.getSupplyAmount().add(first.getVatAmount()), null, null);
+
+        assertThat(resaved.getUnitPrice()).isEqualByComparingTo(first.getUnitPrice());
+        assertThat(resaved.getUnitPriceWithVat()).isEqualByComparingTo(first.getUnitPriceWithVat());
+    }
+
+    @Test
+    @DisplayName("D-3: 권위 금액을 편집해도 요청 단가를 VAT 포함 컬럼에 잃지 않고 보존한다")
     void preservesRequestedUnitPriceForAuthoritativeAmounts() {
         SlipLine line = SlipLine.createFromAuthoritativeAmounts(
                 newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
                 new BigDecimal("11000"), new BigDecimal("50000"), new BigDecimal("2000"),
                 new BigDecimal("52000"), null, null);
 
-        assertThat(line.getUnitPrice()).isEqualByComparingTo("11000");
+        // 재수렴 4차(#937): D-3 의 의도는 "요청 단가를 잃지 않는다" 였고 그 계약은 그대로다 —
+        // 다만 그것을 VAT 포함 컬럼 하나에만 담는다. 종전 단언(unit_price 도 11,000)은 결함
+        // 자체를 고정한 것이었다: 이 케이스는 공급가액 50,000·수량 2 이므로 VAT 제외 공급단가는
+        // 정의상 25,000 이고, 11,000 × 2 = 22,000 != 50,000 이라 세금계산서·매입전표 인쇄가
+        // 읽는 항등식(단가 x 수량 = 공급가액)이 애초에 깨진 값이었다.
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("25000");
         assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("11000");
         assertThat(line.getSupplyAmount()).isEqualByComparingTo("50000");
         assertThat(line.getVatAmount()).isEqualByComparingTo("2000");
@@ -168,6 +211,60 @@ class SlipLineAuthoritativeAmountsTest {
                 1, new BigDecimal("100005"), null);
 
         assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 사용자 입력 단가 경로는 저장 시점에 VAT_INCLUSIVE 를 기록한다")
+    void recordsVatInclusiveDomainOnAuthoritativeFactory() {
+        // D-1R6 좌표 — 사용자가 단가(VAT포함) 100,000 을 입력하고 "부가세 별도"로 정정한 상태.
+        // 저장 상태만 보면 구 BE 오염행(두 컬럼에 같은 VAT 제외 값)과 완전히 같다.
+        SlipLine line = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("100000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        assertThat(line.getUnitPrice()).isEqualByComparingTo("100000");
+        assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("100000");
+        // RED(수정 전): null — DB 에 도메인 정보가 없어 표시 계층이 110,000 으로 유도했다.
+        assertThat(line.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: VAT 포함 팩토리·호환 권위 팩토리도 VAT_INCLUSIVE 를 기록한다")
+    void recordsVatInclusiveDomainOnVatInclusiveFactories() {
+        SlipLine fromVatInclusive = SlipLine.createFromVatInclusive(newOutbound(), UUID.randomUUID(),
+                "품목", null, null, 2, new BigDecimal("11000"), null, null);
+        assertThat(fromVatInclusive.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+
+        SlipLine compat = SlipLine.createFromAuthoritativeAmounts(newOutbound(), UUID.randomUUID(),
+                "품목", null, null, 2, new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+        assertThat(compat.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 평문 공급단가 팩토리는 SUPPLY 를 기록한다")
+    void recordsSupplyDomainOnPlainFactory() {
+        SlipLine line = SlipLine.create(newOutbound(), UUID.randomUUID(), "품목", null, null,
+                2, new BigDecimal("1000"), null);
+
+        assertThat(line.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.SUPPLY);
+    }
+
+    @Test
+    @DisplayName("재수렴 6차(#937) A안: 사본은 원본 도메인을 그대로 승계한다 "
+            + "(원본이 legacy 면 사본도 legacy — 사본이 원본과 다른 단가를 보이면 안 된다)")
+    void copyInheritsUnitPriceDomain() {
+        Slip target = newOutbound();
+        SlipLine source = SlipLine.createFromAuthoritativeAmounts(
+                newOutbound(), UUID.randomUUID(), "품목", "모델", null, 2,
+                new BigDecimal("100000"), new BigDecimal("200000"), new BigDecimal("20000"),
+                new BigDecimal("220000"), null, null);
+
+        SlipLine copy = SlipLine.copyOf(target, source);
+
+        assertThat(copy.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+        assertThat(copy.getUnitPriceWithVat()).isEqualByComparingTo("100000");
     }
 
     private Slip newOutbound() {

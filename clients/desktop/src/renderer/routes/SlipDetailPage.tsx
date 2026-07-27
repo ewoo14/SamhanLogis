@@ -112,11 +112,11 @@ import {
   type PartnerRepriceOutcome,
 } from '../utils/usePartnerPriceRefresh'
 import { lookupProducts } from '../api/productApi'
-import { vatExclusiveOf, vatInclusiveOf } from '../utils/vatPrice'
 import {
-  editLineVat,
+  editSlipLineAmount,
   hasVatWarning,
-  roundProduct,
+  recalculateLineVat,
+  resolveUnitPrices,
   type LineVatLine,
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
@@ -201,12 +201,27 @@ function DetailGridItem({
 
 type SlipLine = SlipDetail['lines'][number]
 
-function slipLineAmounts(line: SlipLine) {
+/**
+ * 읽기전용 상세 표의 라인 금액 — 재수렴 4차·5차(#937) 근본수정.
+ *
+ * <p>단가는 저장 컬럼({@code unit_price_with_vat})을 <b>사용자 권위 입력</b>으로 존중한다
+ * (2026-07-25 개발책임자 결정 P4 — "단가는 결코 역산되지 않는다"). 다만 그 컬럼이 구 BE 저장
+ * 때문에 VAT <b>제외</b> 값을 담고 있는 행(2026-07-27 실측 55건, 저장값 × 수량 = 공급가액으로
+ * 판별)은 세금 도메인이 뒤집혀 있어 권위 합계에서 유도한다. 판정·유도는 수정 화면·인쇄와 같은
+ * 단일 진실원({@link resolveUnitPrices})을 쓴다 — 그래서 같은 전표가 어느 화면에서도 같은
+ * 단가를 보인다.
+ */
+export function slipLineAmounts(line: SlipLine) {
   const supply = line.supplyAmount != null ? Number(line.supplyAmount) : Number(line.lineTotal)
   const vat = line.vatAmount != null ? Number(line.vatAmount) : vatFromSupply(supply)
-  const unitWithVat = line.unitPriceWithVat != null
-    ? Number(line.unitPriceWithVat)
-    : Number(line.unitPrice)
+  const unitWithVat = Number(resolveUnitPrices({
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+    unitPriceWithVat: line.unitPriceWithVat,
+    supplyAmount: supply,
+    vatAmount: vat,
+    unitPriceDomain: line.unitPriceDomain,
+  }).inclusiveUnit)
   return {
     supply,
     vat,
@@ -321,37 +336,51 @@ type PurchaseEditLine = SlipLineInput & {
   authority?: 'PRICE' | 'SUPPLY' | 'VAT' | 'TOTAL'
   vatDirty?: boolean
   isBundleComponent?: boolean
+  /**
+   * 재수렴 R-2(#937) 근본수정 — 이 라인의 supplyAmount/vatAmount 를 만든 함수(fromAmounts/
+   * editSlipLineAmount) 가 이미 내린 경고 판정을 저장해 둔다. 렌더는 이 값을 그대로 읽을
+   * 뿐 다시 계산하지 않는다 — 렌더가 hasVatWarning(supply, vat) 로 독립 재계산하면, PRICE
+   * 권위의 VAT 포함 분리(÷1.1, 0 방향 절사)와 hasVatWarning 의 "공급가액의 10%"가 서로 다른
+   * 반올림 공식이라 앱이 방금 스스로 계산한 값에도 거짓 경고가 붙는다(생성 화면 SlipFormPage
+   * 는 이미 이 저장값(line.vatWarning) 을 그대로 쓴다 — 두 화면이 같은 권위를 쓰게 맞춘다).
+   */
+  vatWarning?: boolean
 }
 
 export type EditUnitPriceLabel = '단가(VAT포함)' | '단가(VAT제외)'
 
 /**
- * 전표 상세 수정 행의 단가가 어느 VAT 도메인인지 판정한다.
+ * 전표 상세 수정 행의 단가 열이 어느 VAT 도메인인지 알린다.
  *
- * 정상 전표는 unitPrice(공급단가)와 unitPriceWithVat(화면 단가)가 다르다.
- * authoritative 저장 경로는 개발책임자 결정에 따라 사용자가 입력한 단가를 두 컬럼에
- * 그대로 보존하므로 두 값이 같다. 이 경우 수정 화면도 그 저장값을 VAT 포함 단가로
- * 설명해야 같은 값에 서로 다른 사실을 붙이지 않는다.
+ * <p>재수렴 R-1(#937) 근본수정: 이 화면은 단가를 직접 편집하든({@link computeDetailUnitPriceChange})
+ * 수량만 바꾸든({@link computeDetailQuantityChange}) 예외 없이 {@link recalculateLineVat} 의
+ * PRICE 권위(단가=VAT 포함, 생성 화면과 동일 함수)로 재계산한다 — 그 사실을 우회하는 경로가
+ * 이 화면에 없다. 이전 구현은 unitPrice/unitPriceWithVat 두 컬럼이 같은지로 행마다 다른
+ * 라벨을 매겼는데, 그 비교는 "하이드레이션 시점에 두 컬럼이 우연히 같은가"만 볼 뿐 "이
+ * 화면이 이 입력에 실제로 무엇을 적용하는가"와는 무관하다 — 실제로는 항상 VAT 포함으로
+ * 계산하므로, 두 컬럼이 다른 활성 라인(실 DB 인구조사: 2,709건 중 2,698건, 99.6%)에서
+ * "단가(VAT제외)" 라벨이 실제 계산과 반대되는 세금 도메인을 사용자에게 약속했다 — 그중
+ * 수정 가능한 DRAFT 2,164건 전부가 영향을 받았고, 단가를 전혀 건드리지 않고 수량만 바꿔도
+ * 발생했다. 라벨을 데이터에 의존하지 않는 상수로 바꿔 V1(라벨=실제 계산)과 V3(편집·재열기
+ * 어느 시점에도 라벨 불변)를 함께 만족한다 — 이 화면 자신의 읽기전용 상세 헤더(고정
+ * "단가(VAT포함)")·생성 화면(SlipFormPage "단가는 부가세 포함 단가")·견적 화면
+ * (EstimateFormPage/EstimateDetailPage 의 고정 "단가(VAT포함)")과도 이제 표현이 같다.
  */
 export function editUnitPriceLabel(
-  line: Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>,
+  _line: Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>,
 ): EditUnitPriceLabel {
-  const unitPrice = Number(line.unitPrice)
-  const unitPriceWithVat = line.unitPriceWithVat == null ? Number.NaN : Number(line.unitPriceWithVat)
-  return Number.isFinite(unitPrice)
-    && Number.isFinite(unitPriceWithVat)
-    && unitPrice === unitPriceWithVat
-    ? '단가(VAT포함)'
-    : '단가(VAT제외)'
+  return '단가(VAT포함)'
 }
 
 /**
  * 여러 행이 섞인 수정 표의 공통 헤더. 행별 accessible label은 각 행의 판정값을 사용한다.
+ * {@link editUnitPriceLabel} 이 상수를 반환하므로(재수렴 R-1) 이 함수도 항상 그 상수로
+ * 수렴한다 — 빈 표 fallback 도 같은 상수로 맞춰 어떤 행 구성에서도 라벨이 갈리지 않는다.
  */
 export function editUnitPriceColumnHeader(
   lines: ReadonlyArray<Pick<PurchaseEditLine, 'unitPrice' | 'unitPriceWithVat'>>,
 ): string {
-  if (lines.length === 0) return '단가(VAT제외)'
+  if (lines.length === 0) return '단가(VAT포함)'
   const first = editUnitPriceLabel(lines[0]!)
   return lines.every((line) => editUnitPriceLabel(line) === first)
     ? first
@@ -376,6 +405,16 @@ export function editUnitPriceColumnHeader(
  */
 type LinePatch = Partial<PurchaseEditLine> | ((line: PurchaseEditLine) => Partial<PurchaseEditLine>)
 
+/** 상세 수정 표의 coedit 경로 — 기존 전표 라인은 배열 위치가 아닌 자기 lineId 를 키로 쓴다. */
+function detailCoeditFieldPath(index: number, line: Pick<PurchaseEditLine, 'lineId'>, cell: string): string {
+  return `items.${line.lineId || index}.${cell}`
+}
+
+/** 상세 표 DOM 식별자 — CRDT 안정키와 분리한 행 위치 기반 testid 경로다. */
+function detailCoeditTestIdPath(index: number, cell: string): string {
+  return `items.${index}.${cell}`
+}
+
 function createEditLineKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
@@ -392,12 +431,51 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     modelName: line.modelName ?? '',
     specification: line.specification ?? '',
     quantity: line.quantity,
-    unitPrice: String(line.unitPrice),
+    // 재수렴 3차(#937) 근본수정 — U1: 이 필드는 recalculateLineVat(PRICE 권위)이 예외 없이
+    // VAT 포함으로 해석하고 라벨도 상수 "단가(VAT포함)"다(R-1). 그런데 여태 VAT 제외
+    // 공급단가인 line.unitPrice 를 그대로 실어, 실측 활성 라인의 99%+(2026-07-27: 2,717건
+    // 중 2,697건)에서 "필드 값의 세금 도메인 ≠ 라벨·계산"이었다 — 무편집 진입 시점부터 이미
+    // 모순이었고, 수량만 바꿔도 과세표준이 틀어졌다(재수렴 3차 실측: 수량 2→3 시 300,000 이
+    // 272,727 로 하락).
+    // 재수렴 4차(#937) 근본수정 — ⑤: 3차는 unit_price_with_vat 를 "무조건 VAT 포함"으로 믿었다.
+    // 그런데 구 BE 저장이 화면 단가를 두 컬럼에 그대로 각인한 행(2026-07-27 실측 활성 55건)은
+    // 그 컬럼이 실제로 VAT 제외 값일 수 있다 — main 편집화면 페이로드가 만든
+    // 100000|100000|200000|20000|2 행에서 100,000(실제로는 VAT 제외)을 VAT 포함으로 오인해
+    // 수량 2→3 시 과세표준이 300,000 대신 272,727 로 9.09% 떨어졌다.
+    // 재수렴 5차(#937) 근본수정 — D-1: 그 4차 판정("VAT 포함 항등식 불만족이면 무조건 유도")은
+    // 반대 결함을 낳았다. 부가세만 편집하면(P6) 단가는 그대로인데 항등식이 정당하게 깨져,
+    // 사용자가 입력한 110,000 이 이 필드에서 112,500 으로 역산되고 무편집 재저장이 DB 를
+    // 덮었다(가격기억 각인 원천 컬럼이라 자동채움까지 오염). 이제는 저장값이 VAT 제외 총액과
+    // 맞아떨어지는 오염 신호가 있을 때만 유도하고, 그 밖에는 사용자 권위 단가를 끝수까지
+    // 보존한다(P4) — 판정·유도는 표시·인쇄와 같은 단일 진실원이다.
+    // 재수렴 6차(#937) 근본수정 — D-1R6: 5차의 "저장값 × 수량 = 공급가액이면 오염" 판정은
+    // 사용자가 공급가액을 단가×수량 에 맞춘 정당한 상태(부가세 별도 정정)를 오염으로 오인했다.
+    // 개발책임자 결정 A안대로 저장 시점 도메인을 읽어 판정 자체를 없앤다(legacy 행만 휴리스틱).
+    unitPrice: resolveUnitPrices({
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      unitPriceWithVat: line.unitPriceWithVat,
+      supplyAmount: line.supplyAmount ?? line.lineTotal,
+      vatAmount: line.vatAmount ?? vatFromSupply(Number(line.lineTotal)),
+      unitPriceDomain: line.unitPriceDomain,
+    }).inclusiveUnit,
     unitPriceWithVat: line.unitPriceWithVat,
     supplyAmount: String(line.supplyAmount ?? line.lineTotal),
     vatAmount: String(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
     lineTotalWithVat: String(
       Number(line.supplyAmount ?? line.lineTotal) + Number(line.vatAmount ?? vatFromSupply(Number(line.lineTotal))),
+    ),
+    // 재수렴 3차(#937) 근본수정 — U2: R-2(직전 라운드)는 "PRICE 권위는 항상 vatWarning:false"
+    // 정책과 짝을 맞춘다는 명분으로 하이드레이션 경고를 무조건 false 로 고정했다. 그 근거
+    // 진술("저장된 라인은 거의 전부 10%를 만족하지 못한다")은 실측과 반대였다 — 2026-07-27
+    // slip_lines 직접 조회: 정확히 10% 2,658건(97.8%), ±1원 잔차 48건(1.8%, PRICE/TOTAL
+    // 권위의 ÷1.1 분리가 구조적으로 낳는 잔차 — hasVatWarning 문서 참고), 그 밖의 실질
+    // 불일치(3,000~18,000원) 11건(0.4%). 무조건 false 는 그 11건의 참 경고까지 함께 없앴다.
+    // hasVatWarning 은 ±1원을 허용 오차로 두어 그 결함을 재도입하지 않으면서도(R-2 가 막던
+    // 거짓 양성은 계속 안 뜬다) 실질 불일치는 다시 경고한다(V2 유지 + 거짓 음성 회복).
+    vatWarning: hasVatWarning(
+      line.supplyAmount ?? line.lineTotal,
+      line.vatAmount ?? vatFromSupply(Number(line.lineTotal)),
     ),
     authority: 'PRICE',
     // Hydrated S/V/T are already authoritative server values. Keep them in
@@ -474,6 +552,30 @@ export function partnerRepriceBannerText(
     unavailable > 0 ? `단가 확인 필요 ${unavailable}건` : null,
     `변경 ${changedCount}행`,
   ].filter(Boolean).join(' · ')
+}
+
+/**
+ * 재조회 outcome(가격기억/카탈로그, VAT 포함 도메인) → 상세 수정 필드에 실제로 적용할 값.
+ *
+ * <p><b>#937 R-3 근본수정</b>: 종전엔 이 값을 {@code vatExclusiveOf}(BE ÷1.1 정수 절사 미러)로
+ * 변환해 필드에 넣었다 — 그 변환은 "수정 화면 필드 = VAT 제외 공급단가"였던 시절의 계약이다.
+ * 그런데 1041bad17 이 이 화면의 실제 계산({@link recalculateLineVat} PRICE 권위, 생성 화면과
+ * 동일 함수)을 "필드 = VAT 포함"으로 되돌렸고(개발책임자 결정 재확인), 071e6c7ac 가 라벨도
+ * 데이터 무관 상수 "단가(VAT포함)"로 고정했다 — 그런데 이 함수(그 전신인 인라인 변환)는 그
+ * 전환에서 빠져 계속 ÷1.1 을 적용했다. 기억·카탈로그와 필드가 이제 같은 VAT 포함 도메인인데
+ * 여전히 ÷1.1 하면, 필드에 들어간 값이 실제로는 VAT 포함 단가로 재해석되어 원래 기억보다
+ * 약 9.09% 낮게 청구된다 — 거래처를 바꿔 저장할 때마다 그 낮아진 값이 다시 기억에 각인되고
+ * 다음 재조회가 그 값을 또 ÷1.1 해, 왕복마다 복리로 더 축소된다(라이브 실증 #937-R3:
+ * 기억 500,000 → 1차 저장 454,545 → 2차 재조회·저장 413,222). 필드·기억이 이제 같은 도메인
+ * 이므로 변환 없이 그대로 승격한다.
+ *
+ * @returns UNAVAILABLE(카탈로그도 미확보)이면 빈 문자열 — 값을 지어내지 않고 저장을 막는
+ *   기존 계약(hasUnavailableReprice)을 그대로 유지한다. 그 외에는 outcome.unitPrice 그대로.
+ */
+export function repricedFieldValue(
+  outcome: Pick<PartnerRepriceOutcome, 'source' | 'unitPrice'>,
+): string {
+  return outcome.source === 'UNAVAILABLE' ? '' : outcome.unitPrice
 }
 
 function EditPriceChangeIndicator({ id }: { id: string }) {
@@ -559,6 +661,15 @@ export function coeditLinesToEditLines(
     const rawLineTotal = provider.getItemValue(index, 'lineTotalWithVat')
     const rawAuthority = provider.getItemValue(index, 'authority')
     const rawVatDirty = provider.getItemValue(index, 'vatDirty')
+    const supplyAmount = rawSupply || previous?.supplyAmount
+    const vatAmount = rawVat || previous?.vatAmount
+    const hasDerivedAmounts = supplyAmount != null
+      && supplyAmount !== ''
+      && vatAmount != null
+      && vatAmount !== ''
+    const lineTotalWithVat = hasDerivedAmounts
+      ? String(Number(supplyAmount) + Number(vatAmount))
+      : rawLineTotal || previous?.lineTotalWithVat
     return {
       key: previous?.key ?? createEditLineKey(),
       lineId: resolveServerLineId(provider, index, knownServerLineIds),
@@ -571,11 +682,25 @@ export function coeditLinesToEditLines(
       unitPrice: provider.getItemValue(index, 'unitPrice'),
       unitPriceWithVat: previous?.unitPriceWithVat,
       note: provider.getItemValue(index, 'note'),
-      supplyAmount: rawSupply || previous?.supplyAmount,
-      vatAmount: rawVat || previous?.vatAmount,
-      lineTotalWithVat: rawLineTotal || previous?.lineTotalWithVat,
+      supplyAmount,
+      vatAmount,
+      lineTotalWithVat,
       authority: (rawAuthority || previous?.authority) as PurchaseEditLine['authority'],
       vatDirty: rawVatDirty ? rawVatDirty === 'true' : previous?.vatDirty,
+      // 재수렴 3차(#937) 근본수정 — U2: R-2(직전 라운드)는 vatWarning 을 "재계산하지 않고
+      // 이전 상태 승계"로 닫았는데, 원격 피어의 첫 렌더에서 previous 는 REST 하이드레이션
+      // 스냅샷이고 그 vatWarning 은 (구) 무조건 false 였다 — 원격 피어는 이후로도 이 필드가
+      // Y.Doc 에 실리지 않아(파생값, authority/vatDirty 와 동일 이유) 계속 false 만 승계해,
+      // 편집자 자신은 실질 불일치를 보고 원격 피어는 못 보는 결함이 있었다(재수렴 3차 2-peer
+      // 실측). hasDerivedAmounts 가 있으면(=supply/vat 를 신뢰할 수 있으면) 매번 그 값으로
+      // 재판정한다 — hasVatWarning 이 ±1원 잔차를 허용 오차로 두므로(lineVat.ts 문서) PRICE
+      // 권위가 막 닫은 라인을 echo 로 되짚어도 거짓 경고가 되살아나지 않는다(R-2 원 결함
+      // 재도입 없음 — supplyAmount/vatAmount 는 위에서 이미 non-null·non-empty 로 좁혀져
+      // hasDerivedAmounts 가 그 증거다). 파생값이 아직 없으면(드문 초기 상태) 판정할 근거가
+      // 없으니 이전 상태를 승계한다.
+      vatWarning: hasDerivedAmounts
+        ? hasVatWarning(supplyAmount!, vatAmount!)
+        : (previous?.vatWarning ?? false),
     }
   })
 }
@@ -583,18 +708,22 @@ export function coeditLinesToEditLines(
 /**
  * 전표 상세(수정) 라인 → {@link LineVatLine} 계산 도메인 변환.
  *
- * <p>이 화면의 단가 열(line.unitPrice)은 VAT 제외 공급단가 계약이라 {@code recalculateLineVat}
- * 의 PRICE 분기(단가=VAT 포함 전제)와 도메인이 다르다. SUPPLY/VAT/TOTAL 권위 편집
- * ({@code updateDetailVat})에서만 사용하고, 수량 변경은 {@link computeDetailQuantityChange}
- * 가 별도로 처리한다(BLOCKING-1 — PRICE 분기로 우회하면 안 되는 이유는 그쪽 주석 참조).
+ * <p>공급가액/부가세 열 직접 편집({@code updateDetailVat}, SUPPLY/VAT authority)에서만
+ * 쓴다. 단가·수량 변경은 이 경로를 타지 않는다 — {@link computeDetailUnitPriceChange}/
+ * {@link computeDetailQuantityChange} 가 {@code recalculateLineVat} 의 PRICE 분기(단가=VAT
+ * 포함 전제)를 생성 화면과 똑같이 직접 호출한다(2차 적대검증 E-1, #937 R2 근본수정 — "이
+ * 화면의 단가는 VAT 제외 공급단가"라는 이전 가정이 틀렸다. 그 가정으로 우회했던 이유는
+ * BLOCKING-1 의 금액 폭증 회귀였는데, 우회 대신 PRICE 분기를 <b>단가 고정 + 새 수량</b>으로
+ * 호출하는 것으로 폭증 없이 해결한다 — {@link computeDetailQuantityChange} 주석 참조).
+ * 합계는 공급가액과 부가세의 파생값으로 읽기 전용 처리한다.
  */
 export function detailVatLine(
-  line: Pick<PurchaseEditLine, 'quantity' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
 ): LineVatLine {
   const total = line.lineTotalWithVat ?? '0'
   return {
     quantity: line.quantity,
-    unitPrice: total,
+    unitPrice: String(line.unitPrice ?? '0'),
     supplyAmount: line.supplyAmount ?? '0',
     vatAmount: line.vatAmount ?? '0',
     lineTotal: total,
@@ -608,42 +737,85 @@ export function detailAmountState(
   authority: PurchaseEditLine['authority'],
 ): Partial<PurchaseEditLine> {
   // BLOCKING-1 부수 발견(#824 R1): `Number(x) || 1` 은 진짜 수량 0(방금 수량 셀을 비운
-  // 직후)을 "값 없음"으로 오판해 1로 되돌린다(JS 0 은 falsy). 수량은 보존하고, 단가
-  // 역산(divisor)만 0 나눗셈 방지로 최소 1을 쓴다.
+  // 직후)을 "값 없음"으로 오판해 1로 되돌린다(JS 0 은 falsy). 수량과 사용자가 입력한
+  // 단가를 그대로 보존하고, 금액 편집에서는 단가를 역산하지 않는다.
   const parsedQuantity = Number(result.quantity)
   const quantity = Number.isFinite(parsedQuantity) ? Math.max(0, Math.trunc(parsedQuantity)) : 0
-  const divisor = Math.max(1, quantity)
   return {
     quantity,
-    // 전표 상세의 기존 단가 열은 VAT 제외 공급단가라는 계약을 유지한다.
-    unitPrice: String(Number(result.supplyAmount) / divisor),
+    // 전표 상세의 단가는 사용자가 입력한 값을 보존하며 역산하지 않는다.
+    unitPrice: String(result.unitPrice),
     supplyAmount: result.supplyAmount,
     vatAmount: result.vatAmount,
     lineTotalWithVat: result.lineTotal,
     authority,
     vatDirty: true,
+    // 재수렴 R-2(#937): editSlipLineAmount 가 이미 내린 경고 판정(warningFor)을 그대로
+    // 승계한다 — 렌더가 다시 계산하지 않는다.
+    vatWarning: result.vatWarning,
   }
 }
 
 /**
- * 전표 상세(수정) 화면 수량 변경 — BLOCKING-1(#824 R1) 근본 수정.
+ * 전표 상세 공급가액/부가세 셀 편집 — 재수렴 R-2(#937) 근본수정, doc-sync 에코 가드.
  *
- * <p>종전에는 {@code changeLineQuantity}(PRICE authority 경로)를 그대로 태워
+ * <p>{@link CollaborativeSlipInput} 은 자기 fieldPath 의 Y.Doc 값이 "직전 렌더값"과 다르면
+ * 실사용자 입력이 아니어도 onValueChange 를 다시 부른다(syncFromDoc). 단가/수량 편집(PRICE
+ * 권위)이 같은 이벤트 안에서 {@link syncDetailAmountToDoc}로 supplyAmount/vatAmount 를 Y.Doc
+ * 에 동기 반영하면, 아직 재렌더 전이라 stale 한 SUPPLY/VAT 입력의 직전값과 새 Y.Doc 값이 달라
+ * 보여 이 함수가 echo 로 다시 호출된다. echo 를 "직접 편집"과 똑같이 처리하면, PRICE 권위가
+ * 이미 false 로 닫은 vatWarning 을 {@link editSlipLineAmount}(SUPPLY/VAT 권위 — authority 와
+ * 무관하게 항상 독립 재판정)이 덮어써 되살린다(라이브QA 실측: 단가 60,000 입력 직후 공급가액
+ * 필드 echo 가 vatWarning:false→true 로 되돌림 — 순수함수 단위 vitest 로는 재현되지 않고 실제
+ * CollaborativeSlipInput 조합에서만 드러난 결함이다).
+ *
+ * <p>불변식: 값이 이미 그 필드의 현재값과 같으면(=echo 또는 무변경 재입력) 재계산 경로 자체를
+ * 타지 않는다 — {@link computeDetailQuantityChange}/{@link computeDetailUnitPriceChange} 의
+ * no-op 가드와 동일 원칙.
+ */
+export function computeDetailVatChange(
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice' | 'lineTotalWithVat' | 'supplyAmount' | 'vatAmount' | 'authority'>,
+  authority: 'SUPPLY' | 'VAT',
+  value: string,
+): Partial<PurchaseEditLine> {
+  const currentValue = authority === 'SUPPLY' ? line.supplyAmount : line.vatAmount
+  if (value === String(currentValue ?? '')) return {}
+  return detailAmountState(editSlipLineAmount(detailVatLine(line), authority, value), authority)
+}
+
+/**
+ * 전표 상세(수정) 화면 수량 변경 — BLOCKING-1(#824 R1) 금액 폭증 회귀 근본수정 + 2차
+ * 적대검증 E-1(#937 R2) 세금 정책 근본수정.
+ *
+ * <p>종전(#824 R1 이전)에는 {@code changeLineQuantity}(PRICE authority 경로)를 그대로 태워
  * {@link detailVatLine} 이 unitPrice 자리에 lineTotalWithVat(합계)를 채워 넣었다. PRICE
  * 분기는 "단가(VAT 포함)×수량=합계"를 전제하므로, 수량을 바꿀 때마다 실제로는
  * "직전 합계 × 새 수량"을 다시 곱하는 꼴이 되어 금액이 기하급수로 불어났다(실측: 수량
  * 2→3 에 220,000→660,000, 2→2 재입력에도 220,000→440,000 — vatDirty=true 로 폭증값이
- * 그대로 권위값 전송됨). 이 화면의 단가 열은 VAT 제외 공급단가 계약이므로, PRICE 경로로
- * 우회하지 않고 <b>공급단가(unitPrice)를 고정한 채 새 수량을 곱해 공급가액만 다시 낸다</b>
- * (SUPPLY authority 로 닫아 부가세는 BE 와 같은 0 방향 절사).
+ * 그대로 권위값 전송됨).
+ *
+ * <p>#937 R1 fix 는 이 폭증만 없애려고 "이 화면의 단가 열은 VAT 제외 공급단가"라는 <b>틀린
+ * 계약</b>을 새로 세워(SUPPLY authority, quantity×unitPrice=공급가액) PRICE 경로 자체를
+ * 우회했다 — 그런데 그 단가 열은 생성 화면과 같은 필드이고, 개발책임자 결정("입력한 단가를
+ * 보존", "소비처를 VAT포함 인식으로 수정")·생성 payload {@code priceVatInclusive: true}·#926
+ * 동적 라벨의 라이브 실측("단가(VAT포함)")이 전부 VAT 포함을 가리킨다. 2차 적대검증(CODEX
+ * SOL) E-1 이 이 불일치를 실측했다(수량 2·단가 60,000 이 생성 120,000 대 수정 132,000 으로
+ * 갈렸다 — 이 PR 제목 "두 화면 정책 일치"의 정면 반박).
+ *
+ * <p>근본수정 — 폭증(직전 합계 재승수)과 세금 정책 불일치(VAT 제외 재정의)를 모두 피하려면,
+ * PRICE 경로 자체를 우회하는 대신 <b>단가는 고정하고 새 수량으로만</b> {@link recalculateLineVat}
+ * 를 다시 호출해야 한다 — 생성 화면(SlipFormPage.updateQuantity → lineVat.changeLineQuantity)이
+ * 수량 변경 시 실제로 하는 일과 동일한 함수 경로다. 별도 계산식을 유지보수하지 않으므로
+ * lineVat.ts 가 바뀌면 두 화면이 함께 바뀐다.
  *
  * <p>불변식:
  * <ol>
  *   <li>단가는 수량 변경으로 바뀌지 않는다 — 반환 patch 의 unitPrice 는 입력을 그대로 승계.</li>
  *   <li>값을 바꾸지 않은 재입력(예: 2→2)은 어떤 금액도 바꾸지 않는다 — 파싱한 수량이 현재
- *       수량과 같으면 반올림 경로 자체를 타지 않고 조기 반환한다(드리프트 원천 차단).</li>
+ *       수량과 같으면 재계산 경로 자체를 타지 않고 조기 반환한다(드리프트 원천 차단).</li>
  *   <li>빈 입력은 수량 0으로 반영한다 — 수량 입력칸을 비울 수 있어야 한다(RED-1, CI hard
  *       gate). 파생 금액도 0으로 닫아 미완성 라인이 이상값을 보이지 않게 한다.</li>
+ *   <li>같은 (수량, 단가) 쌍은 생성 화면과 같은 금액을 낸다(F1, #937 R2).</li>
  * </ol>
  */
 export function computeDetailQuantityChange(
@@ -653,7 +825,7 @@ export function computeDetailQuantityChange(
   const parsed = Number(quantity)
   const safeQuantity = Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0
 
-  // 불변식 2: no-op 재입력은 반올림 경로 자체를 타지 않는다.
+  // 불변식 2: no-op 재입력은 재계산 경로 자체를 타지 않는다.
   if (safeQuantity === Number(line.quantity)) {
     return { quantity: safeQuantity }
   }
@@ -666,15 +838,16 @@ export function computeDetailQuantityChange(
       lineTotalWithVat: '0',
       authority: 'PRICE',
       vatDirty: true,
+      vatWarning: false,
     }
   }
 
   const unitPrice = line.unitPrice ?? '0'
-  const nextSupply = roundProduct(safeQuantity, unitPrice)
-  const vatLine = editLineVat(
+  // 명시 타입인자 <LineVatLine> — 리터럴에 없는 선택 필드(vatWarning 등)를 T 추론이
+  // 좁혀버리면 fromAmounts 가 실제로 채워 돌려주는 vatWarning 이 타입에서 사라진다.
+  const vatLine = recalculateLineVat<LineVatLine>(
     { quantity: safeQuantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
-    'SUPPLY',
-    String(nextSupply),
+    'PRICE',
   )
   return {
     quantity: safeQuantity,
@@ -684,6 +857,223 @@ export function computeDetailQuantityChange(
     lineTotalWithVat: vatLine.lineTotal,
     authority: 'PRICE',
     vatDirty: true,
+    // 재수렴 R-2(#937): recalculateLineVat(PRICE) 가 fromAmounts 에서 이미 내린 판정(항상
+    // false)을 그대로 승계한다 — 생성 화면과 같은 권위, 렌더는 재계산하지 않는다.
+    vatWarning: vatLine.vatWarning,
+  }
+}
+
+/**
+ * 전표 상세(수정) 화면 단가 변경 — 발견 1(#937 R1) 폭증 회귀 근본수정 + 2차 적대검증
+ * E-1(#937 R2) 세금 정책 근본수정.
+ *
+ * <p>{@link computeDetailQuantityChange} 와 축만 다른 자매 함수다. #937 R1 은 이 화면의 단가
+ * 열을 <b>VAT 제외 공급단가</b>로 재정의해(SUPPLY authority, quantity×unitPrice=공급가액)
+ * PRICE authority(생성 화면 lineVat.ts {@link recalculateLineVat}, 단가=VAT 포함 전제)를
+ * 의도적으로 우회했다 — 그 결과 두 화면에 같은 (수량, 단가) 를 입력해도 다른 금액이 나왔다
+ * (2차 적대검증 E-1 실측: 수량 2·단가 60,000 → 생성 120,000 대 수정 132,000). 개발책임자
+ * 결정("입력한 단가를 보존", "소비처를 VAT포함 인식으로 수정")·생성 payload
+ * {@code priceVatInclusive: true}·#926 동적 라벨 라이브 실측("단가(VAT포함)")이 전부 VAT
+ * 포함을 가리키므로, 확립된 규약은 VAT 포함이고 R1 fix 가 반대 방향을 골랐다.
+ *
+ * <p>근본수정 — 생성 화면과 <b>같은 함수</b>({@link recalculateLineVat}, PRICE authority)를
+ * 그대로 호출한다. 별도 계산식을 유지보수하지 않으므로 lineVat.ts 가 바뀌면 두 화면이 함께
+ * 바뀐다(F1, #937 R2 — 같은 (수량, 단가) 쌍은 항상 같은 금액).
+ *
+ * <p>종전(#824 R1 이전)에는 단가 셀 onChange 가 로컬 state 의 unitPrice/vatDirty 만 바꾸고
+ * supplyAmount/vatAmount 는 전혀 건드리지 않아(화면이 옛 금액을 그대로 보여줌), BE 저장
+ * 시에만 quantity×unitPrice 로 재계산돼 화면·DB 가 어긋났다(1차 적대검증 발견 1 2단계). 이
+ * 함수가 낸 파생값은 {@link detailAmountDocWrites}가 Y.Doc 에도 반영해 재열기·doc-sync
+ * 되돌림을 막는다(발견 1 3·4단계 근본수정 — 같은 뿌리인 발견 2 도 함께 닫는다).
+ *
+ * <p>불변식: 값을 바꾸지 않은 재입력은 어떤 금액도 바꾸지 않는다({@link computeDetailQuantityChange}
+ * 불변식 2 와 동일 원칙 — 드리프트 원천 차단).
+ */
+export function computeDetailUnitPriceChange(
+  line: Pick<PurchaseEditLine, 'quantity' | 'unitPrice'>,
+  unitPrice: string,
+): Partial<PurchaseEditLine> {
+  // 불변식: no-op 재입력은 재계산 경로 자체를 타지 않는다.
+  if (unitPrice === String(line.unitPrice ?? '')) {
+    return { unitPrice }
+  }
+
+  // 명시 타입인자 <LineVatLine> — 위 computeDetailQuantityChange 와 동일 이유.
+  const vatLine = recalculateLineVat<LineVatLine>(
+    { quantity: line.quantity, unitPrice, supplyAmount: '0', vatAmount: '0', lineTotal: '0' },
+    'PRICE',
+  )
+  return {
+    unitPrice,
+    supplyAmount: vatLine.supplyAmount,
+    vatAmount: vatLine.vatAmount,
+    lineTotalWithVat: vatLine.lineTotal,
+    authority: 'PRICE',
+    vatDirty: true,
+    // 재수렴 R-2(#937): 생성 화면과 같은 함수(recalculateLineVat PRICE)가 이미 내린 판정을
+    // 그대로 승계한다 — 렌더가 hasVatWarning 으로 다시 계산하면 반올림 공식이 달라 거짓
+    // 경고가 생긴다(11종 sweep 실측: 8/11 거짓 경고).
+    vatWarning: vatLine.vatWarning,
+  }
+}
+
+/**
+ * 전표 상세 금액 셀(단가/공급가액/부가세) 입력 문자열 필터 — 발견 3(#937 R1), E4.
+ *
+ * <p>생성 화면(LineRow.tsx 의 모듈-로컬 {@code parseEditableAmountInput})과 <b>같은 규칙</b>을
+ * 그대로 복제한다 — 그 함수는 export 되지 않고, LineRow.tsx 는 이 PR 의 변경 금지 대상(적대검증
+ * 각도 ②, 바이트 단위 0)이라 import 할 수 없다. 규칙을 바꿀 때는 두 곳을 함께 고쳐야 한다.
+ *
+ * <p>순수 자연수(빈 값 포함) 또는 3자리 콤마 그룹 형식만 허용한다 — 소수점(2.7→3 조용한
+ * HALF_UP 반올림)·부호(-3 음수 공급가액 수용)·지수표기(1e3→1000)를 전부 거부해, 사용자가
+ * 의도하지 않은 다른 금액이 조용히 만들어지는 것을 막는다.
+ *
+ * @return 정규화(콤마 제거)된 숫자 문자열, 또는 거부 시 {@code null}
+ */
+export function parseEditableDetailAmountInput(raw: string): string | null {
+  if (/^\d*$/.test(raw)) return raw
+  if (raw.includes(',,')) return null
+  if (!/^\d{1,3}(?:,\d{0,3})+$/.test(raw)) return null
+  return raw.replace(/,/g, '')
+}
+
+/**
+ * 전표 상세 수량 셀 입력 문자열 필터 — 2차 적대검증 E-2(#937 R2), F2.
+ *
+ * <p>생성 화면(LineRow.tsx 수량 입력 {@code onChange} 의 인라인 게이트, `/^\d*$/`)과 같은
+ * 규칙이다 — 순수 자연수(빈 값 포함)만 통과시키고, 그 외(소수점 `2.7`의 조용한 절삭·부호
+ * `-3`의 음수 수용·지수표기 `1e3`)는 이 입력 자체를 반영하지 않는다(controlled input 이라
+ * 다음 렌더에서 이전 값으로 자동 복귀). 이 필터가 없어 두 화면의 수량 입력 거부 규칙이
+ * 갈렸었다(2차 적대검증 E-2 — 수정 화면은 `2.7`→2 로 조용히 절삭·`-3`→0·`1e3`→1000 을 전부
+ * 수용하고 공급가액·부가세까지 재계산했다). 금액 셀의 {@link parseEditableDetailAmountInput}
+ * 과 달리 콤마 그룹 표기는 허용하지 않는다 — 생성 화면 수량 입력도 콤마를 허용하지 않기
+ * 때문이다(수량은 금액이 아니라 개수라 3자리 그룹 표기 관례 대상이 아니다).
+ *
+ * @return 그대로 통과(정규화 없음), 또는 거부 시 {@code null}
+ */
+export function parseEditableDetailQuantityInput(raw: string): string | null {
+  return /^\d*$/.test(raw) ? raw : null
+}
+
+/**
+ * 로컬에서 재계산된 supplyAmount/vatAmount 를 Y.Doc 필드와 대조해, 갱신이 필요한(=stale 한)
+ * 라인만 골라낸다 — 발견 1·2 근본수정(#937 R1) 이 실제로 쓰는 계산 부분(무엇을 쓸지)이다.
+ * "언제 쓰는지"는 {@link syncDetailAmountToDoc} 참조 — **반드시 동기 호출**해야 한다(그 함수
+ * 주석이 이유를 설명한다).
+ *
+ * <p>quantity/unitPrice 변경({@link computeDetailQuantityChange}/{@link computeDetailUnitPriceChange})은
+ * 로컬 React state 만 갱신하고 Y.Doc 의 supplyAmount/vatAmount 필드는 건드리지 않는다. 그런데
+ * {@link coeditLinesToEditLines}(:558-563 부근)는 그 두 필드의 Y.Doc 원문이 있으면 그것을
+ * 신뢰한다(원격 피어의 직접 편집을 반영하기 위한 정상 설계) — 이 함수가 재계산된 값을 Y.Doc
+ * 에도 함께 반영해 두 저장소를 늘 일치시킨다.
+ *
+ * <p>lineTotalWithVat 는 동기화 대상에서 <b>의도적으로 제외</b>한다 —
+ * {@link coeditLinesToEditLines} 는 supplyAmount·vatAmount 가 둘 다 있으면 항상 그 합으로
+ * 새로 유도하므로(:565-571), Y.Doc 의 원본 lineTotalWithVat 필드는 그 분기에서 읽히지 않는다.
+ *
+ * <p>신규(미저장) 라인은 이 화면에서 만들 수 없다(행 추가 버튼이 SlipFormPage 로 안내만
+ * 한다) — 모든 라인이 항상 lineId 를 갖는다는 이 화면의 기존 전제를 그대로 따른다.
+ */
+export function detailAmountDocWrites(
+  provider: Pick<DocCoeditProvider, 'getItemValueById'>,
+  lines: ReadonlyArray<Pick<PurchaseEditLine, 'lineId' | 'supplyAmount' | 'vatAmount'>>,
+): Array<{ lineId: string; supplyAmount: string; vatAmount: string }> {
+  const writes: Array<{ lineId: string; supplyAmount: string; vatAmount: string }> = []
+  for (const line of lines) {
+    if (!line.lineId) continue
+    const nextSupply = line.supplyAmount ?? '0'
+    const nextVat = line.vatAmount ?? '0'
+    if (
+      provider.getItemValueById(line.lineId, 'supplyAmount') === nextSupply
+      && provider.getItemValueById(line.lineId, 'vatAmount') === nextVat
+    ) continue
+    writes.push({ lineId: line.lineId, supplyAmount: nextSupply, vatAmount: nextVat })
+  }
+  return writes
+}
+
+/**
+ * quantity/unitPrice 재계산 직후 Y.Doc 에 동기 반영한다 — 발견 1·2 근본수정(#937 R1),
+ * "언제"를 담당한다({@link detailAmountDocWrites} 는 "무엇을").
+ *
+ * <p>🚨 <b>반드시 이 필드를 편집한 {@code CollaborativeSlipInput} 의 onValueChange 콜백
+ * 안에서, 동기로(await 없이) 호출해야 한다</b> — React {@code useEffect}(비동기, post-commit)
+ * 로는 늦다는 것이 라이브 실측이다: 그 컴포넌트 자신이 onValueChange 직후 <b>같은 이벤트
+ * 핸들러 안에서</b> quantity/unitPrice 를 Y.Doc 에 쓰고, 그 쓰기가 즉시(동기) 문서변경
+ * 이벤트를 내 {@link coeditLinesToEditLines} 를 재호출시킨다. 그 함수는 Y.Doc 의
+ * supplyAmount/vatAmount 원문을 신뢰하므로, 이 동기화가 effect 로 미뤄지면(다음 렌더 커밋
+ * 후) 그 사이에 낀 coeditLinesToEditLines 호출이 <b>아직 안 쓰인(stale) Y.Doc 값</b>을 읽어
+ * 방금 재계산한 로컬값을 되돌린다 — effect 버전은 vitest 는 전부 통과했지만 실 브라우저에서
+ * 재현되지 않았다(라이브QA 로만 드러남, RED-first 로도 못 잡는 유형).
+ *
+ * <p>{@code preEditLine}(patch 적용 <b>전</b> 스냅샷)은 JSX map 클로저 값이다 — 한 번의
+ * 동기 키 입력 캐스케이드 안에서는 이 컴포넌트가 다시 렌더되지 않으므로(React 는 이벤트
+ * 핸들러 종료까지 커밋을 미룬다) 이 시점의 line 이 곧 "이번 편집 직전"의 유일한 참값이다.
+ *
+ * <p>unitPrice/quantity 자신도 함께 쓴다(중복 — CollaborativeSlipInput 이 어차피 다시 쓴다)
+ * — 그래야 이 트랜잭션 하나로 Y.Doc 이 즉시 완전히 일치해, 뒤이은 개별 필드 syncFromDoc
+ * 재동기 캐스케이드가 몇 단계를 거치든 항상 같은(정답) 값으로 수렴한다.
+ *
+ * <p>🚨 <b>Y.Doc 의 현재값과 비교해 실제로 다를 때만 쓴다</b>(unitPrice/quantity 포함 —
+ * detailAmountDocWrites 는 supplyAmount/vatAmount 만 대조하므로 이 함수가 나머지 두 필드도
+ * 직접 대조한다). 이 대조가 없으면 무한 재귀로 콜스택이 터진다(라이브 실측 — "Maximum call
+ * stack size exceeded"): 이 필드 자신의 개별 syncFromDoc 이 방금 쓴 값을 "원격 변경"으로
+ * 오인해 onValueChange 를 재호출하는데, 그 재호출은 JSX map 클로저의 stale {@code preEditLine}
+ * 을 다시 넘겨받으므로 {@link computeDetailUnitPriceChange}/{@link computeDetailQuantityChange}
+ * 의 no-op 가드(입력값 vs stale 이전 라인)가 "값이 바뀌었다"고 영원히 오판한다 — 가드가
+ * 막아주지 못하는 이 재귀는 반드시 <b>Y.Doc 현재값과 이번에 쓸 값이 이미 같은지</b>로 끊어야
+ * 한다(stale 클로저와 무관하게 Y.Doc 자신은 각 라운드마다 최신이므로 여기서는 안전하다).
+ */
+export function syncDetailAmountToDoc(
+  provider: DocCoeditProvider | null,
+  preEditLine: Pick<PurchaseEditLine, 'lineId'>,
+  patch: Partial<PurchaseEditLine>,
+) {
+  if (!provider || !preEditLine.lineId || patch.supplyAmount == null || patch.vatAmount == null) return
+  const lineId = preEditLine.lineId
+  const writes = detailAmountDocWrites(provider, [
+    { lineId, supplyAmount: patch.supplyAmount, vatAmount: patch.vatAmount },
+  ])
+  const needsUnitPrice = patch.unitPrice != null
+    && provider.getItemValueById(lineId, 'unitPrice') !== String(patch.unitPrice)
+  const needsQuantity = patch.quantity != null
+    && provider.getItemValueById(lineId, 'quantity') !== String(patch.quantity)
+  if (writes.length === 0 && !needsUnitPrice && !needsQuantity) return
+  provider.doc.transact(() => {
+    if (needsUnitPrice) provider.setItemValueById(lineId, 'unitPrice', String(patch.unitPrice))
+    if (needsQuantity) provider.setItemValueById(lineId, 'quantity', String(patch.quantity))
+    for (const write of writes) {
+      provider.setItemValueById(write.lineId, 'supplyAmount', write.supplyAmount)
+      provider.setItemValueById(write.lineId, 'vatAmount', write.vatAmount)
+    }
+  })
+}
+
+/**
+ * 전표 상세 수정 라인 → BE {@code SlipUpdateRequest.LineRequest} payload 변환.
+ *
+ * <p>발견 1(#937 R1) RED 테스트가 저장 payload 를 직접 단정할 수 있도록 매출/매입 저장
+ * 핸들러의 중복 인라인 매핑을 추출했다(동작 변경 없음 — 순수 리팩터). {@code vatDirty} 가
+ * 아니면 공급가액·부가세·합계를 생략해 BE 가 quantity×unitPrice 로 재계산하게 한다
+ * (all-or-nothing 계약, BE AuthoritativeAmountValidator 미러).
+ */
+export function buildDetailLinePayload(line: PurchaseEditLine): SlipLineInput {
+  return {
+    lineId: line.lineId ?? null,
+    productId: line.productId,
+    productName: line.productName?.trim() || undefined,
+    modelName: line.modelName?.trim() || undefined,
+    specification: line.specification?.trim() || undefined,
+    quantity: Number(line.quantity),
+    unitPrice: String(line.unitPrice || '0'),
+    note: line.note?.trim() || undefined,
+    ...(line.vatDirty
+      ? {
+          supplyAmount: line.supplyAmount,
+          vatAmount: line.vatAmount,
+          lineTotalWithVat: line.lineTotalWithVat,
+        }
+      : {}),
   }
 }
 
@@ -1812,13 +2202,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
    * 카탈로그 미확보 라인(품목 삭제/조회 실패/판매가 null)은 현재값을 비우고 UNAVAILABLE 마커와
    * 저장 차단을 적용한다. 값을 지어내지 않으면서 옛 거래처 단가의 조용한 각인도 허용하지 않는다.
    *
-   * <p><b>VAT 도메인 변환</b> (R8 잔여 2 — 드리프트): 기억·카탈로그는 VAT <b>포함</b>, 수정 필드는
-   * VAT <b>제외</b> 공급단가다(utils/vatPrice.ts 에 BE 실증 기록). 후보는 포함 도메인으로 승격해
-   * 훅에 넘기고(비교 도메인 통일), 적용 시 {@code vatExclusiveOf}(BE ÷1.1 정수 절사 미러)로
-   * 필드 도메인 변환한다. 미변환 시 기억 500,000 이 필드에 그대로 실려 저장 ×1.1 = 550,000 으로
-   * 거래처 변경마다 ~10% 복리 팽창했다(라이브 실증). 라인별 세구분 분기는 두지 않는다 — BE
-   * SlipLine 에 세구분 필드가 없고 수정 저장 각인이 전 라인 균일 ×1.1 이므로 균일 ÷1.1 이 유일한
-   * 정합 미러다.
+   * <p><b>VAT 도메인</b> (R8 잔여 2 드리프트 fix → <b>#937 R-3 근본수정으로 무변환</b>): 기억·
+   * 카탈로그는 VAT <b>포함</b>이고, 1041bad17/071e6c7ac 이후 이 화면의 수정 필드도 생성 화면과
+   * 같은 VAT <b>포함</b>이다({@link recalculateLineVat} PRICE 권위 — utils/vatPrice.ts 문서와
+   * {@link repricedFieldValue} 참고). 두 도메인이 같으므로 후보 build 와 적용 모두 변환하지
+   * 않는다 — 종전엔 {@code vatExclusiveOf}(BE ÷1.1 미러)로 변환했는데, 그건 필드가 아직 VAT
+   * 제외였던 시절의 계약이 남아 있던 것이다. 그 변환을 필드=VAT포함 전환 이후에도 그대로
+   * 두면 기억 500,000 이 필드에 454,545(÷1.1)로 실려 실단가가 9.09% 낮아지고, 거래처를
+   * 왕복하며 저장할 때마다 그 낮아진 값이 다시 기억에 각인돼 복리로 더 줄었다(라이브 실증
+   * #937-R3: 500,000 → 454,545 → 413,222). 라인별 세구분 분기는 두지 않는다 — BE SlipLine 에
+   * 세구분 필드가 없고 수정 저장 각인이 전 라인 균일이므로 균일 무변환이 유일한 정합이다.
    *
    * <p><b>세트 구성품 제외</b> (R8 재fix 회귀 교정): {@link bundleComponentLineIds} 라인
    * (parentSetModel 비공백 — head 포함)은 후보에서 뺀다. 구성품은 수정 저장의 가격기억 각인
@@ -1864,8 +2257,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setModalRepricePending(false)
       return
     }
-    // 필드(VAT제외) 스냅샷 — 적용 시 실변경 판정 기준(build 시점).
-    const currentExclusiveByLineId = new Map(
+    // 필드(VAT포함, #937 R-3) 스냅샷 — 적용 시 실변경 판정 기준(build 시점).
+    const currentFieldByLineId = new Map(
       targets.map((line) => [line.lineId!, String(line.unitPrice ?? '').trim()]),
     )
     // 1단계: 카탈로그 판매가(VAT포함) 조회 — miss fallback 원천.
@@ -1884,17 +2277,15 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           catalogInclusiveByProductId.set(product.id, String(product.sellingPrice))
         }
       }
-      // 2단계: 후보를 기억 도메인(VAT포함)으로 승격해 공용 훅 실행.
-      const candidates: PartnerRepriceCandidate[] = targets.map((line) => {
-        const currentInclusive = vatInclusiveOf(currentExclusiveByLineId.get(line.lineId!) ?? '')
-        return {
-          key: line.lineId!,
-          productId: line.productId!,
-          currentUnitPrice: currentInclusive,
-          // 삭제품목·sellingPrice null·조회 실패는 null — 공용 훅이 UNAVAILABLE 로 명시한다.
-          catalogFallback: catalogInclusiveByProductId.get(line.productId!) ?? null,
-        }
-      })
+      // 2단계: 후보 build — #937 R-3 이후 필드도 기억과 같은 VAT 포함 도메인이라 변환이 없다
+      // (종전 vatInclusiveOf 승격은 필드=VAT제외 시절의 계약 — 이제 그대로 넘긴다).
+      const candidates: PartnerRepriceCandidate[] = targets.map((line) => ({
+        key: line.lineId!,
+        productId: line.productId!,
+        currentUnitPrice: currentFieldByLineId.get(line.lineId!) ?? '',
+        // 삭제품목·sellingPrice null·조회 실패는 null — 공용 훅이 UNAVAILABLE 로 명시한다.
+        catalogFallback: catalogInclusiveByProductId.get(line.productId!) ?? null,
+      }))
       const { outcomes, isCurrent } = await partnerReprice.run(partnerId, candidates)
       const requestIsCurrent = () => partnerRepriceSessionIsCurrent(
         seq,
@@ -1905,27 +2296,27 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       )
       if (!requestIsCurrent()) return
       // in-flight 편집 재검증 원천 — provider 있으면 Y.Doc(원격 포함 최신), 없으면 로컬 state 최신 ref.
-      const liveExclusiveOf = (lineId: string): string => {
+      const liveFieldValueOf = (lineId: string): string => {
         if (provider) return provider.getItemValueById(lineId, 'unitPrice').trim()
         const line = editLinesRef.current.find((candidate) => candidate.lineId === lineId)
         return line === undefined ? '' : String(line.unitPrice ?? '').trim()
       }
-      // 3단계: outcome(포함 도메인)을 필드 도메인(VAT제외)으로 변환한다.
+      // 3단계: outcome → 필드에 적용할 값(#937 R-3: 같은 VAT 포함 도메인이라 변환 없음).
       const changed = new Set<string>()
       const priceByLineId = new Map<string, string>()
       const appliedOutcomes = new Map<string, PartnerRepriceOutcome>()
       for (const outcome of outcomes) {
-        const nextExclusive = outcome.source === 'UNAVAILABLE' ? '' : vatExclusiveOf(outcome.unitPrice)
-        const currentExclusive = currentExclusiveByLineId.get(outcome.key)
-        if (currentExclusive === undefined || (outcome.source !== 'UNAVAILABLE' && !nextExclusive)) continue
+        const nextValue = repricedFieldValue(outcome)
+        const currentValue = currentFieldByLineId.get(outcome.key)
+        if (currentValue === undefined || (outcome.source !== 'UNAVAILABLE' && !nextValue)) continue
         // 조회 중 직접 편집된 값과 삭제된 라인은 결과로 덮지 않는다.
-        if (liveExclusiveOf(outcome.key) !== currentExclusive) continue
+        if (liveFieldValueOf(outcome.key) !== currentValue) continue
         appliedOutcomes.set(outcome.key, outcome)
-        if (nextExclusive === currentExclusive || (
-          nextExclusive !== '' && Number(nextExclusive) === Number(currentExclusive)
+        if (nextValue === currentValue || (
+          nextValue !== '' && Number(nextValue) === Number(currentValue)
         )) continue
         changed.add(outcome.key)
-        priceByLineId.set(outcome.key, nextExclusive)
+        priceByLineId.set(outcome.key, nextValue)
       }
       if (priceByLineId.size > 0) {
         if (!requestIsCurrent()) return
@@ -1991,23 +2382,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: purchaseProjectName.trim() || null,
       recipientPhone: purchaseRecipientPhone.trim() || null,
       paymentDueDate: purchasePaymentDueDate || null,
-      lines: purchaseEditLines.map((line) => ({
-        lineId: line.lineId ?? null,
-        productId: line.productId,
-        productName: line.productName?.trim() || undefined,
-        modelName: line.modelName?.trim() || undefined,
-        specification: line.specification?.trim() || undefined,
-        quantity: Number(line.quantity),
-        unitPrice: String(line.unitPrice || '0'),
-        note: line.note?.trim() || undefined,
-        ...(line.vatDirty
-          ? {
-              supplyAmount: line.supplyAmount,
-              vatAmount: line.vatAmount,
-              lineTotalWithVat: line.lineTotalWithVat,
-            }
-          : {}),
-      })),
+      lines: purchaseEditLines.map(buildDetailLinePayload),
     })
   }
 
@@ -2027,23 +2402,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: salesProjectName.trim() || null,
       recipientPhone: salesRecipientPhone.trim() || null,
       paymentDueDate: salesPaymentDueDate || null,
-      lines: salesEditLines.map((line) => ({
-        lineId: line.lineId ?? null,
-        productId: line.productId,
-        productName: line.productName?.trim() || undefined,
-        modelName: line.modelName?.trim() || undefined,
-        specification: line.specification?.trim() || undefined,
-        quantity: Number(line.quantity),
-        unitPrice: String(line.unitPrice || '0'),
-        note: line.note?.trim() || undefined,
-        ...(line.vatDirty
-          ? {
-              supplyAmount: line.supplyAmount,
-              vatAmount: line.vatAmount,
-              lineTotalWithVat: line.lineTotalWithVat,
-            }
-          : {}),
-      })),
+      lines: salesEditLines.map(buildDetailLinePayload),
     })
   }
 
@@ -2245,7 +2604,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.productName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'productName')}
+                    testIdPath={detailCoeditTestIdPath(index, 'productName')}
                     value={line.productName ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { productName: value })}
                     aria-label={`품목 ${index + 1}`}
@@ -2254,7 +2614,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.modelName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'modelName')}
+                    testIdPath={detailCoeditTestIdPath(index, 'modelName')}
                     value={line.modelName ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { modelName: value })}
                     aria-label={`모델명 ${index + 1}`}
@@ -2263,7 +2624,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.specification`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'specification')}
+                    testIdPath={detailCoeditTestIdPath(index, 'specification')}
                     value={line.specification ?? ''}
                     onValueChange={(value) => updateSalesLine(index, { specification: value })}
                     aria-label={`규격 ${index + 1}`}
@@ -2272,22 +2634,32 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.quantity`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'quantity')}
+                    testIdPath={detailCoeditTestIdPath(index, 'quantity')}
                     type="number"
                     min={1}
                     value={String(line.quantity)}
-                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, value)}
+                    parseValue={parseEditableDetailQuantityInput}
+                    onValueChange={(value) => updateDetailQuantity(index, updateSalesLine, slipFormCoeditProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.unitPrice`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'unitPrice')}
+                    testIdPath={detailCoeditTestIdPath(index, 'unitPrice')}
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
-                    onValueChange={(value) => updateSalesLine(index, { unitPrice: value, vatDirty: false })}
+                    parseValue={parseEditableDetailAmountInput}
+                    onValueChange={(value) => {
+                      // 함수형 patch 로 바뀌어 updateSalesLine 내부의 object-patch 전용
+                      // 강조해제 분기를 타지 않는다 — 여기서 직접 처리한다(단가값 자체는
+                      // 안정적이라 race 걱정 없이 closure 의 line.lineId 로 충분하다).
+                      clearRepriceHighlight(line.lineId)
+                      updateDetailUnitPrice(index, updateSalesLine, slipFormCoeditProvider, line, value)
+                    }}
                     aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
@@ -2304,9 +2676,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.supplyAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'supplyAmount')}
+                    testIdPath={detailCoeditTestIdPath(index, 'supplyAmount')}
                     type="number" min={0}
                     value={String(line.supplyAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'SUPPLY', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`공급가액 ${index + 1}`}
@@ -2315,25 +2689,31 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.vatAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'vatAmount')}
+                    testIdPath={detailCoeditTestIdPath(index, 'vatAmount')}
                     type="number" min={0}
                     value={String(line.vatAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'VAT', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`부가세 ${index + 1}`}
                   />
-                  {line.vatAmount != null && hasVatWarning(line.supplyAmount ?? line.lineTotalWithVat ?? '0', line.vatAmount)
+                  {line.vatAmount != null && line.vatWarning
                     ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span>
                     : null}
                 </td>
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.lineTotalWithVat`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'lineTotalWithVat')}
+                    testIdPath={detailCoeditTestIdPath(index, 'lineTotalWithVat')}
                     type="number" min={0}
                     value={String(line.lineTotalWithVat ?? '0')}
-                    onValueChange={(value) => updateDetailVat(index, updateSalesLine, 'TOTAL', value)}
-                    readOnly={Boolean(line.isBundleComponent)}
+                    // 합계는 공급가액+부가세 파생값이다. 협업 입력은 원격 인식과
+                    // 문서 구독을 유지하되, 사용자 입력과 협업 문서의 합계 직접 편집은 받지 않는다.
+                    onValueChange={() => undefined}
+                    onDocSyncValueChange={() => undefined}
+                    readOnly
                     aria-label={`합계(VAT포함) ${index + 1}`}
                   />
                 </td>
@@ -2540,7 +2920,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.productName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'productName')}
+                    testIdPath={detailCoeditTestIdPath(index, 'productName')}
                     value={line.productName ?? ''}
                     onValueChange={(value) => updatePurchaseLine(index, { productName: value })}
                     aria-label={`품목 ${index + 1}`}
@@ -2549,7 +2930,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.modelName`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'modelName')}
+                    testIdPath={detailCoeditTestIdPath(index, 'modelName')}
                     value={line.modelName ?? ''}
                     onValueChange={(value) => updatePurchaseLine(index, { modelName: value })}
                     aria-label={`모델명 ${index + 1}`}
@@ -2558,7 +2940,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.specification`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'specification')}
+                    testIdPath={detailCoeditTestIdPath(index, 'specification')}
                     value={line.specification ?? ''}
                     onValueChange={(value) => updatePurchaseLine(index, { specification: value })}
                     aria-label={`규격 ${index + 1}`}
@@ -2567,22 +2950,30 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.quantity`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'quantity')}
+                    testIdPath={detailCoeditTestIdPath(index, 'quantity')}
                     type="number"
                     min={1}
                     value={String(line.quantity)}
-                    onValueChange={(value) => updateDetailQuantity(index, updatePurchaseLine, value)}
+                    parseValue={parseEditableDetailQuantityInput}
+                    onValueChange={(value) => updateDetailQuantity(index, updatePurchaseLine, slipFormCoeditProvider, line, value)}
                     aria-label={`수량 ${index + 1}`}
                   />
                 </td>
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.unitPrice`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'unitPrice')}
+                    testIdPath={detailCoeditTestIdPath(index, 'unitPrice')}
                     type="number"
                     min={0}
                     value={String(line.unitPrice)}
-                    onValueChange={(value) => updatePurchaseLine(index, { unitPrice: value, vatDirty: false })}
+                    parseValue={parseEditableDetailAmountInput}
+                    onValueChange={(value) => {
+                      // 매출 행과 동일 — 함수형 patch 전환으로 우회된 강조해제를 여기서 직접 처리.
+                      clearRepriceHighlight(line.lineId)
+                      updateDetailUnitPrice(index, updatePurchaseLine, slipFormCoeditProvider, line, value)
+                    }}
                     aria-label={`${editUnitPriceLabel(line)} ${index + 1}`}
                     aria-describedby={[
                       marker ? sourceStatusId : null,
@@ -2599,9 +2990,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.supplyAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'supplyAmount')}
+                    testIdPath={detailCoeditTestIdPath(index, 'supplyAmount')}
                     type="number" min={0}
                     value={String(line.supplyAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'SUPPLY', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`공급가액 ${index + 1}`}
@@ -2610,25 +3003,31 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.vatAmount`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'vatAmount')}
+                    testIdPath={detailCoeditTestIdPath(index, 'vatAmount')}
                     type="number" min={0}
                     value={String(line.vatAmount ?? '0')}
+                    parseValue={parseEditableDetailAmountInput}
                     onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'VAT', value)}
                     readOnly={Boolean(line.isBundleComponent)}
                     aria-label={`부가세 ${index + 1}`}
                   />
-                  {line.vatAmount != null && hasVatWarning(line.supplyAmount ?? line.lineTotalWithVat ?? '0', line.vatAmount)
+                  {line.vatAmount != null && line.vatWarning
                     ? <span role="note" style={{ color: '#9A6700', fontSize: 10 }}>⚠ 10%와 다름</span>
                     : null}
                 </td>
                 <td>
                   <CollaborativeSlipInput
                     provider={slipFormCoeditProvider} coeditPending={slipFormCoeditPending}
-                    fieldPath={`items.${index}.lineTotalWithVat`}
+                    fieldPath={detailCoeditFieldPath(index, line, 'lineTotalWithVat')}
+                    testIdPath={detailCoeditTestIdPath(index, 'lineTotalWithVat')}
                     type="number" min={0}
                     value={String(line.lineTotalWithVat ?? '0')}
-                    onValueChange={(value) => updateDetailVat(index, updatePurchaseLine, 'TOTAL', value)}
-                    readOnly={Boolean(line.isBundleComponent)}
+                    // 합계는 공급가액+부가세 파생값이다. 협업 입력은 원격 인식과
+                    // 문서 구독을 유지하되, 사용자 입력과 협업 문서의 합계 직접 편집은 받지 않는다.
+                    onValueChange={() => undefined}
+                    onDocSyncValueChange={() => undefined}
+                    readOnly
                     aria-label={`합계(VAT포함) ${index + 1}`}
                   />
                 </td>
@@ -3540,13 +3939,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 slip.lines.map((l, idx) => {
                   const selected = selectedLineId === l.id
                   const checked = checkedLineIds.has(l.id)
-                  // 단가 부가세포함 전환: unitPriceWithVat 있으면 VAT포함 단가/공급가액/부가세 표시.
-                  // legacy(없음) 는 unitPrice 를 공급단가로 보고 동일 방식 분해.
-                  const supplyVal = l.supplyAmount != null ? Number(l.supplyAmount) : Number(l.lineTotal)
-                  const vatVal = l.vatAmount != null ? Number(l.vatAmount) : vatFromSupply(supplyVal)
-                  const unitWithVatVal = l.unitPriceWithVat != null
-                    ? Number(l.unitPriceWithVat) : Number(l.unitPrice)
-                  const totalInclVal = supplyVal + vatVal
+                  // 단가 부가세포함 전환: 권위 금액(공급가액/부가세)에서 VAT 포함 단가/합계를 표시한다.
+                  // 재수렴 4차(#937): 모바일 카드와 같은 slipLineAmounts 단일 진실원으로 합친다 —
+                  // 종전엔 같은 화면이 데스크톱 표와 모바일 카드에서 단가를 따로 계산했다.
+                  const { supply: supplyVal, vat: vatVal, totalIncl: totalInclVal, unitWithVat: unitWithVatVal }
+                    = slipLineAmounts(l)
                   return (
                     <tr key={l.id} className={selected ? 'is-selected' : undefined}>
                       {/* Phase 2.6d: 재고조회 체크박스 */}
@@ -4257,23 +4654,47 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     </>
   )
 
+  /**
+   * 수량 셀 편집. 로컬 state 는 함수형 patch 로 넘겨 setState 업데이터 내부의 최신(직전
+   * patch 반영 후) 라인으로 계산한다(LinePatch 주석 — ref 스냅샷 경합 차단). Y.Doc 동기화는
+   * {@code preEditLine}(JSX map 클로저 — 이번 편집 직전 스냅샷)으로 별도 계산해
+   * {@link syncDetailAmountToDoc} 에 동기로 넘긴다(발견 2, #937 R1 근본수정 — 그 함수 주석이
+   * "동기" 여야 하는 이유를 설명한다).
+   */
   function updateDetailQuantity(
     index: number,
     update: (index: number, patch: LinePatch) => void,
+    provider: DocCoeditProvider | null,
+    preEditLine: PurchaseEditLine,
     value: string,
   ) {
-    // 함수형 patch — setState 업데이터 내부의 최신(직전 patch 반영 후) 라인으로 계산한다
-    // (LinePatch 주석 — ref 스냅샷 경합 차단).
     update(index, (line) => computeDetailQuantityChange(line, value))
+    syncDetailAmountToDoc(provider, preEditLine, computeDetailQuantityChange(preEditLine, value))
+  }
+
+  /**
+   * 단가 셀 편집 — 발견 1(#937 R1) 근본수정. {@link updateDetailQuantity} 와 동일 구조
+   * (함수형 patch + preEditLine 스냅샷). 재조회 강조 해제(clearRepriceHighlight)는 호출부가
+   * closure 의 `line.lineId` 로 직접 처리한다.
+   */
+  function updateDetailUnitPrice(
+    index: number,
+    update: (index: number, patch: LinePatch) => void,
+    provider: DocCoeditProvider | null,
+    preEditLine: PurchaseEditLine,
+    value: string,
+  ) {
+    update(index, (line) => computeDetailUnitPriceChange(line, value))
+    syncDetailAmountToDoc(provider, preEditLine, computeDetailUnitPriceChange(preEditLine, value))
   }
 
   function updateDetailVat(
     index: number,
     update: (index: number, patch: LinePatch) => void,
-    authority: 'SUPPLY' | 'VAT' | 'TOTAL',
+    authority: 'SUPPLY' | 'VAT',
     value: string,
   ) {
-    update(index, (line) => detailAmountState(editLineVat(detailVatLine(line), authority, value), authority))
+    update(index, (line) => computeDetailVatChange(line, authority, value))
   }
 
   function updatePurchaseLine(index: number, patch: LinePatch) {
@@ -4288,12 +4709,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removePurchaseLine(index: number) {
-    clearRepriceHighlight(purchaseEditLinesRef.current[index]?.lineId)
-    setPurchaseEditLines((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      slipFormCoeditProvider?.replaceItems(next)
-      return next
-    })
+    const lineId = purchaseEditLinesRef.current[index]?.lineId
+    clearRepriceHighlight(lineId)
+    // 배열 인덱스 입력 구독은 안정키와 삭제행 가드로 잔여 Map에 쓰지 못한다.
+    setPurchaseEditLines((prev) => prev.filter((_, i) => i !== index))
+    if (lineId) slipFormCoeditProvider?.removeItem(lineId)
   }
 
   // SP-08-6-2: 매출 수정 라인 헬퍼
@@ -4326,11 +4746,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   function removeSalesLine(index: number) {
-    clearRepriceHighlight(salesEditLinesRef.current[index]?.lineId)
-    setSalesEditLines((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      slipFormCoeditProvider?.replaceItems(next)
-      return next
-    })
+    const lineId = salesEditLinesRef.current[index]?.lineId
+    clearRepriceHighlight(lineId)
+    // 매입과 동일하게 라인 Map 자체만 삭제한다.
+    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
+    if (lineId) slipFormCoeditProvider?.removeItem(lineId)
   }
 }
