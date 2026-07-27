@@ -487,3 +487,273 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
   process.env.QA_ALLOW_OVERWRITE = '1'
   assert.equal(mjsResolve(committedDir), resolveQaShotsDir(committedDir))
 })
+
+// ============================================================================
+// 2026-07-28 재수렴 D-C/D-D/T-5 — "-OutputDir/-OutDir 파라미터가 가드를 통째로 우회한다".
+//
+// 위의 모든 테스트는 resolver 함수(resolveQaShotsDir 등)를 "직접" 호출해서 검사한다. D-C 는
+// 바로 그 전제를 깬 결함이었다 — scripts/generate-*.ps1 14개 + loadtest-metrics-snapshot.ps1
+// 이 `if (-not $OutputDir) { $OutputDir = Resolve-QaShotsDir ... }` 형태로 -OutputDir 가
+// 비어있을 때만 resolver 를 불렀다. -OutputDir 를 명시하면(예: 커밋된 docs/qa 슬러그 경로
+// 그대로) resolver 자체가 호출되지 않아 "resolver 를 직접 호출해서 검사" 하는 방식으로는
+// 이 결함을 절대 잡을 수 없었다 — 환경변수(QA_SHOTS_DIR)는 차단되는데 파라미터(-OutputDir)는
+// 그대로 통과해 커밋 PNG 4장이 실제로 덮어써졌다(신규 clone 실측 CASE 2/3).
+//
+// 아래 테스트들은 그래서 두 층으로 나뉜다:
+//   1) 구조 sweep — 15개 호출부 전부가 무조건 Resolve-QaShotsDir 를 -RequestedDir 로 부르는지
+//      (PowerShell 실행 없이, N-2 와 동일한 "정확한 목록 비교" 패턴으로 회귀를 잡는다).
+//   2) 실 프로세스 실행 — 실제 .ps1 파일을 자식 프로세스로 띄워 진짜 -OutputDir/-OutDir
+//      파라미터 경로를 통과시킨다(resolver 를 우회해서 부르지 않는다). 차단(guard) 케이스는
+//      가드가 New-Item/Add-Type 이전에 throw 하므로 Windows/Linux(pwsh) 모두에서 안전하게
+//      실행할 수 있다 — 저장소의 실제 docs/qa 아래 존재하지 않는 fixture 슬러그만 겨눈다.
+// ============================================================================
+
+function findPowerShellExecutable() {
+  for (const candidate of ['pwsh', 'powershell']) {
+    try {
+      execFileSync(candidate, ['-NoProfile', '-Command', 'exit 0'], { stdio: 'ignore' })
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+const POWERSHELL_EXE = findPowerShellExecutable()
+const POWERSHELL_SKIP_REASON = POWERSHELL_EXE ? false : '이 환경에 pwsh/powershell 실행파일이 없습니다'
+
+// -OutputDir/-OutDir 파라미터를 노출하는 스크립트 15개의 정확한 목록 — N-2 와 동일하게
+// "느슨한 개수" 가 아니라 "정확한 목록" 으로 비교한다(하나만 고치고 14개를 빠뜨리는 회귀,
+// 또는 새 스크립트가 같은 파라미터를 추가하고 가드를 안 받는 회귀를 모두 잡는다).
+const EXPECTED_OUTPUT_DIR_PARAM_SCRIPTS = [
+  'scripts/generate-sp-08-3-2-arologis-history-screenshots.ps1',
+  'scripts/generate-sp-08-3-3-slip-cleanup-history-screenshots.ps1',
+  'scripts/generate-sp-08-3-4-dispatch-sms-history-screenshots.ps1',
+  'scripts/generate-sp-08-4-1-partner-order-list-detail-screenshots.ps1',
+  'scripts/generate-sp-08-4-4-order-print-form-screenshots.ps1',
+  'scripts/generate-sp-08-5-1-purchase-slip-list-detail-screenshots.ps1',
+  'scripts/generate-sp-08-5-2-purchase-slip-edit-put-screenshots.ps1',
+  'scripts/generate-sp-08-5-3-purchase-slip-soft-delete-screenshots.ps1',
+  'scripts/generate-sp-08-5-4-purchase-inspection-cta-regression-screenshots.ps1',
+  'scripts/generate-sp-08-5-5-purchase-print-form-screenshots.ps1',
+  'scripts/generate-sp-08-6-1-sales-slip-list-detail-screenshots.ps1',
+  'scripts/generate-sp-08-6-2-sales-slip-edit-put-screenshots.ps1',
+  'scripts/generate-sp-08-6-4-sales-print-form-screenshots.ps1',
+  'scripts/loadtest-metrics-snapshot.ps1',
+  'scripts/regen-sp-08-5-2-shot2.ps1',
+].sort()
+
+test('T-2/T-5 (2026-07-28 재수렴 D-C) — -OutputDir/-OutDir 파라미터 보유 스크립트 15개 전부가 무조건 Resolve-QaShotsDir 를 -RequestedDir 로 호출한다(구조 sweep)', () => {
+  const scriptsRoot = path.join(repoRoot, 'scripts')
+  const discovered = fs
+    .readdirSync(scriptsRoot)
+    .filter((name) => name.endsWith('.ps1'))
+    .map((name) => path.join(scriptsRoot, name))
+    .filter((filePath) => /\[string\]\$Out(?:put)?Dir\b/.test(readSourceText(filePath)))
+    .map((filePath) => path.relative(repoRoot, filePath).replaceAll(path.sep, '/'))
+    .sort()
+
+  assert.deepStrictEqual(
+    discovered,
+    EXPECTED_OUTPUT_DIR_PARAM_SCRIPTS,
+    `-OutputDir/-OutDir 파라미터 보유 스크립트 인벤토리가 예상과 다릅니다(발견 ${discovered.length}개, 예상 ${EXPECTED_OUTPUT_DIR_PARAM_SCRIPTS.length}개). ` +
+      '새 스크립트를 추가/제거했다면 이 목록과 D-C fix(무조건 -RequestedDir 통과)를 함께 갱신할 것.',
+  )
+
+  for (const relPath of discovered) {
+    const source = readSourceText(path.join(repoRoot, ...relPath.split('/')))
+    assert.ok(
+      !/if\s*\(\s*-not\s+\$OutputDir\s*\)/.test(source) && !/IsNullOrEmpty\(\$OutDir\)/.test(source),
+      `${relPath} 가 여전히 -OutputDir/-OutDir 를 조건부(if 비어있을 때만)로만 가드에 통과시킵니다(D-C 재발) — ` +
+        '무조건 Resolve-QaShotsDir 호출로 바뀌어야 합니다.',
+    )
+    assert.match(
+      source,
+      /-RequestedDir\s+\$Out(?:put)?Dir\b/,
+      `${relPath} 가 Resolve-QaShotsDir 호출에 -RequestedDir 를 넘기지 않습니다(D-C 재발) — 파라미터 원문이 물리 판정을 받지 못합니다.`,
+    )
+  }
+})
+
+test(
+  'T-5 (2026-07-28 재수렴 D-C) — 실제 .ps1 자식 프로세스를 -OutputDir 파라미터로 실행하면 커밋 경로가 차단된다(resolver 직접호출이 아닌 진짜 파라미터 경로)',
+  { skip: POWERSHELL_SKIP_REASON },
+  () => {
+    const fixtureDir = path.join(docsQaRoot, '__851-r3-outputdir-param-guard-fixture__', 'screenshots')
+    const scriptPath = path.join(repoRoot, 'scripts', 'generate-sp-08-4-4-order-print-form-screenshots.ps1')
+
+    let threw = false
+    let combined = ''
+    try {
+      combined = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', `& '${scriptPath}' -OutputDir '${fixtureDir}'`], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } catch (e) {
+      threw = true
+      combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    }
+
+    assert.ok(threw, `-OutputDir 로 커밋 경로를 겨눴는데 차단되지 않았습니다(exit 0, D-C 재발). 출력: ${combined}`)
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력: ${combined}`)
+    assert.equal(
+      fs.existsSync(fixtureDir) && fs.readdirSync(fixtureDir).length > 0,
+      false,
+      'PNG 가 실제로 write 됐습니다 — 가드가 New-Item/Save 이전에 막지 못했습니다.',
+    )
+  },
+)
+
+test(
+  'T-5 (2026-07-28 재수렴 D-C) — loadtest-metrics-snapshot.ps1 의 -OutDir 파라미터도 같은 물리 가드를 받는다(다른 shape, repoRoot-relative)',
+  { skip: POWERSHELL_SKIP_REASON },
+  () => {
+    const scriptPath = path.join(repoRoot, 'scripts', 'loadtest-metrics-snapshot.ps1')
+    const fixtureRelOutDir = 'docs/qa/__851-r3-loadtest-outdir-param-guard-fixture__/timeseries'
+
+    let threw = false
+    let combined = ''
+    try {
+      combined = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', `& '${scriptPath}' -OutDir '${fixtureRelOutDir}' -Once`], {
+        encoding: 'utf8',
+        cwd: repoRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } catch (e) {
+      threw = true
+      combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    }
+
+    assert.ok(threw, `-OutDir 로 repoRoot-relative 커밋 경로를 겨눴는데 차단되지 않았습니다(exit 0, D-C 재발, loadtest shape). 출력: ${combined}`)
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력: ${combined}`)
+  },
+)
+
+test(
+  'T-3 (2026-07-28 재수렴 회귀 가드) — loadtest-metrics-snapshot.ps1 의 정당한 repoRoot-relative -OutDir(docs/qa 밖)는 실제로 성공한다(GDI+ 불필요 — Windows/Linux 공용)',
+  { skip: POWERSHELL_SKIP_REASON },
+  () => {
+    // docs/qa 밖이어야 "정당한(차단되지 않아야 할) override" 다 — docs/qa 아래는 슬러그가
+    // 뭐든 전부 차단 대상이다(D-3 설계 자체가 그렇다). repoRoot 바로 아래 미추적 스크래치
+    // "폴더"(파일 아님) 하나로 감싸 정리 시 그 폴더만 지우고 repoRoot 자체는 절대 건드리지
+    // 않는다(fixtureRoot != repoRoot 를 아래에서 assert 로 이중 확인 후에만 rmSync 한다).
+    const fixtureRoot = path.join(repoRoot, '__851-r3-loadtest-legit-relative-scratch__')
+    const relOutDir = '__851-r3-loadtest-legit-relative-scratch__/out'
+    const scriptPath = path.join(repoRoot, 'scripts', 'loadtest-metrics-snapshot.ps1')
+    const absOutDir = path.join(repoRoot, ...relOutDir.split('/'))
+    assert.notEqual(fixtureRoot, repoRoot, 'fixtureRoot 가 repoRoot 와 같습니다 — 절대 rmSync 하면 안 됩니다.')
+    fs.rmSync(fixtureRoot, { recursive: true, force: true })
+
+    try {
+      const combined = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', `& '${scriptPath}' -OutDir '${relOutDir}' -Once`], {
+        encoding: 'utf8',
+        cwd: repoRoot,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      assert.match(combined, /snapshot appended/, `정당한 override 가 실패한 것처럼 보입니다. 출력: ${combined}`)
+      const csvFiles = fs.readdirSync(absOutDir).filter((f) => f.endsWith('.csv'))
+      assert.ok(csvFiles.length > 0, `CSV 산출물이 없습니다 — 정당한 override 가 실제로 동작하지 않았습니다(디렉터리: ${absOutDir}).`)
+    } finally {
+      // 실행 fixture 청소 — 이 테스트가 방금 만든 repoRoot 밖-아닌-전용 스크래치 폴더만 지운다.
+      assert.notEqual(fixtureRoot, repoRoot, 'fixtureRoot 가 repoRoot 와 같습니다 — 절대 rmSync 하면 안 됩니다.')
+      fs.rmSync(fixtureRoot, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  'D-D (2026-07-28 재수렴) — 상대경로 RequestedDir 는 Environment.CurrentDirectory 가 아니라 PowerShell $PWD(Set-Location 이후) 기준으로 절대화된다',
+  { skip: POWERSHELL_SKIP_REASON },
+  () => {
+    // 이 환경에서 실측: Set-Location 은 $PWD 만 바꾸고 .NET Environment.CurrentDirectory 는
+    // 그대로 둔다. 자식 프로세스를 dirB 에서 띄우면(둘 다 dirB 로 시작) 그 프로세스 "안"에서
+    // Set-Location dirA 를 실행해야 비로소 두 값이 갈린다(새 프로세스를 dirA 로 다시 스폰하면
+    // 그 새 프로세스는 시작부터 둘 다 dirA 로 동기화되어 재현이 안 된다 — 반드시 한 프로세스
+    // 안에서 Set-Location 으로 갈라야 한다).
+    const dirA = path.join(tempRoot, 'dd-pwd-envcwd', 'dirA')
+    const dirB = path.join(tempRoot, 'dd-pwd-envcwd', 'dirB')
+    fs.mkdirSync(dirA, { recursive: true })
+    fs.mkdirSync(dirB, { recursive: true })
+
+    const libPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1')
+    const fallbackCommittedDir = path.join(dirA, 'unused-fallback-committed-dir')
+    const psCommand = [
+      `Set-Location '${dirA}'`,
+      `. '${libPath}'`,
+      `Resolve-QaShotsDir -CommittedDir '${fallbackCommittedDir}' -RequestedDir 'tmp-rel-dd'`,
+    ].join('; ')
+
+    const output = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand], {
+      encoding: 'utf8',
+      cwd: dirB,
+    }).trim()
+
+    const expected = path.join(dirA, 'tmp-rel-dd')
+    assert.equal(
+      output,
+      expected,
+      'RequestedDir 상대경로가 Set-Location 이후의 PowerShell $PWD 가 아니라 다른 기준(예: 프로세스 시작 위치 ' +
+        `${dirB} = Environment.CurrentDirectory)으로 풀렸습니다 — D-D 재발. 실제 출력: ${output}`,
+    )
+  },
+)
+
+function loadCaptureOutputDirResolver(fakeDirname) {
+  const capturePath = path.join(desktopRoot, 'src', 'main', 'capture.ts')
+  const originalSource = fs.readFileSync(capturePath, 'utf8')
+  const anchor = 'const __filename = fileURLToPath(import.meta.url)\nconst __dirname = dirname(__filename)'
+  if (!originalSource.includes(anchor)) {
+    throw new Error('capture.ts 의 __dirname 앵커 라인을 찾지 못했습니다 — 구조가 바뀌었으면 이 테스트도 갱신할 것.')
+  }
+  const patched = originalSource.replace(anchor, `const __dirname = ${JSON.stringify(fakeDirname)}`)
+  const source = patched + '\nmodule.exports.__test__ = { resolveOutputDir };\n'
+  const output = typescript.transpileModule(source, {
+    compilerOptions: { module: typescript.ModuleKind.CommonJS, target: typescript.ScriptTarget.ES2022 },
+  }).outputText
+  const moduleValue = { exports: {} }
+  const fakeRequire = (id) => (id === 'electron' ? {} : require(id))
+  const wrapper = vm.runInThisContext(`(function(require,module,exports){${output}\n})`, { filename: capturePath })
+  wrapper(fakeRequire, moduleValue, moduleValue.exports)
+  return moduleValue.exports.__test__.resolveOutputDir
+}
+
+test('capture.ts 관찰(2026-07-28 재수렴) — resolveOutputDir 는 process.cwd() 가 clients/desktop 이 아니어도 실제 docs/qa 를 올바르게 가리키고 가드가 그대로 작동한다', () => {
+  // scripts/lib/qa-shots-dir.ps1 은 $PSScriptRoot(파일 자신의 물리 위치)에 앵커해서 D-3 류
+  // 재발을 막았는데, capture.ts 의 원래 구현은 반대로 process.cwd()(메인 프로세스가 보통
+  // clients/desktop 에서 뜬다는 가정)에 앵커했다. CAPTURE_MODE=1 이 clients/desktop 이 아닌
+  // cwd(예: 저장소 루트에서 `electron .` 직접 실행)로 뜨면 docsQaRoot 자체가 엉뚱한 경로로
+  // 계산되어 물리 판정이 조용히 통과해버렸다(재현 확인 후 __dirname 앵커로 수정, D-C 와 동일
+  // 계열). dev(src/main)와 번들(electron-vite outDir=out/main) 두 실행 형태 모두 검증한다.
+  const scenarios = [
+    ['dev src/main 위치', path.join(desktopRoot, 'src', 'main')],
+    ['bundled out/main 위치(electron-vite outDir)', path.join(desktopRoot, 'out', 'main')],
+  ]
+  const realCommittedDir = path.join(docsQaRoot, 'electron-skeleton-slice', 'screenshots')
+  const realCwd = process.cwd
+
+  try {
+    for (const [label, fakeDirname] of scenarios) {
+      const resolveOutputDir = loadCaptureOutputDirResolver(fakeDirname)
+      process.cwd = () => repoRoot // 의도적으로 "틀린" cwd — fix 전엔 가드가 무력화되던 조건
+
+      process.env.QA_SHOTS_DIR = realCommittedDir
+      assert.throws(
+        () => resolveOutputDir(),
+        (error) => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+        `[${label}] cwd 가 clients/desktop 이 아닐 때 커밋된 electron-skeleton-slice 경로가 차단되지 않았습니다(재발).`,
+      )
+      delete process.env.QA_SHOTS_DIR
+
+      const defaultDir = resolveOutputDir()
+      assert.equal(
+        defaultDir,
+        path.join(realCommittedDir, '_local'),
+        `[${label}] cwd 가 틀렸을 때 기본 출력 경로가 실제 docs/qa 를 가리키지 않습니다(엉뚱한 경로로 샐 위험).`,
+      )
+    }
+  } finally {
+    process.cwd = realCwd
+    delete process.env.QA_SHOTS_DIR
+  }
+})

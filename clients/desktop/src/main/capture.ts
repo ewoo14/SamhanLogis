@@ -11,6 +11,10 @@ import { app, type BrowserWindow } from 'electron'
 import * as fs from 'node:fs'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 interface RouteSpec {
   /** HashRouter 경로 (`/`, `/login`, `/warehouses`, ...) */
@@ -78,12 +82,25 @@ function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
 }
 
 function resolveOutputDir(): string {
-  // 메인 프로세스의 cwd 는 보통 clients/desktop. worktree 루트로 두 단계 위.
-  const committedDir = resolve(process.cwd(), '..', '..', 'docs', 'qa', 'electron-skeleton-slice', 'screenshots')
+  // 2026-07-28 재수렴 — docs/qa 루트는 이 파일 자신의 물리 위치(__dirname) 기준으로 유도한다
+  // (scripts/lib/qa-shots-dir.ps1 이 $PSScriptRoot 를 쓰는 것과 같은 이유). 이전에는
+  // process.cwd()(메인 프로세스가 보통 clients/desktop 에서 뜬다는 가정)에 앵커했는데,
+  // CAPTURE_MODE=1 이 clients/desktop 이 아닌 cwd(예: 저장소 루트에서 `electron .` 직접 실행)로
+  // 뜨면 docsQaRoot 자체가 엉뚱한 경로로 계산되어 물리 판정이 "포함 아님" 으로 조용히
+  // 통과해버린다 — 실측(스탠드얼론 repro): cwd=repoRoot 일 때 QA_SHOTS_DIR 를 커밋된
+  // electron-skeleton-slice 경로 그대로 줘도 throw 없이 그 경로를 그대로 반환했다(커밋된
+  // 01_login.png~05_slip_form.png 를 그대로 덮어쓸 수 있었다는 뜻). __dirname 은 번들 산출물
+  // 위치(electron-vite outDir=out/main)에서도 소스 위치(src/main)와 동일하게 clients/desktop
+  // 아래 2단계이므로(legacy-asset.ts:32 와 동일 관찰) 두 실행 형태 모두 동일한 상대 깊이
+  // (4단계 위)로 저장소 루트에 도달한다. 패키징된 설치본은 이 dev-only 기능의 대상이 아니다
+  // (docs/qa 자체가 패키지에 없어 문제되지 않음 — legacy-asset.ts 의 resourcesPath 폴백과
+  // 달리 여기서는 그 경로를 별도 처리하지 않는다).
+  const repoRootFromHere = resolve(__dirname, '..', '..', '..', '..')
+  const committedDir = resolve(repoRootFromHere, 'docs', 'qa', 'electron-skeleton-slice', 'screenshots')
   const override = process.env['QA_SHOTS_DIR']
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
   const directory = trimmed ? resolve(trimmed) : resolve(committedDir, '_local')
-  const docsQaRoot = resolve(process.cwd(), '..', '..', 'docs', 'qa')
+  const docsQaRoot = resolve(repoRootFromHere, 'docs', 'qa')
 
   if (trimmed && isWithinPhysical(docsQaRoot, directory) && !hasExplicitOverwriteIntent()) {
     throw new Error(
