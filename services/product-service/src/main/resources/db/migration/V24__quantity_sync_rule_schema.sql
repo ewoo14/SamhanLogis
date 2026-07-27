@@ -197,6 +197,19 @@ RETURNS VOID
 LANGUAGE PLPGSQL
 AS $$
 BEGIN
+    -- 재수렴 M-7 — products/bundle_component 4개 row-level constraint trigger는 quantity_sync_rule
+    -- 데이터와 무관한 UPDATE에도 무조건 이 함수를 호출한다(FOR EACH ROW는 constraint trigger의
+    -- PostgreSQL 하드 제약이라 FOR EACH STATEMENT로 바꿀 수 없다). 아래 모든 검사는 활성
+    -- (is_deleted=false) 규칙이 하나도 없으면 전부 공집합이라 항상 통과한다 — "규칙 0건이면
+    -- 트리거 비용도 0에 가깝다"는 R1 fix의 보류 근거가 재수렴 실측(150행 UPDATE 63.1ms vs
+    -- disable 6.45ms, ≈10배)으로 반증됐으므로, 규칙이 실제로 0건일 때 이 함수가 나머지
+    -- EXISTS 5개+재귀 CTE 1개를 전부 도는 대신 파티션 인덱스(ux_qsr_rule_key_active) 존재
+    -- 검사 1건만 하고 반환하도록 짧게 끊는다. 규칙이 하나라도 있으면 이 조건은 거짓이라
+    -- 아래 전체 검사가 그대로 실행된다(동작 변화 없음 — 순수 성능 최적화).
+    IF NOT EXISTS (SELECT 1 FROM quantity_sync_rule WHERE is_deleted = FALSE) THEN
+        RETURN;
+    END IF;
+
     IF EXISTS (
         SELECT 1
           FROM quantity_sync_rule r

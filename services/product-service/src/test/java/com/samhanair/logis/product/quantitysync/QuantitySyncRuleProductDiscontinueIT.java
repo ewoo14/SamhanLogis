@@ -10,10 +10,13 @@ import com.samhanair.logis.product.ProductServiceApplication;
 import com.samhanair.logis.product.domain.QuantitySyncConflictPolicy;
 import com.samhanair.logis.product.domain.QuantitySyncEstimateCategory;
 import com.samhanair.logis.product.domain.QuantitySyncInactiveBehavior;
+import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.it.AbstractPostgresIT;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.QuantitySyncRuleService;
 import com.samhanair.logis.product.web.dto.QuantitySyncRuleRequest;
+import com.samhanair.logis.product.web.dto.UpdateProductRequest;
+import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -116,6 +119,75 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT status FROM products WHERE id = ?", String.class, unrelated))
                 .isEqualTo("DISCONTINUED");
+    }
+
+    // ---- 재수렴 결함 3 [MED] — discontinue/delete만 덮이고 update()/노출구분 변경 경로는
+    // 빠져 있었다. PATCH usageScope=NONE(update())과 수동 override(updateUsageAndReturn())
+    // 양쪽 모두 같은 가드를 타야 한다(M-5). ----
+
+    @Test
+    void 활성_규칙이_참조하면_PATCH로_노출구분을_NONE으로_바꿀_수_없고_원인이_드러난다() throws Exception {
+        UUID targetId = product("DISC-USAGE-SRC-A");
+        product("DISC-USAGE-TGT-B");
+        quantitySyncRuleService.create(request("DISC_RULE_USAGE_A", true, "DISC-USAGE-SRC-A", "DISC-USAGE-TGT-B"),
+                "qa-disc");
+        UpdateProductRequest usageNone = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, UsageScope.NONE, null, null);
+
+        assertThatThrownBy(() -> productService.update(targetId, usageNone))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("DISC_RULE_USAGE_A");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT usage_scope FROM products WHERE id = ?", String.class, targetId))
+                .isEqualTo("BOTH");
+    }
+
+    @Test
+    void 활성_규칙이_참조하면_수동_노출override로도_NONE으로_바꿀_수_없고_원인이_드러난다() throws Exception {
+        product("DISC-USAGE-SRC-C");
+        product("DISC-USAGE-TGT-D");
+        quantitySyncRuleService.create(request("DISC_RULE_USAGE_C", true, "DISC-USAGE-TGT-D", "DISC-USAGE-SRC-C"),
+                "qa-disc");
+        UpdateProductUsageRequest override = new UpdateProductUsageRequest(UsageScope.NONE, null);
+
+        assertThatThrownBy(() -> productService.updateUsageAndReturn("DISC-USAGE-SRC-C", override))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("DISC_RULE_USAGE_C");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT usage_scope FROM products WHERE model_code = ?", String.class, "DISC-USAGE-SRC-C"))
+                .isEqualTo("BOTH");
+    }
+
+    @Test
+    void 노출구분_변경_거부와_단종_거부는_같은_품목_같은_원인이면_같은_메시지를_낸다() throws Exception {
+        // 결함 3 재발 방지 lock — item 11(PATCH usageScope=NONE)과 item 12(discontinue)가
+        // 같은 품목·같은 원인인데 다른 메시지를 냈다(update()에는 가드가 없어 DB 층 제약
+        // 위반의 범용 409로, discontinue()는 서비스 층의 친절한 메시지로). 두 경로가 같은
+        // 공용 helper를 타면 문자열이 완전히 같아야 한다.
+        UUID targetId = product("DISC-USAGE-SRC-E");
+        product("DISC-USAGE-TGT-F");
+        quantitySyncRuleService.create(request("DISC_RULE_USAGE_E", true, "DISC-USAGE-SRC-E", "DISC-USAGE-TGT-F"),
+                "qa-disc");
+        UpdateProductRequest usageNone = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, UsageScope.NONE, null, null);
+
+        String usageChangeMessage = catchMessage(() -> productService.update(targetId, usageNone));
+        String discontinueMessage = catchMessage(() -> productService.discontinue(targetId));
+
+        assertThat(usageChangeMessage).isEqualTo(discontinueMessage);
+    }
+
+    private String catchMessage(Runnable action) {
+        try {
+            action.run();
+            throw new AssertionError("예외가 발생해야 한다");
+        } catch (BusinessException ex) {
+            return ex.getMessage();
+        }
     }
 
     private QuantitySyncRuleRequest request(String ruleKey, boolean enabled,

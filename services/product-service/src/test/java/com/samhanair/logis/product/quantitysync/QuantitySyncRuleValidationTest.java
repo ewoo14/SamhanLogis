@@ -228,6 +228,60 @@ class QuantitySyncRuleValidationTest {
         assertInvalid(draft, "option");
     }
 
+    // ---- R1(재수렴) 결함 1 [HIGH] RED-first — optionIn value가 Java를 통과하고 DB에서만 걸림 ----
+    //
+    // QuantitySyncRuleValidator.validateOptionPair(value, allowList=true)의 불리언식이
+    // "!isValueNode() && !(allowList && isArray())" 형태라 optionIn(allowList=true)에서
+    // value[1]이 스칼라(isValueNode=true)거나 빈 배열(isArray=true지만 length 검사 없음)이면
+    // 두 항 모두 false가 되어 invalid()를 타지 않는다. 그러나 V24:170-175 SQL은
+    // "jsonb_typeof(...) <> 'array' OR jsonb_array_length(...) = 0"으로 배열+비공란을
+    // 명시적으로 요구한다 — Java가 통과시킨 입력을 DB가 거부해 "동시 편집 충돌 또는
+    // 제약 위반" 409로 원인이 위장된다(결함 3 fix가 없애려던 바로 그 문제).
+
+    @Test
+    void optionIn_값이_스칼라면_Java_검증에서도_저장할_수_없다() {
+        JsonNode condition = condition("{\"optionIn\":[\"homeHoseType\",\"L\"]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "option");
+    }
+
+    @Test
+    void optionIn_값이_빈_배열이면_Java_검증에서도_저장할_수_없다() {
+        JsonNode condition = condition("{\"optionIn\":[\"homeHoseType\",[]]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "option");
+    }
+
+    @Test
+    void optionIn_값이_비공란_배열이면_저장할_수_있다() {
+        // control — DB도 이 형태만 수락한다(V24:170-175). Java가 이 통제군까지
+        // 거부하게 되면 과잉수정이므로 회귀 방지로 함께 고정한다.
+        JsonNode condition = condition("{\"optionIn\":[\"homeHoseType\",[\"L\"]]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
+    }
+
     private void assertInvalid(Draft draft, String messageFragment) {
         assertThatThrownBy(() -> validator.validate(draft))
                 .isInstanceOf(BusinessException.class)

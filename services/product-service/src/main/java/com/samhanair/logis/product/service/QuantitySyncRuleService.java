@@ -52,6 +52,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class QuantitySyncRuleService {
 
+    /**
+     * 재수렴 결함 2 [최우선] — {@link #toResponse} 가 참조 Product를 찾지 못했을 때
+     * 표시하는 placeholder. UUID를 노출하지 않으면서(feedback_uuid_no_user_visibility.md)
+     * 사용자가 "이 규칙의 이 슬롯이 깨졌다"를 알아보고 스스로 삭제/편집(M-2)할 수 있게 한다.
+     */
+    private static final String MISSING_PRODUCT_LABEL = "(삭제된 품목)";
+
     private final QuantitySyncRuleRepository ruleRepository;
     private final QuantitySyncSourceRepository sourceRepository;
     private final QuantitySyncTargetRepository targetRepository;
@@ -248,10 +255,12 @@ public class QuantitySyncRuleService {
                 rule.getRuleKey(), rule.getEstimateCategory().name(), rule.isEnabled(), rule.getConditionJson(),
                 rule.getConflictPolicy().name(), rule.getPriority(),
                 sourcesByRule.getOrDefault(rule.getId(), List.of()).stream()
-                        .map(source -> productCode(products.get(source.getSourceProductId())))
+                        .map(source -> danglingSafeProductCode(
+                                products.get(source.getSourceProductId()), source.getSourceProductId()))
                         .collect(Collectors.toSet()),
                 targetsByRule.getOrDefault(rule.getId(), List.of()).stream()
-                        .map(target -> productCode(products.get(target.getTargetProductId())))
+                        .map(target -> danglingSafeProductCode(
+                                products.get(target.getTargetProductId()), target.getTargetProductId()))
                         .collect(Collectors.toSet()))).toList();
     }
 
@@ -268,13 +277,18 @@ public class QuantitySyncRuleService {
         List<QuantitySyncProductRef> sourceRefs = sources.stream()
                 .map(source -> {
                     Product product = products.get(source.getSourceProductId());
-                    return QuantitySyncProductRef.source(productCode(product), product.getName(), source.getFactor());
+                    return QuantitySyncProductRef.source(
+                            product == null ? null : productCode(product),
+                            product == null ? MISSING_PRODUCT_LABEL : product.getName(),
+                            source.getFactor());
                 }).toList();
         List<QuantitySyncProductRef> targetRefs = targets.stream()
                 .map(target -> {
                     Product product = products.get(target.getTargetProductId());
-                    return QuantitySyncProductRef.target(productCode(product), product.getName(), target.getMultiplier(),
-                            target.getRoundingMode().name(), target.getDisplayOrder());
+                    return QuantitySyncProductRef.target(
+                            product == null ? null : productCode(product),
+                            product == null ? MISSING_PRODUCT_LABEL : product.getName(),
+                            target.getMultiplier(), target.getRoundingMode().name(), target.getDisplayOrder());
                 }).toList();
         return new QuantitySyncRuleResponse(rule.getRuleKey(), rule.getEstimateCategory(), rule.getName(),
                 rule.isEnabled(), rule.getAggregation(), rule.getConditionJson(), rule.getInactiveBehavior(),
@@ -292,6 +306,24 @@ public class QuantitySyncRuleService {
         }
         return product.getModelCode() == null || product.getModelCode().isBlank()
                 ? product.getModelName() : product.getModelCode();
+    }
+
+    /**
+     * 재수렴 결함 2 [최우선] fix — {@link #activeRuleSnapshots()} 는 create/replace가
+     * "다른 모든 기존 규칙"의 REPLACE 중복·순환 교차검증에 쓰는 snapshot이다. enabled=false
+     * 규칙이 참조하는 Product는 R1 fix로 삭제가 허용되므로, 여기서 {@link #productCode}
+     * 처럼 null에 PRODUCT_NOT_FOUND를 던지면 그 규칙 하나 때문에 create/replace 전체가
+     * 항상 실패한다(M-1). {@code QuantitySyncRuleValidator}의 REPLACE 중복 검사(:216-224)와
+     * 순환 검사(:247)는 이미 {@code existing.enabled()==false} 인 기존 규칙의
+     * sourceCodes/targetCodes를 전부 무시하므로, 그 값이 무엇이든 disabled 규칙에는
+     * 결과가 달라지지 않는다 — productId 기반 고유 placeholder면 충분하다. enabled 규칙은
+     * ProductService의 사전 가드로 이 상태에 도달하지 않는 것이 정상이지만, 방어적으로
+     * 여기도 동일하게 관용적으로 처리한다(어떤 이유로든 하나가 깨져도 전체가 죽지 않도록).
+     * 이 값은 RuleSnapshot 내부에서만 쓰이고 API 응답으로 나가지 않으므로 UUID 비노출
+     * 원칙과 무관하다.
+     */
+    private static String danglingSafeProductCode(Product product, UUID productId) {
+        return product == null ? "~dangling:" + productId : productCode(product);
     }
 
     private static QuantitySyncAggregation parseAggregation(String value) {

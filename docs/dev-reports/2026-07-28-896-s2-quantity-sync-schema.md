@@ -215,35 +215,41 @@ V1~V23 파일은 수정하지 않았다. V24는 seed INSERT 없이 schema, index
 
 > 🔧 **R1 fix 정정**: 최초 게시 목록에 신규 spec 문서(`docs/superpowers/specs/2026-07-28-896-s2-
 > quantity-sync-schema-spec.md`)가 누락되어 있었다(R1 대조 지적). 아래 목록은 그 정정과 R1 fix
-> 라운드(§7)의 변경분을 모두 반영한 최신본이다.
+> 라운드(§7)·재수렴 라운드(§8)의 변경분을 모두 반영한 최신본이다.
 
-- `.github/workflows/ci.yml`
+- `.github/workflows/ci.yml` — 재수렴: hard gate min_tests 갱신 + 신규 리포트 2건 등재
 - `scripts/probe-896-s2-fresh-postgres.ps1`
 - `services/api-gateway/src/main/resources/application.yml`
 - `services/product-service/README.md`
-- `services/product-service/src/main/resources/db/migration/V24__quantity_sync_rule_schema.sql`
+- `services/product-service/src/main/resources/db/migration/V24__quantity_sync_rule_schema.sql` — 재수렴: M-7 early-exit
 - `services/product-service/src/main/java/com/samhanair/logis/product/domain/QuantitySync{Rule,Source,Target}.java`
 - `services/product-service/src/main/java/com/samhanair/logis/product/domain/QuantitySync{Aggregation,ConflictPolicy,EstimateCategory,InactiveBehavior,RoundingMode}.java`
-- `services/product-service/src/main/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidator.java`
+- `services/product-service/src/main/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidator.java` — 재수렴: 결함 1
 - `services/product-service/src/main/java/com/samhanair/logis/product/repository/QuantitySync{Rule,Source,Target}Repository.java`
-- `services/product-service/src/main/java/com/samhanair/logis/product/service/QuantitySyncRuleService.java`
-- `services/product-service/src/main/java/com/samhanair/logis/product/service/ProductService.java` — R1 fix(결함 3)
+- `services/product-service/src/main/java/com/samhanair/logis/product/service/QuantitySyncRuleService.java` — 재수렴: 결함 2
+- `services/product-service/src/main/java/com/samhanair/logis/product/service/ProductService.java` — R1 fix(결함 3) · 재수렴: 결함 3
 - `services/product-service/src/main/java/com/samhanair/logis/product/web/QuantitySyncRuleController.java`
 - `services/product-service/src/main/java/com/samhanair/logis/product/web/dto/QuantitySync{ProductRef,RuleRequest,RuleResponse}.java`
-- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidationTest.java`
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidationTest.java` — 재수렴: 결함 1 단위 RED(+3)
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleDbProbeIT.java`
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleCrudIT.java`
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleSeedAbsenceIT.java`
-- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDiscontinueIT.java` — R1 fix 신규(결함 2(a)·3)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDiscontinueIT.java` — R1 fix 신규(결함 2(a)·3) · 재수렴: 결함 3 RED(+3)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleOptionInParityIT.java` — 재수렴 신규: 결함 1 통합 RED
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDeletionCascadeHttpIT.java` — 재수렴 신규: 결함 2 실 HTTP RED
 - `services/product-service/src/test/java/com/samhanair/logis/product/service/ProductServiceTest.java` — R1 fix(결함 3)
 - `docs/superpowers/specs/2026-07-28-896-s2-quantity-sync-schema-spec.md`
 - `docs/superpowers/plans/2026-07-28-896-s2-quantity-sync-schema.md`
-- 본 보고서
+- 본 보고서 — §6·§7 정정 + 본 §8
 
 API endpoint는 `/api/v1/quantity-sync-rules` 아래 GET/POST/PUT/DELETE CRUD이며, CI에는
-`product-quantity-sync-schema` 별도 matrix job과 다섯 개 JUnit report의 report별 정확한
-최소 tests 수(13/11/2/1/4, R1 fix §7 참조) · `skipped=0` · `failures=0` · `errors=0` hard
-gate를 등재했다.
+`product-quantity-sync-schema` 별도 matrix job과 report별 정확한 최소 tests 수 hard gate를
+등재했다.
+
+> 🔧 **재수렴 정정(§8)**: 위 "다섯 개 JUnit report(13/11/2/1/4)"는 R1 fix 시점 기준이었다.
+> 재수렴 라운드에서 report가 **일곱 개**(16/11/2/1/7/3/1, §8 참조 — ValidationTest·
+> ProductDiscontinueIT 카운트 증가 + OptionInParityIT·ProductDeletionCascadeHttpIT 신규
+> 등재)로 늘었다 — `.github/workflows/ci.yml`의 `min_tests`를 최신 실측치로 갱신했다.
 
 ---
 
@@ -287,6 +293,12 @@ fixtures.js`의 실 식별자와 문자 그대로 일치 0개, `remoteOption`/`p
 자체를 슬3(evaluator가 실제 옵션 계약을 읽는 시점)으로 미루고, Java validator·V24 SQL 양쪽
 모두 "공백이 아닌 문자열"이라는 구조적 제약만 남겼다. 연산자 whitelist·`[key,value]` arity·
 `optionIn` 배열 비공란 등 나머지 typed 제약은 그대로 유지된다.
+
+> 🔧 **재수렴 증거 무결성 정정(§8 결함 1)**: 위 마지막 문장은 부정확했다 — `optionIn` 배열
+> 비공란 제약은 V24 SQL에는 있었지만 Java validator(`validateOptionPair`)에는 **없었다**.
+> `allowList=true` 분기의 불리언식이 스칼라도 빈 배열도 통과시켜, "그대로 유지된다"는 서술과
+> 달리 실제로는 Java·DB가 다른 답을 냈다(재수렴 결함 1 [HIGH], §8). "typed 제약 유지"는
+> 연산자 whitelist·`[key,value]` arity·key 비공란에만 참이었다.
 
 ### 대조-2 — 증거 무결성 2건 (§6·§5에 정정 반영)
 
@@ -340,3 +352,195 @@ must have active source and target rows"를 오탐시켰다(`QuantitySyncRuleCru
 `QuantitySyncRuleProductDiscontinueIT`·`QuantitySyncRuleDbProbeIT`의 cleanup을 단일
 transaction으로 통합). selfswap parity 테스트의 최초 setup도 3개 분리된 auto-commit
 INSERT라 같은 문제를 겪어 `inTransaction`+커넥션 기반 헬퍼로 고쳤다.
+
+---
+
+## 8. 재수렴 라운드 (2026-07-28) — R1 fix가 만든 회귀 1건 + 결함 2건 + M-7 재판단
+
+재수렴 적대검증이 R1 fix 직후 실서버 재현으로 도달 가능 결함 3건을 잡았다(최우선 1·MED 2).
+전부 RED-first(재현 실패 테스트 → RED 원문 확보 → 수정 → GREEN)로 처리했다.
+
+### 결함 2 [최우선] — `enabled` 게이트가 만든 회귀: 규칙 API 전체 404 벽돌
+
+R1 fix(§7 결함 2)가 "enabled=false 규칙은 강제력이 없다"를 DB 트리거에도 적용해, 비활성
+규칙이 참조하는 Product의 삭제/비노출 전환을 허용했다. 그런데 `QuantitySyncRuleService`의
+`activeRuleSnapshots()`(create/replace가 다른 모든 기존 규칙과 교차검증할 때 사용)와
+`toResponse()`(list/get이 사용)는 여전히 모든 규칙(enabled 무관)의 source/target Product를
+`productCode()`로 해소하며, 이 메서드는 Product가 null이면 무조건 `PRODUCT_NOT_FOUND`를
+던졌다. 결과: 비활성 규칙 하나가 삭제된 Product를 참조하는 순간 **목록 조회 전체 + 모든
+규칙의 생성·편집**이 항상 404로 죽었다 — 복구하려면 어떤 규칙이 문제인지 목록에서 봐야
+하는데 그 목록 자체가 죽어 있었다.
+
+**RED** — MockMvc 실 HTTP 왕복(`QuantitySyncRuleProductDeletionCascadeHttpIT`)으로 재현.
+비활성 규칙(C→D) 생성 → HTTP로 Product D 삭제(204, R1 fix로 허용) → `GET
+/api/v1/quantity-sync-rules` 기대 200, 실측:
+
+```text
+java.lang.AssertionError: Status expected:<200> but was:<404>
+    at QuantitySyncRuleProductDeletionCascadeHttpIT.java:130
+```
+
+**fix** — `activeRuleSnapshots()`와 `toResponse()`를 Product 미해소에 관용적으로 바꿨다.
+- `activeRuleSnapshots()`: 새 `danglingSafeProductCode(product, productId)` 헬퍼가 null이면
+  `productId` 기반 고유 placeholder 문자열을 반환한다. `QuantitySyncRuleValidator`의 REPLACE
+  중복 검사·순환 검사는 이미 `existing.enabled()==false`인 기존 규칙의 source/targetCodes를
+  전부 무시하므로(R1 §7 결함 2), 이 값이 무엇이든 disabled 규칙에는 결과가 달라지지 않는다 —
+  API 응답으로 나가지 않으므로 UUID 비노출 원칙과도 무관하다.
+- `toResponse()`: Product가 null이면 `productCode=null`, `productName="(삭제된 품목)"`을
+  반환한다(M-2). list·get 양쪽에서 어떤 규칙의 어떤 슬롯이 깨졌는지 보이므로, 사용자가
+  그 규칙을 직접 `DELETE`(product 조회가 필요 없는 경로)하거나 `PUT`으로 다른 Product로
+  교체해 스스로 복구할 수 있다.
+
+**GREEN** — 같은 IT를 8단계(생성→삭제→목록→단건→신규생성→편집→깨진 규칙 자신 조회→
+자가복구 delete 후 목록 재확인) 전부 통과하도록 재실행. `BUILD SUCCESSFUL`.
+
+**버린 대안** — "enabled=false도 Product 삭제/비노출을 막는다"로 R1 fix를 되돌리는 안은
+M-3(비활성 규칙 무강제력 성질을 다시 깨뜨림)에 위배되어 버렸다. "목록에서 깨진 규칙을 통째로
+숨긴다"는 안도 검토했으나 M-2(사용자가 무엇이 문제인지 봐야 한다)에 위배되어 버렸다 —
+placeholder로 보여주는 편이 성질을 둘 다 지킨다.
+
+### 결함 1 [HIGH] — `optionIn` 값이 Java를 통과하고 DB에서만 걸림
+
+`QuantitySyncRuleValidator.validateOptionPair(value, allowList=true)`의 불리언식
+(`!value.get(1).isValueNode() && !(allowList && value.get(1).isArray())`)이 `optionIn`에서
+스칼라(`isValueNode()=true`→좌항 false)와 빈 배열(`isArray()=true`→우항 false, 길이 미검사)
+양쪽 모두를 통과시켰다. V24 SQL(`quantity_sync_validate_condition`)은 `optionIn` 값을
+"배열이고 비어있지 않음"으로 명시적으로 요구해, Java가 통과시킨 입력이 DB에서만 거부되며
+원인이 "동시 편집 충돌 또는 제약 위반"(결함 3이 없애려던 바로 그 409)으로 위장됐다.
+
+**RED** — 단위(`QuantitySyncRuleValidationTest`)와 통합(`QuantitySyncRuleOptionInParityIT`,
+실 Postgres) 양쪽에서 확보. 통합 RED 원문:
+
+```text
+java.lang.AssertionError:
+Expecting actual throwable to be an instance of:
+  com.samhanair.logis.common.exception.BusinessException
+but was:
+  org.springframework.dao.DataIntegrityViolationException: Hibernate transaction: Unable to
+  commit against JDBC Connection; ERROR: quantity_sync optionIn value must be a non-empty array
+```
+
+**fix** — `validateOptionPair`를 operator별로 분리했다: `optionIn`(allowList)은 배열+비공란,
+`optionEquals`는 스칼라(`isValueNode()`)를 각각 독립적으로 요구한다. M-4 지시대로 `optionIn`
+외 전체 condition 검증(연산자 whitelist·object 여부·`{}` 조기 return·`[key,value]` arity·
+key 비공란·`not`/`all`/`any` 재귀)을 SQL과 항목별로 대조했고, 이 boolean식 결함 외 추가
+불일치는 찾지 못했다.
+
+**GREEN** — 단위 18/18, 통합 3/3(스칼라 거부·빈 배열 거부·비공란 배열 통제군 저장) 전부 통과.
+
+**버린 대안** — `optionIn`도 스칼라를 허용하도록 DB 쪽을 완화하는 안은 검토하지 않았다 —
+DB 제약이 원래 정본(V24는 R1 이전부터 배열을 요구)이고 Java가 그 정본에서 벗어난 쪽이라,
+완화가 아니라 Java를 정본에 맞추는 방향이 correctness상 유일하게 맞다.
+
+### 결함 3 [MED] — fix가 discontinue/delete만 덮고 update()/노출구분 변경은 빠짐
+
+R1 fix(§7 결함 3)의 `assertNotReferencedByEnabledQuantitySyncRule()` 선제 확인이
+`ProductService.discontinue()`/`delete()`에만 있었다. 그러나 V24의 "삭제·비노출 Product
+연결 금지" 검사(`sp.usage_scope = 'NONE' OR tp.usage_scope = 'NONE'` 포함)는 `usage_scope`가
+`NONE`으로 바뀌는 모든 경로에 적용된다 — `update()`(PATCH 일반 수정, `usageScope` 직접 지정·
+SET_COMPONENT 강제·부모 세트 연결 강제·MATERIAL 카테고리 강제 등 `applyUpdateFields()` 내부
+분기 전부 포함)와 `updateUsageAndReturn()`(수동 override PATCH)에는 가드가 없어, 같은
+원인인데 호출 경로에 따라 "동시 편집 충돌 또는 제약 위반"(update 경로)과 "수량 동기화
+규칙이 …"(discontinue 경로)로 서로 다른 메시지가 나갔다(M-5).
+
+**RED** — `QuantitySyncRuleProductDiscontinueIT`에 3건 추가, 실 Postgres에서 전부 확보:
+
+```text
+java.lang.AssertionError:
+Expecting actual throwable to be an instance of: BusinessException
+but was: DataIntegrityViolationException: ... ERROR: quantity_sync cannot reference deleted
+or invisible product
+```
+
+**fix** — `update()`에 "usageScope가 NONE이 아니었다가 NONE이 됨" 전이만 판정하는 가드를,
+`updateUsageAndReturn()`에는 대상 scope가 NONE(또는 null)로 향할 때의 가드를 각각
+`applyUpdateFields()`/`markUsageManual()` 호출 지점에 추가했다. 전이 여부만 보므로 이미
+NONE인 품목의 무관한 필드 수정은 막지 않는다(M-1과 충돌 없음). 공용 helper의 메시지를
+"단종/삭제할 수 없습니다"에서 "상태를 변경할 수 없습니다"로 일반화해 — discontinue/delete/
+usageScope 전환 어느 경로로 오든 **완전히 같은 문자열**을 낸다(M-5, 회귀 방지 lock 테스트로
+byte-identical 비교까지 고정).
+
+**GREEN** — 신규 3건 + 기존 4건 전부 통과.
+
+**버린 대안** — `update()` 내부에서 usageScope가 NONE이 되는 각 분기(SET_COMPONENT/부모
+세트/MATERIAL/직접 지정)마다 개별적으로 가드를 심는 안은 검토했으나, 분기가 4곳으로 흩어져
+있어 새 분기가 추가될 때마다 또 빠뜨릴 위험이 있어 버렸다 — "before/after 전이 판정" 방식은
+분기 수와 무관하게 최종 상태만 보므로 향후 분기 추가에도 자동으로 적용된다.
+
+### M-7 [재판단] — CONSTRAINT TRIGGER 비용, "규칙 0건=영향 없음" 반증 후 재결정
+
+§7 J-7은 "실 DB 규칙 0건 → 오늘 영향 없음"을 보류 근거로 들었다. 재수렴 실측(150행 UPDATE,
+규칙 0건, 트리거 활성 63.1ms vs disable 6.45ms, ≈10배)이 이 전제를 반증했다 — **규칙이
+0건이어도 트리거 자체의 매 행 함수 호출 비용은 존재한다**. 원인: PostgreSQL
+`CONSTRAINT TRIGGER`는 `FOR EACH STATEMENT`를 지원하지 않는 하드 제약(row-level만 가능)이라,
+`quantity_sync_validate_rule_graph()`가 규칙이 0건이든 아니든 변경 행마다 EXISTS 5개+재귀
+CTE 1개를 전부 실행했다.
+
+**재판단 — 이번 라운드에 처리한다.** 내 환경 재현(150행, 규칙 0건): 활성 18ms vs 비활성
+3ms(≈6배, 원 보고 10배와 같은 현상 다른 배율). `quantity_sync_validate_rule_graph()` 최상단에
+"활성 규칙이 하나도 없으면 즉시 return"(`IF NOT EXISTS (SELECT 1 FROM quantity_sync_rule
+WHERE is_deleted = FALSE) THEN RETURN; END IF;`) 한 줄을 추가했다 — 모든 하위 검사가
+`r.is_deleted = FALSE`를 전제하므로 활성 규칙이 0건이면 전부 공집합이라 항상 통과하고,
+따라서 이 조기 종료는 **동작을 바꾸지 않는 순수 성능 최적화**다. fix 후 재측정: 활성
+4ms/3ms/3ms vs 비활성 3ms(3회 반복, ≈1.0~1.3배) — 회귀 없이 오늘 실 DB의 실제 프로파일(규칙
+0건)에서 비용이 사실상 소멸했다. `quantitysync` 패키지 전체(트리거가 실제로 규칙을 막아야
+하는 기존 테스트 포함) 재실행으로 조기 종료가 "규칙이 있을 때"는 발동하지 않음을 확인했다
+(`BUILD SUCCESSFUL`, 실패 0).
+
+**처리하지 않은 나머지(별도 근거로 명시 보류)** — `products`/`bundle_component` 트리거에
+"이 행이 quantity_sync 규칙에 실제로 걸려 있을 때만 검증" `WHEN`/컬럼 비교 조건을 추가하는
+안(규칙이 실제로 존재할 때 무관한 컬럼(가격 등) 변경까지 매번 전체 그래프를 재검사하는
+비용)은 **이번 라운드에도 보류한다.** 새 근거(§7의 "규칙 0건" 근거가 반증됐으므로 재사용
+불가) — ① 위 early-exit이 오늘 실제 프로파일(규칙 0건)의 비용을 이미 사실상 소멸시켰다.
+② 이 안은 constraint trigger의 `OLD`/`NEW` 컬럼 비교를 이벤트(INSERT/UPDATE/DELETE)
+별로 정확히 구분해야 하는 조건식이 필요해, correctness-critical한 fail-closed 안전망에
+실행 안 되는 코드 경로를 새로 만들 위험이 early-exit보다 크다. ③ 이 비용은 규칙이 실제로
+채워진 뒤에만 발생하며 아직 그 시점의 실측이 없다 — 실측 없이 조건식을 짜면 "근거 없는
+allowlist를 만들지 않는다"(대조-1과 같은 원칙)를 트리거 코드에서 어기게 된다. 규칙이 실제로
+채워지는 슬3+ 단계에서 그때의 실측을 근거로 별도 라운드로 처리한다.
+
+### 🟡 참고 항목 판단 — 허용목록 제거 후의 option key 형식(공백/개행/길이/`__proto__`)
+
+대조 각도가 "오늘 도달 불가"로 표시한 참고 자료: 앞뒤 공백 포함 키·개행 포함 키·5000자
+키·`__proto__` 키가 전부 Java·DB 양쪽에서 통과해 201로 저장된다. **판단 — 이번 라운드에서
+처리하지 않는다.** 근거는 대조-1(§7)이 이미 세운 것과 같은 원칙의 연장이다: 이 네 항목
+모두 "evaluator가 실제로 어떤 키 형식을 어떻게 소비할지"에 대한 가정(trim 정책·인코딩·
+안전한 객체 접근 패턴)이 있어야 옳고 그름을 판단할 수 있는데, 그 계약은 슬3에만 존재한다.
+`__proto__`가 truthy를 반환하는 근본 원인도 API가 받아들이는 문자열이 아니라 **슬3 evaluator가
+평범한 JS object에 `options[key]`로 접근하는 방식**이다 — `toString`/`constructor`/`valueOf`
+등 `__proto__`가 아닌 다른 상속 프로퍼티 이름도 같은 문제를 일으키므로, API 계층의
+blocklist로는 이 계열을 다 막을 수 없다. 올바른 fix는 evaluator가 `Object.hasOwn(options,
+key)`나 `Map`/`Object.create(null)`처럼 안전한 조회를 쓰는 것이며, 이는 슬3 구현 자체다.
+길이 상한만 별도로 지금 추가하는 안도 검토했으나, "5000자"는 오늘 도달 불가능한 입력에 대한
+방어일 뿐 사용자 영향이 없고, 상한값(200? 500?) 자체가 evaluator 계약을 모르는 채로는
+근거 없는 숫자가 되어 대조-1이 이미 반대한 것과 같은 함정이라 함께 보류했다.
+
+### RED/GREEN 요약
+
+```text
+RED (fix 전, 각 신규 테스트를 개별 실행 — 결함별 원문은 위 절 참조)
+  QuantitySyncRuleValidationTest        optionIn 스칼라/빈배열 2건 FAILED (AssertionError, 예외 미발생)
+  QuantitySyncRuleOptionInParityIT      optionIn 스칼라/빈배열 2건 FAILED
+                                          (DataIntegrityViolationException, BusinessException 아님)
+  QuantitySyncRuleProductDeletionCascadeHttpIT
+                                        1건 FAILED (Status expected:<200> but was:<404>)
+  QuantitySyncRuleProductDiscontinueIT  신규 3건 FAILED/ERRORED
+                                          (DataIntegrityViolationException, BusinessException 아님)
+
+GREEN (fix 후)
+.\gradlew :services:product-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 2m 4s
+JUnit reports: files=51 tests=548 skipped=0 failures=0 errors=0
+```
+
+### 변경 파일 (재수렴 라운드)
+
+- `services/product-service/src/main/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidator.java` — 결함 1
+- `services/product-service/src/main/java/com/samhanair/logis/product/service/QuantitySyncRuleService.java` — 결함 2
+- `services/product-service/src/main/java/com/samhanair/logis/product/service/ProductService.java` — 결함 3
+- `services/product-service/src/main/resources/db/migration/V24__quantity_sync_rule_schema.sql` — M-7 early-exit(공유 DB 미적용 확인 후 수정, fresh 재적용으로 재확인)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleValidationTest.java` — 결함 1 단위 RED
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleOptionInParityIT.java` — 결함 1 통합 RED(신규)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDeletionCascadeHttpIT.java` — 결함 2 실 HTTP RED(신규)
+- `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleProductDiscontinueIT.java` — 결함 3 RED
+- 본 보고서 — §6·§7 정정 + 본 §8

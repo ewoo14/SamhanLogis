@@ -534,7 +534,17 @@ public class ProductService {
         if (req.description() != null) {
             product.editDescription(req.description());
         }
+        // 재수렴 결함 3 [MED] — discontinue()/delete()에만 있던 가드가 update()에는 없어
+        // usageScope가 NONE으로 바뀌면(직접 요청·SET_COMPONENT 강제·부모 세트 연결·MATERIAL
+        // 카테고리 강제 등 applyUpdateFields() 내부의 어느 경로를 통하든) DB의 V24 deferred
+        // constraint trigger(quantity_sync cannot reference deleted or invisible product)에서만
+        // 걸려 "동시 편집 충돌 또는 제약 위반"(409)으로 원인이 위장됐다. 전이 여부(NONE이
+        // 아니었다가 NONE이 됨)만 판정하므로 이미 NONE인 품목의 무관한 필드 수정은 막지 않는다.
+        boolean usageWasNone = product.getUsageScope() == UsageScope.NONE;
         boolean usageForcedNone = applyUpdateFields(product, req);
+        if (!usageWasNone && product.getUsageScope() == UsageScope.NONE) {
+            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
+        }
         if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null) {
             syncEstimateExposures(product, product.getUsageScope(), req.estimateCategories(), "product-update");
         }
@@ -592,6 +602,14 @@ public class ProductService {
      */
     public Product updateUsageAndReturn(String modelCode, UpdateProductUsageRequest req) {
         Product product = loadByModelCodeOrThrow(modelCode);
+        // 재수렴 결함 3 [MED] — update()와 같은 이유로 수동 노출 override 경로도 가드가
+        // 없었다. req.usageScope()는 @NotNull이라 HTTP 경로에서는 null이 될 수 없지만,
+        // markUsageManual() 자체는 null을 NONE으로 취급하므로 방어적으로 함께 판정한다.
+        boolean movingToNone = product.getUsageScope() != UsageScope.NONE
+                && (req.usageScope() == null || req.usageScope() == UsageScope.NONE);
+        if (movingToNone) {
+            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
+        }
         product.markUsageManual(req.usageScope());
         syncEstimateExposures(product, req.usageScope(), req.estimateCategories(), "product-usage-manual");
         return product;
@@ -684,19 +702,25 @@ public class ProductService {
     }
 
     /**
-     * R1 결함 3 [MED] — 품목 단종/삭제가 수량 동기화 규칙 참조 때문에 막힐 때, 그 원인이
-     * "동시 편집 충돌 또는 제약 위반"(DB constraint trigger 우회 후 GlobalExceptionHandler의
-     * 범용 409)으로 위장되지 않고 사용자에게 드러나도록(J-4) 실제 mutation 전에 선제 확인한다.
-     * DB 층 deferred constraint trigger는 여전히 fail-closed 안전망으로 남는다(J-2).
+     * R1 결함 3 [MED] · 재수렴 결함 3 [MED] — 품목 상태 변경(단종/삭제/노출구분 NONE 전환)이
+     * 수량 동기화 규칙 참조 때문에 막힐 때, 그 원인이 "동시 편집 충돌 또는 제약 위반"(DB
+     * constraint trigger 우회 후 GlobalExceptionHandler의 범용 409)으로 위장되지 않고
+     * 사용자에게 드러나도록(J-4) 실제 mutation 전에 선제 확인한다. DB 층 deferred constraint
+     * trigger는 여전히 fail-closed 안전망으로 남는다(J-2).
      *
-     * @param productId 단종/삭제하려는 Product 내부 FK
+     * <p>재수렴 R1에서 discontinue()/delete()에만 있던 이 가드가 update()(PATCH 노출구분
+     * 변경 포함)·updateUsageAndReturn()(수동 override)에는 없어 같은 원인인데 호출 경로별로
+     * 다른 메시지가 나가는 결함이 있었다(M-5) — 메시지를 "단종/삭제"로 특정 동작에 묶지 않고
+     * 상태 변경 일반으로 표현해 어느 경로로 오든 동일한 문자열을 낸다.
+     *
+     * @param productId 상태를 변경하려는 Product 내부 FK
      * @throws BusinessException(CONFLICT) 활성(enabled)+비삭제 규칙이 참조 중일 때
      */
     private void assertNotReferencedByEnabledQuantitySyncRule(UUID productId) {
         List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysReferencing(productId);
         if (!ruleKeys.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
-                    "수량 동기화 규칙이 이 품목을 참조하고 있어 단종/삭제할 수 없습니다: "
+                    "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
                             + String.join(", ", ruleKeys));
         }
     }

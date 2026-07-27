@@ -332,11 +332,27 @@ public class QuantitySyncRuleValidator {
      * 우연히 같았다. 없는 근거를 지어내는 대신(J-5) 이 key-vocabulary 검증은 evaluator가
      * 실제 옵션 계약을 읽는 슬3으로 미루고, 여기서는 typed 구조(연산자 whitelist·
      * [key,value] arity·key가 공백 아닌 문자열)만 유지한다.
+     *
+     * <p>🚨 2026-07-28 재수렴 결함 1 [HIGH] fix — value(두번째 원소)의 타입 검사가
+     * {@code !value.get(1).isValueNode() && !(allowList && value.get(1).isArray())} 한 식으로
+     * 합쳐져 있었다. {@code optionIn}(allowList=true)에서는 이 식이 스칼라({@code isValueNode()
+     * = true} → 좌항 false)와 빈 배열({@code isArray()=true} → 우항 false, 배열 길이는 아예
+     * 검사하지 않음) 양쪽 모두를 통과시켰다 — V24:170-175 SQL은 optionIn 값을 "배열이고
+     * 비어있지 않음"으로 명시적으로 요구하므로, Java가 통과시킨 스칼라/빈 배열이 DB에서만
+     * 거부되며 원인이 "동시 편집 충돌 또는 제약 위반"(결함 3이 없애려던 그 409)으로
+     * 위장됐다. operator별로 요구 타입을 분리해 Java와 DB가 같은 답을 내도록 맞춘다.
      */
     private void validateOptionPair(JsonNode value, boolean allowList) {
         if (!value.isArray() || value.size() != 2 || !value.get(0).isTextual()
-                || value.get(0).asText().isBlank()
-                || (!value.get(1).isValueNode() && !(allowList && value.get(1).isArray()))) {
+                || value.get(0).asText().isBlank()) {
+            invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
+        }
+        JsonNode operand = value.get(1);
+        if (allowList) {
+            if (!operand.isArray() || operand.isEmpty()) {
+                invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
+            }
+        } else if (!operand.isValueNode()) {
             invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
         }
     }

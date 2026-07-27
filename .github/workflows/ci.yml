@@ -149,12 +149,18 @@ jobs:
           # R1 대조(SONNET5) 문제 4 + R1 fix 라운드: tests>=1 하한은 8/8/1/1 -> N/M로 줄어드는
           # 회귀도 통과시켜 실제 실측치(13/11/2/1/4, R1 fix 라운드 신규 IT 포함)보다 느슨했다.
           # #956과 같은 방식으로 report별 정확한 최소값을 강제한다.
+          # 재수렴 라운드: ValidationTest 13->16(+3 optionIn parity), ProductDiscontinueIT 4->7
+          # (+3 update()/updateUsageAndReturn() 가드) — 신규 리포트 2건(OptionInParityIT·
+          # ProductDeletionCascadeHttpIT)도 게이트에 등재한다(미등재 시 skipped=0 만 새지 않고
+          # 검사 자체가 누락되는 표면이 생긴다 — feedback_ungated_surface_and_mock_covering_defect.md).
           declare -A min_tests=(
-            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml']=13
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml']=16
             ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleDbProbeIT.xml']=11
             ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleCrudIT.xml']=2
             ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleSeedAbsenceIT.xml']=1
-            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDiscontinueIT.xml']=4
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDiscontinueIT.xml']=7
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleOptionInParityIT.xml']=3
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDeletionCascadeHttpIT.xml']=1
           )
           for report in "${!min_tests[@]}"; do
             if [ ! -f "$report" ]; then
