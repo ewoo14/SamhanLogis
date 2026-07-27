@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import {
   cleanupDs4Template,
   extendDs4CleanupTimeout,
-  rememberDs4TemplateId,
+  rememberDs4TemplateIdFromSaveBody,
   startDs4RunScope,
   stopDs4RunScope,
   sweepStaleDs4Templates,
@@ -100,8 +100,6 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     await page.getByRole('button', { name: '저장' }).click()
     const res = await saved
     const savedBody = await res.json()
-    savedTemplateId = String(savedBody.data?.id ?? '')
-    console.log(`■ 저장 응답 = ${res.request().method()} ${res.status()}`)
     if (res.status() >= 400) {
       console.log(`■ 422 본문 = ${(await res.text()).slice(0, 500)}`)
       const req = res.request().postData() ?? ''
@@ -109,9 +107,12 @@ test('DS-4 — 품목행·이미지 요소가 실 BE 를 왕복한다', async ({
     }
     expect(res.status(), `실 BE 저장 실패 — DocumentPayloadValidator 가 신규 요소를 거부했을 수 있다`)
       .toBeLessThan(400)
-    await expect(page.getByText('저장된 상태입니다.')).toBeVisible({ timeout: 15000 })
+    // 서버 UUID를 얻은 즉시 기록한다. 저장 완료 문구를 최대 15초 기다리는 동안 강제 종료돼도
+    // worker/reaper가 이 run의 정확한 ID를 회수할 수 있어야 한다.
+    savedTemplateId = rememberDs4TemplateIdFromSaveBody(runScope, savedBody)
+    console.log(`■ 저장 응답 = ${res.request().method()} ${res.status()}`)
     expect(savedTemplateId, '저장 응답에 template id가 없다').not.toBe('')
-    rememberDs4TemplateId(runScope, savedTemplateId)
+    await expect(page.getByText('저장된 상태입니다.')).toBeVisible({ timeout: 15000 })
     const activation = await page.request.post(`${API_BASE}/admin/groupware/document-templates/${savedTemplateId}/activate`, {
       headers: { Authorization: `Bearer ${d.token}`, 'X-User-Id': d.userId, 'X-User-Role': d.role ?? 'MASTER' },
     })

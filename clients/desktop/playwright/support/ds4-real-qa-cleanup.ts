@@ -81,6 +81,21 @@ export function rememberDs4TemplateId(scope: Ds4RunScope, templateId: string): v
   scope.templateId = templateId
 }
 
+/** 저장 응답을 받은 직후 서버 발급 UUID를 registry에 기록한다. UI 상태 대기는 이 호출 뒤에 둔다. */
+export function rememberDs4TemplateIdFromSaveBody(scope: Ds4RunScope, body: unknown): string {
+  const data = body && typeof body === 'object' && 'data' in body
+    ? (body as { data?: unknown }).data
+    : undefined
+  const templateId = data && typeof data === 'object' && 'id' in data
+    ? (data as { id?: unknown }).id
+    : undefined
+  if (typeof templateId !== 'string' || !TEMPLATE_ID_PATTERN.test(templateId)) {
+    throw new Error('저장 응답에 유효한 문서 양식 ID가 없습니다')
+  }
+  rememberDs4TemplateId(scope, templateId)
+  return templateId
+}
+
 /** 테스트 timeout으로 page 요청이 끊겨도 cleanup 요청에 별도 예산을 준다. */
 export function extendDs4CleanupTimeout(testInfo: TestInfo, extraMs = 30_000): void {
   testInfo.setTimeout(testInfo.timeout + extraMs)

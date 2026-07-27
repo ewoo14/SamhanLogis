@@ -366,7 +366,8 @@ public class DocumentPayloadValidator {
      * R1-4/R3: WebP는 표준 JDK ImageIO reader가 없어 실제 픽셀 디코드로 무결성을 검증할 수
      * 없다. 따라서 RIFF 전체 청크를 끝까지 순회하고, 실제 이미지 서브청크가 하나 이상 있는지
      * 확인하는 보수적 구조 검사를 수행한다. 특히 VP8L의 5바이트 헤더만 있는 입력과 VP8X
-     * 확장 헤더만 있는 입력은 저장 전에 거부한다.
+     * 확장 헤더만 있는 입력은 저장 전에 거부한다. 애니메이션 WebP의 ANMF 프레임은 16바이트
+     * 프레임 헤더 뒤에 VP8/VP8L 이미지 청크를 중첩하므로 그 내부도 같은 방식으로 검사한다.
      */
     private static boolean isStructurallyValidWebp(byte[] decoded) {
         if (decoded.length < 20) return false; // RIFF 헤더(12) + 첫 서브청크 헤더(8)
@@ -394,12 +395,43 @@ public class DocumentPayloadValidator {
             } else if ("VP8L".equals(fourCc)) {
                 if (!isStructurallyValidVp8l(decoded, dataOffset, chunkSize)) return false;
                 hasImageChunk = true;
+            } else if ("ANMF".equals(fourCc)) {
+                if (!isStructurallyValidAnmf(decoded, dataOffset, chunkSize)) return false;
+                hasImageChunk = true;
             }
             offset += 8 + (int) paddedChunkSize;
         }
         // VP8X는 컨테이너 헤더만으로는 이미지가 아니다. VP8/VP8L 서브청크가 있어야 한다.
         return offset == decoded.length && hasImageChunk && (hasExtendedHeader || decoded[12] != 'V'
                 || decoded[13] != 'P' || decoded[14] != '8' || decoded[15] != 'X');
+    }
+
+    private static boolean isStructurallyValidAnmf(byte[] bytes, int dataOffset, long chunkSize) {
+        // ANMF 고정 프레임 헤더(좌표·크기·duration·blend/dispose) 뒤에 nested chunk가 온다.
+        if (chunkSize < 16) return false;
+        int frameEnd = dataOffset + (int) chunkSize;
+        int offset = dataOffset + 16;
+        boolean hasImageChunk = false;
+        while (offset < frameEnd) {
+            if (frameEnd - offset < 8) return false;
+            String fourCc = new String(bytes, offset, 4, StandardCharsets.US_ASCII);
+            long nestedChunkSize = readUInt32LE(bytes, offset + 4);
+            long paddedChunkSize = nestedChunkSize + (nestedChunkSize & 1L);
+            if (nestedChunkSize > frameEnd - offset - 8L
+                    || paddedChunkSize > frameEnd - offset - 8L) {
+                return false;
+            }
+            int nestedDataOffset = offset + 8;
+            if ("VP8 ".equals(fourCc)) {
+                if (!isStructurallyValidVp8(bytes, nestedDataOffset, nestedChunkSize)) return false;
+                hasImageChunk = true;
+            } else if ("VP8L".equals(fourCc)) {
+                if (!isStructurallyValidVp8l(bytes, nestedDataOffset, nestedChunkSize)) return false;
+                hasImageChunk = true;
+            }
+            offset += 8 + (int) paddedChunkSize;
+        }
+        return offset == frameEnd && hasImageChunk;
     }
 
     private static boolean isStructurallyValidVp8(byte[] bytes, int dataOffset, long chunkSize) {

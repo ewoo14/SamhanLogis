@@ -16,6 +16,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -438,6 +440,26 @@ class DocumentPayloadValidatorTest {
                 .addObject().put("key", "chromium-webp").put("type", "IMAGE")
                 .put("src", "data:image/webp;base64," + chromiumWebp)
                 .put("alt", "Chromium WebP 로고");
+
+        assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    /** K-3 회귀 울타리 — 저장소 실제 마스코트의 첫 ANMF 프레임을 포함한 애니메이션 WebP. */
+    @Test
+    void R5_webp_acceptsRepositoryAnimationAssetFrame() throws Exception {
+        byte[] webp = firstAnimationFrameFromRepositoryAsset();
+        assertThat(new String(Arrays.copyOfRange(webp, 12, 16), StandardCharsets.US_ASCII))
+                .isEqualTo("VP8X");
+        assertThat(new String(Arrays.copyOfRange(webp, 30, 34), StandardCharsets.US_ASCII))
+                .isEqualTo("ANIM");
+        assertThat(new String(Arrays.copyOfRange(webp, 44, 48), StandardCharsets.US_ASCII))
+                .isEqualTo("ANMF");
+
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "repository-animation-webp").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(webp))
+                .put("alt", "저장소 실제 애니메이션 마스코트 자산");
 
         assertThat(validator.validate((short) 2, document)).isNotNull();
     }
@@ -974,6 +996,52 @@ class DocumentPayloadValidatorTest {
         byte[] corrupted = valid.clone();
         corrupted[23] = 0x00; // 시작 코드 0x9D → 0x00
         return corrupted;
+    }
+
+    private static byte[] firstAnimationFrameFromRepositoryAsset() throws IOException {
+        Path relativeAsset = Path.of("clients/web/design-system/src/assets/mascot/samhani.webp");
+        Path asset = null;
+        for (Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+                current != null; current = current.getParent()) {
+            Path candidate = current.resolve(relativeAsset);
+            if (Files.exists(candidate)) {
+                asset = candidate;
+                break;
+            }
+        }
+        assertThat(asset).as("저장소 실제 WebP 마스코트 자산 경로를 찾을 수 있어야 한다").isNotNull();
+        assertThat(Files.exists(asset)).as("저장소 실제 WebP 마스코트 자산이 있어야 한다").isTrue();
+        byte[] source = Files.readAllBytes(asset);
+        int anmfOffset = findChunk(source, "ANMF", 12);
+        assertThat(anmfOffset).as("마스코트 자산은 실제 애니메이션 ANMF 프레임을 가져야 한다")
+                .isGreaterThan(0);
+        int anmfSize = (int) readUInt32LE(source, anmfOffset + 4);
+        int frameEnd = anmfOffset + 8 + anmfSize + (anmfSize & 1);
+        byte[] singleFrame = Arrays.copyOf(source, frameEnd);
+        int riffSize = singleFrame.length - 8;
+        singleFrame[4] = (byte) riffSize;
+        singleFrame[5] = (byte) (riffSize >> 8);
+        singleFrame[6] = (byte) (riffSize >> 16);
+        singleFrame[7] = (byte) (riffSize >> 24);
+        return singleFrame;
+    }
+
+    private static int findChunk(byte[] bytes, String fourCc, int start) {
+        int offset = start;
+        while (offset + 8 <= bytes.length) {
+            String current = new String(bytes, offset, 4, StandardCharsets.US_ASCII);
+            int chunkSize = (int) readUInt32LE(bytes, offset + 4);
+            if (fourCc.equals(current)) return offset;
+            offset += 8 + chunkSize + (chunkSize & 1);
+        }
+        return -1;
+    }
+
+    private static long readUInt32LE(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xFFL)
+                | ((bytes[offset + 1] & 0xFFL) << 8)
+                | ((bytes[offset + 2] & 0xFFL) << 16)
+                | ((bytes[offset + 3] & 0xFFL) << 24);
     }
 
     private static byte[] buildWebp(String fourCc, byte[] chunkData) throws IOException {
