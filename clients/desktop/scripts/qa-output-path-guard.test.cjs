@@ -47,6 +47,8 @@ const repoRoot = path.resolve(desktopRoot, '../..')
 const docsQaRoot = path.join(repoRoot, 'docs', 'qa')
 const tsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.ts')
 const mjsHelperPath = path.join(desktopRoot, 'playwright', 'support', 'qa-screenshot-dir.mjs')
+const rootMjsHelperPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.mjs')
+const qaPlaywrightHelperPath = path.join(repoRoot, 'qa', 'playwright', 'utils', 'screenshot.ts')
 const tempRoot = path.join(os.tmpdir(), 'samhan-863-qa-output-path-guard')
 
 /**
@@ -62,6 +64,7 @@ const MY_FIXTURE_COMMITTED_DIR = path.join(docsQaRoot, '__863-r1-guard-fixture__
 function resetEnvironment() {
   delete process.env.QA_SHOTS_DIR
   delete process.env.QA_ALLOW_OVERWRITE
+  delete process.env.QA_REPO_ROOT
   fs.rmSync(tempRoot, { recursive: true, force: true })
 }
 
@@ -142,6 +145,23 @@ function loadTypeScriptResolver() {
   return moduleValue.exports.resolveQaShotsDir
 }
 
+function loadQaPlaywrightCapture() {
+  const source = fs.readFileSync(qaPlaywrightHelperPath, 'utf8').replaceAll('import.meta.url', "''")
+  const output = typescript.transpileModule(source, {
+    compilerOptions: {
+      module: typescript.ModuleKind.CommonJS,
+      target: typescript.ScriptTarget.ES2022,
+    },
+  }).outputText
+  const moduleValue = { exports: {} }
+  const wrapper = vm.runInThisContext(
+    `(function(require,module,exports,__dirname,__filename){${output}\n})`,
+    { filename: qaPlaywrightHelperPath },
+  )
+  wrapper(require, moduleValue, moduleValue.exports, path.dirname(qaPlaywrightHelperPath), qaPlaywrightHelperPath)
+  return moduleValue.exports.captureForQa
+}
+
 test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다', async () => {
   const junctionRoot = path.join(tempRoot, 'junction-to-docs-qa')
   const junctionMissing = path.join(junctionRoot, '__863-r2-not-created__')
@@ -156,9 +176,11 @@ test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세
   fs.symlinkSync(docsQaRoot, junctionRoot, 'junction')
 
   const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
+  const { resolveQaShotsDir: rootMjsResolve } = await import(pathToFileURL(rootMjsHelperPath).href)
   const resolvers = [
     ['cjs', resolveQaShotsDir],
     ['mjs', mjsResolve],
+    ['root-mjs', rootMjsResolve],
     ['ts', loadTypeScriptResolver()],
   ]
   // 플랫폼 불문 케이스 — junction·후행 구분자·상대/절대·드라이브 문자는 물리적으로
@@ -201,6 +223,119 @@ test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세
   }
 })
 
+test('qa/playwright captureForQa도 물리적으로 docs/qa 아래인 목적지를 차단한다', async () => {
+  const junctionRoot = path.join(tempRoot, 'qa-playwright-junction-to-docs-qa')
+  fs.mkdirSync(tempRoot, { recursive: true })
+  fs.symlinkSync(docsQaRoot, junctionRoot, 'junction')
+
+  const captureForQa = loadQaPlaywrightCapture()
+  process.env.QA_REPO_ROOT = repoRoot
+  process.env.QA_SHOTS_DIR = junctionRoot
+
+  const page = {
+    screenshot: async () => {
+      throw new Error('물리 경로 가드가 먼저 실패해야 합니다')
+    },
+  }
+  const testInfo = { attach: async () => {} }
+
+  await assert.rejects(
+    () => captureForQa(page, testInfo, 'qa-playwright-physical-alias'),
+    error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+  )
+})
+
+test('qa/playwright captureForQa의 기본 출력과 명시적 승격은 계속 통과한다', async () => {
+  const qaRepoRoot = path.join(tempRoot, 'qa-playwright-repo')
+  const captureForQa = loadQaPlaywrightCapture()
+  const capturedPaths = []
+  const page = { screenshot: async ({ path: target }) => capturedPaths.push(target) }
+  const testInfo = { attach: async () => {} }
+  process.env.QA_REPO_ROOT = qaRepoRoot
+
+  const localTarget = await captureForQa(page, testInfo, 'first-capture')
+  assert.equal(localTarget, capturedPaths[0])
+  assert.match(localTarget, /[\\/]phase7-e2e[\\/]_local[\\/]first-capture\.png$/)
+
+  process.env.QA_SHOTS_DIR = path.join(tempRoot, 'promoted-output')
+  process.env.QA_ALLOW_OVERWRITE = '1'
+  const promotedTarget = await captureForQa(page, testInfo, 'promoted-capture')
+  assert.equal(promotedTarget, capturedPaths[1])
+  assert.match(promotedTarget, /[\\/]promoted-output[\\/]promoted-capture\.png$/)
+})
+
+test('qa/playwright 캡처 호출은 실행 시 docs/qa 직접 경로를 사용하지 않는다', () => {
+  const files = []
+  const pending = [path.join(repoRoot, 'qa', 'playwright')]
+  while (pending.length > 0) {
+    const current = pending.pop()
+    const stat = fs.statSync(current)
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) {
+        if (entry !== 'node_modules' && entry !== 'test-results' && entry !== 'playwright-report') {
+          pending.push(path.join(current, entry))
+        }
+      }
+    } else if (/\.(mjs|js|cjs|ts)$/.test(current)) {
+      files.push(current)
+    }
+  }
+
+  const directPaths = files.flatMap(file => {
+    const source = fs.readFileSync(file, 'utf8')
+    return source.match(/path:\s*['\"]docs[\\/]qa[\\/][^'\"]+/g) ?? []
+  })
+
+  assert.deepEqual(directPaths, [], `직접 docs/qa 캡처 경로 ${directPaths.length}개가 남아 있습니다`)
+})
+
+function discoverQaResolverSources() {
+  const sources = []
+  const pending = [repoRoot]
+  while (pending.length > 0) {
+    const current = pending.pop()
+    const stat = fs.statSync(current)
+    if (stat.isDirectory()) {
+      const name = path.basename(current)
+      if (name !== '.git' && name !== 'node_modules' && name !== 'test-results' && name !== 'playwright-report') {
+        for (const entry of fs.readdirSync(current)) pending.push(path.join(current, entry))
+      }
+      continue
+    }
+
+    if (!/\.(cjs|mjs|ps1|py|sh|ts)$/.test(current) || /\.test\.[^.]+$/.test(current)) continue
+    const source = readSourceText(current)
+    const declaresResolver =
+      /\b(?:function|def)\s+(?:resolveQaShotsDir|resolve_qa_shots_dir|Resolve-QaShotsDir|resolveOutputDir)\b/.test(source) ||
+      /\bresolve_qa_shots_dir\s*\(\s*\)/.test(source)
+    if (source.includes('QA_SHOTS_DIR') && declaresResolver) sources.push({ path: current, source })
+  }
+  return sources.sort((left, right) => left.path.localeCompare(right.path))
+}
+
+function readSourceText(filePath) {
+  const content = fs.readFileSync(filePath)
+  if (content[0] === 0xff && content[1] === 0xfe) return content.subarray(2).toString('utf16le')
+  if (content[0] === 0xfe && content[1] === 0xff) return content.subarray(2).toString('utf16le')
+  return content.toString('utf8')
+}
+
+test('QA resolver 가드 표면은 저장소 소스에서 동적으로 발견되고 물리 판정을 선언한다', () => {
+  const sources = discoverQaResolverSources()
+  const relativePaths = sources.map(({ path: filePath }) => path.relative(repoRoot, filePath).replaceAll(path.sep, '/'))
+
+  assert.ok(sources.length >= 8, `resolver 사본이 예상 최소치보다 적습니다: ${sources.length}`)
+  for (const { path: filePath, source } of sources) {
+    assert.match(
+      source,
+      /DOCS_QA_ROOT|isWithinPhysical|_is_within_physical|_qa_is_within_physical|Test-QaPhysicalWithin/,
+      `${path.relative(repoRoot, filePath)} 에 물리 경로 판정이 없습니다`,
+    )
+  }
+
+  console.log(`[QA resolver inventory] count=${sources.length} ${relativePaths.join(', ')}`)
+})
+
 test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소스는 구조 마커로, .mjs 는 실행으로 대조', async () => {
   // .ts 는 이 CommonJS 테스트에서 직접 require/import 할 수 없다(ts-node 미설치) — 소스 텍스트로
   // 핵심 계약 마커(기본값 _local·DOCS_QA_ROOT 기반 가드·QA_ALLOW_OVERWRITE 탈출구)를 확인한다.
@@ -219,6 +354,9 @@ test('resolver 3벌(.ts/.mjs/.cjs)이 같은 계약을 선언한다 — .ts 소�
 
   const mjsSource = fs.readFileSync(mjsHelperPath, 'utf8')
   assert.match(mjsSource, /DOCS_QA_ROOT/, '.mjs 에 전역 docs/qa 루트 가드가 없음 (D-3 미이관)')
+
+  const qaPlaywrightSource = fs.readFileSync(qaPlaywrightHelperPath, 'utf8')
+  assert.match(qaPlaywrightSource, /DOCS_QA_ROOT/, 'qa/playwright resolver에 전역 docs/qa 루트 가드가 없음')
 
   const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
   const committedDir = path.join(tempRoot, 'ts-mjs-parity')

@@ -97,7 +97,9 @@ jobs:
       - name: 의존성 설치
         working-directory: clients/desktop
         run: npm ci
-      - name: QA 출력 경로·덮어쓰기 가드
+      # #851 S2 I-1~I-5: 모든 resolver 사본과 qa/playwright 직접 캡처 표면을
+      # 동적으로 발견해 검사한다. 이 step에는 continue-on-error/|| true를 두지 않는다.
+      - name: QA 출력 경로·덮어쓰기 가드 (전체 resolver coverage)
         working-directory: clients/desktop
         run: node --test scripts/qa-output-path-guard.test.cjs
       - name: Playwright 브라우저 설치

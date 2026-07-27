@@ -246,8 +246,9 @@ npx cap open android
 ## Playwright QA 캡처 출력 경로 — `docs/qa/**` 커밋 증거 덮어쓰기 가드 (2026-07-27, 이슈 #863)
 
 `playwright/support/qa-screenshot-dir.ts`(및 `.mjs`, 그리고 `clients/*`/루트 `scripts/` 공용
-`scripts/lib/qa-shots-dir.cjs`)의 `resolveQaShotsDir(committedDir)`는 mock·real-QA 스펙이
-공통으로 쓰는 QA 캡처 출력 경로 resolver다.
+`scripts/lib/qa-shots-dir.{cjs,mjs}`)의 `resolveQaShotsDir(committedDir)`는 mock·real-QA
+스펙이 공통으로 쓰는 QA 캡처 출력 경로 resolver다. 모든 구현은 실제 물리 경로를 판정하므로
+junction·상대경로·Windows 확장 길이 접두사·대소문자 표기로도 `docs/qa` 가드를 우회할 수 없다.
 
 - **기본값**(`QA_SHOTS_DIR` 환경변수 미지정)은 항상 `<committedDir>/_local`(gitignore 대상)이다
   — 스펙을 재실행해도 `docs/qa/<slug>/*.png` 커밋 증거가 덮어써지지 않는다.
@@ -260,6 +261,7 @@ npx cap open android
   걸면, 그 값이 다른 스펙들에도 똑같이 적용돼 남의 커밋 디렉터리가 통째로 덮어써질 수 있다
   — `QA_ALLOW_OVERWRITE=1` 이중 확인이 그 사고를 막는다.
 - 회귀 테스트: `clients/desktop/scripts/qa-output-path-guard.test.cjs`(`node --test`로 단독
-  실행 가능, CI `qa-e2e.yml`의 `desktop-playwright` 잡에도 등재).
+  실행 가능, CI `qa-e2e.yml`의 `desktop-playwright` 잡에도 등재). 테스트는 resolver 사본과
+  `qa/playwright`의 직접 캡처 쓰기 표면을 소스에서 동적으로 발견한다.
 
 제약: N1은 Android 스캐폴드와 자산 sync 기반 구축 단계다. 실제 APK/스토어 배포, iOS 스캐폴드/빌드, secure storage 승격, 푸시/생체인증/스캔은 후속 N2~N5 범위다. 실기기 운영 검증은 Phase 11 HTTPS 게이트웨이 확보 후 진행한다.

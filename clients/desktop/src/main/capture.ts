@@ -8,8 +8,9 @@
  * 프로덕션 빌드에는 import 만 되어 환경변수 미설정 시 no-op 동작한다.
  */
 import { app, type BrowserWindow } from 'electron'
+import * as fs from 'node:fs'
 import { writeFileSync, mkdirSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve, sep } from 'node:path'
 
 interface RouteSpec {
   /** HashRouter 경로 (`/`, `/login`, `/warehouses`, ...) */
@@ -37,11 +38,61 @@ const ROUTES: RouteSpec[] = [
  * 인라인한다 — Electron main 번들(src/main/**)에 playwright 전용 헬퍼를 새로 의존시키지
  * 않기 위해서다(패키징 함정 회피, [[feedback_electron_packaging_gotchas]]).
  */
+function hasExplicitOverwriteIntent(): boolean {
+  return ['1', 'true', 'yes'].includes(String(process.env['QA_ALLOW_OVERWRITE'] ?? '').trim().toLowerCase())
+}
+
+function resolvePhysicalPath(candidateDir: string): string {
+  let current = resolve(candidateDir)
+  const missingParts: string[] = []
+  while (!fs.existsSync(current)) {
+    const parent = dirname(current)
+    if (parent === current) return current
+    missingParts.unshift(basename(current))
+    current = parent
+  }
+  return join(fs.realpathSync.native(current), ...missingParts)
+}
+
+function normalizePhysicalPath(candidateDir: string): string {
+  const isWindows = process.platform === 'win32'
+  const withoutExtendedPrefix = isWindows && candidateDir.startsWith('\\\\?\\UNC\\')
+    ? `\\\\${candidateDir.slice('\\\\?\\UNC\\'.length)}`
+    : isWindows && candidateDir.startsWith('\\\\?\\')
+      ? candidateDir.slice('\\\\?\\'.length)
+      : candidateDir
+  const normalized = normalize(withoutExtendedPrefix)
+  const root = parse(normalized).root
+  const comparable = normalized === root ? normalized : normalized.replace(/[\\/]+$/, '')
+  return isWindows ? comparable.toLowerCase() : comparable
+}
+
+function isWithinPhysical(parentDir: string, candidateDir: string): boolean {
+  const parent = normalizePhysicalPath(resolvePhysicalPath(parentDir))
+  const candidate = normalizePhysicalPath(resolvePhysicalPath(candidateDir))
+  const candidateRelative = relative(parent, candidate)
+  return (
+    candidateRelative === '' ||
+    (candidateRelative !== '..' && !candidateRelative.startsWith(`..${sep}`) && !isAbsolute(candidateRelative))
+  )
+}
+
 function resolveOutputDir(): string {
   // 메인 프로세스의 cwd 는 보통 clients/desktop. worktree 루트로 두 단계 위.
   const committedDir = resolve(process.cwd(), '..', '..', 'docs', 'qa', 'electron-skeleton-slice', 'screenshots')
   const override = process.env['QA_SHOTS_DIR']
-  return override && override.trim().length > 0 ? resolve(override) : resolve(committedDir, '_local')
+  const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
+  const directory = trimmed ? resolve(trimmed) : resolve(committedDir, '_local')
+  const docsQaRoot = resolve(process.cwd(), '..', '..', 'docs', 'qa')
+
+  if (trimmed && isWithinPhysical(docsQaRoot, directory) && !hasExplicitOverwriteIntent()) {
+    throw new Error(
+      `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${directory}. ` +
+        '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',
+    )
+  }
+
+  return directory
 }
 
 /** 단일 라우트 캡처 — hash 변경 → 대기 → capturePage → PNG 저장. */

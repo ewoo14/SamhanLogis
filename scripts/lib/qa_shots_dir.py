@@ -24,15 +24,46 @@ docs/qa/sp-08-6-5-accounting-daily-ledger/gen_pngs.py 편입).
 import os
 
 
+def _has_explicit_overwrite_intent() -> bool:
+    return os.environ.get('QA_ALLOW_OVERWRITE', '').strip().lower() in {'1', 'true', 'yes'}
+
+
+def _normalize_physical_path(candidate_dir: str) -> str:
+    if os.name == 'nt':
+        if candidate_dir.startswith('\\\\?\\UNC\\'):
+            candidate_dir = '\\\\' + candidate_dir[len('\\\\?\\UNC\\'):]
+        elif candidate_dir.startswith('\\\\?\\'):
+            candidate_dir = candidate_dir[len('\\\\?\\'):]
+    return os.path.normcase(os.path.normpath(candidate_dir))
+
+
+def _is_within_physical(parent_dir: str, candidate_dir: str) -> bool:
+    parent = _normalize_physical_path(os.path.realpath(parent_dir))
+    candidate = _normalize_physical_path(os.path.realpath(candidate_dir))
+    try:
+        return os.path.commonpath([parent, candidate]) == parent
+    except ValueError:
+        return False
+
+
 def resolve_qa_shots_dir(committed_dir: str) -> str:
     """committed_dir 은 기존 커밋 캡처가 있는(또는 있을) 절대경로.
 
     반환값은 이번 실행에서 실제로 PNG 를 써야 할 절대경로(디렉토리는 이미 생성됨).
     """
+    committed = os.path.abspath(committed_dir)
     override = os.environ.get('QA_SHOTS_DIR', '')
     if override.strip():
         directory = os.path.abspath(override)
     else:
-        directory = os.path.join(committed_dir, '_local')
+        directory = os.path.join(committed, '_local')
+
+    docs_qa_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'docs', 'qa'))
+    if override.strip() and _is_within_physical(docs_qa_root, directory) and not _has_explicit_overwrite_intent():
+        raise RuntimeError(
+            f'[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: {directory}. '
+            '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.'
+        )
+
     os.makedirs(directory, exist_ok=True)
     return directory

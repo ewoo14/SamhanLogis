@@ -372,21 +372,12 @@ function collectInlineLiteralDestinations(src: string): string[] {
 /**
  * G8d 이월 — **cwd 상대경로** 인라인 목적지를 가진 파일.
  *
- * `qa/playwright/tests/arologis/sp-10-2-insung-quick-vendor.spec.ts` 의 14개
- * `page.screenshot({ path: 'docs/qa/sp-10-2-…/screenshots/QA-N-*.png' })` 는 레포 루트
- * 앵커(`repoRoot`/`__dirname`) 없이 **실행 cwd 기준**으로 해석된다. CI(qa-e2e.yml,
- * `working-directory: qa/playwright`)에서는 `qa/playwright/docs/qa/…` 로 떨어져 커밋 증거를
- * 침범하지 않는다(tracked 0건 확인). 커밋 증거 침범이 아니므로 이번 라운드 fix 대상이
- * 아니다(PM 정정, 2026-07-27 재수렴 4차).
- *
- * 🚨 다만 **정적 면제로 두지 않는다** — 이 목록은 "이 파일을 안 본다" 가 아니라 "이 파일의
- * 인라인 목적지 경로에 파일이 실재하지 않는다" 를 G8d 가 매 실행 재확인한다는 뜻이다.
- * 목적지에 파일이 나타나는 순간 G8d 가 RED 다(tracked 면 이월 사유 소멸, 미추적이면 로컬
- * 실행 잔여물 — G8d 메시지가 둘을 구분해 안내한다). 목록은 줄이는 방향으로만
- * 수정한다(H-5 CARRIED_OVER 와 동일 규약).
+ * 기존 `sp-10-2-insung-quick-vendor.spec.ts`의 14개 직접 캡처는 #851 S2에서
+ * `captureForQa(page, test.info(), slug)`로 공용 resolver를 경유하도록 이전했다.
+ * 따라서 현재 이월 목록은 비어 있으며, G8d는 향후 cwd 상대 인라인 목적지가 다시
+ * 들어오는 경우에만 생존 사유를 검증한다.
  */
 const INLINE_RELATIVE_CARRIED_OVER = new Set<string>([
-  'qa/playwright/tests/arologis/sp-10-2-insung-quick-vendor.spec.ts',
 ])
 
 /**

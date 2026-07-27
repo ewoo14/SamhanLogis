@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { captureForQa } from '../../utils/screenshot';
 
 /**
  * SP-10-2 인성데이타 퀵프로그램 vendor 통합 — Playwright QA spec (cycle 2)
@@ -262,9 +263,7 @@ test.describe('QA-1 provider=mock 매칭 회귀', () => {
     const driverCodeEl = page.locator('[data-testid="match-status-driver-code"]');
     await expect(driverCodeEl).not.toBeVisible();
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-1-mock-pending-badge.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-1-mock-pending-badge');
   });
 });
 
@@ -296,9 +295,7 @@ test.describe('QA-2 sandbox + RPC 예외 fail-soft', () => {
     const driverCodeEl = page.locator('[data-testid="match-status-driver-code"]');
     await expect(driverCodeEl).not.toBeVisible();
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-2-sandbox-rpc-fail-soft.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-2-sandbox-rpc-fail-soft');
   });
 
   test('sandbox 배너 표시 — warning-50 bg + role=status', async ({ page }) => {
@@ -324,9 +321,7 @@ test.describe('QA-2 sandbox + RPC 예외 fail-soft', () => {
     const bannerHtml = await sandboxBanner.evaluate((el) => el.outerHTML);
     expect(bannerHtml).not.toBe('');
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-2-sandbox-banner.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-2-sandbox-banner');
   });
 });
 
@@ -396,9 +391,7 @@ test.describe('QA-3 알림톡 채널 분리', () => {
     // 발송 성공 텍스트 확인 (NotifyStatusChip SUCCESS 분기 line 150~168)
     await expect(insungRow.locator('[data-testid="notification-status-chip-success"]')).toBeVisible();
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-success.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-success');
   });
 
   test('알림톡 실패 row — danger chip + 사유 서브텍스트', async ({ page }) => {
@@ -433,9 +426,7 @@ test.describe('QA-3 알림톡 채널 분리', () => {
     await expect(failReason).toBeVisible();
     await expect(failReason).toContainText('E_INVALID_PHONE');
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-failed.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-failed');
   });
 
   test('알림톡 지연 row — warning chip + 대기 텍스트', async ({ page }) => {
@@ -469,9 +460,7 @@ test.describe('QA-3 알림톡 채널 분리', () => {
     // 지연 서브텍스트 "응답 대기 중" (NotifyResultSection DELAYED span line 341~350)
     await expect(delayedRow).toContainText(/응답 대기/);
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-delayed.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-3-notify-delayed');
   });
 });
 
@@ -540,9 +529,7 @@ test.describe('QA-4 GPS 우선순위', () => {
     // footer 요약: 활성 소스 = "인성 LBS"
     await expect(gpsPanel.locator('[data-testid="gps-active-source-label"]')).toContainText('인성 LBS');
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-insung-active.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-insung-active');
   });
 
   test('insung-lbs stale 60초 후 app-gps fallback', async ({ page }) => {
@@ -588,9 +575,7 @@ test.describe('QA-4 GPS 우선순위', () => {
     const gpsPanel = page.locator('[data-testid="insung-lbs-panel"]').first();
     await expect(gpsPanel.locator('[data-testid="gps-active-source-label"]')).toContainText('앱 GPS');
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-stale-fallback.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-stale-fallback');
   });
 
   test('DriverLocation empty — 위치 정보 없음 메시지 + 패널 표시 유지', async ({ page }) => {
@@ -613,9 +598,7 @@ test.describe('QA-4 GPS 우선순위', () => {
     // "위치 정보 없음" 메시지 (InsungLbsPanel line 338)
     await expect(gpsPanel).toContainText(/위치 정보 없음/);
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-empty.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-4-gps-empty');
   });
 });
 
@@ -658,9 +641,7 @@ test.describe('QA-5 webhook 3종 badge 전이', () => {
     const insungBadge = page.locator('[data-testid="insung-vendor-badge"]').first();
     await expect(insungBadge).toBeVisible();
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-5-webhook-assigned.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-5-webhook-assigned');
   });
 
   test('delivered webhook → DELIVERED badge + CheckCheck 아이콘', async ({ page }) => {
@@ -690,9 +671,7 @@ test.describe('QA-5 webhook 3종 badge 전이', () => {
     await expect(driverCode).toBeVisible();
     await expect(driverCode).toContainText('전자서명 수신');
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-5-webhook-delivered.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-5-webhook-delivered');
   });
 
   test('MATCHING badge — spinner + INSUNG 뱃지 + driverCode 미표시', async ({ page }) => {
@@ -720,9 +699,7 @@ test.describe('QA-5 webhook 3종 badge 전이', () => {
     const insungBadge = page.locator('[data-testid="insung-vendor-badge"]').first();
     await expect(insungBadge).toBeVisible();
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-5-webhook-matching.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-5-webhook-matching');
   });
 });
 
@@ -760,9 +737,7 @@ test.describe('QA-6 사이드바 메뉴 unchanged', () => {
     await expect(nav.locator('a:has-text("인성")').first()).not.toBeVisible();
     await expect(nav.locator('a:has-text("vendor")').first()).not.toBeVisible();
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-6-sidebar-unchanged.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-6-sidebar-unchanged');
   });
 
   test('AppLayout 전체 사이드바 — 신규 메뉴 없음 확인', async ({ page }) => {
@@ -776,8 +751,6 @@ test.describe('QA-6 사이드바 메뉴 unchanged', () => {
     const navText = await page.locator('nav').first().textContent();
     expect(navText ?? '').not.toMatch(/인성.*설정|vendor.*설정|insung.*config/i);
 
-    await page.screenshot({
-      path: 'docs/qa/sp-10-2-insung-quick-vendor/screenshots/QA-6-appsidebar-no-new-menu.png',
-    });
+    await captureForQa(page, test.info(), 'sp-10-2-insung-quick-vendor/screenshots/QA-6-appsidebar-no-new-menu');
   });
 });
