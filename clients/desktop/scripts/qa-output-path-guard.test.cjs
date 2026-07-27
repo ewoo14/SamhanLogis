@@ -25,7 +25,9 @@ const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
 const test = require('node:test')
+const vm = require('node:vm')
 const { pathToFileURL } = require('node:url')
+const typescript = require('typescript')
 
 const { resolveQaShotsDir } = require('../../../scripts/lib/qa-shots-dir.cjs')
 
@@ -107,6 +109,68 @@ test('D-3 A~D 전부 QA_ALLOW_OVERWRITE=1 이면 명시 경로를 그대로 사�
   for (const [label, target] of Object.entries(cases)) {
     process.env.QA_SHOTS_DIR = target
     assert.equal(resolveQaShotsDir(MY_FIXTURE_COMMITTED_DIR), path.resolve(target), `케이스 ${label} 이 통과하지 않음`)
+  }
+})
+
+function loadTypeScriptResolver() {
+  // 이 테스트는 CommonJS로 실행되므로 import.meta.url만 불변의 __dirname 분기로 치환한다.
+  // resolver 본문은 저장소의 .ts 원문을 TypeScript로 변환해 그대로 실행한다.
+  const source = fs.readFileSync(tsHelperPath, 'utf8').replaceAll('import.meta.url', "''")
+  const output = typescript.transpileModule(source, {
+    compilerOptions: {
+      module: typescript.ModuleKind.CommonJS,
+      target: typescript.ScriptTarget.ES2022,
+    },
+  }).outputText
+  const moduleValue = { exports: {} }
+  const wrapper = vm.runInThisContext(
+    `(function(require,module,exports,__dirname,__filename){${output}\n})`,
+    { filename: tsHelperPath },
+  )
+  wrapper(require, moduleValue, moduleValue.exports, path.dirname(tsHelperPath), tsHelperPath)
+  return moduleValue.exports.resolveQaShotsDir
+}
+
+test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다', async () => {
+  const junctionRoot = path.join(tempRoot, 'junction-to-docs-qa')
+  const junctionMissing = path.join(junctionRoot, '__863-r2-not-created__')
+  const extendedRoot = `\\\\?\\${docsQaRoot}`
+  const extendedMissing = `${extendedRoot}\\__863-r2-not-created__`
+  const relativeOtherSlug = path.relative(process.cwd(), OTHER_SLUG_COMMITTED_DIR)
+  const lowerDriveOtherSlug = OTHER_SLUG_COMMITTED_DIR.replace(
+    /^([A-Z]):/,
+    (_, drive) => `${drive.toLowerCase()}:`,
+  )
+  fs.mkdirSync(tempRoot, { recursive: true })
+  fs.symlinkSync(docsQaRoot, junctionRoot, 'junction')
+
+  const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
+  const resolvers = [
+    ['cjs', resolveQaShotsDir],
+    ['mjs', mjsResolve],
+    ['ts', loadTypeScriptResolver()],
+  ]
+  const cases = [
+    ['junction-root', junctionRoot],
+    ['junction-missing', junctionMissing],
+    ['extended-root', extendedRoot],
+    ['extended-missing', extendedMissing],
+    ['trailing-separator', `${OTHER_SLUG_COMMITTED_DIR}${path.sep}`],
+    ['relative', relativeOtherSlug],
+    ['absolute', path.resolve(OTHER_SLUG_COMMITTED_DIR)],
+    ['case', OTHER_SLUG_COMMITTED_DIR.toUpperCase()],
+    ['drive-letter', lowerDriveOtherSlug],
+  ]
+
+  for (const [resolverName, resolver] of resolvers) {
+    for (const [caseName, target] of cases) {
+      process.env.QA_SHOTS_DIR = target
+      assert.throws(
+        () => resolver(MY_FIXTURE_COMMITTED_DIR),
+        error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+        `${resolverName}:${caseName} 물리 경로가 차단되지 않음`,
+      )
+    }
   }
 })
 

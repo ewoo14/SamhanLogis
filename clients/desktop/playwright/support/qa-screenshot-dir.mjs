@@ -19,9 +19,44 @@ function hasExplicitOverwriteIntent() {
   return ['1', 'true', 'yes'].includes(String(process.env['QA_ALLOW_OVERWRITE'] ?? '').trim().toLowerCase())
 }
 
+/** 존재하지 않는 하위 경로도 기존 부모의 junction/symlink를 물리 경로로 풀어낸다. */
+function resolvePhysicalPath(candidateDir) {
+  let current = path.resolve(candidateDir)
+  const missingParts = []
+
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current)
+    if (parent === current) return current
+    missingParts.unshift(path.basename(current))
+    current = parent
+  }
+
+  return path.join(fs.realpathSync.native(current), ...missingParts)
+}
+
+function normalizePhysicalPath(candidateDir) {
+  const isWindows = process.platform === 'win32'
+  const withoutExtendedPrefix = isWindows && candidateDir.startsWith('\\\\?\\UNC\\')
+    ? `\\\\${candidateDir.slice('\\\\?\\UNC\\'.length)}`
+    : isWindows && candidateDir.startsWith('\\\\?\\')
+      ? candidateDir.slice('\\\\?\\'.length)
+      : candidateDir
+  const normalized = path.normalize(withoutExtendedPrefix)
+  const root = path.parse(normalized).root
+  const comparable = normalized === root ? normalized : normalized.replace(/[\\/]+$/, '')
+  return isWindows ? comparable.toLowerCase() : comparable
+}
+
 function isWithin(parentDir, candidateDir) {
   const relative = path.relative(parentDir, candidateDir)
   return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+function isWithinPhysical(parentDir, candidateDir) {
+  return isWithin(
+    normalizePhysicalPath(resolvePhysicalPath(parentDir)),
+    normalizePhysicalPath(resolvePhysicalPath(candidateDir)),
+  )
 }
 
 export function resolveQaShotsDir(committedDir) {
@@ -30,7 +65,7 @@ export function resolveQaShotsDir(committedDir) {
   const trimmed = override && override.trim().length > 0 ? override.trim() : undefined
   const dir = trimmed ? path.resolve(trimmed) : path.join(committed, '_local')
 
-  if (trimmed && isWithin(DOCS_QA_ROOT, dir) && !hasExplicitOverwriteIntent()) {
+  if (trimmed && isWithinPhysical(DOCS_QA_ROOT, dir) && !hasExplicitOverwriteIntent()) {
     throw new Error(
       `[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: ${dir}. ` +
         '명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오.',

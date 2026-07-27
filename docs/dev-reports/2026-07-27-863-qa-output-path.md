@@ -1,5 +1,118 @@
 # #863 QA 출력 경로 분리·덮어쓰기 가드
 
+## 2026-07-28 Codex R2 — 물리 경로 동등성·증거 명령 정정
+
+### R2-1 RED 원문
+
+`path.resolve`와 `path.relative`만으로는 저장소 밖에 표기된 junction과 `\\?\\` extended
+경로가 물리적으로 `docs/qa` 아래라는 사실을 알 수 없었다. 실제 junction을 임시로 만들고
+커밋 증거 디렉터리를 가리킨 현재 HEAD에서 세 resolver를 실행한 원문은 다음과 같다.
+
+```text
+cjs:JUNCTION:ALLOWED=C:\Users\user\AppData\Local\Temp\samhan-863-r2-red-all-2bc240086a1c4bfd879279b0114eeebc\junction-to-committed
+ts:JUNCTION:ALLOWED=C:\Users\user\AppData\Local\Temp\samhan-863-r2-red-all-2bc240086a1c4bfd879279b0114eeebc\junction-to-committed
+mjs:JUNCTION:ALLOWED=C:\Users\user\AppData\Local\Temp\samhan-863-r2-red-all-2bc240086a1c4bfd879279b0114eeebc\junction-to-committed
+cjs:EXTENDED:ALLOWED=\\?\C:\dev\Samhan-Public\.claude\worktrees\863-outbox\docs\qa\809-partner-product-price-memory
+ts:EXTENDED:ALLOWED=\\?\C:\dev\Samhan-Public\.claude\worktrees\863-outbox\docs\qa\809-partner-product-price-memory
+mjs:EXTENDED:ALLOWED=\\?\C:\dev\Samhan-Public\.claude\worktrees\863-outbox\docs\qa\809-partner-product-price-memory
+JUNCTION_PHYSICAL_SAME=true
+JUNCTION_WRITE_VISIBLE=true
+EXTENDED_PHYSICAL_SAME=true
+```
+
+실패 테스트도 동일한 결함을 확인했다.
+
+```text
+✖ 물리적으로 docs/qa 아래인 junction·extended 표기는 존재하지 않는 하위 경로도 세 resolver가 차단한다
+Error: Missing expected exception: cjs:junction-root 물리 경로가 차단되지 않음
+```
+
+### R2-1 fix
+
+세 resolver에 같은 물리 경로 판정을 넣었다.
+
+- 후보 경로가 없으면 존재하는 가장 가까운 부모까지 올라가 `fs.realpathSync.native`로
+  junction/symlink를 해석한 뒤, 없는 하위 경로 조각을 다시 붙인다.
+- `\\?\\` 및 `\\?\\UNC\\` prefix를 제거하고, 구분자·드라이브 대소문자를 정규화한
+  물리 경로끼리 `path.relative` 경계를 검사한다.
+- 기본 `<committedDir>/_local` 경로와 `QA_ALLOW_OVERWRITE=1` 명시 승격 분기는 변경하지
+  않았다. 따라서 첫 캡처 디렉터리가 없어도 판정하고, 정상 승격 캡처도 계속 허용한다.
+
+### R2-1 GREEN 원문
+
+기존 R1 A~D, `_local` 기본값, 승격 opt-in과 함께 junction·extended의 존재/미존재 경로,
+후행 구분자·상대/절대·대소문자·드라이브 문자 변형을 세 resolver에 대해 실행했다.
+
+```text
+✔ 물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다
+ℹ tests 8
+ℹ pass 8
+ℹ fail 0
+```
+
+### R2-2 증거 명령 정정
+
+과거 커밋의 44를 인용하는 명령은 `HEAD`가 아니라 SHA를 고정하도록 정정했다.
+
+```text
+$ git grep -l "docs/qa" 9a474aca2 -- clients/desktop/playwright/ | grep -v -- "-real-qa" | wc -l
+44
+```
+
+최종 HEAD(`7d72ad01b`)를 같은 범위로 조회하면 R1 fix가 추가한 파일 때문에 45이며, 실제
+차이는 `clients/desktop/playwright/support/qa-screenshot-dir.mjs` 하나다.
+
+```text
+SHA_9a474aca2_COUNT=44
+HEAD_COUNT=45
+HEAD_ONLY=clients/desktop/playwright/support/qa-screenshot-dir.mjs
+```
+
+### 명시 출력 경로 실 HTTP 캡처
+
+포트 5330·5370은 건드리지 않고 5350에 임시 HTTP 서버를 띄워 mock 모드 없이
+Playwright 캡처를 수행했다. `QA_SHOTS_DIR`는 저장소 밖 임시 디렉터리로 지정했으며, 서버와
+캡처 파일은 probe 종료 시 정리했다.
+
+```text
+REAL_SERVER_HTTP=200 PAGE_HTTP=200
+SCREENSHOT_EXISTS=true
+PROBE_EXIT=0
+```
+
+### 회귀 울타리 최종 원문
+
+```text
+$ cd clients/desktop; npm run build
+Exit code: 0
+
+$ npm run typecheck
+Exit code: 0
+
+$ npm test -- --reporter=dot
+Test Files  175 passed (175)
+Tests       1632 passed (1632)
+EXIT_CODE=0
+
+src/renderer/test-utils/harness-false-green-guard.test.ts (49 tests) ✓
+
+$ CI=1 node_modules/.bin/playwright.cmd test --reporter=line
+Running 641 tests using 2 workers
+641 passed (6.2m)
+PLAYWRIGHT_EXIT=0
+```
+
+mock 스위트 실행 전후 저장소 루트에서 확인한 `docs/qa` 4블록 중 전체 status를 제외한
+`docs/qa` status, working diff, cached diff는 모두 빈 출력이었다. 전체 status에는 이번
+R2의 6개 변경 파일만 남았고 `docs/qa` 변경은 없었다.
+
+```text
+--- DOCS_QA_STATUS ---
+--- DOCS_QA_DIFF ---
+--- DOCS_QA_CACHED_DIFF ---
+--- DIFF_CHECK ---
+```
+
 > ## 🚨 2026-07-27 R1 재수렴 정정 (PR #952)
 >
 > 이 문서가 원래 서술한 아래 항목들은 **PM 기획서 자체의 오류**(구현자 책임 아님)로,
@@ -52,9 +165,13 @@ Issue #863의 잔여 범위인 Desktop mock QA 산출물 경로만 처리했다.
 아니라 **44** 가 나온다.
 
 ```text
-$ git grep -l "docs/qa" HEAD -- clients/desktop/playwright/ | grep -v -- "-real-qa" | wc -l
+$ git grep -l "docs/qa" 9a474aca2 -- clients/desktop/playwright/ | grep -v -- "-real-qa" | wc -l
 44
 ```
+
+최종 HEAD(`7d72ad01b`)에서는 R1 fix가 추가한 `support/qa-screenshot-dir.mjs`도 포함되므로
+같은 범위의 결과가 45가 된다. 위의 과거 수치 44를 인용할 때는 반드시 `9a474aca2`를
+고정해 실행한다.
 
 더 중요한 문제는 숫자가 아니라 **측정 대상**이다. 이 grep은 `docs/qa` 라는 **리터럴 부분문자열**이
 소스에 등장하는 파일을 세지, 실제로 그 경로에 **쓰는(writer)** 파일을 세지 않는다. 그래서:
@@ -317,4 +434,3 @@ H-2 가드(부분문자열 검사)를 깼다.
   — 이름은 "커밋 경로가 기본"이라면서 import 는 `.cjs`, 실제 단언은 `_local` 이었던 이름·단언
   불일치, R1 지적)도 이 재작성으로 해소됐다(그 테스트 자체가 더 이상 존재하지 않는다 —
   대신 위에서 서술한 parity 테스트가 그 자리를 대신한다).
-
