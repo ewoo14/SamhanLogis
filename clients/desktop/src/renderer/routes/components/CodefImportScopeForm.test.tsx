@@ -868,13 +868,23 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
 
     renderForm()
     await waitFor(() => expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(false))
+    // #950 R3-2 flake 흡수 — 첫 flake(§9)와 같은 근본 원인 계열(비동기 경계 위에서 disabled=
+    // false를 확인한 시점과 그 값에 기대어 행동하는 시점 사이에 아직 배출되지 않은 스케줄러
+    // 작업이 남아 있을 수 있음)이 검증됐다. react-query useMutation 훅은 매 렌더마다
+    // useEffect(패시브, 렌더와 비동기적으로 분리)로 observer.setOptions()를 호출하고,
+    // mutation이 아직 pending이면 그 최신 mutationFn 클로저를 활성 mutation에 즉시 전파한다
+    // (node_modules/@tanstack/query-core mutationObserver.js:44-46 실측 확인). 클릭 전
+    // 이 경계를 결정적으로 비워 restoredScope/scopeMode/type 복원이 완전히 정착된 뒤에만
+    // 클릭이 나가도록 보장한다 — 원인이 100% 동일하다고 단정하지 않되, 검증된 동일 계열의
+    // 경계를 닫는 조치다(dev-report §10 참고).
+    await flushZeroDelayTasks()
     // 화면엔 카드 카테고리만 보인다 — 계좌 체크박스는 아예 렌더되지 않는다(I-1 전제 조건).
     expect(screen.queryByTestId('codef-bank-account-0')).toBeNull()
     expect(screen.getByTestId('codef-card-0')).toBeTruthy()
 
     fireEvent.click(screen.getByTestId('codef-import-button'))
 
-    await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(importScopedCodefMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
     // 핵심 단언 — branch B는 저장 여부와 무관하게 현재 화면 범위(type)로 필터링된 선택만
     // 실행 계약에 명시한다. 화면에 없는 계좌(BANK_A)는 accountRefs 에 나타나지 않는다.
     expect(importScopedCodefMock.mock.calls[0]![0]).toMatchObject({
