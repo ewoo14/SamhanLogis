@@ -28,9 +28,13 @@ import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
  */
 const API_BASE = process.env['API_BASE'] ?? 'http://localhost:8080'
 /**
- * 앱 origin — 공유 {@code playwright.real-qa.config.ts} 에는 {@code use.baseURL} 이 없다(슬라이스마다
- * 렌더러를 다른 포트로 띄우기 때문). 상대 경로 {@code page.goto('/#…')} 는 baseURL 없이는 뜨지
- * 않으므로 이 스펙은 절대 URL 로 이동한다 — 공유 하네스를 건드리지 않고 포트만 갈아끼울 수 있다.
+ * 앱 origin — [#851 R1 fix] 공유 {@code playwright.real-qa.config.ts} 는 이제
+ * {@code projects} 로 스펙별 baseURL 을 나눠 갖는다(데스크톱 렌더러 프로젝트 기본
+ * 5175 · 928 전용 order-app 프로젝트 5181 — 상대경로 {@code page.goto('/…')} 를 쓰는
+ * 스펙만 대상이다). 그래도 이 스펙은 여전히 절대 URL 로 이동한다 — 슬라이스마다
+ * 렌더러를 임의 포트로 띄워 공유 config 와 무관하게 독립 실행하고 싶을 때(공유
+ * config 의 프로젝트 구성이 늘거나 바뀌어도 이 스펙은 영향받지 않는다) 포트만
+ * 갈아끼울 수 있도록 자체 {@code QA_BASE_URL} 로 조립한다.
  * 기본값은 {@code vite.renderer.dev.config.ts} 의 정본 포트다.
  */
 const APP_BASE = process.env['QA_BASE_URL'] ?? 'http://127.0.0.1:5175'

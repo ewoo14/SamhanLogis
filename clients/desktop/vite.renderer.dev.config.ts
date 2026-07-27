@@ -6,7 +6,9 @@
  *
  * 사용:
  *   cd clients/desktop
- *   VITE_API_BASE_URL=http://localhost:8080 node_modules/.bin/vite dev --config vite.renderer.dev.config.ts
+ *   $env:VITE_API_BASE_URL='http://localhost:8080'
+ *   $env:VITE_APP_VERSION='2026/07/26-92700'
+ *   .\node_modules\.bin\vite.cmd dev --config vite.renderer.dev.config.ts
  */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
