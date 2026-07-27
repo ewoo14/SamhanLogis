@@ -6,7 +6,14 @@
 #   clients/web/        (estimate-app 포함, shim 파일 제외)
 #   clients/desktop/src/
 #   clients/mobile-staff/src/
+#   clients/arologis-desktop/src/   (2026-07-27 #851 R1 fix — arologis-ci.yml 전용 잡이
+#                                     실제로 게이트하는 arologis 표면)
+#   clients/arologis-mobile/src/    (상동)
 #   services/*/src/main/
+#   shared/*/src/main/               (2026-07-27 #851 R1 fix — services 와 동일한 Gradle
+#                                     Java 모듈 레이아웃. arologis-ci.yml·ci.yml 둘 다
+#                                     shared/** 변경에 트리거되므로 두 워크플로 모두 이제
+#                                     이 표면을 실제로 검사한다)
 #
 # 검사 제외:
 #   node_modules/ build/ dist/ *.d.ts
@@ -36,7 +43,10 @@ SCAN_DIRS=(
   "clients/web"
   "clients/desktop/src"
   "clients/mobile-staff/src"
+  "clients/arologis-desktop/src"
+  "clients/arologis-mobile/src"
   "services"
+  "shared"
 )
 
 INCLUDE_EXTS=(
@@ -90,13 +100,11 @@ main() {
       continue
     fi
 
-    # services 디렉토리는 src/main/ 하위만
+    # services·shared 디렉토리는 Gradle Java 모듈 레이아웃이라 src/main/ 하위만 검사
     local grep_path
-    if [ "$dir" = "services" ]; then
-      grep_path="${abs_dir}"
+    grep_path="${abs_dir}"
+    if [ "$dir" = "services" ] || [ "$dir" = "shared" ]; then
       INCLUDE_EXTS+=(--include="*.java" --include="*.kt" --include="*.properties" --include="*.yml")
-    else
-      grep_path="${abs_dir}"
     fi
 
     while IFS= read -r line; do
@@ -112,8 +120,8 @@ main() {
         fi
       done
 
-      # services 는 src/main/ 만 검사 (src/test/ 제외)
-      if [ "$dir" = "services" ]; then
+      # services·shared 는 src/main/ 만 검사 (src/test/ 제외)
+      if [ "$dir" = "services" ] || [ "$dir" = "shared" ]; then
         if ! echo "$file_path" | grep -q "src/main/"; then
           continue
         fi

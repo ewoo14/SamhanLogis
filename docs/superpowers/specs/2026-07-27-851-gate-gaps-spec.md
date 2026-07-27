@@ -10,16 +10,24 @@ CI 가 green 이어도 **그 green 이 아무것도 증명하지 않는 표면**
 
 | 항목 | 실측 근거 | 결과 |
 |---|---|---|
-| **B-1** real-QA 공유 하네스가 상대경로 스펙을 실행조차 못 함 | `clients/desktop/playwright.real-qa.config.ts:30-36` 의 `use` 에 `baseURL` 이 없다. 상대경로 `page.goto('/…')` 를 쓰는 real-QA 스펙이 **4개** 존재 | repo 전체 real-QA 일괄 실행 시 이 4개는 `Cannot navigate to invalid URL` 로 **조용히 빠진다** |
+| **B-1** real-QA 공유 하네스가 상대경로 스펙 실행 시 즉시 실패 | `clients/desktop/playwright.real-qa.config.ts:30-36` 의 `use` 에 `baseURL` 이 없다. 상대경로 `page.goto('/…')` 를 쓰는 real-QA 스펙이 **3개**(897·928·929-r4) 존재 | repo 전체 real-QA 일괄 실행 시 이 3개는 `Cannot navigate to invalid URL` 로 **각 파일 첫 테스트가 즉시 실패**한다 |
 | **B-2** arologis-only PR 에서 가드 2종이 아예 안 돎 | `notion-zero-guard`·`config-audit-guard` 는 `.github/workflows/ci.yml:531,561` 에만 있고 `arologis-ci.yml` 에는 잡이 없다 | arologis 만 건드린 PR 은 두 가드가 **0회 실행**. 🚩`config-audit-guard` 는 **#745 SlipClient 8084 오배정 재발 방지용** |
 
-### B-1 대상 스펙 (실측 4개)
+> **[R1 정정, 2026-07-27]** 위 표의 "조용히 빠진다"는 실측과 반대다 — repo 전체 배치 실행 시
+> 이 스펙들은 각 파일의 첫 테스트가 `Cannot navigate to invalid URL`로 **즉시, 요란하게** 실패하고
+> (`X failed`) 같은 파일의 나머지 테스트는 `serial` 모드라 "did not run"으로 표시된다. 문제의
+> 실제 성격은 "미실행"이 아니라 "실행되지만 실패한다"이다. 아래 목록도 조사 당시 4개를 대상으로
+> 확인했으나 실제로 공유 baseURL에 의존하는 것은 3개(897·928·929-r4)뿐이다 — 929-r5는 자체
+> `QA_BASE_URL`로 절대 URL을 조립해 이 문제와 무관하다. 상세 근거:
+> `docs/dev-reports/2026-07-27-851-gate-gaps.md` §1-1.
+
+### B-1 조사 대상 스펙 (조사 4개, 실제 fix 대상 3개 — 929-r5는 절대 URL이라 무관)
 
 ```
-clients/desktop/playwright/929-r5-route-collision-real-qa/929-r5-route-collision-real-qa.spec.ts
-clients/desktop/playwright/929-r4-transport-guard-real-qa/929-r4-transport-guard-real-qa.spec.ts
-clients/desktop/playwright/897-column-hierarchy-real-qa/897-column-hierarchy-real-qa.spec.ts
-clients/desktop/playwright/928-web-version-check-real-qa/928-web-version-check-real-qa-real-qa.spec.ts
+clients/desktop/playwright/929-r5-route-collision-real-qa/929-r5-route-collision-real-qa.spec.ts   (조사 결과: 무관 — 절대 URL)
+clients/desktop/playwright/929-r4-transport-guard-real-qa/929-r4-transport-guard-real-qa.spec.ts    (fix 대상)
+clients/desktop/playwright/897-column-hierarchy-real-qa/897-column-hierarchy-real-qa.spec.ts        (fix 대상)
+clients/desktop/playwright/928-web-version-check-real-qa/928-web-version-check-real-qa-real-qa.spec.ts (fix 대상 — 데스크톱 렌더러가 아닌 order-app 이 목표라 별도 오리진 필요)
 ```
 
 ## 1. 불변식 (수단은 구현자가 정한다)
