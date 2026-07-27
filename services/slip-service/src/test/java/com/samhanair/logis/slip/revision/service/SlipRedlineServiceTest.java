@@ -201,7 +201,11 @@ class SlipRedlineServiceTest {
     }
 
     @Test
-    @DisplayName("과거 VAT-null 스냅샷은 VAT 제외 단가로 비교하고 단일 layer 는 응답에서 제외한다")
+    // 재수렴 7차(#937) R7-2 — 종전 제목은 "VAT 제외 단가로 비교"였으나, 금액 3값이 없는 구
+    // 스냅샷의 총액 해석을 화면(FE slipLineAmounts = lineTotal + 10%)에 맞추면서 이 좌표의
+    // 비교 도메인도 VAT 포함(11,000)이 됐다. 두 revision 이 같은 값이므로 layer 는 1개뿐이고,
+    // 단일 layer 는 응답에서 제외된다는 성질은 그대로다.
+    @DisplayName("과거 VAT-null 스냅샷도 화면과 같은 VAT 포함 단가로 비교하고 단일 layer 는 응답에서 제외한다")
     void legacySnapshotFallsBackToVatExclusiveAndFiltersSingleLayer() throws Exception {
         UUID slipId = UUID.randomUUID();
         UUID productId = UUID.randomUUID();

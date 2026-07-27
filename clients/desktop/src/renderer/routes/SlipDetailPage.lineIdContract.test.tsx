@@ -1367,6 +1367,40 @@ describe('SlipDetailPage — 재수렴 6차(#937) D-1R6 — 저장 시점 단가
 })
 
 /**
+ * 재수렴 7차(#937) R7-2 — FE/BE 미러의 <b>FE 쪽 못</b>(회귀 울타리).
+ *
+ * <p>실전표 {@code 2026/06/24-7} rev3~5 계열: {@code supplyAmount}·{@code vatAmount}·
+ * {@code unitPriceWithVat} 가 전부 없는 구 라인이다. 이 좌표에서 화면(FE)은 총액을
+ * {@code lineTotal + 10%} 로, BE {@code SlipRevisionService.lineTotalDisplayValue} 는
+ * {@code lineTotal} 그대로로 읽어 <b>버전이력에만</b> 사용자가 하지 않은 단가 변경
+ * {@code 100000 → 110000} 이 생겼다. 개발책임자 결정에 따라 <b>BE 를 화면에 맞췄으므로</b>,
+ * 이 테스트는 FE 가 반대로 움직여 미러가 다시 갈리는 것을 막는 못이다(따라서 RED-first 가
+ * 아니라 처음부터 GREEN — 고친 쪽은 BE 다).
+ */
+describe('SlipDetailPage — 재수렴 7차(#937) R7-2 — 금액 3값 없는 구 라인의 총액 도메인 (미러 고정)', () => {
+  it('금액 3값이 없는 구 라인의 표 합계(VAT포함)는 lineTotal + 10% 다 — BE 버전이력이 맞춰야 할 값', () => {
+    const legacySlip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        specification: '',
+        quantity: 1,
+        unitPrice: '100000.00',
+        lineTotal: '100000.00',
+        note: '',
+      }],
+    } as unknown as SlipDetail
+
+    const amounts = slipLineAmounts(legacySlip.lines[0]!)
+
+    expect(amounts.totalIncl).toBe(110000)
+    expect(amounts.unitWithVat).toBe(110000)
+  })
+})
+
+/**
  * 재수렴 3차(#937) 근본수정 — U2, RED-first.
  *
  * <p>R-2(이전 라운드)는 하이드레이션 vatWarning 을 무조건 false 로 닫아 "저장 직후 재열기

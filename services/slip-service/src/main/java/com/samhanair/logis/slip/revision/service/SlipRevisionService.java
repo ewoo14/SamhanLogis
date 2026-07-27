@@ -106,10 +106,17 @@ public class SlipRevisionService {
             // 버전이력(VAT 제외)을 나란히 렌더하므로 사용자는 한 화면에서 두 단가를 본다.
             // 레드라인과 같은 표시 판정({@link #unitPriceDisplayValue})을 쓴다.
             new LineField("unitPrice", "단가", SlipRevisionService::unitPriceDisplayValue),
-            // ⚠️ 합계는 <b>일부러 정규화하지 않는다</b> — {@code lineTotal} 은 이 PR 이전부터
-            // VAT 제외 공급가액이었고(main 동일) 그 의미로 이력이 누적돼 있다. 여기서 도메인을
-            // 바꾸면 과거 이력의 뜻까지 소급해 바뀐다. 신규 회귀는 단가 하나뿐이다.
-            new LineField("lineTotal", "합계", SlipSnapshot.Line::lineTotal),
+            // 🚨 #937 재수렴 7차 R7-1 — 개발책임자 결정 A안 "이력 합계도 VAT 포함으로".
+            // 종전에는 {@code lineTotal} 저장 컬럼(= 공급가액, VAT 제외)을 그대로 읽었다. 그 결과
+            // 같은 상세 화면이 <b>전표 라인 표</b>에 "합계(VAT포함) 240,000" 을, 바로 아래
+            // <b>버전 이력</b>에 "합계 218,181" 을 나란히 렌더해 <b>같은 단어가 다른 값</b>을
+            // 가리켰다(실측: 단가 VAT포함 100,000 × 2 → 단가만 120,000 수정). 위 "단가"가 이미
+            // VAT 포함 도메인이므로 {@code 단가 × 수량 = 합계} 항등식도 깨져 있었다
+            // (120,000 × 2 = 240,000 ≠ 218,181).
+            // 레드라인({@link SlipRedlineService} LINE_TOTAL)은 이미 {@link #lineTotalDisplayValue}
+            // 를 쓰고 있었다 — 이 한 줄만 저장 컬럼을 직접 읽던 유일한 예외였다.
+            // ⚠️ 과거 이력의 표시 숫자가 소급 변경된다. 개발책임자가 그 규모를 인지한 상태의 결정.
+            new LineField("lineTotal", "합계", SlipRevisionService::lineTotalDisplayValue),
             new LineField("note", "비고", SlipSnapshot.Line::note)
     );
 
@@ -339,7 +346,9 @@ public class SlipRevisionService {
      *       리스트는 헤더 카운트에서 제외.</li>
      *   <li><b>라인</b>: productId 기준 매칭 — cur 에만 있으면 added, prev 에만 있으면 removed,
      *       양쪽 존재하나 라인 필드(quantity, unitPrice, productName, modelName, specification,
-     *       lineTotal, note) 중 하나라도 다르면 modified.</li>
+     *       lineTotal, note) 중 하나라도 다르면 modified. 단가·합계는 저장 컬럼이 아니라
+     *       {@link #LINE_FIELDS} 와 같은 <b>화면 표시값</b>으로 비교한다 (재수렴 7차 #937 —
+     *       {@link #lineDiffers} 참고).</li>
      * </ul>
      *
      * <p>productId 가 null 인 라인은 매칭 키가 없어 added/removed 로만 집계된다 (modified 미판정).
@@ -484,15 +493,22 @@ public class SlipRevisionService {
 
     /**
      * 동일 productId 라인 2건의 필드값이 하나라도 다른지 판정한다 (BigDecimal 은 compareTo).
+     *
+     * <p>🚨 <b>#937 재수렴 7차 R7-1 부수 — 요약과 목록이 같은 판정을 한다</b>. 금액 2필드는
+     * 저장 컬럼이 아니라 {@link #LINE_FIELDS} 와 <b>같은 표시값</b>으로 비교한다. 같은 카드가
+     * {@code changeSummary}(FE {@code formatChangeSummary} 가 전부 0 이면 "변경 없음"으로 렌더)와
+     * {@code fieldChanges} 목록을 함께 보여주므로, 두 지점이 다른 판정을 하면 "변경 없음"이라고
+     * 쓴 카드가 그 아래에 변경을 나열하는 자기모순이 된다 — 부가세만 편집한 라인이 정확히 그
+     * 경우다(저장 {@code lineTotal}=공급가액은 그대로인데 표시 합계 {@code S+V} 는 바뀐다).
      */
     private boolean lineDiffers(SlipSnapshot.Line a, SlipSnapshot.Line b) {
         if (a.quantity() != b.quantity()) {
             return true;
         }
-        if (!bigDecimalEquals(a.unitPrice(), b.unitPrice())) {
+        if (!bigDecimalEquals(unitPriceDisplayValue(a), unitPriceDisplayValue(b))) {
             return true;
         }
-        if (!bigDecimalEquals(a.lineTotal(), b.lineTotal())) {
+        if (!bigDecimalEquals(lineTotalDisplayValue(a), lineTotalDisplayValue(b))) {
             return true;
         }
         return !Objects.equals(a.productName(), b.productName())
@@ -625,10 +641,21 @@ public class SlipRevisionService {
     }
 
     /**
-     * 스냅샷 라인의 "합계" 표시값 — 레드라인 전용(VAT 포함 합계 {@code S + V}).
+     * 스냅샷 라인의 "합계" 표시값 — 화면과 같은 VAT 포함 합계 {@code S + V}.
+     * <b>버전이력·레드라인 공용</b> (재수렴 7차 R7-1 부터 버전이력도 이 함수를 쓴다).
      *
-     * <p>⚠️ 버전이력 {@code LINE_FIELDS} 는 이 함수를 <b>쓰지 않는다</b> — 그쪽 {@code lineTotal}
-     * 은 이 PR 이전부터 VAT 제외 공급가액 의미로 이력이 누적돼 있어 소급 변경 대상이 아니다.
+     * <p>🚨 <b>#937 재수렴 7차 R7-2 — FE 미러 정렬</b>. 종전에는 {@code supplyAmount} 와
+     * {@code vatAmount} 가 <b>둘 다 없는</b> 구 스냅샷에서 {@code lineTotal}(VAT 제외)을 총액으로
+     * 그대로 반환했다. 그런데 같은 좌표에서 화면({@code SlipDetailPage.slipLineAmounts})은
+     * {@code 공급가액 = lineTotal}, {@code 부가세 = 그 10%} 로 보아 {@code lineTotal + 10%} 를
+     * 총액으로 쓴다. 이 발산 때문에 실전표 {@code 2026/06/24-7} 은 rev3(금액 3값 없음) →
+     * rev4(금액 3값 채워짐) 전이에서 <b>사용자가 하지 않은</b> "품목 1행 단가 100000 → 110000"
+     * 을 버전이력에 남겼다 — 표시 총액이 100,000 에서 110,000 으로 <i>해석만</i> 바뀐 탓이다.
+     * 화면이 사용자가 보는 권위이므로 BE 를 화면에 맞춘다(불변식 3).
+     *
+     * <p>따라서 판정은 화면과 1:1 이다: {@code S = supplyAmount ?: lineTotal},
+     * {@code V = vatAmount ?: S 의 10%(0 방향 절사)}, 총액 {@code = S + V}.
+     * FE 미러: {@code SlipDetailPage.slipLineAmounts} / {@code vatRounding.vatFromSupply}.
      *
      * @param line 스냅샷 라인
      * @return VAT 포함 라인 합계 (금액 정보가 전혀 없으면 null)
@@ -641,10 +668,7 @@ public class SlipRevisionService {
         if (line.vatAmount() != null) {
             return supply.add(line.vatAmount());
         }
-        if (line.supplyAmount() != null) {
-            return supply.add(com.samhanair.logis.common.financial.VatAmountCalculator.fromSupply(supply));
-        }
-        return line.lineTotal();
+        return supply.add(com.samhanair.logis.common.financial.VatAmountCalculator.fromSupply(supply));
     }
 
     private Map<UUID, Deque<SlipSnapshot.Line>> lineQueuesByProductId(List<SlipSnapshot.Line> lines) {
