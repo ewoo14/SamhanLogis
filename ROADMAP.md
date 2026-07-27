@@ -29,6 +29,22 @@
 
 ---
 
+### 최신 진행 메모 (2026-07-27)
+
+- **#851 이월 — CI 게이트 0 표면 2종(real-QA baseURL 부재 · arologis 가드 미배치) + R1 재설계**:
+  `clients/desktop/playwright.real-qa.config.ts`(repo 공유 real-QA 배치 하네스)에 Playwright
+  `projects`를 도입해 상대경로 `page.goto('/…')`에 의존하던 897·928·929-r4 3개 스펙이 더는
+  `Cannot navigate to invalid URL`로 실패하지 않게 했다. 928(웹 order-app)은 데스크톱 렌더러와
+  다른 Vite 앱이라 전역 baseURL 하나로는 둘 다 만족시킬 수 없다는 것이 R1 적대검증에서 드러나,
+  928만 별도 오리진 프로젝트로 분리하고 override 환경변수 이름도 기존 148개 스펙이 이미 쓰던
+  `AUDIT_BASE_URL`/`QA_BASE_URL`과 겹치지 않는 신규 이름으로 교체했다(두 이름 모두 저장소
+  전체에서 미사용이었음을 확인, 172파일/548테스트 배치 목록 불변 실측 — projects 분할 후
+  order-app 1 + renderer 547 = 548로 누락·중복 0). `scripts/check-notion-zero.sh`의 `SCAN_DIRS`에
+  `clients/arologis-desktop/src`·`clients/arologis-mobile/src`·`shared`(Java, src/main/ 한정)를
+  추가해 arologis 전용 `notion-zero-guard` 잡이 실제로 arologis 표면을 스캔하게 했다(RED-first —
+  fix 전 arologis 트리거 경로에 주입한 Notion 토큰이 false PASS였고, fix 후 동일 주입이 RED로
+  잡힘을 직접 확인). 상세: `docs/dev-reports/2026-07-27-851-gate-gaps.md`.
+
 ### 최신 진행 메모 (2026-07-26)
 
 - **#851 슬1 CI 게이트 커버리지 — 게이트가 실제로 검사하게**: qa-e2e trigger 에 `services/accounting-service/**`·`services/slip-service/**` 를 추가해 BE 계약 변경도 Desktop Playwright mock 회귀 hard gate 를 발동시킨다(#823 의 BE-only 커밋 `728b98bc7` 이 34체크를 통과하는 동안 qa-e2e 4잡이 전원 부재 — FE 배분 차단을 CI 가 못 잡은 공백). 함께, 실행되면서 아무것도 검증하지 않던 `datagrid-interaction.spec.ts`(7 TC 전부 "셀 미발견"을 console.warn 으로 찍고 통과 — 해시라우터에 경로만 goto 해 대시보드로 낙착)를 해시 네비게이션 + hard expect 정확 수치 검증(단일 1셀·사각형 30셀·Ctrl+A 1,700셀·TSV 셀 값·열 필터 20행)으로 재작성했다. 뮤테이션 증명(해시 제거 시 7 failed)·trigger 확대 비용 실측(BE-only push 당 러너 +15.5분, wall-clock 6.2→11분, public repo 라 과금 0)을 포함한다. 상세: `docs/dev-reports/2026-07-26-851-ci-gate-coverage.md`.

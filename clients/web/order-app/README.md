@@ -36,13 +36,15 @@ clients/web/order-app/
 - shim 의 `window.UrlFetchApp.fetch` 는 noop + warn
 
 ## 명령
-```bash
+```powershell
 npm install
 npm run dev          # http://localhost:5180
 npm run typecheck
 npm run lint
+$env:VITE_API_BASE_URL='http://localhost:8080/api/v1'
+$env:VITE_APP_VERSION='2026/07/26-92700'
 npm run build        # → dist/ (Vite + workbox SW + manifest)
-npm run preview      # http://localhost:5181 (build 결과 미리보기)
+npm run preview      # build 후 http://localhost:5181 preview 기동
 node scripts/qa-capture.mjs   # → docs/qa/migration-fe-order-app-v4/*.png 6장
 ```
 
@@ -69,7 +71,8 @@ node scripts/qa-capture.mjs   # → docs/qa/migration-fe-order-app-v4/*.png 6장
 
 | 변수                     | 기본값                          | 용도                                            | 사용 위치                       |
 | ------------------------ | ------------------------------- | ----------------------------------------------- | ------------------------------- |
-| `VITE_API_BASE_URL`      | `http://localhost:8080`         | api-gateway base URL (Phase 9 신규 service 포함) | `src/samhanApi.ts` axios baseURL |
+| `VITE_API_BASE_URL`      | `/api/v1`                       | api-gateway base URL (real-QA는 `http://localhost:8080/api/v1` 명시) | `src/samhanApi.ts` axios baseURL |
+| `VITE_APP_VERSION`       | 없음                            | build 산출물의 앱 버전 (real-QA는 `YYYY/MM/DD-번호` 명시) | `vite.config.ts` |
 | `VITE_PWA_ENABLED`       | `true`                          | PWA service worker 등록 여부                    | `src/main.ts`                   |
 
 ### Phase 8 가드
