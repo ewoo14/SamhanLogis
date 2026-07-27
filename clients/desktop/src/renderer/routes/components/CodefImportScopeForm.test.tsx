@@ -915,6 +915,49 @@ describe('CodefImportScopeForm — #825 슬5 R1 BLOCKING#1/H-4/item5 회귀', ()
     expect((screen.getByTestId('codef-import-button') as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('미선택 안내는 전체 칩과 계좌·카드·대출 개별 선택 경로를 함께 안내한다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main', accountRefs: [], cardRefs: [], loanRefs: [],
+      defaultImportType: 'ALL', scopeMode: null,
+    })
+
+    renderForm()
+
+    const hint = await screen.findByTestId('codef-scope-hint')
+    expect(hint.textContent).toContain("전체로 처리하려면 '전체' 칩을 선택하세요.")
+    expect(hint.textContent).toContain('특정 항목만 처리하려면 계좌·카드·대출 항목을 선택하세요.')
+  })
+
+  it('전체 범위 칩은 Enter와 Space로 켜고 끄는 왕복 조작이 된다', async () => {
+    listCodefBankAccountsMock.mockResolvedValue([BANK_A])
+    listCodefCardsMock.mockResolvedValue([CARD_A])
+    listCodefLoansMock.mockResolvedValue([])
+    loadCodefImportScopeMock.mockResolvedValue({
+      connectedId: 'connected-main', accountRefs: [], cardRefs: [], loanRefs: [],
+      defaultImportType: 'ALL', scopeMode: null,
+    })
+
+    renderForm()
+
+    await waitFor(() => expect((screen.getByTestId('codef-bank-account-0') as HTMLInputElement).disabled).toBe(false))
+    const pressable = (await screen.findByTestId('codef-all-scope-chip')).querySelector('[role="button"]')
+    expect(pressable).not.toBeNull()
+    fireEvent.keyDown(pressable as Element, { key: 'Enter' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('true'))
+    fireEvent.keyDown(pressable as Element, { key: 'Enter' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('false'))
+    expect(screen.getByTestId('codef-scope-hint')).toBeTruthy()
+
+    fireEvent.keyDown(pressable as Element, { key: ' ' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('true'))
+    fireEvent.keyDown(pressable as Element, { key: ' ' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('false'))
+    expect(screen.getByTestId('codef-scope-hint')).toBeTruthy()
+  })
+
   it('기존 빈-ref SELECTED 행은 복원 실패를 안내하고 저장·가져오기를 잠근다', async () => {
     listCodefBankAccountsMock.mockResolvedValue([BANK_A])
     listCodefCardsMock.mockResolvedValue([CARD_A])

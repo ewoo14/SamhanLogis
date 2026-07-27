@@ -354,6 +354,31 @@ describe('SafetyStockAlertsPage — #825 슬5 R1 결정2', () => {
     expect((pressable as Element).getAttribute('aria-pressed')).toBe('true')
   })
 
+  it('미선택 안내는 전체 칩과 창고 선택 경로를 함께 안내하고 Enter·Space로 왕복 토글된다', async () => {
+    listSafetyStockAlertsMock.mockResolvedValue([])
+    listWarehousesMock.mockResolvedValue([HQ_WAREHOUSE])
+
+    renderPage()
+
+    const hint = await screen.findByTestId('safety-stock-scope-hint')
+    expect(hint.textContent).toContain("전체로 처리하려면 '전체' 칩을 선택하세요.")
+    expect(hint.textContent).toContain('특정 창고만 처리하려면 창고를 선택하세요.')
+
+    const pressable = screen.getByTestId('safety-stock-all-chip').querySelector('[role="button"]')
+    expect(pressable).not.toBeNull()
+    fireEvent.keyDown(pressable as Element, { key: 'Enter' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('true'))
+    fireEvent.keyDown(pressable as Element, { key: 'Enter' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('false'))
+    expect(screen.getByTestId('safety-stock-scope-hint')).toBeTruthy()
+
+    fireEvent.keyDown(pressable as Element, { key: ' ' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('true'))
+    fireEvent.keyDown(pressable as Element, { key: ' ' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('false'))
+    expect(screen.getByTestId('safety-stock-scope-hint')).toBeTruthy()
+  })
+
   it('결정2ⓐ — inventory.safety-stock UPDATE 권한이 없으면 설정 폼이 잠기고 사유를 안내한다(BE @RequirePermission 과 정합)', async () => {
     canAccessMock.mockImplementation((page: string, action?: string) => {
       if (page === 'inventory.safety-stock' && action === 'update') return false

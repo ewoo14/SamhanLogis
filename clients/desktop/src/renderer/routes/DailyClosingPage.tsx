@@ -868,6 +868,13 @@ export function DailyClosingPage() {
                 value="전체"
                 removeLabel="전체 범위"
                 onClick={canExecute ? () => {
+                  if (execScopeMode === 'ALL') {
+                    setExecScopeMode(null)
+                    setExecPartner(null)
+                    setExecPartnerCommitted(true)
+                    setExecPartnerDraftError('')
+                    return
+                  }
                   setExecScopeMode('ALL')
                   setExecPartner(null)
                   setExecPartnerCommitted(true)

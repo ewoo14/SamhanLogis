@@ -453,6 +453,31 @@ describe('DailyClosingPage 일마감 실행 거래처 payload (#825 R1)', () => 
     const payload = createDailyClosingMock.mock.calls[0]![0] as { partnerCode?: string }
     expect(payload.partnerCode).toBeUndefined()
   })
+
+  it('전체 범위 칩은 전체와 거래처 경로를 안내하고 Enter·Space로 왕복 토글된다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    const hint = await screen.findByTestId('daily-closing-scope-hint')
+    expect(hint.textContent).toContain("전체로 처리하려면 '전체' 칩을 선택하세요.")
+    expect(hint.textContent).toContain('특정 거래처만 처리하려면 거래처를 선택하세요.')
+
+    const pressable = screen.getByTestId('daily-closing-all-chip').querySelector('[role="button"]')
+    expect(pressable).not.toBeNull()
+    fireEvent.keyDown(pressable as Element, { key: 'Enter' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('true'))
+    fireEvent.keyDown(pressable as Element, { key: 'Enter' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('false'))
+    expect(screen.getByTestId('daily-closing-scope-hint')).toBeTruthy()
+
+    fireEvent.keyDown(pressable as Element, { key: ' ' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('true'))
+    fireEvent.keyDown(pressable as Element, { key: ' ' })
+    await waitFor(() => expect(pressable?.getAttribute('aria-pressed')).toBe('false'))
+    expect(screen.getByTestId('daily-closing-scope-hint')).toBeTruthy()
+  })
 })
 
 /**

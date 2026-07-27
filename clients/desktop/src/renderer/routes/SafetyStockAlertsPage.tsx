@@ -164,6 +164,15 @@ export function SafetyStockAlertsPage() {
     configMutation.reset()
   }
 
+  const toggleAllConfigScope = () => {
+    if (configScopeMode === 'ALL') {
+      setConfigScopeMode(null)
+      configMutation.reset()
+      return
+    }
+    selectAllConfigScope()
+  }
+
   return (
     <div data-testid="safety-stock-alerts-page">
       {/* 헤더 영역 */}
@@ -297,7 +306,7 @@ export function SafetyStockAlertsPage() {
             label="범위"
             value="전체"
             removeLabel="전체 창고 범위"
-            onClick={canUpdate ? selectAllConfigScope : undefined}
+            onClick={canUpdate ? toggleAllConfigScope : undefined}
             ref={allScopeChipRef}
             onRemove={configScopeMode === 'ALL' && canUpdate ? () => {
               setConfigScopeMode(null)
@@ -367,7 +376,7 @@ export function SafetyStockAlertsPage() {
             style={{ margin: '8px 0 0', color: 'var(--ink-secondary, #5C6773)', fontSize: 12 }}
           >
             {canUpdate
-              ? "전체로 처리하려면 '전체' 칩을 선택하세요."
+              ? "전체로 처리하려면 '전체' 칩을 선택하세요. 특정 창고만 처리하려면 창고를 선택하세요."
               : '안전재고 설정 권한이 없어 범위를 선택하거나 저장할 수 없습니다. 권한 보유자에게 요청하세요.'}
           </p>
         ) : null}

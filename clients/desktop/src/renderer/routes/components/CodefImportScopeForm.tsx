@@ -385,6 +385,14 @@ export function CodefImportScopeForm({
     setSelectionDirty(true)
   }
 
+  function toggleAllScope() {
+    if (scopeMode === 'ALL') {
+      clearScope()
+      return
+    }
+    selectAllScope()
+  }
+
   function focusAllScopeChip() {
     setTimeout(() => {
       allScopeChipRef.current?.querySelector<HTMLElement>('[role="button"]')?.focus()
@@ -632,7 +640,7 @@ export function CodefImportScopeForm({
     : savedAllScopeDirty
       ? '저장된 전체 범위의 유형을 바꾸려면 먼저 저장하세요.'
     : scopeMode === null
-      ? "전체로 처리하려면 '전체' 칩을 선택하세요."
+      ? "전체로 처리하려면 '전체' 칩을 선택하세요. 특정 항목만 처리하려면 계좌·카드·대출 항목을 선택하세요."
       : null
   const allScopeLocksItems = scopeMode === 'ALL'
   const importSelectionReady = scopeMode !== 'SELECTED' || selectedCount(effectiveSelection(false)) > 0
@@ -911,7 +919,7 @@ export function CodefImportScopeForm({
           value="전체"
           removeLabel="전체 범위"
           ref={allScopeChipRef}
-          onClick={canUpdate ? selectAllScope : undefined}
+          onClick={canUpdate ? toggleAllScope : undefined}
           onRemove={canUpdate && scopeMode === 'ALL' ? () => { clearScope(); focusAllScopeChip() } : undefined}
           data-testid="codef-all-scope-chip"
           className={!canUpdate ? 'codef-scope-chip--disabled' : undefined}
@@ -957,10 +965,10 @@ export function CodefImportScopeForm({
 
       {allScopeLocksItems ? (
         <div className="codef-import-hint" id={SCOPE_ALL_LOCK_HINT_ID} role="status">
-          {/* F6 — 잠금 힌트가 잠금 사실만 말하고 해제 방법을 말하지 않던 결함. 위 '범위: 전체'
-              칩의 ✕(제거) 버튼이 유일한 탈출구인데 그 방법이 어디에도 없었다(K5). */}
+          {/* F6 — 잠금 힌트가 잠금 사실만 말하고 해제 방법을 말하지 않던 결함. 전체 칩을
+              다시 누르는 키보드/마우스 토글과 ✕ 제거를 함께 안내한다. */}
           전체 범위가 선택되어 개별 항목 선택은 비활성화됩니다. 개별 항목을 다시 고르려면 위
-          '범위: 전체' 칩의 ✕(전체 범위 제거) 버튼을 눌러 전체 선택을 해제하세요.
+          '범위: 전체' 칩을 다시 누르거나 ✕(전체 범위 제거) 버튼을 눌러 전체 선택을 해제하세요.
         </div>
       ) : null}
 

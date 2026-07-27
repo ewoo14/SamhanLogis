@@ -5728,7 +5728,7 @@ button {
 }
 
 .codef-import-hint--error {
-  color: var(--state-danger);
+  color: var(--color-danger-700);
 }
 
 .codef-import-result {
