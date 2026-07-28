@@ -2,6 +2,8 @@ package com.samhanair.logis.product.quantitysync;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +17,7 @@ import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.it.AbstractPostgresIT;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.service.QuantitySyncRuleService;
+import com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidator.Draft;
 import com.samhanair.logis.product.web.dto.QuantitySyncRuleRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductUsageRequest;
@@ -24,12 +27,20 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -58,6 +69,9 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
 
     @Autowired
     private QuantitySyncRuleService quantitySyncRuleService;
+
+    @SpyBean
+    private QuantitySyncRuleValidator quantitySyncRuleValidator;
 
     @BeforeEach
     void setUp() {
@@ -208,6 +222,42 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
     }
 
     @Test
+    void 활성_규칙이_참조해도_수동_노출override의_동일_카테고리_저장은_허용된다() throws Exception {
+        UUID sourceId = product("DISC-EXPOSURE-NOOP-A");
+        product("DISC-EXPOSURE-NOOP-B");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_NOOP_A", true, "DISC-EXPOSURE-NOOP-A", "DISC-EXPOSURE-NOOP-B"), "qa-disc");
+
+        productService.updateUsageAndReturn(
+                "DISC-EXPOSURE-NOOP-A",
+                new UpdateProductUsageRequest(UsageScope.BOTH, List.of(EstimateCategory.HOME_MULTI)));
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND estimate_category = 'HOME_MULTI' AND is_deleted = false
+                """, Integer.class, sourceId)).isEqualTo(1);
+    }
+
+    @Test
+    void 활성_규칙이_참조해도_수동_노출override의_기존_카테고리_추가는_허용된다() throws Exception {
+        UUID sourceId = product("DISC-EXPOSURE-ADD-A");
+        product("DISC-EXPOSURE-ADD-B");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_ADD_A", true, "DISC-EXPOSURE-ADD-A", "DISC-EXPOSURE-ADD-B"), "qa-disc");
+
+        productService.updateUsageAndReturn(
+                "DISC-EXPOSURE-ADD-A",
+                new UpdateProductUsageRequest(
+                        UsageScope.BOTH,
+                        List.of(EstimateCategory.HOME_MULTI, EstimateCategory.SINGLE_SET)));
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND is_deleted = false
+                """, Integer.class, sourceId)).isEqualTo(2);
+    }
+
+    @Test
     void 활성_규칙이_참조하면_PATCH로_estimateCategories를_바꿀_수_없고_원인이_드러난다() throws Exception {
         UUID targetId = product("DISC-EXPOSURE-SRC-C");
         product("DISC-EXPOSURE-TGT-D");
@@ -225,6 +275,111 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
                 SELECT count(*) FROM product_estimate_exposure
                  WHERE product_id = ? AND estimate_category = 'HOME_MULTI' AND is_deleted = false
                 """, Integer.class, targetId)).isEqualTo(1);
+    }
+
+    @Test
+    void 활성_규칙이_참조해도_PATCH의_동일_카테고리_저장은_허용된다() throws Exception {
+        UUID sourceId = product("DISC-EXPOSURE-PATCH-NOOP-A");
+        product("DISC-EXPOSURE-PATCH-NOOP-B");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_PATCH_NOOP", true,
+                        "DISC-EXPOSURE-PATCH-NOOP-A", "DISC-EXPOSURE-PATCH-NOOP-B"), "qa-disc");
+        UpdateProductRequest sameCategories = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(EstimateCategory.HOME_MULTI), null);
+
+        productService.update(sourceId, sameCategories);
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND estimate_category = 'HOME_MULTI' AND is_deleted = false
+                """, Integer.class, sourceId)).isEqualTo(1);
+    }
+
+    @Test
+    void 활성_규칙이_참조해도_PATCH의_기존_카테고리_추가는_허용된다() throws Exception {
+        UUID sourceId = product("DISC-EXPOSURE-PATCH-ADD-A");
+        product("DISC-EXPOSURE-PATCH-ADD-B");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_PATCH_ADD", true,
+                        "DISC-EXPOSURE-PATCH-ADD-A", "DISC-EXPOSURE-PATCH-ADD-B"), "qa-disc");
+        UpdateProductRequest addCategory = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null,
+                List.of(EstimateCategory.HOME_MULTI, EstimateCategory.SINGLE_SET), null);
+
+        productService.update(sourceId, addCategory);
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND is_deleted = false
+                """, Integer.class, sourceId)).isEqualTo(2);
+    }
+
+    @Test
+    void 동시_반대_규칙_생성도_활성_그래프에_순환을_남기지_않는다() throws Exception {
+        product("DISC-RACE-A");
+        product("DISC-RACE-B");
+
+        CountDownLatch firstValidated = new CountDownLatch(1);
+        CountDownLatch secondValidated = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        AtomicBoolean first = new AtomicBoolean();
+        doAnswer(invocation -> {
+            if (first.compareAndSet(false, true)) {
+                firstValidated.countDown();
+                releaseFirst.await(2, TimeUnit.SECONDS);
+            } else {
+                secondValidated.countDown();
+            }
+            return invocation.callRealMethod();
+        }).when(quantitySyncRuleValidator).validate(any(Draft.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> requestA = executor.submit(() -> quantitySyncRuleService.create(
+                    request("DISC_RULE_RACE_A", true, "DISC-RACE-A", "DISC-RACE-B"), "qa-disc"));
+            assertThat(firstValidated.await(2, TimeUnit.SECONDS)).isTrue();
+            Future<?> requestB = executor.submit(() -> quantitySyncRuleService.create(
+                    request("DISC_RULE_RACE_B", true, "DISC-RACE-B", "DISC-RACE-A"), "qa-disc"));
+            // 수정 전에는 두 요청이 모두 validator까지 진입한다. 수정 후에는 두 번째가
+            // graph advisory lock에서 기다리므로 timeout 뒤 첫 번째를 계속 진행시킨다.
+            secondValidated.await(1, TimeUnit.SECONDS);
+            releaseFirst.countDown();
+            awaitCompletion(requestA);
+            awaitCompletion(requestB);
+        } finally {
+            releaseFirst.countDown();
+            executor.shutdownNow();
+        }
+
+        Integer cycleCount = jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                  FROM quantity_sync_rule a
+                  JOIN quantity_sync_source a_source ON a_source.rule_id = a.id
+                       AND a_source.is_deleted = false
+                  JOIN quantity_sync_target a_target ON a_target.rule_id = a.id
+                       AND a_target.is_deleted = false
+                  JOIN quantity_sync_rule b ON b.is_deleted = false AND b.enabled = true
+                  JOIN quantity_sync_source b_source ON b_source.rule_id = b.id
+                       AND b_source.is_deleted = false
+                  JOIN quantity_sync_target b_target ON b_target.rule_id = b.id
+                       AND b_target.is_deleted = false
+                 WHERE a.is_deleted = false AND a.enabled = true
+                   AND a.rule_key = 'DISC_RULE_RACE_A'
+                   AND b.rule_key = 'DISC_RULE_RACE_B'
+                   AND a_source.source_product_id = b_target.target_product_id
+                   AND a_target.target_product_id = b_source.source_product_id
+                """, Integer.class);
+        assertThat(cycleCount).isZero();
+    }
+
+    private void awaitCompletion(Future<?> future) throws Exception {
+        try {
+            future.get(5, TimeUnit.SECONDS);
+        } catch (ExecutionException expected) {
+            // 동시 생성에서 두 번째 요청이 Java cycle 검증으로 거부되는 것은 정상이다.
+        }
     }
 
     @Test

@@ -169,6 +169,7 @@ public class ProductSheetSyncService {
     private final ProductEstimateExposureRepository exposureRepository;
     private final VariableDiscountDetector discountDetector;
     private final ProductAttributeClassifier attributeClassifier;
+    private final QuantitySyncRuleService quantitySyncRuleService;
     private final ProductSheetSyncService self;
 
     /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
@@ -184,6 +185,7 @@ public class ProductSheetSyncService {
                                    ProductEstimateExposureRepository exposureRepository,
                                    VariableDiscountDetector discountDetector,
                                    ProductAttributeClassifier attributeClassifier,
+                                   QuantitySyncRuleService quantitySyncRuleService,
                                    @Lazy ProductSheetSyncService self) {
         this.sheetsClient = sheetsClient;
         this.productRepository = productRepository;
@@ -195,6 +197,7 @@ public class ProductSheetSyncService {
         this.exposureRepository = exposureRepository;
         this.discountDetector = discountDetector;
         this.attributeClassifier = attributeClassifier;
+        this.quantitySyncRuleService = quantitySyncRuleService;
         this.self = self;
     }
 
@@ -233,7 +236,7 @@ public class ProductSheetSyncService {
 
         for (SheetTabMapping mapping : TAB_MAPPINGS) {
             try {
-                TabSyncResult tabResult = syncTab(mapping, defaultCategory);
+                TabSyncResult tabResult = self.syncTab(mapping, defaultCategory);
                 summary.byTab.put(mapping.tabName, tabResult);
                 summary.totalInserted += tabResult.inserted;
                 summary.totalUpdated += tabResult.updated;
@@ -1090,6 +1093,7 @@ public class ProductSheetSyncService {
      */
     @Transactional
     public TabSyncResult syncTab(SheetTabMapping mapping, Category defaultCategory) throws Exception {
+        quantitySyncRuleService.lockGraphMutation();
         TabSyncResult result = new TabSyncResult();
         String range = mapping.currentTabName + "!A1:Z";
         String formulaRange = expandFormulaRange(range);
@@ -1274,6 +1278,12 @@ public class ProductSheetSyncService {
                     log.debug("[ProductSheetSync] tab '{}' modelCode='{}' usageScopeManual=true → soft-delete 제외",
                             mapping.tabName, code);
                     result.preservedManual++;
+                    continue;
+                }
+                List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysReferencing(p.getId());
+                if (!ruleKeys.isEmpty()) {
+                    log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙 참조({})로 soft-delete 제외",
+                            mapping.tabName, code, String.join(", ", ruleKeys));
                     continue;
                 }
                 // BaseEntity.markDeleted: deletedAt + deletedBy + isDeleted=true 설정 (shared:common).

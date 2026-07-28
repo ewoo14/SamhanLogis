@@ -55,6 +55,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class QuantitySyncRuleService {
 
+    private static final String GRAPH_MUTATION_LOCK_KEY = "quantity_sync_rule_graph_mutation";
+
     /**
      * 재수렴 결함 2 [최우선] — {@link #toResponse} 가 참조 Product를 찾지 못했을 때
      * 표시하는 placeholder. UUID를 노출하지 않으면서(feedback_uuid_no_user_visibility.md)
@@ -118,6 +120,23 @@ public class QuantitySyncRuleService {
      */
     @Transactional(readOnly = true)
     public List<String> findEnabledRuleKeysReferencing(UUID productId) {
+        return findEnabledRuleKeysReferencingMissingCategory(productId, Set.of());
+    }
+
+    /**
+     * 활성 규칙이 참조하는 품목에서 요청 카테고리를 제거하는 규칙 키를 반환한다.
+     *
+     * <p>품목 편집은 참조 중이라는 이유만으로 전부 막지 않고, 해당 규칙의 카테고리를
+     * 실제로 제거해 무결성을 깨는 경우에만 차단한다. {@code COMMERCIAL_MULTI}는 규칙
+     * 스키마의 {@code COMM_MULTI}와 같은 카테고리다.
+     *
+     * @param productId 품목 내부 식별자
+     * @param requestedCategories 저장 후 유지할 견적 노출 카테고리
+     * @return 요청 후 규칙 카테고리가 사라지는 활성 규칙 키
+     */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysReferencingMissingCategory(
+            UUID productId, Set<EstimateCategory> requestedCategories) {
         Set<UUID> ruleIds = new HashSet<>();
         sourceRepository.findAllBySourceProductIdAndIsDeletedFalse(productId)
                 .forEach(source -> ruleIds.add(source.getRuleId()));
@@ -128,14 +147,29 @@ public class QuantitySyncRuleService {
         }
         return ruleRepository.findAllById(ruleIds).stream()
                 .filter(QuantitySyncRule::isEnabled)
+                .filter(rule -> !containsRuleCategory(requestedCategories, rule.getEstimateCategory()))
                 .map(QuantitySyncRule::getRuleKey)
                 .sorted()
                 .toList();
     }
 
+    private boolean containsRuleCategory(Set<EstimateCategory> requestedCategories,
+                                         QuantitySyncEstimateCategory ruleCategory) {
+        if (requestedCategories == null) {
+            return false;
+        }
+        return requestedCategories.stream().anyMatch(category -> switch (category) {
+            case HOME_MULTI -> ruleCategory == QuantitySyncEstimateCategory.HOME_MULTI;
+            case SINGLE_SET -> ruleCategory == QuantitySyncEstimateCategory.SINGLE_SET;
+            case COMMERCIAL_MULTI -> ruleCategory == QuantitySyncEstimateCategory.COMM_MULTI;
+            case LEGACY, OTHER -> false;
+        });
+    }
+
     /** 신규 규칙을 전체 graph 검증 후 생성한다. */
     @Transactional
     public QuantitySyncRuleResponse create(QuantitySyncRuleRequest request, String actor) {
+        lockGraphMutation();
         // 재수렴 결함 2 [MED] A — 이미 활성 상태인 ruleKey로 POST하면 부분 unique index
         // ux_qsr_rule_key_active(V24:80-82)에서만 걸려 DataIntegrityViolationException →
         // "동시 편집 충돌 또는 제약 위반"(409, GlobalExceptionHandler:131-136)으로 원인이
@@ -162,6 +196,7 @@ public class QuantitySyncRuleService {
         if (!ruleKey.equals(request.ruleKey())) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "path ruleKey와 body ruleKey가 다릅니다.");
         }
+        lockGraphMutation();
         QuantitySyncRule rule = ruleRepository.findByRuleKeyForUpdate(ruleKey)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "규칙을 찾을 수 없습니다: " + ruleKey));
         Map<String, Product> products = resolveProducts(request);
@@ -183,6 +218,7 @@ public class QuantitySyncRuleService {
     /** 규칙과 source/target을 hard delete하지 않고 함께 soft-delete한다. */
     @Transactional
     public void delete(String ruleKey, String actor) {
+        lockGraphMutation();
         QuantitySyncRule rule = ruleRepository.findByRuleKeyForUpdate(ruleKey)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "규칙을 찾을 수 없습니다: " + ruleKey));
         String resolvedActor = actor == null || actor.isBlank() ? "system" : actor;
@@ -191,6 +227,14 @@ public class QuantitySyncRuleService {
         targetRepository.findAllByRuleIdAndIsDeletedFalseOrderByDisplayOrderAsc(rule.getId())
                 .forEach(target -> target.markDeleted(resolvedActor));
         rule.markDeleted(resolvedActor);
+    }
+
+    /** 규칙 그래프의 검증부터 child 저장/commit까지 모든 인스턴스를 직렬화한다. */
+    public void lockGraphMutation() {
+        entityManager.createNativeQuery(
+                        "SELECT pg_advisory_xact_lock(CAST(hashtext(:lockKey) AS bigint))")
+                .setParameter("lockKey", GRAPH_MUTATION_LOCK_KEY)
+                .getSingleResult();
     }
 
     private void saveChildren(UUID ruleId, QuantitySyncRuleRequest request,

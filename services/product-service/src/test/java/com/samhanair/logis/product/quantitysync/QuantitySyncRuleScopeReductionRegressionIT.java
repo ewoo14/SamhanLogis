@@ -59,10 +59,8 @@ import org.springframework.test.annotation.DirtiesContext;
  *       꺼둔 규칙도 구성품 등록(PUT 상당, {@link BundleComponentService#replaceComponents})을
  *       영구 차단했다. 트리거 자체가 제거됐으므로 활성/비활성 무관하게 항상 성공해야 한다.</li>
  *   <li>A3-① — {@link ProductSheetSyncService#syncTab}이 규칙이 참조하는 품목을 시트에서
- *       지워도(GONE) {@code products} constraint trigger가 commit을 막아 그 행의
- *       soft-delete만 rollback됐다(무관한 KEEP 갱신은 커밋되고 사용자에게는 원인이 드러나되
- *       삭제 자체는 영구히 안 됨). 트리거가 없으므로 이제 GONE도 정상적으로 soft-delete되고
- *       error가 없어야 한다.</li>
+ *       지워도(GONE) 활성 규칙의 참조 무결성을 보존해야 하므로 해당 Product와 exposure를
+ *       유지하고, 무관한 품목만 정리해야 한다.</li>
  * </ul>
  */
 @SpringBootTest(properties = {
@@ -142,7 +140,7 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
     }
 
     @Test
-    void A3_1_활성_규칙이_참조하는_품목이_시트에서_사라지면_이제_정상적으로_soft_delete된다() throws Exception {
+    void A3_1_활성_규칙이_참조하는_품목이_시트에서_사라져도_시트동기화가_보존한다() throws Exception {
         String goneCode = createHomeMultiProduct("SCOPE-A3-1-GONE");
         String partnerCode = createHomeMultiProduct("SCOPE-A3-1-PARTNER");
 
@@ -155,7 +153,7 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
         ProductSheetSyncService.SyncSummary baseline = syncService.syncAll();
         assertThat(baseline.byTab.get("홈멀티").error).isNull();
 
-        // GONE만 시트에서 사라짐 — 트리거가 없으므로 이제 이 soft-delete가 rollback되지 않아야 한다.
+        // GONE만 시트에서 사라짐 — 활성 규칙 참조 품목은 시트 정리 대상이어도 보존해야 한다.
         when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
                 row("SCOPE PARTNER", partnerCode, "", "1,000,000", "", "900,000")
         ));
@@ -165,11 +163,16 @@ class QuantitySyncRuleScopeReductionRegressionIT extends AbstractPostgresIT {
         ProductSheetSyncService.TabSyncResult homeTab = summary.byTab.get("홈멀티");
         assertThat(homeTab).isNotNull();
         assertThat(homeTab.error).isNull();
-        assertThat(homeTab.softDeleted).isGreaterThanOrEqualTo(1);
+        assertThat(homeTab.softDeleted).isZero();
 
         Boolean goneDeleted = jdbcTemplate.queryForObject(
                 "SELECT is_deleted FROM products WHERE model_code = ?", Boolean.class, goneCode);
-        assertThat(goneDeleted).isTrue();
+        assertThat(goneDeleted).isFalse();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT is_deleted FROM product_estimate_exposure
+                 WHERE product_id = (SELECT id FROM products WHERE model_code = ?)
+                   AND estimate_category = 'HOME_MULTI'
+                """, Boolean.class, goneCode)).isFalse();
     }
 
     private QuantitySyncRuleRequest ruleRequest(String ruleKey, boolean enabled,

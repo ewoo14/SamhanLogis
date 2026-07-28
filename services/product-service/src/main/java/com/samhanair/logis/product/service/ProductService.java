@@ -514,6 +514,7 @@ public class ProductService {
      * {@code modelCode} 는 변경하지 않는다.
      */
     public ProductResponse update(UUID id, UpdateProductRequest req) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
 
         if (req.name() != null) {
@@ -536,22 +537,18 @@ public class ProductService {
         }
         // 재수렴 결함 3 [MED] — discontinue()/delete()에만 있던 가드가 update()에는 없어
         // usageScope가 NONE으로 바뀌면(직접 요청·SET_COMPONENT 강제·부모 세트 연결·MATERIAL
-        // 카테고리 강제 등 applyUpdateFields() 내부의 어느 경로를 통하든) DB의 V24 deferred
-        // constraint trigger(quantity_sync cannot reference deleted or invisible product)에서만
-        // 걸려 "동시 편집 충돌 또는 제약 위반"(409)으로 원인이 위장됐다. 전이 여부(NONE이
-        // 아니었다가 NONE이 됨)만 판정하므로 이미 NONE인 품목의 무관한 필드 수정은 막지 않는다.
+        // 카테고리 강제 등 applyUpdateFields() 내부의 어느 경로를 통하든) Java 사전 가드가
+        // 없으면 무결성 위반이 조용히 저장된다. 전이 여부(NONE이 아니었다가 NONE이 됨)만
+        // 판정하므로 이미 NONE인 품목의 무관한 필드 수정은 막지 않는다.
         boolean usageWasNone = product.getUsageScope() == UsageScope.NONE;
         boolean usageForcedNone = applyUpdateFields(product, req);
         if (!usageWasNone && product.getUsageScope() == UsageScope.NONE) {
             assertNotReferencedByEnabledQuantitySyncRule(product.getId());
         }
-        // 🚨 2026-07-28 재수렴 후속 라운드 결함 4 [HIGH] fix — usageScope=NONE 전이만 막고
-        // estimateCategories 변경은 무방비였다(형제 필드 비대칭, U-2). DB 강제층(V24
-        // constraint trigger) 제거로 조용히 통과해 노출 카테고리가 바뀌어도 그 카테고리를
-        // 요구하는 enabled 규칙이 그대로 남는다 — usageScope=NONE·discontinue와 동일하게
-        // 이 사전 가드로 막는다.
+        // 활성 규칙의 카테고리를 실제로 제거하는 경우에만 차단한다. 동일 카테고리 재저장과
+        // 기존 카테고리를 유지한 채 추가하는 편집은 규칙 무결성을 깨지 않으므로 허용한다.
         if (req.estimateCategories() != null) {
-            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
+            assertCategoryRemovalDoesNotBreakQuantitySyncRule(product.getId(), req.estimateCategories());
         }
         if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null) {
             syncEstimateExposures(product, product.getUsageScope(), req.estimateCategories(), "product-update");
@@ -587,6 +584,7 @@ public class ProductService {
     }
 
     public void discontinue(UUID id) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
         assertNotReferencedByEnabledQuantitySyncRule(id);
         product.discontinue();
@@ -609,6 +607,7 @@ public class ProductService {
      * @throws BusinessException(NOT_FOUND) modelCode 에 해당하는 품목이 없을 때
      */
     public Product updateUsageAndReturn(String modelCode, UpdateProductUsageRequest req) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadByModelCodeOrThrow(modelCode);
         // 재수렴 결함 3 [MED] — update()와 같은 이유로 수동 노출 override 경로도 가드가
         // 없었다. req.usageScope()는 @NotNull이라 HTTP 경로에서는 null이 될 수 없지만,
@@ -618,10 +617,8 @@ public class ProductService {
         if (movingToNone) {
             assertNotReferencedByEnabledQuantitySyncRule(product.getId());
         }
-        // 🚨 2026-07-28 재수렴 후속 라운드 결함 4 [HIGH] fix — update()와 같은 이유로 수동
-        // 노출 override 경로도 estimateCategories 변경에 무방비였다(형제 필드 비대칭, U-2).
         if (req.estimateCategories() != null) {
-            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
+            assertCategoryRemovalDoesNotBreakQuantitySyncRule(product.getId(), req.estimateCategories());
         }
         product.markUsageManual(req.usageScope());
         syncEstimateExposures(product, req.usageScope(), req.estimateCategories(), "product-usage-manual");
@@ -707,6 +704,7 @@ public class ProductService {
     }
 
     public void delete(UUID id, String callerId) {
+        quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
         assertNotReferencedByEnabledQuantitySyncRule(id);
         String actor = callerId == null ? "system" : callerId;
@@ -716,10 +714,9 @@ public class ProductService {
 
     /**
      * R1 결함 3 [MED] · 재수렴 결함 3 [MED] — 품목 상태 변경(단종/삭제/노출구분 NONE 전환)이
-     * 수량 동기화 규칙 참조 때문에 막힐 때, 그 원인이 "동시 편집 충돌 또는 제약 위반"(DB
-     * constraint trigger 우회 후 GlobalExceptionHandler의 범용 409)으로 위장되지 않고
-     * 사용자에게 드러나도록(J-4) 실제 mutation 전에 선제 확인한다. DB 층 deferred constraint
-     * trigger는 여전히 fail-closed 안전망으로 남는다(J-2).
+     * 수량 동기화 규칙 참조 때문에 막힐 때, 그 원인이 "동시 편집 충돌 또는 제약 위반"으로
+     * 위장되지 않고 사용자에게 드러나도록 실제 mutation 전에 선제 확인한다. V24 DB에는
+     * 규칙 강제 trigger를 두지 않으므로 이 Java 검증이 API 쓰기 경로의 무결성 경계다.
      *
      * <p>재수렴 R1에서 discontinue()/delete()에만 있던 이 가드가 update()(PATCH 노출구분
      * 변경 포함)·updateUsageAndReturn()(수동 override)에는 없어 같은 원인인데 호출 경로별로
@@ -731,6 +728,20 @@ public class ProductService {
      */
     private void assertNotReferencedByEnabledQuantitySyncRule(UUID productId) {
         List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysReferencing(productId);
+        if (!ruleKeys.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
+                            + String.join(", ", ruleKeys));
+        }
+    }
+
+    private void assertCategoryRemovalDoesNotBreakQuantitySyncRule(
+            UUID productId, List<EstimateCategory> requestedCategories) {
+        Set<EstimateCategory> requested = requestedCategories == null
+                ? Set.of()
+                : Set.copyOf(requestedCategories);
+        List<String> ruleKeys = quantitySyncRuleService
+                .findEnabledRuleKeysReferencingMissingCategory(productId, requested);
         if (!ruleKeys.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
