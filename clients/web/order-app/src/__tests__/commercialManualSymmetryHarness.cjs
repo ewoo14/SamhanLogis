@@ -27,6 +27,7 @@ const SETS = `
   const COMM_MANUAL_REMOTE = new Set();
   const COMM_MANUAL_PUMP = new Set();
   const COMM_MANUAL_BASE = new Set();
+  const COMM_MANUAL_BRANCH = new Set();
 `;
 
 function runExplicitZeroScenario() {

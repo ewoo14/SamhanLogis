@@ -288,6 +288,7 @@ function runCommercial(source, input) {
     const COMM_MANUAL_REMOTE = new Set(${JSON.stringify(locks.remote || [])});
     const COMM_MANUAL_PUMP = new Set(${JSON.stringify(locks.pump || [])});
     const COMM_MANUAL_BASE = new Set(${JSON.stringify(locks.base || [])});
+    const COMM_MANUAL_BRANCH = new Set(${JSON.stringify(locks.branch || [])});
     const commCustomPrices = new Map();
     const commUnitPrice = () => 0;
     ${renewFilterMap}

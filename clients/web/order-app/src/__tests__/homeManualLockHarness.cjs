@@ -194,6 +194,7 @@ function runSnapshotRoundtrip({ family, model, lockValue, legacyShot }) {
     const COMM_MANUAL_REMOTE = new Set();
     const COMM_MANUAL_PUMP = new Set();
     const COMM_MANUAL_BASE = new Set();
+    const COMM_MANUAL_BRANCH = new Set();
     ${functions}
 
     /* 1) 사용자가 파생 칸에 직접 값을 입력해 잠근다 */

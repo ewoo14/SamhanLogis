@@ -44,6 +44,7 @@ const COMM_FUNCTIONS = [
   'countBranchForSet',
   'computeCommPanelModelForIndoor_',
   'commManualSetForRow',
+  'isCommManualLocked',
   'recomputeCommDerived',
   'applyCommManualLock',
   'clearCommManualLocks',
@@ -112,6 +113,7 @@ const COMM_MANUAL_SETS_DECL = `
   const COMM_MANUAL_REMOTE = new Set();
   const COMM_MANUAL_PUMP = new Set();
   const COMM_MANUAL_BASE = new Set();
+  const COMM_MANUAL_BRANCH = new Set();
 `;
 
 const LOCK_CHECK = (model) => `(
@@ -119,7 +121,8 @@ const LOCK_CHECK = (model) => `(
   COMM_MANUAL_HOSE.has(${JSON.stringify(model)}) ||
   COMM_MANUAL_REMOTE.has(${JSON.stringify(model)}) ||
   COMM_MANUAL_PUMP.has(${JSON.stringify(model)}) ||
-  COMM_MANUAL_BASE.has(${JSON.stringify(model)})
+  COMM_MANUAL_BASE.has(${JSON.stringify(model)}) ||
+  COMM_MANUAL_BRANCH.has(${JSON.stringify(model)})
 )`;
 
 /**
@@ -171,7 +174,45 @@ function runCommClearScenario({ family, model, lockValue, sourceMutator }) {
 }
 
 /**
- * G-2 본체(초기화 버튼 무효) 재현 — clearCommManualLocks(신규 함수)가 5계열 잠금을
+ * #967 선재 결함 ② 재현 — 상업 T형 분기관 수동값을 입력한 뒤 실내·실외기
+ * 변경과 같은 재계산 트리거를 통과해도 값과 수동잠금이 보존되는지 검사한다.
+ */
+function runCommBranchRecomputeScenario({ family, model, lockValue, sourceMutator }) {
+  const source = loadOrderSource(sourceMutator);
+  const prelude = catalogPrelude(source, family);
+  const renewFilterMap = extractConstSource(source, 'RENEW_FILTER_MAP');
+  const functions = bundle(source, COMM_FUNCTIONS);
+  const modelJson = JSON.stringify(model);
+  const script = `
+    const window = { SHOW_I_HOSE: false, ABSOLUTE_LOCK: new Set() };
+    ${COMMON_STUBS}
+    ${domScript(prelude.dom)}
+    ${prelude.script}
+    const COMMULTI = ${JSON.stringify(prelude.rows)};
+    const commQty = new Map(Object.entries(${JSON.stringify(prelude.sourceQuantities)}));
+    ${COMM_MANUAL_SETS_DECL}
+    ${renewFilterMap}
+    ${functions}
+
+    const rec = COMMULTI.find(r => r.model === ${modelJson});
+    if(!rec) throw new Error('rec 없음: ' + ${modelJson});
+
+    applyCommManualLock(rec, ${modelJson}, ${JSON.stringify(lockValue)});
+    commQty.set(${modelJson}, ${JSON.stringify(lockValue)});
+    recomputeCommDerived();
+
+    globalThis.__result = {
+      valueAfterRecompute: commQty.get(${modelJson}) || 0,
+      lockedAfterRecompute: isCommManualLocked(rec, ${modelJson}),
+    };
+  `;
+  const context = { console: { log: () => {} } };
+  vm.runInNewContext(script, context, { filename: SOURCE_PATH.order });
+  return context.__result;
+}
+
+/**
+ * G-2 본체(초기화 버튼 무효) 재현 — clearCommManualLocks(신규 함수)가 6계열 잠금을
  * 전부 비우는지 검증한다. btnResetComm 배선(초기화 버튼 클릭이 이 함수를 부르는지)
  * 자체는 이 vm harness 범위 밖이며(인라인 클릭 핸들러라 추출 불가) 소스 텍스트
  * 존재 확인(RED-first 테스트) + 실 브라우저 왕복으로 별도 검증한다.
@@ -227,7 +268,7 @@ function runCommSnapshotRoundtrip({ family, model, lockValue, legacyShot, source
   ]);
   const modelJson = JSON.stringify(model);
   const stripLockFields = legacyShot
-    ? `delete shot.core.commManualPanel; delete shot.core.commManualHose; delete shot.core.commManualRemote; delete shot.core.commManualPump; delete shot.core.commManualBase;`
+    ? `delete shot.core.commManualPanel; delete shot.core.commManualHose; delete shot.core.commManualRemote; delete shot.core.commManualPump; delete shot.core.commManualBase; delete shot.core.commManualBranch;`
     : '';
   const script = `
     const window = { SHOW_I_HOSE: false, ABSOLUTE_LOCK: new Set() };
@@ -268,6 +309,7 @@ function runCommSnapshotRoundtrip({ family, model, lockValue, legacyShot, source
       commManualRemote: shot.core.commManualRemote,
       commManualPump: shot.core.commManualPump,
       commManualBase: shot.core.commManualBase,
+      commManualBranch: shot.core.commManualBranch,
     };
     const anyLockSerialized = Object.values(serializedLockArrays).some((arr) => Array.isArray(arr) && arr.includes(${modelJson}));
 
@@ -290,6 +332,7 @@ function runCommSnapshotRoundtrip({ family, model, lockValue, legacyShot, source
 
 module.exports = {
   runCommClearScenario,
+  runCommBranchRecomputeScenario,
   runCommResetScenario,
   runCommSnapshotRoundtrip,
   fixtureFor,

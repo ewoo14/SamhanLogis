@@ -42,9 +42,10 @@ const SERIES: Array<[string, string, string]> = [
   ['리모컨', 'C-01', 'AWR-WE13N'],
   ['펌프', 'C-01', 'MDP-Z075SZED'],
   ['받침대', 'C-01', 'ADP-G075SPK1D'],
+  ['분기관', 'C-06', 'AXJ-TA3419M'],
 ];
 
-describe('#967 G-2 — 상업 파생 5계열: applyCommManualLock 이 add/delete 를 대칭으로 처리한다', () => {
+describe('#967 G-2 — 상업 파생 6계열: applyCommManualLock 이 add/delete 를 대칭으로 처리한다', () => {
   test.each(SERIES)('%s — 수동 입력 후 칸을 지우면 잠금이 풀리고 재계산이 자동값으로 복귀한다', (_label, family, model) => {
     const result = runCommClearScenario({ family, model, lockValue: LOCK_VALUE });
 
@@ -56,7 +57,7 @@ describe('#967 G-2 — 상업 파생 5계열: applyCommManualLock 이 add/delete
     expect(result.lockedAfterClear).toBe(false);
   });
 
-  test.each(SERIES)('%s — 상업멀티 초기화(clearCommManualLocks)는 5계열 잠금을 모두 비운다', (_label, family, model) => {
+  test.each(SERIES)('%s — 상업멀티 초기화(clearCommManualLocks)는 6계열 잠금을 모두 비운다', (_label, family, model) => {
     const result = runCommResetScenario({ family, model, lockValue: LOCK_VALUE });
 
     expect(result.lockedBeforeReset).toBe(true);

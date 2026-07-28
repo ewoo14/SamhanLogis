@@ -449,3 +449,54 @@ fix는 상업멀티를 홈멀티와 같은 규칙으로 수렴시키는 최소 �
 5. 값·뷰포트 검증이 모두 통과한 경우에만 PNG를 저장한다.
 
 재촬영 결과 19장은 `...\\scratchpad\\967-lunafix-real2\\`에 저장했고, 주문·견적의 모든 재촬영 파일이 대상 행 값 일치, viewport 포함, 파란색 `rgb(37, 99, 235)`, font weight `700` 검증을 통과했다. 기존 before·옵션 변경 후·저장복원·초기화·I형 호스·모바일 초기 화면도 이미지로 대조해 캡션과 일치함을 확인했고, 위 두 모바일 잠금 캡처만 불일치로 분류해 교체용 증거를 추가했다.
+
+## 13. PR #967 후속 흡수 — 선재 결함 2건 (2026-07-28)
+
+PM 적대검증에서 확인한 아래 2건은 현재 fix가 만든 회귀가 아니라 `origin/main`에서도 동일한 수치로 재현되는 **선재 결함**이다. PR #967에서 흡수 처리했다.
+
+### 13.1 결함과 원인 계보
+
+| 결함 | 사용자 영향 | 원인 계보 | 금액 영향 |
+|---|---|---|---:|
+| ① 상업멀티 옵션 5종 리셋 | 옵션 선택 후 품목 검색·필터·저장복원 시 기본값으로 돌아가고 검색어 삭제로도 복구되지 않음 | `renderComm()` → 매 렌더 `renderCommOptions()` → 첫 줄 `box.innerHTML=''` → 하드코딩 기본값 재삽입. 검색·필터·`applySnapshot`이 이 렌더 경로를 통과함. `renderHome()`에는 같은 옵션 재생성 호출이 없음. | **+202,830원** |
+| ② 상업 T형 분기관 수동 수량 소실 | `AXJ-TA3419M` 수동 수량이 다른 값 변경 후 자동값으로 덮이고 파란 굵은 수동 표시도 없음 | `COMM_MANUAL_*`가 `PANEL/HOSE/REMOTE/PUMP/BASE` 5종뿐이고 `BRANCH`가 없음. 따라서 `commManualSetForRow()`가 분기관에 `null`을 반환하고 `recomputeCommDerived()` 최종 guard도 분기관을 통과시킴. | **−2,057,000원** |
+
+②는 직전 fix 커밋이 스스로 열거한 “홈 파생 5계열(판넬·호스·리모컨·**분기관**·발통)” 중 **분기관만 상업에 이식하지 않은**, “홈만 게이트” 계열의 5번째 누락이다. 이번 fix는 `COMM_MANUAL_BRANCH`를 분류·입력 잠금·재계산 guard·초기화·snapshot 저장/복원에 연결했다.
+
+### 13.2 계열 전수 sweep
+
+| 영역 | 전수 계열 | 확인 결과 |
+|---|---|---|
+| 홈멀티 | 판넬·호스·리모컨·분기관·발통 (**5계열**) | 입력·표시·재계산·옵션 변경·snapshot 경로에 5계열 gate 존재 |
+| 상업멀티 | 판넬·호스·리모컨·펌프·받침대·분기관 (**6계열**) | 기존 5계열에 분기관을 추가해 입력·표시·재계산·초기화·snapshot 경로를 모두 대칭화 |
+
+렌더 삭제 지점도 전수 확인했다. 상업 옵션 컨트롤을 재생성하는 `renderCommOptions()`는 현재 값을 보존하고, 기존 컨트롤이 있으면 no-op이다. 기본값 재생성은 명시적 상업멀티 초기화의 `reset=true`에서만 발생한다. 상업 행 렌더는 `commQty`와 manual lock에서 값을 다시 읽으며, 홈멀티 옵션은 상업 검색 렌더 경로와 분리되어 있다.
+
+### 13.3 RED/GREEN 및 라이브 QA
+
+- RED-first 신규 probe: 옵션 재렌더 보존 1건, T형 분기관 재계산 잠금 1건 — fix 전 2/2 실패.
+- GREEN: 전체 order-app **14 test files / 163 tests passed**, golden **73/73**, typecheck exit 0.
+- 라이브 브라우저 프로그램 검증: 분기관 값 **`77`**, `getComputedStyle(input).color` **`rgb(37, 99, 235)`**, `font-weight` **`700`**, `getBoundingClientRect()` **`x=121, y=393.375, width=1198, height=40, top=393.375, bottom=433.375`**, viewport `1440×1000`.
+- 옵션 라이브 검증: 검색 전·검색 후·검색어 삭제 후 모두 `블랙판넬 / 사각 / 컬러유선 / 유연호스 제외=true / 받침대 제외=true` 유지.
+- 캡처: `docs/qa/2026-07-28-963-preexisting-fix/`의 옵션 검색 2장, T형 분기관 재계산 1장, `metrics.json`.
+
+라이브 QA는 실제 앱·실제 gateway/API·실제 Chromium을 사용했다. 당시 공유 `product_db`에 대상 모델이 없어 QA 식별자 `created_by=qa-963`로 두 product와 exposure를 **임시 삽입 후 삭제**했고, 재시작 후 대상 모델 0행을 확인했다. PM이 후속 검증에서 공유 `product_db` 잔재 0행 및 기준값(products 105 / 노출 4)을 재확인했다. 다음 라이브 QA부터는 공유 DB write를 하지 않고 전용 throwaway DB를 사용한다.
+
+### 13.4 변경 줄 수와 경계 하네스 근거
+
+PM 대조값 기준 개별 파일 numstat을 그대로 기록한다.
+
+```text
+1	0	clients/web/legacy-quantity-golden/legacyQuantityBoundary.js
+26	13	clients/web/order-app/index.html
+46	3	clients/web/order-app/src/__tests__/commManualLockHarness.cjs
+3	2	clients/web/order-app/src/__tests__/commManualLockRestore.test.ts
+1	0	clients/web/order-app/src/__tests__/commercialManualSymmetryHarness.cjs
+1	0	clients/web/order-app/src/__tests__/homeManualLockHarness.cjs
+(신규) clients/web/order-app/src/__tests__/legacyPreexistingFix.test.ts
+(신규) clients/web/order-app/src/__tests__/legacyPreexistingFixHarness.cjs
+(신규) qa/playwright/scripts/qa-963-preexisting-fix.mjs
+(신규) docs/qa/2026-07-28-963-preexisting-fix/ (캡처 3 + metrics.json)
+```
+
+`legacyQuantityBoundary.js`의 **+1**은 `runCommercial()`이 정본의 snapshot/recompute 함수를 추출 실행할 때 필요한 빈 `COMM_MANUAL_BRANCH` Set 선언 1줄이다(`:291`). 골든 fixture·정답 수량·계산식은 변경하지 않았고, 새 상업 분기관 lock 참조가 기존 golden sandbox에서 `ReferenceError`가 되지 않도록 스코프만 보강했다. 따라서 #948이 고정한 골든 정답의 경계 정의나 73건의 기대값을 변경한 것이 아니다.

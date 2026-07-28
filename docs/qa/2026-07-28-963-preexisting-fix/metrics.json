@@ -1,0 +1,53 @@
+{
+  "url": "http://127.0.0.1:5180/",
+  "optionsBeforeSearch": {
+    "panel": "블랙판넬",
+    "p360": "사각",
+    "remote": "컬러유선",
+    "exHose": true,
+    "exBase": true
+  },
+  "optionsAfterSearch": {
+    "panel": "블랙판넬",
+    "p360": "사각",
+    "remote": "컬러유선",
+    "exHose": true,
+    "exBase": true
+  },
+  "optionsAfterClear": {
+    "panel": "블랙판넬",
+    "p360": "사각",
+    "remote": "컬러유선",
+    "exHose": true,
+    "exBase": true
+  },
+  "branchEvidence": {
+    "model": "AXJ-TA3419M",
+    "value": "77",
+    "color": "rgb(37, 99, 235)",
+    "fontWeight": "700",
+    "rect": {
+      "x": 121,
+      "y": 393.375,
+      "width": 1198,
+      "height": 40,
+      "top": 393.375,
+      "bottom": 433.375
+    },
+    "rowText": "부자재분기관AXJ-TA3419M T형 분기관AXJ-TA3419M T형 분기관AXJ-TA3419M100,0007,700,000",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    }
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ],
+  "pageErrors": [],
+  "screenshots": [
+    "01-commercial-options-after-search.png",
+    "02-commercial-options-after-search-clear.png",
+    "03-commercial-t-branch-after-recompute.png"
+  ]
+}
