@@ -4142,13 +4142,13 @@ function chooseBaseModel(nm){
   if(isPrime && ['14','16','18','20'].some(test)) want.push('방진가대S2중');
   if(isCold  && ['14','16','18','20','22','24'].some(test)) want.push('방진가대S2중');
   if(isStd   && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
-  if(isCoolTop && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
+  if(isCoolTop && ['16','18','20','22','24','26','28','30'].some(test)) want.push('방진가대S2중');
   if(isExtra && ['14','16','18','20'].some(test)) want.push('방진가대S2중');
 
   // S2 대
   if(isPrime && ['22','24'].some(test)) want.push('방진가대S2대');
   if(isStd   && ['30','32','34'].some(test)) want.push('방진가대S2대');
-  if(isCoolTop && ['30','32','34'].some(test)) want.push('방진가대S2대');
+  if(isCoolTop && ['32','34'].some(test)) want.push('방진가대S2대');
 
   return want;
 }
@@ -8354,6 +8354,15 @@ function recomputeHomeDerived(updateUI) {
 /* 상업파생계산 */
 function recomputeCommDerived() {
   const want = new Map();
+  const requireCommCatalogRow_ = (model, reason) => {
+    const row = (COMMULTI||[]).find(x=>x.model===model);
+    if(!row){
+      if(!['AR-EH05','방진가대S2중'].includes(String(model))) return null;
+      const suffix = reason ? ` (${reason})` : '';
+      throw new Error(`상업멀티 파생 품목이 카탈로그에 없습니다: ${model}${suffix}`);
+    }
+    return row;
+  };
 
   /* 수동제외초기화 */
   COMMULTI.forEach(r => {
@@ -8498,8 +8507,8 @@ function recomputeCommDerived() {
 
   /* UI반영 */
   want.forEach((q, m) => {
-    const row = COMMULTI.find(x => x.model === m);
-    if (!row) return;
+    const row = requireCommCatalogRow_(m, '파생 품목 반영');
+    if(!row) return;
 
     if (window.ABSOLUTE_LOCK && window.ABSOLUTE_LOCK.has(m)) {
       return;

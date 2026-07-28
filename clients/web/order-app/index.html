@@ -2465,7 +2465,7 @@ function computeCommRemoteModelForIndoor_(row){
 
   // 기본 무선
   if (/인피니트/i.test(nm)) return 'AR-CH01';
-  if (/360/i.test(nm))       return 'AR-KH05';
+  if (/360/i.test(nm))       return 'AR-EH05';
   return 'AR-EH05';
 }
 
@@ -2530,13 +2530,13 @@ function chooseBaseModel(nm){
   if(isPrime && ['14','16','18','20'].some(test)) want.push('방진가대S2중');
   if(isCold  && ['14','16','18','20','22','24'].some(test)) want.push('방진가대S2중');
   if(isStd   && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
-  if(isCoolTop && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
+  if(isCoolTop && ['16','18','20','22','24','26','28','30'].some(test)) want.push('방진가대S2중');
   if(isExtra && ['14','16','18','20'].some(test)) want.push('방진가대S2중');
 
   /* 방진가대대 */
   if(isPrime && ['22','24'].some(test)) want.push('방진가대S2대');
   if(isStd   && ['30','32','34'].some(test)) want.push('방진가대S2대');
-  if(isCoolTop && ['30','32','34'].some(test)) want.push('방진가대S2대');
+  if(isCoolTop && ['32','34'].some(test)) want.push('방진가대S2대');
 
   return want;
 }
@@ -5565,6 +5565,15 @@ function recomputeHomeDerived(updateUI){
 /* 상업멀티재계산 */
 function recomputeCommDerived(){
   const want = new Map();
+  const requireCommCatalogRow_ = (model, reason) => {
+    const row = (COMMULTI||[]).find(x=>x.model===model);
+    if(!row){
+      if(!['AR-EH05','방진가대S2중'].includes(String(model))) return null;
+      const suffix = reason ? ` (${reason})` : '';
+      throw new Error(`상업멀티 파생 품목이 카탈로그에 없습니다: ${model}${suffix}`);
+    }
+    return row;
+  };
 
   // 파생품 전체를 먼저 0으로 seed한다. 자동 target이 계산에서 빠지는 0경계도
   // stale 값을 남기지 않으며, 새 계열은 isCommDerivedRow()만 통과하면 자동 편입된다.
@@ -5648,7 +5657,7 @@ function recomputeCommDerived(){
         const baseNames = chooseBaseModel(nmOne);
         baseNames.forEach(baseName=>{
           const m = modelByNameLike(baseName) || baseName;
-          const row = COMMULTI.find(x=>x.model===m); if(!row) return;
+          const row = requireCommCatalogRow_(m, '받침대/분기관 파생');
            const s = ((row?.name||'')+' '+(row?.disp||'')+' '+(row?.model||'')).toLowerCase();
            const isBase = /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s);
            want.set(m, (want.get(m)||0) + q);
@@ -5663,7 +5672,7 @@ function recomputeCommDerived(){
       const baseNames = chooseBaseModel(nm);
       baseNames.forEach(baseName=>{
         const m = modelByNameLike(baseName) || baseName;
-        const row = COMMULTI.find(x=>x.model===m); if(!row) return;
+        const row = requireCommCatalogRow_(m, '받침대 파생');
         const s = ((row?.name||'')+' '+(row?.disp||'')+' '+(row?.model||'')).toLowerCase();
         const isBase = /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s);
         want.set(m, (want.get(m)||0) + q);
@@ -5717,7 +5726,8 @@ function recomputeCommDerived(){
 
   /* 반영및갱신 */
   want.forEach((q, m)=>{
-    const row = COMMULTI.find(x=>x.model===m); if(!row) return;
+    const row = requireCommCatalogRow_(m, '파생 품목 반영');
+    if(!row) return;
     if(isCommDerivedRow(row) && isManualQtyLocked('commercial', m)) return;
 
     commQty.set(m, q);
