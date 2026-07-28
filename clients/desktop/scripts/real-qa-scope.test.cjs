@@ -11,6 +11,7 @@ const {
   checkFreshnessOrSkip,
   decideRealQaScope,
   EXPLICIT_PATH_ARGS_ENV_VAR,
+  EXPLICIT_PATH_TOKEN_ENV_VAR,
   getRealQaScope,
   listTrackedRealQaFiles,
   parseExplicitPathArgs,
@@ -26,6 +27,7 @@ const MIN_TRACKED_REAL_QA_FILE_COUNT = 172
 // assertRealQaScope 를 쓰는 각 테스트 시작 지점에서 지운다.
 function resetExplicitPathEnv() {
   delete process.env[EXPLICIT_PATH_ARGS_ENV_VAR]
+  delete process.env[EXPLICIT_PATH_TOKEN_ENV_VAR]
 }
 const F2_FILES = [
   'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts',
@@ -133,6 +135,30 @@ test('결함1: REAL_QA_ALLOW_UNTRACKED 세션 잔존은 명시 경로 없는 전
   }
 })
 
+test('결함1 핵심: 집합이 깨끗해도 명시 경로 없는 real-QA 전체 실행은 차단한다', () => {
+  resetExplicitPathEnv()
+  const trackedFile = 'clients/desktop/playwright/tracked-real-qa.spec.ts'
+  const scope = {
+    diskFiles: [trackedFile],
+    trackedFiles: [trackedFile],
+    untrackedFiles: [],
+    missingFiles: [],
+  }
+  const fullRunArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--list', '--reporter=line']
+
+  assert.throws(
+    () =>
+      decideRealQaScope({
+        scope,
+        allowUntracked: true,
+        explicitPathArgs: parseExplicitPathArgs(fullRunArgv),
+        repoRoot: repoRoot,
+      }),
+    /real-QA 전체 실행 차단/,
+    '미추적 차집합이 없어도 파일 없는 전체 실행은 실수 방지를 위해 항상 차단해야 합니다',
+  )
+})
+
 test('결함1 U-1: 예외 모드 경고가 stdout 에도 남는다(1> 리다이렉트로도 보여야 함)', () => {
   resetExplicitPathEnv()
   const tempRoot = createTempRealQaRepo()
@@ -234,13 +260,12 @@ test('결함3 보강: narrow 실행에 미추적 스펙 자신이 포함되면 �
   }
 })
 
-test('결함1·3 실측 보강: Playwright 워커 프로세스처럼 argv 가 비어도 narrow 실행이 유지된다(부모→자식 전파)', () => {
+test('결함1·3 실측 보강: 워커 프로세스처럼 argv 가 비어도 narrow 실행이 유지된다(부모→자식 전파)', () => {
   // 실측(PR#969 R1 fix 세션): --list 는 config 를 메인 프로세스 1회만 로드하지만, 실제
-  // playwright test 실행은 워커 자식 프로세스에서 config 를 다시 로드한다(node_modules/
-  // playwright/lib/common/process.js). 그 워커의 process.argv 는 원래 CLI 인자를 담지 않아
-  // (예: ["node","…/process.js"]) narrow 실행이 워커 단계에서 "명시 경로 없는 전체 실행"으로
-  // 오판되어 다시 막혔다 — REAL_QA_ALLOW_UNTRACKED=1 로 실제 실행해서만 드러났다(--list 로는
-  // 안 드러남). 아래는 그 워커 재호출을 argv 없이 흉내 낸다.
+  // playwright test 실행은 워커 자식 프로세스에서 config 를 다시 로드한다. 그 워커의
+  // process.argv 는 원래 CLI 인자를 담지 않아(예: ["node","…/worker.js"]) narrow 실행이
+  // 워커 단계에서 "명시 경로 없는 전체 실행"으로 오판되어 다시 막혔다 — 아래는 그 워커
+  // 재호출을 argv 없이 흉내 낸다.
   resetExplicitPathEnv()
   const tempRoot = createTempRealQaRepo()
   try {
@@ -260,20 +285,16 @@ test('결함1·3 실측 보강: Playwright 워커 프로세스처럼 argv 가 �
       '메인 프로세스(원래 CLI 인자 보유)는 narrow 실행으로 통과해야 합니다',
     )
 
-    // 워커 프로세스 흉내 — 실측된 실제 argv 형태(원래 CLI 인자 없음). [SONNET5 R2-3 fix]
-    // TEST_WORKER_INDEX 도 함께 심는다 — 실제 워커는 Playwright 가 워커 생성자에서 이 값을
-    // 항상 먼저 설정해 둔다(실측: node_modules/playwright/lib/worker/workerMain.js:60, 실제
-    // 프로세스 fork 로 config 재로드 시점에 이미 존재함을 확인). 이 값이 없으면(=진짜 워커가
-    // 아니면) R2-3 fix 가 상속을 거부하므로, "진짜 워커" 시나리오를 정확히 흉내내려면 이 값도
-    // 함께 심어야 한다 — R2-3 fix 전에는 이 값의 유무가 결과에 영향이 없었다(그것이 R2-3 결함).
-    process.env['TEST_WORKER_INDEX'] = '0'
-    const workerProcessArgv = ['node', 'D:\\...\\node_modules\\playwright\\lib\\common\\process.js']
+    // 워커 프로세스 흉내 — 실제 워커는 부모 PID를 process.ppid로 볼 수 있으므로, 메인
+    // 프로세스가 만든 토큰의 PID만 자식 PID의 부모로 바꿔 동일한 상속 경로를 검증한다.
+    const workerMarker = `${process.ppid}:worker-sim`
+    process.env[EXPLICIT_PATH_TOKEN_ENV_VAR] = workerMarker
+    const workerProcessArgv = ['node', 'worker.js']
     assert.doesNotThrow(
       () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: workerProcessArgv }),
       '워커가 부모의 명시 경로를 이어받지 못하면 narrow 실행이 워커 단계에서 다시 막힌다(실측 재현)',
     )
   } finally {
-    delete process.env['TEST_WORKER_INDEX']
     resetExplicitPathEnv()
     removeTempRepo(tempRoot)
   }
@@ -640,7 +661,6 @@ test('R2-2 회귀: 기본(line) 리포터는 여전히 stdout+stderr 둘 다에 
 
 test('R2-3: 내부 마커를 외부에서 export 해도(워커가 아니면) 명시 경로 없는 전체 실행은 여전히 막힌다', () => {
   resetExplicitPathEnv()
-  delete process.env['TEST_WORKER_INDEX']
   const tempRoot = createTempRealQaRepo()
   try {
     writeRealQaSpec(tempRoot, 'clients/desktop/playwright/a-real-qa.spec.ts')
@@ -657,7 +677,7 @@ test('R2-3: 내부 마커를 외부에서 export 해도(워커가 아니면) 명
     assert.throws(
       () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: fullRunArgv }),
       /추적 집합 불일치/,
-      '메인 프로세스(TEST_WORKER_INDEX 미설정)는 외부에서 주입된 내부 마커를 신뢰하면 안 됩니다(U-4)',
+      '메인 프로세스는 외부에서 주입된 내부 경로 목록을 신뢰하면 안 됩니다(U-4)',
     )
   } finally {
     delete process.env[EXPLICIT_PATH_ARGS_ENV_VAR]

@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
+const { randomUUID } = require('node:crypto')
 
 const REAL_QA_ROOT = 'clients/desktop/playwright'
 const REAL_QA_SUFFIX = '-real-qa.spec.ts'
@@ -106,8 +107,7 @@ function formatScopeMismatch(scope) {
 // 위험이 생긴다(경계 오인, 회귀 울타리 2번 재발). 그래서 이제는 값(value)을 받는 옵션의
 // "공백형"(`--flag value`) 다음 토큰도 후보에서 제외한다 — `--flag=value`(등호형)는 이미 값이
 // 같은 토큰에 붙어 있어 애초에 `-`로 시작해 제외되므로 손댈 필요가 없다. 목록은 설치된
-// playwright 패키지의 실제 CLI 스키마에서 그대로 옮겼다(실측: node_modules/playwright/lib/
-// program.js 188-226행 testOptions 배열, playwright 1.59.1 — 값을 받는 옵션만, `<...>`/`[...]`
+// 설치된 Playwright 1.59.1 CLI 스키마의 testOptions에서 옮겼다 — 값을 받는 옵션만, `<...>`/`[...]`
 // 문법). 값이 선택적인 옵션(`[mode]` 등)도 보수적으로 다음 토큰을 함께 건너뛴다(과소-수집
 // 방향의 오차만 생기고 새 오탐은 안 생긴다).
 const VALUE_TAKING_FLAGS = new Set([
@@ -158,42 +158,36 @@ function parseExplicitPathArgs(argv) {
 }
 
 // 🚨 [SONNET5 R1 fix, 실측 보강] Playwright 는 `workers` 설정 값만큼 이 config 파일을
-// **워커 자식 프로세스에서 별도로 다시 로드**한다(실측: node_modules/playwright/lib/common/
-// process.js). 그 워커의 process.argv 는 원래 CLI 인자를 담지 않는다(예:
-// ["node","…/process.js"]) — `--list`(수집만, 워커 미기동)에서는 드러나지 않고 실제 테스트
-// 실행에서만 드러나는 차이다. argv 만 봤다면 워커 쪽에서 "명시 경로 없는 전체 실행"으로
-// 오판해 결함1·3 의 narrow 실행이 워커 단계에서 다시 막혔을 것이다(실측 재현·회귀 테스트로 확인).
+// 워커 자식 프로세스에서 별도로 다시 로드하며, 그 자식의 process.argv 에는 원래 CLI 인자가
+// 없다. `--list`(수집만, 워커 미기동)에서는 드러나지 않고 실제 테스트 실행에서만 드러나는
+// 차이이므로, 메인 프로세스가 계산한 명시 경로를 자식에게 전달해야 한다.
 //
 // 해결: 메인 프로세스가 argv 에서 명시 경로를 찾으면, 그 프로세스의 **자기 자신의**
 // process.env 에 값을 적어 둔다. 자식 프로세스(워커)는 fork 시점에 부모의 process.env
-// 스냅샷을 물려받으므로 그 값을 읽을 수 있다. 이 값은 PowerShell 세션 변수가 아니라 이번
-// invocation 의 프로세스 트리 안에서만 존재한다 — 자식은 부모의 환경을 결코 그 부모의
-// 부모(터미널 세션)로 되써넣을 수 없으므로, 이 값이 다음 셸 명령으로 새는 경로는 없다(U-2 유지).
+// 스냅샷을 물려받으므로 그 값을 읽을 수 있다. 토큰에는 메인 PID와 매 invocation 새로 만든
+// UUID를 넣고, 자식에서는 process.ppid가 토큰의 PID와 일치할 때만 읽는다. 따라서 공개
+// PowerShell 세션 변수나 Playwright 내부 환경변수에 의존하지 않고 이 프로세스 트리만
+// narrow 실행 정보를 공유한다.
 const EXPLICIT_PATH_ARGS_ENV_VAR = 'REAL_QA_EXPLICIT_PATH_ARGS__INTERNAL'
+const EXPLICIT_PATH_TOKEN_ENV_VAR = 'REAL_QA_EXPLICIT_PATH_TOKEN__INTERNAL'
 
-// 🚨 [SONNET5 R2-3 fix] U-4 — 이 내부 마커는 "같은 invocation 안에서 메인→워커로만" 전파돼야
-// 한다. 그런데 아래 상속 분기는 값의 "출처"를 보지 않고 존재 여부만 봤다 — 사용자가 셸에서
-// 이 이름을 직접 export 해도(REAL_QA_EXPLICIT_PATH_ARGS__INTERNAL='["아무 추적 파일"]') 명시
-// 경로 없는 전체 실행이 그 값을 narrow 실행으로 오인해 무관한 미추적/누락 스펙을 걸러내지
-// 않고 전체 실행을 통과시켰다(R2 라운드 실측: `549 tests in 173 files`, 안 막힘). 진짜
-// 워커인지는 이 프로세스가 그 값을 스스로 방금 만들지 않았다는 사실과, Playwright 가 워커
-// 생성자에서 항상 먼저 심어 두는 process.env.TEST_WORKER_INDEX 로 구분한다(실측:
-// node_modules/playwright/lib/worker/workerMain.js:60 — 실제 프로세스 fork 로 확인: 메인
-// 프로세스 config 로드 시점엔 undefined, 워커 config 재로드 시점엔 이미 "0" 등 정의된
-// 문자열). 메인 프로세스(사람이 직접 실행하는 그 프로세스)는 이 값을 절대 상속받지 않는다 —
-// 이번 invocation 에서 방금 스스로 argv 로부터 계산한 값(위 fromArgv 분기)만 신뢰한다.
-function isPlaywrightWorkerProcess() {
-  return process.env['TEST_WORKER_INDEX'] !== undefined
+function hasInheritedExplicitPathMarker() {
+  const marker = process.env[EXPLICIT_PATH_TOKEN_ENV_VAR]
+  if (!marker) return false
+  const separator = marker.indexOf(':')
+  if (separator <= 0) return false
+  return Number(marker.slice(0, separator)) === process.ppid
 }
 
 function resolveExplicitPathArgs(argv) {
   const fromArgv = parseExplicitPathArgs(argv)
   if (fromArgv.length > 0) {
     process.env[EXPLICIT_PATH_ARGS_ENV_VAR] = JSON.stringify(fromArgv)
+    process.env[EXPLICIT_PATH_TOKEN_ENV_VAR] = `${process.pid}:${randomUUID()}`
     return fromArgv
   }
 
-  if (!isPlaywrightWorkerProcess()) return []
+  if (!hasInheritedExplicitPathMarker()) return []
   const inherited = process.env[EXPLICIT_PATH_ARGS_ENV_VAR]
   if (!inherited) return []
   try {
@@ -204,19 +198,15 @@ function resolveExplicitPathArgs(argv) {
   }
 }
 
-// 🚨 [SONNET5 R2-1 fix] U-1 — Playwright 의 위치 인자는 리터럴 경로가 아니라 절대경로에 대한
-// (대소문자 무시) 정규식 부분일치 필터다(실측: node_modules/playwright/lib/util.js 의
-// createFileFiltersFromArguments → forceRegExp → createFileMatcher, 실제 호출 지점은
-// node_modules/playwright/lib/runner/tasks.js:243). 예전 구현(문자열 접미사 비교)은 이 중
-// "repo 상대경로 접미사" 형태 하나만 우연히 통과시켰다 — 글롭(`825-s5-*`)·조각(`825-s5`)·
-// 절대경로(정방향 슬래시)는 실제 Playwright 라면 통과하는데 우리 게이트만 막았고, 그 상태에서
-// 안내 메시지는 "명시 경로가 있는 실행에만 적용됩니다"라며 사용자가 방금 준 명시 경로를
-// 없는 셈 쳤다(U-2 위반, R2 라운드 (다) 재현). 형태를 하나씩 열거해 파싱하는 대신, 설치된
-// playwright 패키지가 CLI 에서 실제로 쓰는 그 함수를 그대로 가져와 우리 파일 목록에
-// 적용한다 — playwright 가 매칭 규칙을 바꿔도 우리 게이트가 따로 낡지 않는다(재구현하면
-// 그 반대). `playwright/lib/util`은 패키지 package.json 의 `exports` 맵에 등재된 공식
-// 서브패스다(내부 전용 딥임포트가 아니다 — `playwright/lib/util.js`처럼 확장자를 붙이면
-// 오히려 exports 맵에 없어 막힌다는 것까지 실측 확인했다).
+// 🚨 [CODEX SOL] Playwright 의 위치 인자는 리터럴 경로가 아니라 파일 경로에 대한
+// 대소문자 무시 정규식 부분일치 필터다. `:줄번호[:열번호]` 접미사는 파일 필터에서
+// 제외하고, Windows 경로 구분자는 CLI 입력 호환을 위해 정규화한다. 이 동작을
+// Playwright 내부 모듈에 require 로 위임하면 허용 범위 내 업데이트에서 함수가 사라질 때
+// 명시 파일 실행만 죽으므로, CLI 계약에 필요한 최소 동작을 이 게이트 안에서 유지한다.
+function parseLocationArg(arg) {
+  const match = /^(.*?):(\d+):?(\d+)?$/.exec(arg)
+  return match ? match[1] : arg
+}
 function normalizeArgSeparators(arg) {
   // Playwright 의 정규식 매칭은 백슬래시를 정규식 이스케이프 문자로 해석해 원시 백슬래시
   // 상대경로(Windows 사용자가 흔히 타이핑·복붙)를 0건으로 만든다(실측: 실제 CLI로
@@ -231,22 +221,33 @@ function resolveRequestedFiles({ scope, explicitPathArgs, repoRoot }) {
   const universe = new Set([...scope.diskFiles, ...scope.trackedFiles])
   if (explicitPathArgs.length === 0 || universe.size === 0) return new Set()
 
-  // 지연 require — 신선도 전용 CLI 경로(node scripts/real-qa-scope.cjs --phase=…)는 narrow
-  // 판정을 전혀 쓰지 않으므로 그 경로에는 playwright 패키지 해석 비용/의존을 지우지 않는다.
-  const { createFileMatcherFromArguments } = require('playwright/lib/util')
-  const matcher = createFileMatcherFromArguments(explicitPathArgs.map(normalizeArgSeparators))
+  const matchers = explicitPathArgs.map((arg) => {
+    const pattern = normalizeArgSeparators(parseLocationArg(arg))
+    const wrapped = /^\/(.*)\/([gi]*)$/.exec(pattern)
+    return new RegExp(wrapped ? wrapped[1] : pattern, wrapped ? wrapped[2] : 'gi')
+  })
   const requested = new Set()
   for (const file of universe) {
-    if (matcher(path.resolve(repoRoot, file))) requested.add(file)
+    const absolute = path.resolve(repoRoot, file)
+    const candidates = [absolute, normalizeRepoPath(absolute), file]
+    if (
+      matchers.some((matcher) =>
+        candidates.some((candidate) => {
+          matcher.lastIndex = 0
+          return matcher.test(candidate)
+        }),
+      )
+    ) {
+      requested.add(file)
+    }
   }
   return requested
 }
 
 // 🚨 [SONNET5 R2-2 fix] U-3 — R1 결함1 fix 는 "예외 모드였다는 사실이 수치와 같은 스트림에
 // 남는다"를 위해 stdout 에도 썼는데, `--reporter=json`/`--reporter=junit` 은 출력 파일을
-// 안 정하면 stdout 자체가 곧 그 리포터의 산출물이다(실측: node_modules/playwright/lib/
-// reporters/json.js 의 outputReport 가 resolvedOutputFile 없으면 console.log(JSON) 그대로
-// stdout 에 쓴다 — junit.js 도 같은 패턴). 그 앞에 우리 텍스트가 섞이면 JSON.parse 가
+// 안 정하면 stdout 자체가 곧 그 리포터의 산출물이다(실측: 출력 파일을 지정하지 않은
+// json/junit 리포터가 산출물을 stdout에 쓴다). 그 앞에 우리 텍스트가 섞이면 JSON.parse 가
 // "Unexpected token"으로 깨진다(R2 라운드 실측: `--reporter=json … 1> report.json` 앞 6줄이
 // 우리 경고). 이 두 리포터에서는 stdout 이 이미 유일한 산출물 스트림이라 어디에 끼워도 그
 // 산출물 자체가 깨지므로 "산출물 무결성"과 "수치와 같은 스트림"이 동시에 성립할 수 없다 —
@@ -286,30 +287,29 @@ function writeExceptionModeWarning(scopedMismatch, { suppressStdout = false } = 
 //    무조건 막는다(U-3, M-1 유지).
 function decideRealQaScope({ scope, allowUntracked, explicitPathArgs, repoRoot, suppressStdoutWarning = false }) {
   const requestedFiles = resolveRequestedFiles({ scope, explicitPathArgs, repoRoot })
-  const isNarrowRun = requestedFiles.size > 0
-
-  if (isNarrowRun) {
-    const relevantMissing = scope.missingFiles.filter((file) => requestedFiles.has(file))
-    if (relevantMissing.length > 0) {
-      throw new Error(formatScopeMismatch({ ...scope, untrackedFiles: [], missingFiles: relevantMissing }))
+  if (requestedFiles.size === 0) {
+    const sections = [
+      '[real-QA 전체 실행 차단] 파일을 명시하지 않은 real-QA 실행은 허용하지 않습니다.',
+      '실행할 스펙 파일·디렉터리·글롭·파일명 조각을 위치 인자로 전달하십시오.',
+      '예: npx playwright test --config playwright.real-qa.config.ts --list playwright/<spec-path>',
+    ]
+    if (scope.untrackedFiles.length > 0 || scope.missingFiles.length > 0) {
+      sections.push('', formatScopeMismatch(scope))
     }
-
-    const relevantUntracked = scope.untrackedFiles.filter((file) => requestedFiles.has(file))
-    if (relevantUntracked.length === 0) return scope
-
-    const scopedMismatch = { ...scope, untrackedFiles: relevantUntracked, missingFiles: [] }
-    if (!allowUntracked) throw new Error(formatScopeMismatch(scopedMismatch))
-    writeExceptionModeWarning(scopedMismatch, { suppressStdout: suppressStdoutWarning })
-    return scope
+    throw new Error(sections.join('\n'))
   }
 
-  const mismatch = scope.untrackedFiles.length > 0 || scope.missingFiles.length > 0
-  if (mismatch) {
-    const ignoredFlagNote = allowUntracked
-      ? '\nREAL_QA_ALLOW_UNTRACKED 은 명시 경로가 있는 실행에만 적용됩니다. 명시 경로 없는 전체 실행은 이 값과 무관하게 항상 중단합니다.'
-      : ''
-    throw new Error(formatScopeMismatch(scope) + ignoredFlagNote)
+  const relevantMissing = scope.missingFiles.filter((file) => requestedFiles.has(file))
+  if (relevantMissing.length > 0) {
+    throw new Error(formatScopeMismatch({ ...scope, untrackedFiles: [], missingFiles: relevantMissing }))
   }
+
+  const relevantUntracked = scope.untrackedFiles.filter((file) => requestedFiles.has(file))
+  if (relevantUntracked.length === 0) return scope
+
+  const scopedMismatch = { ...scope, untrackedFiles: relevantUntracked, missingFiles: [] }
+  if (!allowUntracked) throw new Error(formatScopeMismatch(scopedMismatch))
+  writeExceptionModeWarning(scopedMismatch, { suppressStdout: suppressStdoutWarning })
   return scope
 }
 
@@ -478,7 +478,7 @@ module.exports = {
   listDiskRealQaFiles,
   listTrackedRealQaFiles,
   EXPLICIT_PATH_ARGS_ENV_VAR,
-  isPlaywrightWorkerProcess,
+  EXPLICIT_PATH_TOKEN_ENV_VAR,
   parseExplicitPathArgs,
   resolveExplicitPathArgs,
   resolveRequestedFiles,
