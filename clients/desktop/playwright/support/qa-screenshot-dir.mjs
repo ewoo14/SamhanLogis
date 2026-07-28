@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -34,6 +35,22 @@ function resolvePhysicalPath(candidateDir) {
   return path.join(fs.realpathSync.native(current), ...missingParts)
 }
 
+/**
+ * 자기 자신을 가리키는 UNC admin-share(`\\localhost\D$\...`, `\\127.0.0.1\D$\...`,
+ * `\\<컴퓨터명>\D$\...`)를 등가의 드라이브 문자 표기(`D:\...`)로 통일한다
+ * (2026-07-28 R4 재수렴 결함3) — 자세한 배경은 scripts/lib/qa-shots-dir.cjs 의
+ * 동명 함수 주석 참조. 다른 호스트를 가리키는 admin-share 는 실제로 다른 물리
+ * 머신이므로 변환하지 않는다.
+ */
+function normalizeUncAdminShareToDrive(candidateDir) {
+  const match = /^\\\\([^\\]+)\\([A-Za-z])\$(\\.*)?$/.exec(candidateDir)
+  if (!match) return candidateDir
+  const host = match[1].toLowerCase()
+  const isSelf = host === 'localhost' || host === '127.0.0.1' || host === '.' || host === os.hostname().toLowerCase()
+  if (!isSelf) return candidateDir
+  return `${match[2]}:${match[3] ?? '\\'}`
+}
+
 function normalizePhysicalPath(candidateDir) {
   const isWindows = process.platform === 'win32'
   const withoutExtendedPrefix = isWindows && candidateDir.startsWith('\\\\?\\UNC\\')
@@ -41,7 +58,8 @@ function normalizePhysicalPath(candidateDir) {
     : isWindows && candidateDir.startsWith('\\\\?\\')
       ? candidateDir.slice('\\\\?\\'.length)
       : candidateDir
-  const normalized = path.normalize(withoutExtendedPrefix)
+  const withoutUncAdminShare = isWindows ? normalizeUncAdminShareToDrive(withoutExtendedPrefix) : withoutExtendedPrefix
+  const normalized = path.normalize(withoutUncAdminShare)
   const root = path.parse(normalized).root
   const comparable = normalized === root ? normalized : normalized.replace(/[\\/]+$/, '')
   return isWindows ? comparable.toLowerCase() : comparable

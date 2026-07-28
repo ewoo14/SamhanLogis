@@ -30,22 +30,26 @@ AssertionError: Missing expected exception: root-mjs:junction-root 물리 경로
 
 > 📌 **2026-07-28 R1 fix 라운드 정정(대조-2)** — 아래 원래 인용 4줄 중 2~4번째 줄이 실제 소스의 assert 실패 메시지와 달랐다(R1 적대검증 대조 각도 적발 — `git log --all -p -S"<각 문구>"` 로 전체 히스토리를 뒤져도 이 dev-report 자신에만 존재해 재현 불가였다). 1번째 줄만 실제 원문과 일치했다. 정정: 나머지 세 줄은 각 assert 를 소스와 동일한 형태로 독립 재현해 얻은 실제 Node 출력으로 바꾼다.
 
-실패 1 — 물리 alias(junction 등) 미차단, `qa-output-path-guard.test.cjs:220` 커스텀 메시지 템플릿(원래 인용과 일치, 재확인):
+실패 1 — 물리 alias(junction 등) 미차단, `qa-output-path-guard.test.cjs:249`(2026-07-28 R4 재수렴 정정 C —
+R3 시점 `:241` 에서 이 라운드가 추가한 UNC admin-share 회귀 케이스만큼 아래로 밀림) 커스텀 메시지 템플릿(원래 인용과 일치, 재확인):
 ```text
 AssertionError: Missing expected exception: root-mjs:junction-root 물리 경로가 차단되지 않음
 ```
 
-실패 2 — `qa/playwright` captureForQa 가 물리 alias 목적지를 차단하지 않음. `:242-245` 의 `assert.rejects` 호출에는 커스텀 메시지 파라미터가 없어 Node 기본 문구만 남는다(정정 전 인용 "물리 alias 목적지를 차단하지 않음"은 이 assert 가 실제로 낸 적 없는 문구였다):
+실패 2 — `qa/playwright` captureForQa 가 물리 alias 목적지를 차단하지 않음. `:271-274`(2026-07-28 R4 재수렴
+정정 C — R3 시점 `:242-245`에서 밀림) 의 `assert.rejects` 호출에는 커스텀 메시지 파라미터가 없어 Node 기본 문구만 남는다(정정 전 인용 "물리 alias 목적지를 차단하지 않음"은 이 assert 가 실제로 낸 적 없는 문구였다):
 ```text
 AssertionError [ERR_ASSERTION]: Missing expected rejection.
 ```
 
-실패 3 — `qa/playwright` 직접 `path: 'docs/qa/...'` 캡처 14건 존재(구현 전). `:289` 실제 메시지 템플릿(정정 전 인용 "캡처 14건이 발견됨"과 달리 실제로는 "남아 있습니다"):
+실패 3 — `qa/playwright` 직접 `path: 'docs/qa/...'` 캡처 14건 존재(구현 전). `:318`(2026-07-28 R4 재수렴
+정정 C — R3 시점 `:289`에서 밀림) 실제 메시지 템플릿(정정 전 인용 "캡처 14건이 발견됨"과 달리 실제로는 "남아 있습니다"):
 ```text
 AssertionError [ERR_ASSERTION]: 직접 docs/qa 캡처 경로 14개가 남아 있습니다
 ```
 
-실패 4 — `qa/playwright` resolver 에 물리 판정 마커 없음(구현 전). `:332` 실제 메시지 템플릿(상대경로는 재현용 예시, 정정 전 인용 "DOCS_QA_ROOT 가드 마커가 없음"과 달리 실제로는 "물리 경로 판정이 없습니다"):
+실패 4 — `qa/playwright` resolver 에 물리 판정 마커 없음(구현 전). `:396`(2026-07-28 R4 재수렴 정정 C —
+R3 시점 `:332`에서 밀림) 실제 메시지 템플릿(상대경로는 재현용 예시, 정정 전 인용 "DOCS_QA_ROOT 가드 마커가 없음"과 달리 실제로는 "물리 경로 판정이 없습니다"):
 ```text
 AssertionError [ERR_ASSERTION]: qa/playwright/utils/screenshot.ts 에 물리 경로 판정이 없습니다
 ```
@@ -189,6 +193,14 @@ Tests       1637 passed (1637)
 npmTestExit=0
 ```
 
+> 📌 **2026-07-28 R4 재수렴 정정 A(증거 무결성 — 대조 각도 SONNET5 적발)** — 위 출력을 **무조건 green** 으로
+> 제시한 것은 부정확하다. 같은 명령을 2회 독립 재실행하면 모두 `174 passed(175) / 1636 passed(1637)`
+> 이었고, 매번 **다른 assertion**이 걸리는 `CodefImportScopeForm.test.tsx` 의 timeout 이었다 — 이 PR 이
+> 변경한 44개 파일에 포함되지 않은 파일이다. 그 파일만 격리 실행(`vitest run
+> src/renderer/pages/.../CodefImportScopeForm.test.tsx`)하면 **42/42 통과**한다 ⟹ 풀스위트를 동시에
+> 실행할 때만 나타나는 **경합성(concurrency) flake** 이며 이 PR 의 결함이 아니다. "175/1637 모두 green" 은
+> 단서 없이 재현 불가능한 주장이었으므로 이렇게 정정한다.
+
 ### 데스크톱 `npm run typecheck`
 
 ```text
@@ -197,6 +209,15 @@ npmTestExit=0
 
 typecheckExit=0
 ```
+
+> 📌 **2026-07-28 R4 재수렴 정정 B(증거 무결성 — 대조 각도 SONNET5 적발)** — 이 "clean" 결과는 **851-gate
+> 워크트리에서 확증 불가**다. 원인은 이 PR 의 결함이 아니라 **교차 워크트리 공유 `node_modules`** —
+> `@samhan/design-system` 심볼릭 링크가 메인 체크아웃의 **2026-07-23 시점 빌드 `dist`** 를 가리켜, `#902`
+> (2026-07-26)가 추가한 `printableBody`·`excludedFromSave` prop 이 그 `dist` 에는 없다. 이 워크트리
+> **자신의 소스**에는 두 prop 이 정상 존재하고, vitest 런타임(타입 체크가 아닌 실제 실행)은 57/57
+> 통과한다 — 즉 타입 오류가 아니라 **오래된 빌드 산출물** 문제다. "clean" 을 이 환경에서는 확증할 수
+> 없음을 명시한다 — 확정하려면 격리된 fresh install(CI)로 봐야 한다. (A3·#964 기획 검토도 독립적으로
+> 같은 원인에 도달했다 — 3중 관측.)
 
 ## 변경 파일
 

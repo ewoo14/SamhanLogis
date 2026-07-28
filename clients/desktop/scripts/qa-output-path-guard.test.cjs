@@ -224,10 +224,18 @@ test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세
   // 실행하지 않는다: 차단되지 않으면 resolver 가 실제 fs.mkdirSync 까지 진행해
   // 저장소 밖(심하면 파일시스템 루트 바로 아래)에 우연한 대문자/이스케이프 경로를
   // 실제로 생성해버리는 부작용이 있기 때문이다.
+  // 2026-07-28 R4 재수렴 결함3 — 자기 자신을 가리키는 UNC admin-share(`\\localhost\D$\...`,
+  // `\\<컴퓨터명>\D$\...`)도 드라이브 문자 표기와 물리적으로 같은 경로다. R4 재현: 정규화가
+  // `\\?\`/`\\?\UNC\` 접두만 벗기고 이 표기를 드라이브 문자로 통일하지 않아 비교 단계에서
+  // 문자열이 달라 4개 resolver 전부 통과(ALLOW)했다.
+  const uncAdminShareLocalhost = `\\\\localhost\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+  const uncAdminShareComputerName = `\\\\${os.hostname()}\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
   const windowsOnlyCases = [
     ['extended-root', extendedRoot],
     ['extended-missing', extendedMissing],
     ['case', OTHER_SLUG_COMMITTED_DIR.toUpperCase()],
+    ['unc-admin-share-localhost', uncAdminShareLocalhost],
+    ['unc-admin-share-computername', uncAdminShareComputerName],
   ]
   const isWindows = process.platform === 'win32'
   const cases = isWindows ? [...universalCases, ...windowsOnlyCases] : universalCases
@@ -757,3 +765,220 @@ test('capture.ts 관찰(2026-07-28 재수렴) — resolveOutputDir 는 process.c
     delete process.env.QA_SHOTS_DIR
   }
 })
+
+// ============================================================================
+// 2026-07-28 R4 재수렴 결함1/2/3 회귀 가드.
+//
+// 결함1 — infrastructure/scripts/operational-validation.ps1 의 -ReportPath 파라미터가
+// (비어있을 때만 Resolve-QaShotsDir 를 부르던 구조 때문에) 가드를 통째로 우회해 커밋된
+// REPORT.md 를 실제로 덮어썼다(신규 clone 실측: 7539B → 5630B). 결함2 — 같은 파일의
+// -ProjectRoot 파라미터가 docsQaRoot 계산에 그대로 쓰여, 워크트리에서 -ProjectRoot 로 메인
+// 체크아웃을 가리키면(스크립트 자신의 .EXAMPLE 이 보여주는 그 형태) 가드 기준점이 통째로
+// 옮겨져 침묵했다. 결함3 — 5개 resolver(ps1/cjs/mjs/py/sh) 전부가 UNC admin-share
+// (`\\localhost\D$\...`) 표기를 드라이브 문자 표기와 동일시하지 못해 물리 판정이 통과했다.
+// ============================================================================
+
+test(
+  'T-6 (2026-07-28 R4 재수렴 결함1) — operational-validation.ps1 을 -ReportPath 파라미터로 커밋 경로를 겨눠 실행하면 차단된다(resolver 직접호출이 아닌 진짜 파라미터 경로)',
+  { skip: POWERSHELL_SKIP_REASON },
+  () => {
+    const fixtureReportPath = path.join(docsQaRoot, '__957-r4-reportpath-param-guard-fixture__', 'REPORT.md')
+    const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+
+    let threw = false
+    let combined = ''
+    try {
+      combined = execFileSync(
+        POWERSHELL_EXE,
+        ['-NoProfile', '-Command', `& '${scriptPath}' -SkipDocker -ReportPath '${fixtureReportPath}'`],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+      )
+    } catch (e) {
+      threw = true
+      combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    }
+
+    assert.ok(threw, `-ReportPath 로 커밋 경로를 겨눴는데 차단되지 않았습니다(exit 0, 결함1 재발). 출력 마지막 300자: ${combined.slice(-300)}`)
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력 마지막 300자: ${combined.slice(-300)}`)
+    assert.equal(
+      fs.existsSync(fixtureReportPath),
+      false,
+      'REPORT.md 가 실제로 write 됐습니다 — 가드가 파일 작성 이전에 막지 못했습니다.',
+    )
+  },
+)
+
+test(
+  'T-7 (2026-07-28 R4 재수렴 결함2) — operational-validation.ps1 을 -ProjectRoot 로 다른 트리를 가리키게 해도 QA_SHOTS_DIR 로 지정한 docs/qa 하위 경로는 여전히 차단된다(가드 기준점이 호출자 인자로 갈아끼워지지 않음)',
+  { skip: POWERSHELL_SKIP_REASON },
+  () => {
+    const decoyProjectRoot = path.join(tempRoot, 't7-decoy-project-root')
+    fs.mkdirSync(decoyProjectRoot, { recursive: true })
+    const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+    const fixtureUnderDocsQa = path.join(docsQaRoot, '__957-r4-projectroot-decoy-guard-fixture__')
+
+    let threw = false
+    let combined = ''
+    try {
+      combined = execFileSync(
+        POWERSHELL_EXE,
+        [
+          '-NoProfile',
+          '-Command',
+          `$env:QA_SHOTS_DIR='${fixtureUnderDocsQa}'; & '${scriptPath}' -SkipDocker -ProjectRoot '${decoyProjectRoot}'`,
+        ],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+      )
+    } catch (e) {
+      threw = true
+      combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    } finally {
+      delete process.env.QA_SHOTS_DIR
+    }
+
+    assert.ok(
+      threw,
+      `QA_SHOTS_DIR=docs/qa 하위 fixture + -ProjectRoot=다른 트리 조합인데 차단되지 않았습니다(exit 0, 결함2 재발). 출력 마지막 300자: ${combined.slice(-300)}`,
+    )
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력 마지막 300자: ${combined.slice(-300)}`)
+    assert.equal(fs.existsSync(fixtureUnderDocsQa), false, 'fixture 디렉터리가 실제로 생성됐습니다 — 가드가 막지 못했습니다.')
+  },
+)
+
+test('capture.ts 관찰(2026-07-28 R4 재수렴 결함3) — 자기 자신을 가리키는 UNC admin-share 표기도 물리 가드가 차단한다', () => {
+  const resolveOutputDir = loadCaptureOutputDirResolver(path.join(desktopRoot, 'src', 'main'))
+  const realCommittedDir = path.join(docsQaRoot, 'electron-skeleton-slice', 'screenshots')
+  const uncTarget = `\\\\localhost\\${realCommittedDir.slice(0, 1).toLowerCase()}$${realCommittedDir.slice(2)}`
+  process.env.QA_SHOTS_DIR = uncTarget
+  try {
+    assert.throws(
+      () => resolveOutputDir(),
+      (error) => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+      'capture.ts 가 UNC admin-share(localhost) 표기로 지정된 커밋 경로를 차단하지 못했습니다(결함3 재발).',
+    )
+  } finally {
+    delete process.env.QA_SHOTS_DIR
+  }
+})
+
+test('qa/playwright captureForQa(2026-07-28 R4 재수렴 결함3) — 자기 자신을 가리키는 UNC admin-share 목적지도 차단한다', async () => {
+  const captureForQa = loadQaPlaywrightCapture()
+  process.env.QA_REPO_ROOT = repoRoot
+  const uncTarget = `\\\\127.0.0.1\\${docsQaRoot.slice(0, 1).toLowerCase()}$${docsQaRoot.slice(2)}`
+  process.env.QA_SHOTS_DIR = uncTarget
+
+  const page = {
+    screenshot: async () => {
+      throw new Error('물리 경로 가드가 먼저 실패해야 합니다')
+    },
+  }
+  const testInfo = { attach: async () => {} }
+
+  try {
+    await assert.rejects(
+      () => captureForQa(page, testInfo, 'qa-playwright-unc-alias'),
+      error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+    )
+  } finally {
+    delete process.env.QA_REPO_ROOT
+    delete process.env.QA_SHOTS_DIR
+  }
+})
+
+function findPythonExecutable() {
+  for (const candidate of ['python', 'python3']) {
+    try {
+      execFileSync(candidate, ['--version'], { stdio: 'ignore' })
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+const PYTHON_EXE = findPythonExecutable()
+const PYTHON_SKIP_REASON = !isWindowsPlatform()
+  ? 'UNC admin-share 는 Windows 전용 개념입니다(resolver 도 os.name==nt 로 분기)'
+  : PYTHON_EXE
+    ? false
+    : '이 환경에 python/python3 실행파일이 없습니다'
+
+function isWindowsPlatform() {
+  return process.platform === 'win32'
+}
+
+test(
+  'T-8 (2026-07-28 R4 재수렴 결함3) — qa_shots_dir.py 도 자기 자신을 가리키는 UNC admin-share 표기를 차단한다',
+  { skip: PYTHON_SKIP_REASON },
+  () => {
+    const pyLibDir = path.join(repoRoot, 'scripts', 'lib')
+    const uncTarget = `\\\\localhost\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+    const code = [
+      'import sys, os',
+      `sys.path.insert(0, ${JSON.stringify(pyLibDir)})`,
+      'from qa_shots_dir import resolve_qa_shots_dir',
+      `os.environ['QA_SHOTS_DIR'] = ${JSON.stringify(uncTarget)}`,
+      'try:',
+      `    resolve_qa_shots_dir(${JSON.stringify(MY_FIXTURE_COMMITTED_DIR)})`,
+      '    print("ALLOW")',
+      'except Exception as e:',
+      '    print("BLOCK:" + str(e))',
+    ].join('\n')
+    const out = execFileSync(PYTHON_EXE, ['-c', code], { encoding: 'utf8' })
+    assert.match(
+      out,
+      /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
+      `qa_shots_dir.py 가 UNC admin-share(localhost) 를 차단하지 못했습니다(결함3 재발). 출력: ${out}`,
+    )
+  },
+)
+
+function findGitBashExecutable() {
+  const candidates = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe', 'bash']
+  for (const candidate of candidates) {
+    try {
+      execFileSync(candidate, ['-c', 'command -v cygpath'], { stdio: 'ignore' })
+      return candidate
+    } catch {
+      continue
+    }
+  }
+  return null
+}
+
+const GITBASH_EXE = findGitBashExecutable()
+const GITBASH_SKIP_REASON = !isWindowsPlatform()
+  ? 'UNC admin-share 는 Windows 전용 개념입니다(resolver 도 cygpath 존재를 환경 신호로 분기)'
+  : GITBASH_EXE
+    ? false
+    : '이 환경에 cygpath 를 가진 bash(Git-Bash/MSYS) 실행파일이 없습니다'
+
+test(
+  'T-9 (2026-07-28 R4 재수렴 결함3) — qa-shots-dir.sh 도 자기 자신을 가리키는 UNC admin-share 표기를 차단한다',
+  { skip: GITBASH_SKIP_REASON },
+  () => {
+    // 주의: uncTarget(이중 백슬래시 UNC 문자열)을 bash -c 스크립트 "본문 텍스트"에 직접
+    // 보간하면 Windows 의 argv 직렬화 과정에서 백슬래시가 깨진다(실측: \\localhost\... 가
+    // \localhost\... 로 축약되어 cygpath 가 다른 경로로 오판). 스크립트 텍스트에는 백슬래시를
+    // 전혀 넣지 않고, 환경변수(대상은 CreateProcess 환경 블록이라 argv 이스케이프 규칙을
+    // 타지 않는다)로 값을 전달해 우회한다.
+    const shLibPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+    const targetPosix = MY_FIXTURE_COMMITTED_DIR.replaceAll('\\', '/')
+    const uncTarget = `\\\\localhost\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+    const script = [
+      `source '${shLibPath}'`,
+      `export QA_SHOTS_DIR="$T9_UNC_TARGET"`,
+      `if out="$(resolve_qa_shots_dir '${targetPosix}' 2>&1)"; then printf 'ALLOW\\t%s' "$out"; else printf 'BLOCK\\t%s' "$out"; fi`,
+    ].join('\n')
+    const out = execFileSync(GITBASH_EXE, ['-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, T9_UNC_TARGET: uncTarget },
+    })
+    assert.match(
+      out,
+      /^BLOCK\t.*QA_ALLOW_OVERWRITE=1/s,
+      `qa-shots-dir.sh 가 UNC admin-share(localhost) 를 차단하지 못했습니다(결함3 재발). 출력: ${out}`,
+    )
+  },
+)

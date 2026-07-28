@@ -20,8 +20,40 @@ _qa_has_explicit_overwrite_intent() {
   esac
 }
 
+# 2026-07-28 R4 재수렴 결함3: 자기 자신을 가리키는 UNC admin-share
+# (\\localhost\D$\..., \\127.0.0.1\D$\..., \\<호스트명>\D$\...)를 등가의 드라이브
+# 문자 표기(D:\...)로 통일한다 — cygpath/realpath 는 순수 lexical 변환이라 "로컬
+# admin-share = 로컬 드라이브" 지식이 없다(실측: cygpath -u 가 //localhost/C$/... 로만
+# 바꾸고 /c/... 로는 통일하지 않는다 — DOCS_QA_ROOT 는 항상 /c/... 형태로 계산되므로
+# 문자열이 달라 포함 판정이 통과해버린다). 다른 호스트를 가리키는 admin-share 는
+# 실제로 다른 물리 머신이므로 변환하지 않는다. cygpath 부재(순수 Linux)에서는 이
+# 표기 자체가 의미 없으므로(대소문자 폴딩과 같은 환경 신호) 건드리지 않는다.
+_qa_normalize_unc_admin_share() {
+  local candidate="$1"
+  local unc_admin_share_re='^\\\\([^\\]+)\\([A-Za-z])\$(\\.*)?$'
+  if command -v cygpath >/dev/null 2>&1 && [[ "$candidate" =~ $unc_admin_share_re ]]; then
+    local host drive rest self_host
+    host="$(printf '%s' "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')"
+    drive="${BASH_REMATCH[2]}"
+    rest="${BASH_REMATCH[3]:-\\}"
+    self_host="$(printf '%s' "${HOSTNAME:-}" | tr '[:upper:]' '[:lower:]')"
+    case "$host" in
+      localhost|127.0.0.1|.)
+        printf '%s:%s' "$drive" "$rest"
+        return 0
+        ;;
+    esac
+    if [ -n "$self_host" ] && [ "$host" = "$self_host" ]; then
+      printf '%s:%s' "$drive" "$rest"
+      return 0
+    fi
+  fi
+  printf '%s' "$candidate"
+}
+
 _qa_physical_path() {
   local candidate="$1"
+  candidate="$(_qa_normalize_unc_admin_share "$candidate")"
   local resolved
   if command -v realpath >/dev/null 2>&1; then
     resolved="$(realpath -m -- "$candidate")"

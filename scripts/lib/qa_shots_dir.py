@@ -22,10 +22,33 @@ docs/qa/sp-08-6-5-accounting-daily-ledger/gen_pngs.py 편입).
     OUT_DIR = resolve_qa_shots_dir(_HERE)
 """
 import os
+import re
+import socket
 
 
 def _has_explicit_overwrite_intent() -> bool:
     return os.environ.get('QA_ALLOW_OVERWRITE', '').strip().lower() in {'1', 'true', 'yes'}
+
+
+_UNC_ADMIN_SHARE_RE = re.compile(r'^\\\\([^\\]+)\\([A-Za-z])\$(\\.*)?$')
+
+
+def _normalize_unc_admin_share(candidate_dir: str) -> str:
+    """자기 자신을 가리키는 UNC admin-share를 등가의 드라이브 문자 표기로 통일한다.
+
+    2026-07-28 R4 재수렴 결함3 — 자세한 배경은 scripts/lib/qa-shots-dir.cjs 의
+    동명 함수(normalizeUncAdminShareToDrive) 주석 참조. 다른 호스트를 가리키는
+    admin-share 는 실제로 다른 물리 머신이므로 변환하지 않는다.
+    """
+    match = _UNC_ADMIN_SHARE_RE.match(candidate_dir)
+    if not match:
+        return candidate_dir
+    host = match.group(1).lower()
+    self_aliases = {'localhost', '127.0.0.1', '.', socket.gethostname().lower()}
+    if host not in self_aliases:
+        return candidate_dir
+    rest = match.group(3) or '\\'
+    return f'{match.group(2)}:{rest}'
 
 
 def _normalize_physical_path(candidate_dir: str) -> str:
@@ -34,6 +57,7 @@ def _normalize_physical_path(candidate_dir: str) -> str:
             candidate_dir = '\\\\' + candidate_dir[len('\\\\?\\UNC\\'):]
         elif candidate_dir.startswith('\\\\?\\'):
             candidate_dir = candidate_dir[len('\\\\?\\'):]
+        candidate_dir = _normalize_unc_admin_share(candidate_dir)
     return os.path.normcase(os.path.normpath(candidate_dir))
 
 

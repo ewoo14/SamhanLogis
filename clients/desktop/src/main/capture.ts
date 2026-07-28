@@ -10,6 +10,7 @@
 import { app, type BrowserWindow } from 'electron'
 import * as fs from 'node:fs'
 import { writeFileSync, mkdirSync } from 'node:fs'
+import { hostname } from 'node:os'
 import { basename, dirname, isAbsolute, join, normalize, parse, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -58,6 +59,22 @@ function resolvePhysicalPath(candidateDir: string): string {
   return join(fs.realpathSync.native(current), ...missingParts)
 }
 
+/**
+ * 자기 자신을 가리키는 UNC admin-share(`\\localhost\D$\...`, `\\127.0.0.1\D$\...`,
+ * `\\<컴퓨터명>\D$\...`)를 등가의 드라이브 문자 표기(`D:\...`)로 통일한다
+ * (2026-07-28 R4 재수렴 결함3) — 자세한 배경은 scripts/lib/qa-shots-dir.cjs 의
+ * 동명 함수 주석 참조. 다른 호스트를 가리키는 admin-share 는 실제로 다른 물리
+ * 머신이므로 변환하지 않는다.
+ */
+function normalizeUncAdminShareToDrive(candidateDir: string): string {
+  const match = /^\\\\([^\\]+)\\([A-Za-z])\$(\\.*)?$/.exec(candidateDir)
+  if (!match) return candidateDir
+  const host = match[1].toLowerCase()
+  const isSelf = host === 'localhost' || host === '127.0.0.1' || host === '.' || host === hostname().toLowerCase()
+  if (!isSelf) return candidateDir
+  return `${match[2]}:${match[3] ?? '\\'}`
+}
+
 function normalizePhysicalPath(candidateDir: string): string {
   const isWindows = process.platform === 'win32'
   const withoutExtendedPrefix = isWindows && candidateDir.startsWith('\\\\?\\UNC\\')
@@ -65,7 +82,8 @@ function normalizePhysicalPath(candidateDir: string): string {
     : isWindows && candidateDir.startsWith('\\\\?\\')
       ? candidateDir.slice('\\\\?\\'.length)
       : candidateDir
-  const normalized = normalize(withoutExtendedPrefix)
+  const withoutUncAdminShare = isWindows ? normalizeUncAdminShareToDrive(withoutExtendedPrefix) : withoutExtendedPrefix
+  const normalized = normalize(withoutUncAdminShare)
   const root = parse(normalized).root
   const comparable = normalized === root ? normalized : normalized.replace(/[\\/]+$/, '')
   return isWindows ? comparable.toLowerCase() : comparable
