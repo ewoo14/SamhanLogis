@@ -25,6 +25,18 @@ const {
 const { fixtures } = require('../../../legacy-quantity-golden/fixtures');
 
 const HOME_RECOMPUTE_FUNCTIONS = [
+  'lockScope_',
+  'targetScope_',
+  'registerDerivedQty',
+  'isManualQtyLocked',
+  'setManualQtyLock',
+  'setDerivedQty',
+  'seedDerivedQty',
+  'clearManualQtyLocks',
+  'serializeManualQtyLocks',
+  'hasSnapshotManualQtyLocks',
+  'restoreSnapshotManualQtyLocks',
+  'restoreLegacyDerivedQty',
   'inferOneWaySize',
   'isPanelRow',
   'isRemoteRow',
@@ -37,6 +49,7 @@ const HOME_RECOMPUTE_FUNCTIONS = [
   'recomputeHomePanels',
   'recomputeHomeDerived',
   'isHomeCalcTriggerModel',
+  'isHomeDerivedRow',
   'onHomeQtyInput',
 ];
 
@@ -95,11 +108,13 @@ const COMMON_STUBS = `
 `;
 
 const HOME_MANUAL_SETS_DECL = `
-  const HOME_MANUAL_PANEL = new Set();
-  const HOME_MANUAL_HOSE = new Set();
-  const HOME_MANUAL_REMOTE = new Set();
-  const HOME_MANUAL_BRANCH = new Set();
-  const HOME_MANUAL_FOOT = new Set();
+  const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const HOME_MANUAL_PANEL = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_HOSE = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_REMOTE = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_BRANCH = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_FOOT = MANUAL_QTY_LOCKS.home;
 `;
 
 const LOCK_CHECK = (model) => `(
@@ -168,7 +183,7 @@ function runSnapshotRoundtrip({ family, model, lockValue, legacyShot }) {
   const functions = bundle(source, [...HOME_RECOMPUTE_FUNCTIONS, 'takeSnapshot', 'applySnapshot', 'clearHomeManualLocks', 'clearCommManualLocks']);
   const modelJson = JSON.stringify(model);
   const stripLockFields = legacyShot
-    ? `delete shot.core.homeManualPanel; delete shot.core.homeManualHose; delete shot.core.homeManualRemote; delete shot.core.homeManualBranch; delete shot.core.homeManualFoot;`
+    ? `delete shot.core.manualQtyLocks; delete shot.core.homeManualPanel; delete shot.core.homeManualHose; delete shot.core.homeManualRemote; delete shot.core.homeManualBranch; delete shot.core.homeManualFoot;`
     : '';
   const script = `
     const window = { SHOW_I_HOSE: false, ABSOLUTE_LOCK: new Set() };
@@ -203,14 +218,8 @@ function runSnapshotRoundtrip({ family, model, lockValue, legacyShot }) {
     /* 2) 저장 */
     const shot = takeSnapshot();
     ${stripLockFields}
-    const serializedLockArrays = {
-      homeManualPanel: shot.core.homeManualPanel,
-      homeManualHose: shot.core.homeManualHose,
-      homeManualRemote: shot.core.homeManualRemote,
-      homeManualBranch: shot.core.homeManualBranch,
-      homeManualFoot: shot.core.homeManualFoot,
-    };
-    const anyLockSerialized = Object.values(serializedLockArrays).some((arr) => Array.isArray(arr) && arr.includes(${modelJson}));
+    const serializedLockArrays = shot.core.manualQtyLocks?.home || [];
+    const anyLockSerialized = Array.isArray(serializedLockArrays) && serializedLockArrays.includes(${modelJson});
 
     /* 3) 완전히 새 세션(잠금 0·수량 0)에서 복원 — 페이지 재진입/새로고침을 흉내낸다 */
     homeQty.clear();

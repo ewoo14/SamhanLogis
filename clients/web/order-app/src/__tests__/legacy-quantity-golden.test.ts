@@ -230,7 +230,8 @@ describe('단계 0 주문 앱 legacy 수량 경계 golden', () => {
   test('정찰 §5 기존 8종 중 7종은 유지되고 해소된 2종은 견적과 수렴한다', () => {
     expect(orderGoldens['H-01']['AR-KH05']).toBe(1);
     expect(orderGoldens['H-07']['AXJ-YA1509N']).toBeUndefined();
-    expect(orderGoldens['C-07']['AF-R09A']).toBeUndefined();
+    // SOL2에서 리뉴얼 필터 자동 target을 실제 계산값으로 복원했다.
+    expect(orderGoldens['C-07']['AF-R09A']).toBe(2);
     expect(orderOptionGoldens['H-03-PANEL-LOCK']['PC1MWSK3NW']).toBe(9);
     expect(orderOptionGoldens['C-02-I-HOSE']['FH-LFHIF']).toBe(2);
   });

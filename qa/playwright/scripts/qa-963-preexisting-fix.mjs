@@ -2,11 +2,11 @@ import { chromium } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../scripts/lib/qa-shots-dir.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const QA_DIR = path.join(REPO, 'docs', 'qa', '2026-07-28-963-preexisting-fix');
+const outDir = resolveQaShotsDir(path.join(REPO, 'docs', 'qa', '2026-07-28-963-preexisting-fix'));
 const URL = 'http://127.0.0.1:5180/';
-fs.mkdirSync(QA_DIR, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
@@ -84,11 +84,11 @@ try {
   await page.locator('#commFilterText').fill('T형');
   await page.waitForTimeout(300);
   const optionsAfterSearch = await readOptions();
-  await page.screenshot({ path: path.join(QA_DIR, '01-commercial-options-after-search.png'), fullPage: true });
+  await page.screenshot({ path: path.join(outDir, '01-commercial-options-after-search.png'), fullPage: true });
   await page.locator('#commFilterText').fill('');
   await page.waitForTimeout(300);
   const optionsAfterClear = await readOptions();
-  await page.screenshot({ path: path.join(QA_DIR, '02-commercial-options-after-search-clear.png'), fullPage: true });
+  await page.screenshot({ path: path.join(outDir, '02-commercial-options-after-search-clear.png'), fullPage: true });
 
   if (JSON.stringify(optionsAfterSearch) !== JSON.stringify(optionsBeforeSearch)) {
     throw new Error(`옵션 검색 후 값 불일치: ${JSON.stringify({ optionsBeforeSearch, optionsAfterSearch })}`);
@@ -111,7 +111,7 @@ try {
   await page.waitForTimeout(400);
   await branch.scrollIntoViewIfNeeded();
   const branchEvidence = await readBranchEvidence();
-  await page.screenshot({ path: path.join(QA_DIR, '03-commercial-t-branch-after-recompute.png'), fullPage: true });
+  await page.screenshot({ path: path.join(outDir, '03-commercial-t-branch-after-recompute.png'), fullPage: true });
 
   if (!branchEvidence) throw new Error('재계산 후 T형 분기관 DOM 증거가 없습니다.');
   if (branchEvidence.value !== '77') throw new Error(`분기관 수량 소실: ${JSON.stringify(branchEvidence)}`);
@@ -121,22 +121,24 @@ try {
     throw new Error(`분기관 행이 viewport 밖입니다: ${JSON.stringify(branchEvidence)}`);
   }
 
-  const result = {
-    url: URL,
-    optionsBeforeSearch,
-    optionsAfterSearch,
-    optionsAfterClear,
-    branchEvidence,
-    consoleErrors,
-    pageErrors,
-    screenshots: [
-      '01-commercial-options-after-search.png',
-      '02-commercial-options-after-search-clear.png',
-      '03-commercial-t-branch-after-recompute.png',
-    ],
-  };
-  fs.writeFileSync(path.join(QA_DIR, 'metrics.json'), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
-  console.log(JSON.stringify(result, null, 2));
+  function buildMetrics() {
+    return {
+      url: URL,
+      optionsBeforeSearch,
+      optionsAfterSearch,
+      optionsAfterClear,
+      branchEvidence,
+      consoleErrors,
+      pageErrors,
+      screenshots: [
+        '01-commercial-options-after-search.png',
+        '02-commercial-options-after-search-clear.png',
+        '03-commercial-t-branch-after-recompute.png',
+      ],
+    };
+  }
+  fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify(buildMetrics(), null, 2)}\n`, 'utf8');
+  console.log(JSON.stringify(buildMetrics(), null, 2));
 } finally {
   await context.close();
   await browser.close();

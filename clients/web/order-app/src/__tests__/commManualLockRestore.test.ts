@@ -67,7 +67,7 @@ describe('#967 G-2 — 상업 파생 6계열: applyCommManualLock 이 add/delete
   });
 });
 
-describe('#967 G-1 — 상업 저장내역 복원 시 수동수량 보존(D-3 comm 대칭: 기존 저장분은 동작 불변)', () => {
+describe('#967 G-1/H-2 — 상업 저장내역 복원 시 수동수량 보존(구형 snapshot 포함)', () => {
   test.each(SERIES)('%s — 신규 저장분은 잠금이 직렬화되고 복원 후에도 수동값이 보존된다', (_label, family, model) => {
     const result = runCommSnapshotRoundtrip({ family, model, lockValue: LOCK_VALUE, legacyShot: false });
 
@@ -79,15 +79,14 @@ describe('#967 G-1 — 상업 저장내역 복원 시 수동수량 보존(D-3 co
     expect(result.valueAfterRestore).toBe(LOCK_VALUE);
   });
 
-  test.each(SERIES)('%s — D-3 comm 대칭: 잠금 필드가 없는 기존 저장분의 복원 결과는 이 fix로 바뀌지 않는다', (_label, family, model) => {
+  test.each(SERIES)('%s — 잠금 배열이 없는 구형 저장분도 수동 입력을 보존한다', (_label, family, model) => {
     const result = runCommSnapshotRoundtrip({ family, model, lockValue: LOCK_VALUE, legacyShot: true });
 
     // 기존(legacy) 스냅샷은 애초에 comm 잠금 필드를 직렬화하지 않았다
     expect(result.anyLockSerialized).toBe(false);
 
-    // 잠금 없이 복원 → recomputeCommDerived()가 자동값으로 덮는다 — fix 이전과 동일 동작.
-    // (락이 없으므로 "자동값"은 fixture 별로 다를 수 있어 개별 값 대신 "잠금 상태 false"만 단정한다.
-    //  자동값 자체의 정확성은 legacy-quantity-golden.test.ts 의 C-01 golden 73/73 이 이미 검사한다.)
-    expect(result.lockedAfterRestore).toBe(false);
+    // H-2: 구형 snapshot도 저장 당시 사용자 수량을 보존한다.
+    expect(result.lockedAfterRestore).toBe(true);
+    expect(result.valueAfterRestore).toBe(LOCK_VALUE);
   });
 });

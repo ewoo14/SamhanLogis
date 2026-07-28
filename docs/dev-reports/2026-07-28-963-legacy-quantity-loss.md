@@ -500,3 +500,403 @@ PM 대조값 기준 개별 파일 numstat을 그대로 기록한다.
 ```
 
 `legacyQuantityBoundary.js`의 **+1**은 `runCommercial()`이 정본의 snapshot/recompute 함수를 추출 실행할 때 필요한 빈 `COMM_MANUAL_BRANCH` Set 선언 1줄이다(`:291`). 골든 fixture·정답 수량·계산식은 변경하지 않았고, 새 상업 분기관 lock 참조가 기존 golden sandbox에서 `ReferenceError`가 되지 않도록 스코프만 보강했다. 따라서 #948이 고정한 골든 정답의 경계 정의나 73건의 기대값을 변경한 것이 아니다.
+
+## 14. CODEX LUNA 5.6 — SOL 2차 라운드 fix (2026-07-28)
+
+### 14.1 RED-first 원문
+
+SOL 보고서가 지목한 5군을 정본 함수로 재현하는 실패 테스트를 먼저 추가하고 실행했다. production fix 전 결과는 다음과 같다.
+
+```text
+npm test -- --run src/__tests__/sol2QuantityFix.test.ts
+Test Files 1 failed (1)
+Tests 1 passed, 8 failed (9)
+```
+
+실패 내용은 상업 T형 분기관의 수동값 소실, 상업 리뉴얼 필터의 자동값 덮어쓰기·stale 값, 싱글 round-foot/wired-board/ceiling-pump 3계열 각각의 잠금 부재, 잠금 배열이 없는 구형 snapshot의 `77 → 1` 복원, GHP `ACL-KORGHP06` 오선택, 계열별 registry를 계속 요구하는 구조 검증이었다. 결함 4 테스트는 새 snapshot을 만들지 않고 `manualQtyLocks`가 존재하지 않던 실제 구형 형식으로 `shot.core.manualQtyLocks`를 삭제해 재현했다.
+
+### 14.2 범용 수량 잠금 구조 및 H-1 전수 sweep
+
+정본 `clients/web/order-app/index.html`에 영역별 `MANUAL_QTY_LOCKS`와 `DERIVED_QTY_TARGETS`라는 범용 registry를 두고, 파생 row를 semantic predicate로 분류했다. 입력 핸들러·표시·초기화·재계산 guard·snapshot·복원·옵션 변경 해제를 이 공통 registry에 연결했다. 특정 계열을 별도 manual set으로 하나씩 이식하는 방식은 제거했다. 옵션 변경은 해당 영역의 관련 파생 계열 잠금만 targeted clear한다.
+
+| 영역 | 입력 잠금 | 표시(파란 굵은 글씨) | 초기화 | 재계산 가드 | snapshot 저장 | snapshot 복원 | 옵션변경 시 해제 |
+|---|---|---|---|---|---|---|---|
+| 홈 | `onHomeQtyInput` → 공통 `setManualQtyLock` | `syncHomeUIFromState`/렌더가 공통 lock 판정 | `clearHomeManualLocks` → `clearManualQtyLocks('home')` | 홈 파생 target 전체를 `setDerivedQty`로 갱신한 뒤 공통 lock skip | `manualQtyLocks.home` | 공통 lock 복원 + 구형 derived snapshot 복원 | `onHomeOptionChange(controlId)`가 관련 홈 파생 lock만 해제 |
+| 상업 | `applyCommManualLock` → 공통 `setManualQtyLock` | `syncCommManualUI`/렌더가 공통 lock 판정 | `clearCommManualLocks` → `clearManualQtyLocks('commercial')` | `recomputeCommDerived`의 최종 guard가 generic commercial derived row 전체를 skip | `manualQtyLocks.commercial` | 공통 lock 복원 + 구형 derived snapshot 복원 | `onCommOptionChange(controlId)`가 관련 상업 파생 lock만 해제 |
+| 싱글 | `onSingleQtyInput` → 공통 `setManualQtyLock` | 싱글 렌더/sync가 공통 lock 판정 | 싱글 reset/옵션 경로가 `clearManualQtyLocks('single')` 사용 | round-foot·wired-board·ceiling-pump 및 이후 semantic derived row에 공통 guard 적용 | `manualQtyLocks.single` | 공통 lock 복원 + 구형 derived snapshot 복원 | 싱글 옵션 변경 경로에서 관련 single derived lock 해제 |
+
+따라서 H-1의 7축(입력 잠금, 표시, 초기화, 재계산 가드, snapshot 저장, snapshot 복원, 옵션변경 시 해제)을 홈·상업·싱글 각 행에 모두 확인했다. 새 파생 계열이 추가돼도 row predicate와 공통 registry를 통과하면 동일 경로에 들어가며, `HOME_MANUAL_*`/`COMM_MANUAL_*`/`SINGLE_MANUAL_*`을 기능의 source of truth로 사용하지 않는다.
+
+### 14.3 H-2/H-3/H-4 및 회귀 검증
+
+- H-2: 구형 snapshot(잠금 배열 없음)에 상업 T형 분기관 수량 `77`을 넣어 복원한 뒤 값 `77`과 manual lock을 보존했다. 새 snapshot은 `manualQtyLocks`를 저장하고, 복원 시 신·구 형식을 모두 처리한다.
+- H-3: 상업 실외기 변경 후 T형 분기관 `77`, 리뉴얼 필터 수동값 `77`이 유지됐다. 리뉴얼 필터의 자동값도 소스 수량 변경 시 최신 자동값으로 계산된 후 수동잠금 값은 덮어쓰지 않는다.
+- H-4: GHP 파생 기준 코드를 `ACL-KORGHP06`에서 실제 마스터 코드 `ACL-KORGHP07`로 정정했다.
+- 집중 테스트: `sol2QuantityFix.test.ts` **1 file / 9 tests passed**.
+- order-app 전체: **15 test files / 172 tests passed / 0 failed**.
+- 하네스 guard: `harness-false-green-guard.test.ts` **1 file / 49 tests passed / 0 failed**. G3a 예외나 가드 완화는 추가하지 않았다.
+
+### 14.4 실서버 라이브 QA
+
+실제 주문 앱(`http://127.0.0.1:5180/`)에 실제 로그인·클릭·입력·검색·옵션 변경을 수행하고 Playwright로 프로그램 검증했다. 캡처와 `metrics.json`은 `_local` 격리 경로에만 기록했다.
+
+`docs/qa/2026-07-28-963-sol2-fix/_local/`의 5개 PNG에서 대상 행의 실제 수량, `getComputedStyle`, `getBoundingClientRect`, 합계 숫자를 모두 검증했다.
+
+| 경로 | 대상 | 수량 | color | font-weight | rect | 합계 숫자 |
+|---|---|---:|---|---:|---|---:|
+| 상업 T형 분기관 | `AXJ-TA3419M` | 77 | `rgb(37, 99, 235)` | 700 | `x=121,y=588.375,w=1198,h=40`, viewport 내 | `34,823,800` |
+| 상업 리뉴얼 필터 | `AF-R09A` | 77 | `rgb(37, 99, 235)` | 700 | `x=121,y=588.375,w=1198,h=40`, viewport 내 | `8,499,000` |
+| 싱글 round-foot | `발통세트` | 77 | `rgb(37, 99, 235)` | 700 | `x=121,y=860.375,w=1198,h=40`, viewport 내 | `40,000` |
+| 싱글 wired-board | `AIM-A01N` | 77 | `rgb(37, 99, 235)` | 700 | `x=121,y=589.375,w=1198,h=40`, viewport 내 | `3,380,000` |
+| 싱글 ceiling-pump | `ADP-F075SP` | 77 | `rgb(37, 99, 235)` | 700 | `x=121,y=589.375,w=1198,h=40`, viewport 내 | `8,958,400` |
+
+라이브 하네스의 `pageErrors`는 0건이었다. 서버가 반환한 기존 정적/API 리소스 응답 중 404 1건과 400 1건은 `consoleErrors`에 원문으로 기록했으며, 대상 행 값·스타일·rect·합계 검증은 모두 통과했다. 라이브 검증과 테스트에서 공유 `product_db`에 쓰지 않았다.
+
+### 14.5 증거 수치 정정: `404/137` → `2/2`
+
+직전 보고의 `commercialMulti=404`, `commercialParts=137`은 공유 `product_db`의 품목 행 수가 아니었다. 당시 브라우저 부트스트랩/카탈로그 응답에서 읽은 **응답 payload 배열의 길이**를 각각 센 값(`commercialMulti.length`, `commercialParts.length`)이었고, DB 행 수처럼 제시하면 안 되는 측정이었다. SOL 재측정은 no-store 직접 GET으로 응답을 확인했고 정확한 결과는 다음과 같다.
+
+```json
+{"measuredAt":"2026-07-28T11:19:10.850Z","serverTimestamp":"2026-07-28T11:19:10.797935964Z","httpStatus":200,"commercialMulti":2,"commercialParts":2,"singleSets":0,"models":["QA797-SET-01","QA797-GEN-01","QA797-PART-01","QA797-PART-02"]}
+```
+
+즉 정정값 `2/2`는 해당 응답의 두 배열 길이이며, 품목 마스터 전체 건수도 공유 DB의 총 행 수를 의미하지 않는다. 이번 작업에서는 공유 DB INSERT/UPDATE/DELETE를 수행하지 않았고, 임시 품목 삽입도 하지 않았다.
+
+### 14.6 CI RED 원인과 수정
+
+G3a가 지적한 `qa/playwright/scripts/qa-963-preexisting-fix.mjs`의 커밋 경로 직접 쓰기를 수정했다. `QA_DIR` 상수를 직접 만들던 코드를 `resolveQaShotsDir(...)`로 바꾸고, 캡처·metrics 경로를 반환된 `_local` 디렉터리로 통일했다. `const result`가 캡처 목적지에 직접 연결된 패턴도 `buildMetrics()` 함수로 바꿔 가드가 요구하는 격리를 통과시켰다. 동일 규약으로 신규 SOL2 라이브 하네스도 작성했다.
+
+### 14.7 변경 파일 및 변경 줄 수
+
+읽기 전용 `git diff --numstat` 실측값이다. `--stat` 합산값을 사용하지 않았다.
+
+```text
+5	5	clients/web/legacy-quantity-golden/goldens.js
+43	11	clients/web/legacy-quantity-golden/legacyQuantityBoundary.js
+198	152	clients/web/order-app/index.html
+24	16	clients/web/order-app/src/__tests__/commManualLockHarness.cjs
+5	6	clients/web/order-app/src/__tests__/commManualLockRestore.test.ts
+53	20	clients/web/order-app/src/__tests__/commercialManualSymmetryHarness.cjs
+23	14	clients/web/order-app/src/__tests__/homeManualLockHarness.cjs
+5	6	clients/web/order-app/src/__tests__/homeManualLockRestore.test.ts
+16	5	clients/web/order-app/src/__tests__/homeOptionAndZeroLockHarness.cjs
+2	1	clients/web/order-app/src/__tests__/legacy-quantity-golden.test.ts
+75	0	docs/dev-reports/2026-07-28-963-legacy-quantity-loss.md
+23	21	qa/playwright/scripts/qa-963-preexisting-fix.mjs
+(신규) src/__tests__/sol2QuantityFix.test.ts · sol2QuantityFixHarness.cjs
+(신규) qa/playwright/scripts/qa-963-sol2-fix.mjs
+(신규) docs/qa/2026-07-28-963-sol-round2/
+```
+
+`§14.8`의 골든 독립성 감사 절을 추가한 뒤의 report 자체 numstat은 아래 표의 `75`보다 증가하므로, PM commit 직전 위 표의 report 행만 다시 읽기 전용 `git diff --numstat`로 갱신해야 한다. 코드 파일 값은 위 실측 그대로다. `tools/legacy-gas/**`와 다른 worktree는 건드리지 않았다.
+
+### 14.8 골든 기대값 독립성 재검증 — PM 보완
+
+#### 14.8.1 도출 원천과 파일:줄
+
+새 골든은 하나의 제품 출력만 받아 적었는지 확인하기 위해, `git show 58524ce77:<file>`로 fix 이전 정본·경계 하네스를 메모리에 읽고 `sourceMutator`로 VM에 넣어 실행했다. 파일을 checkout하거나 덮어쓰지 않았다. 경계 추출기는 fix 이전 `legacyQuantityBoundary.js:13-26`의 `extractFunctionSource`, `:79-81`의 `sourceFunctionBundle`, `runCommercial:256-322`를 사용했다.
+
+| 골든 key | 독립 실행 원천·입력 | fix 이전 실행 결과 | 현재 변경 골든 |
+|---|---|---|---|
+| `C-06` | `fixtures.js:200`의 `AM140AXVGHH1=1`; 견적 정본 `estimate-app/views/index.ejs:4011` `isCommOutdoorRow`, `:8355` `recomputeCommDerived` | `{AM140AXVGHH1:1, 방진가대S2소:1, AXJ-TA3419M:1}` | 견적 쪽과 일치. 주문 쪽은 아래 독립성 판정 참조 |
+| `C-07` | `fixtures.js:201`의 `AM035=2, AM075=1`; 견적 정본 `:4011`, `:4190` `RENEW_FILTER_MAP`, `:8355` | `{AM035:2, AM075:1, AF-R09A:2, AF-R12A:1}` | 견적 쪽과 일치. |
+| `C-08` | `fixtures.js:202`의 `AM180=2`; 견적 정본 `:4111` `chooseBaseModel`, `:4131` `ACL-KORGHP07`, `:8355` | `{GHP방진가대:2, ACL-KORGHP07:2}` | 견적 쪽과 일치. |
+| `C-02-REMAINDER-DRIFT` | `fixtures.js:296`의 `AM072TNCDBH1=2`; 견적 정본 `:8355`의 호스/PUMP_MAP 경로 | `{FH-LFHLF4W:2, ADP-F075SP:2}` | 견적 쪽은 기존값 유지; 주문 변경값은 `AM072TNCDBH1:2, ADP-F075SP:2` |
+| `C-08-NO-BASE` | `fixtures.js:308`의 `C-08` + `#comm_ex_base=true`; 견적 정본 `:8355` 받침대 제외 경로 | `{ACL-KORGHP07:2}` | 견적 쪽은 기존값 유지; 주문 변경값은 `AM180AXVGHH1:2, ACL-KORGHP07:2` |
+
+#### 14.8.2 이전 `{}`의 원인과 경계 하네스 +43/−11 내역
+
+`C-08`과 `C-08-NO-BASE`가 이전 주문 골든에서 `{}`였던 것은 레거시 정본이 실제로 빈 결과를 낸다는 뜻이 아니었다. fix 이전 주문 정본의 `isCommOutdoorRow`(`order-app/index.html:2292`)가 fixture의 `catL` 없는 GHP row를 실외기로 인식하지 못했고, 주문 정본 `chooseBaseModel:2397`은 `ACL-KORGHP06`(`:2417`)을 사용했다. 현재 fixture에는 `ACL-KORGHP07`만 있으므로 주문 경계에서 target row도 성립하지 않았다. 견적 정본은 `isCommOutdoorRow:4011`의 `AM……X` 규칙과 `chooseBaseModel:4111`의 `ACL-KORGHP07`로 같은 입력에서 파생값을 냈다.
+
+`legacyQuantityBoundary.js`의 `+43/-11`은 골든을 계산하는 새 식을 추가한 것이 아니라 다음 extraction scope를 넓힌 것이다.
+
+```text
+runHome:       +7 generic helper names +1 isHomeDerivedRow +2 generic registries -5 old home Set declarations = +5 net
+runSingle:     +10 generic helper bundle +2 generic registries                         = +12 net
+runCommercial: +7 generic helper names +1 isCommDerivedRow +13 generic registries -6 old Sets = +15 net
+합계: +43 / -11
+```
+
+그러나 이 추가 함수(`lockScope_`, `setDerivedQty`, `isCommDerivedRow` 등)는 fix 이전 order 정본에 존재하지 않는다. 따라서 fix 이전 order source를 같은 경계에 넣으면 새 값을 내는 것이 아니라 `extractFunctionSource`가 먼저 `lockScope_ 함수를 찾을 수 없습니다`로 중단된다. 즉 `C-08 {}`를 경계 한계가 숨겼다가 +43줄로 복구했다는 증명은 성립하지 않는다.
+
+#### 14.8.3 순환 여부 — 실행 원문
+
+아래는 fix 이전 경계와 fix 이전 order source를 동시에 메모리에서 실행한 원문이다. `baseOrderAgainstBaseGoldens=65/65`는 기존 65개 golden row가 원래 정본과 일치했음을 뜻하지만, 새로 바꾼 5개 order golden은 같은 정본에서 나오지 않는다.
+
+```json
+{
+  "C-06": {"order":{"AM140AXVGHH1":1,"방진가대S2소":1},"newOrderGolden":{"AM140AXVGHH1":1,"방진가대S2소":1,"AXJ-TA3419M":1}},
+  "C-07": {"order":{"AM035FXMRHC1":2,"AM075FXMRHC1":1},"newOrderGolden":{"AM035FXMRHC1":2,"AM075FXMRHC1":1,"AF-R09A":2,"AF-R12A":1}},
+  "C-08": {"order":{},"newOrderGolden":{"AM180AXVGHH1":2,"GHP방진가대":2,"ACL-KORGHP07":2}},
+  "C-02-REMAINDER-DRIFT": {"order":{"ADP-F075SP":2},"newOrderGolden":{"AM072TNCDBH1":2,"ADP-F075SP":2}},
+  "C-08-NO-BASE": {"order":{},"newOrderGolden":{"AM180AXVGHH1":2,"ACL-KORGHP07":2}}
+}
+```
+
+전체 비교 원문:
+
+```json
+{
+  "baseOrderAgainstBaseGoldens":{"pass":65,"total":65,"fail":[]},
+  "currentOrderAgainstNewGoldens":{"pass":65,"total":65,"fail":[]},
+  "goldenDeltaRows":5,
+  "unchangedGoldenRows":60,
+  "allTestCases":73,
+  "unchangedIncludingNonGolden":68
+}
+```
+
+판정은 명확하다. `estimateGoldens`의 5개 변경은 fix 이전 견적 정본 함수 실행과 독립적으로 일치한다. 반면 `orderGoldens`의 5개 변경은 fix 이전 order 정본에서 재현되지 않으므로, 현재 증거만으로는 순환이 아니라고 인증할 수 없다. 이것은 보고 누락이 아니라 4번 요구를 실제 실행해 얻은 **RED 결과**다. PM 머지 전에는 주문 쪽 5개 기대값의 독립 oracle(구형 order source 또는 명시된 별도 계약)을 확정하거나, 해당 기대값 변경을 되돌려야 한다.
+
+`§14.8` 추가 시점의 dev-report 자체 numstat은 `246\t0`이었고, §14.9까지 포함한 현재 읽기 전용 `git diff --numstat`은 `400\t0`이다. `§14.7`의 `75\t0`은 PM이 보완을 요청한 감사 절 추가 전 checkpoint 값이다.
+
+#### 14.8.4 PM oracle 확정 결과 및 `C-02-REMAINDER-DRIFT` 처분
+
+PM이 확정한 독립 oracle을 반영해 5개 변경 행을 다시 분류했다. 다음은 PM이 제시한 grep 원문이다. 저장소의 주문서 사본은 `ACL-KORGHP06`으로 낡아 있었고, Drive 라이브 재다운로드 사본은 `ACL-KORGHP07`을 사용한다.
+
+```text
+tools/legacy-gas/거래처 발송 주문서/index.html:2276:    want.push('ACL-KORGHP06');
+tools/legacy-gas/종합견적서/index.html:3754:              want.push('ACL-KORGHP07');
+tools/legacy-gas/종합견적서/index.html:8095:    const isBaseItem = /방진가대|받침대|발통세트|일자발|si-al|AXJ-TA3419M|ACL-KORGHP07|AF-R09A|AF-R12A/i.test(s);
+C:\Users\user\AppData\Local\Temp\claude\C--dev-Samhan-Public\7445e5b2-c181-4d85-abc3-95daebb19d9f\scratchpad\gas-fresh\거래처 주문서\index.html:2273:    want.push('ACL-KORGHP07');
+```
+
+이 원문과 견적 정본의 `isBaseItem` 열거를 독립 근거로 인정할 수 있는 행은 `C-06`의 `AXJ-TA3419M`, `C-07`의 `AF-R09A`·`AF-R12A`, `C-08`의 `ACL-KORGHP07`, `C-08-NO-BASE`의 `ACL-KORGHP07`이다. 따라서 5개 중 4개는 제품 수정 후 출력이 아니라 레거시 GAS 라이브/정본 규칙으로 뒷받침된다.
+
+`C-02-REMAINDER-DRIFT`는 그 근거가 없었다. fixture는 `clients/web/legacy-quantity-golden/fixtures.js:297`의 `sourceQuantities: { 'AM072TNCDBH1': 2 }`이다. 저장소 주문서 정본의 실제 함수 원문은 다음과 같다.
+
+```text
+tools/legacy-gas/거래처 발송 주문서/index.html:2190: function isCommPumpRow(r){
+tools/legacy-gas/거래처 발송 주문서/index.html:2191:   const s=((r?.name||'')+' '+(r?.disp||'')+' '+(r?.model||'')).toLowerCase();
+tools/legacy-gas/거래처 발송 주문서/index.html:2192:   return /드레인펌프|펌프/i.test(s);
+tools/legacy-gas/거래처 발송 주문서/index.html:5203:   const PUMP_MAP = {
+tools/legacy-gas/거래처 발송 주문서/index.html:5209:     'ADP-F075SP':    ['AM072TNCDBH1','AM110TNCDBH1','AM130TNCDBH1','AM145TNCDBH1']
+tools/legacy-gas/거래처 발송 주문서/index.html:5211:   Object.entries(PUMP_MAP).forEach(([pump, list])=>{
+tools/legacy-gas/거래처 발송 주문서/index.html:5213:     list.forEach(m => { sum += Number(commQty.get(m)||0); });
+tools/legacy-gas/거래처 발송 주문서/index.html:5214:     want.set(pump, sum);
+```
+
+Drive 라이브 사본도 같은 판정 구조였다.
+
+```text
+...\scratchpad\gas-fresh\거래처 주문서\index.html:2187: function isCommPumpRow(r){
+...\scratchpad\gas-fresh\거래처 주문서\index.html:2188:   const s=((r?.name||'')+' '+(r?.disp||'')+' '+(r?.model||'')).toLowerCase();
+...\scratchpad\gas-fresh\거래처 주문서\index.html:2189:   return /드레인펌프|펌프/i.test(s);
+...\scratchpad\gas-fresh\거래처 주문서\index.html:5217:   const PUMP_MAP = {
+...\scratchpad\gas-fresh\거래처 주문서\index.html:5223:     'ADP-F075SP':    ['AM072TNCDBH1','AM110TNCDBH1','AM130DNMDBH1','AM145DNMDBH1']
+...\scratchpad\gas-fresh\거래처 주문서\index.html:5225:   Object.entries(PUMP_MAP).forEach(([pump, list])=>{
+...\scratchpad\gas-fresh\거래처 주문서\index.html:5227:     list.forEach(m => { sum += Number(commQty.get(m)||0); });
+...\scratchpad\gas-fresh\거래처 주문서\index.html:5228:     want.set(pump, sum);
+```
+
+즉 `AM072TNCDBH1`은 이 fixture에서 파생 target으로 방출되는 코드가 아니라 `ADP-F075SP`의 입력 모델이다. 이름이 `실내기 펌프 대상`인 fixture row는 `isCommPumpRow`에 걸리고, 주문 정본은 그 row를 0으로 초기화한 뒤 `PUMP_MAP`의 합계를 `ADP-F075SP`에 기록한다. 저장소 정본과 Drive 라이브 사본 모두에서 `AM072TNCDBH1`은 이 `PUMP_MAP` 입력 목록 외에 독립적인 `want` 출력 규칙으로 확인되지 않았다.
+
+따라서 주문 레거시의 이 fixture 결과는 `{ "ADP-F075SP": 2 }`이다. 주문 정본의 호스 경로(`tools/legacy-gas/거래처 발송 주문서/index.html:5177-5188`)는 `commIndoorKind`가 `1way/2way` 또는 `4way/360`일 때만 `n1w/n4w`를 증가시킨다. fixture 이름 `실내기 펌프 대상`에는 그 타입 토큰이 없으므로 호스 수량은 0이다.
+
+견적 정본의 `{ "FH-LFHLF4W": 2, "ADP-F075SP": 2 }`는 다른 규칙에서 나온다. `tools/legacy-gas/종합견적서/index.html:7979-8005`는 같은 실내기 row를 `commIndoorKind`가 빈 문자열이어도 `nNormal`로 세고, `hose4L`에 그 수량을 더한다. 그래서 `pickHoseModel('4way')`가 고른 `FH-LFHLF4W`에 2를 기록한다. 두 앱의 레거시 정본이 미분류 실내기를 처리하는 규칙이 원래 다르므로, 이 차이만으로 어느 한쪽이 결함이라고 판정할 수 없다. 다만 현재 주문 수정 코드가 H-2를 위해 보존한 `{ "AM072TNCDBH1": 2, "ADP-F075SP": 2 }`는 레거시 GAS에서 도출된 기대값이 아니므로, 이 행을 레거시 골든으로 확정할 수 없다.
+
+요청대로 다른 행·제품 코드·테스트·하네스는 건드리지 않고 `goldens.js`의 `C-02-REMAINDER-DRIFT` 한 행만 이전 값으로 되돌렸다.
+
+```diff
+-  'C-02-REMAINDER-DRIFT': { AM072TNCDBH1: 2, 'ADP-F075SP': 2 },
++  'C-02-REMAINDER-DRIFT': { 'ADP-F075SP': 2 },
+```
+
+되돌린 뒤 실행한 골든 테스트 원문은 다음과 같다. 현재 수정 제품 출력에 `AM072TNCDBH1:2`가 남으므로, 레거시 골든으로 되돌리면 73건 중 72건 통과·1건 실패한다. 이는 `C-02` 골든과 H-2 제품 동작이 충돌한다는 RED 증거이며, 새 골든을 정당화하는 독립 oracle로 사용할 수 없다.
+
+```text
+npm test -- --run src/__tests__/legacy-quantity-golden.test.ts
+> @samhan/order-app@0.4.0 test
+> vitest run --run src/__tests__/legacy-quantity-golden.test.ts
+
+
+ RUN  v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/963-qty/clients/web/order-app
+
+ ❯ src/__tests__/legacy-quantity-golden.test.ts (73 tests | 1 failed) 265ms
+   × 단계 0 주문 앱 legacy 수량 경계 golden > 'C-02-REMAINDER-DRIFT' 옵션 갈래의 수량·target 모델이 golden과 같다 10ms
+     → expected { AM072TNCDBH1: 2, 'ADP-F075SP': 2 } to deeply equal { 'ADP-F075SP': 2 }
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 72 passed (73)
+   Start at  22:51:48
+   Duration  773ms (transform 27ms, setup 0ms, collect 37ms, tests 265ms, environment 0ms, prepare 117ms)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ FAIL  src/__tests__/legacy-quantity-golden.test.ts > 단계 0 주문 앱 legacy 수량 경계 golden > 'C-02-REMAINDER-DRIFT' 옵션 갈래의 수량·target 모델이 golden과 같다
+AssertionError: expected { AM072TNCDBH1: 2, 'ADP-F075SP': 2 } to deeply equal { 'ADP-F075SP': 2 }
+
+- Expected
++ Received
+
+  Object {
+    "ADP-F075SP": 2,
++   "AM072TNCDBH1": 2,
+  }
+
+ ❯ src/__tests__/legacy-quantity-golden.test.ts:199:31
+    197|   test.each(optionFixtures as any[])('$id 옵션 갈래의 수량·target 모델…
+    198|     const actual = evaluateLegacyQuantityBoundary(inputFor(fixture));
+    199|     expect(actual.quantities).toEqual(orderOptionGoldens[fixture.id]);
+       |                               ^
+    200|     expect(actual.unitPrices).toBeNull();
+    201|     expect(actual.subtotals).toBeNull();
+
+EXIT=1
+```
+
+결론적으로 PM oracle 기준으로 4개는 독립 근거가 확보됐고, `C-02-REMAINDER-DRIFT` 1개는 레거시 근거를 찾지 못해 이전 값으로 되돌린 채 RED로 보류했다. 처분 후 읽기 전용 `git diff --numstat`은 `4\t4\tclients/web/legacy-quantity-golden/goldens.js`, `246\t0\tdocs/dev-reports/2026-07-28-963-legacy-quantity-loss.md`이다. 이 후속 작업에서 `tools/legacy-gas/**`, 제품 코드, 다른 골든 행, 새 테스트·리팩터는 변경하지 않았고 공유 `product_db`에도 쓰지 않았다.
+
+## 14.9 서비스 개시 전 최종 2건
+
+개발책임자 지시 범위인 `C-02-REMAINDER-DRIFT` 제품 누출과 GHP 보조품 코드만 최종 처리했다. 새 테스트·리팩터·다른 결함 수정은 하지 않았다.
+
+### 14.9.1 `C-02-REMAINDER-DRIFT` — 계산 입력 모델 결과 누출
+
+#### 원인과 제품 수정
+
+`legacyQuantityBoundary.js:310`은 fixture 원수량으로 `commQty`를 시작한다. 제품 `recomputeCommDerived`는 `index.html:5607-5618`의 `PUMP_MAP`에서 `ADP-F075SP`를 계산하지만, 그 입력 모델을 결과 상태에서 제거하지 않았다. 그래서 펌프 전용 fixture row `AM072TNCDBH1`이 `{AM072TNCDBH1:2, ADP-F075SP:2}`로 남았다.
+
+제품 정본 `clients/web/order-app/index.html:5615-5629`에 PUMP_MAP 입력 모델 집합을 만들고, 해당 모델의 catalog row가 실제로 `isCommPumpRow`인 경우에만 `commQty`를 0으로 정리했다. 따라서 실제 상업 실내기 row(품명에 펌프가 없는 경우)는 보존되고, 계산 전용 입력 row만 결과에서 제외된다.
+
+```diff
++  const pumpInputModels = new Set();
++  ...
++  pumpInputModels.forEach(model=>{
++    const row = COMMULTI.find(x=>x.model===model);
++    if(row && isCommPumpRow(row)) commQty.set(model, 0);
++  });
+```
+
+같은 계열 전수 sweep 원문:
+
+```json
+{
+  "fixtures": 65,
+  "pumpInputRowsScanned": ["AM052ANHDBH1", "AM072TNCDBH1"],
+  "leaks": []
+}
+EXIT=0
+```
+
+#### 73/73 GREEN 원문
+
+```text
+npm test -- --run src/__tests__/legacy-quantity-golden.test.ts
+
+> @samhan/order-app@0.4.0 test
+> vitest run --run src/__tests__/legacy-quantity-golden.test.ts
+
+ RUN  v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/963-qty/clients/web/order-app
+
+ ✓ src/__tests__/legacy-quantity-golden.test.ts (73 tests) 333ms
+
+ Test Files  1 passed (1)
+      Tests  73 passed (73)
+   Start at  23:06:31
+   Duration  904ms (transform 34ms, setup 0ms, collect 45ms, tests 333ms, environment 0ms, prepare 139ms)
+
+EXIT=0
+```
+
+### 14.9.2 GHP 보조품 `ACL-KORGHP07`
+
+GHP 경로는 이 worktree의 기존 SOL2 수정으로 이미 `clients/web/order-app/index.html:2517-2519`가 `ACL-KORGHP07`을 사용하고 있었다. 이는 저장소 레거시 주문서 사본의 낡은 코드 `ACL-KORGHP06`을 그대로 따르던 제품을, 현재 catalog와 Drive 라이브 GAS에 맞춘 수정이다. 이번 §14.9에서는 그 경로를 다시 변경하지 않고 실제 결과만 검증했다.
+
+독립 근거 원문:
+
+```text
+tools/legacy-gas/거래처 발송 주문서/index.html:2276:    want.push('ACL-KORGHP06');
+tools/legacy-gas/종합견적서/index.html:3754:              want.push('ACL-KORGHP07');
+tools/legacy-gas/종합견적서/index.html:8095:    const isBaseItem = /방진가대|받침대|발통세트|일자발|si-al|AXJ-TA3419M|ACL-KORGHP07|AF-R09A|AF-R12A/i.test(s);
+C:\Users\user\AppData\Local\Temp\claude\C--dev-Samhan-Public\7445e5b2-c181-4d85-abc3-95daebb19d9f\scratchpad\gas-fresh\거래처 주문서\index.html:2273:    want.push('ACL-KORGHP07');
+clients/web/order-app/index.html:2519:    want.push('ACL-KORGHP07');
+```
+
+공유 `product_db`에는 쓰지 않고 SELECT만 실행했다.
+
+```text
+ACL-KORGHP07	GHP 저감장치	6710000.00	6710000.00	COMMERCIAL_MULTI	f
+AM180AXVGHH1	DVM S2 표준형 18HP	6884900.00	12518000.00	COMMERCIAL_MULTI	f
+GHP방진가대	GHP 방진가대	330000.00	330000.00	COMMERCIAL_MULTI	f
+EXIT=0
+```
+
+주문 정본 boundary에 GHP 실외기 수량 9를 넣은 실제 실행 결과:
+
+```json
+{
+  "quantities": {
+    "AM180AXVGHH1": 9,
+    "GHP방진가대": 9,
+    "ACL-KORGHP07": 9
+  },
+  "model": "ACL-KORGHP07",
+  "qty": 9
+}
+EXIT=0
+```
+
+따라서 `ACL-KORGHP07`은 실제 결과에 `9개`로 들어오며, DB 납품가 `6,710,000원` 기준 소계는 `9 × 6,710,000 = 60,390,000원`이다. GHP 방진가대도 `9개 × 330,000원 = 2,970,000원`으로 함께 결과에 존재한다. `ACL-KORGHP06`은 SELECT 결과에 없으므로 제품 코드와 catalog가 어긋났던 기존 `06` 경로는 `COMMULTI.find(...)` 이후 조용히 skip되어 6,710,000원 품목을 누락시키는 결함이었다.
+
+같은 `recomputeCommDerived` 함수 안의 조용한 누락 지점은 범위 밖이므로 고치지 않고 보고한다.
+
+```text
+clients/web/order-app/index.html:5651  const row = COMMULTI.find(x=>x.model===m); if(!row) return;
+clients/web/order-app/index.html:5666  const row = COMMULTI.find(x=>x.model===m); if(!row) return;
+clients/web/order-app/index.html:5686  if(!COMMULTI.find(x=>x.model===fModel)) continue;
+clients/web/order-app/index.html:5720  const row = COMMULTI.find(x=>x.model===m); if(!row) return;
+```
+
+### 14.9.3 order-app 전체 Vitest 원문 및 최종 numstat
+
+```text
+npm test
+
+> @samhan/order-app@0.4.0 test
+> vitest run
+
+ RUN  v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/963-qty/clients/web/order-app
+
+ ✓ src/__tests__/sanity.test.ts (2 tests) 2ms
+ ✓ src/__tests__/commSetIndex.test.ts (1 test) 4ms
+ ✓ src/__tests__/legacyConfigMapping.test.ts (2 tests) 8ms
+ ✓ src/__tests__/bootstrapFailure.test.ts (2 tests) 14ms
+ ✓ src/__tests__/legacyPreexistingFix.test.ts (2 tests) 15ms
+ ✓ src/version/versionCheck.test.ts (5 tests) 4ms
+ ✓ src/version/versionGate.test.ts (2 tests) 3ms
+ ✓ src/__tests__/priceChangeSchedule.test.ts (10 tests) 45ms
+ ✓ src/__tests__/sol2QuantityFix.test.ts (9 tests) 52ms
+ ✓ src/__tests__/homeOptionAndZeroLockRestore.test.ts (10 tests) 52ms
+ ✓ src/__tests__/commercialManualSymmetry.test.ts (9 tests) 65ms
+ ✓ src/__tests__/samhanApi.test.ts (5 tests) 4ms
+ ✓ src/__tests__/homeManualLockRestore.test.ts (16 tests) 90ms
+ ✓ src/__tests__/commManualLockRestore.test.ts (24 tests) 131ms
+ ✓ src/__tests__/legacy-quantity-golden.test.ts (73 tests) 308ms
+
+ Test Files  15 passed (15)
+      Tests  172 passed (172)
+   Start at  23:06:37
+   Duration  980ms (transform 631ms, setup 0ms, collect 1.11s, tests 796ms, environment 2ms, prepare 3.66s)
+
+EXIT=0
+```
+
+§14.9 추가 전 읽기 전용 `git diff --numstat` 개별 파일 원문:
+
+```text
+4	4	clients/web/legacy-quantity-golden/goldens.js
+43	11	clients/web/legacy-quantity-golden/legacyQuantityBoundary.js
+209	153	clients/web/order-app/index.html
+24	16	clients/web/order-app/src/__tests__/commManualLockHarness.cjs
+5	6	clients/web/order-app/src/__tests__/commManualLockRestore.test.ts
+53	20	clients/web/order-app/src/__tests__/commercialManualSymmetryHarness.cjs
+23	14	clients/web/order-app/src/__tests__/homeManualLockHarness.cjs
+5	6	clients/web/order-app/src/__tests__/homeManualLockRestore.test.ts
+16	5	clients/web/order-app/src/__tests__/homeOptionAndZeroLockHarness.cjs
+2	1	clients/web/order-app/src/__tests__/legacy-quantity-golden.test.ts
+246	0	docs/dev-reports/2026-07-28-963-legacy-quantity-loss.md
+23	21	qa/playwright/scripts/qa-963-preexisting-fix.mjs
+```
+
+신규 파일은 이전 SOL2 작업에서 생성된 `sol2QuantityFix.test.ts`, `sol2QuantityFixHarness.cjs`, `qa-963-sol2-fix.mjs`, `docs/qa/2026-07-28-963-sol-round2/`이며, 이번 최종 2건 처리에서 새 파일은 만들지 않았다. §14.9까지 포함한 report의 최종 numstat 행은 `400\t0\tdocs/dev-reports/2026-07-28-963-legacy-quantity-loss.md`이다.

@@ -49,9 +49,9 @@ const o = {
   'C-03': { AM052DNLDBH1: 2, 'AWR-WE13N': 2, 'MDP-Z075SZED': 2 },
   'C-04': { AM052DNLDBH1: 2, AM072DNMDBH1: 3, 'MDP-Z075SZED': 2 },
   'C-05': { AM120AXVHHH1: 1, '방진가대S2소': 1 },
-  'C-06': { AM140AXVGHH1: 1, '방진가대S2소': 1 },
-  'C-07': { AM035FXMRHC1: 2, AM075FXMRHC1: 1 },
-  'C-08': {},
+  'C-06': { AM140AXVGHH1: 1, '방진가대S2소': 1, 'AXJ-TA3419M': 1 },
+  'C-07': { AM035FXMRHC1: 2, AM075FXMRHC1: 1, 'AF-R09A': 2, 'AF-R12A': 1 },
+  'C-08': { AM180AXVGHH1: 2, 'GHP방진가대': 2, 'ACL-KORGHP07': 2 },
   'C-09': { 'AXJ-YA2812M': 1 },
 };
 
@@ -142,7 +142,7 @@ const orderOptionGoldens = {
   'C-03-NO-REMOTE': { AM052DNLDBH1: 2, 'MDP-Z075SZED': 2 },
   'C-05-NO-BASE': { AM120AXVHHH1: 1 },
   'C-05-BASE-LOCK': { AM120AXVHHH1: 1 },
-  'C-08-NO-BASE': {},
+  'C-08-NO-BASE': { AM180AXVGHH1: 2, 'ACL-KORGHP07': 2 },
   'C-09-1509': { 'AXJ-YA1509N': 1, 'AXJ-YA2812M': 1 },
   'C-09-2512': { 'AXJ-YA2512N': 1, 'AXJ-YA2812M': 1 },
   'C-09-2812': { 'AXJ-YA2812M': 2 },

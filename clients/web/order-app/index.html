@@ -1621,10 +1621,10 @@ function isRemoteRow(r){
   return /(리모컨|remote)/i.test(s);
 }
 function clearAllPanels(){
-  HOMEMULTI.forEach(r=>{ if(isPanelRow(r) && !HOME_MANUAL_PANEL.has(r.model)) homeQty.set(r.model,0); });
+  HOMEMULTI.forEach(r=>{ if(isPanelRow(r)) setDerivedQty('home', homeQty, r.model, 0); });
 }
 function clearAllRemotes(){
-  HOMEMULTI.forEach(r=>{ if(isRemoteRow(r) && !HOME_MANUAL_REMOTE.has(r.model)) homeQty.set(r.model,0); });
+  HOMEMULTI.forEach(r=>{ if(isRemoteRow(r)) setDerivedQty('home', homeQty, r.model, 0); });
 }
 
 /* 판널 선택 */
@@ -2268,13 +2268,111 @@ function specTable_(rows, opt){
   return html;
 }
 
-// 사용자 수동편집
-const COMM_MANUAL_PANEL = new Set();
-const COMM_MANUAL_HOSE  = new Set();
-const COMM_MANUAL_REMOTE = new Set();
-const COMM_MANUAL_PUMP   = new Set();
-const COMM_MANUAL_BASE   = new Set();
-const COMM_MANUAL_BRANCH = new Set();
+// 사용자 수동편집 — 화면 계열을 열거하지 않고 페이지별 하나의 잠금 레지스트리를
+// 공유한다. 파생 계산기는 setDerivedQty()를 통과하므로 새 파생품도 자동으로 편입된다.
+const MANUAL_QTY_LOCKS = {
+  home: new Set(),
+  commercial: new Set(),
+  single: new Set(),
+};
+const DERIVED_QTY_TARGETS = {
+  home: new Set(),
+  commercial: new Set(),
+  single: new Set(),
+};
+
+function lockScope_(scope){ return MANUAL_QTY_LOCKS[scope] || null; }
+function targetScope_(scope){ return DERIVED_QTY_TARGETS[scope] || null; }
+function registerDerivedQty(scope, model){
+  if(model === undefined || model === null || model === '') return;
+  targetScope_(scope)?.add(String(model));
+}
+function isManualQtyLocked(scope, model){ return !!lockScope_(scope)?.has?.(String(model)); }
+function setManualQtyLock(scope, model, shouldLock){
+  const locks=lockScope_(scope);
+  if(!locks || model === undefined || model === null || model === '') return;
+  const key=String(model);
+  if(shouldLock) locks.add(key); else locks.delete(key);
+}
+function clearManualQtyLocks(scope, controlId){
+  const locks=lockScope_(scope);
+  if(!locks) return;
+  if(!controlId){ locks.clear(); return; }
+  const targets=targetScope_(scope);
+  const rows = scope==='home'
+    ? (typeof HOMEMULTI!=='undefined' ? HOMEMULTI : [])
+    : scope==='commercial'
+      ? (typeof COMMULTI!=='undefined' ? COMMULTI : [])
+      : scope==='single'
+        ? (typeof SINGLE_SETS!=='undefined' ? SINGLE_SETS : [])
+        : [];
+  const owns = (row) => {
+    if(scope==='home'){
+      if(controlId==='home_panel') return typeof isPanelRow==='function' && isPanelRow(row);
+      if(controlId==='home_no_hose') return /유연\s*호스|호스/i.test(String(row?.name||''));
+      if(controlId==='home_remote') return typeof isRemoteRow==='function' && isRemoteRow(row);
+      if(controlId==='home_no_branch') return /분\s*기\s*관|분기관/i.test(String(row?.name||''));
+      if(controlId==='home_foot') return /발통|받침대|실외기\s*받침대/i.test(String(row?.name||''));
+    }
+    if(scope==='commercial'){
+      if(controlId==='comm_panel' || controlId==='comm_p360') return typeof isCommPanelRow==='function' && isCommPanelRow(row);
+      if(controlId==='comm_ex_hose') return typeof isCommHoseRow==='function' && isCommHoseRow(row);
+      if(controlId==='comm_remote') return typeof isCommRemoteRow==='function' && isCommRemoteRow(row);
+      if(controlId==='comm_ex_base') return /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test((String(row?.name||'')+' '+String(row?.model||'')).toLowerCase());
+    }
+    return false;
+  };
+  Array.from(locks).forEach(model=>{
+    const row=rows.find(r=>String(r?.model ?? r?.id)===String(model));
+    if(row && owns(row)) locks.delete(model);
+  });
+}
+function setDerivedQty(scope, state, model, quantity){
+  if(model === undefined || model === null || model === '') return;
+  registerDerivedQty(scope, model);
+  if(!isManualQtyLocked(scope, model)) state.set(model, quantity);
+}
+function seedDerivedQty(scope, state, model){ setDerivedQty(scope, state, model, 0); }
+function serializeManualQtyLocks(){
+  return Object.fromEntries(Object.entries(MANUAL_QTY_LOCKS).map(([scope, locks])=>[scope, Array.from(locks)]));
+}
+function hasSnapshotManualQtyLocks(core){
+  if(!core || typeof core !== 'object') return false;
+  if(core.manualQtyLocks && typeof core.manualQtyLocks === 'object') return true;
+  return Object.entries(core).some(([key, value])=>/^(home|comm|single)Manual/i.test(key) && Array.isArray(value));
+}
+function restoreSnapshotManualQtyLocks(core){
+  if(!core || typeof core !== 'object') return;
+  const restore=(scope, values)=>{
+    if(!Array.isArray(values)) return;
+    values.forEach(model=>setManualQtyLock(scope, model, true));
+  };
+  if(core.manualQtyLocks && typeof core.manualQtyLocks === 'object'){
+    restore('home', core.manualQtyLocks.home);
+    restore('commercial', core.manualQtyLocks.commercial);
+    restore('single', core.manualQtyLocks.single);
+  }
+  // 이전 R2 형식(homeManualPanel 등)은 이름의 계열을 해석하지 않고 scope 접두만
+  // 읽는다. 과거 데이터 호환용이며 현재 저장 형식은 위 generic object 하나다.
+  Object.entries(core).forEach(([key, values])=>{
+    if(!Array.isArray(values)) return;
+    const m=key.match(/^(home|comm|single)Manual/i);
+    if(!m) return;
+    restore(m[1].toLowerCase()==='comm'?'commercial':m[1].toLowerCase(), values);
+  });
+}
+function restoreLegacyDerivedQty(scope, state, snapshotEntries){
+  if(!Array.isArray(snapshotEntries)) return;
+  const snapshot=new Map(snapshotEntries);
+  const targets=targetScope_(scope);
+  snapshot.forEach((value, model)=>{
+    if(!targets?.has?.(String(model))) return;
+    const automatic=state.get(model) || 0;
+    if(Number(automatic)===Number(value)) return;
+    setManualQtyLock(scope, model, true);
+    state.set(model, value);
+  });
+}
 
 // 원본 품명 로드
 function rawNameOf(r){
@@ -2294,6 +2392,10 @@ function isCommOutdoorRow(row){
   if (t.includes('분기관')) return false; // 분기관제외
   const catL = String(row?.catL || '').trim();
   if (catL === '실외기') return true;
+  // 마스터 snapshot/구형 저장분에는 catL이 빠질 수 있다. 상업 원천 실외기
+  // 모델(AM*)은 품명에 실외기가 명시된 경우 원천으로 보아, 필터/보조품 target
+  // seed가 원천 입력을 0으로 지우지 않게 한다.
+  if (/^AM/i.test(String(row?.model||'')) && /실외기/i.test(t)) return true;
   const s = (t + ' ' + (row?.model||'')).toLowerCase();
   if (/dvm|프라임|표준형|한랭지|상부토출/.test(s)) return true;
   return false;
@@ -2414,7 +2516,7 @@ function chooseBaseModel(nm){
 
   if(isGHP) {
     want.push('GHP방진가대');
-    want.push('ACL-KORGHP06');
+    want.push('ACL-KORGHP07');
   }
 
   /* 방진가대소 */
@@ -2812,30 +2914,16 @@ markAutoSingle(SS_FOOT_ROUND_ID,SS_FOOT_FLAT_ID,SS_WIRED_BOARD_ID,SS_CEILING_PUM
 
 const homeQty=new Map(HOMEMULTI.map(r=>[r.model,0]));
 const singleQty=new Map(SINGLE_SETS.map(s=>[s.id,0]));
-const HOME_MANUAL_PANEL=new Set();
-const HOME_MANUAL_HOSE=new Set();
-const HOME_MANUAL_REMOTE=new Set();
-const HOME_MANUAL_BRANCH=new Set();
-const HOME_MANUAL_FOOT=new Set();
 
 function clearHomeManualLocks(){
-  HOME_MANUAL_PANEL.clear();
-  HOME_MANUAL_HOSE.clear();
-  HOME_MANUAL_REMOTE.clear();
-  HOME_MANUAL_BRANCH.clear();
-  HOME_MANUAL_FOOT.clear();
+  clearManualQtyLocks('home');
 }
 
 /* 상업멀티 파생 수동잠금 6계열 전체 해제 — clearHomeManualLocks 의 comm 대칭
    (#967 G-2: btnResetComm·applySnapshot 이 잠금을 비우지 못해 회복 수단이
    새로고침뿐이던 결함의 fix) */
 function clearCommManualLocks(){
-  COMM_MANUAL_PANEL.clear();
-  COMM_MANUAL_HOSE.clear();
-  COMM_MANUAL_REMOTE.clear();
-  COMM_MANUAL_PUMP.clear();
-  COMM_MANUAL_BASE.clear();
-  COMM_MANUAL_BRANCH.clear();
+  clearManualQtyLocks('commercial');
 }
 
 /* 합계/포맷 */
@@ -2908,31 +2996,30 @@ function bindQty(sel,onChange){
   });
 }
 
-/* 상업멀티 수동잠금 계열 판별 — 입력·표시·재계산이 같은 분류를 공유한다. */
-function commManualSetForRow(rec){
-  if(!rec) return null;
-  if(isCommPanelRow(rec)) return COMM_MANUAL_PANEL;
-  if(isCommHoseRow(rec)) return COMM_MANUAL_HOSE;
-  if(isCommRemoteRow(rec)) return COMM_MANUAL_REMOTE;
-  if(isCommPumpRow(rec)) return COMM_MANUAL_PUMP;
-  const s=((rec.name||'')+' '+(rec.disp||'')+' '+(rec.model||'')+' '+(rec.catL||'')+' '+(rec.catM||'')+' '+(rec.catS||'')).toLowerCase();
-  if(/분\s*기\s*관/i.test(s)) return COMM_MANUAL_BRANCH;
-  if(/방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s)) return COMM_MANUAL_BASE;
-  return null;
+/* 상업멀티 파생품 판별 — 원천(실내기·실외기)이 아닌 모든 행을 공통 잠금 대상으로
+   취급한다. 필터·분기관·GHP 보조품처럼 계열명이 바뀌어도 별도 Set 이식이 필요 없다. */
+function isCommDerivedRow(rec){
+  if(!rec) return false;
+  if(isCommIndoorRow(rec)) return false;
+  const model=String(rec?.model||'');
+  const label=(rawNameOf(rec)+' '+model).toLowerCase();
+  // 시트의 catL이 실외기로 복원되는 필터/분기관/GHP 보조품도 있다. AM 실외기
+  // 원천을 먼저 보존하고, 파생품은 품명·코드의 역할 신호로 분류해 새 계열이
+  // 추가될 때 별도 MANUAL_* Set 이식 없이 같은 잠금 경로를 탄다.
+  if(/^AM/i.test(model) && /실외기/i.test(label)) return false;
+  if(/리뉴얼\s*필터|분\s*기\s*관|유연\s*호스|리모컨|리모콘|드레인\s*펌프|판넬|패널|방진가대|받침대|발통|ghp방진|acl-korg hp|acl-korg hp|acl-korghp/i.test(label)) return true;
+  return !isCommOutdoorRow(rec);
 }
+function commManualSetForRow(rec){ return isCommDerivedRow(rec) ? lockScope_('commercial') : null; }
 
 /* 상업멀티 파생 수동잠금 토글 — explicit=false인 빈칸만 해제하고, 명시적 0은 잠근다. */
 function applyCommManualLock(rec, model, q, explicit){
-  const lockSet = commManualSetForRow(rec);
-  if(!lockSet) return;
+  if(!isCommDerivedRow(rec)) return;
   const shouldLock = explicit === undefined ? !!q : explicit;
-  if(shouldLock) lockSet.add(model); else lockSet.delete(model);
+  setManualQtyLock('commercial', model, shouldLock);
 }
 
-function isCommManualLocked(rec, model){
-  const lockSet = commManualSetForRow(rec);
-  return !!lockSet?.has?.(model);
-}
+function isCommManualLocked(rec, model){ return isCommDerivedRow(rec) && isManualQtyLocked('commercial', model); }
 
 /* 상업멀티 바인딩 */
 const commQty = new Map();
@@ -3413,7 +3500,7 @@ function recalcCommAccessories(){
         const inp = row.querySelector('.qty-input');
         if (inp){
           const baseModel = row.getAttribute?.('data-m') || inp.dataset?.model || '';
-          if (baseModel && COMM_MANUAL_BASE.has(baseModel)) return;
+          if (baseModel && isManualQtyLocked('commercial', baseModel)) return;
           const v = Math.max(q, parseInt(inp.value||'0',10)||0);
           if (v !== q){ inp.value = st.qty; inp.dispatchEvent(new Event('input')); }
         }
@@ -4081,7 +4168,11 @@ function renderSingle(){
     const state = getStockState_(s?.note);
     if (state.type === 'SOLD') { tdQty.textContent = '품절'; }
     else if (state.type === 'FUTURE') { tdQty.innerHTML = `<span style="font-size:8pt; white-space:nowrap;">${escapeLegacyHtml(state.label)}</span>`; }
-    else { tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-sid="${attrSafe_(s.id)}" data-model="${attrSafe_(s.model)}" value="${attrSafe_(qty || '')}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`; }
+    else {
+      const manual=isSingleManualLocked(s.id);
+      const colorStyle=manual?'color:#2563eb;font-weight:bold;':'';
+      tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-sid="${attrSafe_(s.id)}" data-model="${attrSafe_(s.model)}" value="${attrSafe_((qty || manual) ? qty : '')}" inputmode="numeric" pattern="\\d*" placeholder="0" style="${colorStyle}"/></div>`;
+    }
     tr.appendChild(tdQty);
 
     // 단가
@@ -4205,14 +4296,7 @@ function syncCommManualUI(){
 /* 상업 옵션은 지배 계열의 잠금만 해제한다. 펌프는 직접 지배하는 옵션이 없으므로
    모든 상업 옵션 변경에서 잠금을 보존한다(홈멀티 onHomeOptionChange와 대칭). */
 function onCommOptionChange(controlId){
-  const lockSet = {
-    comm_panel: COMM_MANUAL_PANEL,
-    comm_p360: COMM_MANUAL_PANEL,
-    comm_remote: COMM_MANUAL_REMOTE,
-    comm_ex_hose: COMM_MANUAL_HOSE,
-    comm_ex_base: COMM_MANUAL_BASE,
-  }[controlId];
-  if(lockSet) lockSet.clear();
+  clearManualQtyLocks('commercial', controlId);
   recomputeCommDerived();
   syncCommTotals();
   updateInlineTotals();
@@ -4951,13 +5035,13 @@ function updateTopControls(){
    onHomeQtyInput 의 add/delete 판정이 같은 분류를 쓰도록 단일 지점화했다. onHomeQtyInput
    의 isP/isR/isH/isB/isF 판정과 정규식을 그대로 공유한다. */
 function isHomeManualLocked(row, model){
-  const nm=String(row?.name||'');
-  if(/(판넬|패널)/i.test(nm)) return HOME_MANUAL_PANEL.has(model);
-  if(/(리모컨|리모콘)/i.test(nm)) return HOME_MANUAL_REMOTE.has(model);
-  if(/유연호스/i.test(nm)) return HOME_MANUAL_HOSE.has(model);
-  if(/(분\s*기\s*관|분기관)/i.test(nm)) return HOME_MANUAL_BRANCH.has(model);
-  if(/(발통|일자발)/i.test(nm)) return HOME_MANUAL_FOOT.has(model);
-  return false;
+  return isHomeDerivedRow(row, model) && isManualQtyLocked('home', model);
+}
+function isHomeDerivedRow(row, model){
+  if(!row) return false;
+  const key=String(model ?? row.model ?? '');
+  if(targetScope_('home')?.has?.(key)) return true;
+  return !isHomeCalcTriggerModel(key);
 }
 
 /* 수량 입력 핸들러 — explicit: bindQty 가 raw==='' 인지(칸을 지움) 아닌지(명시적 입력,
@@ -4970,28 +5054,9 @@ function onHomeQtyInput(model,v,explicit){
   const subCell=document.querySelector(`#homeBody [data-sub="${CSS.escape(model)}"]`);
   if(subCell) subCell.textContent=fmt(p*v);
   const r=homeRowByModel.get(model);
-  const nm=String(r?.name||'');
-  const isP=/(판넬|패널)/i.test(nm);
-  const isR=/(리모컨|리모콘)/i.test(nm);
-  const isH=/유연호스/i.test(nm);
-  const isB=/(분\s*기\s*관|분기관)/i.test(nm);
-  const isF=/(발통|일자발)/i.test(nm);
-  if(isP||isR||isH||isB||isF){
+  if(isHomeDerivedRow(r, model)){
     const shouldLock = (explicit!==undefined) ? explicit : !!v;
-    if(shouldLock){
-      if(isP) HOME_MANUAL_PANEL.add(model);
-      else if(isR) HOME_MANUAL_REMOTE.add(model);
-      else if(isH) HOME_MANUAL_HOSE.add(model);
-      else if(isB) HOME_MANUAL_BRANCH.add(model);
-      else if(isF) HOME_MANUAL_FOOT.add(model);
-    } else {
-      /* 칸을 지우면(explicit=false) 수동 잠금을 해제한다 — 견적 앱과 대칭(index.ejs:5966-5973) */
-      if(isP) HOME_MANUAL_PANEL.delete(model);
-      else if(isR) HOME_MANUAL_REMOTE.delete(model);
-      else if(isH) HOME_MANUAL_HOSE.delete(model);
-      else if(isB) HOME_MANUAL_BRANCH.delete(model);
-      else if(isF) HOME_MANUAL_FOOT.delete(model);
-    }
+    setManualQtyLock('home', model, shouldLock);
     /* #967 G-4: 방금 편집한 칸 자체의 잠금 표시는 다음 재계산(syncHomeUIFromState)을
        기다리지 않고 즉시 반영한다 — 이 분기는 syncHomeUIFromState 를 부르지 않는다. */
     const inp=document.querySelector(`#homeBody .qty-input[data-m="${CSS.escape(model)}"]`);
@@ -5006,13 +5071,30 @@ function onHomeQtyInput(model,v,explicit){
   if(isHomeCalcTriggerModel(model)) recomputeHomeDerived(true);
   else{syncHomeTotals();refreshSelectedBadge();}
 }
-function onSingleQtyInput(id,v){
+function isSingleDerivedRow(id){
+  const key=String(id ?? '');
+  return targetScope_('single')?.has?.(key) || AUTO_SINGLE_IDS.has(id) || SEND_AS_SET_IDS.has(id);
+}
+function isSingleManualLocked(id){ return isSingleDerivedRow(id) && isManualQtyLocked('single', id); }
+function applySingleManualLock(id, explicit){
+  if(!isSingleDerivedRow(id)) return;
+  setManualQtyLock('single', id, explicit);
+}
+function onSingleQtyInput(id,v,explicit){
   const s = SINGLE_SETS.find(x => String(x.id) === String(id)) || {};
   const key = (s && s.id !== undefined) ? s.id : id;  // Map 키 정규화
   singleQty.set(key, v);
+  if(isSingleDerivedRow(key)) applySingleManualLock(key, explicit === undefined ? !!v : explicit);
   const unit=calcSetUnitPrice(s);
   const sCell=document.querySelector(`#singleBody [data-ss="${CSS.escape(id)}"]`);
   const uCell=document.querySelector(`#singleBody [data-ssu="${CSS.escape(id)}"]`);
+  const inp=document.querySelector(`#singleBody .qty-input[data-sid="${CSS.escape(id)}"]`);
+  if(inp){
+    const manual=isSingleManualLocked(key);
+    inp.style.color=manual?'#2563eb':'';
+    inp.style.fontWeight=manual?'bold':'';
+    if(manual && v===0) inp.value='0';
+  }
   if(sCell) sCell.textContent=fmt(unit*v);
   if(uCell){ uCell.setAttribute('data-unitraw', unit); uCell.textContent = fmt(unit); }
   if(isSingleCalcTriggerId(key)){recomputeSingleBaseFoot();recomputeSingleExtras();}
@@ -5027,14 +5109,7 @@ function onSingleQtyInput(id,v){
    막아야 하는데, 옵션이 바뀌어도 잠긴 모델은 clearAllPanels 류의 가드에 걸려
    비워지지 않았다) */
 function onHomeOptionChange(controlId){
-  const lockSet = {
-    home_panel: HOME_MANUAL_PANEL,
-    home_no_hose: HOME_MANUAL_HOSE,
-    home_remote: HOME_MANUAL_REMOTE,
-    home_no_branch: HOME_MANUAL_BRANCH,
-    home_foot: HOME_MANUAL_FOOT,
-  }[controlId];
-  if(lockSet) lockSet.clear();
+  clearManualQtyLocks('home', controlId);
   recomputeHomeDerived(true);
 }
 
@@ -5061,6 +5136,7 @@ function renderSingleOptions(){
   box.appendChild(sel('360판넬',['원형','사각'],'원형','ss_p360'));
   box.appendChild(sel('자재 포함 여부',['포함','별도'],SINGLE_DEFAULTS['자재 포함 여부']||'별도','ss_mat'));
   box.querySelectorAll('input,select').forEach(c=>c.addEventListener('change',()=>{
+    clearManualQtyLocks('single');
     SINGLE_SETS.forEach(s=>{
       if(/운임|절삭/i.test(s?.name||'')) return;
       const unit=calcSetUnitPrice(s);const q=singleQty.get(s.id)||0;
@@ -5079,8 +5155,8 @@ function recomputeFootAll(){
   const outTotalHome=HOMEMULTI.reduce((t,r)=>t+(/실외기/i.test(r?.name||'')?(homeQty.get(r.model)||0):0),0);
   const wantHomeFoot=!!el('#home_foot')?.checked;
   const totalRoundHome=wantHomeFoot?outTotalHome:0;
-  if(FOOT_ROUND && !HOME_MANUAL_FOOT.has(FOOT_ROUND)) homeQty.set(FOOT_ROUND,Math.max(0,totalRoundHome));
-  if(FOOT_FLAT && !HOME_MANUAL_FOOT.has(FOOT_FLAT)) homeQty.set(FOOT_FLAT,0);
+  if(FOOT_ROUND) setDerivedQty('home', homeQty, FOOT_ROUND, Math.max(0,totalRoundHome));
+  if(FOOT_FLAT) setDerivedQty('home', homeQty, FOOT_FLAT, 0);
   syncHomeUIFromState();syncHomeTotals();
 }
 function recomputeSingleBaseFoot(){
@@ -5095,8 +5171,8 @@ function recomputeSingleBaseFoot(){
       if(/^(AP230DAPDHH1S|AP290DAPDHH1S)$/i.test(mdl)) flat+=q; else round+=q;
     });
   }
-  if(SS_FOOT_ROUND_ID!=null) singleQty.set(SS_FOOT_ROUND_ID,round);
-  if(SS_FOOT_FLAT_ID!=null) singleQty.set(SS_FOOT_FLAT_ID,flat);
+  if(SS_FOOT_ROUND_ID!=null) setDerivedQty('single', singleQty, SS_FOOT_ROUND_ID, round);
+  if(SS_FOOT_FLAT_ID!=null) setDerivedQty('single', singleQty, SS_FOOT_FLAT_ID, flat);
   syncSingleUIFromState();
 }
 function recomputeSingleExtras(){
@@ -5110,7 +5186,7 @@ function recomputeSingleExtras(){
       boardQty+=(singleQty.get(s.id)||0);
     });
   }
-  if(SS_WIRED_BOARD_ID!=null) singleQty.set(SS_WIRED_BOARD_ID,boardQty);
+  if(SS_WIRED_BOARD_ID!=null) setDerivedQty('single', singleQty, SS_WIRED_BOARD_ID, boardQty);
   if(SS_CEILING_PUMP_ID!=null){
     let pumpQty=0;
     SINGLE_SETS.forEach(s=>{
@@ -5118,7 +5194,7 @@ function recomputeSingleExtras(){
       if(/운임|절삭/i.test(s?.name||'')) return;
       if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
     });
-    singleQty.set(SS_CEILING_PUMP_ID,pumpQty);
+    setDerivedQty('single', singleQty, SS_CEILING_PUMP_ID, pumpQty);
   }
   syncSingleUIFromState();
 }
@@ -5199,7 +5275,7 @@ function inferInfiniteSize(nameLike){
 /* 홈멀티 판넬 계산 */
 function recomputeHomePanels(){
   const opt = el('#home_panel')?.value || '';
-  const setP=(m,q)=>{if(m&&!HOME_MANUAL_PANEL.has(m)) homeQty.set(m,q);};
+  const setP=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
 
   // 모든 판넬 초기화
   clearAllPanels();
@@ -5317,7 +5393,7 @@ function recomputeHomePanels(){
     for(const [from,to] of map){
       if(homeRowByModel.has(from) && homeRowByModel.has(to)){
         const n = homeQty.get(from)||0;
-        if(n>0 && !HOME_MANUAL_PANEL.has(from) && !HOME_MANUAL_PANEL.has(to)){ setP(from,0); setP(to,n); }
+        if(n>0 && !isManualQtyLocked('home', from) && !isManualQtyLocked('home', to)){ setP(from,0); setP(to,n); }
       }
     }
   }
@@ -5326,7 +5402,7 @@ function recomputeHomePanels(){
 /* 홈멀티 리모컨 계산 */
 function recomputeHomeRemotes(){
   const opt = el('#home_remote')?.value || '기본';
-  const setR=(m,q)=>{if(m&&!HOME_MANUAL_REMOTE.has(m)) homeQty.set(m,q);};
+  const setR=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
 
   // 모든 리모컨 항목 0으로 초기화
   clearAllRemotes();
@@ -5380,7 +5456,7 @@ function recomputeHomeRemotes(){
 // Y형 분기관 계산
 function recomputeHomeBranches(){
   const noBranch = !!el('#home_no_branch')?.checked;
-  const setB=(m,q)=>{if(m&&!HOME_MANUAL_BRANCH.has(m)) homeQty.set(m,q);};
+  const setB=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
 
   if (noBranch){
     if (BRANCH_1509) setB(BRANCH_1509, 0);
@@ -5433,7 +5509,7 @@ function recomputeHomeBranches(){
 
 // 홈멀티 부자재 계산
 function recomputeHomeDerived(updateUI){
-  const setH=(m,q)=>{if(m&&!HOME_MANUAL_HOSE.has(m)) homeQty.set(m,q);};
+  const setH=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
   // 1/4WAY 실내기 + 360 + 벽걸이 → 호스 집계
   let n1w=0, n4w=0, c360=0, nWall=0;
   HOMEMULTI.forEach(r=>{
@@ -5490,14 +5566,9 @@ function recomputeHomeDerived(updateUI){
 function recomputeCommDerived(){
   const want = new Map();
 
-  COMMULTI.forEach(r=>{ if(isCommPanelRow(r)) want.set(r.model, 0); });
-  COMMULTI.forEach(r=>{ if(isCommHoseRow(r))  want.set(r.model, 0); });
-  COMMULTI.forEach(r=>{ if(isCommRemoteRow(r)) want.set(r.model, 0); });
-  COMMULTI.forEach(r=>{ if(isCommPumpRow(r))   want.set(r.model, 0); });
-  COMMULTI.forEach(r=>{
-    const s=((r?.name||'')+' '+(r?.disp||'')+' '+(r?.model||'')).toLowerCase();
-    if(/방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s)) want.set(r.model, 0);
-  });
+  // 파생품 전체를 먼저 0으로 seed한다. 자동 target이 계산에서 빠지는 0경계도
+  // stale 값을 남기지 않으며, 새 계열은 isCommDerivedRow()만 통과하면 자동 편입된다.
+  COMMULTI.forEach(r=>{ if(isCommDerivedRow(r)) { registerDerivedQty('commercial', r.model); want.set(r.model, 0); } });
   
   /* 판넬매핑 */
   COMMULTI.forEach(r=>{
@@ -5541,10 +5612,20 @@ function recomputeCommDerived(){
     'ADP-N047SNK1D': ['AM290HNHDBH1'],
     'ADP-F075SP':    ['AM072TNCDBH1','AM110TNCDBH1','AM130TNCDBH1','AM145TNCDBH1']
   };
+  const pumpInputModels = new Set();
   Object.entries(PUMP_MAP).forEach(([pump, list])=>{
     let sum = 0;
-    list.forEach(m => { sum += Number(commQty.get(m)||0); });
+    list.forEach(m => {
+      pumpInputModels.add(m);
+      sum += Number(commQty.get(m)||0);
+    });
     want.set(pump, sum);
+  });
+  // 펌프 계산 전용 입력 row는 결과 품목이 아니다. 실제 상업 실내기 row는
+  // 품명에 '펌프'가 없으므로 그대로 보존하고, 전용 입력 row만 결과에서 제외한다.
+  pumpInputModels.forEach(model=>{
+    const row = COMMULTI.find(x=>x.model===model);
+    if(row && isCommPumpRow(row)) commQty.set(model, 0);
   });
 
   /* 받침대분기관필터집계 */
@@ -5570,8 +5651,7 @@ function recomputeCommDerived(){
           const row = COMMULTI.find(x=>x.model===m); if(!row) return;
            const s = ((row?.name||'')+' '+(row?.disp||'')+' '+(row?.model||'')).toLowerCase();
            const isBase = /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s);
-           if(isBase && COMM_MANUAL_BASE?.has?.(m)) return;
-          want.set(m, (want.get(m)||0) + q);
+           want.set(m, (want.get(m)||0) + q);
         });
       });
 
@@ -5586,7 +5666,6 @@ function recomputeCommDerived(){
         const row = COMMULTI.find(x=>x.model===m); if(!row) return;
         const s = ((row?.name||'')+' '+(row?.disp||'')+' '+(row?.model||'')).toLowerCase();
         const isBase = /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s);
-        if(isBase && COMM_MANUAL_BASE?.has?.(m)) return;
         want.set(m, (want.get(m)||0) + q);
       });
     }
@@ -5605,7 +5684,6 @@ function recomputeCommDerived(){
     for(const [fModel, list] of Object.entries(RENEW_FILTER_MAP)){
       if(list.includes(r.model)){
         if(!COMMULTI.find(x=>x.model===fModel)) continue;
-        if(COMM_MANUAL_BASE?.has?.(fModel)) continue;
         want.set(fModel, (want.get(fModel)||0) + q);
       }
     }
@@ -5640,14 +5718,7 @@ function recomputeCommDerived(){
   /* 반영및갱신 */
   want.forEach((q, m)=>{
     const row = COMMULTI.find(x=>x.model===m); if(!row) return;
-    if(isCommPanelRow(row) && COMM_MANUAL_PANEL?.has?.(m)) return;
-    if(isCommHoseRow(row)  && COMM_MANUAL_HOSE?.has?.(m))  return;
-    if(isCommRemoteRow(row)&& COMM_MANUAL_REMOTE.has(m)) return;
-    if(isCommPumpRow(row)  && COMM_MANUAL_PUMP.has(m))   return;
-    const isBaseRow = /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(((row.name||'')+' '+(row.disp||'')+' '+(row.model||'')).toLowerCase());
-    if(isBaseRow && COMM_MANUAL_BASE?.has?.(m)) return;
-    const isBranchRow = /분\s*기\s*관/i.test(((row.name||'')+' '+(row.disp||'')+' '+(row.model||'')+' '+(row.catL||'')+' '+(row.catM||'')+' '+(row.catS||'')).toLowerCase());
-    if(isBranchRow && COMM_MANUAL_BRANCH?.has?.(m)) return;
+    if(isCommDerivedRow(row) && isManualQtyLocked('commercial', m)) return;
 
     commQty.set(m, q);
     const unit = commUnitPrice(m) || 0;
@@ -5771,7 +5842,9 @@ function syncHomeUIFromState(){
 }
 function syncSingleUIFromState(){
   document.querySelectorAll('#singleBody .qty-input').forEach(inp=>{
-    const id=inp.dataset.sid;const q=singleQty.get(id)||0;inp.value=q?String(q):'';
+    const id=inp.dataset.sid;const q=singleQty.get(id)||0;const manual=isSingleManualLocked(id);inp.value=(q||manual)?String(q):'';
+    inp.style.color=manual?'#2563eb':'';
+    inp.style.fontWeight=manual?'bold':'';
     const s=SINGLE_SETS.find(x=>String(x.id)===String(id));const u=s?calcSetUnitPrice(s):0;
     const uCell=document.querySelector(`#singleBody [data-ssu="${CSS.escape(id)}"]`);
     const sCell=document.querySelector(`#singleBody [data-ss="${CSS.escape(id)}"]`);
@@ -8908,17 +8981,7 @@ function takeSnapshot() {
     commQty: Array.from(commQty.entries()),
     oldQty: Array.from(oldQty.entries()),
     absoluteLock: window.ABSOLUTE_LOCK ? Array.from(window.ABSOLUTE_LOCK) : [],
-    homeManualPanel: Array.from(HOME_MANUAL_PANEL),
-    homeManualHose: Array.from(HOME_MANUAL_HOSE),
-    homeManualRemote: Array.from(HOME_MANUAL_REMOTE),
-    homeManualBranch: Array.from(HOME_MANUAL_BRANCH),
-    homeManualFoot: Array.from(HOME_MANUAL_FOOT),
-    commManualPanel: Array.from(COMM_MANUAL_PANEL),
-    commManualHose: Array.from(COMM_MANUAL_HOSE),
-    commManualRemote: Array.from(COMM_MANUAL_REMOTE),
-    commManualPump: Array.from(COMM_MANUAL_PUMP),
-    commManualBase: Array.from(COMM_MANUAL_BASE),
-    commManualBranch: Array.from(COMM_MANUAL_BRANCH)
+    manualQtyLocks: serializeManualQtyLocks()
   };
 
   return {
@@ -9192,8 +9255,10 @@ function applySnapshot(shot, custName) {
 
   try {
     const form = shot.form || {};
+    const legacyCore = !!shot.core && !hasSnapshotManualQtyLocks(shot.core);
     clearHomeManualLocks();
     clearCommManualLocks();
+    clearManualQtyLocks('single');
 
     for(const [k, v] of Object.entries(form)){
       if(document.querySelector(`input[type="radio"][name="${k}"]`)){
@@ -9216,24 +9281,7 @@ function applySnapshot(shot, custName) {
       res(commQty, shot.core.commQty);
       res(oldQty, shot.core.oldQty);
 
-      /* 홈 파생 수동잠금 복원(D-3: 잠금 필드가 없는 기존 저장분은 Array.isArray 가 false 라
-         복원하지 않고 clearHomeManualLocks() 로 비운 채 유지 — 이 fix 이전과 동일 동작) */
-      const resLock = (s, d) => { if(s && Array.isArray(d)) d.forEach(k=>s.add(k)); };
-      resLock(HOME_MANUAL_PANEL, shot.core.homeManualPanel);
-      resLock(HOME_MANUAL_HOSE, shot.core.homeManualHose);
-      resLock(HOME_MANUAL_REMOTE, shot.core.homeManualRemote);
-      resLock(HOME_MANUAL_BRANCH, shot.core.homeManualBranch);
-      resLock(HOME_MANUAL_FOOT, shot.core.homeManualFoot);
-
-      /* 상업 파생 수동잠금 복원(#967 G-1, D-3 comm 대칭: 잠금 필드가 없는 기존
-         저장분은 Array.isArray 가 false 라 복원하지 않고 clearCommManualLocks() 로
-         비운 채 유지 — 이 fix 이전과 동일 동작) */
-      resLock(COMM_MANUAL_PANEL, shot.core.commManualPanel);
-      resLock(COMM_MANUAL_HOSE, shot.core.commManualHose);
-      resLock(COMM_MANUAL_REMOTE, shot.core.commManualRemote);
-      resLock(COMM_MANUAL_PUMP, shot.core.commManualPump);
-      resLock(COMM_MANUAL_BASE, shot.core.commManualBase);
-      resLock(COMM_MANUAL_BRANCH, shot.core.commManualBranch);
+      restoreSnapshotManualQtyLocks(shot.core);
     }
 
     if(shot.branch){
@@ -9264,6 +9312,14 @@ function applySnapshot(shot, custName) {
     if(typeof recomputeHomeDerived==='function') recomputeHomeDerived(true);
     if(typeof recomputeSingleBaseFoot==='function') recomputeSingleBaseFoot();
     if(typeof recomputeCommDerived==='function') recomputeCommDerived();
+    if(legacyCore && shot.core){
+      restoreLegacyDerivedQty('home', homeQty, shot.core.homeQty);
+      restoreLegacyDerivedQty('single', singleQty, shot.core.singleQty);
+      restoreLegacyDerivedQty('commercial', commQty, shot.core.commQty);
+      if(typeof syncHomeUIFromState==='function') syncHomeUIFromState();
+      if(typeof syncSingleUIFromState==='function') syncSingleUIFromState();
+      if(typeof syncCommManualUI==='function') syncCommManualUI();
+    }
     if(typeof refreshSelectedBadge==='function') refreshSelectedBadge();
 
     alert('✅ 복원 완료');

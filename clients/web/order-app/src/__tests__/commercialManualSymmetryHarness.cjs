@@ -22,17 +22,29 @@ function bundle(source, names) {
 }
 
 const SETS = `
-  const COMM_MANUAL_PANEL = new Set();
-  const COMM_MANUAL_HOSE = new Set();
-  const COMM_MANUAL_REMOTE = new Set();
-  const COMM_MANUAL_PUMP = new Set();
-  const COMM_MANUAL_BASE = new Set();
-  const COMM_MANUAL_BRANCH = new Set();
+  const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const COMM_MANUAL_PANEL = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_HOSE = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_REMOTE = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_PUMP = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_BASE = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_BRANCH = MANUAL_QTY_LOCKS.commercial;
 `;
 
 function runExplicitZeroScenario() {
   const source = sourceFor('order');
   const functions = bundle(source, [
+    'rawNameOf',
+    'lockScope_',
+    'targetScope_',
+    'registerDerivedQty',
+    'isManualQtyLocked',
+    'setManualQtyLock',
+    'clearManualQtyLocks',
+    'isCommIndoorRow',
+    'isCommOutdoorRow',
+    'isCommDerivedRow',
     'isCommPanelRow',
     'isCommHoseRow',
     'isCommRemoteRow',
@@ -57,30 +69,43 @@ function runExplicitZeroScenario() {
 
 function runOptionScenario(controlId) {
   const source = sourceFor('order');
-  const functions = bundle(source, ['onCommOptionChange']);
+  const functions = bundle(source, [
+    'rawNameOf', 'lockScope_', 'targetScope_', 'registerDerivedQty', 'setManualQtyLock', 'clearManualQtyLocks',
+    'isCommPanelRow', 'isCommHoseRow', 'isCommRemoteRow',
+    'onCommOptionChange',
+  ]);
   const script = `
     ${SETS}
     let recomputeCount = 0;
     const document = { querySelectorAll: () => [] };
-    const COMMULTI = [];
+    const COMMULTI = [
+      { model: 'PANEL-MODEL', name: '판넬' },
+      { model: 'HOSE-MODEL', name: '유연호스' },
+      { model: 'REMOTE-MODEL', name: '유선리모컨' },
+      { model: 'PUMP-MODEL', name: '드레인펌프' },
+      { model: 'BASE-MODEL', name: '방진가대S2소' },
+    ];
     const recomputeCommDerived = () => { recomputeCount += 1; };
     const syncCommManualUI = () => {};
     const syncCommTotals = () => {};
     const updateInlineTotals = () => {};
     ${functions}
-    const model = 'LOCK-MODEL';
-    COMM_MANUAL_PANEL.add(model);
-    COMM_MANUAL_HOSE.add(model);
-    COMM_MANUAL_REMOTE.add(model);
-    COMM_MANUAL_PUMP.add(model);
-    COMM_MANUAL_BASE.add(model);
+    const panelModel = 'PANEL-MODEL';
+    const hoseModel = 'HOSE-MODEL';
+    const remoteModel = 'REMOTE-MODEL';
+    const pumpModel = 'PUMP-MODEL';
+    const baseModel = 'BASE-MODEL';
+    [panelModel, hoseModel, remoteModel, pumpModel, baseModel].forEach((model) => {
+      registerDerivedQty('commercial', model);
+      setManualQtyLock('commercial', model, true);
+    });
     onCommOptionChange(${JSON.stringify(controlId)});
     globalThis.__result = {
-      panel: COMM_MANUAL_PANEL.has(model),
-      hose: COMM_MANUAL_HOSE.has(model),
-      remote: COMM_MANUAL_REMOTE.has(model),
-      pump: COMM_MANUAL_PUMP.has(model),
-      base: COMM_MANUAL_BASE.has(model),
+      panel: COMM_MANUAL_PANEL.has(panelModel),
+      hose: COMM_MANUAL_HOSE.has(hoseModel),
+      remote: COMM_MANUAL_REMOTE.has(remoteModel),
+      pump: COMM_MANUAL_PUMP.has(pumpModel),
+      base: COMM_MANUAL_BASE.has(baseModel),
       recomputeCount,
     };
   `;
@@ -92,6 +117,12 @@ function runOptionScenario(controlId) {
 function runVisualScenario() {
   const source = sourceFor('order');
   const functions = bundle(source, [
+    'rawNameOf',
+    'lockScope_',
+    'isManualQtyLocked',
+    'isCommIndoorRow',
+    'isCommOutdoorRow',
+    'isCommDerivedRow',
     'isCommPanelRow',
     'isCommHoseRow',
     'isCommRemoteRow',
@@ -130,7 +161,9 @@ function sourceGuardReport(app) {
   const binding = extractFunctionSource(source, 'bindCommQtyEvents');
   const outdoorClear = /isCommOutdoorRow\([\s\S]{0,700}COMM_MANUAL_BASE\.clear\(\)/.test(binding);
   return {
-    accessoryChecksManualBase: /COMM_MANUAL_BASE(?:\?\.)?\.has\(/.test(recalc),
+    accessoryChecksManualBase: app === 'order'
+      ? /isManualQtyLocked\(['"]commercial['"]/.test(recalc)
+      : /COMM_MANUAL_BASE(?:\?\.)?\.has\(/.test(recalc),
     outdoorClear,
   };
 }

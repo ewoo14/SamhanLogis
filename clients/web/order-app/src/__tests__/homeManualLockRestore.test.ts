@@ -63,7 +63,7 @@ describe('#963 R1 결함 A — 홈 파생 5계열: 칸을 지우면 잠금 해�
   });
 });
 
-describe('#963 R1 결함 B — 저장내역 복원 시 수동수량 보존(D-3: 기존 저장분은 동작 불변)', () => {
+describe('#963 R1/R2 결함 B — 저장내역 복원 시 수동수량 보존(구형 snapshot 포함)', () => {
   test.each(SERIES)('%s — 신규 저장분은 잠금이 직렬화되고 복원 후에도 수동값이 보존된다', (_label, family, model) => {
     const result = runSnapshotRoundtrip({ family, model, lockValue: LOCK_VALUE, legacyShot: false });
 
@@ -75,15 +75,14 @@ describe('#963 R1 결함 B — 저장내역 복원 시 수동수량 보존(D-3: 
     expect(result.valueAfterRestore).toBe(LOCK_VALUE);
   });
 
-  test.each(SERIES)('%s — D-3: 잠금 필드가 없는 기존 저장분의 복원 결과는 이 fix로 바뀌지 않는다', (_label, family, model) => {
-    const auto = autoGolden(family, model);
+  test.each(SERIES)('%s — 잠금 배열이 없는 구형 저장분도 수동 입력을 보존한다', (_label, family, model) => {
     const result = runSnapshotRoundtrip({ family, model, lockValue: LOCK_VALUE, legacyShot: true });
 
     // 기존(legacy) 스냅샷은 애초에 잠금 필드를 직렬화하지 않았다
     expect(result.anyLockSerialized).toBe(false);
 
-    // 잠금 없이 복원 → recomputeHomeDerived(true)가 자동값으로 덮는다 — fix 이전과 동일 동작
-    expect(result.lockedAfterRestore).toBe(false);
-    expect(result.valueAfterRestore).toBe(auto);
+    // H-2: 구형 snapshot은 당시 잠금 배열이 없었어도 snapshot의 사용자 수량을 보존한다.
+    expect(result.lockedAfterRestore).toBe(true);
+    expect(result.valueAfterRestore).toBe(LOCK_VALUE);
   });
 });

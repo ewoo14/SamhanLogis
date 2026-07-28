@@ -36,6 +36,14 @@ const {
 const { fixtures } = require('../../../legacy-quantity-golden/fixtures');
 
 const HOME_RECOMPUTE_FUNCTIONS = [
+  'lockScope_',
+  'targetScope_',
+  'registerDerivedQty',
+  'isManualQtyLocked',
+  'setManualQtyLock',
+  'setDerivedQty',
+  'seedDerivedQty',
+  'clearManualQtyLocks',
   'inferOneWaySize',
   'isPanelRow',
   'isRemoteRow',
@@ -48,6 +56,7 @@ const HOME_RECOMPUTE_FUNCTIONS = [
   'recomputeHomePanels',
   'recomputeHomeDerived',
   'isHomeCalcTriggerModel',
+  'isHomeDerivedRow',
   'onHomeQtyInput',
 ];
 
@@ -91,11 +100,13 @@ const COMMON_STUBS = `
 `;
 
 const HOME_MANUAL_SETS_DECL = `
-  const HOME_MANUAL_PANEL = new Set();
-  const HOME_MANUAL_HOSE = new Set();
-  const HOME_MANUAL_REMOTE = new Set();
-  const HOME_MANUAL_BRANCH = new Set();
-  const HOME_MANUAL_FOOT = new Set();
+  const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const HOME_MANUAL_PANEL = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_HOSE = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_REMOTE = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_BRANCH = MANUAL_QTY_LOCKS.home;
+  const HOME_MANUAL_FOOT = MANUAL_QTY_LOCKS.home;
 `;
 
 const LOCK_CHECK = (model) => `(

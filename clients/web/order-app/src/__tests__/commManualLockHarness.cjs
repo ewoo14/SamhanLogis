@@ -27,6 +27,18 @@ const {
 const { fixtures } = require('../../../legacy-quantity-golden/fixtures');
 
 const COMM_FUNCTIONS = [
+  'lockScope_',
+  'targetScope_',
+  'registerDerivedQty',
+  'isManualQtyLocked',
+  'setManualQtyLock',
+  'clearManualQtyLocks',
+  'setDerivedQty',
+  'seedDerivedQty',
+  'serializeManualQtyLocks',
+  'hasSnapshotManualQtyLocks',
+  'restoreSnapshotManualQtyLocks',
+  'restoreLegacyDerivedQty',
   'rawNameOf',
   'isCommIndoorRow',
   'isCommOutdoorRow',
@@ -43,6 +55,7 @@ const COMM_FUNCTIONS = [
   'modelByNameLike',
   'countBranchForSet',
   'computeCommPanelModelForIndoor_',
+  'isCommDerivedRow',
   'commManualSetForRow',
   'isCommManualLocked',
   'recomputeCommDerived',
@@ -108,12 +121,14 @@ const COMMON_STUBS = `
 `;
 
 const COMM_MANUAL_SETS_DECL = `
-  const COMM_MANUAL_PANEL = new Set();
-  const COMM_MANUAL_HOSE = new Set();
-  const COMM_MANUAL_REMOTE = new Set();
-  const COMM_MANUAL_PUMP = new Set();
-  const COMM_MANUAL_BASE = new Set();
-  const COMM_MANUAL_BRANCH = new Set();
+  const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
+  const COMM_MANUAL_PANEL = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_HOSE = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_REMOTE = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_PUMP = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_BASE = MANUAL_QTY_LOCKS.commercial;
+  const COMM_MANUAL_BRANCH = MANUAL_QTY_LOCKS.commercial;
 `;
 
 const LOCK_CHECK = (model) => `(
@@ -268,7 +283,7 @@ function runCommSnapshotRoundtrip({ family, model, lockValue, legacyShot, source
   ]);
   const modelJson = JSON.stringify(model);
   const stripLockFields = legacyShot
-    ? `delete shot.core.commManualPanel; delete shot.core.commManualHose; delete shot.core.commManualRemote; delete shot.core.commManualPump; delete shot.core.commManualBase; delete shot.core.commManualBranch;`
+    ? `delete shot.core.manualQtyLocks; delete shot.core.commManualPanel; delete shot.core.commManualHose; delete shot.core.commManualRemote; delete shot.core.commManualPump; delete shot.core.commManualBase; delete shot.core.commManualBranch;`
     : '';
   const script = `
     const window = { SHOW_I_HOSE: false, ABSOLUTE_LOCK: new Set() };
@@ -303,15 +318,8 @@ function runCommSnapshotRoundtrip({ family, model, lockValue, legacyShot, source
     /* 2) 저장 */
     const shot = takeSnapshot();
     ${stripLockFields}
-    const serializedLockArrays = {
-      commManualPanel: shot.core.commManualPanel,
-      commManualHose: shot.core.commManualHose,
-      commManualRemote: shot.core.commManualRemote,
-      commManualPump: shot.core.commManualPump,
-      commManualBase: shot.core.commManualBase,
-      commManualBranch: shot.core.commManualBranch,
-    };
-    const anyLockSerialized = Object.values(serializedLockArrays).some((arr) => Array.isArray(arr) && arr.includes(${modelJson}));
+    const serializedLockArrays = shot.core.manualQtyLocks?.commercial || [];
+    const anyLockSerialized = Array.isArray(serializedLockArrays) && serializedLockArrays.includes(${modelJson});
 
     /* 3) 완전히 새 세션(잠금 0·수량 0)에서 복원 — 페이지 재진입/새로고침을 흉내낸다 */
     commQty.clear();
