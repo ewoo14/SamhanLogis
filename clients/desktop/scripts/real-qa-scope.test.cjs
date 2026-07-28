@@ -830,7 +830,9 @@ test('F-3 RED: Playwright가 실제로 매치하지 않는 repo-relative anchore
   assert.deepEqual([...requested], [], 'repo-relative anchored regex는 Playwright 후보와 일치하지 않아야 합니다(F-3 과통과 방지)')
 })
 
-test('F-3 RED: Windows file URL 정규식은 Playwright 후보처럼 게이트도 선택한다', () => {
+test('F-3 RED: Windows file URL 정규식은 Playwright 후보처럼 게이트도 선택한다', {
+  skip: process.platform === 'win32' ? undefined : 'Windows file URL matcher requires Windows path/file URL semantics',
+}, () => {
   const file = 'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts'
   const absolute = path.resolve('C:\\fakerepo-no-digit-collision', file).replaceAll('\\', '/')
   const fileUrl = `^file:///${absolute}$`
