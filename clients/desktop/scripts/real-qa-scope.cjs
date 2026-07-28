@@ -288,6 +288,16 @@ function writeExceptionModeWarning(scopedMismatch, { suppressStdout = false } = 
 function decideRealQaScope({ scope, allowUntracked, explicitPathArgs, repoRoot, suppressStdoutWarning = false }) {
   const requestedFiles = resolveRequestedFiles({ scope, explicitPathArgs, repoRoot })
   if (requestedFiles.size === 0) {
+    if (explicitPathArgs.length > 0) {
+      throw new Error(
+        [
+          '[real-QA 위치 인자 불일치] 전달한 위치 인자가 real-QA 스펙을 하나도 선택하지 않아 실행을 차단합니다.',
+          `전달한 위치 인자: ${explicitPathArgs.join(' ')}`,
+          '파일 경로·디렉터리·파일명 조각 또는 Playwright가 해석하는 정규식 형태를 확인하십시오.',
+        ].join('\n'),
+      )
+    }
+
     const sections = [
       '[real-QA 전체 실행 차단] 파일을 명시하지 않은 real-QA 실행은 허용하지 않습니다.',
       '실행할 스펙 파일·디렉터리·글롭·파일명 조각을 위치 인자로 전달하십시오.',

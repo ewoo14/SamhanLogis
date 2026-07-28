@@ -513,6 +513,29 @@ test('R2-1 경계: 알려진 파일 어디에도 없는 단어는 narrow 실행�
 // "2" 같은 흔한 한 글자와 우연히 겹칠 수 있어(실제로 최초 작성판에서 발생) fixture 기반은
 // 이 시나리오에 비결정적이다. FAKE_REPO_ROOT 는 숫자를 전혀 포함하지 않는 고정 문자열이라
 // 결정적이다.
+test('message: supplied location arguments with zero matches are not reported as no arguments', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/902-slip-line-ecount-real-qa/902-slip-line-ecount-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+
+    assert.throws(
+      () =>
+        decideRealQaScope({
+          scope: getRealQaScope({ repoRoot: tempRoot }),
+          allowUntracked: false,
+          explicitPathArgs: ['clients/desktop/playwright/902-slip-line-ecount-real-qa/*.spec.ts'],
+          repoRoot: tempRoot,
+        }),
+      /real-QA 위치 인자 불일치/,
+      'A supplied argument with zero matches must not use the no-argument message.',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
 const FAKE_REPO_ROOT = 'C:\\fakerepo-no-digit-collision'
 
 test('R2-1 경계(신규 발견): 공백형 값 플래그(--reporter line 등)의 값이 실제 파일명 일부와 우연히 겹쳐도 narrow 오인되지 않는다', () => {
