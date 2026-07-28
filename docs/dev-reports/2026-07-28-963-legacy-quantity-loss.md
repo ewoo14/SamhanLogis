@@ -900,3 +900,104 @@ EXIT=0
 ```
 
 신규 파일은 이전 SOL2 작업에서 생성된 `sol2QuantityFix.test.ts`, `sol2QuantityFixHarness.cjs`, `qa-963-sol2-fix.mjs`, `docs/qa/2026-07-28-963-sol-round2/`이며, 이번 최종 2건 처리에서 새 파일은 만들지 않았다. §14.9까지 포함한 report의 최종 numstat 행은 `400\t0\tdocs/dev-reports/2026-07-28-963-legacy-quantity-loss.md`이다.
+
+## 14.10 CI RED — 견적·주문 앱별 함수 추출 경계
+
+### 14.10.1 원인과 최소 수정
+
+`f8d873ab1`에서 `legacyQuantityBoundary.js`의 홈·싱글·상업 함수 목록에 SOL2 주문 전용 헬퍼를 넣었다. 견적 정본 `clients/web/estimate-app/views/index.ejs`에는 `lockScope_`, `targetScope_`, `registerDerivedQty`, `isManualQtyLocked`, `setManualQtyLock`, `setDerivedQty`, `seedDerivedQty`, `isHomeDerivedRow`, `isSingleDerivedRow`, `isSingleManualLocked`, `applySingleManualLock`, `isCommDerivedRow`가 없었다. 따라서 견적 골든의 첫 H-01에서 `lockScope_ 함수를 찾을 수 없습니다.`가 발생했다.
+
+`clients/web/legacy-quantity-golden/legacyQuantityBoundary.js:86-104`에 앱별 선택 경계를 추가했다. `sourceFunctionBundleForApp(..., 'order', ...)`는 원래 목록 전체를 기존의 필수 `sourceFunctionBundle`로 추출한다. 주문 소스에 함수가 없으면 여전히 즉시 예외가 난다. 견적 앱에서만 위 12개 주문 전용 헬퍼를 목록에서 제외하고, 나머지 도메인 함수는 계속 필수 추출한다. 견적 정본의 구형 함수가 참조하는 기존 수동 상태도 `runHome:230-234`, `runCommercial:341-345`에서 원래 이름의 Set으로 복원했다. 골든 기대값과 제품 정본은 변경하지 않았다.
+
+### 14.10.2 재현 및 로컬 설치 함정
+
+수정 전 견적 테스트를 `npm ci` 후 실행해 다음 RED를 재현했다.
+
+```text
+> @samhan/estimate-app@2.0.0 test
+> jest --passWithNoTests --runInBand
+
+FAIL test/legacy-quantity-golden.test.js
+  ● 단계 0 견적 앱 legacy 수량 경계 golden › H-01 수량·target 모델이 golden과 같다
+
+    lockScope_ 함수를 찾을 수 없습니다.
+
+Test Suites: 1 failed, 7 passed, 8 total
+Tests:       61 failed, 114 passed, 175 total
+Ran all test suites.
+EXIT=1
+```
+
+이전 로컬 확인에서 `estimate-app`은 `node_modules`가 설치되지 않아 Jest를 실행하지 못했다. 그 상태가 CI에서 처음 드러난 함정이다. 이번 검증에서는 먼저 `npm ci`를 실행했다.
+
+```text
+added 382 packages, and audited 383 packages in 10s
+EXIT=0
+```
+
+### 14.10.3 견적 앱 전체 테스트 GREEN 원문
+
+```text
+> @samhan/estimate-app@2.0.0 test
+> jest --passWithNoTests
+
+PASS test/version-gate.test.js
+PASS test/version-check.test.js
+PASS test/db-catalog.test.js
+PASS test/directory.test.js
+PASS test/default-component-baseline.test.js
+PASS test/calc-fidelity.test.js
+PASS test/code.test.js
+PASS test/legacy-quantity-golden.test.js
+
+Test Suites: 8 passed, 8 total
+Tests:       175 passed, 175 total
+Snapshots:   0 total
+Time:        4.388 s
+Ran all test suites.
+EXIT=0
+```
+
+### 14.10.4 주문 앱 전체 및 강제성 검증 원문
+
+```text
+> @samhan/order-app@0.4.0 test
+> vitest run
+
+✓ src/__tests__/sanity.test.ts (2 tests)
+✓ src/__tests__/commSetIndex.test.ts (1 test)
+✓ src/__tests__/legacyConfigMapping.test.ts (2 tests)
+✓ src/__tests__/bootstrapFailure.test.ts (2 tests)
+✓ src/__tests__/priceChangeSchedule.test.ts (10 tests)
+✓ src/__tests__/legacyPreexistingFix.test.ts (2 tests)
+✓ src/version/versionGate.test.ts (2 tests)
+✓ src/version/versionCheck.test.ts (5 tests)
+✓ src/__tests__/samhanApi.test.ts (5 tests)
+✓ src/__tests__/sol2QuantityFix.test.ts (9 tests)
+✓ src/__tests__/homeOptionAndZeroLockRestore.test.ts (10 tests)
+✓ src/__tests__/commercialManualSymmetry.test.ts (9 tests)
+✓ src/__tests__/homeManualLockRestore.test.ts (16 tests)
+✓ src/__tests__/commManualLockRestore.test.ts (24 tests)
+✓ src/__tests__/legacy-quantity-golden.test.ts (73 tests)
+
+Test Files  15 passed (15)
+Tests       172 passed (172)
+EXIT=0
+```
+
+주문 경계의 필수 추출이 약해지지 않았는지는 저장소를 건드리지 않는 `sourceMutator`로 확인했다. H-01 기준 원문은 다음과 같다. `function lockScope_`를 메모리상 `function removed_lockScope_`로 바꾼 뒤 평가하고, 예외 후 변이 문자열을 폐기했으므로 작업 트리 파일은 원상 그대로다.
+
+```text
+baseline order H-01: {"AM020BN1PBH1":2,"AM052BN4DBH1":1,"AM083BN6PBH1":1,"FH-LFHLF":2,"FH-LFHLF4W":2,"AR-EC05":3,"AR-KH05":1,"PC1NWSK3NW":2,"PC4NUFK1NW":1,"PC6NUDK1NW":1}
+expected order H-01: {"AM020BN1PBH1":2,"AM052BN4DBH1":1,"AM083BN6PBH1":1,"FH-LFHLF":2,"FH-LFHLF4W":2,"AR-EC05":3,"AR-KH05":1,"PC1NWSK3NW":2,"PC4NUFK1NW":1,"PC6NUDK1NW":1}
+mutated order H-01: RED
+lockScope_ 함수를 찾을 수 없습니다.
+EXIT=0
+```
+
+### 14.10.5 최종 읽기 전용 `git diff --numstat` 개별 파일 원문
+
+```text
+38\t3\tclients/web/legacy-quantity-golden/legacyQuantityBoundary.js
+101\t0\tdocs/dev-reports/2026-07-28-963-legacy-quantity-loss.md
+```

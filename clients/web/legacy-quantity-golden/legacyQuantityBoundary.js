@@ -80,6 +80,31 @@ function sourceFunctionBundle(source, names) {
   return names.map((name) => extractFunctionSource(source, name)).join('\n');
 }
 
+// SOL2 수동 잠금 헬퍼는 주문 정본에만 추가됐다. 주문 실행은 이 목록도
+// sourceFunctionBundle()로 계속 필수 추출하고, 견적 실행에서만 제외한다.
+// 나머지 도메인 함수는 양쪽 정본에 반드시 있어야 하므로 여전히 누락 시 실패한다.
+const ORDER_ONLY_QUANTITY_HELPERS = new Set([
+  'lockScope_',
+  'targetScope_',
+  'registerDerivedQty',
+  'isManualQtyLocked',
+  'setManualQtyLock',
+  'setDerivedQty',
+  'seedDerivedQty',
+  'isHomeDerivedRow',
+  'isSingleDerivedRow',
+  'isSingleManualLocked',
+  'applySingleManualLock',
+  'isCommDerivedRow',
+]);
+
+function sourceFunctionBundleForApp(source, app, names) {
+  const selected = app === 'order'
+    ? names
+    : names.filter((name) => !ORDER_ONLY_QUANTITY_HELPERS.has(name));
+  return sourceFunctionBundle(source, selected);
+}
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -173,7 +198,7 @@ function catalogPreludeScript(source, input) {
 function runHome(source, input) {
   const quantities = input.sourceQuantities || {};
   const locks = input.manualLocks?.home || {};
-  const functions = sourceFunctionBundle(source, [
+  const functions = sourceFunctionBundleForApp(source, input.app || 'estimate', [
     'lockScope_',
     'targetScope_',
     'registerDerivedQty',
@@ -202,6 +227,11 @@ function runHome(source, input) {
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    const HOME_MANUAL_PANEL = new Set();
+    const HOME_MANUAL_HOSE = new Set();
+    const HOME_MANUAL_REMOTE = new Set();
+    const HOME_MANUAL_BRANCH = new Set();
+    const HOME_MANUAL_FOOT = new Set();
     const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
     const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
     ${functions}
@@ -229,7 +259,7 @@ function runSingle(source, input) {
     .map((name) => extractOptionalFunctionSource(source, name))
     .filter(Boolean);
   const functions = [
-    sourceFunctionBundle(source, [
+    sourceFunctionBundleForApp(source, input.app || 'estimate', [
       'lockScope_',
       'targetScope_',
       'registerDerivedQty',
@@ -274,7 +304,7 @@ function runCommercial(source, input) {
   const rows = clone(input.catalog?.commercial || []);
   const quantities = input.sourceQuantities || {};
   const locks = input.manualLocks?.commercial || {};
-  const functions = sourceFunctionBundle(source, [
+  const functions = sourceFunctionBundleForApp(source, input.app || 'estimate', [
     'lockScope_',
     'targetScope_',
     'registerDerivedQty',
@@ -308,6 +338,11 @@ function runCommercial(source, input) {
     ${catalogPreludeScript(source, input)}
     const COMMULTI = ${JSON.stringify(rows)};
     const commQty = new Map(Object.entries(${JSON.stringify(quantities)}));
+    const COMM_MANUAL_PANEL = new Set(${JSON.stringify(locks.panel || [])});
+    const COMM_MANUAL_HOSE = new Set(${JSON.stringify(locks.hose || [])});
+    const COMM_MANUAL_REMOTE = new Set(${JSON.stringify(locks.remote || [])});
+    const COMM_MANUAL_PUMP = new Set(${JSON.stringify(locks.pump || [])});
+    const COMM_MANUAL_BASE = new Set(${JSON.stringify(locks.base || [])});
     const MANUAL_QTY_LOCKS = {
       home: new Set(),
       commercial: new Set([
