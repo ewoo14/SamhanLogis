@@ -263,3 +263,24 @@ npx cap open android
   실행 가능, CI `qa-e2e.yml`의 `desktop-playwright` 잡에도 등재).
 
 제약: N1은 Android 스캐폴드와 자산 sync 기반 구축 단계다. 실제 APK/스토어 배포, iOS 스캐폴드/빌드, secure storage 승격, 푸시/생체인증/스캔은 후속 N2~N5 범위다. 실기기 운영 검증은 Phase 11 HTTPS 게이트웨이 확보 후 진행한다.
+
+## 공유 real-QA 수집 범위와 로컬 파생물 신선도 (2026-07-28, #964)
+
+`playwright.real-qa.config.ts`의 기본 실행은 `git ls-files --cached`로 확인한
+`*-real-qa.spec.ts` 추적 집합과 디스크 집합이 일치할 때만 시작한다. 미추적 또는 누락 스펙이
+있으면 정확한 파일명을 출력하고 공식 실행을 중단하므로, 로컬 결과를 CI 수치로 오인하지 않는다.
+`.gitignore`에 적힌 경로라도 이미 추적된 스펙은 공식 집합에 포함된다.
+
+로컬에서 만든 스펙을 의도적으로 실행할 때만 아래처럼 환경변수와 명시 경로를 함께 사용한다.
+이 모드는 공식 수치에 사용하지 않는다.
+
+```powershell
+cd clients/desktop
+$env:REAL_QA_ALLOW_UNTRACKED='1'
+node_modules\.bin\playwright.cmd test --config=playwright.real-qa.config.ts `
+  playwright/n1b-native-qa/my-local-real-qa.spec.ts --reporter=line
+```
+
+`npm run typecheck`와 `npm test`는 `file:` 의존 design-system `dist`, 설치된
+`electron-updater`, Electron `out/main/index.js`의 신선도를 먼저 확인한다. stale 또는 누락이면
+코드 오류로 표시하지 않고 필요한 빌드·설치 명령을 안내한다.

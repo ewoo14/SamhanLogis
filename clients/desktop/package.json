@@ -20,11 +20,12 @@
     "preview": "electron-vite preview",
     "build:win": "node ../../scripts/build-desktop-release.cjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "pretest": "node scripts/real-qa-scope.cjs --phase=test",
     "test": "vitest run",
     "test:round-910-contract": "node --test scripts/round-910-contract.test.cjs",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit && npm run typecheck:real-qa",
-    "typecheck:real-qa": "node --test scripts/real-qa-cleanup-scope.test.cjs",
+    "typecheck": "node scripts/real-qa-scope.cjs --phase=typecheck && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit && npm run typecheck:real-qa",
+    "typecheck:real-qa": "node --test scripts/real-qa-cleanup-scope.test.cjs && node --test scripts/real-qa-scope.test.cjs",
     "capture:v4": "node scripts/capture-v4-sales.cjs"
   },
   "dependencies": {

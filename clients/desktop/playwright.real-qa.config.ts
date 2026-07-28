@@ -2,7 +2,8 @@
  * playwright.real-qa.config.ts
  *
  * 실서버 QA 전용 Playwright 설정 — repo 공유 하네스(전체 real-QA 스펙 대상).
- * testIgnore 없이 *-real-qa.spec.ts 파일을 직접 실행한다.
+ * 기본 실행은 Git 추적 스펙 집합과 디스크 수집 집합이 일치할 때만 시작한다.
+ * 미추적 스펙이 섞이면 파일명을 출력하고 공식 실행을 중단한다.
  *
  * 🚨 [SONNET5 R3 HIGH-2 fix] R2 가 testMatch 를 이 슬라이스 스펙 1개로 좁혀 repo 전체
  * real-QA 스펙(172개 파일 · 548개 테스트, 2026-07-27 실측)을 무력화했었다(공유 하네스를
@@ -49,8 +50,26 @@
  *   # 이 슬라이스(#825 슬5)만 격리 실행:
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000 `
  *     playwright/825-s5-null-semantics-real-qa/825-s5-null-semantics-real-qa.spec.ts
+ *
+ * 의도적인 미추적 로컬 스펙 실행(공식 수치에 사용하지 않음):
+ *   $env:REAL_QA_ALLOW_UNTRACKED='1'
+ *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts `
+ *     playwright/n1b-native-qa/my-local-real-qa.spec.ts --reporter=line
  */
+import { createRequire } from 'node:module'
 import { defineConfig, devices } from '@playwright/test'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const require = createRequire(import.meta.url)
+const { assertRealQaScope } = require('./scripts/real-qa-scope.cjs') as {
+  assertRealQaScope: (options: { repoRoot: string; allowUntracked?: boolean }) => unknown
+}
+const desktopRoot = path.dirname(fileURLToPath(import.meta.url))
+assertRealQaScope({
+  repoRoot: path.resolve(desktopRoot, '../..'),
+  allowUntracked: process.env['REAL_QA_ALLOW_UNTRACKED'] === '1',
+})
 
 /**
  * 배치 실행 기본 오리진 — 데스크톱 렌더러(HashRouter). repo 대다수 real-QA 스펙의 목표이며
