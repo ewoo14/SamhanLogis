@@ -750,32 +750,41 @@ test(
   { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
   () => {
     const libPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1')
-    let substLetter = null
-    for (let code = 87; code <= 90; code += 1) {
-      const candidate = String.fromCharCode(code)
-      if (!fs.existsSync(`${candidate}:\\`)) {
-        substLetter = candidate
-        break
-      }
-    }
-    assert.ok(substLetter, '이 머신에서 subst 에 쓸 미사용 드라이브 문자(W~Z)를 찾지 못했습니다')
 
-    // --- subst ---
-    execFileSync('subst', [`${substLetter}:`, docsQaRoot])
-    try {
-      const psCommand = [
-        `. '${libPath}'`,
-        `try { Resolve-QaShotsDir -CommittedDir '${MY_FIXTURE_COMMITTED_DIR}' -RequestedDir '${substLetter}:\\__957-r5-libps1-subst-guard-fixture__' | Out-Null; Write-Output 'ALLOW' } catch { Write-Output ('BLOCK:' + $_.Exception.Message) }`,
-      ].join('; ')
-      const out = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 20000 })
-      assert.match(
-        out,
-        /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
-        `qa-shots-dir.ps1 이 subst 드라이브(${substLetter}:)를 통해 지정된 커밋 경로를 차단하지 못했습니다(결함2 재발). 출력: ${out}`,
-      )
-    } finally {
-      execFileSync('subst', [`${substLetter}:`, '/D'])
-      fs.rmSync(path.join(docsQaRoot, '__957-r5-libps1-subst-guard-fixture__'), { recursive: true, force: true })
+    // --- subst (Windows 전용 개념 — Linux 에는 subst.exe 자체가 없다) ---
+    // (2026-07-28 CI RED② fix) 이 블록은 process.platform 분기 없이 subst 를 무조건 실행해
+    // Linux CI 에서 spawnSync ENOENT 로 죽었다(subst 바이너리 부재 — 가드 판정과 무관한
+    // 테스트 하네스 결함). T-9/T-14(UNC admin-share)·GITBASH_SKIP_REASON(.sh 전체)과 동일하게
+    // Windows 전용으로 gate 한다 — 결함2 자체와 무관하다. 아래 크로스드라이브 junction(D-2
+    // 계열)은 심볼릭 링크로 흉내내 전 플랫폼에서 계속 검증한다(Get-QaFinalPhysicalPath 가
+    // 2026-07-28 CI RED② fix 로 비-Windows 에서도 ResolveLinkTarget 를 쓰게 됐으므로 실제로
+    // 의미가 있다).
+    if (isWindowsPlatform()) {
+      let substLetter = null
+      for (let code = 87; code <= 90; code += 1) {
+        const candidate = String.fromCharCode(code)
+        if (!fs.existsSync(`${candidate}:\\`)) {
+          substLetter = candidate
+          break
+        }
+      }
+      assert.ok(substLetter, '이 머신에서 subst 에 쓸 미사용 드라이브 문자(W~Z)를 찾지 못했습니다')
+      execFileSync('subst', [`${substLetter}:`, docsQaRoot])
+      try {
+        const psCommand = [
+          `. '${libPath}'`,
+          `try { Resolve-QaShotsDir -CommittedDir '${MY_FIXTURE_COMMITTED_DIR}' -RequestedDir '${substLetter}:\\__957-r5-libps1-subst-guard-fixture__' | Out-Null; Write-Output 'ALLOW' } catch { Write-Output ('BLOCK:' + $_.Exception.Message) }`,
+        ].join('; ')
+        const out = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 20000 })
+        assert.match(
+          out,
+          /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
+          `qa-shots-dir.ps1 이 subst 드라이브(${substLetter}:)를 통해 지정된 커밋 경로를 차단하지 못했습니다(결함2 재발). 출력: ${out}`,
+        )
+      } finally {
+        execFileSync('subst', [`${substLetter}:`, '/D'])
+        fs.rmSync(path.join(docsQaRoot, '__957-r5-libps1-subst-guard-fixture__'), { recursive: true, force: true })
+      }
     }
 
     // --- 크로스드라이브 junction(D-2) — tempRoot(보통 C: 아래)에 junction 을 만들어
@@ -949,7 +958,15 @@ test(
 
 test(
   'T-17 (2026-07-28 R5 재수렴 결함2) — operational-validation.ps1 은 subst 드라이브를 통해 지정된 커밋 경로도 차단한다',
-  { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
+  {
+    // (2026-07-28 CI RED② fix) subst 는 Windows 전용 개념(Linux 에는 subst.exe 자체가 없다) —
+    // process.platform 분기 없이 무조건 실행해 Linux CI 에서 spawnSync ENOENT 로 죽었다.
+    // T-9/T-14(UNC admin-share)·GITBASH_SKIP_REASON(.sh 전체)과 동일하게 Windows 전용으로
+    // gate 한다 — 결함2 자체와 무관한 결함이다. D-2(크로스드라이브 junction, 별도 테스트)는
+    // 심볼릭 링크로 흉내내 전 플랫폼에서 계속 검증한다.
+    skip: POWERSHELL_SKIP_REASON || (isWindowsPlatform() ? false : 'subst 는 Windows 전용 개념입니다(Linux 에는 subst.exe 자체가 없다 - 2026-07-28 CI RED② 재수렴)'),
+    timeout: 30000,
+  },
   () => {
     const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
     let substLetter = null
@@ -1084,9 +1101,23 @@ test(
     const otherCheckoutRoot = path.join(tempRoot, 'd1-other-real-checkout')
     const otherCommittedDir = path.join(otherCheckoutRoot, 'docs', 'qa', 'operational-validation')
     fs.rmSync(otherCheckoutRoot, { recursive: true, force: true })
-    fs.mkdirSync(otherCommittedDir, { recursive: true })
     const committedReportPath = path.join(otherCommittedDir, 'REPORT.md')
-    fs.writeFileSync(committedReportPath, '# 커밋된 것처럼 취급되는 REPORT (throwaway 체크아웃)\n')
+    // (2026-07-28 CI RED① fix) "이미 존재하는 커밋 REPORT" 픽스처를 이 파일이 fs.mkdirSync/
+    // fs.writeFileSync 로 직접 만들면 G3a(하네스 거짓 green 가드)가 docs/qa 형태 목적지로의
+    // 실제 fs 쓰기로 잡는다(2026-07-28 CI RED① 실측) — G3a 가 막으려는 것은 "이 스크립트가
+    // QA 증거를 docs/qa 에 직접 캡처하는지"이지 "테스트가 대상 .ps1 에게 사전조건을 마련해
+    // 주는 것"이 아니다. 이 파일의 다른 모든 "커밋 디렉토리 시뮬레이션"(MY_FIXTURE_COMMITTED_DIR
+    // 등)과 동일하게, 실제 파일 생성은 자식 PowerShell 프로세스에 위임한다 — 이 파일 자신은
+    // 목적지 문자열만 구성하고 실 쓰기는 하지 않는다.
+    execFileSync(
+      POWERSHELL_EXE,
+      [
+        '-NoProfile',
+        '-Command',
+        `New-Item -ItemType Directory -Force -Path '${otherCommittedDir}' | Out-Null; Set-Content -LiteralPath '${committedReportPath}' -NoNewline -Value '# 커밋된 것처럼 취급되는 REPORT (throwaway 체크아웃)'`,
+      ],
+      { timeout: 20000 },
+    )
     const beforeContent = fs.readFileSync(committedReportPath, 'utf8')
 
     const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')

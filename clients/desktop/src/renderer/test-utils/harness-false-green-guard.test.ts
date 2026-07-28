@@ -241,7 +241,9 @@ const WRITE_CALL = /(?:\.screenshot|\.pdf|writeFileSync|writeFile|appendFileSync
 
 /**
  * 백틱 템플릿 리터럴 구간 중 **개행을 포함하는 것만** 내용을 공백으로 지운다(백틱·개행
- * 자체와 전체 길이는 보존 — 인덱스 계산에 영향 없게).
+ * 자체와 전체 길이는 보존 — 인덱스 계산에 영향 없게). 일반 따옴표 문자열(`'...'`/`"..."`)은
+ * 항상(단일행이든 아니든) 내용을 공백으로 지운다 — JS 문법상 보간이 불가능해 그 안의
+ * 글자는 절대 실 식별자가 될 수 없다.
  *
  * (2026-07-27 재수렴 3차 W1 흡수, `writeFile` 추가의 부작용 fix) `collectWriteTargetIdentifiers`
  * 는 쓰기 호출의 인자 텍스트 전체에서 식별자를 뽑는다 — 이 저장소의 기존 관례상 경로를
@@ -254,12 +256,35 @@ const WRITE_CALL = /(?:\.screenshot|\.pdf|writeFileSync|writeFile|appendFileSync
  * RED: 이 함수 fix 전에는 G3a 가 `screens` 를 가짜 위반으로 보고했다(아래 M8 뮤테이션 참조).
  * 경로 조립용 한 줄 템플릿은 그대로 두고(M4b 회귀 없음), 여러 줄 "본문 콘텐츠" 템플릿만
  * 식별자 추출에서 제외한다.
+ *
+ * (2026-07-28 CI RED① fix) 이 함수는 지금까지 `collectWriteTargetIdentifiers` 의 **직접** 쓰기
+ * 호출 인자 텍스트에만 적용됐고, 전이적 폐포(transitive closure)가 `decl.body` 를 훑을 때는
+ * 전혀 적용되지 않았다 — 그 결과 일반 문자열 리터럴 안의 하이픈 연결 텍스트(예:
+ * `qa-output-path-guard.test.cjs` 의 `'t18-cross-drive-junction-parent'`)가 `cross`/`drive`/
+ * `junction`/`parent` 로 토큰화돼, 우연히 동명인 무관한 변수(`drive`, UNC 표기용)와 충돌했다.
+ * 그 변수의 초기화식을 타고 `docsQaRoot` 까지 전이적으로 오염시켜 G3a 거짓 위반이 났다(실측:
+ * `junctionParent → "drive"(문자열 리터럴 안 우연한 토큰) → drive(무관한 실제 선언) →
+ * OTHER_SLUG_COMMITTED_DIR → docsQaRoot`). 일반 문자열은 절대 식별자를 보간할 수 없으므로,
+ * 이 함수를 전이적 폐포에도 적용해 문자열 리터럴 내용을 코드 식별자 추출 전체에서 일관되게
+ * 제외한다(진짜 식별자 손실 없음 — 아래 회귀 테스트 참조).
  */
 function stripMultilineTemplateContent(text: string): string {
   let out = ''
   let i = 0
   while (i < text.length) {
     const c = text[i]
+    if (c === "'" || c === '"') {
+      const quote = c
+      let j = i + 1
+      while (j < text.length && text[j] !== quote) {
+        if (text[j] === '\\') j += 2
+        else j++
+      }
+      const end = Math.min(j + 1, text.length)
+      out += text.slice(i, end).replace(/[^]/g, ' ')
+      i = end
+      continue
+    }
     if (c !== '`') { out += c; i++; continue }
     let j = i + 1
     while (j < text.length && text[j] !== '`') {
@@ -295,7 +320,10 @@ function collectWriteTargetIdentifiers(
     for (const decl of decls) {
       if (!names.has(decl.name)) continue
       if (decl.body.includes('resolveQaShotsDir')) continue
-      for (const id of decl.body.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
+      // (2026-07-28 CI RED① fix) 직접 스캔과 동일하게 문자열/여러 줄 템플릿 리터럴 "내용"은
+      // 제외한다 — 그 안의 하이픈 연결 텍스트가 실 코드 식별자로 오인되면 안 된다.
+      const bodyForScan = stripMultilineTemplateContent(decl.body)
+      for (const id of bodyForScan.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
         if (!names.has(id[0])) { names.add(id[0]); changed = true }
       }
     }
