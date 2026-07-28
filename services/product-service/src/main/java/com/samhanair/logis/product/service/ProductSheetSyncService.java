@@ -243,6 +243,7 @@ public class ProductSheetSyncService {
                 summary.totalSoftDeleted += tabResult.softDeleted;
                 summary.totalSkipped += tabResult.skipped;
                 summary.totalPreservedManual += tabResult.preservedManual;
+                summary.totalPreservedByRule += tabResult.preservedByRule;
                 summary.totalSpecsLinked += tabResult.specsLinked;
             } catch (Exception e) {
                 log.error("[ProductSheetSync] tab '{}' sync 실패: {}", mapping.tabName, e.getMessage(), e);
@@ -379,6 +380,28 @@ public class ProductSheetSyncService {
                     .filter(b -> b.getComponentProductCode().equals(childModel))
                     .findFirst().orElse(null);
             if (match == null) {
+                // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] 계열 sweep (I-3) — 신규 (부모,자식)
+                // 링크만 검사한다(기존 match 갱신은 구성품 집합 자체를 바꾸지 않으므로 대상
+                // 아님). 이 부모를 source로 갖는 활성 규칙의 target이 결과 구성품 집합에
+                // 들어오면 이 행만 skip하고 나머지 시트 sync는 계속한다(자동 배치 경로라
+                // 예외로 전체 탭을 실패시키지 않는다 — soft-delete 가드(④)와 같은 패턴).
+                Set<UUID> resultingComponentProductIds = existing.stream()
+                        .map(BundleComponent::getComponentProductCode)
+                        .distinct()
+                        .map(code -> productRepository.findByModelCodeAndIsDeletedFalse(code))
+                        .filter(Optional::isPresent)
+                        .map(opt -> opt.get().getId())
+                        .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+                resultingComponentProductIds.add(child.getId());
+                List<String> brokenRuleKeys = quantitySyncRuleService
+                        .findEnabledRuleKeysBrokenByBundleComponents(parent.getId(), resultingComponentProductIds);
+                if (!brokenRuleKeys.isEmpty()) {
+                    log.warn("[ProductSheetSync] 구성품 tab '{}' 부모='{}' 자식='{}' → 활성 수량 동기화"
+                                    + " 규칙({}) 자기구성품 충돌로 연결 제외",
+                            mapping.tabName, setModel, childModel, String.join(", ", brokenRuleKeys));
+                    result.blockedByRule++;
+                    continue;
+                }
                 bundleComponentRepository.save(BundleComponent.seed(parent.getId(), childModel,
                         qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec)));
             } else {
@@ -1076,6 +1099,13 @@ public class ProductSheetSyncService {
         public int bundlesMarked = 0;
         public int softDeleted = 0;
         public int skipped = 0;
+        /**
+         * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] 계열 sweep — 이 부모(BUNDLE)를 source로
+         * 갖는 활성 수량 동기화 규칙의 target을 자기 구성품으로 새로 연결하려다 거부된
+         * (부모,자식) 행 수. {@link BundleComponentService#replaceComponents}와 같은
+         * 불변식(I-3)을 시트 sync 경로에서도 지킨다.
+         */
+        public int blockedByRule = 0;
         public String error;
     }
 
@@ -1093,10 +1123,16 @@ public class ProductSheetSyncService {
      */
     @Transactional
     public TabSyncResult syncTab(SheetTabMapping mapping, Category defaultCategory) throws Exception {
-        quantitySyncRuleService.lockGraphMutation();
         TabSyncResult result = new TabSyncResult();
         String range = mapping.currentTabName + "!A1:Z";
         String formulaRange = expandFormulaRange(range);
+        // 🚨 2026-07-28 재수렴 R6 결함 4 [MED] fix (I-4) — lockGraphMutation()을 외부
+        // Google Sheets HTTP 왕복(readSheetDisplay/readSheetFormulas) 이전이 아니라
+        // 이후로 옮긴다. 이 락은 규칙 그래프/품목 상태를 건드리는 DB mutation 구간만
+        // 직렬화하면 되고, 시트 read 자체는 그 어떤 quantity_sync 테이블도 만지지 않는다
+        // — 이전 위치는 시트가 느리거나 무응답이면 정상 관리자의 품목 편집(update/
+        // discontinue/delete/updateUsageAndReturn 전부 같은 advisory lock을 기다림)을
+        // 그 대기시간만큼 인질로 잡았다(실측: 6초 지연 stub에서 566배 지연, 10.76초).
         // legacy getDisplayValues() 1:1 — formatted value (천단위 콤마/통화 포함).
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, range);
         if (rows == null || rows.isEmpty()) {
@@ -1138,6 +1174,11 @@ public class ProductSheetSyncService {
             List<String> fullHeader = GoogleSheetsClient.toStringRow(rows.get(headerIdx), 30);
             fixedDcColumn = findColumnByHeader(fullHeader, List.of("고정DC"));
         }
+
+        // 🚨 2026-07-28 재수렴 R6 결함 4 [MED] fix (I-4) — 여기부터가 실제로 규칙
+        // 그래프/품목 상태를 건드리는 DB mutation 구간이다. 위의 모든 외부 HTTP(시트 read)와
+        // 순수 로컬 파싱은 이 락 없이 끝났다.
+        quantitySyncRuleService.lockGraphMutation();
 
         for (int i = headerIdx + 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
@@ -1219,7 +1260,28 @@ public class ProductSheetSyncService {
                 //   manual 여부와 무관하게 갱신 — 사용자가 시트 행 순서를 재정렬해도 반영되어야 함.
                 if (p.getProductCategory() == mapping.productCategory) {
                     if (!p.isUsageScopeManual()) {
-                        p.changeUsage(mapping.usageScope);
+                        // 🚨 2026-07-28 재수렴 R6 결함 5 [MED] fix (I-5) — override 해제
+                        // (usageScopeManual=false) 상태에서 이 탭 매핑이 usageScope를 NONE
+                        // 으로 되돌리면 활성 규칙이 참조하는 품목의 노출이 조용히 꺼진다
+                        // (같은 품목을 PATCH .../usage {"usageScope":"NONE"}로 직접 바꾸려
+                        // 하면 409로 막히는 것과 같은 상태). 자동 배치 경로라 예외를 던져
+                        // 전체 sync를 실패시키지 않고, soft-delete 가드(아래 :~1300)와 같은
+                        // 패턴으로 이 필드 갱신만 보류하고 로그+카운터로 남긴다. NONE이 아닌
+                        // 값(BOTH/ESTIMATE/PARTNER_ORDER)으로의 전환은 visible을 끄지
+                        // 않으므로 이 가드 대상이 아니다.
+                        boolean losesVisibility = mapping.usageScope == UsageScope.NONE
+                                && p.getUsageScope() != UsageScope.NONE;
+                        List<String> blockingRuleKeys = losesVisibility
+                                ? quantitySyncRuleService.findEnabledRuleKeysReferencing(p.getId())
+                                : List.of();
+                        if (!blockingRuleKeys.isEmpty()) {
+                            log.warn("[ProductSheetSync] tab '{}' modelCode='{}' → 활성 수량 동기화 규칙({})"
+                                            + " 참조로 usageScope NONE 전환 보류",
+                                    mapping.tabName, modelCode, String.join(", ", blockingRuleKeys));
+                            result.preservedByRule++;
+                        } else {
+                            p.changeUsage(mapping.usageScope);
+                        }
                     }
                     if (!p.isVariableDiscountManual()) {
                         BigDecimal nextFixedRate = p.isFixedDiscountManual() ? p.getFixedDiscountRate() : fixedRate;
@@ -1929,6 +1991,13 @@ public class ProductSheetSyncService {
         public int skipped = 0;
         /** soft-delete 대상이나 usageScopeManual=true 로 삭제 보호된 품목 수 (사이클2 지적 P3-6). */
         public int preservedManual = 0;
+        /**
+         * 🚨 2026-07-28 재수렴 R6 결함 5 [MED] fix (I-5) — 탭 매핑이 NONE으로 되돌리려
+         * 했으나 활성 수량 동기화 규칙이 참조 중이라 usageScope 갱신을 보류한 품목 수.
+         * preservedManual과 원인이 다르므로(수동 override 보호 vs 규칙 무결성 보호)
+         * 별도 카운터로 집계한다.
+         */
+        public int preservedByRule = 0;
         public int specsLinked = 0;
         public String error;
     }
@@ -1948,6 +2017,8 @@ public class ProductSheetSyncService {
         public int totalSkipped = 0;
         /** usageScopeManual=true 로 soft-delete 보호된 품목 합계 (사이클2 지적 P3-6). */
         public int totalPreservedManual = 0;
+        /** 활성 수량 동기화 규칙 참조로 usageScope NONE 전환이 보류된 품목 합계(R6 결함 5). */
+        public int totalPreservedByRule = 0;
         public int totalComponentsLinked = 0;
         public int totalBundlesMarked = 0;
         public int totalSpecsLinked = 0;

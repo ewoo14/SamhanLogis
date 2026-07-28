@@ -68,6 +68,9 @@ class BundleComponentServiceTest {
     @Mock
     private EntityManager entityManager;
 
+    @Mock
+    private QuantitySyncRuleService quantitySyncRuleService;
+
     /**
      * 실제 broker + 실제 publisher 사용 (mock 아님) — afterCommit 지연/발화 시점을
      * publishCount() 로 실측하기 위함. 구독자가 없어도 publish 시도 카운터는 증가한다.
@@ -88,7 +91,7 @@ class BundleComponentServiceTest {
         catalogChangePublisher = new ProductCatalogChangePublisher(broker);
         service = new BundleComponentService(
                 productRepository, bundleComponentRepository, exposureRepository,
-                catalogChangePublisher, entityManager);
+                catalogChangePublisher, entityManager, quantitySyncRuleService);
         Category cat = Category.create("INDOOR_WALL", "벽걸이형", null, 1);
 
         // BUNDLE 부모

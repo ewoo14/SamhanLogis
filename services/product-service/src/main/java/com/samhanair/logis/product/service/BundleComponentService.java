@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,16 +81,28 @@ public class BundleComponentService {
     private final ProductCatalogChangePublisher catalogChangePublisher;
     private final EntityManager entityManager;
 
+    /**
+     * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — 구성품을 바꾸는 쓰기 경로도
+     * {@link QuantitySyncRuleValidator}가 신규 규칙 생성 시 요구하는 "BUNDLE source는
+     * 같은 BUNDLE의 component target을 가질 수 없습니다" 불변식을 지나야 한다.
+     * QuantitySyncRuleService → BundleComponentService 방향의 의존이 없으므로(같은
+     * ProductService의 관례와 동일하게 ProductRepository/BundleComponentRepository만
+     * 사용) 순환 없음.
+     */
+    private final QuantitySyncRuleService quantitySyncRuleService;
+
     public BundleComponentService(ProductRepository productRepository,
                                   BundleComponentRepository bundleComponentRepository,
                                   ProductEstimateExposureRepository exposureRepository,
                                   ProductCatalogChangePublisher catalogChangePublisher,
-                                  EntityManager entityManager) {
+                                  EntityManager entityManager,
+                                  QuantitySyncRuleService quantitySyncRuleService) {
         this.productRepository = productRepository;
         this.bundleComponentRepository = bundleComponentRepository;
         this.exposureRepository = exposureRepository;
         this.catalogChangePublisher = catalogChangePublisher;
         this.entityManager = entityManager;
+        this.quantitySyncRuleService = quantitySyncRuleService;
     }
 
     // ============================================================
@@ -248,6 +261,7 @@ public class BundleComponentService {
         Set<String> seenCodes = new HashSet<>();
         Set<String> duplicateCodes = new LinkedHashSet<>();
         List<String> unresolvedCodes = new ArrayList<>();
+        Map<String, Product> resolvedComponents = new LinkedHashMap<>();
         for (BundleComponentRequest req : requests) {
             if (req.componentProductCode().equals(parentModelCode)) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
@@ -267,6 +281,8 @@ public class BundleComponentService {
             } else if (componentOpt.get().getProductType() == ProductType.BUNDLE) {
                 throw new BusinessException(ErrorCode.INVALID_INPUT,
                         "세트 품목은 구성품으로 등록할 수 없습니다: " + req.componentProductCode());
+            } else {
+                resolvedComponents.put(req.componentProductCode(), componentOpt.get());
             }
         }
         if (!duplicateCodes.isEmpty()) {
@@ -277,6 +293,15 @@ public class BundleComponentService {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     "다음 구성 모델코드가 활성 품목으로 해소되지 않습니다: " + unresolvedCodes);
         }
+
+        // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — 이 replace-all 이 확정할
+        // 구성품 집합이 이 BUNDLE 을 source 로 갖는 활성 규칙의 target 과 겹치면 거부한다.
+        // QuantitySyncRuleValidator 의 신규 규칙 생성 시 검증("BUNDLE source는 같은
+        // BUNDLE의 component target을 가질 수 없습니다")과 같은 불변식을, 구성품이
+        // "나중에" 바뀌는 이 경로에서도 지킨다. 전건 검증 이후·실제 mutation 이전이므로
+        // 실패해도 부분 적용이 없다.
+        assertNoBrokenQuantitySyncRule(parent.getId(), resolvedComponents.values().stream()
+                .map(Product::getId).collect(Collectors.toSet()));
 
         // 기존 구성품 전량 soft-delete — actor = X-User-Id (P3-3, null/blank → "system")
         String deleteActor = (actor == null || actor.isBlank()) ? "system" : actor;
@@ -369,6 +394,19 @@ public class BundleComponentService {
                     "구성품에 중복 모델코드가 있습니다: " + componentProductCode);
         }
 
+        // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — replaceComponents()와 같은
+        // 가드. 이 경로는 "구성품 자신의 편집 화면"에서 부모 세트를 지정하는 진입점이라
+        // 사용자가 replaceComponents()를 거치지 않고도 같은 상태(BUNDLE source가 자기
+        // 구성품을 target으로)를 만들 수 있다. validateRegisteredComponent()가 이미
+        // componentProductCode 해소를 확인했으므로 findByModelCodeAndIsDeletedFalse는
+        // 항상 존재한다.
+        Product component = productRepository.findByModelCodeAndIsDeletedFalse(componentProductCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
+                        "구성 모델코드가 활성 품목으로 해소되지 않습니다: " + componentProductCode));
+        Set<UUID> resultingComponentProductIds = resolveComponentProductIds(parent.getId());
+        resultingComponentProductIds.add(component.getId());
+        assertNoBrokenQuantitySyncRule(parent.getId(), resultingComponentProductIds);
+
         BundleComponent saved = bundleComponentRepository.save(BundleComponent.seed(
                 parent.getId(),
                 componentProductCode,
@@ -394,6 +432,17 @@ public class BundleComponentService {
                                                           BundleComponent.ComponentKind componentKind,
                                                           String actor) {
         Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
+        // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — addRegisteredComponent()와 같은
+        // 가드. PATCH 경로가 부모 링크를 이 parent 하나로 맞추므로, 그 결과 구성품 집합
+        // (다른 부모 링크는 soft-delete되므로 이 parent 기준 집합만 본다)이 이 BUNDLE을
+        // source로 갖는 활성 규칙의 target과 겹치면 거부한다.
+        Product component = productRepository.findByModelCodeAndIsDeletedFalse(componentProductCode)
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_INPUT,
+                        "구성 모델코드가 활성 품목으로 해소되지 않습니다: " + componentProductCode));
+        Set<UUID> resultingComponentProductIds = resolveComponentProductIds(parent.getId());
+        resultingComponentProductIds.add(component.getId());
+        assertNoBrokenQuantitySyncRule(parent.getId(), resultingComponentProductIds);
+
         String deleteActor = actor == null || actor.isBlank() ? "system" : actor;
         List<BundleComponent> existingLinks = bundleComponentRepository.findByComponentProductCode(componentProductCode);
         BundleComponent sameParent = null;
@@ -656,6 +705,43 @@ public class BundleComponentService {
         return productRepository
                 .findByCatalogExposedModelCodeAndIsDeletedFalse(modelCode)
                 .orElseThrow(() -> new EntityNotFoundException("품목을 찾을 수 없습니다: " + modelCode));
+    }
+
+    /**
+     * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — 이 BUNDLE 의 현재 활성 구성품
+     * productId 집합을 조회한다({@code bundle_component.component_product_code}를
+     * canonical modelCode 로 재해소, {@link QuantitySyncRuleService#toSnapshot}과 동일
+     * 관례). replaceComponents/addRegisteredComponent/replaceRegisteredComponentLink가
+     * "결과 구성품 집합"을 계산하는 공용 기반이다.
+     */
+    private Set<UUID> resolveComponentProductIds(UUID bundleProductId) {
+        List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(bundleProductId);
+        if (existing.isEmpty()) {
+            return new HashSet<>();
+        }
+        Set<String> codes = existing.stream()
+                .map(BundleComponent::getComponentProductCode)
+                .collect(Collectors.toSet());
+        return productRepository.findByModelCodeInAndIsDeletedFalse(codes).stream()
+                .map(Product::getId)
+                .collect(Collectors.toCollection(HashSet::new));
+    }
+
+    /**
+     * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — {@link QuantitySyncRuleService
+     * #findEnabledRuleKeysBrokenByBundleComponents}를 호출해 비어 있지 않으면 CONFLICT로
+     * 거부한다. ProductService의 assertResultingStateSatisfiesQuantitySyncRules와 같은
+     * 메시지 문구를 사용해(원인 위장 방지, M-5와 동일 원칙) 사용자가 같은 원인을 같은
+     * 문자열로 인지하게 한다.
+     */
+    private void assertNoBrokenQuantitySyncRule(UUID bundleProductId, Set<UUID> resultingComponentProductIds) {
+        List<String> brokenRuleKeys = quantitySyncRuleService
+                .findEnabledRuleKeysBrokenByBundleComponents(bundleProductId, resultingComponentProductIds);
+        if (!brokenRuleKeys.isEmpty()) {
+            throw new BusinessException(ErrorCode.CONFLICT,
+                    "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
+                            + String.join(", ", brokenRuleKeys));
+        }
     }
 
     private static String blankToNull(String s) {

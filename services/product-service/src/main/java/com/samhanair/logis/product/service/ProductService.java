@@ -535,22 +535,16 @@ public class ProductService {
         if (req.description() != null) {
             product.editDescription(req.description());
         }
-        // 재수렴 결함 3 [MED] — discontinue()/delete()에만 있던 가드가 update()에는 없어
-        // usageScope가 NONE으로 바뀌면(직접 요청·SET_COMPONENT 강제·부모 세트 연결·MATERIAL
-        // 카테고리 강제 등 applyUpdateFields() 내부의 어느 경로를 통하든) Java 사전 가드가
-        // 없으면 무결성 위반이 조용히 저장된다. 전이 여부(NONE이 아니었다가 NONE이 됨)만
-        // 판정하므로 이미 NONE인 품목의 무관한 필드 수정은 막지 않는다.
-        boolean usageWasNone = product.getUsageScope() == UsageScope.NONE;
+        // 🚨 2026-07-28 재수렴 R6 결함 1·2 [단일 근본 원인] fix (I-1) — "usageScope가
+        // NONE으로 전이하는가"(값 열거)가 아니라 "쓰기 이후 실제로 남을 노출 상태가 활성
+        // 규칙을 깨는가"로 판정한다. 이 계열은 5회차였다(R1 단종/삭제 → R2 optionIn →
+        // R3 usageScope=NONE → R4 estimateCategories → R5 PARTNER_ORDER) — 값 하나씩
+        // 막는 가드는 UsageScope의 다음 값이 뚫는다. applyUpdateFields()가 이미
+        // product.changeUsage(...)를 도메인 객체에 반영했으므로 product.getUsageScope()가
+        // 곧 "쓰기 이후" 값이다.
         boolean usageForcedNone = applyUpdateFields(product, req);
-        if (!usageWasNone && product.getUsageScope() == UsageScope.NONE) {
-            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
-        }
-        // 활성 규칙의 카테고리를 실제로 제거하는 경우에만 차단한다. 동일 카테고리 재저장과
-        // 기존 카테고리를 유지한 채 추가하는 편집은 규칙 무결성을 깨지 않으므로 허용한다.
-        if (req.estimateCategories() != null) {
-            assertCategoryRemovalDoesNotBreakQuantitySyncRule(product.getId(), req.estimateCategories());
-        }
         if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null) {
+            assertResultingStateSatisfiesQuantitySyncRules(product, product.getUsageScope(), req.estimateCategories());
             syncEstimateExposures(product, product.getUsageScope(), req.estimateCategories(), "product-update");
         }
         if (req.specs() != null) {
@@ -609,17 +603,12 @@ public class ProductService {
     public Product updateUsageAndReturn(String modelCode, UpdateProductUsageRequest req) {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadByModelCodeOrThrow(modelCode);
-        // 재수렴 결함 3 [MED] — update()와 같은 이유로 수동 노출 override 경로도 가드가
-        // 없었다. req.usageScope()는 @NotNull이라 HTTP 경로에서는 null이 될 수 없지만,
-        // markUsageManual() 자체는 null을 NONE으로 취급하므로 방어적으로 함께 판정한다.
-        boolean movingToNone = product.getUsageScope() != UsageScope.NONE
-                && (req.usageScope() == null || req.usageScope() == UsageScope.NONE);
-        if (movingToNone) {
-            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
-        }
-        if (req.estimateCategories() != null) {
-            assertCategoryRemovalDoesNotBreakQuantitySyncRule(product.getId(), req.estimateCategories());
-        }
+        // 🚨 2026-07-28 재수렴 R6 결함 1 [HIGH] fix (I-1) — update()와 같은 이유로 이
+        // 경로도 "NONE 전이"만 판정했다(PARTNER_ORDER 등 다른 UsageScope 값은 통과). 실제
+        // 저장될 usageScope(req.usageScope(), null이면 markUsageManual()과 동일하게
+        // NONE으로 취급)를 effectiveScope로 넘겨 결과 상태 전체를 판정한다.
+        UsageScope effectiveScope = req.usageScope() == null ? UsageScope.NONE : req.usageScope();
+        assertResultingStateSatisfiesQuantitySyncRules(product, effectiveScope, req.estimateCategories());
         product.markUsageManual(req.usageScope());
         syncEstimateExposures(product, req.usageScope(), req.estimateCategories(), "product-usage-manual");
         return product;
@@ -735,18 +724,64 @@ public class ProductService {
         }
     }
 
-    private void assertCategoryRemovalDoesNotBreakQuantitySyncRule(
-            UUID productId, List<EstimateCategory> requestedCategories) {
-        Set<EstimateCategory> requested = requestedCategories == null
-                ? Set.of()
-                : Set.copyOf(requestedCategories);
-        List<String> ruleKeys = quantitySyncRuleService
-                .findEnabledRuleKeysReferencingMissingCategory(productId, requested);
+    /**
+     * 🚨 2026-07-28 재수렴 R6 결함 1·2 [단일 근본 원인] fix (I-1) — update()/
+     * updateUsageAndReturn() 공용 통합 판정. "usageScope 값이 무엇인가"·"카테고리가
+     * 요청에 있는가"를 따로 열거하지 않고, 쓰기 이후 실제로 남을 (active, visible,
+     * categories) 스냅샷을 {@link #resolveResultingExposedCategories}로 계산해
+     * {@link QuantitySyncRuleService#findEnabledRuleKeysBrokenByResultingState}에
+     * 그대로 넘긴다 — syncEstimateExposures()가 실제로 만들 상태와 같은 계산이므로
+     * "판정이 통과됐는데 실제 저장은 다르게 됐다"는 드리프트가 구조적으로 없다.
+     *
+     * @param product              현재 편집 중인 Product(이미 도메인 메서드로 usageScope 반영됨)
+     * @param effectiveScope       쓰기 이후 유효 usageScope(null 이면 NONE 취급은 호출자 책임)
+     * @param requestedCategories  요청 estimateCategories(null 이면 기존 노출 유지)
+     * @throws BusinessException(CONFLICT) 활성(enabled) 규칙이 결과 상태로 깨질 때
+     */
+    private void assertResultingStateSatisfiesQuantitySyncRules(
+            Product product, UsageScope effectiveScope, List<EstimateCategory> requestedCategories) {
+        if (product.getId() == null) {
+            return;
+        }
+        boolean resultingVisible = effectiveScope != null && effectiveScope != UsageScope.NONE;
+        Set<EstimateCategory> resultingCategories =
+                resolveResultingExposedCategories(product, effectiveScope, requestedCategories);
+        List<String> ruleKeys = quantitySyncRuleService.findEnabledRuleKeysBrokenByResultingState(
+                product.getId(), product.getStatus() == ProductStatus.ACTIVE, resultingVisible, resultingCategories);
         if (!ruleKeys.isEmpty()) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "수량 동기화 규칙이 이 품목을 참조하고 있어 상태를 변경할 수 없습니다: "
                             + String.join(", ", ruleKeys));
         }
+    }
+
+    /**
+     * {@link #syncEstimateExposures}가 실제로 만들 활성 노출 카테고리 집합을 미리
+     * 시뮬레이션한다(단일 원천 — 이 로직이 바뀌면 {@link #syncEstimateExposures}도 함께
+     * 봐야 한다는 뜻이므로 로직 자체를 공유하지 않고 같은 3-분기 규칙만 나란히 유지한다).
+     *
+     * <p>🚨 재수렴 R6 결함 2 [HIGH] fix — {@code Set.copyOf(requestedCategories)}가 배열에
+     * null 원소({@code [null]})가 있으면 NPE를 던져 규칙과 무관한 품목까지 전 품목 편집이
+     * 500이 됐다. {@link #normalizeCategories}(null 필터링 후 Set 구성)로 교체해
+     * {@code [null]}·빈 배열·중복·미지 값 어떤 배열이 와도 500 없이 의미 있는 판정으로
+     * 이어지게 한다.
+     */
+    private Set<EstimateCategory> resolveResultingExposedCategories(
+            Product product, UsageScope effectiveScope, List<EstimateCategory> requestedCategories) {
+        if (!isEstimateScope(effectiveScope == null ? UsageScope.NONE : effectiveScope)) {
+            return Set.of();
+        }
+        if (requestedCategories == null) {
+            List<ProductEstimateExposure> active =
+                    exposureRepository.findByProductIdAndIsDeletedFalse(product.getId());
+            if (active == null || active.isEmpty()) {
+                return Set.of();
+            }
+            return active.stream()
+                    .map(ProductEstimateExposure::getEstimateCategory)
+                    .collect(java.util.stream.Collectors.toSet());
+        }
+        return normalizeCategories(requestedCategories);
     }
 
     private Product loadOrThrow(UUID id) {

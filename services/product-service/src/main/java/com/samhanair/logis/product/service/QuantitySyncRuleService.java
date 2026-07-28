@@ -120,7 +120,10 @@ public class QuantitySyncRuleService {
      */
     @Transactional(readOnly = true)
     public List<String> findEnabledRuleKeysReferencing(UUID productId) {
-        return findEnabledRuleKeysReferencingMissingCategory(productId, Set.of());
+        // active=false 로 판정을 넘겨 카테고리와 무관하게(어떤 카테고리를 요청해도
+        // satisfiesMembership=false) ANY 참조를 차단한다 — discontinue/delete 처럼
+        // 품목 자체가 더 이상 규칙의 대상이 될 수 없는 상태 전이 전용 조회다.
+        return findEnabledRuleKeysBrokenByResultingState(productId, false, false, Set.of());
     }
 
     /**
@@ -137,6 +140,35 @@ public class QuantitySyncRuleService {
     @Transactional(readOnly = true)
     public List<String> findEnabledRuleKeysReferencingMissingCategory(
             UUID productId, Set<EstimateCategory> requestedCategories) {
+        return findEnabledRuleKeysBrokenByResultingState(productId, true, true, requestedCategories);
+    }
+
+    /**
+     * 🚨 2026-07-28 재수렴 R6 결함 1·2 [단일 근본 원인] fix — I-1 통합 판정 엔진.
+     *
+     * <p>이전에는 "usageScope가 NONE인가"(전이 열거) · "요청 카테고리에 규칙 카테고리가
+     * 있는가"(카테고리만) 두 축을 호출부마다 따로 판정해, 열거되지 않은 값(PARTNER_ORDER 등)
+     * 이나 두 축을 함께 바꾸는 요청이 새 라운드마다 통과했다(계열 5회차: R1 단종/삭제 →
+     * R2 optionIn → R3 usageScope=NONE → R4 estimateCategories → R5 PARTNER_ORDER).
+     *
+     * <p>판정은 열거가 아니라 <b>"쓰기 이후 이 품목의 (active, visible, categories) 스냅샷이
+     * 이 품목을 참조하는 모든 활성(enabled) 규칙의 source/target 요건을 계속 만족하는가"</b>
+     * 하나뿐이다 — {@link QuantitySyncRuleValidator#validateProduct}가 신규 규칙 생성 시
+     * 요구하는 것과 동일한 3조건(active·visible·categories 멤버십)을 기존 활성 규칙에도
+     * 적용한다. 호출자는 자신이 만들 결과 상태를 3개 파라미터로 넘기기만 하면 되고, 이
+     * 메서드는 그 값을 실제 DB에 반영하지 않는다(호출자가 사전 확인 후 실제 mutation을
+     * 수행하는 관례를 유지).
+     *
+     * @param productId          대상 품목 내부 FK
+     * @param resultingActive    쓰기 이후 이 품목이 {@code ProductStatus.ACTIVE} 로 남는지
+     * @param resultingVisible   쓰기 이후 {@code usageScope != NONE} 로 남는지(견적 화면 노출 가능)
+     * @param resultingCategories 쓰기 이후 이 품목이 활성 노출(견적 M:N)을 유지하는 카테고리 집합
+     * @return 이 결과 상태로 무결성이 깨지는 활성(enabled) 규칙의 ruleKey 목록(오름차순, 없으면 빈 목록)
+     */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysBrokenByResultingState(
+            UUID productId, boolean resultingActive, boolean resultingVisible,
+            Set<EstimateCategory> resultingCategories) {
         Set<UUID> ruleIds = new HashSet<>();
         sourceRepository.findAllBySourceProductIdAndIsDeletedFalse(productId)
                 .forEach(source -> ruleIds.add(source.getRuleId()));
@@ -145,12 +177,55 @@ public class QuantitySyncRuleService {
         if (ruleIds.isEmpty()) {
             return List.of();
         }
+        boolean satisfiesMembership = resultingActive && resultingVisible;
         return ruleRepository.findAllById(ruleIds).stream()
                 .filter(QuantitySyncRule::isEnabled)
-                .filter(rule -> !containsRuleCategory(requestedCategories, rule.getEstimateCategory()))
+                .filter(rule -> !satisfiesMembership
+                        || !containsRuleCategory(resultingCategories, rule.getEstimateCategory()))
                 .map(QuantitySyncRule::getRuleKey)
                 .sorted()
                 .toList();
+    }
+
+    /**
+     * 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix — I-3: BUNDLE 구성품을 바꾸는 모든 쓰기
+     * 경로({@link BundleComponentService}·{@link ProductSheetSyncService#syncComponentTab})가
+     * 신규 규칙 생성 시 검증({@link QuantitySyncRuleValidator} "BUNDLE source는 같은 BUNDLE의
+     * component target을 가질 수 없습니다")과 같은 가드를 지나도록 한다. 이 BUNDLE 이 source인
+     * 활성(enabled) 규칙 중, 결과 구성품 집합과 target 이 겹치는 규칙 키를 반환한다.
+     *
+     * @param bundleProductId 대상 BUNDLE 품목 내부 FK
+     * @param resultingComponentProductIds 쓰기 이후 이 BUNDLE 이 가질 구성품 productId 집합
+     * @return 자기 구성품을 target 으로 갖게 되는 활성 규칙의 ruleKey 목록(오름차순, 없으면 빈 목록)
+     */
+    @Transactional(readOnly = true)
+    public List<String> findEnabledRuleKeysBrokenByBundleComponents(
+            UUID bundleProductId, Set<UUID> resultingComponentProductIds) {
+        if (resultingComponentProductIds == null || resultingComponentProductIds.isEmpty()) {
+            return List.of();
+        }
+        List<QuantitySyncSource> sources =
+                sourceRepository.findAllBySourceProductIdAndIsDeletedFalse(bundleProductId);
+        if (sources.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> ruleIds = sources.stream().map(QuantitySyncSource::getRuleId).collect(Collectors.toSet());
+        List<QuantitySyncRule> rules = ruleRepository.findAllById(ruleIds).stream()
+                .filter(QuantitySyncRule::isEnabled)
+                .toList();
+        if (rules.isEmpty()) {
+            return List.of();
+        }
+        Set<String> broken = new java.util.TreeSet<>();
+        for (QuantitySyncRule rule : rules) {
+            boolean overlap = targetRepository
+                    .findAllByRuleIdAndIsDeletedFalseOrderByDisplayOrderAsc(rule.getId()).stream()
+                    .anyMatch(target -> resultingComponentProductIds.contains(target.getTargetProductId()));
+            if (overlap) {
+                broken.add(rule.getRuleKey());
+            }
+        }
+        return List.copyOf(broken);
     }
 
     private boolean containsRuleCategory(Set<EstimateCategory> requestedCategories,
