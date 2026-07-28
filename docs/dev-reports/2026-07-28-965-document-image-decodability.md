@@ -206,3 +206,113 @@ services\dashboard-service\src\main\java\com\samhanair\logis\dashboard\service\A
 - `dashboard-service/AppNoticeService.java:291-302`는 PM 확정 범위 밖이라 미수정.
 - git add/commit/branch/PR/CI 조작은 사용자 지시대로 하지 않았다.
 - 검증 중 한 차례 레포 루트로 잘못 지정한 명령이 있었으나 소스 수정은 없고, 해당 결과는 최종 근거에서 제외했다. 이후 소스 수정·최종 검증은 지정 워크트리에서 수행했다.
+
+---
+
+## 8. PR#968 R1 라운드 fix (SONNET5, 2026-07-28)
+
+R1 적대검증(OPUS 발견 2 + SONNET5 대조 1)이 도달 가능 결함 3건을 확정했다. 아래는 그 fix 라운드의 RED→GREEN→뮤테이션 RED 원문과 회귀 울타리 실행 결과다.
+
+### 8.1 결함1 [HIGH] — 좌표 배치 IMAGE에서 C3 경고가 첫 진입에 안 뜬다
+
+**원인**: React가 `<img>`를 DOM에 삽입하기 전에 `src`를 세팅해 data URL 디코드 실패가 마운트 전에 일어나 synthetic `onError`가 그 이벤트를 못 받는다. `DocumentRenderer.tsx`의 `RenderedImageElement`에 `useIsomorphicLayoutEffect`로 마운트 후 `imgRef.current.decode()`를 직접 호출해 이벤트 버블링과 무관하게 판정하도록 fix했다(`onError`는 src 변경 시 즉시반응용으로 유지).
+
+RED(jsdom, `.decode()` mock reject, `fireEvent.error` 미호출) — fix 전 실행:
+```text
+✓ flow 배치 IMAGE — 렌더 엔진 error를 인쇄 이전 단계의 no-print 경고로 표시한다(수동 이벤트)
+✗ 좌표 배치(geometry) IMAGE — decode() 실패만으로 첫 렌더에서 경고를 표시한다(수동 이벤트 디스패치 없음)
+  → Unable to find [data-testid="document-template-image-error-positioned-undecodable-image"]
+✗ decode()가 성공하면 경고를 표시하지 않는다(정상 이미지 회귀 방지)
+  → expect(decode).toHaveBeenCalled() timeout
+Test Files 1 failed (1) | Tests 2 failed | 1 passed (3)
+```
+GREEN(fix 후): `Test Files 1 passed (1) | Tests 3 passed (3)`.
+
+뮤테이션 RED(라이브 실 브라우저, `useIsomorphicLayoutEffect` 본문을 `setDecodeFailed(false); return undefined`로 되돌림, Vite HMR 반영, 실 그룹웨어 API + dev_master 로그인 후 throwaway 문서양식 편집기 첫 진입/새로고침 2회):
+```text
+{"trial":"MUTATION-live-1","warningNodes":0}
+{"trial":"MUTATION-live-2","warningNodes":0}
+```
+fix 복원 후 재확인(같은 throwaway 문서양식, 새로고침 5회 + 목록→클릭 SPA 내비게이션 3회, 매회 신규 페이지 로드):
+```text
+새로고침 5회: [1,1,1,1,1]
+SPA 클릭 경유 3회: [1,1,1]
+```
+DOM 실측(fix 후 1회차): `img.complete=true, naturalWidth=0`(브라우저 native decode 실패, R1 원 실측과 동일 신호) — **그런데도** 경고 1개가 정상 표시됨. 좌표 IMAGE 첫진입 5/5 → 5/5로 반전.
+
+### 8.2 결함2 [HIGH] — C1이 통과시킨 PNG를 BE가 거부
+
+**원인**: PNG는 BE가 `ImageIO.read()` 완전 디코드를 요구했는데, Chromium `<img>`는 IDAT이 절단·손상된 PNG도 부분 렌더한다(jshell 실측: 51% 절단·IDAT 페이로드 손상 둘 다 `IIOException: Error reading PNG image data` — 완전히 빈 IDAT 합성 fixture와 **동일한 예외**라 Java 쪽에서 구분 불가). WebP와 동일 계약으로 통일 — PNG는 `checkImageDecodedByteBudget()`(IHDR 헤더 파싱 + 자원예산)만 통과하면 구조적으로 유효하다고 본다. IHDR 자체가 손상된 입력("I/O error reading PNG header!" — IDAT 단계 실패와 다른 예외로 jshell 실측상 명확히 구분됨)은 그대로 거부된다. JPEG는 이 어긋남이 실측되지 않아(60% 절단 JPEG도 이미 ACCEPTED) 완전 디코드 요구를 유지했다.
+
+RED(BE, `./gradlew :services:groupware-service:test --tests DocumentPayloadValidatorTest --rerun-tasks --no-build-cache`) — fix 전:
+```text
+44 tests completed, 3 failed
+PR968R1_D2_png_acceptsHeaderValidButEmptyIdatBecauseBeNoLongerGuaranteesDecodability() FAILED
+  com.samhanair.logis.common.exception.BusinessException: IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.
+PR968R1_D2_png_acceptsRealAssetTruncatedAtDownloadInterruptionPoint() FAILED (동일 예외)
+PR968R1_D2_png_acceptsIdatPayloadCorruptedWithCrcRecalculated() FAILED (동일 예외)
+```
+GREEN(fix 후): `tests="44" failures="0" errors="0"`.
+
+뮤테이션 RED(PNG 분기를 `checkImageDecodedByteBudget(decoded) && ImageIO.read(...) != null`로 되돌림): 동일 3건 재실패(`tests="44" failures="3"`), `PR968R1_D2_png_stillRejectsHeaderLevelCorruption`은 영향 없이 계속 GREEN(헤더단계 거부는 무관).
+
+전체 groupware-service 회귀: `--rerun-tasks --no-build-cache` 전체 실행 `tests=227 skipped=0 failures=0 errors=0`.
+
+### 8.3 결함3 [경미] — 경고가 좌표 요소와 겹쳐 그려진다
+
+**1차 시도(불충분, 실측으로 발견)**: 경고에 `position:relative; z-index:1`만 주면 "이미지에 가려짐"은 해소되지만, 경고 `<span>`이 block이라 폭 지정이 없어 **밴드 전체 폭**으로 퍼져 같은 줄의 다른 좌표 TEXT(`ANCHORTEXT좌표기준`)와 글자가 겹쳐 그려졌다(라이브 스크린샷 실측, `noticeOverlapsAnchor:true`). **최종 fix**: 경고에도 실패한 IMAGE와 동일한 `geometryStyle(geometry, …)`을 적용해 이미지 자신의 자리(x/y/w/h)에만 그려지게 했다 — flow 배치(geometry 없음)는 기존 정상 flow를 유지한다.
+
+라이브 재검증(Playwright, `b-img`(손상, 좌표 0~25%)·`b-good`(정상 PNG, 30~55%)·`b-anchor`(TEXT "ANCHORTEXT좌표기준", 60~95%) 3요소를 같은 HEADER 밴드에 배치한 throwaway 양식):
+```text
+1차 시도: noticeOverlapsGood=true  noticeOverlapsAnchor=true  (겹침 확인)
+최종 fix: noticeOverlapsGood=false noticeOverlapsAnchor=false (형제 침범 0)
+```
+스크린샷으로 "이 이미지는 현재 화면에서 표시할 수 없습니다..." 경고가 자신의 좁은 열 안에서만 줄바꿈되고, `b-good`(검정 사각형)·`ANCHORTEXT좌표기준` 문구가 온전히 분리되어 보임을 확인했다.
+
+### 8.4 회귀 울타리 9항목 실행 결과
+
+같은 throwaway 양식(`b-img`/`b-good`/`b-anchor`)으로 968-a2 라운드의 `qa3.mjs` Playwright 하네스를 재사용(로직 동일, 대상 id·포트만 교체)해 재현했다.
+
+1. **인쇄 PDF 경고문구 0** — `print 미디어 경고 계산스타일 = {"display":"none","visibility":"visible","rect":{"w":0,"h":0}}`. `poppler pdftotext`로 실제 PDF 텍스트 직접 추출: pdfA(no-print 유지) = "결재 문서 미리보기 / 손상 이미지 / ... / ANCHORTEXT좌표기준 / ..."(경고문구 부재) vs pdfB(no-print 클래스 제거 뮤테이션) = "...표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요..."(경고문구 실제 인쇄됨) — `no-print`가 원인임을 뮤테이션으로 재확증. CSS 규칙(`global.css`) `@media print { .no-print { display: none !important; } }` — `!important`라 결함3의 인라인 `position/zIndex` 추가와 무관하게 항상 우선한다.
+2. **R3 기대 반전 유지** — `R3_webp_acceptsVp8lHeaderWithoutImagePayloadBecauseChromiumLoadsIt` 등 전체 groupware-service 227건에 포함, GREEN.
+3. **레이아웃 밀림 0** — 같은 하네스: 경고 표시/숨김 전후 `goodImg`/`anchor`/`band` bounding box 완전 동일(`레이아웃 밀림 0 확인 = true`).
+4. **정상 이미지 미삭제** — PDF XObject `["14x16","1x1"]`(14x16=깨진 이미지 브로큰 글리프, 1x1=`b-good` 원본 그대로).
+5. **U-gate ③** — 실 에디터 UI로 재현. (a) 파일 선택 경로: PoC WebP(`poc-vp8l-v1.webp`, byte[24] version=1)를 `<input type="file">`에 DataTransfer로 주입 → "이 이미지는 현재 화면에서 표시할 수 없어 저장할 수 없습니다..." 메시지 노출. (b) source 직접 입력 경로: "이미지 source" 필드에 같은 PoC data URL을 native setter로 주입 후 저장 버튼 클릭 → 동일 메시지. 두 경로 모두 `window.fetch`/`XMLHttpRequest.prototype.open`을 in-page monkey-patch로 가로채 호출 이력을 수집 — **두 경로 모두 `calls: []`**(쓰기 요청 0건).
+6. **무한 pending 없음** — groupware-service 227건에 `H15_*` 전부 포함, GREEN(549MB급 PNG 폭탄 거부 유지, PNG 분기 변경과 무관 — `checkImageDecodedByteBudget`은 그대로).
+7. **CRUD·활성화 계약 불변** — 실 API로 재확인: throwaway 양식 생성 201 → IMAGE 포함 활성화 시도 **422**("자동 업데이트 선행 전에는 DETAIL/IMAGE 양식을 활성화할 수 없습니다") → 이미지 교체 후 재저장(§9) 200. `DocumentTemplateService.java:31` `ADVANCED_ACTIVATION_GATE_ENABLED = true` 불변(미수정).
+8. **allowlist·50KB·자원예산 유지** — groupware-service 227건에 `R5_realRepositoryImageFence_preservesAllowlistSizeAndBudgetContract`(마스코트 원본 71,880B 거부) 포함, GREEN.
+9. **갇힘 아님** — 실 API로 재확인: 결함1 throwaway 양식(깨진 좌표 이미지)의 src를 정상 1x1 PNG로 교체해 `PUT` → **200**.
+
+### 8.5 계열 sweep
+
+- **DocumentRenderer 이미지 렌더 경로**: `ApprovalDocView`(`clients/desktop/src/renderer/print/ApprovalDocView.tsx`)도 같은 `DocumentRenderer`를 쓴다. `DocumentTemplateService.java:31` `ADVANCED_ACTIVATION_GATE_ENABLED=true`가 IMAGE 포함 양식의 ACTIVE 활성화를 422로 막아(§8.4 항목7 실측) **오늘도 도달 불가**임을 재확인했다 — 코드 미변경, R1의 판정과 동일하게 유지. 결함1 fix는 `RenderedImageElement` 자체를 고쳤으므로 게이트가 열리면 `ApprovalDocView` 경로에도 자동 적용된다(별도 분기 없음).
+- **PNG 계열 전수(§8.4 규정 외 추가 실측, jshell)**: IHDR CRC 손상(무시됨, ImageIO가 애초에 IHDR CRC를 검사하지 않음 — 4x4 정상 디코드, 무관), colorType=5(존재하지 않는 값, header 단계 거부), width=0(header 단계 거부), 서명 뒤 랜덤 가비지(header 단계 거부), IHDR 중간 절단(header 단계 거부) — 전부 `PR968R1_D2_png_stillRejectsHeaderLevelCorruption`으로 회귀 고정. IDAT 단계 손상(51% 절단·페이로드 손상·완전 빈 IDAT)만 접수 대상이며 이는 header 단계와 별개 예외로 jshell상 명확히 구분된다.
+
+### 8.6 증거 무결성 정정 A·B 반영
+
+- **정정 A(줄번호 드리프트)**: spec `DocumentPayloadValidator.java:444`→`467`(2곳), `DocumentRenderer.tsx:239-260`/`:240`→`imageDecodeErrorNotice`=`256-274`/`:309`, `:291`→`:306`. plan `:242`→`:315`, `:240`→`:309`, `:239-260`→상동, `:261-295`→`:261-309`, `:372-447`→`:394-469`. `:217-226`·`:222`는 이번 fix 구간 이전이라 드리프트 없음(미변경). 전부 이번 R1 fix로 발생한 **추가** 드리프트다 — R1 정정 시점(444→445, 240→257)과 지금 사이에 내 fix가 다시 밀었다.
+- **정정 B(변경 줄 수)**: 본 문서 §6 표는 재확인 결과 **이미 정확했다**(`DocumentPayloadValidator.java` +13/−10, 테스트 +83/−18 — R1 정정과 일치). 오류는 PM이 게시한 **PR 코멘트**(합산치 +23/+101)에만 있었고 이 dev-report 파일 자체에는 없었다.
+
+### 8.7 R1 fix 변경 파일·numstat (원문)
+
+`git diff --numstat HEAD`(HEAD=`b04bcecae`, 구현 커밋) 기준, 위 §8.6 문서 정정을 제외한 코드/테스트만:
+
+```text
+87  21  clients/desktop/src/renderer/print/DocumentRenderer.image-error.test.tsx
+59  5   clients/desktop/src/renderer/print/DocumentRenderer.tsx
+34  12  services/groupware-service/src/main/java/com/samhanair/logis/groupware/service/DocumentPayloadValidator.java
+142 5   services/groupware-service/src/test/java/com/samhanair/logis/groupware/service/DocumentPayloadValidatorTest.java
+```
+
+### 8.8 정직한 미완료 목록(R1 fix 라운드)
+
+- `ApprovalDocView` 경로의 결함1 fix 자체는 게이트로 인해 오늘 실행 증거를 못 만들었다(§8.5, 코드 공유 구조로 논리적 적용만 확인).
+- CMYK JPEG 등 ImageIO가 못 읽는 실제 포맷의 I-3 표면 확장 여부는 이번에도 미확인(R1과 동일 한계 — 인코더 부재).
+- Electron 패키지 앱 실기동은 미실행(웹 프로덕션 렌더러 `vite --config vite.web.config.ts`로 대체, R1과 동일).
+- PDF 텍스트 추출 1차 시도(자체 제작 regex 기반 ToUnicode CMap 파서)는 이 PDF 구조에서 textRuns=0으로 실패해, `poppler pdftotext`(독립 검증된 도구)로 대체했다 — 자체 파서의 정확한 실패 원인은 추적하지 않았다.
+- FE 전체 vitest 스위트(레포 전역)는 실행하지 않았다 — `print`/`documentTemplate` 디렉터리 27개 파일 239건만 실행(관련 표면 전체 포함, 무관 표면은 제외).
+- throwaway 문서양식은 전부 삭제했다(§8.9). 워크트리에는 새 파일을 남기지 않았다(스크래치패드에만 하네스·로그·PDF·스크린샷 저장).
+
+### 8.9 무훼손
+
+throwaway 문서양식 2건(`PM968R1_DEFECT1_THROWAWAY`, `PM968R1_FENCE_THROWAWAY`) 생성 후 `DELETE` API로 전량 삭제, 목록 재조회로 `PM968R1`/`throwaway` 잔여 0건 확인. 렌더러 dev 서버(포트 5199)는 세션 종료 전 프로세스 종료. 산출물은 스크래치패드(`968-r1fix/`)에만 저장했다.

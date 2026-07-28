@@ -72,7 +72,7 @@ version 3비트만 0~7 로 바꾸고 나머지 바이트는 전부 동일하게 
 
 ⟹ **version 0 만 디코드되고 1~7 은 전부 실패한다. 차이는 `byte[24]` 한 바이트뿐이다.**
 
-### 1.4 지목된 줄(`DocumentPayloadValidator.java:444`)은 **원인이 맞다** — 계측 확증
+### 1.4 지목된 줄(`DocumentPayloadValidator.java:444`, PR#968 R1 fix 후 `:467`)은 **원인이 맞다** — 계측 확증
 
 `isStructurallyValidVp8l` 를 리플렉션으로 직접 호출한 결과 PoC 에 대해 `true` 를 반환하고, 그것이 `isStructurallyValidWebp` 를 `true` 로 만듭니다(`BE_isStructurallyValidWebp=true`). 해당 줄의 판정식은 version 비트를 참조하지 않습니다:
 
@@ -91,11 +91,11 @@ private static boolean isStructurallyValidVp8l(byte[] bytes, int dataOffset, lon
 |---|---|---|
 | 파일 선택 | `clients/desktop/src/renderer/components/documentTemplate/ElementInspector.tsx:245-273` (`accept="image/png,image/jpeg,image/webp"`) | **통과** — `FileReader.readAsDataURL` 후 `isAllowedImageSource` 만 검사 |
 | FE 허용검사 | `clients/desktop/src/renderer/print/templateSchema.ts:389-406` | **통과**(`true`) — 시그니처 12바이트 + 크기만 |
-| BE 검증 | `services/groupware-service/.../DocumentPayloadValidator.java:444` | **통과** — 구조만 |
+| BE 검증 | `services/groupware-service/.../DocumentPayloadValidator.java:444`(PR#968 R1 fix 후 `:467`) | **통과** — 구조만 |
 | BE 저장 | `services/groupware-service/.../DocumentTemplateService.java:70` | **201 저장** — 이후 append-only revision(V12/V13)에 각인 |
 | 편집기 미리보기 | `clients/desktop/src/renderer/routes/DocumentTemplateEditorPage.tsx:275-277` → `DocumentRenderer` | **깨짐**, 고지 없음 |
 | 결재 인쇄 | `clients/desktop/src/renderer/print/ApprovalDocView.tsx:302` → 같은 `DocumentRenderer` | **깨짐**, 고지 없음 |
-| 이미지 렌더 | `clients/desktop/src/renderer/print/DocumentRenderer.tsx:239-260` | `<img>` — **`onError` 핸들러 0건** |
+| 이미지 렌더 | `clients/desktop/src/renderer/print/DocumentRenderer.tsx:239-260`(PR#968 R1 fix 후 `imageDecodeErrorNotice`=`256-274`, `<img>`=`315`) | `<img>` — **`onError` 핸들러 0건**(R1 fix 이후 `onError` + `decode()` 둘 다 있음 — 결함1 fix로 해소) |
 
 **어디서도 조용히 실패하지 않는 지점이 없습니다.**
 
@@ -113,7 +113,7 @@ XObject#3  14x16  filter=FlateDecode   ← 깨진 이미지 자리에 그려진 
 
 ⟹ **완전한 빈 칸은 아니고, 53mm×34mm 상자 안에 14×16px 브로큰 글리프가 찍힙니다.** 설명 문구는 없습니다. 실무적으로는 "빈 칸"과 구별되지 않지만, 기획 문서가 사실과 다른 단정을 물려주지 않도록 정확히 적습니다.
 
-**단, 더 조용한 분기가 따로 있습니다** — `DocumentRenderer.tsx:240` 은 `isAllowedImageSource` 가 false 면 `return null` 로 **요소를 통째로 지웁니다.** alt 도 남지 않고 "여기 이미지가 있었다"는 신호가 0입니다. FE allowlist 가 나중에 좁아지면 **이미 저장된 이미지가 소리 없이 사라집니다.**
+**단, 더 조용한 분기가 따로 있습니다** — `DocumentRenderer.tsx:240`(PR#968 구현·R1 fix 후 `:309`) 은 `isAllowedImageSource` 가 false 면 `return null` 로 **요소를 통째로 지웁니다.** alt 도 남지 않고 "여기 이미지가 있었다"는 신호가 0입니다. FE allowlist 가 나중에 좁아지면 **이미 저장된 이미지가 소리 없이 사라집니다.** (이 기획 시점 진단 — 구현 커밋에서 이 분기는 `imageDecodeErrorNotice()` 경고를 렌더하도록 이미 바뀌었습니다. `return null` 문구는 더 이상 현재 코드를 가리키지 않습니다.)
 
 ### 1.7 도달성 보정 — 결재 인쇄는 지금 **막혀 있다**
 
@@ -164,7 +164,7 @@ reject("IMAGE 요소 src는 실제로 열 수 있는 PNG/JPEG/WebP 이미지여�
 
 이것이 이 기획에서 가장 중요한 측정입니다.
 
-PNG 는 BE 가 **이미 진짜 디코더를 돌리는** 포맷입니다(`ImageIO.read(...) != null`, `DocumentPayloadValidator.java:291`). 그런데도 ImageIO 의 판정과 실제 렌더 엔진의 판정이 갈립니다. 저장소 실 자산 `clients/desktop/public/pwa-192.png` 에서 출발해 **실 경로가 만들 수 있는 변형**(전송 중단·비트 뒤집힘)만 만들어 측정했습니다:
+PNG 는 BE 가 **이미 진짜 디코더를 돌리는** 포맷입니다(`ImageIO.read(...) != null`, `DocumentPayloadValidator.java:291`, PR#968 R1 fix 후 `:306`). 그런데도 ImageIO 의 판정과 실제 렌더 엔진의 판정이 갈립니다. 저장소 실 자산 `clients/desktop/public/pwa-192.png` 에서 출발해 **실 경로가 만들 수 있는 변형**(전송 중단·비트 뒤집힘)만 만들어 측정했습니다(이 기획 시점 진단이 아래 §3 실측의 근거입니다 — PR#968 R1 fix 는 바로 이 어긋남을 해소하기 위해 PNG 를 WebP 와 동일하게 구조 검사만으로 전환했고, 그 결과 `:306` 의 `ImageIO.read()` 완전 디코드 요구는 이제 JPEG 에만 적용됩니다):
 
 ```text
 PNG_BASE_UNTOUCHED                   BYTES=2743  CHROMIUM=ok 192x192   BE=ACCEPTED    일치

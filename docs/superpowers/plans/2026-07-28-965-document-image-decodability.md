@@ -61,7 +61,7 @@ ANIM_FRAME_FROM_MASCOT                   8876  ok 171x150             ok 171x150
 REAL_pwa-192.png                         2743  ok 192x192             ok 192x192
 ```
 
-렌더 경로는 `<img>`(`DocumentRenderer.tsx:242`)입니다. 픽셀 버퍼를 요구하는 판정 수단은 위 4형태를 **과잉 거부**해 I-3 을 깹니다.
+렌더 경로는 `<img>`(`DocumentRenderer.tsx:242`, PR#968 R1 fix 후 `:315`)입니다. 픽셀 버퍼를 요구하는 판정 수단은 위 4형태를 **과잉 거부**해 I-3 을 깹니다.
 
 ### ② 판정 비용은 무시할 수 있다
 
@@ -83,7 +83,7 @@ C1 채택 시 첫 번째는 **실패합니다.** fix 가 틀려서가 아니라 
 
 `grep -rn "onError" clients/desktop/src/renderer/print/ clients/desktop/src/renderer/components/documentTemplate/` → 이미지 관련 **0건**.
 
-그리고 `DocumentRenderer.tsx:240` 은 `isAllowedImageSource` 가 false 면 **`return null`** 로 요소를 통째로 지웁니다 — alt 조차 남지 않습니다. C3 은 이 두 분기를 모두 덮어야 합니다.
+그리고 `DocumentRenderer.tsx:240`(구현·PR#968 R1 fix 후 `:309`) 은 `isAllowedImageSource` 가 false 면 **`return null`** 로 요소를 통째로 지웁니다 — alt 조차 남지 않습니다. C3 은 이 두 분기를 모두 덮어야 합니다. (기획 시점 진단 — 구현 커밋에서 이 분기는 이미 `imageDecodeErrorNotice()` 경고로 바뀌었습니다.)
 
 ### ⑤ 인쇄물의 실제 모습 (증거 무결성 — 이슈 표현 정정)
 
@@ -149,10 +149,10 @@ R1 을 재현하는 실패 테스트를 **먼저** 쓰고 **RED 출력 원문을
 |---|---|---|
 | 파일 선택 | `clients/desktop/src/renderer/components/documentTemplate/ElementInspector.tsx:245-273` | `isAllowedImageSource` + 크기만 검사 |
 | FE 허용검사 | `clients/desktop/src/renderer/print/templateSchema.ts:389-410` (`parseImageSource`/`isAllowedImageSource`), `:229-246` (`hasImageSignature`) | 시그니처 12바이트만 |
-| 이미지 렌더 | `clients/desktop/src/renderer/print/DocumentRenderer.tsx:239-260` | `onError` 없음, false 면 `return null` |
+| 이미지 렌더 | `clients/desktop/src/renderer/print/DocumentRenderer.tsx:239-260`(PR#968 R1 fix 후 `imageDecodeErrorNotice`=`256-274`, `<img>`=`315`) | `onError` 없음, false 면 `return null` (기획 시점 — 구현·R1 fix로 이미 해소) |
 | 편집기 미리보기 | `clients/desktop/src/renderer/routes/DocumentTemplateEditorPage.tsx:275-277` | 같은 `DocumentRenderer` |
 | 결재 인쇄 | `clients/desktop/src/renderer/print/ApprovalDocView.tsx:302` | 같은 `DocumentRenderer` |
-| BE 검증 | `services/groupware-service/.../DocumentPayloadValidator.java:217-226`, `:261-295`, `:372-447` | 구조 검사 + 과장된 문구 |
+| BE 검증 | `services/groupware-service/.../DocumentPayloadValidator.java:217-226`, `:261-295`(PR#968 R1 fix 후 `:261-309`), `:372-447`(PR#968 R1 fix 후 `:394-469`) | 구조 검사 + 과장된 문구 |
 | BE 저장 | `services/groupware-service/.../DocumentTemplateService.java:70`, `:100` | validator 통과 후 저장 |
 | BE 테스트 | `services/groupware-service/src/test/java/.../DocumentPayloadValidatorTest.java` (1,084줄) | §3-③ 3개 재검토 대상 |
 

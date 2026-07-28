@@ -277,6 +277,19 @@ public class DocumentPayloadValidator {
             if ("webp".equals(matcher.group(1))) {
                 return isStructurallyValidWebp(decoded);
             }
+            // 🔴 I-3(#968 R1 실측): PNG는 이미 진짜 디코더(ImageIO.read())를 돌리는데도 렌더 엔진과
+            // 어긋난다 — 저장소 pwa-192.png(2,743B)를 51%(1,409B)에서 자른 "다운로드 중단" 재현과
+            // IDAT 페이로드만 손상시킨(CRC 재계산) 재현 둘 다, Chromium <img>는 192x192로 정상
+            // load하지만 ImageIO.read()는 IIOException("Error reading PNG image data")을 던진다.
+            // 완전한 픽셀 디코드 성공을 요구하면 C1(FE <img>.decode())이 통과시킨 이미지를 BE가
+            // 거부해 저장을 막는다(I-3 위반). WebP와 동일한 계약으로 통일한다 — BE는 구조(IHDR
+            // 파싱 가능 여부)와 자원예산만 확인하고, 최종 디코드 판정은 FE에 맡긴다(C2). IHDR 자체가
+            // 손상되어 치수를 판독할 수 없는 입력은 checkImageDecodedByteBudget()의 header 파싱
+            // 단계에서 여전히 거부된다("I/O error reading PNG header!" — IDAT 단계 실패와는 다른
+            // 예외로, jshell 실측상 명확히 구분된다).
+            if ("png".equals(matcher.group(1))) {
+                return checkImageDecodedByteBudget(decoded);
+            }
             // H15: ImageIO.read()는 PNG/JPEG 모두 IHDR/SOF에 선언된 가로×세로 치수(+색상 정보)만으로
             // 목적지 픽셀 버퍼를 "먼저" 할당하고, 그 다음에야 IDAT/scan 데이터를 실제로 읽는다 — IDAT이
             // 비었거나 부족해도 할당은 이미 끝난 뒤다. 57바이트짜리 "선언 치수만 거대한" 입력이 요청
@@ -287,8 +300,9 @@ public class DocumentPayloadValidator {
             // 실제 위험이 최대 8배(16bit RGBA=8B/px vs 8bit Gray=1B/px) 벌어진다 — 예산 바로 아래
             // 픽셀 수의 RGBA 이미지(7999×7999=63,984,001px)가 여전히 실제로는 ~244MiB 를 할당했다
             // (실측: 컨테이너 메모리 376.1→621.6MiB). checkImageDecodedByteBudget()은 픽셀 개수가
-            // 아니라 실제 디코드 목적지 "바이트 수"를 예산으로 삼는다.
-            checkImageDecodedByteBudget(decoded);
+            // 아니라 실제 디코드 목적지 "바이트 수"를 예산으로 삼는다. JPEG는 I-3 불일치가 실측되지
+            // 않아(#968 R1 — 60% 절단 JPEG도 이미 ACCEPTED) 완전 디코드 요구를 그대로 유지한다.
+            if (!checkImageDecodedByteBudget(decoded)) return false;
             return ImageIO.read(new ByteArrayInputStream(decoded)) != null;
         } catch (IllegalArgumentException | IOException ex) {
             return false;
@@ -306,18 +320,25 @@ public class DocumentPayloadValidator {
      * <p>예산을 넘으면 {@link BusinessException}을 직접 던져 구조 검사 실패와 구분되는
      * 원인(해상도 초과)을 구체적으로 안내한다(H15-b).
      *
-     * <p>reader를 찾지 못하거나 치수를 읽을 수 없는 경우는 뒤이은 {@code ImageIO.read()}가 결국
-     * null을 반환하거나 예외를 던져 구조 검사 실패 문구로 거부되므로 그대로 둔다.
-     * 다만 {@code getRawImageType()}이 픽셀 형식을 특정하지 못해 {@code null}을 반환하는 경우는
-     * "판단 보류"로 비싼 read()를 그냥 허용하지 않는다 — 폭 계산 이전에 이 판별 불가 자체가 이미
-     * 위험 신호이므로 보수적 최악값({@link #WORST_CASE_BYTES_PER_PIXEL_FALLBACK})으로 예산을
-     * 강제한다(과소평가로 인한 우회를 막는다).
+     * <p>reader를 찾지 못하거나 치수를 읽을 수 없는 경우 {@code false}를 반환한다. PNG 호출자(I-3,
+     * #968 R1)는 이 메서드의 반환값을 그대로 최종 구조 판정으로 쓰므로(뒤이은 전체 픽셀 디코드를
+     * 더 이상 요구하지 않는다), 여기서 판별 불가를 그냥 통과시키면 그 판정이 최종이 되어 버린다 —
+     * 그래서 이제 명시적으로 {@code false}를 반환한다(과거에는 뒤이은 {@code ImageIO.read()}가
+     * 결국 null을 반환하거나 예외를 던져 구조 검사 실패 문구로 거부되는 것에 기대어 조용히
+     * 통과시켰다). JPEG 호출자는 이 메서드가 {@code false}면 즉시 거부하고, {@code true}면 여전히
+     * {@code ImageIO.read()} 전체 디코드를 추가로 요구한다(동작 변화 없음 — 판별 불가 시 원래도
+     * 뒤이은 read()가 결국 거부했다). {@code getRawImageType()}이 픽셀 형식을 특정하지 못해
+     * {@code null}을 반환하는 경우는 "판단 보류"로 비싼 read()를 그냥 허용하지 않는다 — 폭 계산
+     * 이전에 이 판별 불가 자체가 이미 위험 신호이므로 보수적 최악값
+     * ({@link #WORST_CASE_BYTES_PER_PIXEL_FALLBACK})으로 예산을 강제한다(과소평가로 인한 우회를 막는다).
+     *
+     * @return IHDR/SOF 헤더가 파싱 가능하고 예측 디코드 바이트 수가 예산 이내이면 {@code true}
      */
-    private static void checkImageDecodedByteBudget(byte[] decoded) throws IOException {
+    private static boolean checkImageDecodedByteBudget(byte[] decoded) throws IOException {
         try (var inputStream = ImageIO.createImageInputStream(new ByteArrayInputStream(decoded))) {
-            if (inputStream == null) return;
+            if (inputStream == null) return false;
             var readers = ImageIO.getImageReaders(inputStream);
-            if (!readers.hasNext()) return;
+            if (!readers.hasNext()) return false;
             var reader = readers.next();
             try {
                 // seekForwardOnly=true, ignoreMetadata=true — EXIF/ICC 등 부가 메타데이터 파싱까지
@@ -325,7 +346,7 @@ public class DocumentPayloadValidator {
                 reader.setInput(inputStream, true, true);
                 long width = reader.getWidth(0);
                 long height = reader.getHeight(0);
-                if (width <= 0 || height <= 0) return;
+                if (width <= 0 || height <= 0) return false;
 
                 int bytesPerPixel;
                 var rawType = reader.getRawImageType(0);
@@ -341,6 +362,7 @@ public class DocumentPayloadValidator {
                     reject("IMAGE 요소 이미지가 너무 커서 처리할 수 없습니다(가로×세로 픽셀 수와 색상 "
                             + "정보 기준 상한 초과). 해상도를 줄이거나 이미지를 단순화해 다시 시도하세요.");
                 }
+                return true;
             } finally {
                 reader.dispose();
             }

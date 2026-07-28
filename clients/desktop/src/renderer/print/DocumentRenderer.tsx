@@ -236,30 +236,84 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
   )
 }
 
-function imageDecodeErrorNotice(elementKey: string) {
+/**
+ * 결함3(#968 R1, 경미) fix — 라이브 재검증(968-r1fix 하네스)에서 1차 시도(position:relative+z-index만)의
+ * 잔여 문제를 실측으로 발견했다: 이 경고는 `<span>`(block)이라 `position`을 무엇으로 주든 명시적
+ * width가 없으면 밴드 폭 전체로 퍼진다 — z-index로 "가려짐"은 해소되지만, 이번엔 경고 자신이 같은
+ * 줄의 다른 좌표 요소(예: TEXT `ANCHORTEXT좌표기준`)와 같은 자리에서 서로 다른 글자가 뒤섞여
+ * 겹쳐 그려졌다(스크린샷 실측: 두 텍스트가 한 줄에 포개짐). 근본 원인은 스태킹이 아니라 **경고가
+ * 이미지의 geometry 박스를 전혀 쓰지 않는다는 것**이었다.
+ *
+ * fix: 경고에도 실패한 IMAGE와 동일한 `geometryStyle(geometry, …)`을 적용해 좌표 요소일 때는 그
+ * 이미지가 있었을 자리(x/y/w/h)에만 그려지게 한다 — 밴드 전체가 아니라 이미지 자신의 자리만
+ * 차지하므로 다른 형제의 자리를 침범하지 않는다(형제 침범 0, 재실측 확인). flow 배치(geometry
+ * 없음) 이미지는 `geometryStyle(undefined, …)`이 빈 객체를 반환해 기존 정상 flow 동작을 그대로
+ * 유지한다(회귀 없음). `position: relative` + z-index는 이미지 자신의 자리 안에서도 형제(같은
+ * Fragment의 `<img>`)보다 위에 그려지도록 유지한다 — 좌표 요소는 geometryStyle이 이미
+ * `position: absolute`로 바꾸므로 이 케이스에선 absolute 형제(사진)보다 DOM 순서상 뒤에 오는 것만
+ * 으로도 충분히 위에 그려지지만, flow 케이스(static 형제 없음)에서도 일관되게 명시적으로 둔다.
+ */
+function imageDecodeErrorNotice(elementKey: string, geometry?: Geometry) {
   return (
     <span
       className="no-print"
       role="alert"
       data-testid={`document-template-image-error-${elementKey}`}
-      style={{ display: 'block', color: 'var(--color-danger-700, #a12622)', fontSize: 12 }}
+      style={{
+        ...geometryStyle(geometry, undefined),
+        display: 'block',
+        position: geometry === undefined ? 'relative' : 'absolute',
+        zIndex: 1,
+        color: 'var(--color-danger-700, #a12622)',
+        fontSize: 12,
+      }}
     >
       이 이미지는 현재 화면에서 표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요.
     </span>
   )
 }
 
+/**
+ * C3(#968 R1 결함1 fix): `onError`만으로는 좌표 배치(FIELD/TEXT/IMAGE 밴드) IMAGE의 첫 진입에서
+ * 경고가 한 번도 뜨지 않았다(라이브 실측 5/5) — React가 `<img>`를 DOM에 삽입하기 전에 `src`를
+ * 세팅해 data URL 디코드 실패가 그 시점에 이미 일어나고, 마운트 경로의 synthetic `onError`가 그
+ * 이벤트를 못 받는다(브라우저 native error는 실제로 발생하지만 React가 놓친다 — DOM은 이미
+ * `complete:true, naturalWidth:0`). `PositionedElementBand`(layout effect + ResizeObserver + 화면/
+ * 인쇄 2벌 렌더) 아래라 이 순서가 항상 불리했다.
+ *
+ * 마운트 이후 `imgRef`로 `HTMLImageElement#decode()`를 직접 호출하면 이 레이스와 무관하게 항상
+ * 정확한 답을 얻는다 — decode()는 이벤트 버블링에 기대지 않고 "이 리소스가 지금 디코드 가능한가"를
+ * 그 자리에서 판정하므로, 실패가 effect 실행 이전에 이미 일어났어도(마운트 전 실패) 올바르게
+ * reject된다. C1(`canDecodeImageSource`)이 저장 전 판정에 쓰는 것과 동일한 원리다 — 렌더 경로와
+ * 저장 경로가 "디코드 가능성"을 같은 방식으로 묻는다. `onError`는 마운트 이후 src가 바뀌는 경로
+ * (예: 인스펙터에서 직접 URL 재입력)의 즉시 반응용으로 그대로 둔다 — 두 메커니즘 모두 같은
+ * `setDecodeFailed(true)`로 수렴하므로 충돌하지 않는다.
+ */
 function RenderedImageElement({ element, measurement = false }: { element: ImageElement; measurement?: boolean }) {
   const [decodeFailed, setDecodeFailed] = useState(false)
-  useEffect(() => setDecodeFailed(false), [element.src])
+  const imgRef = useRef<HTMLImageElement | null>(null)
+
+  useIsomorphicLayoutEffect(() => {
+    setDecodeFailed(false)
+    if (measurement) return undefined
+    const img = imgRef.current
+    if (!img || typeof img.decode !== 'function') return undefined
+    let cancelled = false
+    img.decode().then(
+      () => { if (!cancelled) setDecodeFailed(false) },
+      () => { if (!cancelled) setDecodeFailed(true) },
+    )
+    return () => { cancelled = true }
+  }, [element.src, measurement])
 
   if (!isAllowedImageSource(element.src)) {
-    return measurement ? null : imageDecodeErrorNotice(element.key)
+    return measurement ? null : imageDecodeErrorNotice(element.key, element.geometry)
   }
 
   return (
     <>
       <img
+        ref={imgRef}
         className="document-template-image"
         {...(measurement
           ? { 'data-template-print-image': element.key }
@@ -275,7 +329,7 @@ function RenderedImageElement({ element, measurement = false }: { element: Image
           objectFit: 'contain',
         }}
       />
-      {decodeFailed && !measurement ? imageDecodeErrorNotice(element.key) : null}
+      {decodeFailed && !measurement ? imageDecodeErrorNotice(element.key, element.geometry) : null}
     </>
   )
 }
