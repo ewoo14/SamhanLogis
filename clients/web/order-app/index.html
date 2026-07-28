@@ -4874,11 +4874,20 @@ function onHomeQtyInput(model,v){
   const isB=/(분\s*기\s*관|분기관)/i.test(nm);
   const isF=/(발통|일자발)/i.test(nm);
   if(isP||isR||isH||isB||isF){
-    if(isP) HOME_MANUAL_PANEL.add(model);
-    else if(isR) HOME_MANUAL_REMOTE.add(model);
-    else if(isH) HOME_MANUAL_HOSE.add(model);
-    else if(isB) HOME_MANUAL_BRANCH.add(model);
-    else if(isF) HOME_MANUAL_FOOT.add(model);
+    if(v){
+      if(isP) HOME_MANUAL_PANEL.add(model);
+      else if(isR) HOME_MANUAL_REMOTE.add(model);
+      else if(isH) HOME_MANUAL_HOSE.add(model);
+      else if(isB) HOME_MANUAL_BRANCH.add(model);
+      else if(isF) HOME_MANUAL_FOOT.add(model);
+    } else {
+      /* 칸을 지우면(v=0) 수동 잠금을 해제한다 — 견적 앱과 대칭(index.ejs:5966-5973) */
+      if(isP) HOME_MANUAL_PANEL.delete(model);
+      else if(isR) HOME_MANUAL_REMOTE.delete(model);
+      else if(isH) HOME_MANUAL_HOSE.delete(model);
+      else if(isB) HOME_MANUAL_BRANCH.delete(model);
+      else if(isF) HOME_MANUAL_FOOT.delete(model);
+    }
     syncHomeTotals();refreshSelectedBadge();
     return;
   }
@@ -8761,7 +8770,12 @@ function takeSnapshot() {
     singleQty: Array.from(singleQty.entries()),
     commQty: Array.from(commQty.entries()),
     oldQty: Array.from(oldQty.entries()),
-    absoluteLock: window.ABSOLUTE_LOCK ? Array.from(window.ABSOLUTE_LOCK) : []
+    absoluteLock: window.ABSOLUTE_LOCK ? Array.from(window.ABSOLUTE_LOCK) : [],
+    homeManualPanel: Array.from(HOME_MANUAL_PANEL),
+    homeManualHose: Array.from(HOME_MANUAL_HOSE),
+    homeManualRemote: Array.from(HOME_MANUAL_REMOTE),
+    homeManualBranch: Array.from(HOME_MANUAL_BRANCH),
+    homeManualFoot: Array.from(HOME_MANUAL_FOOT)
   };
 
   return {
@@ -9057,6 +9071,15 @@ function applySnapshot(shot, custName) {
       res(singleQty, shot.core.singleQty);
       res(commQty, shot.core.commQty);
       res(oldQty, shot.core.oldQty);
+
+      /* 홈 파생 수동잠금 복원(D-3: 잠금 필드가 없는 기존 저장분은 Array.isArray 가 false 라
+         복원하지 않고 clearHomeManualLocks() 로 비운 채 유지 — 이 fix 이전과 동일 동작) */
+      const resLock = (s, d) => { if(s && Array.isArray(d)) d.forEach(k=>s.add(k)); };
+      resLock(HOME_MANUAL_PANEL, shot.core.homeManualPanel);
+      resLock(HOME_MANUAL_HOSE, shot.core.homeManualHose);
+      resLock(HOME_MANUAL_REMOTE, shot.core.homeManualRemote);
+      resLock(HOME_MANUAL_BRANCH, shot.core.homeManualBranch);
+      resLock(HOME_MANUAL_FOOT, shot.core.homeManualFoot);
     }
 
     if(shot.branch){

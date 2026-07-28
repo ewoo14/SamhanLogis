@@ -212,7 +212,7 @@ done
 
 | 파일 | 갱신 내용 |
 |---|---|
-| `docs/superpowers/specs/2026-07-27-896-survey.md` | §5 드리프트 표 8행 → 해소 2건 표시(6 유지) · §11 결정 #7 개정(D-2 확정 후) |
+| `docs/superpowers/specs/2026-07-27-896-survey.md` | §5 드리프트 표 8행 중 해소 1건(`H-03-PANEL-LOCK`) 표시(7 유지) + 목록 밖 별도 1건(`C-02-I-HOSE`) 수렴 · §11 결정 #7 개정(D-2 확정 후) (🚨 R1 정정: "해소 2건(6 유지)"는 계수 오류) |
 | `docs/dev-reports/2026-07-27-896-s1-golden-baseline.md` | §6-1(주문 홈 수동 잠금 부재) · §6-3(견적 I형 상쇄) · §13.4 sweep 결과 갱신 |
 | `clients/web/legacy-quantity-golden/goldens.js` | `H-03-PANEL-LOCK` 주석 갱신 |
 | `docs/dev-reports/2026-07-28-963-legacy-quantity-loss.md` | **신규** — 진단 원문·fix 근거·golden diff·뮤테이션 결과·라이브 QA |
@@ -222,7 +222,7 @@ done
 > 🚫 별도 docs PR 금지 — 같은 PR 에 포함한다.
 
 ### 게이트 G7
-- [ ] 드리프트 8→6 이 **네 곳 전부**(survey · dev-report · 테스트 어서션 · goldens.js 주석)에서 일치
+- [ ] 드리프트 "8건 중 7건 유지 + 별도 1건 수렴"(🚨 R1 정정 — "8→6"은 계수 오류) 이 **네 곳 전부**(survey · dev-report · 테스트 어서션 · goldens.js 주석)에서 일치
 - [ ] 새 dev-report 의 모든 수치가 실행 원문에서 왔고 재현 가능
 
 ---
@@ -245,7 +245,7 @@ done
 
 - **워크플로우 캐논 엄수**: OPUS 기획 → CODEX LUNA 5.6 구현 → OPUS 5-agents 적대리뷰 + 라이브 QA + SONNET5 fix → CODEX SOL 5.6 5-agents 리뷰 + LUNA fix → 수렴까지 반복 → PM 종합 + CI green → 머지. 두 검증 스테이지는 **순차**.
 - **리뷰 fix 는 이 PR 안에서 처리한다.** 별도 PR/후속 이슈 분리 금지. **새 이슈 등록은 사전 허락 필수.**
-- **범위 점증 감시**: 이 슬라이스는 드리프트 8건 중 2건만 다룬다. 리뷰가 나머지 6건을 지적하면 **범위 밖**으로 기록하고 고치지 않는다. 고치기 시작하면 정식 리뷰 재가동 대상이 된다([[feedback_expanded_scope_reinstate_review]]).
+- **범위 점증 감시**: 이 슬라이스는 드리프트 8행 중 `H-03-PANEL-LOCK` 1건과 목록 밖 별도 1건(`C-02-I-HOSE`)만 다룬다(🚨 R1 정정: "8건 중 2건"이 아니라 "8행 중 1건 + 별도 1건"). 리뷰가 나머지 7건을 지적하면 **범위 밖**으로 기록하고 고치지 않는다. 고치기 시작하면 정식 리뷰 재가동 대상이 된다([[feedback_expanded_scope_reinstate_review]]).
 - **바운드**: 3라운드 이상에서 "fix 가 새 결함" 이 반복되면 개발책임자께 바운드 옵션을 제시한다([[feedback_pm_regulate_slice_effort]]).
 
 ## 부록 B — 적대검증 브리핑에 반드시 넣을 것
