@@ -4,10 +4,8 @@ import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
-import com.samhanair.logis.product.quantitysync.QuantitySyncViolationTranslator;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -130,24 +128,16 @@ public class GlobalExceptionHandler {
      * 직렬화(#2)로 1차 방어하되, 그래도 빠져나간 경합은 catch-all 500 이 아니라
      * 409 로 매핑하여 클라이언트가 재시도 가능한 충돌로 인식하게 한다.
      *
-     * <p><b>재수렴 R4 결함 A [HIGH] fix</b> — 이 핸들러는 product-service 의 모든
-     * {@link DataIntegrityViolationException} 이 지나는 유일한 통로다. V24 quantity_sync
-     * deferred constraint trigger 위반(경로 무관 — usageScope 전이 · estimateCategories
-     * 변경 · 향후 추가될 어떤 mutation 경로든 전부 이 예외로 도착)을
-     * {@link QuantitySyncViolationTranslator} 로 먼저 가로채 원인을 드러내고, 그 트리거와
-     * 무관한 나머지(예: 구성품 replace-all 동시 PUT 경합)는 기존 범용 409 로 그대로
-     * 떨어진다 — 경로별 가드 대신 이 단일 통로에서 처리하므로 새 경로가 나와도 코드 변경
-     * 없이 적용된다(U-1).
+     * <p>🚨 2026-07-28 범위 축소 — 이 핸들러는 한때 V24 quantity_sync deferred constraint
+     * trigger 위반을 {@code QuantitySyncViolationTranslator} 로 가로채 원인을 드러냈으나,
+     * 그 트리거 자체가 제거되었다(PR #958 R5 재수렴 이후 개발책임자 결정 — DB 강제층을
+     * #896 슬3으로 이관, docs/dev-reports/2026-07-28-896-s2-quantity-sync-schema.md §10).
+     * 이제 이 핸들러는 다시 단일하고 무조건적인 범용 409 로 응답한다 — quantity_sync 규칙
+     * 검증은 전부 {@code QuantitySyncRuleValidator}(Java 계층)에서 저장 전에 400 으로
+     * 걸러지므로 이 핸들러에 도달하지 않는다.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        Optional<String> quantitySyncReason = QuantitySyncViolationTranslator.extractReason(ex);
-        if (quantitySyncReason.isPresent()) {
-            String message = QuantitySyncViolationTranslator.toUserMessage(quantitySyncReason.get());
-            log.warn("quantity_sync 그래프 제약 위반 (경로 무관 통합 처리): {}", quantitySyncReason.get());
-            return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
-                    .body(ApiResponse.fail(ErrorCode.CONFLICT, message));
-        }
         log.warn("DataIntegrityViolation (동시 편집 충돌 또는 제약 위반)", ex);
         return ResponseEntity.status(ErrorCode.CONFLICT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.CONFLICT, "동시 편집 충돌 또는 제약 위반"));

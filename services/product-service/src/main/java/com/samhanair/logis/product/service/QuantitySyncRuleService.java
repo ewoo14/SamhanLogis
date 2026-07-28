@@ -286,7 +286,7 @@ public class QuantitySyncRuleService {
                 ? bundleComponentRepository.findByBundleProductId(product.getId()).stream()
                         .map(BundleComponent::getComponentProductCode).collect(Collectors.toSet())
                 : Set.of();
-        return new ProductSnapshot(productCode(product), product.getName(), categories,
+        return new ProductSnapshot(product.getId(), productCode(product), product.getName(), categories,
                 product.getStatus() == ProductStatus.ACTIVE,
                 product.getUsageScope() != UsageScope.NONE,
                 product.getProductType() == ProductType.BUNDLE,

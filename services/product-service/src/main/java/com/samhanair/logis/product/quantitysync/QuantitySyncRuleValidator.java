@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 /**
@@ -129,9 +130,18 @@ public class QuantitySyncRuleValidator {
      * 존재한다. 호출자(QuantitySyncRuleService)가 product_estimate_exposure를 읽어
      * COMMERCIAL_MULTI→COMM_MULTI 매핑과 LEGACY/OTHER 배제(규칙 category 3종에 대응하는
      * 것만 포함)를 마친 뒤 이 집합을 채운다.
+     *
+     * <p>🚨 2026-07-28 범위 축소 R5 A1-① fix — {@code productId}(내부 FK)를 추가한다.
+     * {@code ProductRepository.findByCatalogExposedModelCodeAndIsDeletedFalse}가
+     * model_code 실패 시 model_name으로 fallback하므로, 같은 품목을 서로 다른 표기
+     * (모델코드/모델명)로 두 번 지정해도 문자열은 다르지만 productId는 같다. 이 필드가
+     * 없던 시절에는 source/target 중복·source=target 판정이 전부 productCode 문자열만
+     * 비교해, DB 부분 unique 인덱스(source_product_id/target_product_id, UUID 비교)만
+     * 걸러내는 위장 409가 났다(S-3). 이 필드는 검증 전용 내부 식별자이며 API 응답에는
+     * 나가지 않는다(UUID 비노출 원칙과 무관, feedback_uuid_no_user_visibility.md).
      */
-    public record ProductSnapshot(String productCode, String productName, Set<String> categories,
-                                  boolean active, boolean visible, boolean bundle,
+    public record ProductSnapshot(UUID productId, String productCode, String productName,
+                                  Set<String> categories, boolean active, boolean visible, boolean bundle,
                                   Set<String> componentCodes) {
         public ProductSnapshot {
             categories = Set.copyOf(categories == null ? Set.of() : categories);
@@ -182,8 +192,8 @@ public class QuantitySyncRuleValidator {
         // 원인이 뭉개졌다(GlobalExceptionHandler:131-136). 평범한 입력 실수이지 동시 편집
         // 충돌이 아니므로 여기서 먼저 걸러 400과 함께 무엇이 중복인지 알려준다. DB unique
         // index는 동시 편집 경합의 backstop으로 그대로 둔다(S-4).
-        requireUniqueSourceProductCodes(draft.sources());
-        requireUniqueTargets(draft.targets());
+        requireUniqueSourceProductCodes(draft);
+        requireUniqueTargets(draft);
 
         for (SourceDraft source : draft.sources()) {
             ProductSnapshot product = product(draft, source.productCode());
@@ -206,7 +216,17 @@ public class QuantitySyncRuleValidator {
         Set<String> targetCodes = draft.targets().stream().map(TargetDraft::productCode).collect(java.util.stream.Collectors.toSet());
         Set<String> overlap = new HashSet<>(sourceCodes);
         overlap.retainAll(targetCodes);
-        if (!overlap.isEmpty()) {
+        // 🚨 2026-07-28 범위 축소 R5 A1-① fix — 문자열 overlap만으로는 별칭(모델코드로 source,
+        // 모델명으로 target을 지정했지만 같은 품목)을 잡지 못한다(S-3). productId 기준으로도
+        // 같은 검사를 한다 — DB 트리거(s.source_product_id = t.target_product_id) 제거 이후
+        // 이 검사가 유일한 방어선이므로 문자열 검사와 나란히 유지한다.
+        Set<UUID> sourceProductIds = sourceCodes.stream().map(code -> product(draft, code).productId())
+                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> targetProductIds = targetCodes.stream().map(code -> product(draft, code).productId())
+                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> productOverlap = new HashSet<>(sourceProductIds);
+        productOverlap.retainAll(targetProductIds);
+        if (!overlap.isEmpty() || !productOverlap.isEmpty()) {
             invalid("source와 target은 같을 수 없습니다.");
         }
         for (SourceDraft source : draft.sources()) {
@@ -260,12 +280,25 @@ public class QuantitySyncRuleValidator {
     /**
      * 재수렴 결함 2 [MED] B — 같은 productCode를 source에 두 번 지정하면
      * 부분 unique index {@code ux_qss_rule_source_active}(V24:88-90)에서만 걸린다.
+     *
+     * <p>🚨 2026-07-28 범위 축소 R5 A1-① fix — productCode 문자열이 달라도(모델코드 vs
+     * 모델명) 같은 품목을 가리키면 productId 기준으로도 중복으로 본다(S-3). DB 부분 unique
+     * 인덱스는 UUID를 비교하므로 이 검사가 없으면 별칭 조합만 Java를 통과해 DB에서 위장
+     * 409로 걸렸다 — 이제 DB 트리거가 없어 그 backstop마저 사라졌으므로 여기가 유일한
+     * 방어선이다.
      */
-    private void requireUniqueSourceProductCodes(List<SourceDraft> sources) {
-        Set<String> seen = new HashSet<>();
-        for (SourceDraft source : sources) {
-            if (!seen.add(source.productCode())) {
+    private void requireUniqueSourceProductCodes(Draft draft) {
+        Set<String> seenCodes = new HashSet<>();
+        Map<UUID, String> seenProductIds = new HashMap<>();
+        for (SourceDraft source : draft.sources()) {
+            if (!seenCodes.add(source.productCode())) {
                 invalid("source productCode가 중복되었습니다: " + source.productCode());
+            }
+            UUID productId = product(draft, source.productCode()).productId();
+            String priorCode = seenProductIds.putIfAbsent(productId, source.productCode());
+            if (priorCode != null) {
+                invalid("source가 표기만 다른 채(" + priorCode + ", " + source.productCode()
+                        + ") 같은 품목을 중복 지정했습니다.");
             }
         }
     }
@@ -275,16 +308,26 @@ public class QuantitySyncRuleValidator {
      * 같은 displayOrder를 두 번 지정(C)하면 각각 부분 unique index
      * {@code ux_qst_rule_target_active}(V24:96-98)·{@code ux_qst_rule_display_order_active}
      * (V24:100-102)에서만 걸린다.
+     *
+     * <p>🚨 2026-07-28 범위 축소 R5 A1-① fix — {@link #requireUniqueSourceProductCodes}와
+     * 동일한 이유로 productId 기준 중복도 함께 본다(S-3).
      */
-    private void requireUniqueTargets(List<TargetDraft> targets) {
+    private void requireUniqueTargets(Draft draft) {
         Set<String> seenCodes = new HashSet<>();
         Set<Integer> seenOrders = new HashSet<>();
-        for (TargetDraft target : targets) {
+        Map<UUID, String> seenProductIds = new HashMap<>();
+        for (TargetDraft target : draft.targets()) {
             if (!seenCodes.add(target.productCode())) {
                 invalid("target productCode가 중복되었습니다: " + target.productCode());
             }
             if (target.displayOrder() != null && !seenOrders.add(target.displayOrder())) {
                 invalid("target displayOrder가 중복되었습니다: " + target.displayOrder());
+            }
+            UUID productId = product(draft, target.productCode()).productId();
+            String priorCode = seenProductIds.putIfAbsent(productId, target.productCode());
+            if (priorCode != null) {
+                invalid("target이 표기만 다른 채(" + priorCode + ", " + target.productCode()
+                        + ") 같은 품목을 중복 지정했습니다.");
             }
         }
     }
@@ -410,13 +453,52 @@ public class QuantitySyncRuleValidator {
                 || value.get(0).asText().isBlank()) {
             invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
         }
+        requireNoNulCharacter(value.get(0).asText(), "option key");
         JsonNode operand = value.get(1);
         if (allowList) {
             if (!operand.isArray() || operand.isEmpty()) {
                 invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
             }
+            for (JsonNode element : operand) {
+                requireStorableScalar(element);
+            }
         } else if (!operand.isValueNode()) {
             invalid("option 조건의 key/value가 허용 계약과 다릅니다.");
+        } else {
+            requireStorableScalar(operand);
+        }
+    }
+
+    /**
+     * 🚨 2026-07-28 범위 축소 R5 A2-①·A2-② fix — condition_json의 leaf scalar 값이
+     * PostgreSQL jsonb에 실제로 저장 가능한지 저장 이전에 검사한다.
+     *
+     * <ul>
+     *   <li>A2-① — {@code "1e400"}처럼 double 표현 범위를 넘는 숫자를 Jackson이
+     *       {@code DoubleNode(Infinity)}로 파싱하면 REPLACE 중복 비교
+     *       ({@link QuantitySyncConditionEquality#jsonbEquals})의 {@code decimalValue()}가
+     *       {@link NumberFormatException}을 던져 500이 났다(재현: Double.MAX_VALUE 경계에서
+     *       201→500). 유한하지 않은 숫자는 여기서 먼저 400으로 거부한다.</li>
+     *   <li>A2-② — 문자열에 U+0000(NUL)이 있으면 PostgreSQL jsonb 파싱 자체가
+     *       "unsupported Unicode escape sequence"로 거부하는데, 이 예외가
+     *       {@code DataIntegrityViolationException}으로 분류되어 GlobalExceptionHandler의
+     *       범용 409("동시 편집 충돌 또는 제약 위반")로 뭉개졌다(재현:
+     *       {@code {"optionEquals":["k","a\u0000b"]}}). NUL 문자는 여기서 먼저 400으로
+     *       거부한다.</li>
+     * </ul>
+     */
+    private void requireStorableScalar(JsonNode value) {
+        if (value.isNumber() && !Double.isFinite(value.doubleValue())) {
+            invalid("option 조건의 숫자 값이 저장 가능한 범위를 벗어났습니다.");
+        }
+        if (value.isTextual()) {
+            requireNoNulCharacter(value.asText(), "option 조건의 문자열 값");
+        }
+    }
+
+    private void requireNoNulCharacter(String text, String field) {
+        if (text != null && text.indexOf(0) >= 0) {
+            invalid(field + "에 허용되지 않는 문자(NUL)가 포함되어 있습니다.");
         }
     }
 

@@ -139,6 +139,91 @@ class QuantitySyncRuleInputMistakeIT extends AbstractPostgresIT {
         assertThat(activeRuleCount("MISTAKE_RULE_D")).isZero();
     }
 
+    // ---- 🚨 2026-07-28 범위 축소 R5 A1-① RED-first(S-3) — 별칭(모델코드/모델명)으로 같은
+    // 품목을 두 번 지정해도 실 서비스 + 실 Postgres에서 원인이 분명한 400을 받는다. R5
+    // 실측: 모델코드로 한 번, 모델명으로 한 번 같은 품목을 source에 지정하면 Java는
+    // 문자열이 다르다는 이유로 통과시키고 DB 부분 unique 인덱스(UUID 비교)에서만 걸려
+    // "동시 편집 충돌 또는 제약 위반"(409)으로 원인이 위장됐다. ----
+
+    @Test
+    void E_별칭_모델코드_모델명으로_같은_품목을_source에_두_번_지정하면_원인이_분명한_400을_받는다() throws Exception {
+        productWithAlias("MISTAKE-ALIAS-E-CODE", "MISTAKE-ALIAS-E-NAME");
+        QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(
+                "MISTAKE_RULE_E", QuantitySyncEstimateCategory.HOME_MULTI, "이름", true, "SUM",
+                MAPPER.readTree("{}"), QuantitySyncInactiveBehavior.ZERO, QuantitySyncConflictPolicy.ADD,
+                10, LEGACY_REF,
+                List.of(new QuantitySyncRuleRequest.SourceRequest("MISTAKE-ALIAS-E-CODE", new BigDecimal("1")),
+                        new QuantitySyncRuleRequest.SourceRequest("MISTAKE-ALIAS-E-NAME", new BigDecimal("1"))),
+                List.of(new QuantitySyncRuleRequest.TargetRequest(
+                        "MISTAKE-TGT-B", new BigDecimal("1"), "NONE", 1)));
+
+        assertThatThrownBy(() -> service.create(request, "qa-mistake"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("같은 품목을 중복 지정")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        assertThat(activeRuleCount("MISTAKE_RULE_E")).isZero();
+    }
+
+    @Test
+    void F_별칭_모델코드_모델명으로_같은_품목을_target에_두_번_지정하면_원인이_분명한_400을_받는다() throws Exception {
+        productWithAlias("MISTAKE-ALIAS-F-CODE", "MISTAKE-ALIAS-F-NAME");
+        QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(
+                "MISTAKE_RULE_F", QuantitySyncEstimateCategory.HOME_MULTI, "이름", true, "SUM",
+                MAPPER.readTree("{}"), QuantitySyncInactiveBehavior.ZERO, QuantitySyncConflictPolicy.ADD,
+                10, LEGACY_REF,
+                List.of(new QuantitySyncRuleRequest.SourceRequest("MISTAKE-SRC-A", new BigDecimal("1"))),
+                List.of(new QuantitySyncRuleRequest.TargetRequest(
+                                "MISTAKE-ALIAS-F-CODE", new BigDecimal("1"), "NONE", 1),
+                        new QuantitySyncRuleRequest.TargetRequest(
+                                "MISTAKE-ALIAS-F-NAME", new BigDecimal("1"), "NONE", 2)));
+
+        assertThatThrownBy(() -> service.create(request, "qa-mistake"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("같은 품목을 중복 지정")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        assertThat(activeRuleCount("MISTAKE_RULE_F")).isZero();
+    }
+
+    @Test
+    void G_별칭으로_지정해도_source와_target이_같은_품목이면_원인이_분명한_400을_받는다() throws Exception {
+        productWithAlias("MISTAKE-ALIAS-G-CODE", "MISTAKE-ALIAS-G-NAME");
+        QuantitySyncRuleRequest request = new QuantitySyncRuleRequest(
+                "MISTAKE_RULE_G", QuantitySyncEstimateCategory.HOME_MULTI, "이름", true, "SUM",
+                MAPPER.readTree("{}"), QuantitySyncInactiveBehavior.ZERO, QuantitySyncConflictPolicy.ADD,
+                10, LEGACY_REF,
+                List.of(new QuantitySyncRuleRequest.SourceRequest("MISTAKE-ALIAS-G-CODE", new BigDecimal("1"))),
+                List.of(new QuantitySyncRuleRequest.TargetRequest(
+                        "MISTAKE-ALIAS-G-NAME", new BigDecimal("1"), "NONE", 1)));
+
+        assertThatThrownBy(() -> service.create(request, "qa-mistake"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("source와 target은 같을 수 없습니다")
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+        assertThat(activeRuleCount("MISTAKE_RULE_G")).isZero();
+    }
+
+    /** model_code와 model_name을 서로 다른 값으로 둔 품목 — 별칭(alias) 조회 재현용. */
+    private void productWithAlias(String modelCode, String modelName) {
+        UUID categoryId = jdbcTemplate.queryForObject("SELECT id FROM categories ORDER BY id LIMIT 1", UUID.class);
+        UUID productId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO products (
+                    id, name, model_name, category_id, selling_price, purchase_price,
+                    created_at, created_by, is_deleted, status, model_code, product_type,
+                    usage_scope)
+                VALUES (?, ?, ?, ?, 0, 0, now(), ?, false, 'ACTIVE', ?, 'SINGLE', 'BOTH')
+                """, productId, modelCode + " 품목", modelName, categoryId, CREATED_BY, modelCode);
+        jdbcTemplate.update("""
+                INSERT INTO product_estimate_exposure (
+                    id, product_id, estimate_category, display_order,
+                    created_at, created_by, is_deleted)
+                VALUES (?, ?, 'HOME_MULTI', 1, now(), ?, false)
+                """, UUID.randomUUID(), productId, CREATED_BY);
+    }
+
     private QuantitySyncRuleRequest request(String ruleKey, String sourceCode, String targetCode) throws Exception {
         JsonNode condition = MAPPER.readTree("{}");
         return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,

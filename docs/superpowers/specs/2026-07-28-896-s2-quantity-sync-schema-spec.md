@@ -3,6 +3,17 @@
 > 작성 2026-07-28 · OPUS 기획 · 근거 SHA `5d433d8e2`
 > 연관 Issue: #896 · 선행 슬1 = PR #948(`2cb21872b`, 머지 완료)
 
+> 🚨 **2026-07-28 범위 축소 정정(개발책임자 결정, PR #958 R5 이후)** — 아래 §4 **I-2 는 이
+> 슬라이스에서 더 이상 성립하지 않는다.** V24 의 DB constraint trigger 6개(products·
+> bundle_component·product_estimate_exposure 3개 기존 테이블 + quantity_sync_rule/
+> source/target 자신)를 전부 제거했다 — 그 테이블들의 오래된 쓰기 경로(품목 CRUD·시트
+> sync·이카운트 임포트·구성품 관리)가 라운드마다 새로 걸려 5라운드 연속 도달 가능 결함을
+> 냈기 때문이다(수렴비 c 1.00→3.50 악화). **I-1·I-3·I-4·I-5·I-6 은 그대로 성립**하며,
+> 강제는 이제 Java 계층(`QuantitySyncRuleValidator`) 단독이다 — DB 를 직접 SQL 로 우회하면
+> 더 이상 막히지 않는다. I-2 재도입은 #896 슬3(evaluator 도입 시점, 실측 기반)으로 미룬다.
+> 상세 근거·제거/유지 목록 전수·검증 원문은
+> `docs/dev-reports/2026-07-28-896-s2-quantity-sync-schema.md` §10 을 참조.
+
 ---
 
 ## 1. 이 슬라이스가 서는 자리

@@ -813,3 +813,251 @@ BUILD SUCCESSFUL in 1m 55s
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleInputMistakeIT.java` — 신규, 결함 2 A~D RED
 - `services/product-service/src/test/java/com/samhanair/logis/product/quantitysync/QuantitySyncRuleKeyPathSafetyHttpIT.java` — 신규, 결함 3 RED
 - 본 보고서 — 본 §9
+
+---
+
+## 10. 범위 축소 (2026-07-28, SONNET5) — R5 이후 개발책임자 결정: DB 강제층 제거, 슬3으로 이관
+
+R3(카테고리 판정 살아있는 원천화·fixture 실 API 경로화·위장 409·ruleKey 경로 안전)와 R4(위장
+409 경로 무관 해소·jsonb/Jackson 수치 동등성 정합)까지 마친 뒤 실행된 R5 재수렴이 **도달 가능
+결함 7건**(HIGH 5·MED 2)을 새로 잡았다. 수렴비 c 가 R3의 2건→R4의 2건(c=1.00)→R5의 7건
+(c=3.50)으로 **세 라운드 연속 악화**했고, 누적 5라운드(상한 9차 대비 4 남음)였다. PR #958
+코멘트(id=5098930357, 2026-07-28T01:44:00Z)의 PM 진단: "결함이 '고칠 곳'에서 나오는 게
+아니라 '새로 깐 강제층이 걸린 기존 쓰기 경로'에서 나온다" — V24 가 `products`·
+`product_estimate_exposure`·`bundle_component`에 붙인 constraint trigger가, 그 3개 테이블의
+오래된 쓰기 경로(품목 CRUD·시트 sync 2종·이카운트 임포트·구성품 관리)에 라운드마다 하나씩
+새로 걸렸다(R5 의 7건 중 6건이 이 층에서 나옴). 개발책임자가 **DB 강제층을 #896 슬3 으로
+미루고, 스키마 + CRUD 만 머지**하기로 결정했다.
+
+### 10.1 제거한 것 / 남긴 것
+
+**제거 — V24 SQL**: 함수 4개(`quantity_sync_product_in_category` · `quantity_sync_validate_condition`
+· `quantity_sync_validate_rule_graph` · `quantity_sync_deferred_validate`) 전부, 그리고
+constraint trigger **6개 전부** — 3개(`trg_qsr_product_validate_graph` on `products` ·
+`trg_qsr_bundle_validate_graph` on `bundle_component` · `trg_qsr_exposure_validate_graph`
+on `product_estimate_exposure`, S-1 이 명시한 기존 3테이블)뿐 아니라 `quantity_sync_rule`/
+`source`/`target` 자신에 붙은 3개(`trg_qsr_validate_graph` · `trg_qss_validate_graph` ·
+`trg_qst_validate_graph`)도 함께 제거했다 — `QuantitySyncRuleValidator`(Java)가 이미
+동일한 그래프 검증(category 멤버십·source=target 금지·REPLACE 중복·순환·BUNDLE 경계·
+삭제/비노출 품목 거부)을 전부 재구현하고 있어(원래 "이중 방어" 설계), DB 트리거만 남기는
+절반 제거는 A1-③(번역기 하이재킹, 아래 참조)을 구조적으로 닫지 못했다. **제거 — Java**:
+`QuantitySyncViolationTranslator.java`(트리거 RAISE 메시지를 번역하던 유일한 소비자 —
+트리거가 없어지면 존재 이유가 사라지고, 전역 `DataIntegrityViolationException` 핸들러에
+무조건 걸려 있어 A1-③의 마커 하이재킹 취약점 자체였다), `GlobalExceptionHandler`의 해당
+분기.
+
+**남긴 것**: `quantity_sync_rule`/`source`/`target` 3테이블 전체(모든 컬럼) + CHECK
+제약 11개(`chk_qsr_category` 등) + 부분 unique/일반 인덱스 7개(`ux_qsr_rule_key_active`
+등) — 이들은 테이블 자신의 지역 불변식이라 다른 테이블의 오래된 쓰기 경로를 걸지 않는다.
+규칙 CRUD API(GET/POST/PUT/DELETE `/api/v1/quantity-sync-rules`), `QuantitySyncRuleValidator`
+전부(ruleKey `@Pattern` · 순환 · 입력 검증 · REPLACE 중복 · 교차 카테고리 허용), 명시 시드
+정책(미확보), `ProductService.assertNotReferencedByEnabledQuantitySyncRule()`(discontinue/
+delete/update/updateUsageAndReturn 의 선재 Java 가드 — 이건 트리거가 아니라 사전 조회이므로
+무관하게 그대로 유지된다).
+
+**트레이드오프(정직히 기록)** — 이 슬라이스 이후 I-2("서비스 계층 우회 SQL 도 막는다")는
+더 이상 성립하지 않는다. `quantity_sync_rule`/`source`/`target`에 직접 SQL 로 그래프
+불변식을 위반하는 행을 넣어도 막히지 않는다. DB 레벨 재도입은 슬3(evaluator 도입 시점,
+실측 기반)으로 미룬다.
+
+### 10.2 fresh PostgreSQL V1~V24 재적용 확인
+
+`scripts/probe-896-s2-fresh-postgres.ps1`에 범위축소 확인 쿼리를 추가해 재실행했다(throwaway
+`postgres:16-alpine`, `docker cp` + `psql -f`, heredoc `docker exec` 미사용).
+
+```text
+container=samhan-896-s2-fresh-pg-ce11cfaf3360 image=postgres:16-alpine
+migration_count=24
+psql -v ON_ERROR_STOP=1 -f /migration-files/V24__quantity_sync_rule_schema.sql
+CREATE EXTENSION
+CREATE TABLE
+CREATE TABLE
+CREATE TABLE
+CREATE INDEX  (x7)
+      database       | quantity_sync_tables |   v24_rule_table
+---------------------+----------------------+--------------------
+ quantity_sync_probe |                    3 | quantity_sync_rule
+(1 row)
+
+ quantity_sync_constraint_triggers_remaining | quantity_sync_functions_remaining | quantity_sync_rule_index_present | rule_key_check_present
+----------------------------------------------+------------------------------------+-----------------------------------+-------------------------
+                                            0 |                                  0 |                                 1 |                       1
+(1 row)
+
+fresh-postgres-migration=PASS
+removed=samhan-896-s2-fresh-pg-ce11cfaf3360
+```
+
+V1~V23 무변경(전부 동일하게 성공). V24 output 에 `CREATE FUNCTION`/`CREATE TRIGGER` 가 한
+줄도 없다(기존 4/6 대비) — 제거를 DDL 실행 레벨에서도 직접 확인했다. 공유 `product_db` 는
+이번에도 write 하지 않았다(read-only 3회 확인, `products=1117 / max_flyway=23 /
+quantity_sync_rule 테이블 없음 / exposures=860` — R5 baseline 과 동일).
+
+### 10.3 S-3(별칭) RED-first — 진짜 RED 캡처 · GREEN · 뮤테이션 RED
+
+S-1(트리거 제거)만으로는 A1-① 이 닫히지 않는다 — `ux_qss_rule_source_active`/
+`ux_qst_rule_target_active` 부분 unique 인덱스는 `quantity_sync_source`/`target` **자신의
+지역 제약**이라 S-1 범위 밖이고, DB 는 UUID 를 비교하는데 Java 는 문자열(productCode)만
+비교해 별칭(모델코드/모델명, 같은 품목)이면 Java 를 통과해 DB 에서만 위장 409 로 걸렸다.
+`QuantitySyncRuleValidator.ProductSnapshot`에 `productId`(UUID, 검증 전용 내부 식별자·API
+비노출) 필드를 추가하고, source-source·target-target·source-target 세 자리 중복/겹침
+검사를 productId 기준으로도 하도록 고쳤다(`QuantitySyncRuleService.toSnapshot()`이
+`product.getId()`로 채움).
+
+**RED**(fix 를 `if (…priorCode != null)` → `if (false && …)` 3곳으로 일시 무력화해 캡처,
+이후 원상복구):
+
+```text
+.\gradlew :services:product-service:test \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest" \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleInputMistakeIT" \
+  --rerun-tasks --no-build-cache
+35 tests completed, 6 failed
+
+QuantitySyncRuleInputMistakeIT > E_별칭_...> FAILED
+  org.springframework.dao.DataIntegrityViolationException: could not execute statement
+  [ERROR: duplicate key value violates unique constraint "ux_qss_rule_source_active"
+   Detail: Key (rule_id, source_product_id)=(98b11bbb-..., fbcbfd74-...) already exists.]
+
+QuantitySyncRuleInputMistakeIT > F_별칭_...target...> FAILED
+  ERROR: duplicate key value violates unique constraint "ux_qst_rule_target_active"
+   Detail: Key (rule_id, target_product_id)=(681a995a-..., 0d0c566d-...) already exists.
+
+QuantitySyncRuleInputMistakeIT > G_별칭...source_target...> FAILED
+  Expecting code to raise a throwable.
+
+QuantitySyncRuleValidationTest > source에_별칭...(x3) FAILED
+  java.lang.AssertionError: Expecting code to raise a throwable.
+```
+
+R5 원 재현(`ux_qss_rule_source_active`/`ux_qst_rule_target_active`)과 제약 이름까지
+정확히 일치한다.
+
+**GREEN**(fix 복원 후):
+
+```text
+.\gradlew :services:product-service:test --tests "com.samhanair.logis.product.quantitysync.*" \
+  --tests "com.samhanair.logis.product.service.ProductServiceTest" \
+  --tests "com.samhanair.logis.product.web.GlobalExceptionHandlerHttpMessageTest" \
+  --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 1m 24s
+QuantitySyncRuleValidationTest.xml       tests=28 failures=0
+QuantitySyncRuleInputMistakeIT.xml       tests=7  failures=0
+(quantitysync 패키지 전체 56/56, ProductServiceTest 49/49, GlobalExceptionHandlerHttpMessageTest 4/4)
+```
+
+**뮤테이션 RED**(source 전용 검사만 국소 무력화 — `requireUniqueSourceProductCodes`의
+`if (priorCode != null)` → `if (priorCode != null && false)`, 나머지 두 검사는 정상):
+
+```text
+35 tests completed, 2 failed
+  QuantitySyncRuleInputMistakeIT > E_별칭_...source... FAILED
+  QuantitySyncRuleValidationTest > source에_별칭_... FAILED
+```
+
+F(target 별칭)·G(source=target 별칭)·나머지 33개는 그대로 GREEN — 뮤테이션이 정확히
+관련된 2개 테스트만 잡아, 테스트가 우연히 통과하는 게 아니라 해당 검사를 실제로 검증함을
+확인했다. 이후 원상복구하고 전체 재실행으로 다시 GREEN을 확인했다.
+
+### 10.4 범위 밖으로 나간 6건 — 실행으로 확인
+
+| | 재현 방식 | 결과 |
+|---|---|---|
+| A1-② (BUNDLE enabled 게이팅 누락) | `BundleComponentService.replaceComponents()` 직접 호출, enabled=false 규칙 존재 | 신규 `QuantitySyncRuleScopeReductionRegressionIT#A1_2_...` — 201 상당(구성품 1건 등록 성공), `bundle_component` 활성 행 1건 확인. **GREEN** |
+| A1-③ (번역기 마커 하이재킹) | 구조 확인 — `QuantitySyncViolationTranslator` 클래스 자체를 삭제, 저장소 전체 grep 결과 실 코드 참조 0건(Javadoc 역사 기술 2건만) | `GlobalExceptionHandlerHttpMessageTest#unrelatedDataIntegrityViolation_keepsExistingGenericConflictMessage` 가 모든 `DataIntegrityViolationException`이 항상 범용 409 를 받음을 고정 |
+| A2-① (1e400 → 500) | `POST /api/v1/quantity-sync-rules` 실 HTTP, condition 숫자를 double 범위 초과로 원문 그대로 전송(placeholder 999 → 텍스트 치환으로 `writeValueAsString`의 Infinity 문자열화 회피) | 신규 `QuantitySyncRuleReplaceDuplicateJsonbNumericEqualityHttpIT#T_A2_1_...` — `status=400 body={"code":"INVALID_INPUT","message":"option 조건의 숫자 값이 저장 가능한 범위를 벗어났습니다."}`. **500 아님, GREEN** |
+| A2-② (NUL → 위장 409) | 동일 엔드포인트, JsonNode 직접 조립(`(char) 0`)으로 실 NUL 값을 Jackson이 올바르게 이스케이프하게 함 | 신규 `#T_A2_2_...` — `status=400 body={"code":"INVALID_INPUT","message":"option 조건의 문자열 값에 허용되지 않는 문자(NUL)가 포함되어 있습니다."}`. **409 아님, GREEN** |
+| A3-① (시트 GONE soft-delete rollback) | `ProductSheetSyncService.syncAll()` 2회 호출(베이스라인 → GONE 시트 탈락), 활성 규칙이 GONE 참조 | 신규 `QuantitySyncRuleScopeReductionRegressionIT#A3_1_...` — `homeTab.error` null, `is_deleted=true` 확인(이전엔 rollback되어 false 로 남았음). **GREEN** |
+| A3-② (구성품 탭 전체 롤백) | 별도 재현 안 함(정직히 기록) — A1-②·A3-① 과 같은 근본 원인(`bundle_component`/`products` 트리거 제거)이라 구조적으로 닫혔다고 판단, `syncComponentTab`의 시트 컬럼 헤더 파싱 형식을 새로 구성하는 비용 대비 한계효용이 낮다고 판단 | **미실행 — 정직히 기록.** 구조적 근거: `bundle_component` 트리거가 0개이므로 `syncComponentTab`의 upsert 도 더 이상 걸릴 수 없다(A1-②가 같은 트리거 제거를 이미 실행으로 증명) |
+
+⚠️ A2-①·A2-② 는 devlead 경고대로 **레이어 제거만으로는 안 사라졌다** — `jsonbEquals`(Java)와
+PostgreSQL jsonb 파싱(U+0000 거부)은 트리거와 무관한 독립 결함이라, `QuantitySyncConditionEquality
+#numberEquals`(비유한 double 은 항상 false)와 `QuantitySyncRuleValidator
+#requireStorableScalar`(저장 전 400 으로 선차단: 비유한 숫자·NUL 문자열)를 능동적으로
+추가해서 닫았다.
+
+### 10.5 S-4 회귀 울타리 — 실행 결과
+
+1. 규칙 CRUD 전 계약 — `QuantitySyncRuleCrudIT` 2/2, `QuantitySyncRuleValidationTest` 28/28,
+   `QuantitySyncRuleInputMistakeIT` 7/7(A~G) 등 quantitysync 패키지 **56/56 GREEN**.
+2. usageScope=NONE·discontinue 구체 메시지 — `QuantitySyncRuleProductDiscontinueIT` 7/7
+   GREEN(무변경 파일, `ProductService.assertNotReferencedByEnabledQuantitySyncRule` 무변경).
+3. 규칙 0건 CRUD 정상 — 트리거 자체가 없으므로 자명(early-exit 최적화보다 강한 보장).
+4. 무관 제약 위반 409 유지 — `GlobalExceptionHandlerHttpMessageTest
+   #unrelatedDataIntegrityViolation_keepsExistingGenericConflictMessage` GREEN.
+5. 슬1 golden 무접촉 — `git status --porcelain -- clients/web/legacy-quantity-golden/` 공백.
+
+product-service 전체 스위트: `.\gradlew :services:product-service:test --rerun-tasks
+--no-build-cache` → `BUILD SUCCESSFUL in 2m 42s`, `files=55 tests=568 failed=0`.
+
+### 10.6 삭제한 테스트
+
+- `QuantitySyncRuleDbProbeIT.java`(418줄) — I-2(DB 우회 방어) 자체를 증명하던 파일. I-2 가
+  이 슬라이스에서 더 이상 성립하지 않으므로 전체 삭제.
+- `QuantitySyncRuleExposureChangeMaskedConflictHttpIT.java`(267줄) — `product_estimate_exposure`
+  트리거의 위장 409 마스킹 → 번역 GREEN 을 잠그던 파일. 트리거·번역기 둘 다 삭제되어 이
+  파일이 검증하던 계약 자체가 없어짐.
+- `QuantitySyncRuleSheetSyncCascadeIT.java`(277줄, `it` 패키지) — `products` 트리거가
+  시트 sync 의 GONE soft-delete 를 rollback 시키는 것을 "fail-closed 안전망"으로 잠그던
+  파일. 이제 rollback 자체가 발생하지 않으므로(A3-① 참조) 전제가 사라짐 —
+  `QuantitySyncRuleScopeReductionRegressionIT#A3_1_...`이 반대 결과(정상 삭제)를 고정한다.
+- `GlobalExceptionHandlerHttpMessageTest#quantitySyncTriggerViolation_translatesToSpecificKoreanMessage`
+  (메서드 1개, 파일 자체는 유지) — 번역기가 없으므로 번역 분기 자체가 없다.
+
+### 10.7 변경 파일 + 줄 수 (본 라운드, `git diff --stat`)
+
+```text
+.github/workflows/ci.yml                                                  |   9 +-
+scripts/probe-896-s2-fresh-postgres.ps1                                   |  24 ++
+.../quantitysync/QuantitySyncConditionEquality.java                       |  23 +-
+.../quantitysync/QuantitySyncRuleValidator.java                           | 104 ++++-
+.../quantitysync/QuantitySyncViolationTranslator.java                     | 145 ------- (삭제)
+.../service/QuantitySyncRuleService.java                                  |   2 +-
+.../web/GlobalExceptionHandler.java                                       |  24 +-
+.../db/migration/V24__quantity_sync_rule_schema.sql                       | 333 ++--------------
+.../it/QuantitySyncRuleSheetSyncCascadeIT.java                            | 277 ------- (삭제)
+.../quantitysync/QuantitySyncRuleDbProbeIT.java                           | 418 ------- (삭제)
+.../quantitysync/QuantitySyncRuleExposureChangeMaskedConflictHttpIT.java  | 267 ------- (삭제)
+.../quantitysync/QuantitySyncRuleInputMistakeIT.java                      |  85 +++++
+.../quantitysync/QuantitySyncRuleReplaceDuplicateJsonbNumericEqualityHttpIT.java | 75 +++
+.../quantitysync/QuantitySyncRuleScopeReductionRegressionIT.java          | 285 ++ (신규)
+.../quantitysync/QuantitySyncRuleValidationTest.java                      | 144 ++++-
+.../web/GlobalExceptionHandlerHttpMessageTest.java                        |  41 +-
+
+16 files changed, 770 insertions(+), 1486 deletions(-)
+```
+
+순감소 **-716줄**. 신규 파일(`QuantitySyncRuleScopeReductionRegressionIT.java`, 285줄)을
+빼면 순감소 **-1001줄** — "DB 강제층 제거"라는 성격에 맞게 삭제가 추가보다 압도적으로 크다.
+
+또한 `docs/superpowers/specs/2026-07-28-896-s2-quantity-sync-schema-spec.md`(I-2 정정
+안내 추가) · `docs/superpowers/plans/2026-07-28-896-s2-quantity-sync-schema.md`(범위축소
+안내 추가) · 본 보고서(본 §10)도 함께 갱신했다. `services/product-service/README.md`는
+**변경하지 않았다** — "수량 동기화 규칙 저장 경계" 절(:39-70)이 서술하는 내용은 전부
+`ProductService`의 Java 사전 가드(discontinue/delete/update/updateUsageAndReturn)에
+관한 것이라 트리거 제거와 무관하게 이미 정확했다(직접 확인 — "규칙을 비활성화하거나
+삭제하면 해제된다"는 그 가드에 대해서만 참이며, 실제로 그렇다).
+
+### 10.8 못 한 것 (정직한 목록)
+
+1. **A3-② 를 직접 재현하지 않았다** — `syncComponentTab`의 "구성품" 시트 탭 헤더 형식을
+   재구성하는 비용 대비, A1-②·A3-① 이 이미 같은 근본 원인(각각 `bundle_component`/
+   `products` 트리거 제거)을 실행으로 증명해 한계효용이 낮다고 판단했다. 구조적 근거는
+   확실하지만(트리거 0건이므로 그 UPSERT 를 막을 수 있는 것이 아무것도 없다), R5 가 지적한
+   "화면에 표시조차 안 됨"(FE `byComponentTab` 부재)·"README 회복 절차가 거짓" 두 파생
+   증상은 애초에 트리거가 없으면 발생할 게 없어 별도로 고치지 않았다 — FE 변경 없음.
+2. **cross-rule REPLACE 중복 검사의 별칭 취약점은 다루지 않았다** — S-3 fix 는 "한 요청
+   안의" source-source·target-target·source-target 별칭만 막는다.
+   `activeRuleSnapshots()`가 만드는 기존 규칙의 `targetCodes`(항상 canonical
+   productCode())와 새 요청의 raw 별칭 입력이 다를 수 있어, 이론상 REPLACE 중복도 별칭으로
+   우회 가능하다 — R5 가 이 경로를 재현하지 않았고(A1-① 은 source-source/target-target만),
+   이 라운드의 범위(R5 결함 대응)를 넘는 새 표면이라 손대지 않았다.
+3. **A2 계열을 `condition_json` 외 다른 문자열 필드(name/legacyRef)에 대해서는 확인하지
+   않았다** — Postgres 의 NUL 바이트 거부는 jsonb 뿐 아니라 모든 text/varchar 컬럼의 일반
+   제약이라, 이론상 `name`/`legacy_ref`에도 같은 위장 409 가능성이 있다. R5 가 재현한 것은
+   `condition_json` 뿐이라 그 범위만 고쳤다.
+4. **비HTTP 경로(`ProductLookupSheetSyncService`·`EcountProductImporter`)는 여전히 미검증**
+   — R5 의 "확인하지 못한 것" 목록을 그대로 이월한다. 이 두 경로도 `products`/
+   `bundle_component` 를 쓰므로 트리거 제거 혜택을 구조적으로 받지만 실행 확인은 없다.
+5. **gradle 전체 스위트는 이 작업자 세션 내에서 여러 번 재실행**(경합 없이 순차 실행,
+   병렬 에이전트 없었음) — 최종 권위는 CI(exact SHA)이며 로컬 실행은 참고용이다.

@@ -153,9 +153,14 @@ jobs:
           # (+3 update()/updateUsageAndReturn() 가드) — 신규 리포트 2건(OptionInParityIT·
           # ProductDeletionCascadeHttpIT)도 게이트에 등재한다(미등재 시 skipped=0 만 새지 않고
           # 검사 자체가 누락되는 표면이 생긴다 — feedback_ungated_surface_and_mock_covering_defect.md).
+          # 🚨 2026-07-28 범위 축소(PR #958 R5 이후 개발책임자 결정) — DB 강제층(6개 constraint
+          # trigger + 지원 함수 4개)을 products/product_estimate_exposure/bundle_component
+          # 3개 기존 테이블뿐 아니라 quantity_sync_rule/source/target 자신에서도 전부 제거했다
+          # (I-2 DB 우회 방어는 #896 슬3으로 이관). 그 층만 검증하던 QuantitySyncRuleDbProbeIT를
+          # 삭제해 게이트에서도 제거한다. ValidationTest는 별칭(S-3) 3건 + 비유한 숫자·NUL
+          # 문자 거부(A2-①·A2-②) 4건이 늘어 21->28(grep -c '^    @Test$' 실측).
           declare -A min_tests=(
-            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml']=16
-            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleDbProbeIT.xml']=11
+            ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest.xml']=28
             ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleCrudIT.xml']=2
             ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleSeedAbsenceIT.xml']=1
             ['services/product-service/build/test-results/test/TEST-com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDiscontinueIT.xml']=7

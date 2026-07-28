@@ -2,6 +2,18 @@
 
 > **For agentic workers:** This plan is executed inline in the current worktree. Git state-changing commands are prohibited by the task request; each task ends with a runnable verification command instead of a commit.
 
+> 🚨 **2026-07-28 scope reduction (개발책임자 decision, after PR #958 R5)** — This plan
+> describes the original design, which included a V24 deferred constraint trigger layer on
+> `products`/`bundle_component`/`product_estimate_exposure` plus `quantity_sync_rule`/
+> `source`/`target` themselves, and a `QuantitySyncRuleDbProbeIT` that proved DB-level
+> bypass protection (I-2). That entire trigger layer and probe file were removed after five
+> consecutive rounds of reachable defects (convergence ratio 1.00→3.50) traced to those old
+> write paths. What remains matches this plan for schema (tables, CHECK constraints,
+> indexes) and CRUD, but **not** for DB-enforced graph validation — that is Java-only now,
+> and I-2 is deferred to slice 3. See
+> `docs/dev-reports/2026-07-28-896-s2-quantity-sync-schema.md` §10 for the authoritative
+> current state.
+
 **Goal:** Add the product-service quantity synchronization rule schema, fail-closed storage validation, UUID-free CRUD API, and honest snapshot provenance evidence without changing any runtime evaluator or price calculation path.
 
 **Architecture:** `QuantitySyncRule` is the aggregate root; source and target rows store raw Product UUID foreign keys internally and expose model code/name at the API boundary. Java service validation performs the same eight checks before an atomic replace, while V24 PostgreSQL constraints and a deferred constraint trigger re-check all active rows at transaction commit so direct SQL cannot bypass DTO/service guards. No seed rows are emitted because the available local database is a documented HvacProductSeeder development seed rather than the required real catalog snapshot.

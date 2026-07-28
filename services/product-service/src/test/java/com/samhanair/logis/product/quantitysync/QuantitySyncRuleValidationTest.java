@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -210,6 +211,131 @@ class QuantitySyncRuleValidationTest {
                         new TargetDraft("TARGET-2", new BigDecimal("1"), "NONE", 1)));
 
         assertInvalid(draft, "displayOrder");
+    }
+
+    // ---- 🚨 2026-07-28 범위 축소 R5 A1-① RED-first(S-3) — 같은 품목을 서로 다른 표기
+    // (모델코드/모델명)로 지정해도 Java 층이 먼저 같은 결론을 낸다. ProductRepository.
+    // findByCatalogExposedModelCodeAndIsDeletedFalse가 model_code 실패 시 model_name으로
+    // fallback하므로, 두 문자열이 같은 품목 UUID로 해소될 수 있다 — 문자열만 비교하던
+    // 기존 중복 검사(productMulti는 항상 서로 다른 랜덤 UUID)로는 이 케이스를 못 잡는다. ----
+
+    @Test
+    void source에_별칭_모델코드_모델명으로_같은_품목을_두_번_지정하면_저장할_수_없다() {
+        UUID sharedProductId = UUID.randomUUID();
+        Draft draft = draft(
+                merge(products(product("TARGET", "HOME_MULTI", true, true, false)),
+                        productAlias(sharedProductId, "ALIAS-CODE", "HOME_MULTI"),
+                        productAlias(sharedProductId, "ALIAS-NAME", "HOME_MULTI")),
+                List.of(new SourceDraft("ALIAS-CODE", new BigDecimal("1")),
+                        new SourceDraft("ALIAS-NAME", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")));
+
+        assertInvalid(draft, "같은 품목을 중복 지정");
+    }
+
+    @Test
+    void target에_별칭_모델코드_모델명으로_같은_품목을_두_번_지정하면_저장할_수_없다() {
+        UUID sharedProductId = UUID.randomUUID();
+        Draft draft = draft(
+                merge(products(product("SRC", "HOME_MULTI", true, true, false)),
+                        productAlias(sharedProductId, "ALIAS-CODE", "HOME_MULTI"),
+                        productAlias(sharedProductId, "ALIAS-NAME", "HOME_MULTI")),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(new TargetDraft("ALIAS-CODE", new BigDecimal("1"), "NONE", 1),
+                        new TargetDraft("ALIAS-NAME", new BigDecimal("1"), "NONE", 2)));
+
+        assertInvalid(draft, "같은 품목을 중복 지정");
+    }
+
+    @Test
+    void 별칭으로_지정해도_source와_target이_같은_품목이면_저장할_수_없다() {
+        UUID sharedProductId = UUID.randomUUID();
+        Draft draft = draft(
+                merge(Map.of(), productAlias(sharedProductId, "ALIAS-CODE", "HOME_MULTI"),
+                        productAlias(sharedProductId, "ALIAS-NAME", "HOME_MULTI")),
+                List.of(new SourceDraft("ALIAS-CODE", new BigDecimal("1"))),
+                List.of(target("ALIAS-NAME", "1")));
+
+        assertInvalid(draft, "source와 target");
+    }
+
+    // ---- 🚨 2026-07-28 범위 축소 R5 A2-①·A2-② RED-first — condition_json leaf scalar가
+    // PostgreSQL jsonb에 저장 불가능한 값이면 저장 이전에 400으로 거부한다. ----
+
+    @Test
+    void condition의_숫자_값이_double_범위를_벗어나면_저장할_수_없다() {
+        // A2-① 재현 형태 — Jackson이 "1e400"을 DoubleNode(Infinity)로 파싱한다. 이 값이
+        // 저장 이전 검증을 통과하면 REPLACE 중복 비교(QuantitySyncConditionEquality
+        // #jsonbEquals)의 decimalValue()가 NumberFormatException으로 500을 냈었다.
+        JsonNode condition = condition("{\"optionEquals\":[\"k\",1e400]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "숫자 값");
+    }
+
+    @Test
+    void condition의_optionIn_배열_원소가_double_범위를_벗어나도_저장할_수_없다() {
+        JsonNode condition = condition("{\"optionIn\":[\"k\",[1,1e400]]}");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "숫자 값");
+    }
+
+    @Test
+    void condition의_문자열_값에_NUL_문자가_있으면_저장할_수_없다() {
+        // A2-② 재현 형태 — PostgreSQL jsonb는 U+0000을 파싱 단계에서 거부한다
+        // ("unsupported Unicode escape sequence"). JSON 텍스트로 직렬화하면 raw NUL은
+        // 그 자체로 유효한 JSON 문자열이 아니므로(제어문자는 이스케이프 필요), 파싱이 아니라
+        // JsonNode 트리를 직접 조립해 validator가 실제로 받는 형태(디코딩된 문자열 값)를
+        // 그대로 재현한다.
+        String nul = String.valueOf((char) 0);
+        JsonNode condition = optionEqualsCondition("k", "a" + nul + "b");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "NUL");
+    }
+
+    @Test
+    void condition의_option_key에_NUL_문자가_있으면_저장할_수_없다() {
+        String nul = String.valueOf((char) 0);
+        JsonNode condition = optionEqualsCondition("k" + nul, "L");
+        Draft draft = draft(
+                products(
+                        product("SRC", "HOME_MULTI", true, true, false),
+                        product("TARGET", "HOME_MULTI", true, true, false)),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET", "1")))
+                .withCondition(condition);
+
+        assertInvalid(draft, "NUL");
+    }
+
+    /** JSON 텍스트 파싱을 거치지 않고 {@code {"optionEquals":[key,value]}} 트리를 직접 조립한다. */
+    private static JsonNode optionEqualsCondition(String key, String value) {
+        com.fasterxml.jackson.databind.node.ArrayNode pair = MAPPER.createArrayNode();
+        pair.add(key);
+        pair.add(value);
+        com.fasterxml.jackson.databind.node.ObjectNode node = MAPPER.createObjectNode();
+        node.set("optionEquals", pair);
+        return node;
     }
 
     // ---- R1 결함 1 [HIGH] · 결함 2 [MED] RED-first (PR #958 R1 발견 각도) ----
@@ -420,11 +546,27 @@ class QuantitySyncRuleValidationTest {
      * 재수렴 결함 1 [최우선] fix — 품목이 여러 카테고리에 동시 노출(M:N, S-3)될 때를
      * 구성하는 헬퍼. 기존 {@link #product(String, String, boolean, boolean, boolean)}는
      * 단일 category만 표현할 수 있어 남겨두고, 이 헬퍼로 M:N 케이스만 별도로 구성한다.
+     *
+     * <p>🚨 2026-07-28 범위 축소 R5 A1-① fix — {@code productId}를 매번 새 랜덤 UUID로
+     * 채운다. 이 헬퍼로 만드는 기존 테스트는 전부 code마다 서로 다른 품목을 표현하므로
+     * (별칭 케이스가 아님) 랜덤 UUID가 항상 서로 다르면 기존 동작과 동일하다. 같은 품목을
+     * 서로 다른 표기로 표현해야 하는 별칭 테스트는 {@link #productAlias}를 쓴다.
      */
     private static ProductSnapshot productMulti(String code, Set<String> categories,
                                                  boolean active, boolean visible, boolean bundle,
                                                  Set<String> componentCodes) {
-        return new ProductSnapshot(code, code + " 품목", categories, active, visible, bundle, componentCodes);
+        return new ProductSnapshot(UUID.randomUUID(), code, code + " 품목", categories,
+                active, visible, bundle, componentCodes);
+    }
+
+    /**
+     * 🚨 2026-07-28 범위 축소 R5 A1-① RED-first(S-3) — 같은 품목을 가리키는 서로 다른
+     * 표기(모델코드/모델명)를 표현한다. {@code productId}를 호출자가 명시해 여러 code가
+     * 같은 품목을 공유하게 만들 수 있다({@link #productMulti}는 매번 새 랜덤 UUID라 이
+     * 용도로 쓸 수 없다).
+     */
+    private static ProductSnapshot productAlias(UUID productId, String code, String category) {
+        return new ProductSnapshot(productId, code, code + " 품목", Set.of(category), true, true, false, Set.of());
     }
 
     private static Map<String, ProductSnapshot> products(ProductSnapshot... products) {

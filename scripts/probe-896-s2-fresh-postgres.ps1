@@ -63,6 +63,30 @@ SELECT current_database() AS database,
        to_regclass('public.quantity_sync_rule') AS v24_rule_table;
 '@
     if ($LASTEXITCODE -ne 0) { throw 'Fresh PostgreSQL verification query failed.' }
+
+    # 2026-07-28 범위 축소 확인 — S-1: products/product_estimate_exposure/bundle_component
+    # 3개 기존 테이블 및 quantity_sync_rule/source/target 자신에도 constraint trigger가
+    # 하나도 남지 않아야 한다. 함수 4개(quantity_sync_product_in_category/
+    # quantity_sync_validate_condition/quantity_sync_validate_rule_graph/
+    # quantity_sync_deferred_validate)도 함께 제거됐어야 한다.
+    & docker exec @envArgs -d $probeDatabase -c @'
+SELECT
+    (SELECT count(*) FROM pg_trigger
+      WHERE tgrelid IN ('products'::regclass, 'bundle_component'::regclass,
+                         'product_estimate_exposure'::regclass,
+                         'quantity_sync_rule'::regclass, 'quantity_sync_source'::regclass,
+                         'quantity_sync_target'::regclass)
+        AND NOT tgisinternal) AS quantity_sync_constraint_triggers_remaining,
+    (SELECT count(*) FROM pg_proc WHERE proname IN
+        ('quantity_sync_product_in_category', 'quantity_sync_validate_condition',
+         'quantity_sync_validate_rule_graph', 'quantity_sync_deferred_validate'))
+        AS quantity_sync_functions_remaining,
+    (SELECT count(*) FROM pg_indexes WHERE tablename = 'quantity_sync_rule'
+        AND indexname = 'ux_qsr_rule_key_active') AS quantity_sync_rule_index_present,
+    (SELECT count(*) FROM information_schema.check_constraints
+        WHERE constraint_name = 'chk_qsr_rule_key_path_safe') AS rule_key_check_present;
+'@
+    if ($LASTEXITCODE -ne 0) { throw 'Scope-reduction verification query failed.' }
     Write-Output 'fresh-postgres-migration=PASS'
 }
 finally {
