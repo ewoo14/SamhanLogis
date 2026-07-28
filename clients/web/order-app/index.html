@@ -1621,10 +1621,10 @@ function isRemoteRow(r){
   return /(리모컨|remote)/i.test(s);
 }
 function clearAllPanels(){
-  HOMEMULTI.forEach(r=>{ if(isPanelRow(r)) homeQty.set(r.model,0); });
+  HOMEMULTI.forEach(r=>{ if(isPanelRow(r) && !HOME_MANUAL_PANEL.has(r.model)) homeQty.set(r.model,0); });
 }
 function clearAllRemotes(){
-  HOMEMULTI.forEach(r=>{ if(isRemoteRow(r)) homeQty.set(r.model,0); });
+  HOMEMULTI.forEach(r=>{ if(isRemoteRow(r) && !HOME_MANUAL_REMOTE.has(r.model)) homeQty.set(r.model,0); });
 }
 
 /* 판널 선택 */
@@ -2811,6 +2811,19 @@ markAutoSingle(SS_FOOT_ROUND_ID,SS_FOOT_FLAT_ID,SS_WIRED_BOARD_ID,SS_CEILING_PUM
 
 const homeQty=new Map(HOMEMULTI.map(r=>[r.model,0]));
 const singleQty=new Map(SINGLE_SETS.map(s=>[s.id,0]));
+const HOME_MANUAL_PANEL=new Set();
+const HOME_MANUAL_HOSE=new Set();
+const HOME_MANUAL_REMOTE=new Set();
+const HOME_MANUAL_BRANCH=new Set();
+const HOME_MANUAL_FOOT=new Set();
+
+function clearHomeManualLocks(){
+  HOME_MANUAL_PANEL.clear();
+  HOME_MANUAL_HOSE.clear();
+  HOME_MANUAL_REMOTE.clear();
+  HOME_MANUAL_BRANCH.clear();
+  HOME_MANUAL_FOOT.clear();
+}
 
 /* 합계/포맷 */
 const sumBy=pred=>HOMEMULTI.reduce((t,r)=>t+((pred(r?.name||'')?(homeQty.get(r.model)||0):0)),0);
@@ -4853,6 +4866,22 @@ function onHomeQtyInput(model,v){
   const p=homeUnitPrice(model);
   const subCell=document.querySelector(`#homeBody [data-sub="${CSS.escape(model)}"]`);
   if(subCell) subCell.textContent=fmt(p*v);
+  const r=homeRowByModel.get(model);
+  const nm=String(r?.name||'');
+  const isP=/(판넬|패널)/i.test(nm);
+  const isR=/(리모컨|리모콘)/i.test(nm);
+  const isH=/유연호스/i.test(nm);
+  const isB=/(분\s*기\s*관|분기관)/i.test(nm);
+  const isF=/(발통|일자발)/i.test(nm);
+  if(isP||isR||isH||isB||isF){
+    if(isP) HOME_MANUAL_PANEL.add(model);
+    else if(isR) HOME_MANUAL_REMOTE.add(model);
+    else if(isH) HOME_MANUAL_HOSE.add(model);
+    else if(isB) HOME_MANUAL_BRANCH.add(model);
+    else if(isF) HOME_MANUAL_FOOT.add(model);
+    syncHomeTotals();refreshSelectedBadge();
+    return;
+  }
   if(isHomeCalcTriggerModel(model)) recomputeHomeDerived(true);
   else{syncHomeTotals();refreshSelectedBadge();}
 }
@@ -4912,8 +4941,8 @@ function recomputeFootAll(){
   const outTotalHome=HOMEMULTI.reduce((t,r)=>t+(/실외기/i.test(r?.name||'')?(homeQty.get(r.model)||0):0),0);
   const wantHomeFoot=!!el('#home_foot')?.checked;
   const totalRoundHome=wantHomeFoot?outTotalHome:0;
-  if(FOOT_ROUND) homeQty.set(FOOT_ROUND,Math.max(0,totalRoundHome));
-  if(FOOT_FLAT) homeQty.set(FOOT_FLAT,0);
+  if(FOOT_ROUND && !HOME_MANUAL_FOOT.has(FOOT_ROUND)) homeQty.set(FOOT_ROUND,Math.max(0,totalRoundHome));
+  if(FOOT_FLAT && !HOME_MANUAL_FOOT.has(FOOT_FLAT)) homeQty.set(FOOT_FLAT,0);
   syncHomeUIFromState();syncHomeTotals();
 }
 function recomputeSingleBaseFoot(){
@@ -5032,6 +5061,7 @@ function inferInfiniteSize(nameLike){
 /* 홈멀티 판넬 계산 */
 function recomputeHomePanels(){
   const opt = el('#home_panel')?.value || '';
+  const setP=(m,q)=>{if(m&&!HOME_MANUAL_PANEL.has(m)) homeQty.set(m,q);};
 
   // 모든 판넬 초기화
   clearAllPanels();
@@ -5095,10 +5125,10 @@ function recomputeHomePanels(){
   const m4Wi   = pickPanelBy('4way', true, opt);
   const m4No   = pickPanelBy('4way', false,opt);
 
-  if(m360Wi) homeQty.set(m360Wi, c360Wi);
-  if(m360No) homeQty.set(m360No, c360No);
-  if(m4Wi)   homeQty.set(m4Wi,   c4Wi);
-  if(m4No)   homeQty.set(m4No,   c4No);
+  if(m360Wi) setP(m360Wi, c360Wi);
+  if(m360No) setP(m360No, c360No);
+  if(m4Wi)   setP(m4Wi,   c4Wi);
+  if(m4No)   setP(m4No,   c4No);
 
   const useAir = (opt==='공청판넬' || opt==='인피니트 공청+동작감지 AI');
 
@@ -5108,17 +5138,17 @@ function recomputeHomePanels(){
   const m1WiS = pickModel(useAir ? 'a1sWi':'p1sWi');
   const m1WiM = pickModel(useAir ? 'a1mWi':'p1mWi');
   const m1WiB = pickModel(useAir ? 'a1bWi':'p1bWi');
-  if(m1WiS) homeQty.set(m1WiS, c1WiS);
-  if(m1WiM) homeQty.set(m1WiM, c1WiM);
-  if(m1WiB) homeQty.set(m1WiB, c1WiB);
+  if(m1WiS) setP(m1WiS, c1WiS);
+  if(m1WiM) setP(m1WiM, c1WiM);
+  if(m1WiB) setP(m1WiB, c1WiB);
 
   // 미내장
   const m1NoS = pickModel(useAir ? 'a1sNo':'p1sNo');
   const m1NoM = pickModel(useAir ? 'a1mNo':'p1mNo');
   const m1NoB = pickModel(useAir ? 'a1bNo':'p1bNo');
-  if(m1NoS) homeQty.set(m1NoS, c1NoS);
-  if(m1NoM) homeQty.set(m1NoM, c1NoM);
-  if(m1NoB) homeQty.set(m1NoB, c1NoB);
+  if(m1NoS) setP(m1NoS, c1NoS);
+  if(m1NoM) setP(m1NoM, c1NoM);
+  if(m1NoB) setP(m1NoB, c1NoB);
 
   // 인피니트(중/대)
   const INF = {
@@ -5135,8 +5165,8 @@ function recomputeHomePanels(){
     opt==='인피니트 공청+동작감지 AI' ? INF.big.ai :
     (opt==='인피니트 25년형' ? INF.big.base25 : INF.big.base);
 
-  if(homeRowByModel.has(midModel)) homeQty.set(midModel, infMid);
-  if(homeRowByModel.has(bigModel)) homeQty.set(bigModel, infBig);
+  if(homeRowByModel.has(midModel)) setP(midModel, infMid);
+  if(homeRowByModel.has(bigModel)) setP(bigModel, infBig);
 
   // 4WAY 공청 고정 치환
   if(opt==='공청판넬'){
@@ -5149,7 +5179,7 @@ function recomputeHomePanels(){
     for(const [from,to] of map){
       if(homeRowByModel.has(from) && homeRowByModel.has(to)){
         const n = homeQty.get(from)||0;
-        if(n>0){ homeQty.set(from,0); homeQty.set(to,n); }
+        if(n>0 && !HOME_MANUAL_PANEL.has(from) && !HOME_MANUAL_PANEL.has(to)){ setP(from,0); setP(to,n); }
       }
     }
   }
@@ -5158,6 +5188,7 @@ function recomputeHomePanels(){
 /* 홈멀티 리모컨 계산 */
 function recomputeHomeRemotes(){
   const opt = el('#home_remote')?.value || '기본';
+  const setR=(m,q)=>{if(m&&!HOME_MANUAL_REMOTE.has(m)) homeQty.set(m,q);};
 
   // 모든 리모컨 항목 0으로 초기화
   clearAllRemotes();
@@ -5184,7 +5215,7 @@ function recomputeHomeRemotes(){
   }
 
   // 에어콤보(컬러 유선) 리모컨은 별도 가산
-  if(REMOTE_COLOR_AIRCOMBO) homeQty.set(REMOTE_COLOR_AIRCOMBO, Math.max(0, cntCombo));
+  if(REMOTE_COLOR_AIRCOMBO) setR(REMOTE_COLOR_AIRCOMBO, Math.max(0, cntCombo));
 
   // 옵션별 대체
   const REMOTE_AWR_WE13N = (HOMEMULTI.find(r=>/^AWR-WE13N$/i.test(r?.model||''))||{}).model || null;
@@ -5193,28 +5224,29 @@ function recomputeHomeRemotes(){
 
   if(opt==='기본'){
     // 유형별 기본값만 채움 (이전 수량은 이미 0으로 클리어됨)
-    if(REMOTE_360_DEFAULT) homeQty.set(REMOTE_360_DEFAULT, cntCST);
-    if(REMOTE_INF_CH01)    homeQty.set(REMOTE_INF_CH01, cntINF);
-    if(REMOTE_WIRELESS)    homeQty.set(REMOTE_WIRELESS, cnt1w4w + cntWall);
-    if(REMOTE_WIRED_KIT)   homeQty.set(REMOTE_WIRED_KIT, 0);
-    if(REMOTE_WIRED)       homeQty.set(REMOTE_WIRED, 0);
-    if(REMOTE_WIRED_COLOR) homeQty.set(REMOTE_WIRED_COLOR, 0);
+    if(REMOTE_360_DEFAULT) setR(REMOTE_360_DEFAULT, cntCST);
+    if(REMOTE_INF_CH01)    setR(REMOTE_INF_CH01, cntINF);
+    if(REMOTE_WIRELESS)    setR(REMOTE_WIRELESS, cnt1w4w + cntWall);
+    if(REMOTE_WIRED_KIT)   setR(REMOTE_WIRED_KIT, 0);
+    if(REMOTE_WIRED)       setR(REMOTE_WIRED, 0);
+    if(REMOTE_WIRED_COLOR) setR(REMOTE_WIRED_COLOR, 0);
   }else{
     // 유선/컬러
     const totalBasic = cntCST + cntINF + cnt1w4w + cntWall;
     const main = (opt==='유선') ? REMOTE_AWR_WE13N : REMOTE_AWR_WG00N;
-    if(main) homeQty.set(main, totalBasic);
-    if(REMOTE_WIRED_KIT) homeQty.set(REMOTE_WIRED_KIT, totalBasic);
+    if(main) setR(main, totalBasic);
+    if(REMOTE_WIRED_KIT) setR(REMOTE_WIRED_KIT, totalBasic);
   }
 }
 
 // Y형 분기관 계산
 function recomputeHomeBranches(){
   const noBranch = !!el('#home_no_branch')?.checked;
+  const setB=(m,q)=>{if(m&&!HOME_MANUAL_BRANCH.has(m)) homeQty.set(m,q);};
 
   if (noBranch){
-    if (BRANCH_1509) homeQty.set(BRANCH_1509, 0);
-    if (BRANCH_2512) homeQty.set(BRANCH_2512, 0);
+    if (BRANCH_1509) setB(BRANCH_1509, 0);
+    if (BRANCH_2512) setB(BRANCH_2512, 0);
     return;
   }
 
@@ -5257,12 +5289,13 @@ function recomputeHomeBranches(){
   b1509 = Math.max(0, b1509);
 
   // 적용
-  if (BRANCH_2512) homeQty.set(BRANCH_2512, b2512);
-  if (BRANCH_1509) homeQty.set(BRANCH_1509, b1509);
+  if (BRANCH_2512) setB(BRANCH_2512, b2512);
+  if (BRANCH_1509) setB(BRANCH_1509, b1509);
 }
 
 // 홈멀티 부자재 계산
 function recomputeHomeDerived(updateUI){
+  const setH=(m,q)=>{if(m&&!HOME_MANUAL_HOSE.has(m)) homeQty.set(m,q);};
   // 1/4WAY 실내기 + 360 + 벽걸이 → 호스 집계
   let n1w=0, n4w=0, c360=0, nWall=0;
   HOMEMULTI.forEach(r=>{
@@ -5283,20 +5316,20 @@ function recomputeHomeDerived(updateUI){
   // 유연호스 제외 여부
   const noHose = !!el('#home_no_hose')?.checked;
   if(noHose){
-    if(HOSE_1W)    homeQty.set(HOSE_1W, 0);
-    if(HOSE_4W)    homeQty.set(HOSE_4W, 0);
-    if(HOSE_I_1W)  homeQty.set(HOSE_I_1W, 0);
-    if(HOSE_I_4W)  homeQty.set(HOSE_I_4W, 0);
+    if(HOSE_1W)    setH(HOSE_1W, 0);
+    if(HOSE_4W)    setH(HOSE_4W, 0);
+    if(HOSE_I_1W)  setH(HOSE_I_1W, 0);
+    if(HOSE_I_4W)  setH(HOSE_I_4W, 0);
   }else{
     if(window.SHOW_I_HOSE){
-      if(HOSE_I_1W) homeQty.set(HOSE_I_1W, n1w);
-      if(HOSE_1W)   homeQty.set(HOSE_1W,   0);
+      if(HOSE_I_1W) setH(HOSE_I_1W, n1w);
+      if(HOSE_1W)   setH(HOSE_1W,   0);
     }else{
-      if(HOSE_1W)   homeQty.set(HOSE_1W,   n1w);
-      if(HOSE_I_1W) homeQty.set(HOSE_I_1W, 0);
+      if(HOSE_1W)   setH(HOSE_1W,   n1w);
+      if(HOSE_I_1W) setH(HOSE_I_1W, 0);
     }
-    if(HOSE_4W)   homeQty.set(HOSE_4W,   n4w);
-    if(HOSE_I_4W) homeQty.set(HOSE_I_4W, 0);
+    if(HOSE_4W)   setH(HOSE_4W,   n4w);
+    if(HOSE_I_4W) setH(HOSE_I_4W, 0);
   }
 
   // 분기관/리모컨/발통 등 기존 파생
@@ -6265,7 +6298,7 @@ function forceOrderTitle(){
 
 /* 이벤트 */
 function initEvents(){
-  el('#btnResetHome').addEventListener('click',()=>{sendLog('기능사용', '홈멀티 초기화 버튼 클릭');homeQty.forEach((_,k)=>homeQty.set(k,0));syncHomeUIFromState();syncHomeTotals();updateHomeRatio();refreshSelectedBadge();renderHomeOptions();HOME_FILTER={L:'',M:'',S:'',text:''};var l=document.getElementById('homeFilterL'),m=document.getElementById('homeFilterM'),s=document.getElementById('homeFilterS'),t=document.getElementById('homeFilterText');if(t)t.value='';if(l)l.value='';if(m){m.value='';m.disabled=true;}if(s){s.value='';s.disabled=true;}updateHomeFilterOptions();renderHome();});
+  el('#btnResetHome').addEventListener('click',()=>{sendLog('기능사용', '홈멀티 초기화 버튼 클릭');homeQty.forEach((_,k)=>homeQty.set(k,0));clearHomeManualLocks();syncHomeUIFromState();syncHomeTotals();updateHomeRatio();refreshSelectedBadge();renderHomeOptions();HOME_FILTER={L:'',M:'',S:'',text:''};var l=document.getElementById('homeFilterL'),m=document.getElementById('homeFilterM'),s=document.getElementById('homeFilterS'),t=document.getElementById('homeFilterText');if(t)t.value='';if(l)l.value='';if(m){m.value='';m.disabled=true;}if(s){s.value='';s.disabled=true;}updateHomeFilterOptions();renderHome();});
   el('#btnResetSingle').addEventListener('click',()=>{sendLog('기능사용', '싱글중대형 초기화 버튼 클릭');singleQty.forEach((_,k)=>singleQty.set(k,0));syncSingleUIFromState();el('#singleTotal').textContent=fmt(sumSingles());refreshSelectedBadge();updateInlineTotals();renderSingleOptions();SINGLE_FILTER={L:'',M:'',text:''};var l=document.getElementById('singleFilterL'),m=document.getElementById('singleFilterM'),t=document.getElementById('singleFilterText');if(t)t.value='';if(l)l.value='';if(m){m.value='';m.disabled=true;}updateSingleFilterOptions();renderSingle();});
   el('#btnResetComm').addEventListener('click',()=>{sendLog('기능사용', '상업멀티 초기화 버튼 클릭');commQty.forEach((_,k)=>commQty.set(k,0));document.querySelectorAll('#commBody .qty-input').forEach(i=>i.value='');document.querySelectorAll('#commBody [data-csub]').forEach(td=>td.textContent=fmt(0));syncCommTotals();updateCommRatio();refreshSelectedBadge();refreshBranchOpenButton('comm');renderCommOptions();COMM_FILTER={L:'',M:'',S:'',text:''};var l=document.getElementById('commFilterL'),m=document.getElementById('commFilterM'),s=document.getElementById('commFilterS'),t=document.getElementById('commFilterText');if(t)t.value='';if(l)l.value='';if(m){m.value='';m.disabled=true;}if(s){s.value='';s.disabled=true;}updateCommFilterOptions();renderComm();});
   el('#btnResetOld')?.addEventListener('click', ()=>{oldQty.clear(); OLD_PRODUCTS.forEach(p => delete p._tempRemarks); renderOld(); syncOldTotals(); refreshSelectedBadge(); });
@@ -9002,6 +9035,7 @@ function applySnapshot(shot, custName) {
 
   try {
     const form = shot.form || {};
+    clearHomeManualLocks();
 
     for(const [k, v] of Object.entries(form)){
       if(document.querySelector(`input[type="radio"][name="${k}"]`)){

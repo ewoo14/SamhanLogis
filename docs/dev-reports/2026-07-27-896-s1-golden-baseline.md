@@ -249,11 +249,11 @@ Object { AM120AXVHHH1: 1, +   "방진가대S2소": 1, }
 
 기존 결함 fix 과정에서, 손으로 만든 게 아니라 **실행이 드러낸** 두 앱 사이의 실제 드리프트 3건을 발견했다. 전부 정본을 실행해서 나온 결과이지 추측이 아니다.
 
-**6-1. 주문 앱의 홈 패밀리에는 수동 잠금이 아예 없다.** `H-03-PANEL-LOCK`(§ 아래) fixture를 만들며 `grep -c HOME_MANUAL_ order-app/index.html` → **0건**을 확인했다. 견적은 `HOME_MANUAL_PANEL`을 실제로 존중해 잠근 값(9)이 보존되지만, 주문은 `recomputeHomePanels`가 무조건 재계산해 자동값(1)으로 돌아간다. `COMM_MANUAL_*`(상업)는 두 앱 다 있다. golden에 그대로 반영했다:
+**6-1. 주문 앱의 홈 패밀리 수동 잠금 부재(수정 전 baseline).** `H-03-PANEL-LOCK`(§ 아래) fixture를 만들며 `grep -c HOME_MANUAL_ order-app/index.html` → **0건**을 확인했다. 당시 견적은 `HOME_MANUAL_PANEL`을 실제로 존중해 9를 보존했지만 주문은 `recomputeHomePanels`가 자동값 1로 되돌렸다. PR #967에서 주문에도 실 입력 경로와 5계열 manual lock을 추가해 견적과 동일하게 9를 보존하도록 수정했다. `COMM_MANUAL_*`(상업)는 두 앱 다 기존 동작을 유지한다. 수정 전 golden은 다음과 같았다:
 
 ```js
 estimateOptionGoldens['H-03-PANEL-LOCK'] = { ..., PC1MWSK3NW: 9, ... };
-orderOptionGoldens['H-03-PANEL-LOCK']    = { ..., PC1MWSK3NW: 1, ... };
+orderOptionGoldens['H-03-PANEL-LOCK']    = { ..., PC1MWSK3NW: 1, ... }; // 수정 전
 ```
 
 **6-2. 주문 앱의 `isCommOutdoorRow`는 견적과 완전히 다른 판별식을 쓴다.** 견적(`index.ejs:4011-4014`)은 모델 문자열 패턴(`AM`+7자리 이상+7번째 문자 `X`)으로 판별하지만, 주문(`index.html:2291-2299`)은 `catL==='실외기'` 또는 이름에 `dvm|프라임|표준형|한랭지|상부토출` 포함 여부로 판별한다. `RENEW_FILTER_MAP`의 세 모델(`AM035FXMRHC1` 등, 이름 "실외기 리뉴얼 필터 대상")은 이 카탈로그에서 어느 쪽도 만족하지 않아 **주문에서는 실외기로 인식되지 않는다** — `isCommOutdoorRow(r)` 게이트에서 걸려 필터 반영 루프에 진입조차 못 한다(`globalThis.__filterTrace`로 직접 확인, 아래). §4의 `derive-renew-filter-map`이 주문에서 GREEN인 진짜 이유이며, §4(이전 보고서) 드리프트 표의 "리뉴얼 필터: 견적만 존재"·"GHP 보조 경로: 견적만 존재"(C-08, `AM180AXVGHH1`도 이름에 저 키워드가 없다)가 **같은 원인**이었음을 이번에 처음 확인했다.
@@ -270,9 +270,9 @@ COMMULTI has AF-R09A row: true   // 카탈로그엔 있다
 { nTarget: 2, nNormal: 1, hose1L: 'FH-LFHIF', hose1I: 'FH-LFHIF', useIHose: true, wantFH_LFHIF: 0 }
 ```
 
-`C-02-I-HOSE`(견적) golden에 `FH-LFHIF`가 없고 `FH-LFHIF4W`만 있는 이유다. 주문은 이 useIHose(DOM) 분기 자체가 없어(§ 아래) 이 상쇄가 일어나지 않고 `FH-LFHIF:2`가 그대로 남는다 — 두 앱 드리프트가 하나 더 늘었다. 이 fixture(`C-02-I-HOSE`)는 원래도 `showIHose:true`를 최상위(잘못된 위치)에 얹어 두는 바람에 `window.SHOW_I_HOSE`가 실제로는 항상 false였다 — 이번에 `options.showIHose`로 옮겨 실제로 켜지게 고쳤고, 그 결과 이 상쇄 상호작용이 처음으로 드러났다. **정본을 고치지 않았다** — 이 상쇄는 정본이 실제로 하는 계산이며, 그대로 golden에 고정했다.
+수정 전에는 `C-02-I-HOSE` 견적 golden에 `FH-LFHIF`가 없고 `FH-LFHIF4W`만 남았다. PR #967에서 상업 1WAY의 L형 권위를 `HOSE_1W`로 분리하고 전역 I형을 우선해, 견적도 주문과 같이 `FH-LFHIF:2`를 보존한다. `FH-LFHIF4W:1` 및 주문 경로는 그대로다.
 
-이와 별개로, 주문 앱의 홈 패밀리 I형 호스는 DOM이 아니라 `window.SHOW_I_HOSE`가 유일한 진입점이다(`index.html:5291`, `#home_hose_i` 자체가 주문에는 없다). 상업 패밀리도 마찬가지로 주문은 `#comm_hose_i` DOM을 아예 읽지 않고 `pickHoseModel`(`window.SHOW_I_HOSE`)로만 1way/4way를 정한다(`index.html:5349-5350`). `H-01-I`/`C-02-I-HOSE` fixture의 `showIHose`가 최상위에 있어 `options.showIHose`에 도달하지 못했던 이전 버그는, 주문 앱에서는 **I형 갈래가 전혀 실행되지 않는** 결과로 이어졌었다(견적은 DOM 스위치가 있어 절반은 맞는 값이 나왔다). 이번에 고쳐서 두 앱 다 각자의 진입점으로 I형 갈래를 실제로 타도록 만들었다.
+주문 앱의 홈·상업 I형 호스는 계속 `window.SHOW_I_HOSE`를 단일 진입점으로 사용한다. 이번 수정은 주문의 I형 진입점을 바꾸지 않고, 견적 상업 1WAY에만 있던 두 권위의 충돌을 제거해 양 앱 golden을 수렴시킨다.
 
 **MODEL_6HP_SINGLE 관련 확인.** 정본 정규식 `/실외기_6HP\s*단배관/`은 리터럴 언더스코어를 요구하는데 카탈로그의 실제 이름은 공백(`실외기 6HP 단배관`)이다 — 즉 `MODEL_6HP_SINGLE`은 이 카탈로그로는 **항상 빈 문자열**이다(카탈로그를 "고쳐서" 매치시키지 않았다 — 실제 카탈로그 이름이 언더스코어를 쓴다는 근거가 없다). 다만 `recomputeHomeBranches`가 `r.model === 'AJ060MXHNBC1'`를 하드코딩된 리터럴로 별도 체크하므로 실무 영향은 없다 — 이 상수는 죽은 코드에 가깝다.
 
@@ -315,7 +315,7 @@ R1이 예고한 대로 "재생성된 golden 값은 지금 커밋된 값과 다�
 
 R1: "수동 잠금 축을 채운 fixture가 0건이고 `LEGACY_MUTATION` 없이는 실행되지 않는다." 두 개의 **일반 golden**(뮤테이션이 아니라 기본 `npm test`로 CI에서 항상 도는) fixture를 추가했다.
 
-- `H-03-PANEL-LOCK`(§6-1) — `HOME_MANUAL_PANEL`. 견적은 잠금이 실제로 보호하고, 주문은 이 기능 자체가 없다는 것을 실행으로 보여준다.
+- `H-03-PANEL-LOCK`(§6-1) — 수정 전에는 주문의 `HOME_MANUAL_PANEL` 경로가 없었고, PR #967 후에는 두 앱 모두 사용자 입력 9를 보호한다.
 - `C-05-BASE-LOCK` — `COMM_MANUAL_BASE`를 `방진가대S2소`에 걸면, `recomputeCommDerived`의 마지막 apply 단계(`index.ejs:8508`)가 그 모델에 대해 want→commQty 반영 자체를 건너뛴다. C-05의 자동 계산값(1)이 사라지고 결과는 `{ AM120AXVHHH1: 1 }`(양 앱 동일 — `COMM_MANUAL_BASE`는 두 앱 다 있다). 이 시나리오는 기존 `manual-lock-ignore` 뮤테이션(주문)이 이미 검증하던 것과 같은 지점이지만, 이번엔 뮤테이션 없이도 CI 기본 스위트에서 매번 실행된다.
 
 ## 11. 산출물 — 변경 파일 전체 목록
@@ -426,7 +426,7 @@ Invalid regular expression: /^#branchSummaryBar [data-k="([^"]+)"] .extra-branch
 
 ### 13.4 정찰 §5 드리프트 8종 전수 결과
 
-기존 5종은 기존 golden을 확인했고, fixture가 차이를 가리던 3종은 기존 카탈로그 행만 사용한 옵션 fixture를 추가해 다시 정본 실행했다. 독립 sweep 결과는 **8/8 distinct**였다.
+기존 5종은 기존 golden을 확인했고, fixture가 차이를 가리던 3종은 기존 카탈로그 행만 사용한 옵션 fixture를 추가해 다시 정본 실행했다. 기준 시점 독립 sweep은 **8행**이었고, PR #967 후속 반영 결과는 H-03 수렴으로 **7행 distinct + 1행 수렴**이다.
 
 ```text
 {"id":"H-01","model":"AR-EC05","estimate":4,"order":3,"distinct":true}
@@ -435,9 +435,9 @@ Invalid regular expression: /^#branchSummaryBar [data-k="([^"]+)"] .extra-branch
 {"id":"C-01-AIR-PANEL","model":"PC4NUCK4NW","estimate":1,"order":0,"distinct":true}
 {"id":"S-01-CATEGORY-DRIFT","model":"set-round-target","estimate":0,"order":4,"distinct":true}
 {"id":"C-02-REMAINDER-DRIFT","model":"FH-LFHLF4W","estimate":2,"order":0,"distinct":true}
-{"id":"H-03-PANEL-LOCK","model":"PC1MWSK3NW","estimate":9,"order":1,"distinct":true}
+{"id":"H-03-PANEL-LOCK","model":"PC1MWSK3NW","estimate":9,"order":9,"distinct":false}
 {"id":"C-09-2812","model":"AXJ-YA2812M","estimate":5,"order":2,"distinct":true}
-{"total":8,"distinct":8}
+{"total":8,"distinct":7}
 ```
 
 추가한 3개 fixture는 `H-01-I-DOM-ONLY`(견적 DOM 칩만 ON), `S-01-CATEGORY-DRIFT`(기존 `set-ceiling-source` 부자재 행), `C-02-REMAINDER-DRIFT`(기존 `AM072TNCDBH1` 미분류 실내기 행)이다. 합성 제품 코드나 정본 로직은 추가하지 않았다.
@@ -488,3 +488,11 @@ Tests       68 passed (68)
 따라서 실제 합계는 **24회 중 23회 RED, 1회 정당한 GREEN**이다. 주문의 `derive-renew-filter-map` GREEN은 `isCommOutdoorRow`가 해당 fixture를 실외기로 판정하지 않아 해당 맵의 계산 경로에 도달하지 않는 기존 포팅 드리프트를 문서화한 결과다.
 
 정본 `clients/web/estimate-app/views/index.ejs`, `clients/web/order-app/index.html` 및 `tools/legacy-gas/**`는 R2에서도 수정하지 않았다.
+
+## 14. 2026-07-28 PR #967 후속 보정
+
+위 §6-1·§6-3·§13.4의 당시 snapshot은 PR #967 fix 전 상태다. 후속 실행에서 `H-03-PANEL-LOCK` 주문 `PC1MWSK3NW`가 `1→9`, 별도 기록된 `C-02-I-HOSE` 견적 `FH-LFHIF`가 `0→2`로 수렴했다. 이 두 값 외 §13.4 원문 8행은 유지했다.
+
+따라서 §13.4 원문 8행 기준 잔여 distinct는 7행이며, §6-3의 C-02 I형 항목은 8행 밖의 별도 항목이다. “8→6”은 두 목록을 합산하는 과정의 계수 불일치이므로, 실제 실행 결과는 새 보고서의 “7행 유지 + 별도 1건 수렴”을 정본으로 삼는다.
+
+상세 RED/GREEN/mutation, golden 전체 diff 및 회귀 울타리는 `docs/dev-reports/2026-07-28-963-legacy-quantity-loss.md`를 참조한다.

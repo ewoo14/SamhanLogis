@@ -8376,13 +8376,13 @@ function recomputeCommDerived() {
     else nNormal += q;
   });
 
-  const hose1L = pickHoseModel('1way');
+  const hose1L = HOSE_1W;
   const hose4L = pickHoseModel('4way');
   const hose1I = (typeof HOSE_I_1W !== 'undefined' ? HOSE_I_1W : '');
 
   const isHoseExcluded = el('#comm_ex_hose')?.checked;
   if (!isHoseExcluded) {
-    const useIHose = el('#comm_hose_i')?.checked; 
+    const useIHose = !!window.SHOW_I_HOSE || !!el('#comm_hose_i')?.checked;
     if (useIHose && hose1I) {
       want.set(hose1I, nTarget);
       if (hose1L) want.set(hose1L, 0);

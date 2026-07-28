@@ -11,6 +11,10 @@
 
 > 본 HTML 원본 = [`docs/samhan-public-overview.html`](docs/samhan-public-overview.html) (main `/docs` GitHub Pages source).
 
+## 2026-07-28 레거시 GAS 수량 결함 수정 (#967)
+
+견적 상업멀티 전역 I형 1WAY 호스 수량과 주문 홈멀티 수동 파생수량(판넬·호스·리모컨·분기관·발통)을 보존하도록 수정했다. 저장된 견적·주문 금액은 소급하지 않으며, 실행 근거는 [`docs/dev-reports/2026-07-28-963-legacy-quantity-loss.md`](docs/dev-reports/2026-07-28-963-legacy-quantity-loss.md)에 남겼다.
+
 ## 2026-07-22 품목행 공급가액·부가세 정합성 (#824)
 
 - 전표·견적·세금계산서의 공급가액 기준 부가세를 `shared:common`의

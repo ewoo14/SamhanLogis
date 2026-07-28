@@ -31,6 +31,7 @@ function mutationSource(source: string, mutation: string) {
     case 'multiplier': return replaceOnce(source, 'if(HOSE_4W)   homeQty.set(HOSE_4W,   n4w);', 'if(HOSE_4W)   homeQty.set(HOSE_4W,   n4w * 2);');
     case 'target-model': return replaceOnce(source, "p1sWi:'PC1MWSK3NW'", "p1sWi:'PC1NWSK3NW'");
     case 'source-omit': return source;
+    case 'legacy-963-home-manual': return replaceOnce(source, 'if(isPanelRow(r) && !HOME_MANUAL_PANEL.has(r.model)) homeQty.set(r.model,0);', 'if(isPanelRow(r)) homeQty.set(r.model,0);');
     case 'add-to-replace': return replaceOnce(source, 'if(pm) want.set(pm, (want.get(pm)||0) + q);', 'if(pm) want.set(pm, q);');
     case 'inactive-keep': return replaceOnce(source, 'if(isPanelRow(r)) homeQty.set(r.model,0);', 'if(false && isPanelRow(r)) homeQty.set(r.model,0);');
     case 'option-invert': return replaceOnce(source, "// 4WAY 공청 고정 치환\n  if(opt==='공청판넬'){", "// 4WAY 공청 고정 치환\n  if(opt!=='공청판넬'){");
@@ -172,6 +173,9 @@ function mutationInput(mutation: string) {
   if (DERIVATION_MUTATION_FAMILY[mutation]) {
     return inputFor(fixtures.find((fixture: any) => fixture.family === DERIVATION_MUTATION_FAMILY[mutation]));
   }
+  if (mutation === 'legacy-963-home-manual') {
+    return inputFor(optionFixtures.find((fixture: any) => fixture.id === 'H-03-PANEL-LOCK'));
+  }
   return inputFor(fixtures.find((fixture: any) => fixture.family === (mutation === 'option-invert' ? 'H-04' : mutation === 'target-model' ? 'H-03' : 'H-01')));
 }
 
@@ -206,10 +210,29 @@ describe('단계 0 주문 앱 legacy 수량 경계 golden', () => {
     expect(actual.quantities['AXJ-YA2812M']).toBe(2);
   });
 
-  test('두 앱 드리프트의 주문 fixture를 보존한다', () => {
+  test.each([
+    ['판넬', 'H-01', 'PC1NWSK3NW', 'panel', 'FH-LFHLF', 2],
+    ['호스', 'H-01', 'FH-LFHLF', 'hose', 'PC1NWSK3NW', 2],
+    ['리모컨', 'H-01', 'AR-EC05', 'remote', 'PC1NWSK3NW', 2],
+    ['발통', 'H-08', '발통세트', 'foot', 'AXJ-YA1509N', 0],
+    ['분기관', 'H-07', 'AXJ-YA1509N', 'branch', 'PC1NWSK3NW', 1],
+  ])('결함 2: 홈 %s 수동 입력은 재계산 후 보존되고 다른 파생은 자동 계산된다', (label, family, model, lockKey, autoModel, autoExpected) => {
+    const fixture = fixtures.find((item: any) => item.family === family);
+    const actual = evaluateLegacyQuantityBoundary({
+      ...inputFor(fixture),
+      sourceQuantities: { ...fixture.sourceQuantities, [model]: 77 },
+      manualLocks: { home: { [lockKey]: [model] } },
+    });
+    expect(actual.quantities[model]).toBe(77);
+    expect(actual.quantities[autoModel] || 0).toBe(autoExpected);
+  });
+
+  test('정찰 §5 기존 8종 중 7종은 유지되고 해소된 2종은 견적과 수렴한다', () => {
     expect(orderGoldens['H-01']['AR-KH05']).toBe(1);
     expect(orderGoldens['H-07']['AXJ-YA1509N']).toBeUndefined();
     expect(orderGoldens['C-07']['AF-R09A']).toBeUndefined();
+    expect(orderOptionGoldens['H-03-PANEL-LOCK']['PC1MWSK3NW']).toBe(9);
+    expect(orderOptionGoldens['C-02-I-HOSE']['FH-LFHIF']).toBe(2);
   });
 
   // 주문 앱의 isCommOutdoorRow(index.html:2291-2299)는 견적처럼 모델 문자열 패턴이

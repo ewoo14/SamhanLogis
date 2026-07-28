@@ -145,6 +145,7 @@ function commonContextScript(input) {
     const syncHomeTotals = () => {};
     const refreshSelectedBadge = () => {};
     const updateHomeRatio = () => {};
+    const homeUnitPrice = () => 0;
     const saveBranchState = () => {};
     const pushBranchPartsToCommFromBadges = () => {};
   `;
@@ -184,6 +185,8 @@ function runHome(source, input) {
     'recomputeHomeRemotes',
     'recomputeHomePanels',
     'recomputeHomeDerived',
+    'isHomeCalcTriggerModel',
+    'onHomeQtyInput',
   ]);
   const script = `
     ${commonContextScript(input)}
@@ -191,12 +194,14 @@ function runHome(source, input) {
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
-    const HOME_MANUAL_PANEL = new Set(${JSON.stringify(locks.panel || [])});
-    const HOME_MANUAL_HOSE = new Set(${JSON.stringify(locks.hose || [])});
-    const HOME_MANUAL_REMOTE = new Set(${JSON.stringify(locks.remote || [])});
-    const HOME_MANUAL_BRANCH = new Set(${JSON.stringify(locks.branch || [])});
-    const HOME_MANUAL_FOOT = new Set(${JSON.stringify(locks.foot || [])});
+    const HOME_MANUAL_PANEL = new Set();
+    const HOME_MANUAL_HOSE = new Set();
+    const HOME_MANUAL_REMOTE = new Set();
+    const HOME_MANUAL_BRANCH = new Set();
+    const HOME_MANUAL_FOOT = new Set();
     ${functions}
+    const __manualInputs = ${JSON.stringify(Object.values(locks).flat())};
+    __manualInputs.forEach((model) => onHomeQtyInput(model, homeQty.get(model) || 0));
     recomputeHomeDerived(false);
     globalThis.__result = { quantities: nonZeroMap(homeQty), allQuantities: mapObject(homeQty) };
   `;

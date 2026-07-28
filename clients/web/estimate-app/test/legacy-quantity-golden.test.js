@@ -28,6 +28,8 @@ function mutationSource(source, mutation) {
       return replaceOnce(source, 'p1sWi:\'PC1MWSK3NW\'', 'p1sWi:\'PC1NWSK3NW\'');
     case 'source-omit':
       return source;
+    case 'legacy-963-hose-alias':
+      return replaceOnce(source, 'const hose1L = HOSE_1W;', "const hose1L = pickHoseModel('1way');");
     case 'add-to-replace':
       return replaceOnce(source, 'want.set(pm, (want.get(pm) || 0) + q);', 'want.set(pm, q);');
     case 'inactive-keep':
@@ -171,6 +173,9 @@ function mutationInput(mutation) {
   if (DERIVATION_MUTATION_FAMILY[mutation]) {
     return inputFor(fixtures.find((fixture) => fixture.family === DERIVATION_MUTATION_FAMILY[mutation]));
   }
+  if (mutation === 'legacy-963-hose-alias') {
+    return inputFor(optionFixtures.find((fixture) => fixture.id === 'C-02-I-HOSE'));
+  }
   return inputFor(fixtures.find((fixture) => fixture.family === (mutation === 'option-invert' ? 'H-04' : mutation === 'target-model' || mutation === 'manual-lock-ignore' ? 'H-03' : 'H-01')));
 }
 
@@ -205,7 +210,30 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
     expect(actual.quantities['AXJ-YA2812M']).toBe(5);
   });
 
-  test('정찰 §5 드리프트 8종이 양 앱 golden에 각각 남아 있다', () => {
+  test.each([
+    [true, true, { l1w: 0, i1w: 2, l4w: 0, i4w: 1 }],
+    [true, false, { l1w: 0, i1w: 2, l4w: 0, i4w: 1 }],
+    [false, true, { l1w: 0, i1w: 2, l4w: 1, i4w: 0 }],
+    [false, false, { l1w: 2, i1w: 0, l4w: 1, i4w: 0 }],
+  ])('결함 1: 전역 I형=%s · 화면칩 I형=%s에서도 상업 호스 수량을 보존한다', (showIHose, domIHose, expected) => {
+    const fixture = fixtures.find((item) => item.family === 'C-02');
+    const actual = evaluateLegacyQuantityBoundary({
+      ...inputFor(fixture),
+      options: {
+        ...fixture.options,
+        dom: { ...fixture.options.dom, '#comm_hose_i': domIHose },
+        showIHose,
+      },
+    });
+    expect({
+      l1w: actual.quantities['FH-LFHLF'] || 0,
+      i1w: actual.quantities['FH-LFHIF'] || 0,
+      l4w: actual.quantities['FH-LFHLF4W'] || 0,
+      i4w: actual.quantities['FH-LFHIF4W'] || 0,
+    }).toEqual(expected);
+  });
+
+  test('정찰 §5 기존 8종 중 7종은 유지되고 해소된 2종은 양 앱 값으로 수렴한다', () => {
     const cases = [
       [estimateGoldens['H-01'], orderGoldens['H-01'], 'AR-EC05', 4, 3],
       [estimateGoldens['H-07'], orderGoldens['H-07'], 'AXJ-YA1509N', 1, 0],
@@ -213,7 +241,6 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
       [estimateOptionGoldens['C-01-AIR-PANEL'], orderOptionGoldens['C-01-AIR-PANEL'], 'PC4NUCK4NW', 1, 0],
       [estimateOptionGoldens['S-01-CATEGORY-DRIFT'], orderOptionGoldens['S-01-CATEGORY-DRIFT'], 'set-round-target', 0, 4],
       [estimateOptionGoldens['C-02-REMAINDER-DRIFT'], orderOptionGoldens['C-02-REMAINDER-DRIFT'], 'FH-LFHLF4W', 2, 0],
-      [estimateOptionGoldens['H-03-PANEL-LOCK'], orderOptionGoldens['H-03-PANEL-LOCK'], 'PC1MWSK3NW', 9, 1],
       [estimateOptionGoldens['C-09-2812'], orderOptionGoldens['C-09-2812'], 'AXJ-YA2812M', 5, 2],
     ];
     cases.forEach(([estimate, order, model, estimateQty, orderQty]) => {
@@ -221,6 +248,10 @@ describe('단계 0 견적 앱 legacy 수량 경계 golden', () => {
       expect(order[model] || 0).toBe(orderQty);
       expect(estimateQty).not.toBe(orderQty);
     });
+    expect(estimateOptionGoldens['H-03-PANEL-LOCK']['PC1MWSK3NW']).toBe(9);
+    expect(orderOptionGoldens['H-03-PANEL-LOCK']['PC1MWSK3NW']).toBe(9);
+    expect(estimateOptionGoldens['C-02-I-HOSE']['FH-LFHIF']).toBe(2);
+    expect(orderOptionGoldens['C-02-I-HOSE']['FH-LFHIF']).toBe(2);
   });
 
   test('두 앱 드리프트의 견적 fixture를 보존한다', () => {
