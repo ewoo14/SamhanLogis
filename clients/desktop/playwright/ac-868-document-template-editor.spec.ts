@@ -262,8 +262,8 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
     await page.getByRole('button', { name: '문구 추가' }).click()
     const keysBefore = await page.locator('[data-testid^="template-element-"]').evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-template-key')))
-    // 두 요소 모두 TEXT 라 "앞으로 이동" aria-label 이 동일하다 — 마지막(두 번째) 요소의 버튼을 누른다.
-    await page.getByRole('button', { name: /문구 앞으로 이동/ }).last().click()
+    // 두 TEXT 요소의 이동 버튼은 key를 포함해 서로 달라진다 — 마지막(두 번째) 요소의 버튼을 누른다.
+    await page.getByRole('button', { name: /문구 요소 key: .+ 앞으로 이동/ }).last().click()
     const keysAfter = await page.locator('[data-testid^="template-element-"]').evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('data-template-key')))
     expect(keysAfter).not.toEqual(keysBefore)
@@ -490,7 +490,7 @@ test.describe('AC-868 DS-3b 문서 양식 편집기 mock 회귀', () => {
       await expect(textButton, `편집 시작 후 ${width}px 회차의 문구 추가가 활성화되어야 한다`).toBeEnabled()
 
       await textButton.click()
-      const addedElement = page.getByRole('button', { name: '문구', exact: true }).last()
+      const addedElement = page.getByRole('button', { name: /^문구 요소 key: [^\s]+$/ }).last()
       await addedElement.click()
 
       await assertEditorGeometry(page)

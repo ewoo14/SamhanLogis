@@ -96,7 +96,7 @@ test('DS-3b L1~L6 — 목록·편집기·요소·저장·재진입 (GUI)', async
       await expect.poll(async () => (await preview.innerHTML()) !== beforeAdd, { timeout: 10000 }).toBeTruthy()
 
       // 캔버스에서 방금 추가한 '문구' 요소 선택 → 속성 패널 노출
-      await page.getByRole('button', { name: '문구', exact: true }).click()
+      await page.getByRole('button', { name: /^문구 요소 key: [^\s]+$/ }).click()
       await expect(page.getByRole('group', { name: '스타일' })).toBeVisible()
       await shot('L3b-문구-속성패널')
 
@@ -172,7 +172,7 @@ test('DS-3b L1~L6 — 목록·편집기·요소·저장·재진입 (GUI)', async
 
       // 🔴 L6 핵심 — geometry/style/binding 소실 0 (R2 라이브 대응)
       // 화면에 그려진 요소를 다시 선택해 L3 에서 넣은 값이 그대로인지 단언한다.
-      await page.getByRole('button', { name: '문구', exact: true }).click()
+      await page.getByRole('button', { name: /^문구 요소 key: [^\s]+$/ }).click()
       await expect(page.getByLabel('가로 위치(x, %)'), 'L6 위반 — geometry.x 소실').toHaveValue('12')
       await expect(page.getByLabel('세로 위치(y, %)'), 'L6 위반 — geometry.y 소실').toHaveValue('34')
       await expect(page.getByLabel('가로 크기(w, %)'), 'L6 위반 — geometry.w 소실').toHaveValue('60')
