@@ -10,9 +10,11 @@ const {
   assertRealQaScope,
   checkFreshnessOrSkip,
   decideRealQaScope,
+  compareRealQaScope,
   EXPLICIT_PATH_ARGS_ENV_VAR,
   EXPLICIT_PATH_TOKEN_ENV_VAR,
   getRealQaScope,
+  listGitignoredUntrackedRealQaFiles,
   listTrackedRealQaFiles,
   parseExplicitPathArgs,
   resolveRequestedFiles,
@@ -34,7 +36,7 @@ const F2_FILES = [
   'clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-real-qa.spec.ts',
 ]
 
-test('real-QA 공식 수집 집합은 현재 Git 추적 집합과 이름 단위로 일치한다', () => {
+test('real-QA 공식 수집 집합은 현재 Git 추적 집합과 이름 단위로 일치한다(.gitignore 가 허용한 로컬 스펙은 예외)', () => {
   const scope = getRealQaScope({ repoRoot })
 
   // [SONNET5 R1 결함6 fix] assert.equal → 최소-기준(>=)으로 완화. 형제 트랙이 정상적으로
@@ -43,9 +45,27 @@ test('real-QA 공식 수집 집합은 현재 Git 추적 집합과 이름 단위�
     scope.trackedFiles.length >= MIN_TRACKED_REAL_QA_FILE_COUNT,
     `추적 real-QA 스펙 수(${scope.trackedFiles.length})가 최소 기준 ${MIN_TRACKED_REAL_QA_FILE_COUNT}개보다 줄었습니다. #864 계열 회귀일 수 있어 검토가 필요합니다.`,
   )
-  assert.deepEqual(scope.untrackedFiles, [], '미추적 스펙이 공식 집합에 섞였습니다.')
+  // [SONNET5 재수렴 결함1 fix] untrackedFiles 전부가 아니라 unexpectedUntrackedFiles
+  // (untracked 이면서 .gitignore 로도 안 걸리는 파일)만 0을 요구한다. .gitignore:88-95 가
+  // 개발책임자 요청(2026-07-05)으로 로컬 세션 QA 아티팩트 7개 디렉터리를 "커밋 대상 아님"
+  // 으로 명시했고, 그 디렉터리 안의 -real-qa.spec.ts 는 어느 개발 PC 에나 있을 수 있는 정상
+  // 상태다(#969 재수렴 결함1 — 이 PC 실측: 4개 디렉터리에 3주 전부터 실존). 그런 파일이
+  // 있다는 이유만으로 npm run typecheck 가 영구 RED 가 되면 안 된다(README:274-276 이 이미
+  // 이렇게 약속한다 — "추적 스펙만 가리키는 명시 경로 실행은 … 미추적 로컬 스펙이 있어도
+  // … 막지 않는다"). 반대로 .gitignore 로 커버되지 않는 untracked 파일(=사용자가 새 스펙을
+  // 추가하고 git add 를 잊은 경우, #864 계열 회귀)은 여전히 걸러야 한다.
+  assert.deepEqual(
+    scope.unexpectedUntrackedFiles,
+    [],
+    '.gitignore 로 커버되지 않는 미추적 스펙이 있습니다(신규 스펙을 git add 하지 않았을 수 있습니다 — #864 계열 회귀 점검).',
+  )
   assert.deepEqual(scope.missingFiles, [], '추적 스펙이 디스크 수집에서 빠졌습니다.')
-  assert.deepEqual(scope.diskFiles, scope.trackedFiles, '디스크 수집 집합과 Git 추적 집합이 다릅니다.')
+  const diskMinusIgnored = scope.diskFiles.filter((file) => !scope.ignoredUntrackedFiles.includes(file))
+  assert.deepEqual(
+    diskMinusIgnored,
+    scope.trackedFiles,
+    '디스크 수집 집합(.gitignore 로 허용된 로컬 스펙 제외)과 Git 추적 집합이 다릅니다.',
+  )
 })
 
 test('F-2: .gitignore 등재 경로 안의 추적 스펙 2개가 공식 집합에 남는다', () => {
@@ -318,6 +338,249 @@ test('결함8: core.quotepath 8진 이스케이프가 걸려도 비ASCII 추적 
   } finally {
     removeTempRepo(tempRoot)
   }
+})
+
+// ---------------------------------------------------------------------------
+// PR #969 재수렴 라운드 — 결함1(.gitignore 가 허용한 로컬 스펙이 typecheck 를 영구 RED 로
+// 만듦) · 결함2(정규식 이스케이프 과차단) · 결함4(--project 가변인자 오분류) fixture.
+// ---------------------------------------------------------------------------
+
+function writeGitignore(repoRoot_, lines) {
+  fs.writeFileSync(path.join(repoRoot_, '.gitignore'), `${lines.join('\n')}\n`, 'utf8')
+}
+
+test('재수렴 결함1: .gitignore 로 커버된 untracked 스펙은 unexpectedUntrackedFiles 에서 빠진다', () => {
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/tracked-real-qa.spec.ts')
+    // .gitignore 는 add -A 전에 있어야 그 디렉터리를 실제로 무시한다.
+    writeGitignore(tempRoot, ['clients/desktop/playwright/n1b-native-qa/'])
+    commitAllRealQaSpecs(tempRoot)
+
+    // .gitignore 가 허용한 디렉터리 안의 로컬 스펙 — 어느 개발 PC 에나 있을 수 있는 정상 상태.
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts')
+
+    const scope = getRealQaScope({ repoRoot: tempRoot })
+    assert.ok(
+      scope.untrackedFiles.includes('clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts'),
+      'untrackedFiles(전체)에는 여전히 잡혀야 합니다 — decideRealQaScope 의 전체 실행 차단 동작은 이번 fix 대상이 아닙니다.',
+    )
+    assert.deepEqual(
+      scope.unexpectedUntrackedFiles,
+      [],
+      '.gitignore 로 커버된 로컬 스펙은 unexpectedUntrackedFiles 에 남으면 안 됩니다(재수렴 결함1 핵심).',
+    )
+    assert.deepEqual(
+      scope.ignoredUntrackedFiles,
+      ['clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts'],
+      'ignoredUntrackedFiles 는 .gitignore 로 커버된 그 파일을 담아야 합니다.',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함1: .gitignore 로 커버되지 않는 untracked 스펙은 여전히 unexpectedUntrackedFiles 에 남는다(#864 계열 회귀 보존)', () => {
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/tracked-real-qa.spec.ts')
+    writeGitignore(tempRoot, ['clients/desktop/playwright/n1b-native-qa/'])
+    commitAllRealQaSpecs(tempRoot)
+
+    // .gitignore 가 커버하지 않는 디렉터리 — 새 스펙을 만들고 git add 를 잊은 진짜 사고 형태.
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/forgot-to-add-real-qa.spec.ts')
+
+    const scope = getRealQaScope({ repoRoot: tempRoot })
+    assert.deepEqual(
+      scope.unexpectedUntrackedFiles,
+      ['clients/desktop/playwright/forgot-to-add-real-qa.spec.ts'],
+      '.gitignore 로 커버되지 않는 진짜 미추적 스펙은 여전히 잡아야 합니다(회귀 방지).',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함1 단위: listGitignoredUntrackedRealQaFiles 는 .gitignore 로 무시된 untracked 파일만 반환한다', () => {
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/tracked-real-qa.spec.ts')
+    writeGitignore(tempRoot, ['clients/desktop/playwright/manual/'])
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/manual/ignored-real-qa.spec.ts')
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/not-ignored-real-qa.spec.ts')
+
+    const ignored = listGitignoredUntrackedRealQaFiles({ repoRoot: tempRoot })
+    assert.deepEqual(ignored, ['clients/desktop/playwright/manual/ignored-real-qa.spec.ts'])
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함1 회귀: compareRealQaScope 의 gitignoredFiles 기본값(생략)은 전부 unexpectedUntrackedFiles 로 취급한다', () => {
+  // compareRealQaScope 를 gitignoredFiles 없이 직접 호출하는 기존 호출자(있다면)가 있어도
+  // 안전하게 "전부 예상 밖"으로 보수적으로 취급되는지 확인 — 하위 호환 확인용.
+  const scope = compareRealQaScope({
+    diskFiles: ['a-real-qa.spec.ts', 'b-real-qa.spec.ts'],
+    trackedFiles: ['a-real-qa.spec.ts'],
+  })
+  assert.deepEqual(scope.unexpectedUntrackedFiles, ['b-real-qa.spec.ts'])
+  assert.deepEqual(scope.ignoredUntrackedFiles, [])
+})
+
+test('재수렴 결함2: 정규식 이스케이프 `\\.`(리터럴 점) 인자가 백슬래시 정규화로 깨지지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const target = 'clients/desktop/playwright/929-r5-route-collision-real-qa/929-r5-route-collision-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, target)
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-regex-escape-real-qa.spec.ts')
+
+    // 옛 구현(무조건 백슬래시→슬래시 치환)은 `\.` 를 `/.` 로 바꿔 이 패턴을 깨뜨렸다.
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: ['929-r5.*real-qa\\.spec\\.ts'],
+      repoRoot: tempRoot,
+    })
+    assert.deepEqual([...requested].sort(), [target], '`\\.` 이스케이프를 쓴 정규식 인자가 대상 파일을 선택해야 합니다(과차단 0).')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함2: 정규식 이스케이프 `\\d`(숫자 클래스) 인자가 과차단되지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const target = 'clients/desktop/playwright/925-alpha-real-qa/925-alpha-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, target)
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-digit-class-real-qa.spec.ts')
+
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: ['92\\d-alpha-real-qa'],
+      repoRoot: tempRoot,
+    })
+    assert.deepEqual([...requested].sort(), [target], '`\\d` 숫자 클래스를 쓴 정규식 인자가 대상 파일을 선택해야 합니다.')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함2: 문자 클래스 `[0-9]` 인자가 과차단되지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const target = 'clients/desktop/playwright/926-beta-real-qa/926-beta-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, target)
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-charclass-real-qa.spec.ts')
+
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: ['92[0-9]-beta-real-qa'],
+      repoRoot: tempRoot,
+    })
+    assert.deepEqual([...requested].sort(), [target], '`[0-9]` 문자 클래스를 쓴 정규식 인자가 대상 파일을 선택해야 합니다.')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함2: 와일드카드 `.*` 인자가 과차단되지 않고 여러 파일에 걸쳐 매치한다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const targetA = 'clients/desktop/playwright/927-gamma-real-qa/927-gamma-real-qa.spec.ts'
+    const targetB = 'clients/desktop/playwright/928-gamma-real-qa/928-gamma-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, targetA)
+    writeRealQaSpec(tempRoot, targetB)
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-wildcard-real-qa.spec.ts')
+
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: ['92\\d-gamma-real-qa\\.spec\\.ts'],
+      repoRoot: tempRoot,
+    })
+    assert.deepEqual([...requested].sort(), [targetA, targetB], '`.*`/`\\d` 조합 와일드카드 인자가 두 파일 모두를 선택해야 합니다.')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함2 회귀: 원시 정규식이 0건일 때만 백슬래시 경로 관용 표기로 폴백한다(과잉 폴백 방지)', () => {
+  // "\\d" 처럼 원시 정규식으로 이미 매치가 있는 인자는 백슬래시→슬래시 폴백을 절대
+  // 겪으면 안 된다 — 폴백을 무조건 union 하면 `\d`→`/d` 같은 훨씬 넓은 리터럴 매칭이
+  // 섞여 무관한 파일까지 과잉 선택할 위험이 있다(경계 오인 재발 방지).
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const target = 'clients/desktop/playwright/929-delta-real-qa/929-delta-real-qa.spec.ts'
+    // "929-delta" 안에 "d" 가 들어있어, `\d`→`/d` 폴백이 union 됐다면 이런 무관 경로도
+    // 우연히 잡힐 수 있는 이름을 일부러 골랐다.
+    const decoyContainingD = 'clients/desktop/playwright/n1b-native-qa/decoy-with-d-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, target)
+    writeRealQaSpec(tempRoot, decoyContainingD)
+    commitAllRealQaSpecs(tempRoot)
+
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: ['92\\d-delta-real-qa'],
+      repoRoot: tempRoot,
+    })
+    assert.deepEqual(
+      [...requested].sort(),
+      [target],
+      '원시 정규식이 이미 매치했으므로 백슬래시 폴백이 섞여 무관한 파일을 끌어오면 안 됩니다.',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('재수렴 결함4: --project 가변인자(공백형 다중값)의 두 번째 값이 위치 인자로 오분류되지 않는다', () => {
+  const argv = [
+    'node',
+    'cli.js',
+    'test',
+    '--config=playwright.real-qa.config.ts',
+    '--list',
+    '--project',
+    'renderer',
+    'order-app',
+  ]
+  assert.deepEqual(
+    parseExplicitPathArgs(argv),
+    [],
+    '--project renderer order-app 는 둘 다 프로젝트명이다 — 후보(위치 인자)에 아무것도 남으면 안 된다.',
+  )
+})
+
+test('재수렴 결함4: --project 가변인자 뒤에 진짜 위치 인자(스펙 경로)가 오면 그것만 후보로 잡는다', () => {
+  const argv = [
+    'node',
+    'cli.js',
+    'test',
+    '--config=playwright.real-qa.config.ts',
+    '--project',
+    'renderer',
+    'order-app',
+    '--list',
+    'playwright/manual/slip-form-3d-real-qa.spec.ts',
+  ]
+  assert.deepEqual(
+    parseExplicitPathArgs(argv),
+    ['playwright/manual/slip-form-3d-real-qa.spec.ts'],
+    '--project 뒤에 이어지는 프로젝트명 전부(다음 `-` 토큰까지)를 흡수해야 하고, 그 뒤 --list 이후의 진짜 경로만 후보로 남아야 합니다.',
+  )
+})
+
+test('재수렴 결함4: --project 값 1개(단일)는 기존처럼 정상 동작한다(회귀 보존)', () => {
+  const argv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--project', 'renderer', '--list']
+  assert.deepEqual(parseExplicitPathArgs(argv), [], '--project renderer 단독은 여전히 위치 인자 0개여야 합니다.')
 })
 
 // ---------------------------------------------------------------------------

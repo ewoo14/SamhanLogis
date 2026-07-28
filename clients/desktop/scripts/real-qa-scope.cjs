@@ -52,14 +52,55 @@ function listTrackedRealQaFiles({ repoRoot }) {
     .sort()
 }
 
-function compareRealQaScope({ diskFiles, trackedFiles }) {
+// 🚨 [SONNET5 재수렴 결함1 fix] `.gitignore`(88-95행)가 개발책임자 요청(2026-07-05)으로 로컬
+// 세션 QA 아티팩트 7개 디렉터리를 "커밋 대상 아님"으로 명시했다. 그 디렉터리 안의
+// -real-qa.spec.ts 는 어느 개발 PC 에나 정상적으로 존재할 수 있다 — git 이 스스로
+// "무시하라"고 선언한 상태이기 때문이다. 이 함수는 그런 파일을 걸러내 "untracked 인데
+// .gitignore 로도 안 걸리는" 진짜 이상 상태(#864 계열 — 새 스펙을 만들고 git add 를
+// 잊은 경우)만 남긴다. `git ls-files --others --ignored --exclude-standard` 는 Git 자신의
+// .gitignore 판정 결과이므로 이 스크립트가 정책(7개 디렉터리 목록)을 따로 하드코딩해
+// 중복 유지할 필요가 없다 — .gitignore 가 바뀌면 이 판정도 자동으로 같이 바뀐다.
+function listGitignoredUntrackedRealQaFiles({ repoRoot }) {
+  const result = spawnSync(
+    'git',
+    ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--', REAL_QA_ROOT],
+    { cwd: repoRoot, encoding: 'utf8', windowsHide: true },
+  )
+
+  if (result.error || result.status !== 0) {
+    const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`
+    throw new Error(`[real-QA 무시 파일 판정 실패] git ls-files --others --ignored 를 실행하지 못했습니다: ${detail}`)
+  }
+
+  return result.stdout
+    .split('\u0000')
+    .filter((entry) => entry.length > 0)
+    .map(normalizeRepoPath)
+    .filter((file) => file.endsWith(REAL_QA_SUFFIX))
+    .sort()
+}
+
+function compareRealQaScope({ diskFiles, trackedFiles, gitignoredFiles = [] }) {
   const disk = new Set(diskFiles.map(normalizeRepoPath))
   const tracked = new Set(trackedFiles.map(normalizeRepoPath))
+  const gitignored = new Set(gitignoredFiles.map(normalizeRepoPath))
+
+  const untrackedFiles = [...disk].filter((file) => !tracked.has(file)).sort()
 
   return {
     diskFiles: [...disk].sort(),
     trackedFiles: [...tracked].sort(),
-    untrackedFiles: [...disk].filter((file) => !tracked.has(file)).sort(),
+    // untrackedFiles 는 기존 그대로 유지한다(디스크에 있는데 추적 안 된 전체) — narrow/전체
+    // 실행 게이트(decideRealQaScope)가 이 필드를 그대로 계속 쓰며, 그 게이트의 "전체 실행은
+    // .gitignore 여부와 무관하게 항상 막는다"는 기존 의도된 동작(README:294-298 문서화됨)은
+    // 이번 fix 의 대상이 아니다.
+    untrackedFiles,
+    // 🆕 unexpectedUntrackedFiles — untracked 이면서 .gitignore 로도 안 걸리는 파일만. 개발자
+    // PC 의 정상적인 로컬 QA 세션 잔존물(.gitignore 가 허용)은 여기서 빠진다. 단위 테스트가
+    // "공식 수집 집합이 Git 추적 집합과 일치한다"를 검증할 때는 이 필드를 써야
+    // npm run typecheck 가 개발자 PC 상태에 따라 영구 RED 가 되지 않는다.
+    unexpectedUntrackedFiles: untrackedFiles.filter((file) => !gitignored.has(file)).sort(),
+    ignoredUntrackedFiles: untrackedFiles.filter((file) => gitignored.has(file)).sort(),
     missingFiles: [...tracked].filter((file) => !disk.has(file)).sort(),
   }
 }
@@ -68,6 +109,7 @@ function getRealQaScope({ repoRoot }) {
   return compareRealQaScope({
     diskFiles: listDiskRealQaFiles({ repoRoot }),
     trackedFiles: listTrackedRealQaFiles({ repoRoot }),
+    gitignoredFiles: listGitignoredUntrackedRealQaFiles({ repoRoot }),
   })
 }
 
@@ -124,7 +166,6 @@ const VALUE_TAKING_FLAGS = new Set([
   '--max-failures',
   '--output',
   '--only-changed',
-  '--project',
   '--repeat-each',
   '--reporter',
   '--retries',
@@ -142,6 +183,17 @@ const VALUE_TAKING_FLAGS = new Set([
   '--update-source-method',
 ])
 
+// 🚨 [SONNET5 재수렴 결함4 fix] `--project`는 값을 하나만 받는 게 아니라 commander 의
+// 가변인자(variadic) 옵션이다(playwright/lib/program.js:208 `"--project <project-name...>"`).
+// 실측(main 대조군, 게이트 없음): `--project renderer order-app playwright/manual/` 을 그대로
+// playwright 에 넘기면 세 번째 토큰까지 프로젝트명으로 흡수해 `Project(s) "playwright/manual/"
+// not found` 로 실패한다 — playwright 자신이 "다음 `-`로 시작하는 토큰(또는 인자 끝)까지"를
+// 전부 값으로 삼는다는 뜻이다. `VALUE_TAKING_FLAGS`처럼 딱 한 토큰만 건너뛰면, `--project a b`
+// 에서 `b`(그리고 그 뒤에 이어지는 진짜 위치 인자까지)가 우리 게이트에서는 "위치 인자"로
+// 오분류돼 차단 사유가 사실과 달라진다(전달한 적 없는 경로를 찾다 실패한 것처럼 보임). 값을
+// 받는 옵션 중 가변인자는 현재 스키마에서 `--project` 하나뿐이다.
+const VARIADIC_FLAGS = new Set(['--project'])
+
 function parseExplicitPathArgs(argv) {
   const rest = argv.slice(2)
   const candidates = []
@@ -149,7 +201,13 @@ function parseExplicitPathArgs(argv) {
     const arg = rest[i]
     if (arg === 'test') continue
     if (arg.startsWith('-')) {
-      if (!arg.includes('=') && VALUE_TAKING_FLAGS.has(arg)) i += 1
+      if (!arg.includes('=')) {
+        if (VARIADIC_FLAGS.has(arg)) {
+          while (i + 1 < rest.length && !rest[i + 1].startsWith('-')) i += 1
+        } else if (VALUE_TAKING_FLAGS.has(arg)) {
+          i += 1
+        }
+      }
       continue
     }
     candidates.push(arg)
@@ -208,37 +266,70 @@ function parseLocationArg(arg) {
   return match ? match[1] : arg
 }
 function normalizeArgSeparators(arg) {
-  // Playwright 의 정규식 매칭은 백슬래시를 정규식 이스케이프 문자로 해석해 원시 백슬래시
-  // 상대경로(Windows 사용자가 흔히 타이핑·복붙)를 0건으로 만든다(실측: 실제 CLI로
-  // `playwright\manual\slip-form-3d-real-qa.spec.ts` 실행 시 "Total: 0 tests in 0 files" —
-  // Playwright 자신도 이 형태를 지원하지 않는다). 사람이 백슬래시로 경로를 타이핑한 의도는
-  // 명확하므로(구분자 표기 차이일 뿐 다른 파일을 가리키는 게 아님) 이 구분자 정규화만
-  // Playwright 위임 전에 적용한다 — 매칭 로직 자체(글롭/조각/정규식 해석)는 손대지 않는다.
+  // Playwright 자신은 원시 백슬래시 상대경로(Windows 사용자가 흔히 타이핑·복붙)를 지원하지
+  // 않는다(실측: 실제 CLI로 `playwright\manual\slip-form-3d-real-qa.spec.ts` 실행 시 "Total: 0
+  // tests in 0 files"). 사람이 백슬래시로 경로를 타이핑한 의도는 명확하므로(구분자 표기
+  // 차이일 뿐 다른 파일을 가리키는 게 아님) 폴백 후보로만 이 구분자 정규화를 쓴다 — 아래
+  // buildMatcherCandidates 참고. 이 함수 자체는 무조건 호출하지 않는다(결함2 fix).
   return arg.replace(/\\/g, '/')
 }
 
-function resolveRequestedFiles({ scope, explicitPathArgs, repoRoot }) {
-  const universe = new Set([...scope.diskFiles, ...scope.trackedFiles])
-  if (explicitPathArgs.length === 0 || universe.size === 0) return new Set()
-
-  const matchers = explicitPathArgs.map((arg) => {
-    const pattern = normalizeArgSeparators(parseLocationArg(arg))
-    const wrapped = /^\/(.*)\/([gi]*)$/.exec(pattern)
+function compileRegex(pattern) {
+  const wrapped = /^\/(.*)\/([gi]*)$/.exec(pattern)
+  try {
     return new RegExp(wrapped ? wrapped[1] : pattern, wrapped ? wrapped[2] : 'gi')
-  })
-  const requested = new Set()
+  } catch {
+    // 유효하지 않은 정규식(예: 백슬래시 원시 경로를 그대로 정규식으로 해석하려다 실패한
+    // 경우) — 이 후보는 그냥 매치 0건으로 취급한다.
+    return null
+  }
+}
+
+function matchUniverse(matcher, universe, repoRoot) {
+  const matched = new Set()
+  if (!matcher) return matched
   for (const file of universe) {
     const absolute = path.resolve(repoRoot, file)
     const candidates = [absolute, normalizeRepoPath(absolute), file]
     if (
-      matchers.some((matcher) =>
-        candidates.some((candidate) => {
-          matcher.lastIndex = 0
-          return matcher.test(candidate)
-        }),
-      )
+      candidates.some((candidate) => {
+        matcher.lastIndex = 0
+        return matcher.test(candidate)
+      })
     ) {
-      requested.add(file)
+      matched.add(file)
+    }
+  }
+  return matched
+}
+
+// 🚨 [SONNET5 재수렴 결함2 fix] 이전 버전은 인자마다 백슬래시를 무조건 `/`로 치환한 뒤
+// 정규식으로 컴파일했다. 그러면 정규식 이스케이프(`\.`·`\d`·`\b`·`\w` 등)가 전부 깨진다
+// (`\.` → `/.`(임의의 문자 매칭으로 의미가 바뀜), `\d` → `/d`(리터럴 "/d" 매칭) 등) —
+// Playwright 는 이 인자들을 실제로 정규식 부분일치로 해석해 파일을 찾는데, 게이트는 그
+// 치환 탓에 0건으로 오판해 과차단했다(실측: `92[0-9]-.*-real-qa\.spec\.ts` 가 playwright
+// 자신에게는 23개 테스트를 선택하지만, 치환 후에는 아무 파일도 못 찾았다).
+//
+// fix — 인자별로 먼저 "있는 그대로"(백슬래시 보존) 정규식으로 시도한다. 그 결과가 이미
+// 1개 이상 매치하면 그것으로 확정하고 끝낸다(정규식 이스케이프를 쓴 인자는 항상 여기서
+// 끝나므로 이 함수가 그 인자의 백슬래시를 다시는 건드리지 않는다). 원시 매치가 0건일
+// 때만 백슬래시→슬래시로 치환한 두 번째 후보로 재시도한다(Windows 상대경로 관용 표기
+// 지원, 회귀 테스트 "R2-1 회귀: 백슬래시 상대경로 인자" 참고).
+function resolveRequestedFiles({ scope, explicitPathArgs, repoRoot }) {
+  const universe = new Set([...scope.diskFiles, ...scope.trackedFiles])
+  if (explicitPathArgs.length === 0 || universe.size === 0) return new Set()
+
+  const requested = new Set()
+  for (const arg of explicitPathArgs) {
+    const pattern = parseLocationArg(arg)
+    const rawMatches = matchUniverse(compileRegex(pattern), universe, repoRoot)
+    if (rawMatches.size > 0) {
+      rawMatches.forEach((file) => requested.add(file))
+      continue
+    }
+    const converted = normalizeArgSeparators(pattern)
+    if (converted !== pattern) {
+      matchUniverse(compileRegex(converted), universe, repoRoot).forEach((file) => requested.add(file))
     }
   }
   return requested
@@ -486,6 +577,7 @@ module.exports = {
   formatScopeMismatch,
   getRealQaScope,
   listDiskRealQaFiles,
+  listGitignoredUntrackedRealQaFiles,
   listTrackedRealQaFiles,
   EXPLICIT_PATH_ARGS_ENV_VAR,
   EXPLICIT_PATH_TOKEN_ENV_VAR,

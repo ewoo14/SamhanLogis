@@ -526,3 +526,210 @@ docs/dev-reports/2026-07-28-964-real-qa-testmatch-scope.md  (본 절 추가 + �
   고려해 이번엔 채택하지 않았다 — 필요 시 다음 라운드가 재검토할 수 있다.
 - CI(다음 커밋 SHA)는 PM 이 commit·push 한 뒤에만 확정되므로 이 세션에서는 로컬 동등 체크
   (typecheck·test·lint, 위 회귀 울타리 표)로 갈음했다.
+
+---
+
+## PR #969 재수렴 라운드 fix (2026-07-28, SONNET5)
+
+1차 적대검증이 발견 각도(OPUS)와 대조 각도(SONNET5)로 분리 진행됐다. 발견 각도가 도달 가능
+결함 4건(BLOCKING 1·HIGH 3) + 증거 무결성 정정 2건을, 대조 각도가 증거 무결성 정정 1건(총
+E-1~E-4 4건으로 PM 이 종합)을 찾았다. 전부 `scripts/real-qa-scope.cjs`·
+`real-qa-scope.test.cjs`·`playwright.real-qa.config.ts`·`README.md` 범위 안에서 RED-first 로
+고쳤다. 이번 라운드는 **단위 테스트가 아니라 실 CLI(`node_modules/.bin/playwright.cmd`)를
+1차 근거로 삼았다** — 직전 R3(`da2ca3ade`) 스스로 "단위 테스트 31/31 GREEN 인데 실 CLI 는
+안 막혔다"는 실패 패턴을 남긴 바 있어, 이번에도 같은 함정에 빠지지 않도록 매 결함을 실
+`playwright` CLI 로 먼저 재현했다.
+
+### 결함별 원인·수정 요약
+
+| # | 결함 | 원인 | 수정 |
+|---|---|---|---|
+| 1 [BLOCKING] | `.gitignore`(88-95행)가 개발책임자 요청(2026-07-05)으로 정책적으로 허용한 로컬 real-QA 스펙이 이 PC 에 4개 있으면 `real-qa-scope.test.cjs` 의 첫 단위 테스트가 실 레포 `repoRoot` 를 대상으로 `untrackedFiles === []` 를 단언해 `npm run typecheck` 가 영구 RED | 그 단위 테스트가 "untracked = 문제"로 뭉뚱그렸다 — `.gitignore` 로 허용된 로컬 세션 QA 잔존물과 "새 스펙을 만들고 `git add` 를 잊은" 진짜 회귀(#864 계열)를 구분하지 않음. 신규 체크아웃 워크트리에서만 재실행하면 이 상태 자체가 안 생겨(로컬 QA 세션 산출물이 없음) 3라운드 동안 GREEN 으로 보였다 | `listGitignoredUntrackedRealQaFiles`(`git ls-files --others --ignored --exclude-standard`) 추가 — `.gitignore` 가 이미 정책을 갖고 있으므로 이 스크립트가 7개 디렉터리 목록을 별도로 하드코딩하지 않는다. `compareRealQaScope` 가 `unexpectedUntrackedFiles`(untracked 이면서 `.gitignore` 로도 안 걸림)/`ignoredUntrackedFiles`(untracked 이면서 `.gitignore` 로 걸림) 두 필드로 분리하고, 단위 테스트는 `unexpectedUntrackedFiles === []` 만 요구한다. `decideRealQaScope`(실행 게이트 자체)는 손대지 않았다 — README 가 이미 문서화한 "전체 실행은 untracked 여부와 무관하게 항상 차단한다"는 기존 정책은 이번 fix 대상이 아니다 |
+| 2 [HIGH] | 위치 인자의 모든 백슬래시를 무조건 `/` 로 치환해 정규식 이스케이프(`\.`·`\d`·`\b` 등)가 파괴됨 — playwright 는 실제로 매치하는데 게이트는 0건으로 오판해 과차단, 사유도 거짓("하나도 선택하지 않아") | `normalizeArgSeparators` 를 모든 인자에 무조건 먼저 적용 | 인자별로 **원시 정규식(백슬래시 보존)을 먼저** 컴파일해 매치를 시도한다. 매치가 1개 이상이면 그것으로 확정(정규식 이스케이프를 쓴 인자는 항상 여기서 끝나 다시는 변환을 겪지 않는다). 원시 매치가 0건일 때만 백슬래시→슬래시 변환한 두 번째 후보로 폴백(Windows 상대경로 관용 표기 지원, 기존 R2-1 회귀 테스트 보존) |
+| 3 [HIGH] | `8869d18ed`(2026-07-28)가 "위치 인자 없는 실행은 무조건 차단"으로 계약을 바꿨는데, 같은 세션과 다음 SOL 세션(`da2ca3ade`) 둘 다 `playwright.real-qa.config.ts` 헤더·`README.md` 를 0줄 갱신 — 문서가 안내하는 "공식 전체 실행" 명령이 항상 `EXIT=1` | 코드 계약 변경 시 문서 동기화 의무([feedback_continuous_docs_sync.md](../../.claude/memory/feedback_continuous_docs_sync.md)) 누락이 2세션 연속 반복 | `playwright.real-qa.config.ts:6-14`(헤더)·`:57-60`(사용 예시를 `playwright/` 위치 인자 포함 형태로 교체) 및 `README.md`(공유 real-QA 수집 범위 절 + `REAL_QA_ALLOW_UNTRACKED` 절)를 실측(`playwright test --config=playwright.real-qa.config.ts --list --reporter=line playwright/` → `Total: 548 tests in 172 files`)에 맞춰 정정 |
+| 4 [HIGH] | `--project`가 commander 의 가변인자(`<project-name...>`)인데 `VALUE_TAKING_FLAGS` 처리가 딱 한 토큰만 건너뛰어, `--project a b` 의 두 번째 값이 "위치 인자"로 오분류됨 — 차단은 맞지만 사유가 거짓(전달한 적 없는 경로를 찾다 실패한 것처럼 보임) | 값-옵션 화이트리스트가 전부 "값 1개"만 가정 — `--project` 하나만 예외적으로 가변인자라는 사실을 반영하지 않음 | `VARIADIC_FLAGS = new Set(['--project'])` 분리, 그 플래그를 만나면 다음 `-`로 시작하는 토큰(또는 인자 끝)까지 전부 건너뛴다(playwright 자신의 실측 동작과 1:1 일치하도록) |
+
+### RED-first 증거
+
+**결함1 — 실 워크트리(신규 체크아웃이 아닌, 실제 미추적 gitignore 스펙이 존재하는 트리)에서 재현**
+
+`.gitignore:91`(`coedit-s3-3-accounting/`)·`:93`(`n1b-native-qa/`) 대상 경로에 임시 스펙
+2개를 실제로 만들고(`git status --porcelain` 은 계속 빈 출력 — `.gitignore` 매치라 조용함),
+`git show da2ca3ade:clients/desktop/scripts/real-qa-scope.cjs`(fix 이전 원문, 읽기전용)의
+`getRealQaScope` 를 이 실 워크트리 `repoRoot` 에 대입:
+
+```text
+disk=174 tracked=172 untracked=2
+untrackedFiles= [
+  "clients/desktop/playwright/coedit-s3-3-accounting/969-repro-real-qa.spec.ts",
+  "clients/desktop/playwright/n1b-native-qa/969-repro-real-qa.spec.ts"
+]
+RED (예상대로 실패): 미추적 스펙이 공식 집합에 섞였습니다.
++ actual - expected
++ [ 'clients/desktop/playwright/coedit-s3-3-accounting/969-repro-real-qa.spec.ts',
++   'clients/desktop/playwright/n1b-native-qa/969-repro-real-qa.spec.ts' ]
+- []
+```
+
+fix 후 같은 상태에서 같은 `repoRoot`:
+
+```text
+disk=174 tracked=172 untracked=2 unexpectedUntracked=0 ignoredUntracked=2
+GREEN — unexpectedUntrackedFiles 는 비어있습니다(.gitignore 가 허용한 2개는 ignoredUntrackedFiles 로 분류됨)
+```
+
+`node --test scripts/real-qa-scope.test.cjs` 를 **같은 오염 상태(임시 스펙 2개 존재)** 로
+실행 — 43/43 GREEN(신규 결함1~4 테스트 12건 포함). 검증 후 임시 스펙 2개 삭제,
+`git status --porcelain` 빈 출력 재확인, 정상 상태에서도 43/43 GREEN 재확인.
+
+**결함2 — 실 CLI(fix 전) 재현, 정규식 형태 2종**
+
+```text
+$ playwright test --config=playwright.real-qa.config.ts --list --reporter=line "929-r5.*real-qa\.spec\.ts"
+EXIT=1
+Error: [real-QA 위치 인자 불일치] 전달한 위치 인자가 real-QA 스펙을 하나도 선택하지 않아 실행을 차단합니다.
+
+$ playwright test --config=playwright.real-qa.config.ts --list --reporter=line "92[0-9]-.*-real-qa\.spec\.ts"
+EXIT=1
+Error: [real-QA 위치 인자 불일치] 전달한 위치 인자가 real-QA 스펙을 하나도 선택하지 않아 실행을 차단합니다.
+```
+
+**결함3 — 실 CLI(fix 전) 재현, 문서화된 명령 그대로**
+
+```text
+$ playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000
+EXIT=1
+Error: [real-QA 전체 실행 차단] 파일을 명시하지 않은 real-QA 실행은 허용하지 않습니다.
+```
+
+**결함4 — 실 CLI(fix 전, main 대조군으로 게이트 없는 playwright 원본 동작도 함께 확인)**
+
+```text
+$ (main, 게이트 없음) playwright test --config=... --list --reporter=line --project renderer order-app playwright/manual/
+EXIT=1
+Error: Project(s) "playwright/manual/" not found. Available projects: "order-app", "renderer"
+→ playwright 자신이 세 번째 토큰까지 프로젝트명으로 흡수한다(가변인자 실측 확인)
+
+$ (워크트리, 게이트, fix 전) playwright test --config=... --list --reporter=line --project renderer order-app
+EXIT=1
+Error: [real-QA 위치 인자 불일치] 전달한 위치 인자가 real-QA 스펙을 하나도 선택하지 않아 실행을 차단합니다.
+전달한 위치 인자: order-app          ← 사유가 사실과 다름(사용자는 경로를 준 적이 없음)
+```
+
+### 뮤테이션 RED(3건 전부 fix 한 곳씩 되돌려 정확히 대상 테스트만 RED 확인 후 원복)
+
+| fix | 뮤테이션 방법 | RED 결과 | 원복 후 |
+|---|---|---|---|
+| 결함1 | `unexpectedUntrackedFiles` 계산에서 `.gitignore` 필터를 무력화(`\|\| true`) | 정확히 2건(실 레포 첫 단위테스트 + 신규 합성 테스트 1건)만 RED, 나머지 41건 GREEN | 43/43 GREEN |
+| 결함2 | `resolveRequestedFiles` 가 원시 패턴 대신 항상 `normalizeArgSeparators(pattern)` 을 먼저 컴파일하도록 되돌림(구 버그 재현) | 정확히 4건(`\.`·`\d`·`.*`·과잉폴백방지 테스트)만 RED, `[0-9]` 테스트는 백슬래시가 없어 이 뮤테이션과 무관해 GREEN 유지(의도대로) | 43/43 GREEN |
+| 결함4 | `VARIADIC_FLAGS` 분기를 `VALUE_TAKING_FLAGS` 처럼 한 토큰만 건너뛰도록 되돌림 | 정확히 2건(--project 가변인자 신규 테스트)만 RED, 나머지 41건 GREEN | 43/43 GREEN |
+
+각 뮤테이션이 **정확히 대상 테스트만** RED 로 만들고 나머지는 그대로 GREEN 이었다 — 테스트
+간 교차오염·과소특정 없음을 확인했다.
+
+### 실 CLI 격자 재확인(fix 후, 파이프 없이 종료코드 측정)
+
+| # | 명령 형태 | fix 후 결과 | 비고 |
+|---|---|---|---|
+| D(결함3) | 위치 인자 없음(문서 명령) | `EXIT=1`(의도대로, 이제 문서도 일치) | — |
+| C | `playwright/` 디렉터리 전체 | `EXIT=0`, `Total: 548 tests in 172 files` | 회귀 없음, 신규 공식 "전체 실행" 형태 |
+| B | 명시 파일 1개 | `EXIT=0`, `1 test in 1 file` | 회귀 없음 |
+| H(결함2) | `"929-r5.*real-qa\.spec\.ts"` | `EXIT=0`, `4 tests in 1 file` | fix 전 `EXIT=1` → fix 후 매치 |
+| L(결함2) | `"92[0-9]-.*-real-qa\.spec\.ts"` | `EXIT=0`, `23 tests in 8 files` | fix 전 `EXIT=1` → fix 후 매치 |
+| G(결함4) | `--project renderer order-app`(위치 인자 없음) | `EXIT=1`, `[real-QA 전체 실행 차단]`(사유 정정됨) | fix 전에는 `[위치 인자 불일치] order-app` 으로 사유가 거짓이었음 |
+| G3(결함4) | 위치 인자 → `--project renderer order-app`(순서 바꿈) | `EXIT=0`, `1 test in 1 file`(main 대조군과 동일) | playwright 자신도 이 순서에서만 위치 인자+프로젝트를 동시에 인식(가변인자가 뒤따르는 모든 비플래그 토큰을 흡수하는 특성상, 위치 인자는 `--project` **앞**에 와야 한다 — playwright 자체의 CLI 제약이지 이 게이트의 제약이 아님) |
+| I(회귀) | 백슬래시 상대경로(`playwright\manual\...`) | 게이트 통과, playwright 자신 `Total: 0 tests in 0 files`(fix 전과 동일 — playwright 자체가 미지원) | 회귀 아님 |
+
+**semver 범위 상단(1.62.0) 재확인** — OS temp 별도 프로젝트(`node_modules` 오염 없이 격리
+설치, 검증 후 원복)에서 V1(위치 인자 없음 `EXIT=1`)·V2(명시 파일 `EXIT=0`)·H(결함2 정규식
+`EXIT=0`, `4 tests in 1 file`)·G(결함4 `EXIT=1` `[전체 실행 차단]`) 전부 1.59.1(lock)과 동일한
+결과. `Version 1.62.0` 실측 확인.
+
+### 📌 증거 무결성 정정 4건 (도달성 0 이어도 보고 의무)
+
+**E-1** — 위 R1 절 "변경 전 기준선"(21-26행, `Total: 548 tests in 172 files` / `disk=172,
+tracked=172, untracked=0, missing=0`)은 **신규 체크아웃 워크트리에서 측정한 값**이다. PR
+코멘트가 이 값을 근거로 "이 PC 에서 증상 미재현·이슈가 지목한 4개 디렉터리가 이 PC 에 0개
+존재"라고 일반화한 것은 틀렸다 — 이 PC 의 **main 워킹트리**(신규 체크아웃이 아니라 실제로
+써 온 작업 트리)는 처음부터 `558/176`이었고, 이슈가 지목한 4개 디렉터리
+(`coedit-s3-3-accounting`·`e2-partner-list-real-qa`·`n1b-native-qa`·`n3b-fcm-push-real-qa`)가
+2026-07-05~07 부터 실존했다(`stat` mtime 실측). "워크트리에서 잰 값"과 "이 PC 의 실제 작업
+트리 상태"를 같은 것으로 취급한 것이 오독의 근원이며, **이 오독이 결함1을 3라운드 동안
+가렸다** — 신규 워크트리에서만 재는 한 결함1은 영원히 재현되지 않는다(정확히 이번 라운드가
+RED 를 워크트리에 오염물을 직접 주입해서야 잡은 이유).
+
+**E-2** — 위 R2 절 "회귀 울타리 7항목 재확인" 표(419행) 및 R1 절 "회귀 울타리 재확인"(304·
+309행)의 *"narrow(`--list`)→전체 같은 셸 연속 실행 시 전체는 `548/172` 로 정상 진행(차단
+없음)"*, *"공식 전체: Total: 548 tests in 172 files"*, *"M-1 왕복: … 제거 → 548/172 복원
+확인"* 은 그 세션(R1/R2, `8869d18ed` 이전) 시점에는 정확했으나, **`8869d18ed`(2026-07-28)가
+계약을 "위치 인자 없는 실행은 무조건 차단"으로 바꾼 뒤로는 거짓이다** — 현재 HEAD 에서
+위치 인자 없는 전체 실행은 트리 상태와 완전히 무관하게 항상 `EXIT=1`이다(위 격자 D). 이
+수치들은 **해당 세션 시점의 정확한 기록**으로 남기고(과거 기록을 소급 수정하지 않음),
+이 정정 절로 "현재 HEAD 에서는 더 이상 성립하지 않는다"는 사실만 남긴다.
+
+**E-3** — PR 코멘트의 "🟡 증거 무결성 — 구현자 보고 수치 1건 정정"(`5a55506e0` 커밋 대상)이
+"실측"으로 제시한 개별 파일 값 중 2건이 실제 `git show --numstat 5a55506e0` 결과와 다르다:
+`playwright.real-qa.config.ts` 는 실제 `+20/-1`인데 그 코멘트는 `+21/-1`로, `package.json` 은
+실제 `+3/-2`인데 그 코멘트는 `+5/-3`으로 적었다. 총계(`549/3`)는 정확하다.
+
+**E-4** — E-3 의 오차 패턴은 "삭제분을 추가분 칸에 더해 넣는" 것과 정확히 같은 모양이다
+(`21 = 20 + 1`, `5 = 3 + 2` — 두 경우 모두 실제 삭제분이 실제 추가분에 더해져 추가분 칸에
+들어갔다). 이 패턴은 이 PR 의 R1 절 "정정 D"(`+404/-6` → `+402/-6`)가 이미 한 번 지적한
+바로 그 계열이며, **그 지적을 담은 정정문 자체에서 재발**했다. 위조가 아니라 반복되는 계산
+습관으로 보이나, "실측"으로 제시된 수치는 실측과 반드시 일치해야 한다 — 이번 절의 numstat
+표(아래)는 전부 `git diff --numstat` 원문을 그대로 옮기고 가산 계산을 하지 않았다.
+
+### 미추적 스펙이 존재하는 상태의 실행 게이트 동작(발견 각도 "보지 않은 것" 4번 — 이번에 측정)
+
+R1 발견 각도가 "워크트리에 미추적 스펙을 주입하지 않아 미확인으로 남긴다"고 정직하게 밝혔던
+항목을 이번 라운드가 실측했다. `.gitignore:93` 대상 경로에 **실제로 실행 가능한** 임시 스펙을
+주입한 상태에서:
+
+```text
+① playwright/ 전체 지정, ALLOW 없음:
+   EXIT=1, "[real-QA 추적 집합 불일치] … REAL_QA_ALLOW_UNTRACKED=1 을 설정하고 명시 경로를
+   전달하십시오." — 의도대로 차단(위 결함1 fix 는 이 게이트 동작을 바꾸지 않았다. 결함1은
+   단위 테스트의 assert 대상만 바꿨다).
+
+② REAL_QA_ALLOW_UNTRACKED=1 + playwright/ 전체 지정:
+   EXIT=0, Total: 549 tests in 173 files (공식 548/172 가 아니라 +1)
+   경고가 stdout·stderr 둘 다에 남는다("[real-QA 로컬 실행 모드] 위 차집합은 의도 실행으로
+   허용했으며 공식 수치로 사용하지 마십시오.") — R2-2/R1 결함1 설계대로 정상 동작.
+```
+
+②는 **결함3 fix 가 `playwright/` 를 "공식 전체 실행"의 정본 위치 인자로 새로 문서화**하면서
+처음으로 실제로 밟힐 수 있게 된 조합이다 — `playwright/` 는 코드 관점에서는 "매우 넓은 narrow
+요청"이라 `REAL_QA_ALLOW_UNTRACKED` 가 적용 대상이 되고, 세션에 그 값이 남아 있으면 "공식
+전체 실행" 명령이 조용히 549/173(경고 문구를 놓치면 알아채기 어려움)을 낸다. 이는 **기존
+설계(README 의 ALLOW_UNTRACKED 절)가 이미 명문화한 동작**이고 새 결함은 아니다 — 경고가 두
+스트림 모두에 정확히 남으므로 "완전히 흔적 없이 사라짐"은 아니다. 다만 "공식 수치"라는
+문구의 실제 의미가 "숫자만 보면 553/172 도 아니고 549/173 인데 경고를 못 보면 이걸 548/172로
+착각할 수 있다"는 것이므로, 참고 사항으로 정직하게 기록한다(코드 변경 없음 — 이 조합의
+정책적 처리 방향은 개발책임자 결정 사항으로 남긴다).
+
+### 🚫 이 라운드가 보지 않은 것 / 못 한 것
+
+- **real-QA 548건 본문 실행 및 GUI 스크린샷** — 공유 실데이터 write 위험 때문에 이번 라운드도
+  하지 않았다(`--list`만 사용). 실서버 대상 라이브QA 는 이 fix 의 범위(스코프 판정 로직)
+  밖이며, R1 원 구현 보고 때부터 반복 이월된 항목이다.
+- **Linux/CI 러너 위 실 CLI** — 전 검증을 Windows 11 에서만 실행했다. CI 는 이 config 를 전혀
+  타지 않으므로(`.github/workflows/` 에 `real-qa` 문자열 0건, 정정 C 재확인) 피해 범위는
+  로컬 개발자 실행에 한정된다.
+- **`admin-hr-guard.spec.ts`(발견 각도 브리핑 6번 선재 관찰)** — 이 PR 표면 밖(공유 real-QA
+  172개 집합에 없음)이라는 PM 판정을 그대로 수용, 손대지 않았다.
+- **`--project` 외 다른 값-옵션이 향후 playwright 업데이트로 가변인자가 될 가능성** — 위 R1
+  절 "못 한 것"이 이미 "`VALUE_TAKING_FLAGS` 는 스냅샷이라 낡을 수 있다"고 예견했던 바로 그
+  종류의 결함이 이번에 `--project` 로 실현됐다. 이번 fix 는 `--project` 하나만 명시적으로
+  가변인자로 분리했고, playwright 의 commander 스키마를 런타임에 조회하는 구조 개선은
+  이전 라운드와 같은 이유(무게·비용)로 이번에도 채택하지 않았다 — 다음 라운드가 재검토할 수
+  있게 정직하게 기록한다.
+
+### 변경 파일 및 줄 수(git diff --numstat, 원문)
+
+```text
+clients/desktop/scripts/real-qa-scope.cjs        +118 / -26   결함1(gitignore 분류)·2(정규식 우선매칭)·4(--project 가변인자)
+clients/desktop/scripts/real-qa-scope.test.cjs   +266 / -3    결함1·2·4 RED 테스트 12건 + 첫 단위테스트 재작성
+clients/desktop/playwright.real-qa.config.ts     +14 / -3     결함3(계약 변경 반영: 헤더·사용 예시)
+clients/desktop/README.md                        +28 / -6     결함3(공식 전체 실행 명령·ALLOW_UNTRACKED 절·typecheck 절 정정)
+docs/dev-reports/2026-07-28-964-real-qa-testmatch-scope.md  (본 절 추가, 별도 계수 — 자기 자신을 셀 때 그 계수 자체가 이 절에 다시 반영돼야 하는 순환이라 R1/R2 관례대로 제외)
+```

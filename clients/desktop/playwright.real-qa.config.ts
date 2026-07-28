@@ -2,8 +2,16 @@
  * playwright.real-qa.config.ts
  *
  * 실서버 QA 전용 Playwright 설정 — repo 공유 하네스(전체 real-QA 스펙 대상).
- * 기본 실행은 Git 추적 스펙 집합과 디스크 수집 집합이 일치할 때만 시작한다.
- * 미추적 스펙이 섞이면 파일명을 출력하고 공식 실행을 중단한다.
+ * 미추적 스펙이 섞이면(위치 인자가 그 파일을 가리킬 때) 파일명을 출력하고 실행을 중단한다.
+ *
+ * 🚨 [SONNET5 #969 재수렴 결함3 fix] `8869d18ed`(2026-07-28) 이후 계약이 바뀌었는데 이 문서가
+ * 갱신되지 않았었다 — **위치 인자(파일·디렉터리·글롭·조각·정규식)를 하나도 안 주면 "집합이
+ * 일치하는지"와 무관하게 무조건 차단**한다(narrow 실행 여부만 본다). 집합 불일치
+ * (untracked/missing)는 위치 인자가 실제로 그 파일을 가리킬 때만 문제가 된다. 전체 real-QA
+ * 스펙을 돌리려면 `playwright/` 디렉터리 자체를 위치 인자로 명시해야 한다(아래 "사용:" 예시
+ * 참고 — `playwright/` 를 지정하면 결과적으로 전체 172개 파일 · 548개 테스트가 선택된다.
+ * 실측: `playwright test --config=playwright.real-qa.config.ts --list --reporter=line
+ * playwright/` → `Total: 548 tests in 172 files`, EXIT=0).
  *
  * 🚨 [SONNET5 R3 HIGH-2 fix] R2 가 testMatch 를 이 슬라이스 스펙 1개로 좁혀 repo 전체
  * real-QA 스펙(172개 파일 · 548개 테스트, 2026-07-27 실측)을 무력화했었다(공유 하네스를
@@ -46,7 +54,10 @@
  *   #   $env:VITE_API_BASE_URL='http://localhost:8080/api/v1'
  *   #   $env:VITE_APP_VERSION='2026/07/26-92700'
  *   #   npm run preview -- --host 127.0.0.1 --port 5181 --strictPort
- *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000
+ *   # 🚨 [SONNET5 #969 재수렴 결함3 fix] 위치 인자 없이 실행하면 항상 EXIT=1(전체 실행 차단)
+ *   # 이다 — 전체를 돌리려면 `playwright/` 디렉터리 자체를 위치 인자로 줘야 한다(실측 확인,
+ *   # 아래가 유일한 "전체" 실행 형태):
+ *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000 playwright/
  *   # 이 슬라이스(#825 슬5)만 격리 실행:
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts --reporter=line --timeout=60000 `
  *     playwright/825-s5-null-semantics-real-qa/825-s5-null-semantics-real-qa.spec.ts
