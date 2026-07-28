@@ -27,7 +27,7 @@
     .nav-container {
       position: relative; display: flex; background: #e2e8f0; border-radius: 50px; width: 100%; max-width: 900px; margin: 0 auto 20px auto; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 16.666%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
+    .slider { position: absolute; top: 0; left: 0; height: 100%; width: 14.2857%; background: #1a202c; border-radius: 50px; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 1; }
     .nav-item { flex: 1; text-align: center; padding: 12px 0; font-weight: bold; color: #718096; cursor: pointer; position: relative; z-index: 2; transition: color 0.3s; user-select: none; font-size: 14px; }
     .nav-item.active { color: white; }
 
@@ -38,8 +38,8 @@
     #page1 { width: 100%; max-width: 100%; padding: 20px; box-sizing: border-box; }
     #page1.active { display: flex; gap: 20px; }
     .split-panel { flex: 1; min-width: 0; }
-    #page2, #page3, #page4 { width: 100%; max-width: 100%; padding: 20px; } 
-    #page5 { max-width: 1600px; padding: 20px; }
+    #page2, #page3, #page4, #page5 { width: 100%; max-width: 100%; padding: 20px; }
+    #page6 { max-width: 1600px; padding: 20px; }
 
     /* 영역 */
     #drop_zone { border: 2px dashed #cbd5e0; border-radius: 10px; padding: 60px; text-align: center; color: #4a5568; cursor: pointer; transition: 0.3s; background: #f8fafc; }
@@ -55,13 +55,14 @@
     .table-wrapper { height: calc(100vh - 300px); max-height: calc(100vh - 300px); margin-bottom: 20px; overflow-y: auto; overflow-x: auto; border: 1px solid #cbd5e0; position: relative; background: white; }
     table.custom-table { width: 100%; border-collapse: collapse; table-layout: fixed; user-select: none; }
     table.res-table { min-width: 1300px; }
+    table.other-table { min-width: 1200px; }
     .custom-table th, .custom-table td { border: 1px solid #cbd5e0; padding: 8px 10px; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; cursor: cell; }
     .custom-table th { background-color: #e2e8f0; color: #1a202c; font-weight: bold; text-align: center; position: sticky; top: -1px; z-index: 2; }
     
     /* 제목 */
     .title-header { height: 60px; font-size: 26px !important; font-weight: 900 !important; background-color: #ffffff !important; color: #1a202c !important; letter-spacing: 2px; border-bottom: 2px solid #cbd5e0 !important; }
-    .res-table thead tr:first-child th { top: -1px; z-index: 3; }
-    .res-table thead tr:last-child th { top: 59px; z-index: 2; }
+    .res-table thead tr:first-child th, .other-table thead tr:first-child th { top: -1px; z-index: 3; }
+    .res-table thead tr:last-child th, .other-table thead tr:last-child th { top: 59px; z-index: 2; }
 
     /* 선택 */
     .custom-table td.selected { background-color: #ebf8ff !important; outline: 2px solid #3182ce; outline-offset: -1px; }
@@ -71,7 +72,9 @@
     .bg-duplicate { background-color: #fee2e2 !important; color: #991b1b; font-weight: bold; }
     
     /* 정렬 */
-    .res-table td { text-align: center; }
+    .res-table td, .other-table td { text-align: center; }
+    .other-table td:nth-child(5), .other-table td:nth-child(7) { text-align: left; }
+    .col-state { width: 9%; }
     .res-table td:nth-child(3), 
     .res-table td:nth-child(4), 
     .res-table td:nth-child(6), 
@@ -118,6 +121,7 @@
 
   <div id="ctxMenu" class="ctx-menu">
     <div class="ctx-menu-item" id="ctxBtnCopy">복사</div>
+    <div class="ctx-menu-item" id="ctxBtnPaste">붙여넣기</div>
   </div>
 
   <div id="initialLoading" class="mobile-gate-layer" style="display:none; background: rgba(255,255,255,0.7); backdrop-filter: blur(8px); z-index: 10001;">
@@ -149,7 +153,8 @@
       <div class="nav-item" onclick="switchTab(2)">당일미배차</div>
       <div class="nav-item" onclick="switchTab(3)">야적미배차</div>
       <div class="nav-item" onclick="switchTab(4)">지방미배차</div>
-      <div class="nav-item" onclick="switchTab(5)">저장내역</div>
+      <div class="nav-item" onclick="switchTab(5)">기타</div>
+      <div class="nav-item" onclick="switchTab(6)">저장내역</div>
     </div>
 
     <div id="page0" class="page active">
@@ -266,8 +271,28 @@
       </div>
     </div>
     <div id="page5" class="page">
+      <div style="position: relative; margin-bottom: 15px; text-align: center;">
+        <h3 style="margin:0; padding: 5px 0;">기타</h3>
+        <div style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; gap: 8px;">
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #48bb78;" onclick="copyTableImage('table_other')">복사</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 15px; background: #ed8936;" onclick="saveTableImage('table_other')">저장</button>
+          <button class="action-btn" style="margin:0; width:auto; padding: 10px 20px;" onclick="runProcess()">데이터 처리 실행</button>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <table class="custom-table other-table" id="table_other">
+          <colgroup><col class="col-state"><col class="col-date"><col class="col-num"><col class="col-client"><col class="col-addr"><col class="col-amt"><col class="col-prod"><col class="col-rmk"><col class="col-wh"><col class="col-mgr"></colgroup>
+          <thead>
+            <tr><th colspan="10" class="title-header">기타 내역</th></tr>
+            <tr><th>구분</th><th>전표일자</th><th>전표번호</th><th>거래처</th><th>배송주소</th><th>금액</th><th>품목</th><th>특이사항</th><th>출고창고</th><th>담당자명</th></tr>
+          </thead>
+          <tbody id="tbody_other"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="page6" class="page">
       <div style="text-align: center; margin-bottom: 15px;">
-        <input type="date" id="history_start" class="reset-btn"> ~ 
+        <input type="date" id="history_start" class="reset-btn"> ~
         <input type="date" id="history_end" class="reset-btn">
         <button class="action-btn" style="display: inline-block; width: auto; padding: 8px 15px; margin: 0 0 0 10px;" onclick="loadHistory()">조회</button>
       </div>
@@ -394,7 +419,7 @@
       document.getElementById('slider').style.transform = `translateX(${index * 100}%)`;
       document.querySelectorAll('.nav-item').forEach((el, i) => el.classList.toggle('active', i === index));
       document.querySelectorAll('.page').forEach((el, i) => el.classList.toggle('active', i === index));
-      if (index === 5) loadHistory();
+      if (index === 6) loadHistory();
     }
 
     function toggleFormat(tableId, chk) {
@@ -640,12 +665,18 @@
         return;
       }
       let firstCell = selected[0];
-      if (firstCell.getAttribute('contenteditable') !== 'true') return; 
-      
+      if (firstCell.getAttribute('contenteditable') !== 'true') return;
+
       e.preventDefault();
-      saveUndoState();
-      
       let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      applyPasteToCell(firstCell, text);
+    });
+
+    // 선택 셀 기준 텍스트 붙여넣기
+    function applyPasteToCell(firstCell, text) {
+      if (!firstCell || firstCell.getAttribute('contenteditable') !== 'true') return;
+      saveUndoState();
+
       let rows = parseClipboardTable(text);
       if (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
 
@@ -670,7 +701,7 @@
         }
       }
       checkDuplicates();
-    });
+    }
 
     // 클립보드 표 파싱 따옴표 안 개행 처리
     function parseClipboardTable(text) {
@@ -808,6 +839,7 @@
       let listUnassigned = [];
       let listYard = [];
       let listRegional = [];
+      let listOther = [];
 
       // 폐기
       Object.keys(assignedCounts).forEach(num => {
@@ -851,11 +883,12 @@
           }
         }
 
-        let rowData = { date: slipDate, num: slipNumber, client: client, addr: address, amt: amtFmt, prod: product, rmk: remark, wh: wh, mgr: mgr, isDuplicate: isDuplicate };
+        let rowData = { date: slipDate, num: slipNumber, client: client, addr: address, amt: amtFmt, prod: product, rmk: remark, wh: wh, mgr: mgr, isDuplicate: isDuplicate, state: state };
 
         if (state === '미배차') listUnassigned.push(rowData);
-        if (state === '야적미배차') listYard.push(rowData);
-        if (state === '지방미배차') listRegional.push(rowData);
+        else if (state === '야적미배차') listYard.push(rowData);
+        else if (state === '지방미배차') listRegional.push(rowData);
+        else if (state === '보류' || state === '해당없음') listOther.push(rowData);
       });
 
       function sortData(list) {
@@ -976,9 +1009,29 @@
         });
       }
 
+      // 기타정렬
+      listOther.sort((a, b) => String(a.state).localeCompare(String(b.state)));
+
       renderTable('tbody_unassigned', listUnassigned, true);
       renderTable('tbody_yard', listYard, true);
       renderTable('tbody_regional', listRegional, true);
+      renderOtherTable(listOther);
+    }
+
+    // 기타렌더
+    function renderOtherTable(dataList) {
+      let tbody = document.getElementById('tbody_other');
+      tbody.innerHTML = '';
+      dataList.forEach(d => {
+        let tr = document.createElement('tr');
+        let cells = [d.state, d.date, d.num, d.client, d.addr, d.amt, d.prod, d.rmk, d.wh, d.mgr];
+        cells.forEach(text => {
+          let td = document.createElement('td');
+          td.innerText = text;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
     }
 
     function copyTableImage(tableId) {
@@ -1173,6 +1226,23 @@
         let text = getSelectedText();
         copyTextToClipboard(text);
         ctxMenu.style.display = 'none';
+      });
+
+      // 우클릭 붙여넣기
+      document.getElementById('ctxBtnPaste').addEventListener('click', async () => {
+        ctxMenu.style.display = 'none';
+        let selected = document.querySelectorAll('.selected');
+        if (selected.length === 0) return;
+        let firstCell = selected[0];
+        if (firstCell.getAttribute('contenteditable') !== 'true') return;
+        let text = '';
+        try {
+          text = await navigator.clipboard.readText();
+        } catch (err) {
+          alert('브라우저 보안 정책으로 우클릭 붙여넣기가 제한됩니다. 셀 선택 후 Ctrl+V 를 사용해주세요.');
+          return;
+        }
+        if (text) applyPasteToCell(firstCell, text);
       });
     }
 

@@ -513,7 +513,9 @@ function decideWarehouseFromItems_(items) {
       const name = singleMap[key] || it.pumName || '';
       const spec = String(it.spec || '');
       const text = name + ' ' + spec + ' ' + it.model;
-      return singlePattern.test(text);
+      if (singlePattern.test(text)) return true;
+      const flags = getModelFlags(String(it.model || ''));
+      return flags.is360 || flags.is1way || flags.isGrade1;
     });
 
     if (hasSingleKeyword) {
@@ -1473,6 +1475,37 @@ function parseOrderFromText_(text) {
   return { shipDate, receiverTel, siteAddr, memo, items };
 }
 
+// 발주서 수량으로 구성품 보정
+function buildOrderQtyMap_(srcItems){
+  const m = new Map();
+  (srcItems||[]).forEach(it=>{
+    const k = normalizeModel_(it.model || it.modelRaw);
+    if (!k) return;
+    m.set(k, (m.get(k)||0) + (Number(it.qty)||0));
+  });
+  return m;
+}
+
+// 발주서에 명시된 수량만큼만 남기고 초과분 제거
+function capQtyToOrder_(items, orderQtyMap){
+  if (!orderQtyMap || !orderQtyMap.size) return items || [];
+  const remain = new Map(orderQtyMap);
+  const out = [];
+  (items||[]).forEach(x=>{
+    const nm = String(x.model || '');
+    if (/발통세트/.test(nm) || normalizeModel_(nm) === '볼트세트') { out.push(x); return; }
+    const k = normalizeModel_(nm);
+    if (!remain.has(k)) return;
+    const budget = Number(remain.get(k)) || 0;
+    if (budget <= 0) return;
+    const q = Math.min(Math.floor(Number(x.qty)||0), budget);
+    if (q <= 0) return;
+    remain.set(k, budget - q);
+    out.push({ ...x, qty: q, line: (Number(x.unit)||0) * q });
+  });
+  return out;
+}
+
 /* 모델+단가 */
 function mergeKeepLastScoped_(items){
   // 홈멀티(전표 전체 스코프)
@@ -1741,13 +1774,15 @@ function parsePdfForPreview(file) {
     });
 
     finalItems = mergeKeepLastScoped_(finalItems);
+      const whItems = finalItems.slice();
+    finalItems = capQtyToOrder_(finalItems, buildOrderQtyMap_(srcItems));
     const finalSquashed = squashConsecutiveSpecs_(finalItems);
     const expandedSetsSquashed = squashPreviewSets_(expandedSets);
 
     const subtotal = finalItems.reduce((acc,x)=> acc + (x.unit||0)*(x.qty||0), 0);
     const hasFixed = finalItems.some(x=>x.usedFixedDc);
     const fixedList = finalItems.filter(x=>x.usedFixedDc && typeof x.fixedDcRate==='number').map(x=>x.fixedDcRate);
-    const wh = decideWarehouseFromItems_(finalItems);
+    const wh = decideWarehouseFromItems_(whItems);
 
     return { ok:true, logs, preview:{
       due: parsed.shipDate,
@@ -1974,6 +2009,8 @@ function parsePdfForPreviewBatch(files){
       });
 
       finalItems = mergeKeepLastScoped_(finalItems);
+      const whItems = finalItems.slice();
+      finalItems = capQtyToOrder_(finalItems, buildOrderQtyMap_(srcItems));
 
       const finalSquashed = squashConsecutiveSpecs_(finalItems);
       const expandedSetsSquashed = squashPreviewSets_(expandedSets);
@@ -1981,7 +2018,8 @@ function parsePdfForPreviewBatch(files){
       const subtotal = finalItems.reduce((acc,x)=> acc + (x.unit||0)*(x.qty||0), 0);
       const hasFixed = finalItems.some(x=>x.usedFixedDc);
       const fixedList = finalItems.filter(x=>x.usedFixedDc && typeof x.fixedDcRate==='number').map(x=>x.fixedDcRate);
-      
+      const wh = decideWarehouseFromItems_(whItems);
+
       results.push({ ok:true, logs, preview:{
         due: parsed.shipDate,
         isRaisedPrice: isRaised,
@@ -1996,7 +2034,9 @@ function parsePdfForPreviewBatch(files){
         finalItems: finalSquashed.map(({norm, group, ...rest})=>rest),
         totalFormatted: formatCurrency_(subtotal),
         hasFixedDc: hasFixed,
-        fixedDcRates: fixedList
+        fixedDcRates: fixedList,
+        warehouseCode: wh.code,
+        warehouseName: wh.name
       }});
     }catch(e){
       results.push({ ok:false, logs, error: String(e && e.message || e) });
@@ -2252,8 +2292,11 @@ function loadModelNameMaps_(){
       const labelNorms = labels.map(norm);
       for (let c = 0; c < header.length; c++) {
         const hNorm = norm(header[c]);
-        if (!hNorm) continue;
-        if (labelNorms.indexOf(hNorm) >= 0) return c;
+        if (hNorm && labelNorms.indexOf(hNorm) >= 0) return c;
+      }
+      for (let c = 0; c < header.length; c++) {
+        const hNorm = norm(header[c]);
+        if (hNorm && labelNorms.some(l => hNorm.indexOf(l) >= 0)) return c;
       }
       return -1;
     };

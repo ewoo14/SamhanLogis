@@ -426,16 +426,16 @@ function processDailyData(ecountData, isMultiApplied, isBeforeHike) {
         var rawDate = String(ecountData[i]['일자'] || '').trim();
         var dateNum = 0;
         var dMatch = rawDate.match(/(\d{4})[^\d]*(\d{1,2})[^\d]*(\d{1,2})/);
-        
+
         if (dMatch) {
           dateNum = parseInt(dMatch[1] + dMatch[2].padStart(2, '0') + dMatch[3].padStart(2, '0'), 10);
         } else {
           var numOnly = rawDate.replace(/[^\d]/g, '');
           if (numOnly.length >= 8) dateNum = parseInt(numOnly.substring(0, 8), 10);
         }
-        
+
         if (dateNum > 0) {
-          if (dateNum >= 20260401) suffix = '_단가인상';
+          if (dateNum >= 20260701) suffix = '_단가인상';
           break;
         }
       }

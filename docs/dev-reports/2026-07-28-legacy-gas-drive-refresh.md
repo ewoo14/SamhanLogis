@@ -181,4 +181,29 @@ Drive 라이브 26개에서 기존 13종 외의 자격 종류는 발견되지 �
 - `WHITELIST_PATTERNS`에서 `tools/legacy-gas/`를 제거하고 `CODE_DIRS`에 `tools/legacy-gas`를 추가해 실제 스캔 대상으로 만들었다.
 - 일반 패턴의 line 단위 허용 목록에 `REDACTED_[A-Z0-9_]+`를 추가했다. KFTC/CODEF/INSUNG_QUICK의 placeholder 금지 정책은 유지했다.
 - RED-first에서 프로브가 `[NOTION_KEY] ... tools/legacy-gas/__guard_probe__.js`로 검출되어 exit 1이 됐다. 같은 실행에서 기존 문서 예시와 `extract-notion-dc-csv.js`의 설명/PropertiesService 조회가 오탐으로 확인됐다.
-- 오탐은 placeholder 예외를 넓히지 않고 Notion 패턴을 따옴표로 직접 대입된 리터럴만 탐지하도록 좁혀 해소했다. 문서 예시는 `<FAKE_NOTION_TOKEN>`으로 바꿨고, RED 원문은 외부 scratchpad 보고서에만 남긴다.
+- 오탐은 placeholder 예외를 넓히지 않고 Notion 패턴을 Bash double-quoted 정규식으로 재작성했다. `NOTION_TOKEN`/`NOTION_API_KEY` 접미사를 허용하고 `ntn_`/`secret_` 실제 접두사 뒤의 작은따옴표·큰따옴표·무따옴표 값을 모두 탐지한다. 문서 예시는 `<FAKE_NOTION_TOKEN>`으로 바꿨고, RED 원문은 외부 scratchpad 보고서에만 남긴다.
+
+### 7-5. PM 후속 검증 행렬
+
+| 패턴 | 양성 실측 | 음성 `REDACTED_*` 실측 | 판정 |
+|---|---|---|---|
+| Notion (`ntn_`/`secret_`) | 작은따옴표·큰따옴표·무따옴표 3형태 모두 `[NOTION_KEY]`, exit 1 | PASS, exit 0 | PASS |
+| AWS | `[AWS_KEY]`, exit 1 | PASS, exit 0 | PASS |
+| OpenAI | `[OPENAI_KEY]`, exit 1 | PASS, exit 0 | PASS |
+| JWT | `[JWT_TOKEN]`, exit 1 | PASS, exit 0 | PASS |
+| Google Sheet ID | tools/legacy-gas probe가 PASS, exit 0 | PASS, exit 0 | **미발화 — 스캔 함수가 docs 영역만 대상** |
+| Aligo Key | `[ALIGO_KEY]`, exit 1 | PASS, exit 0 | PASS |
+| Aligo UserID | `[ALIGO_USERID]`, exit 1 | PASS, exit 0 | PASS |
+| 사업자등록번호 | PASS, exit 0 | PASS, exit 0 | **미발화 — 현재 스크립트에 패턴/호출 없음** |
+| 전화번호 | PASS, exit 0 | PASS, exit 0 | **미발화 — 현재 스크립트에 패턴/호출 없음** |
+
+양성 미발화 3건은 이번 범위에서 임의 수정하지 않고 PM 판단 대상으로 남겼다.
+
+### 7-6. 과차단 원문
+
+기존 broad Notion 패턴이 걸었던 실제 오탐은 다음 두 줄이다.
+
+- `tools/legacy-gas/scripts/extract-notion-dc-csv.js:8`: `*   NOTION_TOKEN=<ntn_...> node tools/legacy-gas/scripts/extract-notion-dc-csv.js [출력경로]`
+- `tools/legacy-gas/거래처 업데이트 프로그램/Code.js:7`: `const NOTION_API_KEY = PropertiesService.getScriptProperties().getProperty("NOTION_API_KEY");`
+
+현재 패턴은 실제 Notion 접두사와 자격 리터럴만 대상으로 하므로 두 줄은 placeholder 예외 확장 없이 통과한다.

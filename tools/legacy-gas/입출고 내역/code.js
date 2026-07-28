@@ -11,7 +11,7 @@ function getChartData() {
   console.log('데이터 조회 시작');
   
   var db = {};
-  var fileName = '이카운트입출고내엮.xlsx';
+  var fileName = '이카운트입출고내역.xlsx';
   
   try {
     var files = DriveApp.getFilesByName(fileName);

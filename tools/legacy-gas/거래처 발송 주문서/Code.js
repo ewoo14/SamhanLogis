@@ -1008,7 +1008,7 @@ function classifyCommercial_(name, model) {
 
 /* 상업멀티 데이터 */
 function getCommercialMulti() {
-  const k = 'CM_FIX_V8';
+  const k = 'CM_FIX_V9';
   const hit = cacheGetJSON_(k);
   if (hit) return hit;
 
@@ -1101,7 +1101,7 @@ function getCommercialMulti() {
 /* 상업멀티 구성품 */
 function getCommercialParts() {
   // 주석 간결
-  const k = 'CP_FIX_V5';
+  const k = 'CP_FIX_V6';
   const hit = cacheGetJSON_(k);
   if (hit) return hit;
 
@@ -1149,10 +1149,10 @@ function getCommercialParts() {
     const kind    = (row[idxKind]    || '').toString().trim();
     const unit    = (row[idxUnit]    || '').toString().trim() || 'EA';
 
-    // 가격은 출고가 → 납품가 순으로
+    // 가격은 납품가 우선 없으면 출고가
     const listVal  = idxList  >= 0 ? parseKRNumber_(row[idxList])  : 0;
     const priceVal = idxPrice >= 0 ? parseKRNumber_(row[idxPrice]) : 0;
-    const basePrice = listVal || priceVal;
+    const basePrice = priceVal || listVal;
 
     const spec = idxSpec >= 0 ? (row[idxSpec] || '').toString().trim() : '';
 

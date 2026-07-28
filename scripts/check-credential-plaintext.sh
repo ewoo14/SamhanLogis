@@ -25,7 +25,6 @@
 # 화이트리스트:
 #   - clients/desktop/playwright/           (테스트 단언 코드)
 #   - clients/web/estimate-app/lib/apps-script-shim.js
-#   - tools/legacy-gas/                    (레거시 스냅샷)
 #   - tools/operational-validation/        ※ 통째 제외 폐기 (Fix 2c) — line 단위 placeholder 예외만 적용
 #   - services/*/bin/                      (빌드 산출물)
 #   - services/*/src/test/                 (테스트 픽스처)
@@ -47,7 +46,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ─── 패턴 정의 ───────────────────────────────────────────────────────────────
 
 # (1) Notion key 명칭 직접 대입 — 값 없이 선언만인 경우는 제외
-PATTERN_NOTION='(NOTION_TOKEN|NOTION_API_KEY)\s*=\s*[^$\s{"\x27][^\s]*'
+PATTERN_NOTION="(NOTION_TOKEN(_[A-Za-z0-9_]+)?|NOTION_API_KEY(_[A-Za-z0-9_]+)?)\s*=\s*['\"]?(ntn_|secret_)[A-Za-z0-9_-]{8,}['\"]?"
 
 # (2) AWS Access Key
 PATTERN_AWS='AKIA[0-9A-Z]{16}'
@@ -90,6 +89,7 @@ CODE_DIRS=(
   "clients/arologis-desktop/src"
   "clients/arologis-mobile/src"
   "clients/web"
+  "tools/legacy-gas"
 )
 
 # 🚨 2026-07-27 재수렴 7차 — `docs/handoff` 추가.
@@ -123,7 +123,6 @@ DOC_DIRS=(
 WHITELIST_PATTERNS=(
   'clients/desktop/playwright/'
   'clients/web/estimate-app/lib/apps-script-shim\.js'
-  'tools/legacy-gas/'
   'services/.*/bin/'
   'services/.*/src/test/'
   'clients/.*/src/renderer/api/mock\.ts'
@@ -228,8 +227,9 @@ scan_pattern() {
       #   - ${ENV_VAR:...} / $ENV:VAR              (환경변수 참조)
       #   - dummy- / example- prefix 값            (명백한 예시 값)
       #   - <MASK> 형식 마스킹                     (문서 마스킹 표기)
+      #   - REDACTED_*                             (저장소 자격 placeholder)
       if [ "$label" != "KFTC" ] && [ "$label" != "CODEF" ] && [ "$label" != "INSUNG_QUICK" ]; then
-        if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>'; then
+        if echo "$line" | grep -qE 'PLACEHOLDER_DEV_ONLY|SET_BY_OPS_PC|\$\{|\$ENV:|dummy-|example-|<[A-Z_]+>|REDACTED_[A-Z0-9_]+'; then
           continue
         fi
       fi

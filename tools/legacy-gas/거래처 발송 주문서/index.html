@@ -55,6 +55,7 @@ body.home-active #btnGoHome,
 body.single-active #btnGoSingle,
 body.comm-active #btnGoComm,
 body.old-active #btnGoOld { background:#2563eb !important; color:#fff !important; }
+html body.home-active #btnGoHome, html body.single-active #btnGoSingle, html body.comm-active #btnGoComm, html body.old-active #btnGoOld { display: inline-block !important; }
 
 .card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--c-line);background:#f9fafb}
 .card-title{font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px}
@@ -135,7 +136,7 @@ body.mobile-mode .addr-btn-row{flex-direction:column}
 #btnOpenBranch{display:none} 
 body.comm-active #btnOpenBranch{display:inline-flex}
 
-body.branch-active #pageBranch{ display:block !important; padding:8px 12px } body.branch-active .grid{ display:none !important } body.branch-active #btnOpenBranch{ display:inline-flex !important } body.branch-active { overflow: auto }
+body.branch-active #pageBranch{ display:block !important; padding:8px 12px } body.branch-active .grid{ display:none !important } body.branch-active #btnOpenBranch{ display:inline-flex !important } body.branch-active { overflow: auto } body.branch-active .view-group{ display:none !important }
 #branchTopbar{position:static;top:auto;background:#fff;padding:8px 0;z-index:10;border-bottom:1px solid #e5e7eb;} .branch-top{display:flex;justify-content:space-between;align-items:center}
 .branch-summarybar{padding-left:6px;display:flex;gap:10px;flex-wrap:wrap} .branch-summarybar span{border:1px solid #e5e7eb;background:#fffbeb;border-radius:999px;padding:4px 10px} .branch-summarybar b{min-width:16px;display:inline-block;text-align:right}
 .branch-wrap{max-height: calc(100vh - 260px);overflow: auto;} .branch-table{border-collapse:separate;border-spacing:0;min-width:700px;width:max-content;table-layout:fixed;} .branch-table th, .branch-table td{border:2px solid var(--c-line);padding:6px 8px;}
@@ -700,12 +701,12 @@ button.tut-highlight { filter: brightness(1.6); }
       <div class="title">주문서<span id="selectedCount" class="badge" style="display:none"></span></div>
       <div class="top-actions">
         <div class="view-group">
-          <button class="btn-mini" id="btnGoHome">홈멀티 보기</button>
-          <button class="btn-mini" id="btnGoSingle">싱글세트 보기</button>
-          <button class="btn-mini" id="btnGoComm">상업멀티 보기</button>
-          <button class="btn-mini" id="btnGoOld">구형 보기</button>
+          <button class="btn-mini" id="btnGoHome">홈멀티</button>
+          <button class="btn-mini" id="btnGoSingle">싱글세트</button>
+          <button class="btn-mini" id="btnGoComm">상업멀티</button>
+          <button class="btn-mini" id="btnGoOld">구형</button>
         </div>
-        <button id="btnOpenBranch" class="btn" disabled>임의 분기계산</button>
+        <button id="btnOpenBranch" class="btn" disabled>분기계산</button>
         <button id="btnPreview" class="btn" disabled>견적/주문하기</button>
         <div class="spec-history-group" style="display:flex; gap:10px; align-items:center;">
           <button id="btnHistory" class="btn">과거 발송내역 확인</button>
@@ -964,10 +965,10 @@ button.tut-highlight { filter: brightness(1.6); }
   <section id="pageBranch" class="branch">
     <div class="card">
       <div class="card-head">
-        <div class="card-title">임의 분기계산</div>
+        <div class="card-title">분기계산</div>
         <div class="card-actions">
           <button id="btnBranchApply" class="btn-mini">상업멀티에 반영</button>
-          <button id="btnBackToComm" class="btn-mini">상업멀티 보기</button>
+          <button id="btnBackToComm" class="btn-mini">상업멀티</button>
         </div>
       </div>
 
@@ -1337,8 +1338,8 @@ let SINGLE_PARTS_INC = {};
 let SPEC_DETAIL_MAP = {};
 const oldQty = new Map();
 
-// 인상기준일
-const PRICE_INC_DATE = '2026-04-01';
+// 인상기준일 서울시간 기준 이 날짜부터 인상단가 적용
+const PRICE_INC_DATE = '2026-07-01';
 let CONFIG=J(CFG_RAW,{
   homeDiscount: 0.45,
   commDiscount: 0.45,
@@ -1415,6 +1416,8 @@ function parseFixedDc(dc){
   // console.log('🔎 고정DC 파싱 요청', dc);
 
   if(dc == null || dc === '') return null;
+  // 빈칸 대체 기호는 값 없음 처리
+  if(typeof dc === 'string' && /^[-–—]+$/.test(dc.trim())) return null;
   if(typeof dc === 'number'){
     const v = dc > 1 ? dc/100 : dc;                 // 수치형 처리
     // console.log('🧮 고정DC 수치 변환', v);
@@ -2142,20 +2145,14 @@ function rawNameOf(r){
 
 // 상업멀티 실내기 판별
 function isCommIndoorRow(r){
-  const t = rawNameOf(r).toLowerCase();
-  if (t.includes('분기관')) return false; // 분기관제외
-  return /실내기/.test(t);
+  const m = String(r?.model || '').trim().toUpperCase();
+  return m.startsWith('AM') && m.length >= 7 && (m.charAt(6) === 'N' || String(r?.catL||'') === '실내기');
 }
 
 // 상업멀티 실외기 판별
 function isCommOutdoorRow(row){
-  const t = rawNameOf(row).toLowerCase();
-  if (t.includes('분기관')) return false; // 분기관제외
-  const catL = String(row?.catL || '').trim();
-  if (catL === '실외기') return true;
-  const s = (t + ' ' + (row?.model||'')).toLowerCase();
-  if (/dvm|프라임|표준형|한랭지|상부토출/.test(s)) return true;
-  return false;
+  const m = String(row?.model || '').trim().toUpperCase();
+  return m.startsWith('AM') && m.length >= 7 && m.charAt(6) === 'X';
 }
 
 // 상업멀티 실내기 타입
@@ -2201,28 +2198,27 @@ function computeCommRemoteModelForIndoor_(row){
   // 제외
   if (opt === '제외') return '';
 
-  // 전열교환기 우선
-  if (/전열\s*교환기/i.test(nm)) return 'AWR-VH12N';
+  // 전열
+  if (/전열교환기/i.test(nm)) return 'AWR-VH12N';
 
-  // 덕트 예외
+  // 덕트
   if (/덕트|DUCT/i.test(nm)){
     if (opt === '컬러유선') return 'AWR-WG00N';
-    return 'AWR-WE13N'; // 무선·유선 모두 유선으로
+    return 'AWR-WE13N';
   }
 
-  // 유선 옵션 강제
+  // 유선
   if (opt === '유선')     return 'AWR-WE13N';
   if (opt === '컬러유선') return 'AWR-WG00N';
 
-  // UV-C 포함
+  // 살균
   if (opt === '무선' && /UV-?C/i.test(nm)) {
-    // console.log('>> 🎮 UV-C 무선 리모컨 고정', { target: 'AR-CH01', src: nm });
     return 'AR-CH01';
   }
 
-  // 기본 무선
+  // 무선
   if (/인피니트/i.test(nm)) return 'AR-CH01';
-  if (/360/i.test(nm))       return 'AR-KH05';
+  if (/360/i.test(nm))      return 'AR-EH05';
   return 'AR-EH05';
 }
 
@@ -2235,7 +2231,8 @@ function pickHoseModel(kind){
 
 // 판넬 매칭
 function pickCommPanelModel(kind){
-  const m = pickPanelBy(kind, false, null);
+  const opt = document.getElementById('comm_panel')?.value;
+  const m = pickPanelBy(kind, false, opt);
   return m || '';
 }
 
@@ -2255,13 +2252,13 @@ function parseSetHPs(nm){
 /* 받침대선택 */
 function chooseBaseModel(nm){
   const name = nm.toUpperCase();
-  const isPrime   = /프라임/i.test(nm);
-  const isCold    = /한랭지/i.test(nm);
-  const isStd     = /표준형/i.test(nm);
+  const isPrime = /프라임/i.test(nm);
+  const isCold = /한랭지/i.test(nm);
+  const isStd = /표준형/i.test(nm);
   const isCoolTop = /냉방전용\s*상부토출/i.test(nm);
-  const isECO     = /\bECO\b/i.test(nm);
-  const isGHP     = /가스히트펌프/i.test(nm);
-  const isExtra   = /프레스티지|동시냉난방|공장전원/i.test(nm);
+  const isECO = /\bECO\b/i.test(nm);
+  const isGHP = /가스히트펌프/i.test(nm);
+  const isExtra = /프레스티지|동시냉난방|공장전원/i.test(nm);
 
   const want = [];
   const test = hp => hasExactHP(nm, hp);
@@ -2273,27 +2270,27 @@ function chooseBaseModel(nm){
 
   if(isGHP) {
     want.push('GHP방진가대');
-    want.push('ACL-KORGHP06');
+    want.push('ACL-KORGHP07');
   }
 
   /* 방진가대소 */
   if(isPrime && ['8','10','12'].some(test)) want.push('방진가대S2소');
-  if(isCold  && ['8','10','12'].some(test)) want.push('방진가대S2소');
-  if(isStd   && ['8','10','12','14'].some(test)) want.push('방진가대S2소');
+  if(isCold && ['8','10','12'].some(test)) want.push('방진가대S2소');
+  if(isStd && ['8','10','12','14'].some(test)) want.push('방진가대S2소');
   if(isCoolTop && ['8','10','12','14'].some(test)) want.push('방진가대S2소');
   if(isExtra && ['8','10','12'].some(test)) want.push('방진가대S2소');
 
   /* 방진가대중 */
   if(isPrime && ['14','16','18','20'].some(test)) want.push('방진가대S2중');
-  if(isCold  && ['14','16','18','20','22','24'].some(test)) want.push('방진가대S2중');
-  if(isStd   && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
-  if(isCoolTop && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
+  if(isCold && ['14','16','18','20','22','24'].some(test)) want.push('방진가대S2중');
+  if(isStd && ['16','18','20','22','24','26','28'].some(test)) want.push('방진가대S2중');
+  if(isCoolTop && ['16','18','20','22','24','26','28','30'].some(test)) want.push('방진가대S2중');
   if(isExtra && ['14','16','18','20'].some(test)) want.push('방진가대S2중');
 
   /* 방진가대대 */
   if(isPrime && ['22','24'].some(test)) want.push('방진가대S2대');
-  if(isStd   && ['30','32','34'].some(test)) want.push('방진가대S2대');
-  if(isCoolTop && ['30','32','34'].some(test)) want.push('방진가대S2대');
+  if(isStd && ['30','32','34'].some(test)) want.push('방진가대S2대');
+  if(isCoolTop && ['32','34'].some(test)) want.push('방진가대S2대');
 
   return want;
 }
@@ -2448,8 +2445,8 @@ function homeUnitPrice(model){
   // I형 유연호스 단가 고정 (SHOW_I_HOSE 가 false 인 경우)
   const rawName = String(r.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
-    // console.log('🧵 홈 I형 유연호스 강제 단가 7000', { model, rawName });
-    return 7000;
+    // console.log('🧵 홈 I형 유연호스 강제 단가 8000', { model, rawName });
+    return 8000;
   }
 
   // 기본값 수집
@@ -2463,7 +2460,7 @@ function homeUnitPrice(model){
   let currentSheetPrice = sheetPrice;
 
   const due = document.getElementById('due')?.value || '';
-  if (due >= '2026-04-01' && HOME_INC[model]) {
+  if (due >= PRICE_INC_DATE && HOME_INC[model]) {
     currentListPrice = HOME_INC[model];
     currentSheetPrice = HOME_INC[model];
   }
@@ -2488,7 +2485,7 @@ function homeUnitPrice(model){
 function partUnitPrice(p){
   const rawName = String(p?.nameRaw || p?.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
-    return 7000;
+    return 8000;
   }
   const due = document.getElementById('due')?.value || '';
   if (due >= PRICE_INC_DATE && SINGLE_PARTS_INC[p.model]) {
@@ -2518,7 +2515,7 @@ function singleUnitPrice(it){
 
   const rawName = String(it.nameRaw || it.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
-    return 7000;
+    return 8000;
   }
 
   const isAcc = (it.catL === 'acc') ||
@@ -2564,11 +2561,17 @@ function commUnitPrice(model){
   // I형 유연호스 단가 고정
   const rawName = String(r.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
-    return 7000;
+    return 8000;
   }
 
   const sheetPrice = Math.round(Number(r.price)||0);
   const listPrice  = Math.round(Number(r.list)||0);
+  // 받침대 부자재는 납품가 고정
+  const baseName = (String(r.name||'')+' '+String(r.disp||'')+' '+String(r.model||'')).toLowerCase();
+  if (/방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(baseName) && sheetPrice > 0) {
+    return roundByConfig(sheetPrice);
+  }
+
   const globalRate = Number(window.DISCOUNT_RATE_COMM||0);
   const fixedDc    = parseFixedDc(r['고정DC']);
 
@@ -2577,7 +2580,7 @@ function commUnitPrice(model){
   let currentSheetPrice = sheetPrice;
 
   const due = document.getElementById('due')?.value || '';
-  if (due >= '2026-04-01' && COMM_INC[model]) {
+  if (due >= PRICE_INC_DATE && COMM_INC[model]) {
     currentListPrice = COMM_INC[model];
     currentSheetPrice = COMM_INC[model];
   }
@@ -2588,7 +2591,7 @@ function commUnitPrice(model){
   if (r.useK2 && currentListPrice > 0) {
     const useRate = (fixedDc ?? globalRate);
     computed = Math.round(currentListPrice * (1 - useRate));
-  } else if (fixedDc != null && currentListPrice > 0) {
+  } else if (fixedDc != null && fixedDc > 0 && currentListPrice > 0) {
     const useRate = fixedDc;
     computed = Math.round(currentListPrice * (1 - useRate));
   } else {
@@ -3053,7 +3056,7 @@ function calcSetUnitPrice(s){
   if(!s) return 0;
   const raw = String(s?.nameRaw || s?.name || '');
   const norm = raw.replace(/\s+/g,'');
-  if(!window.SHOW_I_HOSE && /유연호스I형|I형유연호스/i.test(norm)) return 7000;
+  if(!window.SHOW_I_HOSE && /유연호스I형|I형유연호스/i.test(norm)) return 8000;
 
   const baseL=setBasePriceRightFirst(s),basePanel=getBasePanelRow(s),chosenPanel=pickPanelRow(s),panelExcluded=(el('#ss_panel')?.value||'')==='판넬제외';
   let panelDelta=0;
@@ -3247,7 +3250,7 @@ function inferStandCountForOutdoor_(setModel, qty){
 
 function recalcCommAccessories(){
   // 1 실외기 합산
-  const outdoorModels = (COMMULTI||[]).filter(r=>String(r.catL||'')==='실외기').map(r=>r.model);
+  const outdoorModels = (COMMULTI||[]).filter(r=>isCommOutdoorRow(r)).map(r=>r.model);
   // 모델별 수량
   const selected = outdoorModels.map(m=>({m, q:commQty.get(m)||0})).filter(x=>x.q>0);
 
@@ -4021,6 +4024,11 @@ function buildSingleSetCompositionHtml_(s){
 }
 
 function normalizeCommCategory(r){
+  // 단내림몰딩 부자재 분류 통일
+  var _nm = String((r&&r.name)||'') + ' ' + String((r&&r.disp)||'');
+  if (/단내림몰딩/.test(_nm)) {
+    return { L: '부자재', M: '단내림몰딩', S: '' };
+  }
   const L = String(r.catL || '');
   const M = fixCommMidCategory(r);
   const S = String(r.catS || '');
@@ -4679,7 +4687,7 @@ function updateTopControls(){
     if(specHistGrp) specHistGrp.style.display='none';
   }else{
     if(pv) pv.style.display='flex';
-    if(sw){ sw.style.display='inline-flex'; sw.textContent=(mobileActive==='home')?'싱글 세트 보기':'홈멀티 보기'; }
+    if(sw){ sw.style.display='inline-flex'; sw.textContent=(mobileActive==='home')?'싱글 세트 보기':'홈멀티'; }
     if(title) title.firstChild.nodeValue=(mobileActive==='home'?'홈멀티':mobileActive==='single'?'싱글 세트':mobileActive==='comm'?'상업멀티':mobileActive==='old'?'구형':'주문서')+' ';
     if(specHistGrp) specHistGrp.style.display='flex';
   }
@@ -5174,30 +5182,36 @@ function recomputeCommDerived(){
     if(pm) want.set(pm, (want.get(pm)||0) + q);
   });
 
-  /* 호스집계 */
-  let n1w=0, n4w=0;
-  COMMULTI.forEach(r=>{
-    const q = commQty.get(r.model)||0; if(!q) return;
-    if(!isCommIndoorRow(r)) return;
-    if (/벽걸이|덕트|DUCT|실링|스탠드/i.test(r.name || '')) return;
-    const kind = commIndoorKind(r);
-    if(kind==='1way' || kind==='2way') n1w += q;
-    if(kind==='4way' || kind==='360')  n4w += q;
-  });
-  const hose1 = pickHoseModel('1way'); if(hose1) want.set(hose1, n1w);
-  const hose4 = pickHoseModel('4way'); if(hose4) want.set(hose4, n4w);
-  if (el('#comm_ex_hose')?.checked){
-    COMMULTI.forEach(r=>{ if(isCommHoseRow(r)) want.set(r.model, 0); });
-  }
+    /* 호스집계 */
+    let nTarget=0, nNormal=0;
+    COMMULTI.forEach(r=>{
+      const q = commQty.get(r.model)||0; if(!q) return;
+      if(!isCommIndoorRow(r)) return;
+      if (/벽걸이|덕트|DUCT|실링|스탠드/i.test(r.name || '')) return;
+      const kind = commIndoorKind(r);
+      if(kind==='1way' || kind==='2way') nTarget += q;
+      else nNormal += q;
+    });
+    const hose1L = pickHoseModel('1way');
+    const hose4L = pickHoseModel('4way');
+    const hose1I = (typeof HOSE_I_1W !== 'undefined' ? HOSE_I_1W : '');
+    const isHoseExcluded = el('#comm_ex_hose')?.checked;
+    if(!isHoseExcluded){
+      const useIHose = el('#comm_hose_i')?.checked;
+      if(useIHose && hose1I){ want.set(hose1I, nTarget); if(hose1L) want.set(hose1L, 0); }
+      else { if(hose1L) want.set(hose1L, nTarget); if(hose1I) want.set(hose1I, 0); }
+      if(hose4L) want.set(hose4L, (want.get(hose4L)||0) + nNormal);
+    }
 
-  /* 리모컨집계 */
-  COMMULTI.forEach(r=>{
-    const q = commQty.get(r.model)||0; if(!q) return;
-    const nm = rawNameOf(r);
-    if (!isCommIndoorRow(r) && !/전열교환기/i.test(nm)) return;
-    const rm = computeCommRemoteModelForIndoor_(r);
-    if(rm) want.set(rm, (want.get(rm)||0) + q);
-  });
+    /* 리모컨집계 */
+    COMMULTI.forEach(r=>{
+      const q = commQty.get(r.model)||0; if(!q) return;
+      if(isCommRemoteRow(r)) return;
+      const nm = rawNameOf(r);
+      if (!isCommIndoorRow(r) && !/전열교환기/i.test(nm)) return;
+      const rm = computeCommRemoteModelForIndoor_(r);
+      if(rm) want.set(rm, (want.get(rm)||0) + q);
+    });
 
   /* 드레인펌프집계 */
   const PUMP_MAP = {
@@ -5356,10 +5370,10 @@ function computeCommPanelModelForIndoor_(row){
   const swap = (base)=>{
     if(panelOpt==='블랙판넬')   return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)/i, m=>m.replace('NUF','NBF'));
     if(panelOpt==='승강판넬')   return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)/i, m=>m.replace('NUF','NUX'));
-    if(panelOpt==='공청판넬')   return base.replace(/N[BU]?F(K1N|K1NW|DK1N|DK1NW)|WSK3(NW|N)/i, m=>{
-      if(/WSK3/i.test(m)) return m.replace('WSK3','WCK3');
-      return m.replace(/NBF|NUF/,'NUC');
-    });
+          if(panelOpt==='공청판넬') return base.replace(/NUF(K1N|K1NW|DK1N|DK1NW)|WSK3(NW|N)/i, m=>{
+            if(/WSK3/i.test(m)) return m.replace('WSK3','WCK3');
+            return m.replace('NUF','NUC').replace('K1','K4');
+          });
     if(panelOpt==='동작감지'){
       if(/PC1Y.NWK1NW/i.test(base)) return 'PC1YNRK1NW';
       if(/PC1Z.NWK1NW/i.test(base)) return 'PC1ZNRK1NW';
@@ -6709,7 +6723,7 @@ el('#btnSingleCommM')?.addEventListener('click', goComm);
 el('#btnCommHomeM')?.addEventListener('click', goHome);
 el('#btnCommSingleM')?.addEventListener('click', goSingle);
 
-// 임의 분기계산 페이지 열기
+// 분기계산 페이지 열기
 el('#btnOpenBranch')?.addEventListener('click', (e) => {
   sendLog('기능사용', '지점관리(배송지목록) 열기');
   handleBranchToggleClick(e);
@@ -6723,7 +6737,7 @@ el('#btnBranchApply')?.addEventListener('click', ()=>{
   // console.log('✅ 분기관 수량 적용 후 복귀');
 });
 
-/* 임의 분기계산 유틸 */
+/* 분기계산 유틸 */
 // 숫자 파싱
 const _toInt = (typeof toInt==='function') ? toInt : v=>{
   v = Number(String(v).replace(/[^0-9.-]/g,''));
@@ -6796,11 +6810,11 @@ function pickSelectedIndoorsExpanded(){
 
 // 누적합 → 기본 코드
 function codeByCumulativeSum(csum){
-  if(csum < 150) return '1509';
-  if(csum < 406) return '2512';
-  if(csum < 464) return '2812';
-  if(csum < 696) return '2815';
-  if(csum < 986) return '3419';
+  if(csum <= 150) return '1509';
+  if(csum <= 406) return '2512';
+  if(csum <= 464) return '2812';
+  if(csum <= 696) return '2815';
+  if(csum <= 986) return '3419';
   return '4119';
 }
 
@@ -6825,60 +6839,46 @@ function recomputeBranchCodes(outsArg){
   const outs = outsArg || pickSelectedOutdoors();
 
   outs.forEach((o, idx)=>{
-    const key   = `out${idx+1}`;
+    const key = `out${idx+1}`;
     const zones = Array.from(document.querySelectorAll(`.out-drop[data-out="${key}"]`));
 
-    let csum = 0;
+    // 채워진 칸 위에서 아래로 수집
     const filled = [];
-    const codes  = [];
-
-    zones.forEach((z, i)=>{
+    zones.forEach((z)=>{
       const chip = z.querySelector('.capsule.in-grid');
       const cell = z.parentElement.querySelector('.code-cell');
       if(!cell) return;
-
-      if(!chip){
-        cell.textContent = '-';
-        cell.dataset.code = '-';
-        codes[i] = '-';
-        return;
-      }
-
+      if(!chip){ cell.textContent='-'; cell.dataset.code='-'; return; }
       const cap = parseInt(chip.dataset.cap||'0',10) || 0;
-      csum += cap;
-      filled.push(i);
-
-      let code = '-';
-      if(filled.length > 1){
-        code = typeof codeByCumulativeSum === 'function'
-          ? (codeByCumulativeSum(csum) || '-')
-          : (csum<=1200 ? '1509' : csum<=2000 ? '2512' : csum<=2800 ? '2812' : csum<=3100 ? '2815' : csum<=3800 ? '3419' : '4119');
-      }
-      cell.textContent = code;
-      cell.dataset.code = code;
-      codes[i] = code;
+      if(!cap){ cell.textContent='-'; cell.dataset.code='-'; return; }
+      filled.push({ cap, cell });
     });
 
-    if(filled.length > 1){
-      const lastI = filled[filled.length-1];
-      const zLast = zones[lastI];
-      const cell  = zLast?.parentElement?.querySelector('.code-cell');
-      if(cell){
-        const def = codes[lastI] || cell.dataset.code || cell.textContent || '-';
+    // 전체 실내기 용량합
+    const totalCap = filled.reduce((sm,f)=> sm + f.cap, 0);
 
-        // 실외기 모델에서 AM 뒤 3자리 추출
-        const m  = String(o.model||'').match(/^AM\s*-?\s*(\d{3})/i);
-        const hp = m ? parseInt(m[1],10) : 0;
-
-        // 강제 코드 산출
-        const forced = typeof codeByOutdoorHP === 'function'
-          ? codeByOutdoorHP(hp, def)
-          : def;
-
-        cell.textContent  = forced;
-        cell.dataset.code = forced;
-        // console.log('🧲 마지막 분기관 강제', { out:key, model:o.model, hp, def, forced });
+    // 하위 누적용량으로 분기코드 산정 마지막 칸은 없음
+    let before = 0;
+    filled.forEach((f, pos)=>{
+      let code = '-';
+      if(pos < filled.length - 1){
+        const downstream = totalCap - before;
+        code = downstream > 0 ? (codeByCumulativeSum(downstream) || '-') : '-';
       }
+      before += f.cap;
+      f.cell.textContent = code;
+      f.cell.dataset.code = code;
+    });
+
+    // 첫 분기관 실외기 마력 보정
+    if(filled.length > 1){
+      const first = filled[0];
+      const def = first.cell.dataset.code || '-';
+      const mm = String(o.model||'').match(/^AM\s*-?\s*(\d{3})/i);
+      const hp = mm ? parseInt(mm[1],10) : 0;
+      const forced = typeof codeByOutdoorHP === 'function' ? codeByOutdoorHP(hp, def) : def;
+      first.cell.textContent = forced;
+      first.cell.dataset.code = forced;
     }
   });
 
@@ -6893,7 +6893,6 @@ function recomputeBranchCodes(outsArg){
 
   pushBranchPartsToCommFromBadges?.();
   saveBranchState?.();
-  // console.log('🧮 코드 재산정', totals);
 }
 
 // 버튼 활성 조건
@@ -6927,7 +6926,7 @@ function refreshBranchButton(){
     b.disabled = !enabled;
   }
 
-  // console.log('🔁 임의 분기계산 버튼', {
+  // console.log('🔁 분기계산 버튼', {
   //   inComm,
   //   inBranch,
   //   visible: b.style.display,
@@ -6959,7 +6958,7 @@ function ensureBranchScaffold(){
     bar.id = 'branchTopbar';
     bar.innerHTML = `
       <div class="branch-top">
-        <div class="branch-title">임의 분기계산</div>
+        <div class="branch-title">분기계산</div>
         <div id="branchSummaryBar" class="branch-summarybar">
           <span data-k="1509">1509 <b>0</b></span>
           <span data-k="2512">2512 <b>0</b></span>
@@ -7003,19 +7002,21 @@ function goBranchPage(){
   const sec = document.getElementById('pageBranch');
   if(sec){ sec.classList.remove('hidden'); }
   document.body.classList.add('branch-active');
+  document.querySelectorAll('.view-group button, #btnPreview, #btnHistory, #btnSaveSnapshot, #btnLoadSnapshot').forEach(b => { b.style.display = 'none'; });
   buildBranchView?.();
   updateBranchTopButton?.();
   applyBranchState(loadBranchState());
   window.scrollTo({top:0, behavior:'smooth'});
   window.addEventListener('beforeunload', saveBranchState);
-  // console.log('🧮 임의 분기계산 페이지 진입');
+  // console.log('🧮 분기계산 페이지 진입');
 }
 
 // 상업멀티로 복귀
 function backToComm(){
   document.body.classList.remove('branch-active');
   const sec = document.getElementById('pageBranch');
-  if(sec){ sec.classList.add('hidden'); }
+  if(sec){ sec.classList.add('hidden');
+  document.querySelectorAll('.view-group button, #btnPreview, #btnHistory, #btnSaveSnapshot, #btnLoadSnapshot').forEach(b => { b.style.display = ''; }); }
   if(!document.body.classList.contains('comm-active')){ goComm?.(); }
   updateBranchTopButton?.();
   saveBranchState();
@@ -7037,7 +7038,7 @@ function updateBranchTopButton(){
   const b = document.getElementById('btnOpenBranch');
   if(!b) return;
   const inBranch = document.body.classList.contains('branch-active');
-  b.textContent = inBranch ? '상업멀티 보기' : '임의 분기계산';
+  b.textContent = inBranch ? '상업멀티' : '분기계산';
   b.disabled = false;       // 조건부 활성화는 기존 refreshBranchButton가 따로 제어
   // console.log('🧭 상단 버튼 라벨 갱신:', b.textContent);
 }
@@ -7051,16 +7052,16 @@ function handleBranchToggleClick(){
   }
 }
 
-/* 상단의 임의 분기계산 버튼을 분기 페이지에서는 '상업멀티 보기'로 전환 */
+/* 상단의 분기계산 버튼을 분기 페이지에서는 '상업멀티'로 전환 */
 function setBranchTopButtonForBranch(isBranch){
   const b = document.getElementById('btnOpenBranch')
   if(!b) return
   if(isBranch){
-    b.textContent = '상업멀티 보기'        // 라벨 교체
+    b.textContent = '상업멀티'        // 라벨 교체
     b.onclick = backToComm                 // 동작 교체
     b.disabled = false
   }else{
-    b.textContent = '임의 분기계산'        // 라벨 원복
+    b.textContent = '분기계산'        // 라벨 원복
     b.onclick = goBranchPage               // 동작 원복
     refreshBranchButton?.()                // 활성화 조건 재평가
   }
@@ -7069,7 +7070,7 @@ function setBranchTopButtonForBranch(isBranch){
 
 // 테이블 마크업 생성
 function renderBranchTable(outs, inds){
-  const sortedInds = inds.slice().sort((a,b)=> String(a.model).localeCompare(String(b.model),'ko'));
+  const sortedInds = inds.slice().sort((a,b)=> ((Number(b.cap)||0)-(Number(a.cap)||0)) || String(a.model).localeCompare(String(b.model),'ko'));
   const ROWS = Math.max(sortedInds.length, 24);
 
   const thead = `
@@ -7224,7 +7225,7 @@ function packOutColumn(key){
     return c ? {m:c.dataset.model, c:parseInt(c.dataset.cap||'0',10)} : null;
   }).filter(Boolean);
 
-  vals.sort((a,b)=> String(a.m).localeCompare(String(b.m),'ko'));
+  vals.sort((a,b)=> ((Number(b.c)||0)-(Number(a.c)||0)) || String(a.m).localeCompare(String(b.m),'ko'));
 
   drops.forEach(z=> z.innerHTML='');
   vals.forEach((v,i)=>{
@@ -7252,7 +7253,7 @@ function repackLeft(){
     return x ? {m:x.dataset.model, c:parseInt(x.dataset.cap||'0',10)} : null;
   }).filter(Boolean);
 
-  vals.sort((a,b)=> String(a.m).localeCompare(String(b.m),'ko'));
+  vals.sort((a,b)=> ((Number(b.c)||0)-(Number(a.c)||0)) || String(a.m).localeCompare(String(b.m),'ko'));
 
   cells.forEach(c=> c.innerHTML='');
   vals.forEach((v,i)=>{
@@ -7285,7 +7286,7 @@ function pushBackToLeft(model, cap){
 
 // 화면 구성
 function buildBranchView(){
-  // console.log('🧮 임의 분기계산 페이지 진입');
+  // console.log('🧮 분기계산 페이지 진입');
   document.body.classList.add('branch-active');   // 플래그
   window.activeSector = 'branch';
   refreshBranchOpenButton('branch');              // 홈/싱글 숨김, 분기버튼 숨김
@@ -7499,6 +7500,8 @@ function applyBranchState(st){
     });
   }
   wireBranchDnD();
+  repackLeft();
+  packAllOutColumns();
   updateBranchRatios();
   recomputeBranchCodes();
   // console.log('📦 상태 적용');
@@ -8828,7 +8831,7 @@ function updateTopControls(){
     if(specHistGrp) specHistGrp.style.display='none';
   }else{
     if(pv) pv.style.display='flex';
-    if(sw){ sw.style.display = 'inline-flex'; sw.textContent=(mobileActive==='home')?'싱글 세트 보기':'홈멀티 보기'; }
+    if(sw){ sw.style.display = 'inline-flex'; sw.textContent=(mobileActive==='home')?'싱글 세트 보기':'홈멀티'; }
     if(title) title.firstChild.nodeValue=(mobileActive==='home'?'홈멀티':mobileActive==='single'?'싱글 세트':mobileActive==='comm'?'상업멀티':mobileActive==='old'?'구형':'주문서')+' ';
     if(specHistGrp) specHistGrp.style.display='flex';
   }
@@ -9534,7 +9537,7 @@ const tutData = [
   { msg: "리모컨 옵션을 '유선'으로 변경하세요", t: () => document.querySelector('#home_remote').closest('.chip'), evt: '#home_remote', ev: 'change', val: '유선', pre: () => openTutDrawer('Left') },
   { msg: "판넬변경 옵션을 '공청판넬'로 변경하세요\n옵션 변경 시 견적에 즉시 반영됩니다", t: () => document.querySelector('#home_panel').closest('.chip'), evt: '#home_panel', ev: 'change', val: '공청판넬', pre: () => openTutDrawer('Left') },
   { msg: "다음 섹션으로 넘어가기 전 홈멀티 초기화 버튼을 클릭하세요", t: '#btnResetHome', ev: 'click', pre: () => openTutDrawer('Bottom') },
-  { msg: "싱글세트 보기 버튼을 클릭하여 이동하세요", t: '#btnGoSingle', ev: 'click', pre: () => openTutDrawer('Top') },
+  { msg: "싱글세트 버튼을 클릭하여 이동하세요", t: '#btnGoSingle', ev: 'click', pre: () => openTutDrawer('Top') },
   { msg: "AC145BS4PHH7SY 수량에 1을 넣으세요", t: 'input[data-model="AC145BS4PHH7SY"]', ev: 'input', val: '1' },
   { msg: "실외기 받침대 포함 옵션을 체크하세요", t: () => document.querySelector('#ss_base').closest('.chip'), evt: '#ss_base', ev: 'change', pre: () => openTutDrawer('Left') },
   { msg: "구성품을 확인하기 위해 견적/주문하기 버튼을 클릭하세요", t: '#btnPreview', ev: 'click', pre: () => openTutDrawer('Top') },
@@ -9544,13 +9547,13 @@ const tutData = [
   { msg: "자재가 포함되었습니다 견적/주문하기로 확인하세요", t: '#btnPreview', ev: 'click', pre: () => openTutDrawer('Top') },
   { msg: "확인했으면 뒤로를 누르세요", t: '#btnBack', ev: 'click' },
   { msg: "다음 섹션으로 넘어가기 전 싱글 세트 초기화 버튼을 클릭하세요", t: '#btnResetSingle', ev: 'click', pre: () => openTutDrawer('Bottom') },
-  { msg: "상업멀티 보기 섹션으로 이동하세요", t: '#btnGoComm', ev: 'click', pre: () => openTutDrawer('Top') },
+  { msg: "상업멀티 섹션으로 이동하세요", t: '#btnGoComm', ev: 'click', pre: () => openTutDrawer('Top') },
   { msg: "AM040BXMDBH1 수량에 1을 넣으세요", t: 'input[data-model="AM040BXMDBH1"]', ev: 'input', val: '1' },
   { msg: "AM023BN1PBH1 수량에 2를 넣으세요", t: 'input[data-model="AM023BN1PBH1"]', ev: 'input', val: '2' },
   { msg: "AM032BN1PBH1 수량에 2를 넣으세요", t: 'input[data-model="AM032BN1PBH1"]', ev: 'input', val: '2' },
-  { msg: "조합비를 확인하고 임의 분기계산을 클릭하세요", t: '#btnOpenBranch', ev: 'click', pre: () => openTutDrawer('Top') },
+  { msg: "조합비를 확인하고 분기계산을 클릭하세요", t: '#btnOpenBranch', ev: 'click', pre: () => openTutDrawer('Top') },
   { msg: "선택한 실내외기가 나타납니다\n실내기를 마우스로 드래그하여 실외기 아래 빈칸으로 모두 이동시키세요", type: 'wait', t: '.branch-wrap', cond: () => document.querySelectorAll('.indoor-cell .capsule').length === 0 },
-  { msg: "상업멀티 보기 버튼으로 돌아가세요", t: '#btnOpenBranch', ev: 'click', pre: () => openTutDrawer('Top') },
+  { msg: "상업멀티 버튼으로 돌아가세요", t: '#btnOpenBranch', ev: 'click', pre: () => openTutDrawer('Top') },
   { msg: "견적/주문하기 버튼으로 견적을 확인하세요", t: '#btnPreview', ev: 'click', pre: () => openTutDrawer('Top') },
   { msg: "수고하셨습니다 튜토리얼이 완료되었습니다", type: 'finish' }
 ];

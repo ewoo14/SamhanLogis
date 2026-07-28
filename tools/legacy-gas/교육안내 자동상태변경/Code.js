@@ -37,12 +37,12 @@ function checkAndUpdateNotion() {
         // 마감일이 지난 경우
         if (now.getTime() > deadline.getTime()) {
           // "가능여부"가 아직 "신청불가"가 아니라면 업데이트 요청
-          if (!(properties["가능여부"] && properties["가능여부"].select && properties["가능여부"].select.name === "신청綈가")) {
+          if (!(properties["가능여부"] && properties["가능여부"].select && properties["가능여부"].select.name === "신청불가")) {
             var updateUrl = "https://api.notion.com/v1/pages/" + pageId;
             var updatePayload = {
               properties: {
                 "가능여부": {
-                  select: { name: "신청綈가" }
+                  select: { name: "신청불가" }
                 }
               }
             };
@@ -59,7 +59,7 @@ function checkAndUpdateNotion() {
             UrlFetchApp.fetch(updateUrl, updateOptions);
             Logger.log("등록마감일 업데이트 완료: " + pageId);
           } else {
-            Logger.log("등록마감일: 이미 신청綈가인 페이지: " + pageId);
+            Logger.log("등록마감일: 이미 신청불가인 페이지: " + pageId);
           }
         }
       }

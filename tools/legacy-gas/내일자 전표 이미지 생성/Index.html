@@ -3,7 +3,8 @@
 <head>
   <base target="_top">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
   <style>
     /* 배경 */
     body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 20px; background-color: #f7f9fc; overflow: hidden; }
@@ -186,6 +187,13 @@
     <div id="page1" class="page">
       <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 10px;">
         <span id="generate_status" style="color: #3182ce; font-weight: bold; font-size: 14px; display: none;">데이터 처리 및 이미지 생성 중... ⏳</span>
+        <span id="saveall_status" style="color: #3182ce; font-weight: bold; font-size: 14px; display: none;">압축 파일 생성 중... ⏳</span>
+        <select id="saveAllMode" class="reset-btn" style="padding: 8px 10px; cursor: pointer;">
+          <option value="all">전체</option>
+          <option value="room">톡방 only</option>
+          <option value="noroom">톡방 제외</option>
+        </select>
+        <button class="action-btn" onclick="saveAllImages()">전체저장</button>
         <button class="action-btn btn-save" onclick="generateResults()">결과 생성</button>
       </div>
       <div class="table-wrapper">
@@ -1103,60 +1111,129 @@
       });
     }
 
+    // 필터판정
+    function matchesActiveFilters(d) {
+      for (let colName in activeFilters) {
+        let f = activeFilters[colName];
+        let key = COL_MAP[colName];
+        let val = d[key];
+
+        if (f.type === 'empty') {
+          if (String(val || '').trim() !== '') return false;
+        } else if (f.type === 'not_empty') {
+          if (String(val || '').trim() === '') return false;
+        } else {
+          let strVal = String(val || '');
+          if (f.text) {
+            if (f.type === 'include' && !strVal.includes(f.text)) return false;
+            if (f.type === 'exclude' && strVal.includes(f.text)) return false;
+          }
+          if (f.kwStates) {
+            let includes = [];
+            let excludes = [];
+            for (let kw in f.kwStates) {
+              if (f.kwStates[kw] === 'include') includes.push(kw);
+              else if (f.kwStates[kw] === 'exclude') excludes.push(kw);
+            }
+
+            let checkKw = function(s, k) {
+              if (k.endsWith('/')) {
+                let baseKw = k.slice(0, -1);
+                let reg = new RegExp(baseKw + '[^/]*\\/');
+                return reg.test(s);
+              }
+              return s.includes(k);
+            };
+
+            for (let kw of excludes) {
+              if (checkKw(strVal, kw)) return false;
+            }
+            if (includes.length > 0) {
+              let kwMatch = false;
+              for (let kw of includes) {
+                if (checkKw(strVal, kw)) { kwMatch = true; break; }
+              }
+              if (!kwMatch) return false;
+            }
+          }
+        }
+      }
+      return true;
+    }
+
+    // 현재필터목록
+    function getCurrentFilteredList() {
+      return globalProcessedList.filter(matchesActiveFilters);
+    }
+
+    // 파일명정리
+    function sanitizeFilename(name) {
+      return String(name || '').replace(/[\\/:*?"<>|]/g, '_').replace(/[\s.]+$/, '').trim() || '무제';
+    }
+
+    // 전체저장
+    async function saveAllImages() {
+      if (!globalProcessedList || globalProcessedList.length === 0) {
+        alert('생성된 결과가 없습니다.');
+        return;
+      }
+
+      let mode = document.getElementById('saveAllMode').value;
+      let list = getCurrentFilteredList().filter(item => {
+        if (item.isForbidden) return false;
+        let hasRoom = item.roomName && item.roomName !== '';
+        if (mode === 'room') return hasRoom;
+        if (mode === 'noroom') return !hasRoom;
+        return true;
+      });
+
+      if (list.length === 0) {
+        alert('저장할 이미지가 없습니다.');
+        return;
+      }
+
+      let status = document.getElementById('saveall_status');
+      if (status) status.style.display = 'inline-block';
+
+      try {
+        let zip = new JSZip();
+        let nameCount = {};
+        list.forEach(item => {
+          let base64 = item.dataUrl.split(',')[1];
+          let fname = sanitizeFilename(item.filename);
+          if (nameCount[fname]) {
+            nameCount[fname]++;
+            let dot = fname.lastIndexOf('.');
+            fname = fname.substring(0, dot) + '_' + nameCount[fname] + fname.substring(dot);
+          } else {
+            nameCount[fname] = 1;
+          }
+          zip.file(fname, base64, { base64: true });
+        });
+
+        let blob = await zip.generateAsync({ type: 'blob' });
+        let modeLabel = mode === 'room' ? '톡방only' : mode === 'noroom' ? '톡방제외' : '전체';
+        let now = new Date();
+        let stamp = now.getFullYear() + ('0' + (now.getMonth() + 1)).slice(-2) + ('0' + now.getDate()).slice(-2);
+        let link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '전표이미지_' + modeLabel + '_' + stamp + '.zip';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (e) {
+        alert('압축 파일 생성 중 오류가 발생했습니다.');
+      } finally {
+        if (status) status.style.display = 'none';
+      }
+    }
+
     // 화면
     function renderResultTable() {
       let tbody = document.getElementById('tbody_result');
       if(!tbody) return;
       tbody.innerHTML = '';
       
-      let filteredList = globalProcessedList.filter(d => {
-        for (let colName in activeFilters) {
-          let f = activeFilters[colName];
-          let key = COL_MAP[colName];
-          let val = d[key];
-          
-          if (f.type === 'empty') {
-            if (String(val || '').trim() !== '') return false;
-          } else if (f.type === 'not_empty') {
-            if (String(val || '').trim() === '') return false;
-          } else {
-            let strVal = String(val || '');
-            if (f.text) {
-              if (f.type === 'include' && !strVal.includes(f.text)) return false;
-              if (f.type === 'exclude' && strVal.includes(f.text)) return false;
-            }
-            if (f.kwStates) {
-              let includes = [];
-              let excludes = [];
-              for (let kw in f.kwStates) {
-                if (f.kwStates[kw] === 'include') includes.push(kw);
-                else if (f.kwStates[kw] === 'exclude') excludes.push(kw);
-              }
-
-              let checkKw = function(s, k) {
-                if (k.endsWith('/')) {
-                  let baseKw = k.slice(0, -1);
-                  let reg = new RegExp(baseKw + '[^/]*\\/');
-                  return reg.test(s);
-                }
-                return s.includes(k);
-              };
-
-              for (let kw of excludes) {
-                if (checkKw(strVal, kw)) return false;
-              }
-              if (includes.length > 0) {
-                let kwMatch = false;
-                for (let kw of includes) {
-                  if (checkKw(strVal, kw)) { kwMatch = true; break; }
-                }
-                if (!kwMatch) return false;
-              }
-            }
-          }
-        }
-        return true;
-      });
+      let filteredList = globalProcessedList.filter(matchesActiveFilters);
 
       // 복제
       let renderList = filteredList.map(obj => ({...obj}));

@@ -298,13 +298,16 @@ function parse_address(addr) {
       if (three.indexOf(base3) > -1 || three.indexOf(g3) > -1) return [g3, ''];
     }
   }
+  var best = null;
   for (var g4 of region_priority) {
     if (!/(광역시|특별시|특별자치시|특별자치도)$/.test(g4)) {
       for (var t4 of (region_hierarchy[g4] || [])) {
-        if (three.indexOf(t4) > -1) return [g4, t4];
+        var pos = three.indexOf(t4);
+        if (pos > -1 && (best === null || pos < best.pos)) best = { g: g4, t: t4, pos: pos };
       }
     }
   }
+  if (best) return [best.g, best.t];
   return ['<미분류>',''];
 }
 
@@ -315,9 +318,9 @@ function process_address_for_search(addr) {
   if (pre.indexOf('회수')>-1 || pre.indexOf('회차')>-1) { counters.skip++; counters.returns++; return ['', true]; }
   if (pre.indexOf('차용')>-1 || pre.indexOf('대여')>-1 || pre.indexOf('반납')>-1) { counters.skip++; counters.borrow++; return ['', true]; }
   if (pre.indexOf('자가')>-1) { counters.skip++; counters.self++; return ['', true]; }
-  if (o.indexOf('경동')>-1 && (o.indexOf('/')>-1 || o.indexOf(':')>-1)) { counters.skip++; counters.kyungdong++; return ['', true]; }
-  if (o.indexOf('로젠')>-1 && (o.indexOf('/')>-1 || o.indexOf(':')>-1)) { counters.skip++; counters.logen++; return ['', true]; }
-  if (o.indexOf('지방')>-1 && (o.indexOf('/')>-1 || o.indexOf(':')>-1)) { counters.skip++; counters.jibang++; return ['', true]; }
+  if (/경동.*[\/:]/.test(o)) { counters.skip++; counters.kyungdong++; return ['', true]; }
+  if (/로젠.*[\/:]/.test(o)) { counters.skip++; counters.logen++; return ['', true]; }
+  if (/지방.*[\/:]/.test(o)) { counters.skip++; counters.jibang++; return ['', true]; }
   return [o.replace(/^(야적|야상)\s*\/\s*/,'').trim(), false];
 }
 
@@ -328,9 +331,9 @@ function process_address_for_search_local(addr) {
   if (pre.indexOf('회수')>-1 || pre.indexOf('회차')>-1) { counters.skip++; counters.returns++; return ['', true]; }
   if (pre.indexOf('차용')>-1 || pre.indexOf('대여')>-1 || pre.indexOf('반납')>-1) { counters.skip++; counters.borrow++; return ['', true]; }
   if (pre.indexOf('자가')>-1) { counters.skip++; counters.self++; return ['', true]; }
-  if (o.indexOf('경동')>-1 && (o.indexOf('/')>-1 || o.indexOf(':')>-1)) { counters.skip++; counters.kyungdong++; return ['', true]; }
-  if (o.indexOf('로젠')>-1 && (o.indexOf('/')>-1 || o.indexOf(':')>-1)) { counters.skip++; counters.logen++; return ['', true]; }
-  if (o.indexOf('지방')>-1 && (o.indexOf('/')>-1 || o.indexOf(':')>-1)) { counters.jibang++; }
+  if (/경동.*[\/:]/.test(o)) { counters.skip++; counters.kyungdong++; return ['', true]; }
+  if (/로젠.*[\/:]/.test(o)) { counters.skip++; counters.logen++; return ['', true]; }
+  if (/지방.*[\/:]/.test(o)) { counters.jibang++; }
   return [o.replace(/^(야적|야상|지방)\s*[/\:]\s*/,'').trim(), false];
 }
 

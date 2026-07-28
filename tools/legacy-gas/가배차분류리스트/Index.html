@@ -173,6 +173,15 @@
             <option value="7">7. 초월(지방포함)</option>
             <option value="8">8. 상일(지방포함)</option>
           </select>
+          <label style="display:flex; align-items:center; gap:4px; font-weight:bold; color:#2d3748; font-size:14px; cursor:pointer;">
+            <input type="radio" name="voucherMode" value="all" checked onchange="updateVoucherMode()"> 전체
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-weight:bold; color:#2d3748; font-size:14px; cursor:pointer;">
+            <input type="radio" name="voucherMode" value="range" onchange="updateVoucherMode()"> 범위
+          </label>
+          <input type="number" id="voucherStart" class="mode-select" style="width:90px; font-weight:normal;" placeholder="시작" disabled>
+          <span style="color:#4a5568; font-weight:bold;">~</span>
+          <input type="number" id="voucherEnd" class="mode-select" style="width:90px; font-weight:normal;" placeholder="끝" disabled>
           <span id="run_loading" style="display:none; color:#3182ce; font-weight:bold; font-size:14px;">실행 중... ⏳</span>
         </div>
 
@@ -282,6 +291,18 @@
         undoStack.push({ id: state.id, html: tbody.innerHTML });
         tbody.innerHTML = state.html;
       }
+    }
+
+    // 전표모드토글
+    function updateVoucherMode() {
+      let isRange = document.querySelector('input[name="voucherMode"]:checked').value === 'range';
+      let s = document.getElementById('voucherStart');
+      let e = document.getElementById('voucherEnd');
+      s.disabled = !isRange;
+      e.disabled = !isRange;
+      s.style.opacity = isRange ? '1' : '0.4';
+      e.style.opacity = isRange ? '1' : '0.4';
+      if (!isRange) { s.value = ''; e.value = ''; }
     }
 
     // 확장
@@ -575,10 +596,50 @@
         return;
       }
 
+      // 전표모드읽기
+      let isRange = document.querySelector('input[name="voucherMode"]:checked').value === 'range';
+      let targetData = ecountData;
+
+      if (isRange) {
+        let vStart = document.getElementById('voucherStart').value.trim();
+        let vEnd = document.getElementById('voucherEnd').value.trim();
+        let minV = vStart === '' ? null : parseInt(vStart, 10);
+        let maxV = vEnd === '' ? null : parseInt(vEnd, 10);
+
+        // 입력검증
+        if (minV === null && maxV === null) {
+          alert('범위를 선택했으니 전표번호 시작 또는 끝을 입력해주세요.');
+          return;
+        }
+        if ((vStart !== '' && isNaN(minV)) || (vEnd !== '' && isNaN(maxV))) {
+          alert('전표번호 범위는 숫자만 입력해주세요.');
+          return;
+        }
+        if (minV !== null && maxV !== null && minV > maxV) {
+          alert('전표번호 시작값이 끝값보다 큽니다.');
+          return;
+        }
+
+        // 전표범위필터
+        targetData = ecountData.filter(function(e) {
+          let raw = String(e['판매번호'] || e['판매 번호'] || e['일자-No.'] || '');
+          let v = raw.includes('-') ? raw.split('-').pop().trim() : raw.trim();
+          let n = parseInt(v, 10);
+          if (isNaN(n)) return false;
+          if (minV !== null && n < minV) return false;
+          if (maxV !== null && n > maxV) return false;
+          return true;
+        });
+        if (targetData.length === 0) {
+          alert('입력한 전표번호 범위에 해당하는 데이터가 없습니다.');
+          return;
+        }
+      }
+
       document.getElementById('run_loading').style.display = 'inline-block';
       document.getElementById('stats_container').style.display = 'none';
       let mode = document.getElementById('modeSelect').value;
-      
+
       google.script.run
         .withSuccessHandler(function(res) {
           document.getElementById('run_loading').style.display = 'none';
@@ -659,8 +720,8 @@
                 }
 
                 // 정규식
-                let mMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?상/);
-                let nMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?)?(?:[^0-9상하]{0,10})?하/);
+                let mMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?|(?=상))[^상하]*?상/);
+                let nMatch = spec.match(/(\d{1,2})\s*(?:\(?\s*일\s*\)?|(?=하))[^상하]*?하/);
 
                 let mVal = mMatch ? parseInt(mMatch[1], 10) : null;
                 let nVal = nMatch ? parseInt(nMatch[1], 10) : null;
@@ -691,6 +752,9 @@
                 } else if (!(hasYard || hasJibang) && hasSangHa) {
                   highlightClass = 'bg-highlight';
                 } else if (mVal !== null && actualDay !== null && actualDay !== mVal) {
+                  highlightClass = 'bg-err-date';
+                } else if ((hasYard || hasJibang) && mVal !== null && nVal !== null && mVal === nVal) {
+                  // 당일 상하차 오류
                   highlightClass = 'bg-err-date';
                 } else if (isJibangWknd) {
                   highlightClass = 'bg-jibang-wknd';
@@ -835,7 +899,7 @@
           document.getElementById('run_loading').style.display = 'none';
           alert('서버 통신 오류: ' + err.message);
         })
-        .runClassification(ecountData, mode, dayExtracted || new Date().getDate().toString());
+        .runClassification(targetData, mode, dayExtracted || new Date().getDate().toString());
     }
 
     // 복사

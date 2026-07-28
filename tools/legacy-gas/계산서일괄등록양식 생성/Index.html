@@ -348,7 +348,10 @@
       let txt = String(s);
       txt = txt.replace(/\((?!주\)).*?\)/g, "");
       if (txt.indexOf('-') > -1) txt = txt.split('-', 1)[0];
-      return txt.replace(/구\)/g, '').replace(/\*/g, '').trim();
+      txt = txt.replace(/구\)/g, '').replace(/\*/g, '');
+      // 거래처명 앞쪽 기호 제거
+      txt = txt.replace(/^[^가-힣A-Za-z0-9(]+/, '');
+      return txt.trim();
     }
 
     // 실행
