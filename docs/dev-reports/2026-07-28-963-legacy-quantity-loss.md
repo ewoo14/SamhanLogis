@@ -212,3 +212,193 @@ if(v){ /* 기존 add 5분기 */ } else { /* 신규 delete 5분기 — 견적과 
 - §8.3②③에서 발견한 `COMM_MANUAL_*`(상업멀티, add-only 미직렬화)·`SINGLE_MANUAL_*`(주문 앱 부재)는 게이트 A·B와 동일 패턴이지만 **선재 상태이고 이 PR·이 라운드의 게이트가 아니라 고치지 않았다.** 새 이슈도 등록하지 않았다(사전 허락 필요) — PM 보고용으로만 남긴다.
 - 운영 DB의 실제 저장내역(`partner_order_drafts`) 중 잠금 필드 없는 기존 스냅샷 건수는 로컬 개발 DB만 확인했다(R1과 동일한 한계, §7 기존 기록과 동일).
 - 서버 저장 API→저장내역 목록→복원의 브라우저 왕복 라이브 QA는 이번 라운드에서 수행하지 않았다(R1이 이미 같은 사유로 스킵한 것과 동일 — 거래처 인증 게이트, 공유 실데이터 write 회피). `takeSnapshot()`/`applySnapshot()` 정본 함수를 직접 호출하는 방식으로 대체했다.
+
+## 9. R2 라운드 — 신규 도달가능 결함 6건 fix + 7000→8000 + 최신 GAS 재대조 (SONNET5, PR #967 R2)
+
+R2 적대검증(OPUS 발견 1 + SONNET5 대조 1 + PM 직접 라이브QA)이 신규 도달 가능 결함 6건(G-1~G-6)을 찾았다. PM 판정: G-3/G-4/G-5/G-6은 이 PR(D-2 대칭 이식)의 회귀, G-1/G-2는 §8.3②에서 이미 발견됐던 선재 결함을 흡수 게이트로 전환한 것. 세 뿌리로 묶어 고쳤다. 작업 도중 개발책임자가 `clasp`로 최신 GAS 스냅샷(2026-06-10 저장소 스냅샷보다 최신)을 받아와 두 과제를 추가 지시했다: I형 유연호스 고정단가 `7000→8000`, 그리고 이슈 #963 견적 절반(결함 1)의 최신 GAS 재대조.
+
+### 9.1 뿌리 매핑
+
+| 뿌리 | 결함 | 원인 |
+|---|---|---|
+| **① 옵션 컨트롤이 계열 잠금을 못 비움** | G-3[MED·회귀], G-6[LOW-MED] | `renderHomeOptions`의 change 리스너가 `recomputeHomeDerived(true)`만 부르고 `HOME_MANUAL_*`을 비우지 않아, 사용자가 명시적으로 고른 "판넬제외·유연호스 제외·리모컨 제외·분기관 제외·공청↔기본 판넬 치환"이 개별 잠금에 막혔다(U-1 위반) |
+| **② 상업멀티에 홈멀티 R1 fix 미이식** | G-1[HIGH], G-2[HIGH] | `takeSnapshot`/`applySnapshot`이 `COMM_MANUAL_*`을 직렬화·복원하지 않고(G-1), `bindCommQtyEvents`의 잠금 로직이 add-only이며 `btnResetComm`에 잠금 해제 호출이 없었다(G-2) — §8.3②에서 이미 발견했던 것과 동일 패턴 |
+| **③ D-2 비대칭(0 잠금 불가·표시 없음)** | G-4[MED], G-5[MED] | `bindQty`가 raw==='' (지움)과 raw==='0'(명시적 0)을 구분하지 않고 둘 다 v=0으로 뭉갰고(G-5), 잠금 상태를 화면에 표시하는 코드가 주문앱에 전혀 없었다(G-4) |
+
+### 9.2 fix — 뿌리 단위
+
+**뿌리①** — `onHomeOptionChange(controlId)`(신규, `index.html:4964-4980`, 주석 4964-4969·함수본문 4970-4980)를 추가해 컨트롤 id→해당 `HOME_MANUAL_*` Set 매핑을 `clear()`한 뒤 `recomputeHomeDerived(true)`를 부른다. `renderHomeOptions`의 이벤트 바인딩(`:4993`)을 이 함수 호출 1줄로 통일했다(기존 `home_remote` 특례 분기 2줄 제거). **계열 sweep으로 `home_foot`(발통포함) 도 같은 결함 패턴임을 확인해 함께 포함**했다(보고 대상 G-3/G-6엔 없었지만 같은 코드 블록·같은 근본 원인).
+
+**뿌리②** — `applyCommManualLock(rec, model, q)`(신규, `:2909-2921`, 주석 2909-2911·함수본문 2912-2921)가 `bindCommQtyEvents`의 인라인 add-only 로직을 대체(`q`truthy면 add, falsy면 delete — 홈멀티 `onHomeQtyInput`과 대칭). `clearCommManualLocks()`(신규, `:2828-2837`, 주석 2828-2830·함수본문 2831-2837)가 `clearHomeManualLocks`의 comm 대칭으로 5계열을 비우며, `btnResetComm`(`:6388`)과 `applySnapshot` 최상단(`:9134`)에서 호출한다. `takeSnapshot`(`:8855-8859`)이 `commManualPanel/Hose/Remote/Pump/Base` 5필드를 추가 직렬화하고, `applySnapshot`(`:9169-9173`)이 기존 `resLock` 헬퍼(D-3 `Array.isArray` 가드 재사용, 신규 코드 추가 없음)로 복원한다.
+
+**뿌리③** — `bindQty`(`:2891-2900`)가 `raw=String(value).replace(/[^\d]/g,'')`로 원본 문자열을 먼저 판정해 `explicit=(raw!=='')`를 `onChange`의 3번째 인자로 넘긴다. `onHomeQtyInput`(`:4908`, 시그니처에 3번째 인자 `explicit` 추가)이 이를 받아 `shouldLock=(explicit!==undefined)?explicit:!!v`(`:4921`)로 판정(2-인자 레거시 호출은 `explicit===undefined`라 기존 `!!v` 동작으로 폴백 — 하위호환). `isHomeManualLocked(row,model)`(신규, `:4891-4902`, 주석 4891-4893·함수본문 4894-4902)이 `onHomeQtyInput`의 isP/isR/isH/isB/isF 판정·정규식을 그대로 공유해 화면 렌더(입력창 생성 `:3891-3896`·`syncHomeUIFromState:5695-5703`)와 `onHomeQtyInput` 자신(방금 편집한 칸의 즉시 스타일 반영, `:4936-4943` — `syncHomeUIFromState`를 부르지 않는 분기라 별도 처리 필요)에서 `color:#2563eb;font-weight:bold` 를 적용한다(견적 앱 `index.ejs:5861-5863`·`5966-5973`·`8647-8664` 대칭).
+
+### 9.3 RED → GREEN → mutation RED
+
+vm 기반 신규 harness 3개(정본 함수를 파일에서 그대로 추출·실행 — 재구현 아님)로 RED-first 진행했다. 공유 golden 하네스(`legacyQuantityBoundary.js`/`fixtures.js`/`goldens.js`/`legacy-quantity-golden.test.{js,ts}`)와 R1의 `homeManualLockHarness.cjs`는 건드리지 않고 export만 재사용했다(단, `homeManualLockHarness.cjs`의 `runSnapshotRoundtrip`은 `takeSnapshot`/`applySnapshot`이 이제 `COMM_MANUAL_*`/`clearCommManualLocks`를 참조하므로 **빈 Set 5개 + 함수 1개를 스코프에 추가**하지 않으면 `ReferenceError`로 죽는다 — R1 테스트 16개를 그대로 통과시키기 위한 필수 보정, §9.7 참조).
+
+**G-1/G-2 RED**(`commManualLockRestore.test.ts`, fix 전 — `applyCommManualLock`이 없어 즉시 추출 실패):
+```text
+FAIL src/__tests__/commManualLockRestore.test.ts (20 tests)
+Error: applyCommManualLock 함수를 찾을 수 없습니다.
+  at extractFunctionSource legacyQuantityBoundary.js:15:24
+Tests  20 failed | 0 passed (20)
+```
+
+**G-3/G-5/G-6 RED**(`homeOptionAndZeroLockRestore.test.ts`, fix 전):
+```text
+Error: onHomeOptionChange 함수를 찾을 수 없습니다.   ← G-3 5건 + G-6 1건
+AssertionError: expected false to be true            ← G-5 "명시적 0" 1건
+Tests  8 failed | 2 passed (10)   (통과한 2건은 "칸을 진짜 지움"·"2-인자 레거시" —
+                                     이 fix 이후에도 항상 성립해야 하는 회귀 울타리라
+                                     RED 이전에도 원래 GREEN이어야 정상)
+```
+
+**GREEN**(fix 후, 전체):
+```text
+order-app: Test Files 12 passed (12) / Tests 148 passed (148)
+  ├ commManualLockRestore.test.ts        20 passed  (G-1/G-2)
+  ├ homeOptionAndZeroLockRestore.test.ts 10 passed  (G-3/G-5/G-6)
+  ├ homeManualLockRestore.test.ts        16 passed  (R1 회귀 — 무변화)
+  └ legacy-quantity-golden.test.ts       73 passed  (골든 — 무변화)
+estimate-app: Test Suites 8 passed (8) / Tests 175 passed (175)  (7000→8000 이후 재확인)
+tsc --noEmit: 에러 0
+```
+
+**뮤테이션 RED**(9건, fix를 조각 단위로 원복 → 해당 결함만 재현 → 원복 취소 → 재확인. `sourceMutator` 훅으로 소스 텍스트를 in-memory 치환했을 뿐 파일은 건드리지 않았다):
+
+```text
+[뮤테이션1] onHomeOptionChange 의 lockSet.clear() 제거
+  G-3 판넬제외 valueAfterOptionChange: 9 (fix면 0)      ← 재현
+  G-6 (d4) 이중계상: {from:5,to:2} (fix면 {from:5,to:0}) ← 재현
+[뮤테이션2] applyCommManualLock 의 method 를 항상 'add' 로 고정
+  G-2 칸지움 lockedAfterClear: true (fix면 false)        ← 재현
+[뮤테이션3] clearCommManualLocks 를 no-op 으로
+  G-2 초기화 lockedAfterReset: true (fix면 false)         ← 재현
+[뮤테이션4] takeSnapshot 의 commManual* 직렬화 5줄 제거
+  G-1 anyLockSerialized: false (fix면 true)               ← 재현
+[뮤테이션5] onHomeQtyInput 의 shouldLock 을 항상 !!v 로
+  G-5 lockedAfterExplicitZero: false (fix면 true)         ← 재현
+  (회귀 2건은 뮤테이션에도 안전 — lockedAfterRealClear/lockedAfterLegacyTwoArgClear 그대로 false)
+총 9건 — PASS(=뮤테이션이 기대대로 결함을 재현) 9 / FAIL 0
+```
+
+### 9.4 라이브 QA — 실 브라우저(Docker 실서버, GET만)
+
+R2 자체가 923bc79d1(fix 전)에서 t5(G-3/G-6)·t7(G-1 잠금누수)·t8(G-2)·t3b(G-1 저장복원) 로 이미 RED를 실측해 뒀으므로(스크래치패드 `967-r2/`), 이번 라운드는 **같은 시나리오를 fix 후 코드로 재실행해 GREEN을 확인**했다. `npx vite --port 5405`(`VITE_API_BASE_URL=http://localhost:8080/api/v1` 절대경로 — dev 서버에 `/api/v1` proxy 규칙이 없어 상대경로는 vite 자체 SPA fallback 에 걸려 `Accept:application/json` 요청이 404로 죽는다는 것을 진단으로 확인, §9.9 기록) + Playwright(headless chromium) 로 판넬/전 실서버(Docker 22개 컨테이너 healthy) 대상 실행했다.
+
+```text
+G-3 사전조건: 수동 판넬9/호스7/리모컨6 잠금             PASS
+G-3 GREEN: 4종 제외 선택 후 판넬/호스/리모컨 모두 0(빈칸) PASS  {"PC1MWSK3NW":"","FH-LFHLF":"","AR-EC05":""}
+G-3 GREEN: 잠금도 전부 해제                              PASS
+G-3 GREEN: 발송행에 판넬/호스/리모컨 없음(실내기만)       PASS
+G-6 GREEN: 기본판넬 복귀 시 이중계상 없음(from=5,to=0)    PASS  {"PC4NUFK1NW":"5","PC4NUCK4NW":""}
+G-6 GREEN: 다시 공청판넬 시 치환 고착 없음(to=5)          PASS
+G-5 GREEN: "0" 명시 입력 후 칸에 0이 보임(빈칸 아님)      PASS  {"value":"0","locked":true}
+G-4 GREEN: 잠금 중인 칸이 파란 굵은 글씨로 표시됨         PASS  {"color":"rgb(37, 99, 235)","fontWeight":"bold"}
+G-5 GREEN: 실내기 변경 후에도 0-잠금 유지                 PASS  (자동값 7로 안 돌아옴)
+회귀울타리 GREEN: 진짜로 지우면 잠금 해제+자동값(9) 복귀  PASS
+G-2 GREEN: 칸 지운 직후 잠금 해제(add-only 버그 종료)     PASS
+G-2 GREEN: 실내기 변경 후 판넬 자동복귀(7)                PASS
+G-2 GREEN: 초기화 버튼이 잠금을 비움                      PASS  (panel/hose/remote/pump/base 전부 [])
+G-2 GREEN: 초기화 후 실내기 5 입력 시 판넬 자동 5         PASS  (새로고침 없이 회복)
+G-1 GREEN: takeSnapshot 이 commManualPanel 을 직렬화      PASS  ["PC1MWSK3NW"]
+G-1 GREEN: 신선 세션 복원 후 판넬 13 보존                 PASS  (자동값으로 안 덮임)
+
+총 20건 — PASS 20 / FAIL 0. pageerror 0. 스크린샷 7장(G3/G4-G5/G6/G1/G2 각 단계).
+```
+
+DB write는 0(`takeSnapshot()`/`applySnapshot()` 정본 함수를 client 메모리에서 직접 호출 — 서버 저장 API를 부르지 않았다). 앱의 GET만 사용했다.
+
+### 9.5 계열 전수 sweep
+
+① **`HOME_MANUAL_*`/`COMM_MANUAL_*` 읽기·쓰기 전 지점** — `grep -n "HOME_MANUAL_\|COMM_MANUAL_"` 68건 재확인. 신규 쓰기: `clearCommManualLocks`(5)·`applyCommManualLock`(5, `[method]` 동적 호출)·`isHomeManualLocked`(5, 읽기)·`onHomeOptionChange`(5, 매핑)·`takeSnapshot`(5)·`applySnapshot`(5). 기존 가드 8지점(`setP/setR/setB/setH` 4개 + `clearAllPanels/clearAllRemotes/recomputeFootAll` 3개 + swap map 1개)은 **diff에 없음 — 전부 그대로**. `recomputeCommDerived`의 최종 반영 가드 5곳(`:5578-5583`)도 무변경.
+② **`takeSnapshot`/`applySnapshot`가 직렬화하는 상태 중 재계산이 덮는 게 더 있는지(싱글중대형 포함)** — `singleQty`는 R1 §8.3③에서 이미 확인한 대로 `SINGLE_MANUAL_*` 개념 자체가 주문 앱에 없다(재확인: `grep -c SINGLE_MANUAL index.html` = 0). 이번 라운드가 `COMM_MANUAL_*`을 직렬화·복원하도록 고쳐 R1 §8.3②가 지적한 격차는 닫혔다. **남은 것은 `SINGLE_MANUAL_*` 부재뿐**이며 이는 G-1~G-6 어디에도 게이트되지 않았고 §9.9에 보고만 한다.
+③ **잠금이 다른 계열 단위 조작을 막는 곳이 또 있는지** — `renderCommOptions`(`:4152-4160`, 기존)는 이미 comm 5계열 옵션 컨트롤 변경 시 5개 Set을 전부 `clear()`한다(이 PR 이전부터 존재 — comm 쪽엔 G-3류 결함이 아예 없었던 이유). 홈 쪽엔 `home_foot`(발통포함)이 같은 패턴의 미수정 사각지대였고 뿌리① fix에 포함했다(§9.2). 그 외 가드는 모두 개별-모델 write 가드(`setP` 등)이고 계열 단위 컨트롤이 아니다 — 추가 사각지대 없음.
+
+### 9.6 회귀 울타리 7항목
+
+| # | 항목 | 결과 |
+|---|---|---|
+| 1 | R1 게이트 2건(칸 지움→자동복귀·저장→복원 보존) | GREEN — `homeManualLockRestore.test.ts` 16/16 무변화 |
+| 2 | 주문 golden 73/73·견적 golden 73/73·`homeManualLockRestore` 16/16·typecheck 0 | 전부 재확인(§9.3) |
+| 3 | 신선 세션 복원(잠금·값·총액 일치)·복원 confirm 취소 시 무변화 | §9.4 라이브 확인(G-1 신선복원) + `applySnapshot` 최상단 `confirm()` 가드 무변경 |
+| 4 | 잘못된 타입/없는 모델/`core` 부재 → 예외 0 | `applySnapshot`의 `try/catch`·`Array.isArray` 가드 구조 무변경(§9.2, diff에 로직 삭제 없음 — 라인 추가만) |
+| 5 | 구버전 앱이 신규 스냅샷 복원 → `pageerror 0` | 신규 5필드는 `shot.core`의 추가 프로퍼티일 뿐이고 구버전 `applySnapshot`은 읽지 않는 필드를 단순 무시한다(JSON 구조상 안전, R1과 동일 논리) |
+| 6 | 섹터 전환·거래처 전환 잠금 누수 0·홈 파생 write 10곳 중 파생 8곳 가드 유지 | §9.5① — 8지점 diff 미포함 확인 |
+| 7 | `tools/legacy-gas/**` 무접촉·견적 앱 실 경로 무영향 | `tools/legacy-gas` git status 무출력(무접촉). **견적 앱은 개발책임자 지시로 7000→8000 5줄만 수정**(§9.7) — "무영향" 항목은 이번 라운드부터 "가격 5줄 외 무변화"로 재정의(§9.8) |
+
+### 9.7 변경 파일 및 줄 수 (`git diff --numstat` 실측 + hunk 자동 합산, 뿌리별)
+
+`git diff --numstat`:
+
+| 파일 | 줄 수 |
+|---|---:|
+| `clients/web/order-app/index.html` | `+118/-27` |
+| `clients/web/estimate-app/views/index.ejs` | `+5/-5` |
+| `clients/web/order-app/src/__tests__/homeManualLockHarness.cjs` | `+10/-1` |
+
+신규 파일(전량 신규, `wc -l`):
+
+| 파일 | 줄 수 |
+|---|---:|
+| `clients/web/order-app/src/__tests__/commManualLockHarness.cjs` | 295 |
+| `clients/web/order-app/src/__tests__/commManualLockRestore.test.ts` | 92 |
+| `clients/web/order-app/src/__tests__/homeOptionAndZeroLockHarness.cjs` | 274 |
+| `clients/web/order-app/src/__tests__/homeOptionAndZeroLockRestore.test.ts` | 122 |
+
+`index.html`의 `+118/-27`을 hunk 단위로 자동 집계(스크립트로 `+`/`-` 라인을 셈 — 손 계산 아님, 합계가 `git diff --numstat`과 118/27로 정확히 일치함을 교차검증)해 뿌리별로 귀속:
+
+| 뿌리 | 줄 수 | 비고 |
+|---|---:|---|
+| **뿌리① (G-3/G-6)** | `+19/-2` | `onHomeOptionChange` 신규(+18/-0) + `renderHomeOptions` 바인딩 교체(+1/-2) |
+| **뿌리② (G-1/G-2)** | `+43/-10` | `clearCommManualLocks`(+11/-0) + `applyCommManualLock`(+14/-0) + `bindCommQtyEvents` 인라인→호출(+1/-8) + `btnResetComm` 호출 추가(+1/-1) + `takeSnapshot` 5필드(+6/-1) + `applySnapshot` 호출 추가(+1/-0) + `applySnapshot` resLock 5호출(+9/-0) |
+| **뿌리③ (G-4/G-5)** | `+50/-9` | `bindQty` explicit 판정(+9/-3) + `renderHome` 입력템플릿(+5/-1) + `isHomeManualLocked` 신규+`onHomeQtyInput` 시그니처(+18/-2) + `onHomeQtyInput` shouldLock+즉시스타일(+11/-2) + `syncHomeUIFromState`(+7/-1) |
+| **7000→8000(개발책임자 지시)** | `+6/-6` | `homeUnitPrice`/`partUnitPrice`/`singleUnitPrice`/`commUnitPrice`/`calcSetUnitPrice` 5곳, 값+주석 숫자만 |
+| **합계** | `+118/-27` | `git diff --numstat`과 일치 |
+
+`homeManualLockHarness.cjs`(R1 소유, `+10/-1`)는 뿌리②가 `takeSnapshot`/`applySnapshot`에 `COMM_MANUAL_*` 참조를 추가해 그 두 함수를 추출·실행하는 R1 harness가 `ReferenceError`로 깨지는 것을 막기 위한 **호환성 보정**(빈 `COMM_MANUAL_*` Set 5개 선언 + `clearCommManualLocks`를 추출 목록에 추가) — 로직 변경 없음.
+
+### 9.8 7000→8000(개발책임자 지시) — 대조 및 실행 결과
+
+**최신 GAS 대조**(스크래치패드 `gas-latest/order/index.html`·`gas-latest/estimate/index.html`, `clasp` 로 방금 재수신, 읽기 전용 — 수정하지 않음): 두 앱 각 5곳이 **동일 함수·동일 가드 조건**으로 최신 GAS와 1:1 대응함을 확인했다(함수명·가드 스타일·주석까지 일치, 숫자만 다름):
+
+| 앱 | 함수 | 가드 | 현재(fix 전) | 최신 GAS |
+|---|---|---|---|---|
+| order | `homeUnitPrice` | `!window.SHOW_I_HOSE` | `return 7000` (주석도 "…7000") | `return 8000` (주석도 "…8000") |
+| order | `partUnitPrice` | `!window.SHOW_I_HOSE` | `return 7000` | `return 8000` |
+| order | `singleUnitPrice`(익명 함수, `it.nameRaw`) | `!window.SHOW_I_HOSE` | `return 7000` | `return 8000` |
+| order | `commUnitPrice` | `!window.SHOW_I_HOSE` | `return 7000` | `return 8000` |
+| order | `calcSetUnitPrice` | `!window.SHOW_I_HOSE` (norm 정규식) | `return 7000` | `return 8000` |
+| estimate | `homeUnitPrice` | `document.getElementById('home_hose_i')?.checked` | `return 7000` | `return 8000` |
+| estimate | `partUnitPrice`("싱글 부자재 단가") | `!window.SHOW_I_HOSE` | `return 7000` | `return 8000` |
+| estimate | `singleUnitPrice` | `!window.SHOW_I_HOSE` | `return 7000` | `return 8000` |
+| estimate | `commUnitPrice` | `document.getElementById('comm_hose_i')?.checked` | `return 7000` | `return 8000` |
+| estimate | `calcSetUnitPrice` | (가드 없음 — 최신 GAS도 동일하게 무가드) | `return 7000` | `return 8000` |
+
+10곳 모두 "I형 유연호스" 문맥임을 각각 개별 확인(다른 의미의 7000 섞임 0건 — 두 앱 각각 `return 7000\|return 8000` 이 정확히 5곳뿐이었다). 10곳 전부 값만 `8000`으로 교체, 가드·함수 구조는 무변경.
+
+**골든 영향 확인** — `legacy-quantity-golden/goldens.js`는 수량·target 모델만 기록하고 가격 필드가 없다(파일 자체 주석: "금액은 가격 snapshot 부재로 null을 유지한다"). 예상대로 영향 0: order-app golden 73/73, estimate-app golden(73/73 포함 전체 175/175) 재실행 결과 전부 GREEN, 실패 0건(§9.3).
+
+### 9.9 결함 1(견적 I형 1WAY 호스) 최신 GAS 재대조
+
+R1이 이미 실 견적앱(`CATALOG_SOURCE=db`)으로 검증해 "`FH_LFHIF4W`는 실 카탈로그에 없는 모델(`HOSE_I_4W=''`), 칩 ON 시 `FH-LFHIF`엔 정상 수량이 실린다"는 결론을 냈다(§ R1 코멘트, 이 라운드가 재현하지 않고 그대로 인용). 이번엔 그 위에 **최신 GAS 소스 코드 자체**와 현재 `index.ejs`를 비교했다.
+
+- 현재 `index.ejs:8379`(R1 D-1 fix): `const hose1L = HOSE_1W;` — 상업 1WAY L형 target을 **고정 상수**로 고정.
+- 최신 GAS `gas-latest/estimate/index.html:8006`: `const hose1L = pickHoseModel('1way');` — **아직 원래 형태**. `pickHoseModel('1way')`(`:3708`)는 `useI`(전역 `SHOW_I_HOSE`) 가 true 면 `HOSE_I_1W||HOSE_1W`를 반환하므로, 전역 ON 일 때 `hose1L`이 `hose1I`와 **같은 모델로 별칭(alias)**된다.
+- 다음 줄들(최신 GAS `:8013-8018`, 현재 `index.ejs`와 구조 동일): `if(useIHose && hose1I){ want.set(hose1I, nTarget); if(hose1L) want.set(hose1L, 0); }` — `hose1L===hose1I`인 별칭 상태에서는 두 번째 `want.set(hose1L, 0)`이 **방금 넣은 값을 즉시 0으로 덮어쓴다.**
+
+**결론 — 최신 GAS도 R1이 재현했던 "전역 I형 ON → I형 수량이 0" 버그를 그대로 갖고 있다.** R1의 D-1 fix(`hose1L`을 `HOSE_1W` 고정 상수로 바꿔 별칭 자체를 없앰)는 GAS의 실제 결함을 우회한 **의도된 GAS 이탈**이며, 이번 재대조로 "저장소 스냅샷이 낡아서 놓친 최신 동작"이 아니라 "최신 GAS도 동일 결함을 가진 상태에서 개발책임자가 이미 개정을 승인한 사안"임이 확정됐다. 코드 변경은 없음(이미 R1에서 fix 완료) — 검증 전용.
+
+### 9.10 D-1/D-2 — GAS 이탈 명시 기록(다음 라운드가 되돌리지 않도록)
+
+- **D-1**(§1, §9.9): 최신 GAS 도 "전역 I형 ON, 화면칩 무관"일 때 1WAY 호스가 0이 되는 별칭 버그를 갖고 있다. `hose1L=HOSE_1W` 고정은 그 버그를 우회하는 **의도된 이탈**이지 저장소 드리프트가 아니다.
+- **D-2**(홈 파생 수동잠금 전체 — G-1~G-6 전부): 최신 GAS 주문서에 `HOME_MANUAL` **0건**, `COMM_MANUAL_*.delete` **0건**(둘 다 스냅샷과 동일 — 재확인 완료). **홈 파생 수동잠금은 GAS 원본에 없는 개념**이며, 상업멀티의 add-only(해제 불가) 도 GAS 원본 그대로다. 그럼에도 이슈 #963 이 이 소실을 결함으로 등록했고 개발책임자가 개정을 명시 승인했으므로(§1 D-2), 이번 R2 fix(뿌리①②③ 전체)는 **GAS 패리티 원칙의 명시적·승인된 예외**로 유지한다. GAS 에 없다는 사실은 "GAS 도 같은 결함을 가진다"는 뜻이지 "그 동작이 정답"이라는 뜻이 아니다.
+
+### 9.11 이번 라운드에서 못 한 것
+
+- `SINGLE_MANUAL_*`(주문 앱에 싱글중대형 잠금 개념 자체가 없음, §9.5②)은 R1·R2 모두 게이트되지 않아 고치지 않았다. 새 이슈 등록하지 않음(사전 허락 필요) — PM 보고용.
+- G-4 스타일 값은 `syncHomeUIFromState`/`onHomeQtyInput`/입력창 생성 3곳에서 인라인 `style.color`/`style.fontWeight`로 직접 설정한다(견적 앱과 동일한 인라인 스타일 패턴, CSS 클래스화는 하지 않았다) — 리팩터 여지는 있으나 이번 게이트(G-4)는 "표시되는가"이지 "구현 방식"이 아니라 범위를 넘기지 않았다.
+- 상업멀티(comm)는 여전히 잠금 상태를 화면에 표시하지 않는다(G-4는 홈만 게이트됐다) — comm 자체의 add-only 미표시는 R1 §8.3③ 기준 **선재 상태**이고 이번 라운드도 게이트하지 않았다. §9.5③에서 확인했듯 comm은 옵션 컨트롤 변경 시 이미 5계열을 전부 비우므로(G-3류 결함은 없음) 표시 부재만 남은 격차다.
+- 모바일/터치, 운영 DB 실측, 서버 저장 API 왕복은 R1과 동일한 사유로 이번 라운드도 스킵했다(§8.7 그대로).
+- CODEX SOL 5.6 2차 적대검증 라운드는 이 fix 게시 이후 PM 이 순차 진행한다(이 PR 은 2차 적대검증 스테이지를 아직 거치지 않았다).

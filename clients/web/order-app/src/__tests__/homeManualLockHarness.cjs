@@ -165,7 +165,7 @@ function runClearScenario({ family, model, lockValue, sourceMutator }) {
 function runSnapshotRoundtrip({ family, model, lockValue, legacyShot }) {
   const source = loadOrderSource();
   const prelude = catalogPrelude(source, family);
-  const functions = bundle(source, [...HOME_RECOMPUTE_FUNCTIONS, 'takeSnapshot', 'applySnapshot', 'clearHomeManualLocks']);
+  const functions = bundle(source, [...HOME_RECOMPUTE_FUNCTIONS, 'takeSnapshot', 'applySnapshot', 'clearHomeManualLocks', 'clearCommManualLocks']);
   const modelJson = JSON.stringify(model);
   const stripLockFields = legacyShot
     ? `delete shot.core.homeManualPanel; delete shot.core.homeManualHose; delete shot.core.homeManualRemote; delete shot.core.homeManualBranch; delete shot.core.homeManualFoot;`
@@ -185,6 +185,15 @@ function runSnapshotRoundtrip({ family, model, lockValue, legacyShot }) {
     const oldQty = new Map();
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
     ${HOME_MANUAL_SETS_DECL}
+    /* #967 R2 G-1 이 takeSnapshot/applySnapshot 에 COMM_MANUAL_* 직렬화·복원을
+       추가해, 이 두 함수를 추출·실행하려면 해당 식별자가 스코프에 있어야 한다.
+       이 harness 는 comm 잠금 자체를 검사하지 않으므로(그건 commManualLockHarness.cjs
+       담당) 빈 Set으로만 채운다 — ReferenceError 방지용, 재구현 아님. */
+    const COMM_MANUAL_PANEL = new Set();
+    const COMM_MANUAL_HOSE = new Set();
+    const COMM_MANUAL_REMOTE = new Set();
+    const COMM_MANUAL_PUMP = new Set();
+    const COMM_MANUAL_BASE = new Set();
     ${functions}
 
     /* 1) 사용자가 파생 칸에 직접 값을 입력해 잠근다 */

@@ -4308,7 +4308,7 @@ function homeUnitPrice(model){
 
   const rawName = String(r.name || '');
   const showIHose = document.getElementById('home_hose_i')?.checked;
-  if (!showIHose && /유연호스\s*I형/i.test(rawName)) return 7000;
+  if (!showIHose && /유연호스\s*I형/i.test(rawName)) return 8000;
 
   const sheetPrice = Math.round(Number(r.price) || 0);
   let listPrice = getBaseListPrice('home', model, Math.round(Number(r.list) || 0));
@@ -4351,7 +4351,7 @@ function homeUnitPrice(model){
 function partUnitPrice(p){
   const rawName = String(p?.nameRaw || p?.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
-    return 7000;
+    return 8000;
   }
   let basePrice = priceFrom(p,{ priceKeys:['price','unitPrice'], listKeys:['list','출고가','listPrice','msrp'] });
   
@@ -4375,7 +4375,7 @@ function singleUnitPrice(it){
   // I형 유연호스 단가 고정
   const rawName = String(it.nameRaw || it.name || '');
   if (!window.SHOW_I_HOSE && /유연호스\s*I형/i.test(rawName)) {
-    return 7000;
+    return 8000;
   }
 
   // 부자재 판정
@@ -4419,7 +4419,7 @@ function commUnitPrice(model){
 
   const rawName = String(r.name || '');
   const showIHose = document.getElementById('comm_hose_i')?.checked;
-  if (!showIHose && /유연호스\s*I형/i.test(rawName)) return 7000;
+  if (!showIHose && /유연호스\s*I형/i.test(rawName)) return 8000;
 
   const sheetPrice = Math.round(Number(r.price)||0);
   let listPrice = getBaseListPrice('comm', model, Math.round(Number(r.list)||0));
@@ -5100,7 +5100,7 @@ function calcSetUnitPrice(s){
   const raw = String(s?.nameRaw || s?.name || '');
   const norm = raw.replace(/\s+/g,'');
 
-  if(/유연호스I형|I형유연호스/i.test(norm)) return 7000;
+  if(/유연호스I형|I형유연호스/i.test(norm)) return 8000;
 
   let baseL = setBasePriceRightFirst(s);
   const isInc = document.getElementById('chkSingleInc')?.checked;
