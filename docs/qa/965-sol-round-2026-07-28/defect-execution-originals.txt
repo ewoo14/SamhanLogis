@@ -1,0 +1,18 @@
+DEFECT-1
+warning.rect={"x":901.1875,"y":1502.421875,"w":117.53125,"h":67.1875,"right":1018.71875,"bottom":1569.609375}
+belowText.rect={"x":901.1875,"y":1525.09375,"w":117.53125,"h":41.0625,"right":1018.71875,"bottom":1566.15625}
+overlap={"w":117.53125,"h":41.0625,"area":4826.126953125}
+warningZ=1
+textZ=auto
+mobile.overlap={"w":59.828125,"h":61.59375}
+
+DEFECT-2
+zero-byte.png bytes=0 alert="현재 양식 기준 이미지 최대 47KB까지 저장할 수 있습니다." sourceChanged=false saveDisabled=true elapsedMs=104
+text-renamed.png bytes=24 alert="현재 양식 기준 이미지 최대 47KB까지 저장할 수 있습니다." sourceChanged=false saveDisabled=true elapsedMs=96
+animated-2frame.gif bytes=66 browserDecode=true alert="현재 양식 기준 이미지 최대 47KB까지 저장할 수 있습니다." sourceChanged=false saveDisabled=true elapsedMs=96
+
+ACTIVATION
+HTTP 422
+{"success":false,"code":"UNPROCESSABLE_ENTITY","message":"자동 업데이트 선행 전에는 DETAIL/IMAGE 양식을 활성화할 수 없습니다."}
+existingApprovals.total=40
+existingApprovals.withDocumentBinding=0

@@ -1,0 +1,517 @@
+{
+  "target": {
+    "pr": 968,
+    "branch": "fix/965-document-image-decodability",
+    "head": "2ef26713a",
+    "vite": "http://localhost:5451",
+    "router": {
+      "path": "/groupware/document-templates",
+      "pathResult": "target",
+      "hashResult": "dashboard"
+    }
+  },
+  "defects": {
+    "coordinateWarningOverlap": {
+      "desktop": {
+        "warning": {
+          "text": "이 이미지는 현재 화면에서 표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요.",
+          "rect": {
+            "x": 901.1875,
+            "y": 1502.421875,
+            "w": 117.53125,
+            "h": 67.1875,
+            "right": 1018.71875,
+            "bottom": 1569.609375
+          },
+          "minHeight": "15%"
+        },
+        "belowText": {
+          "text": "SOL 아래 좌표 텍스트",
+          "rect": {
+            "x": 901.1875,
+            "y": 1525.09375,
+            "w": 117.53125,
+            "h": 41.0625,
+            "right": 1018.71875,
+            "bottom": 1566.15625
+          }
+        },
+        "overlap": {
+          "w": 117.53125,
+          "h": 41.0625,
+          "area": 4826.126953125
+        },
+        "warningZ": "1",
+        "textZ": "auto"
+      },
+      "mobile": {
+        "warning": {
+          "x": 242.859375,
+          "y": 2109.265625,
+          "w": 59.828125,
+          "h": 134.375
+        },
+        "belowText": {
+          "x": 242.859375,
+          "y": 2131.9375,
+          "w": 59.828125,
+          "h": 61.59375
+        },
+        "overlap": {
+          "w": 59.828125,
+          "h": 61.59375
+        }
+      }
+    },
+    "invalidFileCopy": [
+      {
+        "file": "zero-byte.png",
+        "bytes": 0,
+        "alert": "현재 양식 기준 이미지 최대 47KB까지 저장할 수 있습니다.",
+        "sourceChanged": false,
+        "saveDisabled": true,
+        "elapsedMs": 104
+      },
+      {
+        "file": "text-renamed.png",
+        "bytes": 24,
+        "alert": "현재 양식 기준 이미지 최대 47KB까지 저장할 수 있습니다.",
+        "sourceChanged": false,
+        "saveDisabled": true,
+        "elapsedMs": 96
+      },
+      {
+        "file": "animated-2frame.gif",
+        "bytes": 66,
+        "browserDecode": true,
+        "alert": "현재 양식 기준 이미지 최대 47KB까지 저장할 수 있습니다.",
+        "sourceChanged": false,
+        "saveDisabled": true,
+        "elapsedMs": 96
+      }
+    ]
+  },
+  "renderer": {
+    "firstOpen": {
+      "warningCount": 2,
+      "elapsedMs": 110,
+      "images": [
+        {
+          "key": "image-1",
+          "complete": true,
+          "naturalWidth": 0
+        },
+        {
+          "key": "image-2",
+          "complete": true,
+          "naturalWidth": 0
+        }
+      ],
+      "loading": []
+    },
+    "slow": [
+      {
+        "t": 325,
+        "warnings": 0,
+        "images": [
+          {
+            "key": "image-1",
+            "complete": false,
+            "naturalWidth": 0
+          },
+          {
+            "key": "image-2",
+            "complete": false,
+            "naturalWidth": 0
+          }
+        ],
+        "loading": []
+      },
+      {
+        "t": 1036,
+        "warnings": 0,
+        "images": [
+          {
+            "key": "image-1",
+            "complete": false,
+            "naturalWidth": 0
+          },
+          {
+            "key": "image-2",
+            "complete": false,
+            "naturalWidth": 0
+          }
+        ],
+        "loading": []
+      },
+      {
+        "t": 2249,
+        "warnings": 0,
+        "images": [
+          {
+            "key": "image-1",
+            "complete": false,
+            "naturalWidth": 0
+          },
+          {
+            "key": "image-2",
+            "complete": false,
+            "naturalWidth": 0
+          }
+        ],
+        "loading": []
+      },
+      {
+        "t": 3463,
+        "warnings": 0,
+        "images": [
+          {
+            "key": "image-1",
+            "complete": true,
+            "naturalWidth": 240
+          },
+          {
+            "key": "image-2",
+            "complete": true,
+            "naturalWidth": 240
+          }
+        ],
+        "loading": []
+      }
+    ],
+    "offline": {
+      "warningCount": 2,
+      "elapsedMs": 1005,
+      "images": [
+        {
+          "complete": true,
+          "naturalWidth": 0
+        },
+        {
+          "complete": true,
+          "naturalWidth": 0
+        }
+      ],
+      "loading": [],
+      "recovery": {
+        "warningCount": 0,
+        "naturalWidths": [
+          240,
+          240
+        ]
+      }
+    },
+    "replacement": {
+      "afterFirstReplaceWarnings": 1,
+      "afterSecondReplaceSaveStatus": 200,
+      "reopenedWarnings": 0,
+      "reopenedNaturalWidths": [
+        192,
+        4
+      ],
+      "loading": []
+    }
+  },
+  "print": {
+    "pdf": "32-broken-image-print.pdf",
+    "bytes": 175037,
+    "pages": 1,
+    "warningDisplay": [
+      "none",
+      "none"
+    ],
+    "warningRects": [
+      {
+        "w": 0,
+        "h": 0
+      },
+      {
+        "w": 0,
+        "h": 0
+      }
+    ],
+    "containsFullWarning": false,
+    "containsReplace": false,
+    "textChars": 242
+  },
+  "browserBackendMatrix": [
+    {
+      "name": "png-normal",
+      "file": "normal-pwa-192.png",
+      "mime": "image/png",
+      "bytes": 2743,
+      "browser": {
+        "name": "png-normal",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 192,
+        "naturalHeight": 192,
+        "error": ""
+      },
+      "backend": {
+        "name": "png-normal",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":18,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "png-51pct",
+      "file": "png-truncated-1409.png",
+      "mime": "image/png",
+      "bytes": 1409,
+      "browser": {
+        "name": "png-51pct",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 192,
+        "naturalHeight": 192,
+        "error": ""
+      },
+      "backend": {
+        "name": "png-51pct",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":19,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "png-header-only",
+      "file": "png-header-only.png",
+      "mime": "image/png",
+      "bytes": 33,
+      "browser": {
+        "name": "png-header-only",
+        "decode": false,
+        "complete": true,
+        "naturalWidth": 0,
+        "naturalHeight": 0,
+        "error": "EncodingError: The source image cannot be decoded."
+      },
+      "backend": {
+        "name": "png-header-only",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":20,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "jpeg-normal",
+      "file": "normal-640.jpg",
+      "mime": "image/jpeg",
+      "bytes": 10442,
+      "browser": {
+        "name": "jpeg-normal",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 640,
+        "naturalHeight": 360,
+        "error": ""
+      },
+      "backend": {
+        "name": "jpeg-normal",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":21,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "jpeg-60pct",
+      "file": "jpeg-60pct.jpg",
+      "mime": "image/jpeg",
+      "bytes": 6265,
+      "browser": {
+        "name": "jpeg-60pct",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 640,
+        "naturalHeight": 360,
+        "error": ""
+      },
+      "backend": {
+        "name": "jpeg-60pct",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":22,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "jpeg-broken",
+      "file": "jpeg-broken.jpg",
+      "mime": "image/jpeg",
+      "bytes": 11,
+      "browser": {
+        "name": "jpeg-broken",
+        "decode": false,
+        "complete": true,
+        "naturalWidth": 0,
+        "naturalHeight": 0,
+        "error": "EncodingError: The source image cannot be decoded."
+      },
+      "backend": {
+        "name": "jpeg-broken",
+        "status": 400,
+        "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.\",\"data\":null,\"timestamp\":\"2026-07-28T05:57:24.648268851Z\"}"
+      }
+    },
+    {
+      "name": "webp-normal",
+      "file": "normal-chromium-4x4.webp",
+      "mime": "image/webp",
+      "bytes": 548,
+      "browser": {
+        "name": "webp-normal",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 4,
+        "naturalHeight": 4,
+        "error": ""
+      },
+      "backend": {
+        "name": "webp-normal",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":23,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "webp-animated-first-frame",
+      "file": "mascot-first-frame-animated.webp",
+      "mime": "image/webp",
+      "bytes": 8876,
+      "browser": {
+        "name": "webp-animated-first-frame",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 171,
+        "naturalHeight": 150,
+        "error": ""
+      },
+      "backend": {
+        "name": "webp-animated-first-frame",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":24,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "webp-version1-poc",
+      "file": "webp-poc-version1.webp",
+      "mime": "image/webp",
+      "bytes": 26,
+      "browser": {
+        "name": "webp-version1-poc",
+        "decode": false,
+        "complete": true,
+        "naturalWidth": 0,
+        "naturalHeight": 0,
+        "error": "EncodingError: The source image cannot be decoded."
+      },
+      "backend": {
+        "name": "webp-version1-poc",
+        "status": 200,
+        "body": "{\"success\":true,\"code\":\"OK\",\"message\":\"성공\",\"data\":{\"id\":\"ff7bab64-b0a8-4574-9547-6cb3d263fefc\",\"status\":\"DRAFT\",\"revision\":25,\"docType\":\"GROUPWARE_EXPENSE_REPORT\",\"name\":\"SOL968-CODEX-COORD-0728A\",\"schemaVersion\":2,\"document\":{\"pa"
+      }
+    },
+    {
+      "name": "webp-truncated",
+      "file": "webp-truncated.webp",
+      "mime": "image/webp",
+      "bytes": 26,
+      "browser": {
+        "name": "webp-truncated",
+        "decode": false,
+        "complete": true,
+        "naturalWidth": 0,
+        "naturalHeight": 0,
+        "error": "EncodingError: The source image cannot be decoded."
+      },
+      "backend": {
+        "name": "webp-truncated",
+        "status": 400,
+        "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.\",\"data\":null,\"timestamp\":\"2026-07-28T05:57:24.723825614Z\"}"
+      }
+    },
+    {
+      "name": "gif-animated",
+      "file": "animated-2frame.gif",
+      "mime": "image/gif",
+      "bytes": 66,
+      "browser": {
+        "name": "gif-animated",
+        "decode": true,
+        "complete": true,
+        "naturalWidth": 1,
+        "naturalHeight": 1,
+        "error": ""
+      },
+      "backend": {
+        "name": "gif-animated",
+        "status": 400,
+        "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.\",\"data\":null,\"timestamp\":\"2026-07-28T05:57:24.740323187Z\"}"
+      }
+    },
+    {
+      "name": "png-zero",
+      "file": "zero-byte.png",
+      "mime": "image/png",
+      "bytes": 0,
+      "browser": {
+        "name": "png-zero",
+        "decode": false,
+        "complete": true,
+        "naturalWidth": 0,
+        "naturalHeight": 0,
+        "error": "EncodingError: The source image cannot be decoded."
+      },
+      "backend": {
+        "name": "png-zero",
+        "status": 400,
+        "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.\",\"data\":null,\"timestamp\":\"2026-07-28T05:57:24.756055246Z\"}"
+      }
+    },
+    {
+      "name": "png-text-renamed",
+      "file": "text-renamed.png",
+      "mime": "image/png",
+      "bytes": 24,
+      "browser": {
+        "name": "png-text-renamed",
+        "decode": false,
+        "complete": true,
+        "naturalWidth": 0,
+        "naturalHeight": 0,
+        "error": "EncodingError: The source image cannot be decoded."
+      },
+      "backend": {
+        "name": "png-text-renamed",
+        "status": 400,
+        "body": "{\"success\":false,\"code\":\"INVALID_INPUT\",\"message\":\"IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.\",\"data\":null,\"timestamp\":\"2026-07-28T05:57:24.770464721Z\"}"
+      }
+    }
+  ],
+  "activationGate": {
+    "draftRow": {
+      "status": "DRAFT",
+      "revision": 25
+    },
+    "activationStatus": 422,
+    "body": {
+      "success": false,
+      "code": "UNPROCESSABLE_ENTITY",
+      "message": "자동 업데이트 선행 전에는 DETAIL/IMAGE 양식을 활성화할 수 없습니다."
+    },
+    "existingApprovals": {
+      "total": 40,
+      "withDocumentBinding": 0
+    },
+    "gateImplementation": "private static final ADVANCED_ACTIVATION_GATE_ENABLED = true; no runtime setting"
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "document": {
+      "clientWidth": 390,
+      "scrollWidth": 390
+    },
+    "editor": {
+      "clientWidth": 358,
+      "scrollWidth": 358
+    }
+  }
+}
