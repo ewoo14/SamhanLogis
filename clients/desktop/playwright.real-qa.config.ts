@@ -55,6 +55,17 @@
  *   $env:REAL_QA_ALLOW_UNTRACKED='1'
  *   node_modules\.bin\playwright test --config=playwright.real-qa.config.ts `
  *     playwright/n1b-native-qa/my-local-real-qa.spec.ts --reporter=line
+ *
+ * 🚨 [SONNET5 R1 결함1·2·3 fix] REAL_QA_ALLOW_UNTRACKED 는 위처럼 "명시 경로"와 함께 쓸 때만
+ * 뜻이 있다 — 이제 코드도 그렇게 강제한다(scripts/real-qa-scope.cjs 의 decideRealQaScope).
+ *   - 명시 경로 없는 전체 실행(공식 실행)은 이 값을 아예 참조하지 않는다. 그래서 PowerShell
+ *     세션에 이 값이 남아 있어도(터미널을 새로 안 열어도) 다음 전체 실행은 항상 정상적으로
+ *     막힌다 — "예외 모드"가 다음 실행으로 새지 않는다.
+ *   - 추적 스펙만 가리키는 명시 경로 실행(위 "이 슬라이스만 격리 실행" 예시)은 트리 어딘가에
+ *     미추적 로컬 스펙이 있어도 이 값 없이 통과한다 — 무관한 미추적 스펙이 격리 실행을 막지
+ *     않는다.
+ *   - "집합이 줄어드는 방향"(Git 추적 목록엔 있는데 디스크에 없는 스펙)은 이 값으로도 절대
+ *     못 넘어간다(#864 사고 재발 방지).
  */
 import { createRequire } from 'node:module'
 import { defineConfig, devices } from '@playwright/test'
