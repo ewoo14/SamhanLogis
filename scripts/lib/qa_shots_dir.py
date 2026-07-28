@@ -33,10 +33,28 @@ def _has_explicit_overwrite_intent() -> bool:
 _UNC_ADMIN_SHARE_RE = re.compile(r'^\\\\([^\\]+)\\([A-Za-z])\$(\\.*)?$')
 
 
+def _self_lan_addresses() -> set:
+    """이 머신에 실제로 바인딩된 IPv4 주소 전부(로컬 전용 조회 — 네트워크 I/O 없음).
+
+    2026-07-28 R5 재수렴 결함3 — 고정 별칭 목록(localhost/127.0.0.1/hostname)은
+    "열거"라서 어댑터가 늘 때마다 다시 뚫린다(실측: 자기 LAN IP UNC 가 10개 resolver
+    사본 전부를 통과했다). socket.gethostbyname_ex(hostname())는 이 실행 환경에서
+    로컬 hostname 조회이며(원격 DNS 라운드트립 아님) 이 머신에 바인딩된 어댑터 IP를
+    전부 돌려준다(실측 확인). 실패해도 예외를 삼키고 빈 집합으로 폴백한다 — 원격
+    호스트에 대한 stat 기반 신원 대조는 도달 불가능한 호스트에서 8초+ 행(hang)이
+    재현돼 채택하지 않았다.
+    """
+    try:
+        _, _, ip_list = socket.gethostbyname_ex(socket.gethostname())
+        return {ip.lower() for ip in ip_list}
+    except OSError:
+        return set()
+
+
 def _normalize_unc_admin_share(candidate_dir: str) -> str:
     """자기 자신을 가리키는 UNC admin-share를 등가의 드라이브 문자 표기로 통일한다.
 
-    2026-07-28 R4 재수렴 결함3 — 자세한 배경은 scripts/lib/qa-shots-dir.cjs 의
+    2026-07-28 R4 결함3 + R5 재수렴 결함3 — 자세한 배경은 scripts/lib/qa-shots-dir.cjs 의
     동명 함수(normalizeUncAdminShareToDrive) 주석 참조. 다른 호스트를 가리키는
     admin-share 는 실제로 다른 물리 머신이므로 변환하지 않는다.
     """
@@ -44,8 +62,8 @@ def _normalize_unc_admin_share(candidate_dir: str) -> str:
     if not match:
         return candidate_dir
     host = match.group(1).lower()
-    self_aliases = {'localhost', '127.0.0.1', '.', socket.gethostname().lower()}
-    if host not in self_aliases:
+    known_aliases = {'localhost', '127.0.0.1', '.', socket.gethostname().lower()}
+    if host not in known_aliases and host not in _self_lan_addresses():
         return candidate_dir
     rest = match.group(3) or '\\'
     return f'{match.group(2)}:{rest}'

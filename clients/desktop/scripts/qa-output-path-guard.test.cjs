@@ -22,7 +22,9 @@
  * `extended-missing`·`case` 세 케이스에서 플랫폼 분기 없이 Windows 판정(확장 길이
  * prefix 제거·대소문자 무시)을 무조건 단언해, 리눅스 CI(desktop-playwright 잡의
  * mock 회귀 hard gate 641 테스트 전체)를 막았다. resolver 자신은 이 세 의미론을
- * `process.platform === 'win32'` 로 정확히 분기하므로(qa-shots-dir.cjs:43,52 등),
+ * `process.platform === 'win32'` 로 정확히 분기하므로(qa-shots-dir.cjs:81,91 등 — 2026-07-28
+ * R5 재수렴 정정: 이 fix 로 또 줄번호가 밀렸다. 아래 249행 인용과 함께 이 fix 완료 후 최종
+ * 파일 기준으로 다시 확인한 값이다. 향후 편집으로 다시 밀릴 수 있으니 회의적으로 볼 것),
  * POSIX 에서는 이 표기들이 물리적으로 다른(차단되지 않아야 할) 경로다 — resolver 는
  * 옳고 테스트가 틀렸다. 세 케이스는 이제 Windows 에서만 실행한다(POSIX 에서 실행하면
  * resolver 가 차단하지 않고 실제 mkdirSync 까지 진행해 저장소 밖에 부작용을 남기므로,
@@ -81,6 +83,36 @@ const tempRoot = path.join(os.tmpdir(), 'samhan-863-qa-output-path-guard')
  */
 const OTHER_SLUG_COMMITTED_DIR = path.join(docsQaRoot, '809-partner-product-price-memory')
 const MY_FIXTURE_COMMITTED_DIR = path.join(docsQaRoot, '__863-r1-guard-fixture__')
+
+function isWindowsPlatform() {
+  return process.platform === 'win32'
+}
+
+/**
+ * 이 머신에 실제로 바인딩된 non-internal IPv4 주소 하나 — 2026-07-28 R5 재수렴
+ * 결함3(자기 LAN IP UNC admin-share 가 10개 resolver 사본 전부를 통과) 재현/회귀
+ * 테스트에 쓴다. os.networkInterfaces() 는 로컬 전용 조회라(네트워크 I/O 없음)
+ * 원격 호스트 stat 기반 신원 대조와 달리 행(hang) 위험이 없다 — resolver 쪽 fix 도
+ * 같은 이유로 이 API 를 쓴다(scripts/lib/qa-shots-dir.cjs 의 getSelfLanAddresses).
+ * 이 파일 최상단(첫 test() 호출보다 먼저)에 둔다 — 여러 테스트가 파일 여기저기서
+ * 참조하는데 test(...) 의 옵션 객체(예: { skip: LAN_IP_SKIP_REASON })는 등록 시점
+ * (모듈 최초 실행, 파일 상단→하단 순서)에 즉시 평가되어 const 의 TDZ(temporal dead
+ * zone)에 걸리기 쉽다 — 실제로 두 번 걸려서 여기로 옮겼다.
+ */
+function getSelfLanIPv4() {
+  const nets = os.networkInterfaces()
+  for (const addrs of Object.values(nets)) {
+    for (const addr of addrs ?? []) {
+      if (addr.family === 'IPv4' && !addr.internal) return addr.address
+    }
+  }
+  return null
+}
+
+const SELF_LAN_IPV4 = isWindowsPlatform() ? getSelfLanIPv4() : null
+const LAN_IP_SKIP_REASON = SELF_LAN_IPV4
+  ? false
+  : 'UNC admin-share 는 Windows 전용 개념이거나(POSIX) 이 머신에 non-internal IPv4 인터페이스가 없습니다'
 
 function resetEnvironment() {
   delete process.env.QA_SHOTS_DIR
@@ -216,7 +248,9 @@ test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세
   ]
   // Windows 전용 케이스 — `\\?\` 확장 길이 prefix 제거와 대소문자 무시는 Windows
   // 파일시스템 의미론이고, resolver 도 이를 `process.platform === 'win32'` 로 정확히
-  // 분기한다(qa-shots-dir.cjs:43,52 · qa-screenshot-dir.ts:73,82 · .mjs:38,47). POSIX
+  // 분기한다(qa-shots-dir.cjs:81,91 · qa-screenshot-dir.ts:106,116 · .mjs:71,81 — 2026-07-28
+  // R5 재수렴 fix 완료 후 최종 파일 기준 재확인값. 이전 라운드(R4)가 만든 값(43,52·73,82·
+  // 38,47)이 이번 fix 의 삽입으로 다시 드리프트했었다). POSIX
   // 에서 `\\?\<path>` 표기와 대문자 표기는 물리적으로 "다른"(실존하지 않는) 경로이므로
   // resolver 가 차단하지 '않는' 것이 옳다 — 여기서 무조건 차단을 단언한 R2 테스트가
   // 리눅스 CI(mock 회귀 hard gate 641 테스트 게이트)를 막았다(R3 재수렴, 2026-07-28,
@@ -707,6 +741,70 @@ test(
   },
 )
 
+// 2026-07-28 R5 재수렴 결함2/D-2 — qa-shots-dir.ps1 자신의 Resolve-QaShotsDir 도
+// operational-validation.ps1(T-17/D-2)과 같은 Resolve-QaPhysicalPath 를 쓴다. 별도
+// 사본이므로 독립적으로 실 자식 프로세스로 재현한다(U-2 — "같은 텍스트 패턴이니
+// 대표 사례가 나머지를 대표한다"는 추론 금지, 10사본 전부 개별 확인).
+test(
+  'T-18 (2026-07-28 R5 재수렴 결함2/D-2) — qa-shots-dir.ps1 의 Resolve-QaShotsDir 는 subst 드라이브·크로스드라이브 junction 을 통해 지정된 커밋 경로도 차단한다',
+  { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
+  () => {
+    const libPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1')
+    let substLetter = null
+    for (let code = 87; code <= 90; code += 1) {
+      const candidate = String.fromCharCode(code)
+      if (!fs.existsSync(`${candidate}:\\`)) {
+        substLetter = candidate
+        break
+      }
+    }
+    assert.ok(substLetter, '이 머신에서 subst 에 쓸 미사용 드라이브 문자(W~Z)를 찾지 못했습니다')
+
+    // --- subst ---
+    execFileSync('subst', [`${substLetter}:`, docsQaRoot])
+    try {
+      const psCommand = [
+        `. '${libPath}'`,
+        `try { Resolve-QaShotsDir -CommittedDir '${MY_FIXTURE_COMMITTED_DIR}' -RequestedDir '${substLetter}:\\__957-r5-libps1-subst-guard-fixture__' | Out-Null; Write-Output 'ALLOW' } catch { Write-Output ('BLOCK:' + $_.Exception.Message) }`,
+      ].join('; ')
+      const out = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 20000 })
+      assert.match(
+        out,
+        /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
+        `qa-shots-dir.ps1 이 subst 드라이브(${substLetter}:)를 통해 지정된 커밋 경로를 차단하지 못했습니다(결함2 재발). 출력: ${out}`,
+      )
+    } finally {
+      execFileSync('subst', [`${substLetter}:`, '/D'])
+      fs.rmSync(path.join(docsQaRoot, '__957-r5-libps1-subst-guard-fixture__'), { recursive: true, force: true })
+    }
+
+    // --- 크로스드라이브 junction(D-2) — tempRoot(보통 C: 아래)에 junction 을 만들어
+    // docsQaRoot(D: 아래, 이 저장소가 D: 에 있음)를 가리키게 한다. junction 은 항상
+    // "담은 부모"를 재귀삭제한다 — junction 경로 자체를 최상위 인자로 삭제하면
+    // 대상 콘텐츠까지 cascade 삭제될 위험이 있다(이 라운드 실측, Node 도 동일).
+    const junctionParent = path.join(tempRoot, 't18-cross-drive-junction-parent')
+    fs.rmSync(junctionParent, { recursive: true, force: true })
+    fs.mkdirSync(junctionParent, { recursive: true })
+    const junctionChild = path.join(junctionParent, 'link-to-docs-qa')
+    fs.symlinkSync(docsQaRoot, junctionChild, 'junction')
+    try {
+      const requestedDir = path.join(junctionChild, '__957-r5-libps1-junction-guard-fixture__')
+      const psCommand = [
+        `. '${libPath}'`,
+        `try { Resolve-QaShotsDir -CommittedDir '${MY_FIXTURE_COMMITTED_DIR}' -RequestedDir '${requestedDir}' | Out-Null; Write-Output 'ALLOW' } catch { Write-Output ('BLOCK:' + $_.Exception.Message) }`,
+      ].join('; ')
+      const out = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand], { encoding: 'utf8', timeout: 20000 })
+      assert.match(
+        out,
+        /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
+        `qa-shots-dir.ps1 이 크로스드라이브 junction 을 통해 지정된 커밋 경로를 차단하지 못했습니다(D-2 재발). 출력: ${out}`,
+      )
+    } finally {
+      fs.rmSync(junctionParent, { recursive: true, force: true })
+    }
+  },
+)
+
 function loadCaptureOutputDirResolver(fakeDirname) {
   const capturePath = path.join(desktopRoot, 'src', 'main', 'capture.ts')
   const originalSource = fs.readFileSync(capturePath, 'utf8')
@@ -845,7 +943,191 @@ test(
   },
 )
 
-test('capture.ts 관찰(2026-07-28 R4 재수렴 결함3) — 자기 자신을 가리키는 UNC admin-share 표기도 물리 가드가 차단한다', () => {
+// ============================================================================
+// 2026-07-28 R5 재수렴 A2 — operational-validation.ps1 결함2/D-1/D-2.
+// ============================================================================
+
+test(
+  'T-17 (2026-07-28 R5 재수렴 결함2) — operational-validation.ps1 은 subst 드라이브를 통해 지정된 커밋 경로도 차단한다',
+  { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
+  () => {
+    const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+    let substLetter = null
+    for (let code = 87; code <= 90; code += 1) {
+      const candidate = String.fromCharCode(code)
+      if (!fs.existsSync(`${candidate}:\\`)) {
+        substLetter = candidate
+        break
+      }
+    }
+    assert.ok(substLetter, '이 머신에서 subst 에 쓸 미사용 드라이브 문자(W~Z)를 찾지 못했습니다')
+    execFileSync('subst', [`${substLetter}:`, docsQaRoot])
+    try {
+      const fixtureReportPath = `${substLetter}:\\__957-r5-opsval-subst-guard-fixture__\\REPORT.md`
+      let threw = false
+      let combined = ''
+      try {
+        combined = execFileSync(
+          POWERSHELL_EXE,
+          ['-NoProfile', '-Command', `& '${scriptPath}' -SkipDocker -ReportPath '${fixtureReportPath}'`],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+        )
+      } catch (e) {
+        threw = true
+        combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+      }
+      assert.ok(
+        threw,
+        `subst 드라이브(${substLetter}:)를 통해 커밋 경로를 겨눴는데 차단되지 않았습니다(exit 0, 결함2 재발). 출력 마지막 300자: ${combined.slice(-300)}`,
+      )
+      assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력 마지막 300자: ${combined.slice(-300)}`)
+    } finally {
+      execFileSync('subst', [`${substLetter}:`, '/D'])
+      // 방어적 정리 — 가드가 회귀해 실제로 fixture 가 생겼더라도(RED 상태) docs/qa 에
+      // 잔재를 남기지 않는다(GREEN 상태에서는 애초에 생성되지 않아 no-op).
+      fs.rmSync(path.join(docsQaRoot, '__957-r5-opsval-subst-guard-fixture__'), { recursive: true, force: true })
+    }
+  },
+)
+
+// D-2 (2026-07-28 R5 재수렴) — 크로스드라이브(C: 부모 -> D: 대상) junction 아래에서
+// operational-validation.ps1 의 Resolve-QaPhysicalPath 가 잘못된 Target(접근 드라이브
+// 문자를 그대로 유지한 팬텀 경로)을 돌려줘 가드가 무력화됐다. tempRoot(os.tmpdir(),
+// 이 머신에서 C: 아래)에 junction 을 만들어 docsQaRoot(D: 아래)를 가리키게 한다 —
+// 실제 존재하는 두 드라이브 조합으로 재현한다.
+test(
+  'D-2 (2026-07-28 R5 재수렴) — operational-validation.ps1 은 크로스드라이브 junction 을 통해 지정된 커밋 경로도 차단한다',
+  { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
+  () => {
+    const junctionParent = path.join(tempRoot, 'd2-cross-drive-junction-parent')
+    fs.rmSync(junctionParent, { recursive: true, force: true })
+    fs.mkdirSync(junctionParent, { recursive: true })
+    const junctionChild = path.join(junctionParent, 'link-to-docs-qa')
+    fs.symlinkSync(docsQaRoot, junctionChild, 'junction')
+    // junctionParent 는 tempRoot(보통 C: 아래) 의 자식이고 docsQaRoot 는 D: 아래이므로
+    // (이 저장소가 D: 에 있음) 실제 크로스드라이브 조합이다. junction 을 지울 때는 항상
+    // "junction 을 담은 부모"를 재귀삭제한다 — junction 경로 자체를 최상위 인자로 재귀
+    // 삭제하면(이 라운드 실측) 대상 콘텐츠까지 cascade 삭제될 위험이 있다(Node 도 동일).
+    try {
+      const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+      const fixtureReportPath = path.join(junctionChild, '__957-r5-opsval-junction-guard-fixture__', 'REPORT.md')
+      let threw = false
+      let combined = ''
+      try {
+        combined = execFileSync(
+          POWERSHELL_EXE,
+          ['-NoProfile', '-Command', `& '${scriptPath}' -SkipDocker -ReportPath '${fixtureReportPath}'`],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+        )
+      } catch (e) {
+        threw = true
+        combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+      }
+      assert.ok(
+        threw,
+        `크로스드라이브 junction 을 통해 커밋 경로를 겨눴는데 차단되지 않았습니다(exit 0, D-2 재발). 출력 마지막 300자: ${combined.slice(-300)}`,
+      )
+      assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력 마지막 300자: ${combined.slice(-300)}`)
+    } finally {
+      fs.rmSync(junctionParent, { recursive: true, force: true })
+    }
+  },
+)
+
+test(
+  'T-19 (2026-07-28 R5 재수렴 결함3) — operational-validation.ps1 도 자기 LAN IP UNC admin-share 를 차단한다',
+  { skip: POWERSHELL_SKIP_REASON || LAN_IP_SKIP_REASON, timeout: 30000 },
+  () => {
+    const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+    const fixtureUnderDocsQa = path.join(docsQaRoot, '__957-r5-opsval-lanip-guard-fixture__')
+    const uncTarget = `\\\\${SELF_LAN_IPV4}\\${fixtureUnderDocsQa.slice(0, 1).toLowerCase()}$${fixtureUnderDocsQa.slice(2)}`
+    let threw = false
+    let combined = ''
+    let fixtureWasCreated = false
+    try {
+      combined = execFileSync(
+        POWERSHELL_EXE,
+        ['-NoProfile', '-Command', `$env:QA_SHOTS_DIR='${uncTarget}'; & '${scriptPath}' -SkipDocker`],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+      )
+    } catch (e) {
+      threw = true
+      combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    } finally {
+      fixtureWasCreated = fs.existsSync(fixtureUnderDocsQa)
+      // 방어적 정리 — 가드가 회귀해 실제로 fixture 가 생겼더라도(RED 상태) docs/qa 에
+      // 잔재를 남기지 않는다(GREEN 상태에서는 애초에 생성되지 않아 no-op).
+      fs.rmSync(fixtureUnderDocsQa, { recursive: true, force: true })
+    }
+    assert.ok(
+      threw,
+      `자기 LAN IP(${SELF_LAN_IPV4}) UNC 로 커밋 경로를 겨눴는데 차단되지 않았습니다(exit 0, 결함3 재발). 출력 마지막 300자: ${combined.slice(-300)}`,
+    )
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력 마지막 300자: ${combined.slice(-300)}`)
+    assert.equal(fixtureWasCreated, false, 'fixture 디렉터리가 실제로 생성됐습니다 — 가드가 막지 못했습니다.')
+  },
+)
+
+// D-1 (2026-07-28 R5 재수렴, R4 회귀) — $docsQaRoot(가드 기준점)는 $PSScriptRoot(스크립트
+// 자신의 물리 위치)를 따르는데 $CommittedReportDir(실제 write 대상 유도)는 -ProjectRoot 를
+// 따른다. -ProjectRoot 가 스크립트가 물리적으로 든 체크아웃과 "다른, 실존하는" 체크아웃을
+// 정당하게 가리키면(스크립트 자신의 .EXAMPLE 이 그 형태를 안내한다) $docsQaRoot 는 여전히
+// "이 스크립트가 든" 체크아웃에 고정된 채라, QA_SHOTS_DIR 를 그 다른 체크아웃의 실제 커밋
+// docs/qa 로 지정해도 두 값이 물리적으로 달라 가드가 통과(ALLOW)해버린다 — 그 다른 체크아웃의
+// 커밋 REPORT.md 가 실제로 덮어써진다. 저장소 밖 throwaway "체크아웃"(스크립트 파일은 복사하지
+// 않고 이 저장소의 실제 스크립트를 그대로 실행 — -ProjectRoot 인자만 그 throwaway 트리를
+// 가리킨다)으로 재현한다.
+test(
+  'D-1 (2026-07-28 R5 재수렴, R4 회귀) — operational-validation.ps1 을 -ProjectRoot 로 다른 "실존하는" 체크아웃을 가리키면 그 체크아웃의 커밋 docs/qa 도 보호된다',
+  { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
+  () => {
+    const otherCheckoutRoot = path.join(tempRoot, 'd1-other-real-checkout')
+    const otherCommittedDir = path.join(otherCheckoutRoot, 'docs', 'qa', 'operational-validation')
+    fs.rmSync(otherCheckoutRoot, { recursive: true, force: true })
+    fs.mkdirSync(otherCommittedDir, { recursive: true })
+    const committedReportPath = path.join(otherCommittedDir, 'REPORT.md')
+    fs.writeFileSync(committedReportPath, '# 커밋된 것처럼 취급되는 REPORT (throwaway 체크아웃)\n')
+    const beforeContent = fs.readFileSync(committedReportPath, 'utf8')
+
+    const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+    process.env.QA_SHOTS_DIR = otherCommittedDir
+    let threw = false
+    let combined = ''
+    try {
+      combined = execFileSync(
+        POWERSHELL_EXE,
+        ['-NoProfile', '-Command', `& '${scriptPath}' -SkipDocker -ProjectRoot '${otherCheckoutRoot}'`],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+      )
+    } catch (e) {
+      threw = true
+      combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+    } finally {
+      delete process.env.QA_SHOTS_DIR
+    }
+
+    assert.ok(
+      threw,
+      `-ProjectRoot 가 가리킨 다른 실존 체크아웃의 커밋 경로를 QA_SHOTS_DIR 로 겨눴는데 차단되지 않았습니다(exit 0, D-1 재발). 출력 마지막 300자: ${combined.slice(-300)}`,
+    )
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `가드 메시지가 아닌 다른 이유로 실패했을 수 있습니다. 출력 마지막 300자: ${combined.slice(-300)}`)
+    const afterContent = fs.readFileSync(committedReportPath, 'utf8')
+    assert.equal(afterContent, beforeContent, '다른 체크아웃의 커밋된 REPORT.md 내용이 실제로 덮어써졌습니다(D-1 재발).')
+    fs.rmSync(otherCheckoutRoot, { recursive: true, force: true })
+  },
+)
+
+// 2026-07-28 R5 재수렴 CI RED② — 이 테스트는 process.platform 분기 없이 Windows 전용
+// UNC admin-share 문자열을 만들어 assert.throws 를 단언했다. capture.ts 의 resolver 자신은
+// isWindows 로 정확히 분기해 UNC 정규화를 Windows 에서만 수행하므로(정상), Linux 에서는
+// 이 UNC 형태 문자열이 물리적으로 아무 의미도 없어 가드가 당연히 통과(ALLOW)시킨다 —
+// "Missing expected exception" 으로 desktop-playwright CI 잡(mock 회귀 hard gate) 이 항상
+// RED 였다(R4 담당이 "논리로는 안전하나 실측은 안 함" 이라 남긴 가정이 실측으로 반증됨).
+// T-8(py)·T-9(sh) 와 동일하게 Windows 전용으로 gate 한다 — 결함3 자체와 무관한 결함이다.
+test(
+  'capture.ts 관찰(2026-07-28 R4 재수렴 결함3) — 자기 자신을 가리키는 UNC admin-share 표기도 물리 가드가 차단한다',
+  { skip: isWindowsPlatform() ? false : 'UNC admin-share 는 Windows 전용 개념입니다(resolver 도 process.platform===\'win32\' 로 분기, 2026-07-28 R5 CI RED② 재수렴)' },
+  () => {
   const resolveOutputDir = loadCaptureOutputDirResolver(path.join(desktopRoot, 'src', 'main'))
   const realCommittedDir = path.join(docsQaRoot, 'electron-skeleton-slice', 'screenshots')
   const uncTarget = `\\\\localhost\\${realCommittedDir.slice(0, 1).toLowerCase()}$${realCommittedDir.slice(2)}`
@@ -861,7 +1143,12 @@ test('capture.ts 관찰(2026-07-28 R4 재수렴 결함3) — 자기 자신을 �
   }
 })
 
-test('qa/playwright captureForQa(2026-07-28 R4 재수렴 결함3) — 자기 자신을 가리키는 UNC admin-share 목적지도 차단한다', async () => {
+// 2026-07-28 R5 재수렴 CI RED② 계열(위 capture.ts 테스트와 동일 근본원인) — 이 테스트도
+// 플랫폼 가드 없이 Windows 전용 UNC 문자열을 단언해 Linux CI 에서 실패할 수 있었다.
+test(
+  'qa/playwright captureForQa(2026-07-28 R4 재수렴 결함3) — 자기 자신을 가리키는 UNC admin-share 목적지도 차단한다',
+  { skip: isWindowsPlatform() ? false : 'UNC admin-share 는 Windows 전용 개념입니다(resolver 도 process.platform===\'win32\' 로 분기, 2026-07-28 R5 CI RED② 재수렴)' },
+  async () => {
   const captureForQa = loadQaPlaywrightCapture()
   process.env.QA_REPO_ROOT = repoRoot
   const uncTarget = `\\\\127.0.0.1\\${docsQaRoot.slice(0, 1).toLowerCase()}$${docsQaRoot.slice(2)}`
@@ -904,10 +1191,6 @@ const PYTHON_SKIP_REASON = !isWindowsPlatform()
     ? false
     : '이 환경에 python/python3 실행파일이 없습니다'
 
-function isWindowsPlatform() {
-  return process.platform === 'win32'
-}
-
 test(
   'T-8 (2026-07-28 R4 재수렴 결함3) — qa_shots_dir.py 도 자기 자신을 가리키는 UNC admin-share 표기를 차단한다',
   { skip: PYTHON_SKIP_REASON },
@@ -930,6 +1213,32 @@ test(
       out,
       /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
       `qa_shots_dir.py 가 UNC admin-share(localhost) 를 차단하지 못했습니다(결함3 재발). 출력: ${out}`,
+    )
+  },
+)
+
+test(
+  'T-13 (2026-07-28 R5 재수렴 결함3) — qa_shots_dir.py 도 자기 LAN IP UNC admin-share 를 차단한다',
+  { skip: PYTHON_SKIP_REASON || LAN_IP_SKIP_REASON },
+  () => {
+    const pyLibDir = path.join(repoRoot, 'scripts', 'lib')
+    const uncTarget = `\\\\${SELF_LAN_IPV4}\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+    const code = [
+      'import sys, os',
+      `sys.path.insert(0, ${JSON.stringify(pyLibDir)})`,
+      'from qa_shots_dir import resolve_qa_shots_dir',
+      `os.environ['QA_SHOTS_DIR'] = ${JSON.stringify(uncTarget)}`,
+      'try:',
+      `    resolve_qa_shots_dir(${JSON.stringify(MY_FIXTURE_COMMITTED_DIR)})`,
+      '    print("ALLOW")',
+      'except Exception as e:',
+      '    print("BLOCK:" + str(e))',
+    ].join('\n')
+    const out = execFileSync(PYTHON_EXE, ['-c', code], { encoding: 'utf8' })
+    assert.match(
+      out,
+      /^BLOCK:.*QA_ALLOW_OVERWRITE=1/s,
+      `qa_shots_dir.py 가 자기 LAN IP(${SELF_LAN_IPV4}) UNC 를 차단하지 못했습니다(결함3 재발). 출력: ${out}`,
     )
   },
 )
@@ -980,5 +1289,384 @@ test(
       /^BLOCK\t.*QA_ALLOW_OVERWRITE=1/s,
       `qa-shots-dir.sh 가 UNC admin-share(localhost) 를 차단하지 못했습니다(결함3 재발). 출력: ${out}`,
     )
+  },
+)
+
+test(
+  'T-14 (2026-07-28 R5 재수렴 결함3) — qa-shots-dir.sh 도 자기 LAN IP UNC admin-share 를 차단한다',
+  { skip: GITBASH_SKIP_REASON || LAN_IP_SKIP_REASON },
+  () => {
+    const shLibPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+    const targetPosix = MY_FIXTURE_COMMITTED_DIR.replaceAll('\\', '/')
+    const uncTarget = `\\\\${SELF_LAN_IPV4}\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+    const script = [
+      `source '${shLibPath}'`,
+      `export QA_SHOTS_DIR="$T14_UNC_TARGET"`,
+      `if out="$(resolve_qa_shots_dir '${targetPosix}' 2>&1)"; then printf 'ALLOW\\t%s' "$out"; else printf 'BLOCK\\t%s' "$out"; fi`,
+    ].join('\n')
+    const out = execFileSync(GITBASH_EXE, ['-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, T14_UNC_TARGET: uncTarget },
+      timeout: 20000,
+    })
+    assert.match(
+      out,
+      /^BLOCK\t.*QA_ALLOW_OVERWRITE=1/s,
+      `qa-shots-dir.sh 가 자기 LAN IP(${SELF_LAN_IPV4}) UNC 를 차단하지 못했습니다(결함3 재발). 출력: ${out}`,
+    )
+  },
+)
+
+// 2026-07-28 R5 재수렴 결함1 — .sh 만 UNC 슬래시/혼합 표기를 통과시켜 커밋 증거를 실제로
+// 덮어썼다. 근본 원인: 나머지 9개 사본은 정규화 이전에 path.resolve/GetFullPath/abspath 가
+// '/'→'\' 를 통일해 우연히 막았지만, .sh 의 _qa_normalize_unc_admin_share 정규식은
+// 리터럴 백슬래시만 매치해서 순수 슬래시(`//host/C$/...`)·혼합(`\\host\C$/...`) 표기는
+// 매치 자체가 안 돼 변환 없이 그대로 cygpath/realpath 로 넘어갔다(그 둘은 lexical
+// 변환이라 host/share 를 드라이브 문자로 통일하지 못한다).
+test(
+  'T-15 (2026-07-28 R5 재수렴 결함1) — qa-shots-dir.sh 는 UNC 슬래시(//host/C$/...)·혼합(\\host\\C$/...) 표기도 차단한다',
+  { skip: GITBASH_SKIP_REASON },
+  () => {
+    const shLibPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+    const targetPosix = MY_FIXTURE_COMMITTED_DIR.replaceAll('\\', '/')
+    const drive = OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()
+    const rest = OTHER_SLUG_COMMITTED_DIR.slice(2)
+    const cases = {
+      'all-slash': `//localhost/${drive}$${rest.replaceAll('\\', '/')}`,
+      'mixed-backslash-host-slash-rest': `\\\\localhost\\${drive}$${rest.replaceAll('\\', '/')}`,
+    }
+    for (const [label, uncTarget] of Object.entries(cases)) {
+      const script = [
+        `source '${shLibPath}'`,
+        `export QA_SHOTS_DIR="$T15_UNC_TARGET"`,
+        `if out="$(resolve_qa_shots_dir '${targetPosix}' 2>&1)"; then printf 'ALLOW\\t%s' "$out"; else printf 'BLOCK\\t%s' "$out"; fi`,
+      ].join('\n')
+      const out = execFileSync(GITBASH_EXE, ['-c', script], {
+        encoding: 'utf8',
+        env: { ...process.env, T15_UNC_TARGET: uncTarget },
+        timeout: 20000,
+      })
+      assert.match(
+        out,
+        /^BLOCK\t.*QA_ALLOW_OVERWRITE=1/s,
+        `qa-shots-dir.sh 가 [${label}] 표기(${uncTarget})를 차단하지 못했습니다(결함1 재발). 출력: ${out}`,
+      )
+    }
+  },
+)
+
+// 2026-07-28 R5 재수렴 결함2(.sh) — subst/net-use 매핑 드라이브를 통해 지정된 커밋
+// 경로가 차단되지 않았다. cygpath/realpath 는 순수 lexical 변환이라 DOS 디바이스 매핑을
+// 모른다(실측: cygpath -u 'X:\probe' → '/x/probe', 물리 대상으로 되돌리지 못함).
+// subst/net use 명령 자체의 텍스트 출력(둘 다 로캘 무관 안정 포맷 실측 확인)을
+// 유일한 권위 있는 매핑 소스로 파싱한다. 드라이브 문자로 시작하지 않는 입력(대다수
+// 실사용 경로)은 이 조회를 완전히 건너뛴다 — subst/net use 프로세스 기동이 각각
+// 약 0.4~0.5초로 느려(이 라운드 실측) hot path 에 넣을 수 없다.
+test(
+  'T-16 (2026-07-28 R5 재수렴 결함2) — qa-shots-dir.sh 는 subst 드라이브를 통해 지정된 커밋 경로도 차단한다',
+  { skip: GITBASH_SKIP_REASON, timeout: 30000 },
+  () => {
+    const shLibPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+    const targetPosix = MY_FIXTURE_COMMITTED_DIR.replaceAll('\\', '/')
+    const docsQaRootWin = docsQaRoot // 절대 Windows 경로, subst 대상으로 그대로 존재
+    let substLetter = null
+    for (let code = 87; code <= 90; code += 1) {
+      // W..Z 중 미사용 문자를 찾는다(A-V 는 실제 볼륨/구형 드라이브와 겹칠 위험 회피)
+      const candidate = String.fromCharCode(code)
+      if (!fs.existsSync(`${candidate}:\\`)) {
+        substLetter = candidate
+        break
+      }
+    }
+    assert.ok(substLetter, '이 머신에서 subst 에 쓸 미사용 드라이브 문자(W~Z)를 찾지 못했습니다')
+    execFileSync('subst', [`${substLetter}:`, docsQaRootWin])
+    try {
+      const substTargetPosix = `${substLetter.toLowerCase()}:/__957-r5-subst-guard-fixture__`
+      const script = [
+        `source '${shLibPath}'`,
+        `export QA_SHOTS_DIR="$T16_SUBST_TARGET"`,
+        `if out="$(resolve_qa_shots_dir '${targetPosix}' 2>&1)"; then printf 'ALLOW\\t%s' "$out"; else printf 'BLOCK\\t%s' "$out"; fi`,
+      ].join('\n')
+      const out = execFileSync(GITBASH_EXE, ['-c', script], {
+        encoding: 'utf8',
+        env: { ...process.env, T16_SUBST_TARGET: substTargetPosix },
+        timeout: 20000,
+      })
+      assert.match(
+        out,
+        /^BLOCK\t.*QA_ALLOW_OVERWRITE=1/s,
+        `qa-shots-dir.sh 가 subst 드라이브(${substLetter}:)를 통해 지정된 커밋 경로를 차단하지 못했습니다(결함2 재발). 출력: ${out}`,
+      )
+    } finally {
+      execFileSync('subst', [`${substLetter}:`, '/D'])
+      // 방어적 정리 — 가드가 회귀해 실제로 fixture 가 생겼더라도(RED 상태) docs/qa 에
+      // 잔재를 남기지 않는다(GREEN 상태에서는 애초에 생성되지 않아 no-op).
+      fs.rmSync(path.join(docsQaRoot, '__957-r5-subst-guard-fixture__'), { recursive: true, force: true })
+    }
+  },
+)
+
+// ============================================================================
+// 2026-07-28 R5 재수렴 결함1/2/3 · D-1/D-2 회귀 가드.
+//
+// R5 가 실행으로 반증한 것 — R4 는 "\\localhost\D$\...· \\127.0.0.1\D$\...·
+// \\<컴퓨터명>\D$\..." 세 표기만 자기호스트로 인정했는데, 실제 자기 LAN 어댑터 IP
+// (예: \\172.21.176.1\D$\...)는 10개 resolver 사본 전부에서 여전히 통과(ALLOW)했다
+// (결함3). 고정 별칭 목록은 "열거"이므로 어댑터가 느는 대로 다시 뚫린다 — 그래서 이
+// fix 는 고정 목록에 "로컬 인터페이스 실측 조회"를 추가한다(모든 어댑터 IP 를 실제
+// OS API 로 물어봐서 비교 — DNS/원격 접속 없이 로컬에서 즉시 끝나는 조회만 쓴다.
+// 원격 호스트에 대한 fs.statSync 기반 신원 대조는 이 라운드에서 조사했지만
+// 실측으로 도달 불가능한 호스트에서 8초+ 행(hang) 이 재현돼 채택하지 않았다).
+// SELF_LAN_IPV4/LAN_IP_SKIP_REASON 정의는 이 파일 상단(PYTHON_SKIP_REASON 근처)으로
+// 옮겨져 있다 — T-13(Python)·T-15(sh) 등 더 이른 테스트도 이를 참조하기 때문이다.
+// ============================================================================
+
+test(
+  'T-10 (2026-07-28 R5 재수렴 결함3) — 4 resolver(cjs/mjs/root-mjs/ts)가 자기 LAN IP UNC admin-share 도 차단한다(고정 별칭 목록이 아니라 로컬 인터페이스 실측 기반 — R4 는 localhost/127.0.0.1/컴퓨터명만 인정했다)',
+  { skip: LAN_IP_SKIP_REASON },
+  async () => {
+    const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
+    const { resolveQaShotsDir: rootMjsResolve } = await import(pathToFileURL(rootMjsHelperPath).href)
+    const resolvers = [
+      ['cjs', resolveQaShotsDir],
+      ['mjs', mjsResolve],
+      ['root-mjs', rootMjsResolve],
+      ['ts', loadTypeScriptResolver()],
+    ]
+    const uncTarget = `\\\\${SELF_LAN_IPV4}\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+    try {
+      for (const [resolverName, resolver] of resolvers) {
+        process.env.QA_SHOTS_DIR = uncTarget
+        assert.throws(
+          () => resolver(MY_FIXTURE_COMMITTED_DIR),
+          (error) => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+          `${resolverName} 가 자기 LAN IP(${SELF_LAN_IPV4}) UNC 표기를 차단하지 못했습니다(결함3 재발).`,
+        )
+      }
+    } finally {
+      delete process.env.QA_SHOTS_DIR
+    }
+  },
+)
+
+test(
+  'capture.ts 관찰(2026-07-28 R5 재수렴 결함3) — 자기 LAN IP UNC admin-share 표기도 물리 가드가 차단한다',
+  { skip: LAN_IP_SKIP_REASON },
+  () => {
+    const resolveOutputDir = loadCaptureOutputDirResolver(path.join(desktopRoot, 'src', 'main'))
+    const realCommittedDir = path.join(docsQaRoot, 'electron-skeleton-slice', 'screenshots')
+    const uncTarget = `\\\\${SELF_LAN_IPV4}\\${realCommittedDir.slice(0, 1).toLowerCase()}$${realCommittedDir.slice(2)}`
+    process.env.QA_SHOTS_DIR = uncTarget
+    try {
+      assert.throws(
+        () => resolveOutputDir(),
+        (error) => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+        `capture.ts 가 자기 LAN IP(${SELF_LAN_IPV4}) UNC 표기로 지정된 커밋 경로를 차단하지 못했습니다(결함3 재발).`,
+      )
+    } finally {
+      delete process.env.QA_SHOTS_DIR
+    }
+  },
+)
+
+test(
+  'qa/playwright captureForQa(2026-07-28 R5 재수렴 결함3) — 자기 LAN IP UNC 목적지도 차단한다',
+  { skip: LAN_IP_SKIP_REASON },
+  async () => {
+    const captureForQa = loadQaPlaywrightCapture()
+    process.env.QA_REPO_ROOT = repoRoot
+    const uncTarget = `\\\\${SELF_LAN_IPV4}\\${docsQaRoot.slice(0, 1).toLowerCase()}$${docsQaRoot.slice(2)}`
+    process.env.QA_SHOTS_DIR = uncTarget
+
+    const page = {
+      screenshot: async () => {
+        throw new Error('물리 경로 가드가 먼저 실패해야 합니다')
+      },
+    }
+    const testInfo = { attach: async () => {} }
+
+    try {
+      await assert.rejects(
+        () => captureForQa(page, testInfo, 'qa-playwright-lan-ip-alias'),
+        (error) => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+      )
+    } finally {
+      delete process.env.QA_REPO_ROOT
+      delete process.env.QA_SHOTS_DIR
+    }
+  },
+)
+
+// ============================================================================
+// 2026-07-28 R5 재수렴 부수 지적 — "타 호스트는 여전히 ALLOW(과차단 0)" 가 R4/R5 라운드
+// 보고서에 실행 결과처럼 인용됐지만, 저장소에 이를 확인하는 **자동 테스트가 없었다**(대조
+// 각도가 독립 수동 프로브로 참임을 확인했을 뿐 — 이 저장소가 스스로 회귀를 잡지 못하는
+// 상태였다). 결함3 fix(자기 LAN IP 로컬 인터페이스 조회 추가)는 특히 "진짜 다른 호스트를
+// 실수로 self 로 오판하지 않는가"가 핵심 과차단 위험이므로, 그 축을 10개 사본 전부에서
+// 직접 검증하는 자동 테스트를 추가한다(서술 정정 대신 테스트 추가 쪽을 택함 — 재발 방지
+// 가치가 더 크다).
+// ============================================================================
+test(
+  'N-3 (2026-07-28 R5 재수렴 부수) — 진짜 다른 호스트를 가리키는 UNC admin-share 는 10개 resolver 사본 전부에서 여전히 ALLOW 다(과차단 0)',
+  { skip: LAN_IP_SKIP_REASON },
+  async () => {
+    // 실존하지 않을 가능성이 매우 높은 사설 IP(TEST-NET-3, RFC 5737)를 "다른 호스트"로
+    // 쓴다 — 이 머신의 실제 어댑터 IP(SELF_LAN_IPV4)와 절대 겹치지 않는다.
+    const otherHost = '203.0.113.77'
+    assert.notEqual(otherHost, SELF_LAN_IPV4, '테스트 상수가 우연히 이 머신의 실제 IP 와 같습니다 — 다른 값으로 교체할 것')
+    const uncTarget = `\\\\${otherHost}\\${OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()}$${OTHER_SLUG_COMMITTED_DIR.slice(2)}`
+
+    // --- Node/TS 4종(cjs/mjs/root-mjs/ts) ---
+    const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
+    const { resolveQaShotsDir: rootMjsResolve } = await import(pathToFileURL(rootMjsHelperPath).href)
+    const nodeResolvers = [
+      ['cjs', resolveQaShotsDir],
+      ['mjs', mjsResolve],
+      ['root-mjs', rootMjsResolve],
+      ['ts', loadTypeScriptResolver()],
+    ]
+    // 주의 — otherHost 는 실존하지 않는 호스트라, 가드가 "차단 안 함"(ALLOW) 판정을 내린
+    // *이후*에도 실제 fs.mkdirSync/mkdir 시도 자체가 ENOENT/EHOSTUNREACH 류로 실패한다.
+    // 이건 "다른 호스트를 실제로 쓸 수 없다"는 당연한 결과이지 과차단이 아니다 — 그래서
+    // 예외가 나더라도 **가드의 특정 메시지(QA_ALLOW_OVERWRITE=1)가 아니면** 과차단이
+    // 아닌 것으로 판정한다(가드가 던지는 유일한 예외 서명이 이 문자열이다).
+    function isGuardBlockedError(error) {
+      return error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1')
+    }
+
+    for (const [resolverName, resolver] of nodeResolvers) {
+      process.env.QA_SHOTS_DIR = uncTarget
+      let guardBlocked = false
+      try {
+        resolver(MY_FIXTURE_COMMITTED_DIR)
+      } catch (error) {
+        guardBlocked = isGuardBlockedError(error)
+      } finally {
+        delete process.env.QA_SHOTS_DIR
+      }
+      assert.equal(guardBlocked, false, `${resolverName} 가 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀).`)
+    }
+
+    // --- capture.ts ---
+    {
+      const resolveOutputDir = loadCaptureOutputDirResolver(path.join(desktopRoot, 'src', 'main'))
+      const realCommittedDir = path.join(docsQaRoot, 'electron-skeleton-slice', 'screenshots')
+      const captureUncTarget = `\\\\${otherHost}\\${realCommittedDir.slice(0, 1).toLowerCase()}$${realCommittedDir.slice(2)}`
+      process.env.QA_SHOTS_DIR = captureUncTarget
+      let guardBlocked = false
+      try {
+        resolveOutputDir()
+      } catch (error) {
+        guardBlocked = isGuardBlockedError(error)
+      } finally {
+        delete process.env.QA_SHOTS_DIR
+      }
+      assert.equal(guardBlocked, false, `capture.ts 가 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀).`)
+    }
+
+    // --- qa/playwright --- (mkdir 이 fake host 에서 실패할 수 있으므로 가드 메시지
+    // 유무로만 과차단을 판정한다. mkdir 자체의 실패는 이 테스트의 관심사가 아니다.)
+    {
+      const captureForQa = loadQaPlaywrightCapture()
+      process.env.QA_REPO_ROOT = repoRoot
+      process.env.QA_SHOTS_DIR = `\\\\${otherHost}\\${docsQaRoot.slice(0, 1).toLowerCase()}$${docsQaRoot.slice(2)}`
+      const page = { screenshot: async () => {} }
+      const testInfo = { attach: async () => {} }
+      let guardBlocked = false
+      try {
+        await captureForQa(page, testInfo, 'qa-playwright-other-host-allow')
+      } catch (error) {
+        guardBlocked = isGuardBlockedError(error)
+      } finally {
+        delete process.env.QA_REPO_ROOT
+        delete process.env.QA_SHOTS_DIR
+      }
+      assert.equal(guardBlocked, false, `qa/playwright 가 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀).`)
+    }
+
+    // --- Python ---
+    if (!PYTHON_SKIP_REASON) {
+      const pyLibDir = path.join(repoRoot, 'scripts', 'lib')
+      const code = [
+        'import sys, os',
+        `sys.path.insert(0, ${JSON.stringify(pyLibDir)})`,
+        'from qa_shots_dir import resolve_qa_shots_dir',
+        `os.environ['QA_SHOTS_DIR'] = ${JSON.stringify(uncTarget)}`,
+        'try:',
+        `    resolve_qa_shots_dir(${JSON.stringify(MY_FIXTURE_COMMITTED_DIR)})`,
+        '    print("ALLOW")',
+        'except Exception as e:',
+        '    print("BLOCK:" + str(e))',
+      ].join('\n')
+      // otherHost 가 실존하지 않아 os.makedirs 자체가(가드 통과 후) 실패할 수 있다 —
+      // 그 실패는 과차단이 아니다. 가드의 특정 메시지가 없으면 과차단 아닌 것으로 판정.
+      const out = execFileSync(PYTHON_EXE, ['-c', code], { encoding: 'utf8' })
+      assert.doesNotMatch(
+        out,
+        /QA_ALLOW_OVERWRITE=1/,
+        `qa_shots_dir.py 가 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀). 출력: ${out}`,
+      )
+    }
+
+    // --- sh ---
+    if (!GITBASH_SKIP_REASON) {
+      const shLibPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+      const targetPosix = MY_FIXTURE_COMMITTED_DIR.replaceAll('\\', '/')
+      const script = [
+        `source '${shLibPath}'`,
+        `export QA_SHOTS_DIR="$N3_UNC_TARGET"`,
+        `if out="$(resolve_qa_shots_dir '${targetPosix}' 2>&1)"; then printf 'ALLOW\\t%s' "$out"; else printf 'BLOCK\\t%s' "$out"; fi`,
+      ].join('\n')
+      // otherHost 가 실존하지 않아 mkdir -p 자체가(가드 통과 후) 실패할 수 있다 — 그
+      // 실패는 과차단이 아니다. 가드의 특정 메시지가 없으면 과차단 아닌 것으로 판정.
+      const out = execFileSync(GITBASH_EXE, ['-c', script], {
+        encoding: 'utf8',
+        env: { ...process.env, N3_UNC_TARGET: uncTarget },
+        timeout: 20000,
+      })
+      assert.doesNotMatch(
+        out,
+        /QA_ALLOW_OVERWRITE=1/,
+        `qa-shots-dir.sh 가 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀). 출력: ${out}`,
+      )
+    }
+
+    // --- PowerShell 2종(qa-shots-dir.ps1 / operational-validation.ps1) ---
+    if (!POWERSHELL_SKIP_REASON) {
+      const libPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1')
+      const psCommand1 = [
+        `. '${libPath}'`,
+        `try { Resolve-QaShotsDir -CommittedDir '${MY_FIXTURE_COMMITTED_DIR}' -RequestedDir '${uncTarget}' | Out-Null; Write-Output 'ALLOW' } catch { Write-Output ('BLOCK:' + $_.Exception.Message) }`,
+      ].join('; ')
+      // otherHost 가 실존하지 않아 New-Item(디렉터리 생성) 자체가(가드 통과 후) 실패할 수
+      // 있다 — 그 실패는 과차단이 아니다. 가드의 특정 메시지가 없으면 과차단 아닌 것으로 판정.
+      const out1 = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand1], { encoding: 'utf8', timeout: 20000 })
+      assert.doesNotMatch(
+        out1,
+        /QA_ALLOW_OVERWRITE=1/,
+        `qa-shots-dir.ps1 이 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀). 출력: ${out1}`,
+      )
+
+      const opsvalScriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+      let threw = false
+      let combined = ''
+      try {
+        combined = execFileSync(
+          POWERSHELL_EXE,
+          ['-NoProfile', '-Command', `$env:QA_SHOTS_DIR='${uncTarget}'; & '${opsvalScriptPath}' -SkipDocker -ProjectRoot '${repoRoot}'`],
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 60000 },
+        )
+      } catch (e) {
+        threw = true
+        combined = `${e.stdout ?? ''}${e.stderr ?? ''}`
+      }
+      // 과차단 되지 않았다면 가드 throw 가 없어 스크립트가 끝까지 실행돼야 한다(항목 4 의
+      // 무관한 선재 Join-Path 비종료 오류는 나더라도 [QA 출력 경로 가드] 메시지는 없어야 함).
+      assert.doesNotMatch(
+        combined,
+        /\[QA 출력 경로 가드\]/,
+        `operational-validation.ps1 이 진짜 다른 호스트(${otherHost}) UNC 를 과차단했습니다(회귀). 출력 마지막 300자: ${combined.slice(-300)}`,
+      )
+    }
   },
 )
