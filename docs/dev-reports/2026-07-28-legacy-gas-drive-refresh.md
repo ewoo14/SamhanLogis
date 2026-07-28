@@ -27,7 +27,7 @@ Drive Apps Script 프로젝트 **27개** 전수 열거(페이지네이션 2회 �
 
 **PM 실측 프로브** — `tools/legacy-gas/` 에 가짜 Notion 토큰을 심고 가드를 실행:
 ```text
-$ printf "const NOTION_TOKEN = 'ntn_FAKE1234567890abcdefghijklmnopqrstuvwxyz';\n" \
+$ printf "const NOTION_TOKEN = '<FAKE_NOTION_TOKEN>';\n" \
     > tools/legacy-gas/__guard_probe__.js
 $ bash scripts/check-credential-plaintext.sh
 EXIT=0
@@ -97,4 +97,88 @@ EXIT=0
 
 ## 7. 매핑표 · 프로젝트별 반영 결과
 
-(구현 단계에서 채운다)
+### 7-1. 기존 13종 placeholder 의미·문맥 매핑
+
+기존 저장소 사본(`tools/legacy-gas/**`)을 전수 검색해 변수명·호출 문맥과 placeholder를 대조했다. 같은 실값을 값 자체로 비교하지 않고, 변수·서비스 문맥으로만 비가역 매핑했다.
+
+| placeholder | 기존 출현 | 변수·문맥 |
+|---|---:|---|
+| `REDACTED_NOTION_TOKEN` | 62 | `NOTION_TOKEN`, `NOTION_TOKEN_*`, `MANAGER_NOTION_TOKEN`, `NOTION_API_KEY`, `AUTH_TOKEN`, `NOTION_KEY_SEND`; GAS `Code.js` 전반과 `거래처 발송 주문서/index.html`의 임베디드 Notion 호출. 같은 Notion 자격 계열은 역할(region/auth/save/data/log/shipping 등)과 무관하게 이 placeholder 하나로 통합 |
+| `REDACTED_ECOUNT_API_CERT_KEY` | 4 | `KEY_D`; `거래처 발송 주문서/Code.js`, `에어디자이너 전용 주문서 인식/Code.js`, `제이시스템 전용 주문서 인식/Code.js`, 미갱신 `종합견적서/Code.js`의 이카운트 인증키 문맥 |
+| `REDACTED_NAVER_MAP_KEY_ID` | 2 | `NAVER_MAP_KEY_ID`; 거래처 주문서 주소검색과 미갱신 종합견적서 주소검색 |
+| `REDACTED_NAVER_MAP_KEY` | 2 | `NAVER_MAP_KEY`; 위와 같은 네이버 지도 Maps 문맥 |
+| `REDACTED_ROAD_API_KEY` | 1 | `거래처 발송 주문서/Code.js`의 `ROAD_API_KEY`, 행안부 도로명주소 호출 |
+| `REDACTED_NAVER_SEARCH_SECRET` | 1 | `거래처 발송 주문서/Code.js`의 `NAVER_SEARCH_SECRET`, 네이버 개발자센터 검색 자격 |
+| `REDACTED_NAVER_SEARCH_ID` | 1 | `거래처 발송 주문서/Code.js`의 `NAVER_SEARCH_ID`, 네이버 개발자센터 검색 자격 |
+| `REDACTED_NAVER_SEARCH_CLIENT_SECRET` | 1 | 미갱신 `종합견적서/Code.js`의 같은 변수명이라도 네이버 클라우드 검색 client 자격 문맥 |
+| `REDACTED_NAVER_SEARCH_CLIENT_ID` | 1 | 미갱신 `종합견적서/Code.js`의 네이버 클라우드 검색 client 자격 문맥 |
+| `REDACTED_JUSO_ROAD_API_KEY` | 1 | 미갱신 `종합견적서/Code.js`의 `ROAD_API_KEY`, Juso API 문맥 |
+| `REDACTED_JUSO_BUILDING_API_KEY` | 1 | 미갱신 `종합견적서/Code.js`의 `BUILDING_API_KEY`, Juso API 문맥 |
+| `REDACTED_GOOGLE_API_KEY` | 1 | `제이시스템 전용 주문서 인식/Code.js`의 `getVisionApiKey_()` 직접 반환값, Google Vision API 문맥 |
+| `REDACTED_BUILDING_API_KEY` | 1 | `거래처 발송 주문서/Code.js`의 `BUILDING_API_KEY`, 행안부 도로명주소 건물 API 문맥 |
+
+Drive 라이브 26개에서 기존 13종 외의 자격 종류는 발견되지 않았다. `NOTION_DB_ID`, Sheet ID, Drive folder ID 등 식별자는 기존 사본과 동일하게 보존했으며 자격 문자열로 재분류하지 않았다.
+
+### 7-2. Drive 제목 ↔ 저장소 폴더명 매핑 (15건)
+
+폴더명은 기존 저장소 이름을 유지했다. 중첩 프로젝트는 기존 상위 폴더 아래의 기존 중첩 폴더에 반영했다.
+
+| Drive 제목 | 저장소 폴더명 |
+|---|---|
+| 가배차분류 리스트 | 가배차분류리스트 |
+| 거래처 주문서 | 거래처 발송 주문서 (최상위) |
+| 에어디자이너 주문서 인식 | 에어디자이너 전용 주문서 인식 |
+| 계산서업로드양식 | 계산서일괄등록양식 생성 |
+| 전표발송용 리스트 | 전표정리리스트 |
+| 운송사 내역 비교 | 운송사-실배차내역 비교 |
+| 품목별 매입기록 비교 | 품목별 DPS 입고내역 비교 |
+| 거래명세서 생성 프로그램 | 거래처별 일괄 거래명세서 생성 |
+| 거래처별 원장 생성 프로그램 | 거래처별 원장생성 프로그램 |
+| 제이시스템 주문서 인식 | 제이시스템 전용 주문서 인식 |
+| 알리고 자동 업로드 프로그램 | 알리고 자동 업로드 |
+| 지방 가배차리스트 | 지방가배차분류리스트 |
+| 이카운트-DPS 입고기록분석 | DPS 입고기록 비교 |
+| 장기미발주 거래처 선별 | 거래처 발송 주문서/장기미발주 거래처 선별 |
+| 비밀번호 재설정 요청 | 거래처 발송 주문서/기간별 비빌번호 재설정 |
+
+### 7-3. 프로젝트별 반영 결과
+
+파일 수는 Drive export 기준이며, 마스킹 치환 건수는 원본 실값을 저장하지 않고 치환한 발생 횟수다.
+
+| 저장소 폴더명 | Drive 제목 | 파일 수 | 마스킹 치환 | 판정 |
+|---|---|---:|---:|---|
+| 미배차리스트 | 미배차리스트 | 3 | 3 | PASS |
+| 가배차분류리스트 | 가배차분류 리스트 | 3 | 3 | PASS |
+| 가입고처리 | 가입고처리 | 3 | 2 | PASS |
+| 거래처 발송 주문서 | 거래처 주문서 | 3 | 15 | PASS (중첩 2개 별도 반영) |
+| 에어디자이너 전용 주문서 인식 | 에어디자이너 주문서 인식 | 3 | 3 | PASS |
+| 일마감 프로그램 | 일마감 프로그램 | 3 | 3 | PASS |
+| 계산서일괄등록양식 생성 | 계산서업로드양식 | 3 | 2 | PASS |
+| 내일자 전표 이미지 생성 | 내일자 전표 이미지 생성 | 4 | 3 | PASS (기존 `samsung.png` 보존) |
+| 영업수수료 계산 | 영업수수료 계산 | 3 | 2 | PASS (Drive 전용 신규) |
+| 배차안내문자 | 배차안내문자 | 3 | 3 | PASS |
+| 거래처 업데이트 프로그램 | 거래처 업데이트 프로그램 | 3 | 0 | PASS (바이트 동일) |
+| 전표정리리스트 | 전표발송용 리스트 | 3 | 2 | PASS |
+| 운송사-실배차내역 비교 | 운송사 내역 비교 | 3 | 2 | PASS |
+| 품목별 DPS 입고내역 비교 | 품목별 매입기록 비교 | 3 | 2 | PASS |
+| 거래처별 일괄 거래명세서 생성 | 거래명세서 생성 프로그램 | 5 | 3 | PASS |
+| 거래처별 원장생성 프로그램 | 거래처별 원장 생성 프로그램 | 3 | 3 | PASS |
+| 제이시스템 전용 주문서 인식 | 제이시스템 주문서 인식 | 3 | 4 | PASS |
+| 알리고 자동 업로드 | 알리고 자동 업로드 프로그램 | 3 | 3 | PASS |
+| 입출고 분석 | 입출고 분석 | 3 | 0 | PASS (Drive 오타 정본) |
+| 지방가배차분류리스트 | 지방 가배차리스트 | 3 | 2 | PASS |
+| DPS 입고기록 비교 | 이카운트-DPS 입고기록분석 | 3 | 2 | PASS |
+| 입출고 내역 | 입출고 내역 | 3 | 0 | PASS (Drive 파일명 정본) |
+| 거래처 발송 주문서/장기미발주 거래처 선별 | 장기미발주 거래처 선별 | 2 | 3 | PASS |
+| 비밀번호 일괄 암호화 | 비밀번호 일괄 암호화 | 2 | 1 | PASS |
+| 거래처 발송 주문서/기간별 비빌번호 재설정 | 비밀번호 재설정 요청 | 2 | 1 | PASS |
+| 교육안내 자동상태변경 | 교육안내 자동상태변경 | 2 | 1 | PASS (Drive 문자열 정본) |
+
+합계: **26개 프로젝트 · 77개 파일 · 68건 치환**. `종합견적서`는 export가 `File too large for export`로 실패했으므로 이 표와 반영 대상에서 제외했고, 저장소 폴더는 건드리지 않았다.
+
+### 7-4. 게이트 변경
+
+- `WHITELIST_PATTERNS`에서 `tools/legacy-gas/`를 제거하고 `CODE_DIRS`에 `tools/legacy-gas`를 추가해 실제 스캔 대상으로 만들었다.
+- 일반 패턴의 line 단위 허용 목록에 `REDACTED_[A-Z0-9_]+`를 추가했다. KFTC/CODEF/INSUNG_QUICK의 placeholder 금지 정책은 유지했다.
+- RED-first에서 프로브가 `[NOTION_KEY] ... tools/legacy-gas/__guard_probe__.js`로 검출되어 exit 1이 됐다. 같은 실행에서 기존 문서 예시와 `extract-notion-dc-csv.js`의 설명/PropertiesService 조회가 오탐으로 확인됐다.
+- 오탐은 placeholder 예외를 넓히지 않고 Notion 패턴을 따옴표로 직접 대입된 리터럴만 탐지하도록 좁혀 해소했다. 문서 예시는 `<FAKE_NOTION_TOKEN>`으로 바꿨고, RED 원문은 외부 scratchpad 보고서에만 남긴다.
