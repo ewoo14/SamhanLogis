@@ -238,12 +238,18 @@ public class QuantitySyncRuleValidator {
             // R1 결함 2 [MED]: enabled=false 규칙은 survey.md:509("활성 여부") 대로
             // 강제력이 없어야 한다. 자기 자신(REPLACE 편집) 제외는 이미 있었는데
             // enabled 제외가 없어 비활성 기존 REPLACE 규칙도 새 저장을 막고 있었다.
+            // 재수렴 R4 결함 B [MED] fix — JsonNode.equals()는 노드 구현 타입까지 비교해
+            // IntNode(1)과 DoubleNode(1.0)을 다르다고 본다. DB V24:307의
+            // "r1.condition_json = r2.condition_json"(jsonb =)는 숫자를 numeric으로 비교해
+            // 같다고 본다(1과 1.0이 같음). 표기만 다른 동일 조건이 여기서 안 걸리면 DB
+            // deferred trigger까지 가서 "동시 편집 충돌 또는 제약 위반"(409)으로 원인이
+            // 위장된다 — jsonb와 같은 답을 내는 QuantitySyncConditionEquality로 비교한다.
             if (!draft.ruleKey().equals(existing.ruleKey())
                     && draft.enabled() && existing.enabled()
                     && "REPLACE".equals(draft.conflictPolicy())
                     && "REPLACE".equals(existing.conflictPolicy())
                     && draft.category().equals(existing.category())
-                    && draft.condition().equals(existing.condition())
+                    && QuantitySyncConditionEquality.jsonbEquals(draft.condition(), existing.condition())
                     && !Collections.disjoint(targetCodes, existing.targetCodes())) {
                 invalid("동일 condition의 REPLACE target이 중복됩니다.");
             }

@@ -751,9 +751,22 @@ estimate_category, display_order, ...)`를 추가해 `ProductService.syncEstimat
 
 `QuantitySyncRuleDbProbeIT`만 예외적으로 취급했다 — 이 파일은 "서비스·DTO·JPA repository를
 사용하지 않고 SQL을 직접 실행"하는 것이 자체 목적(클래스 Javadoc)이라 실 API 경로로 품목을
-만드는 대안 자체가 이 파일의 존재 이유와 모순된다. 대신 "실 API가 만드는 것과 동일한 행
-상태"(S-2의 두 번째 대안)로 맞췄다 — `product()`의 `category` 파라미터를 그대로
-`product_estimate_exposure`에 반영했다.
+만드는 대안 자체가 이 파일의 존재 이유와 모순된다. 대신 `product()`의 `category` 파라미터를
+그대로 `product_estimate_exposure`에 반영해 S-2의 두 번째 대안을 적용했다.
+
+🚨 **2026-07-28 R4 재수렴 정정(증거 무결성)** — 위 "실 API가 만드는 것과 동일한 행 상태"라는
+서술은 엄밀히 거짓이었다. 이 fixture 의 raw SQL `INSERT INTO products`(위 `product()` 헬퍼)는
+컬럼 목록에 `modified_at`/`modified_by` 를 포함하지 않아 그 두 컬럼이 NULL로 남는다. 반면 실
+API(`ProductService.create()`)로 만든 품목은 `BaseEntity`가 `@EntityListeners(AuditingEntityListener.class)`
++ `@CreatedDate`/`@LastModifiedDate`(`@CreatedBy`/`@LastModifiedBy`) 로 JPA auditing 을 쓰므로,
+최초 저장(`isNew=true`) 시점에도 Spring Data JPA 가 `modified_at`/`modified_by` 를 `created_at`/
+`created_by` 와 같은 값으로 채운다 — 실측(`ProductService.create()` 직접 호출 후 즉시 조회):
+`{created_at=2026-07-28 09:42:32.91201, created_by=probe-user, modified_at=2026-07-28 09:42:32.91201,
+modified_by=probe-user}`. 즉 `modified_at`/`modified_by`가 NULL인 행 상태는 실 API로는 **만들 수
+없다**. 이 fixture는 quantity_sync 검증이 실제로 참조하는 컬럼(estimate_category 죽은 컬럼 대신
+product_estimate_exposure를 채움)에 한해서만 실 API와 같은 상태를 재현한 것이며, 행 전체가
+동일한 것은 아니다 — `QuantitySyncRuleDbProbeIT` 자신은 modified_at/modified_by를 읽는 코드가
+없어 이 차이 자체가 도달 가능한 결함으로 이어지지는 않는다(그래서 R4까지 미발견 상태였다).
 
 신규 3개 IT(`QuantitySyncRuleCategoryFromExposureIT`·`QuantitySyncRuleInputMistakeIT`)는
 처음부터 실 API(`ProductService.create()`)로 품목을 만들거나(전자), 이 fix된 fixture 패턴을

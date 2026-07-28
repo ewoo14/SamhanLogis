@@ -127,7 +127,10 @@ class QuantitySyncRuleOptionInParityIT extends AbstractPostgresIT {
                 VALUES (?, ?, ?, ?, 0, 0, now(), ?, false, 'ACTIVE', ?, 'SINGLE', 'BOTH')
                 """, productId, code + " 품목", code, categoryId, CREATED_BY, code);
         // 재수렴 결함 1 [최우선] S-2 fix — products.estimate_category(V18 이후 죽은 컬럼)
-        // 대신 실 API가 만드는 것과 동일하게 product_estimate_exposure에 노출 행을 심는다.
+        // 대신 product_estimate_exposure에 노출 행을 심는다 — quantity_sync 검증이 읽는
+        // 카테고리 컬럼만 실 API와 같다(행 전체 동일 아님 — modified_at/modified_by는
+        // NULL로 남아 실 API 결과와 다르다, 2026-07-28 R4 정정, QuantitySyncRuleDbProbeIT
+        // 참조).
         jdbcTemplate.update("""
                 INSERT INTO product_estimate_exposure (
                     id, product_id, estimate_category, display_order,

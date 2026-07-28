@@ -282,9 +282,15 @@ class QuantitySyncRuleDbProbeIT extends AbstractPostgresIT {
                 """, id, code + " name", code, categoryId, CREATED_BY, !active,
                 active ? "ACTIVE" : "DISCONTINUED", code, type, usageScope);
         // 재수렴 결함 1 [최우선] S-2 fix — products.estimate_category(V18 이후 죽은 컬럼)
-        // 대신 실 API가 만드는 것과 동일하게 product_estimate_exposure에 노출 행을 심는다.
-        // 이 파일은 서비스·JPA를 우회하는 순수 DB probe이므로(클래스 Javadoc) 실 API 경로를
-        // 쓸 수 없어 "실 API가 만드는 것과 동일한 행 상태"로 맞춘다(S-2 두 번째 대안).
+        // 대신 product_estimate_exposure에 노출 행을 심는다 — quantity_sync 검증이 실제로
+        // 읽는 컬럼(카테고리 판정)만 실 API와 같게 맞춘 것이다. 이 파일은 서비스·JPA를
+        // 우회하는 순수 DB probe이므로(클래스 Javadoc) 실 API 경로를 쓸 수 없어 S-2 두 번째
+        // 대안을 적용한다. 🚨2026-07-28 R4 정정: 행 전체가 실 API와 동일하지는 않다 —
+        // modified_at/modified_by가 이 INSERT 컬럼 목록에 없어 NULL로 남는데, 실 API는
+        // BaseEntity JPA auditing(@LastModifiedDate 등)으로 최초 생성 시에도 그 두 컬럼을
+        // created_at/created_by와 같은 값으로 채운다(NULL이 아님). 이 파일은 그 두 컬럼을
+        // 읽지 않아 도달 가능한 결함은 아니다(docs/dev-reports/2026-07-28-896-s2-quantity-
+        // sync-schema.md §9 참조).
         jdbcTemplate.update("""
                 INSERT INTO product_estimate_exposure (
                     id, product_id, estimate_category, display_order,
