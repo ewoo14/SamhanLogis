@@ -253,12 +253,16 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
  * `position: absolute`로 바꾸므로 이 케이스에선 absolute 형제(사진)보다 DOM 순서상 뒤에 오는 것만
  * 으로도 충분히 위에 그려지지만, flow 케이스(static 형제 없음)에서도 일관되게 명시적으로 둔다.
  */
+const IMAGE_DECODE_NOTICE = '이 이미지는 현재 화면에서 표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요.'
+
 function imageDecodeErrorNotice(elementKey: string, geometry?: Geometry) {
   return (
     <span
       className="no-print"
       role="alert"
       data-testid={`document-template-image-error-${elementKey}`}
+      aria-label={IMAGE_DECODE_NOTICE}
+      title={IMAGE_DECODE_NOTICE}
       style={{
         ...geometryStyle(geometry, undefined),
         display: 'block',
@@ -269,13 +273,40 @@ function imageDecodeErrorNotice(elementKey: string, geometry?: Geometry) {
           whiteSpace: 'nowrap',
           textOverflow: 'ellipsis',
           boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          lineHeight: 1,
+          background: 'var(--color-danger-700, #a12622)',
+          cursor: 'help',
         }),
         zIndex: 1,
         color: 'var(--color-danger-700, #a12622)',
         fontSize: 12,
+        ...(geometry === undefined ? {} : { color: '#fff' }),
       }}
     >
-      이 이미지는 현재 화면에서 표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요.
+      {geometry === undefined ? IMAGE_DECODE_NOTICE : (
+        <>
+          <span aria-hidden="true">⚠</span>
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          >
+            {IMAGE_DECODE_NOTICE}
+          </span>
+        </>
+      )}
     </span>
   )
 }

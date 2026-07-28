@@ -72,5 +72,8 @@ describe('#968 SOL 결함1 — 좌표 IMAGE 경고 경계', () => {
     expect(alert.style.overflow).toBe('hidden')
     expect(alert.style.whiteSpace).toBe('nowrap')
     expect(alert.style.textOverflow).toBe('ellipsis')
+    expect(alert.textContent).toContain('⚠')
+    expect(alert.getAttribute('title') ?? '').toContain('인쇄 전에 이미지를 교체하고 저장하세요')
+    expect(alert.getAttribute('aria-label') ?? '').toContain('이미지는 현재 화면에서 표시할 수 없습니다')
   })
 })
