@@ -90,15 +90,71 @@ function formatScopeMismatch(scope) {
   return sections.join('\n')
 }
 
-// 🚨 [SONNET5 R1 결함1·3 fix] 명시 경로(narrow 실행) 판정 — argv 에서 실제 파일을 가리키는
-// 위치 인자만 뽑아 그 경로가 가리키는 real-QA 스펙 집합을 계산한다. Playwright 는
-// `playwright test --config=… [옵션들] [경로...]` 형태이므로 앞 2개(node, cli 스크립트)를
-// 버리고 `test` 키워드와 `-`로 시작하는 옵션(및 `--grep 패턴`처럼 옵션 뒤에 오는 값)을 뺀
-// 나머지를 후보로 본다. 후보가 실제 어떤 real-QA 스펙 경로도 가리키지 않으면(예: --grep 의
-// 검색어) 그 후보는 무시되므로 별도 플래그 화이트리스트가 필요 없다 — 최종적으로 "실제 파일을
-// 가리키는 인자가 있었는가"만으로 narrow 실행 여부를 판정한다.
+// 🚨 [SONNET5 R1 결함1·3 fix, R2-1 fix 로 화이트리스트 보강] 명시 경로(narrow 실행) 판정 —
+// argv 에서 실제 파일을 가리키는 위치 인자만 뽑아 그 경로가 가리키는 real-QA 스펙 집합을
+// 계산한다. Playwright 는 `playwright test --config=… [옵션들] [경로...]` 형태이므로 앞
+// 2개(node, cli 스크립트)를 버리고 `test` 키워드와 `-`로 시작하는 옵션을 뺀 나머지를 후보로
+// 본다.
+//
+// R1 원 주석은 "후보가 실제 어떤 real-QA 스펙 경로도 가리키지 않으면(예: --grep 의 검색어)
+// 그 후보는 무시되므로 별도 플래그 화이트리스트가 필요 없다"고 가정했다 — 그 시점의 매칭이
+// 문자열 접미사 비교라 "line"·"2" 같은 흔한 값이 어떤 경로 세그먼트와도 정확히 일치하지
+// 않았기 때문에 그 가정이 성립했다. R2-1 fix 로 매칭을 Playwright 의 실제 정규식 부분일치로
+// 바꾸면서 이 가정이 깨졌다(실측: repoRoot 를 실제로 넣어 확인 — "line"→8개, "2"→63개 파일이
+// 절대경로 부분일치로 잡힘). `--reporter line`처럼 흔한 공백형 실행이 그 파일들만의 narrow
+// 실행으로 오인되면, 트리 어딘가의 무관한 실제 미추적/누락 스펙을 걸러내지 않고 지나칠
+// 위험이 생긴다(경계 오인, 회귀 울타리 2번 재발). 그래서 이제는 값(value)을 받는 옵션의
+// "공백형"(`--flag value`) 다음 토큰도 후보에서 제외한다 — `--flag=value`(등호형)는 이미 값이
+// 같은 토큰에 붙어 있어 애초에 `-`로 시작해 제외되므로 손댈 필요가 없다. 목록은 설치된
+// playwright 패키지의 실제 CLI 스키마에서 그대로 옮겼다(실측: node_modules/playwright/lib/
+// program.js 188-226행 testOptions 배열, playwright 1.59.1 — 값을 받는 옵션만, `<...>`/`[...]`
+// 문법). 값이 선택적인 옵션(`[mode]` 등)도 보수적으로 다음 토큰을 함께 건너뛴다(과소-수집
+// 방향의 오차만 생기고 새 오탐은 안 생긴다).
+const VALUE_TAKING_FLAGS = new Set([
+  '--browser',
+  '-c',
+  '--config',
+  '--debug',
+  '--global-timeout',
+  '-g',
+  '--grep',
+  '--grep-invert',
+  '-j',
+  '--workers',
+  '--max-failures',
+  '--output',
+  '--only-changed',
+  '--project',
+  '--repeat-each',
+  '--reporter',
+  '--retries',
+  '--run-agents',
+  '--shard',
+  '--test-list',
+  '--test-list-invert',
+  '--timeout',
+  '--trace',
+  '--tsconfig',
+  '--ui-host',
+  '--ui-port',
+  '-u',
+  '--update-snapshots',
+  '--update-source-method',
+])
+
 function parseExplicitPathArgs(argv) {
-  return argv.slice(2).filter((arg) => arg !== 'test' && !arg.startsWith('-'))
+  const rest = argv.slice(2)
+  const candidates = []
+  for (let i = 0; i < rest.length; i += 1) {
+    const arg = rest[i]
+    if (arg === 'test') continue
+    if (arg.startsWith('-')) {
+      if (!arg.includes('=') && VALUE_TAKING_FLAGS.has(arg)) i += 1
+      continue
+    }
+    candidates.push(arg)
+  }
+  return candidates
 }
 
 // 🚨 [SONNET5 R1 fix, 실측 보강] Playwright 는 `workers` 설정 값만큼 이 config 파일을
@@ -115,6 +171,21 @@ function parseExplicitPathArgs(argv) {
 // 부모(터미널 세션)로 되써넣을 수 없으므로, 이 값이 다음 셸 명령으로 새는 경로는 없다(U-2 유지).
 const EXPLICIT_PATH_ARGS_ENV_VAR = 'REAL_QA_EXPLICIT_PATH_ARGS__INTERNAL'
 
+// 🚨 [SONNET5 R2-3 fix] U-4 — 이 내부 마커는 "같은 invocation 안에서 메인→워커로만" 전파돼야
+// 한다. 그런데 아래 상속 분기는 값의 "출처"를 보지 않고 존재 여부만 봤다 — 사용자가 셸에서
+// 이 이름을 직접 export 해도(REAL_QA_EXPLICIT_PATH_ARGS__INTERNAL='["아무 추적 파일"]') 명시
+// 경로 없는 전체 실행이 그 값을 narrow 실행으로 오인해 무관한 미추적/누락 스펙을 걸러내지
+// 않고 전체 실행을 통과시켰다(R2 라운드 실측: `549 tests in 173 files`, 안 막힘). 진짜
+// 워커인지는 이 프로세스가 그 값을 스스로 방금 만들지 않았다는 사실과, Playwright 가 워커
+// 생성자에서 항상 먼저 심어 두는 process.env.TEST_WORKER_INDEX 로 구분한다(실측:
+// node_modules/playwright/lib/worker/workerMain.js:60 — 실제 프로세스 fork 로 확인: 메인
+// 프로세스 config 로드 시점엔 undefined, 워커 config 재로드 시점엔 이미 "0" 등 정의된
+// 문자열). 메인 프로세스(사람이 직접 실행하는 그 프로세스)는 이 값을 절대 상속받지 않는다 —
+// 이번 invocation 에서 방금 스스로 argv 로부터 계산한 값(위 fromArgv 분기)만 신뢰한다.
+function isPlaywrightWorkerProcess() {
+  return process.env['TEST_WORKER_INDEX'] !== undefined
+}
+
 function resolveExplicitPathArgs(argv) {
   const fromArgv = parseExplicitPathArgs(argv)
   if (fromArgv.length > 0) {
@@ -122,6 +193,7 @@ function resolveExplicitPathArgs(argv) {
     return fromArgv
   }
 
+  if (!isPlaywrightWorkerProcess()) return []
   const inherited = process.env[EXPLICIT_PATH_ARGS_ENV_VAR]
   if (!inherited) return []
   try {
@@ -132,32 +204,71 @@ function resolveExplicitPathArgs(argv) {
   }
 }
 
-function normalizeArgPath(arg) {
-  return arg.replace(/\\/g, '/').replace(/\/+$/, '').replace(/^\.\//, '')
+// 🚨 [SONNET5 R2-1 fix] U-1 — Playwright 의 위치 인자는 리터럴 경로가 아니라 절대경로에 대한
+// (대소문자 무시) 정규식 부분일치 필터다(실측: node_modules/playwright/lib/util.js 의
+// createFileFiltersFromArguments → forceRegExp → createFileMatcher, 실제 호출 지점은
+// node_modules/playwright/lib/runner/tasks.js:243). 예전 구현(문자열 접미사 비교)은 이 중
+// "repo 상대경로 접미사" 형태 하나만 우연히 통과시켰다 — 글롭(`825-s5-*`)·조각(`825-s5`)·
+// 절대경로(정방향 슬래시)는 실제 Playwright 라면 통과하는데 우리 게이트만 막았고, 그 상태에서
+// 안내 메시지는 "명시 경로가 있는 실행에만 적용됩니다"라며 사용자가 방금 준 명시 경로를
+// 없는 셈 쳤다(U-2 위반, R2 라운드 (다) 재현). 형태를 하나씩 열거해 파싱하는 대신, 설치된
+// playwright 패키지가 CLI 에서 실제로 쓰는 그 함수를 그대로 가져와 우리 파일 목록에
+// 적용한다 — playwright 가 매칭 규칙을 바꿔도 우리 게이트가 따로 낡지 않는다(재구현하면
+// 그 반대). `playwright/lib/util`은 패키지 package.json 의 `exports` 맵에 등재된 공식
+// 서브패스다(내부 전용 딥임포트가 아니다 — `playwright/lib/util.js`처럼 확장자를 붙이면
+// 오히려 exports 맵에 없어 막힌다는 것까지 실측 확인했다).
+function normalizeArgSeparators(arg) {
+  // Playwright 의 정규식 매칭은 백슬래시를 정규식 이스케이프 문자로 해석해 원시 백슬래시
+  // 상대경로(Windows 사용자가 흔히 타이핑·복붙)를 0건으로 만든다(실측: 실제 CLI로
+  // `playwright\manual\slip-form-3d-real-qa.spec.ts` 실행 시 "Total: 0 tests in 0 files" —
+  // Playwright 자신도 이 형태를 지원하지 않는다). 사람이 백슬래시로 경로를 타이핑한 의도는
+  // 명확하므로(구분자 표기 차이일 뿐 다른 파일을 가리키는 게 아님) 이 구분자 정규화만
+  // Playwright 위임 전에 적용한다 — 매칭 로직 자체(글롭/조각/정규식 해석)는 손대지 않는다.
+  return arg.replace(/\\/g, '/')
 }
 
-function argReferencesFile(file, arg) {
-  const normalizedArg = normalizeArgPath(arg)
-  if (!normalizedArg) return false
-  return file === normalizedArg || file.endsWith(`/${normalizedArg}`) || file.includes(`/${normalizedArg}/`)
-}
-
-function resolveRequestedFiles({ scope, explicitPathArgs }) {
+function resolveRequestedFiles({ scope, explicitPathArgs, repoRoot }) {
   const universe = new Set([...scope.diskFiles, ...scope.trackedFiles])
+  if (explicitPathArgs.length === 0 || universe.size === 0) return new Set()
+
+  // 지연 require — 신선도 전용 CLI 경로(node scripts/real-qa-scope.cjs --phase=…)는 narrow
+  // 판정을 전혀 쓰지 않으므로 그 경로에는 playwright 패키지 해석 비용/의존을 지우지 않는다.
+  const { createFileMatcherFromArguments } = require('playwright/lib/util')
+  const matcher = createFileMatcherFromArguments(explicitPathArgs.map(normalizeArgSeparators))
   const requested = new Set()
-  for (const arg of explicitPathArgs) {
-    for (const file of universe) {
-      if (argReferencesFile(file, arg)) requested.add(file)
-    }
+  for (const file of universe) {
+    if (matcher(path.resolve(repoRoot, file))) requested.add(file)
   }
   return requested
 }
 
-function writeExceptionModeWarning(scopedMismatch) {
-  // 🚨 [SONNET5 R1 결함1 fix] U-1 — 예외 모드였다는 사실이 수치와 "같은" 출력 스트림에 남아야
-  // 리다이렉트(`1> file`)로도 보인다. 기존에는 stderr 에만 적었다. 이제 stdout·stderr 모두에 쓴다.
+// 🚨 [SONNET5 R2-2 fix] U-3 — R1 결함1 fix 는 "예외 모드였다는 사실이 수치와 같은 스트림에
+// 남는다"를 위해 stdout 에도 썼는데, `--reporter=json`/`--reporter=junit` 은 출력 파일을
+// 안 정하면 stdout 자체가 곧 그 리포터의 산출물이다(실측: node_modules/playwright/lib/
+// reporters/json.js 의 outputReport 가 resolvedOutputFile 없으면 console.log(JSON) 그대로
+// stdout 에 쓴다 — junit.js 도 같은 패턴). 그 앞에 우리 텍스트가 섞이면 JSON.parse 가
+// "Unexpected token"으로 깨진다(R2 라운드 실측: `--reporter=json … 1> report.json` 앞 6줄이
+// 우리 경고). 이 두 리포터에서는 stdout 이 이미 유일한 산출물 스트림이라 어디에 끼워도 그
+// 산출물 자체가 깨지므로 "산출물 무결성"과 "수치와 같은 스트림"이 동시에 성립할 수 없다 —
+// 산출물 무결성을 우선해 stdout 을 건드리지 않고 stderr 에만 남긴다(터미널에서 실행하면
+// 여전히 즉시 보이므로 R1 결함1 이 막으려던 "완전히 흔적 없이 사라짐"은 일어나지 않는다).
+const STDOUT_SENSITIVE_REPORTERS = new Set(['json', 'junit'])
+
+function usesStdoutSensitiveReporter(argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]
+    let value = null
+    if (arg === '--reporter') value = argv[i + 1] ?? null
+    else if (arg.startsWith('--reporter=')) value = arg.slice('--reporter='.length)
+    if (value === null) continue
+    if (value.split(',').some((name) => STDOUT_SENSITIVE_REPORTERS.has(name.trim()))) return true
+  }
+  return false
+}
+
+function writeExceptionModeWarning(scopedMismatch, { suppressStdout = false } = {}) {
   const message = `${formatScopeMismatch(scopedMismatch)}\n[real-QA 로컬 실행 모드] 위 차집합은 의도 실행으로 허용했으며 공식 수치로 사용하지 마십시오.\n`
-  process.stdout.write(message)
+  if (!suppressStdout) process.stdout.write(message)
   process.stderr.write(message)
 }
 
@@ -168,12 +279,13 @@ function writeExceptionModeWarning(scopedMismatch) {
 //    않는다(U-4) — 단 missingFiles 는 "집합이 줄어드는 방향"이라 요청이 그 파일 자신을
 //    가리키는 경우에는 narrow 실행이라도 예외 없이 막는다(U-3).
 //  - narrow 실행에서 요청이 untrackedFiles 를 가리키면 allowUntracked 로만 통과하고,
-//    통과 시 경고를 stdout+stderr 모두에 남긴다(U-1).
+//    통과 시 경고를 stderr 에 남기고, stdout 은 리포터가 json/junit(산출물이 곧 stdout)이
+//    아닌 한 함께 남긴다([SONNET5 R2-2 fix], 위 writeExceptionModeWarning 참고).
 //  - 명시 경로가 없는 전체(공식) 실행은 allowUntracked 값을 아예 참조하지 않는다 — 세션에
 //    남은 환경변수가 다음 전체 실행으로 새지 않는다(U-2). missingFiles·untrackedFiles 모두
 //    무조건 막는다(U-3, M-1 유지).
-function decideRealQaScope({ scope, allowUntracked, explicitPathArgs }) {
-  const requestedFiles = resolveRequestedFiles({ scope, explicitPathArgs })
+function decideRealQaScope({ scope, allowUntracked, explicitPathArgs, repoRoot, suppressStdoutWarning = false }) {
+  const requestedFiles = resolveRequestedFiles({ scope, explicitPathArgs, repoRoot })
   const isNarrowRun = requestedFiles.size > 0
 
   if (isNarrowRun) {
@@ -187,7 +299,7 @@ function decideRealQaScope({ scope, allowUntracked, explicitPathArgs }) {
 
     const scopedMismatch = { ...scope, untrackedFiles: relevantUntracked, missingFiles: [] }
     if (!allowUntracked) throw new Error(formatScopeMismatch(scopedMismatch))
-    writeExceptionModeWarning(scopedMismatch)
+    writeExceptionModeWarning(scopedMismatch, { suppressStdout: suppressStdoutWarning })
     return scope
   }
 
@@ -203,7 +315,13 @@ function decideRealQaScope({ scope, allowUntracked, explicitPathArgs }) {
 
 function assertRealQaScope({ repoRoot, allowUntracked = false, argv = process.argv }) {
   const scope = getRealQaScope({ repoRoot })
-  return decideRealQaScope({ scope, allowUntracked, explicitPathArgs: resolveExplicitPathArgs(argv) })
+  return decideRealQaScope({
+    scope,
+    allowUntracked,
+    explicitPathArgs: resolveExplicitPathArgs(argv),
+    repoRoot,
+    suppressStdoutWarning: usesStdoutSensitiveReporter(argv),
+  })
 }
 
 function walkSourceFiles(root) {
@@ -360,7 +478,9 @@ module.exports = {
   listDiskRealQaFiles,
   listTrackedRealQaFiles,
   EXPLICIT_PATH_ARGS_ENV_VAR,
+  isPlaywrightWorkerProcess,
   parseExplicitPathArgs,
   resolveExplicitPathArgs,
   resolveRequestedFiles,
+  usesStdoutSensitiveReporter,
 }

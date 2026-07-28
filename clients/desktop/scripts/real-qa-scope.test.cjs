@@ -13,6 +13,8 @@ const {
   EXPLICIT_PATH_ARGS_ENV_VAR,
   getRealQaScope,
   listTrackedRealQaFiles,
+  parseExplicitPathArgs,
+  resolveRequestedFiles,
 } = require('./real-qa-scope.cjs')
 
 const repoRoot = path.resolve(__dirname, '../../..')
@@ -258,13 +260,20 @@ test('결함1·3 실측 보강: Playwright 워커 프로세스처럼 argv 가 �
       '메인 프로세스(원래 CLI 인자 보유)는 narrow 실행으로 통과해야 합니다',
     )
 
-    // 워커 프로세스 흉내 — 실측된 실제 argv 형태(원래 CLI 인자 없음).
+    // 워커 프로세스 흉내 — 실측된 실제 argv 형태(원래 CLI 인자 없음). [SONNET5 R2-3 fix]
+    // TEST_WORKER_INDEX 도 함께 심는다 — 실제 워커는 Playwright 가 워커 생성자에서 이 값을
+    // 항상 먼저 설정해 둔다(실측: node_modules/playwright/lib/worker/workerMain.js:60, 실제
+    // 프로세스 fork 로 config 재로드 시점에 이미 존재함을 확인). 이 값이 없으면(=진짜 워커가
+    // 아니면) R2-3 fix 가 상속을 거부하므로, "진짜 워커" 시나리오를 정확히 흉내내려면 이 값도
+    // 함께 심어야 한다 — R2-3 fix 전에는 이 값의 유무가 결과에 영향이 없었다(그것이 R2-3 결함).
+    process.env['TEST_WORKER_INDEX'] = '0'
     const workerProcessArgv = ['node', 'D:\\...\\node_modules\\playwright\\lib\\common\\process.js']
     assert.doesNotThrow(
       () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: workerProcessArgv }),
       '워커가 부모의 명시 경로를 이어받지 못하면 narrow 실행이 워커 단계에서 다시 막힌다(실측 재현)',
     )
   } finally {
+    delete process.env['TEST_WORKER_INDEX']
     resetExplicitPathEnv()
     removeTempRepo(tempRoot)
   }
@@ -291,8 +300,372 @@ test('결함8: core.quotepath 8진 이스케이프가 걸려도 비ASCII 추적 
 })
 
 // ---------------------------------------------------------------------------
-// 결함 4·5·7 — 신선도 게이트(assertDerivedArtifactsFresh / checkFreshnessOrSkip) fixture
+// R2 라운드 — R2-1(위치 인자 매칭이 Playwright 가 지원하는 형태 전부를 통과) ·
+// R2-2(예외 모드 stdout 쓰기가 --reporter=json/junit 산출물을 오염) ·
+// R2-3(내부 전용 마커를 외부에서 export 하면 전체 실행 게이트를 우회) fixture.
 // ---------------------------------------------------------------------------
+
+test('R2-1 글롭 인자: `<접두사>-*` 형태로 추적 스펙 2개만의 격리 실행이 통과한다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(
+      tempRoot,
+      'clients/desktop/playwright/r2fix-alpha-null-semantics-real-qa/r2fix-alpha-null-semantics-real-qa.spec.ts',
+    )
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/r2fix-alpha-other-real-qa/r2fix-alpha-other-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    // 무관한 미추적 로컬 스펙 — 격리 실행을 막으면 안 된다(U-4 유지 확인).
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-r2fix-real-qa.spec.ts')
+
+    const globArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--list', 'playwright/r2fix-alpha-*']
+    assert.doesNotThrow(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: globArgv }),
+      'Playwright 가 실제로 지원하는 글롭 인자는 REAL_QA_ALLOW_UNTRACKED 없이도 격리 실행을 통과해야 합니다(U-1)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 조각(fragment) 인자 — 여러 파일에 걸치는 조각(예: 825-s5)', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(
+      tempRoot,
+      'clients/desktop/playwright/r2fix-alpha-null-semantics-real-qa/r2fix-alpha-null-semantics-real-qa.spec.ts',
+    )
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/r2fix-alpha-other-real-qa/r2fix-alpha-other-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-r2fix-real-qa.spec.ts')
+
+    const fragmentArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--list', 'r2fix-alpha']
+    assert.doesNotThrow(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: fragmentArgv }),
+      '문서형 조각 인자(예: 825-s5)도 격리 실행을 통과해야 합니다(U-1)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 조각(fragment) 인자 — 파일 하나만 골라내는 조각(예: null-semantics)은 형제 파일을 끌어오지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const onlyFile = 'clients/desktop/playwright/r2fix-alpha-null-semantics-real-qa/r2fix-alpha-null-semantics-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, onlyFile)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/r2fix-alpha-other-real-qa/r2fix-alpha-other-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: parseExplicitPathArgs([
+        'node',
+        'cli.js',
+        'test',
+        '--config=playwright.real-qa.config.ts',
+        '--list',
+        'null-semantics',
+      ]),
+      repoRoot: tempRoot,
+    })
+    assert.deepEqual(
+      [...requested].sort(),
+      [onlyFile],
+      '조각이 한 파일에만 있으면 그 한 파일만 선택돼야 합니다(다른 형제 파일까지 끌려오면 안 됨)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 절대경로(정방향 슬래시) 인자로 추적 스펙 격리 실행이 통과한다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const relPath = 'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, relPath)
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-r2fix-real-qa.spec.ts')
+
+    const absolutePath = path.resolve(tempRoot, relPath).split(path.sep).join('/')
+    const absArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--list', absolutePath]
+    assert.doesNotThrow(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: absArgv }),
+      '절대경로(정방향 슬래시) 인자도 격리 실행을 통과해야 합니다(U-1)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 I-3: 미추적 스펙 자신을 조각으로 지정 + ALLOW=1 이면 통과한다(R1 에서는 이 형태가 불가능했음)', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/manual/tracked-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/r2fix-untracked-only-real-qa.spec.ts')
+
+    const fragmentArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', 'r2fix-untracked-only']
+    assert.throws(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: fragmentArgv }),
+      /추적 집합 불일치/,
+      'ALLOW 없이는 여전히 막혀야 합니다',
+    )
+    assert.doesNotThrow(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: fragmentArgv }),
+      '미추적 스펙 자신을 조각으로 지정 + ALLOW=1 이면 이제는 통과해야 합니다(I-3)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 U-2: 글롭 인자 + ALLOW=1 실행 시 "명시 경로가 있는 실행에만 적용" 모순 메시지가 더는 나오지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/manual/tracked-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/r2fix-untracked-glob-real-qa.spec.ts')
+
+    const globArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--list', 'r2fix-untracked-glob-*']
+    const { out, err } = captureStreams(() => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: globArgv }))
+    assert.doesNotMatch(
+      out + err,
+      /명시 경로가 있는 실행에만 적용/,
+      '글롭으로 명시 경로를 줬으므로 이 모순 메시지가 나오면 안 됩니다(U-2, R2 라운드 (다) 재현 해소)',
+    )
+    assert.match(out, /로컬 실행 모드/, '예외 모드 경고 자체는 여전히 나와야 합니다')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 회귀: 백슬래시 상대경로 인자(Windows 관용 표기)는 여전히 격리 실행을 통과한다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+
+    const backslashArgv = [
+      'node',
+      'cli.js',
+      'test',
+      '--config=playwright.real-qa.config.ts',
+      'playwright\\manual\\slip-form-3d-real-qa.spec.ts',
+    ]
+    assert.doesNotThrow(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: backslashArgv }),
+      '백슬래시 상대경로는 R1 에서도 통과하던 형태입니다 — 회귀시키면 안 됩니다(Playwright 자신은 이 형태를 regex\n' +
+        '이스케이프 문제로 지원하지 않지만(실측: 실제 CLI 로 0 tests), 사람이 타이핑한 의도는 명확해 구분자만 정규화합니다)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-1 경계: 알려진 파일 어디에도 없는 단어는 narrow 실행으로 오인되지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+
+    const requested = resolveRequestedFiles({
+      scope: getRealQaScope({ repoRoot: tempRoot }),
+      explicitPathArgs: ['zzz-does-not-exist-anywhere'],
+      repoRoot: tempRoot,
+    })
+    assert.equal(requested.size, 0, '어떤 파일도 가리키지 않는 후보는 requestedFiles 에 들어가면 안 됩니다(경계 오인 방지)')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+// 아래 두 테스트는 순수 판정 계층(decideRealQaScope/resolveRequestedFiles)을 합성 scope 로
+// 직접 검증한다 — git fixture(createTempRealQaRepo)를 안 쓴다. os.tmpdir()의 무작위 접미사가
+// "2" 같은 흔한 한 글자와 우연히 겹칠 수 있어(실제로 최초 작성판에서 발생) fixture 기반은
+// 이 시나리오에 비결정적이다. FAKE_REPO_ROOT 는 숫자를 전혀 포함하지 않는 고정 문자열이라
+// 결정적이다.
+const FAKE_REPO_ROOT = 'C:\\fakerepo-no-digit-collision'
+
+test('R2-1 경계(신규 발견): 공백형 값 플래그(--reporter line 등)의 값이 실제 파일명 일부와 우연히 겹쳐도 narrow 오인되지 않는다', () => {
+  // "line"이 파일명 일부에 들어있는 추적 스펙 — 공백형 --reporter line 의 값과 우연히 겹친다
+  // (실측: 실 레포에서 "line" 인자가 902-slip-line-ecount-real-qa 등 8개 파일과 부분일치).
+  const trackedFile = 'clients/desktop/playwright/902-slip-line-ecount-real-qa/902-slip-line-ecount-real-qa.spec.ts'
+  const unrelatedUntracked = 'clients/desktop/playwright/n1b-native-qa/unrelated-flagvalue-real-qa.spec.ts'
+  const scope = {
+    diskFiles: [trackedFile, unrelatedUntracked],
+    trackedFiles: [trackedFile],
+    untrackedFiles: [unrelatedUntracked],
+    missingFiles: [],
+  }
+  const spaceFormArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--reporter', 'line', '--list']
+  assert.throws(
+    () =>
+      decideRealQaScope({
+        scope,
+        allowUntracked: false,
+        explicitPathArgs: parseExplicitPathArgs(spaceFormArgv),
+        repoRoot: FAKE_REPO_ROOT,
+      }),
+    /추적 집합 불일치/,
+    '"--reporter line"의 값 "line"이 우연히 파일명과 겹쳐도 전체 실행 취급을 유지해야 하고, 무관한 미추적 스펙을 여전히 잡아야 합니다',
+  )
+})
+
+test('R2-1 경계(신규 발견): 공백형 --workers 2 의 값 "2"도 narrow 오인되지 않는다', () => {
+  const trackedFile = 'clients/desktop/playwright/e2-rollout-order-list-real-qa/e2-order-real-qa.spec.ts'
+  const unrelatedUntracked = 'clients/desktop/playwright/n1b-native-qa/unrelated-flag-value-real-qa.spec.ts'
+  const scope = {
+    diskFiles: [trackedFile, unrelatedUntracked],
+    trackedFiles: [trackedFile],
+    untrackedFiles: [unrelatedUntracked],
+    missingFiles: [],
+  }
+  const spaceFormArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--workers', '2', '--list']
+  assert.throws(
+    () =>
+      decideRealQaScope({
+        scope,
+        allowUntracked: false,
+        explicitPathArgs: parseExplicitPathArgs(spaceFormArgv),
+        repoRoot: FAKE_REPO_ROOT,
+      }),
+    /추적 집합 불일치/,
+    '"--workers 2"의 값 "2"가 우연히 파일명과 겹쳐도 전체 실행 취급을 유지해야 합니다',
+  )
+})
+
+test('R2-2: --reporter=json 실행에서 예외 모드 경고가 stdout 을 오염시키지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/a-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts')
+
+    const jsonArgv = [
+      'node',
+      'cli.js',
+      'test',
+      '--config=playwright.real-qa.config.ts',
+      '--reporter=json',
+      'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts',
+    ]
+    const { out, err } = captureStreams(() => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: jsonArgv }))
+    assert.equal(out, '', '--reporter=json 실행에서는 stdout 에 아무것도 쓰면 안 됩니다(그 스트림이 곧 JSON 산출물)')
+    assert.match(err, /로컬 실행 모드/, '경고 자체는 stderr 로는 여전히 나와야 합니다')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-2: --reporter json (공백형)도 동일하게 stdout 을 건드리지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/a-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts')
+
+    const jsonArgv = [
+      'node',
+      'cli.js',
+      'test',
+      '--config=playwright.real-qa.config.ts',
+      '--reporter',
+      'json',
+      'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts',
+    ]
+    const { out } = captureStreams(() => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: jsonArgv }))
+    assert.equal(out, '', '공백형 --reporter json 도 stdout 을 건드리면 안 됩니다')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-2: --reporter=junit 도 stdout 을 오염시키지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/a-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts')
+
+    const junitArgv = [
+      'node',
+      'cli.js',
+      'test',
+      '--config=playwright.real-qa.config.ts',
+      '--reporter=junit',
+      'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts',
+    ]
+    const { out, err } = captureStreams(() => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: junitArgv }))
+    assert.equal(out, '', '--reporter=junit 실행에서도 stdout 을 건드리면 안 됩니다')
+    assert.match(err, /로컬 실행 모드/, '경고는 stderr 로는 나와야 합니다')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-2 회귀: 기본(line) 리포터는 여전히 stdout+stderr 둘 다에 경고를 남긴다(R1 결함1 유지)', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/a-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts')
+
+    const lineArgv = [
+      'node',
+      'cli.js',
+      'test',
+      '--config=playwright.real-qa.config.ts',
+      '--reporter=line',
+      'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts',
+    ]
+    const { out, err } = captureStreams(() => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: lineArgv }))
+    assert.match(out, /로컬 실행 모드/, 'line 리포터는 R1 대로 stdout 에도 남아야 합니다(회귀 금지)')
+    assert.match(err, /로컬 실행 모드/, 'line 리포터는 stderr 에도 남아야 합니다')
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('R2-3: 내부 마커를 외부에서 export 해도(워커가 아니면) 명시 경로 없는 전체 실행은 여전히 막힌다', () => {
+  resetExplicitPathEnv()
+  delete process.env['TEST_WORKER_INDEX']
+  const tempRoot = createTempRealQaRepo()
+  try {
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/a-real-qa.spec.ts')
+    commitAllRealQaSpecs(tempRoot)
+    // 진짜 미추적 스펙 — narrow 오인 없이는 전체 실행이 반드시 이걸로 막혀야 한다.
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/unrelated-r2-3-real-qa.spec.ts')
+    // 실제 narrow 실행을 거치지 않고, 사용자가 셸에서 직접 export 한 것처럼 내부 마커를
+    // 흉내낸다 — 위 미추적 스펙과 "무관한"(추적+디스크에 실재하는) 다른 파일을 가리킨다.
+    // 마커를 신뢰하면 게이트가 이걸 narrow 실행으로 오인해 무관한 미추적 스펙을 걸러내지
+    // 않고 전체 실행을 통과시켜버린다(R2 라운드 실측: `549 tests in 173 files`, 안 막힘).
+    process.env[EXPLICIT_PATH_ARGS_ENV_VAR] = JSON.stringify(['clients/desktop/playwright/a-real-qa.spec.ts'])
+
+    const fullRunArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--list']
+    assert.throws(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: false, argv: fullRunArgv }),
+      /추적 집합 불일치/,
+      '메인 프로세스(TEST_WORKER_INDEX 미설정)는 외부에서 주입된 내부 마커를 신뢰하면 안 됩니다(U-4)',
+    )
+  } finally {
+    delete process.env[EXPLICIT_PATH_ARGS_ENV_VAR]
+    removeTempRepo(tempRoot)
+  }
+})
+
+
 
 function writeJson(filePath, value) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })

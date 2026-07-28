@@ -327,7 +327,7 @@ README 예시 명령 2종(narrow 무플래그·ALLOW_UNTRACKED+명시경로) 실
 
 ```text
 clients/desktop/scripts/real-qa-scope.cjs        +165 / -16  결함1·2·3·4·5·7·8 + 워커 전파 fix
-clients/desktop/scripts/real-qa-scope.test.cjs   +404 / -6   8건 RED 테스트 + 워커 전파 회귀 테스트(node:test, 임시 git repo/fixture 기반, 실 레포 비접촉)
+clients/desktop/scripts/real-qa-scope.test.cjs   +402 / -6   8건 RED 테스트 + 워커 전파 회귀 테스트(node:test, 임시 git repo/fixture 기반, 실 레포 비접촉)
 clients/desktop/playwright.real-qa.config.ts     +11 / -0    새 시맨틱 문서화(주석만)
 clients/desktop/README.md                        +35 / -6    사용법·탈출구·계약 문구 갱신
 ```
@@ -341,3 +341,188 @@ clients/desktop/README.md                        +35 / -6    사용법·탈출�
   테스트로 남기는 방식을 썼다(라이브 뮤테이션 아님 — 정직하게 기록).
 - CI(다음 커밋 SHA)는 PM 이 commit·push 한 뒤에만 확정되므로 이 세션에서는 로컬 동등 체크
   (typecheck·test·lint) 로 갈음했다.
+
+---
+
+## R2 재수렴 라운드 fix (2026-07-28, SONNET5)
+
+OPUS 재수렴 라운드가 도달 가능 결함 2건(HIGH 1·MED 1) + PM 판정 경계선 1건을 찾았다. 전부
+`scripts/real-qa-scope.cjs`·`real-qa-scope.test.cjs` 범위 안에서 RED-first 로 고쳤다. 검증
+중 **새 경계 오인 회귀 1건을 자체 발견**해 같은 라운드에서 함께 고쳤다(계열 sweep 산출물,
+아래 "자체 발견" 절 참고).
+
+### 결함별 원인·수정 요약
+
+| # | 결함 | 원인 | 수정 |
+|---|---|---|---|
+| R2-1 [HIGH] | 위치 인자 매칭이 "repo 상대경로 접미사" 한 형태만 통과시키고, 오류 메시지가 명시 경로를 준 사용자에게 "명시 경로가 있는 실행에만 적용" 이라며 모순 안내 | `argReferencesFile` 이 문자열 접미사 비교였다 — Playwright 의 실제 위치 인자는 절대경로에 대한 정규식 부분일치 필터(`forceRegExp`)다 | `resolveRequestedFiles` 가 설치된 playwright 패키지의 `createFileMatcherFromArguments`(공식 `exports` 서브패스 `playwright/lib/util`)를 그대로 위임 — 글롭·조각·절대경로 전부 Playwright 자신과 동일하게 판정 |
+| R2-2 [MED · fix 유발] | 예외 모드 경고의 stdout 쓰기(R1 결함1 fix)가 `--reporter=json`/`junit` 산출물을 파싱 불가로 오염 | 이 두 리포터는 출력 파일이 없으면 stdout 자체가 산출물이다 — 그 앞에 텍스트를 쓰면 전체가 깨진다 | `usesStdoutSensitiveReporter(argv)` 로 리포터를 감지해 json/junit 일 때만 stdout 쓰기를 건너뜀(stderr 는 항상 유지) |
+| R2-3 [PM 판정 · 최소 변경 포함] | 내부 전용 마커 `REAL_QA_EXPLICIT_PATH_ARGS__INTERNAL` 을 외부에서 export 하면 명시 경로 없는 전체 실행이 narrow 로 오인돼 무관한 미추적/누락 스펙을 걸러내지 않고 통과 | 상속 분기가 값의 "출처"(진짜 워커가 물려받은 것인지, 사용자가 직접 export 한 것인지)를 구분하지 않았다 | `isPlaywrightWorkerProcess()` 가드 추가 — Playwright 가 워커 생성자에서 항상 먼저 심어 두는 `process.env.TEST_WORKER_INDEX` 가 있을 때만 상속을 허용 |
+
+### 자체 발견: R2-1 fix 가 새로 연 경계 오인(회귀 울타리 2번 재발) — 같은 라운드에서 즉시 수정
+
+R2-1 을 정규식 부분일치로 바꾸면서, 회귀 울타리 2번("경계 오인 0")을 재실행하다가 **`--reporter
+line`·`--workers 2` 같은 흔한 공백형 플래그 값이 실제 파일 경로와 우연히 부분일치**하는 것을
+발견했다(실측: repoRoot 를 실 레포에 대입 — 인자 `"line"` 이 `902-slip-line-ecount-real-qa` 등
+8개 파일과, `"2"` 가 63개 파일과 절대경로 부분일치). 구 문자열-접미사 비교는 세그먼트 단위라
+이런 흔한 값과 우연히 겹치지 않았지만, Playwright 실제 매칭 규칙으로 바꾸며 이 안전판이
+사라졌다 — 그대로 두면 `playwright test --reporter line` 같은 일상적 실행이 그 파일들만의
+narrow 실행으로 오인돼, 트리 어딘가의 무관한 실제 미추적/누락 스펙을 걸러내지 않고 지나칠
+위험이 생긴다(fix 유발 재발). `parseExplicitPathArgs` 에 값(value)을 받는 CLI 플래그의
+화이트리스트를 추가해, 공백형(`--flag value`)의 다음 토큰도 후보에서 제외한다(등호형
+`--flag=value` 는 이미 같은 토큰에 값이 붙어 있어 영향 없음). 목록은 설치된 playwright 패키지의
+실제 CLI 스키마에서 그대로 옮겼다(실측: `node_modules/playwright/lib/program.js` 188-226행
+`testOptions` 배열, playwright 1.59.1).
+
+### RED-first 증거
+
+수정 전 `node --test scripts/real-qa-scope.test.cjs`(R2 대응 신규 테스트 15건 추가 후,
+경계-오인 자체발견 2건 포함 총 17건 신규 — 기존 12건 + 신규 17건 = 29건):
+
+```text
+ℹ tests 27
+ℹ pass 17
+ℹ fail 10
+```
+
+10건 실패는 R2-1(글롭·조각 2종·절대경로·I-3·U-2 메시지, 6건) · R2-2(json 등호형·json 공백형·
+junit, 3건) · R2-3(1건)에 정확히 1:1 대응했다(R2-1 회귀 보존 테스트·R2-2 line 리포터 회귀
+보존 테스트는 처음부터 GREEN — 의도한 대로 "새 능력"만 RED였다). 경계-오인 자체발견 2건은
+그 자리에서 추가로 작성해 별도로 RED 확인 후 고쳤다(첫 버전은 `os.tmpdir()` 무작위 접미사에
+우연히 의존해 비결정적이었다 — 합성 scope 직접 테스트로 재작성해 결정적으로 만듦, 아래
+"자체 발견" 참고).
+
+수정 후 전체 `node --test scripts/real-qa-scope.test.cjs`:
+
+```text
+ℹ tests 29
+ℹ pass 29
+ℹ fail 0
+```
+
+### 뮤테이션 RED(4건 전부 원복 후 GREEN 재확인 완료)
+
+| fix | 뮤테이션 방법 | RED 결과 | 원복 후 |
+|---|---|---|---|
+| R2-1 | `resolveRequestedFiles` 를 구 문자열-접미사 비교로 되돌림 | 정확히 6건(R2-1 신규 능력 테스트)만 RED, 나머지 21건 GREEN 유지 | 29/29 GREEN |
+| R2-2 | `writeExceptionModeWarning` 의 `suppressStdout` 분기 제거 | 정확히 3건(R2-2 json/junit 테스트)만 RED, 나머지 26건 GREEN 유지 | 29/29 GREEN |
+| R2-3 | `isPlaywrightWorkerProcess()` 를 무조건 `true` 로 고정 | 정확히 1건(R2-3 테스트)만 RED, 나머지 28건 GREEN 유지 | 29/29 GREEN |
+| 경계-오인 자체발견 | `parseExplicitPathArgs` 를 값-스킵 없는 구 버전으로 되돌림 | 정확히 2건(신규 경계 테스트)만 RED, 나머지 27건 GREEN 유지 | 29/29 GREEN |
+
+각 뮤테이션이 **정확히 대상 테스트만** RED 로 만들고 다른 24~28건은 그대로 GREEN 이었다 —
+테스트 간 교차오염·과소특정 없음을 확인했다.
+
+### 회귀 울타리 7항목 재확인(실행 원문)
+
+| # | 항목 | 재확인 방법 | 결과 |
+|---|---|---|---|
+| 1 | 워커 마커 누출 0 | 실제 실행: 기본/`--workers=4`/`--repeat-each=2`/`--shard=1/2`(narrow) 전부 실 서버 미기동으로 인한 `1 failed`만 발생, 스코프 오류 0건. narrow(`--list`)→전체 같은 셸 연속 실행 시 전체는 `548/172` 로 정상 진행(차단 없음, 트리에 실제 불일치가 없는 현재 상태이므로 정상). 셸 잔존 `MARKER=`(빈 값) | 유지 |
+| 2 | 경계 오인 0 | `--grep`/`--project`/`--reporter`/`--workers`/`--repeat-each`/`--shard`/`--timeout`/`--config` 공백형·등호형 14개 조합을 실 레포(172파일)에 직접 대입 — 전부 `candidates=[]`, `requested.size=0`. **이 재확인 도중 위 "자체 발견" 회귀를 실측으로 잡아 같은 라운드에서 고쳤다** | 유지(회귀 1건 발견·수정 후 재확인 완료) |
+| 3 | 축소 방향 차단 | 실 레포의 `825-s5-null-semantics-real-qa.spec.ts` 를 스크래치패드에 백업 후 삭제 → 전체 실행/`ALLOW=1`/그 스펙 자신 명시 3종 전부 `[real-QA 추적 집합 불일치]`로 차단 확인 → 즉시 복원, `git status --porcelain` 무변경 확인, `548/172` 복원 확인 | 유지 |
+| 4 | `-z` 파싱 6종 | `listTrackedRealQaFiles` 함수 자체가 이번 diff 에서 **한 글자도 변경되지 않음**을 `git diff` 로 확인(개인 이름 언급 1건은 export 목록의 미변경 컨텍스트 줄) — 결함8 자동 테스트(quotepath true/false, 한글 파일명) GREEN 재확인으로 갈음, 수동 6종 전부 재실행은 생략 | 유지(코드 미변경 확인) |
+| 5 | 신선도 탈출구 | `assertDerivedArtifactsFresh`/`checkFreshnessOrSkip`/`describeFreshnessTargets`/`checkFreshArtifact`/`checkInstalledElectronUpdater` 전부 이번 diff 에 `+`/`-` 라인 0건(`git diff` 로 확인) — 결함4·결함4-U5·결함5·결함7 자동 테스트 GREEN + `npm test` 의 `pretest` 훅 실제 통과(신선도 정상 경로 재확인)로 갈음 | 유지(코드 미변경 확인) |
+| 6 | 수치 | 공식 `Total: 548 tests in 172 files`(renderer `547/171`, order-app `1/1`) · mock `Total: 652 tests in 117 files` · `npm test` → `Test Files 179 passed (179)`, `Tests 1648 passed (1648)` · `npm run typecheck` → `EXIT=0`, tsc 오류 grep 0건 · `node --test real-qa-scope.test.cjs` → `29/29` · M-1 왕복(미추적 스펙 주입 → 차단 → 제거 → `548/172` 복원) · M-2(F-2 테스트가 실 레포 scope 로 `.gitignore` 경로 안 추적 스펙 2개 유지 확인) | 유지 |
+| 7 | NUL 0건 | 이번 세션 변경 파일 3개(`real-qa-scope.cjs`·`real-qa-scope.test.cjs`·dev-report) 전부 바이트 스캔 NUL=0. `git diff --numstat` 도 3개 파일 전부 텍스트로 정상 계수(Binary 표시 없음) | 유지 |
+
+### 계열 전수 sweep
+
+- **① 게이트가 stdout 에 쓰는 다른 지점**: `real-qa-scope.cjs` 전체에서 `process.stdout.write`/
+  `console.log` 는 2곳 — `writeExceptionModeWarning`(R2-2 로 수정한 그 지점)과
+  `require.main === module` CLI 진입점(`checkFreshnessOrSkip` 출력). 후자는 `npm run
+  pretest`/`typecheck` 가 `node scripts/real-qa-scope.cjs --phase=…` 를 **별도 프로세스로,
+  playwright test 실행 이전에** 호출하는 구조라 실제 `playwright test --reporter=json` 의
+  stdout 스트림과 절대 섞이지 않는다 — 수정 불필요. `playwright.real-qa.config.ts` 자체에는
+  stdout 쓰기가 0건이다.
+- **② 환경변수를 신뢰하는 다른 지점**: `real-qa-scope.cjs` 의 `process.env[...]` 읽기는
+  `TEST_WORKER_INDEX`(R2-3 fix 자신의 가드) · `EXPLICIT_PATH_ARGS_ENV_VAR`(R2-3 로 수정한 그
+  지점) · `REAL_QA_SKIP_FRESHNESS_CHECK` 뿐이다. 마지막 것은 이름에 `__INTERNAL` 접미사가
+  없고, 애초에 사용자가 직접 설정하도록 설계된 **공개 탈출구**이며(결함4 fix), 쓸 때마다
+  표준출력에 "건너뛴 사실"을 항상 남겨 침묵 우회가 안 된다 — `EXPLICIT_PATH_ARGS_ENV_VAR` 와
+  같은 "프로세스 트리 내부에서만 유효해야 하는데 이름만으로는 그게 강제되지 않는" 문제와
+  범주가 다르다. `playwright.real-qa.config.ts` 의 나머지 env 읽기(`REAL_QA_ALLOW_UNTRACKED`·
+  `REAL_QA_RENDERER_BASE_URL`·`REAL_QA_ORDER_APP_BASE_URL`)도 전부 공개·의도된 사용자 입력이라
+  같은 범주가 아니다. **R2-3 은 이 게이트에서 유일한 사례였다.**
+
+### 정정 A — R1 fix 커밋 메시지 문구가 코드보다 넓다
+
+R1 fix 커밋(`938c2f8ca`) 메시지의 "결함 2" 항목은 *"missingFiles 는 narrow/전체 실행 무관,
+allowUntracked 값 무관 항상 차단한다"* 라고 적었다. **실측(이번 세션, 합성 scope 직접
+확인)**: 추적 스펙 X 가 디스크에서 사라진 상태에서, **X 와 무관한** 다른 추적 스펙 Y 만의
+narrow 실행은 **막히지 않고 통과한다**:
+
+```text
+scope.missingFiles = ['clients/desktop/playwright/x-real-qa.spec.ts']
+narrow 실행 대상 = 'clients/desktop/playwright/y-real-qa.spec.ts' (X 와 무관)
+→ 통과(막히지 않음)
+```
+
+코드 자체(`decideRealQaScope` 의 `relevantMissing = scope.missingFiles.filter((file) =>
+requestedFiles.has(file))`)와 그 위 docblock 주석("요청이 그 파일 자신을 가리키는 경우에는
+narrow 실행이라도 예외 없이 막는다")은 **정확하다** — missingFiles 차단은 narrow 실행에서
+**요청이 그 누락 파일 자신을 가리킬 때만** 적용되고, 무관한 missingFiles 는 다른 파일의 narrow
+실행을 막지 않는다. "narrow/전체 실행 무관 항상 차단" 은 전체(공식) 실행 branch 에서만 참이고
+narrow branch 에는 해당하지 않는다 — **커밋 메시지 문구만 느슨했다.** 이 문단으로 정정한다
+(코드·동작 자체는 변경 없음).
+
+### 정정 B — `>= 172` 하한선의 한계(게이트 아닌 기록)
+
+결함6 fix(`assert.equal(count, 172)` → `count >= 172`)는 **감소만** 차단하고 **증가 후 감소**는
+못 잡는다 — 고정 상수 비교이기 때문이다. 예: 형제 트랙이 스펙을 늘려 `180/180` 이 된 뒤,
+다른 변경이 6개를 지워 `174/174` 가 되어도 `174 >= 172` 는 여전히 참이라 **GREEN 이다**(6개
+소실이 이 테스트 하나만으로는 안 잡힌다). 이건 **결함이 아니라 이 최소-기준 설계의 알려진
+한계**다 — 추적 집합이 실제로 줄어드는지는 PR diff(`git diff --stat` 의 삭제 파일 목록)로도
+드러나므로, 이 테스트를 게이트로 강화하는 수단(예: 이전 라운드 수치를 파일에 영속화해 비교)은
+이번 라운드에서 도입하지 않는다 — 이 한계를 기록만 해 다음 라운드가 "고정 172 는 안전하다"고
+오인하지 않게 한다.
+
+### 정정 C — CI 는 이 게이트를 전혀 타지 않는다(피해 범위 = 로컬 개발자 실행)
+
+`.github/workflows/` 전체에서 `real-qa`/`real_qa`/`realqa` 문자열은 **0건**이다(원 구현 보고
+때부터 실측, 이번 세션에 R2-1/R2-2 수정 범위에도 재확인). 이 config 는 CI 파이프라인의 어떤
+job 에서도 로드되지 않는다. 따라서 R2-1(위치 인자 매칭 오탐)·R2-2(stdout 오염)·R2-3(내부 마커
+외부 신뢰) 세 결함의 **피해 범위는 전부 로컬 개발자가 자기 셸에서 `playwright test
+--config=playwright.real-qa.config.ts` 를 직접 실행하는 경우에 한정**되며, CI green/red 판정에는
+영향을 준 적이 없다.
+
+### 정정 D — R1 절 self-report 표의 줄 수 오기
+
+R1 절(위 "변경 파일 및 줄 수(git diff --numstat)") 표에서 `real-qa-scope.test.cjs` 행이
+`+404 / -6` 로 적혀 있었다. `git show --numstat 938c2f8ca` 실측(2회 확인) 결과는 `+402 / -6`
+이다 — **표를 `+402 / -6` 으로 정정했다**(같은 표의 나머지 4개 행은 실측과 일치해 정정하지
+않음).
+
+### 정정 E — 인용 줄번호 드리프트(dev-report 자체에는 해당 인용 없음)
+
+R1 종합 코멘트가 인용한 `playwright.real-qa.config.ts:69-72`(부모 커밋 `5a55506e0` 기준
+정확, R1 fix 가 그 파일에 `+11`줄을 넣어 `938c2f8ca` 기준으로는 `80-83`행으로 밀림)는 **이
+dev-report 파일 자체에는 존재하지 않는다**(`grep -n "playwright.real-qa.config.ts:"` 및
+`"69-72"`/`"80-83"`/`"assertRealQaScope("` 전부 0건, 이번 세션에 재확인) — 드리프트는 R1 PR
+코멘트에만 있었고 그 코멘트는 이미 게시된 이력이라 이 파일에서 고칠 대상이 없다. 참고로
+이번 세션 종료 시점 기준 실제 호출부 위치는 `playwright.real-qa.config.ts:80`(`assertRealQaScope({`)
+이다 — 이번 R2 세션은 이 파일을 전혀 수정하지 않아(`git diff --stat` 공백) 그 위치가 R2 로
+인해 추가로 밀리지 않았음을 확인했다.
+
+### 변경 파일 및 줄 수(git diff --numstat, 원문)
+
+```text
+clients/desktop/scripts/real-qa-scope.cjs        +150 / -30   R2-1·R2-2·R2-3 fix + 경계-오인 자체발견 fix
+clients/desktop/scripts/real-qa-scope.test.cjs   +375 / -2    R2 대응 RED 테스트 17건(R2-1 6·R2-2 3·R2-3 1·경계-오인 자체발견 2·회귀보존 4 신규 + 기존 결함1·3 실측 보강 테스트 소폭 보강 1) + import 확장
+docs/dev-reports/2026-07-28-964-real-qa-testmatch-scope.md  (본 절 추가 + 정정 D 1줄, 별도 계수)
+```
+
+### 못 한 것(정직한 목록)
+
+- 실서버 548건 전체 실행·스크린샷은 이번 라운드도 범위 밖(원 구현 보고의 DONE_WITH_CONCERNS
+  사유가 그대로 이월) — scope 게이트 자체의 RED-first 검증에 집중했다.
+- 회귀 울타리 항목 4(`-z` 파싱)·5(신선도 탈출구)는 코드가 이번 세션에 전혀 바뀌지 않아
+  `git diff` 로 무변경을 확인하고 기존 자동 테스트 GREEN 재확인으로 갈음했다 — R1 이 했던
+  수동 6종/stale-mtime 실측 재실행은 하지 않았다(위험이 낮다고 판단한 근거는 "계열 sweep"·
+  회귀 울타리 표에 명시).
+- `VALUE_TAKING_FLAGS` 화이트리스트는 playwright 1.59.1 의 `testOptions` 스냅샷이다 — 향후
+  playwright 업그레이드가 새 값-옵션을 추가하면 이 목록이 낡을 수 있다(다음 결함의 씨앗일
+  수 있음, 정직하게 기록). commander 의 실제 등록 옵션을 런타임에 조회하는 방식(`playwright/
+  lib/program` 의 `program.commands.find(c => c.name()==='test').options`)도 검토했으나,
+  `program.js` 전체 require 비용·매 config 로드마다 CLI 프로그램 전체를 끌어오는 무게를
+  고려해 이번엔 채택하지 않았다 — 필요 시 다음 라운드가 재검토할 수 있다.
+- CI(다음 커밋 SHA)는 PM 이 commit·push 한 뒤에만 확정되므로 이 세션에서는 로컬 동등 체크
+  (typecheck·test·lint, 위 회귀 울타리 표)로 갈음했다.
