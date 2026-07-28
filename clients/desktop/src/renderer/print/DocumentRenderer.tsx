@@ -263,6 +263,13 @@ function imageDecodeErrorNotice(elementKey: string, geometry?: Geometry) {
         ...geometryStyle(geometry, undefined),
         display: 'block',
         position: geometry === undefined ? 'relative' : 'absolute',
+        ...(geometry === undefined ? {} : {
+          height: `${geometry.h}%`,
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'ellipsis',
+          boxSizing: 'border-box',
+        }),
         zIndex: 1,
         color: 'var(--color-danger-700, #a12622)',
         fontSize: 12,
