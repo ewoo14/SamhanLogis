@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
  * {@code @RequirePermission} 가드({@link DynamicPermissionClient} 경계만 mock, PermissionAspect 는 실행).
  *
  * <p>{@link PriceChangeScheduleInternalControllerIT} 와 동일한 4행 singleton-like 테이블을
- * 공유하므로, 다른 IT 클래스의 고정값 단언(2026-04-01 등)을 깨뜨리지 않도록 {@code @Transactional}
+ * 공유하므로, 다른 IT 클래스의 고정값 단언(2026-07-01 등)을 깨뜨리지 않도록 {@code @Transactional}
  * 로 각 테스트 종료 시 rollback 한다 (같은 파일의 기존 관례 mirror).
  */
 @SpringBootTest(classes = ProductServiceApplication.class)
@@ -79,7 +79,7 @@ class PriceChangeScheduleAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data[1].category").value("singleSets"))
                 .andExpect(jsonPath("$.data[2].category").value("commercialMulti"))
                 .andExpect(jsonPath("$.data[3].category").value("oldProducts"))
-                .andExpect(jsonPath("$.data[0].effectiveDate").value("2026-04-01"))
+                .andExpect(jsonPath("$.data[0].effectiveDate").value("2026-07-01"))
                 .andExpect(jsonPath("$.data[0].defaultPreChange").value(false));
     }
 
@@ -132,7 +132,7 @@ class PriceChangeScheduleAdminControllerIT extends AbstractPostgresIT {
                                 {"defaultPreChange":true}
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.effectiveDate").value("2026-04-01"))
+                .andExpect(jsonPath("$.data.effectiveDate").value("2026-07-01"))
                 .andExpect(jsonPath("$.data.defaultPreChange").value(true));
     }
 

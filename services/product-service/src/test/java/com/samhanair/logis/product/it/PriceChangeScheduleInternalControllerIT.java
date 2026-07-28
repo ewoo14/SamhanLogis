@@ -36,10 +36,10 @@ class PriceChangeScheduleInternalControllerIT extends AbstractPostgresIT {
         mockMvc.perform(get("/products/internal/price-change-schedule")
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.homemulti").value("2026-04-01"))
-                .andExpect(jsonPath("$.data.singleSets").value("2026-04-01"))
-                .andExpect(jsonPath("$.data.commercialMulti").value("2026-04-01"))
-                .andExpect(jsonPath("$.data.oldProducts").value("2026-04-01"));
+                .andExpect(jsonPath("$.data.homemulti").value("2026-07-01"))
+                .andExpect(jsonPath("$.data.singleSets").value("2026-07-01"))
+                .andExpect(jsonPath("$.data.commercialMulti").value("2026-07-01"))
+                .andExpect(jsonPath("$.data.oldProducts").value("2026-07-01"));
     }
 
     /** 내부 endpoint 는 X-Internal-Token 이 없으면 product-service 규약대로 401 을 반환한다. */
@@ -103,9 +103,9 @@ class PriceChangeScheduleInternalControllerIT extends AbstractPostgresIT {
                         .header("X-Internal-Token", INTERNAL_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.homemulti").value("2026-05-01"))
-                .andExpect(jsonPath("$.data.singleSets").value("2026-04-01"))
-                .andExpect(jsonPath("$.data.commercialMulti").value("2026-04-01"))
-                .andExpect(jsonPath("$.data.oldProducts").value("2026-04-01"));
+                .andExpect(jsonPath("$.data.singleSets").value("2026-07-01"))
+                .andExpect(jsonPath("$.data.commercialMulti").value("2026-07-01"))
+                .andExpect(jsonPath("$.data.oldProducts").value("2026-07-01"));
     }
 
     // -------------------------------------------------------------------------
