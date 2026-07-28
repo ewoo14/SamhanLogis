@@ -545,6 +545,14 @@ public class ProductService {
         if (!usageWasNone && product.getUsageScope() == UsageScope.NONE) {
             assertNotReferencedByEnabledQuantitySyncRule(product.getId());
         }
+        // 🚨 2026-07-28 재수렴 후속 라운드 결함 4 [HIGH] fix — usageScope=NONE 전이만 막고
+        // estimateCategories 변경은 무방비였다(형제 필드 비대칭, U-2). DB 강제층(V24
+        // constraint trigger) 제거로 조용히 통과해 노출 카테고리가 바뀌어도 그 카테고리를
+        // 요구하는 enabled 규칙이 그대로 남는다 — usageScope=NONE·discontinue와 동일하게
+        // 이 사전 가드로 막는다.
+        if (req.estimateCategories() != null) {
+            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
+        }
         if (usageForcedNone || req.usageScope() != null || req.estimateCategories() != null) {
             syncEstimateExposures(product, product.getUsageScope(), req.estimateCategories(), "product-update");
         }
@@ -608,6 +616,11 @@ public class ProductService {
         boolean movingToNone = product.getUsageScope() != UsageScope.NONE
                 && (req.usageScope() == null || req.usageScope() == UsageScope.NONE);
         if (movingToNone) {
+            assertNotReferencedByEnabledQuantitySyncRule(product.getId());
+        }
+        // 🚨 2026-07-28 재수렴 후속 라운드 결함 4 [HIGH] fix — update()와 같은 이유로 수동
+        // 노출 override 경로도 estimateCategories 변경에 무방비였다(형제 필드 비대칭, U-2).
+        if (req.estimateCategories() != null) {
             assertNotReferencedByEnabledQuantitySyncRule(product.getId());
         }
         product.markUsageManual(req.usageScope());

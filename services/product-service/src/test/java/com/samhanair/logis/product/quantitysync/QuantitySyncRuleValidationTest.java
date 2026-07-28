@@ -64,7 +64,7 @@ class QuantitySyncRuleValidationTest {
                 .withCondition(condition)
                 .withExistingRules(List.of(new RuleSnapshot(
                         "EXISTING", "HOME_MULTI", true, condition, "REPLACE", 10,
-                        Set.of("OTHER-SRC"), Set.of("TARGET"))));
+                        Set.of("OTHER-SRC"), Set.of("TARGET"), randomIds(1), randomIds(1))));
         draft = draft.withProducts(merge(draft.products(), product("OTHER-SRC", "HOME_MULTI", true, true, false)));
 
         assertInvalid(draft, "REPLACE");
@@ -81,7 +81,7 @@ class QuantitySyncRuleValidationTest {
                 List.of(target("TARGET-B", "1")))
                 .withExistingRules(List.of(new RuleSnapshot(
                         "OTHER", "HOME_MULTI", true, emptyCondition(), "ADD", 10,
-                        Set.of("TARGET-B"), Set.of("SRC-A"))));
+                        Set.of("TARGET-B"), Set.of("SRC-A"), randomIds(1), randomIds(1))));
 
         assertInvalid(draft, "순환");
     }
@@ -259,6 +259,65 @@ class QuantitySyncRuleValidationTest {
         assertInvalid(draft, "source와 target");
     }
 
+    // ---- 🚨 2026-07-28 재수렴 결함 1·2·3 [단일 근본 원인] RED-first — 위 S-3 fix는 "한
+    // 요청 안"의 별칭만 productId로 잡는다. draft ↔ 기존 규칙(순환·REPLACE 중복)·
+    // draft ↔ bundle_component(BUNDLE 구성품) 비교는 여전히 문자열(productCode)만 본다 —
+    // 기존 규칙/구성품이 쓰는 문자열은 canonical modelCode인데 draft가 별칭(modelName)으로
+    // 같은 품목을 가리키면 두 문자열이 달라 통과했다. 아래 세 테스트는 각 비교 지점에서
+    // "기존 쪽 문자열"과 "draft 쪽 문자열"이 다르지만 productId는 같은 상황을 구성해
+    // 문자열 검사만으로는 못 잡고 productId 축이 있어야 잡히는지 고정한다. ----
+
+    @Test
+    void 기존_규칙이_참조하는_품목을_별칭으로_재지정해도_순환은_거부된다() {
+        UUID srcId = UUID.randomUUID();
+        UUID tgtId = UUID.randomUUID();
+        Draft draft = draft(
+                merge(Map.of(),
+                        productAlias(srcId, "SRC", "HOME_MULTI"),
+                        productAlias(tgtId, "TGT_ALIAS", "HOME_MULTI")),
+                List.of(new SourceDraft("TGT_ALIAS", new BigDecimal("1"))),
+                List.of(target("SRC", "1")))
+                .withExistingRules(List.of(new RuleSnapshot(
+                        "RC_A", "HOME_MULTI", true, emptyCondition(), "ADD", 10,
+                        Set.of("SRC"), Set.of("TGT"), Set.of(srcId), Set.of(tgtId))));
+
+        assertInvalid(draft, "순환");
+    }
+
+    @Test
+    void 기존_REPLACE_규칙의_target을_별칭으로_재지정해도_중복으로_거부된다() {
+        UUID otherSrcId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        JsonNode condition = condition("{\"optionEquals\":[\"homeNoHose\",false]}");
+        Draft draft = draft(
+                merge(Map.of(),
+                        productAlias(UUID.randomUUID(), "SRC", "HOME_MULTI"),
+                        productAlias(targetId, "TARGET_ALIAS", "HOME_MULTI")),
+                List.of(new SourceDraft("SRC", new BigDecimal("1"))),
+                List.of(target("TARGET_ALIAS", "1")))
+                .withConflictPolicy("REPLACE")
+                .withCondition(condition)
+                .withExistingRules(List.of(new RuleSnapshot(
+                        "EXISTING", "HOME_MULTI", true, condition, "REPLACE", 10,
+                        Set.of("OTHER-SRC"), Set.of("TARGET"), Set.of(otherSrcId), Set.of(targetId))));
+
+        assertInvalid(draft, "REPLACE");
+    }
+
+    @Test
+    void BUNDLE_구성품을_별칭으로_재지정해도_연결할_수_없다() {
+        UUID componentId = UUID.randomUUID();
+        ProductSnapshot bundle = new ProductSnapshot(UUID.randomUUID(), "BUNDLE", "BUNDLE 품목",
+                Set.of("HOME_MULTI"), true, true, true, Set.of(), Set.of(componentId));
+        ProductSnapshot componentAlias = productAlias(componentId, "COMPONENT_ALIAS", "HOME_MULTI");
+        Draft draft = draft(
+                Map.of("BUNDLE", bundle, "COMPONENT_ALIAS", componentAlias),
+                List.of(new SourceDraft("BUNDLE", new BigDecimal("1"))),
+                List.of(target("COMPONENT_ALIAS", "1")));
+
+        assertInvalid(draft, "BUNDLE");
+    }
+
     // ---- 🚨 2026-07-28 범위 축소 R5 A2-①·A2-② RED-first — condition_json leaf scalar가
     // PostgreSQL jsonb에 저장 불가능한 값이면 저장 이전에 400으로 거부한다. ----
 
@@ -354,7 +413,7 @@ class QuantitySyncRuleValidationTest {
                 List.of(target("A", "1")))
                 .withExistingRules(List.of(new RuleSnapshot(
                         "TEST_RULE", "HOME_MULTI", true, emptyCondition(), "ADD", 10,
-                        Set.of("A"), Set.of("B"))));
+                        Set.of("A"), Set.of("B"), randomIds(1), randomIds(1))));
 
         assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
     }
@@ -372,7 +431,7 @@ class QuantitySyncRuleValidationTest {
                 List.of(target("A", "1")))
                 .withExistingRules(List.of(new RuleSnapshot(
                         "DISABLED_OTHER", "HOME_MULTI", false, emptyCondition(), "ADD", 10,
-                        Set.of("A"), Set.of("B"))));
+                        Set.of("A"), Set.of("B"), randomIds(1), randomIds(1))));
 
         assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
     }
@@ -394,7 +453,7 @@ class QuantitySyncRuleValidationTest {
                 .withCondition(condition)
                 .withExistingRules(List.of(new RuleSnapshot(
                         "DISABLED_REPLACE", "HOME_MULTI", false, condition, "REPLACE", 10,
-                        Set.of("OTHER-SRC"), Set.of("TARGET"))));
+                        Set.of("OTHER-SRC"), Set.of("TARGET"), randomIds(1), randomIds(1))));
 
         assertThatCode(() -> validator.validate(draft)).doesNotThrowAnyException();
     }
@@ -556,7 +615,7 @@ class QuantitySyncRuleValidationTest {
                                                  boolean active, boolean visible, boolean bundle,
                                                  Set<String> componentCodes) {
         return new ProductSnapshot(UUID.randomUUID(), code, code + " 품목", categories,
-                active, visible, bundle, componentCodes);
+                active, visible, bundle, componentCodes, Set.of());
     }
 
     /**
@@ -566,7 +625,22 @@ class QuantitySyncRuleValidationTest {
      * 용도로 쓸 수 없다).
      */
     private static ProductSnapshot productAlias(UUID productId, String code, String category) {
-        return new ProductSnapshot(productId, code, code + " 품목", Set.of(category), true, true, false, Set.of());
+        return new ProductSnapshot(productId, code, code + " 품목", Set.of(category),
+                true, true, false, Set.of(), Set.of());
+    }
+
+    /**
+     * 🚨 2026-07-28 재수렴 결함 1·2 [단일 근본 원인] RED-first 전용 — 순환/REPLACE 중복
+     * 테스트에서 productId를 채워야 하지만 그 값 자체가 검증에 무관한(self/enabled로
+     * 먼저 걸러지는) 기존 테스트의 나머지 4개 {@code RuleSnapshot} 호출을 위한 자리채움.
+     * 서로 다른 랜덤 UUID라 다른 어떤 productId와도 우연히 일치하지 않는다.
+     */
+    private static Set<UUID> randomIds(int count) {
+        java.util.Set<UUID> ids = new java.util.HashSet<>();
+        for (int i = 0; i < count; i++) {
+            ids.add(UUID.randomUUID());
+        }
+        return ids;
     }
 
     private static Map<String, ProductSnapshot> products(ProductSnapshot... products) {

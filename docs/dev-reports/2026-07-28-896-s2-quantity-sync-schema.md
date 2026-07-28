@@ -946,6 +946,14 @@ QuantitySyncRuleInputMistakeIT.xml       tests=7  failures=0
 (quantitysync 패키지 전체 56/56, ProductServiceTest 49/49, GlobalExceptionHandlerHttpMessageTest 4/4)
 ```
 
+> 🚨 **2026-07-28 재수렴 후속 라운드(SONNET5) 정정 A** — "quantitysync 패키지 전체 56/56"은
+> **오기다. 실측은 60/60**이다(당시 quantitysync 디렉터리 11개 파일의 `@Test` 개수 합
+> 3+2+7+3+3+1+7+3+2+1+28=60, 이 라운드에서 파일별 개별 재측정으로 확인). 이 §10.3에 인용된
+> `28`(QuantitySyncRuleValidationTest)·`7`(QuantitySyncRuleInputMistakeIT) 두 파일의 부분합은
+> 정확하지만, 전체 합산 문구 "56"은 R2(§9) 시점 파일 구성 기준 수치를 그대로 재사용한 것으로
+> 보이며 R3~R5·범위축소가 파일을 추가한 뒤 갱신되지 않았다. 아래 §10.5의 같은 문구도 동일
+> 오기다.
+
 **뮤테이션 RED**(source 전용 검사만 국소 무력화 — `requireUniqueSourceProductCodes`의
 `if (priorCode != null)` → `if (priorCode != null && false)`, 나머지 두 검사는 정상):
 
@@ -980,6 +988,7 @@ PostgreSQL jsonb 파싱(U+0000 거부)은 트리거와 무관한 독립 결함�
 
 1. 규칙 CRUD 전 계약 — `QuantitySyncRuleCrudIT` 2/2, `QuantitySyncRuleValidationTest` 28/28,
    `QuantitySyncRuleInputMistakeIT` 7/7(A~G) 등 quantitysync 패키지 **56/56 GREEN**.
+   (🚨 2026-07-28 재수렴 후속 라운드 정정 A — "56/56"은 오기, 실측 60/60. 위 §10.3 정정 참조.)
 2. usageScope=NONE·discontinue 구체 메시지 — `QuantitySyncRuleProductDiscontinueIT` 7/7
    GREEN(무변경 파일, `ProductService.assertNotReferencedByEnabledQuantitySyncRule` 무변경).
 3. 규칙 0건 CRUD 정상 — 트리거 자체가 없으므로 자명(early-exit 최적화보다 강한 보장).
@@ -1061,3 +1070,362 @@ scripts/probe-896-s2-fresh-postgres.ps1                                   |  24 
    `bundle_component` 를 쓰므로 트리거 제거 혜택을 구조적으로 받지만 실행 확인은 없다.
 5. **gradle 전체 스위트는 이 작업자 세션 내에서 여러 번 재실행**(경합 없이 순차 실행,
    병렬 에이전트 없었음) — 최종 권위는 CI(exact SHA)이며 로컬 실행은 참고용이다.
+
+## 11. 범위 축소 후 재수렴 라운드 fix (2026-07-28, SONNET5) — Java 검증 마무리: 별칭 vs 기존규칙/구성품 통합 + 노출카테고리 가드
+
+PR #958 코멘트(범위 축소 후 재수렴 라운드 종합, OPUS 발견 1 + SONNET5 대조 1)가 **도달 가능
+결함 4건**(c=0.57, R5의 7건 대비 개선되었으나 0은 아님)을 잡았다. §10.4의 §10.8 항목 2가
+"이론상 REPLACE 중복도 별칭으로 우회 가능하다"고 **이미 예견**했던 취약점이 실제로
+재현됐다 — 이번 라운드는 그 예견을 포함해 같은 근본 원인을 공유하는 결함 3건(순환·REPLACE
+중복·BUNDLE 구성품)과, 전제조건 없이 항상 재현되는 결함 1건(노출 카테고리 변경 무방비)을
+고친다. **DB 강제층은 되살리지 않는다** — 개발책임자 결정대로 제거 상태를 유지하고,
+Java 층에서 마무리한다.
+
+### 11.1 정정 C — 축소 커밋의 "API 경유 무결성은 Java 검증이 그대로 막는다" 선언, 어디까지 참인가
+
+커밋 `7e9c37a91` 메시지는 트레이드오프 단락 끝에 "API 경유 무결성은 Java 검증이 그대로
+막는다"고 적었다. 이번 라운드가 반증한 범위를 정확히 기록한다.
+
+- **결함 1·2·3(순환·REPLACE 중복·BUNDLE 구성품)** — Java 검증은 **존재했다.** 다만 draft
+  (사용자 입력 원문 productCode)를 기존 규칙/`bundle_component`가 쓰는 **canonical
+  modelCode 문자열**과 **문자열로만** 비교했다. 품목 modelCode 는 불변이고 modelName 만
+  바뀔 수 있다는 개발책임자 결정 아래, 품목의 modelName 을 한 번 바꾸면 같은 품목을
+  가리키는 두 문자열이 달라져 이 세 검사를 전부 우회할 수 있었다 — "막는다"가 아니라
+  **"문자열이 우연히 일치하는 동안만 막는다"** 가 정확한 서술이었다. S-3 fix(A1-①)가
+  이미 "한 요청 안"의 별칭은 productId 로 잡았으므로, 커밋 작성 시점에 "API 경유는
+  막는다"고 판단한 근거 자체는 이해할 수 있으나 검증 범위가 "한 요청 내부"에 그쳤다는
+  점을 명시했어야 했다.
+- **결함 4(노출 카테고리 변경)** — Java 검증이 **아예 없었다.** `usageScope=NONE` 전이·
+  discontinue·delete 에는 `assertNotReferencedByEnabledQuantitySyncRule()` 사전 가드가
+  있었지만, `estimateCategories` 변경 경로(`ProductService.update()`/
+  `updateUsageAndReturn()`)에는 그 가드가 아예 호출되지 않았다 — "약화된 검증"이 아니라
+  **"검증 부재"**였다. DB 트리거가 있던 시절에는 이 부재가 트리거로 가려졌을 뿐이다(R4
+  결함 A 의 409 가 바로 그 트리거였다).
+
+결론 — 축소 결정("DB 강제층 제거 + Java 검증 유지") 자체는 옳았고 번복하지 않는다. 다만
+"Java 검증이 그대로 막는다"는 **검증 범위를 실제보다 넓게 서술**했다. 이번 라운드는 그
+범위를 넓혀 선언을 사실에 맞춘다.
+
+### 11.2 결함 1·2·3 [단일 근본 원인] fix — RED → GREEN → 뮤테이션 RED
+
+**근본 원인**: `RuleSnapshot`(기존 규칙 snapshot)과 `ProductSnapshot.componentCodes`
+(BUNDLE 구성품)가 `productId`(UUID) 없이 `productCode`(String)만 가지고 있었다. S-3 fix
+가 `ProductSnapshot`에 `productId`를 추가해 "한 요청 안" 비교는 고쳤지만, "draft ↔ 기존
+규칙"(순환 `rejectCycles`·REPLACE 중복)과 "draft ↔ bundle_component"(BUNDLE 구성품)
+비교는 여전히 문자열만 봤다.
+
+**fix — 하나의 일관된 메커니즘을 세 지점에 적용**(각기 다른 임기응변 가드 3개가 아니다):
+
+1. `RuleSnapshot` 에 `sourceProductIds`/`targetProductIds`(`Set<UUID>`) 를 `sourceCodes`/
+   `targetCodes` 와 나란히 추가 — `QuantitySyncRuleService.activeRuleSnapshots()` 가 이미
+   조회해 둔 `QuantitySyncSource#getSourceProductId()`/`QuantitySyncTarget#getTargetProductId()`
+   로 채운다(추가 쿼리 0).
+2. `ProductSnapshot` 에 `componentProductIds`(`Set<UUID>`) 를 `componentCodes` 와 나란히
+   추가 — `QuantitySyncRuleService.toSnapshot()` 이 `componentProductCode`(canonical
+   modelCode, `bundle_component` 자신의 natural key) 를
+   `productRepository.findByModelCodeInAndIsDeletedFalse()` 로 벌크 재해소한다
+   (`BundleExpander#expand` 와 동일 관례 — modelName fallback 없음, componentProductCode
+   는 사용자 입력이 아니므로 별칭 문제가 없다).
+3. 검증부 3곳이 이제 채워진 productId 축을 문자열 축과 **나란히**(OR) 본다:
+   - `rejectCycles` → `rejectCyclesByIdentity(draft, keys, ..., extractor)` 를 제네릭
+     `<T>` 로 뽑아 **String 축 1회 + UUID 축 1회**, 같은 순환 탐지 로직을 두 identity 로
+     실행(코드 중복 없음).
+   - REPLACE 중복 — `!Collections.disjoint(targetCodes, existing.targetCodes())` 옆에
+     `|| !Collections.disjoint(targetProductIds, existing.targetProductIds())` 를 추가.
+   - BUNDLE 구성품 — 이미 category 판정을 위해 순회하던 `for (TargetDraft target :
+     draft.targets())` 루프 안에 `sourceProduct.componentProductIds().contains(targetProduct.productId())`
+     한 줄을 추가(새 루프 없음).
+
+이 세 곳 모두 "productId 로도 같은 판정을 한다"는 동일 패턴이며, S-3 fix 가 이미 확립한
+"문자열 축 + UUID 축 병행" 관례를 그대로 연장한 것이다.
+
+**RED**(수정 전 HEAD 기준, `QuantitySyncRuleExistingRuleAliasIntegrityIT` 신규 3 테스트 —
+품목 modelName 을 실제로 1회 변경한 뒤 [대조군: 원표기 재시도 → 여전히 거부] +
+[공격: 별칭 표기 재시도] 순서로 같은 테스트에서 함께 실행):
+
+```text
+.\gradlew :services:product-service:test \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleExistingRuleAliasIntegrityIT" \
+  --rerun-tasks --no-build-cache
+3 tests completed, 3 failed
+
+기존_규칙이_참조하는_품목을_modelName_별칭으로_재지정해도_순환은_거부된다() FAILED
+  java.lang.AssertionError: Expecting code to raise a throwable.
+    at ...java:91   ← [공격] 블록만 실패, [대조군](:88)은 통과
+
+기존_REPLACE_규칙의_target을_modelName_별칭으로_재지정해도_중복은_거부된다() FAILED
+  java.lang.AssertionError: Expecting code to raise a throwable.
+    at ...java:117  ← [공격]만 실패, [대조군](:114)은 통과
+
+BUNDLE_구성품을_modelName_별칭으로_재지정해도_연결은_거부된다() FAILED
+  java.lang.AssertionError: Expecting code to raise a throwable.
+    at ...java:141  ← [공격]만 실패, [대조군](:138)은 통과
+```
+
+**GREEN**(fix 적용 후, unit + IT):
+
+```text
+.\gradlew :services:product-service:test \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleValidationTest" \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleExistingRuleAliasIntegrityIT" \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDiscontinueIT" \
+  --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 1m 9s
+QuantitySyncRuleValidationTest.xml                     tests=31 failures=0  (28 기존 + 3 신규 alias-vs-existing 유닛)
+QuantitySyncRuleExistingRuleAliasIntegrityIT.xml       tests=3  failures=0  (신규 파일, 결함 1·2·3 IT)
+QuantitySyncRuleProductDiscontinueIT.xml               tests=12 failures=0  (7 기존 + 5 신규 결함4)
+```
+
+**뮤테이션 RED**(각 productId 축을 국소 무력화 — `if (false)`/`false &&` 로 해당 분기만
+죽이고 나머지는 정상, unit+IT 동시 실행, 곧 원상복구):
+
+| 뮤테이션 | 대상 | 결과 |
+|---|---|---|
+| 1: 순환 UUID 축(`rejectCyclesByIdentity` 2번째 호출) 무력화 | 결함 1 | `34 tests completed, 2 failed` — 유닛 `기존_규칙이_참조하는_품목을_별칭으로_재지정해도_순환은_거부된다()` + IT 동명 테스트만 실패. 기존 문자열 순환 테스트(`source_target_graph에_순환이_있으면_저장할_수_없다`) 등 나머지 32건 GREEN 유지 |
+| 2: REPLACE 중복 `targetProductIds` disjoint 무력화 | 결함 2 | `34 tests completed, 2 failed` — 유닛+IT 의 별칭 REPLACE 테스트만 실패, 기존 문자열 REPLACE 중복 테스트는 GREEN 유지 |
+| 3: BUNDLE `componentProductIds.contains` 무력화 | 결함 3 | `34 tests completed, 2 failed` — 유닛 `BUNDLE_구성품을_별칭으로_재지정해도_연결할_수_없다()` + IT 동명 테스트만 실패. 기존 문자열 BUNDLE 테스트(`BUNDLE_source에서_같은_BUNDLE의_component로_연결할_수_없다`)는 GREEN 유지 |
+
+3건 모두 정확히 관련된 2개 테스트(유닛 1 + IT 1)만 잡고 나머지는 그대로 GREEN — 뮤테이션이
+우연히 통과하는 게 아니라 각 productId 축이 실제로 그 판정에 쓰이고 있음을 확인했다.
+원상복구 후 전체 재실행으로 다시 GREEN 확인(§11.4).
+
+### 11.3 결함 4 [HIGH, 전제조건 없음] fix — 형제 필드 비대칭 해소
+
+`ProductService.update()`(`:543-556`)는 `usageScope`가 NONE 으로 전이할 때만
+`assertNotReferencedByEnabledQuantitySyncRule()`을 호출했고, `estimateCategories` 변경은
+이 사전 가드를 전혀 타지 않았다 — DB 강제층이 있던 시절엔 R4 결함 A 의 409(위장된 형태로나마)
+가 이 표면을 가려줬지만, 트리거 제거 후에는 200 으로 조용히 통과해 규칙이 참조하는 품목이
+그 규칙의 category 밖으로 나가도 규칙은 `enabled=true`로 살아남는다.
+
+**fix** — PM 메모의 참고 제안대로, 같은 클래스에 이미 있는
+`assertNotReferencedByEnabledQuantitySyncRule()`을 수정 없이 재사용해 두 진입점에
+`estimateCategories != null` 조건으로 호출을 추가했다(`update()`:+4줄,
+`updateUsageAndReturn()`:+4줄) — `usageScope=NONE`·discontinue·delete 와 동일한 그래프
+탐색을 그대로 탄다. 의도적으로 **coarse**(이 규칙이 이 품목을 참조하기만 하면
+estimateCategories 변경 자체를 막음, "이 변경이 실제로 카테고리를 뺏는지"는 판정하지
+않음)하게 설계했다 — 형제 필드(`usageScope`)의 discontinue/delete 쪽도 "이 전이가 실제로
+해가 되는지"를 세분하지 않고 코스하게 막고, U-2가 요구하는 것도 "형제 필드와 같은 판정"이지
+더 정교한 판정이 아니다. 회귀 울타리(§11.4 항목 4)의 5개 control 테스트가 정상 입력까지
+막지 않는지 확인한다.
+
+**RED**(수정 전, `QuantitySyncRuleProductDiscontinueIT` 신규 5 테스트 중 3개):
+
+```text
+.\gradlew :services:product-service:test \
+  --tests "com.samhanair.logis.product.quantitysync.QuantitySyncRuleProductDiscontinueIT" \
+  --rerun-tasks --no-build-cache
+12 tests completed, 3 failed
+
+활성_규칙이_참조하면_수동_노출override로_estimateCategories를_바꿀_수_없고_원인이_드러난다() FAILED
+  java.lang.AssertionError: Expecting code to raise a throwable. (updateUsageAndReturn 무방비)
+
+활성_규칙이_참조하면_PATCH로_estimateCategories를_바꿀_수_없고_원인이_드러난다() FAILED
+  java.lang.AssertionError: Expecting code to raise a throwable. (update 무방비)
+
+노출카테고리_변경_거부와_단종_거부는_같은_품목_같은_원인이면_같은_메시지를_낸다() FAILED
+  java.lang.AssertionError: 예외가 발생해야 한다 (update가 예외를 던지지 않음)
+```
+
+나머지 9건(기존 7건 + control 2건: `비활성_규칙만_참조하면_estimateCategories_변경이_허용된다`·
+`수량_동기화_규칙과_무관한_품목은_estimateCategories를_평소대로_바꿀_수_있다`)은 GREEN —
+가드가 없어도 무관한 경로는 원래 통과해야 하므로 예상대로다.
+
+> ⚠️ 이 RED 캡처 중 신규 결함이 아닌 **테스트 인프라 버그 1건**을 자체 발견·수정했다 —
+> 가드가 없던 상태에서 `estimateCategories` 변경이 실제로 성공하면 `syncEstimateExposures()`
+> 가 새로 심는 노출 행의 `created_by`는 `JpaAuditingConfig` `AuditorAware`가 채우는
+> `"system"`이라 이 파일의 `CREATED_BY`("896-S2-DISCONTINUE") 스코프 cleanup 이 놓쳤다 —
+> 다음 테스트의 `products` DELETE 가 FK 위반으로 연쇄 실패했다. `cleanup()`의 exposure
+> 삭제를 `created_by` 스코프에서 **product 소유 기준**(다른 quantitysync IT와 동일 관례)
+> 으로 바꿔 해결했다 — fix 로직과 무관, 테스트 fixture 만의 문제다.
+
+**GREEN**(fix 후) — §11.2 GREEN 표 참조(`QuantitySyncRuleProductDiscontinueIT.xml
+tests=12 failures=0`).
+
+**뮤테이션 RED**(두 호출부가 각각 독립적으로 필요한지 확인, 국소 `if (false && ...)`):
+
+| 뮤테이션 | 결과 |
+|---|---|
+| 4: `update()` 쪽 가드만 무력화 | `12 tests completed, 2 failed` — PATCH 테스트 + 형제-메시지 대칭 테스트(둘 다 `update()` 경유)만 실패. usage override 테스트는 GREEN 유지 |
+| 5: `updateUsageAndReturn()` 쪽 가드만 무력화 | `12 tests completed, 1 failed` — usage override 테스트만 실패. PATCH·대칭 테스트는 GREEN 유지 |
+
+두 호출부가 서로를 대신하지 못하는 독립된 진입점임을 확인했다. 원상복구 후 재실행으로
+다시 GREEN 확인.
+
+### 11.4 회귀 울타리 — PR #958 지시서 8항목 실행 결과
+
+1. **능동 fix 2건 오거부 0**(16종 경계값) — 이번 라운드가 손댄 코드는 이 검사와 무관한
+   지점(순환/REPLACE/BUNDLE/노출카테고리)이라 무변경. §10.4 RED/GREEN 원문 그대로 유효.
+2. **정규표기 순환**(2·3단계·교차 카테고리) 400 유지·**카테고리 이탈·삭제/비노출 참조**
+   400 유지 — `QuantitySyncRuleValidationTest` 기존 24개(신규 3개 제외) 전부 GREEN, 특히
+   문자열 기반 순환/REPLACE/BUNDLE 테스트 3개가 뮤테이션 국소화로 여전히 별도로 확인됨.
+3. **요청 내부 별칭 S-3 fix** — `source에_별칭_...`/`target에_별칭_...`/`별칭으로_지정해도_source와_target이_같은_품목이면` 3개 GREEN 유지(무변경 로직, `productOverlap`/`requireUniqueSourceProductCodes`/`requireUniqueTargets` 전부 무변경).
+4. **`usageScope=NONE`·discontinue 의 409 + 구체 메시지 그대로** — `QuantitySyncRuleProductDiscontinueIT`
+   기존 7건 전부 GREEN(무변경 텍스트/로직). 신규 2건 control(`비활성_규칙만_참조하면_estimateCategories_변경이_허용된다`·
+   `수량_동기화_규칙과_무관한_품목은_estimateCategories를_평소대로_바꿀_수_있다`)이 결함4 fix가
+   정상 입력까지 막지 않음을 추가로 고정.
+5. **규칙 CRUD 전 계약** — `QuantitySyncRuleCrudIT` 2/2(순환 fix 의 문자열 축 무변경 확인),
+   `ruleKey` 패턴·condition JSON 8종·교차 카테고리 REPLACE 허용 — 해당 테스트 파일
+   (`QuantitySyncRuleKeyPathSafetyHttpIT`·`QuantitySyncRuleOptionInParityIT`·
+   `QuantitySyncRuleReplaceDuplicateJsonbNumericEqualityHttpIT` 등) 전부 전체 스위트
+   재실행에서 GREEN(§11.5).
+6. **product-service 전체 `files=56 tests=579 failures=0`**(신규 1파일 + 신규 11테스트로
+   `files=55 tests=568` 에서 증가 — 신규는 정상 증가) — `.\gradlew :services:product-service:test
+   --rerun-tasks --no-build-cache` → `BUILD SUCCESSFUL in 2m 26s`.
+7. **슬1 golden `clients/web/legacy-quantity-golden/**` 무접촉** — `git status --porcelain --
+   clients/web/legacy-quantity-golden/` 공백(이번 라운드는 product-service 백엔드만 수정).
+8. **V24 순수 추가형 유지** — 이번 라운드는 `db/migration/` 을 전혀 건드리지 않았다
+   (`git status --porcelain` 에 `.sql` 변경 0건). `CREATE FUNCTION` 0·`CREATE (CONSTRAINT)
+   TRIGGER` 0·`CREATE TABLE` 3·인덱스 7 은 §10.2 상태 그대로다.
+
+### 11.5 전체 스위트 재확인
+
+```text
+.\gradlew :services:product-service:test --rerun-tasks --no-build-cache
+BUILD SUCCESSFUL in 2m 26s
+files=56 tests=579 failures=0 errors=0 skipped=0
+```
+
+(56개 XML 리포트 전수 파싱 합산 — `55+1`(신규 `QuantitySyncRuleExistingRuleAliasIntegrityIT`),
+`568+11`(유닛 3 + IT 3 + discontinue IT 5).) quantitysync 패키지 자체는 이제 **71/71**
+(11개 파일 개별 재측정 합 3+2+3+7+3+3+1+12+3+2+1+31=71 — §10.3/§10.5 정정 A 의 60 에서
+신규 11 증가).
+
+### 11.6 계열 전수 sweep
+
+**① draft ↔ 기존 상태를 문자열로 비교하는 다른 지점** — `QuantitySyncRuleValidator.java`
+전체에서 `existing.`·`componentCodes()`·`sourceCodes()`/`targetCodes()` 를 grep 해 전수
+확인. 이번에 고친 3곳(순환·REPLACE 중복·BUNDLE 구성품) 외 **다른 지점 없음** — category
+멤버십 검사(`categories().contains()`)는 draft 내부 Set 검사로 별도 문자열 identity
+비교가 아니다.
+
+**② 규칙이 참조하는 품목의 상태를 바꾸는 다른 진입점** — `product_estimate_exposure` write
+경로 전체(`ProductEstimateExposure.create`·`exposureRepository.save`)를 저장소 전체
+grep 으로 확인:
+
+- `ProductService.create/update/updateUsageAndReturn` — 이번 라운드가 가드를 채운 경로.
+- `ProductSheetSyncService.upsertSheetExposure()`(:1301-1318) — **구조적으로 이 결함의
+  벡터가 아니다.** Javadoc 이 명시하듯 "sync 는 삭제를 절대 수행하지 않고, 탭에 등장한
+  카테고리 행을 보장하거나 displayOrder 만 갱신"하는 **추가 전용(additive-only)** 이고,
+  `product.isUsageScopeManual()` 이면 아예 건너뛴다 — 규칙이 요구하는 카테고리를
+  **제거**할 수 없으므로 결함 4 가 막는 실패 모드(카테고리 제거로 규칙이 깨짐)를 일으킬
+  수 없다. 정적 확인만 했고 실행하지 않았다(Google Sheets 자격증명 필요, §10.9 항목4와
+  동일 제약).
+- `ProductSheetSyncService`의 시트-탈락 품목 **전체 soft-delete** 경로(:1268-1283,
+  `p.markDeleted()` + `softDeleteExposures()`) — 🚩 **다른 진입점이 맞다**. 이 경로는
+  `usageScopeManual` 이 아닌 품목이 시트에서 사라지면 `ProductService.delete()`의
+  `assertNotReferencedByEnabledQuantitySyncRule()` 가드를 거치지 않고 품목 전체와 노출을
+  직접 soft-delete 한다. 그러나 이것은 **이번 라운드의 결함 4(범위: estimateCategories
+  변경)와 다른 표면**(품목 전체 소멸)이며, PR #958 라운드 종합 코멘트 "이 라운드가
+  확인하지 못한 것" 1번이 **이미 별도로** "정적 관찰, 미확정"으로 기록한 항목과 정확히
+  같다. 4개 워크트리 격리·"새 이슈 등록 금지"·"범위 점증 시 리뷰 재가동" 규율에 따라
+  이번 fix 라운드에서 손대지 않고 **정직히 이월**한다 — 고치려면 결함 4 와 별개로
+  범위·재현·회귀영향을 다시 검토해야 한다.
+- `EcountProductImporter` — 저장소 전체 grep 결과 `exposureRepository`/
+  `ProductEstimateExposure`/`markDeleted`/`changeUsage` 참조 **0건**. 이 벡터가 아니다.
+
+### 11.7 정정 B — 직전 담당의 자진 신고 2건, 이번 라운드가 위치를 확인
+
+PR #958 라운드 종합 코멘트가 "구현자가 보고한 자진 신고 ①Edit 도구 오타로 NUL 바이트 3회
+삽입 ②`git add -N` 1회 실행이 dev-report·PR 코멘트 어디에도 기록되어 있지 않다"고 지적하고
+**그 코멘트 자체로 1차 기록**했다. 이 dev-report 본문에는 아직 없어 여기 §11.7 에 고정한다.
+
+1. 직전 라운드(범위 축소 후 첫 재수렴 fix 담당) 작업 중 Edit 도구에 NUL 문자를 가리키는
+   유니코드 이스케이프 표기를 그대로 타이핑해 실제 U+0000(NUL) 바이트가 소스에 3회
+   삽입됐다(Java 파일 2곳 + 이 dev-report 1곳) — `git diff` 가 텍스트 diff 대신
+   "Binary files differ" 로 표시되는
+   방식으로 드러났다. 해당 담당이 교정했고, 라운드 종합 코멘트의 대조 각도가 변경 파일
+   19개 + `product-service/src` 전체를 바이트 스캔해 **NUL 바이트 0건**을 확인했다.
+2. 같은 담당이 **`git add -N` 를 1회 실행**했다 — 이 PR 라운드의 "git 조작 전면 금지"
+   지시를 위반한 것이다.
+
+이번 라운드(SONNET5, §11 전체)는 두 문제를 되풀이하지 않았다: NUL 문자 리터럴이 필요한
+지점(`requireNoNulCharacter` 호출부 테스트 등)은 전부 정수 코드포인트 경유
+(`String.valueOf((char) 0)`, 기존 파일의 기존 관례 그대로 재사용·신규 작성 없음)로
+작성했고, git 조작(add/commit/checkout/stash/branch/reset/push, `-N` 포함)을 전혀
+실행하지 않았다 — §11.8 이 이번 라운드가 변경한 7개 파일(신규 1 + 수정 6) 전체의 바이트
+스캔 결과 NUL 0건을 다시 확인한다.
+
+### 11.8 변경 파일 + numstat 원문 + NUL 바이트 재스캔
+
+`git diff --numstat`(추적 파일, 원문 그대로 — 삭제분을 추가분에 합산하지 않음):
+
+```text
+9	0	docs/dev-reports/2026-07-28-896-s2-quantity-sync-schema.md
+76	16	services/product-service/.../quantitysync/QuantitySyncRuleValidator.java
+13	0	services/product-service/.../service/ProductService.java
+30	2	services/product-service/.../service/QuantitySyncRuleService.java
+106	1	services/product-service/.../quantitysync/QuantitySyncRuleProductDiscontinueIT.java
+81	7	services/product-service/.../quantitysync/QuantitySyncRuleValidationTest.java
+```
+
+신규(미추적) 파일 — `git diff --numstat` 은 untracked 파일을 잡지 않으므로 `wc -l` 로
+별도 보고: `QuantitySyncRuleExistingRuleAliasIntegrityIT.java` **274줄**(전량 추가).
+
+집계(추적분 `+315/-26` 6파일 + 신규 1파일 274줄 추가 — 두 숫자를 합쳐 "총 +589/-26"으로
+뭉뚱그리지 않고 출처를 분리해 보고한다): 메인 코드 3파일 `+119/-18`(Validator 76/16 +
+ProductService 13/0 + QuantitySyncRuleService 30/2), 테스트 3파일(신규 1 포함)
+`+461/-8`(discontinueIT 106/1 + validationTest 81/7 + 신규 aliasIT 274/0), 문서 1파일
+`+9/-0`.
+
+**NUL 바이트 재스캔**(변경 6파일 + 신규 1파일, 파이썬 바이너리 읽기 `b"\x00" in data`):
+
+```text
+QuantitySyncRuleValidator.java: NUL=0
+ProductService.java: NUL=0
+QuantitySyncRuleService.java: NUL=0
+QuantitySyncRuleProductDiscontinueIT.java: NUL=0
+QuantitySyncRuleValidationTest.java: NUL=0
+QuantitySyncRuleExistingRuleAliasIntegrityIT.java(신규): NUL=0
+2026-07-28-896-s2-quantity-sync-schema.md: NUL=0
+TOTAL NUL BYTES: 0
+```
+
+확장 재스캔 — `services/product-service/src` 전체(238개 `.java`/`.sql`/`.yml`/`.yaml`/
+`.properties`/`.md` 파일) 바이트 스캔: **NUL 바이트 있는 파일 0건.**
+
+> 🚩 **자진 신고** — 위 §11.7 을 작성하는 도중, 직전 담당의 NUL 바이트 삽입 사고를
+> 서술하려다 이 dev-report 자신에 **NUL 바이트 1개를 똑같이 삽입**했다(§11.7 1번 항목
+> 문장 안, Edit 도구 호출 결과물에서 발견). 작업 종료 전 최종 바이트 스캔에서 직접
+> 잡아 파이썬 바이트 치환(Edit 도구 재사용 없이)으로 교정하고 재스캔해 0건을 확인했다 —
+> 이 경고가 지키기 쉬운 규칙이 아니라 **서술하는 것만으로도 재현되는 함정**임을
+> 실측으로 재확인한다. 위 표·수치는 전부 이 교정 이후 최종 상태 기준이다.
+
+### 11.9 공유 DB baseline 재확인 + throwaway 정리
+
+읽기전용 재확인(`docker exec samhan-postgres psql -U samhan -d product_db`, `-U samhan`
+— 이 컨테이너의 `POSTGRES_USER`, 이전 라운드의 `-U postgres` 가정은 이 컨테이너에는
+안 맞는다는 것을 실행 중 확인):
+
+```text
+products=1117 | max_flyway=23 | quantity_sync_rule_table_exists=0 | exposures=860
+```
+
+지시서 baseline(`products=1117 / max_flyway=23 / quantity_sync_rule 없음 / exposures=860`)과
+**완전 일치** — 공유 DB write 0건. 이번 라운드는 `AbstractPostgresIT`(Testcontainers,
+throwaway PostgreSQL) 만 사용했고 `samhan-postgres`/`product_db`에는 SELECT 외 아무 것도
+실행하지 않았다. Testcontainers 컨테이너는 각 JVM 종료 시 Ryuk 이 자동 정리 — 라운드 종료
+후 `docker ps -a` 로 재확인한 결과 잔존 throwaway 컨테이너 0건(`samhan-postgres` 만 남아
+있으며 이는 이 세션이 만든 것이 아니다).
+
+### 11.10 못 한 것(정직한 목록)
+
+1. **`ProductSheetSyncService`의 시트-탈락 전체 soft-delete 경로**(§11.6 sweep ②)를 고치지
+   않았다 — 결함 4(estimateCategories 변경)와 다른 표면(품목 전체 소멸)이고, PR #958 라운드
+   종합이 이미 별도 "정적 관찰, 미확정" 항목으로 이월한 것과 동일 지점이라 이번 fix 라운드
+   범위 밖으로 판단해 정직히 이월한다.
+2. **BUNDLE 구성품 alias 시나리오는 IT 레벨에서 서비스 계층 직접 호출로만 검증** — 실
+   HTTP(MockMvc) 왕복은 이 파일에서 쓰지 않았다(이 quantitysync 패키지의 다수 IT 가 이미
+   서비스 계층 직접 호출을 "실 API" 로 인정하는 관례를 따름, `QuantitySyncRuleCrudIT`/
+   `QuantitySyncRuleProductDiscontinueIT` 등과 동일 패턴) — HTTP 계층(권한 헤더 처리 등)
+   자체는 이번 4개 결함의 근본 원인과 무관하다고 판단했다.
+3. **게이트웨이 경유·이카운트 임포트 경로 미실행** — R5·범위축소 라운드부터 이월된 동일
+   제약(서비스 포트 직접 왕복만).
+4. **동시 요청 경합 미실행** — Java 검증이 요청 단위이므로 두 요청이 동시에 상보적인
+   상태(예: 한 요청이 modelName 변경, 다른 요청이 그 사이 규칙 생성)를 만드는 경합은
+   이번 라운드도 검증하지 않았다.
+5. **결함 4 의 "coarse" 설계 선택**(§11.3) — "카테고리 제거가 실제로 규칙을 깨는지"까지
+   세분하지 않고 "참조하는 규칙이 있으면 estimateCategories 변경 자체를 막는다"로 구현했다
+   — 형제 필드(discontinue/delete)와 동일한 성긴 정도이지만, 더 정교한(예: 유지되는
+   카테고리로의 변경은 허용) 판정을 원한다면 별도 결정이 필요하다.
+6. **gradle 전체 스위트는 이 작업자 세션 내에서 여러 번 재실행**(경합 없는 순차 실행) —
+   최종 권위는 CI(exact SHA)이며 로컬 실행은 참고용이다.

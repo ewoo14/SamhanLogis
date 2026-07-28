@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import org.springframework.stereotype.Component;
 
 /**
@@ -139,23 +140,47 @@ public class QuantitySyncRuleValidator {
      * 비교해, DB 부분 unique 인덱스(source_product_id/target_product_id, UUID 비교)만
      * 걸러내는 위장 409가 났다(S-3). 이 필드는 검증 전용 내부 식별자이며 API 응답에는
      * 나가지 않는다(UUID 비노출 원칙과 무관, feedback_uuid_no_user_visibility.md).
+     *
+     * <p>🚨 2026-07-28 범위 축소 후 재수렴 결함 3 [MED] fix — {@code componentProductIds}를
+     * {@code componentCodes}와 나란히 추가한다. S-3 fix 는 "한 요청 안"의 별칭만 productId로
+     * 잡았다 — BUNDLE source의 구성품 검사는 draft(사용자 입력 원문 productCode)를
+     * {@code bundle_component.component_product_code}(canonical modelCode)와 문자열로만
+     * 비교해, target을 별칭(modelName)으로 지정하면 통과했다. componentProductIds는
+     * {@code QuantitySyncRuleService.toSnapshot()}이 componentProductCode를 modelCode로
+     * 재해소(BundleExpander와 동일 관례)해 채운다.
      */
     public record ProductSnapshot(UUID productId, String productCode, String productName,
                                   Set<String> categories, boolean active, boolean visible, boolean bundle,
-                                  Set<String> componentCodes) {
+                                  Set<String> componentCodes, Set<UUID> componentProductIds) {
         public ProductSnapshot {
             categories = Set.copyOf(categories == null ? Set.of() : categories);
             componentCodes = Set.copyOf(componentCodes == null ? Set.of() : componentCodes);
+            componentProductIds = Set.copyOf(componentProductIds == null ? Set.of() : componentProductIds);
         }
     }
 
-    /** 기존 활성 규칙의 graph/충돌 검사용 immutable snapshot. */
+    /**
+     * 기존 활성 규칙의 graph/충돌 검사용 immutable snapshot.
+     *
+     * <p>🚨 2026-07-28 범위 축소 후 재수렴 결함 1·2 [단일 근본 원인] fix —
+     * {@code sourceProductIds}/{@code targetProductIds}를 {@code sourceCodes}/
+     * {@code targetCodes}와 나란히 추가한다. 순환 검사(rejectCycles)와 cross-rule REPLACE
+     * 중복 검사는 draft(사용자 입력 원문)를 이 snapshot의 codes(canonical productCode,
+     * {@code QuantitySyncRuleService#productCode()}가 생성)와 문자열로만 비교했다 — 품목
+     * modelName이 바뀌면(modelCode는 불변) draft가 별칭으로 같은 품목을 가리켜도 문자열이
+     * 달라 두 검사 모두 통과했다. {@code QuantitySyncRuleService.activeRuleSnapshots()}가
+     * 이미 조회한 {@code QuantitySyncSource#getSourceProductId()}/
+     * {@code QuantitySyncTarget#getTargetProductId()}로 채우므로 추가 쿼리가 없다.
+     */
     public record RuleSnapshot(String ruleKey, String category, boolean enabled, JsonNode condition,
                                String conflictPolicy, int priority,
-                               Set<String> sourceCodes, Set<String> targetCodes) {
+                               Set<String> sourceCodes, Set<String> targetCodes,
+                               Set<UUID> sourceProductIds, Set<UUID> targetProductIds) {
         public RuleSnapshot {
             sourceCodes = Set.copyOf(sourceCodes == null ? Set.of() : sourceCodes);
             targetCodes = Set.copyOf(targetCodes == null ? Set.of() : targetCodes);
+            sourceProductIds = Set.copyOf(sourceProductIds == null ? Set.of() : sourceProductIds);
+            targetProductIds = Set.copyOf(targetProductIds == null ? Set.of() : targetProductIds);
         }
     }
 
@@ -241,6 +266,14 @@ public class QuantitySyncRuleValidator {
             }
             for (TargetDraft target : draft.targets()) {
                 ProductSnapshot targetProduct = product(draft, target.productCode());
+                // 🚨 2026-07-28 재수렴 결함 3 [MED] fix — componentCodes(String) 매칭은
+                // draft가 별칭(modelName)으로 target을 지정하면 놓친다(위 componentCodes
+                // 검사와 같은 근본 원인, S-3 fix가 "한 요청 안"만 productId로 잡고 이
+                // bundle_component 비교는 놓쳤다). 이미 해소된 targetProduct.productId()로도
+                // 판정한다.
+                if (sourceProduct.bundle() && sourceProduct.componentProductIds().contains(targetProduct.productId())) {
+                    invalid("BUNDLE source는 같은 BUNDLE의 component target을 가질 수 없습니다.");
+                }
                 // 재수렴 결함 1 [최우선] fix — "카테고리가 같다"가 아니라 "이 카테고리에
                 // 노출되어 있다" 멤버십 판정이다(M:N, S-3). 품목이 여러 카테고리에 동시
                 // 노출되어도 규칙의 category 하나에만 포함되면 연결을 허용한다 — 다른
@@ -264,17 +297,22 @@ public class QuantitySyncRuleValidator {
             // 같다고 본다(1과 1.0이 같음). 표기만 다른 동일 조건이 여기서 안 걸리면 DB
             // deferred trigger까지 가서 "동시 편집 충돌 또는 제약 위반"(409)으로 원인이
             // 위장된다 — jsonb와 같은 답을 내는 QuantitySyncConditionEquality로 비교한다.
+            // 🚨 2026-07-28 재수렴 결함 2 [MED] fix — targetCodes(String) disjoint 만으로는
+            // draft가 별칭(modelName)으로 target을 지정한 경우를 놓친다(위 rejectCycles와
+            // 같은 근본 원인). targetProductIds(이미 위에서 해소됨) disjoint도 함께 본다 —
+            // 어느 한쪽이라도 겹치면 중복이다.
             if (!draft.ruleKey().equals(existing.ruleKey())
                     && draft.enabled() && existing.enabled()
                     && "REPLACE".equals(draft.conflictPolicy())
                     && "REPLACE".equals(existing.conflictPolicy())
                     && draft.category().equals(existing.category())
                     && QuantitySyncConditionEquality.jsonbEquals(draft.condition(), existing.condition())
-                    && !Collections.disjoint(targetCodes, existing.targetCodes())) {
+                    && (!Collections.disjoint(targetCodes, existing.targetCodes())
+                            || !Collections.disjoint(targetProductIds, existing.targetProductIds()))) {
                 invalid("동일 condition의 REPLACE target이 중복됩니다.");
             }
         }
-        rejectCycles(draft, sourceCodes, targetCodes);
+        rejectCycles(draft, sourceCodes, targetCodes, sourceProductIds, targetProductIds);
     }
 
     /**
@@ -341,8 +379,30 @@ public class QuantitySyncRuleValidator {
         }
     }
 
-    private void rejectCycles(Draft draft, Set<String> sourceCodes, Set<String> targetCodes) {
-        Map<String, Set<String>> edges = new HashMap<>();
+    /**
+     * source/target graph 순환을 두 identity 축으로 각각 검사한다: productCode 문자열
+     * (기존 동작 그대로) · productId UUID(🚨 2026-07-28 재수렴 결함 1 [HIGH] fix).
+     *
+     * <p>draft는 사용자 입력 원문 productCode를 쓰고, {@code existing.sourceCodes()}/
+     * {@code targetCodes()}는 {@code QuantitySyncRuleService#productCode()}가 만드는
+     * canonical modelCode를 쓴다 — 품목 modelName이 바뀌면(modelCode는 불변) 같은 품목을
+     * 가리켜도 두 문자열이 달라진다(S-3와 같은 근본 원인, 이번엔 "draft ↔ 기존 규칙"
+     * 비교라 S-3의 "한 요청 안" fix가 닿지 않았다). productId는 표기와 무관하게 항상
+     * 같은 품목을 가리키므로 문자열 검사가 놓치는 별칭 순환을 이 축이 잡는다. 두 축을
+     * 그대로 병행 실행한다 — productId 축이 문자열 축의 상위집합이지만(같은 코드 문자열은
+     * 항상 같은 품목이므로) 기존에 검증된 문자열 경로를 굳이 들어내지 않는다.
+     */
+    private void rejectCycles(Draft draft, Set<String> sourceCodes, Set<String> targetCodes,
+                              Set<UUID> sourceProductIds, Set<UUID> targetProductIds) {
+        rejectCyclesByIdentity(draft, sourceCodes, targetCodes, RuleSnapshot::sourceCodes, RuleSnapshot::targetCodes);
+        rejectCyclesByIdentity(draft, sourceProductIds, targetProductIds,
+                RuleSnapshot::sourceProductIds, RuleSnapshot::targetProductIds);
+    }
+
+    private <T> void rejectCyclesByIdentity(Draft draft, Set<T> draftSourceKeys, Set<T> draftTargetKeys,
+                                            Function<RuleSnapshot, Set<T>> sourceKeysOf,
+                                            Function<RuleSnapshot, Set<T>> targetKeysOf) {
+        Map<T, Set<T>> edges = new HashMap<>();
         for (RuleSnapshot existing : draft.existingRules()) {
             // R1 결함 1 [HIGH]: 이 규칙 자신을 편집(PUT)할 때 activeRuleSnapshots()가
             // soft-delete 전 옛 child를 그대로 포함해, 옛 간선+새 간선이 합쳐져 순환으로
@@ -353,28 +413,28 @@ public class QuantitySyncRuleValidator {
             if (draft.ruleKey().equals(existing.ruleKey()) || !existing.enabled()) {
                 continue;
             }
-            for (String source : existing.sourceCodes()) {
-                edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(existing.targetCodes());
+            for (T source : sourceKeysOf.apply(existing)) {
+                edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(targetKeysOf.apply(existing));
             }
         }
         // draft 자신이 enabled=false로 저장되는 경우도 대칭적으로 강제력이 없다 — DB측
         // cycle CTE도 quantity_sync_rule.enabled=TRUE만 edges에 포함하므로(J-2), 서비스
         // 계층도 같은 답을 내도록 맞춘다.
         if (draft.enabled()) {
-            for (String source : sourceCodes) {
-                edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(targetCodes);
+            for (T source : draftSourceKeys) {
+                edges.computeIfAbsent(source, ignored -> new HashSet<>()).addAll(draftTargetKeys);
             }
         }
-        for (String start : edges.keySet()) {
-            Deque<String> queue = new ArrayDeque<>();
-            Set<String> visited = new HashSet<>();
+        for (T start : edges.keySet()) {
+            Deque<T> queue = new ArrayDeque<>();
+            Set<T> visited = new HashSet<>();
             queue.add(start);
             while (!queue.isEmpty()) {
-                String current = queue.removeFirst();
+                T current = queue.removeFirst();
                 if (!visited.add(current)) {
                     continue;
                 }
-                for (String next : edges.getOrDefault(current, Set.of())) {
+                for (T next : edges.getOrDefault(current, Set.of())) {
                     if (start.equals(next)) {
                         invalid("source/target graph에 순환이 있습니다.");
                     }

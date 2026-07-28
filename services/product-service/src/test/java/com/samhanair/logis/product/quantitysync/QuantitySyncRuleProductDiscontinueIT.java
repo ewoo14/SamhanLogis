@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.product.ProductServiceApplication;
+import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.QuantitySyncConflictPolicy;
 import com.samhanair.logis.product.domain.QuantitySyncEstimateCategory;
 import com.samhanair.logis.product.domain.QuantitySyncInactiveBehavior;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
@@ -181,6 +183,101 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
         assertThat(usageChangeMessage).isEqualTo(discontinueMessage);
     }
 
+    // ---- 재수렴 후속 라운드(범위 축소 후) 결함 4 [HIGH] — 노출 카테고리(estimateCategories)
+    // 변경이 형제 필드(usageScope=NONE)와 달리 무방비였다(전제조건 없음, DB 강제층 제거로
+    // 조용히 통과). usage override PATCH · products PATCH 두 진입점 모두 같은 가드를
+    // 타야 한다(U-2, 형제 필드 비대칭 해소). ----
+
+    @Test
+    void 활성_규칙이_참조하면_수동_노출override로_estimateCategories를_바꿀_수_없고_원인이_드러난다() throws Exception {
+        UUID targetId = product("DISC-EXPOSURE-SRC-A");
+        product("DISC-EXPOSURE-TGT-B");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_A", true, "DISC-EXPOSURE-SRC-A", "DISC-EXPOSURE-TGT-B"), "qa-disc");
+        UpdateProductUsageRequest changeCategory =
+                new UpdateProductUsageRequest(UsageScope.BOTH, List.of(EstimateCategory.SINGLE_SET));
+
+        assertThatThrownBy(() -> productService.updateUsageAndReturn("DISC-EXPOSURE-SRC-A", changeCategory))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("DISC_RULE_EXPOSURE_A");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND estimate_category = 'HOME_MULTI' AND is_deleted = false
+                """, Integer.class, targetId)).isEqualTo(1);
+    }
+
+    @Test
+    void 활성_규칙이_참조하면_PATCH로_estimateCategories를_바꿀_수_없고_원인이_드러난다() throws Exception {
+        UUID targetId = product("DISC-EXPOSURE-SRC-C");
+        product("DISC-EXPOSURE-TGT-D");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_C", true, "DISC-EXPOSURE-SRC-C", "DISC-EXPOSURE-TGT-D"), "qa-disc");
+        UpdateProductRequest changeCategory = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(EstimateCategory.SINGLE_SET), null);
+
+        assertThatThrownBy(() -> productService.update(targetId, changeCategory))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("수량 동기화")
+                .hasMessageContaining("DISC_RULE_EXPOSURE_C");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND estimate_category = 'HOME_MULTI' AND is_deleted = false
+                """, Integer.class, targetId)).isEqualTo(1);
+    }
+
+    @Test
+    void 비활성_규칙만_참조하면_estimateCategories_변경이_허용된다() throws Exception {
+        UUID targetId = product("DISC-EXPOSURE-SRC-E");
+        product("DISC-EXPOSURE-TGT-F");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_E", false, "DISC-EXPOSURE-SRC-E", "DISC-EXPOSURE-TGT-F"), "qa-disc");
+        UpdateProductRequest changeCategory = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(EstimateCategory.SINGLE_SET), null);
+
+        productService.update(targetId, changeCategory);
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND estimate_category = 'SINGLE_SET' AND is_deleted = false
+                """, Integer.class, targetId)).isEqualTo(1);
+    }
+
+    @Test
+    void 수량_동기화_규칙과_무관한_품목은_estimateCategories를_평소대로_바꿀_수_있다() {
+        UUID unrelated = product("DISC-EXPOSURE-UNRELATED");
+        UpdateProductRequest changeCategory = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(EstimateCategory.SINGLE_SET), null);
+
+        productService.update(unrelated, changeCategory);
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM product_estimate_exposure
+                 WHERE product_id = ? AND estimate_category = 'SINGLE_SET' AND is_deleted = false
+                """, Integer.class, unrelated)).isEqualTo(1);
+    }
+
+    @Test
+    void 노출카테고리_변경_거부와_단종_거부는_같은_품목_같은_원인이면_같은_메시지를_낸다() throws Exception {
+        // 결함 4 재발 방지 lock — usageScope=NONE 거부와 estimateCategories 변경 거부가
+        // 같은 품목·같은 원인이면 같은 문자열을 내야 한다(형제 필드 비대칭 해소, U-2).
+        UUID targetId = product("DISC-EXPOSURE-SRC-G");
+        product("DISC-EXPOSURE-TGT-H");
+        quantitySyncRuleService.create(
+                request("DISC_RULE_EXPOSURE_G", true, "DISC-EXPOSURE-SRC-G", "DISC-EXPOSURE-TGT-H"), "qa-disc");
+        UpdateProductRequest changeCategory = new UpdateProductRequest(
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, List.of(EstimateCategory.SINGLE_SET), null);
+
+        String exposureChangeMessage = catchMessage(() -> productService.update(targetId, changeCategory));
+        String discontinueMessage = catchMessage(() -> productService.discontinue(targetId));
+
+        assertThat(exposureChangeMessage).isEqualTo(discontinueMessage);
+    }
+
     private String catchMessage(Runnable action) {
         try {
             action.run();
@@ -241,7 +338,15 @@ class QuantitySyncRuleProductDiscontinueIT extends AbstractPostgresIT {
             execute(connection, "DELETE FROM quantity_sync_rule WHERE legacy_ref = ?", LEGACY_REF);
         });
         // product_estimate_exposure가 products FK를 참조하므로 products보다 먼저 지운다.
-        jdbcTemplate.update("DELETE FROM product_estimate_exposure WHERE created_by = ?", CREATED_BY);
+        // 결함 4 RED 재현 fixture 추가로 인한 정정 — estimateCategories 변경이 (가드가 없던
+        // 시절) 실제로 성공하면 syncEstimateExposures()가 새로 심는 노출 행은 JpaAuditingConfig
+        // AuditorAware가 채우는 created_by("system")를 갖고 이 파일의 CREATED_BY와 다르다.
+        // created_by 스코프만으로는 그 행이 지워지지 않아 이어지는 products DELETE가
+        // FK 위반으로 실패했다(다른 quantitysync IT처럼 product 소유 기준으로 지운다).
+        jdbcTemplate.update("""
+                DELETE FROM product_estimate_exposure
+                 WHERE product_id IN (SELECT id FROM products WHERE created_by = ?)
+                """, CREATED_BY);
         jdbcTemplate.update("DELETE FROM products WHERE created_by = ?", CREATED_BY);
     }
 

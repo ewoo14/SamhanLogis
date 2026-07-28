@@ -290,7 +290,26 @@ public class QuantitySyncRuleService {
                 product.getStatus() == ProductStatus.ACTIVE,
                 product.getUsageScope() != UsageScope.NONE,
                 product.getProductType() == ProductType.BUNDLE,
-                componentCodes);
+                componentCodes, componentProductIds(componentCodes));
+    }
+
+    /**
+     * 재수렴 결함 3 [MED] fix — BUNDLE 구성품의 {@code componentProductCode}(canonical
+     * modelCode, bundle_component 테이블 자신의 natural key)를 productId로 재해소한다.
+     * {@link com.samhanair.logis.product.service.BundleExpander#expand}와 동일하게
+     * modelCode 정확 매칭만 쓴다(modelName fallback 없음 — componentProductCode는 사용자
+     * 입력이 아니라 항상 canonical modelCode이므로 별칭 문제가 없다). 별칭은 draft
+     * 쪽(target productCode)에서만 생기므로, 검증부(QuantitySyncRuleValidator)가
+     * {@code targetProduct.productId()}와 이 집합을 비교한다. 미해소(dangling) 구성품은
+     * 조용히 제외한다 — BundleComponentRepository#findUnresolvedComponents가 이미
+     * 별도로 추적하는 정합 문제이지 이 검증의 책임이 아니다.
+     */
+    private Set<UUID> componentProductIds(Set<String> componentCodes) {
+        if (componentCodes.isEmpty()) {
+            return Set.of();
+        }
+        return productRepository.findByModelCodeInAndIsDeletedFalse(componentCodes).stream()
+                .map(Product::getId).collect(Collectors.toSet());
     }
 
     private List<RuleSnapshot> activeRuleSnapshots() {
@@ -318,7 +337,16 @@ public class QuantitySyncRuleService {
                 targetsByRule.getOrDefault(rule.getId(), List.of()).stream()
                         .map(target -> danglingSafeProductCode(
                                 products.get(target.getTargetProductId()), target.getTargetProductId()))
-                        .collect(Collectors.toSet()))).toList();
+                        .collect(Collectors.toSet()),
+                // 🚨 2026-07-28 재수렴 결함 1·2 [단일 근본 원인] fix — sourceProductIds/
+                // targetProductIds를 danglingSafeProductCode와 같은 소스(source/target
+                // 엔티티에 이미 있는 FK)에서 채운다. 추가 쿼리 없음 — products 맵 조회
+                // 성공 여부와 무관하게 productId 자체는 항상 존재한다(dangling 참조에도
+                // FK는 남아 있다).
+                sourcesByRule.getOrDefault(rule.getId(), List.of()).stream()
+                        .map(QuantitySyncSource::getSourceProductId).collect(Collectors.toSet()),
+                targetsByRule.getOrDefault(rule.getId(), List.of()).stream()
+                        .map(QuantitySyncTarget::getTargetProductId).collect(Collectors.toSet()))).toList();
     }
 
     private QuantitySyncRuleResponse toResponse(QuantitySyncRule rule) {
