@@ -13,7 +13,52 @@
 
 ---
 
-## 🔴 2026-07-28 (회사PC 진행중) — **5트랙 SOL 라운드 1회차 · 도달가능 11건 발견** ◀◀◀ 여기부터 읽으십시오
+## 📌 2026-07-28 (집PC) — 로컬 실데이터 복구 완료 · **회사PC 에서 마저 할 일 1건** ◀◀◀ 데이터 관련은 여기
+
+### ✅ 집PC 에서 끝난 것
+
+| 데이터 | 이전 → 현재 | 원천 |
+|---|---:|---|
+| 품목 | 105 → **1,220** | 구글 시트 (`POST /api/v1/products/admin/sync`) |
+| 견적 노출 | 4 → **865** | 구글 시트 |
+| 품목 사양 | 0 → **9,008** | 구글 시트 |
+| lookup 3종 | 0 → **28 / 32 / 6** | 구글 시트 (회사PC 기록과 정확히 일치) |
+| 거래처 | 56 → **7,260** | 이카운트 `거래처-Excel다운로드.csv` |
+| 노션 4종 | 재추출 완료 | Notion MCP (기존본은 `_notion-export-2026-05-09-old` 로 보존) |
+
+**구글 SA 키** — 개발책임자가 **신규 발급**해 `C:\dev\samhan-homepage-260f8ae469cc.json` 에 둠(회사PC 의 `a008794e8a4f` 와 다른 키). 컨테이너 `/etc/samhan/sa-key.json` 에 `app:app 400` 으로 설치.
+⚠️ **`docker compose up --force-recreate` 하면 키가 사라진다.** 영구화하려면 compose 볼륨 마운트가 필요하고 그건 저장소 변경이라 별도 판단 대상.
+🚩 함정 2종 — 컨테이너가 **비루트(uid=100 app)** 라 `docker exec -u root` 로 디렉터리 생성 필요 · **Git Bash MSYS 경로 변환이 `docker cp` 목적지를 망가뜨림** → PowerShell 로 우회.
+
+### 🔴 회사PC 에서 마저 할 일 — 이카운트 **품목** 임포트
+
+집PC 에서 `기초품목.xlsx`(2,854행)만 있어 **422 `MIG2_NO_MAIN_CANDIDATE`** 로 막힘(`name=절삭, sourceRowNo=15`). **롤백 완전** — staging 0행 / alias 0행, 잔재 없음.
+
+**회사PC 에만 있는 파일 2종을 `docs/migration/ecount-data/raw/` 에 두고 임포트하면 끝난다**:
+- **`품목관계-Excel다운로드.csv`** ← 필수. 9열 `대표품목코드·대표품목명·대표품목단위·연결품목코드·연결품목명·연결품목단위·연결품목 환산수량·대표품목 환산수량·수량관리기준`
+- `품목계층그룹-Excel다운로드.csv` ← 선택(카테고리 그룹 자동 매핑). 4열 `그룹단계·[그룹코드]그룹명·품목코드·품목명`
+
+```bash
+curl -X POST http://localhost:8084/admin/products/imports/ecount \
+  -H "X-Is-System-Master: true" -H "X-User-Id: 00000000-0000-0000-0000-000000000001" \
+  -F "itemFile=@docs/migration/ecount-data/raw/품목-Excel다운로드.csv;type=text/csv" \
+  -F "relationFile=@docs/migration/ecount-data/raw/품목관계-Excel다운로드.csv;type=text/csv" \
+  -F "groupFile=@docs/migration/ecount-data/raw/품목계층그룹-Excel다운로드.csv;type=text/csv"
+```
+xlsx 는 `openpyxl` 로 CSV(UTF-8) 변환해 두면 되고, 파서가 "회사명 :" 메타 줄을 이미 처리하므로 시트를 통째로 덤프하면 된다.
+
+🔑 **코드 변경은 아마 불필요하다** — `resolveMainCandidate` 가 ①품목관계 alias→대표 ②관계 등재 대표 ③DB 동명 ④유일명 ⑤fail-closed 순이라, 422 는 **파일 부재** 탓이지 규칙 미구현이 아니다. 품목관계로 164 충돌그룹이 다 풀리면 끝. **그러고도 남는 그룹에만** B·C 확장을 검토할 것.
+
+📌 **개발책임자 결정(2026-07-28)** — 대표품목 = **코드==명** 행. 충돌 164그룹 실측 = A(정확)116 · B(공백만다름)6 · C(괄호앞)13 · **E(결정불가)29**. E 는 품목관계로 해결(추측 금지), B·C 는 자동판정 승인. → [[project_ecount_main_item_rule_2026_07_28]]
+
+### 🚩 이 세션에서 실측된 것
+- 이카운트 raw 파일명·헤더가 임포터 상수와 **1:1 일치**(품목 13열 `ITEM_HEADERS` / 거래처 16열 `EXPECTED_HEADERS`). 변환만 하면 됨
+- 거래처 임포트 결과 `imported=7204 / skippedPlaceholder=4 / rejectedNullName=1` — 마지막 1건은 **엑셀 푸터 타임스탬프 행**이라 정상 거부
+- ⚠️ `resolveMainCandidate` ③단계가 **DB 상태에 결과를 의존**시킨다(시트 sync 전/후가 다름). 재현 검증 시 DB 상태를 함께 기록할 것
+
+---
+
+## 🔴 2026-07-28 (회사PC 진행중) — **5트랙 SOL 라운드 1회차 · 도달가능 11건 발견**
 
 > 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
 

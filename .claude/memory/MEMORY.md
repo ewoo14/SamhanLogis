@@ -129,6 +129,7 @@
 - [SP-08 legacy GAS parity](project_sp_08_legacy_gas_parity.md) — 전메뉴 GAS 동등, tools/legacy-gas/, #434
 - [옵션C 폐기—외부4종 DB 치환](project_sheets_to_db_full_migration.md) · [전산=이카운트 대체·GAS=export원](project_replaces_ecount_gas_was_exporter.md)
 - [이카운트 네이티브 편입](project_ecount_native_fold.md) · [이카운트 품목 신원규칙](project_ecount_product_identity_rule.md)
+- [🆕 이카운트 **대표품목 = 코드==명** 행 (2026-07-28 결정)](project_ecount_main_item_rule_2026_07_28.md) — 나중에 추가된 쪽이며 향후 이 품목으로 통합. 충돌 **164그룹** 실측 = A(코드==명)116 · B(공백만다름)6 · C(괄호앞일치)13 · **E(결정불가)29**. E 는 **품목관계 export 로 해결**(추측 금지), B·C 는 자동판정 승인. 🔑**코드 변경 불요일 수 있음** — `resolveMainCandidate` 가 이미 ①품목관계 alias→대표 ②관계 등재 대표 ③DB 동명 ④유일명 ⑤fail-closed 순이라, 422 는 파일 부재 탓. ⚠️③은 결과를 **DB 상태에 의존**시킴(시트 sync 전/후가 다름)
 - [외부연동 딥리서치](project_external_integration_research.md) — 전자세금계산서 ASP 권고(바로빌), 법인계좌 리서치
 - [KST 전역 표준화](project_kst_timezone_standard.md) — #479 dev, Phase11 prod cutover 후속
 - [메뉴 5대분류+품목 노출구분](project_item_exposure_and_menu_5cat.md) — 판매/구매/회계/그룹웨어/인사+배차·창고, usageScope+displayOrder
