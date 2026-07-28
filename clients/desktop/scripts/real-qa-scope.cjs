@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const { randomUUID } = require('node:crypto')
+const { pathToFileURL } = require('node:url')
 
 const REAL_QA_ROOT = 'clients/desktop/playwright'
 const REAL_QA_SUFFIX = '-real-qa.spec.ts'
@@ -63,7 +64,7 @@ function listTrackedRealQaFiles({ repoRoot }) {
 function listGitignoredUntrackedRealQaFiles({ repoRoot }) {
   const result = spawnSync(
     'git',
-    ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--', REAL_QA_ROOT],
+    ['ls-files', '-z', '--others', '--ignored', '--exclude-per-directory=.gitignore', '--', REAL_QA_ROOT],
     { cwd: repoRoot, encoding: 'utf8', windowsHide: true },
   )
 
@@ -146,42 +147,13 @@ function formatScopeMismatch(scope) {
 // 바꾸면서 이 가정이 깨졌다(실측: repoRoot 를 실제로 넣어 확인 — "line"→8개, "2"→63개 파일이
 // 절대경로 부분일치로 잡힘). `--reporter line`처럼 흔한 공백형 실행이 그 파일들만의 narrow
 // 실행으로 오인되면, 트리 어딘가의 무관한 실제 미추적/누락 스펙을 걸러내지 않고 지나칠
-// 위험이 생긴다(경계 오인, 회귀 울타리 2번 재발). 그래서 이제는 값(value)을 받는 옵션의
-// "공백형"(`--flag value`) 다음 토큰도 후보에서 제외한다 — `--flag=value`(등호형)는 이미 값이
-// 같은 토큰에 붙어 있어 애초에 `-`로 시작해 제외되므로 손댈 필요가 없다. 목록은 설치된
-// 설치된 Playwright 1.59.1 CLI 스키마의 testOptions에서 옮겼다 — 값을 받는 옵션만, `<...>`/`[...]`
-// 문법). 값이 선택적인 옵션(`[mode]` 등)도 보수적으로 다음 토큰을 함께 건너뛴다(과소-수집
-// 방향의 오차만 생기고 새 오탐은 안 생긴다).
-const VALUE_TAKING_FLAGS = new Set([
-  '--browser',
-  '-c',
-  '--config',
-  '--debug',
-  '--global-timeout',
-  '-g',
-  '--grep',
-  '--grep-invert',
-  '-j',
-  '--workers',
-  '--max-failures',
-  '--output',
-  '--only-changed',
-  '--repeat-each',
-  '--reporter',
-  '--retries',
-  '--run-agents',
-  '--shard',
-  '--test-list',
-  '--test-list-invert',
-  '--timeout',
-  '--trace',
-  '--tsconfig',
-  '--ui-host',
-  '--ui-port',
-  '-u',
-  '--update-snapshots',
-  '--update-source-method',
-])
+// 위험이 생긴다(경계 오인, 회귀 울타리 2번 재발). 그래서 이제는 Playwright가 실제로 등록한
+// 옵션 스키마에서 값 옵션을 읽는다. 이 게이트가 Playwright config 로드 중 실행될 때는
+// 설치된 `playwright/lib/program`이 이미 같은 CLI 명령을 등록한 상태이므로, 새 값 옵션이
+// 추가돼도 별도 화이트리스트를 갱신할 필요가 없다. node_modules 없는 순수 단위 테스트와
+// node_modules 없는 순수 단위 테스트에서는 빈 schema를 사용한다. 실제 Playwright config는
+// 그런 환경에서 로드되지 않으므로 옵션 계약을 추측하는 production fallback을 두지 않는다.
+const EMPTY_VALUE_TAKING_FLAGS = new Set()
 
 // 🚨 [SONNET5 재수렴 결함4 fix] `--project`는 값을 하나만 받는 게 아니라 commander 의
 // 가변인자(variadic) 옵션이다(playwright/lib/program.js:208 `"--project <project-name...>"`).
@@ -192,19 +164,60 @@ const VALUE_TAKING_FLAGS = new Set([
 // 에서 `b`(그리고 그 뒤에 이어지는 진짜 위치 인자까지)가 우리 게이트에서는 "위치 인자"로
 // 오분류돼 차단 사유가 사실과 달라진다(전달한 적 없는 경로를 찾다 실패한 것처럼 보임). 값을
 // 받는 옵션 중 가변인자는 현재 스키마에서 `--project` 하나뿐이다.
-const VARIADIC_FLAGS = new Set(['--project'])
+const EMPTY_VARIADIC_FLAGS = new Set()
 
-function parseExplicitPathArgs(argv) {
+function parsePlaywrightVersion(version) {
+  const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(version ?? '')
+  return match ? { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3] ?? 0) } : null
+}
+
+function getPlaywrightCliContract() {
+  try {
+    const { program } = require('playwright/lib/program')
+    const testCommand = program.commands.find((command) => command.name() === 'test')
+    if (testCommand?.options?.length > 0) {
+      const valueTakingFlags = new Set()
+      const variadicFlags = new Set()
+      for (const option of testCommand.options) {
+        const names = [option.short, option.long].filter(Boolean)
+        if (option.required || option.optional) names.forEach((name) => valueTakingFlags.add(name))
+        if (option.variadic) names.forEach((name) => variadicFlags.add(name))
+      }
+      const version = parsePlaywrightVersion(require('playwright/package.json').version)
+      return {
+        valueTakingFlags,
+        variadicFlags,
+        // Playwright 1.62 changed `test [test-filter...]` so arguments after `--`
+        // are removed before runTests receives the filters. Keep the 1.59–1.61
+        // behavior for the lower end of the declared dependency range.
+        postDashArgsAreIgnored: Boolean(version && (version.major > 1 || version.major === 1 && version.minor >= 62)),
+      }
+    }
+  } catch {
+    // The config cannot be loaded without Playwright. Unit tests inject a fixture contract.
+  }
+  return {
+    valueTakingFlags: EMPTY_VALUE_TAKING_FLAGS,
+    variadicFlags: EMPTY_VARIADIC_FLAGS,
+    postDashArgsAreIgnored: false,
+  }
+}
+
+function parseExplicitPathArgs(argv, { cliContract = getPlaywrightCliContract() } = {}) {
   const rest = argv.slice(2)
   const candidates = []
   for (let i = 0; i < rest.length; i += 1) {
     const arg = rest[i]
     if (arg === 'test') continue
+    if (arg === '--') {
+      if (cliContract.postDashArgsAreIgnored) break
+      continue
+    }
     if (arg.startsWith('-')) {
       if (!arg.includes('=')) {
-        if (VARIADIC_FLAGS.has(arg)) {
+        if (cliContract.variadicFlags.has(arg)) {
           while (i + 1 < rest.length && !rest[i + 1].startsWith('-')) i += 1
-        } else if (VALUE_TAKING_FLAGS.has(arg)) {
+        } else if (cliContract.valueTakingFlags.has(arg)) {
           i += 1
         }
       }
@@ -290,7 +303,12 @@ function matchUniverse(matcher, universe, repoRoot) {
   if (!matcher) return matched
   for (const file of universe) {
     const absolute = path.resolve(repoRoot, file)
-    const candidates = [absolute, normalizeRepoPath(absolute), file]
+    // Playwright's createFileMatcher tests regex filters against the absolute
+    // OS path and, on Windows, its file:// URL. Do not add repo-relative or
+    // slash-normalized absolute candidates: anchored patterns against those
+    // forms would pass this gate while Playwright selects zero files.
+    const candidates = [absolute]
+    if (path.sep === '\\') candidates.push(pathToFileURL(absolute).href)
     if (
       candidates.some((candidate) => {
         matcher.lastIndex = 0
@@ -373,6 +391,8 @@ function writeExceptionModeWarning(scopedMismatch, { suppressStdout = false } = 
 //  - narrow 실행에서 요청이 untrackedFiles 를 가리키면 allowUntracked 로만 통과하고,
 //    통과 시 경고를 stderr 에 남기고, stdout 은 리포터가 json/junit(산출물이 곧 stdout)이
 //    아닌 한 함께 남긴다([SONNET5 R2-2 fix], 위 writeExceptionModeWarning 참고).
+//    단, 요청이 알려진 전체 파일 집합을 선택하면 공식 전체 실행으로 간주해
+//    allowUntracked 를 참조하지 않고 항상 차단한다(K-1).
 //  - 명시 경로가 없는 전체(공식) 실행은 allowUntracked 값을 아예 참조하지 않는다 — 세션에
 //    남은 환경변수가 다음 전체 실행으로 새지 않는다(U-2). missingFiles·untrackedFiles 모두
 //    무조건 막는다(U-3, M-1 유지).
@@ -403,6 +423,12 @@ function decideRealQaScope({ scope, allowUntracked, explicitPathArgs, repoRoot, 
   const relevantMissing = scope.missingFiles.filter((file) => requestedFiles.has(file))
   if (relevantMissing.length > 0) {
     throw new Error(formatScopeMismatch({ ...scope, untrackedFiles: [], missingFiles: relevantMissing }))
+  }
+
+  const knownFiles = new Set([...scope.diskFiles, ...scope.trackedFiles].map(normalizeRepoPath))
+  const selectsEntireKnownScope = requestedFiles.size === knownFiles.size
+  if (selectsEntireKnownScope && scope.untrackedFiles.length > 0) {
+    throw new Error(formatScopeMismatch(scope))
   }
 
   const relevantUntracked = scope.untrackedFiles.filter((file) => requestedFiles.has(file))

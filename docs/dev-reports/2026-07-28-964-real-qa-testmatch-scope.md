@@ -733,3 +733,267 @@ clients/desktop/playwright.real-qa.config.ts     +14 / -3     결함3(계약 변
 clients/desktop/README.md                        +28 / -6     결함3(공식 전체 실행 명령·ALLOW_UNTRACKED 절·typecheck 절 정정)
 docs/dev-reports/2026-07-28-964-real-qa-testmatch-scope.md  (본 절 추가, 별도 계수 — 자기 자신을 셀 때 그 계수 자체가 이 절에 다시 반영돼야 하는 순환이라 R1/R2 관례대로 제외)
 ```
+
+---
+
+## CODEX SOL 2차 라운드 (F-1~F-5) 및 fix
+
+2026-07-28 · SOL 보고서 `969-sol-round2.md` 원문 기준. 앞 절의 이전 라운드 기록 중
+`REAL_QA_ALLOW_UNTRACKED=1` + `playwright/`를 결함이 아니라고 적은 결론은 이 절에서
+정정한다. 개발책임자 판정대로 F-1은 BLOCKING이며, F-1~F-5 전건을 수정하고 실제 CLI로
+재검증했다. 종료코드는 파이프 없이 Playwright 프로세스 직후의 native exit code를
+기록했다.
+
+### 1. F-1~F-5 원인과 변경
+
+| ID | SOL이 잡은 내용 / 근본 원인 | fix와 위치 |
+|---|---|---|
+| F-1 BLOCKING | 세션에 남은 `REAL_QA_ALLOW_UNTRACKED=1`이 명시 경로 `playwright/`에도 적용됐다. `playwright/`가 디스크+추적의 known scope 전체를 선택해도 관련 미추적 4개만 narrow 예외로 판정하므로 `558/176`이 `EXIT=0`이 됐다. | `decideRealQaScope`가 `diskFiles ∪ trackedFiles` 전체를 선택했는지 계산하고, 그 상태에서 `untrackedFiles`가 있으면 allow와 무관하게 `formatScopeMismatch`를 throw한다: `clients/desktop/scripts/real-qa-scope.cjs:429-430`. 공식 전체 실행 문서도 좁은 명시 경로에만 allow를 적용한다고 명시했다: `clients/desktop/README.md:306-313`. |
+| F-2 BLOCKING | Playwright 1.62.0은 `--` 뒤 토큰을 테스트 필터에서 제거하지만 게이트는 그 토큰을 위치 후보로 남겼다. 따라서 897의 `5/1` 요청이 실제 Playwright에서는 필터 없는 `9/2` 실행으로 확대돼도 게이트가 통과했다. | 설치된 `playwright/lib/program`의 test command 옵션과 패키지 버전을 읽고, 1.62+에서는 `--` 뒤를 후보로 수집하지 않는다: `real-qa-scope.cjs:174-193,206-214`. |
+| F-3 HIGH | 게이트 후보는 repo-relative와 정방향 slash 절대경로까지 추가했지만 Playwright Windows matcher의 실제 후보는 OS 절대경로와 file URL이었다. 그래서 게이트만 `1`개를 선택해 `0/0 EXIT=0`을 만들거나, Playwright가 `1/1`을 선택하는 file URL을 게이트가 0개로 차단했다. | `matchUniverse` 후보를 OS 절대경로와 Windows `pathToFileURL(...).href`로만 정렬했다: `real-qa-scope.cjs:301-316`. 회귀 테스트는 `real-qa-scope.test.cjs:823-843`. |
+| F-4 HIGH | `--exclude-standard`를 repo `.gitignore`와 동일한 정책으로 오인했다. 이 옵션은 `.git/info/exclude`와 global exclude도 포함하므로 사용자별 rogue 스펙이 `ignored` 정책 허용 목록에 들어갔다. | `git ls-files`에 `--exclude-per-directory=.gitignore`만 사용해 repo `.gitignore` 기준으로 한정했다: `real-qa-scope.cjs:67`. `.git/info/exclude` 주입 fixture는 `real-qa-scope.test.cjs:845-861`. |
+| F-5 MEDIUM | 수동 값 옵션 목록이 1.59.1 스냅샷이라 1.62.0의 `-G`, `--last-failed-file` 값을 위치 경로로 오인했다. | 수동 production 목록을 없애고 설치된 Commander 옵션의 required/optional/variadic schema를 런타임에 읽는다: `real-qa-scope.cjs:156-206`. 단위 fixture의 두 신규 값 옵션은 `real-qa-scope.test.cjs:35-42,863-879`에 고정했다. |
+
+### 2. F-1이 3라운드 동안 보이지 않은 구조적 이유
+
+신규 체크아웃 워크트리에는 `.gitignore`가 남겨 두도록 한 로컬 스펙 4개가 애초에 없다.
+따라서 그 워크트리에서만 scope를 재면 `disk=tracked=172`가 되어 `untracked=0`이고,
+`REAL_QA_ALLOW_UNTRACKED=1`을 켜도 오염시킬 파일이 없어 항상 GREEN이다. 실제로 사용해 온
+`C:\dev\Samhan-Public`에는 `disk=176`, `tracked=172`, `ignored=4`가 이미 있었고, 이
+조건에서만 세션 잔존 allow와 공식 `playwright/`의 조합이 `558/176 EXIT=0`으로 드러났다.
+즉 “새 워크트리에서 재현되지 않음”은 F-1이 없다는 근거가 아니라, 결함 입력 집합을
+만들지 않은 관찰이었다. 이번 라운드는 파일을 삭제하지 않고 실 main 트리의 미추적 4개를
+그대로 둔 상태에서 RED를 재현했다.
+
+### 3. F-2·F-5 공통 뿌리와 구조 처리
+
+두 결함의 공통 뿌리는 Playwright 옵션 schema를 손으로 열거해 유지한 것이다. 1.62.0에서
+`--` parser 동작이 바뀌고 `-G`, `--last-failed-file`가 추가되자 게이트의 수동 목록과
+Playwright가 갈라졌다.
+
+이번에는 production이 설치된 Playwright의 `testCommand.options`를 직접 introspection해
+값을 받는 flag와 variadic flag를 구성한다. `--project` 같은 variadic도 schema에서 읽고,
+1.62의 `--` 동작은 패키지 semver에서 계산한다. node_modules가 없는 순수 단위 테스트는
+`UNIT_CLI_CONTRACT` fixture를 주입하며, production에 새 옵션을 추측하는 수동 fallback은
+두지 않았다.
+
+이 구조로 이번 범위의 F-2와 F-5는 같은 schema에서 자동 반영된다. 다만 Playwright가
+`lib/program` 내부 경로를 옮기거나 Commander option metadata를 바꾸거나, semver와 실제
+parser 동작이 다시 어긋나면 새 probe가 필요하다. 설치 자체가 없는 환경에서는 빈 schema를
+반환하므로 실제 Playwright config를 로드할 수 없는 단위 실행에서의 동작을 허위로 추측하지
+않는다. 다음 업그레이드 때는 1.62 상단 CLI probe와 옵션 schema sweep을 다시 실행해야 한다.
+
+### 4. RED 원문
+
+#### F-1 — 실 작업 트리 조건
+
+`C:\dev\Samhan-Public`의 실제 미추적 스펙 4개를 유지한 상태에서, allow를 켜고 공식 전체
+위치 인자를 전달한 fix 전 production gate의 원문이다.
+
+```text
+disk=176 tracked=172 untracked=4 ignored=4
+F1_RED_UNEXPECTED_PASS {"disk":176,"tracked":172,"untracked":4,"ignored":4}
+EXIT=0
+```
+
+#### F-2 — Playwright 1.62.0
+
+```text
+1.59.1: -- <897>  => Total: 5 tests in 1 file, EXIT=0
+1.62.0: -- <897>  => Total: 9 tests in 2 files, EXIT=0
+```
+
+`<897>`은 897 스펙을 좁히려던 위치 필터다. 1.62.0의 `9/2`는 요청한 `5/1`보다 넓은
+실행이므로 F-2 과통과 RED다.
+
+#### F-3 — Windows matcher 후보
+
+```text
+anchored repo-relative: gate PASS, Playwright Total: 0 tests in 0 files, EXIT=0
+anchored forward absolute: gate PASS, Playwright Total: 0 tests in 0 files, EXIT=0
+anchored file URL: Playwright Total: 1 test in 1 file, gate EXIT=1
+```
+
+#### F-4 — `.git/info/exclude` 실제 주입
+
+OS temp Git fixture의 `.git/info/exclude`에 아래 항목을 실제로 추가했다. fixture는 `finally`
+에서 정리했으며 대상 worktree와 main의 exclude는 건드리지 않았다.
+
+```text
+.git/info/exclude: clients/desktop/playwright/arbitrary/
+{"caseName":"not-ignored","unexpectedUntrackedFiles":["clients/desktop/playwright/arbitrary/rogue-real-qa.spec.ts"],"ignoredUntrackedFiles":[]}
+{"caseName":"reported-by-exclude-standard","unexpectedUntrackedFiles":[],"ignoredUntrackedFiles":["clients/desktop/playwright/arbitrary/rogue-real-qa.spec.ts"]}
+```
+
+두 번째 줄이 `--exclude-standard`를 사용하던 fix 전의 false-green이다.
+
+#### F-5 — Playwright 1.62.0 신규 값 옵션
+
+```text
+1.62.0: -G R1 <897> => Total: 5 tests in 1 file, EXIT=0
+1.62.0: --last-failed-file 863-r1-liveqa-real-qa <897>
+         => Total: 5 tests in 1 file, EXIT=0
+```
+
+Playwright 자체는 두 값 옵션을 정상 소비했지만, fix 전 게이트는 `R1`과
+`863-r1-liveqa-real-qa`를 위치 인자로 남겼다.
+
+### 5. 뮤테이션 결과 — fix point별 정확한 RED
+
+각 fix 지점을 하나씩 임시 되돌리고 해당 이름 패턴만 실행한 뒤 즉시 원복했다. 각 probe는
+repo 안에 임시 파일을 만들지 않았고, 모든 결과의 `MUTATION_*_EXIT=1`은 해당 mutation
+테스트 프로세스의 exit code다.
+
+| 되돌린 fix | 실행한 테스트 | mutation 결과 |
+|---|---|---|
+| F-1의 `knownFiles` 전체선택 차단 제거 | `F-1 RED: playwright/ 전체 위치 인자는 남은 ALLOW_UNTRACKED 로 우회되지 않는다` (`test.cjs:168`) | `tests 1 / pass 0 / fail 1`, missing expected exception, `MUTATION_F1_EXIT=1` |
+| F-2의 `postDashArgsAreIgnored` 분기 제거 | `F-2 RED: Playwright 1.62가 제거하는 -- 뒤 토큰은 위치 인자로 보지 않는다` (`test.cjs:804`) | `tests 1 / pass 0 / fail 1`, actual에 `playwright/897-column-hierarchy-real-qa` 잔류, `MUTATION_F2_EXIT=1` |
+| F-3의 OS absolute + file URL 후보 정렬을 이전 후보 집합으로 복원 | 두 F-3 RED 테스트 (`test.cjs:823,833`) | `tests 2 / pass 0 / fail 2`: repo-relative가 잘못 선택되고 file URL이 누락, `MUTATION_F3_EXIT=1` |
+| F-4의 `.gitignore` 전용 exclude를 `--exclude-standard`로 복원 | `F-4 RED: .git/info/exclude 로 무시한 rogue 스펙은 repo 정책 허용 목록에 들어가지 않는다` (`test.cjs:845`) | `tests 1 / pass 0 / fail 1`, rogue가 ignored 목록에 반환, `MUTATION_F4_EXIT=1` |
+| F-5 schema fixture에서 `-G`, `--last-failed-file` 제거 | 두 F-5 RED 테스트 (`test.cjs:863,868`) | `tests 2 / pass 0 / fail 2`, 두 옵션 값이 위치 후보에 잔류, `MUTATION_F5_EXIT=1` |
+
+원복 후 전체 회귀는 다음과 같다.
+
+```text
+node --test clients/desktop/scripts/real-qa-scope.test.cjs
+tests 50
+pass 50
+fail 0
+cancelled 0
+skipped 0
+FINAL_UNIT_EXIT=0
+```
+
+### 6. fix 후 실 CLI 격자
+
+| 검증 축 | 결과 |
+|---|---|
+| 실 main `C:\dev\Samhan-Public`, `allow=true` + 공식 `playwright/` | PM probe 기준 `EXIT=1`, `BLOCK: [real-QA 추적 집합 불일치]` |
+| 실 main 같은 공식 `playwright/`, `allow=false` 대조 | `EXIT=1`, 동일 BLOCK |
+| OS temp mirror의 공식 전체 collection | `Total: 548 tests in 172 files`, `EXIT=0` |
+| 1.59.1 `-- <897>` narrow | `Total: 5 tests in 1 file`, `EXIT=0` |
+| 1.62.0 `-- <897>` narrow | gate가 확대를 차단, `EXIT=1`; ungated 대조는 RED 원문의 `9/2 EXIT=0` |
+| 1.62.0 `-G R1 <897>` | `Total: 5 tests in 1 file`, `EXIT=0` |
+| 1.62.0 `--last-failed-file 863-r1-liveqa-real-qa <897>` | `Total: 5 tests in 1 file`, `EXIT=0` |
+| Windows repo-relative anchored regex | `[real-QA 위치 인자 불일치]`, `EXIT=1` |
+| Windows file URL regex | `Total: 1 test in 1 file`, `EXIT=0` |
+
+### 7. V1~V5 검증 결과
+
+| 검증 | 결과 |
+|---|---|
+| V1 실 작업 트리 F-1 | 실제 main의 `disk=176 / tracked=172 / unexpected=0 / ignored=4`에서 allow 양·대조 양쪽 공식 전체가 차단됨. PM 독립 확증도 아래에 원문 인용. |
+| V2 lower semver 1.59.1 | `--` 뒤 897 narrow `5/1 EXIT=0`; 기존 narrow와 공식 548/172 collection 유지. |
+| V3 upper semver 1.62.0 | `--` 확대 차단, `-G`와 `--last-failed-file` 값 소비 통과. OS temp 설치로 worktree `node_modules` 오염 없음. |
+| V4 Windows 경로·ignore 정책 | repo-relative 과통과 및 file URL 과차단이 제거됨. `.git/info/exclude` rogue는 정책 허용 목록에 들어가지 않음. |
+| V5 회귀·mutation | fix point별 F-1 1건, F-2 1건, F-3 2건, F-4 1건, F-5 2건 RED 확인 후 원복; production unit `50/50`, `EXIT=0`. |
+
+### 8. PM 확증 원문
+
+개발책임자가 실제 `C:\dev\Samhan-Public`에서 직접 실행한 원문을 그대로 인용한다.
+
+```text
+실 트리 scope: disk=176 tracked=172 unexpected=0 ignored=4
+[F-1] allowUntracked=TRUE + 공식 전체 playwright/
+    BLOCK: [real-QA 추적 집합 불일치] 공식 공유 하네스 실행을 중단합니다.
+[대조] allowUntracked=false + 공식 전체 playwright/
+    BLOCK: (동일)
+```
+
+### 9. 직전 증거 무결성 정정 E-1~E-4 확인
+
+기존 본 dev-report의 `📌 증거 무결성 정정 4건` 절에 E-1~E-4가 이미 들어 있다. 이번
+보완에서 그 절을 삭제하거나 축약하지 않았다. 내용 확인 결과는 다음과 같다.
+
+| 항목 | 기존 정정 내용 |
+|---|---|
+| E-1 | 신규 체크아웃의 `548/172`를 실제 main 작업 트리의 `558/176`과 같은 상태로 일반화한 오류와, 그 오류가 F-1을 가린 이유. |
+| E-2 | 위치 인자 없는 전체 실행의 계약 변경 뒤에도 과거 `548/172 EXIT=0` 서술을 현재 사실처럼 읽게 한 오류. |
+| E-3 | `5a55506e0` 관련 개별 numstat 두 건(`playwright.real-qa.config.ts +20/-1`, `package.json +3/-2`)의 오기. |
+| E-4 | 삭제분을 추가분에 더한 계산 습관과, 그 결과를 반복하지 않도록 개별 파일 원문을 그대로 적어야 한다는 정정. |
+
+이번 F-1 fix는 E-1의 구조적 경고를 실제 실행 게이트까지 반영한 것이며, E-3/E-4의
+교훈에 따라 아래 numstat도 파일별 값만 기록한다.
+
+### 10. 변경 줄 수 — PM 제공 `git diff --numstat` 원문
+
+이 라운드의 코드 변경에 대해 PM이 제공한 개별 파일 출력은 아래 세 줄 그대로다. 합산
+막대 수치나 `+N/-M` 총계를 만들지 않았다.
+
+```text
+3	2	clients/desktop/README.md
+68	42	clients/desktop/scripts/real-qa-scope.cjs
+114	7	clients/desktop/scripts/real-qa-scope.test.cjs
+```
+
+이 세션에서는 사용자의 git 금지 지시를 지키기 위해 `git diff --numstat` 명령을 다시
+실행하지 않았다. 따라서 위 블록은 PM이 전달한 최종 원문이며, 문서 보완 파일을 임의로
+추산해 네 번째 줄을 만들지 않는다.
+
+### 11. 이 라운드가 보지 않은 것
+
+SOL 원문에서 남긴 미확인 항목 중 이번에도 다음은 보지 않았다.
+
+1. Linux/CI runner의 실 CLI. 모든 실제 CLI는 Windows에서 수행했고, Linux의 path/file URL,
+   Git 출력, process argv 차이는 검증하지 않았다.
+2. README가 안내하는 non-list 전체 548건의 본문 실행과 GUI/스크린샷. 공유 실데이터 write
+   위험과 renderer/order-app 기동 범위 때문에 `--list` collection으로 한정했다.
+3. 실제 repo 파일명에 `+`, `(`, `[`, `]`가 들어간 경로의 CLI 왕복. 현재 그런 파일이 없고,
+   저장소 안 probe 파일을 만들지 말라는 제약을 지켰다.
+4. 대형 트리, 실패하는 Git, submodule/junction/symlink, detached HEAD의 성능·경계 조합.
+   현재 fixture와 실 트리에서 정상 판정 방향만 확인했다.
+5. 사용자 global exclude의 별도 실 주입. F-4는 요구된 `.git/info/exclude` 실 주입을
+   수행했고, global exclude는 Git의 `--exclude-standard` 의미와 코드 경로로만 확인했다.
+6. Playwright가 내부 `lib/program` 위치나 Commander metadata를 바꾸는 다음 업그레이드,
+   그리고 `--ui`, VS Code extension, `test-server` 표면.
+7. main config를 물리적으로 덮어쓴 CLI와 동시 작업의 `.claude/memory` 변경. main은
+   read-only scope probe로만 사용했고 다른 경로는 건드리지 않았다.
+
+### 12. 저장 직후 확인
+
+이 절을 저장한 직후 확인한 신설 절 첫 40줄은 다음과 같다.
+
+```text
+## CODEX SOL 2차 라운드 (F-1~F-5) 및 fix
+
+2026-07-28 · SOL 보고서 `969-sol-round2.md` 원문 기준. 앞 절의 이전 라운드 기록 중
+`REAL_QA_ALLOW_UNTRACKED=1` + `playwright/`를 결함이 아니라고 적은 결론은 이 절에서
+정정한다. 개발책임자 판정대로 F-1은 BLOCKING이며, F-1~F-5 전건을 수정하고 실제 CLI로
+재검증했다. 종료코드는 파이프 없이 Playwright 프로세스 직후의 native exit code를
+기록했다.
+
+### 1. F-1~F-5 원인과 변경
+
+| ID | SOL이 잡은 내용 / 근본 원인 | fix와 위치 |
+|---|---|---|
+| F-1 BLOCKING | 세션에 남은 `REAL_QA_ALLOW_UNTRACKED=1`이 명시 경로 `playwright/`에도 적용됐다. `playwright/`가 디스크+추적의 known scope 전체를 선택해도 관련 미추적 4개만 narrow 예외로 판정하므로 `558/176`이 `EXIT=0`이 됐다. | `decideRealQaScope`가 `diskFiles ∪ trackedFiles` 전체를 선택했는지 계산하고, 그 상태에서 `untrackedFiles`가 있으면 allow와 무관하게 `formatScopeMismatch`를 throw한다: `clients/desktop/scripts/real-qa-scope.cjs:429-430`. 공식 전체 실행 문서도 좁은 명시 경로에만 allow를 적용한다고 명시했다: `clients/desktop/README.md:306-313`. |
+| F-2 BLOCKING | Playwright 1.62.0은 `--` 뒤 토큰을 테스트 필터에서 제거하지만 게이트는 그 토큰을 위치 후보로 남겼다. 따라서 897의 `5/1` 요청이 실제 Playwright에서는 필터 없는 `9/2` 실행으로 확대돼도 게이트가 통과했다. | 설치된 `playwright/lib/program`의 test command 옵션과 패키지 버전을 읽고, 1.62+에서는 `--` 뒤를 후보로 수집하지 않는다: `real-qa-scope.cjs:174-193,206-214`. |
+| F-3 HIGH | 게이트 후보는 repo-relative와 정방향 slash 절대경로까지 추가했지만 Playwright Windows matcher의 실제 후보는 OS 절대경로와 file URL이었다. 그래서 게이트만 `1`개를 선택해 `0/0 EXIT=0`을 만들거나, Playwright가 `1/1`을 선택하는 file URL을 게이트가 0개로 차단했다. | `matchUniverse` 후보를 OS 절대경로와 Windows `pathToFileURL(...).href`로만 정렬했다: `real-qa-scope.cjs:301-316`. 회귀 테스트는 `real-qa-scope.test.cjs:823-843`. |
+| F-4 HIGH | `--exclude-standard`를 repo `.gitignore`와 동일한 정책으로 오인했다. 이 옵션은 `.git/info/exclude`와 global exclude도 포함하므로 사용자별 rogue 스펙이 `ignored` 정책 허용 목록에 들어갔다. | `git ls-files`에 `--exclude-per-directory=.gitignore`만 사용해 repo `.gitignore` 기준으로 한정했다: `real-qa-scope.cjs:67`. `.git/info/exclude` 주입 fixture는 `real-qa-scope.test.cjs:845-861`. |
+| F-5 MEDIUM | 수동 값 옵션 목록이 1.59.1 스냅샷이라 1.62.0의 `-G`, `--last-failed-file` 값을 위치 경로로 오인했다. | 수동 production 목록을 없애고 설치된 Commander 옵션의 required/optional/variadic schema를 런타임에 읽는다: `real-qa-scope.cjs:156-206`. 단위 fixture의 두 신규 값 옵션은 `real-qa-scope.test.cjs:35-42,863-879`에 고정했다. |
+
+### 2. F-1이 3라운드 동안 보이지 않은 구조적 이유
+
+신규 체크아웃 워크트리에는 `.gitignore`가 남겨 두도록 한 로컬 스펙 4개가 애초에 없다.
+따라서 그 워크트리에서만 scope를 재면 `disk=tracked=172`가 되어 `untracked=0`이고,
+`REAL_QA_ALLOW_UNTRACKED=1`을 켜도 오염시킬 파일이 없어 항상 GREEN이다. 실제로 사용해 온
+`C:\dev\Samhan-Public`에는 `disk=176`, `tracked=172`, `ignored=4`가 이미 있었고, 이
+조건에서만 세션 잔존 allow와 공식 `playwright/`의 조합이 `558/176 EXIT=0`으로 드러났다.
+즉 “새 워크트리에서 재현되지 않음”은 F-1이 없다는 근거가 아니라, 결함 입력 집합을
+만들지 않은 관찰이었다. 이번 라운드는 파일을 삭제하지 않고 실 main 트리의 미추적 4개를
+그대로 둔 상태에서 RED를 재현했다.
+
+### 3. F-2·F-5 공통 뿌리와 구조 처리
+
+두 결함의 공통 뿌리는 Playwright 옵션 schema를 손으로 열거해 유지한 것이다. 1.62.0에서
+`--` parser 동작이 바뀌고 `-G`, `--last-failed-file`가 추가되자 게이트의 수동 목록과
+Playwright가 갈라졌다.
+
+이번에는 production이 설치된 Playwright의 `testCommand.options`를 직접 introspection해
+값을 받는 flag와 variadic flag를 구성한다. `--project` 같은 variadic도 schema에서 읽고,
+1.62의 `--` 동작은 패키지 semver에서 계산한다. node_modules가 없는 순수 단위 테스트는
+`UNIT_CLI_CONTRACT` fixture를 주입하며, production에 새 옵션을 추측하는 수동 fallback은
+두지 않았다.
+```
+
+PM이 전달한 최종 numstat 원문은 §10의 세 줄을 그대로 재인용한다.

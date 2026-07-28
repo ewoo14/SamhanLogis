@@ -303,8 +303,9 @@ node_modules\.bin\playwright.cmd test --config=playwright.real-qa.config.ts `
   playwright/n1b-native-qa/my-local-real-qa.spec.ts --reporter=line
 ```
 
-🚨 **`REAL_QA_ALLOW_UNTRACKED`는 명시 경로가 있는 실행에만 적용된다.** PowerShell 세션에
-설정해 두고 그다음 **명시 경로 없이 전체 실행**하면(공식 실행) 이 값은 아예 참조되지 않는다
+🚨 **`REAL_QA_ALLOW_UNTRACKED`는 좁은 명시 경로가 있는 실행에만 적용된다.** PowerShell 세션에
+설정해 두고 그다음 **명시 경로 없이 전체 실행**하거나 `playwright/`로 알려진 전체 집합을
+선택하면(공식 실행) 이 값은 아예 참조되지 않는다
 — 세션에 남은 값이 공식 수치를 오염시키지 않는다. **`8869d18ed`(2026-07-28) 이후로는 위치
 인자 없는 실행은 미추적·누락 스펙 유무와 무관하게 무조건 차단된다**(집합이 완전히
 일치하더라도 `playwright/`처럼 위치 인자를 반드시 명시해야 시작한다 — 위 "공유 real-QA

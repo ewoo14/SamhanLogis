@@ -31,6 +31,16 @@ function resetExplicitPathEnv() {
   delete process.env[EXPLICIT_PATH_ARGS_ENV_VAR]
   delete process.env[EXPLICIT_PATH_TOKEN_ENV_VAR]
 }
+
+const UNIT_CLI_CONTRACT = {
+  valueTakingFlags: new Set(['--config', '--reporter', '--workers', '-G', '--last-failed-file']),
+  variadicFlags: new Set(['--project']),
+  postDashArgsAreIgnored: false,
+}
+
+function parseForTest(argv, overrides = {}) {
+  return parseExplicitPathArgs(argv, { cliContract: { ...UNIT_CLI_CONTRACT, ...overrides } })
+}
 const F2_FILES = [
   'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts',
   'clients/desktop/playwright/dispatch-collab-real-qa/dispatch-collab-real-qa.spec.ts',
@@ -155,6 +165,26 @@ test('결함1: REAL_QA_ALLOW_UNTRACKED 세션 잔존은 명시 경로 없는 전
   }
 })
 
+test('F-1 RED: playwright/ 전체 위치 인자는 남은 ALLOW_UNTRACKED 로 우회되지 않는다', () => {
+  resetExplicitPathEnv()
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const trackedFile = 'clients/desktop/playwright/tracked-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, trackedFile)
+    commitAllRealQaSpecs(tempRoot)
+    writeRealQaSpec(tempRoot, 'clients/desktop/playwright/n1b-native-qa/leftover-real-qa.spec.ts')
+
+    const fullRunArgv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--reporter=line', 'playwright/']
+    assert.throws(
+      () => assertRealQaScope({ repoRoot: tempRoot, allowUntracked: true, argv: fullRunArgv }),
+      /추적 집합 불일치/,
+      'playwright/ 는 공식 전체 실행이므로 세션에 남은 ALLOW_UNTRACKED 를 적용하면 안 됩니다(F-1)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
 test('결함1 핵심: 집합이 깨끗해도 명시 경로 없는 real-QA 전체 실행은 차단한다', () => {
   resetExplicitPathEnv()
   const trackedFile = 'clients/desktop/playwright/tracked-real-qa.spec.ts'
@@ -171,7 +201,7 @@ test('결함1 핵심: 집합이 깨끗해도 명시 경로 없는 real-QA 전체
       decideRealQaScope({
         scope,
         allowUntracked: true,
-        explicitPathArgs: parseExplicitPathArgs(fullRunArgv),
+        explicitPathArgs: parseForTest(fullRunArgv),
         repoRoot: repoRoot,
       }),
     /real-QA 전체 실행 차단/,
@@ -553,7 +583,7 @@ test('재수렴 결함4: --project 가변인자(공백형 다중값)의 두 번�
     'order-app',
   ]
   assert.deepEqual(
-    parseExplicitPathArgs(argv),
+    parseForTest(argv),
     [],
     '--project renderer order-app 는 둘 다 프로젝트명이다 — 후보(위치 인자)에 아무것도 남으면 안 된다.',
   )
@@ -572,7 +602,7 @@ test('재수렴 결함4: --project 가변인자 뒤에 진짜 위치 인자(스�
     'playwright/manual/slip-form-3d-real-qa.spec.ts',
   ]
   assert.deepEqual(
-    parseExplicitPathArgs(argv),
+    parseForTest(argv),
     ['playwright/manual/slip-form-3d-real-qa.spec.ts'],
     '--project 뒤에 이어지는 프로젝트명 전부(다음 `-` 토큰까지)를 흡수해야 하고, 그 뒤 --list 이후의 진짜 경로만 후보로 남아야 합니다.',
   )
@@ -580,7 +610,7 @@ test('재수렴 결함4: --project 가변인자 뒤에 진짜 위치 인자(스�
 
 test('재수렴 결함4: --project 값 1개(단일)는 기존처럼 정상 동작한다(회귀 보존)', () => {
   const argv = ['node', 'cli.js', 'test', '--config=playwright.real-qa.config.ts', '--project', 'renderer', '--list']
-  assert.deepEqual(parseExplicitPathArgs(argv), [], '--project renderer 단독은 여전히 위치 인자 0개여야 합니다.')
+  assert.deepEqual(parseForTest(argv), [], '--project renderer 단독은 여전히 위치 인자 0개여야 합니다.')
 })
 
 // ---------------------------------------------------------------------------
@@ -645,7 +675,7 @@ test('R2-1 조각(fragment) 인자 — 파일 하나만 골라내는 조각(예:
 
     const requested = resolveRequestedFiles({
       scope: getRealQaScope({ repoRoot: tempRoot }),
-      explicitPathArgs: parseExplicitPathArgs([
+      explicitPathArgs: parseForTest([
         'node',
         'cli.js',
         'test',
@@ -771,6 +801,83 @@ test('R2-1 경계: 알려진 파일 어디에도 없는 단어는 narrow 실행�
   }
 })
 
+test('F-2 RED: Playwright 1.62가 제거하는 -- 뒤 토큰은 위치 인자로 보지 않는다', () => {
+  const argv = [
+    'node',
+    'cli.js',
+    'test',
+    '--config=playwright.real-qa.config.ts',
+    '--project',
+    'renderer',
+    '--list',
+    '--',
+    'playwright/897-column-hierarchy-real-qa',
+  ]
+  assert.deepEqual(
+    parseForTest(argv, { postDashArgsAreIgnored: true }),
+    [],
+    'Playwright 1.62는 -- 뒤 토큰을 runTests 필터에서 제거하므로 게이트도 후보로 남기면 안 됩니다(F-2)',
+  )
+})
+
+test('F-3 RED: Playwright가 실제로 매치하지 않는 repo-relative anchored 정규식은 게이트도 선택하지 않는다', () => {
+  const file = 'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts'
+  const requested = resolveRequestedFiles({
+    scope: { diskFiles: [file], trackedFiles: [file] },
+    explicitPathArgs: ['^clients/desktop/playwright/manual/slip-form-3d-real-qa\\.spec\\.ts$'],
+    repoRoot: 'C:\\fakerepo-no-digit-collision',
+  })
+  assert.deepEqual([...requested], [], 'repo-relative anchored regex는 Playwright 후보와 일치하지 않아야 합니다(F-3 과통과 방지)')
+})
+
+test('F-3 RED: Windows file URL 정규식은 Playwright 후보처럼 게이트도 선택한다', () => {
+  const file = 'clients/desktop/playwright/manual/slip-form-3d-real-qa.spec.ts'
+  const absolute = path.resolve('C:\\fakerepo-no-digit-collision', file).replaceAll('\\', '/')
+  const fileUrl = `^file:///${absolute}$`
+  const requested = resolveRequestedFiles({
+    scope: { diskFiles: [file], trackedFiles: [file] },
+    explicitPathArgs: [`${fileUrl.replaceAll('.', '\\.')}`],
+    repoRoot: 'C:\\fakerepo-no-digit-collision',
+  })
+  assert.deepEqual([...requested], [file], 'Windows file URL 후보는 Playwright와 게이트가 동일하게 선택해야 합니다(F-3 과차단 방지)')
+})
+
+test('F-4 RED: .git/info/exclude 로 무시한 rogue 스펙은 repo 정책 허용 목록에 들어가지 않는다', () => {
+  const tempRoot = createTempRealQaRepo()
+  try {
+    const rogueFile = 'clients/desktop/playwright/arbitrary/rogue-real-qa.spec.ts'
+    writeRealQaSpec(tempRoot, rogueFile)
+    const excludePath = path.join(tempRoot, '.git', 'info', 'exclude')
+    fs.appendFileSync(excludePath, '\nclients/desktop/playwright/arbitrary/\n', 'utf8')
+
+    assert.deepEqual(
+      listGitignoredUntrackedRealQaFiles({ repoRoot: tempRoot }),
+      [],
+      '.git/info/exclude 는 repo .gitignore 정책이 아니므로 rogue 스펙을 허용하면 안 됩니다(F-4)',
+    )
+  } finally {
+    removeTempRepo(tempRoot)
+  }
+})
+
+test('F-5 RED: Playwright 1.62 신규 값 옵션 -G 의 값은 위치 인자가 아니다', () => {
+  const argv = ['node', 'cli.js', 'test', '-G', 'R1', '--list', 'playwright/897-column-hierarchy-real-qa']
+  assert.deepEqual(parseForTest(argv), ['playwright/897-column-hierarchy-real-qa'])
+})
+
+test('F-5 RED: Playwright 1.62 신규 값 옵션 --last-failed-file 의 값은 위치 인자가 아니다', () => {
+  const argv = [
+    'node',
+    'cli.js',
+    'test',
+    '--last-failed-file',
+    '863-r1-liveqa-real-qa',
+    '--list',
+    'playwright/897-column-hierarchy-real-qa',
+  ]
+  assert.deepEqual(parseForTest(argv), ['playwright/897-column-hierarchy-real-qa'])
+})
+
 // 아래 두 테스트는 순수 판정 계층(decideRealQaScope/resolveRequestedFiles)을 합성 scope 로
 // 직접 검증한다 — git fixture(createTempRealQaRepo)를 안 쓴다. os.tmpdir()의 무작위 접미사가
 // "2" 같은 흔한 한 글자와 우연히 겹칠 수 있어(실제로 최초 작성판에서 발생) fixture 기반은
@@ -818,7 +925,7 @@ test('R2-1 경계(신규 발견): 공백형 값 플래그(--reporter line 등)�
       decideRealQaScope({
         scope,
         allowUntracked: false,
-        explicitPathArgs: parseExplicitPathArgs(spaceFormArgv),
+        explicitPathArgs: parseForTest(spaceFormArgv),
         repoRoot: FAKE_REPO_ROOT,
       }),
     /추적 집합 불일치/,
@@ -841,7 +948,7 @@ test('R2-1 경계(신규 발견): 공백형 --workers 2 의 값 "2"도 narrow �
       decideRealQaScope({
         scope,
         allowUntracked: false,
-        explicitPathArgs: parseExplicitPathArgs(spaceFormArgv),
+        explicitPathArgs: parseForTest(spaceFormArgv),
         repoRoot: FAKE_REPO_ROOT,
       }),
     /추적 집합 불일치/,
