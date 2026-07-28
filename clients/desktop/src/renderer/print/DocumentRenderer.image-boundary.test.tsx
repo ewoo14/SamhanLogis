@@ -49,7 +49,7 @@ afterEach(() => {
 })
 
 describe('#968 SOL 결함1 — 좌표 IMAGE 경고 경계', () => {
-  it('경고는 IMAGE geometry 높이 안에서 잘려 아래 좌표 TEXT를 가리지 않는다', async () => {
+  it('경고는 IMAGE 박스 안에 그리지 않고 아래 좌표 TEXT를 가리지 않는다', async () => {
     window.HTMLImageElement.prototype.decode = vi.fn().mockRejectedValue(new DOMException('디코드 실패', 'EncodingError'))
 
     const fixture = approvalRenderFixtures[0]!
@@ -62,18 +62,16 @@ describe('#968 SOL 결함1 — 좌표 IMAGE 경고 경계', () => {
       </StaticRouter>,
     )
 
-    const alert = await waitFor(() => screen.getByTestId('document-template-image-error-positioned-undecodable-image'))
+    const alert = await waitFor(() => screen.getByTestId('document-template-image-error-summary'))
     const belowText = document.querySelector(
       '.document-template-v2-elements-ruler [data-template-element="below-image-text"]',
     )
 
     expect(belowText).not.toBeNull()
-    expect(alert.style.height).toBe('15%')
-    expect(alert.style.overflow).toBe('hidden')
-    expect(alert.style.whiteSpace).toBe('nowrap')
-    expect(alert.style.textOverflow).toBe('ellipsis')
-    expect(alert.textContent).toContain('⚠')
-    expect(alert.getAttribute('title') ?? '').toContain('인쇄 전에 이미지를 교체하고 저장하세요')
-    expect(alert.getAttribute('aria-label') ?? '').toContain('이미지는 현재 화면에서 표시할 수 없습니다')
+    expect(alert.textContent).toContain('저장된 WebP')
+    expect(alert.textContent).toContain('positioned-undecodable-image')
+    expect(alert.textContent).toContain('이미지를 교체하고 저장하세요')
+    expect(alert.closest('.paper')).toBeNull()
+    expect(document.querySelector('[data-testid="document-template-image-error-positioned-undecodable-image"]')).toBeNull()
   })
 })

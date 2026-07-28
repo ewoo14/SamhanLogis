@@ -156,6 +156,47 @@ describe('buildApprovalRenderModel', () => {
 })
 
 describe('compileApprovalDocument and DocumentRenderer', () => {
+  it.each(['HEADER', 'FOOTER'] as const)('%s의 flow IMAGE는 좌표 레이어의 형제 좌표 글자를 덮지 않는 일반 flow로 렌더된다', (bandKind) => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === bandKind
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                {
+                  key: `${bandKind.toLowerCase()}-flow-image`,
+                  type: 'IMAGE' as const,
+                  src: '/print-logo.svg',
+                  alt: `${bandKind} flow image`,
+                },
+                {
+                  key: `${bandKind.toLowerCase()}-anchor-text`,
+                  type: 'TEXT' as const,
+                  text: `${bandKind} anchor text`,
+                  geometry: { x: 10, y: 10, w: 30, h: 10 },
+                },
+              ],
+            }
+          : band),
+      },
+    }
+
+    const compiled = compileApprovalDocument(template as never, model)
+    const html = renderToStaticMarkup(<>{bandKind === 'HEADER' ? compiled.headerExtra : compiled.footerExtra}</>)
+    const dom = new JSDOM(html, { url: 'http://localhost/' })
+    const layer = dom.window.document.querySelector(`[data-testid="document-template-v2-elements-${bandKind.toLowerCase()}"]`)
+
+    expect(layer).not.toBeNull()
+    expect(layer?.querySelector(`[data-template-image="${bandKind.toLowerCase()}-flow-image"]`)).toBeNull()
+    expect(layer?.querySelector(`[data-template-element="${bandKind.toLowerCase()}-anchor-text"]`)).not.toBeNull()
+    expect(dom.window.document.querySelector(`[data-template-image="${bandKind.toLowerCase()}-flow-image"]`)).not.toBeNull()
+  })
+
   it('R9: v2 draft의 TEXT와 FIELD가 저장 전 미리보기에서 실 renderer로 표시된다', () => {
     const model = buildApprovalRenderModel(input({
       approval: approval({ approvalNo: 'DOC-2026-001', fieldValues: { docNo: 'DOC-2026-001' } }),
@@ -678,8 +719,10 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
 
     const html = render(<DocumentRenderer template={template as never} model={model} />)
 
-    expect(html).toContain('data-testid="document-template-image-error-invalid-saved-image"')
+    expect(html).toContain('data-testid="document-template-image-error-summary"')
+    expect(html).toContain('data-testid="document-template-image-error-item-invalid-saved-image"')
     expect(html).toContain('class="no-print"')
     expect(html).toContain('현재 화면에서 표시할 수 없습니다')
+    expect(html).toContain('저장된 문제 이미지')
   })
 })

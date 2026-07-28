@@ -2,8 +2,9 @@
 
 > 작성일: 2026-07-28
 > 대상: PR #968 / Issue #965
-> 워크트리: `D:\dev\Samhan-Public\.claude\worktrees\965-imgvalid`
+> 워크트리: `C:\dev\Samhan-Public\.claude\worktrees\965-imgvalid`
 > 원칙: R = C1 + C2 + C3. C1·C2·C3를 함께 적용했다.
+> 최신 라운드: 2026-07-28 SOL — 박스 내부 경고를 폐기하고 외부 요약·저장 게이트·밴드 분리로 재설계했다.
 
 ## 1. 구현 결과
 
@@ -11,7 +12,7 @@
 |---|---|
 | C1 | 파일 선택과 저장 직전에 실제 렌더 경로인 `HTMLImageElement.decode()`를 호출한다. 실패하면 draft/API 저장을 진행하지 않고 알린다. `createImageBitmap()`은 사용하지 않는다. |
 | C2 | groupware validator는 allowlist, 50KB 상한, RIFF/PNG 구조, 64MiB 자원예산만 검사한다. renderer 디코드 성공을 보장한다고 말하던 문구와 Javadoc을 정정했다. |
-| C3 | 렌더 `error`는 미리보기 화면에서 `role="alert"` + `no-print` 경고로 표시한다. 측정용 인쇄 DOM에는 경고를 렌더하지 않으며 결재 인쇄면에는 오류 문구가 들어가지 않는다. |
+| C3 | 렌더 `error`는 박스 밖 `role="alert"` + `no-print` 요약에서 밴드·alt·key와 교체 지시를 표시한다. HEADER/BODY/FOOTER 흐름 IMAGE는 좌표 레이어에서 분리하고, 인쇄 미디어에서는 요약을 숨긴다. |
 
 ## 2. RED → GREEN → 뮤테이션 RED 원문
 
@@ -309,10 +310,158 @@ GREEN(fix 후): `tests="44" failures="0" errors="0"`.
 - `ApprovalDocView` 경로의 결함1 fix 자체는 게이트로 인해 오늘 실행 증거를 못 만들었다(§8.5, 코드 공유 구조로 논리적 적용만 확인).
 - CMYK JPEG 등 ImageIO가 못 읽는 실제 포맷의 I-3 표면 확장 여부는 이번에도 미확인(R1과 동일 한계 — 인코더 부재).
 - Electron 패키지 앱 실기동은 미실행(웹 프로덕션 렌더러 `vite --config vite.web.config.ts`로 대체, R1과 동일).
-- PDF 텍스트 추출 1차 시도(자체 제작 regex 기반 ToUnicode CMap 파서)는 이 PDF 구조에서 textRuns=0으로 실패해, `poppler pdftotext`(독립 검증된 도구)로 대체했다 — 자체 파서의 정확한 실패 원인은 추적하지 않았다.
-- FE 전체 vitest 스위트(레포 전역)는 실행하지 않았다 — `print`/`documentTemplate` 디렉터리 27개 파일 239건만 실행(관련 표면 전체 포함, 무관 표면은 제외).
+- PDF 텍스트 추출 1차 시도(자체 제작 regex 기반 ToUnicode CMap 파서)는 이 PDF 구조에서 textRuns=0으로 실패해 독립 도구로 대체했다. `Get-Command pdftotext`가 찾지 못한 것은 **PowerShell 한정**이며, Git Bash에는 `/mingw64/bin/pdftotext`(xpdf 4.06)가 실존한다. 이번 SOL 검증은 두 도구를 교차 시도했고, PowerShell 도구 부재 사유는 환경 한계로 남긴다.
+- FE 전체 vitest 스위트(레포 전역)는 실행하지 않았다 — 관련 표면의 실측은 **26개 파일 / 233건**이다. 이전 기록의 “27개 파일 239건”은 오기다. 정정 산식은 `git ls-tree` 실측 26파일, 신규 2파일 vitest 5건, `238−5=233`이다.
+- 거부 경로 표기도 정정한다. 입력은 5종이지만 실제 코드 분기는 4개다(`ElementInspector.tsx:249-281`). 0바이트와 텍스트 위장은 형식 불일치 분기를 공유하며 숨은 분기는 없다.
 - throwaway 문서양식은 전부 삭제했다(§8.9). 워크트리에는 새 파일을 남기지 않았다(스크래치패드에만 하네스·로그·PDF·스크린샷 저장).
 
 ### 8.9 무훼손
 
-throwaway 문서양식 2건(`PM968R1_DEFECT1_THROWAWAY`, `PM968R1_FENCE_THROWAWAY`) 생성 후 `DELETE` API로 전량 삭제, 목록 재조회로 `PM968R1`/`throwaway` 잔여 0건 확인. 렌더러 dev 서버(포트 5199)는 세션 종료 전 프로세스 종료. 산출물은 스크래치패드(`968-r1fix/`)에만 저장했다.
+throwaway 문서양식 2건(`PM968R1_DEFECT1_THROWAWAY`, `PM968R1_FENCE_THROWAWAY`) 생성 후 `DELETE` API로 전량 삭제, 목록 재조회로 `PM968R1`/`throwaway` 잔여 0건 확인. 렌더러 dev 서버(포트 5199)는 세션 종료 전 프로세스 종료. 산출물은 스크래치패드(`968-r1fix/`)에만 저장했다. 아래 §9~§11은 그 뒤의 SOL 라운드 기록이다.
+
+### 8.8 정정 각주
+
+1. 커밋 `2ef26713a`의 “FE 239/239 · 27개 파일” 표기는 잘못되었다. 실측은 233건 / 26파일이다. 커밋 메시지는 변경하지 않고 이 각주로 정정한다.
+2. “거부 경로 5항목”은 “입력 5종 / 분기 4개”로 정정한다.
+3. “환경에 `pdftotext`가 없다”는 표현은 “PowerShell에 없다”로 정정한다. Git Bash `/mingw64/bin/pdftotext`(xpdf 4.06)는 사용 가능하다.
+
+## 9. 2026-07-28 SOL 라운드 — RED 원문
+
+R1·R2·R3처럼 박스 내부 축약을 반복하지 않고, ① 존재 ② 요소 식별 ③ 교체 지시를 박스 밖 요약으로 이동하는 방향을 먼저 고정했다. 그 설계에 대한 실패 테스트를 먼저 추가했다.
+
+결함1(박스 크기 격자)의 최초 RED 원문:
+
+```text
+❯ src/renderer/print/DocumentRenderer.image-error.test.tsx (7 tests | 6 failed)
+× flow 배치 IMAGE — 렌더 엔진 error를 박스 밖의 no-print 요약으로 표시한다(수동 이벤트)
+  → Unable to find [data-testid="document-template-image-error-summary"]
+× 좌표 배치 IMAGE 26x2.7px — decode() 실패는 박스 크기와 무관하게 외부 요약에서 읽힌다
+  → Unable to find [data-testid="document-template-image-error-summary"]
+× 좌표 배치 IMAGE 100x20px — decode() 실패는 박스 크기와 무관하게 외부 요약에서 읽힌다
+  → Unable to find [data-testid="document-template-image-error-summary"]
+× 좌표 배치 IMAGE 525x16.8px — decode() 실패는 박스 크기와 무관하게 외부 요약에서 읽힌다
+× 좌표 배치 IMAGE 525x90.7px — decode() 실패는 박스 크기와 무관하게 외부 요약에서 읽힌다
+Test Files 1 failed
+```
+
+결함2(HEADER/FOOTER 흐름 IMAGE 분리)의 최초 테스트 실행 원문도 보존한다. 이 실행은 제품 결과보다 JSDOM opaque-origin 설정 오류가 먼저 드러난 RED였고, 테스트에 `url: 'http://localhost/'`를 추가해 유효한 DOM RED를 만들었다.
+
+```text
+❯ src/renderer/print/DocumentRenderer.test.tsx (19 tests | 2 failed)
+× ... HEADER flow IMAGE ...
+  → localStorage is not available for opaque origins
+× ... FOOTER flow IMAGE ...
+  → localStorage is not available for opaque origins
+```
+
+결함3(대형 미지원 형식)의 RED 원문:
+
+```text
+❯ src/renderer/components/documentTemplate/ElementInspector.image-rejection.test.tsx (5 tests | 1 failed)
+× 큰 미지원 형식은 용량이 아니라 지원 형식 불일치로 안내한다
+  → expected '현재 양식 기준 이미지 최대 50KB까지 저장할 수 있습니다.' to contain
+    '비어 있거나 지원되는 PNG/JPEG/WebP 형식이 아니어서'
+```
+
+저장 게이트의 다중 식별 테스트 RED 원문:
+
+```text
+❯ src/renderer/print/templateSchema.image-decodability.test.ts (1 test | 1 failed)
+× 디코드 불가 이미지를 밴드별로 모두 수집하고 저장 오류가 식별 정보를 포함한다
+  → expected undefined to be type of 'function'
+```
+
+위 RED 직후 구현을 진행했다. 출력에서 Vitest의 반복 DOM dump·색상 제어문자는 제외했지만, 테스트 파일·실패 assertion·원문 메시지는 그대로 보존했다.
+
+## 10. 2026-07-28 SOL fix
+
+- `DocumentRenderer`는 이미지 박스 안의 `⚠`/문구를 완전히 제거하고, `.paper` 바깥의 `ImageDecodeIssueSummary`에 깨진 이미지 수, 밴드명, alt, key, 교체·저장 지시를 표시한다. 초기 source 판정과 `HTMLImageElement.decode()`/`error` 이벤트를 같은 reporter로 합쳐 첫 진입 레이스도 수집한다. `no-print`라서 인쇄물에는 나오지 않는다.
+- 한 문서의 깨진 이미지가 GRID 4개처럼 여러 개면 하나의 요약에 4개를 모두 열거한다. 저장 전 `findUndecodableImages`가 모든 밴드의 이미지를 모아 `ImageSourceDecodeError`에 band·alt·key를 포함한다. 따라서 “저장이 차단되는데 어느 이미지인지 모름”을 해소한다.
+- 좌표 레이어는 HEADER/BODY/FOOTER 모두 TEXT/FIELD와 좌표 IMAGE만 담는다. geometry 없는 흐름 IMAGE는 각 밴드의 일반 흐름 렌더로 분리해 머리말·맺음말 형제 좌표 글자를 덮지 않는다.
+- 파일 선택은 형식/구조 판정을 용량 판정보다 먼저 수행한다. BMP 67,854B도 파일 크기와 무관하게 지원 형식 불일치 안내를 받는다. 0바이트와 텍스트 위장은 같은 형식 불일치 분기를 공유한다: **입력 5종 / 분기 4개**.
+
+GREEN 원문:
+
+```text
+Test Files 5 passed (5)
+Tests 33 passed (33)
+```
+
+관련 전체 회귀 GREEN:
+
+```text
+Test Files 29 passed (29)
+Tests 246 passed (246)
+```
+
+추가로 `npm run typecheck`는 `tsc`와 `typecheck:real-qa` 모두 `fail 0`으로 종료했다. BE를 수정하지 않았으므로 낡은 공유 Docker 이미지 재빌드는 적용 대상이 아니다.
+
+## 11. 2026-07-28 가독성 fix 및 라이브 QA
+
+### 11.1 실제 편집기·박스 격자
+
+실제 Vite 편집기(`127.0.0.1:5199`)를 Chromium으로 열고 실제 API로 양식을 생성·조회·저장 시도·삭제했다. 캡처는 다음 경로에 남겼다.
+
+- [01-desktop-grid-summary.png](../qa/2026-07-28-965-warning-redesign/01-desktop-grid-summary.png)
+- [02-three-band-overlap.png](../qa/2026-07-28-965-warning-redesign/02-three-band-overlap.png)
+- [03-save-blocked-identifies-elements.png](../qa/2026-07-28-965-warning-redesign/03-save-blocked-identifies-elements.png)
+- [04-touch-no-hover-summary.png](../qa/2026-07-28-965-warning-redesign/04-touch-no-hover-summary.png)
+- [05-print-no-warning.pdf](../qa/2026-07-28-965-warning-redesign/05-print-no-warning.pdf)
+
+실제 브라우저에서 읽은 값:
+
+```text
+summary: display=grid visibility=visible rect=(x=558.765625,y=1690.9375,w=647.484375,h=254)
+summary: insidePaper=false itemCount=7 allGridLabels=true
+grid geometry matrix: 26x2.7px / 100x20px / 525x16.8px / 525x90.7px → 모두 외부 요약의 band·alt·key로 식별
+```
+
+### 11.2 세 밴드 겹침·저장 차단
+
+`getBoundingClientRect()`와 DOM containment를 프로그램으로 검사했다. 세 밴드 모두 flow IMAGE가 좌표 layer의 자식이 아니고, `.paper` 안의 warning count가 0이다.
+
+```text
+HEADER layer=(605.109375,2172.421875,554.796875,90.703125)
+  anchor=(937.984375,2208.703125,166.4375,20.53125)
+  flowImage=(605.109375,2274.453125,554.796875,20.53125) flowImageInLayer=false
+BODY   layer=(605.109375,2397.734375,554.796875,90.703125)
+  anchor=(937.984375,2434.015625,166.4375,18.65625)
+  flowImage=(605.109375,2360.1875,554.796875,18.65625) flowImageInLayer=false
+FOOTER layer=(605.109375,2588.140625,554.796875,90.703125)
+  anchor=(937.984375,2624.421875,166.4375,20.53125)
+  flowImage=(605.109375,2690.171875,554.796875,20.53125) flowImageInLayer=false
+paperWarnings=0 overlapFree=true
+```
+
+저장 버튼 클릭 후 실제 alert는 다음 7개를 모두 명시했고, 저장 요청은 차단되었다.
+
+```text
+이 이미지는 현재 화면에서 표시할 수 없어 저장할 수 없습니다. 이미지를 바꾼 뒤 다시 저장하세요. 저장할 수 없는 이미지: 머리말 · 머리말 흐름 이미지 (header-flow-image), 머리말 · GRID 이미지 1 (grid-image-1), 머리말 · GRID 이미지 2 (grid-image-2), 머리말 · GRID 이미지 3 (grid-image-3), 머리말 · GRID 이미지 4 (grid-image-4), 본문 · 본문 흐름 이미지 (body-flow-image), 맺음말 · 맺음말 흐름 이미지 (footer-flow-image).
+alert: display=block visibility=visible rect=(x=264,y=978.453125,w=1240.234375,h=63)
+```
+
+### 11.3 터치·인쇄·PDF 교차 확인
+
+터치 컨텍스트(`390×844`, `isMobile=true`, `hasTouch=true`)에서 hover/title 없이 요약이 노출되었다.
+
+```text
+touch summary: display=grid visibility=visible rect=(x=29,y=2261.9375,w=332,h=296)
+title=null paper=false reachableWithoutTitle=true
+```
+
+인쇄 미디어와 생성 PDF를 모두 검사했다.
+
+```text
+screen: display=grid visibility=visible rect=(558.765625,1690.9375,647.484375,254) paperWarningCount=0
+print: display=none visibility=visible rect=(0,0,0,0) textNodes=false
+PowerShell: Get-Command pdftotext → NOT_FOUND (PowerShell 환경 한정)
+Git Bash: /mingw64/bin/pdftotext (xpdf 4.06) → warning=ABSENT, extracted=132 bytes
+```
+
+`05-print-no-warning.pdf`의 Git Bash 추출 텍스트에는 `표시할 수 없는 이미지`, `현재 화면에서 표시할 수 없습니다`, `이미지를 교체`가 없었다. PowerShell 쪽은 실행 파일이 없어 동일 추출을 수행할 수 없었으므로 “미검증”이 아니라 **도구 부재라는 검증 불가능 사유를 명시한 교차 확인**이다.
+
+### 11.4 검증 범위와 남은 한계
+
+- Codex in-app Browser runtime은 세션에서 브라우저 목록이 비어 있어 사용할 수 없었다. 대신 설치된 Playwright Chromium으로 동일한 실제 Vite 편집기/API 경로를 실행했으며, 캡처 후 `getComputedStyle`, `getBoundingClientRect`, 실제 텍스트 노드를 읽었다.
+- Electron 패키지 자체는 실행하지 않았다. 데스크톱 의존성은 먼저 `clients/desktop/npm ci`로 설치했고, 웹 실제 렌더러와 관련 Vitest/typecheck를 검증했다.
+- 작업 중 생성한 throwaway 양식은 API `DELETE` 응답 200으로 정리했다. 마지막 라이브 QA 양식 id는 `74d71a79-2a94-4bb4-8bd0-1fedd056e55f`이며 cleanup body가 `success=true`였다.

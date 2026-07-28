@@ -4,7 +4,7 @@
  * 1단계는 template/model slot을 compiled PrintLayout props로 만들고, 2단계는
  * 기존 PrintLayout shell에 compiled body를 children으로 전달한다.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { PrintLayout, type PaperSize, type PrintApprovalStep, type PrintDocHeader } from './PrintLayout'
 import type { ApprovalRenderModel } from './approvalRenderModel'
 import { krw } from './PrintLayout'
@@ -26,6 +26,7 @@ import {
   type ImageElement,
   type TextElement,
   DETAIL_COLUMN_LABEL,
+  BAND_KIND_LABEL,
   isAllowedImageSource,
 } from './templateSchema'
 
@@ -236,78 +237,51 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
   )
 }
 
-/**
- * 결함3(#968 R1, 경미) fix — 라이브 재검증(968-r1fix 하네스)에서 1차 시도(position:relative+z-index만)의
- * 잔여 문제를 실측으로 발견했다: 이 경고는 `<span>`(block)이라 `position`을 무엇으로 주든 명시적
- * width가 없으면 밴드 폭 전체로 퍼진다 — z-index로 "가려짐"은 해소되지만, 이번엔 경고 자신이 같은
- * 줄의 다른 좌표 요소(예: TEXT `ANCHORTEXT좌표기준`)와 같은 자리에서 서로 다른 글자가 뒤섞여
- * 겹쳐 그려졌다(스크린샷 실측: 두 텍스트가 한 줄에 포개짐). 근본 원인은 스태킹이 아니라 **경고가
- * 이미지의 geometry 박스를 전혀 쓰지 않는다는 것**이었다.
- *
- * fix: 경고에도 실패한 IMAGE와 동일한 `geometryStyle(geometry, …)`을 적용해 좌표 요소일 때는 그
- * 이미지가 있었을 자리(x/y/w/h)에만 그려지게 한다 — 밴드 전체가 아니라 이미지 자신의 자리만
- * 차지하므로 다른 형제의 자리를 침범하지 않는다(형제 침범 0, 재실측 확인). flow 배치(geometry
- * 없음) 이미지는 `geometryStyle(undefined, …)`이 빈 객체를 반환해 기존 정상 flow 동작을 그대로
- * 유지한다(회귀 없음). `position: relative` + z-index는 이미지 자신의 자리 안에서도 형제(같은
- * Fragment의 `<img>`)보다 위에 그려지도록 유지한다 — 좌표 요소는 geometryStyle이 이미
- * `position: absolute`로 바꾸므로 이 케이스에선 absolute 형제(사진)보다 DOM 순서상 뒤에 오는 것만
- * 으로도 충분히 위에 그려지지만, flow 케이스(static 형제 없음)에서도 일관되게 명시적으로 둔다.
- */
 const IMAGE_DECODE_NOTICE = '이 이미지는 현재 화면에서 표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요.'
 
-function imageDecodeErrorNotice(elementKey: string, geometry?: Geometry) {
+interface ImageDecodeIssue {
+  key: string
+  alt: string
+  bandLabel: string
+}
+
+interface ImageDecodeIssueReporter {
+  report: (issue: ImageDecodeIssue) => void
+  clear: (key: string) => void
+}
+
+const imageDecodeIssueReporterContext = createContext<ImageDecodeIssueReporter | null>(null)
+
+function ImageDecodeIssueSummary({ issues }: { issues: ImageDecodeIssue[] }) {
+  if (issues.length === 0) return null
+
   return (
-    <span
+    <section
       className="no-print"
       role="alert"
-      data-testid={`document-template-image-error-${elementKey}`}
-      aria-label={IMAGE_DECODE_NOTICE}
-      title={IMAGE_DECODE_NOTICE}
+      aria-live="assertive"
+      data-testid="document-template-image-error-summary"
       style={{
-        ...geometryStyle(geometry, undefined),
-        display: 'block',
-        position: geometry === undefined ? 'relative' : 'absolute',
-        ...(geometry === undefined ? {} : {
-          height: `${geometry.h}%`,
-          overflow: 'hidden',
-          whiteSpace: 'nowrap',
-          textOverflow: 'ellipsis',
-          boxSizing: 'border-box',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          lineHeight: 1,
-          background: 'var(--color-danger-700, #a12622)',
-          cursor: 'help',
-        }),
-        zIndex: 1,
+        display: 'grid',
+        gap: 6,
+        marginBottom: 12,
+        padding: 12,
         color: 'var(--color-danger-700, #a12622)',
-        fontSize: 12,
-        ...(geometry === undefined ? {} : { color: '#fff' }),
+        background: 'var(--color-danger-50, #fff3f2)',
+        border: '1px solid var(--color-danger-300, #e0a29e)',
       }}
     >
-      {geometry === undefined ? IMAGE_DECODE_NOTICE : (
-        <>
-          <span aria-hidden="true">⚠</span>
-          <span
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              width: 1,
-              height: 1,
-              padding: 0,
-              margin: -1,
-              overflow: 'hidden',
-              clip: 'rect(0, 0, 0, 0)',
-              whiteSpace: 'nowrap',
-              border: 0,
-            }}
-          >
-            {IMAGE_DECODE_NOTICE}
-          </span>
-        </>
-      )}
-    </span>
+      <strong>표시할 수 없는 이미지 {issues.length}개가 있습니다.</strong>
+      <span>{IMAGE_DECODE_NOTICE}</span>
+      <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+        {issues.map((issue) => (
+          <li key={issue.key} data-testid={`document-template-image-error-item-${issue.key}`}>
+            {issue.bandLabel} · {issue.alt || '대체 문구 없음'} ({issue.key})
+          </li>
+        ))}
+      </ul>
+      <span>위 요소의 이미지를 교체하고 저장하세요.</span>
+    </section>
   )
 }
 
@@ -325,55 +299,79 @@ function imageDecodeErrorNotice(elementKey: string, geometry?: Geometry) {
  * reject된다. C1(`canDecodeImageSource`)이 저장 전 판정에 쓰는 것과 동일한 원리다 — 렌더 경로와
  * 저장 경로가 "디코드 가능성"을 같은 방식으로 묻는다. `onError`는 마운트 이후 src가 바뀌는 경로
  * (예: 인스펙터에서 직접 URL 재입력)의 즉시 반응용으로 그대로 둔다 — 두 메커니즘 모두 같은
- * `setDecodeFailed(true)`로 수렴하므로 충돌하지 않는다.
+ * 이미지 요소의 보고 함수로 수렴하므로 충돌하지 않는다.
  */
-function RenderedImageElement({ element, measurement = false }: { element: ImageElement; measurement?: boolean }) {
-  const [decodeFailed, setDecodeFailed] = useState(false)
+function RenderedImageElement({
+  element,
+  measurement = false,
+  bandLabel = '문서',
+}: {
+  element: ImageElement
+  measurement?: boolean
+  bandLabel?: string
+}) {
   const imgRef = useRef<HTMLImageElement | null>(null)
+  const reporter = useContext(imageDecodeIssueReporterContext)
+  const issue = useMemo(() => ({ key: element.key, alt: element.alt, bandLabel }), [bandLabel, element.alt, element.key])
 
   useIsomorphicLayoutEffect(() => {
-    setDecodeFailed(false)
     if (measurement) return undefined
+    if (!isAllowedImageSource(element.src)) {
+      reporter?.report(issue)
+      return () => reporter?.clear(element.key)
+    }
+    reporter?.clear(element.key)
     const img = imgRef.current
     if (!img || typeof img.decode !== 'function') return undefined
     let cancelled = false
     img.decode().then(
-      () => { if (!cancelled) setDecodeFailed(false) },
-      () => { if (!cancelled) setDecodeFailed(true) },
+      () => { if (!cancelled) reporter?.clear(element.key) },
+      () => { if (!cancelled) reporter?.report(issue) },
     )
-    return () => { cancelled = true }
-  }, [element.src, measurement])
+    return () => {
+      cancelled = true
+      reporter?.clear(element.key)
+    }
+  }, [element.key, element.src, issue, measurement, reporter])
 
   if (!isAllowedImageSource(element.src)) {
-    return measurement ? null : imageDecodeErrorNotice(element.key, element.geometry)
+    return measurement ? null : (
+      <img
+        aria-hidden="true"
+        className="document-template-image"
+        data-template-image={element.key}
+        src={element.src}
+        alt=""
+        style={{ ...geometryStyle(element.geometry, undefined), display: 'block', objectFit: 'contain' }}
+      />
+    )
   }
 
+  const handleDecodeFailure = () => reporter?.report(issue)
+
   return (
-    <>
-      <img
-        ref={imgRef}
-        className="document-template-image"
-        {...(measurement
-          ? { 'data-template-print-image': element.key }
-          : { 'data-template-image': element.key })}
-        src={element.src}
-        alt={element.alt}
-        onError={() => setDecodeFailed(true)}
-        style={{
-          // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
-          // 인스펙터도 해당 컨트롤을 숨기고, 출력에는 실제 반영 가능한 테두리만 전달한다.
-          ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
-          display: 'block',
-          objectFit: 'contain',
-        }}
-      />
-      {decodeFailed && !measurement ? imageDecodeErrorNotice(element.key, element.geometry) : null}
-    </>
+    <img
+      ref={imgRef}
+      className="document-template-image"
+      {...(measurement
+        ? { 'data-template-print-image': element.key }
+        : { 'data-template-image': element.key })}
+      src={element.src}
+      alt={element.alt}
+      onError={measurement ? undefined : handleDecodeFailure}
+      style={{
+        // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
+        // 인스펙터도 해당 컨트롤을 숨기고, 출력에는 실제 반영 가능한 테두리만 전달한다.
+        ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
+        display: 'block',
+        objectFit: 'contain',
+      }}
+    />
   )
 }
 
-function renderImageElement(element: ImageElement, measurement = false) {
-  return <RenderedImageElement key={element.key} element={element} measurement={measurement} />
+function renderImageElement(element: ImageElement, measurement = false, bandLabel = '문서') {
+  return <RenderedImageElement key={element.key} element={element} measurement={measurement} bandLabel={bandLabel} />
 }
 
 /** % geometry 좌표계의 기준(ruler) 높이(mm). H1 — 절대 변경 금지: 바뀌면 저장된 모든 geometry 값의
@@ -404,6 +402,7 @@ interface PositionedElementBandProps {
   elements: Array<FieldElement | TextElement | ImageElement>
   model: ApprovalRenderModel
   testId: string
+  bandLabel: string
 }
 
 /**
@@ -428,7 +427,7 @@ interface PositionedElementBandProps {
  * 요소 수와 무관하게 밴드당 하나의 ruler/spacer만 존재한다(H4) — 여러 요소 중 가장 많이 넘친
  * 요소 기준으로 한 번만 예약한다.
  */
-function PositionedElementBand({ elements, model, testId }: PositionedElementBandProps) {
+function PositionedElementBand({ elements, model, testId, bandLabel }: PositionedElementBandProps) {
   const rulerRef = useRef<HTMLDivElement | null>(null)
   const printRulerRef = useRef<HTMLDivElement | null>(null)
   const [screenOverflowPx, setScreenOverflowPx] = useState(0)
@@ -478,7 +477,7 @@ function PositionedElementBand({ elements, model, testId }: PositionedElementBan
   }, [contentSignature])
 
   const renderElements = (measurement = false) => elements.map((element) => element.type === 'IMAGE'
-    ? renderImageElement(element, measurement)
+    ? renderImageElement(element, measurement, bandLabel)
     : renderPositionedElement(element, model, measurement))
 
   return (
@@ -538,14 +537,36 @@ function positionedElementLayer(
   model: ApprovalRenderModel,
   testId: string,
   key?: string,
+  bandLabel = '문서',
 ): ReactNode {
   if (elements.length === 0) return null
-  return <PositionedElementBand key={key} elements={elements} model={model} testId={testId} />
+  return <PositionedElementBand key={key} elements={elements} model={model} testId={testId} bandLabel={bandLabel} />
 }
 
 function positionedElementsOf(elements: DocElement[]): Array<FieldElement | TextElement | ImageElement> {
   return elements.filter(
     (element): element is FieldElement | TextElement | ImageElement => element.type === 'FIELD' || element.type === 'TEXT' || element.type === 'IMAGE',
+  )
+}
+
+function renderBandElements(
+  elements: DocElement[],
+  model: ApprovalRenderModel,
+  bandKind: 'HEADER' | 'FOOTER',
+  testId: string,
+): ReactNode {
+  const renderable = positionedElementsOf(elements)
+  // HEADER/FOOTER의 FIELD/TEXT flow는 기존 밴드 레이어 안에서 유지한다. IMAGE flow만 별도
+  // normal-flow 형제로 꺼내야, IMAGE 실패 상태가 좌표 TEXT와 같은 레이어에서 형제 글자를 덮지 않는다.
+  const layerElements = renderable.filter((element) => element.type !== 'IMAGE' || element.geometry !== undefined)
+  const flowImages = renderable.filter(
+    (element): element is ImageElement => element.type === 'IMAGE' && element.geometry === undefined,
+  )
+  return (
+    <>
+      {positionedElementLayer(layerElements, model, testId, `${testId}-positioned`, BAND_KIND_LABEL[bandKind])}
+      {flowImages.map((element) => renderImageElement(element, false, BAND_KIND_LABEL[bandKind]))}
+    </>
   )
 }
 
@@ -569,10 +590,9 @@ export function compileApprovalDocument(
     .flatMap((band) => band.elements)
   const bodyDetails = bodyElements.filter((element): element is DetailElement => element.type === 'DETAIL')
 
-  const headerPositioned = positionedElementsOf(headerElements)
-  const footerPositioned = positionedElementsOf(
-    template.document.bands.filter((band) => band.kind === 'FOOTER').flatMap((band) => band.elements),
-  )
+  const footerElements = template.document.bands
+    .filter((band) => band.kind === 'FOOTER')
+    .flatMap((band) => band.elements)
   const bodyPositioned = positionedElementsOf(bodyElements).filter((element) => element.geometry !== undefined)
   const firstBodyPositionedIndex = bodyElements.findIndex(isGeometryPositionedElement)
 
@@ -591,6 +611,7 @@ export function compileApprovalDocument(
         model,
         'document-template-v2-elements-body',
         'document-template-v2-elements-body',
+        BAND_KIND_LABEL.BODY,
       )
     }
     const section = sectionForElement(element, model)
@@ -608,7 +629,7 @@ export function compileApprovalDocument(
       return element.geometry !== undefined
         ? null
         : element.type === 'IMAGE'
-        ? renderImageElement(element)
+        ? renderImageElement(element, false, BAND_KIND_LABEL.BODY)
         : renderPositionedElement(element, model)
     }
     return null
@@ -622,8 +643,8 @@ export function compileApprovalDocument(
     // BODY flow는 band의 원래 element 순서를 유지한다. geometry 요소만 선언상 첫 위치에
     // 하나의 고정 24mm flow layer로 모아, legacy/DETAIL의 가변 높이가 % 좌표 원점이 되지 않게 한다.
     body: <LegacyApprovalDocBody positionedLayer={bodyPositioned.length > 0}>{bodyChildren}</LegacyApprovalDocBody>,
-    headerExtra: positionedElementLayer(headerPositioned, model, 'document-template-v2-elements-header'),
-    footerExtra: positionedElementLayer(footerPositioned, model, 'document-template-v2-elements-footer'),
+    headerExtra: renderBandElements(headerElements, model, 'HEADER', 'document-template-v2-elements-header'),
+    footerExtra: renderBandElements(footerElements, model, 'FOOTER', 'document-template-v2-elements-footer'),
     hasRepeatingDetail: bodyDetails.length > 0,
   }
 }
@@ -631,19 +652,40 @@ export function compileApprovalDocument(
 /** compiled document를 현 PrintLayout approvalDoc JSX에 연결한다. */
 export function DocumentRenderer({ template, model, backTo }: DocumentRendererProps) {
   const compiled = compileApprovalDocument(template, model)
+  const initialInvalidImageIssues = template.document.bands.flatMap((band) => band.elements
+    .filter((element): element is ImageElement => element.type === 'IMAGE' && !isAllowedImageSource(element.src))
+    .map((element) => ({ key: element.key, alt: element.alt, bandLabel: BAND_KIND_LABEL[band.kind] })))
+  const [imageIssues, setImageIssues] = useState<ImageDecodeIssue[]>(initialInvalidImageIssues)
+  const reportImageIssue = useCallback((issue: ImageDecodeIssue) => {
+    setImageIssues((current) => {
+      const withoutSameKey = current.filter((candidate) => candidate.key !== issue.key)
+      return [...withoutSameKey, issue]
+    })
+  }, [])
+  const clearImageIssue = useCallback((key: string) => {
+    setImageIssues((current) => current.filter((issue) => issue.key !== key))
+  }, [])
+  const reporter = useMemo<ImageDecodeIssueReporter>(() => ({
+    report: reportImageIssue,
+    clear: clearImageIssue,
+  }), [clearImageIssue, reportImageIssue])
+
   return (
-    <PrintLayout
-      approvalDoc
-      paper={compiled.paper}
-      backTo={backTo}
-      docHeader={compiled.docHeader}
-      approvalSteps={compiled.approvalSteps}
-      closingNote={compiled.closingNote}
-      headerExtra={compiled.headerExtra}
-      footerExtra={compiled.footerExtra}
-      hasRepeatingDetail={compiled.hasRepeatingDetail}
-    >
-      {compiled.body}
-    </PrintLayout>
+    <imageDecodeIssueReporterContext.Provider value={reporter}>
+      <ImageDecodeIssueSummary issues={imageIssues} />
+      <PrintLayout
+        approvalDoc
+        paper={compiled.paper}
+        backTo={backTo}
+        docHeader={compiled.docHeader}
+        approvalSteps={compiled.approvalSteps}
+        closingNote={compiled.closingNote}
+        headerExtra={compiled.headerExtra}
+        footerExtra={compiled.footerExtra}
+        hasRepeatingDetail={compiled.hasRepeatingDetail}
+      >
+        {compiled.body}
+      </PrintLayout>
+    </imageDecodeIssueReporterContext.Provider>
   )
 }

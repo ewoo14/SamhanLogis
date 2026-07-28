@@ -8,6 +8,7 @@ import {
   ELEMENT_TYPE_LABEL,
   BAND_KIND_LABEL,
   canDecodeImageSource,
+  isAllowedImageSourceFormat,
   isAllowedImageSource,
   maxImageBytesForDocument,
   MAX_ALT_LENGTH,
@@ -259,12 +260,12 @@ export function ElementInspector({
                   const src = String(reader.result ?? '')
                   const base64 = src.split(',')[1] ?? ''
                   const decodedBytes = Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0))
-                  if (decodedBytes > imageMaxBytes) {
-                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다.`)
+                  if (!isAllowedImageSourceFormat(src)) {
+                    setImageError('이미지 파일이 비어 있거나 지원되는 PNG/JPEG/WebP 형식이 아니어서 저장할 수 없습니다.')
                     return
                   }
-                  if (!isAllowedImageSource(src)) {
-                    setImageError('이미지 파일이 비어 있거나 지원되는 PNG/JPEG/WebP 형식이 아니어서 저장할 수 없습니다.')
+                  if (decodedBytes > imageMaxBytes) {
+                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다.`)
                     return
                   }
                   if (!(await canDecodeImageSource(src))) {

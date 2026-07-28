@@ -68,6 +68,20 @@ describe('#968 SOL 결함2 — 파일 거부 사유', () => {
     expect(alert.textContent).toContain('KB')
   })
 
+  it('큰 미지원 형식은 파일 크기와 무관하게 지원 형식 불일치 사유를 안내한다', async () => {
+    const bytes = new Uint8Array(67_854)
+    bytes.set(new TextEncoder().encode('BM'))
+    renderImageInspector()
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [fileOf(bytes, 'large-unsupported.bmp', 'image/bmp')] },
+    })
+
+    const alert = await waitFor(() => screen.getByRole('alert'))
+    expect(alert.textContent).toContain('비어 있거나 지원되는 PNG/JPEG/WebP 형식이 아니어서')
+    expect(alert.textContent).not.toContain('최대')
+  })
+
   it('허용 시그니처지만 구조가 손상된 이미지는 디코드 실패 사유를 안내한다', async () => {
     Object.defineProperty(HTMLImageElement.prototype, 'decode', {
       configurable: true,

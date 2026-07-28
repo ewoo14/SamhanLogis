@@ -104,6 +104,13 @@ export type ImageElement = {
   style?: ElementStyle
 }
 
+export interface UndecodableImageInfo {
+  key: string
+  alt: string
+  src: string
+  bandKind: BandKind
+}
+
 export type DocElement = LegacyDocElement | FieldElement | TextElement | DetailElement | ImageElement
 export type DocElementV2 = DocElement
 
@@ -404,6 +411,16 @@ function parseImageSource(value: unknown): string | DocumentTemplateParseError {
   return value
 }
 
+/** 파일 크기 제한과 분리된 형식·signature 판정. 큰 지원 형식은 용량 사유를 유지해야 한다. */
+export function isAllowedImageSourceFormat(value: unknown): value is string {
+  if (value === '/print-logo.svg') return true
+  if (typeof value !== 'string') return false
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value)
+  if (!match) return false
+  const base64 = match[2] ?? ''
+  return imageDataUrlByteLength(value) > 0 && hasImageSignature(match[1]!, base64)
+}
+
 /** renderer가 parser와 같은 source allowlist를 적용하는 방어선. */
 export function isAllowedImageSource(value: unknown): value is string {
   return !isParseError(parseImageSource(value))
@@ -412,8 +429,14 @@ export function isAllowedImageSource(value: unknown): value is string {
 export const IMAGE_DECODE_ERROR_MESSAGE = '이 이미지는 현재 화면에서 표시할 수 없어 저장할 수 없습니다. 이미지를 바꾼 뒤 다시 저장하세요.'
 
 export class ImageSourceDecodeError extends Error {
-  constructor() {
-    super(IMAGE_DECODE_ERROR_MESSAGE)
+  readonly issues: readonly UndecodableImageInfo[]
+
+  constructor(issues: readonly UndecodableImageInfo[] = []) {
+    const detail = issues.length > 0
+      ? ` 저장할 수 없는 이미지: ${issues.map((issue) => `${BAND_KIND_LABEL[issue.bandKind]} · ${issue.alt || '대체 문구 없음'} (${issue.key})`).join(', ')}.`
+      : ''
+    super(`${IMAGE_DECODE_ERROR_MESSAGE}${detail}`)
+    this.issues = issues
     this.name = 'ImageSourceDecodeError'
   }
 }
@@ -435,16 +458,24 @@ export async function canDecodeImageSource(value: string): Promise<boolean> {
   }
 }
 
-/** 저장 직전에 모든 IMAGE source를 실제 renderer의 디코드 경로로 재확인한다. */
-export async function findUndecodableImageSource(document: DocumentPayload): Promise<string | null> {
-  const sources = document.bands
-    .flatMap((band) => band.elements)
-    .filter((element): element is ImageElement => element.type === 'IMAGE')
-    .map((element) => element.src)
-  for (const source of sources) {
-    if (!(await canDecodeImageSource(source))) return source
+/** 저장 직전에 모든 IMAGE source를 실제 renderer의 디코드 경로로 재확인하고 사용자 식별 정보를 보존한다. */
+export async function findUndecodableImages(document: DocumentPayload): Promise<UndecodableImageInfo[]> {
+  const issues: UndecodableImageInfo[] = []
+  for (const band of document.bands) {
+    for (const element of band.elements) {
+      if (element.type !== 'IMAGE') continue
+      if (!(await canDecodeImageSource(element.src))) {
+        issues.push({ key: element.key, alt: element.alt, src: element.src, bandKind: band.kind })
+      }
+    }
   }
-  return null
+  return issues
+}
+
+/** 기존 단일 source 소비자를 위한 하위 호환 helper. 새 저장 UI는 findUndecodableImages를 사용한다. */
+export async function findUndecodableImageSource(document: DocumentPayload): Promise<string | null> {
+  const first = (await findUndecodableImages(document))[0]
+  return first?.src ?? null
 }
 
 function isParseError(value: unknown): value is DocumentTemplateParseError {

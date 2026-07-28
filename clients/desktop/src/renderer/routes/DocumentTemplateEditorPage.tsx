@@ -23,7 +23,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { DocumentRenderer } from '../print/DocumentRenderer'
 import { buildPreviewModel } from '../print/documentTemplateEditorPreview'
 import {
-  findUndecodableImageSource,
+  findUndecodableImages,
   hasActivationBlockedElements,
   ImageSourceDecodeError,
 } from '../print/templateSchema'
@@ -121,7 +121,8 @@ export function DocumentTemplateEditorPage() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (await findUndecodableImageSource(input.document)) throw new ImageSourceDecodeError()
+      const undecodableImages = await findUndecodableImages(input.document)
+      if (undecodableImages.length > 0) throw new ImageSourceDecodeError(undecodableImages)
       return isNew ? createDocumentTemplate(input) : updateDocumentTemplate(id!, input)
     },
     onSuccess: (saved) => {
