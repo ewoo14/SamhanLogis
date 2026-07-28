@@ -4781,9 +4781,6 @@ function bindCommQtyEvents() {
       if (rec && (isCommIndoorRow(rec) || isCommOutdoorRow(rec))) {
         if (isCommOutdoorRow(rec)) {
           try {
-            COMM_MANUAL_BASE.clear();
-          } catch (e) {}
-          try {
             recalcCommAccessories();
           } catch (e) {
             console.warn('부자재계산오류', e);
@@ -5329,6 +5326,8 @@ function recalcCommAccessories(){
       if (row){
         const inp = row.querySelector('.qty-input');
         if (inp){
+          const baseModel = row.getAttribute?.('data-m') || inp.dataset?.model || '';
+          if (baseModel && COMM_MANUAL_BASE.has(baseModel)) return;
           const v = Math.max(q, parseInt(inp.value||'0',10)||0);
           if (v !== q){ inp.value = st.qty; inp.dispatchEvent(new Event('input')); }
         }
@@ -6566,6 +6565,23 @@ function fixCommMidCategory(r){
   return String(r?.catM||'');
 }
 
+/* 상업멀티 옵션은 지배 계열의 잠금만 해제한다. 펌프는 직접 지배하는 옵션이 없으므로
+   모든 상업 옵션 변경에서 잠금을 보존한다(홈멀티 onHomeOptionChange와 대칭). */
+function onCommOptionChange(controlId) {
+  const lockSet = {
+    comm_panel: COMM_MANUAL_PANEL,
+    comm_p360: COMM_MANUAL_PANEL,
+    comm_hose_i: COMM_MANUAL_HOSE,
+    comm_ex_hose: COMM_MANUAL_HOSE,
+    comm_remote: COMM_MANUAL_REMOTE,
+    comm_ex_base: COMM_MANUAL_BASE,
+  }[controlId];
+  if (lockSet) lockSet.clear();
+  recomputeCommDerived();
+  syncCommTotals();
+  if (typeof updateInlineTotals === 'function') updateInlineTotals();
+}
+
 /* 상업멀티옵션 */
 function renderCommOptions() {
   const box = el('#commOpts'); 
@@ -6594,13 +6610,7 @@ function renderCommOptions() {
   box.querySelectorAll('input,select').forEach(c=>{
     if(c.id.includes('commFilter')) return;
     c.addEventListener('change', (e)=>{
-      try {
-        COMM_MANUAL_PANEL.clear();
-        COMM_MANUAL_HOSE.clear();
-        COMM_MANUAL_REMOTE.clear();
-        COMM_MANUAL_PUMP.clear();
-        COMM_MANUAL_BASE.clear();
-      } catch(err){}
+      onCommOptionChange(e.target.id);
 
       if (c.id === 'comm_ext_out') {
         if (!c.checked) {
@@ -7046,7 +7056,6 @@ function renderComm(){
 
       if (rec && (isCommIndoorRow(rec) || isCommOutdoorRow(rec) || /전열교환기/i.test(rawNameOf(rec)))) {
         if (isCommOutdoorRow(rec)) {
-           try { COMM_MANUAL_BASE.clear(); } catch(e){}
            try { recalcCommAccessories(); } catch(e){}
         }
         recomputeCommDerived();

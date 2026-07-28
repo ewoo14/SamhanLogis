@@ -43,6 +43,7 @@ const COMM_FUNCTIONS = [
   'modelByNameLike',
   'countBranchForSet',
   'computeCommPanelModelForIndoor_',
+  'commManualSetForRow',
   'recomputeCommDerived',
   'applyCommManualLock',
   'clearCommManualLocks',

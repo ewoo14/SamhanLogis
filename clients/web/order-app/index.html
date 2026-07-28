@@ -2906,18 +2906,29 @@ function bindQty(sel,onChange){
   });
 }
 
-/* 상업멀티 파생 수동잠금 토글 — q 가 참이면 잠그고(add) 지우면(0) 해제한다(delete),
-   홈멀티 onHomeQtyInput 과 대칭(#967 G-2: 이전엔 값과 무관하게 add만 해 칸을 지워도
-   0에 영구 잠기던 결함의 fix) */
-function applyCommManualLock(rec, model, q){
-  if(!rec) return;
-  const method = q ? 'add' : 'delete';
-  if(isCommPanelRow(rec)) { COMM_MANUAL_PANEL[method](model); }
-  if(isCommHoseRow(rec))  { COMM_MANUAL_HOSE[method](model); }
-  if(isCommRemoteRow(rec)){ COMM_MANUAL_REMOTE[method](model); }
-  if(isCommPumpRow(rec))  { COMM_MANUAL_PUMP[method](model); }
+/* 상업멀티 수동잠금 계열 판별 — 입력·표시·재계산이 같은 분류를 공유한다. */
+function commManualSetForRow(rec){
+  if(!rec) return null;
+  if(isCommPanelRow(rec)) return COMM_MANUAL_PANEL;
+  if(isCommHoseRow(rec)) return COMM_MANUAL_HOSE;
+  if(isCommRemoteRow(rec)) return COMM_MANUAL_REMOTE;
+  if(isCommPumpRow(rec)) return COMM_MANUAL_PUMP;
   const s=((rec.name||'')+' '+(rec.disp||'')+' '+(rec.model||'')).toLowerCase();
-  if(/방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s)){ COMM_MANUAL_BASE[method](model); }
+  if(/방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(s)) return COMM_MANUAL_BASE;
+  return null;
+}
+
+/* 상업멀티 파생 수동잠금 토글 — explicit=false인 빈칸만 해제하고, 명시적 0은 잠근다. */
+function applyCommManualLock(rec, model, q, explicit){
+  const lockSet = commManualSetForRow(rec);
+  if(!lockSet) return;
+  const shouldLock = explicit === undefined ? !!q : explicit;
+  if(shouldLock) lockSet.add(model); else lockSet.delete(model);
+}
+
+function isCommManualLocked(rec, model){
+  const lockSet = commManualSetForRow(rec);
+  return !!lockSet?.has?.(model);
 }
 
 /* 상업멀티 바인딩 */
@@ -2926,7 +2937,10 @@ function bindCommQtyEvents(){
   document.querySelectorAll('#commBody .qty-input').forEach(inp=>{
     inp.addEventListener('input', e=>{
       const model = e.target.dataset.model || '';
-      const q = toInt(e.target.value) || 0;
+      const raw = String(e.target.value || '').replace(/[^\d]/g, '');
+      const explicit = raw !== '';
+      const q = explicit ? Math.min(999999, parseInt(raw, 10)) : 0;
+      e.target.value = explicit ? String(q) : '';
       commQty.set(model, q);
       refreshBranchButton();
       // console.log('🧩 분기버튼 상태 갱신');
@@ -2967,13 +2981,16 @@ function bindCommQtyEvents(){
       const rec = COMMULTI.find(x=>x.model===model);
       window.LAST_EDIT_KIND = rec ? (isCommOutdoorRow(rec) ? 'outdoor' : (isCommIndoorRow(rec) ? 'indoor' : 'etc')) : 'etc';
       // console.log('>> 🖊️ 편집 대상', { model, kind: window.LAST_EDIT_KIND, catL: rec?.catL, unit: rec?.unit });
-      applyCommManualLock(rec, model, q);
+      applyCommManualLock(rec, model, q, explicit);
+      const manual = isCommManualLocked(rec, model);
+      e.target.style.color = manual ? '#2563eb' : '';
+      e.target.style.fontWeight = manual ? 'bold' : '';
+      if(manual && q === 0) e.target.value = '0';
 
       // 실내외기 변경시에만 파생 재계산
       if (rec && (isCommIndoorRow(rec) || isCommOutdoorRow(rec))) {
         // console.log('>> 🔔 실내외기 변경 감지, 파생 재계산', { model, q });
         if (isCommOutdoorRow(rec)) {
-          try { COMM_MANUAL_BASE.clear(); } catch(e) {}
           try { recalcCommAccessories(); } catch(e) { console.warn('>> 🧰 부자재 재계산 오류', e); }
         }
         recomputeCommDerived();
@@ -3392,6 +3409,8 @@ function recalcCommAccessories(){
       if (row){
         const inp = row.querySelector('.qty-input');
         if (inp){
+          const baseModel = row.getAttribute?.('data-m') || inp.dataset?.model || '';
+          if (baseModel && COMM_MANUAL_BASE.has(baseModel)) return;
           const v = Math.max(q, parseInt(inp.value||'0',10)||0);
           if (v !== q){ inp.value = st.qty; inp.dispatchEvent(new Event('input')); }
         }
@@ -4167,6 +4186,36 @@ function fixCommMidCategory(r){
   return String(r?.catM||'');
 }
 
+function syncCommManualUI(){
+  document.querySelectorAll('#commBody .qty-input').forEach(inp=>{
+    const model = inp.dataset.model || '';
+    const rec = COMMULTI.find(r=>r.model===model);
+    if(!rec) return;
+    const manual = isCommManualLocked(rec, model);
+    const q = commQty.get(model) || 0;
+    inp.value = (q || manual) ? String(q) : '';
+    inp.style.color = manual ? '#2563eb' : '';
+    inp.style.fontWeight = manual ? 'bold' : '';
+  });
+}
+
+/* 상업 옵션은 지배 계열의 잠금만 해제한다. 펌프는 직접 지배하는 옵션이 없으므로
+   모든 상업 옵션 변경에서 잠금을 보존한다(홈멀티 onHomeOptionChange와 대칭). */
+function onCommOptionChange(controlId){
+  const lockSet = {
+    comm_panel: COMM_MANUAL_PANEL,
+    comm_p360: COMM_MANUAL_PANEL,
+    comm_remote: COMM_MANUAL_REMOTE,
+    comm_ex_hose: COMM_MANUAL_HOSE,
+    comm_ex_base: COMM_MANUAL_BASE,
+  }[controlId];
+  if(lockSet) lockSet.clear();
+  recomputeCommDerived();
+  syncCommTotals();
+  updateInlineTotals();
+  syncCommManualUI();
+}
+
 // 상업멀티 옵션 렌더
 function renderCommOptions(){
   const box=el('#commOpts'); if(!box) return;
@@ -4180,10 +4229,7 @@ function renderCommOptions(){
   ['comm_panel','comm_p360','comm_remote','comm_ex_hose','comm_ex_base'].forEach(id=>{
     el('#'+id).addEventListener('change',()=>{
       // console.log('>> 🎛️ 상업 옵션 변경');
-      try { COMM_MANUAL_PANEL.clear(); COMM_MANUAL_HOSE.clear(); COMM_MANUAL_REMOTE.clear(); COMM_MANUAL_PUMP.clear(); COMM_MANUAL_BASE.clear(); } catch(e){}
-      recomputeCommDerived();
-      syncCommTotals();
-      updateInlineTotals();
+      onCommOptionChange(id);
     });
   });
 }
@@ -4415,7 +4461,11 @@ function renderComm(){
     const state = getStockState_(r?.note);
     if (state.type === 'SOLD') { tdQty.textContent = '품절'; }
     else if (state.type === 'FUTURE') { tdQty.innerHTML = `<span style="font-size:8pt">${escapeLegacyHtml(state.label)}</span>`; }
-    else { tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-model="${attrSafe_(r?.model||'')}" value="${attrSafe_(q||'')}" inputmode="numeric" pattern="\\d*" placeholder="0"/></div>`; }
+    else {
+      const manual = isCommManualLocked(r, r?.model||'');
+      const colorStyle = manual ? 'color:#2563eb;font-weight:bold;' : '';
+      tdQty.innerHTML = `<div class="qty-box"><input class="qty-input" data-model="${attrSafe_(r?.model||'')}" value="${attrSafe_((q||manual)?q:'')}" inputmode="numeric" pattern="\\d*" placeholder="0" style="${colorStyle}"/></div>`;
+    }
     tr.appendChild(tdQty);
 
     const tdPrice = document.createElement('td');
