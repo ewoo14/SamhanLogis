@@ -22,9 +22,14 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { DocumentRenderer } from '../print/DocumentRenderer'
 import { buildPreviewModel } from '../print/documentTemplateEditorPreview'
-import { hasActivationBlockedElements } from '../print/templateSchema'
+import {
+  findUndecodableImageSource,
+  hasActivationBlockedElements,
+  ImageSourceDecodeError,
+} from '../print/templateSchema'
 
 function errorMessage(error: unknown): string {
+  if (error instanceof ImageSourceDecodeError) return error.message
   if (isAxiosError(error)) {
     const message = (error.response?.data as { message?: unknown } | undefined)?.message
     if (typeof message === 'string' && message.trim() && !/envelope|payload|schema|parse/i.test(message)) return message.trim()
@@ -115,7 +120,10 @@ export function DocumentTemplateEditorPage() {
   }, [location.search, approvalFieldOptions])
 
   const save = useMutation({
-    mutationFn: () => isNew ? createDocumentTemplate(input) : updateDocumentTemplate(id!, input),
+    mutationFn: async () => {
+      if (await findUndecodableImageSource(input.document)) throw new ImageSourceDecodeError()
+      return isNew ? createDocumentTemplate(input) : updateDocumentTemplate(id!, input)
+    },
     onSuccess: (saved) => {
       markSaved(saved)
       setError(null)

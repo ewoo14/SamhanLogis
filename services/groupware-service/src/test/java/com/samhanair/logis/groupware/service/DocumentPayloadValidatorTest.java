@@ -332,6 +332,19 @@ class DocumentPayloadValidatorTest {
     }
 
     @Test
+    void DS4_imageSourcePolicy_messageDescribesStructurePolicyNotRendererDecodability() throws Exception {
+        var document = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) document.at("/bands/0/elements"))
+                .addObject().put("key", "contract-message-image").put("type", "IMAGE")
+                .put("src", "data:image/png;base64,bm90IGFuIGltYWdl").put("alt", "손상 이미지");
+
+        assertThatThrownBy(() -> validator.validate((short) 2, document))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("허용된 PNG/JPEG/WebP data URL")
+                .hasMessageNotContaining("실제로 열 수 있는");
+    }
+
+    @Test
     void DS4_imageSourcePolicy_rejectsSignatureValidButTruncatedPngThroughImageIO() throws Exception {
         // PNG signature/IHDR/CRC는 맞지만 IDAT scanline이 비어 있는 실제 ImageIO 입력이다.
         String truncatedPng = Base64.getEncoder().encodeToString(realPngBomb(1, 1, 6, 0));
@@ -388,7 +401,7 @@ class DocumentPayloadValidatorTest {
     }
 
     @Test
-    void R3_webp_rejectsVp8lHeaderWithoutImagePayload() throws Exception {
+    void R3_webp_acceptsVp8lHeaderWithoutImagePayloadBecauseChromiumLoadsIt() throws Exception {
         byte[] headerOnly = headerOnlyWebpVp8L(4, 4);
 
         var document = fixture("valid-default.json").get("document").deepCopy();
@@ -397,9 +410,10 @@ class DocumentPayloadValidatorTest {
                 .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(headerOnly))
                 .put("alt", "헤더만 있는 VP8L");
 
-        assertThatThrownBy(() -> validator.validate((short) 2, document))
-                .as("VP8L 시그니처와 5바이트 헤더만 있는 입력은 디코드 가능한 이미지가 아니다")
-                .isInstanceOf(BusinessException.class);
+        // #951 R3의 거부 기대를 반전한다. 새 Chromium 실측에서 동일한 5바이트 VP8L
+        // 입력은 <img> load 4x4로 정상 렌더된다. 이를 계속 거부하면 I-3(정상 이미지
+        // 거부 금지)를 위반하므로, 형태별 방어를 추가하지 않고 렌더 엔진 판정을 따른다.
+        assertThat(validator.validate((short) 2, document)).isNotNull();
     }
 
     @Test
@@ -462,6 +476,53 @@ class DocumentPayloadValidatorTest {
                 .put("alt", "저장소 실제 애니메이션 마스코트 자산");
 
         assertThat(validator.validate((short) 2, document)).isNotNull();
+    }
+
+    /**
+     * #965 회귀 울타리: 합성 fixture가 아니라 저장소 실재 이미지의 현재 계약을 고정한다.
+     * 원본 애니메이션 WebP는 50KB 상한으로 거부하고, 같은 원본에서 실제 ANMF 첫 프레임만
+     * 잘라 만든 8,876B 파생본과 저장소 실 PNG 4종은 validator가 허용해야 한다.
+     */
+    @Test
+    void R5_realRepositoryImageFence_preservesAllowlistSizeAndBudgetContract() throws Exception {
+        byte[] originalMascot = repositoryAsset("clients/web/design-system/src/assets/mascot/samhani.webp");
+        assertThat(originalMascot).hasSize(71_880);
+        var oversizedDocument = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) oversizedDocument.at("/bands/0/elements"))
+                .addObject().put("key", "repository-mascot-original").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(originalMascot))
+                .put("alt", "저장소 마스코트 원본");
+        assertThatThrownBy(() -> validator.validate((short) 2, oversizedDocument))
+                .as("원본 71,880B는 50KB 상한을 넘어 거부되어야 한다")
+                .isInstanceOf(BusinessException.class);
+
+        byte[] animationFrame = firstAnimationFrameFromRepositoryAsset();
+        assertThat(animationFrame).hasSize(8_876);
+        var frameDocument = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ArrayNode) frameDocument.at("/bands/0/elements"))
+                .addObject().put("key", "repository-mascot-frame").put("type", "IMAGE")
+                .put("src", "data:image/webp;base64," + Base64.getEncoder().encodeToString(animationFrame))
+                .put("alt", "저장소 마스코트 첫 프레임");
+        assertThat(validator.validate((short) 2, frameDocument)).isNotNull();
+
+        List<Path> pngAssets = List.of(
+                Path.of("clients/desktop/public/pwa-192.png"),
+                Path.of("clients/desktop/public/pwa-512.png"),
+                Path.of("clients/desktop/android/app/src/main/res/drawable/splash.png"),
+                Path.of("clients/desktop/android/app/src/main/res/mipmap-mdpi/ic_launcher.png"));
+        List<Integer> expectedSizes = List.of(2_743, 9_707, 4_040, 1_869);
+        for (int index = 0; index < pngAssets.size(); index++) {
+            byte[] png = repositoryAsset(pngAssets.get(index).toString());
+            assertThat(png).hasSize(expectedSizes.get(index));
+            var pngDocument = fixture("valid-default.json").get("document").deepCopy();
+            ((com.fasterxml.jackson.databind.node.ArrayNode) pngDocument.at("/bands/0/elements"))
+                    .addObject().put("key", "repository-png-" + index).put("type", "IMAGE")
+                    .put("src", "data:image/png;base64," + Base64.getEncoder().encodeToString(png))
+                    .put("alt", "저장소 실 PNG " + index);
+            assertThat(validator.validate((short) 2, pngDocument))
+                    .as("저장소 실 PNG %s가 거부되지 않아야 한다", pngAssets.get(index))
+                    .isNotNull();
+        }
     }
 
     /**
@@ -999,19 +1060,7 @@ class DocumentPayloadValidatorTest {
     }
 
     private static byte[] firstAnimationFrameFromRepositoryAsset() throws IOException {
-        Path relativeAsset = Path.of("clients/web/design-system/src/assets/mascot/samhani.webp");
-        Path asset = null;
-        for (Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-                current != null; current = current.getParent()) {
-            Path candidate = current.resolve(relativeAsset);
-            if (Files.exists(candidate)) {
-                asset = candidate;
-                break;
-            }
-        }
-        assertThat(asset).as("저장소 실제 WebP 마스코트 자산 경로를 찾을 수 있어야 한다").isNotNull();
-        assertThat(Files.exists(asset)).as("저장소 실제 WebP 마스코트 자산이 있어야 한다").isTrue();
-        byte[] source = Files.readAllBytes(asset);
+        byte[] source = repositoryAsset("clients/web/design-system/src/assets/mascot/samhani.webp");
         int anmfOffset = findChunk(source, "ANMF", 12);
         assertThat(anmfOffset).as("마스코트 자산은 실제 애니메이션 ANMF 프레임을 가져야 한다")
                 .isGreaterThan(0);
@@ -1024,6 +1073,22 @@ class DocumentPayloadValidatorTest {
         singleFrame[6] = (byte) (riffSize >> 16);
         singleFrame[7] = (byte) (riffSize >> 24);
         return singleFrame;
+    }
+
+    private static byte[] repositoryAsset(String relativePath) throws IOException {
+        Path relativeAsset = Path.of(relativePath);
+        Path asset = null;
+        for (Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+                current != null; current = current.getParent()) {
+            Path candidate = current.resolve(relativeAsset);
+            if (Files.exists(candidate)) {
+                asset = candidate;
+                break;
+            }
+        }
+        assertThat(asset).as("저장소 실재 이미지 자산 경로를 찾을 수 있어야 한다").isNotNull();
+        assertThat(Files.exists(asset)).as("저장소 실재 이미지 자산이 있어야 한다").isTrue();
+        return Files.readAllBytes(asset);
     }
 
     private static int findChunk(byte[] bytes, String fourCc, int start) {
@@ -1046,7 +1111,7 @@ class DocumentPayloadValidatorTest {
 
     private static byte[] buildWebp(String fourCc, byte[] chunkData) throws IOException {
         var out = new ByteArrayOutputStream();
-        int riffSize = 4 /* "WEBP" */ + 8 /* 청크 헤더 */ + chunkData.length;
+        int riffSize = 4 /* "WEBP" */ + 8 /* 청크 헤더 */ + chunkData.length + (chunkData.length & 1);
         out.write(new byte[]{'R', 'I', 'F', 'F'});
         writeUInt32LE(out, riffSize);
         out.write(new byte[]{'W', 'E', 'B', 'P'});

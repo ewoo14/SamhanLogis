@@ -654,4 +654,32 @@ describe('compileApprovalDocument and DocumentRenderer', () => {
     expect(image?.getAttribute('style')).not.toContain('text-align')
     expect(image?.getAttribute('style')).not.toContain('border: 1px solid')
   })
+
+  it('C3: allowlist를 벗어난 저장 이미지도 미리보기에서 조용히 삭제하지 않는다', () => {
+    const model = buildApprovalRenderModel(input())
+    const template = {
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'HEADER'
+          ? {
+              ...band,
+              elements: [...band.elements, {
+                key: 'invalid-saved-image',
+                type: 'IMAGE' as const,
+                src: 'data:image/svg+xml;base64,PHN2Zy8+',
+                alt: '저장된 문제 이미지',
+              }],
+            }
+          : band),
+      },
+    }
+
+    const html = render(<DocumentRenderer template={template as never} model={model} />)
+
+    expect(html).toContain('data-testid="document-template-image-error-invalid-saved-image"')
+    expect(html).toContain('class="no-print"')
+    expect(html).toContain('현재 화면에서 표시할 수 없습니다')
+  })
 })

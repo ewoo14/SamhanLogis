@@ -3180,3 +3180,11 @@ OUTBOUND/INBOUND 전표가 committed(SENT+)로 전이 시 거래처(`partner_id`
 | D-888-01 | `spring.task.scheduling.pool.size=5` 값은 올리지 않고 형제 `@Scheduled`용 기본 `taskScheduler` 풀로 유지한다. `SlipPublishOutboxScheduler.retryPending()`은 `@Scheduled(scheduler="outboxTaskScheduler")`로 명시한 별도 `ThreadPoolTaskScheduler`(pool 1)를 사용한다. 형제 수가 늘어나도 outbox starvation이 발생하지 않고, outbox 장기 점유도 형제 주기를 막지 않는다. |
 | D-888-02 | 기존 `samhan.outbox.cron` 표현식과 `SlipPublishOutboxScheduler`의 `@Profile("!local")`을 변경하지 않는다. `samhan.outbox.cron=-`는 전용 scheduler를 우회하지 않고 outbox scheduled task 등록만 비활성화하며, `local` 프로파일 컨텍스트는 기동 가능해야 한다. Flyway migration은 추가하지 않는다. |
 | D-888-03 | `BootstrapCacheRefreshScheduler.refreshBootstrapCache()` 전체 try/catch 실행을 Micrometer `bootstrap_cache_refresh_duration` Timer로 측정한다. Prometheus에서는 `_seconds` 시계열로 노출되므로 운영 이식 후 외부 호출 소요를 별도 코드 변경 없이 관측한다. |
+
+## #965 문서양식 이미지 디코드 가능성 계약 (2026-07-28, PR #968)
+
+| 결정 코드 | 내용 |
+|---|---|
+| D-965-01 | 문서양식 이미지 저장 계약은 C1+C2+C3를 함께 적용한다. 저장 전 데스크톱의 실제 렌더 경로인 `<img>.decode()`가 성공해야 하며, BE는 allowlist·50KB 상한·구조·자원예산만 보장하고 renderer 디코드 성공을 주장하지 않는다. `createImageBitmap()`이나 별도 픽셀 버퍼 검사는 사용하지 않는다. |
+| D-965-02 | 렌더러의 이미지 `error`는 인쇄 전 화면에서만 `no-print` 경고로 표시한다. 결재 인쇄면에는 오류 문구를 포함하지 않으며, 기존 문서양식 CRUD·활성화 계약과 정상 이미지 렌더는 유지한다. |
+| D-965-03 | Chromium이 4x4로 로드하는 5바이트 VP8L 헤더 입력은 BE가 허용해야 한다(R3 기대 반전). 형태별 방어를 추가하지 않으며, `dashboard-service/AppNoticeService.java:291-302`는 본 PR 범위에서 제외한다. |

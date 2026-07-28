@@ -399,7 +399,7 @@ function parseImageSource(value: unknown): string | DocumentTemplateParseError {
   const base64 = match[2] ?? ''
   const bytes = imageDataUrlByteLength(value)
   if (bytes <= 0 || bytes > MAX_IMAGE_BYTES || !hasImageSignature(match[1]!, base64)) {
-    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 실제 PNG/JPEG/WebP 이미지 파일이어야 하며 50KB 이하여야 합니다.' }
+    return { code: 'INVALID_IMAGE_SOURCE', message: 'IMAGE 요소는 허용된 PNG/JPEG/WebP data URL이고 50KB 이하여야 합니다.' }
   }
   return value
 }
@@ -407,6 +407,44 @@ function parseImageSource(value: unknown): string | DocumentTemplateParseError {
 /** renderer가 parser와 같은 source allowlist를 적용하는 방어선. */
 export function isAllowedImageSource(value: unknown): value is string {
   return !isParseError(parseImageSource(value))
+}
+
+export const IMAGE_DECODE_ERROR_MESSAGE = '이 이미지는 현재 화면에서 표시할 수 없어 저장할 수 없습니다. 이미지를 바꾼 뒤 다시 저장하세요.'
+
+export class ImageSourceDecodeError extends Error {
+  constructor() {
+    super(IMAGE_DECODE_ERROR_MESSAGE)
+    this.name = 'ImageSourceDecodeError'
+  }
+}
+
+/**
+ * 실제 renderer와 같은 브라우저 {@link HTMLImageElement#decode} 경로로 source를 확인한다.
+ * createImageBitmap처럼 별도 픽셀 버퍼를 요구하는 API는 사용하지 않는다.
+ */
+export async function canDecodeImageSource(value: string): Promise<boolean> {
+  if (value === '/print-logo.svg') return true
+  if (!isAllowedImageSource(value) || typeof Image === 'undefined') return false
+  const image = new Image()
+  image.src = value
+  try {
+    await image.decode()
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 저장 직전에 모든 IMAGE source를 실제 renderer의 디코드 경로로 재확인한다. */
+export async function findUndecodableImageSource(document: DocumentPayload): Promise<string | null> {
+  const sources = document.bands
+    .flatMap((band) => band.elements)
+    .filter((element): element is ImageElement => element.type === 'IMAGE')
+    .map((element) => element.src)
+  for (const source of sources) {
+    if (!(await canDecodeImageSource(source))) return source
+  }
+  return null
 }
 
 function isParseError(value: unknown): value is DocumentTemplateParseError {

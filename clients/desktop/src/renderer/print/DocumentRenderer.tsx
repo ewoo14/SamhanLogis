@@ -236,26 +236,52 @@ function renderDetailElement(element: DetailElement, model: ApprovalRenderModel)
   )
 }
 
-function renderImageElement(element: ImageElement, measurement = false) {
-  if (!isAllowedImageSource(element.src)) return null
+function imageDecodeErrorNotice(elementKey: string) {
   return (
-    <img
-      key={element.key}
-      className="document-template-image"
-      {...(measurement
-        ? { 'data-template-print-image': element.key }
-        : { 'data-template-image': element.key })}
-      src={element.src}
-      alt={element.alt}
-      style={{
-        // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
-        // 인스펙터도 해당 컨트롤을 숨기고, 출력에는 실제 반영 가능한 테두리만 전달한다.
-        ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
-        display: 'block',
-        objectFit: 'contain',
-      }}
-    />
+    <span
+      className="no-print"
+      role="alert"
+      data-testid={`document-template-image-error-${elementKey}`}
+      style={{ display: 'block', color: 'var(--color-danger-700, #a12622)', fontSize: 12 }}
+    >
+      이 이미지는 현재 화면에서 표시할 수 없습니다. 인쇄 전에 이미지를 교체하고 저장하세요.
+    </span>
   )
+}
+
+function RenderedImageElement({ element, measurement = false }: { element: ImageElement; measurement?: boolean }) {
+  const [decodeFailed, setDecodeFailed] = useState(false)
+  useEffect(() => setDecodeFailed(false), [element.src])
+
+  if (!isAllowedImageSource(element.src)) {
+    return measurement ? null : imageDecodeErrorNotice(element.key)
+  }
+
+  return (
+    <>
+      <img
+        className="document-template-image"
+        {...(measurement
+          ? { 'data-template-print-image': element.key }
+          : { 'data-template-image': element.key })}
+        src={element.src}
+        alt={element.alt}
+        onError={() => setDecodeFailed(true)}
+        style={{
+          // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
+          // 인스펙터도 해당 컨트롤을 숨기고, 출력에는 실제 반영 가능한 테두리만 전달한다.
+          ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
+          display: 'block',
+          objectFit: 'contain',
+        }}
+      />
+      {decodeFailed && !measurement ? imageDecodeErrorNotice(element.key) : null}
+    </>
+  )
+}
+
+function renderImageElement(element: ImageElement, measurement = false) {
+  return <RenderedImageElement key={element.key} element={element} measurement={measurement} />
 }
 
 /** % geometry 좌표계의 기준(ruler) 높이(mm). H1 — 절대 변경 금지: 바뀌면 저장된 모든 geometry 값의

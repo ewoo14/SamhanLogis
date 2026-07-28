@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ElementInspector } from './ElementInspector'
@@ -19,6 +19,8 @@ const commonProps = {
   canEdit: true,
 }
 
+const chromiumRejectedVp8lVersionOne = 'UklGRhIAAABXRUJQVlA4TAYAAAAvA8AAIAA='
+
 describe('ElementInspector PR #914 residual gates', () => {
   it('geometry가 없으면 위치 입력값을 저장된 상태가 없는 빈 값으로 표시한다', () => {
     render(<ElementInspector element={textElement} onUpdate={vi.fn()} {...commonProps} />)
@@ -27,6 +29,30 @@ describe('ElementInspector PR #914 residual gates', () => {
     expect((screen.getByLabelText('세로 위치(y, %)') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('가로 크기(w, %)') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('세로 크기(h, %)') as HTMLInputElement).value).toBe('')
+  })
+
+  it('C1: Chromium이 디코드하지 못한 WebP는 source를 draft에 반영하지 않고 저장 전에 알린다', async () => {
+    const onUpdate = vi.fn()
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockRejectedValue(new DOMException('The image could not be decoded.', 'EncodingError')),
+    })
+    const bytes = Uint8Array.from(atob(chromiumRejectedVp8lVersionOne), (character) => character.charCodeAt(0))
+
+    render(
+      <ElementInspector
+        element={{ key: 'image-1', type: 'IMAGE', src: '/print-logo.svg', alt: '문제 이미지' }}
+        onUpdate={onUpdate}
+        {...commonProps}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [new File([bytes], 'undecodable.webp', { type: 'image/webp' })] },
+    })
+
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('표시할 수 없어'))
+    expect(onUpdate).not.toHaveBeenCalledWith({ src: expect.stringContaining('data:image/webp;base64') })
   })
 
   it('빈 좌표 칸에 사용자가 0을 입력하면 기본 geometry를 실제 저장 patch로 생성한다', () => {

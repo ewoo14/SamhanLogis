@@ -219,7 +219,7 @@ public class DocumentPayloadValidator {
                 reject("IMAGE 요소 src가 허용 정책을 만족하지 않습니다");
             }
             if (!validImageSource(element.get("src"))) {
-                reject("IMAGE 요소 src는 실제로 열 수 있는 PNG/JPEG/WebP 이미지여야 합니다.");
+                reject("IMAGE 요소 src는 허용된 PNG/JPEG/WebP data URL 또는 기본 로고여야 하며, 크기·구조 제한을 만족해야 합니다.");
             }
             if (!validString(element.get("alt"), MAX_ALT_LENGTH)) {
                 reject("IMAGE 요소 alt는 비어 있지 않은 문자열이어야 합니다");
@@ -271,8 +271,9 @@ public class DocumentPayloadValidator {
                     || !hasImageSignature(matcher.group(1), decoded)) {
                 return false;
             }
-            // ImageIO는 PNG/JPEG의 실제 파일 구조와 checksum/truncation을 검사한다.
-            // 표준 JDK에는 WebP reader가 없으므로 WebP는 컨테이너 구조를 직접 검사한다(R1-4).
+            // ImageIO는 PNG/JPEG의 파일 구조를 검사하지만, 이 결과가 실제 browser renderer의
+            // 판정과 같다고 보장하지 않는다. 표준 JDK에는 WebP reader가 없으므로 WebP는 컨테이너
+            // 구조만 검사한다. 최종 renderer 디코드 계약은 FE의 <img>.decode()가 담당한다.
             if ("webp".equals(matcher.group(1))) {
                 return isStructurallyValidWebp(decoded);
             }
@@ -302,11 +303,11 @@ public class DocumentPayloadValidator {
      * 인터레이스/진행형(progressive)/CMYK 여부와 무관하게 항상 헤더 전용이다(실측: 16bit RGBA
      * 64bpp·8bit RGBA 32bpp·8bit Gray/팔레트 8bpp 전부 실제 디코드 버퍼 크기와 1% 이내로 일치).
      *
-     * <p>예산을 넘으면 {@link BusinessException}을 직접 던져 "실제로 열 수 없는 이미지"라는 뭉뚱그린
-     * 문구 대신 원인(해상도 초과)을 구체적으로 안내한다(H15-b).
+     * <p>예산을 넘으면 {@link BusinessException}을 직접 던져 구조 검사 실패와 구분되는
+     * 원인(해상도 초과)을 구체적으로 안내한다(H15-b).
      *
      * <p>reader를 찾지 못하거나 치수를 읽을 수 없는 경우는 뒤이은 {@code ImageIO.read()}가 결국
-     * null을 반환하거나 예외를 던져 기존 "실제로 열 수 있는 이미지" 문구로 거부되므로 그대로 둔다.
+     * null을 반환하거나 예외를 던져 구조 검사 실패 문구로 거부되므로 그대로 둔다.
      * 다만 {@code getRawImageType()}이 픽셀 형식을 특정하지 못해 {@code null}을 반환하는 경우는
      * "판단 보류"로 비싼 read()를 그냥 허용하지 않는다 — 폭 계산 이전에 이 판별 불가 자체가 이미
      * 위험 신호이므로 보수적 최악값({@link #WORST_CASE_BYTES_PER_PIXEL_FALLBACK})으로 예산을
@@ -365,8 +366,8 @@ public class DocumentPayloadValidator {
     /**
      * R1-4/R3: WebP는 표준 JDK ImageIO reader가 없어 실제 픽셀 디코드로 무결성을 검증할 수
      * 없다. 따라서 RIFF 전체 청크를 끝까지 순회하고, 실제 이미지 서브청크가 하나 이상 있는지
-     * 확인하는 보수적 구조 검사를 수행한다. 특히 VP8L의 5바이트 헤더만 있는 입력과 VP8X
-     * 확장 헤더만 있는 입력은 저장 전에 거부한다. 애니메이션 WebP의 ANMF 프레임은 16바이트
+     * 확인하는 보수적 구조 검사를 수행한다. VP8L의 5바이트 헤더는 Chromium <img>가 4x4로
+     * 로드하는 실측이 있으므로 허용하고, VP8X 확장 헤더만 있는 입력은 저장 전에 거부한다. 애니메이션 WebP의 ANMF 프레임은 16바이트
      * 프레임 헤더 뒤에 VP8/VP8L 이미지 청크를 중첩하므로 그 내부도 같은 방식으로 검사한다.
      */
     private static boolean isStructurallyValidWebp(byte[] decoded) {
@@ -442,8 +443,10 @@ public class DocumentPayloadValidator {
     }
 
     private static boolean isStructurallyValidVp8l(byte[] bytes, int dataOffset, long chunkSize) {
-        // 0x2F + 4바이트 packed canvas는 헤더일 뿐이며, 뒤에 실제 bitstream payload가 있어야 한다.
-        return chunkSize > 5 && (bytes[dataOffset] & 0xFF) == 0x2F;
+        // Chromium <img>는 0x2F + 4바이트 packed canvas만 있는 5바이트 VP8L도 4x4로
+        // 로드한다. BE 구조 검사가 이 정상 렌더 입력을 거부하면 I-3을 깨므로 payload 길이를
+        // 열거해 추가 방어하지 않는다.
+        return chunkSize >= 5 && (bytes[dataOffset] & 0xFF) == 0x2F;
     }
 
     private static long readUInt32LE(byte[] bytes, int offset) {

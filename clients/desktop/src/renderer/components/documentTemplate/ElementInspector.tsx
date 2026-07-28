@@ -7,6 +7,7 @@ import {
   DETAIL_COLUMN_LABEL,
   ELEMENT_TYPE_LABEL,
   BAND_KIND_LABEL,
+  canDecodeImageSource,
   isAllowedImageSource,
   maxImageBytesForDocument,
   MAX_ALT_LENGTH,
@@ -254,12 +255,16 @@ export function ElementInspector({
                 const file = event.target.files?.[0]
                 if (!file) return
                 const reader = new FileReader()
-                reader.onload = () => {
+                reader.onload = async () => {
                   const src = String(reader.result ?? '')
                   const base64 = src.split(',')[1] ?? ''
                   const decodedBytes = Math.max(0, Math.floor((base64.length * 3) / 4) - (base64.match(/=+$/)?.[0].length ?? 0))
                   if (!isAllowedImageSource(src) || decodedBytes > imageMaxBytes) {
                     setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다.`)
+                    return
+                  }
+                  if (!(await canDecodeImageSource(src))) {
+                    setImageError('이 이미지는 현재 화면에서 표시할 수 없어 저장할 수 없습니다. 다른 이미지를 선택하세요.')
                     return
                   }
                   setImageError(null)
