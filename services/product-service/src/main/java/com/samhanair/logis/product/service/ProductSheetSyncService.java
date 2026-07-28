@@ -291,6 +291,8 @@ public class ProductSheetSyncService {
     @Transactional
     public ComponentSyncResult syncComponentTab(ComponentTabMapping mapping) throws Exception {
         ComponentSyncResult result = new ComponentSyncResult();
+        String syncKey = sheetSyncKey("component:" + mapping.tabName);
+        long syncGeneration = quantitySyncRuleService.reserveSheetSyncGeneration(syncKey);
         String range = mapping.tabName + "!A1:Z";
         List<List<Object>> rows = sheetsClient.readSheetDisplay(sheetId, range);
         if (rows == null || rows.isEmpty()) {
@@ -321,6 +323,15 @@ public class ProductSheetSyncService {
         Set<UUID> lockedParents = new HashSet<>();
         // 부모 Product.id → 이미 BUNDLE 마킹했는지(중복 마킹 회피).
         Set<UUID> markedBundles = new HashSet<>();
+
+        // 외부 Sheets read는 잠금 밖에서 끝낸다. 이후 graph mutation 전체는
+        // rule CRUD와 동일한 advisory lock 아래에서 세대 확인과 함께 수행한다.
+        quantitySyncRuleService.lockGraphMutation();
+        if (!quantitySyncRuleService.isCurrentSheetSyncGeneration(syncKey, syncGeneration)) {
+            log.info("[ProductSheetSync] component tab '{}' stale response skipped (generation={})",
+                    mapping.tabName, syncGeneration);
+            return result;
+        }
 
         for (int i = headerIdx + 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
@@ -361,19 +372,7 @@ public class ProductSheetSyncService {
             QtyAndMode qm = resolveQty(mapping.hasQtyColumn, qtyRaw);
 
             // ① 부모 BUNDLE 마킹(중복 회피).
-            if (!markedBundles.contains(parent.getId())) {
-                BundleMode mode = isKeepSet(parent.getModelCode(), parent.getName())
-                        ? BundleMode.KEEP : BundleMode.EXPAND;
-                parent.changeBundle(ProductType.BUNDLE, mode);
-                productRepository.save(parent);
-                markedBundles.add(parent.getId());
-                result.bundlesMarked++;
-            }
             // ② 자식 parentBundleSetModel.
-            if (!setModel.equals(child.getParentBundleSetModel())) {
-                child.changeParentBundleSetModel(setModel);
-                productRepository.save(child);
-            }
             // ③ BundleComponent upsert(부모,자식코드 natural key).
             List<BundleComponent> existing = bundleComponentRepository.findByBundleProductId(parent.getId());
             BundleComponent match = existing.stream()
@@ -402,6 +401,23 @@ public class ProductSheetSyncService {
                     result.blockedByRule++;
                     continue;
                 }
+            }
+
+            // 규칙 확인을 통과한 뒤에만 부모 BUNDLE 표식, 자식 부모 표식, 링크를
+            // 같은 트랜잭션에서 반영한다. 충돌 skip은 어떤 부분 상태도 남기지 않는다.
+            if (!markedBundles.contains(parent.getId())) {
+                BundleMode mode = isKeepSet(parent.getModelCode(), parent.getName())
+                        ? BundleMode.KEEP : BundleMode.EXPAND;
+                parent.changeBundle(ProductType.BUNDLE, mode);
+                productRepository.save(parent);
+                markedBundles.add(parent.getId());
+                result.bundlesMarked++;
+            }
+            if (!setModel.equals(child.getParentBundleSetModel())) {
+                child.changeParentBundleSetModel(setModel);
+                productRepository.save(child);
+            }
+            if (match == null) {
                 bundleComponentRepository.save(BundleComponent.seed(parent.getId(), childModel,
                         qm.qty, qm.mode, kind, blankToNull(variant), isDefault, blankToNull(spec)));
             } else {
@@ -1124,6 +1140,8 @@ public class ProductSheetSyncService {
     @Transactional
     public TabSyncResult syncTab(SheetTabMapping mapping, Category defaultCategory) throws Exception {
         TabSyncResult result = new TabSyncResult();
+        String syncKey = sheetSyncKey("product:" + mapping.currentTabName);
+        long syncGeneration = quantitySyncRuleService.reserveSheetSyncGeneration(syncKey);
         String range = mapping.currentTabName + "!A1:Z";
         String formulaRange = expandFormulaRange(range);
         // 🚨 2026-07-28 재수렴 R6 결함 4 [MED] fix (I-4) — lockGraphMutation()을 외부
@@ -1179,6 +1197,11 @@ public class ProductSheetSyncService {
         // 그래프/품목 상태를 건드리는 DB mutation 구간이다. 위의 모든 외부 HTTP(시트 read)와
         // 순수 로컬 파싱은 이 락 없이 끝났다.
         quantitySyncRuleService.lockGraphMutation();
+        if (!quantitySyncRuleService.isCurrentSheetSyncGeneration(syncKey, syncGeneration)) {
+            log.info("[ProductSheetSync] tab '{}' stale response skipped (generation={})",
+                    mapping.tabName, syncGeneration);
+            return result;
+        }
 
         for (int i = headerIdx + 1; i < rows.size(); i++) {
             List<Object> row = rows.get(i);
@@ -1932,6 +1955,10 @@ public class ProductSheetSyncService {
      */
     public void clearHashCacheForTest() {
         lastKnownRowHash.clear();
+    }
+
+    private String sheetSyncKey(String scope) {
+        return sheetId + ":" + scope;
     }
 
     /** 시트 tab → 도메인 매핑 record. */

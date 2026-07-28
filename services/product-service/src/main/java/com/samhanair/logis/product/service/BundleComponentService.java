@@ -224,6 +224,7 @@ public class BundleComponentService {
     public List<BundleComponentResponse> replaceComponents(String modelCode,
                                                            List<BundleComponentRequest> requests,
                                                            String actor) {
+        quantitySyncRuleService.lockGraphMutation();
         Product resolved = findProductByModelCodeOrThrow(modelCode);
 
         // #2 동시성 가드: 부모 해소 직후 id 로 PESSIMISTIC_WRITE 재조회하여 동일 세트
@@ -384,6 +385,7 @@ public class BundleComponentService {
     public BundleComponent addRegisteredComponent(String parentSetModelCode,
                                                   String componentProductCode,
                                                   BundleComponent.ComponentKind componentKind) {
+        quantitySyncRuleService.lockGraphMutation();
         Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
         String parentModelCode = parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName();
 
@@ -431,6 +433,7 @@ public class BundleComponentService {
                                                           String componentProductCode,
                                                           BundleComponent.ComponentKind componentKind,
                                                           String actor) {
+        quantitySyncRuleService.lockGraphMutation();
         Product parent = validateRegisteredComponent(parentSetModelCode, componentProductCode);
         // 🚨 2026-07-28 재수렴 R6 결함 3 [MED] fix (I-3) — addRegisteredComponent()와 같은
         // 가드. PATCH 경로가 부모 링크를 이 parent 하나로 맞추므로, 그 결과 구성품 집합
@@ -489,6 +492,7 @@ public class BundleComponentService {
      */
     @Transactional
     public void removeRegisteredComponentLinks(String componentProductCode, String actor) {
+        quantitySyncRuleService.lockGraphMutation();
         if (componentProductCode == null || componentProductCode.isBlank()) {
             return;
         }
@@ -512,6 +516,7 @@ public class BundleComponentService {
      */
     @Transactional
     public void removeBundleChildren(java.util.UUID bundleProductId, String actor) {
+        quantitySyncRuleService.lockGraphMutation();
         if (bundleProductId == null) {
             return;
         }
@@ -594,6 +599,7 @@ public class BundleComponentService {
      */
     @Transactional
     public void updateDisplayOrders(List<DisplayOrderRequest> requests) {
+        quantitySyncRuleService.lockGraphMutation();
         if (requests == null || requests.isEmpty()) {
             return;
         }

@@ -43,7 +43,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -71,6 +73,7 @@ public class QuantitySyncRuleService {
     private final BundleComponentRepository bundleComponentRepository;
     private final ProductEstimateExposureRepository exposureRepository;
     private final QuantitySyncRuleValidator validator;
+    private final JdbcTemplate jdbcTemplate;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -81,7 +84,8 @@ public class QuantitySyncRuleService {
                                    ProductRepository productRepository,
                                    BundleComponentRepository bundleComponentRepository,
                                    ProductEstimateExposureRepository exposureRepository,
-                                   QuantitySyncRuleValidator validator) {
+                                   QuantitySyncRuleValidator validator,
+                                   JdbcTemplate jdbcTemplate) {
         this.ruleRepository = ruleRepository;
         this.sourceRepository = sourceRepository;
         this.targetRepository = targetRepository;
@@ -89,6 +93,7 @@ public class QuantitySyncRuleService {
         this.bundleComponentRepository = bundleComponentRepository;
         this.exposureRepository = exposureRepository;
         this.validator = validator;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /** 활성 규칙 목록을 priority/ruleKey 순서로 조회한다. */
@@ -310,6 +315,36 @@ public class QuantitySyncRuleService {
                         "SELECT pg_advisory_xact_lock(CAST(hashtext(:lockKey) AS bigint))")
                 .setParameter("lockKey", GRAPH_MUTATION_LOCK_KEY)
                 .getSingleResult();
+    }
+
+    /**
+     * 외부 시트 응답을 기다리기 전에 이 탭의 최신 sync 세대를 예약한다.
+     *
+     * <p>짧은 별도 트랜잭션으로 세대만 증가시키므로 Google Sheets HTTP 대기 동안
+     * graph advisory lock을 점유하지 않는다. 동시 요청은 먼저 시작한 요청이 낮은
+     * 세대를 갖도록 이 지점에서 순서를 확정한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public long reserveSheetSyncGeneration(String syncKey) {
+        // The generation row's unique-key UPSERT serializes reservations for the
+        // same sheet scope. Do not take the graph lock here: this short transaction
+        // may be called from a class-level transactional test or caller that already
+        // owns the graph lock, and it must commit before the external Sheets read.
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO product_sheet_sync_generation (sync_key, generation)
+                VALUES (?, 1)
+                ON CONFLICT (sync_key) DO UPDATE
+                    SET generation = product_sheet_sync_generation.generation + 1
+                RETURNING generation
+                """, Long.class, syncKey);
+    }
+
+    /** 현재 DB에 예약된 세대와 일치하는지 확인한다. 호출자는 graph lock을 보유해야 한다. */
+    public boolean isCurrentSheetSyncGeneration(String syncKey, long generation) {
+        Long current = jdbcTemplate.queryForObject(
+                "SELECT generation FROM product_sheet_sync_generation WHERE sync_key = ?",
+                Long.class, syncKey);
+        return current != null && current == generation;
     }
 
     private void saveChildren(UUID ruleId, QuantitySyncRuleRequest request,

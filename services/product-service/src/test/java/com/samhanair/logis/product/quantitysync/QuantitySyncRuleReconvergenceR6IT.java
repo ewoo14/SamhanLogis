@@ -6,12 +6,15 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.product.client.GoogleSheetsClient;
 import com.samhanair.logis.product.domain.BundleComponent;
+import com.samhanair.logis.product.domain.BundleMode;
 import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.QuantitySyncConflictPolicy;
@@ -26,6 +29,7 @@ import com.samhanair.logis.product.service.ProductSheetSyncService;
 import com.samhanair.logis.product.service.QuantitySyncRuleService;
 import com.samhanair.logis.product.web.dto.BundleComponentRequest;
 import com.samhanair.logis.product.web.dto.CreateProductRequest;
+import com.samhanair.logis.product.web.dto.ProductItemKind;
 import com.samhanair.logis.product.web.dto.ProductResponse;
 import com.samhanair.logis.product.web.dto.QuantitySyncRuleRequest;
 import com.samhanair.logis.product.web.dto.UpdateProductRequest;
@@ -50,11 +54,17 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.annotation.DirtiesContext;
+import com.samhanair.logis.security.permission.DynamicPermissionClient;
+import com.samhanair.logis.security.permission.PermissionAction;
+import org.mockito.Mockito;
 
 /**
  * PR #958 재수렴 R6 라운드 — 발견 각도가 지목한 도달 가능 결함 5건(1·2·3·5) +
@@ -76,6 +86,7 @@ import org.springframework.test.annotation.DirtiesContext;
         "google.sheets.sheet-id=test-sheet-id",
         "google.sheets.endpoint-override=http://localhost:0"
 })
+@AutoConfigureMockMvc
 @DirtiesContext
 @WithMockUser(username = "test-r6")
 class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
@@ -108,6 +119,12 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     @Autowired
     private ProductSheetSyncService syncService;
 
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private DynamicPermissionClient dynamicPermissionClient;
+
     @BeforeEach
     void setUp() throws Exception {
         cleanup();
@@ -115,6 +132,10 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
         lenient().doNothing().when(sheetsClient).invalidateCache();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        lenient().when(dynamicPermissionClient.canView(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(
+                Mockito.any(UUID.class), anyString(), Mockito.any(PermissionAction.class))).thenReturn(true);
     }
 
     @AfterEach
@@ -131,8 +152,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     void 활성_규칙이_참조하면_수동override의_어떤_UsageScope_값도_노출을_깨지_못한다(UsageScope targetScope) throws Exception {
         String sourceCode = createHomeMultiProduct("R6D1-SRC-" + targetScope);
         String targetCode = createHomeMultiProduct("R6D1-TGT-" + targetScope);
-        quantitySyncRuleService.create(ruleRequest("R6D1_RULE_" + targetScope, true, sourceCode, targetCode),
-                "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D1_RULE_" + targetScope, true, sourceCode, targetCode));
 
         UpdateProductUsageRequest req = new UpdateProductUsageRequest(targetScope, null);
 
@@ -164,8 +184,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
         String sourceCode = createHomeMultiProduct("R6D1P-SRC-" + targetScope);
         String targetCode = createHomeMultiProduct("R6D1P-TGT-" + targetScope);
         UUID sourceId = productRepository.findByModelCodeAndIsDeletedFalse(sourceCode).orElseThrow().getId();
-        quantitySyncRuleService.create(ruleRequest("R6D1P_RULE_" + targetScope, true, sourceCode, targetCode),
-                "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D1P_RULE_" + targetScope, true, sourceCode, targetCode));
 
         UpdateProductRequest req = new UpdateProductRequest(
                 null, null, null, null, null, null, null, null, null, null,
@@ -229,7 +248,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     void null_카테고리_배열이_활성_규칙을_깨면_500이_아니라_409로_거부된다() throws Exception {
         String sourceCode = createHomeMultiProduct("R6D2-BLOCK-SRC");
         String targetCode = createHomeMultiProduct("R6D2-BLOCK-TGT");
-        quantitySyncRuleService.create(ruleRequest("R6D2_BLOCK_RULE", true, sourceCode, targetCode), "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D2_BLOCK_RULE", true, sourceCode, targetCode));
 
         UpdateProductUsageRequest req = new UpdateProductUsageRequest(
                 UsageScope.BOTH, Arrays.asList((EstimateCategory) null));
@@ -251,7 +270,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     void 활성_규칙이_source로_참조하는_BUNDLE에_target_품목을_구성품으로_replaceComponents로_추가할_수_없다() throws Exception {
         UUID bundleId = product("R6D3-BUNDLE", "BUNDLE");
         product("R6D3-COMP", "SINGLE");
-        quantitySyncRuleService.create(ruleRequest("R6D3_RULE", true, "R6D3-BUNDLE", "R6D3-COMP"), "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D3_RULE", true, "R6D3-BUNDLE", "R6D3-COMP"));
 
         assertThatThrownBy(() -> bundleComponentService.replaceComponents(
                 "R6D3-BUNDLE",
@@ -274,7 +293,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     void 활성_규칙이_source로_참조하는_BUNDLE에_target_품목을_addRegisteredComponent로_추가할_수_없다() throws Exception {
         UUID bundleId = product("R6D3B-BUNDLE", "BUNDLE");
         product("R6D3B-COMP", "SINGLE");
-        quantitySyncRuleService.create(ruleRequest("R6D3B_RULE", true, "R6D3B-BUNDLE", "R6D3B-COMP"), "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D3B_RULE", true, "R6D3B-BUNDLE", "R6D3B-COMP"));
 
         assertThatThrownBy(() -> bundleComponentService.addRegisteredComponent(
                 "R6D3B-BUNDLE", "R6D3B-COMP", BundleComponent.ComponentKind.ACCESSORY))
@@ -293,7 +312,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     void 활성_규칙이_source로_참조하는_BUNDLE에_target_품목을_replaceRegisteredComponentLink로_추가할_수_없다() throws Exception {
         UUID bundleId = product("R6D3C-BUNDLE", "BUNDLE");
         product("R6D3C-COMP", "SINGLE");
-        quantitySyncRuleService.create(ruleRequest("R6D3C_RULE", true, "R6D3C-BUNDLE", "R6D3C-COMP"), "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D3C_RULE", true, "R6D3C-BUNDLE", "R6D3C-COMP"));
 
         assertThatThrownBy(() -> bundleComponentService.replaceRegisteredComponentLink(
                 "R6D3C-BUNDLE", "R6D3C-COMP", BundleComponent.ComponentKind.ACCESSORY, "qa-r6"))
@@ -342,7 +361,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
         productService.updateUsageAndReturn(partCode,
                 new UpdateProductUsageRequest(UsageScope.BOTH, List.of(EstimateCategory.HOME_MULTI)));
         // ② 그 품목을 참조하는 활성 규칙 생성.
-        quantitySyncRuleService.create(ruleRequest("R6D5_RULE", true, partCode, peerCode), "qa-r6");
+        createRuleViaHttp(ruleRequest("R6D5_RULE", true, partCode, peerCode));
         // ③ 관리자가 수동 override 해제.
         productService.clearUsageOverride(partCode);
 
@@ -402,6 +421,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
                     .as("sync가 시트 HTTP 호출에 진입해야 한다")
                     .isTrue();
 
+            long updateStartedNanos = System.nanoTime();
             Future<?> updateFuture = executor.submit(() -> {
                 productService.update(id, new UpdateProductRequest(null, null, null, "R6D4 편집됨"));
                 updateCompleted.countDown();
@@ -410,6 +430,9 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
             // 락이 시트 HTTP 대기를 덮으면(구 코드) update()가 advisory lock 대기로
             // 이 시점(HTTP 여전히 블록 중)에 완료되지 못한다. 덮지 않으면(신 코드) 즉시 완료된다.
             boolean completedWhileHttpBlocked = updateCompleted.await(1500, TimeUnit.MILLISECONDS);
+            long updateElapsedMillis = (System.nanoTime() - updateStartedNanos) / 1_000_000;
+            System.out.printf("R6_EDIT_DURING_SHEET_WAIT completed=%s elapsed_ms=%d%n",
+                    completedWhileHttpBlocked, updateElapsedMillis);
 
             releaseHttpCall.countDown();
             syncFuture.get(15, TimeUnit.SECONDS);
@@ -435,7 +458,7 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     void 활성_규칙이_source로_참조하는_BUNDLE에_구성품탭_시트sync가_target을_구성품으로_연결하지_않는다() throws Exception {
         UUID bundleId = product("R6SWEEP-BUNDLE", "BUNDLE");
         product("R6SWEEP-COMP", "SINGLE");
-        quantitySyncRuleService.create(ruleRequest("R6SWEEP_RULE", true, "R6SWEEP-BUNDLE", "R6SWEEP-COMP"), "qa-r6");
+        createRuleViaHttp(ruleRequest("R6SWEEP_RULE", true, "R6SWEEP-BUNDLE", "R6SWEEP-COMP"));
 
         when(sheetsClient.readSheetDisplay("test-sheet-id", "싱글 구성품_단가인상!A1:Z")).thenReturn(List.of(
                 List.of("세트", "모델명", "구분", "수량"),
@@ -457,6 +480,30 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     // 헬퍼
     // ================================================================
 
+    @Test
+    void http_fixture가_SINGLE_SET과_COMM_MULTI_및_COMMERCIAL_MULTI_alias를_실제경로로_검증한다() throws Exception {
+        for (QuantitySyncEstimateCategory category : List.of(
+                QuantitySyncEstimateCategory.SINGLE_SET,
+                QuantitySyncEstimateCategory.COMM_MULTI)) {
+            ProductCategory productCategory = category == QuantitySyncEstimateCategory.SINGLE_SET
+                    ? ProductCategory.SINGLE_SET : ProductCategory.COMMERCIAL_MULTI;
+            EstimateCategory estimateCategory = category == QuantitySyncEstimateCategory.SINGLE_SET
+                    ? EstimateCategory.SINGLE_SET : EstimateCategory.COMMERCIAL_MULTI;
+            String source = createCategorizedProduct("R6D6-SRC-" + category,
+                    productCategory, estimateCategory);
+            String target = createCategorizedProduct("R6D6-TGT-" + category,
+                    productCategory, estimateCategory);
+            createRuleViaHttp(ruleRequest("R6D6-RULE-" + category, true, source, target, category));
+        }
+
+        String commercial = createHomeMultiProduct("R6D6-COMMERCIAL");
+        productService.updateUsageAndReturn(commercial,
+                new UpdateProductUsageRequest(UsageScope.BOTH,
+                        List.of(EstimateCategory.COMMERCIAL_MULTI)));
+
+        assertThat(activeExposureCount(commercial, "COMMERCIAL_MULTI")).isEqualTo(1);
+    }
+
     private int activeExposureCount(String modelCode, String category) {
         return jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM product_estimate_exposure
@@ -466,54 +513,80 @@ class QuantitySyncRuleReconvergenceR6IT extends AbstractPostgresIT {
     }
 
     private QuantitySyncRuleRequest ruleRequest(String ruleKey, boolean enabled,
-                                                String sourceCode, String targetCode) throws Exception {
+                                                 String sourceCode, String targetCode) throws Exception {
+        return ruleRequest(ruleKey, enabled, sourceCode, targetCode,
+                QuantitySyncEstimateCategory.HOME_MULTI);
+    }
+
+    private QuantitySyncRuleRequest ruleRequest(String ruleKey, boolean enabled,
+                                                 String sourceCode, String targetCode,
+                                                 QuantitySyncEstimateCategory category) throws Exception {
         JsonNode condition = MAPPER.readTree("{}");
-        return new QuantitySyncRuleRequest(ruleKey, QuantitySyncEstimateCategory.HOME_MULTI,
-                ruleKey + " 이름", enabled, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,
+        return new QuantitySyncRuleRequest(ruleKey, category,
+                ruleKey + " name", enabled, "SUM", condition, QuantitySyncInactiveBehavior.ZERO,
                 QuantitySyncConflictPolicy.ADD, 10, LEGACY_REF,
                 List.of(new QuantitySyncRuleRequest.SourceRequest(sourceCode, new BigDecimal("1"))),
                 List.of(new QuantitySyncRuleRequest.TargetRequest(targetCode, new BigDecimal("1"), "NONE", 1)));
     }
 
-    private String createHomeMultiProduct(String code) {
-        UUID categoryId = jdbcTemplate.queryForObject("SELECT id FROM categories ORDER BY id LIMIT 1", UUID.class);
-        CreateProductRequest req = new CreateProductRequest(
-                code + " 품목", code, categoryId, BigDecimal.ZERO, BigDecimal.ZERO,
-                "KRW", null, null, null, ProductCategory.HOME_MULTI, null, null, null, null,
-                null, null, null, UsageScope.BOTH, List.of(EstimateCategory.HOME_MULTI), null);
-        ProductResponse created = productService.create(req);
-        return created.modelCode();
+    private String createHomeMultiProduct(String code) throws Exception {
+        return createCategorizedProduct(code, ProductCategory.HOME_MULTI, EstimateCategory.HOME_MULTI);
     }
 
-    /** 구성품 탭 소속(SINGLE_PART) 품목 — 기본 usageScope=NONE, 초기 노출 없음. */
-    private String createSinglePartProduct(String code) {
+    private String createCategorizedProduct(String code, ProductCategory productCategory,
+                                            EstimateCategory estimateCategory) throws Exception {
         UUID categoryId = jdbcTemplate.queryForObject("SELECT id FROM categories ORDER BY id LIMIT 1", UUID.class);
         CreateProductRequest req = new CreateProductRequest(
-                code + " 품목", code, categoryId, BigDecimal.ZERO, BigDecimal.ZERO,
-                "KRW", null, null, null, ProductCategory.SINGLE_PART, null, null, null, null,
-                null, null, null, UsageScope.NONE, null, null);
-        ProductResponse created = productService.create(req);
-        return created.modelCode();
+                code + " name", code, categoryId, BigDecimal.ZERO, BigDecimal.ZERO,
+                "KRW", null, null, ProductItemKind.GENERAL, productCategory,
+                null, null, null, null, BigDecimal.ZERO, BigDecimal.ZERO, null,
+                UsageScope.BOTH, List.of(estimateCategory), null);
+        createProductViaHttp(req);
+        return code;
     }
 
-    /** raw SQL 품목 생성 — productType(BUNDLE/SINGLE)을 직접 지정해야 하는 결함 3/sweep 전용. */
-    private UUID product(String code, String productType) {
+    /** 구성품(SINGLE_PART) 품목은 HTTP create API로 만든다. */
+    private String createSinglePartProduct(String code) throws Exception {
         UUID categoryId = jdbcTemplate.queryForObject("SELECT id FROM categories ORDER BY id LIMIT 1", UUID.class);
-        UUID productId = UUID.randomUUID();
-        jdbcTemplate.update("""
-                INSERT INTO products (
-                    id, name, model_name, category_id, selling_price, purchase_price,
-                    created_at, created_by, is_deleted, status, model_code, product_type,
-                    usage_scope)
-                VALUES (?, ?, ?, ?, 0, 0, now(), ?, false, 'ACTIVE', ?, ?, 'BOTH')
-                """, productId, code + " 품목", code, categoryId, CREATED_BY, code, productType);
-        jdbcTemplate.update("""
-                INSERT INTO product_estimate_exposure (
-                    id, product_id, estimate_category, display_order,
-                    created_at, created_by, is_deleted)
-                VALUES (?, ?, 'HOME_MULTI', 1, now(), ?, false)
-                """, UUID.randomUUID(), productId, CREATED_BY);
-        return productId;
+        CreateProductRequest req = new CreateProductRequest(
+                code + " name", code, categoryId, BigDecimal.ZERO, BigDecimal.ZERO,
+                "KRW", null, null, ProductItemKind.GENERAL, ProductCategory.SINGLE_PART,
+                null, null, null, null, BigDecimal.ZERO, BigDecimal.ZERO, null,
+                UsageScope.NONE, null, null);
+        createProductViaHttp(req);
+        return code;
+    }
+
+    private UUID product(String code, String productType) throws Exception {
+        UUID categoryId = jdbcTemplate.queryForObject("SELECT id FROM categories ORDER BY id LIMIT 1", UUID.class);
+        ProductItemKind itemKind = "BUNDLE".equals(productType)
+                ? ProductItemKind.SET : ProductItemKind.GENERAL;
+        BundleMode bundleMode = itemKind == ProductItemKind.SET ? BundleMode.EXPAND : null;
+        CreateProductRequest req = new CreateProductRequest(
+                code + " name", code, categoryId, BigDecimal.ZERO, BigDecimal.ZERO,
+                "KRW", null, null, itemKind, ProductCategory.HOME_MULTI, bundleMode,
+                null, null, null, BigDecimal.ZERO, BigDecimal.ZERO, null,
+                UsageScope.BOTH, List.of(EstimateCategory.HOME_MULTI), null);
+        createProductViaHttp(req);
+        return productRepository.findByModelCodeAndIsDeletedFalse(code).orElseThrow().getId();
+    }
+
+    private void createProductViaHttp(CreateProductRequest request) throws Exception {
+        mockMvc.perform(post("/products")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+    }
+
+    private void createRuleViaHttp(QuantitySyncRuleRequest request) throws Exception {
+        mockMvc.perform(post("/api/v1/quantity-sync-rules")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MASTER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(request)))
+                .andExpect(status().isCreated());
     }
 
     private void cleanup() {
