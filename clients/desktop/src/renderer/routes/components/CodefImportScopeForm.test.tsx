@@ -41,6 +41,12 @@ const baseResult: CodefImportResponse = {
 
 afterEach(() => {
   cleanup()
+  listCodefBankAccountsMock.mockReset()
+  listCodefCardsMock.mockReset()
+  listCodefLoansMock.mockReset()
+  loadCodefImportScopeMock.mockReset()
+  saveCodefImportScopeMock.mockReset()
+  importScopedCodefMock.mockReset()
 })
 
 describe('CodefImportResultSummary 보류 경고 (#810 R3 계약 pin)', () => {
