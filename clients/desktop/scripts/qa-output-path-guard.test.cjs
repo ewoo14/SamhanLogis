@@ -1701,3 +1701,115 @@ test(
     }
   },
 )
+
+// ============================================================================
+// #957 조사 보고서 6건 RED-first 회귀 테스트.
+//
+// 아래 테스트는 수정 전 현재 구현에서 반드시 실패해야 한다. 조회 실패를
+// "경로 밖"으로 바꾸는 각 경계를 직접 모킹하고, 정상적인 OS temp 경로를
+// 사용해 RED 상태에서도 커밋된 docs/qa 파일은 건드리지 않는다.
+// ============================================================================
+
+test('957-RED-1 — Node 물리 조회가 false로 흡수되면 안 되고 커밋 QA 대상은 차단되어야 한다', () => {
+  const aliasRoot = path.join(tempRoot, '957-red-node-alias')
+  fs.mkdirSync(tempRoot, { recursive: true })
+  fs.symlinkSync(docsQaRoot, aliasRoot, 'junction')
+  const originalExistsSync = fs.existsSync
+  fs.existsSync = candidate => (path.resolve(candidate) === path.resolve(aliasRoot) ? false : originalExistsSync(candidate))
+  process.env.QA_SHOTS_DIR = aliasRoot
+  try {
+    assert.throws(
+      () => resolveQaShotsDir(MY_FIXTURE_COMMITTED_DIR),
+      error => error instanceof Error && error.message.includes('QA_ALLOW_OVERWRITE=1'),
+      '조회 실패를 경로 없음으로 해석해 물리 docs/qa alias가 허용되었습니다',
+    )
+  } finally {
+    fs.existsSync = originalExistsSync
+  }
+})
+
+test('957-RED-2 — Python commonpath 조회 실패는 False가 아니라 명시적 실패여야 한다', () => {
+  const fixtureDir = path.join(docsQaRoot, '__957-red-python-commonpath__')
+  const pyLibDir = path.join(repoRoot, 'scripts', 'lib')
+  const code = [
+    'import os, sys',
+    `sys.path.insert(0, ${JSON.stringify(pyLibDir)})`,
+    'import qa_shots_dir',
+    'qa_shots_dir.os.path.commonpath = lambda paths: (_ for _ in ()).throw(ValueError("injected commonpath failure"))',
+    `os.environ['QA_SHOTS_DIR'] = ${JSON.stringify(fixtureDir)}`,
+    'try:',
+    `    qa_shots_dir.resolve_qa_shots_dir(${JSON.stringify(MY_FIXTURE_COMMITTED_DIR)})`,
+    '    print("ALLOW")',
+    'except Exception as error:',
+    '    print("BLOCK:" + str(error))',
+  ].join('\n')
+  try {
+    const output = execFileSync(PYTHON_EXE ?? 'python', ['-c', code], { encoding: 'utf8' })
+    assert.match(output, /^BLOCK:/s, `commonpath 조회 실패가 허용 경로로 흘렀습니다: ${output}`)
+  } finally {
+    fs.rmSync(fixtureDir, { recursive: true, force: true })
+  }
+})
+
+test('957-RED-3 — Bash 포함 판정 조회 실패는 외부 경로로 오인하지 않고 resolver가 실패해야 한다', () => {
+  const shLibPath = path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')
+  const outputDir = path.join(tempRoot, '957-red-bash-query-failure')
+  const targetPosix = path.join(tempRoot, 'committed').replaceAll('\\', '/')
+  const script = [
+    `source '${shLibPath}'`,
+    '_qa_is_within_physical() { return 2; }',
+    `export QA_SHOTS_DIR='${outputDir.replaceAll('\\', '/')}'`,
+    `if out="$(resolve_qa_shots_dir '${targetPosix}' 2>&1)"; then printf 'ALLOW\\t%s' "$out"; else printf 'BLOCK\\t%s' "$out"; fi`,
+  ].join('\n')
+  const output = execFileSync(GITBASH_EXE ?? 'bash', ['-c', script], { encoding: 'utf8' })
+  assert.match(output, /^BLOCK\t/s, `Bash 조회 실패가 허용 경로로 흘렀습니다: ${output}`)
+  assert.equal(fs.existsSync(outputDir), false, 'Bash 조회 실패 뒤 OS temp 출력 디렉터리가 생성되었습니다')
+})
+
+test('957-RED-4 — Bash 실제 소비자는 resolver의 nonzero 상태를 무시하고 다음 쓰기로 진행하면 안 된다', () => {
+  function readBackendConsumerPrefix() {
+    return fs
+      .readFileSync(path.join(repoRoot, 'docs', 'qa', 'dev-menu-dev2', 'backend-qa.sh'), 'utf8')
+      .split(/\r?\n/)
+      .slice(0, 13)
+  }
+  const consumerLines = readBackendConsumerPrefix()
+  consumerLines[5] = `source '${path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.sh').replaceAll('\\', '/')}'`
+  consumerLines.push("printf 'CONTINUED'")
+  const probePath = path.join(tempRoot, '957-red-bash-consumer.sh')
+  fs.mkdirSync(tempRoot, { recursive: true })
+  fs.writeFileSync(probePath, `${consumerLines.join('\n')}\n`, 'utf8')
+  let output = ''
+  let status = 0
+  try {
+    output = execFileSync(GITBASH_EXE ?? 'bash', [probePath.replaceAll('\\', '/')], {
+      encoding: 'utf8',
+      env: { ...process.env, QA_SHOTS_DIR: docsQaRoot.replaceAll('\\', '/') },
+    })
+  } catch (error) {
+    status = error.status ?? 1
+    output = `${error.stdout ?? ''}${error.stderr ?? ''}`
+  }
+  assert.equal(status, 1, `resolver 실패를 소비자가 성공으로 처리했습니다: ${output}`)
+  assert.doesNotMatch(output, /CONTINUED/, `resolver return 1 뒤에도 소비자가 진행했습니다: ${output}`)
+})
+
+test('957-RED-5 — 공유 PowerShell 물리 조회 실패는 $null lexical fallback으로 낮아지면 안 된다', () => {
+  const source = readSourceText(path.join(repoRoot, 'scripts', 'lib', 'qa-shots-dir.ps1'))
+  assert.doesNotMatch(
+    source,
+    /catch\s*\{\s*return\s+\$null\s*\}/s,
+    'Get-QaFinalPhysicalPath가 조회 예외를 $null로 삼키는 fallback을 유지합니다',
+  )
+  assert.doesNotMatch(source, /while\s*\(-not\s*\(Test-Path\s+-LiteralPath\s+\$current\)\)/s, 'Test-Path False와 조회 오류를 구분하지 않습니다')
+})
+
+test('957-RED-6 — operational-validation.ps1은 물리 판정 실패 시 Continue/기본 False로 REPORT 쓰기를 진행하면 안 된다', () => {
+  const source = readSourceText(path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1'))
+  assert.doesNotMatch(source, /^\s*\$ErrorActionPreference\s*=\s*["']Continue["']/m, '전역 Continue가 물리 조회 실패를 비종료 오류로 만듭니다')
+  assert.doesNotMatch(
+    source,
+    /if\s*\(\$AdditionalDocsQaRoot\s*-and\s*\(Test-Path\s+-LiteralPath\s+\$AdditionalDocsQaRoot\)\)/s,
+    '추가 anchor Test-Path 실패가 기본 False로 흡수됩니다',
+  )
+})

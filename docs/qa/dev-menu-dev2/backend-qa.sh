@@ -6,7 +6,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../../scripts/lib/qa-shots-dir.sh"
 # _local 격리(2026-07-27 하네스 흡수 H2 — 기존 하드코딩 절대경로가 커밋된 backend-real-qa.md 를
 # 직접 가리켰다. resolve_qa_shots_dir 가 mkdir -p 도 겸한다).
-OUT="$(resolve_qa_shots_dir "$SCRIPT_DIR")"
+if ! OUT="$(resolve_qa_shots_dir "$SCRIPT_DIR")"; then
+  echo '[QA 출력 경로 가드] 출력 경로 판정에 실패해 QA를 중단합니다.' >&2
+  exit 1
+fi
+if [ -z "$OUT" ]; then
+  echo '[QA 출력 경로 가드] resolver가 빈 출력 경로를 반환해 QA를 중단합니다.' >&2
+  exit 1
+fi
 EV="$OUT/backend-real-qa.md"
 
 log(){ echo "$@" | tee -a "$EV"; }

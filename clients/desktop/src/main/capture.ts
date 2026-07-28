@@ -47,16 +47,51 @@ function hasExplicitOverwriteIntent(): boolean {
   return ['1', 'true', 'yes'].includes(String(process.env['QA_ALLOW_OVERWRITE'] ?? '').trim().toLowerCase())
 }
 
+function isPathMissingError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+  )
+}
+
+function throwPhysicalPathError(candidateDir: string, error: unknown): never {
+  const reason = error instanceof Error ? error.message : String(error)
+  throw new Error(`[QA 출력 경로 가드] 물리 경로 조회에 실패했습니다: ${candidateDir}: ${reason}`, { cause: error })
+}
+
+function isRemoteUncPath(candidateDir: string): boolean {
+  if (process.platform !== 'win32') return false
+  const match = /^\\\\([^\\]+)\\/.exec(candidateDir)
+  if (!match) return false
+  const host = match[1]?.toLowerCase() ?? ''
+  const isKnownAlias = host === 'localhost' || host === '127.0.0.1' || host === '.' || host === hostname().toLowerCase()
+  return !isKnownAlias && !getSelfLanAddresses().includes(host)
+}
+
 function resolvePhysicalPath(candidateDir: string): string {
+  if (isRemoteUncPath(candidateDir)) return resolve(candidateDir)
   let current = resolve(candidateDir)
   const missingParts: string[] = []
-  while (!fs.existsSync(current)) {
-    const parent = dirname(current)
-    if (parent === current) return current
-    missingParts.unshift(basename(current))
-    current = parent
+  while (true) {
+    try {
+      fs.lstatSync(current)
+    } catch (error) {
+      if (!isPathMissingError(error)) throwPhysicalPathError(candidateDir, error)
+      const parent = dirname(current)
+      if (parent === current) throwPhysicalPathError(candidateDir, error)
+      missingParts.unshift(basename(current))
+      current = parent
+      continue
+    }
+
+    try {
+      return join(fs.realpathSync.native(current), ...missingParts)
+    } catch (error) {
+      throwPhysicalPathError(candidateDir, error)
+    }
   }
-  return join(fs.realpathSync.native(current), ...missingParts)
 }
 
 /**
@@ -70,6 +105,9 @@ function getSelfLanAddresses(): string[] {
     for (const entry of entries ?? []) {
       if (entry.family === 'IPv4') addresses.push(entry.address.toLowerCase())
     }
+  }
+  if (addresses.length === 0) {
+    throw new Error('[QA 출력 경로 가드] 자기 LAN 주소 조회 결과가 비어 있어 UNC 물리 식별을 계속할 수 없습니다')
   }
   return addresses
 }

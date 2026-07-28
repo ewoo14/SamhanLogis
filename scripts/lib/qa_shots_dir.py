@@ -40,15 +40,17 @@ def _self_lan_addresses() -> set:
     "열거"라서 어댑터가 늘 때마다 다시 뚫린다(실측: 자기 LAN IP UNC 가 10개 resolver
     사본 전부를 통과했다). socket.gethostbyname_ex(hostname())는 이 실행 환경에서
     로컬 hostname 조회이며(원격 DNS 라운드트립 아님) 이 머신에 바인딩된 어댑터 IP를
-    전부 돌려준다(실측 확인). 실패해도 예외를 삼키고 빈 집합으로 폴백한다 — 원격
-    호스트에 대한 stat 기반 신원 대조는 도달 불가능한 호스트에서 8초+ 행(hang)이
+    전부 돌려준다(실측 확인). 실패하거나 결과가 비면 물리 식별을 계속하지 않는다 —
+    원격 호스트에 대한 stat 기반 신원 대조는 도달 불가능한 호스트에서 8초+ 행(hang)이
     재현돼 채택하지 않았다.
     """
     try:
         _, _, ip_list = socket.gethostbyname_ex(socket.gethostname())
-        return {ip.lower() for ip in ip_list}
-    except OSError:
-        return set()
+    except OSError as error:
+        raise RuntimeError('QA 출력 경로 가드: 자기 LAN 주소 조회에 실패해 UNC 물리 식별을 계속할 수 없습니다') from error
+    if not ip_list:
+        raise RuntimeError('QA 출력 경로 가드: 자기 LAN 주소 조회 결과가 비어 있어 UNC 물리 식별을 계속할 수 없습니다')
+    return {ip.lower() for ip in ip_list}
 
 
 def _normalize_unc_admin_share(candidate_dir: str) -> str:
@@ -79,13 +81,63 @@ def _normalize_physical_path(candidate_dir: str) -> str:
     return os.path.normcase(os.path.normpath(candidate_dir))
 
 
+def _is_missing_path_error(error: OSError) -> bool:
+    return error.errno in {getattr(os, 'ENOENT', 2), getattr(os, 'ENOTDIR', 20)}
+
+
+def _resolve_physical_path(candidate_dir: str) -> str:
+    """존재하지 않는 출력 하위 경로만 물리 부모에 이어 붙이고 조회 오류는 전파한다."""
+    current = os.path.abspath(candidate_dir)
+    missing_parts = []
+
+    while True:
+        try:
+            os.lstat(current)
+        except OSError as error:
+            if not _is_missing_path_error(error):
+                raise RuntimeError(
+                    f'QA 출력 경로 가드: 물리 경로 조회에 실패했습니다: {candidate_dir}: {error}'
+                ) from error
+            parent = os.path.dirname(current)
+            if parent == current:
+                raise RuntimeError(
+                    f'QA 출력 경로 가드: 물리 경로 루트를 확인할 수 없습니다: {candidate_dir}'
+                ) from error
+            missing_parts.insert(0, os.path.basename(current))
+            current = parent
+            continue
+
+        try:
+            resolved = os.path.realpath(current, strict=True)
+        except OSError as error:
+            raise RuntimeError(
+                f'QA 출력 경로 가드: 물리 경로 조회에 실패했습니다: {candidate_dir}: {error}'
+            ) from error
+        return os.path.join(resolved, *missing_parts)
+
+
+def _is_remote_unc_path(candidate_dir: str) -> bool:
+    if os.name != 'nt':
+        return False
+    match = re.match(r'^\\\\([^\\]+)\\', candidate_dir)
+    if not match:
+        return False
+    host = match.group(1).lower()
+    known_aliases = {'localhost', '127.0.0.1', '.', socket.gethostname().lower()}
+    return host not in known_aliases and host not in _self_lan_addresses()
+
+
 def _is_within_physical(parent_dir: str, candidate_dir: str) -> bool:
-    parent = _normalize_physical_path(os.path.realpath(parent_dir))
-    candidate = _normalize_physical_path(os.path.realpath(candidate_dir))
+    if _is_remote_unc_path(candidate_dir):
+        return False
+    parent = _normalize_physical_path(_resolve_physical_path(parent_dir))
+    candidate = _normalize_physical_path(_resolve_physical_path(candidate_dir))
     try:
         return os.path.commonpath([parent, candidate]) == parent
-    except ValueError:
-        return False
+    except ValueError as error:
+        raise RuntimeError(
+            f'QA 출력 경로 가드: 물리 경로 포함 판정에 실패했습니다: {parent_dir} / {candidate_dir}'
+        ) from error
 
 
 def resolve_qa_shots_dir(committed_dir: str) -> str:

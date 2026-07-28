@@ -38,7 +38,15 @@ _qa_has_explicit_overwrite_intent() {
 _qa_self_lan_addresses() {
   # Windows ipconfig 출력에서 IPv4 주소만 추출한다(로케일 무관 — 값 자체는 숫자.숫자
   # 형태라 번역되지 않는다). 순수 Linux(cygpath 없음)에서는 이 함수가 호출되지 않는다.
-  ipconfig 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}'
+  local ipconfig_output addresses
+  if ! ipconfig_output="$(ipconfig 2>/dev/null)"; then
+    return 1
+  fi
+  addresses="$(printf '%s\n' "$ipconfig_output" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' || true)"
+  if [ -z "$addresses" ]; then
+    return 1
+  fi
+  printf '%s' "$addresses"
 }
 
 _qa_normalize_unc_admin_share() {
@@ -60,7 +68,11 @@ _qa_normalize_unc_admin_share() {
       printf '%s:%s' "$drive" "$rest"
       return 0
     fi
-    if printf '%s\n' "$(_qa_self_lan_addresses)" | grep -qx -- "$host"; then
+    local self_addresses
+    if ! self_addresses="$(_qa_self_lan_addresses)"; then
+      return 1
+    fi
+    if printf '%s\n' "$self_addresses" | grep -qx -- "$host"; then
       printf '%s:%s' "$drive" "$rest"
       return 0
     fi
@@ -82,21 +94,33 @@ _qa_normalize_unc_admin_share() {
 # 딱 한 번만 조회하고 캐시한다(호출마다 드라이브 매핑이 바뀔 일은 없다).
 _QA_SUBST_CACHE_LOADED=""
 _QA_SUBST_CACHE_OUTPUT=""
+_QA_SUBST_CACHE_STATUS=0
 _QA_NETUSE_CACHE_LOADED=""
 _QA_NETUSE_CACHE_OUTPUT=""
+_QA_NETUSE_CACHE_STATUS=0
 
 _qa_subst_output_cached() {
   if [ -z "$_QA_SUBST_CACHE_LOADED" ]; then
-    _QA_SUBST_CACHE_OUTPUT="$(subst 2>/dev/null)"
+    if ! _QA_SUBST_CACHE_OUTPUT="$(subst 2>/dev/null)"; then
+      _QA_SUBST_CACHE_STATUS=1
+    fi
     _QA_SUBST_CACHE_LOADED=1
+  fi
+  if [ "$_QA_SUBST_CACHE_STATUS" -ne 0 ]; then
+    return 1
   fi
   printf '%s' "$_QA_SUBST_CACHE_OUTPUT"
 }
 
 _qa_netuse_output_cached() {
   if [ -z "$_QA_NETUSE_CACHE_LOADED" ]; then
-    _QA_NETUSE_CACHE_OUTPUT="$(net use 2>/dev/null)"
+    if ! _QA_NETUSE_CACHE_OUTPUT="$(net use 2>/dev/null)"; then
+      _QA_NETUSE_CACHE_STATUS=1
+    fi
     _QA_NETUSE_CACHE_LOADED=1
+  fi
+  if [ "$_QA_NETUSE_CACHE_STATUS" -ne 0 ]; then
+    return 1
   fi
   printf '%s' "$_QA_NETUSE_CACHE_OUTPUT"
 }
@@ -116,14 +140,20 @@ _qa_resolve_dos_device_drive() {
   esac
   local drive="${candidate:0:1}"
   local rest="${candidate:2}"
-  local subst_line
-  subst_line="$(_qa_subst_output_cached | grep -i -- "^${drive}:\\\\: =>")"
+  local subst_output subst_line
+  if ! subst_output="$(_qa_subst_output_cached)"; then
+    return 1
+  fi
+  subst_line="$(printf '%s' "$subst_output" | grep -i -- "^${drive}:\\\\: =>" || true)"
   if [ -n "$subst_line" ]; then
     printf '%s%s' "${subst_line#*=> }" "$rest"
     return 0
   fi
-  local net_use_line target
-  net_use_line="$(_qa_netuse_output_cached | grep -iE -- "^(OK|Disconnected)[[:space:]]+${drive}: ")"
+  local net_use_output net_use_line target
+  if ! net_use_output="$(_qa_netuse_output_cached)"; then
+    return 1
+  fi
+  net_use_line="$(printf '%s' "$net_use_output" | grep -iE -- "^(OK|Disconnected)[[:space:]]+${drive}: " || true)"
   if [ -n "$net_use_line" ]; then
     target="$(printf '%s' "$net_use_line" | awk '{print $3}')"
     if [ -n "$target" ]; then
@@ -136,13 +166,21 @@ _qa_resolve_dos_device_drive() {
 
 _qa_physical_path() {
   local candidate="$1"
-  candidate="$(_qa_resolve_dos_device_drive "$candidate")"
-  candidate="$(_qa_normalize_unc_admin_share "$candidate")"
+  if ! candidate="$(_qa_resolve_dos_device_drive "$candidate")"; then
+    return 1
+  fi
+  if ! candidate="$(_qa_normalize_unc_admin_share "$candidate")"; then
+    return 1
+  fi
   local resolved
   if command -v realpath >/dev/null 2>&1; then
-    resolved="$(realpath -m -- "$candidate")"
+    if ! resolved="$(realpath -m -- "$candidate")" || [ -z "$resolved" ]; then
+      return 1
+    fi
   else
-    resolved="$(readlink -f -- "$candidate")"
+    if ! resolved="$(readlink -f -- "$candidate")" || [ -z "$resolved" ]; then
+      return 1
+    fi
   fi
   # D-2 (2026-07-28 R1 적대검증): MSYS/Git-Bash 환경에서 realpath -m 은 입력 표기를
   # 그대로 보존한다 — POSIX 입력(`/c/...`)은 POSIX로, Windows 입력(`C:\...`, `C:/...`)은
@@ -152,7 +190,9 @@ _qa_physical_path() {
   # POSIX 정규형으로 통일해 비교 기준을 하나로 맞춘다. 존재하지 않는 하위 경로에도
   # 동작해야 하므로(realpath -m 과 동일 계약) cygpath 실패 시 원래 값으로 폴백한다.
   if command -v cygpath >/dev/null 2>&1; then
-    resolved="$(cygpath -u -- "$resolved" 2>/dev/null)" || resolved="$(realpath -m -- "$candidate" 2>/dev/null || readlink -f -- "$candidate")"
+    if ! resolved="$(cygpath -u -- "$resolved" 2>/dev/null)" || [ -z "$resolved" ]; then
+      return 1
+    fi
   fi
   printf '%s' "$resolved"
 }
@@ -172,8 +212,15 @@ _qa_casefold_if_windows() {
 _qa_is_within_physical() {
   local parent
   local candidate
-  parent="$(_qa_casefold_if_windows "$(_qa_physical_path "$1")")"
-  candidate="$(_qa_casefold_if_windows "$(_qa_physical_path "$2")")"
+  if ! parent="$(_qa_casefold_if_windows "$(_qa_physical_path "$1")")"; then
+    return 2
+  fi
+  if ! candidate="$(_qa_casefold_if_windows "$(_qa_physical_path "$2")")"; then
+    return 2
+  fi
+  if [ -z "$parent" ] || [ -z "$candidate" ]; then
+    return 2
+  fi
   case "$candidate" in
     "$parent"|"$parent"/*) return 0 ;;
     *) return 1 ;;
@@ -184,21 +231,45 @@ resolve_qa_shots_dir() {
   local committed_dir="$1"
   local dir
   if [ -n "${QA_SHOTS_DIR:-}" ]; then
-    dir="$(_qa_physical_path "$QA_SHOTS_DIR")"
+    if ! dir="$(_qa_physical_path "$QA_SHOTS_DIR")"; then
+      printf '%s\n' '[QA 출력 경로 가드] 출력 경로의 물리 식별에 실패했습니다.' >&2
+      return 1
+    fi
   else
-    dir="$(_qa_physical_path "$committed_dir/_local")"
+    if ! dir="$(_qa_physical_path "$committed_dir/_local")"; then
+      printf '%s\n' '[QA 출력 경로 가드] 기본 출력 경로의 물리 식별에 실패했습니다.' >&2
+      return 1
+    fi
   fi
 
   local script_dir
   local docs_qa_root
   script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-  docs_qa_root="$(_qa_physical_path "$script_dir/../../docs/qa")"
-
-  if [ -n "${QA_SHOTS_DIR:-}" ] && _qa_is_within_physical "$docs_qa_root" "$dir" && ! _qa_has_explicit_overwrite_intent; then
-    printf '%s\n' "[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: $dir. 명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오." >&2
+  if ! docs_qa_root="$(_qa_physical_path "$script_dir/../../docs/qa")"; then
+    printf '%s\n' '[QA 출력 경로 가드] docs/qa 기준점의 물리 식별에 실패했습니다.' >&2
     return 1
   fi
 
-  mkdir -p "$dir"
+  if [ -n "${QA_SHOTS_DIR:-}" ]; then
+    local within_status=0
+    if _qa_is_within_physical "$docs_qa_root" "$dir"; then
+      within_status=0
+    else
+      within_status=$?
+    fi
+    if [ "$within_status" -eq 0 ] && ! _qa_has_explicit_overwrite_intent; then
+      printf '%s\n' "[QA 출력 경로 가드] 커밋된 QA 증거 경로로 overwrite 시도를 차단했습니다: $dir. 명시적으로 허용하려면 QA_ALLOW_OVERWRITE=1을 설정하십시오." >&2
+      return 1
+    fi
+    if [ "$within_status" -ne 0 ] && [ "$within_status" -ne 1 ]; then
+      printf '%s\n' '[QA 출력 경로 가드] 출력 경로 포함 판정에 실패했습니다.' >&2
+      return 1
+    fi
+  fi
+
+  if ! mkdir -p "$dir"; then
+    printf '%s\n' "[QA 출력 경로 가드] 출력 디렉터리를 만들지 못했습니다: $dir" >&2
+    return 1
+  fi
   printf '%s' "$dir"
 }
