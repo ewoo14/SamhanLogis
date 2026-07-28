@@ -20,9 +20,24 @@ export interface ArologisAuthBridge {
   clearToken: () => Promise<void>
 }
 
+export interface DesktopUpdateStatus {
+  kind: 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error'
+  version?: string
+  percent?: number
+  message?: string
+}
+
+export interface ArologisUpdaterBridge {
+  check: () => Promise<void>
+  install: () => Promise<void>
+  quit: () => Promise<void>
+  onStatus: (listener: (status: DesktopUpdateStatus) => void) => () => void
+}
+
 declare global {
   interface Window {
     arologisAuth: ArologisAuthBridge
+    arologisUpdater?: ArologisUpdaterBridge
   }
 }
 

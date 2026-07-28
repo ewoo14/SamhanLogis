@@ -11,7 +11,7 @@
 cd clients/arologis-desktop
 npm install
 npm run build           # main + preload + renderer 번들 (out/)
-npm run build:win       # NSIS installer + portable .exe (release/)
+  npm run build:win       # 명시 버전·피드·코드서명 검증 후 NSIS installer + portable .exe
 ```
 
 ## 환경 변수
@@ -19,6 +19,9 @@ npm run build:win       # NSIS installer + portable .exe (release/)
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `VITE_AROLOGIS_API_BASE` | `http://localhost:8097` | renderer axios baseURL (예: `https://api.arologis.samhan-air.com`). 미지정 시 localhost:8097 fallback. |
+| `VITE_VERSION_API_BASE_URL` | `http://localhost:8080` | dashboard-service 공개 `/app/version` 조회 base URL. |
+| `VITE_APP_VERSION` | `0.1.0-dev`(개발) | 릴리스 빌드가 요구하는 `YYYY/MM/DD-{번호}` 버전 주입값. |
+| `AROLOGIS_UPDATE_URL` | 없음 | 코드서명된 아로로지스 전용 HTTPS generic updater 피드. `build:win` 필수. |
 | `ELECTRON_RENDERER_URL` | (electron-vite 자동 주입) | dev 모드에서 electron-vite 가 자동 설정. 수동 지정 불필요. |
 
 ## 디렉토리 구조

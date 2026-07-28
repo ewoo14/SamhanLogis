@@ -13,7 +13,15 @@
  */
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
+
+const require = createRequire(import.meta.url)
+const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs') as {
+  resolveBuildAppVersion: (options?: { env?: NodeJS.ProcessEnv; variable?: string }) => string
+}
+const appVersion = resolveBuildAppVersion({ variable: 'VITE_APP_VERSION' })
+const versionApiBaseUrl = (process.env['VITE_VERSION_API_BASE_URL'] || 'http://localhost:8080').replace(/\/+$/, '')
 
 export default defineConfig({
   main: {
@@ -45,6 +53,10 @@ export default defineConfig({
   renderer: {
     root: resolve(__dirname, 'src/renderer'),
     plugins: [react()],
+    define: {
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+      'import.meta.env.VITE_VERSION_API_BASE_URL': JSON.stringify(versionApiBaseUrl),
+    },
     resolve: {
       alias: {
         '@renderer': resolve(__dirname, 'src/renderer'),

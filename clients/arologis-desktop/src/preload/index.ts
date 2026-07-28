@@ -46,3 +46,17 @@ const arologisAuth = {
 }
 
 contextBridge.exposeInMainWorld('arologisAuth', arologisAuth)
+
+/** 메인 프로세스의 electron-updater 상태를 구독하는 최소 브리지. */
+const arologisUpdater = {
+  check: (): Promise<void> => ipcRenderer.invoke('updater:check'),
+  install: (): Promise<void> => ipcRenderer.invoke('updater:install'),
+  quit: (): Promise<void> => ipcRenderer.invoke('updater:quit'),
+  onStatus: (listener: (status: unknown) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: unknown) => listener(status)
+    ipcRenderer.on('updater:status', handler)
+    return () => ipcRenderer.removeListener('updater:status', handler)
+  },
+}
+
+contextBridge.exposeInMainWorld('arologisUpdater', arologisUpdater)

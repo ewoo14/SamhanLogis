@@ -15,10 +15,11 @@
  * - legacy estimate webview / 종합견적서 link 제거 (배차 도메인 전용).
  * - 자체 auth/* IPC = arologis-service `/auth/admin/login` 응답 토큰 영속.
  */
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { registerAuthIpcHandlers } from './ipc/auth-token.js'
+import { registerAutoUpdateIpcHandlers } from './auto-update.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -108,6 +109,10 @@ function createMainWindow(): void {
 
 app.whenReady().then(() => {
   registerAuthIpcHandlers()
+  registerAutoUpdateIpcHandlers()
+  ipcMain.handle('updater:quit', () => {
+    app.quit()
+  })
   createMainWindow()
 
   app.on('activate', () => {

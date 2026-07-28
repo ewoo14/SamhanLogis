@@ -1,0 +1,145 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  fetchDesktopVersionStatus,
+  resolveBuildAppVersion,
+  resolveVersionPromptState,
+  type VersionPromptState,
+} from '../../version/versionCheck'
+import type { DesktopUpdateStatus } from '../../types/electron'
+
+const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
+const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
+
+function safeStorage(): Pick<Storage, 'getItem' | 'setItem'> {
+  try {
+    const storage = window.localStorage
+    storage.setItem('__arologis_version_probe__', '1')
+    storage.removeItem('__arologis_version_probe__')
+    return storage
+  } catch {
+    const values = new Map<string, string>()
+    return {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => { values.set(key, value) },
+    }
+  }
+}
+
+function normalizeUpdateStatus(value: unknown): DesktopUpdateStatus | null {
+  if (typeof value !== 'object' || value === null || !('kind' in value)) return null
+  const status = value as Partial<DesktopUpdateStatus>
+  if (status.kind === 'checking' || status.kind === 'not-available') return { kind: status.kind }
+  if (status.kind === 'available' && status.version) return { kind: 'available', version: status.version }
+  if (status.kind === 'downloading') return { kind: 'downloading', percent: status.percent ?? 0 }
+  if (status.kind === 'downloaded' && status.version) return { kind: 'downloaded', version: status.version }
+  if (status.kind === 'error') return { kind: 'error', message: '업데이트에 실패했습니다. 인터넷 연결을 확인해 주세요.' }
+  return null
+}
+
+function updateStatusText(status: DesktopUpdateStatus): string {
+  switch (status.kind) {
+    case 'checking': return '업데이트를 확인하는 중입니다.'
+    case 'available': return `새 버전 ${status.version}을 다운로드하는 중입니다.`
+    case 'downloading': return `새 버전을 다운로드하는 중입니다. ${Math.round(status.percent ?? 0)}%`
+    case 'downloaded': return `새 버전 ${status.version}을 설치하고 앱을 다시 시작하는 중입니다.`
+    case 'error': return status.message ?? '업데이트에 실패했습니다.'
+    case 'not-available': return '현재 설치된 버전이 최신입니다.'
+  }
+}
+
+export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boolean; children?: ReactNode }): JSX.Element {
+  const [promptState, setPromptState] = useState<VersionPromptState>({ kind: 'none' })
+  const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus | null>(null)
+  const [noticeDismissed, setNoticeDismissed] = useState(false)
+  const checkedRef = useRef(false)
+  const installStartedRef = useRef(false)
+
+  const checkForUpdate = () => {
+    const updater = window.arologisUpdater
+    if (!updater) return
+    setUpdateStatus({ kind: 'checking' })
+    void updater.check().catch((error: unknown) => {
+      console.error('[arologis-version] updater 확인 상세 오류(사용자 화면 비공개)', error)
+      setUpdateStatus({ kind: 'error', message: '업데이트 확인에 실패했습니다. 인터넷 연결을 확인해 주세요.' })
+    })
+  }
+
+  useEffect(() => {
+    if (!bootstrapped) return
+    const updater = window.arologisUpdater
+    if (!updater) return
+    const unsubscribe = updater.onStatus((rawStatus) => {
+      const status = normalizeUpdateStatus(rawStatus)
+      if (!status) return
+      setUpdateStatus(status)
+      if (status.kind === 'downloaded' && !installStartedRef.current) {
+        installStartedRef.current = true
+        void updater.install().catch((error: unknown) => {
+          console.error('[arologis-version] updater 설치 상세 오류(사용자 화면 비공개)', error)
+          installStartedRef.current = false
+          setUpdateStatus({ kind: 'error', message: '업데이트 설치에 실패했습니다. 앱을 종료한 뒤 다시 실행해 주세요.' })
+        })
+      }
+    })
+    checkForUpdate()
+    return unsubscribe
+  }, [bootstrapped])
+
+  useEffect(() => {
+    if (!bootstrapped || checkedRef.current) return
+    checkedRef.current = true
+    void fetchDesktopVersionStatus({
+      apiBaseUrl: VERSION_API_BASE_URL,
+      currentVersion: CURRENT_VERSION,
+    }).then((versionInfo) => {
+      if (!versionInfo) return
+      setPromptState(resolveVersionPromptState(versionInfo, safeStorage()))
+    })
+  }, [bootstrapped])
+
+  const dismiss = () => {
+    if (promptState.kind !== 'minor' && promptState.kind !== 'recommend') return
+    safeStorage().setItem(promptState.dismissKey, 'true')
+    setPromptState({ kind: 'none' })
+  }
+
+  const statusNotice = updateStatus && updateStatus.kind !== 'not-available' && !noticeDismissed ? (
+    <aside role="status" data-testid="app-auto-update-status" className="no-print">
+      <span>{updateStatusText(updateStatus)}</span>
+      <button type="button" onClick={checkForUpdate}>다시 확인</button>
+      <button type="button" onClick={() => setNoticeDismissed(true)}>닫기</button>
+    </aside>
+  ) : null
+
+  if (promptState.kind === 'blocking') {
+    const { versionInfo } = promptState
+    return (
+      <>
+        {statusNotice}
+        <section role="alertdialog" data-testid="app-version-blocking-modal" aria-modal="true">
+          <h2>긴급 업데이트</h2>
+          <p>현재 버전 {CURRENT_VERSION}은 더 이상 사용할 수 없습니다.</p>
+          <p>최신 버전: {versionInfo.latestVersion}</p>
+          <p>{versionInfo.releaseNotes || '최신 버전을 설치한 뒤 다시 실행해 주세요.'}</p>
+          <button type="button" onClick={checkForUpdate}>업데이트 다시 확인</button>
+          <button type="button" onClick={() => void window.arologisUpdater?.quit()}>앱 종료</button>
+        </section>
+      </>
+    )
+  }
+
+  const notice = promptState.kind === 'minor' || promptState.kind === 'recommend' ? (
+    <aside role="status" data-testid="app-version-minor-banner" className="no-print">
+      <span>새 아로로지스 데스크톱 버전 {promptState.versionInfo.latestVersion}이 있습니다. 앱을 다시 시작하면 설치됩니다.</span>
+      <button type="button" onClick={dismiss}>나중에</button>
+    </aside>
+  ) : null
+
+  return (
+    <>
+      {statusNotice}
+      {notice}
+      {children}
+    </>
+  )
+}

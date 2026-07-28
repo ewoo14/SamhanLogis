@@ -5,10 +5,11 @@
 appId: com.samhanair.arologis.desktop
 productName: Arologis Desktop
 copyright: Copyright (c) 2026 (주)삼한공조시스템
-artifactName: ${productName}-${version}-${arch}.${ext}
+artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}.${ext}
+forceCodeSigning: true
 
 directories:
-  output: release/${version}
+  output: release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}
   buildResources: build
 
 files:
@@ -40,6 +41,11 @@ nsis:
   language: '1042'  # Korean
 
 portable:
-  artifactName: ${productName}-${version}-${arch}-portable.${ext}
+  artifactName: ${productName}-${env.SAMHAN_RELEASE_ARTIFACT_VERSION}-${arch}-portable.${ext}
 
-publish: null  # 자동 업데이트 미도입 (Samhan Public 정책 일치).
+# private GitHub Releases 대신 아로로지스 전용 HTTPS 정적 피드를 사용한다.
+# 삼한 데스크톱 피드와 섞이지 않도록 별도 환경변수로 주입한다.
+publish:
+  provider: generic
+  url: ${env.AROLOGIS_UPDATE_URL}
+  channel: latest
