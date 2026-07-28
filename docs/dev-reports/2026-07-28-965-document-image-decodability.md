@@ -465,3 +465,111 @@ Git Bash: /mingw64/bin/pdftotext (xpdf 4.06) → warning=ABSENT, extracted=132 b
 - Codex in-app Browser runtime은 세션에서 브라우저 목록이 비어 있어 사용할 수 없었다. 대신 설치된 Playwright Chromium으로 동일한 실제 Vite 편집기/API 경로를 실행했으며, 캡처 후 `getComputedStyle`, `getBoundingClientRect`, 실제 텍스트 노드를 읽었다.
 - Electron 패키지 자체는 실행하지 않았다. 데스크톱 의존성은 먼저 `clients/desktop/npm ci`로 설치했고, 웹 실제 렌더러와 관련 Vitest/typecheck를 검증했다.
 - 작업 중 생성한 throwaway 양식은 API `DELETE` 응답 200으로 정리했다. 마지막 라이브 QA 양식 id는 `74d71a79-2a94-4bb4-8bd0-1fedd056e55f`이며 cleanup body가 `success=true`였다.
+
+## 12. 2026-07-28 SOL 2차 fix — 손상 요소 자체 제거·결정적 key·현재 상태 재평가
+
+### 12.1 판정 원문에 대한 대응
+
+SOL이 지적한 네 표면을 모두 소비자 표시 변경이 아니라 실제 렌더/상태의 원천에서 닫았다.
+
+- `RenderedImageElement`는 허용되지 않는 source나 `decode()` 실패가 확정된 순간 `<img>`를 더 이상 용지 subtree에 렌더하지 않는다. `display:none`의 placeholder `span`만 남긴다. 아직 판정 중인 허용 source도 `visibility:hidden`으로 두어 브라우저의 broken-image 아이콘·alt fallback·기본 테두리가 한 프레임 칠해지지 않게 했다. 화면 ruler와 인쇄 measurement ruler 양쪽에 같은 규칙을 적용했다.
+- 캔버스 각 행과 선택된 인스펙터에 `요소 key: ...`를 보이고, ▲/▼ 버튼의 accessible name에도 같은 key를 넣었다. 따라서 동일 alt 4행도 summary의 key와 exact row/testid로 결정적으로 대응한다.
+- reporter state는 template의 현재 band/element 순서로 다시 정렬한다. async reject 도착 순서가 바뀌어도 summary는 canvas 순서를 따른다.
+- draft의 IMAGE source/alt/band/order 서명이 바뀌면 `findUndecodableImages`를 다시 실행해 footer `error`를 즉시 비운다. 현재도 손상된 이미지가 남아 있으면 현재 목록만 다시 표시한다.
+
+### 12.2 RED → GREEN 원문
+
+새 RED 테스트를 먼저 추가한 뒤 이전 구현을 대상으로 실행했다. 핵심 실패 원문은 다음과 같다.
+
+```text
+DocumentRenderer.image-boundary.test.tsx
+  expected 0 image elements, received 6
+  → tiny 26×2.7px grid의 실패 <img> 6개가 화면/인쇄 DOM에 남음
+
+DocumentRenderer.image-error.test.tsx
+  expected ["image-row-a", "image-row-b"]
+  received ["image-row-b", "image-row-a"]
+
+ElementInspector.test.tsx
+  Unable to find an element with the text: 요소 key: image-row-b
+
+BandCanvas.test.tsx
+  Unable to find an element with the text: 요소 key: image-row-a
+
+DocumentTemplateEditorPage.image-decodability.test.tsx
+  직전 저장 차단 사유가 현재 draft 수정 뒤에도 남아 있음
+```
+
+fix 후 실행 원문:
+
+```text
+Test Files 5 passed (5)
+Tests 30 passed (30)
+
+npm run typecheck
+tsc ... exit 0
+typecheck:real-qa: tests 2, pass 2, fail 0
+
+npm run lint
+0 errors, 기존 경고만 존재
+```
+
+### 12.3 증거 무결성 정정
+
+직전 보고서의 `xpdf 4.06 → 132 bytes`는 같은 도구·같은 파일로 재현되지 않았다. 이번 새 PDF
+`docs/qa/2026-07-28-965-sol2-fix/04-live-print.pdf`에 대해 같은 xpdf 4.06을 다시 실행한 값은 다음과 같다.
+
+```text
+PowerShell: C:\Program Files\Git\mingw64\bin\pdftotext.exe
+           pdftotext version 4.06 [www.xpdfreader.com]
+           UTF-8 bytes = 1019
+           인쇄 경고 문구 hit = 0
+Git Bash:  /mingw64/bin/pdftotext
+           pdftotext version 4.06 [www.xpdfreader.com]
+           wc -c = 1017
+           인쇄 경고 문구 hit = 0
+```
+
+두 byte 값의 2바이트 차이는 PowerShell `Out-String`의 줄바꿈 처리 차이이며 PDF 내용의 판정 차이가 아니다. 따라서 `132 bytes`는 정정하고 재사용하지 않는다.
+
+직전 `textNodes=false`도 “DOM Text node가 없다”는 뜻으로는 틀렸다. 정확한 측정 대상은 **print summary가 `display:none`이고 rect가 `(0,0,0,0)`이지만 `textContent.length`는 321인 상태**였다. 이번 측정에서는 실제 인쇄 기준 문구 3개 각각 `actualTextNodeCount=1`, summary는 `display=none`, rect `(0,0,0,0)`, `textLength=228`이었다. 즉 “DOM Text node 부재”가 아니라 “인쇄 summary가 paint/layout 대상이 아님”이라고 표현해야 한다.
+
+### 12.4 실 API·실 편집기·화면/인쇄/PDF QA
+
+실제 `vite.renderer.dev.config.ts` 편집기(`127.0.0.1:5175`)와 로컬 실 API(`localhost:8080`)를 사용했다. 전용 양식을 UI에서 생성하고, API PUT으로 손상 WebP 4개·동일 alt 4행·HEADER/BODY/FOOTER tiny 좌표 격자를 주입한 뒤 다시 편집기로 reload했다. 마지막 양식은 API DELETE HTTP 200으로 정리했다.
+
+캡처:
+
+- [01-live-screen-before-print.png](../qa/2026-07-28-965-sol2-fix/01-live-screen-before-print.png)
+- [02-live-screen-measured.png](../qa/2026-07-28-965-sol2-fix/02-live-screen-measured.png)
+- [03-live-print-media.png](../qa/2026-07-28-965-sol2-fix/03-live-print-media.png)
+- [04-live-print.pdf](../qa/2026-07-28-965-sol2-fix/04-live-print.pdf)
+- [05-live-after-source-fix.png](../qa/2026-07-28-965-sol2-fix/05-live-after-source-fix.png)
+
+프로그램 측정 결과:
+
+```text
+screen: failed <img> DOM=0, invalidImageDom=[], painted placeholder=0
+        HEADER/BODY/FOOTER overlapY=0
+        actual text node count=1,1,1
+        summary display=grid rect=(558.765625,1633.9375,647.484375,191)
+print : failed <img> DOM=0, invalidImageDom=[], painted placeholder=0
+        HEADER/BODY/FOOTER overlapY=0
+        actual text node count=1,1,1
+        summary display=none rect=(0,0,0,0)
+summary order:
+  image-row-b → image-row-d → body-overlap-image → footer-overlap-image
+canvas order:
+  ... image-row-a → image-row-b → image-row-c → image-row-d → header-overlap-text ...
+  ... body-overlap-image → body-overlap-text ... footer-overlap-image → footer-overlap-text
+selected inspector: 요소 key: body-overlap-image
+source fix live recheck:
+  summary = image-row-b → image-row-d → footer-overlap-image
+  footer error = 현재 3개 목록만 표시, body-overlap-image는 제거됨
+```
+
+동일 alt 네 행의 문제 두 건은 summary에 `image-row-b`, `image-row-d`로 표시되고, 캔버스 행에도 같은 key가 보였다. PDF는 두 xpdf 경로에서 경고 0회였고 HEADER/BODY 기준 문구는 정상 인쇄됐다.
+
+### 12.5 SOL의 “이 라운드가 보지 않은 것”과 이번 fix의 범위
+
+SOL 원문이 보지 않았다고 명시한 물리 프린터, Safari/WebKit/Firefox, 네트워크 URL 이미지, 수백 개 이미지 부하, native Ctrl+ 확대, 실제 스크린리더 음성, `APPROVAL_GRID`의 BODY/FOOTER 비사용 조합, 공유 실데이터는 이번 fix가 검증했다고 주장하지 않는다. 다만 이번 변경은 브라우저 공통 DOM의 실패 `<img>` 제거와 CSS visibility/display, 편집기 row/ARIA key, 현재 draft 재평가를 건드렸으므로 Chrome 화면·print media·Chrome PDF와 키보드/접근 가능한 이름 경로는 재검증했다. 물리 장치·타 브라우저·네트워크 응답·대규모 부하·음성 출력은 별도 검증 영역으로 남긴다.

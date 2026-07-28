@@ -3387,3 +3387,10 @@ PR #660 은 **이미 머지됨** (`579835ef`, 2026-06-28 ewoo14). 집 PC 미설�
 - #890-2~6에 ACTIVE-0/승인 레거시 DB trigger V15, mock pin 3필드 parity, 공개 3-인자 승인 테스트, 실제 Chromium print media no-print 검증을 추가했다. 적용 V13/V14는 수정하지 않았다.
 - 최종 선택 검증: Desktop 관련 Vitest `3 files / 145 tests`, groupware Gradle 선택 테스트 `BUILD SUCCESSFUL`, 신규 Playwright print-media `1 passed`, 공유 cleanup probe 3시나리오 GREEN.
 - 상세 RED→GREEN·변이 RED·실측 원문: `docs/dev-reports/2026-07-27-913-890-verify-quality.md`. 커밋·push·GitHub 쓰기는 수행하지 않았으며 PM 커밋 대행 대기.
+
+## ✅ 2026-07-28 Codex LUNA — PR #968 SOL 2차 fix
+
+- 손상 `<img>`를 화면/인쇄 용지에 남기지 않고 decode 실패 시 display-none placeholder로 수렴시켰다. pending 상태도 visibility hidden으로 두어 broken-image 아이콘·alt fallback·기본 테두리의 한 프레임 도장을 막았다.
+- 캔버스 행·인스펙터·이동 버튼 accessible name에 exact element key를 넣고, async decode issue summary를 현재 canvas 순서로 정렬했다. IMAGE source/alt/band/order 변경 시 저장 error를 현재 draft 기준으로 재평가한다.
+- RED-first 신규 5파일 30 tests GREEN, Desktop 전체 Vitest 185 files/1671 tests GREEN, build/typecheck GREEN, lint 0 errors/104 existing warnings. 실 API/실 편집기 throwaway QA와 화면·인쇄 DOM/PDF 교차 측정은 `docs/dev-reports/2026-07-28-965-document-image-decodability.md` §12 및 `docs/qa/2026-07-28-965-sol2-fix/`에 기록했다.
+- SOL의 `132 bytes`와 `textNodes=false` 해석을 정정했다. PowerShell/Git Bash xpdf 4.06에서 동일 PDF의 UTF-8 추출은 1019/1017 bytes, 인쇄 경고 hit 0이다. 커밋·push·GitHub 쓰기는 수행하지 않았으며 PM 커밋 대행 대기.

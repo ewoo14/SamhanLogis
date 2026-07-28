@@ -9,7 +9,6 @@ import {
   BAND_KIND_LABEL,
   canDecodeImageSource,
   isAllowedImageSourceFormat,
-  isAllowedImageSource,
   maxImageBytesForDocument,
   MAX_ALT_LENGTH,
   MAX_TEXT_LENGTH,
@@ -123,6 +122,7 @@ export function ElementInspector({
       <div className="document-template-inspector-selected">
         <span className="document-template-selected-caption">현재 선택</span>
         <strong>{ELEMENT_TYPE_LABEL[element.type]}</strong>
+        <span data-testid="document-template-selected-key">요소 key: {element.key}</span>
       </div>
       {element.type === 'TEXT' ? (
         <label>

@@ -252,6 +252,8 @@ interface ImageDecodeIssueReporter {
 
 const imageDecodeIssueReporterContext = createContext<ImageDecodeIssueReporter | null>(null)
 
+type ImageDecodeStatus = 'pending' | 'decoded' | 'failed'
+
 function ImageDecodeIssueSummary({ issues }: { issues: ImageDecodeIssue[] }) {
   if (issues.length === 0) return null
 
@@ -313,51 +315,71 @@ function RenderedImageElement({
   const imgRef = useRef<HTMLImageElement | null>(null)
   const reporter = useContext(imageDecodeIssueReporterContext)
   const issue = useMemo(() => ({ key: element.key, alt: element.alt, bandLabel }), [bandLabel, element.alt, element.key])
+  const sourceIsAllowed = isAllowedImageSource(element.src)
+  const [decodeState, setDecodeState] = useState<{ src: string; status: ImageDecodeStatus }>(() => ({
+    src: element.src,
+    status: sourceIsAllowed ? 'pending' : 'failed',
+  }))
+  const decodeStatus = !sourceIsAllowed || decodeState.src !== element.src ? 'pending' : decodeState.status
+
+  const setStatus = useCallback((status: ImageDecodeStatus) => {
+    setDecodeState({ src: element.src, status })
+  }, [element.src])
 
   useIsomorphicLayoutEffect(() => {
-    if (measurement) return undefined
-    if (!isAllowedImageSource(element.src)) {
-      reporter?.report(issue)
-      return () => reporter?.clear(element.key)
+    if (!sourceIsAllowed) {
+      setStatus('failed')
+      if (!measurement) reporter?.report(issue)
+      return () => { if (!measurement) reporter?.clear(element.key) }
     }
-    reporter?.clear(element.key)
+    setStatus('pending')
+    if (!measurement) reporter?.clear(element.key)
     const img = imgRef.current
-    if (!img || typeof img.decode !== 'function') return undefined
+    if (!img) return undefined
     let cancelled = false
-    img.decode().then(
-      () => { if (!cancelled) reporter?.clear(element.key) },
-      () => { if (!cancelled) reporter?.report(issue) },
-    )
+    const markDecoded = () => {
+      if (cancelled) return
+      setStatus('decoded')
+      if (!measurement) reporter?.clear(element.key)
+    }
+    const markFailed = () => {
+      if (cancelled) return
+      setStatus('failed')
+      if (!measurement) reporter?.report(issue)
+    }
+    if (typeof img.decode !== 'function') {
+      if (img.complete && img.naturalWidth > 0) markDecoded()
+      return () => { cancelled = true }
+    }
+    img.decode().then(markDecoded, markFailed)
     return () => {
       cancelled = true
-      reporter?.clear(element.key)
+      if (!measurement) reporter?.clear(element.key)
     }
-  }, [element.key, element.src, issue, measurement, reporter])
+  }, [element.key, issue, measurement, reporter, setStatus, sourceIsAllowed])
 
-  if (!isAllowedImageSource(element.src)) {
-    return measurement ? null : (
-      <img
-        aria-hidden="true"
-        className="document-template-image"
-        data-template-image={element.key}
-        src={element.src}
-        alt=""
-        style={{ ...geometryStyle(element.geometry, undefined), display: 'block', objectFit: 'contain' }}
-      />
-    )
+  const dataAttribute = measurement ? { 'data-template-print-image': element.key } : { 'data-template-image': element.key }
+  const placeholderAttribute = measurement
+    ? { 'data-template-print-image-placeholder': element.key }
+    : { 'data-template-image-placeholder': element.key }
+
+  if (!sourceIsAllowed || decodeStatus === 'failed') {
+    return <span aria-hidden="true" {...placeholderAttribute} style={{ display: 'none' }} />
   }
 
-  const handleDecodeFailure = () => reporter?.report(issue)
+  const handleDecodeFailure = () => {
+    setStatus('failed')
+    if (!measurement) reporter?.report(issue)
+  }
 
   return (
     <img
       ref={imgRef}
       className="document-template-image"
-      {...(measurement
-        ? { 'data-template-print-image': element.key }
-        : { 'data-template-image': element.key })}
+      {...dataAttribute}
       src={element.src}
       alt={element.alt}
+      aria-hidden={decodeStatus === 'decoded' ? undefined : true}
       onError={measurement ? undefined : handleDecodeFailure}
       style={{
         // IMAGE는 replaced element라 글꼴/굵기/정렬이 그려지지 않는다.
@@ -365,6 +387,7 @@ function RenderedImageElement({
         ...geometryStyle(element.geometry, element.style?.border === undefined ? undefined : { border: element.style.border }),
         display: 'block',
         objectFit: 'contain',
+        visibility: decodeStatus === 'decoded' ? 'visible' : 'hidden',
       }}
     />
   )
@@ -665,14 +688,23 @@ export function DocumentRenderer({ template, model, backTo }: DocumentRendererPr
   const clearImageIssue = useCallback((key: string) => {
     setImageIssues((current) => current.filter((issue) => issue.key !== key))
   }, [])
+  const imageOrder = useMemo(() => new Map(
+    template.document.bands.flatMap((band) => band.elements)
+      .filter((element): element is ImageElement => element.type === 'IMAGE')
+      .map((element, index) => [element.key, index] as const),
+  ), [template.document.bands])
+  const orderedImageIssues = useMemo(() => [...imageIssues].sort((left, right) => (
+    (imageOrder.get(left.key) ?? Number.MAX_SAFE_INTEGER) - (imageOrder.get(right.key) ?? Number.MAX_SAFE_INTEGER)
+      || left.key.localeCompare(right.key)
+  )), [imageIssues, imageOrder])
   const reporter = useMemo<ImageDecodeIssueReporter>(() => ({
     report: reportImageIssue,
     clear: clearImageIssue,
   }), [clearImageIssue, reportImageIssue])
 
   return (
-    <imageDecodeIssueReporterContext.Provider value={reporter}>
-      <ImageDecodeIssueSummary issues={imageIssues} />
+      <imageDecodeIssueReporterContext.Provider value={reporter}>
+      <ImageDecodeIssueSummary issues={orderedImageIssues} />
       <PrintLayout
         approvalDoc
         paper={compiled.paper}

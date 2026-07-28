@@ -22,6 +22,18 @@ const commonProps = {
 const chromiumRejectedVp8lVersionOne = 'UklGRhIAAABXRUJQVlA4TAYAAAAvA8AAIAA='
 
 describe('ElementInspector PR #914 residual gates', () => {
+  it('현재 선택한 요소의 exact key를 화면에 노출한다', () => {
+    render(
+      <ElementInspector
+        element={{ key: 'image-row-b', type: 'IMAGE', src: '/print-logo.svg', alt: '동일 대체 문구' }}
+        onUpdate={vi.fn()}
+        {...commonProps}
+      />,
+    )
+
+    expect(screen.getByText('요소 key: image-row-b')).toBeTruthy()
+  })
+
   it('geometry가 없으면 위치 입력값을 저장된 상태가 없는 빈 값으로 표시한다', () => {
     render(<ElementInspector element={textElement} onUpdate={vi.fn()} {...commonProps} />)
 

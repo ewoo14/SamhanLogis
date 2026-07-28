@@ -40,16 +40,18 @@ export function BandCanvas({
                   data-testid={`template-element-${element.key}`}
                   data-template-key={element.key}
                   aria-pressed={selectedKey === element.key}
+                  aria-label={`${ELEMENT_TYPE_LABEL[element.type]} 요소 key: ${element.key}`}
                   onClick={() => onSelect(element.key)}
                 >
                   {ELEMENT_TYPE_LABEL[element.type]}
                 </button>
+                <code className="document-template-element-key">요소 key: {element.key}</code>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   disabled={!canEdit || index === 0}
-                  aria-label={`${ELEMENT_TYPE_LABEL[element.type]} 앞으로 이동`}
+                  aria-label={`${ELEMENT_TYPE_LABEL[element.type]} 요소 key: ${element.key} 앞으로 이동`}
                   onClick={() => onMove(element.key, 'up')}
                 >
                   ▲
@@ -59,7 +61,7 @@ export function BandCanvas({
                   variant="ghost"
                   size="sm"
                   disabled={!canEdit || index === band.elements.length - 1}
-                  aria-label={`${ELEMENT_TYPE_LABEL[element.type]} 뒤로 이동`}
+                  aria-label={`${ELEMENT_TYPE_LABEL[element.type]} 요소 key: ${element.key} 뒤로 이동`}
                   onClick={() => onMove(element.key, 'down')}
                 >
                   ▼

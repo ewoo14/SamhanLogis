@@ -104,6 +104,22 @@ export function DocumentTemplateEditorPage() {
     document: draft.document,
   }), [draft.docType, draft.name, draft.document])
 
+  const imageValidationSignature = useMemo(
+    () => JSON.stringify(draft.document.bands.flatMap((band) => band.elements
+      .filter((element) => element.type === 'IMAGE')
+      .map((element) => ({ band: band.kind, key: element.key, alt: element.alt, src: element.src })))),
+    [draft.document.bands],
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setError(null)
+    void findUndecodableImages(input.document).then((issues) => {
+      if (!cancelled && issues.length > 0) setError(errorMessage(new ImageSourceDecodeError(issues)))
+    })
+    return () => { cancelled = true }
+  }, [imageValidationSignature, input.document])
+
   // N-2: fieldRows는 하드코딩이 아니라 approvalFieldOptions(현재 docType의 실서버 필드)에서 파생한다
   // — buildPreviewModel 내부의 buildPreviewFieldRows가 담당한다. docType이 바뀌면(또는 fieldOptions가
   // 아직 로딩 전이면) 미리보기도 그 문서 유형이 실제로 가진 필드만 정확히 반영한다(P2: 다른 유형의

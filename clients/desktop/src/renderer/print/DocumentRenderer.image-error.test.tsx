@@ -173,4 +173,65 @@ describe('DocumentRenderer C3 image decode notice', () => {
     await waitFor(() => expect(decode).toHaveBeenCalled())
     expect(screen.queryByTestId('document-template-image-error-positioned-decodable-image')).toBeNull()
   })
+
+  it('재정렬된 캔버스 순서가 비동기 decode 도착 순서보다 우선한다', async () => {
+    const pending = new Map<string, { reject: () => void; promise: Promise<void> }>()
+    const seenKeys: string[] = []
+    for (const key of ['image-row-a', 'image-row-b']) {
+      let reject!: () => void
+      const promise = new Promise<void>((_resolve, nextReject) => { reject = () => nextReject(new DOMException('디코드 실패', 'EncodingError')) })
+      pending.set(key, { reject, promise })
+    }
+    const decode = vi.fn(function (this: HTMLImageElement) {
+      const key = this.getAttribute('data-template-image') ?? this.getAttribute('data-template-print-image')
+      if (key) seenKeys.push(key)
+      return pending.get(key ?? '')?.promise ?? Promise.resolve()
+    })
+    window.HTMLImageElement.prototype.decode = decode
+
+    const fixture = approvalRenderFixtures[0]!
+    const templateFor = (order: string[]) => ({
+      ...GROUPWARE_DEFAULT,
+      schemaVersion: 2 as const,
+      document: {
+        ...GROUPWARE_DEFAULT.document,
+        bands: GROUPWARE_DEFAULT.document.bands.map((band) => band.kind === 'HEADER'
+          ? {
+              ...band,
+              elements: [
+                ...band.elements,
+                ...order.map((key) => ({
+                  key,
+                  type: 'IMAGE' as const,
+                  src: chromiumRejectedVp8lVersionOne,
+                  alt: '동일 대체 문구',
+                })),
+              ],
+            }
+          : band),
+      },
+    })
+
+    const view = render(
+      <StaticRouter location="/groupware/approvals/fixture-approval-id">
+        <DocumentRenderer template={templateFor(['image-row-a', 'image-row-b'])} model={buildApprovalRenderModel(fixture.input)} />
+      </StaticRouter>,
+    )
+
+    await waitFor(() => expect(decode).toHaveBeenCalled())
+    expect(seenKeys).toContain('image-row-a')
+    pending.get('image-row-b')!.reject()
+    pending.get('image-row-a')!.reject()
+    const itemKeys = () => Array.from(document.querySelectorAll('[data-testid^="document-template-image-error-item-"]'))
+      .map((item) => item.getAttribute('data-testid')?.replace('document-template-image-error-item-', ''))
+    await waitFor(() => expect(itemKeys().length).toBe(2))
+
+    view.rerender(
+      <StaticRouter location="/groupware/approvals/fixture-approval-id">
+        <DocumentRenderer template={templateFor(['image-row-a', 'image-row-b'])} model={buildApprovalRenderModel(fixture.input)} />
+      </StaticRouter>,
+    )
+
+    await waitFor(() => expect(itemKeys()).toEqual(['image-row-a', 'image-row-b']))
+  })
 })

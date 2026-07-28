@@ -170,7 +170,7 @@ test('R1 — 좌표 요소가 24mm 밴드를 넘치면 밴드가 자라 뒤 내�
   })
 
   await test.step('🚨 밴드를 flow 중간으로 — 좌표 TEXT 를 legacy 섹션 앞으로 이동', async () => {
-    const moveUp = page.getByRole('button', { name: '문구 앞으로 이동' })
+    const moveUp = page.getByRole('button', { name: /문구 앞으로 이동/ })
     await expect(moveUp, '앞으로 이동 버튼을 찾지 못했다').toBeVisible()
     await moveUp.click()
     await moveUp.click()
