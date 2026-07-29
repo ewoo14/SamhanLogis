@@ -47,6 +47,8 @@ const HOME_RECOMPUTE_FUNCTIONS = [
   'recomputeHomeBranches',
   'recomputeHomeRemotes',
   'recomputeHomePanels',
+  'noteHomeCatalogMissing_',
+  'setHomeDerivedQty_',
   'recomputeHomeDerived',
   'isHomeCalcTriggerModel',
   'isHomeDerivedRow',
@@ -143,6 +145,7 @@ function runClearScenario({ family, model, lockValue, sourceMutator }) {
     ${prelude.script}
     const homeQty = new Map(Object.entries(${JSON.stringify(prelude.sourceQuantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    let HOME_CATALOG_MISSING_MODELS = new Map();
     ${HOME_MANUAL_SETS_DECL}
     ${functions}
 
@@ -199,6 +202,7 @@ function runSnapshotRoundtrip({ family, model, lockValue, legacyShot }) {
     const commQty = new Map();
     const oldQty = new Map();
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    let HOME_CATALOG_MISSING_MODELS = new Map();
     ${HOME_MANUAL_SETS_DECL}
     /* #967 R2 G-1 이 takeSnapshot/applySnapshot 에 COMM_MANUAL_* 직렬화·복원을
        추가해, 이 두 함수를 추출·실행하려면 해당 식별자가 스코프에 있어야 한다.

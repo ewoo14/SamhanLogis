@@ -96,6 +96,8 @@ const ORDER_ONLY_QUANTITY_HELPERS = new Set([
   'isSingleManualLocked',
   'applySingleManualLock',
   'isCommDerivedRow',
+  'noteHomeCatalogMissing_',
+  'setHomeDerivedQty_',
 ]);
 
 function sourceFunctionBundleForApp(source, app, names) {
@@ -216,6 +218,8 @@ function runHome(source, input) {
     'recomputeHomeBranches',
     'recomputeHomeRemotes',
     'recomputeHomePanels',
+    'noteHomeCatalogMissing_',
+    'setHomeDerivedQty_',
     'recomputeHomeDerived',
     'isHomeCalcTriggerModel',
     'isHomeDerivedRow',
@@ -227,6 +231,7 @@ function runHome(source, input) {
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    let HOME_CATALOG_MISSING_MODELS = new Map();
     const HOME_MANUAL_PANEL = new Set();
     const HOME_MANUAL_HOSE = new Set();
     const HOME_MANUAL_REMOTE = new Set();

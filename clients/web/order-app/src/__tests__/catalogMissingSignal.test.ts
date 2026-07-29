@@ -28,6 +28,10 @@ const FIXTURE_PATH = resolve(
   process.cwd(),
   'src/__tests__/fixtures/commercialMultiBootstrap.fixture.json',
 );
+const HOME_FIXTURE_PATH = resolve(
+  process.cwd(),
+  'src/__tests__/fixtures/homemultiBootstrap.fixture.json',
+);
 
 function loadBootstrapFixture(): CatalogFixture {
   return JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as CatalogFixture;
@@ -119,6 +123,9 @@ function runRecompute(rows: CatalogRow[], sourceModel: string) {
       'isCommDerivedRow',
       'recomputeCommDerived',
     ].map((name) => extractFunction(source, name)).join('\n')}
+    ${source.includes('function renderCatalogWarnings_')
+      ? extractFunction(source, 'renderCatalogWarnings_')
+      : ''}
     ${source.includes('function renderCommCatalogWarnings')
       ? extractFunction(source, 'renderCommCatalogWarnings')
       : 'function renderCommCatalogWarnings() {}'}
@@ -139,6 +146,54 @@ function runRecompute(rows: CatalogRow[], sourceModel: string) {
     innerHTML: string;
     missingQuantity: number;
   };
+}
+
+function runHomeRecompute(rows: CatalogRow[], noHose = false) {
+  const source = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+  const homeWarning = { hidden: true, textContent: '' };
+  const controls: Record<string, { checked?: boolean }> = {
+    '#home_no_hose': { checked: noHose },
+  };
+
+  const script = `
+    const window = { SHOW_I_HOSE: false };
+    const HOMEMULTI = ${JSON.stringify(rows)};
+    const homeQty = new Map(HOMEMULTI.map((row) => [row.model, 0]));
+    homeQty.set('AJ012BN1PBC2', 1);
+    const HOSE_1W = HOMEMULTI.find((row) => row.model === 'FH-LFHLF')?.model || '';
+    const HOSE_4W = '';
+    const HOSE_I_1W = '';
+    const HOSE_I_4W = '';
+    let HOME_CATALOG_MISSING_MODELS = new Map();
+    const noteHomeCatalogMissing_ = ${extractFunction(source, 'noteHomeCatalogMissing_').replace(/^function noteHomeCatalogMissing_/, 'function noteHomeCatalogMissing_')};
+    const setHomeDerivedQty_ = ${extractFunction(source, 'setHomeDerivedQty_').replace(/^function setHomeDerivedQty_/, 'function setHomeDerivedQty_')};
+    const renderCatalogWarnings_ = ${extractFunction(source, 'renderCatalogWarnings_').replace(/^function renderCatalogWarnings_/, 'function renderCatalogWarnings_')};
+    const renderHomeCatalogWarnings = ${extractFunction(source, 'renderHomeCatalogWarnings').replace(/^function renderHomeCatalogWarnings/, 'function renderHomeCatalogWarnings')};
+    const controls = globalThis.__controls;
+    const warning = globalThis.__warning;
+    const document = {
+      getElementById: (id) => id === 'homeCatalogWarnings' ? warning : controls['#' + id] || null,
+      querySelector: (selector) => controls[selector] || null,
+    };
+    const el = (selector) => document.querySelector(selector);
+    const setDerivedQty = globalThis.__setDerivedQty;
+    const recomputeHomeBranches = () => {};
+    const recomputeHomeRemotes = () => {};
+    const recomputeFootAll = () => {};
+    const recomputeHomePanels = () => {};
+    ${extractFunction(source, 'recomputeHomeDerived')}
+    recomputeHomeDerived(false);
+    globalThis.__result = {
+      hidden: warning.hidden,
+      textContent: warning.textContent,
+      hoseQuantity: homeQty.get('FH-LFHLF') || 0,
+    };
+  `;
+
+  const context = vm.createContext({ __warning: homeWarning, __controls: controls });
+  context.__setDerivedQty = (_scope: string, state: Map<string, number>, model: string, quantity: number) => state.set(model, quantity);
+  vm.runInContext(script, context);
+  return context.__result as { hidden: boolean; textContent: string; hoseQuantity: number };
 }
 
 describe('상업멀티 파생 카탈로그 누락 신호', () => {
@@ -165,5 +220,44 @@ describe('상업멀티 파생 카탈로그 누락 신호', () => {
     expect(result.hidden).toBe(true);
     expect(result.textContent).toBe('');
     expect(result.missingQuantity).toBe(1);
+  });
+});
+
+describe('홈멀티 파생 카탈로그 누락 신호', () => {
+  it('실 bootstrap fixture에서 FH-LFHLF가 빠지면 모델명을 사용자 신호로 남긴다', () => {
+    const fixture = JSON.parse(readFileSync(HOME_FIXTURE_PATH, 'utf8')) as {
+      source: { originalHomeMultiRows: number; afterRemovingDerivedRows: number };
+      rows: CatalogRow[];
+    };
+    expect(fixture.source.originalHomeMultiRows).toBe(119);
+    expect(fixture.rows).toHaveLength(2);
+    const catalogWithoutDerived = fixture.rows.filter((row) => row.model !== 'FH-LFHLF');
+    expect(catalogWithoutDerived).toHaveLength(1);
+    expect(fixture.source.afterRemovingDerivedRows).toBe(118);
+
+    const result = runHomeRecompute(catalogWithoutDerived);
+
+    expect(result.hidden).toBe(false);
+    expect(result.textContent).toContain('FH-LFHLF');
+    expect(result.hoseQuantity).toBe(1);
+  });
+
+  it('정상 홈멀티 행은 경고 없이 1WAY 호스 수량을 계산한다', () => {
+    const fixture = JSON.parse(readFileSync(HOME_FIXTURE_PATH, 'utf8')) as { rows: CatalogRow[] };
+    const result = runHomeRecompute(fixture.rows);
+
+    expect(result.hidden).toBe(true);
+    expect(result.textContent).toBe('');
+    expect(result.hoseQuantity).toBe(1);
+  });
+
+  it('유연호스 제외를 선택하면 이전 누락 경고도 현재 상태에 맞춰 사라진다', () => {
+    const fixture = JSON.parse(readFileSync(HOME_FIXTURE_PATH, 'utf8')) as { rows: CatalogRow[] };
+    const catalogWithoutDerived = fixture.rows.filter((row) => row.model !== 'FH-LFHLF');
+    const result = runHomeRecompute(catalogWithoutDerived, true);
+
+    expect(result.hidden).toBe(true);
+    expect(result.textContent).toBe('');
+    expect(result.hoseQuantity).toBe(0);
   });
 });
