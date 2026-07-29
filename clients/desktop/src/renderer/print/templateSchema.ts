@@ -227,6 +227,13 @@ export const MAX_TEXT_LENGTH = 4_096
 /** R5(#914) P-5: ElementInspector IMAGE 대체 문구 입력 카운터와 파서 검증이 함께 사용한다. */
 export const MAX_ALT_LENGTH = 200
 export const MAX_IMAGE_BYTES = 50 * 1024
+export type ImageSourceMime = 'png' | 'jpeg' | 'webp'
+
+const IMAGE_SOURCE_PLACEHOLDERS: Record<ImageSourceMime, string> = {
+  png: 'data:image/png;base64,',
+  jpeg: 'data:image/jpeg;base64,',
+  webp: 'data:image/webp;base64,',
+}
 
 function imageDataUrlByteLength(value: string): number {
   const base64 = value.split(',')[1] ?? ''
@@ -253,10 +260,17 @@ function hasImageSignature(mime: string, base64: string): boolean {
 }
 
 /** 문서 JSON 상한을 함께 고려한 이미지 파일 선택기의 실제 decoded 상한. */
-export function maxImageBytesForDocument(document: DocumentPayload, imageKey: string): number {
+export function maxImageBytesForDocument(
+  document: DocumentPayload,
+  imageKey: string,
+  imageMime: ImageSourceMime = 'jpeg',
+): number {
   const imageExists = document.bands.some((band) => band.elements.some((element) => element.key === imageKey && element.type === 'IMAGE'))
   if (!imageExists) return 0
-  const placeholder = 'data:image/png;base64,'
+  // JPEG/WebP 접두사가 PNG보다 1자 길다. 기본값은 가장 긴 접두사를 사용해 선택 전 안내가
+  // 세 허용 형식 모두의 안전한 상한을 약속하게 한다. 파일 선택 후에는 실제 MIME을 전달해
+  // 기존 PNG 상한을 불필요하게 줄이지 않는다.
+  const placeholder = IMAGE_SOURCE_PLACEHOLDERS[imageMime]
   const withoutImageData: DocumentPayload = {
     ...document,
     bands: document.bands.map((band) => ({

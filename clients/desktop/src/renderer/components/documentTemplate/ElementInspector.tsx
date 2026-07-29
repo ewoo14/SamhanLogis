@@ -19,6 +19,7 @@ import {
   type DocumentPayload,
   type ElementStyle,
   type Geometry,
+  type ImageSourceMime,
 } from '../../print/templateSchema'
 import type { ApprovalTemplateField } from '../../api/groupwareApprovalTemplate'
 
@@ -29,6 +30,11 @@ const FIXED_BINDINGS: Array<{ value: BindingRef; label: string }> = [
   { value: 'closing.note', label: '맺음말' },
 ]
 const FIELD_ROW_BINDING = /^body\.fieldRow\[([^\[\]]{1,100})\]$/
+const IMAGE_DATA_URL_MIME = /^data:image\/(png|jpeg|webp);base64,/
+
+function imageMimeFromDataUrl(value: string): ImageSourceMime | undefined {
+  return IMAGE_DATA_URL_MIME.exec(value)?.[1] as ImageSourceMime | undefined
+}
 
 /** N-3/R2(#914): fieldOptions(현재 docType의 실서버 본문 필드) 조회 상태 — "화면은 모르는 것을 안다고
  * 말하지 않는다"를 지키려면 조회 중/실패/정말 없음(=조회를 마쳤는데 빈 배열)/**아직 조회를 시도하지도
@@ -267,8 +273,13 @@ export function ElementInspector({
                     setImageError('이미지 파일이 비어 있거나 지원되는 PNG/JPEG/WebP 형식이 아니어서 저장할 수 없습니다.')
                     return
                   }
-                  if (decodedBytes > imageMaxBytes) {
-                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다. 더 작은 이미지로 바꾸거나 다른 이미지 요소를 삭제·교체한 뒤 다시 선택하세요.`)
+                  const imageMime = imageMimeFromDataUrl(src)
+                  const imageMaxBytesForSource = document && imageMime
+                    ? maxImageBytesForDocument(document, element.key, imageMime)
+                    : imageMaxBytes
+                  const imageMaxKilobytesForSource = Math.floor(imageMaxBytesForSource / 1024)
+                  if (decodedBytes > imageMaxBytesForSource) {
+                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytesForSource}KB까지 저장할 수 있습니다. 더 작은 이미지로 바꾸거나 다른 이미지 요소를 삭제·교체한 뒤 다시 선택하세요.`)
                     return
                   }
                   if (!(await canDecodeImageSource(src))) {

@@ -31,6 +31,23 @@ function fileOf(bytes: Uint8Array, name: string, type: string) {
   return new File([bytes], name, { type })
 }
 
+function boundaryDocument() {
+  const document = structuredClone(GROUPWARE_DEFAULT.document)
+  document.bands.find((band) => band.kind === 'HEADER')!.elements.push({
+    key: 'image-1',
+    type: 'IMAGE',
+    src: '/print-logo.svg',
+    alt: 'aaaa',
+    geometry: { x: 70, y: 0, w: 25, h: 15 },
+  })
+  document.bands.find((band) => band.kind === 'BODY')!.elements.push({
+    key: 'text-1',
+    type: 'TEXT',
+    text: 'x'.repeat(679),
+  })
+  return document
+}
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
@@ -157,6 +174,33 @@ describe('#968 SOL 결함2 — 파일 거부 사유', () => {
     })
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ src: expect.stringContaining(`data:${type};base64,`) }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // ubuntu-latest: jsdom과 Web API만 사용하며 경로 구분자·OS 네이티브 파일 선택기에 의존하지 않는다.
+  it('기존에 저장 가능한 PNG 경계는 보수적인 JPEG/WebP 안내 상한으로도 계속 선택된다', async () => {
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    })
+    const onUpdate = vi.fn()
+    const document = boundaryDocument()
+    render(
+      <ElementInspector
+        element={{ key: 'image-1', type: 'IMAGE', src: '/print-logo.svg', alt: 'aaaa', geometry: { x: 70, y: 0, w: 25, h: 15 } }}
+        document={document}
+        onUpdate={onUpdate}
+        {...commonProps}
+      />,
+    )
+    const bytes = new Uint8Array(48_128)
+    bytes.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [fileOf(bytes, 'existing-boundary.png', 'image/png')] },
+    })
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ src: expect.stringContaining('data:image/png;base64,') }))
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })

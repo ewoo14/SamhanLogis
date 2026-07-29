@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { GROUPWARE_DEFAULT } from './approvalDefaultTemplate'
-import { maxImageBytesForDocument, parseDocumentTemplate } from './templateSchema'
+import { isAllowedImageSourceFormat, maxImageBytesForDocument, parseDocumentTemplate } from './templateSchema'
 
 const base = {
   schemaVersion: 1,
@@ -20,6 +20,29 @@ const base = {
     ],
   },
 } as const
+
+function boundaryDocument() {
+  const document = structuredClone(GROUPWARE_DEFAULT.document)
+  document.bands.find((band) => band.kind === 'HEADER')!.elements.push({
+    key: 'image-1',
+    type: 'IMAGE',
+    src: '/print-logo.svg',
+    alt: 'aaaa',
+    geometry: { x: 70, y: 0, w: 25, h: 15 },
+  })
+  document.bands.find((band) => band.kind === 'BODY')!.elements.push({
+    key: 'text-1',
+    type: 'TEXT',
+    text: 'x'.repeat(679),
+  })
+  return document
+}
+
+function dataUrlWithBytes(mime: 'png' | 'jpeg' | 'webp', signature: readonly number[], bytes: number): string {
+  const raw = new Uint8Array(bytes)
+  raw.set(signature)
+  return `data:image/${mime};base64,${Buffer.from(raw).toString('base64')}`
+}
 
 describe('document template limits', () => {
   it('accepts docType length 70 and rejects length 71', () => {
@@ -146,5 +169,45 @@ describe('document template limits', () => {
       ok: false,
       error: { code: 'INVALID_ENVELOPE' },
     })
+  })
+
+  // ubuntu-latest: Node의 TextEncoder·Buffer만 사용하며 경로 구분자, 로케일, OS 파일 선택기에 의존하지 않는다.
+  it.each([
+    ['PNG', 'png', [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
+    ['JPEG', 'jpeg', [0xFF, 0xD8, 0xFF]],
+    ['WebP', 'webp', [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]],
+  ] as const)('표시된 최대 KB의 정확한 경계에서도 %s는 형식·문서 예산을 함께 통과한다', (label, mime, signature) => {
+    const document = boundaryDocument()
+    const computedMaxBytes = maxImageBytesForDocument(document, 'image-1')
+    const displayedKB = Math.floor(computedMaxBytes / 1024)
+    const fileBytes = displayedKB * 1024
+    const src = dataUrlWithBytes(mime, signature, fileBytes)
+    const withImage = structuredClone(document)
+    withImage.bands.find((band) => band.kind === 'HEADER')!.elements.find((element) => element.key === 'image-1')!.src = src
+    const finalDocumentBytes = new TextEncoder().encode(JSON.stringify(withImage)).byteLength
+    const parsed = parseDocumentTemplate({ ...GROUPWARE_DEFAULT, schemaVersion: 2, document: withImage })
+    const observed = {
+      currentParseOk: parsed.ok,
+      displayedKB,
+      computedMaxBytes,
+      fileBytes,
+      formatGate: isAllowedImageSourceFormat(src),
+      finalDocumentBytes,
+      requestLimit: 64 * 1024,
+      parseCode: parsed.ok ? null : parsed.error.code,
+    }
+    if (process.env.REPORT_IMAGE_BOUNDARY === '1') console.log(JSON.stringify({ label, ...observed }))
+
+    expect(observed.currentParseOk, JSON.stringify(observed)).toBe(true)
+    expect(observed.formatGate).toBe(true)
+  })
+
+  // ubuntu-latest: 순수 JSON·TextEncoder 계산만 사용하며 경로 구분자·OS 네이티브 API에 의존하지 않는다.
+  it('형식별 data URL 접두사 상한을 계산해 기존 PNG 경계를 보존한다', () => {
+    const document = boundaryDocument()
+
+    expect(maxImageBytesForDocument(document, 'image-1', 'png')).toBe(48129)
+    expect(maxImageBytesForDocument(document, 'image-1', 'jpeg')).toBe(48126)
+    expect(maxImageBytesForDocument(document, 'image-1', 'webp')).toBe(48126)
   })
 })
