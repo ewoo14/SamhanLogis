@@ -230,5 +230,63 @@ describe('samhanApi.call', () => {
       platform: 'MOBILE',
       done: true,
     });
+  /**
+   * ubuntu-latest에서도 동작해야 하는 순수 Vitest 테스트다.
+   * 브라우저·Windows API·실제 서버 없이 axios mock만 사용한다.
+   */
+  it('주문 전송은 draft를 먼저 만들고 반환된 draftId로 confirm 한다', async () => {
+    const items = [{ section: 'HOME', model: 'HM-1', qty: 2, price: 12345 }];
+    const order = {
+      bizno: '1234567890',
+      addr: '서울시 중구',
+      auditAddr: '서울시 중구',
+      tel: '010-1234-5678',
+      due: '2026-07-31',
+      payDue: '월말',
+      memo: '문 앞에 놓아 주세요',
+    };
+    mocks.post
+      .mockResolvedValueOnce({
+        data: { success: true, data: { draftId: '11111111-1111-1111-1111-111111111111' } },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, data: { orderNo: '2026/07/29-1' } },
+      });
+
+    const result = await samhanApi.call('sendOrderFromUi', [items, order]);
+
+    expect(mocks.post).toHaveBeenNthCalledWith(1, '/partner-orders/drafts', {
+      label: '주문서 확정 임시저장',
+      payloadJson: JSON.stringify({ items, order }),
+    });
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/partner-orders/11111111-1111-1111-1111-111111111111/confirm',
+      {
+        lines: [
+          {
+            modelCode: 'HM-1',
+            categoryKey: 'homemulti',
+            quantity: 2,
+            remark: null,
+          },
+        ],
+      },
+    );
+    expect(result).toEqual({ ok: true, orderNo: '2026/07/29-1', error: null });
+  });
+
+  /** ubuntu-latest에서 axios mock rejection의 서버 사유가 반환되는지 검증한다. */
+  it('draft 또는 confirm 실패 시 서버 사유를 반환한다', async () => {
+    mocks.post.mockRejectedValueOnce({
+      response: { data: { message: '임시저장 권한이 없습니다' } },
+    });
+
+    const result = await samhanApi.call('sendOrderFromUi', [
+      [{ section: 'HOME', model: 'HM-1', qty: 1 }],
+      { bizno: '1234567890' },
+    ]);
+
+    expect(result).toEqual({ ok: false, orderNo: null, error: '임시저장 권한이 없습니다' });
   });
 });

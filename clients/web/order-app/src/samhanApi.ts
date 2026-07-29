@@ -50,7 +50,7 @@ http.interceptors.request.use((cfg) => {
  * - `logFrontEvent(action, detail)` → `POST /api/v1/partner-orders/log` (frontend audit)
  * - `saveOrderSnapshot(payload)` → `POST /api/v1/partner-orders/drafts` (M4, 30일 expiry)
  * - `getOrderSnapshotHistory(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?from=&to=`
- * - `sendOrderFromUi(payload)` → `POST /api/v1/partner-orders/{id}/confirm` + slip-service Event (M4)
+ * - `sendOrderFromUi(items, order)` → draft 생성 후 `POST /api/v1/partner-orders/{draftId}/confirm` (M4)
  * - `saveTutorialState(state)` → `PATCH /api/v1/auth/partner-tutorial`
  *
  * 추가 (legacy index.html 외부 호출 대응 — Code.js 분석 §1):
@@ -104,6 +104,63 @@ function unwrapApiResponse(body: unknown): unknown {
     return (body as { data?: unknown }).data
   }
   return body
+}
+
+type LegacyOrderItem = {
+  section?: unknown
+  model?: unknown
+  qty?: unknown
+  remarks?: unknown
+}
+
+const CONFIRM_CATEGORY_BY_SECTION: Record<string, string> = {
+  HOME: 'homemulti',
+  COMM: 'commercialMulti',
+  SINGLE: 'singleSets',
+  OLD: 'oldProducts',
+}
+
+function confirmLines(itemsArg: unknown): Array<{
+  modelCode: string
+  categoryKey: string
+  quantity: number
+  remark: string | null
+}> {
+  if (!Array.isArray(itemsArg) || itemsArg.length === 0) {
+    throw new Error('전송할 주문 품목이 없습니다')
+  }
+
+  return itemsArg.map((rawItem, index) => {
+    const item = (rawItem || {}) as LegacyOrderItem
+    const modelCode = String(item.model ?? '').trim()
+    const section = String(item.section ?? '').trim().toUpperCase()
+    const categoryKey = CONFIRM_CATEGORY_BY_SECTION[section]
+    const quantity = Number(item.qty)
+
+    if (!modelCode) throw new Error(`주문 ${index + 1}번째 품목의 모델코드가 없습니다`)
+    if (!categoryKey) throw new Error(`주문 ${index + 1}번째 품목의 카테고리를 확인할 수 없습니다`)
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error(`주문 ${index + 1}번째 품목의 수량이 올바르지 않습니다`)
+    }
+
+    const remark = typeof item.remarks === 'string' && item.remarks.trim()
+      ? item.remarks.trim()
+      : null
+    return { modelCode, categoryKey, quantity, remark }
+  })
+}
+
+function apiErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const responseData = (error as { response?: { data?: unknown } }).response?.data
+    if (responseData && typeof responseData === 'object') {
+      const message = (responseData as { message?: unknown }).message
+      if (typeof message === 'string' && message.trim()) return message
+    }
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
+  return '주문 전송에 실패했습니다'
 }
 
 const RPC_MAP: Record<string, RpcHandler> = {
@@ -205,17 +262,37 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapApiResponse(r.data)),
 
   // ─── 최종 주문 전송 (RPC §O buildSendRows + §X sendOrderFromUi) ─────
-  sendOrderFromUi: ([payload]) => {
-    const p = (payload || {}) as { id?: string }
-    const id = p.id || 'new'
-    return http
-      .post(`/partner-orders/${encodeURIComponent(id)}/confirm`, payload)
-      .then((r) => ({
-        ok: r.data?.success === true,
-        orderNo: r.data?.data?.orderNo ?? null,
-        error: r.data?.message ?? null,
-      }))
-  },
+  sendOrderFromUi: ([itemsArg, orderArg]) =>
+    Promise.resolve()
+      .then(() => {
+        const items = Array.isArray(itemsArg) ? itemsArg : []
+        const lines = confirmLines(items)
+        const order = orderArg && typeof orderArg === 'object' ? orderArg : {}
+        return http.post('/partner-orders/drafts', {
+          label: '주문서 확정 임시저장',
+          payloadJson: JSON.stringify({ items, order }),
+        }).then((r) => ({ lines, draft: unwrapApiResponse(r.data) }))
+      })
+      .then(({ lines, draft }) => {
+        const draftId = draft && typeof draft === 'object'
+          ? (draft as { draftId?: unknown }).draftId
+          : null
+        if (typeof draftId !== 'string' || !draftId.trim()) {
+          throw new Error('임시저장 ID를 받지 못했습니다')
+        }
+        return http
+          .post(`/partner-orders/${encodeURIComponent(draftId)}/confirm`, { lines })
+          .then((r) => ({
+            ok: r.data?.success === true,
+            orderNo: r.data?.data?.orderNo ?? null,
+            error: r.data?.message ?? null,
+          }))
+      })
+      .catch((error: unknown) => ({
+        ok: false,
+        orderNo: null,
+        error: apiErrorMessage(error),
+      })),
 
   // ─── 튜토리얼 상태 (RPC §W 카테고리) ──────────────────────────────────
   saveTutorialState: ([bizNo, mobile]) =>

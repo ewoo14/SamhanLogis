@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -131,27 +132,63 @@ public class PartnerOrderConfirmService {
         // 2) M1a product — 카탈로그 조회 (라인 스냅샷 + 가격 산출)
         List<UUID> productIds = request.lines().stream()
                 .map(ConfirmLineRequest::productId)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-        List<ProductSummary> products = productClient.lookup(productIds);
-        Map<UUID, BigDecimal> fixedDiscountRates = productClient.lookupFixedDiscountRates(productIds);
+        List<String> modelCodes = request.lines().stream()
+                .filter(line -> line.productId() == null)
+                .map(ConfirmLineRequest::modelCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (productIds.isEmpty() && modelCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "확정 라인에 productId 또는 modelCode가 필요합니다");
+        }
+        List<ProductSummary> productsById = productIds.isEmpty()
+                ? List.of() : productClient.lookup(productIds);
+        List<ProductSummary> productsByModelCode = modelCodes.isEmpty()
+                ? List.of() : productClient.lookupByModelCodes(modelCodes);
+        Map<UUID, ProductSummary> productMap = new HashMap<>();
+        Map<String, ProductSummary> modelCodeMap = new HashMap<>();
+        for (ProductSummary p : productsById) {
+            productMap.put(p.id(), p);
+        }
+        for (ProductSummary p : productsByModelCode) {
+            productMap.put(p.id(), p);
+            if (p.modelCode() != null && !p.modelCode().isBlank()) {
+                modelCodeMap.put(p.modelCode().trim(), p);
+            }
+        }
+
+        List<ConfirmLineRequest> reqLines = request.lines();
+        List<ProductSummary> lineProducts = new ArrayList<>();
+        for (ConfirmLineRequest line : reqLines) {
+            ProductSummary p = resolveProduct(line, productMap, modelCodeMap);
+            if (p == null) {
+                String identity = line.productId() != null
+                        ? line.productId().toString() : line.modelCode();
+                throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + identity);
+            }
+            lineProducts.add(p);
+        }
+        List<UUID> resolvedProductIds = lineProducts.stream()
+                .map(ProductSummary::id)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, BigDecimal> fixedDiscountRates =
+                productClient.lookupFixedDiscountRates(resolvedProductIds);
         if (fixedDiscountRates == null) {
             fixedDiscountRates = Map.of();
-        }
-        Map<UUID, ProductSummary> productMap = new HashMap<>();
-        for (ProductSummary p : products) {
-            productMap.put(p.id(), p);
         }
 
         // 3) price-calc 요청 빌드 (라인 index 를 lineId 로)
         List<DcConfigClient.PriceLine> priceLines = new ArrayList<>();
-        List<ConfirmLineRequest> reqLines = request.lines();
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
-            ProductSummary p = productMap.get(line.productId());
-            if (p == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + line.productId());
-            }
+            ProductSummary p = lineProducts.get(i);
             String discountFlags = resolveDiscountFlags(p);
             BigDecimal fixedDiscountRate = p.fixedDiscountRate() != null
                     ? p.fixedDiscountRate()
@@ -182,7 +219,7 @@ public class PartnerOrderConfirmService {
 
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
-            ProductSummary p = productMap.get(line.productId());
+            ProductSummary p = lineProducts.get(i);
             BigDecimal listPrice = resolveListPrice(p, line.categoryKey(),
                     p.fixedDiscountRate() != null ? p.fixedDiscountRate() : fixedDiscountRates.get(p.id()));
             BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), listPrice);
@@ -213,6 +250,18 @@ public class PartnerOrderConfirmService {
         publishListChanged();
 
         return ConfirmResponse.from(order);
+    }
+
+    private ProductSummary resolveProduct(ConfirmLineRequest line,
+                                          Map<UUID, ProductSummary> productMap,
+                                          Map<String, ProductSummary> modelCodeMap) {
+        if (line.productId() != null) {
+            return productMap.get(line.productId());
+        }
+        if (line.modelCode() == null || line.modelCode().isBlank()) {
+            return null;
+        }
+        return modelCodeMap.get(line.modelCode().trim());
     }
 
     private void publishListChanged() {
