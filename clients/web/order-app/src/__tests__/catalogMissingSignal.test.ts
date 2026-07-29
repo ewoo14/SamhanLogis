@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 declare const process: {
   cwd: () => string;
-  env: Record<string, string | undefined>;
 };
 declare function require(id: string): any;
 
@@ -12,8 +11,27 @@ const vm = require('node:vm');
 
 type CatalogRow = Record<string, any>;
 
-const BOOTSTRAP_URL = process.env.ORDER_APP_BOOTSTRAP_URL
-  || 'http://localhost:8088/api/v1/partner-orders/bootstrap';
+type CatalogFixture = {
+  source: {
+    endpoint: string;
+    fetchedOn: string;
+    httpStatus: number;
+    originalCommercialMultiRows: number;
+    afterRemovingDerivedRows: number;
+    selectedFields: string[];
+    note: string;
+  };
+  rows: CatalogRow[];
+};
+
+const FIXTURE_PATH = resolve(
+  process.cwd(),
+  'src/__tests__/fixtures/commercialMultiBootstrap.fixture.json',
+);
+
+function loadBootstrapFixture(): CatalogFixture {
+  return JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as CatalogFixture;
+}
 
 function extractFunction(source: string, name: string): string {
   const marker = `function ${name}`;
@@ -37,16 +55,6 @@ function extractConst(source: string, name: string): string {
   const end = source.indexOf(';', start);
   if (end < 0) throw new Error(`${name} 상수 선언을 닫을 수 없습니다.`);
   return source.slice(start, end + 1);
-}
-
-async function fetchLiveCommercialCatalog(): Promise<CatalogRow[]> {
-  const response = await fetch(BOOTSTRAP_URL, { headers: { Accept: 'application/json' } });
-  if (!response.ok) throw new Error(`실 bootstrap 실패: HTTP ${response.status}`);
-  const body = await response.json() as any;
-  const payloads = body?.data?.payloads ?? body?.payloads ?? body?.data ?? body;
-  const rows = payloads?.commercialMulti;
-  if (!Array.isArray(rows)) throw new Error('실 bootstrap commercialMulti 행이 없습니다.');
-  return rows;
 }
 
 function runRecompute(rows: CatalogRow[], sourceModel: string) {
@@ -134,13 +142,15 @@ function runRecompute(rows: CatalogRow[], sourceModel: string) {
 }
 
 describe('상업멀티 파생 카탈로그 누락 신호', () => {
-  it('실 bootstrap 행에서 파생 모델 1개가 빠지면 모델명을 사용자 신호로 남긴다', async () => {
-    const liveRows = await fetchLiveCommercialCatalog();
-    expect(liveRows.length).toBeGreaterThanOrEqual(404);
-    expect(liveRows.some((row) => row.model === 'AM080AXVHHH1')).toBe(true);
-    expect(liveRows.some((row) => row.model === '방진가대S2소')).toBe(true);
+  it('실 bootstrap fixture에서 파생 모델 1개가 빠지면 모델명을 사용자 신호로 남긴다', () => {
+    const fixture = loadBootstrapFixture();
+    const bootstrapRows = fixture.rows;
+    expect(bootstrapRows).toHaveLength(fixture.source.originalCommercialMultiRows);
+    expect(bootstrapRows.some((row) => row.model === 'AM080AXVHHH1')).toBe(true);
+    expect(bootstrapRows.some((row) => row.model === '방진가대S2소')).toBe(true);
 
-    const catalogWithoutDerived = liveRows.filter((row) => row.model !== '방진가대S2소');
+    const catalogWithoutDerived = bootstrapRows.filter((row) => row.model !== '방진가대S2소');
+    expect(catalogWithoutDerived).toHaveLength(fixture.source.afterRemovingDerivedRows);
     const result = runRecompute(catalogWithoutDerived, 'AM080AXVHHH1');
 
     expect(result.hidden).toBe(false);
@@ -148,9 +158,9 @@ describe('상업멀티 파생 카탈로그 누락 신호', () => {
     expect(result.missingQuantity).toBe(0);
   });
 
-  it('실 bootstrap 정상 행은 경고 없이 파생 수량을 계산한다', async () => {
-    const liveRows = await fetchLiveCommercialCatalog();
-    const result = runRecompute(liveRows, 'AM080AXVHHH1');
+  it('실 bootstrap fixture 정상 행은 경고 없이 파생 수량을 계산한다', () => {
+    const fixture = loadBootstrapFixture();
+    const result = runRecompute(fixture.rows, 'AM080AXVHHH1');
 
     expect(result.hidden).toBe(true);
     expect(result.textContent).toBe('');
