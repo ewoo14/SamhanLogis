@@ -89,6 +89,43 @@ class EcountProductImporterTest {
     }
 
     @Test
+    void importCsv_코드명_및_공백괄호_대표규칙으로_관계없는_중복그룹을_병합한다() {
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "절삭\t","절삭\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "00013\t","절삭\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "방진가대S2소\t","방진가대 S2 소\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "00196\t","방진가대 S2 소\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "PC2NWSK1N\t","PC2NWSK1N (신형 2WAY 판넬)\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "00219\t","PC2NWSK1N (신형 2WAY 판넬)\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isEqualTo(3);
+        assertThat(result.aliasImported()).isEqualTo(6);
+        assertThat(result.skippedRelationOrphan()).isZero();
+    }
+
+    @Test
+    void importCsv_관계없는_결정불가_동명그룹은_후보를_추측하지_않고_fail_closed한다() {
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "AAAA-00008\t","바람막이\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "ZENG-00009\t","바람막이\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        assertThatThrownBy(() -> importer.importCsv(stream(itemCsv), null, null, "tester"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG2_NO_MAIN_CANDIDATE))
+                .hasMessageContaining("AAAA-00008")
+                .hasMessageContaining("ZENG-00009");
+    }
+
+    @Test
     void importCsv_0만있는코드는_placeholder지만_0001은_정상코드다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"

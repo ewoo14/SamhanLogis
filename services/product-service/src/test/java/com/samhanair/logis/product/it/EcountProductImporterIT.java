@@ -79,7 +79,51 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                 Integer.class, MODEL_CODE)).isEqualTo(1);
     }
 
+    @Test
+    void importCsv_이카운트_직접생성행은_재임포트_품목명변경을_따라간다() {
+        EcountProductImportResult first = importer.importCsv(
+                itemCsv("EC-REIMPORT-01", "처음 품목", "100,000", "70,000"), null, null, "t7-test");
+        assertThat(first.imported()).isEqualTo(1);
+
+        EcountProductImportResult second = importer.importCsv(
+                itemCsv("EC-REIMPORT-01", "변경 품목", "120,000", "80,000"), null, null, "t7-test");
+
+        Product reimported = productRepository.findByProductCodeAndIsDeletedFalse("EC-REIMPORT-01")
+                .orElseThrow();
+        assertThat(second.updated()).isEqualTo(1);
+        assertThat(reimported.getName()).isEqualTo("변경 품목");
+        assertThat(reimported.getOutboundPrice()).isEqualByComparingTo("120000");
+    }
+
+    @Test
+    void importCsv_시트_병합은_기존_category_id를_보존한다() {
+        Category sheetCategory = categoryRepository.findByCode("OUTDOOR").orElseThrow();
+        Product sheetProduct = productRepository.saveAndFlush(Product.seedFromSheet(
+                "시트 분류 품목", "EC-CATEGORY-01", sheetCategory,
+                new BigDecimal("100000"), new BigDecimal("70000"),
+                ProductType.SINGLE, ProductCategory.HOME_MULTI, UsageScope.BOTH,
+                EstimateCategory.HOME_MULTI));
+
+        importer.importCsv(
+                itemCsv("EC-CATEGORY-01", "EC-CATEGORY-01 (이카운트)", "250,000", "180,000"), null, null,
+                "t7-test");
+
+        Product merged = productRepository.findById(sheetProduct.getId()).orElseThrow();
+        assertThat(merged.getCategory().getId()).isEqualTo(sheetCategory.getId());
+    }
+
     private static java.io.InputStream stream(String csv) {
         return new java.io.ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static java.io.InputStream itemCsv(String code, String name, String outbound, String inbound) {
+        return stream("""
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "__CODE__\t","__NAME__\t","__OUTBOUND__","__INBOUND__","","","0","0","","","[상품]\t","\t","YES\t"
+                """.replace("__CODE__", code)
+                .replace("__NAME__", name)
+                .replace("__OUTBOUND__", outbound)
+                .replace("__INBOUND__", inbound));
     }
 }

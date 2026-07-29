@@ -220,6 +220,10 @@ public class EcountProductImporter {
         if (relationMainCodes.contains(row.code())) {
             return new ProductMainCandidate(row.code(), row, null);
         }
+        ItemRow ruleMainRow = findApprovedRawMainRow(row, itemsByCode);
+        if (ruleMainRow != null) {
+            return new ProductMainCandidate(ruleMainRow.code(), ruleMainRow, null);
+        }
         String dbMainCode = findActiveProductCodeByName(row.name());
         if (dbMainCode != null && !dbMainCode.isBlank()) {
             ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
@@ -235,7 +239,42 @@ public class EcountProductImporter {
             return new ProductMainCandidate(row.code(), row, null);
         }
         throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                "품목 main 후보를 결정할 수 없습니다: name=" + row.name() + ", sourceRowNo=" + row.rowNo());
+                "품목 main 후보를 결정할 수 없습니다: name=" + row.name()
+                        + ", candidateCodes=" + rawCandidatesByName(row.name(), itemsByCode)
+                        + ", stoppedAt=⑤_FAIL_CLOSED, sourceRowNo=" + row.rowNo());
+    }
+
+    /**
+     * 개발책임자 결정(2026-07-28)의 안전한 raw 대표 규칙을 적용한다.
+     * 코드==명, 공백만 제거한 코드==명, 괄호 앞 코드==명만 자동 승인하고 그 외에는 null을 반환한다.
+     */
+    private ItemRow findApprovedRawMainRow(ItemRow row, Map<String, ItemRow> itemsByCode) {
+        ItemRow exact = itemsByCode.get(row.name());
+        if (exact != null) {
+            return exact;
+        }
+        String compactName = row.name().replaceAll("\\s+", "");
+        ItemRow whitespaceNormalised = itemsByCode.get(compactName);
+        if (whitespaceNormalised != null) {
+            return whitespaceNormalised;
+        }
+        int openingParenthesis = row.name().indexOf('(');
+        if (openingParenthesis > 0) {
+            String beforeParenthesis = row.name().substring(0, openingParenthesis).strip();
+            ItemRow parenthesisPrefix = itemsByCode.get(beforeParenthesis);
+            if (parenthesisPrefix != null) {
+                return parenthesisPrefix;
+            }
+        }
+        return null;
+    }
+
+    private List<String> rawCandidatesByName(String name, Map<String, ItemRow> itemsByCode) {
+        return itemsByCode.values().stream()
+                .filter(candidate -> candidate.name().equals(name))
+                .map(ItemRow::code)
+                .distinct()
+                .toList();
     }
 
     private boolean isNormal(String code, String name) {
@@ -306,6 +345,7 @@ public class EcountProductImporter {
               :outboundPrice, NOW(), :actor, FALSE
             )
             ON CONFLICT (product_code) WHERE is_deleted = FALSE DO UPDATE SET
+              name = EXCLUDED.name,
               model_name = EXCLUDED.model_name,
               model_code = EXCLUDED.model_code,
               specification = EXCLUDED.specification,
@@ -342,8 +382,6 @@ public class EcountProductImporter {
                SET model_name = :code,
                    model_code = :code,
                    product_code = :code,
-                   category_id = (SELECT c.id FROM categories c
-                                   WHERE c.code = 'ECOUNT_MIG2' AND c.is_deleted = FALSE LIMIT 1),
                    specification = :spec,
                    selling_price = :sellingPrice,
                    purchase_price = :purchasePrice,
@@ -366,6 +404,7 @@ public class EcountProductImporter {
                    modified_at = NOW(),
                    modified_by = :actor
              WHERE p.model_name = :code
+               AND p.product_code IS NULL
                AND p.is_deleted = FALSE
             RETURNING p.id
             """;
