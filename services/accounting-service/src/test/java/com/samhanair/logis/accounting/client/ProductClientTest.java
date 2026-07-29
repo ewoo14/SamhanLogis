@@ -67,7 +67,7 @@ class ProductClientTest {
                           "status":"ACTIVE",
                           "modelCode":"AC-S100-CODE",
                           "productType":"SINGLE",
-                          "categoryKey":"HOME_MULTI"
+                          "categoryKey":"homemulti"
                         }]}
                         """, MediaType.APPLICATION_JSON));
 
@@ -81,6 +81,29 @@ class ProductClientTest {
         assertThat(summary.categoryId()).isEqualTo(categoryId);
         assertThat(summary.sellingPrice()).isEqualByComparingTo(new BigDecimal("1234567.89"));
         assertThat(summary.status()).isEqualTo("ACTIVE");
+        assertThat(summary.categoryKey()).isEqualTo("homemulti");
+        server.verify();
+    }
+
+    @Test
+    void priceChangeDefaultVariants_기존_내부설정_맵을_파싱한다() {
+        server.expect(requestTo("http://product-service/products/internal/price-change-default-variant"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "homemulti":true,
+                          "singleSets":false,
+                          "commercialMulti":false,
+                          "oldProducts":false
+                        }}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.priceChangeDefaultVariants()).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "homemulti", true,
+                "singleSets", false,
+                "commercialMulti", false,
+                "oldProducts", false));
         server.verify();
     }
 

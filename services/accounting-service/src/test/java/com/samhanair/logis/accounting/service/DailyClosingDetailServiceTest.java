@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
+import com.samhanair.logis.accounting.client.ProductSummary;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
@@ -81,11 +82,21 @@ class DailyClosingDetailServiceTest {
     @InjectMocks private MonthEndCloseService service;
 
     private static final LocalDate DATE = LocalDate.of(2026, 5, 10);
+    private static final LocalDate BEFORE_INCREASE_DATE = LocalDate.of(2000, 1, 1);
 
     @BeforeEach
     void setUpProductClientDefaults() {
         lenient().when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of());
         lenient().when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of());
+        lenient().when(productClient.priceChangeDefaultVariants()).thenReturn(Map.of(
+                "homemulti", false,
+                "singleSets", false,
+                "commercialMulti", false,
+                "oldProducts", false));
+        lenient().when(productClient.lookup(anyList())).thenAnswer(invocation -> {
+            List<UUID> ids = invocation.getArgument(0);
+            return ids.stream().map(id -> productSummary(id, "homemulti")).toList();
+        });
     }
 
     @Test
@@ -141,6 +152,35 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("일마감 상세 — 인상 전 기본 설정 품목은 baseline price_history 단가를 표시한다")
+    void dailyDetailPreChangeDefaultUsesBaselinePriceHistory() {
+        UUID matched = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-PRE-CHANGE", "인상전거래처", DATE);
+        addLine(ti, "AJ040RXH4BC1 [4멀티]", BigDecimal.ONE, new BigDecimal("50000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "AJ040RXH4BC1 [4멀티]", ProductLabelMatch.matched(matched, "AJ040RXH4BC1")));
+        when(productClient.lookup(anyList())).thenReturn(List.of(productSummary(matched, "homemulti")));
+        when(productClient.priceChangeDefaultVariants()).thenReturn(Map.of("homemulti", true));
+        when(productClient.applicablePrices(anyList(), eq(BEFORE_INCREASE_DATE))).thenReturn(Map.of(
+                matched, new ApplicablePrice(new BigDecimal("90000"), new BigDecimal("63000"),
+                        BEFORE_INCREASE_DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                matched, new BigDecimal("45.00")));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        DailyClosingDetailResponse.DailyProductLine line = findProductLine(
+                resp, "AJ040RXH4BC1 [4멀티]");
+        assertThat(line.releasePrice()).isEqualByComparingTo("90000");
+        assertThat(line.deliveryPrice()).isEqualByComparingTo("63000");
+        verify(productClient).applicablePrices(List.of(matched), BEFORE_INCREASE_DATE);
+    }
+
+    @Test
     @DisplayName("할인 적용 — totalDiscount 0 (placeholder)")
     void discountPlaceholder() {
         TaxInvoice ti = newIssued("TI-DC", "할인거래처", DATE);
@@ -184,6 +224,10 @@ class DailyClosingDetailServiceTest {
         labelBulkResult.put("AC023CN1DBC1 [CN냉전 실내기]", ProductLabelMatch.ambiguous());
         labelBulkResult.put("운임", ProductLabelMatch.notFound());
         when(productClient.resolveByLabelBulk(anyList())).thenReturn(labelBulkResult);
+        when(productClient.lookup(anyList())).thenAnswer(invocation -> {
+            List<UUID> ids = invocation.getArgument(0);
+            return ids.stream().map(id -> productSummary(id, "homemulti")).toList();
+        });
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
                 missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
@@ -293,6 +337,31 @@ class DailyClosingDetailServiceTest {
         DailyClosingDetailResponse.DailyProductLine firstChunkLine =
                 findProductLine(resp, labels.get(0));
         assertThat(firstChunkLine.revalidationStatus()).isNotEqualTo("NOT_FOUND");
+    }
+
+    @Test
+    @DisplayName("일마감 상세 — 카테고리를 확인할 수 없으면 단가를 표시하지 않는다")
+    void dailyDetailUnknownCategoryFailsClosed() {
+        UUID matched = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-UNKNOWN-CATEGORY", "미분류거래처", DATE);
+        addLine(ti, "미분류모델 [규격]", BigDecimal.ONE, new BigDecimal("50000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "미분류모델 [규격]", ProductLabelMatch.matched(matched, "미분류모델")));
+        when(productClient.lookup(anyList())).thenReturn(List.of(productSummary(matched, null)));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        DailyClosingDetailResponse.DailyProductLine line = findProductLine(resp, "미분류모델 [규격]");
+        assertThat(line.releasePrice()).isNull();
+        assertThat(line.deliveryPrice()).isNull();
+        assertThat(line.verified()).isNull();
+        assertThat(line.revalidationStatus()).isEqualTo("MISSING_REFERENT");
+        verify(productClient, never()).applicablePrices(anyList(), eq(DATE));
+        verify(productClient, never()).applicablePrices(anyList(), eq(BEFORE_INCREASE_DATE));
     }
 
     @Test
@@ -498,6 +567,10 @@ class DailyClosingDetailServiceTest {
                 .filter(line -> productName.equals(line.productName()))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static ProductSummary productSummary(UUID id, String categoryKey) {
+        return new ProductSummary(id, "테스트품목", "TEST-MODEL", null, null, "ACTIVE", categoryKey);
     }
 
     private static SalesAccountingSlip newPostedSalesSlip(String slipNo, LocalDate slipDate,

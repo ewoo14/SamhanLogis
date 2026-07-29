@@ -49,7 +49,8 @@ public class ProductClient {
     private static final Logger log = LoggerFactory.getLogger(ProductClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String PRODUCT_SERVICE_BASE = "http://product-service";
-    private static final int LOOKUP_BATCH_MAX = 100;
+    /** product-service /lookup 1회 요청 최대 productId 수. */
+    public static final int LOOKUP_BATCH_MAX = 100;
     /** referent bulk(applicable/fixed-discount) 1회 요청 최대 productId 수. 호출측 청킹도 이 값을 공유. */
     public static final int REFERENT_BATCH_MAX = 500;
     /**
@@ -130,6 +131,54 @@ public class ProductClient {
                             + ", 응답 " + summaries.size() + ")");
         }
         return summaries;
+    }
+
+    /**
+     * product-service 에 저장된 카테고리별 "인상 전 단가" 기본값을 조회한다.
+     *
+     * <p>기존 {@code GET /products/internal/price-change-default-variant} 계약을 소비한다.
+     * 응답이 누락되거나 Boolean 이 아닌 값이면 표시 단가를 임의로 선택하지 않도록 오류로 처리한다.
+     *
+     * @return product-service categoryKey 별 defaultPreChange
+     */
+    public Map<String, Boolean> priceChangeDefaultVariants() {
+        Map<String, Object> envelope;
+        try {
+            envelope = restClient.get()
+                    .uri("/products/internal/price-change-default-variant")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                                "product-service 단가변동 설정 조회 요청 오류: " + res.getStatusCode());
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 단가변동 설정 조회 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient price-change default variant lookup failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 단가변동 설정 조회 실패", ex);
+        }
+
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof Map<?, ?> rawMap)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 단가변동 설정 응답 포맷 오류 (data 누락)");
+        }
+        Map<String, Boolean> result = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            if (!(entry.getKey() instanceof String key) || !(entry.getValue() instanceof Boolean value)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "product-service 단가변동 설정 응답 포맷 오류 (categoryKey/defaultPreChange)");
+            }
+            result.put(key, value);
+        }
+        return result;
     }
 
     /**

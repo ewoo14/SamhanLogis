@@ -17,5 +17,12 @@ public record ProductSummary(
         String modelName,
         UUID categoryId,
         BigDecimal sellingPrice,
-        String status) {
+        String status,
+        String categoryKey) {
+
+    /** 기존 소비자 호환용 생성자 — categoryKey 를 아직 사용하지 않는 호출자를 보존한다. */
+    public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
+                          BigDecimal sellingPrice, String status) {
+        this(id, name, modelName, categoryId, sellingPrice, status, null);
+    }
 }

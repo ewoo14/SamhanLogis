@@ -5,6 +5,7 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
+import com.samhanair.logis.accounting.client.ProductSummary;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
@@ -45,6 +46,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -76,6 +78,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class MonthEndCloseService {
+
+    /** ProductSheetSyncService 가 적재하는 인상 전 기준일(실제 baseline price_history row). */
+    private static final LocalDate BEFORE_INCREASE_PRICE_HISTORY_DATE = LocalDate.of(2000, 1, 1);
+    private static final Set<String> PRICE_CHANGE_CATEGORY_KEYS = Set.of(
+            "homemulti", "singleSets", "commercialMulti", "oldProducts");
 
     private final AccountingPeriodRepository periodRepository;
     private final JournalLineRepository journalLineRepository;
@@ -364,7 +371,12 @@ public class MonthEndCloseService {
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))
                 .stream()
                 .toList();
-        Map<UUID, ApplicablePrice> pricesByProductId = loadApplicablePrices(matchedProductIds, asOf);
+        Map<UUID, ProductSummary> productSummaries = loadProductSummaries(matchedProductIds);
+        Map<String, Boolean> defaultVariants = matchedProductIds.isEmpty()
+                ? Map.of()
+                : productClient.priceChangeDefaultVariants();
+        Map<UUID, ApplicablePrice> pricesByProductId = loadApplicablePrices(
+                matchedProductIds, asOf, productSummaries, defaultVariants);
         Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
@@ -434,15 +446,60 @@ public class MonthEndCloseService {
         return chunks;
     }
 
-    private Map<UUID, ApplicablePrice> loadApplicablePrices(List<UUID> productIds, LocalDate asOf) {
+    private Map<UUID, ProductSummary> loadProductSummaries(List<UUID> productIds) {
         if (productIds.isEmpty()) {
             return Map.of();
         }
-        Map<UUID, ApplicablePrice> result = new LinkedHashMap<>();
-        for (List<UUID> chunk : chunks(productIds)) {
-            result.putAll(productClient.applicablePrices(chunk, asOf));
+        Map<UUID, ProductSummary> result = new LinkedHashMap<>();
+        for (List<UUID> chunk : productIdChunks(productIds, ProductClient.LOOKUP_BATCH_MAX)) {
+            for (ProductSummary summary : productClient.lookup(chunk)) {
+                if (summary != null && summary.id() != null) {
+                    result.put(summary.id(), summary);
+                }
+            }
         }
         return result;
+    }
+
+    private Map<UUID, ApplicablePrice> loadApplicablePrices(
+            List<UUID> productIds,
+            LocalDate asOf,
+            Map<UUID, ProductSummary> productSummaries,
+            Map<String, Boolean> defaultVariants) {
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<LocalDate, List<UUID>> idsByPriceDate = new LinkedHashMap<>();
+        for (UUID productId : productIds) {
+            LocalDate priceDate = priceHistoryDate(
+                    productSummaries.get(productId), defaultVariants, asOf);
+            // 카테고리/설정이 확인되지 않은 품목은 가격을 조회하지 않는다. null 가격은
+            // DiscountRevalidator 가 MISSING_REFERENT 로 표시하여 틀린 단가를 숨긴다.
+            if (priceDate != null) {
+                idsByPriceDate.computeIfAbsent(priceDate, ignored -> new ArrayList<>()).add(productId);
+            }
+        }
+        Map<UUID, ApplicablePrice> result = new LinkedHashMap<>();
+        for (Map.Entry<LocalDate, List<UUID>> entry : idsByPriceDate.entrySet()) {
+            for (List<UUID> chunk : chunks(entry.getValue())) {
+                result.putAll(productClient.applicablePrices(chunk, entry.getKey()));
+            }
+        }
+        return result;
+    }
+
+    private static LocalDate priceHistoryDate(ProductSummary summary,
+                                               Map<String, Boolean> defaultVariants,
+                                               LocalDate asOf) {
+        if (summary == null || summary.categoryKey() == null || summary.categoryKey().isBlank()
+                || !PRICE_CHANGE_CATEGORY_KEYS.contains(summary.categoryKey())) {
+            return null;
+        }
+        Boolean defaultPreChange = defaultVariants.get(summary.categoryKey());
+        if (defaultPreChange == null) {
+            return null;
+        }
+        return defaultPreChange ? BEFORE_INCREASE_PRICE_HISTORY_DATE : asOf;
     }
 
     private Map<UUID, BigDecimal> loadFixedDiscountRates(List<UUID> productIds) {
@@ -457,9 +514,13 @@ public class MonthEndCloseService {
     }
 
     private static List<List<UUID>> chunks(List<UUID> productIds) {
+        return productIdChunks(productIds, ProductClient.REFERENT_BATCH_MAX);
+    }
+
+    private static List<List<UUID>> productIdChunks(List<UUID> productIds, int batchMax) {
         List<List<UUID>> chunks = new ArrayList<>();
-        for (int start = 0; start < productIds.size(); start += ProductClient.REFERENT_BATCH_MAX) {
-            int end = Math.min(start + ProductClient.REFERENT_BATCH_MAX, productIds.size());
+        for (int start = 0; start < productIds.size(); start += batchMax) {
+            int end = Math.min(start + batchMax, productIds.size());
             chunks.add(productIds.subList(start, end));
         }
         return chunks;
