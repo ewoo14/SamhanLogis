@@ -135,7 +135,7 @@ release wrapper도 `AROLOGIS_UPDATE_URL`과 명시적 `VITE_APP_VERSION`을 요�
 
 **범위 판정:** “전 사용자 대면 클라이언트의 버전 정책”이라는 상위 목표에는 모바일 세 앱의 client identity·정책 등록이 포함된다. 그러나 Electron의 `latest.yml` feed, Authenticode 서명, `quitAndInstall`을 모바일에 확대하는 것은 이 트랙의 동일 계약이 아니다. 모바일은 App Store/Google Play 제출과 EAS project/runtimeVersion/OTA 채널을 별도 검증하는 후속 계약으로 분리하는 것이 근거에 맞다. 저장소의 EAS project ID와 스토어 제출 ID는 placeholder이므로 실제 스토어 배포가 활성화됐다고 확인할 수 없다.
 
-### 2.5 없는 선행 조건 — 첫 슬라이스는 코드서명·feed 운영 기반
+### 2.5 없는 선행 조건 — 배포 활성화 선행 조건은 코드서명·feed 운영 기반
 
 | 선행 조건 | 현재 확인 결과 | 근거 |
 |---|---|---|
@@ -144,21 +144,142 @@ release wrapper도 `AROLOGIS_UPDATE_URL`과 명시적 `VITE_APP_VERSION`을 요�
 | 8개 모두의 운영 `/app/version` record | 소스상 endpoint/client type 계약은 확인했지만, DB 또는 production record의 실제 내용은 이번 읽기에서 확인하지 않았다. | 각 web/mobile/desktop version checker와 기존 `2026-07-23-desktop-auto-update.md`의 API 계약 기록. |
 | 모바일 EAS project/store 자격 증명 | **placeholder만 확인.** 실제 EAS project ID, App Store Connect ID, Google Play service account와 store listing은 확인하지 못했다. | 각 모바일 `app.config.js`와 `eas.json`의 `PLACEHOLDER_EAS_PROJECT_ID` 및 제출 설정. |
 
-따라서 첫 슬라이스는 **코드서명 + HTTPS feed 운영 기반 확보**다. 인증서/CI secret을 연결하고 두 Electron 제품의 feed 경로에 서명된 NSIS installer·`latest.yml`·blockmap을 게시할 수 있어야 이후의 자동 업데이트 정책 확대를 검증할 수 있다. 외부 secret store나 실제 feed가 저장소 밖에 이미 있을 가능성은 있으나, 이번 정찰에서는 그것을 확인하지 못했으므로 “없다”가 아니라 “확인되지 않음”으로 판정했다.
+따라서 배포 활성화의 첫 선행 조건은 여전히 **코드서명 + HTTPS feed 운영 기반 확보**다. 다만 이번 실측으로 확인된 QA 버전값 전파 문제는 더 작고 먼저 닫아야 할 검증 차단선이다. 외부 secret store나 실제 feed가 저장소 밖에 이미 있을 가능성은 있으나, 이번 정찰에서는 그것을 확인하지 못했으므로 “없다”가 아니라 “확인되지 않음”으로 판정했다.
 
-### 2.6 슬라이스 제안
+### 2.6 추가 정찰 — `DESKTOP` currentVersion 400
 
-1. **코드서명·feed 선행 조건** — Authenticode 인증서/CI secret, 제품별 HTTPS feed, 게시 산출물 규칙과 rollback runbook을 확보한다. 이것이 첫 슬라이스다.
-2. **두 Electron 제품의 clean-machine 증명** — 기존 main/preload/renderer 구조를 재사용해 `DESKTOP`과 `AROLOGIS_DESKTOP`을 각각 서명 빌드하고, `available → downloading → downloaded → install`을 실제 설치본으로 확인한다.
-3. **웹 정책 운영 확인** — 주문서·종합견적서·mobile-public의 `/app/version` record와 캐시/배포 시점만 검증하고, `VITE_APP_VERSION`은 current build identity로 유지한다. 알림은 수동 reload·draft 보호를 유지한다.
-4. **모바일 스토어/EAS 계약** — 세 Expo 앱의 실제 EAS project와 스토어 제출 자격·runtimeVersion/OTA 채널을 별도 확인한다. Electron feed를 모바일 구현으로 복제하지 않는다.
+이번 라운드의 라이브QA 실측 원문은 다음과 같다.
 
-### 2.7 이번 정찰이 보지 않은 것
+```text
+GET http://localhost:8080/app/version?clientType=DESKTOP&currentVersion=8.98029556650246
+→ 400
+{"success":false,"code":"INVALID_INPUT",
+ "message":"현재 버전 semver 형식 불일치: 8.98029556650246","data":null}
+```
+
+#### 1) `DESKTOP`의 `currentVersion` 생성 지점
+
+렌더러의 실제 전파 경로는 세 단계다.
+
+> `clients/desktop/src/renderer/components/common/AppVersionGate.tsx:21-23`
+>
+> `const CURRENT_VERSION = resolveBuildAppVersion(`  
+> `  import.meta.env.VITE_APP_VERSION ?? (import.meta.env.MODE === 'test' ? '0.1.0' : undefined),`  
+> `)`
+>
+> `clients/desktop/src/renderer/components/common/AppVersionGate.tsx:270-273`
+>
+> `getAppVersion({`  
+> `  clientType: clientTypeRef.current,`  
+> `  currentVersion: CURRENT_VERSION,`  
+> `})`
+>
+> `clients/desktop/src/renderer/api/appVersion.ts:111-122`
+>
+> `const config: ApiRequestConfig = { params, skipAuth: true }`  
+> `apiClient.get('/app/version', config)`
+
+`clientTypeRef`는 `clients/desktop/src/renderer/version/versionCheck.ts:43-49`에서 Electron·Capacitor·웹 모두 `DESKTOP`으로 판정한다. 따라서 관측된 URL의 `currentVersion`은 서버나 updater가 만든 값이 아니라, renderer 모듈 초기화 시점의 `import.meta.env.VITE_APP_VERSION`에서 온 값이다.
+
+#### 2) `8.98029556650246`의 성격
+
+확인한 `currentVersion` 경로에는 `Math.random()`이 없다. 무주입 fallback도 난수가 아니다.
+
+> `scripts/app-build-version.cjs:21-33`
+>
+> `if (!injected) {`  
+> `  ...`  
+> `  return DEVELOPMENT_FALLBACK_VERSION`  
+> `}`  
+> `validateDevelopmentVersion(injected, variable)`
+>
+> `DEVELOPMENT_FALLBACK_VERSION = '0.1.0-dev'`
+
+반면 렌더러 단독 QA 서버인 `clients/desktop/vite.renderer.dev.config.ts:2-11`은 스스로 `VITE_APP_VERSION`을 해석하거나 `define`하지 않고, 호출 환경의 Vite 변수에 의존한다. 이 경로에서 소스의 `resolveBuildAppVersion()`은 `clients/desktop/src/renderer/version/versionCheck.ts:25-30`처럼 비어 있는 값만 거부하고 날짜 형식을 검증하지 않는다.
+
+따라서 판정은 다음과 같다.
+
+- `8.98029556650246`은 이 버전 경로의 고정 fallback이 아니며, 확인한 버전 경로에서 `Math.random()`으로 생성된 값도 아니다.
+- 이 값이 정확히 어느 외부 실행 환경·하네스·이미 떠 있던 dev server에서 주입/잔류했는지는 **확인하지 못함**. 저장소의 버전 생성 코드만으로 그 숫자의 출처를 특정할 수 없다.
+- 다만 현재 QA 설정은 임의의 non-empty 문자열을 통과시킬 수 있으므로, `2026/07/29-1`을 넣었다는 실행과 실제 renderer가 읽은 값이 달랐다면 그 불일치를 시작 시점에 차단하지 못한다.
+
+#### 3) dev 한정인가, 패키징본에도 도달하는가
+
+**관측된 malformed 값의 경로는 QA/dev 한정으로 확인된다.** `vite.renderer.dev.config.ts`는 주석부터 “QA 전용 — renderer 단독 Vite dev 서버”라고 명시되어 있고, 정식 패키징은 이 설정을 사용하지 않는다.
+
+정식 `DESKTOP` Windows 패키징은 다음 경로에서 공통 resolver와 release 검증을 거친다.
+
+> `clients/desktop/electron.vite.config.ts:21-24,67-72`
+>
+> `const { resolveBuildAppVersion } = require('../../scripts/app-build-version.cjs')`  
+> `const appVersion = resolveBuildAppVersion({ variable: 'VITE_APP_VERSION' })`  
+> `'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion)`
+>
+> `scripts/build-desktop-release.cjs:43-66`
+>
+> `releaseBuild = createReleaseBuildEnvironment({ variable: 'VITE_APP_VERSION' })`  
+> `run(..., electronViteCli, 'build', releaseBuild.env)`  
+> `verifyReleaseRenderer(releaseBuild.appVersion)`  
+> `run(..., electronBuilderCli, '--win', releaseBuild.env)`
+
+또한 `clients/desktop/scripts/validate-desktop-release.cjs:22-45`는 `SAMHAN_RELEASE_BUILD=1`, `VITE_APP_VERSION`, `YYYY/MM/DD-N` 형식, artifact version 일치, renderer에 같은 값이 주입됐는지를 모두 검사한다. `clients/desktop/README.md:52-59`도 일반 `build`는 배포하지 않는 sentinel 경로이고, Windows 배포는 `build:win` release wrapper만 사용한다고 구분한다.
+
+그러므로 **정식 release wrapper를 통과한 배포본에는 이 숫자가 들어가지 않는다**. malformed 값이 실제 패키지에 들어간다면 매 부팅의 `AppVersionGate` 요청이 400이 되고, 그 `.catch`가 부팅을 계속하게 되므로 `CRITICAL` 응답을 받을 기회도 없어 강제 업데이트는 동작하지 않는다. 그러나 이번 실측만으로 실제 운영 설치본의 renderer를 확인한 것은 아니며, 비정상적인 수동 패키징·오래된 산출물·다른 config를 사용한 배포 여부는 **확인하지 못함**이다.
+
+#### 4) 다른 클라이언트의 `currentVersion` 대조
+
+| 클라이언트 | 생성 지점 | 무주입/구버전 처리 | 이번 난수 형태와 같은 경로 확인 |
+|---|---|---|---|
+| `AROLOGIS_DESKTOP` | `clients/arologis-desktop/src/renderer/components/common/AppVersionGate.tsx:10-11`이 `import.meta.env.VITE_APP_VERSION`을 `resolveBuildAppVersion()`에 넣고, `:91-94`에서 API에 전달 | `version/versionCheck.ts:25-30`은 고정 `0.1.0-dev`; `electron.vite.config.ts:20-24,56-58`은 공통 resolver로 release 주입 | `Math.random()` 경로는 확인하지 못함. 공통 release config가 날짜 형식을 검증한다. |
+| `SAMHAN_MOBILE` | `src/version/versionCheck.ts:37-49`의 `Constants.expoConfig.extra.appVersion` 우선, 없으면 `expoConfig.version` | `app.config.js:12-18,59-77`에서 `EXPO_PUBLIC_APP_VERSION`을 shared resolver로 `extra.appVersion`에 넣고, 없으면 package semver를 호환 사용 | 난수 fallback 없음. `:59-65`가 그 값을 URL의 `currentVersion`으로 넣는다. |
+| `SAMHAN_MOBILE_STAFF` | `src/version/versionCheck.ts:37-49`, `:59-65` | `app.config.js:27-35,110-136`의 동일한 `extra.appVersion`/package semver 구조 | 난수 fallback 없음. |
+| `AROLOGIS_MOBILE` | `src/version/versionCheck.ts:37-49`, `:59-65` | `app.config.js:12-18,53-70`의 동일한 `extra.appVersion`/package semver 구조 | 난수 fallback 없음. |
+| `SAMHAN_ORDER_WEB` | `vite.config.ts:25-30,88-90`이 build-time version을 주입하고, `src/main.ts:27-36`이 `currentVersion`으로 전달 | `src/version/versionCheck.ts:33-40`의 고정 `0.1.0-dev` | 난수 fallback 없음. |
+| `SAMHAN_ESTIMATE_WEB` | `routes/index.js:13-25`의 `currentAppVersion` → EJS config → `public/version-gate.js`; resolver는 `lib/version-check.js:9-19` | shared resolver와 고정 `0.1.0-dev` sentinel | 난수 fallback 없음. |
+| `SAMHAN_MOBILE_PUBLIC_WEB` | `vite.config.ts:7-18` 주입 → `src/main.tsx:15-18`의 `resolveBuildAppVersion()` | `src/version/versionCheck.ts:24-32`의 고정 `0.1.0-dev` | 난수 fallback 없음. |
+
+대조 결과, 다른 7개 클라이언트에서도 버전 경로가 난수를 만드는 코드는 확인하지 못했다. 모바일 화면의 line ID 등 다른 UI 목적의 `Math.random()` 호출이 존재하는 것과 version gate의 `currentVersion` 생성은 별개다.
+
+#### 5) 서버 semver와 `YYYY/MM/DD-N`의 공존
+
+서버는 실제로 두 형식을 모두 받도록 작성되어 있다.
+
+> `services/dashboard-service/src/main/java/com/samhanair/logis/dashboard/domain/Semver.java:17-18,65-72`
+>
+> `Pattern.compile("^(\\d{4})/(\\d{2})/(\\d{2})-([1-9][0-9]*)$")`  
+> `if (looksLikeDevelopmentVersion(value)) { ... return; }`  
+> `parse(value, fieldName)`
+
+날짜 형식이 아니면 legacy semver parser로 내려간다. parser는 `Semver.java:154-162`에서 `.`로 나눈 부분이 정확히 3개인지와 각 부분의 semver 숫자 규칙을 검사한다. 그래서 `8.98029556650246`은 점으로 나눈 부분이 2개뿐이라 실측 메시지 그대로 거부된다.
+
+> `services/dashboard-service/src/main/java/com/samhanair/logis/dashboard/service/AppReleaseService.java:31-39`
+>
+> `Semver.requireValid(currentVersion, "currentVersion")`  
+> `if (Semver.isDevelopmentSentinel(currentVersion)) { ... NONE ... }`
+
+공존 규칙은 다음이다.
+
+- `GET /app/version`의 `currentVersion`은 `YYYY/MM/DD-N` 또는 legacy semver를 모두 허용한다. `0.1.0-dev`는 별도 개발 sentinel로 허용되며 `NONE` 처리된다.
+- 새 admin release의 `version`은 `AppReleaseService.java:53-58`의 `Semver.requireDevelopmentVersion()` 때문에 `YYYY/MM/DD-N`이어야 한다.
+- 전환기 `minSupportedVersion`은 같은 줄의 `requireValid()`로 semver와 날짜 형식을 모두 허용한다. 서비스의 비교기(`Semver.compare`)도 양쪽 형식을 별도 비교한다.
+- 따라서 package.json의 Electron/Expo metadata semver와 실제 release 정책 버전 `YYYY/MM/DD-N`은 의도적으로 공존한다. 이번 400은 두 계약의 충돌이 아니라, 어느 계약에도 속하지 않는 잘못된 renderer 값이다.
+
+**이번 실측의 최종 판정:** 버전 확인 API 자체는 packaged `DESKTOP`에서도 호출되지만, 관측된 난수형 값이 정식 release artifact까지 도달한다는 증거는 없다. 현재 확인 가능한 원인은 QA 전용 renderer 경로의 입력 검증 부재와 실행 환경 값 불일치이며, 그 숫자를 만든 정확한 외부 주입원은 **확인하지 못함**이다.
+
+### 2.7 슬라이스 제안
+
+1. **QA `currentVersion` 전파 차단선** — `vite.renderer.dev.config.ts`가 공통 resolver와 동일한 날짜 형식 검증을 사용하게 하고, 실제 renderer가 읽은 값과 `/app/version` query를 한 번에 확인한다. 이번 400을 가장 작은 범위에서 먼저 재현·차단하는 슬라이스다.
+2. **정식 release artifact 버전 증명** — `DESKTOP`과 `AROLOGIS_DESKTOP`의 release wrapper가 주입한 `YYYY/MM/DD-N`과 renderer bundle의 `CURRENT_VERSION` 및 서버 query가 같은지 설치 전 증거로 남긴다. 이번 정찰에서는 실행하지 않았다.
+3. **코드서명·HTTPS feed 활성화** — Authenticode 인증서/CI secret, 제품별 feed, `latest.yml`·NSIS installer·blockmap 게시와 rollback runbook을 확보한다. 이것은 malformed version 차단 후의 배포 활성화 선행 조건이다.
+4. **웹·모바일 채널 운영 확인** — 웹 3개는 `/app/version`과 수동 reload 정책을, 모바일 3개는 EAS project/store/OTA 계약을 각각 확인한다. Electron feed 계약을 모바일에 복제하지 않는다.
+
+### 2.8 이번 정찰이 보지 않은 것
 
 - 사용자가 금지한 git 명령과 GitHub PR API 조회를 하지 않았으므로, PR #981의 원격 diff/리뷰 코멘트 원문 전체는 확인하지 않았다. 현재 머지된 코드와 저장소 handoff/report를 근거로 구조를 재구성했다.
 - `npm install`, 빌드, Docker, 실제 Electron 설치/업데이트, 브라우저·모바일 기기 실행은 하지 않았다. 따라서 표는 실행 산출물 검수가 아니라 저장소의 배포 경로 목록이다.
 - CI secret store의 인증서, 실제 HTTPS feed 호스트, 업로드된 `latest.yml`·installer·blockmap, 운영 `/app/version` DB record와 CDN 캐시는 확인하지 않았다.
 - EAS 계정, App Store Connect/Google Play 콘솔, 실제 모바일 store listing과 OTA publish 결과는 확인하지 않았다.
+- 이번 400을 직접 재현하거나 실행 중인 dev server의 실제 환경변수·번들·프로세스 출처를 캡처하지 않았다. 제공된 라이브QA 원문과 정적 소스 추적만으로 `8.98029556650246`의 외부 주입원을 특정할 수 없다.
 - `clients/desktop/src/renderer/components/documentTemplate/**`의 내용은 이번 판정에 필요하지 않아 읽지 않았다. 지정된 `clients/web/order-app/**`와 `clients/web/design-system/**`은 요청대로 읽기만 했고 수정하지 않았다.
 
 ## 3. 불변식 (수단 미지시)
@@ -177,4 +298,4 @@ release wrapper도 `AROLOGIS_UPDATE_URL`과 명시적 `VITE_APP_VERSION`을 요�
 
 ## 5. 이 문서의 상태
 
-**정찰 전 기획서다.** §2 의 답이 채워지면 슬라이스를 자른다.
+**정찰 결과 반영 기획서다.** §2.1~§2.6에 소스·설정 대조 결과와 실측 400 판정을 반영했고, §2.7에 후속 슬라이스를 갱신했다.
