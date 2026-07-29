@@ -8209,12 +8209,14 @@ function onAuthStatus(res) {
 }
 
 function getRpcFailureMessage(err, fallback) {
+  const hasServerResponse = Boolean(err && typeof err === 'object' && err.response);
   const responseData = err && typeof err === 'object' && err.response && err.response.data;
   if (responseData && typeof responseData.message === 'string' && responseData.message) {
     return responseData.message;
   }
-  if (err && typeof err.message === 'string' && err.message) return err.message;
-  if (typeof err === 'string' && err) return err;
+  if (!hasServerResponse) {
+    return '네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인한 후 다시 시도해주세요.';
+  }
   return fallback;
 }
 

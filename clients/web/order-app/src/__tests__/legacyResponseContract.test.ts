@@ -126,6 +126,24 @@ describe('legacy order-app response contracts', () => {
     expect(alert).toHaveBeenCalledWith('이미 가입 신청된 거래처입니다');
   });
 
+  // ubuntu-latest 불변: 순수 Error 객체와 콜백 assertion만 사용하며 OS API에 의존하지 않는다.
+  it('승인요청 네트워크 실패는 한국어 재시도 안내를 보여준다', () => {
+    const alert = vi.fn();
+    const showLoadingGate = vi.fn();
+    const handler = loadInlineFailureHandler('requestAuthApproval', {
+      showLoadingGate,
+      alert,
+      getRpcFailureMessage: loadNamedHandler('getRpcFailureMessage'),
+    });
+
+    handler(new Error('Network Error'));
+
+    expect(showLoadingGate).toHaveBeenCalledWith(false);
+    expect(alert).toHaveBeenCalledWith(
+      '네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인한 후 다시 시도해주세요.',
+    );
+  });
+
   // ubuntu-latest 불변: 순수 콜백 실행과 서버 DTO 필드 assertion만 사용하며 OS API에 의존하지 않는다.
   it('인증 상태의 알 수 없는 상태는 서버 message를 사용자에게 보여준다', () => {
     const alert = vi.fn();
@@ -178,6 +196,24 @@ describe('legacy order-app response contracts', () => {
     expect(alert).toHaveBeenCalledWith('비밀번호 설정에 실패했습니다');
   });
 
+  // ubuntu-latest 불변: 순수 Error 객체와 콜백 assertion만 사용하며 OS API에 의존하지 않는다.
+  it('비밀번호 설정 네트워크 실패는 한국어 재시도 안내를 보여준다', () => {
+    const alert = vi.fn();
+    const showLoadingGate = vi.fn();
+    const handler = loadInlineFailureHandler('setAuthPassword', {
+      showLoadingGate,
+      alert,
+      getRpcFailureMessage: loadNamedHandler('getRpcFailureMessage'),
+    });
+
+    handler(new Error('Network Error'));
+
+    expect(showLoadingGate).toHaveBeenCalledWith(false);
+    expect(alert).toHaveBeenCalledWith(
+      '네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인한 후 다시 시도해주세요.',
+    );
+  });
+
   // ubuntu-latest 불변: 순수 콜백 실행과 status/message assertion만 사용하며 OS에 의존하지 않는다.
   it('로그인 실패 응답은 서버가 반환한 message를 사용자에게 보여준다', () => {
     const alert = vi.fn();
@@ -219,6 +255,26 @@ describe('legacy order-app response contracts', () => {
     expect(alert).toHaveBeenCalledWith('로그인에 실패했습니다');
     expect(element.value).toBe('');
     expect(element.focus).toHaveBeenCalled();
+  });
+
+  // ubuntu-latest 불변: 순수 Error 객체와 콜백 assertion만 사용하며 OS API에 의존하지 않는다.
+  it('로그인 네트워크 실패는 한국어 재시도 안내를 보여준다', () => {
+    const alert = vi.fn();
+    const showLoadingGate = vi.fn();
+    const element = { value: '1234', focus: vi.fn() };
+    const handler = loadInlineFailureHandler('tryLogin', {
+      showLoadingGate,
+      alert,
+      el: () => element,
+      getRpcFailureMessage: loadNamedHandler('getRpcFailureMessage'),
+    });
+
+    handler(new Error('Network Error'));
+
+    expect(showLoadingGate).toHaveBeenCalledWith(false);
+    expect(alert).toHaveBeenCalledWith(
+      '네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인한 후 다시 시도해주세요.',
+    );
   });
 
   // ubuntu-latest 불변: document 대역 객체와 ISO 문자열만 사용하며 경로·대소문자·OS API에 의존하지 않는다.

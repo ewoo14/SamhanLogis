@@ -509,3 +509,81 @@ OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader clas
 ```
 
 이번 라운드에는 Java 코드 변경이 없어 partner-auth-service Gradle 테스트는 재실행하지 않았다. Docker, 서버 재기동, Playwright, 라이브QA는 실행하지 않았다. 신규 파일은 없으며, 기존 `legacyResponseContract.test.ts`에 실패 경로 테스트 3건을 추가했다.
+
+## 10. 라이브QA R4 후속 — 네트워크 실패 문구 한국어화
+
+### 10.1 RED-first 원문
+
+서버 응답이 없는 Axios `Network Error`를 세 인증 경로에서 재현하는 테스트를 먼저 추가했다.
+
+```text
+ RUN v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/t992/clients/web/order-app
+
+ ❯ src/__tests__/legacyResponseContract.test.ts (13 tests | 3 failed)
+   × 승인요청 네트워크 실패는 한국어 재시도 안내를 보여준다
+     Received: "Network Error"
+   × 비밀번호 설정 네트워크 실패는 한국어 재시도 안내를 보여준다
+     Received: "Network Error"
+   × 로그인 네트워크 실패는 한국어 재시도 안내를 보여준다
+     Received: "Network Error"
+
+ Test Files 1 failed (1)
+      Tests 3 failed (13)
+```
+
+### 10.2 변경 및 응답 문구
+
+- `index.html:8211-8221`의 `getRpcFailureMessage`에서 `response.data.message`를 최우선으로 유지한다.
+- 서버 `response`가 없으면 `Network Error`, DNS 실패, timeout 등의 라이브러리 원문 대신 다음 문구를 반환한다.
+  - `네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인한 후 다시 시도해주세요.`
+- 서버 응답이 있는 경우 서버 `message`를 그대로 표시한다.
+- 승인요청·비밀번호 설정·로그인 세 경로 모두 동일 helper를 사용한다.
+- 새 테스트 3건 모두 `ubuntu-latest`에서 참이다. 순수 Error 객체와 callback assertion만 사용하며 경로 구분자·대소문자·OS API에 의존하지 않는다.
+
+| 경로 | 서버 message 있음 | 서버 message 없음 / 네트워크 실패 |
+|---|---|---|
+| 승인요청 | 서버 `message` 그대로 | 한국어 네트워크 재시도 안내 |
+| 비밀번호 설정 | 서버 `message` 그대로 | 한국어 네트워크 재시도 안내 |
+| 로그인 | 서버 `message` 그대로 | 한국어 네트워크 재시도 안내 |
+
+성공 모달과 기존 서버 message 경로는 변경하지 않았다. `index.html`의 다른 경고 로직 및 `sendOrderFromUi`는 수정하지 않았다.
+
+### 10.3 최종 검증 원문
+
+`npx vitest run`:
+
+```text
+ RUN v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/t992/clients/web/order-app
+
+ ✓ src/__tests__/sanity.test.ts (2 tests)
+ ✓ src/__tests__/commSetIndex.test.ts (1 test)
+ ✓ src/__tests__/legacyConfigMapping.test.ts (2 tests)
+ ✓ src/__tests__/priceChangeSchedule.test.ts (10 tests)
+ ✓ src/__tests__/bootstrapFailure.test.ts (2 tests)
+ ✓ src/__tests__/legacyPreexistingFix.test.ts (2 tests)
+ ✓ src/__tests__/homeOptionAndZeroLockRestore.test.ts (10 tests)
+ ✓ src/__tests__/sol2QuantityFix.test.ts (9 tests)
+ ✓ src/__tests__/commercialManualSymmetry.test.ts (9 tests)
+ ✓ src/version/versionCheck.test.ts (5 tests)
+ ✓ src/version/versionGate.test.ts (2 tests)
+ ✓ src/__tests__/samhanApi.test.ts (9 tests)
+ ✓ src/__tests__/legacyResponseContract.test.ts (13 tests)
+ ✓ src/__tests__/homeManualLockRestore.test.ts (16 tests)
+ ✓ src/__tests__/commManualLockRestore.test.ts (24 tests)
+ ✓ src/__tests__/legacy-quantity-golden.test.ts (73 tests)
+ ✓ src/__tests__/priceParityS3.test.ts (7 tests)
+
+ Test Files 17 passed (17)
+      Tests 196 passed (196)
+   Start at 23:40:10
+   Duration 1.31s (transform 918ms, setup 0ms, collect 1.72s, tests 1.15s, environment 2ms, prepare 6.26s)
+```
+
+`npm run typecheck`:
+
+```text
+> @samhan/order-app@0.4.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+이번 라운드 신규 파일은 없고 `index.html`, 기존 `legacyResponseContract.test.ts`, 본 보고서만 수정했다. Java 테스트·Docker·Playwright·서버 재기동은 실행하지 않았다.
