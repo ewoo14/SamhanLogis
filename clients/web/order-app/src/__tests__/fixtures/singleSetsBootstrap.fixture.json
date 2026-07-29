@@ -1,0 +1,19 @@
+{
+  "source": {
+    "endpoint": "/api/v1/partner-orders/bootstrap",
+    "fetchedOn": "2026-07-29",
+    "httpStatus": 200,
+    "originalSingleSetRows": 288,
+    "note": "실 bootstrap 응답의 data.payloads.singleSets에서 싱글 자동 파생 4계열의 원천·target 행만 보존한 subset fixture다. 원본 응답은 288행이며, 각 target 행을 제거한 상태를 전수 재현한다. 행의 id/model/name은 SOL Round 2 실측 결과에서 그대로 옮겼다."
+  },
+  "rows": [
+    { "id": "360 CST UV0", "model": "AC060CS6PBH1SY", "name": "360 CST UV" },
+    { "id": "원형발통 세트283", "model": "발통세트", "name": "원형발통 세트" },
+    { "id": "냉난방 프리미엄 스탠드98", "model": "AP230DAPDHH1S", "name": "냉난방 프리미엄 스탠드" },
+    { "id": "실외기 일자발 (전면 8~12HP)285", "model": "SI-AL700a", "name": "실외기 일자발 (전면 8~12HP)" },
+    { "id": "무풍 1way 냉난방47", "model": "AC023CS1PBH1SY", "name": "무풍 1way 냉난방" },
+    { "id": "유선리모컨 키트76", "model": "AIM-A01N", "name": "유선리모컨 키트" },
+    { "id": "싱글 실링61", "model": "AC072BSCPBH2SY", "name": "싱글 실링" },
+    { "id": "실링용 드레인펌프75", "model": "ADP-F075SP", "name": "실링용 드레인펌프" }
+  ]
+}

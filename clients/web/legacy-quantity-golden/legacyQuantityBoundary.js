@@ -98,6 +98,8 @@ const ORDER_ONLY_QUANTITY_HELPERS = new Set([
   'isCommDerivedRow',
   'noteHomeCatalogMissing_',
   'setHomeDerivedQty_',
+  'noteSingleCatalogMissing_',
+  'setSingleDerivedQty_',
 ]);
 
 function sourceFunctionBundleForApp(source, app, names) {
@@ -270,6 +272,8 @@ function runSingle(source, input) {
       'registerDerivedQty',
       'isManualQtyLocked',
       'setDerivedQty',
+      'noteSingleCatalogMissing_',
+      'setSingleDerivedQty_',
       'isSingleDerivedRow',
       'isSingleManualLocked',
       'applySingleManualLock',
@@ -289,6 +293,7 @@ function runSingle(source, input) {
     ${domScript(input.options?.dom)}
     ${catalogPreludeScript(source, input)}
     const singleQty = new Map(Object.entries(${JSON.stringify(quantities)}));
+    let SINGLE_CATALOG_MISSING_MODELS = new Map();
     const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
     const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
     ${functions}

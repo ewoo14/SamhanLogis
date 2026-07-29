@@ -142,7 +142,7 @@ body.old-active #btnGoOld { display:none !important }
 .opts{display:flex; justify-content:center;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--c-line);background:#fff;white-space:nowrap;overflow:auto}
 .opts::-webkit-scrollbar{height:8px} .opts::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
 .catalog-warning{width:100%;box-sizing:border-box;padding:12px 16px;border-bottom:1px solid #f59e0b;background:#fff7ed;color:#9a3412;font-size:14px;line-height:1.5;white-space:normal}
-@media print{#homeCatalogWarnings,#commCatalogWarnings{display:none!important}}
+@media print{#homeCatalogWarnings,#singleCatalogWarnings,#commCatalogWarnings{display:none!important}}
 .chip{display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:6px 12px;box-shadow:0 1px 2px rgba(0,0,0,0.05);transition:all 0.2s ease}
 .chip:hover{border-color:#cbd5e1}
 .chip input[type="number"]{width:120px;height:var(--inp-h);border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;text-align:right;background:#fff;transition:all 0.2s ease;outline:none}
@@ -867,6 +867,7 @@ button.tut-highlight { filter: brightness(1.6); }
           <div class="card-title">싱글중대형</div>
           <button type="button" id="btnResetSingle" class="btn-mini">초기화</button>
         </div>
+        <div id="singleCatalogWarnings" class="catalog-warning" role="alert" aria-live="polite" hidden></div>
         <div class="opts" id="singleOpts"></div>
         <div class="filter-bar" id="singleFilterBar">
           <select id="singleFilterL">
@@ -5101,7 +5102,7 @@ function onSingleQtyInput(id,v,explicit){
   }
   if(sCell) sCell.textContent=fmt(unit*v);
   if(uCell){ uCell.setAttribute('data-unitraw', unit); uCell.textContent = fmt(unit); }
-  if(isSingleCalcTriggerId(key)){recomputeSingleBaseFoot();recomputeSingleExtras();}
+  if(isSingleCalcTriggerId(key)) recomputeSingleDerived();
   el('#singleTotal').textContent=fmt(sumSingles());refreshSelectedBadge();
   updateInlineTotals();
 }
@@ -5148,7 +5149,7 @@ function renderSingleOptions(){
       const sCell=document.querySelector(`#singleBody [data-ss="${s.id}"]`);
       if(uCell){ uCell.setAttribute('data-unitraw', unit); uCell.textContent=fmt(unit); } if(sCell) sCell.textContent=fmt(unit*q);
     });
-    recomputeFootAll();recomputeSingleBaseFoot();recomputeSingleExtras();
+    recomputeFootAll();recomputeSingleDerived();
     el('#singleTotal').textContent=fmt(sumSingles());refreshSelectedBadge();
     updateInlineTotals();setTimeout(fitAllTables, 0);
   }));
@@ -5176,8 +5177,8 @@ function recomputeSingleBaseFoot(){
       if(/^(AP230DAPDHH1S|AP290DAPDHH1S)$/i.test(mdl)) flat+=q; else round+=q;
     });
   }
-  if(SS_FOOT_ROUND_ID!=null) setDerivedQty('single', singleQty, SS_FOOT_ROUND_ID, round);
-  if(SS_FOOT_FLAT_ID!=null) setDerivedQty('single', singleQty, SS_FOOT_FLAT_ID, flat);
+  setSingleDerivedQty_(SS_FOOT_ROUND_ID, '발통세트', round, '발통 파생');
+  setSingleDerivedQty_(SS_FOOT_FLAT_ID, 'SI-AL700a', flat, '발통 파생');
   syncSingleUIFromState();
 }
 function recomputeSingleExtras(){
@@ -5191,17 +5192,22 @@ function recomputeSingleExtras(){
       boardQty+=(singleQty.get(s.id)||0);
     });
   }
-  if(SS_WIRED_BOARD_ID!=null) setDerivedQty('single', singleQty, SS_WIRED_BOARD_ID, boardQty);
-  if(SS_CEILING_PUMP_ID!=null){
-    let pumpQty=0;
-    SINGLE_SETS.forEach(s=>{
-      if(s.id===SS_CEILING_PUMP_ID) return;
-      if(/운임|절삭/i.test(s?.name||'')) return;
-      if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
-    });
-    setDerivedQty('single', singleQty, SS_CEILING_PUMP_ID, pumpQty);
-  }
+  setSingleDerivedQty_(SS_WIRED_BOARD_ID, 'AIM-A01N', boardQty, '유선리모컨 파생');
+  let pumpQty=0;
+  SINGLE_SETS.forEach(s=>{
+    if(s.id===SS_CEILING_PUMP_ID) return;
+    if(/운임|절삭/i.test(s?.name||'')) return;
+    if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
+  });
+  setSingleDerivedQty_(SS_CEILING_PUMP_ID, 'ADP-F075SP', pumpQty, '실링용 드레인펌프 파생');
   syncSingleUIFromState();
+}
+
+function recomputeSingleDerived(){
+  SINGLE_CATALOG_MISSING_MODELS = new Map();
+  recomputeSingleBaseFoot();
+  recomputeSingleExtras();
+  renderSingleCatalogWarnings(SINGLE_CATALOG_MISSING_MODELS);
 }
 
 /* 트리거 판별 */
@@ -5534,6 +5540,7 @@ function recomputeHomeBranches(){
 }
 
 let HOME_CATALOG_MISSING_MODELS = new Map();
+let SINGLE_CATALOG_MISSING_MODELS = new Map();
 
 function noteHomeCatalogMissing_(model, reason){
   const key = String(model || '').trim();
@@ -5548,6 +5555,22 @@ function setHomeDerivedQty_(candidate, fallback, quantity, reason){
   const target = actual || String(fallback || '').trim();
   if(!actual && Number(quantity) > 0) noteHomeCatalogMissing_(target, reason);
   if(target && (actual || Number(quantity) > 0)) setDerivedQty('home', homeQty, target, quantity);
+  return target;
+}
+
+function noteSingleCatalogMissing_(model, reason){
+  const key = String(model || '').trim();
+  if(!key) return;
+  const reasons = SINGLE_CATALOG_MISSING_MODELS.get(key) || new Set();
+  if(reason) reasons.add(reason);
+  SINGLE_CATALOG_MISSING_MODELS.set(key, reasons);
+}
+
+function setSingleDerivedQty_(candidate, fallback, quantity, reason){
+  const actual = String(candidate || '').trim();
+  const target = actual || String(fallback || '').trim();
+  if(!actual && Number(quantity) > 0) noteSingleCatalogMissing_(target, reason);
+  if(actual) setDerivedQty('single', singleQty, actual, quantity);
   return target;
 }
 
@@ -5573,6 +5596,10 @@ function renderCatalogWarnings_(warningId, category, missingModels){
 
 function renderHomeCatalogWarnings(missingModels){
   renderCatalogWarnings_('homeCatalogWarnings', '홈멀티', missingModels);
+}
+
+function renderSingleCatalogWarnings(missingModels){
+  renderCatalogWarnings_('singleCatalogWarnings', '싱글중대형', missingModels);
 }
 
 // 홈멀티 부자재 계산
@@ -9442,7 +9469,7 @@ function applySnapshot(shot, custName) {
     if(typeof renderOld==='function') renderOld();
 
     if(typeof recomputeHomeDerived==='function') recomputeHomeDerived(true);
-    if(typeof recomputeSingleBaseFoot==='function') recomputeSingleBaseFoot();
+    if(typeof recomputeSingleDerived==='function') recomputeSingleDerived();
     if(typeof recomputeCommDerived==='function') recomputeCommDerived();
     if(legacyCore && shot.core){
       restoreLegacyDerivedQty('home', homeQty, shot.core.homeQty);
@@ -9707,8 +9734,7 @@ handleResize();
 // 초기 데이터 계산
 recomputeHomeDerived(true);
 recomputeFootAll();
-recomputeSingleBaseFoot();
-recomputeSingleExtras();
+recomputeSingleDerived();
 refreshSelectedBadge();
 forceOrderTitle();
 
