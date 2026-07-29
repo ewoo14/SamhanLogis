@@ -242,6 +242,7 @@ export const PAGE_GROUPS: PageGroup[] = [
       'groupware.approval-templates',
       'messenger.admin',
       'messenger.send',
+      'groupware.schedules',
     ],
   },
   {
@@ -419,6 +420,7 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'groupware.approval-templates': '결재 양식',
   'messenger.admin': '메신저 관리',
   'messenger.send': '메신저 발송',
+  'groupware.schedules': '그룹웨어 일정',
   'purchases.slip.list': '매입 슬립',
   'purchases.slip.edit': '매입 전표 수정',
   'purchases.slip.delete': '매입 전표 삭제',
