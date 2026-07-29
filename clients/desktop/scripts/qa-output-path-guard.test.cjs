@@ -686,16 +686,53 @@ function findPowerShellExecutable() {
 const POWERSHELL_EXE = findPowerShellExecutable()
 const POWERSHELL_SKIP_REASON = POWERSHELL_EXE ? false : '이 환경에 pwsh/powershell 실행파일이 없습니다'
 
+function findActualAlternateCheckout() {
+  const currentCheckout = path.resolve(repoRoot)
+  const candidates = []
+  let ancestor = currentCheckout
+  while (true) {
+    const worktreesRoot = path.join(ancestor, '.claude', 'worktrees')
+    if (fs.existsSync(worktreesRoot) && fs.statSync(worktreesRoot).isDirectory()) {
+      candidates.push(ancestor)
+      for (const entry of fs.readdirSync(worktreesRoot)) candidates.push(path.join(worktreesRoot, entry))
+    }
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) break
+    ancestor = parent
+  }
+
+  return (
+    candidates.find(candidate => {
+      const resolvedCandidate = path.resolve(candidate)
+      return (
+        resolvedCandidate !== currentCheckout &&
+        fs.existsSync(path.join(resolvedCandidate, '.git')) &&
+        fs.existsSync(path.join(resolvedCandidate, 'docs', 'qa', '809-partner-product-price-memory'))
+      )
+    }) ?? null
+  )
+}
+
+const ALTERNATE_CHECKOUT_ROOT = findActualAlternateCheckout()
+const ALTERNATE_CHECKOUT_SKIP_REASON = ALTERNATE_CHECKOUT_ROOT
+  ? false
+  : '현재 checkout 과 다른 실재 Git 워크트리 및 커밋 QA 경로를 찾을 수 없습니다'
+
 test(
   '978-A-1 경로 표기 판정표 — 실제 다른 Git 워크트리를 -ProjectRoot 로 지정해도 그 워크트리의 docs/qa 는 BLOCK 이다',
-  { skip: POWERSHELL_SKIP_REASON, timeout: 30000 },
+  {
+    skip:
+      POWERSHELL_SKIP_REASON ||
+      (isWindowsPlatform() ? false : '실제 다른 Git 워크트리의 -ProjectRoot 경로 판정은 Windows 전용입니다') ||
+      ALTERNATE_CHECKOUT_SKIP_REASON,
+    timeout: 30000,
+  },
   () => {
     // 다른 워크트리의 커밋 증거를 직접 겨누되, guard 가 회귀해도 저장소에 쓰지 못하도록
     // New-Item 을 sentinel 로 바꾼다. BLOCK 이면 이 함수에 도달하지 않고, ALLOW 로 새면
     // sentinel 이 즉시 중단하므로 어느 쪽도 기존 REPORT.md 를 덮어쓸 수 없다.
-    const alternateCheckoutRoot = path.resolve(repoRoot, '..', '..', '..')
+    const alternateCheckoutRoot = ALTERNATE_CHECKOUT_ROOT
     const alternateTarget = path.join(alternateCheckoutRoot, 'docs', 'qa', '809-partner-product-price-memory')
-    assert.equal(fs.existsSync(alternateCheckoutRoot), true, `alternate checkout 이 없습니다: ${alternateCheckoutRoot}`)
     assert.equal(fs.existsSync(alternateTarget), true, `alternate checkout 의 커밋 QA 경로가 없습니다: ${alternateTarget}`)
 
     const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
