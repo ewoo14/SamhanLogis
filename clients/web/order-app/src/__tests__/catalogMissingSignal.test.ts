@@ -61,7 +61,7 @@ function extractConst(source: string, name: string): string {
   return source.slice(start, end + 1);
 }
 
-function runRecompute(rows: CatalogRow[], sourceModel: string) {
+function runRecompute(rows: CatalogRow[], sourceModel: string, missingModel = '방진가대S2소') {
   const source = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
   const warning = { hidden: true, textContent: '', innerHTML: '' };
   const controls: Record<string, { value?: string; checked?: boolean }> = {
@@ -134,7 +134,7 @@ function runRecompute(rows: CatalogRow[], sourceModel: string) {
       hidden: warning.hidden,
       textContent: warning.textContent,
       innerHTML: warning.innerHTML,
-      missingQuantity: commQty.get('방진가대S2소') || 0,
+      missingQuantity: commQty.get(${JSON.stringify(missingModel)}) || 0,
     };
   `;
 
@@ -197,19 +197,24 @@ function runHomeRecompute(rows: CatalogRow[], noHose = false) {
 }
 
 describe('상업멀티 파생 카탈로그 누락 신호', () => {
-  it('실 bootstrap fixture에서 파생 모델 1개가 빠지면 모델명을 사용자 신호로 남긴다', () => {
+  it.each([
+    ['방진가대S2소', 'AM080AXVHHH1'],
+    ['AR-EH05', 'AM130BN6PBH1'],
+    ['방진가대S2중', 'AM300AXVGHC1'],
+  ])('실 bootstrap fixture에서 %s가 빠지면 모델명을 사용자 신호로 남긴다', (missingModel, sourceModel) => {
     const fixture = loadBootstrapFixture();
     const bootstrapRows = fixture.rows;
     expect(bootstrapRows).toHaveLength(fixture.source.originalCommercialMultiRows);
     expect(bootstrapRows.some((row) => row.model === 'AM080AXVHHH1')).toBe(true);
-    expect(bootstrapRows.some((row) => row.model === '방진가대S2소')).toBe(true);
+    expect(bootstrapRows.some((row) => row.model === sourceModel)).toBe(true);
+    expect(bootstrapRows.some((row) => row.model === missingModel)).toBe(true);
 
-    const catalogWithoutDerived = bootstrapRows.filter((row) => row.model !== '방진가대S2소');
+    const catalogWithoutDerived = bootstrapRows.filter((row) => row.model !== missingModel);
     expect(catalogWithoutDerived).toHaveLength(fixture.source.afterRemovingDerivedRows);
-    const result = runRecompute(catalogWithoutDerived, 'AM080AXVHHH1');
+    const result = runRecompute(catalogWithoutDerived, sourceModel, missingModel);
 
     expect(result.hidden).toBe(false);
-    expect(`${result.textContent}${result.innerHTML}`).toContain('방진가대S2소');
+    expect(`${result.textContent}${result.innerHTML}`).toContain(missingModel);
     expect(result.missingQuantity).toBe(0);
   });
 

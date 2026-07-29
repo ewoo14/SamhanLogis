@@ -30,10 +30,42 @@ function inputFor(fixture, app) {
   return { ...fixture, app };
 }
 
+function actualCatalog() {
+  const commercialFixturePath = path.resolve(
+    __dirname,
+    '../order-app/src/__tests__/fixtures/commercialMultiBootstrap.fixture.json',
+  );
+  const homeFixturePath = path.resolve(
+    __dirname,
+    '../order-app/src/__tests__/fixtures/homemultiBootstrap.fixture.json',
+  );
+  const commercialFixture = JSON.parse(fs.readFileSync(commercialFixturePath, 'utf8'));
+  const homeFixture = JSON.parse(fs.readFileSync(homeFixturePath, 'utf8'));
+  if (!Array.isArray(commercialFixture.rows)) throw new Error('실 commercialMulti bootstrap fixture 행이 없습니다.');
+  if (!Array.isArray(homeFixture.rows)) throw new Error('실 homemulti bootstrap fixture 행이 없습니다.');
+  for (const model of ['AM130BN6PBH1', 'AM300AXVGHC1', 'AR-EH05', '방진가대S2중']) {
+    if (!commercialFixture.rows.some((row) => row.model === model)) {
+      throw new Error(`실 commercialMulti bootstrap fixture에 ${model} 행이 없습니다.`);
+    }
+  }
+  return {
+    home: homeFixture.rows,
+    single: [],
+    singleParts: [],
+    commercial: commercialFixture.rows,
+    priceSnapshot: null,
+  };
+}
+
 function remote360Input() {
   const fixture = optionFixtures.find((item) => item.id === 'C-01-CIRCLE-360');
   if (!fixture) throw new Error('C-01-CIRCLE-360 fixture를 찾을 수 없습니다.');
-  return fixture;
+  return {
+    ...fixture,
+    family: 'C-S3-REAL-REMOTE-360',
+    sourceQuantities: { AM130BN6PBH1: 1 },
+    catalog: actualCatalog(),
+  };
 }
 
 function coolTop30Input() {
@@ -41,15 +73,9 @@ function coolTop30Input() {
   if (!fixture) throw new Error('C-05 fixture를 찾을 수 없습니다.');
   return {
     ...fixture,
-    family: 'C-S3-COOLTOP-30',
-    sourceQuantities: { AM030AXVCOOL1: 1 },
-    catalog: {
-      ...fixture.catalog,
-      commercial: [
-        ...fixture.catalog.commercial,
-        { model: 'AM030AXVCOOL1', name: '실외기 냉방전용 상부토출 (30HP)', unit: 'EA' },
-      ],
-    },
+    family: 'C-S3-REAL-COOLTOP-30',
+    sourceQuantities: { AM300AXVGHC1: 1 },
+    catalog: actualCatalog(),
   };
 }
 
