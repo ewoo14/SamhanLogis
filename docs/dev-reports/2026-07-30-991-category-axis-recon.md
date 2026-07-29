@@ -131,7 +131,7 @@ item._zone = currentZone;
 - 다음 경계 패턴이 나올 때까지 그 상태가 아래 행에 전달된다.
 - 시작 경계를 만나기 전의 행은 `UNKNOWN`이다.
 
-`SINGLE` 판정에 쓰는 보조 입력은 GAS가 연결한 Google Sheet의 `싱글 구성품` 탭이다. `loadSingleSetCatalog`는 `모델명`, `세트`, `구분` 컬럼을 읽고 `구분`의 `실내기/실외기/판넬/리모컨/자재`를 분류한다(`Code.js:218-250`). 실제 Google Sheet의 현재 행 내용은 이번 정찰에서 외부로 조회하지 않았으므로 확인하지 못했다.
+`SINGLE` 판정에 쓰는 보조 입력은 GAS가 연결한 Google Sheet의 `싱글 구성품` 탭이다. `loadSingleSetCatalog`는 `모델명`, `세트`, `구분` 컬럼을 읽고 `구분`의 `실내기/실외기/판넬/리모컨/자재`를 분류한다(`Code.js:218-250`). 실제 Google Sheet의 해당 탭도 읽었고, 실제 header/data 행 수와 모델 토큰 중복은 §6.3에 기록했다. 단, 이 탭은 매출 raw의 행 순서를 제공하지 않는다.
 
 ### 2.3 네 카테고리와의 대응
 
@@ -145,7 +145,7 @@ item._zone = currentZone;
 
 코드상 가능하다. 각 원본 행에 `item._zone`을 따로 기록할 뿐, 같은 토큰이 이미 다른 zone에 등장했는지 검사하거나 합치지 않는다(`Code.js:486-500`). 예를 들어 한 전표 그룹에서 `AJ...` 행 뒤 `AM...` 행이 나오고 같은 `t`가 다시 나오면, 두 번째 행은 현재 상태에 따라 `COMM_MULTI`로 기록될 수 있다. 그 뒤 가격도 구형 우선 조회가 아니면 `searchZone`을 따라 달라질 수 있다(`Code.js:519-524`).
 
-다만 실제 레거시 Google Sheet/XLSX 원본에서 동일 품목이 두 범위에 실제로 등장했는지는 원본 파일이 저장소에 없고 외부 Sheet를 이번 정찰에서 조회하지 않았으므로 **확인하지 못함**이다. GAS 코드에는 이를 금지하는 방어 로직이 없다는 것만 확인했다.
+실제 가격·카탈로그 탭은 이번 추가 정찰에서 읽었다. 그 탭들 사이에 같은 토큰이 여러 zone으로 반복되는 것은 확인했지만, 이것은 `currentZone`이 직접 순회하는 매출 원본 행이 아니다. `currentZone`의 입력은 `Index.html:858-874`에서 브라우저가 업로드한 XLSX 첫 시트를 읽어 만든 `ecountData`이고, Google Sheet는 `Code.js:217-219`, `:272-312`에서 가격표·싱글 구성품 catalog로만 읽힌다. 따라서 **카탈로그 탭 간 중복은 확인했지만, 한 매출 raw 전표의 연속 행에서 동일 품목이 두 `currentZone` 범위에 실제로 반복된 사례는 raw XLSX가 없어 확인하지 못함**이다.
 
 ## 3. ②″ 현대 시스템이 필요한 입력을 갖는가
 
@@ -183,6 +183,63 @@ item._zone = currentZone;
 | 서로 다른 product ID지만 같은 표시 품목명 | 표시명 key 충돌 시 합산될 수 있음 |
 
 세금계산서 경로는 `line.getItemName()`을 key로 삼고(`MonthEndCloseService.java:236-242`), 매출·매입전표 경로는 `line.getProductName()`을 `accumulateProduct`에 넣는다(`:283-285`, `:317-319`). 그 결과 같은 모델이 서로 다른 레거시 범위로 팔렸어도 `revalidateProductLines`에는 모델명 하나와 합산 금액만 도착한다. 현재 구조로는 카테고리별 단가를 두 행으로 표시하거나, 어느 범위의 단가를 선택했는지 설명할 근거가 없다.
+
+### 4.1 `processDailyData` zone 전환 의사코드
+
+`extractModelToken_`·`isTargetModelCode_`·`classifyComp`·`processDailyData`(`Code.js:167-211`, `:420-523`)를 그대로 옮기면 다음과 같다. `clean_item_name_`은 대괄호·소괄호·중괄호 안을 제거하고 trim한다.
+
+```text
+extractModelToken(name):
+  if name is empty: return ""
+  u = uppercase(clean_item_name(name))
+  if u matches word-boundary (AC|AP|AR|AF|AM|AJ|AXJ|PC|AWR|ARR)
+                 + [A-Z0-9-]{4,}:
+      return matched token
+  if u starts with "AR-" or "ARR-":
+      return first whitespace-delimited token
+  return u
+
+isTargetModelCode(t):
+  return t matches ^A[CP][0-9]{3}
+      or ^AF[0-9]{2}
+      or ^AR[0-9]{2}
+
+classifyComp(t):
+  ^PC                  -> PANEL
+  ^AWR- or ^AR-        -> REMOTE
+  ^A[CP][0-9]{3}, t[6]=N -> INDOOR
+  ^A[CP][0-9]{3}, t[6]=X -> OUTDOOR
+  ^AR[0-9]{2}, no '-', t[11]=N -> INDOOR
+  ^AR[0-9]{2}, no '-', t[11]=X -> OUTDOOR
+  ^AR[0-9]{2}, no '-', t[11]=Q -> SUB_INDOOR
+  ^AF[0-9]{2}, t[11]=N -> INDOOR
+  ^AF[0-9]{2}, t[11]=X -> OUTDOOR
+  otherwise             -> MATERIAL
+
+for each invoice group keyed by raw 일자 + "_" + raw 번호:
+  currentZone = UNKNOWN
+  for each item in original row order:
+    t = extractModelToken(item.품목명)
+    cls = catalog.itemClassMap[t] if present, otherwise classifyComp(t)
+
+    if t starts ^AM, length >= 7, t[6] in {N, X}:
+      currentZone = COMM_MULTI
+    else if t starts ^AJ, length >= 7, t[6] in {N, X}:
+      currentZone = HOME_MULTI
+    else if isTargetModelCode(t)
+         and cls in {INDOOR, OUTDOOR, SUB_INDOOR}:
+      currentZone = SINGLE
+      hasSingleMain = true
+
+    item.zone = currentZone
+
+price lookup after zone assignment:
+  OLD model-map hit takes precedence over zone
+  AXJ token forces searchZone = COMM_MULTI
+  otherwise searchZone = currentZone
+```
+
+이 알고리즘에는 zone을 닫는 별도 token이나 구분 행이 없다. `AM...N/X`는 상업멀티를 열고, `AJ...N/X`는 홈멀티를 열고, catalog 분류까지 통과한 `AC/AP/AF/AR` 계열 target 모델은 싱글을 연다. 다음 전환 token이 나올 때까지 아래 행에 상태를 전달한다. `OLD`와 `AXJ`는 zone 전환이 아니라 가격 map 선택 우선순위다(`Code.js:167-211`, `:486-523`).
 
 ## 5. 네 표기 변환표
 
@@ -281,6 +338,192 @@ slip DB에는 활성 라인 2,791건, `source_order_line_id` 연결 라인 22건
 - 상품 노출 M:N: 복수 노출 품목 **68건**.
 - 직접 입력/기존 slip/accounting/tax 라인의 과거 판매 카테고리: 컬럼 부재로 **확인하지 못함**.
 
+### 6.3 실 Google Spreadsheet 탭과 카탈로그 행 확인
+
+SA 키는 `C:\dev\samhan-homepage-260f8ae469cc.json` 경로에서 읽었고, 키 내용은 출력·저장하지 않았다. Sheets API는 `spreadsheets.get` 및 `values.get`만 호출했다. 시트 쓰기 API(`values.update`, `batchUpdate`)는 호출하지 않았다.
+
+#### 탭 전수 목록
+
+실제 spreadsheet title은 `종합 견적서`였고, 현재 탭은 27개였다. `(hidden)`은 Sheets metadata의 hidden 값이 true인 탭이다.
+
+```text
+0  전표생성폼
+1  종합견적서
+2  전표업로드목록
+3  홈멀티
+4  홈멀티_단가인상
+5  싱글 세트
+6  싱글 세트_단가인상
+7  싱글 구성품
+8  싱글 구성품_단가인상
+9  상업멀티
+10 상업멀티_단가인상
+11 싱글 자재가격 (hidden)
+12 상업멀티 구성
+13 상업멀티 구성_단가인상
+14 분기계산
+15 구형
+16 장비스펙
+17 부속품스펙
+18 홈멀티_템플릿
+19 거래처
+20 전표생성폼_템플릿 (hidden)
+21 싱글 세트_템플릿 (hidden)
+22 상업멀티_템플릿
+23 분기계산_템플릿 (hidden)
+24 구형_템플릿 (hidden)
+25 담당자 (hidden)
+26 추천실외기 (hidden)
+```
+
+`매출전표X - ` 접두사로 시작하는 탭은 **0개**였다. `일자`, `번호`, `품목명` 세 컬럼을 동시에 가진 탭도 **0개**였다. 따라서 이 spreadsheet 전수 목록에는 개발책임자가 가정한 매출 raw 탭이 존재하지 않는다.
+
+#### `suf`가 짝지우는 대상
+
+실제 코드에서 `suf`는 매출 raw 탭 선택값이 아니다.
+
+```javascript
+// Code.js:423-439
+var suffix = '';
+// ecountData 첫 최대 5행의 '일자'를 읽음
+if (dateNum >= 20260701) suffix = '_단가인상';
+
+// Code.js:453-455, 302-312
+var priceMap = loadPriceMap_(suffix);
+var catalog = loadSingleSetCatalog(suffix);
+var sh = ss.getSheetByName(info.n)
+      || ss.getSheetByName(info.n.replace(suf, ''));
+```
+
+즉 `suf`의 의미는 다음과 같다.
+
+- `''`: `홈멀티`, `싱글 세트`, `싱글 구성품`, `상업멀티`, `상업멀티 구성`의 기본 가격 탭을 선택한다.
+- `'_단가인상'`: 같은 이름의 `_단가인상` 가격 탭을 먼저 선택하고, 없으면 `suf`를 뺀 기본 탭을 fallback으로 선택한다.
+- `구형`: `getSheets()`로 모든 탭을 훑되 이름에 `구형`이 포함된 탭에서 `모델명`·`출고가`·`납품가`를 읽는 별도 `OLD` map이다(`Code.js:275-299`).
+- `매출전표X - `: 탭 선택과 무관하며 `Code.js:465-466`에서 `회계반영일자` 셀에 기록하는 문자열 값이다.
+
+또한 브라우저의 실제 raw 입력은 `Index.html:858-874`다.
+
+```javascript
+const workbook = XLSX.read(data, {type: 'binary'});
+let raw = XLSX.utils.sheet_to_json(
+  workbook.Sheets[workbook.SheetNames[0]], {range: 1});
+ecountData = raw.filter(r => r['번호'] && ...);
+```
+
+따라서 “GAS가 spreadsheet의 `매출전표X - ` 탭을 읽는다”는 전제는 현재 저장소의 코드와 실 시트 전수 목록으로 확인되지 않는다. 현재 구현은 업로드 XLSX를 raw로 받고, spreadsheet는 가격·catalog source로 사용한다.
+
+#### 가격·catalog 탭 실제 행과 zone 재현
+
+GAS의 실제 tab별 header/data 시작 행을 그대로 적용해 `values.get` 결과를 읽었다.
+
+| 탭 | 실제 행 수 | GAS header index | header 행 | 모델명 컬럼 | GAS 해석 |
+|---|---:|---:|---:|---:|---|
+| `홈멀티` | 122 | 2 | 3 | B | `HOME_MULTI` |
+| `싱글 세트` | 291 | 2 | 3 | C | `SINGLE` |
+| `싱글 구성품` | 1,737 | 1 | 2 | C | `SINGLE` catalog |
+| `상업멀티` | 421 | 2 | 3 | B | `COMM_MULTI` |
+| `상업멀티 구성` | 517 | 0 | 1 | B | `COMM_MULTI` |
+| `구형` | 43 | 2 | 3 | B | `OLD` lookup |
+
+실제 행 예시는 다음과 같다. 같은 모델 토큰이 서로 다른 가격/catalog 탭의 실제 행에 존재한다.
+
+```text
+AM023TNVDBH1  홈멀티#65             HOME_MULTI
+AM023TNVDBH1  상업멀티#189/구성#229   COMM_MULTI
+
+AR-KH05       홈멀티#100            HOME_MULTI
+AR-KH05       싱글 세트#73/구성품#644 SINGLE
+AR-KH05       상업멀티#329/구성#370  COMM_MULTI
+
+AM120MXVRHC1  상업멀티#108/구성#148  COMM_MULTI
+AM120MXVRHC1  구형#18              OLD lookup
+```
+
+여기서 `홈멀티#65`의 `#65`는 실제 spreadsheet 행 번호다. `_단가인상` 짝 탭은 동일한 의미의 별도 가격 snapshot이므로 아래 distinct-zone 계산에는 base 탭만 사용했다. GAS가 raw 매출 행에 부여하는 `currentZone`을 카탈로그 행에 억지로 실행한 것이 아니라, GAS가 각 탭을 어떤 zone 가격 source로 해석하는지에 따라 중복을 집계했다.
+
+#### 서로 다른 zone에 나타난 동일 토큰
+
+기본 가격/catalog 탭 6개에서 모델명 컬럼의 실제 행을 `extractModelToken_`와 같은 정제 규칙으로 정규화했다. 결과는 **서로 다른 zone에 나타난 distinct token 76개**다. `싱글 구성품` 내부 반복 행은 한 token으로 deduplicate했으며, occurrence가 아니라 token 사례 수다.
+
+| zone 집합 | distinct token 수 |
+|---|---:|
+| `COMM_MULTI` + `HOME_MULTI` | 42 |
+| `COMM_MULTI` + `SINGLE` | 12 |
+| `HOME_MULTI` + `SINGLE` | 1 |
+| `COMM_MULTI` + `HOME_MULTI` + `SINGLE` | 18 |
+| `COMM_MULTI` + `HOME_MULTI` + `OLD` + `SINGLE` | 2 |
+| `COMM_MULTI` + `OLD` | 1 |
+| **합계** | **76** |
+
+전체 token 목록:
+
+```text
+ACR-SKE, ACR-SMA, ADP-F075SP, AIM-A01N, AIM-H04N, AIM-N01,
+AM023TNVDBH1, AM032TNVDBH1, AM040TNVDBH1, AM052BN4DBH1,
+AM052BN6PBH1, AM052KN4PBH1, AM052NN4DBH1, AM052TNVDBH1,
+AM060BN4DBH1, AM060BN6PBH1, AM060KN4PBH1, AM060NN4DBH1,
+AM060TNVDBH1, AM072BN4DBH1, AM072BN6PBH1, AM072KN4PBH1,
+AM072NN4DBH1, AM083BN4DBH1, AM083BN6PBH1, AM083KN4PBH1,
+AM083NN4DBH1, AM083TNVDBH1, AM120MXVRHC1, AR-CH01, AR-EC05,
+AR-EH05, AR-KH05, AWR-WE13N, AWR-WG00N, AXJ-YA1509N,
+AXJ-YA2512N, FH-LFHIF, FH-LFHLF, FH-LFHLN, PC1BWCK3N,
+PC1BWCK3NW, PC1BWSK3N, PC1BWSK3NW, PC1MWCK3N, PC1MWCK3NW,
+PC1MWSK3N, PC1MWSK3NW, PC1NWCK3N, PC1NWCK3NW, PC1NWSK3N,
+PC1NWSK3NW, PC1YNRK1NW, PC1YNWK1NW, PC1ZNRK1NW, PC1ZNWK1NW,
+PC4NBFK1NW, PC4NUCK1N, PC4NUCK4NW, PC4NUFK1N, PC4NUFK1NW,
+PC4NUXK1NW, PC6EUCK1NW, PC6EUXK1NW, PC6NBDK1NW, PC6NBNK1NW,
+PC6NUCK1N, PC6NUCK1NW, PC6NUDK1NW, PC6NUNK1NW, PC6NUXK1NW,
+SI-AL600A, SI-AL700A, 발통세트, 운임, 절삭
+```
+
+마지막 세 개(`발통세트`, `운임`, `절삭`)는 모델이라기보다 공통 특수행이지만 GAS의 `extractModelToken_`이 매칭 가능한 문자열을 그대로 token으로 반환하므로 목록에 포함했다. 모델·부속품 계열만 보면 73개다.
+
+이 결과는 앞서 제안한 슬라이스 3에 대한 근거를 강화한다. 상품 master/catalog의 동일 모델이 여러 가격 zone에 실제로 존재하므로 모델 단일 key 집계는 서로 다른 가격 참조를 합칠 수 있다. 따라서 슬라이스 3은 `(모델, 판매 라인에서 확정된 categoryKey)` 축을 보존해야 하며, catalog 중복을 근거로 판매 라인의 zone을 역추정해서는 안 된다. 반대로 슬라이스 4는 raw 입력이 spreadsheet가 아니라 업로드 XLSX라는 실제 경로를 보존하고, 그 입력에 범위 marker가 없을 때만 미상으로 남겨야 한다.
+
+### 6.4 spreadsheet raw와 현대 tax invoice 대조 가능성
+
+요청한 `일자_번호` 대조는 현재 실 시트에서는 수행할 수 없다.
+
+- 실 시트 27개 탭 중 `매출전표X - ` 탭 0개.
+- `일자`, `번호`, `품목명`을 모두 가진 탭 0개.
+- 따라서 spreadsheet raw에서 현대 `tax_invoice_lines`로 연결할 `일자_번호` 표본이 0개다.
+- `tax_invoices`에는 `supply_date`, `tax_invoice_no`가 있고 `tax_invoice_lines`에는 `line_no`, `item_name`, `spec`, quantity, unit price, supply/vat가 있지만 GAS raw의 `번호`와 `tax_invoice_no`가 같은 키라는 근거는 없다.
+
+실 DB의 현재 tax invoice line은 22건, tax invoice header entity는 14건이다. 표시 가능한 `(supply_date, tax_invoice_no)` 조합은 tax number NULL 충돌 때문에 12개뿐이다. 이 경로에서 schema상 확정되는 유실 정보는 `GAS currentZone/categoryKey`, 원본 raw의 `일자_번호` 관계, `창고명`, `거래처코드`, `출고가`, `할인율`, `확인`, 원본 행의 가격 source 구분이다. 다만 raw row 자체가 없으므로 “특정 raw 그룹의 어느 행이 현대 tax line에서 빠졌다”는 행 단위 대조 결과는 **확인하지 못함**이다.
+
+### 6.5 현대 tax invoice 라인에 알고리즘을 적용한 결과
+
+현대 tax 라인에는 `line_no`가 있으므로 각 tax invoice header 내부의 저장 순서는 `line_no` 오름차순으로 읽었다. 이것은 실제 저장된 line order이며, GAS raw의 `일자_번호`와 동일하다고 가정하지 않았다. `tax_invoice_no`가 NULL인 2026-07-20 데이터는 표시 키가 같지만 서로 다른 header entity 3건이고 모두 `line_no=1`이므로, 표시 키만으로는 원본 그룹·순서를 복원할 수 없다.
+
+그 조건에서 `item_name`을 GAS의 raw `품목명`으로 사용해 의사코드를 그대로 적용했다. `spec`을 품목명 대용으로 넣지 않았다. GAS 원본 알고리즘은 `item['품목명']`만 읽기 때문이다.
+
+```text
+입력: active tax_invoice_lines 22행
+보존된 tax invoice header: 14개
+표시 가능한 supply_date_tax_invoice_no 그룹: 12개
+sales_accounting_slip_lines: 0행
+purchase_accounting_slip_lines: 0행
+
+COMM_MULTI 전환: 0행
+HOME_MULTI 전환: 0행
+SINGLE 전환: 0행
+UNKNOWN: 22행
+```
+
+22개 `item_name`에는 `AM...N/X`, `AJ...N/X`, 또는 `AC/AP/AF/AR` target model code와 catalog class가 함께 나타나는 행이 없었다. 그러므로 상태는 모든 그룹에서 최초값 `UNKNOWN`에 머물렀다. 이것은 임의 zone을 넣은 결과가 아니라 실제 현대 라인에 규칙을 적용한 결과다.
+
+현대 tax 라인에서 동일 품목명이 반복된 것은 다음 두 가지였지만, 둘 다 모두 `UNKNOWN`이어서 서로 다른 zone 사례는 **0건**이다.
+
+| 품목명 | 실제 반복 | 계산 zone |
+|---|---:|---|
+| `B2 QA 검증 품목` | 3행 | 모두 `UNKNOWN` |
+| `절연재 T20` | 2행 | 모두 `UNKNOWN` |
+
+따라서 “현대 실 데이터에서 동일 품목이 서로 다른 zone으로 판정된 사례”는 0건이지만, 이것을 “실제로 복수 카테고리 판매가 없다”는 뜻으로 해석할 수 없다. 원본 raw의 marker와 `일자_번호`가 tax line에 없어서 22행 모두 판정 불가인 것이다.
+
+이 결과가 슬라이스에 미치는 영향은 다음과 같다. 슬라이스 3은 catalog에서 이미 76개 distinct token이 다중 zone에 걸쳐 있으므로 그대로 필요하며, 현대 tax 적용 결과 0건은 축을 제거할 근거가 아니다. 슬라이스 4는 현재 tax 원천 22행 전부가 exact GAS 규칙으로 `UNKNOWN`이 되는 규모를 추가로 보여준다. 원본 업로드 XLSX 또는 categoryKey가 전달되지 않는 한 이 22행을 상품 master/exposure로 채우면 레거시 범위 재현이 아니라 추측이다.
+
 ## 7. 슬라이스 제안
 
 정확한 GAS 범위 재현과 현대 일마감의 단가 불변식을 한 번에 섞지 않도록 다음 순서를 제안한다.
@@ -292,7 +535,8 @@ slip DB에는 활성 라인 2,791건, `source_order_line_id` 연결 라인 22건
 
 ## 8. 이번 정찰이 보지 않은 것
 
-- 실제 Google Spreadsheet의 현재 탭 행과 실제 Ecount XLSX 원본 파일은 조회하지 않았다. 따라서 같은 품목이 GAS 원본에서 두 범위에 실제로 반복되었는지는 **확인하지 못함**이다.
+- Google Spreadsheet는 이번 정찰에서 실제 읽었다. 탭 27개를 전수 열거했고 `매출전표X - ` 탭은 0개, `일자`·`번호`·`품목명`을 함께 가진 매출 raw 탭도 0개였다. 가격표·구성품 탭의 실제 행은 읽었으며 모델 토큰 76개가 여러 가격 zone에 반복되는 것을 확인했다. 다만 GAS가 실제로 순회하는 업로드 Ecount XLSX 원본은 이 PC/워크스페이스에 없으므로, **동일 품목이 한 업로드 전표의 원본 행에서 서로 다른 `currentZone`에 실제 반복됐는지는 확인하지 못함**이다.
+- 현대 tax invoice 22행에는 레거시 알고리즘을 실제 적용했다. 저장된 `line_no` 순서는 header 내부에서만 사용했고, `일자_번호`와 동등하다고 가정하지 않았다. 22행 모두 `UNKNOWN`이었고 서로 다른 zone으로 판정된 동일 품목은 0건이지만, 이것은 복수 카테고리 판매가 없다는 증거가 아니다.
 - 현대 직접 입력/기존 slip 라인에 대해 원본 Ecount `번호`와 `일자`를 완전하게 역대조하지 않았다. 현대 tax invoice의 invoice 번호가 GAS 원본 `번호`와 동일하다는 근거도 확인하지 못했다.
 - `product_estimate_exposure`의 68개 다중 노출 품목을 판매 라인과 연결해 카테고리를 추정하지 않았다. 그것은 이번 정찰의 결론과도 맞지 않는 접근이다.
 - 구현, migration, API/화면 변경, fixture 작성, 테스트 실행 및 데이터 backfill은 하지 않았다.
