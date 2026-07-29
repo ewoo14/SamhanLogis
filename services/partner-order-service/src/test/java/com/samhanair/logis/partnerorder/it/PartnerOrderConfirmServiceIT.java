@@ -19,11 +19,14 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
 import com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService;
+import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
+import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
+import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -60,6 +63,9 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private PartnerOrderConfirmService confirmService;
+
+    @Autowired
+    private PartnerOrderDraftService draftService;
 
     @Autowired
     private SlipPublishOutboxRepository outboxRepository;
@@ -116,6 +122,8 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
             case "P-REVISION" -> "2222222222";
             case "P-HISTORY" -> "3333333333";
             case "P-PARTIAL" -> "5555555555";
+            case "P-NEW-DRAFT-IDEM" -> "4444444444";
+            case "P-TIMEOUT-RETRY" -> "5555555556";
             default -> "1234567890";
         };
     }
@@ -259,6 +267,99 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 .map(o -> o.getOrderNo()))
                 .as("findByIdempotencyKey 가 동일 주문 반환")
                 .contains(first.orderNo());
+    }
+
+    /**
+     * ubuntu-latest에서도 실제 PostgreSQL 계약으로 검증한다.
+     * 새 전송 경로가 같은 snapshot을 두 번 만들고 confirm해도 기존 멱등키를 재사용해야 한다.
+     */
+    @Test
+    void repeated_new_draft_confirm_creates_only_one_order() {
+        String partnerCode = "P-NEW-DRAFT-IDEM";
+        String bizCode = "4444444444";
+        UUID productId = UUID.randomUUID();
+        stubConfirmProduct(productId, "NEW-DRAFT-5000");
+
+        ConfirmRequest request = confirmRequest(productId, "new-draft-repeat");
+        DraftCreateRequest snapshot = new DraftCreateRequest(
+                "주문서 확정 임시저장",
+                "{\"items\":[{\"model\":\"NEW-DRAFT-5000\",\"qty\":2}],"
+                        + "\"order\":{\"memo\":\"동일 주문\"}}");
+
+        DraftResponse firstDraft = draftService.create(partnerCode, "user-1", snapshot);
+        DraftResponse secondDraft = draftService.create(partnerCode, "user-2", snapshot);
+
+        ConfirmResponse first = confirmService.confirm(
+                partnerCode, bizCode, "user-1", "사용자", UUID.fromString(firstDraft.draftId()), request);
+        ConfirmResponse second = confirmService.confirm(
+                partnerCode, bizCode, "user-2", "사용자", UUID.fromString(secondDraft.draftId()), request);
+
+        assertThat(secondDraft.draftId()).isEqualTo(firstDraft.draftId());
+        assertThat(second.orderNo()).isEqualTo(first.orderNo());
+        var saved = orderRepository.findByOrderNo(first.orderNo()).orElseThrow();
+        String idempotencyKey = "PO-CONF-" + partnerCode + "-" + firstDraft.draftSeq();
+        assertThat(saved.getIdempotencyKey()).isEqualTo(idempotencyKey);
+        assertThat(orderRepository.findByIdempotencyKey(idempotencyKey)).isPresent();
+        long orderCount = orderRepository.findAll().stream()
+                .filter(order -> partnerCode.equals(order.getPartnerCode()))
+                .count();
+        assertThat(orderCount).isEqualTo(1);
+        System.out.println("[new-draft-idempotency] draftId=" + firstDraft.draftId()
+                + " orderNo=" + first.orderNo() + " idempotencyKey=" + idempotencyKey
+                + " orderCount=" + orderCount);
+    }
+
+    /**
+     * ubuntu-latest에서도 실제 PostgreSQL 계약으로 검증한다.
+     * 첫 confirm의 응답을 버리고 동일 주문을 재전송해도 기존 주문만 반환해야 한다.
+     */
+    @Test
+    void timeout_after_confirm_commit_then_retry_does_not_duplicate_order() {
+        String partnerCode = "P-TIMEOUT-RETRY";
+        String bizCode = "5555555556";
+        UUID productId = UUID.randomUUID();
+        stubConfirmProduct(productId, "TIMEOUT-5000");
+
+        ConfirmRequest request = confirmRequest(productId, "timeout-retry");
+        DraftCreateRequest snapshot = new DraftCreateRequest(
+                "주문서 확정 임시저장",
+                "{\"items\":[{\"model\":\"TIMEOUT-5000\",\"qty\":1}],"
+                        + "\"order\":{\"memo\":\"응답 지연\"}}");
+
+        DraftResponse committedDraft = draftService.create(partnerCode, "user-1", snapshot);
+        ConfirmResponse committed = confirmService.confirm(
+                partnerCode, bizCode, "user-1", "사용자",
+                UUID.fromString(committedDraft.draftId()), request);
+        // committed 응답이 timeout으로 유실된 상황을 표현한다. 재시도 측에서는 주문번호를 모른다.
+        assertThat(committed.orderNo()).isNotBlank();
+
+        DraftResponse retryDraft = draftService.create(partnerCode, "user-1", snapshot);
+        ConfirmResponse retry = confirmService.confirm(
+                partnerCode, bizCode, "user-1", "사용자",
+                UUID.fromString(retryDraft.draftId()), request);
+
+        assertThat(retryDraft.draftId()).isEqualTo(committedDraft.draftId());
+        assertThat(retry.orderNo()).isEqualTo(committed.orderNo());
+        long orderCount = orderRepository.findAll().stream()
+                .filter(order -> partnerCode.equals(order.getPartnerCode()))
+                .count();
+        assertThat(orderCount).isEqualTo(1);
+        System.out.println("[timeout-retry-idempotency] draftId=" + committedDraft.draftId()
+                + " orderNo=" + committed.orderNo() + " orderCount=" + orderCount);
+    }
+
+    private ConfirmRequest confirmRequest(UUID productId, String remark) {
+        return new ConfirmRequest(List.of(
+                new ConfirmLineRequest(productId, "homemulti", 1, remark)));
+    }
+
+    private void stubConfirmProduct(UUID productId, String modelCode) {
+        Mockito.lenient().when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of());
+        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "멱등테스트 상품", modelCode, null,
+                        new BigDecimal("2000000"), "ACTIVE")));
     }
 
     /**

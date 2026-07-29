@@ -152,6 +152,10 @@ function confirmLines(itemsArg: unknown): Array<{
 
 function apiErrorMessage(error: unknown): string {
   if (error && typeof error === 'object') {
+    const code = (error as { code?: unknown }).code
+    if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
+      return '서버 응답이 지연되어 처리 결과를 확인할 수 없습니다. 재전송해도 중복 주문으로 처리되지 않습니다.'
+    }
     const responseData = (error as { response?: { data?: unknown } }).response?.data
     if (responseData && typeof responseData === 'object') {
       const message = (responseData as { message?: unknown }).message

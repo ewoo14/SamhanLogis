@@ -289,4 +289,27 @@ describe('samhanApi.call', () => {
 
     expect(result).toEqual({ ok: false, orderNo: null, error: '임시저장 권한이 없습니다' });
   });
+
+  /** ubuntu-latest에서 timeout 후 재시도 안내가 동일하게 생성되는지 검증한다. */
+  it('confirm timeout은 서버 처리 결과 미확인 및 안전한 재시도 사유를 보여준다', async () => {
+    mocks.post
+      .mockResolvedValueOnce({
+        data: { success: true, data: { draftId: '11111111-1111-1111-1111-111111111111' } },
+      })
+      .mockRejectedValueOnce({
+        code: 'ECONNABORTED',
+        message: 'timeout of 5000ms exceeded',
+      });
+
+    const result = await samhanApi.call('sendOrderFromUi', [
+      [{ section: 'HOME', model: 'HM-1', qty: 1 }],
+      { bizno: '1234567890' },
+    ]);
+
+    expect(result).toEqual({
+      ok: false,
+      orderNo: null,
+      error: '서버 응답이 지연되어 처리 결과를 확인할 수 없습니다. 재전송해도 중복 주문으로 처리되지 않습니다.',
+    });
+  });
 });

@@ -40,6 +40,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerOrderDraftService {
 
     private static final Logger log = LoggerFactory.getLogger(PartnerOrderDraftService.class);
+    private static final String AUTO_CONFIRM_LABEL = "주문서 확정 임시저장";
 
     private final PartnerOrderDraftRepository draftRepository;
     private final PartnerOrderHistoryRepository historyRepository;
@@ -60,6 +61,20 @@ public class PartnerOrderDraftService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "partnerCode 필수");
         }
         lockDraftSeq(partnerCode);
+
+        // 주문 전송 재시도/동시 탭·기기 요청은 같은 snapshot의 draft를 재사용한다.
+        // 그러면 confirm은 새 멱등키를 만들지 않고 기존 PO-CONF-{partnerCode}-{draftSeq}를
+        // 다시 조회한다. 만료된 snapshot만 새 draft로 만든다.
+        if (AUTO_CONFIRM_LABEL.equals(request.label())) {
+            var existing = draftRepository
+                    .findFirstByPartnerCodeAndLabelAndPayloadJsonOrderByCreatedAtDesc(
+                            partnerCode, request.label(), request.payloadJson())
+                    .filter(draft -> !draft.isExpired(LocalDateTime.now()));
+            if (existing.isPresent()) {
+                return DraftResponse.from(existing.get());
+            }
+        }
+
         long nextSeq = draftRepository.findMaxDraftSeqByPartnerCode(partnerCode) + 1L;
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(properties.getTtlDays());
 
