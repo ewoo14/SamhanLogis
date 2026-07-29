@@ -247,11 +247,15 @@ public class EcountProductImporter {
     }
 
     private UpsertProductResult upsertProduct(ItemRow row, String categoryGroup, String actor) {
+        MapSqlParameterSource params = productParams(row, categoryGroup, actor);
+        List<UUID> modelNameMerged = jdbcTemplate.queryForList(UPDATE_ACTIVE_MODEL_NAME_SQL, params, UUID.class);
+        if (modelNameMerged != null && !modelNameMerged.isEmpty()) {
+            return new UpsertProductResult(modelNameMerged.get(0), false);
+        }
         boolean activeExists = exists("""
                 SELECT COUNT(1) FROM products
                  WHERE product_code = :code AND is_deleted = FALSE
                 """, new MapSqlParameterSource("code", row.code()));
-        MapSqlParameterSource params = productParams(row, categoryGroup, actor);
         if (!activeExists) {
             UUID restoredId = restoreSoftDeletedProduct(params);
             if (restoredId != null) {
@@ -302,7 +306,6 @@ public class EcountProductImporter {
               :outboundPrice, NOW(), :actor, FALSE
             )
             ON CONFLICT (product_code) WHERE is_deleted = FALSE DO UPDATE SET
-              name = EXCLUDED.name,
               model_name = EXCLUDED.model_name,
               model_code = EXCLUDED.model_code,
               specification = EXCLUDED.specification,
@@ -327,6 +330,44 @@ public class EcountProductImporter {
               modified_at = NOW(),
               modified_by = EXCLUDED.created_by
             RETURNING id
+            """;
+
+    /**
+     * Google Sheets sync가 만든 legacy 행은 model_name만 채워지고 product_code가 비어 있을 수 있다.
+     * 이카운트 품목코드가 그 model_name과 같으면 새 행을 INSERT하지 않고 기존 행에 메타/단가만 병합한다.
+     * 화면 품목명(name)은 시트 정본이므로 의도적으로 갱신하지 않는다.
+     */
+    private static final String UPDATE_ACTIVE_MODEL_NAME_SQL = """
+            UPDATE products p
+               SET model_name = :code,
+                   model_code = :code,
+                   product_code = :code,
+                   category_id = (SELECT c.id FROM categories c
+                                   WHERE c.code = 'ECOUNT_MIG2' AND c.is_deleted = FALSE LIMIT 1),
+                   specification = :spec,
+                   selling_price = :sellingPrice,
+                   purchase_price = :purchasePrice,
+                   product_business_type = :businessType,
+                   product_group1 = :productGroup1,
+                   inbound_price = :inboundPrice,
+                   outbound_price = :outboundPrice,
+                   single_price = :singlePrice,
+                   outdoor_price = :outdoorPrice,
+                   multi_50_price = :multi50Price,
+                   multi_48_price = :multi48Price,
+                   multi_45_price = :multi45Price,
+                   item_35_price = :item35Price,
+                   category_group = :categoryGroup,
+                   tax_type = 'TAXABLE',
+                   unit_price_with_vat = :outboundPrice,
+                   is_deleted = FALSE,
+                   deleted_at = NULL,
+                   deleted_by = NULL,
+                   modified_at = NOW(),
+                   modified_by = :actor
+             WHERE p.model_name = :code
+               AND p.is_deleted = FALSE
+            RETURNING p.id
             """;
 
     private UUID restoreSoftDeletedProduct(MapSqlParameterSource params) {

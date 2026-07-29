@@ -330,6 +330,9 @@ class EcountProductImporterTest {
         when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(UUID.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
+                    if (sql.contains("p.model_name = :code")) {
+                        return List.of();
+                    }
                     return sql.contains("UPDATE products") ? List.of(PRODUCT_ID) : List.of();
                 });
         String itemCsv = """
