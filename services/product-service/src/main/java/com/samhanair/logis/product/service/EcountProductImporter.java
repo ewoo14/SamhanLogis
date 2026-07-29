@@ -89,6 +89,38 @@ public class EcountProductImporter {
         List<EcountProductImportResult.RejectedRow> rejectedSample = new ArrayList<>();
         Map<String, UpsertProductResult> productByMainCode = new HashMap<>();
         LinkedHashSet<String> countedMainCodes = new LinkedHashSet<>();
+        Map<Integer, ProductMainCandidate> resolvedCandidates = new HashMap<>();
+        Map<String, List<ItemRow>> skippedRowsByName = new LinkedHashMap<>();
+        Map<String, List<String>> skippedCandidateCodesByName = new LinkedHashMap<>();
+
+        for (ItemRow row : itemRows) {
+            if (row.name().isBlank() || isPlaceholder(row.code())) {
+                continue;
+            }
+            EcountCsvSupport.requireMaxLength(row.code(), 100, "product_code", row.rowNo());
+            try {
+                ProductMainCandidate mainCandidate = resolveMainCandidate(
+                        row, relationMainByAlias.get(row.code()), relationParse.mainCodes(),
+                        itemsByCode, normalNameCounts);
+                if (mainCandidate != null) {
+                    resolvedCandidates.put(row.rowNo(), mainCandidate);
+                }
+            } catch (BusinessException ex) {
+                if (ex.getErrorCode() != ErrorCode.MIG2_NO_MAIN_CANDIDATE) {
+                    throw ex;
+                }
+                skippedRowsByName.computeIfAbsent(row.name(), ignored -> new ArrayList<>()).add(row);
+                skippedCandidateCodesByName.putIfAbsent(row.name(),
+                        candidateCodesForSkippedGroup(row, itemsByCode, ex));
+            }
+        }
+        List<EcountProductImportResult.SkippedGroup> skippedGroups = skippedRowsByName.entrySet().stream()
+                .map(entry -> new EcountProductImportResult.SkippedGroup(
+                        entry.getKey(),
+                        skippedCandidateCodesByName.getOrDefault(entry.getKey(), List.of()),
+                        entry.getValue().stream().map(ItemRow::rowNo).toList(),
+                        "⑤_FAIL_CLOSED"))
+                .toList();
 
         for (ItemRow row : itemRows) {
             if (row.name().isBlank()) {
@@ -107,8 +139,16 @@ public class EcountProductImporter {
             EcountCsvSupport.requireMaxLength(row.code(), 100, "product_code", row.rowNo());
 
             String explicitMainCode = relationMainByAlias.get(row.code());
-            ProductMainCandidate mainCandidate = resolveMainCandidate(
-                    row, explicitMainCode, relationParse.mainCodes(), itemsByCode, normalNameCounts);
+            if (skippedRowsByName.containsKey(row.name())) {
+                List<String> candidateCodes = skippedCandidateCodesByName.getOrDefault(row.name(), List.of());
+                String reason = "대표품목 후보 결정 불가; candidateCodes=" + candidateCodes
+                        + ", stoppedAt=⑤_FAIL_CLOSED";
+                updateItemStatus(sourceFileHash, row.rowNo(), "SKIPPED_MAIN_CANDIDATE", reason, null, null);
+                addRejectSample(rejectedSample, row.rowNo(), "SKIPPED_MAIN_CANDIDATE", row.code(), row.name());
+                continue;
+            }
+
+            ProductMainCandidate mainCandidate = resolvedCandidates.get(row.rowNo());
             if (mainCandidate == null) {
                 skippedRelationOrphan++;
                 updateItemStatus(sourceFileHash, row.rowNo(), "SKIPPED_RELATION_ORPHAN",
@@ -139,12 +179,13 @@ public class EcountProductImporter {
                     null, row.code().equals(mainCode) ? upsert.productId() : null, upsert.productId());
         }
 
-        log.info("MIG-2 product import 완료 total={} imported={} updated={} alias={} rejected={} placeholder={} orphan={} hash={}",
+        log.info("MIG-2 product import 완료 total={} imported={} updated={} alias={} rejected={} placeholder={} orphan={} skippedGroups={} hash={}",
                 itemRows.size(), imported, updated, aliasImported, rejectedNullName,
-                skippedPlaceholder, skippedRelationOrphan, sourceFileHash);
+                skippedPlaceholder, skippedRelationOrphan, skippedGroups.size(), sourceFileHash);
 
         return new EcountProductImportResult(itemRows.size(), imported, updated, rejectedNullName,
-                skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample);
+                skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample,
+                skippedGroups.size(), skippedGroups);
     }
 
     private RelationParseResult parseRelations(InputStream relationCsv, String actorUserId) {
@@ -277,6 +318,22 @@ public class EcountProductImporter {
                 .toList();
     }
 
+    private List<String> candidateCodesForSkippedGroup(ItemRow row, Map<String, ItemRow> itemsByCode,
+                                                       BusinessException exception) {
+        String message = exception.getMessage();
+        String marker = "sampleMainCodes=";
+        if (message != null && message.contains(marker)) {
+            String candidates = message.substring(message.indexOf(marker) + marker.length()).trim();
+            if (candidates.startsWith("[") && candidates.endsWith("]")) {
+                candidates = candidates.substring(1, candidates.length() - 1);
+            }
+            if (!candidates.isBlank()) {
+                return List.of(candidates.split(",\\s*"));
+            }
+        }
+        return rawCandidatesByName(row.name(), itemsByCode);
+    }
+
     private boolean isNormal(String code, String name) {
         return !name.isBlank() && !isPlaceholder(code);
     }
@@ -373,8 +430,9 @@ public class EcountProductImporter {
             """;
 
     /**
-     * Google Sheets sync가 만든 legacy 행은 model_name만 채워지고 product_code가 비어 있을 수 있다.
-     * 이카운트 품목코드가 그 model_name과 같으면 새 행을 INSERT하지 않고 기존 행에 메타/단가만 병합한다.
+     * Google Sheets sync가 만든 행은 {@code product_category}에 시트 계보가 남는다.
+     * 이카운트 품목코드가 그 model_name과 같으면 product_code가 이미 채워진 뒤에도
+     * 새 행을 INSERT하지 않고 기존 행에 메타/단가만 병합한다.
      * 화면 품목명(name)은 시트 정본이므로 의도적으로 갱신하지 않는다.
      */
     private static final String UPDATE_ACTIVE_MODEL_NAME_SQL = """
@@ -404,7 +462,7 @@ public class EcountProductImporter {
                    modified_at = NOW(),
                    modified_by = :actor
              WHERE p.model_name = :code
-               AND p.product_code IS NULL
+               AND p.product_category IS NOT NULL
                AND p.is_deleted = FALSE
             RETURNING p.id
             """;

@@ -117,12 +117,38 @@ class EcountProductImporterTest {
                 "ZENG-00009\t","바람막이\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
                 """;
 
-        assertThatThrownBy(() -> importer.importCsv(stream(itemCsv), null, null, "tester"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.MIG2_NO_MAIN_CANDIDATE))
-                .hasMessageContaining("AAAA-00008")
-                .hasMessageContaining("ZENG-00009");
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.skippedGroupCount()).isOne();
+        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
+            assertThat(group.name()).isEqualTo("바람막이");
+            assertThat(group.candidateCodes()).containsExactly("AAAA-00008", "ZENG-00009");
+            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
+        });
+    }
+
+    @Test
+    void importCsv_결정불가_그룹만_건너뛰고_나머지_행은_계속_반영한다() {
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "SAFE-001\t","안전품목A\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "BAD-001\t","결정불가품목\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "BAD-002\t","결정불가품목\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                "SAFE-002\t","안전품목B\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isOne();
+        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
+            assertThat(group.name()).isEqualTo("결정불가품목");
+            assertThat(group.candidateCodes()).containsExactly("BAD-001", "BAD-002");
+            assertThat(group.rowNumbers()).containsExactly(2, 3);
+            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
+        });
     }
 
     @Test
@@ -250,12 +276,13 @@ class EcountProductImporterTest {
                 "ALIAS-001\t","동명제품\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
                 """;
 
-        assertThatThrownBy(() -> importer.importCsv(stream(itemCsv), null, null, "tester"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.MIG2_NO_MAIN_CANDIDATE))
-                .hasMessageContaining("DB-001")
-                .hasMessageContaining("DB-002");
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.skippedGroupCount()).isOne();
+        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
+            assertThat(group.candidateCodes()).containsExactly("DB-001", "DB-002");
+            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
+        });
     }
 
     @Test
@@ -340,10 +367,14 @@ class EcountProductImporterTest {
                 "P-002\t","제품A\t","0","0","","","0","0","","","[상품]\t","\t","YES\t"
                 """;
 
-        assertThatThrownBy(() -> importer.importCsv(stream(itemCsv), null, null, "tester"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
-                        .isEqualTo(ErrorCode.MIG2_NO_MAIN_CANDIDATE));
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
+
+        assertThat(result.skippedGroupCount()).isOne();
+        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
+            assertThat(group.name()).isEqualTo("제품A");
+            assertThat(group.candidateCodes()).containsExactly("P-001", "P-002");
+            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
+        });
     }
 
     @Test

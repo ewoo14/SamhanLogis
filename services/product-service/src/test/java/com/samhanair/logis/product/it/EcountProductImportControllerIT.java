@@ -47,7 +47,7 @@ class EcountProductImportControllerIT extends AbstractPostgresIT {
                         Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
                 .thenReturn(true);
         when(importer.importCsv(any(InputStream.class), any(InputStream.class), any(InputStream.class), anyString()))
-                .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of()));
+                .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of(), 0, List.of()));
 
         mockMvc.perform(multipart("/admin/products/imports/ecount")
                         .file(file("itemFile"))
