@@ -176,16 +176,19 @@ describe('document template limits', () => {
     ['PNG', 'png', [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]],
     ['JPEG', 'jpeg', [0xFF, 0xD8, 0xFF]],
     ['WebP', 'webp', [0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]],
-  ] as const)('표시된 최대 KB의 정확한 경계에서도 %s는 형식·문서 예산을 함께 통과한다', (label, mime, signature) => {
+  ] as const)('%s의 형식별 안내 경계는 문서 저장 경계와 일치한다', (label, mime, signature) => {
     const document = boundaryDocument()
-    const computedMaxBytes = maxImageBytesForDocument(document, 'image-1')
-    const displayedKB = Math.floor(computedMaxBytes / 1024)
-    const fileBytes = displayedKB * 1024
+    const computedMaxBytes = maxImageBytesForDocument(document, 'image-1', mime)
+    const displayedKB = computedMaxBytes / 1024
+    const fileBytes = computedMaxBytes
     const src = dataUrlWithBytes(mime, signature, fileBytes)
     const withImage = structuredClone(document)
     withImage.bands.find((band) => band.kind === 'HEADER')!.elements.find((element) => element.key === 'image-1')!.src = src
     const finalDocumentBytes = new TextEncoder().encode(JSON.stringify(withImage)).byteLength
     const parsed = parseDocumentTemplate({ ...GROUPWARE_DEFAULT, schemaVersion: 2, document: withImage })
+    const overLimitDocument = structuredClone(document)
+    overLimitDocument.bands.find((band) => band.kind === 'HEADER')!.elements.find((element) => element.key === 'image-1')!.src = dataUrlWithBytes(mime, signature, fileBytes + 1)
+    const overLimitParsed = parseDocumentTemplate({ ...GROUPWARE_DEFAULT, schemaVersion: 2, document: overLimitDocument })
     const observed = {
       currentParseOk: parsed.ok,
       displayedKB,
@@ -195,11 +198,16 @@ describe('document template limits', () => {
       finalDocumentBytes,
       requestLimit: 64 * 1024,
       parseCode: parsed.ok ? null : parsed.error.code,
+      overLimitParseOk: overLimitParsed.ok,
+      overLimitParseCode: overLimitParsed.ok ? null : overLimitParsed.error.code,
     }
     if (process.env.REPORT_IMAGE_BOUNDARY === '1') console.log(JSON.stringify({ label, ...observed }))
 
     expect(observed.currentParseOk, JSON.stringify(observed)).toBe(true)
     expect(observed.formatGate).toBe(true)
+    expect(observed.finalDocumentBytes).toBeLessThanOrEqual(observed.requestLimit)
+    expect(observed.overLimitParseOk).toBe(false)
+    expect(observed.overLimitParseCode).toBe('INVALID_ENVELOPE')
   })
 
   // ubuntu-latest: 순수 JSON·TextEncoder 계산만 사용하며 경로 구분자·OS 네이티브 API에 의존하지 않는다.

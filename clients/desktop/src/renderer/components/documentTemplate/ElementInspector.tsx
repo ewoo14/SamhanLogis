@@ -36,6 +36,11 @@ function imageMimeFromDataUrl(value: string): ImageSourceMime | undefined {
   return IMAGE_DATA_URL_MIME.exec(value)?.[1] as ImageSourceMime | undefined
 }
 
+function formatImageLimitForDisplay(bytes: number): string {
+  const groupedBytes = String(bytes).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `약 ${Math.round(bytes / 1024)}KB (정확히 ${groupedBytes}B)`
+}
+
 /** N-3/R2(#914): fieldOptions(현재 docType의 실서버 본문 필드) 조회 상태 — "화면은 모르는 것을 안다고
  * 말하지 않는다"를 지키려면 조회 중/실패/정말 없음(=조회를 마쳤는데 빈 배열)/**아직 조회를 시도하지도
  * 않음**(docType 미선택) 네 사실을 구분해야 한다. 'unselected'는 'ready'와 다르다 — 'ready'는 "물어봤고
@@ -120,7 +125,13 @@ export function ElementInspector({
   const imageMaxBytes = element.type === 'IMAGE' && document
     ? maxImageBytesForDocument(document, element.key)
     : 50 * 1024
-  const imageMaxKilobytes = Math.floor(imageMaxBytes / 1024)
+  const imageFormatLimits = element.type === 'IMAGE' && document
+    ? {
+        png: maxImageBytesForDocument(document, element.key, 'png'),
+        jpeg: maxImageBytesForDocument(document, element.key, 'jpeg'),
+        webp: maxImageBytesForDocument(document, element.key, 'webp'),
+      }
+    : null
 
   return (
     <section className="document-template-inspector" aria-label="속성 패널" style={{ display: 'grid', gap: 8 }}>
@@ -253,7 +264,9 @@ export function ElementInspector({
             }} />
           </label>
           <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
-            지원 형식: PNG/JPEG/WebP · 현재 양식 기준 이미지 최대 {imageMaxKilobytes}KB
+            {imageFormatLimits
+              ? `지원 형식별 최대: PNG 최대 ${formatImageLimitForDisplay(imageFormatLimits.png)} · JPEG/WebP 최대 ${formatImageLimitForDisplay(imageFormatLimits.jpeg)}`
+              : `지원 형식: PNG/JPEG/WebP · 현재 양식 기준 이미지 최대 ${formatImageLimitForDisplay(imageMaxBytes)}`}
           </p>
           <label>
             파일에서 선택
@@ -277,9 +290,8 @@ export function ElementInspector({
                   const imageMaxBytesForSource = document && imageMime
                     ? maxImageBytesForDocument(document, element.key, imageMime)
                     : imageMaxBytes
-                  const imageMaxKilobytesForSource = Math.floor(imageMaxBytesForSource / 1024)
                   if (decodedBytes > imageMaxBytesForSource) {
-                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytesForSource}KB까지 저장할 수 있습니다. 더 작은 이미지로 바꾸거나 다른 이미지 요소를 삭제·교체한 뒤 다시 선택하세요.`)
+                    setImageError(`현재 양식 기준 이미지 최대 ${formatImageLimitForDisplay(imageMaxBytesForSource)}까지 저장할 수 있습니다. 더 작은 이미지로 바꾸거나 다른 이미지 요소를 삭제·교체한 뒤 다시 선택하세요.`)
                     return
                   }
                   if (!(await canDecodeImageSource(src))) {
