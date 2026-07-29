@@ -230,6 +230,8 @@ describe('samhanApi.call', () => {
       platform: 'MOBILE',
       done: true,
     });
+  });
+
   /**
    * ubuntu-latest에서도 동작해야 하는 순수 Vitest 테스트다.
    * 브라우저·Windows API·실제 서버 없이 axios mock만 사용한다.
