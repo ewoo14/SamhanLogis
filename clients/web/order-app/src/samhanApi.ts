@@ -167,6 +167,14 @@ function apiErrorMessage(error: unknown): string {
   return '주문 전송에 실패했습니다'
 }
 
+function confirmHeaders(order: unknown): { headers: { 'X-Biz-Code': string } } {
+  const bizCode = order && typeof order === 'object'
+    ? String((order as { bizno?: unknown }).bizno ?? '').trim()
+    : ''
+  if (!bizCode) throw new Error('주문 사업자번호가 없습니다')
+  return { headers: { 'X-Biz-Code': bizCode } }
+}
+
 const RPC_MAP: Record<string, RpcHandler> = {
   // ─── 인증 / 등록 / 잠금 (RPC §S 카테고리) ───────────────────────────────
   checkAuthStatus: ([bizNo]) =>
@@ -272,12 +280,13 @@ const RPC_MAP: Record<string, RpcHandler> = {
         const items = Array.isArray(itemsArg) ? itemsArg : []
         const lines = confirmLines(items)
         const order = orderArg && typeof orderArg === 'object' ? orderArg : {}
+        const headers = confirmHeaders(order)
         return http.post('/partner-orders/drafts', {
           label: '주문서 확정 임시저장',
           payloadJson: JSON.stringify({ items, order }),
-        }).then((r) => ({ lines, draft: unwrapApiResponse(r.data) }))
+        }).then((r) => ({ lines, draft: unwrapApiResponse(r.data), headers }))
       })
-      .then(({ lines, draft }) => {
+      .then(({ lines, draft, headers }) => {
         const draftId = draft && typeof draft === 'object'
           ? (draft as { draftId?: unknown }).draftId
           : null
@@ -285,7 +294,7 @@ const RPC_MAP: Record<string, RpcHandler> = {
           throw new Error('임시저장 ID를 받지 못했습니다')
         }
         return http
-          .post(`/partner-orders/${encodeURIComponent(draftId)}/confirm`, { lines })
+          .post(`/partner-orders/${encodeURIComponent(draftId)}/confirm`, { lines }, headers)
           .then((r) => ({
             ok: r.data?.success === true,
             orderNo: r.data?.data?.orderNo ?? null,

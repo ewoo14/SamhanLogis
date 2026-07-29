@@ -272,8 +272,53 @@ describe('samhanApi.call', () => {
           },
         ],
       },
+      { headers: { 'X-Biz-Code': '1234567890' } },
     );
     expect(result).toEqual({ ok: true, orderNo: '2026/07/29-1', error: null });
+  });
+
+  /**
+   * ubuntu-latest에서도 동일하게 재현되는 순수 Vitest 회귀 테스트다.
+   * 서버 ConfirmController가 X-Biz-Code를 서비스로 전달하는 계약을 클라이언트가 지켜야 한다.
+   */
+  it('confirm은 화면 order.bizno를 X-Biz-Code 헤더로 보낸다', async () => {
+    const order = { bizno: '1234567890' };
+    mocks.post
+      .mockResolvedValueOnce({
+        data: { success: true, data: { draftId: '22222222-2222-2222-2222-222222222222' } },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, data: { orderNo: '2026/07/29-2' } },
+      });
+
+    await samhanApi.call('sendOrderFromUi', [[{ section: 'HOME', model: 'HM-1', qty: 1 }], order]);
+
+    expect(mocks.post).toHaveBeenNthCalledWith(
+      2,
+      '/partner-orders/22222222-2222-2222-2222-222222222222/confirm',
+      {
+        lines: [
+          {
+            modelCode: 'HM-1',
+            categoryKey: 'homemulti',
+            quantity: 1,
+            remark: null,
+          },
+        ],
+      },
+      { headers: { 'X-Biz-Code': '1234567890' } },
+    );
+  });
+
+  /** ubuntu-latest에서도 사업자번호를 지어내지 않고 화면 실패 사유를 반환해야 한다. */
+  it('order.bizno가 없으면 draft를 만들지 않고 실패 사유를 반환한다', async () => {
+    const result = await samhanApi.call('sendOrderFromUi', [
+      [{ section: 'HOME', model: 'HM-1', qty: 1 }],
+      { addr: '서울시 중구' },
+    ]);
+
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, orderNo: null, error: '주문 사업자번호가 없습니다' });
   });
 
   /** ubuntu-latest에서 axios mock rejection의 서버 사유가 반환되는지 검증한다. */
