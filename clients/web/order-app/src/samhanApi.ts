@@ -106,14 +106,83 @@ function unwrapApiResponse(body: unknown): unknown {
   return body
 }
 
-function unwrapArrayResponse(body: unknown): unknown[] {
+type PageMetadata = {
+  totalElements: number
+  totalPages: number
+  page: number
+  size: number
+}
+
+type CollectionResponse = {
+  rows: unknown[]
+  page?: PageMetadata
+}
+
+function nonNegativeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
+function decodeCollectionResponse(body: unknown): CollectionResponse {
   const data = unwrapApiResponse(body)
-  if (Array.isArray(data)) return data
-  if (data && typeof data === 'object') {
-    const content = (data as { content?: unknown }).content
-    if (Array.isArray(content)) return content
+  if (Array.isArray(data)) return { rows: data }
+  if (!data || typeof data !== 'object') {
+    throw new Error('목록 응답 형식이 올바르지 않습니다')
   }
-  return []
+
+  const page = data as {
+    content?: unknown
+    totalElements?: unknown
+    totalPages?: unknown
+    number?: unknown
+    size?: unknown
+  }
+  if (!Array.isArray(page.content)) {
+    throw new Error('목록 응답 형식이 올바르지 않습니다')
+  }
+
+  const totalElements = nonNegativeInteger(page.totalElements)
+  const totalPages = nonNegativeInteger(page.totalPages)
+  const pageNumber = nonNegativeInteger(page.number)
+  const size = typeof page.size === 'number' && Number.isInteger(page.size) && page.size > 0
+    ? page.size
+    : null
+  if (totalElements == null || totalPages == null || pageNumber == null || size == null) {
+    throw new Error('목록 응답 페이지 메타데이터가 올바르지 않습니다')
+  }
+
+  return {
+    rows: page.content,
+    page: { totalElements, totalPages, page: pageNumber, size },
+  }
+}
+
+async function fetchAllPages(
+  path: string,
+  baseParams: Record<string, unknown>,
+  initialSize: number,
+): Promise<unknown[]> {
+  const firstResponse = await http.get(path, {
+    params: { ...baseParams, page: 0, size: initialSize },
+  })
+  const first = decodeCollectionResponse(firstResponse.data)
+  if (!first.page) return first.rows
+
+  const rows = [...first.rows]
+  for (let page = 1; page < first.page.totalPages; page += 1) {
+    const nextResponse = await http.get(path, {
+      params: { ...baseParams, page, size: first.page.size },
+    })
+    const next = decodeCollectionResponse(nextResponse.data)
+    if (!next.page) {
+      throw new Error('목록 응답 페이지 메타데이터가 올바르지 않습니다')
+    }
+    rows.push(...next.rows)
+  }
+
+  if (rows.length < first.page.totalElements) {
+    throw new Error('목록 응답이 일부만 반환되었습니다')
+  }
+  return rows
 }
 
 type LegacyOrderItem = {
@@ -238,15 +307,15 @@ const RPC_MAP: Record<string, RpcHandler> = {
 
   // ─── 주문이력 / 로그 (RPC §T 카테고리) ────────────────────────────────
   getOrderHistory: ([bizCode, , from, to]) =>
-    http
-      .get('/partner-orders/history', {
-        params: {
-          bizCode,
-          from: toIsoDateTimeParam(from, false),
-          to: toIsoDateTimeParam(to, true),
-        },
-      })
-      .then((r) => unwrapArrayResponse(r.data)),
+    fetchAllPages(
+      '/partner-orders/history',
+      {
+        bizCode,
+        from: toIsoDateTimeParam(from, false),
+        to: toIsoDateTimeParam(to, true),
+      },
+      20,
+    ),
   logFrontEvent: (args) => {
     const [first, second, third] = args
     const action = args.length >= 4 ? second : first
@@ -279,9 +348,9 @@ const RPC_MAP: Record<string, RpcHandler> = {
   saveDraft: ([payload]) =>
     http.post('/partner-orders/drafts', payload).then((r) => unwrapApiResponse(r.data)),
   getOrderSnapshotHistory: (args) =>
-    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapArrayResponse(r.data)),
+    fetchAllPages('/partner-orders/drafts', draftHistoryParams(args), 20),
   getDraftList: (args) =>
-    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapArrayResponse(r.data)),
+    fetchAllPages('/partner-orders/drafts', draftHistoryParams(args), 20),
 
   // ─── 최종 주문 전송 (RPC §O buildSendRows + §X sendOrderFromUi) ─────
   sendOrderFromUi: ([itemsArg, orderArg]) =>
@@ -331,9 +400,7 @@ const RPC_MAP: Record<string, RpcHandler> = {
   getCustomerData: ([partnerCode]) =>
     http.get(`/partners/${encodeURIComponent(String(partnerCode))}`).then((r) => unwrapApiResponse(r.data)),
   getProducts: ([category]) =>
-    http
-      .get('/products', { params: { usageScope: 'PARTNER_ORDER', category } })
-      .then((r) => unwrapArrayResponse(r.data)),
+    fetchAllPages('/products', { usageScope: 'PARTNER_ORDER', category }, 50),
   // 3d backlog — partner-auth-service 의 로그인 응답이 이미 DC 정책을 nested 로 포함하므로
   // 별도 backend 호출 없이 sessionStorage 캐시를 즉시 반환한다. 캐시 부재 시 graceful null.
   // 외부 단건 endpoint `/partner-dc-configs/{partnerCode}` 는 admin list 전용 (4b backlog 와 별개).

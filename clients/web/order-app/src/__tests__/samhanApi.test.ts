@@ -216,6 +216,79 @@ describe('samhanApi.call', () => {
     expect(result).toEqual([{ orderNo: '2026/07/30-1' }]);
   });
 
+  /**
+   * ubuntu-latest에서도 21건 Page를 두 번 조회해 전부 화면 배열로 합쳐야 한다.
+   * 수정 전에는 첫 Page의 20건만 반환되어 21번째 주문이 사라진다.
+   */
+  it('주문 이력 21건은 다음 Page까지 조회해 모두 반환한다', async () => {
+    const firstRows = Array.from({ length: 20 }, (_, index) => ({ orderNo: `2026/07/30-${index + 1}` }));
+    mocks.get
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          code: 'OK',
+          data: {
+            content: firstRows,
+            totalElements: 21,
+            totalPages: 2,
+            number: 0,
+            size: 20,
+            last: false,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          code: 'OK',
+          data: {
+            content: [{ orderNo: '2026/07/30-21' }],
+            totalElements: 21,
+            totalPages: 2,
+            number: 1,
+            size: 20,
+            last: true,
+          },
+        },
+      });
+
+    const result = await samhanApi.call('getOrderHistory', [
+      '1234567890',
+      '주문일시',
+      '2026-07-01',
+      '2026-07-31',
+    ]);
+
+    expect(result).toHaveLength(21);
+    expect(result).toContainEqual({ orderNo: '2026/07/30-21' });
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/partner-orders/history', {
+      params: {
+        bizCode: '1234567890',
+        from: '2026-07-01T00:00:00',
+        to: '2026-07-31T23:59:59',
+        page: 1,
+        size: 20,
+      },
+    });
+  });
+
+  /** ubuntu-latest에서도 malformed 2xx를 빈 목록 성공으로 위장하지 않고 reject해야 한다. */
+  it.each([
+    ['content 없는 object', { success: true, code: 'OK', data: { totalElements: 0 } }],
+    ['null data', { success: true, code: 'OK', data: null }],
+    ['empty body', {}],
+    ['empty string data', { success: true, code: 'OK', data: '' }],
+  ])('주문 이력 malformed 2xx(%s)는 실패로 전달한다', async (_label, body) => {
+    mocks.get.mockResolvedValue({ data: body });
+
+    await expect(samhanApi.call('getOrderHistory', [
+      '1234567890',
+      '주문일시',
+      '2026-07-01',
+      '2026-07-31',
+    ])).rejects.toThrow('목록 응답');
+  });
+
   /** ubuntu-latest에서도 Page content를 legacy 임시저장 목록 배열로 변환해야 한다. */
   it('임시저장 이력 Page 응답도 content 배열로 변환한다', async () => {
     mocks.get.mockResolvedValue({
@@ -258,7 +331,7 @@ describe('samhanApi.call', () => {
     expect(result).toEqual([{ modelCode: 'HM-1' }]);
   });
 
-  it('주문 이력 RPC 는 서버가 읽는 사업자코드·시작일·종료일만 query로 보낸다', async () => {
+  it('주문 이력 RPC 는 서버가 읽는 필터와 페이지 정보를 query로 보낸다', async () => {
     // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
     mocks.get.mockResolvedValue({ data: { success: true, code: 'OK', data: [] } });
 
@@ -274,6 +347,8 @@ describe('samhanApi.call', () => {
         bizCode: '1234567890',
         from: '2026-07-01T00:00:00',
         to: '2026-07-31T23:59:59',
+        page: 0,
+        size: 20,
       },
     });
   });
