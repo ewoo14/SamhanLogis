@@ -82,6 +82,12 @@ function toIsoDateParam(value: unknown): string | undefined {
   return Number.isNaN(parsed.getTime()) ? text : toIsoDateParam(parsed)
 }
 
+function toIsoDateTimeParam(value: unknown, endOfDay: boolean): string | undefined {
+  const date = toIsoDateParam(value)
+  if (!date) return undefined
+  return `${date}T${endOfDay ? '23:59:59' : '00:00:00'}`
+}
+
 function draftHistoryParams(args: unknown[]): { from?: string; to?: string } {
   const [bizNo, from, to] = args
   void bizNo
@@ -106,15 +112,25 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http
       .get('/auth/partner-status', { params: { bizNo } })
       .then((r) => unwrapApiResponse(r.data)),
-  requestAuthApproval: ([payload]) =>
-    http.post('/auth/partner-register', payload).then((r) => unwrapApiResponse(r.data)),
+  requestAuthApproval: ([bizNo]) =>
+    http
+      .post('/auth/partner-register', { bizNo })
+      .then((r) => unwrapApiResponse(r.data)),
   register: ([payload]) =>
     http.post('/auth/partner-register', payload).then((r) => unwrapApiResponse(r.data)),
   setAuthPassword: ([bizNo, pw]) =>
-    http.patch('/auth/partner-password', { bizNo, newPassword: pw }).then((r) => unwrapApiResponse(r.data)),
+    http
+      .patch('/auth/partner-password', {
+        bizNo,
+        newPassword: pw,
+      })
+      .then((r) => unwrapApiResponse(r.data)),
   tryLogin: ([bizNo, pw]) =>
     http
-      .post('/auth/partner-login', { bizNo, password: pw })
+      .post('/auth/partner-login', {
+        bizNo,
+        password: pw,
+      })
       .then((r) => {
         const data = unwrapApiResponse(r.data) as { token?: string; config?: unknown } | null
         if (data?.token) sessionStorage.setItem(TOKEN_KEY, data.token)
@@ -141,20 +157,34 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http.get('/partner-orders/gate-images').then((r) => unwrapApiResponse(r.data)),
 
   // ─── 주문이력 / 로그 (RPC §T 카테고리) ────────────────────────────────
-  getOrderHistory: ([bizCode, dateRange]) =>
+  getOrderHistory: ([bizCode, , from, to]) =>
     http
-      .get('/partner-orders/history', { params: { bizCode, ...(dateRange || {}) } })
+      .get('/partner-orders/history', {
+        params: {
+          bizCode,
+          from: toIsoDateTimeParam(from, false),
+          to: toIsoDateTimeParam(to, true),
+        },
+      })
       .then((r) => unwrapApiResponse(r.data)),
   logFrontEvent: (args) => {
     const [first, second, third] = args
     const action = args.length >= 4 ? second : first
     const detail = args.length >= 4 ? third : second
+    const config: AxiosRequestConfig | undefined =
+      args.length >= 4
+        ? {
+            headers: {
+              'X-Biz-Code': String(first || ''),
+            },
+          }
+        : undefined
 
-    return http
-      .post('/partner-orders/log', {
-        action: String(action || 'legacy-action'),
-        detail: String(detail || ''),
-      })
+    const request = {
+      action: String(action || 'legacy-action'),
+      detail: String(detail || ''),
+    }
+    return (config ? http.post('/partner-orders/log', request, config) : http.post('/partner-orders/log', request))
       .then((r) => unwrapApiResponse(r.data))
       .catch((err: unknown) => {
         // 로그 실패는 swallow (legacy 동작 — sendLog 도 silent)
@@ -187,8 +217,14 @@ const RPC_MAP: Record<string, RpcHandler> = {
   },
 
   // ─── 튜토리얼 상태 (RPC §W 카테고리) ──────────────────────────────────
-  saveTutorialState: ([state]) =>
-    http.patch('/auth/partner-tutorial', { state }).then((r) => unwrapApiResponse(r.data)),
+  saveTutorialState: ([bizNo, mobile]) =>
+    http
+      .patch('/auth/partner-tutorial', {
+        bizNo,
+        platform: mobile ? 'MOBILE' : 'PC',
+        done: true,
+      })
+      .then((r) => unwrapApiResponse(r.data)),
 
   // ─── 거래처 마스터 / 카탈로그 / DC 설정 (Code.js 외부 호출 대체) ─────
   getCustomerData: ([partnerCode]) =>

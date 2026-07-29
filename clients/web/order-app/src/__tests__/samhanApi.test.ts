@@ -141,6 +141,32 @@ describe('samhanApi.call', () => {
     expect(result).toEqual({ result: 'OK' });
   });
 
+  it('승인요청 RPC 는 레거시 호출의 모바일 인자를 버리고 서버 DTO body를 보낸다', async () => {
+    // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
+    mocks.post.mockResolvedValue({
+      data: {
+        success: true,
+        code: 'OK',
+        data: {
+          bizNo: '1068689215',
+          status: 'PENDING',
+          message: '가입 신청이 접수되었습니다',
+        },
+      },
+    });
+
+    const result = await samhanApi.call('requestAuthApproval', ['1068689215', true]);
+
+    expect(mocks.post).toHaveBeenCalledWith('/auth/partner-register', {
+      bizNo: '1068689215',
+    });
+    expect(result).toEqual({
+      bizNo: '1068689215',
+      status: 'PENDING',
+      message: '가입 신청이 접수되었습니다',
+    });
+  });
+
   it('주문 이력 RPC 는 envelope 의 배열 data 를 그대로 반환한다', async () => {
     mocks.get.mockResolvedValue({
       data: {
@@ -156,5 +182,51 @@ describe('samhanApi.call', () => {
     ]);
 
     expect(result).toEqual([{ orderNo: '2026/06/18-1' }]);
+  });
+
+  it('주문 이력 RPC 는 서버가 읽는 사업자코드·시작일·종료일만 query로 보낸다', async () => {
+    // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
+    mocks.get.mockResolvedValue({ data: { success: true, code: 'OK', data: [] } });
+
+    await samhanApi.call('getOrderHistory', [
+      '1234567890',
+      '주문일시',
+      '2026-07-01',
+      '2026-07-31',
+    ]);
+
+    expect(mocks.get).toHaveBeenCalledWith('/partner-orders/history', {
+      params: {
+        bizCode: '1234567890',
+        from: '2026-07-01T00:00:00',
+        to: '2026-07-31T23:59:59',
+      },
+    });
+  });
+
+  it('프론트 로그 RPC 는 서버가 읽는 X-Biz-Code만 HTTP metadata로 보낸다', async () => {
+    // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
+    mocks.post.mockResolvedValue({ data: { success: true, code: 'OK', data: null } });
+
+    await samhanApi.call('logFrontEvent', ['1234567890', '주문전송', 'detail', true]);
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      '/partner-orders/log',
+      { action: '주문전송', detail: 'detail' },
+      { headers: { 'X-Biz-Code': '1234567890' } },
+    );
+  });
+
+  it('튜토리얼 RPC 는 사업자번호·모바일 여부를 partner-auth 요청 계약으로 변환한다', async () => {
+    // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
+    mocks.patch.mockResolvedValue({ data: { success: true, code: 'OK', data: null } });
+
+    await samhanApi.call('saveTutorialState', ['1234567890', true]);
+
+    expect(mocks.patch).toHaveBeenCalledWith('/auth/partner-tutorial', {
+      bizNo: '1234567890',
+      platform: 'MOBILE',
+      done: true,
+    });
   });
 });
