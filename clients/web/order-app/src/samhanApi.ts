@@ -106,6 +106,16 @@ function unwrapApiResponse(body: unknown): unknown {
   return body
 }
 
+function unwrapArrayResponse(body: unknown): unknown[] {
+  const data = unwrapApiResponse(body)
+  if (Array.isArray(data)) return data
+  if (data && typeof data === 'object') {
+    const content = (data as { content?: unknown }).content
+    if (Array.isArray(content)) return content
+  }
+  return []
+}
+
 type LegacyOrderItem = {
   section?: unknown
   model?: unknown
@@ -236,7 +246,7 @@ const RPC_MAP: Record<string, RpcHandler> = {
           to: toIsoDateTimeParam(to, true),
         },
       })
-      .then((r) => unwrapApiResponse(r.data)),
+      .then((r) => unwrapArrayResponse(r.data)),
   logFrontEvent: (args) => {
     const [first, second, third] = args
     const action = args.length >= 4 ? second : first
@@ -269,9 +279,9 @@ const RPC_MAP: Record<string, RpcHandler> = {
   saveDraft: ([payload]) =>
     http.post('/partner-orders/drafts', payload).then((r) => unwrapApiResponse(r.data)),
   getOrderSnapshotHistory: (args) =>
-    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapApiResponse(r.data)),
+    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapArrayResponse(r.data)),
   getDraftList: (args) =>
-    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapApiResponse(r.data)),
+    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapArrayResponse(r.data)),
 
   // ─── 최종 주문 전송 (RPC §O buildSendRows + §X sendOrderFromUi) ─────
   sendOrderFromUi: ([itemsArg, orderArg]) =>
@@ -323,7 +333,7 @@ const RPC_MAP: Record<string, RpcHandler> = {
   getProducts: ([category]) =>
     http
       .get('/products', { params: { usageScope: 'PARTNER_ORDER', category } })
-      .then((r) => unwrapApiResponse(r.data)),
+      .then((r) => unwrapArrayResponse(r.data)),
   // 3d backlog — partner-auth-service 의 로그인 응답이 이미 DC 정책을 nested 로 포함하므로
   // 별도 backend 호출 없이 sessionStorage 캐시를 즉시 반환한다. 캐시 부재 시 graceful null.
   // 외부 단건 endpoint `/partner-dc-configs/{partnerCode}` 는 admin list 전용 (4b backlog 와 별개).

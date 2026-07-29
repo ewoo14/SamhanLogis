@@ -186,6 +186,78 @@ describe('samhanApi.call', () => {
     expect(result).toEqual([{ orderNo: '2026/06/18-1' }]);
   });
 
+  /**
+   * ubuntu-latest에서도 서버 Page JSON을 화면 배열로 소비할 수 있어야 한다.
+   * 수정 전에는 renderHistory의 data.sort가 동일하게 TypeError를 낸다.
+   */
+  it('주문 이력 Page 응답은 renderHistory가 sort할 수 있는 content 배열로 변환한다', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        success: true,
+        code: 'OK',
+        data: {
+          content: [{ orderNo: '2026/07/30-1' }],
+          totalElements: 1,
+          totalPages: 1,
+          number: 0,
+          size: 20,
+        },
+      },
+    });
+
+    const result = await samhanApi.call('getOrderHistory', [
+      '1234567890',
+      '주문일시',
+      '2026-07-01',
+      '2026-07-31',
+    ]);
+
+    expect(() => (result as Array<unknown>).sort()).not.toThrow();
+    expect(result).toEqual([{ orderNo: '2026/07/30-1' }]);
+  });
+
+  /** ubuntu-latest에서도 Page content를 legacy 임시저장 목록 배열로 변환해야 한다. */
+  it('임시저장 이력 Page 응답도 content 배열로 변환한다', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        success: true,
+        code: 'OK',
+        data: {
+          content: [{ draftSeq: 1, label: '주문서 확정 임시저장' }],
+          totalElements: 1,
+          totalPages: 1,
+          number: 0,
+          size: 20,
+        },
+      },
+    });
+
+    const result = await samhanApi.call('getOrderSnapshotHistory', [
+      '1234567890',
+      '2026-07-01',
+      '2026-07-31',
+    ]);
+
+    expect(result).toEqual([{ draftSeq: 1, label: '주문서 확정 임시저장' }]);
+  });
+
+  /** ubuntu-latest에서도 envelope 없는 카탈로그 Page 응답을 배열로 변환해야 한다. */
+  it('카탈로그 direct Page 응답도 content 배열로 변환한다', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        content: [{ modelCode: 'HM-1' }],
+        totalElements: 1,
+        totalPages: 1,
+        number: 0,
+        size: 50,
+      },
+    });
+
+    const result = await samhanApi.call('getProducts', ['HOME_MULTI']);
+
+    expect(result).toEqual([{ modelCode: 'HM-1' }]);
+  });
+
   it('주문 이력 RPC 는 서버가 읽는 사업자코드·시작일·종료일만 query로 보낸다', async () => {
     // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
     mocks.get.mockResolvedValue({ data: { success: true, code: 'OK', data: [] } });
