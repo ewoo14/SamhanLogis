@@ -46,10 +46,37 @@
 
 ```sql
 -- 4) schedules — 일정 1건.
-status VARCHAR(20) NOT NULL DEFAULT 'DRAFT'  -- DRAFT / CONFIRMED / CANCELLED
-CREATE TABLE schedules (... owner_id UUID NOT NULL, title VARCHAR(200) NOT NULL,
-  starts_at TIMESTAMP NOT NULL, ends_at TIMESTAMP NOT NULL, ...);
-CREATE TABLE schedule_participants (... schedule_id UUID NOT NULL, participant_id UUID NOT NULL, ...);
+--    status   = DRAFT / CONFIRMED / CANCELLED
+CREATE TABLE schedules (
+    id              UUID         PRIMARY KEY,
+    owner_id        UUID         NOT NULL,
+    title           VARCHAR(200) NOT NULL,
+    description     VARCHAR(2000),
+    starts_at       TIMESTAMP    NOT NULL,
+    ends_at         TIMESTAMP    NOT NULL,
+    status          VARCHAR(20)  NOT NULL,
+
+    created_at      TIMESTAMP    NOT NULL,
+    created_by      VARCHAR(50)  NOT NULL,
+    modified_at     TIMESTAMP,
+    modified_by     VARCHAR(50),
+    deleted_at      TIMESTAMP,
+    deleted_by      VARCHAR(50),
+    is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE
+);
+CREATE TABLE schedule_participants (
+    id              UUID         PRIMARY KEY,
+    schedule_id     UUID         NOT NULL REFERENCES schedules(id),
+    participant_id  UUID         NOT NULL,
+
+    created_at      TIMESTAMP    NOT NULL,
+    created_by      VARCHAR(50)  NOT NULL,
+    modified_at     TIMESTAMP,
+    modified_by     VARCHAR(50),
+    deleted_at      TIMESTAMP,
+    deleted_by      VARCHAR(50),
+    is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE
+);
 ```
 
 `services/groupware-service/src/main/java/com/samhanair/logis/groupware/controller/GroupwareAdminController.java:280-330`
@@ -57,11 +84,9 @@ CREATE TABLE schedule_participants (... schedule_id UUID NOT NULL, participant_i
 ```java
 @PostMapping("/schedules")
 @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
-public ResponseEntity<ScheduleResponse> createSchedule(...)
 
 @GetMapping("/schedules")
 @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
-public ResponseEntity<List<ScheduleResponse>> findSchedules(...)
 ```
 
 같은 컨트롤러에는 수정과 삭제도 있다.
@@ -77,17 +102,23 @@ public ResponseEntity<List<ScheduleResponse>> findSchedules(...)
 
 반면 dispatch는 다음처럼 날짜가 명시된 별도 물류 작업이다.
 
-`services/slip-service/src/main/java/com/samhanair/logis/slip/web/dispatch/DispatchTaskAdminController.java:50-70`
+`services/slip-service/src/main/java/com/samhanair/logis/slip/web/dispatch/DispatchTaskAdminController.java:66-109`
 
 ```java
 @RequestMapping("/admin/dispatch-tasks")
-// GET /admin/dispatch-tasks — 배차 이력 목록
-// from, to: 배차일(dispatchDate) 범위
+@Operation(summary = "완료배차 내역 목록 조회")
+@GetMapping
+@RequirePermission(page = "dispatch.board", action = PermissionAction.VIEW)
 ```
 
 `services/slip-service/src/main/java/com/samhanair/logis/slip/domain/dispatch/DispatchTask.java`
 
-> `dispatchDate`는 배차 작업의 날짜이며, `taskCode`가 사용자 식별자다. UUID는 내부 식별자다.
+> “사용자 노출 식별자 = `taskCode` (`yyyy/MM/dd-N`, daily counter). UUID 는 비공개.”
+
+```java
+@Column(name = "dispatch_date", nullable = false)
+private LocalDate dispatchDate;
+```
 
 이는 일정 기능과 이름이 겹치는 날짜 필드이지, 개인/부서/전사 일정의 대체 기능은 아니다. 배차 알림도 `notification-service`의 dispatch batch와 연결된 `[배차안내]` SMS 경로이며 일반 일정 알림으로 재사용하지 않는다.
 
@@ -150,7 +181,15 @@ public ResponseEntity<List<ScheduleResponse>> findSchedules(...)
 
 `clients/desktop/src/renderer/routes/DashboardPage.tsx:1-8`
 
-> 대시보드 환영 화면 + 4개 통계 카드. 실제 backend 호출은 오늘 출고전표이고, 저재고 알림·미확인 메시지·결재 대기는 `준비중`이다.
+```tsx
+/**
+ * 대시보드 — 환영 메시지 + 4 개의 통계 카드 + 빠른 액션 버튼.
+ * - "오늘 출고전표" 카드만 실제 BE 호출
+ * - 나머지 3개 카드는 준비 중 placeholder
+ */
+```
+
+실제 Javadoc에도 후속 확장 대상으로 `inventory 잔고/저재고 알림/메신저 카운트`가 적혀 있어, 현재 대시보드는 일정 화면이 아니라 확장 전 shell임을 확인할 수 있다.
 
 또한 `clients/desktop/src/renderer/routes/index.tsx:351-414`에는 `/groupware/approvals`, `/groupware/approvals/new`, `/messenger`가 있고, `:1562-1570`에는 `messenger.admin`으로 보호된 `/admin/chat-rooms`가 있다. 따라서 첫 화면은 새 서비스가 아니라 데스크톱의 기존 그룹웨어 메뉴/대시보드 shell에 붙이는 것이 자연스럽다. 다만 실제 일정 화면 route와 일정 API client는 이번 파일 정찰에서 확인하지 못했다.
 
@@ -179,7 +218,7 @@ public ResponseEntity<List<ScheduleResponse>> findSchedules(...)
 #### ⑥ 슬라이스 제안
 
 1. **등록한 일정을 등록한 사람이 다시 본다.** 기존 `groupware-service` API를 그대로 사용해 데스크톱 그룹웨어 화면에서 등록 후 동일 사용자의 기간 조회 결과를 다시 표시한다. 신규 엔티티·migration·알림·공유 정책은 넣지 않는다.
-2. **등록자 기준 수정·삭제와 기간 이동.** 기존 `PUT`·soft delete `DELETE`와 owner 검사를 데스크톱 화면에 연결하고, 날짜 범위를 바꿔도 등록자의 일정 목록을 조회한다. UUID는 화면에 표시하지 않는다.
+2. **등록자 기준 수정·삭제와 기간 이동.** 기존 `PUT`의 owner 검사와 soft delete `DELETE`를 데스크톱 화면에 연결하고, 날짜 범위를 바꿔도 등록자의 일정 목록을 조회한다. UUID는 화면에 표시하지 않는다.
 3. **명시적 참여자 공유.** `scope`/참여자 조회 정책을 먼저 결정한 뒤, `groupware.schedules` 후보 page-code의 action gate와 owner/participant 행 정책을 분리해 참여자 조회를 추가한다. 부서·전사는 조직 멤버십 확인이 필요하므로 이 슬라이스에 섞지 않는다.
 4. **부서·전사 범위 및 리마인더(후순위).** 조직 대상자 해석과 일정 알림 발행/스케줄링을 별도 결정한 다음 진행한다. 현재 기능과 중복되는 dispatch SMS를 사용하지 않고, 필요할 때만 notification center 경로를 사용한다.
 

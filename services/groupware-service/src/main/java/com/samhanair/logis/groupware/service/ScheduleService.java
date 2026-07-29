@@ -60,13 +60,13 @@ public class ScheduleService {
                         "일정을 찾을 수 없습니다: " + scheduleId));
     }
 
-    /** 소유자 + 기간 조회. */
+    /** 소유자 또는 참여자 + 기간 조회. */
     @Transactional(readOnly = true)
     public List<Schedule> findInRange(UUID ownerId, LocalDateTime from, LocalDateTime to) {
         if (from == null || to == null || !to.isAfter(from)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from < to 필수");
         }
-        return repository.findOwnedInRange(ownerId, from, to);
+        return repository.findVisibleInRange(ownerId, from, to);
     }
 
     /** 일정 수정 + 참여자 재정의 (전체 교체 패턴). 소유자 본인 일정만 수정 가능하다. */

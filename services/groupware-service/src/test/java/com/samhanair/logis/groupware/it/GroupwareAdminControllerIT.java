@@ -843,6 +843,63 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("내 일정"));
     }
 
+    /** Testcontainers PostgreSQL 기반으로 실행되며 ubuntu-latest에서도 같은 권한 계약을 검증한다. */
+    @Test
+    void find_schedules_includes_invited_participant_schedule_once() throws Exception {
+        UUID owner = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID invitedParticipant = UUID.fromString(MANAGER_ACCOUNT_ID);
+        UUID anotherParticipant = UUID.randomUUID();
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        ScheduleRequest req = new ScheduleRequest(
+                UUID.randomUUID(), "초대받은 일정", "참여자 일정 조회",
+                base.plusDays(1), base.plusDays(1).plusHours(2), null,
+                List.of(invitedParticipant, anotherParticipant));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.participantIds.length()").value(2));
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules")
+                        .param("from", base.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .param("to", base.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .header("X-User-Id", MANAGER_ACCOUNT_ID)
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("초대받은 일정"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].participantIds.length()").value(2));
+    }
+
+    /** Testcontainers PostgreSQL 기반으로 실행되며 ubuntu-latest에서도 무권한 일정 비노출을 검증한다. */
+    @Test
+    void find_schedules_does_not_expose_schedule_to_non_owner_or_participant() throws Exception {
+        UUID outsider = UUID.randomUUID();
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        ScheduleRequest req = new ScheduleRequest(
+                UUID.randomUUID(), "비공개 일정", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null,
+                List.of(UUID.fromString(MANAGER_ACCOUNT_ID)));
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules")
+                        .param("from", base.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .param("to", base.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .header("X-User-Id", outsider.toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(0));
+    }
+
     @Test
     void update_schedule_for_other_owner_returns_403_and_does_not_mutate() throws Exception {
         UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
