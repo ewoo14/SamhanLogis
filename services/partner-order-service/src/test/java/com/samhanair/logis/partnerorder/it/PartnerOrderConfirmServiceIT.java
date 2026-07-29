@@ -31,6 +31,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -358,8 +359,10 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         UUID productId = UUID.randomUUID();
         Mockito.when(productClient.lookup(Mockito.anyList()))
                 .thenReturn(List.of(new ProductSummary(
-                        productId, "헬로멀티 5kW", "HM-5000", null,
-                        new BigDecimal("1000000"), "ACTIVE")));
+                        productId, "360 멀티", "AM360AXVHHR1SY", null,
+                        new BigDecimal("29053200"), "ACTIVE")));
+        Mockito.when(productClient.lookupFixedDiscountRates(Mockito.anyList()))
+                .thenReturn(Map.of(productId, new BigDecimal("45.0")));
         // price-calc 가 finalPrice=800000 반환 (lineId "0")
         Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
                 .thenReturn(Map.of("0", new BigDecimal("800000")));
@@ -368,6 +371,18 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 new ConfirmLineRequest(productId, "homemulti", 1, null)));
         ConfirmResponse response = confirmService.confirm(
                 "P-DC", "1234567890", "user-dc", null, null, request);
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> priceLines = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-DC"), priceLines.capture());
+        DcConfigClient.PriceLine sent = priceLines.getValue().get(0);
+        assertThat(sent.modelCode()).isEqualTo("AM360AXVHHR1SY");
+        assertThat(sent.is360()).isTrue();
+        assertThat(sent.is4Way()).isFalse();
+        assertThat(sent.is1Way()).isFalse();
+        assertThat(sent.isStand()).isFalse();
+        assertThat(sent.isDeluxe()).isFalse();
+        assertThat(sent.isFirstGrade()).isFalse();
+        assertThat(sent.fixedDiscountRate()).isEqualByComparingTo("45.0");
 
         assertThat(response.status()).isEqualTo("DRAFT");
         // P0-2: response.orderNo() 로 주문 조회 — idempotencyKey 하드코딩 제거

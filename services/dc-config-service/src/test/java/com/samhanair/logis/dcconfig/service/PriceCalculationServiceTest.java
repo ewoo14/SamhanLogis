@@ -84,25 +84,45 @@ class PriceCalculationServiceTest {
     }
 
     @Test
-    void commercial_withOptions_subtractsBoth() {
+    void other_withOptions_subtractsBoth() {
         PriceCalculationRequest req = new PriceCalculationRequest(
                 "P-CALC-001", "partner-order-service",
                 List.of(new PriceCalculationRequest.Line(
                         "L1", "BIG-COMM-360", new BigDecimal("2000000"),
-                        "COMMERCIAL_MULTI", 2,
+                        "OTHER", 2,
                         true, false, false, true, false, false)));
 
         PriceCalculationResponse res = service.calculate(req);
 
-        // 2,000,000 * (1 - 0.10) = 1,800,000
+        // OTHER → rate 0, so 2,000,000 remains 2,000,000
         // 옵션 (360 + stand) = 50,000 + 30,000 = 80,000
-        // afterOption = 1,720,000 → round to 1000 = 1,720,000
-        // qty 2 → finalAmount = 3,440,000
-        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("1720000");
-        assertThat(res.lines().get(0).finalAmount()).isEqualByComparingTo("3440000");
+        // afterOption = 1,920,000 → round to 1000 = 1,920,000
+        // qty 2 → finalAmount = 3,840,000
+        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("1920000");
+        assertThat(res.lines().get(0).finalAmount()).isEqualByComparingTo("3840000");
         assertThat(res.totalListAmount()).isEqualByComparingTo("4000000");
-        assertThat(res.totalFinalAmount()).isEqualByComparingTo("3440000");
-        assertThat(res.totalDiscountAmount()).isEqualByComparingTo("560000");
+        assertThat(res.totalFinalAmount()).isEqualByComparingTo("3840000");
+        assertThat(res.totalDiscountAmount()).isEqualByComparingTo("160000");
+    }
+
+    @Test
+    void commercial_fixedDc_takesPriority_withoutDisplayOnlyOptionDeduction() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationRequest req = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "AM360AXVHHR1SY", "AM360AXVHHR1SY", new BigDecimal("29053200"),
+                        "COMMERCIAL_MULTI", 1,
+                        true, false, false, false, false, false,
+                        new BigDecimal("45.00"))));
+
+        PriceCalculationResponse res = service.calculate(req);
+
+        // order-app commUnitPrice: fixedDc=45% 우선, 6종 정액 옵션은 상업멀티 표시 단가에 미적용.
+        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("15979260");
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0.4500");
+        assertThat(res.lines().get(0).appliedFixedAmount()).isEqualByComparingTo("0");
     }
 
     @Test

@@ -15,6 +15,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,8 @@ class ProductClientTest {
     private static final String LOOKUP_ENDPOINT = "http://product-service/products/internal/lookup";
     private static final String MODEL_CODES_ENDPOINT =
             "http://product-service/products/internal/lookup-by-model-codes";
+    private static final String FIXED_DISCOUNT_ENDPOINT =
+            "http://product-service/products/internal/fixed-discount-rate-bulk";
 
     private MockRestServiceServer server;
     private ProductClient client;
@@ -70,7 +73,9 @@ class ProductClientTest {
                           "estimateCategory":"SINGLE_SET",
                           "usageScopeManual":false,
                           "displayOrder":10,
-                          "categoryKey":"singleSets"
+                          "categoryKey":"singleSets",
+                          "fixedDiscountRate":45.0,
+                          "discountFlags":"100000"
                         }]}""", MediaType.APPLICATION_JSON));
 
         List<ProductSummary> products = client.lookup(List.of(productId));
@@ -86,6 +91,8 @@ class ProductClientTest {
         assertThat(product.modelCode()).isEqualTo("AJ040");
         assertThat(product.productType()).isEqualTo("SINGLE");
         assertThat(product.categoryKey()).isEqualTo("singleSets");
+        assertThat(product.fixedDiscountRate()).isEqualByComparingTo("45.0");
+        assertThat(product.discountFlags()).isEqualTo("100000");
         server.verify();
     }
 
@@ -118,6 +125,26 @@ class ProductClientTest {
         assertThat(product.modelCode()).isEqualTo("HM-001");
         assertThat(product.productType()).isEqualTo("BUNDLE");
         assertThat(product.categoryKey()).isEqualTo("homemulti");
+        server.verify();
+    }
+
+    @Test
+    void lookupFixedDiscountRates는_기존_부분성공_endpoint의_percent를_파싱한다() {
+        UUID productId = UUID.fromString("00000000-0000-0000-0000-000000000101");
+        server.expect(once(), requestTo(FIXED_DISCOUNT_ENDPOINT))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andExpect(jsonPath("$.productIds[0]").value(productId.toString()))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{
+                          "00000000-0000-0000-0000-000000000101":{"fixedDiscountRate":45.00},
+                          "00000000-0000-0000-0000-000000000102":{"fixedDiscountRate":null}
+                        }}""", MediaType.APPLICATION_JSON));
+
+        Map<UUID, java.math.BigDecimal> rates = client.lookupFixedDiscountRates(List.of(productId));
+
+        assertThat(rates).containsKey(productId);
+        assertThat(rates.get(productId)).isEqualByComparingTo("45.00");
         server.verify();
     }
 

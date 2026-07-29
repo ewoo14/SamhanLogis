@@ -134,6 +134,10 @@ public class PartnerOrderConfirmService {
                 .distinct()
                 .toList();
         List<ProductSummary> products = productClient.lookup(productIds);
+        Map<UUID, BigDecimal> fixedDiscountRates = productClient.lookupFixedDiscountRates(productIds);
+        if (fixedDiscountRates == null) {
+            fixedDiscountRates = Map.of();
+        }
         Map<UUID, ProductSummary> productMap = new HashMap<>();
         for (ProductSummary p : products) {
             productMap.put(p.id(), p);
@@ -148,9 +152,17 @@ public class PartnerOrderConfirmService {
             if (p == null) {
                 throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + line.productId());
             }
+            String discountFlags = resolveDiscountFlags(p);
+            BigDecimal fixedDiscountRate = p.fixedDiscountRate() != null
+                    ? p.fixedDiscountRate()
+                    : fixedDiscountRates.get(p.id());
             priceLines.add(new DcConfigClient.PriceLine(
-                    String.valueOf(i), p.modelName(), p.sellingPrice(),
-                    mapCategory(line.categoryKey()), line.quantity()));
+                    String.valueOf(i), modelCodeSnapshot(p), p.sellingPrice(),
+                    mapCategory(line.categoryKey()), line.quantity(),
+                    discountFlag(discountFlags, 0), discountFlag(discountFlags, 1),
+                    discountFlag(discountFlags, 2), discountFlag(discountFlags, 3),
+                    discountFlag(discountFlags, 4), discountFlag(discountFlags, 5),
+                    fixedDiscountRate));
         }
         Map<String, BigDecimal> finalPrices = dcConfigClient.calculatePrices(partnerCode, priceLines);
 
@@ -277,6 +289,34 @@ public class PartnerOrderConfirmService {
             return product.modelCode().trim();
         }
         return product.modelName();
+    }
+
+    /** Product.discountFlags 의 6비트 순서(is360 ... isFirstGrade)를 계산 요청으로 전사한다. */
+    private boolean discountFlag(String flags, int index) {
+        return flags != null && flags.length() > index && flags.charAt(index) == '1';
+    }
+
+    /**
+     * 새 product summary의 저장 비트셋을 우선하고, 구형 product-service 응답에는 모델 규칙을 보완한다.
+     * 구형 응답도 AM360 같은 실제 360 품목을 false로 소거하지 않기 위한 호환 경로다.
+     */
+    private String resolveDiscountFlags(ProductSummary product) {
+        if (product.discountFlags() != null && product.discountFlags().length() >= 6) {
+            return product.discountFlags();
+        }
+        String model = String.valueOf(modelCodeSnapshot(product)).toUpperCase(java.util.Locale.ROOT);
+        boolean is360 = model.contains("360");
+        boolean is4Way = model.contains("4WAY") || model.contains("4-WAY");
+        boolean is1Way = model.contains("1WAY") || model.contains("1-WAY");
+        boolean isStand = model.contains("STAND");
+        boolean isDeluxe = model.contains("DELUXE");
+        boolean isFirstGrade = model.endsWith("F");
+        return (is360 ? "1" : "0")
+                + (is4Way ? "1" : "0")
+                + (is1Way ? "1" : "0")
+                + (isStand ? "1" : "0")
+                + (isDeluxe ? "1" : "0")
+                + (isFirstGrade ? "1" : "0");
     }
 
     /**

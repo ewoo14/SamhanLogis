@@ -85,6 +85,55 @@ class DcConfigClientTest {
     }
 
     @Test
+    void 실제_품목의_옵션과_고정DC를_계산서비스에_전달한다() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(allOf(
+                        containsString("\"lineId\":\"AM360AXVHHR1SY\""),
+                        containsString("\"is360\":true"),
+                        containsString("\"is4Way\":false"),
+                        containsString("\"is1Way\":false"),
+                        containsString("\"isStand\":false"),
+                        containsString("\"isDeluxe\":false"),
+                        containsString("\"isFirstGrade\":false"),
+                        containsString("\"fixedDiscountRate\":45.0"))))
+                .andRespond(withSuccess("""
+                        {"success":true,"code":"OK","message":"성공","data":{
+                          "lines":[{"lineId":"AM360AXVHHR1SY","finalPrice":15979260}]
+                        }}""", MediaType.APPLICATION_JSON));
+
+        client.calculatePrices("1068689215", List.of(new PriceLine(
+                "AM360AXVHHR1SY", "AM360AXVHHR1SY", new BigDecimal("29053200"),
+                "HOMEMULTI", 1, true, false, false, false, false, false,
+                new BigDecimal("45.0"))));
+
+        server.verify();
+    }
+
+    @Test
+    void dc_config_응답은_가격을_보정하지_않고_그대로_반환한다() {
+        server.expect(once(), requestTo(ENDPOINT))
+                .andRespond(withSuccess("""
+                        {"success":true,"code":"OK","message":"성공","data":{
+                          "lines":[
+                            {"lineId":"fixed","finalPrice":15037664,"appliedRate":0.4800,"appliedFixedAmount":70000.00},
+                            {"lineId":"global","finalPrice":15037664,"appliedRate":0.4800,"appliedFixedAmount":70000.00}
+                          ]
+                        }}""", MediaType.APPLICATION_JSON));
+
+        Map<String, BigDecimal> prices = client.calculatePrices("1068689215", List.of(
+                new PriceLine("fixed", "AM360AXVHHR1SY", new BigDecimal("29053200"),
+                        "COMMERCIAL_MULTI", 1, true, false, false, false, false, false,
+                        new BigDecimal("45.00")),
+                new PriceLine("global", "AM360AXVHHR1SY", new BigDecimal("29053200"),
+                        "COMMERCIAL_MULTI", 1, true, false, false, false, false, false, null)));
+
+        assertThat(prices.get("fixed")).isEqualByComparingTo("15037664");
+        assertThat(prices.get("global")).isEqualByComparingTo("15037664");
+        server.verify();
+    }
+
+    @Test
     void envelope_success_false는_오계산을_숨기지_않고_empty_fail_soft로_반환한다() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
