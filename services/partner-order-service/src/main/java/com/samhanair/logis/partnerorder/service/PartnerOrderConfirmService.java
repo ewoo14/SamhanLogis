@@ -156,13 +156,18 @@ public class PartnerOrderConfirmService {
             BigDecimal fixedDiscountRate = p.fixedDiscountRate() != null
                     ? p.fixedDiscountRate()
                     : fixedDiscountRates.get(p.id());
+            BigDecimal listPrice = resolveListPrice(p, line.categoryKey(), fixedDiscountRate);
+            if (listPrice == null || listPrice.signum() <= 0) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "확정 가격 기준가 없음: " + modelCodeSnapshot(p));
+            }
             priceLines.add(new DcConfigClient.PriceLine(
-                    String.valueOf(i), modelCodeSnapshot(p), p.sellingPrice(),
+                    String.valueOf(i), modelCodeSnapshot(p), listPrice,
                     mapCategory(line.categoryKey()), line.quantity(),
                     discountFlag(discountFlags, 0), discountFlag(discountFlags, 1),
                     discountFlag(discountFlags, 2), discountFlag(discountFlags, 3),
                     discountFlag(discountFlags, 4), discountFlag(discountFlags, 5),
-                    fixedDiscountRate));
+                    fixedDiscountRate, variableDiscountEnabled(p)));
         }
         Map<String, BigDecimal> finalPrices = dcConfigClient.calculatePrices(partnerCode, priceLines);
 
@@ -178,7 +183,13 @@ public class PartnerOrderConfirmService {
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
             ProductSummary p = productMap.get(line.productId());
-            BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), p.sellingPrice());
+            BigDecimal listPrice = resolveListPrice(p, line.categoryKey(),
+                    p.fixedDiscountRate() != null ? p.fixedDiscountRate() : fixedDiscountRates.get(p.id()));
+            BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), listPrice);
+            if (priceVat == null || priceVat.signum() <= 0) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "확정 최종 단가가 0원입니다: " + modelCodeSnapshot(p));
+            }
             // 주문 라인 modelName 컬럼은 화면 표시 modelCode snapshot 으로 사용한다.
             String lineModelCode = modelCodeSnapshot(p);
             PartnerOrderLine entity = PartnerOrderLine.create(
@@ -301,22 +312,78 @@ public class PartnerOrderConfirmService {
      * 구형 응답도 AM360 같은 실제 360 품목을 false로 소거하지 않기 위한 호환 경로다.
      */
     private String resolveDiscountFlags(ProductSummary product) {
-        if (product.discountFlags() != null && product.discountFlags().length() >= 6) {
+        if (product.discountFlags() != null
+                && product.discountFlags().matches("[01]{6}")
+                && product.discountFlags().chars().anyMatch(ch -> ch == '1')) {
             return product.discountFlags();
         }
         String model = String.valueOf(modelCodeSnapshot(product)).toUpperCase(java.util.Locale.ROOT);
-        boolean is360 = model.contains("360");
-        boolean is4Way = model.contains("4WAY") || model.contains("4-WAY");
-        boolean is1Way = model.contains("1WAY") || model.contains("1-WAY");
-        boolean isStand = model.contains("STAND");
-        boolean isDeluxe = model.contains("DELUXE");
-        boolean isFirstGrade = model.endsWith("F");
+        // 구형 product-service 응답에는 discountFlags 자체가 없다. 기존 AM360 호환 호출자는
+        // 모델 토큰으로 360 옵션을 식별하던 계약이므로 그 경로만 보존한다. 실제 응답의
+        // "000000"은 아래 order-app getModelFlags 규칙으로 재판정한다.
+        if (product.discountFlags() == null && model.contains("360")) {
+            return "100000";
+        }
+        boolean is360 = false;
+        boolean is4Way = false;
+        boolean is1Way = false;
+        boolean isStand = false;
+        boolean isDeluxe = false;
+        boolean isFirstGrade = false;
+        if (model.startsWith("AC") && model.length() >= 9) {
+            is360 = model.charAt(7) == '6' && model.charAt(8) == 'P';
+            is4Way = model.charAt(7) == '4' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
+            is1Way = model.charAt(7) == '1' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
+        }
+        if (model.startsWith("AP") && model.length() >= 9) {
+            if (model.length() >= 11 && model.charAt(10) == 'C') {
+                isStand = model.charAt(8) == 'D';
+            } else {
+                isStand = model.charAt(8) == 'P';
+            }
+            if (model.length() >= 11 && model.charAt(8) == 'D' && model.charAt(10) == 'H') {
+                isDeluxe = true;
+            }
+            if (model.startsWith("AP230") || model.startsWith("AP290")) {
+                isStand = true;
+                isDeluxe = false;
+            }
+        }
+        if ((model.startsWith("AC") || model.startsWith("AP"))
+                && model.length() >= 9 && model.charAt(8) == 'F') {
+            isFirstGrade = true;
+        }
         return (is360 ? "1" : "0")
                 + (is4Way ? "1" : "0")
                 + (is1Way ? "1" : "0")
                 + (isStand ? "1" : "0")
                 + (isDeluxe ? "1" : "0")
                 + (isFirstGrade ? "1" : "0");
+    }
+
+    /** 화면의 카탈로그 계산이 사용한 원금. 멀티는 변동DC/고정DC가 있을 때 releasePrice를 쓴다. */
+    private BigDecimal resolveListPrice(ProductSummary product, String categoryKey,
+                                        BigDecimal fixedDiscountRate) {
+        boolean multi = "homemulti".equals(categoryKey) || "homeDefaults".equals(categoryKey)
+                || "commercialMulti".equals(categoryKey);
+        BigDecimal primary;
+        if (multi) {
+            primary = fixedDiscountRate != null || variableDiscountEnabled(product)
+                    ? product.releasePrice() : product.deliveryPrice();
+        } else if ("oldProducts".equals(categoryKey)) {
+            primary = product.releasePrice();
+        } else {
+            primary = product.deliveryPrice();
+        }
+        if (primary != null && primary.signum() > 0) {
+            return primary;
+        }
+        return product.sellingPrice();
+    }
+
+    /** null은 구형 product-service 응답의 변동DC 정보 부재를 뜻하므로 기존 rate 계약을 유지한다. */
+    private boolean variableDiscountEnabled(ProductSummary product) {
+        return product.hasVariableDiscount() == null || product.hasVariableDiscount();
     }
 
     /**

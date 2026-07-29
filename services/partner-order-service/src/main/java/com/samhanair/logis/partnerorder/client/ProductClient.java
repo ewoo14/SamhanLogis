@@ -216,7 +216,16 @@ public class ProductClient {
                 m.get("fixedDiscountRate") == null
                         ? null
                         : new java.math.BigDecimal(m.get("fixedDiscountRate").toString()),
-                (String) m.get("discountFlags"));
+                (String) m.get("discountFlags"),
+                m.get("releasePrice") == null
+                        ? null
+                        : new BigDecimal(m.get("releasePrice").toString()),
+                m.get("deliveryPrice") == null
+                        ? null
+                        : new BigDecimal(m.get("deliveryPrice").toString()),
+                m.get("hasVariableDiscount") == null
+                        ? null
+                        : Boolean.valueOf(m.get("hasVariableDiscount").toString()));
     }
 
     private String requireToken() {

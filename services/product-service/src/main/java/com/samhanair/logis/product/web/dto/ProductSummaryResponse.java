@@ -42,7 +42,10 @@ public record ProductSummaryResponse(
         Integer displayOrder,
         String categoryKey,
         BigDecimal fixedDiscountRate,
-        String discountFlags) {
+        String discountFlags,
+        BigDecimal releasePrice,
+        BigDecimal deliveryPrice,
+        Boolean hasVariableDiscount) {
 
     /**
      * Backward-compatible 생성자 — categoryKey 추가 전 canonical 호출 호환.
@@ -54,7 +57,7 @@ public record ProductSummaryResponse(
                                   boolean usageScopeManual, Integer displayOrder) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
                 modelCode, productType, usageScope, estimateCategory, usageScopeManual, displayOrder,
-                null, null, null);
+                null, null, null, null, null, null);
     }
 
     /**
@@ -63,7 +66,7 @@ public record ProductSummaryResponse(
     public ProductSummaryResponse(UUID id, String name, String modelName, UUID categoryId,
                                   BigDecimal sellingPrice, ProductStatus status) {
         this(id, name, modelName, null, categoryId, sellingPrice, status, false, true, null, null,
-                null, null, false, null, null, null, null);
+                null, null, false, null, null, null, null, null, null, null);
     }
 
     /**
@@ -72,7 +75,7 @@ public record ProductSummaryResponse(
     public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, true, null, null,
-                null, null, false, null, null, null, null);
+                null, null, false, null, null, null, null, null, null, null);
     }
 
     /**
@@ -82,7 +85,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true, null, null,
-                null, null, false, null, null, null, null);
+                null, null, false, null, null, null, null, null, null, null);
     }
 
     /**
@@ -92,7 +95,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, true,
-                modelCode, productType, null, null, false, null, null, null, null);
+                modelCode, productType, null, null, false, null, null, null, null, null, null, null);
     }
 
     /**
@@ -102,7 +105,7 @@ public record ProductSummaryResponse(
                                   UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
                                   boolean serialManaged, boolean goods, String modelCode, String productType) {
         this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
-                modelCode, productType, null, null, false, null, null, null, null);
+                modelCode, productType, null, null, false, null, null, null, null, null, null, null);
     }
 
     /**
@@ -131,7 +134,10 @@ public record ProductSummaryResponse(
                 null,
                 categoryKey(p.getProductCategory()),
                 p.getFixedDiscountRate(),
-                p.getDiscountFlags());
+                p.getDiscountFlags(),
+                p.getReleasePrice(),
+                p.getDeliveryPrice(),
+                p.getHasVariableDiscount());
     }
 
     private static String categoryKey(ProductCategory productCategory) {

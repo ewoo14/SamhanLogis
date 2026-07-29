@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
@@ -405,6 +406,101 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         assertThat(supplyAmount).isEqualByComparingTo("727272");
         assertThat(vatAmount).isEqualByComparingTo("72728");
         assertThat(supplyAmount.add(vatAmount)).isEqualByComparingTo(subtotal);
+    }
+
+    @Test
+    void confirm_sends_screen_price_bases_and_derived_option_flags() {
+        UUID multiId = UUID.randomUUID();
+        UUID singleId = UUID.randomUUID();
+        Mockito.when(productClient.lookup(Mockito.anyList())).thenReturn(List.of(
+                new ProductSummary(multiId, "홈멀티", "AM023TNVDBH1", null,
+                        new BigDecimal("451000"), "ACTIVE", "AM023TNVDBH1", "SINGLE",
+                        "homemulti", new BigDecimal("40.00"), "000000",
+                        new BigDecimal("501600"), new BigDecimal("300960"), true),
+                new ProductSummary(singleId, "싱글 세트", "AC060CS4FBH2SY", null,
+                        new BigDecimal("3115200"), "ACTIVE", "AC060CS4FBH2SY", "SINGLE",
+                        "singleSets", null, "000000",
+                        new BigDecimal("3121800"), new BigDecimal("1840000"), true)));
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of("0", new BigDecimal("300960"), "1", new BigDecimal("1810000")));
+
+        ConfirmResponse response = confirmService.confirm(
+                "P-SOL-985", "1234567890", "user-sol-985", null, null,
+                new ConfirmRequest(List.of(
+                        new ConfirmLineRequest(multiId, "homemulti", 1, null),
+                        new ConfirmLineRequest(singleId, "singleSets", 1, null))));
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> captor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-SOL-985"), captor.capture());
+        DcConfigClient.PriceLine multi = captor.getValue().get(0);
+        DcConfigClient.PriceLine single = captor.getValue().get(1);
+        assertThat(multi.listPrice()).isEqualByComparingTo("501600");
+        assertThat(multi.fixedDiscountRate()).isEqualByComparingTo("40.00");
+        assertThat(multi.hasVariableDiscount()).isTrue();
+        assertThat(single.listPrice()).isEqualByComparingTo("1840000");
+        assertThat(single.isFirstGrade()).isTrue();
+        assertThat(single.fixedDiscountRate()).isNull();
+
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo()).orElseThrow().getId();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? AND product_id = ?",
+                BigDecimal.class, orderId, multiId)).isEqualByComparingTo("300960");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? AND product_id = ?",
+                BigDecimal.class, orderId, singleId)).isEqualByComparingTo("1810000");
+    }
+
+    /**
+     * 상업멀티 AM120MXVRHC1의 화면 규칙 회귀 테스트.
+     *
+     * <p>부트스트랩 원시 {@code price}는 3,905,000원이지만 화면은
+     * {@code list=7,810,000}에 품목 고정DC 40%를 적용한 4,686,000원을 표시한다.
+     * 따라서 confirm도 releasePrice를 원금으로 dc-config에 전달하고 같은 단가를 저장해야 한다.
+     */
+    @Test
+    void confirm_uses_release_price_base_for_commercial_fixed_dc_am120() {
+        UUID productId = UUID.randomUUID();
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "DVM ECO 리뉴얼 12HP 상부토출형", "AM120MXVRHC1", null,
+                        new BigDecimal("7810000"), "ACTIVE", "AM120MXVRHC1", "SINGLE",
+                        "commercialMulti", new BigDecimal("40.00"), "000000",
+                        new BigDecimal("7810000"), new BigDecimal("3905000"), true)));
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of("0", new BigDecimal("4686000")));
+
+        ConfirmResponse response = confirmService.confirm(
+                "P-SOL-985-AM120", "1234567890", "user-sol-985", null, null,
+                new ConfirmRequest(List.of(new ConfirmLineRequest(
+                        productId, "commercialMulti", 1, "AM120 screen parity"))));
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> captor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-SOL-985-AM120"), captor.capture());
+        assertThat(captor.getValue().get(0).listPrice()).isEqualByComparingTo("7810000");
+        assertThat(captor.getValue().get(0).fixedDiscountRate()).isEqualByComparingTo("40.00");
+
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo()).orElseThrow().getId();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ?",
+                BigDecimal.class, orderId)).isEqualByComparingTo("4686000");
+    }
+
+    @Test
+    void confirm_rejects_missing_price_instead_of_saving_zero() {
+        UUID productId = UUID.randomUUID();
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "가격누락", "MISSING-PRICE", null,
+                        BigDecimal.ZERO, "ACTIVE")));
+
+        assertThatThrownBy(() -> confirmService.confirm(
+                "P-SOL-985-ZERO", "1234567890", "user-sol-985", null, null,
+                new ConfirmRequest(List.of(new ConfirmLineRequest(
+                        productId, "homemulti", 1, null)))))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("확정 가격 기준가 없음");
+        Mockito.verify(dcConfigClient, Mockito.never())
+                .calculatePrices(Mockito.anyString(), Mockito.anyList());
     }
 
     /**

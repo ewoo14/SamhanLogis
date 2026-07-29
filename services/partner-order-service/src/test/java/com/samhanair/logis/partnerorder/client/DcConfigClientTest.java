@@ -63,7 +63,8 @@ class DcConfigClientTest {
                         containsString("\"is1Way\":false"),
                         containsString("\"isStand\":false"),
                         containsString("\"isDeluxe\":false"),
-                        containsString("\"isFirstGrade\":false"))))
+                        containsString("\"isFirstGrade\":false"),
+                        containsString("\"hasVariableDiscount\":null"))))
                 .andRespond(withSuccess("""
                         {"success":true,"code":"OK","message":"성공","data":{
                           "lines":[

@@ -59,7 +59,8 @@ public class PriceCalculationService {
 
         for (PriceCalculationRequest.Line line : request.lines()) {
             BigDecimal listPrice = line.listPrice();
-            BigDecimal appliedRate = pickCategoryRate(config, line.category(), line.fixedDiscountRate());
+            BigDecimal appliedRate = pickCategoryRate(config, line.category(), line.fixedDiscountRate(),
+                    line.hasVariableDiscount());
             BigDecimal afterRate = listPrice.multiply(BigDecimal.ONE.subtract(appliedRate));
             BigDecimal optionDc = sumOptionDc(config, line);
             BigDecimal afterOption = afterRate.subtract(optionDc).max(BigDecimal.ZERO);
@@ -94,12 +95,19 @@ public class PriceCalculationService {
         return response;
     }
 
-    private BigDecimal pickCategoryRate(DcConfig config, String category, BigDecimal fixedDiscountRate) {
+    private BigDecimal pickCategoryRate(DcConfig config, String category, BigDecimal fixedDiscountRate,
+                                        Boolean hasVariableDiscount) {
         if (fixedDiscountRate != null) {
             BigDecimal normalized = fixedDiscountRate.compareTo(BigDecimal.ONE) > 0
                     ? fixedDiscountRate.movePointLeft(2)
                     : fixedDiscountRate;
             return normalized.max(BigDecimal.ZERO).min(BigDecimal.ONE);
+        }
+        // order-app 은 useK2=false 품목에서 전역DC를 적용하지 않고 deliveryPrice를 그대로 표시한다.
+        // null은 구형 호출자의 기존 전역DC 계약을 보존하고, product-service의 실제 Boolean false만
+        // 화면 규칙대로 무할인으로 판정한다.
+        if (Boolean.FALSE.equals(hasVariableDiscount)) {
+            return BigDecimal.ZERO;
         }
         if (config == null || category == null) {
             return BigDecimal.ZERO;
@@ -170,6 +178,7 @@ public class PriceCalculationService {
                 item.put("isDeluxe", line.isDeluxe());
                 item.put("isFirstGrade", line.isFirstGrade());
                 item.put("fixedDiscountRate", line.fixedDiscountRate());
+                item.put("hasVariableDiscount", line.hasVariableDiscount());
                 lines.add(item);
             }
         }

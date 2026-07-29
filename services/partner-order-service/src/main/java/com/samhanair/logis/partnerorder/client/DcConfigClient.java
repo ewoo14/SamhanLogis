@@ -70,13 +70,25 @@ public class DcConfigClient {
                             String category, int quantity,
                             boolean is360, boolean is4Way, boolean is1Way,
                             boolean isStand, boolean isDeluxe, boolean isFirstGrade,
-                            BigDecimal fixedDiscountRate) {
+                            BigDecimal fixedDiscountRate,
+                            Boolean hasVariableDiscount) {
 
         /** 기존 호출자 호환 — 옵션/품목 고정DC가 없는 평범한 품목. */
         public PriceLine(String lineId, String modelCode, BigDecimal listPrice,
                          String category, int quantity) {
             this(lineId, modelCode, listPrice, category, quantity,
-                    false, false, false, false, false, false, null);
+                    false, false, false, false, false, false, null, null);
+        }
+
+        /** 기존 호출자 호환 — 옵션과 품목 고정DC만 전달하는 요청. */
+        public PriceLine(String lineId, String modelCode, BigDecimal listPrice,
+                         String category, int quantity,
+                         boolean is360, boolean is4Way, boolean is1Way,
+                         boolean isStand, boolean isDeluxe, boolean isFirstGrade,
+                         BigDecimal fixedDiscountRate) {
+            this(lineId, modelCode, listPrice, category, quantity,
+                    is360, is4Way, is1Way, isStand, isDeluxe, isFirstGrade,
+                    fixedDiscountRate, null);
         }
     }
 
@@ -133,6 +145,7 @@ public class DcConfigClient {
                 m.put("isDeluxe", l.isDeluxe());
                 m.put("isFirstGrade", l.isFirstGrade());
                 m.put("fixedDiscountRate", l.fixedDiscountRate());
+                m.put("hasVariableDiscount", l.hasVariableDiscount());
                 return m;
             }).toList());
 

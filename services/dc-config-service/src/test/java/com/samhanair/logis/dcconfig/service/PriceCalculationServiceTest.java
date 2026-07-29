@@ -126,6 +126,25 @@ class PriceCalculationServiceTest {
     }
 
     @Test
+    void nonVariableMulti_usesDeliveryPriceWithoutGlobalDiscount() {
+        config.changeRounding(0, UnitRoundMode.ROUND);
+
+        PriceCalculationRequest req = new PriceCalculationRequest(
+                "P-CALC-001", "partner-order-service",
+                List.of(new PriceCalculationRequest.Line(
+                        "L-NONVAR", "HM-NONVAR", new BigDecimal("300960"),
+                        "HOMEMULTI", 1,
+                        false, false, false, false, false, false,
+                        null, false)));
+
+        PriceCalculationResponse res = service.calculate(req);
+
+        // order-app useK2=false: deliveryPrice는 전역DC를 거치지 않고 그대로 표시한다.
+        assertThat(res.lines().get(0).appliedRate()).isEqualByComparingTo("0");
+        assertThat(res.lines().get(0).finalPrice()).isEqualByComparingTo("300960");
+    }
+
+    @Test
     void otherCategory_noRate_appliesNoDiscount() {
         PriceCalculationRequest req = new PriceCalculationRequest(
                 "P-CALC-001", "estimate-service",
