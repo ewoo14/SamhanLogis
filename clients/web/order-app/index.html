@@ -141,6 +141,8 @@ body.old-active #btnGoOld { display:none !important }
 .viewbar-out{ display:flex; justify-content:flex-end; align-items:center; gap:8px; padding:8px 12px; background:#fff; border-bottom:1px solid var(--c-line); }
 .opts{display:flex; justify-content:center;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--c-line);background:#fff;white-space:nowrap;overflow:auto}
 .opts::-webkit-scrollbar{height:8px} .opts::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+.catalog-warning{width:100%;box-sizing:border-box;padding:12px 16px;border-bottom:1px solid #f59e0b;background:#fff7ed;color:#9a3412;font-size:14px;line-height:1.5;white-space:normal}
+@media print{#commCatalogWarnings{display:none!important}}
 .chip{display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:6px 12px;box-shadow:0 1px 2px rgba(0,0,0,0.05);transition:all 0.2s ease}
 .chip:hover{border-color:#cbd5e1}
 .chip input[type="number"]{width:120px;height:var(--inp-h);border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;text-align:right;background:#fff;transition:all 0.2s ease;outline:none}
@@ -913,6 +915,7 @@ button.tut-highlight { filter: brightness(1.6); }
             <button class="btn-mini" id="btnResetComm">초기화</button>
           </div>
         </div>
+        <div id="commCatalogWarnings" class="catalog-warning" role="alert" aria-live="polite" hidden></div>
         <div class="opts" id="commOpts"></div>
         <div class="filter-bar" id="commFilterBar">
           <select id="commFilterL">
@@ -5563,14 +5566,45 @@ function recomputeHomeDerived(updateUI){
 }
 
 /* 상업멀티재계산 */
+function renderCommCatalogWarnings(missingModels){
+  const warning = document.getElementById('commCatalogWarnings');
+  if(!warning) return;
+
+  const entries = Array.from(missingModels.entries());
+  if(!entries.length){
+    warning.hidden = true;
+    warning.textContent = '';
+    return;
+  }
+
+  const detail = entries.map(([model, reasons])=>{
+    const reasonText = Array.from(reasons).join(', ');
+    return `${model}${reasonText ? ` (${reasonText})` : ''}`;
+  }).join(' · ');
+
+  warning.hidden = false;
+  warning.textContent = `상업멀티 파생 품목이 카탈로그에 없습니다: ${detail}. 누락된 품목은 주문 금액에 반영되지 않았습니다. 카탈로그를 확인해주세요.`;
+}
+
 function recomputeCommDerived(){
   const want = new Map();
+  const missingModels = new Map();
+  const noteCommCatalogMissing_ = (model, reason) => {
+    const key = String(model || '').trim();
+    if(!key) return;
+    const reasons = missingModels.get(key) || new Set();
+    if(reason) reasons.add(reason);
+    missingModels.set(key, reasons);
+  };
   const requireCommCatalogRow_ = (model, reason) => {
     const row = (COMMULTI||[]).find(x=>x.model===model);
     if(!row){
-      if(!['AR-EH05','방진가대S2중'].includes(String(model))) return null;
-      const suffix = reason ? ` (${reason})` : '';
-      throw new Error(`상업멀티 파생 품목이 카탈로그에 없습니다: ${model}${suffix}`);
+      if(['AR-EH05','방진가대S2중'].includes(String(model))){
+        const suffix = reason ? ` (${reason})` : '';
+        throw new Error(`상업멀티 파생 품목이 카탈로그에 없습니다: ${model}${suffix}`);
+      }
+      noteCommCatalogMissing_(model, reason);
+      return null;
     }
     return row;
   };
@@ -5692,7 +5726,10 @@ function recomputeCommDerived(){
 
     for(const [fModel, list] of Object.entries(RENEW_FILTER_MAP)){
       if(list.includes(r.model)){
-        if(!COMMULTI.find(x=>x.model===fModel)) continue;
+        if(!COMMULTI.find(x=>x.model===fModel)){
+          noteCommCatalogMissing_(fModel, '리뉴얼 필터 파생');
+          continue;
+        }
         want.set(fModel, (want.get(fModel)||0) + q);
       }
     }
@@ -5740,6 +5777,7 @@ function recomputeCommDerived(){
     if(sCel) sCel.textContent = fmt(unit*q);
   });
 
+  if(typeof renderCommCatalogWarnings === 'function') renderCommCatalogWarnings(missingModels);
   syncCommTotals();
   updateInlineTotals();
   updateCommRatio();
