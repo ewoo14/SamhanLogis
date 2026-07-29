@@ -415,3 +415,97 @@ OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader clas
 ```
 
 `node_modules`는 기존과 같이 메인 트리 `C:\dev\Samhan-Public\clients\web\order-app\node_modules`를 junction으로 연결한 상태를 사용했고, 이번에도 `npm ci`/`npm install`은 실행하지 않았다. 이번 정정으로 변경한 파일은 `clients/web/order-app/src/samhanApi.ts`, `clients/web/order-app/src/__tests__/samhanApi.test.ts`, 본 보고서이며 신규 파일은 없다.
+
+## 9. 적대검증 후속 — RPC 실패 핸들러 전수 보강
+
+### 9.1 RED-first 원문
+
+승인요청 중복 409와 동일한 실패 경로를 비밀번호 설정·로그인에도 적용해 실패 테스트를 먼저 추가했다. 수정 전 원문은 다음과 같다.
+
+```text
+ RUN v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/t992/clients/web/order-app
+
+ ❯ src/__tests__/legacyResponseContract.test.ts (10 tests | 3 failed)
+   × 승인요청 HTTP 409는 서버 message를 보여주고 로딩을 해제한다
+     → expected "spy" to be called with arguments: [ false ]
+       Number of calls: 0
+   × 비밀번호 설정 HTTP 실패는 서버 message를 보여주고 로딩을 해제한다
+     → expected "spy" to be called with arguments: [ false ]
+       Number of calls: 0
+   × 로그인 HTTP 실패는 서버 message를 보여주고 로딩을 해제한다
+     → expected "spy" to be called with arguments: [ false ]
+       Number of calls: 0
+
+ Test Files 1 failed (1)
+      Tests 3 failed | 7 passed (10)
+```
+
+### 9.2 `withFailureHandler` 누락 전수 대조
+
+`index.html`의 `google.script.run` 호출부 13개를 모두 확인했다. `showLoadingGate(true)`를 켜는 호출부는 4개이며 모두 실패 시 게이트를 해제한다. 게이트를 켜지 않는 백그라운드·best-effort 호출은 실패해도 화면이 멈추지 않으므로 별도 판정했다.
+
+| 호출부 위치 / RPC | 로딩게이트 | 실패 시 거동 | 판정 |
+|---|---|---|---|
+| `6611` / `sendOrderFromUi` | `dlgProgress` 표시 | `withFailureHandler`가 경고와 닫기 버튼을 표시 | 정상 |
+| `7808` / `getGateImages` | 없음 | 선택적 게이트 이미지가 비어 있고 이미지 모달만 열리지 않음; 화면 진행은 계속됨 | 정상(백그라운드 prefetch) |
+| `8111` / `checkAuthStatus` | `showLoadingGate(true)` | `8113`에서 false 후 오류 표시 | 정상 |
+| `8277` / `requestAuthApproval` | `showLoadingGate(true)` | 새 failure handler가 false 후 Axios `response.data.message` 표시 | 수정 |
+| `8304` / `setAuthPassword` | `showLoadingGate(true)` | 새 failure handler가 false 후 서버 message 표시 | 수정 |
+| `8339` / `tryLogin` | `showLoadingGate(true, ...)` | 새 failure handler가 false 후 서버 message 표시, 입력 초기화·focus | 수정 |
+| `8448` / `getAccessExpiration` | 없음 | 백그라운드 갱신 실패 시 기존 만료 표시 유지; 화면 정지 없음 | 정상(백그라운드 polling) |
+| `8687` / `getOrderHistory` | `#historyLoading` | `withFailureHandler`에서 로딩 숨김 및 조회 실패 표시 | 정상 |
+| `8802` / `logFrontEvent` (`logActionToNotion`) | 없음 | best-effort 로그 실패를 console 경고로만 처리; 사용자 화면 정지 없음 | 정상(의도적 silent log) |
+| `8814` / `logFrontEvent` (`sendLog`) | 없음 | `withFailureHandler`가 console 기록 | 정상 |
+| `9196` / `saveOrderSnapshot` | 저장 버튼 상태 | `withFailureHandler`가 실패 표시 후 버튼 복구 | 정상 |
+| `9417` / `getOrderSnapshotHistory` | 목록 placeholder | `withFailureHandler`가 오류 행 표시 | 정상 |
+| `9991` / `saveTutorialState` | 없음 | `withFailureHandler`가 통신 오류 표시 | 정상 |
+
+### 9.3 변경 줄
+
+- `index.html:8211-8218`: Axios 오류의 `response.data.message`를 우선 추출하는 `getRpcFailureMessage` 추가.
+- `index.html:8286-8289`: 승인요청 실패 시 로딩 해제 및 서버 `message` 표시.
+- `index.html:8326-8329`: 비밀번호 설정 실패 시 로딩 해제 및 서버 `message` 표시.
+- `index.html:8374-8379`: 로그인 실패 시 로딩 해제, 서버 `message` 표시, 비밀번호 입력 초기화.
+- `legacyResponseContract.test.ts`: HTTP 실패 3건 추가. 각 테스트에 `ubuntu-latest` 불변성 주석을 명시했다.
+
+성공 handler의 `PENDING` 완료 모달 동작은 변경하지 않았다. 서버의 409 응답은 `PartnerAuthExceptionHandler.java:26-30`과 `ApiResponse.fail`의 top-level `message`를 통해 전달되며, 클라이언트는 이를 우선 표시한다.
+
+### 9.4 검증 원문
+
+`npx vitest run`:
+
+```text
+ RUN v2.1.9 C:/dev/Samhan-Public/.claude/worktrees/t992/clients/web/order-app
+
+ ✓ src/__tests__/sanity.test.ts (2 tests)
+ ✓ src/__tests__/commSetIndex.test.ts (1 test)
+ ✓ src/__tests__/legacyConfigMapping.test.ts (2 tests)
+ ✓ src/__tests__/bootstrapFailure.test.ts (2 tests)
+ ✓ src/__tests__/priceChangeSchedule.test.ts (10 tests)
+ ✓ src/__tests__/sol2QuantityFix.test.ts (9 tests)
+ ✓ src/__tests__/commercialManualSymmetry.test.ts (9 tests)
+ ✓ src/__tests__/legacyPreexistingFix.test.ts (2 tests)
+ ✓ src/version/versionCheck.test.ts (5 tests)
+ ✓ src/__tests__/homeManualLockRestore.test.ts (16 tests)
+ ✓ src/__tests__/homeOptionAndZeroLockRestore.test.ts (10 tests)
+ ✓ src/__tests__/commManualLockRestore.test.ts (24 tests)
+ ✓ src/version/versionGate.test.ts (2 tests)
+ ✓ src/__tests__/samhanApi.test.ts (9 tests)
+ ✓ src/__tests__/legacyResponseContract.test.ts (10 tests)
+ ✓ src/__tests__/legacy-quantity-golden.test.ts (73 tests)
+ ✓ src/__tests__/priceParityS3.test.ts (7 tests)
+
+ Test Files 17 passed (17)
+      Tests 193 passed (193)
+   Start at 22:47:30
+   Duration 1.14s (transform 981ms, setup 0ms, collect 1.73s, tests 1.10s, environment 2ms, prepare 4.82s)
+```
+
+`npm run typecheck`:
+
+```text
+> @samhan/order-app@0.4.0 typecheck
+> tsc -p tsconfig.json --noEmit
+```
+
+이번 라운드에는 Java 코드 변경이 없어 partner-auth-service Gradle 테스트는 재실행하지 않았다. Docker, 서버 재기동, Playwright, 라이브QA는 실행하지 않았다. 신규 파일은 없으며, 기존 `legacyResponseContract.test.ts`에 실패 경로 테스트 3건을 추가했다.

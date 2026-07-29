@@ -8208,6 +8208,16 @@ function onAuthStatus(res) {
   }
 }
 
+function getRpcFailureMessage(err, fallback) {
+  const responseData = err && typeof err === 'object' && err.response && err.response.data;
+  if (responseData && typeof responseData.message === 'string' && responseData.message) {
+    return responseData.message;
+  }
+  if (err && typeof err.message === 'string' && err.message) return err.message;
+  if (typeof err === 'string' && err) return err;
+  return fallback;
+}
+
 // 모달 UI 표시
 function showAuthModal(opt) {
   stepInput.classList.add('hidden');
@@ -8273,6 +8283,10 @@ el('#btnAuthAction').addEventListener('click', () => {
           alert((res && res.message) || '승인요청에 실패했습니다.');
         }
       })
+      .withFailureHandler(err => {
+        showLoadingGate(false);
+        alert(getRpcFailureMessage(err, '승인요청에 실패했습니다.'));
+      })
       .requestAuthApproval(AUTH_BIZ, isMobileNow());
   }
   
@@ -8308,6 +8322,10 @@ el('#btnAuthAction').addEventListener('click', () => {
         else {
           alert((res && res.message) || '비밀번호 설정에 실패했습니다.');
         }
+      })
+      .withFailureHandler(err => {
+        showLoadingGate(false);
+        alert(getRpcFailureMessage(err, '비밀번호 설정에 실패했습니다.'));
       })
       .setAuthPassword(AUTH_BIZ, p1, isMobileNow());
   }
@@ -8352,6 +8370,12 @@ el('#btnAuthAction').addEventListener('click', () => {
           el('#authPw1').value = '';
           el('#authPw1').focus();
         }
+      })
+      .withFailureHandler(err => {
+        showLoadingGate(false);
+        alert(getRpcFailureMessage(err, '로그인에 실패했습니다.'));
+        el('#authPw1').value = '';
+        el('#authPw1').focus();
       })
       .tryLogin(AUTH_BIZ, pw, isMobileNow());
   }
