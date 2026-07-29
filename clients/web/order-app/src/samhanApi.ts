@@ -44,7 +44,7 @@ http.interceptors.request.use((cfg) => {
  * - `checkAuthStatus(bizNo)` → `GET /api/v1/auth/partner-status?bizNo=...`
  * - `requestAuthApproval(bizNo, ...)` → `POST /api/v1/auth/partner-register` (M2)
  * - `setAuthPassword(bizNo, pw)` → `PATCH /api/v1/auth/partner-password`
- * - `tryLogin(bizNo, pw)` → `POST /api/v1/auth/partner-login` (M2 PartnerAuth)
+ * - `tryLogin(bizNo, pw, mobile)` → `POST /api/v1/auth/partner-login` (M2 PartnerAuth)
  * - `getAccessExpiration(bizNo)` → `GET /api/v1/auth/partner-expiration?bizNo=...`
  * - `getOrderHistory(bizCode, dateRange)` → `GET /api/v1/partner-orders/history?bizCode=...`
  * - `logFrontEvent(action, detail)` → `POST /api/v1/partner-orders/log` (frontend audit)
@@ -125,11 +125,12 @@ const RPC_MAP: Record<string, RpcHandler> = {
         newPassword: pw,
       })
       .then((r) => unwrapApiResponse(r.data)),
-  tryLogin: ([bizNo, pw]) =>
+  tryLogin: ([bizNo, pw, mobile]) =>
     http
       .post('/auth/partner-login', {
         bizNo,
         password: pw,
+        mobile,
       })
       .then((r) => {
         const data = unwrapApiResponse(r.data) as { token?: string; config?: unknown } | null

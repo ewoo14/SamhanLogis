@@ -92,6 +92,7 @@ describe('samhanApi.call', () => {
   });
 
   it('로그인 RPC 는 envelope 언랩 후 token 과 config 를 캐싱한다', async () => {
+    // ubuntu-latest 불변: 순수 RPC payload assertion이며 경로 구분자·대소문자·OS API에 의존하지 않는다.
     mocks.post.mockResolvedValue({
       data: {
         success: true,
@@ -104,11 +105,12 @@ describe('samhanApi.call', () => {
       },
     });
 
-    const result = await samhanApi.call('tryLogin', ['1234567890', '1234']);
+    const result = await samhanApi.call('tryLogin', ['1234567890', '1234', true]);
 
     expect(mocks.post).toHaveBeenCalledWith('/auth/partner-login', {
       bizNo: '1234567890',
       password: '1234',
+      mobile: true,
     });
     expect(result).toEqual({
       status: 'OK',

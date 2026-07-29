@@ -8118,7 +8118,7 @@ btnQuery.addEventListener('click', () => {
 function onAuthStatus(res) {
   showLoadingGate(false); // 로딩 해제
   
-  if (res.status === 'NOT_FOUND_SYSTEM') {
+  if (res && res.status === 'NOT_FOUND_SYSTEM') {
     showAuthModal({
       icon: '🛑', 
       title: '미등록 사업자번호',
@@ -8127,7 +8127,7 @@ function onAuthStatus(res) {
       btn: null // 액션 버튼 없음
     });
   } 
-  else if (res.status === 'NOT_FOUND_AUTH') {
+  else if (res && res.status === 'NOT_FOUND_AUTH') {
     AUTH_STEP = 'REQUEST';
     showAuthModal({
       icon: '🛑',
@@ -8136,7 +8136,7 @@ function onAuthStatus(res) {
       btn: '승인요청 보내기'
     });
   }
-  else if (res.status === 'PENDING') {
+  else if (res && res.status === 'PENDING') {
     showAuthModal({
       icon: '🛑',
       title: '미승인 사업자번호',
@@ -8145,7 +8145,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'LOCKED') {
+  else if (res && res.status === 'LOCKED') {
     showAuthModal({
       icon: '🛑',
       title: '비밀번호 오류',
@@ -8154,7 +8154,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'LONG_UNUSED') {
+  else if (res && res.status === 'LONG_UNUSED') {
     showAuthModal({
       icon: '🛑',
       title: '장기 미발주',
@@ -8163,7 +8163,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'ACCESS_DENIED') {
+  else if (res && res.status === 'ACCESS_DENIED') {
     showAuthModal({
       icon: '🛑',
       title: '접근 제한',
@@ -8172,7 +8172,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'PW_EXPIRED') {
+  else if (res && res.status === 'PW_EXPIRED') {
     AUTH_STEP = 'SET_PW';
     showAuthModal({
       icon: '⚠️',
@@ -8183,7 +8183,7 @@ function onAuthStatus(res) {
     });
   }
 
-  else if (res.status === 'NEED_PW_SET') {
+  else if (res && res.status === 'NEED_PW_SET') {
     AUTH_STEP = 'SET_PW';
     showAuthModal({
       icon: '🔐',
@@ -8193,7 +8193,7 @@ function onAuthStatus(res) {
       btn: '설정'
     });
   }
-  else if (res.status === 'NEED_PW_INPUT') {
+  else if (res && res.status === 'NEED_PW_INPUT') {
     AUTH_STEP = 'LOGIN';
     showAuthModal({
       icon: '🔐',
@@ -8204,7 +8204,7 @@ function onAuthStatus(res) {
     });
   }
   else {
-    alert(res.msg || '알 수 없는 오류');
+    alert((res && res.message) || '알 수 없는 오류');
   }
 }
 
@@ -8267,10 +8267,10 @@ el('#btnAuthAction').addEventListener('click', () => {
     google.script.run
       .withSuccessHandler(res => {
         showLoadingGate(false);
-        if (res.status === 'OK') {
+        if (res && res.status === 'PENDING') {
           showAuthModal({ icon:'✅', title:'완료', msg:'승인요청이 전송되었습니다.\n승인 후 이용 가능합니다.', btn:null });
         } else {
-          alert(res.msg);
+          alert((res && res.message) || '승인요청에 실패했습니다.');
         }
       })
       .requestAuthApproval(AUTH_BIZ, isMobileNow());
@@ -8291,10 +8291,10 @@ el('#btnAuthAction').addEventListener('click', () => {
       .withSuccessHandler(res => {
         showLoadingGate(false);
         
-        if (res.status === 'OK') {
+        if (res && res.result === 'OK') {
           completeLogin(AUTH_BIZ, {}, res); 
         } 
-        else if (res.status === 'USED_PW') {
+        else if (res && res.result === 'USED_PW') {
           showAuthModal({
             icon: '🛑',
             title: '주의',
@@ -8306,7 +8306,7 @@ el('#btnAuthAction').addEventListener('click', () => {
           el('#authPw1').focus();
         }
         else {
-          alert(res.msg);
+          alert((res && res.message) || '비밀번호 설정에 실패했습니다.');
         }
       })
       .setAuthPassword(AUTH_BIZ, p1, isMobileNow());
@@ -8321,13 +8321,9 @@ el('#btnAuthAction').addEventListener('click', () => {
     google.script.run
       .withSuccessHandler(res => {
         showLoadingGate(false);
-        if (res.status === 'OK') {
+        if (res && res.status === 'OK') {
           completeLogin(AUTH_BIZ, res.config, res);
-        } else if (res.status === 'WRONG_PW') {
-          alert(`비밀번호가 틀렸습니다. (${res.count}/3)`);
-          el('#authPw1').value = '';
-          el('#authPw1').focus();
-        } else if (res.status === 'LOCKED') {
+        } else if (res && res.status === 'LOCKED') {
           showAuthModal({
             icon: '🛑',
             title: '비밀번호 오류',
@@ -8335,7 +8331,7 @@ el('#btnAuthAction').addEventListener('click', () => {
             sub: '02-3465-1331',
             btn: null
           });
-        } else if (res.status === 'LONG_UNUSED') {
+        } else if (res && res.status === 'LONG_UNUSED') {
           showAuthModal({
             icon: '🛑',
             title: '장기 미사용',
@@ -8343,7 +8339,7 @@ el('#btnAuthAction').addEventListener('click', () => {
             sub: '02-3465-1331',
             btn: null
           });
-        } else if (res.status === 'ACCESS_DENIED') {
+        } else if (res && res.status === 'ACCESS_DENIED') {
           showAuthModal({
             icon: '🛑',
             title: '접근 제한',
@@ -8351,6 +8347,10 @@ el('#btnAuthAction').addEventListener('click', () => {
             sub: '02-3465-1331',
             btn: null
           });
+        } else {
+          alert((res && res.message) || '로그인에 실패했습니다.');
+          el('#authPw1').value = '';
+          el('#authPw1').focus();
         }
       })
       .tryLogin(AUTH_BIZ, pw, isMobileNow());
@@ -8372,9 +8372,10 @@ function completeLogin(bizNo, config, res) {
       applyConfigFromServer(config);
   }
   window.CURRENT_BIZNO = bizNo;
-  window.TUT_DONE = isMobileNow() ? res.tutMo : res.tutPc;
+  // TryLoginResponse에는 튜토리얼 완료 플래그가 없으므로 서버 응답을 추측하지 않는다.
+  window.TUT_DONE = false;
   /* 거래처명할당 */
-  window.CURRENT_CUSTNAME = res.custName || '';
+  window.CURRENT_CUSTNAME = (res && res.config && res.config.partnerName) || '';
 
   try {
     if (typeof renderHome === 'function') renderHome();
@@ -8422,12 +8423,12 @@ window.fetchExpirationDate = function() {
   if (!window.CURRENT_BIZNO) return;
   google.script.run
     .withSuccessHandler(res => {
-      if (res && res.status === 'OK') {
+      if (res && res.expiresAt) {
         const timerEl = document.getElementById('accessLimitTimer');
         const textEl = document.getElementById('accessLimitText');
         if (timerEl && textEl) {
           timerEl.style.display = 'block';
-          textEl.textContent = res.expireDate;
+          textEl.textContent = res.expiresAt;
         }
       }
     })
@@ -8440,8 +8441,9 @@ function startExpirationPolling() {
 }
 
 function playWelcomeAnimation(res, callback) {
-    let cName = (res && res.custName) ? res.custName : '';
-    let rName = (res && res.repName) ? res.repName : '';
+    const config = (res && res.config) || {};
+    let cName = config.partnerName || '';
+    let rName = config.managerName || '';
 
     if ((!cName || !rName) && typeof CUSTOMERS !== 'undefined') {
         const matched = CUSTOMERS.find(c => String(c.code) === String(window.CURRENT_BIZNO) || String(c.bizno) === String(window.CURRENT_BIZNO));
@@ -9964,7 +9966,11 @@ function endTut(save) {
     console.log(`튜토리얼 완료 전송: ${window.CURRENT_BIZNO} (${isMobileNow() ? '모바일' : 'PC'})`);
     google.script.run
       .withSuccessHandler((res) => {
-        if (res && !res.success) alert('튜토리얼 기록 오류: \n' + res.error);
+        if (!res || typeof res.bizNo !== 'string'
+          || typeof res.tutorialPcDone !== 'boolean'
+          || typeof res.tutorialMobileDone !== 'boolean') {
+          alert('튜토리얼 기록 응답이 올바르지 않습니다.');
+        }
       })
       .withFailureHandler((err) => alert('통신 오류: ' + err))
       .saveTutorialState(window.CURRENT_BIZNO, isMobileNow());
