@@ -87,7 +87,17 @@ function extractConst(source: string, name: string): string {
   return source.slice(start, end + 1);
 }
 
-function runRecompute(rows: CatalogRow[], sourceModel: string, missingModel = '방진가대S2소') {
+type CommercialRecomputeOptions = {
+  hose1?: string;
+  hose4?: string;
+};
+
+function runRecompute(
+  rows: CatalogRow[],
+  sourceModel: string | null,
+  missingModel = '방진가대S2소',
+  options: CommercialRecomputeOptions = {},
+) {
   const source = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
   const warning = { hidden: true, textContent: '', innerHTML: '' };
   const controls: Record<string, { value?: string; checked?: boolean }> = {
@@ -102,7 +112,7 @@ function runRecompute(rows: CatalogRow[], sourceModel: string, missingModel = '�
     const window = { SHOW_I_HOSE: false };
     const CSS = { escape: (value) => String(value).replace(/[^a-zA-Z0-9_-]/g, '_') };
     const COMMULTI = ${JSON.stringify(rows)};
-    const commQty = new Map([[${JSON.stringify(sourceModel)}, 1]]);
+    const commQty = new Map(${JSON.stringify(sourceModel ? [[sourceModel, 1]] : [])});
     const warning = globalThis.__warning;
     const controls = globalThis.__controls;
     const document = {
@@ -115,8 +125,8 @@ function runRecompute(rows: CatalogRow[], sourceModel: string, missingModel = '�
     const el = (selector) => document.querySelector(selector);
     const fmt = (value) => String(value);
     const commUnitPrice = (model) => Number(COMMULTI.find((row) => row.model === model)?.price || 0);
-    const HOSE_1W = '';
-    const HOSE_4W = '';
+    const HOSE_1W = ${JSON.stringify(options.hose1 || '')};
+    const HOSE_4W = ${JSON.stringify(options.hose4 || '')};
     const HOSE_I_1W = '';
     const HOSE_I_4W = '';
     const syncCommTotals = () => {};
@@ -327,6 +337,44 @@ describe('상업멀티 파생 카탈로그 누락 신호', () => {
     expect(result.hidden).toBe(true);
     expect(result.textContent).toBe('');
     expect(result.missingQuantity).toBe(1);
+  });
+
+  it('unused_pump_missing_empty_order', () => {
+    const fixture = loadBootstrapFixture();
+    const catalogWithoutUnusedPump = fixture.rows.filter((row) => row.model !== 'ADP-N047SNK1D');
+
+    expect(fixture.rows.some((row) => row.model === 'ADP-N047SNK1D')).toBe(true);
+    expect(catalogWithoutUnusedPump).toHaveLength(fixture.rows.length - 1);
+
+    const result = runRecompute(catalogWithoutUnusedPump, null, 'ADP-N047SNK1D');
+
+    expect(result.hidden).toBe(true);
+    expect(result.textContent).toBe('');
+    expect(result.missingQuantity).toBe(0);
+  });
+
+  it('required_hose_missing_from_both_catalogs', () => {
+    const homeFixture = JSON.parse(readFileSync(HOME_FIXTURE_PATH, 'utf8')) as { rows: CatalogRow[] };
+    const commercialFixture = loadBootstrapFixture();
+    const homemultiWithoutHose = homeFixture.rows.filter((row) => row.model !== 'FH-LFHLF');
+    const commercialWithoutHose = commercialFixture.rows.filter((row) => row.model !== 'FH-LFHLF');
+
+    expect(homeFixture.rows.some((row) => row.model === 'FH-LFHLF')).toBe(true);
+    expect(commercialFixture.rows.some((row) => row.model === 'FH-LFHLF')).toBe(true);
+    expect(homemultiWithoutHose.some((row) => row.model === 'FH-LFHLF')).toBe(false);
+    expect(commercialWithoutHose.some((row) => row.model === 'FH-LFHLF')).toBe(false);
+
+    const hose1FromHomemulti = homemultiWithoutHose.find((row) => /유연호스.*(L형|엘형).*(1\s*-?\s*WAY|1WAY)/i.test(row.name || ''))?.model || '';
+    const result = runRecompute(
+      commercialWithoutHose,
+      'AM016MN1PBH2',
+      'FH-LFHLF',
+      { hose1: hose1FromHomemulti },
+    );
+
+    expect(result.hidden).toBe(false);
+    expect(`${result.textContent}${result.innerHTML}`).toContain('FH-LFHLF');
+    expect(result.missingQuantity).toBe(0);
   });
 });
 

@@ -5714,9 +5714,15 @@ function recomputeCommDerived(){
     if(kind==='1way' || kind==='2way') n1w += q;
     if(kind==='4way' || kind==='360')  n4w += q;
   });
-  const hose1 = pickHoseModel('1way'); if(hose1) want.set(hose1, n1w);
-  const hose4 = pickHoseModel('4way'); if(hose4) want.set(hose4, n4w);
-  if (el('#comm_ex_hose')?.checked){
+  const excludeHose = !!el('#comm_ex_hose')?.checked;
+  if (!excludeHose) {
+    // 후보가 양쪽 bootstrap에서 모두 없으면 pickHoseModel()도 빈 값이 된다.
+    // 주문 수량이 있는 경우에는 canonical fallback을 보존해 최종 누락 검사를 탄다.
+    const hose1 = pickHoseModel('1way') || (n1w > 0 ? (window.SHOW_I_HOSE ? 'FH-LFHIF' : 'FH-LFHLF') : '');
+    const hose4 = pickHoseModel('4way');
+    if(hose1) want.set(hose1, n1w);
+    if(hose4) want.set(hose4, n4w);
+  } else {
     COMMULTI.forEach(r=>{ if(isCommHoseRow(r)) want.set(r.model, 0); });
   }
 
@@ -5745,7 +5751,7 @@ function recomputeCommDerived(){
       pumpInputModels.add(m);
       sum += Number(commQty.get(m)||0);
     });
-    want.set(pump, sum);
+    if (sum > 0) want.set(pump, sum);
   });
   // 펌프 계산 전용 입력 row는 결과 품목이 아니다. 실제 상업 실내기 row는
   // 품명에 '펌프'가 없으므로 그대로 보존하고, 전용 입력 row만 결과에서 제외한다.
