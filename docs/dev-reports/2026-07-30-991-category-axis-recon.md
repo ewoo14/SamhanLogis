@@ -541,3 +541,260 @@ UNKNOWN: 22행
 - `product_estimate_exposure`의 68개 다중 노출 품목을 판매 라인과 연결해 카테고리를 추정하지 않았다. 그것은 이번 정찰의 결론과도 맞지 않는 접근이다.
 - 구현, migration, API/화면 변경, fixture 작성, 테스트 실행 및 데이터 backfill은 하지 않았다.
 - `categoryKey`를 어느 서비스 경계까지 nullable로 허용할지, 직접 입력·구형 데이터의 최종 사용자 표시 문구는 설계 슬라이스에서 결정할 사항으로 남겼다.
+
+## 10. 2026-07-30 검증 절차·DC액·모델 집계 키 보강
+
+### 10.1 현대 일마감은 DC 입력값 자체가 아니라 유효단가를 검증한다
+
+`DiscountRevalidator`는 read-time 재검증 엔진이다(`DiscountRevalidator.java:9-22`). 입력은 영업자가 입력한 별도 `dcRate`·`dcAmount` 필드가 아니라 `effectiveUnitPrice=(supplyAmount+vatAmount)/quantity`, 적용 출고가, 납품가, Product 기준 `fixedDc`다(`DiscountRevalidator.java:56-74`). 실제 할인율은 유효단가에서 역산한다(`DiscountRevalidator.java:155-165`).
+
+- 운임·절삭은 납품가 일치 또는 legacy 분기로 판정한다(`DiscountRevalidator.java:75-113`).
+- 멀티는 `fixedDc` 또는 45% fallback과 역산 할인율을 비교한다(`DiscountRevalidator.java:114-121`).
+- 싱글 본체·부속 prefix(`AC|AP|AR|AF|PC|AWR|ARR`)는 `OUT_OF_SCOPE`를 반환한다(`DiscountRevalidator.java:123-126`). 즉 영업자가 입력한 싱글중대형 DC액을 현대 코드가 검증하는 분기는 없다.
+
+결과는 화면에 표시된다. `DailyClosingPage.tsx:676-688`은 `verified=true`를 `확인`, `false`를 `불일치`, `null`을 `판정불가`로 표시하고 `:706-716`은 `revalidationStatus` 사유를 보여준다. 따라서 현대 일마감은 일부 멀티·구형·부속의 단가 정합성은 화면에 보이지만, 싱글중대형 DC액 검증은 `대상외`로 보일 뿐 “DC액이 틀렸다”는 검증으로 보이지 않는다.
+
+### 10.2 GAS의 싱글중대형은 DC율이 아닌 금액을 검증한다
+
+GAS `notion_extract_dc_`는 `360`, `4way`, `1way`, `스탠드`, `디럭스`, `1등급`을 금액 필드로 읽고(`tools/legacy-gas/일마감 프로그램/Code.js:357-399`), `extractDiscountNumbers`도 `dc360`, `dc4way`, `dc1way`, `stand`, `deluxe`, `grade1`을 별도 숫자로 반환한다(`Code.js:403-416`). `processDailyData`의 싱글 zone은 세트 코드별 해당 금액을 선택해 구성품 정가 합계에서 차감한 `finalExpectedPrice`를 만들고, 판매전표의 VAT 포함 단가 합계와 비교한다(`Code.js:568-659`).
+
+현대 `DailyClosingDetailResponse`의 제품 라인에는 `expectedRate`, `actualRate`, `verified`, `revalidationStatus`는 있지만 DC액 필드는 없다(`DailyClosingDetailResponse.java:48-80`). 따라서 “싱글중대형 DC액”은 현대에 **별도 검증·표시되지 않는 결함**이다. 이것은 #991의 단순 price-history variant와 구분되는 범위 확장 후보이며, 이번 라운드에서는 구현하지 않았다.
+
+### 10.3 모델 토큰 추출과 현대 실데이터 적용
+
+GAS의 `extractModelToken_`은 다음 순서다(`Code.js:160-173`).
+
+```javascript
+clean = String(name)
+  .replace(/\[.*?\]|\(.*?\)|\{.*?\}/g, '')
+  .trim();
+upper = clean.toUpperCase();
+match = /\b(AC|AP|AR|AF|AM|AJ|AXJ|PC|AWR|ARR)[A-Z0-9\-]{4,}\b/.exec(upper);
+token = match ? match[0] : upper;
+if (token.startsWith('AR-') || token.startsWith('ARR-')) {
+    token = upper.split(/\s+/)[0];
+}
+```
+
+즉 함수의 반환값만 보면 임의 품목명도 uppercase fallback으로 비어 있지 않을 수 있다. “토큰 반환 성공”과 “GAS 모델 regex에 실제 매칭되어 zone 판정 가능한 모델”을 분리해야 한다.
+
+읽기 전용 SELECT로 얻은 현대 데이터에 위 규칙을 그대로 적용한 결과는 다음과 같다.
+
+| 입력 | 전체 행 | GAS 함수 반환 non-empty | 모델 regex 매칭 | AM/AJ zone marker | 판정 가능한 target code |
+|---|---:|---:|---:|---:|---:|
+| active `tax_invoice_lines.item_name` | 22 | 22 (100%) | 0 | 0 | 0 |
+| active OUTBOUND `slip_lines.product_name` | 2,659 | 2,659 (100%) | 8 | 0 | 8 |
+
+앞서 22개 TAX 라인이 모두 `UNKNOWN`이었던 원인은 **빈 반환값이 아니라, AM/AJ 또는 GAS target model code로 인식되는 토큰이 0개였기 때문**이다. TAX 라인에는 물류·QA·자재 설명형 이름만 있고, `spec`을 품목명 대용으로 쓰지 않았다. GAS도 원본 `품목명`을 기준으로 하기 때문이다.
+
+판매전표에는 별도 `slip_lines.model_name` 컬럼이 있다(`SlipLine.java:62-66`). 활성 OUTBOUND 2,659건 모두 이 컬럼이 채워져 있어(`model_name_present=2,659`, missing=0), 판매전표 경로에서는 품목명에서 다시 토큰을 추출하는 것보다 이 저장값을 모델 key로 사용하는 것이 우선이다. 다만 현재 accounting 일마감 원천 DTO/집계에는 이 필드가 전달되지 않는 것이 별도 유실 지점이다.
+
+### 10.4 품목명 key가 만드는 양방향 실데이터 결함
+
+활성 OUTBOUND 판매전표 2,659건을 `model_name`과 `product_name`으로 각각 묶어 비교했다.
+
+**같은 모델인데 품목명이 여러 개인 경우**: 3개 model group, 289개 line, 10개 model-item pair다. 현재 품목명 key는 같은 모델을 여러 행으로 쪼갠다.
+
+| model_name | 서로 다른 product_name 수 | line 수 | 실제 product_name |
+|---|---:|---:|---|
+| `AC200CNCDEH-77` | 2 | 57 | `교체된 단품`, `삼성 천장형 4톤` |
+| `AR07TXEAAWKNEU-03` | 3 | 117 | `Product A`, `Samsung Product A`, `삼성 윈드프리 7평형` |
+| `AR09TXEAAWKNEU-04` | 5 | 115 | `AR09TXEAAWKNEU-04`, `LiveQA product`, `P`, `WindFree-9`, `삼성 윈드프리 9평형` |
+
+**서로 다른 모델인데 품목명이 같은 경우**: 11개 product group, 1,941개 line, 23개 item-model pair다. 현재 품목명 key는 서로 다른 모델을 한 행으로 합친다.
+
+| product_name | model_name 목록 | line 수 |
+|---|---|---:|
+| `삼성 DVM-S 4HP` | `AM040BNNDEH-52`, `AM040BNNDEH-65` | 2 |
+| `삼성 윈드프리 5평형` | `AR05TXEAAWKNEU-01`, `AR05TXEAAWKNEU-11`, `AR05TXEAAWKNEU-21` | 195 |
+| `삼성 윈드프리 6평형` | `AR06TXEAAWKNEU-02`, `AR06TXEAAWKNEU-12` | 189 |
+| `삼성 윈드프리 7평형` | `AR07TXEAAWKNEU-03`, `AR07TXEAAWKNEU-13` | 217 |
+| `삼성 윈드프리 9평형` | `AR09TXEAAWKNEU-04`, `AR09TXEAAWKNEU-14` | 197 |
+| `삼성 윈드프리 11평형` | `AR11TXEAAWKNEU-05`, `AR11TXEAAWKNEU-15` | 183 |
+| `삼성 윈드프리 13평형` | `AR13TXEAAWKNEU-06`, `AR13TXEAAWKNEU-16` | 185 |
+| `삼성 윈드프리 15평형` | `AR15TXEAAWKNEU-07`, `AR15TXEAAWKNEU-17` | 180 |
+| `삼성 윈드프리 16평형` | `AR16TXEAAWKNEU-08`, `AR16TXEAAWKNEU-18` | 224 |
+| `삼성 윈드프리 18평형` | `AR18TXEAAWKNEU-09`, `AR18TXEAAWKNEU-19` | 181 |
+| `삼성 윈드프리 20평형` | `AR20TXEAAWKNEU-10`, `AR20TXEAAWKNEU-20` | 188 |
+
+따라서 #991의 집계 key는 `itemName`/`productName`이 아니라 판매 라인의 `model_name`으로 보존된 모델 key여야 한다. `model_code`는 현재 1,120건에서 같은 값인 alias이므로 사용하더라도 `model_name`과의 identity 검증이 필요하다. 가격 선택까지 포함하면 최소 `(modelKey, 판매 시점에 확정된 categoryKey)`가 필요하다. 제품 master의 `product_code`를 모델 key로 사용하면 숫자형 Ecount 코드와 GAS 모델 토큰을 혼동하게 된다.
+
+## 11. 2026-07-30 컬럼 계약 재판정 — `product_code`와 모델 토큰은 다르다
+
+이번 라운드의 결론은 개발책임자의 구두 표현인 “품목코드 = 모델명”과 **현재 저장소·실 DB의 컬럼 계약은 일치하지 않는다**는 것이다. 현재 코드에서 inventory가 요구하는 `productCode`는 `products.product_code`이고, 이 값은 이카운트 품목코드다. GAS의 `AM`·`AJ` zone 판정에 쓰는 값은 `model_name`/`model_code` 계열이다.
+
+### 11.1 세 컬럼의 정의와 쓰기 경로
+
+| 컬럼 | 현재 코드의 계약 | 실제 쓰기 경로·근거 |
+|---|---|---|
+| `name` | 설명형 품목명 | `Product.name`; Sheet sync가 시트의 name column을 사용한다(`ProductSheetSyncService.java:1212`). |
+| `model_name` | legacy Product의 모델 식별자. V1에서 NOT NULL·활성 unique key | V1은 `model_name VARCHAR(100) NOT NULL` 및 unique index를 만든다(`V1__init_product_service.sql:32-36, 54-56`). Sheet sync의 `modelCode`를 `Product.seedFromSheet`에 넣으면 constructor에서 `modelName`으로 저장된다(`ProductSheetSyncService.java:1212-1213, 1249-1262`, `Product.java:399-407`). |
+| `model_code` | V3에서 추가된 시트 B열 모델명 기반의 사용자 노출 식별자 | V3 주석이 “시트 B열 모델명”이라고 명시한다(`V3__migration_extension.sql:18`). Product 도메인도 `modelCode`를 사용자 노출 식별자로 설명한다(`Product.java:42, 63-68`). Sheet sync는 같은 `modelCode`를 조회·키로 사용한다(`ProductSheetSyncService.java:1218-1223, 1246`). |
+| `product_code` | 이카운트 품목코드. inventory의 시리얼 인스턴스 그룹 키 | V5 주석이 이카운트 품목코드로 추가한다(`V5__add_ecount_product_fields.sql:10-13`). Ecount importer의 입력 헤더는 `품목코드`이고(`EcountProductImporter.java:35-38`), `UPSERT_PRODUCT_SQL`은 `:code`를 `product_code`에 적재한다(`EcountProductImporter.java:288-302`). |
+
+두 경로가 혼재한다. Ecount importer는 같은 이카운트 `:code`를 `model_name`, `model_code`, `product_code`에 함께 넣도록 작성되어 있다(`EcountProductImporter.java:296-301`). 반면 Sheet sync는 모델명 열을 `model_name`·`model_code`에 쓰는 `seedFromSheet` 경로를 사용하고, `ProductSheetSyncService.java`에는 `product_code`를 적재하는 코드가 없다. 따라서 “PR #984의 UPSERT가 model_name·model_code에 이카운트 품목코드를 넣는다”는 설명은 importer SQL에는 맞지만, 그것이 `product_code`와 같은 의미라는 뜻은 아니다. `product_code`는 별도로 존재하는 이카운트 품목코드 컬럼이다.
+
+### 11.2 실 DB 분포
+
+읽기 전용 SELECT 결과는 다음과 같다.
+
+```text
+active_products | model_name_present | model_code_present | product_code_present
+1220            | 1220               | 1120               | 100
+```
+
+`product_code`가 있는 활성 100건은 `model_code`가 100건 모두 공란이고, `model_name`은 100건 모두 존재한다.
+
+```text
+product_code_rows | model_code_blank | model_name_blank | gas_model_prefix
+100               | 100              | 0                | 85
+```
+
+표본은 `product_code=010001`에 대해 `model_name=AR05TXEAAWKNEU-01`, `name=삼성 윈드프리 5평형`이었다. 즉 실제 row에서도 두 값은 별개다. 활성 전체에서 `product_code`는 모두 숫자형 6자리였고, `AJ`·`AM` 모델 토큰과 같은 형태인 값은 0건이었다.
+
+### 11.3 inventory가 기대하는 값
+
+inventory 스키마와 코드의 계약은 명확하다.
+
+```sql
+SELECT product_code, count(*)
+FROM stock_instances
+WHERE is_deleted = false
+GROUP BY product_code;
+```
+
+실 DB 원문 결과:
+
+```text
+active_stock | blank_product_code | aj_am_prefix | numeric_prefix | distinct_product_codes
+3            | 0                  | 0            | 3              | 1
+
+product_code | n
+010001       | 3
+```
+
+`stock_instances.product_code`는 migration에서 NOT NULL이고 inventory FIFO index의 키다(`inventory-service/.../V15__create_stock_instances.sql:3-7, 24-28`). reserve 요청 DTO도 `productCode`에 `@NotBlank`를 둔다(`ReserveBatchInstanceRequest.java:14-18`). inventory는 이 값을 product-service의 `lookup-by-code`로 다시 확인한다(`ProductService.java:209-225`, `ProductClient.java:136-162`). 따라서 inventory가 기대하는 값은 모델명 `AJ...`·`AM...`이 아니라 이카운트 품목코드다.
+
+또한 `stock_instances`의 세 row가 가리키는 실제 제품은 별도 product DB 조회에서 `product_code=010001`, `model_name=AR05TXEAAWKNEU-01`로 확인됐다. 이 한 사례도 “재고의 product_code = 모델명” 가설과 반대다.
+
+### 11.4 전표 수락 400의 판정
+
+현재 코드의 수락 경로는 다음과 같다.
+
+```java
+// SlipService.java:874-881
+ProductSummary product = productsById.get(line.getProductId());
+if (product.serialManaged()) {
+    String productCode = product.productCode();
+    inventoryClient.reserveInstances(productCode, ...);
+}
+```
+
+`ProductSummary.productCode`는 `ProductSummaryResponse.from(Product)`에서 `p.getProductCode()`를 그대로 받는다(`ProductSummaryResponse.java:106-124`). `InventoryClient`는 그 값을 그대로 `productCode`로 전송한다(`InventoryClient.java:181-186`). 따라서 `product_code`가 NULL인 제품은 `model_name`으로 fallback하지 않는다.
+
+실 DB에서 serial-managed category에 속한 활성 제품은 1,214건이며, 그중 `product_code` 보유는 95건, 미보유는 **1,119건(92.18%)**이다. 활성 제품 전체 기준으로는 1,220건 중 1,120건이 미보유다.
+
+| 상황 | 코드상 결과 |
+|---|---|
+| serial 제품의 `ProductSummary.productCode`가 NULL/blank | reserve 요청의 `@NotBlank productCode` 검증에서 400 가능. product-service code lookup까지 도달하면 blank 입력도 INVALID_INPUT이다. |
+| product code는 있으나 해당 창고에 가용 인스턴스 부족 | `StockInstanceService.reserveBatch`가 409 `재고 부족`을 반환한다(`:173-178`). |
+| product code가 모델명이라고 가정해 `AJ...`·`AM...`을 보냄 | 현재 inventory의 `product_code`/product-service exact lookup 계약과 어긋나므로 해결책이 아니다. |
+
+따라서 보고된 전표 수락 400이 **이 1,119개 serial 제품 중 product_code가 없는 제품에서 발생한 것이라면 결론은 데이터 미적재**다. `SlipService:879`가 잘못된 컬럼을 선택한 증거는 없다. 반대로 실제 400 HTTP 요청의 원문·대상 제품은 이번 정찰에서 확보하지 못했으므로, 특정 라이브 QA 행의 400을 독립 재현했다고 주장하지 않는다. 활성 `products`에서 이름·모델에 `QA`가 포함된 제품도 0건이었다. 현재 데이터로 가능한 serial inventory 실 QA도 `010001` 한 품목의 인스턴스 3개 범위에 한정된다. 범용 모델 테스트는 `product_code` 적재 및 재고 인스턴스 준비가 선행돼야 한다.
+
+### 11.5 #991 집계·분류 키의 확정
+
+`product_code`는 숫자형 이카운트 코드이므로 GAS의 `AM`·`AJ` 모델 zone을 가르는 집계 키가 될 수 없다. 현재 실 DB와 GAS 의미를 함께 보존하는 안전한 정규화 규칙은 다음이다.
+
+```text
+modelKey = model_name
+if (model_code is nonBlank and model_code == model_name) {
+    // 동일 identity alias로 검증 가능
+}
+```
+
+`ProductRepository`가 `model_code` exact 조회 실패 시 `model_name` exact fallback을 사용한다는 점은 API 식별자 호환 근거다(`ProductRepository.java:43-56`). 그러나 Ecount importer SQL은 importer 경로에서 `model_code`에도 이카운트 `:code`를 쓸 수 있으므로, `model_code`가 비어 있지 않다는 이유만으로 GAS 모델 키로 채택하면 안 된다. 실 DB에서 `model_name`은 활성 1,220건 전부 있고 `model_code`는 100건이 없으며, 존재하는 1,120건은 `model_name`과 동일하다. 따라서 현재 데이터의 보존축은 `model_name`이고, `model_code`는 동일성 확인된 alias로만 취급한다. 의미상 집계 키는 **정규화된 GAS 모델 토큰**이어야 하며, `product_code`로 대체하면 안 된다.
+
+따라서 `MonthEndCloseService`의 `getItemName()`·`getProductName()` 기반 key는 여전히 잘못된 축이다. #991에서 사용할 집계 key는 `product_code`가 아니라 판매 라인에서 해소한 `modelKey`이고, 카테고리까지 포함해야 가격 schedule 선택이 결정된다. 회계 라인에 이 값이 없다면 제품명으로 임의 추정하지 말고, 판매전표/주문 원천에서 `modelKey`를 보존하는 별도 경로가 필요하다.
+
+### 11.6 이번 판정의 범위
+
+- 코드 수정·migration·데이터 backfill은 하지 않았다.
+- Docker compose, 서비스 재기동, 이미지 빌드, Gradle 실행은 하지 않았다.
+- DB는 위 SELECT를 포함한 읽기 전용 조회만 수행했다.
+- #991 라이브 QA의 특정 400 로그/HTTP 원문은 확인하지 못했다. 이번 결과는 컬럼 계약·실 DB 분포·정적 호출 사슬에 근거한 원인 판정이다.
+
+## 9. 2026-07-30 원천 재판정 — GAS 판매전표와 현대 일마감
+
+### 9.1 현재 `TAX_INVOICE` 기본 원천을 채택한 이유
+
+코드가 기록한 이유는 “현재 일마감이 레거시 GAS의 세금계산서 집계를 호환한다”는 제품/구현 전제다.
+
+```java
+// MonthEndCloseService.java:178-185
+public DailyClosingDetailResponse getDailyDetail(LocalDate date) {
+    return getDailyDetail(date, DailyClosingKind.SALES,
+            DailyClosingSourceKind.TAX_INVOICE);
+}
+
+// DailyClosingService.java:42-52
+ * legacy GAS 12번 "일마감 프로그램" — 특정 날짜의 세금계산서(ISSUED) 집계 snapshot 생성.
+ * ...
+ * <li>TaxInvoiceRepository 에서 해당 날짜 ISSUED 세금계산서 집계</li>
+```
+
+`DailyClosingService.resolveSourceKind(null)`도 `TAX_INVOICE`로 귀결된다(`DailyClosingService.java:367-373`). `DailyClosingSourceKind`의 주석은 `TAX_INVOICE`를 “기존 세금계산서”, `SALES_SLIP`·`PURCHASE_SLIP`을 “신규 매출/매입전표”로 구분한다(`DailyClosingSourceKind.java:3-7`). 따라서 기본값은 기술적으로 판매전표를 읽을 수 없어서가 아니라, **기존 기본 경로를 보존한 선택**이다.
+
+판매전표를 쓰지 않는 별도 불가 사유는 코드 주석이나 기존 dev-report에서 확인하지 못했다. 오히려 `sourceKind=SALES_SLIP` 분기는 이미 있으며, `SalesAccountingSlipRepository.findBySlipDateAndStatusWithLines(date, POSTED)`를 사용한다(`MonthEndCloseService.java:258-289`). 다만 이 분기의 “판매전표”는 `slip_db.slip_lines`가 아니라 `accounting_db.sales_accounting_slips`다.
+
+두 원천은 같은 문서의 중복이 아니다. SAS 설계 문서는 `SalesAccountingSlip POSTED → 일마감 → TaxInvoice 발행` 순서를 적고 있다(`docs/superpowers/specs/2026-05-19-sales-purchase-accounting-slip-design.md:170-198`). 즉 매출전표는 내부 회계 확정 시점의 upstream 원천이고, 세금계산서는 그 뒤 거래처·월 단위로 묶일 수 있는 법정 downstream 문서다. 현재 DB에서도 `daily_closings`는 `TAX_INVOICE/SALES` 2건만 있고, `sales_accounting_slip_lines` 활성 행은 0건이다. 이것은 기본값의 역사적 배경은 뒷받침하지만, 판매전표 원천이 부적합하다는 증거는 아니다.
+
+### 9.2 `slip_db.slip_lines`를 일마감 원천으로 쓸 수 있는지
+
+개발책임자가 말한 “판매전표”를 GAS 입력과 같은 출고 판매전표로 해석해 `slip_db.slips` + `slip_lines`를 대조했다. 필드는 다음처럼 **금액·품목·일자 일부는 갖지만, 현재 `SALES_SLIP` 코드 경로와 동일하지 않으며 거래처·순서·카테고리에는 결손이 있다.**
+
+| 일마감 필요 정보 | 실제 테이블/컬럼 | 스키마·실 데이터 확인 |
+|---|---|---|
+| 품목명 | `slip_lines.product_name` | `NOT NULL`; 활성 OUTBOUND 2,659행 중 공란 0행 |
+| 수량 | `slip_lines.quantity` | `NOT NULL`; 공란 0행 |
+| 공급가액 | `slip_lines.supply_amount` | 스키마 nullable이나 활성 OUTBOUND 2,659행 중 공란 0행 |
+| 세액 | `slip_lines.vat_amount` | 스키마 nullable이나 활성 OUTBOUND 2,659행 중 공란 0행 |
+| 일자 | `slips.slip_date` | `NOT NULL`; 라인 header에서 가져와야 함 |
+| 거래처명 | `slips.partner_name` | nullable; 활성 OUTBOUND 중 40행이 공란 |
+| 거래처 ID/코드 | `slips.partner_id`, `slips.partner_code` | nullable; 각각 1,934행·2,143행이 공란 |
+| 전표 묶음 | `slips.slip_no` | header에 존재; `slip_date + slip_no`로 문서 묶음 가능 |
+| 원본 행 순서 | `slip_lines.line_no` | **컬럼 없음**. `created_at`과 UUID만 있어 Ecount 원본 행 순서의 정본으로 볼 근거 없음 |
+| 카테고리/범위 | `category_key` 또는 `currentZone` | `slip_lines`와 `slips` 모두 **없음** |
+
+따라서 `slip_lines`는 품목·수량·공급가액·세액·일자·전표명에 필요한 물리 필드는 대부분 갖지만, 현재 일마감에 바로 대체할 수 있는 완전한 원천은 아니다. 특히 `partner_id`와 원본 행 순서가 빠져 있고, GAS가 요구하는 카테고리도 없다.
+
+참고로 현재 코드의 `SALES_SLIP` 원천인 `accounting_db.sales_accounting_slips`는 header에 `slip_date`, `partner_id`, `partner_code`, `partner_name`, `status`가 모두 `NOT NULL`이고, line에 `product_name`, `qty`, `supply_amount`, `vat_amount`, `line_no`가 있다(`information_schema.columns` 실측). 그러나 현재 활성 line은 0건이며, 이 경로도 `category_key`는 없다. 그러므로 “판매전표 원천”을 바꾸는 것은 `sourceKind=SALES_SLIP` 한 줄을 선택하는 문제가 아니다. `slip_db` 출고전표와 `accounting_db` 매출전표 중 어느 단계가 일마감의 정본인지 먼저 계약해야 한다.
+
+### 9.3 `source_order_line_id` 보유율
+
+읽기 전용 SELECT 기준은 `is_deleted=false`인 라인과 header를 대상으로 했다. 주 분모는 판매전표 의미가 명확한 활성 `OUTBOUND` + 활성 `slips` parent다.
+
+| 범위 | 전체 라인 | `source_order_line_id` 있음 | 비율 |
+|---|---:|---:|---:|
+| 활성 OUTBOUND, 활성 parent | 2,659 | 22 | **0.83%** |
+| 그중 `source_type=PARTNER_ORDER` | 23 | 22 | **95.65%** |
+| 그중 `source_type=MANUAL` | 2,636 | 0 | **0.00%** |
+| `slip_lines` 전체 활성 행(고아 parent 포함) | 2,791 | 22 | **0.79%** |
+
+연결된 22행은 `source_order_line_id` 기준 17개 주문 라인에 해당한다. 현재 활성 데이터의 `source_type`은 `MANUAL`과 `PARTNER_ORDER`뿐이며, migration 주석에 정의된 `MIGRATED_ECOUNT` 행은 실 DB에서 확인되지 않았다. 따라서 22행/17개 주문 라인은 카테고리 복원의 **후보 범위**이지, 전체 판매전표의 대표 비율이 아니다.
+
+### 9.4 `source_order_line_id`가 없는 라인과 GAS zone 재현 가능성
+
+활성 OUTBOUND 2,659행 중 없는 라인은 2,637행이다. 이는 `MANUAL` 2,636행과 `PARTNER_ORDER`인데 link가 없는 1행으로 나뉜다. 별도로 active parent와 조인되지 않는 고아 `slip_lines` 22행이 있어, 전체 활성 라인 기준으로는 2,769행이 link 없이 남는다.
+
+이 2,637행에는 GAS의 `일자_번호`와 동등하다고 확인된 키가 없다. `slips.slip_date`와 `slip_no`로 현대 전표 문서는 묶을 수 있지만, 그것이 업로드된 Ecount raw의 `일자`·`번호`와 같은 값이라는 근거는 확인하지 못했다. 더 결정적으로 `slip_lines`에는 `line_no`가 없고, `created_at`은 DB 저장 시각일 뿐 원본 XLSX 행 위치라는 보장이 없다. `slips.seq_no`도 header의 전표 순번이지 line 순서가 아니다.
+
+그러므로 없는 라인에 GAS 알고리즘을 적용해 zone을 정하는 것은 정확한 재현이 아니다. 모델명 token만으로 추정할 수는 있어도, 앞 행에서 열린 `currentZone`을 재현할 원본 순서가 없으므로 제품 가격 선택의 근거로 사용해서는 안 된다. 이 라인은 `UNKNOWN`/확인 불가로 남기는 것이 정직한 결론이다. link가 있는 22행은 주문 라인을 역조회해 `PartnerOrderLine.categoryKey`를 얻을 가능성이 있지만, 이것도 GAS 원본 행 순서를 복구하는 것과는 별개의 복원 경로다.
+
+### 9.5 슬라이스 2·3·4 재절단
+
+이번 정찰 결과 판매전표 원천 전환은 슬라이스 2에 **포함해야 하지만, 단순 원천 교체로 끝나지 않는다.**
+
+2. **원천 계약 슬라이스 — 판매전표 단계 확정**: `slip_db.slips/slip_lines`(GAS와 가까운 출고 원천)와 `accounting_db.sales_accounting_slips`(현재 `SALES_SLIP` 코드가 읽는 POSTED 회계 원천)를 분리해 계약한다. 일자·거래처·금액 필드, 문서 묶음, line 순서, `source_order_line_id` 역조회 가능 범위를 정하고, 기존 `TAX_INVOICE` 경로는 downstream 법정 문서 조회로 보존한다. 이 슬라이스에서 `slip_lines`를 직접 읽을지, 매출전표 확정 시점의 snapshot을 사용할지 결정해야 한다.
+3. **라인·카테고리 축 슬라이스 — `byModel` 제거/세분화**: 모델명 하나로 합치지 않고 최소한 전표·라인 식별자와 확정된 `categoryKey`를 보존한다. 주문 link 22행은 주문 카테고리를 후보로 쓸 수 있지만, 2,637행은 카테고리 없이 별도 `UNKNOWN` 축으로 남겨야 한다. `product_estimate_exposure`나 상품 master로 빈 카테고리를 채우지 않는다.
+4. **레거시 미상 입력 슬라이스 — 행 순서 결손 처리**: `slip_lines`에는 GAS raw 행 순서가 없으므로 2,637행에 `currentZone`을 소급 계산하지 않는다. 원본 순서/범위 marker가 보존되지 않은 입력은 `UNKNOWN`/확인 불가를 상세에 표시하고, 정확한 레거시 재현이 필요하면 source ingest 또는 전표 확정 시점에 이미 확정된 category/zone을 보존하는 계약을 별도로 정한다. 이 결정 전에는 `slip_lines`를 tax invoice 대신 바로 연결하는 구현을 시작하지 않는다.
