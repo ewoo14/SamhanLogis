@@ -430,7 +430,7 @@ public class EcountProductImporter {
             """;
 
     /**
-     * Google Sheets sync가 만든 행은 {@code product_category}에 시트 계보가 남는다.
+     * Google Sheets sync가 만든 행은 생성 시 기록한 {@code lineage=SHEET} 계보를 가진다.
      * 이카운트 품목코드가 그 model_name과 같으면 product_code가 이미 채워진 뒤에도
      * 새 행을 INSERT하지 않고 기존 행에 메타/단가만 병합한다.
      * 화면 품목명(name)은 시트 정본이므로 의도적으로 갱신하지 않는다.
@@ -462,7 +462,7 @@ public class EcountProductImporter {
                    modified_at = NOW(),
                    modified_by = :actor
              WHERE p.model_name = :code
-               AND p.product_category IS NOT NULL
+       AND p.lineage = 'SHEET'
                AND p.is_deleted = FALSE
             RETURNING p.id
             """;

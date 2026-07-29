@@ -71,6 +71,11 @@ public class Product extends BaseEntity {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    /** 생성 경로. 관리자 편집 및 ECOUNT/SHEET 병합에서 변경하지 않는다. */
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @jakarta.persistence.Column(name = "lineage", nullable = false, length = 20)
+    private ProductLineage lineage = ProductLineage.MANUAL;
+
     @Column(name = "selling_price", nullable = false, precision = 15, scale = 2)
     private BigDecimal sellingPrice;
 
@@ -404,6 +409,7 @@ public class Product extends BaseEntity {
         validateNonNegative(deliveryPrice, "납품가");
         Product p = new Product(name, modelCode, category,
                 releasePrice, deliveryPrice, "KRW", null, null);
+        p.lineage = ProductLineage.SHEET;
         p.modelCode = modelCode;
         p.productType = productType == null ? ProductType.SINGLE : productType;
         p.productCategory = productCategory;
