@@ -246,6 +246,9 @@ export function ElementInspector({
               onUpdate({ src: event.target.value })
             }} />
           </label>
+          <p role="status" style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-500)' }}>
+            지원 형식: PNG/JPEG/WebP · 현재 양식 기준 이미지 최대 {imageMaxKilobytes}KB
+          </p>
           <label>
             파일에서 선택
             <input
@@ -265,7 +268,7 @@ export function ElementInspector({
                     return
                   }
                   if (decodedBytes > imageMaxBytes) {
-                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다.`)
+                    setImageError(`현재 양식 기준 이미지 최대 ${imageMaxKilobytes}KB까지 저장할 수 있습니다. 더 작은 이미지로 바꾸거나 다른 이미지 요소를 삭제·교체한 뒤 다시 선택하세요.`)
                     return
                   }
                   if (!(await canDecodeImageSource(src))) {
