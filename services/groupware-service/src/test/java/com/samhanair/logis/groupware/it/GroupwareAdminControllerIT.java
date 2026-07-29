@@ -9,6 +9,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -788,6 +789,75 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         assertThat(persisted.getParticipantsView())
                 .extracting(p -> p.getParticipantId())
                 .containsExactlyInAnyOrder(actor, participant);
+    }
+
+    /** Testcontainers PostgreSQL + ubuntu-latest에서 messenger.admin 보유 비소유자 삭제도 403인지 검증한다. */
+    @Test
+    void non_owner_cannot_delete_schedule_even_when_messenger_admin_permission_is_granted() throws Exception {
+        UUID owner = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID manager = UUID.fromString(MANAGER_ACCOUNT_ID);
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        ScheduleRequest req = new ScheduleRequest(
+                UUID.randomUUID(), "소유자 일정", "삭제 보호",
+                base.plusDays(1), base.plusDays(1).plusHours(1), null, null);
+
+        MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", owner.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andReturn();
+        UUID scheduleId = UUID.fromString(objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("scheduleId").asText());
+
+        // 기존 messenger.admin 권한을 가진 MANAGER가 새 일정 권한도 통과해도 객체 소유자 검사는 남아야 한다.
+        lenient().when(dynamicPermissionClient.check(eq(manager), eq("messenger.admin"),
+                        eq(PermissionAction.DELETE)))
+                .thenReturn(true);
+        lenient().when(dynamicPermissionClient.check(eq(manager), eq("groupware.schedules"),
+                        eq(PermissionAction.DELETE)))
+                .thenReturn(true);
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/admin/groupware/schedules/{id}", scheduleId)
+                        .header("X-User-Id", manager.toString())
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isForbidden());
+
+        Schedule persisted = scheduleRepository.findById(scheduleId).orElseThrow();
+        assertThat(persisted.getOwnerId()).isEqualTo(owner);
+        assertThat(persisted.getTitle()).isEqualTo("소유자 일정");
+    }
+
+    /** Testcontainers PostgreSQL + ubuntu-latest에서 messenger.send가 없는 내부 사용자도 일정 등록 가능함을 검증한다. */
+    @Test
+    void internal_user_without_messenger_send_permission_can_create_schedule() throws Exception {
+        UUID actor = UUID.randomUUID();
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        ScheduleRequest req = new ScheduleRequest(
+                UUID.randomUUID(), "메신저 무권한 일정", "일정 권한 분리",
+                base.plusDays(1), base.plusDays(1).plusHours(1), null, null);
+
+        when(dynamicPermissionClient.check(eq(actor), eq("messenger.send"), any(PermissionAction.class)))
+                .thenReturn(false);
+        when(dynamicPermissionClient.check(eq(actor), eq("groupware.schedules"),
+                        eq(PermissionAction.CREATE)))
+                .thenReturn(true);
+
+        MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", actor.toString())
+                        .header("X-User-Role", "STAFF")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andReturn();
+
+        UUID scheduleId = UUID.fromString(objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("scheduleId").asText());
+        Schedule persisted = scheduleRepository.findById(scheduleId).orElseThrow();
+        assertThat(persisted.getOwnerId()).isEqualTo(actor);
     }
 
     @Test

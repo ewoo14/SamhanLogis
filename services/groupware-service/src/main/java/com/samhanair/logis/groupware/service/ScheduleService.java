@@ -112,10 +112,13 @@ public class ScheduleService {
         return schedule;
     }
 
-    /** soft-delete. */
+    /** 등록자 본인만 수행할 수 있는 soft-delete. */
     @Transactional
-    public void delete(UUID scheduleId, String actorUserId) {
+    public void delete(UUID scheduleId, UUID actorUserId) {
         Schedule schedule = findById(scheduleId);
-        schedule.markDeleted(actorUserId);
+        if (!schedule.getOwnerId().equals(actorUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "일정 등록자 본인만 삭제할 수 있습니다");
+        }
+        schedule.markDeleted(actorUserId.toString());
     }
 }
