@@ -272,6 +272,7 @@ function runSingleRecompute(
     const registerDerivedQty = () => {};
     const setDerivedQty = (_scope, state, model, quantity) => state.set(model, quantity);
     const isManualQtyLocked = () => false;
+    const setManualQtyLock = () => {};
     const syncSingleUIFromState = () => {};
     const is1WaySet_ = (row) => /1\s*way|1way/i.test(String(row?.name || ''));
     const allowRemoteChange_ = () => true;
@@ -286,6 +287,8 @@ function runSingleRecompute(
     const SS_CEILING_PUMP_ID = (SINGLE_SETS.find(s => /ADP-F075SP/i.test(s?.model || '')) || {}).id || null;
     const SS_FOOT_ROUND_ID = (SINGLE_SETS.find(s => /발통세트/i.test(s?.model || '') || /발통세트/i.test(s?.name || '')) || {}).id || null;
     const SS_FOOT_FLAT_ID = (SINGLE_SETS.find(s => /SI-AL700a/i.test(s?.model || '')) || {}).id || null;
+    const S03_DERIVED_TARGET_IDS = new Set([SS_CEILING_PUMP_ID].filter(Boolean).map(String));
+    const clearSingleS03DerivedQty_ = ${optionalFunction('clearSingleS03DerivedQty_')};
     const recompute = typeof recomputeSingleDerived === 'function'
       ? recomputeSingleDerived
       : () => { recomputeSingleBaseFoot(); recomputeSingleExtras(); };
@@ -434,7 +437,7 @@ describe('싱글중대형 파생 카탈로그 누락 신호', () => {
     const fixture = loadSingleBootstrapFixture();
     expect(fixture.source.httpStatus).toBe(200);
     expect(fixture.source.originalSingleSetRows).toBe(288);
-    expect(fixture.rows).toHaveLength(8);
+    expect(fixture.rows).toHaveLength(12);
 
     const source = fixture.rows.find((row) => row.id === scenario.sourceId);
     const target = fixture.rows.find((row) => row.model === scenario.targetModel);
@@ -448,7 +451,7 @@ describe('싱글중대형 파생 카탈로그 누락 신호', () => {
     expect(full.targetQuantity).toBe(1);
 
     const catalogWithoutDerived = fixture.rows.filter((row) => row.model !== scenario.targetModel);
-    expect(catalogWithoutDerived).toHaveLength(7);
+    expect(catalogWithoutDerived).toHaveLength(11);
     const missing = runSingleRecompute(catalogWithoutDerived, scenario.sourceId, target.id, scenario.targetModel, scenario);
 
     expect(missing.hidden).toBe(false);

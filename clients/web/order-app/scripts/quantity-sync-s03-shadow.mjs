@@ -9,8 +9,9 @@ const { evaluateLegacyQuantityBoundary } = require('../../legacy-quantity-golden
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(fs.readFileSync(path.join(here, '../src/__tests__/fixtures/singleSetsBootstrap.fixture.json'), 'utf8'));
 const rows = fixture.rows;
-const source = rows.find((row) => row.id === '싱글 실링61');
 const target = rows.find((row) => row.model === 'ADP-F075SP');
+const s03Sources = rows.filter((row) =>
+  row.model !== target.model && /실링/i.test(`${row.name || ''} ${row.model || ''}`));
 const rule = {
   ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
   legacyRef: 'S-03',
@@ -19,24 +20,34 @@ const rule = {
   aggregation: 'SUM',
   when: {},
   inactiveBehavior: 'ZERO',
-  sources: [{ productCode: source.model, factor: 1 }],
+  sources: s03Sources.map((row) => ({ productCode: row.model, factor: 1 })),
   targets: [{ productCode: target.model, multiplier: 1, roundingMode: 'NONE', displayOrder: 1 }],
 };
 const selected = selectSingleS03Rule([rule], rows);
 if (selected.status !== 'ready') throw new Error(selected.errorMessage || 'S-03 rule selection failed');
 
-const unitPrice = 8958400 / 77;
-const results = [0, 1, 4, 77].map((sourceQuantity) => {
+const unitPrice = Number(target.price);
+const scenarios = [
+  ...s03Sources.flatMap((sourceRow) => [0, 1, 4, 77].map((sourceQuantity) => ({
+    label: `${sourceRow.model}=${sourceQuantity}`,
+    sourceQuantities: { [sourceRow.id]: sourceQuantity },
+  }))),
+  ...[0, 1, 4, 77].map((sourceQuantity) => ({
+    label: `all-sources=${sourceQuantity}`,
+    sourceQuantities: Object.fromEntries(s03Sources.map((row) => [row.id, sourceQuantity])),
+  })),
+];
+const results = scenarios.map(({ label, sourceQuantities }) => {
   const before = evaluateLegacyQuantityBoundary({
     app: 'order',
-    family: `S-03-shadow-${sourceQuantity}`,
+    family: `S-03-shadow-${label}`,
     catalog: { home: [], single: rows, singleParts: [], commercial: [] },
-    sourceQuantities: { [source.id]: sourceQuantity },
+    sourceQuantities,
     options: { dom: {} },
     manualLocks: { single: {} },
   });
   const beforeQuantity = Number(before.quantities[target.id] || 0);
-  const after = evaluateSingleS03Rule(selected.rule, rows, new Map([[source.id, sourceQuantity]]));
+  const after = evaluateSingleS03Rule(selected.rule, rows, new Map(Object.entries(sourceQuantities)));
   const afterQuantity = Number(after.targetQuantities.get(target.id) || 0);
   const beforeSubtotal = beforeQuantity * unitPrice;
   const afterSubtotal = afterQuantity * unitPrice;
@@ -46,18 +57,19 @@ const results = [0, 1, 4, 77].map((sourceQuantity) => {
     || JSON.stringify(beforePayload) !== JSON.stringify(afterPayload)) {
     throw new Error(JSON.stringify({ sourceQuantity, beforeQuantity, afterQuantity, beforeSubtotal, afterSubtotal, beforePayload, afterPayload }));
   }
-  return { sourceQuantity, beforeQuantity, afterQuantity, beforeSubtotal, afterSubtotal, beforePayload, afterPayload };
+  return { label, sourceQuantities, beforeQuantity, afterQuantity, beforeSubtotal, afterSubtotal, beforePayload, afterPayload };
 });
 
 console.log(JSON.stringify({
   fixture: {
     fetchedOn: fixture.source.fetchedOn,
-    source: { id: source.id, model: source.model, name: source.name },
-    target: { id: target.id, model: target.model, name: target.name },
+    s03SourceCount: s03Sources.length,
+    s03Sources: s03Sources.map(({ id, model, name, price }) => ({ id, model, name, price })),
+    target: { id: target.id, model: target.model, name: target.name, price: target.price },
   },
   rule: {
     ruleKey: rule.ruleKey,
-    sourceProductCode: rule.sources[0].productCode,
+    sourceProductCodes: rule.sources.map((source) => source.productCode),
     targetProductCode: rule.targets[0].productCode,
     factor: rule.sources[0].factor,
     multiplier: rule.targets[0].multiplier,

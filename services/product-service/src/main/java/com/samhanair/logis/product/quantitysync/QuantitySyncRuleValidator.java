@@ -27,6 +27,8 @@ import org.springframework.stereotype.Component;
 public class QuantitySyncRuleValidator {
 
     private static final BigDecimal MAX_MULTIPLIER = new BigDecimal("1000");
+    private static final String S03_RULE_KEY = "SINGLE_S03_CEILING_DRAIN_PUMP";
+    private static final String S03_LEGACY_REF = "S-03";
     private static final Set<String> CATEGORIES = Set.of("HOME_MULTI", "SINGLE_SET", "COMM_MULTI");
     private static final Set<String> CONDITION_OPERATORS = Set.of(
             "optionEquals", "optionIn", "all", "any", "not");
@@ -236,6 +238,7 @@ public class QuantitySyncRuleValidator {
                 invalid("display_order는 1 이상이어야 합니다.");
             }
         }
+        validateOrderQuantityCompatibility(draft);
 
         Set<String> sourceCodes = draft.sources().stream().map(SourceDraft::productCode).collect(java.util.stream.Collectors.toSet());
         Set<String> targetCodes = draft.targets().stream().map(TargetDraft::productCode).collect(java.util.stream.Collectors.toSet());
@@ -456,6 +459,24 @@ public class QuantitySyncRuleValidator {
         if (value == null || value.signum() <= 0 || value.compareTo(MAX_MULTIPLIER) > 0
                 || value.scale() > 4 || value.compareTo(value.setScale(4, java.math.RoundingMode.UNNECESSARY)) != 0) {
             invalid(field + " 배수 범위 또는 소수 scale이 올바르지 않습니다.");
+        }
+    }
+
+    /** S-03 주문 API의 정수 quantity 계약과 충돌하는 소수 결과를 저장 전에 차단한다. */
+    private void validateOrderQuantityCompatibility(Draft draft) {
+        if (!S03_RULE_KEY.equals(draft.ruleKey()) && !S03_LEGACY_REF.equals(draft.legacyRef())) {
+            return;
+        }
+        for (TargetDraft target : draft.targets()) {
+            if ("FLOOR".equals(target.roundingMode())) {
+                continue;
+            }
+            for (SourceDraft source : draft.sources()) {
+                BigDecimal coefficient = source.factor().multiply(target.multiplier());
+                if (coefficient.stripTrailingZeros().scale() > 0) {
+                    invalid("S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.");
+                }
+            }
         }
     }
 

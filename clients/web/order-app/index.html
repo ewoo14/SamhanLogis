@@ -2909,6 +2909,19 @@ const SS_CEILING_PUMP_ID=(SINGLE_SETS.find(s=>/(실링용\s*)?드레인펌프/i.
 const SS_FOOT_ROUND_ID=(SINGLE_SETS.find(s=>/발통세트/i.test(s?.model||'')||/발통세트/i.test(s?.name||''))||{}).id||null;
 const SS_FOOT_FLAT_ID=(SINGLE_SETS.find(s=>/SI-AL700a/i.test(s?.model||''))||{}).id||null;
 const SEND_AS_SET_IDS=new Set([SS_FOOT_ROUND_ID,SS_FOOT_FLAT_ID,SS_WIRED_BOARD_ID,SS_CEILING_PUMP_ID].filter(Boolean));
+const S03_DERIVED_TARGET_IDS=new Set([SS_CEILING_PUMP_ID].filter(Boolean).map(String));
+
+/* 설정 target 교체 시 이전 S-03 자동 target을 주문 상태에서 제거한다. */
+function clearSingleS03DerivedQty_(currentTargetId){
+  const current=String(currentTargetId||'');
+  Array.from(S03_DERIVED_TARGET_IDS).forEach(id=>{
+    if(id===current) return;
+    setManualQtyLock('single', id, false);
+    singleQty.set(id, 0);
+    S03_DERIVED_TARGET_IDS.delete(id);
+  });
+  if(current) S03_DERIVED_TARGET_IDS.add(current);
+}
 
 /* 상태 */
 const AUTO_HOME_MODELS=new Set();const AUTO_SINGLE_IDS=new Set();
@@ -5201,10 +5214,12 @@ function recomputeSingleExtras(){
     const configuredQty = targetId === null
       ? 0
       : (configured.targetQuantities.get(String(targetId)) || 0);
+    clearSingleS03DerivedQty_(targetId);
     setSingleDerivedQty_(targetId, targetModel, configuredQty, 'S-03 설정 기반 실링용 드레인펌프 파생');
   } else {
     // 설정 로딩 실패/검증 실패 때에는 기존 S-03 식을 유지한다. 설정 실패를 0으로
     // 바꾸지 않고, loadSingleS03QuantitySync_가 사용자 경고를 함께 남긴다.
+    clearSingleS03DerivedQty_(SS_CEILING_PUMP_ID);
     let pumpQty=0;
     SINGLE_SETS.forEach(s=>{
       if(s.id===SS_CEILING_PUMP_ID) return;
@@ -5655,6 +5670,13 @@ function renderHomeCatalogWarnings(missingModels){
 function renderSingleCatalogWarnings(missingModels){
   renderCatalogWarnings_('singleCatalogWarnings', '싱글중대형', missingModels);
   if(typeof renderSingleQuantitySyncWarning_ === 'function') renderSingleQuantitySyncWarning_();
+  if(typeof checkOrderReady === 'function' && el('#btnSendOrder')) checkOrderReady();
+}
+
+function hasSingleCatalogBlockingError_(){
+  return typeof SINGLE_CATALOG_MISSING_MODELS !== 'undefined'
+    && SINGLE_CATALOG_MISSING_MODELS instanceof Map
+    && SINGLE_CATALOG_MISSING_MODELS.size > 0;
 }
 
 // 홈멀티 부자재 계산
@@ -6458,7 +6480,7 @@ function checkOrderReady(){
   const auditOK = same ? true : !!auditBase;
 
   const btn = el('#btnSendOrder');
-  btn.disabled = !(memo && addr && telOK && auditOK);
+  btn.disabled = !(memo && addr && telOK && auditOK && !hasSingleCatalogBlockingError_());
 }
 
 /* 전송목록 병합: 모델명+납품가 기준으로 뒤에 있는 항목으로 합치기 */
@@ -6744,6 +6766,10 @@ function initEvents(){
 
   /* 전송 플로우 */
   el('#btnSendOrder').addEventListener('click',()=>{
+    if(hasSingleCatalogBlockingError_()){
+      checkOrderReady();
+      return;
+    }
     sendLog('주문전송', '최종 주문 확인창(Final) 열기');
     const itemsRaw = buildSendRows();
     // 모델명+납품가 기준으로 병합

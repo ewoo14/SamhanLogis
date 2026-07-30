@@ -2,7 +2,7 @@
 -- #896 슬4 Slice A: S-03 싱글 실링 세트 → 실링용 드레인펌프 설정.
 --
 -- source/target은 2026-07-29 실제 partner-orders/bootstrap 응답의
--- AC072BSCPBH2SY(싱글 실링) / ADP-F075SP(실링용 드레인펌프) 행을 사용한다.
+-- 싱글 실링 4개 source / ADP-F075SP(실링용 드레인펌프) 행을 사용한다.
 -- 새 규칙만 추가하며 기존 Product 수량/행을 backfill하지 않는다.
 --
 -- 배포 시점에 catalog가 아직 적재되지 않은 환경에서는 규칙을 만들지 않는다.
@@ -12,7 +12,7 @@
 
 DO $$
 DECLARE
-    source_product_id UUID;
+    source_product_ids UUID[];
     target_product_id UUID;
     rule_id UUID;
 BEGIN
@@ -26,10 +26,15 @@ BEGIN
         RETURN;
     END IF;
 
-    SELECT id
-      INTO source_product_id
+    SELECT ARRAY_AGG(id ORDER BY model_code)
+      INTO source_product_ids
       FROM products
-     WHERE model_code = 'AC072BSCPBH2SY'
+     WHERE model_code IN (
+               'AC072BSCPBH2SY',
+               'AC090BSCPBH2SY',
+               'AC130BSCPHH2SY',
+               'AC145BSCPHH2SY'
+           )
        AND status = 'ACTIVE'
        AND is_deleted = FALSE;
 
@@ -40,7 +45,7 @@ BEGIN
        AND status = 'ACTIVE'
        AND is_deleted = FALSE;
 
-    IF source_product_id IS NULL OR target_product_id IS NULL THEN
+    IF COALESCE(CARDINALITY(source_product_ids), 0) <> 4 OR target_product_id IS NULL THEN
         RAISE NOTICE 'S-03 seed skipped: source/target catalog row is not active';
         RETURN;
     END IF;
@@ -59,9 +64,9 @@ BEGIN
 
     INSERT INTO quantity_sync_source (
         rule_id, source_product_id, factor, created_at, created_by, is_deleted
-    ) VALUES (
-        rule_id, source_product_id, 1, CURRENT_TIMESTAMP, 'migration-896-s4', FALSE
-    );
+    )
+    SELECT rule_id, source_product_id, 1, CURRENT_TIMESTAMP, 'migration-896-s4', FALSE
+      FROM UNNEST(source_product_ids) AS source_ids(source_product_id);
 
     INSERT INTO quantity_sync_target (
         rule_id, target_product_id, multiplier, rounding_mode, display_order,

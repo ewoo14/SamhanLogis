@@ -13,7 +13,11 @@
     { "id": "실외기 일자발 (전면 8~12HP)285", "model": "SI-AL700a", "name": "실외기 일자발 (전면 8~12HP)" },
     { "id": "무풍 1way 냉난방47", "model": "AC023CS1PBH1SY", "name": "무풍 1way 냉난방" },
     { "id": "유선리모컨 키트76", "model": "AIM-A01N", "name": "유선리모컨 키트" },
-    { "id": "싱글 실링61", "model": "AC072BSCPBH2SY", "name": "싱글 실링" },
-    { "id": "실링용 드레인펌프75", "model": "ADP-F075SP", "name": "실링용 드레인펌프" }
+    { "id": "싱글 실링61", "model": "AC072BSCPBH2SY", "name": "싱글 실링", "price": 1430000 },
+    { "id": "싱글 실링62", "model": "AC090BSCPBH2SY", "name": "싱글 실링", "price": 1490000 },
+    { "id": "싱글 실링63", "model": "AC130BSCPHH2SY", "name": "싱글 실링", "price": 1730000 },
+    { "id": "싱글 실링64", "model": "AC145BSCPHH2SY", "name": "싱글 실링", "price": 1860000 },
+    { "id": "실링용 드레인펌프75", "model": "ADP-F075SP", "name": "실링용 드레인펌프", "price": 79200 },
+    { "id": "호환중계기(EHP용)66", "model": "AIM-N01", "name": "호환중계기(EHP용)", "price": 18150 }
   ]
 }

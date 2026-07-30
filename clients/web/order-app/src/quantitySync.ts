@@ -93,6 +93,18 @@ function selectionError(message: string, missingCatalogCodes: string[] = []): Si
   }
 }
 
+/** 정수 source 입력이 주문 전송 계약(정수 quantity)을 만족하는지 확인한다. */
+function hasIntegerOutput(
+  sources: QuantitySyncSource[],
+  target: QuantitySyncTarget,
+): boolean {
+  const roundingMode = text(target.roundingMode || 'NONE').toUpperCase()
+  if (roundingMode === 'FLOOR') return true
+
+  const multiplier = Number(target.multiplier)
+  return sources.every((source) => Number.isInteger(Number(source.factor) * multiplier))
+}
+
 /** API 목록에서 S-03의 단일 규칙을 고르고 catalog graph를 검증한다. */
 export function selectSingleS03Rule(
   rules: unknown,
@@ -127,18 +139,22 @@ export function selectSingleS03Rule(
   if (!when || typeof when !== 'object' || Array.isArray(when) || Object.keys(when).length > 0) {
     return selectionError('S-03 규칙은 조건 없는 설정만 지원합니다.')
   }
-  if (!Array.isArray(rule.sources) || rule.sources.length !== 1) {
-    return selectionError('S-03 규칙은 source 하나만 가져야 합니다.')
+  if (!Array.isArray(rule.sources) || rule.sources.length < 1) {
+    return selectionError('S-03 규칙은 source를 하나 이상 가져야 합니다.')
   }
   if (!Array.isArray(rule.targets) || rule.targets.length !== 1) {
     return selectionError('S-03 규칙은 target 하나만 가져야 합니다.')
   }
 
-  const sourceCode = text((rule.sources[0] as QuantitySyncSource).productCode)
+  const sourceDefinitions = rule.sources as QuantitySyncSource[]
+  const sourceCodes = sourceDefinitions.map((source) => text(source.productCode))
   const targetCode = text((rule.targets[0] as QuantitySyncTarget).productCode)
-  if (!sourceCode || !targetCode) return selectionError('S-03 source/target modelCode가 비어 있습니다.')
+  if (sourceCodes.some((sourceCode) => !sourceCode) || !targetCode) {
+    return selectionError('S-03 source/target modelCode가 비어 있습니다.')
+  }
 
-  const missing = [sourceCode, targetCode].filter((code) => rowsForProductCode(catalog, code).length === 0)
+  const missing = [...new Set([...sourceCodes, targetCode])]
+    .filter((code) => rowsForProductCode(catalog, code).length === 0)
   if (missing.length > 0) {
     return selectionError(
       `S-03 규칙 대상 품목이 싱글 카탈로그에 없습니다: ${missing.join(', ')}`,
@@ -147,8 +163,12 @@ export function selectSingleS03Rule(
   }
 
   try {
-    positiveNumber((rule.sources[0]! as QuantitySyncSource).factor, 'S-03 factor')
-    positiveNumber((rule.targets[0]! as QuantitySyncTarget).multiplier, 'S-03 multiplier')
+    sourceDefinitions.forEach((source) => positiveNumber(source.factor, 'S-03 factor'))
+    const target = rule.targets[0]! as QuantitySyncTarget
+    positiveNumber(target.multiplier, 'S-03 multiplier')
+    if (!hasIntegerOutput(sourceDefinitions, target)) {
+      return selectionError('S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.')
+    }
   } catch (error) {
     return selectionError(error instanceof Error ? error.message : String(error))
   }
@@ -170,28 +190,33 @@ export function evaluateSingleS03Rule(
   if (!rule) return errorResult('S-03 규칙이 없습니다.')
   const sourceList = Array.isArray(rule.sources) ? rule.sources as QuantitySyncSource[] : []
   const targetList = Array.isArray(rule.targets) ? rule.targets as QuantitySyncTarget[] : []
-  if (sourceList.length !== 1 || targetList.length !== 1) {
-    return errorResult('S-03 source/target 정의가 단일 관계가 아닙니다.')
+  if (sourceList.length < 1 || targetList.length !== 1) {
+    return errorResult('S-03 source/target 정의가 올바른 관계가 아닙니다.')
   }
 
-  const sourceDefinition = sourceList[0]!
   const targetDefinition = targetList[0]!
-  const sourceCode = text(sourceDefinition.productCode)
+  const sourceCodes = sourceList.map((sourceDefinition) => text(sourceDefinition.productCode))
   const targetCode = text(targetDefinition.productCode)
-  const source = sourceRows(catalog, sourceList)
   const target = rowsForProductCode(catalog, targetCode)
   const missing = [
-    source.length === 0 ? sourceCode : '',
+    ...sourceCodes.filter((sourceCode) => rowsForProductCode(catalog, sourceCode).length === 0),
     target.length === 0 ? targetCode : '',
-  ].filter(Boolean)
+  ].filter(Boolean).filter((code, index, all) => all.indexOf(code) === index)
   if (missing.length > 0) {
     return errorResult(`S-03 규칙 대상 품목이 싱글 카탈로그에 없습니다: ${missing.join(', ')}`, missing)
   }
 
   try {
-    const factor = positiveNumber(sourceDefinition.factor, 'S-03 factor')
     const multiplier = positiveNumber(targetDefinition.multiplier, 'S-03 multiplier')
-    const sourceTotal = source.reduce((sum, row) => sum + (Number(quantities.get(text(row.id))) || 0) * factor, 0)
+    sourceList.forEach((source) => positiveNumber(source.factor, 'S-03 factor'))
+    if (!hasIntegerOutput(sourceList, targetDefinition)) {
+      return errorResult('S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.')
+    }
+    const sourceTotal = sourceList.reduce((sum, sourceDefinition) => {
+      const factor = positiveNumber(sourceDefinition.factor, 'S-03 factor')
+      return sum + sourceRows(catalog, [sourceDefinition])
+        .reduce((sourceSum, row) => sourceSum + (Number(quantities.get(text(row.id))) || 0) * factor, 0)
+    }, 0)
     const rawTargetQuantity = sourceTotal * multiplier
     const roundingMode = text(targetDefinition.roundingMode || 'NONE')
     const targetQuantity = roundingMode === 'FLOOR' ? Math.floor(rawTargetQuantity) : rawTargetQuantity

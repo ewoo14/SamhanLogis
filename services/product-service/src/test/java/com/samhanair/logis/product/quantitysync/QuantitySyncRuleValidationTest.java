@@ -123,6 +123,29 @@ class QuantitySyncRuleValidationTest {
     }
 
     @Test
+    void S03_주문_정수_계약과_충돌하는_소수_계수는_저장할_수_없다() {
+        Draft draft = new Draft(
+                "SINGLE_S03_CEILING_DRAIN_PUMP",
+                "SINGLE_SET",
+                "싱글 실링 세트 → 실링용 드레인펌프",
+                true,
+                "SUM",
+                emptyCondition(),
+                "ZERO",
+                "REPLACE",
+                100,
+                "S-03",
+                List.of(new SourceDraft("S03-SOURCE", new BigDecimal("0.5"))),
+                List.of(new TargetDraft("S03-TARGET", new BigDecimal("1"), "NONE", 1)),
+                products(
+                        product("S03-SOURCE", "SINGLE_SET", true, true, false),
+                        product("S03-TARGET", "SINGLE_SET", true, true, false)),
+                List.of());
+
+        assertInvalid(draft, "정수");
+    }
+
+    @Test
     void source_target이_비어_있는_불완전_graph는_원자적으로_저장할_수_없다() {
         Draft draft = draft(
                 products(product("TARGET", "HOME_MULTI", true, true, false)),
