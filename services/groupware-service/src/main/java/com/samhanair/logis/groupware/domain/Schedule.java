@@ -12,7 +12,6 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -119,9 +118,14 @@ public class Schedule extends BaseEntity {
         if (participantId == null) {
             throw new IllegalArgumentException("participantId 필수");
         }
-        boolean exists = this.participants.stream()
-                .anyMatch(p -> p.getParticipantId().equals(participantId));
-        if (exists) {
+        ScheduleParticipant existing = this.participants.stream()
+                .filter(p -> p.getParticipantId().equals(participantId))
+                .findFirst()
+                .orElse(null);
+        if (existing != null) {
+            if (Boolean.TRUE.equals(existing.getIsDeleted())) {
+                existing.markRestored();
+            }
             return;
         }
         this.participants.add(ScheduleParticipant.create(this, participantId));
@@ -129,7 +133,15 @@ public class Schedule extends BaseEntity {
 
     /** 참여자 제거. 미존재 시 no-op. */
     public void removeParticipant(UUID participantId) {
-        this.participants.removeIf(p -> p.getParticipantId().equals(participantId));
+        removeParticipant(participantId, "system");
+    }
+
+    /** 참여자 soft-delete. 알림 발행 이력은 재추가 시 중복 발행 방지를 위해 보존한다. */
+    public void removeParticipant(UUID participantId, String deletedBy) {
+        this.participants.stream()
+                .filter(p -> p.getParticipantId().equals(participantId))
+                .findFirst()
+                .ifPresent(p -> p.markDeleted(deletedBy));
     }
 
     /** 일정 취소 — status=CANCELLED. */
@@ -138,6 +150,8 @@ public class Schedule extends BaseEntity {
     }
 
     public List<ScheduleParticipant> getParticipantsView() {
-        return Collections.unmodifiableList(this.participants);
+        return this.participants.stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
+                .toList();
     }
 }
