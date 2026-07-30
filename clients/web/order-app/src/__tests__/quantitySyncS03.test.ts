@@ -11,7 +11,9 @@ declare function require(id: string): any;
 const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const {
-  runConfiguredS03TargetSwap,
+  runLegacyS03,
+  runLegacyS03TargetSwap,
+  runLegacyCaseDistinctSource,
   runOrderReadiness,
 } = require('./quantitySyncS03Harness.cjs');
 
@@ -44,7 +46,7 @@ function loadRows(): any[] {
 }
 
 describe('S-03 설정 기반 수량 동기화', () => {
-  it('order-app이 SINGLE_SET 수량 동기화 API를 소비한다', () => {
+  it('order-app은 설정 API를 읽지만 사용자 계산·전송 경로에는 연결하지 않는다', () => {
     const index = readFileSync(INDEX_PATH, 'utf8');
     const api = readFileSync(API_PATH, 'utf8');
     const main = readFileSync(MAIN_PATH, 'utf8');
@@ -52,8 +54,11 @@ describe('S-03 설정 기반 수량 동기화', () => {
     expect(api).toContain("/quantity-sync-rules");
     expect(main).toContain('getQuantitySyncRules');
     expect(index).toContain('__SAMHAN_QUANTITY_SYNC__');
-    expect(index).toContain('SINGLE_QUANTITY_SYNC_WARNING');
-    expect(index).toContain('현재 기존 계산을 유지합니다.');
+    expect(index).toContain('loadSingleS03QuantitySync_');
+    expect(index).not.toContain('configuredSingleS03_');
+    expect(index).not.toContain('evaluateSingleS03(');
+    expect(index).not.toContain('hasSingleCatalogBlockingError_');
+    expect(main).not.toContain('evaluateSingleS03');
   });
 
   it('S-03은 실 catalog source와 ADP-F075SP target을 설정으로 연결한다', () => {
@@ -76,7 +81,7 @@ describe('S-03 설정 기반 수량 동기화', () => {
     expect(indexHasS03RuleShape()).toBe(true);
   });
 
-  it.each([0, 1, 4, 77])('같은 입력 %s는 legacy와 설정 evaluator가 같은 파생 수량을 낸다', (sourceQuantity) => {
+  it.each([0, 1, 4, 77])('shadow: 같은 입력 %s는 legacy와 설정 evaluator가 같은 파생 수량을 낸다', (sourceQuantity) => {
     const rows = loadRows();
     const source = rows.find((row) => row.id === '싱글 실링61');
     const target = rows.find((row) => row.model === 'ADP-F075SP');
@@ -97,7 +102,7 @@ describe('S-03 설정 기반 수량 동기화', () => {
     ['AC090BSCPBH2SY', '싱글 실링62'],
     ['AC130BSCPHH2SY', '싱글 실링63'],
     ['AC145BSCPHH2SY', '싱글 실링64'],
-  ])('실 catalog의 S-03 source %s 단독 수량 1도 legacy와 같은 pump 수량·금액을 낸다', (model, sourceId) => {
+  ])('shadow: 실 catalog의 S-03 source %s 단독 수량 1도 legacy와 같은 pump 수량·금액을 낸다', (model, sourceId) => {
     const rows = loadRows();
     const target = rows.find((row) => row.model === 'ADP-F075SP');
     const source = rows.find((row) => row.id === sourceId);
@@ -111,7 +116,7 @@ describe('S-03 설정 기반 수량 동기화', () => {
     expect(Number(target.price) * Number(configured.targetQuantities.get(target.id))).toBe(79200);
   });
 
-  it('S-03 source 네 개를 모두 합산한 전환 전후 수량·금액이 같다', () => {
+  it('shadow: S-03 source 네 개를 모두 합산한 전환 전후 수량·금액이 같다', () => {
     const rows = loadRows();
     const target = rows.find((row) => row.model === 'ADP-F075SP');
     const sources = rows.filter((row) => row.name === '싱글 실링');
@@ -124,7 +129,7 @@ describe('S-03 설정 기반 수량 동기화', () => {
     expect(Number(target.price) * Number(configured.targetQuantities.get(target.id))).toBe(316800);
   });
 
-  it('주문 정수 계약과 충돌하는 S-03 소수 설정은 설정 단계에서 드러난다', () => {
+  it('shadow: 합법 십진 계수는 브라우저 계산을 거부하지 않고 관측값으로 남긴다', () => {
     const rows = loadRows();
     const decimalRule = {
       ...S03_RULE,
@@ -132,9 +137,16 @@ describe('S-03 설정 기반 수량 동기화', () => {
     };
 
     const selected = selectSingleS03Rule([decimalRule], rows);
+    const source = rows.find((row) => row.id === '싱글 실링61');
+    const configured = evaluateSingleS03Rule(selected.rule, rows, new Map([[source.id, 1]]));
 
-    expect(selected.status).toBe('error');
-    expect(selected.errorMessage).toContain('정수');
+    expect(selected.status).toBe('ready');
+    expect(configured.status).toBe('ready');
+    expect(Number(configured.targetQuantities.get('실링용 드레인펌프75'))).toBeCloseTo(0.5, 10);
+    expect(runLegacyS03({ sourceQuantity: 3 })).toMatchObject({
+      targetQuantity: 3,
+      manualLock: false,
+    });
   });
 
   it('전환 전후의 S-03 소계와 전송 line은 같은 수량으로 이어진다', () => {
@@ -169,16 +181,29 @@ describe('S-03 설정 기반 수량 동기화', () => {
     expect(evaluated.missingCatalogCodes).toEqual(['ADP-F075SP']);
   });
 
-  it('target 교체 뒤 저장 주문 복원은 구 target을 남기지 않는다', () => {
-    expect(runConfiguredS03TargetSwap()).toEqual({
-      oldTargetQuantity: 0,
-      newTargetQuantity: 1,
-      sendModels: ['AC072BSCPBH2SY', 'AIM-N01'],
+  it('F-01 재현: reset 뒤 남은 누락 Map이 S-03 무관 25,000원 주문을 막지 않는다', () => {
+    expect(runOrderReadiness({ missingModel: 'ADP-F075SP' })).toEqual({
+      disabled: false,
+      missingMapSize: 1,
+      unrelatedOrder: { model: 'SI-AL700a', quantity: 1, subtotal: 25000 },
     });
   });
 
-  it('target catalog 누락 경고가 있는 주문은 전송목록 진입을 막는다', () => {
-    expect(runOrderReadiness({ missingModel: 'ADP-F075SP' })).toEqual({ disabled: true });
+  it('F-03 재현: 저장 복원은 legacy target만 유지하고 구·신 target을 혼입하지 않는다', () => {
+    expect(runLegacyS03TargetSwap()).toEqual({
+      oldTargetQuantity: 1,
+      newTargetQuantity: 0,
+      targetSubtotal: 79200,
+      sendModels: ['AC072BSCPBH2SY', 'ADP-F075SP'],
+    });
+  });
+
+  it('F-04 재현: 대소문자만 다른 catalog 품목은 legacy S-03 source로 가산되지 않는다', () => {
+    expect(runLegacyCaseDistinctSource()).toEqual({
+      legacyPumpQty: 0,
+      legacyPumpSubtotal: 0,
+      caseDistinctSourceQuantity: 1,
+    });
   });
 });
 

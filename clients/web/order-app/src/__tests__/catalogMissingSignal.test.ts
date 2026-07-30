@@ -287,8 +287,6 @@ function runSingleRecompute(
     const SS_CEILING_PUMP_ID = (SINGLE_SETS.find(s => /ADP-F075SP/i.test(s?.model || '')) || {}).id || null;
     const SS_FOOT_ROUND_ID = (SINGLE_SETS.find(s => /발통세트/i.test(s?.model || '') || /발통세트/i.test(s?.name || '')) || {}).id || null;
     const SS_FOOT_FLAT_ID = (SINGLE_SETS.find(s => /SI-AL700a/i.test(s?.model || '')) || {}).id || null;
-    const S03_DERIVED_TARGET_IDS = new Set([SS_CEILING_PUMP_ID].filter(Boolean).map(String));
-    const clearSingleS03DerivedQty_ = ${optionalFunction('clearSingleS03DerivedQty_')};
     const recompute = typeof recomputeSingleDerived === 'function'
       ? recomputeSingleDerived
       : () => { recomputeSingleBaseFoot(); recomputeSingleExtras(); };

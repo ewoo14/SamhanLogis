@@ -23,10 +23,8 @@
 import { installLegacyShim } from './legacyShim'
 import { samhanApi } from './samhanApi'
 import {
-  evaluateSingleS03Rule,
   selectSingleS03Rule,
   type SingleCatalogRow,
-  type SingleQuantitySyncResult,
   type QuantitySyncRule,
 } from './quantitySync'
 import { mountOrderVersionGate } from './version/versionGate'
@@ -45,10 +43,6 @@ declare global {
     __SAMHAN_QUANTITY_SYNC__?: {
       getQuantitySyncRules: (catalog: SingleCatalogRow[]) => Promise<SingleQuantitySyncState>
       getState: () => SingleQuantitySyncState
-      evaluateSingleS03: (
-        catalog: SingleCatalogRow[],
-        quantities: Map<string, number>,
-      ) => SingleQuantitySyncResult
     }
   }
 }
@@ -60,8 +54,9 @@ let singleQuantitySyncState: SingleQuantitySyncState = {
 }
 
 /**
- * 로그인 후에만 읽을 수 있는 수량 동기화 API를 legacy inline page에 노출한다.
- * 초기 페이지 계산은 legacy fallback으로 완료되고, 성공한 설정만 다음 재계산부터 사용한다.
+ * 로그인 후에만 읽을 수 있는 수량 동기화 API를 관측 경계로 노출한다.
+ * 사용자 주문 계산은 legacy inline page가 계속 담당하며, 이 경계는 설정을 읽고
+ * shadow 하네스가 사용할 수 있도록 선택된 rule 상태만 보존한다.
  */
 window.__SAMHAN_QUANTITY_SYNC__ = {
   async getQuantitySyncRules(catalog) {
@@ -84,9 +79,6 @@ window.__SAMHAN_QUANTITY_SYNC__ = {
   },
   getState() {
     return singleQuantitySyncState
-  },
-  evaluateSingleS03(catalog, quantities) {
-    return evaluateSingleS03Rule(singleQuantitySyncState.rule, catalog, quantities)
   },
 }
 

@@ -1,8 +1,8 @@
 /**
- * 칩 기반 수량 동기화 규칙의 order-app 소비 경계.
+ * 칩 기반 수량 동기화 규칙의 shadow 경계.
  *
- * <p>이번 슬라이스는 S-03 하나만 허용한다. 규칙이 없거나 유효하지 않으면 호출자가
- * legacy 계산으로 되돌아가고, 이 모듈은 0을 만들어 반환하지 않는다.
+ * <p>이번 슬라이스는 S-03 설정을 읽고 기존 하드코딩 계산과 대조하는 데만 사용한다.
+ * 사용자 주문 경로는 이 모듈의 evaluator를 호출하지 않고 legacy 계산을 유지한다.
  */
 
 export const SINGLE_S03_RULE_KEY = 'SINGLE_S03_CEILING_DRAIN_PUMP'
@@ -93,18 +93,6 @@ function selectionError(message: string, missingCatalogCodes: string[] = []): Si
   }
 }
 
-/** 정수 source 입력이 주문 전송 계약(정수 quantity)을 만족하는지 확인한다. */
-function hasIntegerOutput(
-  sources: QuantitySyncSource[],
-  target: QuantitySyncTarget,
-): boolean {
-  const roundingMode = text(target.roundingMode || 'NONE').toUpperCase()
-  if (roundingMode === 'FLOOR') return true
-
-  const multiplier = Number(target.multiplier)
-  return sources.every((source) => Number.isInteger(Number(source.factor) * multiplier))
-}
-
 /** API 목록에서 S-03의 단일 규칙을 고르고 catalog graph를 검증한다. */
 export function selectSingleS03Rule(
   rules: unknown,
@@ -166,9 +154,6 @@ export function selectSingleS03Rule(
     sourceDefinitions.forEach((source) => positiveNumber(source.factor, 'S-03 factor'))
     const target = rule.targets[0]! as QuantitySyncTarget
     positiveNumber(target.multiplier, 'S-03 multiplier')
-    if (!hasIntegerOutput(sourceDefinitions, target)) {
-      return selectionError('S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.')
-    }
   } catch (error) {
     return selectionError(error instanceof Error ? error.message : String(error))
   }
@@ -177,10 +162,10 @@ export function selectSingleS03Rule(
 }
 
 /**
- * 한 번의 S-03 계산을 수행한다.
+ * shadow 하네스에서 한 번의 S-03 계산을 수행한다.
  *
- * <p>수동 잠금은 order-app의 {@code setDerivedQty}가 담당하므로 이 함수는 계산값만 만든다.
- * source/target catalog 누락은 빈 Map/0으로 숨기지 않고 error 결과로 반환한다.
+ * <p>수동 잠금·주문 payload 반영은 하지 않는다. source/target catalog 누락과
+ * 부동소수 결과는 shadow 관측값으로 반환하며 사용자 주문을 차단하지 않는다.
  */
 export function evaluateSingleS03Rule(
   rule: QuantitySyncRule | null,
@@ -209,9 +194,6 @@ export function evaluateSingleS03Rule(
   try {
     const multiplier = positiveNumber(targetDefinition.multiplier, 'S-03 multiplier')
     sourceList.forEach((source) => positiveNumber(source.factor, 'S-03 factor'))
-    if (!hasIntegerOutput(sourceList, targetDefinition)) {
-      return errorResult('S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.')
-    }
     const sourceTotal = sourceList.reduce((sum, sourceDefinition) => {
       const factor = positiveNumber(sourceDefinition.factor, 'S-03 factor')
       return sum + sourceRows(catalog, [sourceDefinition])

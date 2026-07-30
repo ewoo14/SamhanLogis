@@ -26,17 +26,26 @@ const rule = {
 const selected = selectSingleS03Rule([rule], rows);
 if (selected.status !== 'ready') throw new Error(selected.errorMessage || 'S-03 rule selection failed');
 
-const unitPrice = Number(target.price);
-const scenarios = [
-  ...s03Sources.flatMap((sourceRow) => [0, 1, 4, 77].map((sourceQuantity) => ({
-    label: `${sourceRow.model}=${sourceQuantity}`,
-    sourceQuantities: { [sourceRow.id]: sourceQuantity },
-  }))),
-  ...[0, 1, 4, 77].map((sourceQuantity) => ({
-    label: `all-sources=${sourceQuantity}`,
-    sourceQuantities: Object.fromEntries(s03Sources.map((row) => [row.id, sourceQuantity])),
-  })),
-];
+const checkedMasks = Array.from({ length: 2 ** s03Sources.length - 1 }, (_, index) => index + 1);
+const quantityCases = [0, 1, 4, 77];
+const scenarios = checkedMasks
+  .flatMap((mask) => quantityCases.map((sourceQuantity) => ({
+    label: `mask=${mask.toString(2).padStart(s03Sources.length, '0')},qty=${sourceQuantity}`,
+    sourceQuantities: Object.fromEntries(s03Sources.map((row, sourceIndex) => [
+      row.id,
+      mask & (1 << sourceIndex) ? sourceQuantity : 0,
+    ])),
+  })));
+
+function payloadFromQuantities(quantities) {
+  return rows
+    .filter((row) => Number(quantities[row.id] || 0) > 0)
+    .map((row) => ({ section: 'SINGLE', model: row.model, qty: Number(quantities[row.id]) }));
+}
+
+function subtotalFromQuantities(quantities) {
+  return rows.reduce((sum, row) => sum + Number(row.price || 0) * Number(quantities[row.id] || 0), 0);
+}
 const results = scenarios.map(({ label, sourceQuantities }) => {
   const before = evaluateLegacyQuantityBoundary({
     app: 'order',
@@ -49,13 +58,15 @@ const results = scenarios.map(({ label, sourceQuantities }) => {
   const beforeQuantity = Number(before.quantities[target.id] || 0);
   const after = evaluateSingleS03Rule(selected.rule, rows, new Map(Object.entries(sourceQuantities)));
   const afterQuantity = Number(after.targetQuantities.get(target.id) || 0);
-  const beforeSubtotal = beforeQuantity * unitPrice;
-  const afterSubtotal = afterQuantity * unitPrice;
-  const beforePayload = beforeQuantity > 0 ? [{ section: 'SINGLE', model: target.model, qty: beforeQuantity }] : [];
-  const afterPayload = afterQuantity > 0 ? [{ section: 'SINGLE', model: target.model, qty: afterQuantity }] : [];
+  const beforeQuantities = before.quantities;
+  const afterQuantities = { ...sourceQuantities, [target.id]: afterQuantity };
+  const beforeSubtotal = subtotalFromQuantities(beforeQuantities);
+  const afterSubtotal = subtotalFromQuantities(afterQuantities);
+  const beforePayload = payloadFromQuantities(beforeQuantities);
+  const afterPayload = payloadFromQuantities(afterQuantities);
   if (beforeQuantity !== afterQuantity || beforeSubtotal !== afterSubtotal
     || JSON.stringify(beforePayload) !== JSON.stringify(afterPayload)) {
-    throw new Error(JSON.stringify({ sourceQuantity, beforeQuantity, afterQuantity, beforeSubtotal, afterSubtotal, beforePayload, afterPayload }));
+    throw new Error(JSON.stringify({ label, sourceQuantities, beforeQuantity, afterQuantity, beforeSubtotal, afterSubtotal, beforePayload, afterPayload }));
   }
   return { label, sourceQuantities, beforeQuantity, afterQuantity, beforeSubtotal, afterSubtotal, beforePayload, afterPayload };
 });
@@ -64,6 +75,7 @@ console.log(JSON.stringify({
   fixture: {
     fetchedOn: fixture.source.fetchedOn,
     s03SourceCount: s03Sources.length,
+    combinationCount: 2 ** s03Sources.length - 1,
     s03Sources: s03Sources.map(({ id, model, name, price }) => ({ id, model, name, price })),
     target: { id: target.id, model: target.model, name: target.name, price: target.price },
   },
@@ -76,5 +88,12 @@ console.log(JSON.stringify({
     inactiveBehavior: rule.inactiveBehavior,
   },
   selectedStatus: selected.status,
-  results,
+  checkedMasks: checkedMasks.map((mask) => mask.toString(2).padStart(s03Sources.length, '0')),
+  quantityCases,
+  resultCount: results.length,
+  allQuantityEqual: results.every((result) => result.beforeQuantity === result.afterQuantity),
+  allSubtotalEqual: results.every((result) => result.beforeSubtotal === result.afterSubtotal),
+  allPayloadEqual: results.every((result) => JSON.stringify(result.beforePayload) === JSON.stringify(result.afterPayload)),
+  representativeResults: results.filter((result) =>
+    ['mask=0001,qty=1', 'mask=1111,qty=1', 'mask=1111,qty=77'].includes(result.label)),
 }));
