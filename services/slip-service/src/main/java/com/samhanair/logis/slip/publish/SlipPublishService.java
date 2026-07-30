@@ -750,7 +750,8 @@ public class SlipPublishService {
                     qty,
                     unitPrice,
                     l.remarks(),
-                    l.sourceOrderLineId()));
+                    l.sourceOrderLineId(),
+                    l.categoryKey()));
             if (l.supplyAmount() != null) {
                 resolved.totalSupplyAmount = resolved.totalSupplyAmount.add(l.supplyAmount());
             }
@@ -828,6 +829,7 @@ public class SlipPublishService {
         m.put("supplyAmount", l.supplyAmount());
         m.put("vatAmount", l.vatAmount());
         m.put("remarks", l.remarks());
+        m.put("categoryKey", l.categoryKey());
         return m;
     }
 
@@ -876,12 +878,14 @@ public class SlipPublishService {
         List<SlipLine> toEntityLines(Slip slip) {
             return entries.stream()
                     .map(e -> SlipLine.create(slip, e.productId, e.productName, e.modelName,
-                            e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId))
+                            e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                            e.categoryKey))
                     .toList();
         }
 
         record Entry(UUID productId, String productName, String modelName, String specification,
-                     int quantity, BigDecimal unitPrice, String note, UUID sourceOrderLineId) {
+                     int quantity, BigDecimal unitPrice, String note, UUID sourceOrderLineId,
+                     String categoryKey) {
         }
     }
 

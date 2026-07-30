@@ -135,6 +135,37 @@ class SalesAccountingSlipServiceTest {
     }
 
     @Test
+    void createDraft_원천모델과카테고리축을_라인과배분에_보존한다() {
+        UUID sourceSlipId = UUID.randomUUID();
+        UUID sourceLineId = UUID.randomUUID();
+        when(numberGenerator.next(LocalDate.of(2026, 5, 19))).thenReturn("2026/05/19-AXIS");
+        when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(
+                sourceSlipId, "OUT-AXIS", sourceLineId, PARTNER_ID,
+                "P-SOURCE-823", "원천 거래처", "AJ040RXH4BC1 [홈멀티]", "AJ040RXH4BC1",
+                UUID.randomUUID(), "homemulti", 1, new BigDecimal("55000"),
+                new BigDecimal("55000"), "CONFIRMED", "OUTBOUND"));
+        when(allocationRepository.sumAllocatedAmountBySourceLineId(sourceLineId))
+                .thenReturn(BigDecimal.ZERO);
+        lenient().when(slipRepository.saveAndFlush(any(SalesAccountingSlip.class)))
+                .thenAnswer((InvocationOnMock inv) -> inv.getArgument(0));
+
+        CreateSalesAccountingSlipRequest req = requestWithSingleAllocation(
+                sourceSlipId, sourceLineId, BigDecimal.ONE, new BigDecimal("55000"),
+                new BigDecimal("55000"));
+
+        service.createDraft(req, "actor-axis");
+
+        ArgumentCaptor<SalesAccountingSlip> captor = ArgumentCaptor.forClass(SalesAccountingSlip.class);
+        verify(slipRepository).saveAndFlush(captor.capture());
+        SalesAccountingSlipLine savedLine = captor.getValue().getLines().get(0);
+        assertThat(savedLine.getModelName()).isEqualTo("AJ040RXH4BC1");
+        assertThat(savedLine.getCategoryKey()).isEqualTo("homemulti");
+        SalesAccountingSlipAllocation savedAllocation = savedLine.getAllocations().get(0);
+        assertThat(savedAllocation.getModelName()).isEqualTo("AJ040RXH4BC1");
+        assertThat(savedAllocation.getCategoryKey()).isEqualTo("homemulti");
+    }
+
+    @Test
     void overAllocation_차단_SAS_OVER_ALLOCATION() {
         UUID sourceLineId = UUID.randomUUID();
         when(slipServiceClient.getSlipLine(sourceLineId)).thenReturn(new SlipLineSnapshot(

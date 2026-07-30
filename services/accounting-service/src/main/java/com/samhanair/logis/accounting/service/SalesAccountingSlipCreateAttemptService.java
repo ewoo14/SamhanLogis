@@ -88,8 +88,10 @@ public class SalesAccountingSlipCreateAttemptService {
         for (LineRequest lr : req.lines()) {
             lineNo++;
             VatCalculator.Result vat = VatCalculator.split(lr.qty(), lr.unitPrice(), req.taxType());
+            LineAxis lineAxis = resolveLineAxis(lr, sourceCache);
             SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
-                    slip, lineNo, lr.productCode(), lr.productName(),
+                    slip, lineNo, lr.productCode(), lr.productName(), lineAxis.modelName(),
+                    lineAxis.categoryKey(),
                     lr.qty(), lr.unitPrice(),
                     vat.supplyAmount(), vat.vatAmount(), vat.lineTotal());
             slip.getLines().add(line);
@@ -99,10 +101,12 @@ public class SalesAccountingSlipCreateAttemptService {
                         ? firstState.snapshot()
                         : verifyAndAccumulate(ar, sourceCache.get(ar.sourceLineId()), allocationTotals);
                 firstSourceConsumed = true;
+                LineAxis sourceAxis = axisOf(src);
                 line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
                         src.slipId(), src.slipNo(),
                         ar.sourceLineId(), ar.sourceLineNo(),
-                        ar.allocatedQty(), ar.allocatedAmount()));
+                        ar.allocatedQty(), ar.allocatedAmount(),
+                        sourceAxis.modelName(), sourceAxis.categoryKey()));
             }
         }
 
@@ -222,12 +226,44 @@ public class SalesAccountingSlipCreateAttemptService {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /** 한 매출전표 라인이 여러 원천을 가리킬 때 서로 다른 축을 하나로 합치지 않는다. */
+    private static LineAxis resolveLineAxis(LineRequest request,
+                                             Map<UUID, SourceState> sourceCache) {
+        LineAxis resolved = null;
+        for (AllocationRequest allocation : request.allocations()) {
+            LineAxis candidate = axisOf(sourceCache.get(allocation.sourceLineId()).snapshot());
+            if (resolved == null) {
+                resolved = candidate;
+            } else if (!resolved.equals(candidate)) {
+                return LineAxis.UNKNOWN;
+            }
+        }
+        return resolved == null ? LineAxis.UNKNOWN : resolved;
+    }
+
+    /** 원천 DTO의 raw 값은 schedule 계약으로 정규화한 뒤에만 known 축으로 인정한다. */
+    private static LineAxis axisOf(SlipLineSnapshot snapshot) {
+        if (snapshot == null) {
+            return LineAxis.UNKNOWN;
+        }
+        GasCategoryAxis axis = GasCategoryAxis.fromScheduleKey(snapshot.categoryKey());
+        String modelName = ModelTokenExtractor.extractModelTokenOrNull(snapshot.modelName());
+        if (!axis.isKnown()) {
+            return new LineAxis(modelName, null);
+        }
+        return new LineAxis(modelName, modelName == null ? null : axis.scheduleKey());
+    }
+
     private static String formatAmount(BigDecimal value) {
         return value.max(BigDecimal.ZERO).setScale(2, RoundingMode.UNNECESSARY).toPlainString();
     }
 
     private static String formatQuantity(BigDecimal value) {
         return value.max(BigDecimal.ZERO).setScale(3, RoundingMode.UNNECESSARY).toPlainString();
+    }
+
+    private record LineAxis(String modelName, String categoryKey) {
+        private static final LineAxis UNKNOWN = new LineAxis(null, null);
     }
 
     private record SourceState(SlipLineSnapshot snapshot, BigDecimal dbAmount, BigDecimal dbQty) {}

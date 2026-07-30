@@ -131,6 +131,10 @@ public class SlipLine extends BaseEntity {
     @Column(name = "source_order_line_id")
     private UUID sourceOrderLineId;
 
+    /** 판매 당시 주문 라인이 선택한 GAS 카테고리 축. 수동/레거시 전표는 null을 보존한다. */
+    @Column(name = "category_key", length = 40)
+    private String categoryKey;
+
     /** 세트 전개 그룹 첫 구성품 라인 여부(PR-3, V34). 일반 라인 = false. */
     @Column(name = "set_head", nullable = false)
     private boolean setHead = false;
@@ -142,6 +146,13 @@ public class SlipLine extends BaseEntity {
     private SlipLine(Slip slip, UUID productId, String productName, String modelName,
                      String specification, int quantity, BigDecimal unitPrice, String note,
                      UUID sourceOrderLineId) {
+        this(slip, productId, productName, modelName, specification, quantity, unitPrice, note,
+                sourceOrderLineId, null);
+    }
+
+    private SlipLine(Slip slip, UUID productId, String productName, String modelName,
+                     String specification, int quantity, BigDecimal unitPrice, String note,
+                     UUID sourceOrderLineId, String categoryKey) {
         validatePositive(quantity);
         validateUnitPrice(unitPrice);
         this.slip = slip;
@@ -153,6 +164,7 @@ public class SlipLine extends BaseEntity {
         this.unitPrice = unitPrice;
         this.note = note;
         this.sourceOrderLineId = sourceOrderLineId;
+        this.categoryKey = categoryKey;
         this.lineTotal = computeLineTotal(quantity, unitPrice);
         this.supplyAmount = this.lineTotal;
         this.vatAmount = computeVat(this.lineTotal);
@@ -192,6 +204,16 @@ public class SlipLine extends BaseEntity {
         // R1 은 이 경로에 자릿수 가드를 전혀 연결하지 않아 파생 unitPriceWithVat(=unitPrice*1.1)
         // 이 narrow 컬럼(unit_price_with_vat NUMERIC(15,2))을 실 Postgres 에서 그대로 넘겼다
         // (PM 실측: 13자리 단가 → 14자리 파생값 → 500). 생성 직후 최종 필드 상태를 검증한다.
+        line.validateStorableAmounts();
+        return line;
+    }
+
+    /** 주문 전환 라인의 카테고리 축을 함께 보존하는 생성 경로. */
+    public static SlipLine create(Slip slip, UUID productId, String productName, String modelName,
+                                  String specification, int quantity, BigDecimal unitPrice,
+                                  String note, UUID sourceOrderLineId, String categoryKey) {
+        SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
+                quantity, unitPrice, note, sourceOrderLineId, categoryKey);
         line.validateStorableAmounts();
         return line;
     }

@@ -151,6 +151,7 @@ public class PartnerOrderConvertService {
             linePayload.put("unitPriceVat", line.getPriceVat());
             linePayload.put("remarks", line.getRemark());
             linePayload.put("sourceOrderLineId", line.getId().toString());
+            linePayload.put("categoryKey", line.getCategoryKey());
             payloadLines.add(linePayload);
         }
 

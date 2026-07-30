@@ -156,14 +156,14 @@ class DailyClosingDetailServiceTest {
     void dailyDetailPreChangeDefaultUsesBaselinePriceHistory() {
         UUID matched = UUID.randomUUID();
         TaxInvoice ti = newIssued("TI-PRE-CHANGE", "인상전거래처", DATE);
-        addLine(ti, "AJ040RXH4BC1 [4멀티]", BigDecimal.ONE, new BigDecimal("50000"));
+        addLineWithAxis(ti, "AJ040RXH4BC1 [4멀티]", "AJ040RXH4BC1", "homemulti",
+                BigDecimal.ONE, new BigDecimal("50000"));
         recalcSnapshot(ti);
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
                 .thenReturn(List.of(ti));
         when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
                 "AJ040RXH4BC1 [4멀티]", ProductLabelMatch.matched(matched, "AJ040RXH4BC1")));
-        when(productClient.lookup(anyList())).thenReturn(List.of(productSummary(matched, "homemulti")));
         when(productClient.priceChangeDefaultVariants()).thenReturn(Map.of("homemulti", true));
         when(productClient.applicablePrices(anyList(), eq(BEFORE_INCREASE_DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("90000"), new BigDecimal("63000"),
@@ -204,9 +204,12 @@ class DailyClosingDetailServiceTest {
         UUID missingFixedRate = UUID.randomUUID();
         TaxInvoice ti = newIssued("TI-RV", "재검증거래처", DATE);
         // 단가 50000(순액) → 공급가 50000 + 세액 5000 = VAT포함 유효단가 55000 → 출고가 100000 대비 45%.
-        addLine(ti, "AJ040RXH4BC1 (RX다배관)", BigDecimal.ONE, new BigDecimal("50000"));
-        addLine(ti, "AJ050RXH5BC1 [5다배관]", BigDecimal.ONE, new BigDecimal("50000"));
-        addLine(ti, "AJ060MXHNBC1 [단배관]", BigDecimal.ONE, new BigDecimal("50000"));
+        addLineWithAxis(ti, "AJ040RXH4BC1 (RX다배관)", "AJ040RXH4BC1", "homemulti",
+                BigDecimal.ONE, new BigDecimal("50000"));
+        addLineWithAxis(ti, "AJ050RXH5BC1 [5다배관]", "AJ050RXH5BC1", "homemulti",
+                BigDecimal.ONE, new BigDecimal("50000"));
+        addLineWithAxis(ti, "AJ060MXHNBC1 [단배관]", "AJ060MXHNBC1", "homemulti",
+                BigDecimal.ONE, new BigDecimal("50000"));
         addLine(ti, "AXJ-YA1509N [N-분기관]", BigDecimal.ONE, new BigDecimal("70000"));
         addLine(ti, "AC023CN1DBC1 [CN냉전 실내기]", BigDecimal.ONE, new BigDecimal("80000"));
         addLine(ti, "운임", BigDecimal.ONE, new BigDecimal("10000"));
@@ -224,10 +227,6 @@ class DailyClosingDetailServiceTest {
         labelBulkResult.put("AC023CN1DBC1 [CN냉전 실내기]", ProductLabelMatch.ambiguous());
         labelBulkResult.put("운임", ProductLabelMatch.notFound());
         when(productClient.resolveByLabelBulk(anyList())).thenReturn(labelBulkResult);
-        when(productClient.lookup(anyList())).thenAnswer(invocation -> {
-            List<UUID> ids = invocation.getArgument(0);
-            return ids.stream().map(id -> productSummary(id, "homemulti")).toList();
-        });
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
                 missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
@@ -297,7 +296,9 @@ class DailyClosingDetailServiceTest {
         List<String> labels = java.util.stream.IntStream.range(0, 101)
                 .mapToObj(i -> String.format("CHUNK-%03d [규격]", i))
                 .toList();
-        labels.forEach(label -> addLine(ti, label, BigDecimal.ONE, new BigDecimal("1000")));
+        labels.forEach(label -> addLineWithAxis(ti, label,
+                String.format("AJ%05d", labels.indexOf(label)), "homemulti",
+                BigDecimal.ONE, new BigDecimal("1000")));
         recalcSnapshot(ti);
 
         Map<String, UUID> productIdsByLabel = new LinkedHashMap<>();
@@ -351,8 +352,6 @@ class DailyClosingDetailServiceTest {
                 .thenReturn(List.of(ti));
         when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
                 "미분류모델 [규격]", ProductLabelMatch.matched(matched, "미분류모델")));
-        when(productClient.lookup(anyList())).thenReturn(List.of(productSummary(matched, null)));
-
         DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
 
         DailyClosingDetailResponse.DailyProductLine line = findProductLine(resp, "미분류모델 [규격]");
@@ -362,6 +361,39 @@ class DailyClosingDetailServiceTest {
         assertThat(line.revalidationStatus()).isEqualTo("MISSING_REFERENT");
         verify(productClient, never()).applicablePrices(anyList(), eq(DATE));
         verify(productClient, never()).applicablePrices(anyList(), eq(BEFORE_INCREASE_DATE));
+    }
+
+    @Test
+    @DisplayName("원천 카테고리 축 — 같은 모델의 카테고리별 집계와 UNKNOWN을 분리한다")
+    void dailyDetailKeepsKnownCategoryAxesSeparateFromUnknown() {
+        UUID matched = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-CATEGORY-AXIS", "축거래처", DATE);
+        addLineWithAxis(ti, "AJ040RXH4BC1 [홈]", "AJ040RXH4BC1", "homemulti",
+                BigDecimal.ONE, new BigDecimal("50000"));
+        addLineWithAxis(ti, "AJ040RXH4BC1 [싱글]", "AJ040RXH4BC1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("60000"));
+        addLine(ti, "카테고리 미상", BigDecimal.ONE, new BigDecimal("70000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "AJ040RXH4BC1 [홈]", ProductLabelMatch.matched(matched, "AJ040RXH4BC1"),
+                "AJ040RXH4BC1 [싱글]", ProductLabelMatch.matched(matched, "AJ040RXH4BC1"),
+                "카테고리 미상", ProductLabelMatch.notFound()));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        assertThat(resp.productSummaries()).extracting(
+                DailyClosingDetailResponse.DailyProductLine::categoryKey)
+                .containsExactly("homemulti", "singleSets", "UNKNOWN");
+        assertThat(resp.productSummaries()).extracting(
+                DailyClosingDetailResponse.DailyProductLine::modelName)
+                .containsExactly("AJ040RXH4BC1", "AJ040RXH4BC1", null);
+        assertThat(resp.productSummaries()).extracting(
+                DailyClosingDetailResponse.DailyProductLine::supplyAmount)
+                .containsExactly(new BigDecimal("50000.00"), new BigDecimal("60000.00"),
+                        new BigDecimal("70000.00"));
     }
 
     @Test
@@ -390,7 +422,8 @@ class DailyClosingDetailServiceTest {
     void taxInvoiceDetailZeroQuantityIsNotMeasurable() {
         UUID matched = UUID.randomUUID();
         TaxInvoice ti = newIssued("TI-ZERO", "재검증거래처", DATE);
-        addLine(ti, "AJ080RXH8BC1 [8다배관]", BigDecimal.ZERO, new BigDecimal("50000"));
+        addLineWithAxis(ti, "AJ080RXH8BC1 [8다배관]", "AJ080RXH8BC1", "homemulti",
+                BigDecimal.ZERO, new BigDecimal("50000"));
         recalcSnapshot(ti);
 
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
@@ -523,6 +556,18 @@ class DailyClosingDetailServiceTest {
     private static void addLine(TaxInvoice ti, String itemName,
                                  BigDecimal qty, BigDecimal unitPrice) {
         TaxInvoiceLine line = TaxInvoiceLine.create(ti, 1, itemName, null, qty, unitPrice, null);
+        addLine(ti, line);
+    }
+
+    private static void addLineWithAxis(TaxInvoice ti, String itemName, String modelName,
+                                        String categoryKey, BigDecimal qty, BigDecimal unitPrice) {
+        TaxInvoiceLine line = TaxInvoiceLine.create(ti, 1, itemName, null, qty, unitPrice, null);
+        setField(line, "modelName", modelName);
+        setField(line, "categoryKey", categoryKey);
+        addLine(ti, line);
+    }
+
+    private static void addLine(TaxInvoice ti, TaxInvoiceLine line) {
         try {
             Field linesField = TaxInvoice.class.getDeclaredField("lines");
             linesField.setAccessible(true);
@@ -582,7 +627,8 @@ class DailyClosingDetailServiceTest {
                 slipNo, slipDate, UUID.randomUUID(), "P-SALES", "매출거래처",
                 SalesTaxType.TAXABLE, "재검증 테스트");
         SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
-                slip, 1, "MIG4", productName, qty, supplyAmount, supplyAmount, vatAmount,
+                slip, 1, "MIG4", productName, ModelTokenExtractor.extractModelTokenOrNull(productName),
+                "homemulti", qty, supplyAmount, supplyAmount, vatAmount,
                 supplyAmount.add(vatAmount));
         setField(slip, "lines", new ArrayList<>(List.of(line)));
         setField(slip, "status", SalesSlipStatus.POSTED);

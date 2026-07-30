@@ -39,6 +39,8 @@ public class SalesAccountingSlipLine extends BaseEntity {
 
     @Column(name = "product_code", length = 100) private String productCode;
     @Column(name = "product_name", length = 200) private String productName;
+    @Column(name = "model_name", length = 100) private String modelName;
+    @Column(name = "category_key", length = 40) private String categoryKey;
 
     @Column(name = "qty", nullable = false, precision = 12, scale = 3)
     private BigDecimal qty;
@@ -63,11 +65,22 @@ public class SalesAccountingSlipLine extends BaseEntity {
             String productCode, String productName,
             BigDecimal qty, BigDecimal unitPrice,
             BigDecimal supplyAmount, BigDecimal vatAmount, BigDecimal lineTotal) {
+        return create(slip, lineNo, productCode, productName, null, null, qty, unitPrice,
+                supplyAmount, vatAmount, lineTotal);
+    }
+
+    /** 판매 원천의 모델명·GAS 카테고리 축을 매출전표 라인에 snapshot한다. */
+    public static SalesAccountingSlipLine create(SalesAccountingSlip slip, int lineNo,
+            String productCode, String productName, String modelName, String categoryKey,
+            BigDecimal qty, BigDecimal unitPrice,
+            BigDecimal supplyAmount, BigDecimal vatAmount, BigDecimal lineTotal) {
         SalesAccountingSlipLine l = new SalesAccountingSlipLine();
         l.slip = slip;
         l.lineNo = lineNo;
         l.productCode = productCode;
         l.productName = productName;
+        l.modelName = modelName;
+        l.categoryKey = categoryKey;
         l.qty = qty;
         l.unitPrice = unitPrice;
         l.supplyAmount = supplyAmount;

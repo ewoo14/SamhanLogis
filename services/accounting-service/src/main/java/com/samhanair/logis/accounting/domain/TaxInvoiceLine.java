@@ -87,6 +87,14 @@ public class TaxInvoiceLine extends BaseEntity {
     @Column(name = "memo", length = 500)
     private String memo;
 
+    /** 매출전표 원천의 모델명 snapshot. */
+    @Column(name = "model_name", length = 100)
+    private String modelName;
+
+    /** 판매 당시 GAS 카테고리 schedule key snapshot. null은 A-2 UNKNOWN이다. */
+    @Column(name = "category_key", length = 40)
+    private String categoryKey;
+
     private TaxInvoiceLine(TaxInvoice taxInvoice, int lineNo, String itemName, String spec,
                            String unit, BigDecimal quantity, BigDecimal unitPrice, String memo) {
         this.taxInvoice = taxInvoice;
@@ -174,9 +182,12 @@ public class TaxInvoiceLine extends BaseEntity {
             itemName = "매출전표 품목";
         }
         String spec = sourceLine.getProductCode();
-        return createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
+        TaxInvoiceLine line = createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
                 sourceLine.getQty(), sourceLine.getUnitPrice(),
                 sourceLine.getSupplyAmount(), sourceLine.getVatAmount(), null);
+        line.modelName = sourceLine.getModelName();
+        line.categoryKey = sourceLine.getCategoryKey();
+        return line;
     }
 
     /** 매입전표 라인 → 수신 세금계산서 라인 스냅샷 변환. */
