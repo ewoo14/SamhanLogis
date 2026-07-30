@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
   const autoUpdater = {
     autoDownload: true,
     autoInstallOnAppQuit: true,
+    allowDowngrade: true,
     on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
       events.set(event, listener)
     }),
@@ -55,6 +56,7 @@ describe('Electron 자동 업데이트 IPC', () => {
   })
 
   it('packaged 앱의 check IPC가 실제 electron-updater checkForUpdates를 호출한다', async () => {
+    expect(mocks.autoUpdater.allowDowngrade).toBe(false)
     await mocks.handlers.get('updater:check')?.()
     expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
   })
@@ -71,19 +73,19 @@ describe('Electron 자동 업데이트 IPC', () => {
   })
 
   it('update-available 이벤트는 다운로드를 시작하고 renderer에 상태를 보낸다', async () => {
-    await mocks.events.get('update-available')?.({ version: '0.2.0' })
+    await mocks.events.get('update-available')?.({ version: '20260730.3.0' })
     expect(mocks.autoUpdater.downloadUpdate).toHaveBeenCalledOnce()
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'available',
-      version: '0.2.0',
+      version: '2026/07/30-3',
     })
   })
 
   it('update-downloaded 이벤트는 설치 완료를 알리고 install IPC가 재시작을 위임한다', async () => {
-    await mocks.events.get('update-downloaded')?.({ version: '0.2.0' })
+    await mocks.events.get('update-downloaded')?.({ version: '20260730.3.0' })
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'downloaded',
-      version: '0.2.0',
+      version: '2026/07/30-3',
     })
 
     await mocks.handlers.get('updater:install')?.()

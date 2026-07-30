@@ -16,6 +16,7 @@ export type AutoUpdateStatus =
 const STATUS_CHANNEL = 'updater:status'
 const CHECK_CHANNEL = 'updater:check'
 const INSTALL_CHANNEL = 'updater:install'
+const RELEASE_PACKAGE_VERSION_PATTERN = /^(\d{4})(\d{2})(\d{2})\.([1-9][0-9]*)\.0$/
 
 let handlersRegistered = false
 let updaterConfigured = false
@@ -26,6 +27,13 @@ function currentWindow(): BrowserWindow | null {
 
 function broadcast(status: AutoUpdateStatus): void {
   currentWindow()?.webContents.send(STATUS_CHANNEL, status)
+}
+
+/** electron-updater의 내부 package semver를 사용자용 날짜 버전으로 되돌린다. */
+function displayVersionFromUpdateInfo(version: string): string {
+  const match = RELEASE_PACKAGE_VERSION_PATTERN.exec(version)
+  if (!match) return version
+  return `${match[1]}/${match[2]}/${match[3]}-${match[4]}`
 }
 
 function messageFromError(error: unknown): string {
@@ -43,7 +51,7 @@ function configureAutoUpdater(): void {
 
   autoUpdater.on('checking-for-update', () => broadcast({ kind: 'checking' }))
   autoUpdater.on('update-available', (info: UpdateInfo) => {
-    broadcast({ kind: 'available', version: info.version })
+    broadcast({ kind: 'available', version: displayVersionFromUpdateInfo(info.version) })
     void autoUpdater.downloadUpdate().catch((error: unknown) => {
       broadcast({ kind: 'error', message: messageFromError(error) })
     })
@@ -52,7 +60,7 @@ function configureAutoUpdater(): void {
     broadcast({ kind: 'downloading', percent: Math.max(0, Math.min(100, progress.percent)) })
   })
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-    broadcast({ kind: 'downloaded', version: info.version })
+    broadcast({ kind: 'downloaded', version: displayVersionFromUpdateInfo(info.version) })
   })
   autoUpdater.on('update-not-available', () => broadcast({ kind: 'not-available' }))
   autoUpdater.on('error', (error: Error) => {
