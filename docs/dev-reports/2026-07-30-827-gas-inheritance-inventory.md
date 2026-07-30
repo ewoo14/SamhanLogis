@@ -7,9 +7,11 @@
 
 ## 총계
 
-**조사 대상 전체 26개 = 계승 17개 · 미계승 4개 · 판정불가 5개**
+**조사 대상 전체 26개 = 계승 18개 · 미계승 4개 · 판정불가 4개**
 
-검산: **17 + 4 + 5 = 26** (일치)
+> 📌 **2026-07-30 개발책임자 확정 반영** — `가입고처리`(항목 3)를 `판정불가` → **`계승`** 으로 정정했다. *"가입고는 이카운트가 아니라 우리 프로그램 입고전표(구매전표)로 처리"* 이므로 GAS 의 이카운트 실시간 전송은 계승 대상이 아니다. 정정 전 총계는 `계승 17 · 미계승 4 · 판정불가 5` 였다.
+
+검산: **18 + 4 + 4 = 26** (일치)
 
 `미계승` 4개 중 금액·회계축은 **1개**(`영업수수료 계산`), 나머지 3개는 금액·회계에 직접 닿지 않는다. `판정불가`에는 대응물의 일부만 확인되거나 원본과 실행 방식이 달라 동일 기능이라고 확정할 수 없는 항목을 넣었다.
 이번에 추가한 `종합견적서-live`는 라이브 GAS 가격 정합의 원천이므로 **금액·회계축 예**로 판정했다.
@@ -27,7 +29,7 @@
 |---:|---|---|---|---|---|---|
 | 1 | DPS 입고기록 비교<br>`doGet`, `autoSaveToNotion`, `getHistoryFromNotion`, `getLatestHistoryFromNotion` | `tools/legacy-gas/DPS 입고기록 비교/Code.js:8,77,117,178` | `clients/desktop/src/renderer/routes/InventoryDpsComparePage.tsx:2-5,139-194`<br>`services/inventory-service/src/main/java/com/samhanair/logis/inventory/web/DpsCompareController.java:27-39,72-79` | **계승** | 아니오 | 현재 native DPS 비교 화면과 compare/history API가 실재한다. |
 | 2 | 가배차분류리스트<br>`doGet`, `getRegionFromNotion`, `runClassification` | `tools/legacy-gas/가배차분류리스트/Code.js:10,210,583` | `clients/desktop/src/renderer/routes/ArologisPreClassifyPage.tsx:2-9,84-85,188-207`<br>`services/arologis-service/src/main/java/com/samhanair/logis/arologis/controller/ArologisAdminController.java:320-345` | **계승** | 아니오 | 권역 가배차 탭과 `/dispatches/pre-classify` 대응 endpoint가 모두 확인된다. |
-| 3 | 가입고처리<br>`doGet`, `autoSaveToNotion`, `getHistoryFromNotion`, `sendToEcountAPI` | `tools/legacy-gas/가입고처리/Code.js:8,72,99,152` | 유사 대응: `clients/desktop/src/renderer/routes/accounting/PurchaseAccountingSlipPage.tsx:28-30`<br>`services/accounting-service/src/main/java/com/samhanair/logis/accounting/web/PurchaseAccountingSlipController.java:18-52`<br>`services/accounting-service/src/main/java/com/samhanair/logis/accounting/web/EcountPurchaseSlipImportController.java:23-47` | **판정불가** | 예 | 현재 매입전표 작성·회계 반영과 이카운트 CSV import는 실재하지만, GAS의 `sendToEcountAPI`가 하던 실시간 구매전표 전송과 동일한 경로인지는 확인되지 않았다. |
+| 3 | 가입고처리<br>`doGet`, `autoSaveToNotion`, `getHistoryFromNotion`, `sendToEcountAPI` | `tools/legacy-gas/가입고처리/Code.js:8,72,99,152` | 유사 대응: `clients/desktop/src/renderer/routes/accounting/PurchaseAccountingSlipPage.tsx:28-30`<br>`services/accounting-service/src/main/java/com/samhanair/logis/accounting/web/PurchaseAccountingSlipController.java:18-52`<br>`services/accounting-service/src/main/java/com/samhanair/logis/accounting/web/EcountPurchaseSlipImportController.java:23-47` | **계승** | 예 | 📌 **개발책임자 확정 (2026-07-30)** — *"가입고는 이카운트가 아니라 우리 프로그램 **입고전표(구매전표)** 로 처리하는거"*. GAS 의 `sendToEcountAPI`(이카운트 실시간 전송)는 **계승 대상이 아니다** — 우리 시스템이 이카운트를 대체하므로 입고전표=구매전표 경로가 정본이다([[project_replaces_ecount_gas_was_exporter]]). 따라서 `PurchaseAccountingSlipPage`·`PurchaseAccountingSlipController` 가 그 계승 구현이며, 이전 판정(`판정불가`)은 *"이카운트 전송과 같은 경로인가"* 를 물은 것이어서 질문 자체가 잘못됐다. |
 | 4 | 거래처 발송 주문서<br>`doGet`, `saveOrderSnapshot`, `sendOrderFromUi`, `saveOrderToNotion` | `tools/legacy-gas/거래처 발송 주문서/Code.js:2,105,1954,3222` | `clients/web/order-app/src/legacyShim.ts:2-18,133-145`<br>`clients/web/order-app/src/samhanApi.ts:41-63,355-364`<br>`services/partner-order-service/src/main/java/com/samhanair/logis/partnerorder/web/PartnerOrderConfirmController.java:24-30,45-89` | **계승** | 예 | `google.script.run` RPC를 REST로 바꾼 shim과 주문 draft/confirm 경로가 실재한다. 주문 단가·금액을 포함하므로 금액축도 표시했다. |
 | 5 | 기간별 비밀번호 재설정<br>`rotatePasswordsMonthly`, `getSafeText_`, `makeRichText_` | `tools/legacy-gas/거래처 발송 주문서/기간별 비빌번호 재설정/Code.js:2,89,97` | 확인된 현재 기능: `clients/desktop/src/renderer/routes/SalesOrderApprovalsPage.tsx:56-90` (관리자 단건 재설정)<br>`services/partner-auth-service/src/main/java/com/samhanair/logis/partnerauth/service/PartnerApprovalService.java:78-82` (단건 reset) | **미계승** | 아니오 | `rotatePasswordsMonthly`와 동일한 월별 일괄 순환/5개 이력 갱신 scheduler·job은 현재 `services/*`와 route에서 확인하지 못했다. 단건 reset은 대체 근거가 되지 않는다. |
 | 6 | 장기미발주 거래처 선별<br>`processLongTermUnusedClientsFast`, `getActiveBizNosFromLog_`, `getActiveBizNosFromShipping_`, `getTargetClients_` | `tools/legacy-gas/거래처 발송 주문서/장기미발주 거래처 선별/Code.js:12,65,110,161,214` | `services/partner-auth-service/src/main/java/com/samhanair/logis/partnerauth/service/PartnerAuthService.java:45-52,102-120,202-218`<br>`services/partner-auth-service/src/main/java/com/samhanair/logis/partnerauth/domain/PartnerAuth.java:227-230`<br>`clients/desktop/src/renderer/routes/SalesOrderApprovalsPage.tsx:2-15,56-90` | **판정불가** | 아니오 | 현재 `LONG_UNUSED` 상태와 승인 화면은 있으나, GAS는 주문/배송 활동을 기준으로 선별하고 현재 코드는 마지막 로그인·비밀번호 변경 시각을 기준으로 30일 만료를 계산한다. 같은 상태명만으로 알고리즘 계승을 확정하지 않았다. |
@@ -127,7 +129,7 @@
 1. **금액·회계 미계승:** `영업수수료 계산`의 제경비 8%, 카드수수료 3%, 원천징수 3.3%, 도급비 설치비 8% 계산과 지출품의서 저장.
 2. **운영 자동화 미계승:** 월별 비밀번호 일괄 순환 및 교육안내 상태 자동 변경.
 3. **분석 메뉴 공백:** `입출고 분석`의 수요·출고 예측 dashboard.
-4. **판정불가 확정 필요:** 가입고의 실시간 Ecount 전송 대체 여부, 장기미발주의 활동일 기준 차이, legacy password batch migration 실제 실행 여부, Aligo 실 API 활성화 여부, 입출고 movement API의 전용 FE 메뉴 제공 여부.
+4. **판정불가 확정 필요:** (가입고는 개발책임자 확정으로 해소 — 입고전표=구매전표가 정본) 장기미발주의 활동일 기준 차이, legacy password batch migration 실제 실행 여부, Aligo 실 API 활성화 여부, 입출고 movement API의 전용 FE 메뉴 제공 여부.
 
 ## 변경한 파일
 
