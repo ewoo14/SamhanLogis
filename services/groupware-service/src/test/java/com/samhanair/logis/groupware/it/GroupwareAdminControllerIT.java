@@ -931,7 +931,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(MockMvcResultMatchers.status().isCreated())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data.participantIds.length()").value(2));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.participantIds.length()").value(3));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules")
                         .param("from", base.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
@@ -941,7 +941,7 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(1))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].title").value("초대받은 일정"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].participantIds.length()").value(2));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data[0].participantIds.length()").value(3));
     }
 
     /** Testcontainers PostgreSQL 기반으로 실행되며 ubuntu-latest에서도 무권한 일정 비노출을 검증한다. */

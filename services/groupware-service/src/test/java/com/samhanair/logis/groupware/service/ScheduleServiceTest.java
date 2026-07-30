@@ -13,6 +13,7 @@ import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.Schedule;
 import com.samhanair.logis.groupware.domain.ScheduleStatus;
 import com.samhanair.logis.groupware.dto.ScheduleRequest;
+import com.samhanair.logis.groupware.dto.ScheduleResponse;
 import com.samhanair.logis.groupware.repository.ScheduleRepository;
 import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
 import com.samhanair.logis.notification.publisher.NotificationPublisher;
@@ -97,6 +98,81 @@ class ScheduleServiceTest {
         assertThat(request.targetUserId()).isEqualTo(participant);
         assertThat(request.title()).isEqualTo("일정 확정 — 확정 회의");
         assertThat(request.sourceRefId()).isEqualTo(scheduleId + ":" + participant);
+    }
+
+    @Test
+    void create_includes_owner_in_response_participants() {
+        UUID owner = UUID.randomUUID();
+        UUID participant = UUID.randomUUID();
+        LocalDateTime starts = LocalDateTime.now().plusDays(1);
+        when(userClient.exists(any(UUID.class))).thenReturn(true);
+        when(repository.save(any(Schedule.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Schedule created = scheduleService.create(new ScheduleRequest(
+                owner, "작성자 포함 일정", null, starts, starts.plusHours(1),
+                ScheduleStatus.DRAFT, List.of(participant)), owner);
+
+        assertThat(ScheduleResponse.from(created).participantIds())
+                .containsExactlyInAnyOrder(owner, participant);
+    }
+
+    @Test
+    void response_includes_owner_for_legacy_ownerless_schedule() {
+        UUID owner = UUID.randomUUID();
+        LocalDateTime starts = LocalDateTime.now().plusDays(1);
+        Schedule legacy = Schedule.create(owner, "기존 owner-less 일정", null,
+                starts, starts.plusHours(1), ScheduleStatus.DRAFT);
+
+        assertThat(ScheduleResponse.from(legacy).participantIds())
+                .containsExactly(owner);
+    }
+
+    @Test
+    void create_confirmed_schedule_does_not_notify_owner_but_notifies_other_participant() {
+        UUID owner = UUID.randomUUID();
+        UUID participant = UUID.randomUUID();
+        UUID scheduleId = UUID.randomUUID();
+        LocalDateTime starts = LocalDateTime.now().plusDays(1);
+        when(userClient.exists(any(UUID.class))).thenReturn(true);
+        when(repository.save(any(Schedule.class))).thenAnswer(invocation -> {
+            Schedule saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", scheduleId);
+            return saved;
+        });
+        executeNotificationsInline();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            scheduleService.create(new ScheduleRequest(
+                    owner, "작성자 제외 확정 일정", null, starts, starts.plusHours(1),
+                    ScheduleStatus.CONFIRMED, List.of(owner, participant)), owner);
+
+            verify(notificationPublisher, never()).publish(any(NotificationPublishRequest.class));
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        ArgumentCaptor<NotificationPublishRequest> captor =
+                ArgumentCaptor.forClass(NotificationPublishRequest.class);
+        verify(notificationPublisher).publish(captor.capture());
+        assertThat(captor.getValue().targetUserId()).isEqualTo(participant);
+    }
+
+    @Test
+    void owner_cannot_be_removed_from_schedule_participants() {
+        UUID owner = UUID.randomUUID();
+        LocalDateTime starts = LocalDateTime.now().plusDays(1);
+        Schedule schedule = Schedule.create(owner, "작성자 보호 일정", null,
+                starts, starts.plusHours(1), ScheduleStatus.DRAFT);
+        schedule.addParticipant(owner);
+
+        schedule.removeParticipant(owner, owner.toString());
+
+        assertThat(schedule.getParticipantsView())
+                .extracting(p -> p.getParticipantId())
+                .containsExactly(owner);
     }
 
     @Test

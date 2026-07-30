@@ -138,6 +138,9 @@ public class Schedule extends BaseEntity {
 
     /** 참여자 soft-delete. 알림 발행 이력은 재추가 시 중복 발행 방지를 위해 보존한다. */
     public void removeParticipant(UUID participantId, String deletedBy) {
+        if (ownerId.equals(participantId)) {
+            return;
+        }
         this.participants.stream()
                 .filter(p -> p.getParticipantId().equals(participantId))
                 .findFirst()

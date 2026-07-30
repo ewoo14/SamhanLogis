@@ -46,6 +46,7 @@ public class ScheduleService {
         try {
             Schedule schedule = Schedule.create(ownerId, req.title(), req.description(),
                     req.startsAt(), req.endsAt(), req.status());
+            schedule.addParticipant(ownerId);
             if (req.participantIds() != null) {
                 for (UUID participantId : req.participantIds()) {
                     if (!userClient.exists(participantId)) {
@@ -87,6 +88,8 @@ public class ScheduleService {
         if (!schedule.getOwnerId().equals(actorUserId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "일정 소유자 본인만 수정할 수 있습니다");
         }
+        // 기존 owner-less 행도 수정 시 자동 대상자 계약으로 승격한다.
+        schedule.addParticipant(schedule.getOwnerId());
         try {
             schedule.update(req.title(), req.description(), req.startsAt(), req.endsAt(), req.status());
         } catch (IllegalArgumentException ex) {
@@ -120,6 +123,7 @@ public class ScheduleService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "참여자 미존재: " + participantId);
         }
         Schedule schedule = findById(scheduleId);
+        schedule.addParticipant(schedule.getOwnerId());
         schedule.addParticipant(participantId);
         publishPendingNotifications(schedule);
         return schedule;
@@ -147,6 +151,9 @@ public class ScheduleService {
             return;
         }
         for (ScheduleParticipant participant : schedule.getParticipantsView()) {
+            if (schedule.getOwnerId().equals(participant.getParticipantId())) {
+                continue;
+            }
             if (!participant.markNotificationRequested()) {
                 continue;
             }

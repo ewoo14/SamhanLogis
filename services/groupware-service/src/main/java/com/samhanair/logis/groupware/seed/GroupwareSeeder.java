@@ -32,7 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
  *   <li>{@link ApprovalLine} 8건 + {@link ApprovalStep} 16건 (각 라인당 2단계)
  *       — PENDING 3 / APPROVED 4 / REJECTED 1</li>
  *   <li>{@link Message} 20건 — 16 employee 순환 송수신, seq%3==0 미열람</li>
- *   <li>{@link Schedule} 5건 + {@link ScheduleParticipant} 10건 — 2~3명 참여</li>
+ *   <li>{@link Schedule} 5건 + {@link ScheduleParticipant} 15건 — 등록자 포함 3명 대상</li>
  * </ul>
  *
  * <p><b>이중 가드</b>: {@code @Profile("dev")} + {@code app.groupware.seed-test-data=true} 둘 다 true 시 실행.
@@ -286,6 +286,7 @@ public class GroupwareSeeder implements CommandLineRunner {
                 Schedule schedule = Schedule.create(ownerId, seed.title, seed.description,
                         seed.startsAt, seed.endsAt, ScheduleStatus.CONFIRMED);
                 forceId(schedule, id);
+                schedule.addParticipant(ownerId);
 
                 int p = 1;
                 for (String participantLogin : seed.participantLogins) {
