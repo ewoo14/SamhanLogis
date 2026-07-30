@@ -1,4 +1,4 @@
--- V28__seed_s03_quantity_sync_rule.sql
+-- V29__seed_s03_quantity_sync_rule.sql
 -- #896 슬4 Slice A: S-03 싱글 실링 세트 → 실링용 드레인펌프 설정.
 --
 -- source/target은 2026-07-29 실제 partner-orders/bootstrap 응답의
