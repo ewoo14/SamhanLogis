@@ -21,9 +21,11 @@ import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.annotation.DirtiesContext;
@@ -37,6 +39,9 @@ import org.springframework.test.annotation.DirtiesContext;
 @DirtiesContext
 class EcountSheetOrderConvergenceIT extends AbstractPostgresIT {
 
+    private static final String TEST_ACTOR = "t984-order-test";
+    private static final String TEST_MODEL_CODE_PREFIX = "ORDER_CONVERGENCE_%";
+
     @Autowired
     private EcountProductImporter importer;
 
@@ -48,6 +53,9 @@ class EcountSheetOrderConvergenceIT extends AbstractPostgresIT {
 
     @Autowired
     private ProductEstimateExposureRepository exposureRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockBean
     private GoogleSheetsClient sheetsClient;
@@ -61,6 +69,33 @@ class EcountSheetOrderConvergenceIT extends AbstractPostgresIT {
         lenient().doNothing().when(sheetsClient).invalidateCache();
         lenient().when(sheetsClient.readSheetFormulas(anyString(), anyString())).thenReturn(List.of());
         lenient().when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+    }
+
+    @AfterEach
+    void cleanupFixture() {
+        jdbcTemplate.update("""
+                DELETE FROM product_aliases
+                 WHERE main_product_id IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, TEST_MODEL_CODE_PREFIX);
+        jdbcTemplate.update("""
+                DELETE FROM staging.ecount_item_alias
+                 WHERE main_product_uuid IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, TEST_MODEL_CODE_PREFIX);
+        jdbcTemplate.update("""
+                DELETE FROM staging.ecount_item_raw
+                 WHERE imported_by = ? OR raw_item_code LIKE ?
+                """, TEST_ACTOR, TEST_MODEL_CODE_PREFIX);
+        jdbcTemplate.update("DELETE FROM staging.ecount_item_relation_raw WHERE imported_by = ?", TEST_ACTOR);
+        jdbcTemplate.update("DELETE FROM staging.ecount_item_group_raw WHERE imported_by = ?", TEST_ACTOR);
+        jdbcTemplate.update("""
+                DELETE FROM product_estimate_exposure
+                 WHERE product_id IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, TEST_MODEL_CODE_PREFIX);
+        jdbcTemplate.update("""
+                DELETE FROM price_history
+                 WHERE product_id IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, TEST_MODEL_CODE_PREFIX);
+        jdbcTemplate.update("DELETE FROM products WHERE model_code LIKE ?", TEST_MODEL_CODE_PREFIX);
     }
 
     @Test
@@ -99,7 +134,7 @@ class EcountSheetOrderConvergenceIT extends AbstractPostgresIT {
 
     private void importEcount(String modelCode, String ecountName, String outbound, String inbound) {
         EcountProductImportResult result = importer.importCsv(
-                stream(itemCsv(modelCode, ecountName, outbound, inbound)), null, null, "t984-order-test");
+                stream(itemCsv(modelCode, ecountName, outbound, inbound)), null, null, TEST_ACTOR);
         assertThat(result.skippedGroupCount()).isZero();
         assertThat(result.rejectedNullName()).isZero();
     }

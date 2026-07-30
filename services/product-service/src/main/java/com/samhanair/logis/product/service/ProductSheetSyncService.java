@@ -1288,6 +1288,7 @@ public class ProductSheetSyncService {
                 //   manual 여부와 무관하게 갱신 — 사용자가 시트 행 순서를 재정렬해도 반영되어야 함.
                 if (p.getProductCategory() == mapping.productCategory || promotedFromEcount) {
                     if (promotedFromEcount) {
+                        p.rename(name);
                         p.changeProductCategory(mapping.productCategory);
                     }
                     if (!p.isUsageScopeManual()) {
