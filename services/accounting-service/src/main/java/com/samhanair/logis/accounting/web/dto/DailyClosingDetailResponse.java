@@ -74,6 +74,8 @@ public record DailyClosingDetailResponse(
             @Schema(description = "출고가 대비 유효 할인율(정수 %). 운임/절삭/액세서리/default 분기에서는 "
                     + "판정 근거가 아닌 참고값. 수량 0 등 판정 불가 시 null")
             Integer actualRate,
+            @Schema(description = "싱글중대형 실제 DC액(출고가 - VAT 포함 유효단가). 다른 계열 또는 판정 불가 시 null")
+            BigDecimal discountAmount,
             @Schema(description = "확인 판정. true=정합·false=불일치·null=판정 불가(revalidationStatus 로 사유 구분)")
             Boolean verified,
             @Schema(description = "재검증 사유",
@@ -87,7 +89,7 @@ public record DailyClosingDetailResponse(
                                 BigDecimal deliveryPrice, Integer expectedRate, Integer actualRate,
                                 Boolean verified, String revalidationStatus) {
             this(productName, modelName, "UNKNOWN", quantity, supplyAmount, releasePrice,
-                    deliveryPrice, expectedRate, actualRate, verified, revalidationStatus);
+                    deliveryPrice, expectedRate, actualRate, null, verified, revalidationStatus);
         }
     }
 }

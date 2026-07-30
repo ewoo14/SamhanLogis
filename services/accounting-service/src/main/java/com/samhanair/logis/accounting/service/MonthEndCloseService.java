@@ -449,6 +449,7 @@ public class MonthEndCloseService {
                     revalidation.deliveryPrice(),
                     revalidation.expectedRate(),
                     revalidation.actualRate(),
+                    revalidation.discountAmount(),
                     revalidation.verified(),
                     revalidation.status().name()));
         }

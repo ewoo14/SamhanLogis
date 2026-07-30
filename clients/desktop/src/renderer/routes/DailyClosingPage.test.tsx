@@ -79,6 +79,7 @@ const detailFixture = {
       deliveryPrice: 700000,
       expectedRate: 45,
       actualRate: 45,
+      discountAmount: 300000,
       verified: true,
       revalidationStatus: 'VERIFIED',
     },
@@ -93,6 +94,7 @@ const detailFixture = {
       deliveryPrice: 700000,
       expectedRate: 0,
       actualRate: -5,
+      discountAmount: -200000,
       verified: false,
       revalidationStatus: 'VERIFIED',
     },
@@ -107,6 +109,7 @@ const detailFixture = {
       deliveryPrice: null,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'NOT_FOUND',
     },
@@ -121,6 +124,7 @@ const detailFixture = {
       deliveryPrice: 600000,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'AMBIGUOUS',
     },
@@ -135,6 +139,7 @@ const detailFixture = {
       deliveryPrice: null,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'MISSING_REFERENT',
     },
@@ -149,6 +154,7 @@ const detailFixture = {
       deliveryPrice: 500000,
       expectedRate: 45,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'NOT_MEASURABLE',
     },
@@ -163,6 +169,7 @@ const detailFixture = {
       deliveryPrice: 500000,
       expectedRate: null,
       actualRate: 30,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'OUT_OF_SCOPE',
     },
@@ -192,6 +199,7 @@ const categoryAxisDetailFixture = {
       deliveryPrice: 70000,
       expectedRate: 45,
       actualRate: 45,
+      discountAmount: 30000,
       verified: true,
       revalidationStatus: 'VERIFIED',
     },
@@ -205,6 +213,7 @@ const categoryAxisDetailFixture = {
       deliveryPrice: 70000,
       expectedRate: 45,
       actualRate: 45,
+      discountAmount: 30000,
       verified: true,
       revalidationStatus: 'VERIFIED',
     },
@@ -218,6 +227,7 @@ const categoryAxisDetailFixture = {
       deliveryPrice: null,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'MISSING_REFERENT',
     },
@@ -306,6 +316,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
     // 배지 1개뿐(사유='확인' 자기모순 회귀 시 2개가 되어 실패 = genuine 고정).
     const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
     expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'DC액' })).toBeTruthy()
     expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy() // 모델 실토큰
     expect(within(verifiedRow).getAllByText('확인').length).toBe(1)
     // 매출은 '참고' 마커 없음(매입 전용)
@@ -314,6 +325,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
     const rates45 = within(verifiedRow).getAllByText('45%')
     expect(rates45.length).toBe(2)
     rates45.forEach((el) => expect(el.getAttribute('style') ?? '').not.toContain('state-danger'))
+    expect(within(verifiedRow).getByText('300,000')).toBeTruthy()
     // VERIFIED 행 사유 = '—'(배지가 판정 전달·자기모순 방지)
     expect(within(verifiedRow).getByText('—')).toBeTruthy()
 
@@ -323,6 +335,8 @@ describe('DailyClosingPage 모델별 재검증', () => {
     expect(within(mismatchRow).getByText('불일치')).toBeTruthy()
     const negativeRate = within(mismatchRow).getByText('-5%')
     expect(negativeRate.getAttribute('style')).toContain('color: var(--state-danger)')
+    const negativeDiscount = within(mismatchRow).getByText('-200,000')
+    expect(negativeDiscount.getAttribute('style')).toContain('color: var(--state-danger)')
     expect(within(mismatchRow).getByText('0%')).toBeTruthy() // expectedRate 0 = '0%'(유효 무할인)
 
     // 판정불가 배지 = 5개 null-verdict 행(NOT_FOUND/AMBIGUOUS/MISSING_REFERENT/NOT_MEASURABLE/OUT_OF_SCOPE)

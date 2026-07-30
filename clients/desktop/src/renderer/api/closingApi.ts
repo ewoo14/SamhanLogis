@@ -185,6 +185,8 @@ export interface DailyProductLine {
   expectedRate: number | null
   /** 실제 할인율(정수 %). */
   actualRate: number | null
+  /** 싱글중대형 실제 DC액(출고가 - VAT 포함 유효단가). */
+  discountAmount: number | null
   /** 재검증 확인 판정. */
   verified: boolean | null
   /** 재검증 사유. */

@@ -202,6 +202,7 @@ class DailyClosingDetailServiceTest {
         UUID matched = UUID.randomUUID();
         UUID missingPrice = UUID.randomUUID();
         UUID missingFixedRate = UUID.randomUUID();
+        UUID single = UUID.randomUUID();
         TaxInvoice ti = newIssued("TI-RV", "재검증거래처", DATE);
         // 단가 50000(순액) → 공급가 50000 + 세액 5000 = VAT포함 유효단가 55000 → 출고가 100000 대비 45%.
         addLineWithAxis(ti, "AJ040RXH4BC1 (RX다배관)", "AJ040RXH4BC1", "homemulti",
@@ -211,7 +212,8 @@ class DailyClosingDetailServiceTest {
         addLineWithAxis(ti, "AJ060MXHNBC1 [단배관]", "AJ060MXHNBC1", "homemulti",
                 BigDecimal.ONE, new BigDecimal("50000"));
         addLine(ti, "AXJ-YA1509N [N-분기관]", BigDecimal.ONE, new BigDecimal("70000"));
-        addLine(ti, "AC023CN1DBC1 [CN냉전 실내기]", BigDecimal.ONE, new BigDecimal("80000"));
+        addLineWithAxis(ti, "AC023CN1DBC1 [CN냉전 실내기]", "AC023CN1DBC1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("80000"));
         addLine(ti, "운임", BigDecimal.ONE, new BigDecimal("10000"));
         recalcSnapshot(ti);
 
@@ -224,12 +226,13 @@ class DailyClosingDetailServiceTest {
         labelBulkResult.put("AJ050RXH5BC1 [5다배관]", ProductLabelMatch.matched(missingPrice, "AJ050RXH5BC1"));
         labelBulkResult.put("AJ060MXHNBC1 [단배관]", ProductLabelMatch.matched(missingFixedRate, "AJ060MXHNBC1"));
         labelBulkResult.put("AXJ-YA1509N [N-분기관]", ProductLabelMatch.notFound());
-        labelBulkResult.put("AC023CN1DBC1 [CN냉전 실내기]", ProductLabelMatch.ambiguous());
+        labelBulkResult.put("AC023CN1DBC1 [CN냉전 실내기]", ProductLabelMatch.matched(single, "AC023CN1DBC1"));
         labelBulkResult.put("운임", ProductLabelMatch.notFound());
         when(productClient.resolveByLabelBulk(anyList())).thenReturn(labelBulkResult);
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
-                missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+                missingFixedRate, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
+                single, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
         Map<UUID, BigDecimal> fixedRates = new LinkedHashMap<>();
         fixedRates.put(matched, new BigDecimal("45.00"));
         fixedRates.put(missingPrice, null);
@@ -242,6 +245,7 @@ class DailyClosingDetailServiceTest {
         assertThat(verified.deliveryPrice()).isEqualByComparingTo("70000");
         assertThat(verified.expectedRate()).isEqualTo(45);
         assertThat(verified.actualRate()).isEqualTo(45);
+        assertThat(verified.discountAmount()).isNull();
         assertThat(verified.verified()).isTrue();
         assertThat(verified.revalidationStatus()).isEqualTo("VERIFIED");
 
@@ -264,9 +268,10 @@ class DailyClosingDetailServiceTest {
         assertThat(notFound.revalidationStatus()).isEqualTo("NOT_FOUND");
         assertThat(notFound.verified()).isNull();
 
-        DailyClosingDetailResponse.DailyProductLine ambiguous = findProductLine(resp, "AC023CN1DBC1 [CN냉전 실내기]");
-        assertThat(ambiguous.revalidationStatus()).isEqualTo("AMBIGUOUS");
-        assertThat(ambiguous.verified()).isNull();
+        DailyClosingDetailResponse.DailyProductLine singleLine = findProductLine(resp, "AC023CN1DBC1 [CN냉전 실내기]");
+        assertThat(singleLine.revalidationStatus()).isEqualTo("VERIFIED");
+        assertThat(singleLine.verified()).isFalse();
+        assertThat(singleLine.discountAmount()).isEqualByComparingTo("12000");
 
         DailyClosingDetailResponse.DailyProductLine freight = findProductLine(resp, "운임");
         assertThat(freight.revalidationStatus()).isEqualTo("VERIFIED");
@@ -284,9 +289,9 @@ class DailyClosingDetailServiceTest {
                 "AJ040RXH4BC1 (RX다배관)", "AJ050RXH5BC1 [5다배관]", "AJ060MXHNBC1 [단배관]",
                 "AXJ-YA1509N [N-분기관]", "AC023CN1DBC1 [CN냉전 실내기]", "운임");
         verify(productClient, times(1)).applicablePrices(idsCaptor.capture(), eq(DATE));
-        assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
+        assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate, single);
         verify(productClient, times(1)).fixedDiscountRates(idsCaptor.capture());
-        assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate);
+        assertThat(idsCaptor.getValue()).containsExactly(matched, missingPrice, missingFixedRate, single);
     }
 
     @Test
