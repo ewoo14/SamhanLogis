@@ -19,9 +19,12 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,6 +38,8 @@ import org.springframework.test.annotation.DirtiesContext;
 class EcountProductImporterIT extends AbstractPostgresIT {
 
     private static final String MODEL_CODE = "AJ050MXHNBC1";
+    private static final String DETERMINISTIC_MERGE_CODE_PREFIX = "DET984MERGE";
+    private static final String DETERMINISTIC_MERGE_ACTOR = "deterministic-merge-984";
 
     @Autowired
     private EcountProductImporter importer;
@@ -53,6 +58,16 @@ class EcountProductImporterIT extends AbstractPostgresIT {
 
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
+
+    @BeforeEach
+    void cleanupDeterministicMergeFixtureBeforeTest() {
+        cleanupDeterministicMergeFixture();
+    }
+
+    @AfterEach
+    void cleanupDeterministicMergeFixtureAfterTest() {
+        cleanupDeterministicMergeFixture();
+    }
 
     @Test
     void importCsv_시트가_만든_modelNameOnly_활성행을_이카운트_품목코드로_병합한다() {
@@ -189,6 +204,91 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                 .contains("inboundPrice=13914");
     }
 
+    @Test
+    void sameNameMerge_행순서가_달라도_정본코드_규격_입고단가가_같고_raw는_보존된다() {
+        String name = "DET984MERGE 동명 품목";
+        String smallestCode = DETERMINISTIC_MERGE_CODE_PREFIX + "A";
+        String otherCode = DETERMINISTIC_MERGE_CODE_PREFIX + "B";
+
+        EcountProductImportResult forward = importer.importCsv(
+                stream(sameNameFixture(
+                        itemRow(otherCode, name, "규격-B", "200,000"),
+                        itemRow(smallestCode, name, "규격-A", "100,000"))),
+                null, null, DETERMINISTIC_MERGE_ACTOR);
+        List<Product> forwardProducts = productRepository.findByNameAndIsDeletedFalse(name);
+        assertThat(forwardProducts).hasSize(1);
+        Product forwardProduct = forwardProducts.get(0);
+        assertThat(forward.imported()).isOne();
+        assertThat(forward.aliasImported()).isEqualTo(2);
+        assertThat(countDeterministicMergeRawRows()).isEqualTo(2);
+
+        cleanupDeterministicMergeFixture();
+
+        EcountProductImportResult reverse = importer.importCsv(
+                stream(sameNameFixture(
+                        itemRow(smallestCode, name, "규격-A", "100,000"),
+                        itemRow(otherCode, name, "규격-B", "200,000"))),
+                null, null, DETERMINISTIC_MERGE_ACTOR);
+        List<Product> reverseProducts = productRepository.findByNameAndIsDeletedFalse(name);
+        assertThat(reverseProducts).hasSize(1);
+        Product reverseProduct = reverseProducts.get(0);
+
+        assertThat(reverse.imported()).isOne();
+        assertThat(reverse.aliasImported()).isEqualTo(2);
+        assertThat(forwardProduct.getProductCode()).isEqualTo(reverseProduct.getProductCode())
+                .isEqualTo(smallestCode);
+        assertThat(forwardProduct.getSpecification()).isEqualTo(reverseProduct.getSpecification())
+                .isEqualTo("규격-A");
+        assertThat(forwardProduct.getInboundPrice()).isEqualByComparingTo(reverseProduct.getInboundPrice())
+                .isEqualByComparingTo("100000");
+        assertThat(countDeterministicMergeRawRows()).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT reject_reason FROM staging.ecount_item_raw WHERE raw_item_code = ?"
+                        + " AND imported_by = ?",
+                String.class, otherCode, DETERMINISTIC_MERGE_ACTOR))
+                .contains("MERGED_SAME_NAME")
+                .contains("specification=규격-A")
+                .contains("inboundPrice=100000")
+                .contains("specification=규격-B")
+                .contains("inboundPrice=200000");
+    }
+
+    private int countDeterministicMergeRawRows() {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM staging.ecount_item_raw WHERE imported_by = ?"
+                        + " AND raw_item_code LIKE ?",
+                Integer.class, DETERMINISTIC_MERGE_ACTOR, DETERMINISTIC_MERGE_CODE_PREFIX + "%");
+    }
+
+    private void cleanupDeterministicMergeFixture() {
+        String codePattern = DETERMINISTIC_MERGE_CODE_PREFIX + "%";
+        jdbcTemplate.update("""
+                DELETE FROM product_aliases
+                 WHERE main_product_id IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, codePattern);
+        jdbcTemplate.update("""
+                DELETE FROM staging.ecount_item_alias
+                 WHERE main_product_uuid IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, codePattern);
+        jdbcTemplate.update("""
+                DELETE FROM staging.ecount_item_raw
+                 WHERE imported_by = ? OR raw_item_code LIKE ?
+                """, DETERMINISTIC_MERGE_ACTOR, codePattern);
+        jdbcTemplate.update("DELETE FROM staging.ecount_item_relation_raw WHERE imported_by = ?",
+                DETERMINISTIC_MERGE_ACTOR);
+        jdbcTemplate.update("DELETE FROM staging.ecount_item_group_raw WHERE imported_by = ?",
+                DETERMINISTIC_MERGE_ACTOR);
+        jdbcTemplate.update("""
+                DELETE FROM product_estimate_exposure
+                 WHERE product_id IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, codePattern);
+        jdbcTemplate.update("""
+                DELETE FROM price_history
+                 WHERE product_id IN (SELECT id FROM products WHERE model_code LIKE ?)
+                """, codePattern);
+        jdbcTemplate.update("DELETE FROM products WHERE model_code LIKE ?", codePattern);
+    }
+
     private static java.io.InputStream stream(String csv) {
         return new java.io.ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
     }
@@ -213,6 +313,12 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                 }))
                 .collect(Collectors.joining("\n"));
         return "\"데이터관리>품목-Excel다운로드\"\n" + header + "\n" + rows + "\n";
+    }
+
+    private static String sameNameFixture(String... rows) {
+        String header = "\"품목코드\t\",\"품목명\t\",\"출하가\t\",\"입고단가\t\",\"싱글\t\",\"실외기(원형,스탠드)\t\",\"멀티(50%)\t\",\"멀티(48%)\t\",\"멀티(45%)\t\",\"단품(35%)\t\",\"품목구분\t\",\"규격명\t\",\"사용구분\t\"";
+        return "\"데이터관리>품목-Excel다운로드\"\n" + header + "\n"
+                + String.join("\n", rows) + "\n";
     }
 
     private static String itemRow(String code, String name, String specification, String inbound) {

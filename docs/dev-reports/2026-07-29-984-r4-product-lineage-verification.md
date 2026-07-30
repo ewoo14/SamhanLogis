@@ -293,6 +293,13 @@ docker exec samhan-postgres psql -U samhan -d product_db -P pager=off -c "SELECT
 
 ### 3.7 복구 전 실 원본 파일 존재 확인
 
+> **[EVIDENCE-1 정정, 2026-07-30]** 이 절의 원문 출력은 host/container raw 디렉터리에
+> `.gitkeep`만 있었음을 보여준다. 따라서 이 출력만으로는 raw 3개 파일의 존재·내용·사용을
+> 증명할 수 없다. 아래의 “위 3개 raw 파일을 읽기 전용으로 사용했다” 문장은 이 출력에
+> 대한 설명으로는 부정확하며, `6.1`/`6.3`의 multipart 경로 전달 및 동일 hash 응답이
+> 별도로 기록되어 있다는 사실과 `3.7`의 파일 존재 확인을 혼동한 것이다. 이 문서는
+> `3.7` 출력을 raw 3개 파일의 독립 증거로 사용하지 않는다.
+
 명령:
 
 ~~~powershell
@@ -317,7 +324,7 @@ Name     Length LastWriteTime
 --- container raw ---
 ~~~
 
-위 3개 raw 파일을 읽기 전용으로 사용했다. 파일 자체는 수정·삭제하지 않았다. 1회차·2회차 HTTP 응답의 sourceFileHash는 동일한 실 raw 품목 파일 hash인 02785A731FCC502D8828ADA534DF103DC79BFDBB67D84A7142825AA323CE083C였다.
+**[원문 보존, 위 정정의 대상]** 위 3개 raw 파일을 읽기 전용으로 사용했다. 파일 자체는 수정·삭제하지 않았다. 1회차·2회차 HTTP 응답의 sourceFileHash는 동일한 실 raw 품목 파일 hash인 02785A731FCC502D8828ADA534DF103DC79BFDBB67D84A7142825AA323CE083C였다.
 
 ## 4. 이 라운드가 보지 않은 것
 

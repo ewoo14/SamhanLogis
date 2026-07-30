@@ -7,6 +7,7 @@ import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -122,8 +123,10 @@ public class EcountProductImporter {
         }
 
         // 같은 품목명은 raw 순번코드가 달라도 하나의 물건이다. 물리 테이블에 필요한
-        // canonical code는 파일 순서로 고정하고, 모든 순번코드는 alias로 보존한다.
-        // 후보를 고르지 못한 동명 그룹도 여기서 동일한 경로로 수렴하므로 HTTP 200 아래 누락되지 않는다.
+        // canonical code는 후보 mainCode 오름차순으로 고르고, 후보가 없으면
+        // fallbackSameNameCandidate가 기존 DB 정본 또는 raw code 오름차순을 고른다.
+        // 모든 순번코드는 alias로 보존하며, 후보를 고르지 못한 동명 그룹도 여기서
+        // 동일한 경로로 수렴하므로 HTTP 200 아래 누락되지 않는다.
         for (Map.Entry<String, List<ItemRow>> entry : normalRowsByName.entrySet()) {
             List<ItemRow> sameNameRows = entry.getValue();
             if (sameNameRows.size() < 2) {
@@ -132,6 +135,7 @@ public class EcountProductImporter {
             ProductMainCandidate groupCandidate = sameNameRows.stream()
                     .map(row -> resolvedCandidates.get(row.rowNo()))
                     .filter(candidate -> candidate != null)
+                    .sorted(Comparator.comparing(ProductMainCandidate::mainCode))
                     .findFirst()
                     .orElseGet(() -> fallbackSameNameCandidate(entry.getKey(), sameNameRows, itemsByCode));
             if (groupCandidate == null) {
@@ -339,8 +343,10 @@ public class EcountProductImporter {
                 return new ProductMainCandidate(existingCode, existingRaw, existingId);
             }
         }
-        ItemRow first = sameNameRows.get(0);
-        return new ProductMainCandidate(first.code(), first, null);
+        ItemRow canonicalRaw = sameNameRows.stream()
+                .min(Comparator.comparing(ItemRow::code))
+                .orElseThrow();
+        return new ProductMainCandidate(canonicalRaw.code(), canonicalRaw, null);
     }
 
     private List<String> rawCandidatesByName(String name, Map<String, ItemRow> itemsByCode) {
@@ -354,6 +360,7 @@ public class EcountProductImporter {
     private String sameNameMergeReason(String canonicalCode, ItemRow selectedRow, List<ItemRow> rows) {
         String discarded = rows.stream()
                 .filter(row -> row != selectedRow)
+                .sorted(Comparator.comparing(ItemRow::code))
                 .map(this::mergeRowSummary)
                 .toList()
                 .toString();

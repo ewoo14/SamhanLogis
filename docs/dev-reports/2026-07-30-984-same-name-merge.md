@@ -150,7 +150,7 @@ SELECT alias_code, main_product_id
 
 ## 병합 시 채택/폐기된 규격·단가
 
-canonical code는 실 업무 대표 판정이 아니라 파일 순서상 첫 행의 저장 키다. 현재 구현은 첫 행의 제품 컬럼을 `products`에 채택하고, 두 번째 행을 포함한 전체 raw 원문을 staging에 보존한다. 아래 값은 R2 import가 남긴 `staging.ecount_item_raw`를 읽기 전용 SELECT한 실측이다. 금액은 출하가/입고단가 순서다.
+**[수정 전 관찰, 2026-07-30 정정]** canonical code는 실 업무 대표 판정이 아니라 파일 순서상 첫 행의 저장 키였다. 수정 전 구현은 첫 행의 제품 컬럼을 `products`에 채택했다. 이제 동명 후보는 `mainCode` 오름차순, 후보가 없으면 기존 DB 정본 우선 후 raw `code` 오름차순으로 선택한다. 두 번째 행을 포함한 전체 raw 원문은 계속 staging에 보존한다. 아래 값은 R2 import가 남긴 `staging.ecount_item_raw`를 읽기 전용 SELECT한 수정 전 실측이며, 금액은 출하가/입고단가 순서다.
 
 | 품목명 | 채택 raw code: 규격 / 출하가 / 입고단가 | 폐기 raw code: 규격 / 출하가 / 입고단가 |
 |---|---|---|
