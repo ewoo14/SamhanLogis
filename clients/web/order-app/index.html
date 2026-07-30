@@ -5193,13 +5193,26 @@ function recomputeSingleExtras(){
     });
   }
   setSingleDerivedQty_(SS_WIRED_BOARD_ID, 'AIM-A01N', boardQty, '유선리모컨 파생');
-  let pumpQty=0;
-  SINGLE_SETS.forEach(s=>{
-    if(s.id===SS_CEILING_PUMP_ID) return;
-    if(/운임|절삭/i.test(s?.name||'')) return;
-    if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
-  });
-  setSingleDerivedQty_(SS_CEILING_PUMP_ID, 'ADP-F075SP', pumpQty, '실링용 드레인펌프 파생');
+  const configured = typeof configuredSingleS03_ === 'function' ? configuredSingleS03_() : null;
+  if(configured){
+    const targetModel = String(configured.targetProductCode || '').trim();
+    const targetRow = SINGLE_SETS.find(s=>String(s?.model||'').toUpperCase()===targetModel.toUpperCase()) || null;
+    const targetId = targetRow?.id || null;
+    const configuredQty = targetId === null
+      ? 0
+      : (configured.targetQuantities.get(String(targetId)) || 0);
+    setSingleDerivedQty_(targetId, targetModel, configuredQty, 'S-03 설정 기반 실링용 드레인펌프 파생');
+  } else {
+    // 설정 로딩 실패/검증 실패 때에는 기존 S-03 식을 유지한다. 설정 실패를 0으로
+    // 바꾸지 않고, loadSingleS03QuantitySync_가 사용자 경고를 함께 남긴다.
+    let pumpQty=0;
+    SINGLE_SETS.forEach(s=>{
+      if(s.id===SS_CEILING_PUMP_ID) return;
+      if(/운임|절삭/i.test(s?.name||'')) return;
+      if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
+    });
+    setSingleDerivedQty_(SS_CEILING_PUMP_ID, 'ADP-F075SP', pumpQty, '실링용 드레인펌프 파생');
+  }
   syncSingleUIFromState();
 }
 
@@ -5541,6 +5554,47 @@ function recomputeHomeBranches(){
 
 let HOME_CATALOG_MISSING_MODELS = new Map();
 let SINGLE_CATALOG_MISSING_MODELS = new Map();
+let SINGLE_QUANTITY_SYNC_WARNING = '';
+
+function renderSingleQuantitySyncWarning_(){
+  const warning = document.getElementById('singleCatalogWarnings');
+  if(!warning) return;
+  if(SINGLE_QUANTITY_SYNC_WARNING){
+    warning.hidden = false;
+    warning.textContent = [warning.textContent, SINGLE_QUANTITY_SYNC_WARNING].filter(Boolean).join(' ');
+  }
+}
+
+function setSingleQuantitySyncWarning_(message){
+  SINGLE_QUANTITY_SYNC_WARNING = String(message || '');
+  renderSingleQuantitySyncWarning_();
+}
+
+function configuredSingleS03_(){
+  const bridge = window.__SAMHAN_QUANTITY_SYNC__;
+  if(!bridge || bridge.getState()?.status !== 'ready') return null;
+  const result = bridge.evaluateSingleS03(SINGLE_SETS, singleQty);
+  return result && result.status === 'ready' ? result : null;
+}
+
+function loadSingleS03QuantitySync_(){
+  const bridge = window.__SAMHAN_QUANTITY_SYNC__;
+  if(!bridge || typeof bridge.getQuantitySyncRules !== 'function'){
+    setSingleQuantitySyncWarning_('S-03 수량 동기화 설정을 읽을 수 없어 기존 계산을 유지합니다.');
+    return Promise.resolve();
+  }
+  setSingleQuantitySyncWarning_('S-03 수량 동기화 설정을 불러오는 중입니다. 잠시 기존 계산을 표시합니다.');
+  return bridge.getQuantitySyncRules(SINGLE_SETS).then(state=>{
+    if(state?.status === 'ready'){
+      setSingleQuantitySyncWarning_('');
+    } else {
+      setSingleQuantitySyncWarning_(`S-03 수량 동기화 설정을 적용하지 못했습니다: ${state?.errorMessage || '알 수 없는 오류'}. 현재 기존 계산을 유지합니다.`);
+    }
+    recomputeSingleDerived();
+    el('#singleTotal').textContent=fmt(sumSingles());
+    updateInlineTotals();
+  });
+}
 
 function noteHomeCatalogMissing_(model, reason){
   const key = String(model || '').trim();
@@ -5600,6 +5654,7 @@ function renderHomeCatalogWarnings(missingModels){
 
 function renderSingleCatalogWarnings(missingModels){
   renderCatalogWarnings_('singleCatalogWarnings', '싱글중대형', missingModels);
+  if(typeof renderSingleQuantitySyncWarning_ === 'function') renderSingleQuantitySyncWarning_();
 }
 
 // 홈멀티 부자재 계산
@@ -8530,6 +8585,10 @@ function completeLogin(bizNo, config, res) {
   /* 거래처명할당 */
   window.CURRENT_CUSTNAME = (res && res.config && res.config.partnerName) || '';
 
+  // 로그인으로 JWT가 준비된 뒤에만 칩 설정을 조회한다. 조회 전에는 기존 S-03 식을
+  // 표시하고, 성공한 설정 응답이 도착한 순간 같은 상태를 다시 계산한다.
+  const quantitySyncLoad = loadSingleS03QuantitySync_();
+
   try {
     if (typeof renderHome === 'function') renderHome();
     if (typeof syncHomeTotals === 'function') syncHomeTotals();
@@ -8546,6 +8605,11 @@ function completeLogin(bizNo, config, res) {
     if (typeof updateCommRatio === 'function') updateCommRatio();
     if (typeof fitAllTables === 'function') fitAllTables();
   } catch (e) {}
+
+  void quantitySyncLoad.catch(error=>{
+    setSingleQuantitySyncWarning_(`S-03 수량 동기화 설정을 적용하지 못했습니다: ${error?.message || error}. 현재 기존 계산을 유지합니다.`);
+    recomputeSingleDerived();
+  });
 
   const bizGate = document.getElementById('pageBizGate');
   if (bizGate) {

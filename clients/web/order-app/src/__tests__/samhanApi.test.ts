@@ -59,6 +59,37 @@ describe('samhanApi.fetchBootstrap', () => {
   });
 });
 
+describe('samhanApi.fetchQuantitySyncRules', () => {
+  beforeEach(() => {
+    mocks.get.mockReset();
+  });
+
+  it('로그인 후 SINGLE_SET 규칙 목록을 API에서 읽고 배열로 반환한다', async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        success: true,
+        code: 'OK',
+        data: [{
+          ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
+          estimateCategory: 'SINGLE_SET',
+          enabled: true,
+        }],
+      },
+    });
+
+    const result = await samhanApi.fetchQuantitySyncRules();
+
+    expect(mocks.get).toHaveBeenCalledWith('/quantity-sync-rules', {
+      params: { estimateCategory: 'SINGLE_SET', page: 0, size: 50 },
+    });
+    expect(result).toEqual([{
+      ruleKey: 'SINGLE_S03_CEILING_DRAIN_PUMP',
+      estimateCategory: 'SINGLE_SET',
+      enabled: true,
+    }]);
+  });
+});
+
 describe('samhanApi.call', () => {
   beforeEach(() => {
     mocks.get.mockReset();

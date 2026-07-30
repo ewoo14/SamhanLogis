@@ -185,6 +185,11 @@ async function fetchAllPages(
   return rows
 }
 
+/** order-app이 소비하는 활성 SINGLE_SET 수량 동기화 규칙 목록. */
+function fetchQuantitySyncRules(): Promise<unknown[]> {
+  return fetchAllPages('/quantity-sync-rules', { estimateCategory: 'SINGLE_SET' }, 50)
+}
+
 type LegacyOrderItem = {
   section?: unknown
   model?: unknown
@@ -469,5 +474,13 @@ export const samhanApi = {
         }
         return body as Record<string, unknown>
       })
+  },
+
+  /**
+   * 로그인 후 칩 기반 S-03 evaluator가 읽는 규칙 목록.
+   * 로그인 전 공개 bootstrap과 분리해 JWT가 준비된 뒤 호출한다.
+   */
+  fetchQuantitySyncRules(): Promise<unknown[]> {
+    return fetchQuantitySyncRules()
   },
 }

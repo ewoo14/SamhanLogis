@@ -22,10 +22,73 @@
  */
 import { installLegacyShim } from './legacyShim'
 import { samhanApi } from './samhanApi'
+import {
+  evaluateSingleS03Rule,
+  selectSingleS03Rule,
+  type SingleCatalogRow,
+  type SingleQuantitySyncResult,
+  type QuantitySyncRule,
+} from './quantitySync'
 import { mountOrderVersionGate } from './version/versionGate'
 
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '0.1.0-dev'
 const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
+
+type SingleQuantitySyncState = {
+  status: 'idle' | 'loading' | 'ready' | 'error'
+  rule: QuantitySyncRule | null
+  errorMessage: string | null
+}
+
+declare global {
+  interface Window {
+    __SAMHAN_QUANTITY_SYNC__?: {
+      getQuantitySyncRules: (catalog: SingleCatalogRow[]) => Promise<SingleQuantitySyncState>
+      getState: () => SingleQuantitySyncState
+      evaluateSingleS03: (
+        catalog: SingleCatalogRow[],
+        quantities: Map<string, number>,
+      ) => SingleQuantitySyncResult
+    }
+  }
+}
+
+let singleQuantitySyncState: SingleQuantitySyncState = {
+  status: 'idle',
+  rule: null,
+  errorMessage: null,
+}
+
+/**
+ * 로그인 후에만 읽을 수 있는 수량 동기화 API를 legacy inline page에 노출한다.
+ * 초기 페이지 계산은 legacy fallback으로 완료되고, 성공한 설정만 다음 재계산부터 사용한다.
+ */
+window.__SAMHAN_QUANTITY_SYNC__ = {
+  async getQuantitySyncRules(catalog) {
+    singleQuantitySyncState = { status: 'loading', rule: null, errorMessage: null }
+    try {
+      const rules = await samhanApi.fetchQuantitySyncRules()
+      const selection = selectSingleS03Rule(rules, catalog)
+      singleQuantitySyncState = selection.status === 'ready'
+        ? { status: 'ready', rule: selection.rule, errorMessage: null }
+        : { status: 'error', rule: null, errorMessage: selection.errorMessage }
+    } catch (error) {
+      singleQuantitySyncState = {
+        status: 'error',
+        rule: null,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      }
+    }
+    window.dispatchEvent(new CustomEvent('samhan:quantity-sync-ready'))
+    return singleQuantitySyncState
+  },
+  getState() {
+    return singleQuantitySyncState
+  },
+  evaluateSingleS03(catalog, quantities) {
+    return evaluateSingleS03Rule(singleQuantitySyncState.rule, catalog, quantities)
+  },
+}
 
 // ─── 1) shim 동기 설치 + head 선주입 bootstrap 보존 ───
 installLegacyShim(window.__SAMHAN_BOOTSTRAP__ || {})

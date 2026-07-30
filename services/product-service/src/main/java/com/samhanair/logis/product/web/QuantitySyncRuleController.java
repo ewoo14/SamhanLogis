@@ -39,7 +39,7 @@ public class QuantitySyncRuleController {
 
     /** 활성 규칙 목록을 조회한다. */
     @GetMapping
-    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW, partnerSelfService = true)
     public List<QuantitySyncRuleResponse> list(
             @RequestParam(required = false) QuantitySyncEstimateCategory estimateCategory) {
         return service.list(estimateCategory);
