@@ -46,7 +46,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -81,8 +80,6 @@ public class MonthEndCloseService {
 
     /** ProductSheetSyncService 가 적재하는 인상 전 기준일(실제 baseline price_history row). */
     private static final LocalDate BEFORE_INCREASE_PRICE_HISTORY_DATE = LocalDate.of(2000, 1, 1);
-    private static final Set<String> PRICE_CHANGE_CATEGORY_KEYS = Set.of(
-            "homemulti", "singleSets", "commercialMulti", "oldProducts");
 
     private final AccountingPeriodRepository periodRepository;
     private final JournalLineRepository journalLineRepository;
@@ -491,11 +488,13 @@ public class MonthEndCloseService {
     private static LocalDate priceHistoryDate(ProductSummary summary,
                                                Map<String, Boolean> defaultVariants,
                                                LocalDate asOf) {
-        if (summary == null || summary.categoryKey() == null || summary.categoryKey().isBlank()
-                || !PRICE_CHANGE_CATEGORY_KEYS.contains(summary.categoryKey())) {
+        GasCategoryAxis axis = summary == null
+                ? GasCategoryAxis.UNKNOWN
+                : GasCategoryAxis.fromScheduleKey(summary.categoryKey());
+        if (!axis.isKnown()) {
             return null;
         }
-        Boolean defaultPreChange = defaultVariants.get(summary.categoryKey());
+        Boolean defaultPreChange = defaultVariants.get(axis.scheduleKey());
         if (defaultPreChange == null) {
             return null;
         }
