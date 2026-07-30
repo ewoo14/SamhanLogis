@@ -236,6 +236,26 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(screen.getByTestId('app-auto-update-status').textContent).toContain('제한')
   })
 
+  it('확인 IPC가 성공해도 상태 이벤트가 없으면 check-timeout으로 기동 gate를 정착한다', async () => {
+    vi.useFakeTimers()
+    updater.check.mockResolvedValueOnce(undefined)
+
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+      vi.advanceTimersByTime(DESKTOP_UPDATE_CHECK_TIMEOUT_MS + 1)
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('login-sentinel')).toBeTruthy()
+    expect(screen.getByTestId('app-auto-update-status').textContent).toContain('제한')
+  })
+
   it('다운로드 상한을 넘으면 일반 수준은 로그인으로 진행한다', async () => {
     vi.useFakeTimers()
 

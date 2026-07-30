@@ -67,7 +67,10 @@ export function registerAutoUpdateIpcHandlers(): void {
   configureAutoUpdater()
 
   ipcMain.handle(CHECK_CHANNEL, async () => {
-    if (!app.isPackaged) return
+    if (!app.isPackaged) {
+      broadcast({ kind: 'not-available' })
+      return
+    }
     try {
       await autoUpdater.checkForUpdates()
     } catch (error: unknown) {
@@ -76,7 +79,10 @@ export function registerAutoUpdateIpcHandlers(): void {
   })
 
   ipcMain.handle(INSTALL_CHANNEL, () => {
-    if (!app.isPackaged) return
+    if (!app.isPackaged) {
+      broadcast({ kind: 'not-available' })
+      return
+    }
     try {
       autoUpdater.quitAndInstall(true, true)
     } catch (error: unknown) {

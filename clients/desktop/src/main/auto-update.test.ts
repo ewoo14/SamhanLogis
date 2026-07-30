@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
+  const runtime = { isPackaged: true }
   const handlers = new Map<string, () => Promise<void> | void>()
   const events = new Map<string, (...args: unknown[]) => void>()
   const window = {
@@ -17,11 +18,15 @@ const mocks = vi.hoisted(() => {
     downloadUpdate: vi.fn(async () => undefined),
     quitAndInstall: vi.fn(),
   }
-  return { handlers, events, window, autoUpdater }
+  return { handlers, events, window, autoUpdater, runtime }
 })
 
 vi.mock('electron', () => ({
-  app: { isPackaged: true },
+  app: {
+    get isPackaged() {
+      return mocks.runtime.isPackaged
+    },
+  },
   BrowserWindow: { getAllWindows: () => [mocks.window] },
   ipcMain: {
     handle: vi.fn((channel: string, handler: () => Promise<void> | void) => {
@@ -41,9 +46,28 @@ describe('Electron 자동 업데이트 IPC', () => {
     registerAutoUpdateIpcHandlers()
   })
 
+  beforeEach(() => {
+    mocks.runtime.isPackaged = true
+    mocks.autoUpdater.checkForUpdates.mockClear()
+    mocks.autoUpdater.downloadUpdate.mockClear()
+    mocks.autoUpdater.quitAndInstall.mockClear()
+    mocks.window.webContents.send.mockClear()
+  })
+
   it('packaged 앱의 check IPC가 실제 electron-updater checkForUpdates를 호출한다', async () => {
     await mocks.handlers.get('updater:check')?.()
     expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
+  })
+
+  it('비패키징 앱의 check IPC는 updater를 호출하지 않고 종료 상태를 renderer에 알린다', async () => {
+    mocks.runtime.isPackaged = false
+
+    await mocks.handlers.get('updater:check')?.()
+
+    expect(mocks.autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'not-available',
+    })
   })
 
   it('update-available 이벤트는 다운로드를 시작하고 renderer에 상태를 보낸다', async () => {
@@ -64,6 +88,17 @@ describe('Electron 자동 업데이트 IPC', () => {
 
     await mocks.handlers.get('updater:install')?.()
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
+  })
+
+  it('비패키징 앱의 install IPC도 조용히 끝내지 않고 종료 상태를 renderer에 알린다', async () => {
+    mocks.runtime.isPackaged = false
+
+    await mocks.handlers.get('updater:install')?.()
+
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled()
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'not-available',
+    })
   })
 
   it('electron-updater 오류 원문은 renderer 상태에 전달하지 않는다', () => {
