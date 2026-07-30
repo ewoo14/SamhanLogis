@@ -64,7 +64,7 @@ function createReleaseBuildEnvironment({
 
 /**
  * electron-updater가 비교할 내부 semver를 날짜 버전에서 만든다.
- * major=YYYYMMDD, minor=당일 순번으로 두어 날짜와 같은 날짜의 후속 릴리스를 모두 구분한다.
+ * major=1, minor=YYYYMMDD, patch=당일 순번으로 두어 날짜와 같은 날짜의 후속 릴리스를 모두 구분한다.
  * renderer·정책 서버에는 이 값을 노출하지 않고 YYYY/MM/DD-번호를 유지한다.
  */
 function resolveReleasePackageVersion(appVersion) {
@@ -72,7 +72,7 @@ function resolveReleasePackageVersion(appVersion) {
   if (!match) {
     validateDevelopmentVersion(String(appVersion ?? '').trim(), 'VITE_APP_VERSION')
   }
-  return `${match[1]}${match[2]}${match[3]}.${match[4]}.0`
+  return `1.${match[1]}${match[2]}${match[3]}.${match[4]}`
 }
 
 function isReleaseBuild(env) {

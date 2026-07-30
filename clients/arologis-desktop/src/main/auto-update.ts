@@ -16,7 +16,7 @@ export type AutoUpdateStatus =
 const STATUS_CHANNEL = 'updater:status'
 const CHECK_CHANNEL = 'updater:check'
 const INSTALL_CHANNEL = 'updater:install'
-const RELEASE_PACKAGE_VERSION_PATTERN = /^(\d{4})(\d{2})(\d{2})\.([1-9][0-9]*)\.0$/
+const RELEASE_PACKAGE_VERSION_PATTERN = /^1\.(\d{4})(\d{2})(\d{2})\.([1-9][0-9]*)$/
 
 let handlersRegistered = false
 let updaterConfigured = false

@@ -65,11 +65,11 @@ test('데스크톱 릴리스 wrapper는 검증된 버전과 릴리스 모드를 
   })
 
   assert.equal(result.appVersion, '2026/07/25-91003')
-  assert.equal(result.packageVersion, '20260725.91003.0')
+  assert.equal(result.packageVersion, '1.20260725.91003')
   assert.equal(result.env.VITE_APP_VERSION, '2026/07/25-91003')
   assert.equal(result.env[RELEASE_BUILD_ENV], '1')
   assert.equal(result.env[RELEASE_ARTIFACT_VERSION_ENV], '2026-07-25-91003')
-  assert.equal(result.env[RELEASE_PACKAGE_VERSION_ENV], '20260725.91003.0')
+  assert.equal(result.env[RELEASE_PACKAGE_VERSION_ENV], '1.20260725.91003')
   assert.equal(result.env.VITE_MOCK_MODE, '0')
 })
 
@@ -84,9 +84,9 @@ test('날짜 버전만 올라간 후속 릴리스도 Electron updater 비교 버
     env: { VITE_APP_VERSION: '2026/07/31-1' },
   })
 
-  assert.equal(first.env[RELEASE_PACKAGE_VERSION_ENV], '20260730.2.0')
-  assert.equal(sameDayFollowUp.env[RELEASE_PACKAGE_VERSION_ENV], '20260730.3.0')
-  assert.equal(nextDay.env[RELEASE_PACKAGE_VERSION_ENV], '20260731.1.0')
+  assert.equal(first.env[RELEASE_PACKAGE_VERSION_ENV], '1.20260730.2')
+  assert.equal(sameDayFollowUp.env[RELEASE_PACKAGE_VERSION_ENV], '1.20260730.3')
+  assert.equal(nextDay.env[RELEASE_PACKAGE_VERSION_ENV], '1.20260731.1')
   assert.equal(
     numericSemverGreater(
       sameDayFollowUp.env[RELEASE_PACKAGE_VERSION_ENV],
@@ -101,6 +101,52 @@ test('날짜 버전만 올라간 후속 릴리스도 Electron updater 비교 버
     ),
     true,
   )
+})
+
+test('날짜 semver는 같은 날 9→10과 월·연 경계에서도 단조 증가한다', () => {
+  const appVersions = [
+    '2026/07/30-1',
+    '2026/07/30-2',
+    '2026/07/30-9',
+    '2026/07/30-10',
+    '2026/07/31-1',
+    '2026/08/01-1',
+    '2026/12/31-9',
+    '2027/01/01-1',
+  ]
+  const packageVersions = appVersions.map((appVersion) =>
+    createReleaseBuildEnvironment({ env: { VITE_APP_VERSION: appVersion } })
+      .env[RELEASE_PACKAGE_VERSION_ENV])
+
+  assert.deepEqual(packageVersions, [
+    '1.20260730.1',
+    '1.20260730.2',
+    '1.20260730.9',
+    '1.20260730.10',
+    '1.20260731.1',
+    '1.20260801.1',
+    '1.20261231.9',
+    '1.20270101.1',
+  ])
+  for (let index = 1; index < packageVersions.length; index += 1) {
+    assert.equal(
+      numericSemverGreater(packageVersions[index], packageVersions[index - 1]),
+      true,
+      `${packageVersions[index - 1]} < ${packageVersions[index]}`,
+    )
+  }
+})
+
+test('같은 날짜·순번 입력은 같은 내부 semver를 만든다', () => {
+  const first = createReleaseBuildEnvironment({
+    env: { VITE_APP_VERSION: '2026/07/30-10' },
+  })
+  const second = createReleaseBuildEnvironment({
+    env: { VITE_APP_VERSION: '2026/07/30-10' },
+  })
+
+  assert.equal(first.packageVersion, '1.20260730.10')
+  assert.equal(second.packageVersion, first.packageVersion)
 })
 
 test('두 Electron builder가 포장 package.json에 내부 비교 버전을 주입한다', () => {

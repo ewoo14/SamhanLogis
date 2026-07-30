@@ -169,3 +169,132 @@ DESKTOP desktopUpdatePolicy date fixture:  6 tests passed
 신규 파일:
 
 - `docs/dev-reports/2026-07-30-910-date-version-update-detection.md` `+171/-0` (본 보고서; git add 전이라 `git diff --numstat`에는 나타나지 않음)
+
+## 2026-07-30 후속 fix — 개발책임자 지시 형식으로 semver 재사상
+
+### 개발책임자 지시
+
+> "semver 버전은 그러면 **`1.YYYYMMDD.N`** 으로 진행요청."
+
+직전 라운드의 `YYYYMMDD.N.0` 사상은 날짜와 당일 순번을 내부 semver로 비교하는 목적은
+달성했지만, 이번 지시의 major/minor/patch 배치와 달랐다. 이번 fix는 공통 생성기와 두
+데스크톱 updater의 내부 표현을 함께 변경했다. renderer, 정책 서버 계약, updater IPC의
+사용자 표시 값은 변경하지 않았다.
+
+| 입력 날짜 버전 | 변경 전 내부 semver | 변경 후 내부 semver |
+|---|---|---|
+| `2026/07/30-2` | `20260730.2.0` | `1.20260730.2` |
+| `2026/07/30-3` | `20260730.3.0` | `1.20260730.3` |
+| `2026/07/31-1` | `20260731.1.0` | `1.20260731.1` |
+
+생성기 본체는 루트 `scripts/app-build-version.cjs`의 `resolveReleasePackageVersion`이며,
+DESKTOP과 AROLOGIS_DESKTOP은 동일한 `createReleaseBuildEnvironment`를 사용한다. 두
+`electron-builder.yml`의 `extraMetadata.version` 계약은 계속
+`SAMHAN_RELEASE_PACKAGE_VERSION`을 주입한다.
+
+### RED-first 원문
+
+테스트 기대값을 먼저 `1.YYYYMMDD.N`으로 바꾸고, 구현을 바꾸기 전에 실행했다.
+
+```text
+✖ 데스크톱 릴리스 wrapper는 검증된 버전과 릴리스 모드를 하위 빌드에 전달한다
+✖ 날짜 버전만 올라간 후속 릴리스도 Electron updater 비교 버전이 올라간다
+✖ 날짜 semver는 같은 날 9→10과 월·연 경계에서도 단조 증가한다
+✖ 같은 날짜·순번 입력은 같은 내부 semver를 만든다
+ℹ tests 9
+ℹ pass 5
+ℹ fail 4
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ '20260725.91003.0'
+- '1.20260725.91003'
+```
+
+후속 릴리스 실패도 동일하게 실제 `20260730.2.0`, 기대 `1.20260730.2`로 확인됐고,
+경계 테스트는 실제 배열 전체가 `20260730.*.0`으로 생성되는 원문을 남겼다. 따라서
+테스트가 기존 구현의 낡은 기대값 때문에 통과한 것이 아님을 확인했다.
+
+### fix 및 GREEN 원문
+
+- `scripts/app-build-version.cjs`: `1.${YYYYMMDD}.${N}` 반환으로 변경했다.
+- `clients/desktop/src/main/auto-update.ts`와
+  `clients/arologis-desktop/src/main/auto-update.ts`: 새 내부 semver를
+  `YYYY/MM/DD-N`으로 되돌리는 정규식을 변경했다.
+- 두 updater 테스트의 `UpdateInfo.version` fixture를 새 내부 semver로 갱신했다.
+- 기존 `allowDowngrade = false`, `INSTALL_CHANNEL`, 개발 모드 분기, 정책 서버 계약,
+  electron-updater CJS default import는 변경하지 않았다.
+
+```text
+✔ tests 9
+✔ pass 9
+ℹ fail 0
+```
+
+```text
+DESKTOP       src/main/auto-update.test.ts                    6 tests passed
+AROLOGIS      src/main/auto-update.test.ts                    5 tests passed
+DESKTOP       정책·게이트·versionCheck 대상                    28 tests passed
+AROLOGIS      게이트·versionCheck 대상                          6 tests passed
+```
+
+### 단조성 및 실제 semver probe
+
+생성기 회귀 테스트에 다음 전 구간을 고정했다. 특히 문자열 비교라면 깨지는 같은 날
+`9 → 10`, 월 경계, 연 경계를 모두 포함한다.
+
+```text
+1.20260730.1 < 1.20260730.2 < 1.20260730.9 < 1.20260730.10
+             < 1.20260731.1 < 1.20260801.1 < 1.20261231.9 < 1.20270101.1
+```
+
+```text
+node --test scripts/app-build-version.test.cjs
+✔ tests 9
+✔ pass 9
+ℹ fail 0
+```
+
+설치된 `semver` 라이브러리로 같은 배열을 다시 비교한 원문이다.
+
+```text
+{"versions":["1.20260730.1","1.20260730.2","1.20260730.9","1.20260730.10","1.20260731.1","1.20260801.1","1.20261231.9","1.20270101.1"],"valid":true,"monotonic":true}
+```
+
+직전 probe와 동일한 후속 릴리스 비교도 새 형식으로 재실행했다.
+
+```text
+{"current":"1.20260730.2","feed":"1.20260730.3","currentValid":true,"feedValid":true,"updateAvailable":true,"allowDowngrade":false}
+```
+
+즉, 날짜 버전이 올라간 feed는 `update-not-available`로 끝나지 않고 semver 비교상
+업데이트로 감지된다. 실제 packaged installer/feed/Windows 설치 실행은 이번에도
+`build:win` 금지 조건 때문에 주장하지 않는다.
+
+### 불변식 8개별 확인
+
+| 불변식 | 이번 fix에서 확인한 것 | 결과 및 한계 |
+|---|---|---|
+| 1. DESKTOP·AROLOGIS 내부 형식 `1.YYYYMMDD.N` | 공통 생성기 테스트의 wrapper/env 값, 양쪽 builder `extraMetadata.version` 계약, 실제 생성값 probe를 확인했다. | PASS. 실제 installer의 `package.json`은 패키징 금지로 미확인이다. |
+| 2. 날짜 상승 릴리스 자동 업데이트 감지 | 실제 `semver.valid`와 `semver.gt`로 `1.20260730.2 → 1.20260730.3`을 비교했고 `updateAvailable:true`를 확인했다. | PASS인 코드·라이브러리 비교 증명. 실제 HTTP feed와 packaged `electron-updater` 실행은 미실행이다. |
+| 3. 사용자 표기 `YYYY/MM/DD-N` 유지 | 양쪽 main updater의 새 정규식과 DESKTOP updater 상태 테스트에서 내부 `1.20260730.3`을 `2026/07/30-3`으로 IPC에 보냈음을 확인했다. renderer 버전·정책 query는 변경하지 않았다. | PASS. 실제 Windows 화면 캡처는 installer 미생성으로 미실행이다. |
+| 4. 전 구간 단조 증가 | 생성기 테스트와 설치된 `semver` probe가 같은 날 `9→10`, 월 경계, 연 경계의 전체 배열을 검증했다. | PASS. 동일 입력 멱등성 테스트도 포함했다. |
+| 5. 다운그레이드 금지 | DESKTOP·AROLOGIS updater 테스트에서 초기 mock 값을 true로 두고 등록 후 `allowDowngrade === false`를 확인했다. | PASS. 역순 운영 feed 실험은 미실행이다. |
+| 6. 직전 fix 유지 | 개발 모드 check/install 분기와 `INSTALL_CHANNEL`, 정책 `NONE/MINOR/MAJOR/CRITICAL`, 화면 게이트·versionCheck, CJS default import를 소스 diff와 대상 테스트로 확인했다. | PASS. 정책 서버 계약은 수정하지 않았다. |
+| 7. 유효 semver | 실제 `semver.valid`가 전체 경계 배열과 후속 feed 모두 true를 반환했고, 두 builder가 공통 package semver env를 받는 계약 테스트가 통과했다. | PASS. electron-builder 패키징 자체는 미실행이다. |
+| 8. 멱등성 | 동일 `2026/07/30-10` 입력 2회가 모두 `1.20260730.10`을 반환하는 생성기 테스트를 추가해 통과시켰다. | PASS. |
+
+### 타입검증 및 실행 제한
+
+- AROLOGIS `npm run typecheck`: 종료 코드 0.
+- DESKTOP `npm run typecheck`: 303.3초 제한으로 종료 코드 124. `real-qa-scope.test.cjs`가
+  별도 실행에서도 출력 없이 같은 timeout을 보였으며, TypeScript 오류 원문은 없었다.
+- DESKTOP 원시 타입검증 `npx tsc -p tsconfig.node.json --noEmit`: 종료 코드 0.
+- DESKTOP 원시 타입검증 `npx tsc -p tsconfig.web.json --noEmit`: 종료 코드 0.
+- DESKTOP `node scripts/real-qa-scope.cjs --phase=typecheck`: freshness 확인 종료 코드 0.
+- DESKTOP `node --test scripts/real-qa-cleanup-scope.test.cjs`: 2/2 통과.
+- Docker, Gradle, `build:win`, 정책 서버 변경은 수행하지 않았다.
+
+따라서 이 후속 fix의 변경 코드에 대한 TypeScript 컴파일은 PASS지만, desktop의 전체
+`npm run typecheck` 게이트는 기존 real-QA 보조 테스트 timeout으로 완료되지 않은 상태다.

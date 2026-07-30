@@ -71,7 +71,7 @@ describe('아로로지스 데스크톱 자동 업데이트 IPC', () => {
   })
 
   it('새 버전 발견 시 다운로드하고 renderer에 상태를 보낸다', async () => {
-    await mocks.events.get('update-available')?.({ version: '20260730.3.0' })
+    await mocks.events.get('update-available')?.({ version: '1.20260730.3' })
     expect(mocks.autoUpdater.downloadUpdate).toHaveBeenCalledOnce()
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'available',
@@ -80,7 +80,7 @@ describe('아로로지스 데스크톱 자동 업데이트 IPC', () => {
   })
 
   it('다운로드 완료 후 설치 IPC가 종료·재시작을 위임한다', async () => {
-    await mocks.events.get('update-downloaded')?.({ version: '20260730.3.0' })
+    await mocks.events.get('update-downloaded')?.({ version: '1.20260730.3' })
     await mocks.handlers.get('updater:install')?.()
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
   })

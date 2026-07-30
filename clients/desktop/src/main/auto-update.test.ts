@@ -73,7 +73,7 @@ describe('Electron 자동 업데이트 IPC', () => {
   })
 
   it('update-available 이벤트는 다운로드를 시작하고 renderer에 상태를 보낸다', async () => {
-    await mocks.events.get('update-available')?.({ version: '20260730.3.0' })
+    await mocks.events.get('update-available')?.({ version: '1.20260730.3' })
     expect(mocks.autoUpdater.downloadUpdate).toHaveBeenCalledOnce()
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'available',
@@ -82,7 +82,7 @@ describe('Electron 자동 업데이트 IPC', () => {
   })
 
   it('update-downloaded 이벤트는 설치 완료를 알리고 install IPC가 재시작을 위임한다', async () => {
-    await mocks.events.get('update-downloaded')?.({ version: '20260730.3.0' })
+    await mocks.events.get('update-downloaded')?.({ version: '1.20260730.3' })
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'downloaded',
       version: '2026/07/30-3',
