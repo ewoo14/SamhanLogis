@@ -4,15 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.client.UserClient;
 import com.samhanair.logis.groupware.domain.Schedule;
-import com.samhanair.logis.groupware.domain.ScheduleParticipant;
-import com.samhanair.logis.groupware.domain.ScheduleStatus;
 import com.samhanair.logis.groupware.dto.ScheduleRequest;
 import com.samhanair.logis.groupware.repository.ScheduleRepository;
-import com.samhanair.logis.notification.publisher.NotificationPublishRequest;
-import com.samhanair.logis.notification.publisher.NotificationPublisher;
-import com.samhanair.logis.notification.publisher.NotificationPublisherDispatchExecutor;
-import com.samhanair.logis.notification.publisher.NotificationPublisherSupport;
-import com.samhanair.logis.notification.publisher.NotificationSeverity;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -29,8 +22,6 @@ public class ScheduleService {
 
     private final ScheduleRepository repository;
     private final UserClient userClient;
-    private final NotificationPublisher notificationPublisher;
-    private final NotificationPublisherDispatchExecutor notificationPublisherDispatchExecutor;
 
     /**
      * 일정 등록 + 참여자 초기 등록.
@@ -57,7 +48,6 @@ public class ScheduleService {
                 }
             }
             Schedule saved = repository.save(schedule);
-            publishPendingNotifications(saved);
             return saved;
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
@@ -112,7 +102,6 @@ public class ScheduleService {
                 schedule.addParticipant(id);
             }
         }
-        publishPendingNotifications(schedule);
         return schedule;
     }
 
@@ -125,7 +114,6 @@ public class ScheduleService {
         Schedule schedule = findById(scheduleId);
         schedule.addParticipant(schedule.getOwnerId());
         schedule.addParticipant(participantId);
-        publishPendingNotifications(schedule);
         return schedule;
     }
 
@@ -139,50 +127,4 @@ public class ScheduleService {
         schedule.markDeleted(actorUserId.toString());
     }
 
-    /**
-     * 확정 일정의 아직 알림 발행 요청을 등록하지 않은 대상자에게만 알림을 예약한다.
-     *
-     * <p>요청 시각은 일정 트랜잭션 안에서 기록하고 실제 publisher 호출은
-     * {@link NotificationPublisherSupport}를 통해 커밋 후 전용 executor에서 수행한다.
-     * publisher 자체는 fail-soft이므로 notification-service 장애가 일정 저장을 되돌리지 않는다.
-     */
-    private void publishPendingNotifications(Schedule schedule) {
-        if (schedule.getStatus() != ScheduleStatus.CONFIRMED) {
-            return;
-        }
-        for (ScheduleParticipant participant : schedule.getParticipantsView()) {
-            if (schedule.getOwnerId().equals(participant.getParticipantId())) {
-                continue;
-            }
-            if (!participant.markNotificationRequested()) {
-                continue;
-            }
-            NotificationPublishRequest request = new NotificationPublishRequest(
-                    "SCHEDULE",
-                    NotificationSeverity.INFO,
-                    notificationTitle(schedule.getTitle()),
-                    schedule.getDescription() == null || schedule.getDescription().isBlank()
-                            ? "확정된 일정이 등록되었습니다."
-                            : schedule.getDescription(),
-                    null,
-                    participant.getParticipantId(),
-                    null,
-                    schedule.getId() == null
-                            ? null
-                            : schedule.getId() + ":" + participant.getParticipantId(),
-                    "/schedules"
-            );
-            NotificationPublisherSupport.publishAfterCommit(
-                    notificationPublisher, request, notificationPublisherDispatchExecutor);
-        }
-    }
-
-    /** NotificationCenter.title VARCHAR(200) 계약을 지키며 일정 제목을 표시한다. */
-    private String notificationTitle(String scheduleTitle) {
-        String prefix = "일정 확정 — ";
-        int maxScheduleTitleLength = 200 - prefix.length();
-        return prefix + (scheduleTitle.length() > maxScheduleTitleLength
-                ? scheduleTitle.substring(0, maxScheduleTitleLength)
-                : scheduleTitle);
-    }
 }
