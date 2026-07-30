@@ -1267,6 +1267,11 @@ public class ProductSheetSyncService {
             } else if (prevHash == null || !prevHash.equals(rowHash)) {
                 Product p = existing.get();
                 p.changePrices(releasePrice, deliveryPrice);
+                // ECOUNT-first 행은 최초 생성 시 productCategory/usageScope가 비어 있다.
+                // 시트에 같은 modelCode가 등장한 순간 시트를 정본으로 채택하고, 아래의
+                // 기존 홈 탭 분류·노출 갱신 경로를 그대로 태운다. MANUAL/SHEET 행은
+                // 기존 가드를 유지한다.
+                boolean promotedFromEcount = p.promoteEcountToSheet();
                 // 노출 분류(usageScope/estimateCategory/display_order)는 품목의 '홈 탭'(최초
                 // productCategory 일치 탭)에서만 설정 — 다른 탭(예: 싱글세트가 구성품 탭에 재출현)이
                 // NONE/다른 순번으로 덮어쓰는 stomping 방지(2026-06-10 노출구분 결정). 가격/사양은
@@ -1281,7 +1286,10 @@ public class ProductSheetSyncService {
                 //   덮어쓰지 않는다.
                 //   displayOrder 는 '홈 탭' update 분기 진입 시 갱신한다 (지적 [8], PR-B 2026-06-11).
                 //   manual 여부와 무관하게 갱신 — 사용자가 시트 행 순서를 재정렬해도 반영되어야 함.
-                if (p.getProductCategory() == mapping.productCategory) {
+                if (p.getProductCategory() == mapping.productCategory || promotedFromEcount) {
+                    if (promotedFromEcount) {
+                        p.changeProductCategory(mapping.productCategory);
+                    }
                     if (!p.isUsageScopeManual()) {
                         // 🚨 2026-07-28 재수렴 R6 결함 5 [MED] fix (I-5) — override 해제
                         // (usageScopeManual=false) 상태에서 이 탭 매핑이 usageScope를 NONE
