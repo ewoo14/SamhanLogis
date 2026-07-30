@@ -4,6 +4,12 @@
 기준 HEAD: `5f76c40cf` (`feat/896-s4-quantity-sync-config`)  
 목적: fix 누적을 중단하고 S-03 설정을 관측 전용(shadow-only)으로 되돌림
 
+> **정정 EI-01 (2026-07-30, 원문 보존):** 위 기준 HEAD `5f76c40cf`는 이 보고서가
+> 설명하는 축소 코드를 담은 실제 축소 commit이 아니다. 실제 축소 구현 commit은
+> `16bb7189673618b03cbda4f2a2827a6e5cdec81f`이며, 현재 seed 제거 fix의 기준은
+> 이 commit의 후속 HEAD로 별도 보고서에 기록한다. 원문의 기준 HEAD 표기는 삭제하지
+> 않는다.
+
 ## 1. PM 결정과 최종 범위
 
 직전 재수렴 판정의 PM 수치는 다음과 같다.
@@ -36,6 +42,13 @@ F-01~F-04가 모두 evaluator가 실제 사용자 계산을 담당하는 데서 
 
 `V29` migration과 `QuantitySyncRuleValidator`의 저장 시점 가드는 이 범위 축소에서
 그대로 보존했다. 이 라운드에서 migration 번호나 공유 실데이터를 변경하지 않았다.
+
+> **후속 정정 (PM seed 제거 결정, 2026-07-30, 원문 보존):** 위의 “V29 migration을
+> 그대로 보존했다”와 “migration 번호를 변경하지 않았다”는 문장은 당시 축소
+> tree(`16bb718...`) 기준의 역사 원문이다. 이번 fix에서 PM 결정에 따라
+> `services/product-service/src/main/resources/db/migration/V29__seed_s03_quantity_sync_rule.sql`
+> 자체를 제거했으며, 현재 tree에는 V29가 없다. 이 후속 정정은 EI-01·EI-02와
+> 별개로 현재 seed 상태를 명확히 하기 위해 원문 직후에 둔다.
 
 ## 2. 구현 경계
 
@@ -77,6 +90,13 @@ PS> npm exec vite-node scripts/quantity-sync-s03-shadow.mjs
 비교 대상은 S-03 source 단독·동시 line을 포함한 전체 SINGLE payload다.
 
 ## 4. F-01~F-04 재현 시도 결과
+
+> **정정 EI-02 (2026-07-30, 원문 보존):** 아래의 “동일한 재현 순서”라는 표현은
+> 정확하지 않다. 당시 하네스는 누락 Map을 미리 넣은 뒤 준비된 필드를
+> `checkOrderReady()`에 전달했으며, 실제 사용자 순서인 `AC072` 입력 → reset →
+> `SI-AL700a` 입력 → 주문 클릭을 수행하지 않았다. 아래 원출력은 준비된 누락 Map
+> 상태에서의 주문 준비 판정 증거로만 해석해야 하며, 전체 재현 순서를 수행했다는
+> 원문 주장은 정정한다.
 
 동일한 재현 순서를 shadow/legacy 경계 하네스로 실행했다.
 
