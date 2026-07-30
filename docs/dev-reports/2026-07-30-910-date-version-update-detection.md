@@ -385,3 +385,99 @@ CLI parser → app-builder-lib config/transformer까지만 실행한 원문이�
 - 미실행: 전체 `build:win`, installer, `app.asar`, `latest.yml`, blockmap, 코드서명 및
   `winCodeSign` 단계. 그러므로 실제 Windows 패키징 완주를 주장하지 않는다.
 - Docker, Gradle, 정책 서버 계약 변경, 결함 2 수정은 수행하지 않았다.
+
+## 2026-07-30 CI red fix — 데스크톱 의존성 없는 App Build Version Guard
+
+### 원인 판정
+
+PR #993의 `App Build Version Guard` 잡은 checkout과 Node 20만 준비하고 `npm ci` 없이
+루트 `node --test scripts/app-build-version.test.cjs`를 실행한다. 그런데 기존 10번
+테스트가 두 앱의 `node_modules/app-builder-lib/out/...` private 파일을 직접 `require`해
+실제 transformer를 실행했다. 따라서 로컬처럼 데스크톱 의존성이 설치된 환경에서는
+통과하지만, 이 잡에서는 `MODULE_NOT_FOUND`로 테스트 본문에 도달하기 전에 실패했다.
+
+### fix
+
+`scripts/app-build-version.test.cjs`의 테스트는 이제 private `app-builder-lib` 파일을
+요구하지 않는다. 대신 다음 경계를 실제로 실행해 검증한다.
+
+1. DESKTOP·AROLOGIS_DESKTOP 릴리스 wrapper를 실제로 `require`한다.
+2. renderer 산출물 확인만 메모리 fixture로 대체하고, wrapper의 실제 `spawnSync`를
+   캡처한다.
+3. 두 builder 호출이 `--win` 다음에
+   `--config.extraMetadata.version=1.20260730.2`를 전달하는지 확인한다.
+4. 같은 호출 환경의 `SAMHAN_RELEASE_PACKAGE_VERSION`도 `1.20260730.2`인지 확인한다.
+
+따라서 wrapper에서 CLI override를 제거하거나 다른 semver를 전달하면 builder 호출
+assertion이 실패한다. 두 `electron-builder.yml`의 env 리터럴 검사와 잘못된 semver
+fail-fast 검사는 그대로 남겼다. production 파일과 `YYYY/MM/DD-N` 표시, 단조 증가·
+멱등성, `allowDowngrade=false`, 개발 모드 배너 제거·정책 게이트·슬1은 변경하지 않았다.
+
+### CI 조건 재현
+
+이 worktree 자체에는 두 데스크톱 의존성이 설치되어 있었다.
+
+```text
+clients/desktop/node_modules/app-builder-lib: True
+clients/arologis-desktop/node_modules/app-builder-lib: True
+```
+
+따라서 원래 worktree를 의존성 미설치 상태로 훼손하지 않고, 임시 dependency-free
+fixture를 만들었다. 루트 `scripts/`의 테스트·버전 생성기·두 release wrapper와 두
+`electron-builder.yml`만 임시 fixture에 복사하고 `node_modules`는 만들지 않은 뒤,
+CI와 같은 `node --test scripts/app-build-version.test.cjs`를 실행했다. 실행 전 두
+앱의 `app-builder-lib` 경로가 모두 `False`임을 확인했고, 테스트 뒤 임시 fixture를
+삭제했다.
+
+로컬 실행 Node는 `v24.14.1`이었다. CI workflow가 설치하는 Node 20 바이너리는 이
+PC에 별도로 없어 Node 런타임까지 완전히 동일하게 재현하지는 못했다. 다만 테스트가
+사용하는 `node:test`, `fs`, `child_process`, `path`, `String.replaceAll`, `Array.at`은
+Node 20에서 지원되는 built-in API이고, 데스크톱 의존성 미설치 조건과 CI의 테스트
+명령은 동일하게 재현했다.
+
+GREEN 원문:
+
+```text
+CI fixture root: C:\Users\ewoo2\AppData\Local\Temp\samhan-app-build-version-ci-1efedfb61c8c4359b983c21e815fbf9a
+clients/desktop/node_modules/app-builder-lib present: False
+clients/arologis-desktop/node_modules/app-builder-lib present: False
+[release-build] VITE_APP_VERSION=2026/07/30-2
+[arologis-release] VITE_APP_VERSION=2026/07/30-2
+[arologis-release] renderer 버전 주입 확인: 2026/07/30-2
+✔ 무주입 개발·CI 빌드는 릴리스가 아닌 고정 sentinel을 사용한다 (1.2575ms)
+✔ 릴리스 모드의 무주입 빌드는 호스트 날짜와 무관하게 실패한다 (0.502ms)
+✔ production·preview 빌드도 릴리스 주입 없이 sentinel을 사용하지 않는다 (0.2872ms)
+✔ 명시 주입 릴리스는 개발 형식 버전을 그대로 사용한다 (0.239ms)
+✔ 데스크톱 릴리스 wrapper는 검증된 버전과 릴리스 모드를 하위 빌드에 전달한다 (1.2755ms)
+✔ 날짜 버전만 올라간 후속 릴리스도 Electron updater 비교 버전이 올라간다 (0.3964ms)
+✔ 날짜 semver는 같은 날 9→10과 월·연 경계에서도 단조 증가한다 (1.3318ms)
+✔ 같은 날짜·순번 입력은 같은 내부 semver를 만든다 (0.1984ms)
+✔ 두 Electron builder 설정에 env 리터럴 버전이 남지 않는다 (1.8459ms)
+✔ 두 릴리스 wrapper가 실제 package semver를 builder CLI transformer 입력으로 전달한다 (5.609ms)
+✔ electron-builder package semver가 없거나 env 리터럴이면 조용히 진행하지 않는다 (0.3777ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 716.6574
+```
+
+이 재현은 CI 잡의 데스크톱 의존성 설치 조건과 테스트 실행 명령은 정확히 재현하지만,
+Node 20 자체는 실행하지 못했다. 따라서 CI 통과 판단은 Node 24의 dependency-free
+fixture GREEN, Node 20에서 지원되는 built-in API만 사용하는 코드 경로, 그리고
+`.github/workflows/ci.yml`의 실제 잡 명세를 근거로 한다. Node 20 runner 자체의
+실행 결과라고 주장하지 않는다. 또한 `app-builder-lib` 자체가 없는 조건이므로
+private transformer 구현을 실행한 증명은 아니다. 이 guard가 책임지는 wrapper→builder
+CLI 인자 전달은 실제 wrapper 실행과 캡처된 builder 호출로 검증했고, 실제
+transformer/package.json 변환은 데스크톱 의존성이 설치된 별도 패키징 검증 범위로
+남긴다.
+
+### 이번 fix 변경 파일
+
+`git diff --numstat` 기준:
+
+- `scripts/app-build-version.test.cjs`: `+87/-25`
+- `docs/dev-reports/2026-07-30-910-date-version-update-detection.md`: `+96/-0`

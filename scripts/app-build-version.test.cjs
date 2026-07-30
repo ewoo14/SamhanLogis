@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict')
-const { readFileSync } = require('node:fs')
-const { join, resolve } = require('node:path')
+const fs = require('node:fs')
+const { readFileSync } = fs
+const childProcess = require('node:child_process')
+const { resolve } = require('node:path')
 const { test } = require('node:test')
 const {
   DEVELOPMENT_FALLBACK_VERSION,
@@ -160,38 +162,98 @@ test('두 Electron builder 설정에 env 리터럴 버전이 남지 않는다', 
   }
 })
 
-test('두 릴리스 wrapper가 실제 package semver를 builder transformer에 전달한다', async () => {
+// 이 guard 잡은 데스크톱 node_modules를 설치하지 않는다. app-builder-lib의 private 파일을
+// require하는 대신, 두 실제 wrapper를 로드해 builder CLI 경계의 인자를 검증한다.
+function captureReleaseBuilderInvocation(relativeScript, appVersion) {
+  const calls = []
+  const repoRoot = resolve(__dirname, '..')
+  const scriptPath = resolve(__dirname, relativeScript)
+  const environmentKeys = ['VITE_APP_VERSION', 'AROLOGIS_UPDATE_URL']
+  const previousEnvironment = new Map(
+    environmentKeys.map((key) => [key, process.env[key]]),
+  )
+  const previousExitCode = process.exitCode
+  const previousCwd = process.cwd()
+  const originalSpawnSync = childProcess.spawnSync
+  const originalExistsSync = fs.existsSync
+  const originalReaddirSync = fs.readdirSync
+  const originalReadFileSync = fs.readFileSync
+
+  const isRendererFixture = (path) => {
+    const normalizedPath = String(path).replaceAll('\\', '/')
+    return normalizedPath.includes('/out/renderer')
+  }
+
+  try {
+    process.chdir(repoRoot)
+    process.env.VITE_APP_VERSION = appVersion
+    process.env.AROLOGIS_UPDATE_URL = 'https://updates.invalid/arologis'
+    childProcess.spawnSync = (command, args, options) => {
+      calls.push({ command, args, options })
+      return { status: 0 }
+    }
+    fs.existsSync = (path) => {
+      if (String(path).replaceAll('\\', '/').endsWith('/out/renderer')) return true
+      return originalExistsSync(path)
+    }
+    fs.readdirSync = (directory, options) => {
+      if (!isRendererFixture(directory)) return originalReaddirSync(directory, options)
+      if (options?.withFileTypes) {
+        return [{ name: 'version-fixture.js', isDirectory: () => false }]
+      }
+      return ['version-fixture.js']
+    }
+    fs.readFileSync = (path, encoding) => {
+      if (isRendererFixture(path)) {
+        return `const CURRENT_VERSION = resolveBuildAppVersion("${appVersion}")`
+      }
+      return originalReadFileSync(path, encoding)
+    }
+
+    delete require.cache[require.resolve(scriptPath)]
+    require(scriptPath)
+  } finally {
+    delete require.cache[require.resolve(scriptPath)]
+    childProcess.spawnSync = originalSpawnSync
+    fs.existsSync = originalExistsSync
+    fs.readdirSync = originalReaddirSync
+    fs.readFileSync = originalReadFileSync
+    process.chdir(previousCwd)
+    for (const [key, value] of previousEnvironment) {
+      if (value == null) delete process.env[key]
+      else process.env[key] = value
+    }
+    process.exitCode = previousExitCode
+  }
+
+  return calls
+}
+
+test('두 릴리스 wrapper가 실제 package semver를 builder CLI transformer 입력으로 전달한다', () => {
   const release = createReleaseBuildEnvironment({
     env: { VITE_APP_VERSION: '2026/07/30-2' },
   })
   const builderArgs = createElectronBuilderVersionArgs(release.packageVersion)
-  const versionOverride = builderArgs
-    .find((argument) => argument.startsWith('--config.extraMetadata.version='))
-    ?.split('=', 2)[1]
 
-  for (const relativePath of [
-    'clients/desktop',
-    'clients/arologis-desktop',
+  for (const [relativeScript, relativeProject] of [
+    ['build-desktop-release.cjs', 'clients/desktop'],
+    ['build-arologis-desktop-release.cjs', 'clients/arologis-desktop'],
   ]) {
-    const projectDir = resolve(__dirname, '..', relativePath)
-    const appBuilderLib = resolve(projectDir, 'node_modules', 'app-builder-lib')
-    const { getConfig } = require(resolve(appBuilderLib, 'out/util/config/config.js'))
-    const { createTransformer } = require(resolve(appBuilderLib, 'out/fileTransformer.js'))
-    const config = await getConfig(
-      projectDir,
-      null,
-      versionOverride == null ? null : { extraMetadata: { version: versionOverride } },
-    )
-    const transformedPackageJson = await createTransformer(
-      projectDir,
-      config,
-      config.extraMetadata,
-    )(join(projectDir, 'package.json'))
-
+    const calls = captureReleaseBuilderInvocation(relativeScript, release.appVersion)
+    const builderCall = calls.find(({ args }) => args.includes(builderArgs[0]))
+    assert.ok(builderCall, `${relativeProject} release wrapper의 builder 호출이 없습니다.`)
     assert.equal(
-      JSON.parse(transformedPackageJson).version,
+      builderCall.command,
+      process.execPath,
+      relativeProject,
+    )
+    assert.equal(builderCall.args.at(-2), '--win', relativeProject)
+    assert.equal(builderCall.args.at(-1), builderArgs[0], relativeProject)
+    assert.equal(builderCall.args.at(-1).split('=', 2)[1], release.packageVersion, relativeProject)
+    assert.equal(
+      builderCall.options.env[RELEASE_PACKAGE_VERSION_ENV],
       release.packageVersion,
-      relativePath,
+      relativeProject,
     )
   }
 
