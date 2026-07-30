@@ -90,8 +90,14 @@ public class EcountProductImporter {
         Map<String, UpsertProductResult> productByMainCode = new HashMap<>();
         LinkedHashSet<String> countedMainCodes = new LinkedHashSet<>();
         Map<Integer, ProductMainCandidate> resolvedCandidates = new HashMap<>();
-        Map<String, List<ItemRow>> skippedRowsByName = new LinkedHashMap<>();
-        Map<String, List<String>> skippedCandidateCodesByName = new LinkedHashMap<>();
+        Map<String, List<ItemRow>> normalRowsByName = new LinkedHashMap<>();
+        Map<Integer, String> mergeReasonsByRow = new HashMap<>();
+
+        for (ItemRow row : itemRows) {
+            if (isNormal(row.code(), row.name())) {
+                normalRowsByName.computeIfAbsent(row.name(), ignored -> new ArrayList<>()).add(row);
+            }
+        }
 
         for (ItemRow row : itemRows) {
             if (row.name().isBlank() || isPlaceholder(row.code())) {
@@ -109,18 +115,38 @@ public class EcountProductImporter {
                 if (ex.getErrorCode() != ErrorCode.MIG2_NO_MAIN_CANDIDATE) {
                     throw ex;
                 }
-                skippedRowsByName.computeIfAbsent(row.name(), ignored -> new ArrayList<>()).add(row);
-                skippedCandidateCodesByName.putIfAbsent(row.name(),
-                        candidateCodesForSkippedGroup(row, itemsByCode, ex));
+                if (normalRowsByName.getOrDefault(row.name(), List.of()).size() < 2) {
+                    throw ex;
+                }
             }
         }
-        List<EcountProductImportResult.SkippedGroup> skippedGroups = skippedRowsByName.entrySet().stream()
-                .map(entry -> new EcountProductImportResult.SkippedGroup(
-                        entry.getKey(),
-                        skippedCandidateCodesByName.getOrDefault(entry.getKey(), List.of()),
-                        entry.getValue().stream().map(ItemRow::rowNo).toList(),
-                        "⑤_FAIL_CLOSED"))
-                .toList();
+
+        // 같은 품목명은 raw 순번코드가 달라도 하나의 물건이다. 물리 테이블에 필요한
+        // canonical code는 파일 순서로 고정하고, 모든 순번코드는 alias로 보존한다.
+        // 후보를 고르지 못한 동명 그룹도 여기서 동일한 경로로 수렴하므로 HTTP 200 아래 누락되지 않는다.
+        for (Map.Entry<String, List<ItemRow>> entry : normalRowsByName.entrySet()) {
+            List<ItemRow> sameNameRows = entry.getValue();
+            if (sameNameRows.size() < 2) {
+                continue;
+            }
+            ProductMainCandidate groupCandidate = sameNameRows.stream()
+                    .map(row -> resolvedCandidates.get(row.rowNo()))
+                    .filter(candidate -> candidate != null)
+                    .findFirst()
+                    .orElseGet(() -> fallbackSameNameCandidate(entry.getKey(), sameNameRows, itemsByCode));
+            if (groupCandidate == null) {
+                throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
+                        "동명 raw 품목 그룹을 병합할 수 없습니다: name=" + entry.getKey());
+            }
+            ItemRow selectedRow = groupCandidate.rawRow() == null
+                    ? sameNameRows.get(0)
+                    : groupCandidate.rawRow();
+            String mergeReason = sameNameMergeReason(groupCandidate.mainCode(), selectedRow, sameNameRows);
+            for (ItemRow sameNameRow : sameNameRows) {
+                resolvedCandidates.put(sameNameRow.rowNo(), groupCandidate);
+                mergeReasonsByRow.put(sameNameRow.rowNo(), mergeReason);
+            }
+        }
 
         for (ItemRow row : itemRows) {
             if (row.name().isBlank()) {
@@ -139,15 +165,6 @@ public class EcountProductImporter {
             EcountCsvSupport.requireMaxLength(row.code(), 100, "product_code", row.rowNo());
 
             String explicitMainCode = relationMainByAlias.get(row.code());
-            if (skippedRowsByName.containsKey(row.name())) {
-                List<String> candidateCodes = skippedCandidateCodesByName.getOrDefault(row.name(), List.of());
-                String reason = "대표품목 후보 결정 불가; candidateCodes=" + candidateCodes
-                        + ", stoppedAt=⑤_FAIL_CLOSED";
-                updateItemStatus(sourceFileHash, row.rowNo(), "SKIPPED_MAIN_CANDIDATE", reason, null, null);
-                addRejectSample(rejectedSample, row.rowNo(), "SKIPPED_MAIN_CANDIDATE", row.code(), row.name());
-                continue;
-            }
-
             ProductMainCandidate mainCandidate = resolvedCandidates.get(row.rowNo());
             if (mainCandidate == null) {
                 skippedRelationOrphan++;
@@ -176,16 +193,18 @@ public class EcountProductImporter {
             upsertAlias(row.code(), mainCode, upsert.productId(), sourceFileHash, row.rowNo());
             aliasImported++;
             updateItemStatus(sourceFileHash, row.rowNo(), upsert.isNew() ? "IMPORTED" : "UPDATED",
-                    null, row.code().equals(mainCode) ? upsert.productId() : null, upsert.productId());
+                    mergeReasonsByRow.get(row.rowNo()),
+                    row.code().equals(mainCode) ? upsert.productId() : null, upsert.productId());
         }
 
-        log.info("MIG-2 product import 완료 total={} imported={} updated={} alias={} rejected={} placeholder={} orphan={} skippedGroups={} hash={}",
+        log.info("MIG-2 product import 완료 total={} imported={} updated={} alias={} rejected={} placeholder={} orphan={} mergedGroups={} hash={}",
                 itemRows.size(), imported, updated, aliasImported, rejectedNullName,
-                skippedPlaceholder, skippedRelationOrphan, skippedGroups.size(), sourceFileHash);
+                skippedPlaceholder, skippedRelationOrphan,
+                normalRowsByName.values().stream().filter(rows -> rows.size() > 1).count(), sourceFileHash);
 
         return new EcountProductImportResult(itemRows.size(), imported, updated, rejectedNullName,
                 skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample,
-                skippedGroups.size(), skippedGroups);
+                0, List.of());
     }
 
     private RelationParseResult parseRelations(InputStream relationCsv, String actorUserId) {
@@ -310,6 +329,20 @@ public class EcountProductImporter {
         return null;
     }
 
+    private ProductMainCandidate fallbackSameNameCandidate(String name, List<ItemRow> sameNameRows,
+                                                            Map<String, ItemRow> itemsByCode) {
+        String existingCode = findActiveProductCodeByName(name);
+        if (existingCode != null && !existingCode.isBlank()) {
+            ItemRow existingRaw = itemsByCode.get(existingCode);
+            UUID existingId = existingRaw == null ? findActiveProductIdByCode(existingCode) : null;
+            if (existingRaw != null || existingId != null) {
+                return new ProductMainCandidate(existingCode, existingRaw, existingId);
+            }
+        }
+        ItemRow first = sameNameRows.get(0);
+        return new ProductMainCandidate(first.code(), first, null);
+    }
+
     private List<String> rawCandidatesByName(String name, Map<String, ItemRow> itemsByCode) {
         return itemsByCode.values().stream()
                 .filter(candidate -> candidate.name().equals(name))
@@ -318,20 +351,24 @@ public class EcountProductImporter {
                 .toList();
     }
 
-    private List<String> candidateCodesForSkippedGroup(ItemRow row, Map<String, ItemRow> itemsByCode,
-                                                       BusinessException exception) {
-        String message = exception.getMessage();
-        String marker = "sampleMainCodes=";
-        if (message != null && message.contains(marker)) {
-            String candidates = message.substring(message.indexOf(marker) + marker.length()).trim();
-            if (candidates.startsWith("[") && candidates.endsWith("]")) {
-                candidates = candidates.substring(1, candidates.length() - 1);
-            }
-            if (!candidates.isBlank()) {
-                return List.of(candidates.split(",\\s*"));
-            }
-        }
-        return rawCandidatesByName(row.name(), itemsByCode);
+    private String sameNameMergeReason(String canonicalCode, ItemRow selectedRow, List<ItemRow> rows) {
+        String discarded = rows.stream()
+                .filter(row -> row != selectedRow)
+                .map(this::mergeRowSummary)
+                .toList()
+                .toString();
+        return "MERGED_SAME_NAME canonicalCode=" + canonicalCode
+                + ", selected=" + mergeRowSummary(selectedRow)
+                + ", discarded=" + discarded;
+    }
+
+    private String mergeRowSummary(ItemRow row) {
+        return "{rowNumber=" + row.rowNo()
+                + ",code=" + row.code()
+                + ",specification=" + row.cells()[11]
+                + ",outboundPrice=" + parseMoney(row.cells()[2]).toPlainString()
+                + ",inboundPrice=" + parseMoney(row.cells()[3]).toPlainString()
+                + "}";
     }
 
     private boolean isNormal(String code, String name) {
@@ -569,16 +606,14 @@ public class EcountProductImporter {
                 SELECT product_code
                   FROM products
                  WHERE name = :name AND is_deleted = FALSE AND status = 'ACTIVE'
-                 ORDER BY created_at ASC
+                 ORDER BY created_at ASC, product_code ASC
                  LIMIT 2
                 """, new MapSqlParameterSource("name", name), String.class);
         if (productCodes == null || productCodes.isEmpty()) {
             return null;
         }
-        if (productCodes.size() > 1) {
-            throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                    "동명 ACTIVE 품목이 2건 이상입니다: name=" + name + ", sampleMainCodes=" + productCodes);
-        }
+        // 같은 품목명은 한 물건으로 병합한다. 기존 DB가 여러 건이어도 임의 추측으로
+        // raw 행을 누락시키지 않고, 생성시각·코드 순서의 안정된 기존 행을 대상으로 삼는다.
         return productCodes.get(0);
     }
 

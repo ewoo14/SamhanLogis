@@ -206,10 +206,10 @@ public class ProductService {
     }
 
     /**
-     * 품목코드(product_code) 정확 매칭 단건 조회 후 ProductSummaryResponse 로 변환.
+     * 품목코드(product_code) 또는 이카운트 alias_code 정확 매칭 단건 조회 후 ProductSummaryResponse 로 변환.
      * S3 인스턴스 출고 예약에서 productCode 기반 serialManaged 확인에 사용한다.
      *
-     * @param productCode 정확 매칭할 품목코드
+     * @param productCode 정확 매칭할 품목코드 또는 이카운트 순번코드
      * @return ProductSummaryResponse
      * @throws BusinessException(INVALID_INPUT) productCode null/blank
      * @throws BusinessException(NOT_FOUND) 매칭 제품 없음
@@ -219,9 +219,12 @@ public class ProductService {
         if (productCode == null || productCode.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "품목코드가 비어있습니다");
         }
-        Product product = productRepository.findByProductCodeAndIsDeletedFalse(productCode.trim())
+        String normalizedCode = productCode.trim();
+        Product product = productRepository.findByProductCodeAndIsDeletedFalse(normalizedCode)
+                .or(() -> productAliasRepository.findByAliasCodeAndIsDeletedFalse(normalizedCode)
+                        .map(alias -> alias.getMainProduct()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "품목코드에 해당하는 제품이 없습니다"));
+                        "품목코드 또는 alias에 해당하는 제품이 없습니다"));
         return ProductSummaryResponse.from(product);
     }
 

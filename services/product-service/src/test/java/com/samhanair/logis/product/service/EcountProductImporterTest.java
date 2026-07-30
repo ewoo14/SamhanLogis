@@ -109,7 +109,7 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_관계없는_결정불가_동명그룹은_후보를_추측하지_않고_fail_closed한다() {
+    void importCsv_관계없는_동명그룹은_한_행과_alias로_병합한다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
                 "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
@@ -119,16 +119,13 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.skippedGroupCount()).isOne();
-        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
-            assertThat(group.name()).isEqualTo("바람막이");
-            assertThat(group.candidateCodes()).containsExactly("AAAA-00008", "ZENG-00009");
-            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
-        });
+        assertThat(result.imported()).isOne();
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isZero();
     }
 
     @Test
-    void importCsv_결정불가_그룹만_건너뛰고_나머지_행은_계속_반영한다() {
+    void importCsv_동명그룹과_나머지_행을_모두_반영한다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
                 "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
@@ -140,15 +137,9 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.imported()).isEqualTo(2);
-        assertThat(result.aliasImported()).isEqualTo(2);
-        assertThat(result.skippedGroupCount()).isOne();
-        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
-            assertThat(group.name()).isEqualTo("결정불가품목");
-            assertThat(group.candidateCodes()).containsExactly("BAD-001", "BAD-002");
-            assertThat(group.rowNumbers()).containsExactly(2, 3);
-            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
-        });
+        assertThat(result.imported()).isEqualTo(3);
+        assertThat(result.aliasImported()).isEqualTo(4);
+        assertThat(result.skippedGroupCount()).isZero();
     }
 
     @Test
@@ -267,7 +258,7 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_DB_name_fallback이_ACTIVE_2건이면_MIG2_NO_MAIN_CANDIDATE로_실패한다() {
+    void importCsv_DB_name_fallback이_ACTIVE_2건이면_첫_행을_안정적으로_재사용한다() {
         when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of("DB-001", "DB-002"));
         String itemCsv = """
@@ -278,11 +269,9 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.skippedGroupCount()).isOne();
-        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
-            assertThat(group.candidateCodes()).containsExactly("DB-001", "DB-002");
-            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
-        });
+        assertThat(result.imported()).isZero();
+        assertThat(result.aliasImported()).isOne();
+        assertThat(result.skippedGroupCount()).isZero();
     }
 
     @Test
@@ -359,7 +348,7 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_동명_복수_raw에_DB_main도_relation도_없으면_MIG2_NO_MAIN_CANDIDATE로_실패한다() {
+    void importCsv_동명_복수_raw에_DB_main도_relation도_없으면_한_행으로_병합한다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
                 "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
@@ -369,12 +358,9 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.skippedGroupCount()).isOne();
-        assertThat(result.skippedGroups()).singleElement().satisfies(group -> {
-            assertThat(group.name()).isEqualTo("제품A");
-            assertThat(group.candidateCodes()).containsExactly("P-001", "P-002");
-            assertThat(group.stoppedAt()).isEqualTo("⑤_FAIL_CLOSED");
-        });
+        assertThat(result.imported()).isOne();
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isZero();
     }
 
     @Test

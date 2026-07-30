@@ -12,10 +12,16 @@ import com.samhanair.logis.product.domain.UsageScope;
 import com.samhanair.logis.product.repository.CategoryRepository;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.EcountProductImporter;
+import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +47,9 @@ class EcountProductImporterIT extends AbstractPostgresIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ProductService productService;
 
     @MockBean
     private DynamicPermissionClient dynamicPermissionClient;
@@ -120,6 +129,66 @@ class EcountProductImporterIT extends AbstractPostgresIT {
         assertThat(merged.getCategory().getId()).isEqualTo(sheetCategory.getId());
     }
 
+    @Test
+    void sameNameSequenceCodes_are_all_aliases_and_lookupable() {
+        String[][] groups = {
+                {"AR-EH03", "00131", "SAR-00006"},
+                {"삼성추가배관(벽걸이)", "AAAA-00004", "AAAA-00005"},
+                {"삼성추가배관(스탠드)", "AAAA-00006", "AAAA-00007"},
+                {"바람막이", "AAAA-00008", "ZENG-00009"},
+                {"배수펌프", "AAAA-00009", "ZENG-00011"},
+                {"천공", "AAAA-00010", "ZENG-00010"},
+                {"유니온", "AAAA-00011", "ZENG-00008"},
+                {"사다리차", "AAAA-00021", "ZENG-00016"},
+                {"고소작업차(스카이)", "AAAA-00022", "AAAA-00023"},
+                {"실외기받침대", "AAAA-00034", "ZENG-00017"},
+                {"삼성 추가배관", "AAAA-00037", "AAAA-00038"},
+                {"추가배관(벽걸이)", "ZENG-00012", "ZENG-00019"}
+        };
+
+        EcountProductImportResult result = importer.importCsv(
+                stream(sequenceCodeFixture(groups)), null, null, "high-1-it");
+        EcountProductImportResult repeated = importer.importCsv(
+                stream(sequenceCodeFixture(groups)), null, null, "high-1-it");
+
+        assertThat(result.imported()).isEqualTo(12);
+        assertThat(result.aliasImported()).isEqualTo(24);
+        assertThat(result.skippedGroupCount()).isZero();
+        assertThat(repeated.imported()).isZero();
+        assertThat(repeated.updated()).isEqualTo(12);
+        assertThat(repeated.aliasImported()).isEqualTo(24);
+        assertThat(repeated.skippedGroupCount()).isZero();
+
+        Map<String, UUID> productIdsByName = new HashMap<>();
+        for (String[] group : groups) {
+            UUID firstId = null;
+            for (int i = 1; i < group.length; i++) {
+                var summary = productService.lookupSummaryByProductCode(group[i]);
+                assertThat(summary.name()).isEqualTo(group[0]);
+                if (firstId == null) {
+                    firstId = summary.id();
+                } else {
+                    assertThat(summary.id()).isEqualTo(firstId);
+                }
+                assertThat(jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM product_aliases WHERE alias_code = ? AND is_deleted = FALSE",
+                        Integer.class, group[i])).isEqualTo(1);
+            }
+            productIdsByName.put(group[0], firstId);
+        }
+        assertThat(productIdsByName.values()).doesNotHaveDuplicates();
+
+        String discardedReason = jdbcTemplate.queryForObject(
+                "SELECT reject_reason FROM staging.ecount_item_raw WHERE raw_item_code = ?",
+                String.class, "AAAA-00005");
+        assertThat(discardedReason)
+                .contains("MERGED_SAME_NAME")
+                .contains("specification=10평이하")
+                .contains("inboundPrice=12277")
+                .contains("specification=30평이하")
+                .contains("inboundPrice=13914");
+    }
+
     private static java.io.InputStream stream(String csv) {
         return new java.io.ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8));
     }
@@ -133,5 +202,23 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                 .replace("__NAME__", name)
                 .replace("__OUTBOUND__", outbound)
                 .replace("__INBOUND__", inbound));
+    }
+
+    private static String sequenceCodeFixture(String[][] groups) {
+        String header = "\"품목코드\t\",\"품목명\t\",\"출하가\t\",\"입고단가\t\",\"싱글\t\",\"실외기(원형,스탠드)\t\",\"멀티(50%)\t\",\"멀티(48%)\t\",\"멀티(45%)\t\",\"단품(35%)\t\",\"품목구분\t\",\"규격명\t\",\"사용구분\t\"";
+        String rows = Arrays.stream(groups)
+                .flatMap(group -> Arrays.stream(new String[]{
+                        itemRow(group[1], group[0], group[0].equals("삼성추가배관(벽걸이)") ? "10평이하" : "규격A", "12277"),
+                        itemRow(group[2], group[0], group[0].equals("삼성추가배관(벽걸이)") ? "30평이하" : "규격B", "13914")
+                }))
+                .collect(Collectors.joining("\n"));
+        return "\"데이터관리>품목-Excel다운로드\"\n" + header + "\n" + rows + "\n";
+    }
+
+    private static String itemRow(String code, String name, String specification, String inbound) {
+        String[] cells = {code, name, "0", inbound, "", "", "0", "0", "0", "0", "[상품]", specification, "YES"};
+        return Arrays.stream(cells)
+                .map(value -> "\"" + value.replace("\"", "\"\"") + "\"")
+                .collect(Collectors.joining(","));
     }
 }
