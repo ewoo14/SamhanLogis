@@ -3,7 +3,10 @@
 const { existsSync, readdirSync, readFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
 const { spawnSync } = require('node:child_process')
-const { createReleaseBuildEnvironment } = require('./app-build-version.cjs')
+const {
+  createReleaseBuildEnvironment,
+  createElectronBuilderVersionArgs,
+} = require('./app-build-version.cjs')
 
 const DESKTOP_DIR = resolve(__dirname, '../clients/arologis-desktop')
 
@@ -47,7 +50,11 @@ function main() {
   console.log(`[arologis-release] VITE_APP_VERSION=${releaseBuild.appVersion}`)
   run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
   verifyReleaseRenderer(releaseBuild.appVersion)
-  run(process.execPath, [electronBuilderCli, '--win'], releaseBuild.env)
+  run(
+    process.execPath,
+    [electronBuilderCli, '--win', ...createElectronBuilderVersionArgs(releaseBuild.packageVersion)],
+    releaseBuild.env,
+  )
 }
 
 try {

@@ -5,6 +5,7 @@ const { readdirSync, readFileSync } = require('node:fs')
 const { join } = require('node:path')
 const {
   createReleaseBuildEnvironment,
+  createElectronBuilderVersionArgs,
 } = require('./app-build-version.cjs')
 
 function run(command, args, env) {
@@ -63,7 +64,11 @@ function main() {
   run(process.execPath, [legacyBuildScript], releaseBuild.env)
   run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
   verifyReleaseRenderer(releaseBuild.appVersion)
-  run(process.execPath, [electronBuilderCli, '--win'], releaseBuild.env)
+  run(
+    process.execPath,
+    [electronBuilderCli, '--win', ...createElectronBuilderVersionArgs(releaseBuild.packageVersion)],
+    releaseBuild.env,
+  )
 }
 
 main()

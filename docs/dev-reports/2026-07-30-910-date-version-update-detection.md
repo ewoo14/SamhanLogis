@@ -298,3 +298,90 @@ node --test scripts/app-build-version.test.cjs
 
 따라서 이 후속 fix의 변경 코드에 대한 TypeScript 컴파일은 PASS지만, desktop의 전체
 `npm run typecheck` 게이트는 기존 real-QA 보조 테스트 timeout으로 완료되지 않은 상태다.
+
+## 2026-07-30 결함 1 fix — electron-builder extraMetadata semver 명시 주입
+
+### 원인과 수정
+
+electron-builder 25.1.8의 YAML config loader는 `extraMetadata.version` 안의
+`${env.SAMHAN_RELEASE_PACKAGE_VERSION}`를 환경값으로 치환하지 않는다. 따라서 기존
+설정은 transformer에 리터럴을 전달했고, Windows 버전 해석 전에 포장이 중단됐다.
+
+이번 fix는 결함 1만 다뤘다. 결함 2의 구 설치본 첫 업데이트 표기 문제, 정책 서버 계약,
+`CURRENT-WORK.md`는 건드리지 않았다.
+
+- `scripts/app-build-version.cjs`에 `createElectronBuilderVersionArgs`를 추가했다.
+  `1.YYYYMMDD.N`만 허용하고 빈 값, env 리터럴, 직전 형식은 오류로 거부한다.
+- 두 release wrapper가 electron-builder에
+  `--config.extraMetadata.version=<실제 semver>`를 전달한다.
+- 두 `electron-builder.yml`에서 치환되지 않는 env 리터럴을 제거했다.
+
+### RED-first 원문
+
+수정 전 새 transformer 회귀 테스트를 먼저 실행했다.
+
+```text
+  • loaded configuration  file=D:\dev\Samhan-Public\.claude\worktrees\w993-version\clients\desktop\electron-builder.yml
+✖ 두 릴리스 wrapper가 실제 package semver를 builder transformer에 전달한다
+
+AssertionError [ERR_ASSERTION]: clients/desktop
++ actual - expected
+
++ '${env.SAMHAN_RELEASE_PACKAGE_VERSION}'
+- '1.20260730.2'
+
+ℹ tests 10
+ℹ pass 9
+ℹ fail 1
+```
+
+### GREEN 원문 및 실제 포장 버전 단계
+
+수정 후 공통 생성기·두 실제 `app-builder-lib` transformer 계약 테스트는 다음과 같다.
+
+```text
+✔ tests 11
+✔ pass 11
+ℹ fail 0
+```
+
+전체 Windows 포장을 실행하지 않고, 실제 release version resolver → electron-builder
+CLI parser → app-builder-lib config/transformer까지만 실행한 원문이다.
+
+```text
+[version-stage] appVersion=2026/07/30-2
+[version-stage] SAMHAN_RELEASE_PACKAGE_VERSION=1.20260730.2
+[version-stage] builderArg=--config.extraMetadata.version=1.20260730.2
+[version-stage] clients/desktop/package.json.version=1.20260730.2
+[version-stage] clients/arologis-desktop/package.json.version=1.20260730.2
+[builder-cli-parse] config.extraMetadata.version=1.20260730.2
+```
+
+위 `package.json.version`은 각 앱의 실제 `app-builder-lib` transformer가 포장 대상
+`package.json`에 반환한 값이다. 따라서 env 리터럴이 남지 않고 두 앱 모두
+`1.20260730.2`가 들어가는 것을 실행으로 확인했다.
+
+### 7개 불변식 확인
+
+| 불변식 | 확인 방법 | 결과 및 한계 |
+|---|---|---|
+| 1. 포장본 version은 실제 `1.YYYYMMDD.N` | 두 앱의 실제 builder CLI parser와 `app-builder-lib` transformer를 실행해 `package.json.version`을 출력했다. | PASS: 두 값 모두 `1.20260730.2`. installer/app.asar/latest.yml 자체는 `build:win` 금지로 미생성. |
+| 2. 표시는 `YYYY/MM/DD-N` | 이번 변경의 diff에 main updater·renderer·updater IPC 파일이 없고, 기존 역변환·표시 코드를 읽어 변경하지 않았음을 확인했다. | PASS 유지. 실제 Windows 화면은 미실행. |
+| 3. 날짜 상승 릴리스 자동 감지 | 공통 생성기 기존 후속 릴리스 테스트와 실제 builder 주입으로 feed 비교축이 `1.20260730.2`가 됨을 확인했다. | PASS인 코드 경로. 실제 HTTP feed/설치 updater는 미실행. |
+| 4. 단조 증가·멱등성 | `node --test scripts/app-build-version.test.cjs`의 `9→10`, 월·연 경계, 동일 입력 테스트를 실행했다. | PASS, 전체 11/11. |
+| 5. `allowDowngrade=false` | updater 파일·설정 diff에 변경이 없고 기존 updater 계약을 대조했다. | PASS 유지. 실제 feed 역순 실행은 미실행. |
+| 6. 직전 fix 유지 | 개발 모드 배너/`INSTALL_CHANNEL`, `NONE/MINOR/MAJOR/CRITICAL`, 슬1, 정책 IPC, electron-updater 런타임 default import 파일이 이번 diff에 없음을 확인했다. | PASS 유지. 정책 서버는 수정하지 않음. |
+| 7. 환경변수 부재 fail-fast | release mode 무주입 테스트와 새 helper의 빈 값/env 리터럴/직전 형식 거부 테스트를 실행했다. | PASS: 잘못된 값으로 조용히 포장하지 않음. |
+
+### 실행 범위와 미실행 범위
+
+- 실행: RED 재현, GREEN `node --test scripts/app-build-version.test.cjs` 11/11, 두 앱의
+  실제 transformer version-stage, electron-builder CLI parser, AROLOGIS
+  `npm run typecheck` 종료 코드 0.
+- DESKTOP `npm run typecheck`는 180초 제한에서 종료 코드 124였다. `node
+  scripts/real-qa-scope.cjs --phase=typecheck`, `npm exec -- tsc -p tsconfig.node.json
+  --noEmit`, `npm exec -- tsc -p tsconfig.web.json --noEmit`는 각각 종료 코드 0이나
+  `real-qa-scope.test.cjs` 전체 하네스는 별도 실행에서도 출력 없이 대기했다.
+- 미실행: 전체 `build:win`, installer, `app.asar`, `latest.yml`, blockmap, 코드서명 및
+  `winCodeSign` 단계. 그러므로 실제 Windows 패키징 완주를 주장하지 않는다.
+- Docker, Gradle, 정책 서버 계약 변경, 결함 2 수정은 수행하지 않았다.

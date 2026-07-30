@@ -75,6 +75,21 @@ function resolveReleasePackageVersion(appVersion) {
   return `1.${match[1]}${match[2]}${match[3]}.${match[4]}`
 }
 
+/**
+ * electron-builder의 extraMetadata.version에 릴리스 semver를 명시 주입한다.
+ * electron-builder 25는 YAML extraMetadata 안의 env 표현식을 확장하지 않으므로
+ * CLI config override로 전달해야 포장 package.json과 AppInfo가 같은 버전을 사용한다.
+ */
+function createElectronBuilderVersionArgs(packageVersion) {
+  const normalized = String(packageVersion ?? '').trim()
+  if (!/^1\.\d{8}\.[1-9][0-9]*$/.test(normalized)) {
+    throw new Error(
+      `${RELEASE_PACKAGE_VERSION_ENV}에 유효한 릴리스 semver를 명시해야 합니다: ${packageVersion ?? ''}`,
+    )
+  }
+  return [`--config.extraMetadata.version=${normalized}`]
+}
+
 function isReleaseBuild(env) {
   const buildEnv = String(env.BUILD_ENV ?? '').trim().toLowerCase()
   return /^(1|true|yes)$/i.test(String(env[RELEASE_BUILD_ENV] ?? '').trim())
@@ -105,6 +120,7 @@ module.exports = {
   RELEASE_ARTIFACT_VERSION_ENV,
   RELEASE_PACKAGE_VERSION_ENV,
   createReleaseBuildEnvironment,
+  createElectronBuilderVersionArgs,
   resolveReleasePackageVersion,
   resolveBuildAppVersion,
   validateDevelopmentVersion,

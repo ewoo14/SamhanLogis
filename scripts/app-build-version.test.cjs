@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict')
 const { readFileSync } = require('node:fs')
-const { resolve } = require('node:path')
+const { join, resolve } = require('node:path')
 const { test } = require('node:test')
 const {
   DEVELOPMENT_FALLBACK_VERSION,
@@ -8,6 +8,7 @@ const {
   RELEASE_ARTIFACT_VERSION_ENV,
   RELEASE_PACKAGE_VERSION_ENV,
   createReleaseBuildEnvironment,
+  createElectronBuilderVersionArgs,
   resolveBuildAppVersion,
 } = require('./app-build-version.cjs')
 
@@ -149,16 +150,62 @@ test('같은 날짜·순번 입력은 같은 내부 semver를 만든다', () => 
   assert.equal(second.packageVersion, first.packageVersion)
 })
 
-test('두 Electron builder가 포장 package.json에 내부 비교 버전을 주입한다', () => {
+test('두 Electron builder 설정에 env 리터럴 버전이 남지 않는다', () => {
   for (const relativePath of [
     'clients/desktop/electron-builder.yml',
     'clients/arologis-desktop/electron-builder.yml',
   ]) {
     const config = readFileSync(resolve(__dirname, '..', relativePath), 'utf8')
-    assert.match(
+    assert.doesNotMatch(config, /\$\{env\.SAMHAN_RELEASE_PACKAGE_VERSION\}/, relativePath)
+  }
+})
+
+test('두 릴리스 wrapper가 실제 package semver를 builder transformer에 전달한다', async () => {
+  const release = createReleaseBuildEnvironment({
+    env: { VITE_APP_VERSION: '2026/07/30-2' },
+  })
+  const builderArgs = createElectronBuilderVersionArgs(release.packageVersion)
+  const versionOverride = builderArgs
+    .find((argument) => argument.startsWith('--config.extraMetadata.version='))
+    ?.split('=', 2)[1]
+
+  for (const relativePath of [
+    'clients/desktop',
+    'clients/arologis-desktop',
+  ]) {
+    const projectDir = resolve(__dirname, '..', relativePath)
+    const appBuilderLib = resolve(projectDir, 'node_modules', 'app-builder-lib')
+    const { getConfig } = require(resolve(appBuilderLib, 'out/util/config/config.js'))
+    const { createTransformer } = require(resolve(appBuilderLib, 'out/fileTransformer.js'))
+    const config = await getConfig(
+      projectDir,
+      null,
+      versionOverride == null ? null : { extraMetadata: { version: versionOverride } },
+    )
+    const transformedPackageJson = await createTransformer(
+      projectDir,
       config,
-      /extraMetadata:\s+version:\s+\$\{env\.SAMHAN_RELEASE_PACKAGE_VERSION\}/,
+      config.extraMetadata,
+    )(join(projectDir, 'package.json'))
+
+    assert.equal(
+      JSON.parse(transformedPackageJson).version,
+      release.packageVersion,
       relativePath,
+    )
+  }
+
+  assert.deepEqual(builderArgs, [
+    '--config.extraMetadata.version=1.20260730.2',
+  ])
+})
+
+test('electron-builder package semver가 없거나 env 리터럴이면 조용히 진행하지 않는다', () => {
+  for (const packageVersion of ['', '${env.SAMHAN_RELEASE_PACKAGE_VERSION}', '20260730.2.0']) {
+    assert.throws(
+      () => createElectronBuilderVersionArgs(packageVersion),
+      /SAMHAN_RELEASE_PACKAGE_VERSION.*semver/,
+      packageVersion,
     )
   }
 })
