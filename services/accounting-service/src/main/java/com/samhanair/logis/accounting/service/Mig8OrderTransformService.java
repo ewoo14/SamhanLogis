@@ -63,6 +63,7 @@ public class Mig8OrderTransformService {
 
         for (List<ValidatedRow> group : groups.values()) {
             try {
+                ensureProductAliasesResolved(group, productAliasCache);
                 transformGroup(group, actor, result, productAliasCache);
             } catch (BusinessException ex) {
                 rejectGroup(group, ex.getErrorCode().name(), ex.getMessage(), result);
@@ -93,6 +94,25 @@ public class Mig8OrderTransformService {
             }
         }
         return groups;
+    }
+
+    /**
+     * Product alias 결과가 비어 있으면 주문/라인을 만들지 않고 해당 주문 전체를 거부한다.
+     *
+     * <p>staging alias 는 soft-delete 된 Product 를 가리킬 수 있으므로, resolver 가 반환하지 않은
+     * 품목을 {@code product_id = NULL} 로 저장하면 운영자가 모르는 상태로 downstream 이 실패한다.
+     * 변환 전에 주문 그룹 전체를 검증해 dangling UUID 와 부분 주문 생성을 함께 막는다.
+     */
+    private void ensureProductAliasesResolved(List<ValidatedRow> group,
+                                              Map<String, UUID> productAliasCache) {
+        for (ValidatedRow row : group) {
+            String itemName = EcountCsvSupport.stripCell(row.row().itemName());
+            if (lookupProductId(itemName, productAliasCache) == null) {
+                throw new BusinessException(ErrorCode.MIG8_LOOKUP_MISS,
+                        "품목 alias lookup miss: sourceRowNo=" + row.row().sourceRowNo()
+                                + ", itemName='" + itemName + "'");
+            }
+        }
     }
 
     private Map<String, UUID> resolveProductAliases(Map<String, List<ValidatedRow>> groups) {

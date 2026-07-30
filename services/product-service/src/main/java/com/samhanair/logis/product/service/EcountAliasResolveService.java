@@ -33,9 +33,12 @@ public class EcountAliasResolveService {
         }
 
         return jdbcTemplate.query("""
-                SELECT alias_code, main_product_uuid
-                  FROM staging.ecount_item_alias
-                 WHERE alias_code IN (:codes)
+                SELECT a.alias_code, a.main_product_uuid
+                  FROM staging.ecount_item_alias a
+                  JOIN products p
+                    ON p.id = a.main_product_uuid
+                   AND p.is_deleted = FALSE
+                 WHERE a.alias_code IN (:codes)
                 """, new MapSqlParameterSource("codes", distinct), rs -> {
             Map<String, UUID> resolved = new LinkedHashMap<>();
             while (rs.next()) {

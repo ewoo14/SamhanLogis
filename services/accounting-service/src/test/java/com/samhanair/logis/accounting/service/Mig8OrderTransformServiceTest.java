@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +61,8 @@ class Mig8OrderTransformServiceTest {
         lenient().when(jdbcTemplate.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
         lenient().when(partnerLookupClient.findByPartnerNameStrict("삼한상사"))
                 .thenReturn(Optional.of(partner()));
+        lenient().when(productAliasClient.resolveAliases(anyList()))
+                .thenReturn(Map.of("테스트품목", productId()));
     }
 
     @Test
@@ -256,9 +260,40 @@ class Mig8OrderTransformServiceTest {
         pending(row(1, "2026-05-20-001", "진행"));
         doReturn(Map.of()).when(productAliasClient).resolveAliases(List.of("테스트품목"));
 
-        service.transformFromStaging(500, "tester");
+        EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
 
-        assertThat(lineParams().getValue("productId")).isNull();
+        assertThat(result.imported()).isZero();
+        assertThat(result.rejected()).isOne();
+        assertThat(result.samples()).extracting(EcountMig8TransformResult.Sample::code)
+                .containsExactly("MIG8_LOOKUP_MISS");
+        assertThat(statuses()).containsExactly("REJECTED");
+        verify(jdbcTemplate, org.mockito.Mockito.never())
+                .queryForObject(contains("INSERT INTO order_lines"), any(SqlParameterSource.class), eq(UUID.class));
+    }
+
+    @Test
+    void soft_deleted_alias_UUID가_섞인_160건은_삭제_UUID를_쓰지_않고_전건_reject한다() {
+        List<Mig8OrderTransformService.StagingRow> rows = IntStream.rangeClosed(1, 160)
+                .mapToObj(rowNo -> row(rowNo, "2026-05-20-" + String.format("%03d", rowNo), "진행",
+                        new BigDecimal("2"), "삼한상사", "HASH-AR-EC05-" + rowNo))
+                .toList();
+        pending(rows.toArray(Mig8OrderTransformService.StagingRow[]::new));
+        // product-service 가 soft-delete 대상 alias 를 제외하면 accounting 에는 미해소로 도착한다.
+        doReturn(Map.of()).when(productAliasClient)
+                .resolveAliases(List.of("테스트품목"));
+
+        EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.totalRows()).isEqualTo(160);
+        assertThat(result.imported()).isZero();
+        assertThat(result.updated()).isZero();
+        assertThat(result.rejected()).isEqualTo(160);
+        assertThat(result.samples()).isNotEmpty()
+                .first().extracting(EcountMig8TransformResult.Sample::code)
+                .isEqualTo("MIG8_LOOKUP_MISS");
+        assertThat(statuses()).hasSize(160).containsOnly("REJECTED");
+        verify(jdbcTemplate, org.mockito.Mockito.never())
+                .queryForObject(contains("INSERT INTO orders"), any(SqlParameterSource.class), eq(UUID.class));
     }
 
     @Test
