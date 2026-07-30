@@ -4,12 +4,13 @@ const DEVELOPMENT_VERSION_PATTERN = /^(\d{4})\/(\d{2})\/(\d{2})-([1-9][0-9]*)$/
 const DEVELOPMENT_FALLBACK_VERSION = '0.1.0-dev'
 const RELEASE_BUILD_ENV = 'SAMHAN_RELEASE_BUILD'
 const RELEASE_ARTIFACT_VERSION_ENV = 'SAMHAN_RELEASE_ARTIFACT_VERSION'
+const RELEASE_PACKAGE_VERSION_ENV = 'SAMHAN_RELEASE_PACKAGE_VERSION'
 
 /**
  * 빌드 산출물에 넣을 개발 버전을 해석한다.
  *
  * 패키지 semver는 Electron/Expo 도구가 요구하는 메타데이터로 남기고,
- * 릴리스 산출물은 릴리스 파이프라인이 명시한 YYYY/MM/DD-번호를 사용한다.
+ * 릴리스 산출물의 renderer와 정책 정본은 릴리스 파이프라인이 명시한 YYYY/MM/DD-번호를 사용한다.
  * 개발·CI 산출물은 등록할 수 없는 고정 sentinel을 사용해 호스트 시계가 릴리스 순서를 만들지
  * 못하게 한다. `SAMHAN_RELEASE_BUILD=1` 또는 `BUILD_ENV=production|preview`인 릴리스 모드에서는
  * sentinel fallback 없이 명시 주입을 요구한다.
@@ -47,15 +48,31 @@ function createReleaseBuildEnvironment({
     [RELEASE_BUILD_ENV]: '1',
   }
   const appVersion = resolveBuildAppVersion({ env: releaseEnv, variable })
+  const packageVersion = resolveReleasePackageVersion(appVersion)
   return {
     appVersion,
+    packageVersion,
     env: {
       ...releaseEnv,
       [variable]: appVersion,
       [RELEASE_ARTIFACT_VERSION_ENV]: appVersion.replaceAll('/', '-'),
+      [RELEASE_PACKAGE_VERSION_ENV]: packageVersion,
       VITE_MOCK_MODE: '0',
     },
   }
+}
+
+/**
+ * electron-updater가 비교할 내부 semver를 날짜 버전에서 만든다.
+ * major=YYYYMMDD, minor=당일 순번으로 두어 날짜와 같은 날짜의 후속 릴리스를 모두 구분한다.
+ * renderer·정책 서버에는 이 값을 노출하지 않고 YYYY/MM/DD-번호를 유지한다.
+ */
+function resolveReleasePackageVersion(appVersion) {
+  const match = DEVELOPMENT_VERSION_PATTERN.exec(String(appVersion ?? '').trim())
+  if (!match) {
+    validateDevelopmentVersion(String(appVersion ?? '').trim(), 'VITE_APP_VERSION')
+  }
+  return `${match[1]}${match[2]}${match[3]}.${match[4]}.0`
 }
 
 function isReleaseBuild(env) {
@@ -86,7 +103,9 @@ module.exports = {
   DEVELOPMENT_VERSION_PATTERN,
   RELEASE_BUILD_ENV,
   RELEASE_ARTIFACT_VERSION_ENV,
+  RELEASE_PACKAGE_VERSION_ENV,
   createReleaseBuildEnvironment,
+  resolveReleasePackageVersion,
   resolveBuildAppVersion,
   validateDevelopmentVersion,
 }
