@@ -171,6 +171,8 @@ export interface DailyProductLine {
   productName: string
   /** 모델명 — BE 가 extractModelTokenOrNull 로 채움(실 모델코드만·운임/서비스 등 미매치는 null→'—'). */
   modelName: string | null
+  /** 판매 당시 정규화된 GAS schedule 카테고리 축. 미상 라인은 UNKNOWN으로 별도 집계. */
+  categoryKey: string
   /** 수량 (BigDecimal → Jackson 기본 JSON number). */
   quantity: number
   /** 공급가액 합 (BigDecimal → JSON number). */

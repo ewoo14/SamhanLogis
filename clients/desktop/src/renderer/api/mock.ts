@@ -9306,6 +9306,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           productName: 'AM160NXVHHH1 [상업멀티]',
           modelName: 'AM160NXVHHH1',
+          categoryKey: 'commercialMulti',
           quantity: 1,
           supplyAmount: 500000,
           releasePrice: 1000000,
@@ -9318,6 +9319,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           productName: '미등록서비스품목',
           modelName: null,
+          categoryKey: 'UNKNOWN',
           quantity: 1,
           supplyAmount: 100000,
           releasePrice: null,

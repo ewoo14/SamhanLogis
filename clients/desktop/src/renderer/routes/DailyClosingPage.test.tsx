@@ -72,6 +72,7 @@ const detailFixture = {
     {
       productName: 'AM160NXVHHH1 [상업멀티]',
       modelName: 'AM160NXVHHH1',
+      categoryKey: 'commercialMulti',
       quantity: 1,
       supplyAmount: 500000,
       releasePrice: 1000000,
@@ -85,6 +86,7 @@ const detailFixture = {
     {
       productName: 'AM320NXVHHH1 [상업멀티]',
       modelName: 'AM320NXVHHH1',
+      categoryKey: 'commercialMulti',
       quantity: 1,
       supplyAmount: 1050000,
       releasePrice: 1000000,
@@ -98,6 +100,7 @@ const detailFixture = {
     {
       productName: '미등록서비스품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 100000,
       releasePrice: null,
@@ -111,6 +114,7 @@ const detailFixture = {
     {
       productName: '중복매칭품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 200000,
       releasePrice: 900000,
@@ -124,6 +128,7 @@ const detailFixture = {
     {
       productName: '정가결측품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 150000,
       releasePrice: null,
@@ -137,6 +142,7 @@ const detailFixture = {
     {
       productName: '측정불가품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 0,
       supplyAmount: 0,
       releasePrice: 800000,
@@ -150,6 +156,7 @@ const detailFixture = {
     {
       productName: 'AC 세트품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 300000,
       releasePrice: 700000,
@@ -169,6 +176,51 @@ const purchaseDetailFixture = {
     detailFixture.productSummaries[0], // verified=true
     detailFixture.productSummaries[1], // verified=false (불일치)
     detailFixture.productSummaries[2], // verified=null (NOT_FOUND)
+  ],
+}
+
+const categoryAxisDetailFixture = {
+  ...detailFixture,
+  productSummaries: [
+    {
+      productName: 'AJ040RXH4BC1 [홈멀티]',
+      modelName: 'AJ040RXH4BC1',
+      categoryKey: 'homemulti',
+      quantity: 1,
+      supplyAmount: 50000,
+      releasePrice: 100000,
+      deliveryPrice: 70000,
+      expectedRate: 45,
+      actualRate: 45,
+      verified: true,
+      revalidationStatus: 'VERIFIED',
+    },
+    {
+      productName: 'AJ040RXH4BC1 [싱글]',
+      modelName: 'AJ040RXH4BC1',
+      categoryKey: 'singleSets',
+      quantity: 1,
+      supplyAmount: 60000,
+      releasePrice: 100000,
+      deliveryPrice: 70000,
+      expectedRate: 45,
+      actualRate: 45,
+      verified: true,
+      revalidationStatus: 'VERIFIED',
+    },
+    {
+      productName: '카테고리 미상',
+      modelName: null,
+      categoryKey: 'UNKNOWN',
+      quantity: 1,
+      supplyAmount: 70000,
+      releasePrice: null,
+      deliveryPrice: null,
+      expectedRate: null,
+      actualRate: null,
+      verified: null,
+      revalidationStatus: 'MISSING_REFERENT',
+    },
   ],
 }
 
@@ -224,6 +276,20 @@ const emptyPage = {
 }
 
 describe('DailyClosingPage 모델별 재검증', () => {
+  it('같은 모델의 GAS 카테고리 축을 별도 행으로 표시하고 UNKNOWN을 분리한다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(categoryAxisDetailFixture)
+
+    renderPage()
+
+    await screen.findByText('모델별 재검증')
+
+    expect(screen.getByRole('columnheader', { name: '카테고리' })).toBeTruthy()
+    expect(within(rowOf('AJ040RXH4BC1 [홈멀티]')).getByText('homemulti')).toBeTruthy()
+    expect(within(rowOf('AJ040RXH4BC1 [싱글]')).getByText('singleSets')).toBeTruthy()
+    expect(within(rowOf('카테고리 미상')).getByText('UNKNOWN')).toBeTruthy()
+  })
+
   it('매출 조회에서 확인/불일치/판정불가 배지·6종 사유·0/null/음수 할인율·모델 실값을 BE 계약대로 렌더한다', async () => {
     listDailyClosingsMock.mockResolvedValue(emptyPage)
     getDailyClosingDetailMock.mockResolvedValue(detailFixture)

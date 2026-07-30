@@ -627,6 +627,12 @@ export function DailyClosingPage() {
       render: (row) => row.modelName ?? '—',
     },
     {
+      key: 'categoryKey',
+      header: '카테고리',
+      align: 'left',
+      render: (row) => row.categoryKey,
+    },
+    {
       key: 'quantity',
       header: '수량',
       width: '90px',
