@@ -50,6 +50,19 @@ class DocumentTemplateTest {
     }
 
     @Test
+    void excelDraftUpdate_withoutMode_inheritsExistingModeAndSucceeds() {
+        DocumentPayload excelPayload = new DocumentPayload("A4_PORTRAIT", PAYLOAD.bands(), DocumentPayload.EXCEL_MODE);
+        DocumentTemplate template = DocumentTemplate.create("GROUPWARE_EXPENSE", "지출 양식", (short) 1, excelPayload);
+        DocumentPayload ordinaryUpdate = new DocumentPayload("A4_LANDSCAPE", PAYLOAD.bands());
+
+        template.updateDocument(ordinaryUpdate);
+
+        assertThat(template.getRevision()).isEqualTo(2);
+        assertThat(template.getDocument().paper()).isEqualTo("A4_LANDSCAPE");
+        assertThat(template.getDocument().mode()).isEqualTo(DocumentPayload.EXCEL_MODE);
+    }
+
+    @Test
     void lifecycleMethods_areChainableAndSoftDelete() {
         DocumentTemplate template = DocumentTemplate.create("GROUPWARE_EXPENSE", "지출 양식", (short) 1, PAYLOAD)
                 .rename("지출 양식 v2").activate().deactivate().softDelete("tester");
