@@ -272,7 +272,8 @@ public class SlipLine extends BaseEntity {
         // FE(SlipFormPage/LineRow 의 Math.round)와 동일 granularity 로 일치시킨다(P2 정합).
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
                 .setScale(0, RoundingMode.HALF_UP);
-        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat,
+                RoundingMode.HALF_UP);
         BigDecimal supply = vatSplit.supplyAmount();
         BigDecimal vat = vatSplit.vatAmount();
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);

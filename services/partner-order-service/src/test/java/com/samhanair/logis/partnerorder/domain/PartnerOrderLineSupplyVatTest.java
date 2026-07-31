@@ -57,4 +57,17 @@ class PartnerOrderLineSupplyVatTest {
         assertThat(vat.getVatAmount()).isEqualByComparingTo("9999");
         assertThat(total.getSupplyAmount()).isEqualByComparingTo("100004");
     }
+
+    @Test
+    @DisplayName("기존 주문의 DC 최종가 800000원은 공급가액 727272원을 보존한다")
+    void preservesLegacyDiscountedTotalSplit() {
+        PartnerOrderLine line = PartnerOrderLine.createFromAuthoritativeAmounts(
+                UUID.randomUUID(), "DC-800000", "품목", "singleSets", 1,
+                null, null, null, new java.math.BigDecimal("800000"),
+                PartnerOrderLine.AmountAuthority.TOTAL, null);
+
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("727272");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("72728");
+        assertThat(line.getLineTotal()).isEqualByComparingTo("800000");
+    }
 }
