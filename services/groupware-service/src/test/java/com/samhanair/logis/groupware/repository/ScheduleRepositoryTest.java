@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 
-/** 기존 owner-less 일정도 owner 조회를 유지하고 outsider에게는 노출하지 않는 JPA 계약. */
+/** 활성 대상자 집합만 일정 접근을 허용하는 JPA 계약. */
 @DataJpaTest(properties = {
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop"
@@ -23,7 +23,7 @@ class ScheduleRepositoryTest {
     private ScheduleRepository scheduleRepository;
 
     @Test
-    void owner_can_still_query_legacy_ownerless_schedule_but_outsider_cannot() {
+    void owner_cannot_query_legacy_ownerless_schedule_without_participant_row() {
         UUID owner = UUID.randomUUID();
         UUID outsider = UUID.randomUUID();
         LocalDateTime starts = LocalDateTime.now().plusDays(1).withNano(0);
@@ -34,7 +34,7 @@ class ScheduleRepositoryTest {
         assertThat(scheduleRepository.findVisibleInRange(
                 owner, starts.minusHours(1), starts.plusHours(2)))
                 .extracting(Schedule::getId)
-                .containsExactly(saved.getId());
+                .doesNotContain(saved.getId());
         assertThat(scheduleRepository.findVisibleInRange(
                 outsider, starts.minusHours(1), starts.plusHours(2)))
                 .isEmpty();

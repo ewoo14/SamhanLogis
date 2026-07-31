@@ -20,8 +20,16 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
     @EntityGraph(attributePaths = "participants")
     Optional<Schedule> findById(UUID id);
 
+    /** 호출자가 활성 대상자인 일정만 단건 조회한다. */
+    @Query("select distinct s from Schedule s left join fetch s.participants "
+            + "where s.id = :scheduleId "
+            + "and exists (select 1 from ScheduleParticipant p "
+            + "where p.schedule = s and p.participantId = :userId and p.isDeleted = false)")
+    Optional<Schedule> findVisibleById(@Param("scheduleId") UUID scheduleId,
+                                      @Param("userId") UUID userId);
+
     /**
-     * 호출자가 소유자 또는 활성 참여자인 + 기간 겹침 조회. 이벤트 [startsAt, endsAt] 가
+     * 호출자가 활성 참여자인 + 기간 겹침 조회. 이벤트 [startsAt, endsAt] 가
      * [from, to] 와 겹치는 모든 row.
      *
      * <p>겹침 = !(eventEnd < windowStart || eventStart > windowEnd) → eventEnd >= from AND eventStart <= to.
@@ -29,9 +37,8 @@ public interface ScheduleRepository extends JpaRepository<Schedule, UUID> {
      * 참여자 목록을 유지한다. {@code distinct} 는 복수 참여자 fetch 에 따른 entity 중복을 제거한다.
      */
     @Query("select distinct s from Schedule s left join fetch s.participants "
-            + "where (s.ownerId = :userId "
-            + "or exists (select 1 from ScheduleParticipant p "
-            + "where p.schedule = s and p.participantId = :userId and p.isDeleted = false)) "
+            + "where exists (select 1 from ScheduleParticipant p "
+            + "where p.schedule = s and p.participantId = :userId and p.isDeleted = false) "
             + "and s.endsAt >= :from and s.startsAt <= :to "
             + "order by s.startsAt asc")
     List<Schedule> findVisibleInRange(@Param("userId") UUID userId,

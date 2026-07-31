@@ -896,10 +896,25 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
         UUID actor = UUID.fromString(SALES_ACCOUNT_ID);
         UUID other = UUID.fromString(MANAGER_ACCOUNT_ID);
         LocalDateTime base = LocalDateTime.now().withNano(0);
-        scheduleRepository.save(Schedule.create(actor, "내 일정", null,
-                base.plusDays(1), base.plusDays(1).plusHours(1), null));
-        scheduleRepository.save(Schedule.create(other, "타인 일정", null,
-                base.plusDays(1), base.plusDays(1).plusHours(1), null));
+        ScheduleRequest ownRequest = new ScheduleRequest(
+                other, "내 일정", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null, null);
+        ScheduleRequest otherRequest = new ScheduleRequest(
+                actor, "타인 일정", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null, null);
+
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", actor.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(ownRequest)))
+                .andExpect(MockMvcResultMatchers.status().isCreated());
+        mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", other.toString())
+                        .header("X-User-Role", "MANAGER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(otherRequest)))
+                .andExpect(MockMvcResultMatchers.status().isCreated());
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules")
                         .param("ownerId", other.toString())
@@ -968,6 +983,69 @@ class GroupwareAdminControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "SALES"))
                 .andExpect(MockMvcResultMatchers.status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
+    void participant_can_read_schedule_detail() throws Exception {
+        UUID owner = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID participant = UUID.fromString(MANAGER_ACCOUNT_ID);
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        ScheduleRequest req = new ScheduleRequest(
+                owner, "상세 대상 일정", "상세 본문",
+                base.plusDays(1), base.plusDays(1).plusHours(1), null,
+                List.of(participant));
+
+        MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", owner.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andReturn();
+        UUID scheduleId = UUID.fromString(objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("scheduleId").asText());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules/{id}", scheduleId)
+                        .header("X-User-Id", participant.toString())
+                        .header("X-User-Role", "MANAGER"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.title").value("상세 대상 일정"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.data.participantIds.length()").value(2));
+    }
+
+    @Test
+    void non_participant_cannot_read_schedule_detail() throws Exception {
+        UUID owner = UUID.fromString(SALES_ACCOUNT_ID);
+        UUID outsider = UUID.randomUUID();
+        LocalDateTime base = LocalDateTime.now().withNano(0);
+        ScheduleRequest req = new ScheduleRequest(
+                owner, "비대상 상세 차단", null,
+                base.plusDays(1), base.plusDays(1).plusHours(1), null, null);
+
+        MvcResult created = mockMvc.perform(MockMvcRequestBuilders.post("/admin/groupware/schedules")
+                        .header("X-User-Id", owner.toString())
+                        .header("X-User-Role", "SALES")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andReturn();
+        UUID scheduleId = UUID.fromString(objectMapper.readTree(
+                        created.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data").path("scheduleId").asText());
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules/{id}", scheduleId)
+                        .header("X-User-Id", outsider.toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound());
+    }
+
+    @Test
+    void missing_schedule_detail_returns_not_found() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/admin/groupware/schedules/{id}", UUID.randomUUID())
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound());
     }
 
     @Test

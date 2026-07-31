@@ -311,6 +311,20 @@ public class GroupwareAdminController {
         return ApiResponse.ok(schedules.stream().map(ScheduleResponse::from).toList());
     }
 
+    /** 일정 단건 상세 조회. 호출자가 활성 대상자인 일정만 반환한다. */
+    @Operation(summary = "일정 단건 상세 조회")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "일정 미존재 또는 조회 권한 없음")
+    })
+    @GetMapping("/schedules/{scheduleId}")
+    @RequirePermission(page = SCHEDULE_PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<ScheduleResponse> findSchedule(
+            @PathVariable UUID scheduleId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorUserId) {
+        return ApiResponse.ok(ScheduleResponse.from(scheduleService.findVisibleById(scheduleId, actorUserId)));
+    }
+
     /** 일정 수정. */
     @Operation(summary = "일정 수정")
     @PutMapping("/schedules/{scheduleId}")

@@ -132,6 +132,7 @@ class GroupwarePermissionControllerIT {
                 new MessageBulkSendResponse(UUID.randomUUID(), 1, List.of(MessageResponse.from(message))));
         lenient().when(scheduleService.create(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
+        lenient().when(scheduleService.findVisibleById(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.update(any(), any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(userClient.search(anyString(), anyInt())).thenReturn(List.of());
         lenient().when(userClient.search(anyString(), anyInt(), anyBoolean())).thenReturn(List.of());
@@ -258,6 +259,8 @@ class GroupwarePermissionControllerIT {
                                 .param("ownerId", "00000000-0000-0000-0000-000000000031")
                                 .param("from", "2026-05-26T08:00:00")
                                 .param("to", "2026-05-26T18:00:00")),
+                new EndpointCase("schedule detail", SCHEDULE_PAGE, PermissionAction.VIEW, "SALES",
+                        () -> get("/admin/groupware/schedules/{id}", id)),
                 new EndpointCase("update schedule", SCHEDULE_PAGE, PermissionAction.UPDATE, "SALES",
                         () -> put("/admin/groupware/schedules/{id}", id)
                                 .contentType(MediaType.APPLICATION_JSON)
