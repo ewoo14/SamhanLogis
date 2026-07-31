@@ -81,9 +81,6 @@ public class Mig8OrderImportService {
             return rejected(order, null, "필수 주문 정보 누락");
         }
         String idempotencyKey = idempotencyKey(order.orderNo());
-        if (alreadyImported(idempotencyKey)) {
-            return Mig8OrderImportResult.skipped();
-        }
 
         PartnerMig8Summary partner = partnerMig8LookupClient.findByPartnerId(order.partnerId())
                 .filter(this::validPartner)
@@ -96,6 +93,11 @@ public class Mig8OrderImportService {
 
         List<Mig8OrderLineExport> lines = order.lines() == null ? List.of() : order.lines();
         Map<UUID, ProductSummary> products = lookupProducts(lines);
+        UUID importedOrderId = findImportedOrderId(idempotencyKey);
+        if (importedOrderId != null) {
+            refreshPreviouslyUnresolvedLines(importedOrderId, order.orderNo(), lines, products);
+            return Mig8OrderImportResult.skipped();
+        }
         if (lines.isEmpty() || hasInvalidLine(lines, products)) {
             log.warn("MIG-8 주문 이식 reject — product/line invalid orderNo={}", order.orderNo());
             return rejected(order, null, lines.isEmpty() ? "주문 라인 없음" : "구조 오류");
@@ -138,9 +140,42 @@ public class Mig8OrderImportService {
         }
 
         for (Mig8OrderLineExport line : lines) {
-            insertLine(orderId, order.orderNo(), line, products.get(line.productId()), now);
+            ProductSummary product = line.productId() == null ? null : products.get(line.productId());
+            insertLine(orderId, order.orderNo(), line, product, now);
         }
         return Mig8OrderImportResult.created();
+    }
+
+    /**
+     * 이미 native 에 보존한 주문의 미해소 라인만 재실행 시 현재 품목 조회 결과로 보정한다.
+     *
+     * <p>기존에 해소된 라인과 정상 주문은 건드리지 않는다. 아직 품목 조회가 실패한 라인은
+     * {@code product_id IS NULL} 상태를 유지하므로 전표 전환 차단이 계속된다.
+     */
+    private void refreshPreviouslyUnresolvedLines(UUID orderId, String orderNo,
+                                                  List<Mig8OrderLineExport> lines,
+                                                  Map<UUID, ProductSummary> products) {
+        LocalDateTime now = LocalDateTime.now();
+        for (Mig8OrderLineExport line : lines) {
+            if (line == null || line.productId() == null) {
+                continue;
+            }
+            ProductSummary product = products.get(line.productId());
+            if (product == null || isBlank(product.modelName()) || isBlank(product.name())
+                    || isBlank(product.categoryKey())) {
+                continue;
+            }
+            jdbcTemplate.update("""
+                    UPDATE partner_order_lines
+                    SET product_id = ?, model_name = ?, product_name = ?, category_key = ?,
+                        modified_at = ?, modified_by = ?
+                    WHERE id = ? AND partner_order_id = ? AND product_id IS NULL AND is_deleted = FALSE
+                    """,
+                    line.productId(), product.modelName(), product.name(), product.categoryKey(),
+                    now, ACTOR,
+                    deterministicId("samhan-mig8:partner-order-line:" + orderNo + ":" + line.lineNo()),
+                    orderId);
+        }
     }
 
     private void insertLine(UUID orderId, String orderNo, Mig8OrderLineExport line,
@@ -195,7 +230,7 @@ public class Mig8OrderImportService {
                 if (line != null) INVALID_LINE_NO.set(line.lineNo());
                 return true;
             }
-            ProductSummary product = products.get(line.productId());
+            ProductSummary product = line.productId() == null ? null : products.get(line.productId());
             if (line.productId() != null && (product == null || isBlank(product.modelName()) || isBlank(product.name())
                     || isBlank(product.categoryKey()))) {
                 INVALID_LINE_NO.set(line.lineNo());
@@ -211,12 +246,11 @@ public class Mig8OrderImportService {
         return false;
     }
 
-    private boolean alreadyImported(String idempotencyKey) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM partner_orders WHERE idempotency_key = ? AND is_deleted = FALSE",
-                Integer.class,
-                idempotencyKey);
-        return count != null && count > 0;
+    private UUID findImportedOrderId(String idempotencyKey) {
+        return jdbcTemplate.query(
+                "SELECT id FROM partner_orders WHERE idempotency_key = ? AND is_deleted = FALSE",
+                (rs, rowNum) -> (UUID) rs.getObject("id"),
+                idempotencyKey).stream().findFirst().orElse(null);
     }
 
     private PartnerOrderStatus mapStatus(String progressStatus) {
