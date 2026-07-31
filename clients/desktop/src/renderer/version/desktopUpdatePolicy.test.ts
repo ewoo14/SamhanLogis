@@ -41,12 +41,12 @@ describe('데스크톱 자동 업데이트 강제 수준 배선', () => {
   it('자동 설치 계약은 사용자 설치 버튼을 제공하지 않는다', () => {
     expect(resolveDesktopUpdatePresentation('CRITICAL', {
       kind: 'downloaded',
-      version: '0.2.0',
+      version: '2026/07/30-3',
     })).toEqual({
       kind: 'critical',
       canContinue: false,
       canInstall: false,
-      version: '0.2.0',
+      version: '2026/07/30-3',
     })
     expect(resolveDesktopUpdatePresentation('MAJOR', {
       kind: 'available',

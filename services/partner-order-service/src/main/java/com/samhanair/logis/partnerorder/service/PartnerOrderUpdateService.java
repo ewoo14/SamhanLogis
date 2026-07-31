@@ -52,7 +52,7 @@ public class PartnerOrderUpdateService {
     private static final Set<String> CORE_HEADER_FIELDS = Set.of(
             "orderNo", "orderNumber", "partnerId", "partnerCode", "bizCode", "status", "slipNo",
             "slipPublishStatus", "totalAmount", "confirmedAt", "slipPublishedAt",
-            "sourceEstimateId", "idempotencyKey", "lockVersion", "revisionCount");
+            "sourceEstimateId", "idempotencyKey", "lockVersion", "revisionCount", "deliveryAddress");
     private static final Set<String> CORE_LINE_FIELDS = Set.of(
             "productId", "modelName", "modelCode", "productName", "categoryKey", "quantity",
             "priceVat", "deliveryPrice", "subtotal", "supplyAmount", "vatAmount", "lineTotal",
@@ -96,7 +96,9 @@ public class PartnerOrderUpdateService {
                         request.partnerCode(), request.bizCode());
             }
             order.updateHeader(nextPartnerId, request.partnerCode(), request.bizCode(),
-                    request.dueDate(), request.memo());
+                    request.dueDate(), request.memo(),
+                    request.deliveryAddress() == null
+                            ? order.getDeliveryAddress() : request.deliveryAddress());
             order.replaceLines(request.lines().stream().map(this::toLine).toList());
             PartnerOrder saved = partnerOrderRepository.saveAndFlush(order);
 
@@ -372,6 +374,10 @@ public class PartnerOrderUpdateService {
         addIfChanged(changes, "사업자번호", order.getBizCode(), request.bizCode());
         addIfChanged(changes, "납기", toText(order.getDueDate()), toText(request.dueDate()));
         addIfChanged(changes, "요청사항", order.getMemo(), trimToNull(request.memo()));
+        if (request.deliveryAddress() != null) {
+            addIfChanged(changes, "배송주소", order.getDeliveryAddress(),
+                    trimToNull(request.deliveryAddress()));
+        }
         String oldLines = summarizeLines(order.getLines());
         String newLines = summarizeRequestLines(request.lines());
         addIfChanged(changes, "주문 라인", oldLines, newLines);

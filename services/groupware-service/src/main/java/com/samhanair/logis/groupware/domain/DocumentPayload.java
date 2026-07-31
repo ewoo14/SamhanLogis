@@ -4,10 +4,31 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /** 영속 문서 레이아웃 JSONB payload. */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record DocumentPayload(
         String paper,
-        List<Band> bands
+        List<Band> bands,
+        /** 생성 후 변경하지 않는 문서 양식 저작 방식. 누락된 legacy payload는 WORD로 해석한다. */
+        String mode
 ) {
+
+    public static final String WORD_MODE = "WORD";
+    public static final String EXCEL_MODE = "EXCEL";
+
+    /** 기존 mode 없는 호출부와 legacy fixture의 생성 시그니처를 보존한다. */
+    public DocumentPayload(String paper, List<Band> bands) {
+        this(paper, bands, null);
+    }
+
+    /** 정확한 두 mode 외의 값은 안전한 legacy 방식으로 수렴한다. */
+    public static String normalizeMode(String value) {
+        return EXCEL_MODE.equals(value) ? EXCEL_MODE : WORD_MODE;
+    }
+
+    /** 저장 payload가 mode를 생략해도 런타임 판정은 항상 명시적인 방식으로 반환한다. */
+    public String normalizedMode() {
+        return normalizeMode(mode);
+    }
 
     /** 문서의 band 구조. */
     public record Band(

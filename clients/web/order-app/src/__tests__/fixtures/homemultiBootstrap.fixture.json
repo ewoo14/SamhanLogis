@@ -1,0 +1,27 @@
+{
+  "source": {
+    "endpoint": "http://localhost:8088/api/v1/partner-orders/bootstrap",
+    "fetchedOn": "2026-07-29 (Asia/Seoul)",
+    "httpStatus": 200,
+    "originalHomeMultiRows": 119,
+    "afterRemovingDerivedRows": 118,
+    "selectedFields": ["name", "model", "unit", "price", "catL"],
+    "note": "실 bootstrap 응답의 data.payloads.homemulti에서 홈멀티 1-Way 호스 누락 재계산에 필요한 행만 보존한 fixture다. 원본 응답은 119행이며 FH-LFHLF 행을 제거하면 118행이다. 조회 엔드포인트와 일시는 실측 기준이다."
+  },
+  "rows": [
+    {
+      "name": "실내기(1-Way) 무풍 소형 WIFI 내장 3평형",
+      "model": "AJ012BN1PBC2",
+      "unit": "EA",
+      "price": 288585,
+      "catL": "실내기"
+    },
+    {
+      "name": "유연호스 L형 1WAY",
+      "model": "FH-LFHLF",
+      "unit": "EA",
+      "price": 10000,
+      "catL": "부자재"
+    }
+  ]
+}

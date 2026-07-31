@@ -234,7 +234,8 @@ public class PartnerOrderRevisionService {
                 snapshot.partnerCode(),
                 snapshot.bizCode(),
                 snapshot.dueDate(),
-                snapshot.memo());
+                snapshot.memo(),
+                snapshot.deliveryAddress());
 
         // [P1-1 lines 정합 보장 + cycle2c 경로 분기]
         //
@@ -491,6 +492,9 @@ public class PartnerOrderRevisionService {
             changed++;
         }
         if (!Objects.equals(prev.memo(), cur.memo())) {
+            changed++;
+        }
+        if (!Objects.equals(prev.deliveryAddress(), cur.deliveryAddress())) {
             changed++;
         }
         return changed;

@@ -5,6 +5,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ElementInspector } from './ElementInspector'
+import { GROUPWARE_DEFAULT } from '../../print/approvalDefaultTemplate'
+import { maxImageBytesForDocument, parseDocumentTemplate } from '../../print/templateSchema'
 
 const originalDecode = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'decode')
 
@@ -27,6 +29,28 @@ function renderImageInspector() {
 
 function fileOf(bytes: Uint8Array, name: string, type: string) {
   return new File([bytes], name, { type })
+}
+
+function expectedImageLimit(bytes: number) {
+  const groupedBytes = String(bytes).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return `약 ${Math.round(bytes / 1024)}KB (정확히 ${groupedBytes}B)`
+}
+
+function boundaryDocument() {
+  const document = structuredClone(GROUPWARE_DEFAULT.document)
+  document.bands.find((band) => band.kind === 'HEADER')!.elements.push({
+    key: 'image-1',
+    type: 'IMAGE',
+    src: '/print-logo.svg',
+    alt: 'aaaa',
+    geometry: { x: 70, y: 0, w: 25, h: 15 },
+  })
+  document.bands.find((band) => band.kind === 'BODY')!.elements.push({
+    key: 'text-1',
+    type: 'TEXT',
+    text: 'x'.repeat(679),
+  })
+  return document
 }
 
 afterEach(() => {
@@ -98,5 +122,144 @@ describe('#968 SOL 결함2 — 파일 거부 사유', () => {
     expect(alert.textContent).toContain('표시할 수 없어')
     expect(alert.textContent).not.toContain('최대')
     expect(onUpdate).not.toHaveBeenCalledWith({ src: expect.stringContaining('data:image/png;base64') })
+  })
+
+  // ubuntu-latest: jsdom과 Web API만 사용하며 경로 구분자·OS 네이티브 파일 선택기에 의존하지 않는다.
+  it('파일을 고르기 전에 허용 형식과 현재 양식의 이미지 최대 크기를 안내한다', () => {
+    const document = structuredClone(GROUPWARE_DEFAULT.document)
+    document.bands.find((band) => band.kind === 'HEADER')!.elements.push({
+      key: 'image-1',
+      type: 'IMAGE',
+      src: '/print-logo.svg',
+      alt: '이미지',
+    })
+    const formatLimits = {
+      png: maxImageBytesForDocument(document, 'image-1', 'png'),
+      jpeg: maxImageBytesForDocument(document, 'image-1', 'jpeg'),
+      webp: maxImageBytesForDocument(document, 'image-1', 'webp'),
+    }
+
+    render(
+      <ElementInspector
+        element={{ key: 'image-1', type: 'IMAGE', src: '/print-logo.svg', alt: '이미지' }}
+        document={document}
+        onUpdate={vi.fn()}
+        {...commonProps}
+      />,
+    )
+
+    const guide = screen.getByText(/지원 형식별 최대:/).textContent ?? ''
+    expect(guide).toBe(
+      `지원 형식별 최대: PNG 최대 ${expectedImageLimit(formatLimits.png)} · JPEG/WebP 최대 ${expectedImageLimit(formatLimits.jpeg)}`,
+    )
+    expect((screen.getByLabelText('파일에서 선택') as HTMLInputElement).accept).toBe('image/png,image/jpeg,image/webp')
+  })
+
+  // ubuntu-latest: jsdom과 Web API만 사용하며 경로 구분자·OS 네이티브 파일 선택기에 의존하지 않는다.
+  it('크기 초과 시 이미지 예산을 회복하는 방법을 함께 안내한다', async () => {
+    const bytes = new Uint8Array(50 * 1024 + 1)
+    bytes.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    renderImageInspector()
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [fileOf(bytes, 'over-limit.png', 'image/png')] },
+    })
+
+    const alert = await waitFor(() => screen.getByRole('alert'))
+    if (process.env.REPORT_IMAGE_BOUNDARY === '1') console.log(JSON.stringify({ rejection: alert.textContent }))
+    expect(alert.textContent).toContain('더 작은 이미지로 바꾸거나 다른 이미지 요소를 삭제·교체한 뒤 다시 선택하세요.')
+    expect(alert.textContent).toContain('약 50KB (정확히 51,200B)')
+  })
+
+  // ubuntu-latest: jsdom과 Web API만 사용하며 경로 구분자·OS 네이티브 파일 선택기에 의존하지 않는다.
+  it.each([
+    ['PNG', Uint8Array.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), 'image/png'],
+    ['JPEG', Uint8Array.from([0xFF, 0xD8, 0xFF]), 'image/jpeg'],
+    ['WebP', Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]), 'image/webp'],
+  ])('%s는 기존 허용 범위대로 계속 통과한다', async (_format, bytes, type) => {
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    })
+    const onUpdate = renderImageInspector()
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [fileOf(bytes, `valid.${type.slice(6)}`, type)] },
+    })
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ src: expect.stringContaining(`data:${type};base64,`) }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // ubuntu-latest: jsdom과 Web API만 사용하며 경로 구분자·OS 네이티브 파일 선택기에 의존하지 않는다.
+  it('기존에 저장 가능한 PNG 경계는 보수적인 JPEG/WebP 안내 상한으로도 계속 선택된다', async () => {
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    })
+    const onUpdate = vi.fn()
+    const document = boundaryDocument()
+    render(
+      <ElementInspector
+        element={{ key: 'image-1', type: 'IMAGE', src: '/print-logo.svg', alt: 'aaaa', geometry: { x: 70, y: 0, w: 25, h: 15 } }}
+        document={document}
+        onUpdate={onUpdate}
+        {...commonProps}
+      />,
+    )
+    const bytes = new Uint8Array(48_128)
+    bytes.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [fileOf(bytes, 'existing-boundary.png', 'image/png')] },
+    })
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ src: expect.stringContaining('data:image/png;base64,') }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // ubuntu-latest: jsdom과 Web API만 사용하며 경로 구분자·OS 네이티브 파일 선택기에 의존하지 않는다.
+  it('선택 전 안내도 실제 PNG 48,129B 저장 경계를 숨기지 않는다', async () => {
+    Object.defineProperty(HTMLImageElement.prototype, 'decode', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    })
+    const onUpdate = vi.fn()
+    const document = boundaryDocument()
+    const pngMaxBytes = maxImageBytesForDocument(document, 'image-1', 'png')
+    render(
+      <ElementInspector
+        element={{ key: 'image-1', type: 'IMAGE', src: '/print-logo.svg', alt: 'aaaa', geometry: { x: 70, y: 0, w: 25, h: 15 } }}
+        document={document}
+        onUpdate={onUpdate}
+        {...commonProps}
+      />,
+    )
+    const guide = screen.getByText(/지원 형식별 최대:/).textContent ?? ''
+    const bytes = new Uint8Array(pngMaxBytes)
+    bytes.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+    const src = `data:image/png;base64,${Buffer.from(bytes).toString('base64')}`
+    const withImage = structuredClone(document)
+    withImage.bands.find((band) => band.kind === 'HEADER')!.elements.find((element) => element.key === 'image-1')!.src = src
+    const saved = parseDocumentTemplate({ ...GROUPWARE_DEFAULT, schemaVersion: 2, document: withImage })
+    const observed = {
+      guide,
+      fileBytes: pngMaxBytes,
+      fileKiB: pngMaxBytes / 1024,
+      saveEnabled: saved.ok,
+      imageAlerts: screen.queryAllByRole('alert').map((alert) => alert.textContent),
+    }
+    if (process.env.REPORT_IMAGE_BOUNDARY === '1') console.log(JSON.stringify(observed))
+
+    fireEvent.change(screen.getByLabelText('파일에서 선택'), {
+      target: { files: [fileOf(bytes, 'png-boundary.png', 'image/png')] },
+    })
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledWith({ src }))
+    expect(observed.guide, JSON.stringify(observed)).toBe(
+      '지원 형식별 최대: PNG 최대 약 47KB (정확히 48,129B) · JPEG/WebP 최대 약 47KB (정확히 48,126B)',
+    )
+    expect(observed.saveEnabled).toBe(true)
+    expect(observed.imageAlerts).toEqual([])
   })
 })

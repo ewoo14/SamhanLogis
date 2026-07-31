@@ -1,10 +1,19 @@
 'use strict'
 
 const { spawnSync } = require('node:child_process')
-const { readdirSync, readFileSync } = require('node:fs')
+const {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} = require('node:fs')
 const { join } = require('node:path')
+const { tmpdir } = require('node:os')
 const {
   createReleaseBuildEnvironment,
+  createElectronBuilderVersionArgs,
+  createNsisDisplayVersionInclude,
 } = require('./app-build-version.cjs')
 
 function run(command, args, env) {
@@ -17,7 +26,17 @@ function run(command, args, env) {
     throw result.error
   }
   if (result.status !== 0) {
-    process.exit(result.status ?? 1)
+    throw new Error(`${command} ${args.join(' ')} 종료 코드 ${result.status ?? 1}`)
+  }
+}
+
+function createNsisIncludeFile(appVersion) {
+  const directory = mkdtempSync(join(tmpdir(), 'samhan-public-nsis-'))
+  const file = join(directory, 'display-version.nsh')
+  writeFileSync(file, createNsisDisplayVersionInclude(appVersion), 'utf8')
+  return {
+    file,
+    cleanup: () => rmSync(directory, { recursive: true, force: true }),
   }
 }
 
@@ -58,12 +77,31 @@ function main() {
   const legacyBuildScript = join(process.cwd(), 'scripts', 'build-legacy-estimate.cjs')
   const electronViteCli = join(process.cwd(), 'node_modules', 'electron-vite', 'bin', 'electron-vite.js')
   const electronBuilderCli = join(process.cwd(), 'node_modules', 'electron-builder', 'cli.js')
+  const nsisInclude = createNsisIncludeFile(releaseBuild.appVersion)
 
-  // 릴리스 모드와 명시 버전을 모든 실제 산출물 단계에 전파한다.
-  run(process.execPath, [legacyBuildScript], releaseBuild.env)
-  run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
-  verifyReleaseRenderer(releaseBuild.appVersion)
-  run(process.execPath, [electronBuilderCli, '--win'], releaseBuild.env)
+  try {
+    // 릴리스 모드와 명시 버전을 모든 실제 산출물 단계에 전파한다.
+    run(process.execPath, [legacyBuildScript], releaseBuild.env)
+    run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
+    verifyReleaseRenderer(releaseBuild.appVersion)
+    run(
+      process.execPath,
+      [
+        electronBuilderCli,
+        `--config.nsis.include=${nsisInclude.file}`,
+        '--win',
+        ...createElectronBuilderVersionArgs(releaseBuild.packageVersion, releaseBuild.appVersion),
+      ],
+      releaseBuild.env,
+    )
+  } finally {
+    nsisInclude.cleanup()
+  }
 }
 
-main()
+try {
+  main()
+} catch (error) {
+  console.error(`[release-build] ${error instanceof Error ? error.message : String(error)}`)
+  process.exitCode = 1
+}

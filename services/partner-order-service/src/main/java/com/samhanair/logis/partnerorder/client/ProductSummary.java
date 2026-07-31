@@ -23,7 +23,12 @@ public record ProductSummary(
         String status,
         String modelCode,
         String productType,
-        String categoryKey) {
+        String categoryKey,
+        BigDecimal fixedDiscountRate,
+        String discountFlags,
+        BigDecimal releasePrice,
+        BigDecimal deliveryPrice,
+        Boolean hasVariableDiscount) {
 
     /**
      * 구 6-arg 호환 생성자 — productType 미제공 기존 호출자/테스트(productType=null).
@@ -37,7 +42,8 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, categoryId, sellingPrice, status, null, null, null);
+        this(id, name, modelName, categoryId, sellingPrice, status, null, null, null, null,
+                null, null, null, null);
     }
 
     /**
@@ -53,7 +59,8 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status, String productType) {
-        this(id, name, modelName, categoryId, sellingPrice, status, null, productType, null);
+        this(id, name, modelName, categoryId, sellingPrice, status, null, productType, null, null,
+                null, null, null, null);
     }
 
     /**
@@ -71,6 +78,24 @@ public record ProductSummary(
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status, String modelCode,
                           String productType) {
-        this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType, null);
+        this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType, null, null,
+                null, null, null, null);
+    }
+
+    /** 구 9-arg 호환 생성자 — categoryKey 를 포함한 기존 wire-format. */
+    public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
+                          BigDecimal sellingPrice, String status, String modelCode,
+                          String productType, String categoryKey) {
+        this(id, name, modelName, categoryId, sellingPrice, status,
+                modelCode, productType, categoryKey, null, null, null, null, null);
+    }
+
+    /** 구 11-arg 호환 생성자 — 고정DC/옵션 플래그까지 포함한 기존 wire-format. */
+    public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
+                          BigDecimal sellingPrice, String status, String modelCode,
+                          String productType, String categoryKey,
+                          BigDecimal fixedDiscountRate, String discountFlags) {
+        this(id, name, modelName, categoryId, sellingPrice, status, modelCode, productType,
+                categoryKey, fixedDiscountRate, discountFlags, null, null, null);
     }
 }

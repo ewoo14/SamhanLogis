@@ -59,7 +59,8 @@ public class PriceCalculationService {
 
         for (PriceCalculationRequest.Line line : request.lines()) {
             BigDecimal listPrice = line.listPrice();
-            BigDecimal appliedRate = pickCategoryRate(config, line.category());
+            BigDecimal appliedRate = pickCategoryRate(config, line.category(), line.fixedDiscountRate(),
+                    line.hasVariableDiscount());
             BigDecimal afterRate = listPrice.multiply(BigDecimal.ONE.subtract(appliedRate));
             BigDecimal optionDc = sumOptionDc(config, line);
             BigDecimal afterOption = afterRate.subtract(optionDc).max(BigDecimal.ZERO);
@@ -94,7 +95,20 @@ public class PriceCalculationService {
         return response;
     }
 
-    private BigDecimal pickCategoryRate(DcConfig config, String category) {
+    private BigDecimal pickCategoryRate(DcConfig config, String category, BigDecimal fixedDiscountRate,
+                                        Boolean hasVariableDiscount) {
+        if (fixedDiscountRate != null) {
+            BigDecimal normalized = fixedDiscountRate.compareTo(BigDecimal.ONE) > 0
+                    ? fixedDiscountRate.movePointLeft(2)
+                    : fixedDiscountRate;
+            return normalized.max(BigDecimal.ZERO).min(BigDecimal.ONE);
+        }
+        // order-app 은 useK2=false 품목에서 전역DC를 적용하지 않고 deliveryPrice를 그대로 표시한다.
+        // null은 구형 호출자의 기존 전역DC 계약을 보존하고, product-service의 실제 Boolean false만
+        // 화면 규칙대로 무할인으로 판정한다.
+        if (Boolean.FALSE.equals(hasVariableDiscount)) {
+            return BigDecimal.ZERO;
+        }
         if (config == null || category == null) {
             return BigDecimal.ZERO;
         }
@@ -107,6 +121,11 @@ public class PriceCalculationService {
 
     private BigDecimal sumOptionDc(DcConfig config, PriceCalculationRequest.Line line) {
         if (config == null) return BigDecimal.ZERO;
+        // order-app homeUnitPrice/commUnitPrice 는 멀티 본체 단가에 6종 정액을 차감하지 않는다.
+        // 해당 옵션 정액은 singleUnitPrice 경로(OTHER)에서만 표시 단가와 함께 적용한다.
+        if ("HOMEMULTI".equals(line.category()) || "COMMERCIAL_MULTI".equals(line.category())) {
+            return BigDecimal.ZERO;
+        }
         BigDecimal sum = BigDecimal.ZERO;
         if (line.is360()) sum = sum.add(nz(config.getDiscount360Amount()));
         if (line.is4Way()) sum = sum.add(nz(config.getDiscount4WayAmount()));
@@ -143,6 +162,27 @@ public class PriceCalculationService {
         m.put("partnerCode", req.partnerCode());
         m.put("callerService", req.callerService());
         m.put("lineCount", req.lines() == null ? 0 : req.lines().size());
+        List<Map<String, Object>> lines = new ArrayList<>();
+        if (req.lines() != null) {
+            for (PriceCalculationRequest.Line line : req.lines()) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("lineId", line.lineId());
+                item.put("modelCode", line.modelCode());
+                item.put("listPrice", line.listPrice());
+                item.put("category", line.category());
+                item.put("quantity", line.quantity());
+                item.put("is360", line.is360());
+                item.put("is4Way", line.is4Way());
+                item.put("is1Way", line.is1Way());
+                item.put("isStand", line.isStand());
+                item.put("isDeluxe", line.isDeluxe());
+                item.put("isFirstGrade", line.isFirstGrade());
+                item.put("fixedDiscountRate", line.fixedDiscountRate());
+                item.put("hasVariableDiscount", line.hasVariableDiscount());
+                lines.add(item);
+            }
+        }
+        m.put("lines", lines);
         return m;
     }
 
@@ -152,6 +192,21 @@ public class PriceCalculationService {
         m.put("totalFinalAmount", res.totalFinalAmount());
         m.put("totalDiscountAmount", res.totalDiscountAmount());
         m.put("lineCount", res.lines() == null ? 0 : res.lines().size());
+        List<Map<String, Object>> lines = new ArrayList<>();
+        if (res.lines() != null) {
+            for (PriceCalculationResponse.Line line : res.lines()) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("lineId", line.lineId());
+                item.put("listPrice", line.listPrice());
+                item.put("finalPrice", line.finalPrice());
+                item.put("finalAmount", line.finalAmount());
+                item.put("quantity", line.quantity());
+                item.put("appliedRate", line.appliedRate());
+                item.put("appliedFixedAmount", line.appliedFixedAmount());
+                lines.add(item);
+            }
+        }
+        m.put("lines", lines);
         return m;
     }
 

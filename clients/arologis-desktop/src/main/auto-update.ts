@@ -16,6 +16,7 @@ export type AutoUpdateStatus =
 const STATUS_CHANNEL = 'updater:status'
 const CHECK_CHANNEL = 'updater:check'
 const INSTALL_CHANNEL = 'updater:install'
+const RELEASE_PACKAGE_VERSION_PATTERN = /^\s*v?1\.(\d{4})(\d{2})(\d{2})\.([1-9][0-9]*)\s*$/
 
 let handlersRegistered = false
 let updaterConfigured = false
@@ -26,6 +27,25 @@ function currentWindow(): BrowserWindow | null {
 
 function broadcast(status: AutoUpdateStatus): void {
   currentWindow()?.webContents.send(STATUS_CHANNEL, status)
+}
+
+/** electron-updater의 내부 package semver를 사용자용 날짜 버전으로 되돌린다. */
+function displayVersionFromUpdateInfo(version: string): string {
+  const match = RELEASE_PACKAGE_VERSION_PATTERN.exec(String(version ?? ''))
+  if (!match) return ''
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const calendarDate = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`)
+  if (
+    Number.isNaN(calendarDate.getTime()) ||
+    calendarDate.getUTCFullYear() !== year ||
+    calendarDate.getUTCMonth() + 1 !== month ||
+    calendarDate.getUTCDate() !== day
+  ) return ''
+
+  return `${match[1]}/${match[2]}/${match[3]}-${match[4]}`
 }
 
 function messageFromError(error: unknown): string {
@@ -43,7 +63,7 @@ function configureAutoUpdater(): void {
 
   autoUpdater.on('checking-for-update', () => broadcast({ kind: 'checking' }))
   autoUpdater.on('update-available', (info: UpdateInfo) => {
-    broadcast({ kind: 'available', version: info.version })
+    broadcast({ kind: 'available', version: displayVersionFromUpdateInfo(info.version) })
     void autoUpdater.downloadUpdate().catch((error: unknown) => {
       broadcast({ kind: 'error', message: messageFromError(error) })
     })
@@ -52,7 +72,7 @@ function configureAutoUpdater(): void {
     broadcast({ kind: 'downloading', percent: Math.max(0, Math.min(100, progress.percent)) })
   })
   autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
-    broadcast({ kind: 'downloaded', version: info.version })
+    broadcast({ kind: 'downloaded', version: displayVersionFromUpdateInfo(info.version) })
   })
   autoUpdater.on('update-not-available', () => broadcast({ kind: 'not-available' }))
   autoUpdater.on('error', (error: Error) => {
@@ -67,7 +87,10 @@ export function registerAutoUpdateIpcHandlers(): void {
   configureAutoUpdater()
 
   ipcMain.handle(CHECK_CHANNEL, async () => {
-    if (!app.isPackaged) return
+    if (!app.isPackaged) {
+      broadcast({ kind: 'not-available' })
+      return
+    }
     try {
       await autoUpdater.checkForUpdates()
     } catch (error: unknown) {
@@ -76,7 +99,10 @@ export function registerAutoUpdateIpcHandlers(): void {
   })
 
   ipcMain.handle(INSTALL_CHANNEL, () => {
-    if (!app.isPackaged) return
+    if (!app.isPackaged) {
+      broadcast({ kind: 'not-available' })
+      return
+    }
     try {
       autoUpdater.quitAndInstall(true, true)
     } catch (error: unknown) {

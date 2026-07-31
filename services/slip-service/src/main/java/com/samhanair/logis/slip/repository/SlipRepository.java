@@ -64,6 +64,35 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             @org.springframework.data.repository.query.Param("to") LocalDate to,
             @org.springframework.data.repository.query.Param("partnerId") UUID partnerId);
 
+    /**
+     * 거래처별 원장 판매전표 read projection source.
+     *
+     * <p>기존 DPS용 {@code findByPeriodWithLines}와 분리된 추가 계약이다. 활성 OUTBOUND 중 호출자가
+     * 넘긴 원장 포함 상태만 기간·거래처코드로 조회하고, {@code lines}를 함께 fetch한다.
+     * 거래처 UUID는 외부 계약에 필요하지 않으므로 이 조회의 필터도 업무 식별자인 partnerCode를 사용한다.
+     *
+     * @param from 조회 시작일(포함)
+     * @param to 조회 종료일(포함)
+     * @param partnerCode 거래처코드, null이면 전체
+     * @param statuses 원장 포함 상태
+     * @return 전표와 품목을 함께 읽은 활성 판매전표
+     */
+    @EntityGraph(attributePaths = "lines")
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT s FROM Slip s
+            WHERE s.isDeleted = false
+              AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND
+              AND s.status IN :statuses
+              AND s.slipDate BETWEEN :from AND :to
+              AND (:partnerCode IS NULL OR s.partnerCode = :partnerCode)
+            ORDER BY s.slipDate DESC, s.seqNo DESC
+            """)
+    List<Slip> findPartnerLedgerSales(
+            @org.springframework.data.repository.query.Param("from") LocalDate from,
+            @org.springframework.data.repository.query.Param("to") LocalDate to,
+            @org.springframework.data.repository.query.Param("partnerCode") String partnerCode,
+            @org.springframework.data.repository.query.Param("statuses") Collection<SlipStatus> statuses);
+
     /** slipType + status 동시 필터 페이지. soft-delete 제외. */
     Page<Slip> findAllBySlipTypeAndStatusAndIsDeletedFalse(SlipType slipType, SlipStatus status, Pageable pageable);
 

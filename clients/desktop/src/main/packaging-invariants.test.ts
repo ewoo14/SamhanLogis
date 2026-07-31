@@ -112,6 +112,13 @@ describe('데스크톱 패키징 불변식 (white-screen 회귀 가드)', () => 
     expect(builder).not.toMatch(/publish:\s*null/)
   })
 
+  it('인증 셸의 버전 표시는 package semver가 아닌 주입된 사용자 표기를 사용한다', () => {
+    const layout = read('src/renderer/components/AppLayout.tsx')
+    expect(layout).not.toContain('v0.1.0')
+    expect(layout).toMatch(/CURRENT_VERSION/)
+    expect(layout).toMatch(/\{CURRENT_VERSION\}\s*·\s*사내 전용/)
+  })
+
   it('빌드 산출물이 있으면 main/preload 도 CJS preload 불변식을 만족한다', () => {
     const mainOut = readIfExists('out/main/index.js')
     const preloadOut = readIfExists('out/preload/index.cjs')

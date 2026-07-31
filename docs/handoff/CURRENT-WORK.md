@@ -13,7 +13,467 @@
 
 ---
 
-# 🏁 2026-07-29 회사PC 세션 마감 — 머지 1 · PR 3 진행 · 🚨Docker 무응답으로 중단 ◀◀◀ 여기부터
+# 🛑 2026-07-30 집PC 세션 — **Codex 사용 한도로 즉시 종료** ◀◀◀ 다음 세션은 여기부터
+
+**main = `4d8df1140`** · 열린 PR **4건**(#991·#984·#993·#996 — 전부 BLOCK, 상태는 아래 회사PC 절 그대로) · 커밋·머지 **0건**
+
+## 🚨 새로 확인된 차단 사실
+
+```text
+mcp__codex__codex  ->  You've hit your usage limit.
+                       try again at Aug 5th, 2026 2:52 PM
+```
+
+- `gpt-5.6-luna` · `gpt-5.6-sol` **둘 다** 동일 — **계정 레벨 한도**. `Selected model is at capacity` 와 달리 **모델을 바꿔도 우회 불가**(두 모델로 각 1회 확인).
+- **2026-08-05 14:52** 까지 캐논 5단계 중 **LUNA 구현 · LUNA 라운드 fix · SOL 적대검증** 3개 결손.
+- 남는 캐논 경로 = **OPUS 기획 · OPUS 5-agents 적대리뷰 · SONNET5 라운드 fix · PM 라이브QA/종합/머지**.
+- 메모리: `project_codex_usage_limit_2026_08_05.md`
+- 🚩 **개발책임자 미결**: 크레딧 충전(결제 사항) 여부. 충전 전이면 2차 검증(SOL) 스테이지가 **결손 상태로 남습니다** — 결손을 "결함 0" 으로 세지 말 것.
+
+## 이 세션에서 실제로 한 것
+
+| | |
+|---|---|
+| `git pull` | `92f52a13e` → **`4d8df1140`** (회사PC 마감분 10커밋 수신) |
+| 메모리 sync | 201 파일 repo → 홈 |
+| 워크트리 최신화 | `t991` → `c3bdf7e69` · `t910` → `6fa16a076` (둘 다 ff-only, 잔재 0) |
+| #991 fix 라운드 | B-01·B-02 브리핑 후 SONNET5 디스패치 → **세션 종료로 정지**. 소스 읽던 단계, **파일 변경 0** |
+| #993 fix 라운드 | 표시 표면 전수 브리핑 후 SONNET5 디스패치 → **세션 종료로 정지**, **파일 변경 0** |
+
+> ✅ 두 워크트리 `git status --porcelain` **빈 출력** 확인 — 격리할 미완 산출물 없음. 재개 시 그대로 이어가면 됩니다.
+
+## 재개 시 첫 3가지
+
+1. **Codex 한도 확인** — 작은 프롬프트 1회. 풀렸으면 캐논 정본대로, 아니면 SONNET5 fix 경로.
+2. **#991** — B-01(원 결함)+B-02 는 **같은 뿌리**(단가 도메인: 권위 VAT 포함 단가를 공급가 인자로 넘김)라 한 라운드로 묶는 브리핑을 이미 확정. 근거 원문 = `docs/qa/991-category-axis/SOL-REVIEW.md` §2 B-01(26행~)·B-02(54행~). 나머지 B-03~B-10 은 다음 라운드.
+3. **#993** — 결함 2건이 하나로 모임: **사용자에게 보이는 모든 자리(사이드바·NSIS 설치 화면·Windows `DisplayVersion`)가 `YYYY/MM/DD-N`**, 내부 semver `1.YYYYMMDD.N` 는 `electron-updater` 비교 전용. 먼저 "버전이 보이는 자리" 전수 목록화부터.
+
+> 백엔드 트랙 직렬화 유지 — #991(accounting·slip·partner-order) 과 #984(product-service) 를 동시에 돌리지 말 것. #993 은 프론트라 병렬 가능.
+
+---
+
+# 🏁 2026-07-30 회사PC 마감 — **머지 3건 · 열린 PR 4건(전부 BLOCK 판정)**
+
+**main = `603f71ad8`** · 열린 PR **4건** · 열린 이슈 **21건**
+
+> 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+
+## 머지 3건
+
+| PR | 내용 |
+|---|---|
+| **#997** | #827 레거시 GAS **계승 인벤토리·판정표** — 원본 26개 전수 대조(정적). 제목을 실제 산출물에 맞게 개명 후 머지 |
+| **#998** | #903 문서 양식 저작 방식 **공통 계약** (`WORD`/`EXCEL` 타입·라벨·normalize). import 0건이라 기존 출력 무변경이 자명 |
+| **#994** | #895 일정관리 — 권한 등록(`groupware.schedules`·`V90`) + **작성자 자동 대상자 포함**(`V17` backfill) + 일정 CRUD·소유자 검사 |
+
+---
+
+## 🔴 열린 PR 4건 — **전부 최종 재수렴에서 BLOCK**
+
+네 트랙 모두 CI green 이고 라이브QA 도 통과했으나, **적대검증 최종 라운드가 도달 가능 결함을 냈습니다.** 결함을 눈감고 머지하지 않았습니다.
+
+### #984 `4631dc556` — fix guard 가 **정상 주문 3,489건 전부**를 막는다
+
+```text
+현재 PENDING  26,055행 / 3,489주문  ->  3,489/3,489 전부 거부
+원인: 주문의 "품목명[규격]" 전체 라벨  vs  exact 품목코드 alias 계약 불일치
+```
+
+**160건을 막으려던 guard 가 전량을 막습니다.** 그 외:
+- 일시적 resolver 장애가 **부분 반영 + 영구 `REJECTED`** 유발
+- **`HTTP 200` 응답에서 거부 원인·행 정보 소실** (이 PR 이 고친 "200 아래 조용히 누락" 의 반대편)
+- **동시** 시트 sync 경로에 삭제 UUID **TOCTOU** 잔존 (순차 경로는 해소)
+
+✅ 해소됨: 24행 누락(24/24 404→200) · 순서 의존 · CI red · 파일 순서 비결정성 · 삭제 UUID 순차 경로
+📌 범위: **슬라이스 1(두 계보 병합)로 동결**. 코드 규칙 전환·이카운트 원본 병합은 **#1000**
+
+### #996 `561c9b03d` — `V29` 제거는 **증상만** 없앴다
+
+- **R-01·R-02 존속** — 관리자 `POST` 로 같은 `enabled` 규칙을 만들면 재현. seed 제거는 "자동 생성" 만 막았음
+- 🔴 **A-01** `partnerSelfService=true` 가 **자기범위 대조 없이 전역 관리자 규칙 목록을 모든 거래처 JWT 에 개방** (PM 승인 판단 오류 — *"스코프 없음"* 이 곧 전역 개방)
+- 🔴 **C-01** soft-delete 된 QA throwaway 거래처가 **실 관리자 목록 검색결과·`total`·복원 작업에 잔존**
+- 🔴 **C-02** soft-delete 된 QA 세션 **18개 bearer 가 만료 전까지 유효** (session soft-delete 는 발급된 토큰을 폐기 안 함)
+
+✅ 해소됨: F-01~F-04 경로 소멸 · R-03 migration 순서(현재 `main` 과 tree 동일)
+📌 상태: **관측 전용(shadow-only)** 으로 축소됨. 실제 수량은 하드코딩이 결정
+
+### #993 `6fa16a076` — 표시에 **내부 semver 가 새는 경로 2건**
+
+- 🔴 **Samhan Public DESKTOP 의 모든 인증 화면 사이드바에 `v0.1.0` 상시 노출** (날짜 버전이 아니라 package 버전). 이 PR 적용 후엔 `1.YYYYMMDD.N` 이 그 자리에 보이게 됨
+- 🔴 **두 앱의 NSIS 설치 화면 · Windows `DisplayVersion`** 에 내부 semver 노출
+
+✅ 해소됨: 개발 모드 배너 · **영구 차단**(정책은 막고 updater 는 "없음") · 패키징 중단 · CI red
+📌 개발책임자 확정: 내부 semver = **`1.YYYYMMDD.N`** · 자동 업데이트 **첫 롤아웃만 수동 설치**
+
+### #991 `c3bdf7e69` — 슬1~슬4 완주, SOL 이 **결함 10건 · 원 결함 미해소**
+
+재설계 4슬라이스 완료(계약 → 원천 배선 `V67`·`V60` → 표시 → **싱글중대형 DC액 검증 신설**). 적대검증 판정 = **머지 불가**.
+
+🔴 **B-01 원 결함 미해소** — 전표 실제 **VAT 포함 단가**가 응답·화면에 없고 **price history 납품가**만 표시. 실데이터에서 **97,000원 불일치**. **PR 제목이 약속한 결함이 그대로 남았습니다** — 축을 바꾸는 데 집중하느라 **표시 단가의 원천**을 안 바꿨습니다.
+
+금액 결함: **B-02** VAT 포함 권위단가에 **VAT 재가산** · **B-04** 혼합 전표에서 두 번째 축에 첫 상품 가격 · **B-05** 싱글 **옵션 정액 DC 50,000원** 미독 · **B-06** 멀티 **전역DC 48% 대신 45% 상수** · **B-07** 같은 날 **반대 오입력이 평균에서 상쇄**되어 모두 통과 · **B-08** 혼합→세금계산서 전환에서 **known 공급가 27,913,674원 전체가 `UNKNOWN`**
+
+축 보존 결함: **B-03** exact snapshot 있어도 품명만 검색해 `AMBIGUOUS` · **B-09 전표 복사** · **B-10 협업 이력 복원** 이 `categoryKey` 를 버림
+
+✅ 통과: `V67`/`V60` 데이터·**적용 순서**(기존 금액 변화 **0원**) · 다른 회계 화면·보고서 금액 변화 없음
+🚩 증거 무결성 **실패** — *"표시 단가=전표 실제 단가"* · *"4단계 배선 재현"* · *"DC 정본"* 주장이 **재현되지 않음**. 슬라이스 보고서가 검증했다고 적은 것 중 일부가 실제로는 미검증
+
+---
+
+## 🔑 오늘 확립된 규율 4가지 (전부 실측 근거)
+
+1. **마이그레이션은 번호가 아니라 순서로 본다** — `V29` 선적용 시 뒤늦은 `V27`·`V28` 이 `outOfOrder=false` 로 거부돼 서비스가 기동 안 함. **각 PR 의 CI 는 자기 브랜치만 보므로 양쪽 green 인 채 통과**
+2. **라운드 기록은 삭제 금지, 이월 표시** — 구현자가 이월된 fix 보고서를 지웠고 PM 이 복원. 1:1 원칙은 **기록 보존**에도 적용
+3. **`@DirtiesContext` 는 공유 DB 를 안 지운다** — 새 IT 가 기존 테스트 3건을 깨뜨림. **가해자가 아니라 피해자가 실패**하므로 오해하기 쉬움
+4. **커밋 후 `git status --porcelain` 확인** — 경로 명시가 불완전하면 반쪽 커밋(`scripts/` 누락으로 fix 가 반쪽)
+
+## 🚩 오늘 반복된 실패 패턴 — **fix 가 정상 동작을 막는다**
+
+네 트랙에서 같은 형태로 나왔습니다. **재수렴 브리핑 첫 각도에 이걸 넣어야 잡힙니다.**
+
+```text
+#996  경고 후 전송 차단 fix   ->  S-03 무관 25,000원 정상주문 차단 · 4,527,600원 전체거부
+#994  "중복 발행 안 됨" 불변식 ->  제거 후 재초대 알림 누락
+#984  삭제 UUID 거부 guard    ->  정상 주문 3,489건 전부 거부
+#993  패키징 fix              ->  실제로는 동작 안 함(env 리터럴), 테스트는 로컬에서만 통과
+```
+
+## 📌 개발책임자 결정 (이 세션) — 전부 메모리화 완료
+
+| 결정 | 반영 |
+|---|---|
+| **이슈 등록 = PM 자율 위임** (07-23 금지를 대체) | `feedback_issue_registration_delegated_to_pm` |
+| **작성자는 대상자에 자동 포함 — "자동 권한"** | `feedback_author_is_auto_participant` · #994 에 구현·머지 |
+| **입금보고서 = 결재문서 아님**(입금내역 그룹화) · 용어 `돈들어온`→**`입금`** | `project_partner_ledger_and_cash_receipt` · **#1002** |
+| **거래처별 원장** = 판매전표 + 입금보고서 2종 · 🔴**부가세 포함 단가** · 🔴**배송주소 데이터** | 같은 메모리 · **#1001** |
+| `AAAA-*` 도 **순번코드** · 품목코드는 **품목명(괄호 앞)** · 전환 안 되는 나머지는 그대로 | **#1000** · #984 코멘트 |
+| **같은 품목명은 하나로 병합** · 추후 이카운트 원본도 병합 | #984 에 구현(12그룹·24코드) |
+| 가입고 = 이카운트 아니라 **우리 입고전표(구매전표)** | #997 인벤토리 정정 후 머지 |
+| semver = **`1.YYYYMMDD.N`** · 첫 롤아웃 **수동 설치** | #993 |
+
+## 🆕 등록 이슈 3건
+
+**#1000** 순번코드→모델명 전환 잔여(슬2~5) · **#1001** 거래처별 원장 표시 사양 · **#1002** 입금보고서 편집
+
+## 🔧 재개에 필요한 실행 지식 (이 PC 실측)
+
+```bash
+# order-app
+cd clients/web/order-app
+VITE_APP_VERSION="2026/07/30-1" VITE_API_BASE_URL="http://localhost:8080/api/v1" npx vite --port 5223 --strictPort
+#  ⚠️ VITE_API_BASE_URL 에 /api/v1 까지. 빼면 bootstrap 404
+
+# 데스크톱 렌더러
+cd clients/desktop
+VITE_APP_VERSION="2026/07/30-1" npx vite --config vite.renderer.dev.config.ts --port 5181 --strictPort
+#  ⚠️ 5175 는 playwright.real-qa.config.ts 가 기대하는 값 — 바꾸면 그 하네스가 깨진다
+
+# DB (스키마가 예상과 다름 — 실측값)
+docker exec samhan-postgres psql -U samhan -d product_db -c "..."
+#  partner_db.partners        partner_code · biz_no   (business_number 아님)
+#  partner_auth_db.partner_auth  status · password_hash  (partner_auths 아님, pin_hash 없음)
+#  ⚠️ docker exec 는 stdin 미전달 — heredoc SQL 이 조용히 무동작
+```
+
+- **테스트 계정**: `1068689215`(주식회사 중앙유통)는 이 PC 에서 **`PENDING`**(집PC 승인은 DB 가 달라 무효). 🚫 실 거래처를 QA 목적으로 승인하지 말 것 — **전용 throwaway 를 실 API 승인 경로로** 만들되 **세션 bearer 무효화까지** 요구할 것(#996 `C-02` 교훈)
+- **이카운트 raw 3종**: 이 PC 에 있음(`품목`·`품목관계`·`품목계층그룹`). 집PC 에는 relation/group 없음
+- **Docker**: 22개 컨테이너. `product-service` 는 **한 번에 한 브랜치만** 뜸 → 라이브QA 전 **배포본 SHA 확인 필수**
+- **`build:win`**: `winCodeSign` 심볼릭 링크 권한 오류로 **완주 불가**. 버전 계산 단계까지만 가능
+
+## 재개 순서 (권장)
+
+1. **#991** — 🔴 **B-01(원 결함)부터** — 표시 단가 원천을 price history 가 아니라 **전표 실제 VAT 포함 단가**로. 그 뒤 금액 결함 6건·축 보존 3건
+2. **#984** — guard 를 `품목명[규격]` 라벨 계약에 맞추기 (3,489건 차단 해소)
+3. **#993** — 사이드바·설치 화면·`DisplayVersion` 을 `YYYY/MM/DD-N` 로
+4. **#996** — R-01·R-02 를 **원인 수준**에서 · `partnerSelfService` 자기범위 대조 · QA 잔재 정리(거래처 목록 노출 + 세션 무효화)
+5. **#1000·#1001·#1002** 착수 판단
+
+
+---
+
+# 🏁 2026-07-30 집PC 밤샘 마감 — **머지 6건 · 열린 PR 7건** ◀◀◀ 회사PC 는 여기부터
+
+**main = `bd0c0f6c1`** · 열린 PR **7건** · 열린 이슈 **18건**
+
+> 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+
+## 머지 6건
+
+| PR | 내용 |
+|---|---|
+| **#988** | #977 금액 계열 GAS 4개 재대조 — 코드 변경 0. 일마감은 #773 미구현이 정본이고 표시단가는 #991 로 분리 |
+| **#989** | #978 A-1 QA 오염 가드 판정표. **테스트가 실행 위치에 따라 참/거짓이 바뀌던 결함**까지 해소 |
+| **#990** | #978 C-1 이미지 표면. 안내 문구 신설 + 형식별 접두사 경계(PNG 22자 vs JPEG/WebP 23자) |
+| **#992** | **P0 온보딩 500** + 요청계약 3 + 응답계약 7 + 실패핸들러 3 + 415 |
+| **#987** | 상업멀티 경고 **오경고·미경고 양방향** 해소 |
+| **#985** | **주문 확정이 서버에 도달하지 않던 것** + 재전송 중복 주문 + `bizCode` + Page 응답 3곳 |
+
+### 이 6건이 실제로 막은 것
+
+order-app 183 테스트가 **전부 green 인 상태에서** 다음이 살아 있었습니다.
+
+- 승인요청 **500** → 신규 거래처 온보딩 차단
+- 접수됐는데 **화면은 그대로**(`res.status==='OK'` vs 서버 `'PENDING'`), `alert(undefined)`
+- 주문 이력 조회 **항상 400** · 튜토리얼 저장 **항상 400**
+- 실패 시 사유도 안 보이고 **로딩이 안 풀림**(3곳)
+- **주문 전송이 서버에 도달하지 않음**(`/partner-orders/new/confirm` → `@PathVariable UUID`)
+- **재전송이 중복 주문** 생성(매번 새 draft → 새 멱등키로 서버 계약 우회)
+- **`Page` 응답을 배열로 기대**해 이력·임시저장·카탈로그 3곳 크래시
+- 페이지 메타 폐기로 **21건 중 20건만 보이고 나머지가 조용히 사라짐**
+
+⟹ **전부 라이브QA 로 나왔습니다.** 정적 게이트로 갈음했으면 넘어갔습니다.
+
+---
+
+## 🔴 회사PC 에서 먼저 볼 것
+
+### ① #984 이카운트 병합 — **집PC 는 손대지 않음**(HEAD `5e363075e`)
+
+개발책임자 결정으로 **회사PC 마무리**입니다. 집PC 에는 이카운트 raw 3종 중 `relationFile`·`groupFile` 이 없어 게이트 ③ 을 채울 수 없습니다.
+
+**밤샘 중 이 트랙의 성격이 확정됐습니다** → [[project_item_code_model_unification]]
+
+```text
+결정: 순번코드(010001) → 모델명 = 품목코드 전환. 같은 기초품목이 2개인 경우도 전부 전환
+      🚨 UUID(미노출 서버키)와 품목코드(노출키)는 합치지 않는다
+```
+
+전환 슬라이스 (PR #984 코멘트에 상세):
+1. 두 계보 병합 (현재 PR 내용)
+2. `product_code` = 모델명 통일 · 순번코드는 `product_aliases` 로 보존 · `products.id` 무변경
+3. 🚨 **`stock_instances.product_code` 키 이관** — 안 하면 기존 재고가 고아
+4. `model_code` 중복 컬럼 정리 판단
+5. 웹 표기 라벨 "모델명" 통일 확인
+
+⚠️ 1만 하고 2~5 를 후속으로 뺄지 **회사PC 판단 필요**.
+
+### ② #991 일마감 — **설계가 틀렸음이 확인됐습니다. 머지 금지**
+
+개발책임자 정정으로 방향이 바뀌었습니다 → [[project_daily_closing_purpose_dc_verification]]
+
+**일마감은 사후 집계가 아니라 계산서 발행 전 DC 검증 절차**입니다.
+
+```text
+판매전표(영업자가 DC율·DC액 입력) → 일마감 검증 → 매출전표 생성(회계반영일자)
+                                              → 일괄 계산서 발행 → 국세청 업로드 엑셀
+```
+
+정찰 실측 격차 (`docs/dev-reports/2026-07-30-991-category-axis-recon.md`, 299+257줄):
+
+| 항목 | 현대 |
+|---|---|
+| 원천 | `tax_invoice_lines` — **GAS 입력(판매전표)보다 한 단계 뒤** |
+| 집계 키 | `getItemName()`·`getProductName()` = **품목명**. GAS 는 **모델명** → 잘못된 축 |
+| GAS 규칙 적용 | `tax_invoice_lines` 22행 **전부 `UNKNOWN`** |
+| **싱글중대형 DC액 검증** | 🔴 **없음** — `DiscountRevalidator:123-126` 이 `AC\|AP\|AR\|AF\|PC\|AWR\|ARR` 를 `OUT_OF_SCOPE`. `DailyClosingDetailResponse` 에 **DC액 필드 자체가 없음** |
+| 카테고리 유실 | 주문(`category_key` 있음) → 전표(`source_order_line_id` 일부) → 회계전표(그 값조차 없음) → 세금계산서(없음) |
+
+**개발책임자 선택 = A안**(일마감 집계가 카테고리 축을 갖도록). 슬라이스 4개는 PR #991 코멘트에 있습니다.
+
+🔴 **미결 결정 — 슬4**: 직접 입력·기존 전표는 카테고리를 알 방법이 없습니다.
+- **A-1** ingest 시점에 범위 판정 저장(정확 재현, 파이프라인 변경 + backfill)
+- **A-2** 아는 라인만 정확히, 나머지는 `UNKNOWN` 표시(표시 계층만) ← **PM 권고**
+
+### ③ #999 재고 시리얼키·QR·품질 — **신규 이슈, 트랙 미개설**
+
+개발책임자 허락으로 등록했습니다. 착수 전 확인에서 **기존 설계와 충돌**이 나왔습니다.
+
+```text
+[[project_serial_inventory_model]] 에 "UUID = 품목 시리얼 키(PK)" 로 박제돼 있었음
+→ 2026-07-30 결정으로 폐기. UUID 미노출 / 노출용 시리얼키 별도
+```
+
+- **노출용 시리얼키** 신설 (`stock_instances.id` 는 미노출 유지)
+- **상태 2축 분리** — 재고상황(`AVAILABLE`·`RESERVED`·`SHIPPED` 유지) / **품질**(정상·중고·파손·재포장·박스불량, 신규 컬럼)
+- **QR 스캔 입출고** — 실외기·실내기·판넬(부자재 제외). QR 에 담는 값은 **시리얼키**
+- ⚠️ **#984 전환과 순서 조정 필요** — `stock_instances.product_code` 를 QR 조회가 씀
+
+---
+
+## 열린 PR 7건 — 각 트랙 상태
+
+| PR | 브랜치 | 게이트 | 남은 것 |
+|---|---|---|---|
+| **#984** | `fix/ecount-import-model-code-merge` | CI 38/38 | 회사PC 마무리. 집PC 무변경 |
+| **#991** | `fix/monthend-detail-price-variant` | CI 42/42 | 🔴 **설계 재작업**. 슬4 결정 대기 |
+| **#993** | `feat/910-client-version-policy` | CI 42/42 | 슬1 완료(`ff9c8e7da`) → 슬2 정식 artifact version 증명 |
+| **#994** | `feat/895-dashboard-schedule` | CI 42/42 · **SOL 통과** | **라이브QA 만 남음** — jar 빌드 완료, 배포 미실행 |
+| **#996** | `feat/896-s4-quantity-sync-config` | 조기 PR | 정찰 미착수 |
+| **#997** | `chore/827-legacy-gas-full-audit` | 조기 PR | 정찰 미착수. **읽기 전용·자원 공유 0** |
+| **#998** | `feat/903-template-authoring-mode` | 조기 PR | 정찰 미착수 |
+
+### #994 는 머지에 가장 가깝습니다
+
+SOL 이 **차단 결함 0건**으로 통과했고 수치까지 냈습니다.
+
+```text
+남의 일정 삭제·수정 — 시스템 마스터도 403 (page 권한 bypass 와 무관하게 owner 검사)
+V90 seed — 기능 사용 인원은 넓히고(조회 신규 3명) 타인 일정 접근은 오히려 좁힘
+           기존 매니저·마스터의 타인 삭제 가능성 제거
+Testcontainers 실제 적용 확인 — 90 migrations, now at version v90
+```
+
+라이브QA(권한 화면에 `그룹웨어 일정` 표시 + 일정 API)만 하면 머지 가능합니다.
+⚠️ `auth-service` 배포 시 **V90 이 공유 DB 에 적용**됩니다. 머지 전 적용은 되돌리기 어려우니 배포→QA→머지를 짧게 붙일 것.
+
+---
+
+## 충돌 축 (병렬 진행 기준)
+
+| PR | 소유 표면 |
+|---|---|
+| #996 | `clients/web/order-app` + `product-service` |
+| #997 | **읽기 전용** — 공유 0 |
+| #998 | `clients/desktop` 문서 양식 경로 |
+| #991 | `accounting-service` |
+| #993 | `clients/desktop` 버전 경로 (`vite.renderer.dev.config.ts`) |
+| #994 | `groupware-service` + `auth-service` |
+
+서로 겹치는 파일이 없습니다. **Docker 는 라이브QA 때만 직렬화**하면 됩니다.
+🚫 **#826(주문서 관리 통합)은 일부러 안 열었습니다** — #996 과 `order-app` 충돌. #996 종료 후.
+
+---
+
+## 🚩 이 세션 실측 함정 (메모리 반영 완료)
+
+1. **병렬 라운드 중 `git add -A` 가 남의 산출물을 삼킨다** — 커밋 메시지가 `docs(qa)` 인데 내용은 코드였다. 에러 없이 성공하고 push 도 된다 → [[feedback_git_add_all_swallows_concurrent_round]]
+2. **라이브QA 전에 배포본 SHA 를 확인해야 한다** — 내 이미지가 내 브랜치보다 낡아 `400 productId 널` 과 `draft 2개` 가 **코드 결함처럼** 보였다. 둘 다 stale 배포였다 → [[feedback_parallel_backend_tracks_share_docker_stack]] §🆕
+3. **브리핑을 좁혀야 완주한다** — #987 SOL 을 질문 5개로 보냈다가 **7200초 타임아웃·산출물 0**. 각도 하나로 좁히니 완주하고 결함 2건 → 기존 [[feedback_narrow_briefing_completes_wide_times_out]] 재확인
+4. **`required=false` 인데 서비스 단에서 필수** — `X-Biz-Code` 가 컨트롤러에선 optional 인데 `PartnerOrderConfirmService:111` 이 필수 검사. 컨트롤러 시그니처만 보면 놓친다
+5. **커밋 메시지는 반드시 Write → `git commit -F`** — `printf`/따옴표로 세 번 깨졌다(`%)` · 큰따옴표 · 백틱)
+6. **셸에서 python heredoc 을 쓸 때 `<<'PYEOF'`** — 큰따옴표 문자열이면 백틱이 명령 치환된다(메모리 파일 손상 후 복구)
+
+## 🚩 PM 오판 5건 (전부 PR 에 기록)
+
+1. 잘린 grep 으로 *"서버 DTO 에 `mobile` 없음"* 단정 → `tryLogin.mobile` 제거 지시. 실제로는 `TryLoginRequest` 에 있고 감사 기록에 저장됨. **복원**
+2. `git add -A` 로 다른 라운드 산출물 삼킴 → 메시지 amend
+3. stale 배포로 라이브QA 를 엉뚱하게 돌림
+4. 리베이스 누락으로 QA 가 **이미 고친 P0** 에 부딪힘
+5. 실행용 포트 `5206` 지시가 config 스펙으로 읽혀 **real-qa 하네스를 깰 뻔**(`5175` 복구)
+
+그리고 **`'매출전표X - '` 를 탭 이름으로 단정**했다가 정정(실제로는 `회계반영일자` 셀 값). grep 한 줄로 단정한 건이 이 세션에 두 번입니다.
+
+---
+
+## 🔧 재개에 필요한 실행 지식
+
+```bash
+# order-app (메인 트리에서 · 워크트리엔 node_modules 없음)
+cd clients/web/order-app
+VITE_APP_VERSION="2026/07/30-1" VITE_API_BASE_URL="http://localhost:8080/api/v1" npx vite --port 5187 --strictPort
+#  ⚠️ VITE_API_BASE_URL 에 /api/v1 까지. 빼면 bootstrap 404
+
+# 데스크톱 렌더러 — 반드시 vite.renderer.dev.config.ts (root=src/renderer, HashRouter #/)
+cd clients/desktop
+VITE_APP_VERSION="2026/07/30-1" npx vite --config vite.renderer.dev.config.ts --port 5175 --strictPort
+#  ⚠️ 5175 는 playwright.real-qa.config.ts 가 기대하는 값. 바꾸면 그 하네스가 깨진다
+```
+
+- **Playwright**: 내장 브라우저 도구는 이 환경에서 실패. `node` 스크립트로 `chromium.launch({ channel: 'chrome' })` 직접 호출이 유일하게 통했다
+- **`page.on('dialog')` 등록 필수** — 안 하면 Playwright 가 자동 닫아 캡처에 안 남고 "빈 화면" 으로 오독된다(실제로 한 번 당함)
+- **Google SA 키**: `C:\dev\samhan-homepage-260f8ae469cc.json` (집PC). 스프레드시트 `1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ` — 탭 27개, **매출 raw 탭은 없음**(가격표·구성품용)
+- **이카운트 raw**: 집PC 에 `품목`·`거래처` CSV 2개뿐. **매출·세금계산서 export 없음**
+- 라이브QA 테스트 계정: `1068689215`(주식회사 중앙유통) — 승인·PIN `1234` 설정 완료. `2118712345` 는 **거래처 마스터에 없어** confirm 이 거절된다
+- 생성된 실 주문: **`2026/07/30-1`** (DRAFT) — 삭제하지 않았음
+
+## 재개 순서 (권장)
+
+1. **#994** 라이브QA → 머지 (가장 가까움)
+2. **#997** 정찰 (읽기 전용, 자원 공유 0 — 아무 때나)
+3. **#996** · **#998** 정찰
+4. **#993** 슬2
+5. **#984** 회사PC 전용 — 전환 슬라이스 범위 판단 후 진행
+6. **#991** 슬4 결정(A-1/A-2) 후 재설계
+7. **#999** 트랙 개설 (#984 와 순서 조정)
+
+---
+
+# 🏁 2026-07-29 회사PC 저녁 마감 — **열린 PR 8건 · 머지 0** ◀◀◀ 집PC 는 여기부터
+
+**main = `7292f43c5`** · 열린 PR **8건** · 머지 **0건**
+
+> 🚩 시작 절차: `git pull` → `.\scripts\sync-claude-memory.ps1` → 이 문단.
+
+## 이 세션이 한 일 — 트랙 8개를 병렬로 세웠고, 아직 하나도 못 닫았다
+
+머지 0 이 이 세션의 결과다. 정직하게 적는다. 트랙을 늘린 만큼 각 트랙의 게이트(①재현 가능 결함 0 ②CI green ③라이브QA)를 채우지 못했다.
+
+| PR | 브랜치 | 상태 | 남은 것 |
+|---|---|---|---|
+| **#984** 이카운트 병합 | `fix/ecount-import-model-code-merge` | CI 38 pass · R4 커밋 `5e363075e` | 🔴 **재검증 필수** — 증거가 현재 재현 불가(아래 참조) |
+| **#985** 단가 드리프트 | `fix/order-confirm-fixed-dc-precedence` | CI 38 pass · R4 커밋 `9c776fa3c` | 라이브QA(**#992 에 막힘**) · SOL 재수렴 |
+| **#987** 누락 신호 | `fix/978-silent-catalog-miss-signal` | CI 43 pass · `fe6b102f9` | SOL 재수렴 · 라이브QA |
+| **#988** GAS 금액 대조 | `chore/977-money-gas-recompare` | 조사 완료 | 문서 마무리. **코드 변경 0 조건** |
+| **#989** QA 경로 판정표 | `chore/978-a1-qa-guard-path-matrix` | 🔴 **CI RED** | Linux skip 가드 1건 누락 fix |
+| **#990** 이미지 표면 | `chore/978-c1-image-surface-recheck` | 🔴 결함 2계열 보고됨 | PM 도달성 판정 → fix |
+| **#991** 일마감 표시단가 | `fix/monthend-detail-price-variant` | 기획만 | #984 #985 뒤 **직렬** 착수 |
+| **#992** 🔴 **P0 온보딩** | `fix/partner-register-content-type` | 기획 + WIP 격리 | 부분 산출물 재개(아래) |
+
+## 🚨 재개 시 가장 먼저 — 3가지
+
+### ① #992 가 P0 다. 신규 거래처가 주문서를 못 쓴다
+주문서에서 사업자번호 조회 → **"미승인 사업자번호"** → `승인요청 보내기` → **HTTP 500**. 우회 경로가 화면에 없다.
+
+```text
+HttpMediaTypeNotSupportedException:
+  Content-Type 'application/x-www-form-urlencoded;charset=UTF-8' is not supported
+```
+
+원인: `index.html:8276` 이 `requestAuthApproval(AUTH_BIZ, isMobileNow())` 로 **인자 2개**를 넘기는데 `samhanApi.ts:110` 핸들러가 `args[0]`(문자열)을 통째로 body 로 쓴다. axios 가 문자열 body 에 form-urlencoded 를 붙인다. **같은 엔드포인트에 JSON 을 보내면 201 정상** — 서버는 멀쩡하고 클라이언트가 잘못 보낸다.
+
+부분 산출물이 **`wip/992-partner-register-partial-2026-07-29`** (`aea2dd3de`) 에 격리돼 있다. RED-first 까지는 됐고 **라이브QA 0장 · RPC 맵 전수 대조 미작성 · Linux 확인 미실시**. 🚫 feature 브랜치에 올리지 말 것.
+
+### ② #984 는 "당시엔 옳았다" 로 머지하면 안 된다
+R4 전수 대조(726건 · name diff 0 · category_id diff 0)는 **15:15~15:16 에 수집됐고 그때는 옳았다.** 그러나 15:23:46 에 #985 트랙이 같은 Docker 스택의 `product-service` 이미지를 자기 소스로 재빌드해 덮었다. 현재 실행 jar 에 R4 심볼이 없고 PM 의 3회차 임포트는 **422** 였다.
+
+게이트 ①은 **재현 가능성**을 요구한다. 직렬화 후 같은 전수 대조를 다시 돌릴 것.
+
+### ③ #989 CI RED — 내가 낸 것이다
+새 테스트 2개 중 **한쪽에만 Linux skip 가드**를 붙였다. `not ok 16 — 타 워크트리 -ProjectRoot` 가 `ubuntu-latest` 에서 AssertionError. 로컬(Windows) 은 GREEN 이었다.
+
+## 📌 개발책임자 결정 (이 세션)
+
+1. **일마감 조회 대상 = 카테고리별 기존 설정** `price_change_schedule.default_pre_change`. 신규 스키마·화면 없음
+2. **일마감 상세 표시단가 = 별도 트랙 즉시 착수** (#991) · #984 #985 뒤 직렬
+3. **#992 P0 = 전용 트랙 즉시 착수**
+4. **트랙 시작 시 반드시 PR 생성** — 이 지시로 #988~#992 를 조기 개설했다
+5. 🆕 **모델 임시 변경은 PM 자율** — LUNA 용량초과면 **terra**. 🚫**클로드로 대체 금지**(세션 토큰 병목)
+
+## 🚩 이 세션 실측 함정 (메모리 반영 완료)
+
+1. **백엔드 트랙은 병렬 불가** — 워크트리는 격리돼도 **Docker 이미지 태그·DB 는 전역**. 나중 빌드가 조용히 이긴다. 에러도 안 난다 → [[feedback_parallel_backend_tracks_share_docker_stack]]
+2. **새 워크트리에 gitignore 된 입력이 없다** — 이카운트 raw 가 없어 검증자가 "원본 부재" 로 미판정. 증상이 기능 결함처럼 보인다 → [[feedback_worktree_missing_gitignored_inputs]]
+3. **`git worktree add` 는 셸 cwd 를 탄다** — `clients/web/order-app` 안에 13,480 파일이 체크아웃됐다. `add` 는 성공하고 gitignore 라 `git status` 에도 안 보인다 → [[feedback_git_worktree_cwd_use_dash_c]]
+4. **새 테스트마다 "Linux 에서 참인가"** — 파일 단위로 가드 존재만 보면 놓친다 → [[feedback_new_test_needs_linux_skip_guard]]
+5. **모델 용량 초과가 4회** — 그중 1회는 내 codex 가 0개 돌던 중. 그리고 **"실패" 로 보고된 작업이 실제로는 상당 부분 진행한 뒤 죽었다**(17:37 파일 기록 존재) → [[feedback_model_substitution_delegated_to_pm]]
+
+## 🔧 재개에 필요한 실행 지식
+
+```bash
+# order-app 실 기동 (PM 확인 완료)
+cd D:/dev/Samhan-Public/clients/web/order-app
+VITE_APP_VERSION="2026/07/29-1" VITE_API_BASE_URL="http://localhost:8080/api/v1" npx vite --port 5184 --strictPort
+#  ⚠️ VITE_API_BASE_URL 에 /api/v1 까지. 빼면 /partner-orders/bootstrap 이 404
+#  ⚠️ 워크트리엔 node_modules 없음 → 메인 트리에서 띄울 것
+```
+
+- 거래처 인증 게이트: `partner_auth` 활성 행은 `8428102605`(NEED_PW_INPUT) 1건뿐. `1068689215` 는 PM 이 대조로 `PENDING` 까지 올려둠(승인 아님)
+- 기준가 0원 품목 4종 = `FH-LFHIF` · `발통세트` · `운임` · `절삭` (전부 `usage_scope=BOTH`). **직접 주문 시 confirm 500 fail-closed** 확인됨. **파생 경로 거동은 미판정**
+- Docker 는 이 세션 시작 시 이미 복구돼 있었음 (전 서비스 up)
+
+## 재개 순서 (권장)
+
+1. **#992** P0 — wip 브랜치에서 재개, 라이브QA 까지
+2. **#989** Linux skip 가드 (10분짜리)
+3. **#984** Docker 선점 → 전수 재검증
+4. **#985** #992 풀리면 라이브QA (`발통세트` 파생 A/B 판정)
+5. **#990** PM 도달성 판정 → fix
+6. **#987** SOL 재수렴
+7. **#988** 문서 마무리 · **#991** 은 #984 #985 종료 후
+
+---
+
+# 🏁 2026-07-29 회사PC 세션 마감 — 머지 1 · PR 3 진행 · 🚨Docker 무응답으로 중단
 
 **main = `cf723a72e`** · 열린 PR **3건**(#984 #985 #987)
 

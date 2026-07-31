@@ -10,8 +10,10 @@
 - [🚨 불변식처럼 보이는 **수단 지시** — PM 이 결함을 만든다 (2026-07-28 #958)](feedback_pm_means_instruction_creates_defect.md) — *"무결성 **잠금이** 외부 응답 구간을 **덮지 마라**"* 는 불변식이 아니라 **잠금 위치 지시**였고, 구현자 선택지가 하나로 좁혀져 **lost update**(새 값 3,000,000 → 구 값 2,000,000 최종) 가 생겼다. 판별법=**"이 문장이 구현자의 선택지를 하나로 좁히는가?"**. 🔑특히 위험=진단이 "X 때문"일 때 *"X 를 하지 마라"* 로 적는 것 — **반대급부도 함께 걸 것**(지연 없음만 걸고 순서 보존을 안 걸었다)
 - [🚨 PM 슬라이스 effort 조절·엣지 바운드](feedback_pm_regulate_slice_effort.md) — 한 슬라이스 하루종일 iterate 금지. 3라운드+ "fix가 새 결함" 시 개발책임자께 바운드옵션 제시(현 견고상태 게시+엣지 후속분리/스코프 재논의) …
 - [🚨 PM 직접실행 최소화·Codex 토큰 위임](feedback_pm_delegate_to_codex_conserve_tokens.md) — 2026-07-27 개발책임자: PM 세션 토큰이 병목. 정찰·구현·리뷰·라이브QA 를 Codex/서브에이전트에 최대 위임(별개 토큰 풀). PM=오케스트레이션·불변식 브리핑·**산출물 검증(릴레이 금지)**·commit·머지. 위임해도 검증은 PM 몫(공백잔재·stale배포·spec모순 실측) …
+- [🚨 병렬 라운드 중 `git add -A` 는 남의 산출물을 삼킨다 (2026-07-29 #992)](feedback_git_add_all_swallows_concurrent_round.md) — 라이브QA 문서를 커밋했는데 **같은 워크트리에서 동시에 돌던 fix 라운드의 코드 변경**(index.html +6 · 테스트 +56)까지 함께 들어가 커밋 메시지가 `docs(qa)` 인데 내용은 코드였다. **에러 없이 성공하고 push 도 된다.** 🔑커밋 전 `git status --porcelain` 을 **눈으로 대조** · 라운드가 돌고 있으면 `git add -A` 대신 **경로 명시** · 이미 삼켰으면 메시지를 내용에 맞게 amend · **트랙 하나에 codex 하나**, 둘이면 한쪽은 읽기 전용
 - [🚨 산출물 옮길 때 `git diff --name-only` 는 신규 파일을 빠뜨린다 (2026-07-29 한 세션 3회)](feedback_pm_copy_untracked_files.md) — codex 는 커밋 없이 파일만 남기는데, PM 이 `git diff --name-only` 로 옮기면 **untracked 신규 파일이 통째로 누락**. 실제 누락: #984 **V27 마이그레이션**(배포본만 CHECK 위반 롤백 — 로컬·CI 는 빌드 컨텍스트 덕에 통과, SOL 이 `git ls-tree` 로 적발) · #987 홈멀티 fixture(테스트 3건 실패 → **구현자 보고를 거짓으로 오인할 뻔**). 🔑`git status --porcelain` 으로 옮기고 **양쪽 대조** · 브리핑에 **"신규 파일은 목록으로 보고"** 명시
 - [🚨🚨 "범위 밖"을 "결함 0"으로 세지 마라 (2026-07-28 #951 실측)](feedback_unverified_scope_is_not_zero_defects.md) — R3 가 "도달 가능 결함 없음·머지 가능" 판정했으나 판정문에 *"범위 외 2영역은 조사하지 않았습니다"* 가 적혀 있었고, 그 2영역을 넣자 **실사용자 양식 삭제** 결함이 나왔다(`deleted:1`/`USER_TEMPLATE_REMAINS=false` 실측). **R3 는 정직했고 집계한 PM 이 틀렸다.** 게이트 ①은 "리뷰가 본 범위에서 0" 이 아니라 **"PR 이 바꾼 표면 전체에서 0"**. 라운드 판정을 집계하기 전 *"이 라운드가 안 본 것이 있나?"* 를 명시적으로 물을 것. 도구 장애로 좁혔다면 **개발책임자 판단을 올리기 전에 브리핑 형태를 바꿔 한 번 더 시도**(파일 경로만 지목 형태가 실제로 통했다)
+- [🚨🚨 **fix 는 결함이 아니라 정상 경로를 막는다 — 재수렴 첫 각도 고정** (2026-07-30 하루 4트랙)](feedback_fix_blocks_normal_path.md) — #984 guard 가 **정상 주문 3,489건 전부 거부**(160건 막으려다) · #996 **25,000원 정상주문 차단·4,527,600원 전체거부** · #994 *"중복 발행 안 됨"* 이 재초대를 막음 · #993 fix 가 **실제로는 동작 안 함**(env 리터럴, 테스트는 로컬에서만 통과). 🔑재수렴 각도 1번 = *"차단되면 안 되는 것이 차단되는가 — **실 데이터에서 몇 건이 막히는지 세어라**"*. 이 각도를 넣은 라운드에서 **4건 모두 잡혔다**. 🔑증상/원인 구분: seed 를 지워도 **관리자 API 로 같은 데이터를 만들면 재현** · 🔑"고쳤다"≠"동작한다"
 - [🚨 머지 전 재수렴 의무·CI green≠수렴 · **🆕07-28 재수렴을 좁게 하면 놓친다(3연속 실증)**](feedback_reconvergence_before_merge.md) — 검증 fix 후 좁은 재검증 금지, 머지 전 재수렴 1회. 🆕**한 밤에 세 번**: #951 fix 가 **애니메이션 WebP 거부 회귀**(저장소 마스코트 자산 형식·fix 전엔 201) · #956 fix 의 **핵심 주장이 거짓**(`@Primary` 때문에 `@Async` 착지점이 fix 전후 동일, Javadoc 이 반대로 단정) · #952 fix 가 **자기 게이트를 0으로**. 🔑**fix 는 새 표면을 만든다 — 재수렴 범위는 "그 결함이 해소됐나"가 아니라 fix 가 건드린 표면 전체**. 🔑**회귀 울타리는 합성이 아니라 `git ls-files` 로 찾은 실재 자산으로**
 - [기획 spec 기존 결정 교차검증](feedback_spec_cross_check_prior_decisions.md) — 새 slice spec 각 결정을 에픽 dev-report/메모리와 grep 대조(편집가부·상태전이·계정 …
 - [🚨 범위 점증 시 리뷰 재가동](feedback_expanded_scope_reinstate_review.md) — mechanical fix→BE/마이그/다서비스로 커지면 자체 검증(grep/probe/CI)으로 갈음 말고 정식 5-agent+Codex 리뷰+게시 재가동 …
@@ -25,11 +27,16 @@
 - [PR OPEN(≠DRAFT)](feedback_pr_open_not_draft.md) — 조기PR 포함 draft 금지, --draft 쓰지말것 (2026-07-02)
 - [PM 자율 머지 위임 · 🚨🚨**문서 전용은 PR 을 열지 않는다**(2026-07-29)](feedback_pm_auto_merge_authority.md) — 게이트(0수렴·CI green·mock gate·라이브QA) 충족 시 PM 자율 머지. main 직접 docs/memory push는 별개 가드 …
 - [PM 권한코드 전권 자율](feedback_pm_permission_autonomy.md) — 권한 코드는 PM 머지까지 자율. 워크플로우 엄격+자가지적. 신규 업무규칙/정책만 개발책임자 확인
+- [🆕 **작성자는 대상자에 자동 포함 — "자동 권한"** (2026-07-30 #895)](feedback_author_is_auto_participant.md) — *"작성자는 당연히 일정에 포함이 되어야지… 자동 권한인거니까"*. 🔑접근을 허용하려면 **집합에 넣어야** 하고 조건절 `OR ownerId` 로 비껴가면 안 된다 — 응답의 대상자 목록과 실제 권한이 어긋나 "대상자 기준" 으로 도는 알림·필터·통계가 작성자를 빠뜨린다. SOL(안 보여야 함)·PM(보이지만 목록엔 없음) **둘 다 부분적으로 틀렸다**. 수정·삭제 권한은 별개 축 · 알림은 자기 것 제외(PM 판단)
 - [무결성도메인 정책 선확인](feedback_integrity_domain_policy_preconfirm.md) — 회계원장·감사·권한 편집가부 정책은 착수 전 개발책임자 확인 (2026-07-02)
 - [개발책임자 결정은 PR에 누적 기록](feedback_post_devlead_decisions_to_pr.md) — 결정·지시·정정을 그때그때 "📌 개발책임자 결정 기록" 코멘트로. 채팅에만 두지말것
+- [🚨🚨 **리뷰 1:1 게시 엄수 — 커밋과 게시를 같은 도구 블록에서** (2026-07-30 개발책임자 2회 지적)](feedback_review_post_one_to_one_enforcement.md) — 라운드 완료 → **커밋 → 즉시 게시**를 한 묶음으로. 커밋만 하고 게시를 미루면 쌓인다(실측: 한 세션에 **8건** 누락 후 지적, 정정 뒤 다시 **1건** 누락). 🔑감사법=**브랜치 오늘 커밋 목록 vs PR 코멘트 시각**을 나란히 뽑아 대조(`git log origin/<b> --since` + `gh api .../comments`). 🚫"나중에 한꺼번에" 금지 — 게시는 라운드의 일부다
 - [PM-Codex 진행 검증·10분 보고](feedback_pm_codex_progress_verification.md) — Codex 디스패치마다 산출물 즉시검증+주기 상태보고, 침묵금지
-- [🚨 리뷰 fix=현재 PR 내 처리 · 🚨새 이슈는 사전 허락 필수](feedback_fix_in_current_pr_no_split.md) — 별도 PR/후속 이슈 분리 금지. **2026-07-23: "내 허락 없이는 새로운 이슈로 등록 금지"** — PM 자율 등록 조항 폐기 …
-- [🚨🚨 새 이슈 등록 금지(사전 허락) · 백로그 순감](feedback_backlog_burndown_issue_bar.md) — 등록 전 자문 3개(한 파일 몇 줄? 같은 표면 PR 열려있나? 머지게이트를 간헐 차단하나?) 하나라도 예면 흡수 …
+- [🚨🚨 **이슈 등록 = PM 자율 위임 (2026-07-30 · 07-23 금지를 대체)**](feedback_issue_registration_delegated_to_pm.md) — *"이슈등록은 PM에게 권한을 위임."* 자문 3개는 **그대로 살아 있음**(한 파일 몇 줄? 같은 표면 PR 열려있나? 머지게이트를 간헐 차단하나? → 하나라도 예면 **흡수**). 🚫유일 악용 경로 = **적대검증 결함을 후속 이슈로 미루기** — 리뷰 fix 는 여전히 현재 PR 안
+- [🚨 리뷰 fix=현재 PR 내 처리](feedback_fix_in_current_pr_no_split.md) — 별도 PR/후속 이슈 분리 금지. ⚠️이 파일의 "새 이슈 사전 허락" 조항은 **2026-07-30 위임으로 대체**됨 → [[feedback_issue_registration_delegated_to_pm]]
+- [백로그 순감 · 등록 전 자문 3개](feedback_backlog_burndown_issue_bar.md) — 자문 3개 기준은 유지. 등록 금지 조항만 폐기(2026-07-30) …
+
+- [🚨 모델 임시 변경 = **PM 자율 위임** · LUNA 용량초과 → **terra** (2026-07-29 개발책임자)](feedback_model_substitution_delegated_to_pm.md) — 캐논 "모델 대체 금지" 완화. `Selected model is at capacity` = 상류 슬롯 부재(우리 토큰·브리핑 문제 아님. 같은 브리핑 재전송하면 성공). 한 세션 **4회** 발생, 그중 1회는 **내 codex 가 0개 돌던 상태** ⟹ 병렬도 축소로 못 없앰. **1회는 재시도, 2연속이면 폴백**. 🚫**클로드로 대체 금지**(세션 토큰이 병목 — Codex 별개 풀이 위임 전제). 대체 시 **PR 에 사용 모델 기록**
 
 # 커밋/PR/문서 규약
 - [한국어 의무 — 커밋/PR/Issue/보고](feedback_korean_commits.md) — git commit·PR·Issue+대면 보고/대화/설명 한국어(prefix·trailer만 예외)
@@ -38,6 +45,7 @@
 - [PR 제목 [FEAT]/[FIX] 대괄호+대문자](feedback_pr_title_caps_bracket.md)
 - [권한 표기 풀네임](feedback_role_naming_full.md) — MASTER/MANAGER 풀네임, 약어 금지
 - [전표 용어 — 슬립 금지](feedback_jeonpyo_not_slip.md) — 한글 "전표"(슬립 금지), 영문 slipId는 별개
+- [🚨 **"완전계승" 정의 — 기능·표현 데이터는 복사, 디자인은 자유** (2026-07-31 개발책임자 확정)](feedback_gas_full_inheritance_definition.md) — 같아야 할 것=**기능·표현 데이터(항목·값·집계 결과)** / 달라도 되는 것=**레이아웃·색·컴포넌트**. *"화면이 다르게 생겼다"*는 미계승 근거가 **아니고**, *"항목이 빠졌다·값이 다르다"*는 미계승. `design-system` 사용 권장, 레거시 HTML 이식 금지. ⚠️예외=**인쇄 양식은 legacy 100% 매칭 유지**. 🔑저장소·수단이 바뀐 helper(Notion 저장·base64 압축)는 **계승 대상 아님** — 미대응 개수로 세지 말고 **담긴 업무 규칙**으로 가를 것
 - [🚨 할인 용어 — "약정DC" 는 없는 말 (2026-07-29 개발책임자 지적)](feedback_dc_terminology.md) — **고정DC**(`products.fixed_discount_rate`, 품목별) / **전역DC**(`dc_configs`, 거래처별 홈·상업율+옵션 정액 6종+반올림) / **기본 할인율**(`partners`). 약정=`agreeTerm`(전표 자유 입력)이라 할인과 무관. 📌우선순위=**고정DC 우선**(`fixedDc ?? globalRate`). ⚠️`dc-config-service` 엔 고정DC 개념이 **아예 없음**(grep 0) → 표시값≠확정값. 🔑**이슈 제목·기획 문서의 말을 그대로 쓰지 말 것** — 이 오염의 출처가 그것
 - [코멘트 용어 — 협업 코멘트 금지](feedback_comment_not_collab_comment.md) — 라벨 "코멘트", 영문 CollabComment 유지
 - [UUID 사용자 비공개 · 🚨07-22 엔티티별 노출 코드 지정](feedback_uuid_no_user_visibility.md) — 화면 UUID 금지(DB PK 전용). **엔티티마다 사용자 노출 코드를 정한다**: 담당자코드(`employees.ecount_code` 활성 unique …
@@ -49,7 +57,10 @@
 - [Monitor 자동 사용](feedback_monitor_no_permission.md) — CI watch 허락없이 즉시
 
 # 개발환경/빌드 함정
+- [🚨 낡은 배포본은 "없는 기능"처럼 보인다 — 라이브QA 전 **배포본 나이**를 재라 (2026-07-31 #996)](feedback_stale_deployment_looks_like_defect.md) — 게이트웨이 경유 `404` 를 BLOCK 으로 냈는데 **라우트는 이미 main 에 있었고** 배포본이 **9일 낡은** 것이었다(`docker inspect -f {{.Created}}` = 07-22). 재배포하니 **404→401**. 🔑라이브QA 가 *"없다·404·500"* 을 보고하면 제품 결함으로 세기 전에 ①**배포본 생성 시각** ②`git show origin/main:<path>` 로 소스 존재를 먼저 확인 · DB 는 `flyway_schema_history` 최고 버전도 대조 · `api-gateway` 는 전 트랙 공유라 **재배포 시각을 PR 에 기록**
 - [🚨🚨 백엔드 트랙은 **직렬화** — 병렬 트랙이 서로의 Docker 이미지를 덮는다 (2026-07-29 #984↔#985 실측)](feedback_parallel_backend_tracks_share_docker_stack.md) — 양쪽 브리핑에 `product-service` 재빌드를 지시했는데 **이미지 태그·Docker 데몬·DB 는 전역**이라 나중 빌드가 조용히 이긴다. #984 검증 8분 뒤 #985 가 덮어 PM 재현이 **422**. 에러도 안 난다 — 다른 코드가 돌 뿐. DB 도 오염(임포트가 `products` 2,655행 갱신 ↔ 동시에 #985 가 부트스트랩↔확정 대조). 🔑결과를 받으면 **`docker inspect -f '{{.Created}}'` + 실행 jar 의 새 심볼**을 확인 · **"당시엔 옳았다"는 게이트 통과 아님**(게이트 ①=재현 가능) · 실행 중 codex 는 **강제 종료 금지**(산출물 0). 병렬은 프론트/문서/스크립트만
+- [🚨 `git worktree add` 는 **셸 cwd 를 탄다** — 경로 인자 git 은 `-C` 로 고정 (2026-07-29 cwd 착오 3회째)](feedback_git_worktree_cwd_use_dash_c.md) — cwd 가 `clients/web/order-app` 인 채 상대경로로 add 해 **소스 디렉토리 안에 13,480 파일 체크아웃**. `add` 는 **성공**해서 신호가 없고 `.claude/worktrees` 는 gitignore 라 `git status` 에도 안 보인다. 🔑**add 직후 `git -C "$W" rev-parse --show-toplevel` 이 `$W` 와 같은지 검증**. 정리는 `worktree remove --force` + **잔재 디렉토리 삭제** + `worktree prune`
+- [🚨 새 테스트마다 **"이 단정이 Linux 에서 참인가"** — CI 는 ubuntu-latest (2026-07-29 #989)](feedback_new_test_needs_linux_skip_guard.md) — Windows 표기 판정표 2개 중 **한쪽에만 skip 가드**를 붙여 로컬 GREEN·CI RED. PM 은 러너 OS 를 의심하고 첫 테스트 가드까지 확인한 뒤 *"CI RED 안 난다"* 고 PR 에 썼다 — **두 번째를 안 봤다**. 🔑가드 존재를 **파일 단위로 확인하면 안 된다. 새 단정 하나하나**에 물어야 한다
 - [🚨 새 워크트리에는 **gitignore 된 입력 데이터가 없다** (2026-07-29 #984)](feedback_worktree_missing_gitignored_inputs.md) — 검증자가 *"실 이카운트 CSV 원본 부재로 미판정"* 보고. `git worktree add` 는 추적 파일만 체크아웃해 `docs/migration/ecount-data/raw/**`·`.env`·`node_modules` 가 빠진다. 증상이 **기능 결함처럼 보인다**(422 → 구현 의심). 🔑워크트리 만들면 **브리핑 전에** 필요한 입력을 복사 · 복사 시 추적 파일(`.gitkeep`) 덮어썼는지 확인 · **"원본 부재" 미판정 보고는 정직한 것**이지 실패가 아니다(지어내 GREEN 만드는 것보다 낫다)
 - [🚨 지우기 전에 `git ls-files` 로 커밋 여부 확인 (2026-07-28 #957)](feedback_check_tracked_before_delete.md) — `rm -rf docs/qa/local-load-soak-test` 로 **커밋 파일 33개 삭제**(`git checkout --` 복구·PM 직접 확증). 원인=하위에 `timeseries/_local` 이 있어 **상위 전체를 throwaway 로 오인**. 반대다 — `docs/qa/<슬러그>/` 는 커밋 증거이고 `_local` **한 칸만** throwaway. 저장소 안 삭제는 `git ls-files <경로>` 선행. 임시물은 `os.tmpdir()`/스크래치패드에만. 🔑**QA 오염 가드는 `QA_SHOTS_DIR` 경유 쓰기만 막지 직접 삭제는 못 막는다**
 - [🚨 docker exec 는 stdin 미전달 — heredoc SQL 이 조용히 무동작](feedback_docker_exec_stdin_silent_noop.md) — heredoc 이 무시되고 psql 이 **무출력 exit 0**. "실행된 것처럼 보였으나 0행 삭제"(2026-07-27 실측). DB 작업은 **`docker cp` + `psql -f`**(`MSYS_NO_PATHCONV=1`). `-c "SQL"` 은 정상. 정리 후 **행 수를 다시 셀 것**
@@ -57,7 +68,7 @@
 - [Korean Path JDK Trap](feedback_korean_path_jdk.md) — 한글경로 gradle test 실패→assemble
 - [gradlew 실행권한](feedback_gradlew_exec_bit.md) — `git update-index --chmod=+x gradlew`
 - [PowerShell UTF-8 트랩](feedback_powershell_utf8_writes.md)
-- [PR 게시 인코딩 — 파이프 mojibake](feedback_gh_comment_utf8_pipe_mojibake.md) — 게시/PATCH=UTF-8 파일 경유만·직후 자가 검사 의무 (2026-07-04 #724 …
+- [PR 게시 인코딩 — 파이프 mojibake · 🚨🚨**`<<EOF` 인용 없는 heredoc = 백틱 실행**](feedback_gh_comment_utf8_pipe_mojibake.md) — 🔑**재발 트리거 = "SHA/변수를 본문에 넣으려고 인용을 푸는 것"**(2026-07-30 재발). 변수 확장이 필요하면 **Write 도구로 완성본**을 쓸 것. 게시 직후 **코드블록·코드스팬 생존 확인**(한글 mojibake 검사로는 안 잡힘 — 한글은 멀쩡하고 코드스팬만 사라진다) — 게시/PATCH=UTF-8 파일 경유만·직후 자가 검사 의무 (2026-07-04 #724 …
 - [Bash 커밋=−F 파일](feedback_bash_commit_message_file.md) — @'...'@ here-string 금지, Write→git commit -F
 - [desktop 타입검증=npm run typecheck](feedback_desktop_typecheck_command.md)
 - [order-app CI=tsc typecheck·vitest≠tsc](feedback_order_app_typecheck_not_vitest.md) — vitest만 로컬 실행 시 타입에러 미포착·CI red, 로컬 npm run typecheck 의무 (2026-07-11 #778)
@@ -87,6 +98,7 @@
 - [🚨 PM 검증 규율 — "이 측정이 증명하는 것"을 진술하고 주장과 대조](feedback_pm_verify_what_measurement_proves.md) — green 은 항상 뭔가를 증명하지만 **주장과 다른 것**일 수 있음. 2026-07-21 **6형태 반복**: ①프로파일(`local` 에서 `@Profi …
 - [🚨 표시 vs 조작은 다른 질문 · 대기조건이 로딩을 결함으로 위장](feedback_measure_display_vs_interaction.md) — 적대검증이 "표시가 0인가"만 재고 입력을 안 해 개발책임자가 먼저 발견(#902). disabled=false 인데 controlled value 고정=겉보기만 편집가능. 부재 대기조건은 렌더 전 즉시 참 → 나타남을 기다릴 것. PM 수단지시가 결함 생산(2.7→27)
 - [🚨 변경 줄 수 보고 오보 — 삭제분을 추가분 칸에 더해 넣는다 (5 PR 연속)](feedback_changed_line_count_misreport.md) — `86=84+2`·`17=10+7`·`23=13+10`·`101=83+18`·`116=75+41`. `--stat` 의 **합산 막대 수치**를 `+N/−M` 에 옮겨 적어 생김. 🔑**총계는 대체로 정확**해 총계만 보면 못 잡음 · 정확한 값이 **dev-report 표에 이미 있는데 PR 코멘트로 옮기며 깨짐**. 대조 각도(SONNET5) 상시 항목 = `git show --numstat` **개별 파일** 대조
+- [🚨 **`@DirtiesContext` 는 공유 DB 를 정리하지 않는다 — 새 IT 가 기존 IT 를 깨뜨린다** (2026-07-30 #984 CI red)](feedback_dirtiescontext_does_not_clean_shared_db.md) — 컨텍스트를 새로 만들어도 **깨끗해진 건 빈 그래프이고 데이터는 그대로**. 새 IT 의 `ORDER_CONVERGENCE_SYNC_IMPORT` 가 기존 `ProductCatalogControllerIT` 3건을 깼다(`expected:<ORDER_FIRST>`). 🔑**가해자가 아니라 피해자가 실패**하므로 "기존 테스트가 취약" 으로 오해하기 쉬움 · 새 IT 추가 후 **모듈 전체** 실행 필수(새 IT 만 통과로는 안 잡힘) · 로컬 Testcontainers skip 이면 **CI 에서 처음 드러남**. 🆕같은 라운드 교훈=**새 IT 실패 시 "테스트가 틀렸나 구현이 틀렸나" 를 먼저 가를 것** — 실제로 구현이 틀렸고 fix 는 `p.rename(name)` 한 줄이었다
 - [gradle test 캐시 false-green](feedback_gradle_test_cache_false_green.md) — UP-TO-DATE/FROM-CACHE=미실행, 검증은 --rerun-tasks --no-build-cache 로 genuine 강제
 - [🚨 병렬 에이전트 공유자원 경합 3변종](feedback_parallel_agent_gradle_shared_tree_contention.md) — ①gradle 트리(build 경합→transient false-fail·권위=CI on exact SHA …
 - [🚨 라이브QA 공유 실데이터 write 위험·읽기전용/throwaway 격리](feedback_qa_live_shared_data_readonly.md) — 라이브QA가 실 공유 템플릿/마스터/설정에 write 금지(읽기전용 or 전용 throwaway) …
@@ -112,6 +124,7 @@
 - [정찰 grep false-negative](feedback_recon_grep_false_negative.md) — grep 0매치≠기능부재, 실 파일/라우트로 검증
 
 # Codex
+- [Codex 계정 사용 한도 — **2026-07-31 회복 확인(해소)**](project_codex_usage_limit_2026_08_05.md) — 07-30 계정 레벨 한도(sol·luna 동일, 모델 교체로 우회 불가)로 캐논 3단계 결손. **07-31 재개 확인** — 한도 에러는 `Selected model is at capacity`(상류 슬롯 부재)와 별개 현상이라는 구분만 남긴다
 - [🚨 codex 병렬 디스패치 가능 + 콘텐츠필터 오탐](feedback_codex_parallel_and_content_filter.md) — 2 codex 동시 backgrounded 실측(순차 오해 정정). 단 "권한/세션/인증" 브리핑을 사이버보안 위험으로 오탐→중립표현 재구성
 - [Codex MCP 서버 사용](feedback_codex_plugin_setup.md) — mcp__codex__codex, sandbox danger-full-access(모든 호출 명시), 5 agents 병렬
 - [Codex 디스패치=Claude commit 대행+approval never](feedback_codex_sandbox_git.md) — Codex git 금지(파일만), approval-policy never, **model 스테이지별 명시(기획검수/적대리뷰=`gpt-5.6-sol` …
@@ -135,6 +148,8 @@
 - [Korean Audit Standard](project_korean_accounting.md) — 표준 계정과목 코드 시드
 - [SP-08 legacy GAS parity](project_sp_08_legacy_gas_parity.md) — 전메뉴 GAS 동등, tools/legacy-gas/, #434
 - [옵션C 폐기—외부4종 DB 치환](project_sheets_to_db_full_migration.md) · [전산=이카운트 대체·GAS=export원](project_replaces_ecount_gas_was_exporter.md)
+- [🚨 품목 식별 체계 — 품목코드 = 모델명 전환 · UUID 는 미노출 분리 (2026-07-30 결정)](project_item_code_model_unification.md) — 순번코드(`010001`) 시절과 모델명 체계가 섞여 있어 **같은 기초품목이 2개**인 경우가 있다. 전부 현재 체계로 전환하고 순번코드는 `product_aliases` 로 보존. 🚨**UUID(미노출 서버키)와 품목코드(노출키)를 합치지 않는다** — 경계는 품목코드, 내부는 UUID. 실측 계약: `product_code`=이카운트 숫자코드 100건 · `model_name`=모델토큰 1,220건 전부 · Sheet sync 는 `product_code` 를 적재하지 않는다. 전표수락 400=데이터 미적재 · `stock_instances.product_code` 키 이관 필요
+- [🚨 일마감은 계산서 발행 전 DC 검증 절차다 (2026-07-30 결정)](project_daily_closing_purpose_dc_verification.md) — 사후 집계가 아니다. 영업자가 **DC율·싱글중대형 DC액**을 정확히 넣었는지 계산서 발행 전 확인하는 절차. GAS 입력=**하루치 판매전표 엑셀**(시트 아님) · 카테고리는 **`일자_번호` 그룹 내 원본 행 순서 + 모델 토큰**으로 판별(AM→상업멀티·AJ→홈멀티, 종료 토큰 없음). 🔴현대 격차: 원천이 `tax_invoice_lines`(한 단계 뒤) · 집계 키가 **품목명**(GAS 는 모델명) · GAS 규칙 적용 시 22행 **전부 UNKNOWN** · **싱글중대형 DC액 검증 자체가 없음**(`DiscountRevalidator:123-126` OUT_OF_SCOPE)
 - [이카운트 네이티브 편입](project_ecount_native_fold.md) · [이카운트 품목 신원규칙](project_ecount_product_identity_rule.md)
 - [🆕 이카운트 **대표품목 = 코드==명** 행 (2026-07-28 결정)](project_ecount_main_item_rule_2026_07_28.md) — 나중에 추가된 쪽이며 향후 이 품목으로 통합. 충돌 **164그룹** 실측 = A(코드==명)116 · B(공백만다름)6 · C(괄호앞일치)13 · **E(결정불가)29**. E 는 **품목관계 export 로 해결**(추측 금지), B·C 는 자동판정 승인. 🔑**코드 변경 불요일 수 있음** — `resolveMainCandidate` 가 이미 ①품목관계 alias→대표 ②관계 등재 대표 ③DB 동명 ④유일명 ⑤fail-closed 순이라, 422 는 파일 부재 탓. ⚠️③은 결과를 **DB 상태에 의존**시킴(시트 sync 전/후가 다름)
 - [외부연동 딥리서치](project_external_integration_research.md) — 전자세금계산서 ASP 권고(바로빌), 법인계좌 리서치
@@ -165,6 +180,7 @@
 - [회계 G/H 도메인 결정](project_accounting_gh_decisions.md) — 받을어음+수금계획, H=BankTransaction CSV MVP→KFTC
 - [회계 보고서 표시 규약](feedback_accounting_report_display_conventions.md) — 음수 '-X'빨강, 0='—', 코드 prefix 금지
 - [회계 원장 수정금지·입금보고서 에픽](project_accounting_ledger_edit_policy.md) — Journal 수정금지(역분개), CashReceipt 입금보고서 편집대상, #697 폐기 (2026-07-02)
+- [🆕 **입금보고서=결재문서 아님 · 거래처별 원장 표시 사양** (2026-07-30 개발책임자)](project_partner_ledger_and_cash_receipt.md) — 입금보고서 = *"하나의 입금내역을 거래처별 원장·회계반영을 위한 **그룹화**"*. **거래처 재지정·금액 분할**이 수정 사유(= 편집 대상인 이유). 용어 🚨**`돈들어온` → `입금`**. 거래처별 원장에 실리는 것 2종 = **출고 판매전표**(전표번호 + 내부 품목 내역 전부) + **입금보고서**(수금내역). 🔴이카운트와 **일부러 다르게**: 품목 금액 = 수량 × **부가세 포함** 단가(이카운트는 별도) · 주소 = **배송주소 데이터**(이카운트는 첫번째 적요)
 - [arologis-desktop 백오피스 ✅](project_arologis_desktop_backoffice.md) — 인사/간이회계/권한, #433
 - [모바일 에픽② 슬1 Foundation ✅](../../docs/handoff/CURRENT-WORK.md) — #596 Dual-mode 인증
 - [플랫폼 분기=빌드타임 플래그](feedback_platform_branch_build_time_flag.md) — VITE_PLATFORM, mock gate 검증

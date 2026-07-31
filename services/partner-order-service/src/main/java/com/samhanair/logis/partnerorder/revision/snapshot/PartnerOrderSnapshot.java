@@ -40,6 +40,7 @@ import java.util.UUID;
  * @param slipPublishedAt slip 발행 성공 시각
  * @param dueDate        납기일
  * @param memo           요청사항/메모
+ * @param deliveryAddress 구조화 배송주소 snapshot
  * @param sourceEstimateId 견적→주문 변환 source estimate UUID (복원용)
  * @param revisionCount  audit 채번 카운터
  * @param lines          라인 스냅샷 배열 (is_deleted=false 라인만 포함)
@@ -59,6 +60,7 @@ import java.util.UUID;
         LocalDateTime slipPublishedAt,
         LocalDate dueDate,
         String memo,
+        String deliveryAddress,
         UUID sourceEstimateId,
         int revisionCount,
         List<LineSnapshot> lines) {
@@ -71,7 +73,18 @@ import java.util.UUID;
                                 LocalDate dueDate, String memo, UUID sourceEstimateId,
                                 int revisionCount, List<LineSnapshot> lines) {
         this(orderNo, null, partnerCode, bizCode, status, slipNo, slipPublishStatus, totalAmount,
-                confirmedAt, slipPublishedAt, dueDate, memo, sourceEstimateId, revisionCount, lines);
+                confirmedAt, slipPublishedAt, dueDate, memo, null, sourceEstimateId, revisionCount, lines);
+    }
+
+    /** partnerId 도입 전 legacy snapshot의 15개 인자 생성자 호환. */
+    public PartnerOrderSnapshot(String orderNo, UUID partnerId, String partnerCode, String bizCode,
+                                PartnerOrderStatus status, String slipNo,
+                                SlipPublishStatus slipPublishStatus, BigDecimal totalAmount,
+                                LocalDateTime confirmedAt, LocalDateTime slipPublishedAt,
+                                LocalDate dueDate, String memo, UUID sourceEstimateId,
+                                int revisionCount, List<LineSnapshot> lines) {
+        this(orderNo, partnerId, partnerCode, bizCode, status, slipNo, slipPublishStatus, totalAmount,
+                confirmedAt, slipPublishedAt, dueDate, memo, null, sourceEstimateId, revisionCount, lines);
     }
 
     /**
@@ -160,6 +173,7 @@ import java.util.UUID;
                 order.getSlipPublishedAt(),
                 order.getDueDate(),
                 order.getMemo(),
+                order.getDeliveryAddress(),
                 order.getSourceEstimateId(),
                 order.getRevisionCount(),
                 lineSnapshots);

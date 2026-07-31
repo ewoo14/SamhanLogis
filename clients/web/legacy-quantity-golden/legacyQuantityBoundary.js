@@ -96,6 +96,10 @@ const ORDER_ONLY_QUANTITY_HELPERS = new Set([
   'isSingleManualLocked',
   'applySingleManualLock',
   'isCommDerivedRow',
+  'noteHomeCatalogMissing_',
+  'setHomeDerivedQty_',
+  'noteSingleCatalogMissing_',
+  'setSingleDerivedQty_',
 ]);
 
 function sourceFunctionBundleForApp(source, app, names) {
@@ -216,6 +220,8 @@ function runHome(source, input) {
     'recomputeHomeBranches',
     'recomputeHomeRemotes',
     'recomputeHomePanels',
+    'noteHomeCatalogMissing_',
+    'setHomeDerivedQty_',
     'recomputeHomeDerived',
     'isHomeCalcTriggerModel',
     'isHomeDerivedRow',
@@ -227,6 +233,7 @@ function runHome(source, input) {
     ${catalogPreludeScript(source, input)}
     const homeQty = new Map(Object.entries(${JSON.stringify(quantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    let HOME_CATALOG_MISSING_MODELS = new Map();
     const HOME_MANUAL_PANEL = new Set();
     const HOME_MANUAL_HOSE = new Set();
     const HOME_MANUAL_REMOTE = new Set();
@@ -265,6 +272,8 @@ function runSingle(source, input) {
       'registerDerivedQty',
       'isManualQtyLocked',
       'setDerivedQty',
+      'noteSingleCatalogMissing_',
+      'setSingleDerivedQty_',
       'isSingleDerivedRow',
       'isSingleManualLocked',
       'applySingleManualLock',
@@ -284,6 +293,7 @@ function runSingle(source, input) {
     ${domScript(input.options?.dom)}
     ${catalogPreludeScript(source, input)}
     const singleQty = new Map(Object.entries(${JSON.stringify(quantities)}));
+    let SINGLE_CATALOG_MISSING_MODELS = new Map();
     const MANUAL_QTY_LOCKS = { home: new Set(), commercial: new Set(), single: new Set() };
     const DERIVED_QTY_TARGETS = { home: new Set(), commercial: new Set(), single: new Set() };
     ${functions}

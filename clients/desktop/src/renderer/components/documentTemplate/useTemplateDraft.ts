@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { GROUPWARE_DEFAULT } from '../../print/approvalDefaultTemplate'
+import { normalizeTemplateAuthoringMode } from '../../print/templateAuthoringMode'
 import {
   ELEMENT_TYPE_LABEL,
   parseDocumentTemplate,
@@ -68,17 +69,25 @@ export function createUniqueElementKey(type: string, existingKeys: Set<string>):
 function toDraft(template: TemplateEnvelope | null | undefined): TemplateDraftState {
   const source = template ?? GROUPWARE_DEFAULT
   const v2 = source.schemaVersion === 1 ? upcastDocumentTemplate(source, 1) : source
+  const document: DocumentPayload = {
+    paper: v2.document.paper,
+    bands: v2.document.bands.map((band) => ({
+      ...band,
+      elements: band.elements.map((element) => ({ ...element })),
+    })),
+  }
+  Object.defineProperty(document, 'mode', {
+    value: normalizeTemplateAuthoringMode(v2.document.mode),
+    enumerable: Object.prototype.propertyIsEnumerable.call(v2.document, 'mode'),
+    configurable: true,
+    writable: true,
+  })
+
   return {
     ...v2,
     schemaVersion: 2,
     docType: template ? v2.docType : '',
-    document: {
-      paper: v2.document.paper,
-      bands: v2.document.bands.map((band) => ({
-        ...band,
-        elements: band.elements.map((element) => ({ ...element })),
-      })),
-    },
+    document,
   }
 }
 

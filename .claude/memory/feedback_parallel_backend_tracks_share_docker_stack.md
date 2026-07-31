@@ -39,4 +39,35 @@ DB 는 더 나쁘다. #984 의 임포트가 `products` **2,655행을 갱신**했
 - **"당시엔 옳았다"는 게이트를 통과시키지 않는다.** 머지 게이트 ①은 재현 가능성을 요구한다. 클로버됐으면 직렬화 후 재검증한다.
 - 실행 중인 Codex 는 **강제 종료하지 않는다** — MCP codex 는 중단 시 산출물이 하나도 안 남는다. 끝난 뒤 직렬로 재검증하는 편이 낫다.
 
+## 🆕 반대 방향 — **내 이미지가 내 브랜치보다 낡다** (2026-07-29 #985)
+
+남이 덮은 게 아니라 **내가 배포한 뒤 커밋을 더 쌓았는데 재배포를 안 한** 경우다.
+
+PM 이 `9c776fa3c` 로 이미지를 배포하고, 그 뒤 두 커밋(`0194628d4` 계약 변경 ·
+`af81ebb88` 중복 방지)을 올린 채 라이브QA 를 돌렸다. 결과:
+
+```text
+HTTP 400 INVALID_INPUT — lines[0].productId: 널이어서는 안됩니다   ← 배포본이 아직 @NotNull
+동일 payload MD5 인데 draft ID 가 재사용되지 않고 2개 생성됨        ← 재사용 로직이 배포본에 없음
+```
+
+**두 관측 모두 코드 결함처럼 보였지만 전부 stale 배포였다.** QA 실행자는 정확히
+관측했고 PM 이 틀렸다. 이 결과를 코드 판정으로 썼다면 있지도 않은 결함을 고치려
+했을 것이다.
+
+🔑 **라이브QA 를 지시하기 전에 배포본이 검증 대상 SHA 인지 확인한다.** 확인은 두 줄이면 된다:
+
+```bash
+docker images --format '{{.Repository}}	{{.CreatedSince}}' | grep infrastructure-
+docker exec samhan-<svc> sh -c "unzip -p /app/app.jar BOOT-INF/classes/<새 클래스 경로>.class | strings | grep <새 필드>"
+```
+
+실제로 통한 확인 (#985):
+```text
+infrastructure-partner-order-service   35 seconds ago
+/productId;modelCode;categoryKey;quantity;remark    ← 5필드 record = 새 코드 맞음
+```
+
+🔑 **커밋을 하나라도 더 쌓았으면 재배포 없이 라이브QA 를 돌리지 않는다.**
+
 관련: [[feedback_parallel_agent_gradle_shared_tree_contention]] · [[feedback_qa_live_shared_data_readonly]] · [[feedback_pm_verify_what_measurement_proves]]

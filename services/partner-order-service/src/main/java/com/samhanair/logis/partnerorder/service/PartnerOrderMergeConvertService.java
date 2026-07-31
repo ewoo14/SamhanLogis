@@ -173,6 +173,9 @@ public class PartnerOrderMergeConvertService {
             }
         }
 
+        MergeConvertToSlipRequest.ShippingInfo shippingInfo = req.shippingInfo();
+        String deliveryAddress = resolveDeliveryAddress(orders, shippingInfo);
+
         // 4. 결정적 idempotencyKey / convertKey (SHA-256 기반)
         String idempotencyKey = buildIdempotencyKey(reserveTargets);
         UUID convertKeyUuid = buildConvertKeyUuid(reserveTargets);
@@ -199,7 +202,6 @@ public class PartnerOrderMergeConvertService {
         }
 
         // 7. slip-service 병합 발행
-        MergeConvertToSlipRequest.ShippingInfo si = req.shippingInfo();
         Map<String, Object> payload = new LinkedHashMap<>();
         String partnerCode = orders.isEmpty() ? null : orders.get(0).getPartnerCode();
         payload.put("sourceOrders", orders.stream()
@@ -208,15 +210,16 @@ public class PartnerOrderMergeConvertService {
                 .toList());
         payload.put("partnerId", partnerId);
         payload.put("partnerCode", partnerCode);
-        payload.put("partnerName", si != null ? si.partnerName() : null);
+        payload.put("partnerName", shippingInfo != null ? shippingInfo.partnerName() : null);
         payload.put("warehouseCode", req.warehouseCode());
         payload.put("warehouseId", warehouseId.toString());
         payload.put("ioDate", LocalDate.now().format(IO_DATE_FMT));
-        payload.put("shippingAddress", si != null ? si.shippingAddress() : null);
-        payload.put("receiverPhone", si != null ? si.receiverPhone() : null);
-        payload.put("paymentDueLabel", si != null ? si.paymentDueLabel() : null);
-        payload.put("discountInfo", si != null ? si.discountInfo() : null);
-        payload.put("memo", si != null ? si.memo() : null);
+        payload.put("shippingAddress", shippingInfo != null ? shippingInfo.shippingAddress() : null);
+        payload.put("deliveryAddress", deliveryAddress);
+        payload.put("receiverPhone", shippingInfo != null ? shippingInfo.receiverPhone() : null);
+        payload.put("paymentDueLabel", shippingInfo != null ? shippingInfo.paymentDueLabel() : null);
+        payload.put("discountInfo", shippingInfo != null ? shippingInfo.discountInfo() : null);
+        payload.put("memo", shippingInfo != null ? shippingInfo.memo() : null);
         payload.put("lines", payloadLines);
 
         PublishResult result;
@@ -258,6 +261,33 @@ public class PartnerOrderMergeConvertService {
         log.info("[D2] 병합 전환 완료 — {}개 주문 → slip {} (idemKey={})",
                 orders.size(), result.slipNo(), idempotencyKey);
         return new MergeConvertResultResponse(result.slipNo(), results);
+    }
+
+    /** 병합 대상의 구조화 배송주소를 단일 정본으로 해소한다. */
+    private String resolveDeliveryAddress(List<PartnerOrder> orders,
+                                          MergeConvertToSlipRequest.ShippingInfo shippingInfo) {
+        String explicit = trimToNull(shippingInfo == null ? null : shippingInfo.deliveryAddress());
+        if (explicit != null) {
+            return explicit;
+        }
+        List<String> addresses = orders.stream()
+                .map(PartnerOrder::getDeliveryAddress)
+                .map(this::trimToNull)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (addresses.size() <= 1) {
+            return addresses.isEmpty() ? null : addresses.get(0);
+        }
+        throw new BusinessException(ErrorCode.INVALID_INPUT,
+                "병합 대상 주문의 배송주소가 서로 다릅니다. 구조화된 deliveryAddress를 선택해 주세요.");
+    }
+
+    private String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     private ResponseStatusException unresolvedLegacyPartnerConflict() {

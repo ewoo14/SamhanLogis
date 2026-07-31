@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -131,26 +132,79 @@ public class PartnerOrderConfirmService {
         // 2) M1a product — 카탈로그 조회 (라인 스냅샷 + 가격 산출)
         List<UUID> productIds = request.lines().stream()
                 .map(ConfirmLineRequest::productId)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
-        List<ProductSummary> products = productClient.lookup(productIds);
+        List<String> modelCodes = request.lines().stream()
+                .filter(line -> line.productId() == null)
+                .map(ConfirmLineRequest::modelCode)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (productIds.isEmpty() && modelCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "확정 라인에 productId 또는 modelCode가 필요합니다");
+        }
+        List<ProductSummary> productsById = productIds.isEmpty()
+                ? List.of() : productClient.lookup(productIds);
+        List<ProductSummary> productsByModelCode = modelCodes.isEmpty()
+                ? List.of() : productClient.lookupByModelCodes(modelCodes);
         Map<UUID, ProductSummary> productMap = new HashMap<>();
-        for (ProductSummary p : products) {
+        Map<String, ProductSummary> modelCodeMap = new HashMap<>();
+        for (ProductSummary p : productsById) {
             productMap.put(p.id(), p);
+        }
+        for (ProductSummary p : productsByModelCode) {
+            productMap.put(p.id(), p);
+            if (p.modelCode() != null && !p.modelCode().isBlank()) {
+                modelCodeMap.put(p.modelCode().trim(), p);
+            }
+        }
+
+        List<ConfirmLineRequest> reqLines = request.lines();
+        List<ProductSummary> lineProducts = new ArrayList<>();
+        for (ConfirmLineRequest line : reqLines) {
+            ProductSummary p = resolveProduct(line, productMap, modelCodeMap);
+            if (p == null) {
+                String identity = line.productId() != null
+                        ? line.productId().toString() : line.modelCode();
+                throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + identity);
+            }
+            lineProducts.add(p);
+        }
+        List<UUID> resolvedProductIds = lineProducts.stream()
+                .map(ProductSummary::id)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, BigDecimal> fixedDiscountRates =
+                productClient.lookupFixedDiscountRates(resolvedProductIds);
+        if (fixedDiscountRates == null) {
+            fixedDiscountRates = Map.of();
         }
 
         // 3) price-calc 요청 빌드 (라인 index 를 lineId 로)
         List<DcConfigClient.PriceLine> priceLines = new ArrayList<>();
-        List<ConfirmLineRequest> reqLines = request.lines();
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
-            ProductSummary p = productMap.get(line.productId());
-            if (p == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND, "제품 카탈로그 없음: " + line.productId());
+            ProductSummary p = lineProducts.get(i);
+            String discountFlags = resolveDiscountFlags(p);
+            BigDecimal fixedDiscountRate = p.fixedDiscountRate() != null
+                    ? p.fixedDiscountRate()
+                    : fixedDiscountRates.get(p.id());
+            BigDecimal listPrice = resolveListPrice(p, line.categoryKey(), fixedDiscountRate);
+            if (listPrice == null || listPrice.signum() <= 0) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "확정 가격 기준가 없음: " + modelCodeSnapshot(p));
             }
             priceLines.add(new DcConfigClient.PriceLine(
-                    String.valueOf(i), p.modelName(), p.sellingPrice(),
-                    mapCategory(line.categoryKey()), line.quantity()));
+                    String.valueOf(i), modelCodeSnapshot(p), listPrice,
+                    mapCategory(line.categoryKey()), line.quantity(),
+                    discountFlag(discountFlags, 0), discountFlag(discountFlags, 1),
+                    discountFlag(discountFlags, 2), discountFlag(discountFlags, 3),
+                    discountFlag(discountFlags, 4), discountFlag(discountFlags, 5),
+                    fixedDiscountRate, variableDiscountEnabled(p)));
         }
         Map<String, BigDecimal> finalPrices = dcConfigClient.calculatePrices(partnerCode, priceLines);
 
@@ -161,12 +215,19 @@ public class PartnerOrderConfirmService {
         String orderNo = nextOrderNo();
 
         PartnerOrder order = PartnerOrder.createFromConfirm(
-                partnerId, partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO);
+                partnerId, partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO,
+                request.deliveryAddress());
 
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);
-            ProductSummary p = productMap.get(line.productId());
-            BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), p.sellingPrice());
+            ProductSummary p = lineProducts.get(i);
+            BigDecimal listPrice = resolveListPrice(p, line.categoryKey(),
+                    p.fixedDiscountRate() != null ? p.fixedDiscountRate() : fixedDiscountRates.get(p.id()));
+            BigDecimal priceVat = finalPrices.getOrDefault(String.valueOf(i), listPrice);
+            if (priceVat == null || priceVat.signum() <= 0) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "확정 최종 단가가 0원입니다: " + modelCodeSnapshot(p));
+            }
             // 주문 라인 modelName 컬럼은 화면 표시 modelCode snapshot 으로 사용한다.
             String lineModelCode = modelCodeSnapshot(p);
             PartnerOrderLine entity = PartnerOrderLine.create(
@@ -190,6 +251,18 @@ public class PartnerOrderConfirmService {
         publishListChanged();
 
         return ConfirmResponse.from(order);
+    }
+
+    private ProductSummary resolveProduct(ConfirmLineRequest line,
+                                          Map<UUID, ProductSummary> productMap,
+                                          Map<String, ProductSummary> modelCodeMap) {
+        if (line.productId() != null) {
+            return productMap.get(line.productId());
+        }
+        if (line.modelCode() == null || line.modelCode().isBlank()) {
+            return null;
+        }
+        return modelCodeMap.get(line.modelCode().trim());
     }
 
     private void publishListChanged() {
@@ -277,6 +350,90 @@ public class PartnerOrderConfirmService {
             return product.modelCode().trim();
         }
         return product.modelName();
+    }
+
+    /** Product.discountFlags 의 6비트 순서(is360 ... isFirstGrade)를 계산 요청으로 전사한다. */
+    private boolean discountFlag(String flags, int index) {
+        return flags != null && flags.length() > index && flags.charAt(index) == '1';
+    }
+
+    /**
+     * 새 product summary의 저장 비트셋을 우선하고, 구형 product-service 응답에는 모델 규칙을 보완한다.
+     * 구형 응답도 AM360 같은 실제 360 품목을 false로 소거하지 않기 위한 호환 경로다.
+     */
+    private String resolveDiscountFlags(ProductSummary product) {
+        if (product.discountFlags() != null
+                && product.discountFlags().matches("[01]{6}")
+                && product.discountFlags().chars().anyMatch(ch -> ch == '1')) {
+            return product.discountFlags();
+        }
+        String model = String.valueOf(modelCodeSnapshot(product)).toUpperCase(java.util.Locale.ROOT);
+        // 구형 product-service 응답에는 discountFlags 자체가 없다. 기존 AM360 호환 호출자는
+        // 모델 토큰으로 360 옵션을 식별하던 계약이므로 그 경로만 보존한다. 실제 응답의
+        // "000000"은 아래 order-app getModelFlags 규칙으로 재판정한다.
+        if (product.discountFlags() == null && model.contains("360")) {
+            return "100000";
+        }
+        boolean is360 = false;
+        boolean is4Way = false;
+        boolean is1Way = false;
+        boolean isStand = false;
+        boolean isDeluxe = false;
+        boolean isFirstGrade = false;
+        if (model.startsWith("AC") && model.length() >= 9) {
+            is360 = model.charAt(7) == '6' && model.charAt(8) == 'P';
+            is4Way = model.charAt(7) == '4' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
+            is1Way = model.charAt(7) == '1' && (model.charAt(8) == 'P' || model.charAt(8) == 'D');
+        }
+        if (model.startsWith("AP") && model.length() >= 9) {
+            if (model.length() >= 11 && model.charAt(10) == 'C') {
+                isStand = model.charAt(8) == 'D';
+            } else {
+                isStand = model.charAt(8) == 'P';
+            }
+            if (model.length() >= 11 && model.charAt(8) == 'D' && model.charAt(10) == 'H') {
+                isDeluxe = true;
+            }
+            if (model.startsWith("AP230") || model.startsWith("AP290")) {
+                isStand = true;
+                isDeluxe = false;
+            }
+        }
+        if ((model.startsWith("AC") || model.startsWith("AP"))
+                && model.length() >= 9 && model.charAt(8) == 'F') {
+            isFirstGrade = true;
+        }
+        return (is360 ? "1" : "0")
+                + (is4Way ? "1" : "0")
+                + (is1Way ? "1" : "0")
+                + (isStand ? "1" : "0")
+                + (isDeluxe ? "1" : "0")
+                + (isFirstGrade ? "1" : "0");
+    }
+
+    /** 화면의 카탈로그 계산이 사용한 원금. 멀티는 변동DC/고정DC가 있을 때 releasePrice를 쓴다. */
+    private BigDecimal resolveListPrice(ProductSummary product, String categoryKey,
+                                        BigDecimal fixedDiscountRate) {
+        boolean multi = "homemulti".equals(categoryKey) || "homeDefaults".equals(categoryKey)
+                || "commercialMulti".equals(categoryKey);
+        BigDecimal primary;
+        if (multi) {
+            primary = fixedDiscountRate != null || variableDiscountEnabled(product)
+                    ? product.releasePrice() : product.deliveryPrice();
+        } else if ("oldProducts".equals(categoryKey)) {
+            primary = product.releasePrice();
+        } else {
+            primary = product.deliveryPrice();
+        }
+        if (primary != null && primary.signum() > 0) {
+            return primary;
+        }
+        return product.sellingPrice();
+    }
+
+    /** null은 구형 product-service 응답의 변동DC 정보 부재를 뜻하므로 기존 rate 계약을 유지한다. */
+    private boolean variableDiscountEnabled(ProductSummary product) {
+        return product.hasVariableDiscount() == null || product.hasVariableDiscount();
     }
 
     /**

@@ -25,7 +25,6 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -64,6 +63,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/admin/groupware")
 @RequiredArgsConstructor
 public class GroupwareAdminController {
+
+    private static final String SCHEDULE_PAGE_CODE = "groupware.schedules";
 
     private final ApprovalLineService approvalLineService;
     private final MessageService messageService;
@@ -287,7 +288,7 @@ public class GroupwareAdminController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "소유자 / 참여자 미존재")
     })
     @PostMapping("/schedules")
-    @RequirePermission(page = "messenger.send", action = PermissionAction.CREATE)
+    @RequirePermission(page = SCHEDULE_PAGE_CODE, action = PermissionAction.CREATE)
     public ResponseEntity<ApiResponse<ScheduleResponse>> createSchedule(
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID ownerId,
             @Valid @RequestBody ScheduleRequest req) {
@@ -299,7 +300,7 @@ public class GroupwareAdminController {
     /** 일정 조회 (소유자 + 기간). */
     @Operation(summary = "일정 조회 (소유자 + 기간)")
     @GetMapping("/schedules")
-    @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
+    @RequirePermission(page = SCHEDULE_PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<List<ScheduleResponse>> findSchedules(
             @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID ownerId,
             @RequestParam(required = false, name = "ownerId") UUID ignoredOwnerId,
@@ -310,10 +311,24 @@ public class GroupwareAdminController {
         return ApiResponse.ok(schedules.stream().map(ScheduleResponse::from).toList());
     }
 
+    /** 일정 단건 상세 조회. 호출자가 활성 대상자인 일정만 반환한다. */
+    @Operation(summary = "일정 단건 상세 조회")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "일정 미존재 또는 조회 권한 없음")
+    })
+    @GetMapping("/schedules/{scheduleId}")
+    @RequirePermission(page = SCHEDULE_PAGE_CODE, action = PermissionAction.VIEW)
+    public ApiResponse<ScheduleResponse> findSchedule(
+            @PathVariable UUID scheduleId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorUserId) {
+        return ApiResponse.ok(ScheduleResponse.from(scheduleService.findVisibleById(scheduleId, actorUserId)));
+    }
+
     /** 일정 수정. */
     @Operation(summary = "일정 수정")
     @PutMapping("/schedules/{scheduleId}")
-    @RequirePermission(page = "messenger.send", action = PermissionAction.UPDATE)
+    @RequirePermission(page = SCHEDULE_PAGE_CODE, action = PermissionAction.UPDATE)
     public ApiResponse<ScheduleResponse> updateSchedule(@PathVariable UUID scheduleId,
                                                         @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID ownerId,
                                                         @Valid @RequestBody ScheduleRequest req) {
@@ -324,10 +339,11 @@ public class GroupwareAdminController {
     /** 일정 삭제 (soft). */
     @Operation(summary = "일정 삭제 (soft)")
     @DeleteMapping("/schedules/{scheduleId}")
-    @RequirePermission(page = "messenger.admin", action = PermissionAction.DELETE)
-    public ResponseEntity<ApiResponse<Void>> deleteSchedule(@PathVariable UUID scheduleId, Principal principal) {
-        String actor = principal != null ? principal.getName() : "system";
-        scheduleService.delete(scheduleId, actor);
+    @RequirePermission(page = SCHEDULE_PAGE_CODE, action = PermissionAction.DELETE)
+    public ResponseEntity<ApiResponse<Void>> deleteSchedule(
+            @PathVariable UUID scheduleId,
+            @RequestHeader(HttpHeaderConstants.CALLER_ID_HEADER) UUID actorUserId) {
+        scheduleService.delete(scheduleId, actorUserId);
         return ResponseEntity.ok(ApiResponse.ok(null));
     }
 }

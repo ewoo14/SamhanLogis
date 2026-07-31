@@ -141,6 +141,8 @@ body.old-active #btnGoOld { display:none !important }
 .viewbar-out{ display:flex; justify-content:flex-end; align-items:center; gap:8px; padding:8px 12px; background:#fff; border-bottom:1px solid var(--c-line); }
 .opts{display:flex; justify-content:center;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--c-line);background:#fff;white-space:nowrap;overflow:auto}
 .opts::-webkit-scrollbar{height:8px} .opts::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+.catalog-warning{width:100%;box-sizing:border-box;padding:12px 16px;border-bottom:1px solid #f59e0b;background:#fff7ed;color:#9a3412;font-size:14px;line-height:1.5;white-space:normal}
+@media print{#homeCatalogWarnings,#singleCatalogWarnings,#commCatalogWarnings{display:none!important}}
 .chip{display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:999px;padding:6px 12px;box-shadow:0 1px 2px rgba(0,0,0,0.05);transition:all 0.2s ease}
 .chip:hover{border-color:#cbd5e1}
 .chip input[type="number"]{width:120px;height:var(--inp-h);border:1px solid #cbd5e1;border-radius:8px;padding:0 8px;text-align:right;background:#fff;transition:all 0.2s ease;outline:none}
@@ -815,6 +817,7 @@ button.tut-highlight { filter: brightness(1.6); }
             <button type="button" id="btnResetHome" class="btn-mini">초기화</button>
           </div>
         </div>
+        <div id="homeCatalogWarnings" class="catalog-warning" role="alert" aria-live="polite" hidden></div>
         <div class="opts" id="homeOpts"></div>
         <div class="filter-bar" id="homeFilterBar">
           <select id="homeFilterL">
@@ -864,6 +867,7 @@ button.tut-highlight { filter: brightness(1.6); }
           <div class="card-title">싱글중대형</div>
           <button type="button" id="btnResetSingle" class="btn-mini">초기화</button>
         </div>
+        <div id="singleCatalogWarnings" class="catalog-warning" role="alert" aria-live="polite" hidden></div>
         <div class="opts" id="singleOpts"></div>
         <div class="filter-bar" id="singleFilterBar">
           <select id="singleFilterL">
@@ -913,6 +917,7 @@ button.tut-highlight { filter: brightness(1.6); }
             <button class="btn-mini" id="btnResetComm">초기화</button>
           </div>
         </div>
+        <div id="commCatalogWarnings" class="catalog-warning" role="alert" aria-live="polite" hidden></div>
         <div class="opts" id="commOpts"></div>
         <div class="filter-bar" id="commFilterBar">
           <select id="commFilterL">
@@ -5097,7 +5102,7 @@ function onSingleQtyInput(id,v,explicit){
   }
   if(sCell) sCell.textContent=fmt(unit*v);
   if(uCell){ uCell.setAttribute('data-unitraw', unit); uCell.textContent = fmt(unit); }
-  if(isSingleCalcTriggerId(key)){recomputeSingleBaseFoot();recomputeSingleExtras();}
+  if(isSingleCalcTriggerId(key)) recomputeSingleDerived();
   el('#singleTotal').textContent=fmt(sumSingles());refreshSelectedBadge();
   updateInlineTotals();
 }
@@ -5144,7 +5149,7 @@ function renderSingleOptions(){
       const sCell=document.querySelector(`#singleBody [data-ss="${s.id}"]`);
       if(uCell){ uCell.setAttribute('data-unitraw', unit); uCell.textContent=fmt(unit); } if(sCell) sCell.textContent=fmt(unit*q);
     });
-    recomputeFootAll();recomputeSingleBaseFoot();recomputeSingleExtras();
+    recomputeFootAll();recomputeSingleDerived();
     el('#singleTotal').textContent=fmt(sumSingles());refreshSelectedBadge();
     updateInlineTotals();setTimeout(fitAllTables, 0);
   }));
@@ -5155,7 +5160,8 @@ function recomputeFootAll(){
   const outTotalHome=HOMEMULTI.reduce((t,r)=>t+(/실외기/i.test(r?.name||'')?(homeQty.get(r.model)||0):0),0);
   const wantHomeFoot=!!el('#home_foot')?.checked;
   const totalRoundHome=wantHomeFoot?outTotalHome:0;
-  if(FOOT_ROUND) setDerivedQty('home', homeQty, FOOT_ROUND, Math.max(0,totalRoundHome));
+  if(totalRoundHome > 0) setHomeDerivedQty_(FOOT_ROUND, '발통세트', totalRoundHome, '발통 파생');
+  else if(FOOT_ROUND) setDerivedQty('home', homeQty, FOOT_ROUND, 0);
   if(FOOT_FLAT) setDerivedQty('home', homeQty, FOOT_FLAT, 0);
   syncHomeUIFromState();syncHomeTotals();
 }
@@ -5171,8 +5177,8 @@ function recomputeSingleBaseFoot(){
       if(/^(AP230DAPDHH1S|AP290DAPDHH1S)$/i.test(mdl)) flat+=q; else round+=q;
     });
   }
-  if(SS_FOOT_ROUND_ID!=null) setDerivedQty('single', singleQty, SS_FOOT_ROUND_ID, round);
-  if(SS_FOOT_FLAT_ID!=null) setDerivedQty('single', singleQty, SS_FOOT_FLAT_ID, flat);
+  setSingleDerivedQty_(SS_FOOT_ROUND_ID, '발통세트', round, '발통 파생');
+  setSingleDerivedQty_(SS_FOOT_FLAT_ID, 'SI-AL700a', flat, '발통 파생');
   syncSingleUIFromState();
 }
 function recomputeSingleExtras(){
@@ -5186,17 +5192,22 @@ function recomputeSingleExtras(){
       boardQty+=(singleQty.get(s.id)||0);
     });
   }
-  if(SS_WIRED_BOARD_ID!=null) setDerivedQty('single', singleQty, SS_WIRED_BOARD_ID, boardQty);
-  if(SS_CEILING_PUMP_ID!=null){
-    let pumpQty=0;
-    SINGLE_SETS.forEach(s=>{
-      if(s.id===SS_CEILING_PUMP_ID) return;
-      if(/운임|절삭/i.test(s?.name||'')) return;
-      if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
-    });
-    setDerivedQty('single', singleQty, SS_CEILING_PUMP_ID, pumpQty);
-  }
+  setSingleDerivedQty_(SS_WIRED_BOARD_ID, 'AIM-A01N', boardQty, '유선리모컨 파생');
+  let pumpQty=0;
+  SINGLE_SETS.forEach(s=>{
+    if(s.id===SS_CEILING_PUMP_ID) return;
+    if(/운임|절삭/i.test(s?.name||'')) return;
+    if(/실링/i.test(((s?.name)||'')+' '+((s?.model)||''))){pumpQty+=(singleQty.get(s.id)||0);}
+  });
+  setSingleDerivedQty_(SS_CEILING_PUMP_ID, 'ADP-F075SP', pumpQty, '실링용 드레인펌프 파생');
   syncSingleUIFromState();
+}
+
+function recomputeSingleDerived(){
+  SINGLE_CATALOG_MISSING_MODELS = new Map();
+  recomputeSingleBaseFoot();
+  recomputeSingleExtras();
+  renderSingleCatalogWarnings(SINGLE_CATALOG_MISSING_MODELS);
 }
 
 /* 트리거 판별 */
@@ -5275,7 +5286,9 @@ function inferInfiniteSize(nameLike){
 /* 홈멀티 판넬 계산 */
 function recomputeHomePanels(){
   const opt = el('#home_panel')?.value || '';
-  const setP=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
+  const setP=(m,q,fallback)=>{
+    if(m || (fallback && q > 0)) setHomeDerivedQty_(m, fallback || m, q, '판넬 파생');
+  };
 
   // 모든 판넬 초기화
   clearAllPanels();
@@ -5339,27 +5352,34 @@ function recomputeHomePanels(){
   const m4Wi   = pickPanelBy('4way', true, opt);
   const m4No   = pickPanelBy('4way', false,opt);
 
-  if(m360Wi) setP(m360Wi, c360Wi);
-  if(m360No) setP(m360No, c360No);
-  if(m4Wi)   setP(m4Wi,   c4Wi);
-  if(m4No)   setP(m4No,   c4No);
+  setP(m360Wi, c360Wi, 'PC6NUDK1NW');
+  setP(m360No, c360No, 'PC6NUDK1N');
+  setP(m4Wi,   c4Wi,   'PC4NUFK1NW');
+  setP(m4No,   c4No,   'PC4NUFK1N');
 
   const useAir = (opt==='공청판넬' || opt==='인피니트 공청+동작감지 AI');
 
-  const pickModel = (key)=> homeRowByModel.has(PANEL_MODELS[key]) ? PANEL_MODELS[key] : null;
+  const pickModel = (key, quantity)=>{
+    const model = PANEL_MODELS[key];
+    if(!homeRowByModel.has(model)){
+      if(quantity > 0) setHomeDerivedQty_(null, model, quantity, '판넬 파생');
+      return null;
+    }
+    return model;
+  };
 
   // WIFI
-  const m1WiS = pickModel(useAir ? 'a1sWi':'p1sWi');
-  const m1WiM = pickModel(useAir ? 'a1mWi':'p1mWi');
-  const m1WiB = pickModel(useAir ? 'a1bWi':'p1bWi');
+  const m1WiS = pickModel(useAir ? 'a1sWi':'p1sWi', c1WiS);
+  const m1WiM = pickModel(useAir ? 'a1mWi':'p1mWi', c1WiM);
+  const m1WiB = pickModel(useAir ? 'a1bWi':'p1bWi', c1WiB);
   if(m1WiS) setP(m1WiS, c1WiS);
   if(m1WiM) setP(m1WiM, c1WiM);
   if(m1WiB) setP(m1WiB, c1WiB);
 
   // 미내장
-  const m1NoS = pickModel(useAir ? 'a1sNo':'p1sNo');
-  const m1NoM = pickModel(useAir ? 'a1mNo':'p1mNo');
-  const m1NoB = pickModel(useAir ? 'a1bNo':'p1bNo');
+  const m1NoS = pickModel(useAir ? 'a1sNo':'p1sNo', c1NoS);
+  const m1NoM = pickModel(useAir ? 'a1mNo':'p1mNo', c1NoM);
+  const m1NoB = pickModel(useAir ? 'a1bNo':'p1bNo', c1NoB);
   if(m1NoS) setP(m1NoS, c1NoS);
   if(m1NoM) setP(m1NoM, c1NoM);
   if(m1NoB) setP(m1NoB, c1NoB);
@@ -5380,7 +5400,9 @@ function recomputeHomePanels(){
     (opt==='인피니트 25년형' ? INF.big.base25 : INF.big.base);
 
   if(homeRowByModel.has(midModel)) setP(midModel, infMid);
+  else if(infMid > 0) setP(null, infMid, midModel);
   if(homeRowByModel.has(bigModel)) setP(bigModel, infBig);
+  else if(infBig > 0) setP(null, infBig, bigModel);
 
   // 4WAY 공청 고정 치환
   if(opt==='공청판넬'){
@@ -5394,6 +5416,12 @@ function recomputeHomePanels(){
       if(homeRowByModel.has(from) && homeRowByModel.has(to)){
         const n = homeQty.get(from)||0;
         if(n>0 && !isManualQtyLocked('home', from) && !isManualQtyLocked('home', to)){ setP(from,0); setP(to,n); }
+      }else if(homeRowByModel.has(from)){
+        const n = homeQty.get(from)||0;
+        if(n>0 && !isManualQtyLocked('home', from)){
+          setP(from,0);
+          setP(null,n,to);
+        }
       }
     }
   }
@@ -5402,7 +5430,9 @@ function recomputeHomePanels(){
 /* 홈멀티 리모컨 계산 */
 function recomputeHomeRemotes(){
   const opt = el('#home_remote')?.value || '기본';
-  const setR=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
+  const setR=(m,q,fallback)=>{
+    if(m || (fallback && q > 0)) setHomeDerivedQty_(m, fallback || m, q, '리모컨 파생');
+  };
 
   // 모든 리모컨 항목 0으로 초기화
   clearAllRemotes();
@@ -5429,7 +5459,7 @@ function recomputeHomeRemotes(){
   }
 
   // 에어콤보(컬러 유선) 리모컨은 별도 가산
-  if(REMOTE_COLOR_AIRCOMBO) setR(REMOTE_COLOR_AIRCOMBO, Math.max(0, cntCombo));
+  setR(REMOTE_COLOR_AIRCOMBO, Math.max(0, cntCombo), 'AWR-WG00N');
 
   // 옵션별 대체
   const REMOTE_AWR_WE13N = (HOMEMULTI.find(r=>/^AWR-WE13N$/i.test(r?.model||''))||{}).model || null;
@@ -5438,9 +5468,9 @@ function recomputeHomeRemotes(){
 
   if(opt==='기본'){
     // 유형별 기본값만 채움 (이전 수량은 이미 0으로 클리어됨)
-    if(REMOTE_360_DEFAULT) setR(REMOTE_360_DEFAULT, cntCST);
-    if(REMOTE_INF_CH01)    setR(REMOTE_INF_CH01, cntINF);
-    if(REMOTE_WIRELESS)    setR(REMOTE_WIRELESS, cnt1w4w + cntWall);
+    setR(REMOTE_360_DEFAULT, cntCST, 'AR-KH05');
+    setR(REMOTE_INF_CH01, cntINF, 'AR-CH01');
+    setR(REMOTE_WIRELESS, cnt1w4w + cntWall, 'AR-EC05');
     if(REMOTE_WIRED_KIT)   setR(REMOTE_WIRED_KIT, 0);
     if(REMOTE_WIRED)       setR(REMOTE_WIRED, 0);
     if(REMOTE_WIRED_COLOR) setR(REMOTE_WIRED_COLOR, 0);
@@ -5448,8 +5478,8 @@ function recomputeHomeRemotes(){
     // 유선/컬러
     const totalBasic = cntCST + cntINF + cnt1w4w + cntWall;
     const main = (opt==='유선') ? REMOTE_AWR_WE13N : REMOTE_AWR_WG00N;
-    if(main) setR(main, totalBasic);
-    if(REMOTE_WIRED_KIT) setR(REMOTE_WIRED_KIT, totalBasic);
+    setR(main, totalBasic, opt==='유선' ? 'AWR-WE13N' : 'AWR-WG00N');
+    setR(REMOTE_WIRED_KIT, totalBasic, 'AIM-A01N');
   }
 }
 
@@ -5503,13 +5533,95 @@ function recomputeHomeBranches(){
   b1509 = Math.max(0, b1509);
 
   // 적용
-  if (BRANCH_2512) setB(BRANCH_2512, b2512);
-  if (BRANCH_1509) setB(BRANCH_1509, b1509);
+  if (b2512 > 0) setHomeDerivedQty_(BRANCH_2512, 'AXJ-YA2512N', b2512, '분기관 파생');
+  else if (BRANCH_2512) setB(BRANCH_2512, 0);
+  if (b1509 > 0) setHomeDerivedQty_(BRANCH_1509, 'AXJ-YA1509N', b1509, '분기관 파생');
+  else if (BRANCH_1509) setB(BRANCH_1509, 0);
+}
+
+let HOME_CATALOG_MISSING_MODELS = new Map();
+let SINGLE_CATALOG_MISSING_MODELS = new Map();
+
+function loadSingleS03QuantitySync_(){
+  const bridge = window.__SAMHAN_QUANTITY_SYNC__;
+  if(!bridge || typeof bridge.getQuantitySyncRules !== 'function'){
+    console.info('[quantity-sync shadow] 설정 조회 경로를 사용할 수 없습니다. legacy S-03 계산을 유지합니다.');
+    return Promise.resolve();
+  }
+  return bridge.getQuantitySyncRules(SINGLE_SETS).then(state=>{
+    if(state?.status === 'ready'){
+      console.info('[quantity-sync shadow] S-03 설정을 읽었습니다. 사용자 계산은 legacy 수식을 유지합니다.');
+    } else {
+      console.info('[quantity-sync shadow] S-03 설정 관측 불가:', state?.errorMessage || '알 수 없는 오류');
+    }
+  });
+}
+
+function noteHomeCatalogMissing_(model, reason){
+  const key = String(model || '').trim();
+  if(!key) return;
+  const reasons = HOME_CATALOG_MISSING_MODELS.get(key) || new Set();
+  if(reason) reasons.add(reason);
+  HOME_CATALOG_MISSING_MODELS.set(key, reasons);
+}
+
+function setHomeDerivedQty_(candidate, fallback, quantity, reason){
+  const actual = String(candidate || '').trim();
+  const target = actual || String(fallback || '').trim();
+  if(!actual && Number(quantity) > 0) noteHomeCatalogMissing_(target, reason);
+  if(target && (actual || Number(quantity) > 0)) setDerivedQty('home', homeQty, target, quantity);
+  return target;
+}
+
+function noteSingleCatalogMissing_(model, reason){
+  const key = String(model || '').trim();
+  if(!key) return;
+  const reasons = SINGLE_CATALOG_MISSING_MODELS.get(key) || new Set();
+  if(reason) reasons.add(reason);
+  SINGLE_CATALOG_MISSING_MODELS.set(key, reasons);
+}
+
+function setSingleDerivedQty_(candidate, fallback, quantity, reason){
+  const actual = String(candidate || '').trim();
+  const target = actual || String(fallback || '').trim();
+  if(!actual && Number(quantity) > 0) noteSingleCatalogMissing_(target, reason);
+  if(actual) setDerivedQty('single', singleQty, actual, quantity);
+  return target;
+}
+
+function renderCatalogWarnings_(warningId, category, missingModels){
+  const warning = document.getElementById(warningId);
+  if(!warning) return;
+
+  const entries = Array.from((missingModels || new Map()).entries());
+  if(!entries.length){
+    warning.hidden = true;
+    warning.textContent = '';
+    return;
+  }
+
+  const detail = entries.map(([model, reasons])=>{
+    const reasonText = Array.from(reasons || []).join(', ');
+    return `${model}${reasonText ? ` (${reasonText})` : ''}`;
+  }).join(' · ');
+
+  warning.hidden = false;
+  warning.textContent = `${category} 파생 품목이 카탈로그에 없습니다: ${detail}. 누락된 품목은 주문 금액에 반영되지 않았습니다. 카탈로그를 확인해주세요.`;
+}
+
+function renderHomeCatalogWarnings(missingModels){
+  renderCatalogWarnings_('homeCatalogWarnings', '홈멀티', missingModels);
+}
+
+function renderSingleCatalogWarnings(missingModels){
+  renderCatalogWarnings_('singleCatalogWarnings', '싱글중대형', missingModels);
 }
 
 // 홈멀티 부자재 계산
 function recomputeHomeDerived(updateUI){
+  HOME_CATALOG_MISSING_MODELS = new Map();
   const setH=(m,q)=>{if(m) setDerivedQty('home', homeQty, m, q);};
+  const setRequiredH=(m,fallback,q,reason)=>setHomeDerivedQty_(m,fallback,q,reason);
   // 1/4WAY 실내기 + 360 + 벽걸이 → 호스 집계
   let n1w=0, n4w=0, c360=0, nWall=0;
   HOMEMULTI.forEach(r=>{
@@ -5536,13 +5648,16 @@ function recomputeHomeDerived(updateUI){
     if(HOSE_I_4W)  setH(HOSE_I_4W, 0);
   }else{
     if(window.SHOW_I_HOSE){
-      if(HOSE_I_1W) setH(HOSE_I_1W, n1w);
+      if(n1w > 0) setRequiredH(HOSE_I_1W, 'FH-LFHIF', n1w, '유연호스 파생');
+      else if(HOSE_I_1W) setH(HOSE_I_1W, 0);
       if(HOSE_1W)   setH(HOSE_1W,   0);
     }else{
-      if(HOSE_1W)   setH(HOSE_1W,   n1w);
+      if(n1w > 0) setRequiredH(HOSE_1W, 'FH-LFHLF', n1w, '유연호스 파생');
+      else if(HOSE_1W) setH(HOSE_1W, 0);
       if(HOSE_I_1W) setH(HOSE_I_1W, 0);
     }
-    if(HOSE_4W)   setH(HOSE_4W,   n4w);
+    if(n4w > 0) setRequiredH(HOSE_4W, 'FH-LFHLN', n4w, '유연호스 파생');
+    else if(HOSE_4W) setH(HOSE_4W, 0);
     if(HOSE_I_4W) setH(HOSE_I_4W, 0);
   }
 
@@ -5554,6 +5669,8 @@ function recomputeHomeDerived(updateUI){
   // 판넬: 360/4WAY + 인피니트(일반/UV) + 옵션 치환/제외
   recomputeHomePanels();
 
+  if(typeof renderHomeCatalogWarnings === 'function') renderHomeCatalogWarnings(HOME_CATALOG_MISSING_MODELS);
+
   if(updateUI){
     syncHomeUIFromState();
     syncHomeTotals();
@@ -5563,14 +5680,29 @@ function recomputeHomeDerived(updateUI){
 }
 
 /* 상업멀티재계산 */
+function renderCommCatalogWarnings(missingModels){
+  renderCatalogWarnings_('commCatalogWarnings', '상업멀티', missingModels);
+}
+
 function recomputeCommDerived(){
   const want = new Map();
+  const missingModels = new Map();
+  const excludeBase = !!document.getElementById('comm_ex_base')?.checked;
+  const isCommBaseModel_ = model => /방진가대|받침대|발통세트|si-al600a|si-al700a/i.test(String(model || ''));
+  const noteCommCatalogMissing_ = (model, reason) => {
+    const key = String(model || '').trim();
+    if(!key) return;
+    const reasons = missingModels.get(key) || new Set();
+    if(reason) reasons.add(reason);
+    missingModels.set(key, reasons);
+  };
   const requireCommCatalogRow_ = (model, reason) => {
     const row = (COMMULTI||[]).find(x=>x.model===model);
     if(!row){
-      if(!['AR-EH05','방진가대S2중'].includes(String(model))) return null;
-      const suffix = reason ? ` (${reason})` : '';
-      throw new Error(`상업멀티 파생 품목이 카탈로그에 없습니다: ${model}${suffix}`);
+      // 받침대 제외 상태에서는 받침대가 필요하지 않으므로 누락 신호도 현재 상태에 맞춰 지운다.
+      if(excludeBase && isCommBaseModel_(model)) return null;
+      noteCommCatalogMissing_(model, reason);
+      return null;
     }
     return row;
   };
@@ -5597,9 +5729,15 @@ function recomputeCommDerived(){
     if(kind==='1way' || kind==='2way') n1w += q;
     if(kind==='4way' || kind==='360')  n4w += q;
   });
-  const hose1 = pickHoseModel('1way'); if(hose1) want.set(hose1, n1w);
-  const hose4 = pickHoseModel('4way'); if(hose4) want.set(hose4, n4w);
-  if (el('#comm_ex_hose')?.checked){
+  const excludeHose = !!el('#comm_ex_hose')?.checked;
+  if (!excludeHose) {
+    // 후보가 양쪽 bootstrap에서 모두 없으면 pickHoseModel()도 빈 값이 된다.
+    // 주문 수량이 있는 경우에는 canonical fallback을 보존해 최종 누락 검사를 탄다.
+    const hose1 = pickHoseModel('1way') || (n1w > 0 ? (window.SHOW_I_HOSE ? 'FH-LFHIF' : 'FH-LFHLF') : '');
+    const hose4 = pickHoseModel('4way');
+    if(hose1) want.set(hose1, n1w);
+    if(hose4) want.set(hose4, n4w);
+  } else {
     COMMULTI.forEach(r=>{ if(isCommHoseRow(r)) want.set(r.model, 0); });
   }
 
@@ -5628,7 +5766,7 @@ function recomputeCommDerived(){
       pumpInputModels.add(m);
       sum += Number(commQty.get(m)||0);
     });
-    want.set(pump, sum);
+    if (sum > 0) want.set(pump, sum);
   });
   // 펌프 계산 전용 입력 row는 결과 품목이 아니다. 실제 상업 실내기 row는
   // 품명에 '펌프'가 없으므로 그대로 보존하고, 전용 입력 row만 결과에서 제외한다.
@@ -5692,7 +5830,10 @@ function recomputeCommDerived(){
 
     for(const [fModel, list] of Object.entries(RENEW_FILTER_MAP)){
       if(list.includes(r.model)){
-        if(!COMMULTI.find(x=>x.model===fModel)) continue;
+        if(!COMMULTI.find(x=>x.model===fModel)){
+          noteCommCatalogMissing_(fModel, '리뉴얼 필터 파생');
+          continue;
+        }
         want.set(fModel, (want.get(fModel)||0) + q);
       }
     }
@@ -5740,6 +5881,7 @@ function recomputeCommDerived(){
     if(sCel) sCel.textContent = fmt(unit*q);
   });
 
+  if(typeof renderCommCatalogWarnings === 'function') renderCommCatalogWarnings(missingModels);
   syncCommTotals();
   updateInlineTotals();
   updateCommRatio();
@@ -8118,7 +8260,7 @@ btnQuery.addEventListener('click', () => {
 function onAuthStatus(res) {
   showLoadingGate(false); // 로딩 해제
   
-  if (res.status === 'NOT_FOUND_SYSTEM') {
+  if (res && res.status === 'NOT_FOUND_SYSTEM') {
     showAuthModal({
       icon: '🛑', 
       title: '미등록 사업자번호',
@@ -8127,7 +8269,7 @@ function onAuthStatus(res) {
       btn: null // 액션 버튼 없음
     });
   } 
-  else if (res.status === 'NOT_FOUND_AUTH') {
+  else if (res && res.status === 'NOT_FOUND_AUTH') {
     AUTH_STEP = 'REQUEST';
     showAuthModal({
       icon: '🛑',
@@ -8136,7 +8278,7 @@ function onAuthStatus(res) {
       btn: '승인요청 보내기'
     });
   }
-  else if (res.status === 'PENDING') {
+  else if (res && res.status === 'PENDING') {
     showAuthModal({
       icon: '🛑',
       title: '미승인 사업자번호',
@@ -8145,7 +8287,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'LOCKED') {
+  else if (res && res.status === 'LOCKED') {
     showAuthModal({
       icon: '🛑',
       title: '비밀번호 오류',
@@ -8154,7 +8296,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'LONG_UNUSED') {
+  else if (res && res.status === 'LONG_UNUSED') {
     showAuthModal({
       icon: '🛑',
       title: '장기 미발주',
@@ -8163,7 +8305,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'ACCESS_DENIED') {
+  else if (res && res.status === 'ACCESS_DENIED') {
     showAuthModal({
       icon: '🛑',
       title: '접근 제한',
@@ -8172,7 +8314,7 @@ function onAuthStatus(res) {
       btn: null
     });
   }
-  else if (res.status === 'PW_EXPIRED') {
+  else if (res && res.status === 'PW_EXPIRED') {
     AUTH_STEP = 'SET_PW';
     showAuthModal({
       icon: '⚠️',
@@ -8183,7 +8325,7 @@ function onAuthStatus(res) {
     });
   }
 
-  else if (res.status === 'NEED_PW_SET') {
+  else if (res && res.status === 'NEED_PW_SET') {
     AUTH_STEP = 'SET_PW';
     showAuthModal({
       icon: '🔐',
@@ -8193,7 +8335,7 @@ function onAuthStatus(res) {
       btn: '설정'
     });
   }
-  else if (res.status === 'NEED_PW_INPUT') {
+  else if (res && res.status === 'NEED_PW_INPUT') {
     AUTH_STEP = 'LOGIN';
     showAuthModal({
       icon: '🔐',
@@ -8204,8 +8346,20 @@ function onAuthStatus(res) {
     });
   }
   else {
-    alert(res.msg || '알 수 없는 오류');
+    alert((res && res.message) || '알 수 없는 오류');
   }
+}
+
+function getRpcFailureMessage(err, fallback) {
+  const hasServerResponse = Boolean(err && typeof err === 'object' && err.response);
+  const responseData = err && typeof err === 'object' && err.response && err.response.data;
+  if (responseData && typeof responseData.message === 'string' && responseData.message) {
+    return responseData.message;
+  }
+  if (!hasServerResponse) {
+    return '네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인한 후 다시 시도해주세요.';
+  }
+  return fallback;
 }
 
 // 모달 UI 표시
@@ -8267,11 +8421,15 @@ el('#btnAuthAction').addEventListener('click', () => {
     google.script.run
       .withSuccessHandler(res => {
         showLoadingGate(false);
-        if (res.status === 'OK') {
+        if (res && res.status === 'PENDING') {
           showAuthModal({ icon:'✅', title:'완료', msg:'승인요청이 전송되었습니다.\n승인 후 이용 가능합니다.', btn:null });
         } else {
-          alert(res.msg);
+          alert((res && res.message) || '승인요청에 실패했습니다.');
         }
+      })
+      .withFailureHandler(err => {
+        showLoadingGate(false);
+        alert(getRpcFailureMessage(err, '승인요청에 실패했습니다.'));
       })
       .requestAuthApproval(AUTH_BIZ, isMobileNow());
   }
@@ -8291,10 +8449,10 @@ el('#btnAuthAction').addEventListener('click', () => {
       .withSuccessHandler(res => {
         showLoadingGate(false);
         
-        if (res.status === 'OK') {
+        if (res && res.result === 'OK') {
           completeLogin(AUTH_BIZ, {}, res); 
         } 
-        else if (res.status === 'USED_PW') {
+        else if (res && res.result === 'USED_PW') {
           showAuthModal({
             icon: '🛑',
             title: '주의',
@@ -8306,8 +8464,12 @@ el('#btnAuthAction').addEventListener('click', () => {
           el('#authPw1').focus();
         }
         else {
-          alert(res.msg);
+          alert((res && res.message) || '비밀번호 설정에 실패했습니다.');
         }
+      })
+      .withFailureHandler(err => {
+        showLoadingGate(false);
+        alert(getRpcFailureMessage(err, '비밀번호 설정에 실패했습니다.'));
       })
       .setAuthPassword(AUTH_BIZ, p1, isMobileNow());
   }
@@ -8321,13 +8483,9 @@ el('#btnAuthAction').addEventListener('click', () => {
     google.script.run
       .withSuccessHandler(res => {
         showLoadingGate(false);
-        if (res.status === 'OK') {
+        if (res && res.status === 'OK') {
           completeLogin(AUTH_BIZ, res.config, res);
-        } else if (res.status === 'WRONG_PW') {
-          alert(`비밀번호가 틀렸습니다. (${res.count}/3)`);
-          el('#authPw1').value = '';
-          el('#authPw1').focus();
-        } else if (res.status === 'LOCKED') {
+        } else if (res && res.status === 'LOCKED') {
           showAuthModal({
             icon: '🛑',
             title: '비밀번호 오류',
@@ -8335,7 +8493,7 @@ el('#btnAuthAction').addEventListener('click', () => {
             sub: '02-3465-1331',
             btn: null
           });
-        } else if (res.status === 'LONG_UNUSED') {
+        } else if (res && res.status === 'LONG_UNUSED') {
           showAuthModal({
             icon: '🛑',
             title: '장기 미사용',
@@ -8343,7 +8501,7 @@ el('#btnAuthAction').addEventListener('click', () => {
             sub: '02-3465-1331',
             btn: null
           });
-        } else if (res.status === 'ACCESS_DENIED') {
+        } else if (res && res.status === 'ACCESS_DENIED') {
           showAuthModal({
             icon: '🛑',
             title: '접근 제한',
@@ -8351,7 +8509,17 @@ el('#btnAuthAction').addEventListener('click', () => {
             sub: '02-3465-1331',
             btn: null
           });
+        } else {
+          alert((res && res.message) || '로그인에 실패했습니다.');
+          el('#authPw1').value = '';
+          el('#authPw1').focus();
         }
+      })
+      .withFailureHandler(err => {
+        showLoadingGate(false);
+        alert(getRpcFailureMessage(err, '로그인에 실패했습니다.'));
+        el('#authPw1').value = '';
+        el('#authPw1').focus();
       })
       .tryLogin(AUTH_BIZ, pw, isMobileNow());
   }
@@ -8372,9 +8540,14 @@ function completeLogin(bizNo, config, res) {
       applyConfigFromServer(config);
   }
   window.CURRENT_BIZNO = bizNo;
-  window.TUT_DONE = isMobileNow() ? res.tutMo : res.tutPc;
+  // TryLoginResponse에는 튜토리얼 완료 플래그가 없으므로 서버 응답을 추측하지 않는다.
+  window.TUT_DONE = false;
   /* 거래처명할당 */
-  window.CURRENT_CUSTNAME = res.custName || '';
+  window.CURRENT_CUSTNAME = (res && res.config && res.config.partnerName) || '';
+
+  // 로그인으로 JWT가 준비된 뒤에만 칩 설정을 조회한다. 조회 결과는 shadow 관측만
+  // 하고 사용자에게 보이는 수량·금액·전송 payload는 기존 S-03 식으로 유지한다.
+  const quantitySyncLoad = loadSingleS03QuantitySync_();
 
   try {
     if (typeof renderHome === 'function') renderHome();
@@ -8392,6 +8565,10 @@ function completeLogin(bizNo, config, res) {
     if (typeof updateCommRatio === 'function') updateCommRatio();
     if (typeof fitAllTables === 'function') fitAllTables();
   } catch (e) {}
+
+  void quantitySyncLoad.catch(error=>{
+    console.info('[quantity-sync shadow] 설정 조회 실패. legacy S-03 계산을 유지합니다.', error);
+  });
 
   const bizGate = document.getElementById('pageBizGate');
   if (bizGate) {
@@ -8422,12 +8599,12 @@ window.fetchExpirationDate = function() {
   if (!window.CURRENT_BIZNO) return;
   google.script.run
     .withSuccessHandler(res => {
-      if (res && res.status === 'OK') {
+      if (res && res.expiresAt) {
         const timerEl = document.getElementById('accessLimitTimer');
         const textEl = document.getElementById('accessLimitText');
         if (timerEl && textEl) {
           timerEl.style.display = 'block';
-          textEl.textContent = res.expireDate;
+          textEl.textContent = res.expiresAt;
         }
       }
     })
@@ -8440,8 +8617,9 @@ function startExpirationPolling() {
 }
 
 function playWelcomeAnimation(res, callback) {
-    let cName = (res && res.custName) ? res.custName : '';
-    let rName = (res && res.repName) ? res.repName : '';
+    const config = (res && res.config) || {};
+    let cName = config.partnerName || '';
+    let rName = config.managerName || '';
 
     if ((!cName || !rName) && typeof CUSTOMERS !== 'undefined') {
         const matched = CUSTOMERS.find(c => String(c.code) === String(window.CURRENT_BIZNO) || String(c.bizno) === String(window.CURRENT_BIZNO));
@@ -9320,7 +9498,7 @@ function applySnapshot(shot, custName) {
     if(typeof renderOld==='function') renderOld();
 
     if(typeof recomputeHomeDerived==='function') recomputeHomeDerived(true);
-    if(typeof recomputeSingleBaseFoot==='function') recomputeSingleBaseFoot();
+    if(typeof recomputeSingleDerived==='function') recomputeSingleDerived();
     if(typeof recomputeCommDerived==='function') recomputeCommDerived();
     if(legacyCore && shot.core){
       restoreLegacyDerivedQty('home', homeQty, shot.core.homeQty);
@@ -9585,8 +9763,7 @@ handleResize();
 // 초기 데이터 계산
 recomputeHomeDerived(true);
 recomputeFootAll();
-recomputeSingleBaseFoot();
-recomputeSingleExtras();
+recomputeSingleDerived();
 refreshSelectedBadge();
 forceOrderTitle();
 
@@ -9964,7 +10141,11 @@ function endTut(save) {
     console.log(`튜토리얼 완료 전송: ${window.CURRENT_BIZNO} (${isMobileNow() ? '모바일' : 'PC'})`);
     google.script.run
       .withSuccessHandler((res) => {
-        if (res && !res.success) alert('튜토리얼 기록 오류: \n' + res.error);
+        if (!res || typeof res.bizNo !== 'string'
+          || typeof res.tutorialPcDone !== 'boolean'
+          || typeof res.tutorialMobileDone !== 'boolean') {
+          alert('튜토리얼 기록 응답이 올바르지 않습니다.');
+        }
       })
       .withFailureHandler((err) => alert('통신 오류: ' + err))
       .saveTutorialState(window.CURRENT_BIZNO, isMobileNow());

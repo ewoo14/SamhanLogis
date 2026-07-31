@@ -34,6 +34,29 @@ public record PriceCalculationRequest(
             @Schema(description = "옵션 - 1way 판넬") boolean is1Way,
             @Schema(description = "옵션 - 스탠드") boolean isStand,
             @Schema(description = "옵션 - 디럭스") boolean isDeluxe,
-            @Schema(description = "옵션 - 1등급") boolean isFirstGrade
-    ) {}
+            @Schema(description = "옵션 - 1등급") boolean isFirstGrade,
+            @Schema(description = "품목 고정DC율 (percent, null이면 미지정)") BigDecimal fixedDiscountRate,
+            @Schema(description = "품목 변동DC 적용 여부 (null이면 구형 호출자)") Boolean hasVariableDiscount
+    ) {
+
+        /** 기존 호출자 호환 — 품목 고정DC 미전달 요청. */
+        public Line(String lineId, String modelCode, BigDecimal listPrice,
+                    String category, Integer quantity,
+                    boolean is360, boolean is4Way, boolean is1Way,
+                    boolean isStand, boolean isDeluxe, boolean isFirstGrade) {
+            this(lineId, modelCode, listPrice, category, quantity,
+                    is360, is4Way, is1Way, isStand, isDeluxe, isFirstGrade, null, null);
+        }
+
+        /** 기존 호출자 호환 — 품목 고정DC만 전달하는 요청. */
+        public Line(String lineId, String modelCode, BigDecimal listPrice,
+                    String category, Integer quantity,
+                    boolean is360, boolean is4Way, boolean is1Way,
+                    boolean isStand, boolean isDeluxe, boolean isFirstGrade,
+                    BigDecimal fixedDiscountRate) {
+            this(lineId, modelCode, listPrice, category, quantity,
+                    is360, is4Way, is1Way, isStand, isDeluxe, isFirstGrade,
+                    fixedDiscountRate, null);
+        }
+    }
 }

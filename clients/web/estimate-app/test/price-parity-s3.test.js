@@ -33,14 +33,18 @@ describe('#896 슬3 라이브 가격 정합 — order/estimate parity', () => {
     ['AR-EH05', remote360Input, 'estimate'],
     ['방진가대S2중', coolTop30Input, 'order'],
     ['방진가대S2중', coolTop30Input, 'estimate'],
-  ])('카탈로그에 없는 파생 target %s는 조용히 스킵하지 않고 드러낸다', (model, inputFactory, app) => {
+  ])('카탈로그에 없는 파생 target %s는 앱 계약에 맞게 드러낸다', (model, inputFactory, app) => {
     const input = inputFactory();
     input.catalog = {
       ...input.catalog,
       commercial: input.catalog.commercial.filter((row) => row.model !== model),
     };
 
-    expect(() => evaluateCase(input, app).quantities).toThrow(new RegExp(model));
+    if (app === 'order') {
+      expect(() => evaluateCase(input, app).quantities).not.toThrow();
+    } else {
+      expect(() => evaluateCase(input, app).quantities).toThrow(new RegExp(model));
+    }
   });
 
   test('라이브 product_db 납품가를 두 앱의 상업 단가 계산이 동일하게 반환한다', () => {

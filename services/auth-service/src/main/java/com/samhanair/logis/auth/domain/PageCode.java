@@ -153,6 +153,9 @@ public enum PageCode {
     /** 메신저 발송/수신함/일정 일반 기능 — SP-D6-2. */
     MESSENGER_SEND("messenger.send", "메신저 발송"),
 
+    /** 일정 등록/조회/수정/삭제 API — PR #994 / Issue #895. */
+    GROUPWARE_SCHEDULES("groupware.schedules", "그룹웨어 일정"),
+
     /** 그룹웨어 결재 문서 목록/상세 + 협업(수정완료/코멘트) — §7 슬라이스6. */
     GROUPWARE_APPROVALS("groupware.approvals", "그룹웨어 결재"),
 

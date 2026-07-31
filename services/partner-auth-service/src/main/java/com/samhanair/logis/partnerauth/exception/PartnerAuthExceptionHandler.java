@@ -6,9 +6,11 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.exception.ExceptionMessageSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -48,6 +50,15 @@ public class PartnerAuthExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMessageNotReadable(HttpMessageNotReadableException ex) {
         return ResponseEntity.status(ErrorCode.INVALID_INPUT.getHttpStatus())
                 .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "요청 본문이 유효하지 않습니다"));
+    }
+
+    /**
+     * JSON 전용 endpoint에 지원하지 않는 Content-Type이 전달되면 415로 알린다.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.fail(ErrorCode.INVALID_INPUT, "지원하지 않는 Content-Type입니다"));
     }
 
     /**

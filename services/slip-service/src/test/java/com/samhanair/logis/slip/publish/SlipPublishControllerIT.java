@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -171,6 +173,38 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void 배포전_단건멱등키_배송주소없는_재시도는_기존전표를_replay한다() throws Exception {
+        String partnerOrderId = "PO-LEGACY-REPLAY-001";
+        String idempotencyKey = "idem-legacy-replay-001";
+        Map<String, Object> body = partnerOrderBody(partnerOrderId);
+        body.put("deliveryAddress", null);
+
+        MvcResult first = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID slipId = UUID.fromString(objectMapper.readTree(first.getResponse().getContentAsString())
+                .get("data").get("slipId").asText());
+        jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
+                legacyPartnerOrderFingerprint(body), slipId);
+
+        mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.idempotentReplay").value(true))
+                .andExpect(jsonPath("$.data.slipId").value(slipId.toString()));
+    }
+
+    @Test
     void publishFromPartnerOrder_doesNotAddVatToVatInclusiveUnitPrice() throws Exception {
         Map<String, Object> body = partnerOrderBody("PO-VAT-DOMAIN-RED");
         @SuppressWarnings("unchecked")
@@ -263,6 +297,36 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
 
         org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
         org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void 배포전_단건멱등키에_새배송주소를_넣은_재시도는_409다() throws Exception {
+        String partnerOrderId = "PO-LEGACY-CONFLICT-001";
+        String idempotencyKey = "idem-legacy-conflict-001";
+        Map<String, Object> legacyBody = partnerOrderBody(partnerOrderId);
+        legacyBody.put("deliveryAddress", null);
+
+        MvcResult first = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(legacyBody)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID slipId = UUID.fromString(objectMapper.readTree(first.getResponse().getContentAsString())
+                .get("data").get("slipId").asText());
+        jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
+                legacyPartnerOrderFingerprint(legacyBody), slipId);
+
+        legacyBody.put("deliveryAddress", "서울시 강남구 새 배송지 1");
+        mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(legacyBody)))
+                .andExpect(status().isConflict());
     }
 
     @ParameterizedTest(name = "partner resolution {0} is fail-closed")
@@ -513,6 +577,8 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
 
         // partner-order 도 V16 컬럼 직접 저장
         org.assertj.core.api.Assertions.assertThat(persisted.getShippingAddress()).isEqualTo("경기 성남시");
+        org.assertj.core.api.Assertions.assertThat(persisted.getDeliveryAddress())
+                .isEqualTo("경기 성남구 구조화배송로 7");
         org.assertj.core.api.Assertions.assertThat(persisted.getReceiverPhone()).isEqualTo("010-1111-1111");
         org.assertj.core.api.Assertions.assertThat(persisted.getPaymentDueLabel()).isEqualTo("월말 결제");
         org.assertj.core.api.Assertions.assertThat(persisted.getPartnerCode()).isEqualTo("CUST-0002");
@@ -591,6 +657,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         body.put("employeeCode", "EMP-0002");
         body.put("warehouseCode", "00003");
         body.put("shippingAddress", "경기 성남시");
+        body.put("deliveryAddress", "경기 성남구 구조화배송로 7");
         body.put("receiverPhone", "010-1111-1111");
         body.put("memo", "PO 메모");
         body.put("paymentDueLabel", "월말 결제");
@@ -598,6 +665,39 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         body.put("orderApprovedAt", "2026-05-04T10:00:00");
         body.put("lines", new java.util.ArrayList<>(List.of(line)));
         return body;
+    }
+
+    private String legacyPartnerOrderFingerprint(Map<String, Object> body) throws Exception {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "PARTNER_ORDER");
+        canonical.put("partnerOrderId", body.get("partnerOrderId"));
+        canonical.put("ioDate", body.get("ioDate"));
+        canonical.put("warehouseCode", body.get("warehouseCode"));
+        canonical.put("partnerCode", body.get("partnerCode"));
+        canonical.put("employeeCode", body.get("employeeCode"));
+        canonical.put("paymentDueLabel", body.get("paymentDueLabel"));
+        canonical.put("discountInfo", body.get("discountInfo"));
+        canonical.put("memo", body.get("memo"));
+        List<Map<String, Object>> lines = new java.util.ArrayList<>();
+        for (Map<String, Object> line : (List<Map<String, Object>>) body.get("lines")) {
+            Map<String, Object> canonicalLine = new LinkedHashMap<>();
+            canonicalLine.put("productCode", line.get("productCode"));
+            canonicalLine.put("qty", line.get("qty"));
+            canonicalLine.put("spec", line.get("spec"));
+            canonicalLine.put("unitPriceVat", line.get("unitPriceVat"));
+            canonicalLine.put("supplyAmount", line.get("supplyAmount"));
+            canonicalLine.put("vatAmount", line.get("vatAmount"));
+            canonicalLine.put("remarks", line.get("remarks"));
+            lines.add(canonicalLine);
+        }
+        canonical.put("lines", lines);
+        byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(objectMapper.writeValueAsString(canonical).getBytes(StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder();
+        for (byte value : digest) {
+            hex.append(String.format("%02x", value));
+        }
+        return hex.toString();
     }
 
     private String readSlipNo(MvcResult result) throws Exception {

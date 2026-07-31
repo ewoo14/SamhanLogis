@@ -1,6 +1,7 @@
 package com.samhanair.logis.partnerorder.it;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.samhanair.logis.partnerorder.PartnerOrderServiceApplication;
 import com.samhanair.logis.partnerorder.client.DcConfigClient;
@@ -18,11 +19,14 @@ import com.samhanair.logis.partnerorder.repository.SlipPublishOutboxRepository;
 import com.samhanair.logis.partnerorder.revision.domain.PartnerOrderRevisionType;
 import com.samhanair.logis.partnerorder.revision.repository.PartnerOrderRevisionRepository;
 import com.samhanair.logis.partnerorder.service.PartnerOrderConfirmService;
+import com.samhanair.logis.partnerorder.service.PartnerOrderDraftService;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerLookupClient;
 import com.samhanair.logis.partnerorder.vendor.client.PartnerSummary;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmRequest;
 import com.samhanair.logis.partnerorder.web.dto.ConfirmResponse;
+import com.samhanair.logis.partnerorder.web.dto.DraftCreateRequest;
+import com.samhanair.logis.partnerorder.web.dto.DraftResponse;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -31,6 +35,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -58,6 +63,9 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private PartnerOrderConfirmService confirmService;
+
+    @Autowired
+    private PartnerOrderDraftService draftService;
 
     @Autowired
     private SlipPublishOutboxRepository outboxRepository;
@@ -114,6 +122,8 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
             case "P-REVISION" -> "2222222222";
             case "P-HISTORY" -> "3333333333";
             case "P-PARTIAL" -> "5555555555";
+            case "P-NEW-DRAFT-IDEM" -> "4444444444";
+            case "P-TIMEOUT-RETRY" -> "5555555556";
             default -> "1234567890";
         };
     }
@@ -260,6 +270,99 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
     }
 
     /**
+     * ubuntu-latest에서도 실제 PostgreSQL 계약으로 검증한다.
+     * 새 전송 경로가 같은 snapshot을 두 번 만들고 confirm해도 기존 멱등키를 재사용해야 한다.
+     */
+    @Test
+    void repeated_new_draft_confirm_creates_only_one_order() {
+        String partnerCode = "P-NEW-DRAFT-IDEM";
+        String bizCode = "4444444444";
+        UUID productId = UUID.randomUUID();
+        stubConfirmProduct(productId, "NEW-DRAFT-5000");
+
+        ConfirmRequest request = confirmRequest(productId, "new-draft-repeat");
+        DraftCreateRequest snapshot = new DraftCreateRequest(
+                "주문서 확정 임시저장",
+                "{\"items\":[{\"model\":\"NEW-DRAFT-5000\",\"qty\":2}],"
+                        + "\"order\":{\"memo\":\"동일 주문\"}}");
+
+        DraftResponse firstDraft = draftService.create(partnerCode, "user-1", snapshot);
+        DraftResponse secondDraft = draftService.create(partnerCode, "user-2", snapshot);
+
+        ConfirmResponse first = confirmService.confirm(
+                partnerCode, bizCode, "user-1", "사용자", UUID.fromString(firstDraft.draftId()), request);
+        ConfirmResponse second = confirmService.confirm(
+                partnerCode, bizCode, "user-2", "사용자", UUID.fromString(secondDraft.draftId()), request);
+
+        assertThat(secondDraft.draftId()).isEqualTo(firstDraft.draftId());
+        assertThat(second.orderNo()).isEqualTo(first.orderNo());
+        var saved = orderRepository.findByOrderNo(first.orderNo()).orElseThrow();
+        String idempotencyKey = "PO-CONF-" + partnerCode + "-" + firstDraft.draftSeq();
+        assertThat(saved.getIdempotencyKey()).isEqualTo(idempotencyKey);
+        assertThat(orderRepository.findByIdempotencyKey(idempotencyKey)).isPresent();
+        long orderCount = orderRepository.findAll().stream()
+                .filter(order -> partnerCode.equals(order.getPartnerCode()))
+                .count();
+        assertThat(orderCount).isEqualTo(1);
+        System.out.println("[new-draft-idempotency] draftId=" + firstDraft.draftId()
+                + " orderNo=" + first.orderNo() + " idempotencyKey=" + idempotencyKey
+                + " orderCount=" + orderCount);
+    }
+
+    /**
+     * ubuntu-latest에서도 실제 PostgreSQL 계약으로 검증한다.
+     * 첫 confirm의 응답을 버리고 동일 주문을 재전송해도 기존 주문만 반환해야 한다.
+     */
+    @Test
+    void timeout_after_confirm_commit_then_retry_does_not_duplicate_order() {
+        String partnerCode = "P-TIMEOUT-RETRY";
+        String bizCode = "5555555556";
+        UUID productId = UUID.randomUUID();
+        stubConfirmProduct(productId, "TIMEOUT-5000");
+
+        ConfirmRequest request = confirmRequest(productId, "timeout-retry");
+        DraftCreateRequest snapshot = new DraftCreateRequest(
+                "주문서 확정 임시저장",
+                "{\"items\":[{\"model\":\"TIMEOUT-5000\",\"qty\":1}],"
+                        + "\"order\":{\"memo\":\"응답 지연\"}}");
+
+        DraftResponse committedDraft = draftService.create(partnerCode, "user-1", snapshot);
+        ConfirmResponse committed = confirmService.confirm(
+                partnerCode, bizCode, "user-1", "사용자",
+                UUID.fromString(committedDraft.draftId()), request);
+        // committed 응답이 timeout으로 유실된 상황을 표현한다. 재시도 측에서는 주문번호를 모른다.
+        assertThat(committed.orderNo()).isNotBlank();
+
+        DraftResponse retryDraft = draftService.create(partnerCode, "user-1", snapshot);
+        ConfirmResponse retry = confirmService.confirm(
+                partnerCode, bizCode, "user-1", "사용자",
+                UUID.fromString(retryDraft.draftId()), request);
+
+        assertThat(retryDraft.draftId()).isEqualTo(committedDraft.draftId());
+        assertThat(retry.orderNo()).isEqualTo(committed.orderNo());
+        long orderCount = orderRepository.findAll().stream()
+                .filter(order -> partnerCode.equals(order.getPartnerCode()))
+                .count();
+        assertThat(orderCount).isEqualTo(1);
+        System.out.println("[timeout-retry-idempotency] draftId=" + committedDraft.draftId()
+                + " orderNo=" + committed.orderNo() + " orderCount=" + orderCount);
+    }
+
+    private ConfirmRequest confirmRequest(UUID productId, String remark) {
+        return new ConfirmRequest(List.of(
+                new ConfirmLineRequest(productId, "homemulti", 1, remark)));
+    }
+
+    private void stubConfirmProduct(UUID productId, String modelCode) {
+        Mockito.lenient().when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of());
+        Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "멱등테스트 상품", modelCode, null,
+                        new BigDecimal("2000000"), "ACTIVE")));
+    }
+
+    /**
      * confirm 후 partner_order_revisions 에 revision_no=1, type=CREATE row 가 존재해야 한다.
      *
      * <p>Phase 2.4 버전이력 훅 — {@link com.samhanair.logis.partnerorder.revision.service.PartnerOrderRevisionService#capture}
@@ -358,8 +461,10 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         UUID productId = UUID.randomUUID();
         Mockito.when(productClient.lookup(Mockito.anyList()))
                 .thenReturn(List.of(new ProductSummary(
-                        productId, "헬로멀티 5kW", "HM-5000", null,
-                        new BigDecimal("1000000"), "ACTIVE")));
+                        productId, "360 멀티", "AM360AXVHHR1SY", null,
+                        new BigDecimal("29053200"), "ACTIVE")));
+        Mockito.when(productClient.lookupFixedDiscountRates(Mockito.anyList()))
+                .thenReturn(Map.of(productId, new BigDecimal("45.0")));
         // price-calc 가 finalPrice=800000 반환 (lineId "0")
         Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
                 .thenReturn(Map.of("0", new BigDecimal("800000")));
@@ -368,6 +473,18 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
                 new ConfirmLineRequest(productId, "homemulti", 1, null)));
         ConfirmResponse response = confirmService.confirm(
                 "P-DC", "1234567890", "user-dc", null, null, request);
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> priceLines = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-DC"), priceLines.capture());
+        DcConfigClient.PriceLine sent = priceLines.getValue().get(0);
+        assertThat(sent.modelCode()).isEqualTo("AM360AXVHHR1SY");
+        assertThat(sent.is360()).isTrue();
+        assertThat(sent.is4Way()).isFalse();
+        assertThat(sent.is1Way()).isFalse();
+        assertThat(sent.isStand()).isFalse();
+        assertThat(sent.isDeluxe()).isFalse();
+        assertThat(sent.isFirstGrade()).isFalse();
+        assertThat(sent.fixedDiscountRate()).isEqualByComparingTo("45.0");
 
         assertThat(response.status()).isEqualTo("DRAFT");
         // P0-2: response.orderNo() 로 주문 조회 — idempotencyKey 하드코딩 제거
@@ -390,6 +507,101 @@ class PartnerOrderConfirmServiceIT extends AbstractPostgresIT {
         assertThat(supplyAmount).isEqualByComparingTo("727272");
         assertThat(vatAmount).isEqualByComparingTo("72728");
         assertThat(supplyAmount.add(vatAmount)).isEqualByComparingTo(subtotal);
+    }
+
+    @Test
+    void confirm_sends_screen_price_bases_and_derived_option_flags() {
+        UUID multiId = UUID.randomUUID();
+        UUID singleId = UUID.randomUUID();
+        Mockito.when(productClient.lookup(Mockito.anyList())).thenReturn(List.of(
+                new ProductSummary(multiId, "홈멀티", "AM023TNVDBH1", null,
+                        new BigDecimal("451000"), "ACTIVE", "AM023TNVDBH1", "SINGLE",
+                        "homemulti", new BigDecimal("40.00"), "000000",
+                        new BigDecimal("501600"), new BigDecimal("300960"), true),
+                new ProductSummary(singleId, "싱글 세트", "AC060CS4FBH2SY", null,
+                        new BigDecimal("3115200"), "ACTIVE", "AC060CS4FBH2SY", "SINGLE",
+                        "singleSets", null, "000000",
+                        new BigDecimal("3121800"), new BigDecimal("1840000"), true)));
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of("0", new BigDecimal("300960"), "1", new BigDecimal("1810000")));
+
+        ConfirmResponse response = confirmService.confirm(
+                "P-SOL-985", "1234567890", "user-sol-985", null, null,
+                new ConfirmRequest(List.of(
+                        new ConfirmLineRequest(multiId, "homemulti", 1, null),
+                        new ConfirmLineRequest(singleId, "singleSets", 1, null))));
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> captor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-SOL-985"), captor.capture());
+        DcConfigClient.PriceLine multi = captor.getValue().get(0);
+        DcConfigClient.PriceLine single = captor.getValue().get(1);
+        assertThat(multi.listPrice()).isEqualByComparingTo("501600");
+        assertThat(multi.fixedDiscountRate()).isEqualByComparingTo("40.00");
+        assertThat(multi.hasVariableDiscount()).isTrue();
+        assertThat(single.listPrice()).isEqualByComparingTo("1840000");
+        assertThat(single.isFirstGrade()).isTrue();
+        assertThat(single.fixedDiscountRate()).isNull();
+
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo()).orElseThrow().getId();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? AND product_id = ?",
+                BigDecimal.class, orderId, multiId)).isEqualByComparingTo("300960");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ? AND product_id = ?",
+                BigDecimal.class, orderId, singleId)).isEqualByComparingTo("1810000");
+    }
+
+    /**
+     * 상업멀티 AM120MXVRHC1의 화면 규칙 회귀 테스트.
+     *
+     * <p>부트스트랩 원시 {@code price}는 3,905,000원이지만 화면은
+     * {@code list=7,810,000}에 품목 고정DC 40%를 적용한 4,686,000원을 표시한다.
+     * 따라서 confirm도 releasePrice를 원금으로 dc-config에 전달하고 같은 단가를 저장해야 한다.
+     */
+    @Test
+    void confirm_uses_release_price_base_for_commercial_fixed_dc_am120() {
+        UUID productId = UUID.randomUUID();
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "DVM ECO 리뉴얼 12HP 상부토출형", "AM120MXVRHC1", null,
+                        new BigDecimal("7810000"), "ACTIVE", "AM120MXVRHC1", "SINGLE",
+                        "commercialMulti", new BigDecimal("40.00"), "000000",
+                        new BigDecimal("7810000"), new BigDecimal("3905000"), true)));
+        Mockito.when(dcConfigClient.calculatePrices(Mockito.anyString(), Mockito.anyList()))
+                .thenReturn(Map.of("0", new BigDecimal("4686000")));
+
+        ConfirmResponse response = confirmService.confirm(
+                "P-SOL-985-AM120", "1234567890", "user-sol-985", null, null,
+                new ConfirmRequest(List.of(new ConfirmLineRequest(
+                        productId, "commercialMulti", 1, "AM120 screen parity"))));
+
+        ArgumentCaptor<List<DcConfigClient.PriceLine>> captor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(dcConfigClient).calculatePrices(Mockito.eq("P-SOL-985-AM120"), captor.capture());
+        assertThat(captor.getValue().get(0).listPrice()).isEqualByComparingTo("7810000");
+        assertThat(captor.getValue().get(0).fixedDiscountRate()).isEqualByComparingTo("40.00");
+
+        UUID orderId = orderRepository.findByOrderNo(response.orderNo()).orElseThrow().getId();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT price_vat FROM partner_order_lines WHERE partner_order_id = ?",
+                BigDecimal.class, orderId)).isEqualByComparingTo("4686000");
+    }
+
+    @Test
+    void confirm_rejects_missing_price_instead_of_saving_zero() {
+        UUID productId = UUID.randomUUID();
+        Mockito.when(productClient.lookup(Mockito.anyList()))
+                .thenReturn(List.of(new ProductSummary(
+                        productId, "가격누락", "MISSING-PRICE", null,
+                        BigDecimal.ZERO, "ACTIVE")));
+
+        assertThatThrownBy(() -> confirmService.confirm(
+                "P-SOL-985-ZERO", "1234567890", "user-sol-985", null, null,
+                new ConfirmRequest(List.of(new ConfirmLineRequest(
+                        productId, "homemulti", 1, null)))))
+                .isInstanceOf(com.samhanair.logis.common.exception.BusinessException.class)
+                .hasMessageContaining("확정 가격 기준가 없음");
+        Mockito.verify(dcConfigClient, Mockito.never())
+                .calculatePrices(Mockito.anyString(), Mockito.anyList());
     }
 
     /**

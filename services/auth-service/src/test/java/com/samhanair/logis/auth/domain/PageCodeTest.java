@@ -178,6 +178,14 @@ class PageCodeTest {
     }
 
     @Test
+    void pr994_groupwareSchedules_pageCode_V90_seed와_동기화() {
+        assertThat(PageCode.GROUPWARE_SCHEDULES.getCode()).isEqualTo("groupware.schedules");
+        assertThat(PageCode.GROUPWARE_SCHEDULES.getDisplayName()).isEqualTo("그룹웨어 일정");
+        assertThat(PageCode.isValid("groupware.schedules")).isTrue();
+        assertThat(PageCode.fromCode("groupware.schedules")).isEqualTo(PageCode.GROUPWARE_SCHEDULES);
+    }
+
+    @Test
     void spD63_pageCodes_V33_seed와_동기화() {
         assertThat(PageCode.NOTIFICATIONS_ADMIN.getCode()).isEqualTo("notifications.admin");
         assertThat(PageCode.ALIGO_ADDRESS_BOOK.getCode()).isEqualTo("aligo.address-book");

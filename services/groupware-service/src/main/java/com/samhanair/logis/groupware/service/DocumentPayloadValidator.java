@@ -2,6 +2,7 @@ package com.samhanair.logis.groupware.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.groupware.domain.DocumentPayload;
@@ -100,11 +101,25 @@ public class DocumentPayloadValidator {
         checkDepth(document, 0);
         checkDocument(document, schemaVersion);
         try {
-            return objectMapper.treeToValue(document, DocumentPayload.class);
+            // mode가 없던 legacy JSONB는 원문에 필드를 추가하지 않고, 런타임 판정만 WORD로
+            // 수렴한다. mode가 명시된 값은 정확히 두 값 외에는 WORD로 정규화해 저장한다.
+            ObjectNode normalizedDocument = document.deepCopy();
+            if (document.has("mode")) {
+                normalizedDocument.put("mode", normalizeMode(document.get("mode")));
+            } else {
+                normalizedDocument.remove("mode");
+            }
+            return objectMapper.treeToValue(normalizedDocument, DocumentPayload.class);
         } catch (Exception ex) {
             reject("문서 양식 document 구조가 올바르지 않습니다");
             return null;
         }
+    }
+
+    private static String normalizeMode(JsonNode value) {
+        return value != null && value.isTextual()
+                ? DocumentPayload.normalizeMode(value.asText())
+                : DocumentPayload.WORD_MODE;
     }
 
     /** 이미 typed 된 JSONB payload를 동일한 구조 검사로 재검증한다. */

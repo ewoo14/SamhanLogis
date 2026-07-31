@@ -53,6 +53,7 @@ public record MergeConvertToSlipRequest(
      *
      * @param partnerName 거래처명
      * @param shippingAddress 배송지 (여러 주문 충돌 시 '/' 병기 허용)
+     * @param deliveryAddress 구조화된 실제 배송주소. 없으면 주문 snapshot에서 단일 값만 자동 전달
      * @param receiverPhone 수령인 전화
      * @param paymentDueLabel 납기/결제조건 라벨
      * @param discountInfo 할인 정보
@@ -61,8 +62,17 @@ public record MergeConvertToSlipRequest(
     public record ShippingInfo(
             String partnerName,
             String shippingAddress,
+            String deliveryAddress,
             String receiverPhone,
             String paymentDueLabel,
             String discountInfo,
-            String memo) {}
+            String memo) {
+
+        /** 기존 shippingInfo 6개 인자 계약 호환. */
+        public ShippingInfo(String partnerName, String shippingAddress, String receiverPhone,
+                            String paymentDueLabel, String discountInfo, String memo) {
+            this(partnerName, shippingAddress, null, receiverPhone, paymentDueLabel,
+                    discountInfo, memo);
+        }
+    }
 }

@@ -452,7 +452,14 @@ export function CodefImportScopeForm({
   }
 
   function buildImportPayload(): CodefScopedImportRequest {
-    if (restoredScope && !selectionDirty && restoredScope.scopeMode === 'ALL') {
+    const persistedAllScope = !selectionDirty
+      ? restoredScope?.scopeMode === 'ALL'
+        ? restoredScope
+        : scopeQuery.data?.scopeMode === 'ALL'
+          ? scopeQuery.data
+          : null
+      : null
+    if (persistedAllScope) {
       // 저장된 ALL은 defaultImportType이 실제 실행 범위다. type=ALL을 고정하면
       // CARD/BANK/LOAN 저장 직후 다른 두 카테고리까지 조용히 열거한다(#825 슬5 R2
       // BLOCKING-1). refs 필드를 생략해 BE의 진짜 전체(null) 경로로 보내되, 저장된
@@ -461,7 +468,7 @@ export function CodefImportScopeForm({
         connectedId: DEFAULT_CONNECTED_ID,
         from,
         to,
-        type: restoredScope.defaultImportType,
+        type: persistedAllScope.defaultImportType,
         scopeMode: 'ALL',
       }
     }

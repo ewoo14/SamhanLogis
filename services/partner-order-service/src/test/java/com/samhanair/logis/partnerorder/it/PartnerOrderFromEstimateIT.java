@@ -124,6 +124,7 @@ class PartnerOrderFromEstimateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.bizCode").value("1010101010"))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"))
                 .andExpect(jsonPath("$.data.memo").value("견적 메모"))
+                .andExpect(jsonPath("$.data.deliveryAddress").doesNotExist())
                 .andExpect(jsonPath("$.data.lines.length()").value(2))
                 .andExpect(jsonPath("$.data.lines[0].modelCode").value("AJ040RXH4BC1"));
 

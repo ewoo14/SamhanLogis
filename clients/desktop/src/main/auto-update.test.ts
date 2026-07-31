@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
+  const runtime = { isPackaged: true }
   const handlers = new Map<string, () => Promise<void> | void>()
   const events = new Map<string, (...args: unknown[]) => void>()
   const window = {
@@ -10,6 +11,7 @@ const mocks = vi.hoisted(() => {
   const autoUpdater = {
     autoDownload: true,
     autoInstallOnAppQuit: true,
+    allowDowngrade: true,
     on: vi.fn((event: string, listener: (...args: unknown[]) => void) => {
       events.set(event, listener)
     }),
@@ -17,11 +19,15 @@ const mocks = vi.hoisted(() => {
     downloadUpdate: vi.fn(async () => undefined),
     quitAndInstall: vi.fn(),
   }
-  return { handlers, events, window, autoUpdater }
+  return { handlers, events, window, autoUpdater, runtime }
 })
 
 vi.mock('electron', () => ({
-  app: { isPackaged: true },
+  app: {
+    get isPackaged() {
+      return mocks.runtime.isPackaged
+    },
+  },
   BrowserWindow: { getAllWindows: () => [mocks.window] },
   ipcMain: {
     handle: vi.fn((channel: string, handler: () => Promise<void> | void) => {
@@ -41,29 +47,94 @@ describe('Electron 자동 업데이트 IPC', () => {
     registerAutoUpdateIpcHandlers()
   })
 
+  beforeEach(() => {
+    mocks.runtime.isPackaged = true
+    mocks.autoUpdater.checkForUpdates.mockClear()
+    mocks.autoUpdater.downloadUpdate.mockClear()
+    mocks.autoUpdater.quitAndInstall.mockClear()
+    mocks.window.webContents.send.mockClear()
+  })
+
   it('packaged 앱의 check IPC가 실제 electron-updater checkForUpdates를 호출한다', async () => {
+    expect(mocks.autoUpdater.allowDowngrade).toBe(false)
     await mocks.handlers.get('updater:check')?.()
     expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce()
   })
 
+  it('비패키징 앱의 check IPC는 updater를 호출하지 않고 종료 상태를 renderer에 알린다', async () => {
+    mocks.runtime.isPackaged = false
+
+    await mocks.handlers.get('updater:check')?.()
+
+    expect(mocks.autoUpdater.checkForUpdates).not.toHaveBeenCalled()
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'not-available',
+    })
+  })
+
   it('update-available 이벤트는 다운로드를 시작하고 renderer에 상태를 보낸다', async () => {
-    await mocks.events.get('update-available')?.({ version: '0.2.0' })
+    await mocks.events.get('update-available')?.({ version: '1.20260730.3' })
     expect(mocks.autoUpdater.downloadUpdate).toHaveBeenCalledOnce()
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'available',
-      version: '0.2.0',
+      version: '2026/07/30-3',
+    })
+  })
+
+  it('electron-updater가 승인한 v 접두 버전은 날짜형으로 표시한다', async () => {
+    await mocks.events.get('update-available')?.({ version: 'v1.20260731.1' })
+
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'available',
+      version: '2026/07/31-1',
+    })
+  })
+
+  it('electron-updater가 승인한 앞뒤 공백 버전은 다운로드 완료에서도 날짜형으로 표시한다', async () => {
+    await mocks.events.get('update-downloaded')?.({ version: ' 1.20260731.1 ' })
+
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'downloaded',
+      version: '2026/07/31-1',
     })
   })
 
   it('update-downloaded 이벤트는 설치 완료를 알리고 install IPC가 재시작을 위임한다', async () => {
-    await mocks.events.get('update-downloaded')?.({ version: '0.2.0' })
+    await mocks.events.get('update-downloaded')?.({ version: '1.20260730.3' })
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
       kind: 'downloaded',
-      version: '0.2.0',
+      version: '2026/07/30-3',
     })
 
     await mocks.handlers.get('updater:install')?.()
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
+  })
+
+  it('해석 불가한 updater 버전은 안전한 빈 표시값으로만 renderer에 전달한다', async () => {
+    await mocks.events.get('update-available')?.({ version: '1.0.0' })
+
+    const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+    expect(lastStatus).toEqual({ kind: 'available', version: '' })
+    expect(JSON.stringify(lastStatus)).not.toContain('1.0.0')
+  })
+
+  it('달력상 존재하지 않는 updater 날짜는 날짜형 표시값으로 전달하지 않는다', async () => {
+    await mocks.events.get('update-available')?.({ version: '1.20261340.1' })
+
+    const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+    expect(lastStatus).toEqual({ kind: 'available', version: '' })
+    expect(JSON.stringify(lastStatus)).not.toContain('2026/13/40-1')
+  })
+
+  it('비패키징 앱의 install IPC도 조용히 끝내지 않고 종료 상태를 renderer에 알린다', async () => {
+    mocks.runtime.isPackaged = false
+
+    await mocks.handlers.get('updater:install')?.()
+
+    expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled()
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'not-available',
+    })
   })
 
   it('electron-updater 오류 원문은 renderer 상태에 전달하지 않는다', () => {
