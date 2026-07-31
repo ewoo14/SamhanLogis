@@ -411,7 +411,8 @@ public class SlipLine extends BaseEntity {
      */
     public static SlipLine copyOf(Slip slip, SlipLine source) {
         SlipLine line = new SlipLine(slip, source.productId, source.productName, source.modelName,
-                source.specification, source.quantity, source.unitPrice, source.note, null);
+                source.specification, source.quantity, source.unitPrice, source.note, null,
+                source.categoryKey);
         if (source.unitPriceWithVat != null) {
             // 라인 단위 권위값 보존 (createFromVatInclusive 저장 규칙과 동일한 덮어쓰기)
             line.lineTotal = source.lineTotal;

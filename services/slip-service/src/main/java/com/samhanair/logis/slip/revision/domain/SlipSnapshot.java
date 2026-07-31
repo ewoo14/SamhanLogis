@@ -161,7 +161,18 @@ public record SlipSnapshot(
             BigDecimal supplyAmount,
             Boolean setHead,
             String parentSetModel,
-            String unitPriceDomain) {
+            String unitPriceDomain,
+            String categoryKey) {
+
+        /** 단가 권위 도메인까지 담던 기존 스냅샷 생성자 호환 오버로드. */
+        public Line(UUID productId, String productName, String modelName, String specification,
+                    int quantity, BigDecimal unitPrice, BigDecimal lineTotal, String note,
+                    BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount,
+                    Boolean setHead, String parentSetModel, String unitPriceDomain) {
+            this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
+                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel,
+                    unitPriceDomain, null);
+        }
 
         /**
          * 단가 도메인 없는 구 시그니처 호환 생성자 (#937 재수렴 6차) — 세트 계보까지만 쓰는
@@ -174,7 +185,7 @@ public record SlipSnapshot(
                     BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount,
                     Boolean setHead, String parentSetModel) {
             this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
-                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel, null);
+                    note, unitPriceWithVat, vatAmount, supplyAmount, setHead, parentSetModel, null, null);
         }
 
         /**
@@ -184,7 +195,7 @@ public record SlipSnapshot(
                     int quantity, BigDecimal unitPrice, BigDecimal lineTotal, String note,
                     BigDecimal unitPriceWithVat, BigDecimal vatAmount, BigDecimal supplyAmount) {
             this(productId, productName, modelName, specification, quantity, unitPrice, lineTotal,
-                    note, unitPriceWithVat, vatAmount, supplyAmount, null, null, null);
+                    note, unitPriceWithVat, vatAmount, supplyAmount, null, null, null, null);
         }
     }
 }

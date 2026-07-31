@@ -2047,7 +2047,9 @@ public class Slip extends BaseEntity {
                         // #937 재수렴 6차 A안 — 단가 권위 도메인 캡처. 버전이력/레드라인의 "단가"
                         // 표시는 스냅샷만 보고 판정하므로, 이 값이 실리지 않으면 화면(엔티티를
                         // 보는 쪽)과 감사 이력(스냅샷을 보는 쪽)이 서로 다른 단가를 말하게 된다.
-                        line.getUnitPriceDomain() == null ? null : line.getUnitPriceDomain().name()))
+                        line.getUnitPriceDomain() == null ? null : line.getUnitPriceDomain().name(),
+                        // PR #991 — 주문이 선택한 categoryKey 축도 복사·복원 경로에서 보존한다.
+                        line.getCategoryKey()))
                 .toList();
         return new SlipSnapshot(
                 this.slipNo,
@@ -2171,7 +2173,7 @@ public class Slip extends BaseEntity {
                         snapLine.specification(),
                         snapLine.quantity(),
                         snapLine.unitPrice(),
-                        snapLine.note());
+                        snapLine.note(), null, snapLine.categoryKey());
                 // R6-H3 — 스냅샷의 세트 계보 복원. 계보가 없으면(일반 라인/구 스냅샷 null) 평면
                 // 재생성 시 이후 저장에서 구성품 배분가가 가격기억에 각인되는 오염이 재유입된다.
                 if (snapLine.parentSetModel() != null && !snapLine.parentSetModel().isBlank()) {

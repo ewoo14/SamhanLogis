@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.revision.domain.SlipSnapshot;
@@ -23,6 +24,37 @@ class SlipRestoreTest {
 
     private static final UUID SOURCE_WH = UUID.randomUUID();
     private static final UUID PARTNER = UUID.randomUUID();
+
+    @Test
+    @DisplayName("협업 이력 스냅샷이 categoryKey를 보존한다")
+    void toSnapshot_preservesCategoryKey() throws Exception {
+        Slip slip = Slip.createOutbound("2026/05/29-1", LocalDate.of(2026, 5, 29), 1,
+                SOURCE_WH, UUID.randomUUID(), PARTNER, "삼한물산",
+                DeliveryTag.DAY, "원본", "user-1");
+        slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
+                2, new BigDecimal("15000.00"), "라인메모", UUID.randomUUID(), "singleSets"));
+
+        String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(slip.toSnapshot());
+
+        assertThat(json).contains("\"categoryKey\":\"singleSets\"");
+    }
+
+    @Test
+    @DisplayName("협업 이력 복원이 스냅샷의 categoryKey를 전표 라인에 되살린다")
+    void restoreFromSnapshot_preservesCategoryKey() {
+        Slip slip = Slip.createOutbound("2026/05/29-1", LocalDate.of(2026, 5, 29), 1,
+                SOURCE_WH, UUID.randomUUID(), PARTNER, "삼한물산",
+                DeliveryTag.DAY, "원본", "user-1");
+        slip.addLine(SlipLine.create(slip, UUID.randomUUID(), "펌프", "MX-100", "220V",
+                2, new BigDecimal("15000.00"), "라인메모", UUID.randomUUID(), "singleSets"));
+        SlipSnapshot snapshot = slip.toSnapshot();
+
+        slip.restoreFromSnapshot(snapshot);
+
+        assertThat(slip.getLines()).singleElement()
+                .extracting(SlipLine::getCategoryKey)
+                .isEqualTo("singleSets");
+    }
 
     /**
      * 라인 2건 + memo "원본" 을 가진 출고 슬립을 생성한다 (복원 대상 기준 상태).
