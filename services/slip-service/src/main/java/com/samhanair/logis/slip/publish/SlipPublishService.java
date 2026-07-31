@@ -27,6 +27,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -798,21 +799,22 @@ public class SlipPublishService {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("kind", "ORDERS_MERGE");
         canonical.put("sourceOrders", req.sourceOrders().stream()
-                .map(this::canonicalSourceOrder).toList());
-        canonical.put("ioDate", req.ioDate());
+                .map(this::canonicalSourceOrder)
+                .sorted(Comparator.comparing(this::toJsonOrThrow)).toList());
+        canonical.put("ioDate", canonicalOptionalText(req.ioDate()));
         canonical.put("partnerId", req.partnerId());
         canonical.put("warehouseCode", req.warehouseCode());
-        canonical.put("warehouseId", req.warehouseId());
-        canonical.put("partnerCode", req.partnerCode());
+        canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
+        canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
         canonical.put("partnerName", req.partnerName());
         canonical.put("shippingAddress", req.shippingAddress());
         canonical.put("deliveryAddress", req.deliveryAddress());
         canonical.put("receiverPhone", req.receiverPhone());
-        canonical.put("employeeCode", req.employeeCode());
+        canonical.put("employeeCode", canonicalOptionalText(req.employeeCode()));
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
-        canonical.put("memo", req.memo());
-        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        canonical.put("memo", canonicalOptionalText(req.memo()));
+        canonical.put("lines", canonicalLines(req.lines()));
         return sha256(toJsonOrThrow(canonical));
     }
 
@@ -835,20 +837,20 @@ public class SlipPublishService {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("kind", "PARTNER_ORDER");
         canonical.put("partnerOrderId", req.partnerOrderId());
-        canonical.put("ioDate", req.ioDate());
+        canonical.put("ioDate", canonicalOptionalText(req.ioDate()));
         canonical.put("warehouseCode", req.warehouseCode());
-        canonical.put("warehouseId", req.warehouseId());
-        canonical.put("partnerCode", req.partnerCode());
+        canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
+        canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
         canonical.put("partnerName", req.partnerName());
         canonical.put("shippingAddress", req.shippingAddress());
         canonical.put("deliveryAddress", req.deliveryAddress());
         canonical.put("receiverPhone", req.receiverPhone());
-        canonical.put("employeeCode", req.employeeCode());
+        canonical.put("employeeCode", canonicalOptionalText(req.employeeCode()));
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
-        canonical.put("memo", req.memo());
-        canonical.put("orderApprovedAt", req.orderApprovedAt());
-        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        canonical.put("memo", canonicalOptionalText(req.memo()));
+        canonical.put("orderApprovedAt", canonicalOptionalText(req.orderApprovedAt()));
+        canonical.put("lines", canonicalLines(req.lines()));
         return sha256(toJsonOrThrow(canonical));
     }
 
@@ -887,18 +889,25 @@ public class SlipPublishService {
 
     private Map<String, Object> canonicalLine(PublishLineRequest l) {
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("lineNo", l.lineNo());
         m.put("productCode", l.productCode());
         m.put("productName", l.productName());
         m.put("qty", l.qty());
         m.put("spec", normalizeSpec(l.spec()));
-        m.put("unitPriceExVat", l.unitPriceExVat());
-        m.put("unitPriceVat", l.unitPriceVat());
+        m.put("unitPrice", l.unitPriceVat() != null
+                ? l.unitPriceVat().abs()
+                : (l.unitPriceExVat() != null ? l.unitPriceExVat().abs() : BigDecimal.ZERO));
         m.put("supplyAmount", l.supplyAmount());
         m.put("vatAmount", l.vatAmount());
         m.put("remarks", l.remarks());
         m.put("sourceOrderLineId", l.sourceOrderLineId());
         return m;
+    }
+
+    private List<Map<String, Object>> canonicalLines(List<PublishLineRequest> lines) {
+        return lines.stream()
+                .map(this::canonicalLine)
+                .sorted(Comparator.comparing(this::toJsonOrThrow))
+                .toList();
     }
 
     private Map<String, Object> legacyCanonicalLine(PublishLineRequest l) {
@@ -918,6 +927,13 @@ public class SlipPublishService {
         m.put("partnerOrderId", ref.partnerOrderId());
         m.put("orderNo", ref.orderNo());
         return m;
+    }
+
+    private static String canonicalOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     /**
