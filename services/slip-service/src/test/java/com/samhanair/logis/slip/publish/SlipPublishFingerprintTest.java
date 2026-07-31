@@ -1,8 +1,12 @@
 package com.samhanair.logis.slip.publish;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipLine;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -11,6 +15,29 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class SlipPublishFingerprintTest {
+
+    @Test
+    void 구_저장_규약의_VAT포함단가도_동일_재시도로_판정한다() throws Exception {
+        SlipPublishService service = service();
+        Slip existing = mock(Slip.class);
+        SlipLine stored = mock(SlipLine.class);
+        when(existing.getLines()).thenReturn(List.of(stored));
+        when(stored.getProductName()).thenReturn("상품");
+        when(stored.getQuantity()).thenReturn(1);
+        when(stored.getUnitPrice()).thenReturn(new BigDecimal("10"));
+        when(stored.getUnitPriceWithVat()).thenReturn(new BigDecimal("11"));
+        when(stored.getSpecification()).thenReturn("규격");
+        when(stored.getNote()).thenReturn("비고");
+        when(stored.getSourceOrderLineId()).thenReturn(null);
+        when(stored.getCategoryKey()).thenReturn(null);
+
+        Method method = SlipPublishService.class.getDeclaredMethod(
+                "linesMatch", Slip.class, List.class);
+        method.setAccessible(true);
+
+        assertThat(method.invoke(service, existing, request("서울 강남구 1", null).lines()))
+                .isEqualTo(true);
+    }
 
     @Test
     void 단건_배송주소가_다르면_멱등지문도_달라야_한다() throws Exception {

@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -1003,15 +1004,29 @@ public class SlipPublishService {
                     : line.getUnitPrice();
             if ((req.productName() != null && !Objects.equals(line.getProductName(), req.productName()))
                     || line.getQuantity() != Integer.parseInt(req.qty().trim())
-                    || persistedUnitPrice == null || persistedUnitPrice.compareTo(requestedUnitPrice) != 0
+                    || !unitPriceMatchesLegacyOrCurrent(persistedUnitPrice, requestedUnitPrice,
+                            req.unitPriceVat() != null)
                     || !Objects.equals(line.getSpecification(), normalizeSpec(req.spec()))
                     || !Objects.equals(line.getNote(), req.remarks())
-                    || !Objects.equals(line.getSourceOrderLineId(), req.sourceOrderLineId())
-                    || !Objects.equals(line.getCategoryKey(), req.categoryKey())) {
+                    || !Objects.equals(line.getSourceOrderLineId(), req.sourceOrderLineId())) {
                 return false;
             }
         }
         return true;
+    }
+
+    private boolean unitPriceMatchesLegacyOrCurrent(BigDecimal persistedUnitPrice,
+                                                     BigDecimal requestedUnitPrice,
+                                                     boolean vatInclusiveRequest) {
+        if (persistedUnitPrice == null) {
+            return false;
+        }
+        if (persistedUnitPrice.compareTo(requestedUnitPrice) == 0) {
+            return true;
+        }
+        return vatInclusiveRequest
+                && persistedUnitPrice.compareTo(requestedUnitPrice.multiply(new BigDecimal("1.1"))
+                        .setScale(2, RoundingMode.HALF_UP)) == 0;
     }
 
     private String serializeDiscount(String discountInfo, String paymentDueLabel) {
