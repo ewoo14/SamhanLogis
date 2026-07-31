@@ -8,16 +8,16 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 
-/** order-app PARTNER가 읽기 전용 수량 동기화 규칙을 소비할 수 있는 권한 경계를 검증한다. */
+/** 전역 관리자 수량 동기화 규칙을 PARTNER self-service로 공개하지 않는 권한 경계를 검증한다. */
 class QuantitySyncRuleControllerPermissionTest {
 
     @Test
-    void listEndpointIsPartnerSelfServiceReadOnly() throws Exception {
+    void listEndpointIsNotPartnerSelfServiceWithoutPartnerScope() throws Exception {
         Method list = QuantitySyncRuleController.class.getMethod("list", QuantitySyncEstimateCategory.class);
         RequirePermission permission = list.getAnnotation(RequirePermission.class);
 
         assertThat(permission).isNotNull();
-        assertThat(permission.partnerSelfService()).isTrue();
+        assertThat(permission.partnerSelfService()).isFalse();
         assertThat(permission.action().name()).isEqualTo("VIEW");
     }
 }

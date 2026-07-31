@@ -150,10 +150,14 @@ export function selectSingleS03Rule(
     )
   }
 
+  let multiplier = 0
   try {
-    sourceDefinitions.forEach((source) => positiveNumber(source.factor, 'S-03 factor'))
+    const factors = sourceDefinitions.map((source) => positiveNumber(source.factor, 'S-03 factor'))
     const target = rule.targets[0]! as QuantitySyncTarget
-    positiveNumber(target.multiplier, 'S-03 multiplier')
+    multiplier = positiveNumber(target.multiplier, 'S-03 multiplier')
+    if (factors.some((factor) => Math.abs(factor * multiplier - 1) > 1e-9)) {
+      return selectionError('S-03 설정이 legacy 수량과 일치하지 않습니다.')
+    }
   } catch (error) {
     return selectionError(error instanceof Error ? error.message : String(error))
   }

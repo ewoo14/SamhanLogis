@@ -129,20 +129,19 @@ describe('S-03 설정 기반 수량 동기화', () => {
     expect(Number(target.price) * Number(configured.targetQuantities.get(target.id))).toBe(316800);
   });
 
-  it('shadow: 합법 십진 계수는 브라우저 계산을 거부하지 않고 관측값으로 남긴다', () => {
+  it('shadow: legacy와 다른 계수는 브라우저 관측 대상에서도 제외하고 legacy를 유지한다', () => {
     const rows = loadRows();
     const decimalRule = {
       ...S03_RULE,
       sources: S03_RULE.sources.map((source, index) => index === 0 ? { ...source, factor: 0.5 } : source),
+      targets: [{ ...S03_RULE.targets[0], multiplier: 2 }],
     };
 
     const selected = selectSingleS03Rule([decimalRule], rows);
-    const source = rows.find((row) => row.id === '싱글 실링61');
-    const configured = evaluateSingleS03Rule(selected.rule, rows, new Map([[source.id, 1]]));
 
-    expect(selected.status).toBe('ready');
-    expect(configured.status).toBe('ready');
-    expect(Number(configured.targetQuantities.get('실링용 드레인펌프75'))).toBeCloseTo(0.5, 10);
+    expect(selected.status).toBe('error');
+    expect(selected.rule).toBeNull();
+    expect(selected.errorMessage).toContain('legacy');
     expect(runLegacyS03({ sourceQuantity: 3 })).toMatchObject({
       targetQuantity: 3,
       manualLock: false,

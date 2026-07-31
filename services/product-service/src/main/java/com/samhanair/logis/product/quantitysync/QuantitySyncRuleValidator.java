@@ -239,6 +239,7 @@ public class QuantitySyncRuleValidator {
             }
         }
         validateOrderQuantityCompatibility(draft);
+        validateS03LegacyParity(draft);
 
         Set<String> sourceCodes = draft.sources().stream().map(SourceDraft::productCode).collect(java.util.stream.Collectors.toSet());
         Set<String> targetCodes = draft.targets().stream().map(TargetDraft::productCode).collect(java.util.stream.Collectors.toSet());
@@ -476,6 +477,29 @@ public class QuantitySyncRuleValidator {
                 if (coefficient.stripTrailingZeros().scale() > 0) {
                     invalid("S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.");
                 }
+            }
+        }
+    }
+
+    /**
+     * S-03 shadow 설정이 현재 legacy 수량과 동일한 일대일 계수인지 저장 전에 검증한다.
+     *
+     * <p>S-03은 아직 주문 수량 결정 경로가 아니다. 따라서 factor와 multiplier가 legacy의
+     * "source 1개당 target 1개"와 다르면 관측값을 저장하지 않고 거부한다. 이 경계가
+     * 없으면 seed를 제거해도 관리자 POST로 legacy와 다른 수량 규칙을 다시 만들 수 있다.
+     */
+    private void validateS03LegacyParity(Draft draft) {
+        if (!S03_RULE_KEY.equals(draft.ruleKey()) && !S03_LEGACY_REF.equals(draft.legacyRef())) {
+            return;
+        }
+        if (draft.targets().size() != 1) {
+            invalid("S-03 shadow 설정은 legacy target 하나만 가져야 합니다.");
+        }
+        TargetDraft target = draft.targets().get(0);
+        for (SourceDraft source : draft.sources()) {
+            BigDecimal coefficient = source.factor().multiply(target.multiplier());
+            if (coefficient.compareTo(BigDecimal.ONE) != 0) {
+                invalid("S-03 shadow 설정이 legacy 수량과 일치하지 않습니다.");
             }
         }
     }
