@@ -4,12 +4,15 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 /**
@@ -20,13 +23,9 @@ import org.springframework.stereotype.Component;
  * {@code "14"} (안성), {@code "1"} (창원) 등 짧은 문자열. SamhanLogis 내부에서는 warehouse
  * 마스터의 UUID 를 사용하므로 발행 시점에 변환이 필요하다.
  *
- * <p>단계적 접근:
- * <ol>
- *   <li>현 슬라이스 — 환경 변수 + application.yml 의 정적 매핑 ({@code app.publish.warehouse-code-map})
- *       사용. CI/Local 에서는 dev 기본값 (random UUID 4개) 적용.</li>
- *   <li>후속 슬라이스 — warehouse-service 가 추가되면 RestClient lookup 으로 교체. 본 매퍼는
- *       cache-aside 패턴으로 진화.</li>
- * </ol>
+ * <p>환경 변수 + application.yml 의 정적 매핑을 사용하되, Spring 기동 시 inventory DB의
+ * {@code public.warehouses} 활성 행과 대조한다. 설정된 UUID가 하나라도 부재하면 기동을
+ * 중단하여 잘못된 창고로 전표가 발행되지 않게 한다.
  *
  * <p>매핑 누락 → {@link BusinessException}({@link ErrorCode#INVALID_INPUT}) 으로 즉시 실패.
  * legacy 가 신규 코드를 보낸 경우 운영자가 환경 변수에 추가해야 한다.
@@ -36,10 +35,10 @@ import org.springframework.stereotype.Component;
  * app:
  *   publish:
  *     warehouse-code-map:
- *       "00003": "11111111-1111-1111-1111-111111111111"  # 본사
- *       "2":     "22222222-2222-2222-2222-222222222222"  # 후발
- *       "14":    "33333333-3333-3333-3333-333333333333"  # 안성
- *       "1":     "44444444-4444-4444-4444-444444444444"  # 창원
+ *       "00003": "${WAREHOUSE_UUID_HQ}"
+ *       "2":     "${WAREHOUSE_UUID_HUBAL}"
+ *       "14":    "${WAREHOUSE_UUID_ANSEONG}"
+ *       "1":     "${WAREHOUSE_UUID_CHANGWON}"
  * </pre>
  */
 @Slf4j
@@ -48,6 +47,12 @@ import org.springframework.stereotype.Component;
 @Getter
 @Setter
 public class WarehouseCodeMapper {
+
+    private final JdbcTemplate warehouseValidationJdbcTemplate;
+
+    public WarehouseCodeMapper(JdbcTemplate warehouseValidationJdbcTemplate) {
+        this.warehouseValidationJdbcTemplate = warehouseValidationJdbcTemplate;
+    }
 
     /** Spring 이 yaml/env 에서 주입. key 는 legacy 코드, value 는 내부 warehouse UUID. */
     private Map<String, String> warehouseCodeMap = new HashMap<>();
@@ -60,7 +65,44 @@ public class WarehouseCodeMapper {
                     + "환경 변수 또는 application.yml 에 매핑 추가 필요.");
             return;
         }
+        Set<UUID> existingWarehouseIds = findExistingWarehouseIds(warehouseCodeMap);
+        validateConfiguredWarehouses(warehouseCodeMap, existingWarehouseIds);
         log.info("[Phase 6 M5] warehouse-code-map 로드: {} entries", warehouseCodeMap.size());
+    }
+
+    private Set<UUID> findExistingWarehouseIds(Map<String, String> mappings) {
+        Map<String, UUID> parsedMappings = new HashMap<>();
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            try {
+                parsedMappings.put(entry.getKey(), UUID.fromString(entry.getValue().trim()));
+            } catch (RuntimeException ex) {
+                throw new IllegalStateException("warehouseCode '" + entry.getKey()
+                        + "' 의 매핑값이 UUID 형식이 아닙니다: " + entry.getValue(), ex);
+            }
+        }
+
+        String placeholders = String.join(", ", parsedMappings.values().stream().map(value -> "?").toList());
+        Set<UUID> existingIds = new HashSet<>(warehouseValidationJdbcTemplate.query(
+                "SELECT id FROM public.warehouses WHERE is_deleted = false AND id IN (" + placeholders + ")",
+                (rs, rowNum) -> rs.getObject("id", UUID.class),
+                parsedMappings.values().toArray()));
+        return existingIds;
+    }
+
+    static void validateConfiguredWarehouses(Map<String, String> mappings, Set<UUID> existingWarehouseIds) {
+        for (Map.Entry<String, String> entry : mappings.entrySet()) {
+            UUID configuredId;
+            try {
+                configuredId = UUID.fromString(entry.getValue().trim());
+            } catch (RuntimeException ex) {
+                throw new IllegalStateException("warehouseCode '" + entry.getKey()
+                        + "' 의 매핑값이 UUID 형식이 아닙니다: " + entry.getValue(), ex);
+            }
+            if (!existingWarehouseIds.contains(configuredId)) {
+                throw new IllegalStateException("실재하지 않는 warehouse UUID가 설정되었습니다. code='"
+                        + entry.getKey() + "', uuid='" + configuredId + "'");
+            }
+        }
     }
 
     /**

@@ -64,15 +64,15 @@ import org.springframework.test.web.servlet.MvcResult;
  *   <li>{@link InventoryClient} — 발행만 검증, accept/complete 호출 X 이므로 사용 안 됨 (lenient mock)</li>
  * </ul>
  *
- * <p>{@code @TestPropertySource} 로 warehouse-code-map 주입 (yaml 의 dev 기본값과 동일).
+ * <p>{@code @TestPropertySource} 로 warehouse-code-map 주입.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111",
-        "app.publish.warehouse-code-map.2=22222222-2222-2222-2222-222222222222",
-        "app.publish.warehouse-code-map.14=33333333-3333-3333-3333-333333333333",
-        "app.publish.warehouse-code-map.1=44444444-4444-4444-4444-444444444444"
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001",
+        "app.publish.warehouse-code-map.2=11111111-1111-1111-1111-000000000002",
+        "app.publish.warehouse-code-map.14=11111111-1111-1111-1111-000000000003",
+        "app.publish.warehouse-code-map.1=11111111-1111-1111-1111-000000000004"
 })
 class SlipPublishControllerIT extends AbstractPostgresIT {
 

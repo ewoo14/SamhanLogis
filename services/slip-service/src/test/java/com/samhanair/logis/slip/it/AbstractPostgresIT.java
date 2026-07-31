@@ -74,6 +74,9 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("app.publish.warehouse-validation.jdbc-url", POSTGRES::getJdbcUrl);
+        registry.add("app.publish.warehouse-validation.username", POSTGRES::getUsername);
+        registry.add("app.publish.warehouse-validation.password", POSTGRES::getPassword);
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("eureka.client.enabled", () -> "false");

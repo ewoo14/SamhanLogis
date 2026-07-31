@@ -376,6 +376,11 @@ services:
       <<: *spring-prod
       SERVER_PORT: "8086"
       DB_NAME: slip_db
+      WAREHOUSE_DB_NAME: inventory_db
+      WAREHOUSE_UUID_HQ: ${WAREHOUSE_UUID_HQ}
+      WAREHOUSE_UUID_HUBAL: ${WAREHOUSE_UUID_HUBAL}
+      WAREHOUSE_UUID_ANSEONG: ${WAREHOUSE_UUID_ANSEONG}
+      WAREHOUSE_UUID_CHANGWON: ${WAREHOUSE_UUID_CHANGWON}
       SAMHAN_AUTH_SERVICE_URL: http://auth-service:8081
       SAMHAN_PRODUCT_SERVICE_URL: http://product-service:8084
       SAMHAN_PARTNER_SERVICE_URL: http://partner-service:8095
