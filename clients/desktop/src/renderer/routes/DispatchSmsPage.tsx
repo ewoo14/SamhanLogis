@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Card, Input, Tabs } from '@samhan/design-system'
+import { Badge, Button, Card, CopyButton, Input, Tabs } from '@samhan/design-system'
 import axios from 'axios'
 import {
   previewDispatchBatch,
@@ -30,6 +30,7 @@ import { DispatchSmsSaveDialog } from '../components/DispatchSmsSaveDialog'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
+import { buildDispatchSmsClipboardText, type DispatchSmsClipboardRow } from './dispatchSmsClipboard'
 
 type EditedMessages = Record<string, string>
 type PreviewHistoryPayload =
@@ -154,6 +155,7 @@ export function DispatchSmsPage() {
   const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [latestRestoreSettled, setLatestRestoreSettled] = useState(false)
+  const [selectedClipboardIds, setSelectedClipboardIds] = useState<Set<string>>(new Set())
   const lastAutoSaveKeyRef = useRef<string | null>(null)
   const skipNextAutoSaveRef = useRef(false)
   const lastSendEntriesRef = useRef<DispatchSmsSendEntry[]>([])
@@ -215,10 +217,12 @@ export function DispatchSmsPage() {
       const result = await previewDispatchBatch(date)
       setPreview(result)
       setEdited(buildInitialEdited(result))
+      setSelectedClipboardIds(new Set())
       setRestoreBanner(null)
     } catch (err) {
       setPreview(null)
       setEdited({})
+      setSelectedClipboardIds(new Set())
       if (axios.isAxiosError(err)) {
         const data = err.response?.data as { message?: string } | undefined
         setPreviewError(data?.message ?? '미리보기 호출에 실패했습니다.')
@@ -319,6 +323,31 @@ export function DispatchSmsPage() {
 
   const sendDisabled = !preview || !confirmChecked || sendableCount === 0 || sendMutation.isPending || !canBatch
 
+  const clipboardRows = useMemo<DispatchSmsClipboardRow[]>(() => {
+    if (!preview) return []
+    return [
+      ...preview.chatRooms.flatMap((room) => room.partners.map((p) => ({
+        id: p.partnerCode,
+        partnerName: p.partnerName,
+        slipNo: p.slipNo,
+        message: edited[p.partnerCode] ?? p.message,
+        chatRoomName: room.chatRoomName,
+      }))),
+      ...preview.unmapped.map((p) => ({
+        id: p.partnerCode,
+        partnerName: p.partnerName,
+        slipNo: p.slipNo,
+        message: edited[p.partnerCode] ?? p.message,
+        chatRoomName: '',
+      })),
+    ]
+  }, [edited, preview])
+
+  const clipboardText = useMemo(
+    () => buildDispatchSmsClipboardText(clipboardRows, selectedClipboardIds),
+    [clipboardRows, selectedClipboardIds],
+  )
+
   const handleSend = () => {
     if (!canBatch) return
     if (sendDisabled) return
@@ -346,6 +375,7 @@ export function DispatchSmsPage() {
     const restored = readPreviewHistoryPayload(detail.responsePayload)
     setPreview(restored.preview)
     setEdited(restored.edited ?? buildInitialEdited(restored.preview))
+    setSelectedClipboardIds(new Set())
     setDate(restored.preview.date)
     setSendResult(null)
     skipNextAutoSaveRef.current = true
@@ -382,6 +412,16 @@ export function DispatchSmsPage() {
             canPreview={canBatch}
             onDateChange={setDate}
             onPreview={() => void handlePreview()}
+            clipboardText={clipboardText}
+            selectedClipboardIds={selectedClipboardIds}
+            onClipboardSelectionChange={(id, selected) => {
+              setSelectedClipboardIds((previous) => {
+                const next = new Set(previous)
+                if (selected) next.add(id)
+                else next.delete(id)
+                return next
+              })
+            }}
             onMessageChange={(partnerCode, message) => {
               setEdited((prev) => ({ ...prev, [partnerCode]: message }))
             }}
@@ -454,6 +494,9 @@ function PreviewSection({
   canPreview,
   onDateChange,
   onPreview,
+  clipboardText,
+  selectedClipboardIds,
+  onClipboardSelectionChange,
   onMessageChange,
 }: {
   date: string
@@ -464,6 +507,9 @@ function PreviewSection({
   canPreview: boolean
   onDateChange: (value: string) => void
   onPreview: () => void
+  clipboardText: string
+  selectedClipboardIds: ReadonlySet<string>
+  onClipboardSelectionChange: (id: string, selected: boolean) => void
   onMessageChange: (partnerCode: string, message: string) => void
 }) {
   return (
@@ -506,6 +552,15 @@ function PreviewSection({
             단톡방 매핑 <strong>{preview.mappedSlips}</strong>건 · 미매핑 <strong>{preview.unmappedSlips}</strong>건
           </p>
 
+          <div style={copyToolbarStyle}>
+            <span style={noticeStyle}>선택한 배차 대상만 복사 · 거래처명 / 전표번호 / 발송멘트 / 단톡방</span>
+            <CopyButton
+              text={clipboardText}
+              label={`선택 복사 (${selectedClipboardIds.size}건)`}
+              disabled={!clipboardText}
+            />
+          </div>
+
           {preview.chatRooms.length === 0 ? (
             <div style={emptyBoxStyle}>해당 일자에 발송할 출고전표가 없습니다.</div>
           ) : null}
@@ -524,10 +579,18 @@ function PreviewSection({
               {room.partners.map((p) => (
                 <div key={p.partnerCode} style={partnerBoxStyle(p.blocked)}>
                   <div style={partnerHeaderStyle}>
-                    <div style={{ fontSize: 13 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${p.partnerName} 배차 대상 선택`}
+                        checked={selectedClipboardIds.has(p.partnerCode)}
+                        onChange={(e) => onClipboardSelectionChange(p.partnerCode, e.target.checked)}
+                      />
+                      <span>
                       <strong>{p.partnerName}</strong>{' '}
                       <span style={noticeStyle}>[{p.partnerCode}] · 전표 {p.slipNo}</span>
-                    </div>
+                      </span>
+                    </label>
                     {p.blocked ? (
                       <Badge data-testid={`dispatch-sms-blocked-badge-${p.partnerCode}`} variant="danger">
                         발송금지
@@ -554,7 +617,15 @@ function PreviewSection({
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {preview.unmapped.map((u) => (
                   <li key={`${u.partnerCode}-${u.slipNo}`}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        aria-label={`${u.partnerName} 배차 대상 선택`}
+                        checked={selectedClipboardIds.has(u.partnerCode)}
+                        onChange={(e) => onClipboardSelectionChange(u.partnerCode, e.target.checked)}
+                      />
                     {u.partnerName} [{u.partnerCode}] · 전표 {u.slipNo}
+                    </label>
                   </li>
                 ))}
               </ul>
@@ -674,6 +745,18 @@ const headerStyle: React.CSSProperties = {
 const noticeStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-500)' }
 const mutedTextStyle: React.CSSProperties = { fontSize: 12, color: 'var(--color-neutral-500)', marginTop: 0 }
 const summaryTextStyle: React.CSSProperties = { fontSize: 13, marginTop: 0, marginBottom: 12 }
+const copyToolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  flexWrap: 'wrap',
+  marginBottom: 12,
+  padding: '8px 10px',
+  background: 'var(--color-neutral-50)',
+  border: '1px solid var(--color-neutral-200)',
+  borderRadius: 6,
+}
 const emptyBoxStyle: React.CSSProperties = {
   padding: 12,
   background: 'var(--color-neutral-50)',
