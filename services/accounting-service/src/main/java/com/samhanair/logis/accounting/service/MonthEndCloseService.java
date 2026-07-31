@@ -516,19 +516,20 @@ public class MonthEndCloseService {
         ProductLabelMatch byLabel = labelMatches.getOrDefault(axis.label(),
                 ProductLabelMatch.notFound());
         if (axis.modelToken() == null) {
-            // 모델 토큰이 없는 legacy snapshot도 resolver가 불변 modelCode를
-            // 돌려준 경우에만 확정한다. 근거가 없으면 matched를 강등한다.
-            return byLabel.isMatched() && byLabel.modelCode() != null
-                    ? byLabel : byLabel.isMatched() ? ProductLabelMatch.notFound() : byLabel;
+            // 비교할 불변 모델 토큰이 없는 legacy snapshot은 기존 라벨 판정을 유지한다.
+            // modelCode가 null인 정상 레거시 제품까지 NOT_FOUND로 강등하지 않는다.
+            return byLabel;
         }
         ProductLabelMatch byModel = modelMatches.get(axis.modelToken());
         if (byModel != null && byModel.isMatched()
-                && axis.modelToken().equals(byModel.modelCode())) {
+                && (byModel.modelCode() == null || axis.modelToken().equals(byModel.modelCode()))) {
             return byModel;
         }
         // 과거 snapshot의 modelName은 변경·재사용될 수 있다. 불변 modelCode가
         // snapshot 토큰과 일치하는 경우에만 label 결과도 확정 근거로 인정한다.
-        if (byLabel.isMatched() && axis.modelToken().equals(byLabel.modelCode())) {
+        if (byLabel.isMatched()
+                && (axis.modelToken().equals(byLabel.modelCode())
+                        || (byModel == null || !byModel.isMatched()) && byLabel.modelCode() == null)) {
             return byLabel;
         }
         // 불변 식별자가 없거나 현재 이름이 다른 제품을 가리키는 경우에는

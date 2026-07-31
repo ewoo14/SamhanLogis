@@ -560,6 +560,42 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("modelCode 없는 정상 레거시 라인은 라벨 매칭으로 확정한다")
+    void modelCodeMissingLegacyLineKeepsLabelMatchConfirmation() {
+        UUID legacyProduct = UUID.randomUUID();
+        SalesAccountingSlip slip = SalesAccountingSlip.createDraft(
+                "SAS-R8-MISSING-MODEL", DATE, UUID.randomUUID(), "P-SALES", "매출거래처",
+                SalesTaxType.TAXABLE, "r8 레거시 modelCode 없음");
+        SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
+                slip, 1, "LEGACY-ITEM", "모델코드 없는 레거시 제품", "AR09TXEAAWKNEU-04", "singleSets",
+                BigDecimal.ONE, new BigDecimal("50000"), new BigDecimal("50000"),
+                new BigDecimal("5000"), new BigDecimal("55000"));
+        setField(slip, "lines", new ArrayList<>(List.of(line)));
+        setField(slip, "status", SalesSlipStatus.POSTED);
+        when(salesAccountingSlipRepository.findBySlipDateAndStatusWithLines(
+                DATE, SalesSlipStatus.POSTED)).thenReturn(List.of(slip));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "모델코드 없는 레거시 제품", ProductLabelMatch.matched(legacyProduct, null)));
+        when(productClient.lookupByModel("AR09TXEAAWKNEU-04")).thenReturn(new ProductSummary(
+                legacyProduct, "모델코드 없는 레거시 제품", "AR09TXEAAWKNEU-04", null, null,
+                "ACTIVE", "singleSets", null));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                legacyProduct, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                legacyProduct, new BigDecimal("45")));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(
+                DATE, com.samhanair.logis.accounting.domain.DailyClosingKind.SALES,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.SALES_SLIP);
+
+        assertThat(findProductLine(response, "모델코드 없는 레거시 제품"))
+                .extracting(DailyClosingDetailResponse.DailyProductLine::releasePrice,
+                        DailyClosingDetailResponse.DailyProductLine::deliveryPrice,
+                        DailyClosingDetailResponse.DailyProductLine::revalidationStatus)
+                .containsExactly(new BigDecimal("100000"), new BigDecimal("70000"), "VERIFIED");
+    }
+
+    @Test
     @DisplayName("B-04 rename 후 exact 조회 404 — 두 번째 축은 첫 상품 가격으로 fallback하지 않는다")
     void mixedSalesSlipAllocationDoesNotFallbackToFirstProductWhenRenamedModelIsGone() {
         UUID firstProduct = UUID.randomUUID();
