@@ -25,6 +25,8 @@ import com.samhanair.logis.slip.repository.SlipPublishAuditRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSourceOrderRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -481,6 +483,67 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
      * @param idemKey     Idempotency-Key (body 바깥에서도 헤더로 사용하나 fingerprint 계산용)
      * @return 요청 본문 Map
      */
+    @Test
+    void 배포전_병합멱등키_배송주소없는_재시도는_기존전표를_replay한다() throws Exception {
+        String idemKey = "legacy-merge-replay";
+        Map<String, Object> body = mergeBody(
+                ORDER_A_ID.toString(), "2026/05/31-legacy-A",
+                ORDER_B_ID.toString(), "2026/05/31-legacy-B",
+                "P0001", "테스트 거래처", WAREHOUSE_CODE, null, idemKey);
+
+        MvcResult first = mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID slipId = readSlipId(first);
+        jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
+                legacyMergeFingerprint(body), slipId);
+
+        mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.idempotentReplay").value(true))
+                .andExpect(jsonPath("$.data.slipId").value(slipId.toString()));
+    }
+
+    @Test
+    void 배포전_병합멱등키에_새배송주소를_넣은_재시도는_409다() throws Exception {
+        String idemKey = "legacy-merge-conflict";
+        Map<String, Object> body = mergeBody(
+                ORDER_A_ID.toString(), "2026/05/31-legacy-conflict-A",
+                ORDER_B_ID.toString(), "2026/05/31-legacy-conflict-B",
+                "P0001", "테스트 거래처", WAREHOUSE_CODE, null, idemKey);
+
+        MvcResult first = mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID slipId = readSlipId(first);
+        jdbcTemplate.update("UPDATE slip_publish_audit SET request_fingerprint = ? WHERE slip_id = ?",
+                legacyMergeFingerprint(body), slipId);
+
+        body.put("deliveryAddress", "서울시 강남구 새 병합 배송지 2");
+        mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isConflict());
+    }
+
     private Map<String, Object> mergeBody(
             String orderAId, String orderANo,
             String orderBId, String orderBNo,
@@ -530,6 +593,39 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         return UUID.fromString(
                 objectMapper.readTree(result.getResponse().getContentAsString())
                         .get("data").get("slipId").asText());
+    }
+
+    @SuppressWarnings("unchecked")
+    private String legacyMergeFingerprint(Map<String, Object> body) throws Exception {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "ORDERS_MERGE");
+        canonical.put("sourceOrders", ((List<Map<String, Object>>) body.get("sourceOrders")).stream()
+                .map(order -> order.get("partnerOrderId").toString()).sorted().toList());
+        canonical.put("ioDate", body.get("ioDate"));
+        canonical.put("partnerId", body.get("partnerId"));
+        canonical.put("warehouseCode", body.get("warehouseCode"));
+        canonical.put("partnerCode", body.get("partnerCode"));
+        canonical.put("paymentDueLabel", body.get("paymentDueLabel"));
+        canonical.put("discountInfo", body.get("discountInfo"));
+        canonical.put("memo", body.get("memo"));
+        canonical.put("lines", ((List<Map<String, Object>>) body.get("lines")).stream().map(line -> {
+            Map<String, Object> canonicalLine = new LinkedHashMap<>();
+            canonicalLine.put("productCode", line.get("productCode"));
+            canonicalLine.put("qty", line.get("qty"));
+            canonicalLine.put("spec", line.get("spec"));
+            canonicalLine.put("unitPriceVat", line.get("unitPriceVat"));
+            canonicalLine.put("supplyAmount", line.get("supplyAmount"));
+            canonicalLine.put("vatAmount", line.get("vatAmount"));
+            canonicalLine.put("remarks", line.get("remarks"));
+            return canonicalLine;
+        }).toList());
+        byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(objectMapper.writeValueAsString(canonical).getBytes(StandardCharsets.UTF_8));
+        StringBuilder hex = new StringBuilder();
+        for (byte value : digest) {
+            hex.append(String.format("%02x", value));
+        }
+        return hex.toString();
     }
 
     private String readSlipNo(MvcResult result) throws Exception {

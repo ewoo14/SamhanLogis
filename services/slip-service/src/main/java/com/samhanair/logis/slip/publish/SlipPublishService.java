@@ -122,7 +122,7 @@ public class SlipPublishService {
         // 1. idempotency 가드 — 같은 키 + 같은 fingerprint → replay
         Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            return assertReplayOrConflict(existing.get(), fingerprint);
+            return assertReplayOrConflict(existing.get(), fingerprint, null);
         }
 
         // 1.5 PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy, default strict)
@@ -172,7 +172,7 @@ public class SlipPublishService {
         try {
             saved = slipRepository.saveAndFlush(slip);
         } catch (DataIntegrityViolationException ex) {
-            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, null, ex);
         }
 
         // 6. 감사 로그 적재 (request fingerprint 동봉 — replay 비교용)
@@ -197,10 +197,12 @@ public class SlipPublishService {
     public PublishSlipResponse publishFromPartnerOrder(PublishFromPartnerOrderRequest req,
                                                        String idempotencyKey, String requesterId) {
         String fingerprint = computeFingerprint(req);
+        String legacyFingerprint = req.deliveryAddress() == null
+                ? computeLegacyFingerprint(req) : null;
 
         Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            return assertReplayOrConflict(existing.get(), fingerprint);
+            return assertReplayOrConflict(existing.get(), fingerprint, legacyFingerprint);
         }
 
         // PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy)
@@ -249,7 +251,7 @@ public class SlipPublishService {
         try {
             saved = slipRepository.saveAndFlush(slip);
         } catch (DataIntegrityViolationException ex) {
-            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, legacyFingerprint, ex);
         }
 
         // Phase 2.6c: PARTNER_ORDER 전환 전표 발행 즉시 불변 — DRAFT → SAVED → SENT 전이.
@@ -295,10 +297,12 @@ public class SlipPublishService {
     public PublishSlipResponse publishFromOrdersMerge(PublishFromOrdersMergeRequest req,
                                                       String idempotencyKey, String requesterId) {
         String fingerprint = computeMergeFingerprint(req);
+        String legacyFingerprint = req.deliveryAddress() == null
+                ? computeLegacyMergeFingerprint(req) : null;
 
         Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            return assertReplayOrConflict(existing.get(), fingerprint);
+            return assertReplayOrConflict(existing.get(), fingerprint, legacyFingerprint);
         }
 
         UUID partnerId = requireMergePartnerId(req.partnerId());
@@ -343,7 +347,7 @@ public class SlipPublishService {
         try {
             saved = slipRepository.saveAndFlush(slip);
         } catch (DataIntegrityViolationException ex) {
-            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, legacyFingerprint, ex);
         }
 
         // 출처 주문 N행 기록 (slip_source_orders V30)
@@ -583,13 +587,18 @@ public class SlipPublishService {
         return slipRepository.findByIdempotencyKeyAndIsDeletedFalse(idempotencyKey);
     }
 
-    private PublishSlipResponse assertReplayOrConflict(Slip existing, String newFingerprint) {
+    private PublishSlipResponse assertReplayOrConflict(Slip existing, String newFingerprint,
+                                                       String legacyFingerprint) {
         // audit 에 저장된 request_fingerprint 와 신규 요청 fingerprint 를 strict 비교.
         // 같은 알고리즘으로 만든 SHA-256 이므로 본문이 동일하면 정확히 일치.
         // legacy audit row (V9 migration 이전) 는 fingerprint 가 null 이므로 비교 skip
         // (운영 데이터 호환성 — 본 분기는 실제로는 마이그레이션 이후 발생하지 않음).
         String existingFingerprint = lookupFingerprintFromAudit(existing);
-        if (existingFingerprint != null && !existingFingerprint.equals(newFingerprint)) {
+        boolean matchesCurrent = existingFingerprint != null && existingFingerprint.equals(newFingerprint);
+        boolean matchesLegacy = legacyFingerprint != null
+                && existing.getDeliveryAddress() == null
+                && existingFingerprint != null && existingFingerprint.equals(legacyFingerprint);
+        if (existingFingerprint != null && !matchesCurrent && !matchesLegacy) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "동일 Idempotency-Key 로 다른 본문이 도착했습니다. 키를 새로 발급하세요. "
                             + "(slipNo=" + existing.getSlipNo() + ")");
@@ -612,6 +621,7 @@ public class SlipPublishService {
 
     private PublishSlipResponse handleIdempotencyRaceCondition(String idempotencyKey,
                                                                String fingerprint,
+                                                               String legacyFingerprint,
                                                                DataIntegrityViolationException ex) {
         // partial UNIQUE INDEX 가 동시 INSERT 를 차단했을 가능성 — 다시 select 시도.
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
@@ -619,7 +629,7 @@ public class SlipPublishService {
             entityManager.clear();
             Optional<Slip> raceWinner = slipRepository.findByIdempotencyKeyAndIsDeletedFalse(idempotencyKey);
             if (raceWinner.isPresent()) {
-                return assertReplayOrConflict(raceWinner.get(), fingerprint);
+                return assertReplayOrConflict(raceWinner.get(), fingerprint, legacyFingerprint);
             }
         }
         throw new BusinessException(ErrorCode.CONFLICT,
@@ -816,6 +826,39 @@ public class SlipPublishService {
         canonical.put("partnerCode", req.partnerCode());
         canonical.put("deliveryAddress", req.deliveryAddress());
         canonical.put("employeeCode", req.employeeCode());
+        canonical.put("paymentDueLabel", req.paymentDueLabel());
+        canonical.put("discountInfo", req.discountInfo());
+        canonical.put("memo", req.memo());
+        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        return sha256(toJsonOrThrow(canonical));
+    }
+
+    /** 배송주소 필드가 없던 배포 전 단건 발행의 멱등 지문을 재현한다. */
+    private String computeLegacyFingerprint(PublishFromPartnerOrderRequest req) {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "PARTNER_ORDER");
+        canonical.put("partnerOrderId", req.partnerOrderId());
+        canonical.put("ioDate", req.ioDate());
+        canonical.put("warehouseCode", req.warehouseCode());
+        canonical.put("partnerCode", req.partnerCode());
+        canonical.put("employeeCode", req.employeeCode());
+        canonical.put("paymentDueLabel", req.paymentDueLabel());
+        canonical.put("discountInfo", req.discountInfo());
+        canonical.put("memo", req.memo());
+        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        return sha256(toJsonOrThrow(canonical));
+    }
+
+    /** 배송주소 필드가 없던 배포 전 병합 발행의 멱등 지문을 재현한다. */
+    private String computeLegacyMergeFingerprint(PublishFromOrdersMergeRequest req) {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "ORDERS_MERGE");
+        canonical.put("sourceOrders", req.sourceOrders().stream()
+                .map(SourceOrderRef::partnerOrderId).sorted().toList());
+        canonical.put("ioDate", req.ioDate());
+        canonical.put("partnerId", req.partnerId());
+        canonical.put("warehouseCode", req.warehouseCode());
+        canonical.put("partnerCode", req.partnerCode());
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
         canonical.put("memo", req.memo());
