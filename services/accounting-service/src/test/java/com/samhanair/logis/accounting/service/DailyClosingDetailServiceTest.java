@@ -680,6 +680,35 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("이름 변경 후 modelCode 없는 exact 재사용 — 기존 라벨 AMBIGUOUS를 유지한다")
+    void modelCodeMissingReusedSnapshotDoesNotOverrideAmbiguousLabel() {
+        UUID reusedNameProduct = UUID.randomUUID();
+        SalesAccountingSlip slip = newPostedSalesSlip(
+                "SAS-R9-AMBIGUOUS-REUSE", DATE, "동명 제품 후보", BigDecimal.ONE,
+                new BigDecimal("110"), new BigDecimal("10"));
+        String reusedModelName = "AROLD12345-R9";
+        setField(slip.getLines().get(0), "modelName", reusedModelName);
+        setField(slip.getLines().get(0), "categoryKey", "singleSets");
+        when(salesAccountingSlipRepository.findBySlipDateAndStatusWithLines(
+                DATE, SalesSlipStatus.POSTED)).thenReturn(List.of(slip));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "동명 제품 후보", ProductLabelMatch.ambiguous()));
+        when(productClient.lookupByModel(reusedModelName))
+                .thenReturn(new ProductSummary(reusedNameProduct, "재사용 제품 B", reusedModelName, null,
+                        null, "ACTIVE", "singleSets", null));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(
+                DATE, com.samhanair.logis.accounting.domain.DailyClosingKind.SALES,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.SALES_SLIP);
+
+        assertThat(findProductLine(response, "동명 제품 후보"))
+                .extracting(DailyClosingDetailResponse.DailyProductLine::releasePrice,
+                        DailyClosingDetailResponse.DailyProductLine::deliveryPrice,
+                        DailyClosingDetailResponse.DailyProductLine::revalidationStatus)
+                .containsExactly(null, null, "AMBIGUOUS");
+    }
+
+    @Test
     @DisplayName("매입전표 detail — 전표 라인 VAT 포함 유효단가로 재검증 필드를 노출한다")
     void purchaseSlipDetailRevalidatesWithLineVatAmount() {
         UUID matched = UUID.randomUUID();

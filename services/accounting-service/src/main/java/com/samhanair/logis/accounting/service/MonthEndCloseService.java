@@ -522,19 +522,22 @@ public class MonthEndCloseService {
         }
         ProductLabelMatch byModel = modelMatches.get(axis.modelToken());
         if (byModel != null && byModel.isMatched()
-                && (byModel.modelCode() == null || axis.modelToken().equals(byModel.modelCode()))) {
+                && axis.modelToken().equals(byModel.modelCode())) {
             return byModel;
         }
-        // 과거 snapshot의 modelName은 변경·재사용될 수 있다. 불변 modelCode가
-        // snapshot 토큰과 일치하는 경우에만 label 결과도 확정 근거로 인정한다.
-        if (byLabel.isMatched()
-                && (axis.modelToken().equals(byLabel.modelCode())
-                        || (byModel == null || !byModel.isMatched()) && byLabel.modelCode() == null)) {
+        if (byModel != null && byModel.isMatched()) {
+            // exact 결과는 존재하지만 불변 modelCode로 snapshot을 증명하지 못한다.
+            // 이 경우에는 기존 label 결과(AMBIGUOUS 포함)를 그대로 유지한다.
             return byLabel;
         }
-        // 불변 식별자가 없거나 현재 이름이 다른 제품을 가리키는 경우에는
-        // 첫 label의 제품으로 가격을 확정하지 않는다.
-        return ProductLabelMatch.notFound();
+        // 과거 snapshot의 modelName은 변경·재사용될 수 있다. exact 결과에
+        // snapshot과 일치하는 불변 modelCode가 없으면 기존 label 해소 결과를 보존한다.
+        if (!byLabel.isMatched()) {
+            return byLabel;
+        }
+        return axis.modelToken().equals(byLabel.modelCode()) || byLabel.modelCode() == null
+                ? byLabel
+                : ProductLabelMatch.notFound();
     }
 
     /** {@link ProductClient#LABEL_BATCH_MAX} 단위로 라벨 목록을 청크로 분할한다. */
