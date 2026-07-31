@@ -6,6 +6,10 @@
  * 메모리에서 v2 envelope로 올린다.
  */
 import type { PaperSize } from './PrintLayout'
+import {
+  normalizeTemplateAuthoringMode,
+  type TemplateAuthoringMode,
+} from './templateAuthoringMode'
 
 export const SUPPORTED_SCHEMA_VERSIONS = [1, 2] as const
 export const CURRENT_SCHEMA_VERSION = 2 as const
@@ -167,6 +171,8 @@ export interface Band {
 export interface DocumentPayload {
   paper: 'A4_PORTRAIT'
   bands: Band[]
+  /** document JSONB 내부 저작 방식. legacy 양식은 parser가 WORD로 해석한다. */
+  mode?: TemplateAuthoringMode
 }
 
 export interface TemplateEnvelope {
@@ -656,6 +662,17 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
   }
   if ((counts.DETAIL ?? 0) > 1) return failure('INVALID_ELEMENT_COUNT', 'DETAIL 요소는 최대 하나만 허용됩니다.')
 
+  const document: DocumentPayload = { paper: 'A4_PORTRAIT', bands }
+  // legacy document의 원문 JSON에는 mode를 소급 추가하지 않는다. 다만 런타임에는
+  // normalize 결과를 읽을 수 있어야 하므로, 누락 mode만 non-enumerable로 붙인다.
+  // 명시된 EXCEL/미지 값은 저장 계약에 맞춰 enumerable WORD/EXCEL로 유지한다.
+  Object.defineProperty(document, 'mode', {
+    value: normalizeTemplateAuthoringMode(value.document.mode),
+    enumerable: value.document.mode !== undefined,
+    configurable: true,
+    writable: true,
+  })
+
   return {
     ok: true,
     value: {
@@ -665,7 +682,7 @@ function parseEnvelope(value: Record<string, unknown>, schemaVersion: SchemaVers
       revision: value.revision as number,
       docType: value.docType,
       name: value.name,
-      document: { paper: 'A4_PORTRAIT', bands },
+      document,
     },
   }
 }

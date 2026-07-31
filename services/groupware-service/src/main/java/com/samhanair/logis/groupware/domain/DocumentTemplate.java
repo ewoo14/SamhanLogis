@@ -110,6 +110,15 @@ public class DocumentTemplate extends BaseEntity {
         if (document == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "문서 양식 document는 필수입니다");
         }
+        if (!getDocument().normalizedMode().equals(document.normalizedMode())) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY,
+                    "문서 양식 저작 방식은 생성 후 변경할 수 없습니다. 다른 방식은 새 DRAFT로 복제하세요.");
+        }
+        // 기존 양식이 mode를 생략한 상태에서 구형 클라이언트가 같은 WORD payload를 다시 보내도
+        // JSONB에 새 mode 필드를 소급 추가하지 않는다. 이는 legacy 저장 JSON 바이트 보존을 위한 경계다.
+        if (document.mode() == null && this.document.mode() != null) {
+            document = new DocumentPayload(document.paper(), document.bands(), this.document.mode());
+        }
         this.schemaVersion = schemaVersion;
         this.document = document;
         this.revision++;

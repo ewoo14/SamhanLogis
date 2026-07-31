@@ -27,6 +27,7 @@ import com.samhanair.logis.groupware.domain.DocumentPayload;
 import com.samhanair.logis.groupware.domain.DocumentTemplate;
 import com.samhanair.logis.groupware.domain.DocumentTemplateStatus;
 import com.samhanair.logis.groupware.dto.DocumentTemplateCreateRequest;
+import com.samhanair.logis.groupware.dto.DocumentTemplateUpdateRequest;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRepository;
 import com.samhanair.logis.groupware.repository.DocumentTemplateRevisionRepository;
 import com.samhanair.logis.groupware.service.DocumentTemplateService;
@@ -289,6 +290,51 @@ class DocumentTemplateIT extends AbstractPostgresIT {
                 .andExpect(jsonPath("$.data.document.bands[1].elements[1].binding").value("header.docNo"))
                 .andExpect(jsonPath("$.data.document.bands[1].elements[2].text").value("초안 제목"))
                 .andExpect(jsonPath("$.data.document.bands[1].elements[2].geometry.w").value(90));
+    }
+
+    @Test
+    void httpExcelMode_isPreservedAcrossCreateGetUpdateAndRevision_andCannotChangeToWord() throws Exception {
+        ObjectNode excelDocument = (ObjectNode) payload().deepCopy();
+        excelDocument.put("mode", "EXCEL");
+        DocumentTemplateCreateRequest createRequest = new DocumentTemplateCreateRequest(
+                "GROUPWARE_MODE_ROUNDTRIP", "엑셀 방식 왕복", (short) 1, excelDocument);
+
+        String created = mvc.perform(post("/admin/groupware/document-templates")
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000903")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.document.mode").value("EXCEL"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        UUID id = UUID.fromString(objectMapper.readTree(created).path("data").path("id").asText());
+
+        mvc.perform(get("/admin/groupware/document-templates/{id}", id)
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000903"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.document.mode").value("EXCEL"));
+
+        mvc.perform(get("/groupware/document-templates/{templateId}/revisions/{revision}", id, 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.document.mode").value("EXCEL"));
+
+        mvc.perform(put("/admin/groupware/document-templates/{id}", id)
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000903")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new DocumentTemplateUpdateRequest(
+                                createRequest.docType(), createRequest.name(), createRequest.schemaVersion(),
+                                createRequest.document()))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.document.mode").value("EXCEL"));
+
+        ObjectNode wordDocument = (ObjectNode) payload().deepCopy();
+        wordDocument.put("mode", "WORD");
+        DocumentTemplateUpdateRequest wordRequest = new DocumentTemplateUpdateRequest(
+                "GROUPWARE_MODE_ROUNDTRIP", "엑셀 방식 왕복", (short) 1, wordDocument);
+        mvc.perform(put("/admin/groupware/document-templates/{id}", id)
+                        .header("X-User-Id", "40000000-0000-0000-0000-000000000903")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(wordRequest)))
+                .andExpect(status().isUnprocessableEntity());
     }
 
     /**

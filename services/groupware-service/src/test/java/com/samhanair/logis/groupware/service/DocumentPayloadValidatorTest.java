@@ -61,6 +61,21 @@ class DocumentPayloadValidatorTest {
     }
 
     @Test
+    void authoringMode_isPreservedAndUnknownValuesFailSafeToWord() throws Exception {
+        JsonNode excelDocument = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) excelDocument).put("mode", "EXCEL");
+
+        assertThat(validator.validate((short) 1, excelDocument).mode()).isEqualTo("EXCEL");
+
+        JsonNode unknownDocument = fixture("valid-default.json").get("document").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) unknownDocument).put("mode", "PDF");
+        assertThat(validator.validate((short) 1, unknownDocument).mode()).isEqualTo("WORD");
+
+        assertThat(validator.validate((short) 1, fixture("valid-default.json").get("document")).normalizedMode())
+                .isEqualTo("WORD");
+    }
+
+    @Test
     void unknownElementField_isDroppedNotRejected() throws Exception {
         // FE parseElement 는 element 를 key/type 만으로 재구성(clean)하고, BE 도 동일하게 unknown 필드를
         // 드롭해 저장한다. 이 parity 가 깨지면(FAIL_ON_UNKNOWN=true) 이 케이스가 거부되어 실패한다.
