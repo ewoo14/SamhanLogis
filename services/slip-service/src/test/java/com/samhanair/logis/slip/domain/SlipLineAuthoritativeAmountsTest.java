@@ -205,6 +205,16 @@ class SlipLineAuthoritativeAmountsTest {
     }
 
     @Test
+    @DisplayName("견적과 같은 VAT 포함 단가 110005는 공급가 100005·VAT 10000으로 분리한다")
+    void splitsVatInclusivePriceWithQuoteRounding() {
+        SlipLine line = SlipLine.createFromVatInclusive(newOutbound(), UUID.randomUUID(), "품목", null,
+                null, 1, new BigDecimal("110005"), null, null);
+
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
     @DisplayName("공급가액 100005의 부가세는 세금계산서와 같은 원 단위 절사 10000이다")
     void usesCommonVatRounding() {
         SlipLine line = SlipLine.create(newOutbound(), UUID.randomUUID(), "품목", null, null,

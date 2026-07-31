@@ -159,6 +159,33 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("같은 축의 서로 다른 전표는 전표별 실제 단가를 각각 응답한다")
+    void dailyDetailDoesNotAverageDifferentSlipUnitPrices() {
+        TaxInvoice first = newIssued("TI-PRICE-1", "첫 거래처", DATE);
+        addLineWithAxis(first, "동일모델", "AM480AXVHJH1SY", "commercialMulti",
+                BigDecimal.ONE, new BigDecimal("23494250"));
+        recalcSnapshot(first);
+
+        TaxInvoice second = newIssued("TI-PRICE-2", "둘째 거래처", DATE);
+        addLineWithAxis(second, "동일모델", "AM480AXVHJH1SY", "commercialMulti",
+                BigDecimal.ONE, new BigDecimal("25494250"));
+        recalcSnapshot(second);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(first, second));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "동일모델", ProductLabelMatch.notFound()));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+
+        assertThat(resp.productSummaries()).hasSize(2);
+        assertThat(resp.productSummaries())
+                .extracting(DailyClosingDetailResponse.DailyProductLine::actualUnitPrice)
+                .containsExactly(new BigDecimal("25843675.0000000000"),
+                        new BigDecimal("28043675.0000000000"));
+    }
+
+    @Test
     @DisplayName("product 마스터 — productClient 주입 가드 (정상 호출)")
     void productClientInjected() {
         when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))

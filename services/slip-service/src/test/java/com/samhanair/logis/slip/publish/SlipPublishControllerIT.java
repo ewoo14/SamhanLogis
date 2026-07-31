@@ -206,6 +206,65 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         org.assertj.core.api.Assertions.assertThat(line.getCategoryKey()).isEqualTo("homemulti");
     }
 
+    @Test
+    void publishFromEstimate_usesQuoteRoundingForVatInclusiveAmounts() throws Exception {
+        Map<String, Object> body = estimateBody("EST-VAT-ROUNDING");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceExVat", 100005);
+        lines.get(0).put("unitPriceVat", 110005);
+        lines.get(0).remove("supplyAmount");
+        lines.get(0).remove("vatAmount");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-estimate")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .header("Idempotency-Key", "idem-est-vat-rounding")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
+                .orElseThrow().getLines().get(0);
+
+        org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void publishFromPartnerOrder_usesQuoteRoundingForVatInclusiveAmounts() throws Exception {
+        Map<String, Object> body = partnerOrderBody("PO-VAT-ROUNDING");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceExVat", 100005);
+        lines.get(0).put("unitPriceVat", 110005);
+        lines.get(0).remove("supplyAmount");
+        lines.get(0).remove("vatAmount");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-po-vat-rounding")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
+                .orElseThrow().getLines().get(0);
+
+        org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
     @ParameterizedTest(name = "partner resolution {0} is fail-closed")
     @MethodSource("partnerResolutionFailures")
     void publishFromPartnerOrder_partnerResolutionFailure_doesNotCreateCommittedSlip(

@@ -348,8 +348,10 @@ public class MonthEndCloseService {
                                           BigDecimal quantity,
                                           BigDecimal supplyAmount,
                                           BigDecimal vatAmount) {
-        AxisKey key = axisKey(productName, modelName, categoryKey);
-        ModelAccumulator acc = byModel.computeIfAbsent(key, k -> new ModelAccumulator());
+        BigDecimal actualUnitPrice = actualUnitPrice(quantity, supplyAmount, vatAmount);
+        AxisKey key = axisKey(productName, modelName, categoryKey, actualUnitPrice);
+        ModelAccumulator acc = byModel.computeIfAbsent(key,
+                k -> new ModelAccumulator(actualUnitPrice));
         acc.quantity = acc.quantity.add(nullToZero(quantity));
         acc.supplyAmount = acc.supplyAmount.add(nullToZero(supplyAmount));
         acc.vatAmount = acc.vatAmount.add(nullToZero(vatAmount));
@@ -374,13 +376,26 @@ public class MonthEndCloseService {
         }
     }
 
-    private static AxisKey axisKey(String productName, String modelName, String categoryKey) {
+    /** 한 원천 라인의 공급가액·부가세·수량에서 실제 VAT 포함 단가를 구한다. */
+    private static BigDecimal actualUnitPrice(BigDecimal quantity,
+                                              BigDecimal supplyAmount,
+                                              BigDecimal vatAmount) {
+        BigDecimal safeQuantity = nullToZero(quantity);
+        if (safeQuantity.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        return nullToZero(supplyAmount).add(nullToZero(vatAmount))
+                .divide(safeQuantity, 10, RoundingMode.HALF_UP);
+    }
+
+    private static AxisKey axisKey(String productName, String modelName, String categoryKey,
+                                   BigDecimal actualUnitPrice) {
         String label = productName == null || productName.isBlank() ? "-" : productName;
         String modelToken = ModelTokenExtractor.extractModelTokenOrNull(modelName);
         GasCategoryAxis axis = modelToken == null
                 ? GasCategoryAxis.UNKNOWN
                 : GasCategoryAxis.fromScheduleKey(categoryKey);
-        return new AxisKey(label, modelToken, axis);
+        return new AxisKey(label, modelToken, axis, actualUnitPrice);
     }
 
     private List<DailyProductLine> revalidateProductLines(Map<AxisKey, ModelAccumulator> byModel,
@@ -622,25 +637,32 @@ public class MonthEndCloseService {
 
     /** 모델별 누적 헬퍼. */
     private static final class ModelAccumulator {
+        private final BigDecimal actualUnitPrice;
         BigDecimal quantity = BigDecimal.ZERO;
         BigDecimal supplyAmount = BigDecimal.ZERO;
         BigDecimal vatAmount = BigDecimal.ZERO;
 
+        private ModelAccumulator(BigDecimal actualUnitPrice) {
+            this.actualUnitPrice = actualUnitPrice;
+        }
+
         /**
-         * VAT 포함 유효단가 = (공급가액 + 세액) / 수량. 레거시 확인 산식의 단가(VAT포함)와 동일 기준
-         * (재검증 엔진의 출고가 대비 할인율이 레거시와 파리티를 유지하도록 VAT 포함으로 산출).
-         * 수량 0 이면 null(판정 불가).
+         * 원천 한 라인에서 보존한 VAT 포함 실제 단가를 반환한다.
+         * 동일 축의 서로 다른 실제 단가는 AxisKey 로 분리되므로 합계÷합계수량의 가중평균을
+         * 전표 단가로 다시 만들지 않는다.
          */
         BigDecimal effectiveUnitPrice() {
-            if (quantity == null || quantity.compareTo(BigDecimal.ZERO) == 0) {
-                return null;
-            }
-            return supplyAmount.add(vatAmount).divide(quantity, 10, RoundingMode.HALF_UP);
+            return actualUnitPrice;
         }
     }
 
     /** 일마감 집계의 정본 key — 품목명 하나로 다른 판매 카테고리를 합치지 않는다. */
-    private record AxisKey(String label, String modelToken, GasCategoryAxis axis) {
+    private record AxisKey(String label, String modelToken, GasCategoryAxis axis,
+                           BigDecimal actualUnitPrice) {
+        private AxisKey {
+            actualUnitPrice = actualUnitPrice == null
+                    ? null : actualUnitPrice.stripTrailingZeros();
+        }
     }
 
     /** 같은 제품이라도 카테고리별 기준일이 다를 수 있어 productId만으로 가격을 캐시하지 않는다. */
