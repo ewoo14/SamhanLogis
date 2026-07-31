@@ -118,6 +118,14 @@ describe('Electron 자동 업데이트 IPC', () => {
     expect(JSON.stringify(lastStatus)).not.toContain('1.0.0')
   })
 
+  it('달력상 존재하지 않는 updater 날짜는 날짜형 표시값으로 전달하지 않는다', async () => {
+    await mocks.events.get('update-available')?.({ version: '1.20261340.1' })
+
+    const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+    expect(lastStatus).toEqual({ kind: 'available', version: '' })
+    expect(JSON.stringify(lastStatus)).not.toContain('2026/13/40-1')
+  })
+
   it('비패키징 앱의 install IPC도 조용히 끝내지 않고 종료 상태를 renderer에 알린다', async () => {
     mocks.runtime.isPackaged = false
 

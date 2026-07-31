@@ -28,6 +28,22 @@ const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === '1'
 type SafeVersionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 const DISPLAY_VERSION_PATTERN = /^\d{4}\/\d{2}\/\d{2}-[1-9][0-9]*$/
 
+function isValidDisplayVersion(version: string): boolean {
+  const match = DISPLAY_VERSION_PATTERN.exec(version)
+  if (!match) return false
+
+  const year = Number(match[0].slice(0, 4))
+  const month = Number(match[0].slice(5, 7))
+  const day = Number(match[0].slice(8, 10))
+  const calendarDate = new Date(`${match[0].slice(0, 4)}-${match[0].slice(5, 7)}-${match[0].slice(8, 10)}T00:00:00.000Z`)
+  return (
+    !Number.isNaN(calendarDate.getTime()) &&
+    calendarDate.getUTCFullYear() === year &&
+    calendarDate.getUTCMonth() + 1 === month &&
+    calendarDate.getUTCDate() === day
+  )
+}
+
 function releaseNotesText(versionInfo: AppVersionInfo): string {
   const notes = versionInfo.releaseNotes.trim()
   return notes || '등록된 릴리스 노트가 없습니다.'
@@ -142,7 +158,7 @@ function toUpdateStatus(value: ElectronDesktopUpdateStatus): DesktopUpdateStatus
 
 function updateVersionLabel(version: string): string {
   const normalized = String(version ?? '').trim()
-  return DISPLAY_VERSION_PATTERN.test(normalized) ? `새 버전 ${normalized}` : '새 버전'
+  return isValidDisplayVersion(normalized) ? `새 버전 ${normalized}` : '새 버전'
 }
 
 function updateStatusText(status: DesktopUpdateStatus, installing = false): string {

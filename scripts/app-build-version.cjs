@@ -101,22 +101,19 @@ function createElectronBuilderVersionArgs(packageVersion, appVersion) {
 
 /**
  * electron-builder NSIS가 내부 package semver를 VERSION 매크로로 사용하므로,
- * 설치 마법사 문구와 Windows DisplayVersion/VersionInfo에만 사용자용 표기를 덮어쓴다.
+ * 설치 마법사 문구와 Windows DisplayVersion에만 사용자용 표기를 덮어쓴다.
+ * VersionInfo 지시문은 electron-builder가 소유하므로 include에서 중복 선언하지 않는다.
  * include는 electron-builder가 common.nsh보다 먼저 삽입하므로 common.nsh의
  * BrandingText와 installer.nsh의 DisplayVersion이 모두 같은 날짜 표기를 사용한다.
  */
 function createNsisDisplayVersionInclude(appVersion) {
   const normalized = String(appVersion ?? '').trim()
   validateDevelopmentVersion(normalized, 'VITE_APP_VERSION')
-  const windowsDisplayVersion = resolveWindowsDisplayVersion(normalized)
   return [
     '!ifdef VERSION',
     '!undef VERSION',
     '!endif',
     `!define VERSION "${normalized}"`,
-    `VIProductVersion "${windowsDisplayVersion}"`,
-    `VIAddVersionKey /LANG=1042 ProductVersion "${windowsDisplayVersion}"`,
-    `VIAddVersionKey /LANG=1042 FileVersion "${windowsDisplayVersion}"`,
     '',
   ].join('\n')
 }

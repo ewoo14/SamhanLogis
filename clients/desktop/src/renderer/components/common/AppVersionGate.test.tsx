@@ -134,6 +134,22 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(status.textContent).not.toContain('새 버전 새 버전')
   })
 
+  it('달력상 존재하지 않는 날짜는 날짜형 updater 문구로 표시하지 않는다', async () => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'not-available' }))
+    await screen.findByTestId('login-sentinel')
+    act(() => updater.emit({ kind: 'available', version: '2026/13/40-1' }))
+
+    const status = await screen.findByTestId('app-auto-update-status')
+    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+    expect(status.textContent).not.toContain('2026/13/40-1')
+  })
+
   it('확인 실패는 원문 없이 한국어 안내를 남기고 로그인으로 진행한다', async () => {
     const raw = 'Cannot find channel https://intranet.example/latest.yml response-header'
     updater.check.mockRejectedValueOnce(new Error(raw))

@@ -11,6 +11,22 @@ const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
 const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
 const DISPLAY_VERSION_PATTERN = /^\d{4}\/\d{2}\/\d{2}-[1-9][0-9]*$/
 
+function isValidDisplayVersion(version: string): boolean {
+  const match = DISPLAY_VERSION_PATTERN.exec(version)
+  if (!match) return false
+
+  const year = Number(match[0].slice(0, 4))
+  const month = Number(match[0].slice(5, 7))
+  const day = Number(match[0].slice(8, 10))
+  const calendarDate = new Date(`${match[0].slice(0, 4)}-${match[0].slice(5, 7)}-${match[0].slice(8, 10)}T00:00:00.000Z`)
+  return (
+    !Number.isNaN(calendarDate.getTime()) &&
+    calendarDate.getUTCFullYear() === year &&
+    calendarDate.getUTCMonth() + 1 === month &&
+    calendarDate.getUTCDate() === day
+  )
+}
+
 function safeStorage(): Pick<Storage, 'getItem' | 'setItem'> {
   try {
     const storage = window.localStorage
@@ -39,7 +55,7 @@ function normalizeUpdateStatus(value: unknown): DesktopUpdateStatus | null {
 
 function updateVersionLabel(version: string | undefined): string {
   const normalized = String(version ?? '').trim()
-  return DISPLAY_VERSION_PATTERN.test(normalized) ? `새 버전 ${normalized}` : '새 버전'
+  return isValidDisplayVersion(normalized) ? `새 버전 ${normalized}` : '새 버전'
 }
 
 function updateStatusText(status: DesktopUpdateStatus): string {
@@ -90,6 +106,10 @@ export function AppVersionGate({ bootstrapped, children }: { bootstrapped: boole
     checkForUpdate()
     return unsubscribe
   }, [bootstrapped])
+
+  useEffect(() => {
+    if (updateStatus) setNoticeDismissed(false)
+  }, [updateStatus?.kind])
 
   useEffect(() => {
     if (!bootstrapped || checkedRef.current) return

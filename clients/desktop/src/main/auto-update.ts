@@ -39,6 +39,18 @@ function broadcast(status: AutoUpdateStatus): void {
 function displayVersionFromUpdateInfo(version: string): string {
   const match = RELEASE_PACKAGE_VERSION_PATTERN.exec(String(version ?? ''))
   if (!match) return ''
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const calendarDate = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`)
+  if (
+    Number.isNaN(calendarDate.getTime()) ||
+    calendarDate.getUTCFullYear() !== year ||
+    calendarDate.getUTCMonth() + 1 !== month ||
+    calendarDate.getUTCDate() !== day
+  ) return ''
+
   return `${match[1]}/${match[2]}/${match[3]}-${match[4]}`
 }
 

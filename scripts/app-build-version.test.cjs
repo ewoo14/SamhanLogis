@@ -183,12 +183,15 @@ test('NSIS 사용자 표시 버전 include는 내부 semver 대신 날짜 표기
       '!undef VERSION',
       '!endif',
       '!define VERSION "2026/07/31-1"',
-      'VIProductVersion "2026.7.31.1"',
-      'VIAddVersionKey /LANG=1042 ProductVersion "2026.7.31.1"',
-      'VIAddVersionKey /LANG=1042 FileVersion "2026.7.31.1"',
       '',
     ].join('\n'),
   )
+})
+
+test('NSIS 사용자 표시 버전 include는 builder가 소유한 VersionInfo 지시문을 중복 선언하지 않는다', () => {
+  const include = createNsisDisplayVersionInclude('2026/07/31-1')
+  assert.doesNotMatch(include, /^VIProductVersion\s/m)
+  assert.doesNotMatch(include, /^VIAddVersionKey\s/m)
 })
 
 test('Windows PE 표시 버전은 날짜를 보존한 4개 정수 형식으로 산출하고 NSIS resource에도 주입한다', () => {
@@ -198,9 +201,8 @@ test('Windows PE 표시 버전은 날짜를 보존한 4개 정수 형식으로 �
   assert.equal(windowsVersion.split('.').every((part) => /^\d+$/.test(part) && Number(part) <= 65535), true)
 
   const include = createNsisDisplayVersionInclude('2026/07/31-1')
-  assert.match(include, /VIProductVersion "2026\.7\.31\.1"/)
-  assert.match(include, /ProductVersion "2026\.7\.31\.1"/)
-  assert.match(include, /FileVersion "2026\.7\.31\.1"/)
+  assert.match(include, /!define VERSION "2026\/07\/31-1"/)
+  assert.doesNotMatch(include, /1\.20260731\.1/)
 })
 
 test('두 릴리스 wrapper는 Windows PE resource용 shortVersion을 내부 semver와 분리해 builder에 전달한다', () => {
