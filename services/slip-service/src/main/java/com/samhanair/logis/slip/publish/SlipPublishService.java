@@ -288,7 +288,7 @@ public class SlipPublishService {
      * <ul>
      *   <li>{@code Slip.assignPublishSource(PARTNER_ORDER, primaryOrderId, key)} — 대표(첫) 주문</li>
      *   <li>{@code slip_source_orders} N행 INSERT — 전체 출처 주문 추적</li>
-     *   <li>fingerprint = 정렬된 sourceOrders + lines 기준</li>
+     *   <li>fingerprint = 입력 순서를 보존한 sourceOrders + lines 기준</li>
      * </ul>
      * 기존 {@link #publishFromPartnerOrder}(단일주문)는 무변경 — 회귀 0.
      *
@@ -800,7 +800,7 @@ public class SlipPublishService {
         canonical.put("kind", "ORDERS_MERGE");
         canonical.put("sourceOrders", req.sourceOrders().stream()
                 .map(this::canonicalSourceOrder)
-                .sorted(Comparator.comparing(this::toJsonOrThrow)).toList());
+                .toList());
         canonical.put("ioDate", canonicalOptionalText(req.ioDate()));
         canonical.put("partnerId", req.partnerId());
         canonical.put("warehouseCode", req.warehouseCode());
@@ -906,7 +906,6 @@ public class SlipPublishService {
     private List<Map<String, Object>> canonicalLines(List<PublishLineRequest> lines) {
         return lines.stream()
                 .map(this::canonicalLine)
-                .sorted(Comparator.comparing(this::toJsonOrThrow))
                 .toList();
     }
 

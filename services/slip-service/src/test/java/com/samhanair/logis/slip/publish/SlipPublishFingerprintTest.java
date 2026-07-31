@@ -31,7 +31,7 @@ class SlipPublishFingerprintTest {
     }
 
     @Test
-    void merge_fingerprint_is_independent_of_source_and_line_order() throws Exception {
+    void merge_fingerprint_distinguishes_source_and_line_order_that_changes_publish_result() throws Exception {
         SlipPublishService service = service();
         Method method = SlipPublishService.class.getDeclaredMethod(
                 "computeMergeFingerprint", PublishFromOrdersMergeRequest.class);
@@ -48,7 +48,7 @@ class SlipPublishFingerprintTest {
                 List.of(secondOrder, firstOrder), List.of(secondLine, firstLine));
 
         assertThat(fingerprint(method, service, first))
-                .isEqualTo(fingerprint(method, service, reordered));
+                .isNotEqualTo(fingerprint(method, service, reordered));
     }
 
     @Test
