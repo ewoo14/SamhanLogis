@@ -75,6 +75,7 @@ const detailFixture = {
       categoryKey: 'commercialMulti',
       quantity: 1,
       supplyAmount: 500000,
+      actualUnitPrice: 550000,
       releasePrice: 1000000,
       deliveryPrice: 700000,
       expectedRate: 45,
@@ -300,6 +301,18 @@ describe('DailyClosingPage 모델별 재검증', () => {
     expect(within(rowOf('카테고리 미상')).getByText('UNKNOWN')).toBeTruthy()
   })
 
+  it('일마감 상세의 전표 단가는 원천 전표 VAT 포함 실제 단가를 표시한다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    await screen.findByText('모델별 재검증')
+
+    expect(screen.getByRole('columnheader', { name: '전표 단가' })).toBeTruthy()
+    expect(within(rowOf('AM160NXVHHH1 [상업멀티]')).getByText('550,000')).toBeTruthy()
+  })
+
   it('매출 조회에서 확인/불일치/판정불가 배지·6종 사유·0/null/음수 할인율·모델 실값을 BE 계약대로 렌더한다', async () => {
     listDailyClosingsMock.mockResolvedValue(emptyPage)
     getDailyClosingDetailMock.mockResolvedValue(detailFixture)
@@ -317,6 +330,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
     const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
     expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'DC액' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '전표 단가' })).toBeTruthy()
     expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy() // 모델 실토큰
     expect(within(verifiedRow).getAllByText('확인').length).toBe(1)
     // 매출은 '참고' 마커 없음(매입 전용)

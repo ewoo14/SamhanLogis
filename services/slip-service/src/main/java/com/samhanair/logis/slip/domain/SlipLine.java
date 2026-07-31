@@ -257,6 +257,15 @@ public class SlipLine extends BaseEntity {
                                                   String modelName, String specification, int quantity,
                                                   BigDecimal unitPriceWithVat, String note,
                                                   UUID sourceOrderLineId) {
+        return createFromVatInclusive(slip, productId, productName, modelName, specification,
+                quantity, unitPriceWithVat, note, sourceOrderLineId, null);
+    }
+
+    /** 부가세 포함 단가 기반 생성 시 주문의 카테고리 축을 함께 보존한다. */
+    public static SlipLine createFromVatInclusive(Slip slip, UUID productId, String productName,
+                                                  String modelName, String specification, int quantity,
+                                                  BigDecimal unitPriceWithVat, String note,
+                                                  UUID sourceOrderLineId, String categoryKey) {
         validatePositive(quantity);
         validateUnitPrice(unitPriceWithVat);
         // 한국 원화 송장 표준(eCount): 합계(VAT포함)·공급가액·부가세는 모두 원 단위(정수) 반올림.
@@ -269,7 +278,7 @@ public class SlipLine extends BaseEntity {
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.
         SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
-                quantity, supplyUnit, note, sourceOrderLineId);
+                quantity, supplyUnit, note, sourceOrderLineId, categoryKey);
         line.lineTotal = supply;
         line.supplyAmount = supply;
         line.vatAmount = vat;

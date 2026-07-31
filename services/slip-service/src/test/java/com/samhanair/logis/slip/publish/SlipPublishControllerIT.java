@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.UnitPriceDomain;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
@@ -167,6 +168,42 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .get("data").get("slipId").asText());
         org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getPartnerId())
                 .isEqualTo(RESOLVED_PARTNER_ID);
+    }
+
+    @Test
+    void publishFromPartnerOrder_doesNotAddVatToVatInclusiveUnitPrice() throws Exception {
+        Map<String, Object> body = partnerOrderBody("PO-VAT-DOMAIN-RED");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceExVat", 881818);
+        lines.get(0).put("unitPriceVat", 970000);
+        lines.get(0).put("categoryKey", "homemulti");
+        // partner-order-service의 실제 발행 payload처럼 감사용 합계는 생략한다.
+        lines.get(0).remove("supplyAmount");
+        lines.get(0).remove("vatAmount");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-vat-domain-red")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId).orElseThrow()
+                .getLines().get(0);
+
+        // RED: 현재는 970,000원을 공급가로 저장하고 VAT 97,000원을 다시 더한다.
+        org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("881818");
+        org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("88182");
+        org.assertj.core.api.Assertions.assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("970000");
+        org.assertj.core.api.Assertions.assertThat(line.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+        org.assertj.core.api.Assertions.assertThat(line.getCategoryKey()).isEqualTo("homemulti");
     }
 
     @ParameterizedTest(name = "partner resolution {0} is fail-closed")

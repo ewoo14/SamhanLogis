@@ -177,6 +177,8 @@ export interface DailyProductLine {
   quantity: number
   /** 공급가액 합 (BigDecimal → JSON number). */
   supplyAmount: number
+  /** 원천 전표의 VAT 포함 실제 단가. 수량 0 등 계산 불가 시 null. */
+  actualUnitPrice: number | null
   /** 적용 출고가 (BigDecimal → JSON number). 미매칭/정가결측 시 null. */
   releasePrice: number | null
   /** 적용 납품가 (BigDecimal → JSON number). 미매칭/정가결측 시 null. */

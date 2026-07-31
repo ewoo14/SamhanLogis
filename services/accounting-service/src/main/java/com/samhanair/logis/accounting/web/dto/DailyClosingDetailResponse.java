@@ -64,6 +64,8 @@ public record DailyClosingDetailResponse(
             String categoryKey,
             BigDecimal quantity,
             BigDecimal supplyAmount,
+            @Schema(description = "원천 전표의 VAT 포함 실제 단가(공급가액+부가세 ÷ 수량). 수량 0이면 null")
+            BigDecimal actualUnitPrice,
             @Schema(description = "적용 출고가(price_history 시점 정가). 미매칭·정가결측 시 null")
             BigDecimal releasePrice,
             @Schema(description = "적용 납품가(price_history). 미매칭·정가결측 시 null")
@@ -88,8 +90,9 @@ public record DailyClosingDetailResponse(
                                 BigDecimal supplyAmount, BigDecimal releasePrice,
                                 BigDecimal deliveryPrice, Integer expectedRate, Integer actualRate,
                                 Boolean verified, String revalidationStatus) {
-            this(productName, modelName, "UNKNOWN", quantity, supplyAmount, releasePrice,
-                    deliveryPrice, expectedRate, actualRate, null, verified, revalidationStatus);
+            this(productName, modelName, "UNKNOWN", quantity, supplyAmount, null,
+                    releasePrice, deliveryPrice, expectedRate, actualRate, null,
+                    verified, revalidationStatus);
         }
     }
 }

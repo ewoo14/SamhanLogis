@@ -665,10 +665,17 @@ export function DailyClosingPage() {
     },
     {
       key: 'deliveryPrice',
-      header: '납품가',
+      header: '기준 납품가',
       width: '120px',
       align: 'right',
       render: (row) => fmtNullableKrw(row.deliveryPrice),
+    },
+    {
+      key: 'actualUnitPrice',
+      header: '전표 단가',
+      width: '120px',
+      align: 'right',
+      render: (row) => fmtNullableKrw(row.actualUnitPrice),
     },
     {
       key: 'discountAmount',

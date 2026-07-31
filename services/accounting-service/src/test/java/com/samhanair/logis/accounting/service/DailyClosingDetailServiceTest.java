@@ -2,6 +2,8 @@ package com.samhanair.logis.accounting.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -134,6 +136,26 @@ class DailyClosingDetailServiceTest {
         assertThat(에어컨Line.revalidationStatus()).isEqualTo("NOT_FOUND");
         verify(productClient, never()).applicablePrices(anyList(), eq(DATE));
         verify(productClient, never()).fixedDiscountRates(anyList());
+    }
+
+    @Test
+    @DisplayName("일마감 상세는 가격 이력 납품가가 아니라 원천 전표의 VAT 포함 실제 단가를 응답한다")
+    void dailyDetailExposesAuthoritativeVatInclusiveUnitPrice() throws Exception {
+        TaxInvoice ti = newIssued("TI-ACTUAL-PRICE", "실제단가거래처", DATE);
+        addLine(ti, "실제단가품목", BigDecimal.ONE, new BigDecimal("500000"));
+        recalcSnapshot(ti);
+
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "실제단가품목", ProductLabelMatch.notFound()));
+
+        DailyClosingDetailResponse resp = service.getDailyDetail(DATE);
+        String json = new ObjectMapper().findAndRegisterModules().writeValueAsString(resp);
+
+        // RED: 현재 응답에는 actualUnitPrice가 없고, 화면은 별도 price history 납품가를 표시한다.
+        assertThat(new ObjectMapper().readTree(json).at("/productSummaries/0/actualUnitPrice")
+                .decimalValue()).isEqualByComparingTo("550000");
     }
 
     @Test

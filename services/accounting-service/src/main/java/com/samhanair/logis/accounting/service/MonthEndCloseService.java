@@ -445,6 +445,7 @@ public class MonthEndCloseService {
                     axisKey.axis().isKnown() ? axisKey.axis().scheduleKey() : "UNKNOWN",
                     e.getValue().quantity,
                     e.getValue().supplyAmount,
+                    e.getValue().effectiveUnitPrice(),
                     revalidation.releasePrice(),
                     revalidation.deliveryPrice(),
                     revalidation.expectedRate(),
