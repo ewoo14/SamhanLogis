@@ -33,6 +33,7 @@ public record PublishFromPartnerOrderRequest(
         @NotBlank @Size(max = 50) String warehouseCode,
         @Size(max = 36) String warehouseId,
         @Size(max = 500) String shippingAddress,
+        @Size(max = 500) String deliveryAddress,
         @Size(max = 100) String receiverPhone,
         @Size(max = 500) String memo,
         @Size(max = 200) String paymentDueLabel,

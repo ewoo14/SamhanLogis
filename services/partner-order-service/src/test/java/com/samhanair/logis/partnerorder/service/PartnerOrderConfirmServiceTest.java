@@ -174,7 +174,8 @@ class PartnerOrderConfirmServiceTest {
                 "P1", "B1", "user", "사용자", null,
                 new com.samhanair.logis.partnerorder.web.dto.ConfirmRequest(List.of(
                         new com.samhanair.logis.partnerorder.web.dto.ConfirmLineRequest(
-                                null, "HM-1", "homemulti", 2, null))));
+                                null, "HM-1", "homemulti", 2, null)),
+                        "서울시 금천구 주문로 1"));
 
         ArgumentCaptor<PartnerOrder> saved = ArgumentCaptor.forClass(PartnerOrder.class);
         verify(orderRepository).save(saved.capture());
@@ -184,6 +185,7 @@ class PartnerOrderConfirmServiceTest {
                     assertThat(line.getProductId()).isEqualTo(productId);
                     assertThat(line.getPriceVat()).isEqualByComparingTo("70");
                 });
+        assertThat(saved.getValue().getDeliveryAddress()).isEqualTo("서울시 금천구 주문로 1");
     }
 
     private static PartnerOrder order(String orderNo) {

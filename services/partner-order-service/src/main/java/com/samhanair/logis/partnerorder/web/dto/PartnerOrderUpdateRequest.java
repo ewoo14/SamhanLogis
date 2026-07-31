@@ -22,6 +22,7 @@ public record PartnerOrderUpdateRequest(
         @NotBlank String bizCode,
         LocalDate dueDate,
         String memo,
+        @jakarta.validation.constraints.Size(max = 500) String deliveryAddress,
         @Valid @NotEmpty List<LineRequest> lines
 ) {
 

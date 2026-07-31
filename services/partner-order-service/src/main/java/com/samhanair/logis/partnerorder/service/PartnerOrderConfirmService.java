@@ -215,7 +215,8 @@ public class PartnerOrderConfirmService {
         String orderNo = nextOrderNo();
 
         PartnerOrder order = PartnerOrder.createFromConfirm(
-                partnerId, partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO);
+                partnerId, partnerCode, bizCode, orderNo, idempotencyKey, BigDecimal.ZERO,
+                request.deliveryAddress());
 
         for (int i = 0; i < reqLines.size(); i++) {
             ConfirmLineRequest line = reqLines.get(i);

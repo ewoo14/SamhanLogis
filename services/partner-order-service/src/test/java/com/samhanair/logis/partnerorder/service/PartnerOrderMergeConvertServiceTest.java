@@ -362,6 +362,31 @@ class PartnerOrderMergeConvertServiceTest {
         assertThat(keyCaptor.getValue()).startsWith("PO-MRG-");
     }
 
+    @Test
+    @DisplayName("주소 보강: 병합 전환은 주문 snapshot의 단일 구조화 배송주소를 전달")
+    @SuppressWarnings("unchecked")
+    void structuredDeliveryAddress_fromSingleSourceOrder_isCopiedToPayload() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        String orderNo = "2026/05/31-ADDRESS-1";
+        PartnerOrder order = buildOrder(orderId, "P001", lineId, 5, orderNo);
+        setField(order, "deliveryAddress", "서울시 금천구 병합로 3");
+        when(orderRepository.findByOrderNo(orderNo)).thenReturn(Optional.of(order));
+
+        MergeConvertToSlipRequest req = new MergeConvertToSlipRequest(
+                List.of(new MergeConvertToSlipRequest.OrderItems(orderNo,
+                        List.of(new MergeConvertToSlipRequest.Item(lineId, 2)))),
+                "WH-001", null);
+
+        service.convertMerge(req, null, null);
+
+        ArgumentCaptor<java.util.Map<String, Object>> payloadCaptor =
+                ArgumentCaptor.forClass(java.util.Map.class);
+        verify(slipServiceClient).publishFromOrdersMerge(payloadCaptor.capture(), anyString());
+        assertThat(payloadCaptor.getValue().get("deliveryAddress"))
+                .isEqualTo("서울시 금천구 병합로 3");
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // 케이스 7 — orderNo(주문번호) 식별자로 병합 → slipNo + 응답 orderNo 단언
     // ═══════════════════════════════════════════════════════════════════════════

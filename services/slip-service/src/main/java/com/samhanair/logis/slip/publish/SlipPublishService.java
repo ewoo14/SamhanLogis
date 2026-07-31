@@ -236,6 +236,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
+        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -329,6 +330,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
+        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -782,6 +784,7 @@ public class SlipPublishService {
         canonical.put("partnerId", req.partnerId());
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("partnerCode", req.partnerCode());
+        canonical.put("deliveryAddress", req.deliveryAddress());
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
         canonical.put("memo", req.memo());
@@ -811,6 +814,7 @@ public class SlipPublishService {
         canonical.put("ioDate", req.ioDate());
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("partnerCode", req.partnerCode());
+        canonical.put("deliveryAddress", req.deliveryAddress());
         canonical.put("employeeCode", req.employeeCode());
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());

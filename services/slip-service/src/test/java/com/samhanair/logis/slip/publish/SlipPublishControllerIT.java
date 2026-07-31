@@ -417,6 +417,8 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
 
         // partner-order 도 V16 컬럼 직접 저장
         org.assertj.core.api.Assertions.assertThat(persisted.getShippingAddress()).isEqualTo("경기 성남시");
+        org.assertj.core.api.Assertions.assertThat(persisted.getDeliveryAddress())
+                .isEqualTo("경기 성남구 구조화배송로 7");
         org.assertj.core.api.Assertions.assertThat(persisted.getReceiverPhone()).isEqualTo("010-1111-1111");
         org.assertj.core.api.Assertions.assertThat(persisted.getPaymentDueLabel()).isEqualTo("월말 결제");
         org.assertj.core.api.Assertions.assertThat(persisted.getPartnerCode()).isEqualTo("CUST-0002");
@@ -495,6 +497,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
         body.put("employeeCode", "EMP-0002");
         body.put("warehouseCode", "00003");
         body.put("shippingAddress", "경기 성남시");
+        body.put("deliveryAddress", "경기 성남구 구조화배송로 7");
         body.put("receiverPhone", "010-1111-1111");
         body.put("memo", "PO 메모");
         body.put("paymentDueLabel", "월말 결제");

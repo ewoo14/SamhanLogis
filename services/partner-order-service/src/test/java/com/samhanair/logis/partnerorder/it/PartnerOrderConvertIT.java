@@ -181,6 +181,37 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
         assertThat(dbStatus).isEqualTo("DRAFT");
     }
 
+    @Test
+    @WithMockUser(roles = {"SALES"})
+    @DisplayName("주소 보강: 단일 주문 전환 payload에 구조화 배송주소 전달")
+    void singleConvert_copiesStructuredDeliveryAddressToSlipPayload() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID lineId = UUID.randomUUID();
+        insertOrderWithLine(orderId, lineId, "P-CONV-ADDRESS", "1111111111",
+                "2026/05/30-CONV-ADDRESS", "DRAFT", null, 10,
+                BigDecimal.valueOf(50000), "서울시 금천구 전표로 2");
+
+        String body = """
+                {
+                  "items": [{"orderLineId": "%s", "quantity": 3}],
+                  "warehouseCode": "WH-001"
+                }
+                """.formatted(lineId);
+
+        mockMvc.perform(post("/api/v1/partner-orders/{id}/convert-to-slip", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body)
+                        .header("X-User-Id", SALES_ACCOUNT_ID)
+                        .header("X-User-Role", "SALES")
+                        .header("X-User-Name", "영업담당자"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(slipServiceClient).publishFromPartnerOrder(payloadCaptor.capture(), anyString());
+        assertThat(payloadCaptor.getValue().get("deliveryAddress"))
+                .isEqualTo("서울시 금천구 전표로 2");
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // 케이스 2 — 전량 전환 → status=CONVERTED (DB 단언)
     // ══════════════════════════════════════════════════════════════════════════
@@ -845,6 +876,45 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
                 """,
                 orderId, partnerCode, bizCode, orderNo, slipNo, status,
                 "idem-conv-" + orderNo);
+
+        jdbcTemplate.update("""
+                INSERT INTO partner_order_lines
+                  (id, partner_order_id, product_id, model_name, product_name,
+                   category_key, quantity, price_vat, subtotal, remark,
+                   converted_quantity,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, 'MODEL-X', '상품X', 'homemulti', ?, ?, ?, NULL, 0,
+                   NOW(), 'test', NOW(), 'test', FALSE, NULL, NULL)
+                """,
+                lineId, orderId, UUID.randomUUID(), quantity, priceVat,
+                priceVat.multiply(BigDecimal.valueOf(quantity)));
+    }
+
+    private void insertOrderWithLine(UUID orderId, UUID lineId,
+                                      String partnerCode, String bizCode,
+                                      String orderNo, String status, String slipNo,
+                                      int quantity, BigDecimal priceVat,
+                                      String deliveryAddress) {
+        jdbcTemplate.update("""
+                INSERT INTO partner_orders
+                  (id, partner_code, biz_code, order_no, slip_no, status,
+                   slip_publish_status, total_amount, confirmed_at, slip_published_at,
+                   delivery_address, due_date, memo, source_estimate_id, revision_count,
+                   idempotency_key, lock_version,
+                   created_at, created_by, modified_at, modified_by,
+                   is_deleted, deleted_at, deleted_by)
+                VALUES
+                  (?, ?, ?, ?, ?, ?,
+                   'NOT_REQUIRED', 0, NULL, NULL,
+                   ?, NULL, NULL, NULL, 0,
+                   ?, 0,
+                   NOW(), 'test', NOW(), 'test',
+                   FALSE, NULL, NULL)
+                """,
+                orderId, partnerCode, bizCode, orderNo, slipNo, status,
+                deliveryAddress, "idem-conv-address-" + orderNo);
 
         jdbcTemplate.update("""
                 INSERT INTO partner_order_lines
