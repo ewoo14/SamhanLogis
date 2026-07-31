@@ -172,7 +172,7 @@ public record PartnerOrderDetailResponse(
          */
         static LineResponse from(PartnerOrderLine line, String productType) {
             return new LineResponse(
-                    line.getProductId().toString(),
+                    line.getProductId() == null ? null : line.getProductId().toString(),
                     line.getId().toString(),
                     line.getModelName(),
                     line.getProductName(),

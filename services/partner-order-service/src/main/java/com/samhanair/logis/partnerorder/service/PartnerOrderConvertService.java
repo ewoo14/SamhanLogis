@@ -131,6 +131,11 @@ public class PartnerOrderConvertService {
                 throw new BusinessException(ErrorCode.PARTNER_ORDER_UPDATE_INVALID_LINE,
                         "주문 라인을 찾을 수 없습니다: " + item.orderLineId());
             }
+            if (line.getProductId() == null) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT,
+                        "미해소 품목 라인은 전표 전환할 수 없습니다.");
+            }
             if (item.quantity() <= 0) {
                 throw new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.CONFLICT,

@@ -41,6 +41,7 @@ public class Mig8OrderImportService {
     private static final String ACTOR = "system-mig8-import";
     private static final int DEFAULT_BATCH_SIZE = 200;
     private static final int MAX_BATCH_SIZE = 500;
+    private static final ThreadLocal<Integer> INVALID_LINE_NO = new ThreadLocal<>();
 
     private final AccountingMig8OrderClient accountingMig8OrderClient;
     private final PartnerMig8LookupClient partnerMig8LookupClient;
@@ -66,17 +67,18 @@ public class Mig8OrderImportService {
     private Mig8OrderImportResult importOneSafely(Mig8OrderExport order) {
         try {
             Mig8OrderImportResult result = transactionTemplate.execute(status -> importOne(order));
-            return result == null ? Mig8OrderImportResult.rejected() : result;
+            return result == null ? rejected(order, null, "트랜잭션 결과 없음") : result;
         } catch (RuntimeException ex) {
             log.warn("MIG-8 주문 이식 reject — orderNo={} cause={}", order == null ? null : order.orderNo(),
                     ex.getMessage());
-            return Mig8OrderImportResult.rejected();
+            return rejected(order, null, "런타임 예외: " + safeMessage(ex));
         }
     }
 
     private Mig8OrderImportResult importOne(Mig8OrderExport order) {
+        INVALID_LINE_NO.remove();
         if (order == null || isBlank(order.orderNo()) || order.partnerId() == null) {
-            return Mig8OrderImportResult.rejected();
+            return rejected(order, null, "필수 주문 정보 누락");
         }
         String idempotencyKey = idempotencyKey(order.orderNo());
         if (alreadyImported(idempotencyKey)) {
@@ -89,14 +91,14 @@ public class Mig8OrderImportService {
         if (partner == null) {
             log.warn("MIG-8 주문 이식 reject — partner lookup miss orderNo={} partnerId={}",
                     order.orderNo(), order.partnerId());
-            return Mig8OrderImportResult.rejected();
+            return rejected(order, null, "거래처 미해소");
         }
 
         List<Mig8OrderLineExport> lines = order.lines() == null ? List.of() : order.lines();
         Map<UUID, ProductSummary> products = lookupProducts(lines);
         if (lines.isEmpty() || hasInvalidLine(lines, products)) {
             log.warn("MIG-8 주문 이식 reject — product/line invalid orderNo={}", order.orderNo());
-            return Mig8OrderImportResult.rejected();
+            return rejected(order, null, lines.isEmpty() ? "주문 라인 없음" : "구조 오류");
         }
 
         UUID orderId = deterministicId("samhan-mig8:partner-order:" + order.orderNo());
@@ -155,10 +157,10 @@ public class Mig8OrderImportService {
                 """,
                 deterministicId("samhan-mig8:partner-order-line:" + orderNo + ":" + line.lineNo()),
                 orderId,
-                line.productId(),
-                product.modelName(),
-                product.name(),
-                product.categoryKey(),
+                product == null ? null : line.productId(),
+                product == null ? unresolvedModelName(line.itemName()) : product.modelName(),
+                product == null ? unresolvedItemName(line.itemName()) : product.name(),
+                product == null ? "UNRESOLVED" : product.categoryKey(),
                 quantity,
                 priceVat,
                 subtotal,
@@ -189,17 +191,20 @@ public class Mig8OrderImportService {
 
     private boolean hasInvalidLine(List<Mig8OrderLineExport> lines, Map<UUID, ProductSummary> products) {
         for (Mig8OrderLineExport line : lines) {
-            if (line.productId() == null || line.lineNo() <= 0) {
+            if (line == null || line.lineNo() <= 0) {
+                if (line != null) INVALID_LINE_NO.set(line.lineNo());
                 return true;
             }
             ProductSummary product = products.get(line.productId());
-            if (product == null || isBlank(product.modelName()) || isBlank(product.name())
-                    || isBlank(product.categoryKey())) {
+            if (line.productId() != null && (product == null || isBlank(product.modelName()) || isBlank(product.name())
+                    || isBlank(product.categoryKey()))) {
+                INVALID_LINE_NO.set(line.lineNo());
                 return true;
             }
             try {
                 quantity(line.quantity());
             } catch (RuntimeException ex) {
+                INVALID_LINE_NO.set(line.lineNo());
                 return true;
             }
         }
@@ -267,5 +272,23 @@ public class Mig8OrderImportService {
 
     private static String blankToNull(String value) {
         return isBlank(value) ? null : value.trim();
+    }
+
+    private static Mig8OrderImportResult rejected(Mig8OrderExport order, Integer lineNo, String reason) {
+        Integer resolvedLineNo = lineNo == null ? INVALID_LINE_NO.get() : lineNo;
+        return Mig8OrderImportResult.rejected(order == null ? null : order.orderNo(), resolvedLineNo, reason);
+    }
+
+    private static String safeMessage(RuntimeException ex) {
+        return ex.getMessage() == null || ex.getMessage().isBlank()
+                ? ex.getClass().getSimpleName() : ex.getMessage();
+    }
+
+    private static String unresolvedModelName(String itemName) {
+        return hasText(itemName) ? "미해소: " + itemName : "미해소 품목";
+    }
+
+    private static String unresolvedItemName(String itemName) {
+        return hasText(itemName) ? itemName : "미해소 품목";
     }
 }

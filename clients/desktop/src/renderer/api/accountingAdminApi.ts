@@ -32,6 +32,7 @@ export interface OrderSummaryRow {
   totalSupplyAmount?: string | null
   totalVatAmount?: string | null
   totalAmount?: string | null
+  unresolvedLineCount?: number
 }
 
 export interface OrderLineRow {
@@ -43,6 +44,7 @@ export interface OrderLineRow {
   vatAmount?: string | null
   lineTotal: string
   itemDueDate?: string | null
+  unresolved?: boolean
 }
 
 export interface OrderDetailResponse extends OrderSummaryRow {

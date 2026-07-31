@@ -150,6 +150,10 @@ public class PartnerOrderMergeConvertService {
                     throw new BusinessException(ErrorCode.PARTNER_ORDER_UPDATE_INVALID_LINE,
                             "주문 라인을 찾을 수 없습니다: " + item.orderLineId());
                 }
+                if (line.getProductId() == null) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "미해소 품목 라인은 전표 전환할 수 없습니다.");
+                }
                 if (item.quantity() <= 0) {
                     throw new ResponseStatusException(HttpStatus.CONFLICT,
                             "전환 수량은 1 이상이어야 합니다.");
