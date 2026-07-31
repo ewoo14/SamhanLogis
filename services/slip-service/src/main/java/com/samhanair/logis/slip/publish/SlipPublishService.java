@@ -998,12 +998,16 @@ public class SlipPublishService {
             BigDecimal requestedUnitPrice = req.unitPriceVat() != null
                     ? req.unitPriceVat().abs()
                     : (req.unitPriceExVat() != null ? req.unitPriceExVat().abs() : BigDecimal.ZERO);
+            BigDecimal persistedUnitPrice = req.unitPriceVat() != null
+                    ? line.getUnitPriceWithVat()
+                    : line.getUnitPrice();
             if ((req.productName() != null && !Objects.equals(line.getProductName(), req.productName()))
                     || line.getQuantity() != Integer.parseInt(req.qty().trim())
-                    || line.getUnitPrice().compareTo(requestedUnitPrice) != 0
+                    || persistedUnitPrice == null || persistedUnitPrice.compareTo(requestedUnitPrice) != 0
                     || !Objects.equals(line.getSpecification(), normalizeSpec(req.spec()))
                     || !Objects.equals(line.getNote(), req.remarks())
-                    || !Objects.equals(line.getSourceOrderLineId(), req.sourceOrderLineId())) {
+                    || !Objects.equals(line.getSourceOrderLineId(), req.sourceOrderLineId())
+                    || !Objects.equals(line.getCategoryKey(), req.categoryKey())) {
                 return false;
             }
         }
