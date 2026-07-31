@@ -1,5 +1,8 @@
 package com.samhanair.logis.user.service;
 
+import com.samhanair.logis.common.exception.BusinessException;
+import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.user.client.AuthClient;
 import com.samhanair.logis.user.domain.Employee;
 import com.samhanair.logis.user.domain.EmployeeAccountLink;
 import com.samhanair.logis.user.domain.LinkStatus;
@@ -11,18 +14,25 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 직원 계정 연결을 미리 계획하고 검증된 계획만 적용하는 수리 서비스. */
 @Service
-@RequiredArgsConstructor
 public class EmployeeAccountLinkReconciliationService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private final EmployeeRepository employeeRepository;
     private final EmployeeAccountLinkRepository linkRepository;
+    private final AuthClient authClient;
+
+    public EmployeeAccountLinkReconciliationService(EmployeeRepository employeeRepository,
+                                                     EmployeeAccountLinkRepository linkRepository,
+                                                     AuthClient authClient) {
+        this.employeeRepository = employeeRepository;
+        this.linkRepository = linkRepository;
+        this.authClient = authClient;
+    }
 
     /** auth-service에서 취득한 후보의 계정 식별자와 두 표시값. UUID는 응답에 노출하지 않는다. */
     public record AccountCandidate(UUID accountId, String fullName, String loginId) {}
@@ -56,9 +66,12 @@ public class EmployeeAccountLinkReconciliationService {
                 continue;
             }
             Employee employee = matches.get(0);
-            // 현재 계약상 id == account_id 인 행은 이미 정상이다. 후보가 잘못 제출되어도 보호한다.
-            if (Objects.equals(employee.getId(), employee.getAccountId())
-                    || Objects.equals(employee.getAccountId(), candidate.accountId())) {
+            boolean authReferenceExists = isCurrentActiveReference(candidate);
+            // id == account_id 만으로 정상 판정하지 않는다. auth 계정이 실제로 존재할 때만 정상이다.
+            if (Objects.equals(employee.getAccountId(), candidate.accountId()) && authReferenceExists) {
+                continue;
+            }
+            if (!authReferenceExists) {
                 continue;
             }
             plans.add(new EmployeeAccountLink(employee, planKey, employee.getAccountId(),
@@ -82,10 +95,34 @@ public class EmployeeAccountLinkReconciliationService {
                     || !Objects.equals(employee.getLoginId(), plan.getEmployeeLoginId())) {
                 throw new IllegalStateException("미리보기 이후 직원 정보가 변경되어 연결을 중단합니다");
             }
+            UUID currentAccountId;
+            try {
+                currentAccountId = authClient.findActiveAccountIdByLoginId(plan.getEmployeeLoginId());
+            } catch (BusinessException ex) {
+                if (ex.getErrorCode() == ErrorCode.NOT_FOUND) {
+                    throw new IllegalStateException("미리보기 이후 auth 계정이 없어 연결을 중단합니다", ex);
+                }
+                throw ex;
+            }
+            if (!Objects.equals(currentAccountId, plan.getTargetAccountId())) {
+                throw new IllegalStateException("미리보기 이후 auth 계정이 변경되어 연결을 중단합니다");
+            }
             employee.linkToAccount(plan.getTargetAccountId());
             plan.markApplied();
         }
         linkRepository.saveAll(plans);
+    }
+
+    private boolean isCurrentActiveReference(AccountCandidate candidate) {
+        try {
+            return Objects.equals(authClient.findActiveAccountIdByLoginId(candidate.loginId()),
+                    candidate.accountId());
+        } catch (BusinessException ex) {
+            if (ex.getErrorCode() == ErrorCode.NOT_FOUND) {
+                return false;
+            }
+            throw ex;
+        }
     }
 
     private String newPlanKey() {
