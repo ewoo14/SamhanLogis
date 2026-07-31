@@ -28,7 +28,6 @@ public class QuantitySyncRuleValidator {
 
     private static final BigDecimal MAX_MULTIPLIER = new BigDecimal("1000");
     private static final String S03_RULE_KEY = "SINGLE_S03_CEILING_DRAIN_PUMP";
-    private static final String S03_LEGACY_REF = "S-03";
     private static final Set<String> CATEGORIES = Set.of("HOME_MULTI", "SINGLE_SET", "COMM_MULTI");
     private static final Set<String> CONDITION_OPERATORS = Set.of(
             "optionEquals", "optionIn", "all", "any", "not");
@@ -465,7 +464,7 @@ public class QuantitySyncRuleValidator {
 
     /** S-03 주문 API의 정수 quantity 계약과 충돌하는 소수 결과를 저장 전에 차단한다. */
     private void validateOrderQuantityCompatibility(Draft draft) {
-        if (!S03_RULE_KEY.equals(draft.ruleKey()) && !S03_LEGACY_REF.equals(draft.legacyRef())) {
+        if (!S03_RULE_KEY.equals(draft.ruleKey())) {
             return;
         }
         for (TargetDraft target : draft.targets()) {
@@ -489,7 +488,7 @@ public class QuantitySyncRuleValidator {
      * 없으면 seed를 제거해도 관리자 POST로 legacy와 다른 수량 규칙을 다시 만들 수 있다.
      */
     private void validateS03LegacyParity(Draft draft) {
-        if (!S03_RULE_KEY.equals(draft.ruleKey()) && !S03_LEGACY_REF.equals(draft.legacyRef())) {
+        if (!S03_RULE_KEY.equals(draft.ruleKey())) {
             return;
         }
         if (draft.targets().size() != 1) {

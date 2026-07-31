@@ -8,16 +8,17 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 
-/** 전역 관리자 수량 동기화 규칙을 PARTNER self-service로 공개하지 않는 권한 경계를 검증한다. */
+/** PARTNER가 관측용 자기범위 목록만 읽을 수 있는 권한 경계를 검증한다. */
 class QuantitySyncRuleControllerPermissionTest {
 
     @Test
-    void listEndpointIsNotPartnerSelfServiceWithoutPartnerScope() throws Exception {
-        Method list = QuantitySyncRuleController.class.getMethod("list", QuantitySyncEstimateCategory.class);
+    void listEndpointIsPartnerSelfServiceForShadowObservation() throws Exception {
+        Method list = QuantitySyncRuleController.class.getMethod("list", QuantitySyncEstimateCategory.class,
+                String.class);
         RequirePermission permission = list.getAnnotation(RequirePermission.class);
 
         assertThat(permission).isNotNull();
-        assertThat(permission.partnerSelfService()).isFalse();
+        assertThat(permission.partnerSelfService()).isTrue();
         assertThat(permission.action().name()).isEqualTo("VIEW");
     }
 }

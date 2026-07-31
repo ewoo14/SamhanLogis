@@ -39,10 +39,11 @@ public class QuantitySyncRuleController {
 
     /** 관리자 범위에서 활성 규칙 목록을 조회한다. */
     @GetMapping
-    @RequirePermission(page = "products.list", action = PermissionAction.VIEW)
+    @RequirePermission(page = "products.list", action = PermissionAction.VIEW, partnerSelfService = true)
     public List<QuantitySyncRuleResponse> list(
-            @RequestParam(required = false) QuantitySyncEstimateCategory estimateCategory) {
-        return service.list(estimateCategory);
+            @RequestParam(required = false) QuantitySyncEstimateCategory estimateCategory,
+            @RequestHeader(value = "X-Is-Partner", required = false) String isPartner) {
+        return service.list(estimateCategory, "true".equalsIgnoreCase(isPartner));
     }
 
     /** 안정 ruleKey로 규칙을 조회한다. */

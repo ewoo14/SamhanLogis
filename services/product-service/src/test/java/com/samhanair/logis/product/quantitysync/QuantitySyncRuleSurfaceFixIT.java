@@ -137,10 +137,14 @@ class QuantitySyncRuleSurfaceFixIT extends AbstractPostgresIT {
     }
 
     @Test
-    void A01_범위없는_전역_규칙목록은_PARTNER에_응답하지_않는다() throws Exception {
+    void A01_PARTNER는_관측용_S03만_받고_범위없는_전역_규칙은_받지_않는다() throws Exception {
         createProduct("896-R-SURFACE-A01-SOURCE");
         createProduct("896-R-SURFACE-A01-TARGET");
-        createRule("896-R-SURFACE-A01-SOURCE", "896-R-SURFACE-A01-TARGET",
+        createRuleWithKey("GENERIC_A01_RULE", "896-R-SURFACE-A01-SOURCE",
+                "896-R-SURFACE-A01-TARGET", BigDecimal.ONE, BigDecimal.ONE);
+        createProduct("896-R-SURFACE-A01-S03-SOURCE");
+        createProduct("896-R-SURFACE-A01-S03-TARGET");
+        createRule("896-R-SURFACE-A01-S03-SOURCE", "896-R-SURFACE-A01-S03-TARGET",
                 BigDecimal.ONE, BigDecimal.ONE);
 
         MvcResult adminResult = mockMvc.perform(get("/api/v1/quantity-sync-rules")
@@ -151,15 +155,41 @@ class QuantitySyncRuleSurfaceFixIT extends AbstractPostgresIT {
                 .andReturn();
         assertThat(adminResult.getResponse().getStatus()).isEqualTo(200);
         assertThat(adminResult.getResponse().getContentAsString(StandardCharsets.UTF_8))
-                .contains("SINGLE_S03_CEILING_DRAIN_PUMP");
+                .contains("GENERIC_A01_RULE");
 
         MvcResult result = mockMvc.perform(get("/api/v1/quantity-sync-rules")
                         .param("estimateCategory", "SINGLE_SET")
                         .with(user("partner-user").roles("PARTNER"))
-                        .header("X-Is-Partner", "true"))
+                        .header("X-Is-Partner", "true")
+                        .header("X-Partner-Code", "QA-PARTNER"))
                 .andReturn();
 
-        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("SINGLE_S03_CEILING_DRAIN_PUMP")
+                .doesNotContain("896-R-SURFACE-A01-SOURCE");
+    }
+
+    @Test
+    void A03_legacyRef만_S03인_일반_규칙은_품목_무결성_검사를_비껴가지_않는다() throws Exception {
+        createProduct("896-R-SURFACE-A03-SOURCE");
+        createProduct("896-R-SURFACE-A03-TARGET");
+        createRuleWithKey("GENERIC_S03_REF_BYPASS", "896-R-SURFACE-A03-SOURCE",
+                "896-R-SURFACE-A03-TARGET", BigDecimal.ONE, BigDecimal.ONE);
+
+        MvcResult result = mockMvc.perform(patch("/api/v1/products/{modelCode}/usage",
+                        "896-R-SURFACE-A03-SOURCE")
+                        .with(asMasterUser())
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(MAPPER.writeValueAsString(
+                                new UpdateProductUsageRequest(UsageScope.NONE, List.of()))))
+                .andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        assertThat(result.getResponse().getContentAsString(StandardCharsets.UTF_8))
+                .contains("GENERIC_S03_REF_BYPASS");
     }
 
     private void createProduct(String code) throws Exception {
@@ -182,13 +212,18 @@ class QuantitySyncRuleSurfaceFixIT extends AbstractPostgresIT {
 
     private void createRule(String sourceCode, String targetCode,
                             BigDecimal factor, BigDecimal multiplier) throws Exception {
+        createRuleWithKey("SINGLE_S03_CEILING_DRAIN_PUMP", sourceCode, targetCode, factor, multiplier);
+    }
+
+    private void createRuleWithKey(String ruleKey, String sourceCode, String targetCode,
+                                   BigDecimal factor, BigDecimal multiplier) throws Exception {
                 mockMvc.perform(post("/api/v1/quantity-sync-rules")
                         .with(asMasterUser())
                         .header("X-User-Role", "MASTER")
                         .header("X-User-Id", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(MAPPER.writeValueAsString(ruleRequest(
-                                "SINGLE_S03_CEILING_DRAIN_PUMP", sourceCode, targetCode,
+                                ruleKey, sourceCode, targetCode,
                                 factor, multiplier))))
                 .andExpect(status().isCreated());
     }

@@ -61,7 +61,6 @@ public class QuantitySyncRuleService {
 
     /** S-03은 현재 주문 수량을 결정하지 않는 관측 전용 규칙이다. */
     private static final String S03_RULE_KEY = "SINGLE_S03_CEILING_DRAIN_PUMP";
-    private static final String S03_LEGACY_REF = "S-03";
 
     /**
      * 재수렴 결함 2 [최우선] — {@link #toResponse} 가 참조 Product를 찾지 못했을 때
@@ -103,9 +102,25 @@ public class QuantitySyncRuleService {
     /** 활성 규칙 목록을 priority/ruleKey 순서로 조회한다. */
     @Transactional(readOnly = true)
     public List<QuantitySyncRuleResponse> list(QuantitySyncEstimateCategory category) {
+        return list(category, false);
+    }
+
+    /**
+     * 관리자 전체 목록 또는 거래처 shadow 관측 목록을 조회한다.
+     *
+     * <p>수량 동기화 규칙에는 거래처별 소유 컬럼이 없으므로 PARTNER 자기범위는
+     * 실제 주문 수량을 결정하지 않는 canonical S-03 shadow 규칙으로 한정한다.
+     * 전역 규칙을 PARTNER 응답에 섞지 않아 A-01 범위 경계를 유지한다.
+     */
+    @Transactional(readOnly = true)
+    public List<QuantitySyncRuleResponse> list(QuantitySyncEstimateCategory category,
+                                               boolean partnerSelfService) {
         List<QuantitySyncRule> rules = category == null
                 ? ruleRepository.findAllByIsDeletedFalseOrderByPriorityAscRuleKeyAsc()
                 : ruleRepository.findAllByEstimateCategoryAndIsDeletedFalseOrderByPriorityAscRuleKeyAsc(category);
+        if (partnerSelfService) {
+            rules = rules.stream().filter(rule -> S03_RULE_KEY.equals(rule.getRuleKey())).toList();
+        }
         return rules.stream().map(this::toResponse).toList();
     }
 
@@ -246,7 +261,7 @@ public class QuantitySyncRuleService {
      * 품목 노출·구성품 변경을 막아 정상 주문 경로를 차단하지 않도록 하는 경계다.
      */
     private boolean isShadowOnlyRule(QuantitySyncRule rule) {
-        return S03_RULE_KEY.equals(rule.getRuleKey()) || S03_LEGACY_REF.equals(rule.getLegacyRef());
+        return S03_RULE_KEY.equals(rule.getRuleKey());
     }
 
     private boolean containsRuleCategory(Set<EstimateCategory> requestedCategories,
