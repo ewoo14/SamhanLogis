@@ -133,6 +133,8 @@ public class ScheduleService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "일정 등록자 본인만 삭제할 수 있습니다");
         }
         schedule.markDeleted(actorUserId.toString());
+        schedule.getParticipants().forEach(participant ->
+                participant.markDeleted(actorUserId.toString()));
     }
 
 }

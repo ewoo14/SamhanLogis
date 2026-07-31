@@ -104,6 +104,25 @@ class ScheduleServiceTest {
     }
 
     @Test
+    void delete_soft_deletes_all_schedule_participants() {
+        UUID owner = UUID.randomUUID();
+        UUID participant = UUID.randomUUID();
+        LocalDateTime starts = LocalDateTime.now().plusDays(1);
+        Schedule schedule = Schedule.create(owner, "대상자 정리 일정", null,
+                starts, starts.plusHours(1), ScheduleStatus.DRAFT);
+        schedule.addParticipant(owner);
+        schedule.addParticipant(participant);
+        when(repository.findById(schedule.getId())).thenReturn(java.util.Optional.of(schedule));
+
+        scheduleService.delete(schedule.getId(), owner);
+
+        assertThat(schedule.getParticipants())
+                .hasSize(2)
+                .allSatisfy(row -> assertThat(row.getIsDeleted()).isTrue());
+        assertThat(schedule.getParticipantsView()).isEmpty();
+    }
+
+    @Test
     void create_defaults_to_draft_status_when_status_missing() {
         UUID owner = UUID.randomUUID();
         LocalDateTime starts = LocalDateTime.now().plusDays(1);
