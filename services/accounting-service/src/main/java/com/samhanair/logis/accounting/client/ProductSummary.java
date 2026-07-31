@@ -18,11 +18,18 @@ public record ProductSummary(
         UUID categoryId,
         BigDecimal sellingPrice,
         String status,
-        String categoryKey) {
+        String categoryKey,
+        String modelCode) {
 
     /** 기존 소비자 호환용 생성자 — categoryKey 를 아직 사용하지 않는 호출자를 보존한다. */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, categoryId, sellingPrice, status, null);
+        this(id, name, modelName, categoryId, sellingPrice, status, null, null);
+    }
+
+    /** 기존 7-arg 호출자 호환 생성자 — 불변 modelCode 미제공 legacy 응답용. */
+    public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
+                          BigDecimal sellingPrice, String status, String categoryKey) {
+        this(id, name, modelName, categoryId, sellingPrice, status, categoryKey, null);
     }
 }

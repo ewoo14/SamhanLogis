@@ -243,7 +243,8 @@ class DailyClosingDetailServiceTest {
         when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
                 "무풍 4way 냉난방 1등급", ProductLabelMatch.ambiguous()));
         when(productClient.lookupByModel("AC060CS4FBH2SY"))
-                .thenReturn(productSummary(matched, "singleSets"));
+                .thenReturn(new ProductSummary(matched, "테스트품목", "AC060CS4FBH2SY", null,
+                        null, "ACTIVE", "singleSets", "AC060CS4FBH2SY"));
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 matched, new ApplicablePrice(new BigDecimal("3121800"), new BigDecimal("1840000"), DATE)));
 
@@ -392,7 +393,8 @@ class DailyClosingDetailServiceTest {
             List<String> chunk = invocation.getArgument(0);
             Map<String, ProductLabelMatch> matches = new LinkedHashMap<>();
             for (String label : chunk) {
-                matches.put(label, ProductLabelMatch.matched(productIdsByLabel.get(label), label));
+                matches.put(label, ProductLabelMatch.matched(productIdsByLabel.get(label),
+                        String.format("AJ%05d", labels.indexOf(label))));
             }
             return matches;
         });
@@ -558,8 +560,8 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
-    @DisplayName("B-04 혼합 전표 — 두 번째 allocation 축의 가격은 두 번째 상품을 사용한다")
-    void mixedSalesSlipAllocationUsesEachAxisProductPrice() {
+    @DisplayName("B-04 rename 후 exact 조회 404 — 두 번째 축은 첫 상품 가격으로 fallback하지 않는다")
+    void mixedSalesSlipAllocationDoesNotFallbackToFirstProductWhenRenamedModelIsGone() {
         UUID firstProduct = UUID.randomUUID();
         UUID secondProduct = UUID.randomUUID();
         SalesAccountingSlip slip = SalesAccountingSlip.createDraft(
@@ -583,8 +585,8 @@ class DailyClosingDetailServiceTest {
                 "첫 번째 상품", ProductLabelMatch.matched(firstProduct, "AR80F07D21WS")));
         when(productClient.lookupByModel("AR80F07D21WS"))
                 .thenReturn(productSummary(firstProduct, "singleSets"));
-        when(productClient.lookupByModel("AM480AXVHJH1SY"))
-                .thenReturn(productSummary(secondProduct, "commercialMulti"));
+        // 두 번째 원천 전표가 생성된 뒤 제품명이 변경되어 과거 snapshot 모델명이 404가 된 상태.
+        when(productClient.lookupByModel("AM480AXVHJH1SY")).thenReturn(null);
         when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
                 firstProduct, new ApplicablePrice(new BigDecimal("1000"), new BigDecimal("800"), DATE),
                 secondProduct, new ApplicablePrice(new BigDecimal("3000"), new BigDecimal("2500"), DATE)));
@@ -599,8 +601,46 @@ class DailyClosingDetailServiceTest {
                 .filteredOn(lineView -> "commercialMulti".equals(lineView.categoryKey()))
                 .singleElement()
                 .extracting(DailyClosingDetailResponse.DailyProductLine::releasePrice,
+                        DailyClosingDetailResponse.DailyProductLine::deliveryPrice,
+                        DailyClosingDetailResponse.DailyProductLine::revalidationStatus)
+                .containsExactly(null, null, "NOT_FOUND");
+    }
+
+    @Test
+    @DisplayName("이름 변경 후 과거 토큰 재사용 — 현재 이름 exact 제품이 과거 label 판정을 덮지 않는다")
+    void renamedModelTokenReusedByAnotherProductDoesNotOverrideHistoricalLabelMatch() {
+        UUID originalProduct = UUID.randomUUID();
+        UUID reusedNameProduct = UUID.randomUUID();
+        SalesAccountingSlip slip = newPostedSalesSlip(
+                "SAS-R7-REUSED-MODEL", DATE, "과거 제품 A", BigDecimal.ONE,
+                new BigDecimal("110"), new BigDecimal("10"));
+        String reusedModelName = "AROLD12345";
+        setField(slip.getLines().get(0), "modelName", reusedModelName);
+        setField(slip.getLines().get(0), "categoryKey", "singleSets");
+        when(salesAccountingSlipRepository.findBySlipDateAndStatusWithLines(
+                DATE, SalesSlipStatus.POSTED)).thenReturn(List.of(slip));
+
+        // A: modelCode=AROLD12345, modelName=NEW. B: modelCode=B-CODE, modelName=AROLD12345.
+        // 과거 label resolver는 불변 modelCode=AROLD12345인 A를 반환해야 한다.
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "과거 제품 A", ProductLabelMatch.matched(originalProduct, reusedModelName)));
+        when(productClient.lookupByModel(reusedModelName))
+                .thenReturn(new ProductSummary(reusedNameProduct, "재사용 제품 B", reusedModelName, null,
+                        null, "ACTIVE", "singleSets", "B-CODE"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                originalProduct, new ApplicablePrice(new BigDecimal("1000"), new BigDecimal("800"), DATE),
+                reusedNameProduct, new ApplicablePrice(new BigDecimal("9000"), new BigDecimal("7000"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                originalProduct, new BigDecimal("45"), reusedNameProduct, new BigDecimal("10")));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(
+                DATE, com.samhanair.logis.accounting.domain.DailyClosingKind.SALES,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.SALES_SLIP);
+
+        assertThat(findProductLine(response, "과거 제품 A"))
+                .extracting(DailyClosingDetailResponse.DailyProductLine::releasePrice,
                         DailyClosingDetailResponse.DailyProductLine::deliveryPrice)
-                .containsExactly(new BigDecimal("3000"), new BigDecimal("2500"));
+                .containsExactly(new BigDecimal("1000"), new BigDecimal("800"));
     }
 
     @Test
