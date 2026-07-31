@@ -102,6 +102,38 @@ describe('AppVersionGate 기동 updater 경로', () => {
     expect(screen.queryByTestId('login-sentinel')).toBeNull()
   })
 
+  it('updater의 안전한 일반 라벨은 새 버전 문구를 한 번만 표시한다', async () => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'not-available' }))
+    await screen.findByTestId('login-sentinel')
+    act(() => updater.emit({ kind: 'available', version: '' }))
+
+    const status = await screen.findByTestId('app-auto-update-status')
+    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+    expect(status.textContent).not.toContain('새 버전 새 버전')
+  })
+
+  it('직전 호환 fallback 라벨이 다시 와도 새 버전 문구를 중복하지 않는다', async () => {
+    render(
+      <AppVersionGate bootstrapped>
+        <div data-testid="login-sentinel">로그인</div>
+      </AppVersionGate>,
+    )
+
+    act(() => updater.emit({ kind: 'not-available' }))
+    await screen.findByTestId('login-sentinel')
+    act(() => updater.emit({ kind: 'available', version: '새 버전' }))
+
+    const status = await screen.findByTestId('app-auto-update-status')
+    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+    expect(status.textContent).not.toContain('새 버전 새 버전')
+  })
+
   it('확인 실패는 원문 없이 한국어 안내를 남기고 로그인으로 진행한다', async () => {
     const raw = 'Cannot find channel https://intranet.example/latest.yml response-header'
     updater.check.mockRejectedValueOnce(new Error(raw))

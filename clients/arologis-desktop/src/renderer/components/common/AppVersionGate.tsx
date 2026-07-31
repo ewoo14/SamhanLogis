@@ -9,6 +9,7 @@ import type { DesktopUpdateStatus } from '../../types/electron'
 
 const CURRENT_VERSION = resolveBuildAppVersion(import.meta.env.VITE_APP_VERSION)
 const VERSION_API_BASE_URL = import.meta.env.VITE_VERSION_API_BASE_URL || 'http://localhost:8080'
+const DISPLAY_VERSION_PATTERN = /^\d{4}\/\d{2}\/\d{2}-[1-9][0-9]*$/
 
 function safeStorage(): Pick<Storage, 'getItem' | 'setItem'> {
   try {
@@ -29,19 +30,24 @@ function normalizeUpdateStatus(value: unknown): DesktopUpdateStatus | null {
   if (typeof value !== 'object' || value === null || !('kind' in value)) return null
   const status = value as Partial<DesktopUpdateStatus>
   if (status.kind === 'checking' || status.kind === 'not-available') return { kind: status.kind }
-  if (status.kind === 'available' && status.version) return { kind: 'available', version: status.version }
+  if (status.kind === 'available') return { kind: 'available', version: status.version ?? '' }
   if (status.kind === 'downloading') return { kind: 'downloading', percent: status.percent ?? 0 }
-  if (status.kind === 'downloaded' && status.version) return { kind: 'downloaded', version: status.version }
+  if (status.kind === 'downloaded') return { kind: 'downloaded', version: status.version ?? '' }
   if (status.kind === 'error') return { kind: 'error', message: '업데이트에 실패했습니다. 인터넷 연결을 확인해 주세요.' }
   return null
+}
+
+function updateVersionLabel(version: string | undefined): string {
+  const normalized = String(version ?? '').trim()
+  return DISPLAY_VERSION_PATTERN.test(normalized) ? `새 버전 ${normalized}` : '새 버전'
 }
 
 function updateStatusText(status: DesktopUpdateStatus): string {
   switch (status.kind) {
     case 'checking': return '업데이트를 확인하는 중입니다.'
-    case 'available': return `새 버전 ${status.version}을 다운로드하는 중입니다.`
+    case 'available': return `${updateVersionLabel(status.version)}을 다운로드하는 중입니다.`
     case 'downloading': return `새 버전을 다운로드하는 중입니다. ${Math.round(status.percent ?? 0)}%`
-    case 'downloaded': return `새 버전 ${status.version}을 설치하고 앱을 다시 시작하는 중입니다.`
+    case 'downloaded': return `${updateVersionLabel(status.version)}을 설치하고 앱을 다시 시작하는 중입니다.`
     case 'error': return status.message ?? '업데이트에 실패했습니다.'
     case 'not-available': return '현재 설치된 버전이 최신입니다.'
   }

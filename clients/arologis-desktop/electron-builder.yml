@@ -34,6 +34,7 @@ win:
 
 nsis:
   oneClick: false
+  uninstallDisplayName: ${productName}
   allowToChangeInstallationDirectory: true
   perMachine: false  # 사용자별 설치 — UAC 회피, 사내 일반 사원 권한 OK
   createDesktopShortcut: always

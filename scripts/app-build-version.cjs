@@ -5,6 +5,7 @@ const DEVELOPMENT_FALLBACK_VERSION = '0.1.0-dev'
 const RELEASE_BUILD_ENV = 'SAMHAN_RELEASE_BUILD'
 const RELEASE_ARTIFACT_VERSION_ENV = 'SAMHAN_RELEASE_ARTIFACT_VERSION'
 const RELEASE_PACKAGE_VERSION_ENV = 'SAMHAN_RELEASE_PACKAGE_VERSION'
+const WINDOWS_VERSION_COMPONENT_MAX = 65535
 
 /**
  * 빌드 산출물에 넣을 개발 버전을 해석한다.
@@ -49,9 +50,11 @@ function createReleaseBuildEnvironment({
   }
   const appVersion = resolveBuildAppVersion({ env: releaseEnv, variable })
   const packageVersion = resolveReleasePackageVersion(appVersion)
+  const windowsDisplayVersion = resolveWindowsDisplayVersion(appVersion)
   return {
     appVersion,
     packageVersion,
+    windowsDisplayVersion,
     env: {
       ...releaseEnv,
       [variable]: appVersion,
@@ -79,33 +82,58 @@ function resolveReleasePackageVersion(appVersion) {
  * electron-builder의 extraMetadata.version에 릴리스 semver를 명시 주입한다.
  * electron-builder 25는 YAML extraMetadata 안의 env 표현식을 확장하지 않으므로
  * CLI config override로 전달해야 포장 package.json과 AppInfo가 같은 버전을 사용한다.
+ * Windows PE VersionInfo는 별도의 4-정수 shortVersion 계열을 사용한다.
  */
-function createElectronBuilderVersionArgs(packageVersion) {
+function createElectronBuilderVersionArgs(packageVersion, appVersion) {
   const normalized = String(packageVersion ?? '').trim()
   if (!/^1\.\d{8}\.[1-9][0-9]*$/.test(normalized)) {
     throw new Error(
       `${RELEASE_PACKAGE_VERSION_ENV}에 유효한 릴리스 semver를 명시해야 합니다: ${packageVersion ?? ''}`,
     )
   }
-  return [`--config.extraMetadata.version=${normalized}`]
+  const windowsDisplayVersion = resolveWindowsDisplayVersion(appVersion)
+  return [
+    `--config.extraMetadata.version=${normalized}`,
+    `--config.extraMetadata.shortVersion=${windowsDisplayVersion}`,
+    `--config.extraMetadata.shortVersionWindows=${windowsDisplayVersion}`,
+  ]
 }
 
 /**
  * electron-builder NSIS가 내부 package semver를 VERSION 매크로로 사용하므로,
- * 설치 마법사 문구와 Windows DisplayVersion에만 사용자용 표기를 덮어쓴다.
+ * 설치 마법사 문구와 Windows DisplayVersion/VersionInfo에만 사용자용 표기를 덮어쓴다.
  * include는 electron-builder가 common.nsh보다 먼저 삽입하므로 common.nsh의
  * BrandingText와 installer.nsh의 DisplayVersion이 모두 같은 날짜 표기를 사용한다.
  */
 function createNsisDisplayVersionInclude(appVersion) {
   const normalized = String(appVersion ?? '').trim()
   validateDevelopmentVersion(normalized, 'VITE_APP_VERSION')
+  const windowsDisplayVersion = resolveWindowsDisplayVersion(normalized)
   return [
     '!ifdef VERSION',
     '!undef VERSION',
     '!endif',
     `!define VERSION "${normalized}"`,
+    `VIProductVersion "${windowsDisplayVersion}"`,
+    `VIAddVersionKey /LANG=1042 ProductVersion "${windowsDisplayVersion}"`,
+    `VIAddVersionKey /LANG=1042 FileVersion "${windowsDisplayVersion}"`,
     '',
   ].join('\n')
+}
+
+/**
+ * Windows PE VersionInfo가 요구하는 4개 16-bit 정수 표시 버전을 만든다.
+ * 정책 정본(YYYY/MM/DD-순번)은 그대로 유지하고, PE 메타데이터에만 점 표기를 사용한다.
+ * 순번이 65535를 초과하면 PE 필드에 정확히 담을 수 없어 마지막 구성요소를 포화시킨다.
+ */
+function resolveWindowsDisplayVersion(appVersion) {
+  const normalized = String(appVersion ?? '').trim()
+  const match = DEVELOPMENT_VERSION_PATTERN.exec(normalized)
+  if (!match) {
+    validateDevelopmentVersion(normalized, 'VITE_APP_VERSION')
+  }
+  const sequence = Math.min(Number(match[4]), WINDOWS_VERSION_COMPONENT_MAX)
+  return `${Number(match[1])}.${Number(match[2])}.${Number(match[3])}.${sequence}`
 }
 
 function isReleaseBuild(env) {
@@ -142,5 +170,6 @@ module.exports = {
   createNsisDisplayVersionInclude,
   resolveReleasePackageVersion,
   resolveBuildAppVersion,
+  resolveWindowsDisplayVersion,
   validateDevelopmentVersion,
 }

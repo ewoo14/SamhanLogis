@@ -79,7 +79,7 @@ function main() {
         electronBuilderCli,
         `--config.nsis.include=${nsisInclude.file}`,
         '--win',
-        ...createElectronBuilderVersionArgs(releaseBuild.packageVersion),
+        ...createElectronBuilderVersionArgs(releaseBuild.packageVersion, releaseBuild.appVersion),
       ],
       releaseBuild.env,
     )

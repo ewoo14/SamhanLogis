@@ -81,6 +81,24 @@ describe('Electron 자동 업데이트 IPC', () => {
     })
   })
 
+  it('electron-updater가 승인한 v 접두 버전은 날짜형으로 표시한다', async () => {
+    await mocks.events.get('update-available')?.({ version: 'v1.20260731.1' })
+
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'available',
+      version: '2026/07/31-1',
+    })
+  })
+
+  it('electron-updater가 승인한 앞뒤 공백 버전은 다운로드 완료에서도 날짜형으로 표시한다', async () => {
+    await mocks.events.get('update-downloaded')?.({ version: ' 1.20260731.1 ' })
+
+    expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
+      kind: 'downloaded',
+      version: '2026/07/31-1',
+    })
+  })
+
   it('update-downloaded 이벤트는 설치 완료를 알리고 install IPC가 재시작을 위임한다', async () => {
     await mocks.events.get('update-downloaded')?.({ version: '1.20260730.3' })
     expect(mocks.window.webContents.send).toHaveBeenCalledWith('updater:status', {
@@ -92,11 +110,12 @@ describe('Electron 자동 업데이트 IPC', () => {
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
   })
 
-  it('알 수 없는 updater 버전은 내부 semver를 renderer에 그대로 전달하지 않는다', async () => {
+  it('해석 불가한 updater 버전은 안전한 빈 표시값으로만 renderer에 전달한다', async () => {
     await mocks.events.get('update-available')?.({ version: '1.0.0' })
 
     const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
-    expect(lastStatus).toEqual({ kind: 'available', version: '새 버전' })
+    expect(lastStatus).toEqual({ kind: 'available', version: '' })
+    expect(JSON.stringify(lastStatus)).not.toContain('1.0.0')
   })
 
   it('비패키징 앱의 install IPC도 조용히 끝내지 않고 종료 상태를 renderer에 알린다', async () => {

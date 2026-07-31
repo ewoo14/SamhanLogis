@@ -16,7 +16,7 @@ export type AutoUpdateStatus =
 const STATUS_CHANNEL = 'updater:status'
 const CHECK_CHANNEL = 'updater:check'
 const INSTALL_CHANNEL = 'updater:install'
-const RELEASE_PACKAGE_VERSION_PATTERN = /^1\.(\d{4})(\d{2})(\d{2})\.([1-9][0-9]*)$/
+const RELEASE_PACKAGE_VERSION_PATTERN = /^\s*v?1\.(\d{4})(\d{2})(\d{2})\.([1-9][0-9]*)\s*$/
 
 let handlersRegistered = false
 let updaterConfigured = false
@@ -31,8 +31,8 @@ function broadcast(status: AutoUpdateStatus): void {
 
 /** electron-updater의 내부 package semver를 사용자용 날짜 버전으로 되돌린다. */
 function displayVersionFromUpdateInfo(version: string): string {
-  const match = RELEASE_PACKAGE_VERSION_PATTERN.exec(version)
-  if (!match) return '새 버전'
+  const match = RELEASE_PACKAGE_VERSION_PATTERN.exec(String(version ?? ''))
+  if (!match) return ''
   return `${match[1]}/${match[2]}/${match[3]}-${match[4]}`
 }
 
