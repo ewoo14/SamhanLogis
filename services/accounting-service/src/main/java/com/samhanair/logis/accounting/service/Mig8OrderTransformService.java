@@ -59,25 +59,32 @@ public class Mig8OrderTransformService {
         EcountMig8TransformResult.Builder result = EcountMig8TransformResult.builder(rows.size());
         String actor = normalizeActor(actorUserId);
         Map<String, List<ValidatedRow>> groups = validateAndGroup(rows, result);
-        Map<String, UUID> productAliasCache = resolveProductAliases(groups);
+        try {
+            // resolver 응답 이후 sheet sync 가 Product 를 soft-delete할 수 있으므로,
+            // line upsert 직전에 같은 alias 집합을 다시 해소한다. ProductAliasClient 는
+            // 두 응답 사이의 삭제 경합을 막는 짧은 reservation도 함께 관리한다.
+            Map<String, UUID> productAliasCache = resolveProductAliases(groups);
+            productAliasCache = resolveProductAliases(groups);
 
-        for (List<ValidatedRow> group : groups.values()) {
-            try {
-                ensureProductAliasesResolved(group, productAliasCache);
-                transformGroup(group, actor, result, productAliasCache);
-            } catch (BusinessException ex) {
-                rejectGroup(group, ex.getErrorCode().name(), ex.getMessage(), result);
-            } catch (DuplicateKeyException ex) {
-                DuplicateReject duplicate = duplicateReject(ex);
-                if (duplicate == null) {
-                    throw ex;
+            for (List<ValidatedRow> group : groups.values()) {
+                try {
+                    transformGroup(group, actor, result, productAliasCache);
+                } catch (BusinessException ex) {
+                    rejectGroup(group, ex.getErrorCode().name(), ex.getMessage(), result);
+                } catch (DuplicateKeyException ex) {
+                    DuplicateReject duplicate = duplicateReject(ex);
+                    if (duplicate == null) {
+                        throw ex;
+                    }
+                    rejectGroup(group, duplicate.code().name(), duplicate.message(), result);
                 }
-                rejectGroup(group, duplicate.code().name(), duplicate.message(), result);
             }
+            EcountMig8TransformResult built = result.build();
+            EcountMigMetricsSupport.recordTransformResult(metricsRecorder, "mig-8", built);
+            return built;
+        } finally {
+            productAliasClient.releaseReservations();
         }
-        EcountMig8TransformResult built = result.build();
-        EcountMigMetricsSupport.recordTransformResult(metricsRecorder, "mig-8", built);
-        return built;
     }
 
     private Map<String, List<ValidatedRow>> validateAndGroup(List<StagingRow> rows,
@@ -96,33 +103,12 @@ public class Mig8OrderTransformService {
         return groups;
     }
 
-    /**
-     * Product alias 결과가 비어 있으면 주문/라인을 만들지 않고 해당 주문 전체를 거부한다.
-     *
-     * <p>staging alias 는 soft-delete 된 Product 를 가리킬 수 있으므로, resolver 가 반환하지 않은
-     * 품목을 {@code product_id = NULL} 로 저장하면 운영자가 모르는 상태로 downstream 이 실패한다.
-     * 변환 전에 주문 그룹 전체를 검증해 dangling UUID 와 부분 주문 생성을 함께 막는다.
-     */
-    private void ensureProductAliasesResolved(List<ValidatedRow> group,
-                                              Map<String, UUID> productAliasCache) {
-        for (ValidatedRow row : group) {
-            String itemName = EcountCsvSupport.stripCell(row.row().itemName());
-            if (lookupProductId(itemName, productAliasCache) == null) {
-                throw new BusinessException(ErrorCode.MIG8_LOOKUP_MISS,
-                        "품목 alias lookup miss: sourceRowNo=" + row.row().sourceRowNo()
-                                + ", itemName='" + itemName + "'");
-            }
-        }
-    }
-
     private Map<String, UUID> resolveProductAliases(Map<String, List<ValidatedRow>> groups) {
         LinkedHashSet<String> itemNames = new LinkedHashSet<>();
         for (List<ValidatedRow> group : groups.values()) {
             for (ValidatedRow row : group) {
                 String itemName = EcountCsvSupport.stripCell(row.row().itemName());
-                if (!itemName.isBlank()) {
-                    itemNames.add(itemName);
-                }
+                itemNames.addAll(lookupCandidates(itemName));
             }
         }
         if (itemNames.isEmpty()) {
@@ -131,16 +117,10 @@ public class Mig8OrderTransformService {
         try {
             return productAliasClient.resolveAliases(List.copyOf(itemNames));
         } catch (BusinessException ex) {
-            if (ex.getErrorCode() == ErrorCode.MIG12_INTERNAL_AUTH_MISS) {
-                throw ex;
-            }
-            log.warn("MIG-8 product alias resolve failed - itemCount={}, code={}, msg={}",
-                    itemNames.size(), ex.getErrorCode(), ex.getMessage());
-            return Map.of();
+            throw ex;
         } catch (Exception ex) {
-            log.warn("MIG-8 product alias resolve failed - itemCount={}, msg={}",
-                    itemNames.size(), ex.getMessage());
-            return Map.of();
+            throw new BusinessException(ErrorCode.MIG20_REIMPORT_FAILED,
+                    "MIG-8 product alias resolver 호출 실패: " + ex.getMessage(), ex);
         }
     }
 
@@ -182,8 +162,25 @@ public class Mig8OrderTransformService {
         boolean existed = existsAny(head.row().externalRef());
         UUID orderId = upsertOrder(head, partner, actor);
         // 본 슬라이스는 동일 source_file_hash 재실행만 가정 (line_no 안정). partial re-import 시 stale line cleanup 은 MIG-9+ 후속.
+        List<String> lookupMissMessages = new ArrayList<>(group.size());
         for (int i = 0; i < group.size(); i++) {
-            upsertLine(orderId, i + 1, group.get(i), actor, productAliasCache);
+            ValidatedRow row = group.get(i);
+            String itemName = EcountCsvSupport.stripCell(row.row().itemName());
+            UUID productId = lookupProductId(itemName, productAliasCache);
+            if (productId == null) {
+                String message = productLookupMissMessage(row, itemName);
+                lookupMissMessages.add(message);
+                result.reject(row.row().sourceRowNo(), ErrorCode.MIG8_LOOKUP_MISS.name(),
+                        message, row.orderNo(), itemName);
+            } else {
+                lookupMissMessages.add(null);
+            }
+            upsertLine(orderId, i + 1, row, actor, productId);
+        }
+        boolean hasLookupMiss = lookupMissMessages.stream().anyMatch(java.util.Objects::nonNull);
+        for (int i = 0; i < group.size(); i++) {
+            String reason = lookupMissMessages.get(i);
+            updateStatus(group.get(i).row(), hasLookupMiss ? "PENDING" : "TRANSFORMED", reason);
         }
         recalcTotals(orderId, actor);
 
@@ -198,7 +195,6 @@ public class Mig8OrderTransformService {
             }
         }
         linkSalesSlip(orderId, linkedSlipNo, actor);
-        group.forEach(row -> updateStatus(row.row(), "TRANSFORMED", null));
         if (existed) {
             result.updated();
         } else {
@@ -311,8 +307,7 @@ public class Mig8OrderTransformService {
                 """, orderParams(row, partner, actor), UUID.class);
     }
 
-    private void upsertLine(UUID orderId, int lineNo, ValidatedRow row, String actor,
-                            Map<String, UUID> productAliasCache) {
+    private void upsertLine(UUID orderId, int lineNo, ValidatedRow row, String actor, UUID productId) {
         jdbcTemplate.queryForObject("""
                 WITH restored AS (
                     UPDATE order_lines
@@ -357,7 +352,7 @@ public class Mig8OrderTransformService {
                 UNION ALL
                 SELECT id FROM upserted
                 LIMIT 1
-                """, lineParams(orderId, lineNo, row, actor, productAliasCache), UUID.class);
+                """, lineParams(orderId, lineNo, row, actor, productId), UUID.class);
     }
 
     private void recalcTotals(UUID orderId, String actor) {
@@ -472,13 +467,13 @@ public class Mig8OrderTransformService {
     }
 
     private MapSqlParameterSource lineParams(UUID orderId, int lineNo, ValidatedRow row, String actor,
-                                             Map<String, UUID> productAliasCache) {
+                                             UUID productId) {
         StagingRow raw = row.row();
         String itemName = EcountCsvSupport.stripCell(raw.itemName());
         return new MapSqlParameterSource()
                 .addValue("orderId", orderId)
                 .addValue("lineNo", lineNo)
-                .addValue("productId", lookupProductId(itemName, productAliasCache))
+                .addValue("productId", productId)
                 .addValue("itemName", itemName)
                 .addValue("quantity", raw.quantity())
                 .addValue("unitPrice", raw.unitPrice())
@@ -492,7 +487,40 @@ public class Mig8OrderTransformService {
         if (itemName == null || itemName.isBlank()) {
             return null;
         }
-        return productAliasCache == null ? null : productAliasCache.get(itemName);
+        if (productAliasCache == null) {
+            return null;
+        }
+        UUID exact = productAliasCache.get(itemName);
+        return exact != null ? exact : productAliasCache.get(aliasToken(itemName));
+    }
+
+    private static List<String> lookupCandidates(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return List.of();
+        }
+        String token = aliasToken(itemName);
+        return token.equals(itemName) ? List.of(itemName) : List.of(itemName, token);
+    }
+
+    private static String aliasToken(String itemName) {
+        String normalized = EcountCsvSupport.stripCell(itemName);
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+        int end = normalized.length();
+        for (int i = 0; i < normalized.length(); i++) {
+            char c = normalized.charAt(i);
+            if (Character.isWhitespace(c) || c == '[' || c == '(') {
+                end = i;
+                break;
+            }
+        }
+        return normalized.substring(0, end);
+    }
+
+    private static String productLookupMissMessage(ValidatedRow row, String itemName) {
+        return "품목 alias lookup miss: sourceRowNo=" + row.row().sourceRowNo()
+                + ", itemName='" + itemName + "', aliasToken='" + aliasToken(itemName) + "'";
     }
 
     private void acquireTransformLock() {

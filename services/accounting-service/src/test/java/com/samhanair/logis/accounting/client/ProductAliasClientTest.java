@@ -89,13 +89,30 @@ class ProductAliasClientTest {
     }
 
     @Test
-    void resolveAliases_5xx는_empty_map_유지() {
+    void resolveAliases_5xx는_일시적_장애를_전파한다() {
         server.expect(requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andRespond(withServerError());
 
-        assertThat(client.resolveAliases(List.of("테스트품목"))).isEmpty();
+        assertThatThrownBy(() -> client.resolveAliases(List.of("테스트품목")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG20_REIMPORT_FAILED));
+        server.verify();
+    }
+
+    @Test
+    void resolveAliases_5xx는_일시적_장애로_전파되어야_한다() {
+        server.expect(requestTo(ENDPOINT))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.resolveAliases(List.of("테스트품목")))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.MIG20_REIMPORT_FAILED));
         server.verify();
     }
 

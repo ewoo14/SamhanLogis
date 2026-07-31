@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -262,13 +263,58 @@ class Mig8OrderTransformServiceTest {
 
         EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
 
-        assertThat(result.imported()).isZero();
+        assertThat(result.imported()).isOne();
         assertThat(result.rejected()).isOne();
         assertThat(result.samples()).extracting(EcountMig8TransformResult.Sample::code)
                 .containsExactly("MIG8_LOOKUP_MISS");
-        assertThat(statuses()).containsExactly("REJECTED");
-        verify(jdbcTemplate, org.mockito.Mockito.never())
-                .queryForObject(contains("INSERT INTO order_lines"), any(SqlParameterSource.class), eq(UUID.class));
+        assertThat(statuses()).containsExactly("PENDING");
+        assertThat(lineParams().getValue("productId")).isNull();
+    }
+
+    @Test
+    void 품목명_규격_라벨은_선두_alias로_해소하고_미해소_라인도_보존한다() {
+        pending(
+                rowWithItemName(1, "2026-05-20-001", "테스트품목 [규격-A]"),
+                rowWithItemName(2, "2026-05-20-001", "없는품목 (규격-B)"));
+        doReturn(Map.of("테스트품목", productId())).when(productAliasClient)
+                .resolveAliases(anyList());
+
+        EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.rejected()).isEqualTo(1);
+        assertThat(result.samples()).extracting(EcountMig8TransformResult.Sample::code)
+                .containsExactly("MIG8_LOOKUP_MISS");
+        assertThat(statuses()).containsExactly("PENDING", "PENDING");
+        ArgumentCaptor<SqlParameterSource> params = ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(jdbcTemplate, times(2)).queryForObject(
+                contains("INSERT INTO order_lines"), params.capture(), eq(UUID.class));
+        assertThat(params.getAllValues().get(0).getValue("productId")).isEqualTo(productId());
+        assertThat(params.getAllValues().get(1).getValue("productId")).isNull();
+    }
+
+    @Test
+    void resolver_일시실패는_행을_거부확정하지_않고_예외를_전파한다() {
+        pending(row(1, "2026-05-20-001", "진행"));
+        BusinessException unavailable =
+                new BusinessException(ErrorCode.MIG20_REIMPORT_FAILED, "resolver 일시 장애");
+        when(productAliasClient.resolveAliases(anyList())).thenThrow(unavailable);
+
+        assertThatThrownBy(() -> service.transformFromStaging(500, "tester"))
+                .isSameAs(unavailable);
+        verify(jdbcTemplate, org.mockito.Mockito.never()).update(
+                contains("staging.ecount_order_raw"), any(SqlParameterSource.class));
+    }
+
+    @Test
+    void alias_resolve_후_line_insert_직전에_활성_상태를_재검증한다() {
+        pending(row(1, "2026-05-20-001", "진행"));
+        doReturn(Map.of("테스트품목", productId())).when(productAliasClient)
+                .resolveAliases(anyList());
+
+        service.transformFromStaging(500, "tester");
+
+        verify(productAliasClient, times(2)).resolveAliases(anyList());
     }
 
     @Test
@@ -285,15 +331,17 @@ class Mig8OrderTransformServiceTest {
         EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
 
         assertThat(result.totalRows()).isEqualTo(160);
-        assertThat(result.imported()).isZero();
+        assertThat(result.imported()).isEqualTo(160);
         assertThat(result.updated()).isZero();
         assertThat(result.rejected()).isEqualTo(160);
         assertThat(result.samples()).isNotEmpty()
                 .first().extracting(EcountMig8TransformResult.Sample::code)
                 .isEqualTo("MIG8_LOOKUP_MISS");
-        assertThat(statuses()).hasSize(160).containsOnly("REJECTED");
-        verify(jdbcTemplate, org.mockito.Mockito.never())
-                .queryForObject(contains("INSERT INTO orders"), any(SqlParameterSource.class), eq(UUID.class));
+        assertThat(statuses()).hasSize(160).containsOnly("PENDING");
+        verify(jdbcTemplate, times(160)).queryForObject(
+                contains("INSERT INTO orders"), any(SqlParameterSource.class), eq(UUID.class));
+        verify(jdbcTemplate, times(160)).queryForObject(
+                contains("INSERT INTO order_lines"), any(SqlParameterSource.class), eq(UUID.class));
     }
 
     @Test
@@ -315,7 +363,7 @@ class Mig8OrderTransformServiceTest {
 
         service.transformFromStaging(500, "tester");
 
-        verify(productAliasClient).resolveAliases(List.of("테스트품목"));
+        verify(productAliasClient, times(2)).resolveAliases(List.of("테스트품목"));
         assertThat(lineParams().getValue("productId")).isEqualTo(productId());
     }
 
@@ -355,6 +403,17 @@ class Mig8OrderTransformServiceTest {
                 partnerName, "김담당", "2026-06-20", "월말", "참조", status, "테스트품목",
                 quantity, new BigDecimal("1000"), new BigDecimal("2000"), new BigDecimal("200"),
                 LocalDate.of(2026, 6, 20), externalRef);
+    }
+
+    private static Mig8OrderTransformService.StagingRow rowWithItemName(
+            int rowNo, String orderNo, String itemName) {
+        Mig8OrderTransformService.StagingRow base = row(rowNo, orderNo, "진행");
+        return new Mig8OrderTransformService.StagingRow(
+                base.sourceFileHash(), base.sourceRowNo(), base.orderNo(), base.legacyOrderNo(),
+                base.orderDate(), base.partnerName(), base.managerName(), base.validUntil(),
+                base.paymentTerms(), base.reference(), base.progressStatus(), itemName,
+                base.quantity(), base.unitPrice(), base.supplyAmount(), base.vatAmount(),
+                base.itemDueDate(), base.externalRef());
     }
 
     private static PartnerSummary partner() {

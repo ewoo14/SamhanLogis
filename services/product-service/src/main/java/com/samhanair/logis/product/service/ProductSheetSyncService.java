@@ -170,6 +170,7 @@ public class ProductSheetSyncService {
     private final VariableDiscountDetector discountDetector;
     private final ProductAttributeClassifier attributeClassifier;
     private final QuantitySyncRuleService quantitySyncRuleService;
+    private final EcountAliasReservationService ecountAliasReservationService;
     private final ProductSheetSyncService self;
 
     /** rowHash 캐시 — JVM 메모리. (시트 row → SHA-256). 다음 sync 시 비교. */
@@ -186,6 +187,7 @@ public class ProductSheetSyncService {
                                    VariableDiscountDetector discountDetector,
                                    ProductAttributeClassifier attributeClassifier,
                                    QuantitySyncRuleService quantitySyncRuleService,
+                                   EcountAliasReservationService ecountAliasReservationService,
                                    @Lazy ProductSheetSyncService self) {
         this.sheetsClient = sheetsClient;
         this.productRepository = productRepository;
@@ -198,6 +200,7 @@ public class ProductSheetSyncService {
         this.discountDetector = discountDetector;
         this.attributeClassifier = attributeClassifier;
         this.quantitySyncRuleService = quantitySyncRuleService;
+        this.ecountAliasReservationService = ecountAliasReservationService;
         this.self = self;
     }
 
@@ -1380,6 +1383,12 @@ public class ProductSheetSyncService {
                             mapping.tabName, code, String.join(", ", ruleKeys));
                     continue;
                 }
+                if (ecountAliasReservationService.hasActiveReservation(p.getId())) {
+                    log.info("[ProductSheetSync] tab '{}' modelCode='{}' → MIG-8 alias reservation active; soft-delete 보류",
+                            mapping.tabName, code);
+                    result.deferredByEcountReservation++;
+                    continue;
+                }
                 // BaseEntity.markDeleted: deletedAt + deletedBy + isDeleted=true 설정 (shared:common).
                 String actor = "system-sheet-sync";
                 p.markDeleted(actor);
@@ -2034,6 +2043,8 @@ public class ProductSheetSyncService {
          * 별도 카운터로 집계한다.
          */
         public int preservedByRule = 0;
+        /** MIG-8 변환이 잡고 있는 Product reservation 때문에 soft-delete를 보류한 품목 수. */
+        public int deferredByEcountReservation = 0;
         public int specsLinked = 0;
         public String error;
     }

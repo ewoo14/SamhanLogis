@@ -77,6 +77,27 @@ class EcountAliasResolveServiceIT extends AbstractPostgresIT {
         assertThat(resolved).doesNotContainKey(aliasCode);
     }
 
+    @Test
+    void resolver가_활성_Product_reservation을_등록하고_종료시_해제한다() {
+        Product product = createProduct("RESERVED");
+        String aliasCode = ALIAS_CODE_PREFIX + "RESERVED";
+        insertAlias(aliasCode, product.getId(), 3);
+        UUID reservationToken = UUID.fromString("00000000-0000-0000-0000-000000009843");
+
+        Map<String, UUID> resolved = service.resolve(List.of(aliasCode), reservationToken);
+
+        assertThat(resolved).containsEntry(aliasCode, product.getId());
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(1) FROM ecount_alias_reservations
+                 WHERE reservation_token = ? AND product_id = ? AND expires_at > NOW()
+                """, Integer.class, reservationToken, product.getId())).isEqualTo(1);
+
+        jdbcTemplate.update("DELETE FROM ecount_alias_reservations WHERE reservation_token = ?", reservationToken);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) FROM ecount_alias_reservations WHERE reservation_token = ?",
+                Integer.class, reservationToken)).isZero();
+    }
+
     private Product createProduct(String suffix) {
         Category category = categoryRepository.findAll().stream().findFirst().orElseThrow();
         Product product = Product.seedFromSheet(
