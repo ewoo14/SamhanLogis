@@ -11,6 +11,7 @@ const {
   RELEASE_PACKAGE_VERSION_ENV,
   createReleaseBuildEnvironment,
   createElectronBuilderVersionArgs,
+  createNsisDisplayVersionInclude,
   resolveBuildAppVersion,
 } = require('./app-build-version.cjs')
 
@@ -162,6 +163,19 @@ test('두 Electron builder 설정에 env 리터럴 버전이 남지 않는다', 
   }
 })
 
+test('NSIS 사용자 표시 버전 include는 내부 semver 대신 날짜 표기를 VERSION에 주입한다', () => {
+  assert.equal(
+    createNsisDisplayVersionInclude('2026/07/31-1'),
+    [
+      '!ifdef VERSION',
+      '!undef VERSION',
+      '!endif',
+      '!define VERSION "2026/07/31-1"',
+      '',
+    ].join('\n'),
+  )
+})
+
 // 이 guard 잡은 데스크톱 node_modules를 설치하지 않는다. app-builder-lib의 private 파일을
 // require하는 대신, 두 실제 wrapper를 로드해 builder CLI 경계의 인자를 검증한다.
 function captureReleaseBuilderInvocation(relativeScript, appVersion) {
@@ -242,6 +256,9 @@ test('두 릴리스 wrapper가 실제 package semver를 builder CLI transformer 
     const calls = captureReleaseBuilderInvocation(relativeScript, release.appVersion)
     const builderCall = calls.find(({ args }) => args.includes(builderArgs[0]))
     assert.ok(builderCall, `${relativeProject} release wrapper의 builder 호출이 없습니다.`)
+    const nsisIncludeArg = builderCall.args.find((arg) =>
+      arg.startsWith('--config.nsis.include='))
+    assert.ok(nsisIncludeArg, `${relativeProject} release wrapper의 NSIS 표시 버전 include가 없습니다.`)
     assert.equal(
       builderCall.command,
       process.execPath,

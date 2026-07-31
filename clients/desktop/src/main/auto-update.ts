@@ -38,7 +38,7 @@ function broadcast(status: AutoUpdateStatus): void {
 /** electron-updater의 내부 package semver를 사용자용 날짜 버전으로 되돌린다. */
 function displayVersionFromUpdateInfo(version: string): string {
   const match = RELEASE_PACKAGE_VERSION_PATTERN.exec(version)
-  if (!match) return version
+  if (!match) return '새 버전'
   return `${match[1]}/${match[2]}/${match[3]}-${match[4]}`
 }
 

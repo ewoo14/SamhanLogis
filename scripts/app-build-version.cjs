@@ -90,6 +90,24 @@ function createElectronBuilderVersionArgs(packageVersion) {
   return [`--config.extraMetadata.version=${normalized}`]
 }
 
+/**
+ * electron-builder NSIS가 내부 package semver를 VERSION 매크로로 사용하므로,
+ * 설치 마법사 문구와 Windows DisplayVersion에만 사용자용 표기를 덮어쓴다.
+ * include는 electron-builder가 common.nsh보다 먼저 삽입하므로 common.nsh의
+ * BrandingText와 installer.nsh의 DisplayVersion이 모두 같은 날짜 표기를 사용한다.
+ */
+function createNsisDisplayVersionInclude(appVersion) {
+  const normalized = String(appVersion ?? '').trim()
+  validateDevelopmentVersion(normalized, 'VITE_APP_VERSION')
+  return [
+    '!ifdef VERSION',
+    '!undef VERSION',
+    '!endif',
+    `!define VERSION "${normalized}"`,
+    '',
+  ].join('\n')
+}
+
 function isReleaseBuild(env) {
   const buildEnv = String(env.BUILD_ENV ?? '').trim().toLowerCase()
   return /^(1|true|yes)$/i.test(String(env[RELEASE_BUILD_ENV] ?? '').trim())
@@ -121,6 +139,7 @@ module.exports = {
   RELEASE_PACKAGE_VERSION_ENV,
   createReleaseBuildEnvironment,
   createElectronBuilderVersionArgs,
+  createNsisDisplayVersionInclude,
   resolveReleasePackageVersion,
   resolveBuildAppVersion,
   validateDevelopmentVersion,

@@ -92,6 +92,13 @@ describe('Electron 자동 업데이트 IPC', () => {
     expect(mocks.autoUpdater.quitAndInstall).toHaveBeenCalledWith(true, true)
   })
 
+  it('알 수 없는 updater 버전은 내부 semver를 renderer에 그대로 전달하지 않는다', async () => {
+    await mocks.events.get('update-available')?.({ version: '1.0.0' })
+
+    const lastStatus = mocks.window.webContents.send.mock.calls.at(-1)?.[1]
+    expect(lastStatus).toEqual({ kind: 'available', version: '새 버전' })
+  })
+
   it('비패키징 앱의 install IPC도 조용히 끝내지 않고 종료 상태를 renderer에 알린다', async () => {
     mocks.runtime.isPackaged = false
 
