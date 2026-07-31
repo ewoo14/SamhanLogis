@@ -25,6 +25,7 @@ import com.samhanair.logis.accounting.domain.PurchaseAccountingSlip;
 import com.samhanair.logis.accounting.domain.PurchaseAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.PurchaseSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlip;
+import com.samhanair.logis.accounting.domain.SalesAccountingSlipAllocation;
 import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
@@ -554,6 +555,52 @@ class DailyClosingDetailServiceTest {
         assertThat(line.verified()).isTrue();
         assertThat(line.revalidationStatus()).isEqualTo("VERIFIED");
         assertThat(resp.totalDiscount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("B-04 혼합 전표 — 두 번째 allocation 축의 가격은 두 번째 상품을 사용한다")
+    void mixedSalesSlipAllocationUsesEachAxisProductPrice() {
+        UUID firstProduct = UUID.randomUUID();
+        UUID secondProduct = UUID.randomUUID();
+        SalesAccountingSlip slip = SalesAccountingSlip.createDraft(
+                "SAS-B04-MIXED", DATE, UUID.randomUUID(), "P-SALES", "혼합거래처",
+                SalesTaxType.TAXABLE, "B-04");
+        SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
+                slip, 1, "AR80F07D21WS", "첫 번째 상품", null, null,
+                new BigDecimal("2"), new BigDecimal("300"), new BigDecimal("300"),
+                new BigDecimal("30"), new BigDecimal("330"));
+        line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
+                UUID.randomUUID(), "OUT-FIRST", UUID.randomUUID(), 1,
+                BigDecimal.ONE, new BigDecimal("110"), "AR80F07D21WS", "singleSets"));
+        line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
+                UUID.randomUUID(), "OUT-SECOND", UUID.randomUUID(), 1,
+                BigDecimal.ONE, new BigDecimal("220"), "AM480AXVHJH1SY", "commercialMulti"));
+        setField(slip, "lines", new ArrayList<>(List.of(line)));
+        setField(slip, "status", SalesSlipStatus.POSTED);
+        when(salesAccountingSlipRepository.findBySlipDateAndStatusWithLines(
+                DATE, SalesSlipStatus.POSTED)).thenReturn(List.of(slip));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "첫 번째 상품", ProductLabelMatch.matched(firstProduct, "AR80F07D21WS")));
+        when(productClient.lookupByModel("AR80F07D21WS"))
+                .thenReturn(productSummary(firstProduct, "singleSets"));
+        when(productClient.lookupByModel("AM480AXVHJH1SY"))
+                .thenReturn(productSummary(secondProduct, "commercialMulti"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                firstProduct, new ApplicablePrice(new BigDecimal("1000"), new BigDecimal("800"), DATE),
+                secondProduct, new ApplicablePrice(new BigDecimal("3000"), new BigDecimal("2500"), DATE)));
+        when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of(
+                firstProduct, new BigDecimal("45"), secondProduct, new BigDecimal("45")));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(
+                DATE, com.samhanair.logis.accounting.domain.DailyClosingKind.SALES,
+                com.samhanair.logis.accounting.domain.DailyClosingSourceKind.SALES_SLIP);
+
+        assertThat(response.productSummaries())
+                .filteredOn(lineView -> "commercialMulti".equals(lineView.categoryKey()))
+                .singleElement()
+                .extracting(DailyClosingDetailResponse.DailyProductLine::releasePrice,
+                        DailyClosingDetailResponse.DailyProductLine::deliveryPrice)
+                .containsExactly(new BigDecimal("3000"), new BigDecimal("2500"));
     }
 
     @Test

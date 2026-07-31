@@ -14,6 +14,7 @@ import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
+import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
 import com.samhanair.logis.accounting.domain.TaxInvoiceStatus;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
@@ -133,6 +134,50 @@ class TaxInvoiceBatchFromSalesSlipsServiceTest {
                         new BigDecimal("100000.00"),
                         new BigDecimal("200000.00"),
                         new BigDecimal("300000.00"));
+    }
+
+    @Test
+    void B08_혼합_매출전표_묶음발행은_known_축과_공급가를_분리한다() {
+        UUID partnerId = UUID.randomUUID();
+        UUID firstSlipId = UUID.randomUUID();
+        UUID secondSlipId = UUID.randomUUID();
+        SalesAccountingSlip slip = SalesAccountingSlip.createDraft(
+                "SAS-B08-MIXED", LocalDate.of(2026, 5, 1), partnerId,
+                "P-001", "한국공조", SalesTaxType.TAXABLE, "B-08");
+        SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
+                slip, 1, "AR80F07D21WS", "첫 번째 상품", null, null,
+                new BigDecimal("2"), new BigDecimal("300"), new BigDecimal("300"),
+                new BigDecimal("30"), new BigDecimal("330"));
+        line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
+                firstSlipId, "OUT-FIRST", UUID.randomUUID(), 1, BigDecimal.ONE,
+                new BigDecimal("110"), "AR80F07D21WS", "singleSets"));
+        line.getAllocations().add(SalesAccountingSlipAllocation.create(line,
+                secondSlipId, "OUT-SECOND", UUID.randomUUID(), 1, BigDecimal.ONE,
+                new BigDecimal("220"), "AM480AXVHJH1SY", "commercialMulti"));
+        slip.getLines().add(line);
+        slip.recalcTotals();
+        slip.post("actor-1");
+        List<UUID> ids = List.of(UUID.randomUUID());
+        when(salesSlipRepository.findAllByIdsForBatch(ids)).thenReturn(List.of(slip));
+        when(taxInvoiceNumberService.next(LocalDate.of(2026, 5, 19))).thenReturn("TI-B08");
+        when(partnerLookupClient.findByPartnerCodeResult("P-001"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(
+                        new PartnerSummary(partnerId, "P-001", "한국공조", "123-45-67890", null)));
+        when(taxInvoiceRepository.save(any(TaxInvoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createFromSalesSlips(
+                new CreateTaxInvoiceFromSalesSlipsRequest(ids, "2026-05-19"), "actor-1");
+
+        ArgumentCaptor<TaxInvoice> captor = ArgumentCaptor.forClass(TaxInvoice.class);
+        verify(taxInvoiceRepository).save(captor.capture());
+        TaxInvoice invoice = captor.getValue();
+        assertThat(invoice.getLines()).hasSize(2);
+        assertThat(invoice.getLines()).extracting(TaxInvoiceLine::getCategoryKey)
+                .containsExactly("singleSets", "commercialMulti");
+        assertThat(invoice.getLines()).extracting(TaxInvoiceLine::getSupplyAmount)
+                .containsExactly(new BigDecimal("100.00"), new BigDecimal("200.00"));
+        assertThat(invoice.getLines()).extracting(TaxInvoiceLine::getModelName)
+                .containsExactly("AR80F07D21WS", "AM480AXVHJH1SY");
     }
 
     @Test
