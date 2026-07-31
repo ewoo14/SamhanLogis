@@ -59,6 +59,7 @@ public class Mig8OrderTransformService {
         EcountMig8TransformResult.Builder result = EcountMig8TransformResult.builder(rows.size());
         String actor = normalizeActor(actorUserId);
         Map<String, List<ValidatedRow>> groups = validateAndGroup(rows, result);
+        boolean transformed = false;
         try {
             // resolver 응답 이후 sheet sync 가 Product 를 soft-delete할 수 있으므로,
             // line upsert 직전에 같은 alias 집합을 다시 해소한다. ProductAliasClient 는
@@ -81,9 +82,13 @@ public class Mig8OrderTransformService {
             }
             EcountMig8TransformResult built = result.build();
             EcountMigMetricsSupport.recordTransformResult(metricsRecorder, "mig-8", built);
+            productAliasClient.releaseReservationsAfterTransactionCompletion();
+            transformed = true;
             return built;
         } finally {
-            productAliasClient.releaseReservations();
+            if (!transformed) {
+                productAliasClient.releaseReservations();
+            }
         }
     }
 

@@ -27,6 +27,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import org.springframework.web.client.RestClient;
 
 /** MIG-8 product-service alias lookup 내부 인증/배치 회귀 가드. */
@@ -149,5 +152,50 @@ class ProductAliasClientTest {
                 .containsEntry("품목-1", first)
                 .containsEntry("품목-201", last);
         server.verify();
+    }
+
+    @Test
+    void reservation_release는_트랜잭션_commit_후에_실행된다() {
+        server.expect(requestTo(ENDPOINT))
+                .andRespond(withSuccess("{\"data\":{\"resolved\":{\"테스트품목\":\"00000000-0000-0000-0000-000000000001\"}}}",
+                        MediaType.APPLICATION_JSON));
+        String releaseEndpoint =
+                "http://product-service/products/internal/release-ecount-alias-reservations";
+        server.expect(requestTo(releaseEndpoint))
+                .andRespond(withSuccess());
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            client.resolveAliases(List.of("테스트품목"));
+            client.releaseReservationsAfterTransactionCompletion();
+
+            assertThatThrownBy(server::verify)
+                    .isInstanceOf(AssertionError.class);
+            TransactionSynchronizationUtils.triggerAfterCommit();
+            server.verify();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    @Test
+    void reservation_release는_rollback이면_즉시_실행된다() {
+        server.expect(requestTo(ENDPOINT))
+                .andRespond(withSuccess("{\"data\":{\"resolved\":{\"테스트품목\":\"00000000-0000-0000-0000-000000000001\"}}}",
+                        MediaType.APPLICATION_JSON));
+        String releaseEndpoint =
+                "http://product-service/products/internal/release-ecount-alias-reservations";
+        server.expect(requestTo(releaseEndpoint)).andRespond(withSuccess());
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            client.resolveAliases(List.of("테스트품목"));
+            client.releaseReservationsAfterTransactionCompletion();
+            TransactionSynchronizationUtils.triggerAfterCompletion(
+                    TransactionSynchronization.STATUS_ROLLED_BACK);
+            server.verify();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

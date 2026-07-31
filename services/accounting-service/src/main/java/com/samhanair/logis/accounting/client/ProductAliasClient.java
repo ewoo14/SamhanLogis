@@ -19,6 +19,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Component
 public class ProductAliasClient {
@@ -118,6 +120,41 @@ public class ProductAliasClient {
                         token, ex.getMessage());
             }
         }
+    }
+
+    /**
+     * MIG-8 성공 변환의 reservation 을 accounting 트랜잭션 종료 뒤 해제한다.
+     * <p>commit 전에 해제하면 resolver 가 반환한 품목이 line commit 전에 삭제될 수 있으므로,
+     * 정상 경로는 afterCommit 에서만 release 한다. rollback/트랜잭션 부재는 확정된 line 이
+     * 없으므로 즉시 release 한다.
+     */
+    public void releaseReservationsAfterTransactionCompletion() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            releaseReservations();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            private boolean released;
+
+            @Override
+            public void afterCommit() {
+                releaseOnce();
+            }
+
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    releaseOnce();
+                }
+            }
+
+            private void releaseOnce() {
+                if (!released) {
+                    released = true;
+                    releaseReservations();
+                }
+            }
+        });
     }
 
     private Map<String, UUID> parseResolved(String body) throws java.io.IOException {
