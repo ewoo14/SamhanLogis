@@ -190,6 +190,33 @@ public class TaxInvoiceLine extends BaseEntity {
         return line;
     }
 
+    /** 혼합 매출전표의 한 배분 축만 세금계산서 라인으로 복사한다. */
+    public static TaxInvoiceLine createFromSalesAccountingSlipAllocation(
+            TaxInvoice taxInvoice, int lineNo, SalesAccountingSlipLine sourceLine,
+            SalesAccountingSlipAllocation allocation) {
+        if (sourceLine == null || allocation == null) {
+            throw new IllegalArgumentException("sourceLine과 allocation은 필수입니다");
+        }
+        String itemName = sourceLine.getProductName();
+        if (itemName == null || itemName.isBlank()) {
+            itemName = sourceLine.getProductCode();
+        }
+        if (itemName == null || itemName.isBlank()) {
+            itemName = "매출전표 품목";
+        }
+        BigDecimal lineTotal = sourceLine.getLineTotal();
+        BigDecimal ratio = lineTotal == null || lineTotal.signum() == 0
+                ? BigDecimal.ZERO
+                : allocation.getAllocatedAmount().divide(lineTotal, 12, RoundingMode.HALF_UP);
+        TaxInvoiceLine line = createWithAmounts(taxInvoice, lineNo, itemName,
+                sourceLine.getProductCode(), null, allocation.getAllocatedQty(), sourceLine.getUnitPrice(),
+                sourceLine.getSupplyAmount().multiply(ratio),
+                sourceLine.getVatAmount().multiply(ratio), null);
+        line.modelName = allocation.getModelName();
+        line.categoryKey = allocation.getCategoryKey();
+        return line;
+    }
+
     /** 매입전표 라인 → 수신 세금계산서 라인 스냅샷 변환. */
     public static TaxInvoiceLine createFromPurchaseAccountingSlipLine(
             TaxInvoice taxInvoice, int lineNo, PurchaseAccountingSlipLine sourceLine) {

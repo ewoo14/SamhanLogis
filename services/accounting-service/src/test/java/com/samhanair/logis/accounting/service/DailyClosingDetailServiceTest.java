@@ -230,6 +230,32 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("B-03 exact snapshot 모델이 있으면 품명 다의성보다 exact 모델 축을 우선한다")
+    void dailyDetailExactModelSnapshotWinsOverAmbiguousLabel() {
+        UUID matched = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-B03", "거래처", DATE);
+        addLineWithAxis(ti, "무풍 4way 냉난방 1등급", "AC060CS4FBH2SY", "singleSets",
+                BigDecimal.ONE, new BigDecimal("1800000"));
+        recalcSnapshot(ti);
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "무풍 4way 냉난방 1등급", ProductLabelMatch.ambiguous()));
+        when(productClient.lookupByModel("AC060CS4FBH2SY"))
+                .thenReturn(productSummary(matched, "singleSets"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                matched, new ApplicablePrice(new BigDecimal("3121800"), new BigDecimal("1840000"), DATE)));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(DATE);
+
+        DailyClosingDetailResponse.DailyProductLine line = findProductLine(
+                response, "무풍 4way 냉난방 1등급");
+        assertThat(line.revalidationStatus()).isNotEqualTo("AMBIGUOUS");
+        assertThat(line.releasePrice()).isEqualByComparingTo("3121800");
+        assertThat(line.deliveryPrice()).isEqualByComparingTo("1840000");
+    }
+
+    @Test
     @DisplayName("할인 적용 — totalDiscount 0 (placeholder)")
     void discountPlaceholder() {
         TaxInvoice ti = newIssued("TI-DC", "할인거래처", DATE);

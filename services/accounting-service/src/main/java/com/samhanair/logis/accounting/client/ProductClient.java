@@ -133,6 +133,41 @@ public class ProductClient {
         return summaries;
     }
 
+    /** 제품 snapshot의 정확한 모델명으로 제품을 해소한다. */
+    @SuppressWarnings("unchecked")
+    public ProductSummary lookupByModel(String modelName) {
+        if (modelName == null || modelName.isBlank()) {
+            return null;
+        }
+        try {
+            Map<String, Object> envelope = restClient.post()
+                    .uri("/products/internal/lookup-by-model")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("modelName", modelName.trim()))
+                    .retrieve()
+                    .onStatus(status -> status.value() == 404, (req, res) -> {
+                        throw new ModelNotFoundException();
+                    })
+                    .onStatus(HttpStatusCode::isError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 모델명 조회 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+            Object data = envelope == null ? null : envelope.get("data");
+            return data == null ? null : objectMapper.convertValue(data, ProductSummary.class);
+        } catch (ModelNotFoundException ex) {
+            return null;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 모델명 조회 실패", ex);
+        }
+    }
+
+    private static final class ModelNotFoundException extends RuntimeException {}
+
     /**
      * product-service 에 저장된 카테고리별 "인상 전 단가" 기본값을 조회한다.
      *

@@ -403,7 +403,9 @@ public class MonthEndCloseService {
                                                           boolean preservePurchasePriceLookup) {
         List<String> labels = byModel.keySet().stream().map(AxisKey::label).distinct().toList();
         Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(labels);
-        List<UUID> matchedProductIds = labelMatches.values().stream()
+        Map<String, ProductLabelMatch> modelMatches = resolveProductModels(byModel.keySet());
+        List<UUID> matchedProductIds = byModel.keySet().stream()
+                .map(axis -> effectiveProductMatch(axis, labelMatches, modelMatches))
                 .filter(ProductLabelMatch::isMatched)
                 .map(ProductLabelMatch::productId)
                 .filter(java.util.Objects::nonNull)
@@ -423,14 +425,13 @@ public class MonthEndCloseService {
                                 LinkedHashMap::new))
                 : Map.of();
         Map<PriceLookupKey, ApplicablePrice> pricesByAxis = loadApplicablePrices(
-                byModel.keySet(), labelMatches, asOf, defaultVariants, legacyPriceAxes);
+                byModel.keySet(), labelMatches, modelMatches, asOf, defaultVariants, legacyPriceAxes);
         Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
         for (Map.Entry<AxisKey, ModelAccumulator> e : byModel.entrySet()) {
             AxisKey axisKey = e.getKey();
-            ProductLabelMatch labelMatch = labelMatches.getOrDefault(axisKey.label(),
-                    ProductLabelMatch.notFound());
+            ProductLabelMatch labelMatch = effectiveProductMatch(axisKey, labelMatches, modelMatches);
             UUID productId = labelMatch.productId();
             GasCategoryAxis priceAxis = axisKey.axis().isKnown()
                     ? axisKey.axis()
@@ -496,6 +497,31 @@ public class MonthEndCloseService {
         return matches;
     }
 
+    /** exact snapshot 모델이 있으면 품명 LIKE 결과보다 우선한다. */
+    private Map<String, ProductLabelMatch> resolveProductModels(java.util.Set<AxisKey> axes) {
+        Map<String, ProductLabelMatch> result = new LinkedHashMap<>();
+        axes.stream().map(AxisKey::modelToken).filter(java.util.Objects::nonNull).distinct()
+                .forEach(model -> {
+                    ProductSummary summary = productClient.lookupByModel(model);
+                    result.put(model, summary == null
+                            ? ProductLabelMatch.notFound()
+                            : ProductLabelMatch.matched(summary.id(), summary.modelName()));
+                });
+        return result;
+    }
+
+    private static ProductLabelMatch effectiveProductMatch(
+            AxisKey axis, Map<String, ProductLabelMatch> labelMatches,
+            Map<String, ProductLabelMatch> modelMatches) {
+        ProductLabelMatch byLabel = labelMatches.getOrDefault(axis.label(),
+                ProductLabelMatch.notFound());
+        if (axis.modelToken() == null) {
+            return byLabel;
+        }
+        ProductLabelMatch byModel = modelMatches.get(axis.modelToken());
+        return byModel != null && byModel.isMatched() ? byModel : byLabel;
+    }
+
     /** {@link ProductClient#LABEL_BATCH_MAX} 단위로 라벨 목록을 청크로 분할한다. */
     private static List<List<String>> labelChunks(List<String> labels) {
         List<List<String>> chunks = new ArrayList<>();
@@ -524,6 +550,7 @@ public class MonthEndCloseService {
     private Map<PriceLookupKey, ApplicablePrice> loadApplicablePrices(
             java.util.Set<AxisKey> axes,
             Map<String, ProductLabelMatch> labelMatches,
+            Map<String, ProductLabelMatch> modelMatches,
             LocalDate asOf,
             Map<String, Boolean> defaultVariants,
             Map<UUID, GasCategoryAxis> legacyPriceAxes) {
@@ -533,7 +560,7 @@ public class MonthEndCloseService {
         Map<LocalDate, LinkedHashSet<UUID>> idsByPriceDate = new LinkedHashMap<>();
         Map<PriceLookupKey, Boolean> requested = new LinkedHashMap<>();
         for (AxisKey axis : axes) {
-            ProductLabelMatch match = labelMatches.get(axis.label());
+            ProductLabelMatch match = effectiveProductMatch(axis, labelMatches, modelMatches);
             if (match == null || !match.isMatched()) {
                 continue;
             }
