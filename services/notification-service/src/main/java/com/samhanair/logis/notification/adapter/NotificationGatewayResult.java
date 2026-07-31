@@ -26,4 +26,9 @@ public record NotificationGatewayResult(
     public static NotificationGatewayResult failure(String gatewayStatus, String rawResponse) {
         return new NotificationGatewayResult(false, gatewayStatus, null, rawResponse, false);
     }
+
+    /** 외부 게이트웨이를 호출하지 않은 비전송 결과. 성공/SENT로 해석하지 않는다. */
+    public static NotificationGatewayResult notSent(String gatewayStatus, String rawResponse) {
+        return failure(gatewayStatus, rawResponse);
+    }
 }

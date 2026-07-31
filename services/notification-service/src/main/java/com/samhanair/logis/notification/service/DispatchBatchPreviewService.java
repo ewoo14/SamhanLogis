@@ -72,9 +72,11 @@ public class DispatchBatchPreviewService {
 
         for (OutboundSlipDto slip : slips) {
             String partnerCode = slip.partnerCode();
+            String message = messageTemplateService.renderDispatchMessage(slip);
             if (partnerCode == null || partnerCode.isBlank()) {
                 // partner_code 누락 → unmapped 누적 (slip-service 가 partner_code 없는 row 를 반환할 수 있는 회복성)
-                unmapped.add(new UnmappedPartner(null, slip.partnerName(), slip.slipNo()));
+                unmapped.add(new UnmappedPartner(
+                        null, slip.partnerName(), slip.slipNo(), message, slip.recipientPhone()));
                 unmappedCount++;
                 continue;
             }
@@ -84,12 +86,12 @@ public class DispatchBatchPreviewService {
                 mappings = chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot(slip.partnerName());
             }
             if (mappings.isEmpty()) {
-                unmapped.add(new UnmappedPartner(partnerCode, slip.partnerName(), slip.slipNo()));
+                unmapped.add(new UnmappedPartner(
+                        partnerCode, slip.partnerName(), slip.slipNo(), message, slip.recipientPhone()));
                 unmappedCount++;
                 continue;
             }
             boolean blocked = blockedPartnerLookupClient.isBlocked(partnerCode);
-            String message = messageTemplateService.renderDispatchMessage(slip);
             mappedCount++;
             for (PartnerChatRoomMapping mapping : mappings) {
                 grouped.computeIfAbsent(mapping.getChatRoomName(), k -> new ArrayList<>())

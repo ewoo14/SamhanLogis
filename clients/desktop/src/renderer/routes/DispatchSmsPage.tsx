@@ -71,16 +71,15 @@ function buildSendEntries(
   edited: EditedMessages,
 ): DispatchSmsSendEntry[] {
   const entries: DispatchSmsSendEntry[] = []
-  for (const room of preview.chatRooms) {
-    for (const p of room.partners) {
-      if (p.blocked) continue
-      entries.push({
-        partnerCode: p.partnerCode,
-        recipientPhone: `room:${room.chatRoomName}`,
-        message: edited[p.partnerCode] ?? p.message,
-        chatRoomName: room.chatRoomName,
-      })
-    }
+  // 단톡방 직접 전송 API가 없으므로 매핑된 room은 수동 전달 경로로 남긴다.
+  // 매핑이 없는 건만 인수자 전화번호 SMS fallback으로 보낸다.
+  for (const p of preview.unmapped) {
+    if (!p.recipientPhone) continue
+    entries.push({
+      partnerCode: p.partnerCode,
+      recipientPhone: p.recipientPhone,
+      message: edited[p.partnerCode] ?? p.message,
+    })
   }
   return entries
 }
