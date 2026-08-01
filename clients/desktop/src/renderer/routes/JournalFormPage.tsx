@@ -46,6 +46,11 @@ import { PartnerLookupErrorBanner } from '../components/common/PartnerLookupErro
 import { useIsMobile } from '../hooks/useIsMobile'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { buildRiskyPartnerLinesWarning, findRiskyPartnerLines } from './JournalFormPage.model'
+import {
+  appendBlankRowIfLastChanged,
+  filterMeaningfulRows,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
 
 /** 라인 번호 안정성을 위한 row uid (React key — index 사용 시 사라지면 input remount). */
 let __lineUidCounter = 0
@@ -343,6 +348,8 @@ export function JournalFormPage() {
   }, [lines])
 
   const totals = useMemo(() => {
+    // 빈행은 debit=credit=0 이므로 합계에 영향을 주지 않는다. 계정 없는 금액행은 기존
+    // 검증(최소 의미행)까지 도달시켜 사용자에게 정확한 오류를 보여주는 계약을 유지한다.
     const debit = lines.reduce((sum, l) => sum + l.debit, 0)
     const credit = lines.reduce((sum, l) => sum + l.credit, 0)
     return { debit, credit, diff: debit - credit }
@@ -350,17 +357,27 @@ export function JournalFormPage() {
 
   const isBalanced = totals.diff === 0 && totals.debit > 0
 
-  const updateLine = (index: number, patch: Partial<JournalLineDraft>) => {
+  const updateLine = (index: number, patch: Partial<JournalLineDraft>, fromUser = false) => {
     setLines((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, ...patch } : l)),
+      fromUser && prev[index]
+        ? appendBlankRowIfLastChanged(
+          prev,
+          prev[index],
+          { ...prev[index], ...patch },
+          (line) => line.uid,
+          emptyLine,
+          (a, b) => a.accountCode === b.accountCode && a.debit === b.debit && a.credit === b.credit
+            && a.partnerId === b.partnerId && a.partnerName === b.partnerName && a.note === b.note,
+        )
+        : prev.map((l, i) => (i === index ? { ...l, ...patch } : l)),
     )
   }
   const removeLine = (index: number) => {
     setLines((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      // 최소 2 라인 보장
-      while (next.length < 2) next.push(emptyLine())
-      return next
+      const target = prev[index]
+      return target
+        ? removeLinePreservingMinimum(prev, target.uid, (line) => line.uid, emptyLine, 2)
+        : prev
     })
   }
   const addLine = () => setLines((prev) => [...prev, emptyLine()])
@@ -384,8 +401,9 @@ export function JournalFormPage() {
       setTopError('일자를 입력하세요.')
       return
     }
-    const meaningfulLines = lines.filter(
-      (l) => l.accountCode && (l.debit > 0 || l.credit > 0),
+    const meaningfulLines = filterMeaningfulRows(
+      lines,
+      (l) => Boolean(l.accountCode) && (l.debit > 0 || l.credit > 0),
     )
     if (meaningfulLines.length < 2) {
       setTopError('최소 2 라인 (계정 + 금액) 을 입력하세요.')
@@ -506,7 +524,7 @@ export function JournalFormPage() {
                 index={i + 1}
                 line={line}
                 accounts={accounts}
-                onChange={(patch) => updateLine(i, patch)}
+                onChange={(patch) => updateLine(i, patch, true)}
                 onRemove={() => removeLine(i)}
               />
             ))}
@@ -543,13 +561,13 @@ export function JournalFormPage() {
                   index={i + 1}
                   line={line}
                   accounts={accounts}
-                  onChange={(patch) => updateLine(i, patch)}
+                  onChange={(patch) => updateLine(i, patch, true)}
                   onRemove={() => removeLine(i)}
                   renderPartnerField={() => (
                     <JournalPartnerPicker
                       index={i + 1}
                       line={line}
-                      onChange={(patch) => updateLine(i, patch)}
+                    onChange={(patch) => updateLine(i, patch, true)}
                     />
                   )}
                 />
