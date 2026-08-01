@@ -32,10 +32,7 @@ public record SlipSearchResult(
      * @return UUID 없는 전표 검색 응답
      */
     public static SlipSearchResult from(Slip slip) {
-        BigDecimal totalAmount = slip.getLines().stream()
-                .map(SlipLine::getLineTotal)
-                .filter(amount -> amount != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = SlipDisplayAmount.vatInclusiveTotal(slip.getLines());
         return new SlipSearchResult(
                 slip.getSlipNo(),
                 slip.getSlipType(),

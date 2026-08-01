@@ -131,10 +131,7 @@ public record SlipResponse(
         DeliveryTag tag = slip.getDeliveryTag();
         List<SlipLine> lines = slip.getLines();
 
-        BigDecimal totalAmount = lines.stream()
-                .map(SlipLine::getLineTotal)
-                .filter(t -> t != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalAmount = SlipDisplayAmount.vatInclusiveTotal(lines);
 
         int totalQuantity = lines.stream()
                 .mapToInt(SlipLine::getQuantity)

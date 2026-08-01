@@ -63,13 +63,6 @@ public record SlipSummary(
     }
 
     private static BigDecimal totalWithVat(SlipLine line) {
-        if (line.getSupplyAmount() != null && line.getVatAmount() != null) {
-            return line.getSupplyAmount().add(line.getVatAmount());
-        }
-        if (line.getUnitPriceWithVat() != null) {
-            return line.getUnitPriceWithVat().multiply(BigDecimal.valueOf(line.getQuantity()));
-        }
-        BigDecimal vat = line.getVatAmount() == null ? BigDecimal.ZERO : line.getVatAmount();
-        return line.getLineTotal().add(vat);
+        return SlipDisplayAmount.vatInclusive(line);
     }
 }
