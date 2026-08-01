@@ -1,5 +1,6 @@
 package com.samhanair.logis.slip.web.dto;
 
+import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ import java.util.List;
  * @param partnerName 거래처명 snapshot
  * @param slipDate 출고일
  * @param scheduledAt 배차 예정 시각, 현재 미지원
+ * @param deliveryTag 배송 태그 (REGION/STACK 등, 미지정 시 null)
  * @param deliveryAddress 배송지 주소
  * @param lines 품목명·수량 목록
  * @param recipientPhone 인수자 전화번호
@@ -28,6 +30,7 @@ public record OutboundSlipResponse(
         String partnerName,
         LocalDate slipDate,
         LocalDateTime scheduledAt,
+        DeliveryTag deliveryTag,
         String deliveryAddress,
         List<Line> lines,
         String recipientPhone) {
@@ -40,6 +43,7 @@ public record OutboundSlipResponse(
                 slip.getPartnerName(),
                 slip.getSlipDate(),
                 null,
+                slip.getDeliveryTag(),
                 slip.getDeliveryAddress(),
                 slip.getLines().stream().map(Line::from).toList(),
                 slip.getRecipientPhone());
