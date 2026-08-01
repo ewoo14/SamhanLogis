@@ -47,6 +47,10 @@ public class StockLot extends BaseEntity {
     @Column(name = "lot_no", length = 50)
     private String lotNo;
 
+    /** 입고전표 라인 식별자 — 같은 전표의 동일 품목 복수 라인을 구분하는 내부 키. */
+    @Column(name = "inbound_line_id")
+    private UUID inboundLineId;
+
     @Column(name = "quantity", nullable = false)
     private int quantity;
 
@@ -66,7 +70,7 @@ public class StockLot extends BaseEntity {
     @Column(name = "source_transfer_id")
     private UUID sourceTransferId;
 
-    private StockLot(UUID productId, Warehouse warehouse, String lotNo,
+    private StockLot(UUID productId, Warehouse warehouse, String lotNo, UUID inboundLineId,
                      int quantity, LocalDateTime receivedAt, BigDecimal unitCost,
                      UUID sourceTransferId) {
         if (quantity <= 0) {
@@ -75,6 +79,7 @@ public class StockLot extends BaseEntity {
         this.productId = productId;
         this.warehouse = warehouse;
         this.lotNo = lotNo;
+        this.inboundLineId = inboundLineId;
         this.quantity = quantity;
         this.initialQuantity = quantity;
         this.receivedAt = receivedAt == null ? LocalDateTime.now() : receivedAt;
@@ -97,7 +102,13 @@ public class StockLot extends BaseEntity {
      */
     public static StockLot create(UUID productId, Warehouse warehouse, String lotNo,
                                   int quantity, LocalDateTime receivedAt, BigDecimal unitCost) {
-        return new StockLot(productId, warehouse, lotNo, quantity, receivedAt, unitCost, null);
+        return create(productId, warehouse, lotNo, null, quantity, receivedAt, unitCost);
+    }
+
+    /** 입고전표 라인 키를 포함한 일반 입고 lot 를 생성한다. */
+    public static StockLot create(UUID productId, Warehouse warehouse, String lotNo, UUID inboundLineId,
+                                  int quantity, LocalDateTime receivedAt, BigDecimal unitCost) {
+        return new StockLot(productId, warehouse, lotNo, inboundLineId, quantity, receivedAt, unitCost, null);
     }
 
     /**
@@ -116,7 +127,7 @@ public class StockLot extends BaseEntity {
     public static StockLot createFromTransfer(UUID productId, Warehouse warehouse, String lotNo,
                                               int quantity, LocalDateTime receivedAt,
                                               BigDecimal unitCost, UUID transferId) {
-        return new StockLot(productId, warehouse, lotNo, quantity, receivedAt, unitCost, transferId);
+        return new StockLot(productId, warehouse, lotNo, null, quantity, receivedAt, unitCost, transferId);
     }
 
     /**

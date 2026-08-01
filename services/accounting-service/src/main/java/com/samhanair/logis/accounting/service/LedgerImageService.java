@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
@@ -8,6 +9,8 @@ import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
+import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse.LedgerLine;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -18,6 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,18 +34,21 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>legacy GAS 3번 "거래처별 원장생성" — 분개 line + 거래처 snapshot + 단톡방 정보.
  *
- * <p>read-only — 외부 client 2종 의존 (PartnerLookupClient, ChatRoomMappingClient) — IT @MockBean
- * 격리 의무.
+ * <p>조회 결과를 거래처원장 snapshot으로 저장하므로 호출 transaction은 쓰기 가능해야 한다.
+ * 외부 client 2종 의존 (PartnerLookupClient, ChatRoomMappingClient) — IT @MockBean 격리 의무.
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class LedgerImageService {
 
     private final JournalLineRepository journalLineRepository;
     private final ChartOfAccountRepository chartOfAccountRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final ChatRoomMappingClient chatRoomMappingClient;
+    private final TaxInvoiceBatchRepository taxInvoiceBatchRepository;
+    private final ObjectMapper objectMapper;
+
+    private static final DateTimeFormatter BATCH_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     /**
      * partnerCode 기반 원장 데이터 조회.
@@ -50,7 +59,15 @@ public class LedgerImageService {
      * @return 거래처 snapshot + 단톡방 매핑 + 원장 라인 (시간순, 누적 잔액 포함)
      * @throws BusinessException(NOT_FOUND) partnerCode 미존재
      */
+    /** 기존 호출부 호환용 거래처별 원장 조회·자동 저장. 작성자 정보가 없는 호출은 null로 저장한다. */
+    @Transactional
     public LedgerImageResponse getLedger(String partnerCode, LocalDate from, LocalDate to) {
+        return getLedger(partnerCode, from, to, null);
+    }
+
+    /** 거래처별 원장 조회·자동 저장 — snapshot 작성자를 보존한다. */
+    @Transactional
+    public LedgerImageResponse getLedger(String partnerCode, LocalDate from, LocalDate to, UUID actor) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new IllegalArgumentException("partnerCode 는 필수입니다");
         }
@@ -98,7 +115,7 @@ public class LedgerImageService {
                     balance));
         }
 
-        return new LedgerImageResponse(
+        LedgerImageResponse result = new LedgerImageResponse(
                 summary.partnerCode(),
                 summary.name(),
                 summary.businessNo(),
@@ -106,5 +123,13 @@ public class LedgerImageService {
                 from,
                 to,
                 ledgerLines);
+        TaxInvoiceBatch batch = TaxInvoiceBatch.createDocumentSnapshot(
+                LedgerSnapshotService.DOCUMENT_TYPE, partnerCode,
+                "LED" + LocalDateTime.now().format(BATCH_TIME),
+                from, to, actor);
+        batch.complete(result.lines().size(), 1, null, null,
+                SnapshotCompression.compress(objectMapper, result));
+        taxInvoiceBatchRepository.save(batch);
+        return result;
     }
 }

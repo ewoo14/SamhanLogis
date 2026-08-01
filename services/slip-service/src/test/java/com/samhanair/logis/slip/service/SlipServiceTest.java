@@ -555,6 +555,35 @@ class SlipServiceTest {
     }
 
     @Test
+    void complete_inbound_returnTag_batchDuplicateLines_passesEachLineToInventory() {
+        Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
+                destWh, partnerId, "삼한", DeliveryTag.RETURN, null, "u");
+        slip.setPartnerCode("P-RETURN-BATCH-MULTI-001");
+        ReflectionTestUtils.setField(slip, "id", slipId);
+        SlipLine first = SlipLine.create(slip, productId, "배관", "PIPE-BATCH", null,
+                2, new BigDecimal("10000.00"), null);
+        SlipLine second = SlipLine.create(slip, productId, "배관", "PIPE-BATCH", null,
+                3, new BigDecimal("10000.00"), null);
+        ReflectionTestUtils.setField(first, "id", UUID.randomUUID());
+        ReflectionTestUtils.setField(second, "id", UUID.randomUUID());
+        slip.addLine(first);
+        slip.addLine(second);
+        forceStatus(slip, SlipStatus.PROCESSING);
+        when(slipRepository.findById(slipId)).thenReturn(Optional.of(slip));
+        when(productClient.requireExists(productId)).thenReturn(
+                new ProductSummary(productId, "배관", "PIPE-BATCH", "PIPE-001", UUID.randomUUID(),
+                        new BigDecimal("10000.00"), "ACTIVE", false));
+
+        service.complete(slipId);
+
+        verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(2),
+                eq("2026/05/04-1"), eq(first.getId()), eq(new BigDecimal("10000.00")));
+        verify(inventoryClient).inbound(eq(productId), eq(destWh), eq(3),
+                eq("2026/05/04-1"), eq(second.getId()), eq(new BigDecimal("10000.00")));
+        System.out.println("C: batch 반품 복수 라인 2+3 = 5 (각 라인 1회)");
+    }
+
+    @Test
     void complete_inbound_returnTag_mixedSerialAndBatch_recallsSerialThenInboundBatch() {
         UUID batchProductId = UUID.randomUUID();
         Slip slip = Slip.createInbound("2026/05/04-1", LocalDate.of(2026, 5, 4), 1,
