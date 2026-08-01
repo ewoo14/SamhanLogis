@@ -23,15 +23,17 @@ class VatOverchargeCorrectionMigrationSqlTest {
         String sql = Files.readString(Files.exists(modulePath) ? modulePath : rootPath);
 
         assertThat(sql).contains("CREATE TEMP TABLE vat_correction_targets");
-        assertThat(sql).contains("IF target_count NOT IN (0, 19) THEN");
-        assertThat(sql).contains("RAISE EXCEPTION 'VAT correction target count must be 19, got %', target_count");
+        assertThat(sql).contains("t.product_name=sl.product_name");
+        assertThat(sql).contains("old_line_total NUMERIC", "CASE WHEN", "THEN 'OLD'", "ELSE 'NEW'");
+        assertThat(sql).contains("(1,'2026/05/31-1'", "6000000,600000,6000000,2727272.50");
+        assertThat(sql).contains("m.state='OLD'");
         assertThat(sql).contains("CREATE TABLE slip_line_correction_audits");
-        assertThat(sql).contains("before_values", "JSONB        NOT NULL");
-        assertThat(sql).contains("after_values", "JSONB        NOT NULL");
-        assertThat(sql).contains("reason", "TEXT         NOT NULL");
+        assertThat(sql).contains("before_values JSONB NOT NULL");
+        assertThat(sql).contains("after_values JSONB NOT NULL");
+        assertThat(sql).contains("reason TEXT NOT NULL");
         assertThat(sql).contains("2026/05/31-1");
         assertThat(sql).contains("2026/07/05-2");
-        assertThat(sql).contains("(19, '2026/07/05-2'");
+        assertThat(sql).contains("(19,'2026/07/05-2'");
         assertThat(sql).doesNotContain("'2026/05/30-1'");
         assertThat(sql).doesNotContain("'2026/05/30-2'");
         assertThat(sql).doesNotContain("'2026/05/30-3'");
