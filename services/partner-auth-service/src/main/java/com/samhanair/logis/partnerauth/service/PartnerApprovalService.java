@@ -61,6 +61,8 @@ public class PartnerApprovalService {
                     pa.approvePending();
                 } else if (pa.getStatus() == PartnerStatus.LOCKED) {
                     pa.unlock();
+                } else if (pa.getStatus() == PartnerStatus.LONG_UNUSED) {
+                    pa.restoreFromLongUnused();
                 }
                 // 그 외 상태에서는 변경 없음 (예: 이미 APPROVED 와 매핑되는 NEED_PW_INPUT/OK)
             }
