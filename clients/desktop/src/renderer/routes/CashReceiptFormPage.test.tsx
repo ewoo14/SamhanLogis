@@ -152,7 +152,7 @@ describe('CashReceiptFormPage', () => {
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: '입금보고서 작성' })).not.toBeNull()
+    expect(await screen.findByRole('heading', { name: '입금보고서 조회' })).not.toBeNull()
     expect(screen.getByLabelText('거래일')).toHaveProperty('value', today)
     expect(screen.getByLabelText('차변 계정')).toHaveProperty('value', '102')
     expect(screen.getByLabelText('대변 계정')).toHaveProperty('value', '110')

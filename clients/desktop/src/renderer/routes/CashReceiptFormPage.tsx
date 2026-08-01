@@ -70,7 +70,7 @@ export function CashReceiptFormPage() {
   const receiptId = params['id']
   const isEdit = Boolean(receiptId)
 
-  usePageTitle(isEdit ? '입금보고서 편집' : '입금보고서 작성')
+  usePageTitle(isEdit ? '입금보고서 편집' : '입금보고서 조회')
 
   const [state, setState] = useState<CashReceiptFormState>(() => cashReceiptInitialFormState())
   const [errors, setErrors] = useState<CashReceiptFormErrors>({})
@@ -327,9 +327,9 @@ export function CashReceiptFormPage() {
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0 }}>{isEdit ? '입금보고서 편집' : '입금보고서 작성'}</h3>
+        <h3 style={{ margin: 0 }}>{isEdit ? '입금보고서 편집' : '입금보고서 조회'}</h3>
         <p style={{ marginTop: 4, fontSize: 13, color: '#6B7280' }}>
-          수기 입금은 DRAFT로 저장되며 확정 시 분개가 자동 게시됩니다.
+          기존 입금보고서를 조회하고 필요한 경우 입금 행을 편집합니다.
         </p>
       </div>
 

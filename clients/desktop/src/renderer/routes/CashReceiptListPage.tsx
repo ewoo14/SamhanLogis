@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Input, Select, type DataTableColumn } from '@samhan/design-system'
 import { FilterChipBar, type FilterChip } from '../components/FilterChipBar'
@@ -79,12 +79,10 @@ function amountStyle(row: CashReceiptRow) {
 }
 
 export function CashReceiptListPage() {
-  const navigate = useNavigate()
   usePageTitle('입금보고서')
 
   const { canAccess } = usePermissions()
   const canView = canAccess(PAGE_CODE, 'view')
-  const canCreate = canAccess(PAGE_CODE, 'create')
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
   const [applied, setApplied] = useState<CashReceiptFilterState>(INITIAL_FILTERS)
@@ -230,16 +228,6 @@ export function CashReceiptListPage() {
         >
           새로고침
         </Button>
-        {canCreate ? (
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => navigate('/accounting/admin/cash-receipts/new')}
-          >
-            신규 작성
-          </Button>
-        ) : null}
       </div>
 
       <div style={filterBarStyle} data-testid="cash-receipt-filters">
