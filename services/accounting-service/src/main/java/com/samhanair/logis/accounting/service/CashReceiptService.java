@@ -278,7 +278,43 @@ public class CashReceiptService {
                 && receipt.getDebitAccountCode().equals(
                         normalizedOrDefault(request.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE))
                 && receipt.getCreditAccountCode().equals(
-                        normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
+                        normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE))
+                && linesUnchanged(receipt, request);
+    }
+
+    /** 헤더가 같아도 분할 행이 달라지면 저장·역분개·재게시 경로를 통과시킨다. */
+    private boolean linesUnchanged(CashReceipt receipt, CashReceiptRequest request) {
+        if (request.lines() == null || request.lines().isEmpty()) {
+            return receipt.getLinesJson() == null || receipt.getLinesJson().isBlank();
+        }
+        if (receipt.getLinesJson() == null || receipt.getLinesJson().isBlank()) {
+            return false;
+        }
+        try {
+            List<PersistedLine> current = objectMapper.readValue(receipt.getLinesJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, PersistedLine.class));
+            if (current.size() != request.lines().size()) {
+                return false;
+            }
+            for (int i = 0; i < request.lines().size(); i++) {
+                CashReceiptLineRequest requested = request.lines().get(i);
+                if (requested == null || requested.amount() == null || requested.amount().signum() <= 0) {
+                    return false;
+                }
+                PartnerSummary partner = resolvePartner(
+                        requested.partnerCode(), requested.bizNo(), requested.partnerName());
+                PersistedLine persisted = current.get(i);
+                if (!Objects.equals(persisted.partnerId(), partner.partnerId())
+                        || persisted.amount() == null
+                        || persisted.amount().compareTo(requested.amount()) != 0
+                        || !Objects.equals(persisted.memo(), requested.memo())) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (JsonProcessingException ex) {
+            return false;
+        }
     }
 
     private static String normalizedOrDefault(String accountCode, String defaultCode) {
