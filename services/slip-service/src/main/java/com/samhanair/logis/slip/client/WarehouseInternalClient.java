@@ -125,6 +125,46 @@ public class WarehouseInternalClient {
     }
 
     /**
+     * 설정된 창고 UUID로 활성 창고 요약을 조회한다.
+     *
+     * <p>404(명백한 미실재)와 일시적인 조회 불가를 구분해 기동 검증 정책이 판단할 수 있게 한다.
+     * UUID는 로그나 예외에 기록하지 않는다.
+     *
+     * @param warehouseId 설정된 창고 UUID
+     * @return 조회 결과 상태와 창고 요약
+     */
+    public WarehouseLookup findWarehouseById(UUID warehouseId) {
+        if (warehouseId == null) {
+            return WarehouseLookup.unavailable();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("WarehouseInternalClient — X-Internal-Token 미설정, 창고 UUID 검증을 수행할 수 없음");
+            return WarehouseLookup.unavailable();
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/inventory/warehouses/{warehouseId}", warehouseId)
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            return parseWarehouseSummary(body)
+                    .map(WarehouseLookup::found)
+                    .orElseGet(WarehouseLookup::unavailable);
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 404) {
+                return WarehouseLookup.notFound();
+            }
+            log.warn("WarehouseInternalClient — 창고 UUID 검증 status={} (비정상 응답)",
+                    ex.getStatusCode().value());
+            return WarehouseLookup.unavailable();
+        } catch (Exception ex) {
+            log.warn("WarehouseInternalClient 창고 UUID 검증 일시 실패");
+            return WarehouseLookup.unavailable();
+        }
+    }
+
+    /**
      * ApiResponse wrapper body 에서 창고명(name) 추출.
      *
      * @param body HTTP response body (JSON 문자열)
@@ -180,5 +220,28 @@ public class WarehouseInternalClient {
 
     /** 내부 창고 조회 응답 중 기동 검증에 필요한 필드만 보유한다. */
     public record WarehouseSummary(UUID warehouseId, String code) {
+    }
+
+    /** 창고 UUID 조회 결과의 기동 검증용 상태. */
+    public record WarehouseLookup(LookupStatus status, WarehouseSummary summary) {
+
+        public static WarehouseLookup found(WarehouseSummary summary) {
+            return new WarehouseLookup(LookupStatus.FOUND, summary);
+        }
+
+        public static WarehouseLookup notFound() {
+            return new WarehouseLookup(LookupStatus.NOT_FOUND, null);
+        }
+
+        public static WarehouseLookup unavailable() {
+            return new WarehouseLookup(LookupStatus.UNAVAILABLE, null);
+        }
+    }
+
+    /** 기동 검증에서 구분해야 하는 창고 조회 상태. */
+    public enum LookupStatus {
+        FOUND,
+        NOT_FOUND,
+        UNAVAILABLE
     }
 }

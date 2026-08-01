@@ -90,11 +90,17 @@ public class WarehouseCodeMapper {
                 throw invalidStartupMapping(warehouseCode, "UUID 설정값이 유효하지 않습니다");
             }
 
-            WarehouseInternalClient.WarehouseSummary actual = warehouseInternalClient
-                    .findWarehouseByCode(warehouseCode)
-                    .orElseThrow(() -> invalidStartupMapping(
-                            warehouseCode, "활성 창고가 존재하지 않거나 조회할 수 없습니다"));
-            if (!configuredId.equals(actual.warehouseId()) || !warehouseCode.equals(actual.code())) {
+            WarehouseInternalClient.WarehouseLookup lookup = warehouseInternalClient.findWarehouseById(configuredId);
+            if (lookup.status() == WarehouseInternalClient.LookupStatus.UNAVAILABLE) {
+                log.warn("창고 매핑 기동 검증을 보류합니다 — 창고 서비스 일시 조회 불가 (창고코드={})",
+                        warehouseCode);
+                continue;
+            }
+            if (lookup.status() == WarehouseInternalClient.LookupStatus.NOT_FOUND
+                    || lookup.summary() == null) {
+                throw invalidStartupMapping(warehouseCode, "설정된 활성 창고가 존재하지 않습니다");
+            }
+            if (!configuredId.equals(lookup.summary().warehouseId())) {
                 throw invalidStartupMapping(warehouseCode, "설정값과 활성 창고 정보가 일치하지 않습니다");
             }
         }

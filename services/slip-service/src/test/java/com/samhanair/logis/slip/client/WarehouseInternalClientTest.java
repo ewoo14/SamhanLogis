@@ -110,6 +110,40 @@ class WarehouseInternalClientTest {
         server.verify();
     }
 
+    @Test
+    void findWarehouseById_200은_UUID_endpoint의_창고요약을_파싱한다() {
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {"success":true,"data":{"warehouseId":"50000000-0000-0000-0000-000000000001","code":"HQ-001","name":"본사창고"}}
+                        """, MediaType.APPLICATION_JSON));
+
+        WarehouseInternalClient.WarehouseLookup lookup = client.findWarehouseById(WAREHOUSE_ID);
+        assertThat(lookup.status()).isEqualTo(WarehouseInternalClient.LookupStatus.FOUND);
+        assertThat(lookup.summary().code()).isEqualTo("HQ-001");
+    }
+
+    @Test
+    void findWarehouseById_404는_명백한_미실재로_구분한다() {
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+
+        assertThat(client.findWarehouseById(WAREHOUSE_ID).status())
+                .isEqualTo(WarehouseInternalClient.LookupStatus.NOT_FOUND);
+        server.verify();
+    }
+
+    @Test
+    void findWarehouseById_5xx는_일시적인_조회_불가로_구분한다() {
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+        assertThat(client.findWarehouseById(WAREHOUSE_ID).status())
+                .isEqualTo(WarehouseInternalClient.LookupStatus.UNAVAILABLE);
+        server.verify();
+    }
+
     private static RestClient.Builder jacksonRestClientBuilder() {
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
