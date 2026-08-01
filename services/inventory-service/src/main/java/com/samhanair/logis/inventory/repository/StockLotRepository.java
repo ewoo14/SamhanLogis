@@ -55,4 +55,8 @@ public interface StockLotRepository extends JpaRepository<StockLot, UUID> {
      */
     Optional<StockLot> findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
             UUID productId, UUID warehouseId, String lotNo);
+
+    /** 입고전표 라인까지 포함한 교차 경로 멱등 가드. */
+    Optional<StockLot> findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+            UUID productId, UUID warehouseId, String lotNo, UUID inboundLineId);
 }

@@ -269,8 +269,8 @@ public class InboundInspectionService {
 
             if (inspection.getSlipNo() != null) {
                 boolean alreadyInbound = stockLotRepository
-                        .findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
-                                productId, warehouse.getId(), inspection.getSlipNo())
+                        .findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+                                productId, warehouse.getId(), inspection.getSlipNo(), line.getSlipLineId())
                         .isPresent();
                 if (alreadyInbound) {
                     // 전표 라이프사이클 경로가 먼저 만든 동일 전표 lot — 검수 경로는 중복 반영하지 않는다.
@@ -281,7 +281,7 @@ public class InboundInspectionService {
             // StockLot 생성
             StockLot lot = stockLotRepository.save(StockLot.create(
                     productId, warehouse,
-                    inspection.getSlipNo(),   // lotNo = slipNo
+                    inspection.getSlipNo(), line.getSlipLineId(),
                     normalQty,
                     LocalDateTime.now(),
                     inboundUnitCost(slipLine)));

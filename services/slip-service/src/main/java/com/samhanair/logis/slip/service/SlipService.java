@@ -1056,8 +1056,7 @@ public class SlipService {
                 for (SlipLine line : slip.getLines()) {
                     ProductSummary product = productsById.get(line.getProductId());
                     if (!product.serialManaged()) {
-                        inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                                line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+                        inboundBatchLine(slip, line);
                         continue;
                     }
                     if (dispatchedSerialProducts.add(line.getProductId())) {
@@ -1078,6 +1077,17 @@ public class SlipService {
             return "차용";
         }
         return "구매";
+    }
+
+    /** 저장된 전표 라인만 line UUID를 멱등 키로 전달하고 legacy 호출은 기존 계약을 유지한다. */
+    private void inboundBatchLine(Slip slip, SlipLine line) {
+        if (line.getId() == null) {
+            inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
+                    line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+            return;
+        }
+        inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
+                line.getQuantity(), slip.getSlipNo(), line.getId(), inboundUnitCost(line));
     }
 
     private boolean isRecallInbound(Slip slip) {
@@ -1112,8 +1122,7 @@ public class SlipService {
             for (SlipLine line : slip.getLines()) {
                 ProductSummary product = productsById.get(line.getProductId());
                 if (!product.serialManaged()) {
-                    inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                            line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+                    inboundBatchLine(slip, line);
                 }
             }
         } catch (RuntimeException ex) {

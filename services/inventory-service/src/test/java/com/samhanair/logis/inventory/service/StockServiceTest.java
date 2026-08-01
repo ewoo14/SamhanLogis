@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -119,6 +120,52 @@ class StockServiceTest {
         verify(stockBalanceRepository, never()).findByProductIdAndWarehouse_IdAndIsDeletedFalse(
                 productId, warehouseId);
         verify(stockMovementRepository, never()).save(any(StockMovement.class));
+    }
+
+    @Test
+    void inbound_sameSlipProductWarehouse_differentLines_appliesBothQuantities() {
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                .thenReturn(Optional.empty());
+        when(stockBalanceRepository.save(any(StockBalance.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(stockLotRepository.save(any(StockLot.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UUID firstLineId = UUID.randomUUID();
+        UUID secondLineId = UUID.randomUUID();
+
+        service.inbound(new InboundRequest(productId, warehouseId, "2026/08/01-1041", firstLineId,
+                2, LocalDateTime.now(), new BigDecimal("10000.00"), "라인1"), "user-1");
+        service.inbound(new InboundRequest(productId, warehouseId, "2026/08/01-1041", secondLineId,
+                3, LocalDateTime.now(), new BigDecimal("10000.00"), "라인2"), "user-1");
+
+        verify(stockLotRepository, times(2)).save(any(StockLot.class));
+        verify(stockMovementRepository, times(2)).save(any(StockMovement.class));
+        ArgumentCaptor<StockLot> lots = ArgumentCaptor.forClass(StockLot.class);
+        verify(stockLotRepository, times(2)).save(lots.capture());
+        int appliedQuantity = lots.getAllValues().stream().mapToInt(StockLot::getQuantity).sum();
+        System.out.println("A: 수량 2+3 = " + appliedQuantity);
+        assertThat(appliedQuantity).isEqualTo(5);
+    }
+
+    @Test
+    void inbound_sameLineKey_calledByBothPaths_appliesOnlyOnce() {
+        UUID lineKey = UUID.randomUUID();
+        StockLot existingLot = lotWith(2, LocalDateTime.now());
+        when(stockLotRepository
+                .findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+                        productId, warehouseId, "2026/08/01-1041", lineKey))
+                .thenReturn(Optional.empty(), Optional.of(existingLot));
+        when(stockLotRepository.save(any(StockLot.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                .thenReturn(Optional.of(StockBalance.create(productId, warehouse)));
+
+        InboundRequest request = new InboundRequest(productId, warehouseId, "2026/08/01-1041", lineKey,
+                2, LocalDateTime.now(), new BigDecimal("10000.00"), "전표·검수 교차 호출");
+        service.inbound(request, "user-1");
+        service.inbound(request, "user-1");
+
+        verify(stockLotRepository, times(1)).save(any(StockLot.class));
+        verify(stockMovementRepository, times(1)).save(any(StockMovement.class));
+        System.out.println("B: 두 경로 합산 반영 수량 = 2 (1회)");
     }
 
     @Test

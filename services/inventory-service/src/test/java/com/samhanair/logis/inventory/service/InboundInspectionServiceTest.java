@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,6 +20,7 @@ import com.samhanair.logis.inventory.domain.InboundInspection;
 import com.samhanair.logis.inventory.domain.InboundInspectionLine;
 import com.samhanair.logis.inventory.domain.InspectionStatus;
 import com.samhanair.logis.inventory.domain.StockBalance;
+import com.samhanair.logis.inventory.domain.StockLot;
 import com.samhanair.logis.inventory.domain.Warehouse;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.repository.InboundInspectionLineRepository;
@@ -70,6 +72,9 @@ class InboundInspectionServiceTest {
 
     @InjectMocks
     InboundInspectionService service;
+
+    @InjectMocks
+    StockService stockService;
 
     private final UUID slipId = UUID.randomUUID();
     private final UUID warehouseId = UUID.randomUUID();
@@ -271,6 +276,41 @@ class InboundInspectionServiceTest {
         }
 
         @Test
+        @DisplayName("전표 경로 후 검수 경로를 함께 실행해도 같은 라인은 1회만 반영")
+        void slipThenInspection_sameLineKey_appliesOnce() {
+            InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");
+            InboundInspectionLine line = makeLine(inspection, lineId, productId, 2);
+            line.recordResult(2, 0, null);
+            inspection.addLine(line);
+            SlipDetail slipDetail = makeSlipDetail(slipId, "INBOUND", "INSPECTING");
+            Warehouse warehouse = makeWarehouse(warehouseId);
+            StockBalance balance = StockBalance.create(productId, warehouse);
+            StockLot existingLot = StockLot.create(productId, warehouse, "2025/01/10-001",
+                    SHARED_SLIP_LINE_ID, 2, java.time.LocalDateTime.now(), new BigDecimal("100000"));
+
+            when(stockLotRepository
+                    .findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+                            productId, warehouseId, "2025/01/10-001", SHARED_SLIP_LINE_ID))
+                    .thenReturn(Optional.empty(), Optional.of(existingLot));
+            when(stockLotRepository.save(any())).thenReturn(existingLot);
+            when(stockBalanceRepository.findByProductIdAndWarehouse_IdAndIsDeletedFalse(productId, warehouseId))
+                    .thenReturn(Optional.of(balance));
+            when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(warehouse));
+            when(productClient.requireExists(productId)).thenReturn(goodsProduct(productId));
+            when(slipClient.getSlip(slipId)).thenReturn(slipDetail);
+            when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId)).thenReturn(Optional.of(inspection));
+
+            stockService.inbound(new com.samhanair.logis.inventory.web.dto.InboundRequest(
+                    productId, warehouseId, "2025/01/10-001", SHARED_SLIP_LINE_ID, 2,
+                    java.time.LocalDateTime.now(), new BigDecimal("100000"), "전표 경로"), actorId);
+            service.completeInspection(slipId, actorId);
+
+            verify(stockLotRepository, times(1)).save(any());
+            verify(stockMovementRepository, times(1)).save(any());
+            System.out.println("B: 전표+검수 동일 라인 = 1회");
+        }
+
+        @Test
         @DisplayName("전표 경로가 먼저 만든 동일 전표 lot가 있으면 검수 경로는 재고를 중복 반영하지 않음")
         void lifecycleAlreadyApplied_skipsDuplicateStockMutation() {
             InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");
@@ -285,8 +325,8 @@ class InboundInspectionServiceTest {
             Warehouse warehouse = makeWarehouse(warehouseId);
             when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(warehouse));
             when(productClient.requireExists(productId)).thenReturn(goodsProduct(productId));
-            when(stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
-                    productId, warehouseId, "2025/01/10-001"))
+            when(stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+                    productId, warehouseId, "2025/01/10-001", SHARED_SLIP_LINE_ID))
                     .thenReturn(Optional.of(com.samhanair.logis.inventory.domain.StockLot.create(
                             productId, warehouse, "2025/01/10-001", 10,
                             java.time.LocalDateTime.now(), new BigDecimal("100000"))));
