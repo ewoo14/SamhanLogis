@@ -2468,8 +2468,8 @@ function unwrapList(data) {
  * legacy saveQuoteSnapshot(payload) (line 2614).
  * SamhanLogis: POST /internal/estimates/snapshots (X-Internal-Token)
  */
-async function saveQuoteSnapshot(payload) {
-  const email = Session.getActiveUser().getEmail();
+async function saveQuoteSnapshot(payload, authenticatedEmail) {
+  const email = String(authenticatedEmail || Session.getActiveUser().getEmail() || '').trim();
   const snapshotId = payload && payload.snapshotId;
   const body = {
     createdAt: new Date().toISOString(),
@@ -2481,7 +2481,9 @@ async function saveQuoteSnapshot(payload) {
     ? await ax.put(`${SNAPSHOT_BASE}/${encodeURIComponent(snapshotId)}`, body, { headers: SNAPSHOT_HEADERS })
     : await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
   if (resp.status < 200 || resp.status >= 300) {
-    throw new Error(`snapshot 저장 실패: HTTP ${resp.status}`);
+    const error = new Error(`snapshot save failed: HTTP ${resp.status}`);
+    error.statusCode = resp.status;
+    throw error;
   }
   return (resp.data && resp.data.data) || resp.data;
 }
