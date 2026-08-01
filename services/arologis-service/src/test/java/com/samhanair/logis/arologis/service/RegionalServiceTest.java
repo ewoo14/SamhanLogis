@@ -46,13 +46,13 @@ class RegionalServiceTest {
     void classifyBySido_groupsByMultipleSido() {
         when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
                 new OutboundSlipSummary("id-1", "2026/05/10-001", "P-2026-0001",
-                        "서울공조", "서울 강남구 역삼동"),
+                        "서울공조", "서울 강남구 역삼동", "REGION"),
                 new OutboundSlipSummary("id-2", "2026/05/10-002", "P-2026-0002",
-                        "부산공조", "부산 해운대구"),
+                        "부산공조", "부산 해운대구", "REGION"),
                 new OutboundSlipSummary("id-3", "2026/05/10-003", "P-2026-0003",
-                        "대구공조", "대구 수성구 범어동"),
+                        "대구공조", "대구 수성구 범어동", "REGION"),
                 new OutboundSlipSummary("id-4", "2026/05/10-004", "P-2026-0004",
-                        "서울공조2", "서울 송파구")
+                        "서울공조2", "서울 송파구", "REGION")
         ));
 
         RegionalDispatchResponse result = service.classifyBySido(LocalDate.of(2026, 5, 10));
@@ -70,13 +70,13 @@ class RegionalServiceTest {
     void classifyBySido_unmatched_goesToUnmatchedList() {
         when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
                 new OutboundSlipSummary("id-1", "2026/05/10-001", "P-2026-0001",
-                        "외국공조", "Tokyo Shibuya"),
+                        "외국공조", "Tokyo Shibuya", "REGION"),
                 new OutboundSlipSummary("id-2", "2026/05/10-002", "P-2026-0002",
-                        "주소없음", null),
+                        "주소없음", null, "REGION"),
                 new OutboundSlipSummary("id-3", "2026/05/10-003", "P-2026-0003",
-                        "blank", "   "),
+                        "blank", "   ", "REGION"),
                 new OutboundSlipSummary("id-4", "2026/05/10-004", "P-2026-0004",
-                        "정상공조", "서울 강남구")
+                        "정상공조", "서울 강남구", "REGION")
         ));
 
         RegionalDispatchResponse result = service.classifyBySido(LocalDate.of(2026, 5, 10));
@@ -139,5 +139,26 @@ class RegionalServiceTest {
         assertThat(service.extractSido("")).isNull();
         assertThat(service.extractSido("   ")).isNull();
         assertThat(service.extractSido("Tokyo Shibuya")).isNull();
+    }
+
+    @Test
+    @DisplayName("RED — 주소의 시도 문자열만으로 지방 전표를 판정하지 않는다")
+    void addressAlone_isNotRegionalWithoutDeliveryTag() {
+        // 개발책임자 정정: 지방은 주소/17개 시도 문자열이 아니라 delivery_tag=REGION이다.
+        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+                new OutboundSlipSummary("id-1", "2026/05/10-001", "P-2026-0001",
+                        "주소만 있는 전표", "서울 강남구")));
+        RegionalDispatchResponse result = service.classifyBySido(LocalDate.of(2026, 5, 10));
+        assertThat(result.sidoGroups()).isEmpty();
+        assertThat(result.unmatched()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("RED — 가배차 레거시 8개 실행 모드 계약이 존재한다")
+    void legacyEightExecutionModes_areAvailable() throws Exception {
+        Class<?> modeType = Class.forName(
+                "com.samhanair.logis.arologis.service.DispatchExecutionMode");
+        assertThat(modeType.isEnum()).isTrue();
+        assertThat(modeType.getEnumConstants()).hasSize(8);
     }
 }

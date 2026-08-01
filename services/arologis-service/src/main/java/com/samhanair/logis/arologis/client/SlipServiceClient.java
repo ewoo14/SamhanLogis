@@ -136,7 +136,10 @@ public class SlipServiceClient {
                 if (slipNo == null) {
                     continue;
                 }
-                out.add(new OutboundSlipSummary(null, slipNo, partnerCode, partnerName, address));
+                out.add(new OutboundSlipSummary(null, slipNo, partnerCode, partnerName, address,
+                        textOrNull(node, "deliveryTag"), textOrNull(node, "warehouse"),
+                        textOrNull(node, "memo"), textOrNull(node, "productName"),
+                        textOrNull(node, "amount"), textOrNull(node, "slipDate")));
             }
             return out;
         } catch (Exception ex) {
@@ -171,6 +174,26 @@ public class SlipServiceClient {
             String slipNo,
             String partnerCode,
             String partnerName,
-            String address
-    ) {}
+            String address,
+            String deliveryTag,
+            String warehouse,
+            String memo,
+            String productName,
+            String amount,
+            String slipDate
+    ) {
+        /** 기존 호출자와 테스트가 사용하는 최소 projection 생성자. */
+        public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
+                                   String partnerName, String address) {
+            this(slipId, slipNo, partnerCode, partnerName, address,
+                    null, null, null, null, null, null);
+        }
+
+        /** 태그 판정 단위 테스트와 내부 분류 호출자를 위한 간결한 생성자. */
+        public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
+                                   String partnerName, String address, String deliveryTag) {
+            this(slipId, slipNo, partnerCode, partnerName, address,
+                    deliveryTag, null, null, null, null, null);
+        }
+    }
 }

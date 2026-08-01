@@ -20,14 +20,14 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 지방 가배차 서비스 — Phase 10 PR-E1 BE-A4 (legacy GAS 15번 이식).
  *
- * <p>출고전표 → 거래처 주소의 광역 prefix (시도 17개 상수) 추출 → 시도별 그룹핑.
+ * <p>출고전표의 {@code deliveryTag=REGION} 선별 → 거래처 주소의 광역 prefix 추출 → 시도별 그룹핑.
  *
  * <h2>BE-A2 ({@link PreClassifyService}) 와의 차이</h2>
  * <ul>
  *   <li>BE-A2 — REGION 마스터 (region_dispatch_classifications 테이블, sort_order/keywords) 기반.
  *       사용자가 노션에서 직접 maintain 한 가배차 권역 (서울/경기동부/경기남부 등 19+ 그룹).</li>
- *   <li>BE-A4 (본 서비스) — 시도 17 광역 prefix 코드 내부 상수 기반. legacy GAS 15번이 단순 시도
- *       단위 분류만 수행했기 때문에 호환 위해 마스터 의존 X. 지방 출장 가배차 1차 분류용.</li>
+ *   <li>BE-A4 (본 서비스) — REGION 태그로 지방 전표를 선별한 뒤 시도별로 묶는다. 주소는
+ *       판정 기준이 아니라 표시 그룹을 만드는 보조 정보로만 사용한다.</li>
  * </ul>
  *
  * <h2>광역 prefix 매칭 알고리즘</h2>
@@ -77,6 +77,10 @@ public class RegionalService {
         List<Entry> unmatched = new ArrayList<>();
 
         for (OutboundSlipSummary slip : slips) {
+            // 지방은 주소 표식이 아니라 판매전표 배송 태그 계약으로 판정한다.
+            if (!"REGION".equals(slip.deliveryTag())) {
+                continue;
+            }
             String sido = extractSido(slip.address());
             Entry entry = new Entry(
                     slip.slipNo(),

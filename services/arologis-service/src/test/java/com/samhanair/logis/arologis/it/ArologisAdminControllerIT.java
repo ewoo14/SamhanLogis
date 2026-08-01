@@ -523,7 +523,7 @@ class ArologisAdminControllerIT extends AbstractPostgresIT {
                 java.time.LocalDate.parse("2026-05-10")))
                 .thenReturn(java.util.List.of(
                         new OutboundSlipSummary("id-1", "2026/05/10-001", "P-2026-0001",
-                                "부산공조", "부산 해운대구")
+                                "부산공조", "부산 해운대구", "REGION")
                 ));
 
         mockMvc.perform(MockMvcRequestBuilders.get("/admin/arologis/dispatches/regional")
