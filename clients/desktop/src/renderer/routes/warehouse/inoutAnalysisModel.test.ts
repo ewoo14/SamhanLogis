@@ -30,7 +30,7 @@ describe('입출고 모델 복수 칩 필터', () => {
     console.log(`C 실행 확인: 모델코드=${filtered[0].modelCode}, 목록행=있음, 이익률=${filtered[0].profitRateDisplay}`)
   })
 
-  it('매입·판매 금액 차이로 이익률을 계산한다', () => {
+  it('매입·판매 단가 차이로 이익률을 계산해 수량 차이를 손실로 오인하지 않는다', () => {
     const row: InOutAnalysisRow = withProfitFields({
       modelCode: 'MODEL-PROFIT', productName: '산정 품목', inboundQuantity: 1, outboundQuantity: 1,
       purchaseAmount: 100, salesAmount: 125,
@@ -39,5 +39,14 @@ describe('입출고 모델 복수 칩 필터', () => {
     expect(row.profitRate).toBe(25)
     expect(row.profitRateDisplay).toBe('25.00%')
     console.log(`A 숫자 확인: 매입=${row.purchaseAmount}, 판매=${row.salesAmount}, 이익률=${row.profitRateDisplay}`)
+  })
+
+  it('매입·판매 단가가 같으면 입출고 수량이 달라도 이익률은 0%다', () => {
+    const row = withProfitFields({
+      modelCode: 'TEST-MODEL-0080', productName: '실상품', inboundQuantity: 8, outboundQuantity: 12,
+      purchaseAmount: 7_176_000, salesAmount: 10_764_000,
+    })
+    expect(row.profitRate).toBe(0)
+    expect(row.profitRateDisplay).toBe('0.00%')
   })
 })

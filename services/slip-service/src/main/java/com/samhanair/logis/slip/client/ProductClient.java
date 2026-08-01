@@ -123,6 +123,64 @@ public class ProductClient {
     }
 
     /**
+     * 모델코드 벌크 조회 — 전표 라인의 사용자 식별자인 modelCode를 product-service 정본과 연결한다.
+     * 미매칭 모델코드는 부분 성공으로 반환되지 않으며 호출자는 라인 snapshot을 보존한다.
+     *
+     * @param modelCodes 조회할 모델코드 목록 (1 ~ 100건)
+     * @return 매칭된 상품 요약 목록
+     */
+    @SuppressWarnings("unchecked")
+    public List<ProductSummary> lookupByModelCodes(List<String> modelCodes) {
+        if (modelCodes == null || modelCodes.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 모델코드가 비어있습니다");
+        }
+        if (modelCodes.size() > LOOKUP_BATCH_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 모델코드 수는 " + LOOKUP_BATCH_MAX + "건입니다");
+        }
+        List<String> normalized = modelCodes.stream()
+                .map(code -> code == null ? "" : code.trim())
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .toList();
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 모델코드가 비어있습니다");
+        }
+
+        Map<String, Object> envelope;
+        try {
+            envelope = restClient.post()
+                    .uri("/products/internal/lookup-by-model-codes")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("modelCodes", normalized))
+                    .retrieve()
+                    .onStatus(HttpStatusCode::is4xxClientError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INVALID_INPUT, "모델코드 조회 요청이 잘못되었습니다");
+                    })
+                    .onStatus(HttpStatusCode::is5xxServerError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 호출 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("ProductClient lookupByModelCodes failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "product-service 호출 실패", ex);
+        }
+
+        Object data = envelope == null ? null : envelope.get("data");
+        if (!(data instanceof List<?> rawList)) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 응답 포맷 오류 (data 누락)");
+        }
+        return ((List<Object>) rawList).stream()
+                .map(item -> objectMapper.convertValue(item, ProductSummary.class))
+                .toList();
+    }
+
+    /**
      * 모델명 단건 조회 — Slip 출력 슬라이스의 modelName onBlur lookup 흐름.
      * product-service 의 {@code POST /products/internal/lookup-by-model} 을 X-Internal-Token
      * 으로 호출.

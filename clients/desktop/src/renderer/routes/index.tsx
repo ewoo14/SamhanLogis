@@ -587,7 +587,7 @@ const routes = [
       {
         path: '/inventory/stock-balance',
         element: (
-          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
             <InventoryStockBalancePage />
           </PermissionGuard>
         ),

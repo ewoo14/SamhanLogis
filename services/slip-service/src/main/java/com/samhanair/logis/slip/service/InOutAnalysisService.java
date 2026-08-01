@@ -34,13 +34,14 @@ public class InOutAnalysisService {
         List<Slip> slips = new ArrayList<>();
         slips.addAll(slipRepository.findByPeriodWithLines(SlipType.INBOUND, from, to, null));
         slips.addAll(slipRepository.findByPeriodWithLines(SlipType.OUTBOUND, from, to, null));
-        Map<UUID, ProductSummary> products = lookupProducts(slips);
-        Map<UUID, MutableRow> rows = new LinkedHashMap<>();
+        Map<String, ProductSummary> products = lookupProducts(slips);
+        Map<String, MutableRow> rows = new LinkedHashMap<>();
         for (Slip slip : slips) {
             if (!isConfirmed(slip)) continue;
             for (SlipLine line : slip.getLines()) {
-                MutableRow row = rows.computeIfAbsent(line.getProductId(), id ->
-                        new MutableRow(line.getModelName(), line.getProductName(), products.get(id)));
+                String modelCode = line.getModelName();
+                MutableRow row = rows.computeIfAbsent(modelCode, id ->
+                        new MutableRow(modelCode, line.getProductName(), line.getCategoryKey(), products.get(id)));
                 BigDecimal amount = line.getSupplyAmount() != null
                         ? line.getSupplyAmount()
                         : line.getUnitPrice().multiply(BigDecimal.valueOf(line.getQuantity()));
@@ -56,16 +57,18 @@ public class InOutAnalysisService {
         return rows.values().stream().map(MutableRow::toResponse).toList();
     }
 
-    private Map<UUID, ProductSummary> lookupProducts(List<Slip> slips) {
-        List<UUID> ids = slips.stream().flatMap(s -> s.getLines().stream())
-                .map(SlipLine::getProductId).distinct().toList();
-        Map<UUID, ProductSummary> result = new HashMap<>();
-        if (ids.isEmpty()) {
+    private Map<String, ProductSummary> lookupProducts(List<Slip> slips) {
+        List<String> modelCodes = slips.stream().flatMap(s -> s.getLines().stream())
+                .map(SlipLine::getModelName)
+                .filter(code -> code != null && !code.isBlank())
+                .map(String::trim).distinct().toList();
+        Map<String, ProductSummary> result = new HashMap<>();
+        if (modelCodes.isEmpty()) {
             return result;
         }
-        for (int start = 0; start < ids.size(); start += 100) {
-            List<UUID> chunk = ids.subList(start, Math.min(start + 100, ids.size()));
-            productClient.lookup(chunk).forEach(p -> result.put(p.id(), p));
+        for (int start = 0; start < modelCodes.size(); start += 100) {
+            List<String> chunk = modelCodes.subList(start, Math.min(start + 100, modelCodes.size()));
+            productClient.lookupByModelCodes(chunk).forEach(p -> result.put(p.modelCode(), p));
         }
         return result;
     }
@@ -83,25 +86,34 @@ public class InOutAnalysisService {
     private static final class MutableRow {
         private final String lineModelCode;
         private final String productName;
+        private final String lineCategoryKey;
         private final ProductSummary product;
         private int inboundQuantity;
         private int outboundQuantity;
         private BigDecimal purchaseAmount;
         private BigDecimal salesAmount = BigDecimal.ZERO;
 
-        private MutableRow(String lineModelCode, String productName, ProductSummary product) {
+        private MutableRow(String lineModelCode, String productName, String lineCategoryKey, ProductSummary product) {
             this.lineModelCode = lineModelCode;
             this.productName = productName;
+            this.lineCategoryKey = lineCategoryKey;
             this.product = product;
         }
 
         private InOutAnalysisResponse toResponse() {
-            BigDecimal profit = purchaseAmount == null ? null : salesAmount.subtract(purchaseAmount);
-            BigDecimal rate = purchaseAmount == null || purchaseAmount.signum() == 0 ? null
-                    : profit.multiply(BigDecimal.valueOf(100)).divide(purchaseAmount, 2, RoundingMode.HALF_UP);
+            BigDecimal purchaseUnit = purchaseAmount == null || inboundQuantity == 0 ? null
+                    : purchaseAmount.divide(BigDecimal.valueOf(inboundQuantity), 2, RoundingMode.HALF_UP);
+            BigDecimal salesUnit = outboundQuantity == 0 ? null
+                    : salesAmount.divide(BigDecimal.valueOf(outboundQuantity), 2, RoundingMode.HALF_UP);
+            BigDecimal unitProfit = purchaseUnit == null || salesUnit == null ? null : salesUnit.subtract(purchaseUnit);
+            BigDecimal profit = unitProfit == null ? null : unitProfit.multiply(BigDecimal.valueOf(outboundQuantity));
+            BigDecimal rate = purchaseUnit == null || purchaseUnit.signum() == 0 || salesUnit == null ? null
+                    : unitProfit.multiply(BigDecimal.valueOf(100)).divide(purchaseUnit, 2, RoundingMode.HALF_UP);
             String code = product != null && product.modelCode() != null ? product.modelCode() : lineModelCode;
             String name = product != null && product.name() != null ? product.name() : productName;
-            return new InOutAnalysisResponse(code, name, product == null ? null : product.categoryKey(),
+            String categoryKey = product != null && product.categoryKey() != null
+                    ? product.categoryKey() : lineCategoryKey;
+            return new InOutAnalysisResponse(code, name, categoryKey,
                     inboundQuantity, outboundQuantity, purchaseAmount, salesAmount, profit, rate);
         }
     }

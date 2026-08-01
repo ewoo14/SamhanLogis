@@ -55,7 +55,7 @@ public class SlipQueryController {
 
     /** 확정 입출고를 모델코드별로 집계한다. 매입 기록이 없으면 이익률은 null이다. */
     @Operation(summary = "입출고 분석 조회", description = "확정 전표의 모델코드별 입고·출고·이익률 조회")
-    @RequirePermission(page = "inventory.stock-balance", action = PermissionAction.VIEW)
+    @RequirePermission(page = "accounting.sales-slip.list", action = PermissionAction.VIEW)
     @GetMapping("/inout-analysis")
     public ApiResponse<List<InOutAnalysisResponse>> inoutAnalysis(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,

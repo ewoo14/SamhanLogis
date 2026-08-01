@@ -26,10 +26,15 @@ export interface InOutAnalysisRow extends InOutModelRow {
 }
 
 export function withProfitFields(row: Omit<InOutAnalysisRow, 'profitAmount' | 'profitRate' | 'profitRateDisplay'>): InOutAnalysisRow {
-  const profitAmount = row.purchaseAmount === null ? null : row.salesAmount - row.purchaseAmount
-  const profitRate = row.purchaseAmount === null || row.purchaseAmount === 0
+  const purchaseUnit = row.purchaseAmount === null || row.inboundQuantity === 0
     ? null
-    : (profitAmount! / row.purchaseAmount) * 100
+    : row.purchaseAmount / row.inboundQuantity
+  const salesUnit = row.outboundQuantity === 0 ? null : row.salesAmount / row.outboundQuantity
+  const unitProfit = purchaseUnit === null || salesUnit === null ? null : salesUnit - purchaseUnit
+  const profitAmount = unitProfit === null ? null : unitProfit * row.outboundQuantity
+  const profitRate = purchaseUnit === null || purchaseUnit === 0 || salesUnit === null
+    ? null
+    : (unitProfit! / purchaseUnit) * 100
   return {
     ...row,
     profitAmount,
