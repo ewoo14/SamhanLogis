@@ -53,12 +53,15 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
   it('updater의 안전한 일반 라벨은 새 버전 문구를 한 번만 표시한다', async () => {
     let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    let resolveListenerRegistered: (() => void) | undefined
+    const listenerRegistered = new Promise<void>((resolve) => { resolveListenerRegistered = resolve })
     window.arologisUpdater = {
       check: vi.fn(async () => undefined),
       install: vi.fn(async () => undefined),
       quit: vi.fn(async () => undefined),
       onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
         emitStatus = listener
+        resolveListenerRegistered?.()
         return () => undefined
       }),
     }
@@ -69,7 +72,9 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
       </AppVersionGate>,
     )
 
-    emitStatus?.({ kind: 'available', version: '' })
+    await listenerRegistered
+    expect(emitStatus).toBeDefined()
+    emitStatus!({ kind: 'available', version: '' })
 
     const status = await screen.findByTestId('app-auto-update-status')
     expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
@@ -78,12 +83,15 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
   it('직전 호환 fallback 라벨이 다시 와도 새 버전 문구를 중복하지 않는다', async () => {
     let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    let resolveListenerRegistered: (() => void) | undefined
+    const listenerRegistered = new Promise<void>((resolve) => { resolveListenerRegistered = resolve })
     window.arologisUpdater = {
       check: vi.fn(async () => undefined),
       install: vi.fn(async () => undefined),
       quit: vi.fn(async () => undefined),
       onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
         emitStatus = listener
+        resolveListenerRegistered?.()
         return () => undefined
       }),
     }
@@ -94,7 +102,9 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
       </AppVersionGate>,
     )
 
-    emitStatus?.({ kind: 'available', version: '새 버전' })
+    await listenerRegistered
+    expect(emitStatus).toBeDefined()
+    emitStatus!({ kind: 'available', version: '새 버전' })
 
     const status = await screen.findByTestId('app-auto-update-status')
     expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
@@ -103,12 +113,15 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
   it('달력상 존재하지 않는 날짜는 날짜형 updater 문구로 표시하지 않는다', async () => {
     let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    let resolveListenerRegistered: (() => void) | undefined
+    const listenerRegistered = new Promise<void>((resolve) => { resolveListenerRegistered = resolve })
     window.arologisUpdater = {
       check: vi.fn(async () => undefined),
       install: vi.fn(async () => undefined),
       quit: vi.fn(async () => undefined),
       onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
         emitStatus = listener
+        resolveListenerRegistered?.()
         return () => undefined
       }),
     }
@@ -119,7 +132,9 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
       </AppVersionGate>,
     )
 
-    emitStatus?.({ kind: 'available', version: '2026/13/40-1' })
+    await listenerRegistered
+    expect(emitStatus).toBeDefined()
+    emitStatus!({ kind: 'available', version: '2026/13/40-1' })
 
     const status = await screen.findByTestId('app-auto-update-status')
     expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
@@ -128,12 +143,15 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
 
   it('알림을 닫은 뒤 새 updater 상태가 도착하면 알림을 다시 표시한다', async () => {
     let emitStatus: ((status: DesktopUpdateStatus) => void) | undefined
+    let resolveListenerRegistered: (() => void) | undefined
+    const listenerRegistered = new Promise<void>((resolve) => { resolveListenerRegistered = resolve })
     window.arologisUpdater = {
       check: vi.fn(async () => undefined),
       install: vi.fn(async () => undefined),
       quit: vi.fn(async () => undefined),
       onStatus: vi.fn((listener: (status: DesktopUpdateStatus) => void) => {
         emitStatus = listener
+        resolveListenerRegistered?.()
         return () => undefined
       }),
     }
@@ -144,13 +162,15 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
       </AppVersionGate>,
     )
 
-    emitStatus?.({ kind: 'checking' })
+    await listenerRegistered
+    expect(emitStatus).toBeDefined()
+    emitStatus!({ kind: 'checking' })
     const status = await screen.findByTestId('app-auto-update-status')
     expect(status.textContent).toContain('업데이트를 확인하는 중입니다.')
     fireEvent.click(screen.getByRole('button', { name: '닫기' }))
     expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
 
-    emitStatus?.({ kind: 'available', version: '' })
+    emitStatus!({ kind: 'available', version: '' })
     expect(await screen.findByTestId('app-auto-update-status')).toBeTruthy()
   })
 })
