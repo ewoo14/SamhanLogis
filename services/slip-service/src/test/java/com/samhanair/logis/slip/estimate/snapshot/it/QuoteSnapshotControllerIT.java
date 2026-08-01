@@ -237,6 +237,7 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.authorEmail").value(USER_A))
+                .andExpect(jsonPath("$.data.participantEmails[0]").value(USER_A))
                 .andExpect(jsonPath("$.data.totalAmount").value(110000));
     }
 
@@ -311,5 +312,46 @@ class QuoteSnapshotControllerIT extends AbstractPostgresIT {
                         .param("userEmail", USER_A))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].totalAmount").value(110000));
+    }
+
+    @Test
+    @DisplayName("VAT 별도 공급가·부가세·총액을 저장 후 다시 열어도 보존")
+    void vatExclusive_roundTrip_preserves_all_amounts() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("userEmail", USER_A);
+        body.put("data", Map.of("lines", java.util.List.of(Map.of("qty", 1, "unitPrice", 100000))));
+        body.put("summary", Map.of("custName", "VAT 별도 수치"));
+        body.put("supplyAmount", 100000);
+        body.put("vatAmount", 10000);
+        body.put("totalAmount", 110000);
+
+        String raw = mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.supplyAmount").value(100000))
+                .andExpect(jsonPath("$.data.vatAmount").value(10000))
+                .andExpect(jsonPath("$.data.totalAmount").value(110000))
+                .andReturn().getResponse().getContentAsString();
+        System.out.println("[EVIDENCE-A] " + raw);
+    }
+
+    @Test
+    @DisplayName("빈 커스텀 행은 프론트 필터 후 JSONB 라인 수가 1이다")
+    void filtered_custom_rows_roundTrip_has_one_jsonb_line() throws Exception {
+        Map<String, Object> valued = Map.of("name", "실제 품목", "qty", "1", "price", "1000");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("userEmail", USER_A);
+        body.put("data", Map.of("core", Map.of("customRows", Map.of("home", java.util.List.of(valued)))));
+        body.put("summary", Map.of("custName", "빈행 제외"));
+
+        String raw = mockMvc.perform(post(PATH).header(TOKEN_HEADER, VALID_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        mockMvc.perform(get(PATH).header(TOKEN_HEADER, VALID_TOKEN).param("userEmail", USER_A))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].data.core.customRows.home", org.hamcrest.Matchers.hasSize(1)));
+        System.out.println("[EVIDENCE-C] snapshot_state.core.customRows.home lineCount=1 raw=" + raw);
     }
 }

@@ -2470,12 +2470,16 @@ function unwrapList(data) {
  */
 async function saveQuoteSnapshot(payload) {
   const email = Session.getActiveUser().getEmail();
+  const snapshotId = payload && payload.snapshotId;
   const body = {
     createdAt: new Date().toISOString(),
     ...payload,
     userEmail: email,
   };
-  const resp = await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
+  delete body.snapshotId;
+  const resp = snapshotId
+    ? await ax.put(`${SNAPSHOT_BASE}/${encodeURIComponent(snapshotId)}`, body, { headers: SNAPSHOT_HEADERS })
+    : await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
   if (resp.status < 200 || resp.status >= 300) {
     throw new Error(`snapshot 저장 실패: HTTP ${resp.status}`);
   }

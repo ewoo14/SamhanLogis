@@ -16767,7 +16767,7 @@ function takeSnapshot() {
         const fixNode = tr.querySelector('.custom-fix-dc');
         const varNode = tr.querySelector('.custom-var-dc');
 
-        rows.push({
+        const row = {
           name: nameNode ? nameNode.value : '',
           model: modelNode ? modelNode.value : '',
           list: listNode ? listNode.value : '',
@@ -16776,7 +16776,11 @@ function takeSnapshot() {
           price: priceNode ? priceNode.value : '',
           fixDc: fixNode ? fixNode.value : '',
           varDc: varNode ? varNode.checked : false
-        });
+        };
+        if (['name', 'model', 'list', 'spec', 'qty', 'price', 'fixDc']
+            .some(key => String(row[key] || '').trim() !== '') || row.varDc) {
+          rows.push(row);
+        }
       });
       customRowsData[type] = rows;
     }
@@ -17732,8 +17736,11 @@ async function handleSaveSnapshot(customTheme) {
   }
 
   // 전송 — 상태는 JSON 그대로 보내고 미리보기 base64는 저장하지 않는다.
-  const totalAmount = getStructuredQuoteData().reduce((sum, section) => sum + (Number(section.total) || 0), 0);
-  const vatAmount = Math.floor(totalAmount / 11);
+  const screenTotal = getStructuredQuoteData().reduce((sum, section) => sum + (Number(section.total) || 0), 0);
+  const vatDisplay = document.querySelector('input[name="optVatDisplay"]:checked')?.value || 'inc';
+  const totals = vatDisplay === 'exc'
+    ? { supplyAmount: screenTotal, vatAmount: Math.floor(screenTotal * 0.1), totalAmount: screenTotal + Math.floor(screenTotal * 0.1) }
+    : { supplyAmount: screenTotal - Math.floor(screenTotal / 11), vatAmount: Math.floor(screenTotal / 11), totalAmount: screenTotal };
   google.script.run
     .withSuccessHandler(() => {
       alert('✅ 안전하게 저장되었습니다!');
@@ -17751,11 +17758,10 @@ async function handleSaveSnapshot(customTheme) {
       }
     })
     .saveQuoteSnapshot({
+      snapshotId: window.editingSnapshotId || null,
       data: jsonState,
       summary: summaryData,
-      supplyAmount: totalAmount - vatAmount,
-      vatAmount,
-      totalAmount
+      ...totals
     });
 }
 
@@ -17884,6 +17890,7 @@ function renderSnapshotTable(list) {
 // 스냅샷 복원 핸들러
 window.restoreSnapshot = function(index) {
   const item = window.loadedSnapshotData[index];
+  window.editingSnapshotId = item?.id || null;
   const dec = decodeSnapshotState(item.data);
   applySnapshot(dec, item.custName);
 };
@@ -18451,42 +18458,13 @@ function setupCustomRows() {
     const cBody = document.createElement('tbody');
     cBody.id = cfg.type + 'CustomBody';
     
-    const ctrlBody = document.createElement('tbody');
-    ctrlBody.id = cfg.type + 'CustomCtrl';
-    const tr = document.createElement('tr');
-    const td = document.createElement('td');
-    td.colSpan = cfg.cols;
-    td.style.textAlign = 'center';
-    td.style.padding = '12px 0';
-    
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex; justify-content:center; align-items:center; gap:8px;';
-    
-    const btnAdd = document.createElement('button');
-    btnAdd.innerHTML = '+';
-    btnAdd.style.cssText = 'display:inline-flex; justify-content:center; align-items:center; width:28px; height:28px; border-radius:50%; background-color:#2563eb; color:#fff; border:none; font-weight:bold; font-size:18px; cursor:pointer; padding:0;';
-    btnAdd.onclick = () => window.addCustomRow(cfg.type);
-    
-    const btnDel = document.createElement('button');
-    btnDel.innerHTML = '-';
-    btnDel.style.cssText = 'display:none; justify-content:center; align-items:center; width:28px; height:28px; border-radius:50%; background-color:#ef4444; color:#fff; border:none; font-weight:bold; font-size:18px; cursor:pointer; padding:0;';
-    btnDel.id = cfg.type + 'CustomDelBtn';
-    btnDel.onclick = () => window.removeCustomRow(cfg.type);
-    
-    wrapper.appendChild(btnAdd);
-    wrapper.appendChild(btnDel);
-    td.appendChild(wrapper);
-    tr.appendChild(td);
-    ctrlBody.appendChild(tr);
-    
     const tfoot = table.querySelector('tfoot');
     if (tfoot) {
       table.insertBefore(cBody, tfoot);
-      table.insertBefore(ctrlBody, tfoot);
     } else {
       table.appendChild(cBody);
-      table.appendChild(ctrlBody);
     }
+    window.addCustomRow(cfg.type);
   });
 }
 
@@ -18591,20 +18569,23 @@ window.addCustomRow = function(type) {
   
   tbody.appendChild(tr);
   
-  const delBtn = document.getElementById(type + 'CustomDelBtn');
-  if (delBtn) delBtn.style.display = 'inline-flex';
 };
+
+function ensureCustomBlankRow(type) {
+  const tbody = document.getElementById(type + 'CustomBody');
+  if (!tbody || !tbody.lastElementChild) return;
+  const row = tbody.lastElementChild;
+  const hasValue = ['.pc-name', '.custom-model', '.list-price-input', '.custom-spec', '.custom-qty', '.custom-price', '.custom-fix-dc']
+    .some(selector => String(row.querySelector(selector)?.value || '').trim() !== '')
+    || !!row.querySelector('.custom-var-dc')?.checked;
+  if (hasValue) window.addCustomRow(type);
+}
 
 // 삭제
 window.removeCustomRow = function(type) {
   const tbody = document.getElementById(type + 'CustomBody');
   if (!tbody) return;
   if (tbody.lastChild) tbody.removeChild(tbody.lastChild);
-  
-  const delBtn = document.getElementById(type + 'CustomDelBtn');
-  if (delBtn && tbody.children.length === 0) {
-    delBtn.style.display = 'none';
-  }
   
   updateCustomSubtotal(null, type);
 };
@@ -18625,7 +18606,13 @@ window.updateCustomSubtotal = function(inp, type) {
   else if (type === 'old' && typeof syncOldTotals === 'function') syncOldTotals();
 
   if (typeof refreshSelectedBadge === 'function') refreshSelectedBadge();
+  ensureCustomBlankRow(type);
 };
+
+document.addEventListener('input', e => {
+  const row = e.target.closest?.('.custom-item-row');
+  if (row) ensureCustomBlankRow(row.closest('tbody')?.id?.replace(/CustomBody$/, ''));
+});
 
 document.addEventListener('DOMContentLoaded', () => {
   setTimeout(setupCustomRows, 1500);

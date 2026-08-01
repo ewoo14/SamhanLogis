@@ -3,6 +3,7 @@
 
 ALTER TABLE quote_snapshots
     ADD COLUMN author_email VARCHAR(255),
+    ADD COLUMN participant_emails JSONB,
     ADD COLUMN snapshot_state JSONB,
     ADD COLUMN supply_amount NUMERIC(19, 2),
     ADD COLUMN vat_amount NUMERIC(19, 2),
@@ -10,10 +11,12 @@ ALTER TABLE quote_snapshots
 
 UPDATE quote_snapshots
 SET author_email = user_email,
+    participant_emails = jsonb_build_array(user_email),
     snapshot_state = convert_from(decode(snapshot_data, 'base64'), 'UTF8')::jsonb;
 
 ALTER TABLE quote_snapshots
     ALTER COLUMN author_email SET NOT NULL,
+    ALTER COLUMN participant_emails SET NOT NULL,
     ALTER COLUMN snapshot_state SET NOT NULL;
 
 ALTER TABLE quote_snapshots

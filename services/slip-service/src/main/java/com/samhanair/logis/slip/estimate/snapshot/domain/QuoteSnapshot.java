@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +36,11 @@ public class QuoteSnapshot extends BaseEntity {
     /** 견적 작성자 이메일 — 수정 소유권의 기준. */
     @Column(name = "author_email", nullable = false, length = 255)
     private String authorEmail;
+
+    /** 알림·필터·통계의 기준이 되는 견적 대상자 집합. 작성자는 항상 자동 포함한다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "participant_emails", nullable = false, columnDefinition = "jsonb")
+    private List<String> participantEmails;
 
     /** 거래처명 — 목록 표시용. */
     @Column(name = "cust_name", length = 200)
@@ -66,6 +72,7 @@ public class QuoteSnapshot extends BaseEntity {
             throw new IllegalArgumentException("snapshotState 는 필수입니다");
         }
         this.authorEmail = authorEmail;
+        this.participantEmails = List.of(authorEmail);
         this.custName = custName;
         this.snapshotState = snapshotState;
         this.supplyAmount = supplyAmount;
