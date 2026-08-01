@@ -69,24 +69,24 @@ public class StockController {
     // -------- 조회 --------
 
     /**
-     * 제품별 잔량 페이지 조회 — productId 필수, 모든 창고 잔량 페이지.
+     * 재고 현황 페이지 조회 — 품목/창고 필터는 선택이며 둘 다 없으면 전체 현황이다.
      *
-     * @param productId 제품 UUID
+     * @param productId 제품 UUID (기존 호출부 호환용 선택 필터)
+     * @param warehouseId 창고 UUID (선택 필터)
      * @param page 0-based 페이지 번호
      * @param size 페이지 크기 (기본 20)
      * @return Page&lt;StockBalanceResponse&gt;
      */
-    @Operation(summary = "재고 잔량 조회", description = "productId 의 모든 창고 잔량 페이지")
+    @Operation(summary = "재고 잔량 조회", description = "품목/창고 선택 필터 또는 전체 활성 재고 잔량 페이지")
     @GetMapping("/balances")
     @RequirePermission(page = "inventory.stock-balance", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
     public ApiResponse<Page<StockBalanceResponse>> balances(
-            @RequestParam UUID productId,
+            @RequestParam(required = false) UUID productId,
+            @RequestParam(required = false) UUID warehouseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(stockBalanceRepository
-                .findAllByProductIdAndIsDeletedFalse(productId, pageable)
-                .map(StockBalanceResponse::from));
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
+        return ApiResponse.ok(stockService.findBalancePage(productId, warehouseId, pageable));
     }
 
     /**
