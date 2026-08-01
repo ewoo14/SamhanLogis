@@ -126,7 +126,7 @@ public record ProductSummaryResponse(
                 p.getStatus(),
                 p.getCategory().isSerialManaged(),
                 p.getGoodsType() == ProductGoodsType.GOODS,
-                p.getModelCode(),
+                p.getModelCode() == null || p.getModelCode().isBlank() ? p.getModelName() : p.getModelCode(),
                 p.getProductType() == null ? null : p.getProductType().name(),
                 p.getUsageScope(),
                 null,

@@ -19,8 +19,8 @@ private EstimateCategory estimateCategory;
 
 - ① 실 사용자 경로 재현 여부: 아직 API 호출 전 코드 경로 추적 단계다.
 - ② 재현 명령·출력 원문: `rg -n "categoryKey|lookupByModelCodes|inout-analysis" services clients` 후 `ProductSummaryResponse.from(Product)`와 `Product` 엔티티 매핑을 원문 확인했다.
-- ③ 실 데이터 영향 건수: 이 확인만으로는 미산정. 다음 확인에서 `product_db.products.product_category` 채움 건수와 실 판매 40품목 매칭 건수를 읽기 전용으로 센다.
-- 판정: 수정 코드가 직접 읽는 정본은 V18 폐기 컬럼 `estimate_category`가 아니다. 다만 `product_category`의 실 채움률과 실 40품목 연결 여부가 칩 도달성을 결정한다.
+- ③ 실 데이터 영향 건수: 이 확인만으로는 미산정. 다음 확인에서 `product_db.products.product_category` 채움 건수와 실 판매 46품목 매칭 건수를 읽기 전용으로 센다.
+- 판정: 수정 코드가 직접 읽는 정본은 V18 폐기 컬럼 `estimate_category`가 아니다. 다만 `product_category`의 실 채움률과 실 46품목 연결 여부가 칩 도달성을 결정한다.
 
 ### 확인 2 — `products.product_category` 실 채움률
 
@@ -37,9 +37,9 @@ ROLLBACK
 - ① 실 사용자 경로 재현 여부: product-service가 읽는 실 `product_db.products` 정본에서 재현했다.
 - ② 재현 명령·출력 원문: 위 `BEGIN READ ONLY` 집계 원문.
 - ③ 실 데이터 영향 건수: 현재 활성 상품 1,220건 중 `product_category` 채움 1,119건, NULL 101건(8.28%). 폐기된 `estimate_category`는 2건만 채워져 있다.
-- 판정: 전체 DB 차원에서 수정이 폐기 컬럼의 96% NULL 문제를 그대로 읽는 것은 아니다. 단, 실 판매 40품목의 모델코드 매칭·칩 건수는 별도 확인이 필요하다.
+- 판정: 전체 DB 차원에서 수정이 폐기 컬럼의 96% NULL 문제를 그대로 읽는 것은 아니다. 단, 실 판매 46품목의 모델코드 매칭·칩 건수는 별도 확인이 필요하다.
 
-### 결함 R1 — 현재 실 판매 집합은 정찰값 40/35/5가 아니라 46/41/5
+### 결함 R1 — 현재 실 판매 집합은 정찰값 40/35/5·전량 4가 아니라 46/41/5·전량 2
 
 구현의 `isConfirmed()`와 같은 `CONFIRMED/DELIVERED/COMPLETED` 상태를 적용했다.
 
@@ -55,7 +55,7 @@ ROLLBACK
 - ① 실 사용자 경로 재현 여부: 수정 서비스가 조회하는 현재 공유 `slip_db`의 기간·상태·soft-delete 규칙에서 재현했다. 실행 API 응답은 다음 확인에서 별도로 검증한다.
 - ② 재현 명령·출력 원문: `docker exec samhan-postgres psql ... "BEGIN READ ONLY; WITH i AS (...), o AS (...) SELECT ...; ROLLBACK;"`; 출력은 위 블록이다.
 - ③ 실 데이터 영향 건수: 판매 46품목, 입고 없는 판매 41품목, 입고·판매 공통 5품목, 전량 원가 충족 2품목.
-- 판정: 요구 숫자 `40 / 35 / 5 · 전량 원가 충족 4` 중 현재 실 DB에서 `5`만 재현된다. 40이 아니므로 실제값 46을 보고한다.
+- 판정: 요구 숫자 `40 / 35 / 5 · 전량 원가 충족 4`와 달리 현재 실 DB의 실제값은 `46 / 41 / 5 · 전량 원가 충족 2`다.
 
 ### 결함 R2 — 모델코드 벌크 lookup도 실 판매 모델코드를 0건 반환; 칩 전량 미분류 지속
 
@@ -88,7 +88,7 @@ categoryKey_filled=0 categoryKey_null=61
 - ① 실 사용자 경로 재현 여부: 수정된 컨트롤러→서비스→실 `slip_db`→실 product-service 경로를 실제 HTTP 호출로 재현했다.
 - ② 재현 명령·출력 원문: 위 블록. 공유 배포본 `18086`은 여전히 endpoint 미배포로 HTTP 500이며, 수정 코드 실증은 격리 포트 `28086`에서 수행했다.
 - ③ 실 데이터 영향 건수: API 전체 61행, 그중 판매가 있는 행 46, 원가 없는 판매 41, 산정 가능 판매 5. 요구한 40이 아니며 현재 실값은 46이다.
-- 판정: 모델코드 lookup 0건이어도 행을 보존하는 수정은 도달했다. 그러나 정찰 수치 40/35는 현재 실 DB와 불일치한다.
+- 판정: 모델코드 lookup 0건이어도 행을 보존하는 수정은 도달했다. 정찰 수치 40/35/전량 4는 현재 실 DB와 불일치한다.
 
 ### 확인 4 — 원가 없는 실 판매 41품목은 목록에 남고 이익률 null→`—` 분기
 
@@ -205,3 +205,10 @@ PORT_28086_CLOSED
 - 현재 실 DB에 도달 사례가 없는 0/음수 매입단가, 서로 다른 복수 매입가, 실제 단가 손실 경계.
 - 모바일·웹 등 데스크톱 외 클라이언트.
 - 구매예측과 검증 품질 평가는 요청에 따라 보지 않았다.
+
+## 2026-08-02 fix2 재실행 정정
+
+- 전표에서 실제 요청된 모델코드는 공백·소문자 없이 46개였고, product-service 직접 호출은 `POST /products/internal/lookup-by-model-codes`, `modelCodes`, 내부 토큰, 포트 8084에서 `HTTP 200 data=[]`를 반환했다.
+- 같은 46개는 product DB의 `model_code`, `model_name`, `name`, `product_id` 모두 0건이었다. gateway의 `/products/internal/**` 404는 사실이나 slip-service는 gateway가 아닌 Eureka 직결이므로 0건 원인이 아니다.
+- 코드 결함으로는 bulk lookup이 `model_code`만 조회하고 저장소의 공개 식별자 fallback(`model_name`)을 누락한 점이 확인되어 수정·단위 테스트 GREEN 처리했다. 그러나 현재 공유 DB의 46개는 product 정본 자체가 없어 실 API A는 여전히 `requested=46 returned=0`이다. DB seed/정합화 또는 실제 운영 매핑 없이는 합성 데이터 없이 A/B를 충족시킬 수 없다.
+- 문서의 실측 수치는 **판매 46 · 원가 없음 41 · 산정 가능 5 · 전량 원가 충족 2**로 정정했다.

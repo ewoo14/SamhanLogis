@@ -199,6 +199,20 @@ class ProductServiceTest {
     }
 
     @Test
+    void lookupByModelCodes_fallsBackToModelNameWhenModelCodeIsBlank() {
+        when(productRepository.findByModelCodeInAndIsDeletedFalse(List.of("SHA-W15K")))
+                .thenReturn(List.of());
+        when(productRepository.findByModelNameInAndIsDeletedFalse(List.of("SHA-W15K")))
+                .thenReturn(List.of(product));
+
+        List<ProductSummaryResponse> result = service.lookupByModelCodes(List.of("SHA-W15K"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).modelCode()).isEqualTo("SHA-W15K");
+        verify(productRepository).findByModelNameInAndIsDeletedFalse(List.of("SHA-W15K"));
+    }
+
+    @Test
     void update_changesNameAndDescription() {
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId)).thenReturn(List.of());

@@ -418,7 +418,22 @@ public class ProductService {
         if (normalized.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelCode가 비어있습니다");
         }
-        return productRepository.findByModelCodeInAndIsDeletedFalse(normalized).stream()
+        List<Product> codeMatches = productRepository.findByModelCodeInAndIsDeletedFalse(normalized);
+        Set<String> matchedCodes = codeMatches.stream()
+                .map(Product::getModelCode)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toSet());
+        List<String> unresolved = normalized.stream()
+                .filter(code -> !matchedCodes.contains(code))
+                .toList();
+        List<Product> nameMatches = unresolved.isEmpty()
+                ? List.of()
+                : productRepository.findByModelNameInAndIsDeletedFalse(unresolved);
+
+        List<Product> matches = new ArrayList<>(codeMatches);
+        matches.addAll(nameMatches);
+        return matches.stream()
                 .map(ProductSummaryResponse::from)
                 .toList();
     }
