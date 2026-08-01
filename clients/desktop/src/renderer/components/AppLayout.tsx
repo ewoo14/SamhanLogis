@@ -755,6 +755,12 @@ export function AppLayout() {
               to="/sales/order-approvals"
               show={showPartnerOrderList}
             >
+              주문서 승인
+            </SidebarLink>
+            <SidebarLink
+              to="/sales/order-approvals"
+              show={showPartnerOrderList}
+            >
               주문서 앱 접근권한 설정
             </SidebarLink>
             {/* [C5 후속 C-4] 거래처 관리 — /admin/partners 라우트와 동일한 partners.list VIEW 기준. */}
