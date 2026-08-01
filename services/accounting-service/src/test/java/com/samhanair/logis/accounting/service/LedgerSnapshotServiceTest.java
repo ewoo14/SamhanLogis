@@ -14,6 +14,7 @@ import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,6 +71,21 @@ class LedgerSnapshotServiceTest {
         assertThat(restored.partnerCode()).isEqualTo("P-001");
         assertThat(restored.ledger().partnerName()).isEqualTo("복원 거래처");
         assertThat(restored.ledger().lines()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("capture는 원장 조회에 요청 actor를 전달한다")
+    void capturePreservesActor() {
+        UUID actor = UUID.randomUUID();
+        LedgerImageResponse ledger = new LedgerImageResponse("P-001", "작성자 전달", "",
+                List.of(), LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 1), List.of());
+        when(ledgerImageService.getLedger("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1), actor)).thenReturn(ledger);
+
+        assertThat(service.capture("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1), actor)).isSameAs(ledger);
+        verify(ledgerImageService).getLedger("P-001", LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 8, 1), actor);
     }
 
     private TaxInvoiceBatch savedBatch() {

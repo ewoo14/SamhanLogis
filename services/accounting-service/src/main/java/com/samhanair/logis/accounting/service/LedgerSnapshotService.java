@@ -6,8 +6,6 @@ import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.web.dto.LedgerHistoryResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class LedgerSnapshotService {
 
     static final String DOCUMENT_TYPE = "PARTNER_LEDGER";
-    private static final DateTimeFormatter BATCH_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     private final LedgerImageService ledgerImageService;
     private final TaxInvoiceBatchRepository batchRepository;
@@ -30,7 +27,7 @@ public class LedgerSnapshotService {
     /** 기존 조회를 먼저 수행한 뒤 결과를 자동 저장하여 조회·인쇄 호환성을 유지한다. */
     @Transactional
     public LedgerImageResponse capture(String partnerCode, LocalDate from, LocalDate to, UUID actor) {
-        return ledgerImageService.getLedger(partnerCode, from, to);
+        return ledgerImageService.getLedger(partnerCode, from, to, actor);
     }
 
     /** 날짜별 자동 저장 이력 목록. */

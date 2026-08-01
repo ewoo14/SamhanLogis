@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
@@ -37,11 +38,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * LedgerImageService 단위 테스트 — BE-A9.
@@ -75,6 +78,17 @@ class LedgerImageServiceTest {
         // chartOfAccountRepository 기본 stub — accountName lookup 시 빈 리스트 반환 (lenient)
         lenient().when(chartOfAccountRepository.findAllById(org.mockito.ArgumentMatchers.anyCollection()))
                 .thenReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("자동저장 경로는 read-only transaction으로 선언되지 않는다")
+    void autoSavePathIsWritableTransaction() throws NoSuchMethodException {
+        Transactional annotation = LedgerImageService.class
+                .getMethod("getLedger", String.class, LocalDate.class, LocalDate.class, UUID.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.readOnly()).isFalse();
     }
 
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
@@ -194,6 +208,43 @@ class LedgerImageServiceTest {
         service.getLedger("P-AUTO", FROM, TO);
 
         verify(taxInvoiceBatchRepository).save(any(TaxInvoiceBatch.class));
+    }
+
+    @Test
+    @DisplayName("자동저장 snapshot은 요청 actor를 작성자로 보존한다")
+    void getLedger_autoSavesSnapshotWithActor() {
+        UUID partnerId = UUID.randomUUID();
+        UUID actor = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("P-ACTOR"))
+                .thenReturn(Optional.of(new PartnerSummary(partnerId, "P-ACTOR", "작성자 보존", "", "")));
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode("P-ACTOR"))
+                .thenReturn(List.of());
+        when(journalLineRepository.findPartnerLinesInRange(eq(partnerId), eq(FROM), eq(TO)))
+                .thenReturn(List.of());
+
+        service.getLedger("P-ACTOR", FROM, TO, actor);
+
+        ArgumentCaptor<TaxInvoiceBatch> captor = ArgumentCaptor.forClass(TaxInvoiceBatch.class);
+        verify(taxInvoiceBatchRepository).save(captor.capture());
+        assertThat(captor.getValue().getProcessedBy()).isEqualTo(actor);
+    }
+
+    @Test
+    @DisplayName("자동저장 배치번호는 tax_invoice_batches 컬럼 폭을 초과하지 않는다")
+    void autoSaveBatchNumberFitsDatabaseColumn() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("PARTNER-CODE-001"))
+                .thenReturn(Optional.of(new PartnerSummary(partnerId, "PARTNER-CODE-001", "배치번호 폭", "", "")));
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode("PARTNER-CODE-001"))
+                .thenReturn(List.of());
+        when(journalLineRepository.findPartnerLinesInRange(eq(partnerId), eq(FROM), eq(TO)))
+                .thenReturn(List.of());
+
+        service.getLedger("PARTNER-CODE-001", FROM, TO, UUID.randomUUID());
+
+        ArgumentCaptor<TaxInvoiceBatch> captor = ArgumentCaptor.forClass(TaxInvoiceBatch.class);
+        verify(taxInvoiceBatchRepository).save(captor.capture());
+        assertThat(captor.getValue().getBatchNo()).hasSizeLessThanOrEqualTo(20);
     }
 
     @Test
