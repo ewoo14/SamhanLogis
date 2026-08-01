@@ -54,6 +54,7 @@ const REVALIDATION_STATUS_LABEL: Record<DailyProductRevalidationStatus, string> 
   NOT_FOUND: '미등록',
   AMBIGUOUS: '모호',
   MISSING_REFERENT: '정가결측',
+  MISSING_GLOBAL_DISCOUNT: '전역DC 미조회',
   NOT_MEASURABLE: '측정불가',
   OUT_OF_SCOPE: '대상외',
 }

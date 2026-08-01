@@ -5,10 +5,13 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -23,17 +26,38 @@ public class PartnerDcConfigClient {
 
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
     private static final String DC_CONFIG_SERVICE_BASE = "http://dc-config-service";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
 
     private final RestClient restClient;
     private final InternalAuthProperties internalAuthProperties;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public PartnerDcConfigClient(@Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
                                  InternalAuthProperties internalAuthProperties,
                                  ObjectMapper objectMapper) {
-        this.restClient = builder.baseUrl(DC_CONFIG_SERVICE_BASE).build();
+        this.restClient = builder.baseUrl(DC_CONFIG_SERVICE_BASE)
+                .requestFactory(timeoutRequestFactory())
+                .build();
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
+    }
+
+    /** 실제 HTTP 장애를 재현하는 테스트에서만 사용하는 client 주입 경로. */
+    PartnerDcConfigClient(RestClient restClient, InternalAuthProperties internalAuthProperties,
+                          ObjectMapper objectMapper) {
+        this.restClient = restClient;
+        this.internalAuthProperties = internalAuthProperties;
+        this.objectMapper = objectMapper;
+    }
+
+    /** 실 서비스 장애가 일마감 상세의 무한 대기로 번지지 않도록 제한시간을 적용한다. */
+    static SimpleClientHttpRequestFactory timeoutRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
+        factory.setReadTimeout((int) READ_TIMEOUT.toMillis());
+        return factory;
     }
 
     /** 거래처코드로 홈멀티·상업멀티 전역DC를 조회한다. */
@@ -63,10 +87,9 @@ public class PartnerDcConfigClient {
         } catch (DcConfigNotFoundException ex) {
             return LookupResult.notFound();
         } catch (BusinessException ex) {
-            throw ex;
+            return LookupResult.unavailable();
         } catch (RuntimeException ex) {
-            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "dc-config-service 전역DC 조회 실패", ex);
+            return LookupResult.unavailable();
         }
     }
 
@@ -82,7 +105,7 @@ public class PartnerDcConfigClient {
 
     /** 전역DC 조회 상태와 두 멀티 유형의 원천 비율을 함께 보존한다. */
     public record LookupResult(Status status, BigDecimal homeRate, BigDecimal commercialRate) {
-        public enum Status { FOUND, NOT_FOUND }
+        public enum Status { FOUND, NOT_FOUND, UNAVAILABLE }
 
         public static LookupResult found(BigDecimal homeRate, BigDecimal commercialRate) {
             return new LookupResult(Status.FOUND, homeRate, commercialRate);
@@ -90,6 +113,10 @@ public class PartnerDcConfigClient {
 
         public static LookupResult notFound() {
             return new LookupResult(Status.NOT_FOUND, null, null);
+        }
+
+        public static LookupResult unavailable() {
+            return new LookupResult(Status.UNAVAILABLE, null, null);
         }
 
         public boolean found() {

@@ -1287,4 +1287,23 @@ describe('DailyClosingPage — off-page 상세 요약 (#929 재수렴 4차 ②)'
     expect(scope.textContent).toContain('220,000')
     expect(screen.queryByTestId('daily-closing-selected-scope-unverified')).toBeNull()
   })
+
+  it('전역DC 미조회 상태를 사유 열에 표시한다', async () => {
+    getDailyClosingDetailMock.mockResolvedValue({
+      ...detailFixture,
+      productSummaries: [
+        {
+          ...detailFixture.productSummaries[0],
+          verified: null,
+          expectedRate: null,
+          revalidationStatus: 'MISSING_GLOBAL_DISCOUNT',
+        },
+      ],
+    })
+
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: '상세 보기' }))
+    expect(await screen.findByText('전역DC 미조회')).toBeTruthy()
+  })
 })

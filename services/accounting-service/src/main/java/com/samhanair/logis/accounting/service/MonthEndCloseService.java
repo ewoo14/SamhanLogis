@@ -431,10 +431,16 @@ public class MonthEndCloseService {
         Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
         Map<String, DiscountRevalidator.GlobalDiscount> globalDiscountsByPartnerCode = new LinkedHashMap<>();
         for (String partnerCode : byModel.keySet().stream().map(AxisKey::partnerCode).distinct().toList()) {
-            PartnerDcConfigClient.LookupResult result = partnerDcConfigClient.findByPartnerCode(partnerCode);
-            globalDiscountsByPartnerCode.put(partnerCode, result.found()
-                    ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate())
-                    : DiscountRevalidator.GlobalDiscount.unavailable());
+            try {
+                PartnerDcConfigClient.LookupResult result = partnerDcConfigClient.findByPartnerCode(partnerCode);
+                globalDiscountsByPartnerCode.put(partnerCode, result.found()
+                        ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate())
+                        : DiscountRevalidator.GlobalDiscount.unavailable());
+            } catch (RuntimeException ex) {
+                // 전역DC는 상세 판정의 참고값이다. 외부 장애를 상세 전체 실패로 전파하지 않고,
+                // 엔진이 MISSING_GLOBAL_DISCOUNT를 반환하도록 상태를 보존한다.
+                globalDiscountsByPartnerCode.put(partnerCode, DiscountRevalidator.GlobalDiscount.unavailable());
+            }
         }
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
