@@ -34,7 +34,7 @@ class PartnerApprovalServiceTest {
         service.updateStatus("1234567890", PartnerApprovalStatus.APPROVED);
 
         assertThat(auth.getStatus()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
-        assertThat(auth.expirationAt()).isEqualTo(expirationBeforeRestore);
+        assertThat(auth.expirationAt()).isAfter(expirationBeforeRestore);
     }
 
     private static void setLastLoginAt(PartnerAuth auth, LocalDateTime value) {

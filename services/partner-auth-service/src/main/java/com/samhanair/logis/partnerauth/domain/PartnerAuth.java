@@ -192,13 +192,19 @@ public class PartnerAuth extends BaseEntity {
         this.status = PartnerStatus.LONG_UNUSED;
     }
 
-    /** 장기미사용 거래처의 관리자 승인 복구 — 인증 입력 대기 상태로 전환한다. */
+    /**
+     * 장기미사용 거래처의 관리자 승인 복구 — 인증 입력 대기 상태로 전환하고 만료 기준을 복구 시점으로 갱신한다.
+     *
+     * <p>복구하지 않은 거래처의 30일 판정은 기존 {@link #expirationAt()} 규칙을 그대로 적용한다.
+     */
     public void restoreFromLongUnused() {
         if (this.status != PartnerStatus.LONG_UNUSED) {
             throw new IllegalStateException(PartnerStatus.LONG_UNUSED.getDisplayName()
                     + " 상태에서만 승인 복구 가능: " + this.status.getDisplayName());
         }
         this.status = PartnerStatus.NEED_PW_INPUT;
+        // 관리자 복구를 새로운 접근 기준시각으로 삼아 다음 상태 조회에서 즉시 재선별되지 않게 한다.
+        this.lastLoginAt = LocalDateTime.now();
     }
 
     /** 관리자 승인 (PENDING → NEED_PW_SET — 임시 비밀번호 발급 직전). */
