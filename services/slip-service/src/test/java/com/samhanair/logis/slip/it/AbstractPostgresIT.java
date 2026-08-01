@@ -9,6 +9,7 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult;
 import java.util.UUID;
+import org.springframework.core.io.ClassPathResource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -61,20 +62,51 @@ public abstract class AbstractPostgresIT {
                     .withUsername("samhan")
                     .withPassword("samhan_dev_pw");
 
-    @SuppressWarnings("resource")
-    protected static final PostgreSQLContainer<?> INVENTORY_POSTGRES =
-            new PostgreSQLContainer<>("postgres:16-alpine")
-                    .withDatabaseName("inventory_db")
-                    .withUsername("samhan")
-                    .withPassword("samhan_dev_pw")
-                    .withInitScript("db/inventory-warehouse-master.sql");
-
     static {
         try {
             POSTGRES.start();
-            INVENTORY_POSTGRES.start();
-        } catch (Throwable ignored) {
+            initializeInventoryDatabase();
+        } catch (Throwable startupFailure) {
+            try {
+                if (DockerClientFactory.instance().isDockerAvailable()) {
+                    throw new ExceptionInInitializerError(startupFailure);
+                }
+            } catch (ExceptionInInitializerError e) {
+                throw e;
+            } catch (Throwable dockerCheckFailure) {
+                // Docker availability 자체를 확인할 수 없는 경우에만 skip 정책을 유지한다.
+            }
             // Docker 미가용 환경. DockerAvailableCondition 이 sub IT 들을 skip 처리.
+        }
+    }
+
+    private static void initializeInventoryDatabase() throws Exception {
+        String adminUrl = POSTGRES.getJdbcUrl().replace("/slip_db", "/postgres");
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
+                adminUrl, POSTGRES.getUsername(), POSTGRES.getPassword());
+                java.sql.Statement statement = connection.createStatement()) {
+            try (java.sql.ResultSet result = statement.executeQuery(
+                    "SELECT 1 FROM pg_database WHERE datname = 'inventory_db'")) {
+                if (!result.next()) {
+                    statement.execute("CREATE DATABASE inventory_db");
+                }
+            }
+        }
+
+        String inventoryUrl = POSTGRES.getJdbcUrl().replace("/slip_db", "/inventory_db");
+        String script;
+        try (java.io.InputStream input = new ClassPathResource(
+                "db/inventory-warehouse-master.sql").getInputStream()) {
+            script = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
+                inventoryUrl, POSTGRES.getUsername(), POSTGRES.getPassword());
+                java.sql.Statement statement = connection.createStatement()) {
+            for (String sql : script.split(";")) {
+                if (!sql.trim().isEmpty()) {
+                    statement.execute(sql);
+                }
+            }
         }
     }
 
@@ -83,9 +115,12 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("app.publish.warehouse-validation.jdbc-url", INVENTORY_POSTGRES::getJdbcUrl);
-        registry.add("app.publish.warehouse-validation.username", INVENTORY_POSTGRES::getUsername);
-        registry.add("app.publish.warehouse-validation.password", INVENTORY_POSTGRES::getPassword);
+        registry.add("app.publish.warehouse-validation.jdbc-url",
+                () -> POSTGRES.getJdbcUrl().replace("/slip_db", "/inventory_db"));
+        registry.add("app.publish.warehouse-validation.username", POSTGRES::getUsername);
+        registry.add("app.publish.warehouse-validation.password", POSTGRES::getPassword);
+        registry.add("app.publish.warehouse-validation.hikari.maximum-pool-size", () -> "1");
+        registry.add("app.publish.warehouse-validation.hikari.minimum-idle", () -> "0");
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("eureka.client.enabled", () -> "false");
@@ -99,14 +134,14 @@ public abstract class AbstractPostgresIT {
         //   = postgres max_connections(100) 초과 → "FATAL: sorry, too many clients already".
         //   IT 는 sequential 실행이므로 conn pool 작아도 무방.
         // ----------------------------------------------------------------
-        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
-        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "1");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "0");
         // ----------------------------------------------------------------
         // #809 D-R8-2 — 가격기억 전용 pool 도 같은 이유로 축소한다. 운영 기본 4 를 그대로 두면
         // 캐시된 컨텍스트 N 개 × (메인 3 + 전용 4) 가 컨테이너 max_connections 를 압박한다.
         // minimum-idle 0 = 유휴 컨텍스트가 커넥션을 점유하지 않음 (IT 는 sequential 실행).
         // ----------------------------------------------------------------
-        registry.add("app.slip.price-memory.datasource.hikari.maximum-pool-size", () -> "2");
+        registry.add("app.slip.price-memory.datasource.hikari.maximum-pool-size", () -> "1");
         registry.add("app.slip.price-memory.datasource.hikari.minimum-idle", () -> "0");
     }
 
@@ -118,7 +153,7 @@ public abstract class AbstractPostgresIT {
                 org.junit.jupiter.api.extension.ExtensionContext context) {
             try {
                 if (DockerClientFactory.instance().isDockerAvailable()
-                        && POSTGRES.isRunning() && INVENTORY_POSTGRES.isRunning()) {
+                        && POSTGRES.isRunning()) {
                     return org.junit.jupiter.api.extension.ConditionEvaluationResult
                             .enabled("Docker is available + container running");
                 }

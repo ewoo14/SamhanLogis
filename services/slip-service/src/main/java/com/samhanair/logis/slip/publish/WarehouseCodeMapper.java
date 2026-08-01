@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * Phase 6 M5 (slip-service-integration) — legacy ecount warehouseCode → 내부 warehouse UUID
@@ -50,7 +51,8 @@ public class WarehouseCodeMapper {
 
     private final JdbcTemplate warehouseValidationJdbcTemplate;
 
-    public WarehouseCodeMapper(JdbcTemplate warehouseValidationJdbcTemplate) {
+    public WarehouseCodeMapper(
+            @Qualifier("warehouseValidationJdbcTemplate") JdbcTemplate warehouseValidationJdbcTemplate) {
         this.warehouseValidationJdbcTemplate = warehouseValidationJdbcTemplate;
     }
 
