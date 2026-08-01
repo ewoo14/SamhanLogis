@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -18,8 +19,12 @@ import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
+import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import com.samhanair.logis.common.exception.BusinessException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -34,6 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
@@ -59,6 +65,8 @@ class LedgerImageServiceTest {
     @Mock private ChartOfAccountRepository chartOfAccountRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private ChatRoomMappingClient chatRoomMappingClient;
+    @Mock private TaxInvoiceBatchRepository taxInvoiceBatchRepository;
+    @Spy private ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @InjectMocks private LedgerImageService service;
 
@@ -170,6 +178,22 @@ class LedgerImageServiceTest {
                             .contains("거래처 조회를 일시적으로")
                             .doesNotContain("존재하지 않는 거래처");
                 });
+    }
+
+    @Test
+    @DisplayName("조회 결과는 기존 TaxInvoiceBatch 스냅샷 계약으로 자동 저장된다")
+    void getLedger_autoSavesSnapshotUsingExistingBatchContract() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("P-AUTO"))
+                .thenReturn(Optional.of(new PartnerSummary(partnerId, "P-AUTO", "자동저장", "", "")));
+        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode("P-AUTO"))
+                .thenReturn(List.of());
+        when(journalLineRepository.findPartnerLinesInRange(eq(partnerId), eq(FROM), eq(TO)))
+                .thenReturn(List.of());
+
+        service.getLedger("P-AUTO", FROM, TO);
+
+        verify(taxInvoiceBatchRepository).save(any(TaxInvoiceBatch.class));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.samhanair.logis.accounting.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
@@ -8,6 +9,8 @@ import com.samhanair.logis.accounting.domain.ChartOfAccount;
 import com.samhanair.logis.accounting.domain.JournalLine;
 import com.samhanair.logis.accounting.repository.ChartOfAccountRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
+import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
+import com.samhanair.logis.accounting.domain.TaxInvoiceBatch;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse.LedgerLine;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -18,6 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,6 +46,10 @@ public class LedgerImageService {
     private final ChartOfAccountRepository chartOfAccountRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final ChatRoomMappingClient chatRoomMappingClient;
+    private final TaxInvoiceBatchRepository taxInvoiceBatchRepository;
+    private final ObjectMapper objectMapper;
+
+    private static final DateTimeFormatter BATCH_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     /**
      * partnerCode 기반 원장 데이터 조회.
@@ -51,6 +61,12 @@ public class LedgerImageService {
      * @throws BusinessException(NOT_FOUND) partnerCode 미존재
      */
     public LedgerImageResponse getLedger(String partnerCode, LocalDate from, LocalDate to) {
+        return getLedger(partnerCode, from, to, null);
+    }
+
+    /** 작업자 audit 값을 포함한 거래처별 원장 조회·자동 저장. */
+    public LedgerImageResponse getLedger(String partnerCode, LocalDate from, LocalDate to,
+                                         UUID actorUserId) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new IllegalArgumentException("partnerCode 는 필수입니다");
         }
@@ -98,7 +114,7 @@ public class LedgerImageService {
                     balance));
         }
 
-        return new LedgerImageResponse(
+        LedgerImageResponse result = new LedgerImageResponse(
                 summary.partnerCode(),
                 summary.name(),
                 summary.businessNo(),
@@ -106,5 +122,13 @@ public class LedgerImageService {
                 from,
                 to,
                 ledgerLines);
+        TaxInvoiceBatch batch = TaxInvoiceBatch.createDocumentSnapshot(
+                LedgerSnapshotService.DOCUMENT_TYPE, partnerCode,
+                "LED-" + LocalDateTime.now().format(BATCH_TIME) + "-" + partnerCode,
+                from, to, actorUserId);
+        batch.complete(result.lines().size(), 1, null, null,
+                SnapshotCompression.compress(objectMapper, result));
+        taxInvoiceBatchRepository.save(batch);
+        return result;
     }
 }
