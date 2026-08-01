@@ -4,15 +4,8 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.sql.DriverManager;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -26,10 +19,6 @@ import org.springframework.stereotype.Component;
  * <p>설계 §3: legacy 가 사용한 warehouseCode 는 {@code "00003"} (본사), {@code "2"} (후발),
  * {@code "14"} (안성), {@code "1"} (창원) 등 짧은 문자열. SamhanLogis 내부에서는 warehouse
  * 마스터의 UUID 를 사용하므로 발행 시점에 변환이 필요하다.
- *
- * <p>환경 변수 + application.yml 의 정적 매핑을 사용하되, Spring 기동 시 inventory DB의
- * {@code public.warehouses} 활성 행과 대조한다. 설정된 UUID가 하나라도 부재하면 기동을
- * 중단하여 잘못된 창고로 전표가 발행되지 않게 한다.
  *
  * <p>매핑 누락 → {@link BusinessException}({@link ErrorCode#INVALID_INPUT}) 으로 즉시 실패.
  * legacy 가 신규 코드를 보낸 경우 운영자가 환경 변수에 추가해야 한다.
@@ -52,16 +41,10 @@ import org.springframework.stereotype.Component;
 @Setter
 public class WarehouseCodeMapper {
 
-    private final WarehouseValidationDataSourceConfig.WarehouseValidationProperties validationProperties;
-
-    public WarehouseCodeMapper(
-            WarehouseValidationDataSourceConfig.WarehouseValidationProperties validationProperties) {
-        this.validationProperties = validationProperties;
-    }
-
     /** Spring 이 yaml/env 에서 주입. key 는 legacy 코드, value 는 내부 warehouse UUID. */
     private Map<String, String> warehouseCodeMap = new HashMap<>();
 
+    /** Spring 이 주입한 legacy warehouseCode → 내부 UUID 매핑을 로깅한다. */
     @PostConstruct
     void logEffectiveMap() {
         if (warehouseCodeMap.isEmpty()) {
@@ -70,61 +53,7 @@ public class WarehouseCodeMapper {
                     + "환경 변수 또는 application.yml 에 매핑 추가 필요.");
             return;
         }
-        Set<UUID> existingWarehouseIds = findExistingWarehouseIds(warehouseCodeMap);
-        validateConfiguredWarehouses(warehouseCodeMap, existingWarehouseIds);
         log.info("[Phase 6 M5] warehouse-code-map 로드: {} entries", warehouseCodeMap.size());
-    }
-
-    private Set<UUID> findExistingWarehouseIds(Map<String, String> mappings) {
-        Map<String, UUID> parsedMappings = new HashMap<>();
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            try {
-                parsedMappings.put(entry.getKey(), UUID.fromString(entry.getValue().trim()));
-            } catch (RuntimeException ex) {
-                throw new IllegalStateException("warehouseCode '" + entry.getKey()
-                        + "' 의 매핑값이 UUID 형식이 아닙니다: " + entry.getValue(), ex);
-            }
-        }
-
-        String placeholders = String.join(", ", parsedMappings.values().stream().map(value -> "?").toList());
-        String sql = "SELECT id FROM public.warehouses WHERE is_deleted = false AND id IN ("
-                + placeholders + ")";
-        Set<UUID> existingIds = new HashSet<>();
-        try (Connection connection = DriverManager.getConnection(
-                validationProperties.getJdbcUrl(),
-                validationProperties.getUsername(),
-                validationProperties.getPassword());
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            int parameterIndex = 1;
-            for (UUID warehouseId : parsedMappings.values()) {
-                statement.setObject(parameterIndex++, warehouseId);
-            }
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    existingIds.add(resultSet.getObject("id", UUID.class));
-                }
-            }
-        } catch (SQLException ex) {
-            throw new IllegalStateException("warehouse UUID 실재성 검증을 위한 inventory DB 연결에 실패했습니다: "
-                    + validationProperties.getJdbcUrl(), ex);
-        }
-        return existingIds;
-    }
-
-    static void validateConfiguredWarehouses(Map<String, String> mappings, Set<UUID> existingWarehouseIds) {
-        for (Map.Entry<String, String> entry : mappings.entrySet()) {
-            UUID configuredId;
-            try {
-                configuredId = UUID.fromString(entry.getValue().trim());
-            } catch (RuntimeException ex) {
-                throw new IllegalStateException("warehouseCode '" + entry.getKey()
-                        + "' 의 매핑값이 UUID 형식이 아닙니다: " + entry.getValue(), ex);
-            }
-            if (!existingWarehouseIds.contains(configuredId)) {
-                throw new IllegalStateException("실재하지 않는 warehouse UUID가 설정되었습니다. code='"
-                        + entry.getKey() + "', uuid='" + configuredId + "'");
-            }
-        }
     }
 
     /**

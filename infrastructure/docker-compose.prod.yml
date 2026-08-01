@@ -376,7 +376,6 @@ services:
       <<: *spring-prod
       SERVER_PORT: "8086"
       DB_NAME: slip_db
-      WAREHOUSE_DB_NAME: inventory_db
       WAREHOUSE_UUID_HQ: ${WAREHOUSE_UUID_HQ}
       WAREHOUSE_UUID_HUBAL: ${WAREHOUSE_UUID_HUBAL}
       WAREHOUSE_UUID_ANSEONG: ${WAREHOUSE_UUID_ANSEONG}

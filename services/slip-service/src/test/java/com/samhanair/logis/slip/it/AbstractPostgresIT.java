@@ -9,7 +9,6 @@ import com.samhanair.logis.security.permission.PermissionAction;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeClient;
 import com.samhanair.logis.slip.client.ApprovalLineAuthorizeResult;
 import java.util.UUID;
-import org.springframework.core.io.ClassPathResource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -65,7 +64,6 @@ public abstract class AbstractPostgresIT {
     static {
         try {
             POSTGRES.start();
-            initializeInventoryDatabase();
         } catch (Throwable startupFailure) {
             try {
                 if (DockerClientFactory.instance().isDockerAvailable()) {
@@ -80,69 +78,17 @@ public abstract class AbstractPostgresIT {
         }
     }
 
-    private static void initializeInventoryDatabase() throws Exception {
-        String adminUrl = POSTGRES.getJdbcUrl().replace("/slip_db", "/postgres");
-        try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
-                adminUrl, POSTGRES.getUsername(), POSTGRES.getPassword());
-                java.sql.Statement statement = connection.createStatement()) {
-            try (java.sql.ResultSet result = statement.executeQuery(
-                    "SELECT 1 FROM pg_database WHERE datname = 'inventory_db'")) {
-                if (!result.next()) {
-                    statement.execute("CREATE DATABASE inventory_db");
-                }
-            }
-        }
-
-        String inventoryUrl = POSTGRES.getJdbcUrl().replace("/slip_db", "/inventory_db");
-        String script;
-        try (java.io.InputStream input = new ClassPathResource(
-                "db/inventory-warehouse-master.sql").getInputStream()) {
-            script = new String(input.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-        }
-        try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
-                inventoryUrl, POSTGRES.getUsername(), POSTGRES.getPassword());
-                java.sql.Statement statement = connection.createStatement()) {
-            for (String sql : script.split(";")) {
-                if (!sql.trim().isEmpty()) {
-                    statement.execute(sql);
-                }
-            }
-        }
-    }
-
     @DynamicPropertySource
     static void registerDatasource(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("app.publish.warehouse-validation.jdbc-url",
-                () -> POSTGRES.getJdbcUrl().replace("/slip_db", "/inventory_db"));
-        registry.add("app.publish.warehouse-validation.username", POSTGRES::getUsername);
-        registry.add("app.publish.warehouse-validation.password", POSTGRES::getPassword);
-        registry.add("app.publish.warehouse-validation.hikari.maximum-pool-size", () -> "1");
-        registry.add("app.publish.warehouse-validation.hikari.minimum-idle", () -> "0");
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("eureka.client.enabled", () -> "false");
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("app.security.internal.token", () -> "test-internal-token");
-        // ----------------------------------------------------------------
-        // HikariCP 풀 크기 축소 — PR #188 CI fail 회고 (2026-05-14):
-        //   다수의 IT 가 서로 다른 @MockBean / @WithMockUser / @TestPropertySource
-        //   조합을 사용하면 Spring Context 캐시가 N 개 컨텍스트 × HikariPool 기본 10 conn
-        //   = postgres max_connections(100) 초과 → "FATAL: sorry, too many clients already".
-        //   IT 는 sequential 실행이므로 conn pool 작아도 무방.
-        // ----------------------------------------------------------------
-        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "1");
-        registry.add("spring.datasource.hikari.minimum-idle", () -> "0");
-        // ----------------------------------------------------------------
-        // #809 D-R8-2 — 가격기억 전용 pool 도 같은 이유로 축소한다. 운영 기본 4 를 그대로 두면
-        // 캐시된 컨텍스트 N 개 × (메인 3 + 전용 4) 가 컨테이너 max_connections 를 압박한다.
-        // minimum-idle 0 = 유휴 컨텍스트가 커넥션을 점유하지 않음 (IT 는 sequential 실행).
-        // ----------------------------------------------------------------
-        registry.add("app.slip.price-memory.datasource.hikari.maximum-pool-size", () -> "1");
-        registry.add("app.slip.price-memory.datasource.hikari.minimum-idle", () -> "0");
     }
 
     /** Docker 데몬 미접근 시 테스트를 build fail 대신 skip 처리. */

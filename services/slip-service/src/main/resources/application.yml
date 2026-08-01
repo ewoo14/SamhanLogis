@@ -189,11 +189,6 @@ app:
       "[2]":     ${WAREHOUSE_UUID_HUBAL:11111111-1111-1111-1111-000000000002}
       "[14]":    ${WAREHOUSE_UUID_ANSEONG:11111111-1111-1111-1111-000000000003}
       "[1]":     ${WAREHOUSE_UUID_CHANGWON:11111111-1111-1111-1111-000000000004}
-    warehouse-validation:
-      jdbc-url: ${WAREHOUSE_DB_URL:jdbc:postgresql://${WAREHOUSE_DB_HOST:${DB_HOST:localhost}}:${WAREHOUSE_DB_PORT:${DB_PORT:5432}}/${WAREHOUSE_DB_NAME:inventory_db}}
-      username: ${WAREHOUSE_DB_USER:${DB_USER:samhan}}
-      password: ${WAREHOUSE_DB_PASSWORD:${DB_PASSWORD:samhan_dev_pw}}
-
 management:
   endpoints:
     web:
