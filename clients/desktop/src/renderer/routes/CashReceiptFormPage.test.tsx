@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { DocCoeditProvider } from '../realtime/createCoeditProvider'
@@ -167,7 +167,9 @@ describe('CashReceiptFormPage', () => {
     expect(await screen.findByText('금액은 0보다 커야 합니다.')).not.toBeNull()
     expect(mocks.createCashReceipt).not.toHaveBeenCalled()
 
-    fireEvent.change(screen.getByTestId('cash-receipt-partner-autocomplete'), { target: { value: '삼한공조' } })
+    const firstReceiptLine = within(screen.getByTestId('cash-receipt-line-0'))
+    fireEvent.change(firstReceiptLine.getByTestId('cash-receipt-partner-autocomplete'), { target: { value: '삼한공조' } })
+    fireEvent.change(firstReceiptLine.getByLabelText('입금 행 1 금액'), { target: { value: '2480000' } })
     fireEvent.change(screen.getByLabelText('금액'), { target: { value: '2480000' } })
     fireEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -180,6 +182,13 @@ describe('CashReceiptFormPage', () => {
       memo: undefined,
       debitAccountCode: '102',
       creditAccountCode: '110',
+      lines: [{
+        partnerCode: 'P-001',
+        bizNo: '123-45-67890',
+        partnerName: '삼한공조',
+        amount: '2480000',
+        memo: undefined,
+      }],
     }))
   })
 
@@ -202,6 +211,7 @@ describe('CashReceiptFormPage', () => {
     renderPage('/accounting/admin/cash-receipts/receipt-1/edit')
 
     await waitFor(() => expect(screen.getByLabelText('거래처명')).toHaveProperty('value', '편집거래처'))
+    fireEvent.change(screen.getByLabelText('입금 행 1 금액'), { target: { value: '880000' } })
     fireEvent.change(screen.getByLabelText('금액'), { target: { value: '880000' } })
     fireEvent.click(screen.getByRole('button', { name: '저장' }))
 
@@ -563,7 +573,7 @@ describe('CashReceiptFormPage', () => {
       expect(field.getAttribute('data-field-path')).toBe(fieldPath)
       expect(field.getAttribute('data-provider-present')).toBe('true')
     }
-    expect((screen.getByTestId('cash-receipt-partner-autocomplete') as HTMLInputElement).disabled).toBe(true)
+    expect((within(screen.getByTestId('cash-receipt-line-0')).getByTestId('cash-receipt-partner-autocomplete') as HTMLInputElement).disabled).toBe(true)
   })
 
   it('React Query data 참조가 바뀌어도 provider 를 재생성하지 않는다', async () => {
