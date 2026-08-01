@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { ProductAutocomplete, type ProductOption } from './ProductAutocomplete'
+import { ProductAutocomplete, ProductMultiSelectAutocomplete, type ProductOption } from './ProductAutocomplete'
 
 describe('ProductAutocomplete', () => {
   it('기존 1-인자 renderer 계약으로 품목 후보를 정상 표시한다', async () => {
@@ -98,5 +98,64 @@ describe('ProductAutocomplete', () => {
     expect(option.querySelector('mark')?.textContent).toBe('에어컨')
     expect(option.textContent).toContain('품목명')
     expect(option.querySelector('mark')?.textContent).not.toBe('MODEL-CODE-ONLY')
+  })
+
+  it('복수 모드에서 결과 1건은 모달 없이 칩으로 바로 확정한다', async () => {
+    const product: ProductOption = { id: 'uuid-a', modelCode: 'MODEL-A', modelName: 'MODEL-A', productName: '동명 품목' }
+    const selected: ProductOption[] = []
+    const onAdd = vi.fn((item: ProductOption) => selected.push(item))
+    const searchProducts = vi.fn().mockResolvedValue([product])
+
+    render(
+      <ProductMultiSelectAutocomplete
+        selected={selected}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'MODEL-A' } })
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith(product))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('복수 모드에서 결과 2건 이상은 UUID 없이 모달에서 복수 확정한다', async () => {
+    const products: ProductOption[] = [
+      { id: 'uuid-a', modelCode: 'MODEL-A', modelName: 'MODEL-A', productName: '동명 품목' },
+      { id: 'uuid-b', modelCode: 'MODEL-B', modelName: 'MODEL-B', productName: '동명 품목' },
+    ]
+    const selected: ProductOption[] = []
+    const onAdd = vi.fn((item: ProductOption) => selected.push(item))
+    const searchProducts = vi.fn().mockResolvedValue(products)
+
+    render(
+      <ProductMultiSelectAutocomplete
+        selected={selected}
+        onAdd={onAdd}
+        onRemove={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '동명' } })
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '품목 검색 결과' })).toBeTruthy())
+    expect(document.body.textContent).not.toContain('uuid-a')
+    expect(document.body.textContent).not.toContain('uuid-b')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'MODEL-A' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'MODEL-B' }))
+    fireEvent.click(screen.getByRole('button', { name: '선택 확정' }))
+
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(2))
   })
 })

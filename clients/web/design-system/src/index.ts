@@ -80,5 +80,6 @@ export * from './components/PartnerAutocomplete'
 export * from './components/AsyncAutocomplete'
 // #825 슬4 — AsyncAutocomplete + TagChip 조합 복수선택 표준
 export * from './components/MultiSelectAutocomplete'
+export * from './components/SearchResultSelectionModal'
 // #825 슬4 — 검색 없는 순서형 문자열 칩 입력
 export * from './components/FreeTextChipInput'

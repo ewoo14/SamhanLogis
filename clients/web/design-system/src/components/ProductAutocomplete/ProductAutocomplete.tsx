@@ -6,6 +6,7 @@
  */
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
+import { MultiSelectAutocomplete } from '../MultiSelectAutocomplete'
 import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
 
@@ -54,6 +55,21 @@ export interface ProductAutocompleteProps {
   minChars?: number
   /** 입력 후 서버 검색까지 debounce 시간 ms (default: 250). */
   debounceMs?: number
+}
+
+export interface ProductMultiSelectAutocompleteProps {
+  selected: ProductOption[]
+  onAdd: (product: ProductOption) => void
+  onRemove: (product: ProductOption) => void
+  searchProducts: (q: string) => Promise<ProductOption[]>
+  label?: string
+  ariaLabel?: string
+  inputTestId?: string
+  placeholder?: string
+  disabled?: boolean
+  minChars?: number
+  debounceMs?: number
+  max?: number
 }
 
 function HighlightedProductField({
@@ -130,6 +146,53 @@ export const ProductAutocomplete = forwardRef<
       )}
       label={label}
       placeholder={placeholder}
+      {...rest}
+    />
+  )
+})
+
+/** 품목 일괄 추가용 복수 선택 wrapper. 기존 ProductAutocomplete와 동작이 분리된 opt-in이다. */
+export const ProductMultiSelectAutocomplete = forwardRef<
+  HTMLInputElement,
+  ProductMultiSelectAutocompleteProps
+>(function ProductMultiSelectAutocomplete(
+  { searchProducts, label = '품목', placeholder = '모델명 또는 품목명 입력…', ...rest },
+  ref,
+) {
+  return (
+    <MultiSelectAutocomplete<ProductOption, ProductOption>
+      ref={ref}
+      search={searchProducts}
+      getOptionKey={(product) => product.id}
+      getSelectedKey={(product) => product.id}
+      getInputLabel={(product) => product.modelCode ?? product.modelName}
+      listboxLabel="품목 목록"
+      renderOption={(product, context) => (
+        <>
+          <HighlightedProductField
+            value={product.modelCode ?? product.modelName}
+            query={context?.query ?? ''}
+            label="모델코드"
+            className={styles['optionPrimary']}
+          />
+          <span className={styles['optionSep']}>·</span>
+          <HighlightedProductField
+            value={product.productName}
+            query={context?.query ?? ''}
+            label="품목명"
+            className={styles['optionSecondary']}
+          />
+        </>
+      )}
+      getChipProps={(product) => ({
+        label: product.modelCode ?? product.modelName,
+        value: product.productName,
+      })}
+      ariaLabel={rest.ariaLabel ?? '품목'}
+      label={label}
+      placeholder={placeholder}
+      resultSelectionMode="multiple"
+      resultSelectionTitle="품목 검색 결과"
       {...rest}
     />
   )

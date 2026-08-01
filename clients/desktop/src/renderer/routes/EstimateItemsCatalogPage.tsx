@@ -44,6 +44,7 @@ import {
   Input,
   Modal,
   ProductAutocomplete,
+  ProductMultiSelectAutocomplete,
   Select,
   type DataTableColumn,
   type ProductOption,
@@ -1138,7 +1139,7 @@ export function EstimateItemsCatalogPage() {
     return isEstimateCategoryTab(requested) ? requested : 'HOME_MULTI'
   })
   const [currentPage, setCurrentPage] = useState(0)
-  const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null)
+  const [selectedProducts, setSelectedProducts] = useState<ProductOption[]>([])
   const [patchingCode, setPatchingCode] = useState<string | null>(null)
   const [mutationError, setMutationError] = useState<string | null>(null)
   const [sortableRows, setSortableRows] = useState<ProductCatalogRow[]>([])
@@ -1332,7 +1333,7 @@ export function EstimateItemsCatalogPage() {
       })
     },
     onSuccess: () => {
-      setSelectedProduct(null)
+      setSelectedProducts([])
       setMutationError(null)
       void queryClient.invalidateQueries({ queryKey: ['estimate-items-catalog'] })
       void queryClient.invalidateQueries({ queryKey: ['product-catalog'] })
@@ -1485,12 +1486,10 @@ export function EstimateItemsCatalogPage() {
   }, [committedCategory])
 
   const { totalElements, totalPages } = resolveEstimateItemsPageTotals(listQuery.data)
-  const selectedProductCode = selectedProduct
-    ? selectedProduct.modelCode ?? selectedProduct.modelName
-    : ''
-  const selectedAlreadyAdded = !!selectedProductCode && rows.some(
-    (row) => row.modelCode === selectedProductCode && estimateCategoryValues(row).includes(committedCategory),
-  )
+  const selectedProductCodes = selectedProducts.map((product) => product.modelCode ?? product.modelName)
+  const selectedAlreadyAdded = selectedProductCodes.some((code) => rows.some(
+    (row) => row.modelCode === code && estimateCategoryValues(row).includes(committedCategory),
+  ))
 
   const columns: DataTableColumn<ProductCatalogRow>[] = [
     ...(isDragEnabled
@@ -1746,9 +1745,10 @@ export function EstimateItemsCatalogPage() {
           aria-label="기초품목 선택 추가"
           data-testid="estimate-items-add-product"
         >
-          <ProductAutocomplete
-            value={selectedProduct}
-            onChange={setSelectedProduct}
+          <ProductMultiSelectAutocomplete
+            selected={selectedProducts}
+            onAdd={(product) => setSelectedProducts((current) => [...current, product])}
+            onRemove={(product) => setSelectedProducts((current) => current.filter((item) => item.id !== product.id))}
             searchProducts={searchMasterProducts}
             label="기초품목 선택"
             placeholder="모델명 또는 품목명 입력"
@@ -1757,10 +1757,12 @@ export function EstimateItemsCatalogPage() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => selectedProduct && addProductMutation.mutate(selectedProduct)}
-            loading={addProductMutation.isPending}
-            disabled={
-              !selectedProduct ||
+              onClick={() => {
+                selectedProducts.forEach((product) => addProductMutation.mutate(product))
+              }}
+              loading={addProductMutation.isPending}
+              disabled={
+              selectedProducts.length === 0 ||
               selectedAlreadyAdded ||
               addProductMutation.isPending
             }
@@ -1768,8 +1770,8 @@ export function EstimateItemsCatalogPage() {
           >
             {selectedAlreadyAdded
               ? '이미 노출됨'
-              : selectedProductCode
-                ? `${selectedProductCode} 추가`
+              : selectedProducts.length > 0
+                ? `${selectedProducts.length}건 추가`
                 : '현재 카테고리에 추가'}
           </Button>
         </section>

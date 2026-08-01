@@ -22,6 +22,10 @@ import {
 import { createPortal } from 'react-dom'
 import styles from './AsyncAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
+import {
+  SearchResultSelectionModal,
+  type SearchResultSelectionMode,
+} from '../SearchResultSelectionModal'
 
 export interface AsyncAutocompleteProps<T> {
   /** 현재 선택 항목 (controlled). 미선택은 `null`. */
@@ -69,6 +73,14 @@ export interface AsyncAutocompleteProps<T> {
   debounceMs?: number
   /** dropdown 을 body floating layer 로 렌더한다. overflow 컨테이너 안에서는 기본 true 를 유지한다. */
   portal?: boolean
+  /** 결과 선택 모달을 활성화한다. 기본값 legacy는 기존 dropdown 동작이다. */
+  resultSelectionMode?: SearchResultSelectionMode
+  /** multiple 모달에서 확정된 후보 묶음. */
+  onResultsConfirmed?: (items: T[]) => void
+  /** 결과 선택 모달 제목. */
+  resultSelectionTitle?: ReactNode
+  /** multiple 모달에서 이미 선택한 후보의 opaque key. */
+  selectedKeys?: string[]
 }
 
 /** 후보 표시 renderer에 전달하는 응답 시점 검색 context. */
@@ -101,6 +113,10 @@ function AsyncAutocompleteInner<T>(
     minChars = 1,
     debounceMs = 250,
     portal = true,
+    resultSelectionMode,
+    onResultsConfirmed,
+    resultSelectionTitle = '검색 결과 선택',
+    selectedKeys = [],
   }: AsyncAutocompleteProps<T>,
   ref: ForwardedRef<HTMLInputElement>,
 ) {
@@ -120,6 +136,8 @@ function AsyncAutocompleteInner<T>(
   }>({ candidates: [], resolvedQuery: '' })
   const [status, setStatus] = useState<SearchStatus>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [selectionCandidates, setSelectionCandidates] = useState<T[]>([])
+  const [selectionOpen, setSelectionOpen] = useState(false)
   const [floatingStyle, setFloatingStyle] = useState<CSSProperties | undefined>(undefined)
   const [, setCommittedState] = useState(true)
 
@@ -274,6 +292,19 @@ function AsyncAutocompleteInner<T>(
         // stale 응답 — 더 최신 요청이 발행됐으면 버림
         if (latestSeq.current !== seq) return
         // 후보와 그 후보를 만든 검색어를 원자적으로 갱신한다.
+        if (resultSelectionMode && results.length === 1) {
+          if (resultSelectionMode === 'multiple') onResultsConfirmed?.(results)
+          else pick(results[0]!)
+          return
+        }
+        if (resultSelectionMode && results.length > 1) {
+          setSelectionCandidates(results)
+          setSelectionOpen(true)
+          setOpen(false)
+          setSearchState({ candidates: [], resolvedQuery: '' })
+          setStatus('idle')
+          return
+        }
         setSearchState({ candidates: results, resolvedQuery: q })
         setStatus('done')
       } catch {
@@ -283,7 +314,7 @@ function AsyncAutocompleteInner<T>(
         setErrorMsg('검색 중 오류가 발생했습니다.')
       }
     },
-    [search],
+    [onResultsConfirmed, pick, resultSelectionMode, search],
   )
 
   /** 입력 변경 — debounce 후 서버 검색 */
@@ -427,6 +458,13 @@ function AsyncAutocompleteInner<T>(
     }
   }
 
+  const closeSelection = useCallback(() => {
+    setSelectionOpen(false)
+    setSelectionCandidates([])
+    setDraft('')
+    setCommitted(true)
+  }, [setCommitted])
+
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
   const displayValue = open ? draft : selectedLabel
 
@@ -494,6 +532,7 @@ function AsyncAutocompleteInner<T>(
     req: boolean,
     ariaDescribedBy: string | undefined,
   ) => (
+    <>
     <div className={styles['wrapper']} ref={wrapperRef}>
       <div
         className={[
@@ -646,6 +685,24 @@ function AsyncAutocompleteInner<T>(
         )
       ) : null}
     </div>
+    <SearchResultSelectionModal
+      key={selectionCandidates.map(getKey).join('|')}
+      open={selectionOpen}
+      mode={resultSelectionMode ?? 'single'}
+      title={resultSelectionTitle}
+      options={selectionCandidates}
+      getKey={getKey}
+      getLabel={getInputLabel}
+      renderOption={(item) => renderOption(item, { query: draft.trim() })}
+      initialSelectedKeys={selectedKeys}
+      onConfirm={(items) => {
+        if (resultSelectionMode === 'multiple') onResultsConfirmed?.(items)
+        else if (items[0]) pick(items[0])
+        closeSelection()
+      }}
+      onCancel={closeSelection}
+    />
+    </>
   )
 
   // compact 모드: label 없이 wrapper+input 만 렌더
