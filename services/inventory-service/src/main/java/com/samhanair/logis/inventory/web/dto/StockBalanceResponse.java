@@ -3,15 +3,11 @@ package com.samhanair.logis.inventory.web.dto;
 import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.domain.WarehouseType;
 import com.samhanair.logis.inventory.client.ProductSummary;
-import java.util.UUID;
 
-/** (product, warehouse) 단위 재고 잔량 응답. UUID는 내부 조인용이며 화면에는 모델코드를 표시한다. */
+/** (품목, 창고) 단위 재고 잔량 응답. 내부 UUID는 응답에 포함하지 않는다. */
 public record StockBalanceResponse(
-        UUID id,
-        UUID productId,
         String productCode,
         String productName,
-        UUID warehouseId,
         String warehouseCode,
         String warehouseName,
         WarehouseType warehouseType,
@@ -33,11 +29,8 @@ public record StockBalanceResponse(
      */
     public static StockBalanceResponse from(StockBalance b, ProductSummary product) {
         return new StockBalanceResponse(
-                b.getId(),
-                b.getProductId(),
                 product == null ? null : product.modelName(),
                 product == null ? null : product.name(),
-                b.getWarehouse().getId(),
                 b.getWarehouse().getCode(),
                 b.getWarehouse().getName(),
                 b.getWarehouse().getType(),

@@ -5308,8 +5308,9 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       (!productIdFilter || r.productId === productIdFilter) &&
       (!warehouseIdFilter || r.warehouseId === warehouseIdFilter),
     )
+    const content = filtered.map(({ productId: _productId, warehouseId: _warehouseId, ...row }) => row)
     return envelope({
-      content: filtered,
+      content,
       number: 0,
       size: 50,
       totalElements: filtered.length,

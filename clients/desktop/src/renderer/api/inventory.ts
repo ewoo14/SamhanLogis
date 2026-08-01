@@ -286,15 +286,11 @@ export interface StockBalanceLookupLine {
 /**
  * `GET /inventory/balances` 응답 row — BE `StockBalanceResponse` 와 1:1.
  *
- * UUID 비공개 가드:
- * - `productId` / `warehouseId` 는 내부 key 용, 화면 미노출.
- * - 화면 노출 식별자: `productCode` / `productName` / `warehouseCode` / `warehouseName`.
+ * UUID 비공개 가드: 응답에는 내부 UUID가 없으며 화면 노출 식별자만 수신한다.
  */
 export interface StockBalanceListRow {
-  productId: string
   productCode: string
   productName: string
-  warehouseId: string
   warehouseCode: string
   warehouseName: string
   warehouseType: WarehouseType
