@@ -1,4 +1,4 @@
--- V61: 실 DB line_total(원래 사용자 총액)을 보존하는 VAT 중복 가산 정정.
+-- V61: 실 DB 공급가액 별칭(line_total)을 유지하는 VAT 중복 가산 정정.
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TABLE slip_line_correction_audits (
  id UUID PRIMARY KEY, slip_id UUID NOT NULL, slip_line_id UUID NOT NULL, slip_no VARCHAR(40) NOT NULL,
@@ -35,6 +35,8 @@ INSERT INTO vat_correction_targets VALUES
 (17,'2026/05/31-9','', 'AR11TXEAAWKNEU-05',2,1320000,1452000,2640000,264000,2640000,1200000,1320000,2400000,240000,2640000),
 (18,'2026/07/05-1','', 'AR13TXEAAWKNEU-06',1,1560000,1716000,1560000,156000,1560000,1418182,1560000,1418182,141818,1560000),
 (19,'2026/07/05-2','', 'AR13TXEAAWKNEU-06',1,1560000,1716000,1560000,156000,1560000,1418182,1560000,1418182,141818,1560000);
+-- line_total은 현행 전표 도메인에서 공급가액의 별칭이다. VAT 포함 총액은 supply_amount + vat_amount로 보존한다.
+UPDATE vat_correction_targets SET new_line_total = new_supply;
 UPDATE vat_correction_targets SET product_name = CASE target_no
  WHEN 1 THEN U&'\\C0BC\\C131 DVM-S 10HP' WHEN 2 THEN U&'\\C0BC\\C131 \\C708\\B4DC\\D504\\B9AC 9\\D3C9\\D615' WHEN 3 THEN U&'\\C0BC\\C131 \\C708\\B4DC\\D504\\B9AC 7\\D3C9\\D615'
  WHEN 4 THEN U&'\\C0BC\\C131 \\C708\\B4DC\\D504\\B9AC 5\\D3C9\\D615' WHEN 5 THEN U&'\\C0BC\\C131 \\C708\\B4DC\\D504\\B9AC 5\\D3C9\\D615'
@@ -61,11 +63,11 @@ SELECT t.target_no,s.id AS slip_id,sl.id AS slip_line_id,
 FROM slips s JOIN slip_lines sl ON sl.slip_id=s.id JOIN vat_correction_targets t
  ON t.slip_no=s.slip_no AND t.product_name=sl.product_name AND t.model_name=sl.model_name AND t.quantity=sl.quantity
  AND ((sl.unit_price=t.old_unit_price AND sl.unit_price_with_vat=t.old_unit_vat AND sl.supply_amount=t.old_supply AND sl.vat_amount=t.old_vat AND sl.line_total=t.old_line_total)
-   OR (sl.unit_price=t.new_unit_price AND sl.unit_price_with_vat=t.new_unit_vat AND sl.supply_amount=t.new_supply AND sl.vat_amount=t.new_vat AND sl.line_total=t.new_line_total))
+   OR (sl.unit_price=t.new_unit_price AND sl.unit_price_with_vat=t.new_unit_vat AND sl.supply_amount=t.new_supply AND sl.vat_amount=t.new_vat AND sl.line_total=t.new_supply))
 WHERE s.source_type='PARTNER_ORDER' AND NOT s.is_deleted AND NOT sl.is_deleted;
 DO $$ BEGIN IF EXISTS (SELECT 1 FROM vat_correction_matches GROUP BY target_no HAVING COUNT(*)>1) THEN RAISE EXCEPTION 'VAT correction target is ambiguous'; END IF; END $$;
 INSERT INTO slip_line_correction_audits (id,slip_id,slip_line_id,slip_no,correction_type,before_values,after_values,reason,created_at,created_by,modified_at,modified_by,is_deleted)
-SELECT gen_random_uuid(),s.id,sl.id,s.slip_no,'VAT_OVERCHARGE_CORRECTION',jsonb_build_object('unit_price',sl.unit_price,'unit_price_with_vat',sl.unit_price_with_vat,'supply_amount',sl.supply_amount,'vat_amount',sl.vat_amount,'line_total',sl.line_total),jsonb_build_object('unit_price',t.new_unit_price,'unit_price_with_vat',t.new_unit_vat,'supply_amount',t.new_supply,'vat_amount',t.new_vat,'line_total',t.new_line_total),'원천 partner order의 VAT 포함 단가와 대조해 중복 부가세 가산을 정정한다.',NOW(),'v61-vat-correction',NOW(),'v61-vat-correction',FALSE
+SELECT gen_random_uuid(),s.id,sl.id,s.slip_no,'VAT_OVERCHARGE_CORRECTION',jsonb_build_object('unit_price',sl.unit_price,'unit_price_with_vat',sl.unit_price_with_vat,'supply_amount',sl.supply_amount,'vat_amount',sl.vat_amount,'line_total',sl.line_total),jsonb_build_object('unit_price',t.new_unit_price,'unit_price_with_vat',t.new_unit_vat,'supply_amount',t.new_supply,'vat_amount',t.new_vat,'line_total',t.new_supply),'원천 partner order의 VAT 포함 단가와 대조해 중복 부가세 가산을 정정한다.',NOW(),'v61-vat-correction',NOW(),'v61-vat-correction',FALSE
 FROM vat_correction_matches m JOIN slips s ON s.id=m.slip_id JOIN slip_lines sl ON sl.id=m.slip_line_id JOIN vat_correction_targets t ON t.target_no=m.target_no WHERE m.state='OLD';
-UPDATE slip_lines sl SET unit_price=t.new_unit_price,unit_price_with_vat=t.new_unit_vat,supply_amount=t.new_supply,vat_amount=t.new_vat,line_total=t.new_line_total,modified_at=NOW(),modified_by='v61-vat-correction'
+UPDATE slip_lines sl SET unit_price=t.new_unit_price,unit_price_with_vat=t.new_unit_vat,supply_amount=t.new_supply,vat_amount=t.new_vat,line_total=t.new_supply,modified_at=NOW(),modified_by='v61-vat-correction'
 FROM vat_correction_matches m JOIN vat_correction_targets t ON t.target_no=m.target_no WHERE sl.id=m.slip_line_id AND m.state='OLD';

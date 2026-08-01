@@ -38,4 +38,15 @@ class VatOverchargeCorrectionMigrationSqlTest {
         assertThat(sql).doesNotContain("'2026/05/30-2'");
         assertThat(sql).doesNotContain("'2026/05/30-3'");
     }
+
+    @Test
+    void v61_stores_line_total_as_supply_amount_after_correction() throws Exception {
+        Path modulePath = Path.of(MIGRATION);
+        Path rootPath = Path.of(ROOT_MIGRATION);
+        String sql = Files.readString(Files.exists(modulePath) ? modulePath : rootPath);
+
+        assertThat(sql).contains("UPDATE vat_correction_targets SET new_line_total = new_supply;");
+        assertThat(sql).contains("jsonb_build_object('unit_price',t.new_unit_price,'unit_price_with_vat',t.new_unit_vat,'supply_amount',t.new_supply,'vat_amount',t.new_vat,'line_total',t.new_supply)");
+        assertThat(sql).contains("line_total=t.new_supply");
+    }
 }
