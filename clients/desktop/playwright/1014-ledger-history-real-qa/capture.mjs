@@ -17,9 +17,11 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', '1014-ledger-history-real-qa');
+// 하네스 거짓 green 가드(H-2): docs/qa 목적지는 resolveQaShotsDir 를 경유한다.
+const OUT = resolveQaShotsDir(path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', '1014-ledger-history-real-qa'));
 fs.mkdirSync(OUT, { recursive: true });
 
 const APP = process.env.QA_APP_URL || 'http://localhost:5274';
