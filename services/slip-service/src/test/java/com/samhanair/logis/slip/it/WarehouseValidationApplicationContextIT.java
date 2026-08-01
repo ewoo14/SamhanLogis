@@ -48,9 +48,25 @@ class WarehouseValidationApplicationContextIT extends AbstractPostgresIT {
             when(client.findWarehouseById(any(UUID.class))).thenAnswer(invocation -> {
                 UUID id = invocation.getArgument(0);
                 return WarehouseInternalClient.WarehouseLookup.found(
-                        new WarehouseInternalClient.WarehouseSummary(id, "inventory-code"));
+                        new WarehouseInternalClient.WarehouseSummary(id, codeFor(id)));
             });
+            when(client.findWarehouseByCode("00003"))
+                    .thenReturn(java.util.Optional.of(new WarehouseInternalClient.WarehouseSummary(HQ, "00003")));
+            when(client.findWarehouseByCode("2"))
+                    .thenReturn(java.util.Optional.of(new WarehouseInternalClient.WarehouseSummary(HUBAL, "2")));
+            when(client.findWarehouseByCode("14"))
+                    .thenReturn(java.util.Optional.of(new WarehouseInternalClient.WarehouseSummary(ANSEONG, "14")));
+            when(client.findWarehouseByCode("1"))
+                    .thenReturn(java.util.Optional.of(new WarehouseInternalClient.WarehouseSummary(CHANGWON, "1")));
             return client;
+        }
+
+        private static String codeFor(UUID id) {
+            if (HQ.equals(id)) return "00003";
+            if (HUBAL.equals(id)) return "2";
+            if (ANSEONG.equals(id)) return "14";
+            if (CHANGWON.equals(id)) return "1";
+            return "unknown";
         }
 
         @Bean

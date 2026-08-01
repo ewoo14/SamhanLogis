@@ -5,11 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.never;
-import static org.mockito.ArgumentMatchers.anyString;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import org.junit.jupiter.api.Test;
 
@@ -50,9 +49,12 @@ class WarehouseCodeMapperStartupValidationTest {
                 .thenReturn(WarehouseInternalClient.WarehouseLookup.found(
                         new WarehouseInternalClient.WarehouseSummary(
                                 java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"), "HQ-001")));
+        when(mapper.getWarehouseInternalClient().findWarehouseByCode("00003"))
+                .thenReturn(Optional.of(new WarehouseInternalClient.WarehouseSummary(
+                        java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"), "00003")));
 
         assertThatCode(mapper::logEffectiveMap).doesNotThrowAnyException();
-        verify(mapper.getWarehouseInternalClient(), never()).findWarehouseByCode(anyString());
+        verify(mapper.getWarehouseInternalClient()).findWarehouseByCode("00003");
     }
 
     @Test
@@ -77,6 +79,40 @@ class WarehouseCodeMapperStartupValidationTest {
         assertThatThrownBy(mapper::logEffectiveMap)
                 .hasMessageContaining("00003")
                 .hasMessageNotContaining("00000000-0000-0000-0000-000000000001");
+    }
+
+    @Test
+    void 정상_창고라도_UUID와_창고코드가_뒤바뀌면_기동을_막는다() {
+        UUID configuredId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID codeResolvedId = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        WarehouseCodeMapper mapper = mapperWith(Map.of("00003", configuredId.toString()));
+        when(mapper.getWarehouseInternalClient().findWarehouseById(configuredId))
+                .thenReturn(WarehouseInternalClient.WarehouseLookup.found(
+                        new WarehouseInternalClient.WarehouseSummary(configuredId, "HQ-001")));
+        when(mapper.getWarehouseInternalClient().findWarehouseByCode("00003"))
+                .thenReturn(Optional.of(new WarehouseInternalClient.WarehouseSummary(codeResolvedId, "00003")));
+
+        assertThatThrownBy(mapper::logEffectiveMap)
+                .hasMessageContaining("00003")
+                .hasMessageNotContaining(configuredId.toString())
+                .hasMessageNotContaining(codeResolvedId.toString());
+    }
+
+    @Test
+    void 기동_당시_UNAVAILABLE_매핑은_후속_재검증으로_확인된다() {
+        UUID configuredId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        WarehouseCodeMapper mapper = mapperWith(Map.of("00003", configuredId.toString()));
+        WarehouseInternalClient client = mapper.getWarehouseInternalClient();
+        when(client.findWarehouseById(configuredId))
+                .thenReturn(WarehouseInternalClient.WarehouseLookup.unavailable())
+                .thenReturn(WarehouseInternalClient.WarehouseLookup.found(
+                        new WarehouseInternalClient.WarehouseSummary(configuredId, "00003")));
+        when(client.findWarehouseByCode("00003"))
+                .thenReturn(Optional.of(new WarehouseInternalClient.WarehouseSummary(configuredId, "00003")));
+
+        assertThatCode(mapper::logEffectiveMap).doesNotThrowAnyException();
+        assertThatCode(mapper::revalidateUnavailableWarehouses).doesNotThrowAnyException();
+        verify(client, org.mockito.Mockito.times(2)).findWarehouseById(configuredId);
     }
 
     private static WarehouseCodeMapper mapperWith(Map<String, String> mapping) {

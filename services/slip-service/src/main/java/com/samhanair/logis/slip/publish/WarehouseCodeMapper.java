@@ -6,7 +6,9 @@ import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Phase 6 M5 (slip-service-integration) — legacy ecount warehouseCode → 내부 warehouse UUID
@@ -55,6 +58,9 @@ public class WarehouseCodeMapper {
     @Value("${app.publish.warehouse-validation.enabled:true}")
     private boolean warehouseValidationEnabled;
 
+    /** 기동 당시 창고 서비스 장애로 검증을 보류한 legacy 창고 코드 집합. */
+    private final Set<String> unavailableWarehouseCodes = ConcurrentHashMap.newKeySet();
+
     /** Spring 이 주입한 legacy warehouseCode → 내부 UUID 매핑을 로깅한다. */
     @PostConstruct
     void logEffectiveMap() {
@@ -77,7 +83,7 @@ public class WarehouseCodeMapper {
      *
      * @throws IllegalStateException 매핑이 비어 있거나 실재하지 않거나 코드와 불일치할 때
      */
-    void validateConfiguredWarehouses() {
+    synchronized void validateConfiguredWarehouses() {
         if (warehouseInternalClient == null) {
             throw new IllegalStateException("창고 매핑 기동 검증 실패: 창고코드 조회 client가 구성되지 않았습니다");
         }
@@ -92,6 +98,7 @@ public class WarehouseCodeMapper {
 
             WarehouseInternalClient.WarehouseLookup lookup = warehouseInternalClient.findWarehouseById(configuredId);
             if (lookup.status() == WarehouseInternalClient.LookupStatus.UNAVAILABLE) {
+                unavailableWarehouseCodes.add(warehouseCode);
                 log.warn("창고 매핑 기동 검증을 보류합니다 — 창고 서비스 일시 조회 불가 (창고코드={})",
                         warehouseCode);
                 continue;
@@ -103,7 +110,28 @@ public class WarehouseCodeMapper {
             if (!configuredId.equals(lookup.summary().warehouseId())) {
                 throw invalidStartupMapping(warehouseCode, "설정값과 활성 창고 정보가 일치하지 않습니다");
             }
+            WarehouseInternalClient.WarehouseSummary codeLookup =
+                    warehouseInternalClient.findWarehouseByCode(warehouseCode).orElse(null);
+            if (codeLookup == null || !configuredId.equals(codeLookup.warehouseId())) {
+                throw invalidStartupMapping(warehouseCode, "UUID와 창고코드가 서로 다른 창고를 가리킵니다");
+            }
+            unavailableWarehouseCodes.remove(warehouseCode);
         }
+    }
+
+    /**
+     * 기동 시 일시 장애로 보류한 창고 매핑을 주기적으로 재검증한다.
+     *
+     * <p>개별 HTTP 조회는 명시적 timeout으로 제한되며 UUID는 로그에 남기지 않는다.
+     */
+    @Scheduled(
+            fixedDelayString = "${app.publish.warehouse-validation.retry-delay-ms:30000}",
+            initialDelayString = "${app.publish.warehouse-validation.retry-initial-delay-ms:30000}")
+    void revalidateUnavailableWarehouses() {
+        if (!warehouseValidationEnabled || unavailableWarehouseCodes.isEmpty()) {
+            return;
+        }
+        validateConfiguredWarehouses();
     }
 
     private IllegalStateException invalidStartupMapping(String warehouseCode, String reason) {

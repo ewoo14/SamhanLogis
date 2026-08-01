@@ -44,7 +44,7 @@ public class WarehouseInternalClient {
     private final ObjectMapper objectMapper;
 
     public WarehouseInternalClient(
-            @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
+            @Qualifier("warehouseRestClientBuilder") RestClient.Builder builder,
             InternalAuthProperties internalAuthProperties,
             ObjectMapper objectMapper) {
         this.restClient = builder.baseUrl(INVENTORY_SERVICE_BASE).build();

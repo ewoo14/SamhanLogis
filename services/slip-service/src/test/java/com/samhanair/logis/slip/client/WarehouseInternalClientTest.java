@@ -20,6 +20,13 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.RETURNS_SELF;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /** WarehouseInternalClient — inventory-service 창고 단건 조회 wire 계약 회귀 가드. */
 class WarehouseInternalClientTest {
@@ -142,6 +149,24 @@ class WarehouseInternalClientTest {
         assertThat(client.findWarehouseById(WAREHOUSE_ID).status())
                 .isEqualTo(WarehouseInternalClient.LookupStatus.UNAVAILABLE);
         server.verify();
+    }
+
+    @Test
+    void 창고_조회_client에는_명시적_연결_및_읽기_timeout이_설정된다() throws Exception {
+        RestClient.Builder timeoutBuilder = mock(RestClient.Builder.class, RETURNS_SELF);
+        new RestClientConfig().warehouseClientBuilder(timeoutBuilder);
+
+        ArgumentCaptor<ClientHttpRequestFactory> captor =
+                ArgumentCaptor.forClass(ClientHttpRequestFactory.class);
+        verify(timeoutBuilder).requestFactory(captor.capture());
+        assertThat(captor.getValue()).isInstanceOf(SimpleClientHttpRequestFactory.class);
+        SimpleClientHttpRequestFactory factory = (SimpleClientHttpRequestFactory) captor.getValue();
+        var connectTimeout = SimpleClientHttpRequestFactory.class.getDeclaredField("connectTimeout");
+        var readTimeout = SimpleClientHttpRequestFactory.class.getDeclaredField("readTimeout");
+        connectTimeout.setAccessible(true);
+        readTimeout.setAccessible(true);
+        assertThat(connectTimeout.getInt(factory)).isPositive().isLessThanOrEqualTo(2_000);
+        assertThat(readTimeout.getInt(factory)).isPositive().isLessThanOrEqualTo(3_000);
     }
 
     private static RestClient.Builder jacksonRestClientBuilder() {
