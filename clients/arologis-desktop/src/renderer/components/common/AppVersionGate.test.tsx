@@ -76,9 +76,11 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     expect(emitStatus).toBeDefined()
     emitStatus!({ kind: 'available', version: '' })
 
-    const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
-    expect(status.textContent).not.toContain('새 버전 새 버전')
+    await waitFor(() => {
+      const status = screen.getByTestId('app-auto-update-status')
+      expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+      expect(status.textContent).not.toContain('새 버전 새 버전')
+    })
   })
 
   it('직전 호환 fallback 라벨이 다시 와도 새 버전 문구를 중복하지 않는다', async () => {
@@ -106,9 +108,11 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     expect(emitStatus).toBeDefined()
     emitStatus!({ kind: 'available', version: '새 버전' })
 
-    const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
-    expect(status.textContent).not.toContain('새 버전 새 버전')
+    await waitFor(() => {
+      const status = screen.getByTestId('app-auto-update-status')
+      expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+      expect(status.textContent).not.toContain('새 버전 새 버전')
+    })
   })
 
   it('달력상 존재하지 않는 날짜는 날짜형 updater 문구로 표시하지 않는다', async () => {
@@ -136,9 +140,11 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     expect(emitStatus).toBeDefined()
     emitStatus!({ kind: 'available', version: '2026/13/40-1' })
 
-    const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
-    expect(status.textContent).not.toContain('2026/13/40-1')
+    await waitFor(() => {
+      const status = screen.getByTestId('app-auto-update-status')
+      expect(status.textContent).toContain('새 버전을 다운로드하는 중입니다.')
+      expect(status.textContent).not.toContain('2026/13/40-1')
+    })
   })
 
   it('알림을 닫은 뒤 새 updater 상태가 도착하면 알림을 다시 표시한다', async () => {
@@ -165,8 +171,9 @@ describe('아로로지스 데스크톱 버전 게이트', () => {
     await listenerRegistered
     expect(emitStatus).toBeDefined()
     emitStatus!({ kind: 'checking' })
-    const status = await screen.findByTestId('app-auto-update-status')
-    expect(status.textContent).toContain('업데이트를 확인하는 중입니다.')
+    await waitFor(() => {
+      expect(screen.getByTestId('app-auto-update-status').textContent).toContain('업데이트를 확인하는 중입니다.')
+    })
     fireEvent.click(screen.getByRole('button', { name: '닫기' }))
     expect(screen.queryByTestId('app-auto-update-status')).toBeNull()
 
