@@ -85,6 +85,31 @@ class WarehouseInternalClientTest {
         server.verify();
     }
 
+    @Test
+    void findWarehouseByCode_200은_창고_UUID와_코드를_파싱한다() {
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/by-code?code=00003"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("X-Internal-Token", TOKEN))
+                .andRespond(withSuccess("""
+                        {
+                          "success": true,
+                          "data": {
+                            "warehouseId": "50000000-0000-0000-0000-000000000001",
+                            "code": "00003",
+                            "name": "본사창고"
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(client.findWarehouseByCode("00003"))
+                .get()
+                .satisfies(summary -> {
+                    assertThat(summary.code()).isEqualTo("00003");
+                    assertThat(summary.warehouseId()).isEqualTo(WAREHOUSE_ID);
+                });
+        server.verify();
+    }
+
     private static RestClient.Builder jacksonRestClientBuilder() {
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())

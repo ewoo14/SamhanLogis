@@ -2,6 +2,7 @@ package com.samhanair.logis.slip.publish;
 
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
 import java.util.Map;
@@ -9,6 +10,8 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
@@ -44,6 +47,14 @@ public class WarehouseCodeMapper {
     /** Spring 이 yaml/env 에서 주입. key 는 legacy 코드, value 는 내부 warehouse UUID. */
     private Map<String, String> warehouseCodeMap = new HashMap<>();
 
+    /** 기동 시 inventory-service의 활성 창고 마스터와 매핑을 대조한다. */
+    @Autowired
+    private WarehouseInternalClient warehouseInternalClient;
+
+    /** 창고 데이터가 없는 단위/통합 테스트에서는 외부 검증을 명시적으로 끈다. */
+    @Value("${app.publish.warehouse-validation.enabled:true}")
+    private boolean warehouseValidationEnabled;
+
     /** Spring 이 주입한 legacy warehouseCode → 내부 UUID 매핑을 로깅한다. */
     @PostConstruct
     void logEffectiveMap() {
@@ -54,6 +65,44 @@ public class WarehouseCodeMapper {
             return;
         }
         log.info("[Phase 6 M5] warehouse-code-map 로드: {} entries", warehouseCodeMap.size());
+        if (warehouseValidationEnabled) {
+            validateConfiguredWarehouses();
+        }
+    }
+
+    /**
+     * 설정된 모든 창고 매핑이 inventory-service의 활성 창고와 일치하는지 기동 시 검증한다.
+     *
+     * <p>창고 UUID는 사용자에게 공개하지 않으며, 실패 원인은 창고코드로만 전달한다.
+     *
+     * @throws IllegalStateException 매핑이 비어 있거나 실재하지 않거나 코드와 불일치할 때
+     */
+    void validateConfiguredWarehouses() {
+        if (warehouseInternalClient == null) {
+            throw new IllegalStateException("창고 매핑 기동 검증 실패: 창고코드 조회 client가 구성되지 않았습니다");
+        }
+        for (Map.Entry<String, String> entry : warehouseCodeMap.entrySet()) {
+            String warehouseCode = entry.getKey();
+            UUID configuredId;
+            try {
+                configuredId = UUID.fromString(entry.getValue());
+            } catch (RuntimeException ex) {
+                throw invalidStartupMapping(warehouseCode, "UUID 설정값이 유효하지 않습니다");
+            }
+
+            WarehouseInternalClient.WarehouseSummary actual = warehouseInternalClient
+                    .findWarehouseByCode(warehouseCode)
+                    .orElseThrow(() -> invalidStartupMapping(
+                            warehouseCode, "활성 창고가 존재하지 않거나 조회할 수 없습니다"));
+            if (!configuredId.equals(actual.warehouseId()) || !warehouseCode.equals(actual.code())) {
+                throw invalidStartupMapping(warehouseCode, "설정값과 활성 창고 정보가 일치하지 않습니다");
+            }
+        }
+    }
+
+    private IllegalStateException invalidStartupMapping(String warehouseCode, String reason) {
+        return new IllegalStateException(
+                "창고 매핑 기동 검증 실패: 창고코드 '" + warehouseCode + "' — " + reason);
     }
 
     /**
@@ -77,7 +126,7 @@ public class WarehouseCodeMapper {
             return UUID.fromString(uuidStr);
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,
-                    "warehouseCode '" + warehouseCode + "' 의 매핑값이 UUID 형식이 아닙니다: " + uuidStr);
+                    "warehouseCode '" + warehouseCode + "' 의 매핑값이 UUID 형식이 아닙니다");
         }
     }
 }

@@ -67,8 +67,7 @@ public class WarehouseInternalClient {
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
-            log.warn("WarehouseInternalClient — X-Internal-Token 미설정, lookup 건너뜀 (warehouseId={})",
-                    warehouseId);
+            log.warn("WarehouseInternalClient — X-Internal-Token 미설정, UUID 창고 조회 건너뜀");
             return Optional.empty();
         }
         try {
@@ -77,19 +76,50 @@ public class WarehouseInternalClient {
                     .header(INTERNAL_TOKEN_HEADER, token)
                     .retrieve()
                     .body(String.class);
-            return parseName(body, warehouseId);
+            return parseName(body);
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
             if (status == 404) {
-                log.debug("WarehouseInternalClient — warehouseId={} 404 (창고 미존재)", warehouseId);
+                log.debug("WarehouseInternalClient — UUID 창고 조회 404 (창고 미존재)");
                 return Optional.empty();
             }
-            log.warn("WarehouseInternalClient — warehouseId={} status={} (비정상 응답)",
-                    warehouseId, status);
+            log.warn("WarehouseInternalClient — UUID 창고 조회 status={} (비정상 응답)", status);
             return Optional.empty();
         } catch (Exception ex) {
-            log.warn("WarehouseInternalClient 호출 실패 — warehouseId={}, msg={}",
-                    warehouseId, ex.getMessage());
+            log.warn("WarehouseInternalClient UUID 창고 조회 실패");
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 창고 코드로 활성 창고의 식별 정보를 조회한다.
+     *
+     * @param warehouseCode 창고 코드
+     * @return 조회된 창고 정보 또는 미존재/조회 실패 시 empty
+     */
+    public Optional<WarehouseSummary> findWarehouseByCode(String warehouseCode) {
+        if (warehouseCode == null || warehouseCode.isBlank()) {
+            return Optional.empty();
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            log.warn("WarehouseInternalClient — X-Internal-Token 미설정, 창고코드 조회를 수행할 수 없음");
+            return Optional.empty();
+        }
+        try {
+            String body = restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/internal/inventory/warehouses/by-code")
+                            .queryParam("code", warehouseCode.trim()).build())
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            return parseWarehouseSummary(body);
+        } catch (RestClientResponseException ex) {
+            log.warn("WarehouseInternalClient — 창고코드 조회 status={} (코드={})",
+                    ex.getStatusCode().value(), warehouseCode.trim());
+            return Optional.empty();
+        } catch (Exception ex) {
+            log.warn("WarehouseInternalClient 창고코드 조회 실패 — 코드={}", warehouseCode.trim());
             return Optional.empty();
         }
     }
@@ -101,7 +131,7 @@ public class WarehouseInternalClient {
      * @param warehouseId 로그용 식별자
      * @return 창고명 또는 empty
      */
-    private Optional<String> parseName(String body, UUID warehouseId) {
+    private Optional<String> parseName(String body) {
         if (body == null || body.isBlank()) {
             return Optional.empty();
         }
@@ -119,12 +149,36 @@ public class WarehouseInternalClient {
                     return Optional.of(node.asText().trim());
                 }
             }
-            log.debug("WarehouseInternalClient — warehouseId={} 응답에 name 필드 없음", warehouseId);
+            log.debug("WarehouseInternalClient — UUID 창고 응답에 name 필드 없음");
             return Optional.empty();
         } catch (Exception ex) {
-            log.warn("WarehouseInternalClient response 파싱 실패 — warehouseId={}, msg={}",
-                    warehouseId, ex.getMessage());
+            log.warn("WarehouseInternalClient UUID 창고 응답 파싱 실패");
             return Optional.empty();
         }
+    }
+
+    private Optional<WarehouseSummary> parseWarehouseSummary(String body) {
+        if (body == null || body.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            if (data == null || data.isNull()
+                    || !data.hasNonNull("warehouseId")
+                    || !data.hasNonNull("code")) {
+                return Optional.empty();
+            }
+            return Optional.of(new WarehouseSummary(
+                    UUID.fromString(data.get("warehouseId").asText()),
+                    data.get("code").asText()));
+        } catch (Exception ex) {
+            log.warn("WarehouseInternalClient 창고코드 응답 파싱 실패");
+            return Optional.empty();
+        }
+    }
+
+    /** 내부 창고 조회 응답 중 기동 검증에 필요한 필드만 보유한다. */
+    public record WarehouseSummary(UUID warehouseId, String code) {
     }
 }
