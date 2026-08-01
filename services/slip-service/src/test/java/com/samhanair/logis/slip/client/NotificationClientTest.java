@@ -61,14 +61,14 @@ class NotificationClientTest {
     }
 
     @Test
-    void externalSmsResultIsTrueOnlyFor2xx() {
+    void externalSmsResultIsTrueOnlyWhenResponseStatusIsSent() {
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
                 .andExpect(jsonPath("$.recipientType").value("EXTERNAL_PHONE"))
                 .andExpect(jsonPath("$.recipientAddress").value("010-0000-0000"))
                 .andExpect(jsonPath("$.channel").value("SMS"))
-                .andRespond(withSuccess());
+                .andRespond(withSuccess("{\"data\":{\"status\":\"SENT\"}}", org.springframework.http.MediaType.APPLICATION_JSON));
         server.expect(once(), requestTo(ENDPOINT))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", TOKEN))
