@@ -18,10 +18,12 @@ import { chromium } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const OUT_DIR = path.resolve(ROOT, '..', '..', '..', 'docs', 'qa', '1009-estimate-menu-real-qa');
+// 하네스 거짓 green 가드(G3a): docs/qa 목적지는 resolveQaShotsDir 를 경유한다.
+const OUT_DIR = resolveQaShotsDir(path.resolve(ROOT, '..', '..', '..', 'docs', 'qa', '1009-estimate-menu-real-qa'));
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const BASE = process.env.QA_BASE_URL || 'http://localhost:5183';
