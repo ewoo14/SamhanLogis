@@ -25,6 +25,7 @@ import com.samhanair.logis.accounting.client.ProductAliasClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
+import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
@@ -91,6 +92,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     @MockBean private EmployeeLookupClient employeeLookupClient;
     @MockBean private NotificationClient notificationClient;
     @MockBean private ProductAliasClient productAliasClient;
+    @MockBean private PartnerDcConfigClient partnerDcConfigClient;
     @MockBean(classes = DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     private static final LocalDate DATE = LocalDate.of(2026, 7, 13);
@@ -125,6 +127,10 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                 .thenReturn(Map.of(
                         AM_PRODUCT_ID, new BigDecimal("45.00"),
                         AJ_PRODUCT_ID, new BigDecimal("45.00")));
+        // 전역DC 미존재는 45% 기본값으로 대체하지 않아야 한다. 이 IT의 알려진 상품은
+        // 고정DC가 있으므로 고정DC 우선 순서로 45% 판정이 유지되는지 함께 검증한다.
+        lenient().when(partnerDcConfigClient.findByPartnerCode(anyString()))
+                .thenReturn(PartnerDcConfigClient.LookupResult.notFound());
         lenient().when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(anyString()))
                 .thenReturn(java.util.List.of());
     }
