@@ -271,6 +271,35 @@ class InboundInspectionServiceTest {
         }
 
         @Test
+        @DisplayName("전표 경로가 먼저 만든 동일 전표 lot가 있으면 검수 경로는 재고를 중복 반영하지 않음")
+        void lifecycleAlreadyApplied_skipsDuplicateStockMutation() {
+            InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");
+            InboundInspectionLine line = makeLine(inspection, lineId, productId, 10);
+            line.recordResult(10, 0, null);
+            inspection.addLine(line);
+
+            when(inspectionRepository.findBySlipIdAndIsDeletedFalse(slipId))
+                    .thenReturn(Optional.of(inspection));
+            SlipDetail slipDetail = makeSlipDetail(slipId, "INBOUND", "INSPECTING");
+            when(slipClient.getSlip(slipId)).thenReturn(slipDetail);
+            Warehouse warehouse = makeWarehouse(warehouseId);
+            when(warehouseRepository.findById(warehouseId)).thenReturn(Optional.of(warehouse));
+            when(productClient.requireExists(productId)).thenReturn(goodsProduct(productId));
+            when(stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
+                    productId, warehouseId, "2025/01/10-001"))
+                    .thenReturn(Optional.of(com.samhanair.logis.inventory.domain.StockLot.create(
+                            productId, warehouse, "2025/01/10-001", 10,
+                            java.time.LocalDateTime.now(), new BigDecimal("100000"))));
+
+            var result = service.completeInspection(slipId, actorId);
+
+            assertThat(result.stockApplied()).isTrue();
+            verify(stockLotRepository, never()).save(any());
+            verify(stockBalanceRepository, never()).save(any());
+            verify(stockMovementRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("권위 금액 라인의 StockLot 원가는 공급가액/수량으로 VAT를 제외한다")
         void authoritativeLine_usesSupplyUnitCostWithoutVat() {
             InboundInspection inspection = makeInspection(slipId, "2025/01/10-001");

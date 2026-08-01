@@ -75,6 +75,17 @@ public class StockService {
         }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
 
+        if (req.lotNo() != null) {
+            StockLot existingLot = stockLotRepository
+                    .findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
+                            req.productId(), req.warehouseId(), req.lotNo())
+                    .orElse(null);
+            if (existingLot != null) {
+                // 검수 완료 경로가 먼저 만든 동일 전표 lot — 전표 경로는 중복 반영하지 않는다.
+                return StockLotResponse.from(existingLot);
+            }
+        }
+
         StockLot lot = stockLotRepository.save(StockLot.create(
                 req.productId(), warehouse, req.lotNo(), req.quantity(),
                 req.receivedAt(), req.unitCost()));

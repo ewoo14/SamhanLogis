@@ -103,6 +103,25 @@ class StockServiceTest {
     }
 
     @Test
+    void inbound_whenInspectionAlreadyCreatedSameSlipLot_isIdempotent() {
+        StockLot inspectionLot = lotWith(8, LocalDateTime.now());
+        ReflectionTestUtils.setField(inspectionLot, "lotNo", "2026/08/01-1041");
+        when(stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
+                productId, warehouseId, "2026/08/01-1041"))
+                .thenReturn(Optional.of(inspectionLot));
+
+        StockLotResponse response = service.inbound(new InboundRequest(
+                productId, warehouseId, "2026/08/01-1041", 8, LocalDateTime.now(),
+                new BigDecimal("1100000.00"), "전표 경로 중복 재현"), "user-1");
+
+        assertThat(response.quantity()).isEqualTo(8);
+        verify(stockLotRepository, never()).save(any(StockLot.class));
+        verify(stockBalanceRepository, never()).findByProductIdAndWarehouse_IdAndIsDeletedFalse(
+                productId, warehouseId);
+        verify(stockMovementRepository, never()).save(any(StockMovement.class));
+    }
+
+    @Test
     void inbound_nonGoodsProduct_skipsAndCreatesNoInventory() {
         when(productClient.requireExists(productId)).thenReturn(
                 new ProductSummary(productId, "설치비", "FEE-INSTALL-001", "FEE-INSTALL-001",
