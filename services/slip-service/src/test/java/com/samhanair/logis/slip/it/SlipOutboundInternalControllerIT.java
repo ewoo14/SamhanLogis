@@ -130,6 +130,32 @@ class SlipOutboundInternalControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void findOutboundSlipSummaries_returnsDtoContract_withoutUuid() throws Exception {
+        String productCode = "D-1013-" + System.nanoTime();
+        Slip slip = persistOutbound(uniqueSlipNo("2026/06/08"), LocalDate.of(2026, 6, 8),
+                "P-1013", "D-1013 거래처", productCode, "D-1013 품목", 4);
+
+        MvcResult result = mockMvc.perform(get("/internal/slips/outbound")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .param("from", "2026-06-08")
+                        .param("to", "2026-06-08"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].slipNo").value(slip.getSlipNo()))
+                .andExpect(jsonPath("$.data[0].partnerCode").value("P-1013"))
+                .andExpect(jsonPath("$.data[0].partnerName").value("D-1013 거래처"))
+                .andExpect(jsonPath("$.data[0].slipDate").value("2026-06-08"))
+                .andExpect(jsonPath("$.data[0].lines[0].productName").value("D-1013 품목"))
+                .andExpect(jsonPath("$.data[0].lines[0].quantity").value(4))
+                .andReturn();
+
+        String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(raw).doesNotContain("\"id\"")
+                .doesNotContain("\"slipId\"")
+                .doesNotContain("\"partnerId\"");
+    }
+
     private Slip persistOutbound(String slipNo, LocalDate slipDate, String partnerCode,
                                  String partnerName, String modelName, String productName,
                                  int quantity) {

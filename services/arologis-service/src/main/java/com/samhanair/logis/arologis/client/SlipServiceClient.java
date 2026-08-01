@@ -87,12 +87,10 @@ public class SlipServiceClient {
      */
     public List<OutboundSlipSummary> getOutboundSlips(LocalDate from, LocalDate to) {
         if (from == null || to == null) {
-            return Collections.emptyList();
+            throw new IllegalArgumentException("from/to 날짜는 필수입니다");
         }
         if (skeletonMode) {
-            log.debug("SlipServiceClient.getOutboundSlips skeleton-mode — from={}, to={} (외부 호출 회피)",
-                    from, to);
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound client is disabled by skeleton-mode");
         }
         try {
             RestClient client = builder.baseUrl(baseUrl).build();
@@ -108,41 +106,46 @@ public class SlipServiceClient {
         } catch (RestClientResponseException ex) {
             log.warn("SlipServiceClient.getOutboundSlips 4xx/5xx — from={}, to={}, status={}",
                     from, to, ex.getStatusCode());
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound 호출 실패: HTTP " + ex.getStatusCode(), ex);
         } catch (Exception ex) {
             log.warn("SlipServiceClient.getOutboundSlips 호출 실패 — from={}, to={}, msg={}",
                     from, to, ex.getMessage());
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound 호출 실패", ex);
         }
     }
 
     private List<OutboundSlipSummary> parseSummaryList(String body) {
         if (body == null || body.isBlank()) {
-            return Collections.emptyList();
+            throw new IllegalStateException("/internal/slips/outbound 응답이 비어 있습니다");
         }
         try {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || data.isNull() || !data.isArray()) {
-                return Collections.emptyList();
+                throw new IllegalStateException("/internal/slips/outbound 응답 data 계약이 올바르지 않습니다");
             }
             List<OutboundSlipSummary> out = new ArrayList<>(data.size());
             for (JsonNode node : data) {
-                String slipId = textOrNull(node, "slipId");
                 String slipNo = textOrNull(node, "slipNo");
                 String partnerCode = textOrNull(node, "partnerCode");
                 String partnerName = textOrNull(node, "partnerName");
-                String address = textOrNull(node, "address");
+                String address = textOrNull(node, "deliveryAddress");
+                if (address == null) {
+                    address = textOrNull(node, "address");
+                }
                 if (slipNo == null) {
                     continue;
                 }
-                out.add(new OutboundSlipSummary(slipId, slipNo, partnerCode, partnerName, address));
+                out.add(new OutboundSlipSummary(null, slipNo, partnerCode, partnerName, address));
             }
             return out;
         } catch (Exception ex) {
             log.warn("SlipServiceClient response 파싱 실패 — bodyLen={}, msg={}",
                     body.length(), ex.getMessage());
-            return Collections.emptyList();
+            if (ex instanceof IllegalStateException illegalStateException) {
+                throw illegalStateException;
+            }
+            throw new IllegalStateException("/internal/slips/outbound 응답 파싱 실패", ex);
         }
     }
 
