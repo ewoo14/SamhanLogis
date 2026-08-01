@@ -276,6 +276,18 @@ function AsyncAutocompleteInner<T>(
   }
 
   /** 서버 검색 실행 — stale 응답 무시 포함. */
+  /** 검색 결과 확정·취소 뒤 입력과 검색 dropdown의 잔여 상태를 함께 정리한다. */
+  const closeSearchSurface = useCallback(() => {
+    cancelDebouncedSearch()
+    latestSeq.current = ++instanceSeq.current
+    setOpen(false)
+    setActiveIndex(-1)
+    setSearchState({ candidates: [], resolvedQuery: '' })
+    setStatus('idle')
+    setErrorMsg(null)
+    setDraft('')
+  }, [cancelDebouncedSearch])
+
   const performSearch = useCallback(
     async (q: string) => {
       // 인스턴스별 seq — 다른 인스턴스와 완전 격리
@@ -295,14 +307,13 @@ function AsyncAutocompleteInner<T>(
         if (resultSelectionMode && results.length === 1) {
           if (resultSelectionMode === 'multiple') onResultsConfirmed?.(results)
           else pick(results[0]!)
+          closeSearchSurface()
           return
         }
         if (resultSelectionMode && results.length > 1) {
           setSelectionCandidates(results)
           setSelectionOpen(true)
-          setOpen(false)
-          setSearchState({ candidates: [], resolvedQuery: '' })
-          setStatus('idle')
+          closeSearchSurface()
           return
         }
         setSearchState({ candidates: results, resolvedQuery: q })
@@ -314,7 +325,7 @@ function AsyncAutocompleteInner<T>(
         setErrorMsg('검색 중 오류가 발생했습니다.')
       }
     },
-    [onResultsConfirmed, pick, resultSelectionMode, search],
+    [closeSearchSurface, onResultsConfirmed, pick, resultSelectionMode, search],
   )
 
   /** 입력 변경 — debounce 후 서버 검색 */
@@ -461,9 +472,9 @@ function AsyncAutocompleteInner<T>(
   const closeSelection = useCallback(() => {
     setSelectionOpen(false)
     setSelectionCandidates([])
-    setDraft('')
+    closeSearchSurface()
     setCommitted(true)
-  }, [setCommitted])
+  }, [closeSearchSurface, setCommitted])
 
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
   const displayValue = open ? draft : selectedLabel

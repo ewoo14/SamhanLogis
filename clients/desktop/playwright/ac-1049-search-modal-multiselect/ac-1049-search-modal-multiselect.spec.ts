@@ -40,6 +40,7 @@ test.describe('#1049 부분 검색 모달 복수선택', () => {
     await input(page).fill('AJ040RXH4BC1')
     await expect(page.getByText('AJ040RXH4BC1').first()).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
   })
 
   test('B·C·D·F — 2건 이상은 모달에서 키보드 복수 선택하고 UUID 없이 확정한다', async ({ page }) => {
@@ -60,7 +61,25 @@ test.describe('#1049 부분 검색 모달 복수선택', () => {
     await page.keyboard.press('Enter')
 
     await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
     await expect(page.getByTestId('multiselect-chip-count')).toHaveText('2개 선택됨')
+    const selectedChipValues = await page.getByTestId('multiselect-chip-count').locator('..').locator('[title]').allTextContents()
+    expect(selectedChipValues.length).toBe(2)
+    await input(page).fill('AJ')
+    await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
+    expect(await page.getByTestId('multiselect-chip-count').locator('..').locator('[title]').allTextContents()).toEqual(selectedChipValues)
     expect((await page.locator('body').textContent()) ?? '').not.toMatch(UUID_PATTERN)
+  })
+
+  test('C — 모달을 Escape로 취소해도 검색 중 dropdown 잔재가 없다', async ({ page }) => {
+    await gotoEstimateItems(page)
+    await input(page).fill('AJ')
+
+    const dialog = page.getByRole('dialog', { name: '품목 검색 결과' })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    await page.keyboard.press('Escape')
+
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
   })
 })

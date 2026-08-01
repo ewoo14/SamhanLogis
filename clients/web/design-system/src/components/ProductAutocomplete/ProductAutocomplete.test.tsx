@@ -123,6 +123,7 @@ describe('ProductAutocomplete', () => {
 
     await waitFor(() => expect(onAdd).toHaveBeenCalledWith(product))
     expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('option', { name: /검색 중/ })).toBeNull()
   })
 
   it('복수 모드에서 결과 2건 이상은 UUID 없이 모달에서 복수 확정한다', async () => {
