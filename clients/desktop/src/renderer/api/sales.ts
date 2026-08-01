@@ -1047,6 +1047,21 @@ export async function listPartnerApprovals(
 }
 
 /**
+ * 주문서 앱 접근권한 설정 후보 미리보기.
+ *
+ * <p>기간은 화면 표시용이 아니라 backend 선별 query에 전달되어 실제 후보 수를 바꾼다.
+ */
+export async function previewPartnerAccess(
+  unusedDays: number,
+): Promise<PartnerApproval[]> {
+  const res = await apiClient.get<ApiEnvelope<PartnerApproval[]>>(
+    '/api/v1/partner-approvals/access-preview',
+    { params: { unusedDays } },
+  )
+  return res.data.data
+}
+
+/**
  * 영업자 주문서 승인 status 변경 (v2 §정정 9/11).
  *
  * <p>승인 전환 시 backend 가 비밀번호 자동 재설정 흐름을 발동 (PASSWORD_RESET_PENDING

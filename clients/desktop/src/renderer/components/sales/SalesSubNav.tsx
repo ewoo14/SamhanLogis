@@ -20,7 +20,7 @@ import styles from './sales.module.css'
 const ITEMS = [
   { to: '/sales/estimates', label: '견적서 관리' },
   { to: '/sales/partner-orders', label: '주문서 관리' },
-  { to: '/sales/order-approvals', label: '주문서 승인' },
+  { to: '/sales/order-approvals', label: '주문서 앱 접근권한 설정' },
   { to: '/sales/partner-dc-config', label: '거래처 DC 설정' },
   { to: '/sales/estimate-config', label: '견적 가격 설정' },
 ]

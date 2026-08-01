@@ -10,6 +10,7 @@ import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.Collection;
 import java.util.List;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +49,30 @@ public class PartnerApprovalService {
                     toInternalGroup(status), pageable);
         }
         return page.map(this::buildResponse);
+    }
+
+    /**
+     * 주문서 앱 접근권한 설정의 장기미사용 후보 미리보기.
+     *
+     * <p>현행 판정 기준(lastLoginAt 우선, 없으면 passwordChangedAt)을 유지하고
+     * 기간만 호출자가 조정한다. 비밀번호나 UUID는 반환하지 않는다.
+     *
+     * @param unusedDays 장기미사용 기간(일)
+     * @return 사람이 확인할 거래처 후보
+     */
+    @Transactional(readOnly = true)
+    public List<PartnerApprovalResponse> previewLongUnused(int unusedDays) {
+        LocalDateTime now = LocalDateTime.now();
+        return partnerAuthRepository.findAll().stream()
+                .filter(pa -> pa.getStatus() == PartnerStatus.NEED_PW_INPUT
+                        || pa.getStatus() == PartnerStatus.OK
+                        || pa.getStatus() == PartnerStatus.LONG_UNUSED)
+                .filter(pa -> {
+                    LocalDateTime expirationAt = pa.expirationAt(unusedDays);
+                    return expirationAt != null && !expirationAt.isAfter(now);
+                })
+                .map(this::buildResponse)
+                .toList();
     }
 
     public PartnerApprovalResponse updateStatus(String partnerCode, PartnerApprovalStatus next) {

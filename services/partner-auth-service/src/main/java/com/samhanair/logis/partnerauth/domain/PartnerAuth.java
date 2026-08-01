@@ -241,8 +241,24 @@ public class PartnerAuth extends BaseEntity {
 
     /** 30일 슬라이딩 만료 일시 계산 — service 의 GET /partner-expiration 가 호출. */
     public LocalDateTime expirationAt() {
+        return expirationAt(LONG_UNUSED_DAYS);
+    }
+
+    /**
+     * 설정된 기간을 적용한 접근 만료 일시 계산.
+     *
+     * <p>판정 기준은 기존과 동일하게 마지막 로그인 성공 시각을 우선하고,
+     * 없으면 비밀번호 변경 시각을 사용한다.
+     *
+     * @param unusedDays 장기미사용으로 볼 기간(일)
+     * @return 만료 일시, 기준 시각이 없으면 {@code null}
+     */
+    public LocalDateTime expirationAt(int unusedDays) {
+        if (unusedDays < 1 || unusedDays > 365) {
+            throw new IllegalArgumentException("장기미사용 기간은 1~365일이어야 합니다");
+        }
         LocalDateTime base = lastLoginAt != null ? lastLoginAt : passwordChangedAt;
-        return base == null ? null : base.plusDays(LONG_UNUSED_DAYS);
+        return base == null ? null : base.plusDays(unusedDays);
     }
 
     /** Read-only history view (테스트/감사용). */
