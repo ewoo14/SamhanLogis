@@ -115,7 +115,7 @@ public class CashReceiptService {
                 displayOf(partners.get(receipt.getPartnerId())),
                 journalNoOf(receipt.getJournalId(), journalNos),
                 journalNoOf(receipt.getReverseJournalId(), journalNos),
-                responseLines(receipt)));
+                responseLines(receipt, displayOf(partners.get(receipt.getPartnerId())))));
     }
 
     /** 단건 조회. */
@@ -523,12 +523,13 @@ public class CashReceiptService {
      */
     private CashReceiptResponse responseOf(CashReceipt receipt) {
         Map<UUID, String> journalNos = resolveJournalNos(List.of(receipt));
+        PartnerDisplay partner = resolvePartnerDisplay(receipt);
         return CashReceiptResponse.of(
                 receipt,
-                resolvePartnerDisplay(receipt),
+                partner,
                 journalNoOf(receipt.getJournalId(), journalNos),
                 journalNoOf(receipt.getReverseJournalId(), journalNos),
-                responseLines(receipt));
+                responseLines(receipt, partner));
     }
 
     /** 행 합계가 총액과 같은 경우에만 분할 행을 저장한다. 빈행은 프론트에서 제외되어 도착한다. */
@@ -558,11 +559,10 @@ public class CashReceiptService {
         }
     }
 
-    private List<CashReceiptLineResponse> responseLines(CashReceipt receipt) {
+    private List<CashReceiptLineResponse> responseLines(CashReceipt receipt, PartnerDisplay legacyPartner) {
         if (receipt.getLinesJson() == null || receipt.getLinesJson().isBlank()) {
-            PartnerDisplay partner = resolvePartnerDisplay(receipt);
-            return List.of(new CashReceiptLineResponse(partner.partnerCode(), partner.bizNo(),
-                    partner.partnerName(), receipt.getAmount(), receipt.getMemo()));
+            return List.of(new CashReceiptLineResponse(legacyPartner.partnerCode(), legacyPartner.bizNo(),
+                    legacyPartner.partnerName(), receipt.getAmount(), receipt.getMemo()));
         }
         try {
             List<PersistedLine> rows = objectMapper.readValue(receipt.getLinesJson(),
