@@ -261,3 +261,23 @@ RENDERER_ERROR=원격 서버에 연결할 수 없습니다.
 .\node_modules\.bin\vite.cmd : The term '.\node_modules\.bin\vite.cmd' is not recognized ...
 ```
 브라우저 연결도 실패했습니다(`Browser is not available: iab`). 따라서 실 사용자 전표 상세 화면 캡처는 수행하지 못했습니다. 합성·목업 캡처는 생성하지 않았으며, PM이 실제 화면 캡처를 진행해야 합니다.
+
+## PM 화면 캡처 (2026-08-01)
+
+Codex 샌드박스에 브라우저가 없어 PM 이 직접 수행했습니다. 실 게이트웨이 `:8080` · mock OFF · `dev_manager`.
+
+정정된 전표 **`2026/05/31-1`** 상세 (`01-corrected-slip-detail.png`):
+
+| 모델명 | 수량 | 단가(VAT포함) | 공급가액 | 부가세 | 합계(VAT포함) |
+|---|---:|---:|---:|---:|---:|
+| AM100BNNDEH-57 (삼성 DVM-S 10HP) | 2 | **3,000,000** | **5,454,545** | **545,455** | **6,000,000** |
+
+DB 저장값과 일치합니다.
+
+```text
+unit_price 2,727,272.50 · unit_price_with_vat 3,000,000
+supply 5,454,545 + vat 545,455 = 6,000,000   ← 원래 사용자 총액
+line_total 5,454,545 = supply_amount          ← 현행 계약
+```
+
+**두 계약이 화면에서 동시에 확인됩니다.**
