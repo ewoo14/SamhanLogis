@@ -1,0 +1,76 @@
+[로그인] HTTP 200 · MASTER
+[shot] 01-login.png
+[shot] 02-ledger.png
+[기간 설정] 2026-07-01 ~ 2026-07-31
+[shot] 03-query.png
+[거래처 row 클릭]  3342610558 강릉HVAC솔루션 — 330,000 — 원장 보기
+[shot] 03b-ledger-selected.png
+[이력 섹션] ✅ 렌더됨 — 자동 저장 이력 배치번호 기간 행 수 저장 시각 복원 LED20260801200106946 2026-07-01 ~ 2026-07-31 6 2026-08-01T20:01:06.946384 복원
+[shot] 04-history.png
+[이력 화면] Samhan Public 홈 알림 내역 판매 구매 회계 매출전표 매입전표 계정과목 분개장 세금계산서 세금계산서 발행 묶음 수신 세금계산서 합계잔액시산표 재무 보고서 손익계산서 월별손익분석 재무상태표 부가세 신고서 법인세 신고서 미수금 (거래처별) 미지급금 (거래처별) 채권채무 현황 받을어음 수금계획 현금흐름표 자본변동표 일계표 월계표 전표현황 계정명세서 자금현황 자금 입출금내역 매출 마감 월말 마감 거래명세서 일괄 거래처 원장 홈택스 일괄 양식 공급자 설정 계좌/카드 관리 입출금 내역 입금자명 매핑 입금보고서 일마감 원장 매출 원장 대조 매입 원장 대조 운영 대시보드 회계 수정 요청 그룹웨어 인사 개발 배차 창고 운영 2026/08/01-1 · 사내 전용 거래처별 원장 생성 [DEV-SEED] 개발마스터 · MASTER▼ 원장 라인의 변경 이력은 각 분개 또는 세금계산서 상세 화면에서 확인할 수 있습니다. Step 1 — 매출/수금/채권 집계 기간 + (선택) 거래처 코드를 입력하고
+[복원 버튼] 복원
+[shot] 05-restore.png
+[네트워크] GET http://localhost:5274/routes/NotificationHistoryPage.tsx → 200
+            GET http://localhost:5274/routes/PartnerLedgerPage.tsx → 200
+            GET http://localhost:5274/print/PartnerLedgerView.tsx → 200
+            GET http://localhost:5274/routes/GeneralLedgerPage.tsx → 200
+            GET http://localhost:5274/routes/accounting/admin/SalesLedgerPage.tsx → 200
+            GET http://localhost:5274/routes/accounting/admin/PurchaseLedgerPage.tsx → 200
+            GET http://localhost:5274/routes/dispatch-board/DispatchHistoryPage.tsx → 200
+            GET http://localhost:5274/api/slipCleanupSaveHistoryApi.ts → 200
+            GET http://localhost:5274/components/SlipCleanupHistoryTab.tsx → 200
+            GET http://localhost:5274/api/dpsSaveHistoryApi.ts → 200
+            GET http://localhost:5274/components/DpsHistoryTab.tsx → 200
+            GET http://localhost:5274/api/dispatchSmsSaveHistoryApi.ts → 200
+            GET http://localhost:5274/components/DispatchSmsHistoryTab.tsx → 200
+            GET http://localhost:5274/api/partnerLedgerApi.ts → 200
+            GET http://localhost:5274/print/PartnerLedgerView.module.css → 200
+            GET http://localhost:5274/routes/accounting/admin/LedgerList.tsx → 200
+            GET http://localhost:5274/components/audit/EstimateVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/components/audit/SlipVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/components/audit/PartnerOrderVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/components/audit/PartnerVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/routes/NotificationHistoryPage.tsx → 304
+            GET http://localhost:5274/routes/PartnerLedgerPage.tsx → 304
+            GET http://localhost:5274/print/PartnerLedgerView.tsx → 304
+            GET http://localhost:5274/routes/GeneralLedgerPage.tsx → 304
+            GET http://localhost:5274/routes/accounting/admin/SalesLedgerPage.tsx → 304
+            GET http://localhost:5274/routes/accounting/admin/PurchaseLedgerPage.tsx → 304
+            GET http://localhost:5274/routes/dispatch-board/DispatchHistoryPage.tsx → 304
+            GET http://localhost:5274/api/slipCleanupSaveHistoryApi.ts → 304
+            GET http://localhost:5274/components/SlipCleanupHistoryTab.tsx → 304
+            GET http://localhost:5274/api/dpsSaveHistoryApi.ts → 304
+            GET http://localhost:5274/components/DpsHistoryTab.tsx → 304
+            GET http://localhost:5274/api/dispatchSmsSaveHistoryApi.ts → 304
+            GET http://localhost:5274/components/DispatchSmsHistoryTab.tsx → 304
+            GET http://localhost:5274/api/partnerLedgerApi.ts → 304
+            GET http://localhost:5274/print/PartnerLedgerView.module.css → 304
+            GET http://localhost:5274/routes/accounting/admin/LedgerList.tsx → 304
+            GET http://localhost:5274/components/audit/SlipVersionHistoryPanel.tsx → 304
+            GET http://localhost:5274/components/audit/EstimateVersionHistoryPanel.tsx → 304
+            GET http://localhost:5274/components/audit/PartnerOrderVersionHistoryPanel.tsx → 304
+            GET http://localhost:5274/components/audit/PartnerVersionHistoryPanel.tsx → 304
+            GET http://localhost:5274/accounting/partner-ledger → 200
+            GET http://localhost:5274/routes/NotificationHistoryPage.tsx → 200
+            GET http://localhost:5274/routes/PartnerLedgerPage.tsx → 200
+            GET http://localhost:5274/print/PartnerLedgerView.tsx → 200
+            GET http://localhost:5274/routes/GeneralLedgerPage.tsx → 200
+            GET http://localhost:5274/routes/accounting/admin/SalesLedgerPage.tsx → 200
+            GET http://localhost:5274/routes/accounting/admin/PurchaseLedgerPage.tsx → 200
+            GET http://localhost:5274/routes/dispatch-board/DispatchHistoryPage.tsx → 200
+            GET http://localhost:5274/api/slipCleanupSaveHistoryApi.ts → 200
+            GET http://localhost:5274/components/SlipCleanupHistoryTab.tsx → 200
+            GET http://localhost:5274/api/dpsSaveHistoryApi.ts → 200
+            GET http://localhost:5274/components/DpsHistoryTab.tsx → 200
+            GET http://localhost:5274/api/dispatchSmsSaveHistoryApi.ts → 200
+            GET http://localhost:5274/components/DispatchSmsHistoryTab.tsx → 200
+            GET http://localhost:5274/api/partnerLedgerApi.ts → 200
+            GET http://localhost:5274/print/PartnerLedgerView.module.css → 200
+            GET http://localhost:5274/routes/accounting/admin/LedgerList.tsx → 200
+            GET http://localhost:5274/components/audit/SlipVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/components/audit/EstimateVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/components/audit/PartnerOrderVersionHistoryPanel.tsx → 200
+            GET http://localhost:5274/components/audit/PartnerVersionHistoryPanel.tsx → 200
+            GET /accounting/journals/ledger-history?partnerCode=P-2026-0018&from=2026-07-01&to=2026-07-31 → 200
+            GET /accounting/journals/ledger-data?partnerCode=P-2026-0018&from=2026-07-01&to=2026-07-31 → 200
+            GET /accounting/journals/ledger-history/LED20260801200106946/restore → 200

@@ -45,7 +45,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Spinner } from '@samhan/design-system'
 import {
   getLedgerData,
+  getLedgerHistory,
   getSalesAggregate,
+  restoreLedger,
   type LedgerData,
   type LedgerLine,
   type SalesAggregateRow,
@@ -226,6 +228,7 @@ export function PartnerLedgerPage() {
   const [selectedPartner, setSelectedPartner] = useState<string | null>(null)
   // 일괄 인쇄용 multi-select 거래처 코드 set
   const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set())
+  const [restoredLedger, setRestoredLedger] = useState<LedgerData | null>(null)
 
   const aggregateQuery = useQuery<SalesAggregateRow[]>({
     queryKey: [
@@ -244,6 +247,12 @@ export function PartnerLedgerPage() {
     enabled: !!selectedPartner,
   })
 
+  const historyQuery = useQuery({
+    queryKey: ['partner-ledger-history', selectedPartner, applied.from, applied.to],
+    queryFn: () => getLedgerHistory(selectedPartner ?? '', applied.from, applied.to),
+    enabled: !!selectedPartner,
+  })
+
   const handleSearch = () => {
     if (!from || !to || from > to) return
     setApplied({
@@ -252,11 +261,18 @@ export function PartnerLedgerPage() {
       partnerCode: partnerFilter.trim() || undefined,
     })
     setSelectedPartner(null)
+    setRestoredLedger(null)
     setBatchSelected(new Set())
   }
 
   const handleSelectPartner = (partnerCode: string) => {
     setSelectedPartner(partnerCode)
+    setRestoredLedger(null)
+  }
+
+  const handleRestore = async (batchNo: string) => {
+    const restored = await restoreLedger(batchNo)
+    setRestoredLedger(restored.ledger)
   }
 
   const toggleBatch = (partnerCode: string, checked: boolean) => {
@@ -574,8 +590,53 @@ export function PartnerLedgerPage() {
           <div className="error-banner" role="alert">
             원장 조회 실패: {ledgerError.message}
           </div>
-        ) : ledgerQuery.data ? (
-          <LedgerDetailTable data={ledgerQuery.data} />
+        ) : restoredLedger || ledgerQuery.data ? (
+          <LedgerDetailTable data={restoredLedger ?? ledgerQuery.data!} />
+        ) : null}
+
+        {selectedPartner ? (
+          <div style={{ marginTop: 20 }} data-testid="partner-ledger-history">
+            <h4 style={{ margin: '0 0 8px 0' }}>자동 저장 이력</h4>
+            {historyQuery.isLoading ? (
+              <Spinner size="sm" label="이력 불러오는 중" />
+            ) : historyQuery.error ? (
+              <div className="error-banner" role="alert">이력 조회 실패</div>
+            ) : historyQuery.data?.content.length ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>배치번호</th>
+                    <th style={thStyle}>기간</th>
+                    <th style={thStyle}>행 수</th>
+                    <th style={thStyle}>저장 시각</th>
+                    <th style={thStyle}>복원</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyQuery.data.content.map((item) => (
+                    <tr key={item.batchNo}>
+                      <td style={tdStyle}>{item.batchNo}</td>
+                      <td style={tdStyle}>{item.periodFrom} ~ {item.periodTo}</td>
+                      <td style={tdStyle}>{item.lineCount}</td>
+                      <td style={tdStyle}>{item.savedAt}</td>
+                      <td style={tdStyle}>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          data-testid={`partner-ledger-restore-${item.batchNo}`}
+                          onClick={() => void handleRestore(item.batchNo)}
+                        >
+                          복원
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ color: '#6B7280', fontSize: 12 }}>저장된 이력이 없습니다.</div>
+            )}
+          </div>
         ) : null}
       </Card>
     </>
