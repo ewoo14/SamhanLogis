@@ -43,8 +43,8 @@ public record SlipSummary(
                     line.getProductName(),
                     line.getProductName(),
                     line.getQuantity(),
-                    unitPriceWithVat(line),
-                    totalWithVat(line)));
+                    line.getUnitPrice(),
+                    line.getLineTotal()));
         }
         return new SlipSummary(
                 slip.getId(),
@@ -58,11 +58,4 @@ public record SlipSummary(
                 lineSummaries);
     }
 
-    private static BigDecimal unitPriceWithVat(SlipLine line) {
-        return line.getUnitPriceWithVat() != null ? line.getUnitPriceWithVat() : line.getUnitPrice();
-    }
-
-    private static BigDecimal totalWithVat(SlipLine line) {
-        return SlipDisplayAmount.vatInclusive(line);
-    }
 }

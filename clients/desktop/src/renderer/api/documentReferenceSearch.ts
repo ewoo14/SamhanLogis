@@ -118,7 +118,7 @@ export function normalizeDocumentReferenceOption(
       partnerCode: null,
       partnerName: row.partnerName,
       date: row.slipDate,
-      amount: row.totalAmount,
+      amount: row.displayTotalAmount ?? row.totalAmount,
       summary: row.partnerName,
     }
   }

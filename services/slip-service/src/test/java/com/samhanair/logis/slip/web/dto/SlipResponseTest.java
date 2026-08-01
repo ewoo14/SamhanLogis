@@ -29,7 +29,8 @@ class SlipResponseTest {
         SlipResponse response = SlipResponse.from(slip);
 
         // RED 원문: 수정 전 2,076,816 — 상세의 공급가액+부가세 2,284,500과 불일치.
-        assertThat(response.totalAmount()).isEqualByComparingTo("2284500");
+        assertThat(response.totalAmount()).isEqualByComparingTo("2076816");
+        assertThat(response.displayTotalAmount()).isEqualByComparingTo("2284500");
     }
 
     @Test
@@ -42,7 +43,8 @@ class SlipResponseTest {
                 new java.math.BigDecimal("2076816"), new java.math.BigDecimal("207684"),
                 new java.math.BigDecimal("2284500"), null, null));
 
-        assertThat(SlipSearchResult.from(slip).totalAmount()).isEqualByComparingTo("2284500");
+        assertThat(SlipSearchResult.from(slip).totalAmount()).isEqualByComparingTo("2076816");
+        assertThat(SlipSearchResult.from(slip).displayTotalAmount()).isEqualByComparingTo("2284500");
     }
 
     @Test
@@ -61,7 +63,8 @@ class SlipResponseTest {
         ReflectionTestUtils.setField(legacy, "unitPriceDomain", null);
         slip.addLine(legacy);
 
-        assertThat(SlipResponse.from(slip).totalAmount()).isEqualByComparingTo("330");
+        assertThat(SlipResponse.from(slip).totalAmount()).isEqualByComparingTo("300");
+        assertThat(SlipResponse.from(slip).displayTotalAmount()).isEqualByComparingTo("330");
     }
 
     @Test
