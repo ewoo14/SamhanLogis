@@ -46,6 +46,8 @@
 - [스크린샷 항상 사용자 인라인 첨부](feedback_qa_screenshots_inline_to_user.md) — QA 캡처는 SendUserFile(display=render)로 채팅에도 매번. PR SHA-pinned 게시와 병행 (2026-07-04)
 - [PR 제목 [FEAT]/[FIX] 대괄호+대문자](feedback_pr_title_caps_bracket.md)
 - [권한 표기 풀네임](feedback_role_naming_full.md) — MASTER/MANAGER 풀네임, 약어 금지
+- [🚨 "지방"·"야적"은 **태그**다 — 배송주소 접두 아님 (2026-08-01 개발책임자 정정)](feedback_region_is_a_tag_not_address_prefix.md) — `slips.delivery_tag` = `REGION`(지방)·`STACK`(야적)·`DAY`(당일)·`RETURN_RENTAL`. ❌`지방/` 접두 파싱=이카운트 방식 ❌17개 시도 문자열=`RegionalService` 현행인데 **틀림**. 🔑레거시 표식은 "어떻게 표시했나"라 계승 대상 아님. ⚠️REGION 12건뿐 — 태그 기반 전환 전 실제 건수 대조 필요
+- [🚨 행 입력 화면은 전부 **자동 빈행** — "행 추가" 버튼 없음 (2026-08-01 개발책임자)](feedback_auto_blank_row_for_all_line_entry.md) — 값 넣으면 아래에 빈행 자동 생성. 기준=판매전표 `SlipFormPage.tsx:678-698`(증식) `:1101-1123`(빈행 저장 제외) `:710-719`(마지막 행 삭제). 🔑**재사용·중복구현 금지** · 🚨빈행이 저장되면 안 됨. 미적용: 견적 `EstimateFormPage`·분개 `JournalFormPage`
 - [전표 용어 — 슬립 금지](feedback_jeonpyo_not_slip.md) — 한글 "전표"(슬립 금지), 영문 slipId는 별개
 - [🚨 **"완전계승" 정의 — 기능·표현 데이터는 복사, 디자인은 자유** (2026-07-31 개발책임자 확정)](feedback_gas_full_inheritance_definition.md) — 같아야 할 것=**기능·표현 데이터(항목·값·집계 결과)** / 달라도 되는 것=**레이아웃·색·컴포넌트**. *"화면이 다르게 생겼다"*는 미계승 근거가 **아니고**, *"항목이 빠졌다·값이 다르다"*는 미계승. `design-system` 사용 권장, 레거시 HTML 이식 금지. ⚠️예외=**인쇄 양식은 legacy 100% 매칭 유지**. 🔑저장소·수단이 바뀐 helper(Notion 저장·base64 압축)는 **계승 대상 아님** — 미대응 개수로 세지 말고 **담긴 업무 규칙**으로 가를 것
 - [🚨 할인 용어 — "약정DC" 는 없는 말 (2026-07-29 개발책임자 지적)](feedback_dc_terminology.md) — **고정DC**(`products.fixed_discount_rate`, 품목별) / **전역DC**(`dc_configs`, 거래처별 홈·상업율+옵션 정액 6종+반올림) / **기본 할인율**(`partners`). 약정=`agreeTerm`(전표 자유 입력)이라 할인과 무관. 📌우선순위=**고정DC 우선**(`fixedDc ?? globalRate`). ⚠️`dc-config-service` 엔 고정DC 개념이 **아예 없음**(grep 0) → 표시값≠확정값. 🔑**이슈 제목·기획 문서의 말을 그대로 쓰지 말 것** — 이 오염의 출처가 그것
