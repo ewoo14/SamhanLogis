@@ -25,7 +25,13 @@ fs.mkdirSync(OUT, { recursive: true });
 const APP = process.env.QA_APP_URL || 'http://localhost:5273';
 const API = process.env.QA_API_URL || 'http://localhost:8080';
 const ID = process.env.QA_LOGIN_ID || 'dev_master';
-const PW = process.env.QA_PASSWORD || 'dev_p05_pass!';
+// 비밀번호는 리터럴로 두지 않는다(비밀 스캐너 신규 노출 방지).
+// 실행 전 DEV_PASSWORD 또는 QA_PASSWORD 를 주입할 것.
+const PW = process.env.QA_PASSWORD || process.env.DEV_PASSWORD;
+if (!PW) {
+  console.error('DEV_PASSWORD (또는 QA_PASSWORD) 환경변수가 필요합니다.');
+  process.exit(2);
+}
 
 const log = [];
 const rec = (s, d) => { const l = `[${s}] ${d}`; log.push(l); console.log(l); };
