@@ -2471,9 +2471,9 @@ function unwrapList(data) {
 async function saveQuoteSnapshot(payload) {
   const email = Session.getActiveUser().getEmail();
   const body = {
-    userEmail: email,
     createdAt: new Date().toISOString(),
     ...payload,
+    userEmail: email,
   };
   const resp = await ax.post(SNAPSHOT_BASE, body, { headers: SNAPSHOT_HEADERS });
   if (resp.status < 200 || resp.status >= 300) {
@@ -2487,9 +2487,8 @@ async function saveQuoteSnapshot(payload) {
  * SamhanLogis: GET /internal/estimates/snapshots?startDate=&endDate= (X-Internal-Token)
  */
 async function getQuoteHistory(startDate, endDate) {
-  const email = Session.getActiveUser().getEmail();
   const resp = await ax.get(SNAPSHOT_BASE, {
-    params: { startDate, endDate, userEmail: email },
+    params: { startDate, endDate },
     headers: SNAPSHOT_HEADERS,
   });
   if (resp.status < 200 || resp.status >= 300) {
@@ -2502,12 +2501,11 @@ async function getQuoteHistory(startDate, endDate) {
 
 /**
  * legacy getQuoteHistoryByCustomer(custName) — 거래처명 부분검색 최근 30건 (#31).
- * SamhanLogis: GET /internal/estimates/snapshots/by-customer?custName=&userEmail= (X-Internal-Token)
+ * SamhanLogis: GET /internal/estimates/snapshots/by-customer?custName= (X-Internal-Token)
  */
 async function getQuoteHistoryByCustomer(custName) {
-  const email = Session.getActiveUser().getEmail();
   const resp = await ax.get(`${SNAPSHOT_BASE}/by-customer`, {
-    params: { custName: String(custName || '').trim(), userEmail: email },
+    params: { custName: String(custName || '').trim() },
     headers: SNAPSHOT_HEADERS,
   });
   if (resp.status < 200 || resp.status >= 300) {

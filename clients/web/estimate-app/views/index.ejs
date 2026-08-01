@@ -2136,7 +2136,7 @@ body.history-snapshot-open .mobile-drawer-side {
       <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #333; padding-bottom:15px;">
         <div>
           <h2 style="margin:0; font-size:24px; font-weight:bold; color:#111;">견적 저장 내역</h2>
-          <div style="color:#666; font-size:14px; margin-top:5px;">내 계정으로 저장된 견적만 표시됩니다.</div>
+          <div style="color:#666; font-size:14px; margin-top:5px;">모든 작성자의 견적을 조회하고, 본인 견적만 수정할 수 있습니다.</div>
         </div>
         <button class="btn" onclick="closeSnapshotPage()" style="background:#6b7280; color:#fff; padding:10px 20px; font-size:16px;">닫기 ✖</button>
       </div>
@@ -15545,9 +15545,12 @@ function resetCardData() {
 }
 
 // 복원
-function decodeBase64(str) {
+function decodeSnapshotState(data) {
   try {
-    return JSON.parse(decodeURIComponent(escape(atob(str))));
+    if (typeof data === 'string') {
+      try { return JSON.parse(data); } catch (_) { return JSON.parse(decodeURIComponent(escape(atob(data)))); }
+    }
+    return data;
   } catch (e) {
     console.error('복원오류', e);
     return [];
@@ -15558,7 +15561,7 @@ function decodeBase64(str) {
 function loadOrderData(savedBase64String) {
   
   // 배열복구
-  const restoredItems = decodeBase64(savedBase64String);
+  const restoredItems = decodeSnapshotState(savedBase64String);
   
   // 화면표시
   restoredItems.forEach(item => {
@@ -17486,14 +17489,14 @@ async function handleSaveSnapshot(customTheme) {
 
   // 스냅샷
   const state = takeSnapshot();
-  const strData = btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+  const jsonState = state;
 
   // 요약
   const summaryData = { custName: custName };
   const summaryStr = JSON.stringify(summaryData);
 
   // 기본용량
-  const baseSize = strData.length + summaryStr.length;
+  const baseSize = JSON.stringify(jsonState).length + summaryStr.length;
   const targetSize = 450000; 
 
   let imgBase64 = "";
@@ -17728,7 +17731,9 @@ async function handleSaveSnapshot(customTheme) {
     }
   }
 
-  // 전송
+  // 전송 — 상태는 JSON 그대로 보내고 미리보기 base64는 저장하지 않는다.
+  const totalAmount = getStructuredQuoteData().reduce((sum, section) => sum + (Number(section.total) || 0), 0);
+  const vatAmount = Math.floor(totalAmount / 11);
   google.script.run
     .withSuccessHandler(() => {
       alert('✅ 안전하게 저장되었습니다!');
@@ -17745,7 +17750,13 @@ async function handleSaveSnapshot(customTheme) {
         btn.disabled = false;
       }
     })
-    .saveQuoteSnapshot({ data: strData, summary: summaryData, image: imgBase64 });
+    .saveQuoteSnapshot({
+      data: jsonState,
+      summary: summaryData,
+      supplyAmount: totalAmount - vatAmount,
+      vatAmount,
+      totalAmount
+    });
 }
 
 /* 모달 */
@@ -17860,7 +17871,7 @@ function renderSnapshotTable(list) {
 
     html += '<tr style="border-bottom:1px solid #eee;">' +
               '<td style="padding:15px; color:#374151;">' + escapeEstimateHtml(dateStr) + '</td>' +
-              '<td style="padding:15px; font-weight:bold; color:#2563eb; font-size:16px;">' + escapeEstimateHtml(item.custName) + '</td>' +
+              '<td style="padding:15px; font-weight:bold; color:#2563eb; font-size:16px;">' + escapeEstimateHtml(item.custName) + '<div style="font-size:12px; color:#6b7280; font-weight:normal;">작성자: ' + escapeEstimateHtml(item.authorEmail || '미상') + '</div></td>' +
               '<td style="padding:15px;">' + previewBtn + '</td>' +
               '<td style="padding:15px;">' +
                   '<button class="btn" style="background:#2563eb; color:#fff; padding:6px 12px; font-size:13px;" onclick="restoreSnapshot(' + index + ')">복원</button>' +
@@ -17873,7 +17884,7 @@ function renderSnapshotTable(list) {
 // 스냅샷 복원 핸들러
 window.restoreSnapshot = function(index) {
   const item = window.loadedSnapshotData[index];
-  const dec = decodeBase64(item.data);
+  const dec = decodeSnapshotState(item.data);
   applySnapshot(dec, item.custName);
 };
 
