@@ -1,0 +1,27 @@
+#1014 원장 자동저장·이력 라이브QA — 실서버 DB 실측 (PM 직접)
+배포본: samhan-accounting-service created=2026-08-01T10:56:58Z (t1014 브랜치 이미지)
+
+[권한 baseline] 게이트웨이 경유 GET /api/v1/accounting/journals/ledger-data
+  dev_master     (MASTER)      200
+  dev_manager    (MANAGER)     200
+  dev_accountant (ACCOUNTANT)  200
+  dev_sales      (SALES)       403
+  ⟹ SOL 재수렴 2차가 본 MASTER 403 은 t1008 런타임의 것이었다.
+     t1014 배포본에서는 baseline 그대로다.
+
+[자동저장 · 작성자 · 배치번호] tax_invoice_batches (document_type=PARTNER_LEDGER)
+  batch_no               len  has_actor  total_row_count
+  LED20260801200106946    20      t              6
+  LED20260801195823827    20      t             10
+  LED20260801195822562    20      t             10
+
+  ⟹ ② 자동저장이 DB 에 남는다 (GUI 실행이 만든 행)
+     ③ 배치번호 20자 — 컬럼 초과 없음
+     ④ 작성자(processed_by) 보존
+
+[이력 화면] data-testid="partner-ledger-history"
+  자동 저장 이력
+  배치번호               기간                      행 수  저장 시각                    복원
+  LED20260801200106946  2026-07-01 ~ 2026-07-31     6   2026-08-01T20:01:06.946384  [복원]
+
+  ⟹ ① 화면에서 이력 조회·복원에 도달 가능
