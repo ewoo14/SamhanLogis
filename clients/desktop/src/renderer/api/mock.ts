@@ -5302,10 +5302,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { productId: 'p-pc1nw', productCode: 'PC1NWSK3NW', productName: 'WIFI 판넬', warehouseId: 'wh-vr', warehouseCode: 'VR-001', warehouseName: '가상창고', warehouseType: 'VIRTUAL', availableQty: 0, reservedQty: 0, totalQty: 0 },
     ]
     const params = mockLocationParams()
+    const productIdFilter = params.get('productId')
     const warehouseIdFilter = params.get('warehouseId')
-    const filtered = warehouseIdFilter
-      ? mockRows.filter((r) => r.warehouseId === warehouseIdFilter)
-      : mockRows
+    const filtered = mockRows.filter((r) =>
+      (!productIdFilter || r.productId === productIdFilter) &&
+      (!warehouseIdFilter || r.warehouseId === warehouseIdFilter),
+    )
     return envelope({
       content: filtered,
       number: 0,

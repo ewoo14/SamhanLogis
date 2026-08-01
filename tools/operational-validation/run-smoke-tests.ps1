@@ -9,7 +9,7 @@
     동작 순서:
         1) 14 service /actuator/health 200 검증 (+ dc-config-service 선택)
         2) kimmiseon (MASTER) 로그인 → JWT 발급 + claims 디코드 (sub/role)
-        3) 7 endpoint smoke test (gateway 경유 + service port 직접 혼합):
+        3) 8 endpoint smoke test (gateway 경유 + service port 직접 혼합):
             - GET /api/v1/auth/me                          (auth-service via gateway, controller /auth/me)
             - GET /api/v1/products?page=0&size=10          (product-service via gateway, controller /products)
             - GET /api/v1/inventory/balances?page=0&size=10 (inventory-service via gateway, controller /inventory/balances)
@@ -246,6 +246,8 @@ $smokeEndpoints = @(
     @{ name = 'auth-service /auth/me';                transport = 'direct';  url = "http://localhost:$($servicePortByName['auth-service'])/auth/me" },
     @{ name = 'product-service /products';            transport = 'gateway'; url = "$GatewayUrl/api/v1/products?page=0&size=10" },
     @{ name = 'inventory-service /warehouses';        transport = 'gateway'; url = "$GatewayUrl/api/v1/inventory/warehouses?page=0&size=10" },
+    # 전체 재고 현황 계약: productId 없이도 inventory.stock-balance VIEW 권한으로 조회되어야 한다.
+    @{ name = 'inventory-service /balances (전체)';   transport = 'gateway'; url = "$GatewayUrl/api/v1/inventory/balances?page=0&size=10" },
     @{ name = 'slip-service /slips';                  transport = 'gateway'; url = "$GatewayUrl/api/v1/slips?page=0&size=10" },
     @{ name = 'partner-service /admin/partners';      transport = 'direct';  url = "http://localhost:$($servicePortByName['partner-service'])/admin/partners?page=0&size=10" },
     @{ name = 'notification-service /admin/notifications'; transport = 'direct'; url = "http://localhost:$($servicePortByName['notification-service'])/admin/notifications?page=0&size=10" },
@@ -312,7 +314,7 @@ Write-Host ''
 
 if ($downCount -eq 0 -and $smokeFail -eq 0) {
     Write-Host '==============================================================' -ForegroundColor Green
-    Write-Host ' 합격 — 14 service 모두 UP + 7 endpoint 모두 200' -ForegroundColor Green
+    Write-Host ' 합격 — 14 service 모두 UP + 8 endpoint 모두 200' -ForegroundColor Green
     Write-Host '==============================================================' -ForegroundColor Green
     Write-Host ' docs/operational-validation/README.md 의 §2 항목 6 을 ✅ update 권장.' -ForegroundColor DarkGray
     Write-Host ''

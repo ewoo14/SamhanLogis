@@ -308,6 +308,8 @@ export interface StockBalanceListRow {
 
 /** 목록 조회 옵션. */
 export interface ListStockBalancesOptions {
+  /** 기존 품목별 재고 조회 호출부 호환용 선택 필터. */
+  productId?: string
   warehouseId?: string
   page?: number
   size?: number
@@ -329,6 +331,7 @@ export async function listStockBalances(
     page: options.page ?? 0,
     size: options.size ?? 50,
   }
+  if (options.productId) params['productId'] = options.productId
   if (options.warehouseId) params['warehouseId'] = options.warehouseId
 
   const res = await apiClient.get<ApiEnvelope<PageResponse<StockBalanceListRow>>>(
