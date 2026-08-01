@@ -25,10 +25,12 @@ public final class SlipDisplayAmount {
         if (line.getSupplyAmount() != null) {
             return line.getSupplyAmount().add(nullToZero(line.getVatAmount()));
         }
-        if (line.getUnitPriceWithVat() != null) {
-            return line.getUnitPriceWithVat().multiply(BigDecimal.valueOf(line.getQuantity()));
-        }
+        // V12 이전 legacy 행은 supplyAmount가 null일 수 있다. 이때도 저장된 lineTotal을
+        // 우선 사용해야 하며, 단가×수량으로 되짚으면 저장값과 다른 표시 drift가 발생한다.
         if (line.getLineTotal() == null) {
+            if (line.getUnitPriceWithVat() != null) {
+                return line.getUnitPriceWithVat().multiply(BigDecimal.valueOf(line.getQuantity()));
+            }
             return BigDecimal.ZERO;
         }
         return line.getLineTotal().add(nullToZero(line.getVatAmount()));

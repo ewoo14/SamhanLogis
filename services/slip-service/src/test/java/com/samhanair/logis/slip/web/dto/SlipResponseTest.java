@@ -68,6 +68,37 @@ class SlipResponseTest {
     }
 
     @Test
+    void displayTotalAmount_legacy공급가액Null이면_단가乘수량을_재계산하지_않는다() {
+        Slip slip = Slip.createOutbound("2026/05/20-3", LocalDate.of(2026, 5, 20), 3,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
+                DeliveryTag.DAY, null, "sales-1");
+        SlipLine legacy = SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목",
+                "모델", null, 1, new java.math.BigDecimal("200"),
+                new java.math.BigDecimal("20"), new java.math.BigDecimal("220"), null, null);
+        ReflectionTestUtils.setField(legacy, "supplyAmount", null);
+        ReflectionTestUtils.setField(legacy, "unitPriceWithVat", new java.math.BigDecimal("999"));
+        slip.addLine(legacy);
+
+        assertThat(SlipResponse.from(slip).displayTotalAmount()).isEqualByComparingTo("220");
+    }
+
+    @Test
+    void summary_2026년5월20일전표의_legacyNull라인은_저장lineTotal을_사용한다() {
+        Slip slip = Slip.createOutbound("2026/05/20-1", LocalDate.of(2026, 5, 20), 1,
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "P-2026-0001",
+                DeliveryTag.DAY, null, "sales-1");
+        SlipLine legacy = SlipLine.createFromAuthoritativeAmounts(slip, UUID.randomUUID(), "품목",
+                "모델", null, 1, new java.math.BigDecimal("2076816"),
+                new java.math.BigDecimal("207684"), new java.math.BigDecimal("2284500"), null, null);
+        ReflectionTestUtils.setField(legacy, "supplyAmount", null);
+        ReflectionTestUtils.setField(legacy, "vatAmount", null);
+        ReflectionTestUtils.setField(legacy, "unitPriceWithVat", new java.math.BigDecimal("9999999"));
+        slip.addLine(legacy);
+
+        assertThat(SlipSummary.of(slip).lines().get(0).lineTotal()).isEqualByComparingTo("2076816");
+    }
+
+    @Test
     void from_usesStateDependentEditHistoryCount_notRawRevisionCount() {
         Slip slip = Slip.createOutbound("2026/06/30-1", LocalDate.of(2026, 6, 30), 1,
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "S2c거래처",
