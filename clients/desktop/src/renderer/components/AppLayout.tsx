@@ -1625,6 +1625,14 @@ export function AppLayout() {
               >
                 재고 현황
               </SidebarLink>
+              <SidebarLink
+                to="/inventory/inout-analysis"
+                show={showInventoryStockBalance}
+                requiredRole="WAREHOUSE / MANAGER / MASTER"
+                data-testid="sidebar-inventory-inout-analysis"
+              >
+                입출고 내역·분석
+              </SidebarLink>
               {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE. */}
               <SidebarLink
                 to="/inventory/safety-stock-alerts"
