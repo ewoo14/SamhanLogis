@@ -50,7 +50,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "app.slip.partner-strict-validation=true",
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111"
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001"
 })
 class SlipPublishPartnerStrictIT extends AbstractPostgresIT {
 

@@ -34,18 +34,31 @@ public class SalesAccountingSlipAllocation extends BaseEntity {
     @Column(name = "source_slip_no", nullable = false, length = 50) private String sourceSlipNo;
     @Column(name = "source_line_id", nullable = false) private UUID sourceLineId;
     @Column(name = "source_line_no", nullable = false) private int sourceLineNo;
+    @Column(name = "model_name", length = 100) private String modelName;
+    @Column(name = "category_key", length = 40) private String categoryKey;
     @Column(name = "allocated_qty", nullable = false, precision = 12, scale = 3) private BigDecimal allocatedQty;
     @Column(name = "allocated_amount", nullable = false, precision = 15, scale = 2) private BigDecimal allocatedAmount;
 
     public static SalesAccountingSlipAllocation create(SalesAccountingSlipLine line,
             UUID sourceSlipId, String sourceSlipNo, UUID sourceLineId, int sourceLineNo,
             BigDecimal allocatedQty, BigDecimal allocatedAmount) {
+        return create(line, sourceSlipId, sourceSlipNo, sourceLineId, sourceLineNo,
+                allocatedQty, allocatedAmount, null, null);
+    }
+
+    /** 원천 판매전표 라인의 모델명·GAS 카테고리 축을 배분 snapshot에 보존한다. */
+    public static SalesAccountingSlipAllocation create(SalesAccountingSlipLine line,
+            UUID sourceSlipId, String sourceSlipNo, UUID sourceLineId, int sourceLineNo,
+            BigDecimal allocatedQty, BigDecimal allocatedAmount,
+            String modelName, String categoryKey) {
         SalesAccountingSlipAllocation a = new SalesAccountingSlipAllocation();
         a.salesSlipLine = line;
         a.sourceSlipId = sourceSlipId;
         a.sourceSlipNo = sourceSlipNo;
         a.sourceLineId = sourceLineId;
         a.sourceLineNo = sourceLineNo;
+        a.modelName = modelName;
+        a.categoryKey = categoryKey;
         a.allocatedQty = allocatedQty;
         a.allocatedAmount = allocatedAmount;
         return a;

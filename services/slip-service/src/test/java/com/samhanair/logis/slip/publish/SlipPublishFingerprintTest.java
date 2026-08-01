@@ -1,8 +1,12 @@
 package com.samhanair.logis.slip.publish;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipLine;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -11,6 +15,29 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class SlipPublishFingerprintTest {
+
+    @Test
+    void 구_저장_규약의_VAT포함단가도_동일_재시도로_판정한다() throws Exception {
+        SlipPublishService service = service();
+        Slip existing = mock(Slip.class);
+        SlipLine stored = mock(SlipLine.class);
+        when(existing.getLines()).thenReturn(List.of(stored));
+        when(stored.getProductName()).thenReturn("상품");
+        when(stored.getQuantity()).thenReturn(1);
+        when(stored.getUnitPrice()).thenReturn(new BigDecimal("10"));
+        when(stored.getUnitPriceWithVat()).thenReturn(new BigDecimal("11"));
+        when(stored.getSpecification()).thenReturn("규격");
+        when(stored.getNote()).thenReturn("비고");
+        when(stored.getSourceOrderLineId()).thenReturn(null);
+        when(stored.getCategoryKey()).thenReturn(null);
+
+        Method method = SlipPublishService.class.getDeclaredMethod(
+                "linesMatch", Slip.class, List.class);
+        method.setAccessible(true);
+
+        assertThat(method.invoke(service, existing, request("서울 강남구 1", null).lines()))
+                .isEqualTo(true);
+    }
 
     @Test
     void 단건_배송주소가_다르면_멱등지문도_달라야_한다() throws Exception {
@@ -28,6 +55,28 @@ class SlipPublishFingerprintTest {
         String secondFingerprint = (String) method.invoke(service, second);
 
         assertThat(firstFingerprint).isNotEqualTo(secondFingerprint);
+    }
+
+    @Test
+    void 현행_단건_지문은_발행결과를바꾸는_categoryKey를_구분한다() throws Exception {
+        SlipPublishService service = service();
+        Method method = SlipPublishService.class.getDeclaredMethod(
+                "computeFingerprint", PublishFromPartnerOrderRequest.class);
+        method.setAccessible(true);
+
+        assertThat(fingerprint(method, service, request("서울시 강남구 1", "singleSets")))
+                .isNotEqualTo(fingerprint(method, service, request("서울시 강남구 1", "homeMulti")));
+    }
+
+    @Test
+    void legacy_단건_지문은_당시_없던_categoryKey를_구분하지_않는다() throws Exception {
+        SlipPublishService service = service();
+        Method method = SlipPublishService.class.getDeclaredMethod(
+                "computeLegacyFingerprint", PublishFromPartnerOrderRequest.class);
+        method.setAccessible(true);
+
+        assertThat(fingerprint(method, service, request("서울시 강남구 1", "singleSets")))
+                .isEqualTo(fingerprint(method, service, request("서울시 강남구 1", "homeMulti")));
     }
 
     @Test
@@ -111,15 +160,21 @@ class SlipPublishFingerprintTest {
 
     private static PublishLineRequest line(Integer lineNo, String productCode, UUID sourceLineId) {
         return new PublishLineRequest(lineNo, productCode, "상품", "규격", "1",
-                BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ONE, "비고", sourceLineId);
+                BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ONE, "비고", sourceLineId,
+                "fingerprint-test");
     }
 
     private static PublishFromPartnerOrderRequest request(String shippingAddress) {
+        return request(shippingAddress, "fingerprint-test");
+    }
+
+    private static PublishFromPartnerOrderRequest request(String shippingAddress, String categoryKey) {
         return new PublishFromPartnerOrderRequest(
                 "PO-FINGERPRINT-1", "20260731", "P-001", "거래처", "EMP-001",
                 "WH-001", UUID.randomUUID().toString(), shippingAddress, null, "010-0000-0000",
                 "메모", "월말", "할인", "2026-07-31T10:00:00Z",
                 List.of(new PublishLineRequest(1, "PROD-001", "상품", "규격", "1",
-                        BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ONE, "비고", null)));
+                        BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ONE, "비고", null,
+                        categoryKey)));
     }
 }

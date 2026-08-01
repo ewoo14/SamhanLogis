@@ -7,6 +7,7 @@ import com.samhanair.logis.accounting.domain.CashReceiptStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.List;
 
 /** 입금보고서 응답. id 는 mutation path 용이며 화면 표시는 slipNo/거래처 표시필드를 사용한다. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -25,10 +26,12 @@ public record CashReceiptResponse(
         String reverseJournalNo,
         String externalRef,
         String debitAccountCode,
-        String creditAccountCode
+        String creditAccountCode,
+        List<CashReceiptLineResponse> lines
 ) {
     public static CashReceiptResponse of(CashReceipt receipt, PartnerDisplay partner,
-                                         String journalNo, String reverseJournalNo) {
+                                         String journalNo, String reverseJournalNo,
+                                         List<CashReceiptLineResponse> lines) {
         return new CashReceiptResponse(
                 receipt.getId(),
                 receipt.getSlipNo(),
@@ -44,7 +47,7 @@ public record CashReceiptResponse(
                 reverseJournalNo,
                 receipt.getExternalRef(),
                 receipt.getDebitAccountCode(),
-                receipt.getCreditAccountCode());
+                receipt.getCreditAccountCode(), lines);
     }
 
     /** 같은 응답 형태를 유지하되 신규 통장연계 생성 응답에서는 mutation UUID 를 노출하지 않는다. */
@@ -64,7 +67,8 @@ public record CashReceiptResponse(
                 reverseJournalNo,
                 externalRef,
                 debitAccountCode,
-                creditAccountCode);
+                creditAccountCode,
+                lines);
     }
 
     /** API 표시용 거래처 정보. */

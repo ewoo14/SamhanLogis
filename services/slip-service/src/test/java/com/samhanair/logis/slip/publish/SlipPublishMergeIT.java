@@ -70,8 +70,8 @@ import org.springframework.test.web.servlet.MvcResult;
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.MERGE-WH=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111"
+        "app.publish.warehouse-code-map.MERGE-WH=11111111-1111-1111-1111-000000000001",
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001"
 })
 class SlipPublishMergeIT extends AbstractPostgresIT {
 
@@ -215,6 +215,37 @@ class SlipPublishMergeIT extends AbstractPostgresIT {
         assertThat(savedSourceLineIds)
                 .as("slip_lines.source_order_line_id 가 요청의 sourceOrderLineId 로 저장되어야 함")
                 .containsExactlyInAnyOrder(lineASourceId, lineBSourceId);
+    }
+
+    @Test
+    void 병합_주문도_견적과_같은_VAT_반올림을_사용한다() throws Exception {
+        String idemKey = "merge-vat-rounding";
+        Map<String, Object> body = mergeBody(
+                ORDER_A_ID.toString(), "2026/05/31-vat-A",
+                ORDER_B_ID.toString(), "2026/05/31-vat-B",
+                "P-VAT", "VAT 거래처", WAREHOUSE_CODE,
+                "서울", idemKey);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceVat", 110005);
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-orders-merge")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", idemKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID slipId = readSlipId(result);
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
+                .orElseThrow().getLines().stream()
+                .filter(candidate -> candidate.getUnitPriceWithVat().compareTo(new BigDecimal("110005")) == 0)
+                .findFirst().orElseThrow();
+
+        assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
     }
 
     // ---- 케이스 2: 헤더 '/' 병기 그대로 저장 ----

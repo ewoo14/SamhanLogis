@@ -17,6 +17,7 @@ import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.UnitPriceDomain;
 import com.samhanair.logis.slip.it.AbstractPostgresIT;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import java.math.BigDecimal;
@@ -63,15 +64,15 @@ import org.springframework.test.web.servlet.MvcResult;
  *   <li>{@link InventoryClient} — 발행만 검증, accept/complete 호출 X 이므로 사용 안 됨 (lenient mock)</li>
  * </ul>
  *
- * <p>{@code @TestPropertySource} 로 warehouse-code-map 주입 (yaml 의 dev 기본값과 동일).
+ * <p>{@code @TestPropertySource} 로 warehouse-code-map 주입.
  */
 @SpringBootTest(classes = SlipServiceApplication.class)
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
-        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-111111111111",
-        "app.publish.warehouse-code-map.2=22222222-2222-2222-2222-222222222222",
-        "app.publish.warehouse-code-map.14=33333333-3333-3333-3333-333333333333",
-        "app.publish.warehouse-code-map.1=44444444-4444-4444-4444-444444444444"
+        "app.publish.warehouse-code-map.00003=11111111-1111-1111-1111-000000000001",
+        "app.publish.warehouse-code-map.2=11111111-1111-1111-1111-000000000002",
+        "app.publish.warehouse-code-map.14=11111111-1111-1111-1111-000000000003",
+        "app.publish.warehouse-code-map.1=11111111-1111-1111-1111-000000000004"
 })
 class SlipPublishControllerIT extends AbstractPostgresIT {
 
@@ -201,6 +202,101 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.idempotentReplay").value(true))
                 .andExpect(jsonPath("$.data.slipId").value(slipId.toString()));
+    }
+
+    @Test
+    void publishFromPartnerOrder_doesNotAddVatToVatInclusiveUnitPrice() throws Exception {
+        Map<String, Object> body = partnerOrderBody("PO-VAT-DOMAIN-RED");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceExVat", 881818);
+        lines.get(0).put("unitPriceVat", 970000);
+        lines.get(0).put("categoryKey", "homemulti");
+        // partner-order-service의 실제 발행 payload처럼 감사용 합계는 생략한다.
+        lines.get(0).remove("supplyAmount");
+        lines.get(0).remove("vatAmount");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-vat-domain-red")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId).orElseThrow()
+                .getLines().get(0);
+
+        // RED: 현재는 970,000원을 공급가로 저장하고 VAT 97,000원을 다시 더한다.
+        org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("881818");
+        org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("88182");
+        org.assertj.core.api.Assertions.assertThat(line.getUnitPriceWithVat()).isEqualByComparingTo("970000");
+        org.assertj.core.api.Assertions.assertThat(line.getUnitPriceDomain()).isEqualTo(UnitPriceDomain.VAT_INCLUSIVE);
+        org.assertj.core.api.Assertions.assertThat(line.getCategoryKey()).isEqualTo("homemulti");
+    }
+
+    @Test
+    void publishFromEstimate_usesQuoteRoundingForVatInclusiveAmounts() throws Exception {
+        Map<String, Object> body = estimateBody("EST-VAT-ROUNDING");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceExVat", 100005);
+        lines.get(0).put("unitPriceVat", 110005);
+        lines.get(0).remove("supplyAmount");
+        lines.get(0).remove("vatAmount");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-estimate")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "SALES")
+                        .header("Idempotency-Key", "idem-est-vat-rounding")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
+                .orElseThrow().getLines().get(0);
+
+        org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
+    }
+
+    @Test
+    void publishFromPartnerOrder_usesQuoteRoundingForVatInclusiveAmounts() throws Exception {
+        Map<String, Object> body = partnerOrderBody("PO-VAT-ROUNDING");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> lines = (List<Map<String, Object>>) body.get("lines");
+        lines.get(0).put("qty", "1");
+        lines.get(0).put("unitPriceExVat", 100005);
+        lines.get(0).put("unitPriceVat", 110005);
+        lines.get(0).remove("supplyAmount");
+        lines.get(0).remove("vatAmount");
+
+        MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", "MANAGER")
+                        .header("Idempotency-Key", "idem-po-vat-rounding")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID slipId = UUID.fromString(
+                objectMapper.readTree(result.getResponse().getContentAsString())
+                        .get("data").get("slipId").asText());
+        com.samhanair.logis.slip.domain.SlipLine line = slipRepository.findByIdWithLines(slipId)
+                .orElseThrow().getLines().get(0);
+
+        org.assertj.core.api.Assertions.assertThat(line.getSupplyAmount()).isEqualByComparingTo("100005");
+        org.assertj.core.api.Assertions.assertThat(line.getVatAmount()).isEqualByComparingTo("10000");
     }
 
     @Test

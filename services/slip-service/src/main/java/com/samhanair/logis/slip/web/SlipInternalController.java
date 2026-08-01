@@ -20,6 +20,7 @@ import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
 import com.samhanair.logis.slip.web.dto.LockByPeriodRequest;
 import com.samhanair.logis.slip.web.dto.LockByPeriodResponse;
 import com.samhanair.logis.slip.web.dto.OutboundSlipLineResponse;
+import com.samhanair.logis.slip.web.dto.OutboundSlipResponse;
 import com.samhanair.logis.slip.web.dto.PartnerLedgerSalesResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
@@ -287,6 +288,43 @@ public class SlipInternalController {
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
 
     /**
+     * 배차 계열 공통 출고전표 조회.
+     *
+     * <p>notification-service와 arologis-service가 사용하는 기간 계약이다. 기존
+     * {@code /outbound-lines} 라인 projection과 경로를 분리하고, 응답에는 UUID를 포함하지 않는다.
+     *
+     * @param from 조회 시작일(포함)
+     * @param to 조회 종료일(포함)
+     * @return 활성 OUTBOUND 전표 단위 projection
+     */
+    @Operation(summary = "Internal 배차용 출고전표 조회",
+            description = "X-Internal-Token 인증. 활성 OUTBOUND 전표를 전표 단위로 반환하며 UUID는 포함하지 않는다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 to < from"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "X-Internal-Token 누락")
+    })
+    @GetMapping("/outbound")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<OutboundSlipResponse>> findOutboundSlipsForDispatch(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from == null || to == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜는 필수입니다");
+        }
+        if (to.isBefore(from)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "to 날짜는 from 날짜 이후여야 합니다");
+        }
+        List<OutboundSlipResponse> rows = slipRepository
+                .findByPeriodWithLines(SlipType.OUTBOUND, from, to, null)
+                .stream()
+                .map(OutboundSlipResponse::from)
+                .toList();
+        return ApiResponse.ok(rows);
+    }
+
+    /**
      * DPS 입고비교용 출고전표 라인 조회 — inventory-service DpsCompareService source.
      *
      * <p>기존 기간별 조회 query({@link SlipRepository#findByPeriodWithLines}) 를 재사용해 OUTBOUND
@@ -465,6 +503,9 @@ public class SlipInternalController {
                 slip.getPartnerCode(),
                 slip.getPartnerName(),
                 line.getProductName(),
+                line.getModelName(),
+                line.getSourceOrderLineId(),
+                line.getCategoryKey(),
                 line.getQuantity(),
                 unitPriceWithVat,
                 lineTotalWithVat,

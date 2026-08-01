@@ -21,6 +21,7 @@ import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -771,8 +772,10 @@ public class SlipPublishService {
                     normalizeSpec(l.spec()),
                     qty,
                     unitPrice,
+                    l.unitPriceVat() != null,
                     l.remarks(),
-                    l.sourceOrderLineId()));
+                    l.sourceOrderLineId(),
+                    l.categoryKey()));
             if (l.supplyAmount() != null) {
                 resolved.totalSupplyAmount = resolved.totalSupplyAmount.add(l.supplyAmount());
             }
@@ -900,6 +903,8 @@ public class SlipPublishService {
         m.put("vatAmount", l.vatAmount());
         m.put("remarks", l.remarks());
         m.put("sourceOrderLineId", l.sourceOrderLineId());
+        // PR #991 — 발행 결과에 보존되는 주문 카테고리 축도 현행 지문에 포함한다.
+        m.put("categoryKey", l.categoryKey());
         return m;
     }
 
@@ -918,6 +923,7 @@ public class SlipPublishService {
         m.put("supplyAmount", l.supplyAmount());
         m.put("vatAmount", l.vatAmount());
         m.put("remarks", l.remarks());
+        // 배포 전 발급 키에는 categoryKey 필드가 없었으므로 legacy 지문에는 넣지 않는다.
         return m;
     }
 
@@ -993,9 +999,13 @@ public class SlipPublishService {
             BigDecimal requestedUnitPrice = req.unitPriceVat() != null
                     ? req.unitPriceVat().abs()
                     : (req.unitPriceExVat() != null ? req.unitPriceExVat().abs() : BigDecimal.ZERO);
+            BigDecimal persistedUnitPrice = req.unitPriceVat() != null
+                    ? line.getUnitPriceWithVat()
+                    : line.getUnitPrice();
             if ((req.productName() != null && !Objects.equals(line.getProductName(), req.productName()))
                     || line.getQuantity() != Integer.parseInt(req.qty().trim())
-                    || line.getUnitPrice().compareTo(requestedUnitPrice) != 0
+                    || !unitPriceMatchesLegacyOrCurrent(persistedUnitPrice, requestedUnitPrice,
+                            req.unitPriceVat() != null)
                     || !Objects.equals(line.getSpecification(), normalizeSpec(req.spec()))
                     || !Objects.equals(line.getNote(), req.remarks())
                     || !Objects.equals(line.getSourceOrderLineId(), req.sourceOrderLineId())) {
@@ -1003,6 +1013,20 @@ public class SlipPublishService {
             }
         }
         return true;
+    }
+
+    private boolean unitPriceMatchesLegacyOrCurrent(BigDecimal persistedUnitPrice,
+                                                     BigDecimal requestedUnitPrice,
+                                                     boolean vatInclusiveRequest) {
+        if (persistedUnitPrice == null) {
+            return false;
+        }
+        if (persistedUnitPrice.compareTo(requestedUnitPrice) == 0) {
+            return true;
+        }
+        return vatInclusiveRequest
+                && persistedUnitPrice.compareTo(requestedUnitPrice.multiply(new BigDecimal("1.1"))
+                        .setScale(2, RoundingMode.HALF_UP)) == 0;
     }
 
     private String serializeDiscount(String discountInfo, String paymentDueLabel) {
@@ -1049,13 +1073,20 @@ public class SlipPublishService {
          */
         List<SlipLine> toEntityLines(Slip slip) {
             return entries.stream()
-                    .map(e -> SlipLine.create(slip, e.productId, e.productName, e.modelName,
-                            e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId))
+                    .map(e -> e.vatInclusive
+                            ? SlipLine.createFromVatInclusive(slip, e.productId, e.productName, e.modelName,
+                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                    e.categoryKey)
+                            : SlipLine.create(slip, e.productId, e.productName, e.modelName,
+                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                    e.categoryKey))
                     .toList();
         }
 
         record Entry(UUID productId, String productName, String modelName, String specification,
-                     int quantity, BigDecimal unitPrice, String note, UUID sourceOrderLineId) {
+                     int quantity, BigDecimal unitPrice, boolean vatInclusive, String note,
+                     UUID sourceOrderLineId,
+                     String categoryKey) {
         }
     }
 

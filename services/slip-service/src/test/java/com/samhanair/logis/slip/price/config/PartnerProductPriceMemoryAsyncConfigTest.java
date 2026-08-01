@@ -156,8 +156,8 @@ class PartnerProductPriceMemoryAsyncConfigTest {
             // 등록하면 안 된다 — 등록하는 순간 Boot 의 자동구성 jdbcTemplate 과
             // JpaTransactionManager 가 조용히 back-off 한다 (실측 확인).
             assertThat(context.getBeanNamesForType(JdbcOperations.class))
-                    .as("전용 JdbcTemplate 이 JdbcOperations 빈으로 새면 자동구성 jdbcTemplate 이 back-off")
-                    .isEmpty();
+                    .as("주 JdbcTemplate 만 JdbcOperations 빈으로 존재하고 전용 JdbcTemplate 은 타입 빈으로 노출하지 않는다")
+                    .containsExactly("jdbcTemplate");
             assertThat(context.getBeanNamesForType(TransactionManager.class))
                     .as("전용 TM 이 TransactionManager 빈으로 새면 JpaTransactionManager 가 back-off")
                     .isEmpty();

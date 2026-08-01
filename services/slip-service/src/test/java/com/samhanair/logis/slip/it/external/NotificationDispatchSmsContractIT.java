@@ -35,7 +35,7 @@ class NotificationDispatchSmsContractIT {
     }
 
     @Test
-    void sendExternalSmsWithResult_postsContractAndReturnsTrueOn2xx() {
+    void sendExternalSmsWithResult_doesNotTreatFailedBodyAsSuccessOn2xx() {
         server.expect(requestTo(BASE_URL + "/internal/notifications/send"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header("X-Internal-Token", "test-internal-token"))
@@ -49,11 +49,11 @@ class NotificationDispatchSmsContractIT {
                           "body":"본문"
                         }
                         """))
-                .andRespond(withSuccess());
+                .andRespond(withSuccess("{\"data\":{\"status\":\"FAILED\"}}", MediaType.APPLICATION_JSON));
 
         boolean result = client.sendExternalSmsWithResult("010-7000-0001", "[배차의뢰]", "본문");
 
-        assertThat(result).isTrue();
+        assertThat(result).isFalse();
         server.verify();
     }
 

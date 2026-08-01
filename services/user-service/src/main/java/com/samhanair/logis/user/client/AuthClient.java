@@ -1,11 +1,13 @@
 package com.samhanair.logis.user.client;
 
+import com.samhanair.logis.common.dto.ApiResponse;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.common.security.Role;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.core.ParameterizedTypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
@@ -21,6 +23,9 @@ import org.springframework.web.client.RestClient;
  */
 @Component
 public class AuthClient {
+
+    private static final ParameterizedTypeReference<ApiResponse<AccountLookupResponse>>
+            ACCOUNT_LOOKUP_RESPONSE = new ParameterizedTypeReference<>() {};
 
     private static final Logger log = LoggerFactory.getLogger(AuthClient.class);
     private static final String INTERNAL_TOKEN_HEADER = "X-Internal-Token";
@@ -39,6 +44,47 @@ public class AuthClient {
     public void createAccount(UUID id, String loginId, String password, String displayName, Role role) {
         createAccount(id, loginId, password, displayName, role, false);
     }
+
+    /**
+     * auth-service에서 활성 계정의 ID를 읽는다.
+     *
+     * <p>계정이 없거나 비활성화된 경우 auth-service의 404를 그대로 {@code NOT_FOUND}로
+     * 전달하여 호출자가 계획을 fail-closed 할 수 있게 한다.
+     *
+     * @param loginId 조회할 로그인 아이디
+     * @return auth-service에 현재 존재하고 활성인 계정의 ID
+     */
+    public UUID findActiveAccountIdByLoginId(String loginId) {
+        try {
+            ApiResponse<AccountLookupResponse> response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/auth/internal/accounts/by-login")
+                            .queryParam("loginId", loginId).build())
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(status -> status.value() == 404, (req, res) -> {
+                        throw new BusinessException(ErrorCode.NOT_FOUND,
+                                "활성 auth 계정을 찾을 수 없습니다");
+                    })
+                    .onStatus(HttpStatusCode::isError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "auth-service account lookup failed: " + res.getStatusCode());
+                    })
+                    .body(ACCOUNT_LOOKUP_RESPONSE);
+            if (response == null || response.getData() == null || response.getData().accountId() == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "활성 auth 계정을 찾을 수 없습니다");
+            }
+            return response.getData().accountId();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error("AuthClient active account lookup failed: {}", ex.getMessage());
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "auth-service 호출 실패: active account lookup", ex);
+        }
+    }
+
+    /** auth-service 내부 계정 ID 조회 응답. UUID는 서비스 간 계약에서만 사용한다. */
+    public record AccountLookupResponse(UUID accountId) {}
 
     /**
      * auth-service 에 계정 생성 — {@code passwordChangeRequired} 플래그 전달 지원.

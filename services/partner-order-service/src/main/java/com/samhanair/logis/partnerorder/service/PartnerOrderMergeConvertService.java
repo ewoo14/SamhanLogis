@@ -168,6 +168,7 @@ public class PartnerOrderMergeConvertService {
                 lp.put("unitPriceVat", line.getPriceVat());
                 lp.put("remarks", line.getRemark());
                 lp.put("sourceOrderLineId", line.getId().toString());
+                lp.put("categoryKey", line.getCategoryKey());
                 payloadLines.add(lp);
             }
         }

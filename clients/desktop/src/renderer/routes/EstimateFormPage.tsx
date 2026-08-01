@@ -48,6 +48,10 @@ import {
 } from '../utils/lineVat'
 import { vatFromSupply } from '../utils/vatRounding'
 import {
+  appendBlankRowIfLastChanged,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
+import {
   partnerRepriceSessionIsCurrent,
   usePartnerPriceRefresh,
   type PartnerRepriceCandidate,
@@ -986,7 +990,7 @@ export function EstimateFormPage() {
     })
   }
 
-  const updateLine = (index: number, patch: Partial<DraftLine>) => {
+  const updateLine = (index: number, patch: Partial<DraftLine>, fromUser = false) => {
     if (patch.unitPrice !== undefined && patch.priceSource === 'USER') {
       const lineUid = linesRef.current[index]?.uid
       // 사용자가 단가를 직접 확정하면 해당 행의 자동 출처/미확보 경고와 배너 집계만 해제한다.
@@ -1002,7 +1006,15 @@ export function EstimateFormPage() {
       setPriceLookupAnnouncement('')
     }
     setLines((prev) => {
-      const next = prev.map((l, i) => (i === index ? { ...l, ...patch } : l))
+      const before = prev[index]
+      if (!before) return prev
+      const after = { ...before, ...patch }
+      const next = fromUser
+        ? appendBlankRowIfLastChanged(prev, before, after, (line) => line.uid, emptyLine, (a, b) => a.uid === b.uid
+          && a.modelName === b.modelName && a.productName === b.productName && a.specification === b.specification
+          && a.quantity === b.quantity && a.unitPrice === b.unitPrice && a.supplyAmount === b.supplyAmount
+          && a.vatAmount === b.vatAmount && a.lineTotal === b.lineTotal && a.note === b.note)
+        : prev.map((l, i) => (i === index ? after : l))
       linesRef.current = next
       return next
     })
@@ -1022,13 +1034,13 @@ export function EstimateFormPage() {
       lookupError: null,
       legacyPriceUntouched: false,
       vatDirty: false,
-    })
+    }, true)
   }
 
   const updateQuantity = (index: number, quantity: string) => {
     const current = linesRef.current[index]
     if (!current) return
-    updateLine(index, changeLineQuantity(asVatLine({ ...current, quantity }), quantity))
+    updateLine(index, changeLineQuantity(asVatLine({ ...current, quantity }), quantity), true)
   }
 
   const updateVat = (index: number, authority: 'SUPPLY' | 'VAT' | 'TOTAL', value: string) => {
@@ -1037,7 +1049,7 @@ export function EstimateFormPage() {
     updateLine(index, {
       ...editLineVat(asVatLine(current), authority, value),
       vatDirty: true,
-    })
+    }, true)
   }
 
   const refreshAutoPricesForPartner = async (effectivePartnerId: string) => {
@@ -1178,8 +1190,9 @@ export function EstimateFormPage() {
   })
   const removeLine = (index: number) => {
     setLines((prev) => {
-      const next = prev.filter((_, i) => i !== index)
-      const normalized = next.length === 0 ? [emptyLine()] : next
+      const target = prev[index]
+      if (!target) return prev
+      const normalized = removeLinePreservingMinimum(prev, target.uid, (line) => line.uid, emptyLine, 1)
       linesRef.current = normalized
       return normalized
     })
@@ -1854,7 +1867,7 @@ export function EstimateFormPage() {
                   fieldPath={`items.${i}.modelName`}
                   type="text"
                   value={line.modelName}
-                  onValueChange={(value) => updateLine(i, { modelName: value })}
+                  onValueChange={(value) => updateLine(i, { modelName: value }, true)}
                   onBlur={() => handleModelLookup(i)}
                   readOnly={Boolean(isReadOnly)}
                   placeholder="예: AJ040RXH4BC1"
@@ -1869,7 +1882,7 @@ export function EstimateFormPage() {
                 fieldPath={`items.${i}.productName`}
                 type="text"
                 value={line.productName}
-                onValueChange={(value) => updateLine(i, { productName: value })}
+                onValueChange={(value) => updateLine(i, { productName: value }, true)}
                 readOnly={Boolean(isReadOnly)}
                 aria-label={`라인 ${i + 1} 품목명`}
               />
@@ -1879,7 +1892,7 @@ export function EstimateFormPage() {
                 fieldPath={`items.${i}.specification`}
                 type="text"
                 value={line.specification}
-                onValueChange={(value) => updateLine(i, { specification: value })}
+                onValueChange={(value) => updateLine(i, { specification: value }, true)}
                 readOnly={Boolean(isReadOnly)}
                 aria-label={`라인 ${i + 1} 규격`}
               />

@@ -389,7 +389,7 @@ class OutboundCutoffGuardIT extends com.samhanair.logis.slip.it.AbstractPostgres
                   "slipType": "OUTBOUND",
                   "slipDate": "%s",
                   %s
-                  "sourceWarehouseId": "00000000-0000-0000-0000-000000000001",
+                  "sourceWarehouseId": "11111111-1111-1111-1111-000000000001",
                   "lines": [
                     {
                       "productId": "00000000-0000-0001-0000-000000000001",

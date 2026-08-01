@@ -83,6 +83,10 @@ import {
 import { toLocalDateISO } from '../utils/dateUtils'
 import { isAutoPriceSource, shouldAutoFillPrice } from '../utils/priceSourceRules'
 import {
+  appendBlankRowIfLastChanged,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
+import {
   changeLineQuantity,
   editSlipLineAmount,
   recalculateLineVat,
@@ -683,7 +687,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
     setLines((current) => {
       const idx = current.findIndex((line) => line.id === id)
       if (idx === -1 || idx !== current.length - 1) return current
-      return [...current, emptyLine()]
+      return appendBlankRowIfLastChanged(current, before, after, (line) => line.id, emptyLine, isLineContentEqual)
     })
 
     // D6·H5: 반복 증식이 같은 문구로 이어지지 않도록 보이지 않는 폭 없는 공백(U+200B)으로
@@ -708,7 +712,7 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
   }
 
   const removeLine = (id: string) => {
-    setLines((ls) => (ls.length === 1 ? ls : ls.filter((l) => l.id !== id)))
+    setLines((ls) => removeLinePreservingMinimum(ls, id, (line) => line.id, emptyLine, 1))
     setSelectedIds((prev) => {
       const next = new Set(prev)
       next.delete(id)

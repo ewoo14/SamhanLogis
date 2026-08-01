@@ -11,6 +11,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -78,6 +80,11 @@ public class CashReceipt extends BaseEntity {
 
     @Column(name = "external_ref", nullable = false, length = 100)
     private String externalRef;
+
+    /** 거래처별 분할 행 JSON. null이면 행 구조 도입 전 legacy 단일 amount 데이터다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "lines_json", columnDefinition = "jsonb")
+    private String linesJson;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -205,6 +212,12 @@ public class CashReceipt extends BaseEntity {
     /** 취소 역분개 Journal 연결. */
     public CashReceipt linkReverseJournal(UUID reverseJournalId) {
         this.reverseJournalId = reverseJournalId;
+        return this;
+    }
+
+    /** 분할 행 JSON을 저장한다. 행 해석과 합계 검증은 service가 담당한다. */
+    public CashReceipt replaceLinesJson(String linesJson) {
+        this.linesJson = linesJson;
         return this;
     }
 

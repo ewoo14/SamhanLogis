@@ -38,5 +38,6 @@ public record PublishLineRequest(
         @PositiveOrZero BigDecimal supplyAmount,
         @PositiveOrZero BigDecimal vatAmount,
         @Size(max = 200) String remarks,
-        UUID sourceOrderLineId) {
+        UUID sourceOrderLineId,
+        @Size(max = 40) String categoryKey) {
 }

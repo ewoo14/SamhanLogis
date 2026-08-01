@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import java.math.BigDecimal;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -173,6 +174,19 @@ class DiscountRevalidatorTest {
     }
 
     @Test
+    @DisplayName("품목 고정DC율은 전역 45% 기본값보다 우선한다")
+    void fixedDiscountRateWinsOverGlobalDefault() {
+        DiscountRevalidator.Revalidation fixed30 = revalidate(
+                "AJ040RXH4BC1 (RX다배관)", new BigDecimal("70000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), new BigDecimal("30.00"),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(fixed30.expectedRate()).isEqualTo(30);
+        assertThat(fixed30.actualRate()).isEqualTo(30);
+        assertThat(fixed30.verified()).isTrue();
+    }
+
+    @Test
     @DisplayName("멀티 fixedDc null은 45 폴백이며 null과 0을 구분한다")
     void multiNullFixedDiscountFallsBackToFortyFive() {
         DiscountRevalidator.Revalidation result = revalidate(
@@ -182,6 +196,43 @@ class DiscountRevalidatorTest {
 
         assertThat(result.expectedRate()).isEqualTo(45);
         assertThat(result.verified()).isTrue();
+    }
+
+    @Test
+    @DisplayName("거래처 전역DC 48%는 고정DC가 없을 때 45%가 아니라 48%를 기대한다")
+    void multiGlobalDiscountRateFortyEightPercentIsUsedWhenFixedRateIsAbsent() {
+        DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                "AJ040RXH4BC1 (RX다배관)",
+                ModelTokenExtractor.extractModelToken("AJ040RXH4BC1 (RX다배관)"),
+                new BigDecimal("52000"),
+                new BigDecimal("100000"),
+                new BigDecimal("70000"),
+                null,
+                DiscountRevalidator.GlobalDiscount.found(
+                        new BigDecimal("0.48"), new BigDecimal("0.48")),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.expectedRate()).isEqualTo(48);
+        assertThat(result.actualRate()).isEqualTo(48);
+        assertThat(result.verified()).isTrue();
+    }
+
+    @Test
+    @DisplayName("거래처 전역DC를 찾지 못하면 45%로 조용히 판정하지 않는다")
+    void missingGlobalDiscountIsVisible() {
+        DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                "AJ040RXH4BC1 (RX다배관)",
+                ModelTokenExtractor.extractModelToken("AJ040RXH4BC1 (RX다배관)"),
+                new BigDecimal("55000"),
+                new BigDecimal("100000"),
+                new BigDecimal("70000"),
+                null,
+                DiscountRevalidator.GlobalDiscount.unavailable(),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.MISSING_GLOBAL_DISCOUNT);
+        assertThat(result.verified()).isNull();
+        assertThat(result.expectedRate()).isNull();
     }
 
     @Test
@@ -198,15 +249,74 @@ class DiscountRevalidatorTest {
     }
 
     @Test
-    @DisplayName("세트 의존 싱글 본체/부속 토큰은 S1.5 대기 OUT_OF_SCOPE로 남긴다")
-    void singleSetDependentIsOutOfScope() {
+    @DisplayName("싱글중대형은 실제 DC액이 기준 납품가와 맞으면 확인한다")
+    void singleSetDependentValidatesDiscountAmount() {
+        DiscountRevalidator.Revalidation result = revalidate(
+                "AC023CN1DBC1 [CN냉전 실내기]", new BigDecimal("70000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), null,
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.VERIFIED);
+        assertThat(result.verified()).isTrue();
+        assertThat(result.discountAmount()).isEqualByComparingTo("30000");
+    }
+
+    @Test
+    @DisplayName("싱글중대형은 DC액이 틀리면 불일치로 판정한다")
+    void singleSetDependentRejectsWrongDiscountAmount() {
         DiscountRevalidator.Revalidation result = revalidate(
                 "AC023CN1DBC1 [CN냉전 실내기]", new BigDecimal("80000"),
                 new BigDecimal("100000"), new BigDecimal("70000"), null,
                 ProductLabelMatch.Status.MATCHED);
 
-        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.OUT_OF_SCOPE);
+        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.VERIFIED);
+        assertThat(result.verified()).isFalse();
+        assertThat(result.discountAmount()).isEqualByComparingTo("20000");
+    }
+
+    @Test
+    @DisplayName("싱글중대형 7개 정본 접두는 모두 DC액 검증 분기로 진입한다")
+    void allSingleSetDependentPrefixesAreValidated() {
+        for (String modelToken : List.of(
+                "AC023CN1DBC1", "AP230P1ABCDE", "AR07TXEAAWKNEU-03", "AF15BX1NWAEAH-31",
+                "PC12345", "AWR12345", "ARR-1234")) {
+            DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                    modelToken, modelToken, new BigDecimal("70000"),
+                    new BigDecimal("100000"), new BigDecimal("70000"), null,
+                    ProductLabelMatch.Status.MATCHED);
+
+            assertThat(result.status()).as(modelToken).isEqualTo(DiscountRevalidator.Status.VERIFIED);
+            assertThat(result.verified()).as(modelToken).isTrue();
+            assertThat(result.discountAmount()).as(modelToken).isEqualByComparingTo("30000");
+        }
+    }
+
+    @Test
+    @DisplayName("싱글중대형은 유효단가를 만들 수 없으면 조용히 통과시키지 않는다")
+    void singleSetDependentUnknownWhenNotMeasurable() {
+        DiscountRevalidator.Revalidation result = revalidate(
+                "AC023CN1DBC1 [CN냉전 실내기]", null,
+                new BigDecimal("100000"), new BigDecimal("70000"), null,
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.NOT_MEASURABLE);
         assertThat(result.verified()).isNull();
+        assertThat(result.discountAmount()).isNull();
+    }
+
+    @Test
+    @DisplayName("싱글중대형 재검증은 같은 입력을 반복해도 같은 결과를 낸다")
+    void singleSetDependentRevalidationIsIdempotent() {
+        DiscountRevalidator.Revalidation first = revalidate(
+                "AC023CN1DBC1 [CN냉전 실내기]", new BigDecimal("70000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), null,
+                ProductLabelMatch.Status.MATCHED);
+        DiscountRevalidator.Revalidation second = revalidate(
+                "AC023CN1DBC1 [CN냉전 실내기]", new BigDecimal("70000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), null,
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(second).isEqualTo(first);
     }
 
     @Test

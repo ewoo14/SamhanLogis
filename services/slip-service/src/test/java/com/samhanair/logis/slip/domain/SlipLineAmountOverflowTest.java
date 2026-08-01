@@ -72,6 +72,19 @@ class SlipLineAmountOverflowTest {
     }
 
     @Test
+    @DisplayName("전표 복사도 원본의 categoryKey를 보존한다")
+    void copyOf_preservesCategoryKey() {
+        Slip sourceSlip = newOutbound();
+        SlipLine source = SlipLine.create(sourceSlip, UUID.randomUUID(), "품목", "MODEL",
+                null, 1, new BigDecimal("1000"), null, UUID.randomUUID(), "singleSets");
+        Slip target = newOutbound();
+
+        SlipLine copied = SlipLine.copyOf(target, source);
+
+        assertThat(copied.getCategoryKey()).isEqualTo("singleSets");
+    }
+
+    @Test
     @DisplayName("MED-4 R2: quantity=1 · 15자리 공급가액은 파생 단가(narrow 컬럼)가 넘쳐 "
             + "createFromAuthoritativeAmounts 에서도 거부돼야 한다 — R1 임계값(15 고정)의 사각지대")
     void createFromAuthoritativeAmounts_fifteenDigitSupplyAtQuantityOne_rejected() {

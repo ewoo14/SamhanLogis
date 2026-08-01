@@ -83,6 +83,15 @@ public class DispatchBatchSendService {
             String partnerCode = entry.partnerCode();
             String phone = entry.recipientPhone();
 
+            // 현재 저장소에는 단톡방 API/어댑터가 없다. 단톡방 이름을 Aligo 전화번호로
+            // 해석하면 오발송이므로 SMS 경로에 절대 진입시키지 않는다.
+            if (phone != null && phone.startsWith("room:")) {
+                failed++;
+                details.add(new SendResultDetail(partnerCode, phone, "FAILED",
+                        "단톡방 직접 전송 수단이 없어 외부 단톡방에 수동 전달해야 합니다."));
+                continue;
+            }
+
             // (1) BLOCKED 가드 (preview 이후 신규 차단 가능성 회피)
             boolean isBlocked = false;
             try {

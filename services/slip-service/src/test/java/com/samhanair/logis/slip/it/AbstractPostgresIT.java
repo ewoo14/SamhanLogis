@@ -64,7 +64,16 @@ public abstract class AbstractPostgresIT {
     static {
         try {
             POSTGRES.start();
-        } catch (Throwable ignored) {
+        } catch (Throwable startupFailure) {
+            try {
+                if (DockerClientFactory.instance().isDockerAvailable()) {
+                    throw new ExceptionInInitializerError(startupFailure);
+                }
+            } catch (ExceptionInInitializerError e) {
+                throw e;
+            } catch (Throwable dockerCheckFailure) {
+                // Docker availability 자체를 확인할 수 없는 경우에만 skip 정책을 유지한다.
+            }
             // Docker 미가용 환경. DockerAvailableCondition 이 sub IT 들을 skip 처리.
         }
     }
@@ -80,22 +89,6 @@ public abstract class AbstractPostgresIT {
         registry.add("eureka.client.register-with-eureka", () -> "false");
         registry.add("eureka.client.fetch-registry", () -> "false");
         registry.add("app.security.internal.token", () -> "test-internal-token");
-        // ----------------------------------------------------------------
-        // HikariCP 풀 크기 축소 — PR #188 CI fail 회고 (2026-05-14):
-        //   다수의 IT 가 서로 다른 @MockBean / @WithMockUser / @TestPropertySource
-        //   조합을 사용하면 Spring Context 캐시가 N 개 컨텍스트 × HikariPool 기본 10 conn
-        //   = postgres max_connections(100) 초과 → "FATAL: sorry, too many clients already".
-        //   IT 는 sequential 실행이므로 conn pool 작아도 무방.
-        // ----------------------------------------------------------------
-        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "3");
-        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
-        // ----------------------------------------------------------------
-        // #809 D-R8-2 — 가격기억 전용 pool 도 같은 이유로 축소한다. 운영 기본 4 를 그대로 두면
-        // 캐시된 컨텍스트 N 개 × (메인 3 + 전용 4) 가 컨테이너 max_connections 를 압박한다.
-        // minimum-idle 0 = 유휴 컨텍스트가 커넥션을 점유하지 않음 (IT 는 sequential 실행).
-        // ----------------------------------------------------------------
-        registry.add("app.slip.price-memory.datasource.hikari.maximum-pool-size", () -> "2");
-        registry.add("app.slip.price-memory.datasource.hikari.minimum-idle", () -> "0");
     }
 
     /** Docker 데몬 미접근 시 테스트를 build fail 대신 skip 처리. */
@@ -105,7 +98,8 @@ public abstract class AbstractPostgresIT {
         public org.junit.jupiter.api.extension.ConditionEvaluationResult evaluateExecutionCondition(
                 org.junit.jupiter.api.extension.ExtensionContext context) {
             try {
-                if (DockerClientFactory.instance().isDockerAvailable() && POSTGRES.isRunning()) {
+                if (DockerClientFactory.instance().isDockerAvailable()
+                        && POSTGRES.isRunning()) {
                     return org.junit.jupiter.api.extension.ConditionEvaluationResult
                             .enabled("Docker is available + container running");
                 }

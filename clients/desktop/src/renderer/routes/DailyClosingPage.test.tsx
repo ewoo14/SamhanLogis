@@ -72,12 +72,15 @@ const detailFixture = {
     {
       productName: 'AM160NXVHHH1 [상업멀티]',
       modelName: 'AM160NXVHHH1',
+      categoryKey: 'commercialMulti',
       quantity: 1,
       supplyAmount: 500000,
+      actualUnitPrice: 550000,
       releasePrice: 1000000,
       deliveryPrice: 700000,
       expectedRate: 45,
       actualRate: 45,
+      discountAmount: 300000,
       verified: true,
       revalidationStatus: 'VERIFIED',
     },
@@ -85,12 +88,14 @@ const detailFixture = {
     {
       productName: 'AM320NXVHHH1 [상업멀티]',
       modelName: 'AM320NXVHHH1',
+      categoryKey: 'commercialMulti',
       quantity: 1,
       supplyAmount: 1050000,
       releasePrice: 1000000,
       deliveryPrice: 700000,
       expectedRate: 0,
       actualRate: -5,
+      discountAmount: -200000,
       verified: false,
       revalidationStatus: 'VERIFIED',
     },
@@ -98,12 +103,14 @@ const detailFixture = {
     {
       productName: '미등록서비스품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 100000,
       releasePrice: null,
       deliveryPrice: null,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'NOT_FOUND',
     },
@@ -111,12 +118,14 @@ const detailFixture = {
     {
       productName: '중복매칭품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 200000,
       releasePrice: 900000,
       deliveryPrice: 600000,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'AMBIGUOUS',
     },
@@ -124,12 +133,14 @@ const detailFixture = {
     {
       productName: '정가결측품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 150000,
       releasePrice: null,
       deliveryPrice: null,
       expectedRate: null,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'MISSING_REFERENT',
     },
@@ -137,12 +148,14 @@ const detailFixture = {
     {
       productName: '측정불가품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 0,
       supplyAmount: 0,
       releasePrice: 800000,
       deliveryPrice: 500000,
       expectedRate: 45,
       actualRate: null,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'NOT_MEASURABLE',
     },
@@ -150,12 +163,14 @@ const detailFixture = {
     {
       productName: 'AC 세트품목',
       modelName: null,
+      categoryKey: 'UNKNOWN',
       quantity: 1,
       supplyAmount: 300000,
       releasePrice: 700000,
       deliveryPrice: 500000,
       expectedRate: null,
       actualRate: 30,
+      discountAmount: null,
       verified: null,
       revalidationStatus: 'OUT_OF_SCOPE',
     },
@@ -169,6 +184,54 @@ const purchaseDetailFixture = {
     detailFixture.productSummaries[0], // verified=true
     detailFixture.productSummaries[1], // verified=false (불일치)
     detailFixture.productSummaries[2], // verified=null (NOT_FOUND)
+  ],
+}
+
+const categoryAxisDetailFixture = {
+  ...detailFixture,
+  productSummaries: [
+    {
+      productName: 'AJ040RXH4BC1 [홈멀티]',
+      modelName: 'AJ040RXH4BC1',
+      categoryKey: 'homemulti',
+      quantity: 1,
+      supplyAmount: 50000,
+      releasePrice: 100000,
+      deliveryPrice: 70000,
+      expectedRate: 45,
+      actualRate: 45,
+      discountAmount: 30000,
+      verified: true,
+      revalidationStatus: 'VERIFIED',
+    },
+    {
+      productName: 'AJ040RXH4BC1 [싱글]',
+      modelName: 'AJ040RXH4BC1',
+      categoryKey: 'singleSets',
+      quantity: 1,
+      supplyAmount: 60000,
+      releasePrice: 100000,
+      deliveryPrice: 70000,
+      expectedRate: 45,
+      actualRate: 45,
+      discountAmount: 30000,
+      verified: true,
+      revalidationStatus: 'VERIFIED',
+    },
+    {
+      productName: '카테고리 미상',
+      modelName: null,
+      categoryKey: 'UNKNOWN',
+      quantity: 1,
+      supplyAmount: 70000,
+      releasePrice: null,
+      deliveryPrice: null,
+      expectedRate: null,
+      actualRate: null,
+      discountAmount: null,
+      verified: null,
+      revalidationStatus: 'MISSING_REFERENT',
+    },
   ],
 }
 
@@ -224,6 +287,32 @@ const emptyPage = {
 }
 
 describe('DailyClosingPage 모델별 재검증', () => {
+  it('같은 모델의 GAS 카테고리 축을 별도 행으로 표시하고 UNKNOWN을 분리한다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(categoryAxisDetailFixture)
+
+    renderPage()
+
+    await screen.findByText('모델별 재검증')
+
+    expect(screen.getByRole('columnheader', { name: '카테고리' })).toBeTruthy()
+    expect(within(rowOf('AJ040RXH4BC1 [홈멀티]')).getByText('homemulti')).toBeTruthy()
+    expect(within(rowOf('AJ040RXH4BC1 [싱글]')).getByText('singleSets')).toBeTruthy()
+    expect(within(rowOf('카테고리 미상')).getByText('UNKNOWN')).toBeTruthy()
+  })
+
+  it('일마감 상세의 전표 단가는 원천 전표 VAT 포함 실제 단가를 표시한다', async () => {
+    listDailyClosingsMock.mockResolvedValue(emptyPage)
+    getDailyClosingDetailMock.mockResolvedValue(detailFixture)
+
+    renderPage()
+
+    await screen.findByText('모델별 재검증')
+
+    expect(screen.getByRole('columnheader', { name: '전표 단가' })).toBeTruthy()
+    expect(within(rowOf('AM160NXVHHH1 [상업멀티]')).getByText('550,000')).toBeTruthy()
+  })
+
   it('매출 조회에서 확인/불일치/판정불가 배지·6종 사유·0/null/음수 할인율·모델 실값을 BE 계약대로 렌더한다', async () => {
     listDailyClosingsMock.mockResolvedValue(emptyPage)
     getDailyClosingDetailMock.mockResolvedValue(detailFixture)
@@ -240,6 +329,8 @@ describe('DailyClosingPage 모델별 재검증', () => {
     // 배지 1개뿐(사유='확인' 자기모순 회귀 시 2개가 되어 실패 = genuine 고정).
     const verifiedRow = rowOf('AM160NXVHHH1 [상업멀티]')
     expect(screen.getByRole('columnheader', { name: '모델' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'DC액' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '전표 단가' })).toBeTruthy()
     expect(within(verifiedRow).getByText('AM160NXVHHH1')).toBeTruthy() // 모델 실토큰
     expect(within(verifiedRow).getAllByText('확인').length).toBe(1)
     // 매출은 '참고' 마커 없음(매입 전용)
@@ -248,6 +339,7 @@ describe('DailyClosingPage 모델별 재검증', () => {
     const rates45 = within(verifiedRow).getAllByText('45%')
     expect(rates45.length).toBe(2)
     rates45.forEach((el) => expect(el.getAttribute('style') ?? '').not.toContain('state-danger'))
+    expect(within(verifiedRow).getByText('300,000')).toBeTruthy()
     // VERIFIED 행 사유 = '—'(배지가 판정 전달·자기모순 방지)
     expect(within(verifiedRow).getByText('—')).toBeTruthy()
 
@@ -257,6 +349,8 @@ describe('DailyClosingPage 모델별 재검증', () => {
     expect(within(mismatchRow).getByText('불일치')).toBeTruthy()
     const negativeRate = within(mismatchRow).getByText('-5%')
     expect(negativeRate.getAttribute('style')).toContain('color: var(--state-danger)')
+    const negativeDiscount = within(mismatchRow).getByText('-200,000')
+    expect(negativeDiscount.getAttribute('style')).toContain('color: var(--state-danger)')
     expect(within(mismatchRow).getByText('0%')).toBeTruthy() // expectedRate 0 = '0%'(유효 무할인)
 
     // 판정불가 배지 = 5개 null-verdict 행(NOT_FOUND/AMBIGUOUS/MISSING_REFERENT/NOT_MEASURABLE/OUT_OF_SCOPE)
@@ -1192,5 +1286,33 @@ describe('DailyClosingPage — off-page 상세 요약 (#929 재수렴 4차 ②)'
     expect(scope.textContent).not.toContain('이전 마감 시각')
     expect(scope.textContent).toContain('220,000')
     expect(screen.queryByTestId('daily-closing-selected-scope-unverified')).toBeNull()
+  })
+
+  it('전역DC 미조회 상태를 사유 열에 표시한다', async () => {
+    listDailyClosingsMock.mockImplementation((opts: { from: string }) =>
+      Promise.resolve(
+        opts.from === targetRow.closingDate
+          ? { ...emptyPage, content: [otherRow], totalElements: 21, totalPages: 2 }
+          : { ...emptyPage, content: [targetRow], totalElements: 1, totalPages: 1 },
+      ),
+    )
+    getDailyClosingDetailMock.mockResolvedValue({
+      ...detailFixture,
+      productSummaries: [
+        {
+          ...detailFixture.productSummaries[0],
+          verified: null,
+          expectedRate: null,
+          revalidationStatus: 'MISSING_GLOBAL_DISCOUNT',
+        },
+      ],
+    })
+
+    renderPage()
+
+    fireEvent.click(
+      await screen.findByTestId('daily-closing-detail-button-2026-07-20-P0-6-C002-SALES-TAX_INVOICE'),
+    )
+    expect(await screen.findByText('전역DC 미조회')).toBeTruthy()
   })
 })

@@ -29,9 +29,21 @@ public record SlipLineSnapshot(
         String partnerCode,
         String partnerName,
         String productName,
+        String modelName,
+        UUID sourceOrderLineId,
+        String categoryKey,
         int quantity,
         BigDecimal unitPrice,
         BigDecimal lineTotal,
         String slipStatus,       // CONFIRMED 만 매출/매입전표 source 사용 가능
         String slipType
-) {}
+) {
+    /** 기존 12필드 소비자와의 JSON/테스트 호환 생성자. */
+    public SlipLineSnapshot(UUID slipId, String slipNo, UUID lineId, UUID partnerId,
+                            String partnerCode, String partnerName, String productName,
+                            int quantity, BigDecimal unitPrice, BigDecimal lineTotal,
+                            String slipStatus, String slipType) {
+        this(slipId, slipNo, lineId, partnerId, partnerCode, partnerName, productName,
+                null, null, null, quantity, unitPrice, lineTotal, slipStatus, slipType);
+    }
+}

@@ -131,6 +131,10 @@ public class SlipLine extends BaseEntity {
     @Column(name = "source_order_line_id")
     private UUID sourceOrderLineId;
 
+    /** 판매 당시 주문 라인이 선택한 GAS 카테고리 축. 수동/레거시 전표는 null을 보존한다. */
+    @Column(name = "category_key", length = 40)
+    private String categoryKey;
+
     /** 세트 전개 그룹 첫 구성품 라인 여부(PR-3, V34). 일반 라인 = false. */
     @Column(name = "set_head", nullable = false)
     private boolean setHead = false;
@@ -142,6 +146,13 @@ public class SlipLine extends BaseEntity {
     private SlipLine(Slip slip, UUID productId, String productName, String modelName,
                      String specification, int quantity, BigDecimal unitPrice, String note,
                      UUID sourceOrderLineId) {
+        this(slip, productId, productName, modelName, specification, quantity, unitPrice, note,
+                sourceOrderLineId, null);
+    }
+
+    private SlipLine(Slip slip, UUID productId, String productName, String modelName,
+                     String specification, int quantity, BigDecimal unitPrice, String note,
+                     UUID sourceOrderLineId, String categoryKey) {
         validatePositive(quantity);
         validateUnitPrice(unitPrice);
         this.slip = slip;
@@ -153,6 +164,7 @@ public class SlipLine extends BaseEntity {
         this.unitPrice = unitPrice;
         this.note = note;
         this.sourceOrderLineId = sourceOrderLineId;
+        this.categoryKey = categoryKey;
         this.lineTotal = computeLineTotal(quantity, unitPrice);
         this.supplyAmount = this.lineTotal;
         this.vatAmount = computeVat(this.lineTotal);
@@ -196,6 +208,16 @@ public class SlipLine extends BaseEntity {
         return line;
     }
 
+    /** 주문 전환 라인의 카테고리 축을 함께 보존하는 생성 경로. */
+    public static SlipLine create(Slip slip, UUID productId, String productName, String modelName,
+                                  String specification, int quantity, BigDecimal unitPrice,
+                                  String note, UUID sourceOrderLineId, String categoryKey) {
+        SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
+                quantity, unitPrice, note, sourceOrderLineId, categoryKey);
+        line.validateStorableAmounts();
+        return line;
+    }
+
     /**
      * 라인 1건 생성 (sourceOrderLineId 없는 호환 오버로드). 부분전환 외 기존 경로 호출처 유지.
      *
@@ -235,19 +257,29 @@ public class SlipLine extends BaseEntity {
                                                   String modelName, String specification, int quantity,
                                                   BigDecimal unitPriceWithVat, String note,
                                                   UUID sourceOrderLineId) {
+        return createFromVatInclusive(slip, productId, productName, modelName, specification,
+                quantity, unitPriceWithVat, note, sourceOrderLineId, null);
+    }
+
+    /** 부가세 포함 단가 기반 생성 시 주문의 카테고리 축을 함께 보존한다. */
+    public static SlipLine createFromVatInclusive(Slip slip, UUID productId, String productName,
+                                                  String modelName, String specification, int quantity,
+                                                  BigDecimal unitPriceWithVat, String note,
+                                                  UUID sourceOrderLineId, String categoryKey) {
         validatePositive(quantity);
         validateUnitPrice(unitPriceWithVat);
         // 한국 원화 송장 표준(eCount): 합계(VAT포함)·공급가액·부가세는 모두 원 단위(정수) 반올림.
         // FE(SlipFormPage/LineRow 의 Math.round)와 동일 granularity 로 일치시킨다(P2 정합).
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
                 .setScale(0, RoundingMode.HALF_UP);
-        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat,
+                RoundingMode.HALF_UP);
         BigDecimal supply = vatSplit.supplyAmount();
         BigDecimal vat = vatSplit.vatAmount();
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         // 공급 단가로 일반 생성 후 라인 단위 권위값으로 덮어쓴다.
         SlipLine line = new SlipLine(slip, productId, productName, modelName, specification,
-                quantity, supplyUnit, note, sourceOrderLineId);
+                quantity, supplyUnit, note, sourceOrderLineId, categoryKey);
         line.lineTotal = supply;
         line.supplyAmount = supply;
         line.vatAmount = vat;
@@ -379,7 +411,8 @@ public class SlipLine extends BaseEntity {
      */
     public static SlipLine copyOf(Slip slip, SlipLine source) {
         SlipLine line = new SlipLine(slip, source.productId, source.productName, source.modelName,
-                source.specification, source.quantity, source.unitPrice, source.note, null);
+                source.specification, source.quantity, source.unitPrice, source.note, null,
+                source.categoryKey);
         if (source.unitPriceWithVat != null) {
             // 라인 단위 권위값 보존 (createFromVatInclusive 저장 규칙과 동일한 덮어쓰기)
             line.lineTotal = source.lineTotal;

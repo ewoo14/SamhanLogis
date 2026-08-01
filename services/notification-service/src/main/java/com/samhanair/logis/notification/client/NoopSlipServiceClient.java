@@ -23,7 +23,8 @@ public class NoopSlipServiceClient implements SlipServiceClient {
 
     @Override
     public List<OutboundSlipDto> getOutboundSlips(LocalDate from, LocalDate to) {
-        log.debug("NoopSlipServiceClient.getOutboundSlips — from={}, to={} (placeholder, empty list)", from, to);
-        return List.of();
+        log.error("NoopSlipServiceClient.getOutboundSlips — /internal/slips/outbound 구현체가 없습니다. from={}, to={}",
+                from, to);
+        throw new IllegalStateException("/internal/slips/outbound client is not configured");
     }
 }

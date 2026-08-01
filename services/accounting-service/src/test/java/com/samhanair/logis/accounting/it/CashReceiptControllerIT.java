@@ -399,6 +399,49 @@ class CashReceiptControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("CONFIRMED에서 헤더 불변 분할 행만 PATCH해도 저장·역분개·재게시한다")
+    void confirmedPatchLinesOnlyReversesAndReposts() throws Exception {
+        MvcResult created = createReceipt(createBody("1000"));
+        String receiptId = data(created).get("id").asText();
+        mockMvc.perform(post(BASE_URL + "/{id}/confirm", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+        UUID oldJournalId = receiptJournalId(receiptId);
+
+        Map<String, Object> linesOnly = createBody("1000");
+        linesOnly.put("debitAccountCode", CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE);
+        linesOnly.put("creditAccountCode", CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE);
+        linesOnly.put("lines", List.of(
+                Map.of("partnerCode", "P-CR-001", "amount", 600, "memo", "분할A"),
+                Map.of("partnerCode", "P-CR-001", "amount", 400, "memo", "분할B")));
+
+        MvcResult patched = mockMvc.perform(patch(BASE_URL + "/{id}", receiptId)
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(linesOnly)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.amount").value(1000))
+                .andExpect(jsonPath("$.data.lines.length()").value(2))
+                .andReturn();
+
+        UUID newJournalId = receiptJournalId(receiptId);
+        org.assertj.core.api.Assertions.assertThat(newJournalId).isNotEqualTo(oldJournalId);
+        org.assertj.core.api.Assertions.assertThat(journal(oldJournalId).get("status")).isEqualTo("REVERSED");
+        org.assertj.core.api.Assertions.assertThat(journal(newJournalId).get("status")).isEqualTo("POSTED");
+        org.assertj.core.api.Assertions.assertThat(journalLines(newJournalId)).hasSize(4);
+        System.out.println("CONFIRMED_LINES_ONLY_DB old_status=" + journal(oldJournalId).get("status")
+                + " new_status=" + journal(newJournalId).get("status")
+                + " new_journal_lines=" + journalLines(newJournalId).size()
+                + " response_lines=" + data(patched).get("lines").size());
+        org.assertj.core.api.Assertions.assertThat(data(patched).get("lines").get(0).get("amount").decimalValue())
+                .isEqualByComparingTo("600");
+        org.assertj.core.api.Assertions.assertThat(data(patched).get("lines").get(1).get("amount").decimalValue())
+                .isEqualByComparingTo("400");
+    }
+
+    @Test
     @DisplayName("CONFIRMED journalId null MIG 행은 취소 상태전이만, 수정은 신규 분개 게시를 수행한다")
     void confirmedMigRowsWithoutJournalIdCanCancelOrPatch() throws Exception {
         UUID cancelOnlyId = insertConfirmedMigReceipt("MIG-S2-CANCEL", "MIG:S2:CANCEL", "67000");

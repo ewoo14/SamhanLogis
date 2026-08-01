@@ -87,6 +87,14 @@ public class TaxInvoiceLine extends BaseEntity {
     @Column(name = "memo", length = 500)
     private String memo;
 
+    /** 매출전표 원천의 모델명 snapshot. */
+    @Column(name = "model_name", length = 100)
+    private String modelName;
+
+    /** 판매 당시 GAS 카테고리 schedule key snapshot. null은 A-2 UNKNOWN이다. */
+    @Column(name = "category_key", length = 40)
+    private String categoryKey;
+
     private TaxInvoiceLine(TaxInvoice taxInvoice, int lineNo, String itemName, String spec,
                            String unit, BigDecimal quantity, BigDecimal unitPrice, String memo) {
         this.taxInvoice = taxInvoice;
@@ -174,9 +182,39 @@ public class TaxInvoiceLine extends BaseEntity {
             itemName = "매출전표 품목";
         }
         String spec = sourceLine.getProductCode();
-        return createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
+        TaxInvoiceLine line = createWithAmounts(taxInvoice, lineNo, itemName, spec, null,
                 sourceLine.getQty(), sourceLine.getUnitPrice(),
                 sourceLine.getSupplyAmount(), sourceLine.getVatAmount(), null);
+        line.modelName = sourceLine.getModelName();
+        line.categoryKey = sourceLine.getCategoryKey();
+        return line;
+    }
+
+    /** 혼합 매출전표의 한 배분 축만 세금계산서 라인으로 복사한다. */
+    public static TaxInvoiceLine createFromSalesAccountingSlipAllocation(
+            TaxInvoice taxInvoice, int lineNo, SalesAccountingSlipLine sourceLine,
+            SalesAccountingSlipAllocation allocation) {
+        if (sourceLine == null || allocation == null) {
+            throw new IllegalArgumentException("sourceLine과 allocation은 필수입니다");
+        }
+        String itemName = sourceLine.getProductName();
+        if (itemName == null || itemName.isBlank()) {
+            itemName = sourceLine.getProductCode();
+        }
+        if (itemName == null || itemName.isBlank()) {
+            itemName = "매출전표 품목";
+        }
+        BigDecimal lineTotal = sourceLine.getLineTotal();
+        BigDecimal ratio = lineTotal == null || lineTotal.signum() == 0
+                ? BigDecimal.ZERO
+                : allocation.getAllocatedAmount().divide(lineTotal, 12, RoundingMode.HALF_UP);
+        TaxInvoiceLine line = createWithAmounts(taxInvoice, lineNo, itemName,
+                sourceLine.getProductCode(), null, allocation.getAllocatedQty(), sourceLine.getUnitPrice(),
+                sourceLine.getSupplyAmount().multiply(ratio),
+                sourceLine.getVatAmount().multiply(ratio), null);
+        line.modelName = allocation.getModelName();
+        line.categoryKey = allocation.getCategoryKey();
+        return line;
     }
 
     /** 매입전표 라인 → 수신 세금계산서 라인 스냅샷 변환. */
