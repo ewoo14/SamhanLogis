@@ -1289,6 +1289,13 @@ describe('DailyClosingPage — off-page 상세 요약 (#929 재수렴 4차 ②)'
   })
 
   it('전역DC 미조회 상태를 사유 열에 표시한다', async () => {
+    listDailyClosingsMock.mockImplementation((opts: { from: string }) =>
+      Promise.resolve(
+        opts.from === targetRow.closingDate
+          ? { ...emptyPage, content: [otherRow], totalElements: 21, totalPages: 2 }
+          : { ...emptyPage, content: [targetRow], totalElements: 1, totalPages: 1 },
+      ),
+    )
     getDailyClosingDetailMock.mockResolvedValue({
       ...detailFixture,
       productSummaries: [
@@ -1303,7 +1310,9 @@ describe('DailyClosingPage — off-page 상세 요약 (#929 재수렴 4차 ②)'
 
     renderPage()
 
-    fireEvent.click(await screen.findByRole('button', { name: '상세 보기' }))
+    fireEvent.click(
+      await screen.findByTestId('daily-closing-detail-button-2026-07-20-P0-6-C002-SALES-TAX_INVOICE'),
+    )
     expect(await screen.findByText('전역DC 미조회')).toBeTruthy()
   })
 })
