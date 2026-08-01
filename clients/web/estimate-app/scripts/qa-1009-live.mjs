@@ -183,13 +183,18 @@ record('저장내역 내용', JSON.stringify(listInfo));
 
 // ── 열기 → 수정 (PUT) ─────────────────────────────────────
 const netBefore3 = net.length;
+// 🚨 반드시 '복원' 버튼 자체를 눌러야 restoreSnapshot 이 돌아 editingSnapshotId 가 잡힌다.
+//    행(tr) 을 누르면 아무 일도 일어나지 않고, 다음 저장이 PUT 이 아니라 새 행 INSERT 가 된다.
 const opened = await page.evaluate(() => {
-  const b = [...document.querySelectorAll('button, a, tr')]
-    .find((x) => /불러오기|열기|복원|수정/.test(x.textContent || ''));
+  const b = [...document.querySelectorAll('button')]
+    .find((x) => (x.textContent || '').trim() === '복원');
   if (!b) return null;
   b.click();
-  return (b.textContent || '').trim().slice(0, 60);
+  return '복원 버튼 클릭';
 });
+await page.waitForTimeout(1500);
+const editingId = await page.evaluate(() => (window.editingSnapshotId ? '설정됨' : 'null'));
+record('editingSnapshotId', editingId);
 record('열기 시도', opened || '(대상 없음)');
 await page.waitForTimeout(4000);
 await shot('07-reopen.png');
@@ -201,7 +206,29 @@ record('H 재조회 금액', JSON.stringify(amountsAfter));
 // 수정 후 다시 저장 → PUT 인지 POST 인지
 const netBefore4 = net.length;
 await page.evaluate(() => { const b = document.getElementById('btnSaveSnapshot'); if (b) b.click(); });
-await page.waitForTimeout(4000);
+await page.waitForTimeout(2500);
+// 두 번째 저장에서도 주제 모달이 뜨면 채우고 확정한다(PUT 경로 도달).
+const modal2 = await page.evaluate(() => {
+  const inp = [...document.querySelectorAll('dialog input, .modal input, div input')]
+    .find((e) => e.offsetParent !== null && e.type === 'text'
+                 && e.closest('div')?.innerText?.includes('주제'));
+  if (!inp) return false;
+  const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(inp), 'value');
+  d.set.call(inp, 'QA 견적 수정 2026-08-02');
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  inp.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+});
+record('수정 모달', modal2 ? '주제 입력함' : '(모달 없음)');
+if (modal2) {
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')]
+      .find((x) => x.offsetParent !== null && (x.textContent || '').trim() === '저장'
+                   && x.id !== 'btnSaveSnapshot');
+    if (b) b.click();
+  });
+  await page.waitForTimeout(4500);
+}
 await shot('08-edit-put.png');
 const editNet = net.slice(netBefore4);
 record('E 수정 네트워크', editNet.join(' | ') || '(호출 없음)');
