@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
@@ -60,13 +59,8 @@ public class LedgerImageService {
      * @return 거래처 snapshot + 단톡방 매핑 + 원장 라인 (시간순, 누적 잔액 포함)
      * @throws BusinessException(NOT_FOUND) partnerCode 미존재
      */
+    /** 거래처별 원장 조회·자동 저장. 조회 계약은 기존 3인자 형태를 유지한다. */
     public LedgerImageResponse getLedger(String partnerCode, LocalDate from, LocalDate to) {
-        return getLedger(partnerCode, from, to, null);
-    }
-
-    /** 작업자 audit 값을 포함한 거래처별 원장 조회·자동 저장. */
-    public LedgerImageResponse getLedger(String partnerCode, LocalDate from, LocalDate to,
-                                         UUID actorUserId) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new IllegalArgumentException("partnerCode 는 필수입니다");
         }
@@ -125,7 +119,7 @@ public class LedgerImageService {
         TaxInvoiceBatch batch = TaxInvoiceBatch.createDocumentSnapshot(
                 LedgerSnapshotService.DOCUMENT_TYPE, partnerCode,
                 "LED-" + LocalDateTime.now().format(BATCH_TIME) + "-" + partnerCode,
-                from, to, actorUserId);
+                from, to, null);
         batch.complete(result.lines().size(), 1, null, null,
                 SnapshotCompression.compress(objectMapper, result));
         taxInvoiceBatchRepository.save(batch);
