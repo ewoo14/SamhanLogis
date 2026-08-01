@@ -11,6 +11,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -80,6 +82,7 @@ public class CashReceipt extends BaseEntity {
     private String externalRef;
 
     /** 거래처별 분할 행 JSON. null이면 행 구조 도입 전 legacy 단일 amount 데이터다. */
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "lines_json", columnDefinition = "jsonb")
     private String linesJson;
 
