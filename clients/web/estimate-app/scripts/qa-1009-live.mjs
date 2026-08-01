@@ -136,13 +136,37 @@ await shot('04-amount.png');
 // ── 견적저장 ──────────────────────────────────────────────
 const netBefore = net.length;
 await page.click('#btnSaveSnapshot');
-await page.waitForTimeout(4000);
+await page.waitForTimeout(2500);
 await shot('05-save.png');
+
+// 주제 입력 모달이 뜨면 채우고 저장한다.
+const modal = await page.evaluate(() => {
+  const inp = [...document.querySelectorAll('dialog input, .modal input, div input')]
+    .find((e) => e.offsetParent !== null && e.type === 'text'
+                 && e.closest('div')?.innerText?.includes('주제'));
+  if (!inp) return null;
+  const proto = Object.getPrototypeOf(inp);
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(inp, 'QA 견적 2026-08-01');
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+  inp.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+});
+record('저장 모달', modal ? '주제 입력함' : '(모달 없음)');
+if (modal) {
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('button')]
+      .find((x) => x.offsetParent !== null && (x.textContent || '').trim() === '저장'
+                   && x.id !== 'btnSaveSnapshot');
+    if (b) b.click();
+  });
+  await page.waitForTimeout(4500);
+  await shot('05b-save-confirm.png');
+}
 record('저장 네트워크', net.slice(netBefore).join(' | ') || '(호출 없음)');
 
 // ── 저장내역 ──────────────────────────────────────────────
 const netBefore2 = net.length;
-await page.click('#btnLoadSnapshot');
+await page.evaluate(() => document.getElementById('btnLoadSnapshot').click());
 await page.waitForTimeout(4000);
 await shot('06-snapshot-list.png');
 record('저장내역 네트워크', net.slice(netBefore2).join(' | ') || '(호출 없음)');

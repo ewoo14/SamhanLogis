@@ -1387,8 +1387,8 @@ body.history-snapshot-open .mobile-drawer-side {
           <button id="btnHistory" class="btn" style="background:#f97316; color:#fff;">발송내역</button>
         </div>
         <div style="display: flex; gap: 8px;">
-          <button id="btnSaveSnapshot" class="btn" onclick="handleSaveSnapshot()" style="background:#059669; color:#fff; flex: 1; margin: 0;">견적저장</button>
-          <button id="btnLoadSnapshot" class="btn" onclick="goSnapshotPage()" style="background:#78350f; color:#fff; flex: 1; margin: 0;">저장내역</button>
+          <button id="btnSaveSnapshot" class="btn" style="background:#059669; color:#fff; flex: 1; margin: 0;">견적저장</button>
+          <button id="btnLoadSnapshot" class="btn" style="background:#78350f; color:#fff; flex: 1; margin: 0;">저장내역</button>
         </div>
         <button id="btnToggleTheme" class="btn" onclick="toggleTheme()" style="background:#000; color:#fff; border:1px solid #fff; margin: 0;">다크모드</button>
         <div id="autoLogoutTimer" style="text-align:center; line-height:1.2; padding:0 10px;"></div>
@@ -19629,6 +19629,45 @@ function initAutoLogout() {
 
   resetTimer();
 }
+
+/* CSP script-src-attr 가 inline 이벤트 실행을 차단하므로, 기존 템플릿 이벤트를
+ * DOM 리스너로 옮긴다. 동적으로 생성되는 견적 행/조회 결과도 같은 규칙을 적용한다. */
+function installCspEventListeners(root = document) {
+  const eventNames = ['click', 'change', 'input', 'focus', 'blur', 'keydown', 'keyup', 'submit'];
+  const elements = root.querySelectorAll ? root.querySelectorAll('*') : [];
+  const targets = root.nodeType === 1 ? [root, ...elements] : [...elements];
+
+  targets.forEach((element) => {
+    eventNames.forEach((eventName) => {
+      const attributeName = `on${eventName}`;
+      const source = element.getAttribute(attributeName);
+      if (source === null || element.dataset[`csp${eventName}Bound`]) return;
+
+      // 기존 inline handler의 this/event 의미를 보존하되, 실행은 addEventListener에서 한다.
+      const handler = new Function('event', source);
+      element.addEventListener(eventName, function cspEventHandler(event) {
+        return handler.call(element, event);
+      });
+      element.removeAttribute(attributeName);
+      element.dataset[`csp${eventName}Bound`] = 'true';
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  installCspEventListeners();
+  document.getElementById('btnSaveSnapshot')?.addEventListener('click', () => handleSaveSnapshot());
+  document.getElementById('btnLoadSnapshot')?.addEventListener('click', () => goSnapshotPage());
+
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach(({ addedNodes }) => {
+      addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) installCspEventListeners(node);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+});
 </script>
 <script>
   window.__SAMHAN_VERSION_GATE_CONFIG__ = <%- JSON.stringify({

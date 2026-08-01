@@ -8,10 +8,14 @@
 [A 금액] {"ids":{},"labeled":{"합계":"합계"}}
 [shot] 04-amount.png
 [shot] 05-save.png
-[저장 네트워크] (호출 없음)
+[저장 모달] 주제 입력함
+[dialog] confirm: 현재 견적 상태를 Samhan DB에 저장하시겠습니까?
+[dialog] alert: ❌ 저장 실패: Error: snapshot 저장 실패: HTTP 400
+[shot] 05b-save-confirm.png
+[저장 네트워크] POST /rpc/saveQuoteSnapshot → 500
 [shot] 06-snapshot-list.png
-[저장내역 네트워크] (호출 없음)
-[저장내역 내용] {"작성자표시":false,"행수":1688,"발췌":"전표작성 홈멀티 싱글중대형 상업멀티 구형 견적서(기본) 견적서(세트상세) 전표업로드목록 장비스펙 발송내역 견적저장 저장내역 다크모드 자동 로그아웃: 04:59:55 종합견적서 선택 1건 홈멀티:45% 할인율(%) 리모컨 기본 유선 컬러 제외 판넬변경 기본 판넬제외 공청판넬 인피니트 25년형 인피니트 공청+동작감지 AI 유연호스 I형 유연호스 제외 분기관 제외 발통포함 단위처리 없음 10원 100원 1000원 반올림 내림 올림 인상 전 단가 출고가 표시 용량 표시 규격 표시 홈멀티 추천 실외기: 6HP 조합비 : ---% 초기화 대분류 전체 실외기 부자재 실내기 전열교환기 판넬 실외기 받침대 인테리어핏 시스템제습기 중분류 전체 단배관 기타 다배관 1-Way WIFI 1-Way 미내장 1-Way 인피니트 일반 "}
+[저장내역 네트워크] POST /rpc/logFrontEvent → 200 | POST /rpc/getQuoteHistory → 200
+[저장내역 내용] {"작성자표시":false,"행수":1688,"발췌":"전표작성 홈멀티 싱글중대형 상업멀티 구형 견적서(기본) 견적서(세트상세) 전표업로드목록 장비스펙 발송내역 견적저장 저장내역 다크모드 자동 로그아웃: 04:59:47 종합견적서 선택 1건 홈멀티:45% 할인율(%) 리모컨 기본 유선 컬러 제외 판넬변경 기본 판넬제외 공청판넬 인피니트 25년형 인피니트 공청+동작감지 AI 유연호스 I형 유연호스 제외 분기관 제외 발통포함 단위처리 없음 10원 100원 1000원 반올림 내림 올림 인상 전 단가 출고가 표시 용량 표시 규격 표시 홈멀티 추천 실외기: 6HP 조합비 : ---% 초기화 대분류 전체 실외기 부자재 실내기 전열교환기 판넬 실외기 받침대 인테리어핏 시스템제습기 중분류 전체 단배관 기타 다배관 1-Way WIFI 1-Way 미내장 1-Way 인피니트 일반 "}
 [열기 시도] (대상 없음)
 [shot] 07-reopen.png
 [열기 네트워크] (호출 없음)
@@ -19,11 +23,14 @@
 [shot] 08-edit-put.png
 [E 수정 네트워크] (호출 없음)
 [E 판정] ⚠️ PUT 없음
-[console 오류] Failed to load resource: the server responded with a status of 404 (Not Found) | Failed to load resource: the server responded with a status of 404 (Not Found) | Executing inline event handler violates the following Content Security Policy directive 'script-src-attr 'none''. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is | Executing inline event handler violates the following Content Security Policy directive 'script-src-attr 'none''. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is | Executing inline event handler violates the following Content Security Policy directive 'script-src-attr 'none''. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('nonce-...') is
+[console 오류] Failed to load resource: the server responded with a status of 404 (Not Found) | Failed to load resource: the server responded with a status of 404 (Not Found) | Failed to load resource: the server responded with a status of 404 (Not Found) | Failed to load resource: the server responded with a status of 500 (Internal Server Error)
 [전체 네트워크] POST /rpc/getGateImages → 200
-              POST /rpc/getAllManagers → 200
               POST /rpc/getCustomerDataAsync → 200
+              POST /rpc/getAllManagers → 200
               POST /rpc/checkUserAuth → 200
               POST /rpc/logFrontEvent → 200
               POST /rpc/logFrontEvent → 200
               POST /rpc/logFrontEvent → 200
+              POST /rpc/saveQuoteSnapshot → 500
+              POST /rpc/logFrontEvent → 200
+              POST /rpc/getQuoteHistory → 200
