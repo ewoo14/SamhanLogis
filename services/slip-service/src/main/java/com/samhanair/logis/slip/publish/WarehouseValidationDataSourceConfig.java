@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * 전표 발행 매핑의 창고 실재성 검증에 사용하는 inventory DB 연결 설정.
@@ -20,7 +21,8 @@ class WarehouseValidationDataSourceConfig {
     }
 
     @Bean
-    JdbcTemplate warehouseValidationJdbcTemplate(DataSource warehouseValidationDataSource) {
+    JdbcTemplate warehouseValidationJdbcTemplate(
+            @Qualifier("warehouseValidationDataSource") DataSource warehouseValidationDataSource) {
         return new JdbcTemplate(warehouseValidationDataSource);
     }
 }

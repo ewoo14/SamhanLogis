@@ -61,9 +61,18 @@ public abstract class AbstractPostgresIT {
                     .withUsername("samhan")
                     .withPassword("samhan_dev_pw");
 
+    @SuppressWarnings("resource")
+    protected static final PostgreSQLContainer<?> INVENTORY_POSTGRES =
+            new PostgreSQLContainer<>("postgres:16-alpine")
+                    .withDatabaseName("inventory_db")
+                    .withUsername("samhan")
+                    .withPassword("samhan_dev_pw")
+                    .withInitScript("db/inventory-warehouse-master.sql");
+
     static {
         try {
             POSTGRES.start();
+            INVENTORY_POSTGRES.start();
         } catch (Throwable ignored) {
             // Docker 미가용 환경. DockerAvailableCondition 이 sub IT 들을 skip 처리.
         }
@@ -74,9 +83,9 @@ public abstract class AbstractPostgresIT {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("app.publish.warehouse-validation.jdbc-url", POSTGRES::getJdbcUrl);
-        registry.add("app.publish.warehouse-validation.username", POSTGRES::getUsername);
-        registry.add("app.publish.warehouse-validation.password", POSTGRES::getPassword);
+        registry.add("app.publish.warehouse-validation.jdbc-url", INVENTORY_POSTGRES::getJdbcUrl);
+        registry.add("app.publish.warehouse-validation.username", INVENTORY_POSTGRES::getUsername);
+        registry.add("app.publish.warehouse-validation.password", INVENTORY_POSTGRES::getPassword);
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("eureka.client.enabled", () -> "false");
@@ -108,7 +117,8 @@ public abstract class AbstractPostgresIT {
         public org.junit.jupiter.api.extension.ConditionEvaluationResult evaluateExecutionCondition(
                 org.junit.jupiter.api.extension.ExtensionContext context) {
             try {
-                if (DockerClientFactory.instance().isDockerAvailable() && POSTGRES.isRunning()) {
+                if (DockerClientFactory.instance().isDockerAvailable()
+                        && POSTGRES.isRunning() && INVENTORY_POSTGRES.isRunning()) {
                     return org.junit.jupiter.api.extension.ConditionEvaluationResult
                             .enabled("Docker is available + container running");
                 }
