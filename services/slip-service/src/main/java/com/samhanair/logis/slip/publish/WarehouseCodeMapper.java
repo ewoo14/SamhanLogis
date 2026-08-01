@@ -4,17 +4,20 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import jakarta.annotation.PostConstruct;
 import java.util.HashMap;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.sql.DriverManager;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Qualifier;
 
 /**
  * Phase 6 M5 (slip-service-integration) — legacy ecount warehouseCode → 내부 warehouse UUID
@@ -49,11 +52,11 @@ import org.springframework.beans.factory.annotation.Qualifier;
 @Setter
 public class WarehouseCodeMapper {
 
-    private final JdbcTemplate warehouseValidationJdbcTemplate;
+    private final WarehouseValidationDataSourceConfig.WarehouseValidationProperties validationProperties;
 
     public WarehouseCodeMapper(
-            @Qualifier("warehouseValidationJdbcTemplate") JdbcTemplate warehouseValidationJdbcTemplate) {
-        this.warehouseValidationJdbcTemplate = warehouseValidationJdbcTemplate;
+            WarehouseValidationDataSourceConfig.WarehouseValidationProperties validationProperties) {
+        this.validationProperties = validationProperties;
     }
 
     /** Spring 이 yaml/env 에서 주입. key 는 legacy 코드, value 는 내부 warehouse UUID. */
@@ -84,10 +87,27 @@ public class WarehouseCodeMapper {
         }
 
         String placeholders = String.join(", ", parsedMappings.values().stream().map(value -> "?").toList());
-        Set<UUID> existingIds = new HashSet<>(warehouseValidationJdbcTemplate.query(
-                "SELECT id FROM public.warehouses WHERE is_deleted = false AND id IN (" + placeholders + ")",
-                (rs, rowNum) -> rs.getObject("id", UUID.class),
-                parsedMappings.values().toArray()));
+        String sql = "SELECT id FROM public.warehouses WHERE is_deleted = false AND id IN ("
+                + placeholders + ")";
+        Set<UUID> existingIds = new HashSet<>();
+        try (Connection connection = DriverManager.getConnection(
+                validationProperties.getJdbcUrl(),
+                validationProperties.getUsername(),
+                validationProperties.getPassword());
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            int parameterIndex = 1;
+            for (UUID warehouseId : parsedMappings.values()) {
+                statement.setObject(parameterIndex++, warehouseId);
+            }
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    existingIds.add(resultSet.getObject("id", UUID.class));
+                }
+            }
+        } catch (SQLException ex) {
+            throw new IllegalStateException("warehouse UUID 실재성 검증을 위한 inventory DB 연결에 실패했습니다: "
+                    + validationProperties.getJdbcUrl(), ex);
+        }
         return existingIds;
     }
 
