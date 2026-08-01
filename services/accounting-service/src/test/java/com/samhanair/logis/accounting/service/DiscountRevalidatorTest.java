@@ -199,6 +199,43 @@ class DiscountRevalidatorTest {
     }
 
     @Test
+    @DisplayName("거래처 전역DC 48%는 고정DC가 없을 때 45%가 아니라 48%를 기대한다")
+    void multiGlobalDiscountRateFortyEightPercentIsUsedWhenFixedRateIsAbsent() {
+        DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                "AJ040RXH4BC1 (RX다배관)",
+                ModelTokenExtractor.extractModelToken("AJ040RXH4BC1 (RX다배관)"),
+                new BigDecimal("52000"),
+                new BigDecimal("100000"),
+                new BigDecimal("70000"),
+                null,
+                DiscountRevalidator.GlobalDiscount.found(
+                        new BigDecimal("0.48"), new BigDecimal("0.48")),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.expectedRate()).isEqualTo(48);
+        assertThat(result.actualRate()).isEqualTo(48);
+        assertThat(result.verified()).isTrue();
+    }
+
+    @Test
+    @DisplayName("거래처 전역DC를 찾지 못하면 45%로 조용히 판정하지 않는다")
+    void missingGlobalDiscountIsVisible() {
+        DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                "AJ040RXH4BC1 (RX다배관)",
+                ModelTokenExtractor.extractModelToken("AJ040RXH4BC1 (RX다배관)"),
+                new BigDecimal("55000"),
+                new BigDecimal("100000"),
+                new BigDecimal("70000"),
+                null,
+                DiscountRevalidator.GlobalDiscount.unavailable(),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.status()).isEqualTo(DiscountRevalidator.Status.MISSING_GLOBAL_DISCOUNT);
+        assertThat(result.verified()).isNull();
+        assertThat(result.expectedRate()).isNull();
+    }
+
+    @Test
     @DisplayName("정수 할인율은 BigDecimal HALF_UP으로 .5 경계를 반올림한다")
     void actualRateRoundsHalfUp() {
         DiscountRevalidator.Revalidation result = revalidate(

@@ -17,6 +17,7 @@ import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.PeriodStatus;
@@ -79,6 +80,7 @@ class DailyClosingDetailServiceTest {
     @Mock private ProductClient productClient;
     @Spy private DiscountRevalidator discountRevalidator = new DiscountRevalidator();
     @Mock private PartnerLookupClient partnerLookupClient;
+    @Mock private PartnerDcConfigClient partnerDcConfigClient;
     @Mock private SalesAccountingSlipRepository salesAccountingSlipRepository;
     @Mock private PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
@@ -89,6 +91,10 @@ class DailyClosingDetailServiceTest {
 
     @BeforeEach
     void setUpProductClientDefaults() {
+        lenient().when(partnerDcConfigClient.findByPartnerCode(
+                org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(PartnerDcConfigClient.LookupResult.found(
+                        new BigDecimal("0.45"), new BigDecimal("0.45")));
         lenient().when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of());
         lenient().when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of());
         lenient().when(productClient.priceChangeDefaultVariants()).thenReturn(Map.of(

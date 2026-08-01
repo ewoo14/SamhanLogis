@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
+import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
@@ -88,6 +89,7 @@ public class MonthEndCloseService {
     private final ProductClient productClient;
     private final DiscountRevalidator discountRevalidator;
     private final PartnerLookupClient partnerLookupClient;
+    private final PartnerDcConfigClient partnerDcConfigClient;
     private final SalesAccountingSlipRepository salesAccountingSlipRepository;
     private final PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
@@ -231,7 +233,7 @@ public class MonthEndCloseService {
                     ti.getVatAmount(),
                     ti.getTotalAmount()));
             for (TaxInvoiceLine line : ti.getLines()) {
-                accumulateProduct(byModel, line.getItemName(), line.getModelName(),
+                accumulateProduct(byModel, ti.getPartnerCode(), line.getItemName(), line.getModelName(),
                         line.getCategoryKey(), line.getQuantity(), line.getSupplyAmount(),
                         line.getVatAmount());
             }
@@ -276,7 +278,7 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (SalesAccountingSlipLine line : slip.getLines()) {
-                accumulateSalesLine(byModel, line);
+                accumulateSalesLine(byModel, slip.getPartnerCode(), line);
             }
         }
         return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
@@ -309,7 +311,7 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (PurchaseAccountingSlipLine line : slip.getLines()) {
-                accumulateProduct(byModel, line.getProductName(), null, null, line.getQty(),
+                accumulateProduct(byModel, slip.getPartnerCode(), line.getProductName(), null, null, line.getQty(),
                         line.getSupplyAmount(), line.getVatAmount());
             }
         }
@@ -344,12 +346,12 @@ public class MonthEndCloseService {
     }
 
     private static void accumulateProduct(Map<AxisKey, ModelAccumulator> byModel,
-                                          String productName, String modelName, String categoryKey,
+                                          String partnerCode, String productName, String modelName, String categoryKey,
                                           BigDecimal quantity,
                                           BigDecimal supplyAmount,
                                           BigDecimal vatAmount) {
         BigDecimal actualUnitPrice = actualUnitPrice(quantity, supplyAmount, vatAmount);
-        AxisKey key = axisKey(productName, modelName, categoryKey, actualUnitPrice);
+        AxisKey key = axisKey(partnerCode, productName, modelName, categoryKey, actualUnitPrice);
         ModelAccumulator acc = byModel.computeIfAbsent(key,
                 k -> new ModelAccumulator(actualUnitPrice));
         acc.quantity = acc.quantity.add(nullToZero(quantity));
@@ -358,10 +360,10 @@ public class MonthEndCloseService {
     }
 
     private static void accumulateSalesLine(Map<AxisKey, ModelAccumulator> byModel,
-                                            SalesAccountingSlipLine line) {
+                                            String partnerCode, SalesAccountingSlipLine line) {
         if (line.getCategoryKey() != null || line.getModelName() != null
                 || line.getAllocations().isEmpty()) {
-            accumulateProduct(byModel, line.getProductName(), line.getModelName(),
+            accumulateProduct(byModel, partnerCode, line.getProductName(), line.getModelName(),
                     line.getCategoryKey(), line.getQty(), line.getSupplyAmount(), line.getVatAmount());
             return;
         }
@@ -370,7 +372,7 @@ public class MonthEndCloseService {
                     || line.getLineTotal().compareTo(BigDecimal.ZERO) == 0
                     ? BigDecimal.ZERO
                     : allocation.getAllocatedAmount().divide(line.getLineTotal(), 10, RoundingMode.HALF_UP);
-            accumulateProduct(byModel, line.getProductName(), allocation.getModelName(),
+            accumulateProduct(byModel, partnerCode, line.getProductName(), allocation.getModelName(),
                     allocation.getCategoryKey(), allocation.getAllocatedQty(),
                     line.getSupplyAmount().multiply(ratio), line.getVatAmount().multiply(ratio));
         }
@@ -388,14 +390,14 @@ public class MonthEndCloseService {
                 .divide(safeQuantity, 10, RoundingMode.HALF_UP);
     }
 
-    private static AxisKey axisKey(String productName, String modelName, String categoryKey,
+    private static AxisKey axisKey(String partnerCode, String productName, String modelName, String categoryKey,
                                    BigDecimal actualUnitPrice) {
         String label = productName == null || productName.isBlank() ? "-" : productName;
         String modelToken = ModelTokenExtractor.extractModelTokenOrNull(modelName);
         GasCategoryAxis axis = modelToken == null
                 ? GasCategoryAxis.UNKNOWN
                 : GasCategoryAxis.fromScheduleKey(categoryKey);
-        return new AxisKey(label, modelToken, axis, actualUnitPrice);
+        return new AxisKey(partnerCode, label, modelToken, axis, actualUnitPrice);
     }
 
     private List<DailyProductLine> revalidateProductLines(Map<AxisKey, ModelAccumulator> byModel,
@@ -427,6 +429,13 @@ public class MonthEndCloseService {
         Map<PriceLookupKey, ApplicablePrice> pricesByAxis = loadApplicablePrices(
                 byModel.keySet(), labelMatches, modelMatches, asOf, defaultVariants, legacyPriceAxes);
         Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
+        Map<String, DiscountRevalidator.GlobalDiscount> globalDiscountsByPartnerCode = new LinkedHashMap<>();
+        for (String partnerCode : byModel.keySet().stream().map(AxisKey::partnerCode).distinct().toList()) {
+            PartnerDcConfigClient.LookupResult result = partnerDcConfigClient.findByPartnerCode(partnerCode);
+            globalDiscountsByPartnerCode.put(partnerCode, result.found()
+                    ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate())
+                    : DiscountRevalidator.GlobalDiscount.unavailable());
+        }
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
         for (Map.Entry<AxisKey, ModelAccumulator> e : byModel.entrySet()) {
@@ -444,7 +453,8 @@ public class MonthEndCloseService {
             // 재검증 분기용 토큰(미매치 시 정규화 품명 fallback 포함).
             String modelToken = axisKey.modelToken() == null
                     ? ModelTokenExtractor.extractModelToken(axisKey.label()) : axisKey.modelToken();
-            // fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리한다. price key 누락도 엔진에 넘겨
+            // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
+            // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
             // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
             DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
                     axisKey.label(),
@@ -453,6 +463,8 @@ public class MonthEndCloseService {
                     price == null ? null : price.release(),
                     price == null ? null : price.delivery(),
                     labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
+                    globalDiscountsByPartnerCode.getOrDefault(axisKey.partnerCode(),
+                            DiscountRevalidator.GlobalDiscount.unavailable()),
                     labelMatch.status());
             products.add(new DailyProductLine(
                     axisKey.label(),
@@ -702,7 +714,7 @@ public class MonthEndCloseService {
     }
 
     /** 일마감 집계의 정본 key — 품목명 하나로 다른 판매 카테고리를 합치지 않는다. */
-    private record AxisKey(String label, String modelToken, GasCategoryAxis axis,
+    private record AxisKey(String partnerCode, String label, String modelToken, GasCategoryAxis axis,
                            BigDecimal actualUnitPrice) {
         private AxisKey {
             actualUnitPrice = actualUnitPrice == null
