@@ -39,7 +39,7 @@ export function InOutAnalysisPage() {
         <label>종료일<input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} /></label>
       </div>
       <InOutModelChipFilter selected={selected} counts={counts} totalCount={rows.length}
-        onToggle={(chip) => setSelected((old) => { const next = new Set(old); next.has(chip) ? next.delete(chip) : next.add(chip); return next })}
+        onToggle={(chip) => setSelected((old) => { const next = new Set(old); if (next.has(chip)) { next.delete(chip) } else { next.add(chip) } return next })}
         onClear={() => setSelected(new Set())} />
       {query.isLoading ? <p>조회 중…</p> : null}
       {query.isError ? <p role="alert">입출고 내역을 불러오지 못했습니다.</p> : null}
