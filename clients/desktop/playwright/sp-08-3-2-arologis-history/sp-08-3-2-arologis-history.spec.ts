@@ -110,7 +110,7 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     expect(source).toContain("tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'")
     expect(source).toContain("tab === 'region' ? 'pre-classify-history' : 'regional-history'")
     expect(source).toContain('[programType]')
-    expect(source).toContain('[date, from, programType, regionQuery.data, regionalQuery.data, tab, to]')
+    expect(source).toContain('[date, executionMode, from, programType, regionQuery.data, regionalQuery.data, tab, to]')
     expect(source).toContain('pre-classify-history')
     expect(source).toContain('regional-history')
   })

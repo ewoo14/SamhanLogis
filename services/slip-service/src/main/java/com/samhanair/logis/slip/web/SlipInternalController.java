@@ -324,7 +324,7 @@ public class SlipInternalController {
                 .findByPeriodWithLines(SlipType.OUTBOUND, from, to, null)
                 .stream()
                 .map(slip -> OutboundSlipResponse.from(slip,
-                        warehouseInternalClient.findWarehouseName(slip.getSourceWarehouseId()).orElseThrow(),
+                        warehouseInternalClient.findWarehouseName(slip.getSourceWarehouseId()).orElse(null),
                         warehouseCodeMapper.businessType(slip.getSourceWarehouseCode())))
                 .toList();
         return ApiResponse.ok(rows);
