@@ -1,36 +1,41 @@
 package com.samhanair.logis.slip.estimate.snapshot.web.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
 
+import java.math.BigDecimal;
+
 /**
- * 종합견적서 저장 요청 — legacy saveQuoteSnapshot(payload) 계약 정합.
+ * 종합견적서 JSON 상태 저장·수정 요청.
  *
- * <p>웹 estimate-app lib/code.js saveQuoteSnapshot 가 보내는 body:
- * <pre>{ userEmail, createdAt, data, summary: { custName, ... }, image }</pre>
+ * <p>{@code data}는 브라우저의 계산 입력 상태를 JSON 객체로 전달한다. 기존 base64
+ * 문자열 요청은 서비스 경계에서 한 번만 JSON으로 복원하여 DB에는 남기지 않는다.
  *
- * <ul>
- *   <li>{@code userEmail} — 저장 담당자 이메일 (legacy Session.getActiveUser().getEmail())</li>
- *   <li>{@code createdAt} — ISO-8601 저장시각 (legacy nowStr). null 이면 서버 now 사용</li>
- *   <li>{@code data} — 작업상태 전체 base64 JSON blob (필수)</li>
- *   <li>{@code summary} — 요약 객체. custName 만 추출, 그 외 무시</li>
- *   <li>{@code image} — 미리보기 base64 (선택)</li>
- * </ul>
+ * @param userEmail 작성자 또는 수정 요청자 이메일
+ * @param createdAt 클라이언트 저장시각
+ * @param data 계산 재현에 필요한 JSON 상태
+ * @param summary 목록 표시용 요약
+ * @param supplyAmount 계산 공급가 합계
+ * @param vatAmount 계산 부가세 합계
+ * @param totalAmount 계산 총액
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SaveQuoteSnapshotRequest(
         @NotBlank String userEmail,
         String createdAt,
-        @NotBlank String data,
+        JsonNode data,
         Summary summary,
-        String image) {
+        BigDecimal supplyAmount,
+        BigDecimal vatAmount,
+        BigDecimal totalAmount) {
 
-    /** legacy payload.summary — custName 만 사용, 나머지 필드는 무시(ignoreUnknown). */
+    /** 목록 표시용 요약. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Summary(String custName) {
     }
 
-    /** summary 가 null 이거나 custName 미지정 시 null 반환. */
+    /** 거래처명 또는 null. */
     public String custNameOrNull() {
         return summary == null ? null : summary.custName();
     }

@@ -1,0 +1,31 @@
+#1009 견적서 메뉴 라이브QA — 저장 종단 (PM 직접)
+배포본: samhan-slip-service (t1009 + origin/main 머지) · V100 적용 확인
+estimate-app: ESTIMATE_SERVICE_URL=http://localhost:18086 (게이트웨이 비노출 · 직결)
+
+[저장] 견적저장 클릭 → 주제 입력 → confirm
+  dialog  현재 견적 상태를 Samhan DB에 저장하시겠습니까?
+  dialog  ✅ 안전하게 저장되었습니다!
+  POST /rpc/saveQuoteSnapshot → 200
+
+[저장내역] POST /rpc/getQuoteHistory → 200
+  목록 항목: 2026. 08. 01. 12:03  QA 견적 2026-08-01
+             작성자: dev@samhan-air.com
+
+[DB] quote_snapshots
+  cust_name           author_email          participant_emails        supply_amount  vat_amount  total_amount  state_type
+  QA 견적 2026-08-01  dev@samhan-air.com   ["dev@samhan-air.com"]      2929300.00    292930.00    3222230.00   object
+
+  ✅ C  JSONB 저장 (state_type=object · base64 아님)
+  ✅ D  작성자가 participant_emails 집합에 포함 (조건절 아님)
+  ✅ A  공급가 2,929,300 · 부가세 292,930 · 총액 3,222,230
+        부가세가 정확히 10% 이고 화면 소계(3,222,230)와 총액이 일치
+
+  🚨 작성자가 dev@samhan-air.com
+     화면은 dev_master@samhan-air.com 으로 인증했다(USER_AUTH.authorized=true,
+     managerCode=dev_master). 저장된 작성자는 서버 기본값 DEFAULT_USER_EMAIL 이다.
+     lib/code.js:2472  const email = Session.getActiveUser().getEmail();
+     → ?email= 로 넘어온 실제 사용자를 쓰지 않는다.
+
+[미확인] E 본인 수정 PUT — 저장내역에서 항목을 열었으나 PUT 이 나가지 않았다.
+        작성자가 전원 동일하면 "본인만 수정" 자체가 성립하지 않으므로
+        작성자 문제를 먼저 해소한 뒤 재측정한다.

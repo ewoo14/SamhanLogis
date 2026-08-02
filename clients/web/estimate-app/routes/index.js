@@ -11,6 +11,7 @@
 const express = require('express');
 const code = require('../lib/code');
 const { resolveBuildAppVersion } = require('../lib/version-check');
+const { readCookie, cookieHeader } = require('../lib/auth-context');
 
 const currentAppVersion = resolveBuildAppVersion();
 const versionApiBaseUrl = (process.env.SAMHAN_VERSION_API_BASE_URL || process.env.SAMHAN_API_BASE_URL || 'http://localhost:8080')
@@ -20,8 +21,13 @@ const router = express.Router();
 
 router.get('/', async (req, res, next) => {
   try {
-    const userEmail = req.query.email || process.env.DEFAULT_USER_EMAIL || 'dev@samhan-air.com';
+    const sessionEmail = readCookie(req.headers.cookie);
+    const userEmail = sessionEmail || req.query.email || process.env.DEFAULT_USER_EMAIL || 'dev@samhan-air.com';
     const bootstrap = await code.bootstrap(userEmail);
+    const authData = JSON.parse(bootstrap.authData || '{}');
+    if (!sessionEmail && authData.authorized === true) {
+      res.append('Set-Cookie', cookieHeader(userEmail));
+    }
     res.render('index', { ...bootstrap, currentAppVersion, versionApiBaseUrl });
   } catch (e) {
     next(e);

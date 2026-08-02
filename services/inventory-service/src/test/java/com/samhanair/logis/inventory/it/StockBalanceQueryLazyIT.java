@@ -2,6 +2,7 @@ package com.samhanair.logis.inventory.it;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,8 +15,10 @@ import com.samhanair.logis.inventory.client.ProductSummary;
 import com.samhanair.logis.inventory.repository.WarehouseRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -39,6 +42,8 @@ import org.springframework.test.web.servlet.MockMvc;
 class StockBalanceQueryLazyIT extends AbstractPostgresIT {
 
     private static final String MASTER_ROLE = "MASTER";
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b");
 
     @Autowired
     private MockMvc mockMvc;
@@ -66,7 +71,11 @@ class StockBalanceQueryLazyIT extends AbstractPostgresIT {
                         inv.getArgument(0), "부하 실측 제품", "LOAD-TEST-MODEL",
                         UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"));
         Mockito.lenient().when(productClient.lookup(Mockito.anyList()))
-                .thenReturn(java.util.List.of());
+                .thenAnswer(invocation -> ((List<?>) invocation.getArgument(0)).stream()
+                        .map(id -> (UUID) id)
+                        .map(id -> new ProductSummary(id, "테스트 품목", "MODEL-TEST",
+                                UUID.randomUUID(), new BigDecimal("100000"), "ACTIVE"))
+                        .toList());
     }
 
     @Test
@@ -83,7 +92,70 @@ class StockBalanceQueryLazyIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].warehouseCode", is("HQ-001")))
                 .andExpect(jsonPath("$.data.content[0].warehouseName", notNullValue()))
-                .andExpect(jsonPath("$.data.content[0].availableQty", is(7)));
+                .andExpect(jsonPath("$.data.content[0].availableQty", is(7)))
+                .andExpect(jsonPath("$.data.content[0].id").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].productId").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].warehouseId").doesNotExist());
+    }
+
+    @Test
+    void balances_withoutProductId_returns200ForWholeInventoryPage() throws Exception {
+        UUID productId = UUID.randomUUID();
+        inbound(productId, 7);
+
+        mockMvc.perform(get("/inventory/balances")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                .header("X-User-Role", MASTER_ROLE)
+                        .param("page", "0")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").exists())
+                .andExpect(jsonPath("$.data.content[0].productCode").value(
+                        org.hamcrest.Matchers.startsWith("MODEL-")))
+                .andExpect(jsonPath("$.data.content[0].productName").value("테스트 품목"))
+                .andExpect(jsonPath("$.data.content[0].warehouseType").exists());
+    }
+
+    @Test
+    void balances_httpResponseContainsNoUuidAndRetainsDisplayFields() throws Exception {
+        UUID productId = UUID.randomUUID();
+        inbound(productId, 7);
+
+        String responseBody = mockMvc.perform(get("/inventory/balances")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", MASTER_ROLE)
+                        .param("productId", productId.toString())
+                        .param("page", "0")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].productCode").isNotEmpty())
+                .andExpect(jsonPath("$.data.content[0].productName").value("테스트 품목"))
+                .andExpect(jsonPath("$.data.content[0].warehouseCode").value("HQ-001"))
+                .andExpect(jsonPath("$.data.content[0].warehouseName").isNotEmpty())
+                .andExpect(jsonPath("$.data.content[0].warehouseType").value("HEADQUARTERS"))
+                .andExpect(jsonPath("$.data.content[0].availableQty").value(7))
+                .andExpect(jsonPath("$.data.content[0].reservedQty").value(0))
+                .andExpect(jsonPath("$.data.content[0].totalQty").value(7))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        assertThat(UUID_PATTERN.matcher(responseBody).results()).isEmpty();
+    }
+
+    @Test
+    void balances_warehouseFilter_returnsOnlySelectedWarehouse() throws Exception {
+        UUID productId = UUID.randomUUID();
+        inbound(productId, 7);
+
+        mockMvc.perform(get("/inventory/balances")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", MASTER_ROLE)
+                        .param("warehouseId", hqWarehouseId.toString())
+                        .param("page", "0")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].warehouseCode").value("HQ-001"));
     }
 
     private void inbound(UUID productId, int quantity) throws Exception {

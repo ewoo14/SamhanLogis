@@ -534,7 +534,7 @@ export function PurchaseQueryPage() {
                     {/* 품목 — BE lineSummary 없음 → 임시 "—" */}
                     <Td>—</Td>
                     {/* 금액 — 우측 정렬 */}
-                    <Td align="right">{fmtNumber(row.totalAmount)}</Td>
+                    <Td align="right">{fmtNumber(row.displayTotalAmount ?? row.totalAmount)}</Td>
                     {/* 수량합계 — 우측 정렬 */}
                     <Td align="right">{fmtNumber(row.totalQuantity)}</Td>
                     {/* 입고창고 — destinationWarehouseId resolve */}
