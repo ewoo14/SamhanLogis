@@ -264,8 +264,8 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
-    @DisplayName("레거시 싱글 세트 옵션은 구성품 modelToken이 아니라 매칭된 setName으로 선택한다")
-    void dailyDetailUsesMatchedSetNameForOptionDiscount() {
+    @DisplayName("세트 카탈로그 매칭 실패 시 구성품 modelToken fallback을 유지한다")
+    void dailyDetailKeepsModelTokenFallbackWhenSetMatchFails() {
         UUID outdoor = UUID.randomUUID();
         TaxInvoice ti = newIssued("TI-SET-NAME", "세트거래처", DATE);
         // 실 원본 싱글 구성품 시트에 존재하는 완성 세트 구성품 조합.
@@ -291,11 +291,11 @@ class DailyClosingDetailServiceTest {
 
         DailyClosingDetailResponse response = service.getDailyDetail(DATE);
         assertThat(findProductLine(response, "무풍 4way 냉난방 프레스티지 실외기").deliveryPrice())
-                .isEqualByComparingTo("80000");
+                .isEqualByComparingTo("100000");
 
-        // 레거시 Code.js 는 이 구성품의 완성 세트명 AC060CS4PBH2SY 로 4way를 고른다.
+        // 완성 세트 pool이 없으므로 R6는 임의 부모를 선택하지 않고 기존 token fallback을 사용한다.
         verify(discountRevalidator).revalidate(
-                eq("무풍 4way 냉난방 프레스티지 실외기"), eq("AC060CS4PBH2SY"),
+                eq("무풍 4way 냉난방 프레스티지 실외기"), eq("AC060CXAPBH1"),
                 eq(new BigDecimal("110000.0000000000")), eq(new BigDecimal("150000")),
                 eq(new BigDecimal("100000")), eq(null), org.mockito.ArgumentMatchers.any(),
                 eq(ProductLabelMatch.Status.MATCHED));

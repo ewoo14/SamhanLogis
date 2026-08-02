@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
+import com.samhanair.logis.accounting.client.EstimateComponent;
 import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
@@ -47,7 +48,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.HashMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -412,14 +415,7 @@ public class MonthEndCloseService {
                         e -> ProductLabelMatch.matched(e.getValue().id(), e.getValue().modelCode()),
                         (left, right) -> left,
                         LinkedHashMap::new));
-        Map<String, String> parentSetNames = modelSummaries.entrySet().stream()
-                .filter(e -> e.getValue().parentSetModelCode() != null
-                        && !e.getValue().parentSetModelCode().isBlank())
-                .collect(java.util.stream.Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> e.getValue().parentSetModelCode(),
-                        (left, right) -> left,
-                        LinkedHashMap::new));
+        Map<String, String> parentSetNames = resolveMatchedSetNames(byModel);
         List<UUID> matchedProductIds = byModel.keySet().stream()
                 .map(axis -> effectiveProductMatch(axis, labelMatches, modelMatches))
                 .filter(ProductLabelMatch::isMatched)
@@ -545,6 +541,48 @@ public class MonthEndCloseService {
                     }
                 });
         return result;
+    }
+
+    /**
+     * 레거시 Code.js:590-652와 동일하게 일마감 pool 전체를 세트 후보와 대조한다.
+     * 구성품 단건 parentSetModelCode는 후보가 완성되지 않은 경우 사용하지 않는다.
+     */
+    private Map<String, String> resolveMatchedSetNames(Map<AxisKey, ModelAccumulator> byModel) {
+        List<EstimateComponent> catalog = new ArrayList<>();
+        catalog.addAll(productClient.estimateComponents("SINGLE_SET"));
+        catalog.addAll(productClient.estimateComponents("COMMERCIAL_MULTI"));
+        if (catalog.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<EstimateComponent>> grouped = catalog.stream()
+                .filter(c -> c.setModelCode() != null && c.componentModelCode() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        EstimateComponent::setModelCode, LinkedHashMap::new, java.util.stream.Collectors.toList()));
+        List<LegacySetMatcher.SetCandidate> candidates = grouped.entrySet().stream()
+                .map(e -> new LegacySetMatcher.SetCandidate(e.getKey(), e.getValue().stream()
+                        .map(c -> new LegacySetMatcher.Component(c.componentModelCode(), c.kind(), c.matchingPrice()))
+                        .toList()))
+                .toList();
+        List<LegacySetMatcher.InvoiceLine> pool = byModel.entrySet().stream()
+                .map(e -> new LegacySetMatcher.InvoiceLine(e.getKey().modelToken(),
+                        kindFor(e.getKey().modelToken(), catalog), e.getValue().effectiveUnitPrice()))
+                .toList();
+        Optional<String> matched = new LegacySetMatcher().findFirstCompleteSet(pool, candidates);
+        if (matched.isEmpty()) {
+            return Map.of();
+        }
+        Set<String> indoorTokens = grouped.getOrDefault(matched.get(), List.of()).stream()
+                .filter(c -> "INDOOR".equals(c.kind()))
+                .map(EstimateComponent::componentModelCode)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<String, String> result = new HashMap<>();
+        indoorTokens.forEach(token -> result.put(token, matched.get()));
+        return result;
+    }
+
+    private static String kindFor(String modelToken, List<EstimateComponent> catalog) {
+        return catalog.stream().filter(c -> modelToken.equals(c.componentModelCode()))
+                .map(EstimateComponent::kind).findFirst().orElse("ACCESSORY");
     }
 
     private static ProductLabelMatch effectiveProductMatch(
