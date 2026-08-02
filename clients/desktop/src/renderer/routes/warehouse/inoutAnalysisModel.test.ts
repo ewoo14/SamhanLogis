@@ -18,6 +18,29 @@ describe('입출고 모델 복수 칩 필터', () => {
     expect(filterInOutRows(rows, new Set(['홈멀티']))).toHaveLength(0)
   })
 
+  it('분류 근거가 없는 행은 칩 선택으로 사라지지 않는다', () => {
+    const rows = [
+      { modelCode: 'LEGACY-UNKNOWN-1', productName: '이카운트 품목', productCategory: null },
+      { modelCode: 'CLASSIFIED-1', productName: '실외기', productCategory: null },
+    ]
+
+    expect(filterInOutRows(rows, new Set(['홈멀티']))).toHaveLength(1)
+    expect(filterInOutRows(rows, new Set(['홈멀티']))[0].modelCode).toBe('LEGACY-UNKNOWN-1')
+  })
+
+  it('분류 근거가 없는 61행은 여섯 칩 각각에서 모두 보인다', () => {
+    const rows = Array.from({ length: 61 }, (_, index) => ({
+      modelCode: `LEGACY-MODEL-${String(index + 1).padStart(3, '0')}`,
+      productName: `테스트제품-${index + 1}`,
+      productCategory: null,
+    }))
+
+    expect(rows).toHaveLength(61)
+    for (const chip of ['실외기', '실내기', '홈멀티', '싱글중대형', '상업멀티', '판넬'] as const) {
+      expect(filterInOutRows(rows, new Set([chip]))).toHaveLength(61)
+    }
+  })
+
   it('원가 없는 판매 품목도 행으로 남기고 이익률만 대시로 표시한다', () => {
     const rows: InOutAnalysisRow[] = [
       withProfitFields({ modelCode: 'MODEL-COST-MISSING', productName: '원가없는 품목', inboundQuantity: 0, outboundQuantity: 2, purchaseAmount: null, salesAmount: 200 }),

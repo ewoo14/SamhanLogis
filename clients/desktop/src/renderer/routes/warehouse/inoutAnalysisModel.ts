@@ -65,6 +65,9 @@ export function filterInOutRows<T extends InOutModelRow>(
   if (selectedChips.size === 0) return rows
   return rows.filter((row) => {
     const chips = row.chips ?? modelChips({ name: row.productName, productCategory: row.productCategory })
+    // 레거시/구 저장 행은 세 분류 source가 모두 비어 있을 수 있다.
+    // 근거 없는 행을 임의 분류해 버리거나 칩 선택으로 제거하지 않고 보존한다.
+    if (chips.size === 0) return true
     return [...selectedChips].some((chip) => chips.has(chip))
   })
 }
