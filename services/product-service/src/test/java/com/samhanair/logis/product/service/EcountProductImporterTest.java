@@ -314,6 +314,49 @@ class EcountProductImporterTest {
     }
 
     @Test
+    void importCsv_동명_DB코드가_현재_raw에_있어도_fingerprint가_다르면_재사용하지_않는다() {
+        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> {
+                    SqlParameterSource parameters = invocation.getArgument(1);
+                    return "동명제품".equals(parameters.getValue("name"))
+                            ? List.of("DB-MAIN") : List.of();
+                });
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "DB-MAIN\t","현재 다른 이름\t","900","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                "RAW-001\t","동명제품\t","100","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "r7-red-db-code");
+
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
+    }
+
+    @Test
+    void importCsv_동명_singleton도_fingerprint_재그룹화를_건너뛰지_않는다() {
+        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> {
+                    SqlParameterSource parameters = invocation.getArgument(1);
+                    return "동명제품".equals(parameters.getValue("name"))
+                            ? List.of("DB-MAIN") : List.of();
+                });
+        String itemCsv = """
+                "데이터관리>품목-Excel다운로드"
+                "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
+                "DB-MAIN\t","현재 다른 이름\t","900","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                "RAW-001\t","동명제품\t","100","0","","","0","0","0","0","[상품]\t","현재 규격\t","YES\t"
+                """;
+
+        EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "r7-red-singleton");
+
+        assertThat(result.updated()).isZero();
+        assertThat(result.imported()).isEqualTo(2);
+        assertThat(result.aliasImported()).isEqualTo(2);
+    }
+
+    @Test
     void importCsv_UTF8_BOM으로_시작해도_헤더를_인식한다() {
         String itemCsv = "\uFEFF" + """
                 "데이터관리>품목-Excel다운로드"

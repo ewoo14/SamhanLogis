@@ -133,13 +133,11 @@ public class EcountProductImporter {
         for (Map.Entry<ProductIdentity, List<ItemRow>> entry : normalRowsByIdentity.entrySet()) {
             ProductIdentity identity = entry.getKey();
             List<ItemRow> sameProductRows = entry.getValue();
-            if (normalRowsByName.getOrDefault(identity.name(), List.of()).size() < 2) {
-                continue;
-            }
             ProductMainCandidate groupCandidate = sameProductRows.stream()
                     .map(row -> resolvedCandidates.get(row.rowNo()))
-                    .filter(candidate -> candidate != null && candidate.rawRow() != null
-                            && productIdentity(candidate.rawRow()).equals(identity))
+                    .filter(candidate -> isFingerprintCompatibleCandidate(
+                            candidate, identity,
+                            normalRowsByName.getOrDefault(identity.name(), List.of()).size()))
                     .sorted(Comparator.comparing(ProductMainCandidate::mainCode))
                     .findFirst()
                     .orElseGet(() -> fallbackSameNameCandidate(identity.name(), sameProductRows, itemsByCode));
@@ -336,7 +334,7 @@ public class EcountProductImporter {
         String dbMainCode = findActiveProductCodeByName(row.name());
         if (dbMainCode != null && !dbMainCode.isBlank()) {
             ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
-            if (dbMainRaw != null) {
+            if (sameFingerprint(dbMainRaw, row)) {
                 return new ProductMainCandidate(dbMainCode, dbMainRaw, null);
             }
         }
@@ -379,8 +377,7 @@ public class EcountProductImporter {
         String existingCode = findActiveProductCodeByName(name);
         if (existingCode != null && !existingCode.isBlank()) {
             ItemRow existingRaw = itemsByCode.get(existingCode);
-            if (existingRaw != null
-                    && productIdentity(existingRaw).equals(productIdentity(sameNameRows.get(0)))) {
+            if (sameFingerprint(existingRaw, sameNameRows.get(0))) {
                 return new ProductMainCandidate(existingCode, existingRaw, null);
             }
         }
@@ -418,6 +415,23 @@ public class EcountProductImporter {
         fingerprint.append(normalizeItemType(row.cells()[10])).append('|')
                 .append(row.cells()[11].strip());
         return new ProductIdentity(row.name(), fingerprint.toString());
+    }
+
+    private boolean sameFingerprint(ItemRow candidate, ItemRow expected) {
+        return candidate != null && expected != null
+                && productIdentity(candidate).equals(productIdentity(expected));
+    }
+
+    private boolean sameFingerprint(ItemRow candidate, ProductIdentity expected) {
+        return candidate != null && expected != null && productIdentity(candidate).equals(expected);
+    }
+
+    private boolean isFingerprintCompatibleCandidate(ProductMainCandidate candidate, ProductIdentity expected,
+                                                     int sameNameRowCount) {
+        return candidate != null
+                && (candidate.rawRow() == null
+                        ? candidate.existingProductId() != null && sameNameRowCount == 1
+                        : sameFingerprint(candidate.rawRow(), expected));
     }
 
     private String mergeRowSummary(ItemRow row) {
