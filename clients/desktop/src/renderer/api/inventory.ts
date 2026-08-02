@@ -322,6 +322,14 @@ export interface InOutAnalysisRow {
   salesAmount: number
   profitAmount: number | null
   profitRate: number | null
+  monthly: InOutMonthlyPoint[]
+}
+
+export interface InOutMonthlyPoint {
+  year: number
+  month: number
+  inboundQuantity: number
+  outboundQuantity: number
 }
 
 /** 확정 입출고 기간별 모델코드 집계 조회. */

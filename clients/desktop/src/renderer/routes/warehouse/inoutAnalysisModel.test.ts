@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { filterInOutRows, modelChips, withProfitFields, type InOutAnalysisRow } from './inoutAnalysisModel'
+import {
+  deriveLegacyAnalysis,
+  filterInOutRows,
+  modelChips,
+  withProfitFields,
+  type InOutAnalysisRow,
+} from './inoutAnalysisModel'
 
 describe('입출고 모델 복수 칩 필터', () => {
   it('품목명과 상품 대분류를 모두 칩 집합으로 보존한다', () => {
@@ -73,5 +79,60 @@ describe('입출고 모델 복수 칩 필터', () => {
     })
     expect(row.profitRate).toBe(0)
     expect(row.profitRateDisplay).toBe('0.00%')
+  })
+
+  it('모델-연-월 점을 보존하고 전년·당년 출고 추이를 집계한다', () => {
+    const rows = [
+      withProfitFields({
+        modelCode: 'A', productName: 'A', inboundQuantity: 4, outboundQuantity: 7,
+        purchaseAmount: 100, salesAmount: 200,
+        monthly: [
+          { year: 2025, month: 1, inboundQuantity: 2, outboundQuantity: 3 },
+          { year: 2026, month: 1, inboundQuantity: 2, outboundQuantity: 4 },
+        ],
+      }),
+    ]
+    const analysis = deriveLegacyAnalysis(rows)
+
+    expect(rows.flatMap((row) => row.monthly ?? [])).toHaveLength(2)
+    expect(analysis.trend.find((point) => point.month === 1)).toEqual({
+      month: 1, previousYearOutbound: 3, currentYearOutbound: 4,
+    })
+  })
+
+  it('레거시 수요예측 규칙은 마지막 당년 출고월 이후를 전년 월량×증감률로 산출한다', () => {
+    const rows = [
+      withProfitFields({
+        modelCode: 'A', productName: 'A', inboundQuantity: 0, outboundQuantity: 4,
+        purchaseAmount: null, salesAmount: 100,
+        monthly: [
+          { year: 2025, month: 2, inboundQuantity: 0, outboundQuantity: 10 },
+          { year: 2025, month: 3, inboundQuantity: 0, outboundQuantity: 20 },
+          { year: 2026, month: 2, inboundQuantity: 0, outboundQuantity: 20 },
+          { year: 2026, month: 3, inboundQuantity: 0, outboundQuantity: 30 },
+        ],
+      }),
+    ]
+    const analysis = deriveLegacyAnalysis(rows)
+
+    expect(analysis.forecast).toEqual([
+      { month: 4, quantity: 0 }, { month: 5, quantity: 0 }, { month: 6, quantity: 0 },
+      { month: 7, quantity: 0 }, { month: 8, quantity: 0 }, { month: 9, quantity: 0 },
+      { month: 10, quantity: 0 }, { month: 11, quantity: 0 }, { month: 12, quantity: 0 },
+    ])
+  })
+
+  it('Top 3·Bottom 3와 추천·알림은 실제 모델 집계에서 산출한다', () => {
+    const rows = ['A', 'B', 'C', 'D'].map((modelCode, index) => withProfitFields({
+      modelCode, productName: modelCode, inboundQuantity: index === 0 ? 1 : 10,
+      outboundQuantity: 40 - index * 10, purchaseAmount: 100, salesAmount: 200,
+      monthly: [{ year: 2026, month: 1, inboundQuantity: index === 0 ? 1 : 10, outboundQuantity: 40 - index * 10 }],
+    }))
+    const analysis = deriveLegacyAnalysis(rows)
+
+    expect(analysis.top3).toHaveLength(3)
+    expect(analysis.top3[0]).toMatchObject({ modelCode: 'A', outboundQuantity: 40 })
+    expect(analysis.bottom3).toHaveLength(3)
+    expect(analysis.recommendations.length).toBeGreaterThan(0)
   })
 })

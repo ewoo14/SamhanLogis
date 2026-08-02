@@ -11,12 +11,14 @@ import com.samhanair.logis.slip.web.dto.InOutAnalysisResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.TreeMap;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +54,7 @@ public class InOutAnalysisService {
                     row.outboundQuantity += line.getQuantity();
                     row.salesAmount = add(row.salesAmount, amount);
                 }
+                row.addMonthly(slip.getSlipDate(), slip.getSlipType() == SlipType.INBOUND, line.getQuantity());
             }
         }
         return rows.values().stream().map(MutableRow::toResponse).toList();
@@ -92,6 +95,7 @@ public class InOutAnalysisService {
         private int outboundQuantity;
         private BigDecimal purchaseAmount;
         private BigDecimal salesAmount = BigDecimal.ZERO;
+        private final Map<YearMonth, MonthlyMutable> monthly = new TreeMap<>();
 
         private MutableRow(String lineModelCode, String productName, String lineCategoryKey, ProductSummary product) {
             this.lineModelCode = lineModelCode;
@@ -114,7 +118,23 @@ public class InOutAnalysisService {
             String categoryKey = product != null && product.categoryKey() != null
                     ? product.categoryKey() : lineCategoryKey;
             return new InOutAnalysisResponse(code, name, categoryKey,
-                    inboundQuantity, outboundQuantity, purchaseAmount, salesAmount, profit, rate);
+                    inboundQuantity, outboundQuantity, purchaseAmount, salesAmount, profit, rate,
+                    monthly.entrySet().stream()
+                            .map(entry -> new InOutAnalysisResponse.MonthlyPoint(
+                                    entry.getKey().getYear(), entry.getKey().getMonthValue(),
+                                    entry.getValue().inboundQuantity, entry.getValue().outboundQuantity))
+                            .toList());
+        }
+
+        private void addMonthly(LocalDate date, boolean inbound, int quantity) {
+            MonthlyMutable point = monthly.computeIfAbsent(YearMonth.from(date), ignored -> new MonthlyMutable());
+            if (inbound) point.inboundQuantity += quantity;
+            else point.outboundQuantity += quantity;
+        }
+
+        private static final class MonthlyMutable {
+            private int inboundQuantity;
+            private int outboundQuantity;
         }
     }
 }

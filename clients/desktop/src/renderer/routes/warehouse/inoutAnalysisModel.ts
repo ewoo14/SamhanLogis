@@ -23,6 +23,42 @@ export interface InOutAnalysisRow extends InOutModelRow {
   readonly profitAmount: number | null
   readonly profitRate: number | null
   readonly profitRateDisplay: string
+  monthly?: readonly InOutMonthlyPoint[]
+}
+
+export interface InOutMonthlyPoint {
+  year: number
+  month: number
+  inboundQuantity: number
+  outboundQuantity: number
+}
+
+export interface LegacyAnalysisPoint {
+  month: number
+  previousYearOutbound: number
+  currentYearOutbound: number
+}
+
+export interface LegacyRankedModel {
+  modelCode: string
+  productName: string
+  outboundQuantity: number
+}
+
+export interface LegacyRecommendation {
+  text: string
+  detail: string
+}
+
+export interface LegacyAnalysis {
+  trend: LegacyAnalysisPoint[]
+  forecast: { month: number; quantity: number }[]
+  top3: LegacyRankedModel[]
+  bottom3: LegacyRankedModel[]
+  recommendations: LegacyRecommendation[]
+  previousYear: number | null
+  currentYear: number | null
+  forecastRate: number
 }
 
 export function withProfitFields(row: Omit<InOutAnalysisRow, 'profitAmount' | 'profitRate' | 'profitRateDisplay'>): InOutAnalysisRow {
@@ -41,6 +77,78 @@ export function withProfitFields(row: Omit<InOutAnalysisRow, 'profitAmount' | 'p
     profitRate,
     profitRateDisplay: profitRate === null ? '—' : `${profitRate.toFixed(2)}%`,
   }
+}
+
+/**
+ * 레거시 GAS Index.html:343-403의 분석 규칙을 월별 실측 행에 적용한다.
+ * 현재 연도는 전달된 월 점 중 가장 큰 연도, 전년은 그 직전 연도로 정한다.
+ */
+export function deriveLegacyAnalysis(rows: readonly InOutAnalysisRow[]): LegacyAnalysis {
+  const points = rows.flatMap((row) => row.monthly ?? [])
+  const years = [...new Set(points.map((point) => point.year))].sort((a, b) => a - b)
+  const currentYear = years.at(-1) ?? null
+  const previousYear = currentYear === null ? null : currentYear - 1
+  const previous = Array(12).fill(0) as number[]
+  const current = Array(12).fill(0) as number[]
+  for (const point of points) {
+    if (point.year === previousYear) previous[point.month - 1] = (previous[point.month - 1] ?? 0) + point.outboundQuantity
+    if (point.year === currentYear) current[point.month - 1] = (current[point.month - 1] ?? 0) + point.outboundQuantity
+  }
+
+  const trend = Array.from({ length: 12 }, (_, index) => ({
+    month: index + 1,
+    previousYearOutbound: previous[index] ?? 0,
+    currentYearOutbound: current[index] ?? 0,
+  }))
+  let lastMonth = -1
+  let totalPrevious = 0
+  let totalCurrent = 0
+  for (let index = 0; index < 12; index += 1) {
+    if ((current[index] ?? 0) > 0) {
+      lastMonth = index
+      totalPrevious += previous[index] ?? 0
+      totalCurrent += current[index] ?? 0
+    }
+  }
+  const forecastRate = totalPrevious > 0 ? totalCurrent / totalPrevious : 1
+  const forecast = Array.from({ length: 12 - (lastMonth + 1) }, (_, offset) => {
+    const monthIndex = lastMonth + 1 + offset
+    return { month: monthIndex + 1, quantity: Math.round((previous[monthIndex] ?? 0) * forecastRate) }
+  })
+
+  const aggregate = new Map<string, LegacyRankedModel & { inboundQuantity: number }>()
+  for (const row of rows) {
+    const existing = aggregate.get(row.modelCode)
+    if (existing) {
+      existing.inboundQuantity += row.inboundQuantity
+      existing.outboundQuantity += row.outboundQuantity
+    } else {
+      aggregate.set(row.modelCode, {
+        modelCode: row.modelCode,
+        productName: row.productName,
+        inboundQuantity: row.inboundQuantity,
+        outboundQuantity: row.outboundQuantity,
+      })
+    }
+  }
+  const sorted = [...aggregate.values()].sort((a, b) => b.outboundQuantity - a.outboundQuantity)
+  const top3 = sorted.slice(0, 3).map(({ modelCode, productName, outboundQuantity }) => ({ modelCode, productName, outboundQuantity }))
+  const bottom3 = sorted.slice(-3).reverse().map(({ modelCode, productName, outboundQuantity }) => ({ modelCode, productName, outboundQuantity }))
+  const recommendations: LegacyRecommendation[] = []
+  const first = top3.at(0)
+  if (first) {
+    const top = aggregate.get(first.modelCode)!
+    recommendations.push(top.inboundQuantity - top.outboundQuantity <= 0
+      ? { text: `${top.modelCode} 발주 권장`, detail: '출고량 대비 잔여 재고가 부족합니다.' }
+      : { text: `${top.modelCode} 주력 상품`, detail: '현재 안정적인 재고를 보유 중입니다.' })
+  }
+  if (forecastRate > 1.1) {
+    recommendations.push({ text: '전반적 수요 상승', detail: '작년 동기 대비 판매량이 증가하고 있습니다.' })
+  }
+  if (recommendations.length === 0) {
+    recommendations.push({ text: '특이사항 없음', detail: '현재 조건에 해당하는 특별한 알림이 없습니다.' })
+  }
+  return { trend, forecast, top3, bottom3, recommendations, previousYear, currentYear, forecastRate }
 }
 
 /** 상품명 문자열과 상품 정본 대분류를 동시에 보존한다. */
