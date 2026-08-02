@@ -242,7 +242,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
-        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
+        slip.withProjectInfo(req.bizCode(), req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -340,7 +340,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
-        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
+        slip.withProjectInfo(req.bizCode(), req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -809,6 +809,7 @@ public class SlipPublishService {
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
         canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
+        canonical.put("bizCode", canonicalOptionalText(req.bizCode()));
         canonical.put("partnerName", req.partnerName());
         canonical.put("shippingAddress", req.shippingAddress());
         canonical.put("deliveryAddress", req.deliveryAddress());
@@ -844,6 +845,7 @@ public class SlipPublishService {
         canonical.put("warehouseCode", req.warehouseCode());
         canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
         canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
+        canonical.put("bizCode", canonicalOptionalText(req.bizCode()));
         canonical.put("partnerName", req.partnerName());
         canonical.put("shippingAddress", req.shippingAddress());
         canonical.put("deliveryAddress", req.deliveryAddress());

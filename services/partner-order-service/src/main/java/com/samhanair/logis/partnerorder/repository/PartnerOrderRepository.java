@@ -25,6 +25,11 @@ public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID
             + "and o.confirmedAt is not null")
     LocalDateTime findLastConfirmedAtByBizCode(@Param("businessNumber") String businessNumber);
 
+    /** R16 이전 PARTNER_ORDER legacy snapshot fallback — 사업자번호를 추정하지 않는다. */
+    @Query("select max(o.confirmedAt) from PartnerOrder o "
+            + "where o.partnerCode = :partnerCode and o.confirmedAt is not null")
+    LocalDateTime findLastConfirmedAtByPartnerCode(@Param("partnerCode") String partnerCode);
+
     /**
      * soft-deleted 주문을 포함해 UUID 로 조회한다.
      *

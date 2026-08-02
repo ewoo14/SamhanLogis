@@ -31,6 +31,14 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
             + "com.samhanair.logis.slip.domain.SlipType.OUTBOUND and s.isDeleted = false")
     LocalDate findLastOutboundDateByBusinessNumber(@Param("businessNumber") String businessNumber);
 
+    /** R16 이전 PARTNER_ORDER legacy snapshot fallback — manual NULL 행은 포함하지 않는다. */
+    @Query("select max(s.slipDate) from Slip s "
+            + "where s.partnerCode = :partnerCode and s.sourceType = "
+            + "com.samhanair.logis.slip.domain.SlipSourceType.PARTNER_ORDER "
+            + "and s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND "
+            + "and s.isDeleted = false")
+    LocalDate findLastOutboundDateByPartnerOrderCode(@Param("partnerCode") String partnerCode);
+
     /** 전표번호({@code yyyy/MM/dd-N}) 단건 조회. soft-delete 제외. 중복 가능성 때문에 신규 코드는 type 지정 조회 권장. */
     Optional<Slip> findBySlipNo(String slipNo);
 

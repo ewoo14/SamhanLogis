@@ -19,6 +19,21 @@ final class PartnerAccessPolicy {
         }
     }
 
+    /** 사업자번호 조회를 우선하고 legacy partner_code fallback을 같은 안전 경계로 감싼다. */
+    static PartnerActivity readSafely(
+            PartnerActivityReader reader, String businessNumber, String legacyPartnerCode) {
+        if (legacyPartnerCode == null || legacyPartnerCode.isBlank()
+                || legacyPartnerCode.equals(businessNumber)) {
+            return readSafely(reader, businessNumber);
+        }
+        try {
+            PartnerActivity activity = reader.read(businessNumber, legacyPartnerCode);
+            return activity == null ? PartnerActivity.unavailable() : activity;
+        } catch (RuntimeException ex) {
+            return PartnerActivity.unavailable();
+        }
+    }
+
     static boolean isLongUnused(PartnerAuth auth, PartnerActivity activity, LocalDateTime now) {
         if (activity == null || !activity.isLookupComplete()) {
             return false;

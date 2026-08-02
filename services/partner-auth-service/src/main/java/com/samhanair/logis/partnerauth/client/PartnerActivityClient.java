@@ -28,8 +28,14 @@ public class PartnerActivityClient implements PartnerActivityReader {
     /** 주문 확정 시각과 출고 일자를 모두 읽어 하나의 활동 snapshot으로 합친다. */
     @Override
     public PartnerActivity read(String partnerCode) {
-        LookupResult order = get(orderClient, partnerCode);
-        LookupResult shipment = get(slipClient, partnerCode);
+        return read(partnerCode, null);
+    }
+
+    /** 사업자번호 조회 후 legacy partner_code fallback을 각 소유 서비스에 전달한다. */
+    @Override
+    public PartnerActivity read(String businessNumber, String legacyPartnerCode) {
+        LookupResult order = get(orderClient, businessNumber, legacyPartnerCode);
+        LookupResult shipment = get(slipClient, businessNumber, legacyPartnerCode);
         return new PartnerActivity(
                 order.data() == null ? null : order.data().lastActivityAt(),
                 shipment.data() == null ? null : shipment.data().lastActivityAt(),
@@ -37,10 +43,17 @@ public class PartnerActivityClient implements PartnerActivityReader {
                 shipment.succeeded());
     }
 
-    private LookupResult get(RestClient client, String partnerCode) {
+    private LookupResult get(RestClient client, String businessNumber, String legacyPartnerCode) {
         try {
             ActivityEnvelope response = client.get()
-                    .uri("/internal/partner-activity/{partnerCode}", partnerCode)
+                    .uri(uriBuilder -> {
+                        var builder = uriBuilder.path("/internal/partner-activity/{businessNumber}");
+                        if (legacyPartnerCode != null && !legacyPartnerCode.isBlank()
+                                && !legacyPartnerCode.equals(businessNumber)) {
+                            builder.queryParam("legacyPartnerCode", legacyPartnerCode);
+                        }
+                        return builder.build(businessNumber);
+                    })
                     .header(INTERNAL_TOKEN_HEADER, properties.getInternalToken() == null ? "" : properties.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {});

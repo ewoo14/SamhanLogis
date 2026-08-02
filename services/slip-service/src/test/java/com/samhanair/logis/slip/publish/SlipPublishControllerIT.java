@@ -153,6 +153,7 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
     @Test
     void publishFromPartnerOrder_returns201() throws Exception {
         Map<String, Object> body = partnerOrderBody("2026/04/15-1");
+        body.put("bizCode", "230-70-10310");
 
         MvcResult result = mockMvc.perform(post("/api/v1/slips/from-partner-order")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -170,6 +171,8 @@ class SlipPublishControllerIT extends AbstractPostgresIT {
                         .get("data").get("slipId").asText());
         org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getPartnerId())
                 .isEqualTo(RESOLVED_PARTNER_ID);
+        org.assertj.core.api.Assertions.assertThat(slipRepository.findById(slipId).orElseThrow().getBusinessNumber())
+                .isEqualTo("230-70-10310");
     }
 
     @Test

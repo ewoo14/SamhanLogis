@@ -219,6 +219,32 @@ class PartnerAuthServiceAccessSetTest {
     }
 
     @Test
+    void expirationApiUsesBusinessNumberForActivityWhenPartnerCodeDiffers() {
+        var authRepository = mock(PartnerAuthRepository.class);
+        var activityReader = mock(PartnerActivityReader.class);
+        var auth = PartnerAuth.seedFromLegacy(
+                "7777777777", "P007", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        LocalDateTime recentActivity = LocalDateTime.of(2026, 8, 1, 10, 0);
+        setCreatedAt(auth, LocalDateTime.of(2026, 6, 1, 10, 0));
+        when(authRepository.findByBizNo("7777777777")).thenReturn(Optional.of(auth));
+        when(activityReader.read("7777777777", "P007")).thenReturn(new PartnerActivity(recentActivity, null));
+
+        var authService = new PartnerAuthService(
+                authRepository,
+                mock(PartnerLoginAttemptRepository.class),
+                mock(PartnerSessionRepository.class),
+                PasswordEncoderFactories.createDelegatingPasswordEncoder(),
+                jwtProperties(),
+                mock(DcConfigClient.class),
+                mock(SmsClient.class),
+                activityReader);
+
+        assertThat(authService.getExpiration("7777777777").expiresAt())
+                .as("[DEV-SEED/단위 fixture] 만료 API도 auth 사업자번호로 활동을 조회해야 한다")
+                .isEqualTo(recentActivity.plusDays(PartnerAuth.LONG_UNUSED_DAYS));
+    }
+
+    @Test
     void checkStatusUsesRecentActivityEvenWhenLastLoginIsOlderThanThirtyDays() {
         var authRepository = mock(PartnerAuthRepository.class);
         var activityReader = mock(PartnerActivityReader.class);
@@ -227,7 +253,7 @@ class PartnerAuthServiceAccessSetTest {
                 "7777777777", "P007", encoder.encode("1357"), PartnerStatus.NEED_PW_INPUT);
         setLastLoginAt(auth, LocalDateTime.now().minusDays(90));
         when(authRepository.findByBizNo("7777777777")).thenReturn(Optional.of(auth));
-        when(activityReader.read("7777777777")).thenReturn(new PartnerActivity(
+        when(activityReader.read("7777777777", "P007")).thenReturn(new PartnerActivity(
                 LocalDateTime.now().minusDays(2), null));
 
         var jwtProperties = new PartnerAuthJwtProperties();

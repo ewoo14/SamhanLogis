@@ -52,4 +52,53 @@ class PartnerActivityClientTest {
         assertThat(activity.orderLookupSucceeded()).isFalse();
         assertThat(activity.shipmentLookupSucceeded()).isTrue();
     }
+
+    @Test
+    void legacyPartnerOrderSlipCanBeReadAfterBusinessNumberLookupMisses() {
+        server.createContext("/order/internal/partner-activity/2118712345", exchange -> {
+            String response = exchange.getRequestURI().getQuery() != null
+                    && exchange.getRequestURI().getQuery().contains("legacyPartnerCode=P-2026-0010")
+                    ? "{\"data\":{\"lastActivityAt\":\"2026-08-01T10:00:00\"}}"
+                    : "{\"data\":{\"lastActivityAt\":null}}";
+            byte[] body = response
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/order/internal/partner-activity/P-2026-0010", exchange -> {
+            byte[] body = "{\"data\":{\"lastActivityAt\":\"2026-08-01T10:00:00\"}}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/slip/internal/partner-activity/2118712345", exchange -> {
+            byte[] body = "{\"data\":{\"lastActivityAt\":null}}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.createContext("/slip/internal/partner-activity/P-2026-0010", exchange -> {
+            byte[] body = "{\"data\":{\"lastActivityAt\":null}}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+
+        var properties = new PartnerActivityClientProperties();
+        properties.setOrderUrl("http://localhost:" + server.getAddress().getPort() + "/order");
+        properties.setSlipUrl("http://localhost:" + server.getAddress().getPort() + "/slip");
+
+        PartnerActivity activity = new PartnerActivityClient(properties)
+                .read("2118712345", "P-2026-0010");
+
+        assertThat(activity.lastOrderAt()).isEqualTo(LocalDateTime.of(2026, 8, 1, 10, 0));
+    }
 }
