@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -66,7 +67,8 @@ final class LegacySetMatcher {
             return Optional.empty();
         }
 
-        int outdoorIndex = findUnusedByToken(pool, used, requiredOutdoor.modelToken(), "OUTDOOR");
+        int outdoorIndex = findUnusedByToken(pool, used, requiredOutdoor.modelToken(), "OUTDOOR",
+                indoor.scopeKey());
         if (outdoorIndex < 0) {
             return Optional.empty();
         }
@@ -76,7 +78,8 @@ final class LegacySetMatcher {
             if ("INDOOR".equals(option.kind()) || "OUTDOOR".equals(option.kind())) {
                 continue;
             }
-            int optionIndex = findUnusedByToken(pool, used, option.modelToken(), null);
+            int optionIndex = findUnusedByToken(pool, used, option.modelToken(), null,
+                    indoor.scopeKey());
             if (optionIndex >= 0 && !indexes.contains(optionIndex)) {
                 indexes.add(optionIndex);
                 expected = expected.add(option.price());
@@ -98,20 +101,26 @@ final class LegacySetMatcher {
     }
 
     private static int findUnusedByToken(List<InvoiceLine> pool, boolean[] used,
-                                         String token, String kind) {
+                                         String token, String kind, String scopeKey) {
         for (int index = 0; index < pool.size(); index++) {
             InvoiceLine line = pool.get(index);
             if (!used[index] && token.equals(line.modelToken())
-                    && (kind == null || kind.equals(line.kind()))) {
+                    && (kind == null || kind.equals(line.kind()))
+                    && Objects.equals(scopeKey, line.scopeKey())) {
                 return index;
             }
         }
         return -1;
     }
 
-    record InvoiceLine(String modelToken, String kind, BigDecimal unitPrice, String partnerCode) {
+    record InvoiceLine(String modelToken, String kind, BigDecimal unitPrice,
+                       String partnerCode, String scopeKey) {
         InvoiceLine(String modelToken, String kind, BigDecimal unitPrice) {
-            this(modelToken, kind, unitPrice, null);
+            this(modelToken, kind, unitPrice, null, null);
+        }
+
+        InvoiceLine(String modelToken, String kind, BigDecimal unitPrice, String partnerCode) {
+            this(modelToken, kind, unitPrice, partnerCode, partnerCode);
         }
     }
 

@@ -76,4 +76,32 @@ class LegacySetMatcherTest {
 
         assertThat(matcher.findMatches(pool, candidates, Map.of())).hasSize(2);
     }
+
+    @Test
+    void neverConsumesAnOutdoorFromAnotherPartnerScope() {
+        LegacySetMatcher matcher = new LegacySetMatcher();
+        List<LegacySetMatcher.InvoiceLine> pool = List.of(
+                new LegacySetMatcher.InvoiceLine("INDOOR", "INDOOR", new BigDecimal("100"), "P1"),
+                new LegacySetMatcher.InvoiceLine("OUTDOOR", "OUTDOOR", new BigDecimal("200"), "P2"));
+        List<LegacySetMatcher.SetCandidate> candidates = List.of(
+                new LegacySetMatcher.SetCandidate("SET", List.of(
+                        new LegacySetMatcher.Component("INDOOR", "INDOOR", new BigDecimal("100")),
+                        new LegacySetMatcher.Component("OUTDOOR", "OUTDOOR", new BigDecimal("200")))));
+
+        assertThat(matcher.findMatches(pool, candidates, Map.of())).isEmpty();
+    }
+
+    @Test
+    void neverConsumesAComponentFromAnotherDocumentScope() {
+        LegacySetMatcher matcher = new LegacySetMatcher();
+        List<LegacySetMatcher.InvoiceLine> pool = List.of(
+                new LegacySetMatcher.InvoiceLine("INDOOR", "INDOOR", new BigDecimal("100"), "P1", "D1"),
+                new LegacySetMatcher.InvoiceLine("OUTDOOR", "OUTDOOR", new BigDecimal("200"), "P1", "D2"));
+        List<LegacySetMatcher.SetCandidate> candidates = List.of(
+                new LegacySetMatcher.SetCandidate("SET", List.of(
+                        new LegacySetMatcher.Component("INDOOR", "INDOOR", new BigDecimal("100")),
+                        new LegacySetMatcher.Component("OUTDOOR", "OUTDOOR", new BigDecimal("200")))));
+
+        assertThat(matcher.findMatches(pool, candidates, Map.of())).isEmpty();
+    }
 }
