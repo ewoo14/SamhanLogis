@@ -365,5 +365,11 @@ public class DiscountRevalidator {
             Status status,
             BigDecimal releasePrice,
             BigDecimal deliveryPrice) {
+
+        /** 레거시 riUsage가 주는 확인 판정을 보존하면서 계산 참고값은 유지한다. */
+        public Revalidation withVerified(Boolean value) {
+            return new Revalidation(value, expectedRate, actualRate, discountAmount,
+                    status, releasePrice, deliveryPrice);
+        }
     }
 }

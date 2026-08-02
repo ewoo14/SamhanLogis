@@ -19,6 +19,12 @@ final class LegacySetMatcher {
     List<Match> findMatches(List<InvoiceLine> pool,
                             List<SetCandidate> candidates,
                             Map<String, DiscountRevalidator.GlobalDiscount> discountsByPartnerCode) {
+        return findMatchesWithUsage(pool, candidates, discountsByPartnerCode).matches();
+    }
+
+    MatchingResult findMatchesWithUsage(List<InvoiceLine> pool,
+                                        List<SetCandidate> candidates,
+                                        Map<String, DiscountRevalidator.GlobalDiscount> discountsByPartnerCode) {
         Map<String, List<SetCandidate>> candidatesByIndoor = new LinkedHashMap<>();
         for (SetCandidate candidate : candidates) {
             candidate.indoorToken().ifPresent(token ->
@@ -44,7 +50,21 @@ final class LegacySetMatcher {
                 }
             }
         }
-        return matches;
+        Map<String, MutableUsage> usage = new LinkedHashMap<>();
+        for (int index = 0; index < pool.size(); index++) {
+            String sourceKey = pool.get(index).sourceKey();
+            if (sourceKey == null) {
+                continue;
+            }
+            MutableUsage row = usage.computeIfAbsent(sourceKey, ignored -> new MutableUsage());
+            row.total++;
+            if (used[index]) {
+                row.used++;
+            }
+        }
+        Map<String, Usage> snapshot = new LinkedHashMap<>();
+        usage.forEach((key, value) -> snapshot.put(key, new Usage(value.total, value.used)));
+        return new MatchingResult(matches, snapshot);
     }
 
     Optional<String> findFirstCompleteSet(List<InvoiceLine> pool, List<SetCandidate> candidates) {
@@ -114,13 +134,18 @@ final class LegacySetMatcher {
     }
 
     record InvoiceLine(String modelToken, String kind, BigDecimal unitPrice,
-                       String partnerCode, String scopeKey) {
+                       String partnerCode, String scopeKey, String sourceKey) {
         InvoiceLine(String modelToken, String kind, BigDecimal unitPrice) {
-            this(modelToken, kind, unitPrice, null, null);
+            this(modelToken, kind, unitPrice, null, null, null);
         }
 
         InvoiceLine(String modelToken, String kind, BigDecimal unitPrice, String partnerCode) {
-            this(modelToken, kind, unitPrice, partnerCode, partnerCode);
+            this(modelToken, kind, unitPrice, partnerCode, partnerCode, null);
+        }
+
+        InvoiceLine(String modelToken, String kind, BigDecimal unitPrice,
+                    String partnerCode, String scopeKey) {
+            this(modelToken, kind, unitPrice, partnerCode, scopeKey, null);
         }
     }
 
@@ -134,4 +159,13 @@ final class LegacySetMatcher {
     }
 
     record Match(String setName, List<Integer> poolIndexes) {}
+
+    record MatchingResult(List<Match> matches, Map<String, Usage> usage) {}
+
+    record Usage(int total, int used) {}
+
+    private static final class MutableUsage {
+        private int total;
+        private int used;
+    }
 }

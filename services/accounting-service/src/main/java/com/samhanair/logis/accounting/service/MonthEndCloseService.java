@@ -237,6 +237,7 @@ public class MonthEndCloseService {
                     ti.getTotalAmount()));
             for (TaxInvoiceLine line : ti.getLines()) {
                 accumulateProduct(byModel, setPool, ti.getPartnerCode(), ti.getTaxInvoiceNo(),
+                        ti.getTaxInvoiceNo() + "#" + line.getLineNo(),
                         line.getItemName(), line.getModelName(),
                         line.getCategoryKey(), line.getQuantity(), line.getSupplyAmount(),
                         line.getVatAmount());
@@ -283,7 +284,8 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (SalesAccountingSlipLine line : slip.getLines()) {
-                accumulateSalesLine(byModel, setPool, slip.getPartnerCode(), slip.getSlipNo(), line);
+                accumulateSalesLine(byModel, setPool, slip.getPartnerCode(), slip.getSlipNo(),
+                        slip.getSlipNo() + "#" + line.getLineNo(), line);
             }
         }
         return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
@@ -318,6 +320,7 @@ public class MonthEndCloseService {
                     slip.getTotalAmount()));
             for (PurchaseAccountingSlipLine line : slip.getLines()) {
                 accumulateProduct(byModel, setPool, slip.getPartnerCode(), slip.getSlipNo(),
+                        slip.getSlipNo() + "#" + line.getLineNo(),
                         line.getProductName(), null, null, line.getQty(),
                         line.getSupplyAmount(), line.getVatAmount());
             }
@@ -354,6 +357,7 @@ public class MonthEndCloseService {
 
     private static void accumulateProduct(Map<AxisKey, ModelAccumulator> byModel,
                                           List<SetPoolLine> setPool, String partnerCode, String scopeKey,
+                                          String sourceKey,
                                           String productName, String modelName, String categoryKey,
                                           BigDecimal quantity,
                                           BigDecimal supplyAmount,
@@ -367,16 +371,19 @@ public class MonthEndCloseService {
         acc.vatAmount = acc.vatAmount.add(nullToZero(vatAmount));
         if (modelName != null && !modelName.isBlank()) {
             setPool.add(new SetPoolLine(ModelTokenExtractor.extractModelTokenOrNull(modelName),
-                    actualUnitPrice, quantity, partnerCode, scopeKey));
+                    actualUnitPrice, quantity, partnerCode, scopeKey, sourceKey,
+                    GasCategoryAxis.fromScheduleKey(categoryKey)));
         }
     }
 
     private static void accumulateSalesLine(Map<AxisKey, ModelAccumulator> byModel,
                                             List<SetPoolLine> setPool, String partnerCode, String scopeKey,
+                                            String sourceKey,
                                             SalesAccountingSlipLine line) {
         if (line.getCategoryKey() != null || line.getModelName() != null
                 || line.getAllocations().isEmpty()) {
-            accumulateProduct(byModel, setPool, partnerCode, scopeKey, line.getProductName(), line.getModelName(),
+            accumulateProduct(byModel, setPool, partnerCode, scopeKey, sourceKey,
+                    line.getProductName(), line.getModelName(),
                     line.getCategoryKey(), line.getQty(), line.getSupplyAmount(), line.getVatAmount());
             return;
         }
@@ -385,7 +392,8 @@ public class MonthEndCloseService {
                     || line.getLineTotal().compareTo(BigDecimal.ZERO) == 0
                     ? BigDecimal.ZERO
                     : allocation.getAllocatedAmount().divide(line.getLineTotal(), 10, RoundingMode.HALF_UP);
-            accumulateProduct(byModel, setPool, partnerCode, scopeKey, line.getProductName(), allocation.getModelName(),
+            accumulateProduct(byModel, setPool, partnerCode, scopeKey, sourceKey,
+                    line.getProductName(), allocation.getModelName(),
                     allocation.getCategoryKey(), allocation.getAllocatedQty(),
                     line.getSupplyAmount().multiply(ratio), line.getVatAmount().multiply(ratio));
         }
@@ -464,8 +472,7 @@ public class MonthEndCloseService {
                 globalDiscountsByPartnerCode.put(partnerCode, DiscountRevalidator.GlobalDiscount.unavailable());
             }
         }
-        Map<ParentModelKey, String> parentSetNames = resolveMatchedSetNames(setPool,
-                globalDiscountsByPartnerCode);
+        SetResolution setResolution = resolveMatchedSetNames(setPool, globalDiscountsByPartnerCode);
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
         for (Map.Entry<AxisKey, ModelAccumulator> e : byModel.entrySet()) {
@@ -485,7 +492,7 @@ public class MonthEndCloseService {
                     ? ModelTokenExtractor.extractModelToken(axisKey.label()) : axisKey.modelToken();
             // 레거시 GAS 는 완성 세트에 매칭된 부모 세트명으로 옵션 정액 종류를 선택한다.
             // 부모 세트가 해소되지 않는 일반/미매칭 행은 기존 modelToken fallback을 보존한다.
-            String optionToken = parentSetNames.getOrDefault(
+            String optionToken = setResolution.parentSetNames().getOrDefault(
                     new ParentModelKey(axisKey.partnerCode(), modelToken), modelToken);
             // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
             // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
@@ -500,6 +507,11 @@ public class MonthEndCloseService {
                     globalDiscountsByPartnerCode.getOrDefault(axisKey.partnerCode(),
                             DiscountRevalidator.GlobalDiscount.unavailable()),
                     labelMatch.status());
+            Boolean riUsageVerified = riUsageDecision(axisKey, modelToken, setPool,
+                    setResolution.usage(), setResolution.catalog());
+            if (riUsageVerified != null) {
+                revalidation = revalidation.withVerified(riUsageVerified);
+            }
             products.add(new DailyProductLine(
                     axisKey.label(),
                     // 표시 전용: 실 모델코드만(운임·서비스 등 미매치는 null→FE '—', 품명 중복 방지).
@@ -560,14 +572,14 @@ public class MonthEndCloseService {
      * 레거시 Code.js:590-652와 동일하게 일마감 pool 전체를 세트 후보와 대조한다.
      * 구성품 단건 parentSetModelCode는 후보가 완성되지 않은 경우 사용하지 않는다.
      */
-    private Map<ParentModelKey, String> resolveMatchedSetNames(
+    private SetResolution resolveMatchedSetNames(
             List<SetPoolLine> setPool,
             Map<String, DiscountRevalidator.GlobalDiscount> globalDiscountsByPartnerCode) {
         List<EstimateComponent> catalog = new ArrayList<>();
         catalog.addAll(productClient.estimateComponents("SINGLE_SET"));
         catalog.addAll(productClient.estimateComponents("COMMERCIAL_MULTI"));
         if (catalog.isEmpty()) {
-            return Map.of();
+            return new SetResolution(Map.of(), Map.of(), catalog);
         }
         Map<String, List<EstimateComponent>> grouped = catalog.stream()
                 .filter(c -> c.setModelCode() != null && c.componentModelCode() != null)
@@ -583,16 +595,45 @@ public class MonthEndCloseService {
         List<LegacySetMatcher.InvoiceLine> pool = setPool.stream()
                 .flatMap(line -> expandPool(line, catalog).stream())
                 .toList();
-        List<LegacySetMatcher.Match> matches = new LegacySetMatcher().findMatches(
+        LegacySetMatcher.MatchingResult matching = new LegacySetMatcher().findMatchesWithUsage(
                 pool, candidates, globalDiscountsByPartnerCode);
         Map<ParentModelKey, String> result = new LinkedHashMap<>();
-        for (LegacySetMatcher.Match match : matches) {
+        for (LegacySetMatcher.Match match : matching.matches()) {
             for (Integer index : match.poolIndexes()) {
                 LegacySetMatcher.InvoiceLine line = pool.get(index);
                 result.putIfAbsent(new ParentModelKey(line.partnerCode(), line.modelToken()), match.setName());
             }
         }
-        return result;
+        return new SetResolution(result, matching.usage(), catalog);
+    }
+
+    private static Boolean riUsageDecision(AxisKey axis, String modelToken,
+                                           List<SetPoolLine> setPool,
+                                           Map<String, LegacySetMatcher.Usage> usage,
+                                           List<EstimateComponent> catalog) {
+        if (axis.axis() != GasCategoryAxis.SINGLE || modelToken == null) {
+            return null;
+        }
+        List<SetPoolLine> lines = setPool.stream()
+                .filter(line -> line.axis() == GasCategoryAxis.SINGLE)
+                .filter(line -> modelToken.equals(line.modelToken()))
+                .filter(line -> java.util.Objects.equals(axis.partnerCode(), line.partnerCode()))
+                .toList();
+        if (lines.isEmpty()) {
+            return null;
+        }
+        Map<String, String> kindByToken = catalog.stream().collect(java.util.stream.Collectors.toMap(
+                EstimateComponent::componentModelCode, EstimateComponent::kind, (left, right) -> left));
+        String kind = kindByToken.getOrDefault(modelToken, "ACCESSORY");
+        java.util.Set<String> scopes = lines.stream().map(SetPoolLine::scopeKey)
+                .collect(java.util.stream.Collectors.toSet());
+        List<RiUsageDecision.Row> decisionRows = setPool.stream()
+                .filter(line -> line.axis() == GasCategoryAxis.SINGLE)
+                .filter(line -> scopes.contains(line.scopeKey()))
+                .map(line -> new RiUsageDecision.Row(line.sourceKey(), line.scopeKey(), line.modelToken(),
+                        kindByToken.getOrDefault(line.modelToken(), "ACCESSORY")))
+                .toList();
+        return RiUsageDecision.decide(modelToken, kind, decisionRows, usage);
     }
 
     private static List<LegacySetMatcher.InvoiceLine> expandPool(
@@ -606,7 +647,7 @@ public class MonthEndCloseService {
         List<LegacySetMatcher.InvoiceLine> expanded = new ArrayList<>(quantity);
         for (int i = 0; i < quantity; i++) {
             expanded.add(new LegacySetMatcher.InvoiceLine(line.modelToken(), kind,
-                    line.unitPrice(), line.partnerCode(), line.scopeKey()));
+                    line.unitPrice(), line.partnerCode(), line.scopeKey(), line.sourceKey()));
         }
         return expanded;
     }
@@ -619,7 +660,12 @@ public class MonthEndCloseService {
     private record ParentModelKey(String partnerCode, String modelToken) {}
 
     private record SetPoolLine(String modelToken, BigDecimal unitPrice, BigDecimal quantity,
-                               String partnerCode, String scopeKey) {}
+                               String partnerCode, String scopeKey, String sourceKey,
+                               GasCategoryAxis axis) {}
+
+    private record SetResolution(Map<ParentModelKey, String> parentSetNames,
+                                 Map<String, LegacySetMatcher.Usage> usage,
+                                 List<EstimateComponent> catalog) {}
 
     private static ProductLabelMatch effectiveProductMatch(
             AxisKey axis, Map<String, ProductLabelMatch> labelMatches,
