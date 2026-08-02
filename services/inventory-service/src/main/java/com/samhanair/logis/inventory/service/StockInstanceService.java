@@ -453,8 +453,13 @@ public class StockInstanceService {
      */
     @Transactional(readOnly = true)
     public List<StockInstance> fifoCandidates(String productCode) {
-        return repo.findByProductCodeAndStatusOrderByReceivedAtAsc(
-                productCode, StockInstanceStatus.AVAILABLE);
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        List<StockInstance> byProductId = repo.findByProductIdAndStatusOrderByReceivedAtAsc(
+                product.id(), StockInstanceStatus.AVAILABLE);
+        return byProductId.isEmpty()
+                ? repo.findByProductCodeAndStatusOrderByReceivedAtAsc(
+                        productCode, StockInstanceStatus.AVAILABLE)
+                : byProductId;
     }
 
     /**
@@ -466,8 +471,14 @@ public class StockInstanceService {
      */
     @Transactional(readOnly = true)
     public List<StockInstance> recallCandidates(String partnerCode, String productCode) {
-        return repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
-                partnerCode, productCode, StockInstanceStatus.SHIPPED);
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        List<StockInstance> byProductId = repo
+                .findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAsc(
+                        partnerCode, product.id(), StockInstanceStatus.SHIPPED);
+        return byProductId.isEmpty()
+                ? repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
+                        partnerCode, productCode, StockInstanceStatus.SHIPPED)
+                : byProductId;
     }
 
     /**

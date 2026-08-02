@@ -24,6 +24,10 @@ import org.springframework.data.repository.query.Param;
  */
 public interface StockInstanceRepository extends JpaRepository<StockInstance, UUID> {
 
+    /** 모델명 전환 이후 product UUID로 AVAILABLE FIFO 후보를 조회한다. */
+    List<StockInstance> findByProductIdAndStatusOrderByReceivedAtAsc(
+            UUID productId, StockInstanceStatus status);
+
     /**
      * FIFO 소진 후보 — product_code 그룹의 지정 상태 인스턴스를 received_at ASC 순으로 조회.
      * 주로 {@link StockInstanceStatus#AVAILABLE} 상태 조회에 사용.
@@ -101,6 +105,10 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      */
     List<StockInstance> findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
             String outboundPartnerCode, String productCode, StockInstanceStatus status);
+
+    /** 모델명 전환 이후 product UUID로 SHIPPED 역-FIFO 후보를 조회한다. */
+    List<StockInstance> findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAsc(
+            String outboundPartnerCode, UUID productId, StockInstanceStatus status);
 
     /**
      * S4 회수 역-FIFO 후보 — 후보 행을 {@code SELECT FOR UPDATE} 로 잠가 교차 전표 중복 회수를 방지한다.
