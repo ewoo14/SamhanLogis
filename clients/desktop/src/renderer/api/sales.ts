@@ -1063,7 +1063,7 @@ export async function previewPartnerAccess(
   unusedDays: number,
 ): Promise<PartnerAccessPreview> {
   const res = await apiClient.get<ApiEnvelope<PartnerAccessPreview>>(
-    '/api/v1/partner-approvals/access-preview',
+    '/api/v1/partner-approvals/access-preview/report',
     { params: { unusedDays } },
   )
   return res.data.data

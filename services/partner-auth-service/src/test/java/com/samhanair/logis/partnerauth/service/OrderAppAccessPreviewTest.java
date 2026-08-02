@@ -30,6 +30,29 @@ class OrderAppAccessPreviewTest {
     }
 
     @Test
+    void legacyBoundaryIsActiveAtExactlyThirtyDaysAndExpiresOnlyAfterIt() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 3, 0, 0);
+        PartnerAuth exactlyThirtyDays = PartnerAuth.seedFromLegacy(
+                "1010101010", "P-30", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(exactlyThirtyDays, now.minusDays(30));
+        PartnerActivity noBusinessActivity = new PartnerActivity(null, null);
+
+        PartnerAuth oneSecondOlder = PartnerAuth.seedFromLegacy(
+                "2020202020", "P-30-PLUS-1S", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(oneSecondOlder, now.minusDays(30).minusSeconds(1));
+        PartnerAuth twentyNineDays = PartnerAuth.seedFromLegacy(
+                "3030303030", "P-29", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(twentyNineDays, now.minusDays(29));
+
+        assertThat(PartnerAccessPolicy.isPreviewCandidate(exactlyThirtyDays, noBusinessActivity, now)).isFalse();
+        assertThat(PartnerAccessPolicy.isAuthenticationLongUnused(exactlyThirtyDays, noBusinessActivity, now)).isFalse();
+        assertThat(PartnerAccessPolicy.isPreviewCandidate(oneSecondOlder, noBusinessActivity, now)).isTrue();
+        assertThat(PartnerAccessPolicy.isAuthenticationLongUnused(oneSecondOlder, noBusinessActivity, now)).isTrue();
+        assertThat(PartnerAccessPolicy.isPreviewCandidate(twentyNineDays, noBusinessActivity, now)).isFalse();
+        assertThat(PartnerAccessPolicy.isAuthenticationLongUnused(twentyNineDays, noBusinessActivity, now)).isFalse();
+    }
+
+    @Test
     void previewExposesDeferredLookupInsteadOfSilentlyReturningNoCandidates() {
         PartnerAuthRepository repository = mock(PartnerAuthRepository.class);
         DcConfigClient dcConfigClient = mock(DcConfigClient.class);

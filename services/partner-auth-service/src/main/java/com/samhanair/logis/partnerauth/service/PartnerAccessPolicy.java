@@ -24,13 +24,13 @@ final class PartnerAccessPolicy {
             return false;
         }
         LocalDateTime expiresAt = authenticationExpirationAt(auth, activity);
-        return expiresAt != null && !expiresAt.isAfter(now);
+        return expiresAt != null && expiresAt.isBefore(now);
     }
 
     /** 실제 인증도 미리보기와 같은 레거시 주문·출고 기준을 사용한다. */
     static boolean isAuthenticationLongUnused(PartnerAuth auth, PartnerActivity activity, LocalDateTime now) {
         LocalDateTime expiresAt = authenticationExpirationAt(auth, activity);
-        return expiresAt != null && !expiresAt.isAfter(now);
+        return expiresAt != null && expiresAt.isBefore(now);
     }
 
     /** 실제 상태조회·로그인·만료 API가 공유하는 만료 시각. */
