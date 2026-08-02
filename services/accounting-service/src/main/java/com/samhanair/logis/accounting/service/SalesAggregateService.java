@@ -108,19 +108,14 @@ public class SalesAggregateService {
         // 선택 거래처의 매출 표시는 journals의 고아/구 legacy 분개가 아니라
         // 원장에 실제로 실리는 출고 판매전표의 품목 합계를 사용한다.
         if (filterPartnerId != null) {
-            List<PartnerLedgerSalesClient.Sale> ledgerSales =
-                    partnerLedgerSalesClient.find(from, to, null, filterPartnerId);
-            if (!ledgerSales.isEmpty()) {
-                PartnerAggregate aggregate = byPartner.computeIfAbsent(
-                        filterPartnerId, k -> new PartnerAggregate());
-                aggregate.salesTotal = ledgerSales.stream()
-                        .flatMap(sale -> sale.lines().stream())
-                        .map(PartnerLedgerSalesClient.Line::lineAmount)
-                        .filter(java.util.Objects::nonNull)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+            applyLedgerSalesTotal(from, to, byPartner, filterPartnerId);
+        } else {
+            for (UUID partnerId : byPartner.keySet()) {
+                applyLedgerSalesTotal(from, to, byPartner, partnerId);
             }
         }
 
+        // 전체 집계에서도 각 거래처별 출고 판매전표 집합을 사용해 선택 조회와 같은 원천을 유지한다.
         // #831 B-1: 무필터 뷰의 표시명 enrichment. partner-service 5xx/timeout(UNAVAILABLE)을
         // 조용히 빈 맵으로 삼켜 전 거래처 "-" 로 200 위장하지 않는다 — 명시 502로 fail-closed.
         // (거래처 id 중 일부만 못 찾는 부분 성공은 FOUND 로 유지되어 여기서 예외가 나지 않는다.)
@@ -157,6 +152,21 @@ public class SalesAggregateService {
                     to));
         }
         return rows;
+    }
+
+    private void applyLedgerSalesTotal(LocalDate from, LocalDate to,
+                                       Map<UUID, PartnerAggregate> byPartner, UUID partnerId) {
+        List<PartnerLedgerSalesClient.Sale> ledgerSales =
+                partnerLedgerSalesClient.find(from, to, null, partnerId);
+        if (!ledgerSales.isEmpty()) {
+            PartnerAggregate aggregate = byPartner.computeIfAbsent(
+                    partnerId, k -> new PartnerAggregate());
+            aggregate.salesTotal = ledgerSales.stream()
+                    .flatMap(sale -> sale.lines().stream())
+                    .map(PartnerLedgerSalesClient.Line::lineAmount)
+                    .filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
     }
 
     private static BigDecimal nullToZero(BigDecimal v) {

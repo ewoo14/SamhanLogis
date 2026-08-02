@@ -227,6 +227,27 @@ class SalesAggregateServiceTest {
         assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("12276000");
     }
 
+    @Test
+    void unfilteredAggregateUsesOutboundLedgerSalesForEachPartner() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerIdsBatch(any()))
+                .thenReturn(Map.of(partnerId, new PartnerSummary(partnerId, "P-001", "거래처", "321", "")));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                        BigDecimal.ZERO, new BigDecimal("20000000"))));
+        when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
+                .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
+                        "2026/03/08-1", LocalDate.of(2026, 3, 8), "INSPECTING",
+                        "", "거래처", null,
+                        List.of(new PartnerLedgerSalesClient.Line("A", null, 1,
+                                new BigDecimal("12276000"), new BigDecimal("12276000"))))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("12276000");
+    }
+
     /** Test stub for PartnerAccountTotal projection. */
     record TestPartnerAccountTotal(UUID partnerId, String accountCode,
                                    BigDecimal debitTotal, BigDecimal creditTotal)
