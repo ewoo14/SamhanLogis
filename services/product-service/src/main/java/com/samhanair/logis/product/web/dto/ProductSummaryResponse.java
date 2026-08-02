@@ -45,7 +45,23 @@ public record ProductSummaryResponse(
         String discountFlags,
         BigDecimal releasePrice,
         BigDecimal deliveryPrice,
-        Boolean hasVariableDiscount) {
+        Boolean hasVariableDiscount,
+        String parentSetModelCode) {
+
+    /** parentSetModelCode 추가 전 canonical 호출 호환 생성자. */
+    public ProductSummaryResponse(UUID id, String name, String modelName, String productCode,
+                                  UUID categoryId, BigDecimal sellingPrice, ProductStatus status,
+                                  boolean serialManaged, boolean goods, String modelCode, String productType,
+                                  UsageScope usageScope, EstimateCategory estimateCategory,
+                                  boolean usageScopeManual, Integer displayOrder, String categoryKey,
+                                  BigDecimal fixedDiscountRate, String discountFlags,
+                                  BigDecimal releasePrice, BigDecimal deliveryPrice,
+                                  Boolean hasVariableDiscount) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, goods,
+                modelCode, productType, usageScope, estimateCategory, usageScopeManual, displayOrder,
+                categoryKey, fixedDiscountRate, discountFlags, releasePrice, deliveryPrice,
+                hasVariableDiscount, null);
+    }
 
     /**
      * Backward-compatible 생성자 — categoryKey 추가 전 canonical 호출 호환.
@@ -120,13 +136,13 @@ public record ProductSummaryResponse(
                 p.getId(),
                 p.getName(),
                 p.getModelName(),
-                p.getProductCode(),
+                exposedProductCode(p),
                 p.getCategory().getId(),
                 p.getSellingPrice(),
                 p.getStatus(),
                 p.getCategory().isSerialManaged(),
                 p.getGoodsType() == ProductGoodsType.GOODS,
-                p.getModelCode(),
+                p.getModelCode() == null || p.getModelCode().isBlank() ? p.getModelName() : p.getModelCode(),
                 p.getProductType() == null ? null : p.getProductType().name(),
                 p.getUsageScope(),
                 null,
@@ -137,7 +153,30 @@ public record ProductSummaryResponse(
                 p.getDiscountFlags(),
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
-                p.getHasVariableDiscount());
+                p.getHasVariableDiscount(),
+                null);
+    }
+
+    /** 내부 소비자가 구성품의 레거시 세트 매칭명을 함께 보존할 때 사용하는 변환. */
+    public static ProductSummaryResponse from(Product p, String parentSetModelCode) {
+        ProductSummaryResponse base = from(p);
+        return new ProductSummaryResponse(
+                base.id(), base.name(), base.modelName(), base.productCode(), base.categoryId(),
+                base.sellingPrice(), base.status(), base.serialManaged(), base.goods(), base.modelCode(),
+                base.productType(), base.usageScope(), base.estimateCategory(), base.usageScopeManual(),
+                base.displayOrder(), base.categoryKey(), base.fixedDiscountRate(), base.discountFlags(),
+                base.releasePrice(), base.deliveryPrice(), base.hasVariableDiscount(), parentSetModelCode);
+    }
+
+    /**
+     * 사용자 노출 품목코드. 사용자 계약상 노출값은 Product의 모델명이다.
+     * 순번코드 alias 조회는 {@link com.samhanair.logis.product.service.ProductService}가 담당한다.
+     *
+     * @param p 품목
+     * @return 모델명
+     */
+    private static String exposedProductCode(Product p) {
+        return p.getModelName();
     }
 
     private static String categoryKey(ProductCategory productCategory) {

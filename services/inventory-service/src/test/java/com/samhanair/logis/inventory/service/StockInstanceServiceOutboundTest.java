@@ -110,6 +110,32 @@ class StockInstanceServiceOutboundTest {
     }
 
     @Test
+    @DisplayName("reserveBatch는 노출 모델명과 다른 legacy 저장 키를 productId로 예약한다")
+    void reserveBatch_usesProductIdWhenExposedCodeDiffersFromStoredLegacyCode() {
+        UUID productId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance legacyKeyInstance = instance(productId, "010001", warehouseId,
+                LocalDateTime.of(2026, 5, 30, 9, 0));
+        ProductSummary summary = new ProductSummary(productId, "에어컨", "AR05TXEAAWKNEU-01",
+                "AR05TXEAAWKNEU-01", UUID.randomUUID(), BigDecimal.ONE, "ACTIVE", true);
+        when(productClient.requireExistsByCode("AR05TXEAAWKNEU-01")).thenReturn(summary);
+        when(repo.countByOutboundSlipNoAndProductIdAndStatus(
+                "2026/06/23-1", productId, StockInstanceStatus.RESERVED)).thenReturn(0L);
+        when(repo.findByProductIdAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                productId, warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, 1)))
+                .thenReturn(List.of(legacyKeyInstance));
+        when(repo.findByOutboundSlipNoAndProductIdAndStatus(
+                "2026/06/23-1", productId, StockInstanceStatus.RESERVED))
+                .thenReturn(List.of(legacyKeyInstance));
+
+        List<StockInstance> result = service.reserveBatch(
+                "AR05TXEAAWKNEU-01", warehouseId, 1, "2026/06/23-1");
+
+        assertThat(result).containsExactly(legacyKeyInstance);
+        assertThat(legacyKeyInstance.getStatus()).isEqualTo(StockInstanceStatus.RESERVED);
+    }
+
+    @Test
     @DisplayName("reserveBatch는 이미 목표 수량 이상 예약된 경우 추가 예약하지 않는다")
     void reserveBatch_isIdempotentWhenAlreadyReserved() {
         UUID warehouseId = UUID.randomUUID();
@@ -348,6 +374,45 @@ class StockInstanceServiceOutboundTest {
         assertThatThrownBy(() -> service.resellBatch("2026/06/03-8", "AC-S4", 1, "tester"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("재판매 대상 부족");
+    }
+
+    @Test
+    @DisplayName("fifoCandidates??硫?紐⑤뜽紐낃낵 ?ㅻⅨ legacy ????몄텧?섏뼱??")
+    void fifoCandidates_usesProductIdWhenExposedCodeDiffersFromStoredLegacyCode() {
+        UUID productId = UUID.randomUUID();
+        StockInstance legacyRow = instance(productId, "010001", UUID.randomUUID(),
+                LocalDateTime.of(2026, 8, 1, 9, 0));
+        ProductSummary summary = product(productId, "AR05TXEAAWKNEU-01", true);
+        when(productClient.requireExistsByCode("AR05TXEAAWKNEU-01")).thenReturn(summary);
+        when(repo.findByProductIdAndStatusOrderByReceivedAtAsc(productId, StockInstanceStatus.AVAILABLE))
+                .thenReturn(List.of(legacyRow));
+
+        List<StockInstance> result = service.fifoCandidates("AR05TXEAAWKNEU-01");
+
+        assertThat(result).containsExactly(legacyRow);
+        verify(repo, never()).findByProductCodeAndStatusOrderByReceivedAtAsc(
+                "AR05TXEAAWKNEU-01", StockInstanceStatus.AVAILABLE);
+    }
+
+    @Test
+    @DisplayName("recallCandidates??硫?紐⑤뜽紐낃낵 ?ㅻⅨ legacy 2???몄텧?섏뼱??")
+    void recallCandidates_usesProductIdWhenExposedCodeDiffersFromStoredLegacyCode() {
+        UUID productId = UUID.randomUUID();
+        StockInstance latest = shipped(productId, "010001", UUID.randomUUID(),
+                LocalDateTime.of(2026, 8, 1, 11, 0), "PARTNER-1000");
+        StockInstance older = shipped(productId, "010001", UUID.randomUUID(),
+                LocalDateTime.of(2026, 8, 1, 10, 0), "PARTNER-1000");
+        ProductSummary summary = product(productId, "AR05TXEAAWKNEU-01", true);
+        when(productClient.requireExistsByCode("AR05TXEAAWKNEU-01")).thenReturn(summary);
+        when(repo.findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAsc(
+                "PARTNER-1000", productId, StockInstanceStatus.SHIPPED))
+                .thenReturn(List.of(latest, older));
+
+        List<StockInstance> result = service.recallCandidates("PARTNER-1000", "AR05TXEAAWKNEU-01");
+
+        assertThat(result).containsExactly(latest, older);
+        verify(repo, never()).findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
+                "PARTNER-1000", "AR05TXEAAWKNEU-01", StockInstanceStatus.SHIPPED);
     }
 
     private ProductSummary product(UUID productId, String productCode, boolean serialManaged) {

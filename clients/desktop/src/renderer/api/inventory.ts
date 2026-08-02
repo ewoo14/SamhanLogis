@@ -311,6 +311,35 @@ export interface ListStockBalancesOptions {
   size?: number
 }
 
+/** 입출고 분석 모델코드 집계 응답 — UUID는 포함하지 않는다. */
+export interface InOutAnalysisRow {
+  modelCode: string
+  productName: string
+  categoryKey: string | null
+  inboundQuantity: number
+  outboundQuantity: number
+  purchaseAmount: number | null
+  salesAmount: number
+  profitAmount: number | null
+  profitRate: number | null
+  monthly: InOutMonthlyPoint[]
+}
+
+export interface InOutMonthlyPoint {
+  year: number
+  month: number
+  inboundQuantity: number
+  outboundQuantity: number
+}
+
+/** 확정 입출고 기간별 모델코드 집계 조회. */
+export async function listInOutAnalysis(dateFrom: string, dateTo: string): Promise<InOutAnalysisRow[]> {
+  const res = await apiClient.get<ApiEnvelope<InOutAnalysisRow[]>>('/slips/query/inout-analysis', {
+    params: { dateFrom, dateTo },
+  })
+  return res.data.data
+}
+
 /**
  * 재고 현황 목록 조회 — 가용/실재고/예약 3구분.
  *

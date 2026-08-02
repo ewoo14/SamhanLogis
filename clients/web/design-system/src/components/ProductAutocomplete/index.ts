@@ -1,2 +1,2 @@
-export { ProductAutocomplete, default } from './ProductAutocomplete'
-export type { ProductAutocompleteProps, ProductOption } from './ProductAutocomplete'
+export { ProductAutocomplete, ProductMultiSelectAutocomplete, default } from './ProductAutocomplete'
+export type { ProductAutocompleteProps, ProductMultiSelectAutocompleteProps, ProductOption } from './ProductAutocomplete'

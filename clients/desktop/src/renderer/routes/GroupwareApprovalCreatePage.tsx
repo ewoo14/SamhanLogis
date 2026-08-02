@@ -537,8 +537,10 @@ export function GroupwareApprovalCreatePage() {
                 ariaLabel="결재자 이름 검색"
                 inputTestId="approver-search-input"
                 placeholder="결재자 이름 검색"
-                minChars={2}
+                minChars={1}
                 required={requireManualApprover}
+                resultSelectionMode="multiple"
+                resultSelectionTitle="담당자 검색 결과"
                 renderChip={(approver, index, onRemove) => (
                   <TagChip
                     label={String(index + 1)}

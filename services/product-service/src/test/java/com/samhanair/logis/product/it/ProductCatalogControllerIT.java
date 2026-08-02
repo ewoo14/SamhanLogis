@@ -113,6 +113,55 @@ class ProductCatalogControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void POST_products_단종된_이름은_재사용할_수_있다() throws Exception {
+        Category cat = categoryRepository.save(Category.create("CAT-DISCONTINUED-NAME", "단종 이름 재사용", null, 2));
+        String userId = UUID.randomUUID().toString();
+        String name = "외부 통신 모듈 MIM-N10";
+
+        MvcResult discontinued = mvc.perform(post("/products")
+                        .header("X-User-Id", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(productCreateJson(name, "COMM-MIM-N10", cat.getId())))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String productId = com.jayway.jsonpath.JsonPath.read(
+                discontinued.getResponse().getContentAsString(StandardCharsets.UTF_8), "$.data.id");
+
+        mvc.perform(post("/products/{id}/discontinue", productId)
+                        .header("X-User-Id", userId))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(post("/products")
+                        .header("X-User-Id", userId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(productCreateJson(name, "COMM-MIM-N10-REUSED", cat.getId())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.name").value(name));
+
+        mvc.perform(post("/products/{id}/reactivate", productId)
+                        .header("X-User-Id", userId))
+                .andExpect(status().isConflict());
+    }
+
+    private String productCreateJson(String name, String modelName, UUID categoryId) {
+        return """
+                {
+                  "name":"%s",
+                  "modelName":"%s",
+                  "categoryId":"%s",
+                  "sellingPrice":0,
+                  "purchasePrice":0,
+                  "currency":"KRW",
+                  "tags":{},
+                  "itemKind":"GENERAL",
+                  "productCategory":"HOME_MULTI",
+                  "unit":"EA",
+                  "goodsType":"GOODS"
+                }
+                """.formatted(name, modelName, categoryId);
+    }
+
+    @Test
     void PATCH_usage_admin_변경() throws Exception {
         mvc.perform(patch("/api/v1/products/API_HOME_01/usage")
                         .header("X-User-Id", UUID.randomUUID().toString())
