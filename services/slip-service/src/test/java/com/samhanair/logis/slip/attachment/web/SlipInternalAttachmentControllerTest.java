@@ -10,6 +10,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachment;
 import com.samhanair.logis.slip.attachment.domain.SlipAttachmentType;
 import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.service.SlipPartnerBackfillService;
@@ -39,6 +40,8 @@ class SlipInternalAttachmentControllerTest {
     private SlipService slipService;
     @Mock
     private SlipPartnerBackfillService slipPartnerBackfillService;
+    @Mock
+    private WarehouseInternalClient warehouseInternalClient;
 
     @Test
     void upload_allowsDeliveryAndInspectionOnlyAndForwardsToService() {
@@ -68,7 +71,7 @@ class SlipInternalAttachmentControllerTest {
 
         SlipInternalController controller = new SlipInternalController(
                 signatureService, attachmentService, slipLineRepository, slipRepository, slipService,
-                slipPartnerBackfillService);
+                slipPartnerBackfillService, warehouseInternalClient);
 
         var response = controller.uploadAttachment(
                 slipId,
@@ -98,7 +101,7 @@ class SlipInternalAttachmentControllerTest {
         SlipAttachmentService service = attachmentService;
         SlipInternalController controller = new SlipInternalController(
                 signatureService, service, slipLineRepository, slipRepository, slipService,
-                slipPartnerBackfillService);
+                slipPartnerBackfillService, warehouseInternalClient);
 
         assertThatThrownBy(() -> controller.uploadAttachment(
                 UUID.randomUUID(),

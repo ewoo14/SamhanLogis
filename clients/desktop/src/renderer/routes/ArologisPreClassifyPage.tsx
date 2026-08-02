@@ -38,10 +38,11 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Badge, Button, Card, FormField } from '@samhan/design-system'
+import { Badge, Button, Card, FormField, Select } from '@samhan/design-system'
 import {
   getPreClassify,
   getRegional,
+  type DispatchExecutionMode,
   type PreClassifyEntry,
   type PreClassifyResponse,
   type RegionalEntry,
@@ -51,6 +52,17 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { useIsMobile } from '../hooks/useIsMobile'
 
 type TabKey = 'region' | 'regional'
+
+const EXECUTION_MODES: Array<{ value: DispatchExecutionMode; label: string }> = [
+  { value: 'SANGIL_AND_CHOWOL_REGION_EXCLUDED', label: '상일+초월 (지방 제외)' },
+  { value: 'CHOWOL_REGION_EXCLUDED', label: '초월 (지방 제외)' },
+  { value: 'SANGIL_REGION_EXCLUDED', label: '상일 (지방 제외)' },
+  { value: 'STACK_ONLY', label: '야적 only' },
+  { value: 'REGION_ONLY', label: '지방 only' },
+  { value: 'SANGIL_AND_CHOWOL_REGION_INCLUDED', label: '상일+초월 (지방 포함)' },
+  { value: 'CHOWOL_REGION_INCLUDED', label: '초월 (지방 포함)' },
+  { value: 'SANGIL_REGION_INCLUDED', label: '상일 (지방 포함)' },
+]
 
 /** ISO YYYY-MM-DD (브라우저 로컬 기준) — 오늘 기본값. */
 function todayIso(): string {
@@ -91,14 +103,17 @@ export function ArologisPreClassifyPage() {
   const today = todayIso()
   const [from, setFrom] = useState<string>(today)
   const [to, setTo] = useState<string>(today)
+  const [executionMode, setExecutionMode] = useState<DispatchExecutionMode>(
+    'SANGIL_AND_CHOWOL_REGION_EXCLUDED',
+  )
 
   // 탭2 — 시도: date 단일
   const [date, setDate] = useState<string>(today)
 
   // 탭1 query — 활성 탭일 때만 fetch
   const regionQuery = useQuery<PreClassifyResponse>({
-    queryKey: ['arologis', 'pre-classify', from, to],
-    queryFn: () => getPreClassify(from, to),
+    queryKey: ['arologis', 'pre-classify', from, to, executionMode],
+    queryFn: () => getPreClassify(from, to, executionMode),
     enabled: tab === 'region',
     // PR-H4c FE-B: 30초 polling — 멀티 워크스테이션 동기화 안전망
     refetchInterval: 30_000,
@@ -222,6 +237,8 @@ export function ArologisPreClassifyPage() {
           to={to}
           onFromChange={setFrom}
           onToChange={setTo}
+          executionMode={executionMode}
+          onExecutionModeChange={setExecutionMode}
           query={regionQuery}
           total={regionTotal}
           onCsv={handleCsvRegion}
@@ -250,6 +267,8 @@ interface RegionTabPanelProps {
   to: string
   onFromChange: (v: string) => void
   onToChange: (v: string) => void
+  executionMode: DispatchExecutionMode
+  onExecutionModeChange: (v: DispatchExecutionMode) => void
   query: ReturnType<typeof useQuery<PreClassifyResponse>>
   total: number
   onCsv: () => void
@@ -257,7 +276,7 @@ interface RegionTabPanelProps {
 }
 
 function RegionTabPanel(props: RegionTabPanelProps) {
-  const { from, to, onFromChange, onToChange, query, total, onCsv, isMobile } = props
+  const { from, to, onFromChange, onToChange, executionMode, onExecutionModeChange, query, total, onCsv, isMobile } = props
   const data = query.data
 
   return (
@@ -278,6 +297,16 @@ function RegionTabPanel(props: RegionTabPanelProps) {
               />
             )}
           />
+          <Select
+            label="실행 모드"
+            value={executionMode}
+            onChange={(event) => onExecutionModeChange(event.target.value as DispatchExecutionMode)}
+            data-testid="arologis-preclassify-mode"
+          >
+            {EXECUTION_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>{mode.label}</option>
+            ))}
+          </Select>
           <FormField
             label="종료일"
             id="arologis-preclassify-to"

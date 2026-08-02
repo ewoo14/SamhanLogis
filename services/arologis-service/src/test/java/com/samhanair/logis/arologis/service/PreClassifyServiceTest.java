@@ -18,7 +18,9 @@ import com.samhanair.logis.arologis.repository.VehicleStopRepository;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import java.time.LocalDate;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -164,5 +166,62 @@ class PreClassifyServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.INVALID_INPUT));
+    }
+
+    @Test
+    @DisplayName("mode 2 — 창고명이 없으면 초월 창고로 판정하지 않는다")
+    void classify_chowolMode_doesNotAcceptMissingWarehouse() {
+        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+                new OutboundSlipSummary("id-1", "2026/05/10-001", "P-2026-0001",
+                        "창고 미상 거래처", "서울 강남구 역삼동")
+        ));
+        when(vehicleStopRepository.findAllByParsedPartnerCodeIn(any())).thenReturn(List.of());
+
+        PreClassifyResponse result = service.classify(
+                LocalDate.of(2026, 5, 10), LocalDate.of(2026, 5, 10),
+                DispatchExecutionMode.CHOWOL_REGION_EXCLUDED);
+
+        assertThat(result.regionGroups()).isEmpty();
+        assertThat(result.unclassified()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("8개 실행 모드 — 레거시 창고명·delivery_tag 판정 행렬")
+    void classify_eightExecutionModes_followLegacyWarehouseAndTagMatrix() {
+        when(slipServiceClient.getOutboundSlips(any(), any())).thenReturn(List.of(
+                outbound("sangil", "상일창고", null),
+                outbound("chowol", "초월창고", null),
+                outbound("sangil-region", "상일창고", "REGION"),
+                outbound("chowol-region", "초월창고", "REGION"),
+                outbound("sangil-stack", "상일창고", "STACK"),
+                outbound("chowol-stack", "초월창고", "STACK")
+        ));
+        when(vehicleStopRepository.findAllByParsedPartnerCodeIn(any())).thenReturn(List.of());
+
+        Map<DispatchExecutionMode, Integer> expected = new EnumMap<>(DispatchExecutionMode.class);
+        expected.put(DispatchExecutionMode.SANGIL_AND_CHOWOL_REGION_EXCLUDED, 4);
+        expected.put(DispatchExecutionMode.CHOWOL_REGION_EXCLUDED, 2);
+        expected.put(DispatchExecutionMode.SANGIL_REGION_EXCLUDED, 2);
+        expected.put(DispatchExecutionMode.STACK_ONLY, 2);
+        expected.put(DispatchExecutionMode.REGION_ONLY, 2);
+        expected.put(DispatchExecutionMode.SANGIL_AND_CHOWOL_REGION_INCLUDED, 6);
+        expected.put(DispatchExecutionMode.CHOWOL_REGION_INCLUDED, 3);
+        expected.put(DispatchExecutionMode.SANGIL_REGION_INCLUDED, 3);
+
+        for (Map.Entry<DispatchExecutionMode, Integer> entry : expected.entrySet()) {
+            PreClassifyResponse result = service.classify(
+                    LocalDate.of(2026, 5, 10), LocalDate.of(2026, 5, 10), entry.getKey());
+            int classified = result.regionGroups().values().stream().mapToInt(List::size).sum();
+            assertThat(classified)
+                    .as("mode=%s", entry.getKey())
+                    .isEqualTo(entry.getValue());
+            assertThat(result.unclassified()).as("mode=%s", entry.getKey()).isEmpty();
+        }
+    }
+
+    private static OutboundSlipSummary outbound(String id, String warehouse, String deliveryTag) {
+        return new OutboundSlipSummary(id, "2026/05/10-" + id, "P-" + id,
+                "거래처-" + id, "서울 강남구 역삼동", deliveryTag, warehouse,
+                null, null, null, "2026-05-10");
     }
 }

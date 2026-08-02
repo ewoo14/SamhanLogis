@@ -134,11 +134,11 @@ public class PreClassifyService {
         return warehouseAllowed(slip, mode);
     }
 
-    /** 모드별 출고창고 포함 규칙. 창고 정보가 없는 구형 projection은 보수적으로 통과시킨다. */
+    /** 레거시 출고창고 표시값 기반 모드 필터. 창고명이 없으면 해당 모드에 포함하지 않는다. */
     private boolean warehouseAllowed(OutboundSlipSummary slip, DispatchExecutionMode mode) {
         String warehouse = value(slip.warehouse());
         if (warehouse.isBlank()) {
-            return true;
+            return false;
         }
         return switch (mode) {
             case CHOWOL_REGION_EXCLUDED, CHOWOL_REGION_INCLUDED -> warehouse.contains("초월");

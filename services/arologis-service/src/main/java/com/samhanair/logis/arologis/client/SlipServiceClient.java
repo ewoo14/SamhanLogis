@@ -72,7 +72,8 @@ public class SlipServiceClient {
      *   "success": true,
      *   "data": [
      *     { "slipId": "uuid", "slipNo": "2026/05/10-001", "partnerCode": "P-2026-0001",
-     *       "partnerName": "에스엠하나공조", "address": "인천 남동구 구월동 ..." },
+ *       "partnerName": "에스엠하나공조", "sourceWarehouseName": "상일창고",
+ *       "deliveryAddress": "인천 남동구 구월동 ..." },
      *     ...
      *   ]
      * }
@@ -137,7 +138,7 @@ public class SlipServiceClient {
                     continue;
                 }
                 out.add(new OutboundSlipSummary(null, slipNo, partnerCode, partnerName, address,
-                        textOrNull(node, "deliveryTag"), textOrNull(node, "warehouse"),
+                        textOrNull(node, "deliveryTag"), warehouseName(node),
                         textOrNull(node, "memo"), textOrNull(node, "productName"),
                         textOrNull(node, "amount"), textOrNull(node, "slipDate")));
             }
@@ -158,6 +159,12 @@ public class SlipServiceClient {
             return null;
         }
         return child.asText();
+    }
+
+    /** slip-service의 출고 원천 창고명 계약을 읽는다. 구형 projection의 warehouse도 호환한다. */
+    private String warehouseName(JsonNode node) {
+        String sourceWarehouseName = textOrNull(node, "sourceWarehouseName");
+        return sourceWarehouseName != null ? sourceWarehouseName : textOrNull(node, "warehouse");
     }
 
     /**

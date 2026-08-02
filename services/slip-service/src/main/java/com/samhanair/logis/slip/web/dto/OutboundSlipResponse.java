@@ -20,6 +20,7 @@ import java.util.List;
  * @param slipDate 출고일
  * @param scheduledAt 배차 예정 시각, 현재 미지원
  * @param deliveryTag 배송 태그 (REGION/STACK 등, 미지정 시 null)
+ * @param sourceWarehouseName 출고 원천 창고명 (레거시 출고창고 표시값, 조회 실패 시 null)
  * @param deliveryAddress 배송지 주소
  * @param lines 품목명·수량 목록
  * @param recipientPhone 인수자 전화번호
@@ -31,12 +32,18 @@ public record OutboundSlipResponse(
         LocalDate slipDate,
         LocalDateTime scheduledAt,
         DeliveryTag deliveryTag,
+        String sourceWarehouseName,
         String deliveryAddress,
         List<Line> lines,
         String recipientPhone) {
 
     /** 전표 entity를 UUID 없는 배차 응답으로 변환한다. */
     public static OutboundSlipResponse from(Slip slip) {
+        return from(slip, null);
+    }
+
+    /** 출고 원천 창고명을 보강한 배차 응답으로 변환한다. */
+    public static OutboundSlipResponse from(Slip slip, String sourceWarehouseName) {
         return new OutboundSlipResponse(
                 slip.getSlipNo(),
                 slip.getPartnerCode(),
@@ -44,6 +51,7 @@ public record OutboundSlipResponse(
                 slip.getSlipDate(),
                 null,
                 slip.getDeliveryTag(),
+                sourceWarehouseName,
                 slip.getDeliveryAddress(),
                 slip.getLines().stream().map(Line::from).toList(),
                 slip.getRecipientPhone());
