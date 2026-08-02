@@ -32,8 +32,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -403,7 +403,8 @@ public class SlipInternalController {
     public ApiResponse<List<PartnerLedgerSalesResponse>> findPartnerLedgerSales(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) String partnerCode) {
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam(required = false) UUID partnerId) {
         if (from == null || to == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜는 필수입니다");
         }
@@ -416,7 +417,7 @@ public class SlipInternalController {
                 ? null
                 : partnerCode.trim();
         List<PartnerLedgerSalesResponse> rows = slipRepository.findPartnerLedgerSales(
-                        from, to, normalizedPartnerCode, PARTNER_LEDGER_SALES_STATUSES)
+                        from, to, normalizedPartnerCode, partnerId, PARTNER_LEDGER_SALES_STATUSES)
                 .stream()
                 .map(PartnerLedgerSalesResponse::from)
                 .toList();

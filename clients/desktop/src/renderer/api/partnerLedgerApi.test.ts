@@ -5,17 +5,17 @@ describe('partner ledger adapter', () => {
   it('keeps source order and computes a running debit-minus-credit balance', () => {
     const lines = buildPartnerLedgerLines([
       {
-        type: 'SALE', documentNo: 'S-1', date: '2026-08-01', deliveryAddress: null,
+        type: 'SALE', documentNo: '2026/08/01-1', date: '2026-08-01', deliveryAddress: null,
         amount: '100', lines: [{ productName: 'A', modelName: null, quantity: 1,
           unitPriceWithVat: '100', lineAmount: '100' }],
       },
       {
-        type: 'CASH_RECEIPT', documentNo: 'R-1', date: '2026-08-02', deliveryAddress: null,
+        type: 'CASH_RECEIPT', documentNo: '2026/08/02-1', date: '2026-08-02', deliveryAddress: null,
         amount: '40', lines: [],
       },
     ])
 
     expect(lines.map((line) => line.balance)).toEqual(['100', '60'])
-    expect(lines.map((line) => line.journalNo)).toEqual(['S-1', 'R-1'])
+    expect(lines.map((line) => line.journalNo)).toEqual(['2026/08/01-1', '2026/08/02-1'])
   })
 })

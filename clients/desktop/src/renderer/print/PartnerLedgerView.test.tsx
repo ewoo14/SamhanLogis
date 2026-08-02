@@ -10,7 +10,7 @@ vi.mock('../api/partnerLedgerApi', () => ({
   getLedgerData: vi.fn().mockResolvedValue({
     partnerCode: 'P-1', partnerName: '거래처', partnerBusinessNo: '', chatRoomNames: [],
     periodFrom: '2026-08-01', periodTo: '2026-08-31',
-    lines: [{ date: '2026-08-01', journalNo: 'S-1', accountCode: '', accountName: '',
+    lines: [{ date: '2026-08-01', journalNo: '2026/08/01-1', accountCode: '', accountName: '',
       description: '품목', debit: '100', credit: '0', balance: '0',
       deliveryAddress: '서울시 배송 주소', documentType: 'SALE' }],
   }),

@@ -44,7 +44,7 @@ public class PartnerLedgerReadService {
         }
 
         List<PartnerLedgerDocumentMerger.Document> documents = new ArrayList<>();
-        documents.addAll(salesClient.find(from, to, partnerCode).stream().map(this::sale).toList());
+        documents.addAll(salesClient.find(from, to, null, partnerId).stream().map(this::sale).toList());
 
         final UUID selectedPartnerId = partnerId;
         Specification<CashReceipt> spec = (root, query, cb) -> cb.and(

@@ -84,13 +84,15 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
               AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND
               AND s.status IN :statuses
               AND s.slipDate BETWEEN :from AND :to
-              AND (:partnerCode IS NULL OR s.partnerCode = :partnerCode)
+              AND (:partnerId IS NOT NULL AND s.partnerId = :partnerId
+                   OR :partnerId IS NULL AND (:partnerCode IS NULL OR s.partnerCode = :partnerCode))
             ORDER BY s.slipDate DESC, s.seqNo DESC
             """)
     List<Slip> findPartnerLedgerSales(
             @org.springframework.data.repository.query.Param("from") LocalDate from,
             @org.springframework.data.repository.query.Param("to") LocalDate to,
             @org.springframework.data.repository.query.Param("partnerCode") String partnerCode,
+            @org.springframework.data.repository.query.Param("partnerId") java.util.UUID partnerId,
             @org.springframework.data.repository.query.Param("statuses") Collection<SlipStatus> statuses);
 
     /** slipType + status 동시 필터 페이지. soft-delete 제외. */

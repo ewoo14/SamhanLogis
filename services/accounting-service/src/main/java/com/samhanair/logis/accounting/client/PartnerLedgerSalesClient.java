@@ -25,12 +25,13 @@ public class PartnerLedgerSalesClient {
         this.auth = auth;
     }
 
-    public List<Sale> find(LocalDate from, LocalDate to, String partnerCode) {
+    public List<Sale> find(LocalDate from, LocalDate to, String partnerCode, UUID partnerId) {
         try {
             return restClient.get()
                     .uri(uri -> uri.path("/internal/slips/partner-ledger-sales")
                             .queryParam("from", from).queryParam("to", to)
                             .queryParamIfPresent("partnerCode", java.util.Optional.ofNullable(partnerCode))
+                            .queryParamIfPresent("partnerId", java.util.Optional.ofNullable(partnerId))
                             .build())
                     .header("X-Internal-Token", auth.getToken())
                     .retrieve()

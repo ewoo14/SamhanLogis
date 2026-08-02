@@ -130,6 +130,32 @@ class SlipPartnerLedgerInternalControllerIT extends AbstractPostgresIT {
     }
 
     @Test
+    void filtersByInternalPartnerIdWhenLegacyPartnerCodeIsBlank() throws Exception {
+        Slip included = persistOutboundAtStatus("P-LEGACY-BLANK", "대상 거래처", SlipStatus.CONFIRMED,
+                LocalDate.of(2026, 7, 31));
+        included.setPartnerCode(null);
+        slipRepository.saveAndFlush(included);
+        Slip other = persistOutboundAtStatus("P-OTHER-BLANK", "다른 거래처", SlipStatus.CONFIRMED,
+                LocalDate.of(2026, 7, 31));
+        other.setPartnerCode(null);
+        slipRepository.saveAndFlush(other);
+
+        MvcResult result = mockMvc.perform(get(URL)
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .param("from", "2026-07-31")
+                        .param("to", "2026-07-31")
+                        .param("partnerId", included.getPartnerId().toString()))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        JsonNode rows = objectMapper.readTree(raw).get("data");
+        assertThat(rows).hasSize(1);
+        assertThat(raw).contains(included.getSlipNo());
+        assertThat(raw).doesNotContain(other.getSlipNo(), included.getPartnerId().toString());
+    }
+
+    @Test
     void rejectsMissingInternalToken() throws Exception {
         mockMvc.perform(get(URL)
                         .param("from", "2026-07-31")
