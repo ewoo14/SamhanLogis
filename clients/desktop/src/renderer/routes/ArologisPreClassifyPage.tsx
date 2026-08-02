@@ -348,7 +348,14 @@ function RegionTabPanel(props: RegionTabPanelProps) {
 
         {!query.isLoading && data ? (
           <>
-            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0 ? (
+            {(data.unknownWarehouseCount ?? 0) > 0 ? (
+              <div style={warningStyle}>
+                창고 업무 구분 미확정 {data.unknownWarehouseCount}건은 분류에서 제외되었습니다. 창고 정보를 확인한 뒤 다시 조회해 주세요.
+              </div>
+            ) : null}
+
+            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0
+              && (data.unknownWarehouseCount ?? 0) === 0 ? (
               <div style={emptyStyle}>해당 기간에 출고전표가 없습니다.</div>
             ) : null}
 
@@ -768,6 +775,15 @@ const errorStyle: React.CSSProperties = {
   borderRadius: 4,
   background: '#FEF2F2',
   color: '#991B1B',
+  fontSize: 13,
+}
+
+const warningStyle: React.CSSProperties = {
+  padding: 12,
+  border: '1px solid #FCD34D',
+  borderRadius: 4,
+  background: '#FFFBEB',
+  color: '#92400E',
   fontSize: 13,
 }
 

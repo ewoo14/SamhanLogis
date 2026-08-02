@@ -67,6 +67,7 @@ export interface PreClassifyEntry {
 export interface PreClassifyResponse {
   regionGroups: Record<string, PreClassifyEntry[]>
   unclassified: PreClassifyEntry[]
+  unknownWarehouseCount: number
 }
 
 /**

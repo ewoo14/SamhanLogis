@@ -115,6 +115,16 @@ test.describe('SP-08-3-2 아로로지스 배차 저장내역', () => {
     expect(source).toContain('regional-history')
   })
 
+  test('Samhan Public pre-classify는 UNKNOWN과 정상 0건을 구분한다', () => {
+    const source = read('clients/desktop/src/renderer/routes/ArologisPreClassifyPage.tsx')
+    const api = read('clients/desktop/src/renderer/api/arologisDispatchApi.ts')
+
+    expect(api).toContain('unknownWarehouseCount')
+    expect(source).toContain('unknownWarehouseCount')
+    expect(source).toContain('창고 업무 구분 미확정')
+    expect(source).toContain('해당 기간에 출고전표가 없습니다.')
+  })
+
   test('신규 저장내역 산출물에는 literal UUID와 Notion runtime call이 없다', () => {
     const guarded = [
       'clients/arologis-desktop/src/renderer/api/dispatchSaveHistoryApi.ts',

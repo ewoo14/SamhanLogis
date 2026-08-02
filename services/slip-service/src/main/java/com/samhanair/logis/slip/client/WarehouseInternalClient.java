@@ -58,9 +58,45 @@ public class WarehouseInternalClient {
             return parseName(body);
         } catch (RestClientResponseException ex) {
             log.debug("WarehouseInternalClient — 창고명 조회 status={}", ex.getStatusCode().value());
+            if (ex.getStatusCode().value() == 404) {
+                return Optional.empty();
+            }
             throw new IllegalStateException("창고 조회 실패: HTTP " + ex.getStatusCode().value(), ex);
         } catch (Exception ex) {
             log.warn("WarehouseInternalClient 창고명 조회 실패");
+            if (ex instanceof IllegalStateException illegalStateException) throw illegalStateException;
+            throw new IllegalStateException("창고 조회 실패", ex);
+        }
+    }
+
+    /** UUID 원천으로 inventory가 보유한 업무 구분 code를 조회한다. */
+    public Optional<String> findWarehouseCode(UUID warehouseId) {
+        if (warehouseId == null) {
+            throw new IllegalStateException("창고 조회 실패: sourceWarehouseId가 없습니다");
+        }
+        String token = internalAuthProperties.getToken();
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException("창고 조회 실패: internal token이 없습니다");
+        }
+        try {
+            String body = restClient.get()
+                    .uri("/internal/inventory/warehouses/{warehouseId}", warehouseId)
+                    .header(INTERNAL_TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(String.class);
+            if (body == null || body.isBlank()) return Optional.empty();
+            JsonNode root = objectMapper.readTree(body);
+            JsonNode data = root.has("data") ? root.get("data") : root;
+            for (String key : new String[]{"code", "warehouseCode", "warehouse_code"}) {
+                JsonNode node = data == null ? null : data.get(key);
+                if (node != null && !node.isNull() && !node.asText().isBlank()) {
+                    return Optional.of(node.asText().trim());
+                }
+            }
+            return Optional.empty();
+        } catch (RestClientResponseException ex) {
+            throw new IllegalStateException("창고 조회 실패: HTTP " + ex.getStatusCode().value(), ex);
+        } catch (Exception ex) {
             if (ex instanceof IllegalStateException illegalStateException) throw illegalStateException;
             throw new IllegalStateException("창고 조회 실패", ex);
         }

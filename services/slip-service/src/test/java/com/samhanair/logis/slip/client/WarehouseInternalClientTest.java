@@ -52,13 +52,11 @@ class WarehouseInternalClientTest {
     }
 
     @Test
-    void 창고명_조회_404는_조회실패로전파한다() {
+    void 창고명_조회_404는_해당창고없음으로부분응답한다() {
         server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.findWarehouseName(WAREHOUSE_ID))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("창고 조회 실패");
+        assertThat(client.findWarehouseName(WAREHOUSE_ID)).isEmpty();
         server.verify();
     }
 

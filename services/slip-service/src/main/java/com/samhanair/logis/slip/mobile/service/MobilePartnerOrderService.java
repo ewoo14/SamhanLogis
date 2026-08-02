@@ -6,6 +6,7 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.PartnerInternalClient.PartnerVerifyResult;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
 import com.samhanair.logis.slip.mobile.dto.MobilePartnerOrderRequest;
@@ -20,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -58,6 +60,8 @@ public class MobilePartnerOrderService {
     private final SlipNumberService slipNumberService;
     private final ProductClient productClient;
     private final PartnerInternalClient partnerInternalClient;
+    /** 신규 모바일 OUTBOUND의 inventory 원천 warehouse code snapshot. */
+    private final WarehouseInternalClient warehouseInternalClient;
     /** 출고전표 마감 게이트 — 모바일 주문 발행 생성 경로(게이트③). */
     private final OutboundCutoffGuard cutoffGuard;
     /** KST 기준 오늘 — 컷오프 게이트와 동일 Clock. */
@@ -120,6 +124,9 @@ public class MobilePartnerOrderService {
                 null,           // deliveryTag — 현장 발행 시 미지정
                 req.memo(),
                 requesterId);
+        Optional.ofNullable(warehouseInternalClient.findWarehouseCode(req.sourceWarehouseId()))
+                .orElseGet(Optional::empty)
+                .ifPresent(slip::setSourceWarehouseCode);
 
         // [게이트③] 모바일 주문 출고전표 생성 마감 게이트 — createOutbound 직후.
         // deliveryTag null(현장 발행 시 미지정) 이므로 assertWithinCutoff 내부에서 즉시 통과.

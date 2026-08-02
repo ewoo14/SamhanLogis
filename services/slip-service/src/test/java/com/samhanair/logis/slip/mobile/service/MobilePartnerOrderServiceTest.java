@@ -13,6 +13,7 @@ import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
+import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.mobile.dto.MobilePartnerOrderRequest;
@@ -41,6 +42,7 @@ class MobilePartnerOrderServiceTest {
     @Mock private SlipNumberService slipNumberService;
     @Mock private ProductClient productClient;
     @Mock private PartnerInternalClient partnerInternalClient;
+    @Mock private WarehouseInternalClient warehouseInternalClient;
     @Mock private OutboundCutoffGuard cutoffGuard;
     @Mock private Clock clock;
     /** 결정 ① 음성 가드: 향후 주문 서비스에 가격기억 의존성이 추가되면 @InjectMocks가 주입한다. */
@@ -106,6 +108,8 @@ class MobilePartnerOrderServiceTest {
         when(slipNumberService.next(LocalDate.of(2026, 7, 11), SlipType.OUTBOUND))
                 .thenReturn("2026/07/11-2");
         when(slipNumberService.extractSeqNo("2026/07/11-2")).thenReturn(2);
+        when(warehouseInternalClient.findWarehouseCode(sourceWarehouseId))
+                .thenReturn(Optional.of("00003"));
         when(slipRepository.save(any(Slip.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MobilePartnerOrderRequest request = new MobilePartnerOrderRequest(
