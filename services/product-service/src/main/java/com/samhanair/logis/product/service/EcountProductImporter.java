@@ -562,6 +562,7 @@ public class EcountProductImporter {
                    modified_at = NOW(),
                    modified_by = :actor
              WHERE p.model_name = :code
+               AND p.lineage = 'SHEET'
                 AND p.is_deleted = FALSE
             RETURNING p.id
             """;

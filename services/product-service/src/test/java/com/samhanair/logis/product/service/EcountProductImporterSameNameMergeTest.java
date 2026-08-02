@@ -90,7 +90,8 @@ class EcountProductImporterSameNameMergeTest {
         assertThat(updateSql.split("outdoor_price =", -1).length - 1).isOne();
         assertThat(updateSql).contains("NOT EXISTS")
                 .contains("product_code = :code")
-                .contains("model_code = :code");
+                .contains("model_code = :code")
+                .contains("p.lineage = 'SHEET'");
     }
 
     private static InputStream itemCsv(String... rows) {
