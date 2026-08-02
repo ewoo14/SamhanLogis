@@ -21,12 +21,30 @@ class RiUsageDecisionTest {
     }
 
     @Test
-    void accessoryIsFalseWhenMainInTheSameScopeIsIncomplete() {
+    void accessoryBeforeIncompleteMainUsesUnknownZoneTrue() {
         assertThat(RiUsageDecision.decide("PANEL", List.of(
                 new RiUsageDecision.Row("D1", "PANEL"),
                 new RiUsageDecision.Row("D1", "INDOOR")),
                 Map.of("PANEL", new LegacySetMatcher.Usage(1, 0),
+                        "INDOOR", new LegacySetMatcher.Usage(1, 0)))).isTrue();
+    }
+
+    @Test
+    void accessoryAfterIncompleteMainUsesFailedMainDecision() {
+        assertThat(RiUsageDecision.decide("PANEL", List.of(
+                new RiUsageDecision.Row("INDOOR", "D1", "INDOOR", "INDOOR"),
+                new RiUsageDecision.Row("PANEL", "D1", "PANEL", "PANEL")),
+                Map.of("PANEL", new LegacySetMatcher.Usage(1, 0),
                         "INDOOR", new LegacySetMatcher.Usage(1, 0)))).isFalse();
+    }
+
+    @Test
+    void accessoryAfterIncompleteSubIndoorFallsBackBecauseItIsNotFailedMain() {
+        assertThat(RiUsageDecision.decide("MATERIAL", List.of(
+                new RiUsageDecision.Row("Q", "D1", "Q", "SUB_INDOOR"),
+                new RiUsageDecision.Row("M", "D1", "M", "MATERIAL")),
+                Map.of("Q", new LegacySetMatcher.Usage(1, 0),
+                        "M", new LegacySetMatcher.Usage(1, 0)))).isNull();
     }
 
     @Test
@@ -38,7 +56,7 @@ class RiUsageDecisionTest {
                 new RiUsageDecision.Row("PANEL", "D1", "PANEL", "PANEL"),
                 new RiUsageDecision.Row("INDOOR", "D1", "INDOOR", "INDOOR")),
                 Map.of("PANEL", new LegacySetMatcher.Usage(1, 0),
-                        "INDOOR", new LegacySetMatcher.Usage(1, 1)))).isNull();
+                        "INDOOR", new LegacySetMatcher.Usage(1, 1)))).isTrue();
     }
 
     @Test

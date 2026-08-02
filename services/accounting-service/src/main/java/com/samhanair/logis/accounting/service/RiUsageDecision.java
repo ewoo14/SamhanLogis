@@ -31,7 +31,7 @@ final class RiUsageDecision {
 
         List<Boolean> perScope = focusRows.stream().map(Row::scopeKey).distinct()
                 .map(scope -> decideAccessoryScope(
-                        focusRows.stream().filter(row -> Objects.equals(scope, row.scopeKey())).toList(),
+                        focusToken, focusKind,
                         rows.stream().filter(row -> Objects.equals(scope, row.scopeKey())).toList(),
                         usage))
                 .toList();
@@ -44,19 +44,43 @@ final class RiUsageDecision {
         return Boolean.TRUE;
     }
 
-    private static Boolean decideAccessoryScope(List<Row> focusRows, List<Row> rows,
+    private static Boolean decideAccessoryScope(String focusToken, String focusKind, List<Row> rows,
                                                 Map<String, LegacySetMatcher.Usage> usage) {
-        if (focusRows.stream().allMatch(row -> fullyConsumed(usage, row.sourceKey()))) {
-            return Boolean.TRUE;
-        }
         boolean hasPresentMain = rows.stream().anyMatch(row -> isPresentMain(row.kind()));
-        if (!hasPresentMain) {
-            return Boolean.TRUE;
-        }
         boolean hasFailedMain = rows.stream()
                 .filter(row -> isFailedMain(row.kind()))
                 .anyMatch(row -> !fullyConsumed(usage, row.sourceKey()));
-        return hasFailedMain ? Boolean.FALSE : null;
+        boolean singleZone = false;
+        Boolean result = Boolean.TRUE;
+        for (Row row : rows) {
+            if (isPresentMain(row.kind())) {
+                singleZone = true;
+            }
+            if (!focusToken.equals(row.modelToken()) || !focusKind.equals(row.kind())) {
+                continue;
+            }
+            // Code.js:733-734 — 대상 행이 SINGLE zone에 들어가기 전이면
+            // riUsage 분기를 타지 않고 기존 확인=true를 유지한다.
+            Boolean rowResult;
+            if (!singleZone || !hasPresentMain) {
+                rowResult = Boolean.TRUE;
+            } else if (fullyConsumed(usage, row.sourceKey())) {
+                // Code.js:702-703 — 자기 소비 완료는 항상 true.
+                rowResult = Boolean.TRUE;
+            } else if (hasFailedMain) {
+                // Code.js:697-705 — failed-main 집합은 INDOOR/OUTDOOR만 본다.
+                rowResult = Boolean.FALSE;
+            } else {
+                // Code.js:706-708 — 나머지는 기존 단가 판정(null)으로 돌린다.
+                rowResult = null;
+            }
+            if (Boolean.FALSE.equals(rowResult)) {
+                result = Boolean.FALSE;
+            } else if (rowResult == null && !Boolean.FALSE.equals(result)) {
+                result = null;
+            }
+        }
+        return result;
     }
 
     private static boolean fullyConsumed(Map<String, LegacySetMatcher.Usage> usage, String sourceKey) {
