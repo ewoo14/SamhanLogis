@@ -233,6 +233,7 @@ class EcountProductImporterIT extends AbstractPostgresIT {
         assertThat(forwardProducts).extracting(Product::getSpecification)
                 .containsExactlyInAnyOrder("규격-A", "규격-B");
         assertThat(forwardProducts).extracting(Product::getInboundPrice)
+                .usingElementComparator(BigDecimal::compareTo)
                 .containsExactlyInAnyOrder(new BigDecimal("100000"), new BigDecimal("200000"));
         assertThat(reverseProducts).extracting(Product::getProductCode)
                 .containsExactlyInAnyOrder(smallestCode, otherCode);

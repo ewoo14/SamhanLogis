@@ -152,7 +152,9 @@ public class EcountProductImporter {
             ItemRow selectedRow = groupCandidate.rawRow() == null
                     ? sameProductRows.get(0)
                     : groupCandidate.rawRow();
-            String mergeReason = sameNameMergeReason(groupCandidate.mainCode(), selectedRow, sameProductRows);
+            String mergeReason = sameProductRows.size() > 1
+                    ? sameNameMergeReason(groupCandidate.mainCode(), selectedRow, sameProductRows)
+                    : null;
             for (ItemRow sameProductRow : sameProductRows) {
                 resolvedCandidates.put(sameProductRow.rowNo(), groupCandidate);
                 mergeReasonsByRow.put(sameProductRow.rowNo(), mergeReason);
@@ -383,9 +385,9 @@ public class EcountProductImporter {
         String existingCode = findActiveProductCodeByName(name);
         if (existingCode != null && !existingCode.isBlank()) {
             ItemRow existingRaw = itemsByCode.get(existingCode);
-            UUID existingId = existingRaw == null ? findActiveProductIdByCode(existingCode) : null;
-            if (existingRaw != null || existingId != null) {
-                return new ProductMainCandidate(existingCode, existingRaw, existingId);
+            if (existingRaw != null
+                    && productIdentity(existingRaw).equals(productIdentity(sameNameRows.get(0)))) {
+                return new ProductMainCandidate(existingCode, existingRaw, null);
             }
         }
         ItemRow canonicalRaw = sameNameRows.stream()
