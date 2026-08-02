@@ -75,8 +75,16 @@ class RiUsageDecisionTest {
     void legacyClassifierIncludesApAndPcRulesWithoutOverridingConcreteCatalogKinds() {
         assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", "AP052CNPFBH1PP"))
                 .isEqualTo("INDOOR");
-        assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", "PC1BWCK3NW"))
-                .isEqualTo("ACCESSORY");
+        assertThat(LegacyModelKindClassifier.fallbackKind("PC1BWCK3NW"))
+                .isEqualTo("PANEL");
+        assertThat(LegacyModelKindClassifier.fallbackKind("AR-EC05"))
+                .isEqualTo("REMOTE");
+        assertThat(LegacyModelKindClassifier.fallbackKind("AC023CA1DBC1"))
+                .isEqualTo("MATERIAL");
+        assertThat(LegacyModelKindClassifier.fallbackKind("AP052CA1DBC1"))
+                .isEqualTo("MATERIAL");
+        assertThat(LegacyModelKindClassifier.fallbackKind("AF17B6474GZQ"))
+                .isEqualTo("MATERIAL");
         assertThat(LegacyModelKindClassifier.riUsageKind("PANEL", "PC1BWCK3NW"))
                 .isEqualTo("PANEL");
     }
@@ -131,5 +139,18 @@ class RiUsageDecisionTest {
         assertThat(RiUsageDecision.decide("X", "ACCESSORY",
                 List.of(new RiUsageDecision.Row("X", "D1", "X", "ACCESSORY")),
                 Map.of("X", new LegacySetMatcher.Usage(1, 0)))).isTrue();
+    }
+
+    @Test
+    void differentScopesDoNotCollapseTwoLegacyTrueResultsIntoFalse() {
+        List<RiUsageDecision.Row> rows = List.of(
+                new RiUsageDecision.Row("M-A", "DOC-A", "M", "MATERIAL"),
+                new RiUsageDecision.Row("M-B", "DOC-B", "M", "MATERIAL"),
+                new RiUsageDecision.Row("O-B", "DOC-B", "O", "OUTDOOR"));
+        assertThat(RiUsageDecision.decide("M", "MATERIAL", rows,
+                Map.of("M-A", new LegacySetMatcher.Usage(1, 0),
+                        "M-B", new LegacySetMatcher.Usage(1, 1),
+                        "O-B", new LegacySetMatcher.Usage(1, 0))))
+                .isTrue();
     }
 }

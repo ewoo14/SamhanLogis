@@ -29,31 +29,34 @@ final class RiUsageDecision {
             return Boolean.TRUE;
         }
 
+        List<Boolean> perScope = focusRows.stream().map(Row::scopeKey).distinct()
+                .map(scope -> decideAccessoryScope(
+                        focusRows.stream().filter(row -> Objects.equals(scope, row.scopeKey())).toList(),
+                        rows.stream().filter(row -> Objects.equals(scope, row.scopeKey())).toList(),
+                        usage))
+                .toList();
+        if (perScope.stream().anyMatch(Boolean.FALSE::equals)) {
+            return Boolean.FALSE;
+        }
+        if (perScope.stream().anyMatch(value -> value == null)) {
+            return null;
+        }
+        return Boolean.TRUE;
+    }
+
+    private static Boolean decideAccessoryScope(List<Row> focusRows, List<Row> rows,
+                                                Map<String, LegacySetMatcher.Usage> usage) {
         if (focusRows.stream().allMatch(row -> fullyConsumed(usage, row.sourceKey()))) {
             return Boolean.TRUE;
         }
-        boolean sawMain = false;
-        boolean failedMain = false;
-        for (String scope : focusRows.stream().map(Row::scopeKey).distinct().toList()) {
-            List<Row> presentMains = rows.stream()
-                    .filter(row -> Objects.equals(scope, row.scopeKey()))
-                    .filter(row -> isPresentMain(row.kind()))
-                    .toList();
-            if (!presentMains.isEmpty()) {
-                sawMain = true;
-                failedMain |= rows.stream()
-                        .filter(row -> Objects.equals(scope, row.scopeKey()))
-                        .filter(row -> isFailedMain(row.kind()))
-                        .anyMatch(row -> !fullyConsumed(usage, row.sourceKey()));
-            }
+        boolean hasPresentMain = rows.stream().anyMatch(row -> isPresentMain(row.kind()));
+        if (!hasPresentMain) {
+            return Boolean.TRUE;
         }
-        if (!sawMain) {
-            return true;
-        }
-        if (failedMain) {
-            return false;
-        }
-        return null;
+        boolean hasFailedMain = rows.stream()
+                .filter(row -> isFailedMain(row.kind()))
+                .anyMatch(row -> !fullyConsumed(usage, row.sourceKey()));
+        return hasFailedMain ? Boolean.FALSE : null;
     }
 
     private static boolean fullyConsumed(Map<String, LegacySetMatcher.Usage> usage, String sourceKey) {

@@ -628,7 +628,7 @@ public class MonthEndCloseService {
                 c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()),
                 (left, right) -> left));
         String kind = kindByToken.getOrDefault(modelToken,
-                LegacyModelKindClassifier.riUsageKind("ACCESSORY", modelToken));
+                LegacyModelKindClassifier.fallbackKind(modelToken));
         java.util.Set<String> scopes = lines.stream().map(SetPoolLine::scopeKey)
                 .collect(java.util.stream.Collectors.toSet());
         List<RiUsageDecision.Row> decisionRows = setPool.stream()
@@ -636,7 +636,7 @@ public class MonthEndCloseService {
                 .filter(line -> scopes.contains(line.scopeKey()))
                 .map(line -> new RiUsageDecision.Row(line.sourceKey(), line.scopeKey(), line.modelToken(),
                         kindByToken.getOrDefault(line.modelToken(),
-                                LegacyModelKindClassifier.riUsageKind("ACCESSORY", line.modelToken()))))
+                                LegacyModelKindClassifier.fallbackKind(line.modelToken()))))
                 .toList();
         return RiUsageDecision.decide(modelToken, kind, decisionRows, usage);
     }
@@ -661,7 +661,7 @@ public class MonthEndCloseService {
         return catalog.stream().filter(c -> modelToken.equals(c.componentModelCode()))
                 .map(c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()))
                 .findFirst()
-                .orElseGet(() -> LegacyModelKindClassifier.riUsageKind("ACCESSORY", modelToken));
+                .orElseGet(() -> LegacyModelKindClassifier.fallbackKind(modelToken));
     }
 
     private record ParentModelKey(String partnerCode, String modelToken) {}

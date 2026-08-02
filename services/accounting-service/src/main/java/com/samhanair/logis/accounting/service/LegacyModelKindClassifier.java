@@ -21,6 +21,11 @@ final class LegacyModelKindClassifier {
         return catalog;
     }
 
+    /** catalog 응답이 없는 행에 적용하는 Code.js classifyComp 결과. */
+    static String fallbackKind(String modelToken) {
+        return classify(modelToken);
+    }
+
     private static String classify(String value) {
         String u = value == null ? "" : value.toUpperCase(Locale.ROOT);
         if (u.startsWith("PC")) {
