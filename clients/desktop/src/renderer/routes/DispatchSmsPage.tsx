@@ -32,7 +32,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
 import { buildDispatchSmsClipboardText, type DispatchSmsClipboardRow } from './dispatchSmsClipboard'
 
-type EditedMessages = Record<string, string>
+export type EditedMessages = Record<string, string>
 type PreviewHistoryPayload =
   | DispatchSmsPreviewResponse
   | {
@@ -67,7 +67,11 @@ function buildInitialEdited(preview: DispatchSmsPreviewResponse): EditedMessages
   return result
 }
 
-function buildSendEntries(
+/**
+ * 실제 SMS 요청으로 만들 수 있는 미매핑·인수자 번호 보유 전표만 선별한다.
+ * 단톡방 매핑 전표는 현재 단톡방 직접 전송 수단이 없어 SMS 요청 대상이 아니다.
+ */
+export function buildSendEntries(
   preview: DispatchSmsPreviewResponse,
   edited: EditedMessages,
 ): DispatchSmsSendEntry[] {
@@ -83,6 +87,11 @@ function buildSendEntries(
     })
   }
   return entries
+}
+
+/** 화면의 SMS 발송 건수와 buildSendEntries의 실제 요청 건수를 동일하게 계산한다. */
+export function countSendableEntries(preview: DispatchSmsPreviewResponse): number {
+  return preview.unmapped.filter((p) => Boolean(p.recipientPhone)).length
 }
 
 function previewRequestParams(preview: DispatchSmsPreviewResponse): Record<string, unknown> {
@@ -307,10 +316,7 @@ export function DispatchSmsPage() {
 
   const sendableCount = useMemo(() => {
     if (!preview) return 0
-    return preview.chatRooms.reduce(
-      (sum, room) => sum + room.partners.filter((p) => !p.blocked).length,
-      0,
-    )
+    return countSendableEntries(preview)
   }, [preview])
 
   const blockedCount = useMemo(() => {
@@ -613,7 +619,7 @@ function PreviewSection({
 
           {preview.unmapped.length > 0 ? (
             <div style={warningBoxStyle}>
-              <strong>단톡방 미매핑 거래처 {preview.unmapped.length}건</strong> — 단톡방 매핑 관리자 화면에서 등록 후 다시 미리보기 하세요.
+              <strong>단톡방 미매핑 전표 {preview.unmapped.length}건</strong> — 인수자 번호가 있는 전표는 아래 SMS 발송 대상에 포함되고, 번호가 없으면 발송하지 않습니다.
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {preview.unmapped.map((u) => (
                   <li key={`${u.partnerCode}-${u.slipNo}`}>
@@ -694,7 +700,7 @@ function SendSection({
             >
               SMS 발송 ({sendableCount}건)
             </Button>
-            <span style={noticeStyle}>발송금지 자동 제외: {blockedCount}건</span>
+            <span style={noticeStyle}>미매핑·인수자 번호 보유 전표만 요청 · 발송금지 자동 제외: {blockedCount}건</span>
           </div>
         </>
       )}
@@ -716,9 +722,9 @@ function SendSection({
             <span>실패: <strong>{sendResult.failed}</strong>건</span>
             <span>발송금지 제외: <strong>{sendResult.blocked}</strong>건</span>
           </div>
-          {sendResult.failed > 0 || sendResult.blocked > 0 ? (
-            <details style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12 }}>상세 보기 ({sendResult.details.length}건)</summary>
+          {sendResult.details.length > 0 ? (
+            <details open style={{ marginTop: 8 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12 }}>발송 대상·결과 상세 ({sendResult.details.length}건)</summary>
               <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12 }}>
                 {sendResult.details.map((d, i) => (
                   <li key={`${d.partnerCode}-${i}`}>
