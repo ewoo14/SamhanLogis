@@ -19,7 +19,7 @@ import org.springframework.web.client.RestClient;
 /** 실 slip-service 전표 조회 client가 운영 경로에 존재해야 한다는 RED 계약. */
 class RestClientSlipServiceClientTest {
 
-    private static final String BASE_URL = "http://localhost:8084";
+    private static final String BASE_URL = "http://localhost:8086";
     private static final String TOKEN = "test-internal-token";
     private MockRestServiceServer mockServer;
 

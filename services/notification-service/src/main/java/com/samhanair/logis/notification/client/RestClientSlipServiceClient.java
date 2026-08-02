@@ -29,7 +29,7 @@ public class RestClientSlipServiceClient implements SlipServiceClient {
     public RestClientSlipServiceClient(
             RestClient.Builder builder,
             ObjectMapper objectMapper,
-            @Value("${samhan.slip-service.url:http://localhost:8084}") String baseUrl,
+            @Value("${samhan.slip-service.url:http://localhost:8086}") String baseUrl,
             @Value("${app.security.internal.token:}") String internalToken) {
         this.builder = builder;
         this.objectMapper = objectMapper;

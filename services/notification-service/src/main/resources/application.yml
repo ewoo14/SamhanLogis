@@ -53,7 +53,7 @@ samhan:
   partner-service:
     url: ${SAMHAN_PARTNER_SERVICE_URL:http://localhost:8095}
   slip-service:
-    url: ${SAMHAN_SLIP_SERVICE_URL:http://localhost:8084}
+    url: ${SAMHAN_SLIP_SERVICE_URL:http://localhost:8086}
   notification:
     aligo:
       api-url: ${SAMHAN_ALIGO_API_URL:https://apis.aligo.in/send/}
