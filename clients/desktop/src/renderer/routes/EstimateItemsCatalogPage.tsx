@@ -1468,7 +1468,7 @@ export function EstimateItemsCatalogPage() {
   }, [sortableRows, queryClient, committedCategory, isDragEnabled])
 
   const searchMasterProducts = useCallback(async (q: string): Promise<ProductOption[]> => {
-    const products = await searchProductsApi(q)
+    const products = await searchProductsApi(q, { size: 10000 })
     const checked = await Promise.all(
       products.map(async (product) => {
         const modelCode = product.modelCode ?? product.modelName
