@@ -539,7 +539,7 @@ export async function searchPartners(
     const res = await apiClient.get<ApiEnvelope<AdminPartnerListResponse>>(
       '/admin/partners/search',
       {
-        params: { q, size: 20, ...(options?.activeOnly ? { status: 'ACTIVE' } : {}) },
+        params: { q, size: 10000, ...(options?.activeOnly ? { status: 'ACTIVE' } : {}) },
       },
     )
     const data = res.data.data

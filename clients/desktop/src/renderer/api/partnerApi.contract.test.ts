@@ -26,4 +26,16 @@ describe('partnerApi searchPartners 오류 계약', () => {
 
     await expect(searchPartners('P-1', { activeOnly: true, throwOnError: true })).rejects.toBe(error)
   })
+
+  it('부분검색 후보를 20건에서 자르지 않아 공용 선택 모달에 전체 후보를 전달한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { data: { items: [{ partnerCode: '01024100228', name: '경기퀵-이영진님' }] } },
+    })
+
+    await searchPartners('010', { activeOnly: true })
+
+    expect(apiClient.get).toHaveBeenCalledWith('/admin/partners/search', {
+      params: { q: '010', size: 10000, status: 'ACTIVE' },
+    })
+  })
 })

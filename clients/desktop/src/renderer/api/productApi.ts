@@ -52,7 +52,7 @@ export async function searchProducts(
     const res = await apiClient.get<ApiEnvelope<PageResponse<ProductSummaryResponse>>>(
       '/api/products',
       {
-        params: { q, size: 20, ...(options.usageScope ? { usageScope: options.usageScope } : {}) },
+        params: { q, size: 10000, ...(options.usageScope ? { usageScope: options.usageScope } : {}) },
       },
     )
     const page = res.data.data

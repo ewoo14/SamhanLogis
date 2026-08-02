@@ -339,6 +339,8 @@ export function DepositorMappingPage() {
             searchPartners={(query) => searchPartners(query, { activeOnly: true })}
             required
             minChars={1}
+            resultSelectionMode="single"
+            resultSelectionTitle="거래처 검색 결과"
             debounceMs={200}
             inputTestId="depositor-mapping-partner"
           />
