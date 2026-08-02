@@ -467,6 +467,7 @@ public class ProductService {
     }
 
     public ProductResponse create(CreateProductRequest req) {
+        assertNameAvailable(req.name(), null);
         if (productRepository.existsByModelNameAndIsDeletedFalse(req.modelName())) {
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 모델명입니다: " + req.modelName());
         }
@@ -517,7 +518,8 @@ public class ProductService {
         quantitySyncRuleService.lockGraphMutation();
         Product product = loadOrThrow(id);
 
-        if (req.name() != null) {
+        if (req.name() != null && !Objects.equals(req.name(), product.getName())) {
+            assertNameAvailable(req.name(), product.getId());
             product.rename(req.name());
         }
         if (req.modelName() != null && !Objects.equals(req.modelName(), product.getModelName())) {
@@ -551,6 +553,27 @@ public class ProductService {
             replaceSpecs(product, req.specs());
         }
         return toResponse(product);
+    }
+
+    /**
+     * 신규 등록 또는 이름 변경 시 활성 품목명 충돌을 검사한다.
+     *
+     * <p>기존 데이터에는 의도적으로 동명이 존재하므로 DB 유니크 제약을 추가하지 않고,
+     * API mutation 경로에서만 새 충돌을 차단한다. 수정 시 현재 행은 제외한다.
+     */
+    private void assertNameAvailable(String name, UUID excludedProductId) {
+        String normalizedName = name.trim();
+        productRepository.findByNameAndIsDeletedFalse(normalizedName).stream()
+                .filter(candidate -> !Objects.equals(candidate.getId(), excludedProductId))
+                .findFirst()
+                .ifPresent(conflict -> {
+                    String conflictModelCode = conflict.getModelCode() != null
+                            ? conflict.getModelCode()
+                            : conflict.getModelName();
+                    throw new BusinessException(ErrorCode.CONFLICT,
+                            "이미 사용 중인 품목명입니다: " + normalizedName
+                                    + " (충돌 품목 모델코드: " + conflictModelCode + ")");
+                });
     }
 
     public ProductResponse updatePrice(UUID id, UpdatePriceRequest req) {

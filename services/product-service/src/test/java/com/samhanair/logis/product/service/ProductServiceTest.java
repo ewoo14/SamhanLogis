@@ -172,6 +172,22 @@ class ProductServiceTest {
     }
 
     @Test
+    void create_duplicateActiveName_throwsConflict() {
+        when(productRepository.findByNameAndIsDeletedFalse("스마트 벽걸이"))
+                .thenReturn(List.of(product));
+
+        assertThatThrownBy(() -> service.create(new CreateProductRequest(
+                "스마트 벽걸이", "SHA-W20K", categoryId,
+                BigDecimal.ONE, BigDecimal.ONE, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException businessException = (BusinessException) ex;
+                    assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(businessException.getMessage()).contains("스마트 벽걸이");
+                });
+    }
+
+    @Test
     void create_unknownCategory_throwsNotFound() {
         UUID missingCategoryId = UUID.randomUUID();
         when(productRepository.existsByModelNameAndIsDeletedFalse("X")).thenReturn(false);
@@ -209,6 +225,60 @@ class ProductServiceTest {
         assertThat(response.name()).isEqualTo("새 이름");
         assertThat(response.description()).isEqualTo("새 설명");
         assertThat(response.modelName()).isEqualTo("SHA-W15K");
+    }
+
+    @Test
+    void update_nameToAnotherActiveName_throwsConflictWithConflictingModelCode() {
+        Product conflict = Product.create("다른 품목", "SHA-W99K", category,
+                BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
+        ReflectionTestUtils.setField(conflict, "id", UUID.randomUUID());
+        conflict.changeModelCode("MODEL-CONFLICT-99");
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productRepository.findByNameAndIsDeletedFalse("다른 품목")).thenReturn(List.of(conflict));
+
+        assertThatThrownBy(() -> service.update(productId,
+                new UpdateProductRequest("다른 품목", null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException businessException = (BusinessException) ex;
+                    assertThat(businessException.getErrorCode()).isEqualTo(ErrorCode.CONFLICT);
+                    assertThat(businessException.getMessage()).contains("다른 품목", "MODEL-CONFLICT-99");
+                });
+    }
+
+    @Test
+    void update_otherFieldOnExistingDuplicateName_isAllowed() {
+        Product duplicate = Product.create("스마트 벽걸이", "SHA-W16K", category,
+                BigDecimal.ONE, BigDecimal.ONE, "KRW", null, null);
+        ReflectionTestUtils.setField(duplicate, "id", UUID.randomUUID());
+        when(productRepository.findById(productId)).thenReturn(Optional.of(product));
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId)).thenReturn(List.of());
+
+        ProductResponse response = service.update(productId,
+                new UpdateProductRequest(null, null, null, "가격표 보완"));
+
+        assertThat(response.description()).isEqualTo("가격표 보완");
+        verify(productRepository, never()).findByNameAndIsDeletedFalse(any(String.class));
+    }
+
+    @Test
+    void create_nameUsedOnlyBySoftDeletedProduct_isAllowed() {
+        when(productRepository.findByNameAndIsDeletedFalse("폐기 후 재사용")).thenReturn(List.of());
+        when(productRepository.existsByModelNameAndIsDeletedFalse("SHA-REUSE-1")).thenReturn(false);
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> {
+            Product saved = inv.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", UUID.randomUUID());
+            return saved;
+        });
+        when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(any(UUID.class)))
+                .thenReturn(List.of());
+
+        ProductResponse response = service.create(new CreateProductRequest(
+                "폐기 후 재사용", "SHA-REUSE-1", categoryId,
+                BigDecimal.ONE, BigDecimal.ONE, null, null, null));
+
+        assertThat(response.name()).isEqualTo("폐기 후 재사용");
     }
 
     @Test
