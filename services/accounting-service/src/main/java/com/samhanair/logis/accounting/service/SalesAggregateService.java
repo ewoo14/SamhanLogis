@@ -3,6 +3,7 @@ package com.samhanair.logis.accounting.service;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.PartnerLookupSupport;
+import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
@@ -44,6 +45,7 @@ public class SalesAggregateService {
 
     private final JournalLineRepository journalLineRepository;
     private final PartnerLookupClient partnerLookupClient;
+    private final PartnerLedgerSalesClient partnerLedgerSalesClient;
 
     /**
      * 기간별 거래처 집계. partnerCode 인자가 있으면 단일 거래처만, 없으면 전체.
@@ -100,6 +102,22 @@ public class SalesAggregateService {
                 default -> {
                     // 다른 계정은 본 슬라이스에서 무시 (255 부가세 등은 채권 잔액에 포함되지 않음)
                 }
+            }
+        }
+
+        // 선택 거래처의 매출 표시는 journals의 고아/구 legacy 분개가 아니라
+        // 원장에 실제로 실리는 출고 판매전표의 품목 합계를 사용한다.
+        if (filterPartnerId != null) {
+            List<PartnerLedgerSalesClient.Sale> ledgerSales =
+                    partnerLedgerSalesClient.find(from, to, null, filterPartnerId);
+            if (!ledgerSales.isEmpty()) {
+                PartnerAggregate aggregate = byPartner.computeIfAbsent(
+                        filterPartnerId, k -> new PartnerAggregate());
+                aggregate.salesTotal = ledgerSales.stream()
+                        .flatMap(sale -> sale.lines().stream())
+                        .map(PartnerLedgerSalesClient.Line::lineAmount)
+                        .filter(java.util.Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
             }
         }
 

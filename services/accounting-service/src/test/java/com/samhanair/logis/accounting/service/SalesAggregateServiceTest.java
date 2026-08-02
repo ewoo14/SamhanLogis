@@ -8,6 +8,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
+import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
@@ -43,6 +44,7 @@ class SalesAggregateServiceTest {
 
     @Mock private JournalLineRepository journalLineRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
+    @Mock private PartnerLedgerSalesClient partnerLedgerSalesClient;
 
     @InjectMocks private SalesAggregateService service;
 
@@ -202,6 +204,27 @@ class SalesAggregateServiceTest {
         assertThat(row2.salesTotal()).isEqualByComparingTo("200");
         assertThat(row2.paymentTotal()).isEqualByComparingTo("100");
         assertThat(row2.receivableBalance()).isEqualByComparingTo("120"); // 220 - 100
+    }
+
+    @Test
+    void selectedPartnerSalesTotalUsesOutboundLedgerSales() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("P-001"))
+                .thenReturn(Optional.of(new PartnerSummary(partnerId, "P-001", "거래처", "", "")));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                        BigDecimal.ZERO, new BigDecimal("20000000"))));
+        when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
+                .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
+                        "2026/03/08-1", LocalDate.of(2026, 3, 8), "INSPECTING",
+                        "", "거래처", null,
+                        List.of(new PartnerLedgerSalesClient.Line("A", null, 1,
+                                new BigDecimal("12276000"), new BigDecimal("12276000"))))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "P-001");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("12276000");
     }
 
     /** Test stub for PartnerAccountTotal projection. */
