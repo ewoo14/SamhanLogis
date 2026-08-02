@@ -52,22 +52,38 @@ class WarehouseInternalClientTest {
     }
 
     @Test
-    void 창고명_조회_404는_empty다() {
+    void 창고명_조회_404는_조회실패로전파한다() {
         server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
-        assertThat(client.findWarehouseName(WAREHOUSE_ID)).isEmpty();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.findWarehouseName(WAREHOUSE_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("창고 조회 실패");
         server.verify();
     }
 
     @Test
-    void token이_없으면_외부_호출하지_않는다() {
+    void 정상_빈이름응답은_조회실패로전파한다() {
+        server.expect(requestTo(BASE_URL + "/internal/inventory/warehouses/" + WAREHOUSE_ID))
+                .andRespond(withSuccess("{\"data\":null}", MediaType.APPLICATION_JSON));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.findWarehouseName(WAREHOUSE_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("창고 조회 실패");
+        server.verify();
+    }
+
+    @Test
+    void token이_없으면_조회실패로전파하고_외부호출하지_않는다() {
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(" ");
         WarehouseInternalClient noTokenClient =
                 new WarehouseInternalClient(RestClient.builder(), props, new ObjectMapper());
 
-        assertThat(noTokenClient.findWarehouseName(WAREHOUSE_ID)).isEmpty();
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> noTokenClient.findWarehouseName(WAREHOUSE_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("internal token");
         server.verify();
     }
 

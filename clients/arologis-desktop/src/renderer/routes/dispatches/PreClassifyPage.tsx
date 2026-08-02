@@ -108,6 +108,7 @@ export function ArologisPreClassifyPage() {
   const [tab, setTab] = useState<TabKey>('region')
   const [historyTab, setHistoryTab] = useState(0)
   const [restoredRegion, setRestoredRegion] = useState<PreClassifyResponse | null>(null)
+  const [restoredRegionMode, setRestoredRegionMode] = useState<DispatchExecutionMode | null>(null)
   const [restoredRegional, setRestoredRegional] = useState<RegionalResponse | null>(null)
   const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
@@ -144,7 +145,9 @@ export function ArologisPreClassifyPage() {
 
   const programType: DispatchProgramType = tab === 'region' ? 'PRE_CLASSIFY' : 'REGIONAL'
   const testIdPrefix = tab === 'region' ? 'pre-classify-history' : 'regional-history'
-  const regionData = restoredRegion ?? regionQuery.data
+  const regionData = restoredRegion && restoredRegionMode === executionMode
+    ? restoredRegion
+    : regionQuery.data
   const regionalData = restoredRegional ?? regionalQuery.data
   const activePayload = tab === 'region' ? regionData : regionalData
 
@@ -155,6 +158,11 @@ export function ArologisPreClassifyPage() {
         if (cancelled || !detail) return
         if (programType === 'PRE_CLASSIFY') {
           setRestoredRegion(detail.responsePayload as PreClassifyResponse)
+          const restoredMode = detail.requestParams.mode
+          if (isExecutionMode(restoredMode)) {
+            setExecutionMode(restoredMode)
+            setRestoredRegionMode(restoredMode)
+          }
         } else {
           setRestoredRegional(detail.responsePayload as RegionalResponse)
         }
@@ -182,7 +190,7 @@ export function ArologisPreClassifyPage() {
     const data = tab === 'region' ? regionQuery.data : regionalQuery.data
     if (!data) return
     const rowCount = tab === 'region' ? countRegionRows(data as PreClassifyResponse) : countRegionalRows(data as RegionalResponse)
-    const autoSaveKey = `${programType}|${from}|${to}|${date}|${rowCount}`
+    const autoSaveKey = `${programType}|${from}|${to}|${date}|${executionMode}|${rowCount}`
     if (lastAutoSaveKeyRef.current === autoSaveKey) return
     lastAutoSaveKeyRef.current = autoSaveKey
     void saveDispatchHistory({
@@ -208,7 +216,7 @@ export function ArologisPreClassifyPage() {
         saveMode: 'MANUAL_NAMED',
         topic,
         requestParams: tab === 'region'
-          ? { from, to, rowCount }
+          ? { from, to, mode: executionMode, rowCount }
           : { date, rowCount },
         responsePayload: activePayload,
       })
@@ -223,6 +231,11 @@ export function ArologisPreClassifyPage() {
     if (detail.programType === 'PRE_CLASSIFY') {
       setTab('region')
       setRestoredRegion(detail.responsePayload as PreClassifyResponse)
+      const restoredMode = detail.requestParams.mode
+      if (isExecutionMode(restoredMode)) {
+        setExecutionMode(restoredMode)
+        setRestoredRegionMode(restoredMode)
+      }
     } else if (detail.programType === 'REGIONAL') {
       setTab('regional')
       setRestoredRegional(detail.responsePayload as RegionalResponse)
@@ -483,7 +496,13 @@ function RegionTabPanel(props: RegionTabPanelProps) {
 
         {!query.isLoading && data ? (
           <>
-            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0 ? (
+            {(data.unknownWarehouseCount ?? 0) > 0 ? (
+              <div style={emptyStyle} data-testid="arologis-preclassify-unknown-warehouse">
+                창고 업무 구분 미확정 {data.unknownWarehouseCount}건은 분류에서 제외되었습니다. 원천 warehouse code 확인이 필요합니다.
+              </div>
+            ) : null}
+
+            {Object.keys(data.regionGroups ?? {}).length === 0 && (data.unclassified?.length ?? 0) === 0 && (data.unknownWarehouseCount ?? 0) === 0 ? (
               <div style={emptyStyle}>해당 기간에 출고전표가 없습니다.</div>
             ) : null}
 
@@ -710,6 +729,10 @@ function countRegionalRows(data: RegionalResponse): number {
   let n = data.unmatched?.length ?? 0
   for (const list of Object.values(data.sidoGroups ?? {})) n += list?.length ?? 0
   return n
+}
+
+function isExecutionMode(value: unknown): value is DispatchExecutionMode {
+  return typeof value === 'string' && EXECUTION_MODES.some((mode) => mode.value === value)
 }
 
 interface RegionalGroupSectionProps {

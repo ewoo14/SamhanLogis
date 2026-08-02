@@ -67,6 +67,8 @@ export interface PreClassifyEntry {
 export interface PreClassifyResponse {
   regionGroups: Record<string, PreClassifyEntry[]>
   unclassified: PreClassifyEntry[]
+  /** 창고 code provenance가 없어 UNKNOWN으로 제외된 원천 전표 수. */
+  unknownWarehouseCount: number
 }
 
 /**

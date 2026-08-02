@@ -38,8 +38,8 @@ import org.springframework.web.client.RestClientResponseException;
  *   <li>false — 실 호출. 환경변수 SAMHAN_AROLOGIS_CLIENT_SKELETON_MODE=false</li>
  * </ul>
  *
- * <p>오류 처리: 4xx/5xx 응답은 빈 리스트 (호출자가 graceful empty 분기). admin 화면이 "조회된 출고전표
- * 없음" 으로 안내. UUID 비공개 가드 — slipId 는 응답에 포함하되 사용자 화면 routing 용 admin 한정.
+ * <p>오류 처리: 4xx/5xx·네트워크·응답 계약 오류는 예외로 전파한다. 정상 200 + data=[]만
+ * 해당 없음으로 처리한다. UUID 비공개 가드 — slipId 는 내부 projection에서만 유지한다.
  */
 @Slf4j
 @Component
@@ -79,8 +79,8 @@ public class SlipServiceClient {
      * }
      * }</pre>
      *
-     * <p>graceful empty — skeleton-mode / 4xx / 5xx / 네트워크 오류 시 모두 빈 리스트. 호출자(arologis
-     * 분류 서비스) 는 빈 리스트 시 admin 응답을 "출고전표 없음" 으로 처리.
+     * <p>skeleton-mode / 4xx / 5xx / 네트워크 오류는 조회 실패로 전파하고, 정상적인 빈 data 배열만
+     * admin 응답의 "해당 없음"으로 처리한다.
      *
      * @param from 조회 시작일 (inclusive, 필수)
      * @param to 조회 종료일 (inclusive, 필수)
@@ -140,7 +140,8 @@ public class SlipServiceClient {
                 out.add(new OutboundSlipSummary(null, slipNo, partnerCode, partnerName, address,
                         textOrNull(node, "deliveryTag"), warehouseName(node),
                         textOrNull(node, "memo"), textOrNull(node, "productName"),
-                        textOrNull(node, "amount"), textOrNull(node, "slipDate")));
+                        textOrNull(node, "amount"), textOrNull(node, "slipDate"),
+                        textOrNull(node, "sourceWarehouseBusinessType")));
             }
             return out;
         } catch (Exception ex) {
@@ -187,20 +188,30 @@ public class SlipServiceClient {
             String memo,
             String productName,
             String amount,
-            String slipDate
+            String slipDate,
+            String warehouseBusinessType
     ) {
         /** 기존 호출자와 테스트가 사용하는 최소 projection 생성자. */
         public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
                                    String partnerName, String address) {
             this(slipId, slipNo, partnerCode, partnerName, address,
-                    null, null, null, null, null, null);
+                    null, null, null, null, null, null, "UNKNOWN");
         }
 
         /** 태그 판정 단위 테스트와 내부 분류 호출자를 위한 간결한 생성자. */
         public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
                                    String partnerName, String address, String deliveryTag) {
             this(slipId, slipNo, partnerCode, partnerName, address,
-                    deliveryTag, null, null, null, null, null);
+                    deliveryTag, null, null, null, null, null, "UNKNOWN");
+        }
+
+        /** 기존 테스트·호출자용 11필드 projection은 업무 구분을 알 수 없으므로 UNKNOWN이다. */
+        public OutboundSlipSummary(String slipId, String slipNo, String partnerCode,
+                                   String partnerName, String address, String deliveryTag,
+                                   String warehouse, String memo, String productName,
+                                   String amount, String slipDate) {
+            this(slipId, slipNo, partnerCode, partnerName, address, deliveryTag, warehouse,
+                    memo, productName, amount, slipDate, "UNKNOWN");
         }
     }
 }

@@ -20,7 +20,8 @@ import java.util.List;
  * @param slipDate 출고일
  * @param scheduledAt 배차 예정 시각, 현재 미지원
  * @param deliveryTag 배송 태그 (REGION/STACK 등, 미지정 시 null)
- * @param sourceWarehouseName 출고 원천 창고명 (레거시 출고창고 표시값, 조회 실패 시 null)
+ * @param sourceWarehouseName 출고 원천 창고명 (inventory 조회 성공 시 표시값)
+ * @param sourceWarehouseBusinessType 레거시 warehouseCode 원천 업무 구분(SANGIL/CHOWOL/UNKNOWN)
  * @param deliveryAddress 배송지 주소
  * @param lines 품목명·수량 목록
  * @param recipientPhone 인수자 전화번호
@@ -33,6 +34,7 @@ public record OutboundSlipResponse(
         LocalDateTime scheduledAt,
         DeliveryTag deliveryTag,
         String sourceWarehouseName,
+        String sourceWarehouseBusinessType,
         String deliveryAddress,
         List<Line> lines,
         String recipientPhone) {
@@ -44,6 +46,12 @@ public record OutboundSlipResponse(
 
     /** 출고 원천 창고명을 보강한 배차 응답으로 변환한다. */
     public static OutboundSlipResponse from(Slip slip, String sourceWarehouseName) {
+        return from(slip, sourceWarehouseName, "UNKNOWN");
+    }
+
+    /** 출고 warehouseCode 원천에서 산출한 업무 구분을 포함한 배차 projection. */
+    public static OutboundSlipResponse from(Slip slip, String sourceWarehouseName,
+                                            String sourceWarehouseBusinessType) {
         return new OutboundSlipResponse(
                 slip.getSlipNo(),
                 slip.getPartnerCode(),
@@ -52,6 +60,7 @@ public record OutboundSlipResponse(
                 null,
                 slip.getDeliveryTag(),
                 sourceWarehouseName,
+                sourceWarehouseBusinessType,
                 slip.getDeliveryAddress(),
                 slip.getLines().stream().map(Line::from).toList(),
                 slip.getRecipientPhone());

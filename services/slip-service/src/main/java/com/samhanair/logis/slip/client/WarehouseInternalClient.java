@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-/** inventory-service에서 전표의 창고명을 fail-soft로 조회하는 기존 client. */
+/** inventory-service에서 전표의 창고명을 조회하며 장애를 빈 결과로 축약하지 않는 client. */
 @Component
 public class WarehouseInternalClient {
 
@@ -37,16 +37,17 @@ public class WarehouseInternalClient {
      * 창고 UUID로 창고명을 조회한다.
      *
      * @param warehouseId 창고 UUID
-     * @return 조회된 창고명 또는 조회 실패 시 빈 Optional
+     * @return 조회된 창고명
+     * @throws IllegalStateException inventory 조회 실패·응답 계약 불일치
      */
     public Optional<String> findWarehouseName(UUID warehouseId) {
         if (warehouseId == null) {
-            return Optional.empty();
+            throw new IllegalStateException("창고 조회 실패: sourceWarehouseId가 없습니다");
         }
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
             log.warn("WarehouseInternalClient — X-Internal-Token 미설정, UUID 창고 조회 건너뜀");
-            return Optional.empty();
+            throw new IllegalStateException("창고 조회 실패: internal token이 없습니다");
         }
         try {
             String body = restClient.get()
@@ -57,10 +58,11 @@ public class WarehouseInternalClient {
             return parseName(body);
         } catch (RestClientResponseException ex) {
             log.debug("WarehouseInternalClient — 창고명 조회 status={}", ex.getStatusCode().value());
-            return Optional.empty();
+            throw new IllegalStateException("창고 조회 실패: HTTP " + ex.getStatusCode().value(), ex);
         } catch (Exception ex) {
             log.warn("WarehouseInternalClient 창고명 조회 실패");
-            return Optional.empty();
+            if (ex instanceof IllegalStateException illegalStateException) throw illegalStateException;
+            throw new IllegalStateException("창고 조회 실패", ex);
         }
     }
 
@@ -72,7 +74,7 @@ public class WarehouseInternalClient {
             JsonNode root = objectMapper.readTree(body);
             JsonNode data = root.has("data") ? root.get("data") : root;
             if (data == null || data.isNull()) {
-                return Optional.empty();
+                throw new IllegalStateException("창고 조회 실패: data가 없습니다");
             }
             for (String key : new String[]{"name", "warehouseName", "warehouse_name"}) {
                 JsonNode node = data.get(key);
@@ -80,10 +82,11 @@ public class WarehouseInternalClient {
                     return Optional.of(node.asText().trim());
                 }
             }
-            return Optional.empty();
+            throw new IllegalStateException("창고 조회 실패: name이 없습니다");
         } catch (Exception ex) {
             log.warn("WarehouseInternalClient UUID 창고 응답 파싱 실패");
-            return Optional.empty();
+            if (ex instanceof IllegalStateException illegalStateException) throw illegalStateException;
+            throw new IllegalStateException("창고 조회 실패: 응답 파싱 오류", ex);
         }
     }
 }

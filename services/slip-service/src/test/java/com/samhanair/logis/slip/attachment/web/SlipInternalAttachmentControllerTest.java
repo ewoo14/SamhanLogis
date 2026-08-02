@@ -71,7 +71,7 @@ class SlipInternalAttachmentControllerTest {
 
         SlipInternalController controller = new SlipInternalController(
                 signatureService, attachmentService, slipLineRepository, slipRepository, slipService,
-                slipPartnerBackfillService, warehouseInternalClient);
+                slipPartnerBackfillService, warehouseInternalClient, null);
 
         var response = controller.uploadAttachment(
                 slipId,
@@ -101,7 +101,7 @@ class SlipInternalAttachmentControllerTest {
         SlipAttachmentService service = attachmentService;
         SlipInternalController controller = new SlipInternalController(
                 signatureService, service, slipLineRepository, slipRepository, slipService,
-                slipPartnerBackfillService, warehouseInternalClient);
+                slipPartnerBackfillService, warehouseInternalClient, null);
 
         assertThatThrownBy(() -> controller.uploadAttachment(
                 UUID.randomUUID(),

@@ -164,6 +164,10 @@ public class Slip extends BaseEntity {
     @Column(name = "source_warehouse_id")
     private UUID sourceWarehouseId;
 
+    /** 레거시 발행 원천 warehouseCode snapshot. null이면 과거 provenance 미확정(UNKNOWN). */
+    @Column(name = "source_warehouse_code", length = 50)
+    private String sourceWarehouseCode;
+
     @Column(name = "destination_warehouse_id")
     private UUID destinationWarehouseId;
 
@@ -965,6 +969,12 @@ public class Slip extends BaseEntity {
      */
     public void setClassifiedRegionGroup(String classifiedRegionGroup) {
         this.classifiedRegionGroup = classifiedRegionGroup;
+    }
+
+    /** 출고 업무 구분의 원천 code를 저장한다. 표시명·UUID로 대체하지 않는다. */
+    public void setSourceWarehouseCode(String sourceWarehouseCode) {
+        this.sourceWarehouseCode = sourceWarehouseCode == null || sourceWarehouseCode.isBlank()
+                ? null : sourceWarehouseCode.trim();
     }
 
     /**
