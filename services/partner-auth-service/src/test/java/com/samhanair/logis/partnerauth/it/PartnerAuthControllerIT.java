@@ -219,7 +219,7 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
     // 6) GET /api/v1/auth/partner-expiration
     // ─────────────────────────────────────────────────────────────────────
     @Test
-    void GET_partner_expiration_30일_슬라이딩() throws Exception {
+    void GET_partner_expiration_생성시각기준_30일() throws Exception {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567898", "P-IT-008", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
         authRepository.save(pa);

@@ -65,6 +65,52 @@ class PartnerAuthServiceAccessSetTest {
     }
 
     @Test
+    void boundaryMatrixUsesLegacyStrictBeforeForPreviewAuthenticationAndExpirationApi() {
+        LocalDateTime boundary = LocalDateTime.of(2026, 8, 3, 0, 0);
+        int[] agesInSeconds = { 29 * 24 * 60 * 60, 30 * 24 * 60 * 60, 30 * 24 * 60 * 60 + 1 };
+        boolean[] expectedExpired = { false, false, true };
+
+        try (MockedStatic<LocalDateTime> mockedNow = Mockito.mockStatic(LocalDateTime.class,
+                Mockito.CALLS_REAL_METHODS)) {
+            mockedNow.when(LocalDateTime::now).thenReturn(boundary);
+
+            for (int i = 0; i < agesInSeconds.length; i++) {
+                String bizNo = "21187123" + (50 + i);
+                var authRepository = mock(PartnerAuthRepository.class);
+                var activityReader = mock(PartnerActivityReader.class);
+                var auth = PartnerAuth.seedFromLegacy(
+                        bizNo, bizNo, "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+                setCreatedAt(auth, boundary.minusSeconds(agesInSeconds[i]));
+                PartnerActivity noBusinessActivity = new PartnerActivity(null, null);
+                when(authRepository.findAll()).thenReturn(java.util.List.of(auth));
+                when(authRepository.findByBizNo(bizNo)).thenReturn(Optional.of(auth));
+                when(activityReader.read(bizNo)).thenReturn(noBusinessActivity);
+
+                var authService = new PartnerAuthService(
+                        authRepository,
+                        mock(PartnerLoginAttemptRepository.class),
+                        mock(PartnerSessionRepository.class),
+                        PasswordEncoderFactories.createDelegatingPasswordEncoder(),
+                        jwtProperties(),
+                        mock(DcConfigClient.class),
+                        mock(SmsClient.class),
+                        activityReader);
+                var approvalService = new PartnerApprovalService(
+                        authRepository, mock(DcConfigClient.class), activityReader);
+
+                assertThat(approvalService.previewLongUnused(30)).as("미리보기 %d초 경과", agesInSeconds[i])
+                        .hasSize(expectedExpired[i] ? 1 : 0);
+                assertThat(authService.checkStatus(bizNo).status())
+                        .as("실제 인증 %d초 경과", agesInSeconds[i])
+                        .isEqualTo(expectedExpired[i] ? PartnerStatus.LONG_UNUSED : PartnerStatus.NEED_PW_INPUT);
+                assertThat(authService.getExpiration(bizNo).expiredAlready())
+                        .as("만료 API %d초 경과", agesInSeconds[i])
+                        .isEqualTo(expectedExpired[i]);
+            }
+        }
+    }
+
+    @Test
     void recentLoginDoesNotExemptPartnerWithNoOrderOrShipmentActivity() {
         var authRepository = mock(PartnerAuthRepository.class);
         var activityReader = mock(PartnerActivityReader.class);

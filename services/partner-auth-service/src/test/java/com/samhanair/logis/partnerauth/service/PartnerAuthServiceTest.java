@@ -517,17 +517,10 @@ class PartnerAuthServiceTest {
     }
 
     @Test
-    @DisplayName("getExpiration — lastLoginAt + 30일 = expiresAt")
-    void getExpiration_30일_슬라이딩_계산() {
+    @DisplayName("getExpiration — 생성시각 + 30일 = expiresAt")
+    void getExpiration_생성시각기준_30일_계산() {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567890", "P001", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
-        try {
-            java.lang.reflect.Field f = PartnerAuth.class.getDeclaredField("lastLoginAt");
-            f.setAccessible(true);
-            f.set(pa, LocalDateTime.now().minusDays(10));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
         setCreatedAt(pa, LocalDateTime.now().minusDays(10));
         when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
 
