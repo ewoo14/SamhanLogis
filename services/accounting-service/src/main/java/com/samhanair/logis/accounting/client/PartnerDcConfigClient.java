@@ -83,7 +83,10 @@ public class PartnerDcConfigClient {
             }
             BigDecimal home = decimal(raw.get("homeDiscountRate"));
             BigDecimal commercial = decimal(raw.get("commercialDiscountRate"));
-            return LookupResult.found(home, commercial);
+            return LookupResult.found(home, commercial,
+                    decimal(raw.get("discount360Amount")), decimal(raw.get("discount4WayAmount")),
+                    decimal(raw.get("discount1WayAmount")), decimal(raw.get("discountStandAmount")),
+                    decimal(raw.get("discountDeluxeAmount")), decimal(raw.get("discountFirstGradeAmount")));
         } catch (DcConfigNotFoundException ex) {
             return LookupResult.notFound();
         } catch (BusinessException ex) {
@@ -104,19 +107,30 @@ public class PartnerDcConfigClient {
     }
 
     /** 전역DC 조회 상태와 두 멀티 유형의 원천 비율을 함께 보존한다. */
-    public record LookupResult(Status status, BigDecimal homeRate, BigDecimal commercialRate) {
+    public record LookupResult(Status status, BigDecimal homeRate, BigDecimal commercialRate,
+                               BigDecimal discount360Amount, BigDecimal discount4WayAmount,
+                               BigDecimal discount1WayAmount, BigDecimal discountStandAmount,
+                               BigDecimal discountDeluxeAmount, BigDecimal discountFirstGradeAmount) {
         public enum Status { FOUND, NOT_FOUND, UNAVAILABLE }
 
         public static LookupResult found(BigDecimal homeRate, BigDecimal commercialRate) {
-            return new LookupResult(Status.FOUND, homeRate, commercialRate);
+            return found(homeRate, commercialRate, null, null, null, null, null, null);
+        }
+
+        public static LookupResult found(BigDecimal homeRate, BigDecimal commercialRate,
+                                         BigDecimal discount360Amount, BigDecimal discount4WayAmount,
+                                         BigDecimal discount1WayAmount, BigDecimal discountStandAmount,
+                                         BigDecimal discountDeluxeAmount, BigDecimal discountFirstGradeAmount) {
+            return new LookupResult(Status.FOUND, homeRate, commercialRate, discount360Amount, discount4WayAmount,
+                    discount1WayAmount, discountStandAmount, discountDeluxeAmount, discountFirstGradeAmount);
         }
 
         public static LookupResult notFound() {
-            return new LookupResult(Status.NOT_FOUND, null, null);
+            return new LookupResult(Status.NOT_FOUND, null, null, null, null, null, null, null, null);
         }
 
         public static LookupResult unavailable() {
-            return new LookupResult(Status.UNAVAILABLE, null, null);
+            return new LookupResult(Status.UNAVAILABLE, null, null, null, null, null, null, null, null);
         }
 
         public boolean found() {

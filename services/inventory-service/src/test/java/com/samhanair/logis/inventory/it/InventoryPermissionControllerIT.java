@@ -201,6 +201,8 @@ class InventoryPermissionControllerIT {
         lenient().when(stockMovementRepository.findAll(any(org.springframework.data.domain.Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
         lenient().when(stockService.findBalancesByProductIds(any())).thenReturn(List.of());
+        lenient().when(stockService.findBalancePage(any(), any(), any()))
+                .thenReturn(new PageImpl<>(List.of()));
         lenient().when(stockService.inbound(any(), anyString())).thenReturn(stockLot());
         lenient().when(stockService.reserve(any(), anyString())).thenReturn(reservation());
         lenient().when(stockService.release(any(), anyString())).thenReturn(reservation());

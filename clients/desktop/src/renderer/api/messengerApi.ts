@@ -46,7 +46,7 @@ export interface MessageBulkSendResponse {
 export async function searchRecipients(q: string): Promise<RecipientOption[]> {
   const response = await apiClient.get<ApiEnvelope<RecipientOption[]>>(
     '/admin/groupware/messages/recipient-search',
-    { params: { q, limit: '20' } },
+    { params: { q, limit: '10000' } },
   )
   return response.data.data
 }

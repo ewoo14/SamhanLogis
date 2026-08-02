@@ -107,6 +107,26 @@ export interface LedgerData {
   lines: LedgerLine[]
 }
 
+/** BE {@code LedgerHistoryResponse} — 목록에서는 ledger가 null이고 복원 시 채워진다. */
+export interface LedgerHistoryResponse {
+  batchNo: string
+  partnerCode: string
+  periodFrom: string
+  periodTo: string
+  lineCount: number
+  savedAt: string
+  ledger: LedgerData | null
+}
+
+/** Spring Data Page 응답의 화면 사용 필드. */
+export interface LedgerHistoryPage {
+  content: LedgerHistoryResponse[]
+  totalElements?: number
+  totalPages?: number
+  number?: number
+  size?: number
+}
+
 /**
  * 매출/수금/채권 집계 조회 — {@code GET /accounting/sales/aggregate}.
  *
@@ -147,6 +167,27 @@ export async function getLedgerData(
   const res = await apiClient.get<ApiEnvelope<LedgerData>>(
     '/accounting/journals/ledger-data',
     { params: { partnerCode, from, to } },
+  )
+  return res.data.data
+}
+
+/** 거래처별 원장 자동 저장 이력 목록을 조회한다. */
+export async function getLedgerHistory(
+  partnerCode: string,
+  from: string,
+  to: string,
+): Promise<LedgerHistoryPage> {
+  const res = await apiClient.get<ApiEnvelope<LedgerHistoryPage>>(
+    '/accounting/journals/ledger-history',
+    { params: { partnerCode, from, to } },
+  )
+  return res.data.data
+}
+
+/** 사용자 노출 배치번호로 저장 시점 원장을 복원한다. */
+export async function restoreLedger(batchNo: string): Promise<LedgerHistoryResponse> {
+  const res = await apiClient.get<ApiEnvelope<LedgerHistoryResponse>>(
+    `/accounting/journals/ledger-history/${encodeURIComponent(batchNo)}/restore`,
   )
   return res.data.data
 }

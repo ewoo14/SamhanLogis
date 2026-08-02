@@ -46,13 +46,17 @@ interface ProductSummaryResponse {
  */
 export async function searchProducts(
   q: string,
-  options: { usageScope?: UsageScope } = {},
+  options: { usageScope?: UsageScope; size?: number } = {},
 ): Promise<ProductOption[]> {
   try {
     const res = await apiClient.get<ApiEnvelope<PageResponse<ProductSummaryResponse>>>(
       '/api/products',
       {
-        params: { q, size: 20, ...(options.usageScope ? { usageScope: options.usageScope } : {}) },
+        params: {
+          q,
+          size: options.size ?? 20,
+          ...(options.usageScope ? { usageScope: options.usageScope } : {}),
+        },
       },
     )
     const page = res.data.data

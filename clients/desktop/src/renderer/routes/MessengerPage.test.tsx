@@ -148,7 +148,8 @@ describe('MessengerPage', () => {
     const input = screen.getByTestId('messenger-recipient-search')
     fireEvent.change(input, { target: { value: '수신' } })
     await waitFor(() => expect(screen.getByText('김수신')).toBeTruthy())
-    fireEvent.mouseDown(screen.getByText('김수신'))
+    fireEvent.click(screen.getByRole('checkbox', { name: '김수신' }))
+    fireEvent.click(screen.getByRole('button', { name: '선택 확정' }))
     fireEvent.change(input, { target: { value: '박수신' } })
     await waitFor(() => expect(screen.getByText('박수신')).toBeTruthy())
     fireEvent.mouseDown(screen.getByText('박수신'))
@@ -525,7 +526,9 @@ describe('MessengerPage', () => {
       employeeCode: null,
     }))
     vi.mocked(messengerApi.fetchInbox).mockResolvedValue([])
-    vi.mocked(messengerApi.searchRecipients).mockResolvedValue(many)
+    vi.mocked(messengerApi.searchRecipients).mockImplementation(async (query) =>
+      many.filter((option) => option.name === query),
+    )
 
     renderPage()
     const input = screen.getByTestId('messenger-recipient-search')

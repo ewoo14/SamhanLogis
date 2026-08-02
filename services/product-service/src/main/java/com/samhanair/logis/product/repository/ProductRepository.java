@@ -64,6 +64,8 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     List<Product> findByNameAndIsDeletedFalse(String name);
 
+    List<Product> findByNameAndStatusAndIsDeletedFalse(String name, ProductStatus status);
+
     List<Product> findAllByIdIn(Collection<UUID> ids);
 
     /** 정합 점검 — 활성 BUNDLE 부모 총수 (전개 대상 세트 수). */

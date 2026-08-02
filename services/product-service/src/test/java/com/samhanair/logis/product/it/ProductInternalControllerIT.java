@@ -77,6 +77,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
 
     /** 에어컨 계열 카테고리(serial_managed=true)에 속하는 테스트 품목 UUID */
     private UUID serialProductId;
+    private String serialProductModelName;
 
     /** batch 카테고리(serial_managed=false, PIPING)에 속하는 테스트 품목 UUID */
     private UUID batchProductId;
@@ -118,9 +119,10 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                         Category.create("PIPING", "배관/부속", null, 3)));
 
         // 에어컨 계열 품목 생성
+        serialProductModelName = "IT-SERIAL-MANAGED-" + UUID.randomUUID().toString().substring(0, 8);
         Product serialProduct = productRepository.save(Product.create(
                 "테스트 벽걸이 에어컨",
-                "IT-SERIAL-MANAGED-" + UUID.randomUUID().toString().substring(0, 8),
+                serialProductModelName,
                 serialCategory,
                 new BigDecimal("1500000"),
                 new BigDecimal("1200000"),
@@ -180,7 +182,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].serialManaged", is(true)))
-                .andExpect(jsonPath("$.data[0].productCode", is("AC-SERIAL-IT")))
+                .andExpect(jsonPath("$.data[0].productCode", is(serialProductModelName)))
                 .andExpect(jsonPath("$.data[0].categoryKey", is("homemulti")))
                 .andExpect(jsonPath("$.data[0].id").exists());
     }
@@ -211,7 +213,7 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.productCode", is("AC-SERIAL-IT")))
+                .andExpect(jsonPath("$.data.productCode", is(serialProductModelName)))
                 .andExpect(jsonPath("$.data.serialManaged", is(true)))
                 .andExpect(jsonPath("$.data.id").exists());
     }

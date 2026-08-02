@@ -1,0 +1,25 @@
+#1042 재고 현황 조회 라이브QA — 실서버 (PM 직접)
+배포본: samhan-inventory-service (t1042 + origin/main 머지) · V22·V23 적용 확인
+
+[API] GET /inventory/balances?page=0&size=3   (품목 필터 없이)
+  HTTP=200              ← fix 전에는 400 "필수 요청 파라미터가 누락되었습니다"
+  총 건수 = 201
+  응답 내 UUID = 0건
+
+  첫 행 키
+    availableQty · productCode · productName · reservedQty
+    totalQty · version · warehouseCode · warehouseName · warehouseType
+  첫 행 값
+    AR05TXEAAWKNEU-01 / 삼성 윈드프리 5평형 / HQ-001 / 본사창고 /
+    HEADQUARTERS / 가용 47 / 예약 3 / 실재고 50
+
+[GUI] 창고 운영 → 재고 현황 → 조회
+  표에 행이 채워지고 모든 열에 값이 있다
+    AM030BNNDEH-64  삼성 DVM-S 3HP  HQ-001  본사창고  본사  491  0  491
+    AM030BNNDEH-64  삼성 DVM-S 3HP  VH-001  1호차 차량재고  차량  33  0  33
+    AJ030RXH4BC1    실외기_3HP 다배관  HQ-001  본사창고  본사  12  0  12
+
+  ⟹ 400 에러 배너가 사라지고 조회가 동작한다.
+
+[권한] 직접 :8085 호출은 VIEW 권한 보유 계정 필요 (janyeonggu 확인)
+       게이트웨이 경유 화면은 dev_master(MASTER)로 정상 조회

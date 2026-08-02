@@ -93,6 +93,14 @@ public class TaxInvoiceBatch extends BaseEntity {
     @Column(name = "data_snapshot_json", columnDefinition = "TEXT")
     private String dataSnapshotJson;
 
+    /** 스냅샷 문서 유형 — 기존 홈택스 행은 HOMETAX, 확장 문서는 명시적으로 구분한다. */
+    @Column(name = "document_type", nullable = false, length = 30)
+    private String documentType = "HOMETAX";
+
+    /** 문서의 사용자 노출 업무 식별자 (예: 거래처 코드). */
+    @Column(name = "document_key", length = 100)
+    private String documentKey;
+
     /** 작업자 UUID (X-User-Id 헤더). */
     @Column(name = "processed_by")
     private UUID processedBy;
@@ -140,6 +148,19 @@ public class TaxInvoiceBatch extends BaseEntity {
         batch.splitFileCount = 0;
         batch.status = TaxInvoiceBatchStatus.DRAFT;
         batch.version = 0L;
+        return batch;
+    }
+
+    /** 기존 RDB 스냅샷 계약을 다른 문서 생성 결과에 적용한다. */
+    public static TaxInvoiceBatch createDocumentSnapshot(String documentType, String documentKey,
+                                                         String batchNo, LocalDate fromDate,
+                                                         LocalDate toDate, UUID processedBy) {
+        TaxInvoiceBatch batch = create(batchNo, fromDate, toDate, processedBy);
+        if (documentType == null || documentType.isBlank()) {
+            throw new IllegalArgumentException("documentType 은 필수입니다");
+        }
+        batch.documentType = documentType;
+        batch.documentKey = documentKey;
         return batch;
     }
 

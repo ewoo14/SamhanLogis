@@ -84,7 +84,8 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     // BE-A9 endpoint
     expect(reportCtrl).toContain('@GetMapping("/accounting/journals/ledger-data")')
     expect(reportCtrl).toContain('LedgerImageResponse')
-    expect(reportCtrl).toContain('getLedger(partnerCode, from, to)')
+    // 거래처 필터는 partnerCode로 유지하고, 작성자 UUID는 응답 DTO가 아닌 내부 snapshot audit으로만 전달한다.
+    expect(reportCtrl).toContain('ledgerImageService.getLedger(partnerCode, from, to, parseUuid(userId))')
 
     // partnerCode 필수 파라미터 — 거래처 필터
     expect(reportCtrl).toContain('@RequestParam String partnerCode')

@@ -10,7 +10,6 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
-import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.CompensationOperation;
 import com.samhanair.logis.slip.domain.CompensationPhase;
@@ -118,12 +117,6 @@ public class SlipService {
      * 호출 실패 시 graceful fallback (ownerFullName=NULL 유지).
      */
     private final UserInternalClient userInternalClient;
-    /**
-     * SP-08-FU2 P2-2 — inventory-service 창고명 lookup client.
-     * 입고전표 생성/수정 시 destinationWarehouseName snapshot 저장.
-     * 호출 실패 시 null 유지 (fail-soft).
-     */
-    private final WarehouseInternalClient warehouseInternalClient;
     /**
      * 권한 재편 Phase 2.1 Task 2 — 전표 버전이력 스냅샷 캡처.
      * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
@@ -325,14 +318,6 @@ public class SlipService {
                 req.projectName(),
                 req.recipientPhone(),
                 req.paymentDueDate());
-
-        // 9. SP-08-FU2 P2-2 — INBOUND 전표: destinationWarehouseName snapshot
-        // destinationWarehouseId 가 있으면 inventory-service lookup 후 snapshot.
-        // 실패 시 null 유지 (fail-soft).
-        if (req.slipType() == SlipType.INBOUND && req.destinationWarehouseId() != null) {
-            warehouseInternalClient.findWarehouseName(req.destinationWarehouseId())
-                    .ifPresent(slip::snapshotDestinationWarehouseName);
-        }
 
         Slip saved = slipRepository.save(slip);
         // 권한 재편 Phase 2.1 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
@@ -1056,8 +1041,7 @@ public class SlipService {
                 for (SlipLine line : slip.getLines()) {
                     ProductSummary product = productsById.get(line.getProductId());
                     if (!product.serialManaged()) {
-                        inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                                line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+                        inboundBatchLine(slip, line);
                         continue;
                     }
                     if (dispatchedSerialProducts.add(line.getProductId())) {
@@ -1078,6 +1062,17 @@ public class SlipService {
             return "차용";
         }
         return "구매";
+    }
+
+    /** 저장된 전표 라인만 line UUID를 멱등 키로 전달하고 legacy 호출은 기존 계약을 유지한다. */
+    private void inboundBatchLine(Slip slip, SlipLine line) {
+        if (line.getId() == null) {
+            inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
+                    line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+            return;
+        }
+        inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
+                line.getQuantity(), slip.getSlipNo(), line.getId(), inboundUnitCost(line));
     }
 
     private boolean isRecallInbound(Slip slip) {
@@ -1112,8 +1107,7 @@ public class SlipService {
             for (SlipLine line : slip.getLines()) {
                 ProductSummary product = productsById.get(line.getProductId());
                 if (!product.serialManaged()) {
-                    inventoryClient.inbound(line.getProductId(), slip.getDestinationWarehouseId(),
-                            line.getQuantity(), slip.getSlipNo(), inboundUnitCost(line));
+                    inboundBatchLine(slip, line);
                 }
             }
         } catch (RuntimeException ex) {

@@ -24,6 +24,10 @@ import org.springframework.data.repository.query.Param;
  */
 public interface StockInstanceRepository extends JpaRepository<StockInstance, UUID> {
 
+    /** 모델명 전환 이후 product UUID로 AVAILABLE FIFO 후보를 조회한다. */
+    List<StockInstance> findByProductIdAndStatusOrderByReceivedAtAsc(
+            UUID productId, StockInstanceStatus status);
+
     /**
      * FIFO 소진 후보 — product_code 그룹의 지정 상태 인스턴스를 received_at ASC 순으로 조회.
      * 주로 {@link StockInstanceStatus#AVAILABLE} 상태 조회에 사용.
@@ -72,6 +76,24 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("status") StockInstanceStatus status,
             Pageable pageable);
 
+    /** 모델명 전환 후에도 product UUID로 legacy product_code 저장 행을 예약한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.productId = :productId
+              AND s.warehouseId = :warehouseId
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.receivedAt ASC, s.id ASC
+            """)
+    List<StockInstance> findByProductIdAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+            @Param("productId") UUID productId,
+            @Param("warehouseId") UUID warehouseId,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
+
     /**
      * 역-FIFO 회수 후보 — 거래처+품목코드 기준 지정 상태 인스턴스를 outbound_at DESC 순으로 조회.
      * 주로 {@link StockInstanceStatus#SHIPPED} 상태 조회에 사용.
@@ -83,6 +105,10 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
      */
     List<StockInstance> findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAsc(
             String outboundPartnerCode, String productCode, StockInstanceStatus status);
+
+    /** 모델명 전환 이후 product UUID로 SHIPPED 역-FIFO 후보를 조회한다. */
+    List<StockInstance> findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAsc(
+            String outboundPartnerCode, UUID productId, StockInstanceStatus status);
 
     /**
      * S4 회수 역-FIFO 후보 — 후보 행을 {@code SELECT FOR UPDATE} 로 잠가 교차 전표 중복 회수를 방지한다.
@@ -109,6 +135,36 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("productCode") String productCode,
             @Param("status") StockInstanceStatus status,
             Pageable pageable);
+
+    /** 모델명 전환 후에도 product UUID로 legacy product_code 저장 행을 회수한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.outboundPartnerCode = :outboundPartnerCode
+              AND s.productId = :productId
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.outboundAt DESC, s.id ASC
+            """)
+    List<StockInstance> findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAscForUpdate(
+            @Param("outboundPartnerCode") String outboundPartnerCode,
+            @Param("productId") UUID productId,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
+
+    long countByOutboundSlipNoAndProductIdAndStatus(
+            String outboundSlipNo, UUID productId, StockInstanceStatus status);
+
+    List<StockInstance> findByOutboundSlipNoAndProductIdAndStatus(
+            String outboundSlipNo, UUID productId, StockInstanceStatus status);
+
+    long countByRecallSlipNoAndProductIdAndStatus(
+            String recallSlipNo, UUID productId, StockInstanceStatus status);
+
+    List<StockInstance> findByRecallSlipNoAndProductIdAndStatus(
+            String recallSlipNo, UUID productId, StockInstanceStatus status);
 
     /**
      * 회수 대상 수량 확인 — 거래처+품목코드+상태 기준 건수.
@@ -204,6 +260,22 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("productCode") String productCode,
             @Param("status") StockInstanceStatus status);
 
+    /** 모델명 전환 후에도 product UUID로 회수취소 대상 legacy product_code 행을 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.recallSlipNo = :recallSlipNo
+              AND s.productId = :productId
+              AND s.status = :status
+              AND s.isDeleted = false
+            """)
+    List<StockInstance> findByRecallSlipNoAndProductIdAndStatusForUpdate(
+            @Param("recallSlipNo") String recallSlipNo,
+            @Param("productId") UUID productId,
+            @Param("status") StockInstanceStatus status);
+
     /**
      * 회수품 재판매 대상 조회(row lock) — recallSlipNo+productCode+RECALLED 후보를 제한 수량만 잠근다.
      *
@@ -230,6 +302,24 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     List<StockInstance> findByRecallSlipNoAndProductCodeAndStatusForUpdate(
             @Param("recallSlipNo") String recallSlipNo,
             @Param("productCode") String productCode,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
+
+    /** 모델명 전환 후에도 product UUID로 재판매 대상 legacy product_code 행을 수량만큼 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.recallSlipNo = :recallSlipNo
+              AND s.productId = :productId
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.id ASC
+            """)
+    List<StockInstance> findByRecallSlipNoAndProductIdAndStatusForUpdate(
+            @Param("recallSlipNo") String recallSlipNo,
+            @Param("productId") UUID productId,
             @Param("status") StockInstanceStatus status,
             Pageable pageable);
 

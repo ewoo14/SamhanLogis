@@ -855,6 +855,8 @@ export interface SlipQueryRow {
   printed: boolean
   memo: string | null
   totalAmount: number
+  /** 사용자 화면 표시용 부가세 포함 금액. legacy 응답에는 없을 수 있다. */
+  displayTotalAmount?: number | null
   totalQuantity: number
   salesPersonName: string | null
   editHistoryCount: number

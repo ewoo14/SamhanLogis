@@ -22,6 +22,10 @@ import {
 import { createPortal } from 'react-dom'
 import styles from './AsyncAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
+import {
+  SearchResultSelectionModal,
+  type SearchResultSelectionMode,
+} from '../SearchResultSelectionModal'
 
 export interface AsyncAutocompleteProps<T> {
   /** 현재 선택 항목 (controlled). 미선택은 `null`. */
@@ -69,6 +73,16 @@ export interface AsyncAutocompleteProps<T> {
   debounceMs?: number
   /** dropdown 을 body floating layer 로 렌더한다. overflow 컨테이너 안에서는 기본 true 를 유지한다. */
   portal?: boolean
+  /** 결과 선택 모달을 활성화한다. 기본값 legacy는 기존 dropdown 동작이다. */
+  resultSelectionMode?: SearchResultSelectionMode
+  /** multiple 모달에서 확정된 후보 묶음. */
+  onResultsConfirmed?: (items: T[]) => void
+  /** 결과 선택 모달 제목. */
+  resultSelectionTitle?: ReactNode
+  /** multiple 모달에서 이미 선택한 후보의 opaque key. */
+  selectedKeys?: string[]
+  /** 기존 wrapper가 1건 후보를 즉시 확정하던 명시적 계약. 기본값 false. */
+  autoSelectSingleResult?: boolean
 }
 
 /** 후보 표시 renderer에 전달하는 응답 시점 검색 context. */
@@ -101,6 +115,11 @@ function AsyncAutocompleteInner<T>(
     minChars = 1,
     debounceMs = 250,
     portal = true,
+    resultSelectionMode,
+    onResultsConfirmed,
+    resultSelectionTitle = '검색 결과 선택',
+    selectedKeys = [],
+    autoSelectSingleResult = false,
   }: AsyncAutocompleteProps<T>,
   ref: ForwardedRef<HTMLInputElement>,
 ) {
@@ -120,6 +139,8 @@ function AsyncAutocompleteInner<T>(
   }>({ candidates: [], resolvedQuery: '' })
   const [status, setStatus] = useState<SearchStatus>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [selectionCandidates, setSelectionCandidates] = useState<T[]>([])
+  const [selectionOpen, setSelectionOpen] = useState(false)
   const [floatingStyle, setFloatingStyle] = useState<CSSProperties | undefined>(undefined)
   const [, setCommittedState] = useState(true)
 
@@ -137,6 +158,9 @@ function AsyncAutocompleteInner<T>(
   const committedRef = useRef(true)
   const commitCallbackRef = useRef(onInputCommitChange)
   const previousValueKeyRef = useRef<string | null>(value ? getKey(value) : null)
+  // 모달 취소 뒤 Modal의 포커스 복원은 새 검색 시작이 아니므로 draft를 유지한다.
+  const preserveDraftOnNextFocusRef = useRef(false)
+  const lastTypedDraftRef = useRef('')
 
   const { candidates, resolvedQuery } = searchState
 
@@ -174,7 +198,13 @@ function AsyncAutocompleteInner<T>(
       window.clearTimeout(blurTimer.current)
       blurTimer.current = undefined
     }
-    setDraft('')
+    const preserveDraft = preserveDraftOnNextFocusRef.current
+    // 모달 취소 직후 포커스 복원 1회만 검색어를 보존하고, 다음 왕복부터는 정리한다.
+    preserveDraftOnNextFocusRef.current = false
+    if (!preserveDraft) {
+      lastTypedDraftRef.current = ''
+      setDraft('')
+    }
     setActiveIndex(-1)
     setCommitted(value === null)
     latestSeq.current = ++instanceSeq.current
@@ -218,6 +248,15 @@ function AsyncAutocompleteInner<T>(
       latestSeq.current = ++instanceSeq.current
       setOpen(false)
       setActiveIndex(-1)
+
+      // 결과 모달로 포커스가 이동한 blur는 검색 취소가 아니므로 입력어를 복원하지 않는다.
+      if (preserveDraftOnNextFocusRef.current) {
+        setSearchState({ candidates: [], resolvedQuery: '' })
+        setStatus('idle')
+        setErrorMsg(null)
+        return
+      }
+
       const trimmed = draft.trim()
 
       if (!trimmed) {
@@ -258,6 +297,26 @@ function AsyncAutocompleteInner<T>(
   }
 
   /** 서버 검색 실행 — stale 응답 무시 포함. */
+  /** 검색 결과 확정·취소 뒤 검색 dropdown 잔여 상태를 정리한다. */
+  const closeSearchSurface = useCallback(
+    ({ resetDraft = true }: { resetDraft?: boolean } = {}) => {
+      cancelDebouncedSearch()
+      if (blurTimer.current !== undefined) {
+        window.clearTimeout(blurTimer.current)
+        blurTimer.current = undefined
+      }
+      latestSeq.current = ++instanceSeq.current
+      setOpen(false)
+      setActiveIndex(-1)
+      setSearchState({ candidates: [], resolvedQuery: '' })
+      setStatus('idle')
+      setErrorMsg(null)
+      // 확정은 새 선택값을 표시해야 하므로 draft를 비우고, 모달 취소는 사용자의 검색어를 보존한다.
+      if (resetDraft) setDraft('')
+    },
+    [cancelDebouncedSearch],
+  )
+
   const performSearch = useCallback(
     async (q: string) => {
       // 인스턴스별 seq — 다른 인스턴스와 완전 격리
@@ -274,6 +333,27 @@ function AsyncAutocompleteInner<T>(
         // stale 응답 — 더 최신 요청이 발행됐으면 버림
         if (latestSeq.current !== seq) return
         // 후보와 그 후보를 만든 검색어를 원자적으로 갱신한다.
+        // ProductMultiSelectAutocomplete의 기존 단일 후보 즉시 칩 계약은 유지한다.
+        // 그 외에는 정확 입력·키보드 선택·기존 클릭 사용자 흐름을 자동선택으로
+        // 바꾸지 않도록 1건은 dropdown에 남긴다. 모달 계약은 2건 이상일 때만 적용한다.
+        if (
+          autoSelectSingleResult &&
+          resultSelectionMode === 'multiple' &&
+          onResultsConfirmed &&
+          results.length === 1
+        ) {
+          onResultsConfirmed(results)
+          closeSearchSurface({ resetDraft: true })
+          return
+        }
+        if (resultSelectionMode && results.length > 1) {
+          setSelectionCandidates(results)
+          // Modal이 닫히며 입력으로 포커스를 복원할 때까지 검색어를 보존한다.
+          preserveDraftOnNextFocusRef.current = true
+          setSelectionOpen(true)
+          closeSearchSurface({ resetDraft: false })
+          return
+        }
         setSearchState({ candidates: results, resolvedQuery: q })
         setStatus('done')
       } catch {
@@ -283,12 +363,21 @@ function AsyncAutocompleteInner<T>(
         setErrorMsg('검색 중 오류가 발생했습니다.')
       }
     },
-    [search],
+    [
+      autoSelectSingleResult,
+      closeSearchSurface,
+      onResultsConfirmed,
+      pick,
+      resultSelectionMode,
+      search,
+    ],
   )
 
   /** 입력 변경 — debounce 후 서버 검색 */
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const nextDraft = e.target.value
+    preserveDraftOnNextFocusRef.current = false
+    lastTypedDraftRef.current = nextDraft
     setDraft(nextDraft)
     // value=null인 빈 입력만 확정 상태로 남기고, 한 글자라도 편집하면 미확정이다.
     setCommitted(value === null && nextDraft.trim() === '')
@@ -427,8 +516,18 @@ function AsyncAutocompleteInner<T>(
     }
   }
 
+  const closeSelection = useCallback((preserveDraft: boolean) => {
+    preserveDraftOnNextFocusRef.current = preserveDraft
+    if (preserveDraft) setDraft(lastTypedDraftRef.current)
+    setSelectionOpen(false)
+    setSelectionCandidates([])
+    closeSearchSurface({ resetDraft: !preserveDraft })
+    setCommitted(true)
+  }, [closeSearchSurface, setCommitted])
+
   // 표시값 — 포커스 중에는 draft, 그 외엔 selectedLabel
-  const displayValue = open ? draft : selectedLabel
+  // 모달 취소로 검색 surface만 닫혀도, 아직 확정되지 않은 검색어는 입력란에 남긴다.
+  const displayValue = open || draft.length > 0 ? draft : selectedLabel
 
   // 로딩/결과/에러 등 dropdown 표시 여부
   const showDropdown =
@@ -494,6 +593,7 @@ function AsyncAutocompleteInner<T>(
     req: boolean,
     ariaDescribedBy: string | undefined,
   ) => (
+    <>
     <div className={styles['wrapper']} ref={wrapperRef}>
       <div
         className={[
@@ -646,6 +746,24 @@ function AsyncAutocompleteInner<T>(
         )
       ) : null}
     </div>
+    <SearchResultSelectionModal
+      key={selectionCandidates.map(getKey).join('|')}
+      open={selectionOpen}
+      mode={resultSelectionMode ?? 'single'}
+      title={resultSelectionTitle}
+      options={selectionCandidates}
+      getKey={getKey}
+      getLabel={getInputLabel}
+      renderOption={(item) => renderOption(item, { query: draft.trim() })}
+      initialSelectedKeys={selectedKeys}
+      onConfirm={(items) => {
+        if (resultSelectionMode === 'multiple') onResultsConfirmed?.(items)
+        else if (items[0]) pick(items[0])
+        closeSelection(false)
+      }}
+      onCancel={() => closeSelection(true)}
+    />
+    </>
   )
 
   // compact 모드: label 없이 wrapper+input 만 렌더
