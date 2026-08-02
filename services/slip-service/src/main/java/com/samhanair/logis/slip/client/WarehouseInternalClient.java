@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.security.InternalAuthProperties;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -28,7 +30,12 @@ public class WarehouseInternalClient {
             @Qualifier("loadBalancedRestClientBuilder") RestClient.Builder builder,
             InternalAuthProperties internalAuthProperties,
             ObjectMapper objectMapper) {
-        this.restClient = builder.baseUrl(INVENTORY_SERVICE_BASE).build();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout((int) Duration.ofSeconds(2).toMillis());
+        requestFactory.setReadTimeout((int) Duration.ofSeconds(3).toMillis());
+        this.restClient = builder.baseUrl(INVENTORY_SERVICE_BASE)
+                .requestFactory(requestFactory)
+                .build();
         this.internalAuthProperties = internalAuthProperties;
         this.objectMapper = objectMapper;
     }

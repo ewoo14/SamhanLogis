@@ -10,7 +10,6 @@ import com.samhanair.logis.slip.client.PartnerInternalClient;
 import com.samhanair.logis.slip.client.ExpandedLineDto;
 import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.UserInternalClient;
-import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.domain.CompensationOperation;
 import com.samhanair.logis.slip.domain.CompensationPhase;
@@ -118,8 +117,8 @@ public class SlipService {
      * 호출 실패 시 graceful fallback (ownerFullName=NULL 유지).
      */
     private final UserInternalClient userInternalClient;
-    /** 신규 OUTBOUND 생성 시 UUID가 가리키는 inventory warehouse code를 snapshot한다. */
-    private final WarehouseInternalClient warehouseInternalClient;
+    /** 신규 OUTBOUND 저장 후 inventory warehouse code를 best-effort 보강한다. */
+    private final WarehouseCodeSnapshotService warehouseCodeSnapshotService;
     /**
      * 권한 재편 Phase 2.1 Task 2 — 전표 버전이력 스냅샷 캡처.
      * create/updateSlip/applyOverlayPatch mutation 성공 직후 같은 트랜잭션에서 capture 호출.
@@ -255,9 +254,6 @@ public class SlipService {
                     req.sourceWarehouseId(), req.destinationWarehouseId(),
                     req.partnerId(), req.partnerName(),
                     req.deliveryTag(), req.memo(), requesterId);
-            Optional.ofNullable(warehouseInternalClient.findWarehouseCode(req.sourceWarehouseId()))
-                    .orElseGet(Optional::empty)
-                    .ifPresent(slip::setSourceWarehouseCode);
             // [게이트①] 출고전표 수동 생성 마감 게이트 — createOutbound 직후, save 직전.
             // 태그 null(미지정) 이면 assertWithinCutoff 내부에서 즉시 통과(opt-in).
             cutoffGuard.assertWithinCutoff(slip.getDeliveryTag(), slip.getSlipDate());
@@ -326,6 +322,10 @@ public class SlipService {
                 req.paymentDueDate());
 
         Slip saved = slipRepository.save(slip);
+        if (saved.getSlipType() == SlipType.OUTBOUND) {
+            warehouseCodeSnapshotService.scheduleAfterCommit(
+                    saved.getId(), saved.getSourceWarehouseId());
+        }
         // 권한 재편 Phase 2.1 Task 2 — 생성 직후 CREATE 스냅샷 1건 캡처 (revision 1)
         // [UUID 비공개 가드] actorName 은 X-User-Name 우선, 없거나 UUID 형태면 null
         slipRevisionService.capture(saved, SlipRevisionType.CREATE, null,

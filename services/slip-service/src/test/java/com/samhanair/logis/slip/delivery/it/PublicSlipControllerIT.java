@@ -13,6 +13,7 @@ import com.samhanair.logis.slip.client.ProductClient;
 import com.samhanair.logis.slip.client.ProductSummary;
 import com.samhanair.logis.slip.client.UserInternalClient;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
+import com.samhanair.logis.slip.service.WarehouseCodeSnapshotService;
 import com.samhanair.logis.slip.delivery.domain.DeliveryBatch;
 import com.samhanair.logis.slip.delivery.repository.DeliveryBatchRepository;
 import com.samhanair.logis.slip.delivery.sms.SmsGateway;
@@ -68,6 +69,7 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
     /** SP-08-FU2 P2-2 — WarehouseInternalClient @MockBean 격리. */
     @MockBean
     private WarehouseInternalClient warehouseInternalClient;
+    @MockBean private WarehouseCodeSnapshotService warehouseCodeSnapshotService;
 
     @BeforeEach
     void mockClients() {
@@ -135,8 +137,6 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
         body.put("partnerId", UUID.randomUUID().toString());
         body.put("partnerName", "거래처");
         body.put("lines", List.of(line));
-        Mockito.when(warehouseInternalClient.findWarehouseCode(sourceWarehouseId))
-                .thenReturn(Optional.of("00003"));
 
         MvcResult result = mockMvc.perform(post("/slips")
                         .header("X-User-Id", UUID.randomUUID().toString())
@@ -146,10 +146,8 @@ class PublicSlipControllerIT extends AbstractPostgresIT {
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        String slipNo = objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("data").get("slipNo").asText();
-        assertThat(slipRepository.findBySlipNo(slipNo).orElseThrow().getSourceWarehouseCode())
-                .isEqualTo("00003");
+        Mockito.verify(warehouseCodeSnapshotService).scheduleAfterCommit(
+                ArgumentMatchers.any(), ArgumentMatchers.eq(sourceWarehouseId));
     }
 
     @Test
