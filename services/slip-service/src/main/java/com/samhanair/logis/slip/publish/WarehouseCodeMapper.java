@@ -20,6 +20,9 @@ import org.springframework.stereotype.Component;
 @Setter
 public class WarehouseCodeMapper {
 
+    private static final String CANONICAL_UUID_PATTERN =
+            "(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
     /** Spring이 주입하는 legacy 창고코드와 내부 UUID 매핑. */
     private Map<String, String> warehouseCodeMap = new HashMap<>();
 
@@ -48,6 +51,9 @@ public class WarehouseCodeMapper {
             throw invalidStartupMapping(warehouseCode);
         }
         try {
+            if (!configuredValue.matches(CANONICAL_UUID_PATTERN)) {
+                throw new IllegalArgumentException("non-canonical UUID");
+            }
             return UUID.fromString(configuredValue);
         } catch (IllegalArgumentException ex) {
             throw invalidStartupMapping(warehouseCode);
@@ -75,6 +81,9 @@ public class WarehouseCodeMapper {
                     "매핑되지 않은 warehouseCode: '" + warehouseCode + "'");
         }
         try {
+            if (!configuredValue.matches(CANONICAL_UUID_PATTERN)) {
+                throw new IllegalArgumentException("non-canonical UUID");
+            }
             return UUID.fromString(configuredValue);
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INTERNAL_ERROR,

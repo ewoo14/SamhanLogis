@@ -32,6 +32,11 @@ class WarehouseCodeMapperStartupValidationTest {
     }
 
     @Test
+    void 축약형_UUID는_정규_문자열_형식이_아니므로_기동_실패한다() {
+        assertStartupFailure("1-1-1-1-1");
+    }
+
+    @Test
     void 창고_client를_주입하지_않아도_정상_매핑은_기동한다() {
         WarehouseCodeMapper mapper = mapperWith("00003", "00000000-0000-0000-0000-000000000001");
 

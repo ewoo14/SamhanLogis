@@ -886,7 +886,7 @@ docker compose -f infrastructure/docker-compose.yml up -d
 ./gradlew :services:user-service:bootRun            # http://localhost:8083
 ./gradlew :services:product-service:bootRun         # http://localhost:8084
 ./gradlew :services:inventory-service:bootRun       # http://localhost:8085
-./gradlew :services:slip-service:bootRun            # http://localhost:8086
+./gradlew :services:slip-service:bootRun --args='--spring.profiles.active=local' # http://localhost:8086
 ./gradlew :services:accounting-service:bootRun      # http://localhost:8087
 ./gradlew :services:partner-auth-service:bootRun    # http://localhost:8091
 ./gradlew :services:dc-config-service:bootRun       # http://localhost:8089
