@@ -319,27 +319,29 @@ public class EcountProductImporter {
         if (explicitMainCode != null) {
             ItemRow explicitMainRow = itemsByCode.get(explicitMainCode);
             if (explicitMainRow != null) {
-                return new ProductMainCandidate(explicitMainCode, explicitMainRow, null);
+                return new ProductMainCandidate(explicitMainCode, explicitMainRow, null, true);
             }
             UUID existingMainId = findActiveProductIdByCode(explicitMainCode);
-            return existingMainId == null ? null : new ProductMainCandidate(explicitMainCode, null, existingMainId);
+            return existingMainId == null
+                    ? null
+                    : new ProductMainCandidate(explicitMainCode, null, existingMainId, true);
         }
         if (relationMainCodes.contains(row.code())) {
-            return new ProductMainCandidate(row.code(), row, null);
+            return new ProductMainCandidate(row.code(), row, null, true);
         }
         ItemRow ruleMainRow = findApprovedRawMainRow(row, itemsByCode);
         if (ruleMainRow != null) {
-            return new ProductMainCandidate(ruleMainRow.code(), ruleMainRow, null);
+            return new ProductMainCandidate(ruleMainRow.code(), ruleMainRow, null, true);
         }
         String dbMainCode = findActiveProductCodeByName(row.name());
         if (dbMainCode != null && !dbMainCode.isBlank()) {
             ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
             if (sameFingerprint(dbMainRaw, row)) {
-                return new ProductMainCandidate(dbMainCode, dbMainRaw, null);
+                return new ProductMainCandidate(dbMainCode, dbMainRaw, null, false);
             }
         }
         if (normalNameCounts.getOrDefault(row.name(), 0) == 1) {
-            return new ProductMainCandidate(row.code(), row, null);
+            return new ProductMainCandidate(row.code(), row, null, false);
         }
         throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
                 "품목 main 후보를 결정할 수 없습니다: name=" + row.name()
@@ -378,13 +380,13 @@ public class EcountProductImporter {
         if (existingCode != null && !existingCode.isBlank()) {
             ItemRow existingRaw = itemsByCode.get(existingCode);
             if (sameFingerprint(existingRaw, sameNameRows.get(0))) {
-                return new ProductMainCandidate(existingCode, existingRaw, null);
+                return new ProductMainCandidate(existingCode, existingRaw, null, false);
             }
         }
         ItemRow canonicalRaw = sameNameRows.stream()
                 .min(Comparator.comparing(ItemRow::code))
                 .orElseThrow();
-        return new ProductMainCandidate(canonicalRaw.code(), canonicalRaw, null);
+        return new ProductMainCandidate(canonicalRaw.code(), canonicalRaw, null, false);
     }
 
     private List<String> rawCandidatesByName(String name, Map<String, ItemRow> itemsByCode) {
@@ -427,11 +429,11 @@ public class EcountProductImporter {
     }
 
     private boolean isFingerprintCompatibleCandidate(ProductMainCandidate candidate, ProductIdentity expected,
-                                                     int sameNameRowCount) {
+                                                      int sameNameRowCount) {
         return candidate != null
-                && (candidate.rawRow() == null
-                        ? candidate.existingProductId() != null && sameNameRowCount == 1
-                        : sameFingerprint(candidate.rawRow(), expected));
+                && ((candidate.trustedIdentity()
+                        && (candidate.rawRow() != null || sameNameRowCount == 1))
+                        || (candidate.rawRow() != null && sameFingerprint(candidate.rawRow(), expected)));
     }
 
     private String mergeRowSummary(ItemRow row) {
@@ -872,7 +874,8 @@ public class EcountProductImporter {
     private record UpsertProductResult(UUID productId, boolean isNew) {
     }
 
-    private record ProductMainCandidate(String mainCode, ItemRow rawRow, UUID existingProductId) {
+    private record ProductMainCandidate(String mainCode, ItemRow rawRow, UUID existingProductId,
+                                        boolean trustedIdentity) {
     }
 
     private record ProductIdentity(String name, String fingerprint) {

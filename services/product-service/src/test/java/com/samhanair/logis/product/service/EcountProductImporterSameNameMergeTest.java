@@ -58,6 +58,19 @@ class EcountProductImporterSameNameMergeTest {
     }
 
     @Test
+    void 승인된_순번코드와_모델코드는_fingerprint가_달라도_같은_품목으로_병합된다() {
+        EcountProductImportResult result = importer.importCsv(
+                itemCsv(
+                        row("00130", "AJ030RXH4BC1", "627,000", "652,080", ""),
+                        row("AJ030RXH4BC1", "AJ030RXH4BC1 (RX다배관)", "627,000", "1,254,000", "다배관")),
+                null, null, "r9-alias-precedence-red");
+
+        assertThat(result.imported()).isOne();
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isZero();
+    }
+
+    @Test
     void 같은_품목명_순번코드_그룹은_대표후보_실패로_누락되지_않고_한_품목과_alias로_병합된다() {
         EcountProductImportResult result = importer.importCsv(
                 itemCsv(
