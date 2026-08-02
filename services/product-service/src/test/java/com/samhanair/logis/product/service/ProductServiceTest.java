@@ -127,18 +127,13 @@ class ProductServiceTest {
     }
 
     @Test
-    void summary_exposes_modelCode_as_productCode_and_keeps_legacy_code_as_fallback() {
+    void summary_exposes_modelName_as_productCode_even_when_modelCode_and_legacy_code_exist() {
         ReflectionTestUtils.setField(product, "productCode", "010004");
         ReflectionTestUtils.setField(product, "modelCode", "MODEL-004");
 
         ProductSummaryResponse withModelCode = ProductSummaryResponse.from(product);
 
-        assertThat(withModelCode.productCode()).isEqualTo("MODEL-004");
-
-        ReflectionTestUtils.setField(product, "modelCode", null);
-        ProductSummaryResponse withoutModelCode = ProductSummaryResponse.from(product);
-
-        assertThat(withoutModelCode.productCode()).isEqualTo("010004");
+        assertThat(withModelCode.productCode()).isEqualTo("SHA-W15K");
     }
 
     @Test
