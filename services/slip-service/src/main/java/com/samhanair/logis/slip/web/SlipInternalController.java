@@ -76,7 +76,9 @@ public class SlipInternalController {
     private static final List<SlipStatus> PARTNER_LEDGER_SALES_STATUSES = List.of(
             SlipStatus.CONFIRMED,
             SlipStatus.DELIVERED,
-            SlipStatus.COMPLETED);
+            SlipStatus.COMPLETED,
+            SlipStatus.SHIPPING,
+            SlipStatus.INSPECTING);
 
     private final SlipSignatureService signatureService;
     private final SlipAttachmentService attachmentService;

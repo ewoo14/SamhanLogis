@@ -81,6 +81,16 @@ function fmtKrw(raw: string | null | undefined): string {
   return Math.round(n).toLocaleString('ko-KR')
 }
 
+/** 음수만 빨강으로 표시하고 양수/0은 기본 잉크색을 유지한다. */
+function amountStyle(raw: string | number | null | undefined): CSSProperties {
+  const n = Number(raw)
+  return {
+    ...tdStyle,
+    textAlign: 'right',
+    color: Number.isFinite(n) && n < 0 ? '#DC2626' : tdStyle.color,
+  }
+}
+
 /** CSV 셀 escape — RFC4180. */
 function csvCell(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return ''
@@ -507,13 +517,13 @@ export function PartnerLedgerPage() {
                         {row.bizNo?.replace(/\D/g, '') || '-'}
                       </td>
                       <td style={tdStyle}>{row.partnerName}</td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <td style={amountStyle(row.salesTotal)}>
                         {fmtKrw(row.salesTotal)}
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <td style={amountStyle(row.paymentTotal)}>
                         {fmtKrw(row.paymentTotal)}
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      <td style={amountStyle(row.receivableBalance)}>
                         {fmtKrw(row.receivableBalance)}
                       </td>
                       <td style={tdStyle}>
@@ -719,18 +729,14 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
                   <td style={tdStyle}>{ln.documentType === 'CASH_RECEIPT' ? '수금' : '매출'}</td>
                   <td style={tdStyle}>{ln.deliveryAddress || '—'}</td>
                   <td style={tdStyle}>{ln.description || '-'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <td style={amountStyle(ln.debit)}>
                     {fmtKrw(ln.debit)}
                   </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  <td style={amountStyle(ln.credit)}>
                     {fmtKrw(ln.credit)}
                   </td>
                   <td
-                    style={{
-                      ...tdStyle,
-                      textAlign: 'right',
-                      fontWeight: 600,
-                    }}
+                    style={{ ...amountStyle(ln.balance), fontWeight: 600 }}
                   >
                     {fmtKrw(ln.balance)}
                   </td>
@@ -743,20 +749,12 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
                   합계
                 </td>
                 <td
-                  style={{
-                    ...tdStyle,
-                    textAlign: 'right',
-                    fontWeight: 700,
-                  }}
+                  style={{ ...amountStyle(totals.debit), fontWeight: 700 }}
                 >
                   {fmtKrw(totals.debit)}
                 </td>
                 <td
-                  style={{
-                    ...tdStyle,
-                    textAlign: 'right',
-                    fontWeight: 700,
-                  }}
+                  style={{ ...amountStyle(totals.credit), fontWeight: 700 }}
                 >
                   {fmtKrw(totals.credit)}
                 </td>

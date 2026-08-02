@@ -111,6 +111,57 @@ export interface LedgerData {
   lines: LedgerLine[]
 }
 
+export interface PartnerLedgerSourceDocument {
+  type: 'SALE' | 'CASH_RECEIPT'
+  documentNo: string
+  date: string
+  deliveryAddress: string | null
+  amount: string
+  lines: Array<{
+    productName: string
+    modelName: string | null
+    quantity: number
+    unitPriceWithVat: string
+    lineAmount: string
+  }>
+}
+
+/** API 문서 순서를 보존하면서 debit-credit 누적잔액을 계산한다. */
+export function buildPartnerLedgerLines(
+  documents: PartnerLedgerSourceDocument[],
+): LedgerLine[] {
+  let balance = 0
+  return documents.flatMap((document) => {
+    const rows = document.type === 'SALE' && document.lines.length > 0
+      ? document.lines.map((line) => ({
+          date: document.date,
+          journalNo: document.documentNo,
+          accountCode: '',
+          accountName: '',
+          description: `${line.productName}${line.modelName ? ` (${line.modelName})` : ''}`,
+          debit: line.lineAmount,
+          credit: '0',
+          deliveryAddress: document.deliveryAddress,
+          documentType: document.type,
+        }))
+      : [{
+          date: document.date,
+          journalNo: document.documentNo,
+          accountCode: '',
+          accountName: '',
+          description: document.type === 'CASH_RECEIPT' ? '입금보고서' : '',
+          debit: '0',
+          credit: document.amount,
+          deliveryAddress: document.deliveryAddress,
+          documentType: document.type,
+        }]
+    return rows.map((row) => {
+      balance += Number(row.debit) - Number(row.credit)
+      return { ...row, balance: String(balance) }
+    })
+  })
+}
+
 /** BE {@code LedgerHistoryResponse} — 목록에서는 ledger가 null이고 복원 시 채워진다. */
 export interface LedgerHistoryResponse {
   batchNo: string
@@ -180,34 +231,7 @@ export async function getLedgerData(
     chatRoomNames: [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
-    lines: source.documents.flatMap((document) => {
-      if (document.type === 'SALE' && document.lines.length > 0) {
-        return document.lines.map((line) => ({
-          date: document.date,
-          journalNo: document.documentNo,
-          accountCode: '',
-          accountName: '',
-          description: `${line.productName}${line.modelName ? ` (${line.modelName})` : ''}`,
-          debit: line.lineAmount,
-          credit: '0',
-          balance: '0',
-          deliveryAddress: document.deliveryAddress,
-          documentType: document.type,
-        }))
-      }
-      return [{
-        date: document.date,
-        journalNo: document.documentNo,
-        accountCode: '',
-        accountName: '',
-        description: document.type === 'CASH_RECEIPT' ? '입금보고서' : '',
-        debit: '0',
-        credit: document.amount,
-        balance: '0',
-        deliveryAddress: document.deliveryAddress,
-        documentType: document.type,
-      }]
-    }),
+    lines: buildPartnerLedgerLines(source.documents),
   }
 }
 
@@ -216,20 +240,7 @@ interface PartnerLedgerResponse {
   partnerName: string | null
   periodFrom: string
   periodTo: string
-  documents: Array<{
-    type: 'SALE' | 'CASH_RECEIPT'
-    documentNo: string
-    date: string
-    deliveryAddress: string | null
-    amount: string
-    lines: Array<{
-      productName: string
-      modelName: string | null
-      quantity: number
-      unitPriceWithVat: string
-      lineAmount: string
-    }>
-  }>
+  documents: PartnerLedgerSourceDocument[]
 }
 
 /** 거래처별 원장 자동 저장 이력 목록을 조회한다. */
