@@ -76,7 +76,7 @@ export function buildSendEntries(
   preview: DispatchSmsPreviewResponse,
   edited: EditedMessages,
 ): DispatchSmsSendEntry[] {
-  const entriesByRecipient = new Map<string, DispatchSmsSendEntry>()
+  const entriesByRecipient = new Map<string, DispatchSmsSendEntry[]>()
   const maxMessageLength = 2000
   // 단톡방 직접 전송 API가 없으므로 매핑된 room은 수동 전달 경로로 남긴다.
   // 매핑이 없는 건만 인수자 전화번호 SMS fallback으로 보낸다.
@@ -87,7 +87,8 @@ export function buildSendEntries(
     const recipientPhone = p.recipientPhone?.trim() ?? ''
     if (!recipientPhone) continue
     const message = edited[p.partnerCode] ?? p.message
-    const existing = entriesByRecipient.get(recipientPhone)
+    const recipientEntries = entriesByRecipient.get(recipientPhone) ?? []
+    const existing = recipientEntries[recipientEntries.length - 1]
     if (existing) {
       const candidate = `${existing.message}\n\n${message}`
       if (candidate.length <= maxMessageLength) {
@@ -96,21 +97,22 @@ export function buildSendEntries(
         // 원문 블록을 잘라내지 않고 새 entry로 넘겨 BE 2,000자 제한과
         // 정보 보존을 동시에 만족한다. 새 entry는 같은 번호의 대표 코드로
         // 묶여 preview/send 계약을 유지한다.
-        entriesByRecipient.set(`${recipientPhone}:${entriesByRecipient.size}`, {
+        recipientEntries.push({
           partnerCode: existing.partnerCode,
           recipientPhone,
           message,
         })
       }
-      continue
+    } else {
+      recipientEntries.push({
+        partnerCode: p.partnerCode,
+        recipientPhone,
+        message,
+      })
     }
-    entriesByRecipient.set(recipientPhone, {
-      partnerCode: p.partnerCode,
-      recipientPhone,
-      message,
-    })
+    entriesByRecipient.set(recipientPhone, recipientEntries)
   }
-  return [...entriesByRecipient.values()]
+  return [...entriesByRecipient.values()].flat()
 }
 
 /** 화면의 SMS 발송 건수와 buildSendEntries의 실제 요청 건수를 동일하게 계산한다. */

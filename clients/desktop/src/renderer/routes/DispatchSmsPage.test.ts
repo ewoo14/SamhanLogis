@@ -127,7 +127,13 @@ describe('배차문자 발송 모집단', () => {
     const entries = buildSendEntries(realScalePreview, {})
 
     expect(source).toHaveLength(1911)
-    expect(entries).toHaveLength(12)
+    expect(new Set(source.map((row) => row.recipientPhone))).toEqual(new Set([
+      '010-1111-2222',
+      '010-2222-3333',
+    ]))
+    expect(source.filter((row) => row.recipientPhone === '010-1111-2222')).toHaveLength(1910)
+    expect(entries).toHaveLength(13)
+    expect(entries.filter((entry) => entry.recipientPhone === '010-1111-2222')).toHaveLength(12)
     expect(entries.every((entry) => entry.message.length <= 2000)).toBe(true)
     expect(Math.max(...entries.map((entry) => entry.message.length))).toBeLessThanOrEqual(2000)
     expect(source.filter((row) => !entries.some((entry) => entry.message.includes(row.message)))).toHaveLength(0)
