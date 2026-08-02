@@ -434,7 +434,9 @@ public class MonthEndCloseService {
             try {
                 PartnerDcConfigClient.LookupResult result = partnerDcConfigClient.findByPartnerCode(partnerCode);
                 globalDiscountsByPartnerCode.put(partnerCode, result.found()
-                        ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate())
+                        ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate(),
+                                result.discount360Amount(), result.discount4WayAmount(), result.discount1WayAmount(),
+                                result.discountStandAmount(), result.discountDeluxeAmount(), result.discountFirstGradeAmount())
                         : DiscountRevalidator.GlobalDiscount.unavailable());
             } catch (RuntimeException ex) {
                 // 전역DC는 상세 판정의 참고값이다. 외부 장애를 상세 전체 실패로 전파하지 않고,

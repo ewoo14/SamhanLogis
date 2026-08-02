@@ -148,6 +148,11 @@ public class DiscountRevalidator {
             if (effectiveUnitPrice == null) {
                 return notMeasurable(null, releasePrice, effectiveDeliveryPrice);
             }
+            BigDecimal optionDiscount = globalDiscount == null
+                    ? null : globalDiscount.optionDiscountFor(safeModelToken);
+            if (optionDiscount != null) {
+                effectiveDeliveryPrice = effectiveDeliveryPrice.subtract(optionDiscount.abs());
+            }
             BigDecimal actualDiscountAmount = discountAmount(releasePrice, effectiveUnitPrice);
             BigDecimal expectedDiscountAmount = discountAmount(releasePrice, effectiveDeliveryPrice);
             return verified(moneyEquals(actualDiscountAmount, expectedDiscountAmount),
@@ -275,17 +280,58 @@ public class DiscountRevalidator {
     }
 
     /** 전역DC 원천 조회 결과. 기존 단위 테스트/호출부의 미적용 상태와 조회 실패를 구분한다. */
-    public record GlobalDiscount(boolean available, BigDecimal homeRate, BigDecimal commercialRate) {
+    public record GlobalDiscount(boolean available, BigDecimal homeRate, BigDecimal commercialRate,
+                                 BigDecimal discount360Amount, BigDecimal discount4WayAmount,
+                                 BigDecimal discount1WayAmount, BigDecimal discountStandAmount,
+                                 BigDecimal discountDeluxeAmount, BigDecimal discountFirstGradeAmount) {
         public static GlobalDiscount notRequired() {
-            return new GlobalDiscount(true, new BigDecimal("0.45"), new BigDecimal("0.45"));
+            return found(new BigDecimal("0.45"), new BigDecimal("0.45"));
         }
 
         public static GlobalDiscount found(BigDecimal homeRate, BigDecimal commercialRate) {
-            return new GlobalDiscount(true, homeRate, commercialRate);
+            return found(homeRate, commercialRate, null, null, null, null, null, null);
+        }
+
+        public static GlobalDiscount found(BigDecimal homeRate, BigDecimal commercialRate,
+                                           BigDecimal discount360Amount, BigDecimal discount4WayAmount,
+                                           BigDecimal discount1WayAmount, BigDecimal discountStandAmount,
+                                           BigDecimal discountDeluxeAmount, BigDecimal discountFirstGradeAmount) {
+            return new GlobalDiscount(true, homeRate, commercialRate, discount360Amount, discount4WayAmount,
+                    discount1WayAmount, discountStandAmount, discountDeluxeAmount, discountFirstGradeAmount);
         }
 
         public static GlobalDiscount unavailable() {
-            return new GlobalDiscount(false, null, null);
+            return new GlobalDiscount(false, null, null, null, null, null, null, null, null);
+        }
+
+        /** 레거시 세트코드 규칙으로 싱글 세트에 적용할 옵션 정액을 고른다. */
+        private BigDecimal optionDiscountFor(String modelToken) {
+            String code = modelToken == null ? "" : modelToken.toUpperCase(java.util.Locale.ROOT);
+            if (code.startsWith("AR") && code.endsWith("S") || code.startsWith("AF") && code.endsWith("S")) {
+                return null;
+            }
+            if (code.startsWith("AC") && code.length() >= 9) {
+                if (code.charAt(7) == '6' && code.charAt(8) == 'P') return discount360Amount;
+                if (code.charAt(7) == '4' && (code.charAt(8) == 'P' || code.charAt(8) == 'D')) {
+                    return discount4WayAmount;
+                }
+                if (code.charAt(7) == '1' && (code.charAt(8) == 'P' || code.charAt(8) == 'D')) {
+                    return discount1WayAmount;
+                }
+                if (code.charAt(8) == 'F') return discountFirstGradeAmount;
+            }
+            if (code.startsWith("AP")) {
+                if (code.startsWith("AP230") || code.startsWith("AP290")
+                        || code.length() >= 9 && code.charAt(8) == 'P'
+                        || code.length() >= 11 && code.charAt(8) == 'D' && code.charAt(10) == 'C') {
+                    return discountStandAmount;
+                }
+                if (code.length() >= 11 && code.charAt(8) == 'D' && code.charAt(10) == 'H') {
+                    return discountDeluxeAmount;
+                }
+                if (code.length() >= 9 && code.charAt(8) == 'F') return discountFirstGradeAmount;
+            }
+            return null;
         }
     }
 
