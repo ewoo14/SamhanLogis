@@ -1,0 +1,19 @@
+{
+  "capturedAt": "2026-08-02T22:40:29+09:00",
+  "source": {
+    "spreadsheetId": "1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ",
+    "sheet": "\uc2f1\uae00 \uad6c\uc131\ud488",
+    "range": "A1:N1737",
+    "url": "https://docs.google.com/spreadsheets/d/1RJqO3jT-yJTi3NDBhL60o_cZWlVETGTU7UlvIKXuVNQ/gviz/tq?tqx=out:csv&sheet=%EC%8B%B1%EA%B8%80%20%EA%B5%AC%EC%84%B1%ED%92%88&range=A1:N1737"
+  },
+  "format": "raw GViz CSV response; no value or row transformation",
+  "headerRows": 1,
+  "dataRows": 1735,
+  "columns": 14,
+  "sha256": "405b2596d61a2a4f3658bc9ed4f75d0b3ba9dfcf7a643e9ce38bbbc88ed0e663",
+  "measured": {
+    "indoorRows": 271,
+    "outdoorRows": 271,
+    "outdoorLinkMismatches": 0
+  }
+}

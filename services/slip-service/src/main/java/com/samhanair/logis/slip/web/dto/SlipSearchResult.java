@@ -23,6 +23,8 @@ public record SlipSearchResult(
         SlipType slipType,
         String partnerName,
         BigDecimal totalAmount,
+        /** 사용자 화면에 표시할 부가세 포함 전표 금액. */
+        BigDecimal displayTotalAmount,
         LocalDate slipDate) {
 
     /**
@@ -34,13 +36,14 @@ public record SlipSearchResult(
     public static SlipSearchResult from(Slip slip) {
         BigDecimal totalAmount = slip.getLines().stream()
                 .map(SlipLine::getLineTotal)
-                .filter(amount -> amount != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal displayTotalAmount = SlipDisplayAmount.vatInclusiveTotal(slip.getLines());
         return new SlipSearchResult(
                 slip.getSlipNo(),
                 slip.getSlipType(),
                 slip.getPartnerName(),
                 totalAmount,
+                displayTotalAmount,
                 slip.getSlipDate());
     }
 }

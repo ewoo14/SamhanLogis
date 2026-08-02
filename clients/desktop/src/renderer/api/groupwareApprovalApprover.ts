@@ -14,7 +14,7 @@ export interface ApproverOption {
 export async function searchApprovers(q: string): Promise<ApproverOption[]> {
   const res = await apiClient.get<ApiEnvelope<ApproverOption[]>>(
     '/admin/groupware/approvals/approver-search',
-    { params: { q, limit: '20' } },
+    { params: { q, limit: '10000' } },
   )
   return res.data.data
 }

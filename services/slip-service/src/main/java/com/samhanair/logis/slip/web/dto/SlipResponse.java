@@ -79,6 +79,8 @@ public record SlipResponse(
         String memo,
         /** 라인 lineTotal 합산 금액. */
         BigDecimal totalAmount,
+        /** 사용자 화면에 표시할 부가세 포함 전표 금액. */
+        BigDecimal displayTotalAmount,
         /** 라인 수량 합. */
         int totalQuantity,
         /** 담당자명 — 사용자 화면에 표시하는 직원 성명. UUID/requesterId 원문은 넣지 않는다. */
@@ -133,8 +135,8 @@ public record SlipResponse(
 
         BigDecimal totalAmount = lines.stream()
                 .map(SlipLine::getLineTotal)
-                .filter(t -> t != null)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal displayTotalAmount = SlipDisplayAmount.vatInclusiveTotal(lines);
 
         int totalQuantity = lines.stream()
                 .mapToInt(SlipLine::getQuantity)
@@ -171,6 +173,7 @@ public record SlipResponse(
                 slip.getPrintedAt() != null,
                 slip.getMemo(),
                 totalAmount,
+                displayTotalAmount,
                 totalQuantity,
                 // 담당자명: 조회 서비스가 user-service에서 resolve한 표시명
                 salesPersonName,

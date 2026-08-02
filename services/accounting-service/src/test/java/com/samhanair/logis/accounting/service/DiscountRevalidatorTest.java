@@ -262,6 +262,48 @@ class DiscountRevalidatorTest {
     }
 
     @Test
+    @DisplayName("싱글 세트 옵션 정액 DC 6종은 기대 납품금액에서 차감된다")
+    void singleSetOptionDiscountIsApplied() {
+        DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                "AC123456P", "AC123456P", new BigDecimal("68000"),
+                new BigDecimal("100000"), new BigDecimal("70000"), null,
+                DiscountRevalidator.GlobalDiscount.found(
+                        new BigDecimal("0.45"), new BigDecimal("0.45"),
+                        new BigDecimal("2000"), null, null, null, null, null),
+                ProductLabelMatch.Status.MATCHED);
+
+        assertThat(result.verified()).isTrue();
+        assertThat(result.discountAmount()).isEqualByComparingTo("32000");
+    }
+
+    @Test
+    @DisplayName("옵션 정액 6종은 레거시 세트코드별로 각각 선택되고 미보유 거래처는 기존 결과를 유지한다")
+    void allSingleSetOptionDiscountsAndNoOptionParity() {
+        List<String> tokens = List.of(
+                "AC123456P", "AC123454P", "AC123451D", "AP230123", "AP123456D1H", "AP123456F");
+        List<BigDecimal> amounts = List.of(
+                new BigDecimal("1000"), new BigDecimal("2000"), new BigDecimal("3000"),
+                new BigDecimal("4000"), new BigDecimal("5000"), new BigDecimal("6000"));
+        for (int i = 0; i < tokens.size(); i++) {
+            DiscountRevalidator.Revalidation result = revalidator.revalidate(
+                    tokens.get(i), tokens.get(i), new BigDecimal("100000").subtract(amounts.get(i)),
+                    new BigDecimal("150000"), new BigDecimal("100000"), null,
+                    DiscountRevalidator.GlobalDiscount.found(
+                            new BigDecimal("0.45"), new BigDecimal("0.45"),
+                            amounts.get(0), amounts.get(1), amounts.get(2), amounts.get(3), amounts.get(4), amounts.get(5)),
+                    ProductLabelMatch.Status.MATCHED);
+            assertThat(result.verified()).as(tokens.get(i)).isTrue();
+        }
+
+        DiscountRevalidator.Revalidation withoutOption = revalidator.revalidate(
+                "AC123456P", "AC123456P", new BigDecimal("100000"),
+                new BigDecimal("150000"), new BigDecimal("100000"), null,
+                ProductLabelMatch.Status.MATCHED);
+        assertThat(withoutOption.verified()).isTrue();
+        assertThat(withoutOption.discountAmount()).isEqualByComparingTo("50000");
+    }
+
+    @Test
     @DisplayName("싱글중대형은 DC액이 틀리면 불일치로 판정한다")
     void singleSetDependentRejectsWrongDiscountAmount() {
         DiscountRevalidator.Revalidation result = revalidate(

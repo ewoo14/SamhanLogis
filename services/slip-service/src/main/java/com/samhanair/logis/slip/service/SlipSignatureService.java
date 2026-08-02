@@ -12,6 +12,7 @@ import com.samhanair.logis.slip.domain.SignatureChannel;
 import com.samhanair.logis.slip.domain.SignatureSource;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.web.dto.SlipDisplayAmount;
 import com.samhanair.logis.slip.domain.SlipSignatureAudit;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.repository.SlipSignatureAuditRepository;
@@ -204,9 +205,7 @@ public class SlipSignatureService {
                     line.getProductName(),
                     line.getSpecification(),
                     line.getQuantity()));
-            if (line.getLineTotal() != null) {
-                total = total.add(line.getLineTotal());
-            }
+            total = total.add(SlipDisplayAmount.vatInclusive(line));
         }
 
         PublicSignatureViewResponse.Slip slipView = new PublicSignatureViewResponse.Slip(

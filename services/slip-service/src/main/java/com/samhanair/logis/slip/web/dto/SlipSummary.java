@@ -10,7 +10,7 @@ import java.util.UUID;
 /**
  * 회계 전표 배분 source 검색용 internal 전표 요약.
  *
- * <p>UUID 는 service-to-service 계약 및 mutation payload 용이며 화면 표시는 slipNo 를 사용한다.
+ * <p>UUID 는 service-to-service 계약 및 mutation payload 용이며 화면 표시는 전표번호를 사용한다.
  */
 public record SlipSummary(
         UUID slipId,
@@ -30,6 +30,7 @@ public record SlipSummary(
             String productName,
             int quantity,
             BigDecimal unitPrice,
+            /** 저장된 공급가액과 부가세의 합계. 단가×수량으로 재계산하지 않는다. */
             BigDecimal lineTotal
     ) {}
 
@@ -43,8 +44,8 @@ public record SlipSummary(
                     line.getProductName(),
                     line.getProductName(),
                     line.getQuantity(),
-                    unitPriceWithVat(line),
-                    totalWithVat(line)));
+                    line.getUnitPrice(),
+                    SlipDisplayAmount.vatInclusive(line)));
         }
         return new SlipSummary(
                 slip.getId(),
@@ -58,18 +59,4 @@ public record SlipSummary(
                 lineSummaries);
     }
 
-    private static BigDecimal unitPriceWithVat(SlipLine line) {
-        return line.getUnitPriceWithVat() != null ? line.getUnitPriceWithVat() : line.getUnitPrice();
-    }
-
-    private static BigDecimal totalWithVat(SlipLine line) {
-        if (line.getSupplyAmount() != null && line.getVatAmount() != null) {
-            return line.getSupplyAmount().add(line.getVatAmount());
-        }
-        if (line.getUnitPriceWithVat() != null) {
-            return line.getUnitPriceWithVat().multiply(BigDecimal.valueOf(line.getQuantity()));
-        }
-        BigDecimal vat = line.getVatAmount() == null ? BigDecimal.ZERO : line.getVatAmount();
-        return line.getLineTotal().add(vat);
-    }
 }
