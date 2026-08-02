@@ -1,5 +1,5 @@
 /** 입출고 내역에서 상품 정본을 모델별 복수 칩으로 변환한다. */
-export const MODEL_CHIPS = ['실외기', '실내기', '홈멀티', '싱글중대형', '상업멀티', '판넬'] as const
+export const MODEL_CHIPS = ['실외기', '실내기', '홈멀티', '싱글중대형', '상업멀티', '판넬', '미분류'] as const
 
 export type ModelChip = (typeof MODEL_CHIPS)[number]
 
@@ -65,9 +65,9 @@ export function filterInOutRows<T extends InOutModelRow>(
   if (selectedChips.size === 0) return rows
   return rows.filter((row) => {
     const chips = row.chips ?? modelChips({ name: row.productName, productCategory: row.productCategory })
-    // 레거시/구 저장 행은 세 분류 source가 모두 비어 있을 수 있다.
-    // 근거 없는 행을 임의 분류해 버리거나 칩 선택으로 제거하지 않고 보존한다.
-    if (chips.size === 0) return true
+    // 분류 근거가 없는 행은 '미분류'에서만 보존한다. 특정 분류 칩에
+    // 근거 없이 섞지 않아, 칩 선택이 실제 모집단을 좁히도록 한다.
+    if (chips.size === 0) return selectedChips.has('미분류')
     return [...selectedChips].some((chip) => chips.has(chip))
   })
 }

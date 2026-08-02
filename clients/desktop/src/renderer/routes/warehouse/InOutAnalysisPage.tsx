@@ -28,7 +28,7 @@ export function InOutAnalysisPage() {
   const rows = useMemo(() => (query.data ?? []).map(toRow), [query.data])
   const visible = useMemo(() => filterInOutRows(rows, selected), [rows, selected])
   const counts = useMemo(() => {
-    const all = Object.fromEntries(['실외기', '실내기', '홈멀티', '싱글중대형', '상업멀티', '판넬'].map((chip) => [chip, filterInOutRows(rows, new Set([chip as ModelChip])).length]))
+    const all = Object.fromEntries(['실외기', '실내기', '홈멀티', '싱글중대형', '상업멀티', '판넬', '미분류'].map((chip) => [chip, filterInOutRows(rows, new Set([chip as ModelChip])).length]))
     return all as Record<ModelChip, number>
   }, [rows])
   return (
