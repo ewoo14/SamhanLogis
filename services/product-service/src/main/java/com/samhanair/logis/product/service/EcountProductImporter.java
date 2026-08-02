@@ -1,9 +1,11 @@
 package com.samhanair.logis.product.service;
 
 import com.samhanair.logis.common.ecount.EcountCsvSupport;
+import com.samhanair.logis.common.ecount.io.EcountXlsxSupport;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.product.web.dto.EcountProductImportResult;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -211,7 +213,45 @@ public class EcountProductImporter {
                 0, List.of());
     }
 
-    private RelationParseResult parseRelations(InputStream relationCsv, String actorUserId) {
+    private RelationParseResult parseRelations(InputStream relationFile, String actorUserId) {
+        if (relationFile == null) {
+            return new RelationParseResult(Map.of(), Set.of());
+        }
+        byte[] content = EcountCsvSupport.readRequired(relationFile);
+        if (!isXlsx(content)) {
+            return parseRelationsCsv(new ByteArrayInputStream(content), actorUserId);
+        }
+        String hash = EcountCsvSupport.computeFileHash(content);
+        EcountXlsxSupport.ParsedXlsx parsed = EcountXlsxSupport.parse(
+                new ByteArrayInputStream(content), RELATION_HEADERS);
+        Map<String, String> relation = new HashMap<>();
+        Set<String> mainCodes = new HashSet<>();
+        for (EcountXlsxSupport.ParsedRow row : parsed.rows()) {
+            String[] c = row.cells();
+            stagingRelationUpsert(hash, row.sourceRowNo(), c, actorUserId);
+            String mainCode = c[0];
+            String aliasCode = c[3];
+            if (!mainCode.isBlank() && !aliasCode.isBlank()) {
+                EcountCsvSupport.requireMaxLength(mainCode, 100, "product_code", row.sourceRowNo());
+                EcountCsvSupport.requireMaxLength(aliasCode, 100, "product_code", row.sourceRowNo());
+                String existingMain = relation.get(aliasCode);
+                if (existingMain != null && !existingMain.equals(mainCode)) {
+                    throw new BusinessException(ErrorCode.MIG2_ALIAS_DUPLICATE,
+                            "동일 alias_code가 서로 다른 대표에 매핑됩니다: aliasCode="
+                                    + aliasCode + ", sourceRowNo=" + row.sourceRowNo());
+                }
+                relation.put(aliasCode, mainCode);
+                mainCodes.add(mainCode);
+            }
+        }
+        return new RelationParseResult(relation, mainCodes);
+    }
+
+    private boolean isXlsx(byte[] content) {
+        return content.length >= 2 && content[0] == 'P' && content[1] == 'K';
+    }
+
+    private RelationParseResult parseRelationsCsv(InputStream relationCsv, String actorUserId) {
         if (relationCsv == null) {
             return new RelationParseResult(Map.of(), Set.of());
         }
@@ -482,8 +522,24 @@ public class EcountProductImporter {
     private static final String UPDATE_ACTIVE_MODEL_NAME_SQL = """
             UPDATE products p
                SET model_name = :code,
-                   model_code = :code,
-                   product_code = :code,
+                   model_code = CASE
+                       WHEN NOT EXISTS (
+                           SELECT 1 FROM products conflict
+                            WHERE conflict.is_deleted = FALSE
+                              AND conflict.id <> p.id
+                              AND (conflict.product_code = :code OR conflict.model_code = :code)
+                       ) THEN :code
+                       ELSE p.model_code
+                   END,
+                   product_code = CASE
+                       WHEN NOT EXISTS (
+                           SELECT 1 FROM products conflict
+                            WHERE conflict.is_deleted = FALSE
+                              AND conflict.id <> p.id
+                              AND (conflict.product_code = :code OR conflict.model_code = :code)
+                       ) THEN :code
+                       ELSE p.product_code
+                   END,
                    specification = :spec,
                    selling_price = :sellingPrice,
                    purchase_price = :purchasePrice,
@@ -506,8 +562,7 @@ public class EcountProductImporter {
                    modified_at = NOW(),
                    modified_by = :actor
              WHERE p.model_name = :code
-       AND p.lineage = 'SHEET'
-               AND p.is_deleted = FALSE
+                AND p.is_deleted = FALSE
             RETURNING p.id
             """;
 

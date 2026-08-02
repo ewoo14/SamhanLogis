@@ -3,8 +3,10 @@ package com.samhanair.logis.product.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import java.io.ByteArrayInputStream;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
@@ -65,6 +68,29 @@ class EcountProductImporterSameNameMergeTest {
         assertThat(result.imported()).isEqualTo(1);
         assertThat(result.aliasImported()).isEqualTo(2);
         assertThat(result.skippedGroupCount()).isZero();
+    }
+
+    @Test
+    void modelName_merge_update는_두_유니크_충돌을_조건부로_피하고_중복_assignment를_만들지_않는다() {
+        when(jdbcTemplate.queryForList(argThat(sql -> sql.contains("UPDATE products p")),
+                any(SqlParameterSource.class), eq(UUID.class)))
+                .thenReturn(List.of(PRODUCT_ID));
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+
+        importer.importCsv(
+                itemCsv(row("MERGE-984", "기존 시트 품목", "100,000", "70,000", "규격")),
+                null, null, "high-1-sql");
+
+        org.mockito.Mockito.verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).queryForList(
+                sqlCaptor.capture(), any(SqlParameterSource.class), eq(UUID.class));
+        String updateSql = sqlCaptor.getAllValues().stream()
+                .filter(sql -> sql.contains("UPDATE products p"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(updateSql.split("outdoor_price =", -1).length - 1).isOne();
+        assertThat(updateSql).contains("NOT EXISTS")
+                .contains("product_code = :code")
+                .contains("model_code = :code");
     }
 
     private static InputStream itemCsv(String... rows) {
