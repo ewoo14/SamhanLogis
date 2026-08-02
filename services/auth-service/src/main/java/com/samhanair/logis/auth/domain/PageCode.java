@@ -135,9 +135,6 @@ public enum PageCode {
 
     // ---- 알림 / SMS (notification) ----
 
-    /** Aligo SMS 발송 이력 화면 (SP-09-2). */
-    NOTIFICATION_DISPATCH_SMS_SEND_AUDIT("notification.dispatch-sms.send-audit", "배차 SMS 발송 이력"),
-
     /** 알림 발송 admin 화면/API — SP-D6-3. */
     NOTIFICATIONS_ADMIN("notifications.admin", "알림 발송 관리"),
 

@@ -229,7 +229,6 @@ export const PAGE_GROUPS: PageGroup[] = [
   {
     label: '알림',
     pages: [
-      'notification.dispatch-sms.send-audit',
       'notifications.admin',
       'notifications.center',
       'aligo.address-book',
@@ -412,7 +411,6 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'accounting.daily-closing.unlock': '일마감 해제',
   'accounting.general-ledger': '원장',
   'accounting.hometax-export': '홈택스 export',
-  'notification.dispatch-sms.send-audit': 'SMS 이력',
   'notifications.admin': '알림 발송',
   'notifications.center': '알림 센터',
   'aligo.address-book': '알리고 주소록',

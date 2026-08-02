@@ -1,8 +1,7 @@
 /**
- * 배차안내 SMS 발송 admin UI — `/arologis/dispatch-sms`.
+ * 배차안내문자 표시·편집·복사 admin UI — `/arologis/dispatch-sms`.
  *
- * <p>미리보기 결과는 AUTO_LATEST 로 자동 저장하고, 운영자 명시 저장은 MANUAL_NAMED,
- * 실 발송 결과는 발송 감사 append-only 저장내역으로 남긴다.
+ * <p>미리보기 결과는 AUTO_LATEST 로 자동 저장하고, 운영자 명시 저장은 MANUAL_NAMED로 남긴다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,10 +9,7 @@ import { Badge, Button, Card, CopyButton, Input, Tabs } from '@samhan/design-sys
 import axios from 'axios'
 import {
   previewDispatchBatch,
-  sendDispatchBatch,
   type DispatchSmsPreviewResponse,
-  type DispatchSmsSendEntry,
-  type DispatchSmsSendResponse,
 } from '../api/dispatchSmsApi'
 import {
   getLatestDispatchSmsHistory,
@@ -39,14 +35,6 @@ type PreviewHistoryPayload =
       preview: DispatchSmsPreviewResponse
       edited?: EditedMessages
     }
-type SendAuditHistoryPayload =
-  | DispatchSmsSendResponse
-  | {
-      result: DispatchSmsSendResponse
-      preview?: DispatchSmsPreviewResponse
-      edited?: EditedMessages
-    }
-
 const TEST_ID_PREFIX = 'dispatch-sms-history'
 
 const todayIso = (): string => {
@@ -65,59 +53,6 @@ function buildInitialEdited(preview: DispatchSmsPreviewResponse): EditedMessages
     }
   }
   return result
-}
-
-/**
- * 실제 SMS 요청으로 만들 수 있는 미매핑·인수자 번호 보유 전표만 선별한다.
- * 단톡방 매핑 전표는 현재 단톡방 직접 전송 수단이 없어 SMS 요청 대상이 아니다.
- * 같은 날짜의 같은 수신번호는 레거시 P_<번호> 키처럼 한 entry로 병합한다.
- */
-export function buildSendEntries(
-  preview: DispatchSmsPreviewResponse,
-  edited: EditedMessages,
-): DispatchSmsSendEntry[] {
-  const entriesByRecipient = new Map<string, DispatchSmsSendEntry[]>()
-  const maxMessageLength = 2000
-  // 단톡방 직접 전송 API가 없으므로 매핑된 room은 수동 전달 경로로 남긴다.
-  // 매핑이 없는 건만 인수자 전화번호 SMS fallback으로 보낸다.
-  for (const p of preview.unmapped) {
-    // BE SendEntry.partnerCode 는 @NotBlank 계약이다. 코드가 없는 실전표는
-    // 거래처 차단 가드를 적용할 키가 없으므로 외부 발송 후보로 만들지 않는다.
-    if (!p.partnerCode?.trim()) continue
-    const recipientPhone = p.recipientPhone?.trim() ?? ''
-    if (!recipientPhone) continue
-    const message = edited[p.partnerCode] ?? p.message
-    const recipientEntries = entriesByRecipient.get(recipientPhone) ?? []
-    const existing = recipientEntries[recipientEntries.length - 1]
-    if (existing) {
-      const candidate = `${existing.message}\n\n${message}`
-      if (candidate.length <= maxMessageLength) {
-        existing.message = candidate
-      } else {
-        // 원문 블록을 잘라내지 않고 새 entry로 넘겨 BE 2,000자 제한과
-        // 정보 보존을 동시에 만족한다. 새 entry는 같은 번호의 대표 코드로
-        // 묶여 preview/send 계약을 유지한다.
-        recipientEntries.push({
-          partnerCode: existing.partnerCode,
-          recipientPhone,
-          message,
-        })
-      }
-    } else {
-      recipientEntries.push({
-        partnerCode: p.partnerCode,
-        recipientPhone,
-        message,
-      })
-    }
-    entriesByRecipient.set(recipientPhone, recipientEntries)
-  }
-  return [...entriesByRecipient.values()].flat()
-}
-
-/** 화면의 SMS 발송 건수와 buildSendEntries의 실제 요청 건수를 동일하게 계산한다. */
-export function countSendableEntries(preview: DispatchSmsPreviewResponse): number {
-  return buildSendEntries(preview, {}).length
 }
 
 function previewRequestParams(preview: DispatchSmsPreviewResponse): Record<string, unknown> {
@@ -150,30 +85,8 @@ function readPreviewHistoryPayload(payload: unknown): {
   return { preview: candidate as DispatchSmsPreviewResponse }
 }
 
-function readSendAuditHistoryPayload(payload: unknown): DispatchSmsSendResponse {
-  const candidate = payload as SendAuditHistoryPayload
-  if (candidate && typeof candidate === 'object' && 'result' in candidate) {
-    return candidate.result
-  }
-  return candidate as DispatchSmsSendResponse
-}
-
-function sendAuditRequestParams(
-  date: string,
-  entries: DispatchSmsSendEntry[],
-  result: DispatchSmsSendResponse,
-): Record<string, unknown> {
-  return {
-    date,
-    rowCount: entries.length,
-    sent: result.sent,
-    failed: result.failed,
-    blocked: result.blocked,
-  }
-}
-
 export function DispatchSmsPage() {
-  usePageTitle('배차안내 SMS 발송')
+  usePageTitle('배차안내문자')
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   const canBatch = canAccess('dispatch.batch', 'create')
@@ -183,9 +96,6 @@ export function DispatchSmsPage() {
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [edited, setEdited] = useState<EditedMessages>({})
-  const [confirmChecked, setConfirmChecked] = useState(false)
-  const [sendResult, setSendResult] = useState<DispatchSmsSendResponse | null>(null)
-  const [auditError, setAuditError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState(0)
   const [restoreBanner, setRestoreBanner] = useState<string | null>(null)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
@@ -193,7 +103,6 @@ export function DispatchSmsPage() {
   const [selectedClipboardIds, setSelectedClipboardIds] = useState<Set<string>>(new Set())
   const lastAutoSaveKeyRef = useRef<string | null>(null)
   const skipNextAutoSaveRef = useRef(false)
-  const lastSendEntriesRef = useRef<DispatchSmsSendEntry[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -245,9 +154,6 @@ export function DispatchSmsPage() {
     if (!canBatch) return
     setPreviewLoading(true)
     setPreviewError(null)
-    setSendResult(null)
-    setAuditError(null)
-    setConfirmChecked(false)
     try {
       const result = await previewDispatchBatch(date)
       setPreview(result)
@@ -288,73 +194,6 @@ export function DispatchSmsPage() {
     },
   })
 
-  const saveSendAudit = useCallback(async (
-    result: DispatchSmsSendResponse,
-    entries: DispatchSmsSendEntry[],
-  ) => {
-    try {
-      setAuditError(null)
-      await saveDispatchSmsHistory({
-        programType: 'DISPATCH_SMS',
-        saveMode: 'SEND_AUDIT',
-        topic: `발송 감사 ${result.date}`,
-        requestParams: sendAuditRequestParams(result.date ?? todayIso(), entries, result),
-        responsePayload: {
-          result,
-          preview,
-          edited,
-        },
-      })
-      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey('DISPATCH_SMS') })
-      void queryClient.invalidateQueries({ queryKey: dispatchSmsHistoryListQueryKey() })
-    } catch (err) {
-      const message = axios.isAxiosError(err)
-        ? ((err.response?.data as { message?: string } | undefined)?.message ?? '발송 감사 저장에 실패했습니다.')
-        : '발송 감사 저장에 실패했습니다.'
-      setAuditError(message)
-    }
-  }, [edited, preview, queryClient])
-
-  const sendMutation = useMutation<DispatchSmsSendResponse, unknown, void>({
-    mutationFn: async () => {
-      if (!preview) throw new Error('미리보기 결과가 없습니다.')
-      const entries = buildSendEntries(preview, edited)
-      lastSendEntriesRef.current = entries
-      return await sendDispatchBatch(date, entries)
-    },
-    onSuccess: (data) => {
-      setSendResult(data)
-      setConfirmChecked(false)
-      void saveSendAudit(data, lastSendEntriesRef.current)
-    },
-  })
-
-  const sendErrorMessage = (() => {
-    if (!sendMutation.isError) return null
-    const err = sendMutation.error
-    if (axios.isAxiosError(err)) {
-      const data = err.response?.data as { message?: string } | undefined
-      return data?.message ?? '실 발송에 실패했습니다.'
-    }
-    if (err instanceof Error) return err.message
-    return '알 수 없는 오류'
-  })()
-
-  const sendableCount = useMemo(() => {
-    if (!preview) return 0
-    return countSendableEntries(preview)
-  }, [preview])
-
-  const blockedCount = useMemo(() => {
-    if (!preview) return 0
-    return preview.chatRooms.reduce(
-      (sum, room) => sum + room.partners.filter((p) => p.blocked).length,
-      0,
-    )
-  }, [preview])
-
-  const sendDisabled = !preview || !confirmChecked || sendableCount === 0 || sendMutation.isPending || !canBatch
-
   const clipboardRows = useMemo<DispatchSmsClipboardRow[]>(() => {
     if (!preview) return []
     return [
@@ -380,36 +219,12 @@ export function DispatchSmsPage() {
     [clipboardRows, selectedClipboardIds],
   )
 
-  const handleSend = () => {
-    if (!canBatch) return
-    if (sendDisabled) return
-    const firstOk = window.confirm(
-      `발송 전 최종 확인입니다.\n발송 대상 ${sendableCount}건, 발송금지 ${blockedCount}건 제외 상태입니다.`,
-    )
-    if (!firstOk) return
-    const secondOk = window.confirm('정말 실 발송을 진행하시겠습니까? 발송 후 발송 감사 이력이 자동 저장됩니다.')
-    if (!secondOk) return
-    sendMutation.mutate()
-  }
-
   const handleRestore = useCallback((detail: DispatchSmsSaveHistoryDetailResponse) => {
-    setAuditError(null)
-    if (detail.saveMode === 'SEND_AUDIT') {
-      setSendResult(readSendAuditHistoryPayload(detail.responsePayload))
-      setPreview(null)
-      setEdited({})
-      lastSendEntriesRef.current = []
-      setConfirmChecked(false)
-      setActiveTab(0)
-      setRestoreBanner(`발송 감사 확인: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)}`)
-      return
-    }
     const restored = readPreviewHistoryPayload(detail.responsePayload)
     setPreview(restored.preview)
     setEdited(restored.edited ?? buildInitialEdited(restored.preview))
     setSelectedClipboardIds(new Set())
     setDate(restored.preview.date)
-    setSendResult(null)
     skipNextAutoSaveRef.current = true
     setActiveTab(0)
     setRestoreBanner(`복원: ${formatDateTime(detail.createdAt)} ${maskCreatedBy(detail.createdBy)} '${detail.topic}'`)
@@ -458,19 +273,6 @@ export function DispatchSmsPage() {
               setEdited((prev) => ({ ...prev, [partnerCode]: message }))
             }}
           />
-          <SendSection
-            preview={preview}
-            confirmChecked={confirmChecked}
-            sendableCount={sendableCount}
-            blockedCount={blockedCount}
-            sendDisabled={sendDisabled}
-            sendPending={sendMutation.isPending}
-            sendResult={sendResult}
-            sendErrorMessage={sendErrorMessage}
-            auditError={auditError}
-            onConfirmChange={setConfirmChecked}
-            onSend={handleSend}
-          />
         </div>
         <DispatchSmsHistoryTab
           programType="DISPATCH_SMS"
@@ -500,9 +302,9 @@ function Header({
   return (
     <div style={headerStyle}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0 }}>배차안내 SMS 발송</h3>
+         <h3 style={{ margin: 0 }}>배차안내문자</h3>
         <span data-testid="dispatch-sms-realtime-notice" style={noticeStyle}>
-          미리보기 저장내역 + 발송 감사
+           미리보기 저장내역 + 선택 복사
         </span>
       </div>
       <Button
@@ -645,7 +447,7 @@ function PreviewSection({
 
           {preview.unmapped.length > 0 ? (
             <div style={warningBoxStyle}>
-              <strong>단톡방 미매핑 전표 {preview.unmapped.length}건</strong> — 인수자 번호가 있는 전표는 아래 SMS 발송 대상에 포함되고, 번호가 없으면 발송하지 않습니다.
+               <strong>단톡방 미매핑 전표 {preview.unmapped.length}건</strong> — 인수자 번호와 관계없이 안내 문구를 확인·편집·복사할 수 있습니다.
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {preview.unmapped.map((u) => (
                   <li key={`${u.partnerCode}-${u.slipNo}`}>
@@ -662,103 +464,6 @@ function PreviewSection({
                 ))}
               </ul>
             </div>
-          ) : null}
-        </div>
-      ) : null}
-    </Card>
-  )
-}
-
-function SendSection({
-  preview,
-  confirmChecked,
-  sendableCount,
-  blockedCount,
-  sendDisabled,
-  sendPending,
-  sendResult,
-  sendErrorMessage,
-  auditError,
-  onConfirmChange,
-  onSend,
-}: {
-  preview: DispatchSmsPreviewResponse | null
-  confirmChecked: boolean
-  sendableCount: number
-  blockedCount: number
-  sendDisabled: boolean
-  sendPending: boolean
-  sendResult: DispatchSmsSendResponse | null
-  sendErrorMessage: string | null
-  auditError: string | null
-  onConfirmChange: (value: boolean) => void
-  onSend: () => void
-}) {
-  return (
-    <Card padding={5} shadow="sm">
-      <h4 style={{ marginTop: 0 }}>Step 2. 실 발송</h4>
-      <p style={mutedTextStyle}>
-        실 발송은 비가역 작업입니다. 미리보기 결과를 확인하고 발송 확인 체크 후 진행하세요.
-      </p>
-
-      {!preview ? (
-        <div style={emptyBoxStyle}>먼저 Step 1 미리보기를 실행하세요.</div>
-      ) : (
-        <>
-          <label style={confirmLabelStyle(sendableCount === 0)}>
-            <input
-              data-testid="dispatch-sms-confirm-checkbox"
-              type="checkbox"
-              checked={confirmChecked}
-              onChange={(e) => onConfirmChange(e.target.checked)}
-              disabled={sendableCount === 0}
-            />
-            <strong>발송 확인</strong> — 미리보기 결과를 검토했고 실 발송에 동의합니다.
-          </label>
-
-          <div style={sendButtonRowStyle}>
-            <Button
-              data-testid="dispatch-sms-send-button"
-              variant="warning"
-              onClick={onSend}
-              disabled={sendDisabled}
-              loading={sendPending}
-            >
-              SMS 발송 ({sendableCount}건)
-            </Button>
-            <span style={noticeStyle}>미매핑·인수자 번호 보유 전표만 요청 · 발송금지 자동 제외: {blockedCount}건</span>
-          </div>
-        </>
-      )}
-
-      {sendErrorMessage ? <div className="error-banner" role="alert" style={{ marginTop: 12 }}>{sendErrorMessage}</div> : null}
-      {auditError ? (
-        <div role="alert" data-testid="dispatch-sms-history-send-audit-error" style={auditErrorStyle}>
-          {auditError}
-        </div>
-      ) : null}
-
-      {sendResult ? (
-        <div data-testid="dispatch-sms-result-stats" style={successBoxStyle}>
-          <h5 style={{ margin: '0 0 8px', color: 'var(--state-success)' }}>
-            발송 결과 ({sendResult.date})
-          </h5>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <span>성공: <strong>{sendResult.sent}</strong>건</span>
-            <span>실패: <strong>{sendResult.failed}</strong>건</span>
-            <span>발송금지 제외: <strong>{sendResult.blocked}</strong>건</span>
-          </div>
-          {sendResult.details.length > 0 ? (
-            <details open style={{ marginTop: 8 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12 }}>발송 대상·결과 상세 ({sendResult.details.length}건)</summary>
-              <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12 }}>
-                {sendResult.details.map((d, i) => (
-                  <li key={`${d.partnerCode}-${i}`}>
-                    [{d.status}] {d.partnerCode} · {d.recipientPhone}{d.reason ? ` - ${d.reason}` : ''}
-                  </li>
-                ))}
-              </ul>
-            </details>
           ) : null}
         </div>
       ) : null}
@@ -837,36 +542,4 @@ const warningBoxStyle: React.CSSProperties = {
   border: '1px solid var(--color-warning)',
   fontSize: 12,
   color: 'var(--state-warning)',
-}
-const confirmLabelStyle = (disabled: boolean): React.CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  fontSize: 13,
-  cursor: disabled ? 'not-allowed' : 'pointer',
-  marginBottom: 12,
-})
-const sendButtonRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 12,
-  marginBottom: 12,
-  flexWrap: 'wrap',
-}
-const auditErrorStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 8,
-  border: '1px solid var(--state-danger)',
-  borderRadius: 4,
-  background: 'var(--state-danger-bg)',
-  color: 'var(--state-danger)',
-  fontSize: 12,
-}
-const successBoxStyle: React.CSSProperties = {
-  marginTop: 12,
-  padding: 12,
-  borderRadius: 6,
-  background: 'var(--state-success-bg)',
-  border: '1px solid var(--state-success)',
-  fontSize: 13,
 }

@@ -11710,31 +11710,6 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       ],
     })
   }
-  if (method === 'POST' && url.includes('/admin/notifications/dispatch-batch/send')) {
-    const body = parseMockBody(config)
-    const entries = Array.isArray(body['entries'])
-      ? body['entries'] as Array<{ partnerCode?: string; recipientPhone?: string }>
-      : []
-    // 단톡방 주소(room:)는 SMS API 수신번호가 아니므로 요청 단계에서도 발송금지로 집계한다.
-    const details = entries.map((entry) => {
-      const recipientPhone = String(entry.recipientPhone ?? '')
-      const blocked = recipientPhone.startsWith('room:')
-      return {
-        partnerCode: String(entry.partnerCode ?? 'UNKNOWN'),
-        recipientPhone,
-        status: blocked ? 'BLOCKED' as const : 'SENT' as const,
-        reason: blocked ? '단톡방 직접 발송 미지원' : null,
-      }
-    })
-    return envelope({
-      date: '2026-05-17',
-      sent: details.filter((detail) => detail.status === 'SENT').length,
-      failed: 0,
-      blocked: details.filter((detail) => detail.status === 'BLOCKED').length,
-      details,
-    })
-  }
-
   // POST /arologis/dispatch/reconcile — 운송사 비교 (multipart)
   if (method === 'POST' && url.includes('/arologis/dispatch/reconcile')) {
     return envelope({

@@ -103,7 +103,6 @@ export type PageCode =
   | 'accounting.daily-closing.unlock'
   | 'accounting.general-ledger'
   | 'accounting.hometax-export'
-  | 'notification.dispatch-sms.send-audit'
   | 'notifications.admin'
   | 'notifications.center'
   | 'aligo.address-book'

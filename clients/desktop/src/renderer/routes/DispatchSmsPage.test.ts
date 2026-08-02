@@ -1,141 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import {
-  buildSendEntries,
-  countSendableEntries,
-  type EditedMessages,
-} from './DispatchSmsPage'
-import type { DispatchSmsPreviewResponse } from '../api/dispatchSmsApi'
+import { buildDispatchSmsClipboardText } from './dispatchSmsClipboard'
 
-const preview: DispatchSmsPreviewResponse = {
-  date: '2026-08-02',
-  totalSlips: 3,
-  mappedSlips: 1,
-  unmappedSlips: 2,
-  chatRooms: [{
-    chatRoomName: '매핑방',
-    partners: [{
-      partnerCode: 'P-MAPPED',
-      partnerName: '매핑 거래처',
-      slipNo: '2026/08/02-1',
-      message: '매핑 본문',
-      blocked: false,
-    }],
-  }],
-  unmapped: [
-    {
-      partnerCode: 'P-FALLBACK',
-      partnerName: '인수자번호 거래처',
-      slipNo: '2026/08/02-2',
-      message: 'fallback 본문',
-      recipientPhone: '01000000001',
-    },
-    {
-      partnerCode: 'P-NO-PHONE',
-      partnerName: '번호 없음 거래처',
-      slipNo: '2026/08/02-3',
-      message: '번호 없음 본문',
-      recipientPhone: null,
-    },
-  ],
-}
+describe('배차안내문자 표시·복사 경로', () => {
+  it('편집된 하차일별 안내 문구를 선택 행의 복사 텍스트에 그대로 보존한다', () => {
+    const text = buildDispatchSmsClipboardText([
+      {
+        id: 'P-1013',
+        partnerName: '거래처 A',
+        slipNo: '2026/08/03-1',
+        message: '8일 하차 건 배송기사님 연락처를 안내드립니다.\n수정된 안내 문구',
+        chatRoomName: 'A방',
+      },
+    ], new Set(['P-1013']))
 
-describe('배차문자 발송 모집단', () => {
-  it('화면 건수와 실제 요청이 같은 미매핑·인수자번호 대상 집합을 사용한다', () => {
-    const edited: EditedMessages = { 'P-FALLBACK': '수정 본문' }
-    const entries = buildSendEntries(preview, edited)
-
-    expect(countSendableEntries(preview)).toBe(entries.length)
-    expect(entries.map((entry) => entry.partnerCode)).toEqual(['P-FALLBACK'])
-    expect(entries[0]).toMatchObject({
-      partnerCode: 'P-FALLBACK',
-      recipientPhone: '01000000001',
-      message: '수정 본문',
-    })
-  })
-
-  it('같은 날짜·같은 수신번호의 전표는 병합 문구 1건으로 요청한다', () => {
-    const groupedPreview: DispatchSmsPreviewResponse = {
-      ...preview,
-      totalSlips: 4,
-      unmappedSlips: 4,
-      unmapped: [
-        {
-          partnerCode: 'P-GROUP-1',
-          partnerName: '거래처 1',
-          slipNo: '2026/08/02-10',
-          message: '전표 내용 1',
-          recipientPhone: '010-1111-2222',
-        },
-        {
-          partnerCode: 'P-GROUP-2',
-          partnerName: '거래처 2',
-          slipNo: '2026/08/02-11',
-          message: '전표 내용 2',
-          recipientPhone: '010-1111-2222',
-        },
-        {
-          partnerCode: 'P-GROUP-3',
-          partnerName: '거래처 3',
-          slipNo: '2026/08/02-12',
-          message: '전표 내용 3',
-          recipientPhone: '010-1111-2222',
-        },
-        {
-          partnerCode: 'P-NO-PHONE-2',
-          partnerName: '번호 없음 거래처 2',
-          slipNo: '2026/08/02-13',
-          message: '번호 없음 표본',
-          recipientPhone: null,
-        },
-        {
-          partnerCode: 'P-BLANK-PHONE',
-          partnerName: '공백 번호 거래처',
-          slipNo: '2026/08/02-14',
-          message: '공백 번호 표본',
-          recipientPhone: '   ',
-        },
-      ],
-    }
-
-    const entries = buildSendEntries(groupedPreview, {})
-
-    expect(entries).toHaveLength(1)
-    expect(countSendableEntries(groupedPreview)).toBe(1)
-    expect(entries[0]).toMatchObject({
-      recipientPhone: '010-1111-2222',
-      message: expect.stringContaining('전표 내용 1'),
-    })
-    expect(entries[0].message).toContain('전표 내용 2')
-    expect(entries[0].message).toContain('전표 내용 3')
-  })
-
-  it('R8 1911건 후보는 2000자 이하 entry로 분할되고 누락 0건이다', () => {
-    const source = Array.from({ length: 1911 }, (_, index) => ({
-      partnerCode: `P-REAL-${index}`,
-      partnerName: `실데이터 거래처 ${index}`,
-      slipNo: `2026/08/02-${index + 100}`,
-      message: `실전표 내용 ${index}`,
-      recipientPhone: index === 1910 ? '010-2222-3333' : '010-1111-2222',
-    }))
-    const realScalePreview: DispatchSmsPreviewResponse = {
-      ...preview,
-      totalSlips: 1911,
-      unmappedSlips: 1911,
-      unmapped: source,
-    }
-
-    const entries = buildSendEntries(realScalePreview, {})
-
-    expect(source).toHaveLength(1911)
-    expect(new Set(source.map((row) => row.recipientPhone))).toEqual(new Set([
-      '010-1111-2222',
-      '010-2222-3333',
-    ]))
-    expect(source.filter((row) => row.recipientPhone === '010-1111-2222')).toHaveLength(1910)
-    expect(entries).toHaveLength(13)
-    expect(entries.filter((entry) => entry.recipientPhone === '010-1111-2222')).toHaveLength(12)
-    expect(entries.every((entry) => entry.message.length <= 2000)).toBe(true)
-    expect(Math.max(...entries.map((entry) => entry.message.length))).toBeLessThanOrEqual(2000)
-    expect(source.filter((row) => !entries.some((entry) => entry.message.includes(row.message)))).toHaveLength(0)
+    expect(text).toContain('거래처 A')
+    expect(text).toContain('2026/08/03-1')
+    expect(text).toContain('수정된 안내 문구')
+    expect(text).toContain('A방')
   })
 })
