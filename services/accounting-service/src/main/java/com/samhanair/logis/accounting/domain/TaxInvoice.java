@@ -13,6 +13,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
@@ -189,6 +190,7 @@ public class TaxInvoice extends BaseEntity {
 
     @OneToMany(mappedBy = "taxInvoice", cascade = CascadeType.ALL, orphanRemoval = true,
             fetch = FetchType.LAZY)
+    @OrderBy("lineNo ASC")
     private List<TaxInvoiceLine> lines = new ArrayList<>();
 
     private TaxInvoice(UUID partnerId, String partnerCode, String partnerBusinessNo,
