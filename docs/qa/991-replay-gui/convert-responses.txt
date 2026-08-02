@@ -1,0 +1,1 @@
+HTTP 200 :: {"success":true,"code":"OK","message":"성공","data":{"slipNo":"2026/08/01-8","orderStatus":"CONVERTED","fullyConverted":true},"timestamp":"2026-07-31T21:01:15.280109054Z"}

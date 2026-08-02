@@ -12,6 +12,9 @@ directories:
   output: release/${env.SAMHAN_RELEASE_ARTIFACT_VERSION}
   buildResources: build
 
+# electron-updater 비교용 package semver는 release wrapper가
+# --config.extraMetadata.version으로 주입한다. renderer/정책 버전은 VITE_APP_VERSION을 사용한다.
+
 files:
   - out/**/*
   - package.json
@@ -31,6 +34,7 @@ win:
 
 nsis:
   oneClick: false
+  uninstallDisplayName: ${productName}
   allowToChangeInstallationDirectory: true
   perMachine: false  # 사용자별 설치 — UAC 회피, 사내 일반 사원 권한 OK
   createDesktopShortcut: always

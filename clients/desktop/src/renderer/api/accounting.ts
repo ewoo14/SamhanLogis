@@ -1993,6 +1993,15 @@ export interface CashReceiptRow {
   externalRef?: string | null
   debitAccountCode?: string | null
   creditAccountCode?: string | null
+  lines?: CashReceiptLine[] | null
+}
+
+export interface CashReceiptLine {
+  partnerCode?: string | null
+  bizNo?: string | null
+  partnerName?: string | null
+  amount: string | number
+  memo?: string | null
 }
 
 export interface CashReceiptRequest {
@@ -2004,6 +2013,7 @@ export interface CashReceiptRequest {
   memo?: string
   debitAccountCode?: string
   creditAccountCode?: string
+  lines?: CashReceiptLine[]
 }
 
 export interface BankTransactionNaturalKey {

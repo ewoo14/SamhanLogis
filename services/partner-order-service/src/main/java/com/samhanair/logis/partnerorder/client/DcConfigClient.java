@@ -67,7 +67,30 @@ public class DcConfigClient {
 
     /** 가격 계산 요청 라인 — dc-config PriceCalculationRequest.Line 미러. */
     public record PriceLine(String lineId, String modelCode, BigDecimal listPrice,
-                            String category, int quantity) {}
+                            String category, int quantity,
+                            boolean is360, boolean is4Way, boolean is1Way,
+                            boolean isStand, boolean isDeluxe, boolean isFirstGrade,
+                            BigDecimal fixedDiscountRate,
+                            Boolean hasVariableDiscount) {
+
+        /** 기존 호출자 호환 — 옵션/품목 고정DC가 없는 평범한 품목. */
+        public PriceLine(String lineId, String modelCode, BigDecimal listPrice,
+                         String category, int quantity) {
+            this(lineId, modelCode, listPrice, category, quantity,
+                    false, false, false, false, false, false, null, null);
+        }
+
+        /** 기존 호출자 호환 — 옵션과 품목 고정DC만 전달하는 요청. */
+        public PriceLine(String lineId, String modelCode, BigDecimal listPrice,
+                         String category, int quantity,
+                         boolean is360, boolean is4Way, boolean is1Way,
+                         boolean isStand, boolean isDeluxe, boolean isFirstGrade,
+                         BigDecimal fixedDiscountRate) {
+            this(lineId, modelCode, listPrice, category, quantity,
+                    is360, is4Way, is1Way, isStand, isDeluxe, isFirstGrade,
+                    fixedDiscountRate, null);
+        }
+    }
 
     /**
      * dc-config-service price-calculations 응답 — data.lines 미러 record.
@@ -115,12 +138,14 @@ public class DcConfigClient {
                 m.put("listPrice", l.listPrice());
                 m.put("category", l.category());
                 m.put("quantity", l.quantity());
-                m.put("is360", false);
-                m.put("is4Way", false);
-                m.put("is1Way", false);
-                m.put("isStand", false);
-                m.put("isDeluxe", false);
-                m.put("isFirstGrade", false);
+                m.put("is360", l.is360());
+                m.put("is4Way", l.is4Way());
+                m.put("is1Way", l.is1Way());
+                m.put("isStand", l.isStand());
+                m.put("isDeluxe", l.isDeluxe());
+                m.put("isFirstGrade", l.isFirstGrade());
+                m.put("fixedDiscountRate", l.fixedDiscountRate());
+                m.put("hasVariableDiscount", l.hasVariableDiscount());
                 return m;
             }).toList());
 

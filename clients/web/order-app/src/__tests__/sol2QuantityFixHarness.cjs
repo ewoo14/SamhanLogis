@@ -216,6 +216,7 @@ function runSingleScenario(targetKey) {
     const SINGLE_PARTS = ${JSON.stringify(fixture.catalog.singleParts)};
     ${derivationPreambleSource(raw)}
     const singleQty = new Map();
+    let SINGLE_CATALOG_MISSING_MODELS = new Map();
     ${LOCK_DECL}
     ${bundle(raw, [
       'classifySingleSetFixed',
@@ -225,6 +226,8 @@ function runSingleScenario(targetKey) {
       'isManualQtyLocked',
       'setManualQtyLock',
       'setDerivedQty',
+      'noteSingleCatalogMissing_',
+      'setSingleDerivedQty_',
       'partsForSetStrict_',
       'getDefaultRemoteRows',
       'allowRemoteChange_',

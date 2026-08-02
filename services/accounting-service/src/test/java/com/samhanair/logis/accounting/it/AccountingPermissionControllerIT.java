@@ -29,6 +29,7 @@ import com.samhanair.logis.accounting.service.InboundTaxInvoiceAttachmentService
 import com.samhanair.logis.accounting.service.JournalExcelExportService;
 import com.samhanair.logis.accounting.service.JournalService;
 import com.samhanair.logis.accounting.service.LedgerImageService;
+import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.accounting.service.Mig7CashDisbursementTransformService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
 import com.samhanair.logis.accounting.service.PurchaseAccountingSlipService;
@@ -146,6 +147,7 @@ class AccountingPermissionControllerIT {
     @MockBean private JournalExcelExportService journalExcelExportService;
     @MockBean private JournalService journalService;
     @MockBean private LedgerImageService ledgerImageService;
+    @MockBean private LedgerSnapshotService ledgerSnapshotService;
     @MockBean private Mig7CashDisbursementTransformService cashDisbursementTransformService;
     @MockBean private MonthEndCloseService monthEndCloseService;
     @MockBean private PurchaseAccountingSlipService purchaseAccountingSlipService;
@@ -247,6 +249,13 @@ class AccountingPermissionControllerIT {
                                 .param("partnerCode", "P-001")
                                 .param("from", "2026-05-01")
                                 .param("to", "2026-05-27")),
+                endpoint("accounting partner ledger history", "accounting.partner-ledger", PermissionAction.VIEW, "ACCOUNTANT",
+                        () -> get("/accounting/journals/ledger-history")
+                                .param("partnerCode", "P-001")
+                                .param("from", "2026-05-01")
+                                .param("to", "2026-05-27")),
+                endpoint("accounting partner ledger restore", "accounting.partner-ledger", PermissionAction.VIEW, "ACCOUNTANT",
+                        () -> get("/accounting/journals/ledger-history/{batchNo}/restore", "LEDGER-20260801-000001")),
                 endpoint("accounting statement batch", "accounting.statement-batch", PermissionAction.PRINT, "ACCOUNTANT",
                         () -> get("/accounting/statements/batch-data")
                                 .param("from", "2026-05-01")

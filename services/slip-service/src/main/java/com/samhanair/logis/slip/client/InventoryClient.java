@@ -126,12 +126,21 @@ public class InventoryClient {
      */
     public void inbound(UUID productId, UUID warehouseId, int quantity,
                         String lotNo, BigDecimal unitCost) {
+        inbound(productId, warehouseId, quantity, lotNo, null, unitCost);
+    }
+
+    /** 입고전표 라인까지 전달하는 멱등 입고 호출. */
+    public void inbound(UUID productId, UUID warehouseId, int quantity,
+                        String lotNo, UUID inboundLineId, BigDecimal unitCost) {
         Map<String, Object> body = new HashMap<>();
         body.put("productId", productId.toString());
         body.put("warehouseId", warehouseId.toString());
         body.put("quantity", quantity);
         if (lotNo != null) {
             body.put("lotNo", lotNo);
+        }
+        if (inboundLineId != null) {
+            body.put("inboundLineId", inboundLineId.toString());
         }
         if (unitCost != null) {
             body.put("unitCost", unitCost);

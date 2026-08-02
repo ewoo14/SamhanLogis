@@ -25,8 +25,10 @@ import {
   buildCashReceiptRequest,
   cashReceiptFormStateFromRow,
   cashReceiptInitialFormState,
+  emptyCashReceiptLine,
   partnerLookupUnavailableOnHydrate,
   partnerOptionFromFormState,
+  updateCashReceiptLine,
   validateCashReceiptForm,
   type CashReceiptFormErrors,
   type CashReceiptFormState,
@@ -56,6 +58,7 @@ function stateFromCashReceiptCoeditProvider(provider: DocCoeditProvider): CashRe
     debitAccountCode: provider.getHeaderValue('debitAccountCode'),
     creditAccountCode: provider.getHeaderValue('creditAccountCode'),
     memo: provider.getHeaderValue('memo'),
+    lines: [{ partnerCode: provider.getHeaderValue('partnerCode'), bizNo: provider.getHeaderValue('bizNo'), partnerName: provider.getHeaderValue('partnerName'), amount: provider.getHeaderValue('amount'), memo: provider.getHeaderValue('memo') }, { partnerCode: '', bizNo: '', partnerName: '', amount: '', memo: '' }],
   }
 }
 
@@ -67,7 +70,7 @@ export function CashReceiptFormPage() {
   const receiptId = params['id']
   const isEdit = Boolean(receiptId)
 
-  usePageTitle(isEdit ? '입금보고서 편집' : '입금보고서 작성')
+  usePageTitle(isEdit ? '입금보고서 편집' : '입금보고서 조회')
 
   const [state, setState] = useState<CashReceiptFormState>(() => cashReceiptInitialFormState())
   const [errors, setErrors] = useState<CashReceiptFormErrors>({})
@@ -131,6 +134,17 @@ export function CashReceiptFormPage() {
       if ('partnerCode' in next || 'partnerName' in next) delete copy.partner
       return copy
     })
+  }
+
+  const patchLine = (index: number, next: Partial<CashReceiptFormState['lines'][number]>) => {
+    setState((prev) => ({ ...prev, lines: updateCashReceiptLine(prev.lines, index, next) }))
+  }
+
+  const removeLine = (index: number) => {
+    setState((prev) => ({
+      ...prev,
+      lines: prev.lines.length === 1 ? [emptyCashReceiptLine()] : prev.lines.filter((_, i) => i !== index),
+    }))
   }
 
   const receipt = receiptQuery.data
@@ -313,9 +327,9 @@ export function CashReceiptFormPage() {
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0 }}>{isEdit ? '입금보고서 편집' : '입금보고서 작성'}</h3>
+        <h3 style={{ margin: 0 }}>{isEdit ? '입금보고서 편집' : '입금보고서 조회'}</h3>
         <p style={{ marginTop: 4, fontSize: 13, color: '#6B7280' }}>
-          수기 입금은 DRAFT로 저장되며 확정 시 분개가 자동 게시됩니다.
+          기존 입금보고서를 조회하고 필요한 경우 입금 행을 편집합니다.
         </p>
       </div>
 
@@ -342,6 +356,29 @@ export function CashReceiptFormPage() {
 
       <Card>
         <div style={{ display: 'grid', gap: 16 }}>
+          <div data-testid="cash-receipt-lines" style={{ display: 'grid', gap: 8 }}>
+            <h4 style={{ margin: 0 }}>입금 행</h4>
+            {state.lines.map((line, index) => (
+              <div key={index} data-testid={`cash-receipt-line-${index}`} style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr 1fr 1.4fr auto', gap: 8, alignItems: 'end' }}>
+                <PartnerAutocomplete
+                  label="거래처"
+                  placeholder="거래처명 또는 코드"
+                  value={line.partnerCode || line.partnerName ? { partnerCode: line.partnerCode || line.partnerName, name: line.partnerName, bizNo: line.bizNo || undefined } : null}
+                  onChange={(partner) => patchLine(index, { partnerCode: partner?.partnerCode ?? '', bizNo: partner?.bizNo ?? '', partnerName: partner?.name ?? '' })}
+                  searchPartners={searchPartners}
+                  disabled={readOnly || coeditActive}
+                />
+                <CollaborativeSlipInput provider={coeditProvider} fieldPath={`items.${index}.amount`} label="금액" inputMode="numeric" value={line.amount} onValueChange={(value) => patchLine(index, { amount: value.replace(/[^\d.]/g, '') })} readOnly={readOnly} aria-label={`입금 행 ${index + 1} 금액`} />
+                <CollaborativeSlipInput provider={coeditProvider} fieldPath={`items.${index}.memo`} label="적요" value={line.memo} onValueChange={(value) => patchLine(index, { memo: value })} readOnly={readOnly} aria-label={`입금 행 ${index + 1} 적요`} />
+                <span style={{ fontSize: 12, color: '#6B7280' }}>{index === state.lines.length - 1 && !line.amount && !line.partnerName ? '새 빈행' : ''}</span>
+                <Button type="button" variant="ghost" onClick={() => removeLine(index)} disabled={readOnly || (state.lines.length === 1 && index === 0)} aria-label={`입금 행 ${index + 1} 삭제`}>삭제</Button>
+              </div>
+            ))}
+            <div style={{ textAlign: 'right', fontWeight: 600 }} data-testid="cash-receipt-lines-total">
+              행 합계: {state.lines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0).toLocaleString()}원 / 입금 총액 {Number(state.amount || 0).toLocaleString()}원
+            </div>
+          </div>
+
           <PartnerAutocomplete
             label="거래처"
             placeholder="거래처명 또는 사업자번호"

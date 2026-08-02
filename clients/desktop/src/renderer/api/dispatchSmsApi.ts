@@ -65,6 +65,9 @@ export interface DispatchSmsUnmappedPartner {
   partnerCode: string
   partnerName: string
   slipNo: string
+  message: string
+  /** 단톡방 매핑이 없을 때 사용할 인수자 전화번호. */
+  recipientPhone: string | null
 }
 
 /** Preview 응답 envelope. */

@@ -5,6 +5,8 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
+import com.samhanair.logis.accounting.client.ProductSummary;
+import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
@@ -77,6 +79,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class MonthEndCloseService {
 
+    /** ProductSheetSyncService 가 적재하는 인상 전 기준일(실제 baseline price_history row). */
+    private static final LocalDate BEFORE_INCREASE_PRICE_HISTORY_DATE = LocalDate.of(2000, 1, 1);
+
     private final AccountingPeriodRepository periodRepository;
     private final JournalLineRepository journalLineRepository;
     private final SlipServiceClient slipServiceClient;
@@ -84,6 +89,7 @@ public class MonthEndCloseService {
     private final ProductClient productClient;
     private final DiscountRevalidator discountRevalidator;
     private final PartnerLookupClient partnerLookupClient;
+    private final PartnerDcConfigClient partnerDcConfigClient;
     private final SalesAccountingSlipRepository salesAccountingSlipRepository;
     private final PurchaseAccountingSlipRepository purchaseAccountingSlipRepository;
 
@@ -210,8 +216,8 @@ public class MonthEndCloseService {
                 .map(TaxInvoice::getPartnerId)
                 .toList());
 
-        // 모델별 누적 (productName 기준 — productId 가 분개에 직접 보존되지 않으므로 itemName 키)
-        Map<String, ModelAccumulator> byModel = new LinkedHashMap<>();
+        // 판매 라인의 보존 모델/카테고리 축별 누적 — productId가 분개에 직접 보존되지 않아 label도 함께 유지
+        Map<AxisKey, ModelAccumulator> byModel = new LinkedHashMap<>();
 
         for (TaxInvoice ti : issued) {
             totalSupply = totalSupply.add(ti.getSupplyAmount());
@@ -227,15 +233,13 @@ public class MonthEndCloseService {
                     ti.getVatAmount(),
                     ti.getTotalAmount()));
             for (TaxInvoiceLine line : ti.getLines()) {
-                String key = line.getItemName() == null ? "-" : line.getItemName();
-                ModelAccumulator acc = byModel.computeIfAbsent(key, k -> new ModelAccumulator());
-                acc.quantity = acc.quantity.add(line.getQuantity());
-                acc.supplyAmount = acc.supplyAmount.add(line.getSupplyAmount());
-                acc.vatAmount = acc.vatAmount.add(line.getVatAmount());
+                accumulateProduct(byModel, ti.getPartnerCode(), line.getItemName(), line.getModelName(),
+                        line.getCategoryKey(), line.getQuantity(), line.getSupplyAmount(),
+                        line.getVatAmount());
             }
         }
 
-        List<DailyProductLine> products = revalidateProductLines(byModel, date);
+        List<DailyProductLine> products = revalidateProductLines(byModel, date, false);
 
         return new DailyClosingDetailResponse(
                 date,
@@ -258,7 +262,7 @@ public class MonthEndCloseService {
         Map<UUID, PartnerSummary> partners = resolvePartners(slips.stream()
                 .map(SalesAccountingSlip::getPartnerId)
                 .toList());
-        Map<String, ModelAccumulator> byModel = new LinkedHashMap<>();
+        Map<AxisKey, ModelAccumulator> byModel = new LinkedHashMap<>();
 
         for (SalesAccountingSlip slip : slips) {
             totalSupply = totalSupply.add(slip.getTotalSupplyAmount());
@@ -274,12 +278,11 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (SalesAccountingSlipLine line : slip.getLines()) {
-                accumulateProduct(byModel, line.getProductName(), line.getQty(),
-                        line.getSupplyAmount(), line.getVatAmount());
+                accumulateSalesLine(byModel, slip.getPartnerCode(), line);
             }
         }
         return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
-                BigDecimal.ZERO, rows, revalidateProductLines(byModel, date));
+                BigDecimal.ZERO, rows, revalidateProductLines(byModel, date, false));
     }
 
     private DailyClosingDetailResponse getPurchaseSlipDailyDetail(LocalDate date) {
@@ -292,7 +295,7 @@ public class MonthEndCloseService {
         Map<UUID, PartnerSummary> partners = resolvePartners(slips.stream()
                 .map(PurchaseAccountingSlip::getPartnerId)
                 .toList());
-        Map<String, ModelAccumulator> byModel = new LinkedHashMap<>();
+        Map<AxisKey, ModelAccumulator> byModel = new LinkedHashMap<>();
 
         for (PurchaseAccountingSlip slip : slips) {
             totalSupply = totalSupply.add(slip.getTotalSupplyAmount());
@@ -308,12 +311,12 @@ public class MonthEndCloseService {
                     slip.getTotalVatAmount(),
                     slip.getTotalAmount()));
             for (PurchaseAccountingSlipLine line : slip.getLines()) {
-                accumulateProduct(byModel, line.getProductName(), line.getQty(),
+                accumulateProduct(byModel, slip.getPartnerCode(), line.getProductName(), null, null, line.getQty(),
                         line.getSupplyAmount(), line.getVatAmount());
             }
         }
         return new DailyClosingDetailResponse(date, slips.size(), totalSupply, totalVat, totalAmount,
-                BigDecimal.ZERO, rows, revalidateProductLines(byModel, date));
+                BigDecimal.ZERO, rows, revalidateProductLines(byModel, date, true));
     }
 
     private static boolean matchesInvoiceType(TaxInvoice invoice, DailyClosingKind closingKind) {
@@ -342,58 +345,146 @@ public class MonthEndCloseService {
                 .orElse(null);
     }
 
-    private static void accumulateProduct(Map<String, ModelAccumulator> byModel,
-                                          String productName,
+    private static void accumulateProduct(Map<AxisKey, ModelAccumulator> byModel,
+                                          String partnerCode, String productName, String modelName, String categoryKey,
                                           BigDecimal quantity,
                                           BigDecimal supplyAmount,
                                           BigDecimal vatAmount) {
-        String key = productName == null || productName.isBlank() ? "-" : productName;
-        ModelAccumulator acc = byModel.computeIfAbsent(key, k -> new ModelAccumulator());
+        BigDecimal actualUnitPrice = actualUnitPrice(quantity, supplyAmount, vatAmount);
+        AxisKey key = axisKey(partnerCode, productName, modelName, categoryKey, actualUnitPrice);
+        ModelAccumulator acc = byModel.computeIfAbsent(key,
+                k -> new ModelAccumulator(actualUnitPrice));
         acc.quantity = acc.quantity.add(nullToZero(quantity));
         acc.supplyAmount = acc.supplyAmount.add(nullToZero(supplyAmount));
         acc.vatAmount = acc.vatAmount.add(nullToZero(vatAmount));
     }
 
-    private List<DailyProductLine> revalidateProductLines(Map<String, ModelAccumulator> byModel,
-                                                          LocalDate asOf) {
-        Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(byModel.keySet().stream().toList());
-        List<UUID> matchedProductIds = labelMatches.values().stream()
+    private static void accumulateSalesLine(Map<AxisKey, ModelAccumulator> byModel,
+                                            String partnerCode, SalesAccountingSlipLine line) {
+        if (line.getCategoryKey() != null || line.getModelName() != null
+                || line.getAllocations().isEmpty()) {
+            accumulateProduct(byModel, partnerCode, line.getProductName(), line.getModelName(),
+                    line.getCategoryKey(), line.getQty(), line.getSupplyAmount(), line.getVatAmount());
+            return;
+        }
+        for (SalesAccountingSlipAllocation allocation : line.getAllocations()) {
+            BigDecimal ratio = line.getLineTotal() == null
+                    || line.getLineTotal().compareTo(BigDecimal.ZERO) == 0
+                    ? BigDecimal.ZERO
+                    : allocation.getAllocatedAmount().divide(line.getLineTotal(), 10, RoundingMode.HALF_UP);
+            accumulateProduct(byModel, partnerCode, line.getProductName(), allocation.getModelName(),
+                    allocation.getCategoryKey(), allocation.getAllocatedQty(),
+                    line.getSupplyAmount().multiply(ratio), line.getVatAmount().multiply(ratio));
+        }
+    }
+
+    /** 한 원천 라인의 공급가액·부가세·수량에서 실제 VAT 포함 단가를 구한다. */
+    private static BigDecimal actualUnitPrice(BigDecimal quantity,
+                                              BigDecimal supplyAmount,
+                                              BigDecimal vatAmount) {
+        BigDecimal safeQuantity = nullToZero(quantity);
+        if (safeQuantity.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        return nullToZero(supplyAmount).add(nullToZero(vatAmount))
+                .divide(safeQuantity, 10, RoundingMode.HALF_UP);
+    }
+
+    private static AxisKey axisKey(String partnerCode, String productName, String modelName, String categoryKey,
+                                   BigDecimal actualUnitPrice) {
+        String label = productName == null || productName.isBlank() ? "-" : productName;
+        String modelToken = ModelTokenExtractor.extractModelTokenOrNull(modelName);
+        GasCategoryAxis axis = modelToken == null
+                ? GasCategoryAxis.UNKNOWN
+                : GasCategoryAxis.fromScheduleKey(categoryKey);
+        return new AxisKey(partnerCode, label, modelToken, axis, actualUnitPrice);
+    }
+
+    private List<DailyProductLine> revalidateProductLines(Map<AxisKey, ModelAccumulator> byModel,
+                                                          LocalDate asOf,
+                                                          boolean preservePurchasePriceLookup) {
+        List<String> labels = byModel.keySet().stream().map(AxisKey::label).distinct().toList();
+        Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(labels);
+        Map<String, ProductLabelMatch> modelMatches = resolveProductModels(byModel.keySet());
+        List<UUID> matchedProductIds = byModel.keySet().stream()
+                .map(axis -> effectiveProductMatch(axis, labelMatches, modelMatches))
                 .filter(ProductLabelMatch::isMatched)
                 .map(ProductLabelMatch::productId)
                 .filter(java.util.Objects::nonNull)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new))
                 .stream()
                 .toList();
-        Map<UUID, ApplicablePrice> pricesByProductId = loadApplicablePrices(matchedProductIds, asOf);
+        Map<String, Boolean> defaultVariants = matchedProductIds.isEmpty()
+                ? Map.of()
+                : productClient.priceChangeDefaultVariants();
+        Map<UUID, GasCategoryAxis> legacyPriceAxes = preservePurchasePriceLookup
+                ? loadProductSummaries(matchedProductIds).values().stream()
+                        .filter(summary -> summary.id() != null)
+                        .collect(java.util.stream.Collectors.toMap(
+                                ProductSummary::id,
+                                summary -> GasCategoryAxis.fromScheduleKey(summary.categoryKey()),
+                                (left, right) -> left,
+                                LinkedHashMap::new))
+                : Map.of();
+        Map<PriceLookupKey, ApplicablePrice> pricesByAxis = loadApplicablePrices(
+                byModel.keySet(), labelMatches, modelMatches, asOf, defaultVariants, legacyPriceAxes);
         Map<UUID, BigDecimal> fixedRatesByProductId = loadFixedDiscountRates(matchedProductIds);
+        Map<String, DiscountRevalidator.GlobalDiscount> globalDiscountsByPartnerCode = new LinkedHashMap<>();
+        for (String partnerCode : byModel.keySet().stream().map(AxisKey::partnerCode).distinct().toList()) {
+            try {
+                PartnerDcConfigClient.LookupResult result = partnerDcConfigClient.findByPartnerCode(partnerCode);
+                globalDiscountsByPartnerCode.put(partnerCode, result.found()
+                        ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate())
+                        : DiscountRevalidator.GlobalDiscount.unavailable());
+            } catch (RuntimeException ex) {
+                // 전역DC는 상세 판정의 참고값이다. 외부 장애를 상세 전체 실패로 전파하지 않고,
+                // 엔진이 MISSING_GLOBAL_DISCOUNT를 반환하도록 상태를 보존한다.
+                globalDiscountsByPartnerCode.put(partnerCode, DiscountRevalidator.GlobalDiscount.unavailable());
+            }
+        }
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
-        for (Map.Entry<String, ModelAccumulator> e : byModel.entrySet()) {
-            ProductLabelMatch labelMatch = labelMatches.getOrDefault(e.getKey(), ProductLabelMatch.notFound());
+        for (Map.Entry<AxisKey, ModelAccumulator> e : byModel.entrySet()) {
+            AxisKey axisKey = e.getKey();
+            ProductLabelMatch labelMatch = effectiveProductMatch(axisKey, labelMatches, modelMatches);
             UUID productId = labelMatch.productId();
-            ApplicablePrice price = labelMatch.isMatched() ? pricesByProductId.get(productId) : null;
+            GasCategoryAxis priceAxis = axisKey.axis().isKnown()
+                    ? axisKey.axis()
+                    : productId == null
+                            ? GasCategoryAxis.UNKNOWN
+                            : legacyPriceAxes.getOrDefault(productId, GasCategoryAxis.UNKNOWN);
+            LocalDate priceDate = priceHistoryDate(priceAxis, defaultVariants, asOf);
+            ApplicablePrice price = labelMatch.isMatched() && priceDate != null
+                    ? pricesByAxis.get(new PriceLookupKey(productId, priceDate)) : null;
             // 재검증 분기용 토큰(미매치 시 정규화 품명 fallback 포함).
-            String modelToken = ModelTokenExtractor.extractModelToken(e.getKey());
-            // fixedDc key 누락은 미설정(멀티 45 폴백)으로 처리한다. price key 누락도 엔진에 넘겨
+            String modelToken = axisKey.modelToken() == null
+                    ? ModelTokenExtractor.extractModelToken(axisKey.label()) : axisKey.modelToken();
+            // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
+            // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
             // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
             DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
-                    e.getKey(),
+                    axisKey.label(),
                     modelToken,
                     e.getValue().effectiveUnitPrice(),
                     price == null ? null : price.release(),
                     price == null ? null : price.delivery(),
                     labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
+                    globalDiscountsByPartnerCode.getOrDefault(axisKey.partnerCode(),
+                            DiscountRevalidator.GlobalDiscount.unavailable()),
                     labelMatch.status());
             products.add(new DailyProductLine(
-                    e.getKey(),
+                    axisKey.label(),
                     // 표시 전용: 실 모델코드만(운임·서비스 등 미매치는 null→FE '—', 품명 중복 방지).
-                    ModelTokenExtractor.extractModelTokenOrNull(e.getKey()),
+                    axisKey.modelToken(),
+                    axisKey.axis().isKnown() ? axisKey.axis().scheduleKey() : "UNKNOWN",
                     e.getValue().quantity,
                     e.getValue().supplyAmount,
+                    e.getValue().effectiveUnitPrice(),
                     revalidation.releasePrice(),
                     revalidation.deliveryPrice(),
                     revalidation.expectedRate(),
                     revalidation.actualRate(),
+                    revalidation.discountAmount(),
                     revalidation.verified(),
                     revalidation.status().name()));
         }
@@ -424,6 +515,49 @@ public class MonthEndCloseService {
         return matches;
     }
 
+    /** exact snapshot 모델이 있으면 품명 LIKE 결과보다 우선한다. */
+    private Map<String, ProductLabelMatch> resolveProductModels(java.util.Set<AxisKey> axes) {
+        Map<String, ProductLabelMatch> result = new LinkedHashMap<>();
+        axes.stream().map(AxisKey::modelToken).filter(java.util.Objects::nonNull).distinct()
+                .forEach(model -> {
+                    ProductSummary summary = productClient.lookupByModel(model);
+                    result.put(model, summary == null
+                            ? ProductLabelMatch.notFound()
+                            : ProductLabelMatch.matched(summary.id(), summary.modelCode()));
+                });
+        return result;
+    }
+
+    private static ProductLabelMatch effectiveProductMatch(
+            AxisKey axis, Map<String, ProductLabelMatch> labelMatches,
+            Map<String, ProductLabelMatch> modelMatches) {
+        ProductLabelMatch byLabel = labelMatches.getOrDefault(axis.label(),
+                ProductLabelMatch.notFound());
+        if (axis.modelToken() == null) {
+            // 비교할 불변 모델 토큰이 없는 legacy snapshot은 기존 라벨 판정을 유지한다.
+            // modelCode가 null인 정상 레거시 제품까지 NOT_FOUND로 강등하지 않는다.
+            return byLabel;
+        }
+        ProductLabelMatch byModel = modelMatches.get(axis.modelToken());
+        if (byModel != null && byModel.isMatched()
+                && axis.modelToken().equals(byModel.modelCode())) {
+            return byModel;
+        }
+        if (byModel != null && byModel.isMatched()) {
+            // exact 결과는 존재하지만 불변 modelCode로 snapshot을 증명하지 못한다.
+            // 이 경우에는 기존 label 결과(AMBIGUOUS 포함)를 그대로 유지한다.
+            return byLabel;
+        }
+        // 과거 snapshot의 modelName은 변경·재사용될 수 있다. exact 결과에
+        // snapshot과 일치하는 불변 modelCode가 없으면 기존 label 해소 결과를 보존한다.
+        if (!byLabel.isMatched()) {
+            return byLabel;
+        }
+        return axis.modelToken().equals(byLabel.modelCode()) || byLabel.modelCode() == null
+                ? byLabel
+                : ProductLabelMatch.notFound();
+    }
+
     /** {@link ProductClient#LABEL_BATCH_MAX} 단위로 라벨 목록을 청크로 분할한다. */
     private static List<List<String>> labelChunks(List<String> labels) {
         List<List<String>> chunks = new ArrayList<>();
@@ -434,15 +568,77 @@ public class MonthEndCloseService {
         return chunks;
     }
 
-    private Map<UUID, ApplicablePrice> loadApplicablePrices(List<UUID> productIds, LocalDate asOf) {
+    private Map<UUID, ProductSummary> loadProductSummaries(List<UUID> productIds) {
         if (productIds.isEmpty()) {
             return Map.of();
         }
-        Map<UUID, ApplicablePrice> result = new LinkedHashMap<>();
-        for (List<UUID> chunk : chunks(productIds)) {
-            result.putAll(productClient.applicablePrices(chunk, asOf));
+        Map<UUID, ProductSummary> result = new LinkedHashMap<>();
+        for (List<UUID> chunk : productIdChunks(productIds, ProductClient.LOOKUP_BATCH_MAX)) {
+            for (ProductSummary summary : productClient.lookup(chunk)) {
+                if (summary != null && summary.id() != null) {
+                    result.put(summary.id(), summary);
+                }
+            }
         }
         return result;
+    }
+
+    private Map<PriceLookupKey, ApplicablePrice> loadApplicablePrices(
+            java.util.Set<AxisKey> axes,
+            Map<String, ProductLabelMatch> labelMatches,
+            Map<String, ProductLabelMatch> modelMatches,
+            LocalDate asOf,
+            Map<String, Boolean> defaultVariants,
+            Map<UUID, GasCategoryAxis> legacyPriceAxes) {
+        if (axes.isEmpty()) {
+            return Map.of();
+        }
+        Map<LocalDate, LinkedHashSet<UUID>> idsByPriceDate = new LinkedHashMap<>();
+        Map<PriceLookupKey, Boolean> requested = new LinkedHashMap<>();
+        for (AxisKey axis : axes) {
+            ProductLabelMatch match = effectiveProductMatch(axis, labelMatches, modelMatches);
+            if (match == null || !match.isMatched()) {
+                continue;
+            }
+            GasCategoryAxis priceAxis = axis.axis().isKnown()
+                    ? axis.axis()
+                    : legacyPriceAxes.getOrDefault(match.productId(), GasCategoryAxis.UNKNOWN);
+            LocalDate priceDate = priceHistoryDate(priceAxis, defaultVariants, asOf);
+            // 카테고리/설정이 확인되지 않은 품목은 가격을 조회하지 않는다. null 가격은
+            // DiscountRevalidator 가 MISSING_REFERENT 로 표시하여 틀린 단가를 숨긴다.
+            if (priceDate != null) {
+                PriceLookupKey key = new PriceLookupKey(match.productId(), priceDate);
+                requested.put(key, Boolean.TRUE);
+                idsByPriceDate.computeIfAbsent(priceDate, ignored -> new LinkedHashSet<>())
+                        .add(match.productId());
+            }
+        }
+        Map<PriceLookupKey, ApplicablePrice> result = new LinkedHashMap<>();
+        for (Map.Entry<LocalDate, LinkedHashSet<UUID>> entry : idsByPriceDate.entrySet()) {
+            for (List<UUID> chunk : chunks(new ArrayList<>(entry.getValue()))) {
+                Map<UUID, ApplicablePrice> prices = productClient.applicablePrices(chunk, entry.getKey());
+                (prices == null ? Map.<UUID, ApplicablePrice>of() : prices).forEach((productId, price) -> {
+                    PriceLookupKey key = new PriceLookupKey(productId, entry.getKey());
+                    if (requested.containsKey(key)) {
+                        result.put(key, price);
+                    }
+                });
+            }
+        }
+        return result;
+    }
+
+    private static LocalDate priceHistoryDate(GasCategoryAxis axis,
+                                               Map<String, Boolean> defaultVariants,
+                                               LocalDate asOf) {
+        if (!axis.isKnown()) {
+            return null;
+        }
+        Boolean defaultPreChange = defaultVariants.get(axis.scheduleKey());
+        if (defaultPreChange == null) {
+            return null;
+        }
+        return defaultPreChange ? BEFORE_INCREASE_PRICE_HISTORY_DATE : asOf;
     }
 
     private Map<UUID, BigDecimal> loadFixedDiscountRates(List<UUID> productIds) {
@@ -457,9 +653,13 @@ public class MonthEndCloseService {
     }
 
     private static List<List<UUID>> chunks(List<UUID> productIds) {
+        return productIdChunks(productIds, ProductClient.REFERENT_BATCH_MAX);
+    }
+
+    private static List<List<UUID>> productIdChunks(List<UUID> productIds, int batchMax) {
         List<List<UUID>> chunks = new ArrayList<>();
-        for (int start = 0; start < productIds.size(); start += ProductClient.REFERENT_BATCH_MAX) {
-            int end = Math.min(start + ProductClient.REFERENT_BATCH_MAX, productIds.size());
+        for (int start = 0; start < productIds.size(); start += batchMax) {
+            int end = Math.min(start + batchMax, productIds.size());
             chunks.add(productIds.subList(start, end));
         }
         return chunks;
@@ -500,21 +700,36 @@ public class MonthEndCloseService {
 
     /** 모델별 누적 헬퍼. */
     private static final class ModelAccumulator {
+        private final BigDecimal actualUnitPrice;
         BigDecimal quantity = BigDecimal.ZERO;
         BigDecimal supplyAmount = BigDecimal.ZERO;
         BigDecimal vatAmount = BigDecimal.ZERO;
 
+        private ModelAccumulator(BigDecimal actualUnitPrice) {
+            this.actualUnitPrice = actualUnitPrice;
+        }
+
         /**
-         * VAT 포함 유효단가 = (공급가액 + 세액) / 수량. 레거시 확인 산식의 단가(VAT포함)와 동일 기준
-         * (재검증 엔진의 출고가 대비 할인율이 레거시와 파리티를 유지하도록 VAT 포함으로 산출).
-         * 수량 0 이면 null(판정 불가).
+         * 원천 한 라인에서 보존한 VAT 포함 실제 단가를 반환한다.
+         * 동일 축의 서로 다른 실제 단가는 AxisKey 로 분리되므로 합계÷합계수량의 가중평균을
+         * 전표 단가로 다시 만들지 않는다.
          */
         BigDecimal effectiveUnitPrice() {
-            if (quantity == null || quantity.compareTo(BigDecimal.ZERO) == 0) {
-                return null;
-            }
-            return supplyAmount.add(vatAmount).divide(quantity, 10, RoundingMode.HALF_UP);
+            return actualUnitPrice;
         }
+    }
+
+    /** 일마감 집계의 정본 key — 품목명 하나로 다른 판매 카테고리를 합치지 않는다. */
+    private record AxisKey(String partnerCode, String label, String modelToken, GasCategoryAxis axis,
+                           BigDecimal actualUnitPrice) {
+        private AxisKey {
+            actualUnitPrice = actualUnitPrice == null
+                    ? null : actualUnitPrice.stripTrailingZeros();
+        }
+    }
+
+    /** 같은 제품이라도 카테고리별 기준일이 다를 수 있어 productId만으로 가격을 캐시하지 않는다. */
+    private record PriceLookupKey(UUID productId, LocalDate priceDate) {
     }
 
     /**

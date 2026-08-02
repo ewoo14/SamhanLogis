@@ -3,6 +3,8 @@ package com.samhanair.logis.partnerorder.client;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.InternalAuthProperties;
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -92,6 +94,57 @@ public class ProductClient {
     }
 
     /**
+     * 품목별 고정DC율을 기존 product-service 부분성공 endpoint에서 조회한다.
+     *
+     * <p>구형 product-service가 lookup 요약에 아직 고정DC를 싣지 않는 동안에도 confirm이
+     * bootstrap/product DB의 실제 percent 값을 사용할 수 있게 하는 보강 경로다. 조회 실패는
+     * confirm의 기존 product lookup/fail-soft 흐름을 깨지 않도록 빈 Map으로 흡수한다.
+     *
+     * @param productIds 조회할 품목 UUID
+     * @return productId → fixedDiscountRate(percent), 결측/실패 시 빈 Map
+     */
+    public Map<UUID, BigDecimal> lookupFixedDiscountRates(List<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> body = Map.of(
+                "productIds", productIds.stream().map(UUID::toString).toList());
+        try {
+            Map<String, Object> envelope = restClient.post()
+                    .uri("/products/internal/fixed-discount-rate-bulk")
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof Map<?, ?> rawMap)) {
+                return Map.of();
+            }
+            Map<UUID, BigDecimal> result = new HashMap<>();
+            for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                try {
+                    UUID productId = UUID.fromString(String.valueOf(entry.getKey()));
+                    if (!(entry.getValue() instanceof Map<?, ?> value)) {
+                        continue;
+                    }
+                    Object rate = value.get("fixedDiscountRate");
+                    if (rate != null) {
+                        result.put(productId, new BigDecimal(rate.toString()));
+                    }
+                } catch (IllegalArgumentException ignored) {
+                    // 부분 응답의 손상된 한 건은 나머지 품목을 가리지 않는다.
+                }
+            }
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("ProductClient fixed discount lookup fail-soft: {}", ex.getMessage());
+            return Map.of();
+        }
+    }
+
+    /**
      * modelCode 리스트의 카탈로그 정보를 일괄 조회.
      *
      * <p>거래처 주문 direct PUT 라인은 실제 product UUID 대신 synthetic stableProductId 를 저장할 수 있어
@@ -159,7 +212,20 @@ public class ProductClient {
                 (String) m.get("status"),
                 (String) m.get("modelCode"),
                 (String) m.get("productType"),
-                (String) m.get("categoryKey"));
+                (String) m.get("categoryKey"),
+                m.get("fixedDiscountRate") == null
+                        ? null
+                        : new java.math.BigDecimal(m.get("fixedDiscountRate").toString()),
+                (String) m.get("discountFlags"),
+                m.get("releasePrice") == null
+                        ? null
+                        : new BigDecimal(m.get("releasePrice").toString()),
+                m.get("deliveryPrice") == null
+                        ? null
+                        : new BigDecimal(m.get("deliveryPrice").toString()),
+                m.get("hasVariableDiscount") == null
+                        ? null
+                        : Boolean.valueOf(m.get("hasVariableDiscount").toString()));
     }
 
     private String requireToken() {

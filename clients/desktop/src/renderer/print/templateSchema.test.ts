@@ -172,6 +172,33 @@ describe('parseDocumentTemplate', () => {
 })
 
 describe('document template compatibility', () => {
+  it('저작 방식은 document 안에서 EXCEL을 보존하고 누락·미지 값은 WORD로 읽는다', () => {
+    const excel = structuredClone(validTemplate) as Record<string, any>
+    excel.document.mode = 'EXCEL'
+    const excelResult = parseDocumentTemplate(excel)
+    expect(excelResult.ok).toBe(true)
+    if (excelResult.ok) expect((excelResult.value.document as any).mode).toBe('EXCEL')
+
+    const legacyResult = parseDocumentTemplate(validTemplate)
+    expect(legacyResult.ok).toBe(true)
+    if (legacyResult.ok) expect((legacyResult.value.document as any).mode).toBe('WORD')
+
+    const unknown = structuredClone(validTemplate) as Record<string, any>
+    unknown.document.mode = 'PDF'
+    const unknownResult = parseDocumentTemplate(unknown)
+    expect(unknownResult.ok).toBe(true)
+    if (unknownResult.ok) expect((unknownResult.value.document as any).mode).toBe('WORD')
+  })
+
+  it('v1 mode가 있는 양식을 upcast해도 저작 방식을 보존한다', () => {
+    const excel = structuredClone(validTemplate) as Record<string, any>
+    excel.document.mode = 'EXCEL'
+    const upcasted = upcastDocumentTemplate(excel, 1)
+
+    expect(upcasted.schemaVersion).toBe(2)
+    expect((upcasted.document as any).mode).toBe('EXCEL')
+  })
+
   it('R1: 현재 schema v2에서도 v1 pin envelope를 원문 파서로 보존한다', () => {
     expect(DOCUMENT_TEMPLATE_SCHEMA_VERSION).toBe(2)
 

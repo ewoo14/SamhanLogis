@@ -42,6 +42,18 @@ class PartnerOrderResponseTest {
         assertThat(summary.mergeIneligibilityReason()).doesNotContain(UUID.randomUUID().toString());
     }
 
+    @Test
+    void detail_preservesStructuredDeliveryAddress() {
+        PartnerOrder order = PartnerOrder.createFromConfirm(
+                "P-ADDRESS", "123-45-67890", "PO-ADDRESS", "idem-address", BigDecimal.TEN,
+                "서울시 금천구 배송로 10");
+
+        PartnerOrderDetailResponse detail = PartnerOrderDetailResponse.from(order);
+
+        assertThat(order.getDeliveryAddress()).isEqualTo("서울시 금천구 배송로 10");
+        assertThat(detail.deliveryAddress()).isEqualTo("서울시 금천구 배송로 10");
+    }
+
     private void assertStatus(PartnerOrder order, SlipPublishStatus expected) {
         PartnerOrderDetailResponse detail = PartnerOrderDetailResponse.from(order);
         PartnerOrderSummaryResponse summary = PartnerOrderSummaryResponse.from(order);

@@ -8,6 +8,7 @@ import com.samhanair.logis.slip.attachment.service.SlipAttachmentService;
 import com.samhanair.logis.slip.attachment.web.dto.SlipAttachmentResponse;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.repository.SlipLineRepository;
 import com.samhanair.logis.slip.repository.SlipRepository;
@@ -19,6 +20,8 @@ import com.samhanair.logis.slip.web.dto.InternalSignatureResponse;
 import com.samhanair.logis.slip.web.dto.LockByPeriodRequest;
 import com.samhanair.logis.slip.web.dto.LockByPeriodResponse;
 import com.samhanair.logis.slip.web.dto.OutboundSlipLineResponse;
+import com.samhanair.logis.slip.web.dto.OutboundSlipResponse;
+import com.samhanair.logis.slip.web.dto.PartnerLedgerSalesResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
 import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse;
@@ -68,6 +71,12 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/internal/slips")
 @RequiredArgsConstructor
 public class SlipInternalController {
+
+    /** 거래처별 원장에 표시할 판매전표 상태 — 거래 사실 문서 기준. */
+    private static final List<SlipStatus> PARTNER_LEDGER_SALES_STATUSES = List.of(
+            SlipStatus.CONFIRMED,
+            SlipStatus.DELIVERED,
+            SlipStatus.COMPLETED);
 
     private final SlipSignatureService signatureService;
     private final SlipAttachmentService attachmentService;
@@ -279,6 +288,43 @@ public class SlipInternalController {
     public record LookupResponse(UUID slipId, String slipNo, String status) {}
 
     /**
+     * 배차 계열 공통 출고전표 조회.
+     *
+     * <p>notification-service와 arologis-service가 사용하는 기간 계약이다. 기존
+     * {@code /outbound-lines} 라인 projection과 경로를 분리하고, 응답에는 UUID를 포함하지 않는다.
+     *
+     * @param from 조회 시작일(포함)
+     * @param to 조회 종료일(포함)
+     * @return 활성 OUTBOUND 전표 단위 projection
+     */
+    @Operation(summary = "Internal 배차용 출고전표 조회",
+            description = "X-Internal-Token 인증. 활성 OUTBOUND 전표를 전표 단위로 반환하며 UUID는 포함하지 않는다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "from/to 누락 또는 to < from"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "X-Internal-Token 누락")
+    })
+    @GetMapping("/outbound")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<OutboundSlipResponse>> findOutboundSlipsForDispatch(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        if (from == null || to == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜는 필수입니다");
+        }
+        if (to.isBefore(from)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "to 날짜는 from 날짜 이후여야 합니다");
+        }
+        List<OutboundSlipResponse> rows = slipRepository
+                .findByPeriodWithLines(SlipType.OUTBOUND, from, to, null)
+                .stream()
+                .map(OutboundSlipResponse::from)
+                .toList();
+        return ApiResponse.ok(rows);
+    }
+
+    /**
      * DPS 입고비교용 출고전표 라인 조회 — inventory-service DpsCompareService source.
      *
      * <p>기존 기간별 조회 query({@link SlipRepository#findByPeriodWithLines}) 를 재사용해 OUTBOUND
@@ -324,6 +370,55 @@ public class SlipInternalController {
                         .map(line -> OutboundSlipLineResponse.from(slip, line)))
                 .toList();
         return ApiResponse.ok(lines);
+    }
+
+    /**
+     * 거래처별 원장용 판매전표 read projection 조회.
+     *
+     * <p>원장은 회계 반영 완료 목록이 아니라 거래 사실 문서이므로 CONFIRMED·DELIVERED·COMPLETED
+     * 세 상태를 모두 포함한다. 기존 DPS용 {@code /outbound-lines}는 품목·수량 중심의 별도 계약이라
+     * 확장하지 않고 기존 소비자를 그대로 보존한다.
+     *
+     * @param from 조회 시작일(포함)
+     * @param to 조회 종료일(포함)
+     * @param partnerCode 거래처코드, 생략 시 전체
+     * @return UUID 없는 전표 단위 원장 판매전표 목록
+     */
+    @Operation(summary = "거래처별 원장 판매전표 조회",
+            description = "X-Internal-Token 인증. CONFIRMED/DELIVERED/COMPLETED OUTBOUND 전표와 품목을 조회한다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200",
+                    description = "조회 성공 (빈 결과는 빈 리스트)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+                    description = "from/to 누락 또는 to < from"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401",
+                    description = "X-Internal-Token 불일치"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403",
+                    description = "X-Internal-Token 누락")
+    })
+    @GetMapping("/partner-ledger-sales")
+    @PreAuthorize("hasRole('MASTER')")
+    public ApiResponse<List<PartnerLedgerSalesResponse>> findPartnerLedgerSales(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String partnerCode) {
+        if (from == null || to == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "from/to 날짜는 필수입니다");
+        }
+        if (to.isBefore(from)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "to 날짜는 from 날짜 이후여야 합니다");
+        }
+
+        String normalizedPartnerCode = partnerCode == null || partnerCode.isBlank()
+                ? null
+                : partnerCode.trim();
+        List<PartnerLedgerSalesResponse> rows = slipRepository.findPartnerLedgerSales(
+                        from, to, normalizedPartnerCode, PARTNER_LEDGER_SALES_STATUSES)
+                .stream()
+                .map(PartnerLedgerSalesResponse::from)
+                .toList();
+        return ApiResponse.ok(rows);
     }
 
     // ---- SP-SAS-1 Task 7 — accounting-service cross-service read-only contract ----
@@ -408,6 +503,9 @@ public class SlipInternalController {
                 slip.getPartnerCode(),
                 slip.getPartnerName(),
                 line.getProductName(),
+                line.getModelName(),
+                line.getSourceOrderLineId(),
+                line.getCategoryKey(),
                 line.getQuantity(),
                 unitPriceWithVat,
                 lineTotalWithVat,

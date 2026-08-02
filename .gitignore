@@ -125,6 +125,9 @@ pnpm-workspace.yaml
 .gradle-codex/
 _codex_commit_repo/
 
+# ----- 병렬 트랙 전용 Gradle 홈 (트랙별 캐시 경합 회피용 — 커밋 금지) -----
+.gradle-t[0-9]*/
+
 # ----- 이카운트 raw (민감) -----
 # 거래처 사업자번호 / 미수금 / 매입매출 등 민감 정보 포함, .gitkeep 만 보존
 docs/migration/ecount-data/raw/*

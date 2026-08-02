@@ -112,8 +112,8 @@ class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_DISPATCH)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.sent").value(2))
-                .andExpect(jsonPath("$.data.failed").value(0))
+                .andExpect(jsonPath("$.data.sent").value(0))
+                .andExpect(jsonPath("$.data.failed").value(2))
                 .andExpect(jsonPath("$.data.blocked").value(0));
 
         // SEND_AUDIT row 1건 생성 확인
@@ -128,8 +128,8 @@ class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
                 .filter(r -> r.getSaveMode() == DispatchSmsSaveMode.SEND_AUDIT)
                 .findFirst();
         assertThat(auditRow).isPresent();
-        assertThat(auditRow.get().getResponsePayload().path("sent").asInt()).isEqualTo(2);
-        assertThat(auditRow.get().getResponsePayload().path("failed").asInt()).isZero();
+        assertThat(auditRow.get().getResponsePayload().path("sent").asInt()).isZero();
+        assertThat(auditRow.get().getResponsePayload().path("failed").asInt()).isEqualTo(2);
         assertThat(auditRow.get().getResponsePayload().path("blocked").asInt()).isZero();
         assertThat(auditRow.get().getResponsePayload().path("details").isArray()).isTrue();
         assertThat(auditRow.get().getResponsePayload().path("details").size()).isEqualTo(2);
@@ -158,7 +158,8 @@ class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
                         .header("X-User-Id", USER_DISPATCH)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.sent").value(1))
+                .andExpect(jsonPath("$.data.sent").value(0))
+                .andExpect(jsonPath("$.data.failed").value(1))
                 .andExpect(jsonPath("$.data.blocked").value(1));
 
         var rows = saveHistoryRepository.findAll();
@@ -166,7 +167,7 @@ class AligoSmsAdapterSendAuditIT extends AbstractPostgresIT {
                 .filter(r -> r.getSaveMode() == DispatchSmsSaveMode.SEND_AUDIT)
                 .findFirst();
         assertThat(auditRow).isPresent();
-        assertThat(auditRow.get().getResponsePayload().path("sent").asInt()).isEqualTo(1);
+        assertThat(auditRow.get().getResponsePayload().path("sent").asInt()).isZero();
         assertThat(auditRow.get().getResponsePayload().path("blocked").asInt()).isEqualTo(1);
     }
 

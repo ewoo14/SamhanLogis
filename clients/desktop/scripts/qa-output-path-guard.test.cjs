@@ -215,6 +215,127 @@ function loadQaPlaywrightCapture() {
   return moduleValue.exports.captureForQa
 }
 
+function findFreeSubstLetter() {
+  for (let code = 87; code <= 90; code += 1) {
+    const candidate = String.fromCharCode(code)
+    if (!fs.existsSync(`${candidate}:\\`)) return candidate
+  }
+  return null
+}
+
+function runNodePathMatrixCase(resolver, target) {
+  const originalMkdirSync = fs.mkdirSync
+  let mkdirCalls = 0
+  let thrown = null
+  fs.mkdirSync = (...args) => {
+    mkdirCalls += 1
+    return args[0]
+  }
+  process.env.QA_SHOTS_DIR = target
+  try {
+    resolver(MY_FIXTURE_COMMITTED_DIR)
+  } catch (error) {
+    thrown = error
+  } finally {
+    delete process.env.QA_SHOTS_DIR
+    fs.mkdirSync = originalMkdirSync
+  }
+  return { mkdirCalls, thrown }
+}
+
+test(
+  '978-A-1 경로 표기 판정표 — 같은 docs/qa 물리 위치의 평문·UNC·슬래시·subst·mklink /J 는 모두 BLOCK, 외부 UNC 는 ALLOW 이다',
+  { skip: isWindowsPlatform() && SELF_LAN_IPV4 ? false : '자기 LAN IP·admin-share·subst·mklink /J 표기는 Windows와 non-internal IPv4가 필요합니다', timeout: 30000 },
+  async () => {
+    const { resolveQaShotsDir: mjsResolve } = await import(pathToFileURL(mjsHelperPath).href)
+    const { resolveQaShotsDir: rootMjsResolve } = await import(pathToFileURL(rootMjsHelperPath).href)
+    const resolvers = [
+      ['cjs', resolveQaShotsDir],
+      ['mjs', mjsResolve],
+      ['root-mjs', rootMjsResolve],
+      ['ts', loadTypeScriptResolver()],
+    ]
+
+    const drive = OTHER_SLUG_COMMITTED_DIR.slice(0, 1).toLowerCase()
+    const driveRest = OTHER_SLUG_COMMITTED_DIR.slice(2)
+    const substRoot = path.resolve(repoRoot, '..', '..', '..', '..')
+    const relativeFromSubstRoot = path.relative(substRoot, OTHER_SLUG_COMMITTED_DIR)
+    assert.ok(
+      relativeFromSubstRoot && !relativeFromSubstRoot.startsWith('..'),
+      `subst 기준점이 저장소를 포함하지 않습니다: ${substRoot} -> ${OTHER_SLUG_COMMITTED_DIR}`,
+    )
+
+    const matrixTempRoot = path.join(os.tmpdir(), 'samhan-978-a1-path-matrix')
+    const junctionParent = path.join(matrixTempRoot, 'cross-drive-junction-parent')
+    const junctionLink = path.join(junctionParent, 'docs-qa')
+    let substLetter = null
+
+    try {
+      fs.mkdirSync(junctionParent, { recursive: true })
+      const mklinkOutput = execFileSync(
+        process.env.ComSpec || 'cmd.exe',
+        ['/d', '/c', 'mklink', '/J', junctionLink, docsQaRoot],
+        { encoding: 'utf8' },
+      )
+      assert.equal(fs.existsSync(junctionLink), true, `mklink /J 가 junction 을 만들지 못했습니다: ${mklinkOutput}`)
+      console.log(`[978-A-1 path matrix] mklink /J created: ${mklinkOutput.trim()}`)
+
+      substLetter = findFreeSubstLetter()
+      assert.ok(substLetter, 'subst 에 쓸 미사용 드라이브 문자(W~Z)를 찾지 못했습니다')
+      execFileSync('subst', [`${substLetter}:`, substRoot])
+
+      const blockedCases = [
+        ['평범', OTHER_SLUG_COMMITTED_DIR],
+        ['슬래시', OTHER_SLUG_COMMITTED_DIR.replaceAll('\\', '/')],
+        ['혼합', `${drive}:\\${driveRest.slice(1).replaceAll('\\', '/')}`],
+        ['UNC-localhost', `\\\\localhost\\${drive}$${driveRest}`],
+        ['UNC-127.0.0.1', `\\\\127.0.0.1\\${drive}$${driveRest}`],
+        ['UNC-computername', `\\\\${os.hostname()}\\${drive}$${driveRest}`],
+        ['UNC-self-LAN-IP', `\\\\${SELF_LAN_IPV4}\\${drive}$${driveRest}`],
+        ['subst', `${substLetter}:\\${relativeFromSubstRoot}`],
+        ['cross-drive-junction-mklink', path.join(junctionLink, path.relative(docsQaRoot, OTHER_SLUG_COMMITTED_DIR))],
+      ]
+
+      for (const [label, target] of blockedCases) {
+        for (const [resolverName, resolver] of resolvers) {
+          const { mkdirCalls, thrown } = runNodePathMatrixCase(resolver, target)
+          assert.ok(
+            thrown instanceof Error && thrown.message.includes('QA_ALLOW_OVERWRITE=1'),
+            `${resolverName}:${label} 표기가 BLOCK 되지 않았습니다. target=${target} error=${thrown?.message ?? '없음'}`,
+          )
+          assert.equal(mkdirCalls, 0, `${resolverName}:${label} 가드가 쓰기 전 mkdir 을 호출했습니다`)
+        }
+        console.log(`[978-A-1 path matrix] ${label}\tBLOCK\t${target}\tresolvers=${resolvers.map(([name]) => name).join(',')}`)
+      }
+
+      const externalHost = '203.0.113.77'
+      const externalTarget = `\\\\${externalHost}\\${drive}$${driveRest}`
+      for (const [resolverName, resolver] of resolvers) {
+        const { mkdirCalls, thrown } = runNodePathMatrixCase(resolver, externalTarget)
+        assert.ok(
+          !(thrown instanceof Error && thrown.message.includes('QA_ALLOW_OVERWRITE=1')),
+          `${resolverName}:외부 UNC 를 과차단했습니다. error=${thrown?.message ?? '없음'}`,
+        )
+        assert.equal(mkdirCalls, 1, `${resolverName}:외부 UNC 허용 후 출력 디렉터리 결정이 실행되지 않았습니다`)
+      }
+      console.log(`[978-A-1 path matrix] 외부 UNC\tALLOW\t${externalTarget}\tresolvers=${resolvers.map(([name]) => name).join(',')}`)
+    } finally {
+      delete process.env.QA_SHOTS_DIR
+      if (substLetter) {
+        execFileSync('subst', [`${substLetter}:`, '/D'])
+        console.log(`[978-A-1 cleanup] subst ${substLetter}: released=${!fs.existsSync(`${substLetter}:\\`)}`)
+      }
+      assert.ok(
+        path.resolve(junctionParent).startsWith(path.resolve(os.tmpdir()) + path.sep),
+        `junction 정리 대상이 os.tmpdir() 밖입니다: ${junctionParent}`,
+      )
+      fs.rmSync(junctionParent, { recursive: true, force: true })
+      console.log(`[978-A-1 cleanup] mklink /J parent removed=${!fs.existsSync(junctionParent)}`)
+      fs.rmSync(matrixTempRoot, { recursive: true, force: true })
+    }
+  },
+)
+
 test('물리적으로 docs/qa 아래인 junction·extended·표기 변형은 세 resolver가 차단한다', async () => {
   const junctionRoot = path.join(tempRoot, 'junction-to-docs-qa')
   const junctionMissing = path.join(junctionRoot, '__863-r2-not-created__')
@@ -564,6 +685,82 @@ function findPowerShellExecutable() {
 
 const POWERSHELL_EXE = findPowerShellExecutable()
 const POWERSHELL_SKIP_REASON = POWERSHELL_EXE ? false : '이 환경에 pwsh/powershell 실행파일이 없습니다'
+
+function findActualAlternateCheckout() {
+  const currentCheckout = path.resolve(repoRoot)
+  const candidates = []
+  let ancestor = currentCheckout
+  while (true) {
+    const worktreesRoot = path.join(ancestor, '.claude', 'worktrees')
+    if (fs.existsSync(worktreesRoot) && fs.statSync(worktreesRoot).isDirectory()) {
+      candidates.push(ancestor)
+      for (const entry of fs.readdirSync(worktreesRoot)) candidates.push(path.join(worktreesRoot, entry))
+    }
+    const parent = path.dirname(ancestor)
+    if (parent === ancestor) break
+    ancestor = parent
+  }
+
+  return (
+    candidates.find(candidate => {
+      const resolvedCandidate = path.resolve(candidate)
+      return (
+        resolvedCandidate !== currentCheckout &&
+        fs.existsSync(path.join(resolvedCandidate, '.git')) &&
+        fs.existsSync(path.join(resolvedCandidate, 'docs', 'qa', '809-partner-product-price-memory'))
+      )
+    }) ?? null
+  )
+}
+
+const ALTERNATE_CHECKOUT_ROOT = findActualAlternateCheckout()
+const ALTERNATE_CHECKOUT_SKIP_REASON = ALTERNATE_CHECKOUT_ROOT
+  ? false
+  : '현재 checkout 과 다른 실재 Git 워크트리 및 커밋 QA 경로를 찾을 수 없습니다'
+
+test(
+  '978-A-1 경로 표기 판정표 — 실제 다른 Git 워크트리를 -ProjectRoot 로 지정해도 그 워크트리의 docs/qa 는 BLOCK 이다',
+  {
+    skip:
+      POWERSHELL_SKIP_REASON ||
+      (isWindowsPlatform() ? false : '실제 다른 Git 워크트리의 -ProjectRoot 경로 판정은 Windows 전용입니다') ||
+      ALTERNATE_CHECKOUT_SKIP_REASON,
+    timeout: 30000,
+  },
+  () => {
+    // 다른 워크트리의 커밋 증거를 직접 겨누되, guard 가 회귀해도 저장소에 쓰지 못하도록
+    // New-Item 을 sentinel 로 바꾼다. BLOCK 이면 이 함수에 도달하지 않고, ALLOW 로 새면
+    // sentinel 이 즉시 중단하므로 어느 쪽도 기존 REPORT.md 를 덮어쓸 수 없다.
+    const alternateCheckoutRoot = ALTERNATE_CHECKOUT_ROOT
+    const alternateTarget = path.join(alternateCheckoutRoot, 'docs', 'qa', '809-partner-product-price-memory')
+    assert.equal(fs.existsSync(alternateTarget), true, `alternate checkout 의 커밋 QA 경로가 없습니다: ${alternateTarget}`)
+
+    const scriptPath = path.join(repoRoot, 'infrastructure', 'scripts', 'operational-validation.ps1')
+    const psCommand = [
+      "function New-Item { throw 'WRITE_SENTINEL' }",
+      `$env:QA_SHOTS_DIR='${alternateTarget}'`,
+      `& '${scriptPath}' -SkipDocker -ProjectRoot '${alternateCheckoutRoot}'`,
+    ].join('; ')
+
+    let threw = false
+    let combined = ''
+    try {
+      combined = execFileSync(POWERSHELL_EXE, ['-NoProfile', '-Command', psCommand], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 30000,
+      })
+    } catch (error) {
+      threw = true
+      combined = `${error.stdout ?? ''}${error.stderr ?? ''}`
+    }
+
+    assert.ok(threw, `실제 다른 워크트리의 -ProjectRoot docs/qa 가 BLOCK 되지 않았습니다. 출력: ${combined}`)
+    assert.match(combined, /QA_ALLOW_OVERWRITE=1/, `-ProjectRoot 판정이 guard 오류가 아닙니다. 출력: ${combined}`)
+    assert.doesNotMatch(combined, /WRITE_SENTINEL/, 'ALLOW 로 새어 실제 저장 직전 sentinel 까지 진행했습니다')
+    console.log(`[978-A-1 path matrix] -ProjectRoot-other-worktree\tBLOCK\t${alternateTarget}`)
+  },
+)
 
 // -OutputDir/-OutDir 파라미터를 노출하는 스크립트 15개의 정확한 목록 — N-2 와 동일하게
 // "느슨한 개수" 가 아니라 "정확한 목록" 으로 비교한다(하나만 고치고 14개를 빠뜨리는 회귀,

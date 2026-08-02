@@ -63,6 +63,7 @@
 import {
   createBrowserRouter,
   createHashRouter,
+  Navigate,
   RouterProvider,
   useSearchParams,
 } from 'react-router-dom'
@@ -1194,11 +1195,7 @@ const routes = [
       },
       {
         path: '/accounting/admin/cash-receipts/new',
-        element: (
-          <PermissionGuard pageCode="accounting.cash-receipts" action="create">
-            <CashReceiptFormPage />
-          </PermissionGuard>
-        ),
+        element: <Navigate to="/accounting/admin/cash-receipts" replace />,
       },
       {
         path: '/accounting/admin/cash-receipts/:id/edit',

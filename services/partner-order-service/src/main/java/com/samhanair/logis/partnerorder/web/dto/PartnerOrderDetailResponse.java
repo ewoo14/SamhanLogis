@@ -82,7 +82,7 @@ public record PartnerOrderDetailResponse(
                 order.getTotalAmount(),
                 order.getSlipNo(),
                 order.getModifiedAt(),
-                null,
+                order.getDeliveryAddress(),
                 null,
                 null,
                 order.getDueDate() == null ? null : order.getDueDate().toString(),

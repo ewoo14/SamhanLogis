@@ -309,8 +309,15 @@ public class TaxInvoice extends BaseEntity {
         taxInvoice.issuedBy = actorUserId;
         int lineNo = 1;
         for (SalesAccountingSlipLine sourceLine : sourceLines) {
-            taxInvoice.lines.add(TaxInvoiceLine.createFromSalesAccountingSlipLine(
-                    taxInvoice, lineNo++, sourceLine));
+            if (sourceLine.getAllocations() == null || sourceLine.getAllocations().isEmpty()) {
+                taxInvoice.lines.add(TaxInvoiceLine.createFromSalesAccountingSlipLine(
+                        taxInvoice, lineNo++, sourceLine));
+            } else {
+                for (SalesAccountingSlipAllocation allocation : sourceLine.getAllocations()) {
+                    taxInvoice.lines.add(TaxInvoiceLine.createFromSalesAccountingSlipAllocation(
+                            taxInvoice, lineNo++, sourceLine, allocation));
+                }
+            }
         }
         taxInvoice.recalcTotals();
         return taxInvoice;

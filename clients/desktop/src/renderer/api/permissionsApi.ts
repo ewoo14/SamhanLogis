@@ -111,6 +111,7 @@ export type PageCode =
   | 'groupware.approval-templates'
   | 'messenger.admin'
   | 'messenger.send'
+  | 'groupware.schedules'
   | 'purchases.slip.list'
   | 'purchases.slip.edit'
   | 'purchases.slip.delete'

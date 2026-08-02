@@ -97,6 +97,10 @@ public class PartnerOrder extends BaseEntity {
     @Column(name = "memo", length = 1000)
     private String memo;
 
+    /** 실제 배송 현장의 구조화 주소 snapshot. 기존 주문은 출처가 없어 null을 유지한다. */
+    @Column(name = "delivery_address", length = 500)
+    private String deliveryAddress;
+
     /** 삭제자 표시명. {@code deleted_by} 는 감사 userId 를 보존하고, 화면용 이름만 본 컬럼에 저장한다. */
     @Column(name = "deleted_by_name", length = 100)
     private String deletedByName;
@@ -187,18 +191,36 @@ public class PartnerOrder extends BaseEntity {
      */
     public static PartnerOrder createFromConfirm(String partnerCode, String bizCode, String orderNo,
                                                  String idempotencyKey, BigDecimal totalAmount) {
-        return createFromConfirm(null, partnerCode, bizCode, orderNo, idempotencyKey, totalAmount);
+        return createFromConfirm((UUID) null, partnerCode, bizCode, orderNo, idempotencyKey,
+                totalAmount, null);
+    }
+
+    /** 구조화된 배송주소를 함께 snapshot하는 거래처 직접 주문 생성 overload. */
+    public static PartnerOrder createFromConfirm(String partnerCode, String bizCode, String orderNo,
+                                                 String idempotencyKey, BigDecimal totalAmount,
+                                                 String deliveryAddress) {
+        return createFromConfirm((UUID) null, partnerCode, bizCode, orderNo, idempotencyKey,
+                totalAmount, deliveryAddress);
     }
 
     /** partner-service에서 확인한 거래처 UUID를 함께 보존하는 신규 confirm 주문 생성. */
     public static PartnerOrder createFromConfirm(UUID partnerId, String partnerCode, String bizCode,
                                                  String orderNo, String idempotencyKey,
                                                  BigDecimal totalAmount) {
+        return createFromConfirm(partnerId, partnerCode, bizCode, orderNo, idempotencyKey,
+                totalAmount, null);
+    }
+
+    /** partner-service 정체성과 구조화된 배송주소를 함께 보존하는 신규 confirm 주문 생성. */
+    public static PartnerOrder createFromConfirm(UUID partnerId, String partnerCode, String bizCode,
+                                                 String orderNo, String idempotencyKey,
+                                                 BigDecimal totalAmount, String deliveryAddress) {
         PartnerOrder order = new PartnerOrder(partnerId, partnerCode, bizCode,
                 orderNo, idempotencyKey, totalAmount);
         order.status = PartnerOrderStatus.DRAFT;
         order.slipPublishStatus = SlipPublishStatus.NOT_REQUIRED;
         order.confirmedAt = null;
+        order.deliveryAddress = normalizeOptionalText(deliveryAddress);
         return order;
     }
 
@@ -276,6 +298,12 @@ public class PartnerOrder extends BaseEntity {
     /** 거래처 표시 snapshot과 함께 내부 거래처 UUID를 원자적으로 갱신한다. */
     public void updateHeader(UUID partnerId, String partnerCode, String bizCode,
                              LocalDate dueDate, String memo) {
+        updateHeader(partnerId, partnerCode, bizCode, dueDate, memo, this.deliveryAddress);
+    }
+
+    /** 주문 헤더와 구조화된 배송주소 snapshot을 원자적으로 갱신한다. */
+    public void updateHeader(UUID partnerId, String partnerCode, String bizCode,
+                             LocalDate dueDate, String memo, String deliveryAddress) {
         if (partnerCode == null || partnerCode.isBlank()) {
             throw new IllegalArgumentException("partnerCode 필수");
         }
@@ -287,6 +315,7 @@ public class PartnerOrder extends BaseEntity {
         this.bizCode = bizCode;
         this.dueDate = dueDate;
         this.memo = memo == null || memo.isBlank() ? null : memo.trim();
+        this.deliveryAddress = normalizeOptionalText(deliveryAddress);
     }
 
     /**
@@ -572,7 +601,20 @@ public class PartnerOrder extends BaseEntity {
     /** revision snapshot의 거래처 UUID까지 포함해 헤더를 복원한다. */
     public void restoreHeader(UUID partnerId, String partnerCode, String bizCode,
                               LocalDate dueDate, String memo) {
-        this.updateHeader(partnerId, partnerCode, bizCode, dueDate, memo);
+        this.updateHeader(partnerId, partnerCode, bizCode, dueDate, memo, this.deliveryAddress);
+    }
+
+    /** 버전 snapshot에 구조화 배송주소가 있으면 함께 복원한다. */
+    public void restoreHeader(UUID partnerId, String partnerCode, String bizCode,
+                              LocalDate dueDate, String memo, String deliveryAddress) {
+        this.updateHeader(partnerId, partnerCode, bizCode, dueDate, memo, deliveryAddress);
+    }
+
+    private static String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 
     /**

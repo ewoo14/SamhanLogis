@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /** 입금보고서 수기 생성/수정 요청. */
 public record CashReceiptRequest(
@@ -33,6 +34,9 @@ public record CashReceiptRequest(
         String debitAccountCode,
 
         @Size(max = 20, message = "creditAccountCode 는 최대 20자입니다")
-        String creditAccountCode
+        String creditAccountCode,
+
+        /** 마지막 빈행은 전송하지 않는다. 비어 있으면 legacy 단일 금액 계약을 유지한다. */
+        List<CashReceiptLineRequest> lines
 ) {
 }

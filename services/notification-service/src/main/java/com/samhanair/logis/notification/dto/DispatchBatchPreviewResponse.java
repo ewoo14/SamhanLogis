@@ -58,7 +58,14 @@ public record DispatchBatchPreviewResponse(
      * @param partnerCode 거래처코드
      * @param partnerName 거래처명
      * @param slipNo 출고전표번호
+     * @param message 조립된 안내 본문
+     * @param recipientPhone 인수자 전화번호 — 단톡방 매핑이 없을 때 SMS fallback 대상
      */
-    public record UnmappedPartner(String partnerCode, String partnerName, String slipNo) {
+    public record UnmappedPartner(String partnerCode, String partnerName, String slipNo,
+                                   String message, String recipientPhone) {
+        /** 기존 호출자 호환용 생성자. */
+        public UnmappedPartner(String partnerCode, String partnerName, String slipNo) {
+            this(partnerCode, partnerName, slipNo, null, null);
+        }
     }
 }

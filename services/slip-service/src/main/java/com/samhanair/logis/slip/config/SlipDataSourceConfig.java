@@ -95,6 +95,21 @@ public class SlipDataSourceConfig {
     }
 
     /**
+     * 주 DB(slip_db)에 결속된 기본 JdbcTemplate.
+     *
+     * <p>inventory 검증용 JdbcTemplate도 별도 빈으로 존재하므로, 무자격 주입은 항상
+     * slip_db를 가리키도록 기본 빈을 명시한다.
+     *
+     * @param dataSource 주 DB DataSource
+     * @return slip_db 전용 JdbcTemplate
+     */
+    @Bean
+    @Primary
+    public JdbcTemplate jdbcTemplate(@Qualifier("dataSource") DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+
+    /**
      * 가격기억 전용 pool — {@code app.slip.price-memory.datasource.hikari.*} 바인딩.
      *
      * <p>{@code connection-timeout} 4초는 <b>이 pool 에만</b> 적용된다. 가격기억은 fail-soft 이므로

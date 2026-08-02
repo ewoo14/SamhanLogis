@@ -44,13 +44,13 @@ http.interceptors.request.use((cfg) => {
  * - `checkAuthStatus(bizNo)` → `GET /api/v1/auth/partner-status?bizNo=...`
  * - `requestAuthApproval(bizNo, ...)` → `POST /api/v1/auth/partner-register` (M2)
  * - `setAuthPassword(bizNo, pw)` → `PATCH /api/v1/auth/partner-password`
- * - `tryLogin(bizNo, pw)` → `POST /api/v1/auth/partner-login` (M2 PartnerAuth)
+ * - `tryLogin(bizNo, pw, mobile)` → `POST /api/v1/auth/partner-login` (M2 PartnerAuth)
  * - `getAccessExpiration(bizNo)` → `GET /api/v1/auth/partner-expiration?bizNo=...`
  * - `getOrderHistory(bizCode, dateRange)` → `GET /api/v1/partner-orders/history?bizCode=...`
  * - `logFrontEvent(action, detail)` → `POST /api/v1/partner-orders/log` (frontend audit)
  * - `saveOrderSnapshot(payload)` → `POST /api/v1/partner-orders/drafts` (M4, 30일 expiry)
  * - `getOrderSnapshotHistory(bizNo, from, to)` → `GET /api/v1/partner-orders/drafts?from=&to=`
- * - `sendOrderFromUi(payload)` → `POST /api/v1/partner-orders/{id}/confirm` + slip-service Event (M4)
+ * - `sendOrderFromUi(items, order)` → draft 생성 후 `POST /api/v1/partner-orders/{draftId}/confirm` (M4)
  * - `saveTutorialState(state)` → `PATCH /api/v1/auth/partner-tutorial`
  *
  * 추가 (legacy index.html 외부 호출 대응 — Code.js 분석 §1):
@@ -82,6 +82,12 @@ function toIsoDateParam(value: unknown): string | undefined {
   return Number.isNaN(parsed.getTime()) ? text : toIsoDateParam(parsed)
 }
 
+function toIsoDateTimeParam(value: unknown, endOfDay: boolean): string | undefined {
+  const date = toIsoDateParam(value)
+  if (!date) return undefined
+  return `${date}T${endOfDay ? '23:59:59' : '00:00:00'}`
+}
+
 function draftHistoryParams(args: unknown[]): { from?: string; to?: string } {
   const [bizNo, from, to] = args
   void bizNo
@@ -100,21 +106,185 @@ function unwrapApiResponse(body: unknown): unknown {
   return body
 }
 
+type PageMetadata = {
+  totalElements: number
+  totalPages: number
+  page: number
+  size: number
+}
+
+type CollectionResponse = {
+  rows: unknown[]
+  page?: PageMetadata
+}
+
+function nonNegativeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
+function decodeCollectionResponse(body: unknown): CollectionResponse {
+  const data = unwrapApiResponse(body)
+  if (Array.isArray(data)) return { rows: data }
+  if (!data || typeof data !== 'object') {
+    throw new Error('목록 응답 형식이 올바르지 않습니다')
+  }
+
+  const page = data as {
+    content?: unknown
+    totalElements?: unknown
+    totalPages?: unknown
+    number?: unknown
+    size?: unknown
+  }
+  if (!Array.isArray(page.content)) {
+    throw new Error('목록 응답 형식이 올바르지 않습니다')
+  }
+
+  const totalElements = nonNegativeInteger(page.totalElements)
+  const totalPages = nonNegativeInteger(page.totalPages)
+  const pageNumber = nonNegativeInteger(page.number)
+  const size = typeof page.size === 'number' && Number.isInteger(page.size) && page.size > 0
+    ? page.size
+    : null
+  if (totalElements == null || totalPages == null || pageNumber == null || size == null) {
+    throw new Error('목록 응답 페이지 메타데이터가 올바르지 않습니다')
+  }
+
+  return {
+    rows: page.content,
+    page: { totalElements, totalPages, page: pageNumber, size },
+  }
+}
+
+async function fetchAllPages(
+  path: string,
+  baseParams: Record<string, unknown>,
+  initialSize: number,
+): Promise<unknown[]> {
+  const firstResponse = await http.get(path, {
+    params: { ...baseParams, page: 0, size: initialSize },
+  })
+  const first = decodeCollectionResponse(firstResponse.data)
+  if (!first.page) return first.rows
+
+  const rows = [...first.rows]
+  for (let page = 1; page < first.page.totalPages; page += 1) {
+    const nextResponse = await http.get(path, {
+      params: { ...baseParams, page, size: first.page.size },
+    })
+    const next = decodeCollectionResponse(nextResponse.data)
+    if (!next.page) {
+      throw new Error('목록 응답 페이지 메타데이터가 올바르지 않습니다')
+    }
+    rows.push(...next.rows)
+  }
+
+  if (rows.length < first.page.totalElements) {
+    throw new Error('목록 응답이 일부만 반환되었습니다')
+  }
+  return rows
+}
+
+/** order-app이 소비하는 활성 SINGLE_SET 수량 동기화 규칙 목록. */
+function fetchQuantitySyncRules(): Promise<unknown[]> {
+  return fetchAllPages('/quantity-sync-rules', { estimateCategory: 'SINGLE_SET' }, 50)
+}
+
+type LegacyOrderItem = {
+  section?: unknown
+  model?: unknown
+  qty?: unknown
+  remarks?: unknown
+}
+
+const CONFIRM_CATEGORY_BY_SECTION: Record<string, string> = {
+  HOME: 'homemulti',
+  COMM: 'commercialMulti',
+  SINGLE: 'singleSets',
+  OLD: 'oldProducts',
+}
+
+function confirmLines(itemsArg: unknown): Array<{
+  modelCode: string
+  categoryKey: string
+  quantity: number
+  remark: string | null
+}> {
+  if (!Array.isArray(itemsArg) || itemsArg.length === 0) {
+    throw new Error('전송할 주문 품목이 없습니다')
+  }
+
+  return itemsArg.map((rawItem, index) => {
+    const item = (rawItem || {}) as LegacyOrderItem
+    const modelCode = String(item.model ?? '').trim()
+    const section = String(item.section ?? '').trim().toUpperCase()
+    const categoryKey = CONFIRM_CATEGORY_BY_SECTION[section]
+    const quantity = Number(item.qty)
+
+    if (!modelCode) throw new Error(`주문 ${index + 1}번째 품목의 모델코드가 없습니다`)
+    if (!categoryKey) throw new Error(`주문 ${index + 1}번째 품목의 카테고리를 확인할 수 없습니다`)
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new Error(`주문 ${index + 1}번째 품목의 수량이 올바르지 않습니다`)
+    }
+
+    const remark = typeof item.remarks === 'string' && item.remarks.trim()
+      ? item.remarks.trim()
+      : null
+    return { modelCode, categoryKey, quantity, remark }
+  })
+}
+
+function apiErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const code = (error as { code?: unknown }).code
+    if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
+      return '서버 응답이 지연되어 처리 결과를 확인할 수 없습니다. 재전송해도 중복 주문으로 처리되지 않습니다.'
+    }
+    const responseData = (error as { response?: { data?: unknown } }).response?.data
+    if (responseData && typeof responseData === 'object') {
+      const message = (responseData as { message?: unknown }).message
+      if (typeof message === 'string' && message.trim()) return message
+    }
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
+  return '주문 전송에 실패했습니다'
+}
+
+function confirmHeaders(order: unknown): { headers: { 'X-Biz-Code': string } } {
+  const bizCode = order && typeof order === 'object'
+    ? String((order as { bizno?: unknown }).bizno ?? '').trim()
+    : ''
+  if (!bizCode) throw new Error('주문 사업자번호가 없습니다')
+  return { headers: { 'X-Biz-Code': bizCode } }
+}
+
 const RPC_MAP: Record<string, RpcHandler> = {
   // ─── 인증 / 등록 / 잠금 (RPC §S 카테고리) ───────────────────────────────
   checkAuthStatus: ([bizNo]) =>
     http
       .get('/auth/partner-status', { params: { bizNo } })
       .then((r) => unwrapApiResponse(r.data)),
-  requestAuthApproval: ([payload]) =>
-    http.post('/auth/partner-register', payload).then((r) => unwrapApiResponse(r.data)),
+  requestAuthApproval: ([bizNo]) =>
+    http
+      .post('/auth/partner-register', { bizNo })
+      .then((r) => unwrapApiResponse(r.data)),
   register: ([payload]) =>
     http.post('/auth/partner-register', payload).then((r) => unwrapApiResponse(r.data)),
   setAuthPassword: ([bizNo, pw]) =>
-    http.patch('/auth/partner-password', { bizNo, newPassword: pw }).then((r) => unwrapApiResponse(r.data)),
-  tryLogin: ([bizNo, pw]) =>
     http
-      .post('/auth/partner-login', { bizNo, password: pw })
+      .patch('/auth/partner-password', {
+        bizNo,
+        newPassword: pw,
+      })
+      .then((r) => unwrapApiResponse(r.data)),
+  tryLogin: ([bizNo, pw, mobile]) =>
+    http
+      .post('/auth/partner-login', {
+        bizNo,
+        password: pw,
+        mobile,
+      })
       .then((r) => {
         const data = unwrapApiResponse(r.data) as { token?: string; config?: unknown } | null
         if (data?.token) sessionStorage.setItem(TOKEN_KEY, data.token)
@@ -141,20 +311,34 @@ const RPC_MAP: Record<string, RpcHandler> = {
     http.get('/partner-orders/gate-images').then((r) => unwrapApiResponse(r.data)),
 
   // ─── 주문이력 / 로그 (RPC §T 카테고리) ────────────────────────────────
-  getOrderHistory: ([bizCode, dateRange]) =>
-    http
-      .get('/partner-orders/history', { params: { bizCode, ...(dateRange || {}) } })
-      .then((r) => unwrapApiResponse(r.data)),
+  getOrderHistory: ([bizCode, , from, to]) =>
+    fetchAllPages(
+      '/partner-orders/history',
+      {
+        bizCode,
+        from: toIsoDateTimeParam(from, false),
+        to: toIsoDateTimeParam(to, true),
+      },
+      20,
+    ),
   logFrontEvent: (args) => {
     const [first, second, third] = args
     const action = args.length >= 4 ? second : first
     const detail = args.length >= 4 ? third : second
+    const config: AxiosRequestConfig | undefined =
+      args.length >= 4
+        ? {
+            headers: {
+              'X-Biz-Code': String(first || ''),
+            },
+          }
+        : undefined
 
-    return http
-      .post('/partner-orders/log', {
-        action: String(action || 'legacy-action'),
-        detail: String(detail || ''),
-      })
+    const request = {
+      action: String(action || 'legacy-action'),
+      detail: String(detail || ''),
+    }
+    return (config ? http.post('/partner-orders/log', request, config) : http.post('/partner-orders/log', request))
       .then((r) => unwrapApiResponse(r.data))
       .catch((err: unknown) => {
         // 로그 실패는 swallow (legacy 동작 — sendLog 도 silent)
@@ -169,34 +353,59 @@ const RPC_MAP: Record<string, RpcHandler> = {
   saveDraft: ([payload]) =>
     http.post('/partner-orders/drafts', payload).then((r) => unwrapApiResponse(r.data)),
   getOrderSnapshotHistory: (args) =>
-    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapApiResponse(r.data)),
+    fetchAllPages('/partner-orders/drafts', draftHistoryParams(args), 20),
   getDraftList: (args) =>
-    http.get('/partner-orders/drafts', { params: draftHistoryParams(args) }).then((r) => unwrapApiResponse(r.data)),
+    fetchAllPages('/partner-orders/drafts', draftHistoryParams(args), 20),
 
   // ─── 최종 주문 전송 (RPC §O buildSendRows + §X sendOrderFromUi) ─────
-  sendOrderFromUi: ([payload]) => {
-    const p = (payload || {}) as { id?: string }
-    const id = p.id || 'new'
-    return http
-      .post(`/partner-orders/${encodeURIComponent(id)}/confirm`, payload)
-      .then((r) => ({
-        ok: r.data?.success === true,
-        orderNo: r.data?.data?.orderNo ?? null,
-        error: r.data?.message ?? null,
-      }))
-  },
+  sendOrderFromUi: ([itemsArg, orderArg]) =>
+    Promise.resolve()
+      .then(() => {
+        const items = Array.isArray(itemsArg) ? itemsArg : []
+        const lines = confirmLines(items)
+        const order = orderArg && typeof orderArg === 'object' ? orderArg : {}
+        const headers = confirmHeaders(order)
+        return http.post('/partner-orders/drafts', {
+          label: '주문서 확정 임시저장',
+          payloadJson: JSON.stringify({ items, order }),
+        }).then((r) => ({ lines, draft: unwrapApiResponse(r.data), headers }))
+      })
+      .then(({ lines, draft, headers }) => {
+        const draftId = draft && typeof draft === 'object'
+          ? (draft as { draftId?: unknown }).draftId
+          : null
+        if (typeof draftId !== 'string' || !draftId.trim()) {
+          throw new Error('임시저장 ID를 받지 못했습니다')
+        }
+        return http
+          .post(`/partner-orders/${encodeURIComponent(draftId)}/confirm`, { lines }, headers)
+          .then((r) => ({
+            ok: r.data?.success === true,
+            orderNo: r.data?.data?.orderNo ?? null,
+            error: r.data?.message ?? null,
+          }))
+      })
+      .catch((error: unknown) => ({
+        ok: false,
+        orderNo: null,
+        error: apiErrorMessage(error),
+      })),
 
   // ─── 튜토리얼 상태 (RPC §W 카테고리) ──────────────────────────────────
-  saveTutorialState: ([state]) =>
-    http.patch('/auth/partner-tutorial', { state }).then((r) => unwrapApiResponse(r.data)),
+  saveTutorialState: ([bizNo, mobile]) =>
+    http
+      .patch('/auth/partner-tutorial', {
+        bizNo,
+        platform: mobile ? 'MOBILE' : 'PC',
+        done: true,
+      })
+      .then((r) => unwrapApiResponse(r.data)),
 
   // ─── 거래처 마스터 / 카탈로그 / DC 설정 (Code.js 외부 호출 대체) ─────
   getCustomerData: ([partnerCode]) =>
     http.get(`/partners/${encodeURIComponent(String(partnerCode))}`).then((r) => unwrapApiResponse(r.data)),
   getProducts: ([category]) =>
-    http
-      .get('/products', { params: { usageScope: 'PARTNER_ORDER', category } })
-      .then((r) => unwrapApiResponse(r.data)),
+    fetchAllPages('/products', { usageScope: 'PARTNER_ORDER', category }, 50),
   // 3d backlog — partner-auth-service 의 로그인 응답이 이미 DC 정책을 nested 로 포함하므로
   // 별도 backend 호출 없이 sessionStorage 캐시를 즉시 반환한다. 캐시 부재 시 graceful null.
   // 외부 단건 endpoint `/partner-dc-configs/{partnerCode}` 는 admin list 전용 (4b backlog 와 별개).
@@ -265,5 +474,13 @@ export const samhanApi = {
         }
         return body as Record<string, unknown>
       })
+  },
+
+  /**
+   * 로그인 후 칩 기반 S-03 evaluator가 읽는 규칙 목록.
+   * 로그인 전 공개 bootstrap과 분리해 JWT가 준비된 뒤 호출한다.
+   */
+  fetchQuantitySyncRules(): Promise<unknown[]> {
+    return fetchQuantitySyncRules()
   },
 }

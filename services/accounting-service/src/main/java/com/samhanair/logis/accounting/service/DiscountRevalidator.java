@@ -47,9 +47,11 @@ public class DiscountRevalidator {
         AMBIGUOUS,
         /** 매칭됐지만 적용 정가(출고가)가 없어 판정 불가. */
         MISSING_REFERENT,
+        /** 거래처 전역DC 조회 실패로 기대율을 결정할 수 없음. */
+        MISSING_GLOBAL_DISCOUNT,
         /** 그룹 수량 합계 0 등으로 실 유효단가를 산출할 수 없어 판정 불가(판정 실패와 구분). */
         NOT_MEASURABLE,
-        /** 세트/약정DC 의존 분기로 S2b 범위 밖. */
+        /** 싱글중대형 기준값을 확인할 수 없어 범위 밖으로 남겨야 하는 분기. */
         OUT_OF_SCOPE
     }
 
@@ -72,6 +74,23 @@ public class DiscountRevalidator {
                                    BigDecimal deliveryPrice,
                                    BigDecimal fixedDc,
                                    ProductLabelMatch.Status matchStatus) {
+        return revalidate(itemName, modelToken, effectiveUnitPrice, releasePrice, deliveryPrice,
+                fixedDc, GlobalDiscount.notRequired(), matchStatus);
+    }
+
+    /**
+     * 거래처 전역DC를 포함해 일마감 모델 그룹을 재검증한다.
+     *
+     * @param globalDiscount 거래처 전역DC 조회 결과. 고정DC가 없을 때만 기대율 결정에 사용
+     */
+    public Revalidation revalidate(String itemName,
+                                   String modelToken,
+                                   BigDecimal effectiveUnitPrice,
+                                   BigDecimal releasePrice,
+                                   BigDecimal deliveryPrice,
+                                   BigDecimal fixedDc,
+                                   GlobalDiscount globalDiscount,
+                                   ProductLabelMatch.Status matchStatus) {
         String safeItemName = itemName == null ? "" : itemName;
         String safeModelToken = modelToken == null ? "" : modelToken;
         BigDecimal effectiveDeliveryPrice = effectiveDeliveryPrice(releasePrice, deliveryPrice);
@@ -90,7 +109,7 @@ public class DiscountRevalidator {
             return unresolved(Status.AMBIGUOUS, releasePrice, effectiveDeliveryPrice);
         }
         if (releasePrice == null || releasePrice.compareTo(BigDecimal.ZERO) == 0) {
-            return new Revalidation(null, null, null, Status.MISSING_REFERENT,
+            return new Revalidation(null, null, null, null, Status.MISSING_REFERENT,
                     releasePrice, effectiveDeliveryPrice);
         }
 
@@ -113,33 +132,56 @@ public class DiscountRevalidator {
         }
         // 멀티(상업 AM / 홈 AJ zone marker 또는 라벨 "멀티/MULTI"): 고정dc(percent) 또는 45 폴백.
         if (isMulti(safeItemName, safeModelToken)) {
-            Integer expectedRate = fixedDc == null ? 45 : roundPercent(fixedDc);
+            Integer expectedRate = expectedRate(fixedDc, globalDiscount, safeModelToken);
+            if (expectedRate == null) {
+                return new Revalidation(null, null, actualRate, null,
+                        Status.MISSING_GLOBAL_DISCOUNT, releasePrice, effectiveDeliveryPrice);
+            }
             if (actualRate == null) {
                 return notMeasurable(expectedRate, releasePrice, effectiveDeliveryPrice);
             }
             return verified(integerEquals(actualRate, expectedRate), expectedRate, actualRate,
                     releasePrice, effectiveDeliveryPrice);
         }
-        // 싱글 본체/부속(세트 riUsage·약정DC 의존): S1.5 대기 → OUT_OF_SCOPE.
+        // 싱글중대형 본체/부속: 출고가와 기준 납품가의 차액을 DC액으로 검증한다.
         if (isSingleSetDependent(safeModelToken)) {
-            return new Revalidation(null, null, actualRate, Status.OUT_OF_SCOPE,
-                    releasePrice, effectiveDeliveryPrice);
+            if (effectiveUnitPrice == null) {
+                return notMeasurable(null, releasePrice, effectiveDeliveryPrice);
+            }
+            BigDecimal actualDiscountAmount = discountAmount(releasePrice, effectiveUnitPrice);
+            BigDecimal expectedDiscountAmount = discountAmount(releasePrice, effectiveDeliveryPrice);
+            return verified(moneyEquals(actualDiscountAmount, expectedDiscountAmount),
+                    null, actualRate, actualDiscountAmount, releasePrice, effectiveDeliveryPrice);
         }
         // 기타 default: 레거시와 동일 무조건 true. actualRate 는 참고값.
         return verified(true, null, actualRate, releasePrice, effectiveDeliveryPrice);
     }
 
+    private static Integer expectedRate(BigDecimal fixedDc, GlobalDiscount globalDiscount, String modelToken) {
+        if (fixedDc != null) {
+            return roundPercent(fixedDc);
+        }
+        if (globalDiscount == null || !globalDiscount.available()) {
+            return null;
+        }
+        if (!isLegacyMultiPrefix(modelToken)) {
+            return 45;
+        }
+        BigDecimal rate = isHomeMulti(modelToken) ? globalDiscount.homeRate() : globalDiscount.commercialRate();
+        return rate == null ? 45 : roundPercent(rate.multiply(ONE_HUNDRED));
+    }
+
     private static Revalidation unresolved(Status status,
                                            BigDecimal releasePrice,
                                            BigDecimal deliveryPrice) {
-        return new Revalidation(null, null, null, status, releasePrice, deliveryPrice);
+        return new Revalidation(null, null, null, null, status, releasePrice, deliveryPrice);
     }
 
     /** 유효단가 산출 불가(수량 0 등) → 판정 실패가 아닌 판정 불가로 단락. expectedRate 는 알면 보존. */
     private static Revalidation notMeasurable(Integer expectedRate,
                                               BigDecimal releasePrice,
                                               BigDecimal deliveryPrice) {
-        return new Revalidation(null, expectedRate, null, Status.NOT_MEASURABLE,
+        return new Revalidation(null, expectedRate, null, null, Status.NOT_MEASURABLE,
                 releasePrice, deliveryPrice);
     }
 
@@ -148,7 +190,17 @@ public class DiscountRevalidator {
                                          Integer actualRate,
                                          BigDecimal releasePrice,
                                          BigDecimal deliveryPrice) {
-        return new Revalidation(verified, expectedRate, actualRate, Status.VERIFIED,
+        return new Revalidation(verified, expectedRate, actualRate, null, Status.VERIFIED,
+                releasePrice, deliveryPrice);
+    }
+
+    private static Revalidation verified(Boolean verified,
+                                         Integer expectedRate,
+                                         Integer actualRate,
+                                         BigDecimal discountAmount,
+                                         BigDecimal releasePrice,
+                                         BigDecimal deliveryPrice) {
+        return new Revalidation(verified, expectedRate, actualRate, discountAmount, Status.VERIFIED,
                 releasePrice, deliveryPrice);
     }
 
@@ -162,6 +214,14 @@ public class DiscountRevalidator {
                 .multiply(ONE_HUNDRED)
                 .setScale(0, RoundingMode.HALF_UP)
                 .intValue();
+    }
+
+    /** 출고가 대비 실제 VAT 포함 단가의 차이 — 싱글중대형 DC액 표시·검증용. */
+    private static BigDecimal discountAmount(BigDecimal releasePrice, BigDecimal effectiveUnitPrice) {
+        if (releasePrice == null || effectiveUnitPrice == null) {
+            return null;
+        }
+        return releasePrice.subtract(effectiveUnitPrice).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal effectiveDeliveryPrice(BigDecimal releasePrice, BigDecimal deliveryPrice) {
@@ -191,6 +251,12 @@ public class DiscountRevalidator {
         return actualRate != null && actualRate.equals(expectedRate);
     }
 
+    private static boolean moneyEquals(BigDecimal left, BigDecimal right) {
+        return left != null && right != null
+                && left.setScale(0, RoundingMode.HALF_UP)
+                .compareTo(right.setScale(0, RoundingMode.HALF_UP)) == 0;
+    }
+
     private static boolean isMulti(String itemName, String modelToken) {
         return isLegacyMultiPrefix(modelToken) || MULTI_LABEL.matcher(itemName).matches();
     }
@@ -202,6 +268,25 @@ public class DiscountRevalidator {
         char zoneMarker = modelToken.charAt(6);
         return (modelToken.startsWith("AM") || modelToken.startsWith("AJ"))
                 && (zoneMarker == 'X' || zoneMarker == 'N');
+    }
+
+    private static boolean isHomeMulti(String modelToken) {
+        return modelToken.startsWith("AJ") && isLegacyMultiPrefix(modelToken);
+    }
+
+    /** 전역DC 원천 조회 결과. 기존 단위 테스트/호출부의 미적용 상태와 조회 실패를 구분한다. */
+    public record GlobalDiscount(boolean available, BigDecimal homeRate, BigDecimal commercialRate) {
+        public static GlobalDiscount notRequired() {
+            return new GlobalDiscount(true, new BigDecimal("0.45"), new BigDecimal("0.45"));
+        }
+
+        public static GlobalDiscount found(BigDecimal homeRate, BigDecimal commercialRate) {
+            return new GlobalDiscount(true, homeRate, commercialRate);
+        }
+
+        public static GlobalDiscount unavailable() {
+            return new GlobalDiscount(false, null, null);
+        }
     }
 
     private static boolean isSingleSetDependent(String modelToken) {
@@ -216,6 +301,7 @@ public class DiscountRevalidator {
      *                     <b>0 은 유효한 기대율(무할인)이며 null(해당 없음/비교 불가)과 구분</b>된다
      * @param actualRate 출고가 대비 유효 할인율(정수 percent). <b>운임/절삭/액세서리/default 분기에서는
      *                   판정 근거가 아닌 참고값</b>이다(각각 무조건 true 또는 납품가 완전일치로 판정)
+     * @param discountAmount 싱글중대형의 실제 DC액(출고가 - VAT 포함 유효단가). 다른 분기는 null
      * @param status 판정 사유
      * @param releasePrice 적용 출고가
      * @param deliveryPrice 적용 납품가
@@ -224,6 +310,7 @@ public class DiscountRevalidator {
             Boolean verified,
             Integer expectedRate,
             Integer actualRate,
+            BigDecimal discountAmount,
             Status status,
             BigDecimal releasePrice,
             BigDecimal deliveryPrice) {

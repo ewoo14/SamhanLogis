@@ -21,15 +21,18 @@ import com.samhanair.logis.slip.service.SlipNumberService;
 import com.samhanair.logis.slip.service.cutoff.OutboundCutoffGuard;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -122,7 +125,7 @@ public class SlipPublishService {
         // 1. idempotency 가드 — 같은 키 + 같은 fingerprint → replay
         Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            return assertReplayOrConflict(existing.get(), fingerprint);
+            return assertReplayOrConflict(existing.get(), fingerprint, null, false);
         }
 
         // 1.5 PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy, default strict)
@@ -172,7 +175,7 @@ public class SlipPublishService {
         try {
             saved = slipRepository.saveAndFlush(slip);
         } catch (DataIntegrityViolationException ex) {
-            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, null, false, ex);
         }
 
         // 6. 감사 로그 적재 (request fingerprint 동봉 — replay 비교용)
@@ -197,10 +200,13 @@ public class SlipPublishService {
     public PublishSlipResponse publishFromPartnerOrder(PublishFromPartnerOrderRequest req,
                                                        String idempotencyKey, String requesterId) {
         String fingerprint = computeFingerprint(req);
+        String legacyFingerprint = req.deliveryAddress() == null
+                ? computeLegacyFingerprint(req) : null;
 
         Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            return assertReplayOrConflict(existing.get(), fingerprint);
+            return assertReplayOrConflict(existing.get(), fingerprint, legacyFingerprint,
+                    legacyReplayMatches(existing.get(), req));
         }
 
         // PR-G1 backlog #1 — partnerCode strict 검증 (hybrid policy)
@@ -236,6 +242,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
+        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -248,7 +255,8 @@ public class SlipPublishService {
         try {
             saved = slipRepository.saveAndFlush(slip);
         } catch (DataIntegrityViolationException ex) {
-            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, legacyFingerprint,
+                    legacyReplayMatches(slip, req), ex);
         }
 
         // Phase 2.6c: PARTNER_ORDER 전환 전표 발행 즉시 불변 — DRAFT → SAVED → SENT 전이.
@@ -281,7 +289,7 @@ public class SlipPublishService {
      * <ul>
      *   <li>{@code Slip.assignPublishSource(PARTNER_ORDER, primaryOrderId, key)} — 대표(첫) 주문</li>
      *   <li>{@code slip_source_orders} N행 INSERT — 전체 출처 주문 추적</li>
-     *   <li>fingerprint = 정렬된 sourceOrders + lines 기준</li>
+     *   <li>fingerprint = 입력 순서를 보존한 sourceOrders + lines 기준</li>
      * </ul>
      * 기존 {@link #publishFromPartnerOrder}(단일주문)는 무변경 — 회귀 0.
      *
@@ -294,10 +302,13 @@ public class SlipPublishService {
     public PublishSlipResponse publishFromOrdersMerge(PublishFromOrdersMergeRequest req,
                                                       String idempotencyKey, String requesterId) {
         String fingerprint = computeMergeFingerprint(req);
+        String legacyFingerprint = req.deliveryAddress() == null
+                ? computeLegacyMergeFingerprint(req) : null;
 
         Optional<Slip> existing = lookupByIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
-            return assertReplayOrConflict(existing.get(), fingerprint);
+            return assertReplayOrConflict(existing.get(), fingerprint, legacyFingerprint,
+                    legacyReplayMatches(existing.get(), req));
         }
 
         UUID partnerId = requireMergePartnerId(req.partnerId());
@@ -329,6 +340,7 @@ public class SlipPublishService {
                 req.shippingAddress(), null, req.receiverPhone(),
                 req.paymentDueLabel(), req.discountInfo(),
                 null, null);
+        slip.withProjectInfo(null, req.deliveryAddress(), null, null, null, null);
         if (req.partnerCode() != null && !req.partnerCode().isBlank()) {
             slip.setPartnerCode(req.partnerCode().trim());
         }
@@ -341,7 +353,8 @@ public class SlipPublishService {
         try {
             saved = slipRepository.saveAndFlush(slip);
         } catch (DataIntegrityViolationException ex) {
-            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, ex);
+            return handleIdempotencyRaceCondition(idempotencyKey, fingerprint, legacyFingerprint,
+                    legacyReplayMatches(slip, req), ex);
         }
 
         // 출처 주문 N행 기록 (slip_source_orders V30)
@@ -581,13 +594,20 @@ public class SlipPublishService {
         return slipRepository.findByIdempotencyKeyAndIsDeletedFalse(idempotencyKey);
     }
 
-    private PublishSlipResponse assertReplayOrConflict(Slip existing, String newFingerprint) {
+    private PublishSlipResponse assertReplayOrConflict(Slip existing, String newFingerprint,
+                                                       String legacyFingerprint,
+                                                       boolean legacyPayloadMatches) {
         // audit 에 저장된 request_fingerprint 와 신규 요청 fingerprint 를 strict 비교.
         // 같은 알고리즘으로 만든 SHA-256 이므로 본문이 동일하면 정확히 일치.
         // legacy audit row (V9 migration 이전) 는 fingerprint 가 null 이므로 비교 skip
         // (운영 데이터 호환성 — 본 분기는 실제로는 마이그레이션 이후 발생하지 않음).
         String existingFingerprint = lookupFingerprintFromAudit(existing);
-        if (existingFingerprint != null && !existingFingerprint.equals(newFingerprint)) {
+        boolean matchesCurrent = existingFingerprint != null && existingFingerprint.equals(newFingerprint);
+        boolean matchesLegacy = legacyFingerprint != null
+                && legacyPayloadMatches
+                && existing.getDeliveryAddress() == null
+                && existingFingerprint != null && existingFingerprint.equals(legacyFingerprint);
+        if (existingFingerprint != null && !matchesCurrent && !matchesLegacy) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "동일 Idempotency-Key 로 다른 본문이 도착했습니다. 키를 새로 발급하세요. "
                             + "(slipNo=" + existing.getSlipNo() + ")");
@@ -610,6 +630,8 @@ public class SlipPublishService {
 
     private PublishSlipResponse handleIdempotencyRaceCondition(String idempotencyKey,
                                                                String fingerprint,
+                                                               String legacyFingerprint,
+                                                               boolean legacyPayloadMatches,
                                                                DataIntegrityViolationException ex) {
         // partial UNIQUE INDEX 가 동시 INSERT 를 차단했을 가능성 — 다시 select 시도.
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
@@ -617,7 +639,8 @@ public class SlipPublishService {
             entityManager.clear();
             Optional<Slip> raceWinner = slipRepository.findByIdempotencyKeyAndIsDeletedFalse(idempotencyKey);
             if (raceWinner.isPresent()) {
-                return assertReplayOrConflict(raceWinner.get(), fingerprint);
+                return assertReplayOrConflict(raceWinner.get(), fingerprint, legacyFingerprint,
+                        legacyPayloadMatches);
             }
         }
         throw new BusinessException(ErrorCode.CONFLICT,
@@ -749,8 +772,10 @@ public class SlipPublishService {
                     normalizeSpec(l.spec()),
                     qty,
                     unitPrice,
+                    l.unitPriceVat() != null,
                     l.remarks(),
-                    l.sourceOrderLineId()));
+                    l.sourceOrderLineId(),
+                    l.categoryKey()));
             if (l.supplyAmount() != null) {
                 resolved.totalSupplyAmount = resolved.totalSupplyAmount.add(l.supplyAmount());
             }
@@ -777,15 +802,22 @@ public class SlipPublishService {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("kind", "ORDERS_MERGE");
         canonical.put("sourceOrders", req.sourceOrders().stream()
-                .map(SourceOrderRef::partnerOrderId).sorted().toList());
-        canonical.put("ioDate", req.ioDate());
+                .map(this::canonicalSourceOrder)
+                .toList());
+        canonical.put("ioDate", canonicalOptionalText(req.ioDate()));
         canonical.put("partnerId", req.partnerId());
         canonical.put("warehouseCode", req.warehouseCode());
-        canonical.put("partnerCode", req.partnerCode());
+        canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
+        canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
+        canonical.put("partnerName", req.partnerName());
+        canonical.put("shippingAddress", req.shippingAddress());
+        canonical.put("deliveryAddress", req.deliveryAddress());
+        canonical.put("receiverPhone", req.receiverPhone());
+        canonical.put("employeeCode", canonicalOptionalText(req.employeeCode()));
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
-        canonical.put("memo", req.memo());
-        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        canonical.put("memo", canonicalOptionalText(req.memo()));
+        canonical.put("lines", canonicalLines(req.lines()));
         return sha256(toJsonOrThrow(canonical));
     }
 
@@ -800,11 +832,33 @@ public class SlipPublishService {
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
         canonical.put("memo", req.memo());
-        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        canonical.put("lines", req.lines().stream().map(this::legacyCanonicalLine).toList());
         return sha256(toJsonOrThrow(canonical));
     }
 
     private String computeFingerprint(PublishFromPartnerOrderRequest req) {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "PARTNER_ORDER");
+        canonical.put("partnerOrderId", req.partnerOrderId());
+        canonical.put("ioDate", canonicalOptionalText(req.ioDate()));
+        canonical.put("warehouseCode", req.warehouseCode());
+        canonical.put("warehouseId", canonicalOptionalText(req.warehouseId()));
+        canonical.put("partnerCode", canonicalOptionalText(req.partnerCode()));
+        canonical.put("partnerName", req.partnerName());
+        canonical.put("shippingAddress", req.shippingAddress());
+        canonical.put("deliveryAddress", req.deliveryAddress());
+        canonical.put("receiverPhone", req.receiverPhone());
+        canonical.put("employeeCode", canonicalOptionalText(req.employeeCode()));
+        canonical.put("paymentDueLabel", req.paymentDueLabel());
+        canonical.put("discountInfo", req.discountInfo());
+        canonical.put("memo", canonicalOptionalText(req.memo()));
+        canonical.put("orderApprovedAt", canonicalOptionalText(req.orderApprovedAt()));
+        canonical.put("lines", canonicalLines(req.lines()));
+        return sha256(toJsonOrThrow(canonical));
+    }
+
+    /** 배송주소 필드가 없던 배포 전 단건 발행의 멱등 지문을 재현한다. */
+    private String computeLegacyFingerprint(PublishFromPartnerOrderRequest req) {
         Map<String, Object> canonical = new LinkedHashMap<>();
         canonical.put("kind", "PARTNER_ORDER");
         canonical.put("partnerOrderId", req.partnerOrderId());
@@ -815,11 +869,52 @@ public class SlipPublishService {
         canonical.put("paymentDueLabel", req.paymentDueLabel());
         canonical.put("discountInfo", req.discountInfo());
         canonical.put("memo", req.memo());
-        canonical.put("lines", req.lines().stream().map(this::canonicalLine).toList());
+        canonical.put("lines", req.lines().stream().map(this::legacyCanonicalLine).toList());
+        return sha256(toJsonOrThrow(canonical));
+    }
+
+    /** 배송주소 필드가 없던 배포 전 병합 발행의 멱등 지문을 재현한다. */
+    private String computeLegacyMergeFingerprint(PublishFromOrdersMergeRequest req) {
+        Map<String, Object> canonical = new LinkedHashMap<>();
+        canonical.put("kind", "ORDERS_MERGE");
+        canonical.put("sourceOrders", req.sourceOrders().stream()
+                .map(SourceOrderRef::partnerOrderId).sorted().toList());
+        canonical.put("ioDate", req.ioDate());
+        canonical.put("partnerId", req.partnerId());
+        canonical.put("warehouseCode", req.warehouseCode());
+        canonical.put("partnerCode", req.partnerCode());
+        canonical.put("paymentDueLabel", req.paymentDueLabel());
+        canonical.put("discountInfo", req.discountInfo());
+        canonical.put("memo", req.memo());
+        canonical.put("lines", req.lines().stream().map(this::legacyCanonicalLine).toList());
         return sha256(toJsonOrThrow(canonical));
     }
 
     private Map<String, Object> canonicalLine(PublishLineRequest l) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("productCode", l.productCode());
+        m.put("productName", l.productName());
+        m.put("qty", l.qty());
+        m.put("spec", normalizeSpec(l.spec()));
+        m.put("unitPrice", l.unitPriceVat() != null
+                ? l.unitPriceVat().abs()
+                : (l.unitPriceExVat() != null ? l.unitPriceExVat().abs() : BigDecimal.ZERO));
+        m.put("supplyAmount", l.supplyAmount());
+        m.put("vatAmount", l.vatAmount());
+        m.put("remarks", l.remarks());
+        m.put("sourceOrderLineId", l.sourceOrderLineId());
+        // PR #991 — 발행 결과에 보존되는 주문 카테고리 축도 현행 지문에 포함한다.
+        m.put("categoryKey", l.categoryKey());
+        return m;
+    }
+
+    private List<Map<String, Object>> canonicalLines(List<PublishLineRequest> lines) {
+        return lines.stream()
+                .map(this::canonicalLine)
+                .toList();
+    }
+
+    private Map<String, Object> legacyCanonicalLine(PublishLineRequest l) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("productCode", l.productCode());
         m.put("qty", l.qty());
@@ -828,7 +923,110 @@ public class SlipPublishService {
         m.put("supplyAmount", l.supplyAmount());
         m.put("vatAmount", l.vatAmount());
         m.put("remarks", l.remarks());
+        // 배포 전 발급 키에는 categoryKey 필드가 없었으므로 legacy 지문에는 넣지 않는다.
         return m;
+    }
+
+    private Map<String, Object> canonicalSourceOrder(SourceOrderRef ref) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("partnerOrderId", ref.partnerOrderId());
+        m.put("orderNo", ref.orderNo());
+        return m;
+    }
+
+    private static String canonicalOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    /**
+     * 배포 전 지문에는 없던 값을 저장 전표와 대조한다. 이 대조가 없으면 과거 키 replay를
+     * 살리기 위해 서로 다른 주소·거래처·창고가 같은 발행으로 합쳐진다.
+     */
+    private boolean legacyReplayMatches(Slip existing, PublishFromPartnerOrderRequest req) {
+        return existing.getDeliveryAddress() == null
+                && Objects.equals(existing.getPartnerName(), req.partnerName())
+                && Objects.equals(existing.getShippingAddress(), req.shippingAddress())
+                && Objects.equals(existing.getReceiverPhone(), req.receiverPhone())
+                && warehouseMatches(existing, req.warehouseId())
+                && requesterMatches(existing, req.employeeCode())
+                && Objects.equals(existing.getMemo(), mergePartnerOrderApprovalIntoMemo(
+                        req.memo(), req.orderApprovedAt()))
+                && linesMatch(existing, req.lines());
+    }
+
+    private boolean legacyReplayMatches(Slip existing, PublishFromOrdersMergeRequest req) {
+        if (existing.getDeliveryAddress() != null
+                || !Objects.equals(existing.getPartnerName(), req.partnerName())
+                || !Objects.equals(existing.getShippingAddress(), req.shippingAddress())
+                || !Objects.equals(existing.getReceiverPhone(), req.receiverPhone())
+                || !warehouseMatches(existing, req.warehouseId())
+                || !requesterMatches(existing, req.employeeCode())
+                || !Objects.equals(existing.getMemo(), preserveFreeMemo(req.memo()))
+                || !linesMatch(existing, req.lines())) {
+            return false;
+        }
+        List<SlipSourceOrder> stored = sourceOrderRepository.findAllBySlipId(existing.getId());
+        if (stored.size() != req.sourceOrders().size()) {
+            return false;
+        }
+        return req.sourceOrders().stream().allMatch(ref -> stored.stream().anyMatch(row ->
+                Objects.equals(row.getPartnerOrderId(), UUID.fromString(ref.partnerOrderId()))
+                        && Objects.equals(row.getOrderNo(), ref.orderNo())));
+    }
+
+    private boolean warehouseMatches(Slip existing, String warehouseId) {
+        if (warehouseId == null || warehouseId.isBlank()) {
+            return true;
+        }
+        return Objects.equals(existing.getSourceWarehouseId(), UUID.fromString(warehouseId.trim()));
+    }
+
+    private boolean requesterMatches(Slip existing, String employeeCode) {
+        return employeeCode == null || employeeCode.isBlank()
+                || Objects.equals(existing.getRequesterId(), employeeCode);
+    }
+
+    private boolean linesMatch(Slip existing, List<PublishLineRequest> requested) {
+        if (existing.getLines().size() != requested.size()) {
+            return false;
+        }
+        for (int i = 0; i < requested.size(); i++) {
+            PublishLineRequest req = requested.get(i);
+            SlipLine line = existing.getLines().get(i);
+            BigDecimal requestedUnitPrice = req.unitPriceVat() != null
+                    ? req.unitPriceVat().abs()
+                    : (req.unitPriceExVat() != null ? req.unitPriceExVat().abs() : BigDecimal.ZERO);
+            BigDecimal persistedUnitPrice = req.unitPriceVat() != null
+                    ? line.getUnitPriceWithVat()
+                    : line.getUnitPrice();
+            if ((req.productName() != null && !Objects.equals(line.getProductName(), req.productName()))
+                    || line.getQuantity() != Integer.parseInt(req.qty().trim())
+                    || !unitPriceMatchesLegacyOrCurrent(persistedUnitPrice, requestedUnitPrice,
+                            req.unitPriceVat() != null)
+                    || !Objects.equals(line.getSpecification(), normalizeSpec(req.spec()))
+                    || !Objects.equals(line.getNote(), req.remarks())
+                    || !Objects.equals(line.getSourceOrderLineId(), req.sourceOrderLineId())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean unitPriceMatchesLegacyOrCurrent(BigDecimal persistedUnitPrice,
+                                                     BigDecimal requestedUnitPrice,
+                                                     boolean vatInclusiveRequest) {
+        if (persistedUnitPrice == null) {
+            return false;
+        }
+        if (persistedUnitPrice.compareTo(requestedUnitPrice) == 0) {
+            return true;
+        }
+        return vatInclusiveRequest
+                && persistedUnitPrice.compareTo(requestedUnitPrice.multiply(new BigDecimal("1.1"))
+                        .setScale(2, RoundingMode.HALF_UP)) == 0;
     }
 
     private String serializeDiscount(String discountInfo, String paymentDueLabel) {
@@ -875,13 +1073,20 @@ public class SlipPublishService {
          */
         List<SlipLine> toEntityLines(Slip slip) {
             return entries.stream()
-                    .map(e -> SlipLine.create(slip, e.productId, e.productName, e.modelName,
-                            e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId))
+                    .map(e -> e.vatInclusive
+                            ? SlipLine.createFromVatInclusive(slip, e.productId, e.productName, e.modelName,
+                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                    e.categoryKey)
+                            : SlipLine.create(slip, e.productId, e.productName, e.modelName,
+                                    e.specification, e.quantity, e.unitPrice, e.note, e.sourceOrderLineId,
+                                    e.categoryKey))
                     .toList();
         }
 
         record Entry(UUID productId, String productName, String modelName, String specification,
-                     int quantity, BigDecimal unitPrice, String note, UUID sourceOrderLineId) {
+                     int quantity, BigDecimal unitPrice, boolean vatInclusive, String note,
+                     UUID sourceOrderLineId,
+                     String categoryKey) {
         }
     }
 

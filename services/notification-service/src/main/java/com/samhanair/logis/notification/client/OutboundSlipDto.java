@@ -25,6 +25,7 @@ import java.util.List;
  * @param scheduledAt 배차 예정 시각 (메시지 템플릿 시간 변수, null 가능 — 미지정 시 시간 omit)
  * @param deliveryAddress 배송지 주소 (메시지 템플릿 주소 변수)
  * @param lines 라인 목록 (품목명 + 수량) — 메시지 템플릿 품목/수량 변수
+ * @param recipientPhone 인수자 전화번호 — 단톡방 매핑이 없을 때 SMS fallback 대상
  */
 public record OutboundSlipDto(
         String slipNo,
@@ -33,7 +34,15 @@ public record OutboundSlipDto(
         LocalDate slipDate,
         LocalDateTime scheduledAt,
         String deliveryAddress,
-        List<OutboundSlipLineDto> lines) {
+        List<OutboundSlipLineDto> lines,
+        String recipientPhone) {
+
+    /** 기존 테스트·호출자 호환용 생성자. 수신번호는 미지정한다. */
+    public OutboundSlipDto(String slipNo, String partnerCode, String partnerName,
+                           LocalDate slipDate, LocalDateTime scheduledAt,
+                           String deliveryAddress, List<OutboundSlipLineDto> lines) {
+        this(slipNo, partnerCode, partnerName, slipDate, scheduledAt, deliveryAddress, lines, null);
+    }
 
     /**
      * 라인 단건 — 품목명 + 수량.

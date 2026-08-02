@@ -286,15 +286,11 @@ export interface StockBalanceLookupLine {
 /**
  * `GET /inventory/balances` 응답 row — BE `StockBalanceResponse` 와 1:1.
  *
- * UUID 비공개 가드:
- * - `productId` / `warehouseId` 는 내부 key 용, 화면 미노출.
- * - 화면 노출 식별자: `productCode` / `productName` / `warehouseCode` / `warehouseName`.
+ * UUID 비공개 가드: 응답에는 내부 UUID가 없으며 화면 노출 식별자만 수신한다.
  */
 export interface StockBalanceListRow {
-  productId: string
   productCode: string
   productName: string
-  warehouseId: string
   warehouseCode: string
   warehouseName: string
   warehouseType: WarehouseType
@@ -308,6 +304,8 @@ export interface StockBalanceListRow {
 
 /** 목록 조회 옵션. */
 export interface ListStockBalancesOptions {
+  /** 기존 품목별 재고 조회 호출부 호환용 선택 필터. */
+  productId?: string
   warehouseId?: string
   page?: number
   size?: number
@@ -329,6 +327,7 @@ export async function listStockBalances(
     page: options.page ?? 0,
     size: options.size ?? 50,
   }
+  if (options.productId) params['productId'] = options.productId
   if (options.warehouseId) params['warehouseId'] = options.warehouseId
 
   const res = await apiClient.get<ApiEnvelope<PageResponse<StockBalanceListRow>>>(

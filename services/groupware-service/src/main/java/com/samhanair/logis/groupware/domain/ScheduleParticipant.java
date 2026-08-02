@@ -12,7 +12,6 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UuidGenerator;
 
 /**
@@ -24,7 +23,6 @@ import org.hibernate.annotations.UuidGenerator;
 @Getter
 @Table(name = "schedule_participants")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@SQLRestriction("is_deleted = false")
 public class ScheduleParticipant extends BaseEntity {
 
     @Id
@@ -48,4 +46,5 @@ public class ScheduleParticipant extends BaseEntity {
     static ScheduleParticipant create(Schedule schedule, UUID participantId) {
         return new ScheduleParticipant(schedule, participantId);
     }
+
 }

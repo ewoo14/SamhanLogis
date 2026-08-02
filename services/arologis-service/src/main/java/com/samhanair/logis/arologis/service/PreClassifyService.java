@@ -58,8 +58,24 @@ public class PreClassifyService {
      */
     @Transactional(readOnly = true)
     public PreClassifyResponse classify(LocalDate from, LocalDate to) {
+        return classify(from, to, null);
+    }
+
+    /**
+     * 레거시 가배차 실행 모드로 기간 전표를 제한한 뒤 기존 권역 분류를 수행한다.
+     *
+     * @param from 조회 시작일
+     * @param to 조회 종료일
+     * @param mode 레거시 8개 모드. null이면 전체 가배차 조회
+     * @return 모드가 적용된 권역 분류 결과
+     */
+    @Transactional(readOnly = true)
+    public PreClassifyResponse classify(LocalDate from, LocalDate to, DispatchExecutionMode mode) {
         validateRange(from, to);
         List<OutboundSlipSummary> slips = slipServiceClient.getOutboundSlips(from, to);
+        if (mode != null) {
+            slips = slips.stream().filter(slip -> matchesMode(slip, mode)).toList();
+        }
         log.info("PreClassifyService — from={}, to={}, slipsFetched={}", from, to, slips.size());
 
         // 본 PR 시점 dispatchPlanned 매칭 = vehicle_stops 의 parsed_partner_code 컬럼이 슬립의
@@ -87,6 +103,62 @@ public class PreClassifyService {
             }
         }
         return new PreClassifyResponse(regionGroups, unclassified);
+    }
+
+    /** 레거시 공통 제외·태그·창고 규칙을 적용한다. */
+    private boolean matchesMode(OutboundSlipSummary slip, DispatchExecutionMode mode) {
+        String address = value(slip.address());
+        String memo = value(slip.memo());
+        String prefix = address.substring(0, Math.min(10, address.length()));
+        boolean commonExcluded = containsAny(prefix, "회수", "회차", "차용", "대여", "반납", "자가")
+                || containsAny(address, "경동", "로젠");
+        boolean stack = "STACK".equals(slip.deliveryTag());
+        boolean region = "REGION".equals(slip.deliveryTag());
+
+        if (mode == DispatchExecutionMode.STACK_ONLY) {
+            return stack && warehouseAllowed(slip, mode);
+        }
+        if (mode == DispatchExecutionMode.REGION_ONLY) {
+            return region && warehouseAllowed(slip, mode);
+        }
+        if (stack) {
+            // 레거시 1~3/6~8은 야적을 별도 묶음으로 먼저 보존한다.
+            return warehouseAllowed(slip, mode);
+        }
+        if (commonExcluded || containsAny(memo, "회수", "회차", "차용", "대여", "반납", "자가")) {
+            return false;
+        }
+        if (mode.number() <= 3 && region) {
+            return false;
+        }
+        return warehouseAllowed(slip, mode);
+    }
+
+    /** 모드별 출고창고 포함 규칙. 창고 정보가 없는 구형 projection은 보수적으로 통과시킨다. */
+    private boolean warehouseAllowed(OutboundSlipSummary slip, DispatchExecutionMode mode) {
+        String warehouse = value(slip.warehouse());
+        if (warehouse.isBlank()) {
+            return true;
+        }
+        return switch (mode) {
+            case CHOWOL_REGION_EXCLUDED, CHOWOL_REGION_INCLUDED -> warehouse.contains("초월");
+            case SANGIL_REGION_EXCLUDED, SANGIL_REGION_INCLUDED -> warehouse.contains("상일");
+            case SANGIL_AND_CHOWOL_REGION_EXCLUDED, SANGIL_AND_CHOWOL_REGION_INCLUDED,
+                    STACK_ONLY, REGION_ONLY -> warehouse.contains("상일") || warehouse.contains("초월");
+        };
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String value(String value) {
+        return value == null ? "" : value.trim();
     }
 
     /** 본 기간 슬립의 partnerCode 집합 → vehicle_stops.parsed_partner_code 매칭 → 이미 배차된 코드만 set 반환. */

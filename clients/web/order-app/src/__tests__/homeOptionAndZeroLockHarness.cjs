@@ -54,6 +54,8 @@ const HOME_RECOMPUTE_FUNCTIONS = [
   'recomputeHomeBranches',
   'recomputeHomeRemotes',
   'recomputeHomePanels',
+  'noteHomeCatalogMissing_',
+  'setHomeDerivedQty_',
   'recomputeHomeDerived',
   'isHomeCalcTriggerModel',
   'isHomeDerivedRow',
@@ -149,6 +151,7 @@ function runHomeOptionChangeScenario({ family, model, lockValue, controlId, dom,
     ${prelude.script}
     const homeQty = new Map(Object.entries(${JSON.stringify(prelude.sourceQuantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    let HOME_CATALOG_MISSING_MODELS = new Map();
     ${HOME_MANUAL_SETS_DECL}
     ${functions}
 
@@ -196,6 +199,7 @@ function runPanelSwapScenario({ family, indoorModel, fromModel, toModel, indoorQ
     ${prelude.script}
     const homeQty = new Map(Object.entries(${JSON.stringify(prelude.sourceQuantities)}));
     const homeRowByModel = new Map(HOMEMULTI.map((row) => [row.model, row]));
+    let HOME_CATALOG_MISSING_MODELS = new Map();
     ${HOME_MANUAL_SETS_DECL}
     ${functions}
 

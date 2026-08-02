@@ -194,11 +194,66 @@ class PartnerAuthServiceTest {
         assertThat(parsed.getPayload().containsKey("role")).isFalse();
     }
 
+    @Test
+    @DisplayName("LONG_UNUSED 복구 후 다음 checkStatus에서도 LONG_UNUSED로 되돌아가지 않음")
+    void restoreLongUnused_checkStatus_상태유지() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1357"), PartnerStatus.LONG_UNUSED);
+        setLastLoginAt(pa, LocalDateTime.now().minusDays(31));
+        pa.restoreFromLongUnused();
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        var response = service.checkStatus("1234567890");
+
+        assertThat(response.status()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+        assertThat(pa.getStatus()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+    }
+
+    @Test
+    @DisplayName("LONG_UNUSED 복구 후 tryLogin이 비밀번호 검증과 토큰 발급까지 완료")
+    void restoreLongUnused_tryLogin_토큰발급() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1357"), PartnerStatus.LONG_UNUSED);
+        setEntityId(pa, UUID.randomUUID());
+        setLastLoginAt(pa, LocalDateTime.now().minusDays(31));
+        pa.restoreFromLongUnused();
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        TryLoginResponse response = service.tryLogin(
+                new TryLoginRequest("1234567890", "1357", false), "1.1.1.1", "ua");
+
+        assertThat(response.status()).isEqualTo(PartnerStatus.OK);
+        assertThat(response.token()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("복구하지 않은 30일 초과 거래처는 여전히 LONG_UNUSED로 선별")
+    void unrestoredExpired_checkStatus_LONG_UNUSED선별() {
+        PartnerAuth pa = PartnerAuth.seedFromLegacy(
+                "1234567890", "P001", passwordEncoder.encode("1357"), PartnerStatus.NEED_PW_INPUT);
+        setLastLoginAt(pa, LocalDateTime.now().minusDays(31));
+        when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
+
+        var response = service.checkStatus("1234567890");
+
+        assertThat(response.status()).isEqualTo(PartnerStatus.LONG_UNUSED);
+    }
+
     private static void setEntityId(PartnerAuth pa, UUID id) {
         try {
             java.lang.reflect.Field f = PartnerAuth.class.getDeclaredField("id");
             f.setAccessible(true);
             f.set(pa, id);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static void setLastLoginAt(PartnerAuth pa, LocalDateTime value) {
+        try {
+            java.lang.reflect.Field f = PartnerAuth.class.getDeclaredField("lastLoginAt");
+            f.setAccessible(true);
+            f.set(pa, value);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

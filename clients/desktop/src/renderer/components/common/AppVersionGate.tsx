@@ -26,6 +26,23 @@ const CURRENT_VERSION = resolveBuildAppVersion(
 // 실제 Electron과 B8 라이브 하네스에서는 이 값이 false라 updater effect가 그대로 돈다.
 const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === '1'
 type SafeVersionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+const DISPLAY_VERSION_PATTERN = /^\d{4}\/\d{2}\/\d{2}-[1-9][0-9]*$/
+
+function isValidDisplayVersion(version: string): boolean {
+  const match = DISPLAY_VERSION_PATTERN.exec(version)
+  if (!match) return false
+
+  const year = Number(match[0].slice(0, 4))
+  const month = Number(match[0].slice(5, 7))
+  const day = Number(match[0].slice(8, 10))
+  const calendarDate = new Date(`${match[0].slice(0, 4)}-${match[0].slice(5, 7)}-${match[0].slice(8, 10)}T00:00:00.000Z`)
+  return (
+    !Number.isNaN(calendarDate.getTime()) &&
+    calendarDate.getUTCFullYear() === year &&
+    calendarDate.getUTCMonth() + 1 === month &&
+    calendarDate.getUTCDate() === day
+  )
+}
 
 function releaseNotesText(versionInfo: AppVersionInfo): string {
   const notes = versionInfo.releaseNotes.trim()
@@ -131,12 +148,17 @@ function safeSessionStorage(fallbackStorage: Map<string, string>): SafeVersionSt
 
 function toUpdateStatus(value: ElectronDesktopUpdateStatus): DesktopUpdateStatus | null {
   if (value.kind === 'checking') return { kind: 'checking' }
-  if (value.kind === 'available' && value.version) return { kind: 'available', version: value.version }
+  if (value.kind === 'available') return { kind: 'available', version: value.version ?? '' }
   if (value.kind === 'downloading') return { kind: 'downloading', percent: value.percent ?? 0 }
-  if (value.kind === 'downloaded' && value.version) return { kind: 'downloaded', version: value.version }
+  if (value.kind === 'downloaded') return { kind: 'downloaded', version: value.version ?? '' }
   if (value.kind === 'not-available') return { kind: 'not-available' }
   if (value.kind === 'error') return { kind: 'error', message: desktopUpdateErrorMessage('unknown') }
   return null
+}
+
+function updateVersionLabel(version: string): string {
+  const normalized = String(version ?? '').trim()
+  return isValidDisplayVersion(normalized) ? `새 버전 ${normalized}` : '새 버전'
 }
 
 function updateStatusText(status: DesktopUpdateStatus, installing = false): string {
@@ -144,13 +166,13 @@ function updateStatusText(status: DesktopUpdateStatus, installing = false): stri
     case 'checking':
       return '업데이트를 확인하는 중입니다.'
     case 'available':
-      return `새 버전 ${status.version}을 다운로드하는 중입니다.`
+      return `${updateVersionLabel(status.version)}을 다운로드하는 중입니다.`
     case 'downloading':
       return `새 버전을 다운로드하는 중입니다. ${Math.round(status.percent)}%`
     case 'downloaded':
       return installing
-        ? `새 버전 ${status.version}을 설치하고 앱을 다시 시작하는 중입니다.`
-        : `새 버전 ${status.version}이 다운로드되었습니다. 다음 기동 때 자동 설치합니다.`
+        ? `${updateVersionLabel(status.version)}을 설치하고 앱을 다시 시작하는 중입니다.`
+        : `${updateVersionLabel(status.version)}이 다운로드되었습니다. 다음 기동 때 자동 설치합니다.`
     case 'error':
       return `업데이트 실패: ${status.message}`
     case 'not-available':

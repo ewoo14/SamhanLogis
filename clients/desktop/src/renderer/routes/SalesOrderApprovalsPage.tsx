@@ -24,6 +24,7 @@ import {
   type PartnerApproval,
   type PartnerApprovalStatus,
   listPartnerApprovals,
+  previewPartnerAccess,
   resetPartnerPassword,
   updatePartnerApprovalStatus,
 } from '../api/sales'
@@ -32,6 +33,7 @@ import { usePageTitleStore } from '../stores/pageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { SalesSubNav } from '../components/sales/SalesSubNav'
 import styles from '../components/sales/sales.module.css'
+import { canResetPartnerPassword } from '../utils/orderAppAccess'
 
 const STATUS_CLASS: Record<PartnerApprovalStatus, string> = {
   UNAPPROVED: styles['statusUnapproved']!,
@@ -56,6 +58,8 @@ function fmtDateTime(s: string | null): string {
 export function SalesOrderApprovalsPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const [statusFilter, setStatusFilter] = useState<PartnerApprovalStatus | ''>('')
+  const [unusedDays, setUnusedDays] = useState(30)
+  const [selectedCandidateCodes, setSelectedCandidateCodes] = useState<string[]>([])
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
   // [2026-06-11 P3 #6] 승인상태 변경·비밀번호 초기화는 BE 가 @RequirePermission(page="sales.partner-order.list",
@@ -65,7 +69,7 @@ export function SalesOrderApprovalsPage() {
   const canUpdateApproval = canAccess('sales.partner-order.list', 'update')
 
   useEffect(() => {
-    setPageTitle({ title: '주문서 승인', meta: '영업' })
+    setPageTitle({ title: '주문서 앱 접근권한 설정', meta: '영업' })
     return () => setPageTitle({ title: '' })
   }, [setPageTitle])
 
@@ -77,6 +81,13 @@ export function SalesOrderApprovalsPage() {
     retry: 1,
     refetchInterval: 30_000,
   })
+
+  const previewQuery = useQuery({
+    queryKey: ['partner-access-preview', unusedDays],
+    queryFn: () => previewPartnerAccess(unusedDays),
+    retry: 1,
+  })
+  const candidateCodes = new Set((previewQuery.data ?? []).map((a) => a.partnerCode))
 
   const updateStatus = useMutation({
     mutationFn: ({ code, status }: { code: string; status: PartnerApprovalStatus }) =>
@@ -106,9 +117,24 @@ export function SalesOrderApprovalsPage() {
     updateStatus.mutate({ code: approval.partnerCode, status: next })
   }
 
+  function handleBulkReset() {
+    if (!canUpdateApproval || selectedCandidateCodes.length === 0) return
+    const selected = (previewQuery.data ?? []).filter((a) => selectedCandidateCodes.includes(a.partnerCode))
+    if (!window.confirm(
+      `다음 ${selected.length}개 거래처의 비밀번호를 초기화하시겠습니까?\n\n${selected.map((a) => `${a.partnerCode} ${a.partnerName}`).join('\n')}`,
+    )) return
+    void Promise.all(selected.map((a) => resetPartnerPassword(a.partnerCode)))
+      .then(() => {
+        setSelectedCandidateCodes([])
+        void queryClient.invalidateQueries({ queryKey: ['partner-approvals'] })
+        void queryClient.invalidateQueries({ queryKey: ['partner-access-preview'] })
+      })
+  }
+
   function handleResetPassword(approval: PartnerApproval) {
     // [2026-06-11 P3 #6] update 권한 없으면 초기화 시도 자체를 차단(버튼 비활성과 이중 방어).
-    if (!canUpdateApproval) return
+    // 미리보기 목록에 포함된 대상만 실행 가능하다. 대상 확인 없는 초기화 경로를 막는다.
+    if (!canResetPartnerPassword(approval.partnerCode, candidateCodes, canUpdateApproval)) return
     if (
       !window.confirm(
         `${approval.partnerName} 거래처의 비밀번호를 초기화하시겠습니까?\n\n초기화 후 거래처 다음 접속 시 비밀번호 재설정 페이지가 표시됩니다.`,
@@ -196,6 +222,7 @@ export function SalesOrderApprovalsPage() {
             resetPw.isPending
             || a.status === 'PASSWORD_RESET_PENDING'
             || !canUpdateApproval
+            || !canResetPartnerPassword(a.partnerCode, candidateCodes, canUpdateApproval)
           }
           aria-label={`${a.partnerName} 비밀번호 초기화`}
         >
@@ -216,10 +243,22 @@ export function SalesOrderApprovalsPage() {
         />
         <div className={styles['top']}>
           <div className={styles['title']}>
-            주문서 승인
+            주문서 앱 접근권한 설정
             <span className={styles['badge']}>전체 {query.data?.totalElements ?? 0}건</span>
           </div>
           <div className={styles['topActions']}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              장기미사용 기간
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={unusedDays}
+                onChange={(e) => setUnusedDays(Math.min(365, Math.max(1, Number(e.target.value) || 1)))}
+                aria-label="장기미사용 기간(일)"
+                style={{ width: 72, padding: '6px 8px' }}
+              />일
+            </label>
             <select
               value={statusFilter}
               onChange={(e) =>
@@ -240,6 +279,46 @@ export function SalesOrderApprovalsPage() {
             </select>
           </div>
         </div>
+
+        <section
+          aria-labelledby="access-preview-heading"
+          style={{ marginBottom: 16, padding: 16, border: '1px solid #e5e7eb', borderRadius: 8 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div>
+              <h2 id="access-preview-heading" style={{ margin: 0, fontSize: 16 }}>비밀번호 초기화 대상 미리보기</h2>
+              <p style={{ margin: '6px 0 0', color: '#4b5563', fontSize: 13 }}>
+                마지막 로그인일이 없으면 비밀번호 변경일을 기준으로 {unusedDays}일이 지난 거래처입니다. 목록을 확인한 뒤 실행하십시오.
+              </p>
+            </div>
+            <button
+              type="button"
+              className={styles['btnGhost']}
+              onClick={handleBulkReset}
+              disabled={!canUpdateApproval || selectedCandidateCodes.length === 0 || resetPw.isPending}
+            >
+              선택 대상 비밀번호 초기화 ({selectedCandidateCodes.length})
+            </button>
+          </div>
+          {previewQuery.isLoading ? <p>대상을 계산하는 중…</p> : previewQuery.isError ? <p>대상 미리보기를 불러오지 못했습니다.</p> : (
+            <div style={{ marginTop: 12 }}>
+              <strong data-testid="access-preview-count">현재 대상 {previewQuery.data?.length ?? 0}건</strong>
+              {(previewQuery.data ?? []).map((a) => (
+                <label key={a.partnerCode} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCandidateCodes.includes(a.partnerCode)}
+                    onChange={(e) => setSelectedCandidateCodes((codes) => e.target.checked
+                      ? [...codes, a.partnerCode]
+                      : codes.filter((code) => code !== a.partnerCode))}
+                    disabled={!canUpdateApproval}
+                  />
+                  <span>{a.partnerCode} · {a.partnerName}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </section>
 
         {query.isLoading ? (
           <div className={styles['emptyState']}>주문서 승인 목록을 불러오는 중…</div>

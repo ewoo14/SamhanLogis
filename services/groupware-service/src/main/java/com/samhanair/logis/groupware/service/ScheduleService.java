@@ -37,6 +37,7 @@ public class ScheduleService {
         try {
             Schedule schedule = Schedule.create(ownerId, req.title(), req.description(),
                     req.startsAt(), req.endsAt(), req.status());
+            schedule.addParticipant(ownerId);
             if (req.participantIds() != null) {
                 for (UUID participantId : req.participantIds()) {
                     if (!userClient.exists(participantId)) {
@@ -46,7 +47,8 @@ public class ScheduleService {
                     schedule.addParticipant(participantId);
                 }
             }
-            return repository.save(schedule);
+            Schedule saved = repository.save(schedule);
+            return saved;
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, ex.getMessage());
         }
@@ -60,13 +62,21 @@ public class ScheduleService {
                         "일정을 찾을 수 없습니다: " + scheduleId));
     }
 
-    /** 소유자 + 기간 조회. */
+    /** 호출자가 활성 대상자인 일정만 단건 조회한다. 권한 없음도 일정 미존재와 동일하게 처리한다. */
+    @Transactional(readOnly = true)
+    public Schedule findVisibleById(UUID scheduleId, UUID actorUserId) {
+        return repository.findVisibleById(scheduleId, actorUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                        "일정을 찾을 수 없습니다"));
+    }
+
+    /** 활성 대상자 + 기간 조회. */
     @Transactional(readOnly = true)
     public List<Schedule> findInRange(UUID ownerId, LocalDateTime from, LocalDateTime to) {
         if (from == null || to == null || !to.isAfter(from)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "from < to 필수");
         }
-        return repository.findOwnedInRange(ownerId, from, to);
+        return repository.findVisibleInRange(ownerId, from, to);
     }
 
     /** 일정 수정 + 참여자 재정의 (전체 교체 패턴). 소유자 본인 일정만 수정 가능하다. */
@@ -76,6 +86,8 @@ public class ScheduleService {
         if (!schedule.getOwnerId().equals(actorUserId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "일정 소유자 본인만 수정할 수 있습니다");
         }
+        // 기존 owner-less 행도 수정 시 자동 대상자 계약으로 승격한다.
+        schedule.addParticipant(schedule.getOwnerId());
         try {
             schedule.update(req.title(), req.description(), req.startsAt(), req.endsAt(), req.status());
         } catch (IllegalArgumentException ex) {
@@ -88,7 +100,7 @@ public class ScheduleService {
                     .toList();
             for (UUID id : existing) {
                 if (!req.participantIds().contains(id)) {
-                    schedule.removeParticipant(id);
+                    schedule.removeParticipant(id, actorUserId.toString());
                 }
             }
             for (UUID id : req.participantIds()) {
@@ -108,14 +120,21 @@ public class ScheduleService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "참여자 미존재: " + participantId);
         }
         Schedule schedule = findById(scheduleId);
+        schedule.addParticipant(schedule.getOwnerId());
         schedule.addParticipant(participantId);
         return schedule;
     }
 
-    /** soft-delete. */
+    /** 등록자 본인만 수행할 수 있는 soft-delete. */
     @Transactional
-    public void delete(UUID scheduleId, String actorUserId) {
+    public void delete(UUID scheduleId, UUID actorUserId) {
         Schedule schedule = findById(scheduleId);
-        schedule.markDeleted(actorUserId);
+        if (!schedule.getOwnerId().equals(actorUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "일정 등록자 본인만 삭제할 수 있습니다");
+        }
+        schedule.markDeleted(actorUserId.toString());
+        schedule.getParticipants().forEach(participant ->
+                participant.markDeleted(actorUserId.toString()));
     }
+
 }

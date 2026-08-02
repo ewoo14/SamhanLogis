@@ -428,6 +428,16 @@ spring:
             - StripPrefix=2
             - JwtAuthentication
 
+        # 데스크톱 그룹웨어 관리자 CRUD의 기존 계약(/admin/groupware/**)을
+        # 표준 v1 외부 경로에서도 그대로 전달한다. generic groupware route보다 선행.
+        - id: groupware-admin-v1
+          uri: lb://groupware-service
+          predicates:
+            - Path=/api/v1/admin/groupware/**
+          filters:
+            - StripPrefix=2
+            - JwtAuthentication
+
         - id: groupware-service-v1
           uri: lb://groupware-service
           predicates:

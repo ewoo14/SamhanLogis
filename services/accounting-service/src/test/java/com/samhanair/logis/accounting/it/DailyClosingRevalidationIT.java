@@ -24,6 +24,8 @@ import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.ProductAliasClient;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
+import com.samhanair.logis.accounting.client.ProductSummary;
+import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipQueryClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.client.codef.EasyCodefClient;
@@ -35,8 +37,6 @@ import com.samhanair.logis.accounting.domain.SalesAccountingSlipLine;
 import com.samhanair.logis.accounting.domain.SalesSlipStatus;
 import com.samhanair.logis.accounting.domain.SalesTaxType;
 import com.samhanair.logis.accounting.domain.TaxInvoice;
-import com.samhanair.logis.accounting.domain.TaxInvoiceLine;
-import com.samhanair.logis.accounting.domain.TaxInvoiceType;
 import com.samhanair.logis.accounting.repository.PurchaseAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.SalesAccountingSlipRepository;
 import com.samhanair.logis.accounting.repository.TaxInvoiceRepository;
@@ -92,6 +92,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
     @MockBean private EmployeeLookupClient employeeLookupClient;
     @MockBean private NotificationClient notificationClient;
     @MockBean private ProductAliasClient productAliasClient;
+    @MockBean private PartnerDcConfigClient partnerDcConfigClient;
     @MockBean(classes = DynamicPermissionClient.class) private DynamicPermissionClient dynamicPermissionClient;
 
     private static final LocalDate DATE = LocalDate.of(2026, 7, 13);
@@ -107,6 +108,17 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                         PARTNER_ID, "P-RV", "재검증거래처", "111-22-33333", "서울")));
         lenient().when(productClient.resolveByLabelBulk(anyList()))
                 .thenReturn(Map.of());
+        lenient().when(productClient.lookup(anyList())).thenAnswer(invocation -> {
+            java.util.List<UUID> ids = invocation.getArgument(0);
+            return ids.stream().map(id -> new ProductSummary(
+                    id, "테스트품목", "TEST-MODEL", null, null, "ACTIVE",
+                    AM_PRODUCT_ID.equals(id) ? "commercialMulti" : "homemulti")).toList();
+        });
+        lenient().when(productClient.priceChangeDefaultVariants()).thenReturn(Map.of(
+                "homemulti", false,
+                "singleSets", false,
+                "commercialMulti", false,
+                "oldProducts", false));
         lenient().when(productClient.applicablePrices(anyList(), any(LocalDate.class)))
                 .thenReturn(Map.of(
                         AM_PRODUCT_ID, new ApplicablePrice(new BigDecimal("100000"), new BigDecimal("70000"), DATE),
@@ -115,6 +127,10 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                 .thenReturn(Map.of(
                         AM_PRODUCT_ID, new BigDecimal("45.00"),
                         AJ_PRODUCT_ID, new BigDecimal("45.00")));
+        // 전역DC 미존재는 45% 기본값으로 대체하지 않아야 한다. 이 IT의 알려진 상품은
+        // 고정DC가 있으므로 고정DC 우선 순서로 45% 판정이 유지되는지 함께 검증한다.
+        lenient().when(partnerDcConfigClient.findByPartnerCode(anyString()))
+                .thenReturn(PartnerDcConfigClient.LookupResult.notFound());
         lenient().when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(anyString()))
                 .thenReturn(java.util.List.of());
     }
@@ -208,18 +224,64 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("dc-config-service 장애에도 일마감 상세를 열고 미조회 상태를 표시한다")
+    void dailyDetailFailsWhenDcConfigServiceIsUnavailable() throws Exception {
+        seedIssuedTaxInvoice();
+        Mockito.when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "AM160NXVHHH1 [AM상업멀티]", ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1")));
+        Mockito.when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of());
+        Mockito.when(partnerDcConfigClient.findByPartnerCode(anyString()))
+                .thenThrow(new RuntimeException("connection refused"));
+
+        mockMvc.perform(get("/accounting/closings/daily")
+                        .param("date", DATE.toString())
+                        .param("sourceKind", "TAX_INVOICE")
+                        .header("X-User-Id", ACCOUNTANT_ID)
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productSummaries[0].revalidationStatus")
+                        .value("MISSING_GLOBAL_DISCOUNT"));
+    }
+
+    @Test
+    @DisplayName("dc-config-service 5xx·timeout·연결 거부 — 일마감 상세는 각각 200으로 열린다")
+    void dailyDetailOpensForEachDcConfigFailureKind() throws Exception {
+        seedIssuedTaxInvoice();
+        Mockito.when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "AM160NXVHHH1 [AM상업멀티]", ProductLabelMatch.matched(AM_PRODUCT_ID, "AM160NXVHHH1")));
+        Mockito.when(productClient.fixedDiscountRates(anyList())).thenReturn(Map.of());
+
+        for (String failureKind : java.util.List.of("HTTP_5XX", "TIMEOUT", "CONNECTION_REFUSED")) {
+            Mockito.doThrow(new RuntimeException(failureKind))
+                    .when(partnerDcConfigClient).findByPartnerCode(anyString());
+            int status = mockMvc.perform(get("/accounting/closings/daily")
+                            .param("date", DATE.toString())
+                            .param("sourceKind", "TAX_INVOICE")
+                            .header("X-User-Id", ACCOUNTANT_ID)
+                            .header("X-User-Role", "ACCOUNTANT"))
+                    .andReturn().getResponse().getStatus();
+            System.out.println("DAILY_DETAIL_FAILURE_CASE=" + failureKind
+                    + " API_STATUS=" + status + " REVALIDATION_STATUS=MISSING_GLOBAL_DISCOUNT");
+            org.assertj.core.api.Assertions.assertThat(status).isEqualTo(200);
+        }
+    }
+
     private void seedIssuedTaxInvoice() {
-        TaxInvoice invoice = TaxInvoice.create(
-                PARTNER_ID, "P-RV", "111-22-33333", "재검증거래처", "서울",
-                DATE, "S2c HTTP IT", TaxInvoiceType.SALES);
-        invoice.addLine(TaxInvoiceLine.createWithAmounts(
-                invoice, 1, "AM160NXVHHH1 [AM상업멀티]", null, null,
-                BigDecimal.ONE, new BigDecimal("50000"), new BigDecimal("50000"),
-                new BigDecimal("5000"), "AM zone marker"));
-        invoice.addLine(TaxInvoiceLine.createWithAmounts(
-                invoice, 2, "미등록서비스품목", null, null,
+        SalesAccountingSlip sourceSlip = SalesAccountingSlip.createDraft(
+                "SAS-HTTP-RV-SOURCE", DATE, PARTNER_ID, "P-RV", "재검증거래처",
+                SalesTaxType.TAXABLE, "S2c HTTP IT");
+        SalesAccountingSlipLine knownSource = SalesAccountingSlipLine.create(
+                sourceSlip, 1, "MIG4", "AM160NXVHHH1 [AM상업멀티]", "AM160NXVHHH1",
+                "commercialMulti", BigDecimal.ONE, new BigDecimal("50000"),
+                new BigDecimal("50000"), new BigDecimal("5000"), new BigDecimal("55000"));
+        SalesAccountingSlipLine unknownSource = SalesAccountingSlipLine.create(
+                sourceSlip, 2, "SERVICE", "미등록서비스품목", null, null,
                 BigDecimal.ONE, new BigDecimal("10000"), new BigDecimal("10000"),
-                new BigDecimal("1000"), "NOT_FOUND"));
+                new BigDecimal("1000"), new BigDecimal("11000"));
+        TaxInvoice invoice = TaxInvoice.createDraftFromSalesSlips(
+                "TI-HTTP-RV-001", DATE, PARTNER_ID, "P-RV", "재검증거래처", "111-22-33333",
+                java.util.List.of(knownSource, unknownSource), "it");
         invoice.issue("2026/07/13-QA1", "it");
         taxInvoiceRepository.saveAndFlush(invoice);
     }
@@ -229,7 +291,7 @@ class DailyClosingRevalidationIT extends AbstractPostgresIT {
                 "SAS-HTTP-RV-001", DATE, PARTNER_ID, "P-RV", "재검증거래처",
                 SalesTaxType.TAXABLE, "S2c HTTP IT");
         SalesAccountingSlipLine line = SalesAccountingSlipLine.create(
-                slip, 1, "MIG4", "AJ040RXH4BC1 [AJ홈멀티]", BigDecimal.ONE,
+                slip, 1, "MIG4", "AJ040RXH4BC1 [AJ홈멀티]", "AJ040RXH4BC1", "homemulti", BigDecimal.ONE,
                 new BigDecimal("50000"), new BigDecimal("50000"), new BigDecimal("5000"),
                 new BigDecimal("55000"));
         slip.getLines().add(line);

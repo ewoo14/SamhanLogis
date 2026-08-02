@@ -60,8 +60,12 @@ public record DailyClosingDetailResponse(
             @Schema(description = "모델 토큰 — 실 모델코드만(extractModelTokenOrNull). 운임/서비스 등 미매치는 "
                     + "null → FE '—'. 재검증 분기 토큰과 동일 clean() 기반이라 표시↔판정 정합")
             String modelName,
+            @Schema(description = "판매 당시 정규화된 GAS schedule 카테고리 키. 미상은 UNKNOWN")
+            String categoryKey,
             BigDecimal quantity,
             BigDecimal supplyAmount,
+            @Schema(description = "원천 전표의 VAT 포함 실제 단가(공급가액+부가세 ÷ 수량). 수량 0이면 null")
+            BigDecimal actualUnitPrice,
             @Schema(description = "적용 출고가(price_history 시점 정가). 미매칭·정가결측 시 null")
             BigDecimal releasePrice,
             @Schema(description = "적용 납품가(price_history). 미매칭·정가결측 시 null")
@@ -72,11 +76,23 @@ public record DailyClosingDetailResponse(
             @Schema(description = "출고가 대비 유효 할인율(정수 %). 운임/절삭/액세서리/default 분기에서는 "
                     + "판정 근거가 아닌 참고값. 수량 0 등 판정 불가 시 null")
             Integer actualRate,
+            @Schema(description = "싱글중대형 실제 DC액(출고가 - VAT 포함 유효단가). 다른 계열 또는 판정 불가 시 null")
+            BigDecimal discountAmount,
             @Schema(description = "확인 판정. true=정합·false=불일치·null=판정 불가(revalidationStatus 로 사유 구분)")
             Boolean verified,
             @Schema(description = "재검증 사유",
                     allowableValues = {"VERIFIED", "NOT_FOUND", "AMBIGUOUS", "MISSING_REFERENT",
                             "NOT_MEASURABLE", "OUT_OF_SCOPE"})
             String revalidationStatus) {
+
+        /** 기존 응답 생성자 호환 — 카테고리 축은 UNKNOWN으로 명시한다. */
+        public DailyProductLine(String productName, String modelName, BigDecimal quantity,
+                                BigDecimal supplyAmount, BigDecimal releasePrice,
+                                BigDecimal deliveryPrice, Integer expectedRate, Integer actualRate,
+                                Boolean verified, String revalidationStatus) {
+            this(productName, modelName, "UNKNOWN", quantity, supplyAmount, null,
+                    releasePrice, deliveryPrice, expectedRate, actualRate, null,
+                    verified, revalidationStatus);
+        }
     }
 }

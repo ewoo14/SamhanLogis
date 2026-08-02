@@ -27,6 +27,7 @@ import org.springframework.stereotype.Component;
 public class QuantitySyncRuleValidator {
 
     private static final BigDecimal MAX_MULTIPLIER = new BigDecimal("1000");
+    private static final String S03_RULE_KEY = "SINGLE_S03_CEILING_DRAIN_PUMP";
     private static final Set<String> CATEGORIES = Set.of("HOME_MULTI", "SINGLE_SET", "COMM_MULTI");
     private static final Set<String> CONDITION_OPERATORS = Set.of(
             "optionEquals", "optionIn", "all", "any", "not");
@@ -236,6 +237,8 @@ public class QuantitySyncRuleValidator {
                 invalid("display_order는 1 이상이어야 합니다.");
             }
         }
+        validateOrderQuantityCompatibility(draft);
+        validateS03LegacyParity(draft);
 
         Set<String> sourceCodes = draft.sources().stream().map(SourceDraft::productCode).collect(java.util.stream.Collectors.toSet());
         Set<String> targetCodes = draft.targets().stream().map(TargetDraft::productCode).collect(java.util.stream.Collectors.toSet());
@@ -456,6 +459,47 @@ public class QuantitySyncRuleValidator {
         if (value == null || value.signum() <= 0 || value.compareTo(MAX_MULTIPLIER) > 0
                 || value.scale() > 4 || value.compareTo(value.setScale(4, java.math.RoundingMode.UNNECESSARY)) != 0) {
             invalid(field + " 배수 범위 또는 소수 scale이 올바르지 않습니다.");
+        }
+    }
+
+    /** S-03 주문 API의 정수 quantity 계약과 충돌하는 소수 결과를 저장 전에 차단한다. */
+    private void validateOrderQuantityCompatibility(Draft draft) {
+        if (!S03_RULE_KEY.equals(draft.ruleKey())) {
+            return;
+        }
+        for (TargetDraft target : draft.targets()) {
+            if ("FLOOR".equals(target.roundingMode())) {
+                continue;
+            }
+            for (SourceDraft source : draft.sources()) {
+                BigDecimal coefficient = source.factor().multiply(target.multiplier());
+                if (coefficient.stripTrailingZeros().scale() > 0) {
+                    invalid("S-03 설정 결과가 주문 정수 수량 계약을 만족하지 않습니다.");
+                }
+            }
+        }
+    }
+
+    /**
+     * S-03 shadow 설정이 현재 legacy 수량과 동일한 일대일 계수인지 저장 전에 검증한다.
+     *
+     * <p>S-03은 아직 주문 수량 결정 경로가 아니다. 따라서 factor와 multiplier가 legacy의
+     * "source 1개당 target 1개"와 다르면 관측값을 저장하지 않고 거부한다. 이 경계가
+     * 없으면 seed를 제거해도 관리자 POST로 legacy와 다른 수량 규칙을 다시 만들 수 있다.
+     */
+    private void validateS03LegacyParity(Draft draft) {
+        if (!S03_RULE_KEY.equals(draft.ruleKey())) {
+            return;
+        }
+        if (draft.targets().size() != 1) {
+            invalid("S-03 shadow 설정은 legacy target 하나만 가져야 합니다.");
+        }
+        TargetDraft target = draft.targets().get(0);
+        for (SourceDraft source : draft.sources()) {
+            BigDecimal coefficient = source.factor().multiply(target.multiplier());
+            if (coefficient.compareTo(BigDecimal.ONE) != 0) {
+                invalid("S-03 shadow 설정이 legacy 수량과 일치하지 않습니다.");
+            }
         }
     }
 

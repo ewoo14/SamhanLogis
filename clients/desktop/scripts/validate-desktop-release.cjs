@@ -1,6 +1,10 @@
 const { existsSync, readdirSync, readFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
-const { validateDevelopmentVersion } = require('../../../scripts/app-build-version.cjs')
+const {
+  RELEASE_PACKAGE_VERSION_ENV,
+  resolveReleasePackageVersion,
+  validateDevelopmentVersion,
+} = require('../../../scripts/app-build-version.cjs')
 
 function releaseModeEnabled(value) {
   return ['1', 'true', 'yes'].includes(String(value ?? '').trim().toLowerCase())
@@ -32,6 +36,10 @@ module.exports = async function validateDesktopRelease(context) {
   validateDevelopmentVersion(appVersion, 'VITE_APP_VERSION')
   if (!artifactVersion || artifactVersion !== appVersion.replaceAll('/', '-')) {
     throw new Error('SAMHAN_RELEASE_ARTIFACT_VERSION은 주입한 버전과 일치해야 합니다.')
+  }
+  const packageVersion = process.env[RELEASE_PACKAGE_VERSION_ENV]?.trim()
+  if (!packageVersion || packageVersion !== resolveReleasePackageVersion(appVersion)) {
+    throw new Error(`${RELEASE_PACKAGE_VERSION_ENV}은 주입한 날짜 버전에서 파생한 semver와 일치해야 합니다.`)
   }
 
   const projectDir = resolve(context?.packager?.projectDir ?? process.cwd())

@@ -5302,12 +5302,15 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       { productId: 'p-pc1nw', productCode: 'PC1NWSK3NW', productName: 'WIFI 판넬', warehouseId: 'wh-vr', warehouseCode: 'VR-001', warehouseName: '가상창고', warehouseType: 'VIRTUAL', availableQty: 0, reservedQty: 0, totalQty: 0 },
     ]
     const params = mockLocationParams()
+    const productIdFilter = params.get('productId')
     const warehouseIdFilter = params.get('warehouseId')
-    const filtered = warehouseIdFilter
-      ? mockRows.filter((r) => r.warehouseId === warehouseIdFilter)
-      : mockRows
+    const filtered = mockRows.filter((r) =>
+      (!productIdFilter || r.productId === productIdFilter) &&
+      (!warehouseIdFilter || r.warehouseId === warehouseIdFilter),
+    )
+    const content = filtered.map(({ productId: _productId, warehouseId: _warehouseId, ...row }) => row)
     return envelope({
-      content: filtered,
+      content,
       number: 0,
       size: 50,
       totalElements: filtered.length,
@@ -9306,24 +9309,30 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           productName: 'AM160NXVHHH1 [상업멀티]',
           modelName: 'AM160NXVHHH1',
+          categoryKey: 'commercialMulti',
           quantity: 1,
           supplyAmount: 500000,
+          actualUnitPrice: 550000,
           releasePrice: 1000000,
           deliveryPrice: 700000,
           expectedRate: 45,
           actualRate: 45,
+          discountAmount: 300000,
           verified: true,
           revalidationStatus: 'VERIFIED',
         },
         {
           productName: '미등록서비스품목',
           modelName: null,
+          categoryKey: 'UNKNOWN',
           quantity: 1,
           supplyAmount: 100000,
+          actualUnitPrice: 110000,
           releasePrice: null,
           deliveryPrice: null,
           expectedRate: null,
           actualRate: null,
+          discountAmount: null,
           verified: null,
           revalidationStatus: 'NOT_FOUND',
         },

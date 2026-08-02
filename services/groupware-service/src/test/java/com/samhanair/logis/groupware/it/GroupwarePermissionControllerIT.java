@@ -89,6 +89,7 @@ class GroupwarePermissionControllerIT {
     private static final String ADMIN_PAGE = "messenger.admin";
     private static final String APPROVAL_PAGE = "groupware.approvals";
     private static final String SEND_PAGE = "messenger.send";
+    private static final String SCHEDULE_PAGE = "groupware.schedules";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private MeterRegistry meterRegistry;
@@ -131,6 +132,7 @@ class GroupwarePermissionControllerIT {
                 new MessageBulkSendResponse(UUID.randomUUID(), 1, List.of(MessageResponse.from(message))));
         lenient().when(scheduleService.create(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.findInRange(any(), any(), any())).thenReturn(List.of(schedule));
+        lenient().when(scheduleService.findVisibleById(any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(scheduleService.update(any(), any(), any(UUID.class))).thenReturn(schedule);
         lenient().when(userClient.search(anyString(), anyInt())).thenReturn(List.of());
         lenient().when(userClient.search(anyString(), anyInt(), anyBoolean())).thenReturn(List.of());
@@ -248,20 +250,22 @@ class GroupwarePermissionControllerIT {
                         () -> get("/admin/groupware/messages/recipient-search")
                                 .param("q", "김")
                                 .param("limit", "20")),
-                new EndpointCase("create schedule", SEND_PAGE, PermissionAction.CREATE, "SALES",
+                new EndpointCase("create schedule", SCHEDULE_PAGE, PermissionAction.CREATE, "SALES",
                         () -> post("/admin/groupware/schedules")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(scheduleBody())),
-                new EndpointCase("find schedule", SEND_PAGE, PermissionAction.VIEW, "SALES",
+                new EndpointCase("find schedule", SCHEDULE_PAGE, PermissionAction.VIEW, "SALES",
                         () -> get("/admin/groupware/schedules")
                                 .param("ownerId", "00000000-0000-0000-0000-000000000031")
                                 .param("from", "2026-05-26T08:00:00")
                                 .param("to", "2026-05-26T18:00:00")),
-                new EndpointCase("update schedule", SEND_PAGE, PermissionAction.UPDATE, "SALES",
+                new EndpointCase("schedule detail", SCHEDULE_PAGE, PermissionAction.VIEW, "SALES",
+                        () -> get("/admin/groupware/schedules/{id}", id)),
+                new EndpointCase("update schedule", SCHEDULE_PAGE, PermissionAction.UPDATE, "SALES",
                         () -> put("/admin/groupware/schedules/{id}", id)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(scheduleBody())),
-                new EndpointCase("delete schedule", ADMIN_PAGE, PermissionAction.DELETE, "MANAGER",
+                new EndpointCase("delete schedule", SCHEDULE_PAGE, PermissionAction.DELETE, "MANAGER",
                         () -> delete("/admin/groupware/schedules/{id}", id))
         );
     }

@@ -1,9 +1,21 @@
 'use strict'
 
-const { existsSync, readdirSync, readFileSync } = require('node:fs')
+const {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} = require('node:fs')
 const { join, resolve } = require('node:path')
 const { spawnSync } = require('node:child_process')
-const { createReleaseBuildEnvironment } = require('./app-build-version.cjs')
+const { tmpdir } = require('node:os')
+const {
+  createReleaseBuildEnvironment,
+  createElectronBuilderVersionArgs,
+  createNsisDisplayVersionInclude,
+} = require('./app-build-version.cjs')
 
 const DESKTOP_DIR = resolve(__dirname, '../clients/arologis-desktop')
 
@@ -14,7 +26,19 @@ function run(command, args, env) {
     stdio: 'inherit',
   })
   if (result.error) throw result.error
-  if (result.status !== 0) process.exit(result.status ?? 1)
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(' ')} 종료 코드 ${result.status ?? 1}`)
+  }
+}
+
+function createNsisIncludeFile(appVersion) {
+  const directory = mkdtempSync(join(tmpdir(), 'arologis-desktop-nsis-'))
+  const file = join(directory, 'display-version.nsh')
+  writeFileSync(file, createNsisDisplayVersionInclude(appVersion), 'utf8')
+  return {
+    file,
+    cleanup: () => rmSync(directory, { recursive: true, force: true }),
+  }
 }
 
 function outputJavaScriptFiles(directory) {
@@ -43,11 +67,25 @@ function main() {
   const releaseBuild = createReleaseBuildEnvironment({ variable: 'VITE_APP_VERSION' })
   const electronViteCli = resolve(DESKTOP_DIR, 'node_modules/electron-vite/bin/electron-vite.js')
   const electronBuilderCli = resolve(DESKTOP_DIR, 'node_modules/electron-builder/cli.js')
+  const nsisInclude = createNsisIncludeFile(releaseBuild.appVersion)
 
-  console.log(`[arologis-release] VITE_APP_VERSION=${releaseBuild.appVersion}`)
-  run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
-  verifyReleaseRenderer(releaseBuild.appVersion)
-  run(process.execPath, [electronBuilderCli, '--win'], releaseBuild.env)
+  try {
+    console.log(`[arologis-release] VITE_APP_VERSION=${releaseBuild.appVersion}`)
+    run(process.execPath, [electronViteCli, 'build'], releaseBuild.env)
+    verifyReleaseRenderer(releaseBuild.appVersion)
+    run(
+      process.execPath,
+      [
+        electronBuilderCli,
+        `--config.nsis.include=${nsisInclude.file}`,
+        '--win',
+        ...createElectronBuilderVersionArgs(releaseBuild.packageVersion, releaseBuild.appVersion),
+      ],
+      releaseBuild.env,
+    )
+  } finally {
+    nsisInclude.cleanup()
+  }
 }
 
 try {

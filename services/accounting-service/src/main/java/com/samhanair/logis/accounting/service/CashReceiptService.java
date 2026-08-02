@@ -16,6 +16,8 @@ import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.CashReceiptRequest;
+import com.samhanair.logis.accounting.web.dto.CashReceiptLineRequest;
+import com.samhanair.logis.accounting.web.dto.CashReceiptLineResponse;
 import com.samhanair.logis.accounting.web.dto.CashReceiptResponse;
 import com.samhanair.logis.accounting.web.dto.CashReceiptResponse.PartnerDisplay;
 import com.samhanair.logis.common.exception.BusinessException;
@@ -61,7 +63,7 @@ public class CashReceiptService {
 
     /** 수기 입금보고서 생성. S1에서는 journalId 를 비운다. */
     public CashReceiptResponse createManual(CashReceiptRequest request) {
-        PartnerSummary partner = resolvePartner(request);
+        PartnerSummary partner = resolveHeaderPartner(request);
         validateAccounts(request.debitAccountCode(), request.creditAccountCode());
         String slipNo = numberService.next(request.transactionDate());
         CashReceipt receipt = CashReceipt.createManual(
@@ -72,6 +74,7 @@ public class CashReceiptService {
                 request.memo(),
                 request.debitAccountCode(),
                 request.creditAccountCode());
+        applyLines(receipt, request);
         return responseOf(repository.save(receipt));
     }
 
@@ -111,7 +114,8 @@ public class CashReceiptService {
                 receipt,
                 displayOf(partners.get(receipt.getPartnerId())),
                 journalNoOf(receipt.getJournalId(), journalNos),
-                journalNoOf(receipt.getReverseJournalId(), journalNos)));
+                journalNoOf(receipt.getReverseJournalId(), journalNos),
+                responseLines(receipt, displayOf(partners.get(receipt.getPartnerId())))));
     }
 
     /** 단건 조회. */
@@ -144,14 +148,16 @@ public class CashReceiptService {
 
     private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptRequest request) {
         receipt.requireDraft("입금보고서 수정은 " + CashReceiptStatus.DRAFT.getDisplayName() + " 상태에서만 허용됩니다");
-        PartnerSummary partner = resolvePartner(request);
-        return updateDraft(receipt, new CashReceiptDraftCommand(
+        PartnerSummary partner = resolveHeaderPartner(request);
+        updateDraft(receipt, new CashReceiptDraftCommand(
                 partner.partnerId(),
                 request.amount(),
                 request.transactionDate(),
                 request.memo(),
                 request.debitAccountCode(),
                 request.creditAccountCode()));
+        applyLines(receipt, request);
+        return responseOf(receipt);
     }
 
     private CashReceiptResponse updateDraft(CashReceipt receipt, CashReceiptDraftCommand command) {
@@ -230,7 +236,7 @@ public class CashReceiptService {
 
     private CashReceiptResponse updateConfirmed(CashReceipt receipt, CashReceiptRequest request,
                                                 String actorUserId) {
-        PartnerSummary partner = resolvePartner(request);
+        PartnerSummary partner = resolveHeaderPartner(request);
         validateAccounts(request.debitAccountCode(), request.creditAccountCode());
         if (isUnchanged(receipt, request, partner.partnerId())) {
             // 무변경 저장 — 역분개+재게시를 생략해 원장 노이즈(분개 2건/저장)를 차단한다.
@@ -248,6 +254,7 @@ public class CashReceiptService {
                 partner.partnerId(),
                 request.debitAccountCode(),
                 request.creditAccountCode());
+        applyLines(receipt, request);
         if (oldJournalId != null) {
             journalService.autoReverse(oldJournalId, actorUserId);
         }
@@ -271,7 +278,43 @@ public class CashReceiptService {
                 && receipt.getDebitAccountCode().equals(
                         normalizedOrDefault(request.debitAccountCode(), CashReceipt.DEFAULT_DEBIT_ACCOUNT_CODE))
                 && receipt.getCreditAccountCode().equals(
-                        normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE));
+                        normalizedOrDefault(request.creditAccountCode(), CashReceipt.DEFAULT_CREDIT_ACCOUNT_CODE))
+                && linesUnchanged(receipt, request);
+    }
+
+    /** 헤더가 같아도 분할 행이 달라지면 저장·역분개·재게시 경로를 통과시킨다. */
+    private boolean linesUnchanged(CashReceipt receipt, CashReceiptRequest request) {
+        if (request.lines() == null || request.lines().isEmpty()) {
+            return receipt.getLinesJson() == null || receipt.getLinesJson().isBlank();
+        }
+        if (receipt.getLinesJson() == null || receipt.getLinesJson().isBlank()) {
+            return false;
+        }
+        try {
+            List<PersistedLine> current = objectMapper.readValue(receipt.getLinesJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, PersistedLine.class));
+            if (current.size() != request.lines().size()) {
+                return false;
+            }
+            for (int i = 0; i < request.lines().size(); i++) {
+                CashReceiptLineRequest requested = request.lines().get(i);
+                if (requested == null || requested.amount() == null || requested.amount().signum() <= 0) {
+                    return false;
+                }
+                PartnerSummary partner = resolvePartner(
+                        requested.partnerCode(), requested.bizNo(), requested.partnerName());
+                PersistedLine persisted = current.get(i);
+                if (!Objects.equals(persisted.partnerId(), partner.partnerId())
+                        || persisted.amount() == null
+                        || persisted.amount().compareTo(requested.amount()) != 0
+                        || !Objects.equals(persisted.memo(), requested.memo())) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (JsonProcessingException ex) {
+            return false;
+        }
     }
 
     private static String normalizedOrDefault(String accountCode, String defaultCode) {
@@ -289,18 +332,12 @@ public class CashReceiptService {
 
     private Journal postReceiptJournal(CashReceipt receipt, String description, String actorUserId) {
         List<JournalService.AutoJournalLineSpec> lineSpecs = new ArrayList<>();
-        lineSpecs.add(new JournalService.AutoJournalLineSpec(
-                receipt.getDebitAccountCode(),
-                receipt.getAmount(),
-                BigDecimal.ZERO,
-                receipt.getPartnerId(),
-                receipt.getMemo()));
-        lineSpecs.add(new JournalService.AutoJournalLineSpec(
-                receipt.getCreditAccountCode(),
-                BigDecimal.ZERO,
-                receipt.getAmount(),
-                receipt.getPartnerId(),
-                receipt.getMemo()));
+        for (PersistedLine line : journalLines(receipt)) {
+            lineSpecs.add(new JournalService.AutoJournalLineSpec(
+                    receipt.getDebitAccountCode(), line.amount(), BigDecimal.ZERO, line.partnerId(), line.memo()));
+            lineSpecs.add(new JournalService.AutoJournalLineSpec(
+                    receipt.getCreditAccountCode(), BigDecimal.ZERO, line.amount(), line.partnerId(), line.memo()));
+        }
         return journalService.postAutoJournal(
                 receipt.getTransactionDate(),
                 description,
@@ -308,6 +345,19 @@ public class CashReceiptService {
                 receipt.getId(),
                 actorUserId,
                 lineSpecs);
+    }
+
+    private List<PersistedLine> journalLines(CashReceipt receipt) {
+        if (receipt.getLinesJson() == null || receipt.getLinesJson().isBlank()) {
+            return List.of(new PersistedLine(receipt.getPartnerId(), null, null, null,
+                    receipt.getAmount(), receipt.getMemo()));
+        }
+        try {
+            return objectMapper.readValue(receipt.getLinesJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, PersistedLine.class));
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "입금보고서 행 분개 변환에 실패했습니다");
+        }
     }
 
     /** 협업 changeSet JSON 을 path map 으로 파싱한다. */
@@ -509,11 +559,70 @@ public class CashReceiptService {
      */
     private CashReceiptResponse responseOf(CashReceipt receipt) {
         Map<UUID, String> journalNos = resolveJournalNos(List.of(receipt));
+        PartnerDisplay partner = resolvePartnerDisplay(receipt);
         return CashReceiptResponse.of(
                 receipt,
-                resolvePartnerDisplay(receipt),
+                partner,
                 journalNoOf(receipt.getJournalId(), journalNos),
-                journalNoOf(receipt.getReverseJournalId(), journalNos));
+                journalNoOf(receipt.getReverseJournalId(), journalNos),
+                responseLines(receipt, partner));
+    }
+
+    /** 행 합계가 총액과 같은 경우에만 분할 행을 저장한다. 빈행은 프론트에서 제외되어 도착한다. */
+    private void applyLines(CashReceipt receipt, CashReceiptRequest request) {
+        if (request.lines() == null || request.lines().isEmpty()) {
+            receipt.replaceLinesJson(null);
+            return;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        List<PersistedLine> persisted = new ArrayList<>();
+        for (CashReceiptLineRequest line : request.lines()) {
+            if (line == null || line.amount() == null || line.amount().signum() <= 0) {
+                throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "입금보고서 행 금액은 0보다 커야 합니다");
+            }
+            PartnerSummary partner = resolvePartner(line.partnerCode(), line.bizNo(), line.partnerName());
+            total = total.add(line.amount());
+            persisted.add(new PersistedLine(partner.partnerId(), partner.partnerCode(), partner.bizNo(),
+                    partner.name(), line.amount(), line.memo()));
+        }
+        if (total.compareTo(receipt.getAmount()) != 0) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "행 합계가 입금 총액과 같아야 합니다");
+        }
+        try {
+            receipt.replaceLinesJson(objectMapper.writeValueAsString(persisted));
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "입금보고서 행 저장에 실패했습니다");
+        }
+    }
+
+    private List<CashReceiptLineResponse> responseLines(CashReceipt receipt, PartnerDisplay legacyPartner) {
+        if (receipt.getLinesJson() == null || receipt.getLinesJson().isBlank()) {
+            return List.of(new CashReceiptLineResponse(legacyPartner.partnerCode(), legacyPartner.bizNo(),
+                    legacyPartner.partnerName(), receipt.getAmount(), receipt.getMemo()));
+        }
+        try {
+            List<PersistedLine> rows = objectMapper.readValue(receipt.getLinesJson(),
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, PersistedLine.class));
+            return rows.stream().map(row -> new CashReceiptLineResponse(row.partnerCode(), row.bizNo(),
+                    row.partnerName(), row.amount(), row.memo())).toList();
+        } catch (JsonProcessingException ex) {
+            throw new BusinessException(ErrorCode.UNPROCESSABLE_ENTITY, "입금보고서 행 조회에 실패했습니다");
+        }
+    }
+
+    private PartnerSummary resolveHeaderPartner(CashReceiptRequest request) {
+        if (hasText(request.partnerCode()) || hasText(request.bizNo()) || hasText(request.partnerName())) {
+            return resolvePartner(request);
+        }
+        if (request.lines() != null && !request.lines().isEmpty()) {
+            CashReceiptLineRequest line = request.lines().get(0);
+            return resolvePartner(line.partnerCode(), line.bizNo(), line.partnerName());
+        }
+        return resolvePartner(request);
+    }
+
+    private record PersistedLine(UUID partnerId, String partnerCode, String bizNo, String partnerName,
+                                 BigDecimal amount, String memo) {
     }
 
     /**

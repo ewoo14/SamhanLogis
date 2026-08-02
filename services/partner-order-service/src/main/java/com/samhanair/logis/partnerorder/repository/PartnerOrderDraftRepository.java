@@ -44,6 +44,10 @@ public interface PartnerOrderDraftRepository extends JpaRepository<PartnerOrderD
 
     Optional<PartnerOrderDraft> findByPartnerCodeAndDraftSeq(String partnerCode, long draftSeq);
 
+    /** 동일 거래처의 같은 자동전송 snapshot은 기존 draft를 재사용해 confirm 멱등키를 보존한다. */
+    Optional<PartnerOrderDraft> findFirstByPartnerCodeAndLabelAndPayloadJsonOrderByCreatedAtDesc(
+            String partnerCode, String label, String payloadJson);
+
     /** 30일 TTL cleanup batch — expiresAt &lt; cutoff. */
     List<PartnerOrderDraft> findAllByExpiresAtBefore(LocalDateTime cutoff);
 }

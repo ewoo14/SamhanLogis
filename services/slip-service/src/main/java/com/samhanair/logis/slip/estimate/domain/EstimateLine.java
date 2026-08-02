@@ -190,7 +190,8 @@ public class EstimateLine extends BaseEntity {
         validateUnitPrice(unitPriceWithVat);
         BigDecimal lineInclVat = unitPriceWithVat.multiply(BigDecimal.valueOf(quantity))
                 .setScale(0, RoundingMode.HALF_UP);
-        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat);
+        VatAmountCalculator.Split vatSplit = VatAmountCalculator.splitVatInclusive(lineInclVat,
+                RoundingMode.HALF_UP);
         BigDecimal supply = vatSplit.supplyAmount();
         BigDecimal supplyUnit = supply.divide(BigDecimal.valueOf(quantity), 2, RoundingMode.HALF_UP);
         EstimateLine line = new EstimateLine(estimate, lineNo, productId, productName, modelName,

@@ -174,6 +174,22 @@ class DispatchBatchSendServiceTest {
                 .doesNotContain("FAILED");
     }
 
+    @Test
+    @DisplayName("단톡방 이름은 SMS 수신자로 전달하지 않고 전송 실패로 남긴다")
+    void send_chatRoomName_neverSendsAsSmsPhone() {
+        DispatchBatchSendRequest req = new DispatchBatchSendRequest(
+                LocalDate.of(2026, 5, 10),
+                List.of(new SendEntry("P-ROOM", "room:발주방", "본문", "발주방")));
+
+        DispatchBatchSendResponse resp = service.send(req, "test-user");
+
+        assertThat(resp.sent()).isZero();
+        assertThat(resp.failed()).isEqualTo(1);
+        assertThat(resp.details().get(0).status()).isEqualTo("FAILED");
+        assertThat(resp.details().get(0).reason()).contains("단톡방");
+        verifyNoInteractions(notificationService);
+    }
+
     /** SENT 상태 stub NotificationRequest. */
     private NotificationRequest stubSentRequest() {
         NotificationRequest r = NotificationRequest.open(

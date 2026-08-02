@@ -91,6 +91,21 @@ const code = require('../lib/code');
 const slipBridge = require('../lib/slip-bridge');
 const axios = require('axios');
 
+describe('estimate snapshot author authentication boundary (#1009)', () => {
+  test('uses the authenticated saver email instead of the server default email', async () => {
+    axios.post.mockClear();
+
+    await code.saveQuoteSnapshot({
+      data: { lines: [] },
+      summary: { custName: 'author boundary RED' },
+    }, 'dev_master@samhan-air.com');
+
+    const snapshotPost = axios.post.mock.calls.find(([url]) => /\/internal\/estimates\/snapshots$/.test(url));
+    expect(snapshotPost).toBeTruthy();
+    expect(snapshotPost[1].userEmail).toBe('dev_master@samhan-air.com');
+  });
+});
+
 function extractNamedFunction(source, name) {
   const start = source.indexOf(`function ${name}`);
   if (start < 0) throw new Error(`${name} not found`);

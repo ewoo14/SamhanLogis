@@ -237,6 +237,21 @@ class ApiGatewayContextLoadIT {
         assertNoStripPrefix(routes, "groupware-service-noprefix");
     }
 
+    @Test
+    @DisplayName("그룹웨어 관리자 v1 라우트는 기존 /admin/groupware 규약으로 전달")
+    void groupwareAdminV1Route_usesExistingAdminGroupwareContract() {
+        List<RouteDefinition> routes = routeDefinitionLocator.getRouteDefinitions()
+                .collectList()
+                .block();
+
+        assertRoutePath(routes, "groupware-admin-v1", "/api/v1/admin/groupware/**");
+        assertHasStripPrefix(routes, "groupware-admin-v1", "2");
+        assertHasJwtAuthenticationFilter(routes, "groupware-admin-v1");
+        assertThat(indexOfRoute(routes, "groupware-admin-v1"))
+                .as("관리자 v1 라우트는 generic groupware v1 보다 먼저 선언돼야 한다")
+                .isLessThan(indexOfRoute(routes, "groupware-service-v1"));
+    }
+
     /** F6 주문서 bootstrap/gate/log 공개 라우트 — 인증 없이 접근하되 identity header spoof 는 제거. */
     @Test
     @DisplayName("partner-order 공개 라우트 — bootstrap/gate/log no-JWT + no-strip + 보호 route 선행")

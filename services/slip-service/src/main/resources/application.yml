@@ -182,14 +182,13 @@ app:
   public:
     base-url: ${PUBLIC_BASE_URL:https://sign.samhan-air.com}
   # Phase 6 M5 (slip-service-integration) — legacy ecount warehouseCode → 내부 warehouse UUID 매핑.
-  # 본 dev 기본값은 IT/local 용 placeholder UUID (실 운영은 환경 변수로 교체).
+  # 값은 inventory_db.warehouses 실재 행이며, 환경별로 반드시 주입한다.
   publish:
     warehouse-code-map:
-      "[00003]": ${WAREHOUSE_UUID_HQ:11111111-1111-1111-1111-111111111111}
-      "[2]":     ${WAREHOUSE_UUID_HUBAL:22222222-2222-2222-2222-222222222222}
-      "[14]":    ${WAREHOUSE_UUID_ANSEONG:33333333-3333-3333-3333-333333333333}
-      "[1]":     ${WAREHOUSE_UUID_CHANGWON:44444444-4444-4444-4444-444444444444}
-
+      "[00003]": ${WAREHOUSE_UUID_HQ:11111111-1111-1111-1111-000000000001}
+      "[2]":     ${WAREHOUSE_UUID_HUBAL:11111111-1111-1111-1111-000000000002}
+      "[14]":    ${WAREHOUSE_UUID_ANSEONG:11111111-1111-1111-1111-000000000003}
+      "[1]":     ${WAREHOUSE_UUID_CHANGWON:11111111-1111-1111-1111-000000000004}
 management:
   endpoints:
     web:
