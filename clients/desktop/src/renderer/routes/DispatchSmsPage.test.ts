@@ -16,7 +16,7 @@ const preview: DispatchSmsPreviewResponse = {
     partners: [{
       partnerCode: 'P-MAPPED',
       partnerName: '매핑 거래처',
-      slipNo: '전표-001',
+      slipNo: '2026/08/02-1',
       message: '매핑 본문',
       blocked: false,
     }],
@@ -25,14 +25,14 @@ const preview: DispatchSmsPreviewResponse = {
     {
       partnerCode: 'P-FALLBACK',
       partnerName: '인수자번호 거래처',
-      slipNo: '전표-002',
+      slipNo: '2026/08/02-2',
       message: 'fallback 본문',
       recipientPhone: '01000000001',
     },
     {
       partnerCode: 'P-NO-PHONE',
       partnerName: '번호 없음 거래처',
-      slipNo: '전표-003',
+      slipNo: '2026/08/02-3',
       message: '번호 없음 본문',
       recipientPhone: null,
     },
