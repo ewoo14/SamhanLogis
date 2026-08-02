@@ -127,11 +127,41 @@ export interface PartnerLedgerSourceDocument {
 }
 
 /** API 문서 순서를 보존하면서 debit-credit 누적잔액을 계산한다. */
+function documentSequence(documentNo: string): number {
+  const match = /(?:^|[-/])(\d+)\s*$/.exec(documentNo.trim())
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER
+}
+
+function compareDocuments(
+  left: { document: PartnerLedgerSourceDocument; index: number },
+  right: { document: PartnerLedgerSourceDocument; index: number },
+): number {
+  const dateOrder = left.document.date.localeCompare(right.document.date)
+  if (dateOrder !== 0) return dateOrder
+
+  const sequenceOrder = documentSequence(left.document.documentNo)
+    - documentSequence(right.document.documentNo)
+  if (sequenceOrder !== 0) return sequenceOrder
+
+  if (left.document.documentNo !== right.document.documentNo) {
+    return left.document.documentNo < right.document.documentNo ? -1 : 1
+  }
+
+  const typeOrder = (type: PartnerLedgerSourceDocument['type']): number =>
+    type === 'SALE' ? 0 : 1
+  const typeDifference = typeOrder(left.document.type) - typeOrder(right.document.type)
+  return typeDifference !== 0 ? typeDifference : left.index - right.index
+}
+
 export function buildPartnerLedgerLines(
   documents: PartnerLedgerSourceDocument[],
 ): LedgerLine[] {
   let balance = 0
-  return documents.flatMap((document) => {
+  const orderedDocuments = documents
+    .map((document, index) => ({ document, index }))
+    .sort(compareDocuments)
+
+  return orderedDocuments.flatMap(({ document }) => {
     const rows = document.type === 'SALE' && document.lines.length > 0
       ? document.lines.map((line) => ({
           date: document.date,

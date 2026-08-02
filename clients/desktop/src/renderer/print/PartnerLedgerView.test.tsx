@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getLedgerData } from '../api/partnerLedgerApi'
 import { PartnerLedgerView } from './PartnerLedgerView'
 
 vi.mock('../api/partnerLedgerApi', () => ({
@@ -41,5 +42,52 @@ describe('PartnerLedgerView', () => {
     await waitFor(() => expect(screen.getByText('서울시 배송 주소')).toBeTruthy())
     expect(screen.getAllByText('—').length).toBeGreaterThan(0)
     expect(screen.queryByText(/△/)).toBeNull()
+  })
+  it('keeps print summary one time for a multi-page-sized ledger', async () => {
+    vi.mocked(getLedgerData).mockResolvedValue({
+      partnerCode: 'P-1', partnerName: '거래처', partnerBusinessNo: '', chatRoomNames: [],
+      periodFrom: '2026-08-01', periodTo: '2026-08-31',
+      lines: Array.from({ length: 80 }, (_, index) => ({
+        date: '2026-08-01', journalNo: `2026/08/01-${index + 1}`,
+        accountCode: '', accountName: '', description: `품목 ${index + 1}`,
+        debit: '100', credit: '0', balance: String((index + 1) * 100),
+        deliveryAddress: null, documentType: 'SALE' as const,
+      })),
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/ledger/print?partnerCode=P-1&from=2026-08-01&to=2026-08-31']}>
+          <PartnerLedgerView />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('partner-ledger-print-summary')).toBeTruthy())
+    expect(screen.getAllByTestId('partner-ledger-print-summary')).toHaveLength(1)
+  })
+
+  it('renders negative running and closing balances in red while zero stays an em-dash', async () => {
+    vi.mocked(getLedgerData).mockResolvedValue({
+      partnerCode: 'P-1', partnerName: '거래처', partnerBusinessNo: '', chatRoomNames: [],
+      periodFrom: '2026-08-01', periodTo: '2026-08-31',
+      lines: [{ date: '2026-08-01', journalNo: '2026/08/01-1', accountCode: '', accountName: '',
+        description: '입금', debit: '0', credit: '100', balance: '-100',
+        deliveryAddress: null, documentType: 'CASH_RECEIPT' as const }],
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/ledger/print?partnerCode=P-1&from=2026-08-01&to=2026-08-31']}>
+          <PartnerLedgerView />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getAllByText('-100')).toHaveLength(2))
+    screen.getAllByText('-100').forEach((element) => {
+      expect((element as HTMLElement).style.color).toBe('rgb(220, 38, 38)')
+    })
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 })

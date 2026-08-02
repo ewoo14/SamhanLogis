@@ -310,7 +310,7 @@ export function PartnerLedgerView() {
                 </td>
                 <td className={styles.num}>-</td>
                 <td className={styles.num}>-</td>
-                <td className={`${styles.num} ${styles.balanceCell}`}>
+                <td className={`${styles.num} ${styles.balanceCell}`} style={{ color: data.openingBalance < 0 ? '#DC2626' : undefined }}>
                   {formatBalance(data.openingBalance)}
                 </td>
               </tr>
@@ -327,13 +327,13 @@ export function PartnerLedgerView() {
                   <td className={`${styles.num} ${styles.creditCell}`} style={{ color: line.credit < 0 ? '#DC2626' : undefined }}>
                     {formatBalance(line.credit)}
                   </td>
-                  <td className={`${styles.num} ${styles.balanceCell}`}>
+                  <td className={`${styles.num} ${styles.balanceCell}`} style={{ color: line.balance < 0 ? '#DC2626' : undefined }}>
                     {formatBalance(line.balance)}
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot>
+            <tbody className={styles.summaryBody} data-testid="partner-ledger-print-summary">
               <tr className={styles.totalRow}>
                 <td colSpan={4} className={styles.totalLabel}>
                   합계
@@ -352,11 +352,11 @@ export function PartnerLedgerView() {
                 <td colSpan={6} className={styles.closingLabel}>
                   기말 잔액 ({krDate(data.periodTo)} 기준)
                 </td>
-                <td className={`${styles.num} ${styles.balanceCell} ${styles.strong}`}>
+                <td className={`${styles.num} ${styles.balanceCell} ${styles.strong}`} style={{ color: data.closingBalance < 0 ? '#DC2626' : undefined }}>
                   {formatBalance(data.closingBalance)}
                 </td>
               </tr>
-            </tfoot>
+            </tbody>
           </table>
         )}
 

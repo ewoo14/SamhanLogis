@@ -18,4 +18,21 @@ describe('partner ledger adapter', () => {
     expect(lines.map((line) => line.balance)).toEqual(['100', '60'])
     expect(lines.map((line) => line.journalNo)).toEqual(['2026/08/01-1', '2026/08/02-1'])
   })
+
+  it('orders same-day unpadded document numbers numerically before computing balances', () => {
+    const lines = buildPartnerLedgerLines([
+      {
+        type: 'SALE', documentNo: '2026/08/01-10', date: '2026-08-01', deliveryAddress: null,
+        amount: '100', lines: [{ productName: 'ten', modelName: null, quantity: 1,
+          unitPriceWithVat: '100', lineAmount: '100' }],
+      },
+      {
+        type: 'CASH_RECEIPT', documentNo: '2026/08/01-2', date: '2026-08-01', deliveryAddress: null,
+        amount: '40', lines: [],
+      },
+    ])
+
+    expect(lines.map((line) => line.journalNo)).toEqual(['2026/08/01-2', '2026/08/01-10'])
+    expect(lines.map((line) => line.balance)).toEqual(['-40', '60'])
+  })
 })
