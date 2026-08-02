@@ -5,8 +5,8 @@ import com.samhanair.logis.common.excel.ExcelExportRequest;
 import com.samhanair.logis.common.excel.ExcelExporter;
 import com.samhanair.logis.inventory.client.ProductClient;
 import com.samhanair.logis.inventory.client.ProductSummary;
+import com.samhanair.logis.inventory.domain.StockBalance;
 import com.samhanair.logis.inventory.repository.StockBalanceRepository;
-import com.samhanair.logis.inventory.web.dto.StockBalanceResponse;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -33,11 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <h2>#907 재수렴 R — 품목 식별자 추가</h2>
  * <p>기존 컬럼(창고코드/창고명/가용/예약/총수량)만으로는 200행이 어느 품목의 재고인지
- * 구분할 수 없었다. {@code StockBalanceResponse} 는 productId(UUID)만 가지고 품목코드/명이
- * 없으므로, inventory-service 안에 이미 있는 {@link ProductClient}(product-service internal
+ * 구분할 수 없었다. {@link ProductClient}(product-service internal
  * batch lookup, 안전재고 알림 화면 등에서 기존 사용 중인 client)로 productId → productCode/명을
- * 해석한다. 공유 DTO({@code StockBalanceResponse}, {@code /inventory/balances} 소비처)는
- * 건드리지 않고 export 서비스 내부에서만 enrich — 그 GET endpoint 의 응답 계약은 무영향.
+ * 해석한다. 응답 DTO에는 UUID를 넣지 않고, export 내부에서만 원천 엔티티의 UUID를 사용한다.
  * product-service 조회가 실패(예: 품목 삭제로 일부 lookup 누락)해도 export 자체는 실패하지
  * 않고 해당 행만 "—" 로 남는다(가용성 우선 — export 는 F-1 회귀 울타리 대상).
  *
@@ -79,22 +77,20 @@ public class StockExcelExportService {
         Pageable pageable = PageRequest.of(0, MAX_ROWS,
                 Sort.by(Sort.Direction.ASC, "warehouse.code"));
 
-        Page<StockBalanceResponse> page;
+        Page<StockBalance> page;
         if (warehouseId != null) {
             page = stockBalanceRepository
-                    .findAllByWarehouse_IdAndIsDeletedFalse(warehouseId, pageable)
-                    .map(StockBalanceResponse::from);
+                    .findAllByWarehouse_IdAndIsDeletedFalse(warehouseId, pageable);
         } else {
             page = stockBalanceRepository
-                    .findAll(pageable)
-                    .map(StockBalanceResponse::from);
+                    .findAll(pageable);
         }
 
-        List<StockBalanceResponse> content = page.getContent();
+        List<StockBalance> content = page.getContent();
         Map<UUID, ProductSummary> productsById = resolveProducts(content);
 
         List<Map<String, Object>> rows = content.stream()
-                .map(r -> toRow(r, productsById.get(r.productId())))
+                .map(r -> toRow(r, productsById.get(r.getProductId())))
                 .toList();
 
         ExcelExportRequest req = new ExcelExportRequest("재고잔량", COLUMNS, rows);
@@ -107,11 +103,11 @@ public class StockExcelExportService {
      * export 를 중단시키지 않고 해당 청크만 빈 결과로 남긴다 — 화면 다운로드는 항상 200 이어야
      * 한다(F-1 회귀 울타리).
      */
-    private Map<UUID, ProductSummary> resolveProducts(List<StockBalanceResponse> balances) {
+    private Map<UUID, ProductSummary> resolveProducts(List<StockBalance> balances) {
         Set<UUID> distinctIds = new LinkedHashSet<>();
-        for (StockBalanceResponse r : balances) {
-            if (r.productId() != null) {
-                distinctIds.add(r.productId());
+        for (StockBalance r : balances) {
+            if (r.getProductId() != null) {
+                distinctIds.add(r.getProductId());
             }
         }
         Map<UUID, ProductSummary> result = new HashMap<>();
@@ -140,16 +136,16 @@ public class StockExcelExportService {
         }
     }
 
-    /** StockBalanceResponse + product(nullable) → row Map 변환. UUID 필드 제외. */
-    private static Map<String, Object> toRow(StockBalanceResponse r, ProductSummary product) {
+    /** StockBalance + product(nullable) → row Map 변환. UUID 필드 제외. */
+    private static Map<String, Object> toRow(StockBalance r, ProductSummary product) {
         Map<String, Object> row = new HashMap<>();
         row.put("productCode",   product != null ? nvl(product.productCode()) : "");
         row.put("productName",   product != null ? nvl(product.name()) : "");
-        row.put("warehouseCode", nvl(r.warehouseCode()));
-        row.put("warehouseName", nvl(r.warehouseName()));
-        row.put("availableQty",  r.availableQty());
-        row.put("reservedQty",   r.reservedQty());
-        row.put("totalQty",      r.totalQty());
+        row.put("warehouseCode", nvl(r.getWarehouse().getCode()));
+        row.put("warehouseName", nvl(r.getWarehouse().getName()));
+        row.put("availableQty",  r.getAvailableQty());
+        row.put("reservedQty",   r.getReservedQty());
+        row.put("totalQty",      r.getTotalQty());
         return row;
     }
 

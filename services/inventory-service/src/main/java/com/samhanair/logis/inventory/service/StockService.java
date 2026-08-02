@@ -22,6 +22,7 @@ import com.samhanair.logis.inventory.web.dto.ReleaseRequest;
 import com.samhanair.logis.inventory.web.dto.ReservationResponse;
 import com.samhanair.logis.inventory.web.dto.ReserveRequest;
 import com.samhanair.logis.inventory.web.dto.StockLotResponse;
+import com.samhanair.logis.inventory.web.dto.StockBalanceResponse;
 import jakarta.persistence.OptimisticLockException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -31,6 +32,8 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,6 +59,35 @@ public class StockService {
     private final ProductClient productClient;
 
     /**
+     * 재고 현황 페이지를 조회하고 페이지에 포함된 품목 메타데이터를 bulk 병합한다.
+     * 품목 UUID 자체는 응답 식별자로 사용하되 화면에는 모델코드/품목명만 표시한다.
+     *
+     * @param productId 기존 품목별 호출의 선택 필터
+     * @param warehouseId 전체 또는 특정 창고 선택 필터
+     * @param pageable 페이지 조건
+     * @return 창고·품목 메타데이터가 채워진 재고 현황 페이지
+     */
+    @Transactional(readOnly = true)
+    public Page<StockBalanceResponse> findBalancePage(UUID productId, UUID warehouseId, Pageable pageable) {
+        Page<StockBalance> balances =
+                stockBalanceRepository.findBalancePage(productId, warehouseId, pageable);
+        Map<UUID, ProductSummary> productsById = new LinkedHashMap<>();
+        List<UUID> productIds = balances.getContent().stream()
+                .map(StockBalance::getProductId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        for (int from = 0; from < productIds.size(); from += 100) {
+            int to = Math.min(from + 100, productIds.size());
+            for (ProductSummary product : productClient.lookup(productIds.subList(from, to))) {
+                productsById.put(product.id(), product);
+            }
+        }
+        return balances.map(balance -> StockBalanceResponse.from(balance,
+                productsById.get(balance.getProductId())));
+    }
+
+    /**
      * 입고 — ProductClient 로 productId 존재 검증 후 단일 트랜잭션 안에서
      * StockLot 생성 + StockBalance 가산 + StockMovement(INBOUND) 기록.
      *
@@ -75,8 +107,21 @@ public class StockService {
         }
         Warehouse warehouse = loadWarehouseOrThrow(req.warehouseId());
 
+        if (req.lotNo() != null) {
+            StockLot existingLot = (req.inboundLineId() == null
+                    ? stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndIsDeletedFalse(
+                            req.productId(), req.warehouseId(), req.lotNo())
+                    : stockLotRepository.findFirstByProductIdAndWarehouse_IdAndLotNoAndInboundLineIdAndIsDeletedFalse(
+                            req.productId(), req.warehouseId(), req.lotNo(), req.inboundLineId()))
+                    .orElse(null);
+            if (existingLot != null) {
+                // 검수 완료 경로가 먼저 만든 동일 전표 lot — 전표 경로는 중복 반영하지 않는다.
+                return StockLotResponse.from(existingLot);
+            }
+        }
+
         StockLot lot = stockLotRepository.save(StockLot.create(
-                req.productId(), warehouse, req.lotNo(), req.quantity(),
+                req.productId(), warehouse, req.lotNo(), req.inboundLineId(), req.quantity(),
                 req.receivedAt(), req.unitCost()));
 
         StockBalance balance = loadOrCreateBalance(req.productId(), warehouse);

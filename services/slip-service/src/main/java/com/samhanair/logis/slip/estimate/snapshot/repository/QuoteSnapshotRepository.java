@@ -31,13 +31,22 @@ public interface QuoteSnapshotRepository extends JpaRepository<QuoteSnapshot, UU
      */
     @Query("""
             SELECT q FROM QuoteSnapshot q
-            WHERE q.userEmail = :userEmail
+            WHERE (:userEmail IS NULL OR q.authorEmail = :userEmail)
               AND q.savedAt >= :from
               AND q.savedAt <= :to
             ORDER BY q.savedAt DESC
             """)
     List<QuoteSnapshot> findHistory(@Param("userEmail") String userEmail,
             @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    /** 작성자 제한 없이 모든 활성 견적을 최신순으로 조회한다. */
+    @Query("""
+            SELECT q FROM QuoteSnapshot q
+            WHERE q.savedAt >= :from AND q.savedAt <= :to
+            ORDER BY q.savedAt DESC
+            """)
+    List<QuoteSnapshot> findAllHistory(@Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
 
     /**
@@ -48,7 +57,7 @@ public interface QuoteSnapshotRepository extends JpaRepository<QuoteSnapshot, UU
      */
     @Query("""
             SELECT q FROM QuoteSnapshot q
-            WHERE q.userEmail = :userEmail
+            WHERE (:userEmail IS NULL OR q.authorEmail = :userEmail)
               AND LOWER(q.custName) LIKE LOWER(CONCAT('%', CAST(:custName AS string), '%'))
             ORDER BY q.savedAt DESC
             """)

@@ -19,6 +19,7 @@
 
 const express = require('express');
 const code = require('../lib/code');
+const { readCookie } = require('../lib/auth-context');
 
 const router = express.Router();
 
@@ -36,11 +37,20 @@ router.post('/:fnName', async (req, res) => {
   }
 
   try {
-    const result = await Promise.resolve(fn.apply(null, args));
+    const identityBound = new Set(['saveQuoteSnapshot']);
+    const authenticatedEmail = identityBound.has(fnName) ? readCookie(req.headers.cookie) : null;
+    if (identityBound.has(fnName) && !authenticatedEmail) {
+      return res.status(401).json({ ok: false, error: '인증된 사용자 세션이 필요합니다' });
+    }
+    const callArgs = authenticatedEmail ? [...args, authenticatedEmail] : args;
+    const result = await Promise.resolve(fn.apply(null, callArgs));
     return res.json({ ok: true, result });
   } catch (err) {
     console.error(`[rpc] ${fnName} 에러:`, err);
-    return res.status(500).json({ ok: false, error: String(err.message || err) });
+    const upstreamStatus = Number(err && (err.statusCode || (err.response && err.response.status)));
+    const status = Number.isInteger(upstreamStatus) && upstreamStatus >= 400 && upstreamStatus < 600
+      ? upstreamStatus : 500;
+    return res.status(status).json({ ok: false, error: String(err.message || err) });
   }
 });
 

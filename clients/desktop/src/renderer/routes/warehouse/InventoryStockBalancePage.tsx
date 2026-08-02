@@ -319,7 +319,7 @@ export function InventoryStockBalancePage() {
         <DataGrid<StockBalanceListRow>
           columns={COLUMNS}
           rows={rows}
-          rowKey={(row) => `${row.productId}-${row.warehouseCode}`}
+          rowKey={(row) => `${row.productCode}-${row.warehouseCode}`}
           loading={balancesQuery.isFetching}
           emptyMessage={
             !queried
