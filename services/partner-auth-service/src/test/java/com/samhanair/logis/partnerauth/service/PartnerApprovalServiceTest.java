@@ -22,6 +22,7 @@ class PartnerApprovalServiceTest {
     void longUnused_toApproved_changesPersistedState() {
         PartnerAuthRepository repository = mock(PartnerAuthRepository.class);
         DcConfigClient dcConfigClient = mock(DcConfigClient.class);
+        PartnerActivityReader activityReader = mock(PartnerActivityReader.class);
         PartnerAuth auth = PartnerAuth.seedFromLegacy(
                 "1234567890", "P001", "{noop}not-a-real-password", PartnerStatus.LONG_UNUSED);
         when(repository.findByBizNo("1234567890")).thenReturn(Optional.of(auth));
@@ -29,7 +30,7 @@ class PartnerApprovalServiceTest {
         setLastLoginAt(auth, LocalDateTime.of(2026, 7, 1, 9, 0));
         LocalDateTime expirationBeforeRestore = auth.expirationAt();
 
-        PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient);
+        PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
 
         service.updateStatus("1234567890", PartnerApprovalStatus.APPROVED);
 

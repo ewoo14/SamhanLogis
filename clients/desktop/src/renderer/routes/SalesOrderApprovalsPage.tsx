@@ -58,7 +58,7 @@ function fmtDateTime(s: string | null): string {
 export function SalesOrderApprovalsPage() {
   const setPageTitle = usePageTitleStore((s) => s.setPageTitle)
   const [statusFilter, setStatusFilter] = useState<PartnerApprovalStatus | ''>('')
-  const [unusedDays, setUnusedDays] = useState(30)
+  const unusedDays = 30
   const [selectedCandidateCodes, setSelectedCandidateCodes] = useState<string[]>([])
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
@@ -247,18 +247,7 @@ export function SalesOrderApprovalsPage() {
             <span className={styles['badge']}>전체 {query.data?.totalElements ?? 0}건</span>
           </div>
           <div className={styles['topActions']}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              장기미사용 기간
-              <input
-                type="number"
-                min={1}
-                max={365}
-                value={unusedDays}
-                onChange={(e) => setUnusedDays(Math.min(365, Math.max(1, Number(e.target.value) || 1)))}
-                aria-label="장기미사용 기간(일)"
-                style={{ width: 72, padding: '6px 8px' }}
-              />일
-            </label>
+            <span aria-label="장기미발주 기준 기간">장기미발주 기준: 주문·출고 활동 없음 30일</span>
             <select
               value={statusFilter}
               onChange={(e) =>
@@ -288,7 +277,7 @@ export function SalesOrderApprovalsPage() {
             <div>
               <h2 id="access-preview-heading" style={{ margin: 0, fontSize: 16 }}>비밀번호 초기화 대상 미리보기</h2>
               <p style={{ margin: '6px 0 0', color: '#4b5563', fontSize: 13 }}>
-                마지막 로그인일이 없으면 비밀번호 변경일을 기준으로 {unusedDays}일이 지난 거래처입니다. 목록을 확인한 뒤 실행하십시오.
+                마지막 로그인·비밀번호 변경일이 아니라 주문 확정일과 출고일을 함께 확인해, 두 활동이 모두 30일 이상 없는 거래처입니다. 비밀번호 초기화는 별도 기능으로 동작합니다.
               </p>
             </div>
             <button

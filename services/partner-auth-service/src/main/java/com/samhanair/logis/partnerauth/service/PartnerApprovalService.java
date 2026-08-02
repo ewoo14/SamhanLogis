@@ -11,7 +11,7 @@ import jakarta.persistence.EntityNotFoundException;
 import java.util.Collection;
 import java.util.List;
 import java.time.LocalDateTime;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
  * SMS/이메일 발송 연동은 backlog (Phase 11 partner-auth 통합 흐름).
  */
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class PartnerApprovalService {
 
@@ -38,6 +37,17 @@ public class PartnerApprovalService {
      * resolve 실패 시 PartnerApprovalResponse 는 partnerCode 폴백.
      */
     private final DcConfigClient dcConfigClient;
+    private final PartnerActivityReader partnerActivityReader;
+
+    /** 주문·출고 활동 조회를 주입받아 로그인 시각과 판정 기준을 분리한다. */
+    @Autowired
+    public PartnerApprovalService(PartnerAuthRepository partnerAuthRepository,
+                                  DcConfigClient dcConfigClient,
+                                  PartnerActivityReader partnerActivityReader) {
+        this.partnerAuthRepository = partnerAuthRepository;
+        this.dcConfigClient = dcConfigClient;
+        this.partnerActivityReader = partnerActivityReader;
+    }
 
     @Transactional(readOnly = true)
     public Page<PartnerApprovalResponse> list(PartnerApprovalStatus status, Pageable pageable) {
@@ -54,10 +64,10 @@ public class PartnerApprovalService {
     /**
      * 주문서 앱 접근권한 설정의 장기미사용 후보 미리보기.
      *
-     * <p>현행 판정 기준(lastLoginAt 우선, 없으면 passwordChangedAt)을 유지하고
-     * 기간만 호출자가 조정한다. 비밀번호나 UUID는 반환하지 않는다.
+     * <p>장기미발주는 로그인·비밀번호 시각이 아니라 주문·출고 활동 시각을 기준으로
+     * 레거시 30일을 적용한다. 비밀번호 재설정 자체의 시각 기준은 이 메서드에 섞지 않는다.
      *
-     * @param unusedDays 장기미사용 기간(일)
+     * @param unusedDays 레거시 API 호환용 입력(판정은 항상 30일)
      * @return 사람이 확인할 거래처 후보
      */
     @Transactional(readOnly = true)
@@ -68,8 +78,11 @@ public class PartnerApprovalService {
                         || pa.getStatus() == PartnerStatus.OK
                         || pa.getStatus() == PartnerStatus.LONG_UNUSED)
                 .filter(pa -> {
-                    LocalDateTime expirationAt = pa.expirationAt(unusedDays);
-                    return expirationAt != null && !expirationAt.isAfter(now);
+                    PartnerActivity activity = partnerActivityReader.read(pa.getPartnerCode());
+                    if (activity == null) return false;
+                    LocalDateTime lastActivityAt = activity.lastActivityAt();
+                    return lastActivityAt != null
+                            && !lastActivityAt.plusDays(PartnerAuth.LONG_UNUSED_DAYS).isAfter(now);
                 })
                 .map(this::buildResponse)
                 .toList();
