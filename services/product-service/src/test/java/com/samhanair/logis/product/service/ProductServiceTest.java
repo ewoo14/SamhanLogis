@@ -173,7 +173,7 @@ class ProductServiceTest {
 
     @Test
     void create_duplicateActiveName_throwsConflict() {
-        when(productRepository.findByNameAndIsDeletedFalse("스마트 벽걸이"))
+        when(productRepository.findByNameAndStatusAndIsDeletedFalse("스마트 벽걸이", ProductStatus.ACTIVE))
                 .thenReturn(List.of(product));
 
         assertThatThrownBy(() -> service.create(new CreateProductRequest(
@@ -234,7 +234,8 @@ class ProductServiceTest {
         ReflectionTestUtils.setField(conflict, "id", UUID.randomUUID());
         conflict.changeModelCode("MODEL-CONFLICT-99");
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-        when(productRepository.findByNameAndIsDeletedFalse("다른 품목")).thenReturn(List.of(conflict));
+        when(productRepository.findByNameAndStatusAndIsDeletedFalse("다른 품목", ProductStatus.ACTIVE))
+                .thenReturn(List.of(conflict));
 
         assertThatThrownBy(() -> service.update(productId,
                 new UpdateProductRequest("다른 품목", null, null, null)))
@@ -258,12 +259,14 @@ class ProductServiceTest {
                 new UpdateProductRequest(null, null, null, "가격표 보완"));
 
         assertThat(response.description()).isEqualTo("가격표 보완");
-        verify(productRepository, never()).findByNameAndIsDeletedFalse(any(String.class));
+        verify(productRepository, never()).findByNameAndStatusAndIsDeletedFalse(
+                any(String.class), any(ProductStatus.class));
     }
 
     @Test
     void create_nameUsedOnlyBySoftDeletedProduct_isAllowed() {
-        when(productRepository.findByNameAndIsDeletedFalse("폐기 후 재사용")).thenReturn(List.of());
+        when(productRepository.findByNameAndStatusAndIsDeletedFalse("폐기 후 재사용", ProductStatus.ACTIVE))
+                .thenReturn(List.of());
         when(productRepository.existsByModelNameAndIsDeletedFalse("SHA-REUSE-1")).thenReturn(false);
         when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
         when(productRepository.save(any(Product.class))).thenAnswer(inv -> {

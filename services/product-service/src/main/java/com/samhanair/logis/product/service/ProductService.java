@@ -563,7 +563,7 @@ public class ProductService {
      */
     private void assertNameAvailable(String name, UUID excludedProductId) {
         String normalizedName = name.trim();
-        productRepository.findByNameAndIsDeletedFalse(normalizedName).stream()
+        productRepository.findByNameAndStatusAndIsDeletedFalse(normalizedName, ProductStatus.ACTIVE).stream()
                 .filter(candidate -> !Objects.equals(candidate.getId(), excludedProductId))
                 .findFirst()
                 .ifPresent(conflict -> {
@@ -608,7 +608,9 @@ public class ProductService {
     }
 
     public void reactivate(UUID id) {
-        loadOrThrow(id).reactivate();
+        Product product = loadOrThrow(id);
+        assertNameAvailable(product.getName(), product.getId());
+        product.reactivate();
     }
 
     /**
