@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 import com.samhanair.logis.notification.client.BlockedPartnerLookupClient;
 import com.samhanair.logis.notification.client.OutboundSlipDto;
@@ -99,6 +100,7 @@ class DispatchBatchPreviewServiceTest {
         assertThat(resp.unmapped()).hasSize(1);
         assertThat(resp.unmapped().get(0).partnerCode()).isEqualTo("P-002");
         assertThat(resp.unmapped().get(0).slipNo()).isEqualTo("OUT-002");
+        verify(blockedPartnerLookupClient).isBlocked("P-002");
     }
 
     @Test

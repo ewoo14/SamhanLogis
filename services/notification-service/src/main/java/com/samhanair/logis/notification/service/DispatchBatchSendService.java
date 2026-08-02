@@ -99,7 +99,7 @@ public class DispatchBatchSendService {
             } catch (Exception ex) {
                 log.warn("DispatchBatchSendService — blocked lookup 실패 partnerCode={}, msg={}",
                         partnerCode, ex.getMessage());
-                // fail-soft = false (가드 누락 회피 — 운영자 의도 우선) — 이전 검사는 false 유지
+                isBlocked = true;
             }
             if (isBlocked) {
                 blocked++;

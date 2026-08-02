@@ -86,6 +86,7 @@ public class DispatchBatchPreviewService {
                 mappings = chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot(slip.partnerName());
             }
             if (mappings.isEmpty()) {
+                blockedPartnerLookupClient.isBlocked(partnerCode);
                 unmapped.add(new UnmappedPartner(
                         partnerCode, slip.partnerName(), slip.slipNo(), message, slip.recipientPhone()));
                 unmappedCount++;

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.notification.adapter.NotificationGatewayResult;
@@ -116,6 +117,25 @@ class DispatchBatchSendServiceTest {
         assertThat(resp.details()).hasSize(1);
         assertThat(resp.details().get(0).status()).isEqualTo("BLOCKED");
         // notificationService.send 미호출 검증
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("blocked 조회 실패 — 안전하게 차단하고 SMS adapter에 도달하지 않는다")
+    void send_blockedLookupFailure_failsClosed() {
+        doThrow(new IllegalStateException("partner-service unavailable"))
+                .when(blockedPartnerLookupClient).isBlocked("P-LOOKUP-FAIL");
+
+        DispatchBatchSendRequest req = new DispatchBatchSendRequest(
+                LocalDate.of(2026, 5, 10),
+                List.of(new SendEntry("P-LOOKUP-FAIL", "01099998888", "본문", "방X")));
+
+        DispatchBatchSendResponse resp = service.send(req, "test-user");
+
+        assertThat(resp.sent()).isZero();
+        assertThat(resp.blocked()).isEqualTo(1);
+        assertThat(resp.failed()).isZero();
+        assertThat(resp.details().get(0).status()).isEqualTo("BLOCKED");
         verifyNoInteractions(notificationService);
     }
 
