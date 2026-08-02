@@ -28,7 +28,7 @@ public record PublishFromPartnerOrderRequest(
         @NotBlank @Size(max = 64) String partnerOrderId,
         String ioDate,
         @Size(max = 100) String partnerCode,
-        @Size(max = 20) String bizCode,
+        @NotBlank @Size(max = 20) String bizCode,
         @Size(max = 100) String partnerName,
         @Size(max = 50) String employeeCode,
         @NotBlank @Size(max = 50) String warehouseCode,

@@ -43,7 +43,7 @@ public record PublishFromOrdersMergeRequest(
         String ioDate,
         @NotNull UUID partnerId,
         @Size(max = 100) String partnerCode,
-        @Size(max = 20) String bizCode,
+        @NotBlank @Size(max = 20) String bizCode,
         @Size(max = 100) String partnerName,
         @Size(max = 50) String employeeCode,
         @NotBlank @Size(max = 50) String warehouseCode,

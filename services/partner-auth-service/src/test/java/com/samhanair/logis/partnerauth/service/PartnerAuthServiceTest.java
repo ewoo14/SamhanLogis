@@ -84,6 +84,8 @@ class PartnerAuthServiceTest {
         smsClient = mock(SmsClient.class);
         activityReader = mock(PartnerActivityReader.class);
         lenient().when(activityReader.read(anyString())).thenReturn(new PartnerActivity(null, null));
+        lenient().when(activityReader.read(anyString(), anyString()))
+                .thenReturn(new PartnerActivity(null, null));
 
         // lenient — 모든 테스트가 dcConfigClient.findByBizNo 를 호출하지는 않음.
         lenient().when(dcConfigClient.findByBizNo(anyString())).thenReturn(Optional.empty());
