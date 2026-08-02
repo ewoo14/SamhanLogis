@@ -131,7 +131,11 @@ export function deriveLegacyAnalysis(rows: readonly InOutAnalysisRow[]): LegacyA
       })
     }
   }
-  const sorted = [...aggregate.values()].sort((a, b) => b.outboundQuantity - a.outboundQuantity)
+  // 레거시 Index.html:388-393의 Object.keys(outCounts)와 동일하게,
+  // 출고량이 집계된 모델만 Top/Bottom 순위 모집단에 포함한다.
+  const sorted = [...aggregate.values()]
+    .filter((row) => row.outboundQuantity > 0)
+    .sort((a, b) => b.outboundQuantity - a.outboundQuantity)
   const top3 = sorted.slice(0, 3).map(({ modelCode, productName, outboundQuantity }) => ({ modelCode, productName, outboundQuantity }))
   const bottom3 = sorted.slice(-3).reverse().map(({ modelCode, productName, outboundQuantity }) => ({ modelCode, productName, outboundQuantity }))
   const recommendations: LegacyRecommendation[] = []

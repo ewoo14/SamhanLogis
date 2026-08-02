@@ -135,4 +135,28 @@ describe('입출고 모델 복수 칩 필터', () => {
     expect(analysis.bottom3).toHaveLength(3)
     expect(analysis.recommendations.length).toBeGreaterThan(0)
   })
+
+  it('입고 전용 모델은 제외하고 출고 모델만 Top 3·Bottom 3에 함께 사용한다', () => {
+    const rows = [
+      { modelCode: 'TOP', outboundQuantity: 5 },
+      { modelCode: 'BOTTOM-A', outboundQuantity: 1 },
+      { modelCode: 'BOTTOM-B', outboundQuantity: 1 },
+      { modelCode: 'BOTTOM-C', outboundQuantity: 2 },
+      { modelCode: 'INBOUND-ONLY', outboundQuantity: 0 },
+    ].map(({ modelCode, outboundQuantity }) => withProfitFields({
+      modelCode,
+      productName: modelCode,
+      inboundQuantity: 10,
+      outboundQuantity,
+      purchaseAmount: 100,
+      salesAmount: 200,
+      monthly: [{ year: 2026, month: 1, inboundQuantity: 10, outboundQuantity }],
+    }))
+
+    const analysis = deriveLegacyAnalysis(rows)
+
+    expect(analysis.top3.map((row) => row.outboundQuantity)).toEqual([5, 2, 1])
+    expect(analysis.bottom3.map((row) => row.outboundQuantity)).toEqual([1, 1, 2])
+    expect(analysis.bottom3.some((row) => row.modelCode === 'INBOUND-ONLY')).toBe(false)
+  })
 })
