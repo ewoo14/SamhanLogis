@@ -305,6 +305,11 @@ public class DiscountRevalidator {
         }
 
         /** 레거시 세트코드 규칙으로 싱글 세트에 적용할 옵션 정액을 고른다. */
+        BigDecimal discountForSet(String modelToken) {
+            BigDecimal discount = optionDiscountFor(modelToken);
+            return discount == null ? BigDecimal.ZERO : discount.abs();
+        }
+
         private BigDecimal optionDiscountFor(String modelToken) {
             String code = modelToken == null ? "" : modelToken.toUpperCase(java.util.Locale.ROOT);
             if (code.startsWith("AR") && code.endsWith("S") || code.startsWith("AF") && code.endsWith("S")) {

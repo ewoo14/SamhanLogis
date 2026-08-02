@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.ApplicablePrice;
+import com.samhanair.logis.accounting.client.EstimateComponent;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
@@ -298,6 +299,50 @@ class DailyClosingDetailServiceTest {
                 eq("무풍 4way 냉난방 프레스티지 실외기"), eq("AC060CXAPBH1"),
                 eq(new BigDecimal("110000.0000000000")), eq(new BigDecimal("150000")),
                 eq(new BigDecimal("100000")), eq(null), org.mockito.ArgumentMatchers.any(),
+                eq(ProductLabelMatch.Status.MATCHED));
+    }
+
+    @Test
+    @DisplayName("완성 세트 매칭 시 실내기와 실외기 모두 세트 토큰을 사용한다")
+    void dailyDetailAppliesMatchedSetToIndoorAndOutdoor() {
+        UUID indoor = UUID.randomUUID();
+        UUID outdoor = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-SET-PARITY", "세트거래처", DATE);
+        addLineWithAxis(ti, "싱글 실내기", "AC060CN4PBH1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("100000"));
+        addLineWithAxis(ti, "싱글 실외기", "AC060CXAPBH1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("200000"));
+        recalcSnapshot(ti);
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "싱글 실내기", ProductLabelMatch.matched(indoor, "AC060CN4PBH1"),
+                "싱글 실외기", ProductLabelMatch.matched(outdoor, "AC060CXAPBH1")));
+        when(productClient.lookupByModel("AC060CN4PBH1"))
+                .thenReturn(new ProductSummary(indoor, "싱글 실내기", "AC060CN4PBH1", null, null,
+                        "ACTIVE", "singleSets", "AC060CN4PBH1"));
+        when(productClient.lookupByModel("AC060CXAPBH1"))
+                .thenReturn(new ProductSummary(outdoor, "싱글 실외기", "AC060CXAPBH1", null, null,
+                        "ACTIVE", "singleSets", "AC060CXAPBH1"));
+        when(productClient.estimateComponents(eq("SINGLE_SET"))).thenReturn(List.of(
+                new EstimateComponent("AC060CS4PBH2SY", "AC060CN4PBH1",
+                        new BigDecimal("110000"), new BigDecimal("120000"), "INDOOR"),
+                new EstimateComponent("AC060CS4PBH2SY", "AC060CXAPBH1",
+                        new BigDecimal("220000"), new BigDecimal("230000"), "OUTDOOR")));
+        when(productClient.estimateComponents(eq("COMMERCIAL_MULTI"))).thenReturn(List.of());
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                indoor, new ApplicablePrice(new BigDecimal("120000"), new BigDecimal("110000"), DATE),
+                outdoor, new ApplicablePrice(new BigDecimal("230000"), new BigDecimal("220000"), DATE)));
+
+        service.getDailyDetail(DATE);
+
+        verify(discountRevalidator).revalidate(eq("싱글 실내기"), eq("AC060CS4PBH2SY"),
+                eq(new BigDecimal("110000.0000000000")), eq(new BigDecimal("120000")),
+                eq(new BigDecimal("110000")), eq(null), org.mockito.ArgumentMatchers.any(),
+                eq(ProductLabelMatch.Status.MATCHED));
+        verify(discountRevalidator).revalidate(eq("싱글 실외기"), eq("AC060CS4PBH2SY"),
+                eq(new BigDecimal("220000.0000000000")), eq(new BigDecimal("230000")),
+                eq(new BigDecimal("220000")), eq(null), org.mockito.ArgumentMatchers.any(),
                 eq(ProductLabelMatch.Status.MATCHED));
     }
 
