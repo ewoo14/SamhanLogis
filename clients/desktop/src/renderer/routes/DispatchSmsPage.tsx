@@ -70,28 +70,40 @@ function buildInitialEdited(preview: DispatchSmsPreviewResponse): EditedMessages
 /**
  * 실제 SMS 요청으로 만들 수 있는 미매핑·인수자 번호 보유 전표만 선별한다.
  * 단톡방 매핑 전표는 현재 단톡방 직접 전송 수단이 없어 SMS 요청 대상이 아니다.
+ * 같은 날짜의 같은 수신번호는 레거시 P_<번호> 키처럼 한 entry로 병합한다.
  */
 export function buildSendEntries(
   preview: DispatchSmsPreviewResponse,
   edited: EditedMessages,
 ): DispatchSmsSendEntry[] {
-  const entries: DispatchSmsSendEntry[] = []
+  const entriesByRecipient = new Map<string, DispatchSmsSendEntry>()
   // 단톡방 직접 전송 API가 없으므로 매핑된 room은 수동 전달 경로로 남긴다.
   // 매핑이 없는 건만 인수자 전화번호 SMS fallback으로 보낸다.
   for (const p of preview.unmapped) {
-    if (!p.recipientPhone) continue
-    entries.push({
+    const recipientPhone = p.recipientPhone?.trim() ?? ''
+    if (!recipientPhone) continue
+    const message = edited[p.partnerCode] ?? p.message
+    const existing = entriesByRecipient.get(recipientPhone)
+    if (existing) {
+      existing.message = `${existing.message}\n\n${message}`
+      continue
+    }
+    entriesByRecipient.set(recipientPhone, {
       partnerCode: p.partnerCode,
-      recipientPhone: p.recipientPhone,
-      message: edited[p.partnerCode] ?? p.message,
+      recipientPhone,
+      message,
     })
   }
-  return entries
+  return [...entriesByRecipient.values()]
 }
 
 /** 화면의 SMS 발송 건수와 buildSendEntries의 실제 요청 건수를 동일하게 계산한다. */
 export function countSendableEntries(preview: DispatchSmsPreviewResponse): number {
-  return preview.unmapped.filter((p) => Boolean(p.recipientPhone)).length
+  return new Set(
+    preview.unmapped
+      .map((p) => p.recipientPhone?.trim() ?? '')
+      .filter(Boolean),
+  ).size
 }
 
 function previewRequestParams(preview: DispatchSmsPreviewResponse): Record<string, unknown> {
