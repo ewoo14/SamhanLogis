@@ -167,6 +167,8 @@ public class MobilePartnerOrderService {
         // 태그 확정(editHeader)은 SlipForm 저장 시 게이트⑦ 에서 applyDeliverySchedule 가 수행.
         slip.applyDeliverySchedule(slip.getDeliveryTag(), null);
 
+        slip.markSourceWarehouseCodePending();
+
         Slip saved = slipRepository.save(slip);
         warehouseCodeSnapshotService.scheduleAfterCommit(
                 saved.getId(), saved.getSourceWarehouseId());

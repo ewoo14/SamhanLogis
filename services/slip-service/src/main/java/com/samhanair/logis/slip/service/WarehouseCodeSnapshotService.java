@@ -3,11 +3,16 @@ package com.samhanair.logis.slip.service;
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.repository.SlipRepository;
+import jakarta.annotation.PostConstruct;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.annotation.Scheduled;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -26,20 +31,34 @@ public class WarehouseCodeSnapshotService {
     private final WarehouseInternalClient warehouseInternalClient;
     private final SlipRepository slipRepository;
     private final TransactionTemplate transactionTemplate;
+    @Qualifier("applicationTaskExecutor")
+    private final TaskExecutor taskExecutor;
+
+    @PostConstruct
+    void configureIndependentTransaction() {
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
 
     /** 현재 발행 트랜잭션이 커밋된 뒤에만 inventory 보강을 시작한다. */
     public void scheduleAfterCommit(UUID slipId, UUID warehouseId) {
         if (slipId == null || warehouseId == null) return;
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            snapshot(slipId, warehouseId);
+            taskExecutor.execute(() -> snapshot(slipId, warehouseId));
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                snapshot(slipId, warehouseId);
+                taskExecutor.execute(() -> snapshot(slipId, warehouseId));
             }
         });
+    }
+
+    /** pending으로 표시된 신규 전표만 주기적으로 재시도한다. 기존 행은 pending=false라 건드리지 않는다. */
+    @Scheduled(fixedDelayString = "${samhan.warehouse-code.snapshot.retry-delay-ms:30000}")
+    public void retryPendingSnapshots() {
+        slipRepository.findTop100BySourceWarehouseCodePendingTrueAndIsDeletedFalseOrderByCreatedAtAsc()
+                .forEach(slip -> snapshot(slip.getId(), slip.getSourceWarehouseId()));
     }
 
     private void snapshot(UUID slipId, UUID warehouseId) {

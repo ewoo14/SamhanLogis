@@ -321,6 +321,10 @@ public class SlipService {
                 req.recipientPhone(),
                 req.paymentDueDate());
 
+        if (slip.getSlipType() == SlipType.OUTBOUND) {
+            slip.markSourceWarehouseCodePending();
+        }
+
         Slip saved = slipRepository.save(slip);
         if (saved.getSlipType() == SlipType.OUTBOUND) {
             warehouseCodeSnapshotService.scheduleAfterCommit(

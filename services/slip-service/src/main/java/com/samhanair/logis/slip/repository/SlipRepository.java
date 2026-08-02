@@ -28,6 +28,9 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
     /** 전표번호({@code yyyy/MM/dd-N}) 단건 조회. soft-delete 제외. 중복 가능성 때문에 신규 코드는 type 지정 조회 권장. */
     Optional<Slip> findBySlipNo(String slipNo);
 
+    /** 신규 전표 중 아직 창고 code 보강이 끝나지 않은 행만 재시도 대상으로 조회한다. */
+    List<Slip> findTop100BySourceWarehouseCodePendingTrueAndIsDeletedFalseOrderByCreatedAtAsc();
+
     /** 전표 유형 + 전표번호 단건 조회. 판매/구매 번호 중복 허용 정책의 기본 조회 방식. */
     Optional<Slip> findBySlipTypeAndSlipNoAndIsDeletedFalse(SlipType slipType, String slipNo);
 

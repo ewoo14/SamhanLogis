@@ -54,12 +54,12 @@ class WarehouseCodeSnapshotServiceIT extends AbstractPostgresIT {
             snapshotService.scheduleAfterCommit(saved.getId(), warehouseId);
         });
 
-        Slip reloaded = slipRepository.findById(slipId.get()).orElseThrow();
+        Slip reloaded = awaitSlip(slipId.get());
         assertThat(reloaded.getSourceWarehouseCode()).isEqualTo("WH-R9-NORMAL");
     }
 
     @Test
-    void afterCommit_inventoryCall_blocksPublishingThreadUntilItReturns() throws Exception {
+    void afterCommit_inventoryCall_doesNotBlockPublishingThread() throws Exception {
         UUID warehouseId = UUID.randomUUID();
         CountDownLatch inventoryEntered = new CountDownLatch(1);
         CountDownLatch releaseInventory = new CountDownLatch(1);
@@ -86,8 +86,54 @@ class WarehouseCodeSnapshotServiceIT extends AbstractPostgresIT {
                 }));
 
         assertThat(inventoryEntered.await(10, TimeUnit.SECONDS)).isTrue();
-        assertThat(publishing).isNotDone();
+        assertThat(publishing).isDone();
         releaseInventory.countDown();
         publishing.get(10, TimeUnit.SECONDS);
+    }
+
+    private Slip awaitSlip(UUID slipId) {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            Slip slip = slipRepository.findById(slipId).orElseThrow();
+            if ("WH-R9-NORMAL".equals(slip.getSourceWarehouseCode())) return slip;
+            try {
+                Thread.sleep(50L);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("code 보강 대기 중 interrupt", ex);
+            }
+        }
+        return slipRepository.findById(slipId).orElseThrow();
+    }
+
+    @Test
+    void retryPending_inventoryRecovery_persistsSourceWarehouseCode() {
+        UUID warehouseId = UUID.randomUUID();
+        Slip saved = transactionTemplate.execute(status -> {
+            Slip slip = Slip.createOutbound(
+                    "2026/08/03-1045-R10-RETRY",
+                    LocalDate.of(2026, 8, 3),
+                    1047,
+                    warehouseId,
+                    null,
+                    UUID.randomUUID(),
+                    "R10 복구 재시도 검증",
+                    null,
+                    "pending retry",
+                    "r10-tester");
+            slip.markSourceWarehouseCodePending();
+            return slipRepository.saveAndFlush(slip);
+        });
+
+        when(warehouseInternalClient.findWarehouseCode(warehouseId))
+                .thenThrow(new IllegalStateException("inventory timeout"))
+                .thenReturn(Optional.of("WH-R10-RECOVERED"));
+
+        snapshotService.retryPendingSnapshots();
+        assertThat(slipRepository.findById(saved.getId()).orElseThrow().getSourceWarehouseCode())
+                .isNull();
+
+        snapshotService.retryPendingSnapshots();
+        assertThat(slipRepository.findById(saved.getId()).orElseThrow().getSourceWarehouseCode())
+                .isEqualTo("WH-R10-RECOVERED");
     }
 }

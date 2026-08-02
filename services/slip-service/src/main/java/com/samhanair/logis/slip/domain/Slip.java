@@ -168,6 +168,10 @@ public class Slip extends BaseEntity {
     @Column(name = "source_warehouse_code", length = 50)
     private String sourceWarehouseCode;
 
+    /** 신규 전표의 창고 code 보강 대기 표시. 기존 행은 FALSE로 유지해 backfill하지 않는다. */
+    @Column(name = "source_warehouse_code_pending", nullable = false)
+    private boolean sourceWarehouseCodePending;
+
     @Column(name = "destination_warehouse_id")
     private UUID destinationWarehouseId;
 
@@ -975,6 +979,14 @@ public class Slip extends BaseEntity {
     public void setSourceWarehouseCode(String sourceWarehouseCode) {
         this.sourceWarehouseCode = sourceWarehouseCode == null || sourceWarehouseCode.isBlank()
                 ? null : sourceWarehouseCode.trim();
+        if (this.sourceWarehouseCode != null) {
+            this.sourceWarehouseCodePending = false;
+        }
+    }
+
+    /** 신규 출고전표를 inventory code 보강 재시도 대상으로 표시한다. */
+    public void markSourceWarehouseCodePending() {
+        this.sourceWarehouseCodePending = true;
     }
 
     /**
