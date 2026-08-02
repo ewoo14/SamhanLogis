@@ -19,10 +19,11 @@ import org.springframework.stereotype.Repository;
 public interface PartnerOrderRepository extends JpaRepository<PartnerOrder, UUID>,
         JpaSpecificationExecutor<PartnerOrder> {
 
-    /** 장기미발주 판정용 마지막 주문 확정 시각 — UUID 없이 거래처코드로만 조회한다. */
+    /** 장기미발주 판정용 마지막 주문 확정 시각 — auth 사업자번호로 biz_code를 조회한다. */
     @Query("select max(o.confirmedAt) from PartnerOrder o "
-            + "where o.partnerCode = :partnerCode and o.confirmedAt is not null")
-    LocalDateTime findLastConfirmedAtByPartnerCode(@Param("partnerCode") String partnerCode);
+            + "where function('replace', o.bizCode, '-', '') = :businessNumber "
+            + "and o.confirmedAt is not null")
+    LocalDateTime findLastConfirmedAtByBizCode(@Param("businessNumber") String businessNumber);
 
     /**
      * soft-deleted 주문을 포함해 UUID 로 조회한다.

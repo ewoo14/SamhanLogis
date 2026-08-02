@@ -227,7 +227,7 @@ class PartnerAuthServiceAccessSetTest {
                 "7777777777", "P007", encoder.encode("1357"), PartnerStatus.NEED_PW_INPUT);
         setLastLoginAt(auth, LocalDateTime.now().minusDays(90));
         when(authRepository.findByBizNo("7777777777")).thenReturn(Optional.of(auth));
-        when(activityReader.read("P007")).thenReturn(new PartnerActivity(
+        when(activityReader.read("7777777777")).thenReturn(new PartnerActivity(
                 LocalDateTime.now().minusDays(2), null));
 
         var jwtProperties = new PartnerAuthJwtProperties();

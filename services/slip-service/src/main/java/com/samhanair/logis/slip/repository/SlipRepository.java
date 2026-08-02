@@ -25,11 +25,11 @@ import org.springframework.data.repository.query.Param;
  */
 public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificationExecutor<Slip> {
 
-    /** 장기미발주 판정용 마지막 출고일 — UUID 없이 거래처코드로만 조회한다. */
+    /** 장기미발주 판정용 마지막 출고일 — auth 사업자번호로 business_number를 조회한다. */
     @Query("select max(s.slipDate) from Slip s "
-            + "where s.partnerCode = :partnerCode and s.slipType = "
+            + "where function('replace', s.businessNumber, '-', '') = :businessNumber and s.slipType = "
             + "com.samhanair.logis.slip.domain.SlipType.OUTBOUND and s.isDeleted = false")
-    LocalDate findLastOutboundDateByPartnerCode(@Param("partnerCode") String partnerCode);
+    LocalDate findLastOutboundDateByBusinessNumber(@Param("businessNumber") String businessNumber);
 
     /** 전표번호({@code yyyy/MM/dd-N}) 단건 조회. soft-delete 제외. 중복 가능성 때문에 신규 코드는 type 지정 조회 권장. */
     Optional<Slip> findBySlipNo(String slipNo);

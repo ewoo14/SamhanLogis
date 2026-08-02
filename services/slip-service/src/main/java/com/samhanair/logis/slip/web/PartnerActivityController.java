@@ -18,10 +18,10 @@ public class PartnerActivityController {
 
     private final SlipRepository slipRepository;
 
-    /** UUID·전표 상세·개인정보 없이 마지막 출고일만 반환한다. */
+    /** UUID·전표 상세·개인정보 없이 사업자번호 기준 마지막 출고일만 반환한다. */
     @GetMapping("/{partnerCode}")
     public ApiResponse<ActivityResponse> getLastActivity(@PathVariable String partnerCode) {
-        LocalDate date = slipRepository.findLastOutboundDateByPartnerCode(partnerCode);
+        LocalDate date = slipRepository.findLastOutboundDateByBusinessNumber(partnerCode);
         return ApiResponse.ok(new ActivityResponse(date == null ? null : date.atStartOfDay()));
     }
 

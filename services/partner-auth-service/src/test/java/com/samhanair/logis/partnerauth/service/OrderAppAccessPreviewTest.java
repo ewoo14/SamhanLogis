@@ -61,7 +61,7 @@ class OrderAppAccessPreviewTest {
                 "7777777777", "P-DEFERRED", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
         setCreatedAt(auth, LocalDateTime.now().minusDays(60));
         when(repository.findAll()).thenReturn(List.of(auth));
-        when(activityReader.read("P-DEFERRED"))
+        when(activityReader.read("7777777777"))
                 .thenThrow(new IllegalStateException("order service 503"));
 
         PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
@@ -85,9 +85,9 @@ class OrderAppAccessPreviewTest {
         setLastLoginAt(recentOrder, LocalDateTime.now().minusDays(90));
         setLastLoginAt(oldActivity, LocalDateTime.now().minusDays(2));
         when(repository.findAll()).thenReturn(List.of(recentOrder, oldActivity));
-        when(activityReader.read("P003")).thenReturn(new PartnerActivity(
+        when(activityReader.read("3333333333")).thenReturn(new PartnerActivity(
                 LocalDateTime.now().minusDays(2), LocalDateTime.now().minusDays(40)));
-        when(activityReader.read("P004")).thenReturn(new PartnerActivity(
+        when(activityReader.read("4444444444")).thenReturn(new PartnerActivity(
                 LocalDateTime.now().minusDays(40), LocalDateTime.now().minusDays(35)));
 
         PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
@@ -108,9 +108,9 @@ class OrderAppAccessPreviewTest {
         setLastLoginAt(oldLogin, LocalDateTime.now().minusDays(45));
         setLastLoginAt(recentLogin, LocalDateTime.now().minusDays(20));
         when(repository.findAll()).thenReturn(List.of(oldLogin, recentLogin));
-        when(activityReader.read("P001")).thenReturn(new PartnerActivity(
+        when(activityReader.read("1111111111")).thenReturn(new PartnerActivity(
                 LocalDateTime.now().minusDays(45), null));
-        when(activityReader.read("P002")).thenReturn(new PartnerActivity(
+        when(activityReader.read("2222222222")).thenReturn(new PartnerActivity(
                 LocalDateTime.now().minusDays(20), null));
 
         PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
@@ -132,8 +132,8 @@ class OrderAppAccessPreviewTest {
         DcConfigClient dcConfigClient = mock(DcConfigClient.class);
         PartnerActivityReader activityReader = mock(PartnerActivityReader.class);
         when(repository.findAll()).thenReturn(List.of(noActivity, recentRegistration));
-        when(activityReader.read("P005")).thenReturn(new PartnerActivity(null, null));
-        when(activityReader.read("P006")).thenReturn(new PartnerActivity(null, null));
+        when(activityReader.read("5555555555")).thenReturn(new PartnerActivity(null, null));
+        when(activityReader.read("6666666666")).thenReturn(new PartnerActivity(null, null));
 
         PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
 

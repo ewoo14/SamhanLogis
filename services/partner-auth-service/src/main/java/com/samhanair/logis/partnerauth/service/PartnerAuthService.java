@@ -110,7 +110,7 @@ public class PartnerAuthService {
         if (auth.getStatus() == PartnerStatus.LONG_UNUSED) {
             return PartnerStatus.LONG_UNUSED;
         }
-        PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, auth.getPartnerCode());
+        PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, auth.getBizNo());
         if (PartnerAccessPolicy.isAuthenticationLongUnused(auth, activity, LocalDateTime.now())) {
             return PartnerStatus.LONG_UNUSED;
         }

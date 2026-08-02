@@ -92,7 +92,7 @@ public class PartnerApprovalService {
                     && pa.getStatus() != PartnerStatus.LONG_UNUSED) {
                 continue;
             }
-            PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, pa.getPartnerCode());
+            PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, pa.getBizNo());
             if (!activity.isLookupComplete()) {
                 deferredPartnerCount++;
                 if (!activity.orderLookupSucceeded()) deferredSources.add("ORDER");

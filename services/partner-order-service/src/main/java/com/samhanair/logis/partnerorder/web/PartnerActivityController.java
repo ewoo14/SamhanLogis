@@ -17,11 +17,11 @@ public class PartnerActivityController {
 
     private final PartnerOrderRepository partnerOrderRepository;
 
-    /** UUID·주문 상세·개인정보 없이 마지막 주문 확정 시각만 반환한다. */
+    /** UUID·주문 상세·개인정보 없이 사업자번호 기준 마지막 주문 확정 시각만 반환한다. */
     @GetMapping("/{partnerCode}")
     public ApiResponse<ActivityResponse> getLastActivity(@PathVariable String partnerCode) {
         return ApiResponse.ok(new ActivityResponse(
-                partnerOrderRepository.findLastConfirmedAtByPartnerCode(partnerCode)));
+                partnerOrderRepository.findLastConfirmedAtByBizCode(partnerCode)));
     }
 
     /** 내부 활동 응답 — 거래처코드와 시각만 공개한다. */
