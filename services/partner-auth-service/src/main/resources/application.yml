@@ -43,8 +43,8 @@ samhan:
     # 3d backlog — dc-config-service /internal/** 가드 통과용 X-Internal-Token (dc-config 의 SAMHAN_INTERNAL_TOKEN 와 동일 값)
     internal-token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-only-token-replace}}
   partner-activity:
-    order-url: ${SAMHAN_PARTNER_ORDER_SERVICE_URL:http://partner-order-service:8095}
-    slip-url: ${SAMHAN_SLIP_SERVICE_URL:http://slip-service:8092}
+    order-url: ${SAMHAN_PARTNER_ORDER_SERVICE_URL:http://partner-order-service:8088}
+    slip-url: ${SAMHAN_SLIP_SERVICE_URL:http://slip-service:8086}
     internal-token: ${SAMHAN_INTERNAL_TOKEN:${INTERNAL_AUTH_TOKEN:dev-internal-token-change-me}}
 
 # PR #462 Round C #4 — DefaultDynamicPermissionClient 가 auth-service /auth/internal/** 호출 시 보내는 X-Internal-Token.
