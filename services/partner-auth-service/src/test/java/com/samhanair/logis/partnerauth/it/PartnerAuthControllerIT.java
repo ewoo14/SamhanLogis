@@ -16,6 +16,8 @@ import com.samhanair.logis.partnerauth.client.SmsClient;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
+import com.samhanair.logis.partnerauth.service.PartnerActivity;
+import com.samhanair.logis.partnerauth.service.PartnerActivityReader;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,6 +69,9 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
     @MockBean
     private SmsClient smsClient;
 
+    @MockBean
+    private PartnerActivityReader partnerActivityReader;
+
     private MockMvc mvc;
 
     @BeforeEach
@@ -74,6 +79,8 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
         // lenient default: M3 미응답 — IT 별 override 가능
         lenient().when(dcConfigClient.findByBizNo(anyString())).thenReturn(Optional.empty());
+        lenient().when(partnerActivityReader.read(anyString()))
+                .thenReturn(new PartnerActivity(null, null));
     }
 
     // ─────────────────────────────────────────────────────────────────────

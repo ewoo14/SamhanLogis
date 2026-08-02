@@ -79,10 +79,7 @@ public class PartnerApprovalService {
                         || pa.getStatus() == PartnerStatus.LONG_UNUSED)
                 .filter(pa -> {
                     PartnerActivity activity = partnerActivityReader.read(pa.getPartnerCode());
-                    if (activity == null) return false;
-                    LocalDateTime lastActivityAt = activity.lastActivityAt();
-                    return lastActivityAt != null
-                            && !lastActivityAt.plusDays(PartnerAuth.LONG_UNUSED_DAYS).isAfter(now);
+                    return PartnerAccessPolicy.isPreviewCandidate(pa, activity, now);
                 })
                 .map(this::buildResponse)
                 .toList();

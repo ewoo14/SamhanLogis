@@ -62,6 +62,28 @@ class OrderAppAccessPreviewTest {
         assertThat(service.previewLongUnused(60)).hasSize(1);
     }
 
+    @Test
+    void previewIncludesApprovedPartnerWithNoActivityWhenAuthWasCreatedOverThirtyDaysAgo() {
+        PartnerAuth noActivity = PartnerAuth.seedFromLegacy(
+                "5555555555", "P005", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(noActivity, LocalDateTime.now().minusDays(31));
+        PartnerAuth recentRegistration = PartnerAuth.seedFromLegacy(
+                "6666666666", "P006", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(recentRegistration, LocalDateTime.now().minusDays(2));
+
+        PartnerAuthRepository repository = mock(PartnerAuthRepository.class);
+        DcConfigClient dcConfigClient = mock(DcConfigClient.class);
+        PartnerActivityReader activityReader = mock(PartnerActivityReader.class);
+        when(repository.findAll()).thenReturn(List.of(noActivity, recentRegistration));
+        when(activityReader.read("P005")).thenReturn(new PartnerActivity(null, null));
+        when(activityReader.read("P006")).thenReturn(new PartnerActivity(null, null));
+
+        PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
+
+        assertThat(service.previewLongUnused(30)).extracting(PartnerApprovalResponse::partnerCode)
+                .containsExactly("5555555555");
+    }
+
     private static void setLastLoginAt(PartnerAuth auth, LocalDateTime value) {
         try {
             var field = PartnerAuth.class.getDeclaredField("lastLoginAt");
@@ -69,6 +91,16 @@ class OrderAppAccessPreviewTest {
             field.set(auth, value);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("테스트용 기준 시각 설정 실패", e);
+        }
+    }
+
+    private static void setCreatedAt(PartnerAuth auth, LocalDateTime value) {
+        try {
+            var field = com.samhanair.logis.common.entity.BaseEntity.class.getDeclaredField("createdAt");
+            field.setAccessible(true);
+            field.set(auth, value);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("테스트용 생성시각 설정 실패", e);
         }
     }
 }

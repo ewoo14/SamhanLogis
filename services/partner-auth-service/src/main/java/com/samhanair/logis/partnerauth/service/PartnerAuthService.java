@@ -71,6 +71,7 @@ public class PartnerAuthService {
     private final PartnerAuthJwtProperties jwtProperties;
     private final DcConfigClient dcConfigClient;
     private final SmsClient smsClient;
+    private final PartnerActivityReader partnerActivityReader;
     private final Map<String, RateLimitBucket> passwordResetRateLimits = new ConcurrentHashMap<>();
 
     // ─────────────────────────────────────────────────────────────────────
@@ -106,8 +107,11 @@ public class PartnerAuthService {
                 || auth.getStatus() == PartnerStatus.PENDING || auth.getStatus() == PartnerStatus.NEED_PW_SET) {
             return auth.getStatus();
         }
-        LocalDateTime expiresAt = auth.expirationAt();
-        if (expiresAt != null && expiresAt.isBefore(LocalDateTime.now())) {
+        if (auth.getStatus() == PartnerStatus.LONG_UNUSED) {
+            return PartnerStatus.LONG_UNUSED;
+        }
+        PartnerActivity activity = partnerActivityReader.read(auth.getPartnerCode());
+        if (PartnerAccessPolicy.isLongUnused(auth, activity, LocalDateTime.now())) {
             return PartnerStatus.LONG_UNUSED;
         }
         return auth.getStatus();
