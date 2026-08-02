@@ -8,11 +8,13 @@ import com.samhanair.logis.accounting.service.HometaxExportService;
 import com.samhanair.logis.accounting.service.LedgerImageService;
 import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
+import com.samhanair.logis.accounting.service.PartnerLedgerReadService;
 import com.samhanair.logis.accounting.service.SalesAggregateService;
 import com.samhanair.logis.accounting.service.StatementBatchService;
 import com.samhanair.logis.accounting.web.dto.DailyClosingDetailResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerHistoryResponse;
+import com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
 import com.samhanair.logis.accounting.web.dto.StatementBatchRow;
 import com.samhanair.logis.accounting.web.dto.TaxInvoiceBatchExclusionRequest;
@@ -92,6 +94,7 @@ public class AccountingReportController {
 
     private final SalesAggregateService salesAggregateService;
     private final LedgerImageService ledgerImageService;
+    private final PartnerLedgerReadService partnerLedgerReadService;
     private final LedgerSnapshotService ledgerSnapshotService;
     private final StatementBatchService statementBatchService;
     private final HometaxExportService hometaxExportService;
@@ -135,6 +138,16 @@ public class AccountingReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
         return ApiResponse.ok(ledgerImageService.getLedger(partnerCode, from, to, parseUuid(userId)));
+    }
+
+    /** 출고 판매전표 품목과 확정 입금보고서를 함께 반환하는 거래처별 원장 read 계약. */
+    @GetMapping("/accounting/journals/partner-ledger")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
+    public ApiResponse<PartnerLedgerResponse> partnerLedger(
+            @RequestParam(required = false) String partnerCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ApiResponse.ok(partnerLedgerReadService.read(partnerCode, from, to));
     }
 
     /** 거래처별 원장 자동 저장 이력 — 날짜 범위와 거래처 코드로 조회한다. */

@@ -33,11 +33,13 @@
  * 사용자 Edge 캡처 검토 후 2~5차 iteration 으로 미세 조정 예정.
  */
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
+import { getLedgerData, type LedgerData } from '../api/partnerLedgerApi'
 import styles from './PartnerLedgerView.module.css'
 
 /**
@@ -194,7 +196,7 @@ function resolvePeriodDate(
  * 잔액 표시 헬퍼 — 음수 시 △ prefix (한국 회계 관행).
  */
 function formatBalance(n: number): string {
-  if (n < 0) return `△ ${krw(Math.abs(n))}`
+  if (n < 0) return `-${krw(Math.abs(n))}`
   return krw(n)
 }
 
@@ -210,16 +212,40 @@ export function PartnerLedgerView() {
     [searchParams],
   )
 
-  // PR-E2 FE 단계에서 useQuery 로 교체 — 본 mock 단계는 정적 데이터.
-  const data: PartnerLedgerData = useMemo(
-    () => ({
-      ...MOCK_DATA,
-      partnerCode: partnerCodeParam ?? MOCK_DATA.partnerCode,
-      periodFrom,
-      periodTo,
-    }),
-    [partnerCodeParam, periodFrom, periodTo],
-  )
+  const ledgerQuery = useQuery<LedgerData>({
+    queryKey: ['partner-ledger-print', partnerCodeParam, periodFrom, periodTo],
+    queryFn: () => getLedgerData(partnerCodeParam ?? '', periodFrom, periodTo),
+    enabled: Boolean(partnerCodeParam),
+  })
+  const data: PartnerLedgerData | null = useMemo(() => {
+    if (!ledgerQuery.data) return null
+    const source = ledgerQuery.data
+    const lines = source.lines.map((line) => ({
+      date: line.date,
+      slipNo: line.journalNo,
+      description: line.description,
+      debit: Number(line.debit) || 0,
+      credit: Number(line.credit) || 0,
+      balance: Number(line.balance) || 0,
+    }))
+    return {
+      partnerCode: source.partnerCode,
+      partnerName: source.partnerName,
+      businessRegNo: source.partnerBusinessNo,
+      chatRoomName: source.chatRoomNames.join(' / '),
+      periodFrom: source.periodFrom,
+      periodTo: source.periodTo,
+      openingBalance: 0,
+      lines,
+      totalDebit: lines.reduce((sum, line) => sum + line.debit, 0),
+      totalCredit: lines.reduce((sum, line) => sum + line.credit, 0),
+      closingBalance: lines.length ? lines[lines.length - 1].balance : 0,
+    }
+  }, [ledgerQuery.data])
+
+  if (!data) {
+    return <div data-testid="partner-ledger-print-area">{ledgerQuery.isError ? '원장을 불러오지 못했습니다.' : '원장을 불러오는 중입니다.'}</div>
+  }
 
   const { company } = useCompanyProfile()
 

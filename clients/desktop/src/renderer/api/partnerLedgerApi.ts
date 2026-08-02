@@ -83,6 +83,10 @@ export interface LedgerLine {
   credit: string
   /** 누적 잔액 (KRW BigDecimal — string, 음수 가능). 라인 적용 후 잔액. */
   balance: string
+  /** 판매전표의 구조화된 배송주소. 적요에서 파싱하지 않는다. */
+  deliveryAddress?: string | null
+  /** 원장 문서 종류: SALE 또는 CASH_RECEIPT. */
+  documentType?: 'SALE' | 'CASH_RECEIPT'
 }
 
 /**
@@ -164,11 +168,68 @@ export async function getLedgerData(
   from: string,
   to: string,
 ): Promise<LedgerData> {
-  const res = await apiClient.get<ApiEnvelope<LedgerData>>(
-    '/accounting/journals/ledger-data',
+  const res = await apiClient.get<ApiEnvelope<PartnerLedgerResponse>>(
+    '/accounting/journals/partner-ledger',
     { params: { partnerCode, from, to } },
   )
-  return res.data.data
+  const source = res.data.data
+  return {
+    partnerCode: source.partnerCode ?? partnerCode,
+    partnerName: source.partnerName ?? '',
+    partnerBusinessNo: '',
+    chatRoomNames: [],
+    periodFrom: source.periodFrom,
+    periodTo: source.periodTo,
+    lines: source.documents.flatMap((document) => {
+      if (document.type === 'SALE' && document.lines.length > 0) {
+        return document.lines.map((line) => ({
+          date: document.date,
+          journalNo: document.documentNo,
+          accountCode: '',
+          accountName: '',
+          description: `${line.productName}${line.modelName ? ` (${line.modelName})` : ''}`,
+          debit: line.lineAmount,
+          credit: '0',
+          balance: '0',
+          deliveryAddress: document.deliveryAddress,
+          documentType: document.type,
+        }))
+      }
+      return [{
+        date: document.date,
+        journalNo: document.documentNo,
+        accountCode: '',
+        accountName: '',
+        description: document.type === 'CASH_RECEIPT' ? '입금보고서' : '',
+        debit: '0',
+        credit: document.amount,
+        balance: '0',
+        deliveryAddress: document.deliveryAddress,
+        documentType: document.type,
+      }]
+    }),
+  }
+}
+
+interface PartnerLedgerResponse {
+  partnerCode: string | null
+  partnerName: string | null
+  periodFrom: string
+  periodTo: string
+  documents: Array<{
+    type: 'SALE' | 'CASH_RECEIPT'
+    documentNo: string
+    date: string
+    deliveryAddress: string | null
+    amount: string
+    lines: Array<{
+      productName: string
+      modelName: string | null
+      quantity: number
+      unitPriceWithVat: string
+      lineAmount: string
+    }>
+  }>
 }
 
 /** 거래처별 원장 자동 저장 이력 목록을 조회한다. */

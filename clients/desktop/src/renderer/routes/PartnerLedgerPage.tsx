@@ -71,13 +71,13 @@ function defaultRange(): { from: string; to: string } {
   return { from: toIsoDate(first), to: toIsoDate(last) }
 }
 
-/** KRW BigDecimal string → "1,234,567" (NaN 시 "—", 음수 △ prefix). */
+/** KRW BigDecimal string → "1,234,567" (0='—', 음수는 하이픈 prefix). */
 function fmtKrw(raw: string | null | undefined): string {
   if (raw === null || raw === undefined || raw === '') return '—'
   const n = Number(raw)
   if (!Number.isFinite(n)) return raw
   if (n === 0) return '—'
-  if (n < 0) return `△ ${Math.abs(Math.round(n)).toLocaleString('ko-KR')}`
+  if (n < 0) return `-${Math.abs(Math.round(n)).toLocaleString('ko-KR')}`
   return Math.round(n).toLocaleString('ko-KR')
 }
 
@@ -703,7 +703,8 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
               <tr>
                 <th style={{ ...thStyle, width: 110 }}>일자</th>
                 <th style={{ ...thStyle, width: 160 }}>분개번호</th>
-                <th style={{ ...thStyle, width: 80 }}>계정</th>
+                <th style={{ ...thStyle, width: 90 }}>문서</th>
+                <th style={{ ...thStyle, width: 180 }}>배송주소</th>
                 <th style={thStyle}>적요</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>차변</th>
                 <th style={{ ...thStyle, textAlign: 'right', width: 130 }}>대변</th>
@@ -715,7 +716,8 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
                 <tr key={`${ln.date}-${ln.journalNo}-${idx}`}>
                   <td style={tdStyle}>{ln.date}</td>
                   <td style={tdStyle}>{ln.journalNo}</td>
-                  <td style={tdStyle}>{ln.accountCode}</td>
+                  <td style={tdStyle}>{ln.documentType === 'CASH_RECEIPT' ? '수금' : '매출'}</td>
+                  <td style={tdStyle}>{ln.deliveryAddress || '—'}</td>
                   <td style={tdStyle}>{ln.description || '-'}</td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
                     {fmtKrw(ln.debit)}
@@ -737,7 +739,7 @@ function LedgerDetailTable({ data }: { data: LedgerData }) {
             </tbody>
             <tfoot>
               <tr style={{ background: '#F3F4F6' }}>
-                <td colSpan={4} style={{ ...tdStyle, fontWeight: 600 }}>
+                <td colSpan={5} style={{ ...tdStyle, fontWeight: 600 }}>
                   합계
                 </td>
                 <td
