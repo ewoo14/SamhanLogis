@@ -336,7 +336,7 @@ export function DepositorMappingPage() {
             placeholder="거래처명/코드"
             value={selectedPartner}
             onChange={setSelectedPartner}
-            searchPartners={(query) => searchPartners(query, { activeOnly: true })}
+            searchPartners={(query) => searchPartners(query, { activeOnly: true, limit: 10000 })}
             required
             minChars={1}
             resultSelectionMode="single"

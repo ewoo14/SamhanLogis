@@ -32,7 +32,7 @@ describe('partnerApi searchPartners 오류 계약', () => {
       data: { data: { items: [{ partnerCode: '01024100228', name: '경기퀵-이영진님' }] } },
     })
 
-    await searchPartners('010', { activeOnly: true })
+    await searchPartners('010', { activeOnly: true, limit: 10000 })
 
     expect(apiClient.get).toHaveBeenCalledWith('/admin/partners/search', {
       params: { q: '010', size: 10000, status: 'ACTIVE' },

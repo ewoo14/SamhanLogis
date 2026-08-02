@@ -81,6 +81,8 @@ export interface AsyncAutocompleteProps<T> {
   resultSelectionTitle?: ReactNode
   /** multiple 모달에서 이미 선택한 후보의 opaque key. */
   selectedKeys?: string[]
+  /** 기존 wrapper가 1건 후보를 즉시 확정하던 명시적 계약. 기본값 false. */
+  autoSelectSingleResult?: boolean
 }
 
 /** 후보 표시 renderer에 전달하는 응답 시점 검색 context. */
@@ -117,6 +119,7 @@ function AsyncAutocompleteInner<T>(
     onResultsConfirmed,
     resultSelectionTitle = '검색 결과 선택',
     selectedKeys = [],
+    autoSelectSingleResult = false,
   }: AsyncAutocompleteProps<T>,
   ref: ForwardedRef<HTMLInputElement>,
 ) {
@@ -330,9 +333,16 @@ function AsyncAutocompleteInner<T>(
         // stale 응답 — 더 최신 요청이 발행됐으면 버림
         if (latestSeq.current !== seq) return
         // 후보와 그 후보를 만든 검색어를 원자적으로 갱신한다.
-        if (resultSelectionMode && results.length === 1) {
-          if (resultSelectionMode === 'multiple') onResultsConfirmed?.(results)
-          else pick(results[0]!)
+        // ProductMultiSelectAutocomplete의 기존 단일 후보 즉시 칩 계약은 유지한다.
+        // 그 외에는 정확 입력·키보드 선택·기존 클릭 사용자 흐름을 자동선택으로
+        // 바꾸지 않도록 1건은 dropdown에 남긴다. 모달 계약은 2건 이상일 때만 적용한다.
+        if (
+          autoSelectSingleResult &&
+          resultSelectionMode === 'multiple' &&
+          onResultsConfirmed &&
+          results.length === 1
+        ) {
+          onResultsConfirmed(results)
           closeSearchSurface({ resetDraft: true })
           return
         }
@@ -353,7 +363,14 @@ function AsyncAutocompleteInner<T>(
         setErrorMsg('검색 중 오류가 발생했습니다.')
       }
     },
-    [closeSearchSurface, onResultsConfirmed, pick, resultSelectionMode, search],
+    [
+      autoSelectSingleResult,
+      closeSearchSurface,
+      onResultsConfirmed,
+      pick,
+      resultSelectionMode,
+      search,
+    ],
   )
 
   /** 입력 변경 — debounce 후 서버 검색 */

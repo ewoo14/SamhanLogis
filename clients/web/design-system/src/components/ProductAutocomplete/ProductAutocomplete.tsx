@@ -193,6 +193,7 @@ export const ProductMultiSelectAutocomplete = forwardRef<
       placeholder={placeholder}
       resultSelectionMode="multiple"
       resultSelectionTitle="품목 검색 결과"
+      autoSelectSingleResult
       {...rest}
     />
   )

@@ -98,7 +98,7 @@ public class GroupwareAdminController {
     @RequirePermission(page = "groupware.approvals", action = PermissionAction.VIEW)
     public ApiResponse<List<ApproverSearchResponse>> searchApprovers(
             @RequestParam("q") String q,
-            @RequestParam(value = "limit", defaultValue = "10000") int limit) {
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
         return ApiResponse.ok(userClient.search(q, limit).stream()
                 .map(item -> new ApproverSearchResponse(item.userId(), item.name(), item.department()))
                 .toList());
@@ -236,7 +236,7 @@ public class GroupwareAdminController {
     @RequirePermission(page = "messenger.send", action = PermissionAction.VIEW)
     public ApiResponse<List<RecipientSearchResponse>> searchMessageRecipients(
             @RequestParam("q") String q,
-            @RequestParam(value = "limit", defaultValue = "10000") int limit) {
+            @RequestParam(value = "limit", defaultValue = "20") int limit) {
         return ApiResponse.ok(userClient.search(q, limit, true).stream()
                 .map(item -> new RecipientSearchResponse(item.userId(), item.name(), item.department(), item.employeeCode()))
                 .toList());

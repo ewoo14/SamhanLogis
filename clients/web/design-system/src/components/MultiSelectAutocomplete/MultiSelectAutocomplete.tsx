@@ -67,10 +67,12 @@ export interface MultiSelectAutocompleteProps<TOption, TSelected> {
   debounceMs?: number
   /** 최대 선택 수. 도달해도 기존 칩은 제거할 수 있다. */
   max?: number
-  /** 지정하면 검색 결과 1건 즉시 확정, 2건 이상은 공용 선택 모달을 사용한다. */
+  /** 지정하면 2건 이상은 공용 선택 모달을 사용한다. */
   resultSelectionMode?: SearchResultSelectionMode
   /** 결과 선택 모달 제목. */
   resultSelectionTitle?: ReactNode
+  /** 기존 호출자의 1건 즉시 확정 계약을 opt-in으로 보존한다. */
+  autoSelectSingleResult?: boolean
 }
 
 function MultiSelectAutocompleteInner<TOption, TSelected>(
@@ -98,6 +100,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
     max,
     resultSelectionMode,
     resultSelectionTitle,
+    autoSelectSingleResult = false,
   }: MultiSelectAutocompleteProps<TOption, TSelected>,
   ref: ForwardedRef<HTMLInputElement>,
 ) {
@@ -213,6 +216,7 @@ function MultiSelectAutocompleteInner<TOption, TSelected>(
         resultSelectionMode={resultSelectionMode}
         resultSelectionTitle={resultSelectionTitle}
         selectedKeys={selected.map(getSelectedKey)}
+        autoSelectSingleResult={autoSelectSingleResult}
         onResultsConfirmed={(options) => options.forEach(add)}
       />
     </div>

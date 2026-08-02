@@ -137,7 +137,7 @@ public class PartnerAdminController {
     @RequirePermission(page = "partners.search", action = PermissionAction.VIEW)
     public ApiResponse<AdminPartnerListResponse> search(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10000") int size,
+            @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) PartnerStatus status,
             @RequestParam(required = false) PartnerStatus type,
