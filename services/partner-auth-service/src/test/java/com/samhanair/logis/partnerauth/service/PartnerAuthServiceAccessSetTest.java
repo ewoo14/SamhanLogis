@@ -26,7 +26,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 class PartnerAuthServiceAccessSetTest {
 
     @Test
-    void expirationApiTreatsExactlyThirtyDaysAsExpiredLikeAuthenticationBlock() {
+    void allAccessPathsTreatExactlyThirtyDaysAsActive() {
         LocalDateTime boundary = LocalDateTime.of(2026, 8, 3, 0, 0);
         var authRepository = mock(PartnerAuthRepository.class);
         var activityReader = mock(PartnerActivityReader.class);
@@ -34,7 +34,9 @@ class PartnerAuthServiceAccessSetTest {
                 "2118712345", "2118712345", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
         setCreatedAt(auth, boundary.minusDays(30));
         when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
-        when(activityReader.read("2118712345")).thenReturn(new PartnerActivity(null, null));
+        PartnerActivity activity = new PartnerActivity(null, null);
+        when(activityReader.read("2118712345")).thenReturn(activity);
+        when(authRepository.findAll()).thenReturn(java.util.List.of(auth));
 
         var authService = new PartnerAuthService(
                 authRepository,
@@ -50,7 +52,15 @@ class PartnerAuthServiceAccessSetTest {
                 Mockito.CALLS_REAL_METHODS)) {
             mockedNow.when(LocalDateTime::now).thenReturn(boundary);
 
-            assertThat(authService.getExpiration("2118712345").expiredAlready()).isTrue();
+            PartnerApprovalService approvalService = new PartnerApprovalService(
+                    authRepository, mock(DcConfigClient.class), activityReader);
+
+            assertThat(approvalService.previewLongUnused(30)).isEmpty();
+            assertThat(authService.checkStatus("2118712345").status())
+                    .isEqualTo(PartnerStatus.NEED_PW_INPUT);
+            assertThat(authService.getExpiration("2118712345").expiredAlready()).isFalse();
+            assertThat(PartnerAccessPolicy.isPreviewCandidate(auth, activity, boundary)).isFalse();
+            assertThat(PartnerAccessPolicy.isAuthenticationLongUnused(auth, activity, boundary)).isFalse();
         }
     }
 

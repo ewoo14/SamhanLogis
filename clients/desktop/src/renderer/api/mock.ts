@@ -8019,6 +8019,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /api/v1/partner-approvals — 주문서 승인 (status 6종)
+  if (method === 'GET' && url.includes('/api/v1/partner-approvals/access-preview/report')) {
+    return envelope({
+      candidates: [
+        {
+          partnerCode: '6789012345',
+          partnerName: '경기냉난방',
+          status: 'LONG_PENDING' as const,
+          approvalRequestedAt: '2025-12-05T08:15:00+09:00',
+          pcTutorialDone: true,
+          mobileTutorialDone: true,
+          assignedManagerName: '오병승',
+        },
+      ],
+      deferred: true,
+      deferredPartnerCount: 1,
+      deferredSources: ['ORDER' as const],
+    })
+  }
+
   if (method === 'GET' && url.includes('/api/v1/partner-approvals')) {
     const sample = [
       {

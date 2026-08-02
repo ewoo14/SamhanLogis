@@ -374,7 +374,7 @@ public class PartnerAuthService {
             return new ExpirationResponse(bizNo, null, false, PartnerAuth.LONG_UNUSED_DAYS);
         }
         LocalDateTime now = LocalDateTime.now();
-        boolean expired = !expiresAt.isAfter(now);
+        boolean expired = PartnerAccessPolicy.isAuthenticationLongUnused(auth, activity, now);
         long remaining = expired ? 0 : ChronoUnit.DAYS.between(now, expiresAt);
         return new ExpirationResponse(bizNo, expiresAt, expired, remaining);
     }

@@ -78,6 +78,29 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
+describe('주문서 앱 접근권한 mock report 계약', () => {
+  it('GET /access-preview/report 는 목록 Page가 아닌 후보 report를 반환한다', () => {
+    const response = mockRequest({
+      method: 'GET',
+      url: '/api/v1/partner-approvals/access-preview/report',
+      params: { unusedDays: 30 },
+    }) as MockEnvelope<{
+      candidates: unknown[]
+      deferred: boolean
+      deferredPartnerCount: number
+      deferredSources: string[]
+    }>
+
+    expect(response.data).toEqual(expect.objectContaining({
+      candidates: expect.any(Array),
+      deferred: expect.any(Boolean),
+      deferredPartnerCount: expect.any(Number),
+      deferredSources: expect.any(Array),
+    }))
+    expect(response.data).not.toHaveProperty('content')
+  })
+})
+
 describe('mock 결재양식 optionsJson 정규화', () => {
   it('실 BE와 동일하게 대소문자 변종을 dedup하지 않고 모두 보존한다', () => {
     const response = mockRequest({
