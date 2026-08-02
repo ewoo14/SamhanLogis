@@ -11700,19 +11700,38 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         },
       ],
       unmapped: [
-        { partnerCode: 'P-404', partnerName: '미매핑 거래처', slipNo: '2026/05/17-3' },
+        {
+          partnerCode: 'P-404',
+          partnerName: '미매핑 거래처',
+          slipNo: '2026/05/17-3',
+          message: '[삼한] 5/17 오전 배송 예정입니다.',
+          recipientPhone: '01000000000',
+        },
       ],
     })
   }
   if (method === 'POST' && url.includes('/admin/notifications/dispatch-batch/send')) {
+    const body = parseMockBody(config)
+    const entries = Array.isArray(body['entries'])
+      ? body['entries'] as Array<{ partnerCode?: string; recipientPhone?: string }>
+      : []
+    // 단톡방 주소(room:)는 SMS API 수신번호가 아니므로 요청 단계에서도 발송금지로 집계한다.
+    const details = entries.map((entry) => {
+      const recipientPhone = String(entry.recipientPhone ?? '')
+      const blocked = recipientPhone.startsWith('room:')
+      return {
+        partnerCode: String(entry.partnerCode ?? 'UNKNOWN'),
+        recipientPhone,
+        status: blocked ? 'BLOCKED' as const : 'SENT' as const,
+        reason: blocked ? '단톡방 직접 발송 미지원' : null,
+      }
+    })
     return envelope({
       date: '2026-05-17',
-      sent: 1,
+      sent: details.filter((detail) => detail.status === 'SENT').length,
       failed: 0,
-      blocked: 0,
-      details: [
-        { partnerCode: 'P-001', recipientPhone: 'room:서울권 발주방', status: 'SENT', reason: null },
-      ],
+      blocked: details.filter((detail) => detail.status === 'BLOCKED').length,
+      details,
     })
   }
 
