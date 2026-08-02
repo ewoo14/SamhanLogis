@@ -26,7 +26,7 @@ final class RiUsageDecision {
             return focusRows.stream().allMatch(row -> fullyConsumed(usage, row.sourceKey()));
         }
         if (!isAccessory(focusKind)) {
-            return null;
+            return Boolean.TRUE;
         }
 
         if (focusRows.stream().allMatch(row -> fullyConsumed(usage, row.sourceKey()))) {
@@ -35,13 +35,16 @@ final class RiUsageDecision {
         boolean sawMain = false;
         boolean failedMain = false;
         for (String scope : focusRows.stream().map(Row::scopeKey).distinct().toList()) {
-            List<Row> mains = rows.stream()
+            List<Row> presentMains = rows.stream()
                     .filter(row -> Objects.equals(scope, row.scopeKey()))
-                    .filter(row -> isFailedMain(row.kind()))
+                    .filter(row -> isPresentMain(row.kind()))
                     .toList();
-            if (!mains.isEmpty()) {
+            if (!presentMains.isEmpty()) {
                 sawMain = true;
-                failedMain |= mains.stream().anyMatch(row -> !fullyConsumed(usage, row.sourceKey()));
+                failedMain |= rows.stream()
+                        .filter(row -> Objects.equals(scope, row.scopeKey()))
+                        .filter(row -> isFailedMain(row.kind()))
+                        .anyMatch(row -> !fullyConsumed(usage, row.sourceKey()));
             }
         }
         if (!sawMain) {
@@ -59,7 +62,7 @@ final class RiUsageDecision {
     }
 
     private static boolean isMain(String kind) {
-        return "INDOOR".equals(kind) || "OUTDOOR".equals(kind) || "SUB_INDOOR".equals(kind);
+        return isPresentMain(kind);
     }
 
     private static boolean isAccessory(String kind) {
@@ -68,6 +71,10 @@ final class RiUsageDecision {
 
     private static boolean isFailedMain(String kind) {
         return "INDOOR".equals(kind) || "OUTDOOR".equals(kind);
+    }
+
+    private static boolean isPresentMain(String kind) {
+        return isFailedMain(kind) || "SUB_INDOOR".equals(kind);
     }
 
     record Row(String sourceKey, String scopeKey, String modelToken, String kind) {

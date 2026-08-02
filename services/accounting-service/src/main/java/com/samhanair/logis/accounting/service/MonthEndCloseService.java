@@ -627,14 +627,16 @@ public class MonthEndCloseService {
                 EstimateComponent::componentModelCode,
                 c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()),
                 (left, right) -> left));
-        String kind = kindByToken.getOrDefault(modelToken, "ACCESSORY");
+        String kind = kindByToken.getOrDefault(modelToken,
+                LegacyModelKindClassifier.riUsageKind("ACCESSORY", modelToken));
         java.util.Set<String> scopes = lines.stream().map(SetPoolLine::scopeKey)
                 .collect(java.util.stream.Collectors.toSet());
         List<RiUsageDecision.Row> decisionRows = setPool.stream()
                 .filter(line -> line.axis() == GasCategoryAxis.SINGLE)
                 .filter(line -> scopes.contains(line.scopeKey()))
                 .map(line -> new RiUsageDecision.Row(line.sourceKey(), line.scopeKey(), line.modelToken(),
-                        kindByToken.getOrDefault(line.modelToken(), "ACCESSORY")))
+                        kindByToken.getOrDefault(line.modelToken(),
+                                LegacyModelKindClassifier.riUsageKind("ACCESSORY", line.modelToken()))))
                 .toList();
         return RiUsageDecision.decide(modelToken, kind, decisionRows, usage);
     }
@@ -658,7 +660,8 @@ public class MonthEndCloseService {
     private static String kindFor(String modelToken, List<EstimateComponent> catalog) {
         return catalog.stream().filter(c -> modelToken.equals(c.componentModelCode()))
                 .map(c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()))
-                .findFirst().orElse("ACCESSORY");
+                .findFirst()
+                .orElseGet(() -> LegacyModelKindClassifier.riUsageKind("ACCESSORY", modelToken));
     }
 
     private record ParentModelKey(String partnerCode, String modelToken) {}
