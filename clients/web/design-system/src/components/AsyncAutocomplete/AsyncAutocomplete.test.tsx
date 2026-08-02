@@ -8,6 +8,52 @@ interface Option {
 }
 
 describe('AsyncAutocomplete', () => {
+  it('모달 취소 직후 검색어는 남지만 필드 왕복 후에는 정리된다', async () => {
+    const search = vi.fn<(q: string) => Promise<Option[]>>().mockResolvedValue([
+      { id: 'first', label: 'AJ 첫 품목' },
+      { id: 'second', label: 'AJ 둘째 품목' },
+    ])
+
+    render(
+      <div>
+        <AsyncAutocomplete<Option>
+          value={null}
+          onChange={vi.fn()}
+          search={search}
+          getKey={(item) => item.id}
+          getInputLabel={(item) => item.label}
+          renderOption={(item) => <span>{item.label}</span>}
+          listboxLabel="품목 목록"
+          ariaLabel="품목"
+          resultSelectionMode="multiple"
+          resultSelectionTitle="품목 검색 결과"
+          debounceMs={0}
+        />
+        <button type="button">다른 필드</button>
+      </div>,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' }) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AJ' } })
+    await screen.findByRole('dialog', { name: '품목 검색 결과' })
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(input.value).toBe('AJ')
+    // Modal이 복원하는 첫 focus를 명시적으로 재현한다 — 이 1회는 검색어를 보존해야 한다.
+    fireEvent.focus(input)
+    expect(input.value).toBe('AJ')
+
+    fireEvent.blur(input)
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 140))
+    })
+    fireEvent.focus(screen.getByRole('button', { name: '다른 필드' }))
+    fireEvent.focus(input)
+
+    expect(input.value).toBe('')
+  })
+
   it('검색 중 행은 비활성 option으로 노출되어 키보드 선택 대상이 아님을 알린다', async () => {
     let resolveSearch: ((value: Option[]) => void) | undefined
     const search = vi.fn<(q: string) => Promise<Option[]>>(

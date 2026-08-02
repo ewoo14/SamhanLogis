@@ -196,6 +196,8 @@ function AsyncAutocompleteInner<T>(
       blurTimer.current = undefined
     }
     const preserveDraft = preserveDraftOnNextFocusRef.current
+    // 모달 취소 직후 포커스 복원 1회만 검색어를 보존하고, 다음 왕복부터는 정리한다.
+    preserveDraftOnNextFocusRef.current = false
     if (!preserveDraft) {
       lastTypedDraftRef.current = ''
       setDraft('')

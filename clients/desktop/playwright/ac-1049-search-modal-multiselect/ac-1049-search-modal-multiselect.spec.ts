@@ -83,4 +83,22 @@ test.describe('#1049 부분 검색 모달 복수선택', () => {
     await expect(input(page)).toHaveValue('AJ')
     await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
   })
+
+  test('B — 모달 취소 직후 검색어는 남고 필드 왕복 후 정리된다', async ({ page }) => {
+    await gotoEstimateItems(page)
+    await input(page).fill('AJ')
+
+    const dialog = page.getByRole('dialog', { name: '품목 검색 결과' })
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    await page.keyboard.press('Escape')
+
+    // A: 취소 직후 Modal 포커스 복원에서는 검색어를 보존한다.
+    await expect(dialog).toHaveCount(0)
+    await expect(input(page)).toHaveValue('AJ')
+
+    // B: 다른 필드로 왕복하면 일회용 보존 플래그가 소비되어 검색어를 정리한다.
+    await page.getByTestId('estimate-items-search-input').click()
+    await input(page).focus()
+    await expect(input(page)).toHaveValue('')
+  })
 })
