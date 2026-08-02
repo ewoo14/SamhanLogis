@@ -23,15 +23,8 @@ final class PartnerAccessPolicy {
         if (activity == null || !activity.isLookupComplete()) {
             return false;
         }
-        LocalDateTime base = activity.lastActivityAt();
-        if (auth.getAccessRestoredAt() != null
-                && (base == null || auth.getAccessRestoredAt().isAfter(base))) {
-            base = auth.getAccessRestoredAt();
-        }
-        if (base == null) {
-            base = auth.getCreatedAt();
-        }
-        return base != null && !base.plusDays(PartnerAuth.LONG_UNUSED_DAYS).isAfter(now);
+        LocalDateTime expiresAt = authenticationExpirationAt(auth, activity);
+        return expiresAt != null && !expiresAt.isAfter(now);
     }
 
     /** 실제 인증도 미리보기와 같은 레거시 주문·출고 기준을 사용한다. */
@@ -45,15 +38,21 @@ final class PartnerAccessPolicy {
         if (activity == null || !activity.isLookupComplete()) {
             return null;
         }
+        LocalDateTime base = latestBaseline(auth, activity);
+        return base == null ? null : base.plusDays(PartnerAuth.LONG_UNUSED_DAYS);
+    }
+
+    /** 레거시 기준인 주문·출고·생성시각과 관리자 복구시각의 최댓값. */
+    private static LocalDateTime latestBaseline(PartnerAuth auth, PartnerActivity activity) {
         LocalDateTime base = activity.lastActivityAt();
         if (auth.getAccessRestoredAt() != null
                 && (base == null || auth.getAccessRestoredAt().isAfter(base))) {
             base = auth.getAccessRestoredAt();
         }
-        if (base == null || (auth.getCreatedAt() != null && auth.getCreatedAt().isAfter(base))) {
+        if (auth.getCreatedAt() != null && (base == null || auth.getCreatedAt().isAfter(base))) {
             base = auth.getCreatedAt();
         }
-        return base == null ? null : base.plusDays(PartnerAuth.LONG_UNUSED_DAYS);
+        return base;
     }
 
     static boolean isPreviewCandidate(PartnerAuth auth, PartnerActivity activity, LocalDateTime now) {

@@ -17,6 +17,40 @@ import org.junit.jupiter.api.Test;
 class OrderAppAccessPreviewTest {
 
     @Test
+    void previewAndAuthenticationUseCreatedAtWhenItIsNewerThanBusinessActivity() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 3, 0, 0);
+        PartnerAuth auth = PartnerAuth.seedFromLegacy(
+                "8888888888", "P-CREATED-AT", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(auth, now.minusDays(1));
+        PartnerActivity oldActivity = new PartnerActivity(
+                now.minusDays(60), now.minusDays(45));
+
+        assertThat(PartnerAccessPolicy.isPreviewCandidate(auth, oldActivity, now)).isFalse();
+        assertThat(PartnerAccessPolicy.isAuthenticationLongUnused(auth, oldActivity, now)).isFalse();
+    }
+
+    @Test
+    void previewExposesDeferredLookupInsteadOfSilentlyReturningNoCandidates() {
+        PartnerAuthRepository repository = mock(PartnerAuthRepository.class);
+        DcConfigClient dcConfigClient = mock(DcConfigClient.class);
+        PartnerActivityReader activityReader = mock(PartnerActivityReader.class);
+        PartnerAuth auth = PartnerAuth.seedFromLegacy(
+                "7777777777", "P-DEFERRED", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(auth, LocalDateTime.now().minusDays(60));
+        when(repository.findAll()).thenReturn(List.of(auth));
+        when(activityReader.read("P-DEFERRED"))
+                .thenThrow(new IllegalStateException("order service 503"));
+
+        PartnerApprovalService service = new PartnerApprovalService(repository, dcConfigClient, activityReader);
+
+        Object result = service.previewLongUnusedReport(30);
+
+        assertThat(result).isNotInstanceOf(List.class);
+        assertThat(result).extracting("deferred").isEqualTo(true);
+        assertThat(result).extracting("deferredPartnerCount").isEqualTo(1);
+    }
+
+    @Test
     void previewUsesOrderAndShipmentActivityInsteadOfLoginOrPasswordDates() {
         PartnerAuthRepository repository = mock(PartnerAuthRepository.class);
         DcConfigClient dcConfigClient = mock(DcConfigClient.class);

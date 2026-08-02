@@ -6,10 +6,14 @@ import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.dto.PartnerApprovalResponse;
 import com.samhanair.logis.partnerauth.dto.PartnerApprovalStatus;
+import com.samhanair.logis.partnerauth.dto.PartnerAccessPreviewResponse;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
 import jakarta.persistence.EntityNotFoundException;
 import java.util.Collection;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -72,17 +76,38 @@ public class PartnerApprovalService {
      */
     @Transactional(readOnly = true)
     public List<PartnerApprovalResponse> previewLongUnused(int unusedDays) {
+        return previewLongUnusedReport(unusedDays).candidates();
+    }
+
+    /** 후보와 함께 외부 활동 조회 보류를 관리자에게 명시한다. */
+    @Transactional(readOnly = true)
+    public PartnerAccessPreviewResponse previewLongUnusedReport(int unusedDays) {
         LocalDateTime now = LocalDateTime.now();
-        return partnerAuthRepository.findAll().stream()
-                .filter(pa -> pa.getStatus() == PartnerStatus.NEED_PW_INPUT
-                        || pa.getStatus() == PartnerStatus.OK
-                        || pa.getStatus() == PartnerStatus.LONG_UNUSED)
-                .filter(pa -> {
-                    PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, pa.getPartnerCode());
-                    return PartnerAccessPolicy.isPreviewCandidate(pa, activity, now);
-                })
-                .map(this::buildResponse)
-                .toList();
+        List<PartnerApprovalResponse> candidates = new ArrayList<>();
+        Set<String> deferredSources = new LinkedHashSet<>();
+        int deferredPartnerCount = 0;
+        for (PartnerAuth pa : partnerAuthRepository.findAll()) {
+            if (pa.getStatus() != PartnerStatus.NEED_PW_INPUT
+                    && pa.getStatus() != PartnerStatus.OK
+                    && pa.getStatus() != PartnerStatus.LONG_UNUSED) {
+                continue;
+            }
+            PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, pa.getPartnerCode());
+            if (!activity.isLookupComplete()) {
+                deferredPartnerCount++;
+                if (!activity.orderLookupSucceeded()) deferredSources.add("ORDER");
+                if (!activity.shipmentLookupSucceeded()) deferredSources.add("SHIPMENT");
+                continue;
+            }
+            if (PartnerAccessPolicy.isPreviewCandidate(pa, activity, now)) {
+                candidates.add(buildResponse(pa));
+            }
+        }
+        return new PartnerAccessPreviewResponse(
+                candidates,
+                deferredPartnerCount > 0,
+                deferredPartnerCount,
+                new ArrayList<>(deferredSources));
     }
 
     public PartnerApprovalResponse updateStatus(String partnerCode, PartnerApprovalStatus next) {

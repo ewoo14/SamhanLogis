@@ -87,7 +87,7 @@ export function SalesOrderApprovalsPage() {
     queryFn: () => previewPartnerAccess(unusedDays),
     retry: 1,
   })
-  const candidateCodes = new Set((previewQuery.data ?? []).map((a) => a.partnerCode))
+  const candidateCodes = new Set((previewQuery.data?.candidates ?? []).map((a) => a.partnerCode))
 
   const updateStatus = useMutation({
     mutationFn: ({ code, status }: { code: string; status: PartnerApprovalStatus }) =>
@@ -119,7 +119,7 @@ export function SalesOrderApprovalsPage() {
 
   function handleBulkReset() {
     if (!canUpdateApproval || selectedCandidateCodes.length === 0) return
-    const selected = (previewQuery.data ?? []).filter((a) => selectedCandidateCodes.includes(a.partnerCode))
+    const selected = (previewQuery.data?.candidates ?? []).filter((a) => selectedCandidateCodes.includes(a.partnerCode))
     if (!window.confirm(
       `다음 ${selected.length}개 거래처의 비밀번호를 초기화하시겠습니까?\n\n${selected.map((a) => `${a.partnerCode} ${a.partnerName}`).join('\n')}`,
     )) return
@@ -291,8 +291,14 @@ export function SalesOrderApprovalsPage() {
           </div>
           {previewQuery.isLoading ? <p>대상을 계산하는 중…</p> : previewQuery.isError ? <p>대상 미리보기를 불러오지 못했습니다.</p> : (
             <div style={{ marginTop: 12 }}>
-              <strong data-testid="access-preview-count">현재 대상 {previewQuery.data?.length ?? 0}건</strong>
-              {(previewQuery.data ?? []).map((a) => (
+              <strong data-testid="access-preview-count">현재 대상 {previewQuery.data?.candidates.length ?? 0}건</strong>
+              {previewQuery.data?.deferred ? (
+                <p role="alert" style={{ color: '#b45309' }}>
+                  주문·출고 조회 실패로 {previewQuery.data.deferredPartnerCount}건의 판정이 보류되었습니다.
+                  ({previewQuery.data.deferredSources.join(', ')})
+                </p>
+              ) : null}
+              {(previewQuery.data?.candidates ?? []).map((a) => (
                 <label key={a.partnerCode} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                   <input
                     type="checkbox"

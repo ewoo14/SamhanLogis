@@ -17,11 +17,42 @@ import com.samhanair.logis.partnerauth.repository.PartnerSessionRepository;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 
 /** 미리보기와 실제 상태조회가 같은 주문·출고 활동 집합을 사용하는지 검증한다. */
 class PartnerAuthServiceAccessSetTest {
+
+    @Test
+    void expirationApiTreatsExactlyThirtyDaysAsExpiredLikeAuthenticationBlock() {
+        LocalDateTime boundary = LocalDateTime.of(2026, 8, 3, 0, 0);
+        var authRepository = mock(PartnerAuthRepository.class);
+        var activityReader = mock(PartnerActivityReader.class);
+        var auth = PartnerAuth.seedFromLegacy(
+                "2118712345", "2118712345", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(auth, boundary.minusDays(30));
+        when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
+        when(activityReader.read("2118712345")).thenReturn(new PartnerActivity(null, null));
+
+        var authService = new PartnerAuthService(
+                authRepository,
+                mock(PartnerLoginAttemptRepository.class),
+                mock(PartnerSessionRepository.class),
+                PasswordEncoderFactories.createDelegatingPasswordEncoder(),
+                jwtProperties(),
+                mock(DcConfigClient.class),
+                mock(SmsClient.class),
+                activityReader);
+
+        try (MockedStatic<LocalDateTime> mockedNow = Mockito.mockStatic(LocalDateTime.class,
+                Mockito.CALLS_REAL_METHODS)) {
+            mockedNow.when(LocalDateTime::now).thenReturn(boundary);
+
+            assertThat(authService.getExpiration("2118712345").expiredAlready()).isTrue();
+        }
+    }
 
     @Test
     void recentLoginDoesNotExemptPartnerWithNoOrderOrShipmentActivity() {
