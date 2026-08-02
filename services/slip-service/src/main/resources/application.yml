@@ -185,10 +185,10 @@ app:
   # 값은 inventory_db.warehouses 실재 행이며, 환경별로 반드시 주입한다.
   publish:
     warehouse-code-map:
-      "[00003]": '\${WAREHOUSE_UUID_HQ}'
-      "[2]":     '\${WAREHOUSE_UUID_HUBAL}'
-      "[14]":    '\${WAREHOUSE_UUID_ANSEONG}'
-      "[1]":     '\${WAREHOUSE_UUID_CHANGWON}'
+      "[00003]": ${WAREHOUSE_UUID_HQ}
+      "[2]":     ${WAREHOUSE_UUID_HUBAL}
+      "[14]":    ${WAREHOUSE_UUID_ANSEONG}
+      "[1]":     ${WAREHOUSE_UUID_CHANGWON}
 management:
   endpoints:
     web:
