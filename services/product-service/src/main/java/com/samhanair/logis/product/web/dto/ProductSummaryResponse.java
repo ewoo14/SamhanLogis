@@ -120,7 +120,7 @@ public record ProductSummaryResponse(
                 p.getId(),
                 p.getName(),
                 p.getModelName(),
-                p.getProductCode(),
+                exposedProductCode(p),
                 p.getCategory().getId(),
                 p.getSellingPrice(),
                 p.getStatus(),
@@ -138,6 +138,20 @@ public record ProductSummaryResponse(
                 p.getReleasePrice(),
                 p.getDeliveryPrice(),
                 p.getHasVariableDiscount());
+    }
+
+    /**
+     * 사용자 노출 품목코드. 모델코드가 있으면 모델코드를 사용하고, 모델코드가 없는 기존 품목은
+     * 순번코드를 fallback으로 유지해 화면·전표 조회에서 고아가 되지 않도록 한다.
+     *
+     * @param p 품목
+     * @return 모델코드 우선 노출 코드, 없으면 기존 순번코드
+     */
+    private static String exposedProductCode(Product p) {
+        if (p.getModelCode() != null && !p.getModelCode().isBlank()) {
+            return p.getModelCode();
+        }
+        return p.getProductCode();
     }
 
     private static String categoryKey(ProductCategory productCategory) {

@@ -8,6 +8,7 @@ import com.samhanair.logis.product.domain.EstimateCategory;
 import com.samhanair.logis.product.domain.Category;
 import com.samhanair.logis.product.domain.Classification;
 import com.samhanair.logis.product.domain.Product;
+import com.samhanair.logis.product.domain.ProductAlias;
 import com.samhanair.logis.product.domain.ProductCategory;
 import com.samhanair.logis.product.domain.ProductEstimateExposure;
 import com.samhanair.logis.product.domain.ProductGoodsType;
@@ -219,9 +220,12 @@ public class ProductService {
         if (productCode == null || productCode.isBlank()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "품목코드가 비어있습니다");
         }
-        Product product = productRepository.findByProductCodeAndIsDeletedFalse(productCode.trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
-                        "품목코드에 해당하는 제품이 없습니다"));
+        String normalizedCode = productCode.trim();
+        Product product = productRepository.findByProductCodeAndIsDeletedFalse(normalizedCode)
+                .orElseGet(() -> productAliasRepository.findByAliasCodeAndIsDeletedFalse(normalizedCode)
+                        .map(ProductAlias::getMainProduct)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND,
+                                "품목코드에 해당하는 제품이 없습니다")));
         return ProductSummaryResponse.from(product);
     }
 

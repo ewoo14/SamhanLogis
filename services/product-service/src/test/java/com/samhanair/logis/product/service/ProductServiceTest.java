@@ -127,6 +127,33 @@ class ProductServiceTest {
     }
 
     @Test
+    void summary_exposes_modelCode_as_productCode_and_keeps_legacy_code_as_fallback() {
+        ReflectionTestUtils.setField(product, "productCode", "010004");
+        ReflectionTestUtils.setField(product, "modelCode", "MODEL-004");
+
+        ProductSummaryResponse withModelCode = ProductSummaryResponse.from(product);
+
+        assertThat(withModelCode.productCode()).isEqualTo("MODEL-004");
+
+        ReflectionTestUtils.setField(product, "modelCode", null);
+        ProductSummaryResponse withoutModelCode = ProductSummaryResponse.from(product);
+
+        assertThat(withoutModelCode.productCode()).isEqualTo("010004");
+    }
+
+    @Test
+    void lookup_by_product_code_resolves_legacy_alias_without_changing_product_uuid() {
+        when(productRepository.findByProductCodeAndIsDeletedFalse("010004")).thenReturn(Optional.empty());
+        when(productAliasRepository.findByAliasCodeAndIsDeletedFalse("010004"))
+                .thenReturn(Optional.of(ProductAlias.create("010004", product, "S2_LEGACY_PRODUCT_CODE")));
+
+        ProductSummaryResponse result = service.lookupSummaryByProductCode("010004");
+
+        assertThat(result.id()).isEqualTo(productId);
+        verify(productAliasRepository).findByAliasCodeAndIsDeletedFalse("010004");
+    }
+
+    @Test
     void create_persistsDynamicSpecsInRequestOrder() {
         when(productRepository.existsByModelNameAndIsDeletedFalse("SHA-W20K")).thenReturn(false);
         when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
