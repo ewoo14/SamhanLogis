@@ -236,9 +236,8 @@ test.describe('품목 관리 페이지 — PR-E 세트·구성품·표시순서 
     const searchInput = addRegion.getByPlaceholder('모델명 또는 품목명 입력')
     await searchInput.click()
     await searchInput.fill('AJ036NCH3CH')
-    const option = page.locator('li[role="option"]').filter({ hasText: 'AJ036NCH3CH' }).first()
-    await expect(option).toBeVisible({ timeout: 5_000 })
-    await option.click()
+    // 새 검색 계약: 단일 후보는 dropdown 클릭 없이 즉시 선택 칩으로 확정된다.
+    await expect(page.getByTestId('multiselect-chip-count')).toHaveText('1개 선택됨', { timeout: 5_000 })
 
     const addBtn = page.getByTestId('estimate-items-add-product-button')
     await expect(addBtn).toBeEnabled()

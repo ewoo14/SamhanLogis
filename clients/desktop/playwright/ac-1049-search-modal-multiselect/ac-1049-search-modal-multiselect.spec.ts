@@ -80,6 +80,7 @@ test.describe('#1049 부분 검색 모달 복수선택', () => {
     await page.keyboard.press('Escape')
 
     await expect(dialog).toHaveCount(0)
+    await expect(input(page)).toHaveValue('AJ')
     await expect(page.getByRole('option', { name: /검색 중/ })).toHaveCount(0)
   })
 })
