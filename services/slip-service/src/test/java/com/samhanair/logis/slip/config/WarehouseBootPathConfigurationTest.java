@@ -11,12 +11,20 @@ import org.junit.jupiter.api.Test;
 class WarehouseBootPathConfigurationTest {
 
     @Test
-    void README_기본_slip_bootRun은_local_프로파일로_기동한다() throws IOException {
+    void README_기본_slip_bootRun은_local_프로파일을_강제하지_않고_PostgreSQL_기본설정을쓴다() throws IOException {
         String readme = Files.readString(repositoryRoot().resolve("README.md"));
 
         assertThat(readme)
                 .contains("./gradlew :services:slip-service:bootRun")
-                .contains("--spring.profiles.active=local");
+                .doesNotContain(":slip-service:bootRun --args='--spring.profiles.active=local'")
+                .contains("source infrastructure/env-templates/.env.dev-seed");
+
+        String application = Files.readString(
+                repositoryRoot().resolve("services/slip-service/src/main/resources/application.yml"));
+        assertThat(application)
+                .contains("url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:slip_db}")
+                .contains("dialect: org.hibernate.dialect.PostgreSQLDialect")
+                .contains("enabled: true");
     }
 
     @Test
@@ -29,6 +37,20 @@ class WarehouseBootPathConfigurationTest {
                 .contains("WAREHOUSE_UUID_HUBAL=")
                 .contains("WAREHOUSE_UUID_ANSEONG=")
                 .contains("WAREHOUSE_UUID_CHANGWON=");
+    }
+
+    @Test
+    void dev_seed는_업무창고가_없는_세_값을_기존전표보존용_fallback으로_명시한다() throws IOException {
+        String seed = Files.readString(
+                repositoryRoot().resolve("infrastructure/env-templates/.env.dev-seed"));
+
+        assertThat(seed)
+                .contains("업무 창고(HUBAL/ANSEONG/CHANGWON)를 만들지 않는다")
+                .contains("기존 전표의 warehouse_id 참조를 보존")
+                .contains("VH-001 1호차 차량재고 (fallback)")
+                .contains("CS-001 거래처 위탁창고 (fallback)")
+                .contains("VR-001 가상창고 (fallback)")
+                .contains("기존 전표 1,428건");
     }
 
     private static Path repositoryRoot() {
