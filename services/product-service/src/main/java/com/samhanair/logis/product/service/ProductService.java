@@ -979,13 +979,24 @@ public class ProductService {
                 .toList();
         Map<UUID, Product> parentsById = productRepository.findAllByIdIn(parentIds).stream()
                 .collect(java.util.stream.Collectors.toMap(Product::getId, p -> p, (left, right) -> left));
-        for (BundleComponent link : links) {
-            Product parent = parentsById.get(link.getBundleProductId());
-            if (parent != null && parent.getProductType() == ProductType.BUNDLE) {
-                return new ParentComponentLink(
-                        parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName(),
-                        link.getComponentKind());
-            }
+        List<ParentComponentLink> parents = links.stream()
+                .map(link -> {
+                    Product parent = parentsById.get(link.getBundleProductId());
+                    if (parent == null || parent.getProductType() != ProductType.BUNDLE) {
+                        return null;
+                    }
+                    return new ParentComponentLink(
+                            parent.getModelCode() != null ? parent.getModelCode() : parent.getModelName(),
+                            link.getComponentKind());
+                })
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        // 레거시 GAS는 구성품 단건 lookup의 첫 부모를 고르지 않는다.
+        // 실내기 후보 세트의 구성품·가격을 모두 맞춘 뒤 선택한 setName만 옵션 selector가 된다.
+        // 거래 라인 컨텍스트가 없는 단건 API에서 다중 부모를 임의 확정하면 과차감이 발생하므로
+        // 모호한 경우에는 부모를 반환하지 않고 기존 modelToken fallback을 유지한다.
+        if (parents.size() == 1) {
+            return parents.get(0);
         }
         return null;
     }

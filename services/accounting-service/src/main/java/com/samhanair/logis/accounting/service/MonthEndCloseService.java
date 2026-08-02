@@ -405,8 +405,21 @@ public class MonthEndCloseService {
                                                           boolean preservePurchasePriceLookup) {
         List<String> labels = byModel.keySet().stream().map(AxisKey::label).distinct().toList();
         Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(labels);
-        Map<String, ProductLabelMatch> modelMatches = resolveProductModels(byModel.keySet());
-        Map<String, String> parentSetNames = resolveParentSetNames(byModel.keySet());
+        Map<String, ProductSummary> modelSummaries = resolveProductSummaries(byModel.keySet());
+        Map<String, ProductLabelMatch> modelMatches = modelSummaries.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> ProductLabelMatch.matched(e.getValue().id(), e.getValue().modelCode()),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        Map<String, String> parentSetNames = modelSummaries.entrySet().stream()
+                .filter(e -> e.getValue().parentSetModelCode() != null
+                        && !e.getValue().parentSetModelCode().isBlank())
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().parentSetModelCode(),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
         List<UUID> matchedProductIds = byModel.keySet().stream()
                 .map(axis -> effectiveProductMatch(axis, labelMatches, modelMatches))
                 .filter(ProductLabelMatch::isMatched)
@@ -522,27 +535,13 @@ public class MonthEndCloseService {
     }
 
     /** exact snapshot 모델이 있으면 품명 LIKE 결과보다 우선한다. */
-    private Map<String, ProductLabelMatch> resolveProductModels(java.util.Set<AxisKey> axes) {
-        Map<String, ProductLabelMatch> result = new LinkedHashMap<>();
+    private Map<String, ProductSummary> resolveProductSummaries(java.util.Set<AxisKey> axes) {
+        Map<String, ProductSummary> result = new LinkedHashMap<>();
         axes.stream().map(AxisKey::modelToken).filter(java.util.Objects::nonNull).distinct()
                 .forEach(model -> {
                     ProductSummary summary = productClient.lookupByModel(model);
-                    result.put(model, summary == null
-                            ? ProductLabelMatch.notFound()
-                            : ProductLabelMatch.matched(summary.id(), summary.modelCode()));
-                });
-        return result;
-    }
-
-    /** 구성품 modelToken → 레거시 옵션 선택용 부모 세트 modelCode를 해소한다. */
-    private Map<String, String> resolveParentSetNames(java.util.Set<AxisKey> axes) {
-        Map<String, String> result = new LinkedHashMap<>();
-        axes.stream().map(AxisKey::modelToken).filter(java.util.Objects::nonNull).distinct()
-                .forEach(model -> {
-                    ProductSummary summary = productClient.lookupByModel(model);
-                    if (summary != null && summary.parentSetModelCode() != null
-                            && !summary.parentSetModelCode().isBlank()) {
-                        result.put(model, summary.parentSetModelCode());
+                    if (summary != null) {
+                        result.put(model, summary);
                     }
                 });
         return result;

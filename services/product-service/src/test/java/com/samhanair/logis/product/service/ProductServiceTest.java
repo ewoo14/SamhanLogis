@@ -560,6 +560,36 @@ class ProductServiceTest {
     }
 
     @Test
+    void findByModelName_multipleParents_doesNotChooseAnArbitraryParent() {
+        product.changeModelCode("AC060CXAPBH1");
+        Product firstParent = Product.seedFromSheet("360 세트", "AC060CS6PBH1SY", category,
+                BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(800_000), ProductType.BUNDLE,
+                ProductCategory.SINGLE_SET, com.samhanair.logis.product.domain.UsageScope.BOTH, null);
+        Product secondParent = Product.seedFromSheet("4way 세트", "AC060CS4PBH2SY", category,
+                BigDecimal.valueOf(1_000_000), BigDecimal.valueOf(800_000), ProductType.BUNDLE,
+                ProductCategory.SINGLE_SET, com.samhanair.logis.product.domain.UsageScope.BOTH, null);
+        UUID firstParentId = UUID.randomUUID();
+        UUID secondParentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(firstParent, "id", firstParentId);
+        ReflectionTestUtils.setField(secondParent, "id", secondParentId);
+
+        BundleComponent firstLink = BundleComponent.seed(firstParentId, "AC060CXAPBH1", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, false, null);
+        BundleComponent secondLink = BundleComponent.seed(secondParentId, "AC060CXAPBH1", BigDecimal.ONE,
+                BundleComponent.QtyMode.FOLLOW_SET, BundleComponent.ComponentKind.OUTDOOR, null, false, null);
+        when(productRepository.findByModelNameAndIsDeletedFalse("AC060CXAPBH1"))
+                .thenReturn(Optional.of(product));
+        when(bundleComponentRepository.findByComponentProductCode("AC060CXAPBH1"))
+                .thenReturn(List.of(firstLink, secondLink));
+        when(productRepository.findAllByIdIn(List.of(firstParentId, secondParentId)))
+                .thenReturn(List.of(firstParent, secondParent));
+
+        ProductSummaryResponse summary = service.lookupSummaryByModelName("AC060CXAPBH1");
+
+        assertThat(summary.parentSetModelCode()).isNull();
+    }
+
+    @Test
     void findByModelName_missing_throwsNotFound() {
         when(productRepository.findByModelNameAndIsDeletedFalse("UNKNOWN-MODEL"))
                 .thenReturn(Optional.empty());
