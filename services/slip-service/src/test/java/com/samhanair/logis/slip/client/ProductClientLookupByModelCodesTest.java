@@ -51,4 +51,23 @@ class ProductClientLookupByModelCodesTest {
         assertThat(result).extracting(ProductSummary::modelCode).containsExactlyElementsOf(modelCodes);
         server.verify();
     }
+
+    @Test
+    void lookupByModelNames_sends_modelNames_to_modelName_endpoint() {
+        List<String> modelNames = List.of("EC-ONLY-001");
+        String body = "{\"success\":true,\"data\":["
+                + "{\"id\":\"00000000-0000-0000-0000-000000000001\","
+                + "\"name\":\"이카운트 품목\",\"modelName\":\"EC-ONLY-001\","
+                + "\"modelCode\":null,\"categoryKey\":\"homemulti\"}]}";
+
+        server.expect(requestTo("http://product-service/products/internal/lookup-by-model-names"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+
+        List<ProductSummary> result = client.lookupByModelNames(modelNames);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).modelName()).isEqualTo("EC-ONLY-001");
+        server.verify();
+    }
 }

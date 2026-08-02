@@ -439,6 +439,37 @@ public class ProductService {
     }
 
     /**
+     * 모델명 기준 벌크 조회 — 이카운트 계보처럼 modelCode가 없는 제품도 전건 해소한다.
+     * 기존 모델코드 조회 계약은 다른 호출자가 사용하므로 이 메서드와 분리한다.
+     *
+     * @param modelNames 조회할 모델명 목록
+     * @return 활성 제품 요약 목록
+     */
+    @Transactional(readOnly = true)
+    public List<ProductSummaryResponse> lookupByModelNames(List<String> modelNames) {
+        if (modelNames == null || modelNames.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelName이 비어있습니다");
+        }
+        if (modelNames.size() > LOOKUP_MAX) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "한 번에 조회할 수 있는 최대 제품 수는 " + LOOKUP_MAX + "건입니다");
+        }
+        List<String> normalized = modelNames.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toCollection(LinkedHashSet::new),
+                        ArrayList::new));
+        if (normalized.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "조회할 modelName이 비어있습니다");
+        }
+        return productRepository.findByModelNameInAndIsDeletedFalse(normalized).stream()
+                .map(ProductSummaryResponse::from)
+                .toList();
+    }
+
+    /**
      * 세트(BUNDLE) 구성품 정합 점검 — 운영 전/시트 sync 후 재실행용.
      *
      * <p>모든 활성 BUNDLE 의 구성품 중 활성 품목으로 해소되지 않는(미등록/단종) 것을 세트별로 모은다.

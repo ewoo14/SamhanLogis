@@ -58,17 +58,17 @@ public class InOutAnalysisService {
     }
 
     private Map<String, ProductSummary> lookupProducts(List<Slip> slips) {
-        List<String> modelCodes = slips.stream().flatMap(s -> s.getLines().stream())
+        List<String> modelNames = slips.stream().flatMap(s -> s.getLines().stream())
                 .map(SlipLine::getModelName)
-                .filter(code -> code != null && !code.isBlank())
+                .filter(name -> name != null && !name.isBlank())
                 .map(String::trim).distinct().toList();
         Map<String, ProductSummary> result = new HashMap<>();
-        if (modelCodes.isEmpty()) {
+        if (modelNames.isEmpty()) {
             return result;
         }
-        for (int start = 0; start < modelCodes.size(); start += 100) {
-            List<String> chunk = modelCodes.subList(start, Math.min(start + 100, modelCodes.size()));
-            productClient.lookupByModelCodes(chunk).forEach(p -> result.put(p.modelCode(), p));
+        for (int start = 0; start < modelNames.size(); start += 100) {
+            List<String> chunk = modelNames.subList(start, Math.min(start + 100, modelNames.size()));
+            productClient.lookupByModelNames(chunk).forEach(p -> result.put(p.modelName(), p));
         }
         return result;
     }

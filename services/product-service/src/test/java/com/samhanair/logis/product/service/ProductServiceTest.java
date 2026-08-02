@@ -213,6 +213,18 @@ class ProductServiceTest {
     }
 
     @Test
+    void lookupByModelNames_resolvesEcountProductWithoutModelCodeLookup() {
+        when(productRepository.findByModelNameInAndIsDeletedFalse(List.of("EC-ONLY-001")))
+                .thenReturn(List.of(product));
+
+        List<ProductSummaryResponse> result = service.lookupByModelNames(List.of("EC-ONLY-001"));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).modelName()).isEqualTo("SHA-W15K");
+        verify(productRepository, never()).findByModelCodeInAndIsDeletedFalse(any());
+    }
+
+    @Test
     void update_changesNameAndDescription() {
         when(productRepository.findById(productId)).thenReturn(Optional.of(product));
         when(productSpecRepository.findByProductIdOrderByDisplayOrderAsc(productId)).thenReturn(List.of());
