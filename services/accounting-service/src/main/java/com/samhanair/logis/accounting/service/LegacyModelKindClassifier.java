@@ -23,10 +23,13 @@ final class LegacyModelKindClassifier {
 
     private static String classify(String value) {
         String u = value == null ? "" : value.toUpperCase(Locale.ROOT);
+        if (u.startsWith("PC")) {
+            return "PANEL";
+        }
         if (u.startsWith("AWR-") || u.startsWith("AR-")) {
             return "REMOTE";
         }
-        if (u.matches("^AC\\d{3}.*") && u.length() >= 7) {
+        if (u.matches("^A[CP]\\d{3}.*") && u.length() >= 7) {
             if (u.charAt(6) == 'N') {
                 return "INDOOR";
             }

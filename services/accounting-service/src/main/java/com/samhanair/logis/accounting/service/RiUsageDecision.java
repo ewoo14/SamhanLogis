@@ -29,12 +29,15 @@ final class RiUsageDecision {
             return null;
         }
 
+        if (focusRows.stream().allMatch(row -> fullyConsumed(usage, row.sourceKey()))) {
+            return Boolean.TRUE;
+        }
         boolean sawMain = false;
         boolean failedMain = false;
         for (String scope : focusRows.stream().map(Row::scopeKey).distinct().toList()) {
             List<Row> mains = rows.stream()
                     .filter(row -> Objects.equals(scope, row.scopeKey()))
-                    .filter(row -> isMain(row.kind()))
+                    .filter(row -> isFailedMain(row.kind()))
                     .toList();
             if (!mains.isEmpty()) {
                 sawMain = true;
@@ -47,8 +50,7 @@ final class RiUsageDecision {
         if (failedMain) {
             return false;
         }
-        return focusRows.stream().allMatch(row -> fullyConsumed(usage, row.sourceKey()))
-                ? Boolean.TRUE : null;
+        return null;
     }
 
     private static boolean fullyConsumed(Map<String, LegacySetMatcher.Usage> usage, String sourceKey) {
@@ -62,6 +64,10 @@ final class RiUsageDecision {
 
     private static boolean isAccessory(String kind) {
         return "PANEL".equals(kind) || "REMOTE".equals(kind) || "MATERIAL".equals(kind);
+    }
+
+    private static boolean isFailedMain(String kind) {
+        return "INDOOR".equals(kind) || "OUTDOOR".equals(kind);
     }
 
     record Row(String sourceKey, String scopeKey, String modelToken, String kind) {

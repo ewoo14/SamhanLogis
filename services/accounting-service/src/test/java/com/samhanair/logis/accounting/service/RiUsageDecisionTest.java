@@ -60,4 +60,24 @@ class RiUsageDecisionTest {
         assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", "QA797-PART-01"))
                 .isEqualTo("ACCESSORY");
     }
+
+    @Test
+    void partiallyConsumedSubIndoorDoesNotFailACompletedSiblingRemote() {
+        assertThat(RiUsageDecision.decide("REMOTE-1", "REMOTE", List.of(
+                new RiUsageDecision.Row("REMOTE-1", "D1", "REMOTE-1", "REMOTE"),
+                new RiUsageDecision.Row("Q-1", "D1", "AR06A9170HNQ", "SUB_INDOOR")),
+                Map.of("REMOTE-1", new LegacySetMatcher.Usage(1, 1),
+                        "Q-1", new LegacySetMatcher.Usage(2, 1))))
+                .isTrue();
+    }
+
+    @Test
+    void legacyClassifierIncludesApAndPcRulesWithoutOverridingConcreteCatalogKinds() {
+        assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", "AP052CNPFBH1PP"))
+                .isEqualTo("INDOOR");
+        assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", "PC1BWCK3NW"))
+                .isEqualTo("ACCESSORY");
+        assertThat(LegacyModelKindClassifier.riUsageKind("PANEL", "PC1BWCK3NW"))
+                .isEqualTo("PANEL");
+    }
 }
