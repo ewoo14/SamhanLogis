@@ -177,7 +177,9 @@ public class ProductService {
      */
     @Transactional(readOnly = true)
     public ProductSummaryResponse lookupSummaryByModelName(String modelName) {
-        return ProductSummaryResponse.from(findByModelNameOrThrow(modelName));
+        Product product = findByModelNameOrThrow(modelName);
+        ParentComponentLink parent = findParentComponentLink(product);
+        return ProductSummaryResponse.from(product, parent == null ? null : parent.parentModelCode());
     }
 
     /**

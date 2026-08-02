@@ -19,7 +19,8 @@ public record ProductSummary(
         BigDecimal sellingPrice,
         String status,
         String categoryKey,
-        String modelCode) {
+        String modelCode,
+        String parentSetModelCode) {
 
     /** 기존 소비자 호환용 생성자 — categoryKey 를 아직 사용하지 않는 호출자를 보존한다. */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
@@ -31,5 +32,11 @@ public record ProductSummary(
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status, String categoryKey) {
         this(id, name, modelName, categoryId, sellingPrice, status, categoryKey, null);
+    }
+
+    /** parentSetModelCode 추가 전 8-arg 호출 호환 생성자. */
+    public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
+                          BigDecimal sellingPrice, String status, String categoryKey, String modelCode) {
+        this(id, name, modelName, categoryId, sellingPrice, status, categoryKey, modelCode, null);
     }
 }

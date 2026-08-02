@@ -264,6 +264,44 @@ class DailyClosingDetailServiceTest {
     }
 
     @Test
+    @DisplayName("레거시 싱글 세트 옵션은 구성품 modelToken이 아니라 매칭된 setName으로 선택한다")
+    void dailyDetailUsesMatchedSetNameForOptionDiscount() {
+        UUID outdoor = UUID.randomUUID();
+        TaxInvoice ti = newIssued("TI-SET-NAME", "세트거래처", DATE);
+        // 실 원본 싱글 구성품 시트에 존재하는 완성 세트 구성품 조합.
+        addLineWithAxis(ti, "무풍 4way 냉난방 프레스티지 실외기", "AC060CXAPBH1", "singleSets",
+                BigDecimal.ONE, new BigDecimal("100000"));
+        recalcSnapshot(ti);
+        when(taxInvoiceRepository.findIssuedInRange(TaxInvoiceStatus.ISSUED, DATE, DATE))
+                .thenReturn(List.of(ti));
+        when(productClient.resolveByLabelBulk(anyList())).thenReturn(Map.of(
+                "무풍 4way 냉난방 프레스티지 실외기",
+                ProductLabelMatch.matched(outdoor, "AC060CXAPBH1")));
+        when(productClient.lookupByModel("AC060CXAPBH1"))
+                .thenReturn(new ProductSummary(outdoor, "무풍 4way 냉난방 프레스티지 실외기",
+                        "AC060CXAPBH1", null, null, "ACTIVE", "singleSets", "AC060CXAPBH1",
+                        "AC060CS4PBH2SY"));
+        when(productClient.applicablePrices(anyList(), eq(DATE))).thenReturn(Map.of(
+                outdoor, new ApplicablePrice(new BigDecimal("150000"), new BigDecimal("100000"), DATE)));
+        when(partnerDcConfigClient.findByPartnerCode(
+                org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(PartnerDcConfigClient.LookupResult.found(
+                        new BigDecimal("0.45"), new BigDecimal("0.45"),
+                        null, new BigDecimal("20000"), null, null, null, null));
+
+        DailyClosingDetailResponse response = service.getDailyDetail(DATE);
+        assertThat(findProductLine(response, "무풍 4way 냉난방 프레스티지 실외기").deliveryPrice())
+                .isEqualByComparingTo("80000");
+
+        // 레거시 Code.js 는 이 구성품의 완성 세트명 AC060CS4PBH2SY 로 4way를 고른다.
+        verify(discountRevalidator).revalidate(
+                eq("무풍 4way 냉난방 프레스티지 실외기"), eq("AC060CS4PBH2SY"),
+                eq(new BigDecimal("110000.0000000000")), eq(new BigDecimal("150000")),
+                eq(new BigDecimal("100000")), eq(null), org.mockito.ArgumentMatchers.any(),
+                eq(ProductLabelMatch.Status.MATCHED));
+    }
+
+    @Test
     @DisplayName("할인 적용 — totalDiscount 0 (placeholder)")
     void discountPlaceholder() {
         TaxInvoice ti = newIssued("TI-DC", "할인거래처", DATE);

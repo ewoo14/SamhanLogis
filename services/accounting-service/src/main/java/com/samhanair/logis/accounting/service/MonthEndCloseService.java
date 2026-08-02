@@ -406,6 +406,7 @@ public class MonthEndCloseService {
         List<String> labels = byModel.keySet().stream().map(AxisKey::label).distinct().toList();
         Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(labels);
         Map<String, ProductLabelMatch> modelMatches = resolveProductModels(byModel.keySet());
+        Map<String, String> parentSetNames = resolveParentSetNames(byModel.keySet());
         List<UUID> matchedProductIds = byModel.keySet().stream()
                 .map(axis -> effectiveProductMatch(axis, labelMatches, modelMatches))
                 .filter(ProductLabelMatch::isMatched)
@@ -461,12 +462,15 @@ public class MonthEndCloseService {
             // 재검증 분기용 토큰(미매치 시 정규화 품명 fallback 포함).
             String modelToken = axisKey.modelToken() == null
                     ? ModelTokenExtractor.extractModelToken(axisKey.label()) : axisKey.modelToken();
+            // 레거시 GAS 는 완성 세트에 매칭된 부모 세트명으로 옵션 정액 종류를 선택한다.
+            // 부모 세트가 해소되지 않는 일반/미매칭 행은 기존 modelToken fallback을 보존한다.
+            String optionToken = parentSetNames.getOrDefault(modelToken, modelToken);
             // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
             // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
             // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
             DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
                     axisKey.label(),
-                    modelToken,
+                    optionToken,
                     e.getValue().effectiveUnitPrice(),
                     price == null ? null : price.release(),
                     price == null ? null : price.delivery(),
@@ -526,6 +530,20 @@ public class MonthEndCloseService {
                     result.put(model, summary == null
                             ? ProductLabelMatch.notFound()
                             : ProductLabelMatch.matched(summary.id(), summary.modelCode()));
+                });
+        return result;
+    }
+
+    /** 구성품 modelToken → 레거시 옵션 선택용 부모 세트 modelCode를 해소한다. */
+    private Map<String, String> resolveParentSetNames(java.util.Set<AxisKey> axes) {
+        Map<String, String> result = new LinkedHashMap<>();
+        axes.stream().map(AxisKey::modelToken).filter(java.util.Objects::nonNull).distinct()
+                .forEach(model -> {
+                    ProductSummary summary = productClient.lookupByModel(model);
+                    if (summary != null && summary.parentSetModelCode() != null
+                            && !summary.parentSetModelCode().isBlank()) {
+                        result.put(model, summary.parentSetModelCode());
+                    }
                 });
         return result;
     }
