@@ -159,19 +159,16 @@ public class StockInstanceService {
         }
 
         lockOutboundBatchKey(outboundSlipNo, productCode);
-        long already = repo.countByOutboundSlipNoAndProductCodeAndStatus(
-                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        long already = countReserved(outboundSlipNo, product, productCode);
         if (already >= quantity) {
-            return repo.findByOutboundSlipNoAndProductCodeAndStatus(
-                    outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+            return findReserved(outboundSlipNo, product, productCode);
         }
 
         int deficit = quantity - Math.toIntExact(already);
         // advisory lock 키가 outboundSlipNo|productCode 이므로 다른 전표가 동일 warehouse/productCode 의
         // AVAILABLE 인스턴스를 동시 소진할 수 있다. count 와 실제 후보 목록의 TOCTOU 불일치로 인한
         // IndexOutOfBounds(500) 를 막기 위해, 후보 목록을 먼저 적재한 뒤 그 크기로 재고부족을 사전차단한다.
-        List<StockInstance> candidates = repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
-                productCode, warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, deficit));
+        List<StockInstance> candidates = findAvailable(product, productCode, warehouseId, deficit);
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "재고 부족 — 가용 인스턴스 " + candidates.size() + " < 필요 " + deficit
@@ -180,8 +177,7 @@ public class StockInstanceService {
         for (int i = 0; i < deficit; i++) {
             candidates.get(i).reserve(outboundSlipNo);
         }
-        return repo.findByOutboundSlipNoAndProductCodeAndStatus(
-                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        return findReserved(outboundSlipNo, product, productCode);
     }
 
     /**
@@ -196,13 +192,18 @@ public class StockInstanceService {
     @Transactional
     public List<StockInstance> shipBatch(String outboundSlipNo, String productCode,
                                          String partnerCode, LocalDateTime outboundAt) {
-        List<StockInstance> reserved = repo.findByOutboundSlipNoAndProductCodeAndStatus(
-                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        List<StockInstance> reserved = product == null
+                ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                        outboundSlipNo, productCode, StockInstanceStatus.RESERVED)
+                : findReserved(outboundSlipNo, product, productCode);
         for (StockInstance instance : reserved) {
             instance.ship(partnerCode, outboundSlipNo, outboundAt);
         }
-        return repo.findByOutboundSlipNoAndProductCodeAndStatus(
-                outboundSlipNo, productCode, StockInstanceStatus.SHIPPED);
+        return product == null
+                ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                        outboundSlipNo, productCode, StockInstanceStatus.SHIPPED)
+                : findBySlipAndStatus(outboundSlipNo, product, productCode, StockInstanceStatus.SHIPPED);
     }
 
     /**
@@ -214,8 +215,11 @@ public class StockInstanceService {
      */
     @Transactional
     public List<StockInstance> releaseBatch(String outboundSlipNo, String productCode) {
-        List<StockInstance> reserved = repo.findByOutboundSlipNoAndProductCodeAndStatus(
-                outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+        ProductSummary product = productClient.requireExistsByCode(productCode);
+        List<StockInstance> reserved = product == null
+                ? repo.findByOutboundSlipNoAndProductCodeAndStatus(
+                        outboundSlipNo, productCode, StockInstanceStatus.RESERVED)
+                : findReserved(outboundSlipNo, product, productCode);
         for (StockInstance instance : reserved) {
             instance.release();
         }
@@ -246,16 +250,13 @@ public class StockInstanceService {
         }
 
         lockRecallBatchKey(recallSlipNo, productCode);
-        long already = repo.countByRecallSlipNoAndProductCodeAndStatus(
-                recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        long already = countRecalled(recallSlipNo, product, productCode);
         if (already >= quantity) {
-            return repo.findByRecallSlipNoAndProductCodeAndStatus(
-                    recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+            return findRecalled(recallSlipNo, product, productCode);
         }
 
         int deficit = quantity - Math.toIntExact(already);
-        List<StockInstance> candidates = repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
-                partnerCode, productCode, StockInstanceStatus.SHIPPED, PageRequest.of(0, deficit));
+        List<StockInstance> candidates = findShipped(product, productCode, partnerCode, deficit);
         if (candidates.size() < deficit) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "회수 대상 부족 — 출고 인스턴스 " + candidates.size() + " < 필요 " + deficit
@@ -264,8 +265,66 @@ public class StockInstanceService {
         for (int i = 0; i < deficit; i++) {
             candidates.get(i).recall(recallSlipNo);
         }
-        return repo.findByRecallSlipNoAndProductCodeAndStatus(
-                recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        return findRecalled(recallSlipNo, product, productCode);
+    }
+
+    private long countReserved(String outboundSlipNo, ProductSummary product, String productCode) {
+        long byProductId = repo.countByOutboundSlipNoAndProductIdAndStatus(
+                outboundSlipNo, product.id(), StockInstanceStatus.RESERVED);
+        return byProductId > 0 ? byProductId
+                : repo.countByOutboundSlipNoAndProductCodeAndStatus(
+                        outboundSlipNo, productCode, StockInstanceStatus.RESERVED);
+    }
+
+    private List<StockInstance> findReserved(String outboundSlipNo, ProductSummary product, String productCode) {
+        return findBySlipAndStatus(outboundSlipNo, product, productCode, StockInstanceStatus.RESERVED);
+    }
+
+    private List<StockInstance> findBySlipAndStatus(String outboundSlipNo, ProductSummary product,
+                                                    String productCode, StockInstanceStatus status) {
+        List<StockInstance> byProductId = repo.findByOutboundSlipNoAndProductIdAndStatus(
+                outboundSlipNo, product.id(), status);
+        return byProductId.isEmpty()
+                ? repo.findByOutboundSlipNoAndProductCodeAndStatus(outboundSlipNo, productCode, status)
+                : byProductId;
+    }
+
+    private List<StockInstance> findAvailable(ProductSummary product, String productCode,
+                                              UUID warehouseId, int deficit) {
+        List<StockInstance> byProductId = repo.findByProductIdAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                product.id(), warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, deficit));
+        return byProductId.isEmpty()
+                ? repo.findByProductCodeAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                        productCode, warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, deficit))
+                : byProductId;
+    }
+
+    private long countRecalled(String recallSlipNo, ProductSummary product, String productCode) {
+        long byProductId = repo.countByRecallSlipNoAndProductIdAndStatus(
+                recallSlipNo, product.id(), StockInstanceStatus.RECALLED);
+        return byProductId > 0 ? byProductId
+                : repo.countByRecallSlipNoAndProductCodeAndStatus(
+                        recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+    }
+
+    private List<StockInstance> findRecalled(String recallSlipNo, ProductSummary product, String productCode) {
+        List<StockInstance> byProductId = repo.findByRecallSlipNoAndProductIdAndStatus(
+                recallSlipNo, product.id(), StockInstanceStatus.RECALLED);
+        return byProductId.isEmpty()
+                ? repo.findByRecallSlipNoAndProductCodeAndStatus(
+                        recallSlipNo, productCode, StockInstanceStatus.RECALLED)
+                : byProductId;
+    }
+
+    private List<StockInstance> findShipped(ProductSummary product, String productCode,
+                                             String partnerCode, int deficit) {
+        List<StockInstance> byProductId = repo
+                .findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAscForUpdate(
+                        partnerCode, product.id(), StockInstanceStatus.SHIPPED, PageRequest.of(0, deficit));
+        return byProductId.isEmpty()
+                ? repo.findByOutboundPartnerCodeAndProductCodeAndStatusOrderByOutboundAtDescIdAscForUpdate(
+                        partnerCode, productCode, StockInstanceStatus.SHIPPED, PageRequest.of(0, deficit))
+                : byProductId;
     }
 
     /**

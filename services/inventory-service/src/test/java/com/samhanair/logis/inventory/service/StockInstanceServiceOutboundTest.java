@@ -110,6 +110,32 @@ class StockInstanceServiceOutboundTest {
     }
 
     @Test
+    @DisplayName("reserveBatch는 노출 모델명과 다른 legacy 저장 키를 productId로 예약한다")
+    void reserveBatch_usesProductIdWhenExposedCodeDiffersFromStoredLegacyCode() {
+        UUID productId = UUID.randomUUID();
+        UUID warehouseId = UUID.randomUUID();
+        StockInstance legacyKeyInstance = instance(productId, "010001", warehouseId,
+                LocalDateTime.of(2026, 5, 30, 9, 0));
+        ProductSummary summary = new ProductSummary(productId, "에어컨", "AR05TXEAAWKNEU-01",
+                "AR05TXEAAWKNEU-01", UUID.randomUUID(), BigDecimal.ONE, "ACTIVE", true);
+        when(productClient.requireExistsByCode("AR05TXEAAWKNEU-01")).thenReturn(summary);
+        when(repo.countByOutboundSlipNoAndProductIdAndStatus(
+                "2026/06/23-1", productId, StockInstanceStatus.RESERVED)).thenReturn(0L);
+        when(repo.findByProductIdAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+                productId, warehouseId, StockInstanceStatus.AVAILABLE, PageRequest.of(0, 1)))
+                .thenReturn(List.of(legacyKeyInstance));
+        when(repo.findByOutboundSlipNoAndProductIdAndStatus(
+                "2026/06/23-1", productId, StockInstanceStatus.RESERVED))
+                .thenReturn(List.of(legacyKeyInstance));
+
+        List<StockInstance> result = service.reserveBatch(
+                "AR05TXEAAWKNEU-01", warehouseId, 1, "2026/06/23-1");
+
+        assertThat(result).containsExactly(legacyKeyInstance);
+        assertThat(legacyKeyInstance.getStatus()).isEqualTo(StockInstanceStatus.RESERVED);
+    }
+
+    @Test
     @DisplayName("reserveBatch는 이미 목표 수량 이상 예약된 경우 추가 예약하지 않는다")
     void reserveBatch_isIdempotentWhenAlreadyReserved() {
         UUID warehouseId = UUID.randomUUID();

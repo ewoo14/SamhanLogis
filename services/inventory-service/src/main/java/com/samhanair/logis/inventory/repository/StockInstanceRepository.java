@@ -72,6 +72,24 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("status") StockInstanceStatus status,
             Pageable pageable);
 
+    /** 모델명 전환 후에도 product UUID로 legacy product_code 저장 행을 예약한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.productId = :productId
+              AND s.warehouseId = :warehouseId
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.receivedAt ASC, s.id ASC
+            """)
+    List<StockInstance> findByProductIdAndWarehouseIdAndStatusOrderByReceivedAtAscForUpdate(
+            @Param("productId") UUID productId,
+            @Param("warehouseId") UUID warehouseId,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
+
     /**
      * 역-FIFO 회수 후보 — 거래처+품목코드 기준 지정 상태 인스턴스를 outbound_at DESC 순으로 조회.
      * 주로 {@link StockInstanceStatus#SHIPPED} 상태 조회에 사용.
@@ -109,6 +127,36 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("productCode") String productCode,
             @Param("status") StockInstanceStatus status,
             Pageable pageable);
+
+    /** 모델명 전환 후에도 product UUID로 legacy product_code 저장 행을 회수한다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.outboundPartnerCode = :outboundPartnerCode
+              AND s.productId = :productId
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.outboundAt DESC, s.id ASC
+            """)
+    List<StockInstance> findByOutboundPartnerCodeAndProductIdAndStatusOrderByOutboundAtDescIdAscForUpdate(
+            @Param("outboundPartnerCode") String outboundPartnerCode,
+            @Param("productId") UUID productId,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
+
+    long countByOutboundSlipNoAndProductIdAndStatus(
+            String outboundSlipNo, UUID productId, StockInstanceStatus status);
+
+    List<StockInstance> findByOutboundSlipNoAndProductIdAndStatus(
+            String outboundSlipNo, UUID productId, StockInstanceStatus status);
+
+    long countByRecallSlipNoAndProductIdAndStatus(
+            String recallSlipNo, UUID productId, StockInstanceStatus status);
+
+    List<StockInstance> findByRecallSlipNoAndProductIdAndStatus(
+            String recallSlipNo, UUID productId, StockInstanceStatus status);
 
     /**
      * 회수 대상 수량 확인 — 거래처+품목코드+상태 기준 건수.
