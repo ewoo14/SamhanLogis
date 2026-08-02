@@ -49,5 +49,7 @@ class PartnerActivityClientTest {
 
         assertThat(activity.lastOrderAt()).isNull();
         assertThat(activity.lastShipmentAt()).isEqualTo(LocalDateTime.of(2026, 8, 1, 10, 0));
+        assertThat(activity.orderLookupSucceeded()).isFalse();
+        assertThat(activity.shipmentLookupSucceeded()).isTrue();
     }
 }

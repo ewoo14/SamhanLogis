@@ -24,7 +24,7 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 class PartnerAuthServiceAccessSetTest {
 
     @Test
-    void recentLoginPreventsCreatedAtFallbackFromBlockingAuthentication() {
+    void recentLoginDoesNotExemptPartnerWithNoOrderOrShipmentActivity() {
         var authRepository = mock(PartnerAuthRepository.class);
         var activityReader = mock(PartnerActivityReader.class);
         var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
@@ -35,6 +35,32 @@ class PartnerAuthServiceAccessSetTest {
         setEntityId(auth, UUID.randomUUID());
         when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
         when(activityReader.read("2118712345")).thenReturn(new PartnerActivity(null, null));
+
+        var service = new PartnerAuthService(
+                authRepository,
+                mock(PartnerLoginAttemptRepository.class),
+                mock(PartnerSessionRepository.class),
+                encoder,
+                jwtProperties(),
+                mock(DcConfigClient.class),
+                mock(SmsClient.class),
+                activityReader);
+
+        assertThat(service.tryLogin(new TryLoginRequest("2118712345", "1357", false),
+                "127.0.0.1", "test").status()).isEqualTo(PartnerStatus.LONG_UNUSED);
+    }
+
+    @Test
+    void activityLookupFailureDoesNotBlockAuthenticationAsIfThereWereNoActivity() {
+        var authRepository = mock(PartnerAuthRepository.class);
+        var activityReader = mock(PartnerActivityReader.class);
+        var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        var auth = PartnerAuth.seedFromLegacy(
+                "2118712345", "2118712345", encoder.encode("1357"), PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(auth, LocalDateTime.now().minusDays(60));
+        setEntityId(auth, UUID.randomUUID());
+        when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
+        when(activityReader.read("2118712345")).thenThrow(new IllegalStateException("order service 503"));
 
         var service = new PartnerAuthService(
                 authRepository,

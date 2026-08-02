@@ -86,13 +86,17 @@ public class PartnerAuth extends BaseEntity {
     @Column(name = "failed_attempts", nullable = false)
     private int failedAttempts = 0;
 
-    /** 마지막 로그인 성공 시각 (30일 슬라이딩 기준). */
+    /** 마지막 로그인 성공 시각 (인증 이력용이며 장기미발주 판정에는 사용하지 않음). */
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
     /** 마지막 비밀번호 변경 시각 (90일 강제 변경 기준). */
     @Column(name = "password_changed_at")
     private LocalDateTime passwordChangedAt;
+
+    /** 관리자 장기미발주 복구 시각 — 일반 로그인과 분리된 복구 유예 기준. */
+    @Column(name = "access_restored_at")
+    private LocalDateTime accessRestoredAt;
 
     /** PC 튜토리얼 완료 여부. */
     @Column(name = "tutorial_pc_done", nullable = false)
@@ -203,8 +207,8 @@ public class PartnerAuth extends BaseEntity {
                     + " 상태에서만 승인 복구 가능: " + this.status.getDisplayName());
         }
         this.status = PartnerStatus.NEED_PW_INPUT;
-        // 관리자 복구를 새로운 접근 기준시각으로 삼아 다음 상태 조회에서 즉시 재선별되지 않게 한다.
-        this.lastLoginAt = LocalDateTime.now();
+        // 관리자 복구를 일반 로그인과 구분되는 접근 기준시각으로 기록한다.
+        this.accessRestoredAt = LocalDateTime.now();
     }
 
     /** 관리자 승인 (PENDING → NEED_PW_SET — 임시 비밀번호 발급 직전). */
@@ -247,8 +251,8 @@ public class PartnerAuth extends BaseEntity {
     /**
      * 설정된 기간을 적용한 접근 만료 일시 계산.
      *
-     * <p>판정 기준은 기존과 동일하게 마지막 로그인 성공 시각을 우선하고,
-     * 없으면 비밀번호 변경 시각을 사용한다.
+     * <p>복구 유예 표시용 기준은 관리자 복구 시각이다. 일반 로그인·비밀번호 변경
+     * 시각은 장기미발주 판정에 사용하지 않는다.
      *
      * @param unusedDays 장기미사용으로 볼 기간(일)
      * @return 만료 일시, 기준 시각이 없으면 {@code null}
@@ -257,7 +261,7 @@ public class PartnerAuth extends BaseEntity {
         if (unusedDays < 1 || unusedDays > 365) {
             throw new IllegalArgumentException("장기미사용 기간은 1~365일이어야 합니다");
         }
-        LocalDateTime base = lastLoginAt != null ? lastLoginAt : passwordChangedAt;
+        LocalDateTime base = accessRestoredAt;
         return base == null ? null : base.plusDays(unusedDays);
     }
 

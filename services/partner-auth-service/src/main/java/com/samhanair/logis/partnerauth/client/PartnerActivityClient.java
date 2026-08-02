@@ -28,23 +28,33 @@ public class PartnerActivityClient implements PartnerActivityReader {
     /** 주문 확정 시각과 출고 일자를 모두 읽어 하나의 활동 snapshot으로 합친다. */
     @Override
     public PartnerActivity read(String partnerCode) {
-        ActivityEnvelope order = get(orderClient, partnerCode);
-        ActivityEnvelope shipment = get(slipClient, partnerCode);
+        LookupResult order = get(orderClient, partnerCode);
+        LookupResult shipment = get(slipClient, partnerCode);
         return new PartnerActivity(
-                order == null ? null : order.data() == null ? null : order.data().lastActivityAt(),
-                shipment == null ? null : shipment.data() == null ? null : shipment.data().lastActivityAt());
+                order.data() == null ? null : order.data().lastActivityAt(),
+                shipment.data() == null ? null : shipment.data().lastActivityAt(),
+                order.succeeded(),
+                shipment.succeeded());
     }
 
-    private ActivityEnvelope get(RestClient client, String partnerCode) {
+    private LookupResult get(RestClient client, String partnerCode) {
         try {
             ActivityEnvelope response = client.get()
                     .uri("/internal/partner-activity/{partnerCode}", partnerCode)
                     .header(INTERNAL_TOKEN_HEADER, properties.getInternalToken() == null ? "" : properties.getInternalToken())
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {});
-            return response == null ? new ActivityEnvelope(null) : response;
+            return response == null
+                    ? new LookupResult(new ActivityEnvelope(null), false)
+                    : new LookupResult(response, true);
         } catch (RestClientException ex) {
-            return new ActivityEnvelope(null);
+            return new LookupResult(new ActivityEnvelope(null), false);
+        }
+    }
+
+    private record LookupResult(ActivityEnvelope envelope, boolean succeeded) {
+        ActivityData data() {
+            return envelope.data();
         }
     }
 

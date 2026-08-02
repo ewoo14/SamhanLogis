@@ -110,7 +110,7 @@ public class PartnerAuthService {
         if (auth.getStatus() == PartnerStatus.LONG_UNUSED) {
             return PartnerStatus.LONG_UNUSED;
         }
-        PartnerActivity activity = partnerActivityReader.read(auth.getPartnerCode());
+        PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, auth.getPartnerCode());
         if (PartnerAccessPolicy.isAuthenticationLongUnused(auth, activity, LocalDateTime.now())) {
             return PartnerStatus.LONG_UNUSED;
         }
@@ -368,7 +368,7 @@ public class PartnerAuthService {
     public ExpirationResponse getExpiration(String bizNo) {
         PartnerAuth auth = authRepository.findByBizNo(bizNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "거래처를 찾을 수 없습니다"));
-        PartnerActivity activity = partnerActivityReader.read(auth.getPartnerCode());
+        PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, auth.getPartnerCode());
         LocalDateTime expiresAt = PartnerAccessPolicy.authenticationExpirationAt(auth, activity);
         if (expiresAt == null) {
             return new ExpirationResponse(bizNo, null, false, PartnerAuth.LONG_UNUSED_DAYS);

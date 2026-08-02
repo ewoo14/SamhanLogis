@@ -528,6 +528,7 @@ class PartnerAuthServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        setCreatedAt(pa, LocalDateTime.now().minusDays(10));
         when(authRepository.findByBizNo("1234567890")).thenReturn(Optional.of(pa));
 
         var r = service.getExpiration("1234567890");

@@ -9,15 +9,32 @@ final class PartnerAccessPolicy {
 
     private PartnerAccessPolicy() {}
 
+    /** 외부 원천 장애는 활동 없음으로 확정하지 않고 차단을 보류한다. */
+    static PartnerActivity readSafely(PartnerActivityReader reader, String partnerCode) {
+        try {
+            PartnerActivity activity = reader.read(partnerCode);
+            return activity == null ? PartnerActivity.unavailable() : activity;
+        } catch (RuntimeException ex) {
+            return PartnerActivity.unavailable();
+        }
+    }
+
     static boolean isLongUnused(PartnerAuth auth, PartnerActivity activity, LocalDateTime now) {
-        LocalDateTime base = activity == null ? null : activity.lastActivityAt();
+        if (activity == null || !activity.isLookupComplete()) {
+            return false;
+        }
+        LocalDateTime base = activity.lastActivityAt();
+        if (auth.getAccessRestoredAt() != null
+                && (base == null || auth.getAccessRestoredAt().isAfter(base))) {
+            base = auth.getAccessRestoredAt();
+        }
         if (base == null) {
             base = auth.getCreatedAt();
         }
         return base != null && !base.plusDays(PartnerAuth.LONG_UNUSED_DAYS).isAfter(now);
     }
 
-    /** 실제 인증은 로그인 성공을 가장 최근의 활동으로 인정한다. */
+    /** 실제 인증도 미리보기와 같은 레거시 주문·출고 기준을 사용한다. */
     static boolean isAuthenticationLongUnused(PartnerAuth auth, PartnerActivity activity, LocalDateTime now) {
         LocalDateTime expiresAt = authenticationExpirationAt(auth, activity);
         return expiresAt != null && !expiresAt.isAfter(now);
@@ -25,12 +42,15 @@ final class PartnerAccessPolicy {
 
     /** 실제 상태조회·로그인·만료 API가 공유하는 만료 시각. */
     static LocalDateTime authenticationExpirationAt(PartnerAuth auth, PartnerActivity activity) {
-        LocalDateTime base = auth.getLastLoginAt();
-        LocalDateTime activityAt = activity == null ? null : activity.lastActivityAt();
-        if (activityAt != null && (base == null || activityAt.isAfter(base))) {
-            base = activityAt;
+        if (activity == null || !activity.isLookupComplete()) {
+            return null;
         }
-        if (base == null) {
+        LocalDateTime base = activity.lastActivityAt();
+        if (auth.getAccessRestoredAt() != null
+                && (base == null || auth.getAccessRestoredAt().isAfter(base))) {
+            base = auth.getAccessRestoredAt();
+        }
+        if (base == null || (auth.getCreatedAt() != null && auth.getCreatedAt().isAfter(base))) {
             base = auth.getCreatedAt();
         }
         return base == null ? null : base.plusDays(PartnerAuth.LONG_UNUSED_DAYS);

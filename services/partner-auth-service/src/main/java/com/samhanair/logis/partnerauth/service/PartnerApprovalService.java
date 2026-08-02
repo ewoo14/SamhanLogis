@@ -78,7 +78,7 @@ public class PartnerApprovalService {
                         || pa.getStatus() == PartnerStatus.OK
                         || pa.getStatus() == PartnerStatus.LONG_UNUSED)
                 .filter(pa -> {
-                    PartnerActivity activity = partnerActivityReader.read(pa.getPartnerCode());
+                    PartnerActivity activity = PartnerAccessPolicy.readSafely(partnerActivityReader, pa.getPartnerCode());
                     return PartnerAccessPolicy.isPreviewCandidate(pa, activity, now);
                 })
                 .map(this::buildResponse)
