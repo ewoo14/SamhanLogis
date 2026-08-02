@@ -252,6 +252,22 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
             @Param("productCode") String productCode,
             @Param("status") StockInstanceStatus status);
 
+    /** 모델명 전환 후에도 product UUID로 회수취소 대상 legacy product_code 행을 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.recallSlipNo = :recallSlipNo
+              AND s.productId = :productId
+              AND s.status = :status
+              AND s.isDeleted = false
+            """)
+    List<StockInstance> findByRecallSlipNoAndProductIdAndStatusForUpdate(
+            @Param("recallSlipNo") String recallSlipNo,
+            @Param("productId") UUID productId,
+            @Param("status") StockInstanceStatus status);
+
     /**
      * 회수품 재판매 대상 조회(row lock) — recallSlipNo+productCode+RECALLED 후보를 제한 수량만 잠근다.
      *
@@ -278,6 +294,24 @@ public interface StockInstanceRepository extends JpaRepository<StockInstance, UU
     List<StockInstance> findByRecallSlipNoAndProductCodeAndStatusForUpdate(
             @Param("recallSlipNo") String recallSlipNo,
             @Param("productCode") String productCode,
+            @Param("status") StockInstanceStatus status,
+            Pageable pageable);
+
+    /** 모델명 전환 후에도 product UUID로 재판매 대상 legacy product_code 행을 수량만큼 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+    @Query("""
+            SELECT s
+            FROM StockInstance s
+            WHERE s.recallSlipNo = :recallSlipNo
+              AND s.productId = :productId
+              AND s.status = :status
+              AND s.isDeleted = false
+            ORDER BY s.id ASC
+            """)
+    List<StockInstance> findByRecallSlipNoAndProductIdAndStatusForUpdate(
+            @Param("recallSlipNo") String recallSlipNo,
+            @Param("productId") UUID productId,
             @Param("status") StockInstanceStatus status,
             Pageable pageable);
 

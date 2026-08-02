@@ -339,10 +339,10 @@ public class StockInstanceService {
      */
     @Transactional
     public List<StockInstance> unrecallBatch(String recallSlipNo, String productCode) {
+        ProductSummary product = productClient.requireExistsByCode(productCode);
         lockRecallBatchKey(recallSlipNo, productCode);
         // BE 리뷰 P1: ForUpdate row lock — unrecall-batch endpoint 직접 동시호출 시 같은 RECALLED 행 중복 전이 방지
-        List<StockInstance> recalled = repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
-                recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        List<StockInstance> recalled = findRecalledForUpdate(recallSlipNo, product, productCode);
         for (StockInstance instance : recalled) {
             instance.unrecall();
         }
@@ -374,8 +374,8 @@ public class StockInstanceService {
         }
 
         lockRecallBatchKey(recallSlipNo, productCode);
-        List<StockInstance> candidates = repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
-                recallSlipNo, productCode, StockInstanceStatus.RECALLED, PageRequest.of(0, quantity));
+        List<StockInstance> candidates = findRecalledForUpdate(
+                recallSlipNo, product, productCode, PageRequest.of(0, quantity));
         if (candidates.size() < quantity) {
             throw new BusinessException(ErrorCode.CONFLICT,
                     "재판매 대상 부족 — 회수 인스턴스 " + candidates.size() + " < 필요 " + quantity
@@ -385,6 +385,34 @@ public class StockInstanceService {
             instance.resell();
         }
         return candidates;
+    }
+
+    private List<StockInstance> findRecalledForUpdate(String recallSlipNo, ProductSummary product,
+                                                       String productCode) {
+        if (product == null) {
+            return repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                    recallSlipNo, productCode, StockInstanceStatus.RECALLED);
+        }
+        List<StockInstance> byProductId = repo.findByRecallSlipNoAndProductIdAndStatusForUpdate(
+                recallSlipNo, product.id(), StockInstanceStatus.RECALLED);
+        return byProductId.isEmpty()
+                ? repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                        recallSlipNo, productCode, StockInstanceStatus.RECALLED)
+                : byProductId;
+    }
+
+    private List<StockInstance> findRecalledForUpdate(String recallSlipNo, ProductSummary product,
+                                                       String productCode, PageRequest pageable) {
+        if (product == null) {
+            return repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                    recallSlipNo, productCode, StockInstanceStatus.RECALLED, pageable);
+        }
+        List<StockInstance> byProductId = repo.findByRecallSlipNoAndProductIdAndStatusForUpdate(
+                recallSlipNo, product.id(), StockInstanceStatus.RECALLED, pageable);
+        return byProductId.isEmpty()
+                ? repo.findByRecallSlipNoAndProductCodeAndStatusForUpdate(
+                        recallSlipNo, productCode, StockInstanceStatus.RECALLED, pageable)
+                : byProductId;
     }
 
     private void lockInboundBatchKey(String inboundSlipNo, UUID productId) {
