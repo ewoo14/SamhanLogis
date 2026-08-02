@@ -138,10 +138,8 @@ public class EcountProductImporter {
             }
             ProductMainCandidate groupCandidate = sameProductRows.stream()
                     .map(row -> resolvedCandidates.get(row.rowNo()))
-                    .filter(candidate -> candidate == null || candidate.rawRow() == null
-                            || productIdentity(candidate.rawRow())
-                                    .equals(identity))
-                    .filter(candidate -> candidate != null)
+                    .filter(candidate -> candidate != null && candidate.rawRow() != null
+                            && productIdentity(candidate.rawRow()).equals(identity))
                     .sorted(Comparator.comparing(ProductMainCandidate::mainCode))
                     .findFirst()
                     .orElseGet(() -> fallbackSameNameCandidate(identity.name(), sameProductRows, itemsByCode));
@@ -338,13 +336,9 @@ public class EcountProductImporter {
         String dbMainCode = findActiveProductCodeByName(row.name());
         if (dbMainCode != null && !dbMainCode.isBlank()) {
             ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
-            UUID dbMainId = dbMainRaw == null ? findActiveProductIdByCode(dbMainCode) : null;
-            if (dbMainRaw == null && dbMainId == null) {
-                throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                        "DB main 품목 UUID 를 찾을 수 없습니다: code=" + dbMainCode);
+            if (dbMainRaw != null) {
+                return new ProductMainCandidate(dbMainCode, dbMainRaw, null);
             }
-            return new ProductMainCandidate(dbMainCode, dbMainRaw,
-                    dbMainId);
         }
         if (normalNameCounts.getOrDefault(row.name(), 0) == 1) {
             return new ProductMainCandidate(row.code(), row, null);
