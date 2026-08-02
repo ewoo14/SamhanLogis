@@ -94,11 +94,14 @@ public class EcountProductImporter {
         LinkedHashSet<String> countedMainCodes = new LinkedHashSet<>();
         Map<Integer, ProductMainCandidate> resolvedCandidates = new HashMap<>();
         Map<String, List<ItemRow>> normalRowsByName = new LinkedHashMap<>();
+        Map<ProductIdentity, List<ItemRow>> normalRowsByIdentity = new LinkedHashMap<>();
         Map<Integer, String> mergeReasonsByRow = new HashMap<>();
 
         for (ItemRow row : itemRows) {
             if (isNormal(row.code(), row.name())) {
                 normalRowsByName.computeIfAbsent(row.name(), ignored -> new ArrayList<>()).add(row);
+                normalRowsByIdentity.computeIfAbsent(productIdentity(row),
+                        ignored -> new ArrayList<>()).add(row);
             }
         }
 
@@ -124,33 +127,35 @@ public class EcountProductImporter {
             }
         }
 
-        // 같은 품목명은 raw 순번코드가 달라도 하나의 물건이다. 물리 테이블에 필요한
-        // canonical code는 후보 mainCode 오름차순으로 고르고, 후보가 없으면
-        // fallbackSameNameCandidate가 기존 DB 정본 또는 raw code 오름차순을 고른다.
-        // 모든 순번코드는 alias로 보존하며, 후보를 고르지 못한 동명 그룹도 여기서
-        // 동일한 경로로 수렴하므로 HTTP 200 아래 누락되지 않는다.
-        for (Map.Entry<String, List<ItemRow>> entry : normalRowsByName.entrySet()) {
-            List<ItemRow> sameNameRows = entry.getValue();
-            if (sameNameRows.size() < 2) {
+        // 같은 이름이어도 업무 값이 다르면 별도 물건이다. 같은 업무값 그룹 안에서만
+        // canonical code를 고르고 alias를 연결한다. 이름이 중복된 singleton 그룹도
+        // 후보를 다시 해소해야 orphan으로 버려지지 않는다.
+        for (Map.Entry<ProductIdentity, List<ItemRow>> entry : normalRowsByIdentity.entrySet()) {
+            ProductIdentity identity = entry.getKey();
+            List<ItemRow> sameProductRows = entry.getValue();
+            if (normalRowsByName.getOrDefault(identity.name(), List.of()).size() < 2) {
                 continue;
             }
-            ProductMainCandidate groupCandidate = sameNameRows.stream()
+            ProductMainCandidate groupCandidate = sameProductRows.stream()
                     .map(row -> resolvedCandidates.get(row.rowNo()))
+                    .filter(candidate -> candidate == null || candidate.rawRow() == null
+                            || productIdentity(candidate.rawRow())
+                                    .equals(identity))
                     .filter(candidate -> candidate != null)
                     .sorted(Comparator.comparing(ProductMainCandidate::mainCode))
                     .findFirst()
-                    .orElseGet(() -> fallbackSameNameCandidate(entry.getKey(), sameNameRows, itemsByCode));
+                    .orElseGet(() -> fallbackSameNameCandidate(identity.name(), sameProductRows, itemsByCode));
             if (groupCandidate == null) {
                 throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                        "동명 raw 품목 그룹을 병합할 수 없습니다: name=" + entry.getKey());
+                        "동일 업무값 raw 품목 그룹을 병합할 수 없습니다: name=" + identity.name());
             }
             ItemRow selectedRow = groupCandidate.rawRow() == null
-                    ? sameNameRows.get(0)
+                    ? sameProductRows.get(0)
                     : groupCandidate.rawRow();
-            String mergeReason = sameNameMergeReason(groupCandidate.mainCode(), selectedRow, sameNameRows);
-            for (ItemRow sameNameRow : sameNameRows) {
-                resolvedCandidates.put(sameNameRow.rowNo(), groupCandidate);
-                mergeReasonsByRow.put(sameNameRow.rowNo(), mergeReason);
+            String mergeReason = sameNameMergeReason(groupCandidate.mainCode(), selectedRow, sameProductRows);
+            for (ItemRow sameProductRow : sameProductRows) {
+                resolvedCandidates.put(sameProductRow.rowNo(), groupCandidate);
+                mergeReasonsByRow.put(sameProductRow.rowNo(), mergeReason);
             }
         }
 
@@ -206,7 +211,7 @@ public class EcountProductImporter {
         log.info("MIG-2 product import 완료 total={} imported={} updated={} alias={} rejected={} placeholder={} orphan={} mergedGroups={} hash={}",
                 itemRows.size(), imported, updated, aliasImported, rejectedNullName,
                 skippedPlaceholder, skippedRelationOrphan,
-                normalRowsByName.values().stream().filter(rows -> rows.size() > 1).count(), sourceFileHash);
+                normalRowsByIdentity.values().stream().filter(rows -> rows.size() > 1).count(), sourceFileHash);
 
         return new EcountProductImportResult(itemRows.size(), imported, updated, rejectedNullName,
                 skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample,
@@ -407,6 +412,16 @@ public class EcountProductImporter {
         return "MERGED_SAME_NAME canonicalCode=" + canonicalCode
                 + ", selected=" + mergeRowSummary(selectedRow)
                 + ", discarded=" + discarded;
+    }
+
+    private ProductIdentity productIdentity(ItemRow row) {
+        StringBuilder fingerprint = new StringBuilder();
+        for (int i = 2; i <= 9; i++) {
+            fingerprint.append(parseMoney(row.cells()[i]).toPlainString()).append('|');
+        }
+        fingerprint.append(normalizeItemType(row.cells()[10])).append('|')
+                .append(row.cells()[11].strip());
+        return new ProductIdentity(row.name(), fingerprint.toString());
     }
 
     private String mergeRowSummary(ItemRow row) {
@@ -848,6 +863,9 @@ public class EcountProductImporter {
     }
 
     private record ProductMainCandidate(String mainCode, ItemRow rawRow, UUID existingProductId) {
+    }
+
+    private record ProductIdentity(String name, String fingerprint) {
     }
 
     private record RelationParseResult(Map<String, String> mainCodeByAlias, Set<String> mainCodes) {

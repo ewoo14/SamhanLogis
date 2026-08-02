@@ -166,11 +166,11 @@ class EcountProductImporterIT extends AbstractPostgresIT {
         EcountProductImportResult repeated = importer.importCsv(
                 stream(sequenceCodeFixture(groups)), null, null, "high-1-it");
 
-        assertThat(result.imported()).isEqualTo(12);
+        assertThat(result.imported()).isEqualTo(24);
         assertThat(result.aliasImported()).isEqualTo(24);
         assertThat(result.skippedGroupCount()).isZero();
         assertThat(repeated.imported()).isZero();
-        assertThat(repeated.updated()).isEqualTo(12);
+        assertThat(repeated.updated()).isEqualTo(24);
         assertThat(repeated.aliasImported()).isEqualTo(24);
         assertThat(repeated.skippedGroupCount()).isZero();
 
@@ -183,7 +183,7 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                 if (firstId == null) {
                     firstId = summary.id();
                 } else {
-                    assertThat(summary.id()).isEqualTo(firstId);
+                    assertThat(summary.id()).isNotEqualTo(firstId);
                 }
                 assertThat(jdbcTemplate.queryForObject(
                         "SELECT COUNT(*) FROM product_aliases WHERE alias_code = ? AND is_deleted = FALSE",
@@ -196,12 +196,7 @@ class EcountProductImporterIT extends AbstractPostgresIT {
         String discardedReason = jdbcTemplate.queryForObject(
                 "SELECT reject_reason FROM staging.ecount_item_raw WHERE raw_item_code = ?",
                 String.class, "AAAA-00005");
-        assertThat(discardedReason)
-                .contains("MERGED_SAME_NAME")
-                .contains("specification=10평이하")
-                .contains("inboundPrice=12277")
-                .contains("specification=30평이하")
-                .contains("inboundPrice=13914");
+        assertThat(discardedReason).isNull();
     }
 
     @Test
@@ -216,9 +211,8 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                         itemRow(smallestCode, name, "규격-A", "100,000"))),
                 null, null, DETERMINISTIC_MERGE_ACTOR);
         List<Product> forwardProducts = productRepository.findByNameAndIsDeletedFalse(name);
-        assertThat(forwardProducts).hasSize(1);
-        Product forwardProduct = forwardProducts.get(0);
-        assertThat(forward.imported()).isOne();
+        assertThat(forwardProducts).hasSize(2);
+        assertThat(forward.imported()).isEqualTo(2);
         assertThat(forward.aliasImported()).isEqualTo(2);
         assertThat(countDeterministicMergeRawRows()).isEqualTo(2);
 
@@ -230,27 +224,19 @@ class EcountProductImporterIT extends AbstractPostgresIT {
                         itemRow(otherCode, name, "규격-B", "200,000"))),
                 null, null, DETERMINISTIC_MERGE_ACTOR);
         List<Product> reverseProducts = productRepository.findByNameAndIsDeletedFalse(name);
-        assertThat(reverseProducts).hasSize(1);
-        Product reverseProduct = reverseProducts.get(0);
+        assertThat(reverseProducts).hasSize(2);
 
-        assertThat(reverse.imported()).isOne();
+        assertThat(reverse.imported()).isEqualTo(2);
         assertThat(reverse.aliasImported()).isEqualTo(2);
-        assertThat(forwardProduct.getProductCode()).isEqualTo(reverseProduct.getProductCode())
-                .isEqualTo(smallestCode);
-        assertThat(forwardProduct.getSpecification()).isEqualTo(reverseProduct.getSpecification())
-                .isEqualTo("규격-A");
-        assertThat(forwardProduct.getInboundPrice()).isEqualByComparingTo(reverseProduct.getInboundPrice())
-                .isEqualByComparingTo("100000");
+        assertThat(forwardProducts).extracting(Product::getProductCode)
+                .containsExactlyInAnyOrder(smallestCode, otherCode);
+        assertThat(forwardProducts).extracting(Product::getSpecification)
+                .containsExactlyInAnyOrder("규격-A", "규격-B");
+        assertThat(forwardProducts).extracting(Product::getInboundPrice)
+                .containsExactlyInAnyOrder(new BigDecimal("100000"), new BigDecimal("200000"));
+        assertThat(reverseProducts).extracting(Product::getProductCode)
+                .containsExactlyInAnyOrder(smallestCode, otherCode);
         assertThat(countDeterministicMergeRawRows()).isEqualTo(2);
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT reject_reason FROM staging.ecount_item_raw WHERE raw_item_code = ?"
-                        + " AND imported_by = ?",
-                String.class, otherCode, DETERMINISTIC_MERGE_ACTOR))
-                .contains("MERGED_SAME_NAME")
-                .contains("specification=규격-A")
-                .contains("inboundPrice=100000")
-                .contains("specification=규격-B")
-                .contains("inboundPrice=200000");
     }
 
     private int countDeterministicMergeRawRows() {

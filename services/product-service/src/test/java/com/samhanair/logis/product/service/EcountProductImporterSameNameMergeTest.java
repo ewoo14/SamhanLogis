@@ -62,10 +62,23 @@ class EcountProductImporterSameNameMergeTest {
         EcountProductImportResult result = importer.importCsv(
                 itemCsv(
                         row("AAAA-00004", "삼성추가배관(벽걸이)", "0", "12,277", "10평이하"),
-                        row("AAAA-00005", "삼성추가배관(벽걸이)", "0", "13,914", "30평이하")),
+                        row("AAAA-00005", "삼성추가배관(벽걸이)", "0", "12,277", "10평이하")),
                 null, null, "high-1-red");
 
         assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.aliasImported()).isEqualTo(2);
+        assertThat(result.skippedGroupCount()).isZero();
+    }
+
+    @Test
+    void 같은_품목명이어도_규격과_단가가_다르면_각각의_품목과_값을_보존한다() {
+        EcountProductImportResult result = importer.importCsv(
+                itemCsv(
+                        row("AAAA-00022", "고소작업차(스카이)", "0", "148,512", "저층용(2~8층)"),
+                        row("AAAA-00023", "고소작업차(스카이)", "0", "247,521", "저층용(9층이상)")),
+                null, null, "high-1-red-real-loss");
+
+        assertThat(result.imported()).isEqualTo(2);
         assertThat(result.aliasImported()).isEqualTo(2);
         assertThat(result.skippedGroupCount()).isZero();
     }
