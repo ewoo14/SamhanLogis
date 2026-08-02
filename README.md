@@ -879,14 +879,18 @@ docker compose -f infrastructure/docker-compose.yml up -d
 # 3) 단위 + IT (Docker 가용 환경)
 ./gradlew test
 
-# 4) 개별 서비스 실행
+# 4) 개별 서비스 실행 (PostgreSQL + Flyway + dev seeder)
+#    먼저 같은 셸에 dev 환경변수를 로드한다. local 프로파일은 사용하지 않는다.
+set -a
+source infrastructure/env-templates/.env.dev-seed
+set +a
 ./gradlew :services:eureka-server:bootRun           # http://localhost:8761
 ./gradlew :services:api-gateway:bootRun             # http://localhost:8080
 ./gradlew :services:auth-service:bootRun            # http://localhost:8081
 ./gradlew :services:user-service:bootRun            # http://localhost:8083
 ./gradlew :services:product-service:bootRun         # http://localhost:8084
 ./gradlew :services:inventory-service:bootRun       # http://localhost:8085
-./gradlew :services:slip-service:bootRun            # http://localhost:8086
+./gradlew :services:slip-service:bootRun             # PostgreSQL + Flyway + dev seeder, http://localhost:8086
 ./gradlew :services:accounting-service:bootRun      # http://localhost:8087
 ./gradlew :services:partner-auth-service:bootRun    # http://localhost:8091
 ./gradlew :services:dc-config-service:bootRun       # http://localhost:8089

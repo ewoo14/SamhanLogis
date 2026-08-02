@@ -4,6 +4,7 @@ import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.slip.domain.Slip;
 import com.samhanair.logis.slip.domain.SlipLine;
+import com.samhanair.logis.slip.web.dto.SlipDisplayAmount;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.repository.SlipRepository;
 import com.samhanair.logis.slip.web.dto.SlipCleanupResponse;
@@ -111,14 +112,8 @@ public class SlipCleanupService {
     private CleanupEntry buildEntry(Slip slip) {
         List<SlipLine> lines = slip.getLines();
         int lineCount = lines == null ? 0 : lines.size();
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        if (lines != null) {
-            for (SlipLine line : lines) {
-                if (line.getLineTotal() != null) {
-                    totalAmount = totalAmount.add(line.getLineTotal());
-                }
-            }
-        }
+        BigDecimal totalAmount = lines == null
+                ? BigDecimal.ZERO : SlipDisplayAmount.vatInclusiveTotal(lines);
 
         boolean partnerCodeMissing = slip.getPartnerCode() == null || slip.getPartnerCode().isBlank();
         boolean amountZero = totalAmount.compareTo(BigDecimal.ZERO) == 0;

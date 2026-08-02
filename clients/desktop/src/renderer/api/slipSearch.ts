@@ -13,6 +13,8 @@ export interface SlipSearchResult {
   slipType: SlipSearchType
   partnerName: string | null
   totalAmount: string | number | null
+  /** 사용자 화면 표시용 부가세 포함 금액. legacy 응답에는 없을 수 있다. */
+  displayTotalAmount?: string | number | null
   slipDate: string
 }
 
