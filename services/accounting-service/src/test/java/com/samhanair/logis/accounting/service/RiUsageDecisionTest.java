@@ -40,4 +40,24 @@ class RiUsageDecisionTest {
                 Map.of("PANEL", new LegacySetMatcher.Usage(1, 0),
                         "INDOOR", new LegacySetMatcher.Usage(1, 1)))).isNull();
     }
+
+    @Test
+    void legacyQTokenReachesSubIndoorRiUsageEvenWhenCatalogSaysAccessory() {
+        String model = "AR06A9170HNQ";
+
+        assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", model))
+                .isEqualTo("SUB_INDOOR");
+        assertThat(RiUsageDecision.decide(model, "SUB_INDOOR", List.of(
+                new RiUsageDecision.Row("SLIP-Q#1", "SLIP-Q", model, "SUB_INDOOR")),
+                Map.of("SLIP-Q#1", new LegacySetMatcher.Usage(1, 0))))
+                .isFalse();
+    }
+
+    @Test
+    void concreteCatalogKindIsNotReclassifiedByLegacyToken() {
+        assertThat(LegacyModelKindClassifier.riUsageKind("PANEL", "AR06A9170HNQ"))
+                .isEqualTo("PANEL");
+        assertThat(LegacyModelKindClassifier.riUsageKind("ACCESSORY", "QA797-PART-01"))
+                .isEqualTo("ACCESSORY");
+    }
 }

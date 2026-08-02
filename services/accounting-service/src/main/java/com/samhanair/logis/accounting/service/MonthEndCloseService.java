@@ -588,7 +588,8 @@ public class MonthEndCloseService {
         List<LegacySetMatcher.SetCandidate> candidates = grouped.entrySet().stream()
                 .map(e -> new LegacySetMatcher.SetCandidate(e.getKey(), e.getValue().stream()
                         // Code.js pCols[1] = 납품가를 세트 합계의 원천으로 사용한다.
-                        .map(c -> new LegacySetMatcher.Component(c.componentModelCode(), c.kind(),
+                        .map(c -> new LegacySetMatcher.Component(c.componentModelCode(),
+                                LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()),
                                 c.deliveryPrice() != null ? c.deliveryPrice() : BigDecimal.ZERO))
                         .toList()))
                 .toList();
@@ -623,7 +624,9 @@ public class MonthEndCloseService {
             return null;
         }
         Map<String, String> kindByToken = catalog.stream().collect(java.util.stream.Collectors.toMap(
-                EstimateComponent::componentModelCode, EstimateComponent::kind, (left, right) -> left));
+                EstimateComponent::componentModelCode,
+                c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()),
+                (left, right) -> left));
         String kind = kindByToken.getOrDefault(modelToken, "ACCESSORY");
         java.util.Set<String> scopes = lines.stream().map(SetPoolLine::scopeKey)
                 .collect(java.util.stream.Collectors.toSet());
@@ -654,7 +657,8 @@ public class MonthEndCloseService {
 
     private static String kindFor(String modelToken, List<EstimateComponent> catalog) {
         return catalog.stream().filter(c -> modelToken.equals(c.componentModelCode()))
-                .map(EstimateComponent::kind).findFirst().orElse("ACCESSORY");
+                .map(c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()))
+                .findFirst().orElse("ACCESSORY");
     }
 
     private record ParentModelKey(String partnerCode, String modelToken) {}
