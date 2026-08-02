@@ -99,7 +99,9 @@ public class DispatchBatchSendService {
             } catch (Exception ex) {
                 log.warn("DispatchBatchSendService — blocked lookup 실패 partnerCode={}, msg={}",
                         partnerCode, ex.getMessage());
-                isBlocked = true;
+                // 조회 실패는 실제 BLOCKED 판정이 아니다. 정상 대상까지
+                // 전역 장애로 차단하지 않고 발송을 보류하지 않는다.
+                isBlocked = false;
             }
             if (isBlocked) {
                 blocked++;

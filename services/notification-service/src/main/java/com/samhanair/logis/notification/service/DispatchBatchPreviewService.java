@@ -86,13 +86,13 @@ public class DispatchBatchPreviewService {
                 mappings = chatRoomMappingRepository.findAllByPartnerBusinessNameSnapshot(slip.partnerName());
             }
             if (mappings.isEmpty()) {
-                blockedPartnerLookupClient.isBlocked(partnerCode);
+                lookupBlockedOrDefer(partnerCode);
                 unmapped.add(new UnmappedPartner(
                         partnerCode, slip.partnerName(), slip.slipNo(), message, slip.recipientPhone()));
                 unmappedCount++;
                 continue;
             }
-            boolean blocked = blockedPartnerLookupClient.isBlocked(partnerCode);
+            boolean blocked = lookupBlockedOrDefer(partnerCode);
             mappedCount++;
             for (PartnerChatRoomMapping mapping : mappings) {
                 grouped.computeIfAbsent(mapping.getChatRoomName(), k -> new ArrayList<>())
@@ -117,5 +117,16 @@ public class DispatchBatchPreviewService {
                 unmappedCount,
                 chatRooms,
                 unmapped);
+    }
+
+    /** blocked 조회 장애는 차단 판정으로 승격하지 않고 조회 불가 상태로 보류한다. */
+    private boolean lookupBlockedOrDefer(String partnerCode) {
+        try {
+            return blockedPartnerLookupClient.isBlocked(partnerCode);
+        } catch (Exception ex) {
+            log.warn("DispatchBatchPreviewService — blocked lookup 실패 partnerCode={}, msg={}",
+                    partnerCode, ex.getMessage());
+            return false;
+        }
     }
 }

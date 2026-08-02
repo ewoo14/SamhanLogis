@@ -109,7 +109,7 @@ describe('배차문자 발송 모집단', () => {
     expect(entries[0].message).toContain('전표 내용 3')
   })
 
-  it('R4 실데이터 후보 규모 1911건은 초과 1909건 없이 모든 문구를 보존한다', () => {
+  it('R8 1911건 후보는 2000자 이하 entry로 분할되고 누락 0건이다', () => {
     const source = Array.from({ length: 1911 }, (_, index) => ({
       partnerCode: `P-REAL-${index}`,
       partnerName: `실데이터 거래처 ${index}`,
@@ -127,8 +127,9 @@ describe('배차문자 발송 모집단', () => {
     const entries = buildSendEntries(realScalePreview, {})
 
     expect(source).toHaveLength(1911)
-    expect(entries).toHaveLength(2)
-    expect(1911 - entries.length).toBe(1909)
-    expect(source.every((row) => entries.some((entry) => entry.message.includes(row.message)))).toBe(true)
+    expect(entries).toHaveLength(12)
+    expect(entries.every((entry) => entry.message.length <= 2000)).toBe(true)
+    expect(Math.max(...entries.map((entry) => entry.message.length))).toBeLessThanOrEqual(2000)
+    expect(source.filter((row) => !entries.some((entry) => entry.message.includes(row.message)))).toHaveLength(0)
   })
 })

@@ -121,8 +121,8 @@ class DispatchBatchSendServiceTest {
     }
 
     @Test
-    @DisplayName("blocked 조회 실패 — 안전하게 차단하고 SMS adapter에 도달하지 않는다")
-    void send_blockedLookupFailure_failsClosed() {
+    @DisplayName("blocked 조회 실패 — 정상 대상은 차단하지 않고 SMS adapter에 도달한다")
+    void send_blockedLookupFailure_defersDecisionAndSends() {
         doThrow(new IllegalStateException("partner-service unavailable"))
                 .when(blockedPartnerLookupClient).isBlocked("P-LOOKUP-FAIL");
 
@@ -130,13 +130,15 @@ class DispatchBatchSendServiceTest {
                 LocalDate.of(2026, 5, 10),
                 List.of(new SendEntry("P-LOOKUP-FAIL", "01099998888", "본문", "방X")));
 
+        when(notificationService.sendWithGatewayResult(any(NotificationSendRequest.class)))
+                .thenReturn(stubSentResult());
         DispatchBatchSendResponse resp = service.send(req, "test-user");
 
-        assertThat(resp.sent()).isZero();
-        assertThat(resp.blocked()).isEqualTo(1);
+        assertThat(resp.sent()).isEqualTo(1);
+        assertThat(resp.blocked()).isZero();
         assertThat(resp.failed()).isZero();
-        assertThat(resp.details().get(0).status()).isEqualTo("BLOCKED");
-        verifyNoInteractions(notificationService);
+        assertThat(resp.details().get(0).status()).isEqualTo("SENT");
+        verify(notificationService).sendWithGatewayResult(any(NotificationSendRequest.class));
     }
 
     @Test
