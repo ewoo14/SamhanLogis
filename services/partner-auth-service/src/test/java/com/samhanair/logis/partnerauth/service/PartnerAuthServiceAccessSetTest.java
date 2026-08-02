@@ -10,6 +10,7 @@ import com.samhanair.logis.partnerauth.config.PartnerAuthJwtProperties;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.dto.TryLoginRequest;
+import com.samhanair.logis.partnerauth.dto.ExpirationResponse;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
 import com.samhanair.logis.partnerauth.repository.PartnerLoginAttemptRepository;
 import com.samhanair.logis.partnerauth.repository.PartnerSessionRepository;
@@ -21,6 +22,88 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 
 /** 미리보기와 실제 상태조회가 같은 주문·출고 활동 집합을 사용하는지 검증한다. */
 class PartnerAuthServiceAccessSetTest {
+
+    @Test
+    void recentLoginPreventsCreatedAtFallbackFromBlockingAuthentication() {
+        var authRepository = mock(PartnerAuthRepository.class);
+        var activityReader = mock(PartnerActivityReader.class);
+        var encoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
+        var auth = PartnerAuth.seedFromLegacy(
+                "2118712345", "2118712345", encoder.encode("1357"), PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(auth, LocalDateTime.now().minusDays(31));
+        setLastLoginAt(auth, LocalDateTime.now().minusDays(1));
+        setEntityId(auth, UUID.randomUUID());
+        when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
+        when(activityReader.read("2118712345")).thenReturn(new PartnerActivity(null, null));
+
+        var service = new PartnerAuthService(
+                authRepository,
+                mock(PartnerLoginAttemptRepository.class),
+                mock(PartnerSessionRepository.class),
+                encoder,
+                jwtProperties(),
+                mock(DcConfigClient.class),
+                mock(SmsClient.class),
+                activityReader);
+
+        assertThat(service.tryLogin(new TryLoginRequest("2118712345", "1357", false),
+                "127.0.0.1", "test").status()).isEqualTo(PartnerStatus.OK);
+    }
+
+    @Test
+    void adminRestoreRemainsEffectiveOnNextStatusCheck() {
+        var authRepository = mock(PartnerAuthRepository.class);
+        var activityReader = mock(PartnerActivityReader.class);
+        var auth = PartnerAuth.seedFromLegacy(
+                "2118712345", "2118712345", "{noop}hash", PartnerStatus.LONG_UNUSED);
+        setCreatedAt(auth, LocalDateTime.now().minusDays(60));
+        when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
+        when(activityReader.read("2118712345")).thenReturn(new PartnerActivity(null, null));
+
+        var approvalService = new PartnerApprovalService(
+                authRepository, mock(DcConfigClient.class), activityReader);
+        approvalService.updateStatus("2118712345", com.samhanair.logis.partnerauth.dto.PartnerApprovalStatus.APPROVED);
+
+        var authService = new PartnerAuthService(
+                authRepository,
+                mock(PartnerLoginAttemptRepository.class),
+                mock(PartnerSessionRepository.class),
+                PasswordEncoderFactories.createDelegatingPasswordEncoder(),
+                jwtProperties(),
+                mock(DcConfigClient.class),
+                mock(SmsClient.class),
+                activityReader);
+
+        assertThat(authService.checkStatus("2118712345").status()).isEqualTo(PartnerStatus.NEED_PW_INPUT);
+    }
+
+    @Test
+    void expirationApiUsesTheSameBaselineAsAuthenticationBlock() {
+        var authRepository = mock(PartnerAuthRepository.class);
+        var activityReader = mock(PartnerActivityReader.class);
+        var auth = PartnerAuth.seedFromLegacy(
+                "2118712345", "2118712345", "{noop}hash", PartnerStatus.NEED_PW_INPUT);
+        setCreatedAt(auth, LocalDateTime.now().minusDays(60));
+        setLastLoginAt(auth, LocalDateTime.now().minusDays(31));
+        when(authRepository.findByBizNo("2118712345")).thenReturn(Optional.of(auth));
+        when(activityReader.read("2118712345")).thenReturn(new PartnerActivity(null, null));
+
+        var authService = new PartnerAuthService(
+                authRepository,
+                mock(PartnerLoginAttemptRepository.class),
+                mock(PartnerSessionRepository.class),
+                PasswordEncoderFactories.createDelegatingPasswordEncoder(),
+                jwtProperties(),
+                mock(DcConfigClient.class),
+                mock(SmsClient.class),
+                activityReader);
+
+        ExpirationResponse expiration = authService.getExpiration("2118712345");
+
+        assertThat(expiration.expiresAt()).isEqualTo(PartnerAccessPolicy.authenticationExpirationAt(
+                auth, new PartnerActivity(null, null)));
+        assertThat(authService.checkStatus("2118712345").status()).isEqualTo(PartnerStatus.LONG_UNUSED);
+    }
 
     @Test
     void checkStatusUsesRecentActivityEvenWhenLastLoginIsOlderThanThirtyDays() {
@@ -61,6 +144,22 @@ class PartnerAuthServiceAccessSetTest {
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("테스트용 기준 시각 설정 실패", e);
         }
+    }
+
+    private static void setCreatedAt(PartnerAuth auth, LocalDateTime value) {
+        try {
+            var field = com.samhanair.logis.common.entity.BaseEntity.class.getDeclaredField("createdAt");
+            field.setAccessible(true);
+            field.set(auth, value);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("테스트용 생성시각 설정 실패", e);
+        }
+    }
+
+    private static PartnerAuthJwtProperties jwtProperties() {
+        var properties = new PartnerAuthJwtProperties();
+        properties.setSecret("test-only-secret-32bytes-minimum-key!!");
+        return properties;
     }
 
     private static void setEntityId(PartnerAuth auth, UUID value) {

@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 /** 주문·출고 소유 서비스에서 장기미발주 판정용 시각만 읽는 내부 클라이언트. */
 @Component
@@ -35,12 +36,16 @@ public class PartnerActivityClient implements PartnerActivityReader {
     }
 
     private ActivityEnvelope get(RestClient client, String partnerCode) {
-        ActivityEnvelope response = client.get()
-                .uri("/internal/partner-activity/{partnerCode}", partnerCode)
-                .header(INTERNAL_TOKEN_HEADER, properties.getInternalToken() == null ? "" : properties.getInternalToken())
-                .retrieve()
-                .body(new ParameterizedTypeReference<>() {});
-        return response == null ? new ActivityEnvelope(null) : response;
+        try {
+            ActivityEnvelope response = client.get()
+                    .uri("/internal/partner-activity/{partnerCode}", partnerCode)
+                    .header(INTERNAL_TOKEN_HEADER, properties.getInternalToken() == null ? "" : properties.getInternalToken())
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return response == null ? new ActivityEnvelope(null) : response;
+        } catch (RestClientException ex) {
+            return new ActivityEnvelope(null);
+        }
     }
 
     /** 내부 활동 endpoint 응답 봉투. */
