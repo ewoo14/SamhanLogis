@@ -65,6 +65,8 @@ dependencies {
     implementation project(':shared:collab-core')
 
     runtimeOnly 'org.postgresql:postgresql'
+    // local 프로파일은 H2 메모리 DB를 사용하므로 bootRun 런타임 classpath에도 드라이버가 필요하다.
+    runtimeOnly 'com.h2database:h2'
 
     compileOnly "org.projectlombok:lombok:${lombokVersion}"
     annotationProcessor "org.projectlombok:lombok:${lombokVersion}"
