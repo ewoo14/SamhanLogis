@@ -1,4 +1,10 @@
 import { chromium } from '@playwright/test'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const shots = resolveQaShotsDir(path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', '1001-partner-ledger-real-qa'))
 
 const browser = await chromium.launch({
   headless: false,
@@ -15,7 +21,7 @@ await page.waitForTimeout(3000)
 console.log('URL', page.url())
 console.log('TITLE', await page.title())
 console.log('BODY', (await page.locator('body').innerText()).slice(0, 12000))
-await page.screenshot({ path: 'D:/dev/Samhan-Public/.claude/worktrees/w1061/docs/qa/1001-partner-ledger-real-qa/00-renderer-error.png', fullPage: true })
+await page.screenshot({ path: path.join(shots, '00-renderer-error.png'), fullPage: true })
 console.log('HTML', (await page.locator('body').innerHTML()).slice(0, 20000))
 console.log('OVERLAY', await page.locator('vite-error-overlay').evaluate((element) => element.shadowRoot?.innerText ?? element.shadowRoot?.innerHTML ?? 'no-shadow').catch(() => 'no-overlay'))
 await browser.close()

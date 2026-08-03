@@ -1,4 +1,10 @@
 import { chromium } from '@playwright/test'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const OUT = resolveQaShotsDir(path.resolve(__dirname, '..', '..', '..', '..', 'docs', 'qa', '1001-partner-ledger-real-qa'))
 
 const APP = 'http://127.0.0.1:5175'
 const password = process.env.QA_PASSWORD
@@ -18,7 +24,7 @@ await page.waitForSelector('[data-testid="login-id-input"]', { timeout: 20000 })
 console.log('LOGIN_BODY_START')
 console.log((await page.locator('body').innerText()).slice(0, 5000))
 console.log('LOGIN_BODY_END')
-await page.screenshot({ path: 'D:/dev/Samhan-Public/.claude/worktrees/w1061/docs/qa/1001-partner-ledger-real-qa/00-login.png', fullPage: true })
+await page.screenshot({ path: path.join(OUT, '00-login.png'), fullPage: true })
 await page.locator('[data-testid="login-id-input"]').fill('dev_manager')
 await page.locator('[data-testid="login-password-input"]').fill(password)
 await page.locator('[data-testid="login-submit-button"]').click()
@@ -34,5 +40,5 @@ console.log('LEDGER_BODY_START')
 console.log((await page.locator('body').innerText()).slice(0, 12000))
 console.log('LEDGER_BODY_END')
 console.log('TESTIDS', await page.locator('[data-testid]').evaluateAll((elements) => elements.map((element) => element.getAttribute('data-testid')).filter(Boolean).slice(0, 300)))
-await page.screenshot({ path: 'D:/dev/Samhan-Public/.claude/worktrees/w1061/docs/qa/1001-partner-ledger-real-qa/00-ledger-initial.png', fullPage: true })
+await page.screenshot({ path: path.join(OUT, '00-ledger-initial.png'), fullPage: true })
 await browser.close()

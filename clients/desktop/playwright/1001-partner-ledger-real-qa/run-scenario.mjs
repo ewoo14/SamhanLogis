@@ -3,16 +3,16 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { _electron as electron } from '@playwright/test'
+import { resolveQaShotsDir } from '../../../../scripts/lib/qa-shots-dir.mjs'
 
 const scenario = Number(process.argv[2])
 const here = path.dirname(fileURLToPath(import.meta.url))
 const desktopRoot = path.resolve(here, '../..')
 const repoRoot = path.resolve(desktopRoot, '../..')
-const shots = path.join(repoRoot, 'docs/qa/1001-partner-ledger-real-qa')
+const shots = resolveQaShotsDir(path.join(repoRoot, 'docs/qa/1001-partner-ledger-real-qa'))
 const password = process.env.QA_PASSWORD
 if (!password) throw new Error('QA_PASSWORD 환경변수가 필요합니다.')
 if (!Number.isInteger(scenario) || scenario < 1 || scenario > 8) throw new Error('시나리오 번호 1~8이 필요합니다.')
-fs.mkdirSync(shots, { recursive: true })
 const selectedPartnerCode = process.env.QA_PARTNER_CODE ?? ''
 
 const app = await electron.launch({
