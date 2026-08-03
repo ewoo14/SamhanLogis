@@ -86,6 +86,7 @@ class LedgerSnapshotServiceTest {
                 LocalDate.of(2026, 8, 1), actor)).isSameAs(ledger);
         verify(ledgerImageService).getLedger("P-001", LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 8, 1), actor);
+        verify(batchRepository).save(org.mockito.ArgumentMatchers.any(TaxInvoiceBatch.class));
     }
 
     private TaxInvoiceBatch savedBatch() {

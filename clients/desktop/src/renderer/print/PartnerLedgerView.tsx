@@ -202,9 +202,9 @@ function formatBalance(n: number): string {
   return krw(n)
 }
 
-export function PartnerLedgerView() {
+export function PartnerLedgerView({ partnerCode }: { partnerCode?: string } = {}) {
   const [searchParams] = useSearchParams()
-  const partnerCodeParam = searchParams.get('partnerCode')
+  const partnerCodeParam = partnerCode ?? searchParams.get('partnerCode')
   const periodFrom = useMemo(
     () => resolvePeriodDate(searchParams.get('from'), 'from'),
     [searchParams],

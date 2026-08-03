@@ -305,16 +305,13 @@ export function PartnerLedgerPage() {
 
   const handleBatchPrint = () => {
     if (batchSelected.size === 0) return
-    // 한국어 confirm — 다중 창 차단 방지 안내
-    const ok = window.confirm(
-      `${batchSelected.size}건의 거래처 원장을 새 창으로 일괄 출력합니다.\n` +
-        '브라우저 팝업 차단을 해제해야 모든 창이 열립니다. 진행하시겠습니까?',
-    )
+    const ok = window.confirm(`${batchSelected.size}건의 거래처 원장을 일괄 출력하시겠습니까?`)
     if (!ok) return
+    const params = new URLSearchParams({ from: applied.from, to: applied.to })
     for (const code of batchSelected) {
-      const url = `${window.location.origin}/#${buildPrintPath(code, applied.from, applied.to)}`
-      window.open(url, '_blank', 'width=900,height=1200')
+      params.append('partnerCodes', code)
     }
+    navigate(`/print/partner-ledger-batch?${params.toString()}`)
   }
 
   const handleCsv = () => {

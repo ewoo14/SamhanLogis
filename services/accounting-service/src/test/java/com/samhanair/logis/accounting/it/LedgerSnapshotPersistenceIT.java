@@ -8,6 +8,7 @@ import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.service.LedgerImageService;
+import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,7 +26,7 @@ import org.springframework.test.annotation.DirtiesContext;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class LedgerSnapshotPersistenceIT extends AbstractPostgresIT {
 
-    @Autowired private LedgerImageService ledgerImageService;
+    @Autowired private LedgerSnapshotService ledgerSnapshotService;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private PartnerLookupClient partnerLookupClient;
@@ -44,7 +45,7 @@ class LedgerSnapshotPersistenceIT extends AbstractPostgresIT {
                 .thenReturn(java.util.Optional.of(new PartnerSummary(partnerId, partnerCode, "실저장 검증", "", "")));
         when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(partnerCode)).thenReturn(List.of());
 
-        ledgerImageService.getLedger(partnerCode, from, to, actor);
+        ledgerSnapshotService.capture(partnerCode, from, to, actor);
 
         var row = jdbcTemplate.queryForMap("""
                 SELECT batch_no, processed_by::text AS processed_by,

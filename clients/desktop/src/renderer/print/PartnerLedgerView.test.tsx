@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getLedgerData } from '../api/partnerLedgerApi'
 import { PartnerLedgerView } from './PartnerLedgerView'
+import { PartnerLedgerBatchView } from './PartnerLedgerBatchView'
 
 vi.mock('../api/partnerLedgerApi', () => ({
   getLedgerData: vi.fn().mockResolvedValue({
@@ -113,5 +114,29 @@ describe('PartnerLedgerView', () => {
     expect(screen.getByText(storedJournalNo).textContent).toBe(storedJournalNo)
     expect(screen.getAllByRole('columnheader', { name: '분개번호' }).length).toBeGreaterThan(0)
     expect(screen.queryByText('2026/05/06-4')).toBeNull()
+  })
+
+  it('일괄 인쇄 화면에 선택한 모든 거래처 원장을 렌더링한다', async () => {
+    vi.mocked(getLedgerData).mockImplementation(async (partnerCode) => ({
+      partnerCode,
+      partnerName: partnerCode === 'P-1' ? '첫 거래처' : '둘째 거래처',
+      partnerBusinessNo: '', chatRoomNames: [],
+      periodFrom: '2026-08-01', periodTo: '2026-08-31', lines: [],
+    }))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/print/partner-ledger-batch?from=2026-08-01&to=2026-08-31&partnerCodes=P-1&partnerCodes=P-2']}>
+          <PartnerLedgerBatchView />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('첫 거래처')).toBeTruthy()
+      expect(screen.getByText('둘째 거래처')).toBeTruthy()
+    })
+    expect(getLedgerData).toHaveBeenCalledWith('P-1', '2026-08-01', '2026-08-31')
+    expect(getLedgerData).toHaveBeenCalledWith('P-2', '2026-08-01', '2026-08-31')
   })
 })

@@ -6,6 +6,8 @@ import com.samhanair.logis.accounting.repository.TaxInvoiceBatchRepository;
 import com.samhanair.logis.accounting.web.dto.LedgerHistoryResponse;
 import com.samhanair.logis.accounting.web.dto.LedgerImageResponse;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,11 +25,20 @@ public class LedgerSnapshotService {
     private final LedgerImageService ledgerImageService;
     private final TaxInvoiceBatchRepository batchRepository;
     private final ObjectMapper objectMapper;
+    private static final DateTimeFormatter BATCH_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
-    /** 기존 조회를 먼저 수행한 뒤 결과를 자동 저장하여 조회·인쇄 호환성을 유지한다. */
+    /** 사용자가 명시적으로 저장을 요청한 시점에만 원장을 조회하고 snapshot을 저장한다. */
     @Transactional
     public LedgerImageResponse capture(String partnerCode, LocalDate from, LocalDate to, UUID actor) {
-        return ledgerImageService.getLedger(partnerCode, from, to, actor);
+        LedgerImageResponse result = ledgerImageService.getLedger(partnerCode, from, to, actor);
+        TaxInvoiceBatch batch = TaxInvoiceBatch.createDocumentSnapshot(
+                DOCUMENT_TYPE, partnerCode,
+                "LED" + LocalDateTime.now().format(BATCH_TIME),
+                from, to, actor);
+        batch.complete(result.lines().size(), 1, null, null,
+                SnapshotCompression.compress(objectMapper, result));
+        batchRepository.save(batch);
+        return result;
     }
 
     /** 날짜별 자동 저장 이력 목록. */

@@ -194,6 +194,7 @@ import { StatementBatchView } from '../print/StatementBatchView'
 // 인쇄 view 는 Designer commit 69fd8f0 의 PartnerLedgerView 재사용.
 import { PartnerLedgerPage } from './PartnerLedgerPage'
 import { PartnerLedgerView } from '../print/PartnerLedgerView'
+import { PartnerLedgerBatchView } from '../print/PartnerLedgerBatchView'
 // [PR-H3 FE-1] 전표 수정/삭제 요청 처리 대시보드 — WAREHOUSE/MANAGER/MASTER.
 // BE: slip-service `GET/POST /api/v1/slips/edit-requests*` (PR-H3 BE-1 슬라이스).
 import { SlipEditRequestsPage } from './admin/SlipEditRequestsPage'
@@ -984,6 +985,14 @@ const routes = [
         element: (
           <PermissionGuard pageCode="accounting.partner-ledger" action="view">
             <PartnerLedgerView />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/print/partner-ledger-batch',
+        element: (
+          <PermissionGuard pageCode="accounting.partner-ledger" action="view">
+            <PartnerLedgerBatchView />
           </PermissionGuard>
         ),
       },

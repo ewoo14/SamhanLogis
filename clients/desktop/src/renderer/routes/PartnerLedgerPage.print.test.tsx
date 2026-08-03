@@ -66,6 +66,51 @@ describe('PartnerLedgerPage 인쇄 미리보기', () => {
     vi.mocked(getLedgerHistory).mockResolvedValue({ content: [] })
   })
 
+  it('선택한 거래처들을 Electron-safe 일괄 인쇄 route로 전환한다', async () => {
+    vi.mocked(getSalesAggregate).mockResolvedValue([
+      {
+        partnerCode: 'QA-GATE-A', bizNo: '', partnerName: '대구공조(검수완료)',
+        salesTotal: '2400000', paymentTotal: '0', receivableBalance: '2400000',
+        periodFrom: '2026-05-01', periodTo: '2026-05-31',
+      },
+      {
+        partnerCode: 'QA-GATE-B', bizNo: '', partnerName: '부산공조(출력)',
+        salesTotal: '1300000', paymentTotal: '0', receivableBalance: '1300000',
+        periodFrom: '2026-05-01', periodTo: '2026-05-31',
+      },
+    ])
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/partner-ledger']}>
+          <Routes>
+            <Route path="/accounting/partner-ledger" element={<PartnerLedgerPage />} />
+            <Route path="/print/partner-ledger-batch" element={<PrintLocationProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByTestId('partner-ledger-from'), { target: { value: '2026-05-01' } })
+    fireEvent.change(screen.getByTestId('partner-ledger-to'), { target: { value: '2026-05-31' } })
+    fireEvent.click(screen.getByTestId('partner-ledger-search'))
+    const table = await screen.findByTestId('partner-ledger-aggregate-table')
+    fireEvent.click(within(table).getByLabelText('대구공조(검수완료) 일괄 인쇄 선택'))
+    fireEvent.click(within(table).getByLabelText('부산공조(출력) 일괄 인쇄 선택'))
+    fireEvent.click(screen.getByTestId('partner-ledger-batch-print-button'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('print-location').textContent).toBe(
+        '/print/partner-ledger-batch?from=2026-05-01&to=2026-05-31&partnerCodes=QA-GATE-A&partnerCodes=QA-GATE-B',
+      )
+    })
+    expect(openSpy).not.toHaveBeenCalled()
+    openSpy.mockRestore()
+  })
+
   it('데이터가 있는 상세에서 인쇄 라우트로 이동한다', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

@@ -140,6 +140,18 @@ public class AccountingReportController {
         return ApiResponse.ok(ledgerImageService.getLedger(partnerCode, from, to, parseUuid(userId)));
     }
 
+    /** 사용자가 명시적으로 원장 snapshot 저장을 요청하는 write 계약. */
+    @PostMapping("/accounting/journals/ledger-snapshots")
+    @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.PRINT)
+    public ApiResponse<LedgerImageResponse> captureLedger(
+            @RequestParam String partnerCode,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        return ApiResponse.ok(ledgerSnapshotService.capture(
+                partnerCode, from, to, parseUuid(userId)));
+    }
+
     /** 출고 판매전표 품목과 확정 입금보고서를 함께 반환하는 거래처별 원장 read 계약. */
     @GetMapping("/accounting/journals/partner-ledger")
     @RequirePermission(page = "accounting.partner-ledger", action = com.samhanair.logis.security.permission.PermissionAction.VIEW)
