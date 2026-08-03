@@ -1,0 +1,20 @@
+import { chromium } from '@playwright/test'
+const baseUrl = process.env.AUDIT_BASE_URL ?? 'http://127.0.0.1:5943'
+const loginId = process.env.AUDIT_LOGIN_ID ?? 'dev_master'
+const browser = await chromium.launch({ headless: true })
+const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
+await page.goto(`${baseUrl}/#/login`, { waitUntil: 'domcontentloaded' })
+await page.getByRole('textbox', { name: '사용자 ID (필수)' }).fill(loginId)
+await page.getByRole('textbox', { name: '비밀번호 (필수)' }).fill('dev_p05_pass!')
+await page.getByRole('button', { name: '로그인', exact: true }).click()
+await page.waitForURL('**/#/', { timeout: 20_000 })
+await page.getByRole('button', { name: '회계', exact: true }).click()
+await page.getByRole('link', { name: '매출전표', exact: true }).click()
+await page.waitForURL('**/#/accounting/sales-slips', { timeout: 20_000 })
+await page.waitForTimeout(1500)
+console.log('URL', page.url())
+console.log('BUTTONS', await page.getByRole('button').allTextContents())
+console.log('LINKS', await page.getByRole('link').evaluateAll(els => els.map(el => ({ text: el.textContent, href: el.getAttribute('href') }))))
+console.log('BODY', (await page.locator('body').innerText()).slice(0, 6000))
+await page.screenshot({ path: 'D:/dev/Samhan-Public/.claude/worktrees/w1057/docs/qa/874-riusage-global-dc-real-qa/05-accounting-sales-slips.png', fullPage: true })
+await browser.close()

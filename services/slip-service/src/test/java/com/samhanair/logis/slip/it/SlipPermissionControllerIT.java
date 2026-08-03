@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -53,6 +54,7 @@ import com.samhanair.logis.slip.service.SlipExcelExportService;
 import com.samhanair.logis.slip.service.SlipService;
 import com.samhanair.logis.slip.service.SlipSignatureService;
 import com.samhanair.logis.slip.service.SlipRestoreService;
+import com.samhanair.logis.slip.web.SlipAllocationSourceController;
 import com.samhanair.logis.slip.web.SlipController;
 import com.samhanair.logis.slip.web.SlipCleanupSaveHistoryController;
 import com.samhanair.logis.slip.web.SlipLookupController;
@@ -62,11 +64,13 @@ import com.samhanair.logis.slip.web.SlipRestoreController;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +97,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @WebMvcTest(
         controllers = {
                 SlipController.class,
+                SlipAllocationSourceController.class,
                 SlipLookupController.class,
                 SlipSignatureController.class,
                 SlipPhotoAuditAdminController.class,
@@ -187,6 +192,42 @@ class SlipPermissionControllerIT {
         lenient().when(estimateService.getOne(any(UUID.class))).thenReturn(null);
         lenient().when(slipExcelExportService.export(any(), any(), any(), any(), any()))
                 .thenReturn("xlsx".getBytes());
+    }
+
+    @Test
+    void allocationSource_realPath_withAccountingPermission_returnsApiResponse() throws Exception {
+        when(slipRepository.findByPeriodWithLines(
+                eq(com.samhanair.logis.slip.domain.SlipType.OUTBOUND),
+                any(LocalDate.class), any(LocalDate.class), isNull(UUID.class)))
+                .thenReturn(List.of());
+
+        mockMvc.perform(withActor(get("/slips/by-period")
+                        .param("type", "OUTBOUND")
+                        .param("from", "2026-08-03")
+                        .param("to", "2026-08-03"), "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.success").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data").isArray());
+    }
+
+    @Test
+    void allocationSource_purchasePath_usesPurchaseListPermission() throws Exception {
+        when(slipRepository.findByPeriodWithLines(
+                eq(com.samhanair.logis.slip.domain.SlipType.INBOUND),
+                any(LocalDate.class), any(LocalDate.class), isNull(UUID.class)))
+                .thenReturn(List.of());
+
+        mockMvc.perform(withActor(get("/slips/by-period")
+                        .param("type", "INBOUND")
+                        .param("from", "2026-08-03")
+                        .param("to", "2026-08-03"), "ACCOUNTANT"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.success").value(true))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.data").isArray());
     }
 
     @ParameterizedTest(name = "{0} grant")
@@ -284,7 +325,17 @@ class SlipPermissionControllerIT {
                 endpoint("cleanup history detail", "slip.cleanup-history", PermissionAction.VIEW, "SALES",
                         () -> get("/slips/cleanup/history/{id}", ID)),
                 endpoint("export xlsx", "slip.print.export", PermissionAction.DOWNLOAD, "MANAGER",
-                        () -> get("/slips/export.xlsx"))
+                        () -> get("/slips/export.xlsx")),
+                endpoint("allocation source outbound", "accounting.sales-slip.list", PermissionAction.VIEW,
+                        "ACCOUNTANT", () -> get("/slips/by-period")
+                                .param("type", "OUTBOUND")
+                                .param("from", "2026-08-03")
+                                .param("to", "2026-08-03")),
+                endpoint("allocation source inbound", "accounting.purchase-slip.list", PermissionAction.VIEW,
+                        "ACCOUNTANT", () -> get("/slips/by-period")
+                                .param("type", "INBOUND")
+                                .param("from", "2026-08-03")
+                                .param("to", "2026-08-03"))
         );
     }
 
