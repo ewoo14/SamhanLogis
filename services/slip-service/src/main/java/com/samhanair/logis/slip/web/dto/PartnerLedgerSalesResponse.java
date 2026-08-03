@@ -19,8 +19,15 @@ public record PartnerLedgerSalesResponse(
         String status,
         String partnerCode,
         String partnerName,
+        String businessNumber,
         String deliveryAddress,
         List<Line> lines) {
+
+    public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
+                                      String partnerCode, String partnerName,
+                                      String deliveryAddress, List<Line> lines) {
+        this(slipNo, slipDate, status, partnerCode, partnerName, null, deliveryAddress, lines);
+    }
 
     /**
      * 원장 판매전표 품목 projection.
@@ -55,6 +62,7 @@ public record PartnerLedgerSalesResponse(
                 slip.getStatus().name(),
                 slip.getPartnerCode(),
                 slip.getPartnerName(),
+                slip.getBusinessNumber(),
                 slip.getDeliveryAddress(),
                 lines);
     }

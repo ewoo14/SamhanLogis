@@ -46,7 +46,12 @@ public class PartnerLedgerSalesClient {
     public record ApiResponse<T>(boolean success, T data) { }
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Sale(String slipNo, LocalDate slipDate, String status, String partnerCode,
-                       String partnerName, String deliveryAddress, List<Line> lines) { }
+                       String partnerName, String businessNumber, String deliveryAddress, List<Line> lines) {
+        public Sale(String slipNo, LocalDate slipDate, String status, String partnerCode,
+                    String partnerName, String deliveryAddress, List<Line> lines) {
+            this(slipNo, slipDate, status, partnerCode, partnerName, null, deliveryAddress, lines);
+        }
+    }
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Line(String productName, String modelName, int quantity,
                        BigDecimal unitPriceWithVat, BigDecimal lineAmount) { }

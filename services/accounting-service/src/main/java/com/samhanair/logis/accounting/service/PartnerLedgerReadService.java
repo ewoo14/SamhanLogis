@@ -56,8 +56,8 @@ public class PartnerLedgerReadService {
         List<PartnerLedgerDocumentMerger.Document> documents = new ArrayList<>();
         String salesPartnerCode = selected == null && partnerCode != null && !partnerCode.isBlank()
                 ? partnerCode : null;
-        documents.addAll(salesClient.find(from, to, salesPartnerCode, partnerId)
-                .stream().map(this::sale).toList());
+        List<PartnerLedgerSalesClient.Sale> sales = salesClient.find(from, to, salesPartnerCode, partnerId);
+        documents.addAll(sales.stream().map(this::sale).toList());
 
         final UUID selectedPartnerId = partnerId;
         Specification<CashReceipt> spec = (root, query, cb) -> cb.and(
@@ -95,11 +95,15 @@ public class PartnerLedgerReadService {
                 .toList();
         String resolvedCode = selected == null ? partnerCode : selected.partnerCode();
         String resolvedName = selected == null ? null : selected.name();
+        String resolvedBusinessNo = selected == null ? null : selected.bizNo();
         if (selected == null && !filtered.isEmpty()) {
             resolvedCode = filtered.get(0).partnerCode();
             resolvedName = filtered.get(0).partnerName();
         }
-        return new PartnerLedgerResponse(resolvedCode, resolvedName, from, to,
+        if ((resolvedBusinessNo == null || resolvedBusinessNo.isBlank()) && !sales.isEmpty()) {
+            resolvedBusinessNo = sales.get(0).businessNumber();
+        }
+        return new PartnerLedgerResponse(resolvedCode, resolvedName, resolvedBusinessNo, from, to,
                 filtered.stream().map(this::responseDocument).toList());
     }
 

@@ -493,15 +493,18 @@ export function PartnerLedgerPage() {
               <tbody>
                 {aggregateQuery.data.map((row) => {
                   const isSelected = selectedPartner === row.partnerCode
+                  const isIdentifiablePartner = row.partnerCode !== '-'
                   return (
                     <tr
                       key={row.partnerCode}
                       data-testid={`partner-ledger-aggregate-row-${row.partnerCode}`}
                       style={{
                         background: isSelected ? '#EEF2FF' : undefined,
-                        cursor: 'pointer',
+                        cursor: isIdentifiablePartner ? 'pointer' : 'default',
                       }}
-                      onClick={() => handleSelectPartner(row.partnerCode)}
+                      onClick={() => {
+                        if (isIdentifiablePartner) handleSelectPartner(row.partnerCode)
+                      }}
                     >
                       <td
                         style={{ ...tdStyle, textAlign: 'center' }}
@@ -510,6 +513,7 @@ export function PartnerLedgerPage() {
                         <input
                           type="checkbox"
                           checked={batchSelected.has(row.partnerCode)}
+                          disabled={!isIdentifiablePartner}
                           onChange={(e) =>
                             toggleBatch(row.partnerCode, e.target.checked)
                           }
@@ -534,8 +538,9 @@ export function PartnerLedgerPage() {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleSelectPartner(row.partnerCode)
+                            if (isIdentifiablePartner) handleSelectPartner(row.partnerCode)
                           }}
+                          disabled={!isIdentifiablePartner}
                           style={{
                             background: 'transparent',
                             border: '1px solid #D1D5DB',

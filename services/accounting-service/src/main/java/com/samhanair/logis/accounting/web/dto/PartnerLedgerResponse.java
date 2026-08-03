@@ -8,9 +8,16 @@ import java.util.List;
 public record PartnerLedgerResponse(
         String partnerCode,
         String partnerName,
+        String partnerBusinessNo,
         LocalDate periodFrom,
         LocalDate periodTo,
         List<Document> documents) {
+
+    public PartnerLedgerResponse(String partnerCode, String partnerName,
+                                 LocalDate periodFrom, LocalDate periodTo,
+                                 List<Document> documents) {
+        this(partnerCode, partnerName, null, periodFrom, periodTo, documents);
+    }
 
     public PartnerLedgerResponse {
         documents = documents == null ? List.of() : List.copyOf(documents);

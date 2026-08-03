@@ -1,7 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildPartnerLedgerLines } from './partnerLedgerApi'
+import { apiClient } from './client'
+import { getLedgerData } from './partnerLedgerApi'
+
+vi.mock('./client', () => ({ apiClient: { get: vi.fn() } }))
 
 describe('partner ledger adapter', () => {
+  it('상세 응답의 거래처 사업자번호를 상세·인쇄 모델로 전달한다', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ data: { data: {
+      partnerCode: 'P-0005', partnerName: '대구HVAC솔루션', partnerBusinessNo: '165-35-10155',
+      periodFrom: '2026-07-01', periodTo: '2026-07-31', documents: [],
+    } } })
+
+    const result = await getLedgerData('P-0005', '2026-07-01', '2026-07-31')
+
+    expect(result.partnerBusinessNo).toBe('165-35-10155')
+  })
+
   it('keeps source order and computes a running debit-minus-credit balance', () => {
     const lines = buildPartnerLedgerLines([
       {

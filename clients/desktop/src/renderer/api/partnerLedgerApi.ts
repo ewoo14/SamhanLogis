@@ -257,7 +257,7 @@ export async function getLedgerData(
   return {
     partnerCode: source.partnerCode ?? partnerCode,
     partnerName: source.partnerName ?? '',
-    partnerBusinessNo: '',
+    partnerBusinessNo: source.partnerBusinessNo ?? '',
     chatRoomNames: [],
     periodFrom: source.periodFrom,
     periodTo: source.periodTo,
@@ -268,6 +268,7 @@ export async function getLedgerData(
 interface PartnerLedgerResponse {
   partnerCode: string | null
   partnerName: string | null
+  partnerBusinessNo: string | null
   periodFrom: string
   periodTo: string
   documents: PartnerLedgerSourceDocument[]

@@ -85,6 +85,7 @@ class PartnerLedgerReadServiceTest {
         assertThat(response.partnerCode()).isEqualTo("P-2026-0001");
         assertThat(response.partnerName()).isEqualTo("정상 거래처");
         assertThat(response.documents()).hasSize(1);
+        assertThat(response.partnerBusinessNo()).isEqualTo("1234567890");
     }
 
     @Test

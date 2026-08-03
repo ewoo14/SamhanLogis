@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,6 +34,7 @@ function PrintLocationProbe() {
 
 describe('PartnerLedgerPage 인쇄 미리보기', () => {
   beforeEach(() => {
+    cleanup()
     vi.mocked(getSalesAggregate).mockResolvedValue([{
       partnerCode: 'QA-GATE-A',
       bizNo: '',
@@ -100,5 +101,34 @@ describe('PartnerLedgerPage 인쇄 미리보기', () => {
         '/print/partner-ledger?partnerCode=QA-GATE-A&from=2026-05-01&to=2026-05-31',
       )
     })
+  })
+
+  it('식별 불가(-) 집계 행은 빈 상세·인쇄를 열지 않는다', async () => {
+    vi.mocked(getLedgerData).mockClear()
+    vi.mocked(getSalesAggregate).mockResolvedValue([{
+      partnerCode: '-', bizNo: '', partnerName: '식별 불가 판매전표',
+      salesTotal: '197476400', paymentTotal: '0', receivableBalance: '0',
+      periodFrom: '2026-01-01', periodTo: '2026-03-31',
+    }])
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/partner-ledger']}>
+          <Routes><Route path="/accounting/partner-ledger" element={<PartnerLedgerPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByTestId('partner-ledger-from'), { target: { value: '2026-01-01' } })
+    fireEvent.change(screen.getByTestId('partner-ledger-to'), { target: { value: '2026-03-31' } })
+    fireEvent.click(screen.getByTestId('partner-ledger-search'))
+
+    const row = await screen.findByTestId('partner-ledger-aggregate-row--')
+    expect((within(row).getByRole('button', { name: '원장 보기' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(row)
+    expect(getLedgerData).not.toHaveBeenCalledWith('-', expect.anything(), expect.anything())
   })
 })

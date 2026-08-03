@@ -80,6 +80,20 @@ public class SalesAggregateService {
             PartnerSummary summary = PartnerLookupSupport.foundOrNull(
                     PartnerLookupSupport.byCode(partnerLookupClient, partnerCode));
             if (summary == null) {
+                PartnerLookupClient.DirectoryLookupResult directory =
+                        partnerLookupClient.searchDirectoryResult(partnerCode.trim(), 10);
+                if (directory.isUnavailable()) {
+                    throw PartnerLookupSupport.unavailable();
+                }
+                String normalizedInput = normalizeBusinessNumber(partnerCode);
+                List<PartnerSummary> exact = directory.partners().stream()
+                        .filter(candidate -> partnerCode.trim().equals(candidate.partnerCode())
+                                || normalizedInput != null
+                                && normalizedInput.equals(normalizeBusinessNumber(candidate.bizNo())))
+                        .toList();
+                summary = exact.size() == 1 ? exact.get(0) : null;
+            }
+            if (summary == null) {
                 return List.of();
             }
             filterPartnerId = summary.partnerId();
@@ -190,7 +204,9 @@ public class SalesAggregateService {
             rows.add(new SalesAggregateRow(
                     legacy.partnerCode == null ? "-" : legacy.partnerCode,
                     "",
-                    legacy.partnerName == null ? "-" : legacy.partnerName,
+                    legacy.partnerCode == null
+                            ? "식별 불가 판매전표"
+                            : (legacy.partnerName == null ? "-" : legacy.partnerName),
                     aggregate.salesTotal,
                     aggregate.paymentTotal,
                     aggregate.receivableDebit.subtract(aggregate.paymentTotal),
@@ -226,6 +242,7 @@ public class SalesAggregateService {
                 partnerLedgerSalesClient.find(from, to, null, null);
 
         Map<String, UUID> partnerIdsByCode = new LinkedHashMap<>();
+        Map<String, UUID> partnerIdsByBusinessNumber = new LinkedHashMap<>();
         Set<String> ambiguousCodes = new HashSet<>();
         for (Map.Entry<UUID, PartnerSummary> entry : partnerSummaries.entrySet()) {
             String code = normalizePartnerCode(entry.getValue() == null
@@ -238,6 +255,11 @@ public class SalesAggregateService {
                 partnerIdsByCode.remove(code);
                 ambiguousCodes.add(code);
             }
+            String businessNumber = normalizeBusinessNumber(entry.getValue() == null
+                    ? null : entry.getValue().bizNo());
+            if (businessNumber != null) {
+                partnerIdsByBusinessNumber.putIfAbsent(businessNumber, entry.getKey());
+            }
         }
 
         Map<UUID, BigDecimal> salesByPartner = new LinkedHashMap<>();
@@ -246,6 +268,10 @@ public class SalesAggregateService {
             String code = normalizePartnerCode(sale == null ? null : sale.partnerCode());
             UUID partnerId = code == null || ambiguousCodes.contains(code)
                     ? null : partnerIdsByCode.get(code);
+            if (partnerId == null) {
+                partnerId = partnerIdsByBusinessNumber.get(normalizeBusinessNumber(
+                        sale == null ? null : sale.businessNumber()));
+            }
             BigDecimal saleAmount = ledgerSaleAmount(sale);
             if (partnerId != null) {
                 salesByPartner.merge(partnerId, saleAmount, BigDecimal::add);
@@ -308,6 +334,14 @@ public class SalesAggregateService {
             return null;
         }
         return code.trim();
+    }
+
+    private static String normalizeBusinessNumber(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String digits = value.replaceAll("[^0-9]", "");
+        return digits.isBlank() ? null : digits;
     }
 
     private static String normalizeOrFallback(String value, String fallback) {

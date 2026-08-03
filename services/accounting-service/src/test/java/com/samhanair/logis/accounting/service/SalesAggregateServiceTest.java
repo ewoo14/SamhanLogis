@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
@@ -305,6 +306,52 @@ class SalesAggregateServiceTest {
     }
 
     @Test
+    @DisplayName("무필터 집계 — 공란 partnerCode도 판매전표 사업자번호로 journal 거래처에 연결한다")
+    void unfilteredAggregateMatchesBlankCodeSaleByBusinessNumber() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerIdsBatch(any()))
+                .thenReturn(Map.of(partnerId, new PartnerSummary(
+                        partnerId, "P-0018", "강릉HVAC솔루션", "334-26-10558", "")));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                        BigDecimal.ZERO, new BigDecimal("7000000"))));
+        when(partnerLedgerSalesClient.find(FROM, TO, null, null))
+                .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
+                        "2026/05/08-18", LocalDate.of(2026, 5, 8), "COMPLETED",
+                        null, "강릉HVAC솔루션", "334-26-10558", null,
+                        List.of(new PartnerLedgerSalesClient.Line("A", null, 1,
+                                new BigDecimal("24646600"), new BigDecimal("24646600"))))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
+
+        assertThat(rows).singleElement().satisfies(row -> {
+            assertThat(row.partnerCode()).isEqualTo("P-0018");
+            assertThat(row.salesTotal()).isEqualByComparingTo("24646600");
+        });
+    }
+
+    @Test
+    @DisplayName("거래처 필터 — 화면에 보이는 사업자번호를 partnerCode로 해석한다")
+    void aggregateResolvesBusinessNumberFilterToPartnerCode() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary summary = new PartnerSummary(
+                partnerId, "P-0005", "대구HVAC솔루션", "165-35-10155", "");
+        when(partnerLookupClient.findByPartnerCodeResult("1653510155"))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        when(partnerLookupClient.searchDirectoryResult("1653510155", 10))
+                .thenReturn(PartnerLookupClient.DirectoryLookupResult.found(List.of(summary)));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
+                        BigDecimal.ZERO, new BigDecimal("100"))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "1653510155");
+
+        assertThat(rows).singleElement().extracting(SalesAggregateRow::partnerCode)
+                .isEqualTo("1653510155");
+        verify(partnerLookupClient).searchDirectoryResult("1653510155", 10);
+    }
+
+    @Test
     @DisplayName("무필터 집계 — journal 후보가 없어도 legacy partner_code 판매전표를 표시한다")
     void unfilteredAggregateIncludesLegacySalesWithoutJournalCandidate() {
         when(journalLineRepository.aggregatePostedByPartnerAccount(LEGACY_SLIP_DATE, LEGACY_SLIP_DATE))
@@ -355,7 +402,7 @@ class SalesAggregateServiceTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).partnerCode()).isEqualTo("-");
-        assertThat(rows.get(0).partnerName()).isEqualTo("코드없는 legacy 거래처");
+        assertThat(rows.get(0).partnerName()).isEqualTo("식별 불가 판매전표");
         assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("500");
     }
 
