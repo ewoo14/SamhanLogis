@@ -14,7 +14,7 @@
  * - SAVED      → send / cancel
  * - SENT       → accept / reject / cancel
  * - ACCEPTED   → process / reject
- * - PROCESSING → inspect (Slice A 신규 — 기존 complete 대신)
+ * - PROCESSING → complete (검수 시작 — BE complete endpoint)
  * - INSPECTING → complete (Slice A 신규)
  * - COMPLETED  → ship (OUTBOUND) / confirm (INBOUND 즉시)
  * - SHIPPING   → deliver
@@ -295,7 +295,7 @@ function actionsForStatus(
     case 'ACCEPTED':
       return ['process', 'reject']
     case 'PROCESSING':
-      return ['inspect'] // Slice A: complete → inspect (검수 단계 거침)
+      return ['complete'] // Slice A: complete → inspect (검수 단계 거침)
     case 'INSPECTING':
       return ['complete'] // Slice A 신규
     case 'COMPLETED':
@@ -321,6 +321,15 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   confirm: '확정',
   reject: '반려',
   cancel: '취소',
+}
+
+function transitionActionLabel(
+  status: SlipDetail['status'],
+  action: SlipTransitionAction,
+): string {
+  return status === 'PROCESSING' && action === 'complete'
+    ? '검수 시작'
+    : ACTION_LABEL[action]
 }
 
 const INSPECTION_STATUS_LABEL: Record<string, string> = {
@@ -2133,7 +2142,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   )
   const mobilePrimaryAction = nextPrimaryAction
     ? {
-        label: ACTION_LABEL[nextPrimaryAction],
+        label: transitionActionLabel(slip.status, nextPrimaryAction),
         onClick: () => handleTransition(nextPrimaryAction),
         disabled:
           transitionMutation.isPending
@@ -4354,11 +4363,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             onClick={handleAdvanceStage}
             title={
               nextPrimaryAction
-                ? `다음 단계: ${ACTION_LABEL[nextPrimaryAction]}`
+                ? `다음 단계: ${transitionActionLabel(slip.status, nextPrimaryAction)}`
                 : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
             }
           >
-            {nextPrimaryAction ? `완료 (${ACTION_LABEL[nextPrimaryAction]})` : '완료'}
+            {nextPrimaryAction
+              ? `완료 (${transitionActionLabel(slip.status, nextPrimaryAction)})`
+              : '완료'}
           </Button>
         )}
       </div>

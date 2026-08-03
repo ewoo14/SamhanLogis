@@ -505,15 +505,15 @@ public class SlipController {
     }
 
     /**
-     * PROCESSING → INSPECTING — Slice A (sales-polish-2) 신규 단계.
-     * 검수자가 picking 결과 검증 시작. inspectorUserId/SignedAt 자동 기입.
+     * INSPECTING → COMPLETED — Slice A (sales-polish-2) 검수 완료 단계.
+     * 검수자가 picking 결과를 확정하고 inspectorUserId/SignedAt을 자동 기입한다.
      *
      * <p>SP-D3 동적 권한: 입고(INBOUND) 전표에만 {@code inbound.inspection} 페이지 코드 EDIT 가드 적용.
      */
-    @Operation(summary = "검수 시작",
-            description = "PROCESSING → INSPECTING. inspectorUserId/SignedAt 자동 기입 (Slice A 신규)")
+    @Operation(summary = "검수 완료",
+            description = "INSPECTING → COMPLETED. inspectorUserId/SignedAt 자동 기입 (Slice A 신규)")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "검수 시작 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "검수 완료 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치")
     })
     @PostMapping("/{id}/inspect")
@@ -528,8 +528,8 @@ public class SlipController {
         return ApiResponse.ok(slipService.inspect(id, callerOrSystem(callerHeader)));
     }
 
-    /** INSPECTING → COMPLETED. OUTBOUND 면 deduct, INBOUND 면 inbound. */
-    @Operation(summary = "처리 완료", description = "INSPECTING → COMPLETED. OUTBOUND deduct / INBOUND inbound")
+    /** PROCESSING → INSPECTING. OUTBOUND 면 deduct, INBOUND 면 inbound 검수 준비. */
+    @Operation(summary = "검수 시작", description = "PROCESSING → INSPECTING. OUTBOUND deduct / INBOUND inbound 검수 준비")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "완료 + 재고 갱신 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "상태 불일치 또는 재고 부족")
