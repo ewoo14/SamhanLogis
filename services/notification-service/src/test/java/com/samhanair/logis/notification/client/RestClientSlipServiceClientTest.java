@@ -48,6 +48,7 @@ class RestClientSlipServiceClientTest {
                 .andRespond(withSuccess("{\"success\":true,\"data\":["
                         + "{\"slipNo\":\"OUT-2026-06-08-001\",\"partnerCode\":\"P-001\","
                         + "\"partnerName\":\"테스트사\",\"slipDate\":\"2026-06-08\","
+                        + "\"unloadDate\":\"2026-06-10\",\"driverPhone\":\"010-1111-2222\","
                         + "\"deliveryAddress\":\"서울\",\"lines\":[{\"productName\":\"품목\",\"quantity\":2}],"
                         + "\"recipientPhone\":\"01012345678\"}]}"
                         , MediaType.APPLICATION_JSON));
@@ -57,6 +58,8 @@ class RestClientSlipServiceClientTest {
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).slipNo()).isEqualTo("OUT-2026-06-08-001");
         assertThat(rows.get(0).recipientPhone()).isEqualTo("01012345678");
+        assertThat(rows.get(0).unloadDate()).isEqualTo(LocalDate.of(2026, 6, 10));
+        assertThat(rows.get(0).driverPhone()).isEqualTo("010-1111-2222");
         assertThat(rows.get(0).lines()).singleElement().satisfies(line -> {
             assertThat(line.productName()).isEqualTo("품목");
             assertThat(line.quantity()).isEqualTo(2);

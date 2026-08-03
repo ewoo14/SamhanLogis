@@ -49,8 +49,11 @@ function buildInitialEdited(preview: DispatchSmsPreviewResponse): EditedMessages
   const result: EditedMessages = {}
   for (const room of preview.chatRooms) {
     for (const p of room.partners) {
-      result[p.partnerCode] = p.message
+      result[p.partnerCode] = p.groupMessage ?? p.message
     }
+  }
+  for (const p of preview.unmapped) {
+    result[p.partnerCode ?? p.slipNo] = p.groupMessage ?? p.message
   }
   return result
 }
@@ -201,14 +204,14 @@ export function DispatchSmsPage() {
         id: p.partnerCode,
         partnerName: p.partnerName,
         slipNo: p.slipNo,
-        message: edited[p.partnerCode] ?? p.message,
+        message: edited[p.partnerCode] ?? p.groupMessage ?? p.message,
         chatRoomName: room.chatRoomName,
       }))),
       ...preview.unmapped.map((p) => ({
-        id: p.partnerCode,
+        id: p.partnerCode ?? p.slipNo,
         partnerName: p.partnerName,
         slipNo: p.slipNo,
-        message: edited[p.partnerCode] ?? p.message,
+        message: edited[p.partnerCode ?? p.slipNo] ?? p.groupMessage ?? p.message,
         chatRoomName: '',
       })),
     ]
@@ -387,7 +390,7 @@ function PreviewSection({
           </p>
 
           <div style={copyToolbarStyle}>
-            <span style={noticeStyle}>선택한 배차 대상만 복사 · 거래처명 / 전표번호 / 발송멘트 / 단톡방</span>
+            <span style={noticeStyle}>선택한 배차 대상만 복사 · 거래처명 / 전표번호 / 코멘트 / 단톡방</span>
             <CopyButton
               text={clipboardText}
               label={`선택 복사 (${selectedClipboardIds.size}건)`}
@@ -432,9 +435,9 @@ function PreviewSection({
                     ) : null}
                   </div>
 
-                  <textarea
-                    data-testid={`dispatch-sms-message-${p.partnerCode}`}
-                    value={edited[p.partnerCode] ?? p.message}
+                    <textarea
+                        data-testid={`dispatch-sms-message-${p.partnerCode}`}
+                        value={edited[p.partnerCode] ?? p.groupMessage ?? p.message}
                     onChange={(e) => onMessageChange(p.partnerCode, e.target.value)}
                     disabled={p.blocked}
                     rows={3}
@@ -449,19 +452,30 @@ function PreviewSection({
             <div style={warningBoxStyle}>
                <strong>단톡방 미매핑 전표 {preview.unmapped.length}건</strong> — 인수자 번호와 관계없이 안내 문구를 확인·편집·복사할 수 있습니다.
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                {preview.unmapped.map((u) => (
-                  <li key={`${u.partnerCode}-${u.slipNo}`}>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <input
-                        type="checkbox"
-                        aria-label={`${u.partnerName} 배차 대상 선택`}
-                        checked={selectedClipboardIds.has(u.partnerCode)}
-                        onChange={(e) => onClipboardSelectionChange(u.partnerCode, e.target.checked)}
+                {preview.unmapped.map((u) => {
+                  const unmappedId = u.partnerCode ?? u.slipNo
+                  return (
+                    <li key={unmappedId} style={{ marginBottom: 10 }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`${u.partnerName} 배차 대상 선택`}
+                          checked={selectedClipboardIds.has(unmappedId)}
+                          onChange={(e) => onClipboardSelectionChange(unmappedId, e.target.checked)}
+                        />
+                        {u.partnerName} [{u.partnerCode ?? '미매핑'}] · 전표 {u.slipNo}
+                      </label>
+                      <textarea
+                        data-testid={`dispatch-sms-unmapped-message-${unmappedId}`}
+                        aria-label={`${u.partnerName} 미매핑 안내 문구`}
+                        value={edited[unmappedId] ?? u.groupMessage ?? u.message}
+                        onChange={(e) => onMessageChange(unmappedId, e.target.value)}
+                        rows={4}
+                        style={textareaStyle(false)}
                       />
-                    {u.partnerName} [{u.partnerCode}] · 전표 {u.slipNo}
-                    </label>
-                  </li>
-                ))}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}

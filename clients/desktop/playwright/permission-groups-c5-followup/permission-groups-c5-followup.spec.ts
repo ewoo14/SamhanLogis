@@ -82,7 +82,6 @@ test.describe('권한그룹 C5 후속 정리', () => {
     expect(layout).toMatch(/dynamicCanAccess\('arologis\.dispatch\.admin',\s*'view'\)/)
     expect(layout).toMatch(/dynamicCanAccess\('arologis\.dispatch\.ops',\s*'view'\)/)
     expect(layout).toMatch(/dynamicCanAccess\('dispatch\.batch',\s*'view'\)/)
-    expect(layout).toMatch(/dynamicCanAccess\('notification\.dispatch-sms\.send-audit',\s*'view'\)/)
     // 매출 마감 사이드바 = accounting.period-close 단일 page-code (D-001 과다 노출 교정).
     expect(layout).not.toMatch(/to="\/sales\/closing"\s+show=\{showAccounting\}/)
     // [Round B P2] 단톡방 매핑 그룹웨어 단일화 — 기존 !showAdmin 분기(빌트인 MASTER 그룹 UUID 비교)

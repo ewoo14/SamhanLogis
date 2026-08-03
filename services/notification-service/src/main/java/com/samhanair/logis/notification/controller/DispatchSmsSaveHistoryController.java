@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 배차문자 저장내역 API controller.
  *
- * <p>legacy GAS 배차안내문자의 미리보기 저장, 명시 저장, 발송 감사 탭을
+ * <p>legacy GAS 배차안내문자의 미리보기 저장과 명시 저장을
  * notification-service DB/API 로 대체한다.
  *
  * <p>SP-D6-3 동적 권한 이중 가드:
@@ -63,7 +63,7 @@ public class DispatchSmsSaveHistoryController {
      * @return 저장된 ID 와 저장시각
      */
     @Operation(summary = "배차문자 저장내역 저장",
-            description = "배차문자 미리보기 결과를 AUTO_LATEST/MANUAL_NAMED 로, 발송 결과를 SEND_AUDIT 로 기록한다.")
+            description = "배차문자 미리보기 결과를 AUTO_LATEST 또는 MANUAL_NAMED 로 기록한다.")
     @PostMapping
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
     public ApiResponse<DispatchSmsSaveHistorySaveResponse> save(
@@ -82,7 +82,7 @@ public class DispatchSmsSaveHistoryController {
      * @param programTypeValue DISPATCH_SMS / ALL
      * @param from 조회 시작일
      * @param to 조회 종료일
-     * @param modeValue AUTO_LATEST / MANUAL_NAMED / SEND_AUDIT / ALL
+     * @param modeValue AUTO_LATEST / MANUAL_NAMED / ALL
      * @param page page 번호
      * @param size page 크기
      * @param callerHeader gateway 전파 사용자 ID
@@ -126,10 +126,10 @@ public class DispatchSmsSaveHistoryController {
      * @param id 저장내역 ID
      * @param callerHeader gateway 전파 사용자 ID
      * @param authentication Spring Security 인증
-     * @return 복원 또는 발송 감사 확인용 상세 payload
+     * @return 실행 탭 복원용 상세 payload
      */
     @Operation(summary = "배차문자 저장내역 상세 조회",
-            description = "선택한 저장내역의 requestParams 와 responsePayload 를 조회해 실행 탭에 복원하거나 발송 감사를 확인한다.")
+            description = "선택한 저장내역의 requestParams 와 responsePayload 를 실행 탭에 복원한다.")
     @GetMapping("/{id}")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> detail(
@@ -151,7 +151,7 @@ public class DispatchSmsSaveHistoryController {
      * @return 최신 AUTO_LATEST 상세 payload
      */
     @Operation(summary = "배차문자 최신 자동저장 조회",
-            description = "현재 사용자의 최신 DISPATCH_SMS AUTO_LATEST 저장내역을 조회한다. SEND_AUDIT 는 제외된다.")
+            description = "현재 사용자의 최신 DISPATCH_SMS AUTO_LATEST 저장내역을 조회한다.")
     @GetMapping("/latest")
     @RequirePermission(page = PAGE_CODE, action = PermissionAction.VIEW)
     public ApiResponse<DispatchSmsSaveHistoryDetailResponse> latest(
@@ -184,7 +184,7 @@ public class DispatchSmsSaveHistoryController {
             return DispatchSmsSaveMode.valueOf(value);
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
-                    "mode 는 AUTO_LATEST, MANUAL_NAMED, SEND_AUDIT, ALL 중 하나여야 합니다.");
+                    "mode 는 AUTO_LATEST, MANUAL_NAMED, ALL 중 하나여야 합니다.");
         }
     }
 

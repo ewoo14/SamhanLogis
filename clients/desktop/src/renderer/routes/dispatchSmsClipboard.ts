@@ -13,7 +13,7 @@ export interface DispatchSmsClipboardRow {
 }
 
 /**
- * 선택된 행만 거래처명, 전표번호, 발송멘트, 단톡방 순서로 복사할 문자열을 만든다.
+ * 선택된 행만 거래처명, 전표번호, 코멘트, 단톡방 순서로 복사할 문자열을 만든다.
  *
  * @param rows 화면에 표시된 배차 대상 행
  * @param selectedIds 사용자가 선택한 행 식별자 집합

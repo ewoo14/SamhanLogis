@@ -42,7 +42,7 @@ import org.springframework.test.web.servlet.MvcResult;
 /**
  * 배차문자 저장내역 통합 테스트.
  *
- * <p>Testcontainers PostgreSQL + Flyway schema 로 미리보기 저장, 발송 감사 append,
+ * <p>Testcontainers PostgreSQL + Flyway schema 로 미리보기 저장, 명시 저장 append,
  * 사용자 격리, 날짜 경계, partial unique race guard 를 검증한다.
  */
 @SpringBootTest(classes = NotificationServiceApplication.class)
@@ -179,55 +179,6 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("SEND_AUDIT 는 append-only 로 누적되고 AUTO_LATEST latest 를 대체하지 않는다")
-    void sendAuditAppendOnlyAndExcludedFromLatest() throws Exception {
-        mockMvc.perform(post(BASE_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(autoBody(2))
-                        .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isOk());
-        mockMvc.perform(post(BASE_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("발송 감사 1", 2, 0))
-                        .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isOk());
-        mockMvc.perform(post(BASE_URL)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("발송 감사 2", 1, 1))
-                        .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isOk());
-
-        Integer auditRows = jdbcTemplate.queryForObject("""
-                SELECT count(*)
-                  FROM dispatch_sms_save_history
-                 WHERE created_by = ?
-                   AND save_mode = 'SEND_AUDIT'
-                   AND is_deleted = FALSE
-                """, Integer.class, USER_A);
-        assertThat(auditRows).isEqualTo(2);
-
-        mockMvc.perform(get(BASE_URL + "/latest")
-                        .param("programType", "DISPATCH_SMS")
-                        .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.saveMode").value("AUTO_LATEST"))
-                .andExpect(jsonPath("$.data.responsePayload.preview.totalMessages").value(2));
-
-        mockMvc.perform(get(BASE_URL)
-                        .param("programType", "DISPATCH_SMS")
-                        .param("mode", "SEND_AUDIT")
-                        .header("X-User-Id", USER_A)
-                        .header("X-User-Role", "DISPATCH"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content.length()").value(2))
-                .andExpect(jsonPath("$.data.content[0].saveMode").value("SEND_AUDIT"));
-    }
-
-    @Test
     @DisplayName("AUTO_LATEST 동시 저장은 partial unique 충돌 후 재시도되어 활성 1건만 남는다")
     void concurrentAutoLatestRaceKeepsOneActiveRow() throws Exception {
         int threadCount = 3;
@@ -281,11 +232,11 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     }
 
     @Test
-    @DisplayName("SEND_AUDIT topic blank 는 400 INVALID_INPUT")
-    void sendAuditBlankTopicReturns400() throws Exception {
+    @DisplayName("MANUAL_NAMED topic blank 는 400 INVALID_INPUT")
+    void manualNamedBlankTopicReturns400() throws Exception {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("  ", 1, 0))
+                        .content(manualBody("  ", 1))
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isBadRequest())
@@ -324,8 +275,8 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
         JsonNode payload = objectMapper.createObjectNode().put("body", "x".repeat(101 * 1024));
         String body = objectMapper.writeValueAsString(Map.of(
                 "programType", "DISPATCH_SMS",
-                "saveMode", "SEND_AUDIT",
-                "topic", "큰 발송 결과",
+                "saveMode", "MANUAL_NAMED",
+                "topic", "큰 결과",
                 "requestParams", Map.of("rowCount", 1),
                 "responsePayload", payload));
 
@@ -367,7 +318,7 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     void sameDayFromToIncludesRows() throws Exception {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("동일일 audit", 3, 0))
+                        .content(manualBody("동일일 저장", 3))
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk());
@@ -375,7 +326,7 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
         String today = java.time.LocalDate.now().toString();
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "DISPATCH_SMS")
-                        .param("mode", "SEND_AUDIT")
+                        .param("mode", "MANUAL_NAMED")
                         .param("from", today)
                         .param("to", today)
                         .header("X-User-Id", USER_A)
@@ -389,14 +340,14 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
     void nullFromToReturnsAllActiveRows() throws Exception {
         mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(sendAuditBody("전체 기간 audit", 5, 0))
+                        .content(manualBody("전체 기간 저장", 5))
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(get(BASE_URL)
                         .param("programType", "DISPATCH_SMS")
-                        .param("mode", "SEND_AUDIT")
+                        .param("mode", "MANUAL_NAMED")
                         .header("X-User-Id", USER_A)
                         .header("X-User-Role", "DISPATCH"))
                 .andExpect(status().isOk())
@@ -427,15 +378,6 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
                 "responsePayload", Map.of(
                         "preview", Map.of("totalMessages", rowCount),
                         "edited", Map.of("P-001", "자동 편집 " + rowCount))));
-    }
-
-    private String sendAuditBody(String topic, int sent, int failed) throws Exception {
-        return objectMapper.writeValueAsString(Map.of(
-                "programType", "DISPATCH_SMS",
-                "saveMode", "SEND_AUDIT",
-                "topic", topic,
-                "requestParams", Map.of("date", "2026-05-17", "rowCount", sent + failed),
-                        "responsePayload", Map.of("sent", sent, "failed", failed, "blocked", 0)));
     }
 
     private String accountIdForRole(String role) {

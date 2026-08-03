@@ -35,7 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * SP-D3 notification-service 동적 RBAC IT — notification.dispatch-sms.send-audit PageCode 이중 가드 검증.
+ * SP-D3 notification-service 동적 RBAC IT — dispatch.sms-save-history PageCode 이중 가드 검증.
  *
  * <p>SP-D2 P04 트랩 회귀 방지:
  * {@code @MockBean DynamicPermissionClient} + {@code @BeforeEach lenient stub} 패턴.
@@ -251,7 +251,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
      * 배차문자 저장 요청 body 생성 헬퍼.
      *
      * @param name     저장명
-     * @param saveMode 저장 방식 (MANUAL_NAMED / SEND_AUDIT 등)
+     * @param saveMode 저장 방식 (AUTO_LATEST / MANUAL_NAMED)
      * @return 저장 요청 body Map
      */
     private Map<String, Object> buildSaveBody(String name, DispatchSmsSaveMode saveMode) {

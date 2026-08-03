@@ -176,6 +176,38 @@ class DispatchBatchPreviewServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    @DisplayName("같은 단톡방의 서로 다른 하차일은 레거시 하차일별 그룹 문구를 공유한다")
+    void preview_buildsLegacyUnloadDayGroupMessage() {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto first = new OutboundSlipDto(
+                "OUT-1", "P-001", "거래처A", date, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목A", 1)),
+                null, date.plusDays(3), "010-1111-2222");
+        OutboundSlipDto second = new OutboundSlipDto(
+                "OUT-2", "P-002", "거래처B", date, null,
+                "경기도 성남시", List.of(new OutboundSlipLineDto("품목B", 2)),
+                null, date.plusDays(2), "010-3333-4444");
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(first, second));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-001"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-001", "거래처A", "공통방")));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-002"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-002", "거래처B", "공통방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(date));
+
+        assertThat(response.chatRooms()).hasSize(1);
+        assertThat(response.chatRooms().get(0).partners()).hasSize(2);
+        String firstMessage = response.chatRooms().get(0).partners().get(0).groupMessage();
+        assertThat(firstMessage).contains("5일 하차 건 배송기사님 연락처를 안내드립니다.")
+                .contains("6일 하차 건 배송기사님 연락처를 안내드립니다.")
+                .contains("010-1111-2222 / 서울시 강남구")
+                .contains("010-3333-4444 / 경기도 성남시")
+                .doesNotContain("[배차안내]");
+        assertThat(response.chatRooms().get(0).partners().get(1).groupMessage())
+                .isEqualTo(firstMessage);
+    }
+
     private OutboundSlipDto newSlip(String partnerCode, String partnerName, String slipNo) {
         return new OutboundSlipDto(
                 slipNo,

@@ -19,7 +19,7 @@ describe('배차 SMS 선택 복사', () => {
     },
   ]
 
-  it('선택한 행만 거래처명·전표번호·발송멘트·단톡방을 탭/줄바꿈으로 직렬화한다', () => {
+  it('선택한 행만 거래처명·전표번호·코멘트·단톡방을 탭/줄바꿈으로 직렬화한다', () => {
     expect(buildDispatchSmsClipboardText(rows, new Set(['partner-b']))).toBe(
       '거래처 B\t2026/08/01-2\t배차 안내 B\t방 B',
     )

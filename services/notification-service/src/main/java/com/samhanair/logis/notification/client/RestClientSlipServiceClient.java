@@ -81,7 +81,8 @@ public class RestClientSlipServiceClient implements SlipServiceClient {
                 result.add(new OutboundSlipDto(
                         text(node, "slipNo"), text(node, "partnerCode"), text(node, "partnerName"),
                         date(node, "slipDate"), dateTime(node, "scheduledAt"),
-                        text(node, "deliveryAddress"), lines, text(node, "recipientPhone")));
+                        text(node, "deliveryAddress"), lines, text(node, "recipientPhone"),
+                        date(node, "unloadDate"), text(node, "driverPhone")));
             }
             return result;
         } catch (IllegalStateException ex) {

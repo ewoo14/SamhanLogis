@@ -36,6 +36,7 @@ import { apiClient, type ApiEnvelope } from './client'
  * @property slipNo 출고전표번호 (사용자 노출)
  * @property message 조립된 한국어 안내 본문 (FE textarea 에서 수정 가능)
  * @property blocked 발송금지 가드 — 화면에서 상태 표시
+ * @property groupMessage 레거시 하차일별 그룹 문구 (화면·복사 기준 본문)
  */
 export interface DispatchSmsPartnerEntry {
   partnerCode: string
@@ -43,6 +44,7 @@ export interface DispatchSmsPartnerEntry {
   slipNo: string
   message: string
   blocked: boolean
+  groupMessage: string
 }
 
 /**
@@ -60,12 +62,14 @@ export interface DispatchSmsChatRoomGroup {
  * 단톡방 매핑이 없는 거래처 — 운영자 후속 등록 유도 용.
  */
 export interface DispatchSmsUnmappedPartner {
-  partnerCode: string
+  partnerCode: string | null
   partnerName: string
   slipNo: string
   message: string
   /** 단톡방 매핑이 없을 때 사용할 인수자 전화번호. */
   recipientPhone: string | null
+  /** 레거시 하차일별 그룹 문구 (미매핑 전표도 편집·복사 가능). */
+  groupMessage: string
 }
 
 /** Preview 응답 envelope. */

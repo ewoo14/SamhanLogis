@@ -9,11 +9,14 @@ import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.ChatRoomGroup;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.PartnerEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.UnmappedPartner;
+import com.samhanair.logis.notification.dto.DispatchMessageGroupInput;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,7 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 배차안내 SMS 발송 미리보기 (dryRun) 서비스 — PR-E1 BE-4 (Samhan Public 이식).
  *
  * <p>legacy GAS 8번 (배차안내문자) 의 수동 워크플로우 (이카운트 전표 업로드 → 단톡방/금지 매핑 →
- * 발송멘트 편집 → 단톡방별 그룹핑 후 복사) 를 자동화한 1단계.
+ * 코멘트 편집 → 단톡방별 그룹핑 후 복사) 를 자동화한 1단계.
  *
  * <p>처리 흐름:
  * <ol>
@@ -49,6 +52,18 @@ public class DispatchBatchPreviewService {
     private final PartnerChatRoomMappingRepository chatRoomMappingRepository;
     private final BlockedPartnerLookupClient blockedPartnerLookupClient;
     private final MessageTemplateService messageTemplateService;
+    private final DispatchMessageGroupComposer dispatchMessageGroupComposer;
+
+    /** 기존 4-인자 단위 테스트·호출자 호환용 생성자. */
+    @Autowired
+    public DispatchBatchPreviewService(
+            SlipServiceClient slipServiceClient,
+            PartnerChatRoomMappingRepository chatRoomMappingRepository,
+            BlockedPartnerLookupClient blockedPartnerLookupClient,
+            MessageTemplateService messageTemplateService) {
+        this(slipServiceClient, chatRoomMappingRepository, blockedPartnerLookupClient,
+                messageTemplateService, new DispatchMessageGroupComposer());
+    }
 
     /**
      * preview 미리보기 — 출고전표 자동 조회 + 단톡방 매핑 + blocked 가드 + 메시지 템플릿 적용.
@@ -67,16 +82,22 @@ public class DispatchBatchPreviewService {
         // 단톡방 → 거래처 N건 (입력 순서 보존)
         Map<String, List<PartnerEntry>> grouped = new LinkedHashMap<>();
         List<UnmappedPartner> unmapped = new ArrayList<>();
+        List<PendingPreviewEntry> pending = new ArrayList<>();
+        List<DispatchMessageGroupInput> groupInputs = new ArrayList<>();
         int mappedCount = 0;
         int unmappedCount = 0;
+        int sequence = 0;
 
         for (OutboundSlipDto slip : slips) {
             String partnerCode = slip.partnerCode();
             String message = messageTemplateService.renderDispatchMessage(slip);
+            String entryKey = entryKey(partnerCode, slip.slipNo(), sequence++);
             if (partnerCode == null || partnerCode.isBlank()) {
                 // partner_code 누락 → unmapped 누적 (slip-service 가 partner_code 없는 row 를 반환할 수 있는 회복성)
-                unmapped.add(new UnmappedPartner(
-                        null, slip.partnerName(), slip.slipNo(), message, slip.recipientPhone()));
+                pending.add(new PendingPreviewEntry(
+                        entryKey, null, slip.partnerName(), slip.slipNo(), message, false,
+                        null, slip.recipientPhone()));
+                groupInputs.add(toGroupInput(entryKey, slip, null, "이카운트 데이터 없음 최신화요망!", req.date()));
                 unmappedCount++;
                 continue;
             }
@@ -87,21 +108,39 @@ public class DispatchBatchPreviewService {
             }
             if (mappings.isEmpty()) {
                 lookupBlockedOrDefer(partnerCode);
-                unmapped.add(new UnmappedPartner(
-                        partnerCode, slip.partnerName(), slip.slipNo(), message, slip.recipientPhone()));
+                pending.add(new PendingPreviewEntry(
+                        entryKey, partnerCode, slip.partnerName(), slip.slipNo(), message, false,
+                        null, slip.recipientPhone()));
+                groupInputs.add(toGroupInput(entryKey, slip, null, null, req.date()));
                 unmappedCount++;
                 continue;
             }
             boolean blocked = lookupBlockedOrDefer(partnerCode);
             mappedCount++;
             for (PartnerChatRoomMapping mapping : mappings) {
-                grouped.computeIfAbsent(mapping.getChatRoomName(), k -> new ArrayList<>())
+                String chatRoomName = mapping.getChatRoomName();
+                String mappedEntryKey = entryKey + "#" + safeText(chatRoomName);
+                pending.add(new PendingPreviewEntry(
+                        mappedEntryKey, partnerCode, slip.partnerName(), slip.slipNo(), message, blocked,
+                        chatRoomName, slip.recipientPhone()));
+                groupInputs.add(toGroupInput(
+                        mappedEntryKey, slip, chatRoomName,
+                        blocked ? "발송금지 업체입니다." : null, req.date()));
+            }
+        }
+
+        Map<String, String> groupMessages = dispatchMessageGroupComposer.compose(groupInputs);
+        for (PendingPreviewEntry entry : pending) {
+            String groupMessage = groupMessages.getOrDefault(entry.entryKey(), entry.message());
+            if (entry.chatRoomName() == null || entry.chatRoomName().isBlank()) {
+                unmapped.add(new UnmappedPartner(
+                        entry.partnerCode(), entry.partnerName(), entry.slipNo(), entry.message(),
+                        entry.recipientPhone(), groupMessage));
+            } else {
+                grouped.computeIfAbsent(entry.chatRoomName(), ignored -> new ArrayList<>())
                         .add(new PartnerEntry(
-                                partnerCode,
-                                slip.partnerName(),
-                                slip.slipNo(),
-                                message,
-                                blocked));
+                                entry.partnerCode(), entry.partnerName(), entry.slipNo(), entry.message(),
+                                entry.blocked(), groupMessage));
             }
         }
 
@@ -128,5 +167,68 @@ public class DispatchBatchPreviewService {
                     partnerCode, ex.getMessage());
             return false;
         }
+    }
+
+    private DispatchMessageGroupInput toGroupInput(
+            String entryKey,
+            OutboundSlipDto slip,
+            String chatRoomName,
+            String fallbackMessage,
+            LocalDate requestedDate) {
+        String displayLine = legacyDisplayLine(slip);
+        String effectiveFallback = fallbackMessage;
+        if (effectiveFallback == null && !hasText(slip.driverPhone())) {
+            effectiveFallback = "기사번호 없음 확인요망!";
+        }
+        LocalDate unloadDate = slip.unloadDate() != null
+                ? slip.unloadDate()
+                : slip.slipDate() != null ? slip.slipDate() : requestedDate;
+        return new DispatchMessageGroupInput(
+                entryKey,
+                chatRoomName,
+                slip.recipientPhone(),
+                unloadDate == null ? null : unloadDate.getDayOfMonth(),
+                displayLine,
+                effectiveFallback);
+    }
+
+    /** 레거시 라인: 배송기사 연락처 + 주소 앞 세 토큰. */
+    private String legacyDisplayLine(OutboundSlipDto slip) {
+        String address = safeText(slip.deliveryAddress())
+                .replaceFirst("^(지방|야적|야상)\\s*/\\s*", "")
+                .trim();
+        String shortenedAddress = java.util.Arrays.stream(address.split("\\s+"))
+                .filter(part -> !part.isBlank())
+                .limit(3)
+                .reduce((left, right) -> left + " " + right)
+                .orElse("");
+        if (!hasText(slip.driverPhone())) {
+            return "기사번호 없음 확인요망!";
+        }
+        return safeText(slip.driverPhone()) + " / " + shortenedAddress;
+    }
+
+    private String entryKey(String partnerCode, String slipNo, int sequence) {
+        return safeText(partnerCode).isBlank() ? "unmapped#" + safeText(slipNo) + "#" + sequence
+                : safeText(partnerCode) + "#" + safeText(slipNo) + "#" + sequence;
+    }
+
+    private static String safeText(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private record PendingPreviewEntry(
+            String entryKey,
+            String partnerCode,
+            String partnerName,
+            String slipNo,
+            String message,
+            boolean blocked,
+            String chatRoomName,
+            String recipientPhone) {
     }
 }

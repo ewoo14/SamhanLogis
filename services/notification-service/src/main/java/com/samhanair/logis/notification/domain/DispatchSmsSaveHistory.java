@@ -21,7 +21,7 @@ import org.hibernate.type.SqlTypes;
 /**
  * 배차문자 미리보기/발송 저장내역.
  *
- * <p>legacy GAS 배차안내문자의 미리보기 결과와 발송 감사 payload 를 PostgreSQL JSONB 로
+ * <p>legacy GAS 배차안내문자의 미리보기 결과와 명시 저장 payload 를 PostgreSQL JSONB 로
  * 저장한다. BaseEntity 7 audit 필드와 {@code is_deleted=false} soft-delete restriction 을 사용한다.
  */
 @Entity
@@ -74,8 +74,8 @@ public class DispatchSmsSaveHistory extends BaseEntity {
      * @param programType 프로그램 구분
      * @param saveMode 저장 방식
      * @param topic 저장주제
-     * @param requestParams preview/send 요청 조건 JSON
-     * @param responsePayload 복원 또는 audit 용 결과 payload JSON
+     * @param requestParams preview 요청 조건 JSON
+     * @param responsePayload 실행 탭 복원용 결과 payload JSON
      * @return 영속화 전 저장내역 entity
      */
     public static DispatchSmsSaveHistory create(DispatchSmsProgramType programType,
