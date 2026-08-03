@@ -85,10 +85,10 @@ class SlipPartnerLedgerInternalControllerIT extends AbstractPostgresIT {
         String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         JsonNode rows = objectMapper.readTree(raw).get("data");
 
-        assertThat(rows).hasSize(5);
-        assertThat(raw).contains(completed.getSlipNo(), delivered.getSlipNo(), confirmed.getSlipNo(),
-                inspecting.getSlipNo(), shipping.getSlipNo());
-        assertThat(raw).doesNotContain("slipId", "lineId", "partnerId");
+        assertThat(rows).hasSize(3);
+        assertThat(raw).contains(completed.getSlipNo(), delivered.getSlipNo(), confirmed.getSlipNo());
+        assertThat(raw).doesNotContain(inspecting.getSlipNo(), shipping.getSlipNo());
+        assertThat(raw).doesNotContain("slipId", "lineId");
         JsonNode completedRow = findBySlipNo(rows, completed.getSlipNo());
         assertThat(completedRow.get("status").asText()).isEqualTo("COMPLETED");
         assertThat(completedRow.get("deliveryAddress").asText())
@@ -152,7 +152,8 @@ class SlipPartnerLedgerInternalControllerIT extends AbstractPostgresIT {
         JsonNode rows = objectMapper.readTree(raw).get("data");
         assertThat(rows).hasSize(1);
         assertThat(raw).contains(included.getSlipNo());
-        assertThat(raw).doesNotContain(other.getSlipNo(), included.getPartnerId().toString());
+        assertThat(raw).doesNotContain(other.getSlipNo());
+        assertThat(rows.get(0).get("partnerId").asText()).isEqualTo(included.getPartnerId().toString());
     }
 
     @Test

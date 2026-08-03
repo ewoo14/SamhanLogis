@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +43,6 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>외부 client {@link PartnerLookupClient} 의존 — IT 에서 @MockBean 격리 의무.
  */
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SalesAggregateService {
 
@@ -56,6 +55,20 @@ public class SalesAggregateService {
     private final CashReceiptRepository cashReceiptRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final PartnerLedgerSalesClient partnerLedgerSalesClient;
+    private final PartnerLedgerReadModelService readModelService;
+
+    @Autowired
+    public SalesAggregateService(JournalLineRepository journalLineRepository,
+                                 CashReceiptRepository cashReceiptRepository,
+                                 PartnerLookupClient partnerLookupClient,
+                                 PartnerLedgerSalesClient partnerLedgerSalesClient,
+                                 PartnerLedgerReadModelService readModelService) {
+        this.journalLineRepository = journalLineRepository;
+        this.cashReceiptRepository = cashReceiptRepository;
+        this.partnerLookupClient = partnerLookupClient;
+        this.partnerLedgerSalesClient = partnerLedgerSalesClient;
+        this.readModelService = readModelService;
+    }
 
     /**
      * 기간별 거래처 집계. partnerCode 인자가 있으면 단일 거래처만, 없으면 전체.
@@ -66,6 +79,15 @@ public class SalesAggregateService {
      * @return 거래처별 매출/수금/채권 row 리스트
      */
     public List<SalesAggregateRow> aggregate(LocalDate from, LocalDate to, String partnerCode) {
+        if (readModelService != null) {
+            return readModelService.read(partnerCode, from, to).partners().stream()
+                    .map(partner -> new SalesAggregateRow(
+                            partner.partnerCode() == null ? "-" : partner.partnerCode(),
+                            partner.businessNumber() == null ? "" : partner.businessNumber().replaceAll("[^0-9]", ""),
+                            partner.partnerName() == null ? "-" : partner.partnerName(),
+                            partner.salesTotal(), partner.paymentTotal(), partner.receivableBalance(), from, to))
+                    .toList();
+        }
         if (from == null || to == null) {
             throw new IllegalArgumentException("from/to 는 필수입니다");
         }

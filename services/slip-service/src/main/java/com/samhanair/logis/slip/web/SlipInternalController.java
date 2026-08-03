@@ -25,6 +25,7 @@ import com.samhanair.logis.slip.web.dto.PartnerLedgerSalesResponse;
 import com.samhanair.logis.slip.web.dto.SlipLineSnapshot;
 import com.samhanair.logis.slip.web.dto.SlipSummary;
 import com.samhanair.logis.slip.web.dto.SlipPartnerBackfillResponse;
+import com.samhanair.logis.common.ledger.PartnerLedgerContract;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
@@ -72,13 +73,10 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class SlipInternalController {
 
-    /** 거래처별 원장에 표시할 판매전표 상태 — 거래 사실 문서 기준. */
+    /** 거래처별 원장 상태 정본 — accounting-service PartnerLedgerReadModel 계약과 동일하다. */
     private static final List<SlipStatus> PARTNER_LEDGER_SALES_STATUSES = List.of(
-            SlipStatus.CONFIRMED,
-            SlipStatus.DELIVERED,
-            SlipStatus.COMPLETED,
-            SlipStatus.SHIPPING,
-            SlipStatus.INSPECTING);
+            PartnerLedgerContract.CANONICAL_SALE_STATUSES.stream()
+                    .map(SlipStatus::valueOf).toArray(SlipStatus[]::new));
 
     private final SlipSignatureService signatureService;
     private final SlipAttachmentService attachmentService;

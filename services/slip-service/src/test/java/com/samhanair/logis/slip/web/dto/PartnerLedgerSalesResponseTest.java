@@ -16,8 +16,8 @@ import org.junit.jupiter.api.Test;
 class PartnerLedgerSalesResponseTest {
 
     @Test
-    @DisplayName("전표 헤더·배송주소·품목 금액을 UUID 없이 매핑한다")
-    void mapsLedgerFieldsWithoutUuid() throws Exception {
+    @DisplayName("전표 헤더·배송주소·품목 금액과 내부 partnerId를 매핑한다")
+    void mapsLedgerFieldsWithInternalPartnerId() throws Exception {
         Slip slip = Slip.createOutbound(
                 "2026/07/31-1001",
                 LocalDate.of(2026, 7, 31),
@@ -68,6 +68,7 @@ class PartnerLedgerSalesResponseTest {
         String json = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .writeValueAsString(response);
-        assertThat(json).doesNotContain("slipId", "lineId", "partnerId");
+        assertThat(json).doesNotContain("slipId", "lineId");
+        assertThat(response.partnerId()).isEqualTo(slip.getPartnerId());
     }
 }

@@ -20,23 +20,45 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 출고 판매전표와 확정 입금보고서를 거래처별 원장 read 모델로 합친다. */
 @Service
-@RequiredArgsConstructor
 public class PartnerLedgerReadService {
     private final PartnerLedgerSalesClient salesClient;
     private final CashReceiptRepository cashReceiptRepository;
     private final JournalRepository journalRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final PartnerLedgerDocumentMerger merger = new PartnerLedgerDocumentMerger();
+    private final PartnerLedgerReadModelService readModelService;
+
+    @Autowired
+    public PartnerLedgerReadService(PartnerLedgerSalesClient salesClient,
+                                    CashReceiptRepository cashReceiptRepository,
+                                    JournalRepository journalRepository,
+                                    PartnerLookupClient partnerLookupClient,
+                                    PartnerLedgerReadModelService readModelService) {
+        this.salesClient = salesClient;
+        this.cashReceiptRepository = cashReceiptRepository;
+        this.journalRepository = journalRepository;
+        this.partnerLookupClient = partnerLookupClient;
+        this.readModelService = readModelService;
+    }
 
     @Transactional(readOnly = true)
     public PartnerLedgerResponse read(String partnerCode, LocalDate from, LocalDate to) {
+        if (readModelService != null) {
+            PartnerLedgerReadModel.Partner partner = readModelService.read(partnerCode, from, to).selected();
+            if (partner == null) {
+                return new PartnerLedgerResponse(partnerCode, null, null, from, to, List.of());
+            }
+            return new PartnerLedgerResponse(partner.partnerCode(), partner.partnerName(),
+                    partner.businessNumber(), from, to, partner.documents().stream()
+                    .map(this::responseDocument).toList());
+        }
         if (from == null || to == null || to.isBefore(from)) {
             throw new IllegalArgumentException("from/to 기간이 올바르지 않습니다");
         }
@@ -143,6 +165,13 @@ public class PartnerLedgerReadService {
                         .map(line -> line.lineAmount()).reduce(java.math.BigDecimal.ZERO,
                                 java.math.BigDecimal::add),
                 document.lines().stream().map(line -> new Line(line.productName(), null, line.quantity(),
+                        line.unitPriceWithVat(), line.lineAmount())).toList());
+    }
+
+    private Document responseDocument(PartnerLedgerReadModel.Document document) {
+        return new Document(document.type().name(), document.documentNo(), document.date(),
+                document.partnerCode(), document.partnerName(), document.deliveryAddress(), document.amount(),
+                document.lines().stream().map(line -> new Line(line.productName(), line.modelName(), line.quantity(),
                         line.unitPriceWithVat(), line.lineAmount())).toList());
     }
 

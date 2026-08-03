@@ -5,6 +5,7 @@ import com.samhanair.logis.slip.domain.SlipLine;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 거래처별 원장에 표시할 판매전표 read projection.
@@ -18,6 +19,7 @@ public record PartnerLedgerSalesResponse(
         LocalDate slipDate,
         String status,
         String partnerCode,
+        UUID partnerId,
         String partnerName,
         String businessNumber,
         String deliveryAddress,
@@ -26,7 +28,13 @@ public record PartnerLedgerSalesResponse(
     public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
                                       String partnerCode, String partnerName,
                                       String deliveryAddress, List<Line> lines) {
-        this(slipNo, slipDate, status, partnerCode, partnerName, null, deliveryAddress, lines);
+        this(slipNo, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
+    }
+
+    public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
+                                      String partnerCode, String partnerName, String businessNumber,
+                                      String deliveryAddress, List<Line> lines) {
+        this(slipNo, slipDate, status, partnerCode, null, partnerName, businessNumber, deliveryAddress, lines);
     }
 
     /**
@@ -61,6 +69,7 @@ public record PartnerLedgerSalesResponse(
                 slip.getSlipDate(),
                 slip.getStatus().name(),
                 slip.getPartnerCode(),
+                slip.getPartnerId(),
                 slip.getPartnerName(),
                 slip.getBusinessNumber(),
                 slip.getDeliveryAddress(),
