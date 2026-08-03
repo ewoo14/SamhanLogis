@@ -69,7 +69,6 @@ public class EcountProductImporter {
         Map<String, String> groupByCode = parseGroups(groupCsv, actorUserId);
 
         Map<String, ItemRow> itemsByCode = new LinkedHashMap<>();
-        Map<String, Integer> normalNameCounts = new HashMap<>();
         List<ItemRow> itemRows = new ArrayList<>();
         for (int i = 0; i < itemParsed.dataRows().size(); i++) {
             int rowNo = i + 1;
@@ -79,7 +78,6 @@ public class EcountProductImporter {
             stagingItemUpsert(sourceFileHash, rowNo, cells, actorUserId);
             if (isNormal(row.code(), row.name())) {
                 itemsByCode.putIfAbsent(row.code(), row);
-                normalNameCounts.merge(row.name(), 1, Integer::sum);
             }
         }
         Map<String, List<ItemRow>> explicitMergeRowsByMainCode = buildExplicitMergeRowsByMainCode(
@@ -95,67 +93,16 @@ public class EcountProductImporter {
         Map<String, UpsertProductResult> productByMainCode = new HashMap<>();
         LinkedHashSet<String> countedMainCodes = new LinkedHashSet<>();
         Map<Integer, ProductMainCandidate> resolvedCandidates = new HashMap<>();
-        Map<String, List<ItemRow>> normalRowsByName = new LinkedHashMap<>();
-        Map<ProductIdentity, List<ItemRow>> normalRowsByIdentity = new LinkedHashMap<>();
-        Map<Integer, String> mergeReasonsByRow = new HashMap<>();
-
-        for (ItemRow row : itemRows) {
-            if (isNormal(row.code(), row.name())) {
-                normalRowsByName.computeIfAbsent(row.name(), ignored -> new ArrayList<>()).add(row);
-                normalRowsByIdentity.computeIfAbsent(productIdentity(row),
-                        ignored -> new ArrayList<>()).add(row);
-            }
-        }
-
         for (ItemRow row : itemRows) {
             if (row.name().isBlank() || isPlaceholder(row.code())) {
                 continue;
             }
             EcountCsvSupport.requireMaxLength(row.code(), 100, "product_code", row.rowNo());
-            try {
-                ProductMainCandidate mainCandidate = resolveMainCandidate(
-                        row, relationMainByAlias.get(row.code()), relationParse.mainCodes(),
-                        itemsByCode, normalNameCounts);
-                if (mainCandidate != null) {
-                    resolvedCandidates.put(row.rowNo(), mainCandidate);
-                }
-            } catch (BusinessException ex) {
-                if (ex.getErrorCode() != ErrorCode.MIG2_NO_MAIN_CANDIDATE) {
-                    throw ex;
-                }
-                if (normalRowsByName.getOrDefault(row.name(), List.of()).size() < 2) {
-                    throw ex;
-                }
-            }
-        }
-
-        // 같은 이름이어도 업무 값이 다르면 별도 물건이다. 같은 업무값 그룹 안에서만
-        // canonical code를 고르고 alias를 연결한다. 이름이 중복된 singleton 그룹도
-        // 후보를 다시 해소해야 orphan으로 버려지지 않는다.
-        for (Map.Entry<ProductIdentity, List<ItemRow>> entry : normalRowsByIdentity.entrySet()) {
-            ProductIdentity identity = entry.getKey();
-            List<ItemRow> sameProductRows = entry.getValue();
-            ProductMainCandidate groupCandidate = sameProductRows.stream()
-                    .map(row -> resolvedCandidates.get(row.rowNo()))
-                    .filter(candidate -> isFingerprintCompatibleCandidate(
-                            candidate, identity,
-                            normalRowsByName.getOrDefault(identity.name(), List.of()).size()))
-                    .sorted(Comparator.comparing(ProductMainCandidate::mainCode))
-                    .findFirst()
-                    .orElseGet(() -> fallbackSameNameCandidate(identity.name(), sameProductRows, itemsByCode));
-            if (groupCandidate == null) {
-                throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                        "동일 업무값 raw 품목 그룹을 병합할 수 없습니다: name=" + identity.name());
-            }
-            ItemRow selectedRow = groupCandidate.rawRow() == null
-                    ? sameProductRows.get(0)
-                    : groupCandidate.rawRow();
-            String mergeReason = sameProductRows.size() > 1
-                    ? sameNameMergeReason(groupCandidate.mainCode(), selectedRow, sameProductRows)
-                    : null;
-            for (ItemRow sameProductRow : sameProductRows) {
-                resolvedCandidates.put(sameProductRow.rowNo(), groupCandidate);
-                mergeReasonsByRow.put(sameProductRow.rowNo(), mergeReason);
+            ProductMainCandidate mainCandidate = resolveMainCandidate(
+                    row, relationMainByAlias.get(row.code()), relationParse.mainCodes(),
+                    itemsByCode);
+            if (mainCandidate != null) {
+                resolvedCandidates.put(row.rowNo(), mainCandidate);
             }
         }
 
@@ -207,14 +154,14 @@ public class EcountProductImporter {
             upsertAlias(row.code(), mainCode, upsert.productId(), sourceFileHash, row.rowNo());
             aliasImported++;
             updateItemStatus(sourceFileHash, row.rowNo(), upsert.isNew() ? "IMPORTED" : "UPDATED",
-                    mergeReasonsByRow.get(row.rowNo()),
+                    null,
                     row.code().equals(mainCode) ? upsert.productId() : null, upsert.productId());
         }
 
         log.info("MIG-2 product import 완료 total={} imported={} updated={} alias={} rejected={} placeholder={} orphan={} mergedGroups={} hash={}",
                 itemRows.size(), imported, updated, aliasImported, rejectedNullName,
                 skippedPlaceholder, skippedRelationOrphan,
-                normalRowsByIdentity.values().stream().filter(rows -> rows.size() > 1).count(), sourceFileHash);
+                0, sourceFileHash);
 
         return new EcountProductImportResult(itemRows.size(), imported, updated, rejectedNullName,
                 skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample,
@@ -222,9 +169,7 @@ public class EcountProductImporter {
     }
 
     /**
-     * 관계 CSV 또는 기존의 명시적으로 승인된 raw main 규칙에 직접 연결된 행만
-     * 병합 대상으로 만든다. 품목명/단가 fingerprint나 DB LIKE 검색으로 대상을
-     * 확장하지 않아, 구조적 fingerprint 우회 경로를 새로 만들지 않는다.
+     * 관계 CSV가 명시한 코드 관계만 병합 대상으로 만든다.
      */
     private Map<String, List<ItemRow>> buildExplicitMergeRowsByMainCode(
             List<ItemRow> itemRows, RelationParseResult relationParse,
@@ -238,12 +183,6 @@ public class EcountProductImporter {
             if (mainCode == null && relationParse.mainCodes().contains(row.code())) {
                 mainCode = row.code();
             }
-            if (mainCode == null) {
-                ItemRow approvedMain = findApprovedRawMainRow(row, itemsByCode);
-                if (approvedMain != null) {
-                    mainCode = approvedMain.code();
-                }
-            }
             if (mainCode != null) {
                 rowsByMainCode.computeIfAbsent(mainCode, ignored -> new ArrayList<>()).add(row);
             }
@@ -254,7 +193,7 @@ public class EcountProductImporter {
     /**
      * 대표행을 기준으로 하되 업무 필드는 값이 있는 연결행에서 보완한다.
      * 숫자 0/공백은 비어 있는 값으로 보고, 양쪽이 모두 있으면 대표행을 유지한다.
-     * 규격명은 공백만 다른 경우에만 공백을 정규화한다.
+     * 규격명은 병합 키·판정에 사용하지 않는다.
      */
     private ItemRow mergeExplicitRows(ItemRow representative, List<ItemRow> relatedRows) {
         if (relatedRows == null || relatedRows.size() < 2) {
@@ -278,26 +217,6 @@ public class EcountProductImporter {
                     .filter(value -> !value.isBlank())
                     .findFirst()
                     .ifPresent(value -> merged[10] = value);
-        }
-        if (merged[11].isBlank()) {
-            relatedRows.stream()
-                    .map(row -> row.cells()[11])
-                    .filter(value -> !value.isBlank())
-                    .findFirst()
-                    .ifPresent(value -> merged[11] = value);
-        } else if (relatedRows.stream()
-                .map(row -> row.cells()[11])
-                .filter(value -> !value.isBlank())
-                .anyMatch(value -> !value.equals(merged[11]))) {
-            List<String> nonBlankSpecs = relatedRows.stream()
-                    .map(row -> row.cells()[11])
-                    .filter(value -> !value.isBlank())
-                    .toList();
-            if (nonBlankSpecs.stream()
-                    .allMatch(value -> normalizeSpecification(value)
-                            .equals(normalizeSpecification(merged[11])))) {
-                merged[11] = normalizeSpecification(merged[11]);
-            }
         }
         return new ItemRow(representative.rowNo(), merged);
     }
@@ -400,8 +319,7 @@ public class EcountProductImporter {
     }
 
     private ProductMainCandidate resolveMainCandidate(ItemRow row, String explicitMainCode, Set<String> relationMainCodes,
-                                                      Map<String, ItemRow> itemsByCode,
-                                                      Map<String, Integer> normalNameCounts) {
+                                                       Map<String, ItemRow> itemsByCode) {
         if (explicitMainCode != null) {
             ItemRow explicitMainRow = itemsByCode.get(explicitMainCode);
             if (explicitMainRow != null) {
@@ -415,120 +333,8 @@ public class EcountProductImporter {
         if (relationMainCodes.contains(row.code())) {
             return new ProductMainCandidate(row.code(), row, null, true);
         }
-        ItemRow ruleMainRow = findApprovedRawMainRow(row, itemsByCode);
-        if (ruleMainRow != null) {
-            return new ProductMainCandidate(ruleMainRow.code(), ruleMainRow, null, true);
-        }
-        String dbMainCode = findActiveProductCodeByName(row.name());
-        if (dbMainCode != null && !dbMainCode.isBlank()) {
-            ItemRow dbMainRaw = itemsByCode.get(dbMainCode);
-            if (sameFingerprint(dbMainRaw, row)) {
-                return new ProductMainCandidate(dbMainCode, dbMainRaw, null, false);
-            }
-        }
-        if (normalNameCounts.getOrDefault(row.name(), 0) == 1) {
-            return new ProductMainCandidate(row.code(), row, null, false);
-        }
-        throw new BusinessException(ErrorCode.MIG2_NO_MAIN_CANDIDATE,
-                "품목 main 후보를 결정할 수 없습니다: name=" + row.name()
-                        + ", candidateCodes=" + rawCandidatesByName(row.name(), itemsByCode)
-                        + ", stoppedAt=⑤_FAIL_CLOSED, sourceRowNo=" + row.rowNo());
-    }
-
-    /**
-     * 개발책임자 결정(2026-07-28)의 안전한 raw 대표 규칙을 적용한다.
-     * 코드==명, 공백만 제거한 코드==명, 괄호 앞 코드==명만 자동 승인하고 그 외에는 null을 반환한다.
-     */
-    private ItemRow findApprovedRawMainRow(ItemRow row, Map<String, ItemRow> itemsByCode) {
-        ItemRow exact = itemsByCode.get(row.name());
-        if (exact != null) {
-            return exact;
-        }
-        String compactName = row.name().replaceAll("\\s+", "");
-        ItemRow whitespaceNormalised = itemsByCode.get(compactName);
-        if (whitespaceNormalised != null) {
-            return whitespaceNormalised;
-        }
-        int openingParenthesis = row.name().indexOf('(');
-        if (openingParenthesis > 0) {
-            String beforeParenthesis = row.name().substring(0, openingParenthesis).strip();
-            ItemRow parenthesisPrefix = itemsByCode.get(beforeParenthesis);
-            if (parenthesisPrefix != null) {
-                return parenthesisPrefix;
-            }
-        }
-        return null;
-    }
-
-    private ProductMainCandidate fallbackSameNameCandidate(String name, List<ItemRow> sameNameRows,
-                                                            Map<String, ItemRow> itemsByCode) {
-        String existingCode = findActiveProductCodeByName(name);
-        if (existingCode != null && !existingCode.isBlank()) {
-            ItemRow existingRaw = itemsByCode.get(existingCode);
-            if (sameFingerprint(existingRaw, sameNameRows.get(0))) {
-                return new ProductMainCandidate(existingCode, existingRaw, null, false);
-            }
-        }
-        ItemRow canonicalRaw = sameNameRows.stream()
-                .min(Comparator.comparing(ItemRow::code))
-                .orElseThrow();
-        return new ProductMainCandidate(canonicalRaw.code(), canonicalRaw, null, false);
-    }
-
-    private List<String> rawCandidatesByName(String name, Map<String, ItemRow> itemsByCode) {
-        return itemsByCode.values().stream()
-                .filter(candidate -> candidate.name().equals(name))
-                .map(ItemRow::code)
-                .distinct()
-                .toList();
-    }
-
-    private String sameNameMergeReason(String canonicalCode, ItemRow selectedRow, List<ItemRow> rows) {
-        String discarded = rows.stream()
-                .filter(row -> row != selectedRow)
-                .sorted(Comparator.comparing(ItemRow::code))
-                .map(this::mergeRowSummary)
-                .toList()
-                .toString();
-        return "MERGED_SAME_NAME canonicalCode=" + canonicalCode
-                + ", selected=" + mergeRowSummary(selectedRow)
-                + ", discarded=" + discarded;
-    }
-
-    private ProductIdentity productIdentity(ItemRow row) {
-        StringBuilder fingerprint = new StringBuilder();
-        for (int i = 2; i <= 9; i++) {
-            fingerprint.append(parseMoney(row.cells()[i]).toPlainString()).append('|');
-        }
-        fingerprint.append(normalizeItemType(row.cells()[10])).append('|')
-                .append(row.cells()[11].strip());
-        return new ProductIdentity(row.name(), fingerprint.toString());
-    }
-
-    private boolean sameFingerprint(ItemRow candidate, ItemRow expected) {
-        return candidate != null && expected != null
-                && productIdentity(candidate).equals(productIdentity(expected));
-    }
-
-    private boolean sameFingerprint(ItemRow candidate, ProductIdentity expected) {
-        return candidate != null && expected != null && productIdentity(candidate).equals(expected);
-    }
-
-    private boolean isFingerprintCompatibleCandidate(ProductMainCandidate candidate, ProductIdentity expected,
-                                                      int sameNameRowCount) {
-        return candidate != null
-                && ((candidate.trustedIdentity()
-                        && (candidate.rawRow() != null || sameNameRowCount == 1))
-                        || (candidate.rawRow() != null && sameFingerprint(candidate.rawRow(), expected)));
-    }
-
-    private String mergeRowSummary(ItemRow row) {
-        return "{rowNumber=" + row.rowNo()
-                + ",code=" + row.code()
-                + ",specification=" + row.cells()[11]
-                + ",outboundPrice=" + parseMoney(row.cells()[2]).toPlainString()
-                + ",inboundPrice=" + parseMoney(row.cells()[3]).toPlainString()
-                + "}";
+        // 관계가 없는 행은 이름·규격·가격과 무관하게 자기 품목코드의 품목이다.
+        return new ProductMainCandidate(row.code(), row, null, false);
     }
 
     private boolean isNormal(String code, String name) {
@@ -777,22 +583,6 @@ public class EcountProductImporter {
         return count != null && count > 0;
     }
 
-    private String findActiveProductCodeByName(String name) {
-        List<String> productCodes = jdbcTemplate.queryForList("""
-                SELECT product_code
-                  FROM products
-                 WHERE name = :name AND is_deleted = FALSE AND status = 'ACTIVE'
-                 ORDER BY created_at ASC, product_code ASC
-                 LIMIT 2
-                """, new MapSqlParameterSource("name", name), String.class);
-        if (productCodes == null || productCodes.isEmpty()) {
-            return null;
-        }
-        // 같은 품목명은 한 물건으로 병합한다. 기존 DB가 여러 건이어도 임의 추측으로
-        // raw 행을 누락시키지 않고, 생성시각·코드 순서의 안정된 기존 행을 대상으로 삼는다.
-        return productCodes.get(0);
-    }
-
     private UUID findActiveProductIdByCode(String code) {
         List<UUID> productIds = jdbcTemplate.queryForList("""
                 SELECT id
@@ -933,10 +723,6 @@ public class EcountProductImporter {
         return truncate(raw.replace("[", "").replace("]", ""), 20);
     }
 
-    private static String normalizeSpecification(String raw) {
-        return raw == null ? "" : raw.replaceAll("\\s+", "");
-    }
-
     private static String truncate(String value, int max) {
         if (value == null) {
             return null;
@@ -966,9 +752,6 @@ public class EcountProductImporter {
 
     private record ProductMainCandidate(String mainCode, ItemRow rawRow, UUID existingProductId,
                                         boolean trustedIdentity) {
-    }
-
-    private record ProductIdentity(String name, String fingerprint) {
     }
 
     private record RelationParseResult(Map<String, String> mainCodeByAlias, Set<String> mainCodes) {

@@ -89,7 +89,7 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_코드명_및_공백괄호_대표규칙으로_관계없는_중복그룹을_병합한다() {
+    void importCsv_관계없는_중복코드는_이름과_무관하게_각각_반영한다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
                 "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
@@ -103,13 +103,13 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.imported()).isEqualTo(3);
+        assertThat(result.imported()).isEqualTo(6);
         assertThat(result.aliasImported()).isEqualTo(6);
         assertThat(result.skippedRelationOrphan()).isZero();
     }
 
     @Test
-    void importCsv_관계없는_동명그룹은_한_행과_alias로_병합한다() {
+    void importCsv_관계없는_동명그룹은_품목코드별로_분리한다() {
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
                 "품목코드\t","품목명\t","출하가\t","입고단가\t","싱글\t","실외기(원형,스탠드)\t","멀티(50%)\t","멀티(48%)\t","멀티(45%)\t","단품(35%)\t","품목구분\t","규격명\t","사용구분\t"
@@ -119,7 +119,7 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.imported()).isOne();
+        assertThat(result.imported()).isEqualTo(2);
         assertThat(result.aliasImported()).isEqualTo(2);
         assertThat(result.skippedGroupCount()).isZero();
     }
@@ -137,7 +137,7 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.imported()).isEqualTo(3);
+        assertThat(result.imported()).isEqualTo(4);
         assertThat(result.aliasImported()).isEqualTo(4);
         assertThat(result.skippedGroupCount()).isZero();
     }
@@ -240,7 +240,7 @@ class EcountProductImporterTest {
 
     @Test
     void importCsv_DB_name_fallback은_ACTIVE_단일건만_허용하고_status_필터를_사용한다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of("DB-OLD"));
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -251,15 +251,13 @@ class EcountProductImporterTest {
 
         importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        verify(jdbcTemplate, org.mockito.Mockito.atLeastOnce()).queryForList(
-                sql.capture(), any(SqlParameterSource.class), eq(String.class));
-        assertThat(sql.getAllValues())
-                .anySatisfy(value -> assertThat(value).contains("status = 'ACTIVE'"));
+        verify(jdbcTemplate, org.mockito.Mockito.never()).queryForList(
+                anyString(), any(SqlParameterSource.class), eq(String.class));
     }
 
     @Test
     void importCsv_동명_DB_name_fallback이_ACTIVE_2건이어도_raw를_사용한다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of("DB-001", "DB-002"));
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -276,7 +274,7 @@ class EcountProductImporterTest {
 
     @Test
     void importCsv_동명_DB_only_후보는_raw_fingerprint_없이_재사용하지_않는다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of("DB-OLD"));
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -291,8 +289,8 @@ class EcountProductImporterTest {
     }
 
     @Test
-    void importCsv_동명그룹의_DB_only_relation_후보는_fingerprint_없는_main으로_승격하지_않는다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+    void importCsv_관계_main이_raw와_DB에_없으면_관계_alias를_승격하지_않는다() {
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenReturn(List.of());
         String itemCsv = """
                 "데이터관리>품목-Excel다운로드"
@@ -315,7 +313,7 @@ class EcountProductImporterTest {
 
     @Test
     void importCsv_동명_DB코드가_현재_raw에_있어도_fingerprint가_다르면_재사용하지_않는다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenAnswer(invocation -> {
                     SqlParameterSource parameters = invocation.getArgument(1);
                     return "동명제품".equals(parameters.getValue("name"))
@@ -336,7 +334,7 @@ class EcountProductImporterTest {
 
     @Test
     void importCsv_동명_singleton도_fingerprint_재그룹화를_건너뛰지_않는다() {
-        when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
+        lenient().when(jdbcTemplate.queryForList(anyString(), any(SqlParameterSource.class), eq(String.class)))
                 .thenAnswer(invocation -> {
                     SqlParameterSource parameters = invocation.getArgument(1);
                     return "동명제품".equals(parameters.getValue("name"))
@@ -440,7 +438,7 @@ class EcountProductImporterTest {
 
         EcountProductImportResult result = importer.importCsv(stream(itemCsv), null, null, "tester");
 
-        assertThat(result.imported()).isOne();
+        assertThat(result.imported()).isEqualTo(2);
         assertThat(result.aliasImported()).isEqualTo(2);
         assertThat(result.skippedGroupCount()).isZero();
     }

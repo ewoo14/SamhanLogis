@@ -59,27 +59,27 @@ class EcountProductImporterSameNameMergeTest {
     }
 
     @Test
-    void 승인된_순번코드와_모델코드는_fingerprint가_달라도_같은_품목으로_병합된다() {
+    void 관계가_없는_순번코드와_모델코드는_fingerprint가_달라도_별도_품목이다() {
         EcountProductImportResult result = importer.importCsv(
                 itemCsv(
                         row("00130", "AJ030RXH4BC1", "627,000", "652,080", ""),
                         row("AJ030RXH4BC1", "AJ030RXH4BC1 (RX다배관)", "627,000", "1,254,000", "다배관")),
                 null, null, "r9-alias-precedence-red");
 
-        assertThat(result.imported()).isOne();
+        assertThat(result.imported()).isEqualTo(2);
         assertThat(result.aliasImported()).isEqualTo(2);
         assertThat(result.skippedGroupCount()).isZero();
     }
 
     @Test
-    void 같은_품목명_순번코드_그룹은_대표후보_실패로_누락되지_않고_한_품목과_alias로_병합된다() {
+    void 같은_품목명이어도_관계가_없으면_품목코드별_별도_품목으로_남는다() {
         EcountProductImportResult result = importer.importCsv(
                 itemCsv(
                         row("AAAA-00004", "삼성추가배관(벽걸이)", "0", "12,277", "10평이하"),
                         row("AAAA-00005", "삼성추가배관(벽걸이)", "0", "12,277", "10평이하")),
                 null, null, "high-1-red");
 
-        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.imported()).isEqualTo(2);
         assertThat(result.aliasImported()).isEqualTo(2);
         assertThat(result.skippedGroupCount()).isZero();
     }
@@ -152,7 +152,7 @@ class EcountProductImporterSameNameMergeTest {
         org.mockito.Mockito.verify(jdbcTemplate).queryForObject(
                 org.mockito.ArgumentMatchers.contains("INSERT INTO products"),
                 paramsCaptor.capture(), eq(UUID.class));
-        assertThat(paramsCaptor.getValue().getValue("spec")).isEqualTo("T분기관");
+        assertThat(paramsCaptor.getValue().getValue("spec")).isEqualTo("T 분기관");
     }
 
     @Test
@@ -163,7 +163,8 @@ class EcountProductImporterSameNameMergeTest {
                 itemCsv(
                         rowWithPrices("AR-ED00", "AR-ED00", "0", "0", "0", ""),
                         rowWithPrices("SAR-00011", "AR-ED00", "777,000", "0", "0", "")),
-                null, null, "r11-approved-fieldwise");
+                relationCsv("AR-ED00", "AR-ED00", "SAR-00011", "AR-ED00"), null,
+                "r11-approved-fieldwise");
 
         org.mockito.Mockito.verify(jdbcTemplate).queryForObject(
                 org.mockito.ArgumentMatchers.contains("INSERT INTO products"),

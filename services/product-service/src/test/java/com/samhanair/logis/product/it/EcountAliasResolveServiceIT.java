@@ -62,12 +62,12 @@ class EcountAliasResolveServiceIT extends AbstractPostgresIT {
     }
 
     @Test
-    void 공백이_있는_활성_Product_정확한_품목명_라벨은_품목코드_alias없이_해소된다() {
+    void 품목명_라벨은_품목코드_alias없이_해소하지_않는다() {
         Product product = createProduct("LABEL");
 
         Map<String, UUID> resolved = service.resolve(List.of(product.getName()));
 
-        assertThat(resolved).containsEntry(product.getName(), product.getId());
+        assertThat(resolved).doesNotContainKey(product.getName());
     }
 
     @Test
