@@ -83,13 +83,21 @@ public class PartnerLedgerReadModelService {
                     null, null, null, zero(receipt.getAmount()), List.of()));
         }
 
+        List<PartnerLedgerSalesClient.Sale> sales = salesClient.find(from, to,
+                selectedSummary == null ? null : selectedSummary.partnerCode(), selectedId);
+        for (PartnerLedgerSalesClient.Sale sale : sales) {
+            if (sale == null || sale.partnerId() == null
+                    || selectedId != null && !selectedId.equals(sale.partnerId())) {
+                continue;
+            }
+            groups.computeIfAbsent(sale.partnerId(), MutablePartner::new);
+        }
+
         Map<UUID, PartnerSummary> summaries = groups.isEmpty() ? Map.of()
                 : PartnerLookupSupport.availableBatch(PartnerLookupSupport.batch(
                         partnerLookupClient, new ArrayList<>(groups.keySet())));
         if (selectedSummary != null) summaries = new LinkedHashMap<>(summaries) {{ put(selectedId, selectedSummary); }};
 
-        List<PartnerLedgerSalesClient.Sale> sales = salesClient.find(from, to,
-                selectedSummary == null ? null : selectedSummary.partnerCode(), selectedId);
         Map<String, MutablePartner> unresolved = new LinkedHashMap<>();
         for (PartnerLedgerSalesClient.Sale sale : sales) {
             MutablePartner group = resolveSale(sale, groups, summaries, selectedSummary, unresolved);
@@ -103,7 +111,7 @@ public class PartnerLedgerReadModelService {
             if (!group.salesSeen && group.journalSales.signum() != 0) {
                 PartnerSummary summary = summaries.get(group.partnerId);
                 group.documents.add(new PartnerLedgerReadModel.Document(
-                        JOURNAL_ONLY_DOCUMENT, "journal-summary:" + group.partnerId,
+                        JOURNAL_ONLY_DOCUMENT, journalSummaryDocumentNo(group, summary),
                         from, summary == null ? null : summary.partnerCode(),
                         summary == null ? null : summary.name(), null, group.journalSales, List.of()));
             }
@@ -204,6 +212,12 @@ public class PartnerLedgerReadModelService {
                 .filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
     private static BigDecimal zero(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
+    private static String journalSummaryDocumentNo(MutablePartner group, PartnerSummary summary) {
+        if (summary != null && normalize(summary.partnerCode()) != null) return normalize(summary.partnerCode());
+        if (normalize(group.partnerCode) != null) return normalize(group.partnerCode);
+        if (normalize(group.partnerName) != null) return normalize(group.partnerName) + " 매출 요약";
+        return "매출 요약";
+    }
     private static String normalize(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private static String digits(String value) {
         if (value == null || value.isBlank()) return null;

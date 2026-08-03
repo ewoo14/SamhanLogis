@@ -55,6 +55,28 @@ class PartnerLedgerReadModelServiceTest {
     }
 
     @Test
+    void unfilteredSaleOnlyPartnersUseTheSameIdentityAsDirectSearch() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = new PartnerSummary(partnerId, "P-2026-0031", "대상", "5031710961", "");
+        PartnerLedgerSalesClient.Sale sale = new PartnerLedgerSalesClient.Sale(
+                "2026/01/31-1", FROM, "COMPLETED", "P-2026-0031", partnerId, "대상", "", "5031710961",
+                List.of(new PartnerLedgerSalesClient.Line("테스트제품-TEST-MODEL-0011", null, 1,
+                        new BigDecimal("229900"), new BigDecimal("229900"))));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO)).thenReturn(List.of());
+        when(salesClient.find(FROM, TO, null, null)).thenReturn(List.of(sale));
+        when(partnerLookupClient.findByPartnerIdsBatch(List.of(partnerId))).thenReturn(Map.of(partnerId, partner));
+
+        var result = new PartnerLedgerReadModelService(
+                salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
+                partnerLookupClient).read(null, FROM, TO);
+
+        assertThat(result.partners()).extracting(PartnerLedgerReadModel.Partner::partnerCode)
+                .containsExactly("P-2026-0031");
+        assertThat(result.partners().get(0).salesTotal()).isEqualByComparingTo("229900");
+        assertThat(result.partners().get(0).documents()).hasSize(1);
+    }
+
+    @Test
     void journalOnlySalesBecomePubliclyUsableSummaryDocumentsWithoutUuid() {
         UUID partnerId = UUID.randomUUID();
         PartnerSummary partner = new PartnerSummary(partnerId, "P-2026-0005", "대상", "1653510155", "");
@@ -71,6 +93,8 @@ class PartnerLedgerReadModelServiceTest {
         assertThat(result.selected().salesTotal()).isEqualByComparingTo("26000000");
         assertThat(result.selected().documents()).extracting(PartnerLedgerReadModel.Document::type)
                 .containsExactly(PartnerLedgerReadModel.DocumentType.SALE_SUMMARY);
+        assertThat(result.selected().documents().get(0).documentNo()).doesNotContain(partnerId.toString());
+        assertThat(result.selected().documents().get(0).documentNo()).isEqualTo("P-2026-0005");
         assertThat(result.selected().partnerId()).isNotNull();
     }
 
