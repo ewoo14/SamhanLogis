@@ -15,7 +15,7 @@
  * - SENT       → accept / reject / cancel
  * - ACCEPTED   → process / reject
  * - PROCESSING → complete (검수 시작 — BE complete endpoint)
- * - INSPECTING → complete (Slice A 신규)
+ * - INSPECTING → inspect (처리 완료 — BE inspect endpoint)
  * - COMPLETED  → ship (OUTBOUND) / confirm (INBOUND 즉시)
  * - SHIPPING   → deliver
  * - DELIVERED  → confirm (OUTBOUND)
@@ -297,7 +297,7 @@ function actionsForStatus(
     case 'PROCESSING':
       return ['complete'] // Slice A: complete → inspect (검수 단계 거침)
     case 'INSPECTING':
-      return ['complete'] // Slice A 신규
+      return ['inspect'] // Slice A: inspect → COMPLETED (처리 완료)
     case 'COMPLETED':
       return mode === 'OUTBOUND' ? ['ship'] : ['confirm']
     case 'SHIPPING':
@@ -314,7 +314,7 @@ const ACTION_LABEL: Record<SlipTransitionAction, string> = {
   send: '전송',
   accept: '수락',
   process: '처리 시작',
-  inspect: '검수 시작', // Slice A 신규
+  inspect: '처리 완료', // Slice A: INSPECTING → COMPLETED
   complete: '처리 완료',
   ship: '배송 시작',
   deliver: '배송 완료',

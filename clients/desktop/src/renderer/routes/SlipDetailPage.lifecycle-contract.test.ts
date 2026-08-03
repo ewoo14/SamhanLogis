@@ -12,6 +12,13 @@ describe('SlipDetailPage lifecycle contract', () => {
     expect(source).toContain('PROCESSING → complete (검수 시작 — BE complete endpoint)')
   })
 
+  it('INSPECTING action calls the backend inspect transition to enter COMPLETED', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8')
+
+    expect(source).toMatch(/case 'INSPECTING':\s*return \['inspect'\]/)
+    expect(source).toContain("inspect: '처리 완료'")
+  })
+
   it('does not replace the backend INBOUND-only inspection permission guard', () => {
     const controllerPath = path.resolve(
       __dirname,
