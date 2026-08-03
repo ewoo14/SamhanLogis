@@ -50,6 +50,7 @@ class SalesAggregateServiceTest {
 
     private static final LocalDate FROM = LocalDate.of(2026, 5, 1);
     private static final LocalDate TO = LocalDate.of(2026, 5, 31);
+    private static final LocalDate LEGACY_SLIP_DATE = LocalDate.of(2026, 6, 24);
 
     @Test
     @DisplayName("정상 — 매출/수금/채권 집계 (단일 거래처)")
@@ -217,7 +218,7 @@ class SalesAggregateServiceTest {
         when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
                         "2026/03/08-1", LocalDate.of(2026, 3, 8), "INSPECTING",
-                        "", "거래처", null,
+                        "P-001", "거래처", null,
                         List.of(new PartnerLedgerSalesClient.Line("A", null, 1,
                                 new BigDecimal("12276000"), new BigDecimal("12276000"))))));
 
@@ -235,10 +236,10 @@ class SalesAggregateServiceTest {
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
                         BigDecimal.ZERO, new BigDecimal("20000000"))));
-        when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
+        when(partnerLedgerSalesClient.find(FROM, TO, null, null))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
                         "2026/03/08-1", LocalDate.of(2026, 3, 8), "INSPECTING",
-                        "", "거래처", null,
+                        "P-001", "거래처", null,
                         List.of(new PartnerLedgerSalesClient.Line("A", null, 1,
                                 new BigDecimal("12276000"), new BigDecimal("12276000"))))));
 
@@ -246,6 +247,61 @@ class SalesAggregateServiceTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("12276000");
+    }
+
+    @Test
+    @DisplayName("무필터 집계 — journal 후보가 없어도 legacy partner_code 판매전표를 표시한다")
+    void unfilteredAggregateIncludesLegacySalesWithoutJournalCandidate() {
+        when(journalLineRepository.aggregatePostedByPartnerAccount(LEGACY_SLIP_DATE, LEGACY_SLIP_DATE))
+                .thenReturn(List.of());
+        when(partnerLedgerSalesClient.find(LEGACY_SLIP_DATE, LEGACY_SLIP_DATE, null, null))
+                .thenReturn(List.of(
+                        new PartnerLedgerSalesClient.Sale(
+                                "2026/06/24-901", LEGACY_SLIP_DATE, "COMPLETED",
+                                "QA-GATE-A", "대구공조(검수완료)", null,
+                                List.of(new PartnerLedgerSalesClient.Line(
+                                        "원장 품목", null, 2, new BigDecimal("1200000"),
+                                        new BigDecimal("2400000")))),
+                        new PartnerLedgerSalesClient.Sale(
+                                "2026/06/24-902", LEGACY_SLIP_DATE, "COMPLETED",
+                                "QA-GATE-B", "부산냉동(미검수)", null, List.of())));
+
+        List<SalesAggregateRow> rows = service.aggregate(LEGACY_SLIP_DATE, LEGACY_SLIP_DATE, null);
+
+        assertThat(rows).hasSize(2);
+        assertThat(rows).extracting(SalesAggregateRow::partnerCode)
+                .containsExactlyInAnyOrder("QA-GATE-A", "QA-GATE-B");
+        SalesAggregateRow gateA = rows.stream()
+                .filter(row -> row.partnerCode().equals("QA-GATE-A"))
+                .findFirst().orElseThrow();
+        assertThat(gateA.partnerName()).isEqualTo("대구공조(검수완료)");
+        assertThat(gateA.salesTotal()).isEqualByComparingTo("2400000");
+        SalesAggregateRow gateB = rows.stream()
+                .filter(row -> row.partnerCode().equals("QA-GATE-B"))
+                .findFirst().orElseThrow();
+        assertThat(gateB.salesTotal()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("무필터 집계 — partnerCode가 비어도 판매전표 금액을 버리지 않는다")
+    void unfilteredAggregateKeepsSalesWithBlankPartnerCode() {
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of());
+        when(partnerLedgerSalesClient.find(FROM, TO, null, null))
+                .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
+                        "2026/05/08-903", LocalDate.of(2026, 5, 8), "COMPLETED",
+                        null, "코드없는 legacy 거래처", null,
+                        List.of(new PartnerLedgerSalesClient.Line(
+                                "원장 품목", null, 1, new BigDecimal("500"),
+                                new BigDecimal("500")
+                        )))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, null);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).partnerCode()).isEqualTo("-");
+        assertThat(rows.get(0).partnerName()).isEqualTo("코드없는 legacy 거래처");
+        assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("500");
     }
 
     /** Test stub for PartnerAccountTotal projection. */
