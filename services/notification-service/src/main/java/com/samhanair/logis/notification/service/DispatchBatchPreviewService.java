@@ -224,10 +224,45 @@ public class DispatchBatchPreviewService {
             boolean slipMatches = hasText(input.slipNo()) && input.slipNo().trim().equals(safeText(slip.slipNo()));
             boolean companyMatches = hasText(input.companyName())
                     && (input.companyName().contains(safeText(slip.slipNo()))
-                    || input.companyName().trim().equals(safeText(slip.partnerName())));
+                    || input.companyName().trim().equals(safeText(slip.partnerName()))
+                    || matchesLegacySlipNumber(input.companyName(), slip.slipNo()));
             if (slipMatches || companyMatches) return input.driverPhone().trim();
         }
         return slip.driverPhone();
+    }
+
+    /**
+     * 레거시 배차안내문자의 업체명 입력 호환 매칭.
+     *
+     * <p>한 행에 {@code /} 로 여러 입력을 넣을 수 있으며, 각 세그먼트는 순수 순번,
+     * 하이픈 뒤 순번, 끝 1~3자리, 숫자만 추출한 값 중 하나가 해당 전표의 순번과
+     * 같을 때만 매칭한다. 전체 전표번호와 정확한 업체명 매칭은 호출부에서 유지한다.
+     */
+    private boolean matchesLegacySlipNumber(String companyName, String slipNo) {
+        String dispatchNumber = safeText(slipNo);
+        int lastHyphen = dispatchNumber.lastIndexOf('-');
+        if (lastHyphen >= 0 && lastHyphen < dispatchNumber.length() - 1) {
+            dispatchNumber = dispatchNumber.substring(lastHyphen + 1);
+        }
+        if (dispatchNumber.isBlank()) return false;
+
+        for (String rawSegment : companyName.split("/")) {
+            String segment = rawSegment.trim();
+            String digits = segment.replaceAll("\\D", "");
+            String suffix = segment.matches(".*\\d{1,3}$")
+                    ? segment.replaceFirst("^.*?(\\d{1,3})$", "$1")
+                    : "";
+            String[] hyphenParts = segment.split("-", -1);
+            boolean hyphenSequenceMatches = hyphenParts.length > 1
+                    && hyphenParts[1].equals(dispatchNumber);
+            if (hyphenSequenceMatches
+                    || segment.matches("^\\d+$") && segment.equals(dispatchNumber)
+                    || suffix.equals(dispatchNumber)
+                    || digits.equals(dispatchNumber)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private OutboundSlipDto withDriverPhone(OutboundSlipDto slip, String driverPhone) {
