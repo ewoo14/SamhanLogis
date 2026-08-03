@@ -47,6 +47,8 @@ const ALLOWED_NON_DOCUMENT_MARKERS = new Set([
   'SLIP-UNDISPATCHED',
   '소계',
   'STATUS-F-SLIP',
+  // 배차문자 배송기사내역의 사용자 입력 순번 — BE 반환 전표번호가 아님.
+  '1',
   ' 2026/05 ',
   '2026/05',
   '05/18-1',
