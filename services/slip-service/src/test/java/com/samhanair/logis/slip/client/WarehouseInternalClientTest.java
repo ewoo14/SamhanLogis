@@ -37,7 +37,8 @@ class WarehouseInternalClientTest {
         server = MockRestServiceServer.bindTo(builder).build();
         InternalAuthProperties props = new InternalAuthProperties();
         props.setToken(TOKEN);
-        client = new WarehouseInternalClient(builder, props, new ObjectMapper());
+        client = new WarehouseInternalClient(
+                builder.baseUrl(BASE_URL).build(), props, new ObjectMapper());
     }
 
     @Test
@@ -67,7 +68,8 @@ class WarehouseInternalClientTest {
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> client.findWarehouseName(WAREHOUSE_ID))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("창고 조회 실패");
+                .hasMessageContaining("창고 조회 실패")
+                .hasNoCause();
         server.verify();
     }
 

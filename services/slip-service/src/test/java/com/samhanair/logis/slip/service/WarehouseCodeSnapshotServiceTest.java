@@ -2,8 +2,8 @@ package com.samhanair.logis.slip.service;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.slip.client.WarehouseInternalClient;
@@ -34,6 +34,7 @@ class WarehouseCodeSnapshotServiceTest {
         UUID slipId = UUID.randomUUID();
         UUID warehouseId = UUID.randomUUID();
         when(warehouseInternalClient.findWarehouseCode(warehouseId)).thenThrow(failure);
+        when(slipRepository.claimWarehouseCodeSnapshot(any(), any(), any(), any())).thenReturn(1);
 
         WarehouseCodeSnapshotService service = new WarehouseCodeSnapshotService(
                 warehouseInternalClient, slipRepository, transactionTemplate, taskExecutor);
@@ -44,7 +45,7 @@ class WarehouseCodeSnapshotServiceTest {
 
         assertThatCode(() -> service.scheduleAfterCommit(slipId, warehouseId))
                 .doesNotThrowAnyException();
-        verifyNoInteractions(slipRepository, transactionTemplate);
+        verify(slipRepository).claimWarehouseCodeSnapshot(any(), any(), any(), any());
     }
 
     private static Stream<Arguments> inventoryFailures() {
