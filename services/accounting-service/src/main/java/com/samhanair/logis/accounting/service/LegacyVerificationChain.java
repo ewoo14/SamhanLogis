@@ -59,7 +59,13 @@ final class LegacyVerificationChain {
 
     /** 최종 branch 선택에 필요한, API 원천 행의 순서 보존 형태. */
     record Row(String partnerCode, String scopeKey, String sourceKey,
-               String itemName, String modelToken, String kind, boolean oldProduct) {
+               String itemName, String modelToken, String kind, boolean oldProduct,
+               GasCategoryAxis axis, BigDecimal actualUnitPrice) {
+        Row(String partnerCode, String scopeKey, String sourceKey,
+            String itemName, String modelToken, String kind, boolean oldProduct) {
+            this(partnerCode, scopeKey, sourceKey, itemName, modelToken, kind, oldProduct,
+                    GasCategoryAxis.UNKNOWN, null);
+        }
     }
 
     record RoutedRow(Row row, Zone zone) {
@@ -173,10 +179,17 @@ final class LegacyVerificationChain {
     private static List<RoutedRow> focusRows(RoutedRow focus, List<RoutedRow> rows) {
         return rows.stream()
                 .filter(row -> Objects.equals(focus.row().partnerCode(), row.row().partnerCode()))
+                .filter(row -> Objects.equals(focus.row().itemName(), row.row().itemName()))
                 .filter(row -> Objects.equals(focus.row().modelToken(), row.row().modelToken()))
                 .filter(row -> Objects.equals(focus.row().kind(), row.row().kind()))
+                .filter(row -> focus.row().axis() == row.row().axis())
+                .filter(row -> sameUnitPrice(focus.row().actualUnitPrice(), row.row().actualUnitPrice()))
                 .filter(row -> branch(row, true) == branch(focus, true))
                 .toList();
+    }
+
+    private static boolean sameUnitPrice(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
     }
 
     private static boolean sameScope(Row left, Row right) {

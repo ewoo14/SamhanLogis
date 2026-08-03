@@ -141,6 +141,87 @@ class LegacyVerificationChainTest {
                 .isFalse();
     }
 
+    @Test
+    void riUsageDoesNotCrossScreenRowsWithDifferentActualUnitPrices() {
+        String sharedToken = "AC060BXAPBH7SY";
+        List<LegacyVerificationChain.Row> rows = List.of(
+                pricedRow("SLIP-A", "A#1", "실내기", "AC060BXAPBH7SY-IN", "INDOOR", "20000"),
+                pricedRow("SLIP-A", "A#2", "실외기", sharedToken, "OUTDOOR", "30000"),
+                pricedRow("SLIP-A", "A#3", "자재", "MATERIAL-A", "MATERIAL", "50000"),
+                pricedRow("SLIP-B", "B#1", "실외기", sharedToken, "OUTDOOR", "40000"));
+        List<LegacyVerificationChain.RoutedRow> routed = LegacyVerificationChain.route(rows);
+
+        Boolean result = LegacyVerificationChain.riUsageDecision(
+                routed.get(1), routed,
+                Map.of("A#1", new LegacySetMatcher.Usage(1, 1),
+                        "A#2", new LegacySetMatcher.Usage(1, 1),
+                        "A#3", new LegacySetMatcher.Usage(1, 1),
+                        "B#1", new LegacySetMatcher.Usage(1, 0)),
+                new BigDecimal("30000"), new BigDecimal("30000"));
+
+        // RED on the current implementation: B's 40000 row is incorrectly included in focusRows.
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void r15AndR16RouteSequenceContractsRemainStable() {
+        assertThat(routeResults(sequence("M", "P", "M"), Map.of(
+                "M-0", new LegacySetMatcher.Usage(1, 0),
+                "M-2", new LegacySetMatcher.Usage(1, 0),
+                "P-1", new LegacySetMatcher.Usage(1, 0))))
+                .containsExactly(false, false, false);
+        assertThat(routeResults(sequence("P", "M", "P", "P"), Map.of(
+                "M-1", new LegacySetMatcher.Usage(1, 0),
+                "P-0", new LegacySetMatcher.Usage(1, 0),
+                "P-2", new LegacySetMatcher.Usage(1, 0),
+                "P-3", new LegacySetMatcher.Usage(1, 0))))
+                .containsExactly(true, false, false, false);
+        assertThat(routeResults(sequence("P", "P", "M"), Map.of(
+                "M-2", new LegacySetMatcher.Usage(1, 1),
+                "P-0", new LegacySetMatcher.Usage(1, 1),
+                "P-1", new LegacySetMatcher.Usage(1, 1))))
+                .containsExactly(true, true, true);
+
+        // R16 value-change cases: P-M-P changes only after all routes are combined;
+        // M-P-P stays false; all-true P-P stays true.
+        assertThat(routeResults(sequence("P", "M", "P"), Map.of(
+                "M-1", new LegacySetMatcher.Usage(1, 0),
+                "P-0", new LegacySetMatcher.Usage(1, 0),
+                "P-2", new LegacySetMatcher.Usage(1, 0))))
+                .containsExactly(true, false, false);
+        assertThat(routeResults(sequence("M", "P", "P"), Map.of(
+                "M-0", new LegacySetMatcher.Usage(1, 0),
+                "P-1", new LegacySetMatcher.Usage(1, 0),
+                "P-2", new LegacySetMatcher.Usage(1, 0))))
+                .containsExactly(false, false, false);
+        assertThat(routeResults(sequence("P", "P"), Map.of(
+                "P-0", new LegacySetMatcher.Usage(1, 1),
+                "P-1", new LegacySetMatcher.Usage(1, 1))))
+                .containsExactly(true, true);
+    }
+
+    private static List<Boolean> routeResults(
+            List<LegacyVerificationChain.RoutedRow> routed,
+            Map<String, LegacySetMatcher.Usage> usage) {
+        return routed.stream().map(route -> {
+            Boolean result = LegacyVerificationChain.riUsageDecision(
+                    route, routed, usage, BigDecimal.ONE, BigDecimal.ONE);
+            return result == null ? Boolean.TRUE : result;
+        }).toList();
+    }
+
+    private static List<LegacyVerificationChain.RoutedRow> sequence(String... kinds) {
+        List<LegacyVerificationChain.Row> rows = new java.util.ArrayList<>();
+        for (int i = 0; i < kinds.length; i++) {
+            boolean main = "M".equals(kinds[i]);
+            rows.add(new LegacyVerificationChain.Row(
+                    "P1", "D1", kinds[i] + "-" + i, main ? "본체" : "패널",
+                    main ? "AC023CN1DBC1" : "PC1BWCK3NW", main ? "INDOOR" : "PANEL",
+                    false, GasCategoryAxis.SINGLE, BigDecimal.ONE));
+        }
+        return LegacyVerificationChain.route(rows);
+    }
+
     private static LegacyVerificationChain.Row row(
             String itemName, String modelToken, String kind, boolean oldProduct) {
         String sourceKey = kind.equals("PANEL") ? "panel" : kind.equals("INDOOR") ? "main" : modelToken;
@@ -151,5 +232,12 @@ class LegacyVerificationChainTest {
             String scopeKey, String itemName, String modelToken, String kind, boolean oldProduct) {
         return new LegacyVerificationChain.Row("P1", scopeKey, "main-" + scopeKey,
                 itemName, modelToken, kind, oldProduct);
+    }
+
+    private static LegacyVerificationChain.Row pricedRow(
+            String scopeKey, String sourceKey, String itemName, String modelToken,
+            String kind, String actualUnitPrice) {
+        return new LegacyVerificationChain.Row("P1", scopeKey, sourceKey, itemName, modelToken, kind,
+                false, GasCategoryAxis.SINGLE, new BigDecimal(actualUnitPrice));
     }
 }

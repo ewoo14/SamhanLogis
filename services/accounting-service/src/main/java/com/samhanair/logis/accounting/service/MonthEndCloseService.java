@@ -502,7 +502,8 @@ public class MonthEndCloseService {
                     LegacyModelKindClassifier.fallbackKind(modelToken));
             LegacyVerificationChain.RoutedRow syntheticRoute = new LegacyVerificationChain.RoutedRow(
                     new LegacyVerificationChain.Row(axisKey.partnerCode(), "", "", axisKey.label(),
-                            modelToken, routeKind, axisKey.axis() == GasCategoryAxis.OLD),
+                            modelToken, routeKind, axisKey.axis() == GasCategoryAxis.OLD,
+                            axisKey.axis(), axisKey.actualUnitPrice()),
                     zoneForAxis(axisKey.axis()));
             List<LegacyVerificationChain.RoutedRow> routesToEvaluate = focusRoutes.isEmpty()
                     ? List.of(syntheticRoute) : focusRoutes;
@@ -630,7 +631,7 @@ public class MonthEndCloseService {
                         line.partnerCode(), line.scopeKey(), line.sourceKey(), line.itemName(), line.modelToken(),
                         kindByToken.getOrDefault(line.modelToken(),
                                 LegacyModelKindClassifier.fallbackKind(line.modelToken())),
-                        line.axis() == GasCategoryAxis.OLD))
+                        line.axis() == GasCategoryAxis.OLD, line.axis(), line.unitPrice()))
                 .toList());
     }
 
