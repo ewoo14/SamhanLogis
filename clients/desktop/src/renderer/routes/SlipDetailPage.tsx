@@ -14,8 +14,8 @@
  * - SAVED      → send / cancel
  * - SENT       → accept / reject / cancel
  * - ACCEPTED   → process / reject
- * - PROCESSING → complete (검수 시작 — BE complete endpoint)
- * - INSPECTING → inspect (처리 완료 — BE inspect endpoint)
+ * - PROCESSING → complete (재고 반영 후 검수 대기 — BE complete endpoint)
+ * - INSPECTING → inspect / reject (처리 완료 또는 반려 — BE inspect/reject endpoint)
  * - COMPLETED  → ship (OUTBOUND) / confirm (INBOUND 즉시)
  * - SHIPPING   → deliver
  * - DELIVERED  → confirm (OUTBOUND)
@@ -297,7 +297,7 @@ function actionsForStatus(
     case 'PROCESSING':
       return ['complete'] // Slice A: complete → inspect (검수 단계 거침)
     case 'INSPECTING':
-      return ['inspect'] // Slice A: inspect → COMPLETED (처리 완료)
+      return ['inspect', 'reject'] // Slice A: inspect → COMPLETED 또는 reject → REJECTED
     case 'COMPLETED':
       return mode === 'OUTBOUND' ? ['ship'] : ['confirm']
     case 'SHIPPING':
@@ -328,7 +328,7 @@ function transitionActionLabel(
   action: SlipTransitionAction,
 ): string {
   return status === 'PROCESSING' && action === 'complete'
-    ? '검수 시작'
+    ? '재고 반영 후 검수 대기'
     : ACTION_LABEL[action]
 }
 
@@ -4251,7 +4251,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       </Modal>
 
       {/*
-        반려 사유 입력 (필요 시) — 반려 가능 단계 (SENT/ACCEPTED) 에서 표시.
+        반려 사유 입력 (필요 시) — 반려 가능 단계 (SENT/ACCEPTED/INSPECTING) 에서 표시.
       */}
       {possibleActions.includes('reject') ? (
         <Card padding={4} shadow="sm" style={{ marginTop: 24 }}>
