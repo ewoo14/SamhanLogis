@@ -166,6 +166,36 @@ public class ProductClient {
         }
     }
 
+    /** 레거시 일마감 세트 매칭용 구성품 카탈로그를 조회한다. */
+    @SuppressWarnings("unchecked")
+    public List<EstimateComponent> estimateComponents(String category) {
+        try {
+            Map<String, Object> envelope = restClient.get()
+                    .uri(uriBuilder -> uriBuilder.path("/products/internal/estimate-catalog/components")
+                            .queryParam("category", category).build())
+                    .header(INTERNAL_TOKEN_HEADER, requireToken())
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, (req, res) -> {
+                        throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                                "product-service 구성품 카탈로그 조회 실패: " + res.getStatusCode());
+                    })
+                    .body(new ParameterizedTypeReference<>() {});
+            Object data = envelope == null ? null : envelope.get("data");
+            if (!(data instanceof List<?> rawList)) {
+                throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                        "product-service 구성품 카탈로그 응답 포맷 오류");
+            }
+            return ((List<Object>) rawList).stream()
+                    .map(item -> objectMapper.convertValue(item, EstimateComponent.class))
+                    .toList();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "product-service 구성품 카탈로그 조회 실패", ex);
+        }
+    }
+
     private static final class ModelNotFoundException extends RuntimeException {}
 
     /**

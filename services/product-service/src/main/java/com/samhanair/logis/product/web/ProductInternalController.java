@@ -20,6 +20,7 @@ import com.samhanair.logis.product.web.dto.LookupByModelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelRequest;
 import com.samhanair.logis.product.web.dto.LookupByLabelBulkRequest;
 import com.samhanair.logis.product.web.dto.LookupByModelCodesRequest;
+import com.samhanair.logis.product.web.dto.LookupByModelNamesRequest;
 import com.samhanair.logis.product.web.dto.LookupByCodeRequest;
 import com.samhanair.logis.product.web.dto.LookupRequest;
 import com.samhanair.logis.product.web.dto.ProductSummaryResponse;
@@ -89,6 +90,23 @@ public class ProductInternalController {
     public ApiResponse<List<ProductSummaryResponse>> lookupByModelCodes(
             @Valid @RequestBody LookupByModelCodesRequest request) {
         return ApiResponse.ok(productService.lookupByModelCodes(request.modelCodes()));
+    }
+
+    /**
+     * 모델명 일괄 조회 (internal) — 전표 분석처럼 입력값이 모델명인 호출자 전용.
+     * modelCode가 없는 이카운트 계보도 model_name으로 조회한다.
+     */
+    @Operation(summary = "모델명 일괄 조회 (internal)",
+            description = "X-Internal-Token 인증 후 호출. 입력 모델명 기준 정확 매칭.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "modelNames 누락/공백"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "X-Internal-Token 누락 또는 불일치")
+    })
+    @PostMapping("/lookup-by-model-names")
+    public ApiResponse<List<ProductSummaryResponse>> lookupByModelNames(
+            @Valid @RequestBody LookupByModelNamesRequest request) {
+        return ApiResponse.ok(productService.lookupByModelNames(request.modelNames()));
     }
 
     @Operation(summary = "Ecount alias batch resolve (internal)",

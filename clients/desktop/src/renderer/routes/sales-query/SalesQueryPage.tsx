@@ -752,7 +752,7 @@ export function SalesQueryPage() {
                       {row.memo ?? '—'}
                     </Td>
                     {/* 금액 — 우측 정렬 */}
-                    <Td align="right">{fmtAmount(row.totalAmount)}</Td>
+                    <Td align="right">{fmtAmount(row.displayTotalAmount ?? row.totalAmount)}</Td>
                     {/* 출고창고 — sourceWarehouseId resolve */}
                     <Td>{resolveWarehouseName(row.sourceWarehouseId, warehouses)}</Td>
                     {/* 출고일자 */}

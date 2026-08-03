@@ -16,6 +16,8 @@ import com.samhanair.logis.partnerauth.client.SmsClient;
 import com.samhanair.logis.partnerauth.domain.PartnerAuth;
 import com.samhanair.logis.partnerauth.domain.PartnerStatus;
 import com.samhanair.logis.partnerauth.repository.PartnerAuthRepository;
+import com.samhanair.logis.partnerauth.service.PartnerActivity;
+import com.samhanair.logis.partnerauth.service.PartnerActivityReader;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,6 +69,9 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
     @MockBean
     private SmsClient smsClient;
 
+    @MockBean
+    private PartnerActivityReader partnerActivityReader;
+
     private MockMvc mvc;
 
     @BeforeEach
@@ -74,6 +79,8 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
         mvc = MockMvcBuilders.webAppContextSetup(context).build();
         // lenient default: M3 미응답 — IT 별 override 가능
         lenient().when(dcConfigClient.findByBizNo(anyString())).thenReturn(Optional.empty());
+        lenient().when(partnerActivityReader.read(anyString()))
+                .thenReturn(new PartnerActivity(null, null));
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -212,7 +219,7 @@ class PartnerAuthControllerIT extends AbstractPostgresIT {
     // 6) GET /api/v1/auth/partner-expiration
     // ─────────────────────────────────────────────────────────────────────
     @Test
-    void GET_partner_expiration_30일_슬라이딩() throws Exception {
+    void GET_partner_expiration_생성시각기준_30일() throws Exception {
         PartnerAuth pa = PartnerAuth.seedFromLegacy(
                 "1234567898", "P-IT-008", passwordEncoder.encode("1234"), PartnerStatus.NEED_PW_INPUT);
         authRepository.save(pa);

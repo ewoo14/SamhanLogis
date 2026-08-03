@@ -560,6 +560,7 @@ export function AppLayout() {
   // inventory.stock — 현재 사이드바 직접 노출 없음 (재고 현황 서브페이지). 라우트 가드에서 사용.
   const showInventoryStockTransfer = dynamicCanAccess('inventory.stock-transfer',     'view')
   const showInventoryStockBalance  = dynamicCanAccess('inventory.stock-balance',      'view')
+  const showInOutAnalysis          = dynamicCanAccess('accounting.sales-slip.list',  'view')
   const showInventoryDps           = dynamicCanAccess('inventory.dps',                'view')
   const showInventoryAuditPage     = dynamicCanAccess('inventory.audit',              'view')
   const showAdminEmployees         = dynamicCanAccess('admin.employees',              'view')
@@ -661,7 +662,7 @@ export function AppLayout() {
   //   arologis 그룹 헤더+자식 전체를 잃던 선재 갭 해소(SidebarCategory show=false면 자식도 숨김).
   const showArologisGroup = showDispatchBoard || showArologis || showRegionMgmt
   const showWarehouseOpsGroup =
-    showInventoryWarehouse || showInventoryStockBalance || showSafetyStockAlerts
+    showInventoryWarehouse || showInventoryStockBalance || showInOutAnalysis || showSafetyStockAlerts
     || showInventoryCompensationFailures || showSlipEditRequests || showPhotoAudit
 
   return (
@@ -1591,6 +1592,7 @@ export function AppLayout() {
             activeTargets={[
               '/warehouses',
               '/inventory/stock-balance',
+              '/inventory/inout-analysis',
               '/inventory/safety-stock-alerts',
               '/inventory/compensation-failures',
               '/admin/slip-edit-requests',
@@ -1612,6 +1614,14 @@ export function AppLayout() {
                 data-testid="sidebar-inventory-stock-balance"
               >
                 재고 현황
+              </SidebarLink>
+              <SidebarLink
+                to="/inventory/inout-analysis"
+                show={showInOutAnalysis}
+                requiredRole="ACCOUNTANT / SALES / MANAGER / MASTER"
+                data-testid="sidebar-inventory-inout-analysis"
+              >
+                입출고 내역·분석
               </SidebarLink>
               {/* [P1-3] 안전재고 알림 — MASTER/MANAGER/WAREHOUSE. */}
               <SidebarLink

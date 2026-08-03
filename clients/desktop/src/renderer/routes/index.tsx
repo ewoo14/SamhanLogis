@@ -172,6 +172,7 @@ import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
+import { InOutAnalysisPage } from './warehouse/InOutAnalysisPage'
 // [PR-E1 FE-6] 배차안내문자 표시·편집·복사 — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
 // [Phase 10 PR-E1 FE-3] arologis 미배차 리스트 — 일자 필터 + 수동 배차로 이동 link (MASTER/MANAGER/DISPATCH)
@@ -584,8 +585,16 @@ const routes = [
       {
         path: '/inventory/stock-balance',
         element: (
-          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
             <InventoryStockBalancePage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/inventory/inout-analysis',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+            <InOutAnalysisPage />
           </PermissionGuard>
         ),
       },

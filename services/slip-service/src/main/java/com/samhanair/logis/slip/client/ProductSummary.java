@@ -20,7 +20,8 @@ public record ProductSummary(
         String status,
         boolean serialManaged,
         String modelCode,
-        String productType) {
+        String productType,
+        String categoryKey) {
 
     /**
      * 기존 테스트/호출자 호환 생성자 — serialManaged 미제공 시 batch 품목(false)으로 간주한다.
@@ -34,7 +35,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, false, null, null);
+        this(id, name, modelName, null, categoryId, sellingPrice, status, false, null, null, null);
     }
 
     /**
@@ -50,7 +51,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, UUID categoryId,
                           BigDecimal sellingPrice, String status, boolean serialManaged) {
-        this(id, name, modelName, null, categoryId, sellingPrice, status, serialManaged, null, null);
+        this(id, name, modelName, null, categoryId, sellingPrice, status, serialManaged, null, null, null);
     }
 
     /**
@@ -66,7 +67,7 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, String productCode,
                           UUID categoryId, BigDecimal sellingPrice, String status) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null);
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, false, null, null, null);
     }
 
     /**
@@ -74,6 +75,14 @@ public record ProductSummary(
      */
     public ProductSummary(UUID id, String name, String modelName, String productCode,
                           UUID categoryId, BigDecimal sellingPrice, String status, boolean serialManaged) {
-        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null);
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status, serialManaged, null, null, null);
+    }
+
+    /** categoryKey 추가 전 정규 생성자 호환용. */
+    public ProductSummary(UUID id, String name, String modelName, String productCode,
+                          UUID categoryId, BigDecimal sellingPrice, String status,
+                          boolean serialManaged, String modelCode, String productType) {
+        this(id, name, modelName, productCode, categoryId, sellingPrice, status,
+                serialManaged, modelCode, productType, null);
     }
 }

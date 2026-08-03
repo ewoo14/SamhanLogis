@@ -6,6 +6,7 @@ import com.samhanair.logis.accounting.client.ApplicablePrice;
 import com.samhanair.logis.accounting.client.ProductClient;
 import com.samhanair.logis.accounting.client.ProductLabelMatch;
 import com.samhanair.logis.accounting.client.ProductSummary;
+import com.samhanair.logis.accounting.client.EstimateComponent;
 import com.samhanair.logis.accounting.client.PartnerDcConfigClient;
 import com.samhanair.logis.accounting.client.SlipServiceClient;
 import com.samhanair.logis.accounting.domain.AccountingPeriod;
@@ -47,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -405,7 +407,13 @@ public class MonthEndCloseService {
                                                           boolean preservePurchasePriceLookup) {
         List<String> labels = byModel.keySet().stream().map(AxisKey::label).distinct().toList();
         Map<String, ProductLabelMatch> labelMatches = resolveProductLabels(labels);
-        Map<String, ProductLabelMatch> modelMatches = resolveProductModels(byModel.keySet());
+        Map<String, ProductSummary> modelSummaries = resolveProductSummaries(byModel.keySet());
+        Map<String, ProductLabelMatch> modelMatches = modelSummaries.entrySet().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> ProductLabelMatch.matched(e.getValue().id(), e.getValue().modelCode()),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
         List<UUID> matchedProductIds = byModel.keySet().stream()
                 .map(axis -> effectiveProductMatch(axis, labelMatches, modelMatches))
                 .filter(ProductLabelMatch::isMatched)
@@ -434,7 +442,9 @@ public class MonthEndCloseService {
             try {
                 PartnerDcConfigClient.LookupResult result = partnerDcConfigClient.findByPartnerCode(partnerCode);
                 globalDiscountsByPartnerCode.put(partnerCode, result.found()
-                        ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate())
+                        ? DiscountRevalidator.GlobalDiscount.found(result.homeRate(), result.commercialRate(),
+                                result.discount360Amount(), result.discount4WayAmount(), result.discount1WayAmount(),
+                                result.discountStandAmount(), result.discountDeluxeAmount(), result.discountFirstGradeAmount())
                         : DiscountRevalidator.GlobalDiscount.unavailable());
             } catch (RuntimeException ex) {
                 // 전역DC는 상세 판정의 참고값이다. 외부 장애를 상세 전체 실패로 전파하지 않고,
@@ -442,6 +452,7 @@ public class MonthEndCloseService {
                 globalDiscountsByPartnerCode.put(partnerCode, DiscountRevalidator.GlobalDiscount.unavailable());
             }
         }
+        Map<ParentModelKey, String> parentSetNames = resolveMatchedSetNames(byModel, globalDiscountsByPartnerCode);
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
         for (Map.Entry<AxisKey, ModelAccumulator> e : byModel.entrySet()) {
@@ -459,12 +470,16 @@ public class MonthEndCloseService {
             // 재검증 분기용 토큰(미매치 시 정규화 품명 fallback 포함).
             String modelToken = axisKey.modelToken() == null
                     ? ModelTokenExtractor.extractModelToken(axisKey.label()) : axisKey.modelToken();
+            // 레거시 GAS 는 완성 세트에 매칭된 부모 세트명으로 옵션 정액 종류를 선택한다.
+            // 부모 세트가 해소되지 않는 일반/미매칭 행은 기존 modelToken fallback을 보존한다.
+            String optionToken = parentSetNames.getOrDefault(
+                    new ParentModelKey(axisKey.partnerCode(), modelToken), modelToken);
             // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
             // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
             // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
             DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
                     axisKey.label(),
-                    modelToken,
+                    optionToken,
                     e.getValue().effectiveUnitPrice(),
                     price == null ? null : price.release(),
                     price == null ? null : price.delivery(),
@@ -516,17 +531,79 @@ public class MonthEndCloseService {
     }
 
     /** exact snapshot 모델이 있으면 품명 LIKE 결과보다 우선한다. */
-    private Map<String, ProductLabelMatch> resolveProductModels(java.util.Set<AxisKey> axes) {
-        Map<String, ProductLabelMatch> result = new LinkedHashMap<>();
+    private Map<String, ProductSummary> resolveProductSummaries(java.util.Set<AxisKey> axes) {
+        Map<String, ProductSummary> result = new LinkedHashMap<>();
         axes.stream().map(AxisKey::modelToken).filter(java.util.Objects::nonNull).distinct()
                 .forEach(model -> {
                     ProductSummary summary = productClient.lookupByModel(model);
-                    result.put(model, summary == null
-                            ? ProductLabelMatch.notFound()
-                            : ProductLabelMatch.matched(summary.id(), summary.modelCode()));
+                    if (summary != null) {
+                        result.put(model, summary);
+                    }
                 });
         return result;
     }
+
+    /**
+     * 레거시 Code.js:590-652와 동일하게 일마감 pool 전체를 세트 후보와 대조한다.
+     * 구성품 단건 parentSetModelCode는 후보가 완성되지 않은 경우 사용하지 않는다.
+     */
+    private Map<ParentModelKey, String> resolveMatchedSetNames(
+            Map<AxisKey, ModelAccumulator> byModel,
+            Map<String, DiscountRevalidator.GlobalDiscount> globalDiscountsByPartnerCode) {
+        List<EstimateComponent> catalog = new ArrayList<>();
+        catalog.addAll(productClient.estimateComponents("SINGLE_SET"));
+        catalog.addAll(productClient.estimateComponents("COMMERCIAL_MULTI"));
+        if (catalog.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, List<EstimateComponent>> grouped = catalog.stream()
+                .filter(c -> c.setModelCode() != null && c.componentModelCode() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        EstimateComponent::setModelCode, LinkedHashMap::new, java.util.stream.Collectors.toList()));
+        List<LegacySetMatcher.SetCandidate> candidates = grouped.entrySet().stream()
+                .map(e -> new LegacySetMatcher.SetCandidate(e.getKey(), e.getValue().stream()
+                        // Code.js pCols[1] = 납품가를 세트 합계의 원천으로 사용한다.
+                        .map(c -> new LegacySetMatcher.Component(c.componentModelCode(), c.kind(),
+                                c.deliveryPrice() != null ? c.deliveryPrice() : BigDecimal.ZERO))
+                        .toList()))
+                .toList();
+        List<LegacySetMatcher.InvoiceLine> pool = byModel.entrySet().stream()
+                .flatMap(e -> expandPool(e.getKey(), e.getValue(), catalog).stream())
+                .toList();
+        List<LegacySetMatcher.Match> matches = new LegacySetMatcher().findMatches(
+                pool, candidates, globalDiscountsByPartnerCode);
+        Map<ParentModelKey, String> result = new LinkedHashMap<>();
+        for (LegacySetMatcher.Match match : matches) {
+            for (Integer index : match.poolIndexes()) {
+                LegacySetMatcher.InvoiceLine line = pool.get(index);
+                result.putIfAbsent(new ParentModelKey(line.partnerCode(), line.modelToken()), match.setName());
+            }
+        }
+        return result;
+    }
+
+    private static List<LegacySetMatcher.InvoiceLine> expandPool(
+            AxisKey axis, ModelAccumulator accumulator, List<EstimateComponent> catalog) {
+        if (axis.modelToken() == null) {
+            return List.of();
+        }
+        int quantity = accumulator.quantity.signum() == 0
+                ? 1 : Math.abs(accumulator.quantity.intValueExact());
+        String kind = kindFor(axis.modelToken(), catalog);
+        List<LegacySetMatcher.InvoiceLine> expanded = new ArrayList<>(quantity);
+        for (int i = 0; i < quantity; i++) {
+            expanded.add(new LegacySetMatcher.InvoiceLine(axis.modelToken(), kind,
+                    accumulator.effectiveUnitPrice(), axis.partnerCode()));
+        }
+        return expanded;
+    }
+
+    private static String kindFor(String modelToken, List<EstimateComponent> catalog) {
+        return catalog.stream().filter(c -> modelToken.equals(c.componentModelCode()))
+                .map(EstimateComponent::kind).findFirst().orElse("ACCESSORY");
+    }
+
+    private record ParentModelKey(String partnerCode, String modelToken) {}
 
     private static ProductLabelMatch effectiveProductMatch(
             AxisKey axis, Map<String, ProductLabelMatch> labelMatches,

@@ -210,6 +210,8 @@ class PartnerOrderConvertIT extends AbstractPostgresIT {
         verify(slipServiceClient).publishFromPartnerOrder(payloadCaptor.capture(), anyString());
         assertThat(payloadCaptor.getValue().get("deliveryAddress"))
                 .isEqualTo("서울시 금천구 전표로 2");
+        assertThat(payloadCaptor.getValue().get("bizCode"))
+                .isEqualTo("1111111111");
     }
 
     // ══════════════════════════════════════════════════════════════════════════

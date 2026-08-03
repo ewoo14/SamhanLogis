@@ -3353,6 +3353,8 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // GET /api/products?q=... — AC-2 품목 자동완성 검색 (product-service `/products?q=` 프록시)
   if (method === 'GET' && (url.endsWith('/api/products') || url.includes('/api/products?'))) {
     const q = String(config.params?.['q'] ?? '').toLowerCase()
+    const requestedSize = Number(config.params?.['size'] ?? 20)
+    const size = Number.isFinite(requestedSize) && requestedSize > 0 ? requestedSize : 20
     const usageScope = config.params?.['usageScope'] == null ? null : String(config.params['usageScope'])
     const allProducts = Object.values(MOCK_PRODUCTS_BY_MODEL)
     const matched = q
@@ -3384,11 +3386,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         goods: p.goods ?? true,
         modelCode: p.modelCode ?? p.modelName,
         productType: p.productType ?? 'SINGLE',
-      })),
+      })).slice(0, size),
       totalElements: matched.length,
       totalPages: 1,
       number: 0,
-      size: 20,
+      size,
       first: true,
       last: true,
     })
@@ -8019,6 +8021,25 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   }
 
   // GET /api/v1/partner-approvals — 주문서 승인 (status 6종)
+  if (method === 'GET' && url.includes('/api/v1/partner-approvals/access-preview/report')) {
+    return envelope({
+      candidates: [
+        {
+          partnerCode: '6789012345',
+          partnerName: '경기냉난방',
+          status: 'LONG_PENDING' as const,
+          approvalRequestedAt: '2025-12-05T08:15:00+09:00',
+          pcTutorialDone: true,
+          mobileTutorialDone: true,
+          assignedManagerName: '오병승',
+        },
+      ],
+      deferred: true,
+      deferredPartnerCount: 1,
+      deferredSources: ['ORDER' as const],
+    })
+  }
+
   if (method === 'GET' && url.includes('/api/v1/partner-approvals')) {
     const sample = [
       {
@@ -19371,7 +19392,9 @@ function mockMessengerResponse(config: AxiosRequestConfig): unknown | null {
     const recipients = normalized
       ? MOCK_MESSENGER_RECIPIENTS.filter((recipient) => recipient.name.toLowerCase().includes(normalized))
       : MOCK_MESSENGER_RECIPIENTS
-    return envelope(recipients.slice(0, 20))
+    const requestedLimit = Number(config.params?.['limit'] ?? 20)
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0 ? requestedLimit : 20
+    return envelope(recipients.slice(0, limit))
   }
 
   if (method === 'GET' && url.endsWith('/messages/inbox')) {
