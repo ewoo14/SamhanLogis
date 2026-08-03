@@ -37,14 +37,21 @@ public class PartnerLedgerReadService {
         PartnerSummary selected = null;
         UUID partnerId = null;
         if (partnerCode != null && !partnerCode.isBlank()) {
-            selected = PartnerLookupSupport.requireFound(
-                    PartnerLookupSupport.byCode(partnerLookupClient, partnerCode),
-                    "존재하지 않는 거래처입니다: " + partnerCode);
-            partnerId = selected.partnerId();
+            // 목록에는 partner master가 이미 사라진 legacy code-only 판매전표도 포함된다.
+            // master가 있으면 기존 UUID 필터를 유지하고, 없으면 slip-service의 partnerCode
+            // 조건으로 같은 기존 전표를 읽어 목록 행의 상세 도달성을 보존한다.
+            selected = PartnerLookupSupport.foundOrNull(
+                    PartnerLookupSupport.byCode(partnerLookupClient, partnerCode));
+            if (selected != null) {
+                partnerId = selected.partnerId();
+            }
         }
 
         List<PartnerLedgerDocumentMerger.Document> documents = new ArrayList<>();
-        documents.addAll(salesClient.find(from, to, null, partnerId).stream().map(this::sale).toList());
+        String salesPartnerCode = selected == null && partnerCode != null && !partnerCode.isBlank()
+                ? partnerCode : null;
+        documents.addAll(salesClient.find(from, to, salesPartnerCode, partnerId)
+                .stream().map(this::sale).toList());
 
         final UUID selectedPartnerId = partnerId;
         Specification<CashReceipt> spec = (root, query, cb) -> cb.and(

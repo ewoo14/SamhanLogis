@@ -41,6 +41,7 @@
  * </ul>
  */
 import { useMemo, useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Spinner } from '@samhan/design-system'
 import {
@@ -184,10 +185,10 @@ function buildCsv(
   return lines.join('\r\n')
 }
 
-/** 인쇄 라우트 URL 생성 — `/print/partner-ledger?partnerCode=&from=&to=`. */
-function buildPrintUrl(partnerCode: string, from: string, to: string): string {
+/** 인쇄 라우트 path 생성 — `/print/partner-ledger?partnerCode=&from=&to=`. */
+function buildPrintPath(partnerCode: string, from: string, to: string): string {
   const qs = new URLSearchParams({ partnerCode, from, to })
-  return `${window.location.origin}/#/print/partner-ledger?${qs.toString()}`
+  return `/print/partner-ledger?${qs.toString()}`
 }
 
 const inputStyle: CSSProperties = {
@@ -219,6 +220,7 @@ const tdStyle: CSSProperties = {
 
 export function PartnerLedgerPage() {
   usePageTitle('거래처별 원장 생성')
+  const navigate = useNavigate()
 
   const initial = useMemo(() => defaultRange(), [])
   const [from, setFrom] = useState(initial.from)
@@ -296,8 +298,9 @@ export function PartnerLedgerPage() {
 
   const handlePrint = () => {
     if (!selectedPartner) return
-    const url = buildPrintUrl(selectedPartner, applied.from, applied.to)
-    window.open(url, '_blank', 'width=900,height=1200')
+    // Electron은 보안상 renderer의 내부 window.open을 차단하고 단일 BrowserWindow를 사용한다.
+    // 따라서 인쇄 전용 화면은 현재 창의 허용된 HashRouter 라우트로 이동한다.
+    navigate(buildPrintPath(selectedPartner, applied.from, applied.to))
   }
 
   const handleBatchPrint = () => {
@@ -309,7 +312,7 @@ export function PartnerLedgerPage() {
     )
     if (!ok) return
     for (const code of batchSelected) {
-      const url = buildPrintUrl(code, applied.from, applied.to)
+      const url = `${window.location.origin}/#${buildPrintPath(code, applied.from, applied.to)}`
       window.open(url, '_blank', 'width=900,height=1200')
     }
   }
