@@ -119,7 +119,7 @@ legacy GAS 의 배차 관련 6 앱 (`tools/legacy-gas/{가배차분류리스트,
 | 3 | 미배차 (미배차리스트) | `/dispatches/unassigned` | `/arologis/unassigned` | arologis `GET /admin/arologis/dispatches/unassigned` | (동일) | `UNASSIGNED` |
 | 4 | 운송사 비교 (운송사-실배차내역 비교) | `/dispatches/reconcile` | `/arologis/dispatch-reconcile` | arologis `POST /admin/arologis/dispatch/reconcile` | (동일) | `RECONCILE` |
 | 5 | 전표정리 (전표정리리스트) | `/sales/slip-cleanup` | `/sales/slip-cleanup` | slip `GET /slips/cleanup` | `POST/GET /slips/cleanup/history` | `SLIP_CLEANUP` |
-| 6 | 배차문자 (배차안내문자) | `/dispatch/sms` | `/arologis/dispatch-sms` | notification `POST /admin/notifications/dispatch-batch/{preview,send}` | `POST/GET /admin/notifications/dispatch-sms/history` | `DISPATCH_SMS` (saveMode 에 `SEND_AUDIT` 추가) |
+| 6 | 배차문자 (배차안내문자) | `/dispatch/sms` | `/arologis/dispatch-sms` | notification `POST /admin/notifications/dispatch-batch/preview` | `POST/GET /admin/notifications/dispatch-sms/history` | `DISPATCH_SMS` (표시·편집·복사 전용) |
 
 ### 4.2 도메인별 history endpoint 4 종 (SP-08-2 DPS 와 동일 패턴)
 

@@ -1,9 +1,10 @@
 import { test } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import { resolveQaShotsDir } from '../support/qa-screenshot-dir'
 
 const BASE_URL = process.env['REAL_QA_RENDERER_BASE_URL'] ?? 'http://127.0.0.1:5175'
-const SHOTS = path.resolve(process.cwd(), '../../docs/qa/1013-dispatch-inherit-real-qa')
+const SHOTS = resolveQaShotsDir(path.resolve(process.cwd(), '../../docs/qa/1013-dispatch-inherit-real-qa'))
 fs.mkdirSync(SHOTS, { recursive: true })
 
 async function login(page: import('@playwright/test').Page, loginId = 'dev_master'): Promise<void> {
