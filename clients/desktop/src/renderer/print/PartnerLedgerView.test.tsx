@@ -92,10 +92,11 @@ describe('PartnerLedgerView', () => {
   })
 
   it('prints the stored journal number unchanged and labels the column as journal number', async () => {
+    const storedJournalNo = '2026/05/06-3'
     vi.mocked(getLedgerData).mockResolvedValue({
       partnerCode: '8428102605', partnerName: '주식회사 제이시스템', partnerBusinessNo: '', chatRoomNames: [],
       periodFrom: '2026-05-01', periodTo: '2026-05-31',
-      lines: [{ date: '2026-05-06', journalNo: 'JR-2026-05-06-003', accountCode: '', accountName: '',
+      lines: [{ date: '2026-05-06', journalNo: storedJournalNo, accountCode: '', accountName: '',
         description: '입금보고서', debit: '0', credit: '90402200', balance: '-90402200',
         deliveryAddress: null, documentType: 'CASH_RECEIPT' as const }],
     })
@@ -108,8 +109,9 @@ describe('PartnerLedgerView', () => {
       </QueryClientProvider>,
     )
 
-    await waitFor(() => expect(screen.getByText('JR-2026-05-06-003')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(storedJournalNo)).toBeTruthy())
+    expect(screen.getByText(storedJournalNo).textContent).toBe(storedJournalNo)
     expect(screen.getAllByRole('columnheader', { name: '분개번호' }).length).toBeGreaterThan(0)
-    expect(screen.queryByText('JR-2026-05-06-3')).toBeNull()
+    expect(screen.queryByText('2026/05/06-4')).toBeNull()
   })
 })
