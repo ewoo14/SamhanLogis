@@ -146,6 +146,25 @@ class PartnerLookupClientTest {
     }
 
     @Test
+    void 숫자10자리_사업자번호는_하이픈형식으로_directory_검색한다() {
+        server.expect(requestTo("http://partner-service/internal/partners/list?q=165-35-10155&limit=10&page=0"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        {"data":[{"partnerId":"11111111-1111-1111-1111-111111111111",
+                        "partnerCode":"P-2026-0005","name":"대구HVAC솔루션","bizNo":"165-35-10155"}]}
+                        """, MediaType.APPLICATION_JSON));
+
+        PartnerLookupClient.DirectoryLookupResult result =
+                client.searchDirectoryResult("1653510155", 10);
+
+        assertThat(result.partners()).singleElement().satisfies(partner -> {
+            assertThat(partner.partnerCode()).isEqualTo("P-2026-0005");
+            assertThat(partner.bizNo()).isEqualTo("165-35-10155");
+        });
+        server.verify();
+    }
+
+    @Test
     void findByPartnerCodeResult는_파싱실패를_UNAVAILABLE로_반환한다() {
         server.expect(requestTo("http://partner-service/internal/partners/P-BAD"))
                 .andExpect(method(HttpMethod.GET))

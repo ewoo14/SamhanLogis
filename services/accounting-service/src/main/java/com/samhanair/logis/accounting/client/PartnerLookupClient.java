@@ -470,6 +470,7 @@ public class PartnerLookupClient {
         if (trimmedQuery.isBlank()) {
             return DirectoryLookupResult.notFound();
         }
+        String directoryQuery = formatBusinessNumberForDirectory(trimmedQuery);
         String token = internalAuthProperties.getToken();
         if (token == null || token.isBlank()) {
             throw internalAuthMiss("partnerDirectory", query, 0);
@@ -477,7 +478,7 @@ public class PartnerLookupClient {
         try {
             String body = restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/internal/partners/list")
-                            .queryParam("q", trimmedQuery)
+                            .queryParam("q", directoryQuery)
                             .queryParam("limit", Math.max(1, limit))
                             .queryParam("page", 0)
                             .build())
@@ -499,6 +500,14 @@ public class PartnerLookupClient {
             log.warn("PartnerLookupClient directory 호출 실패 — q={}, msg={}", query, ex.getMessage());
             return DirectoryLookupResult.unavailable();
         }
+    }
+
+    /** directory의 bizNo가 XXX-XX-XXXXX로 저장된 환경에서도 숫자 입력을 조회한다. */
+    private static String formatBusinessNumberForDirectory(String value) {
+        if (value.matches("\\d{10}")) {
+            return value.substring(0, 3) + "-" + value.substring(3, 5) + "-" + value.substring(5);
+        }
+        return value;
     }
 
     /**

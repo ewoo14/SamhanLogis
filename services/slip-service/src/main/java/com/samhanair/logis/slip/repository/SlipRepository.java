@@ -84,7 +84,8 @@ public interface SlipRepository extends JpaRepository<Slip, UUID>, JpaSpecificat
               AND s.slipType = com.samhanair.logis.slip.domain.SlipType.OUTBOUND
               AND s.status IN :statuses
               AND s.slipDate BETWEEN :from AND :to
-              AND (:partnerId IS NOT NULL AND s.partnerId = :partnerId
+              AND ((:partnerId IS NOT NULL AND (s.partnerId = :partnerId
+                                                OR :partnerCode IS NOT NULL AND s.partnerCode = :partnerCode))
                    OR :partnerId IS NULL AND (:partnerCode IS NULL OR s.partnerCode = :partnerCode))
             ORDER BY s.slipDate DESC, s.seqNo DESC
             """)

@@ -271,7 +271,7 @@ class SalesAggregateServiceTest {
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "401",
                         BigDecimal.ZERO, new BigDecimal("20000000"))));
-        when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
+        when(partnerLedgerSalesClient.find(FROM, TO, "P-001", partnerId))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
                         "2026/03/08-1", LocalDate.of(2026, 3, 8), "INSPECTING",
                         "P-001", "거래처", null,
@@ -282,6 +282,29 @@ class SalesAggregateServiceTest {
 
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("12276000");
+    }
+
+    @Test
+    @DisplayName("RED-A: 선택 거래처의 partnerCode 보존 전표 금액을 집계한다")
+    void filteredAggregateReadsLegacySalesByResolvedPartnerCode() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary target = new PartnerSummary(
+                partnerId, "P-0005", "대상 거래처", "165-35-10155", "");
+        when(partnerLookupClient.findByPartnerCodeResult("P-0005"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(target));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of());
+        when(partnerLedgerSalesClient.find(FROM, TO, "P-0005", partnerId))
+                .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
+                        "2026/05/08-target", FROM, "COMPLETED", "P-0005",
+                        "대상 거래처", "165-35-10155", null,
+                        List.of(new PartnerLedgerSalesClient.Line(
+                                "대상", null, 1, new BigDecimal("26000000"), new BigDecimal("26000000"))))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "P-0005");
+
+        assertThat(rows).singleElement().extracting(SalesAggregateRow::salesTotal)
+                .isEqualTo(new BigDecimal("26000000"));
     }
 
     @Test
@@ -361,7 +384,7 @@ class SalesAggregateServiceTest {
                 .thenReturn(PartnerLookupClient.LookupResult.found(target));
         when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
                 .thenReturn(List.of());
-        when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
+        when(partnerLedgerSalesClient.find(FROM, TO, "P-0005", partnerId))
                 .thenReturn(List.of(
                         new PartnerLedgerSalesClient.Sale(
                                 "2026/05/08-target", FROM, "COMPLETED", null,

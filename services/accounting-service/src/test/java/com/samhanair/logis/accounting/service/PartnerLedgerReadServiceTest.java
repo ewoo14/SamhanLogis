@@ -72,7 +72,7 @@ class PartnerLedgerReadServiceTest {
                 .thenReturn(PartnerLookupClient.LookupResult.found(
                         new com.samhanair.logis.accounting.client.PartnerSummary(
                                 partnerId, "P-2026-0001", "정상 거래처", "1234567890", "")));
-        when(salesClient.find(FROM, TO, null, partnerId))
+        when(salesClient.find(FROM, TO, "P-2026-0001", partnerId))
                 .thenReturn(List.of(new PartnerLedgerSalesClient.Sale(
                         "2026/06/24-903", LocalDate.of(2026, 6, 24), "COMPLETED",
                         "P-2026-0001", "정상 거래처", null,
@@ -98,7 +98,7 @@ class PartnerLedgerReadServiceTest {
                 .thenReturn(PartnerLookupClient.LookupResult.notFound());
         when(partnerLookupClient.searchDirectoryResult("1653510155", 10))
                 .thenReturn(PartnerLookupClient.DirectoryLookupResult.found(List.of(partner)));
-        when(salesClient.find(FROM, TO, null, partnerId)).thenReturn(List.of(
+        when(salesClient.find(FROM, TO, "P-2026-0005", partnerId)).thenReturn(List.of(
                 new PartnerLedgerSalesClient.Sale(
                         "2026/06/24-905", FROM, "COMPLETED", "P-2026-0005",
                         "대상 거래처", "165-35-10155", null,
@@ -124,7 +124,7 @@ class PartnerLedgerReadServiceTest {
         when(partnerLookupClient.findByPartnerCodeResult("8428102605"))
                 .thenReturn(PartnerLookupClient.LookupResult.found(partner));
         when(partnerLookupClient.findByPartnerIdsBatch(any())).thenReturn(Map.of(partnerId, partner));
-        when(salesClient.find(FROM, TO, null, partnerId)).thenReturn(List.of());
+        when(salesClient.find(FROM, TO, "8428102605", partnerId)).thenReturn(List.of());
 
         CashReceipt receipt = CashReceipt.fromMig7Staging(
                 "2026-05-06-003", partnerId, new BigDecimal("90402200"), LocalDate.of(2026, 5, 6),

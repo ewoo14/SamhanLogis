@@ -314,7 +314,7 @@ public class SalesAggregateService {
                                        Map<UUID, PartnerAggregate> byPartner, UUID partnerId,
                                        PartnerSummary partner) {
         List<PartnerLedgerSalesClient.Sale> ledgerSales =
-                partnerLedgerSalesClient.find(from, to, null, partnerId);
+                partnerLedgerSalesClient.find(from, to, partner.partnerCode(), partnerId);
         if (!ledgerSales.isEmpty()) {
             PartnerAggregate aggregate = byPartner.computeIfAbsent(
                     partnerId, k -> new PartnerAggregate());

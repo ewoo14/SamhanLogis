@@ -68,8 +68,9 @@ public class PartnerLedgerReadService {
         }
 
         List<PartnerLedgerDocumentMerger.Document> documents = new ArrayList<>();
-        String salesPartnerCode = selected == null && partnerCode != null && !partnerCode.isBlank()
-                ? partnerCode : null;
+        String salesPartnerCode = selected != null
+                ? selected.partnerCode()
+                : (partnerCode != null && !partnerCode.isBlank() ? partnerCode : null);
         List<PartnerLedgerSalesClient.Sale> sales = salesClient.find(from, to, salesPartnerCode, partnerId);
         final PartnerSummary selectedPartner = selected;
         if (selectedPartner != null) {
