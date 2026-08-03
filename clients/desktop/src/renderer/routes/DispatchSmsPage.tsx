@@ -35,6 +35,7 @@ import {
 
 export type EditedMessages = Record<string, string>
 type DriverContactDraft = DispatchDriverContactInput
+export type DriverContactsByDate = Record<string, DriverContactDraft[]>
 type PreviewHistoryPayload =
   | DispatchSmsPreviewResponse
   | {
@@ -43,11 +44,19 @@ type PreviewHistoryPayload =
     }
 const TEST_ID_PREFIX = 'dispatch-sms-history'
 
-export function syncDriverContactDates(
-  rows: DriverContactDraft[],
+export function getDriverContactsForDate(
+  contactsByDate: DriverContactsByDate,
   date: string,
 ): DriverContactDraft[] {
-  return rows.map((row) => ({ ...row, date }))
+  return contactsByDate[date] ?? []
+}
+
+export function setDriverContactsForDate(
+  contactsByDate: DriverContactsByDate,
+  date: string,
+  rows: DriverContactDraft[],
+): DriverContactsByDate {
+  return { ...contactsByDate, [date]: rows }
 }
 
 const todayIso = (): string => {
@@ -108,7 +117,7 @@ export function DispatchSmsPage() {
   const canBatch = canAccess('notification.dispatch-sms.display', 'create')
 
   const [date, setDate] = useState<string>(todayIso())
-  const [driverContacts, setDriverContacts] = useState<DriverContactDraft[]>([])
+  const [driverContactsByDate, setDriverContactsByDate] = useState<DriverContactsByDate>({})
   const [preview, setPreview] = useState<DispatchSmsPreviewResponse | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -121,9 +130,14 @@ export function DispatchSmsPage() {
   const lastAutoSaveKeyRef = useRef<string | null>(null)
   const skipNextAutoSaveRef = useRef(false)
 
+  const driverContacts = getDriverContactsForDate(driverContactsByDate, date)
+
   const handleDateChange = (nextDate: string) => {
     setDate(nextDate)
-    setDriverContacts((rows) => syncDriverContactDates(rows, nextDate))
+  }
+
+  const handleDriverContactsChange = (rows: DriverContactDraft[]) => {
+    setDriverContactsByDate((previous) => setDriverContactsForDate(previous, date, rows))
   }
 
   useEffect(() => {
@@ -275,7 +289,7 @@ export function DispatchSmsPage() {
           <PreviewSection
             date={date}
             driverContacts={driverContacts}
-            onDriverContactsChange={setDriverContacts}
+            onDriverContactsChange={handleDriverContactsChange}
             preview={preview}
             edited={edited}
             previewError={previewError}
