@@ -495,16 +495,52 @@ public class Mig8OrderTransformService {
         if (productAliasCache == null) {
             return null;
         }
-        UUID exact = productAliasCache.get(itemName);
-        return exact != null ? exact : productAliasCache.get(aliasToken(itemName));
+        for (String candidate : lookupCandidates(itemName)) {
+            UUID exact = productAliasCache.get(candidate);
+            if (exact != null) {
+                return exact;
+            }
+        }
+        return null;
     }
 
     private static List<String> lookupCandidates(String itemName) {
         if (itemName == null || itemName.isBlank()) {
             return List.of();
         }
-        String token = aliasToken(itemName);
-        return token.equals(itemName) ? List.of(itemName) : List.of(itemName, token);
+        String normalized = EcountCsvSupport.stripCell(itemName);
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(normalized);
+
+        String token = aliasToken(normalized);
+        candidates.add(token);
+
+        int bracket = normalized.indexOf('[');
+        if (bracket > 0) {
+            String labelBase = normalized.substring(0, bracket).strip();
+            candidates.add(labelBase);
+            candidates.add(labelBase.replaceAll("\\s+", ""));
+        } else {
+            candidates.add(normalized.replaceAll("\\s+", ""));
+        }
+
+        // 일부 ECOUNT 라벨은 "품목코드-품목명 [규격]" 형태다. suffix를 제거한
+        // prefix도 후보에 넣되, 실제 해소는 product-service가 반환한 exact alias만
+        // 허용한다. 순수한 하이픈 품목코드(예: AR-EC05)는 prefix 후보를 만들지
+        // 않아 삭제 alias가 짧은 코드 alias로 우회되지 않게 한다.
+        int leadingEnd = leadingTokenEnd(normalized);
+        String leading = normalized.substring(0, leadingEnd);
+        if (!looksLikeHyphenatedCode(leading)) {
+            for (int hyphen = leading.lastIndexOf('-'); hyphen > 0;
+                 hyphen = leading.lastIndexOf('-', hyphen - 1)) {
+                candidates.add(leading.substring(0, hyphen));
+            }
+        }
+        return List.copyOf(candidates);
+    }
+
+    private static boolean looksLikeHyphenatedCode(String value) {
+        return value.matches("[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+");
     }
 
     private static String aliasToken(String itemName) {
@@ -512,6 +548,10 @@ public class Mig8OrderTransformService {
         if (normalized.isEmpty()) {
             return normalized;
         }
+        return normalized.substring(0, leadingTokenEnd(normalized));
+    }
+
+    private static int leadingTokenEnd(String normalized) {
         int end = normalized.length();
         for (int i = 0; i < normalized.length(); i++) {
             char c = normalized.charAt(i);
@@ -520,7 +560,7 @@ public class Mig8OrderTransformService {
                 break;
             }
         }
-        return normalized.substring(0, end);
+        return end;
     }
 
     private static String productLookupMissMessage(ValidatedRow row, String itemName) {

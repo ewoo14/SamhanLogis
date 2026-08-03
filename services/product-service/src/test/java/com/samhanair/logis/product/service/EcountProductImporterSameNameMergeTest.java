@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.product.web.dto.EcountProductImportResult;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -97,6 +98,81 @@ class EcountProductImporterSameNameMergeTest {
     }
 
     @Test
+    void 관계_연결행의_비어_있지_않은_단가는_대표행_공백을_보완한다() {
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+
+        importer.importCsv(
+                itemCsv(
+                        rowWithPrices("MAIN-001", "제품A", "0", "0", "0", "대표규격"),
+                        rowWithPrices("ALIAS-001", "제품A", "123,000", "456,000", "789,000", "연결규격")),
+                relationCsv("MAIN-001", "제품A", "ALIAS-001", "제품A"), null, "r11-fieldwise");
+
+        org.mockito.Mockito.verify(jdbcTemplate).queryForObject(
+                org.mockito.ArgumentMatchers.contains("INSERT INTO products"),
+                paramsCaptor.capture(), eq(UUID.class));
+        assertThat((BigDecimal) paramsCaptor.getValue().getValue("outboundPrice"))
+                .isEqualByComparingTo("123000");
+        assertThat((BigDecimal) paramsCaptor.getValue().getValue("purchasePrice"))
+                .isEqualByComparingTo("456000");
+        assertThat((BigDecimal) paramsCaptor.getValue().getValue("singlePrice"))
+                .isEqualByComparingTo("789000");
+    }
+
+    @Test
+    void AP110RNPPHH1_싱글은_대표품목의_662000을_유지한다() {
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+
+        importer.importCsv(
+                itemCsv(
+                        rowWithPrices("AP110RNPPHH1", "AP110RNPPHH1 [프리미엄 3상 실내기]",
+                                "1,331,000", "0", "662,000", ""),
+                        rowWithPrices("PHN-00027", "AP110RNPPHH1 [프리미엄 3상]",
+                                "1,331,000", "0", "680,000", "")),
+                relationCsv("AP110RNPPHH1", "AP110RNPPHH1 [프리미엄 3상 실내기]",
+                        "PHN-00027", "AP110RNPPHH1 [프리미엄 3상]"), null, "r11-ap110");
+
+        org.mockito.Mockito.verify(jdbcTemplate).queryForObject(
+                org.mockito.ArgumentMatchers.contains("INSERT INTO products"),
+                paramsCaptor.capture(), eq(UUID.class));
+        assertThat((BigDecimal) paramsCaptor.getValue().getValue("singlePrice"))
+                .isEqualByComparingTo("662000");
+    }
+
+    @Test
+    void 관계_규격명의_공백만_다르면_정규화해서_한_품목으로_병합한다() {
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+
+        importer.importCsv(
+                itemCsv(
+                        rowWithPrices("AXJ-TA3419M", "AXJ-TA3419M", "0", "0", "0", "T 분기관"),
+                        rowWithPrices("SAX-00006", "AXJ-TA3419M", "0", "0", "0", "T분기관")),
+                relationCsv("AXJ-TA3419M", "AXJ-TA3419M", "SAX-00006", "AXJ-TA3419M"), null,
+                "r11-spec-normalize");
+
+        org.mockito.Mockito.verify(jdbcTemplate).queryForObject(
+                org.mockito.ArgumentMatchers.contains("INSERT INTO products"),
+                paramsCaptor.capture(), eq(UUID.class));
+        assertThat(paramsCaptor.getValue().getValue("spec")).isEqualTo("T분기관");
+    }
+
+    @Test
+    void 승인된_모델코드_연결도_직접_연결행의_비어_있지_않은_값을_보완한다() {
+        ArgumentCaptor<SqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(SqlParameterSource.class);
+
+        importer.importCsv(
+                itemCsv(
+                        rowWithPrices("AR-ED00", "AR-ED00", "0", "0", "0", ""),
+                        rowWithPrices("SAR-00011", "AR-ED00", "777,000", "0", "0", "")),
+                null, null, "r11-approved-fieldwise");
+
+        org.mockito.Mockito.verify(jdbcTemplate).queryForObject(
+                org.mockito.ArgumentMatchers.contains("INSERT INTO products"),
+                paramsCaptor.capture(), eq(UUID.class));
+        assertThat((BigDecimal) paramsCaptor.getValue().getValue("outboundPrice"))
+                .isEqualByComparingTo("777000");
+    }
+
+    @Test
     void modelName_merge_update는_두_유니크_충돌을_조건부로_피하고_중복_assignment를_만들지_않는다() {
         when(jdbcTemplate.queryForList(argThat(sql -> sql.contains("UPDATE products p")),
                 any(SqlParameterSource.class), eq(UUID.class)))
@@ -134,6 +210,27 @@ class EcountProductImporterSameNameMergeTest {
         return Arrays.stream(cells)
                 .map(value -> "\"" + value.replace("\"", "\"\"") + "\"")
                 .collect(Collectors.joining(","));
+    }
+
+    private static String rowWithPrices(String code, String name, String outbound, String inbound,
+                                        String single, String specification) {
+        String[] cells = {code, name, outbound, inbound, single, "0", "0", "0", "0", "0", "[상품]",
+                specification, "YES"};
+        return Arrays.stream(cells)
+                .map(value -> "\"" + value.replace("\"", "\"\"") + "\"")
+                .collect(Collectors.joining(","));
+    }
+
+    private static InputStream relationCsv(String mainCode, String mainName,
+                                           String aliasCode, String aliasName) {
+        return stream("\"데이터관리>품목관계-Excel다운로드\"\n"
+                + "\"대표품목코드\",\"대표품목명\",\"대표품목단위\",\"연결품목코드\",\"연결품목명\",\"연결품목단위\",\"연결품목 환산수량\",\"대표품목 환산수량\",\"수량관리기준\"\n"
+                + String.join(",", quote(mainCode), quote(mainName), quote(""), quote(aliasCode), quote(aliasName),
+                quote(""), quote("1"), quote("1"), quote("대표품목")) + "\n");
+    }
+
+    private static String quote(String value) {
+        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 
     private static InputStream stream(String csv) {

@@ -82,6 +82,8 @@ public class EcountProductImporter {
                 normalNameCounts.merge(row.name(), 1, Integer::sum);
             }
         }
+        Map<String, List<ItemRow>> explicitMergeRowsByMainCode = buildExplicitMergeRowsByMainCode(
+                itemRows, relationParse, relationMainByAlias, itemsByCode);
 
         int imported = 0;
         int updated = 0;
@@ -187,9 +189,12 @@ public class EcountProductImporter {
 
             UpsertProductResult upsert = productByMainCode.get(mainCode);
             if (upsert == null) {
+                ItemRow mergedMainRow = mainRow == null
+                        ? null
+                        : mergeExplicitRows(mainRow, explicitMergeRowsByMainCode.get(mainCode));
                 upsert = mainRow == null
                         ? new UpsertProductResult(mainCandidate.existingProductId(), false)
-                        : upsertProduct(mainRow, groupByCode.get(mainCode), actorUserId);
+                        : upsertProduct(mergedMainRow, groupByCode.get(mainCode), actorUserId);
                 productByMainCode.put(mainCode, upsert);
             }
             if (mainRow != null && countedMainCodes.add(mainCode)) {
@@ -214,6 +219,87 @@ public class EcountProductImporter {
         return new EcountProductImportResult(itemRows.size(), imported, updated, rejectedNullName,
                 skippedPlaceholder, skippedRelationOrphan, aliasImported, sourceFileHash, rejectedSample,
                 0, List.of());
+    }
+
+    /**
+     * 관계 CSV 또는 기존의 명시적으로 승인된 raw main 규칙에 직접 연결된 행만
+     * 병합 대상으로 만든다. 품목명/단가 fingerprint나 DB LIKE 검색으로 대상을
+     * 확장하지 않아, 구조적 fingerprint 우회 경로를 새로 만들지 않는다.
+     */
+    private Map<String, List<ItemRow>> buildExplicitMergeRowsByMainCode(
+            List<ItemRow> itemRows, RelationParseResult relationParse,
+            Map<String, String> relationMainByAlias, Map<String, ItemRow> itemsByCode) {
+        Map<String, List<ItemRow>> rowsByMainCode = new LinkedHashMap<>();
+        for (ItemRow row : itemRows) {
+            if (!isNormal(row.code(), row.name())) {
+                continue;
+            }
+            String mainCode = relationMainByAlias.get(row.code());
+            if (mainCode == null && relationParse.mainCodes().contains(row.code())) {
+                mainCode = row.code();
+            }
+            if (mainCode == null) {
+                ItemRow approvedMain = findApprovedRawMainRow(row, itemsByCode);
+                if (approvedMain != null) {
+                    mainCode = approvedMain.code();
+                }
+            }
+            if (mainCode != null) {
+                rowsByMainCode.computeIfAbsent(mainCode, ignored -> new ArrayList<>()).add(row);
+            }
+        }
+        return rowsByMainCode;
+    }
+
+    /**
+     * 대표행을 기준으로 하되 업무 필드는 값이 있는 연결행에서 보완한다.
+     * 숫자 0/공백은 비어 있는 값으로 보고, 양쪽이 모두 있으면 대표행을 유지한다.
+     * 규격명은 공백만 다른 경우에만 공백을 정규화한다.
+     */
+    private ItemRow mergeExplicitRows(ItemRow representative, List<ItemRow> relatedRows) {
+        if (relatedRows == null || relatedRows.size() < 2) {
+            return representative;
+        }
+        String[] merged = representative.cells().clone();
+        for (int index = 2; index <= 9; index++) {
+            if (parseMoney(merged[index]).signum() != 0) {
+                continue;
+            }
+            for (ItemRow related : relatedRows) {
+                if (parseMoney(related.cells()[index]).signum() != 0) {
+                    merged[index] = related.cells()[index];
+                    break;
+                }
+            }
+        }
+        if (merged[10].isBlank()) {
+            relatedRows.stream()
+                    .map(row -> row.cells()[10])
+                    .filter(value -> !value.isBlank())
+                    .findFirst()
+                    .ifPresent(value -> merged[10] = value);
+        }
+        if (merged[11].isBlank()) {
+            relatedRows.stream()
+                    .map(row -> row.cells()[11])
+                    .filter(value -> !value.isBlank())
+                    .findFirst()
+                    .ifPresent(value -> merged[11] = value);
+        } else if (relatedRows.stream()
+                .map(row -> row.cells()[11])
+                .filter(value -> !value.isBlank())
+                .anyMatch(value -> !value.equals(merged[11]))) {
+            List<String> nonBlankSpecs = relatedRows.stream()
+                    .map(row -> row.cells()[11])
+                    .filter(value -> !value.isBlank())
+                    .toList();
+            if (nonBlankSpecs.stream()
+                    .allMatch(value -> normalizeSpecification(value)
+                            .equals(normalizeSpecification(merged[11])))) {
+                merged[11] = normalizeSpecification(merged[11]);
+            }
+        }
+        return new ItemRow(representative.rowNo(), merged);
     }
 
     private RelationParseResult parseRelations(InputStream relationFile, String actorUserId) {
@@ -845,6 +931,10 @@ public class EcountProductImporter {
             return "상품";
         }
         return truncate(raw.replace("[", "").replace("]", ""), 20);
+    }
+
+    private static String normalizeSpecification(String raw) {
+        return raw == null ? "" : raw.replaceAll("\\s+", "");
     }
 
     private static String truncate(String value, int max) {

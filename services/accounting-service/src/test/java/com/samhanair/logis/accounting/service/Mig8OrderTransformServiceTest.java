@@ -294,6 +294,32 @@ class Mig8OrderTransformServiceTest {
     }
 
     @Test
+    void 품목코드_뒤에_하이픈_품목명이_붙은_라벨도_품목코드_alias로_해소한다() {
+        pending(rowWithItemName(1, "2026-05-20-001", "FH-LFHLF-유연호스1WAY [규격]"));
+        doReturn(Map.of("FH-LFHLF", productId())).when(productAliasClient)
+                .resolveAliases(anyList());
+
+        EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.imported()).isOne();
+        assertThat(result.rejected()).isZero();
+        assertThat(lineParams().getValue("productId")).isEqualTo(productId());
+    }
+
+    @Test
+    void 삭제_alias_코드는_짧은_하이픈_prefix_alias로_우회하지_않는다() {
+        pending(rowWithItemName(1, "2026-05-20-001", "AR-EC05"));
+        doReturn(Map.of("AR", productId())).when(productAliasClient)
+                .resolveAliases(anyList());
+
+        EcountMig8TransformResult result = service.transformFromStaging(500, "tester");
+
+        assertThat(result.imported()).isOne();
+        assertThat(result.rejected()).isOne();
+        assertThat(lineParams().getValue("productId")).isNull();
+    }
+
+    @Test
     void resolver_일시실패는_행을_거부확정하지_않고_예외를_전파한다() {
         pending(row(1, "2026-05-20-001", "진행"));
         BusinessException unavailable =

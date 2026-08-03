@@ -62,6 +62,34 @@ class EcountAliasResolveServiceIT extends AbstractPostgresIT {
     }
 
     @Test
+    void 공백이_있는_활성_Product_정확한_품목명_라벨은_품목코드_alias없이_해소된다() {
+        Product product = createProduct("LABEL");
+
+        Map<String, UUID> resolved = service.resolve(List.of(product.getName()));
+
+        assertThat(resolved).containsEntry(product.getName(), product.getId());
+    }
+
+    @Test
+    void 같은_품목명이_복수_활성이면_품목명_fallback은_오병합하지_않는다() {
+        Category category = categoryRepository.findAll().stream().findFirst().orElseThrow();
+        String label = "R11 중복 품목명";
+        Product first = productRepository.saveAndFlush(Product.seedFromSheet(
+                label, MODEL_CODE_PREFIX + "AMBIGUOUS-A", category,
+                new BigDecimal("1000"), new BigDecimal("800"), ProductType.SINGLE,
+                null, null, null));
+        productRepository.saveAndFlush(Product.seedFromSheet(
+                label, MODEL_CODE_PREFIX + "AMBIGUOUS-B", category,
+                new BigDecimal("1000"), new BigDecimal("800"), ProductType.SINGLE,
+                null, null, null));
+
+        Map<String, UUID> resolved = service.resolve(List.of(label));
+
+        assertThat(resolved).doesNotContainKey(label);
+        assertThat(first.getId()).isNotNull();
+    }
+
+    @Test
     void soft_deleted_Product를_가리키는_staging_alias는_해소하지_않는다() {
         Product product = createProduct("DELETED");
         String aliasCode = ALIAS_CODE_PREFIX + "DELETED";
