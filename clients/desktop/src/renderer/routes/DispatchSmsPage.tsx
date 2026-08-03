@@ -43,6 +43,13 @@ type PreviewHistoryPayload =
     }
 const TEST_ID_PREFIX = 'dispatch-sms-history'
 
+export function syncDriverContactDates(
+  rows: DriverContactDraft[],
+  date: string,
+): DriverContactDraft[] {
+  return rows.map((row) => ({ ...row, date }))
+}
+
 const todayIso = (): string => {
   const d = new Date()
   const y = d.getFullYear()
@@ -113,6 +120,11 @@ export function DispatchSmsPage() {
   const [selectedClipboardIds, setSelectedClipboardIds] = useState<Set<string>>(new Set())
   const lastAutoSaveKeyRef = useRef<string | null>(null)
   const skipNextAutoSaveRef = useRef(false)
+
+  const handleDateChange = (nextDate: string) => {
+    setDate(nextDate)
+    setDriverContacts((rows) => syncDriverContactDates(rows, nextDate))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -269,7 +281,7 @@ export function DispatchSmsPage() {
             previewError={previewError}
             previewLoading={previewLoading}
             canPreview={canBatch}
-            onDateChange={setDate}
+            onDateChange={handleDateChange}
             onPreview={() => void handlePreview()}
             clipboardText={clipboardText}
             selectedClipboardIds={selectedClipboardIds}

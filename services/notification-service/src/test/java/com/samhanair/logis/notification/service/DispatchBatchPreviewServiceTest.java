@@ -249,6 +249,28 @@ class DispatchBatchPreviewServiceTest {
                 .contains("기사번호 없음 확인요망!");
     }
 
+    @Test
+    @DisplayName("다른 날짜의 기사 연락처 입력은 날짜 필터로 제외하고 공란 fallback을 유지한다")
+    void preview_staleDriverContactDate_doesNotOverrideRequestedDate() {
+        LocalDate requestedDate = LocalDate.of(2026, 8, 1);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "OUT-STALE", "P-STALE", "거래처 날짜", requestedDate, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, requestedDate, null);
+        when(slipServiceClient.getOutboundSlips(requestedDate, requestedDate)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-STALE"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-STALE", "거래처 날짜", "날짜방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                requestedDate,
+                List.of(new DispatchDriverContactInput(
+                        "OUT-STALE", "거래처 날짜", "010-0000-0000", requestedDate.minusDays(2)))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("기사번호 없음 확인요망!")
+                .doesNotContain("010-0000-0000");
+    }
+
     private OutboundSlipDto newSlip(String partnerCode, String partnerName, String slipNo) {
         return new OutboundSlipDto(
                 slipNo,
