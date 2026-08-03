@@ -74,6 +74,7 @@ public class SalesAggregateService {
         }
         // partnerCode 필터가 있으면 partner-service lookup → partnerId 도출
         UUID filterPartnerId = null;
+        PartnerSummary filterPartner = null;
         String filterPartnerName = null;
         String filterBizNo = null;
         if (partnerCode != null && !partnerCode.isBlank()) {
@@ -96,6 +97,7 @@ public class SalesAggregateService {
             if (summary == null) {
                 return List.of();
             }
+            filterPartner = summary;
             filterPartnerId = summary.partnerId();
             filterPartnerName = summary.name();
             filterBizNo = bizNoDigits(summary);
@@ -164,7 +166,7 @@ public class SalesAggregateService {
         // 선택 거래처의 매출 표시는 journals의 고아/구 legacy 분개가 아니라
         // 원장에 실제로 실리는 출고 판매전표의 품목 합계를 사용한다.
         if (filterPartnerId != null) {
-            applyLedgerSalesTotal(from, to, byPartner, filterPartnerId);
+            applyLedgerSalesTotal(from, to, byPartner, filterPartnerId, filterPartner);
         } else {
             applyUnfilteredLedgerSalesTotals(from, to, byPartner, partnerSummaries, legacyPartners);
         }
@@ -244,21 +246,25 @@ public class SalesAggregateService {
         Map<String, UUID> partnerIdsByCode = new LinkedHashMap<>();
         Map<String, UUID> partnerIdsByBusinessNumber = new LinkedHashMap<>();
         Set<String> ambiguousCodes = new HashSet<>();
+        Set<String> ambiguousBusinessNumbers = new HashSet<>();
         for (Map.Entry<UUID, PartnerSummary> entry : partnerSummaries.entrySet()) {
             String code = normalizePartnerCode(entry.getValue() == null
                     ? null : entry.getValue().partnerCode());
-            if (code == null || ambiguousCodes.contains(code)) {
-                continue;
-            }
-            UUID previous = partnerIdsByCode.putIfAbsent(code, entry.getKey());
-            if (previous != null && !previous.equals(entry.getKey())) {
-                partnerIdsByCode.remove(code);
-                ambiguousCodes.add(code);
+            if (code != null && !ambiguousCodes.contains(code)) {
+                UUID previous = partnerIdsByCode.putIfAbsent(code, entry.getKey());
+                if (previous != null && !previous.equals(entry.getKey())) {
+                    partnerIdsByCode.remove(code);
+                    ambiguousCodes.add(code);
+                }
             }
             String businessNumber = normalizeBusinessNumber(entry.getValue() == null
                     ? null : entry.getValue().bizNo());
-            if (businessNumber != null) {
-                partnerIdsByBusinessNumber.putIfAbsent(businessNumber, entry.getKey());
+            if (businessNumber != null && !ambiguousBusinessNumbers.contains(businessNumber)) {
+                UUID previous = partnerIdsByBusinessNumber.putIfAbsent(businessNumber, entry.getKey());
+                if (previous != null && !previous.equals(entry.getKey())) {
+                    partnerIdsByBusinessNumber.remove(businessNumber);
+                    ambiguousBusinessNumbers.add(businessNumber);
+                }
             }
         }
 
@@ -269,8 +275,9 @@ public class SalesAggregateService {
             UUID partnerId = code == null || ambiguousCodes.contains(code)
                     ? null : partnerIdsByCode.get(code);
             if (partnerId == null) {
-                partnerId = partnerIdsByBusinessNumber.get(normalizeBusinessNumber(
-                        sale == null ? null : sale.businessNumber()));
+                String businessNumber = normalizeBusinessNumber(sale == null ? null : sale.businessNumber());
+                partnerId = businessNumber == null || ambiguousBusinessNumbers.contains(businessNumber)
+                        ? null : partnerIdsByBusinessNumber.get(businessNumber);
             }
             BigDecimal saleAmount = ledgerSaleAmount(sale);
             if (partnerId != null) {
@@ -304,18 +311,36 @@ public class SalesAggregateService {
     }
 
     private void applyLedgerSalesTotal(LocalDate from, LocalDate to,
-                                       Map<UUID, PartnerAggregate> byPartner, UUID partnerId) {
+                                       Map<UUID, PartnerAggregate> byPartner, UUID partnerId,
+                                       PartnerSummary partner) {
         List<PartnerLedgerSalesClient.Sale> ledgerSales =
                 partnerLedgerSalesClient.find(from, to, null, partnerId);
         if (!ledgerSales.isEmpty()) {
             PartnerAggregate aggregate = byPartner.computeIfAbsent(
                     partnerId, k -> new PartnerAggregate());
             aggregate.salesTotal = ledgerSales.stream()
+                    .filter(sale -> saleBelongsToPartner(sale, partner))
                     .flatMap(sale -> sale.lines().stream())
                     .map(PartnerLedgerSalesClient.Line::lineAmount)
                     .filter(java.util.Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
         }
+    }
+
+    private static boolean saleBelongsToPartner(PartnerLedgerSalesClient.Sale sale, PartnerSummary partner) {
+        if (sale == null || partner == null) {
+            return false;
+        }
+        String saleCode = normalizePartnerCode(sale.partnerCode());
+        String partnerCode = normalizePartnerCode(partner.partnerCode());
+        if (saleCode != null && saleCode.equals(partnerCode)) {
+            return true;
+        }
+        String saleBusinessNumber = normalizeBusinessNumber(sale.businessNumber());
+        String partnerBusinessNumber = normalizeBusinessNumber(partner.bizNo());
+        return saleCode == null
+                && saleBusinessNumber != null
+                && saleBusinessNumber.equals(partnerBusinessNumber);
     }
 
     private static BigDecimal ledgerSaleAmount(PartnerLedgerSalesClient.Sale sale) {

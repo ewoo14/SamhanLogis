@@ -352,6 +352,36 @@ class SalesAggregateServiceTest {
     }
 
     @Test
+    @DisplayName("거래처 필터 집계는 원장 응답에 섞인 다른 거래처 전표를 합산하지 않는다")
+    void filteredAggregateDoesNotImportSalesBelongingToAnotherPartner() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary target = new PartnerSummary(
+                partnerId, "P-0005", "대상 거래처", "165-35-10155", "");
+        when(partnerLookupClient.findByPartnerCodeResult("P-0005"))
+                .thenReturn(PartnerLookupClient.LookupResult.found(target));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of());
+        when(partnerLedgerSalesClient.find(FROM, TO, null, partnerId))
+                .thenReturn(List.of(
+                        new PartnerLedgerSalesClient.Sale(
+                                "2026/05/08-target", FROM, "COMPLETED", null,
+                                "대상 거래처", "165-35-10155", null,
+                                List.of(new PartnerLedgerSalesClient.Line(
+                                        "대상", null, 1, new BigDecimal("100"), new BigDecimal("100")))),
+                        new PartnerLedgerSalesClient.Sale(
+                                "2026/05/08-other", FROM, "COMPLETED", null,
+                                "다른 거래처", "321-19-10527", null,
+                                List.of(new PartnerLedgerSalesClient.Line(
+                                        "오염", null, 1, new BigDecimal("900"), new BigDecimal("900"))))));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "P-0005");
+
+        assertThat(rows).singleElement()
+                .extracting(SalesAggregateRow::salesTotal)
+                .isEqualTo(new BigDecimal("100"));
+    }
+
+    @Test
     @DisplayName("무필터 집계 — journal 후보가 없어도 legacy partner_code 판매전표를 표시한다")
     void unfilteredAggregateIncludesLegacySalesWithoutJournalCandidate() {
         when(journalLineRepository.aggregatePostedByPartnerAccount(LEGACY_SLIP_DATE, LEGACY_SLIP_DATE))

@@ -89,6 +89,31 @@ class PartnerLedgerReadServiceTest {
     }
 
     @Test
+    @DisplayName("상세 조회도 화면 사업자번호를 거래처 exact lookup으로 해석한다")
+    void businessNumberLookupReadsSelectedPartnerLedger() {
+        UUID partnerId = UUID.randomUUID();
+        PartnerSummary partner = new PartnerSummary(
+                partnerId, "P-2026-0005", "대상 거래처", "165-35-10155", "");
+        when(partnerLookupClient.findByPartnerCodeResult("1653510155"))
+                .thenReturn(PartnerLookupClient.LookupResult.notFound());
+        when(partnerLookupClient.searchDirectoryResult("1653510155", 10))
+                .thenReturn(PartnerLookupClient.DirectoryLookupResult.found(List.of(partner)));
+        when(salesClient.find(FROM, TO, null, partnerId)).thenReturn(List.of(
+                new PartnerLedgerSalesClient.Sale(
+                        "2026/06/24-905", FROM, "COMPLETED", "P-2026-0005",
+                        "대상 거래처", "165-35-10155", null,
+                        List.of(new PartnerLedgerSalesClient.Line(
+                                "대상", null, 1, new BigDecimal("100"), new BigDecimal("100"))))));
+        lenient().when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of());
+
+        var response = service.read("1653510155", FROM, TO);
+
+        assertThat(response.partnerCode()).isEqualTo("P-2026-0005");
+        assertThat(response.documents()).hasSize(1);
+        assertThat(response.documents().get(0).amount()).isEqualByComparingTo("100");
+    }
+
+    @Test
     @DisplayName("입금보고서 행은 저장된 journals.journal_no를 그대로 반환한다")
     void cashReceiptUsesStoredJournalNo() {
         UUID partnerId = UUID.randomUUID();

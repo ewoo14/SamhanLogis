@@ -48,6 +48,20 @@ public class PartnerLedgerReadService {
             // 조건으로 같은 기존 전표를 읽어 목록 행의 상세 도달성을 보존한다.
             selected = PartnerLookupSupport.foundOrNull(
                     PartnerLookupSupport.byCode(partnerLookupClient, partnerCode));
+            if (selected == null) {
+                PartnerLookupClient.DirectoryLookupResult directory =
+                        PartnerLookupSupport.directory(partnerLookupClient, partnerCode.trim(), 10);
+                if (directory.isUnavailable()) {
+                    throw PartnerLookupSupport.unavailable();
+                }
+                String normalizedInput = normalizeBusinessNumber(partnerCode);
+                List<PartnerSummary> exact = directory.partners().stream()
+                        .filter(candidate -> partnerCode.trim().equals(candidate.partnerCode())
+                                || normalizedInput != null
+                                && normalizedInput.equals(normalizeBusinessNumber(candidate.bizNo())))
+                        .toList();
+                selected = exact.size() == 1 ? exact.get(0) : null;
+            }
             if (selected != null) {
                 partnerId = selected.partnerId();
             }
@@ -57,6 +71,12 @@ public class PartnerLedgerReadService {
         String salesPartnerCode = selected == null && partnerCode != null && !partnerCode.isBlank()
                 ? partnerCode : null;
         List<PartnerLedgerSalesClient.Sale> sales = salesClient.find(from, to, salesPartnerCode, partnerId);
+        final PartnerSummary selectedPartner = selected;
+        if (selectedPartner != null) {
+            sales = sales.stream()
+                    .filter(sale -> saleBelongsToPartner(sale, selectedPartner))
+                    .toList();
+        }
         documents.addAll(sales.stream().map(this::sale).toList());
 
         final UUID selectedPartnerId = partnerId;
@@ -123,6 +143,34 @@ public class PartnerLedgerReadService {
                                 java.math.BigDecimal::add),
                 document.lines().stream().map(line -> new Line(line.productName(), null, line.quantity(),
                         line.unitPriceWithVat(), line.lineAmount())).toList());
+    }
+
+    private static boolean saleBelongsToPartner(PartnerLedgerSalesClient.Sale sale, PartnerSummary partner) {
+        if (sale == null || partner == null) {
+            return false;
+        }
+        String saleCode = normalizePartnerCode(sale.partnerCode());
+        String partnerCode = normalizePartnerCode(partner.partnerCode());
+        if (saleCode != null && saleCode.equals(partnerCode)) {
+            return true;
+        }
+        String saleBusinessNumber = normalizeBusinessNumber(sale.businessNumber());
+        String partnerBusinessNumber = normalizeBusinessNumber(partner.bizNo());
+        return saleCode == null
+                && saleBusinessNumber != null
+                && saleBusinessNumber.equals(partnerBusinessNumber);
+    }
+
+    private static String normalizePartnerCode(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String normalizeBusinessNumber(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String digits = value.replaceAll("[^0-9]", "");
+        return digits.isBlank() ? null : digits;
     }
 
     private Map<UUID, String> resolveJournalNos(List<CashReceipt> receipts) {
