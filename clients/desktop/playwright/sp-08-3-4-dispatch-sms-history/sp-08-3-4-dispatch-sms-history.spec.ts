@@ -40,7 +40,7 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
 
     expect(controller).toContain('@RequestMapping("/admin/notifications/dispatch-sms/history")')
     expect(controller).toContain('@RequirePermission(page = PAGE_CODE')
-    expect(controller).toContain('PAGE_CODE = "notification.dispatch-sms.send-audit"')
+    expect(controller).toContain('PAGE_CODE = "notification.dispatch-sms.display"')
     expect(controller).toContain('@GetMapping("/latest")')
     expect(repository).toContain('findByIdAndCreatedBy(UUID id, String createdBy)')
     expect(service).toContain('MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024')
