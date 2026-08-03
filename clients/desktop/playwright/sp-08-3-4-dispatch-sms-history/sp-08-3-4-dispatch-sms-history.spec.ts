@@ -34,7 +34,8 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     const service = read('services/notification-service/src/main/java/com/samhanair/logis/notification/service/DispatchSmsSaveHistoryService.java')
     const controller = read('services/notification-service/src/main/java/com/samhanair/logis/notification/controller/DispatchSmsSaveHistoryController.java')
     const repository = read('services/notification-service/src/main/java/com/samhanair/logis/notification/repository/DispatchSmsSaveHistoryRepository.java')
-    const migration = read('services/notification-service/src/main/resources/db/migration/V7__retire_dispatch_sms_send_audit_history.sql')
+    const migration = read('services/notification-service/src/main/resources/db/migration/V4__add_dispatch_sms_save_history.sql')
+    const retirementMigration = read('services/notification-service/src/main/resources/db/migration/V7__retire_dispatch_sms_send_audit_history.sql')
     const errorCode = read('shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java')
 
     expect(controller).toContain('@RequestMapping("/admin/notifications/dispatch-sms/history")')
@@ -55,10 +56,12 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     expect(errorCode).toContain('DISPATCH_SMS_HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND')
     expect(errorCode).toContain('DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY')
     expect(migration).toContain('CREATE TABLE dispatch_sms_save_history')
-    expect(migration).toContain("CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED'))")
-    expect(migration).toContain("save_mode = 'SEND_AUDIT'")
+    expect(migration).toContain("CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED', 'SEND_AUDIT'))")
+    expect(retirementMigration).toContain("save_mode = 'SEND_AUDIT'")
     expect(migration).toContain('ux_dispatch_sms_save_history_auto_latest_per_user_program')
     expect(migration).toContain("WHERE is_deleted = FALSE AND save_mode = 'AUTO_LATEST'")
+    expect(retirementMigration).toContain("WHERE save_mode = 'SEND_AUDIT'")
+    expect(retirementMigration).toContain("CHECK (is_deleted OR save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED'))")
   })
 
   test('frontend wires 2 tabs, latest restore, preview auto-save, and manual save', () => {
@@ -119,7 +122,7 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     await expect(page.locator('[data-testid="dispatch-sms-history-topic-input"]')).toBeVisible()
 
     await page.locator('[data-testid="dispatch-sms-history-topic-input"]').fill('오후 배차 코멘트 점검')
-    await page.getByRole('button', { name: '저장' }).click()
+    await page.getByRole('button', { name: '저장', exact: true }).click()
     await expect(page.locator('[data-testid="dispatch-sms-history-tab-list"]')).toBeVisible()
 
     await page.locator('[data-testid="dispatch-sms-history-tab-list"]').click()
