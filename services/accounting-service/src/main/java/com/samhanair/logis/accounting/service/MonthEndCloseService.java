@@ -43,6 +43,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -496,36 +497,24 @@ public class MonthEndCloseService {
             // 부모 세트가 해소되지 않는 일반/미매칭 행은 기존 modelToken fallback을 보존한다.
             String optionToken = setResolution.parentSetNames().getOrDefault(
                     new ParentModelKey(axisKey.partnerCode(), modelToken), modelToken);
-            LegacyVerificationChain.RoutedRow focusRoute = findFocusRoute(routedRows, axisKey);
-            LegacyVerificationChain.Zone routeZone = focusRoute == null
-                    ? zoneForAxis(axisKey.axis()) : focusRoute.zone();
+            List<LegacyVerificationChain.RoutedRow> focusRoutes = findFocusRoutes(routedRows, setPool, axisKey);
             String routeKind = chainKinds.getOrDefault(modelToken,
                     LegacyModelKindClassifier.fallbackKind(modelToken));
             LegacyVerificationChain.RoutedRow syntheticRoute = new LegacyVerificationChain.RoutedRow(
                     new LegacyVerificationChain.Row(axisKey.partnerCode(), "", "", axisKey.label(),
-                            modelToken, routeKind, axisKey.axis() == GasCategoryAxis.OLD), routeZone);
-            LegacyVerificationChain.Branch routeBranch = LegacyVerificationChain.branch(
-                    focusRoute == null ? syntheticRoute : focusRoute, true);
-            // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
-            // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
-            // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
-            DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidateByLegacyBranch(
-                    axisKey.label(),
-                    optionToken,
-                    e.getValue().effectiveUnitPrice(),
-                    price == null ? null : price.release(),
-                    price == null ? null : price.delivery(),
-                    labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
-                    globalDiscountsByPartnerCode.getOrDefault(axisKey.partnerCode(),
-                            DiscountRevalidator.GlobalDiscount.unavailable()),
-                    labelMatch.status(), routeBranch, routeZone);
-            Boolean riUsageVerified = focusRoute == null ? null : LegacyVerificationChain.riUsageDecision(
-                    focusRoute, routedRows, setResolution.usage(), e.getValue().effectiveUnitPrice(),
-                    revalidation.deliveryPrice());
-            if (riUsageVerified != null
-                    && revalidation.status() == DiscountRevalidator.Status.VERIFIED) {
-                revalidation = revalidation.withVerified(riUsageVerified);
-            }
+                            modelToken, routeKind, axisKey.axis() == GasCategoryAxis.OLD),
+                    zoneForAxis(axisKey.axis()));
+            List<LegacyVerificationChain.RoutedRow> routesToEvaluate = focusRoutes.isEmpty()
+                    ? List.of(syntheticRoute) : focusRoutes;
+            List<RouteEvaluation> routeEvaluations = routesToEvaluate.stream()
+                    .map(route -> evaluateRoute(route, routedRows, setResolution.usage(),
+                            axisKey.label(), optionToken, e.getValue().effectiveUnitPrice(), price,
+                            labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
+                            globalDiscountsByPartnerCode.getOrDefault(axisKey.partnerCode(),
+                                    DiscountRevalidator.GlobalDiscount.unavailable()),
+                            labelMatch.status(), !focusRoutes.isEmpty()))
+                    .toList();
+            DiscountRevalidator.Revalidation revalidation = aggregateRouteRevalidations(routeEvaluations);
             products.add(new DailyProductLine(
                     axisKey.label(),
                     // 표시 전용: 실 모델코드만(운임·서비스 등 미매치는 null→FE '—', 품명 중복 방지).
@@ -645,14 +634,109 @@ public class MonthEndCloseService {
                 .toList());
     }
 
-    private static LegacyVerificationChain.RoutedRow findFocusRoute(
-            List<LegacyVerificationChain.RoutedRow> routedRows, AxisKey axis) {
-        return routedRows.stream()
-                .filter(row -> java.util.Objects.equals(axis.partnerCode(), row.row().partnerCode()))
-                .filter(row -> java.util.Objects.equals(axis.label(), row.row().itemName()))
-                .filter(row -> java.util.Objects.equals(axis.modelToken(), row.row().modelToken()))
-                .findFirst()
+    /**
+     * AxisKey에 해당하는 모든 원천 route를 setPool의 보존 순서대로 찾는다.
+     *
+     * <p>setPool과 routedRows는 {@link #legacyRoutedRows(List, Map)}에서 같은 인덱스로
+     * 만들어진다. route의 scope·sourceKey·zone은 AxisKey에 포함되지 않으므로, 집계행의
+     * 판정을 위해서는 대표 하나가 아니라 모든 원천 line을 함께 봐야 한다.
+     */
+    private static List<LegacyVerificationChain.RoutedRow> findFocusRoutes(
+            List<LegacyVerificationChain.RoutedRow> routedRows,
+            List<SetPoolLine> setPool,
+            AxisKey axis) {
+        List<LegacyVerificationChain.RoutedRow> result = new ArrayList<>();
+        for (int i = 0; i < setPool.size(); i++) {
+            SetPoolLine source = setPool.get(i);
+            if (sameAxis(axis, source)) {
+                result.add(routedRows.get(i));
+            }
+        }
+        return result;
+    }
+
+    private static boolean sameAxis(AxisKey axis, SetPoolLine source) {
+        return java.util.Objects.equals(axis.partnerCode(), source.partnerCode())
+                && java.util.Objects.equals(axis.label(), source.itemName())
+                && java.util.Objects.equals(axis.modelToken(), source.modelToken())
+                && axis.axis() == source.axis()
+                && sameUnitPrice(axis.actualUnitPrice(), source.unitPrice());
+    }
+
+    private static boolean sameUnitPrice(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
+    }
+
+    /** 한 원천 route의 legacy branch와 riUsage 결과를 계산한다. */
+    private RouteEvaluation evaluateRoute(
+            LegacyVerificationChain.RoutedRow route,
+            List<LegacyVerificationChain.RoutedRow> routedRows,
+            Map<String, LegacySetMatcher.Usage> usage,
+            String itemName,
+            String optionToken,
+            BigDecimal effectiveUnitPrice,
+            ApplicablePrice price,
+            BigDecimal fixedDc,
+            DiscountRevalidator.GlobalDiscount globalDiscount,
+            ProductLabelMatch.Status matchStatus,
+            boolean applyRiUsage) {
+        LegacyVerificationChain.Branch branch = LegacyVerificationChain.branch(route, true);
+        // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
+        // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
+        // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
+        DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidateByLegacyBranch(
+                itemName,
+                optionToken,
+                effectiveUnitPrice,
+                price == null ? null : price.release(),
+                price == null ? null : price.delivery(),
+                fixedDc,
+                globalDiscount,
+                matchStatus,
+                branch,
+                route.zone());
+        Boolean riUsageVerified = applyRiUsage ? LegacyVerificationChain.riUsageDecision(
+                route, routedRows, usage, effectiveUnitPrice, revalidation.deliveryPrice()) : null;
+        if (riUsageVerified != null
+                && revalidation.status() == DiscountRevalidator.Status.VERIFIED) {
+            revalidation = revalidation.withVerified(riUsageVerified);
+        }
+        return new RouteEvaluation(route, revalidation);
+    }
+
+    /**
+     * 집계행의 판정은 원천 route 중 하나라도 불일치이면 불일치로 보수적으로 결합한다.
+     * 불일치가 없고 판정 불가가 있으면 판정 불가를 유지하며, 모두 확인일 때만 확인이다.
+     * 대표 숫자 필드는 sourceKey가 가장 앞선 route를 택해 입력 list 순서에 종속되지 않게 한다.
+     */
+    private static DiscountRevalidator.Revalidation aggregateRouteRevalidations(
+            List<RouteEvaluation> evaluations) {
+        Comparator<RouteEvaluation> stableOrder = Comparator
+                .comparing((RouteEvaluation e) -> String.valueOf(e.route().row().sourceKey()))
+                .thenComparing(e -> String.valueOf(e.route().row().scopeKey()))
+                .thenComparing(e -> String.valueOf(e.route().row().itemName()));
+        RouteEvaluation firstFalse = evaluations.stream()
+                .filter(e -> Boolean.FALSE.equals(e.revalidation().verified()))
+                .min(stableOrder)
                 .orElse(null);
+        if (firstFalse != null) {
+            return firstFalse.revalidation().withVerified(false);
+        }
+        RouteEvaluation firstUnknown = evaluations.stream()
+                .filter(e -> e.revalidation().verified() == null)
+                .min(stableOrder)
+                .orElse(null);
+        if (firstUnknown != null) {
+            return firstUnknown.revalidation().withVerified(null);
+        }
+        RouteEvaluation firstTrue = evaluations.stream()
+                .min(stableOrder)
+                .orElseThrow();
+        return firstTrue.revalidation().withVerified(true);
+    }
+
+    private record RouteEvaluation(LegacyVerificationChain.RoutedRow route,
+                                   DiscountRevalidator.Revalidation revalidation) {
     }
 
     private static LegacyVerificationChain.Zone zoneForAxis(GasCategoryAxis axis) {
