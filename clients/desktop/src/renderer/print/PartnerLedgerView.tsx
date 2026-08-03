@@ -36,7 +36,6 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { stripSlipNoZeros } from '../utils/orderNo'
 import { PrintLayout, krw, krDate } from './PrintLayout'
 import { useCompanyProfile } from './useCompanyProfile'
 import { getLedgerData, type LedgerData } from '../api/partnerLedgerApi'
@@ -294,7 +293,7 @@ export function PartnerLedgerView() {
             <thead>
               <tr>
                 <th className={styles.colDate}>일자</th>
-                <th className={styles.colSlipNo}>전표번호</th>
+                <th className={styles.colSlipNo}>분개번호</th>
                 <th>배송주소</th>
                 <th className={styles.colDesc}>적요</th>
                 <th className={styles.colDebit}>차변</th>
@@ -318,7 +317,7 @@ export function PartnerLedgerView() {
               {data.lines.map((line, idx) => (
                 <tr key={`${line.date}-${line.slipNo}-${idx}`}>
                   <td className={styles.dateCell}>{line.date}</td>
-                  <td className={styles.slipNoCell}>{stripSlipNoZeros(line.slipNo)}</td>
+                  <td className={styles.slipNoCell}>{line.slipNo}</td>
                   <td>{line.deliveryAddress || '—'}</td>
                   <td className={styles.descCell}>{line.description}</td>
                   <td className={`${styles.num} ${styles.debitCell}`} style={{ color: line.debit < 0 ? '#DC2626' : undefined }}>

@@ -90,4 +90,26 @@ describe('PartnerLedgerView', () => {
     })
     expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
+
+  it('prints the stored journal number unchanged and labels the column as journal number', async () => {
+    vi.mocked(getLedgerData).mockResolvedValue({
+      partnerCode: '8428102605', partnerName: '주식회사 제이시스템', partnerBusinessNo: '', chatRoomNames: [],
+      periodFrom: '2026-05-01', periodTo: '2026-05-31',
+      lines: [{ date: '2026-05-06', journalNo: 'JR-2026-05-06-003', accountCode: '', accountName: '',
+        description: '입금보고서', debit: '0', credit: '90402200', balance: '-90402200',
+        deliveryAddress: null, documentType: 'CASH_RECEIPT' as const }],
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/ledger/print?partnerCode=8428102605&from=2026-05-01&to=2026-05-31']}>
+          <PartnerLedgerView />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByText('JR-2026-05-06-003')).toBeTruthy())
+    expect(screen.getAllByRole('columnheader', { name: '분개번호' }).length).toBeGreaterThan(0)
+    expect(screen.queryByText('JR-2026-05-06-3')).toBeNull()
+  })
 })

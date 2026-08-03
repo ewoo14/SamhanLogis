@@ -4,6 +4,10 @@ import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
+import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.domain.CashReceiptStatus;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
+import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
@@ -17,19 +21,22 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 매출/수금/채권 집계 service (PR-E2 BE-A8).
  *
- * <p>legacy GAS 3번 "거래처별 원장생성" 의 매출/수금/채권 집계 데이터 — 자체 분개로 산출.
+ * <p>legacy GAS 3번 "거래처별 원장생성" 의 매출/수금/채권 집계 데이터.
  *
  * <p>한국 일반기업회계기준 코드:
  * <ul>
- *   <li>110 외상매출금: 차변 = 채권 발생, 대변 = 수금/회수</li>
+ *   <li>110 외상매출금: 차변 = 채권 발생, 비-CASH_RECEIPT 대변 = 수금/회수 보조값</li>
  *   <li>401 상품매출: 대변 = 매출 발생, 차변 = 매출 차감 (할인/반품)</li>
  * </ul>
+ * <p>원장 화면의 CASH_RECEIPT 수금 정본은 확정 입금보고서 금액이며, 해당 자동분개는
+ * 중복 집계하지 않는다.
  *
  * <p>read-only — 도메인 mutation 없음.
  *
@@ -46,6 +53,7 @@ public class SalesAggregateService {
     public static final String ACCOUNT_REVENUE = "401";
 
     private final JournalLineRepository journalLineRepository;
+    private final CashReceiptRepository cashReceiptRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final PartnerLedgerSalesClient partnerLedgerSalesClient;
 
@@ -79,16 +87,35 @@ public class SalesAggregateService {
             filterBizNo = bizNoDigits(summary);
         }
 
+        List<CashReceipt> confirmedReceipts = findConfirmedCashReceipts(from, to, filterPartnerId);
+        Map<UUID, BigDecimal> receiptPaymentsByPartner = new LinkedHashMap<>();
+        for (CashReceipt receipt : confirmedReceipts) {
+            UUID receiptPartnerId = receipt.getPartnerId();
+            if (receiptPartnerId == null) {
+                continue;
+            }
+            receiptPaymentsByPartner.merge(receiptPartnerId,
+                    nullToZero(receipt.getAmount()), BigDecimal::add);
+        }
+
         List<PartnerAccountTotal> totals = journalLineRepository
                 .aggregatePostedByPartnerAccount(from, to);
         // partnerId → (accountCode → debit/credit) 누적 맵
         Map<UUID, PartnerAggregate> byPartner = new LinkedHashMap<>();
+        for (UUID receiptPartnerId : receiptPaymentsByPartner.keySet()) {
+            byPartner.computeIfAbsent(receiptPartnerId, k -> new PartnerAggregate());
+        }
         for (PartnerAccountTotal t : totals) {
             UUID pid = t.getPartnerId();
             if (pid == null) {
                 continue;
             }
             if (filterPartnerId != null && !filterPartnerId.equals(pid)) {
+                continue;
+            }
+            if (t.getSourceType() == JournalSourceType.CASH_RECEIPT) {
+                // 상세 원장의 수금 정본은 CONFIRMED cash_receipts.amount 이다.
+                // 자동분개를 함께 더하면 같은 입금보고서를 이중 집계한다.
                 continue;
             }
             PartnerAggregate agg = byPartner.computeIfAbsent(pid, k -> new PartnerAggregate());
@@ -105,6 +132,10 @@ public class SalesAggregateService {
                     // 다른 계정은 본 슬라이스에서 무시 (255 부가세 등은 채권 잔액에 포함되지 않음)
                 }
             }
+        }
+        for (Map.Entry<UUID, BigDecimal> entry : receiptPaymentsByPartner.entrySet()) {
+            PartnerAggregate aggregate = byPartner.computeIfAbsent(entry.getKey(), k -> new PartnerAggregate());
+            aggregate.paymentTotal = aggregate.paymentTotal.add(entry.getValue());
         }
 
         // 전체 집계의 표시명은 판매전표를 합치기 전에 확보해야 한다. 판매전표 원장 projection은
@@ -167,6 +198,15 @@ public class SalesAggregateService {
                     to));
         }
         return rows;
+    }
+
+    private List<CashReceipt> findConfirmedCashReceipts(LocalDate from, LocalDate to, UUID partnerId) {
+        Specification<CashReceipt> spec = (root, query, cb) -> cb.and(
+                cb.equal(root.get("status"), CashReceiptStatus.CONFIRMED),
+                cb.greaterThanOrEqualTo(root.get("transactionDate"), from),
+                cb.lessThanOrEqualTo(root.get("transactionDate"), to),
+                partnerId == null ? cb.conjunction() : cb.equal(root.get("partnerId"), partnerId));
+        return cashReceiptRepository.findAll(spec);
     }
 
     /**

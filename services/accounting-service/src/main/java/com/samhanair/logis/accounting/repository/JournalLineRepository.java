@@ -1,6 +1,7 @@
 package com.samhanair.logis.accounting.repository;
 
 import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -42,11 +43,14 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
      * 거래처 + 계정코드 별 차/대 합계 — PR-E2 BE-A8 매출/수금/채권 집계용.
      *
      * <p>POSTED+REVERSED(보상쌍 상쇄) 분개 라인을 집계. {@code partnerId} 가 NULL 인 라인은 제외 (집계 대상이 아님).
-     * 응답 row 는 [partnerId, accountCode, debitTotal, creditTotal].
+     * CASH_RECEIPT 원천을 다른 원천과 분리해 반환한다. 원장 화면의 수금 정본은
+     * {@code cash_receipts.amount}이므로 service가 CASH_RECEIPT 분개를 이중 집계하지 않는다.
+     * 응답 row 는 [partnerId, accountCode, sourceType, debitTotal, creditTotal].
      */
     @Query("""
             SELECT l.partnerId AS partnerId,
                    l.accountCode AS accountCode,
+                   l.journal.sourceType AS sourceType,
                    COALESCE(SUM(l.debitAmount), 0) AS debitTotal,
                    COALESCE(SUM(l.creditAmount), 0) AS creditTotal
             FROM JournalLine l
@@ -56,7 +60,7 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
                     com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
                     com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
               AND l.partnerId IS NOT NULL
-            GROUP BY l.partnerId, l.accountCode
+            GROUP BY l.partnerId, l.accountCode, l.journal.sourceType
             """)
     List<PartnerAccountTotal> aggregatePostedByPartnerAccount(@Param("from") LocalDate from,
                                                               @Param("to") LocalDate to);
@@ -65,6 +69,7 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
     interface PartnerAccountTotal {
         UUID getPartnerId();
         String getAccountCode();
+        JournalSourceType getSourceType();
         BigDecimal getDebitTotal();
         BigDecimal getCreditTotal();
     }

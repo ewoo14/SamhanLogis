@@ -6,7 +6,9 @@ import com.samhanair.logis.accounting.client.PartnerLookupSupport;
 import com.samhanair.logis.accounting.client.PartnerSummary;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.CashReceiptStatus;
+import com.samhanair.logis.accounting.domain.Journal;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
+import com.samhanair.logis.accounting.repository.JournalRepository;
 import com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse;
 import com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse.Document;
 import com.samhanair.logis.accounting.web.dto.PartnerLedgerResponse.Line;
@@ -14,7 +16,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -26,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class PartnerLedgerReadService {
     private final PartnerLedgerSalesClient salesClient;
     private final CashReceiptRepository cashReceiptRepository;
+    private final JournalRepository journalRepository;
     private final PartnerLookupClient partnerLookupClient;
     private final PartnerLedgerDocumentMerger merger = new PartnerLedgerDocumentMerger();
 
@@ -64,13 +70,20 @@ public class PartnerLedgerReadService {
             List<UUID> receiptPartnerIds = receipts.stream().map(CashReceipt::getPartnerId).distinct().toList();
             var partners = PartnerLookupSupport.availableBatch(
                     PartnerLookupSupport.batch(partnerLookupClient, receiptPartnerIds));
+            Map<UUID, String> journalNos = resolveJournalNos(receipts);
             for (CashReceipt receipt : receipts) {
                 PartnerSummary partner = partners.get(receipt.getPartnerId());
                 if (partner == null) {
                     throw PartnerLookupSupport.unavailable();
                 }
+                // 화면 식별자는 영수증 slipNo가 아니라 연결된 저장 journal의 journalNo다.
+                // S1 등 journalId가 없는 legacy receipt만 기존 slipNo를 보존한다.
+                String documentNo = journalNos.get(receipt.getJournalId());
+                if (documentNo == null || documentNo.isBlank()) {
+                    documentNo = receipt.getSlipNo();
+                }
                 documents.add(new PartnerLedgerDocumentMerger.Document(
-                        PartnerLedgerDocumentMerger.Type.CASH_RECEIPT, receipt.getSlipNo(),
+                        PartnerLedgerDocumentMerger.Type.CASH_RECEIPT, documentNo,
                         receipt.getTransactionDate(), partner.partnerCode(), partner.name(), null,
                         receipt.getAmount(), List.of()));
             }
@@ -106,5 +119,19 @@ public class PartnerLedgerReadService {
                                 java.math.BigDecimal::add),
                 document.lines().stream().map(line -> new Line(line.productName(), null, line.quantity(),
                         line.unitPriceWithVat(), line.lineAmount())).toList());
+    }
+
+    private Map<UUID, String> resolveJournalNos(List<CashReceipt> receipts) {
+        List<UUID> journalIds = receipts.stream()
+                .map(CashReceipt::getJournalId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (journalIds.isEmpty()) {
+            return Map.of();
+        }
+        return journalRepository.findAllById(journalIds).stream()
+                .filter(journal -> journal.getId() != null && journal.getJournalNo() != null)
+                .collect(Collectors.toMap(Journal::getId, Journal::getJournalNo, (first, ignored) -> first));
     }
 }

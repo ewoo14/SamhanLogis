@@ -10,6 +10,10 @@ import static org.mockito.Mockito.when;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.domain.CashReceipt;
+import com.samhanair.logis.accounting.domain.CashReceiptKind;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
+import com.samhanair.logis.accounting.repository.CashReceiptRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository;
 import com.samhanair.logis.accounting.repository.JournalLineRepository.PartnerAccountTotal;
 import com.samhanair.logis.accounting.web.dto.SalesAggregateRow;
@@ -27,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.jpa.domain.Specification;
 
 /**
  * SalesAggregateService 단위 테스트 — BE-A8.
@@ -43,6 +48,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class SalesAggregateServiceTest {
 
     @Mock private JournalLineRepository journalLineRepository;
+    @Mock private CashReceiptRepository cashReceiptRepository;
     @Mock private PartnerLookupClient partnerLookupClient;
     @Mock private PartnerLedgerSalesClient partnerLedgerSalesClient;
 
@@ -76,6 +82,55 @@ class SalesAggregateServiceTest {
         assertThat(r.salesTotal()).isEqualByComparingTo("1000000");
         assertThat(r.paymentTotal()).isEqualByComparingTo("500000");
         assertThat(r.receivableBalance()).isEqualByComparingTo("600000"); // 1100000 - 500000
+    }
+
+    @Test
+    @DisplayName("목록 수금 합계는 상세의 확정 입금보고서 합계를 포함한다")
+    void aggregatePaymentMatchesConfirmedCashReceiptDetails() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("8428102605"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerId, "8428102605", "주식회사 제이시스템", "8428102605", "")));
+        // 5월 실 DB와 같이 401/110이 아닌 계정만 남은 journal projection이어도
+        // 상세의 CASH_RECEIPT 원천은 집계되어야 한다.
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "255",
+                        new BigDecimal("100"), new BigDecimal("100"))));
+        List<CashReceipt> receipts = List.of(
+                confirmedReceipt("2026-05-06-003", partnerId, "90402200", LocalDate.of(2026, 5, 6), "r1"),
+                confirmedReceipt("2026-05-07-009", partnerId, "33433000", LocalDate.of(2026, 5, 7), "r2"),
+                confirmedReceipt("2026-05-12-006", partnerId, "38657600", LocalDate.of(2026, 5, 12), "r3"),
+                confirmedReceipt("2026-05-12-018", partnerId, "11364485", LocalDate.of(2026, 5, 12), "r4"),
+                confirmedReceipt("2026-05-13-045", partnerId, "45171730", LocalDate.of(2026, 5, 13), "r5"),
+                confirmedReceipt("2026-05-14-045", partnerId, "26583200", LocalDate.of(2026, 5, 14), "r6"));
+        lenient().when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(receipts);
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "8428102605");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).salesTotal()).isEqualByComparingTo("0");
+        assertThat(rows.get(0).paymentTotal()).isEqualByComparingTo("245612215");
+        assertThat(rows.get(0).receivableBalance()).isEqualByComparingTo("-245612215");
+    }
+
+    @Test
+    @DisplayName("CASH_RECEIPT 자동분개는 상세 입금보고서와 중복 집계하지 않는다")
+    void aggregateDoesNotDoubleCountCashReceiptJournal() {
+        UUID partnerId = UUID.randomUUID();
+        when(partnerLookupClient.findByPartnerCode("8428102605"))
+                .thenReturn(Optional.of(new PartnerSummary(
+                        partnerId, "8428102605", "주식회사 제이시스템", "8428102605", "")));
+        when(journalLineRepository.aggregatePostedByPartnerAccount(FROM, TO))
+                .thenReturn(List.of(new TestPartnerAccountTotal(partnerId, "110",
+                        BigDecimal.ZERO, new BigDecimal("100"), JournalSourceType.CASH_RECEIPT)));
+        lenient().when(cashReceiptRepository.findAll(any(Specification.class))).thenReturn(List.of(
+                confirmedReceipt("2026-05-06-003", partnerId, "245612215",
+                        LocalDate.of(2026, 5, 6), "double-count-guard")));
+
+        List<SalesAggregateRow> rows = service.aggregate(FROM, TO, "8428102605");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).paymentTotal()).isEqualByComparingTo("245612215");
     }
 
     @Test
@@ -306,14 +361,28 @@ class SalesAggregateServiceTest {
 
     /** Test stub for PartnerAccountTotal projection. */
     record TestPartnerAccountTotal(UUID partnerId, String accountCode,
-                                   BigDecimal debitTotal, BigDecimal creditTotal)
+                                   BigDecimal debitTotal, BigDecimal creditTotal,
+                                   JournalSourceType sourceType)
             implements PartnerAccountTotal {
+        TestPartnerAccountTotal(UUID partnerId, String accountCode,
+                                BigDecimal debitTotal, BigDecimal creditTotal) {
+            this(partnerId, accountCode, debitTotal, creditTotal, null);
+        }
+
         @Override public UUID getPartnerId() { return partnerId; }
         @Override public String getAccountCode() { return accountCode; }
+        @Override public JournalSourceType getSourceType() { return sourceType; }
         @Override public BigDecimal getDebitTotal() { return debitTotal; }
         @Override public BigDecimal getCreditTotal() { return creditTotal; }
     }
 
     @SuppressWarnings("unused")
     private void anyStringUnused() { anyString(); }
+
+    private static CashReceipt confirmedReceipt(String slipNo, UUID partnerId, String amount,
+                                                LocalDate date, String externalRef) {
+        return CashReceipt.fromMig7Staging(
+                slipNo, partnerId, new BigDecimal(amount), date,
+                CashReceiptKind.DEPOSIT_REPORT, "입금보고서", externalRef);
+    }
 }

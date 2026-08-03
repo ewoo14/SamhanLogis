@@ -12,6 +12,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.samhanair.logis.accounting.domain.CashReceipt;
 import com.samhanair.logis.accounting.domain.JournalLine;
+import com.samhanair.logis.accounting.domain.JournalSourceType;
 import com.samhanair.logis.accounting.report.FundsStatusService;
 import com.samhanair.logis.accounting.repository.BankTransactionRepository;
 import com.samhanair.logis.accounting.repository.CashReceiptRepository;
@@ -171,6 +172,7 @@ class LegacyBatchConsumerFailClosedTest {
         return new PartnerAccountTotal() {
             @Override public UUID getPartnerId() { return PARTNER_ID; }
             @Override public String getAccountCode() { return accountCode; }
+            @Override public JournalSourceType getSourceType() { return null; }
             @Override public BigDecimal getDebitTotal() { return BigDecimal.ONE; }
             @Override public BigDecimal getCreditTotal() { return BigDecimal.ZERO; }
         };
