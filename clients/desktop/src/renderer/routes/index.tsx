@@ -1023,7 +1023,7 @@ const routes = [
       {
         path: '/arologis/dispatch-sms',
         element: (
-          <PermissionGuard pageCode="dispatch.batch" action="view">
+          <PermissionGuard pageCode="notification.dispatch-sms.send-audit" action="view">
             <DispatchSmsPage />
           </PermissionGuard>
         ),

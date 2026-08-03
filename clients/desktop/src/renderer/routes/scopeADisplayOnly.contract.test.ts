@@ -21,19 +21,29 @@ describe('#1013 Scope A — 배차안내문자 표시·복사 전용 계약', ()
     expect(pageSource).toContain('saveDispatchSmsHistory')
     expect(pageSource).toContain('groupMessage')
     expect(pageSource).toContain('dispatch-sms-unmapped-message')
-    expect(pageSource).toContain('onMessageChange(p.partnerCode')
+    expect(pageSource).toContain('getDispatchSmsRowKey')
+    expect(pageSource).not.toContain('onMessageChange(p.partnerCode')
   })
 
-  it('자동 발송 감사 전용 화면과 사이드바 진입점은 제공하지 않는다', () => {
-    expect(routeSource).not.toContain("/arologis/dispatch-sms/send-audit")
-    expect(layoutSource).not.toContain('notification.dispatch-sms.send-audit')
-    expect(layoutSource).not.toContain('sidebar-arologis-sms-send-audit')
+  it('미매핑 전표는 각 행 라벨에 미매핑을 명시한다', () => {
+    expect(pageSource).toContain('{u.partnerName} [미매핑] · 전표 {u.slipNo}')
+  })
+
+  it('V92 정본 page code가 메뉴·라우트·실행 화면의 공통 인가 근거다', () => {
+    const pageCode = 'notification.dispatch-sms.send-audit'
+    expect(layoutSource).toContain(`dynamicCanAccess('${pageCode}', 'view')`)
+    expect(routeSource).toContain(`pageCode="${pageCode}"`)
+    expect(pageSource).toContain(`canAccess('${pageCode}', 'create')`)
+    expect(layoutSource).not.toContain("dynamicCanAccess('dispatch.batch', 'view')")
+    expect(routeSource).not.toContain('pageCode="dispatch.batch"')
+    expect(pageSource).not.toContain("canAccess('dispatch.batch', 'create')")
   })
 
   it('발송 감사 모드·mock 데이터·생성 API 잔재를 제공하지 않는다', () => {
     expect(historyApiSource).not.toContain('SEND_AUDIT')
     expect(historyApiSource).not.toContain('sendAudit')
     expect(mockSource).not.toContain('SEND_AUDIT')
-    expect(mockSource).not.toContain('send-audit')
+    expect(mockSource).not.toContain("saveMode: 'SEND_AUDIT'")
+    expect(mockSource).not.toContain('/send-audit')
   })
 })

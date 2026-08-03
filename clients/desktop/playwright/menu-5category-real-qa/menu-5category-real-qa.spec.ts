@@ -104,6 +104,7 @@ const GROUP_GATE_CODES: Record<(typeof GROUP_LABELS)[number], string[]> = {
     'dispatch.board',
     'arologis.dispatch.admin',
     'arologis.dispatch.ops',
+    'notification.dispatch-sms.send-audit',
     'dispatch.batch',
     'arologis.admin',
     // [Round C P3 #5] AppLayout showArologisGroup 은 showRegionMgmt(arologis.region) 도 OR 구성원.

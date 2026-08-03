@@ -142,7 +142,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
         // canView=false override
         when(dynamicPermissionClient.check(
                         org.mockito.ArgumentMatchers.any(UUID.class),
-                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq("notification.dispatch-sms.send-audit"),
                         org.mockito.ArgumentMatchers.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 
@@ -164,7 +164,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     void C3_save_canEdit_false_canView_true_returns_403() throws Exception {
         when(dynamicPermissionClient.check(
                         org.mockito.ArgumentMatchers.any(UUID.class),
-                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq("notification.dispatch-sms.send-audit"),
                         org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
@@ -187,7 +187,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     void C4_save_canEdit_false_canView_false_returns_403() throws Exception {
         when(dynamicPermissionClient.check(
                         org.mockito.ArgumentMatchers.any(UUID.class),
-                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq("notification.dispatch-sms.send-audit"),
                         org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
 
@@ -232,7 +232,7 @@ class NotificationDynamicPermissionIT extends AbstractPostgresIT {
     void C6_latest_canView_false_returns_403() throws Exception {
         when(dynamicPermissionClient.check(
                         org.mockito.ArgumentMatchers.any(UUID.class),
-                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq("notification.dispatch-sms.send-audit"),
                         org.mockito.ArgumentMatchers.eq(PermissionAction.VIEW)))
                 .thenReturn(false);
 

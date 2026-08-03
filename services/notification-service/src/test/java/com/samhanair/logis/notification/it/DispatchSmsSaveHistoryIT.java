@@ -302,7 +302,7 @@ class DispatchSmsSaveHistoryIT extends AbstractPostgresIT {
         }
         org.mockito.Mockito.when(dynamicPermissionClient.check(
                         org.mockito.ArgumentMatchers.any(UUID.class),
-                        org.mockito.ArgumentMatchers.eq("dispatch.sms-save-history"),
+                        org.mockito.ArgumentMatchers.eq("notification.dispatch-sms.send-audit"),
                         org.mockito.ArgumentMatchers.eq(PermissionAction.CREATE)))
                 .thenReturn(false);
         mockMvc.perform(post(BASE_URL)

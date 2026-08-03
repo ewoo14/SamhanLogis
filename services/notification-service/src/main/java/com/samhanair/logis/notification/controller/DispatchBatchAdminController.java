@@ -28,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
         description = "배차안내문자 미리보기 및 문구 조립")
 public class DispatchBatchAdminController {
 
+    private static final String PAGE_CODE = "notification.dispatch-sms.send-audit";
+
     private final DispatchBatchPreviewService previewService;
 
     /**
@@ -38,7 +40,7 @@ public class DispatchBatchAdminController {
     @Operation(summary = "배차안내 SMS 미리보기 (Admin)",
             description = "DISPATCH / MANAGER / MASTER 권한. 출고전표 + 단톡방 매핑 + blocked 가드 + 메시지 템플릿 dryRun.")
     @PostMapping("/preview")
-    @RequirePermission(page = "dispatch.batch", action = PermissionAction.CREATE)
+    @RequirePermission(page = PAGE_CODE, action = PermissionAction.CREATE)
     public ApiResponse<DispatchBatchPreviewResponse> preview(
             @Valid @RequestBody DispatchBatchPreviewRequest req) {
         return ApiResponse.ok(previewService.preview(req));

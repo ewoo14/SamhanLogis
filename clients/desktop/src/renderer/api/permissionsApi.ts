@@ -104,6 +104,7 @@ export type PageCode =
   | 'accounting.general-ledger'
   | 'accounting.hometax-export'
   | 'notifications.admin'
+  | 'notification.dispatch-sms.send-audit'
   | 'notifications.center'
   | 'aligo.address-book'
   | 'groupware.approvals'

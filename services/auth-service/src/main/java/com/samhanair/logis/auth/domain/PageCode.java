@@ -138,6 +138,9 @@ public enum PageCode {
     /** 알림 발송 admin 화면/API — SP-D6-3. */
     NOTIFICATIONS_ADMIN("notifications.admin", "알림 발송 관리"),
 
+    /** 배차안내문자 화면의 V92 공통 인가 근거 — 기존 SEND_AUDIT 권한 정본과 정렬한다. */
+    DISPATCH_SMS_SEND_AUDIT("notification.dispatch-sms.send-audit", "배차안내 SMS"),
+
     /** 사용자 통합 알림 센터 — SP-D7. */
     NOTIFICATIONS_CENTER("notifications.center", "알림 센터"),
 

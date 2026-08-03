@@ -211,19 +211,19 @@ class NotificationPermissionControllerIT {
                                 .file(new MockMultipartFile("file", "rooms.csv", "text/csv", "x".getBytes()))),
                 new EndpointCase("chat-room delete", "messenger.admin", PermissionAction.DELETE, "MANAGER", 200,
                         () -> delete("/api/v1/notification/admin/chat-rooms/{id}", ID)),
-                new EndpointCase("dispatch batch preview", "dispatch.batch", PermissionAction.CREATE, "DISPATCH", 200,
+                new EndpointCase("dispatch batch preview", "notification.dispatch-sms.send-audit", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-batch/preview")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"date\":\"2026-05-26\"}")),
-                new EndpointCase("sms history save", "dispatch.sms-save-history", PermissionAction.CREATE, "DISPATCH", 200,
+                new EndpointCase("sms history save", "notification.dispatch-sms.send-audit", PermissionAction.CREATE, "DISPATCH", 200,
                         () -> post("/admin/notifications/dispatch-sms/history")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(historyBody())),
-                new EndpointCase("sms history list", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
+                new EndpointCase("sms history list", "notification.dispatch-sms.send-audit", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history")),
-                new EndpointCase("sms history detail", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
+                new EndpointCase("sms history detail", "notification.dispatch-sms.send-audit", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/{id}", ID)),
-                new EndpointCase("sms history latest", "dispatch.sms-save-history", PermissionAction.VIEW, "DISPATCH", 200,
+                new EndpointCase("sms history latest", "notification.dispatch-sms.send-audit", PermissionAction.VIEW, "DISPATCH", 200,
                         () -> get("/admin/notifications/dispatch-sms/history/latest")
                                 .param("programType", "DISPATCH_SMS")),
                 new EndpointCase("notification center unread", "notifications.center", PermissionAction.VIEW, "STAFF", 200,

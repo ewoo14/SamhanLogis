@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>SP-D6-3 동적 권한 이중 가드:
  * <ul>
- *   <li>{@code dispatch.sms-save-history} 페이지 코드 — 목록/상세 GET 에 VIEW 가드,
+ *   <li>{@code notification.dispatch-sms.send-audit} 페이지 코드 — 목록/상세 GET 에 VIEW 가드,
  *       저장 POST 에 EDIT 가드 적용</li>
  * </ul>
  */
@@ -49,7 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class DispatchSmsSaveHistoryController {
 
-    private static final String PAGE_CODE = "dispatch.sms-save-history";
+    private static final String PAGE_CODE = "notification.dispatch-sms.send-audit";
     private static final String CALLER_HEADER = "X-User-Id";
 
     private final DispatchSmsSaveHistoryService service;

@@ -26,7 +26,11 @@ import { DispatchSmsSaveDialog } from '../components/DispatchSmsSaveDialog'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { usePermissions } from '../hooks/usePermissions'
 import { maskCreatedBy } from '../utils/maskCreatedBy'
-import { buildDispatchSmsClipboardText, type DispatchSmsClipboardRow } from './dispatchSmsClipboard'
+import {
+  buildDispatchSmsClipboardText,
+  getDispatchSmsRowKey,
+  type DispatchSmsClipboardRow,
+} from './dispatchSmsClipboard'
 
 export type EditedMessages = Record<string, string>
 type PreviewHistoryPayload =
@@ -49,11 +53,11 @@ function buildInitialEdited(preview: DispatchSmsPreviewResponse): EditedMessages
   const result: EditedMessages = {}
   for (const room of preview.chatRooms) {
     for (const p of room.partners) {
-      result[p.partnerCode] = p.groupMessage ?? p.message
+      result[getDispatchSmsRowKey(p)] = p.groupMessage ?? p.message
     }
   }
   for (const p of preview.unmapped) {
-    result[p.partnerCode ?? p.slipNo] = p.groupMessage ?? p.message
+    result[getDispatchSmsRowKey(p)] = p.groupMessage ?? p.message
   }
   return result
 }
@@ -92,7 +96,7 @@ export function DispatchSmsPage() {
   usePageTitle('배차안내문자')
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
-  const canBatch = canAccess('dispatch.batch', 'create')
+  const canBatch = canAccess('notification.dispatch-sms.send-audit', 'create')
 
   const [date, setDate] = useState<string>(todayIso())
   const [preview, setPreview] = useState<DispatchSmsPreviewResponse | null>(null)
@@ -201,17 +205,17 @@ export function DispatchSmsPage() {
     if (!preview) return []
     return [
       ...preview.chatRooms.flatMap((room) => room.partners.map((p) => ({
-        id: p.partnerCode,
+        id: getDispatchSmsRowKey(p),
         partnerName: p.partnerName,
         slipNo: p.slipNo,
-        message: edited[p.partnerCode] ?? p.groupMessage ?? p.message,
+        message: edited[getDispatchSmsRowKey(p)] ?? p.groupMessage ?? p.message,
         chatRoomName: room.chatRoomName,
       }))),
       ...preview.unmapped.map((p) => ({
-        id: p.partnerCode ?? p.slipNo,
+        id: getDispatchSmsRowKey(p),
         partnerName: p.partnerName,
         slipNo: p.slipNo,
-        message: edited[p.partnerCode ?? p.slipNo] ?? p.groupMessage ?? p.message,
+        message: edited[getDispatchSmsRowKey(p)] ?? p.groupMessage ?? p.message,
         chatRoomName: '',
       })),
     ]
@@ -272,8 +276,8 @@ export function DispatchSmsPage() {
                 return next
               })
             }}
-            onMessageChange={(partnerCode, message) => {
-              setEdited((prev) => ({ ...prev, [partnerCode]: message }))
+            onMessageChange={(rowKey, message) => {
+              setEdited((prev) => ({ ...prev, [rowKey]: message }))
             }}
           />
         </div>
@@ -347,7 +351,7 @@ function PreviewSection({
   clipboardText: string
   selectedClipboardIds: ReadonlySet<string>
   onClipboardSelectionChange: (id: string, selected: boolean) => void
-  onMessageChange: (partnerCode: string, message: string) => void
+  onMessageChange: (rowKey: string, message: string) => void
 }) {
   return (
     <Card padding={5} shadow="sm" style={{ marginBottom: 16 }}>
@@ -414,14 +418,14 @@ function PreviewSection({
               </h5>
 
               {room.partners.map((p) => (
-                <div key={p.partnerCode} style={partnerBoxStyle(p.blocked)}>
+                <div key={getDispatchSmsRowKey(p)} style={partnerBoxStyle(p.blocked)}>
                   <div style={partnerHeaderStyle}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                       <input
                         type="checkbox"
                         aria-label={`${p.partnerName} 배차 대상 선택`}
-                        checked={selectedClipboardIds.has(p.partnerCode)}
-                        onChange={(e) => onClipboardSelectionChange(p.partnerCode, e.target.checked)}
+                        checked={selectedClipboardIds.has(getDispatchSmsRowKey(p))}
+                        onChange={(e) => onClipboardSelectionChange(getDispatchSmsRowKey(p), e.target.checked)}
                       />
                       <span>
                       <strong>{p.partnerName}</strong>{' '}
@@ -429,16 +433,16 @@ function PreviewSection({
                       </span>
                     </label>
                     {p.blocked ? (
-                      <Badge data-testid={`dispatch-sms-blocked-badge-${p.partnerCode}`} variant="danger">
+                      <Badge data-testid={`dispatch-sms-blocked-badge-${getDispatchSmsRowKey(p)}`} variant="danger">
                         발송금지
                       </Badge>
                     ) : null}
                   </div>
 
                     <textarea
-                        data-testid={`dispatch-sms-message-${p.partnerCode}`}
-                        value={edited[p.partnerCode] ?? p.groupMessage ?? p.message}
-                    onChange={(e) => onMessageChange(p.partnerCode, e.target.value)}
+                        data-testid={`dispatch-sms-message-${getDispatchSmsRowKey(p)}`}
+                        value={edited[getDispatchSmsRowKey(p)] ?? p.groupMessage ?? p.message}
+                    onChange={(e) => onMessageChange(getDispatchSmsRowKey(p), e.target.value)}
                     disabled={p.blocked}
                     rows={3}
                     style={textareaStyle(p.blocked)}
@@ -453,7 +457,7 @@ function PreviewSection({
                <strong>단톡방 미매핑 전표 {preview.unmapped.length}건</strong> — 인수자 번호와 관계없이 안내 문구를 확인·편집·복사할 수 있습니다.
               <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
                 {preview.unmapped.map((u) => {
-                  const unmappedId = u.partnerCode ?? u.slipNo
+                  const unmappedId = getDispatchSmsRowKey(u)
                   return (
                     <li key={unmappedId} style={{ marginBottom: 10 }}>
                       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -463,7 +467,7 @@ function PreviewSection({
                           checked={selectedClipboardIds.has(unmappedId)}
                           onChange={(e) => onClipboardSelectionChange(unmappedId, e.target.checked)}
                         />
-                        {u.partnerName} [{u.partnerCode ?? '미매핑'}] · 전표 {u.slipNo}
+                        {u.partnerName} [미매핑] · 전표 {u.slipNo}
                       </label>
                       <textarea
                         data-testid={`dispatch-sms-unmapped-message-${unmappedId}`}

@@ -13,6 +13,16 @@ export interface DispatchSmsClipboardRow {
 }
 
 /**
+ * 화면·편집·선택 복사가 공유하는 전표별 업무 key.
+ *
+ * <p>partnerCode는 같은 거래처의 여러 전표에서 반복될 수 있으므로 key로 사용하지 않는다.
+ * slipNo는 사용자 노출이 허용된 전표 식별 코드이며, 한 미리보기 안에서 전표별로 유일하다.
+ */
+export function getDispatchSmsRowKey(row: { partnerCode?: string | null; slipNo: string }): string {
+  return row.slipNo
+}
+
+/**
  * 선택된 행만 거래처명, 전표번호, 코멘트, 단톡방 순서로 복사할 문자열을 만든다.
  *
  * @param rows 화면에 표시된 배차 대상 행

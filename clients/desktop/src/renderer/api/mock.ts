@@ -18480,6 +18480,7 @@ const SP_D1_PAGES = [
     'slip.cleanup',
   'arologis.dispatch.admin',
   'arologis.dispatch.ops',
+  'notification.dispatch-sms.send-audit',
   'dispatch.batch',
   'aligo.address-book',
   'groupware.approvals',
@@ -18622,7 +18623,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page view 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'notification.dispatch-sms.send-audit', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     'slip.photo-audit',
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
@@ -18649,8 +18650,8 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'dispatch.board', 'dispatch.external-carriers',
     // SP-D4 — DISPATCH: V79/#706 inventory.warehouse view + inventory.stock (view 전용) + arologis.*
     'inventory.warehouse', 'inventory.stock', 'arologis.admin', 'arologis.region',
-    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
-    'arologis.dispatch.ops', 'dispatch.batch',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + V92 canonical dispatch SMS view
+    'arologis.dispatch.ops', 'notification.dispatch-sms.send-audit', 'dispatch.batch',
     // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
@@ -18803,7 +18804,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'notification.dispatch-sms.send-audit', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
@@ -18830,8 +18831,8 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'dispatch.board',
     // SP-D4 — DISPATCH: arologis.* edit
     'arologis.admin', 'arologis.region',
-    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch edit (V33/V34)
-    'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + V92 canonical dispatch SMS edit
+    'arologis.dispatch.ops', 'notification.dispatch-sms.send-audit', 'dispatch.batch', 'dispatch.external-carriers',
   ],
   SALES: [
     'sales.slip.list',
