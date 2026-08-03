@@ -371,7 +371,7 @@ public class MonthEndCloseService {
         acc.vatAmount = acc.vatAmount.add(nullToZero(vatAmount));
         if (modelName != null && !modelName.isBlank()) {
             setPool.add(new SetPoolLine(ModelTokenExtractor.extractModelTokenOrNull(modelName),
-                    actualUnitPrice, quantity, partnerCode, scopeKey, sourceKey,
+                    actualUnitPrice, quantity, partnerCode, scopeKey, sourceKey, productName,
                     GasCategoryAxis.fromScheduleKey(categoryKey)));
         }
     }
@@ -473,6 +473,8 @@ public class MonthEndCloseService {
             }
         }
         SetResolution setResolution = resolveMatchedSetNames(setPool, globalDiscountsByPartnerCode);
+        Map<String, String> chainKinds = kindByToken(setResolution.catalog());
+        List<LegacyVerificationChain.RoutedRow> routedRows = legacyRoutedRows(setPool, chainKinds);
 
         List<DailyProductLine> products = new ArrayList<>(byModel.size());
         for (Map.Entry<AxisKey, ModelAccumulator> e : byModel.entrySet()) {
@@ -494,10 +496,20 @@ public class MonthEndCloseService {
             // 부모 세트가 해소되지 않는 일반/미매칭 행은 기존 modelToken fallback을 보존한다.
             String optionToken = setResolution.parentSetNames().getOrDefault(
                     new ParentModelKey(axisKey.partnerCode(), modelToken), modelToken);
+            LegacyVerificationChain.RoutedRow focusRoute = findFocusRoute(routedRows, axisKey);
+            LegacyVerificationChain.Zone routeZone = focusRoute == null
+                    ? zoneForAxis(axisKey.axis()) : focusRoute.zone();
+            String routeKind = chainKinds.getOrDefault(modelToken,
+                    LegacyModelKindClassifier.fallbackKind(modelToken));
+            LegacyVerificationChain.RoutedRow syntheticRoute = new LegacyVerificationChain.RoutedRow(
+                    new LegacyVerificationChain.Row(axisKey.partnerCode(), "", "", axisKey.label(),
+                            modelToken, routeKind, axisKey.axis() == GasCategoryAxis.OLD), routeZone);
+            LegacyVerificationChain.Branch routeBranch = LegacyVerificationChain.branch(
+                    focusRoute == null ? syntheticRoute : focusRoute, true);
             // 고정DC가 없으면 거래처 전역DC 조회 결과를 엔진에 넘긴다. 전역DC 조회 실패도
             // 45%로 숨기지 않고 MISSING_GLOBAL_DISCOUNT 상태로 보존한다. price key 누락도 엔진에 넘겨
             // 일반 품목은 MISSING_REFERENT, 운임/절삭은 레거시처럼 referent 무관 VERIFIED 로 판정한다.
-            DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidate(
+            DiscountRevalidator.Revalidation revalidation = discountRevalidator.revalidateByLegacyBranch(
                     axisKey.label(),
                     optionToken,
                     e.getValue().effectiveUnitPrice(),
@@ -506,10 +518,12 @@ public class MonthEndCloseService {
                     labelMatch.isMatched() ? fixedRatesByProductId.get(productId) : null,
                     globalDiscountsByPartnerCode.getOrDefault(axisKey.partnerCode(),
                             DiscountRevalidator.GlobalDiscount.unavailable()),
-                    labelMatch.status());
-            Boolean riUsageVerified = riUsageDecision(axisKey, modelToken, setPool,
-                    setResolution.usage(), setResolution.catalog());
-            if (riUsageVerified != null) {
+                    labelMatch.status(), routeBranch, routeZone);
+            Boolean riUsageVerified = focusRoute == null ? null : LegacyVerificationChain.riUsageDecision(
+                    focusRoute, routedRows, setResolution.usage(), e.getValue().effectiveUnitPrice(),
+                    revalidation.deliveryPrice());
+            if (riUsageVerified != null
+                    && revalidation.status() == DiscountRevalidator.Status.VERIFIED) {
                 revalidation = revalidation.withVerified(riUsageVerified);
             }
             products.add(new DailyProductLine(
@@ -593,9 +607,14 @@ public class MonthEndCloseService {
                                 c.deliveryPrice() != null ? c.deliveryPrice() : BigDecimal.ZERO))
                         .toList()))
                 .toList();
-        List<LegacySetMatcher.InvoiceLine> pool = setPool.stream()
-                .flatMap(line -> expandPool(line, catalog).stream())
-                .toList();
+        Map<String, String> chainKinds = kindByToken(catalog);
+        List<LegacyVerificationChain.RoutedRow> routedRows = legacyRoutedRows(setPool, chainKinds);
+        List<LegacySetMatcher.InvoiceLine> pool = new ArrayList<>();
+        for (int i = 0; i < setPool.size(); i++) {
+            if (routedRows.get(i).zone() == LegacyVerificationChain.Zone.SINGLE) {
+                pool.addAll(expandPool(setPool.get(i), catalog));
+            }
+        }
         LegacySetMatcher.MatchingResult matching = new LegacySetMatcher().findMatchesWithUsage(
                 pool, candidates, globalDiscountsByPartnerCode);
         Map<ParentModelKey, String> result = new LinkedHashMap<>();
@@ -608,37 +627,41 @@ public class MonthEndCloseService {
         return new SetResolution(result, matching.usage(), catalog);
     }
 
-    private static Boolean riUsageDecision(AxisKey axis, String modelToken,
-                                           List<SetPoolLine> setPool,
-                                           Map<String, LegacySetMatcher.Usage> usage,
-                                           List<EstimateComponent> catalog) {
-        if (axis.axis() != GasCategoryAxis.SINGLE || modelToken == null) {
-            return null;
-        }
-        List<SetPoolLine> lines = setPool.stream()
-                .filter(line -> line.axis() == GasCategoryAxis.SINGLE)
-                .filter(line -> modelToken.equals(line.modelToken()))
-                .filter(line -> java.util.Objects.equals(axis.partnerCode(), line.partnerCode()))
-                .toList();
-        if (lines.isEmpty()) {
-            return null;
-        }
-        Map<String, String> kindByToken = catalog.stream().collect(java.util.stream.Collectors.toMap(
+    private static Map<String, String> kindByToken(List<EstimateComponent> catalog) {
+        return catalog.stream().collect(java.util.stream.Collectors.toMap(
                 EstimateComponent::componentModelCode,
                 c -> LegacyModelKindClassifier.riUsageKind(c.kind(), c.componentModelCode()),
                 (left, right) -> left));
-        String kind = kindByToken.getOrDefault(modelToken,
-                LegacyModelKindClassifier.fallbackKind(modelToken));
-        java.util.Set<String> scopes = lines.stream().map(SetPoolLine::scopeKey)
-                .collect(java.util.stream.Collectors.toSet());
-        List<RiUsageDecision.Row> decisionRows = setPool.stream()
-                .filter(line -> line.axis() == GasCategoryAxis.SINGLE)
-                .filter(line -> scopes.contains(line.scopeKey()))
-                .map(line -> new RiUsageDecision.Row(line.sourceKey(), line.scopeKey(), line.modelToken(),
+    }
+
+    private static List<LegacyVerificationChain.RoutedRow> legacyRoutedRows(
+            List<SetPoolLine> setPool, Map<String, String> kindByToken) {
+        return LegacyVerificationChain.route(setPool.stream()
+                .map(line -> new LegacyVerificationChain.Row(
+                        line.partnerCode(), line.scopeKey(), line.sourceKey(), line.itemName(), line.modelToken(),
                         kindByToken.getOrDefault(line.modelToken(),
-                                LegacyModelKindClassifier.fallbackKind(line.modelToken()))))
-                .toList();
-        return RiUsageDecision.decide(modelToken, kind, decisionRows, usage);
+                                LegacyModelKindClassifier.fallbackKind(line.modelToken())),
+                        line.axis() == GasCategoryAxis.OLD))
+                .toList());
+    }
+
+    private static LegacyVerificationChain.RoutedRow findFocusRoute(
+            List<LegacyVerificationChain.RoutedRow> routedRows, AxisKey axis) {
+        return routedRows.stream()
+                .filter(row -> java.util.Objects.equals(axis.partnerCode(), row.row().partnerCode()))
+                .filter(row -> java.util.Objects.equals(axis.label(), row.row().itemName()))
+                .filter(row -> java.util.Objects.equals(axis.modelToken(), row.row().modelToken()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static LegacyVerificationChain.Zone zoneForAxis(GasCategoryAxis axis) {
+        return switch (axis) {
+            case SINGLE -> LegacyVerificationChain.Zone.SINGLE;
+            case COMM_MULTI -> LegacyVerificationChain.Zone.COMM_MULTI;
+            case HOME_MULTI -> LegacyVerificationChain.Zone.HOME_MULTI;
+            default -> LegacyVerificationChain.Zone.UNKNOWN;
+        };
     }
 
     private static List<LegacySetMatcher.InvoiceLine> expandPool(
@@ -667,7 +690,7 @@ public class MonthEndCloseService {
     private record ParentModelKey(String partnerCode, String modelToken) {}
 
     private record SetPoolLine(String modelToken, BigDecimal unitPrice, BigDecimal quantity,
-                               String partnerCode, String scopeKey, String sourceKey,
+                               String partnerCode, String scopeKey, String sourceKey, String itemName,
                                GasCategoryAxis axis) {}
 
     private record SetResolution(Map<ParentModelKey, String> parentSetNames,
