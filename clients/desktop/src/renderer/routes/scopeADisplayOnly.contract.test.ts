@@ -30,7 +30,7 @@ describe('#1013 Scope A — 배차안내문자 표시·복사 전용 계약', ()
   })
 
   it('V92 정본 page code가 메뉴·라우트·실행 화면의 공통 인가 근거다', () => {
-    const pageCode = 'notification.dispatch-sms.send-audit'
+    const pageCode = 'notification.dispatch-sms.display'
     expect(layoutSource).toContain(`dynamicCanAccess('${pageCode}', 'view')`)
     expect(routeSource).toContain(`pageCode="${pageCode}"`)
     expect(pageSource).toContain(`canAccess('${pageCode}', 'create')`)

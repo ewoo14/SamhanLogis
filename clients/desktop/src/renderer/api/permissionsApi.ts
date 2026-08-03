@@ -105,6 +105,7 @@ export type PageCode =
   | 'accounting.hometax-export'
   | 'notifications.admin'
   | 'notification.dispatch-sms.send-audit'
+  | 'notification.dispatch-sms.display'
   | 'notifications.center'
   | 'aligo.address-book'
   | 'groupware.approvals'

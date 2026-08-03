@@ -600,7 +600,7 @@ export function AppLayout() {
   const showArologisManual = dynamicCanAccess('arologis.dispatch.admin', 'view')
   // 가배차리스트 / 미배차리스트 / 실배차 비교 — 라우트 공통 arologis.dispatch.ops
   const showArologisOps = dynamicCanAccess('arologis.dispatch.ops', 'view')
-  const showDispatchSmsPage = dynamicCanAccess('notification.dispatch-sms.send-audit', 'view')
+  const showDispatchSmsPage = dynamicCanAccess('notification.dispatch-sms.display', 'view')
   const showExternalCarriers = dynamicCanAccess('dispatch.external-carriers', 'view')
   // arologis 그룹 가시성 — arologis.dispatch.admin route 권한 / ops 3종 / 배차안내문자 / P1-5 admin 중 하나라도 보이면 그룹 노출
   const showArologis

@@ -222,7 +222,7 @@ export const PAGE_GROUPS: PageGroup[] = [
     pages: [
       'dispatch.board',
       'dispatch.external-carriers',
-      'notification.dispatch-sms.send-audit',
+      'notification.dispatch-sms.display',
       'dispatch.sms-save-history',
       'dispatch.batch',
     ],
@@ -454,7 +454,8 @@ export const PAGE_LABEL: Record<PageCode, string> = {
   'inbound.inspection': '입고 검수',
   'dispatch.board': '배차 보드',
   'dispatch.external-carriers': '외부기사/배송사',
-  'notification.dispatch-sms.send-audit': '배차안내 SMS',
+  'notification.dispatch-sms.display': '배차안내 SMS',
+  'notification.dispatch-sms.send-audit': '배차안내 SMS (회수됨)',
   'dispatch.sms-save-history': '배차문자 저장',
   'dispatch.batch': '배차 SMS batch',
   'admin.permissions': '권한 관리',

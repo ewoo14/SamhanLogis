@@ -10,6 +10,7 @@ import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.ChatRoo
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.PartnerEntry;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse.UnmappedPartner;
 import com.samhanair.logis.notification.dto.DispatchMessageGroupInput;
+import com.samhanair.logis.notification.dto.DispatchDriverContactInput;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -90,14 +91,16 @@ public class DispatchBatchPreviewService {
 
         for (OutboundSlipDto slip : slips) {
             String partnerCode = slip.partnerCode();
-            String message = messageTemplateService.renderDispatchMessage(slip);
+            String driverPhone = resolveDriverPhone(slip, req.driverContacts(), req.date());
+            OutboundSlipDto displaySlip = withDriverPhone(slip, driverPhone);
+            String message = messageTemplateService.renderDispatchMessage(displaySlip);
             String entryKey = entryKey(partnerCode, slip.slipNo(), sequence++);
             if (partnerCode == null || partnerCode.isBlank()) {
                 // partner_code 누락 → unmapped 누적 (slip-service 가 partner_code 없는 row 를 반환할 수 있는 회복성)
                 pending.add(new PendingPreviewEntry(
                         entryKey, null, slip.partnerName(), slip.slipNo(), message, false,
                         null, slip.recipientPhone()));
-                groupInputs.add(toGroupInput(entryKey, slip, null, "이카운트 데이터 없음 최신화요망!", req.date()));
+                groupInputs.add(toGroupInput(entryKey, displaySlip, null, "이카운트 데이터 없음 최신화요망!", req.date()));
                 unmappedCount++;
                 continue;
             }
@@ -111,7 +114,7 @@ public class DispatchBatchPreviewService {
                 pending.add(new PendingPreviewEntry(
                         entryKey, partnerCode, slip.partnerName(), slip.slipNo(), message, false,
                         null, slip.recipientPhone()));
-                groupInputs.add(toGroupInput(entryKey, slip, null, null, req.date()));
+                groupInputs.add(toGroupInput(entryKey, displaySlip, null, null, req.date()));
                 unmappedCount++;
                 continue;
             }
@@ -124,7 +127,7 @@ public class DispatchBatchPreviewService {
                         mappedEntryKey, partnerCode, slip.partnerName(), slip.slipNo(), message, blocked,
                         chatRoomName, slip.recipientPhone()));
                 groupInputs.add(toGroupInput(
-                        mappedEntryKey, slip, chatRoomName,
+                        mappedEntryKey, displaySlip, chatRoomName,
                         blocked ? "발송금지 업체입니다." : null, req.date()));
             }
         }
@@ -211,6 +214,26 @@ public class DispatchBatchPreviewService {
     private String entryKey(String partnerCode, String slipNo, int sequence) {
         return safeText(partnerCode).isBlank() ? "unmapped#" + safeText(slipNo) + "#" + sequence
                 : safeText(partnerCode) + "#" + safeText(slipNo) + "#" + sequence;
+    }
+
+    private String resolveDriverPhone(
+            OutboundSlipDto slip, List<DispatchDriverContactInput> inputs, LocalDate requestedDate) {
+        for (DispatchDriverContactInput input : inputs) {
+            if (input == null || !hasText(input.driverPhone())) continue;
+            if (input.date() != null && !input.date().equals(requestedDate)) continue;
+            boolean slipMatches = hasText(input.slipNo()) && input.slipNo().trim().equals(safeText(slip.slipNo()));
+            boolean companyMatches = hasText(input.companyName())
+                    && (input.companyName().contains(safeText(slip.slipNo()))
+                    || input.companyName().trim().equals(safeText(slip.partnerName())));
+            if (slipMatches || companyMatches) return input.driverPhone().trim();
+        }
+        return slip.driverPhone();
+    }
+
+    private OutboundSlipDto withDriverPhone(OutboundSlipDto slip, String driverPhone) {
+        return new OutboundSlipDto(
+                slip.slipNo(), slip.partnerCode(), slip.partnerName(), slip.slipDate(), slip.scheduledAt(),
+                slip.deliveryAddress(), slip.lines(), slip.recipientPhone(), slip.unloadDate(), driverPhone);
     }
 
     private static String safeText(String value) {

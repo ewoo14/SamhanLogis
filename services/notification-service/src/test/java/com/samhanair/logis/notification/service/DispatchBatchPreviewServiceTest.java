@@ -15,6 +15,7 @@ import com.samhanair.logis.notification.client.SlipServiceClient;
 import com.samhanair.logis.notification.domain.PartnerChatRoomMapping;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewRequest;
 import com.samhanair.logis.notification.dto.DispatchBatchPreviewResponse;
+import com.samhanair.logis.notification.dto.DispatchDriverContactInput;
 import com.samhanair.logis.notification.repository.PartnerChatRoomMappingRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -206,6 +207,46 @@ class DispatchBatchPreviewServiceTest {
                 .doesNotContain("[배차안내]");
         assertThat(response.chatRooms().get(0).partners().get(1).groupMessage())
                 .isEqualTo(firstMessage);
+    }
+
+    @Test
+    @DisplayName("레거시 배송기사내역 입력의 연락처 override로 전표 라인을 만든다")
+    void preview_usesLegacyDriverContactInput() {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "OUT-INPUT", "P-INPUT", "거래처 입력", date, null,
+                "서울시 강남구 테헤란로", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, date, null);
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-INPUT"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-INPUT", "거래처 입력", "입력방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                date,
+                List.of(new DispatchDriverContactInput("OUT-INPUT", "거래처 입력", "010-9999-8888", date))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("010-9999-8888 / 서울시 강남구 테헤란로")
+                .doesNotContain("기사번호 없음 확인요망!");
+    }
+
+    @Test
+    @DisplayName("기사 연락처 입력이 없으면 기존 fallback을 유지한다")
+    void preview_withoutDriverContactInput_keepsFallback() {
+        LocalDate date = LocalDate.of(2026, 8, 3);
+        OutboundSlipDto slip = new OutboundSlipDto(
+                "OUT-EMPTY", "P-EMPTY", "거래처 공란", date, null,
+                "서울시 강남구", List.of(new OutboundSlipLineDto("품목", 1)),
+                null, date, null);
+        when(slipServiceClient.getOutboundSlips(date, date)).thenReturn(List.of(slip));
+        when(chatRoomMappingRepository.findAllByPartnerCode("P-EMPTY"))
+                .thenReturn(List.of(PartnerChatRoomMapping.manual("P-EMPTY", "거래처 공란", "공란방")));
+
+        DispatchBatchPreviewResponse response = service.preview(new DispatchBatchPreviewRequest(
+                date, List.of(new DispatchDriverContactInput("OUT-EMPTY", "거래처 공란", "", date))));
+
+        assertThat(response.chatRooms().get(0).partners().get(0).groupMessage())
+                .contains("기사번호 없음 확인요망!");
     }
 
     private OutboundSlipDto newSlip(String partnerCode, String partnerName, String slipNo) {

@@ -83,6 +83,14 @@ export interface DispatchSmsPreviewResponse {
   unmapped: DispatchSmsUnmappedPartner[]
 }
 
+/** 레거시 배송기사내역 입력의 한 행. */
+export interface DispatchDriverContactInput {
+  slipNo: string
+  companyName: string
+  driverPhone: string
+  date: string
+}
+
 // ---------------------------------------------------------------------------
 // API 호출 함수
 // ---------------------------------------------------------------------------
@@ -97,10 +105,11 @@ export interface DispatchSmsPreviewResponse {
  */
 export async function previewDispatchBatch(
   date: string,
+  driverContacts: DispatchDriverContactInput[] = [],
 ): Promise<DispatchSmsPreviewResponse> {
   const res = await apiClient.post<ApiEnvelope<DispatchSmsPreviewResponse>>(
     '/admin/notifications/dispatch-batch/preview',
-    { date },
+    { date, driverContacts },
   )
   return res.data.data
 }

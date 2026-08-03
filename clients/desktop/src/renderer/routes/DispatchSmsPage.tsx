@@ -9,6 +9,7 @@ import { Badge, Button, Card, CopyButton, Input, Tabs } from '@samhan/design-sys
 import axios from 'axios'
 import {
   previewDispatchBatch,
+  type DispatchDriverContactInput,
   type DispatchSmsPreviewResponse,
 } from '../api/dispatchSmsApi'
 import {
@@ -33,6 +34,7 @@ import {
 } from './dispatchSmsClipboard'
 
 export type EditedMessages = Record<string, string>
+type DriverContactDraft = DispatchDriverContactInput
 type PreviewHistoryPayload =
   | DispatchSmsPreviewResponse
   | {
@@ -96,9 +98,10 @@ export function DispatchSmsPage() {
   usePageTitle('배차안내문자')
   const queryClient = useQueryClient()
   const { canAccess } = usePermissions()
-  const canBatch = canAccess('notification.dispatch-sms.send-audit', 'create')
+  const canBatch = canAccess('notification.dispatch-sms.display', 'create')
 
   const [date, setDate] = useState<string>(todayIso())
+  const [driverContacts, setDriverContacts] = useState<DriverContactDraft[]>([])
   const [preview, setPreview] = useState<DispatchSmsPreviewResponse | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -162,7 +165,7 @@ export function DispatchSmsPage() {
     setPreviewLoading(true)
     setPreviewError(null)
     try {
-      const result = await previewDispatchBatch(date)
+      const result = await previewDispatchBatch(date, driverContacts)
       setPreview(result)
       setEdited(buildInitialEdited(result))
       setSelectedClipboardIds(new Set())
@@ -259,6 +262,8 @@ export function DispatchSmsPage() {
           <Header preview={preview} onSaveClick={() => setSaveDialogOpen(true)} />
           <PreviewSection
             date={date}
+            driverContacts={driverContacts}
+            onDriverContactsChange={setDriverContacts}
             preview={preview}
             edited={edited}
             previewError={previewError}
@@ -328,6 +333,8 @@ function Header({
 
 function PreviewSection({
   date,
+  driverContacts,
+  onDriverContactsChange,
   preview,
   edited,
   previewError,
@@ -341,6 +348,8 @@ function PreviewSection({
   onMessageChange,
 }: {
   date: string
+  driverContacts: DriverContactDraft[]
+  onDriverContactsChange: (rows: DriverContactDraft[]) => void
   preview: DispatchSmsPreviewResponse | null
   edited: EditedMessages
   previewError: string | null
@@ -383,6 +392,26 @@ function PreviewSection({
           </Button>
         </div>
       </div>
+
+      <fieldset style={{ marginTop: 12, padding: 12, border: '1px solid var(--color-neutral-200)', borderRadius: 6 }}>
+        <legend style={{ padding: '0 6px', fontSize: 13 }}>배송기사내역 입력</legend>
+        <p style={mutedTextStyle}>레거시 입력 경로와 같이 전표번호(업체명)·배송기사 연락처를 입력합니다. 공란은 기존 오류 문구로 표시됩니다.</p>
+        {driverContacts.map((row, index) => (
+          <div key={`${row.slipNo}-${index}`} className="form-row" style={{ alignItems: 'flex-end', marginBottom: 8 }}>
+            <Input label="업체명/전표번호" value={row.companyName || row.slipNo} onChange={(e) => {
+              const next = [...driverContacts]; next[index] = { ...row, slipNo: e.target.value, companyName: e.target.value }; onDriverContactsChange(next)
+            }} />
+            <Input label="배송기사 연락처" value={row.driverPhone} onChange={(e) => {
+              const next = [...driverContacts]; next[index] = { ...row, driverPhone: e.target.value }; onDriverContactsChange(next)
+            }} />
+            <Button variant="ghost" onClick={() => onDriverContactsChange(driverContacts.filter((_, i) => i !== index))}>삭제</Button>
+          </div>
+        ))}
+        <Button variant="ghost" data-testid="dispatch-sms-add-driver-contact" onClick={() => onDriverContactsChange([
+          ...driverContacts,
+          { slipNo: '', companyName: '', driverPhone: '', date },
+        ])}>기사 연락처 행 추가</Button>
+      </fieldset>
 
       {previewError ? <div className="error-banner" role="alert" style={{ marginTop: 12 }}>{previewError}</div> : null}
 

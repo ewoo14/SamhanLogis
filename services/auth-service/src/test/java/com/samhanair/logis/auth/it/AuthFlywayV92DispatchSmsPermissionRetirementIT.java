@@ -36,4 +36,20 @@ class AuthFlywayV92DispatchSmsPermissionRetirementIT extends AbstractPostgresIT 
             assertThat(activeRows).as(table + " active grant").isZero();
         }
     }
+
+    @Test
+    @DisplayName("V92 회수 권한과 별도로 표시 전용 배차안내 SMS 권한을 유지한다")
+    void displayPermissionIsSeededSeparately() {
+        Integer activeRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM role_page_permissions "
+                        + "WHERE page_code = 'notification.dispatch-sms.display' AND is_deleted = FALSE",
+                Integer.class);
+        assertThat(activeRows).as("display permission role grants").isGreaterThanOrEqualTo(2);
+
+        Integer activeAccounts = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM account_page_permissions "
+                        + "WHERE page_code = 'notification.dispatch-sms.display' AND is_deleted = FALSE",
+                Integer.class);
+        assertThat(activeAccounts).as("display permission active non-MASTER accounts").isGreaterThanOrEqualTo(2);
+    }
 }

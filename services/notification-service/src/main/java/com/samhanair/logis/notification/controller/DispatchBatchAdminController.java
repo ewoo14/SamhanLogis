@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
         description = "배차안내문자 미리보기 및 문구 조립")
 public class DispatchBatchAdminController {
 
-    private static final String PAGE_CODE = "notification.dispatch-sms.send-audit";
+    private static final String PAGE_CODE = "notification.dispatch-sms.display";
 
     private final DispatchBatchPreviewService previewService;
 
