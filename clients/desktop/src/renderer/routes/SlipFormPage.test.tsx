@@ -139,7 +139,7 @@ vi.mock('@samhan/design-system', () => ({
     </div>
   ),
   PhoneInput: ({ helperText: _helperText, ...props }: any) => <input {...props} />,
-  ProductAutocomplete: ({ ariaLabel, onChange }: any) => {
+  ProductAutocomplete: ({ ariaLabel, onChange, onInputCommitChange }: any) => {
     const lineNo = /(\d+)/.exec(String(ariaLabel ?? ''))?.[1] ?? '1'
     return (
       <div data-testid={`product-autocomplete-${lineNo}`}>
@@ -154,6 +154,9 @@ vi.mock('@samhan/design-system', () => ({
         </button>
         <button type="button" data-testid={`select-product-d-${lineNo}`} onClick={() => onChange(harness.productD)}>
           product-d
+        </button>
+        <button type="button" data-testid={`type-product-${lineNo}`} onClick={() => onInputCommitChange?.(false)}>
+          type-product
         </button>
       </div>
     )
@@ -838,6 +841,17 @@ describe('SlipFormPage 이카운트식 라인 입력', () => {
     fireEvent.change(screen.getByLabelText('line-1-quantity'), { target: { value: '0' } })
 
     expect(screen.getByTestId('line-1-incomplete-notice').textContent).toContain('저장에서 제외')
+  })
+
+  it('선택된 품목을 다시 타이핑하면 품목코드 확정을 해제한다', async () => {
+    renderPage()
+    fireEvent.click(screen.getByTestId('select-product-a-1'))
+    await waitFor(() => expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe(harness.productA.id))
+
+    fireEvent.click(screen.getByTestId('type-product-1'))
+
+    expect(screen.getByTestId('line-1').getAttribute('data-product-id')).toBe('')
+    expect(screen.getByTestId('line-1').getAttribute('data-excluded-from-save')).toBe('true')
   })
 
   it('자동 증식 사실을 낭독하고 현재 입력 포커스를 끊지 않는다', () => {

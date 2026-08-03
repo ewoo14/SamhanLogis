@@ -7,6 +7,7 @@
 import { forwardRef } from 'react'
 import { AsyncAutocomplete } from '../AsyncAutocomplete/AsyncAutocomplete'
 import { MultiSelectAutocomplete } from '../MultiSelectAutocomplete'
+import type { SearchResultSelectionColumn } from '../SearchResultSelectionModal'
 import { splitHighlightMatches } from '../AsyncAutocomplete/highlight'
 import styles from '../AsyncAutocomplete/AsyncAutocomplete.module.css'
 
@@ -27,6 +28,8 @@ export interface ProductOption {
   modelCode?: string
   /** 품목 유형 (선택) — "SINGLE" | "BUNDLE". BUNDLE 이면 세트 옵션 노출. */
   productType?: string
+  /** 규격 (선택). 현재 검색 API가 생략하는 경우 모달에서 —로 표시한다. */
+  specification?: string | null
 }
 
 export interface ProductAutocompleteProps {
@@ -34,6 +37,8 @@ export interface ProductAutocompleteProps {
   value: ProductOption | null
   /** 선택 변경 콜백. null 은 선택 해제를 의미한다. */
   onChange: (product: ProductOption | null) => void
+  /** 선택된 품목을 다시 편집하면 false를 알린다. 저장 전 품목코드 확정 상태 해제에 사용한다. */
+  onInputCommitChange?: (committed: boolean) => void
   /**
    * 비동기 품목 검색 함수 (호출자 주입).
    * `q` 를 받아 `ProductOption[]` 을 resolve. 실패 시 reject.
@@ -108,6 +113,31 @@ function HighlightedProductField({
   )
 }
 
+const productResultColumns: readonly SearchResultSelectionColumn<ProductOption>[] = [
+  {
+    key: 'modelName',
+    label: '모델명',
+    render: (product) => product.modelName,
+  },
+  {
+    key: 'productName',
+    label: '품목명',
+    render: (product) => product.productName,
+  },
+  {
+    key: 'specification',
+    label: '규격',
+    render: (product) => product.specification?.trim() || '—',
+  },
+  {
+    key: 'sellingPrice',
+    label: '단가',
+    render: (product) => product.sellingPrice == null
+      ? '—'
+      : `${product.sellingPrice.toLocaleString('ko-KR')}원`,
+  },
+]
+
 export const ProductAutocomplete = forwardRef<
   HTMLInputElement,
   ProductAutocompleteProps
@@ -146,6 +176,9 @@ export const ProductAutocomplete = forwardRef<
       )}
       label={label}
       placeholder={placeholder}
+      resultSelectionMode="single"
+      resultSelectionTitle="품목 검색 결과"
+      resultSelectionColumns={productResultColumns}
       {...rest}
     />
   )

@@ -359,6 +359,12 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
         unitPrice: '11000',
         productId: 'product-1',
       }),
+      expect.objectContaining({
+        modelName: '',
+        productName: '',
+        quantity: '1',
+        productId: '',
+      }),
     ])
 
     for (const fieldPath of [
@@ -389,7 +395,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     // R4-F6: 단가 필드만 doc-sync 전용 콜백 배선 — 자동채움 provider write 의 doc-sync 가
     // pending REMEMBERED/CATALOG 분류를 USER 로 재분류하지 않게 분리한다(타 필드는 기존 경로).
     expect(screen.getByTestId('estimate-coedit-items-0-unitPrice').getAttribute('data-doc-sync')).toBe('true')
-    expect(screen.getByTestId('estimate-coedit-items-0-modelName').getAttribute('data-doc-sync')).toBe('false')
+    expect(screen.getByTestId('estimate-coedit-items-0-modelName').getAttribute('data-doc-sync')).toBe('true')
   })
 
   it('subscribeDoc 원격 업데이트를 React form state 에 반영한다', async () => {
@@ -538,6 +544,7 @@ describe('EstimateFormPage 견적 편집 full-form coedit 배선', () => {
     expect(provider.replaceItems).toHaveBeenCalledWith([
       expect.objectContaining({ modelName: 'MODEL-1', productName: '제품 1' }),
       expect.objectContaining({ modelName: 'MODEL-2', productName: '제품 2' }),
+      expect.objectContaining({ modelName: '', productName: '', productId: '' }),
     ])
   })
 

@@ -19,6 +19,21 @@ export function appendBlankRowIfLastChanged<T>(
   return [...next, emptyRow()]
 }
 
+/**
+ * 수정 hydrate와 협업 문서에도 입력용 trailing 빈행을 보장한다.
+ * 빈행 여부는 화면 텍스트가 아니라 호출자가 주입한 확정 키로 판정한다.
+ */
+export function ensureTrailingBlankRow<T>(
+  rows: readonly T[],
+  emptyRow: () => T,
+  isConfirmed: (row: T) => boolean,
+): T[] {
+  if (rows.length === 0) return [emptyRow()]
+  const next = [...rows]
+  if (isConfirmed(next[next.length - 1]!)) next.push(emptyRow())
+  return next
+}
+
 export function filterMeaningfulRows<T>(rows: readonly T[], isMeaningful: (row: T) => boolean): T[] {
   return rows.filter(isMeaningful)
 }

@@ -48,6 +48,7 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { buildRiskyPartnerLinesWarning, findRiskyPartnerLines } from './JournalFormPage.model'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   filterMeaningfulRows,
   removeLinePreservingMinimum,
 } from '../utils/autoBlankRow'
@@ -279,7 +280,13 @@ export function JournalFormPage() {
       partnerName: l.partnerName ?? '',
       note: l.memo ?? l.note ?? '',
     }))
-    setLines(hydratedLines)
+    const linesWithTrailingBlank = ensureTrailingBlankRow(
+      hydratedLines,
+      emptyLine,
+      (line) => Boolean(line.accountCode.trim()),
+    )
+    while (linesWithTrailingBlank.length < 2) linesWithTrailingBlank.push(emptyLine())
+    setLines(linesWithTrailingBlank)
     setHydratedLineUids(new Set(hydratedLines.map((l) => l.uid)))
   }
 

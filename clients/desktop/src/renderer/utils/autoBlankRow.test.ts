@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   filterMeaningfulRows,
   removeLinePreservingMinimum,
 } from './autoBlankRow'
@@ -8,6 +9,7 @@ import {
 interface TestLine {
   uid: string
   account: string
+  productId?: string | null
   debit: number
   credit: number
 }
@@ -51,5 +53,22 @@ describe('행 자동 빈행 공통 계약', () => {
     const next = removeLinePreservingMinimum([line], 'only', (item) => item.uid, emptyLine, 1)
     expect(next).toHaveLength(1)
     expect(next[0].account).toBe('')
+  })
+
+  it('수정 화면은 확정 품목코드 아래에 빈행을 하나 유지한다', () => {
+    const confirmed = { uid: 'line-1', account: '', productId: 'product-1', debit: 0, credit: 0 }
+    const next = ensureTrailingBlankRow([confirmed], emptyLine, (line) => Boolean(line.productId))
+
+    expect(next).toHaveLength(2)
+    expect(next[0]).toBe(confirmed)
+    expect(next[1]?.productId).toBeUndefined()
+  })
+
+  it('품목코드 미확정 행은 모델명·수량을 입력해도 빈행으로 판정한다', () => {
+    const partial = { uid: 'partial', account: 'AP145', productId: null, debit: 0, credit: 0 }
+    const quantityOnly = { uid: 'quantity-only', account: '', productId: null, debit: 10, credit: 0 }
+
+    expect(ensureTrailingBlankRow([partial], emptyLine, (line) => Boolean(line.productId))).toHaveLength(1)
+    expect(ensureTrailingBlankRow([quantityOnly], emptyLine, (line) => Boolean(line.productId))).toHaveLength(1)
   })
 })

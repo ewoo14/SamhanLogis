@@ -24,6 +24,7 @@ import styles from './AsyncAutocomplete.module.css'
 import { FormField } from '../FormField/FormField'
 import {
   SearchResultSelectionModal,
+  type SearchResultSelectionColumn,
   type SearchResultSelectionMode,
 } from '../SearchResultSelectionModal'
 
@@ -79,6 +80,8 @@ export interface AsyncAutocompleteProps<T> {
   onResultsConfirmed?: (items: T[]) => void
   /** 결과 선택 모달 제목. */
   resultSelectionTitle?: ReactNode
+  /** 결과 선택 모달에 표시할 표 열. 지정하면 후보 내용을 행 단위로 읽는다. */
+  resultSelectionColumns?: readonly SearchResultSelectionColumn<T>[]
   /** multiple 모달에서 이미 선택한 후보의 opaque key. */
   selectedKeys?: string[]
   /** 기존 wrapper가 1건 후보를 즉시 확정하던 명시적 계약. 기본값 false. */
@@ -118,6 +121,7 @@ function AsyncAutocompleteInner<T>(
     resultSelectionMode,
     onResultsConfirmed,
     resultSelectionTitle = '검색 결과 선택',
+    resultSelectionColumns,
     selectedKeys = [],
     autoSelectSingleResult = false,
   }: AsyncAutocompleteProps<T>,
@@ -548,12 +552,17 @@ function AsyncAutocompleteInner<T>(
     const wrapper = wrapperRef.current
     if (!wrapper) return
     const rect = wrapper.getBoundingClientRect()
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth
+    const maxWidth = Math.min(640, Math.max(rect.width, viewportWidth - 16))
+    const left = Math.min(rect.left, Math.max(8, viewportWidth - maxWidth - 8))
     setFloatingStyle({
       position: 'fixed',
       top: rect.bottom + 4,
-      left: rect.left,
+      left,
       right: 'auto',
-      width: rect.width,
+      width: 'max-content',
+      minWidth: rect.width,
+      maxWidth,
       zIndex: 1000,
     })
   }, [])
@@ -755,6 +764,7 @@ function AsyncAutocompleteInner<T>(
       getKey={getKey}
       getLabel={getInputLabel}
       renderOption={(item) => renderOption(item, { query: draft.trim() })}
+      columns={resultSelectionColumns}
       initialSelectedKeys={selectedKeys}
       onConfirm={(items) => {
         if (resultSelectionMode === 'multiple') onResultsConfirmed?.(items)

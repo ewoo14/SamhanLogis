@@ -5,6 +5,12 @@ import styles from './SearchResultSelectionModal.module.css'
 
 export type SearchResultSelectionMode = 'single' | 'multiple'
 
+export interface SearchResultSelectionColumn<T> {
+  key: string
+  label: ReactNode
+  render: (option: T) => ReactNode
+}
+
 export interface SearchResultSelectionModalProps<T> {
   open: boolean
   mode: SearchResultSelectionMode
@@ -13,6 +19,7 @@ export interface SearchResultSelectionModalProps<T> {
   getKey: (option: T) => string
   getLabel: (option: T) => string
   renderOption: (option: T) => ReactNode
+  columns?: readonly SearchResultSelectionColumn<T>[]
   onConfirm: (options: T[]) => void
   onCancel: () => void
   initialSelectedKeys?: string[]
@@ -27,6 +34,7 @@ export function SearchResultSelectionModal<T>({
   getKey,
   getLabel,
   renderOption,
+  columns,
   onConfirm,
   onCancel,
   initialSelectedKeys = [],
@@ -54,7 +62,7 @@ export function SearchResultSelectionModal<T>({
       open={open}
       onClose={onCancel}
       title={title}
-      size="md"
+      size={columns && columns.length > 0 ? 'xl' : 'md'}
       footer={
         <>
           <Button type="button" variant="ghost" onClick={onCancel}>취소</Button>
@@ -64,24 +72,58 @@ export function SearchResultSelectionModal<T>({
         </>
       }
     >
-      <div className={styles['list']} role="listbox" aria-label="검색 결과 선택">
-        {options.map((option) => {
-          const key = getKey(option)
-          const selected = selectedKeys.has(key)
-          return (
-            <label className={styles['option']} key={key}>
-              <input
-                type={mode === 'multiple' ? 'checkbox' : 'radio'}
-                name="search-result-selection"
-                checked={selected}
-                onChange={() => toggle(option)}
-                aria-label={getLabel(option)}
-              />
-              <span>{renderOption(option)}</span>
-            </label>
-          )
-        })}
-      </div>
+      {columns && columns.length > 0 ? (
+        <div className={styles['tableViewport']}>
+          <table className={styles['table']}>
+            <caption className={styles['visuallyHidden']}>검색 결과 선택</caption>
+            <thead>
+              <tr>
+                <th scope="col">선택</th>
+                {columns.map((column) => <th scope="col" key={column.key}>{column.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {options.map((option) => {
+                const key = getKey(option)
+                const selected = selectedKeys.has(key)
+                return (
+                  <tr key={key}>
+                    <td>
+                      <input
+                        type={mode === 'multiple' ? 'checkbox' : 'radio'}
+                        name="search-result-selection"
+                        checked={selected}
+                        onChange={() => toggle(option)}
+                        aria-label={getLabel(option)}
+                      />
+                    </td>
+                    {columns.map((column) => <td key={column.key}>{column.render(option)}</td>)}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className={styles['list']} role="listbox" aria-label="검색 결과 선택">
+          {options.map((option) => {
+            const key = getKey(option)
+            const selected = selectedKeys.has(key)
+            return (
+              <label className={styles['option']} key={key}>
+                <input
+                  type={mode === 'multiple' ? 'checkbox' : 'radio'}
+                  name="search-result-selection"
+                  checked={selected}
+                  onChange={() => toggle(option)}
+                  aria-label={getLabel(option)}
+                />
+                <span>{renderOption(option)}</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
     </Modal>
   )
 }

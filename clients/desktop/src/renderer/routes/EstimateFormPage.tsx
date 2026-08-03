@@ -49,6 +49,7 @@ import {
 import { vatFromSupply } from '../utils/vatRounding'
 import {
   appendBlankRowIfLastChanged,
+  ensureTrailingBlankRow,
   removeLinePreservingMinimum,
 } from '../utils/autoBlankRow'
 import {
@@ -294,8 +295,13 @@ function seedEstimateCoeditProvider(provider: DocCoeditProvider, estimate: Estim
   provider.setHeaderValue('estimateDate', estimate.estimateDate)
   provider.setHeaderValue('validUntil', estimate.validUntil ?? '')
   provider.setHeaderValue('memo', estimate.memo ?? '')
+  const draftLines = ensureTrailingBlankRow(
+    toDraftLinesFromEstimate(estimate),
+    emptyLine,
+    (line) => Boolean(line.productId),
+  )
   provider.replaceItems(
-    toDraftLinesFromEstimate(estimate).map((line) => ({
+    draftLines.map((line) => ({
       // 🔴 lineId 는 반드시 Y.Doc 에 실어야 한다 (R8-FE-9 — fix 지뢰).
       // 종전 seed 는 lineId 를 pick 하지 않았고, replaceItems 는 lineId 가 비면 클라 랜덤
       // UUID(generateLineId())를 대신 채운다 → Y.Doc 의 lineId 가 전부 서버가 모르는 값 →
@@ -408,7 +414,7 @@ function EstimateMobileLineCard(props: {
   /** 거래처 선택 여부 (R4-D4) — 마커 카피 분기/해제 기준. */
   hasPartner: boolean
   vatEditable: boolean
-  onUpdate: (patch: Partial<DraftLine>) => void
+  onUpdate: (patch: Partial<DraftLine>, fromUser?: boolean) => void
   onLookup: () => void
   onRemove: () => void
   children?: ReactNode
@@ -445,7 +451,16 @@ function EstimateMobileLineCard(props: {
           coeditPending={props.coeditPending}
           fieldPath={`items.${props.index}.modelName`}
           value={props.line.modelName}
-          onValueChange={(value) => props.onUpdate({ modelName: value })}
+          onValueChange={(value) => props.onUpdate({
+            modelName: value,
+            productId: null,
+            productName: '',
+          }, true)}
+          onDocSyncValueChange={(value) => props.onUpdate({
+            modelName: value,
+            productId: null,
+            productName: '',
+          })}
           onBlur={props.onLookup}
           inputSize="sm"
           readOnly={props.isReadOnly}
@@ -463,7 +478,8 @@ function EstimateMobileLineCard(props: {
           coeditPending={props.coeditPending}
           fieldPath={`items.${props.index}.productName`}
           value={props.line.productName}
-          onValueChange={(value) => props.onUpdate({ productName: value })}
+          onValueChange={(value) => props.onUpdate({ productName: value }, true)}
+          onDocSyncValueChange={(value) => props.onUpdate({ productName: value })}
           inputSize="sm"
           readOnly={props.isReadOnly}
           type="text"
@@ -478,7 +494,8 @@ function EstimateMobileLineCard(props: {
           coeditPending={props.coeditPending}
           fieldPath={`items.${props.index}.specification`}
           value={props.line.specification}
-          onValueChange={(value) => props.onUpdate({ specification: value })}
+          onValueChange={(value) => props.onUpdate({ specification: value }, true)}
+          onDocSyncValueChange={(value) => props.onUpdate({ specification: value })}
           inputSize="sm"
           readOnly={props.isReadOnly}
           type="text"
@@ -494,6 +511,10 @@ function EstimateMobileLineCard(props: {
           fieldPath={`items.${props.index}.quantity`}
           value={props.line.quantity}
           onValueChange={(value) => props.onUpdate(
+            changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
+            true,
+          )}
+          onDocSyncValueChange={(value) => props.onUpdate(
             changeLineQuantity(asVatLine({ ...props.line, quantity: value }), value),
           )}
           inputSize="sm"
@@ -579,7 +600,8 @@ function EstimateMobileLineCard(props: {
           onValueChange={(value) => props.onUpdate({
             ...editLineVat(asVatLine(props.line), 'TOTAL', value),
             vatDirty: true,
-          })}
+          }, true)}
+          onDocSyncValueChange={(value) => props.onUpdate({ lineTotal: value })}
           readOnly={!props.vatEditable}
           inputMode="numeric"
           inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -600,7 +622,8 @@ function EstimateMobileLineCard(props: {
           onValueChange={(value) => props.onUpdate({
             ...editLineVat(asVatLine(props.line), 'SUPPLY', value),
             vatDirty: true,
-          })}
+          }, true)}
+          onDocSyncValueChange={(value) => props.onUpdate({ supplyAmount: value })}
           readOnly={!props.vatEditable}
           inputMode="numeric"
           inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -618,7 +641,8 @@ function EstimateMobileLineCard(props: {
           onValueChange={(value) => props.onUpdate({
             ...editLineVat(asVatLine(props.line), 'VAT', value),
             vatDirty: true,
-          })}
+          }, true)}
+          onDocSyncValueChange={(value) => props.onUpdate({ vatAmount: value })}
           readOnly={!props.vatEditable}
           inputMode="numeric"
           inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -769,7 +793,11 @@ export function EstimateFormPage() {
     setEstimateDate(e.estimateDate)
     setValidUntil(e.validUntil ?? '')
     setMemo(e.memo ?? '')
-    const draftLines = toDraftLinesFromEstimate(e)
+    const draftLines = ensureTrailingBlankRow(
+      toDraftLinesFromEstimate(e),
+      emptyLine,
+      (line) => Boolean(line.productId),
+    )
     linesRef.current = draftLines
     setLines(draftLines)
     setHydratedEstimateId(editId ?? null)
@@ -821,11 +849,15 @@ export function EstimateFormPage() {
       setEstimateDate(nextProvider.getHeaderValue('estimateDate'))
       setValidUntil(nextProvider.getHeaderValue('validUntil'))
       setMemo(nextProvider.getHeaderValue('memo'))
-      const nextLines = coeditLinesToDraftLines(
-        nextProvider,
-        linesRef.current,
-        knownServerLineIds,
-        localAutoPriceWritesRef.current,
+      const nextLines = ensureTrailingBlankRow(
+        coeditLinesToDraftLines(
+          nextProvider,
+          linesRef.current,
+          knownServerLineIds,
+          localAutoPriceWritesRef.current,
+        ),
+        emptyLine,
+        (line) => Boolean(line.productId),
       )
       linesRef.current = nextLines
       setLines(nextLines)
@@ -841,7 +873,11 @@ export function EstimateFormPage() {
         return
       }
       provider = nextProvider
-      const serverLineCount = toDraftLinesFromEstimate(estimate).length
+      const serverLineCount = ensureTrailingBlankRow(
+        toDraftLinesFromEstimate(estimate),
+        emptyLine,
+        (line) => Boolean(line.productId),
+      ).length
       const providerLineCount = nextProvider.items.toArray().length
       // 슬1은 협업 중 라인 추가/삭제를 잠가 index seed-lock 을 유지한다.
       // provider 라인수와 서버 라인수가 다르면(구조 변화) server-wins full-seed 한다.
@@ -1795,7 +1831,7 @@ export function EstimateFormPage() {
                 lineVat={lineVat}
                 hasPartner={hasPartner}
                 vatEditable={!isReadOnly && !isBundle && !coeditActive}
-                onUpdate={(patch) => updateLine(i, patch)}
+                onUpdate={(patch, fromUser) => updateLine(i, patch, fromUser)}
                 onLookup={() => handleModelLookup(i)}
                 onRemove={() => removeLine(i)}
               >
@@ -1867,7 +1903,16 @@ export function EstimateFormPage() {
                   fieldPath={`items.${i}.modelName`}
                   type="text"
                   value={line.modelName}
-                  onValueChange={(value) => updateLine(i, { modelName: value }, true)}
+                  onValueChange={(value) => updateLine(i, {
+                    modelName: value,
+                    productId: null,
+                    productName: '',
+                  }, true)}
+                  onDocSyncValueChange={(value) => updateLine(i, {
+                    modelName: value,
+                    productId: null,
+                    productName: '',
+                  })}
                   onBlur={() => handleModelLookup(i)}
                   readOnly={Boolean(isReadOnly)}
                   placeholder="예: AJ040RXH4BC1"
@@ -1883,6 +1928,7 @@ export function EstimateFormPage() {
                 type="text"
                 value={line.productName}
                 onValueChange={(value) => updateLine(i, { productName: value }, true)}
+                onDocSyncValueChange={(value) => updateLine(i, { productName: value })}
                 readOnly={Boolean(isReadOnly)}
                 aria-label={`라인 ${i + 1} 품목명`}
               />
@@ -1893,6 +1939,7 @@ export function EstimateFormPage() {
                 type="text"
                 value={line.specification}
                 onValueChange={(value) => updateLine(i, { specification: value }, true)}
+                onDocSyncValueChange={(value) => updateLine(i, { specification: value })}
                 readOnly={Boolean(isReadOnly)}
                 aria-label={`라인 ${i + 1} 규격`}
               />
@@ -1903,6 +1950,9 @@ export function EstimateFormPage() {
                 type="text"
                 value={line.quantity}
                   onValueChange={(value) => updateQuantity(i, value)}
+                  onDocSyncValueChange={(value) => updateLine(i, {
+                    ...changeLineQuantity(asVatLine({ ...line, quantity: value }), value),
+                  })}
                 readOnly={Boolean(isReadOnly)}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -1954,6 +2004,7 @@ export function EstimateFormPage() {
                 type="text"
                 value={line.supplyAmount}
                 onValueChange={(value) => updateVat(i, 'SUPPLY', value)}
+                onDocSyncValueChange={(value) => updateLine(i, { supplyAmount: value })}
                 readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
                 inputMode="numeric"
                 inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -1963,10 +2014,11 @@ export function EstimateFormPage() {
                 <CollaborativeSlipInput
                   provider={estimateFormCoeditProvider}
                   coeditPending={estimateFormCoeditPending}
-                  fieldPath={`items.${i}.vatAmount`}
-                  type="text"
-                  value={line.vatAmount}
-                  onValueChange={(value) => updateVat(i, 'VAT', value)}
+                fieldPath={`items.${i}.vatAmount`}
+                type="text"
+                value={line.vatAmount}
+                onValueChange={(value) => updateVat(i, 'VAT', value)}
+                onDocSyncValueChange={(value) => updateLine(i, { vatAmount: value })}
                   readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
                   inputMode="numeric"
                   inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
@@ -1992,6 +2044,7 @@ export function EstimateFormPage() {
                   type="text"
                   value={line.lineTotal}
                   onValueChange={(value) => updateVat(i, 'TOTAL', value)}
+                  onDocSyncValueChange={(value) => updateLine(i, { lineTotal: value })}
                   readOnly={Boolean(isReadOnly) || isBundle || coeditActive}
                   inputMode="numeric"
                   inputStyle={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}

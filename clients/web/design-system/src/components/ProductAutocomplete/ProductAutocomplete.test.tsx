@@ -159,4 +159,52 @@ describe('ProductAutocomplete', () => {
 
     await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(2))
   })
+
+  it('품목 결과 2건 이상은 모델명·품목명·규격·단가 표 모달에서 고른다', async () => {
+    const products = [
+      {
+        id: 'uuid-a',
+        modelCode: 'AP145-A',
+        modelName: 'AP145-A-모델명-끝까지-읽혀야-한다',
+        productName: '첫 번째 품목',
+        specification: '4HP 냉방전용',
+        sellingPrice: 123456,
+      },
+      {
+        id: 'uuid-b',
+        modelCode: 'AP145-B',
+        modelName: 'AP145-B-모델명-끝까지-읽혀야-한다',
+        productName: '두 번째 품목',
+        specification: '5HP 냉난방',
+        sellingPrice: 234567,
+      },
+    ] as ProductOption[]
+    const searchProducts = vi.fn().mockResolvedValue(products)
+
+    render(
+      <ProductAutocomplete
+        value={null}
+        onChange={vi.fn()}
+        searchProducts={searchProducts}
+        ariaLabel="품목"
+        debounceMs={0}
+      />,
+    )
+
+    const input = screen.getByRole('combobox', { name: '품목' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'AP145' } })
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '품목 검색 결과' })).toBeTruthy())
+    expect(screen.getByRole('table')).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '모델명' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '품목명' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '규격' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: '단가' })).toBeTruthy()
+    expect(screen.getByText('AP145-A-모델명-끝까지-읽혀야-한다')).toBeTruthy()
+    expect(screen.getByText('4HP 냉방전용')).toBeTruthy()
+    expect(screen.getByText('123,456원')).toBeTruthy()
+    expect(document.body.textContent).not.toContain('uuid-a')
+    expect(document.body.textContent).not.toContain('uuid-b')
+  })
 })

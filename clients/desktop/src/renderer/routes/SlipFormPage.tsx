@@ -1642,6 +1642,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                     <ProductAutocomplete
                       value={lineProductValue}
                       onChange={(p) => void applyProductSelection(line, p)}
+                      onInputCommitChange={(committed) => {
+                        if (committed) return
+                        updateLine(line.id, {
+                          productId: null,
+                          productName: '',
+                          productType: null,
+                          modelCode: null,
+                        })
+                      }}
                       searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
                       label=""
                       ariaLabel={`라인 ${idx + 1} 품목`}
@@ -1710,6 +1719,15 @@ export function SlipFormPage({ mode }: SlipFormPageProps) {
                         <ProductAutocomplete
                           value={lineProductValue}
                           onChange={(p) => void applyProductSelection(line, p)}
+                          onInputCommitChange={(committed) => {
+                            if (committed) return
+                            updateLine(line.id, {
+                              productId: null,
+                              productName: '',
+                              productType: null,
+                              modelCode: null,
+                            })
+                          }}
                           searchProducts={(q) => searchProductsApi(q, { usageScope: 'PARTNER_ORDER' })}
                           label=""
                           ariaLabel={`라인 ${idx + 1} 품목`}
