@@ -9,12 +9,14 @@ import {
   getLedgerData,
   getLedgerHistory,
   getSalesAggregate,
+  captureLedger,
 } from '../api/partnerLedgerApi'
 
 vi.mock('../api/partnerLedgerApi', () => ({
   getSalesAggregate: vi.fn(),
   getLedgerData: vi.fn(),
   getLedgerHistory: vi.fn(),
+  captureLedger: vi.fn(),
   restoreLedger: vi.fn(),
 }))
 
@@ -35,6 +37,7 @@ function PrintLocationProbe() {
 describe('PartnerLedgerPage 인쇄 미리보기', () => {
   beforeEach(() => {
     cleanup()
+    vi.clearAllMocks()
     vi.mocked(getSalesAggregate).mockResolvedValue([{
       partnerCode: 'QA-GATE-A',
       bizNo: '',
@@ -64,6 +67,7 @@ describe('PartnerLedgerPage 인쇄 미리보기', () => {
       }],
     })
     vi.mocked(getLedgerHistory).mockResolvedValue({ content: [] })
+    vi.mocked(captureLedger).mockResolvedValue({} as never)
   })
 
   it('선택한 거래처들을 Electron-safe 일괄 인쇄 route로 전환한다', async () => {
@@ -175,5 +179,52 @@ describe('PartnerLedgerPage 인쇄 미리보기', () => {
     expect((within(row).getByRole('button', { name: '원장 보기' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(row)
     expect(getLedgerData).not.toHaveBeenCalledWith('-', expect.anything(), expect.anything())
+  })
+
+  it('선택한 원장의 자동 저장 이력 옆 저장 조작은 snapshot을 한 번 생성한다', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/partner-ledger']}>
+          <Routes><Route path="/accounting/partner-ledger" element={<PartnerLedgerPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByTestId('partner-ledger-from'), { target: { value: '2026-05-01' } })
+    fireEvent.change(screen.getByTestId('partner-ledger-to'), { target: { value: '2026-05-31' } })
+    fireEvent.click(screen.getByTestId('partner-ledger-search'))
+    fireEvent.click(await screen.findByTestId('partner-ledger-aggregate-row-QA-GATE-A'))
+    await screen.findByTestId('partner-ledger-detail-table')
+
+    fireEvent.click(screen.getByTestId('partner-ledger-save-snapshot'))
+
+    await waitFor(() => {
+      expect(captureLedger).toHaveBeenCalledWith('QA-GATE-A', '2026-05-01', '2026-05-31')
+    })
+  })
+
+  it('조회 반복은 snapshot을 생성하지 않는다', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/accounting/partner-ledger']}>
+          <Routes><Route path="/accounting/partner-ledger" element={<PartnerLedgerPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByTestId('partner-ledger-from'), { target: { value: '2026-05-01' } })
+    fireEvent.change(screen.getByTestId('partner-ledger-to'), { target: { value: '2026-05-31' } })
+    fireEvent.click(screen.getByTestId('partner-ledger-search'))
+    await screen.findByTestId('partner-ledger-aggregate-table')
+    fireEvent.click(screen.getByTestId('partner-ledger-search'))
+
+    await waitFor(() => expect(getSalesAggregate).toHaveBeenCalledTimes(2))
+    expect(captureLedger).not.toHaveBeenCalled()
   })
 })

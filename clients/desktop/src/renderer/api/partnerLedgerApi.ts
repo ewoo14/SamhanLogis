@@ -265,6 +265,42 @@ export async function getLedgerData(
   }
 }
 
+/** 사용자가 현재 원장 결과를 명시적으로 snapshot 저장한다. 조회 자체는 저장하지 않는다. */
+export async function captureLedger(
+  partnerCode: string,
+  from: string,
+  to: string,
+): Promise<LedgerData> {
+  const res = await apiClient.post<ApiEnvelope<LedgerImageResponse>>(
+    '/accounting/journals/ledger-snapshots',
+    null,
+    { params: { partnerCode, from, to } },
+  )
+  return mapLedgerImageResponse(res.data.data)
+}
+
+function mapLedgerImageResponse(source: LedgerImageResponse): LedgerData {
+  return {
+    partnerCode: source.partnerCode,
+    partnerName: source.partnerName,
+    partnerBusinessNo: source.partnerBusinessNo,
+    chatRoomNames: source.chatRoomNames,
+    periodFrom: source.periodFrom,
+    periodTo: source.periodTo,
+    lines: source.lines,
+  }
+}
+
+interface LedgerImageResponse {
+  partnerCode: string
+  partnerName: string
+  partnerBusinessNo: string
+  chatRoomNames: string[]
+  periodFrom: string
+  periodTo: string
+  lines: LedgerLine[]
+}
+
 interface PartnerLedgerResponse {
   partnerCode: string | null
   partnerName: string | null

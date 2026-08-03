@@ -45,6 +45,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Card, Spinner } from '@samhan/design-system'
 import {
+  captureLedger,
   getLedgerData,
   getLedgerHistory,
   getSalesAggregate,
@@ -241,6 +242,7 @@ export function PartnerLedgerPage() {
   // 일괄 인쇄용 multi-select 거래처 코드 set
   const [batchSelected, setBatchSelected] = useState<Set<string>>(new Set())
   const [restoredLedger, setRestoredLedger] = useState<LedgerData | null>(null)
+  const [isSavingSnapshot, setIsSavingSnapshot] = useState(false)
 
   const aggregateQuery = useQuery<SalesAggregateRow[]>({
     queryKey: [
@@ -285,6 +287,17 @@ export function PartnerLedgerPage() {
   const handleRestore = async (batchNo: string) => {
     const restored = await restoreLedger(batchNo)
     setRestoredLedger(restored.ledger)
+  }
+
+  const handleCaptureSnapshot = async () => {
+    if (!selectedPartner || !ledgerQuery.data || isSavingSnapshot) return
+    setIsSavingSnapshot(true)
+    try {
+      await captureLedger(selectedPartner, applied.from, applied.to)
+      await historyQuery.refetch()
+    } finally {
+      setIsSavingSnapshot(false)
+    }
   }
 
   const toggleBatch = (partnerCode: string, checked: boolean) => {
@@ -611,7 +624,26 @@ export function PartnerLedgerPage() {
 
         {selectedPartner ? (
           <div style={{ marginTop: 20 }} data-testid="partner-ledger-history">
-            <h4 style={{ margin: '0 0 8px 0' }}>자동 저장 이력</h4>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+              <h4 style={{ margin: 0 }}>자동 저장 이력</h4>
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="partner-ledger-save-snapshot"
+                onClick={() => void handleCaptureSnapshot()}
+                disabled={isSavingSnapshot || !ledgerQuery.data}
+              >
+                {isSavingSnapshot ? '저장 중…' : '현재 원장 저장'}
+              </Button>
+            </div>
             {historyQuery.isLoading ? (
               <Spinner size="sm" label="이력 불러오는 중" />
             ) : historyQuery.error ? (
