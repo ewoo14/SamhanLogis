@@ -22,7 +22,7 @@ describe('메신저 API 계약', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith(
       '/admin/groupware/messages/recipient-search',
-      { params: { q: '김', limit: '20' } },
+      { params: { q: '김', limit: '10000' } },
     )
   })
 

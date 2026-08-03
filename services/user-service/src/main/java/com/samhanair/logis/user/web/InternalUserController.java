@@ -123,7 +123,7 @@ public class InternalUserController {
     /**
      * 직원명/loginId 부분일치 검색. groupware-service 결재자 picker 가 호출한다.
      *
-     * <p>빈 q 는 빈 배열, limit 은 기본 20 / 상한 50 으로 제한한다.
+     * <p>빈 q 는 빈 배열, limit 은 기본 20 / 상한 10000 으로 제한한다.
      */
     @GetMapping("/search")
     @PreAuthorize("hasRole('MASTER')")
@@ -135,7 +135,7 @@ public class InternalUserController {
         if (normalized.isBlank()) {
             return ApiResponse.ok(List.of());
         }
-        int normalizedLimit = Math.min(Math.max(limit, 1), 50);
+        int normalizedLimit = Math.min(Math.max(limit, 1), 10000);
         String escaped = escapeLikeLiteral(normalized);
         List<InternalEmployeeSearchResponse> employees = (activeOnly
                 ? employeeRepository.searchInternalActiveRecipients(escaped, PageRequest.of(0, normalizedLimit))

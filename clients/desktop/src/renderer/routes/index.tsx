@@ -172,6 +172,7 @@ import { InventoryDpsComparePage } from './InventoryDpsComparePage'
 import { DpsByProductPage } from './warehouse/DpsByProductPage'
 // [Phase 2.6c] 재고 현황 조회 — 가용/실재고/예약 3구분 (WAREHOUSE/MANAGER/MASTER)
 import { InventoryStockBalancePage } from './warehouse/InventoryStockBalancePage'
+import { InOutAnalysisPage } from './warehouse/InOutAnalysisPage'
 // [PR-E1 FE-6] 배차안내 SMS 발송 (preview + send 2-step) — DISPATCH / MANAGER / MASTER 가드
 import { DispatchSmsPage } from './DispatchSmsPage'
 // [SP-09-2 FE] SMS 발송 감사 이력 — SEND_AUDIT 전용 조회 화면 (DISPATCH / MANAGER / MASTER)
@@ -586,8 +587,16 @@ const routes = [
       {
         path: '/inventory/stock-balance',
         element: (
-          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+          <PermissionGuard pageCode="accounting.sales-slip.list" action="view">
             <InventoryStockBalancePage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: '/inventory/inout-analysis',
+        element: (
+          <PermissionGuard pageCode="inventory.stock-balance" action="view">
+            <InOutAnalysisPage />
           </PermissionGuard>
         ),
       },

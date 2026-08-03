@@ -59,6 +59,7 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
 
     private static final String MASTER_ROLE = "MASTER";
     private static final String SERIAL_CODE = "AC-S3-IT";
+    private static final String LEGACY_SERIAL_CODE = "010001";
     private static final String BATCH_CODE = "PIPE-S3-IT";
     private static final String CLEANUP_USER = "StockInstanceOutboundIT";
 
@@ -343,6 +344,30 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
     }
 
     @Test
+    @DisplayName("unrecall-batch: 최신 productId로 회수한 legacy product_code 2행도 전부 SHIPPED 복원")
+    void unrecallBatch_restoresLegacyProductCodeRowsByProductId() throws Exception {
+        seedShipped(2, "P-S4-LEGACY", LEGACY_SERIAL_CODE);
+        postRecall("P-S4-LEGACY", "S4-RETURN-LEGACY-UNRECALL", 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)));
+
+        mockMvc.perform(post("/inventory/instances/unrecall-batch")
+                        .header("X-User-Id", UUID.randomUUID().toString())
+                        .header("X-User-Role", MASTER_ROLE)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                unrecallBody("S4-RETURN-LEGACY-UNRECALL"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)))
+                .andExpect(jsonPath("$.data[0].status", is("SHIPPED")))
+                .andExpect(jsonPath("$.data[0].productId", is(serialProductId.toString())));
+
+        assertThat(stockInstanceRepository.findByProductId(serialProductId)).filteredOn(
+                instance -> instance.getProductCode().equals(LEGACY_SERIAL_CODE)
+                        && instance.getStatus() == StockInstanceStatus.SHIPPED).hasSize(2);
+    }
+
+    @Test
     @DisplayName("resell-batch: RECALLED → AVAILABLE 및 회수/출고 마커 제거, received_at 재입고 시점 갱신")
     void resellBatch_restoresRecalledInstancesToAvailable() throws Exception {
         seedShipped(2, "P-S4-IT-005");
@@ -382,6 +407,26 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                    AND received_at BETWEEN ? AND ?
                 """, Integer.class, SERIAL_CODE, before, after);
         assertThat(dbResoldRows).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("resell-batch: 최신 productId로 회수한 legacy product_code 2행도 전부 AVAILABLE 복원")
+    void resellBatch_restoresLegacyProductCodeRowsByProductId() throws Exception {
+        seedShipped(2, "P-S4-LEGACY", LEGACY_SERIAL_CODE);
+        postRecall("P-S4-LEGACY", "S4-RETURN-LEGACY-RESELL", 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)));
+
+        postResell("S4-RETURN-LEGACY-RESELL", 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()", is(2)))
+                .andExpect(jsonPath("$.data[0].status", is("AVAILABLE")))
+                .andExpect(jsonPath("$.data[0].productId", is(serialProductId.toString())));
+
+        assertThat(stockInstanceRepository.findByProductId(serialProductId)).filteredOn(
+                instance -> instance.getProductCode().equals(LEGACY_SERIAL_CODE)
+                        && instance.getStatus() == StockInstanceStatus.AVAILABLE
+                        && instance.getRecallSlipNo() == null).hasSize(2);
     }
 
     @Test
@@ -568,9 +613,13 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
     }
 
     private void seedShipped(int count, String partnerCode) {
+        seedShipped(count, partnerCode, SERIAL_CODE);
+    }
+
+    private void seedShipped(int count, String partnerCode, String storedProductCode) {
         for (int i = 1; i <= count; i++) {
             StockInstance instance = StockInstance.inbound(
-                    serialProductId, SERIAL_CODE, warehouseId, "구매",
+                    serialProductId, storedProductCode, warehouseId, "구매",
                     LocalDateTime.of(2026, 6, i, 9, 0),
                     new BigDecimal("500000"), "S4-IN-" + i);
             instance.ship(partnerCode, "S4-OUT-" + i, LocalDateTime.of(2026, 6, i, 15, 0));
@@ -587,12 +636,12 @@ class StockInstanceOutboundIT extends AbstractPostgresIT {
                        deleted_at = CURRENT_TIMESTAMP,
                        deleted_by = ?
                  WHERE is_deleted = false
-                   AND (product_code IN (?, ?)
+                   AND (product_code IN (?, ?, ?)
                         OR inbound_slip_no LIKE 'S3-IN-%'
                         OR inbound_slip_no LIKE 'S4-IN-%'
                         OR outbound_slip_no LIKE 'S3-OUT-%'
                         OR outbound_slip_no LIKE 'S4-OUT-%'
                         OR recall_slip_no LIKE 'S4-RETURN-%')
-                """, CLEANUP_USER, SERIAL_CODE, BATCH_CODE));
+                """, CLEANUP_USER, SERIAL_CODE, BATCH_CODE, LEGACY_SERIAL_CODE));
     }
 }

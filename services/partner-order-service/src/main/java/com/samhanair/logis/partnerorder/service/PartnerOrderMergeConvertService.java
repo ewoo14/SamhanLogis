@@ -208,12 +208,14 @@ public class PartnerOrderMergeConvertService {
         // 7. slip-service 병합 발행
         Map<String, Object> payload = new LinkedHashMap<>();
         String partnerCode = orders.isEmpty() ? null : orders.get(0).getPartnerCode();
+        String bizCode = orders.isEmpty() ? null : orders.get(0).getBizCode();
         payload.put("sourceOrders", orders.stream()
                 .map(o -> Map.of("partnerOrderId", o.getId().toString(),
                         "orderNo", o.getOrderNo()))
                 .toList());
         payload.put("partnerId", partnerId);
         payload.put("partnerCode", partnerCode);
+        payload.put("bizCode", bizCode);
         payload.put("partnerName", shippingInfo != null ? shippingInfo.partnerName() : null);
         payload.put("warehouseCode", req.warehouseCode());
         payload.put("warehouseId", warehouseId.toString());
