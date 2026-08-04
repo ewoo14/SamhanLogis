@@ -492,6 +492,16 @@ describe('판매전표 수정 모드 trailing 빈행 계약', () => {
 })
 
 describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () => {
+  it('R9 RED-A1: 기존 확정행에는 품목 선택기를 렌더하지 않는다', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+
+    expect(source).toMatch(/const canSelectProduct = !line\.productId\?\.trim\(\)/)
+    expect(source).toMatch(/\{canSelectProduct \? <ProductAutocomplete/)
+  })
+
   it('RED-A1: 매출 수정 표의 품목 셀은 ProductAutocomplete로 빈행 품목을 확정하고 저장 필드에 반영한다', () => {
     const source = readFileSync(
       fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
@@ -615,6 +625,67 @@ describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () =>
     provider.removeItem(blankLineId)
     const next = coeditLinesToEditLines(provider, editLinesFrom(serverLines), knownServerLineIds)
     expect(next.map((line) => line.lineId)).toEqual([SERVER_LINE_1, SERVER_LINE_2, SERVER_LINE_3])
+    provider.destroy()
+  })
+
+  it('R9 RED-A2: 서버에서 삭제된 확정행을 제거한 뒤 남은 행에 lineId를 중복 부착하지 않는다', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([
+      { lineId: SERVER_LINE_1, productId: PRODUCT_1 },
+      { lineId: SERVER_LINE_2, productId: PRODUCT_2 },
+      { lineId: '', productId: '' },
+    ])
+
+    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_2]))).toBe(true)
+    reseedCoeditLineIds(provider, [SERVER_LINE_2], new Set([SERVER_LINE_1, SERVER_LINE_2]))
+
+    expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'lineId')))
+      .toHaveLength(2)
+    expect(provider.getItemValue(0, 'lineId')).toBe(SERVER_LINE_2)
+    expect(knownServerLineIds.has(provider.getItemValue(1, 'lineId'))).toBe(false)
+    expect(new Set(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'lineId'))
+      .filter((lineId) => knownServerLineIds.has(lineId))).size)
+      .toBe(1)
+    expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'productId')))
+      .toEqual([PRODUCT_2, ''])
+    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_2]))).toBe(false)
+    provider.destroy()
+  })
+
+  it('R9 RED-A3: 1라인 서버 삭제는 삭제행을 신규행으로 부활시키지 않는다', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([
+      { lineId: SERVER_LINE_1, productId: PRODUCT_1 },
+      { lineId: '', productId: '' },
+    ])
+
+    reseedCoeditLineIds(provider, [], new Set([SERVER_LINE_1]))
+
+    expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'productId')))
+      .toEqual([''])
+    expect(knownServerLineIds.has(provider.getItemValue(0, 'lineId'))).toBe(false)
+    provider.destroy()
+  })
+
+  it('R9 조합: 2라인 이상에서 중간 라인을 삭제해도 앞뒤 서버 행만 남는다', async () => {
+    const provider = await makeProvider()
+    provider.replaceItems([
+      { lineId: SERVER_LINE_1, productId: PRODUCT_1 },
+      { lineId: SERVER_LINE_2, productId: PRODUCT_2 },
+      { lineId: SERVER_LINE_3, productId: PRODUCT_3 },
+      { lineId: '', productId: '' },
+    ])
+
+    reseedCoeditLineIds(provider, [SERVER_LINE_1, SERVER_LINE_3], new Set([SERVER_LINE_1, SERVER_LINE_2, SERVER_LINE_3]))
+
+    expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'lineId')))
+      .toHaveLength(3)
+    expect(provider.getItemValue(0, 'lineId')).toBe(SERVER_LINE_1)
+    expect(provider.getItemValue(1, 'lineId')).toBe(SERVER_LINE_3)
+    expect(knownServerLineIds.has(provider.getItemValue(2, 'lineId'))).toBe(false)
+    expect(provider.items.toArray().map((_, index) => provider.getItemValue(index, 'productId')))
+      .toEqual([PRODUCT_1, PRODUCT_3, ''])
+    expect(coeditLineIdsAreStale(provider, new Set([SERVER_LINE_1, SERVER_LINE_3]))).toBe(false)
     provider.destroy()
   })
 })

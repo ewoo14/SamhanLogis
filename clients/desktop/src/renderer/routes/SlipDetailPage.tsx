@@ -1815,6 +1815,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     // 계보/가격기억 귀속의 권위 — 현재 로드된 상세 응답의 라인 id 집합. Y.Doc 직독 lineId 는
     // 이 집합으로 검증해야 클라 랜덤 UUID(구 seed/신규행)가 payload 에 새어 400 이 나지 않는다.
     const knownServerLineIds = toServerLineIdSet(slipData.lines)
+    const previousServerLineIds = toServerLineIdSet(
+      mode === 'OUTBOUND' ? salesEditLines : purchaseEditLines,
+    )
 
     const applyProviderState = (nextProvider: DocCoeditProvider) => {
       if (mode === 'OUTBOUND') {
@@ -1881,7 +1884,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         // lineId seed 이전 구 스냅샷 — 원격 편집(memo/수량 등)은 보존하고 아이템 lineId 만
         // 서버 기준으로 in-place 복구한다(reseedCoeditLineIds). 미복구 시 전 라인이 신규로
         // 강등돼 계보가 소실되거나 계보 보유 문서에서 BE requireLineIdContract 가 400 을 낸다.
-        reseedCoeditLineIds(nextProvider, slipData.lines.map((line) => line.id ?? ''))
+        reseedCoeditLineIds(
+          nextProvider,
+          slipData.lines.map((line) => line.id ?? ''),
+          previousServerLineIds,
+        )
       }
       applyProviderState(nextProvider)
       unsubscribeDoc = nextProvider.subscribeDoc(() => applyProviderState(nextProvider))
@@ -2642,12 +2649,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               const changedStatusId = `sales-edit-price-changed-${line.key}`
               const changed = Boolean(line.lineId && repriceChangedLineIds.has(line.lineId))
               const productValue = detailProductOption(line)
+              const canSelectProduct = !line.productId?.trim()
               return <tr
                 key={line.key}
                 className={changed ? 'price-memory-refreshed-row' : undefined}
               >
                 <td>
-                  <ProductAutocomplete
+                  {canSelectProduct ? <ProductAutocomplete
                     value={productValue}
                     onChange={(product) => applySalesProductSelection(index, line, product)}
                     onInputCommitChange={(committed) => {
@@ -2672,7 +2680,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                     placeholder="모델명 또는 품목명"
                     resultSelectionMode={null}
                     debounceMs={250}
-                  />
+                  /> : <span>{line.productName || '-'}</span>}
                 </td>
                 <td>
                   <CollaborativeSlipInput

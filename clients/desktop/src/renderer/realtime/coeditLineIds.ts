@@ -88,6 +88,7 @@ export function coeditLineIdsAreStale(
   knownServerLineIds: ReadonlySet<string>,
 ): boolean {
   const rowCount = provider.items.toArray().length
+  const seenServerLineIds = new Set<string>()
   for (let index = 0; index < rowCount; index += 1) {
     // trailing 입력행은 아직 품목을 확정하지 않은 화면 전용 행이다. replaceItems가
     // 호환성을 위해 client lineId를 부여하더라도 서버 라인 집합의 정합성 판정에는
@@ -96,6 +97,8 @@ export function coeditLineIdsAreStale(
     if (!provider.getItemValue(index, 'productId').trim()) continue
     const docLineId = readCoeditLineId(provider, index)
     if (!docLineId || !knownServerLineIds.has(docLineId)) return true
+    if (seenServerLineIds.has(docLineId)) return true
+    seenServerLineIds.add(docLineId)
   }
   return false
 }
@@ -118,11 +121,50 @@ export function coeditLineIdsAreStale(
 export function reseedCoeditLineIds(
   provider: DocCoeditProvider,
   orderedServerLineIds: ReadonlyArray<string>,
+  previousServerLineIds?: ReadonlySet<string>,
 ): void {
-  const rowCount = provider.items.toArray().length
+  const serverLineIds = new Set(orderedServerLineIds.filter(Boolean))
   provider.doc.transact(() => {
+    if (previousServerLineIds) {
+      // 현재 REST에 없는 직전 서버 라인은 원격 삭제행이다. 먼저 제거해야 위치 재시드가
+      // 삭제행을 신규행으로 부활시키거나 생존 행에 같은 ID를 덧씌우지 않는다.
+      const seenServerLineIds = new Set<string>()
+      for (let index = provider.items.toArray().length - 1; index >= 0; index -= 1) {
+        if (!provider.getItemValue(index, 'productId').trim()) continue
+        const lineId = readCoeditLineId(provider, index)
+        if (lineId && serverLineIds.has(lineId)) {
+          if (seenServerLineIds.has(lineId)) provider.items.delete(index, 1)
+          else seenServerLineIds.add(lineId)
+        } else if (lineId && previousServerLineIds.has(lineId)) {
+          provider.items.delete(index, 1)
+        }
+      }
+
+      // 남은 legacy 행은 현재 서버 ID에 아직 대응하지 않는 행이다. 현재 서버 라인보다
+      // 많으면 초과분은 삭제된 행의 잔재이므로 제거하고, 부족한 ID만 순서대로 복구한다.
+      const presentServerLineIds = new Set<string>()
+      const unknownIndexes: number[] = []
+      for (let index = 0; index < provider.items.toArray().length; index += 1) {
+        if (!provider.getItemValue(index, 'productId').trim()) continue
+        const lineId = readCoeditLineId(provider, index)
+        if (lineId && serverLineIds.has(lineId)) presentServerLineIds.add(lineId)
+        else unknownIndexes.push(index)
+      }
+      const missingServerLineIds = orderedServerLineIds.filter(
+        (lineId) => lineId && !presentServerLineIds.has(lineId),
+      )
+      for (let i = unknownIndexes.length - 1; i >= missingServerLineIds.length; i -= 1) {
+        provider.items.delete(unknownIndexes[i]!, 1)
+      }
+      const remainingUnknownIndexes = unknownIndexes.slice(0, missingServerLineIds.length)
+      remainingUnknownIndexes.forEach((index, position) => {
+        provider.setItemValue(index, LINE_ID_CELL, missingServerLineIds[position]!)
+      })
+      return
+    }
+
     let serverIndex = 0
-    for (let index = 0; index < rowCount && serverIndex < orderedServerLineIds.length; index += 1) {
+    for (let index = 0; index < provider.items.toArray().length && serverIndex < orderedServerLineIds.length; index += 1) {
       // 미확정 빈행은 서버 라인이 아니므로 서버 ID를 소비하지 않고 그대로 둔다.
       if (!provider.getItemValue(index, 'productId').trim()) continue
       const lineId = orderedServerLineIds[serverIndex]

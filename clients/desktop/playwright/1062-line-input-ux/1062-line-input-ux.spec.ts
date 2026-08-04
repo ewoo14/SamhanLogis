@@ -70,13 +70,15 @@ test.describe('PR #1063 전표 라인 입력 UX mock', () => {
 
     const productInputs = editLines.getByRole('combobox')
     const initialProductInputCount = await productInputs.count()
+    expect(initialProductInputCount).toBe(1)
+    await expect(editLines.locator('tbody tr').first().getByRole('combobox')).toHaveCount(0)
     const blankProductInput = productInputs.last()
     await blankProductInput.fill('AJ040RXH4BC1')
     await page.waitForTimeout(500)
     await expect(page.getByRole('listbox', { name: '품목 목록' })).toBeVisible()
     await page.getByRole('listbox', { name: '품목 목록' }).getByRole('option').first().click()
 
-    await expect(editLines.getByRole('combobox')).toHaveCount(initialProductInputCount + 1)
+    await expect(editLines.getByRole('combobox')).toHaveCount(initialProductInputCount)
     await expect(page.getByRole('dialog', { name: '품목 검색 결과' })).toHaveCount(0)
     await expect(editLines.getByRole('combobox').last()).toHaveValue('')
   })
