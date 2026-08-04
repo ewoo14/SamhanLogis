@@ -37,7 +37,7 @@ public record PartnerLedgerReadModel(List<Partner> partners, Partner selected) {
     public record Document(DocumentType type, String documentNo, LocalDate date, String partnerCode,
                            String partnerName, String deliveryAddress, BigDecimal amount,
                            List<Line> lines, String accountCode, String description,
-                           BigDecimal debit, BigDecimal credit) {
+                           BigDecimal debit, BigDecimal credit, PartnerLedgerContract.Effect effect) {
         public Document(DocumentType type, String documentNo, LocalDate date, String partnerCode,
                         String partnerName, String deliveryAddress, BigDecimal amount,
                         List<Line> lines) {
@@ -45,11 +45,28 @@ public record PartnerLedgerReadModel(List<Partner> partners, Partner selected) {
                     null, null, defaultDebit(type, amount), defaultCredit(type, amount));
         }
 
+        public Document(DocumentType type, String documentNo, LocalDate date, String partnerCode,
+                        String partnerName, String deliveryAddress, BigDecimal amount,
+                        List<Line> lines, String accountCode, String description,
+                        BigDecimal debit, BigDecimal credit) {
+            this(type, documentNo, date, partnerCode, partnerName, deliveryAddress, amount, lines,
+                    accountCode, description, debit, credit, defaultEffect(type));
+        }
+
         public Document {
             lines = lines == null ? List.of() : List.copyOf(lines);
             amount = amount == null ? BigDecimal.ZERO : amount;
             debit = debit == null ? BigDecimal.ZERO : debit;
             credit = credit == null ? BigDecimal.ZERO : credit;
+            effect = effect == null ? defaultEffect(type) : effect;
+        }
+
+        private static PartnerLedgerContract.Effect defaultEffect(DocumentType type) {
+            return switch (type) {
+                case SALE, SALE_SUMMARY -> PartnerLedgerContract.Effect.SALE;
+                case CASH_RECEIPT -> PartnerLedgerContract.Effect.PAYMENT;
+                case JOURNAL_ONLY -> PartnerLedgerContract.Effect.NONE;
+            };
         }
 
         private static BigDecimal defaultDebit(DocumentType type, BigDecimal amount) {

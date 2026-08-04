@@ -11,11 +11,12 @@ import java.util.UUID;
  * 거래처별 원장에 표시할 판매전표 read projection.
  *
  * <p>원장 화면의 외부 계약은 전표번호·거래처코드·거래처명 같은 업무 식별자만 사용한다.
- * 내부 전표 UUID·거래처 UUID·라인 UUID는 이 projection과 JSON 계약에 포함하지 않는다.
+ * 내부 중복제거용 slipId는 accounting-service internal 호출에서만 소비하고 화면에는 노출하지 않는다.
  * 배송주소는 {@code slips.delivery_address} 원본만 전사하며 다른 주소나 적요로 대체하지 않는다.
  */
 public record PartnerLedgerSalesResponse(
         String slipNo,
+        UUID slipId,
         LocalDate slipDate,
         String status,
         String partnerCode,
@@ -28,13 +29,13 @@ public record PartnerLedgerSalesResponse(
     public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
                                       String partnerCode, String partnerName,
                                       String deliveryAddress, List<Line> lines) {
-        this(slipNo, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
+        this(slipNo, null, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
     }
 
     public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
                                       String partnerCode, String partnerName, String businessNumber,
                                       String deliveryAddress, List<Line> lines) {
-        this(slipNo, slipDate, status, partnerCode, null, partnerName, businessNumber, deliveryAddress, lines);
+        this(slipNo, null, slipDate, status, partnerCode, null, partnerName, businessNumber, deliveryAddress, lines);
     }
 
     /**
@@ -58,7 +59,7 @@ public record PartnerLedgerSalesResponse(
      * 전표 entity를 원장 전용 외부 read projection으로 변환한다.
      *
      * @param slip 활성 OUTBOUND 전표
-     * @return UUID 없는 원장 판매전표 응답
+     * @return 내부 중복제거 키를 포함한 원장 판매전표 응답
      */
     public static PartnerLedgerSalesResponse from(Slip slip) {
         List<Line> lines = slip.getLines().stream()
@@ -66,6 +67,7 @@ public record PartnerLedgerSalesResponse(
                 .toList();
         return new PartnerLedgerSalesResponse(
                 slip.getSlipNo(),
+                slip.getId(),
                 slip.getSlipDate(),
                 slip.getStatus().name(),
                 slip.getPartnerCode(),

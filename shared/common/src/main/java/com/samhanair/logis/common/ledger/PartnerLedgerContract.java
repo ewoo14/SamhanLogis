@@ -19,14 +19,22 @@ public final class PartnerLedgerContract {
     /** 원장 read model이 공개할 문서 종류. */
     public enum DocumentType { SALE, SALE_SUMMARY, CASH_RECEIPT, JOURNAL_ONLY }
 
+    /** 문서가 원장 산식에 미치는 업무 효과. 문서 타입과 효과를 재추론하지 않도록 분리한다. */
+    public enum Effect { SALE, PAYMENT, NONE }
+
     /** 한 문서의 표시 금액과 원장 방향. journal-only는 분개 방향을 그대로 보관한다. */
     public record Entry(DocumentType type, BigDecimal amount,
-                        BigDecimal debit, BigDecimal credit) {
+                        BigDecimal debit, BigDecimal credit, Effect effect) {
+        public Entry(DocumentType type, BigDecimal amount, BigDecimal debit, BigDecimal credit) {
+            this(type, amount, debit, credit, defaultEffect(type));
+        }
+
         public Entry {
             type = Objects.requireNonNull(type, "type");
             amount = amount == null ? BigDecimal.ZERO : amount;
             debit = debit == null ? BigDecimal.ZERO : debit;
             credit = credit == null ? BigDecimal.ZERO : credit;
+            effect = effect == null ? Effect.NONE : effect;
             if (debit.signum() < 0 || credit.signum() < 0) {
                 throw new IllegalArgumentException("debit/credit 금액은 음수일 수 없습니다");
             }
@@ -39,6 +47,14 @@ public final class PartnerLedgerContract {
                     || expected.credit().compareTo(credit) != 0)) {
                 throw new IllegalArgumentException(type + " 금액과 차변/대변 방향이 일치하지 않습니다");
             }
+        }
+
+        private static Effect defaultEffect(DocumentType type) {
+            return switch (type) {
+                case SALE, SALE_SUMMARY -> Effect.SALE;
+                case CASH_RECEIPT -> Effect.PAYMENT;
+                case JOURNAL_ONLY -> Effect.NONE;
+            };
         }
 
         /** VAT 포함 판매전표 금액을 원장 차변 효과로 투영한다. */
@@ -70,7 +86,7 @@ public final class PartnerLedgerContract {
     public record Direction(BigDecimal debit, BigDecimal credit) { }
 
     /** 세 화면이 공유하는 원장 fold 결과. */
-    public record Totals(BigDecimal salesTotal, BigDecimal paymentTotal,
+    public record Totals(BigDecimal openingBalance, BigDecimal salesTotal, BigDecimal paymentTotal,
                          BigDecimal periodDelta, BigDecimal closingBalance) { }
 
     /**
@@ -86,17 +102,17 @@ public final class PartnerLedgerContract {
         if (entries != null) {
             for (Entry entry : entries) {
                 if (entry == null) continue;
-                if (entry.type() == DocumentType.SALE || entry.type() == DocumentType.SALE_SUMMARY) {
+                if (entry.effect() == Effect.SALE) {
                     sales = sales.add(entry.amount());
                 }
-                if (entry.type() == DocumentType.CASH_RECEIPT) {
+                if (entry.effect() == Effect.PAYMENT) {
                     payments = payments.add(entry.amount());
                 }
             }
         }
         BigDecimal opening = openingBalance == null ? BigDecimal.ZERO : openingBalance;
         delta = sales.subtract(payments);
-        return new Totals(sales, payments, delta, opening.add(delta));
+        return new Totals(opening, sales, payments, delta, opening.add(delta));
     }
 
     /** signed movement를 음수 금액 없이 차변/대변 칸으로 투영한다. */
