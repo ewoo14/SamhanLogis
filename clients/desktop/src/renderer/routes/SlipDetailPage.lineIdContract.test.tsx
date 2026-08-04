@@ -25,6 +25,7 @@ import {
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
   persistedDetailLines,
+  promoteSelectedProductToCoedit,
   repricedFieldValue,
   slipLineAmounts,
   syncDetailAmountToDoc,
@@ -68,6 +69,25 @@ const serverLines = [
 const knownServerLineIds = toServerLineIdSet(serverLines)
 
 describe('SlipDetailPage — R12 빈행 로컬 draft 분리 (RED-first)', () => {
+  it('R15 RED-A2 draft 품목 확정은 반환된 lineId로 삭제 가능한 협업 라인을 만든다', async () => {
+    const provider = await makeProvider()
+
+    const lineId = promoteSelectedProductToCoedit(provider, 0, null, {
+      productId: PRODUCT_2,
+      productName: '품목2',
+      modelName: '모델2',
+      specification: '규격2',
+    })
+
+    expect(lineId).toBeTruthy()
+    expect(provider.items.length).toBe(1)
+    expect(provider.getItemValueById(lineId, 'productId')).toBe(PRODUCT_2)
+
+    provider.removeItem(lineId)
+    expect(provider.items.length).toBe(0)
+    provider.destroy()
+  })
+
   it('RED-A1 상대가 수량·메모만 저장해도 내 확정행과 미저장 값이 유지된다', async () => {
     const provider = await makeProvider()
     provider.replaceItems([

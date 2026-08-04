@@ -417,6 +417,32 @@ function detailCoeditFieldPath(index: number, line: Pick<PurchaseEditLine, 'line
   return `items.${line.lineId || index}.${cell}`
 }
 
+/** 품목 확정 시에만 draft를 Y.Doc 라인으로 승격하고, 삭제에 쓸 안정키를 반환한다. */
+export function promoteSelectedProductToCoedit(
+  provider: DocCoeditProvider,
+  index: number,
+  lineId: string | null,
+  selected: { productId: string; productName: string; modelName: string; specification: string },
+): string | null {
+  let targetIndex = index
+  let promotedLineId = lineId
+  if (lineId) {
+    targetIndex = provider.getItemIndexById(lineId)
+    if (targetIndex < 0) return lineId
+  } else {
+    // lineId 없는 행은 trailing draft뿐이다. 그 외 위치는 협업 라인으로 추정하지 않는다.
+    if (targetIndex !== provider.items.length || !selected.productId) return null
+    promotedLineId = provider.addItem()
+  }
+  provider.doc.transact(() => {
+    provider.setItemValue(targetIndex, 'productId', selected.productId)
+    provider.setItemValue(targetIndex, 'productName', selected.productName)
+    provider.setItemValue(targetIndex, 'modelName', selected.modelName)
+    provider.setItemValue(targetIndex, 'specification', selected.specification)
+  })
+  return promotedLineId
+}
+
 /** 상세 표 DOM 식별자 — CRDT 안정키와 분리한 행 위치 기반 testid 경로다. */
 function detailCoeditTestIdPath(index: number, cell: string): string {
   return `items.${index}.${cell}`
@@ -4817,24 +4843,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           modelName: '',
           specification: '',
         }
-    updateSalesLine(index, next)
-    if (!slipFormCoeditProvider) return
-    slipFormCoeditProvider.doc.transact(() => {
-      let targetIndex = index
-      if (line.lineId) {
-        const byId = slipFormCoeditProvider.getItemIndexById(line.lineId)
-        if (byId >= 0) targetIndex = byId
-      } else if (targetIndex >= slipFormCoeditProvider.items.length) {
-        // trailing 빈행은 Y.Doc에 없으므로 품목 확정 순간에만 협업 라인으로 승격한다.
-        slipFormCoeditProvider.addItem()
-      }
-      const set = (cell: string, value: string) => {
-        slipFormCoeditProvider.setItemValue(targetIndex, cell, value)
-      }
-      set('productId', next.productId ?? '')
-      set('productName', next.productName ?? '')
-      set('modelName', next.modelName ?? '')
-      set('specification', next.specification ?? '')
+    const promotedLineId = slipFormCoeditProvider
+      ? promoteSelectedProductToCoedit(slipFormCoeditProvider, index, line.lineId ?? null, next)
+      : null
+    updateSalesLine(index, {
+      ...next,
+      ...(promotedLineId && !line.lineId ? { lineId: promotedLineId } : {}),
     })
   }
 
