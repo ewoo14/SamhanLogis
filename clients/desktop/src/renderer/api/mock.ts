@@ -2141,6 +2141,7 @@ function colorForPresence(seed: string): MockPresenceColor {
 export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   const method = (config.method ?? 'get').toUpperCase()
   const url = config.url ?? ''
+  const body = parseMockBody(config)
 
   // POST /auth/login → 토큰 응답
   if (method === 'POST' && url.endsWith('/auth/login')) {
@@ -11510,16 +11511,36 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
   // S3 운송사 마스터 + 배차 그룹 목록/생성 mock. 전송 mutation은 의도적으로 제공하지 않는다.
   if (url.match(/\/admin\/carriers(?:\?.*)?$/)) {
     if (method === 'GET') return envelope([
-      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true, partnerId: null },
-      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true, partnerId: '정산-한빛' },
+      { code: 'ARO', name: '아로로지스', isArologis: true, isActive: true },
+      { code: 'QUICK-01', name: '한빛퀵', isArologis: false, isActive: true },
     ])
-    if (method === 'POST') return envelope({ code: 'NEW', name: '신규 운송사', isArologis: false, isActive: true, partnerId: null })
+    if (method === 'POST') return envelope({ code: 'NEW', name: '신규 운송사', isArologis: false, isActive: true })
+  }
+  const carrierMutationMatch = url.match(/\/admin\/carriers\/([^/?]+)$/)
+  if (carrierMutationMatch) {
+    if (method === 'PATCH') return envelope({ code: decodeURIComponent(carrierMutationMatch[1]!), name: (body as { name?: string })?.name ?? '운송사', isArologis: false, isActive: true })
+    if (method === 'DELETE') return envelope(null)
   }
   if (url.match(/\/admin\/dispatch-groups(?:\?.*)?$/)) {
     if (method === 'GET') return envelope([
       { groupNo: 'DG-20260804-01', dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: 'ARO', carrierName: '아로로지스', carrierArologis: true, transferStatus: 'NOT_SENT', slips: [{ slipNo: '2026/08/04-1', inclusionType: 'OUTBOUND', sequence: 1 }] },
     ])
     if (method === 'POST') return envelope({ groupNo: 'DG-NEW', dispatchDate: '2026-08-04', vehicleLabel: '신규 차량', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT', slips: [] })
+  }
+  const groupMutationMatch = url.match(/\/admin\/dispatch-groups\/([^/?]+)(?:\/([^/?]+)(?:\/([^/?]+))?)?$/)
+  if (groupMutationMatch) {
+    const groupNo = decodeURIComponent(groupMutationMatch[1]!)
+    const action = groupMutationMatch[2]
+    const target = decodeURIComponent(groupMutationMatch[3] ?? '')
+    const base = { groupNo, dispatchDate: '2026-08-04', vehicleLabel: '1톤 냉동 01', carrierCode: null, carrierName: null, carrierArologis: null, transferStatus: 'NOT_SENT' as const, slips: [] }
+    if (method === 'GET') return envelope(base)
+    if (method === 'PUT' && !action) return envelope({ ...base, ...(body as object) })
+    if (method === 'DELETE' && !action) return envelope(null)
+    if (action === 'carrier' && method === 'PUT') return envelope({ ...base, carrierCode: target, carrierName: target })
+    if (action === 'carrier' && method === 'DELETE') return envelope(base)
+    if (action === 'slips' && target === 'order' && method === 'PUT') return envelope(base)
+    if (action === 'slips' && method === 'POST') return envelope({ ...base, slips: [{ ...(body as object), sequence: 1 }] })
+    if (action === 'slips' && method === 'DELETE') return envelope(base)
   }
 
   // SP-08-3-4: /admin/notifications/dispatch-sms/history — 배차문자 저장내역 mock.

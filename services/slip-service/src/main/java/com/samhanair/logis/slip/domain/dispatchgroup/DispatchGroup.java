@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -32,6 +33,7 @@ public class DispatchGroup extends BaseEntity {
     @Column(name = "dispatch_date", nullable = false) private LocalDate dispatchDate;
     @Column(name = "vehicle_label", nullable = false, length = 100) private String vehicleLabel;
     @Column(name = "carrier_id") private UUID carrierId;
+    @Version @Column(name = "version", nullable = false) private Long version;
     @Enumerated(EnumType.STRING) @Column(name = "transfer_status", nullable = false, length = 20)
     private TransferStatus transferStatus = TransferStatus.NOT_SENT;
     @Column(name = "transferred_at") private LocalDateTime transferredAt;

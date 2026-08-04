@@ -42,11 +42,9 @@ class DispatchGroupLifecycleIT extends AbstractPostgresIT {
         String groupNo = "S1-G-" + UUID.randomUUID();
 
         groupService.create(new DispatchGroupRequests.Create(groupNo, date, "2.5톤", null));
-        // API 응답은 UUID를 노출하지 않으므로 테스트 내부 repository에서 route id를 획득한다.
-        UUID groupId = groupRepository.findByGroupNoAndIsDeletedFalse(groupNo).orElseThrow().getId();
-        groupService.addSlip(groupId, new DispatchGroupRequests.AddSlip(outbound.getSlipNo(), com.samhanair.logis.slip.domain.dispatchgroup.InclusionType.OUTBOUND));
-        groupService.addSlip(groupId, new DispatchGroupRequests.AddSlip(inbound.getSlipNo(), com.samhanair.logis.slip.domain.dispatchgroup.InclusionType.INBOUND));
-        assertThatThrownBy(() -> groupService.addSlip(groupId,
+        groupService.addSlip(groupNo, new DispatchGroupRequests.AddSlip(outbound.getSlipNo(), com.samhanair.logis.slip.domain.dispatchgroup.InclusionType.OUTBOUND));
+        groupService.addSlip(groupNo, new DispatchGroupRequests.AddSlip(inbound.getSlipNo(), com.samhanair.logis.slip.domain.dispatchgroup.InclusionType.INBOUND));
+        assertThatThrownBy(() -> groupService.addSlip(groupNo,
                 new DispatchGroupRequests.AddSlip(outbound.getSlipNo(), com.samhanair.logis.slip.domain.dispatchgroup.InclusionType.OUTBOUND)))
                 .hasMessageContaining("이미 다른");
         assertThatThrownBy(() -> referenceGuard.assertDeletable(outbound.getId()))
@@ -57,15 +55,14 @@ class DispatchGroupLifecycleIT extends AbstractPostgresIT {
     void inactive_carrier_remains_on_existing_group_but_cannot_be_assigned_again() {
         Carrier carrier = Carrier.create("S1-" + UUID.randomUUID(), "임시 운송사", false, null);
         carrier = carrierRepository.saveAndFlush(carrier);
-        UUID carrierId = carrier.getId();
+        String carrierCode = carrier.getCode();
         String groupNo = "S1-C-" + UUID.randomUUID();
         LocalDate date = LocalDate.of(2026, 8, 4);
-        groupService.create(new DispatchGroupRequests.Create(groupNo, date, "1톤", carrierId));
-        carrierService.update(carrierId, new CarrierRequests.Update(null, null, null, null, false));
+        groupService.create(new DispatchGroupRequests.Create(groupNo, date, "1톤", carrierCode));
+        carrierService.update(carrierCode, new CarrierRequests.Update(null, null, null, false));
         String second = "S1-C-" + UUID.randomUUID();
         groupService.create(new DispatchGroupRequests.Create(second, date, "1톤", null));
-        UUID secondId = groupRepository.findByGroupNoAndIsDeletedFalse(second).orElseThrow().getId();
-        assertThatThrownBy(() -> groupService.assignCarrier(secondId, carrierId))
+        assertThatThrownBy(() -> groupService.assignCarrier(second, carrierCode))
                 .hasMessageContaining("비활성");
     }
 }

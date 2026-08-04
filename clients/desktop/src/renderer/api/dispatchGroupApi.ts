@@ -5,9 +5,6 @@ export interface Carrier {
   name: string
   isArologis: boolean
   isActive: boolean
-  /** 내부 mutation path 전용. 응답 계약이 제공할 때만 보관하며 화면에는 렌더링하지 않는다. */
-  id?: string
-  partnerId?: string | null
 }
 
 export interface DispatchGroupSlip {
@@ -25,15 +22,12 @@ export interface DispatchGroup {
   carrierArologis: boolean | null
   transferStatus: 'NOT_SENT' | 'SENT' | 'FAILED'
   slips: DispatchGroupSlip[]
-  /** S1 응답이 제공할 때만 mutation에 사용. UUID를 화면에 표시하지 않는다. */
-  id?: string
 }
 
 export interface CreateCarrierRequest {
   code: string
   name: string
   isArologis: boolean
-  partnerId?: string | null
 }
 
 export interface UpdateCarrierRequest {
@@ -48,7 +42,7 @@ export interface CreateDispatchGroupRequest {
   groupNo: string
   dispatchDate: string
   vehicleLabel: string
-  carrierId?: string | null
+  carrierCode?: string | null
 }
 
 export const carrierApi = {
@@ -60,12 +54,12 @@ export const carrierApi = {
     const response = await apiClient.post<ApiEnvelope<Carrier>>('/admin/carriers', request)
     return response.data.data
   },
-  async update(id: string, request: UpdateCarrierRequest): Promise<Carrier> {
-    const response = await apiClient.patch<ApiEnvelope<Carrier>>(`/admin/carriers/${encodeURIComponent(id)}`, request)
+  async update(code: string, request: UpdateCarrierRequest): Promise<Carrier> {
+    const response = await apiClient.patch<ApiEnvelope<Carrier>>(`/admin/carriers/${encodeURIComponent(code)}`, request)
     return response.data.data
   },
-  async remove(id: string): Promise<void> {
-    await apiClient.delete(`/admin/carriers/${encodeURIComponent(id)}`)
+  async remove(code: string): Promise<void> {
+    await apiClient.delete(`/admin/carriers/${encodeURIComponent(code)}`)
   },
 }
 
@@ -78,27 +72,31 @@ export const dispatchGroupApi = {
     const response = await apiClient.post<ApiEnvelope<DispatchGroup>>('/admin/dispatch-groups', request)
     return response.data.data
   },
-  async update(id: string, request: Pick<CreateDispatchGroupRequest, 'dispatchDate' | 'vehicleLabel'>): Promise<DispatchGroup> {
-    const response = await apiClient.put<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(id)}`, request)
+  async update(groupNo: string, request: Pick<CreateDispatchGroupRequest, 'dispatchDate' | 'vehicleLabel'>): Promise<DispatchGroup> {
+    const response = await apiClient.put<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}`, request)
     return response.data.data
   },
-  async remove(id: string): Promise<void> {
-    await apiClient.delete(`/admin/dispatch-groups/${encodeURIComponent(id)}`)
+  async remove(groupNo: string): Promise<void> {
+    await apiClient.delete(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}`)
   },
-  async assignCarrier(id: string, carrierId: string): Promise<DispatchGroup> {
-    const response = await apiClient.put<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(id)}/carrier/${encodeURIComponent(carrierId)}`)
+  async assignCarrier(groupNo: string, carrierCode: string): Promise<DispatchGroup> {
+    const response = await apiClient.put<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/carrier/${encodeURIComponent(carrierCode)}`)
     return response.data.data
   },
-  async clearCarrier(id: string): Promise<DispatchGroup> {
-    const response = await apiClient.delete<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(id)}/carrier`)
+  async clearCarrier(groupNo: string): Promise<DispatchGroup> {
+    const response = await apiClient.delete<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/carrier`)
     return response.data.data
   },
-  async addSlip(id: string, slipNo: string, inclusionType: 'OUTBOUND' | 'INBOUND'): Promise<DispatchGroup> {
-    const response = await apiClient.post<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(id)}/slips`, { slipNo, inclusionType })
+  async addSlip(groupNo: string, slipNo: string, inclusionType: 'OUTBOUND' | 'INBOUND'): Promise<DispatchGroup> {
+    const response = await apiClient.post<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/slips`, { slipNo, inclusionType })
     return response.data.data
   },
-  async removeSlip(id: string, slipNo: string): Promise<DispatchGroup> {
-    const response = await apiClient.delete<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(id)}/slips/${encodeURIComponent(slipNo)}`)
+  async removeSlip(groupNo: string, slipNo: string): Promise<DispatchGroup> {
+    const response = await apiClient.delete<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/slips/${encodeURIComponent(slipNo)}`)
+    return response.data.data
+  },
+  async reorder(groupNo: string, slipNos: string[]): Promise<DispatchGroup> {
+    const response = await apiClient.put<ApiEnvelope<DispatchGroup>>(`/admin/dispatch-groups/${encodeURIComponent(groupNo)}/slips/order`, { slipNos })
     return response.data.data
   },
 }

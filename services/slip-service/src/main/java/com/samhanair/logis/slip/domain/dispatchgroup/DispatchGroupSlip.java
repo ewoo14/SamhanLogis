@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -29,6 +30,7 @@ public class DispatchGroupSlip extends BaseEntity {
     @Enumerated(EnumType.STRING) @Column(name = "inclusion_type", nullable = false, length = 20)
     private InclusionType inclusionType;
     @Column(name = "sequence", nullable = false) private int sequence;
+    @Version @Column(name = "version", nullable = false) private Long version;
 
     private DispatchGroupSlip(UUID groupId, UUID slipId, InclusionType inclusionType, int sequence) {
         if (groupId == null || slipId == null || inclusionType == null) throw new IllegalArgumentException("편입 참조 필수");

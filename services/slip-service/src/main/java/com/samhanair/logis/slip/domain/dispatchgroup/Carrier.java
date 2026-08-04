@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -42,6 +43,8 @@ public class Carrier extends BaseEntity {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    @Version @Column(name = "version", nullable = false) private Long version;
 
     private Carrier(String code, String name, boolean arologis, UUID partnerId) {
         if (code == null || code.isBlank()) throw new IllegalArgumentException("운송사 코드 필수");

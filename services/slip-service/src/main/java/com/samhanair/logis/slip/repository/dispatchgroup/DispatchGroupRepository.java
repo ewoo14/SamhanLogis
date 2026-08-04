@@ -8,7 +8,6 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DispatchGroupRepository extends JpaRepository<DispatchGroup, UUID> {
-    Optional<DispatchGroup> findByIdAndIsDeletedFalse(UUID id);
     Optional<DispatchGroup> findByGroupNoAndIsDeletedFalse(String groupNo);
     boolean existsByGroupNoAndIsDeletedFalse(String groupNo);
     boolean existsByCarrierIdAndIsDeletedFalse(UUID carrierId);

@@ -26,28 +26,35 @@ public class CarrierService {
     public CarrierResponse create(CarrierRequests.Create request) {
         if (repository.existsByCodeIgnoreCaseAndIsDeletedFalse(request.code()))
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 운송사 코드입니다.");
-        return CarrierResponse.from(repository.save(Carrier.create(request.code(), request.name(), request.isArologis(), request.partnerId())));
+        return CarrierResponse.from(repository.save(Carrier.create(request.code(), request.name(), request.isArologis(), null)));
     }
 
     @Transactional
-    public CarrierResponse update(UUID id, CarrierRequests.Update request) {
-        Carrier carrier = load(id);
+    public CarrierResponse update(String code, CarrierRequests.Update request) {
+        Carrier carrier = load(code);
         if (request.code() != null && !request.code().equalsIgnoreCase(carrier.getCode())
                 && repository.existsByCodeIgnoreCaseAndIsDeletedFalse(request.code()))
             throw new BusinessException(ErrorCode.CONFLICT, "이미 사용 중인 운송사 코드입니다.");
-        carrier.update(request.code(), request.name(), request.isArologis() == null ? carrier.isArologis() : request.isArologis(), request.partnerId());
+        carrier.update(request.code(), request.name(), request.isArologis() == null ? carrier.isArologis() : request.isArologis(), carrier.getPartnerId());
         if (Boolean.FALSE.equals(request.isActive())) carrier.deactivate();
         if (Boolean.TRUE.equals(request.isActive())) carrier.activate();
         return CarrierResponse.from(carrier);
     }
 
     @Transactional
-    public void delete(UUID id, String actor) {
-        if (groupRepository.existsByCarrierIdAndIsDeletedFalse(id))
+    public void delete(String code, String actor) {
+        Carrier carrier = load(code);
+        if (groupRepository.existsByCarrierIdAndIsDeletedFalse(carrier.getId()))
             throw new BusinessException(ErrorCode.CONFLICT, "배차 그룹에 지정된 운송사는 삭제할 수 없습니다. 비활성화만 가능합니다.");
-        load(id).markDeleted(actor == null ? "system" : actor);
+        carrier.markDeleted(actor == null ? "system" : actor);
     }
 
-    public Carrier load(UUID id) { return repository.findByIdAndIsDeletedFalse(id)
+    public CarrierResponse get(String code) { return CarrierResponse.from(load(code)); }
+
+    public Carrier load(String code) { return repository.findByCodeIgnoreCaseAndIsDeletedFalse(code)
+            .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "운송사를 찾을 수 없습니다.")); }
+
+    /** 그룹의 구조적 carrier_id 조인을 위한 내부 전용 활성 조회. 외부 계약에는 노출하지 않는다. */
+    public Carrier loadInternal(UUID id) { return repository.findByIdAndIsDeletedFalse(id)
             .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "운송사를 찾을 수 없습니다.")); }
 }
