@@ -29,6 +29,12 @@ export interface SlipCollaborationPanelProps {
   editMode?: boolean
   /** 편집모드 상태 변경 콜백. */
   onEditModeChange?: (next: boolean) => void
+  /** 외부 lifecycle 전이로 현재 협업 입력 저장이 무효화된 경우의 안내. */
+  editBlockedReason?: string | null
+  /** dirty 입력 여부를 상세 lifecycle 조정기에 전달한다. */
+  onDirtyChange?: (dirty: boolean) => void
+  /** 협업 수정 저장 pending 여부를 상세 lifecycle 조정기에 전달한다. */
+  onPendingChange?: (pending: boolean) => void
   /** 수정완료 후 상세 화면이 추가 동작을 해야 할 때 사용. */
   onCommitted?: () => void
 }
@@ -98,6 +104,9 @@ export function SlipCollaborationPanel({
   currentValues = EMPTY_CURRENT_VALUES,
   editMode = false,
   onEditModeChange,
+  editBlockedReason = null,
+  onDirtyChange,
+  onPendingChange,
   onCommitted,
 }: SlipCollaborationPanelProps) {
   const queryClient = useQueryClient()
@@ -227,6 +236,20 @@ export function SlipCollaborationPanel({
       setCommitError(serverMessage ?? '수정 저장에 실패했습니다. 다시 시도해 주세요.')
     },
   })
+
+  const editDirty = editMode
+    && editModeInitializedRef.current
+    && (OVERLAY_FIELD_OPTIONS.some((option) => (
+      valueForEdit(currentValues[option.value]) !== valueForEdit(editValues[option.value])
+    )) || editReason.trim().length > 0)
+
+  useEffect(() => {
+    onDirtyChange?.(editDirty)
+  }, [editDirty, onDirtyChange])
+
+  useEffect(() => {
+    onPendingChange?.(commitMutation.isPending)
+  }, [commitMutation.isPending, onPendingChange])
 
   const comments: SlipCollabComment[] = Array.isArray(commentsQuery.data) ? commentsQuery.data : []
   const trimmedComment = commentBody.trim()
@@ -403,6 +426,11 @@ export function SlipCollaborationPanel({
 
           {canEdit && editMode ? (
             <section aria-label="수정" style={{ width: '100%' }}>
+                {editBlockedReason ? (
+                  <p role="alert" style={{ margin: '0 0 10px', fontSize: 12, color: 'var(--color-danger-700, #B91C1C)' }}>
+                    {editBlockedReason}
+                  </p>
+                ) : null}
                 <div
                   data-testid="slip-collab-edit-form"
                   style={{
@@ -428,6 +456,7 @@ export function SlipCollaborationPanel({
                       {option.label}
                       <Input
                         value={editValues[option.value] ?? ''}
+                        disabled={Boolean(editBlockedReason)}
                         onChange={(event) => setEditValues((prev) => ({
                           ...prev,
                           [option.value]: event.target.value,
@@ -439,6 +468,7 @@ export function SlipCollaborationPanel({
                   ))}
                   <Input
                     value={editReason}
+                    disabled={Boolean(editBlockedReason)}
                     onChange={(event) => setEditReason(event.target.value)}
                     placeholder="사유"
                     maxLength={500}
@@ -451,7 +481,7 @@ export function SlipCollaborationPanel({
                     variant="primary"
                     size="sm"
                     loading={commitMutation.isPending}
-                    disabled={commitMutation.isPending}
+                    disabled={commitMutation.isPending || Boolean(editBlockedReason)}
                     onClick={() => commitMutation.mutate()}
                   >
                     수정완료

@@ -1105,6 +1105,49 @@ export function buildDetailLinePayload(line: PurchaseEditLine): SlipLineInput {
   }
 }
 
+/** lifecycle 전이 성공 후 서버가 채택하는 도착 status — 편집 표면 조정의 단일 진실원. */
+export function transitionDestinationStatus(
+  action: SlipTransitionAction,
+): SlipDetail['status'] {
+  switch (action) {
+    case 'save': return 'SAVED'
+    case 'send': return 'SENT'
+    case 'accept': return 'ACCEPTED'
+    case 'process': return 'PROCESSING'
+    case 'complete': return 'INSPECTING'
+    case 'inspect': return 'COMPLETED'
+    case 'ship': return 'SHIPPING'
+    case 'deliver': return 'DELIVERED'
+    case 'confirm': return 'CONFIRMED'
+    case 'reject': return 'REJECTED'
+    case 'cancel': return 'CANCELED'
+  }
+}
+
+/** 직접수정·기사 PATCH가 서버에서 허용되는 status. */
+export function isDirectEditStatus(status: SlipDetail['status']): boolean {
+  return status === 'DRAFT' || status === 'SAVED'
+}
+
+/** 협업 overlay 저장이 서버에서 허용되는 물리 종결 전 status. */
+export function isCollabEditStatus(status: SlipDetail['status']): boolean {
+  return status !== 'SHIPPING'
+    && status !== 'DELIVERED'
+    && status !== 'CANCELED'
+    && status !== 'REJECTED'
+}
+
+/** 직접수정 폼의 서버 저장 payload 기준 fingerprint — UI용 random key는 비교에서 제외한다. */
+function editDraftFingerprint(
+  fields: Record<string, string | null>,
+  lines: PurchaseEditLine[],
+): string {
+  return JSON.stringify({
+    ...fields,
+    lines: lines.map(buildDetailLinePayload),
+  })
+}
+
 /**
  * "2026-05-04T14:32:18+09:00" → "14:32" — Designer print-spec.md § 3.4.
  */
@@ -1200,6 +1243,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-6-2: 매출 direct PUT 수정 modal state.
   const [salesEditOpen, setSalesEditOpen] = useState(false)
+  const [salesEditStale, setSalesEditStale] = useState(false)
   const [salesConflictMessage, setSalesConflictMessage] = useState<string | null>(null)
   const [salesIsConflict, setSalesIsConflict] = useState(false)
   const [salesReloadSuccessMessage, setSalesReloadSuccessMessage] = useState<string | null>(null)
@@ -1220,6 +1264,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-5-2/E1-b-2: 매입 direct PUT 수정 state.
   const [purchaseEditOpen, setPurchaseEditOpen] = useState(false)
+  const [purchaseEditStale, setPurchaseEditStale] = useState(false)
   const [purchaseConflictMessage, setPurchaseConflictMessage] = useState<string | null>(null)
   const [purchaseIsConflict, setPurchaseIsConflict] = useState(false)
   const [purchaseReloadSuccessMessage, setPurchaseReloadSuccessMessage] = useState<string | null>(null)
@@ -1268,6 +1313,16 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }, [purchaseEditOpen, mode])
   // §7 협업 수정완료: 확정/완료 전표도 물리 종결 전이면 overlay 필드 편집 가능.
   const [collabEditMode, setCollabEditMode] = useState(false)
+  const [collabEditBlockedReason, setCollabEditBlockedReason] = useState<string | null>(null)
+  const [collabEditDirty, setCollabEditDirty] = useState(false)
+  const [collabCommitPending, setCollabCommitPending] = useState(false)
+  const [editingDriverStale, setEditingDriverStale] = useState(false)
+  const [editSurfaceNotice, setEditSurfaceNotice] = useState<string | null>(null)
+  const salesEditBaselineRef = useRef<string | null>(null)
+  const purchaseEditBaselineRef = useRef<string | null>(null)
+  const driverEditBaselineRef = useRef<{ name: string; phone: string } | null>(null)
+  const previousSlipStatusRef = useRef<SlipDetail['status'] | null>(null)
+  const transitionDiscardRef = useRef(false)
   const [slipFormCoeditProvider, setSlipFormCoeditProvider] = useState<DocCoeditProvider | null>(null)
   // coedit provider 로딩 중 여부 — 로딩 중에만 입력/저장 잠금(이중소스 방지). 로드 실패(provider=null) 시엔 비-coedit 평문 편집·저장 허용(콜랩 서버 다운 시 영구잠금 회귀 방지, 리뷰 Opus 라운드2 BLOCKING).
   const [slipFormCoeditPending, setSlipFormCoeditPending] = useState(false)
@@ -1297,6 +1352,72 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   salesPartnerIdRef.current = salesPartnerId
   const purchasePartnerIdRef = useRef(purchasePartnerId)
   purchasePartnerIdRef.current = purchasePartnerId
+  const salesEditFingerprint = useMemo(() => editDraftFingerprint({
+    partnerId: salesPartnerId,
+    partnerName: salesPartnerName,
+    partnerCode: salesPartnerCode,
+    businessNumber: salesBusinessNumber,
+    memo: salesMemo,
+    deliveryAddress: salesDeliveryAddress,
+    supervisionAddress: salesSupervisionAddress,
+    projectName: salesProjectName,
+    recipientPhone: salesRecipientPhone,
+    paymentDueDate: salesPaymentDueDate,
+  }, salesEditLines), [
+    salesPartnerId,
+    salesPartnerName,
+    salesPartnerCode,
+    salesBusinessNumber,
+    salesMemo,
+    salesDeliveryAddress,
+    salesSupervisionAddress,
+    salesProjectName,
+    salesRecipientPhone,
+    salesPaymentDueDate,
+    salesEditLines,
+  ])
+  const purchaseEditFingerprint = useMemo(() => editDraftFingerprint({
+    partnerId: purchasePartnerId,
+    partnerName: purchasePartnerName,
+    partnerCode: purchasePartnerCode,
+    businessNumber: purchaseBusinessNumber,
+    memo: purchaseMemo,
+    deliveryAddress: purchaseDeliveryAddress,
+    projectName: purchaseProjectName,
+    recipientPhone: purchaseRecipientPhone,
+    paymentDueDate: purchasePaymentDueDate,
+  }, purchaseEditLines), [
+    purchasePartnerId,
+    purchasePartnerName,
+    purchasePartnerCode,
+    purchaseBusinessNumber,
+    purchaseMemo,
+    purchaseDeliveryAddress,
+    purchaseProjectName,
+    purchaseRecipientPhone,
+    purchasePaymentDueDate,
+    purchaseEditLines,
+  ])
+  const salesEditDirty = salesEditOpen
+    && salesEditBaselineRef.current !== null
+    && salesEditFingerprint !== salesEditBaselineRef.current
+  const purchaseEditDirty = purchaseEditOpen
+    && purchaseEditBaselineRef.current !== null
+    && purchaseEditFingerprint !== purchaseEditBaselineRef.current
+  const driverEditDirty = editingDriver
+    && driverEditBaselineRef.current !== null
+    && (draftDriverName !== driverEditBaselineRef.current.name
+      || draftDriverPhone !== driverEditBaselineRef.current.phone)
+  const salesEditDirtyRef = useRef(false)
+  const purchaseEditDirtyRef = useRef(false)
+  const driverEditDirtyRef = useRef(false)
+  const collabEditDirtyRef = useRef(false)
+  const collabCommitPendingRef = useRef(false)
+  salesEditDirtyRef.current = salesEditDirty
+  purchaseEditDirtyRef.current = purchaseEditDirty
+  driverEditDirtyRef.current = driverEditDirty
+  collabEditDirtyRef.current = collabEditDirty
+  collabCommitPendingRef.current = collabCommitPending
   // 편집 세션 종료(두 폼 모두 닫힘) 시 재조회 강조 초기화 — 다음 세션에 이전 강조가 잔존하지 않도록.
   useEffect(() => {
     if (!salesEditOpen && !purchaseEditOpen) {
@@ -1448,15 +1569,54 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const transitionMutation = useMutation({
     mutationFn: (vars: { action: SlipTransitionAction; reason?: string }) =>
       transitionSlip(id, vars.action, vars.reason ? { reason: vars.reason } : undefined),
-    onSuccess: () => {
-      // 전이 성공으로 협업 수정 가능 상태가 바뀔 수 있으므로, 열린 편집 폼이
-      // SHIPPING 등 수정 불가 상태에 남아 409를 유발하지 않도록 즉시 닫는다.
-      setCollabEditMode(false)
+    onSuccess: (_updated, vars) => {
+      const destinationStatus = transitionDestinationStatus(vars.action)
+      const discardConfirmed = transitionDiscardRef.current
+
+      // lifecycle 전이로 이전 상태 전용 저장 경로가 무효화된 표면은 성공시에만 닫는다.
+      // 실패 callback에서는 이 정리를 하지 않아 사용자가 입력을 수정·재시도할 수 있다.
+      if (discardConfirmed || !isDirectEditStatus(destinationStatus)) {
+        setSalesEditOpen(false)
+        setSalesEditStale(false)
+        setPurchaseEditOpen(false)
+        setPurchaseEditStale(false)
+        setEditingDriver(false)
+        setEditingDriverStale(false)
+        salesEditBaselineRef.current = null
+        purchaseEditBaselineRef.current = null
+        driverEditBaselineRef.current = null
+      }
+      // ACCEPTED/PROCESSING/INSPECTING/COMPLETED/CONFIRMED 등 협업 저장이 아직 유효한
+      // 도착점에서는 입력을 유지한다. SHIPPING/DELIVERED/REJECTED/CANCELED 에서만 닫는다.
+      if (discardConfirmed || !isCollabEditStatus(destinationStatus)) {
+        setCollabEditMode(false)
+        setCollabEditBlockedReason(null)
+        setCollabEditDirty(false)
+      }
+      if (discardConfirmed) {
+        setEditSurfaceNotice('전이 전에 확인한 대로 저장하지 않은 편집 내용을 폐기했습니다.')
+      } else {
+        setEditSurfaceNotice(null)
+      }
+      transitionDiscardRef.current = false
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
       // S2d-1 NB6: 임계 전이(send/inspect)가 redline anchor 를 세팅하므로 redline 도 갱신한다.
       void queryClient.invalidateQueries({ queryKey: ['slipRedline', id] })
       setRejectReason('')
+    },
+    onError: (error) => {
+      // 서버 상태가 유지된 실패에서는 모든 편집 표면과 입력을 그대로 둔다.
+      transitionDiscardRef.current = false
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const conflictMessage = '다른 사용자가 먼저 전표를 전이했습니다. 현재 편집 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.'
+        setEditSurfaceNotice(conflictMessage)
+        if (salesEditOpen) setSalesEditStale(true)
+        if (purchaseEditOpen) setPurchaseEditStale(true)
+        if (editingDriver) setEditingDriverStale(true)
+        if (collabEditMode) setCollabEditBlockedReason(conflictMessage)
+        void refetchDetail()
+      }
     },
   })
 
@@ -1474,6 +1634,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setSalesReloadSuccessMessage(null)
       setRepriceChangedLineIds(new Set())
       setSalesEditOpen(false)
+      setSalesEditStale(false)
+      salesEditBaselineRef.current = null
       queryClient.setQueryData(['slip', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
       await queryClient.invalidateQueries({ queryKey: ['slips'] })
@@ -1515,6 +1677,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       setPurchaseReloadSuccessMessage(null)
       setRepriceChangedLineIds(new Set())
       setPurchaseEditOpen(false)
+      setPurchaseEditStale(false)
+      purchaseEditBaselineRef.current = null
       queryClient.setQueryData(['slip', id], updated)
       await queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
       await queryClient.invalidateQueries({ queryKey: ['slips'] })
@@ -1644,6 +1808,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       }),
     onSuccess: () => {
       setEditingDriver(false)
+      setEditingDriverStale(false)
+      driverEditBaselineRef.current = null
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['delivery-batches'] })
     },
@@ -1698,6 +1864,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   })
 
   const syncPurchaseFormFromData = useCallback((data: SlipDetail) => {
+    const nextLines = toPurchaseEditLines(data)
     setPurchasePartnerId(data.partnerId ?? '')
     setPurchasePartnerName(data.partnerName ?? '')
     setPurchasePartnerCode(data.partnerCode ?? '')
@@ -1707,8 +1874,19 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setPurchaseProjectName(data.projectName ?? '')
     setPurchaseRecipientPhone(data.recipientPhone ?? '')
     setPurchasePaymentDueDate(data.paymentDueDate ?? '')
-    setPurchaseEditLines(toPurchaseEditLines(data))
+    setPurchaseEditLines(nextLines)
     setPurchaseUpdatedAt(data.updatedAt)
+    purchaseEditBaselineRef.current = editDraftFingerprint({
+      partnerId: data.partnerId ?? '',
+      partnerName: data.partnerName ?? '',
+      partnerCode: data.partnerCode ?? '',
+      businessNumber: data.businessNumber ?? '',
+      memo: data.memo ?? '',
+      deliveryAddress: data.deliveryAddress ?? '',
+      projectName: data.projectName ?? '',
+      recipientPhone: data.recipientPhone ?? '',
+      paymentDueDate: data.paymentDueDate ?? '',
+    }, nextLines)
   }, [setPurchaseUpdatedAt])
 
   const handlePurchaseConflictReload = useCallback(async () => {
@@ -1744,6 +1922,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   // SP-08-6-2: 매출 수정 폼 동기화 + 충돌 reload 핸들러
   const syncSalesFormFromData = useCallback((data: SlipDetail) => {
+    const nextLines = toPurchaseEditLines(data)
     setSalesPartnerId(data.partnerId ?? '')
     setSalesPartnerName(data.partnerName ?? '')
     setSalesPartnerCode(data.partnerCode ?? '')
@@ -1754,8 +1933,20 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     setSalesProjectName(data.projectName ?? '')
     setSalesRecipientPhone(data.recipientPhone ?? '')
     setSalesPaymentDueDate(data.paymentDueDate ?? '')
-    setSalesEditLines(toPurchaseEditLines(data))
+    setSalesEditLines(nextLines)
     setSalesUpdatedAt(data.updatedAt)
+    salesEditBaselineRef.current = editDraftFingerprint({
+      partnerId: data.partnerId ?? '',
+      partnerName: data.partnerName ?? '',
+      partnerCode: data.partnerCode ?? '',
+      businessNumber: data.businessNumber ?? '',
+      memo: data.memo ?? '',
+      deliveryAddress: data.deliveryAddress ?? '',
+      supervisionAddress: data.supervisionAddress ?? '',
+      projectName: data.projectName ?? '',
+      recipientPhone: data.recipientPhone ?? '',
+      paymentDueDate: data.paymentDueDate ?? '',
+    }, nextLines)
   }, [setSalesUpdatedAt])
 
   const handleSalesConflictReload = useCallback(async () => {
@@ -1891,6 +2082,79 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     }
   }, [detailQuery.data, id, mode, purchaseEditOpen, salesEditOpen, slipCollabBasePath])
 
+  // SSE/refetch 로 status 가 바뀌는 타 브라우저 경로도 lifecycle 조정기를 통과시킨다.
+  // dirty 입력은 화면에 남겨 복사할 기회를 주되, 새 status에서 저장 버튼은 차단한다.
+  useEffect(() => {
+    const currentStatus = detailQuery.data?.status
+    if (!currentStatus) return
+    const previousStatus = previousSlipStatusRef.current
+    previousSlipStatusRef.current = currentStatus
+    if (!previousStatus || previousStatus === currentStatus) return
+
+    const directStatusInvalid = !isDirectEditStatus(currentStatus)
+    const collabStatusInvalid = !isCollabEditStatus(currentStatus)
+    const affectedSurfaces: string[] = []
+
+    if (salesEditOpen && directStatusInvalid) {
+      affectedSurfaces.push('매출 직접수정')
+      if (salesEditDirtyRef.current || salesUpdateMutation.isPending) {
+        setSalesEditStale(true)
+      } else {
+        setSalesEditOpen(false)
+        setSalesEditStale(false)
+        salesEditBaselineRef.current = null
+      }
+    }
+    if (purchaseEditOpen && directStatusInvalid) {
+      affectedSurfaces.push('매입 직접수정')
+      if (purchaseEditDirtyRef.current || purchaseUpdateMutation.isPending) {
+        setPurchaseEditStale(true)
+      } else {
+        setPurchaseEditOpen(false)
+        setPurchaseEditStale(false)
+        purchaseEditBaselineRef.current = null
+      }
+    }
+    if (editingDriver && directStatusInvalid) {
+      affectedSurfaces.push('기사 정보')
+      if (driverEditDirtyRef.current || driverMutation.isPending) {
+        setEditingDriverStale(true)
+      } else {
+        setEditingDriver(false)
+        setEditingDriverStale(false)
+        driverEditBaselineRef.current = null
+      }
+    }
+    if (collabEditMode && collabStatusInvalid) {
+      affectedSurfaces.push('협업 수정')
+      if (collabEditDirtyRef.current || collabCommitPendingRef.current) {
+        setCollabEditBlockedReason(
+          `다른 사용자가 전표를 ${slipStatusLabel(currentStatus)} 단계로 변경했습니다. `
+          + '현재 입력은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.',
+        )
+      } else {
+        setCollabEditMode(false)
+        setCollabEditBlockedReason(null)
+      }
+    }
+
+    if (affectedSurfaces.length > 0) {
+      setEditSurfaceNotice(
+        `다른 사용자가 전표를 ${slipStatusLabel(currentStatus)} 단계로 변경했습니다. `
+        + `${affectedSurfaces.join(', ')}은(는) 현재 상태에서 저장할 수 없습니다.`,
+      )
+    }
+  }, [
+    detailQuery.data?.status,
+    editingDriver,
+    purchaseEditOpen,
+    salesEditOpen,
+    collabEditMode,
+    driverMutation.isPending,
+    purchaseUpdateMutation.isPending,
+    salesUpdateMutation.isPending,
+  ])
+
   if (!id) return null
 
   if (detailQuery.isLoading) {
@@ -1970,6 +2234,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   const isLocked = isPhysicalTerminal
 
   const canCollabEdit = canAccess('slip.audit-overlay', 'update') && !isPhysicalTerminal
+  const resolvedCollabEditBlockedReason = collabEditBlockedReason
+    ?? (collabEditMode && !canCollabEdit
+      ? `현재 단계(${slipStatusLabel(slip.status)})에서는 협업 수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.`
+      : null)
 
   const collabEditValues: Record<string, string | null | undefined> = {
     memo: slip.memo,
@@ -2011,6 +2279,29 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     return '알 수 없는 오류'
   })()
 
+  const editSavePending = slipFormCoeditPending
+    || modalRepricePending
+    || partnerReprice.isPending
+    || salesUpdateMutation.isPending
+    || purchaseUpdateMutation.isPending
+    || driverMutation.isPending
+    || collabCommitPending
+
+  const dirtyEditSurfaces = [
+    salesEditDirty ? '매출 직접수정' : null,
+    purchaseEditDirty ? '매입 직접수정' : null,
+    driverEditDirty ? '기사 정보' : null,
+    collabEditDirty ? '협업 수정' : null,
+  ].filter((label): label is string => label !== null)
+
+  const handleDriverEditSave = () => {
+    if (editingDriverStale) {
+      setEditSurfaceNotice('현재 전표 상태가 바뀌어 기사 정보를 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
+      return
+    }
+    driverMutation.mutate()
+  }
+
   const handleTransition = (action: SlipTransitionAction) => {
     if (transitionMutation.isPending) return
     if (shouldBlockPartnerlessSend(slip, action)) {
@@ -2027,7 +2318,26 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         alert('반려 사유를 입력하세요.')
         return
       }
-      transitionMutation.mutate({ action, reason })
+    }
+
+    if (editSavePending) {
+      alert('편집 저장 또는 단가 확인이 진행 중입니다. 저장이 끝난 뒤 전이를 실행하세요.')
+      return
+    }
+    if (dirtyEditSurfaces.length > 0) {
+      const shouldDiscard = window.confirm(
+        `저장되지 않은 편집 내용(${dirtyEditSurfaces.join(', ')})이 있습니다. `
+        + '먼저 각 폼에서 저장하거나, 확인을 눌러 입력을 폐기하고 전이하시겠습니까? '
+        + '취소를 누르면 전이를 실행하지 않고 입력을 유지합니다.',
+      )
+      if (!shouldDiscard) return
+      transitionDiscardRef.current = true
+    } else {
+      transitionDiscardRef.current = false
+    }
+
+    if (action === 'reject') {
+      transitionMutation.mutate({ action, reason: rejectReason.trim() })
     } else {
       transitionMutation.mutate({ action })
     }
@@ -2118,7 +2428,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     if (!window.confirm('정말로 이 전표를 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없으며, 전표가 취소 상태로 변경됩니다.')) {
       return
     }
-    transitionMutation.mutate({ action: 'cancel' })
+    handleTransition('cancel')
   }
 
   /** 하단 "완료" — 다음 정상 단계 transition 실행. */
@@ -2128,7 +2438,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       alert(PARTNER_REQUIRED_SEND_MESSAGE)
       return
     }
-    transitionMutation.mutate({ action: nextPrimaryAction })
+    // transitionMutation.mutate 는 dirty/stale/discard 정책을 포함한 공통 handleTransition 뒤에서 실행한다.
+    handleTransition(nextPrimaryAction)
   }
 
   // 분기 사유 (REJECTED 시 BE 가 응답에 reason 을 별도 필드로 줄 수 있음 — Slice A 는 memo 사용)
@@ -2406,6 +2717,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   )
 
   const handlePurchaseEditSave = () => {
+    if (purchaseEditStale) {
+      setEditSurfaceNotice('현재 전표 상태가 바뀌어 매입 직접수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
+      return
+    }
     // R9 #3/#4: 재조회 중이거나 카탈로그 미확보 단가를 직접 확인하지 않은 상태는 저장 금지.
     if (modalRepricePending || partnerReprice.isPending || hasUnavailableReprice) return
     purchaseUpdateMutation.mutate({
@@ -2425,6 +2740,10 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   const handleSalesEditSave = () => {
+    if (salesEditStale) {
+      setEditSurfaceNotice('현재 전표 상태가 바뀌어 매출 직접수정 내용을 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.')
+      return
+    }
     // 매출·매입 미러 — B 거래처에 A 단가가 각인되는 저장 race/fail-open을 이중 방어한다.
     if (modalRepricePending || partnerReprice.isPending || hasUnavailableReprice) return
     salesUpdateMutation.mutate({
@@ -2461,7 +2780,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setSalesEditOpen(false)}
+            onClick={() => {
+              setSalesEditOpen(false)
+              setSalesEditStale(false)
+              salesEditBaselineRef.current = null
+            }}
             disabled={salesUpdateMutation.isPending}
             data-testid="sales-slip-edit-cancel"
           >
@@ -2471,7 +2794,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             type="button"
             variant="primary"
             loading={salesUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
+            disabled={salesEditStale || salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
             data-testid="sales-slip-edit-save"
             onClick={handleSalesEditSave}
           >
@@ -2479,6 +2802,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </Button>
         </div>
       </div>
+
+      {salesEditStale ? (
+        <div className="error-banner" role="alert" data-testid="sales-slip-edit-stale-banner">
+          다른 사용자가 전표를 전이했습니다. 현재 매출 수정 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.
+        </div>
+      ) : null}
 
       {salesConflictMessage ? (
         <div className="error-banner" role="alert" data-testid="sales-slip-edit-conflict-banner">
@@ -2795,7 +3124,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setPurchaseEditOpen(false)}
+            onClick={() => {
+              setPurchaseEditOpen(false)
+              setPurchaseEditStale(false)
+              purchaseEditBaselineRef.current = null
+            }}
             disabled={purchaseUpdateMutation.isPending}
             data-testid="purchase-slip-edit-cancel"
           >
@@ -2805,7 +3138,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             type="button"
             variant="primary"
             loading={purchaseUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={purchaseUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || purchaseEditLines.length === 0}
+            disabled={purchaseEditStale || purchaseUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || purchaseEditLines.length === 0}
             data-testid="purchase-slip-edit-submit"
             onClick={handlePurchaseEditSave}
           >
@@ -2813,6 +3146,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           </Button>
         </div>
       </div>
+
+      {purchaseEditStale ? (
+        <div className="error-banner" role="alert" data-testid="purchase-slip-edit-stale-banner">
+          다른 사용자가 전표를 전이했습니다. 현재 매입 수정 내용은 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.
+        </div>
+      ) : null}
 
       {purchaseConflictMessage ? (
         <div className="error-banner" role="alert" data-testid="purchase-slip-edit-conflict-banner">
@@ -3181,6 +3520,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setSalesConflictMessage(null)
                 setSalesIsConflict(false)
                 setSalesReloadSuccessMessage(null)
+                setSalesEditStale(false)
+                setEditSurfaceNotice(null)
                 setSalesEditOpen(true)
               }}
             >
@@ -3198,6 +3539,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 setPurchaseConflictMessage(null)
                 setPurchaseIsConflict(false)
                 setPurchaseReloadSuccessMessage(null)
+                setPurchaseEditStale(false)
+                setEditSurfaceNotice(null)
                 setPurchaseEditOpen(true)
               }}
             >
@@ -3209,7 +3552,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
               variant="primary"
               size="sm"
               data-testid="slip-collab-edit-open"
-              onClick={() => setCollabEditMode(true)}
+              onClick={() => {
+                setCollabEditBlockedReason(null)
+                setEditSurfaceNotice(null)
+                setCollabEditMode(true)
+              }}
             >
               수정
             </Button>
@@ -3336,6 +3683,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setSalesConflictMessage(null)
                         setSalesIsConflict(false)
                         setSalesReloadSuccessMessage(null)
+                        setSalesEditStale(false)
+                        setEditSurfaceNotice(null)
                         setSalesEditOpen(true)
                       }}
                     >
@@ -3353,6 +3702,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                         setPurchaseConflictMessage(null)
                         setPurchaseIsConflict(false)
                         setPurchaseReloadSuccessMessage(null)
+                        setPurchaseEditStale(false)
+                        setEditSurfaceNotice(null)
                         setPurchaseEditOpen(true)
                       }}
                     >
@@ -3365,6 +3716,8 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                       className="mobile-more-sheet-item"
                       onClick={() => {
                         setMobileMoreOpen(false)
+                        setCollabEditBlockedReason(null)
+                        setEditSurfaceNotice(null)
                         setCollabEditMode(true)
                       }}
                     >
@@ -3760,6 +4113,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 onClick={() => {
                   setDraftDriverName(slip.driverName ?? '')
                   setDraftDriverPhone(slip.driverPhone ?? '')
+                  driverEditBaselineRef.current = {
+                    name: slip.driverName ?? '',
+                    phone: slip.driverPhone ?? '',
+                  }
+                  setEditingDriverStale(false)
+                  setEditSurfaceNotice(null)
                   setEditingDriver(true)
                 }}
               >
@@ -3768,6 +4127,12 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             ) : null}
           </div>
           {editingDriver ? (
+            <>
+            {editingDriverStale ? (
+              <div className="error-banner" role="alert" data-testid="slip-driver-edit-stale-banner" style={{ marginBottom: 8 }}>
+                다른 사용자가 전표를 전이했습니다. 현재 기사 정보는 저장할 수 없습니다. 내용을 복사한 뒤 취소하세요.
+              </div>
+            ) : null}
             <div className="driver-edit-grid">
               <label className="driver-edit-field">
                 <span className="detail-label">기사명</span>
@@ -3794,7 +4159,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setEditingDriver(false)}
+                  onClick={() => {
+                    setEditingDriver(false)
+                    setEditingDriverStale(false)
+                    driverEditBaselineRef.current = null
+                  }}
                   disabled={driverMutation.isPending}
                 >
                   취소
@@ -3804,15 +4173,18 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
                   size="sm"
                   loading={driverMutation.isPending}
                   disabled={
-                    !!draftDriverPhone
+                    editingDriverStale
+                    || (!!draftDriverPhone
                     && !KOREAN_MOBILE_PHONE_PATTERN.test(draftDriverPhone)
+                    )
                   }
-                  onClick={() => driverMutation.mutate()}
+                  onClick={handleDriverEditSave}
                 >
                   저장
                 </Button>
               </div>
             </div>
+            </>
           ) : (
             <div className="detail-grid">
               <DetailGridItem value={slip.driverName}>
@@ -4322,6 +4694,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             currentValues={collabEditValues}
             editMode={collabEditMode}
             onEditModeChange={setCollabEditMode}
+            editBlockedReason={resolvedCollabEditBlockedReason}
+            onDirtyChange={setCollabEditDirty}
+            onPendingChange={setCollabCommitPending}
             onCommitted={() => {
               void queryClient.invalidateQueries({ queryKey: ['slip', id] })
               void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
@@ -4335,6 +4710,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           currentValues={collabEditValues}
           editMode={collabEditMode}
           onEditModeChange={setCollabEditMode}
+          editBlockedReason={resolvedCollabEditBlockedReason}
+          onDirtyChange={setCollabEditDirty}
+          onPendingChange={setCollabCommitPending}
           onCommitted={() => {
             void queryClient.invalidateQueries({ queryKey: ['slip', id] })
             void queryClient.invalidateQueries({ queryKey: ['slipAuditLogs', id] })
@@ -4376,7 +4754,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           <Button
             variant="primary"
             data-testid="slip-collab-edit-footer"
-            onClick={() => setCollabEditMode(true)}
+            onClick={() => {
+              setCollabEditBlockedReason(null)
+              setEditSurfaceNotice(null)
+              setCollabEditMode(true)
+            }}
           >
             수정
           </Button>
@@ -4405,6 +4787,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       {errorMessage ? (
         <div className="error-banner" role="alert" style={{ marginTop: 12 }}>
           {errorMessage}
+        </div>
+      ) : null}
+      {editSurfaceNotice ? (
+        <div className="error-banner" role="alert" data-testid="slip-edit-surface-notice" style={{ marginTop: 12 }}>
+          {editSurfaceNotice}
         </div>
       ) : null}
 
