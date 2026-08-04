@@ -5,9 +5,9 @@ import static org.mockito.Mockito.when;
 
 import com.samhanair.logis.accounting.AccountingServiceApplication;
 import com.samhanair.logis.accounting.client.ChatRoomMappingClient;
+import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
-import com.samhanair.logis.accounting.service.LedgerImageService;
 import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.security.permission.DynamicPermissionClient;
 import java.time.LocalDate;
@@ -21,7 +21,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 
-/** 거래처 원장 자동저장이 실제 PostgreSQL commit 후 조회되는지 검증한다. */
+/** 거래처 원장 명시적 snapshot 저장이 실제 PostgreSQL commit 후 조회되는지 검증한다. */
 @SpringBootTest(classes = AccountingServiceApplication.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class LedgerSnapshotPersistenceIT extends AbstractPostgresIT {
@@ -30,20 +30,22 @@ class LedgerSnapshotPersistenceIT extends AbstractPostgresIT {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @MockBean private PartnerLookupClient partnerLookupClient;
+    @MockBean private PartnerLedgerSalesClient partnerLedgerSalesClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     @MockBean private DynamicPermissionClient dynamicPermissionClient;
 
     @Test
-    @DisplayName("자동저장 후 SELECT로 snapshot과 작성자를 확인한다")
-    void autosaveIsVisibleAfterCommitWithAuthor() {
+    @DisplayName("명시적 저장 후 SELECT로 snapshot과 작성자를 확인한다")
+    void explicitCaptureIsVisibleAfterCommitWithAuthor() {
         String partnerCode = "IT-LEDGER-" + UUID.randomUUID().toString().substring(0, 8);
         UUID partnerId = UUID.randomUUID();
         UUID actor = UUID.randomUUID();
         LocalDate from = LocalDate.of(2026, 8, 1);
         LocalDate to = LocalDate.of(2026, 8, 31);
-        when(partnerLookupClient.findByPartnerCode(partnerCode))
-                .thenReturn(java.util.Optional.of(new PartnerSummary(partnerId, partnerCode, "실저장 검증", "", "")));
-        when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(partnerCode)).thenReturn(List.of());
+        when(partnerLookupClient.findByPartnerCodeResult(partnerCode))
+                .thenReturn(PartnerLookupClient.LookupResult.found(
+                        new PartnerSummary(partnerId, partnerCode, "실저장 검증", "", "")));
+        when(partnerLedgerSalesClient.find(from, to, partnerCode, partnerId)).thenReturn(List.of());
 
         ledgerSnapshotService.capture(partnerCode, from, to, actor);
 

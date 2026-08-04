@@ -76,7 +76,7 @@ describe('partner ledger adapter', () => {
 
   it('구형 line snapshot은 documents가 없어도 행과 금액을 그대로 복원한다', () => {
     const legacyLine = {
-      date: '2026-08-01', journalNo: 'J-001', accountCode: '110', accountName: '외상매출금',
+      date: '2026-08-01', journalNo: '2026/08/01-3', accountCode: '110', accountName: '외상매출금',
       description: '구형 원장', debit: '100', credit: '0', balance: '100',
     }
     const restored = mapLedgerSnapshotResponse({
