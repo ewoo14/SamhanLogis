@@ -5,7 +5,6 @@ import com.samhanair.logis.security.permission.RequirePermission;
 import com.samhanair.logis.accounting.domain.DailyClosingKind;
 import com.samhanair.logis.accounting.domain.DailyClosingSourceKind;
 import com.samhanair.logis.accounting.service.HometaxExportService;
-import com.samhanair.logis.accounting.service.LedgerImageService;
 import com.samhanair.logis.accounting.service.LedgerSnapshotService;
 import com.samhanair.logis.accounting.service.MonthEndCloseService;
 import com.samhanair.logis.accounting.service.PartnerLedgerReadService;
@@ -27,6 +26,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -93,7 +93,6 @@ public class AccountingReportController {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     private final SalesAggregateService salesAggregateService;
-    private final LedgerImageService ledgerImageService;
     private final PartnerLedgerReadService partnerLedgerReadService;
     private final LedgerSnapshotService ledgerSnapshotService;
     private final StatementBatchService statementBatchService;
@@ -137,7 +136,33 @@ public class AccountingReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestHeader(value = "X-User-Id", required = false) String userId) {
-        return ApiResponse.ok(ledgerImageService.getLedger(partnerCode, from, to, parseUuid(userId)));
+        // legacy route도 신규 PartnerLedgerCollectionContract 결과를 소비한다. 응답 shape만
+        // 기존 lines로 투영해 기존 호출자를 보존하고, raw journal 직접 계산은 제거한다.
+        return ApiResponse.ok(toLegacyLedgerResponse(partnerLedgerReadService.read(partnerCode, from, to)));
+    }
+
+    private static LedgerImageResponse toLegacyLedgerResponse(PartnerLedgerResponse source) {
+        List<LedgerImageResponse.LedgerLine> lines = new java.util.ArrayList<>();
+        BigDecimal balance = source.openingBalance();
+        for (PartnerLedgerResponse.Document document : source.documents()) {
+            if ("SALE".equals(document.type()) && !document.lines().isEmpty()) {
+                for (PartnerLedgerResponse.Line line : document.lines()) {
+                    BigDecimal debit = line.lineAmount();
+                    BigDecimal credit = BigDecimal.ZERO;
+                    balance = balance.add(debit).subtract(credit);
+                    lines.add(new LedgerImageResponse.LedgerLine(document.date(), document.documentNo(),
+                            document.accountCode(), null, line.productName(), debit, credit, balance));
+                }
+                continue;
+            }
+            BigDecimal debit = document.debit();
+            BigDecimal credit = document.credit();
+            balance = balance.add(debit).subtract(credit);
+            lines.add(new LedgerImageResponse.LedgerLine(document.date(), document.documentNo(),
+                    document.accountCode(), null, document.description(), debit, credit, balance));
+        }
+        return new LedgerImageResponse(source.partnerCode(), source.partnerName(), source.partnerBusinessNo(),
+                List.of(), source.periodFrom(), source.periodTo(), lines);
     }
 
     /** 사용자가 명시적으로 원장 snapshot 저장을 요청하는 write 계약. */

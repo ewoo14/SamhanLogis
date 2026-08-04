@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -138,9 +139,10 @@ public class PartnerLedgerReadModelService {
         for (MutablePartner group : groups.values()) {
             if (group.journalSeen) {
                 PartnerSummary summary = summaries.get(group.partnerId);
-                java.util.Set<String> canonicalSlipKeys = sales.stream()
-                        .map(PartnerLedgerSalesClient.Sale::slipId)
-                        .filter(Objects::nonNull).map(UUID::toString).collect(Collectors.toSet());
+                // slip-service 원장 projection은 UUID를 반환하지 않는다. 실제 canonical link는
+                // journal sourceRefId가 업무 식별자와 별도인 경우에만 적용되므로, 이 경로에서는
+                // 공개 응답 계약을 깨지 않고 journal bundle 자체를 분류한다.
+                java.util.Set<String> canonicalSlipKeys = Set.of();
                 group.documents.addAll(journalDocumentsFromContract(group, from, to, summary,
                         canonicalSlipKeys));
             }
@@ -277,6 +279,10 @@ public class PartnerLedgerReadModelService {
                         line.getAccountCode(), zero(line.getDebitAmount()), zero(line.getCreditAmount()), seed, false));
             }
         }
+        Map<String, String> journalNumbers = byJournal.values().stream()
+                .collect(Collectors.toMap(linesForJournal -> linesForJournal.get(0).getJournal().getId().toString(),
+                        linesForJournal -> linesForJournal.get(0).getJournal().getJournalNo(),
+                        (first, ignored) -> first));
         return PartnerLedgerCollectionContract.classify(evidence).stream()
                 .map(document -> new PartnerLedgerReadModel.Document(
                         switch (document.type()) {
@@ -285,8 +291,10 @@ public class PartnerLedgerReadModelService {
                             case CASH_RECEIPT -> PartnerLedgerReadModel.DocumentType.CASH_RECEIPT;
                             case JOURNAL_ONLY -> PartnerLedgerReadModel.DocumentType.JOURNAL_ONLY;
                         },
-                        document.sourceKey(), document.date(), summary == null ? null : summary.partnerCode(),
-                        summary == null ? null : summary.name(), null, document.amount(), List.of(),
+                        visibleJournalDocumentNo(document.sourceKey(), document.date(), summary, journalNumbers),
+                        document.date(),
+                        summary == null ? null : summary.partnerCode(), summary == null ? null : summary.name(),
+                        null, document.amount(), List.of(),
                         "110", document.effect() == PartnerLedgerContract.Effect.SALE
                                 ? "판매전표 없음 / 전표 미이관" : "분개 수집 계약", document.debit(), document.credit(),
                         document.effect()))
@@ -351,9 +359,7 @@ public class PartnerLedgerReadModelService {
             UUID partnerId = total.getPartnerId();
             if (partnerId == null || selectedId != null && !selectedId.equals(partnerId)) continue;
             List<JournalLine> lines = journalLineRepository.findPartnerLinesUpTo(partnerId, from.minusDays(1));
-            java.util.Set<String> canonicalSlipKeys = openingSales.stream()
-                    .map(PartnerLedgerSalesClient.Sale::slipId)
-                    .filter(Objects::nonNull).map(UUID::toString).collect(Collectors.toSet());
+            java.util.Set<String> canonicalSlipKeys = Set.of();
             List<PartnerLedgerCollectionContract.Evidence> evidence = journalEvidence(lines, canonicalSlipKeys);
             var totals = PartnerLedgerContract.fold(
                     PartnerLedgerCollectionContract.toEntries(PartnerLedgerCollectionContract.classify(evidence)),
@@ -417,8 +423,10 @@ public class PartnerLedgerReadModelService {
                         document.type() == PartnerLedgerContract.DocumentType.SALE_SUMMARY
                                 ? PartnerLedgerReadModel.DocumentType.SALE_SUMMARY
                                 : PartnerLedgerReadModel.DocumentType.JOURNAL_ONLY,
-                        document.sourceKey(), document.date(), summary == null ? null : summary.partnerCode(),
-                        summary == null ? null : summary.name(), null, document.amount(), List.of(),
+                        visibleAggregateDocumentNo(document, summary),
+                        document.date(),
+                        summary == null ? null : summary.partnerCode(), summary == null ? null : summary.name(),
+                        null, document.amount(), List.of(),
                         document.effect() == PartnerLedgerContract.Effect.SALE ? RECEIVABLES : null,
                         document.effect() == PartnerLedgerContract.Effect.SALE
                                 ? "판매전표 없음 / 전표 미이관" : "분개 수집 계약",
@@ -447,6 +455,28 @@ public class PartnerLedgerReadModelService {
         if (group != null && normalize(group.partnerCode) != null) return normalize(group.partnerCode);
         if (group != null && normalize(group.partnerName) != null) return normalize(group.partnerName) + " 분개";
         return "매출 요약";
+    }
+
+    private static String visibleJournalDocumentNo(String sourceKey, LocalDate date, PartnerSummary summary,
+                                                   Map<String, String> journalNumbers) {
+        String journalNo = journalNumbers.get(sourceKey);
+        if (normalize(journalNo) != null) return journalNo;
+        return visibleAggregateDocumentNo(sourceKey, date, summary,
+                sourceKey.startsWith("aggregate:") ? "JOURNAL_ONLY" : "JOURNAL_ONLY");
+    }
+
+    private static String visibleAggregateDocumentNo(PartnerLedgerCollectionContract.Classified document,
+                                                     PartnerSummary summary) {
+        String type = document.type() == PartnerLedgerContract.DocumentType.SALE_SUMMARY
+                ? "SALE-SUMMARY" : "JOURNAL-ONLY";
+        return visibleAggregateDocumentNo(document.sourceKey(), document.date(), summary, type);
+    }
+
+    private static String visibleAggregateDocumentNo(String ignoredSourceKey, LocalDate date,
+                                                     PartnerSummary summary, String type) {
+        String partnerCode = summary == null ? "PARTNER" : normalize(summary.partnerCode());
+        if (partnerCode == null) partnerCode = "PARTNER";
+        return partnerCode + "/" + date + "-" + type;
     }
     private static String normalize(String value) { return value == null || value.isBlank() ? null : value.trim(); }
     private static String digits(String value) {

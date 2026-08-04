@@ -16,7 +16,6 @@ import java.util.UUID;
  */
 public record PartnerLedgerSalesResponse(
         String slipNo,
-        UUID slipId,
         LocalDate slipDate,
         String status,
         String partnerCode,
@@ -29,13 +28,13 @@ public record PartnerLedgerSalesResponse(
     public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
                                       String partnerCode, String partnerName,
                                       String deliveryAddress, List<Line> lines) {
-        this(slipNo, null, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
+        this(slipNo, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
     }
 
     public PartnerLedgerSalesResponse(String slipNo, LocalDate slipDate, String status,
                                       String partnerCode, String partnerName, String businessNumber,
                                       String deliveryAddress, List<Line> lines) {
-        this(slipNo, null, slipDate, status, partnerCode, null, partnerName, businessNumber, deliveryAddress, lines);
+        this(slipNo, slipDate, status, partnerCode, null, partnerName, businessNumber, deliveryAddress, lines);
     }
 
     /**
@@ -59,7 +58,7 @@ public record PartnerLedgerSalesResponse(
      * 전표 entity를 원장 전용 외부 read projection으로 변환한다.
      *
      * @param slip 활성 OUTBOUND 전표
-     * @return 내부 중복제거 키를 포함한 원장 판매전표 응답
+     * @return UUID 없는 원장 판매전표 응답
      */
     public static PartnerLedgerSalesResponse from(Slip slip) {
         List<Line> lines = slip.getLines().stream()
@@ -67,7 +66,6 @@ public record PartnerLedgerSalesResponse(
                 .toList();
         return new PartnerLedgerSalesResponse(
                 slip.getSlipNo(),
-                slip.getId(),
                 slip.getSlipDate(),
                 slip.getStatus().name(),
                 slip.getPartnerCode(),

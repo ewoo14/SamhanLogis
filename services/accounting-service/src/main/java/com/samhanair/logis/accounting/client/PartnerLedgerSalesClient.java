@@ -45,24 +45,18 @@ public class PartnerLedgerSalesClient {
 
     public record ApiResponse<T>(boolean success, T data) { }
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Sale(String slipNo, UUID slipId, LocalDate slipDate, String status, String partnerCode,
+    public record Sale(String slipNo, LocalDate slipDate, String status, String partnerCode,
                        UUID partnerId, String partnerName, String businessNumber,
                        String deliveryAddress, List<Line> lines) {
         public Sale(String slipNo, LocalDate slipDate, String status, String partnerCode,
-                    UUID partnerId, String partnerName, String businessNumber,
-                    String deliveryAddress, List<Line> lines) {
-            this(slipNo, null, slipDate, status, partnerCode, partnerId, partnerName,
-                    businessNumber, deliveryAddress, lines);
-        }
-        public Sale(String slipNo, LocalDate slipDate, String status, String partnerCode,
                     String partnerName, String businessNumber, String deliveryAddress, List<Line> lines) {
-            this(slipNo, null, slipDate, status, partnerCode, null, partnerName, businessNumber,
+            this(slipNo, slipDate, status, partnerCode, null, partnerName, businessNumber,
                     deliveryAddress, lines);
         }
 
         public Sale(String slipNo, LocalDate slipDate, String status, String partnerCode,
                     String partnerName, String deliveryAddress, List<Line> lines) {
-            this(slipNo, null, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
+            this(slipNo, slipDate, status, partnerCode, null, partnerName, null, deliveryAddress, lines);
         }
     }
     @JsonIgnoreProperties(ignoreUnknown = true)
