@@ -147,15 +147,14 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
     }
 
     @Test
-    void redB_outboundInspectApprovalMember_cannotReadAnotherSlip() throws Exception {
+    void redB_outboundInspectApprovalMember_cannotReadNonInspectingSlip() throws Exception {
         UUID approverId = user("0011");
-        createInspectingSlip("OUTBOUND");
-        String otherSlipId = createInspectingSlip("OUTBOUND");
+        String nonInspectingSlipId = createSentSlip("OUTBOUND");
         when(approvalLineAuthorizeClient.authorize("SLIP_OUTBOUND", "OUTBOUND_INSPECT", approverId))
                 .thenReturn(new ApprovalLineAuthorizeResult(true, true));
 
-        // RED-B: 같은 결재선 계정이어도 다른 전표는 전표 범위 밖이므로 403이어야 한다.
-        mockMvc.perform(get("/slips/{id}", otherSlipId)
+        // RED-B: 전역 검수 결재선 계정이어도 INSPECTING 아닌 OUTBOUND는 상태 경계 밖이므로 403이어야 한다.
+        mockMvc.perform(get("/slips/{id}", nonInspectingSlipId)
                         .header("X-User-Id", approverId.toString())
                         .header("X-User-Role", "ACCOUNTANT"))
                 .andExpect(status().isForbidden());

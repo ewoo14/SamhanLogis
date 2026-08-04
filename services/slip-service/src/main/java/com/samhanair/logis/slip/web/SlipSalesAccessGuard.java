@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web;
 import com.samhanair.logis.common.exception.BusinessException;
 import com.samhanair.logis.common.exception.ErrorCode;
 import com.samhanair.logis.security.permission.PermissionAspect;
+import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import java.util.Set;
 
@@ -55,20 +56,27 @@ final class SlipSalesAccessGuard {
      *
      * <p>허용 조건 (OR):
      * <ol>
+     *   <li>status == INSPECTING 이고 검수 결재선 allowed — OUTBOUND 검수 액션 상태 경로</li>
      *   <li>role ∈ {SALES, MANAGER, MASTER} — 기존 role 경로 (병행 유지)</li>
      *   <li>groups ∩ {@link #OUTBOUND_ALLOWED_GROUP_IDS} ≠ ∅ — Phase C5-3 그룹 경로</li>
      *   <li>isSystemMaster == "true" — Phase C4 시스템 마스터 경로</li>
      * </ol>
      *
      * @param slipType      전표 유형 (null 이면 가드 스킵)
+     * @param status        전표 상태 (검수 결재선 경로에는 INSPECTING 만 허용)
      * @param role          X-User-Role 헤더 값 (null/blank 이면 그룹 경로로만 판정)
      * @param userGroups    X-User-Groups 헤더 값 comma-join (null/blank 이면 빈 Set)
      * @param isSystemMaster X-Is-System-Master 헤더 값 ("true" 이면 bypass)
+     * @param approvalLineAllowed 현재 계정이 OUTBOUND 검수 결재선에 포함되는지 여부
      * @throws BusinessException FORBIDDEN — 모든 허용 조건 불충족 시
      */
-    static void guardOutboundSalesRead(SlipType slipType, String role,
-                                       String userGroups, String isSystemMaster) {
+    static void guardOutboundSalesRead(SlipType slipType, SlipStatus status, String role,
+                                       String userGroups, String isSystemMaster,
+                                       boolean approvalLineAllowed) {
         if (slipType != SlipType.OUTBOUND) {
+            return;
+        }
+        if (status == SlipStatus.INSPECTING && approvalLineAllowed) {
             return;
         }
         if (canReadOutboundSales(role, userGroups, isSystemMaster)) {
@@ -76,6 +84,15 @@ final class SlipSalesAccessGuard {
         }
         throw new BusinessException(ErrorCode.FORBIDDEN,
                 "매출 전표 조회는 SALES / MANAGER / MASTER 권한만 허용합니다.");
+    }
+
+    /**
+     * 기존 role/group/system-master 경로만 사용하는 호환 오버로드.
+     * 결재선 허용은 상태를 확인할 수 있는 단건 상세 조회에서만 추가한다.
+     */
+    static void guardOutboundSalesRead(SlipType slipType, String role,
+                                       String userGroups, String isSystemMaster) {
+        guardOutboundSalesRead(slipType, null, role, userGroups, isSystemMaster, false);
     }
 
     /**

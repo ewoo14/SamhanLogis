@@ -939,12 +939,52 @@ public class SlipService {
         if (gate == null || !isRealUser(actorUserId)) {
             return;
         }
-        UUID userId = UUID.fromString(actorUserId);
-        ApprovalLineAuthorizeResult result = approvalLineAuthorizeClient.authorize(
-                gate.documentType(), gate.actionKey(), userId);
+        ApprovalLineAuthorizeResult result = authorizeSlipApprovalLine(actorUserId, gate);
+        if (result == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR,
+                    "결재라인 인가 응답이 비어 있습니다");
+        }
         if (result.configured() && !result.allowed()) {
             throw new BusinessException(ErrorCode.FORBIDDEN, gate.forbiddenMessage());
         }
+    }
+
+    /**
+     * OUTBOUND 검수 결재선이 단건 조회를 허용하는지 판정한다.
+     *
+     * <p>결재선은 문서유형·액션 단위 전역 설정이므로 전표별 매칭을 시도하지 않는다.
+     * 대신 검수 액션이 유효한 {@link SlipStatus#INSPECTING} 상태에서만 결과를 사용한다.
+     * 결재선 조회 실패나 빈 결과는 허용으로 변환하지 않고 {@code false}로 반환하여
+     * 호출부의 기존 역할/그룹/system-master 가드가 최종 판정하게 한다.
+     *
+     * @param slipType 전표 유형
+     * @param status 전표 상태
+     * @param actorUserId 현재 계정 UUID 문자열
+     * @return 검수 결재선에 포함된 실사용자이면 true
+     */
+    public boolean isOutboundInspectApprovalMember(
+            SlipType slipType, SlipStatus status, String actorUserId) {
+        if (slipType != SlipType.OUTBOUND
+                || status != SlipStatus.INSPECTING
+                || !isRealUser(actorUserId)) {
+            return false;
+        }
+        SlipApprovalGate gate = approvalGateForInspect(slipType);
+        try {
+            ApprovalLineAuthorizeResult result = authorizeSlipApprovalLine(actorUserId, gate);
+            return result != null && result.configured() && result.allowed();
+        } catch (BusinessException ex) {
+            log.warn("출고 검수 결재선 조회 실패 — 상세 조회 권한을 허용하지 않습니다: {}", ex.getMessage());
+            return false;
+        }
+    }
+
+    /** 검수 실행과 단건 조회가 동일한 결재선 client 판정을 사용하도록 한다. */
+    private ApprovalLineAuthorizeResult authorizeSlipApprovalLine(
+            String actorUserId, SlipApprovalGate gate) {
+        UUID userId = UUID.fromString(actorUserId);
+        return approvalLineAuthorizeClient.authorize(
+                gate.documentType(), gate.actionKey(), userId);
     }
 
     private SlipApprovalGate approvalGateForAccept(SlipType slipType) {
