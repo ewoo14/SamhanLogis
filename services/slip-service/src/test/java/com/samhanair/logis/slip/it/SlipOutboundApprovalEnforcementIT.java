@@ -6,6 +6,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -129,6 +130,46 @@ class SlipOutboundApprovalEnforcementIT extends AbstractPostgresIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.data.inspectorUserId").value(inspectorId.toString()));
+    }
+
+    @Test
+    void redA_outboundInspectApprovalMember_canReadAssignedSlip() throws Exception {
+        UUID approverId = user("0011");
+        String assignedSlipId = createInspectingSlip("OUTBOUND");
+        when(approvalLineAuthorizeClient.authorize("SLIP_OUTBOUND", "OUTBOUND_INSPECT", approverId))
+                .thenReturn(new ApprovalLineAuthorizeResult(true, true));
+
+        // RED-A: 결재선에 든 ACCOUNTANT가 해당 전표 상세를 조회한다.
+        mockMvc.perform(get("/slips/{id}", assignedSlipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void redB_outboundInspectApprovalMember_cannotReadAnotherSlip() throws Exception {
+        UUID approverId = user("0011");
+        createInspectingSlip("OUTBOUND");
+        String otherSlipId = createInspectingSlip("OUTBOUND");
+        when(approvalLineAuthorizeClient.authorize("SLIP_OUTBOUND", "OUTBOUND_INSPECT", approverId))
+                .thenReturn(new ApprovalLineAuthorizeResult(true, true));
+
+        // RED-B: 같은 결재선 계정이어도 다른 전표는 전표 범위 밖이므로 403이어야 한다.
+        mockMvc.perform(get("/slips/{id}", otherSlipId)
+                        .header("X-User-Id", approverId.toString())
+                        .header("X-User-Role", "ACCOUNTANT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void redC_existingSalesRole_canReadOutboundSlip() throws Exception {
+        String assignedSlipId = createInspectingSlip("OUTBOUND");
+
+        // RED-C: 기존 SALES role 경로는 결재선 추가와 무관하게 계속 통과한다.
+        mockMvc.perform(get("/slips/{id}", assignedSlipId)
+                        .header("X-User-Id", user("0012").toString())
+                        .header("X-User-Role", "SALES"))
+                .andExpect(status().isOk());
     }
 
     @Test
