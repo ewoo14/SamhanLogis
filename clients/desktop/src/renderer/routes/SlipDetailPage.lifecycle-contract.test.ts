@@ -7,6 +7,10 @@ import {
 } from './SlipDetailPage'
 
 const sourcePath = path.resolve(__dirname, 'SlipDetailPage.tsx')
+const collaborationPanelSourcePath = path.resolve(
+  __dirname,
+  '../components/collab/SlipCollaborationPanel.tsx',
+)
 
 describe('SlipDetailPage lifecycle contract', () => {
   it('PROCESSING action calls the backend complete transition to enter INSPECTING', () => {
@@ -48,21 +52,39 @@ describe('SlipDetailPage lifecycle contract', () => {
     expect(controller).toContain('requireAccountPermission(callerHeader, INBOUND_INSPECTION_PAGE_CODE, PermissionAction.UPDATE)')
   })
 
-  it('RED-A: 일반 SENT 전표는 취소 액션을 노출한다', () => {
+  it('일반 SENT 전표는 취소 액션을 노출한다', () => {
     expect(actionsForStatus('SENT', 'OUTBOUND', 'MANUAL')).toContain('cancel')
   })
 
-  it('RED-B: PARTNER_ORDER SENT 전표는 취소 액션을 노출하지 않는다', () => {
+  it('PARTNER_ORDER SENT 전표는 취소 액션을 노출하지 않는다', () => {
     expect(actionsForStatus('SENT', 'OUTBOUND', 'PARTNER_ORDER')).not.toContain('cancel')
   })
 
-  it('RED-A: COMPLETED 데스크톱은 OUTBOUND ship과 INBOUND confirm 전이를 실행할 수 있다', () => {
+  it('RED-A: COMPLETED에서 수정 진입과 전이 실행이 모두 가능하다', () => {
     expect(desktopFooterActions('COMPLETED', 'OUTBOUND', true)).toContain('ship')
+    expect(desktopFooterActions('COMPLETED', 'OUTBOUND', true)).toContain('collab-edit')
     expect(desktopFooterActions('COMPLETED', 'INBOUND', true)).toContain('confirm')
+    expect(desktopFooterActions('COMPLETED', 'INBOUND', true)).toContain('collab-edit')
   })
 
-  it('RED-B: COMPLETED 데스크톱은 협업 편집 진입도 함께 유지한다', () => {
-    expect(desktopFooterActions('COMPLETED', 'OUTBOUND', true)).toContain('collab-edit')
-    expect(desktopFooterActions('COMPLETED', 'INBOUND', true)).toContain('collab-edit')
+  it('RED-B: 전이 후 편집 폼 경로에서 409가 나지 않는다', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8')
+    const transitionSuccess = source.match(
+      /const transitionMutation = useMutation\(\{[\s\S]*?onSuccess: \(\) => \{([\s\S]*?)\n  \},/,
+    )
+
+    expect(transitionSuccess?.[1]).toContain('setCollabEditMode(false)')
+  })
+
+  it('RED-C: 전이 없이 수정 → 수정완료 하는 정상 경로가 동작한다', () => {
+    const source = fs.readFileSync(sourcePath, 'utf8')
+    const collaborationPanel = fs.readFileSync(collaborationPanelSourcePath, 'utf8')
+
+    expect(source).toContain('editMode={collabEditMode}')
+    expect(source).toContain('onEditModeChange={setCollabEditMode}')
+    expect(collaborationPanel).toContain('수정완료')
+    expect(collaborationPanel).toMatch(
+      /const commitMutation = useMutation\(\{[\s\S]*?onSuccess: \(\) => \{[\s\S]*?onEditModeChange\?\.\(false\)/,
+    )
   })
 })

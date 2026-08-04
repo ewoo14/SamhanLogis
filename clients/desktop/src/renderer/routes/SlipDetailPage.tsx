@@ -1449,6 +1449,9 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
     mutationFn: (vars: { action: SlipTransitionAction; reason?: string }) =>
       transitionSlip(id, vars.action, vars.reason ? { reason: vars.reason } : undefined),
     onSuccess: () => {
+      // 전이 성공으로 협업 수정 가능 상태가 바뀔 수 있으므로, 열린 편집 폼이
+      // SHIPPING 등 수정 불가 상태에 남아 409를 유발하지 않도록 즉시 닫는다.
+      setCollabEditMode(false)
       void queryClient.invalidateQueries({ queryKey: ['slip', id] })
       void queryClient.invalidateQueries({ queryKey: ['slips'] })
       // S2d-1 NB6: 임계 전이(send/inspect)가 redline anchor 를 세팅하므로 redline 도 갱신한다.
