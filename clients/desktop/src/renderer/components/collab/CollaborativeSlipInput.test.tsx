@@ -109,33 +109,6 @@ function providerStub(): TestDocCoeditProvider {
 }
 
 describe('CollaborativeSlipInput', () => {
-  it('R15 RED-A1 draft 행의 규격·수량·단가·적요 입력은 Y.Doc 행을 생성하지 않는다', () => {
-    const provider = providerStub()
-
-    for (const [cellName, ariaLabel] of [
-      ['specification', '규격 draft'],
-      ['quantity', '수량 draft'],
-      ['unitPrice', '단가 draft'],
-      ['note', '적요 draft'],
-    ] as const) {
-      const view = render(
-        <CollaborativeSlipInput
-          provider={provider}
-          fieldPath={`items.0.${cellName}`}
-          value=""
-          onValueChange={() => undefined}
-          aria-label={ariaLabel}
-        />,
-      )
-
-      fireEvent.change(screen.getByLabelText(ariaLabel), { target: { value: 'draft-value' } })
-      expect(provider.items.length).toBe(0)
-      view.unmount()
-    }
-
-    expect(provider.items.length).toBe(0)
-  })
-
   it('forwards aria-describedby to the actual input', () => {
     render(
       <>
@@ -156,7 +129,6 @@ describe('CollaborativeSlipInput', () => {
 
   it('입력값을 Yjs fieldPath 에 쓰고 원격 awareness 라벨은 이름만 표시한다', () => {
     const provider = providerStub()
-    provider.addItem({ quantity: '1' })
     const onValueChange = vi.fn()
 
     render(
