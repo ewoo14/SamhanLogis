@@ -70,6 +70,11 @@ import {
 import { searchPartners } from '../api/sales'
 import { getApiErrorInfo } from '../api/apiError'
 import { type StockBalanceLookupLine } from '../api/inventory'
+import {
+  ensureTrailingBlankRow,
+  filterMeaningfulRows,
+  removeLinePreservingMinimum,
+} from '../utils/autoBlankRow'
 import { InventoryLookupModal } from './components/InventoryLookupModal'
 import { invalidateSignature } from '../api/signature'
 import {
@@ -422,8 +427,22 @@ function createEditLineKey() {
   return Math.random().toString(36).slice(2)
 }
 
+function emptyEditLine(): PurchaseEditLine {
+  return {
+    key: createEditLineKey(),
+    lineId: null,
+    productId: '',
+    productName: '',
+    modelName: '',
+    specification: '',
+    quantity: 0,
+    unitPrice: '0',
+    note: '',
+  }
+}
+
 export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
-  return slip.lines.map((line) => ({
+  const hydratedLines: PurchaseEditLine[] = slip.lines.map((line) => ({
     key: createEditLineKey(),
     lineId: line.id,
     productId: line.productId,
@@ -484,6 +503,12 @@ export function toPurchaseEditLines(slip: SlipDetail): PurchaseEditLine[] {
     isBundleComponent: Boolean((line.parentSetModel ?? '').trim()),
     note: line.note ?? '',
   }))
+  return ensureTrailingBlankRow(hydratedLines, emptyEditLine, (line) => Boolean(line.productId?.trim()))
+}
+
+/** 판매전표 수정 저장에서 품목코드가 확정된 행만 BE payload로 보낸다. */
+export function persistedDetailLines(lines: readonly PurchaseEditLine[]): PurchaseEditLine[] {
+  return filterMeaningfulRows(lines, (line) => Boolean(line.productId?.trim()))
 }
 
 /**
@@ -1792,7 +1817,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         setSalesProjectName(nextProvider.getHeaderValue('projectName'))
         setSalesRecipientPhone(nextProvider.getHeaderValue('recipientPhone'))
         setSalesPaymentDueDate(nextProvider.getHeaderValue('paymentDueDate'))
-        setSalesEditLines((prev) => coeditLinesToEditLines(nextProvider, prev, knownServerLineIds))
+        setSalesEditLines((prev) => ensureTrailingBlankRow(
+          coeditLinesToEditLines(nextProvider, prev, knownServerLineIds),
+          emptyEditLine,
+          (line) => Boolean(line.productId?.trim()),
+        ))
         if (partnerChanged && nextPartnerId) {
           // 원격 거래처 변경도 로컬 선택과 동일하게 최신 거래처 단가를 재조회한다.
           void repriceEditLinesForPartner(nextPartnerId, nextProvider)
@@ -2402,7 +2431,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
       projectName: salesProjectName.trim() || null,
       recipientPhone: salesRecipientPhone.trim() || null,
       paymentDueDate: salesPaymentDueDate || null,
-      lines: salesEditLines.map(buildDetailLinePayload),
+      lines: persistedDetailLines(salesEditLines).map(buildDetailLinePayload),
     })
   }
 
@@ -2433,7 +2462,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
             type="button"
             variant="primary"
             loading={salesUpdateMutation.isPending || modalRepricePending || partnerReprice.isPending}
-            disabled={salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || salesEditLines.length === 0}
+            disabled={salesUpdateMutation.isPending || slipFormCoeditPending || modalRepricePending || partnerReprice.isPending || hasUnavailableReprice || persistedDetailLines(salesEditLines).length === 0}
             data-testid="sales-slip-edit-save"
             onClick={handleSalesEditSave}
           >
@@ -4747,9 +4776,11 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
 
   function removeSalesLine(index: number) {
     const lineId = salesEditLinesRef.current[index]?.lineId
+    const lineKey = salesEditLinesRef.current[index]?.key
     clearRepriceHighlight(lineId)
-    // 매입과 동일하게 라인 Map 자체만 삭제한다.
-    setSalesEditLines((prev) => prev.filter((_, i) => i !== index))
+    setSalesEditLines((prev) => lineKey == null
+      ? prev
+      : removeLinePreservingMinimum(prev, lineKey, (line) => line.key, emptyEditLine, 1))
     if (lineId) slipFormCoeditProvider?.removeItem(lineId)
   }
 }

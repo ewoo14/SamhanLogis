@@ -24,6 +24,7 @@ import {
   parseEditableDetailQuantityInput,
   partnerRepriceBannerText,
   partnerRepriceMarkerText,
+  persistedDetailLines,
   repricedFieldValue,
   slipLineAmounts,
   syncDetailAmountToDoc,
@@ -31,6 +32,7 @@ import {
 } from './SlipDetailPage'
 import { toServerLineIdSet } from '../realtime/coeditLineIds'
 import { editLineVat, editSlipLineAmount, recalculateLineVat } from '../utils/lineVat'
+import { removeLinePreservingMinimum } from '../utils/autoBlankRow'
 import type { SlipDetail } from '../api/slip'
 
 /**
@@ -432,6 +434,56 @@ describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
     expect(next[1]!.lineId).toBe(SERVER_LINE_2)
     expect(next[1]!.productId).toBe(PRODUCT_3)
     provider.destroy()
+  })
+})
+
+describe('판매전표 수정 모드 trailing 빈행 계약', () => {
+  it('RED-A: 수정 hydrate 후 맨 아래 빈행이 있고, 빈행 확정 시 그 아래에 다시 빈행을 둔다', () => {
+    const slip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목 1',
+        modelName: 'MODEL-1',
+        quantity: 1,
+        unitPrice: '1000',
+        lineTotal: '1000',
+      }],
+    } as unknown as SlipDetail
+
+    const hydrated = toPurchaseEditLines(slip)
+    expect(hydrated).toHaveLength(2)
+    expect(hydrated[1]?.productId).toBe('')
+
+    const next = toPurchaseEditLines({ ...slip, lines: [
+      { ...slip.lines[0], id: SERVER_LINE_1 },
+      { id: null, productId: PRODUCT_2, productName: '품목 2', quantity: 1, unitPrice: '2000', lineTotal: '2000' },
+    ] } as unknown as SlipDetail)
+    expect(next.at(-1)?.productId).toBe('')
+    expect(toPurchaseEditLines({ lines: [] } as unknown as SlipDetail)).toHaveLength(1)
+  })
+
+  it('RED-B: 빈행만 남겨 저장해도 payload에는 빈행이 없고, 신규 증식·최소 1행 계약은 유지한다', () => {
+    const blank = {
+      key: 'blank',
+      lineId: null,
+      productId: '',
+      productName: '',
+      modelName: '',
+      specification: '',
+      quantity: 0,
+      unitPrice: '0',
+      note: '',
+    }
+    const confirmed = { ...blank, key: 'confirmed', lineId: SERVER_LINE_1, productId: PRODUCT_1, quantity: 1, unitPrice: '1000' }
+
+    expect(persistedDetailLines([confirmed, blank])).toEqual([confirmed])
+    expect(persistedDetailLines([blank])).toEqual([])
+    const afterDeletingAll = removeLinePreservingMinimum(
+      [confirmed], confirmed.key, (line) => line.key, () => blank, 1,
+    )
+    expect(afterDeletingAll).toHaveLength(1)
+    expect(afterDeletingAll[0]?.productId).toBe('')
   })
 })
 
