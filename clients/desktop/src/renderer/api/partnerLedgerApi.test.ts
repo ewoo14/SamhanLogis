@@ -53,6 +53,17 @@ describe('partner ledger adapter', () => {
     ])
   })
 
+  it('renders SALE_SUMMARY as a VAT-included debit and preserves the running balance', () => {
+    const lines = buildPartnerLedgerLines([{
+      type: 'SALE_SUMMARY', documentNo: 'P-2026-0004', date: '2026-01-01',
+      deliveryAddress: null, amount: '9900000', lines: [],
+      accountCode: '110', description: '판매전표 없음 / 전표 미이관', debit: '9900000', credit: '0',
+    }])
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({ debit: '9900000', credit: '0', balance: '9900000', documentType: 'SALE_SUMMARY' })
+  })
+
   it('orders same-day unpadded document numbers numerically before computing balances', () => {
     const lines = buildPartnerLedgerLines([
       {

@@ -31,7 +31,7 @@ public record PartnerLedgerReadModel(List<Partner> partners, Partner selected) {
         }
     }
 
-    /** SALE_SUMMARY는 구형 snapshot 역직렬화 호환용이며 신규 read model에서는 사용하지 않는다. */
+    /** SALE_SUMMARY는 신규 slip 없는 매출과 구형 snapshot 양쪽에서 허용한다. */
     public enum DocumentType { SALE, SALE_SUMMARY, CASH_RECEIPT, JOURNAL_ONLY }
 
     public record Document(DocumentType type, String documentNo, LocalDate date, String partnerCode,

@@ -38,7 +38,8 @@ public class PartnerLedgerReadModelService {
 
     /** 정책 정본: R17의 현행 집계 기준 상태 집합. slip-service도 이 계약으로 조회한다. */
     public static final List<String> CANONICAL_SALE_STATUSES = PartnerLedgerContract.CANONICAL_SALE_STATUSES;
-    /** 정책 정본: slip 없는 journal 매출은 정상 판매전표가 아닌 분개 행으로 표시한다. */
+    private static final LocalDate LEDGER_SALES_EPOCH = LocalDate.of(1900, 1, 1);
+    /** 비매출 journal line을 표시하는 legacy 문서 종류. 매출은 별도 SALE_SUMMARY로 투영한다. */
     public static final PartnerLedgerReadModel.DocumentType JOURNAL_ONLY_DOCUMENT =
             PartnerLedgerReadModel.DocumentType.JOURNAL_ONLY;
 
@@ -58,7 +59,9 @@ public class PartnerLedgerReadModelService {
         }
         PartnerSummary selectedSummary = filter.summary();
         UUID selectedId = selectedSummary == null ? null : selectedSummary.partnerId();
-        Map<UUID, BigDecimal> openingBalances = openingBalances(from);
+        List<PartnerLedgerSalesClient.Sale> openingSales = findSales(
+                LEDGER_SALES_EPOCH, from.minusDays(1), selectedSummary, selectedId);
+        Map<UUID, BigDecimal> openingBalances = openingBalances(from, openingSales, selectedSummary, selectedId);
         List<JournalLineRepository.PartnerAccountTotal> journalTotals =
                 journalLineRepository.aggregatePostedByPartnerAccount(from, to);
         Map<UUID, MutablePartner> groups = new LinkedHashMap<>();
@@ -90,8 +93,17 @@ public class PartnerLedgerReadModelService {
                     null, null, null, zero(receipt.getAmount()), List.of()));
         }
 
-        List<PartnerLedgerSalesClient.Sale> sales = salesClient.find(from, to,
-                selectedSummary == null ? null : selectedSummary.partnerCode(), selectedId);
+        List<PartnerLedgerSalesClient.Sale> sales = findSales(from, to, selectedSummary, selectedId);
+        for (PartnerLedgerSalesClient.Sale sale : openingSales) {
+            if (sale == null || selectedId != null && sale.partnerId() != null
+                    && !selectedId.equals(sale.partnerId())) continue;
+            UUID id = sale.partnerId();
+            if (id == null) {
+                PartnerSummary resolved = resolveSalePartner(sale);
+                id = resolved == null ? null : resolved.partnerId();
+            }
+            if (id != null) groups.computeIfAbsent(id, MutablePartner::new);
+        }
         for (PartnerLedgerSalesClient.Sale sale : sales) {
             if (sale == null || selectedId != null && sale.partnerId() != null
                     && !selectedId.equals(sale.partnerId())) {
@@ -125,7 +137,11 @@ public class PartnerLedgerReadModelService {
         for (MutablePartner group : groups.values()) {
             if (!group.salesSeen && group.journalSeen) {
                 PartnerSummary summary = summaries.get(group.partnerId);
-                group.documents.addAll(journalDocuments(group.partnerId, from, to, summary));
+                if (group.journalSales.signum() != 0) {
+                    group.documents.add(saleSummaryDocument(from, summary, group));
+                } else {
+                    group.documents.addAll(journalDocuments(group.partnerId, from, to, summary));
+                }
             }
         }
         List<PartnerLedgerReadModel.Partner> result = new ArrayList<>();
@@ -264,19 +280,52 @@ public class PartnerLedgerReadModelService {
             PartnerLedgerReadModel.DocumentType type) {
         return switch (type) {
             case CASH_RECEIPT -> com.samhanair.logis.common.ledger.PartnerLedgerContract.DocumentType.CASH_RECEIPT;
-            case JOURNAL_ONLY, SALE_SUMMARY ->
+            case SALE_SUMMARY ->
+                    com.samhanair.logis.common.ledger.PartnerLedgerContract.DocumentType.SALE_SUMMARY;
+            case JOURNAL_ONLY ->
                     com.samhanair.logis.common.ledger.PartnerLedgerContract.DocumentType.JOURNAL_ONLY;
             case SALE -> com.samhanair.logis.common.ledger.PartnerLedgerContract.DocumentType.SALE;
         };
     }
 
-    private Map<UUID, BigDecimal> openingBalances(LocalDate from) {
+    private Map<UUID, BigDecimal> openingBalances(LocalDate from,
+                                                  List<PartnerLedgerSalesClient.Sale> openingSales,
+                                                  PartnerSummary selectedSummary, UUID selectedId) {
         Map<UUID, BigDecimal> result = new HashMap<>();
         for (var total : journalLineRepository.aggregateAgingByAccount(RECEIVABLES, from.minusDays(1))) {
             if (total.getPartnerId() == null) continue;
             result.put(total.getPartnerId(), zero(total.getDebitTotal()).subtract(zero(total.getCreditTotal())));
         }
+        for (PartnerLedgerSalesClient.Sale sale : openingSales) {
+            if (sale == null || selectedId != null && sale.partnerId() != null
+                    && !selectedId.equals(sale.partnerId())) continue;
+            UUID id = sale.partnerId();
+            if (id == null) {
+                PartnerSummary resolved = resolveSalePartner(sale);
+                id = resolved == null ? null : resolved.partnerId();
+            }
+            if (id != null) result.merge(id, saleAmount(sale), BigDecimal::add);
+        }
         return result;
+    }
+
+    private List<PartnerLedgerSalesClient.Sale> findSales(LocalDate from, LocalDate to,
+                                                           PartnerSummary selectedSummary, UUID selectedId) {
+        if (to.isBefore(from)) return List.of();
+        List<PartnerLedgerSalesClient.Sale> found = salesClient.find(from, to,
+                selectedSummary == null ? null : selectedSummary.partnerCode(), selectedId);
+        return found == null ? List.of() : found;
+    }
+
+    private PartnerLedgerReadModel.Document saleSummaryDocument(LocalDate from, PartnerSummary summary,
+                                                                MutablePartner group) {
+        BigDecimal amount = group.journalReceivableDebit.signum() > 0
+                ? group.journalReceivableDebit : group.journalSales;
+        return new PartnerLedgerReadModel.Document(PartnerLedgerReadModel.DocumentType.SALE_SUMMARY,
+                journalSummaryDocumentNo(group, summary), from,
+                summary == null ? null : summary.partnerCode(), summary == null ? null : summary.name(), null,
+                amount, List.of(), RECEIVABLES, "판매전표 없음 / 전표 미이관",
+                direction(amount).debit(), direction(amount).credit());
     }
 
     private static boolean isActive(PartnerSummary summary) {

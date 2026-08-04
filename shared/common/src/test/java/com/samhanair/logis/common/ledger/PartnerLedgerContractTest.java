@@ -47,4 +47,28 @@ class PartnerLedgerContractTest {
                 new BigDecimal("400"), BigDecimal.ZERO))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void saleSummaryIsVatIncludedSaleAndClosingIsContractFormula() {
+        PartnerLedgerContract.Totals totals = PartnerLedgerContract.fold(
+                List.of(PartnerLedgerContract.Entry.saleSummary(new BigDecimal("9900000"))),
+                BigDecimal.ZERO);
+
+        assertThat(totals.salesTotal()).isEqualByComparingTo("9900000");
+        assertThat(totals.closingBalance()).isEqualByComparingTo("9900000");
+        assertThat(totals.closingBalance()).isEqualByComparingTo(
+                totals.periodDelta().add(BigDecimal.ZERO));
+    }
+
+    @Test
+    void RED_B1_journalBackedSaleCannotReportSalesWithoutMatchingClosingBalance() {
+        PartnerLedgerContract.Totals totals = PartnerLedgerContract.fold(
+                List.of(PartnerLedgerContract.Entry.saleSummary(new BigDecimal("9900000"))),
+                BigDecimal.ZERO);
+
+        assertThat(totals.salesTotal()).isEqualByComparingTo("9900000");
+        assertThat(totals.closingBalance()).isEqualByComparingTo("9900000");
+        assertThat(totals.closingBalance()).isEqualByComparingTo(
+                totals.salesTotal().add(totals.paymentTotal()));
+    }
 }
