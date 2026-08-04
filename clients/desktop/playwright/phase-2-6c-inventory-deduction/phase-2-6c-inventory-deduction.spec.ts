@@ -349,4 +349,34 @@ test.describe('재고 현황 화면 (/inventory/stock-balance)', () => {
     await expect(summary).toContainText('가용재고 0 품목')
     await expect(summary).toContainText('전환 불가')
   })
+
+  test('시나리오 9: VIRTUAL 수량 Ctrl+C — 화면 표시값(—) 복사', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
+      origin: BASE_URL,
+    })
+    await installAuthMock(page)
+    await gotoStockBalance(page)
+
+    await page.getByTestId('inventory-balance-query-button').click()
+    const grid = page.getByTestId('inventory-balance-grid')
+    await expect(grid).toBeVisible({ timeout: 8000 })
+
+    const virtualRow = grid.locator('tbody tr').filter({ hasText: 'VR-001' })
+    await expect(virtualRow, 'VIRTUAL 창고 mock 행 미표시').toHaveCount(1)
+    const quantityCells = virtualRow.locator('td')
+    await expect(quantityCells.nth(5)).toHaveText('—')
+    await expect(quantityCells.nth(6)).toHaveText('—')
+    await expect(quantityCells.nth(7)).toHaveText('—')
+
+    await quantityCells.nth(5).click()
+    await quantityCells.nth(7).click({ modifiers: ['Shift'] })
+    await page.keyboard.press('Control+c')
+
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()), {
+        message: 'VIRTUAL 수량 Ctrl+C 결과 미도착',
+        timeout: 5000,
+      })
+      .toBe('—\t—\t—')
+  })
 })

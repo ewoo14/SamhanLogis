@@ -134,6 +134,7 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
     width: 90,
     filter: false,
     align: 'right',
+    copyValue: (row) => row.warehouseType === 'VIRTUAL' ? '—' : String(row.availableQty),
     render: (row) => {
       const isZero = row.availableQty === 0
       const isVirtual = row.warehouseType === 'VIRTUAL'
@@ -160,6 +161,7 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
     width: 90,
     filter: false,
     align: 'right',
+    copyValue: (row) => row.warehouseType === 'VIRTUAL' ? '—' : String(row.reservedQty),
     render: (row) => {
       const isVirtual = row.warehouseType === 'VIRTUAL'
       return (
@@ -175,6 +177,7 @@ const COLUMNS: DataGridColumn<StockBalanceListRow>[] = [
     width: 90,
     filter: false,
     align: 'right',
+    copyValue: (row) => row.warehouseType === 'VIRTUAL' ? '—' : String(row.totalQty),
     render: (row) => {
       const isVirtual = row.warehouseType === 'VIRTUAL'
       return (
