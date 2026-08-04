@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class LedgerSnapshotService {
     private final LedgerSnapshotBatchNoGenerator batchNoGenerator;
     private static final DateTimeFormatter BATCH_TIME = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
+    @Autowired
     public LedgerSnapshotService(PartnerLedgerReadService partnerLedgerReadService,
                                  TaxInvoiceBatchRepository batchRepository,
                                  ObjectMapper objectMapper,
