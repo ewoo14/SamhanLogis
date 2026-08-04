@@ -249,7 +249,7 @@ public class PartnerLedgerReadModelService {
     private List<PartnerLedgerReadModel.Document> journalDocumentsFromContract(MutablePartner group, LocalDate from,
                                                                                  LocalDate to, PartnerSummary summary,
                                                                                  java.util.Set<String> canonicalSlipKeys) {
-        List<JournalLine> lines = journalLineRepository.findPartnerLinesInRange(group.partnerId, from, to);
+        List<JournalLine> lines = journalLineRepository.findJournalLinesInRangeForPartner(group.partnerId, from, to);
         if (lines == null || lines.isEmpty()) {
             // 생성자 호환 테스트/구형 adapter에서 line detail을 공급하지 못하는 경우에만 표시 보존.
             if (group.salesSeen) return List.of();

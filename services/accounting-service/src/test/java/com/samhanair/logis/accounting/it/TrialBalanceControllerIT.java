@@ -23,6 +23,7 @@ import com.samhanair.logis.accounting.client.ETaxClient;
 import com.samhanair.logis.accounting.client.KftcClient;
 import com.samhanair.logis.accounting.client.PartnerLookupClient;
 import com.samhanair.logis.accounting.client.PartnerSummary;
+import com.samhanair.logis.accounting.client.PartnerLedgerSalesClient;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -59,6 +60,8 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
     /** SP-09-4 KFTC 오픈뱅킹 client 격리 — Phase 11 sandbox 전환 시 IT 실 API 호출 방지. */
     @MockBean private KftcClient kftcClient;
     @MockBean private PartnerLookupClient partnerLookupClient;
+    /** R41 원장 read model의 slip-service 경계 격리 — 시산표는 이 client를 소비하지 않는다. */
+    @MockBean private PartnerLedgerSalesClient partnerLedgerSalesClient;
     @MockBean private ChatRoomMappingClient chatRoomMappingClient;
     @MockBean private ApprovalLineAuthorizeClient approvalLineAuthorizeClient;
     /**
@@ -80,6 +83,7 @@ class TrialBalanceControllerIT extends AbstractPostgresIT {
                         "리포트역분개상사",
                         "123-45-67890",
                         "서울")));
+        lenient().when(partnerLedgerSalesClient.find(any(), any(), any(), any())).thenReturn(List.of());
         lenient().when(chatRoomMappingClient.findChatRoomNamesByPartnerCode(anyString())).thenReturn(List.of());
     }
 

@@ -112,6 +112,31 @@ public interface JournalLineRepository extends JpaRepository<JournalLine, UUID> 
                                               @Param("from") LocalDate from,
                                               @Param("to") LocalDate to);
 
+    /**
+     * 거래처가 연결된 전표의 전체 라인 — 원장 collection contract 입력용.
+     *
+     * <p>거래처 ID는 채권 라인에만 연결될 수 있으므로, 거래처 라인만 읽으면
+     * 매출 대변과 역분개 차변이 잘려 REVERSED 원분개와 POSTED 역분개의
+     * 상쇄가 불가능해진다. 거래처 라인이 하나라도 있는 전표의 모든 라인을
+     * 읽어야 업무 효과(SALE/PAYMENT/NONE)를 전표 단위로 분류할 수 있다.</p>
+     */
+    @Query("""
+            SELECT l FROM JournalLine l
+            WHERE l.journal.journalDate >= :from
+              AND l.journal.journalDate <= :to
+              AND l.journal.status IN (
+                    com.samhanair.logis.accounting.domain.JournalStatus.POSTED,
+                    com.samhanair.logis.accounting.domain.JournalStatus.REVERSED)
+              AND EXISTS (
+                    SELECT linked.id FROM JournalLine linked
+                    WHERE linked.journal.id = l.journal.id
+                      AND linked.partnerId = :partnerId)
+            ORDER BY l.journal.journalDate ASC, l.journal.journalNo ASC, l.lineNo ASC
+            """)
+    List<JournalLine> findJournalLinesInRangeForPartner(@Param("partnerId") UUID partnerId,
+                                                        @Param("from") LocalDate from,
+                                                        @Param("to") LocalDate to);
+
     /** 거래처별 기준일 포함 이전 분개 라인 — 기간과 동일한 collection contract 입력용. */
     @Query("""
             SELECT l FROM JournalLine l

@@ -257,12 +257,12 @@ class PartnerLedgerReadModelServiceTest {
                 new Total(partnerId, "110", new BigDecimal("500"), BigDecimal.ZERO)));
         lenient().when(salesClient.find(FROM, TO, "P-JOURNAL-110", partnerId)).thenReturn(List.of());
         JournalLine line = org.mockito.Mockito.mock(JournalLine.class);
-        when(line.getLineNo()).thenReturn(1);
-        when(line.getAccountCode()).thenReturn("110");
-        when(line.getDebitAmount()).thenReturn(new BigDecimal("500"));
-        when(line.getCreditAmount()).thenReturn(BigDecimal.ZERO);
-        when(line.getMemo()).thenReturn("분개만 존재");
-        when(journalLineRepository.findPartnerLinesInRange(partnerId, FROM, TO)).thenReturn(List.of(line));
+        lenient().when(line.getLineNo()).thenReturn(1);
+        lenient().when(line.getAccountCode()).thenReturn("110");
+        lenient().when(line.getDebitAmount()).thenReturn(new BigDecimal("500"));
+        lenient().when(line.getCreditAmount()).thenReturn(BigDecimal.ZERO);
+        lenient().when(line.getMemo()).thenReturn("분개만 존재");
+        when(journalLineRepository.findJournalLinesInRangeForPartner(partnerId, FROM, TO)).thenReturn(List.of(line));
 
         var result = new PartnerLedgerReadModelService(
                 salesClient, journalLineRepository, cashReceiptRepository, journalRepository,
