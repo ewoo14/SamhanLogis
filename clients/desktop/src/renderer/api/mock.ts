@@ -5630,6 +5630,58 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
     return envelope(filtered.slice(0, Number(config.params?.['limit'] ?? 20)))
   }
 
+  // GET /accounting/journals/partner-ledger — PartnerLedgerResponse VIEW read model.
+  // Must precede the generic /accounting/journals/{id} and page handlers below.
+  if (method === 'GET' && url.includes('/accounting/journals/partner-ledger')) {
+    const partnerCode = String(config.params?.['partnerCode'] ?? 'P-001')
+    const from = String(config.params?.['from'] ?? '2026-04-01')
+    const to = String(config.params?.['to'] ?? '2026-04-30')
+    const partner = ({
+      'P-001': { name: '엘에이시스템에어', businessNo: '123-45-67890' },
+      'P-002': { name: '강남에어솔루션', businessNo: '234-56-78901' },
+      'P-003': { name: '한빛쾌적', businessNo: '345-67-89012' },
+    } as Record<string, { name: string; businessNo: string | null }>)[partnerCode]
+      ?? { name: '테스트 거래처', businessNo: null }
+
+    return envelope({
+      partnerCode,
+      partnerName: partner.name,
+      partnerBusinessNo: partner.businessNo,
+      periodFrom: from,
+      periodTo: to,
+      documents: [
+        {
+          type: 'SALE',
+          documentNo: `${from.replace(/-/g, '/')}-1`,
+          date: from,
+          partnerCode,
+          partnerName: partner.name,
+          deliveryAddress: '서울특별시 강남구 테헤란로 123',
+          amount: '4070000',
+          lines: [
+            {
+              productName: '시스템에어컨 4Way 4HP',
+              modelName: 'AJ040RXH4BC1',
+              quantity: 2,
+              unitPriceWithVat: '2035000',
+              lineAmount: '4070000',
+            },
+          ],
+        },
+        {
+          type: 'CASH_RECEIPT',
+          documentNo: `${to.replace(/-/g, '/')}-1`,
+          date: to,
+          partnerCode,
+          partnerName: partner.name,
+          deliveryAddress: null,
+          amount: '2000000',
+          lines: [],
+        },
+      ],
+    })
+  }
+
   // GET /accounting/journals/{id} — 단건 상세 (라인 포함)
   const journalDetailMatch = url.match(/\/accounting\/journals\/([^/?]+)$/)
   if (method === 'GET' && journalDetailMatch) {

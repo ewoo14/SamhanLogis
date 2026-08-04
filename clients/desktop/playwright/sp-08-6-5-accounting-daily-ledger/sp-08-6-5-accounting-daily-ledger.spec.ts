@@ -177,7 +177,7 @@ test.describe('SP-08-6-5 일마감 + 원장 정적 계약', () => {
     expect(api).toContain('LedgerData')
     expect(api).toContain('LedgerLine')
     expect(api).toContain('SalesAggregateRow')
-    expect(api).toContain('/accounting/journals/ledger-data')
+    expect(api).toContain('/accounting/journals/partner-ledger')
     expect(api).toContain('/accounting/sales/aggregate')
 
     // UUID 비공개 — 인터페이스 필드에 partnerId 없음 (주석 언급은 허용)
