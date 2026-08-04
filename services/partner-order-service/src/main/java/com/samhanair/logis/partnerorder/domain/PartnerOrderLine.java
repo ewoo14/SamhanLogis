@@ -60,7 +60,7 @@ public class PartnerOrderLine extends BaseEntity {
     private PartnerOrder partnerOrder;
 
     /** product-service 의 logical product UUID (FK 없음). */
-    @Column(name = "product_id", nullable = false)
+    @Column(name = "product_id")
     private UUID productId;
 
     /** 발행 시점 스냅샷 — 모델명 (사용자 노출 식별자). */

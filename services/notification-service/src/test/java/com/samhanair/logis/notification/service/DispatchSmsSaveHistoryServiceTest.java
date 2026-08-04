@@ -15,6 +15,8 @@ import com.samhanair.logis.notification.domain.DispatchSmsSaveHistory;
 import com.samhanair.logis.notification.domain.DispatchSmsSaveMode;
 import com.samhanair.logis.notification.repository.DispatchSmsSaveHistoryRepository;
 import com.samhanair.logis.notification.web.dto.DispatchSmsSaveHistoryRequest;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -34,7 +37,7 @@ import org.springframework.transaction.support.DefaultTransactionStatus;
 /**
  * 배차문자 저장내역 service 단위 테스트.
  *
- * <p>preview AUTO_LATEST, 명시 저장, 발송 감사 append-only, payload 제한,
+ * <p>preview AUTO_LATEST, 명시 저장 append-only, payload 제한,
  * 날짜 범위 정규화를 검증한다.
  */
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +49,17 @@ class DispatchSmsSaveHistoryServiceTest {
     private DispatchSmsSaveHistoryRepository repository;
 
     private DispatchSmsSaveHistoryService service;
+
+    @Test
+    @DisplayName("V7 제약은 soft-delete 된 과거 SEND_AUDIT 행을 보존하면서 복원을 막는다")
+    void v7Constraint_allowsSoftDeletedLegacyRows() throws IOException {
+        String sql = new String(new ClassPathResource(
+                "db/migration/V7__retire_dispatch_sms_send_audit_history.sql")
+                .getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+        assertThat(sql).contains(
+                "CHECK (is_deleted OR save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED'))");
+    }
 
     @BeforeEach
     void setUp() {
@@ -93,19 +107,19 @@ class DispatchSmsSaveHistoryServiceTest {
     }
 
     @Test
-    @DisplayName("SEND_AUDIT 저장은 기존 AUTO_LATEST 를 supersede 하지 않고 append-only 로 저장한다")
-    void saveSendAudit_doesNotSupersedeAutoLatest() {
+    @DisplayName("MANUAL_NAMED 저장은 기존 AUTO_LATEST 를 supersede 하지 않고 append-only 로 저장한다")
+    void saveManualNamed_doesNotSupersedeAutoLatest() {
         when(repository.save(any(DispatchSmsSaveHistory.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        service.save(sendAuditRequest(), "dispatch-user");
+        service.save(manualNamedRequest(), "dispatch-user");
 
         verify(repository, org.mockito.Mockito.never())
                 .findActiveAutoLatest(any(), any());
         ArgumentCaptor<DispatchSmsSaveHistory> captor =
                 ArgumentCaptor.forClass(DispatchSmsSaveHistory.class);
         verify(repository).save(captor.capture());
-        assertThat(captor.getValue().getSaveMode()).isEqualTo(DispatchSmsSaveMode.SEND_AUDIT);
-        assertThat(captor.getValue().getTopic()).isEqualTo("발송 감사");
+        assertThat(captor.getValue().getSaveMode()).isEqualTo(DispatchSmsSaveMode.MANUAL_NAMED);
+        assertThat(captor.getValue().getTopic()).isEqualTo("명시 저장");
     }
 
     @Test
@@ -129,8 +143,8 @@ class DispatchSmsSaveHistoryServiceTest {
         String oversized = "x".repeat(101 * 1024);
         DispatchSmsSaveHistoryRequest request = new DispatchSmsSaveHistoryRequest(
                 DispatchSmsProgramType.DISPATCH_SMS,
-                DispatchSmsSaveMode.SEND_AUDIT,
-                "발송 감사",
+                DispatchSmsSaveMode.MANUAL_NAMED,
+                "명시 저장",
                 json("{\"rowCount\":1}"),
                 objectMapper.createObjectNode().put("body", oversized));
 
@@ -147,7 +161,7 @@ class DispatchSmsSaveHistoryServiceTest {
 
         service.list(
                 DispatchSmsProgramType.DISPATCH_SMS,
-                DispatchSmsSaveMode.SEND_AUDIT,
+                DispatchSmsSaveMode.MANUAL_NAMED,
                 LocalDate.parse("2026-05-31"),
                 LocalDate.parse("2026-05-01"),
                 "dispatch-user",
@@ -156,14 +170,14 @@ class DispatchSmsSaveHistoryServiceTest {
         verify(repository).findByFilter(
                 "dispatch-user",
                 DispatchSmsProgramType.DISPATCH_SMS,
-                DispatchSmsSaveMode.SEND_AUDIT,
+                DispatchSmsSaveMode.MANUAL_NAMED,
                 LocalDate.parse("2026-05-01").atStartOfDay(),
                 LocalDate.parse("2026-06-01").atStartOfDay(),
                 PageRequest.of(0, 50));
     }
 
     @Test
-    @DisplayName("latest 는 SEND_AUDIT 가 있어도 AUTO_LATEST 만 조회한다")
+    @DisplayName("latest 는 AUTO_LATEST 만 조회한다")
     void latest_onlyAutoLatest() {
         when(repository.findActiveAutoLatest("dispatch-user", DispatchSmsProgramType.DISPATCH_SMS))
                 .thenReturn(Optional.empty());
@@ -215,13 +229,13 @@ class DispatchSmsSaveHistoryServiceTest {
                 json("{\"totalMessages\":3,\"groups\":[{\"chatRoom\":\"A\"}]}"));
     }
 
-    private DispatchSmsSaveHistoryRequest sendAuditRequest() {
+    private DispatchSmsSaveHistoryRequest manualNamedRequest() {
         return new DispatchSmsSaveHistoryRequest(
                 DispatchSmsProgramType.DISPATCH_SMS,
-                DispatchSmsSaveMode.SEND_AUDIT,
-                "발송 감사",
+                DispatchSmsSaveMode.MANUAL_NAMED,
+                "명시 저장",
                 json("{\"date\":\"2026-05-17\",\"rowCount\":3}"),
-                json("{\"sent\":3,\"failed\":0,\"blocked\":0}"));
+                json("{\"totalMessages\":3,\"groups\":[]}"));
     }
 
     private JsonNode json(String raw) {

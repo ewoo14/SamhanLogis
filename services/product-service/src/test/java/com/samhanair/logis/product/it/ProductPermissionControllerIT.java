@@ -269,7 +269,7 @@ class ProductPermissionControllerIT {
         lenient().doNothing().when(googleSheetsClient).invalidateCache();
         lenient().when(productSheetSyncService.syncAll()).thenReturn(new ProductSheetSyncService.SyncSummary());
         lenient().when(ecountProductImporter.importCsv(any(), any(), any(), anyString()))
-                .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of()));
+                .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of(), 0, List.of()));
         lenient().when(editRequestService.request(any(), any(), anyString(), any(), anyString()))
                 .thenReturn(editRequest);
         lenient().when(editRequestService.approve(any(), any(), anyString(), any()))

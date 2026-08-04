@@ -1,0 +1,29 @@
+POST /admin/products/imports/ecount HTTP/1.1
+Host: localhost:8084
+Accept: */*
+X-User-Id: [dev_master 계정 UUID — 보고서에서는 비공개 처리]
+X-Is-System-Master: true
+Cookie: access_token=[redacted]
+Content-Type: multipart/form-data; boundary=[browser-generated]
+
+--[browser-generated]
+Content-Disposition: form-data; name="itemFile"; filename="item.csv"
+Content-Type: text/csv
+
+[D:\dev\Samhan-Public\docs\migration\ecount-data\raw\품목-Excel다운로드.csv의 정확한 바이트]
+--[browser-generated]
+Content-Disposition: form-data; name="relationFile"; filename="relation.csv"
+Content-Type: text/csv
+
+[D:\dev\Samhan-Public\docs\migration\ecount-data\raw\품목관계-Excel다운로드.csv의 정확한 바이트]
+--[browser-generated]
+Content-Disposition: form-data; name="groupFile"; filename="group.csv"
+Content-Type: text/csv
+
+[D:\dev\Samhan-Public\docs\migration\ecount-data\raw\품목계층그룹-Excel다운로드.csv의 정확한 바이트]
+--[browser-generated]--
+
+실제 파일 SHA-256
+- itemFile: 02785A731FCC502D8828ADA534DF103DC79BFDBB67D84A7142825AA323CE083C
+- relationFile: 00A1964DF081FEDB1EAF270ED0110345E1F856531EB630210F6E5BA7867DE85
+- groupFile: 4955F2999017F37511AF3ADE552113FA30C0628B081D6B992F7D171A7CC1EB7E

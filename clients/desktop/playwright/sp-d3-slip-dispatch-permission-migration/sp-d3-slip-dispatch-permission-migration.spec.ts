@@ -10,9 +10,9 @@
  * 스크린샷 저장: Playwright test outputPath (repo-level QA PNG overwrite 방지).
  *
  * TC 목록 (5건):
- *   T1 SALES 로그인 → 매출 슬립 + SMS 발송 이력 접근 가능 / 매입 슬립 + 배차 hidden
+ *   T1 SALES 로그인 → 매출 슬립 접근 가능 / 매입 슬립 + 배차 hidden
  *   T2 WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 + 배차 hidden
- *   T3 DISPATCH 로그인 → 배차 보드 route + SMS 발송 이력 가능 / 매입 슬립 + 매출 슬립 hidden
+ *   T3 DISPATCH 로그인 → 배차 보드 route 가능 / 매입 슬립 + 매출 슬립 hidden
  *   T4 마스터가 SALES 의 purchases.slip.list revoke → SALES 매입 슬립 접근 차단 확인
  *   T5 권한 없는 URL 직접 진입 → redirect "/"
  *
@@ -26,7 +26,6 @@
  *   /sales/slips                          → sales.slip.list               (매출 슬립 목록)
  *   /purchases/slips                      → purchases.slip.list           (매입 슬립 목록)
  *   /dispatch-board                       → dispatch.board               (배차 보드 route)
- *   /arologis/dispatch-sms/send-audit     → notification.dispatch-sms.send-audit (SMS 발송 이력)
  *   /warehouse/inbound-inspections        → inbound.inspection           (입고 검수 — 사이드바 연동)
  *
  * BE endpoint (user-service, SP-D1 구현):
@@ -287,13 +286,6 @@ const SP_D3_ROUTES = [
     roles: ['DISPATCH', 'MANAGER', 'MASTER'],
   },
   {
-    path: '/arologis/dispatch-sms/send-audit',
-    sidebarTestId: 'sidebar-arologis-sms-send-audit',
-    pageCode: 'notification.dispatch-sms.send-audit',
-    label: 'SMS 발송 이력',
-    roles: ['DISPATCH', 'MANAGER', 'MASTER'],
-  },
-  {
     path: '/warehouse/inbound-inspections',
     sidebarTestId: 'sidebar-warehouse-inbound-inspections',
     pageCode: 'inbound.inspection',
@@ -312,7 +304,6 @@ function buildSalesPermissions() {
     success: true,
     data: [
       { pageCode: 'sales.slip.list', canView: true, canEdit: true },
-      { pageCode: 'notification.dispatch-sms.send-audit', canView: true, canEdit: false },
     ],
   }
 }
@@ -328,13 +319,12 @@ function buildWarehousePermissions() {
   }
 }
 
-/** DISPATCH 기본 권한 — 배차 보드 route + SMS 발송 이력 가능, 매입/매출 없음 */
+/** DISPATCH 기본 권한 — 배차 보드 route 가능, 매입/매출 없음 */
 function buildDispatchPermissions() {
   return {
     success: true,
     data: [
       { pageCode: 'dispatch.board', canView: true, canEdit: false },
-      { pageCode: 'notification.dispatch-sms.send-audit', canView: true, canEdit: false },
     ],
   }
 }
@@ -345,7 +335,6 @@ function buildSalesWithPurchaseSlipRevoked() {
     success: true,
     data: [
       { pageCode: 'sales.slip.list', canView: true, canEdit: true },
-      { pageCode: 'notification.dispatch-sms.send-audit', canView: true, canEdit: false },
       // purchases.slip.list 제외 (revoke — SALES 는 원래 매입 권한 없음)
     ],
   }
@@ -368,7 +357,6 @@ const PURCHASES_SLIPS_URL = `${BASE_URL}/#/purchases/slips?mockRole=SALES`
 const DISPATCH_BOARD_URL = `${BASE_URL}/#/dispatch-board?mockRole=SALES`
 const WAREHOUSE_PURCHASES_URL = `${BASE_URL}/#/purchases/slips?mockRole=WAREHOUSE`
 const DISPATCH_BOARD_DISPATCH_URL = `${BASE_URL}/#/dispatch-board?mockRole=DISPATCH`
-const DISPATCH_SMS_AUDIT_URL = `${BASE_URL}/#/arologis/dispatch-sms/send-audit?mockRole=DISPATCH`
 const PURCHASES_SLIPS_NO_PERM_URL = `${BASE_URL}/#/purchases/slips?mockRole=NOPERM`
 const DISPATCH_BOARD_NO_PERM_URL = `${BASE_URL}/#/dispatch-board?mockRole=NOPERM`
 const SALES_SLIPS_NO_PERM_URL = `${BASE_URL}/#/sales/slips?mockRole=NOPERM`
@@ -391,10 +379,10 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T1: SALES 로그인 → 매출 슬립 + SMS 발송 이력 접근 가능 / 매입 슬립 + 배차 route 차단
+   * T1: SALES 로그인 → 매출 슬립 접근 가능 / 매입 슬립 + 배차 route 차단
    *
    * 검증 항목:
-   *   - GET /auth/admin/permissions/my → SALES: sales.slip.list + notification.dispatch-sms.send-audit view=true
+    *   - GET /auth/admin/permissions/my → SALES: sales.slip.list view=true
    *   - /sales/slips 진입 → 매출 슬립 목록 페이지 표시 (PermissionGuard 통과)
    *   - /purchases/slips 직접 진입 → PermissionGuard redirect "/" (purchases.slip.list 없음)
    *   - /dispatch-board 직접 진입 → redirect "/" (dispatch.board 없음)
@@ -485,12 +473,11 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T2: WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 + SMS 이력 hidden
+   * T2: WAREHOUSE 로그인 → 매입 슬립 + 입고 검수 가능 / 매출 슬립 hidden
    *
    * 검증 항목:
    *   - GET /auth/admin/permissions/my → WAREHOUSE: purchases.slip.list + inbound.inspection view=true
    *   - /purchases/slips 진입 → 매입 슬립 목록 페이지 표시 (PermissionGuard 통과)
-   *   - 사이드바: [data-testid="sidebar-arologis-sms-send-audit"] visible=false
    *   - pageerror 없음
    */
   test('T2: WAREHOUSE → 매입 슬립 접근 가능 + 매출/SMS 이력 hidden', async ({ page }) => {
@@ -532,30 +519,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       ).toBe(false)
     })
 
-    await test.step('WAREHOUSE — SMS 발송 이력 사이드바 hidden 확인', async () => {
-      await page.goto(withMockPerms(`${BASE_URL}/#/?mockRole=WAREHOUSE`, warehousePerms), {
-        waitUntil: 'domcontentloaded',
-        timeout: 20000,
-      })
-      await page.waitForTimeout(1500)
-
-      const sidebar = page.locator('nav, aside, [data-testid="app-sidebar"]').first()
-      const sidebarVisible = await sidebar.isVisible().catch(() => false)
-
-      expect(
-        sidebarVisible,
-        '사이드바가 렌더링되어야 함 — WAREHOUSE 홈 진입 후 nav/aside 미표시',
-      ).toBe(true)
-
-      // SMS 발송 이력 hidden 확인
-      const smsAuditLink = page.locator('[data-testid="sidebar-arologis-sms-send-audit"]')
-      const smsAuditVisible = await smsAuditLink.isVisible().catch(() => false)
-      expect(
-        smsAuditVisible,
-        'WAREHOUSE 사이드바에 SMS 발송 이력이 표시됨 — notification.dispatch-sms.send-audit 권한 없으므로 hidden 필요',
-      ).toBe(false)
-    })
-
     await page.screenshot({
       path: test.info().outputPath('T2-warehouse-purchase-access-dispatch-hidden.png'),
       fullPage: true,
@@ -568,18 +531,17 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
 
   // -------------------------------------------------------------------------
   /**
-   * T3: DISPATCH 로그인 → 배차 보드 route + SMS 발송 이력 가능 / 매입 슬립 + 매출 슬립 hidden
+   * T3: DISPATCH 로그인 → 배차 보드 route 가능 / 매입 슬립 + 매출 슬립 hidden
    *
    * 검증 항목:
-   *   - GET /auth/admin/permissions/my → DISPATCH: dispatch.board + notification.dispatch-sms.send-audit view=true
+    *   - GET /auth/admin/permissions/my → DISPATCH: dispatch.board view=true
    *   - /dispatch-board 진입 → 배차 보드 페이지 표시 (PermissionGuard 통과)
-   *   - /arologis/dispatch-sms/send-audit 진입 → SMS 발송 이력 페이지 표시
    *   - 사이드바: [data-testid="sidebar-purchases"] — 매입 관련 PermissionGuard 미통과 메뉴 hidden
    *   - /sales/slips 직접 진입 → redirect "/" (sales.slip.list 없음)
    *   - /purchases/slips 직접 진입 → redirect "/" (purchases.slip.list 없음)
    *   - pageerror 없음
    */
-  test('T3: DISPATCH → 배차 보드 route + SMS 이력 접근 가능 + 매입/매출 슬립 차단', async ({ page }) => {
+   test('T3: DISPATCH → 배차 보드 route 접근 가능 + 매입/매출 슬립 차단', async ({ page }) => {
     const errors: string[] = []
     attachPageErrorHook(page, errors)
     await installDispatchBoardApiStubs(page, { allowCreate: false })
@@ -620,32 +582,6 @@ test.describe('SP-D3 매입/매출/배차 동적 RBAC 마이그레이션 (T1~T5)
       await expect(page.getByTestId('dispatch-board-add-vehicle-button')).toBeDisabled()
       await expect(page.getByTestId('dispatch-board-complete-button')).toBeDisabled()
       await expect(page.getByText('배차 작업 초기화 실패')).toHaveCount(0)
-    })
-
-    await test.step('DISPATCH — SMS 발송 이력 (/arologis/dispatch-sms/send-audit) 접근 가능 확인', async () => {
-      await page.goto(withMockPerms(DISPATCH_SMS_AUDIT_URL, dispatchPerms), {
-        waitUntil: 'domcontentloaded',
-        timeout: 20000,
-      })
-      await page.waitForTimeout(1500)
-
-      const currentUrl = page.url()
-      const bodyText = (await page.textContent('body')) ?? ''
-
-      const isRedirectedToHome =
-        currentUrl.endsWith('/#/') ||
-        currentUrl.endsWith('/#') ||
-        (currentUrl.includes(BASE_URL) && !currentUrl.includes('/arologis/dispatch-sms/send-audit'))
-
-      expect(
-        isRedirectedToHome,
-        `DISPATCH SMS 발송 이력 페이지 접근이 차단됨 — URL: ${currentUrl}. notification.dispatch-sms.send-audit view=true 보유 DISPATCH 는 접근 허용 필요.`,
-      ).toBe(false)
-
-      // 접근 허용 강화 — 차단 화면 아님 + 앱 셸 렌더(빈 화면 회귀 방지).
-      expect(bodyText.includes('접근 권한이 없습니다'), 'DISPATCH SMS 이력 — 차단 화면 표시됨').toBe(false)
-      // [Round C P1 #8] '대시보드' 라벨 폐기('홈' 리라벨) → 앱 셸 렌더 sentinel 을 aside.app-sidebar 존재로 교체.
-      expect(await page.locator('aside.app-sidebar').count(), 'DISPATCH SMS 이력 — 앱 셸 미렌더(빈 화면)').toBeGreaterThanOrEqual(1)
     })
 
     await test.step('DISPATCH — 매출 슬립 URL 직접 진입 시 redirect "/" 확인', async () => {
@@ -1030,7 +966,6 @@ test.describe('SP-D3 회귀 가드 (false green 0건 + SP-D3 PageCode 정합 검
       'sales.slip.list',
       'purchases.slip.list',
       'dispatch.board',
-      'notification.dispatch-sms.send-audit',
       'inbound.inspection',
     ]
 

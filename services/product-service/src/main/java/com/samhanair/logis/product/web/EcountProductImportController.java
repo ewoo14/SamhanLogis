@@ -47,17 +47,26 @@ public class EcountProductImportController {
                 userId);
     }
 
-    private static void validateFile(MultipartFile file, String partName) {
+    private static void validateFile(MultipartFile file, String partName) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, partName + " CSV 파일 필수");
         }
         validateFileIfPresent(file, partName);
     }
 
-    private static void validateFileIfPresent(MultipartFile file, String partName) {
+    private static void validateFileIfPresent(MultipartFile file, String partName) throws IOException {
         if (file != null && file.getSize() > MAX_SIZE_BYTES) {
             throw new BusinessException(ErrorCode.INVALID_INPUT,
                     partName + " 파일 크기 한도 초과: " + file.getSize() + " > " + MAX_SIZE_BYTES);
+        }
+        if (file != null && !file.isEmpty()) {
+            byte[] signature = file.getInputStream().readNBytes(4);
+            if (signature.length >= 4
+                    && signature[0] == 'P' && signature[1] == 'K'
+                    && signature[2] == 3 && signature[3] == 4) {
+                throw new BusinessException(ErrorCode.MIG2_CSV_HEADER_MISMATCH,
+                        partName + "은(는) CSV 파일만 지원합니다. XLSX를 CSV로 변환한 뒤 업로드하십시오.");
+            }
         }
     }
 }

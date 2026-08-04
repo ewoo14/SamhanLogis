@@ -7,10 +7,12 @@ import com.samhanair.logis.product.domain.Product;
 import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.service.BundleExpander;
 import com.samhanair.logis.product.service.EcountAliasResolveService;
+import com.samhanair.logis.product.service.EcountAliasReservationService;
 import com.samhanair.logis.product.service.ProductService;
 import com.samhanair.logis.product.web.dto.BundleIntegrityResponse;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveRequest;
 import com.samhanair.logis.product.web.dto.EcountAliasResolveResponse;
+import com.samhanair.logis.product.web.dto.EcountAliasReservationReleaseRequest;
 import com.samhanair.logis.product.web.dto.ExpandRequest;
 import com.samhanair.logis.product.web.dto.ExpandedLineResponse;
 import com.samhanair.logis.product.web.dto.FixedDiscountResponse;
@@ -32,7 +34,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,13 +49,32 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/products/internal")
-@RequiredArgsConstructor
 public class ProductInternalController {
 
     private final ProductService productService;
     private final ProductRepository productRepository;
     private final BundleExpander bundleExpander;
     private final EcountAliasResolveService ecountAliasResolveService;
+    private final EcountAliasReservationService ecountAliasReservationService;
+
+    @Autowired
+    public ProductInternalController(ProductService productService, ProductRepository productRepository,
+                                     BundleExpander bundleExpander,
+                                     EcountAliasResolveService ecountAliasResolveService,
+                                     EcountAliasReservationService ecountAliasReservationService) {
+        this.productService = productService;
+        this.productRepository = productRepository;
+        this.bundleExpander = bundleExpander;
+        this.ecountAliasResolveService = ecountAliasResolveService;
+        this.ecountAliasReservationService = ecountAliasReservationService;
+    }
+
+    /** 기존 standalone controller 단위 테스트와의 생성자 호환용. 운영 bean은 5-인 생성자를 사용한다. */
+    public ProductInternalController(ProductService productService, ProductRepository productRepository,
+                                     BundleExpander bundleExpander,
+                                     EcountAliasResolveService ecountAliasResolveService) {
+        this(productService, productRepository, bundleExpander, ecountAliasResolveService, null);
+    }
 
     /**
      * 제품 ID 일괄 조회 — inventory-service 등 internal 호출자가 productId 존재 여부 검증에 사용.
@@ -119,7 +140,15 @@ public class ProductInternalController {
     public ApiResponse<EcountAliasResolveResponse> resolveEcountAliases(
             @Valid @RequestBody EcountAliasResolveRequest request) {
         return ApiResponse.ok(new EcountAliasResolveResponse(
-                ecountAliasResolveService.resolve(request == null ? null : request.aliasCodes())));
+                ecountAliasResolveService.resolve(request == null ? null : request.aliasCodes(),
+                        request == null ? null : request.reservationToken())));
+    }
+
+    @PostMapping("/release-ecount-alias-reservations")
+    public ApiResponse<Void> releaseEcountAliasReservations(
+            @Valid @RequestBody EcountAliasReservationReleaseRequest request) {
+        ecountAliasReservationService.release(request.reservationToken());
+        return ApiResponse.ok(null);
     }
 
     /**

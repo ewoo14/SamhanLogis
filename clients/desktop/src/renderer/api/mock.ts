@@ -11534,6 +11534,7 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               slipNo: '2026/05/17-1',
               message: '[삼한] 5/17 오전 배송 예정입니다.',
               blocked: false,
+              groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-1111-2222 / 서울 강남구',
             },
             {
               partnerCode: 'P-002',
@@ -11541,12 +11542,20 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
               slipNo: '2026/05/17-2',
               message: '[발송 차단됨]',
               blocked: true,
+              groupMessage: '발송금지 업체입니다.',
             },
           ],
         },
       ],
       unmapped: [
-        { partnerCode: 'P-404', partnerName: '미매핑 거래처', slipNo: '2026/05/17-3' },
+        {
+          partnerCode: 'P-404',
+          partnerName: '미매핑 거래처',
+          slipNo: '2026/05/17-3',
+          message: '[삼한] 5/17 오전 배송 예정입니다.',
+          recipientPhone: '01000000000',
+          groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-3333-4444 / 서울 중구\n\n※출하창고 상황에 따라 지연될 수 있음을 양해 부탁드립니다.',
+        },
       ],
     }
     const row: MockDispatchSmsHistoryRow = {
@@ -11559,74 +11568,12 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       requestParams: { date: '2026-05-17', rowCount: 3 },
       rowCount: 3,
     }
-    // SP-09-2: SEND_AUDIT mock 데이터 3건 (날짜별, 결과 혼합) — DispatchSmsSendAuditPage 시연용.
-    const auditPayload1 = {
-      date: '2026-05-17',
-      sent: 2,
-      failed: 0,
-      blocked: 1,
-      msgId: 'ALG-2026051700001',
-      details: [
-        { partnerCode: 'P-001', recipientPhone: '01012345678', status: 'SENT', reason: null },
-        { partnerCode: 'P-003', recipientPhone: '01098765432', status: 'SENT', reason: null },
-        { partnerCode: 'P-002', recipientPhone: '01055551234', status: 'BLOCKED', reason: '발송금지 등록됨' },
-      ],
-    }
-    const auditPayload2 = {
-      date: '2026-05-16',
-      sent: 1,
-      failed: 1,
-      blocked: 0,
-      msgId: 'ALG-2026051600002',
-      details: [
-        { partnerCode: 'P-005', recipientPhone: '01011112222', status: 'SENT', reason: null },
-        { partnerCode: 'P-006', recipientPhone: '01033334444', status: 'FAILED', reason: 'Aligo 오류: result_code=-1' },
-      ],
-    }
-    const auditPayload3 = {
-      date: '2026-05-15',
-      sent: 0,
-      failed: 2,
-      blocked: 0,
-      msgId: null,
-      details: [
-        { partnerCode: 'P-007', recipientPhone: '01077778888', status: 'FAILED', reason: 'Aligo 오류: 잘못된 발신번호' },
-        { partnerCode: 'P-008', recipientPhone: '01099990000', status: 'FAILED', reason: 'Aligo 오류: result_code=-2' },
-      ],
-    }
-    const auditRow: MockDispatchSmsHistoryRow = {
-      ...row,
-      id: 'dispatch-sms-history-send-audit',
-      saveMode: 'SEND_AUDIT',
-      topic: '발송 감사 2026-05-17',
-      requestParams: { date: '2026-05-17', rowCount: 3, sent: 2, failed: 0, blocked: 1 },
-      createdAt: '2026-05-17T10:20:00',
-      rowCount: 3,
-      responsePayload: auditPayload1,
-    }
-    const auditRow2: MockDispatchSmsHistoryRow = {
-      ...row,
-      id: 'dispatch-sms-history-send-audit-2',
-      saveMode: 'SEND_AUDIT',
-      topic: '발송 감사 2026-05-16',
-      requestParams: { date: '2026-05-16', rowCount: 2, sent: 1, failed: 1, blocked: 0 },
-      createdAt: '2026-05-16T09:45:00',
-      rowCount: 2,
-      responsePayload: auditPayload2,
-    }
-    const auditRow3: MockDispatchSmsHistoryRow = {
-      ...row,
-      id: 'dispatch-sms-history-send-audit-3',
-      saveMode: 'SEND_AUDIT',
-      topic: '발송 감사 2026-05-15',
-      requestParams: { date: '2026-05-15', rowCount: 2, sent: 0, failed: 2, blocked: 0 },
-      createdAt: '2026-05-15T14:30:00',
-      rowCount: 2,
-      responsePayload: auditPayload3,
-    }
     if (method === 'POST') {
       const body = parseMockBody(config)
       const saveMode = String(body['saveMode'] ?? 'MANUAL_NAMED')
+      if (saveMode !== 'AUTO_LATEST' && saveMode !== 'MANUAL_NAMED') {
+        return mockError(400, 'INVALID_INPUT', '저장 방식은 AUTO_LATEST 또는 MANUAL_NAMED만 사용할 수 있습니다.')
+      }
       const requestParams = (body['requestParams'] && typeof body['requestParams'] === 'object')
         ? body['requestParams'] as Record<string, unknown>
         : {}
@@ -11664,27 +11611,11 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
       const id = url.split('/').pop()?.split('?')[0] ?? ''
       const savedRow = mockDispatchSmsHistoryRows.find(item => item.id === id)
       if (savedRow) return envelope(savedRow)
-      // SP-09-2: ID 별 SEND_AUDIT 상세 조회 — 3건 mock 지원
-      if (id === 'dispatch-sms-history-send-audit-2') {
-        return envelope({ ...auditRow2, responsePayload: auditPayload2 })
-      }
-      if (id === 'dispatch-sms-history-send-audit-3') {
-        return envelope({ ...auditRow3, responsePayload: auditPayload3 })
-      }
-      if (id === 'dispatch-sms-history-send-audit' || url.includes('send-audit')) {
-        return envelope({ ...auditRow, responsePayload: auditPayload1 })
-      }
       return envelope({ ...row, responsePayload: previewPayload })
     }
     if (method === 'GET') {
-      if (mockLocationParams().get('mockAligo502') === '1') {
-        return mockError(502, 'SEND_FAILED', 'Aligo SMS 외부 서비스 오류가 발생했습니다.')
-      }
       const mode = new URL(url, 'http://mock.local').searchParams.get('mode')
-      // SP-09-2: SEND_AUDIT 전용 baseRows 3건 포함
-      const baseAuditRows = [auditRow, auditRow2, auditRow3]
-      const baseRows = [...baseAuditRows, row]
-      const allRows = [...mockDispatchSmsHistoryRows, ...baseRows]
+      const allRows = [...mockDispatchSmsHistoryRows, row]
       const filteredRows = mode && mode !== 'ALL'
         ? allRows.filter(item => item.saveMode === mode)
         : allRows
@@ -11715,28 +11646,23 @@ export function getMockResponse(config: AxiosRequestConfig): unknown | null {
         {
           chatRoomName: '서울권 발주방',
           partners: [
-            { partnerCode: 'P-001', partnerName: '엘에이시스템에어', slipNo: '2026/05/17-1', message: '[삼한] 5/17 오전 배송 예정입니다.', blocked: false },
-            { partnerCode: 'P-002', partnerName: '한일냉동기술', slipNo: '2026/05/17-2', message: '[발송 차단됨]', blocked: true },
+            { partnerCode: 'P-001', partnerName: '엘에이시스템에어', slipNo: '2026/05/17-1', message: '[삼한] 5/17 오전 배송 예정입니다.', blocked: false, groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-1111-2222 / 서울 강남구' },
+            { partnerCode: 'P-002', partnerName: '한일냉동기술', slipNo: '2026/05/17-2', message: '[발송 차단됨]', blocked: true, groupMessage: '발송금지 업체입니다.' },
           ],
         },
       ],
       unmapped: [
-        { partnerCode: 'P-404', partnerName: '미매핑 거래처', slipNo: '2026/05/17-3' },
+        {
+          partnerCode: 'P-404',
+          partnerName: '미매핑 거래처',
+          slipNo: '2026/05/17-3',
+          message: '[삼한] 5/17 오전 배송 예정입니다.',
+          recipientPhone: '01000000000',
+          groupMessage: 'AI 삼성무풍 시스템에어컨 배차실입니다.\n\n17일 하차 건 배송기사님 연락처를 안내드립니다.\n010-3333-4444 / 서울 중구\n\n※출하창고 상황에 따라 지연될 수 있음을 양해 부탁드립니다.',
+        },
       ],
     })
   }
-  if (method === 'POST' && url.includes('/admin/notifications/dispatch-batch/send')) {
-    return envelope({
-      date: '2026-05-17',
-      sent: 1,
-      failed: 0,
-      blocked: 0,
-      details: [
-        { partnerCode: 'P-001', recipientPhone: 'room:서울권 발주방', status: 'SENT', reason: null },
-      ],
-    })
-  }
-
   // POST /arologis/dispatch/reconcile — 운송사 비교 (multipart)
   if (method === 'POST' && url.includes('/arologis/dispatch/reconcile')) {
     return envelope({
@@ -18474,7 +18400,6 @@ const SP_D1_PAGES = [
   'accounting.daily-closing.run',
   'accounting.daily-closing.unlock',
   'accounting.general-ledger',
-  'notification.dispatch-sms.send-audit',
   'purchases.slip.list',
   'sales.slip.list',
   'inbound.inspection',
@@ -18555,6 +18480,7 @@ const SP_D1_PAGES = [
     'slip.cleanup',
   'arologis.dispatch.admin',
   'arologis.dispatch.ops',
+  'notification.dispatch-sms.display',
   'dispatch.batch',
   'aligo.address-book',
   'groupware.approvals',
@@ -18668,7 +18594,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'accounting.tax-invoice.inbound', 'accounting.sales-slip.list',
     'accounting.purchase-slip.list', 'accounting.daily-closing',
     'accounting.daily-closing.run',
-    'accounting.general-ledger', 'notification.dispatch-sms.send-audit',
+    'accounting.general-ledger',
     'purchases.slip.list', 'sales.slip.list',
     'inbound.inspection', 'dispatch.board', 'dispatch.external-carriers',
     // SP-D2 회계 7개 — MANAGER: view 허용
@@ -18697,7 +18623,7 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page view 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     'slip.photo-audit',
     // C2c 동적 권한 전환 — MANAGER: view 허용 (V36/V30/V41 seed)
@@ -18721,11 +18647,11 @@ const SP_D1_DEFAULT_VIEW: Record<string, readonly string[]> = {
     'hr.slip-cutoff',
   ],
   DISPATCH: [
-    'notification.dispatch-sms.send-audit', 'dispatch.board', 'dispatch.external-carriers',
+    'dispatch.board', 'dispatch.external-carriers',
     // SP-D4 — DISPATCH: V79/#706 inventory.warehouse view + inventory.stock (view 전용) + arologis.*
     'inventory.warehouse', 'inventory.stock', 'arologis.admin', 'arologis.region',
-    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch view
-    'arologis.dispatch.ops', 'dispatch.batch',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + V92 canonical dispatch SMS view
+    'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch',
     // P1-C: arologis.region.manage — V34 seed MASTER/MANAGER 만 허용, DISPATCH 없음 → 제거
     // §7 협업 — V38: 내부 전 role view-only 보강 (can_edit=FALSE)
     'slip.comments', 'slip.audit-overlay',
@@ -18878,7 +18804,7 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     // C2b PermissionGuard 전환 — MANAGER: 전 12개 page edit 허용 (V29/V30/V33/V34/V36 seed)
     'sales.slip.create', 'slip.delivery-batch', 'slip.print.next-day', 'slip.print.export',
     'sales.partner-dc-config', 'sales.estimate-config', 'slip.cleanup',
-    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    'arologis.dispatch.admin', 'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch', 'dispatch.external-carriers',
     'aligo.address-book', 'groupware.approvals', 'groupware.approval-templates', 'messenger.admin', 'slip.edit-requests', 'slip.edit-requests.decide',
     // slip.photo-audit: MANAGER can_edit=FALSE per V36
     // C2c 동적 권한 전환 — MANAGER: edit 허용 (V36/V30/V41 seed)
@@ -18902,11 +18828,11 @@ const SP_D1_DEFAULT_EDIT: Record<string, readonly string[]> = {
     'hr.slip-cutoff',
   ],
   DISPATCH: [
-    'notification.dispatch-sms.send-audit', 'dispatch.board',
+    'dispatch.board',
     // SP-D4 — DISPATCH: arologis.* edit
     'arologis.admin', 'arologis.region',
-    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + dispatch.batch edit (V33/V34)
-    'arologis.dispatch.ops', 'dispatch.batch', 'dispatch.external-carriers',
+    // C2b PermissionGuard 전환 — DISPATCH: arologis.dispatch.ops + V92 canonical dispatch SMS edit
+    'arologis.dispatch.ops', 'notification.dispatch-sms.display', 'dispatch.batch', 'dispatch.external-carriers',
   ],
   SALES: [
     'sales.slip.list',

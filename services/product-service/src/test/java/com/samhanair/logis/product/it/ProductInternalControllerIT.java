@@ -278,6 +278,8 @@ class ProductInternalControllerIT extends AbstractPostgresIT {
                   alias_code, main_item_code, main_product_uuid, source_file_hash, source_row_no
                 ) VALUES (?, ?, ?, ?, ?)
                 """, aliasCode, "MAIN-IT", serialProductId, "HASH-ALIAS-IT", 1);
+        // resolver가 products와 JOIN하므로 JPA fixture를 native JDBC 조회 전에 확정한다.
+        productRepository.flush();
         var body = java.util.Map.of("aliasCodes", List.of(aliasCode, "ALIAS-NOT-FOUND"));
 
         mockMvc.perform(post("/products/internal/resolve-ecount-aliases")

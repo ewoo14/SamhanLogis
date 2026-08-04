@@ -121,8 +121,93 @@ class Mig8OrderImportServiceIT extends AbstractPostgresIT {
         assertThat(result.createdCount()).isZero();
         assertThat(result.skippedCount()).isZero();
         assertThat(result.rejectedCount()).isEqualTo(2);
+        assertThat(result.rejectionDetails()).hasSize(2);
+        assertThat(result.rejectionDetails()).extracting("orderNo")
+                .containsExactlyInAnyOrder("2026/06/20-4", "2026/06/20-5");
+        assertThat(result.rejectionDetails()).extracting("reason")
+                .containsExactlyInAnyOrder("거래처 미해소", "구조 오류");
         assertThat(count("partner_orders")).isZero();
         assertThat(count("partner_order_lines")).isZero();
+    }
+
+    @Test
+    void importMig8Orders_preserves_order_with_unresolved_line_without_making_it_convertible() {
+        Mig8OrderLineExport resolved = line(1, PRODUCT_A);
+        Mig8OrderLineExport unresolved = new Mig8OrderLineExport(
+                2, null, "이카운트 미등록 품목", BigDecimal.ONE,
+                BigDecimal.valueOf(20000), BigDecimal.valueOf(20000), BigDecimal.ZERO,
+                LocalDate.of(2026, 7, 31));
+        when(accountingMig8OrderClient.fetchMig8Orders(eq(0), eq(50)))
+                .thenReturn(new Mig8OrderPage(List.of(orderWithLines(
+                        "2026/06/20-unresolved", List.of(resolved, unresolved))), true));
+
+        Mig8OrderImportResult result = importService.importMig8Orders(50);
+
+        assertThat(result.createdCount()).isEqualTo(1);
+        assertThat(result.rejectedCount()).isZero();
+        assertThat(count("partner_orders")).isEqualTo(1);
+        assertThat(count("partner_order_lines")).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM partner_order_lines WHERE product_id IS NULL", Long.class))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void importMig8Orders_reexecution_resolves_previous_unresolved_line_and_restores_convertibility() {
+        Mig8OrderLineExport unresolved = line(1, PRODUCT_MISSING);
+        Mig8OrderLineExport unresolvedAtFirstImport = new Mig8OrderLineExport(
+                unresolved.lineNo(), null, unresolved.itemName(), unresolved.quantity(),
+                unresolved.unitPrice(), unresolved.supplyAmount(), unresolved.vatAmount(),
+                unresolved.itemDueDate());
+        when(accountingMig8OrderClient.fetchMig8Orders(eq(0), eq(50)))
+                .thenReturn(new Mig8OrderPage(List.of(orderWithLines(
+                        "2026/06/20-recover", List.of(unresolvedAtFirstImport))), true))
+                .thenReturn(new Mig8OrderPage(List.of(orderWithLines(
+                        "2026/06/20-recover", List.of(unresolved))), true));
+        when(productClient.lookup(anyList()))
+                .thenReturn(List.of(productSummary(PRODUCT_MISSING)));
+
+        Mig8OrderImportResult first = importService.importMig8Orders(50);
+
+        assertThat(first.createdCount()).withFailMessage("첫 번째 실행 결과=%s", first).isEqualTo(1);
+
+        Mig8OrderImportResult second = importService.importMig8Orders(50);
+
+        assertThat(second.createdCount()).isZero();
+        assertThat(second.skippedCount()).withFailMessage("두 번째 실행 결과=%s", second).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT product_id FROM partner_order_lines l "
+                        + "JOIN partner_orders o ON o.id = l.partner_order_id "
+                        + "WHERE o.order_no = ?", UUID.class, "2026/06/20-recover"))
+                .isEqualTo(PRODUCT_MISSING);
+    }
+
+    @Test
+    void importMig8Orders_reexecution_keeps_order_blocked_when_another_line_is_still_unresolved() {
+        Mig8OrderLineExport unresolvedFirst = new Mig8OrderLineExport(
+                1, null, "해소 대기 A", BigDecimal.ONE, BigDecimal.valueOf(10000),
+                BigDecimal.valueOf(10000), BigDecimal.ZERO, LocalDate.of(2026, 7, 31));
+        Mig8OrderLineExport unresolvedSecond = new Mig8OrderLineExport(
+                2, null, "해소 대기 B", BigDecimal.ONE, BigDecimal.valueOf(20000),
+                BigDecimal.valueOf(20000), BigDecimal.ZERO, LocalDate.of(2026, 7, 31));
+        Mig8OrderLineExport resolvedFirst = line(1, PRODUCT_A);
+        when(accountingMig8OrderClient.fetchMig8Orders(eq(0), eq(50)))
+                .thenReturn(new Mig8OrderPage(List.of(orderWithLines(
+                        "2026/06/20-partial-recover", List.of(unresolvedFirst, unresolvedSecond))), true))
+                .thenReturn(new Mig8OrderPage(List.of(orderWithLines(
+                        "2026/06/20-partial-recover", List.of(resolvedFirst, unresolvedSecond))), true));
+        when(productClient.lookup(anyList())).thenReturn(List.of(productSummary(PRODUCT_A)));
+
+        assertThat(importService.importMig8Orders(50).createdCount()).isEqualTo(1);
+        Mig8OrderImportResult second = importService.importMig8Orders(50);
+
+        assertThat(second.skippedCount()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM partner_order_lines WHERE product_id IS NULL", Integer.class))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM partner_order_lines WHERE product_id IS NOT NULL", Integer.class))
+                .isEqualTo(1);
     }
 
     private List<Mig8OrderExport> successOrders() {
@@ -163,6 +248,19 @@ class Mig8OrderImportServiceIT extends AbstractPostgresIT {
                 linkedSlipNo,
                 "EXT-" + orderNo,
                 lines);
+    }
+
+    private Mig8OrderExport orderWithLines(String orderNo, List<Mig8OrderLineExport> lines) {
+        BigDecimal supply = lines.stream()
+                .map(Mig8OrderLineExport::supplyAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal vat = lines.stream()
+                .map(Mig8OrderLineExport::vatAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new Mig8OrderExport(
+                orderNo, PARTNER_ID, "삼한 테스트", "담당자", "IN_PROGRESS",
+                LocalDate.of(2026, 7, 31), "월말", "미해소 회귀", supply, vat,
+                null, "EXT-" + orderNo, lines);
     }
 
     private Mig8OrderLineExport line(int lineNo, UUID productId) {

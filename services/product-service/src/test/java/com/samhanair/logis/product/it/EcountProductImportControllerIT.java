@@ -3,6 +3,7 @@ package com.samhanair.logis.product.it;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,7 +48,7 @@ class EcountProductImportControllerIT extends AbstractPostgresIT {
                         Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
                 .thenReturn(true);
         when(importer.importCsv(any(InputStream.class), any(InputStream.class), any(InputStream.class), anyString()))
-                .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of()));
+                .thenReturn(new EcountProductImportResult(1, 1, 0, 0, 0, 0, 1, "HASH", List.of(), 0, List.of()));
 
         mockMvc.perform(multipart("/admin/products/imports/ecount")
                         .file(file("itemFile"))
@@ -57,6 +58,29 @@ class EcountProductImportControllerIT extends AbstractPostgresIT {
                         .header("X-User-Role", "MASTER")
                         .with(csrf()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(authorities = "ROLE_MASTER")
+    void relation_xlsx_is_rejected_instead_of_reported_as_success() throws Exception {
+        Mockito.lenient().when(dynamicPermissionClient.canEdit(anyString(), anyString())).thenReturn(true);
+        Mockito.lenient().when(dynamicPermissionClient.check(
+                        Mockito.any(UUID.class), Mockito.anyString(), Mockito.any(PermissionAction.class)))
+                .thenReturn(true);
+
+        mockMvc.perform(multipart("/admin/products/imports/ecount")
+                        .file(file("itemFile"))
+                        .file(new MockMultipartFile(
+                                "relationFile",
+                                "relation.xlsx",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                new byte[] {'P', 'K', 3, 4}))
+                        .header("X-User-Id", "10000000-0000-0000-0000-000000000105")
+                        .header("X-User-Role", "MASTER")
+                        .with(csrf()))
+                .andExpect(status().isUnprocessableEntity());
+
+        verifyNoInteractions(importer);
     }
 
     private static MockMultipartFile file(String name) {

@@ -2,7 +2,7 @@
  * @file SP-08-3-4 dispatch SMS history contract.
  *
  * Local-only - verifies notification-service history DB/API contract, desktop
- * static contract, and mock UI snippets for preview/send/SEND_AUDIT.
+ * static contract, and mock UI snippets for preview/manual save.
  */
 import { expect, test, type Page } from '@playwright/test'
 import * as fs from 'fs'
@@ -35,13 +35,13 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     const controller = read('services/notification-service/src/main/java/com/samhanair/logis/notification/controller/DispatchSmsSaveHistoryController.java')
     const repository = read('services/notification-service/src/main/java/com/samhanair/logis/notification/repository/DispatchSmsSaveHistoryRepository.java')
     const migration = read('services/notification-service/src/main/resources/db/migration/V4__add_dispatch_sms_save_history.sql')
+    const retirementMigration = read('services/notification-service/src/main/resources/db/migration/V7__retire_dispatch_sms_send_audit_history.sql')
     const errorCode = read('shared/common/src/main/java/com/samhanair/logis/common/exception/ErrorCode.java')
 
     expect(controller).toContain('@RequestMapping("/admin/notifications/dispatch-sms/history")')
     expect(controller).toContain('@RequirePermission(page = PAGE_CODE')
-    expect(controller).toContain('PAGE_CODE = "dispatch.sms-save-history"')
+    expect(controller).toContain('PAGE_CODE = "notification.dispatch-sms.display"')
     expect(controller).toContain('@GetMapping("/latest")')
-    expect(controller).toContain('SEND_AUDIT')
     expect(repository).toContain('findByIdAndCreatedBy(UUID id, String createdBy)')
     expect(service).toContain('MAX_RESPONSE_PAYLOAD_BYTES = 100 * 1024')
     expect(service).toContain('MAX_AUTO_LATEST_RETRIES = 3')
@@ -57,11 +57,14 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     expect(errorCode).toContain('DISPATCH_SMS_HISTORY_PAYLOAD_TOO_LARGE(HttpStatus.UNPROCESSABLE_ENTITY')
     expect(migration).toContain('CREATE TABLE dispatch_sms_save_history')
     expect(migration).toContain("CHECK (save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED', 'SEND_AUDIT'))")
+    expect(retirementMigration).toContain("save_mode = 'SEND_AUDIT'")
     expect(migration).toContain('ux_dispatch_sms_save_history_auto_latest_per_user_program')
     expect(migration).toContain("WHERE is_deleted = FALSE AND save_mode = 'AUTO_LATEST'")
+    expect(retirementMigration).toContain("WHERE save_mode = 'SEND_AUDIT'")
+    expect(retirementMigration).toContain("CHECK (is_deleted OR save_mode IN ('AUTO_LATEST', 'MANUAL_NAMED'))")
   })
 
-  test('frontend wires 2 tabs, latest restore, preview auto-save, manual save, and send audit append', () => {
+  test('frontend wires 2 tabs, latest restore, preview auto-save, and manual save', () => {
     const pageSource = read('clients/desktop/src/renderer/routes/DispatchSmsPage.tsx')
     const api = read('clients/desktop/src/renderer/api/dispatchSmsSaveHistoryApi.ts')
     const historyTab = read('clients/desktop/src/renderer/components/DispatchSmsHistoryTab.tsx')
@@ -70,20 +73,14 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
 
     expect(api).toContain('/admin/notifications/dispatch-sms/history')
     expect(api).toContain('/admin/notifications/dispatch-sms/history/latest')
-    expect(api).toContain("DispatchSmsSaveMode = 'AUTO_LATEST' | 'MANUAL_NAMED' | 'SEND_AUDIT'")
+    expect(api).toContain("DispatchSmsSaveMode = 'AUTO_LATEST' | 'MANUAL_NAMED'")
     expect(api).toContain('axios.isAxiosError')
     expect(pageSource).toContain('getLatestDispatchSmsHistory')
     expect(pageSource).toContain("saveMode: 'AUTO_LATEST'")
     expect(pageSource).toContain("saveMode: 'MANUAL_NAMED'")
-    expect(pageSource).toContain("saveMode: 'SEND_AUDIT'")
     expect(pageSource).toContain('previewHistoryPayload(preview, edited)')
     expect(pageSource).toContain('restored.edited ?? buildInitialEdited(restored.preview)')
     expect(pageSource).toContain('dispatchSmsHistoryListQueryKey')
-    expect(pageSource).toContain('variant="warning"')
-    expect(pageSource).toContain('saveSendAudit')
-    expect(pageSource).toContain('정말 실 발송을 진행하시겠습니까?')
-    expect(pageSource).toContain('발송 감사 이력')
-    expect(historyTab).toContain('<option value="SEND_AUDIT">발송 감사</option>')
     expect(historyTab).toContain('dispatchSmsHistoryListQueryKey')
     expect(historyTab).toContain('maskCreatedBy')
     expect(historyTab).toContain('DataGrid')
@@ -112,8 +109,7 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     expect(guarded).not.toMatch(/api\.notion\.com|Notion-Version|@notionhq/)
   })
 
-  test('mock UI: preview restore, manual save dialog, send audit mode, and row restore work on the real route', async ({ page }) => {
-    page.on('dialog', dialog => dialog.accept())
+  test('mock UI: preview restore, manual save, and row restore work on the real route', async ({ page }) => {
     await openDispatchSms(page)
 
     await expect(page.locator('[data-testid="dispatch-sms-history-tab-run"]')).toBeVisible()
@@ -125,17 +121,16 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     await page.locator('[data-testid="dispatch-sms-history-save-button"]').click()
     await expect(page.locator('[data-testid="dispatch-sms-history-topic-input"]')).toBeVisible()
 
-    await page.keyboard.press('Escape').catch(() => {})
-    await page.locator('[data-testid="dispatch-sms-confirm-checkbox"]').check()
-    await page.locator('[data-testid="dispatch-sms-send-button"]').click()
-    await expect(page.locator('[data-testid="dispatch-sms-result-stats"]')).toBeVisible()
+    await page.locator('[data-testid="dispatch-sms-history-topic-input"]').fill('오후 배차 코멘트 점검')
+    await page.getByRole('button', { name: '저장', exact: true }).click()
+    await expect(page.locator('[data-testid="dispatch-sms-history-tab-list"]')).toBeVisible()
 
     await page.locator('[data-testid="dispatch-sms-history-tab-list"]').click()
-    await page.locator('[data-testid="dispatch-sms-history-mode"]').selectOption('SEND_AUDIT')
+    await page.locator('[data-testid="dispatch-sms-history-mode"]').selectOption('MANUAL_NAMED')
     await page.locator('[data-testid="dispatch-sms-history-query"]').click()
-    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText(/감사|발송/)
+    await expect(page.locator('[data-testid="dispatch-sms-history-row-0"]')).toContainText('오후 배차 코멘트 점검')
     await page.locator('[data-testid="dispatch-sms-history-row-0"]').click()
-    await expect(page.locator('[data-testid="dispatch-sms-history-restored-banner"]')).toContainText(/감사|발송/)
+    await expect(page.locator('[data-testid="dispatch-sms-history-restored-banner"]')).toContainText('오후 배차 코멘트 점검')
     await expect(page.locator('[data-testid="dispatch-sms-history-restored-banner"]')).not.toContainText(UUID_REGEX)
   })
 
@@ -147,7 +142,4 @@ test.describe('SP-08-3-4 dispatch SMS history', () => {
     await expect(page.locator('[data-testid="dispatch-sms-preview-button"]')).toBeEnabled()
   })
 
-  // [P1] setContent false-green 제거: SEND_AUDIT rows index-based + UUID-free 보장은
-  // 위 실-라우트 테스트(line 138~163)가 SEND_AUDIT 조회 + dispatch-sms-history-row-0 click
-  // + not.toContainText(UUID_REGEX) 로 동일 보장을 커버하므로 setContent 중복 삭제.
 })

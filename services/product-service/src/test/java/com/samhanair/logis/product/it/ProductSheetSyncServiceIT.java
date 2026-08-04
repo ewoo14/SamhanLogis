@@ -27,12 +27,14 @@ import com.samhanair.logis.product.repository.ProductRepository;
 import com.samhanair.logis.product.repository.ProductSpecRepository;
 import com.samhanair.logis.product.service.ProductSheetSyncService;
 import com.samhanair.logis.product.service.ProductService;
+import com.samhanair.logis.product.service.EcountAliasReservationService;
 import com.samhanair.logis.product.web.dto.UpdateProductClassificationRequest;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,6 +77,9 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private EcountAliasReservationService ecountAliasReservationService;
 
     @Autowired
     private ProductRepository productRepository;
@@ -217,6 +222,27 @@ class ProductSheetSyncServiceIT extends AbstractPostgresIT {
         assertThat(homeTab.softDeleted).isEqualTo(1);
         // soft delete 후 active 조회 X
         assertThat(productRepository.findByModelCodeAndIsDeletedFalse("WILL_VANISH")).isEmpty();
+    }
+
+    @Test
+    void sync_활성_ecount_alias_reservation_중에는_시트_부재_softDelete를_보류한다() throws Exception {
+        when(sheetsClient.readSheetDisplay(anyString(), anyString())).thenReturn(List.of());
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z")).thenReturn(homeMultiRows(
+                row("Reserved Product", "RESERVED_NOSHEET", "", "1,000,000", "", "900,000")
+        ));
+        syncService.syncAll();
+        Product product = productRepository.findByModelCodeAndIsDeletedFalse("RESERVED_NOSHEET").orElseThrow();
+        UUID reservationToken = UUID.fromString("00000000-0000-0000-0000-000000009844");
+        ecountAliasReservationService.reserve(reservationToken, List.of(product.getId()));
+
+        when(sheetsClient.readSheetDisplay("test-sheet-id", "홈멀티_단가인상!A1:Z"))
+                .thenReturn(homeMultiRows());
+        ProductSheetSyncService.TabSyncResult result = syncService.syncAll().byTab.get("홈멀티");
+
+        assertThat(result.softDeleted).isZero();
+        assertThat(result.deferredByEcountReservation).isEqualTo(1);
+        assertThat(productRepository.findByModelCodeAndIsDeletedFalse("RESERVED_NOSHEET")).isPresent();
+        ecountAliasReservationService.release(reservationToken);
     }
 
     @Test

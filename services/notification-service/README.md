@@ -54,9 +54,9 @@ legacy GAS `배차안내문자`의 미리보기/명시 저장/발송 감사 흐�
 | 기존 endpoint | history endpoint | programType | saveMode |
 |---|---|---|---|
 | `POST /admin/notifications/dispatch-batch/preview` | `POST/GET /admin/notifications/dispatch-sms/history` + detail/latest | `DISPATCH_SMS` | `AUTO_LATEST`, `MANUAL_NAMED` |
-| `POST /admin/notifications/dispatch-batch/send` | 동일 table append | `DISPATCH_SMS` | `SEND_AUDIT` |
+| 자동 SMS 발송 endpoint | A안에서 제거됨 | — | — |
 
-`AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 retry 3회 + `REQUIRES_NEW` transaction으로 unique race를 흡수한다. `SEND_AUDIT`는 send 후 append-only audit 용도이며 latest 자동 복원 대상이 아니다. 모든 detail 조회는 `findByIdAndCreatedBy` 사용자 격리를 거치고, 운영자 정리도 hard delete가 아니라 Soft Delete only를 따른다. Aligo 실 API 활성화는 SP-08-6 별도 범위다.
+`AUTO_LATEST`는 사용자+프로그램별 active 1건만 유지하며 retry 3회 + `REQUIRES_NEW` transaction으로 unique race를 흡수한다. `MANUAL_NAMED`는 사용자가 이름을 붙여 append 저장한다. 모든 detail 조회는 `findByIdAndCreatedBy` 사용자 격리를 거치고, 운영자 정리도 hard delete가 아니라 Soft Delete only를 따른다. Aligo 주소록/일반 알림 API의 실 API 활성화는 각 별도 범위다.
 
 ### SP-D7 알림 센터 권한 전환 (2026-05-27)
 

@@ -52,7 +52,11 @@ export function OrderDetailPage() {
         width: '70px',
         align: 'right',
       },
-      { key: 'itemName', header: '품목명' },
+      {
+        key: 'itemName',
+        header: '품목명',
+        render: (row) => <span>{row.itemName}{row.unresolved ? ' (미해소)' : ''}</span>,
+      },
       {
         key: 'quantity',
         header: '수량',
