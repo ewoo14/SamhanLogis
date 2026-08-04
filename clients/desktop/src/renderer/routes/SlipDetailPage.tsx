@@ -63,6 +63,7 @@ import {
   updateSlipDriver,
   type SlipDetail,
   type SlipLineInput,
+  type SlipSourceType,
   type SlipTransitionAction,
   type SlipType,
 } from '../api/slip'
@@ -281,9 +282,10 @@ function slipStatusLabel(status: string): string {
  * status 별 가능 transition 액션 목록 (Slice A 갱신 — INSPECTING 신규).
  * OUTBOUND/INBOUND 차이 (ship/deliver 는 출고전표 한정) 는 mode 로 필터.
  */
-function actionsForStatus(
+export function actionsForStatus(
   status: SlipDetail['status'],
   mode: SlipType,
+  sourceType: SlipSourceType = 'MANUAL',
 ): SlipTransitionAction[] {
   switch (status) {
     case 'DRAFT':
@@ -291,7 +293,9 @@ function actionsForStatus(
     case 'SAVED':
       return ['send', 'cancel']
     case 'SENT':
-      return ['accept', 'reject', 'cancel']
+      return sourceType === 'PARTNER_ORDER'
+        ? ['accept', 'reject']
+        : ['accept', 'reject', 'cancel']
     case 'ACCEPTED':
       return ['process', 'reject']
     case 'PROCESSING':
@@ -307,6 +311,21 @@ function actionsForStatus(
     default:
       return []
   }
+}
+
+export function desktopFooterActions(
+  status: SlipDetail['status'],
+  mode: SlipType,
+  canCollabEdit: boolean,
+  sourceType: SlipSourceType = 'MANUAL',
+): Array<SlipTransitionAction | 'collab-edit'> {
+  const nextPrimaryAction = actionsForStatus(status, mode, sourceType)
+    .find((action) => action !== 'reject' && action !== 'cancel')
+
+  return [
+    ...(nextPrimaryAction ? [nextPrimaryAction] : []),
+    ...(status === 'COMPLETED' && canCollabEdit ? ['collab-edit' as const] : []),
+  ]
 }
 
 const ACTION_LABEL: Record<SlipTransitionAction, string> = {
@@ -1888,7 +1907,7 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   }
 
   const slip = detailQuery.data
-  const possibleActions = actionsForStatus(slip.status, mode)
+  const possibleActions = actionsForStatus(slip.status, mode, slip.sourceType ?? 'MANUAL')
   const canRejectSlip = possibleActions.includes('reject')
     && canAccess('slip.reject', 'update')
   const canCancelSlip = possibleActions.includes('cancel')
@@ -2066,6 +2085,13 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
   /** 첫 가능한 정상 transition (reject/cancel 제외) — 하단 "완료" 버튼이 호출. */
   const nextPrimaryAction
     = possibleActions.find((a) => a !== 'reject' && a !== 'cancel') ?? null
+
+  const desktopFooterActionSet = desktopFooterActions(
+    slip.status,
+    mode,
+    canCollabEdit,
+    slip.sourceType ?? 'MANUAL',
+  )
 
   /** 하단 "전표 복사" — 사용자 확인 후 신규 DRAFT 생성. */
   const handleDuplicate = () => {
@@ -4326,25 +4352,24 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
         >
           전표 복사
         </Button>
-        <Button
-          variant="ghost"
-          disabled={
-            !possibleActions.includes('cancel')
-            || !canAccess(slipActionPageCode('cancel').pageCode, 'update')
-            || transitionMutation.isPending
-          }
-          onClick={handleDeleteSlip}
-          title={
-            !possibleActions.includes('cancel')
-              ? '현재 단계에서는 삭제(취소) 불가'
-              : !canAccess(slipActionPageCode('cancel').pageCode, 'update')
+        {possibleActions.includes('cancel') ? (
+          <Button
+            variant="ghost"
+            disabled={
+              !canAccess(slipActionPageCode('cancel').pageCode, 'update')
+              || transitionMutation.isPending
+            }
+            onClick={handleDeleteSlip}
+            title={
+              !canAccess(slipActionPageCode('cancel').pageCode, 'update')
                 ? '삭제(취소) 권한이 없습니다'
                 : undefined
-          }
-        >
-          삭제
-        </Button>
-        {slip.status === 'COMPLETED' && canCollabEdit ? (
+            }
+          >
+            삭제
+          </Button>
+        ) : null}
+        {desktopFooterActionSet.includes('collab-edit') ? (
           <Button
             variant="primary"
             data-testid="slip-collab-edit-footer"
@@ -4352,26 +4377,25 @@ export function SlipDetailPage({ mode }: SlipDetailPageProps) {
           >
             수정
           </Button>
-        ) : (
-          <Button
-            variant="primary"
-            disabled={
-              !nextPrimaryAction
-              || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update')
-              || transitionMutation.isPending
-            }
-            onClick={handleAdvanceStage}
-            title={
-              nextPrimaryAction
-                ? `다음 단계: ${transitionActionLabel(slip.status, nextPrimaryAction)}`
-                : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
-            }
-          >
-            {nextPrimaryAction
-              ? `완료 (${transitionActionLabel(slip.status, nextPrimaryAction)})`
-              : '완료'}
-          </Button>
-        )}
+        ) : null}
+        <Button
+          variant="primary"
+          disabled={
+            !nextPrimaryAction
+            || !canAccess(slipActionPageCode(nextPrimaryAction).pageCode, 'update')
+            || transitionMutation.isPending
+          }
+          onClick={handleAdvanceStage}
+          title={
+            nextPrimaryAction
+              ? `다음 단계: ${transitionActionLabel(slip.status, nextPrimaryAction)}`
+              : '현재 단계에서 진행 가능한 다음 단계가 없습니다'
+          }
+        >
+          {nextPrimaryAction
+            ? `완료 (${transitionActionLabel(slip.status, nextPrimaryAction)})`
+            : '완료'}
+        </Button>
       </div>
       ) : null}
 

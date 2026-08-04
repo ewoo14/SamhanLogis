@@ -1,6 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import {
+  actionsForStatus,
+  desktopFooterActions,
+} from './SlipDetailPage'
 
 const sourcePath = path.resolve(__dirname, 'SlipDetailPage.tsx')
 
@@ -42,5 +46,23 @@ describe('SlipDetailPage lifecycle contract', () => {
 
     expect(controller).toContain('if (SlipType.INBOUND.equals(slipType))')
     expect(controller).toContain('requireAccountPermission(callerHeader, INBOUND_INSPECTION_PAGE_CODE, PermissionAction.UPDATE)')
+  })
+
+  it('RED-A: 일반 SENT 전표는 취소 액션을 노출한다', () => {
+    expect(actionsForStatus('SENT', 'OUTBOUND', 'MANUAL')).toContain('cancel')
+  })
+
+  it('RED-B: PARTNER_ORDER SENT 전표는 취소 액션을 노출하지 않는다', () => {
+    expect(actionsForStatus('SENT', 'OUTBOUND', 'PARTNER_ORDER')).not.toContain('cancel')
+  })
+
+  it('RED-A: COMPLETED 데스크톱은 OUTBOUND ship과 INBOUND confirm 전이를 실행할 수 있다', () => {
+    expect(desktopFooterActions('COMPLETED', 'OUTBOUND', true)).toContain('ship')
+    expect(desktopFooterActions('COMPLETED', 'INBOUND', true)).toContain('confirm')
+  })
+
+  it('RED-B: COMPLETED 데스크톱은 협업 편집 진입도 함께 유지한다', () => {
+    expect(desktopFooterActions('COMPLETED', 'OUTBOUND', true)).toContain('collab-edit')
+    expect(desktopFooterActions('COMPLETED', 'INBOUND', true)).toContain('collab-edit')
   })
 })

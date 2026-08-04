@@ -3,6 +3,7 @@ package com.samhanair.logis.slip.web.dto;
 import com.samhanair.logis.slip.domain.DeliveryTag;
 import com.samhanair.logis.slip.domain.InspectionReadyStatus;
 import com.samhanair.logis.slip.domain.Slip;
+import com.samhanair.logis.slip.domain.SlipSourceType;
 import com.samhanair.logis.slip.domain.SlipStatus;
 import com.samhanair.logis.slip.domain.SlipType;
 import com.samhanair.logis.slip.domain.schedule.DeliverySchedule;
@@ -56,6 +57,8 @@ public record SlipDetailResponse(
         LocalDate slipDate,
         int seqNo,
         SlipStatus status,
+        /** 발행 출처 — FE가 subtype별 lifecycle 액션을 정확히 계산할 때 사용한다. */
+        SlipSourceType sourceType,
         UUID partnerId,
         String partnerName,
         String partnerCode,
@@ -192,6 +195,7 @@ public record SlipDetailResponse(
                 slip.getSlipDate(),
                 slip.getSeqNo(),
                 slip.getStatus(),
+                slip.getSourceType(),
                 slip.getPartnerId(),
                 slip.getPartnerName(),
                 slip.getPartnerCode(),
