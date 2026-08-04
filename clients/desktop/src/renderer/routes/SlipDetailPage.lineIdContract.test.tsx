@@ -30,7 +30,11 @@ import {
   syncDetailAmountToDoc,
   toPurchaseEditLines,
 } from './SlipDetailPage'
-import { toServerLineIdSet } from '../realtime/coeditLineIds'
+import {
+  coeditLineIdsAreStale,
+  reseedCoeditLineIds,
+  toServerLineIdSet,
+} from '../realtime/coeditLineIds'
 import { editLineVat, editSlipLineAmount, recalculateLineVat } from '../utils/lineVat'
 import { removeLinePreservingMinimum } from '../utils/autoBlankRow'
 import type { SlipDetail } from '../api/slip'
@@ -161,7 +165,7 @@ describe('SlipDetailPage — lineId 왕복 계약 (R8-FE-2)', () => {
       /testIdPath=\{detailCoeditTestIdPath\(index, '([^']+)'\)\}/g,
     ), (match) => match[1])
     expect(detailDomPaths).toEqual([
-      'productName', 'modelName', 'specification', 'quantity', 'unitPrice', 'supplyAmount', 'vatAmount', 'lineTotalWithVat',
+      'modelName', 'specification', 'quantity', 'unitPrice', 'supplyAmount', 'vatAmount', 'lineTotalWithVat',
       'productName', 'modelName', 'specification', 'quantity', 'unitPrice', 'supplyAmount', 'vatAmount', 'lineTotalWithVat',
     ])
     const inputSource = readFileSync(
@@ -484,6 +488,134 @@ describe('판매전표 수정 모드 trailing 빈행 계약', () => {
     )
     expect(afterDeletingAll).toHaveLength(1)
     expect(afterDeletingAll[0]?.productId).toBe('')
+  })
+})
+
+describe('R7 수정 화면 확정 가능한 빈행·협업 lineId 계약', () => {
+  it('RED-A1: 매출 수정 표의 품목 셀은 ProductAutocomplete로 빈행 품목을 확정하고 저장 필드에 반영한다', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./SlipDetailPage.tsx', import.meta.url)),
+      'utf8',
+    )
+    expect(source).toMatch(/<ProductAutocomplete[\s\S]*onChange=/)
+    expect(source).toMatch(/<ProductAutocomplete[\s\S]*resultSelectionMode=\{null\}/)
+    expect(source).toMatch(/productId:[\s\S]*product\.id[\s\S]*productName:[\s\S]*product\.productName[\s\S]*modelName:[\s\S]*product\.modelName/)
+
+    const confirmed = {
+      lineId: null,
+      productId: 'product-confirmed',
+      productName: '확정 품목',
+      modelName: 'MODEL-CONFIRMED',
+      specification: '규격-A',
+      quantity: 7,
+      unitPrice: '12345',
+      note: 'USER-NOTE',
+    }
+    expect(buildDetailLinePayload(confirmed as never)).toMatchObject({
+      productId: 'product-confirmed',
+      productName: '확정 품목',
+      modelName: 'MODEL-CONFIRMED',
+      specification: '규격-A',
+      quantity: 7,
+      unitPrice: '12345',
+      note: 'USER-NOTE',
+    })
+  })
+
+  it('RED-A2: trailing 미확정 행의 client lineId는 협업 stale 판정과 재시드에 참여하지 않는다', async () => {
+    const provider = await makeProvider()
+    seedRows(provider, serverLines)
+    provider.replaceItems([
+      ...serverLines.map((line, index) => ({
+        lineId: line.id,
+        productId: line.productId,
+        productName: `품목${index + 1}`,
+      })),
+      { productId: '', productName: '입력 중', lineId: '' },
+    ])
+
+    expect(coeditLineIdsAreStale(provider, knownServerLineIds)).toBe(false)
+    reseedCoeditLineIds(provider, [SERVER_LINE_1, SERVER_LINE_2, SERVER_LINE_3])
+    expect(provider.getItemValue(0, 'lineId')).toBe(SERVER_LINE_1)
+    expect(provider.getItemValue(2, 'lineId')).toBe(SERVER_LINE_3)
+    expect(provider.getItemValue(3, 'productId')).toBe('')
+    expect(knownServerLineIds.has(provider.getItemValue(3, 'lineId'))).toBe(false)
+    provider.destroy()
+  })
+
+  it('RED-B1: 미확정 빈행은 품목·내용을 입력해도 저장 payload에서 제외된다', () => {
+    const blank = {
+      lineId: null,
+      productId: '',
+      productName: 'USER-INPUT-PRODUCT',
+      modelName: 'USER-MODEL',
+      specification: 'USER-SPEC',
+      quantity: 7,
+      unitPrice: '12345',
+      note: 'USER-NOTE',
+    }
+    expect(persistedDetailLines([blank as never])).toEqual([])
+  })
+
+  it('RED-B2: 기존 저장 라인만 있는 hydrate도 마지막에 빈행 하나를 유지하는 기존 계약을 보존한다', () => {
+    const slip = {
+      lines: [{
+        id: SERVER_LINE_1,
+        productId: PRODUCT_1,
+        productName: '품목1',
+        modelName: 'MODEL-1',
+        quantity: 1,
+        unitPrice: '1000',
+        lineTotal: '1000',
+      }],
+    } as unknown as SlipDetail
+    const hydrated = toPurchaseEditLines(slip)
+    expect(hydrated).toHaveLength(2)
+    expect(hydrated[0]!.productId).toBe(PRODUCT_1)
+    expect(hydrated[1]!.productId).toBe('')
+    expect(persistedDetailLines(hydrated)).toHaveLength(1)
+  })
+
+  it('새 조합: 품목만 확정하고 수량을 비워도 확정 행은 payload에 남고 quantity=0으로 명시된다', () => {
+    const selected = {
+      lineId: null,
+      productId: PRODUCT_1,
+      productName: '품목1',
+      modelName: 'MODEL-1',
+      specification: '',
+      quantity: 0,
+      unitPrice: '0',
+      note: '',
+    }
+    expect(persistedDetailLines([selected as never])).toHaveLength(1)
+    expect(buildDetailLinePayload(selected as never).quantity).toBe(0)
+  })
+
+  it('새 조합: 확정 품목을 다시 지우면 그 행은 미확정으로 돌아가 payload에서 제외된다', () => {
+    expect(persistedDetailLines([{
+      lineId: null,
+      productId: '',
+      productName: '',
+      modelName: '',
+      specification: '',
+      quantity: 7,
+      unitPrice: '12345',
+      note: '입력 중',
+    } as never])).toEqual([])
+  })
+
+  it('새 조합: 협업 중 상대가 내가 고르는 미확정 행을 삭제해도 서버 라인 계보는 보존된다', async () => {
+    const provider = await makeProvider()
+    seedRows(provider, serverLines)
+    provider.replaceItems([
+      ...serverLines.map((line) => ({ lineId: line.id, productId: line.productId })),
+      { lineId: '', productId: '', productName: '입력 중' },
+    ])
+    const blankLineId = provider.getItemValue(3, 'lineId')
+    provider.removeItem(blankLineId)
+    const next = coeditLinesToEditLines(provider, editLinesFrom(serverLines), knownServerLineIds)
+    expect(next.map((line) => line.lineId)).toEqual([SERVER_LINE_1, SERVER_LINE_2, SERVER_LINE_3])
+    provider.destroy()
   })
 })
 
